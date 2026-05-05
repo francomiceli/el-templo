@@ -82,7 +82,7 @@
 
           <!-- Future: bookings view -->
           <template v-else-if="!isPastOrToday">
-            <q-item v-if="activeBookings.length === 0">
+            <q-item v-if="activeBookings.length === 0 && waitlistBookings.length === 0">
               <q-item-section class="text-grey-5 text-italic text-center">
                 Sin reservas para este horario
               </q-item-section>
@@ -133,6 +133,38 @@
                       :label="getBookingStatusLabel(booking.status)"
                     />
                     <q-badge color="warning" label="PRUEBA" />
+                    <q-btn
+                      flat
+                      dense
+                      round
+                      icon="delete"
+                      color="negative"
+                      size="sm"
+                      @click="onRemoveBooking(booking.id)"
+                    >
+                      <q-tooltip>Eliminar reserva</q-tooltip>
+                    </q-btn>
+                  </div>
+                </q-item-section>
+              </q-item>
+            </template>
+
+            <!-- Lista de Espera -->
+            <template v-if="waitlistBookings.length > 0">
+              <q-item-label header> Lista de Espera ({{ waitlistBookings.length }}) </q-item-label>
+              <q-item v-for="booking in waitlistBookings" :key="booking.id">
+                <q-item-section>
+                  <q-item-label>{{ booking.memberName }}</q-item-label>
+                  <q-item-label v-if="booking.waitlistPosition" caption>
+                    Posición {{ booking.waitlistPosition }}
+                  </q-item-label>
+                </q-item-section>
+                <q-item-section side>
+                  <div class="row items-center q-gutter-xs">
+                    <q-badge
+                      :color="getBookingStatusColor(booking.status)"
+                      :label="getBookingStatusLabel(booking.status)"
+                    />
                     <q-btn
                       flat
                       dense
@@ -469,12 +501,13 @@ const canRegisterTrial = computed(() => !isPastOrToday.value || isToday.value);
 const activeBookings = computed(() => {
   if (!slotDetail.value) return [];
   return slotDetail.value.bookings.filter(
-    (b) =>
-      b.status === 'reservado' ||
-      b.status === 'qr_escaneado' ||
-      b.status === 'confirmado' ||
-      b.status === 'lista_espera'
+    (b) => b.status === 'reservado' || b.status === 'qr_escaneado' || b.status === 'confirmado'
   );
+});
+
+const waitlistBookings = computed(() => {
+  if (!slotDetail.value) return [];
+  return slotDetail.value.bookings.filter((b) => b.status === 'lista_espera' && !b.isTrial);
 });
 
 const activeRegularBookings = computed(() => activeBookings.value.filter((b) => !b.isTrial));
