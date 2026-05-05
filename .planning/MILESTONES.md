@@ -395,3 +395,72 @@ _Last phase: 81_
 ---
 
 _Last phase: 88_
+
+## v5.3.2 — Post-v5.3.1 Live Test Fixes
+
+**Completed:** 2026-04-16 (archived 2026-05-05)
+**Phases:** 89-92 (4 phases, 5 plans, 13 tasks)
+**Requirements:** 12/12 complete (all `[x]` in traceability table)
+**Timeline:** 2026-04-14 → 2026-04-16 (3 days)
+**Git range:** f6ca1e67 → 43d69bab
+**Files changed:** 37 (+6,206 / -165 LOC)
+
+### What Shipped
+
+**Knowledge Fixes (Phase 89)**
+
+- "Planes y Precios" removed from PB1 lead prompt (`discovery` tag dropped) — eliminates price injection that contradicted the E2A "no prices during discovery" rule
+- PB1.E1A lead prompt now contains zero membership plan price numbers (Flex/Foundation/Foundation+/Performance); $20,000 trial class price retained as Boarding Pass benefit anchor only
+- Method elevator pitch (95 chars, discovery-gated) reachable on "¿qué es el templo?" / "¿qué método usan?" — uses ≥2 of 3 team hooks ("método internacional", "cuatro niveles simultáneos", "no salirse del grupo")
+- Canonical Boarding Pass surfaces BOTH benefits clearly — free first trial class AND discounted first membership (precios Zero)
+- Universal price-deferral framing rule added to `system-prompt.ts`
+
+**Stage Heuristic Tightening (Phase 90)**
+
+- Category-diversity content gate (4 semantic categories, ≥2 match) for PB1.E1A + PB1.E1B — replaces single-keyword `hasStageSpecificContent` trigger
+- AND composition with `turn_count ≥ 2` in `discoveryAnswered` for E1A/E1B only (does NOT advance on single-word answers like "primera vez")
+- `discoveryTurnCount` optional field on `PlaybookSessionState` (backward-compat)
+- Infinite-loop escape hatch: N=3 substantive turns force-advance with greppable Pino warn
+
+**PB1 Objection Handling (Phase 91)**
+
+- Hybrid mechanism for OBJN-02: `softRejection` regex signal in `computeAdvanceSignals` + WHY/BACK-OFF conditional Spanish framing rules in `system-prompt.ts` — defense-in-depth, NOT a new stage, NOT a universal rule
+- 4 live-test variant phrases caught ("no me interesa", "no creo", "no voy a hacerlo", "en serio no me interesa")
+- Mica asks WHY before closing (OBJN-01) — does not default to "tomá tu tiempo, saludos"
+- PB1.E4 REGLA FUERTE preserved (no escalation regression)
+- softRejection turns do NOT increment `discoveryTurnCount` — preserves Phase 90 STAGE-02 semantics
+
+**Regression Lock + Live Test Validation (Phase 92)**
+
+- `v5-3-2-regression.test.ts` behavioural-integration suite — one describe per RLOK-ID, alphabetical-by-ID, milestone-lock isolated from prior-phase tests
+- $80k SALES_TECHNIQUES rhetorical leak closed (RLOK-04) — rewritten to non-numeric language
+- 606/606 suite passing, tsc clean, zero regressions in QT11-18 fixes and v5.3.1 state-gating/prompt-size behavior
+- PB1.E1A snapshot fixture intentionally regenerated (18,275 → 18,370 JS-chars after mid-test side commit) per v5.3.1 update discipline
+- Live-test PASS across 4 paths on WhatsApp prod (gpt-4o-mini): price-during-discovery, method question, discovery-rejection arc, Boarding Pass dual-benefit
+- Mid-test side commit `0a5b637e` strengthened price-deferral rule after two post-RLOK-04 hallucinations ($40,000 outright + $20,000-trial mis-attribution as Flex monthly)
+
+### Requirements Completed
+
+- KFIX-01 through KFIX-04 (knowledge fixes)
+- STAGE-01, STAGE-02 (stage heuristic tightening)
+- OBJN-01, OBJN-02 (PB1 objection handling)
+- RLOK-01 through RLOK-04 (regression lock + live test validation)
+
+**Total:** 12 requirements
+
+### Key Decisions
+
+- Targeted behavioral fixes only — no state-machine redesign, no new playbooks, no model-driven stage detector (reserved for v5.4)
+- Linear phase dependencies 89 → 90 → 91 → 92 — knowledge fixes before stage heuristics before objection handling before regression lock, so combined behavior is testable in the right order
+- Hybrid mechanism for OBJN-02 (signal + conditional framing rule) over alternatives (new stage / universal rule) — defense-in-depth, mirrors Phase 89 KFIX-01 + price-deferral pattern
+- Mid-test side commits for direct-extension rule fixes (~100 chars) within the active phase rather than spawning Phase N.1 — precedent set in 92-01 (RLOK-04 SALES_TECHNIQUES rewrite), reused in 92-02 (Limites bullet enumeration)
+- "Nunca inventes precios" needed explicit carve-out enumeration — gpt-4o-mini interpreted general rule narrowly and permitted mis-attribution; strengthened bullet enumerates all forbidden behaviours
+- 4 × `it.skip` → `it()` with verdict-reference test names — RLOK-03 live-test gate visible in pnpm test output as 4 passing tests rather than hidden as skipped
+
+### Empirical Close
+
+v5.3.2 shipped without `/gsd:audit-milestone` — empirical close (RLOK-03 live-test ALL PASS on WhatsApp prod + 606/606 deterministic suite) was deemed stronger than an audit would produce. Post-v5.3.2 live test surfaced 7 new issues (5 BUGs + 2 BACKLOG items) in different layers (handler concurrency, OpenAI latency, booking tools, context-awareness, graceful degradation) — out of v5.3.2's RLOK scope, scoped into v5.3.3.
+
+---
+
+_Last phase: 92_
