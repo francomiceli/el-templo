@@ -1747,6 +1747,18 @@ export class SubscriptionService {
         })
         .where(eq(schema.subscriptions.id, sub.id));
 
+      // Phase 112 D-16: cascade pause to all active enrollments tied to this
+      // sub (every source: plan_linked, plan_bundle, admin_addon). Closes
+      // the pre-Phase-112 gap where pauseSubscription left enrollments
+      // in 'active' state. Runs inside the existing tx so a failure rolls
+      // back the sub status update. Soft DI: when EnrollmentService is not
+      // injected (legacy direct-instantiation tests), skip the cascade —
+      // pre-Phase-112 behavior is preserved (Rule 3, mirrors Plan 02
+      // optional-DI policy).
+      if (this.enrollmentService) {
+        await this.enrollmentService.pauseForSubscription(sub.id, tx);
+      }
+
       await this.recomputeUserStatus(userId, tx);
     });
 
@@ -1814,6 +1826,16 @@ export class SubscriptionService {
         .update(schema.subscriptions)
         .set(updateData)
         .where(eq(schema.subscriptions.id, sub.id));
+
+      // Phase 112 D-17: un-pause enrollments that were paused by this sub.
+      // Cancelled / completed / expired rows are NOT resurrected — only the
+      // last-paused state is reverted to active. Soft DI: when
+      // EnrollmentService is not injected (legacy direct-instantiation
+      // tests), skip the cascade (mirrors pauseSubscription + Plan 02
+      // optional-DI policy).
+      if (this.enrollmentService) {
+        await this.enrollmentService.resumeForSubscription(sub.id, tx);
+      }
 
       await this.recomputeUserStatus(userId, tx);
     });
@@ -2247,14 +2269,23 @@ export class SubscriptionService {
       targetPlan.priceRegular - proration.remainingValue,
     );
 
-    // Phase 112-02: tear down the outgoing sub's enrollments BEFORE closing
-    // it. Runs on this.db (not in the new-sub tx) by design — we want the
-    // teardown committed so the auto-enroll inside the new-sub tx sees a
-    // clean slate. Generalized across all sources (was bundle-only via
-    // tearDownBundleEnrollments) — driven by subscription_id so it covers
-    // plan_linked, plan_bundle, and admin_addon rows symmetrically.
+    // Phase 112-02 + 03: tear down the outgoing sub's plan-bound enrollments
+    // BEFORE closing it. Runs on this.db (not in the new-sub tx) by design
+    // — we want the teardown committed so the auto-enroll inside the
+    // new-sub tx sees a clean slate, and so tearDown's protection logic
+    // (which scans for OTHER active|paused subs of the user) doesn't see
+    // the new sub as a "protector" of the old plan's rows.
+    //
+    // Phase 112-03 (Rule 1 fix vs Plan-as-written): pass
+    // excludeSources=['admin_addon'] so admin add-on rows attached to the
+    // closing sub survive this teardown — they will be relocated to the
+    // new sub by `transferAddons` inside the new-sub tx below (D-19).
+    // Without this exclusion, admin_addons would be cancelled here and
+    // transferAddons would find nothing to move (silent D-19 violation).
     await this.requireEnrollmentService().tearDownForSubscription(
       existingSub.id,
+      undefined,
+      { excludeSources: ["admin_addon"] },
     );
 
     // Close old subscription with status='changed'.
@@ -2399,11 +2430,11 @@ export class SubscriptionService {
 
         // Phase 112-02: program enrollment for the new plan flows through
         // EnrollmentService — single call covers both linkedProgramId and
-        // grantsAllPrograms branches. The OLD plan's enrollment was already
-        // torn down above by tearDownForSubscription(existingSub.id) (which
-        // is driven by subscription_id, not plan flags), so no inline cancel
-        // block is needed here. Guarded by plan flags so plans with neither
-        // binding skip the chokepoint cleanly (matches assignPlan precedent).
+        // grantsAllPrograms branches. The OLD plan's plan-bound rows were
+        // already torn down above by tearDownForSubscription(existingSub.id,
+        // {excludeSources:['admin_addon']}), so no inline cancel block is
+        // needed here. Guarded by plan flags so plans with neither binding
+        // skip the chokepoint cleanly (matches assignPlan precedent).
         if (targetPlan.linkedProgramId || targetPlan.grantsAllPrograms) {
           await this.requireEnrollmentService().enrollFromPlan(
             userId,
@@ -2416,6 +2447,19 @@ export class SubscriptionService {
             tx,
           );
         }
+
+        // Phase 112 D-19: transfer admin add-ons from the closing sub to
+        // the new sub. Re-charging is NOT done (decision A). plan_linked /
+        // plan_bundle enrollments are not transferred — they were torn
+        // down above (tearDown excluded admin_addon so those rows are
+        // still tied to existingSub.id and ready to move). enrollFromPlan
+        // ran first so any new plan-bound rows are wired to subId; this
+        // step now relocates the surviving admin_addon rows.
+        await this.requireEnrollmentService().transferAddons(
+          existingSub.id,
+          subId,
+          tx,
+        );
 
         // ── Recompute user.status (R5/D-01) ──
         await this.recomputeUserStatus(userId, tx);
@@ -3411,6 +3455,17 @@ export class SubscriptionService {
 
     // If there's no predecessor (shouldn't happen for scheduled), we're done.
     if (!scheduled.previousSubscriptionId) return;
+
+    // Phase 112 D-19: transfer admin add-ons from the predecessor sub to
+    // the freshly-activated successor BEFORE any teardown below cancels
+    // them. Runs on this.db (no tx — matches the existing best-effort
+    // semantics of activateScheduledSub). Idempotent: re-running is safe
+    // because the source sub no longer holds those rows after the first
+    // pass. No-op when there are no add-ons (D-20).
+    await this.requireEnrollmentService().transferAddons(
+      scheduled.previousSubscriptionId,
+      scheduled.id,
+    );
 
     const [prevSub] = await this.db
       .select({

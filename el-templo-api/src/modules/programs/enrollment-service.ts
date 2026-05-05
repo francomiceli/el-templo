@@ -258,6 +258,13 @@ export class EnrollmentService {
    * fallback preserves that semantics so phase 111 regression tests pass
    * without modification.
    *
+   * Phase 112-03 (D-19 support): callers can pass `excludeSources` to keep
+   * specific source types alive across the teardown. The `changePlanNow` /
+   * `activateScheduledSub` flows pass `['admin_addon']` so admin add-ons
+   * survive the closing sub's teardown and can then be relocated to the
+   * new sub via `transferAddons`. Default = empty (preserves D-18:
+   * cancel/expire teardowns ALL sources, including admin_addon).
+   *
    * Algorithm:
    *   1. Resolve the sub's userId + planId + plan flags. Silent return if
    *      sub missing.
@@ -266,7 +273,8 @@ export class EnrollmentService {
    *      `grantsAllPrograms=true`, every program is protected.
    *   3. Select active|paused enrollments either (a) owned by this sub via
    *      subscription_id, OR (b) matching the cancelled sub's plan binding
-   *      with subscription_id IS NULL (legacy-row fallback).
+   *      with subscription_id IS NULL (legacy-row fallback). Filter out
+   *      rows whose source is in `excludeSources`.
    *   4. Filter out rows whose programId is protected.
    *   5. Cancel survivors atomically (`status='cancelled', cancelledAt=NOW`).
    *   6. NULL `users.current_program_enrollment_id` if it pointed to any
@@ -275,8 +283,14 @@ export class EnrollmentService {
   async tearDownForSubscription(
     subscriptionId: number,
     tx?: TxHandle,
+    options?: {
+      excludeSources?: ReadonlyArray<
+        "plan_linked" | "plan_bundle" | "admin_addon"
+      >;
+    },
   ): Promise<void> {
     const runner = this.runner(tx);
+    const excludeSet = new Set(options?.excludeSources ?? []);
 
     // Step 1 — resolve userId + plan flags. Silent return if sub missing.
     const [sub] = await runner
@@ -329,11 +343,14 @@ export class EnrollmentService {
     );
 
     // Step 3a — owned enrollments via subscription_id (the post-Phase-112
-    // canonical wiring).
+    // canonical wiring). `source` projected so the excludeSources filter
+    // below can drop sources the caller wants to preserve (e.g. admin_addon
+    // during plan-change so transferAddons can relocate them).
     const ownedEnrollments = await runner
       .select({
         id: schema.programEnrollments.id,
         programId: schema.programEnrollments.programId,
+        source: schema.programEnrollments.source,
       })
       .from(schema.programEnrollments)
       .where(
@@ -348,12 +365,17 @@ export class EnrollmentService {
     // binding. Bundle (grantsAllPrograms) sweeps every such row; linked
     // (linkedProgramId) only the matching programId. Mirrors the legacy
     // helpers which scanned by user+plan, not by subscription_id.
-    let legacyOrphanRows: Array<{ id: number; programId: number }> = [];
+    let legacyOrphanRows: Array<{
+      id: number;
+      programId: number;
+      source: "plan_linked" | "plan_bundle" | "admin_addon";
+    }> = [];
     if (sub.planGrantsAllPrograms) {
       legacyOrphanRows = await runner
         .select({
           id: schema.programEnrollments.id,
           programId: schema.programEnrollments.programId,
+          source: schema.programEnrollments.source,
         })
         .from(schema.programEnrollments)
         .where(
@@ -368,6 +390,7 @@ export class EnrollmentService {
         .select({
           id: schema.programEnrollments.id,
           programId: schema.programEnrollments.programId,
+          source: schema.programEnrollments.source,
         })
         .from(schema.programEnrollments)
         .where(
@@ -380,11 +403,21 @@ export class EnrollmentService {
         );
     }
 
-    // Merge owned + legacy-orphan candidates, dedupe by id.
-    const candidateMap = new Map<number, { id: number; programId: number }>();
+    // Merge owned + legacy-orphan candidates, dedupe by id, then drop any
+    // sources the caller wants to preserve (excludeSources).
+    const candidateMap = new Map<
+      number,
+      {
+        id: number;
+        programId: number;
+        source: "plan_linked" | "plan_bundle" | "admin_addon";
+      }
+    >();
     for (const e of ownedEnrollments) candidateMap.set(e.id, e);
     for (const e of legacyOrphanRows) candidateMap.set(e.id, e);
-    const candidates = Array.from(candidateMap.values());
+    const candidates = Array.from(candidateMap.values()).filter(
+      (e) => !excludeSet.has(e.source),
+    );
 
     if (candidates.length === 0) {
       this.log.info(
