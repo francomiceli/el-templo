@@ -2519,10 +2519,10 @@ _Phase 111 added: 2026-05-01 — origen: investigación caso Soledad Mailland (a
 
 **Plans:** 6 plans
 
-- [ ] 112-01-PLAN.md — Schema migration: 4 columns + paused enum + backfill (ADDON-SCHEMA-01..05)
-- [ ] 112-02-PLAN.md — EnrollmentService extraction (refactor only, no behavior change) (ENROLL-01..05)
-- [ ] 112-03-PLAN.md — Lifecycle hooks: pause/resume/transferAddons + integration tests (ADDON-LIFE-01..04)
-- [ ] 112-04-PLAN.md — Admin add-on API + finance integration + audit log (ADDON-API-01..06)
+- [x] 112-01-PLAN.md — Schema migration: 4 columns + paused enum + backfill (ADDON-SCHEMA-01..05)
+- [x] 112-02-PLAN.md — EnrollmentService extraction (refactor only, no behavior change) (ENROLL-01..05)
+- [x] 112-03-PLAN.md — Lifecycle hooks: pause/resume/transferAddons + integration tests (ADDON-LIFE-01..04)
+- [x] 112-04-PLAN.md — Admin add-on API + finance integration + audit log (ADDON-API-01..06)
 - [ ] 112-05-PLAN.md — Admin frontend "Programas" tab + assign modal (ADDON-ADMIN-UI-01..05)
 - [ ] 112-06-PLAN.md — Member-app dropdown verification + integration test (ADDON-MEMBER-UI-01..02)
       **UI hint:** yes (admin frontend changes; member frontend verification only)

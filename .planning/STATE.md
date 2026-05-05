@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: executing
-stopped_at: Plan 112-03 complete (lifecycle hooks); ready for Plan 04 (admin add-on API + ENROLL admin route)
-last_updated: "2026-05-05T00:29:46.309Z"
+stopped_at: Plan 112-04 complete (admin add-on API + finance integration); next 112-05 (admin UI, wave 5)
+last_updated: "2026-05-05T00:59:53.026Z"
 last_activity: 2026-05-05
 progress:
   total_phases: 102
   completed_phases: 88
   total_plans: 403
-  completed_plans: 395
+  completed_plans: 396
   percent: 98
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-05-04)
 ## Current Position
 
 Phase: 112 (Enrollment Service + Admin Add-ons) — EXECUTING
-Plan: 4 of 6 (112-03 lifecycle hooks pause/resume + transferAddons, wave 3)
+Plan: 5 of 6 (112-03 lifecycle hooks pause/resume + transferAddons, wave 3)
 Status: Ready to execute
 Last activity: 2026-05-05
 
@@ -163,6 +163,7 @@ _Updated after each plan completion_
 | Phase 112 P01 | 19min | 3 tasks | 6 files |
 | Phase 112 P02 | 24min | 3 tasks | 9 files |
 | Phase 112 P03 | 30min | 3 tasks | 3 files |
+| Phase 112 P04 | 26min | 5 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -386,6 +387,11 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - Plan 112-03: pause/resume cascades use optional-chaining (this.enrollmentService?.) instead of requireEnrollmentService — preserves legacy direct-instantiation tests in lifecycle.test.ts; mirrors Plan 02 plan-flag precondition pattern for routes that don't wire EnrollmentService
 - Plan 112-03: changePlanNow keeps tearDownForSubscription OUTSIDE the new-sub tx (Plan 02 placement) — moving it inside causes the new sub to act as a protector for the OLD plan's enrollments via tearDown's protection-program logic, which broke the bundle changePlanNow test
 - Plan 112-03: activateScheduledSub places transferAddons unconditionally at top of method (right after status flip), BEFORE the conditional predecessor tearDown — admin_addons relocate ahead of any cancel; idempotent via no-op when 0 rows match (D-20)
+- Plan 112-04: D-13 LOCKED — extend transaction_links.target_kind with 'enrollment' (NOT extend kind enum); kind='plan_charge' reused so Phase 105-04 D-01 canonical revenue filter stays unchanged; granular trazability lives at the link layer
+- Plan 112-04: D-22 LOCKED — RBAC = FINANCE_WRITE_ROLES (owner|admin|gestion|recepcion); recepcion already creates kind='plan_charge' transactions via assignPlan today (Phase 107)
+- Plan 112-04: BalanceService.applyDelta gained early-skip for target_kind='enrollment' (Rule 1) — admin add-on charges are one-shot, no running obligation; mirrors existing 'transaction' precedent in the same method
+- Plan 112-04: EnrollmentService constructor takes optional 3rd-arg transactionService — only the new admin route wires it; Plan 02's 11 DI sites unchanged because they never call enrollAddon
+- Plan 112-04: cancel audit reuses action='plan_assigned' with payload.cancelledByAdmin=true rather than extending the AuditAction enum — minimal-surface, defer enum widening
 
 ### Pending Todos
 
@@ -398,11 +404,12 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - Plan 111-06 task 3 awaiting staging + production runs of migration 0109_reconcile_soledad_mailland.sql (human checkpoint — operator must run pnpm db:migrate on staging then approve prod)
 - Plan 112-01 awaiting staging + production runs of migration 0111_program_enrollments_addon_columns.sql (human checkpoint — operator must run pnpm db:migrate on staging, sanity-check `SELECT COUNT(*) FROM program_enrollments WHERE source IS NULL` returns 0, then approve prod)
 - Plan 112-01 deferred item: pre-existing test-DB provisioning bug (per-worker setup mis-tolerates Unknown-table errors at migration 0070, blocks `pnpm test` boot via `formats.description` schema drift). Documented in `.planning/phases/112-enrollment-service-admin-add-ons/deferred-items.md`. Out of scope for v4.85; recommend a future housekeeping plan.
+- Plan 112-04 awaiting staging+prod runs of migration 0112_transaction_links_target_kind_enrollment.sql (human checkpoint — operator must run pnpm db:migrate on staging, verify SHOW COLUMNS shows the new 4-value enum + \_migrations row, then approve prod)
 
 ## Session Continuity
 
-Last session: 2026-05-05T00:29:46.289Z
-Stopped at: Plan 112-03 complete (lifecycle hooks); ready for Plan 04 (admin add-on API + ENROLL admin route)
-Resume file: None
+Last session: 2026-05-05T00:59:38.464Z
+Stopped at: Plan 112-04 complete (admin add-on API + finance integration); next 112-05 (admin UI, wave 5)
+Resume file: Plan 112-04 awaiting staging+prod runs of migration 0112_transaction_links_target_kind_enrollment.sql (human checkpoint)
 
 **Planned Phase:** 112 (Enrollment Service + Admin Add-ons) — 6 plans — 2026-05-04T22:51:06.993Z (Plan 01 complete)

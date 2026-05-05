@@ -42,12 +42,18 @@
 
 ### Admin Add-on API (ADDON-API)
 
-- [ ] **ADDON-API-01**: Admin asigna add-on via `POST /api/admin/users/:userId/program-addons` con payload `{ programId, pricePaid?, notes? }`.
-- [ ] **ADDON-API-02**: Asignación requiere sub activa del miembro target; sin sub activa → HTTP 400 con código de error explícito.
-- [ ] **ADDON-API-03**: `pricePaid > 0` genera `financial_transaction` (kind apropiado del módulo finance v4.8) atómicamente con la creación del enrollment, link via `transaction_links` con `target_kind = enrollment`.
-- [ ] **ADDON-API-04**: `pricePaid = 0` o null crea enrollment sin transacción financiera (regalo).
-- [ ] **ADDON-API-05**: Programa duplicado activo → HTTP 409 (forzar cancelar el enrollment viejo primero); no se permite tener dos enrollments activas del mismo programa por user.
-- [ ] **ADDON-API-06**: Admin/owner puede cancelar un add-on individual via endpoint existente de cancelación de enrollment; el endpoint respeta el rol y emite log de auditoría.
+- [x] **ADDON-API-01
+      **: Admin asigna add-on via `POST /api/admin/users/:userId/program-addons` con payload `{ programId, pricePaid?, notes? }`.
+- [x] **ADDON-API-02
+      **: Asignación requiere sub activa del miembro target; sin sub activa → HTTP 400 con código de error explícito.
+- [x] **ADDON-API-03
+      **: `pricePaid > 0` genera `financial_transaction` (kind apropiado del módulo finance v4.8) atómicamente con la creación del enrollment, link via `transaction_links` con `target_kind = enrollment`.
+- [x] **ADDON-API-04
+      **: `pricePaid = 0` o null crea enrollment sin transacción financiera (regalo).
+- [x] **ADDON-API-05
+      **: Programa duplicado activo → HTTP 409 (forzar cancelar el enrollment viejo primero); no se permite tener dos enrollments activas del mismo programa por user.
+- [x] **ADDON-API-06
+      **: Admin/owner puede cancelar un add-on individual via endpoint existente de cancelación de enrollment; el endpoint respeta el rol y emite log de auditoría.
 
 ### Lifecycle Hooks (ADDON-LIFE)
 
