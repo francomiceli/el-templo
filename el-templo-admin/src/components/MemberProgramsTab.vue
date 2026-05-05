@@ -68,6 +68,9 @@
 </template>
 
 <script setup lang="ts">
+// Phase 112-05 — admin "Programas" tab in AlumnoDetailPage. Lists every
+// active enrollment (plan_linked + plan_bundle + admin_addon) and surfaces
+// the AssignProgramAddonDialog for FINANCE_WRITE_ROLES.
 import { ref, computed, onMounted } from 'vue';
 import { useQuasar } from 'quasar';
 import { createLogger } from 'src/utils/logger';
