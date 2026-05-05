@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: executing
-stopped_at: Plan 112-02 complete (EnrollmentService extraction); ready for Plan 03 (lifecycle hooks)
-last_updated: "2026-05-04T23:52:35.986Z"
-last_activity: 2026-05-04
+stopped_at: Plan 112-03 complete (lifecycle hooks); ready for Plan 04 (admin add-on API + ENROLL admin route)
+last_updated: "2026-05-05T00:29:46.309Z"
+last_activity: 2026-05-05
 progress:
   total_phases: 102
   completed_phases: 88
   total_plans: 403
-  completed_plans: 394
+  completed_plans: 395
   percent: 98
 ---
 
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-05-04)
 ## Current Position
 
 Phase: 112 (Enrollment Service + Admin Add-ons) — EXECUTING
-Plan: 3 of 6 (112-03 lifecycle hooks pause/resume + transferAddons, wave 3)
-Status: Plan 02 complete (EnrollmentService extraction landed); ready for Plan 03
-Last activity: 2026-05-04 — Plan 112-02 complete (EnrollmentService extracted, 6 inserts + 2 teardown helpers collapsed; 423 LOC removed from subscriptions/service.ts; 130/130 tests pass; phase 111 regression gate green)
+Plan: 4 of 6 (112-03 lifecycle hooks pause/resume + transferAddons, wave 3)
+Status: Ready to execute
+Last activity: 2026-05-05
 
 ## Performance Metrics
 
@@ -162,6 +162,7 @@ _Updated after each plan completion_
 | Phase 111 P04 | 21min | 2 tasks | 8 files |
 | Phase 112 P01 | 19min | 3 tasks | 6 files |
 | Phase 112 P02 | 24min | 3 tasks | 9 files |
+| Phase 112 P03 | 30min | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -381,6 +382,10 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - Plan 112-02: Plan-flag preconditions wrap requireEnrollmentService() calls — chokepoint skipped for plans without linkedProgramId/grantsAllPrograms; preserves test instantiations omitting EnrollmentService and avoids spurious DI errors on flows with no enrollment work
 - Plan 112-02: tearDownForSubscription dual-lookup strategy — (a) rows with subscription_id = subId AND (b) user-scoped rows with subscription_id IS NULL matching the cancelled sub's plan binding; preserves R4 protection regression test for direct-DB-inserted bundle rows AND backward-compat for ambiguous Plan-01-backfill leftovers
 - Plan 112-02: Renewal + activateScheduledSub call sites preserve legacy 'skip if active enrollment exists' guard around enrollFromPlan — enrollFromPlan's linked-program branch is unconditionally cancel-then-insert (assignPlan/changePlan need it), so the guard prevents resetting currentWeek=1 on a still-running mid-program enrollment
+- Plan 112-03: tearDownForSubscription gained optional excludeSources param so admin_addon survives the changePlanNow teardown step and can be relocated by transferAddons inside the new-sub tx; default empty preserves D-18 cancel/expire teardown across all sources
+- Plan 112-03: pause/resume cascades use optional-chaining (this.enrollmentService?.) instead of requireEnrollmentService — preserves legacy direct-instantiation tests in lifecycle.test.ts; mirrors Plan 02 plan-flag precondition pattern for routes that don't wire EnrollmentService
+- Plan 112-03: changePlanNow keeps tearDownForSubscription OUTSIDE the new-sub tx (Plan 02 placement) — moving it inside causes the new sub to act as a protector for the OLD plan's enrollments via tearDown's protection-program logic, which broke the bundle changePlanNow test
+- Plan 112-03: activateScheduledSub places transferAddons unconditionally at top of method (right after status flip), BEFORE the conditional predecessor tearDown — admin_addons relocate ahead of any cancel; idempotent via no-op when 0 rows match (D-20)
 
 ### Pending Todos
 
@@ -396,8 +401,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-05-04T23:52:09.721Z
-Stopped at: Plan 112-02 complete (EnrollmentService extraction); ready for Plan 03 (lifecycle hooks)
+Last session: 2026-05-05T00:29:46.289Z
+Stopped at: Plan 112-03 complete (lifecycle hooks); ready for Plan 04 (admin add-on API + ENROLL admin route)
 Resume file: None
 
 **Planned Phase:** 112 (Enrollment Service + Admin Add-ons) — 6 plans — 2026-05-04T22:51:06.993Z (Plan 01 complete)

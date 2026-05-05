@@ -51,10 +51,14 @@
 
 ### Lifecycle Hooks (ADDON-LIFE)
 
-- [ ] **ADDON-LIFE-01**: `changePlanNow` transfiere add-ons activos de la sub vieja a la nueva (update de `subscription_id`); no se recobra `pricePaid`.
-- [ ] **ADDON-LIFE-02**: `changePlanAfterCurrent` mantiene add-ons en la sub actual hasta que muera; transferencia se aplica al activar la scheduled successor.
-- [ ] **ADDON-LIFE-03**: Cancel/expire de sub → `EnrollmentService.tearDownForSubscription()` cancela add-ons asociados (status → `cancelled`).
-- [ ] **ADDON-LIFE-04**: Teardown de add-on por cancelación de sub NO genera refund automático (decisión C: el add-on muere con la sub; reembolso es decisión de producto fuera de scope).
+- [x] **ADDON-LIFE-01
+      **: `changePlanNow` transfiere add-ons activos de la sub vieja a la nueva (update de `subscription_id`); no se recobra `pricePaid`.
+- [x] **ADDON-LIFE-02
+      **: `changePlanAfterCurrent` mantiene add-ons en la sub actual hasta que muera; transferencia se aplica al activar la scheduled successor.
+- [x] **ADDON-LIFE-03
+      **: Cancel/expire de sub → `EnrollmentService.tearDownForSubscription()` cancela add-ons asociados (status → `cancelled`).
+- [x] **ADDON-LIFE-04
+      **: Teardown de add-on por cancelación de sub NO genera refund automático (decisión C: el add-on muere con la sub; reembolso es decisión de producto fuera de scope).
 
 ### Admin Frontend (ADDON-ADMIN-UI)
 
