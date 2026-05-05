@@ -29,6 +29,7 @@ import { AuraService } from "../../src/modules/aura";
 import { TransactionService, BalanceService } from "../../src/modules/finance";
 import { BookingService } from "../../src/modules/scheduling/booking-service";
 import { NotificationService } from "../../src/modules/notifications/service";
+import { EnrollmentService } from "../../src/modules/programs/enrollment-service";
 
 describe("Phase 103 — User status auto-transitions", () => {
   let app: FastifyInstance;
@@ -46,7 +47,16 @@ describe("Phase 103 — User status auto-transitions", () => {
     const aura = new AuraService(app.db);
     const balances = new BalanceService(app.db, app.log);
     const txns = new TransactionService(app.db, app.log, balances);
-    const subs = new SubscriptionService(app.db, app.log, aura, txns);
+    // Phase 112-02: SubscriptionService now requires EnrollmentService for
+    // every cancel/pause/resume path that touches program_enrollments.
+    const enrollments = new EnrollmentService(app.db, app.log);
+    const subs = new SubscriptionService(
+      app.db,
+      app.log,
+      aura,
+      txns,
+      enrollments,
+    );
     const notifs = new NotificationService(app.db, app.log);
     const bookings = new BookingService(app.db, app.log, subs, notifs);
     subs.setBookingService(bookings);
