@@ -1,4 +1,8 @@
 // Module: finance — phase 105
+// Phase 112 D-13: target_kind enum extended with 'enrollment' so admin
+// add-on charges can link a financial_transaction to a program_enrollments
+// row directly (preserves Phase 105-04 D-01 canonical revenue filter by
+// reusing kind='plan_charge').
 import {
   mysqlTable,
   int,
@@ -25,6 +29,7 @@ export const transactionLinks = mysqlTable(
       "subscription",
       "debt_balance",
       "transaction",
+      "enrollment",
     ]).notNull(),
     targetId: int("target_id").notNull(),
     allocatedAmount: int("allocated_amount").notNull(),

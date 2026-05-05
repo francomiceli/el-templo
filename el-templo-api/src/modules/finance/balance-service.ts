@@ -41,9 +41,7 @@ type DbInstance = MySql2Database<typeof schema>;
  * `subscriptions/service.ts` (Phase 107 Plan 02) can pass-through the same
  * tx handle for atomic nested operations (D-09 / CHARGE-03).
  */
-export type TxHandle = Parameters<
-  Parameters<DbInstance["transaction"]>[0]
->[0];
+export type TxHandle = Parameters<Parameters<DbInstance["transaction"]>[0]>[0];
 
 export class BalanceService {
   constructor(
@@ -68,6 +66,10 @@ export class BalanceService {
    * Rules:
    * - target_kind='transaction' → no cache effect (transaction-to-transaction
    *   links don't move balances).
+   * - target_kind='enrollment' → no cache effect (Phase 112 D-13: admin add-on
+   *   charges are one-shot and do not represent a running obligation; the link
+   *   exists only for trazability so analytics/financial-history can resolve
+   *   the financial_transaction back to the program_enrollments row).
    * - target_kind='subscription' → lazily seeded from subscriptions.pricePaid
    *   on first touch; currency must match.
    * - target_kind='debt_balance' → row must already exist (caller
@@ -85,6 +87,9 @@ export class BalanceService {
     for (const link of links) {
       // target_kind='transaction' has no balances cache effect
       if (link.targetKind === "transaction") continue;
+      // Phase 112 D-13: target_kind='enrollment' is trazability-only; no
+      // running obligation to maintain in the cache.
+      if (link.targetKind === "enrollment") continue;
 
       const baseDelta =
         transaction.direction === "inflow"
