@@ -25,6 +25,14 @@ function shouldDropEvent(event: Sentry.ErrorEvent): boolean {
   const frames = event.exception?.values?.[0]?.stacktrace?.frames || [];
   if (frames.some((f) => f.filename && DENY_URLS.some((re) => re.test(f.filename!)))) return true;
 
+  // 401 noise: when the admin's session expires, parallel API requests all
+  // 401. The axios interceptor already redirected to /login, but the catches
+  // downstream still call log.error → Sentry. Drop those — not actionable.
+  const extra = event.extra || {};
+  for (const value of Object.values(extra)) {
+    if (typeof value === 'string' && value.includes('status code 401')) return true;
+  }
+
   return false;
 }
 

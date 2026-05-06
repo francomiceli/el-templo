@@ -33,7 +33,9 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Clear auth state
+      // Mark so downstream catches and Sentry filtering can recognize this as
+      // a handled auth redirect (not an actionable error).
+      (error as { __authRedirected?: boolean }).__authRedirected = true;
       localStorage.removeItem(TOKEN_KEY);
       // Don't redirect if already on login page
       if (window.location.pathname !== '/login') {
