@@ -44,6 +44,9 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
           error: "No autorizado",
           message: "Token invalido o ausente",
         });
+        // Re-throw so handlers that call this inline (instead of via
+        // onRequest hook) abort instead of running with request.user === null.
+        throw err;
       }
     },
   );

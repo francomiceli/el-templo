@@ -29,6 +29,10 @@ export function handleServiceError(
   log: FastifyBaseLogger,
   context: string,
 ): void {
+  // If the reply was already sent (e.g. authenticate sent a 401 before
+  // throwing), don't try to send again — that produces a confusing
+  // "Reply was already sent" FastifyError on top of the real cause.
+  if (reply.sent) return;
   if (err instanceof AppError) {
     const label = STATUS_LABELS[err.statusCode] ?? "Error desconocido";
     reply.code(err.statusCode).send({ error: label, message: err.message });
