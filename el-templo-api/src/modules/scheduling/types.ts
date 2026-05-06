@@ -30,6 +30,8 @@ export interface ScheduleSlot {
   startTime: string;
   endTime: string;
   isActive: boolean;
+  /** Admin-provided reason shown to members when reservation is rejected. */
+  inactiveReason: string | null;
 }
 
 export interface WeeklySlotView extends ScheduleSlot {

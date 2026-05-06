@@ -149,6 +149,7 @@ export class SchedulingService {
         startTime: schema.schedules.startTime,
         endTime: schema.schedules.endTime,
         isActive: schema.schedules.isActive,
+        inactiveReason: schema.schedules.inactiveReason,
       })
       .from(schema.schedules)
       .innerJoin(
@@ -241,6 +242,7 @@ export class SchedulingService {
         startTime: row.startTime,
         endTime: row.endTime,
         isActive: row.isActive,
+        inactiveReason: row.inactiveReason,
         bookedCount: counts.bookedCount,
         trialCount: counts.trialCount,
         maxCapacity,
@@ -407,18 +409,25 @@ export class SchedulingService {
   }
 
   /**
-   * Toggle a schedule slot active/inactive.
+   * Toggle a schedule slot active/inactive. When deactivating, an optional
+   * reason can be provided — it's shown to members in the booking error toast.
+   * Reactivating clears any previously stored reason.
    */
   async toggleSchedule(
     scheduleId: number,
     isActive: boolean,
+    inactiveReason?: string | null,
   ): Promise<ScheduleSlot> {
     const existing = await this.getScheduleSlot(scheduleId);
     if (!existing) throw new NotFoundError("Horario no encontrado");
 
+    const reasonValue: string | null = isActive
+      ? null
+      : inactiveReason?.trim() || null;
+
     await this.db
       .update(schema.schedules)
-      .set({ isActive })
+      .set({ isActive, inactiveReason: reasonValue })
       .where(eq(schema.schedules.id, scheduleId));
 
     const updated = await this.getScheduleSlot(scheduleId);
@@ -657,6 +666,7 @@ export class SchedulingService {
         startTime: schema.schedules.startTime,
         endTime: schema.schedules.endTime,
         isActive: schema.schedules.isActive,
+        inactiveReason: schema.schedules.inactiveReason,
       })
       .from(schema.schedules)
       .innerJoin(
@@ -680,6 +690,7 @@ export class SchedulingService {
       startTime: row.startTime,
       endTime: row.endTime,
       isActive: row.isActive,
+      inactiveReason: row.inactiveReason,
     };
   }
 }

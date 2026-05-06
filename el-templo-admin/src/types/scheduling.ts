@@ -31,6 +31,18 @@ export interface ScheduleSlot {
   startTime: string;
   endTime: string;
   isActive: boolean;
+  /** Admin-provided reason shown to members when the slot is deactivated. */
+  inactiveReason: string | null;
+}
+
+/**
+ * Response from PUT /admin/scheduling/schedules/:id/toggle.
+ * Extends the slot with a `cancelledBookings` count: when deactivating,
+ * the API auto-cancels every future 'reservado'/'lista_espera' booking
+ * for the slot, and reports how many were affected.
+ */
+export interface ToggleScheduleResponse extends ScheduleSlot {
+  cancelledBookings: number;
 }
 
 export interface WeeklySlotView extends ScheduleSlot {

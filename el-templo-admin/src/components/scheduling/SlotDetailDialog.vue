@@ -69,6 +69,18 @@
         <div class="text-caption text-grey-7 q-mt-xs">
           {{ summaryText }}
         </div>
+        <q-banner v-if="isSlotInactive" class="bg-red-1 text-red-9 q-mt-sm" rounded dense>
+          <template #avatar>
+            <q-icon name="block" color="negative" />
+          </template>
+          <div class="text-weight-medium">Slot desactivado</div>
+          <div v-if="slotInactiveReason" class="text-caption">
+            Motivo (lo verán los alumnos al intentar reservar): "{{ slotInactiveReason }}"
+          </div>
+          <div v-else class="text-caption">
+            Sin motivo registrado — los alumnos verán el mensaje genérico.
+          </div>
+        </q-banner>
       </q-card-section>
 
       <q-separator />
@@ -394,9 +406,69 @@
       </q-card-section>
 
       <q-card-actions align="right">
+        <q-btn
+          v-if="slotDetail && !isSlotInactive"
+          flat
+          label="Desactivar slot"
+          color="negative"
+          icon="block"
+          :loading="togglingSlot"
+          @click="openDeactivateDialog"
+        />
+        <q-btn
+          v-if="isSlotInactive"
+          flat
+          label="Reactivar slot"
+          color="positive"
+          icon="check_circle"
+          :loading="togglingSlot"
+          @click="applyReactivate"
+        />
         <q-btn flat label="Cerrar" color="grey-7" @click="$emit('update:show', false)" />
       </q-card-actions>
     </q-card>
+
+    <!-- Deactivate-with-reason dialog -->
+    <q-dialog v-model="deactivateDialogOpen" persistent>
+      <q-card style="min-width: 360px; max-width: 95vw">
+        <q-card-section>
+          <div class="text-h6">Desactivar slot</div>
+          <div class="text-caption text-grey-7 q-mt-xs">
+            Las reservas futuras de este slot serán canceladas automáticamente y los alumnos verán
+            el motivo al intentar reservar.
+          </div>
+        </q-card-section>
+        <q-card-section class="q-pt-none">
+          <q-input
+            v-model="deactivateReason"
+            label="Motivo de cierre (lo verán los alumnos al intentar reservar)"
+            type="textarea"
+            rows="2"
+            maxlength="255"
+            counter
+            outlined
+            autofocus
+            hint="Ej: Sede inundada, reabrimos el viernes."
+          />
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn
+            flat
+            label="Cancelar"
+            color="grey-7"
+            :disable="togglingSlot"
+            @click="deactivateDialogOpen = false"
+          />
+          <q-btn
+            unelevated
+            label="Desactivar"
+            color="negative"
+            :loading="togglingSlot"
+            @click="applyDeactivate"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </q-dialog>
 </template>
 
@@ -487,6 +559,11 @@ const selectedActivityId = ref<number | null>(null);
 const availableActivities = ref<ActivityRecord[]>([]);
 const savingActivity = ref(false);
 
+// Slot deactivation (closure)
+const deactivateDialogOpen = ref(false);
+const deactivateReason = ref('');
+const togglingSlot = ref(false);
+
 // ─── Computed ───────────────────────────────────────────────────────────────
 
 const todayIso = () => todayInTz(props.branchTimezone);
@@ -549,6 +626,11 @@ const summaryText = computed(() => {
 });
 
 const canEditActivity = computed(() => !!slotDetail.value);
+
+const isSlotInactive = computed(
+  () => slotDetail.value !== null && !slotDetail.value.schedule.isActive
+);
+const slotInactiveReason = computed(() => slotDetail.value?.schedule.inactiveReason ?? null);
 
 // Effective mode (past=checkin, future=reserve, today=user choice)
 const effectiveMode = computed<'checkin' | 'reserve'>(() => {
@@ -624,6 +706,58 @@ async function refreshAll() {
     await loadAttendance(props.scheduleId, props.date);
   } else {
     attendanceList.value = [];
+  }
+}
+
+// ─── Slot toggle (deactivate / reactivate) ────────────────────────────────
+
+function openDeactivateDialog() {
+  deactivateReason.value = '';
+  deactivateDialogOpen.value = true;
+}
+
+async function applyDeactivate() {
+  if (!props.scheduleId) return;
+  togglingSlot.value = true;
+  try {
+    const result = await schedulingApi.toggleSchedule(
+      props.scheduleId,
+      false,
+      deactivateReason.value.trim() || null
+    );
+    deactivateDialogOpen.value = false;
+    const msg =
+      result.cancelledBookings > 0
+        ? `Slot desactivado. ${result.cancelledBookings} reserva${
+            result.cancelledBookings === 1 ? '' : 's'
+          } cancelada${result.cancelledBookings === 1 ? '' : 's'}.`
+        : 'Slot desactivado.';
+    $q.notify({ type: 'positive', message: msg });
+    await refreshAll();
+    emit('bookings-changed');
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.error('Error deactivating slot', { error: message });
+    $q.notify({ type: 'negative', message: 'Error desactivando el slot' });
+  } finally {
+    togglingSlot.value = false;
+  }
+}
+
+async function applyReactivate() {
+  if (!props.scheduleId) return;
+  togglingSlot.value = true;
+  try {
+    await schedulingApi.toggleSchedule(props.scheduleId, true, null);
+    $q.notify({ type: 'positive', message: 'Slot reactivado.' });
+    await refreshAll();
+    emit('bookings-changed');
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.error('Error reactivating slot', { error: message });
+    $q.notify({ type: 'negative', message: 'Error reactivando el slot' });
+  } finally {
+    togglingSlot.value = false;
   }
 }
 

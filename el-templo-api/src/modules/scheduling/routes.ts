@@ -234,10 +234,13 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
     },
   );
 
-  // PUT /schedules/:scheduleId/toggle — enable/disable slot
+  // PUT /schedules/:scheduleId/toggle — enable/disable slot.
+  // When deactivating, also cancels every future booking for the slot
+  // (status='reservado' or 'lista_espera') so members don't show up to a
+  // class that won't run. Already-checked-in bookings are left intact.
   fastify.put<{
     Params: { scheduleId: number };
-    Body: { isActive: boolean };
+    Body: { isActive: boolean; inactiveReason?: string | null };
   }>(
     "/schedules/:scheduleId/toggle",
     { schema: toggleScheduleSchema },
@@ -246,8 +249,16 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
         const slot = await schedulingService.toggleSchedule(
           request.params.scheduleId,
           request.body.isActive,
+          request.body.inactiveReason ?? null,
         );
-        return slot;
+        let cancelledBookings = 0;
+        if (!request.body.isActive) {
+          cancelledBookings =
+            await bookingService.cancelAllFutureBookingsForSchedule(
+              request.params.scheduleId,
+            );
+        }
+        return { ...slot, cancelledBookings };
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "toggle schedule");
       }

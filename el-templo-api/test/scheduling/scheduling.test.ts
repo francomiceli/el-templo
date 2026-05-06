@@ -485,6 +485,137 @@ describe("Scheduling API", () => {
       expect(enableRes.statusCode).toBe(200);
       expect(JSON.parse(enableRes.body).isActive).toBe(true);
     });
+
+    it("PUT toggle off persists inactiveReason and surfaces it on reserve", async () => {
+      const { memberToken } = await setupMemberWithSubscription();
+      const activity = await createActivity();
+      const futureSlot = getFutureSlot();
+      const slot = await createScheduleSlot(
+        activity.id,
+        futureSlot.dayOfWeek,
+        futureSlot.startTime,
+        futureSlot.endTime,
+      );
+
+      const reason = "Sede inundada por lluvia, reabrimos el viernes";
+      const disableRes = await app.inject({
+        method: "PUT",
+        url: `${ADMIN_URL}/schedules/${slot.id}/toggle`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { isActive: false, inactiveReason: reason },
+      });
+      expect(disableRes.statusCode).toBe(200);
+      const disableBody = JSON.parse(disableRes.body);
+      expect(disableBody.isActive).toBe(false);
+      expect(disableBody.inactiveReason).toBe(reason);
+      expect(disableBody.cancelledBookings).toBe(0);
+
+      // Member tries to reserve → 400 with the admin's message in `message`.
+      const reserveRes = await app.inject({
+        method: "POST",
+        url: `${MEMBER_URL}/reserve`,
+        headers: { authorization: `Bearer ${memberToken}` },
+        payload: { scheduleId: slot.id, date: futureSlot.date },
+      });
+      expect(reserveRes.statusCode).toBe(400);
+      expect(JSON.parse(reserveRes.body).message).toBe(reason);
+    });
+
+    it("PUT toggle off without reason falls back to generic reserve message", async () => {
+      const { memberToken } = await setupMemberWithSubscription();
+      const activity = await createActivity();
+      const futureSlot = getFutureSlot();
+      const slot = await createScheduleSlot(
+        activity.id,
+        futureSlot.dayOfWeek,
+        futureSlot.startTime,
+        futureSlot.endTime,
+      );
+
+      await app.inject({
+        method: "PUT",
+        url: `${ADMIN_URL}/schedules/${slot.id}/toggle`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { isActive: false },
+      });
+
+      const reserveRes = await app.inject({
+        method: "POST",
+        url: `${MEMBER_URL}/reserve`,
+        headers: { authorization: `Bearer ${memberToken}` },
+        payload: { scheduleId: slot.id, date: futureSlot.date },
+      });
+      expect(reserveRes.statusCode).toBe(400);
+      expect(JSON.parse(reserveRes.body).message).toBe(
+        "Este horario no esta activo",
+      );
+    });
+
+    it("PUT toggle on clears any previously-stored inactiveReason", async () => {
+      const activity = await createActivity();
+      const slot = await createScheduleSlot(activity.id, 1, "07:00", "08:00");
+
+      await app.inject({
+        method: "PUT",
+        url: `${ADMIN_URL}/schedules/${slot.id}/toggle`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { isActive: false, inactiveReason: "Mantenimiento" },
+      });
+      const enableRes = await app.inject({
+        method: "PUT",
+        url: `${ADMIN_URL}/schedules/${slot.id}/toggle`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { isActive: true },
+      });
+      expect(enableRes.statusCode).toBe(200);
+      const body = JSON.parse(enableRes.body);
+      expect(body.isActive).toBe(true);
+      expect(body.inactiveReason).toBeNull();
+      expect(body.cancelledBookings).toBe(0);
+    });
+
+    it("PUT toggle off cancels future bookings (status reservado/lista_espera)", async () => {
+      const { memberToken } = await setupMemberWithSubscription();
+      const activity = await createActivity();
+      const futureSlot = getFutureSlot();
+      const slot = await createScheduleSlot(
+        activity.id,
+        futureSlot.dayOfWeek,
+        futureSlot.startTime,
+        futureSlot.endTime,
+      );
+
+      // Member reserves first.
+      const reserveRes = await app.inject({
+        method: "POST",
+        url: `${MEMBER_URL}/reserve`,
+        headers: { authorization: `Bearer ${memberToken}` },
+        payload: { scheduleId: slot.id, date: futureSlot.date },
+      });
+      expect(reserveRes.statusCode).toBe(201);
+      const bookingId = JSON.parse(reserveRes.body).id as number;
+
+      // Admin disables.
+      const disableRes = await app.inject({
+        method: "PUT",
+        url: `${ADMIN_URL}/schedules/${slot.id}/toggle`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { isActive: false, inactiveReason: "Cierre" },
+      });
+      expect(disableRes.statusCode).toBe(200);
+      expect(JSON.parse(disableRes.body).cancelledBookings).toBe(1);
+
+      // Booking row is now cancelado.
+      const [bookingRow] = await app.db
+        .select({
+          status: bookings.status,
+          cancelledAt: bookings.cancelledAt,
+        })
+        .from(bookings)
+        .where(eq(bookings.id, bookingId));
+      expect(bookingRow.status).toBe("cancelado");
+      expect(bookingRow.cancelledAt).not.toBeNull();
+    });
   });
 
   // =========================================================================

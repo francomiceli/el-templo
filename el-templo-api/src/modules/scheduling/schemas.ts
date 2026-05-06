@@ -38,6 +38,7 @@ const scheduleSlotSchema = {
     startTime: { type: "string" },
     endTime: { type: "string" },
     isActive: { type: "boolean" },
+    inactiveReason: { type: ["string", "null"] },
   },
 } as const;
 
@@ -243,10 +244,22 @@ export const toggleScheduleSchema = {
     required: ["isActive"],
     properties: {
       isActive: { type: "boolean" },
+      // Optional: shown to members in the booking error toast when they try
+      // to reserve a deactivated slot. Ignored when isActive=true (the
+      // service clears the stored reason on reactivation).
+      inactiveReason: { type: ["string", "null"], maxLength: 255 },
     },
   },
   response: {
-    200: scheduleSlotSchema,
+    200: {
+      type: "object",
+      properties: {
+        ...scheduleSlotSchema.properties,
+        // Number of upcoming bookings cancelled as part of deactivation.
+        // Always 0 when reactivating.
+        cancelledBookings: { type: "integer" },
+      },
+    },
     404: errorSchema,
   },
 };

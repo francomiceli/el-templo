@@ -8,7 +8,7 @@
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { eq, and, sql, asc, inArray } from "drizzle-orm";
+import { eq, and, sql, asc, gte, inArray } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { SubscriptionService } from "../subscriptions/service";
@@ -55,7 +55,11 @@ export class BookingService {
     const scheduleRow = await this.getScheduleSlotRaw(scheduleId);
     if (!scheduleRow) throw new NotFoundError("Horario no encontrado");
     if (!scheduleRow.isActive) {
-      throw new BadRequestError("Este horario no esta activo");
+      // Surface the admin-provided reason when present, fallback to the
+      // generic message so existing callers/tests stay backward-compatible.
+      throw new BadRequestError(
+        scheduleRow.inactiveReason ?? "Este horario no esta activo",
+      );
     }
 
     // 2. Validate date is within booking window: today to today+2 days
@@ -670,6 +674,55 @@ export class BookingService {
     this.log.info({ bookingId }, "Admin removed booking");
   }
 
+  /**
+   * Cancel all upcoming bookings for a schedule that haven't been checked in
+   * yet. Used when an admin deactivates a slot — instead of leaving members
+   * with reservations to a slot that won't run, we free their reservation so
+   * they can re-book elsewhere.
+   *
+   * Cancels both regular reservations and waitlist entries for dates >= today.
+   * Already-checked-in bookings (qr_escaneado, confirmado) are intentionally
+   * left untouched: those members already attended and the historical record
+   * should stay accurate.
+   *
+   * Does NOT promote waitlist — the whole slot is closed, so there's no
+   * spot to promote into.
+   */
+  async cancelAllFutureBookingsForSchedule(
+    scheduleId: number,
+  ): Promise<number> {
+    // "Today" is computed in the slot's branch timezone so a slot in BCN
+    // doesn't accidentally touch tomorrow's class because the server clock
+    // already crossed midnight UTC.
+    const scheduleRow = await this.getScheduleSlotRaw(scheduleId);
+    if (!scheduleRow) return 0;
+    const today = todayInTz(scheduleRow.branchTimezone);
+
+    const result = await this.db
+      .update(schema.bookings)
+      .set({
+        status: "cancelado",
+        cancelledAt: new Date(),
+        waitlistPosition: null,
+      })
+      .where(
+        and(
+          eq(schema.bookings.scheduleId, scheduleId),
+          gte(schema.bookings.bookingDate, today),
+          inArray(schema.bookings.status, ["reservado", "lista_espera"]),
+        ),
+      );
+
+    const affected = Number(result[0].affectedRows ?? 0);
+    if (affected > 0) {
+      this.log.info(
+        { scheduleId, affected },
+        "Cancelled future bookings for deactivated slot",
+      );
+    }
+    return affected;
+  }
+
   // ─── Fixed-Plan Booking Generation ─────────────────────────────────────
 
   /**
@@ -1188,6 +1241,7 @@ export class BookingService {
     startTime: string;
     endTime: string;
     isActive: boolean;
+    inactiveReason: string | null;
   } | null> {
     const [row] = await this.db
       .select({
@@ -1199,6 +1253,7 @@ export class BookingService {
         startTime: schema.schedules.startTime,
         endTime: schema.schedules.endTime,
         isActive: schema.schedules.isActive,
+        inactiveReason: schema.schedules.inactiveReason,
       })
       .from(schema.schedules)
       .innerJoin(

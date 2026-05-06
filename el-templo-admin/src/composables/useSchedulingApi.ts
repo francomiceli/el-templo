@@ -13,6 +13,7 @@ import type {
   BookingRecord,
   HolidayRecord,
   ScheduleSlot,
+  ToggleScheduleResponse,
   TrialListResponse,
 } from 'src/types/scheduling';
 
@@ -139,13 +140,17 @@ export function useSchedulingApi() {
     }
   }
 
-  async function toggleSchedule(scheduleId: number, isActive: boolean): Promise<ScheduleSlot> {
+  async function toggleSchedule(
+    scheduleId: number,
+    isActive: boolean,
+    inactiveReason?: string | null
+  ): Promise<ToggleScheduleResponse> {
     loading.value = true;
     error.value = null;
     try {
-      const { data } = await api.put<ScheduleSlot>(
+      const { data } = await api.put<ToggleScheduleResponse>(
         `/admin/scheduling/schedules/${scheduleId}/toggle`,
-        { isActive }
+        { isActive, inactiveReason: inactiveReason ?? null }
       );
       return data;
     } catch (err: unknown) {
