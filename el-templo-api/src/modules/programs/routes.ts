@@ -183,9 +183,8 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
    */
   fastify.post<{ Body: CreateProgramInput }>(
     "/admin/programs",
-    { schema: createProgramSchema },
+    { onRequest: [fastify.authenticate], schema: createProgramSchema },
     async (request, reply) => {
-      await fastify.authenticate(request, reply);
       const { role } = request.user;
       if (!(CAJA_ROLES as readonly string[]).includes(role)) {
         return reply.code(403).send({ error: "Acceso denegado" });
@@ -203,40 +202,46 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
   /**
    * GET /api/admin/programs — List all programs (active + inactive).
    */
-  fastify.get("/admin/programs", async (request, reply) => {
-    await fastify.authenticate(request, reply);
-    const { role } = request.user;
-    if (!(CAJA_ROLES as readonly string[]).includes(role)) {
-      return reply.code(403).send({ error: "Acceso denegado" });
-    }
+  fastify.get(
+    "/admin/programs",
+    { onRequest: [fastify.authenticate] },
+    async (request, reply) => {
+      const { role } = request.user;
+      if (!(CAJA_ROLES as readonly string[]).includes(role)) {
+        return reply.code(403).send({ error: "Acceso denegado" });
+      }
 
-    try {
-      const programs = await service.listPrograms();
-      return { programs };
-    } catch (err: unknown) {
-      handleServiceError(err, reply, request.log, "listPrograms");
-    }
-  });
+      try {
+        const programs = await service.listPrograms();
+        return { programs };
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "listPrograms");
+      }
+    },
+  );
 
   /**
    * GET /api/admin/programs/analytics — Program enrollment analytics.
    * NOTE: This route must be registered BEFORE /admin/programs/:programId
    * to avoid "analytics" being parsed as a programId parameter.
    */
-  fastify.get("/admin/programs/analytics", async (request, reply) => {
-    await fastify.authenticate(request, reply);
-    const { role } = request.user;
-    if (!(CAJA_ROLES as readonly string[]).includes(role)) {
-      return reply.code(403).send({ error: "Acceso denegado" });
-    }
+  fastify.get(
+    "/admin/programs/analytics",
+    { onRequest: [fastify.authenticate] },
+    async (request, reply) => {
+      const { role } = request.user;
+      if (!(CAJA_ROLES as readonly string[]).includes(role)) {
+        return reply.code(403).send({ error: "Acceso denegado" });
+      }
 
-    try {
-      const analytics = await service.getAnalytics();
-      return analytics;
-    } catch (err: unknown) {
-      handleServiceError(err, reply, request.log, "getAnalytics");
-    }
-  });
+      try {
+        const analytics = await service.getAnalytics();
+        return analytics;
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "getAnalytics");
+      }
+    },
+  );
 
   /**
    * GET /api/admin/programs/enrollments/user/:userId — Get enrollments for a user.
@@ -244,9 +249,8 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
    */
   fastify.get<{ Params: { userId: number } }>(
     "/admin/programs/enrollments/user/:userId",
-    { schema: userIdParamsSchema },
+    { onRequest: [fastify.authenticate], schema: userIdParamsSchema },
     async (request, reply) => {
-      await fastify.authenticate(request, reply);
       const { role } = request.user;
       if (!(COACH_ROLES as readonly string[]).includes(role)) {
         return reply.code(403).send({ error: "Acceso denegado" });
@@ -268,9 +272,8 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
    */
   fastify.get<{ Params: { programId: number } }>(
     "/admin/programs/:programId",
-    { schema: programIdParamsSchema },
+    { onRequest: [fastify.authenticate], schema: programIdParamsSchema },
     async (request, reply) => {
-      await fastify.authenticate(request, reply);
       const { role } = request.user;
       if (!(CAJA_ROLES as readonly string[]).includes(role)) {
         return reply.code(403).send({ error: "Acceso denegado" });
@@ -296,9 +299,11 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
    */
   fastify.put<{ Params: { programId: number }; Body: UpdateProgramInput }>(
     "/admin/programs/:programId",
-    { schema: { ...programIdParamsSchema, ...updateProgramSchema } },
+    {
+      onRequest: [fastify.authenticate],
+      schema: { ...programIdParamsSchema, ...updateProgramSchema },
+    },
     async (request, reply) => {
-      await fastify.authenticate(request, reply);
       const { role } = request.user;
       if (!(CAJA_ROLES as readonly string[]).includes(role)) {
         return reply.code(403).send({ error: "Acceso denegado" });
@@ -321,9 +326,11 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
     Body: { blocks: ContentBlockInput[] };
   }>(
     "/admin/programs/:programId/content",
-    { schema: { ...programIdParamsSchema, ...addContentBlocksSchema } },
+    {
+      onRequest: [fastify.authenticate],
+      schema: { ...programIdParamsSchema, ...addContentBlocksSchema },
+    },
     async (request, reply) => {
-      await fastify.authenticate(request, reply);
       const { role } = request.user;
       if (!(CAJA_ROLES as readonly string[]).includes(role)) {
         return reply.code(403).send({ error: "Acceso denegado" });
@@ -346,9 +353,8 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
    */
   fastify.post<{ Params: { programId: number } }>(
     "/admin/programs/:programId/deactivate",
-    { schema: programIdParamsSchema },
+    { onRequest: [fastify.authenticate], schema: programIdParamsSchema },
     async (request, reply) => {
-      await fastify.authenticate(request, reply);
       const { role } = request.user;
       if (!(CAJA_ROLES as readonly string[]).includes(role)) {
         return reply.code(403).send({ error: "Acceso denegado" });
@@ -392,6 +398,7 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
   }>(
     "/admin/users/:userId/program-addons",
     {
+      onRequest: [fastify.authenticate],
       schema: {
         params: {
           type: "object",
@@ -402,7 +409,6 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
       },
     },
     async (request, reply) => {
-      await fastify.authenticate(request, reply);
       const { role } = request.user;
       if (!(FINANCE_WRITE_ROLES as readonly string[]).includes(role)) {
         return reply
@@ -481,9 +487,8 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
    */
   fastify.post<{ Params: { enrollmentId: number } }>(
     "/admin/programs/enrollments/:enrollmentId/cancel",
-    { schema: enrollmentIdParamsSchema },
+    { onRequest: [fastify.authenticate], schema: enrollmentIdParamsSchema },
     async (request, reply) => {
-      await fastify.authenticate(request, reply);
       const { role } = request.user;
       if (!(COACH_ROLES as readonly string[]).includes(role)) {
         return reply.code(403).send({ error: "Acceso denegado" });
@@ -540,9 +545,8 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
    */
   fastify.post<{ Params: { enrollmentId: number } }>(
     "/admin/programs/enrollments/:enrollmentId/advance",
-    { schema: enrollmentIdParamsSchema },
+    { onRequest: [fastify.authenticate], schema: enrollmentIdParamsSchema },
     async (request, reply) => {
-      await fastify.authenticate(request, reply);
       const { role } = request.user;
       if (!(COACH_ROLES as readonly string[]).includes(role)) {
         return reply.code(403).send({ error: "Acceso denegado" });
@@ -564,36 +568,40 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
   /**
    * GET /api/members/programs/catalog — Active program catalog for members.
    */
-  fastify.get("/members/programs/catalog", async (request, reply) => {
-    await fastify.authenticate(request, reply);
-
-    try {
-      const programs = await service.getCatalog();
-      return { programs };
-    } catch (err: unknown) {
-      handleServiceError(err, reply, request.log, "getCatalog");
-    }
-  });
+  fastify.get(
+    "/members/programs/catalog",
+    { onRequest: [fastify.authenticate] },
+    async (request, reply) => {
+      try {
+        const programs = await service.getCatalog();
+        return { programs };
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "getCatalog");
+      }
+    },
+  );
 
   /**
    * GET /api/members/programs/my-progress — Active enrollment progress.
    * Returns 204 No Content if no active enrollment (follows onboarding/routes.ts pattern).
    */
-  fastify.get("/members/programs/my-progress", async (request, reply) => {
-    await fastify.authenticate(request, reply);
+  fastify.get(
+    "/members/programs/my-progress",
+    { onRequest: [fastify.authenticate] },
+    async (request, reply) => {
+      try {
+        const progress = await service.getMemberProgress(request.user.userId);
 
-    try {
-      const progress = await service.getMemberProgress(request.user.userId);
+        if (!progress) {
+          return reply.code(204).send();
+        }
 
-      if (!progress) {
-        return reply.code(204).send();
+        return reply.code(200).send(progress);
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "getMemberProgress");
       }
-
-      return reply.code(200).send(progress);
-    } catch (err: unknown) {
-      handleServiceError(err, reply, request.log, "getMemberProgress");
-    }
-  });
+    },
+  );
 
   /**
    * GET /api/members/programs/has-goal-plan-access — Goal plan gate check.
@@ -602,9 +610,8 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
    */
   fastify.get(
     "/members/programs/has-goal-plan-access",
+    { onRequest: [fastify.authenticate] },
     async (request, reply) => {
-      await fastify.authenticate(request, reply);
-
       try {
         const hasAccess = await service.hasActiveProgramEnrollment(
           request.user.userId,
@@ -630,16 +637,18 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
    * currentProgramEnrollmentId pointer. Returns { enrollmentId, program } when
    * set + active, or { enrollmentId: null, program: null } when unset/stale.
    */
-  fastify.get("/members/me/current-program", async (request, reply) => {
-    await fastify.authenticate(request, reply);
-
-    try {
-      const result = await service.getCurrentProgram(request.user.userId);
-      return reply.code(200).send(result);
-    } catch (err: unknown) {
-      handleServiceError(err, reply, request.log, "getCurrentProgram");
-    }
-  });
+  fastify.get(
+    "/members/me/current-program",
+    { onRequest: [fastify.authenticate] },
+    async (request, reply) => {
+      try {
+        const result = await service.getCurrentProgram(request.user.userId);
+        return reply.code(200).send(result);
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "getCurrentProgram");
+      }
+    },
+  );
 
   /**
    * PUT /api/members/me/current-program — Set the pointer.
@@ -651,6 +660,7 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.put<{ Body: { enrollmentId: number | null } }>(
     "/members/me/current-program",
     {
+      onRequest: [fastify.authenticate],
       schema: {
         body: {
           type: "object",
@@ -688,8 +698,6 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
       },
     },
     async (request, reply) => {
-      await fastify.authenticate(request, reply);
-
       try {
         const result = await service.setCurrentProgram(
           request.user.userId,
@@ -708,14 +716,18 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
    * populate the bottom-sheet options. Returns { enrollments: [...] } —
    * empty array if no active rows.
    */
-  fastify.get("/members/me/enrollments", async (request, reply) => {
-    await fastify.authenticate(request, reply);
-
-    try {
-      const result = await service.listMyActiveEnrollments(request.user.userId);
-      return reply.code(200).send(result);
-    } catch (err: unknown) {
-      handleServiceError(err, reply, request.log, "listMyActiveEnrollments");
-    }
-  });
+  fastify.get(
+    "/members/me/enrollments",
+    { onRequest: [fastify.authenticate] },
+    async (request, reply) => {
+      try {
+        const result = await service.listMyActiveEnrollments(
+          request.user.userId,
+        );
+        return reply.code(200).send(result);
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "listMyActiveEnrollments");
+      }
+    },
+  );
 };

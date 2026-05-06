@@ -269,38 +269,41 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
    * GET /api/notifications/admin/templates — List all notification templates (per D-14).
    * Returns template data with computed openRate.
    */
-  fastify.get("/admin/templates", async (request, reply) => {
-    await fastify.authenticate(request, reply);
-    const { role } = request.user;
-    if (!(ADMIN_ROLES as readonly string[]).includes(role)) {
-      return reply.code(403).send({ error: "Acceso denegado" });
-    }
+  fastify.get(
+    "/admin/templates",
+    { onRequest: [fastify.authenticate] },
+    async (request, reply) => {
+      const { role } = request.user;
+      if (!(ADMIN_ROLES as readonly string[]).includes(role)) {
+        return reply.code(403).send({ error: "Acceso denegado" });
+      }
 
-    const rows = await fastify.db
-      .select()
-      .from(schema.notificationTemplates)
-      .orderBy(schema.notificationTemplates.category);
+      const rows = await fastify.db
+        .select()
+        .from(schema.notificationTemplates)
+        .orderBy(schema.notificationTemplates.category);
 
-    const templates = rows.map((row) => ({
-      id: row.id,
-      templateKey: row.templateKey,
-      category: row.category,
-      title: row.title,
-      body: row.body,
-      titleFemale: row.titleFemale,
-      bodyFemale: row.bodyFemale,
-      route: row.route,
-      isEnabled: row.isEnabled,
-      sentCount: row.sentCount,
-      openedCount: row.openedCount,
-      openRate:
-        row.sentCount > 0
-          ? Math.round((row.openedCount / row.sentCount) * 10000) / 100
-          : 0,
-    }));
+      const templates = rows.map((row) => ({
+        id: row.id,
+        templateKey: row.templateKey,
+        category: row.category,
+        title: row.title,
+        body: row.body,
+        titleFemale: row.titleFemale,
+        bodyFemale: row.bodyFemale,
+        route: row.route,
+        isEnabled: row.isEnabled,
+        sentCount: row.sentCount,
+        openedCount: row.openedCount,
+        openRate:
+          row.sentCount > 0
+            ? Math.round((row.openedCount / row.sentCount) * 10000) / 100
+            : 0,
+      }));
 
-    return { templates };
-  });
+      return { templates };
+    },
+  );
 
   /**
    * PUT /api/notifications/admin/templates/:id — Update template (per D-13).
@@ -319,13 +322,13 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
   }>(
     "/admin/templates/:id",
     {
+      onRequest: [fastify.authenticate],
       schema: {
         ...templateIdParamsSchema,
         ...updateTemplateSchema,
       },
     },
     async (request, reply) => {
-      await fastify.authenticate(request, reply);
       const { role } = request.user;
       if (!(ADMIN_ROLES as readonly string[]).includes(role)) {
         return reply.code(403).send({ error: "Acceso denegado" });
@@ -412,10 +415,10 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
   }>(
     "/admin/send-segment",
     {
+      onRequest: [fastify.authenticate],
       schema: sendSegmentSchema,
     },
     async (request, reply) => {
-      await fastify.authenticate(request, reply);
       const { role } = request.user;
       if (!(ADMIN_ROLES as readonly string[]).includes(role)) {
         return reply.code(403).send({ error: "Acceso denegado" });
@@ -469,14 +472,17 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
    * POST /api/notifications/admin/seed-templates — Seed initial templates.
    * Owner-only for safety. Uses INSERT IGNORE to skip existing keys.
    */
-  fastify.post("/admin/seed-templates", async (request, reply) => {
-    await fastify.authenticate(request, reply);
-    const { role } = request.user;
-    if (!(OWNER_ROLES as readonly string[]).includes(role)) {
-      return reply.code(403).send({ error: "Acceso denegado" });
-    }
+  fastify.post(
+    "/admin/seed-templates",
+    { onRequest: [fastify.authenticate] },
+    async (request, reply) => {
+      const { role } = request.user;
+      if (!(OWNER_ROLES as readonly string[]).includes(role)) {
+        return reply.code(403).send({ error: "Acceso denegado" });
+      }
 
-    await service.seedTemplates();
-    return { success: true };
-  });
+      await service.seedTemplates();
+      return { success: true };
+    },
+  );
 };
