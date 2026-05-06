@@ -683,16 +683,27 @@ function confirmResume() {
 
 function confirmCancel() {
   $q.dialog({
-    title: 'Cancelar suscripcion presencial',
-    message:
-      'Cancelar la suscripcion? Todas las reservas futuras seran canceladas y el alumno debera crear nuevas reservas si vuelve. Esta accion no se puede deshacer.',
+    title: 'Cancelar suscripción presencial',
+    html: true,
+    message: `
+      <div class="q-mb-sm">Esta acción <b>no se puede deshacer</b>. Vas a:</div>
+      <ul class="q-mt-none q-mb-sm" style="padding-left: 20px;">
+        <li>Cancelar todas las <b>reservas futuras</b> de esta suscripción.</li>
+        <li>Cancelar también cualquier <b>suscripción programada</b> a continuación.</li>
+        <li><b>Borrar la deuda pendiente</b> de esta suscripción en Finanzas (queda saldada en 0).</li>
+        <li>Conservar cualquier <b>saldo a favor</b> que el alumno tenga por esta sub.</li>
+      </ul>
+      <div class="q-mt-sm text-caption text-grey-7">
+        Si esta sub tiene cobros activos, primero anulalos desde Detalle Financiero — esta acción se bloqueará hasta entonces.
+      </div>
+    `,
     prompt: {
       model: '',
       type: 'textarea',
       label: 'Notas (opcional)',
     },
     cancel: { flat: true, label: 'Volver' },
-    ok: { color: 'negative', label: 'Cancelar suscripcion' },
+    ok: { color: 'negative', label: 'Cancelar suscripción' },
   }).onOk(async (notes: string) => {
     actionLoading.value = true;
     try {

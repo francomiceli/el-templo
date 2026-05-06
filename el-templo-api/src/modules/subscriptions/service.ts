@@ -1899,6 +1899,15 @@ export class SubscriptionService {
         .where(eq(schema.subscriptions.id, sub.id));
 
       // Also cancel any scheduled successor
+      const scheduledSuccessors = await tx
+        .select({ id: schema.subscriptions.id })
+        .from(schema.subscriptions)
+        .where(
+          and(
+            eq(schema.subscriptions.userId, userId),
+            eq(schema.subscriptions.status, "scheduled"),
+          ),
+        );
       await tx
         .update(schema.subscriptions)
         .set({
@@ -1910,6 +1919,30 @@ export class SubscriptionService {
           and(
             eq(schema.subscriptions.userId, userId),
             eq(schema.subscriptions.status, "scheduled"),
+          ),
+        );
+
+      // Forgive phantom debt: when a sub was assigned without a paid charge,
+      // recordAssignmentCharge seeds a positive balance row so the unpaid
+      // amount surfaces in Reporte Deudas. On cancel that obligation is gone,
+      // so any positive balance for this sub (and its scheduled successors)
+      // must collapse to 0 — otherwise Finanzas keeps trying to settle it
+      // forever (caso Jacqueline/Adriana/Lucas/Vita: 1.13M ARS de deuda
+      // fantasma post-cancel). Only positives are zeroed: a negative balance
+      // (saldo a favor) survives so the member can still apply it elsewhere.
+      // Voided-tx deltas already rolled back via BalanceService.applyDelta,
+      // so the balance row reflects the residual ledger state — anything
+      // still > 0 here is the phantom seed.
+      const targetSubIds = [sub.id, ...scheduledSuccessors.map((s) => s.id)];
+      await tx
+        .update(schema.balances)
+        .set({ amount: 0, lastRecomputedAt: new Date() })
+        .where(
+          and(
+            eq(schema.balances.memberId, userId),
+            eq(schema.balances.targetKind, "subscription"),
+            inArray(schema.balances.targetId, targetSubIds),
+            sql`${schema.balances.amount} > 0`,
           ),
         );
 

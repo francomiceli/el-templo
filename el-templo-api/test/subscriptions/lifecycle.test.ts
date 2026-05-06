@@ -683,6 +683,111 @@ describe("Subscriptions API — Lifecycle", () => {
       expect(payload.notes).toBe("alumno solicitó la baja");
       expect(typeof payload.cancelledAt).toBe("string");
     });
+
+    // Phantom-debt regression: when assignPlan seeds a balance row because
+    // amountReceived=0 (recordAssignmentCharge:303-314), cancelling the sub
+    // must zero that row. Otherwise Finanzas keeps trying to settle the
+    // unpaid amount forever — the bug Mati hit with Jacqueline / Adriana /
+    // Lucas / Vita (1.13M ARS phantom debt across 4 members).
+    it("cancel zeroes out positive balance for sub with seeded debt and no charges", async () => {
+      const plan = await createPlan(app, adminToken, {
+        priceRegular: 50000,
+      });
+      const member = await createMember(app);
+
+      // amountReceived=0 → recordAssignmentCharge skips the inflow tx and
+      // explicitly seeds balances.amount = chargeBase. Mirrors the prod
+      // flow where the admin assigns the plan but the alumno hasn't paid.
+      const assigned = await assignPlan(app, adminToken, member.id, {
+        planId: plan.id,
+        amountReceived: 0,
+      });
+      expect(assigned.statusCode).toBe(201);
+      const subId = assigned.body.id as number;
+
+      // Sanity: the seeded balance row exists and is positive.
+      const seededBalance = await app.db
+        .select({ amount: schema.balances.amount })
+        .from(schema.balances)
+        .where(
+          and(
+            eq(schema.balances.memberId, member.id),
+            eq(schema.balances.targetKind, "subscription"),
+            eq(schema.balances.targetId, subId),
+          ),
+        );
+      expect(seededBalance).toHaveLength(1);
+      expect(seededBalance[0].amount).toBeGreaterThan(0);
+
+      const cancelRes = await app.inject({
+        method: "POST",
+        url: `${SUBSCRIPTIONS_URL}/members/${member.id}/subscription/cancel`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {},
+      });
+      expect(cancelRes.statusCode).toBe(200);
+
+      // Balance row must collapse to 0 after cancel.
+      const postBalance = await app.db
+        .select({ amount: schema.balances.amount })
+        .from(schema.balances)
+        .where(
+          and(
+            eq(schema.balances.memberId, member.id),
+            eq(schema.balances.targetKind, "subscription"),
+            eq(schema.balances.targetId, subId),
+          ),
+        );
+      expect(postBalance).toHaveLength(1);
+      expect(postBalance[0].amount).toBe(0);
+    });
+
+    // Saldo a favor (negative balance) survives cancellation — only positive
+    // outstanding debt is forgiven, not credit the member earned elsewhere.
+    it("cancel preserves negative balance (saldo a favor) on the cancelled sub", async () => {
+      const plan = await createPlan(app, adminToken, {
+        priceRegular: 50000,
+      });
+      const member = await createMember(app);
+      const assigned = await assignPlan(app, adminToken, member.id, {
+        planId: plan.id,
+        amountReceived: 0,
+      });
+      const subId = assigned.body.id as number;
+
+      // Manually flip the balance to negative (simulates an applied refund or
+      // overpayment leaving credit attached to this sub).
+      await app.db
+        .update(schema.balances)
+        .set({ amount: -25000 })
+        .where(
+          and(
+            eq(schema.balances.memberId, member.id),
+            eq(schema.balances.targetKind, "subscription"),
+            eq(schema.balances.targetId, subId),
+          ),
+        );
+
+      const cancelRes = await app.inject({
+        method: "POST",
+        url: `${SUBSCRIPTIONS_URL}/members/${member.id}/subscription/cancel`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {},
+      });
+      expect(cancelRes.statusCode).toBe(200);
+
+      const postBalance = await app.db
+        .select({ amount: schema.balances.amount })
+        .from(schema.balances)
+        .where(
+          and(
+            eq(schema.balances.memberId, member.id),
+            eq(schema.balances.targetKind, "subscription"),
+            eq(schema.balances.targetId, subId),
+          ),
+        );
+      expect(postBalance[0].amount).toBe(-25000);
+    });
   });
 
   describe("Pricing preview", () => {
