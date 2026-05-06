@@ -396,7 +396,8 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       // financial-history, outstanding-concepts) intentionally return 404 for
       // info-leak prevention; here the plan explicitly requested 403 + code
       // to align with the new preHandler contract.
-      if (request.scope.country && member.branchId) {
+      // Owner bypass mirrors canAccessBranch Rule 2 — owners operate cross-country.
+      if (!request.scope.isOwner && request.scope.country && member.branchId) {
         const [memberBranch] = await fastify.db
           .select({
             country: schema.branches.country,
@@ -838,6 +839,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       if (
+        !request.scope.isOwner &&
         request.scope.country &&
         !target.branchIsVirtual &&
         target.branchCountry !== request.scope.country
@@ -983,6 +985,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       if (
+        !request.scope.isOwner &&
         request.scope.country &&
         !target.branchIsVirtual &&
         target.branchCountry !== request.scope.country
