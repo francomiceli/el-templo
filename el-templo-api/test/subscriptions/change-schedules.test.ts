@@ -10,6 +10,7 @@ import {
 import { activities } from "../../src/db/schema/activities";
 import { schedules } from "../../src/db/schema/schedules";
 import { bookings } from "../../src/db/schema/bookings";
+import { branches } from "../../src/db/schema/branches";
 import { subscriptionSchedules } from "../../src/db/schema/subscription-schedules";
 import { subscriptions } from "../../src/db/schema/subscriptions";
 import { users } from "../../src/db/schema/users";
@@ -401,5 +402,154 @@ describe("Subscriptions API — PATCH /:id/schedules (change fixed turnos)", () 
       coachToken,
     );
     expect(statusCode).toBe(200);
+  });
+
+  // ── Multi-branch fixed anchors (Phase: feat/multi-branch-fixed-anchors) ──
+  // A plan with multi_branch=1 lets the admin pick fixed anchors in any sede
+  // of the same country as the subscription's anchor branch. Cross-country
+  // anchors are always rejected. Plans without multi_branch keep the legacy
+  // "all anchors must match the sub's branch" behavior.
+
+  it("multi_branch plan: accepts anchors split across branches in the same country", async () => {
+    // Create a second AR branch (sede secundaria) for the multi-branch case.
+    const secondBranchInsert = await app.db.insert(branches).values({
+      name: "Test Branch B",
+      code: "TESTB",
+      country: "AR",
+    });
+    const secondBranchId = Number(secondBranchInsert[0].insertId);
+
+    const plan = await createPlan(app, adminToken, {
+      name: "Fixed Multi-Branch 2x",
+      bookingMode: "fixed",
+      classesPerWeek: 2,
+      multiBranch: true,
+      durationDays: 30,
+    });
+    const member = await createMember(app);
+
+    // One anchor in branch 1 (Test Branch), one in branch 2 (Test Branch B).
+    // Offsets stay small: createScheduleSlots derives `start_time = 8+offset+i`
+    // and the column is varchar(5) — values >= 92 overflow.
+    const slotsBranch1 = await createScheduleSlots(1, 1, 0);
+    const slotsBranch2 = await createScheduleSlots(secondBranchId, 1, 1);
+    const mixedSlots = [...slotsBranch1, ...slotsBranch2];
+
+    const { statusCode, body } = await assignPlan(app, adminToken, member.id, {
+      planId: plan.id,
+      branchId: 1,
+      startDate: todayStr(),
+      scheduleIds: mixedSlots,
+    });
+
+    expect(statusCode).toBe(201);
+    expect([...(body.scheduleIds as number[])].sort()).toEqual(
+      [...mixedSlots].sort(),
+    );
+  });
+
+  it("multi_branch plan: rejects anchors in a different country", async () => {
+    // Spanish (ES) branch — cross-country must be rejected even for multi_branch.
+    const esBranchInsert = await app.db.insert(branches).values({
+      name: "Test Branch ES",
+      code: "TESTES",
+      country: "ES",
+    });
+    const esBranchId = Number(esBranchInsert[0].insertId);
+
+    const plan = await createPlan(app, adminToken, {
+      name: "Fixed Multi-Branch X-Country 2x",
+      bookingMode: "fixed",
+      classesPerWeek: 2,
+      multiBranch: true,
+      durationDays: 30,
+    });
+    const member = await createMember(app);
+
+    const slotsAR = await createScheduleSlots(1, 1, 0);
+    const slotsES = await createScheduleSlots(esBranchId, 1, 1);
+    const mixed = [...slotsAR, ...slotsES];
+
+    const { statusCode, body } = await assignPlan(app, adminToken, member.id, {
+      planId: plan.id,
+      branchId: 1,
+      startDate: todayStr(),
+      scheduleIds: mixed,
+    });
+
+    expect(statusCode).toBe(400);
+    expect(body.message).toMatch(/otro país|otro pais/);
+  });
+
+  it("non-multi_branch plan: rejects anchors in another sede (regression)", async () => {
+    const secondBranchInsert = await app.db.insert(branches).values({
+      name: "Test Branch C",
+      code: "TESTC",
+      country: "AR",
+    });
+    const secondBranchId = Number(secondBranchInsert[0].insertId);
+
+    const plan = await createPlan(app, adminToken, {
+      name: "Fixed Single-Branch 2x",
+      bookingMode: "fixed",
+      classesPerWeek: 2,
+      multiBranch: false,
+      durationDays: 30,
+    });
+    const member = await createMember(app);
+
+    const slotSubBranch = await createScheduleSlots(1, 1, 0);
+    const slotOtherBranch = await createScheduleSlots(secondBranchId, 1, 1);
+
+    const { statusCode, body } = await assignPlan(app, adminToken, member.id, {
+      planId: plan.id,
+      branchId: 1,
+      startDate: todayStr(),
+      scheduleIds: [...slotSubBranch, ...slotOtherBranch],
+    });
+
+    expect(statusCode).toBe(400);
+    expect(body.message).toMatch(/no pertenece a la sucursal/);
+  });
+
+  it("changeFixedSchedules: multi_branch plan accepts cross-sede swap", async () => {
+    const secondBranchInsert = await app.db.insert(branches).values({
+      name: "Test Branch D",
+      code: "TESTD",
+      country: "AR",
+    });
+    const secondBranchId = Number(secondBranchInsert[0].insertId);
+
+    const plan = await createPlan(app, adminToken, {
+      name: "Fixed Multi-Branch Swap 2x",
+      bookingMode: "fixed",
+      classesPerWeek: 2,
+      multiBranch: true,
+      durationDays: 30,
+    });
+    const member = await createMember(app);
+    const initialSlots = await createScheduleSlots(1, 2, 0);
+    const { body: assignBody } = await assignPlan(app, adminToken, member.id, {
+      planId: plan.id,
+      branchId: 1,
+      startDate: todayStr(),
+      scheduleIds: initialSlots,
+    });
+    const subId = assignBody.id as number;
+
+    // Swap to a new pair: one in branch 1, one in branch D — different days
+    // from the initial pair (offset 2,3 vs 0,1) so the swap actually changes.
+    const newSlotBranch1 = await createScheduleSlots(1, 1, 2);
+    const newSlotBranchD = await createScheduleSlots(secondBranchId, 1, 3);
+    const mixedNew = [...newSlotBranch1, ...newSlotBranchD];
+
+    const { statusCode, body } = await patchSchedules(subId, {
+      scheduleIds: mixedNew,
+    });
+
+    expect(statusCode).toBe(200);
+    expect([...(body.scheduleIds as number[])].sort()).toEqual(
+      [...mixedNew].sort(),
+    );
   });
 });

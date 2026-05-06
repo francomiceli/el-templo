@@ -177,6 +177,8 @@
       :required-count="classUsage.weeklyLimit"
       :current-schedule-ids="classUsage.scheduleIds"
       :allow-partial="classUsage.bookingMode === 'flexible'"
+      :multi-branch="classUsage.multiBranch"
+      :available-branches="multiBranchOptions"
       @saved="onTurnosChanged"
     />
 
@@ -439,6 +441,14 @@ const paymentMethodOptions = PAYMENT_METHOD_OPTIONS;
 const presencialSub = computed(
   () =>
     allSubscriptions.value.find((s) => !s.planCategory || s.planCategory === 'presencial') ?? null
+);
+
+// Branches the FixedSchedulePicker offers when the active sub's plan is
+// multi_branch. Virtual sedes (Templo Online) never host presencial anchors,
+// so they're filtered out. The list is already country-scoped at the API
+// level via getBranches().
+const multiBranchOptions = computed(() =>
+  (props.branches ?? []).filter((b) => !b.isVirtual).map((b) => ({ id: b.id, name: b.name }))
 );
 
 const programaSub = computed(

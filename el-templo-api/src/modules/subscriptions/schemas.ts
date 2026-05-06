@@ -530,6 +530,7 @@ export const classUsageSchema = {
         classesUsedThisWeek: { type: "integer" },
         weeklyLimit: { type: ["integer", "null"] },
         bookingMode: { type: "string" },
+        multiBranch: { type: "boolean" },
         scheduleIds: { type: "array", items: { type: "integer" } },
         scheduleSlots: {
           type: "array",

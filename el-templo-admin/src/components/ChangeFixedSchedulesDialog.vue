@@ -25,6 +25,8 @@
           :allow-partial="allowPartial"
           :title="pickerTitle"
           :branch-name="branchName"
+          :multi-branch="multiBranch"
+          :available-branches="availableBranches"
           class="q-mb-md"
         />
 
@@ -74,8 +76,18 @@ const props = withDefaults(
     currentScheduleIds: number[];
     /** When true (flexible plans), 0..requiredCount anchors allowed. */
     allowPartial?: boolean;
+    /**
+     * When true, the picker shows a sede selector so the admin can mix
+     * anchors across branches (same country only). Mirrors plan.multiBranch.
+     */
+    multiBranch?: boolean;
+    /**
+     * Branches the admin may pick anchors from when multiBranch=true.
+     * Typically scoped to the same country as the subscription's branch.
+     */
+    availableBranches?: Array<{ id: number; name: string }>;
   }>(),
-  { allowPartial: false }
+  { allowPartial: false, multiBranch: false }
 );
 
 const emit = defineEmits<{

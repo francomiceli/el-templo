@@ -261,6 +261,8 @@
             :allow-partial="!isFixedMode"
             title="Selecciona los horarios fijos para este plan"
             :branch-name="memberBranchName"
+            :multi-branch="selectedPlanIsMultiBranch"
+            :available-branches="multiBranchPickerOptions"
             class="q-mb-md"
           />
         </q-step>
@@ -789,6 +791,14 @@ const isOnlinePlan = computed(() =>
 
 const isFixedMode = computed(
   () => selectedPlan.value?.bookingMode === 'fixed' && !isOnlinePlan.value
+);
+
+// Multi-branch fixed anchors: when the plan flag is on, the picker offers
+// a sede selector and accepts anchors across branches in the same country.
+const selectedPlanIsMultiBranch = computed(() => selectedPlan.value?.multiBranch === true);
+
+const multiBranchPickerOptions = computed(() =>
+  (props.branches ?? []).filter((b) => !b.isVirtual).map((b) => ({ id: b.id, name: b.name }))
 );
 
 const showScheduleStep = computed(() => {

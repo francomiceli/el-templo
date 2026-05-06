@@ -302,6 +302,12 @@ export interface ClassUsageInfo {
   scheduleIds: number[];
   scheduleSlots: ScheduleSlotInfo[];
   bookingMode: BookingMode;
+  /**
+   * Multi-branch flag of the active sub's plan. When true, fixed-anchor
+   * pickers offer a sede selector so admins can split anchors across
+   * branches in the same country.
+   */
+  multiBranch: boolean;
   bonusUsage: {
     applicable: boolean;
     used?: number;

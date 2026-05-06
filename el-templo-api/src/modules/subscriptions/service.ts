@@ -1045,61 +1045,7 @@ export class SubscriptionService {
     }
 
     if (input.scheduleIds && input.scheduleIds.length > 0) {
-      // Validate each scheduleId exists, is active, and belongs to branchId
-      const scheduleRows = await this.db
-        .select({
-          id: schema.schedules.id,
-          branchId: schema.schedules.branchId,
-          isActive: schema.schedules.isActive,
-          dayOfWeek: schema.schedules.dayOfWeek,
-          startTime: schema.schedules.startTime,
-        })
-        .from(schema.schedules)
-        .where(inArray(schema.schedules.id, input.scheduleIds));
-
-      if (scheduleRows.length !== input.scheduleIds.length) {
-        const foundIds = new Set(scheduleRows.map((s) => s.id));
-        const missing = input.scheduleIds.filter((id) => !foundIds.has(id));
-        throw new BadRequestError(
-          `Horarios no encontrados: ${missing.join(", ")}`,
-        );
-      }
-
-      for (const row of scheduleRows) {
-        if (!row.isActive) {
-          throw new BadRequestError(
-            `El horario ${row.id} esta inactivo. Solo se pueden seleccionar horarios activos.`,
-          );
-        }
-        if (row.branchId !== input.branchId) {
-          throw new BadRequestError(
-            `El horario ${row.id} no pertenece a la sucursal seleccionada`,
-          );
-        }
-      }
-
-      // One slot per day-of-week — fixed plans should distribute classes
-      // across distinct days, not stack two slots on the same day.
-      const dayCounts = new Map<number, number>();
-      for (const row of scheduleRows) {
-        dayCounts.set(row.dayOfWeek, (dayCounts.get(row.dayOfWeek) ?? 0) + 1);
-      }
-      const duplicates = [...dayCounts.entries()].filter(([, n]) => n > 1);
-      if (duplicates.length > 0) {
-        const dayNames: Record<number, string> = {
-          1: "lunes",
-          2: "martes",
-          3: "miércoles",
-          4: "jueves",
-          5: "viernes",
-          6: "sábado",
-          7: "domingo",
-        };
-        const labels = duplicates.map(([dow]) => dayNames[dow] ?? `día ${dow}`);
-        throw new BadRequestError(
-          `No se puede elegir más de un turno fijo el mismo día: ${labels.join(", ")}`,
-        );
-      }
+      await this.validateAnchorSet(input.scheduleIds, input.branchId, plan);
     }
 
     // Calculate monthly class budget from plan configuration
@@ -1334,6 +1280,7 @@ export class SubscriptionService {
         bookingMode: schema.subscriptionPlans.bookingMode,
         planCategory: schema.subscriptionPlans.planCategory,
         classesPerWeek: schema.subscriptionPlans.classesPerWeek,
+        multiBranch: schema.subscriptionPlans.multiBranch,
       })
       .from(schema.subscriptionPlans)
       .where(eq(schema.subscriptionPlans.id, sub.planId));
@@ -1368,59 +1315,9 @@ export class SubscriptionService {
       }
     }
 
-    // Validate the new schedule IDs: exist, active, same branch
+    // Validate the new schedule IDs: exist, active, branch policy, distinct days
     if (input.scheduleIds.length > 0) {
-      const scheduleRows = await this.db
-        .select({
-          id: schema.schedules.id,
-          branchId: schema.schedules.branchId,
-          isActive: schema.schedules.isActive,
-          dayOfWeek: schema.schedules.dayOfWeek,
-        })
-        .from(schema.schedules)
-        .where(inArray(schema.schedules.id, input.scheduleIds));
-
-      if (scheduleRows.length !== input.scheduleIds.length) {
-        const foundIds = new Set(scheduleRows.map((s) => s.id));
-        const missing = input.scheduleIds.filter((id) => !foundIds.has(id));
-        throw new BadRequestError(
-          `Horarios no encontrados: ${missing.join(", ")}`,
-        );
-      }
-      for (const row of scheduleRows) {
-        if (!row.isActive) {
-          throw new BadRequestError(
-            `El horario ${row.id} esta inactivo. Solo se pueden seleccionar horarios activos.`,
-          );
-        }
-        if (row.branchId !== sub.branchId) {
-          throw new BadRequestError(
-            `El horario ${row.id} no pertenece a la sucursal de la suscripcion`,
-          );
-        }
-      }
-
-      // One slot per day-of-week (matches assignPlan).
-      const dayCounts = new Map<number, number>();
-      for (const row of scheduleRows) {
-        dayCounts.set(row.dayOfWeek, (dayCounts.get(row.dayOfWeek) ?? 0) + 1);
-      }
-      const duplicates = [...dayCounts.entries()].filter(([, n]) => n > 1);
-      if (duplicates.length > 0) {
-        const dayNames: Record<number, string> = {
-          1: "lunes",
-          2: "martes",
-          3: "miércoles",
-          4: "jueves",
-          5: "viernes",
-          6: "sábado",
-          7: "domingo",
-        };
-        const labels = duplicates.map(([dow]) => dayNames[dow] ?? `día ${dow}`);
-        throw new BadRequestError(
-          `No se puede elegir más de un turno fijo el mismo día: ${labels.join(", ")}`,
-        );
-      }
+      await this.validateAnchorSet(input.scheduleIds, sub.branchId, plan);
     }
 
     const oldScheduleIds = sub.scheduleIds;
@@ -2349,33 +2246,11 @@ export class SubscriptionService {
             `Debes seleccionar exactamente ${targetPlan.classesPerWeek} horarios. Seleccionaste ${input.scheduleIds.length}.`,
           );
         }
-        // Validate schedule IDs exist and belong to branch
-        const scheduleRows = await this.db
-          .select({
-            id: schema.schedules.id,
-            branchId: schema.schedules.branchId,
-            isActive: schema.schedules.isActive,
-          })
-          .from(schema.schedules)
-          .where(inArray(schema.schedules.id, input.scheduleIds));
-
-        if (scheduleRows.length !== input.scheduleIds.length) {
-          const foundIds = new Set(scheduleRows.map((s) => s.id));
-          const missing = input.scheduleIds.filter((id) => !foundIds.has(id));
-          throw new BadRequestError(
-            `Horarios no encontrados: ${missing.join(", ")}`,
-          );
-        }
-        for (const row of scheduleRows) {
-          if (!row.isActive) {
-            throw new BadRequestError(`El horario ${row.id} esta inactivo.`);
-          }
-          if (row.branchId !== input.branchId) {
-            throw new BadRequestError(
-              `El horario ${row.id} no pertenece a la sucursal seleccionada`,
-            );
-          }
-        }
+        await this.validateAnchorSet(
+          input.scheduleIds,
+          input.branchId,
+          targetPlan,
+        );
       }
 
       // Calculate new period
@@ -2674,32 +2549,11 @@ export class SubscriptionService {
           `Debes seleccionar exactamente ${targetPlan.classesPerWeek} horarios. Seleccionaste ${input.scheduleIds.length}.`,
         );
       }
-      const scheduleRows = await this.db
-        .select({
-          id: schema.schedules.id,
-          branchId: schema.schedules.branchId,
-          isActive: schema.schedules.isActive,
-        })
-        .from(schema.schedules)
-        .where(inArray(schema.schedules.id, input.scheduleIds));
-
-      if (scheduleRows.length !== input.scheduleIds.length) {
-        const foundIds = new Set(scheduleRows.map((s) => s.id));
-        const missing = input.scheduleIds.filter((id) => !foundIds.has(id));
-        throw new BadRequestError(
-          `Horarios no encontrados: ${missing.join(", ")}`,
-        );
-      }
-      for (const row of scheduleRows) {
-        if (!row.isActive) {
-          throw new BadRequestError(`El horario ${row.id} esta inactivo.`);
-        }
-        if (row.branchId !== input.branchId) {
-          throw new BadRequestError(
-            `El horario ${row.id} no pertenece a la sucursal seleccionada`,
-          );
-        }
-      }
+      await this.validateAnchorSet(
+        input.scheduleIds,
+        input.branchId,
+        targetPlan,
+      );
     }
 
     // Load member for boarding pass eligibility
@@ -3758,6 +3612,7 @@ export class SubscriptionService {
       classesUsedThisWeek,
       weeklyLimit: plan.classesPerWeek,
       bookingMode: plan.bookingMode,
+      multiBranch: plan.multiBranch,
       scheduleIds,
       scheduleSlots,
       bonusUsage: { applicable: false }, // filled in by route handler
@@ -4031,6 +3886,118 @@ export class SubscriptionService {
       .update(schema.promoPlans)
       .set({ isActive: false })
       .where(eq(schema.promoPlans.id, promoId));
+  }
+
+  /**
+   * Validate a candidate set of fixed-anchor scheduleIds.
+   *
+   * Enforces (in order):
+   *  - schedules exist
+   *  - schedules are active
+   *  - branch scoping policy:
+   *      plan.multiBranch=false → every slot must belong to anchorBranchId
+   *      plan.multiBranch=true  → every slot must be in the same country as
+   *        anchorBranchId. Cross-country anchors are always rejected (mirrors
+   *        the booking-service.ts cross-country guard for ad-hoc bookings).
+   *  - one slot per dayOfWeek (no two anchors stacked on the same day)
+   *
+   * Returns the loaded schedule rows so callers don't re-query.
+   */
+  private async validateAnchorSet(
+    scheduleIds: number[],
+    anchorBranchId: number,
+    plan: { multiBranch: boolean },
+  ): Promise<Array<{ id: number; branchId: number; dayOfWeek: number }>> {
+    const scheduleRows = await this.db
+      .select({
+        id: schema.schedules.id,
+        branchId: schema.schedules.branchId,
+        isActive: schema.schedules.isActive,
+        dayOfWeek: schema.schedules.dayOfWeek,
+      })
+      .from(schema.schedules)
+      .where(inArray(schema.schedules.id, scheduleIds));
+
+    if (scheduleRows.length !== scheduleIds.length) {
+      const foundIds = new Set(scheduleRows.map((s) => s.id));
+      const missing = scheduleIds.filter((id) => !foundIds.has(id));
+      throw new BadRequestError(
+        `Horarios no encontrados: ${missing.join(", ")}`,
+      );
+    }
+
+    for (const row of scheduleRows) {
+      if (!row.isActive) {
+        throw new BadRequestError(
+          `El horario ${row.id} esta inactivo. Solo se pueden seleccionar horarios activos.`,
+        );
+      }
+    }
+
+    const otherBranchAnchors = scheduleRows.filter(
+      (r) => r.branchId !== anchorBranchId,
+    );
+    if (otherBranchAnchors.length > 0) {
+      if (!plan.multiBranch) {
+        throw new BadRequestError(
+          `El horario ${otherBranchAnchors[0].id} no pertenece a la sucursal seleccionada`,
+        );
+      }
+      const branchIds = Array.from(
+        new Set([anchorBranchId, ...otherBranchAnchors.map((r) => r.branchId)]),
+      );
+      const branchRows = await this.db
+        .select({
+          id: schema.branches.id,
+          country: schema.branches.country,
+        })
+        .from(schema.branches)
+        .where(inArray(schema.branches.id, branchIds));
+
+      const anchorCountry = branchRows.find(
+        (b) => b.id === anchorBranchId,
+      )?.country;
+      if (!anchorCountry) {
+        throw new BadRequestError(`Sucursal ${anchorBranchId} no encontrada`);
+      }
+      for (const row of otherBranchAnchors) {
+        const branchCountry = branchRows.find(
+          (b) => b.id === row.branchId,
+        )?.country;
+        if (branchCountry !== anchorCountry) {
+          throw new BadRequestError(
+            `El horario ${row.id} pertenece a una sucursal de otro país`,
+          );
+        }
+      }
+    }
+
+    const dayCounts = new Map<number, number>();
+    for (const row of scheduleRows) {
+      dayCounts.set(row.dayOfWeek, (dayCounts.get(row.dayOfWeek) ?? 0) + 1);
+    }
+    const duplicates = [...dayCounts.entries()].filter(([, n]) => n > 1);
+    if (duplicates.length > 0) {
+      const dayNames: Record<number, string> = {
+        1: "lunes",
+        2: "martes",
+        3: "miércoles",
+        4: "jueves",
+        5: "viernes",
+        6: "sábado",
+        7: "domingo",
+      };
+      const labels = duplicates.map(([dow]) => dayNames[dow] ?? `día ${dow}`);
+      throw new BadRequestError(
+        `No se puede elegir más de un turno fijo el mismo día: ${labels.join(", ")}`,
+      );
+    }
+
+    return scheduleRows.map((r) => ({
+      id: r.id,
+      branchId: r.branchId,
+      dayOfWeek: r.dayOfWeek,
+    }));
   }
 
   /**

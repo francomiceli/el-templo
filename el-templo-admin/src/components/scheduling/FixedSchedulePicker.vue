@@ -3,11 +3,39 @@
     <div class="row items-center justify-between q-mb-sm">
       <div>
         <div class="text-subtitle2">{{ title }}</div>
-        <div v-if="branchName" class="text-caption text-grey-7">Sede: {{ branchName }}</div>
+        <div v-if="!multiBranch && branchName" class="text-caption text-grey-7">
+          Sede: {{ branchName }}
+        </div>
       </div>
       <q-badge :color="badgeColor" class="text-body2 q-pa-sm">
         Clases seleccionadas: {{ modelValue.length }}/{{ requiredCount }}
       </q-badge>
+    </div>
+
+    <div v-if="multiBranch && availableBranches && availableBranches.length > 0" class="q-mb-sm">
+      <q-select
+        v-model="activeBranchId"
+        :options="branchOptions"
+        emit-value
+        map-options
+        outlined
+        dense
+        label="Sede"
+      />
+    </div>
+
+    <div v-if="modelValue.length > 0" class="q-mb-sm row q-gutter-xs">
+      <q-chip
+        v-for="info in selectedChips"
+        :key="info.id"
+        removable
+        dense
+        :color="info.branchId === activeBranchId ? 'primary' : 'grey-4'"
+        :text-color="info.branchId === activeBranchId ? 'white' : 'grey-9'"
+        @remove="removeSlot(info.id)"
+      >
+        {{ info.label }}
+      </q-chip>
     </div>
 
     <div v-if="loading" class="flex flex-center q-pa-lg">
@@ -75,6 +103,11 @@ function getMonday(d: Date): string {
   return `${y}-${m}-${dd}`;
 }
 
+interface BranchOption {
+  id: number;
+  name: string;
+}
+
 const props = withDefaults(
   defineProps<{
     modelValue: number[];
@@ -88,8 +121,16 @@ const props = withDefaults(
     allowPartial?: boolean;
     title?: string;
     branchName?: string;
+    /**
+     * Multi-branch mode: when true, the picker shows a sede selector and
+     * accepts anchors across branches. The parent must pass
+     * `availableBranches` listing the sedes the user can pick from
+     * (typically scoped to the same country as `branchId`).
+     */
+    multiBranch?: boolean;
+    availableBranches?: BranchOption[];
   }>(),
-  { allowPartial: false }
+  { allowPartial: false, multiBranch: false }
 );
 
 const emit = defineEmits<{
@@ -99,8 +140,24 @@ const emit = defineEmits<{
 const $q = useQuasar();
 const log = createLogger('FixedSchedulePicker');
 
-const slots = ref<WeeklySlotView[]>([]);
+// Cumulative slot cache keyed by branchId. Multi-branch mode reuses entries
+// across branch switches so we don't re-fetch when the admin flips back.
+const branchSlots = ref<Map<number, WeeklySlotView[]>>(new Map());
 const loading = ref(false);
+const activeBranchId = ref(props.branchId);
+
+// Metadata for slots the user has selected — keeps enough info to render
+// chips even when activeBranchId points elsewhere (the slot row isn't in
+// the current branch's grid).
+interface SelectedSlotMeta {
+  id: number;
+  branchId: number;
+  branchName: string;
+  dayOfWeek: DayOfWeek;
+  startTime: string;
+  activityName: string;
+}
+const selectedMeta = ref<Map<number, SelectedSlotMeta>>(new Map());
 
 const title = computed(() => props.title ?? 'Selecciona los horarios fijos');
 
@@ -109,6 +166,19 @@ const badgeColor = computed(() => {
   if (props.allowPartial && props.modelValue.length < props.requiredCount) return 'primary';
   return 'grey';
 });
+
+const branchOptions = computed(() =>
+  (props.availableBranches ?? []).map((b) => ({ label: b.name, value: b.id }))
+);
+
+const branchNameById = computed(() => {
+  const m = new Map<number, string>();
+  for (const b of props.availableBranches ?? []) m.set(b.id, b.name);
+  if (props.branchName && !m.has(props.branchId)) m.set(props.branchId, props.branchName);
+  return m;
+});
+
+const slots = computed<WeeklySlotView[]>(() => branchSlots.value.get(activeBranchId.value) ?? []);
 
 const days = computed(() => {
   const arr: Array<{ dayOfWeek: DayOfWeek; label: string }> = [];
@@ -140,15 +210,29 @@ function slotFor(time: string, dayOfWeek: DayOfWeek): WeeklySlotView | undefined
   return slotMap.value.get(`${time}-${dayOfWeek}`);
 }
 
-// Days-of-week already covered by a selected slot — used to grey out
-// other cells in those days so the user can only pick one slot per day.
+// Days-of-week already covered by an anchor (across all branches in
+// multi-branch mode, or just this branch otherwise) — used to grey out
+// other cells in those days so the user picks one slot per day.
 const selectedDays = computed<Set<DayOfWeek>>(() => {
   const set = new Set<DayOfWeek>();
-  for (const id of props.modelValue) {
-    const sel = slots.value.find((s) => s.id === id);
-    if (sel) set.add(sel.dayOfWeek as DayOfWeek);
-  }
+  for (const meta of selectedMeta.value.values()) set.add(meta.dayOfWeek);
   return set;
+});
+
+const selectedChips = computed(() => {
+  const items: Array<{ id: number; label: string; branchId: number }> = [];
+  for (const id of props.modelValue) {
+    const meta = selectedMeta.value.get(id);
+    if (!meta) continue;
+    const dayLabel = DAY_SHORT_LABELS[meta.dayOfWeek];
+    const branchSuffix = props.multiBranch && meta.branchName ? ` · ${meta.branchName}` : '';
+    items.push({
+      id,
+      label: `${dayLabel} ${meta.startTime}${branchSuffix}`,
+      branchId: meta.branchId,
+    });
+  }
+  return items;
 });
 
 function cellClass(time: string, dayOfWeek: DayOfWeek): string {
@@ -160,6 +244,17 @@ function cellClass(time: string, dayOfWeek: DayOfWeek): string {
   return 'slot-cell--available';
 }
 
+function recordSelection(s: WeeklySlotView): void {
+  selectedMeta.value.set(s.id, {
+    id: s.id,
+    branchId: activeBranchId.value,
+    branchName: branchNameById.value.get(activeBranchId.value) ?? '',
+    dayOfWeek: s.dayOfWeek as DayOfWeek,
+    startTime: s.startTime,
+    activityName: s.activityName,
+  });
+}
+
 function toggleCell(time: string, dayOfWeek: DayOfWeek): void {
   const s = slotFor(time, dayOfWeek);
   if (!s) return;
@@ -167,6 +262,7 @@ function toggleCell(time: string, dayOfWeek: DayOfWeek): void {
   const idx = current.indexOf(s.id);
   if (idx >= 0) {
     current.splice(idx, 1);
+    selectedMeta.value.delete(s.id);
     emit('update:modelValue', current);
     return;
   }
@@ -175,18 +271,45 @@ function toggleCell(time: string, dayOfWeek: DayOfWeek): void {
   if (selectedDays.value.has(dayOfWeek)) return;
   if (current.length >= props.requiredCount) return;
   current.push(s.id);
+  recordSelection(s);
   emit('update:modelValue', current);
 }
 
-async function load(): Promise<void> {
+function removeSlot(scheduleId: number): void {
+  const current = [...props.modelValue];
+  const idx = current.indexOf(scheduleId);
+  if (idx < 0) return;
+  current.splice(idx, 1);
+  selectedMeta.value.delete(scheduleId);
+  emit('update:modelValue', current);
+}
+
+async function loadBranch(branchId: number): Promise<void> {
+  if (branchSlots.value.has(branchId)) return; // cached
   loading.value = true;
   try {
     const monday = getMonday(new Date());
-    const result = await schedulingApi.getWeeklyGrid(props.branchId, monday);
-    slots.value = result.slots;
+    const result = await schedulingApi.getWeeklyGrid(branchId, monday);
+    branchSlots.value.set(branchId, result.slots);
+
+    // Backfill metadata for any pre-selected scheduleIds that live in this
+    // branch — this covers the "edit existing anchors" path where modelValue
+    // arrives populated from the parent before the user has clicked anything.
+    for (const s of result.slots) {
+      if (props.modelValue.includes(s.id) && !selectedMeta.value.has(s.id)) {
+        selectedMeta.value.set(s.id, {
+          id: s.id,
+          branchId,
+          branchName: branchNameById.value.get(branchId) ?? '',
+          dayOfWeek: s.dayOfWeek as DayOfWeek,
+          startTime: s.startTime,
+          activityName: s.activityName,
+        });
+      }
+    }
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido';
-    log.error('Error loading branch schedules', { error: message });
+    log.error('Error loading branch schedules', { error: message, branchId });
     $q.notify({ type: 'negative', message: 'Error cargando horarios' });
   } finally {
     loading.value = false;
@@ -196,12 +319,39 @@ async function load(): Promise<void> {
 watch(
   () => props.branchId,
   (id) => {
-    if (id) void load();
+    if (id) {
+      activeBranchId.value = id;
+      void loadBranch(id);
+    }
   },
   { immediate: true }
 );
 
-defineExpose({ reload: load, slots });
+watch(activeBranchId, (id) => {
+  if (id) void loadBranch(id);
+});
+
+// Multi-branch edit path: when modelValue arrives populated and contains
+// anchors not in branchId, eagerly load every branch in availableBranches
+// so the chips render with the correct sede labels on first paint.
+watch(
+  () => [props.modelValue, props.availableBranches],
+  () => {
+    if (!props.multiBranch || !props.availableBranches) return;
+    if (props.modelValue.length === 0) return;
+    const missing = props.modelValue.some((id) => !selectedMeta.value.has(id));
+    if (!missing) return;
+    for (const b of props.availableBranches) {
+      if (!branchSlots.value.has(b.id)) void loadBranch(b.id);
+    }
+  },
+  { immediate: true, deep: true }
+);
+
+defineExpose({
+  reload: () => loadBranch(activeBranchId.value),
+  slots,
+});
 </script>
 
 <style scoped>

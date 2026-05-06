@@ -204,6 +204,12 @@ export interface ClassUsageInfo {
   classesUsedThisWeek: number;
   weeklyLimit: number | null;
   bookingMode: BookingMode;
+  /**
+   * Multi-branch flag of the active sub's plan. The admin UI reads this to
+   * decide whether the FixedSchedulePicker offers a sede selector. Mirrors
+   * subscription_plans.multi_branch.
+   */
+  multiBranch: boolean;
   scheduleIds: number[];
   scheduleSlots: ScheduleSlotInfo[];
   bonusUsage: {

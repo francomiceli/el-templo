@@ -685,16 +685,22 @@ export class BookingService {
     endDate: string,
     branchId: number,
   ): Promise<{ totalGenerated: number; holidaysSkipped: number }> {
-    // Get the dayOfWeek for each schedule
+    // Project branchId too: multi-branch fixed anchors mean each slot may live
+    // in a different sede, and capacity must be looked up per the slot's own
+    // branch — not the subscription's anchor branch.
     const scheduleRows = await this.db
       .select({
         id: schema.schedules.id,
         dayOfWeek: schema.schedules.dayOfWeek,
+        branchId: schema.schedules.branchId,
       })
       .from(schema.schedules)
       .where(inArray(schema.schedules.id, scheduleIds));
 
-    // Get branch country for holiday lookup
+    // Holidays are scoped by country. The validateAnchorSet helper in
+    // SubscriptionService guarantees that every anchor branch is in the same
+    // country as the subscription's anchor branch, so a single country lookup
+    // (via the sub's branchId) is correct for the whole anchor set.
     const [branch] = await this.db
       .select({ country: schema.branches.country })
       .from(schema.branches)
@@ -753,12 +759,14 @@ export class BookingService {
             .limit(1);
 
           if (!existing) {
-            // Check capacity for waitlist
+            // Check capacity for waitlist — capacity is per the slot's own
+            // branch (multi-branch anchors may span sedes with different
+            // capacities).
             const activeCount = await this.countActiveBookings(
               sched.id,
               dateStr,
             );
-            const maxCapacity = await this.getBranchCapacity(branchId);
+            const maxCapacity = await this.getBranchCapacity(sched.branchId);
 
             let status: "reservado" | "lista_espera" = "reservado";
             let waitlistPosition: number | null = null;
