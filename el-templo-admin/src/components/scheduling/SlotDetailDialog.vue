@@ -73,7 +73,7 @@
           <template #avatar>
             <q-icon name="block" color="negative" />
           </template>
-          <div class="text-weight-medium">Slot desactivado</div>
+          <div class="text-weight-medium">Clase cancelada</div>
           <div v-if="slotInactiveReason" class="text-caption">
             Motivo (lo verán los alumnos al intentar reservar): "{{ slotInactiveReason }}"
           </div>
@@ -409,7 +409,7 @@
         <q-btn
           v-if="slotDetail && !isSlotInactive"
           flat
-          label="Desactivar slot"
+          label="Cancelar clase"
           color="negative"
           icon="block"
           :loading="togglingSlot"
@@ -418,7 +418,7 @@
         <q-btn
           v-if="isSlotInactive"
           flat
-          label="Reactivar slot"
+          label="Reactivar clase"
           color="positive"
           icon="check_circle"
           :loading="togglingSlot"
@@ -428,20 +428,20 @@
       </q-card-actions>
     </q-card>
 
-    <!-- Deactivate-with-reason dialog -->
+    <!-- Cancel-class dialog -->
     <q-dialog v-model="deactivateDialogOpen" persistent>
       <q-card style="min-width: 360px; max-width: 95vw">
         <q-card-section>
-          <div class="text-h6">Desactivar slot</div>
+          <div class="text-h6">Cancelar clase</div>
           <div class="text-caption text-grey-7 q-mt-xs">
-            Las reservas futuras de este slot serán canceladas automáticamente y los alumnos verán
+            Las reservas futuras de esta clase serán canceladas automáticamente y los alumnos verán
             el motivo al intentar reservar.
           </div>
         </q-card-section>
         <q-card-section class="q-pt-none">
           <q-input
             v-model="deactivateReason"
-            label="Motivo de cierre (lo verán los alumnos al intentar reservar)"
+            label="Motivo (lo verán los alumnos al intentar reservar)"
             type="textarea"
             rows="2"
             maxlength="255"
@@ -454,14 +454,14 @@
         <q-card-actions align="right">
           <q-btn
             flat
-            label="Cancelar"
+            label="Volver"
             color="grey-7"
             :disable="togglingSlot"
             @click="deactivateDialogOpen = false"
           />
           <q-btn
             unelevated
-            label="Desactivar"
+            label="Cancelar clase"
             color="negative"
             :loading="togglingSlot"
             @click="applyDeactivate"
@@ -728,17 +728,17 @@ async function applyDeactivate() {
     deactivateDialogOpen.value = false;
     const msg =
       result.cancelledBookings > 0
-        ? `Slot desactivado. ${result.cancelledBookings} reserva${
+        ? `Clase cancelada. ${result.cancelledBookings} reserva${
             result.cancelledBookings === 1 ? '' : 's'
           } cancelada${result.cancelledBookings === 1 ? '' : 's'}.`
-        : 'Slot desactivado.';
+        : 'Clase cancelada.';
     $q.notify({ type: 'positive', message: msg });
     await refreshAll();
     emit('bookings-changed');
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido';
     log.error('Error deactivating slot', { error: message });
-    $q.notify({ type: 'negative', message: 'Error desactivando el slot' });
+    $q.notify({ type: 'negative', message: 'Error cancelando la clase' });
   } finally {
     togglingSlot.value = false;
   }
@@ -749,13 +749,13 @@ async function applyReactivate() {
   togglingSlot.value = true;
   try {
     await schedulingApi.toggleSchedule(props.scheduleId, true, null);
-    $q.notify({ type: 'positive', message: 'Slot reactivado.' });
+    $q.notify({ type: 'positive', message: 'Clase reactivada.' });
     await refreshAll();
     emit('bookings-changed');
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido';
     log.error('Error reactivating slot', { error: message });
-    $q.notify({ type: 'negative', message: 'Error reactivando el slot' });
+    $q.notify({ type: 'negative', message: 'Error reactivando la clase' });
   } finally {
     togglingSlot.value = false;
   }
