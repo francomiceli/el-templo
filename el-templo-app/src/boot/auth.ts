@@ -28,6 +28,10 @@ export default boot(async () => {
       // resolves — Quasar awaits this function, so the first MainLayout render
       // and the first session fetch see the hydrated selectedLevel.
       await userStore.hydrateSelection()
+      // Hydrate subscription at boot so anything that depends on
+      // hasActiveSubscription (e.g. the check-in QR FAB on /mi-templo) works
+      // on first render, without requiring a visit to /reservas first.
+      void userStore.loadSubscription()
     } catch {
       // Token invalid or expired, clear it
       authStore.clearAuth()
