@@ -518,6 +518,7 @@ import { createLogger } from 'src/utils/logger';
 import { useSchedulingApi } from 'src/composables/useSchedulingApi';
 import { useAttendanceApi } from 'src/composables/useAttendanceApi';
 import { useMembersApi } from 'src/composables/useMembersApi';
+import { extractError } from 'src/utils/extract-error';
 import type {
   SlotDetailView,
   BookingStatus,
@@ -895,15 +896,18 @@ async function onSubmitAdd() {
     await refreshAll();
     emit('bookings-changed');
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Error desconocido';
-    log.error('Error in submit add', { error: message });
-    $q.notify({
-      type: 'negative',
-      message:
-        effectiveMode.value === 'reserve'
-          ? 'Error agregando reserva'
-          : 'Error registrando asistencia',
-    });
+    // 4xx from the API are validation errors (slot inactivo, duplicado,
+    // ya tiene asistencia, etc) — surface the backend message to the
+    // admin and log as warn so Sentry isn't swamped by every business
+    // rejection. log.error is reserved for unexpected failures (5xx,
+    // network, JS bugs).
+    const fallback =
+      effectiveMode.value === 'reserve'
+        ? 'Error agregando reserva'
+        : 'Error registrando asistencia';
+    const message = extractError(err, fallback);
+    log.warn('Submit add rejected', { error: message });
+    $q.notify({ type: 'negative', message });
   } finally {
     submitting.value = false;
   }
@@ -932,9 +936,9 @@ async function quickCheckIn(member: SlotAttendanceItem) {
     await refreshAll();
     emit('bookings-changed');
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Error desconocido';
-    log.error('Error quick check-in', { error: message });
-    $q.notify({ type: 'negative', message: 'Error registrando asistencia' });
+    const message = extractError(err, 'Error registrando asistencia');
+    log.warn('Quick check-in rejected', { error: message });
+    $q.notify({ type: 'negative', message });
   }
 }
 
@@ -952,9 +956,9 @@ function confirmRemoveCheckIn(member: SlotAttendanceItem) {
       await refreshAll();
       emit('bookings-changed');
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Error desconocido';
-      log.error('Error removing check-in', { error: message });
-      $q.notify({ type: 'negative', message: 'Error eliminando asistencia' });
+      const message = extractError(err, 'Error eliminando asistencia');
+      log.warn('Remove check-in rejected', { error: message });
+      $q.notify({ type: 'negative', message });
     }
   });
 }
@@ -974,9 +978,9 @@ async function onRemoveBooking(bookingId: number) {
       await refreshAll();
       emit('bookings-changed');
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Error desconocido';
-      log.error('Error removing booking', { error: message });
-      $q.notify({ type: 'negative', message: 'Error eliminando reserva' });
+      const message = extractError(err, 'Error eliminando reserva');
+      log.warn('Remove booking rejected', { error: message });
+      $q.notify({ type: 'negative', message });
     }
   });
 }
