@@ -250,6 +250,17 @@ export class AttendanceService {
       description: "Asistencia confirmada",
     });
 
+    // Mirror the check-in as a completed_sessions row so presencial members
+    // get credit for showing up — same way an online session completion does.
+    // Marked with goal_plan_type='presencial' so it's distinguishable.
+    // Outside the tx (mirrors AURA pattern): if it fails the check-in still wins.
+    await this.recordPresencialSession({
+      memberId,
+      branchId,
+      checkedInAt: now,
+      dateStr: todayStr,
+    });
+
     this.log.info(
       {
         memberId,
@@ -318,6 +329,14 @@ export class AttendanceService {
           ),
         );
     }
+
+    // Mirror as completed_sessions (presencial). See checkIn() for rationale.
+    await this.recordPresencialSession({
+      memberId,
+      branchId,
+      checkedInAt: new Date(),
+      dateStr: todayStr,
+    });
 
     this.log.info(
       { memberId, branchId, reason, adminId, attendanceId: recordId },
@@ -566,6 +585,14 @@ export class AttendanceService {
         .where(eq(schema.bookings.id, booking.id));
     }
 
+    // Mirror as completed_sessions (presencial). See checkIn() for rationale.
+    await this.recordPresencialSession({
+      memberId,
+      branchId: schedule.branchId,
+      checkedInAt: new Date(),
+      dateStr: date,
+    });
+
     this.log.info(
       { memberId, scheduleId, date, recordId, warnings },
       "Coach check-in recorded",
@@ -629,13 +656,15 @@ export class AttendanceService {
       );
     }
 
+    // Compute the local date the check-in was filed under so we can
+    // revert booking + drop the mirror completed_sessions row consistently.
+    const dateStr =
+      attRecord.checkedInAt instanceof Date
+        ? attRecord.checkedInAt.toISOString().split("T")[0]
+        : String(attRecord.checkedInAt).split("T")[0];
+
     // Revert booking status if applicable
     if (attRecord.scheduleId) {
-      const dateStr =
-        attRecord.checkedInAt instanceof Date
-          ? attRecord.checkedInAt.toISOString().split("T")[0]
-          : String(attRecord.checkedInAt).split("T")[0];
-
       await this.db
         .update(schema.bookings)
         .set({ status: "reservado" })
@@ -649,12 +678,69 @@ export class AttendanceService {
         );
     }
 
+    // Drop the presencial mirror so weekly counters stay honest.
+    await this.db
+      .delete(schema.completedSessions)
+      .where(
+        and(
+          eq(schema.completedSessions.userId, attRecord.memberId),
+          eq(schema.completedSessions.date, dateStr),
+          eq(schema.completedSessions.goalPlanType, "presencial"),
+        ),
+      );
+
     this.log.info(
       { attendanceId, memberId: attRecord.memberId },
       "Check-in removed (coach undo)",
     );
 
     return { removed: true };
+  }
+
+  /**
+   * Insert a synthetic completed_sessions row that mirrors the attendance.
+   * Marked goal_plan_type='presencial' so it can be filtered or distinguished
+   * from real online/autonomous sessions. Best-effort: failures are logged
+   * but do not bubble up (the check-in itself already succeeded).
+   *
+   * No AURA is awarded here — the check-in path already grants 10 AURA via
+   * sourceType='attendance', and we don't want presencial members to get
+   * double credit.
+   */
+  private async recordPresencialSession(input: {
+    memberId: number;
+    branchId: number;
+    checkedInAt: Date;
+    dateStr: string;
+  }): Promise<void> {
+    try {
+      const [user] = await this.db
+        .select({ level: schema.users.level })
+        .from(schema.users)
+        .where(eq(schema.users.id, input.memberId));
+      if (!user) return;
+
+      // Presencial members do the full coached class — credit them with
+      // every standard block. Deuteros defaults to DEUTEROS_1 only (not the
+      // online DEUTEROS_1+DEUTEROS_2 split) since the coach picks one
+      // accessory variant per session.
+      await this.db.insert(schema.completedSessions).values({
+        userId: input.memberId,
+        branchId: input.branchId,
+        dayId: `presencial-${input.dateStr}`,
+        sessionLevel: user.level,
+        date: input.dateStr,
+        startedAt: input.checkedInAt,
+        completedAt: input.checkedInAt,
+        blocksCompleted: ["INITIUM", "NUCLEUS", "DEUTEROS_1", "ATHLOS"],
+        goalPlanType: "presencial",
+      });
+    } catch (err) {
+      this.log.error(
+        { err, memberId: input.memberId, dateStr: input.dateStr },
+        "Failed to mirror attendance as completed_sessions",
+      );
+    }
   }
 
   // ─── Query Methods ─────────────────────────────────────────────────────────

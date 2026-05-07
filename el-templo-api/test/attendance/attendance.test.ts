@@ -325,6 +325,39 @@ describe("Attendance API", () => {
       expect(attendanceAward).toBeTruthy();
     });
 
+    it("POST QR check-in mirrors the attendance as a completed_sessions row tagged 'presencial'", async () => {
+      const { member, memberToken } = await setupMemberWithSubscription();
+      await createBookingForNow(member.id, testBranchId);
+
+      const qrToken = generateQrToken(testBranchId);
+
+      const res = await app.inject({
+        method: "POST",
+        url: `${MEMBER_ATTENDANCE_URL}/check-in`,
+        headers: { authorization: `Bearer ${memberToken}` },
+        payload: { qrToken },
+      });
+      expect(res.statusCode).toBe(201);
+
+      const sessions = await app.db
+        .select({
+          userId: completedSessions.userId,
+          branchId: completedSessions.branchId,
+          goalPlanType: completedSessions.goalPlanType,
+          date: completedSessions.date,
+          dayId: completedSessions.dayId,
+        })
+        .from(completedSessions)
+        .where(eq(completedSessions.userId, member.id));
+
+      expect(sessions).toHaveLength(1);
+      expect(sessions[0].goalPlanType).toBe("presencial");
+      expect(sessions[0].branchId).toBe(testBranchId);
+      const todayStr = new Date().toISOString().split("T")[0];
+      expect(sessions[0].date).toBe(todayStr);
+      expect(sessions[0].dayId).toBe(`presencial-${todayStr}`);
+    });
+
     it("POST rejects invalid/forged QR token", async () => {
       const { memberToken } = await setupMemberWithSubscription();
 
@@ -726,6 +759,19 @@ describe("Attendance API", () => {
 
       const attendanceAward = auraRows.find((r) => r.amount === 10);
       expect(attendanceAward).toBeTruthy();
+
+      // Force check-in also mirrors as a presencial completed_sessions row.
+      const sessions = await app.db
+        .select({ goalPlanType: completedSessions.goalPlanType })
+        .from(completedSessions)
+        .where(eq(completedSessions.userId, member.id));
+      expect(sessions).toHaveLength(1);
+      expect(sessions[0].goalPlanType).toBe("presencial");
+
+      // AURA shouldn't be doubled — only the attendance award (10), not a
+      // second 10 from a synthetic completed_session.
+      const tens = auraRows.filter((r) => r.amount === 10);
+      expect(tens).toHaveLength(1);
     });
   });
 });
