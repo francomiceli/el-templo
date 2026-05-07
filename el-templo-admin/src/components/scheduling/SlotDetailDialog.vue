@@ -265,30 +265,44 @@
                 </q-item-label>
               </q-item-section>
               <q-item-section side>
-                <q-btn
-                  v-if="!member.attendanceId"
-                  flat
-                  dense
-                  round
-                  icon="how_to_reg"
-                  color="primary"
-                  size="sm"
-                  @click="quickCheckIn(member)"
-                >
-                  <q-tooltip>Marcar asistencia</q-tooltip>
-                </q-btn>
-                <q-btn
-                  v-else
-                  flat
-                  dense
-                  round
-                  icon="close"
-                  color="negative"
-                  size="sm"
-                  @click="confirmRemoveCheckIn(member)"
-                >
-                  <q-tooltip>Eliminar asistencia</q-tooltip>
-                </q-btn>
+                <div class="row items-center q-gutter-xs">
+                  <q-btn
+                    v-if="!member.attendanceId"
+                    flat
+                    dense
+                    round
+                    icon="how_to_reg"
+                    color="primary"
+                    size="sm"
+                    @click="quickCheckIn(member)"
+                  >
+                    <q-tooltip>Marcar asistencia</q-tooltip>
+                  </q-btn>
+                  <q-btn
+                    v-if="isToday && member.bookingId && !member.attendanceId"
+                    flat
+                    dense
+                    round
+                    icon="delete"
+                    color="negative"
+                    size="sm"
+                    @click="onRemoveBooking(member.bookingId)"
+                  >
+                    <q-tooltip>Cancelar reserva</q-tooltip>
+                  </q-btn>
+                  <q-btn
+                    v-if="member.attendanceId"
+                    flat
+                    dense
+                    round
+                    icon="close"
+                    color="negative"
+                    size="sm"
+                    @click="confirmRemoveCheckIn(member)"
+                  >
+                    <q-tooltip>Eliminar asistencia</q-tooltip>
+                  </q-btn>
+                </div>
               </q-item-section>
             </q-item>
           </template>
