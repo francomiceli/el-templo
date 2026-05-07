@@ -228,6 +228,12 @@ export interface AssignPlanInput {
   priceTypeApplied: PriceType;
   paymentMethod: PaymentMethod;
   scheduleIds?: number[];
+  /**
+   * Optional per-slot deferred start dates. Set when the admin picks a slot
+   * that is full this week and accepts the suggested first-available date in
+   * the picker. Keyed by scheduleId (string from JSON), value is YYYY-MM-DD.
+   */
+  scheduleStartDates?: Record<string, string>;
   auraSpend?: number;
   priceOverrideAmount?: number;
   priceOverrideReason?: string;

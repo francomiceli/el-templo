@@ -1175,6 +1175,13 @@ async function executeConfirm() {
         showScheduleStep.value && selectedScheduleIds.value.length > 0
           ? selectedScheduleIds.value
           : undefined,
+      // Per-slot deferred starts from the picker (admin clicked the
+      // event_upcoming icon on a full cell and accepted a future date).
+      scheduleStartDates: (() => {
+        if (!showScheduleStep.value) return undefined;
+        const dates = schedulePickerRef.value?.getStartDates() ?? {};
+        return Object.keys(dates).length > 0 ? dates : undefined;
+      })(),
       boardingPass: assignForm.value.boardingPass || undefined,
       auraSpend:
         !assignForm.value.boardingPass && !assignForm.value.useOverride

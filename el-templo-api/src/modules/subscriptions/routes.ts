@@ -320,7 +320,11 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
   // PATCH /subscriptions/:subscriptionId/schedules — Change fixed turnos
   fastify.patch<{
     Params: { subscriptionId: number };
-    Body: { scheduleIds: number[]; reason?: string };
+    Body: {
+      scheduleIds: number[];
+      reason?: string;
+      scheduleStartDates?: Record<string, string>;
+    };
   }>(
     "/subscriptions/:subscriptionId/schedules",
     { schema: changeFixedSchedulesSchema },

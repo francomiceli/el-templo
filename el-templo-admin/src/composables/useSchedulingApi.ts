@@ -199,6 +199,32 @@ export function useSchedulingApi() {
 
   // ─── Bookings ─────────────────────────────────────────────────────────
 
+  /**
+   * Find the next date a slot has open capacity. Used by the
+   * FixedSchedulePicker to show "available from <date>" on full cells so
+   * the admin can anchor a member to a slot that is full this week but
+   * free in a later week.
+   */
+  async function getNextAvailableDate(
+    scheduleId: number,
+    fromDate?: string
+  ): Promise<string | null> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<{ nextAvailableDate: string | null }>(
+        `/admin/scheduling/schedules/${scheduleId}/next-available`,
+        { params: fromDate ? { from: fromDate } : {} }
+      );
+      return data.nextAvailableDate;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error buscando próxima fecha disponible');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   async function adminAddBooking(data: {
     scheduleId: number;
     memberId: number;
@@ -375,6 +401,7 @@ export function useSchedulingApi() {
     toggleSchedule,
     updateScheduleActivity,
     seedSchedules,
+    getNextAvailableDate,
     adminAddBooking,
     adminRemoveBooking,
     bookTrial,

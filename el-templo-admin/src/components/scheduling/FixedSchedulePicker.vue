@@ -72,6 +72,26 @@
                   slotFor(time, day.dayOfWeek)!.maxCapacity
                 }}
               </div>
+              <!-- Full slot: small icon to open the deferred-start modal.
+                   Clicking the cell normally is a no-op (full); the icon is
+                   the only entry point so the admin doesn't accidentally
+                   trigger it. -->
+              <q-btn
+                v-if="
+                  slotFor(time, day.dayOfWeek)!.isFull &&
+                  !modelValue.includes(slotFor(time, day.dayOfWeek)!.id) &&
+                  !selectedDays.has(day.dayOfWeek)
+                "
+                flat
+                dense
+                round
+                size="xs"
+                icon="event_upcoming"
+                class="slot-cell-defer-btn"
+                @click.stop="openDeferredModal(slotFor(time, day.dayOfWeek)!)"
+              >
+                <q-tooltip>Asignar desde una fecha futura</q-tooltip>
+              </q-btn>
             </template>
           </div>
         </template>
@@ -81,6 +101,46 @@
     <div v-else class="text-center text-grey-5 text-italic q-pa-lg">
       No hay horarios configurados para esta sede
     </div>
+
+    <!-- Deferred-start confirmation modal: opens from the icon on full
+         cells. Asks the backend for the next date the slot has open
+         capacity, then lets the admin assign it starting that day. -->
+    <q-dialog v-model="deferredModal.open">
+      <q-card style="min-width: 320px">
+        <q-card-section>
+          <div class="text-h6">Horario completo esta semana</div>
+        </q-card-section>
+        <q-card-section v-if="deferredModal.slot" class="q-pt-none">
+          <div class="q-mb-sm">
+            <strong>{{ deferredModal.slot.activityName }}</strong> ·
+            {{ DAY_SHORT_LABELS[deferredModal.slot.dayOfWeek as DayOfWeek] }}
+            {{ deferredModal.slot.startTime }}
+          </div>
+          <div v-if="deferredModal.loading" class="row items-center q-gutter-sm">
+            <q-spinner-dots size="20px" color="primary" />
+            <span class="text-caption">Buscando próxima fecha disponible…</span>
+          </div>
+          <div v-else-if="deferredModal.nextDate" class="text-body2">
+            Próxima fecha disponible: <strong>{{ formatDate(deferredModal.nextDate) }}</strong>
+            <div class="text-caption text-grey-7 q-mt-xs">
+              El alumno empezará a tener este turno desde esa fecha.
+            </div>
+          </div>
+          <div v-else class="text-body2 text-negative">
+            No se encontró cupo en las próximas 12 semanas.
+          </div>
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat label="Cancelar" @click="closeDeferredModal" />
+          <q-btn
+            color="primary"
+            label="Asignar desde esa fecha"
+            :disable="!deferredModal.nextDate || deferredModal.loading"
+            @click="confirmDeferredAssign"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </div>
 </template>
 
@@ -150,6 +210,24 @@ const log = createLogger('FixedSchedulePicker');
 const branchSlots = ref<Map<number, WeeklySlotView[]>>(new Map());
 const loading = ref(false);
 const activeBranchId = ref(props.branchId);
+
+// Per-slot deferred start dates. Populated when the admin clicks the
+// event_upcoming icon on a full cell and confirms the next-available date
+// suggested by the backend. Sent up to the parent dialog via getStartDates().
+const selectedStartDates = ref<Record<number, string>>({});
+
+interface DeferredModalState {
+  open: boolean;
+  slot: WeeklySlotView | null;
+  nextDate: string | null;
+  loading: boolean;
+}
+const deferredModal = ref<DeferredModalState>({
+  open: false,
+  slot: null,
+  nextDate: null,
+  loading: false,
+});
 
 // Metadata for slots the user has selected — keeps enough info to render
 // chips even when activeBranchId points elsewhere (the slot row isn't in
@@ -234,14 +312,21 @@ const selectedChips = computed(() => {
     if (!meta) continue;
     const dayLabel = DAY_SHORT_LABELS[meta.dayOfWeek];
     const branchSuffix = props.multiBranch && meta.branchName ? ` · ${meta.branchName}` : '';
+    const deferredDate = selectedStartDates.value[id];
+    const deferredSuffix = deferredDate ? ` · desde ${shortDate(deferredDate)}` : '';
     items.push({
       id,
-      label: `${dayLabel} ${meta.startTime}${branchSuffix}`,
+      label: `${dayLabel} ${meta.startTime}${branchSuffix}${deferredSuffix}`,
       branchId: meta.branchId,
     });
   }
   return items;
 });
+
+function shortDate(yyyymmdd: string): string {
+  const d = new Date(yyyymmdd + 'T12:00:00Z');
+  return d.toLocaleDateString('es-AR', { day: 'numeric', month: 'short' });
+}
 
 function cellClass(time: string, dayOfWeek: DayOfWeek): string {
   const s = slotFor(time, dayOfWeek);
@@ -289,7 +374,65 @@ function removeSlot(scheduleId: number): void {
   if (idx < 0) return;
   current.splice(idx, 1);
   selectedMeta.value.delete(scheduleId);
+  delete selectedStartDates.value[scheduleId];
   emit('update:modelValue', current);
+}
+
+/**
+ * Open the deferred-start modal for a full slot. Fetches the next
+ * date the slot has open capacity from the backend so the admin sees
+ * a concrete date before confirming.
+ */
+async function openDeferredModal(slot: WeeklySlotView): Promise<void> {
+  // Day already taken by another anchor → block the same way regular
+  // selection is blocked. The button shouldn't render in that case but
+  // belt-and-suspenders.
+  if (selectedDays.value.has(slot.dayOfWeek as DayOfWeek)) return;
+  if (props.requiredCount !== null && props.modelValue.length >= props.requiredCount) {
+    $q.notify({
+      type: 'warning',
+      message: `Ya seleccionaste ${props.requiredCount} turnos.`,
+    });
+    return;
+  }
+  deferredModal.value = { open: true, slot, nextDate: null, loading: true };
+  try {
+    const date = await schedulingApi.getNextAvailableDate(slot.id);
+    deferredModal.value.nextDate = date;
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.error('Error fetching next available date', { error: message, slotId: slot.id });
+  } finally {
+    deferredModal.value.loading = false;
+  }
+}
+
+function closeDeferredModal(): void {
+  deferredModal.value = { open: false, slot: null, nextDate: null, loading: false };
+}
+
+function confirmDeferredAssign(): void {
+  const slot = deferredModal.value.slot;
+  const date = deferredModal.value.nextDate;
+  if (!slot || !date) return;
+  const current = [...props.modelValue];
+  if (!current.includes(slot.id)) {
+    current.push(slot.id);
+    recordSelection(slot);
+  }
+  selectedStartDates.value = { ...selectedStartDates.value, [slot.id]: date };
+  emit('update:modelValue', current);
+  closeDeferredModal();
+}
+
+function formatDate(yyyymmdd: string): string {
+  const d = new Date(yyyymmdd + 'T12:00:00Z');
+  return d.toLocaleDateString('es-AR', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
 }
 
 async function loadBranch(branchId: number): Promise<void> {
@@ -359,6 +502,12 @@ watch(
 defineExpose({
   reload: () => loadBranch(activeBranchId.value),
   slots,
+  /**
+   * Returns the per-slot deferred start dates the admin chose via the
+   * "event_upcoming" icon on full cells. Empty object when no deferral.
+   * Parent dialogs forward this to the backend alongside scheduleIds.
+   */
+  getStartDates: (): Record<number, string> => ({ ...selectedStartDates.value }),
 });
 </script>
 
@@ -444,6 +593,16 @@ defineExpose({
   color: #bdbdbd;
   cursor: not-allowed;
   border-color: #eeeeee;
+  position: relative;
+}
+
+.slot-cell-defer-btn {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  color: var(--q-primary);
+  background: rgba(255, 255, 255, 0.85);
+  cursor: pointer;
 }
 
 .slot-cell--day-taken {

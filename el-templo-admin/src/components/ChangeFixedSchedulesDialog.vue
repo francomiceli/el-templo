@@ -142,11 +142,28 @@ function onCancel(): void {
 async function onSubmit(): Promise<void> {
   saving.value = true;
   try {
+    // Pull deferred-start dates from the picker (admin clicked the
+    // "event_upcoming" icon on a full cell and confirmed a future date).
+    // Empty when no deferral; backend treats undefined the same as {}.
+    const startDates = pickerRef.value?.getStartDates() ?? {};
+    const hasDeferred = Object.keys(startDates).length > 0;
     await subsApi.changeFixedSchedules(props.subscriptionId, {
       scheduleIds: selectedIds.value,
       reason: reason.value.trim() || undefined,
+      scheduleStartDates: hasDeferred ? startDates : undefined,
     });
-    $q.notify({ type: 'positive', message: 'Turnos fijos actualizados' });
+    if (hasDeferred) {
+      const list = Object.entries(startDates)
+        .map(([, date]) => formatShort(date))
+        .join(', ');
+      $q.notify({
+        type: 'positive',
+        message: `Turnos actualizados. Inicio diferido en: ${list}`,
+        timeout: 6000,
+      });
+    } else {
+      $q.notify({ type: 'positive', message: 'Turnos fijos actualizados' });
+    }
     emit('saved');
     emit('update:modelValue', false);
   } catch (err: unknown) {
@@ -156,5 +173,10 @@ async function onSubmit(): Promise<void> {
   } finally {
     saving.value = false;
   }
+}
+
+function formatShort(yyyymmdd: string): string {
+  const d = new Date(yyyymmdd + 'T12:00:00Z');
+  return d.toLocaleDateString('es-AR', { day: 'numeric', month: 'short' });
 }
 </script>

@@ -1112,6 +1112,7 @@ export class SubscriptionService {
                 input.startDate,
                 endDateStr,
                 input.branchId,
+                input.scheduleStartDates,
               );
             if (plan.bookingMode === "fixed") {
               credits = bookingResult.holidaysSkipped;
@@ -1255,7 +1256,19 @@ export class SubscriptionService {
   async changeFixedSchedules(
     subscriptionId: number,
     actorId: number,
-    input: { scheduleIds: number[]; reason?: string },
+    input: {
+      scheduleIds: number[];
+      reason?: string;
+      /**
+       * Optional per-slot start date overrides. When the admin picks a slot
+       * that is full this week, the picker offers a deferred start (e.g.
+       * "Disponible desde 2026-05-22"). If the admin accepts, the scheduleId
+       * lands here and bookings for that slot are generated only from that
+       * date onward — earlier weeks are skipped to avoid pushing the member
+       * into a full slot.
+       */
+      scheduleStartDates?: Record<number, string>;
+    },
   ): Promise<SubscriptionDetail> {
     const sub = await this.getSubscriptionById(subscriptionId);
     if (!sub) {
@@ -1372,6 +1385,7 @@ export class SubscriptionService {
           today,
           sub.endDate,
           sub.branchId,
+          input.scheduleStartDates,
         );
       }
     }

@@ -303,6 +303,14 @@ export const assignPlanSchema = {
       },
       paymentMethod: { type: "string", enum: ["cash", "transfer", "card"] },
       scheduleIds: { type: "array", items: { type: "integer" }, minItems: 1 },
+      // Per-slot deferred start dates from the picker (slot full this week).
+      scheduleStartDates: {
+        type: "object",
+        additionalProperties: {
+          type: "string",
+          pattern: "^\\d{4}-\\d{2}-\\d{2}$",
+        },
+      },
       auraSpend: { type: "integer", minimum: 0 },
       priceOverrideAmount: { type: "integer", minimum: 0 },
       amountReceived: { type: "integer", minimum: 0 },
@@ -754,6 +762,16 @@ export const changeFixedSchedulesSchema = {
     properties: {
       scheduleIds: { type: "array", items: { type: "integer" }, minItems: 0 },
       reason: { type: "string" },
+      // Per-slot deferred start dates. Map of scheduleId -> YYYY-MM-DD.
+      // Set when the admin picks a slot full this week and accepts the
+      // suggested first-available date from the picker.
+      scheduleStartDates: {
+        type: "object",
+        additionalProperties: {
+          type: "string",
+          pattern: "^\\d{4}-\\d{2}-\\d{2}$",
+        },
+      },
     },
   },
   response: {

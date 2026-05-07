@@ -772,12 +772,81 @@ export class BookingService {
     return affected;
   }
 
+  /**
+   * Find the next date (from `fromDate` or today) where this schedule has
+   * available capacity (active bookings < branch.maxCapacity), respecting
+   * holidays and the slot's dayOfWeek. Searches up to `maxWeeksAhead` weeks
+   * before giving up.
+   *
+   * Returns null if:
+   *  - schedule is inactive
+   *  - no date with capacity found within the search window
+   *
+   * Used by the admin UI when the picker shows a slot full this week but the
+   * admin still wants to anchor a fixed-plan member to it starting later.
+   */
+  async findNextAvailableDate(
+    scheduleId: number,
+    fromDate?: string,
+    maxWeeksAhead = 12,
+  ): Promise<string | null> {
+    const scheduleRow = await this.getScheduleSlotRaw(scheduleId);
+    if (!scheduleRow) throw new NotFoundError("Horario no encontrado");
+    if (!scheduleRow.isActive) return null;
+
+    const start = fromDate ?? todayInTz(scheduleRow.branchTimezone);
+    const maxCapacity = await this.getBranchCapacity(scheduleRow.branchId);
+
+    // Branch country for holiday lookup
+    const [branch] = await this.db
+      .select({ country: schema.branches.country })
+      .from(schema.branches)
+      .where(eq(schema.branches.id, scheduleRow.branchId));
+    const country = branch?.country ?? "AR";
+
+    // Compute first occurrence of the slot's dayOfWeek on or after `start`.
+    // schema dayOfWeek: 1=Mon..7=Sun (ISO).
+    const startDate = new Date(start + "T00:00:00Z");
+    const startDow = startDate.getUTCDay() === 0 ? 7 : startDate.getUTCDay();
+    const offset = (scheduleRow.dayOfWeek - startDow + 7) % 7;
+    let cursor = addDays(start, offset);
+
+    // Load holidays for the country in the search window
+    const windowEnd = addDays(cursor, maxWeeksAhead * 7);
+    const hols = await this.db
+      .select({ date: schema.holidays.date })
+      .from(schema.holidays)
+      .where(
+        and(
+          eq(schema.holidays.country, country),
+          gte(schema.holidays.date, cursor),
+          sql`${schema.holidays.date} <= ${windowEnd}`,
+        ),
+      );
+    const holidaySet = new Set(hols.map((h) => h.date));
+
+    for (let i = 0; i < maxWeeksAhead; i++) {
+      if (!holidaySet.has(cursor)) {
+        const count = await this.countActiveBookings(scheduleId, cursor);
+        if (count < maxCapacity) return cursor;
+      }
+      cursor = addDays(cursor, 7);
+    }
+
+    return null;
+  }
+
   // ─── Fixed-Plan Booking Generation ─────────────────────────────────────
 
   /**
    * Generate bookings for a fixed-plan subscription across its entire period.
    * Creates one booking per matching dayOfWeek date from startDate to endDate,
    * skipping holidays.
+   *
+   * `perScheduleStartDate` lets the admin defer a single slot's first
+   * booking past the global startDate when the slot is full earlier weeks.
+   * The picker uses this to anchor a member to a slot that is at capacity
+   * this week but free in a later week.
    */
   async generateFixedBookings(
     subscriptionId: number,
@@ -786,6 +855,7 @@ export class BookingService {
     startDate: string,
     endDate: string,
     branchId: number,
+    perScheduleStartDate?: Record<number, string>,
   ): Promise<{ totalGenerated: number; holidaysSkipped: number }> {
     // Project branchId too: multi-branch fixed anchors mean each slot may live
     // in a different sede, and capacity must be looked up per the slot's own
@@ -828,8 +898,11 @@ export class BookingService {
 
     // For each schedule, generate all matching dates
     for (const sched of scheduleRows) {
-      // Find the first date >= startDate that matches this dayOfWeek
-      const start = new Date(startDate + "T12:00:00Z");
+      // Find the first date >= effectiveStart that matches this dayOfWeek.
+      // effectiveStart can be deferred per-slot when the admin picked a slot
+      // that is full this week and chose to start booking it on a later date.
+      const slotStart = perScheduleStartDate?.[sched.id] ?? startDate;
+      const start = new Date(slotStart + "T12:00:00Z");
       const end = new Date(endDate + "T12:00:00Z");
 
       const current = new Date(start);

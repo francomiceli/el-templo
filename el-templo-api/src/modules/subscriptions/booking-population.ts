@@ -67,6 +67,13 @@ export interface PopulateOptions {
   fromDate?: string;
   /** Override endDate (e.g. when renewing past current endDate). */
   throughDate?: string;
+  /**
+   * Per-schedule fromDate overrides. When the admin assigns a fixed slot
+   * that is full this week, the picker can defer that slot's first booking
+   * to a future date. The map's value wins over `fromDate` for matching
+   * scheduleIds; everything else uses `fromDate` (or today).
+   */
+  perScheduleFromDate?: Record<number, string>;
 }
 
 /**
@@ -143,7 +150,9 @@ export async function populateBookings(
     );
   const holidayDates = new Set(hols.map((h) => h.date));
 
-  // Expand each schedule into its dates and flatten.
+  // Expand each schedule into its dates and flatten. Each schedule may
+  // have its own fromDate override (set by the admin picker when a slot
+  // is full this week so the first booking is deferred N weeks).
   const toInsert: Array<{
     memberId: number;
     scheduleId: number;
@@ -151,7 +160,8 @@ export async function populateBookings(
   }> = [];
   for (const r of rows) {
     if (!r.scheduleActive) continue;
-    const dates = expandDates(fromDate, endDate, r.dayOfWeek, holidayDates);
+    const slotFromDate = opts.perScheduleFromDate?.[r.scheduleId] ?? fromDate;
+    const dates = expandDates(slotFromDate, endDate, r.dayOfWeek, holidayDates);
     for (const d of dates) {
       toInsert.push({
         memberId: r.userId,

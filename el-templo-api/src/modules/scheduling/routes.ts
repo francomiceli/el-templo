@@ -323,6 +323,52 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
     },
   );
 
+  // GET /schedules/:scheduleId/next-available — find first date the slot
+  // has open capacity. Used by the FixedSchedulePicker to suggest a
+  // delayed start date when assigning a fixed-plan member to a slot that
+  // is full this week.
+  fastify.get<{
+    Params: { scheduleId: number };
+    Querystring: { from?: string };
+  }>(
+    "/schedules/:scheduleId/next-available",
+    {
+      schema: {
+        params: {
+          type: "object",
+          required: ["scheduleId"],
+          properties: { scheduleId: { type: "integer" } },
+        },
+        querystring: {
+          type: "object",
+          properties: {
+            from: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+          },
+        },
+        response: {
+          200: {
+            type: "object",
+            properties: {
+              nextAvailableDate: { type: ["string", "null"] },
+            },
+            required: ["nextAvailableDate"],
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      try {
+        const date = await bookingService.findNextAvailableDate(
+          request.params.scheduleId,
+          request.query.from,
+        );
+        return { nextAvailableDate: date };
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "find next available");
+      }
+    },
+  );
+
   // ─── Admin Bookings ─────────────────────────────────────────────────────
 
   // POST /bookings — admin add booking to slot

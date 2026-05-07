@@ -212,6 +212,12 @@ export interface SubscriptionHistoryItem extends SubscriptionDetail {}
 export interface ChangeFixedSchedulesInput {
   scheduleIds: number[];
   reason?: string;
+  /**
+   * Optional per-slot deferred start dates from the picker. Set when the
+   * admin clicks the "event_upcoming" icon on a slot full this week and
+   * accepts the suggested next-available date.
+   */
+  scheduleStartDates?: Record<string, string>;
 }
 
 export interface SubscriptionScheduleChangeEntry {
@@ -232,6 +238,11 @@ export interface AssignPlanInput {
   priceTypeApplied: PriceType;
   paymentMethod: PaymentMethod;
   scheduleIds?: number[];
+  /**
+   * Optional per-slot deferred start dates. Set by the picker when the
+   * admin assigns a slot that is full this week.
+   */
+  scheduleStartDates?: Record<string, string>;
   auraSpend?: number;
   priceOverrideAmount?: number;
   priceOverrideReason?: string;
