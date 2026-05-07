@@ -258,6 +258,10 @@ export const toggleScheduleSchema = {
         // Number of upcoming bookings cancelled as part of deactivation.
         // Always 0 when reactivating.
         cancelledBookings: { type: "integer" },
+        // Number of bookings (cancelled during the deactivation window)
+        // that were restored as part of reactivation. Always 0 when
+        // deactivating.
+        restoredBookings: { type: "integer" },
       },
     },
     404: errorSchema,

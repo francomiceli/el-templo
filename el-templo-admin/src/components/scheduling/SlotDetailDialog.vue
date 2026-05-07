@@ -748,8 +748,14 @@ async function applyReactivate() {
   if (!props.scheduleId) return;
   togglingSlot.value = true;
   try {
-    await schedulingApi.toggleSchedule(props.scheduleId, true, null);
-    $q.notify({ type: 'positive', message: 'Clase reactivada.' });
+    const result = await schedulingApi.toggleSchedule(props.scheduleId, true, null);
+    const msg =
+      result.restoredBookings > 0
+        ? `Clase reactivada. ${result.restoredBookings} reserva${
+            result.restoredBookings === 1 ? '' : 's'
+          } restaurada${result.restoredBookings === 1 ? '' : 's'}.`
+        : 'Clase reactivada.';
+    $q.notify({ type: 'positive', message: msg });
     await refreshAll();
     emit('bookings-changed');
   } catch (err: unknown) {

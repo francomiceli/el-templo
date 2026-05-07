@@ -28,6 +28,7 @@ export const schedules = mysqlTable(
     endTime: varchar("end_time", { length: 5 }).notNull(), // HH:MM
     isActive: boolean("is_active").default(true).notNull(),
     inactiveReason: varchar("inactive_reason", { length: 255 }),
+    deactivatedAt: timestamp("deactivated_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
   },

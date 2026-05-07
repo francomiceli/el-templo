@@ -235,9 +235,12 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   // PUT /schedules/:scheduleId/toggle — enable/disable slot.
-  // When deactivating, also cancels every future booking for the slot
+  // Deactivate: cancels every future booking for the slot
   // (status='reservado' or 'lista_espera') so members don't show up to a
   // class that won't run. Already-checked-in bookings are left intact.
+  // Reactivate: restores bookings cancelled during the deactivation window
+  // so admins don't have to ask members to re-book after a transient
+  // closure (e.g. branch flooded for a day).
   fastify.put<{
     Params: { scheduleId: number };
     Body: { isActive: boolean; inactiveReason?: string | null };
@@ -246,19 +249,32 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: toggleScheduleSchema },
     async (request, reply) => {
       try {
+        // Reactivation must read deactivatedAt BEFORE the toggle clears it.
+        const previousDeactivatedAt = request.body.isActive
+          ? await schedulingService.getDeactivatedAt(request.params.scheduleId)
+          : null;
+
         const slot = await schedulingService.toggleSchedule(
           request.params.scheduleId,
           request.body.isActive,
           request.body.inactiveReason ?? null,
         );
+
         let cancelledBookings = 0;
+        let restoredBookings = 0;
         if (!request.body.isActive) {
           cancelledBookings =
             await bookingService.cancelAllFutureBookingsForSchedule(
               request.params.scheduleId,
             );
+        } else if (previousDeactivatedAt) {
+          restoredBookings =
+            await bookingService.restoreCancelledBookingsForSchedule(
+              request.params.scheduleId,
+              previousDeactivatedAt,
+            );
         }
-        return { ...slot, cancelledBookings };
+        return { ...slot, cancelledBookings, restoredBookings };
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "toggle schedule");
       }

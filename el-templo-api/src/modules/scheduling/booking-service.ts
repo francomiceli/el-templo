@@ -723,6 +723,55 @@ export class BookingService {
     return affected;
   }
 
+  /**
+   * Restore bookings that were cancelled as part of a slot deactivation.
+   *
+   * Filter: only bookings cancelled at-or-after `deactivatedAt` are
+   * restored — that excludes member-initiated cancellations and per-booking
+   * admin removals that happened before the closure. Past dates are
+   * skipped (the class already happened, restoring is meaningless).
+   *
+   * All restored rows go back as `reservado`. Original waitlist position
+   * is not preserved: anyone over capacity will simply make the slot
+   * over-booked, and admins/members will see the inflation. In practice
+   * the slot was deactivated specifically because nobody else could book
+   * during the closure, so the post-restore state matches the
+   * pre-closure state.
+   */
+  async restoreCancelledBookingsForSchedule(
+    scheduleId: number,
+    deactivatedAt: Date,
+  ): Promise<number> {
+    const scheduleRow = await this.getScheduleSlotRaw(scheduleId);
+    if (!scheduleRow) return 0;
+    const today = todayInTz(scheduleRow.branchTimezone);
+
+    const result = await this.db
+      .update(schema.bookings)
+      .set({
+        status: "reservado",
+        cancelledAt: null,
+        waitlistPosition: null,
+      })
+      .where(
+        and(
+          eq(schema.bookings.scheduleId, scheduleId),
+          eq(schema.bookings.status, "cancelado"),
+          gte(schema.bookings.cancelledAt, deactivatedAt),
+          gte(schema.bookings.bookingDate, today),
+        ),
+      );
+
+    const affected = Number(result[0].affectedRows ?? 0);
+    if (affected > 0) {
+      this.log.info(
+        { scheduleId, affected, deactivatedAt },
+        "Restored bookings cancelled by slot deactivation",
+      );
+    }
+    return affected;
+  }
+
   // ─── Fixed-Plan Booking Generation ─────────────────────────────────────
 
   /**

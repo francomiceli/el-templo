@@ -410,8 +410,14 @@ export class SchedulingService {
 
   /**
    * Toggle a schedule slot active/inactive. When deactivating, an optional
-   * reason can be provided — it's shown to members in the booking error toast.
-   * Reactivating clears any previously stored reason.
+   * reason can be provided — it's shown to members in the booking error
+   * toast. Reactivating clears the reason.
+   *
+   * Also stamps `deactivated_at` on deactivation and clears it on
+   * reactivation. The route handler reads the previous `deactivated_at`
+   * before flipping isActive=true so it can restore bookings cancelled
+   * during the deactivation window without resurrecting member-initiated
+   * cancellations from before the close.
    */
   async toggleSchedule(
     scheduleId: number,
@@ -427,12 +433,29 @@ export class SchedulingService {
 
     await this.db
       .update(schema.schedules)
-      .set({ isActive, inactiveReason: reasonValue })
+      .set({
+        isActive,
+        inactiveReason: reasonValue,
+        deactivatedAt: isActive ? null : new Date(),
+      })
       .where(eq(schema.schedules.id, scheduleId));
 
     const updated = await this.getScheduleSlot(scheduleId);
     if (!updated) throw new Error("Failed to retrieve updated schedule");
     return updated;
+  }
+
+  /**
+   * Read the timestamp of when this schedule was last deactivated.
+   * The route handler reads this BEFORE calling toggleSchedule(true) so it
+   * can pass the cutoff to BookingService.restoreCancelledBookingsForSchedule.
+   */
+  async getDeactivatedAt(scheduleId: number): Promise<Date | null> {
+    const [row] = await this.db
+      .select({ deactivatedAt: schema.schedules.deactivatedAt })
+      .from(schema.schedules)
+      .where(eq(schema.schedules.id, scheduleId));
+    return row?.deactivatedAt ?? null;
   }
 
   /**

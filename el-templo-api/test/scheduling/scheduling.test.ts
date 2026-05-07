@@ -616,6 +616,114 @@ describe("Scheduling API", () => {
       expect(bookingRow.status).toBe("cancelado");
       expect(bookingRow.cancelledAt).not.toBeNull();
     });
+
+    it("PUT toggle on restores bookings cancelled during the deactivation window", async () => {
+      const { memberToken } = await setupMemberWithSubscription();
+      const activity = await createActivity();
+      const futureSlot = getFutureSlot();
+      const slot = await createScheduleSlot(
+        activity.id,
+        futureSlot.dayOfWeek,
+        futureSlot.startTime,
+        futureSlot.endTime,
+      );
+
+      // Member reserves.
+      const reserveRes = await app.inject({
+        method: "POST",
+        url: `${MEMBER_URL}/reserve`,
+        headers: { authorization: `Bearer ${memberToken}` },
+        payload: { scheduleId: slot.id, date: futureSlot.date },
+      });
+      expect(reserveRes.statusCode).toBe(201);
+      const bookingId = JSON.parse(reserveRes.body).id as number;
+
+      // Admin deactivates → booking cancelled.
+      await app.inject({
+        method: "PUT",
+        url: `${ADMIN_URL}/schedules/${slot.id}/toggle`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { isActive: false, inactiveReason: "Cierre transitorio" },
+      });
+
+      // Admin reactivates → booking restored.
+      const enableRes = await app.inject({
+        method: "PUT",
+        url: `${ADMIN_URL}/schedules/${slot.id}/toggle`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { isActive: true },
+      });
+      expect(enableRes.statusCode).toBe(200);
+      const enableBody = JSON.parse(enableRes.body);
+      expect(enableBody.restoredBookings).toBe(1);
+      expect(enableBody.cancelledBookings).toBe(0);
+
+      const [bookingRow] = await app.db
+        .select({
+          status: bookings.status,
+          cancelledAt: bookings.cancelledAt,
+        })
+        .from(bookings)
+        .where(eq(bookings.id, bookingId));
+      expect(bookingRow.status).toBe("reservado");
+      expect(bookingRow.cancelledAt).toBeNull();
+    });
+
+    it("PUT toggle on does NOT restore bookings cancelled before the deactivation", async () => {
+      const { memberToken } = await setupMemberWithSubscription();
+      const activity = await createActivity();
+      const futureSlot = getFutureSlot();
+      const slot = await createScheduleSlot(
+        activity.id,
+        futureSlot.dayOfWeek,
+        futureSlot.startTime,
+        futureSlot.endTime,
+      );
+
+      // Member reserves then cancels their own reservation BEFORE the
+      // admin deactivates the slot — that's a deliberate user choice and
+      // must not be reversed by reactivation.
+      const reserveRes = await app.inject({
+        method: "POST",
+        url: `${MEMBER_URL}/reserve`,
+        headers: { authorization: `Bearer ${memberToken}` },
+        payload: { scheduleId: slot.id, date: futureSlot.date },
+      });
+      const bookingId = JSON.parse(reserveRes.body).id as number;
+      const cancelRes = await app.inject({
+        method: "DELETE",
+        url: `${MEMBER_URL}/bookings/${bookingId}`,
+        headers: { authorization: `Bearer ${memberToken}` },
+      });
+      expect(cancelRes.statusCode).toBe(200);
+
+      // Advance the clock past MySQL's TIMESTAMP second-precision boundary
+      // so deactivated_at > cancelled_at unambiguously. In production
+      // member cancellations and admin closures never fall in the same
+      // second; in fake-timer tests they do unless we step time forward.
+      vi.setSystemTime(new Date(Date.now() + 2000));
+
+      // Admin deactivates and reactivates.
+      await app.inject({
+        method: "PUT",
+        url: `${ADMIN_URL}/schedules/${slot.id}/toggle`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { isActive: false, inactiveReason: "Cierre" },
+      });
+      const enableRes = await app.inject({
+        method: "PUT",
+        url: `${ADMIN_URL}/schedules/${slot.id}/toggle`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { isActive: true },
+      });
+      expect(JSON.parse(enableRes.body).restoredBookings).toBe(0);
+
+      const [bookingRow] = await app.db
+        .select({ status: bookings.status })
+        .from(bookings)
+        .where(eq(bookings.id, bookingId));
+      expect(bookingRow.status).toBe("cancelado");
+    });
   });
 
   // =========================================================================
