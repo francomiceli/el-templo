@@ -255,9 +255,10 @@ const canChangeTurnos = computed(() => {
   const mode = props.classUsage.bookingMode;
   const hasAnchors = (props.classUsage.scheduleIds?.length ?? 0) > 0;
   // Fixed plans always show the button (they always have anchors).
-  // Flexible plans show it when classesPerWeek is set, so the user can add/remove partial anchors.
+  // Flexible plans always show it — when classesPerWeek is null (legacy plans like
+  // PROGRAMA 3/6 MESES), there's no upper bound on partial anchors.
   if (mode === 'fixed') return hasAnchors;
-  if (mode === 'flexible') return props.classUsage.weeklyLimit !== null;
+  if (mode === 'flexible') return true;
   return false;
 });
 

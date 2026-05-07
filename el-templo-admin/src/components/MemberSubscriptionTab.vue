@@ -169,7 +169,7 @@
 
     <!-- Change Fixed Schedules Dialog -->
     <ChangeFixedSchedulesDialog
-      v-if="presencialSub && classUsage?.weeklyLimit"
+      v-if="presencialSub && classUsage"
       v-model="showChangeTurnosDialog"
       :subscription-id="presencialSub.id"
       :branch-id="memberBranchId"

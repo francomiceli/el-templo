@@ -8,7 +8,8 @@
         </div>
       </div>
       <q-badge :color="badgeColor" class="text-body2 q-pa-sm">
-        Clases seleccionadas: {{ modelValue.length }}/{{ requiredCount }}
+        Clases seleccionadas: {{ modelValue.length
+        }}<template v-if="requiredCount !== null">/{{ requiredCount }}</template>
       </q-badge>
     </div>
 
@@ -113,7 +114,11 @@ const props = withDefaults(
     modelValue: number[];
     branchId: number;
     /** Maximum number of slots that can be selected. */
-    requiredCount: number;
+    /**
+     * Upper bound for selectable slots. `null` means no upper bound
+     * (legacy flexible plans where classesPerWeek is not set).
+     */
+    requiredCount: number | null;
     /**
      * When true, the picker allows 0..requiredCount selections (partial mode).
      * When false (default), exactly requiredCount is expected (fixed mode).
@@ -162,6 +167,9 @@ const selectedMeta = ref<Map<number, SelectedSlotMeta>>(new Map());
 const title = computed(() => props.title ?? 'Selecciona los horarios fijos');
 
 const badgeColor = computed(() => {
+  if (props.requiredCount === null) {
+    return props.modelValue.length > 0 ? 'primary' : 'grey';
+  }
   if (props.modelValue.length === props.requiredCount) return 'positive';
   if (props.allowPartial && props.modelValue.length < props.requiredCount) return 'primary';
   return 'grey';
@@ -269,7 +277,7 @@ function toggleCell(time: string, dayOfWeek: DayOfWeek): void {
   // Block: full slot, day already taken, or selection cap reached.
   if (s.isFull) return;
   if (selectedDays.value.has(dayOfWeek)) return;
-  if (current.length >= props.requiredCount) return;
+  if (props.requiredCount !== null && current.length >= props.requiredCount) return;
   current.push(s.id);
   recordSelection(s);
   emit('update:modelValue', current);

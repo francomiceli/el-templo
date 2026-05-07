@@ -72,7 +72,11 @@ const props = withDefaults(
     subscriptionId: number;
     branchId: number;
     branchName: string;
-    requiredCount: number;
+    /**
+     * Upper bound for selectable anchors. `null` means no upper bound
+     * (legacy flexible plans like PROGRAMA 3/6 MESES with classesPerWeek=null).
+     */
+    requiredCount: number | null;
     currentScheduleIds: number[];
     /** When true (flexible plans), 0..requiredCount anchors allowed. */
     allowPartial?: boolean;
@@ -111,7 +115,7 @@ const pickerTitle = computed(() =>
 const canSubmit = computed(() => {
   const count = selectedIds.value.length;
   if (props.allowPartial) {
-    if (count > props.requiredCount) return false;
+    if (props.requiredCount !== null && count > props.requiredCount) return false;
   } else if (count !== props.requiredCount) {
     return false;
   }
