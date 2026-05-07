@@ -33,6 +33,11 @@ export interface ScheduleSlot {
   isActive: boolean;
   /** Admin-provided reason shown to members when the slot is deactivated. */
   inactiveReason: string | null;
+  /**
+   * ISO timestamp of the last deactivation. Used by the SlotDetailDialog to
+   * scope "bookings that will be restored" to the deactivation window.
+   */
+  deactivatedAt: string | null;
 }
 
 /**

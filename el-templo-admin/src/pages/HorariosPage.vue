@@ -139,7 +139,10 @@
           </q-item-section>
           <q-item-section>
             <q-item-label class="text-weight-medium">{{ slot.activityName }}</q-item-label>
-            <q-item-label caption>
+            <q-item-label v-if="!slot.isActive" caption class="text-negative text-weight-medium">
+              Cancelada
+            </q-item-label>
+            <q-item-label v-else caption>
               {{ slot.bookedCount }}/{{ slot.maxCapacity }} reservados
               <span v-if="slot.trialCount > 0" class="text-warning text-weight-medium q-ml-xs">
                 · {{ slot.trialCount }} SP
@@ -188,6 +191,12 @@
               </div>
               <div v-if="isCellHoliday(day.date)" class="cell-holiday text-weight-bold">
                 FERIADO
+              </div>
+              <div
+                v-else-if="!getCellSlot(time, day.dayOfWeek)!.isActive"
+                class="cell-inactive text-weight-bold"
+              >
+                CANCELADA
               </div>
               <div v-else class="cell-occupancy text-weight-bold">
                 {{ getCellSlot(time, day.dayOfWeek)!.bookedCount }}/{{
@@ -365,6 +374,7 @@ function isCellHoliday(date: string): boolean {
 function cellClass(time: string, dayOfWeek: DayOfWeek): string {
   const slot = getCellSlot(time, dayOfWeek);
   if (!slot) return 'grid-cell--empty';
+  if (!slot.isActive) return 'grid-cell--inactive';
 
   // Find the date for this dayOfWeek
   const day = weekDays.value.find((d) => d.dayOfWeek === dayOfWeek);
@@ -398,6 +408,7 @@ const selectedDaySlots = computed(() => {
 function rowClass(slot: WeeklySlotView): string {
   const info = selectedDayInfo.value;
   if (info && isCellHoliday(info.date)) return 'slot-row--holiday';
+  if (!slot.isActive) return 'slot-row--inactive';
   const pct = slot.maxCapacity > 0 ? (slot.bookedCount / slot.maxCapacity) * 100 : 0;
   if (pct >= 100) return 'slot-row--full';
   if (pct >= 70) return 'slot-row--warning';
@@ -605,6 +616,21 @@ watch(selectedBranchId, (val) => {
 
 .grid-cell--holiday:hover {
   filter: none;
+}
+
+.grid-cell--inactive {
+  background: repeating-linear-gradient(45deg, #fce4ec, #fce4ec 6px, #f8bbd0 6px, #f8bbd0 12px);
+  color: #b71c1c;
+}
+
+.cell-inactive {
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+  margin-top: 2px;
+}
+
+.slot-row--inactive {
+  background: #fce4ec;
 }
 
 .cell-activity {

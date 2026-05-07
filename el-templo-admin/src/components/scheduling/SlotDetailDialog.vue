@@ -94,9 +94,33 @@
 
           <!-- Future: bookings view -->
           <template v-else-if="!isPastOrToday">
-            <q-item v-if="activeBookings.length === 0 && waitlistBookings.length === 0">
+            <!-- Inactive slot: list bookings cancelled by the deactivation
+                 so the admin sees who will get their reservation back when
+                 they click "Reactivar clase". -->
+            <template v-if="isSlotInactive && pendingRestorationBookings.length > 0">
+              <q-item-label header class="text-negative">
+                Se restaurarán al reactivar ({{ pendingRestorationBookings.length }})
+              </q-item-label>
+              <q-item v-for="booking in pendingRestorationBookings" :key="booking.id">
+                <q-item-section>
+                  <q-item-label>{{ booking.memberName }}</q-item-label>
+                </q-item-section>
+                <q-item-section side>
+                  <q-badge color="grey-6" label="Cancelada" />
+                </q-item-section>
+              </q-item>
+            </template>
+
+            <q-item
+              v-if="!isSlotInactive && activeBookings.length === 0 && waitlistBookings.length === 0"
+            >
               <q-item-section class="text-grey-5 text-italic text-center">
                 Sin reservas para este horario
+              </q-item-section>
+            </q-item>
+            <q-item v-if="isSlotInactive && pendingRestorationBookings.length === 0">
+              <q-item-section class="text-grey-5 text-italic text-center">
+                No hay reservas que restaurar.
               </q-item-section>
             </q-item>
 
@@ -585,6 +609,22 @@ const activeBookings = computed(() => {
 const waitlistBookings = computed(() => {
   if (!slotDetail.value) return [];
   return slotDetail.value.bookings.filter((b) => b.status === 'lista_espera' && !b.isTrial);
+});
+
+/**
+ * Bookings cancelled as part of the current deactivation — these are the
+ * ones that will be restored when the admin clicks "Reactivar clase".
+ * Mirrors the backend filter in BookingService.restoreCancelledBookingsForSchedule:
+ *   status='cancelado' AND cancelledAt >= deactivatedAt.
+ * Member-initiated cancellations from before the closure are excluded.
+ */
+const pendingRestorationBookings = computed(() => {
+  if (!slotDetail.value) return [];
+  const deactivatedAt = slotDetail.value.schedule.deactivatedAt;
+  if (!deactivatedAt) return [];
+  return slotDetail.value.bookings.filter(
+    (b) => b.status === 'cancelado' && b.cancelledAt !== null && b.cancelledAt >= deactivatedAt
+  );
 });
 
 const activeRegularBookings = computed(() => activeBookings.value.filter((b) => !b.isTrial));

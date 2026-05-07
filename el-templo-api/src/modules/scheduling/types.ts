@@ -32,6 +32,13 @@ export interface ScheduleSlot {
   isActive: boolean;
   /** Admin-provided reason shown to members when reservation is rejected. */
   inactiveReason: string | null;
+  /**
+   * Timestamp of the last deactivation. Set when toggling off, cleared on
+   * toggle on. Null on schedules that were never deactivated. Surfaced
+   * (ISO string) so the admin UI can scope "bookings that will be
+   * restored" to the deactivation window.
+   */
+  deactivatedAt: string | null;
 }
 
 export interface WeeklySlotView extends ScheduleSlot {

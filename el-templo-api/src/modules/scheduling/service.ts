@@ -117,6 +117,7 @@ export class SchedulingService {
   async getWeeklyGrid(
     branchId: number,
     weekStartDate: string,
+    includeInactive = false,
   ): Promise<{
     slots: WeeklySlotView[];
     holidays: HolidayRecord[];
@@ -137,7 +138,16 @@ export class SchedulingService {
 
     const maxCapacity = branch.maxCapacity;
 
-    // Get all active schedules for this branch
+    // Schedule filter: members only see active slots (otherwise their grid
+    // would surface classes they can't book). Admins pass includeInactive=true
+    // so they can see deactivated slots and reactivate them from the same UI.
+    const scheduleFilter = includeInactive
+      ? eq(schema.schedules.branchId, branchId)
+      : and(
+          eq(schema.schedules.branchId, branchId),
+          eq(schema.schedules.isActive, true),
+        );
+
     const scheduleRows = await this.db
       .select({
         id: schema.schedules.id,
@@ -150,6 +160,7 @@ export class SchedulingService {
         endTime: schema.schedules.endTime,
         isActive: schema.schedules.isActive,
         inactiveReason: schema.schedules.inactiveReason,
+        deactivatedAt: schema.schedules.deactivatedAt,
       })
       .from(schema.schedules)
       .innerJoin(
@@ -160,12 +171,7 @@ export class SchedulingService {
         schema.activities,
         eq(schema.activities.id, schema.schedules.activityId),
       )
-      .where(
-        and(
-          eq(schema.schedules.branchId, branchId),
-          eq(schema.schedules.isActive, true),
-        ),
-      )
+      .where(scheduleFilter)
       .orderBy(schema.schedules.dayOfWeek, schema.schedules.startTime);
 
     // Get holidays for the week. weekRangeEnd covers the full Mon-Sun span
@@ -243,6 +249,7 @@ export class SchedulingService {
         endTime: row.endTime,
         isActive: row.isActive,
         inactiveReason: row.inactiveReason,
+        deactivatedAt: row.deactivatedAt?.toISOString() ?? null,
         bookedCount: counts.bookedCount,
         trialCount: counts.trialCount,
         maxCapacity,
@@ -690,6 +697,7 @@ export class SchedulingService {
         endTime: schema.schedules.endTime,
         isActive: schema.schedules.isActive,
         inactiveReason: schema.schedules.inactiveReason,
+        deactivatedAt: schema.schedules.deactivatedAt,
       })
       .from(schema.schedules)
       .innerJoin(
@@ -714,6 +722,7 @@ export class SchedulingService {
       endTime: row.endTime,
       isActive: row.isActive,
       inactiveReason: row.inactiveReason,
+      deactivatedAt: row.deactivatedAt?.toISOString() ?? null,
     };
   }
 }

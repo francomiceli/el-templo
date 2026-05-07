@@ -203,9 +203,12 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
     },
     async (request, reply) => {
       try {
+        // Admin grid includes deactivated slots so the cancelled cells stay
+        // clickable and admins can reactivate from the same modal.
         const result = await schedulingService.getWeeklyGrid(
           request.query.branchId,
           request.query.weekStart,
+          true,
         );
         return result;
       } catch (err: unknown) {

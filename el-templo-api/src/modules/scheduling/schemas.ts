@@ -39,6 +39,7 @@ const scheduleSlotSchema = {
     endTime: { type: "string" },
     isActive: { type: "boolean" },
     inactiveReason: { type: ["string", "null"] },
+    deactivatedAt: { type: ["string", "null"] },
   },
 } as const;
 
