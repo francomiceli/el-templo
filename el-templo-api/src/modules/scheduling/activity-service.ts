@@ -6,11 +6,11 @@
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { eq } from "drizzle-orm";
+import { eq, and, ne } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
-import { NotFoundError } from "../shared/errors";
-import type { ActivityRecord } from "./types";
+import { ConflictError, NotFoundError } from "../shared/errors";
+import type { ActivityRecord, AffectedScheduleRef } from "./types";
 
 export class ActivityService {
   constructor(
@@ -25,6 +25,25 @@ export class ActivityService {
     name: string,
     description?: string,
   ): Promise<ActivityRecord> {
+    // Phase 113 (D-16): reject duplicate name across ACTIVE activities.
+    // Inactive activities don't block reuse — admins can recreate by name
+    // after soft-delete. Comparison is the DB collation default (MySQL
+    // default for utf8mb4 is case-insensitive `utf8mb4_0900_ai_ci`), which
+    // matches the user-facing intent of "same name".
+    const [collision] = await this.db
+      .select({ id: schema.activities.id })
+      .from(schema.activities)
+      .where(
+        and(
+          eq(schema.activities.name, name),
+          eq(schema.activities.isActive, true),
+        ),
+      )
+      .limit(1);
+    if (collision) {
+      throw new ConflictError("Ya existe una actividad activa con ese nombre");
+    }
+
     const result = await this.db.insert(schema.activities).values({
       name,
       description: description ?? null,
@@ -59,6 +78,68 @@ export class ActivityService {
   ): Promise<ActivityRecord> {
     const existing = await this.getActivity(id);
     if (!existing) throw new NotFoundError("Actividad no encontrada");
+
+    // Phase 113 (D-16): rename collision check. Excludes self via `ne(id)`
+    // so a no-op rename (same name as current) is allowed. Filtered by
+    // isActive=true so reusing an inactive activity's name is permitted.
+    if (data.name !== undefined && data.name !== existing.name) {
+      const [collision] = await this.db
+        .select({ id: schema.activities.id })
+        .from(schema.activities)
+        .where(
+          and(
+            eq(schema.activities.name, data.name),
+            eq(schema.activities.isActive, true),
+            ne(schema.activities.id, id),
+          ),
+        )
+        .limit(1);
+      if (collision) {
+        throw new ConflictError(
+          "Ya existe otra actividad activa con ese nombre",
+        );
+      }
+    }
+
+    // Phase 113 (D-13): cascade-block deactivation when active schedules
+    // reference this activity. Reactivation (false → true) is unrestricted
+    // per D-14. The 409 carries an `affectedSchedules` payload so the admin
+    // UI can list the schedules that need to be reassigned/disabled before
+    // retrying. Pattern mirrors validateAnchorSet in subscriptions/service.ts.
+    if (data.isActive === false && existing.isActive === true) {
+      const affected: AffectedScheduleRef[] = await this.db
+        .select({
+          id: schema.schedules.id,
+          dayOfWeek: schema.schedules.dayOfWeek,
+          startTime: schema.schedules.startTime,
+          endTime: schema.schedules.endTime,
+          branchName: schema.branches.name,
+        })
+        .from(schema.schedules)
+        .innerJoin(
+          schema.branches,
+          eq(schema.branches.id, schema.schedules.branchId),
+        )
+        .where(
+          and(
+            eq(schema.schedules.activityId, id),
+            eq(schema.schedules.isActive, true),
+          ),
+        )
+        .orderBy(schema.schedules.dayOfWeek, schema.schedules.startTime);
+      if (affected.length > 0) {
+        const err = new ConflictError(
+          `No se puede desactivar: ${affected.length} horario(s) activo(s) usan esta actividad. Cambia su actividad o desactivalos primero.`,
+        );
+        // Attach structured payload so the route layer can serialize it.
+        (
+          err as ConflictError & {
+            affectedSchedules?: AffectedScheduleRef[];
+          }
+        ).affectedSchedules = affected;
+        throw err;
+      }
+    }
 
     const updateData: Partial<typeof schema.activities.$inferInsert> = {};
     if (data.name !== undefined) updateData.name = data.name;

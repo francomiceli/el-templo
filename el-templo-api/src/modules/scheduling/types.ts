@@ -103,3 +103,17 @@ export interface SlotMemberView {
   status: SlotMemberStatus;
   bookingStatus: BookingStatus | null;
 }
+
+/**
+ * Phase 113 (D-13): when an admin tries to deactivate an activity that has
+ * active schedules pointing to it, the API returns a 409 with this list so
+ * the UI can show "cambiá la activity de los siguientes horarios antes de
+ * desactivarla".
+ */
+export interface AffectedScheduleRef {
+  id: number;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  branchName: string;
+}

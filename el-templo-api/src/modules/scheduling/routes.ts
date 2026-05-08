@@ -30,6 +30,7 @@ import { AuraService } from "../aura/service";
 import { EnrollmentService } from "../programs/enrollment-service";
 import { NotificationService } from "../notifications/service";
 import { handleServiceError } from "../shared/error-handler";
+import { ConflictError } from "../shared/errors";
 import {
   createActivitySchema,
   listActivitiesSchema,
@@ -53,7 +54,7 @@ import {
   cancelBookingSchema,
   myBookingsSchema,
 } from "./schemas";
-import type { DayOfWeek } from "./types";
+import type { DayOfWeek, AffectedScheduleRef } from "./types";
 
 import { ALL_STAFF_ROLES } from "../shared/permissions";
 
@@ -152,6 +153,27 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
         );
         return activity;
       } catch (err: unknown) {
+        // Phase 113 (D-13): when ConflictError carries an affectedSchedules
+        // payload, surface the structured list to the admin UI so it can
+        // render an actionable "estos horarios usan la actividad" message.
+        // handleServiceError only serializes {error, message}, hence the
+        // dedicated branch here.
+        if (
+          err instanceof ConflictError &&
+          (err as ConflictError & { affectedSchedules?: unknown })
+            .affectedSchedules !== undefined
+        ) {
+          const affectedSchedules = (
+            err as ConflictError & {
+              affectedSchedules: AffectedScheduleRef[];
+            }
+          ).affectedSchedules;
+          return reply.code(409).send({
+            error: "Conflicto",
+            message: err.message,
+            affectedSchedules,
+          });
+        }
         handleServiceError(err, reply, request.log, "update activity");
       }
     },

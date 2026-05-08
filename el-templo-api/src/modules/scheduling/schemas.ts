@@ -126,6 +126,8 @@ export const createActivitySchema = {
   response: {
     201: activityRecordSchema,
     400: errorSchema,
+    // Phase 113 (D-16): name-uniqueness collision against active activities.
+    409: errorSchema,
   },
 };
 
@@ -159,6 +161,30 @@ export const updateActivitySchema = {
   response: {
     200: activityRecordSchema,
     404: errorSchema,
+    // Phase 113 (D-13/D-16): conflict body carries optional affectedSchedules
+    // when deactivation is blocked by referencing schedules. Fastify
+    // fast-json-stringify strips properties not declared here, so the list
+    // must be in the schema or it would arrive empty on the client.
+    409: {
+      type: "object",
+      properties: {
+        error: { type: "string" },
+        message: { type: "string" },
+        affectedSchedules: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              id: { type: "integer" },
+              dayOfWeek: { type: "integer" },
+              startTime: { type: "string" },
+              endTime: { type: "string" },
+              branchName: { type: "string" },
+            },
+          },
+        },
+      },
+    },
   },
 };
 
