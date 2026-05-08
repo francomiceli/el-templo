@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: executing
-stopped_at: Plan 113-01 complete (backend hardening — overlap, activity uniqueness, cascade-block); next 113-02 (admin UI)
-last_updated: "2026-05-08T17:55:00.000Z"
-last_activity: 2026-05-08 -- Phase 113 Plan 01 complete
+stopped_at: Phase 113 complete (admin schedule+activity CRUD; backend + frontend); ready for next phase
+last_updated: "2026-05-08T17:05:00.000Z"
+last_activity: 2026-05-08 -- Phase 113 Plan 02 complete (admin frontend UI)
 progress:
   total_phases: 103
-  completed_phases: 89
+  completed_phases: 90
   total_plans: 405
-  completed_plans: 398
+  completed_plans: 399
   percent: 98
 ---
 
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-05-04)
 
 ## Current Position
 
-Phase: 113 (crud-admin-schedules-activities) — EXECUTING
-Plan: 2 of 2
-Status: Plan 01 complete; Plan 02 pending (admin UI)
-Last activity: 2026-05-08 -- Phase 113 Plan 01 complete
+Phase: 113 (crud-admin-schedules-activities) — COMPLETE
+Plan: 2 of 2 complete
+Status: Phase 113 complete (Plan 01 backend + Plan 02 frontend admin UI)
+Last activity: 2026-05-08 -- Phase 113 Plan 02 complete
 
 ## Performance Metrics
 
@@ -165,6 +165,7 @@ _Updated after each plan completion_
 | Phase 112 P03 | 30min | 3 tasks | 3 files |
 | Phase 112 P04 | 26min | 5 tasks | 8 files |
 | Phase 113 P01 | 25min | 3 tasks | 6 files |
+| Phase 113 P02 | 7min | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -378,6 +379,9 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - Plan 113-01: half-open interval overlap (`a.start < b.end AND a.end > b.start`) on HH:MM strings via drizzle `lt`/`gt` — strict inequality makes back-to-back boundaries non-overlapping; `is_active=1` filter so historic deactivated rows (Constitución 10am case) don't block reuse.
 - Plan 113-01: ConflictError payload extension idiom — TS intersection cast (`ConflictError & { affectedSchedules?: AffectedScheduleRef[] }`) attached at service layer, route handler bypasses shared `handleServiceError` for one specific 409 shape; Fastify `fast-json-stringify` requires explicit declaration of `affectedSchedules` in `updateActivitySchema.response[409]` or it would silently strip the rich payload.
 - Plan 113-01: activity name uniqueness on rename uses `ne(id)` to exclude self — no-op renames (same name) are allowed and never query, idempotent.
+- Plan 113-02: ActivitiesDialog.vue refactored from `<q-dialog>` floating modal into an embedded panel (props `:active` instead of `:show`, no `update:show` emit) — file kept by name, parent imports under alias `ActivitiesPanel` to minimize git history churn while honoring the tabbed layout (D-18). HorariosPage gained q-tabs (Horarios | Actividades), a `Crear horario` header button gated by `v-if="activeTab === 'horarios'"` and `:disable="!selectedBranchId"`, and an `onCascadeError` toast that lists up to 5 affected schedules using `DAY_SHORT_LABELS[dow] HH:MM-HH:MM (branchName)` plus "y N más" overflow. SlotDetailDialog.vue intentionally untouched (D-19).
+- Plan 113-02: Slot creation 4xx errors render INLINE on the form (text-negative caption) instead of as a toast — UX rationale is the admin keeps the form open and corrects the conflicting time/branch immediately. Cascade-error from activity deactivation DOES use a toast (no form to preserve).
+- Plan 113-02: Tasks 2 and 3 committed together (Rule 3) because Task 3 changed ActivitiesDialog's props/emit contract spanning HorariosPage; splitting would have left an intermediate state failing tsc. 3 pre-existing tsc errors in `pdf/session-pdf-builder.ts` (pdfmake @types drift) deferred to a future housekeeping plan; verified by stash that they were not introduced by this plan.
 
 - Plan 111-06: data-fix migrations use defensive WHERE-on-BEFORE-state guards + DELETE by id + INSERT … SELECT … WHERE NOT EXISTS — re-runnable as 0-row no-op (verified by Tests 2 and 3)
 - Plan 111-06: refactored run-migrations.ts to export splitSqlStatements + guarded auto-run with require.main check, so integration tests share the production parser without triggering a real migration on import
@@ -413,8 +417,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-05-08T17:55:00.000Z
-Stopped at: Plan 113-01 complete (backend hardening — overlap, activity uniqueness, cascade-block); next 113-02 (admin UI)
+Last session: 2026-05-08T17:05:00.000Z
+Stopped at: Phase 113 complete (Plan 01 backend hardening + Plan 02 admin frontend UI); ready for next phase
 Resume file: None
 
 **Planned Phase:** 112 (Enrollment Service + Admin Add-ons) — 6 plans — 2026-05-04T22:51:06.993Z (Plan 01 complete)
