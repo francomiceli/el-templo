@@ -2490,7 +2490,7 @@ _Phase 111 added: 2026-05-01 — origen: investigación caso Soledad Mailland (a
 ## v4.85 Phases
 
 - [ ] **Phase 112: Enrollment Service + Admin Add-ons** — Extract `EnrollmentService` centralizing the lifecycle of `program_enrollments` (replacing 6 dispersed inserts in `subscriptions/service.ts` + the fase-111 `tearDownBundleEnrollments`), add the four new columns + backfill, ship the admin add-on assignment endpoint with finance integration and lifecycle hooks (transfer on changePlan, teardown on cancel/expire), and add the admin UI section to manage add-ons in the member detail page. Internal structure surfaces as plans during `/gsd-plan-phase 112`.
-- [ ] **Phase 113: CRUD admin de Schedules y Activities** — Permitir editar `start_time`/`end_time`/`day_of_week` de slots vivos (hoy solo se puede toggle activo y cambiar activity), crear nuevos slots desde admin, y CRUD completo de Activities. Acceso: cualquier usuario admin. Out of scope: branches CRUD, bloqueos puntuales (cubierto por toggle existente), fix de subs huérfanas (modelo coherente — fixed subs tienen `classes_remaining=NULL`, no pierden créditos en no-show).
+- [x] **Phase 113: CRUD admin de Schedules y Activities** — Backend hardening (overlap validation branch+day, activity name uniqueness, cascade-block on deactivation con `affectedSchedules` payload) + frontend admin UI (tabs Horarios/Actividades en HorariosPage, CreateSlotDialog modal). Endpoints CRUD ya existían — esta fase los endurece y agrega UX. Slots inmutables: para cambiar horario = desactivar viejo + crear nuevo. Out of scope: branches CRUD, bloqueos puntuales, fix subs huérfanas. ✓ 14/14 must-haves verified.
 
 ## v4.85 Phase Details
 
@@ -2557,8 +2557,8 @@ _Plan counts populated by `/gsd-plan-phase 112`._
 
 Plans:
 
-- [ ] 113-01-PLAN.md — Backend: overlap validation en createSchedule + activity name uniqueness + cascade-block on deactivation + integration tests (D-10/11/12/13/14/16)
-- [ ] 113-02-PLAN.md — Frontend admin: CreateSlotDialog + tabs Horarios/Actividades en HorariosPage + cascade-error UX (D-17/18/19/20)
+- [x] 113-01-PLAN.md — Backend: overlap validation en createSchedule + activity name uniqueness + cascade-block on deactivation + integration tests (D-10/11/12/13/14/16)
+- [x] 113-02-PLAN.md — Frontend admin: CreateSlotDialog + tabs Horarios/Actividades en HorariosPage + cascade-error UX (D-17/18/19/20)
 
 ---
 
