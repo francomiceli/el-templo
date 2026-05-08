@@ -2490,6 +2490,7 @@ _Phase 111 added: 2026-05-01 — origen: investigación caso Soledad Mailland (a
 ## v4.85 Phases
 
 - [ ] **Phase 112: Enrollment Service + Admin Add-ons** — Extract `EnrollmentService` centralizing the lifecycle of `program_enrollments` (replacing 6 dispersed inserts in `subscriptions/service.ts` + the fase-111 `tearDownBundleEnrollments`), add the four new columns + backfill, ship the admin add-on assignment endpoint with finance integration and lifecycle hooks (transfer on changePlan, teardown on cancel/expire), and add the admin UI section to manage add-ons in the member detail page. Internal structure surfaces as plans during `/gsd-plan-phase 112`.
+- [ ] **Phase 113: CRUD admin de Schedules y Activities** — Permitir editar `start_time`/`end_time`/`day_of_week` de slots vivos (hoy solo se puede toggle activo y cambiar activity), crear nuevos slots desde admin, y CRUD completo de Activities. Acceso: cualquier usuario admin. Out of scope: branches CRUD, bloqueos puntuales (cubierto por toggle existente), fix de subs huérfanas (modelo coherente — fixed subs tienen `classes_remaining=NULL`, no pierden créditos en no-show).
 
 ## v4.85 Phase Details
 
@@ -2534,6 +2535,28 @@ _Phase 111 added: 2026-05-01 — origen: investigación caso Soledad Mailland (a
 | 112. Enrollment Service + Admin Add-ons | 1/6            | In progress | -         |
 
 _Plan counts populated by `/gsd-plan-phase 112`._
+
+### Phase 113: CRUD admin de Schedules y Activities
+
+**Goal:** Habilitar al admin a gestionar el catálogo de horarios y actividades sin intervención manual de DB. Editar `start_time`/`end_time`/`day_of_week` de slots vivos (hoy imposible — solo toggle activo y cambiar activity), crear nuevos slots desde admin, y CRUD completo de Activities (crear/editar/desactivar).
+
+**Depends on:** Nothing (independiente de fase 112)
+
+**Disparador:** El slot 10:00-11:00 de Constitución (Lun-Vie) quedó activo en DB después de cerrarse hace meses por baja demanda. Se desactivó vía migración 0118 (commit f2792abd, branch `fix/deactivate-constitucion-10am`). Esta fase elimina la necesidad futura de migraciones one-off para cambios operativos.
+
+**Out of scope:**
+
+- Branches CRUD (no requerido v1)
+- Bloqueos puntuales por slot+fecha (cubierto por toggle existente: desactivar/reactivar slot completo)
+- Fix de subs "huérfanas" en slots inactivos: verificado empíricamente que el modelo es coherente — subs fijas tienen `classes_remaining=NULL` y no pierden créditos en no-show; subs flex pierden crédito al reservar+no ir, lo cual es intencional
+
+**Requirements**: TBD (definir en /gsd-discuss-phase 113)
+
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 113 to break down)
 
 ---
 
