@@ -196,7 +196,10 @@ export class ProgramsService {
 
   /**
    * Update program fields (name, description, AURA bonuses, durationWeeks).
-   * Per D-41: durationWeeks editable only when no active enrollments exist.
+   * Cambiar durationWeeks resetea las inscripciones activas a la semana 1
+   * (current_week=1, sessions_completed_this_week=0, week_unlocked_at=NULL)
+   * de forma atómica para evitar estado inconsistente entre el programa y
+   * las inscripciones que lo usan.
    */
   async updateProgram(
     programId: number,
@@ -213,35 +216,46 @@ export class ProgramsService {
       updateFields.auraWeeklyBonus = input.auraWeeklyBonus;
     if (input.auraCompletionBonus !== undefined)
       updateFields.auraCompletionBonus = input.auraCompletionBonus;
-
-    if (input.durationWeeks !== undefined) {
-      const enrollmentCountRows = await this.db
-        .select({ count: count() })
-        .from(programEnrollments)
-        .where(
-          and(
-            eq(programEnrollments.programId, programId),
-            eq(programEnrollments.status, "active"),
-          ),
-        );
-      const activeCount = enrollmentCountRows[0]?.count ?? 0;
-      if (activeCount > 0) {
-        throw new ConflictError(
-          "No se puede modificar la duración: hay inscripciones activas",
-        );
-      }
+    if (input.durationWeeks !== undefined)
       updateFields.durationWeeks = input.durationWeeks;
-    }
 
     if (Object.keys(updateFields).length === 0) return;
 
-    const result = await this.db
-      .update(programs)
-      .set(updateFields)
-      .where(eq(programs.id, programId));
+    let resetEnrollments = 0;
 
-    if (result[0].affectedRows === 0) {
-      throw new NotFoundError("Programa no encontrado");
+    await this.db.transaction(async (tx) => {
+      const result = await tx
+        .update(programs)
+        .set(updateFields)
+        .where(eq(programs.id, programId));
+
+      if (result[0].affectedRows === 0) {
+        throw new NotFoundError("Programa no encontrado");
+      }
+
+      if (input.durationWeeks !== undefined) {
+        const reset = await tx
+          .update(programEnrollments)
+          .set({
+            currentWeek: 1,
+            sessionsCompletedThisWeek: 0,
+            weekUnlockedAt: null,
+          })
+          .where(
+            and(
+              eq(programEnrollments.programId, programId),
+              eq(programEnrollments.status, "active"),
+            ),
+          );
+        resetEnrollments = reset[0].affectedRows;
+      }
+    });
+
+    if (input.durationWeeks !== undefined) {
+      this.log?.info(
+        { programId, durationWeeks: input.durationWeeks, resetEnrollments },
+        "Programa: durationWeeks cambiado, inscripciones activas reseteadas a semana 1",
+      );
     }
 
     this.log?.info(

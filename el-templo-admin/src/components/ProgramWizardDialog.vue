@@ -681,6 +681,30 @@ watch(
 async function onSubmit() {
   if (!isFormValid.value) return;
 
+  // Aviso explícito si se está cambiando la duración con inscripciones activas:
+  // el backend resetea esas inscripciones a la semana 1 de forma atómica.
+  if (
+    isEditMode.value &&
+    props.editingProgram &&
+    form.value.durationWeeks !== props.editingProgram.durationWeeks &&
+    props.editingProgram.activeEnrollmentCount > 0
+  ) {
+    const count = props.editingProgram.activeEnrollmentCount;
+    const confirmed = await new Promise<boolean>((resolve) => {
+      $q.dialog({
+        title: 'Hay inscripciones activas',
+        message: `Cambiar la duración va a resetear ${count} inscripción${count === 1 ? '' : 'es'} activa${count === 1 ? '' : 's'} a la semana 1. ¿Continuar?`,
+        cancel: { label: 'Cancelar', flat: true },
+        ok: { label: 'Resetear y guardar', color: 'warning' },
+        persistent: true,
+      })
+        .onOk(() => resolve(true))
+        .onCancel(() => resolve(false))
+        .onDismiss(() => resolve(false));
+    });
+    if (!confirmed) return;
+  }
+
   submitting.value = true;
   try {
     if (isEditMode.value && props.editingProgram) {
