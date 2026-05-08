@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: executing
-stopped_at: Plan 112-04 complete (admin add-on API + finance integration); next 112-05 (admin UI, wave 5)
-last_updated: "2026-05-05T00:59:53.026Z"
-last_activity: 2026-05-05
+stopped_at: Plan 113-01 complete (backend hardening — overlap, activity uniqueness, cascade-block); next 113-02 (admin UI)
+last_updated: "2026-05-08T17:55:00.000Z"
+last_activity: 2026-05-08 -- Phase 113 Plan 01 complete
 progress:
-  total_phases: 102
-  completed_phases: 88
-  total_plans: 403
-  completed_plans: 396
+  total_phases: 103
+  completed_phases: 89
+  total_plans: 405
+  completed_plans: 398
   percent: 98
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-04)
 
 **Core value:** v4.85 desacopla el lifecycle de `programEnrollments` de `subscriptions/service.ts` (extrae `EnrollmentService`) y habilita add-ons de programas asignables por admin con precio opcional, retención de progreso atado al ciclo de vida de la sub principal.
-**Current focus:** Phase 112 executing — wave 3 next (Plan 03 lifecycle hooks + transferAddons body)
+**Current focus:** Phase 113 — crud-admin-schedules-activities
 
 ## Current Position
 
-Phase: 112 (Enrollment Service + Admin Add-ons) — EXECUTING
-Plan: 5 of 6 (112-03 lifecycle hooks pause/resume + transferAddons, wave 3)
-Status: Ready to execute
-Last activity: 2026-05-05
+Phase: 113 (crud-admin-schedules-activities) — EXECUTING
+Plan: 2 of 2
+Status: Plan 01 complete; Plan 02 pending (admin UI)
+Last activity: 2026-05-08 -- Phase 113 Plan 01 complete
 
 ## Performance Metrics
 
@@ -164,6 +164,7 @@ _Updated after each plan completion_
 | Phase 112 P02 | 24min | 3 tasks | 9 files |
 | Phase 112 P03 | 30min | 3 tasks | 3 files |
 | Phase 112 P04 | 26min | 5 tasks | 8 files |
+| Phase 113 P01 | 25min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -374,6 +375,10 @@ Plan 111-04: helpers.ts registerUser default phone now per-call unique via times
 Plan 111-04: 400 MISSING_QUERY enforced at route handler (not schema required:[]) so the structured 4xx body carries explicit code per Phase 110 D-05.
 Plan 111-04: dedup by user id with matchedField='dni' preferred when both criteria match the same row — admin sees the stronger identifier first.
 
+- Plan 113-01: half-open interval overlap (`a.start < b.end AND a.end > b.start`) on HH:MM strings via drizzle `lt`/`gt` — strict inequality makes back-to-back boundaries non-overlapping; `is_active=1` filter so historic deactivated rows (Constitución 10am case) don't block reuse.
+- Plan 113-01: ConflictError payload extension idiom — TS intersection cast (`ConflictError & { affectedSchedules?: AffectedScheduleRef[] }`) attached at service layer, route handler bypasses shared `handleServiceError` for one specific 409 shape; Fastify `fast-json-stringify` requires explicit declaration of `affectedSchedules` in `updateActivitySchema.response[409]` or it would silently strip the rich payload.
+- Plan 113-01: activity name uniqueness on rename uses `ne(id)` to exclude self — no-op renames (same name) are allowed and never query, idempotent.
+
 - Plan 111-06: data-fix migrations use defensive WHERE-on-BEFORE-state guards + DELETE by id + INSERT … SELECT … WHERE NOT EXISTS — re-runnable as 0-row no-op (verified by Tests 2 and 3)
 - Plan 111-06: refactored run-migrations.ts to export splitSqlStatements + guarded auto-run with require.main check, so integration tests share the production parser without triggering a real migration on import
 - Plan 111-06: balance for sub 6382 zeroed explicitly in step 4 (D-19 — eliminates the inseguro lazy applyDelta path)
@@ -408,8 +413,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-05-05T00:59:38.464Z
-Stopped at: Plan 112-04 complete (admin add-on API + finance integration); next 112-05 (admin UI, wave 5)
-Resume file: Plan 112-04 awaiting staging+prod runs of migration 0112_transaction_links_target_kind_enrollment.sql (human checkpoint)
+Last session: 2026-05-08T17:55:00.000Z
+Stopped at: Plan 113-01 complete (backend hardening — overlap, activity uniqueness, cascade-block); next 113-02 (admin UI)
+Resume file: None
 
 **Planned Phase:** 112 (Enrollment Service + Admin Add-ons) — 6 plans — 2026-05-04T22:51:06.993Z (Plan 01 complete)
