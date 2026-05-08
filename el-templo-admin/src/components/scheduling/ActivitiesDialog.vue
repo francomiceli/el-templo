@@ -1,12 +1,19 @@
+<!--
+  Phase 113: este componente fue refactor desde dialog flotante a panel
+  embebido, consumido como tab "Actividades" en HorariosPage. El nombre del
+  archivo se mantiene por compatibilidad de git history; el alias del
+  import en HorariosPage es `ActivitiesPanel`.
+-->
 <template>
-  <q-dialog :model-value="show" @update:model-value="$emit('update:show', $event)">
-    <q-card style="min-width: 500px; max-width: 600px">
-      <q-card-section>
-        <div class="text-h6">Gestionar Actividades</div>
-      </q-card-section>
+  <div class="q-pa-md">
+    <div class="q-mb-md">
+      <div class="text-subtitle1 text-weight-medium">Actividades</div>
+      <div class="text-caption text-grey-7">
+        Gestiona el catálogo de actividades disponibles para asignar a horarios.
+      </div>
+    </div>
 
-      <q-separator />
-
+    <q-card flat bordered>
       <q-card-section class="q-px-none q-py-sm" style="max-height: 400px; overflow-y: auto">
         <q-list separator>
           <q-item v-if="loadingActivities" class="flex flex-center q-pa-lg">
@@ -85,33 +92,37 @@
           <q-btn v-if="editingActivity" icon="close" flat dense @click="cancelEditActivity" />
         </div>
       </q-card-section>
-
-      <q-card-actions align="right">
-        <q-btn flat label="Cerrar" color="grey-7" @click="$emit('update:show', false)" />
-      </q-card-actions>
     </q-card>
-  </q-dialog>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { ref, watch, onMounted } from 'vue';
+import axios from 'axios';
 import { useQuasar } from 'quasar';
 import { createLogger } from 'src/utils/logger';
+import { extractError } from 'src/utils/extract-error';
 import { useSchedulingApi } from 'src/composables/useSchedulingApi';
-import type { ActivityRecord } from 'src/types/scheduling';
+import type { ActivityRecord, AffectedScheduleRef } from 'src/types/scheduling';
 
-const log = createLogger('ActivitiesDialog');
+const log = createLogger('ActivitiesPanel');
 const $q = useQuasar();
 const schedulingApi = useSchedulingApi();
 
 // ─── Props & Emits ──────────────────────────────────────────────────────────
 
 const props = defineProps<{
-  show: boolean;
+  /** True when the parent tab "Actividades" is currently visible. */
+  active: boolean;
 }>();
 
-defineEmits<{
-  'update:show': [value: boolean];
+const emit = defineEmits<{
+  /**
+   * Emitted when the backend returns 409 with `affectedSchedules` (cascade-block
+   * on activity deactivation per Plan 113-01). The parent (HorariosPage)
+   * surfaces this as a toast listing the conflicting slots.
+   */
+  'cascade-error': [payload: { message: string; affectedSchedules: AffectedScheduleRef[] }];
 }>();
 
 // ─── State ──────────────────────────────────────────────────────────────────
@@ -169,7 +180,11 @@ async function onSaveActivity() {
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido';
     log.error('Error saving activity', { error: message });
-    $q.notify({ type: 'negative', message: 'Error guardando actividad' });
+    // Backend (Plan 113-01) returns 409 with actionable message for name
+    // uniqueness ("Ya existe una actividad activa con ese nombre"). Use
+    // extractError so the backend message reaches the user instead of a
+    // generic fallback.
+    $q.notify({ type: 'negative', message: extractError(err, 'Error guardando actividad') });
   }
 }
 
@@ -189,14 +204,32 @@ async function onToggleActivity(
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido';
     log.error('Error toggling activity', { error: message });
-    $q.notify({ type: 'negative', message: 'Error actualizando actividad' });
+
+    // Detect cascade-block 409 with affectedSchedules and emit to parent so
+    // HorariosPage can render an actionable toast listing the conflicting
+    // slots. Falls back to generic toast for any other 409/4xx/5xx.
+    if (axios.isAxiosError(err) && err.response?.status === 409) {
+      const data = err.response.data as {
+        message?: string;
+        affectedSchedules?: AffectedScheduleRef[];
+      };
+      if (Array.isArray(data.affectedSchedules) && data.affectedSchedules.length > 0) {
+        emit('cascade-error', {
+          message: data.message ?? 'No se puede desactivar la actividad',
+          affectedSchedules: data.affectedSchedules,
+        });
+        return; // Do not also notify a generic toast.
+      }
+    }
+
+    $q.notify({ type: 'negative', message: extractError(err, 'Error actualizando actividad') });
   }
 }
 
 function confirmDeactivate(act: ActivityRecord) {
   $q.dialog({
     title: 'Desactivar actividad',
-    message: `Desactivar "${act.name}"? Los horarios existentes que la referencian seguiran funcionando, pero no podras asignarla a nuevos slots hasta reactivarla.`,
+    message: `Desactivar "${act.name}"? Si hay horarios activos usandola, vas a tener que cambiarles la actividad o desactivarlos primero.`,
     cancel: { flat: true, label: 'Volver' },
     ok: { color: 'negative', label: 'Desactivar' },
   }).onOk(() => {
@@ -204,14 +237,24 @@ function confirmDeactivate(act: ActivityRecord) {
   });
 }
 
-// ─── Watchers ───────────────────────────────────────────────────────────────
+// ─── Lifecycle ──────────────────────────────────────────────────────────────
 
-// Load activities and reset form when dialog opens
+// First mount: if the parent already has the tab active (e.g. user landed
+// directly on /horarios?tab=actividades in the future), load right away.
+onMounted(() => {
+  if (props.active) {
+    void loadActivities();
+    cancelEditActivity();
+  }
+});
+
+// Subsequent activations: reload activities each time the tab becomes
+// visible so admins always see fresh state after creating slots elsewhere.
 watch(
-  () => props.show,
+  () => props.active,
   (val) => {
     if (val) {
-      loadActivities();
+      void loadActivities();
       cancelEditActivity();
     }
   }

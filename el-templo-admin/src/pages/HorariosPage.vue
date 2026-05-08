@@ -53,18 +53,19 @@
 
       <div class="col-auto row q-gutter-xs">
         <q-btn
+          v-if="activeTab === 'horarios'"
+          icon="add"
+          label="Crear horario"
+          color="primary"
+          :disable="!selectedBranchId"
+          @click="showCreateSlotDialog = true"
+        />
+        <q-btn
           outline
           icon="how_to_reg"
           label="Sesiones de Prueba"
           color="warning"
           @click="showTrialsDialog = true"
-        />
-        <q-btn
-          outline
-          icon="sports_gymnastics"
-          label="Actividades"
-          color="secondary"
-          @click="showActivitiesDialog = true"
         />
         <q-btn
           outline
@@ -77,143 +78,169 @@
     </div>
 
     <!-- ================================================================== -->
-    <!-- Weekly Calendar Grid -->
+    <!-- Tabs: Horarios / Actividades (Phase 113) -->
     <!-- ================================================================== -->
-    <div v-if="loadingGrid" class="flex flex-center q-pa-xl">
-      <q-spinner-dots size="40px" color="primary" />
-    </div>
+    <q-tabs
+      v-model="activeTab"
+      dense
+      align="left"
+      class="text-primary q-mb-md"
+      indicator-color="primary"
+    >
+      <q-tab name="horarios" label="Horarios" icon="schedule" />
+      <q-tab name="actividades" label="Actividades" icon="sports_gymnastics" />
+    </q-tabs>
 
-    <div v-else-if="!selectedBranchId" class="text-center q-pa-xl text-grey-5 text-italic">
-      Selecciona una sucursal para ver los horarios
-    </div>
-
-    <div v-else-if="timeSlots.length === 0" class="text-center q-pa-xl text-grey-5 text-italic">
-      No hay horarios configurados para esta sede.
-    </div>
-
-    <!-- Mobile layout: day picker + vertical slot list -->
-    <div v-else-if="isMobile">
-      <!-- Day picker -->
-      <div class="day-picker row no-wrap q-mb-md q-gutter-xs">
-        <q-btn
-          v-for="day in weekDays"
-          :key="day.dayOfWeek"
-          dense
-          flat
-          no-caps
-          class="day-picker-btn col"
-          :class="{
-            'day-picker-btn--active': day.dayOfWeek === selectedDay,
-            'day-picker-btn--today': day.date === todayISO,
-          }"
-          @click="selectedDay = day.dayOfWeek"
-        >
-          <div class="column items-center">
-            <div class="text-caption">{{ day.shortLabel }}</div>
-            <div class="text-weight-bold text-body1">{{ day.dateLabel }}</div>
-          </div>
-        </q-btn>
-      </div>
-
-      <!-- Vertical slot list for selected day -->
-      <div v-if="selectedDayHoliday" class="text-center q-pa-lg text-grey-5 text-italic">
-        FERIADO
-      </div>
-      <div
-        v-else-if="selectedDaySlots.length === 0"
-        class="text-center q-pa-lg text-grey-5 text-italic"
-      >
-        Sin horarios en este día
-      </div>
-      <q-list v-else bordered separator class="rounded-borders">
-        <q-item
-          v-for="slot in selectedDaySlots"
-          :key="slot.id"
-          clickable
-          v-ripple
-          :class="rowClass(slot)"
-          @click="onMobileSlotClick(slot)"
-        >
-          <q-item-section side>
-            <div class="text-weight-bold text-h6">{{ slot.startTime }}</div>
-          </q-item-section>
-          <q-item-section>
-            <q-item-label class="text-weight-medium">{{ slot.activityName }}</q-item-label>
-            <q-item-label v-if="!slot.isActive" caption class="text-negative text-weight-medium">
-              Cancelada
-            </q-item-label>
-            <q-item-label v-else caption>
-              {{ slot.bookedCount }}/{{ slot.maxCapacity }} reservados
-              <span v-if="slot.trialCount > 0" class="text-warning text-weight-medium q-ml-xs">
-                · {{ slot.trialCount }} SP
-              </span>
-            </q-item-label>
-          </q-item-section>
-          <q-item-section side>
-            <q-icon name="chevron_right" color="grey-6" />
-          </q-item-section>
-        </q-item>
-      </q-list>
-    </div>
-
-    <!-- Desktop/tablet layout: weekly grid -->
-    <div v-else class="schedule-grid-container">
-      <div class="schedule-grid" :style="gridTemplateStyle">
-        <!-- Header: empty top-left corner -->
-        <div class="grid-header grid-corner" />
-
-        <!-- Header: day columns -->
-        <div
-          v-for="day in weekDays"
-          :key="day.dayOfWeek"
-          class="grid-header grid-day-header text-center"
-        >
-          <div class="text-weight-bold">{{ day.shortLabel }}</div>
-          <div class="text-caption">{{ day.dateLabel }}</div>
+    <q-tab-panels v-model="activeTab" animated keep-alive class="bg-transparent">
+      <q-tab-panel name="horarios" class="q-pa-none">
+        <!-- ================================================================== -->
+        <!-- Weekly Calendar Grid -->
+        <!-- ================================================================== -->
+        <div v-if="loadingGrid" class="flex flex-center q-pa-xl">
+          <q-spinner-dots size="40px" color="primary" />
         </div>
 
-        <!-- Rows: time slots -->
-        <template v-for="time in timeSlots" :key="time">
-          <!-- Time label -->
-          <div class="grid-time-label text-caption text-grey-7">{{ time }}</div>
+        <div v-else-if="!selectedBranchId" class="text-center q-pa-xl text-grey-5 text-italic">
+          Selecciona una sucursal para ver los horarios
+        </div>
 
-          <!-- Cells for each day -->
+        <div v-else-if="timeSlots.length === 0" class="text-center q-pa-xl text-grey-5 text-italic">
+          No hay horarios configurados para esta sede.
+        </div>
+
+        <!-- Mobile layout: day picker + vertical slot list -->
+        <div v-else-if="isMobile">
+          <!-- Day picker -->
+          <div class="day-picker row no-wrap q-mb-md q-gutter-xs">
+            <q-btn
+              v-for="day in weekDays"
+              :key="day.dayOfWeek"
+              dense
+              flat
+              no-caps
+              class="day-picker-btn col"
+              :class="{
+                'day-picker-btn--active': day.dayOfWeek === selectedDay,
+                'day-picker-btn--today': day.date === todayISO,
+              }"
+              @click="selectedDay = day.dayOfWeek"
+            >
+              <div class="column items-center">
+                <div class="text-caption">{{ day.shortLabel }}</div>
+                <div class="text-weight-bold text-body1">{{ day.dateLabel }}</div>
+              </div>
+            </q-btn>
+          </div>
+
+          <!-- Vertical slot list for selected day -->
+          <div v-if="selectedDayHoliday" class="text-center q-pa-lg text-grey-5 text-italic">
+            FERIADO
+          </div>
           <div
-            v-for="day in weekDays"
-            :key="`${time}-${day.dayOfWeek}`"
-            class="grid-cell"
-            :class="cellClass(time, day.dayOfWeek)"
-            @click="onCellClick(time, day.dayOfWeek, day.date)"
+            v-else-if="selectedDaySlots.length === 0"
+            class="text-center q-pa-lg text-grey-5 text-italic"
           >
-            <template v-if="getCellSlot(time, day.dayOfWeek)">
-              <div class="cell-activity text-caption ellipsis">
-                {{ getCellSlot(time, day.dayOfWeek)!.activityName }}
-              </div>
-              <div v-if="isCellHoliday(day.date)" class="cell-holiday text-weight-bold">
-                FERIADO
-              </div>
-              <div
-                v-else-if="!getCellSlot(time, day.dayOfWeek)!.isActive"
-                class="cell-inactive text-weight-bold"
-              >
-                CANCELADA
-              </div>
-              <div v-else class="cell-occupancy text-weight-bold">
-                {{ getCellSlot(time, day.dayOfWeek)!.bookedCount }}/{{
-                  getCellSlot(time, day.dayOfWeek)!.maxCapacity
-                }}
-                <span
-                  v-if="(getCellSlot(time, day.dayOfWeek)!.trialCount ?? 0) > 0"
-                  class="text-warning cell-trial-count"
+            Sin horarios en este día
+          </div>
+          <q-list v-else bordered separator class="rounded-borders">
+            <q-item
+              v-for="slot in selectedDaySlots"
+              :key="slot.id"
+              clickable
+              v-ripple
+              :class="rowClass(slot)"
+              @click="onMobileSlotClick(slot)"
+            >
+              <q-item-section side>
+                <div class="text-weight-bold text-h6">{{ slot.startTime }}</div>
+              </q-item-section>
+              <q-item-section>
+                <q-item-label class="text-weight-medium">{{ slot.activityName }}</q-item-label>
+                <q-item-label
+                  v-if="!slot.isActive"
+                  caption
+                  class="text-negative text-weight-medium"
                 >
-                  +{{ getCellSlot(time, day.dayOfWeek)!.trialCount }} SP
-                </span>
+                  Cancelada
+                </q-item-label>
+                <q-item-label v-else caption>
+                  {{ slot.bookedCount }}/{{ slot.maxCapacity }} reservados
+                  <span v-if="slot.trialCount > 0" class="text-warning text-weight-medium q-ml-xs">
+                    · {{ slot.trialCount }} SP
+                  </span>
+                </q-item-label>
+              </q-item-section>
+              <q-item-section side>
+                <q-icon name="chevron_right" color="grey-6" />
+              </q-item-section>
+            </q-item>
+          </q-list>
+        </div>
+
+        <!-- Desktop/tablet layout: weekly grid -->
+        <div v-else class="schedule-grid-container">
+          <div class="schedule-grid" :style="gridTemplateStyle">
+            <!-- Header: empty top-left corner -->
+            <div class="grid-header grid-corner" />
+
+            <!-- Header: day columns -->
+            <div
+              v-for="day in weekDays"
+              :key="day.dayOfWeek"
+              class="grid-header grid-day-header text-center"
+            >
+              <div class="text-weight-bold">{{ day.shortLabel }}</div>
+              <div class="text-caption">{{ day.dateLabel }}</div>
+            </div>
+
+            <!-- Rows: time slots -->
+            <template v-for="time in timeSlots" :key="time">
+              <!-- Time label -->
+              <div class="grid-time-label text-caption text-grey-7">{{ time }}</div>
+
+              <!-- Cells for each day -->
+              <div
+                v-for="day in weekDays"
+                :key="`${time}-${day.dayOfWeek}`"
+                class="grid-cell"
+                :class="cellClass(time, day.dayOfWeek)"
+                @click="onCellClick(time, day.dayOfWeek, day.date)"
+              >
+                <template v-if="getCellSlot(time, day.dayOfWeek)">
+                  <div class="cell-activity text-caption ellipsis">
+                    {{ getCellSlot(time, day.dayOfWeek)!.activityName }}
+                  </div>
+                  <div v-if="isCellHoliday(day.date)" class="cell-holiday text-weight-bold">
+                    FERIADO
+                  </div>
+                  <div
+                    v-else-if="!getCellSlot(time, day.dayOfWeek)!.isActive"
+                    class="cell-inactive text-weight-bold"
+                  >
+                    CANCELADA
+                  </div>
+                  <div v-else class="cell-occupancy text-weight-bold">
+                    {{ getCellSlot(time, day.dayOfWeek)!.bookedCount }}/{{
+                      getCellSlot(time, day.dayOfWeek)!.maxCapacity
+                    }}
+                    <span
+                      v-if="(getCellSlot(time, day.dayOfWeek)!.trialCount ?? 0) > 0"
+                      class="text-warning cell-trial-count"
+                    >
+                      +{{ getCellSlot(time, day.dayOfWeek)!.trialCount }} SP
+                    </span>
+                  </div>
+                </template>
               </div>
             </template>
           </div>
-        </template>
-      </div>
-    </div>
+        </div>
+      </q-tab-panel>
+
+      <q-tab-panel name="actividades" class="q-pa-none">
+        <ActivitiesPanel :active="activeTab === 'actividades'" @cascade-error="onCascadeError" />
+      </q-tab-panel>
+    </q-tab-panels>
 
     <!-- ================================================================== -->
     <!-- Extracted Dialog Components -->
@@ -225,7 +252,12 @@
       :branch-timezone="branchTimezone"
       @bookings-changed="loadWeeklyGrid"
     />
-    <ActivitiesDialog v-model:show="showActivitiesDialog" />
+    <CreateSlotDialog
+      v-model:show="showCreateSlotDialog"
+      :branches="branchesRaw"
+      :default-branch-id="selectedBranchId"
+      @created="loadWeeklyGrid"
+    />
     <HolidaysDialog v-model:show="showHolidaysDialog" @holidays-changed="loadWeeklyGrid" />
     <SesionesDePruebaDialog v-model:show="showTrialsDialog" />
   </q-page>
@@ -237,11 +269,19 @@ import { useQuasar } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { useSchedulingApi } from 'src/composables/useSchedulingApi';
 import { useMembersApi } from 'src/composables/useMembersApi';
-import type { WeeklySlotView, HolidayRecord, DayOfWeek } from 'src/types/scheduling';
+import type {
+  WeeklySlotView,
+  HolidayRecord,
+  DayOfWeek,
+  AffectedScheduleRef,
+} from 'src/types/scheduling';
 import { DAY_SHORT_LABELS } from 'src/types/scheduling';
 import type { BranchOption } from 'src/types/member';
 import SlotDetailDialog from 'src/components/scheduling/SlotDetailDialog.vue';
-import ActivitiesDialog from 'src/components/scheduling/ActivitiesDialog.vue';
+// Phase 113: ActivitiesDialog.vue was refactored into an embedded panel.
+// Filename kept for git history; import alias reflects the new shape.
+import ActivitiesPanel from 'src/components/scheduling/ActivitiesDialog.vue';
+import CreateSlotDialog from 'src/components/scheduling/CreateSlotDialog.vue';
 import HolidaysDialog from 'src/components/scheduling/HolidaysDialog.vue';
 import SesionesDePruebaDialog from 'src/components/scheduling/SesionesDePruebaDialog.vue';
 import { todayInTz, dowInTz, getMondayInTz } from 'src/utils/tz';
@@ -255,7 +295,10 @@ const schedulingApi = useSchedulingApi();
 
 const selectedBranchId = ref<number | null>(null);
 const branchOptions = ref<Array<{ label: string; value: number }>>([]);
+const branchesRaw = ref<BranchOption[]>([]);
 const loadingBranches = ref(false);
+const activeTab = ref<'horarios' | 'actividades'>('horarios');
+const showCreateSlotDialog = ref(false);
 // Default to AR until the weekly grid response returns the viewing branch's tz.
 // Admin changes branch → grid reloads → branchTimezone refreshes.
 const branchTimezone = ref<string>('America/Argentina/Buenos_Aires');
@@ -266,7 +309,6 @@ const loadingGrid = ref(false);
 const showSlotDialog = ref(false);
 const selectedSlotScheduleId = ref<number | null>(null);
 const selectedSlotDate = ref('');
-const showActivitiesDialog = ref(false);
 const showHolidaysDialog = ref(false);
 const showTrialsDialog = ref(false);
 const showWeekDatePicker = ref(false);
@@ -427,6 +469,7 @@ async function loadBranches() {
   loadingBranches.value = true;
   try {
     const branches: BranchOption[] = await membersApi.getBranches();
+    branchesRaw.value = branches;
     branchOptions.value = branches.map((b) => ({ label: b.name, value: b.id }));
     if (branchOptions.value.length > 0) {
       selectedBranchId.value = branchOptions.value[0].value;
@@ -496,6 +539,26 @@ function onBranchChange() {
   gridSlots.value = [];
   gridHolidays.value = [];
   loadWeeklyGrid();
+}
+
+// ─── Cascade error handler (Phase 113 — Activities deactivation 409) ────────
+
+function onCascadeError(payload: { message: string; affectedSchedules: AffectedScheduleRef[] }) {
+  const list = payload.affectedSchedules
+    .slice(0, 5)
+    .map(
+      (s) =>
+        `${DAY_SHORT_LABELS[s.dayOfWeek as DayOfWeek]} ${s.startTime}-${s.endTime} (${s.branchName})`
+    )
+    .join(', ');
+  const more =
+    payload.affectedSchedules.length > 5 ? ` y ${payload.affectedSchedules.length - 5} más` : '';
+  $q.notify({
+    type: 'negative',
+    message: `${payload.message} Afectados: ${list}${more}`,
+    timeout: 8000,
+    multiLine: true,
+  });
 }
 
 // ─── Cell Click -> Open Slot Detail or Attendance Panel ──────────────────────
