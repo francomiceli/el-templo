@@ -110,6 +110,20 @@ export interface HolidayRecord {
   name: string;
 }
 
+/**
+ * Phase 113: payload returned by the backend on a 409 cascade-block when the
+ * admin tries to deactivate an activity that still has active schedules
+ * referencing it. Each entry is enough for the admin UI to render an
+ * actionable toast: "Lun 10:00-11:00 (Constitución)".
+ */
+export interface AffectedScheduleRef {
+  id: number;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  branchName: string;
+}
+
 export interface SlotDetailView {
   schedule: ScheduleSlot;
   date: string;
