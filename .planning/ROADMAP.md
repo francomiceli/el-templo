@@ -2538,7 +2538,7 @@ _Plan counts populated by `/gsd-plan-phase 112`._
 
 ### Phase 113: CRUD admin de Schedules y Activities
 
-**Goal:** Habilitar al admin a gestionar el catálogo de horarios y actividades sin intervención manual de DB. Editar `start_time`/`end_time`/`day_of_week` de slots vivos (hoy imposible — solo toggle activo y cambiar activity), crear nuevos slots desde admin, y CRUD completo de Activities (crear/editar/desactivar).
+**Goal:** Habilitar al admin a gestionar el catálogo de horarios y actividades sin intervención manual de DB. Crear nuevos slots desde admin (con validación de overlap), CRUD completo de Activities (crear/editar/desactivar con cascade-block). Slots inmutables una vez creados (D-07): para cambiar horario, desactivar viejo + crear nuevo.
 
 **Depends on:** Nothing (independiente de fase 112)
 
@@ -2548,15 +2548,17 @@ _Plan counts populated by `/gsd-plan-phase 112`._
 
 - Branches CRUD (no requerido v1)
 - Bloqueos puntuales por slot+fecha (cubierto por toggle existente: desactivar/reactivar slot completo)
+- Editar `start_time`/`end_time`/`day_of_week` de slots existentes (D-07: slots inmutables; flujo = desactivar + crear nuevo)
 - Fix de subs "huérfanas" en slots inactivos: verificado empíricamente que el modelo es coherente — subs fijas tienen `classes_remaining=NULL` y no pierden créditos en no-show; subs flex pierden crédito al reservar+no ir, lo cual es intencional
 
-**Requirements**: TBD (definir en /gsd-discuss-phase 113)
+**Requirements**: D-01..D-20 (locked en 113-CONTEXT.md)
 
-**Plans:** 0 plans
+**Plans:** 2 plans
 
 Plans:
 
-- [ ] TBD (run /gsd-plan-phase 113 to break down)
+- [ ] 113-01-PLAN.md — Backend: overlap validation en createSchedule + activity name uniqueness + cascade-block on deactivation + integration tests (D-10/11/12/13/14/16)
+- [ ] 113-02-PLAN.md — Frontend admin: CreateSlotDialog + tabs Horarios/Actividades en HorariosPage + cascade-error UX (D-17/18/19/20)
 
 ---
 
