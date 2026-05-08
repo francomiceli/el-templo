@@ -28,8 +28,8 @@
 -- - Caso huérfano: enrollment plan_linked con subscription_id=NULL (Leandro
 --   Scarponi en BCN) — se re-inscribe en Foundation Cuerpo Completo por default.
 --
--- Idempotente: cada UPDATE incluye el valor de origen en el WHERE; los pasos
--- 2/3 sobre enrollments son naturalmente idempotentes (re-run no encuentra
+-- Idempotente: cada UPDATE incluye el valor de origen en el WHERE. Los pasos
+-- 2 y 3 sobre enrollments son naturalmente idempotentes (re-run no encuentra
 -- mismatches después del primer apply).
 --
 -- NO toca: enrollments admin_addon (4) ni plan_bundle (1) ni miembros AR.
