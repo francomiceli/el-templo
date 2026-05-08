@@ -88,6 +88,7 @@ const updateProgramSchema = {
         type: ["string", "null"],
         enum: [...ALL_GOAL_PLAN_TYPES, null],
       },
+      durationWeeks: { type: "integer", minimum: 1, maximum: 52 },
       auraWeeklyBonus: { type: "integer", minimum: 0 },
       auraCompletionBonus: { type: "integer", minimum: 0 },
     },

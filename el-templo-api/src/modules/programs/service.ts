@@ -195,8 +195,8 @@ export class ProgramsService {
   }
 
   /**
-   * Update program fields (name, description, AURA bonuses).
-   * durationWeeks is NOT editable per D-41.
+   * Update program fields (name, description, AURA bonuses, durationWeeks).
+   * Per D-41: durationWeeks editable only when no active enrollments exist.
    */
   async updateProgram(
     programId: number,
@@ -213,6 +213,25 @@ export class ProgramsService {
       updateFields.auraWeeklyBonus = input.auraWeeklyBonus;
     if (input.auraCompletionBonus !== undefined)
       updateFields.auraCompletionBonus = input.auraCompletionBonus;
+
+    if (input.durationWeeks !== undefined) {
+      const enrollmentCountRows = await this.db
+        .select({ count: count() })
+        .from(programEnrollments)
+        .where(
+          and(
+            eq(programEnrollments.programId, programId),
+            eq(programEnrollments.status, "active"),
+          ),
+        );
+      const activeCount = enrollmentCountRows[0]?.count ?? 0;
+      if (activeCount > 0) {
+        throw new ConflictError(
+          "No se puede modificar la duración: hay inscripciones activas",
+        );
+      }
+      updateFields.durationWeeks = input.durationWeeks;
+    }
 
     if (Object.keys(updateFields).length === 0) return;
 

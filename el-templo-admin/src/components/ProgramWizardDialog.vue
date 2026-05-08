@@ -689,6 +689,7 @@ async function onSubmit() {
         name: form.value.name,
         description: form.value.description || null,
         goalPlanType: form.value.goalPlanType,
+        durationWeeks: form.value.durationWeeks!,
         auraWeeklyBonus: form.value.auraWeeklyBonus,
         auraCompletionBonus: form.value.auraCompletionBonus,
       } as Partial<Program> & { goalPlanType?: string | null });

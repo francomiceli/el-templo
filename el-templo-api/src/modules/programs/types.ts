@@ -42,7 +42,8 @@ export interface UpdateProgramInput {
   name?: string;
   description?: string | null;
   goalPlanType?: string | null;
-  // durationWeeks NOT editable when active enrollments exist (per D-41)
+  // durationWeeks editable only when no active enrollments (per D-41)
+  durationWeeks?: number;
   auraWeeklyBonus?: number;
   auraCompletionBonus?: number;
 }
