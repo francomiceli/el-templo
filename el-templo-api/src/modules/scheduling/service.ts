@@ -10,7 +10,7 @@
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { eq, and, sql, inArray, gte, lte } from "drizzle-orm";
+import { eq, and, sql, inArray, gte, lte, lt, gt } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { addDays } from "../shared/date-utils";
@@ -77,22 +77,41 @@ export class SchedulingService {
 
     if (!activity) throw new NotFoundError("Actividad no encontrada");
 
-    // Check for duplicate (same branch + day + startTime)
-    const [existing] = await this.db
-      .select({ id: schema.schedules.id })
+    // Phase 113 (D-10/11/12): validate input range and detect interval
+    // overlap (not just exact-startTime duplicate). Both startTime and
+    // endTime are "HH:MM" strings (validated by createScheduleSchema regex)
+    // so lexicographic comparison matches numeric ordering. Back-to-back
+    // slots (10-11 and 11-12) are NOT considered an overlap because the
+    // strict-inequality comparison ([a.start, a.end) intersects [b.start,
+    // b.end) iff a.start < b.end AND a.end > b.start) returns false on the
+    // shared boundary. Inactive slots are excluded so historic rows (e.g.
+    // a closed 10am slot) don't block reusing the same time window.
+    if (endTime <= startTime) {
+      throw new BadRequestError("La hora de fin debe ser posterior al inicio");
+    }
+
+    const overlapping = await this.db
+      .select({
+        id: schema.schedules.id,
+        startTime: schema.schedules.startTime,
+        endTime: schema.schedules.endTime,
+      })
       .from(schema.schedules)
       .where(
         and(
           eq(schema.schedules.branchId, branchId),
           eq(schema.schedules.dayOfWeek, dayOfWeek),
-          eq(schema.schedules.startTime, startTime),
+          eq(schema.schedules.isActive, true),
+          lt(schema.schedules.startTime, endTime),
+          gt(schema.schedules.endTime, startTime),
         ),
       )
       .limit(1);
 
-    if (existing) {
+    if (overlapping.length > 0) {
+      const ex = overlapping[0];
       throw new ConflictError(
-        "Ya existe un horario para esta sede, dia y hora",
+        `Ya existe un horario activo ${ex.startTime}-${ex.endTime} que se solapa en esta sede y dia`,
       );
     }
 
