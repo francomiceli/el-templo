@@ -39,6 +39,8 @@ import {
   weeklyGridSchema,
   slotDetailSchema,
   toggleScheduleSchema,
+  previewScheduleDeletionSchema,
+  deleteScheduleFromDateSchema,
   updateScheduleActivitySchema,
   seedSchedulesSchema,
   adminAddBookingSchema,
@@ -302,6 +304,70 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
         return { ...slot, cancelledBookings, restoredBookings };
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "toggle schedule");
+      }
+    },
+  );
+
+  // GET /schedules/:scheduleId/deletion-preview — preview impact of deleting a slot from a date forward
+  fastify.get<{
+    Params: { scheduleId: number };
+    Querystring: { fromDate: string };
+  }>(
+    "/schedules/:scheduleId/deletion-preview",
+    { schema: previewScheduleDeletionSchema },
+    async (request, reply) => {
+      try {
+        const preview = await bookingService.previewScheduleDeletion(
+          request.params.scheduleId,
+          request.query.fromDate,
+        );
+        return preview;
+      } catch (err: unknown) {
+        handleServiceError(
+          err,
+          reply,
+          request.log,
+          "preview schedule deletion",
+        );
+      }
+    },
+  );
+
+  // POST /schedules/:scheduleId/delete-from-date — soft-delete schedule from
+  // a given date forward. Cancels active future bookings, grants replacement
+  // credits to fixed-plan members, and flips isActive=false. History before
+  // fromDate (and already-checked-in bookings on/after fromDate) is preserved.
+  fastify.post<{
+    Params: { scheduleId: number };
+    Body: { fromDate: string };
+  }>(
+    "/schedules/:scheduleId/delete-from-date",
+    { schema: deleteScheduleFromDateSchema },
+    async (request, reply) => {
+      try {
+        const { scheduleId } = request.params;
+        const { fromDate } = request.body;
+
+        const cancelResult =
+          await bookingService.cancelBookingsFromDateAndGrantCredits(
+            scheduleId,
+            fromDate,
+          );
+
+        await schedulingService.toggleSchedule(
+          scheduleId,
+          false,
+          `Eliminado desde ${fromDate}`,
+        );
+
+        return cancelResult;
+      } catch (err: unknown) {
+        handleServiceError(
+          err,
+          reply,
+          request.log,
+          "delete schedule from date",
+        );
       }
     },
   );

@@ -295,6 +295,74 @@ export const toggleScheduleSchema = {
   },
 };
 
+export const previewScheduleDeletionSchema = {
+  params: {
+    type: "object",
+    required: ["scheduleId"],
+    properties: {
+      scheduleId: { type: "integer" },
+    },
+  },
+  querystring: {
+    type: "object",
+    required: ["fromDate"],
+    properties: {
+      fromDate: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+    },
+  },
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        cancelledBookings: { type: "integer" },
+        affectedFixedMembers: { type: "integer" },
+        affectedFlexibleMembers: { type: "integer" },
+        creditsToGrant: { type: "integer" },
+        sampleMembers: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              memberName: { type: "string" },
+              planType: { type: "string", enum: ["fixed", "flexible"] },
+            },
+          },
+        },
+      },
+    },
+    404: errorSchema,
+  },
+};
+
+export const deleteScheduleFromDateSchema = {
+  params: {
+    type: "object",
+    required: ["scheduleId"],
+    properties: {
+      scheduleId: { type: "integer" },
+    },
+  },
+  body: {
+    type: "object",
+    required: ["fromDate"],
+    properties: {
+      fromDate: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+    },
+  },
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        cancelledBookings: { type: "integer" },
+        affectedFixedMembers: { type: "integer" },
+        creditsGranted: { type: "integer" },
+      },
+    },
+    400: errorSchema,
+    404: errorSchema,
+  },
+};
+
 export const updateScheduleActivitySchema = {
   params: {
     type: "object",

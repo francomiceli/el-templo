@@ -727,6 +727,260 @@ describe("Scheduling API", () => {
   });
 
   // =========================================================================
+  // Schedule Deletion (delete-from-date)
+  // =========================================================================
+  describe("Schedule Deletion (delete-from-date)", () => {
+    beforeEach(async () => {
+      await cleanupAll();
+    });
+
+    it("preview returns affected counts split by plan type without writing", async () => {
+      // Fixed plan with weekly Monday slot, started 25d ago.
+      const plan = await createPlan({
+        name: "Fixed Delete Preview",
+        bookingMode: "fixed",
+        classesPerWeek: 1,
+        durationDays: 60,
+      });
+      const member = await createMember({
+        email: "delete-preview@test.com",
+        dni: "70020001",
+      });
+      const act = await createActivity("DelPreviewAct");
+      const [slotRow] = await app.db
+        .insert(schedules)
+        .values({
+          branchId: testBranchId,
+          activityId: act.id,
+          dayOfWeek: 1,
+          startTime: "08:00",
+          endTime: "09:00",
+          isActive: true,
+        })
+        .$returningId();
+
+      const assignRes = await app.inject({
+        method: "POST",
+        url: `${SUBSCRIPTIONS_URL}/members/${member.id}/subscription/assign`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          planId: plan.id,
+          branchId: testBranchId,
+          startDate: dateOffsetStr(-25),
+          priceTypeApplied: "regular",
+          paymentMethod: "cash",
+          scheduleIds: [slotRow.id],
+          priceOverrideAmount: 0,
+          priceOverrideReason: "test no-charge",
+        },
+      });
+      expect(assignRes.statusCode).toBe(201);
+
+      // Pick a fromDate that includes most of the future Mondays.
+      const fromDate = dateOffsetStr(0);
+
+      const previewRes = await app.inject({
+        method: "GET",
+        url: `${ADMIN_URL}/schedules/${slotRow.id}/deletion-preview?fromDate=${fromDate}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(previewRes.statusCode).toBe(200);
+      const preview = JSON.parse(previewRes.body);
+      expect(preview.cancelledBookings).toBeGreaterThan(0);
+      expect(preview.affectedFixedMembers).toBe(1);
+      expect(preview.creditsToGrant).toBe(preview.cancelledBookings);
+      expect(preview.sampleMembers[0].planType).toBe("fixed");
+
+      // Preview did not mutate state — every booking still has its
+      // original 'reservado' status (no rows were flipped to 'cancelado').
+      const allBookings = await app.db
+        .select({
+          id: bookings.id,
+          status: bookings.status,
+          bookingDate: bookings.bookingDate,
+        })
+        .from(bookings)
+        .where(eq(bookings.memberId, member.id));
+      const futureActiveAfterPreview = allBookings.filter(
+        (b) => b.bookingDate >= fromDate && b.status === "reservado",
+      ).length;
+      expect(futureActiveAfterPreview).toBe(preview.cancelledBookings);
+      const cancelledAfterPreview = allBookings.filter(
+        (b) => b.status === "cancelado",
+      ).length;
+      expect(cancelledAfterPreview).toBe(0);
+    });
+
+    it("delete-from-date cancels future fixed-plan bookings + grants replacement credits + preserves past", async () => {
+      const plan = await createPlan({
+        name: "Fixed Delete Execute",
+        bookingMode: "fixed",
+        classesPerWeek: 1,
+        durationDays: 60,
+      });
+      const member = await createMember({
+        email: "delete-exec@test.com",
+        dni: "70020002",
+      });
+      const act = await createActivity("DelExecAct");
+      const [slotRow] = await app.db
+        .insert(schedules)
+        .values({
+          branchId: testBranchId,
+          activityId: act.id,
+          dayOfWeek: 1,
+          startTime: "08:00",
+          endTime: "09:00",
+          isActive: true,
+        })
+        .$returningId();
+
+      const assignRes = await app.inject({
+        method: "POST",
+        url: `${SUBSCRIPTIONS_URL}/members/${member.id}/subscription/assign`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          planId: plan.id,
+          branchId: testBranchId,
+          startDate: dateOffsetStr(-25),
+          priceTypeApplied: "regular",
+          paymentMethod: "cash",
+          scheduleIds: [slotRow.id],
+          priceOverrideAmount: 0,
+          priceOverrideReason: "test no-charge",
+        },
+      });
+      expect(assignRes.statusCode).toBe(201);
+      const subscription = JSON.parse(assignRes.body);
+
+      // Snapshot booking dates BEFORE deletion to assert past/future split.
+      const bookingsBefore = await app.db
+        .select({
+          id: bookings.id,
+          bookingDate: bookings.bookingDate,
+          status: bookings.status,
+        })
+        .from(bookings)
+        .where(eq(bookings.memberId, member.id));
+      const fromDate = dateOffsetStr(0);
+      const expectedCancelled = bookingsBefore.filter(
+        (b) => b.bookingDate >= fromDate && b.status === "reservado",
+      ).length;
+      const expectedPreserved = bookingsBefore.filter(
+        (b) => b.bookingDate < fromDate,
+      ).length;
+      expect(expectedCancelled).toBeGreaterThan(0);
+
+      const deleteRes = await app.inject({
+        method: "POST",
+        url: `${ADMIN_URL}/schedules/${slotRow.id}/delete-from-date`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { fromDate },
+      });
+      expect(deleteRes.statusCode).toBe(200);
+      const deleteBody = JSON.parse(deleteRes.body);
+      expect(deleteBody.cancelledBookings).toBe(expectedCancelled);
+      expect(deleteBody.affectedFixedMembers).toBe(1);
+      expect(deleteBody.creditsGranted).toBe(expectedCancelled);
+
+      // Future bookings are now cancelled.
+      const futureBookings = await app.db
+        .select({ status: bookings.status })
+        .from(bookings)
+        .where(eq(bookings.memberId, member.id));
+      const cancelledNow = futureBookings.filter(
+        (b) => b.status === "cancelado",
+      ).length;
+      expect(cancelledNow).toBe(expectedCancelled);
+
+      // Past bookings preserved (not flipped to cancelled by this op).
+      const pastStillReservado = bookingsBefore
+        .filter((b) => b.bookingDate < fromDate)
+        .every((b) => {
+          const after = futureBookings.find(
+            (_x, idx) => bookingsBefore[idx]?.id === b.id,
+          );
+          return after === undefined || after.status !== "cancelado";
+        });
+      expect(pastStillReservado).toBe(true);
+      expect(expectedPreserved).toBeGreaterThanOrEqual(0);
+
+      // Replacement credits incremented on the subscription.
+      const [subRow] = await app.db
+        .select({ replacementCredits: subscriptions.replacementCredits })
+        .from(subscriptions)
+        .where(eq(subscriptions.id, subscription.id));
+      expect(subRow.replacementCredits).toBeGreaterThanOrEqual(
+        expectedCancelled,
+      );
+
+      // Schedule is soft-deleted: isActive=false with reason mentioning fromDate.
+      const [scheduleRow] = await app.db
+        .select({
+          isActive: schedules.isActive,
+          inactiveReason: schedules.inactiveReason,
+        })
+        .from(schedules)
+        .where(eq(schedules.id, slotRow.id));
+      expect(scheduleRow.isActive).toBe(false);
+      expect(scheduleRow.inactiveReason).toContain(fromDate);
+    });
+
+    it("delete-from-date cancels flexible-plan bookings without granting credits", async () => {
+      const { memberToken, subscription } = await setupMemberWithSubscription({
+        email: "flex-delete@test.com",
+        dni: "70020003",
+      });
+      const activity = await createActivity("FlexDelAct");
+      const futureSlot = getFutureSlot();
+      const slot = await createScheduleSlot(
+        activity.id,
+        futureSlot.dayOfWeek,
+        futureSlot.startTime,
+        futureSlot.endTime,
+      );
+
+      const reserveRes = await app.inject({
+        method: "POST",
+        url: `${MEMBER_URL}/reserve`,
+        headers: { authorization: `Bearer ${memberToken}` },
+        payload: { scheduleId: slot.id, date: futureSlot.date },
+      });
+      expect(reserveRes.statusCode).toBe(201);
+
+      const fromDate = futureSlot.date;
+      const deleteRes = await app.inject({
+        method: "POST",
+        url: `${ADMIN_URL}/schedules/${slot.id}/delete-from-date`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { fromDate },
+      });
+      expect(deleteRes.statusCode).toBe(200);
+      const body = JSON.parse(deleteRes.body);
+      expect(body.cancelledBookings).toBe(1);
+      expect(body.affectedFixedMembers).toBe(0);
+      expect(body.creditsGranted).toBe(0);
+
+      // Subscription replacementCredits unchanged for flexible plan.
+      const [subRow] = await app.db
+        .select({ replacementCredits: subscriptions.replacementCredits })
+        .from(subscriptions)
+        .where(eq(subscriptions.id, subscription.id as number));
+      expect(subRow.replacementCredits ?? 0).toBe(0);
+    });
+
+    it("delete-from-date returns 404 for non-existent schedule", async () => {
+      const res = await app.inject({
+        method: "POST",
+        url: `${ADMIN_URL}/schedules/999999/delete-from-date`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { fromDate: "2026-05-01" },
+      });
+      expect(res.statusCode).toBe(404);
+    });
+  });
+
+  // =========================================================================
   // Booking Lifecycle
   // =========================================================================
   describe("Booking Lifecycle", () => {

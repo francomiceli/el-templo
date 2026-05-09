@@ -53,14 +53,6 @@
 
       <div class="col-auto row q-gutter-xs">
         <q-btn
-          v-if="activeTab === 'horarios'"
-          icon="add"
-          label="Crear horario"
-          color="primary"
-          :disable="!selectedBranchId"
-          @click="showCreateSlotDialog = true"
-        />
-        <q-btn
           outline
           icon="how_to_reg"
           label="Sesiones de Prueba"
@@ -93,6 +85,30 @@
 
     <q-tab-panels v-model="activeTab" animated keep-alive class="bg-transparent">
       <q-tab-panel name="horarios" class="q-pa-none">
+        <!-- ================================================================== -->
+        <!-- Slot Action Buttons (Crear / Eliminar) -->
+        <!-- ================================================================== -->
+        <div class="row items-center q-mb-md q-gutter-sm">
+          <q-btn
+            icon="add"
+            label="Crear horario"
+            color="primary"
+            :disable="!selectedBranchId || deleteSelectionMode"
+            @click="showCreateSlotDialog = true"
+          />
+          <q-btn
+            :outline="!deleteSelectionMode"
+            :color="deleteSelectionMode ? 'negative' : 'negative'"
+            icon="delete"
+            :label="deleteSelectionMode ? 'Cancelar selección' : 'Eliminar horario'"
+            :disable="!selectedBranchId"
+            @click="toggleDeleteSelectionMode"
+          />
+          <div v-if="deleteSelectionMode" class="text-caption text-negative q-ml-sm">
+            Tocá un horario de la grilla para elegirlo
+          </div>
+        </div>
+
         <!-- ================================================================== -->
         <!-- Weekly Calendar Grid -->
         <!-- ================================================================== -->
@@ -178,7 +194,11 @@
         </div>
 
         <!-- Desktop/tablet layout: weekly grid -->
-        <div v-else class="schedule-grid-container">
+        <div
+          v-else
+          class="schedule-grid-container"
+          :class="{ 'schedule-grid-container--delete-mode': deleteSelectionMode }"
+        >
           <div class="schedule-grid" :style="gridTemplateStyle">
             <!-- Header: empty top-left corner -->
             <div class="grid-header grid-corner" />
@@ -258,6 +278,12 @@
       :default-branch-id="selectedBranchId"
       @created="loadWeeklyGrid"
     />
+    <DeleteSlotDialog
+      v-model:show="showDeleteSlotDialog"
+      :slot-info="deleteSlotInfo"
+      :branch-timezone="branchTimezone"
+      @deleted="onSlotDeleted"
+    />
     <HolidaysDialog v-model:show="showHolidaysDialog" @holidays-changed="loadWeeklyGrid" />
     <SesionesDePruebaDialog v-model:show="showTrialsDialog" />
   </q-page>
@@ -282,6 +308,7 @@ import SlotDetailDialog from 'src/components/scheduling/SlotDetailDialog.vue';
 // Filename kept for git history; import alias reflects the new shape.
 import ActivitiesPanel from 'src/components/scheduling/ActivitiesDialog.vue';
 import CreateSlotDialog from 'src/components/scheduling/CreateSlotDialog.vue';
+import DeleteSlotDialog from 'src/components/scheduling/DeleteSlotDialog.vue';
 import HolidaysDialog from 'src/components/scheduling/HolidaysDialog.vue';
 import SesionesDePruebaDialog from 'src/components/scheduling/SesionesDePruebaDialog.vue';
 import { todayInTz, dowInTz, getMondayInTz } from 'src/utils/tz';
@@ -309,6 +336,16 @@ const loadingGrid = ref(false);
 const showSlotDialog = ref(false);
 const selectedSlotScheduleId = ref<number | null>(null);
 const selectedSlotDate = ref('');
+const deleteSelectionMode = ref(false);
+const showDeleteSlotDialog = ref(false);
+const deleteSlotInfo = ref<{
+  scheduleId: number;
+  dayOfWeek: DayOfWeek;
+  startTime: string;
+  endTime: string;
+  activityName: string;
+  branchName: string;
+} | null>(null);
 const showHolidaysDialog = ref(false);
 const showTrialsDialog = ref(false);
 const showWeekDatePicker = ref(false);
@@ -566,6 +603,24 @@ function onCascadeError(payload: { message: string; affectedSchedules: AffectedS
 function onCellClick(time: string, dayOfWeek: DayOfWeek, date: string) {
   const slot = getCellSlot(time, dayOfWeek);
   if (!slot) return;
+
+  // Delete-selection mode short-circuits the normal slot-detail flow.
+  // Holiday cells are still selectable here because the deletion targets
+  // the recurring schedule, not the individual day.
+  if (deleteSelectionMode.value) {
+    deleteSlotInfo.value = {
+      scheduleId: slot.id,
+      dayOfWeek: slot.dayOfWeek,
+      startTime: slot.startTime,
+      endTime: slot.endTime,
+      activityName: slot.activityName,
+      branchName: slot.branchName,
+    };
+    showDeleteSlotDialog.value = true;
+    deleteSelectionMode.value = false;
+    return;
+  }
+
   if (isCellHoliday(date)) return;
 
   // Always open the slot detail dialog — the legacy right-drawer attendance
@@ -573,6 +628,16 @@ function onCellClick(time: string, dayOfWeek: DayOfWeek, date: string) {
   selectedSlotScheduleId.value = slot.id;
   selectedSlotDate.value = date;
   showSlotDialog.value = true;
+}
+
+function toggleDeleteSelectionMode() {
+  deleteSelectionMode.value = !deleteSelectionMode.value;
+}
+
+function onSlotDeleted() {
+  showDeleteSlotDialog.value = false;
+  deleteSlotInfo.value = null;
+  loadWeeklyGrid();
 }
 
 // ─── Watchers & Lifecycle ────────────────────────────────────────────────────
@@ -596,6 +661,19 @@ watch(selectedBranchId, (val) => {
 <style scoped>
 .schedule-grid-container {
   overflow-x: auto;
+}
+
+.schedule-grid-container--delete-mode .grid-cell {
+  cursor: crosshair;
+}
+
+.schedule-grid-container--delete-mode .grid-cell:not(.grid-cell--empty) {
+  outline: 2px dashed var(--q-negative);
+  outline-offset: -2px;
+}
+
+.schedule-grid-container--delete-mode .grid-cell:not(.grid-cell--empty):hover {
+  background: #ffcdd2;
 }
 
 .schedule-grid {

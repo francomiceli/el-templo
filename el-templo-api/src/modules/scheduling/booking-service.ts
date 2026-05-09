@@ -724,6 +724,278 @@ export class BookingService {
   }
 
   /**
+   * Preview the impact of deleting a schedule from a given date forward.
+   *
+   * Returns affected booking counts split by plan type without performing
+   * any writes — used to populate the admin confirmation dialog. Mirrors
+   * the same join used by `cancelBookingsFromDateAndGrantCredits` so the
+   * preview number matches what actually gets cancelled.
+   */
+  async previewScheduleDeletion(
+    scheduleId: number,
+    fromDate: string,
+  ): Promise<{
+    cancelledBookings: number;
+    affectedFixedMembers: number;
+    affectedFlexibleMembers: number;
+    creditsToGrant: number;
+    sampleMembers: Array<{
+      memberName: string;
+      planType: "fixed" | "flexible";
+    }>;
+  }> {
+    const scheduleRow = await this.getScheduleSlotRaw(scheduleId);
+    if (!scheduleRow) throw new NotFoundError("Horario no encontrado");
+
+    // Bookings that would be cancelled (active reservations + waitlist).
+    // Already-checked-in (qr_escaneado, confirmado) and prior cancellations
+    // are excluded so the preview matches the actual cancellation scope.
+    const candidateBookings = await this.db
+      .select({
+        id: schema.bookings.id,
+        memberId: schema.bookings.memberId,
+        memberFirstName: schema.users.firstName,
+        memberLastName: schema.users.lastName,
+        bookingDate: schema.bookings.bookingDate,
+      })
+      .from(schema.bookings)
+      .innerJoin(schema.users, eq(schema.users.id, schema.bookings.memberId))
+      .where(
+        and(
+          eq(schema.bookings.scheduleId, scheduleId),
+          gte(schema.bookings.bookingDate, fromDate),
+          inArray(schema.bookings.status, ["reservado", "lista_espera"]),
+        ),
+      );
+
+    if (candidateBookings.length === 0) {
+      return {
+        cancelledBookings: 0,
+        affectedFixedMembers: 0,
+        affectedFlexibleMembers: 0,
+        creditsToGrant: 0,
+        sampleMembers: [],
+      };
+    }
+
+    // Fixed-plan hits: one row per booking that resolves to a fixed-plan
+    // subscription anchored to this schedule.
+    const fixedHits = await this.db
+      .select({
+        bookingId: schema.bookings.id,
+        memberId: schema.bookings.memberId,
+      })
+      .from(schema.bookings)
+      .innerJoin(
+        schema.subscriptionSchedules,
+        eq(schema.subscriptionSchedules.scheduleId, schema.bookings.scheduleId),
+      )
+      .innerJoin(
+        schema.subscriptions,
+        and(
+          eq(
+            schema.subscriptions.id,
+            schema.subscriptionSchedules.subscriptionId,
+          ),
+          eq(schema.subscriptions.userId, schema.bookings.memberId),
+          sql`${schema.bookings.bookingDate} >= ${schema.subscriptions.startDate}`,
+          sql`${schema.bookings.bookingDate} <= COALESCE(${schema.subscriptions.endDate}, '9999-12-31')`,
+          inArray(schema.subscriptions.status, ["active", "paused"]),
+        ),
+      )
+      .innerJoin(
+        schema.subscriptionPlans,
+        and(
+          eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
+          eq(schema.subscriptionPlans.bookingMode, "fixed"),
+        ),
+      )
+      .where(
+        inArray(
+          schema.bookings.id,
+          candidateBookings.map((b) => b.id),
+        ),
+      );
+
+    const fixedBookingIds = new Set(fixedHits.map((r) => r.bookingId));
+    const fixedMemberIds = new Set(fixedHits.map((r) => r.memberId));
+    const flexibleMemberIds = new Set<number>();
+    for (const b of candidateBookings) {
+      if (!fixedBookingIds.has(b.id)) flexibleMemberIds.add(b.memberId);
+    }
+
+    const sampleMembers: Array<{
+      memberName: string;
+      planType: "fixed" | "flexible";
+    }> = [];
+    const seenMembers = new Set<number>();
+    for (const b of candidateBookings) {
+      if (seenMembers.has(b.memberId)) continue;
+      seenMembers.add(b.memberId);
+      sampleMembers.push({
+        memberName: [b.memberFirstName, b.memberLastName]
+          .filter(Boolean)
+          .join(" "),
+        planType: fixedMemberIds.has(b.memberId) ? "fixed" : "flexible",
+      });
+      if (sampleMembers.length >= 10) break;
+    }
+
+    return {
+      cancelledBookings: candidateBookings.length,
+      affectedFixedMembers: fixedMemberIds.size,
+      affectedFlexibleMembers: flexibleMemberIds.size,
+      creditsToGrant: fixedHits.length,
+      sampleMembers,
+    };
+  }
+
+  /**
+   * Cancel future bookings for a schedule starting at `fromDate` (inclusive)
+   * and grant replacement credits to fixed-plan members affected.
+   *
+   * Used by the admin "Eliminar horario" flow. History (bookings before
+   * fromDate, plus already-checked-in bookings on/after fromDate) is left
+   * untouched so attendance reports stay accurate.
+   *
+   * Credit policy: each cancelled booking belonging to an active fixed-plan
+   * subscription anchored to this schedule grants +1 to that subscription's
+   * `replacementCredits`. Flexible-plan bookings aren't credited because
+   * `classesRemaining` is decremented at check-in (not at booking) and these
+   * bookings never reached check-in.
+   */
+  async cancelBookingsFromDateAndGrantCredits(
+    scheduleId: number,
+    fromDate: string,
+  ): Promise<{
+    cancelledBookings: number;
+    affectedFixedMembers: number;
+    creditsGranted: number;
+  }> {
+    const scheduleRow = await this.getScheduleSlotRaw(scheduleId);
+    if (!scheduleRow) throw new NotFoundError("Horario no encontrado");
+
+    const toCancel = await this.db
+      .select({
+        id: schema.bookings.id,
+        memberId: schema.bookings.memberId,
+        bookingDate: schema.bookings.bookingDate,
+      })
+      .from(schema.bookings)
+      .where(
+        and(
+          eq(schema.bookings.scheduleId, scheduleId),
+          gte(schema.bookings.bookingDate, fromDate),
+          inArray(schema.bookings.status, ["reservado", "lista_espera"]),
+        ),
+      );
+
+    if (toCancel.length === 0) {
+      return {
+        cancelledBookings: 0,
+        affectedFixedMembers: 0,
+        creditsGranted: 0,
+      };
+    }
+
+    // Resolve fixed-plan subscriptions before mutating bookings — once
+    // status flips to 'cancelado' the join would still match, but pulling
+    // the data first keeps the credit grant deterministic and easier to
+    // audit if the cancellation update fails partway.
+    const fixedHits = await this.db
+      .select({
+        bookingId: schema.bookings.id,
+        subscriptionId: schema.subscriptions.id,
+      })
+      .from(schema.bookings)
+      .innerJoin(
+        schema.subscriptionSchedules,
+        eq(schema.subscriptionSchedules.scheduleId, schema.bookings.scheduleId),
+      )
+      .innerJoin(
+        schema.subscriptions,
+        and(
+          eq(
+            schema.subscriptions.id,
+            schema.subscriptionSchedules.subscriptionId,
+          ),
+          eq(schema.subscriptions.userId, schema.bookings.memberId),
+          sql`${schema.bookings.bookingDate} >= ${schema.subscriptions.startDate}`,
+          sql`${schema.bookings.bookingDate} <= COALESCE(${schema.subscriptions.endDate}, '9999-12-31')`,
+          inArray(schema.subscriptions.status, ["active", "paused"]),
+        ),
+      )
+      .innerJoin(
+        schema.subscriptionPlans,
+        and(
+          eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
+          eq(schema.subscriptionPlans.bookingMode, "fixed"),
+        ),
+      )
+      .where(
+        inArray(
+          schema.bookings.id,
+          toCancel.map((b) => b.id),
+        ),
+      );
+
+    const creditsPerSub = new Map<number, number>();
+    for (const row of fixedHits) {
+      creditsPerSub.set(
+        row.subscriptionId,
+        (creditsPerSub.get(row.subscriptionId) ?? 0) + 1,
+      );
+    }
+
+    await this.db.transaction(async (tx) => {
+      await tx
+        .update(schema.bookings)
+        .set({
+          status: "cancelado",
+          cancelledAt: new Date(),
+          waitlistPosition: null,
+        })
+        .where(
+          inArray(
+            schema.bookings.id,
+            toCancel.map((b) => b.id),
+          ),
+        );
+
+      for (const [subId, count] of creditsPerSub) {
+        await tx
+          .update(schema.subscriptions)
+          .set({
+            replacementCredits: sql`COALESCE(${schema.subscriptions.replacementCredits}, 0) + ${count}`,
+          })
+          .where(eq(schema.subscriptions.id, subId));
+      }
+    });
+
+    const creditsGranted = Array.from(creditsPerSub.values()).reduce(
+      (a, b) => a + b,
+      0,
+    );
+
+    this.log.info(
+      {
+        scheduleId,
+        fromDate,
+        cancelledBookings: toCancel.length,
+        affectedFixedMembers: creditsPerSub.size,
+        creditsGranted,
+      },
+      "Schedule deletion: cancelled future bookings + granted replacement credits",
+    );
+
+    return {
+      cancelledBookings: toCancel.length,
+      affectedFixedMembers: creditsPerSub.size,
+      creditsGranted,
+    };
+  }
+
+  /**
    * Restore bookings that were cancelled as part of a slot deactivation.
    *
    * Filter: only bookings cancelled at-or-after `deactivatedAt` are

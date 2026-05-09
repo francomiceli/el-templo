@@ -161,6 +161,62 @@ export function useSchedulingApi() {
     }
   }
 
+  async function previewScheduleDeletion(
+    scheduleId: number,
+    fromDate: string
+  ): Promise<{
+    cancelledBookings: number;
+    affectedFixedMembers: number;
+    affectedFlexibleMembers: number;
+    creditsToGrant: number;
+    sampleMembers: Array<{ memberName: string; planType: 'fixed' | 'flexible' }>;
+  }> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<{
+        cancelledBookings: number;
+        affectedFixedMembers: number;
+        affectedFlexibleMembers: number;
+        creditsToGrant: number;
+        sampleMembers: Array<{ memberName: string; planType: 'fixed' | 'flexible' }>;
+      }>(`/admin/scheduling/schedules/${scheduleId}/deletion-preview`, {
+        params: { fromDate },
+      });
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error calculando impacto de eliminación');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function deleteScheduleFromDate(
+    scheduleId: number,
+    fromDate: string
+  ): Promise<{
+    cancelledBookings: number;
+    affectedFixedMembers: number;
+    creditsGranted: number;
+  }> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.post<{
+        cancelledBookings: number;
+        affectedFixedMembers: number;
+        creditsGranted: number;
+      }>(`/admin/scheduling/schedules/${scheduleId}/delete-from-date`, { fromDate });
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error eliminando horario');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   async function updateScheduleActivity(
     scheduleId: number,
     activityId: number
@@ -399,6 +455,8 @@ export function useSchedulingApi() {
     getWeeklyGrid,
     getSlotDetail,
     toggleSchedule,
+    previewScheduleDeletion,
+    deleteScheduleFromDate,
     updateScheduleActivity,
     seedSchedules,
     getNextAvailableDate,
