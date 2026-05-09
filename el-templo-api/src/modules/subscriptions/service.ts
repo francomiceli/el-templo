@@ -2126,13 +2126,25 @@ export class SubscriptionService {
    *   - "now" (default): close current, apply proration, create new active sub
    *   - "after_current": keep current running, queue scheduled sub that
    *     activates on current.endDate (no proration, full price charged now)
+   *
+   * A startDate in the future is silently routed to the after_current path
+   * even when startMode='now'. Why: changePlanNow closes the current sub
+   * immediately as 'changed' and cancels its bookings — if the new sub does
+   * not start until later, the member loses already-paid days of coverage
+   * and ends up users.status='inactivo' indefinitely (no cron flips an
+   * 'active'-but-future-dated sub). Routing to after_current preserves the
+   * current sub until its natural endDate and creates the new sub as
+   * 'scheduled', which the daily 00:05 ART cron activates on its startDate.
    */
   async changePlan(
     userId: number,
     input: AssignPlanInput,
     adminId: number,
   ): Promise<SubscriptionDetail> {
-    if (input.startMode === "after_current") {
+    if (
+      input.startMode === "after_current" ||
+      input.startDate > todayDateString()
+    ) {
       return this.changePlanAfterCurrent(userId, input, adminId);
     }
     return this.changePlanNow(userId, input, adminId);
