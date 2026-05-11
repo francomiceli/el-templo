@@ -126,6 +126,17 @@ export interface CreateMemberInput {
   emergencyContactRelationship?: string | null;
 }
 
+/**
+ * Soft-register payload for "sesión de prueba" (SP) lead capture.
+ * Only the 4 fields the receptionist captures at the door.
+ */
+export interface CreateTrialMemberInput {
+  firstName: string;
+  lastName: string;
+  phone: string;
+  branchId: number;
+}
+
 export interface UpdateMemberInput {
   firstName?: string;
   lastName?: string;

@@ -33,6 +33,7 @@ import type {
   MemberProfile,
   MemberExportRow,
   CreateMemberInput,
+  CreateTrialMemberInput,
   UpdateMemberInput,
   MemberNote,
   CreateNoteInput,
@@ -40,6 +41,7 @@ import type {
   DniCheckResult,
   TotalDebtRow,
 } from "./types";
+import { ConflictError } from "../shared/errors";
 
 export class MemberService {
   constructor(
@@ -457,6 +459,73 @@ export class MemberService {
 
     if (!member) {
       throw new Error("Failed to retrieve newly created member");
+    }
+
+    return { member, tempPassword };
+  }
+
+  /**
+   * Soft register a "sesión de prueba" lead. Only the 4 fields the
+   * receptionist captures at the door — firstName/lastName/phone/branchId.
+   * Email, DNI, document type and the rest stay NULL until the lead
+   * converts (via the standard MemberFormDialog edit flow + assignPlan).
+   *
+   * Validation:
+   *   - phone uniqueness across non-deleted users (normalized via
+   *     normalizePhone — last 10 digits). Same-phone repeat would let the
+   *     same person book a second trial via a different user row.
+   */
+  async createTrialMember(
+    input: CreateTrialMemberInput,
+  ): Promise<{ member: MemberProfile; tempPassword: string }> {
+    const normalizedPhone = normalizePhone(input.phone);
+    if (!normalizedPhone) {
+      throw new ConflictError("El teléfono ingresado no es válido");
+    }
+
+    const [existing] = await this.db
+      .select({
+        id: schema.users.id,
+        firstName: schema.users.firstName,
+        lastName: schema.users.lastName,
+      })
+      .from(schema.users)
+      .where(
+        and(
+          eq(schema.users.phone, normalizedPhone),
+          isNull(schema.users.deletedAt),
+        ),
+      )
+      .limit(1);
+
+    if (existing) {
+      const name = [existing.firstName, existing.lastName]
+        .filter(Boolean)
+        .join(" ");
+      throw new ConflictError(
+        `Ya existe un alumno con ese teléfono${name ? ` (${name})` : ""}`,
+      );
+    }
+
+    const tempPassword = MEMBER_TEMP_PASSWORD;
+    const passwordHash = await argon2.hash(tempPassword);
+
+    const result = await this.db.insert(schema.users).values({
+      passwordHash,
+      firstName: input.firstName.trim(),
+      lastName: input.lastName.trim(),
+      phone: normalizedPhone,
+      branchId: input.branchId,
+      role: "member",
+      level: "alfa",
+      status: "prueba" as const,
+    });
+
+    const userId = Number(result[0].insertId);
+    const member = await this.getMemberById(userId);
+
+    if (!member) {
+      throw new Error("Failed to retrieve newly created trial member");
     }
 
     return { member, tempPassword };

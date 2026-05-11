@@ -117,6 +117,19 @@ export interface CreateMemberInput {
   emergencyContactRelationship?: string;
 }
 
+/**
+ * Soft-register payload for "sesión de prueba" (SP) lead capture.
+ * Receptionist creates the lead at the door with just these 4 fields;
+ * email/DNI/etc. are filled in later when the lead converts to a paying
+ * member via the standard MemberFormDialog edit flow.
+ */
+export interface CreateTrialMemberInput {
+  firstName: string;
+  lastName: string;
+  phone: string;
+  branchId: number;
+}
+
 export interface UpdateMemberInput {
   firstName?: string;
   lastName?: string;

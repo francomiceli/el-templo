@@ -189,6 +189,28 @@ export const getMemberSchema = {
   },
 };
 
+/**
+ * Soft-register schema for SP (sesión de prueba) lead capture.
+ * Receptionist-friendly 4-field create — full data is filled in on conversion.
+ */
+export const createTrialMemberSchema = {
+  body: {
+    type: "object",
+    additionalProperties: false,
+    required: ["firstName", "lastName", "phone", "branchId"],
+    properties: {
+      firstName: { type: "string", minLength: 1, maxLength: 100 },
+      lastName: { type: "string", minLength: 1, maxLength: 100 },
+      phone: { type: "string", minLength: 1, maxLength: 30 },
+      branchId: { type: "integer" },
+    },
+  },
+  response: {
+    201: memberProfileSchema,
+    409: errorSchema,
+  },
+};
+
 export const createMemberSchema = {
   body: {
     type: "object",

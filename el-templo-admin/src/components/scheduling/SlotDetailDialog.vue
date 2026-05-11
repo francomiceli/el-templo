@@ -383,64 +383,84 @@
             <div v-if="loadingEligibles" class="flex flex-center q-pa-md">
               <q-spinner-dots size="24px" color="primary" />
             </div>
-            <template v-else-if="eligibleTrials.length === 0">
-              <div class="text-caption text-grey-7 q-mb-sm">
-                No hay alumnos en prueba sin sesión reservada en esta sede. Creá uno desde Alumnos
-                para reservarle una sesión.
-              </div>
+            <template v-else>
+              <!-- Picker for existing prueba alumnos that haven't used their
+                   SP yet. Only shown when there's at least one match — the
+                   "Crear nuevo" path below covers the empty case. -->
+              <template v-if="eligibleTrials.length > 0">
+                <q-select
+                  v-model="selectedTrialUser"
+                  :options="eligibleTrials"
+                  option-value="id"
+                  option-label="displayLabel"
+                  label="Buscar alumno en prueba"
+                  dense
+                  outlined
+                  use-input
+                  clearable
+                  input-debounce="0"
+                  :input-class="'text-body2'"
+                  @filter="filterEligibleTrials"
+                >
+                  <template #no-option>
+                    <q-item>
+                      <q-item-section class="text-grey-5 text-italic">
+                        Sin resultados
+                      </q-item-section>
+                    </q-item>
+                  </template>
+                </q-select>
+                <div class="row justify-end q-gutter-sm q-mt-sm">
+                  <q-btn
+                    flat
+                    label="Cancelar"
+                    color="grey-7"
+                    :disable="bookingTrial"
+                    @click="trialFormOpen = false"
+                  />
+                  <q-btn
+                    unelevated
+                    label="Reservar"
+                    color="primary"
+                    :loading="bookingTrial"
+                    :disable="!selectedTrialUser"
+                    @click="onBookTrial"
+                  />
+                </div>
+                <q-separator class="q-my-md" />
+              </template>
+
+              <!-- Soft-register entry point: persona se presenta a la puerta,
+                   admin crea alumno en prueba + reserva en este slot en una
+                   sola acción. No redirect — happens inside the dialog. -->
               <q-btn
-                color="primary"
-                icon="person_add"
-                label="Crear alumno en prueba"
+                color="warning"
+                icon="fact_check"
+                label="Crear nuevo en prueba"
                 no-caps
                 unelevated
                 class="full-width"
-                @click="goToCreateTrialMember"
+                :disable="bookingTrial"
+                @click="onOpenCreateTrialMember"
               />
-            </template>
-            <template v-else>
-              <q-select
-                v-model="selectedTrialUser"
-                :options="eligibleTrials"
-                option-value="id"
-                option-label="displayLabel"
-                label="Buscar alumno en prueba"
-                dense
-                outlined
-                use-input
-                clearable
-                input-debounce="0"
-                :input-class="'text-body2'"
-                @filter="filterEligibleTrials"
-              >
-                <template #no-option>
-                  <q-item>
-                    <q-item-section class="text-grey-5 text-italic">
-                      Sin resultados
-                    </q-item-section>
-                  </q-item>
-                </template>
-              </q-select>
-              <div class="row justify-end q-gutter-sm q-mt-sm">
-                <q-btn
-                  flat
-                  label="Cancelar"
-                  color="grey-7"
-                  :disable="bookingTrial"
-                  @click="trialFormOpen = false"
-                />
-                <q-btn
-                  unelevated
-                  label="Reservar"
-                  color="primary"
-                  :loading="bookingTrial"
-                  :disable="!selectedTrialUser"
-                  @click="onBookTrial"
-                />
+              <div class="text-caption text-grey-7 q-mt-xs">
+                Solo nombre, apellido y teléfono — se reserva automáticamente en este horario.
               </div>
             </template>
           </div>
         </q-expansion-item>
+
+        <!-- Soft-register dialog. branchId is locked to this slot's sede so
+             the receptionist can't accidentally create a lead in another
+             sede that would then fail the branch-coherence check at book
+             time. On @created we chain straight into bookTrial. -->
+        <TrialMemberFormDialog
+          v-model="createTrialMemberOpen"
+          :branches="trialDialogBranches"
+          :default-branch-id="slotDetail?.schedule.branchId ?? null"
+          :lock-branch="true"
+          @created="onTrialMemberCreated"
+        />
       </q-card-section>
 
       <q-card-actions align="right">
@@ -512,13 +532,14 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
-import { useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { useSchedulingApi } from 'src/composables/useSchedulingApi';
 import { useAttendanceApi } from 'src/composables/useAttendanceApi';
 import { useMembersApi } from 'src/composables/useMembersApi';
 import { extractError } from 'src/utils/extract-error';
+import TrialMemberFormDialog from 'src/components/TrialMemberFormDialog.vue';
+import type { BranchOption, MemberProfile } from 'src/types/member';
 import type {
   SlotDetailView,
   BookingStatus,
@@ -590,7 +611,6 @@ const bookingTrial = ref(false);
 const eligibleTrialsAll = ref<EligibleTrial[]>([]);
 const eligibleTrials = ref<EligibleTrial[]>([]);
 const selectedTrialUser = ref<EligibleTrial | null>(null);
-const router = useRouter();
 
 // Activity edit
 const editingActivity = ref(false);
@@ -1096,9 +1116,63 @@ async function onBookTrial() {
   }
 }
 
-function goToCreateTrialMember() {
-  emit('update:show', false);
-  void router.push({ path: '/alumnos', query: { nuevo: 'prueba' } });
+// ─── Inline soft-register for SP ────────────────────────────────────────────
+// Persona se presenta a la puerta → admin abre slot → crea alumno en prueba
+// + reserva en este horario en una sola acción. The TrialMemberFormDialog
+// stays mounted inside this dialog so we don't lose context (the previous
+// flow redirected to /alumnos which forced the admin to manually walk back).
+
+const createTrialMemberOpen = ref(false);
+
+// We feed the trial dialog just this slot's sede — branchId is locked, so
+// no need to load the full BranchOption[] list.
+const trialDialogBranches = computed<BranchOption[]>(() => {
+  if (!slotDetail.value) return [];
+  return [
+    {
+      id: slotDetail.value.schedule.branchId,
+      name: slotDetail.value.schedule.branchName,
+    },
+  ];
+});
+
+function onOpenCreateTrialMember(): void {
+  if (!slotDetail.value) return;
+  createTrialMemberOpen.value = true;
+}
+
+// On successful soft-register, immediately book the just-created prueba
+// user into this slot. The user is in 'prueba' status with branch = this
+// slot's branch, so bookTrial passes its eligibility checks.
+async function onTrialMemberCreated(member: MemberProfile): Promise<void> {
+  if (!slotDetail.value) return;
+  bookingTrial.value = true;
+  try {
+    await schedulingApi.bookTrial({
+      userId: member.id,
+      scheduleId: slotDetail.value.schedule.id,
+      bookingDate: props.date,
+    });
+    $q.notify({ type: 'positive', message: 'Alumno creado y reservado para esta clase' });
+    trialFormOpen.value = false;
+    await refreshAll();
+    emit('bookings-changed');
+  } catch (err: unknown) {
+    // Booking failed but the user already exists — surface the reason so
+    // the admin can fix it (e.g. branch mismatch, prior trial conflict) and
+    // retry via the "Buscar alumno en prueba" picker.
+    const fallback = err instanceof Error ? err.message : 'Error reservando sesión de prueba';
+    const msg = schedulingApi.error.value ?? fallback;
+    log.error('Error booking trial after soft register', { error: msg });
+    $q.notify({
+      type: 'warning',
+      message: `Alumno creado pero la reserva falló: ${msg}. Buscalo en la lista para reservar.`,
+      timeout: 7000,
+    });
+    await loadEligibleTrials();
+  } finally {
+    bookingTrial.value = false;
+  }
 }
 
 // Re-fetch eligibles when the toggle opens, so the list reflects newly

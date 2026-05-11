@@ -14,6 +14,7 @@ import type {
   MemberListParams,
   MembersListResponse,
   CreateMemberInput,
+  CreateTrialMemberInput,
   UpdateMemberInput,
   DniCheckResult,
   MemberNote,
@@ -87,6 +88,24 @@ export function useMembersApi() {
       return data;
     } catch (err: unknown) {
       error.value = extractError(err, 'Error creando miembro');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  /**
+   * Soft register a "sesión de prueba" lead — name + phone + branch only.
+   * Email/DNI/etc. are filled in later when the lead converts.
+   */
+  async function createTrialMember(input: CreateTrialMemberInput): Promise<MemberProfile> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.post<MemberProfile>('/admin/members/trial', input);
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error creando sesión de prueba');
       throw err;
     } finally {
       loading.value = false;
@@ -424,6 +443,7 @@ export function useMembersApi() {
     getMembers,
     getMember,
     createMember,
+    createTrialMember,
     updateMember,
     deleteMember,
     resetMemberPassword,

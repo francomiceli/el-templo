@@ -24,10 +24,11 @@ import { SubscriptionService } from "../subscriptions/service";
 import { AuraService } from "../aura/service";
 import { BookingService } from "../scheduling/booking-service";
 import { NotificationService } from "../notifications/service";
-import { NotFoundError } from "../shared/errors";
+import { ConflictError, NotFoundError } from "../shared/errors";
 import { EmailService } from "../email";
 import type {
   CreateMemberInput,
+  CreateTrialMemberInput,
   UpdateMemberInput,
   MemberListParams,
 } from "./types";
@@ -35,6 +36,7 @@ import {
   listMembersSchema,
   getMemberSchema,
   createMemberSchema,
+  createTrialMemberSchema,
   updateMemberSchema,
   resetMemberPasswordSchema,
   checkDniSchema,
@@ -577,6 +579,36 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.code(500).send({
           error: "Error del servidor",
           message: "Error al crear miembro",
+        });
+      }
+    },
+  );
+
+  // POST /admin/members/trial — Soft register a "sesión de prueba" lead
+  // with only 4 fields (firstName, lastName, phone, branchId). Status set
+  // to 'prueba'; email/DNI/etc. remain NULL until the lead converts via
+  // the standard edit + assignPlan flow.
+  fastify.post<{ Body: CreateTrialMemberInput }>(
+    "/trial",
+    {
+      schema: createTrialMemberSchema,
+      preHandler: [requireBranchAccess({ from: "body.branchId" })],
+    },
+    async (request, reply) => {
+      try {
+        const { member } = await memberService.createTrialMember(request.body);
+        return reply.code(201).send(member);
+      } catch (err: unknown) {
+        if (err instanceof ConflictError) {
+          return reply.code(409).send({
+            error: "Conflicto",
+            message: err.message,
+          });
+        }
+        request.log.error({ err }, "Error creating trial member");
+        return reply.code(500).send({
+          error: "Error del servidor",
+          message: "Error al crear sesión de prueba",
         });
       }
     },

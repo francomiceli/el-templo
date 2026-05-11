@@ -22,6 +22,17 @@
           <q-tooltip>Exportar a Excel</q-tooltip>
         </q-btn>
         <q-btn
+          label="Nuevo en Prueba"
+          icon="fact_check"
+          color="warning"
+          dense
+          no-caps
+          class="q-px-md"
+          @click="showCreateTrialDialog = true"
+        >
+          <q-tooltip>Soft register para sesión de prueba (4 campos)</q-tooltip>
+        </q-btn>
+        <q-btn
           label="Nuevo"
           icon="person_add"
           color="primary"
@@ -265,6 +276,13 @@
     <!-- Create Member Dialog -->
     <MemberFormDialog v-model="showCreateDialog" :branches="branches" @saved="onMemberSaved" />
 
+    <!-- Soft-register dialog for SP (sesión de prueba) — 4-field flow -->
+    <TrialMemberFormDialog
+      v-model="showCreateTrialDialog"
+      :branches="branches"
+      @created="onTrialMemberCreated"
+    />
+
     <!-- Assign Plan Dialog: opens after creating a member when admin
          confirms they want to load the membership right away. -->
     <AssignPlanDialog
@@ -285,7 +303,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import type { QTableProps } from 'quasar';
 import { createLogger } from 'src/utils/logger';
@@ -302,12 +320,12 @@ import type {
 } from 'src/types/member';
 import { SEGMENT_LABELS, SEGMENT_COLORS } from 'src/types/member';
 import MemberFormDialog from 'src/components/MemberFormDialog.vue';
+import TrialMemberFormDialog from 'src/components/TrialMemberFormDialog.vue';
 import AssignPlanDialog from 'src/components/AssignPlanDialog.vue';
 
 const log = createLogger('AlumnosPage');
 const $q = useQuasar();
 const router = useRouter();
-const route = useRoute();
 const membersApi = useMembersApi();
 const authStore = useAuthStore();
 const { getColor: getStatusColor, getLabel: getStatusLabel } = useStatusBadge();
@@ -341,6 +359,7 @@ const branches = ref<BranchOption[]>([]);
 const loading = ref(false);
 const exporting = ref(false);
 const showCreateDialog = ref(false);
+const showCreateTrialDialog = ref(false);
 
 // Selection state
 
@@ -795,6 +814,10 @@ function onPostCreateAssigned() {
   loadMembers();
 }
 
+function onTrialMemberCreated(_member: MemberProfile) {
+  loadMembers();
+}
+
 function onPostCreateAssignDialog(open: boolean) {
   if (open) return;
   // Dialog just closed. If the admin didn't actually assign a plan, surface
@@ -820,14 +843,5 @@ onMounted(() => {
   loadBranches();
   loadPlans();
   loadMembers();
-
-  // Phase 103: SlotDetailDialog redirects here with ?nuevo=prueba when no
-  // eligible alumno exists for the trial slot. Auto-open the create dialog
-  // (POST /admin/members defaults to status='prueba'), then strip the param
-  // so a refresh doesn't reopen it.
-  if (route.query.nuevo === 'prueba') {
-    showCreateDialog.value = true;
-    void router.replace({ path: route.path, query: {} });
-  }
 });
 </script>

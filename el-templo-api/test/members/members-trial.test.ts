@@ -1,0 +1,208 @@
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
+import type { FastifyInstance } from "fastify";
+import { eq } from "drizzle-orm";
+import { createTestApp, getAuthToken, cleanAllTestData } from "../helpers";
+import { users } from "../../src/db/schema/users";
+import argon2 from "argon2";
+
+/**
+ * POST /api/admin/members/trial — soft register for "sesión de prueba" (SP).
+ *
+ * The receptionist-facing flow captures only 4 fields at the door:
+ * firstName, lastName, phone, branchId. Everything else (email, DNI,
+ * documentType, dateOfBirth, etc.) stays NULL until the lead converts via
+ * the standard MemberFormDialog edit + assignPlan flow.
+ */
+describe("POST /api/admin/members/trial", () => {
+  let app: FastifyInstance;
+  let adminToken: string;
+
+  const basePayload = () => ({
+    firstName: "Juan",
+    lastName: "Perez",
+    phone: "1155551234",
+    branchId: 1,
+  });
+
+  beforeAll(async () => {
+    app = await createTestApp();
+    adminToken = await getAuthToken(app, "admin@test.com", "adminpass123");
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  beforeEach(async () => {
+    await cleanAllTestData(app);
+  });
+
+  it("creates a trial member with only 4 fields and returns 201", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/admin/members/trial",
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: basePayload(),
+    });
+
+    expect(res.statusCode).toBe(201);
+    const body = JSON.parse(res.body);
+    expect(body).toHaveProperty("id");
+    expect(body.firstName).toBe("Juan");
+    expect(body.lastName).toBe("Perez");
+    expect(body.phone).toBe("1155551234");
+    expect(body.branchId).toBe(1);
+    expect(body.status).toBe("prueba");
+    expect(body.level).toBe("alfa");
+    expect(body.role).toBe("member");
+    expect(body).not.toHaveProperty("tempPassword");
+
+    // Verify against DB that the soft-register fields stay NULL (the
+    // response serialization coerces null → "" via memberProfileSchema's
+    // non-nullable string fields, so the JSON body alone isn't reliable).
+    const [row] = await app.db
+      .select({
+        email: users.email,
+        dni: users.dni,
+        documentType: users.documentType,
+        dateOfBirth: users.dateOfBirth,
+        address: users.address,
+        gender: users.gender,
+      })
+      .from(users)
+      .where(eq(users.id, body.id));
+
+    expect(row?.email).toBeNull();
+    expect(row?.dni).toBeNull();
+    expect(row?.documentType).toBeNull();
+    expect(row?.dateOfBirth).toBeNull();
+    expect(row?.address).toBeNull();
+    expect(row?.gender).toBeNull();
+  });
+
+  it("sets password to the standard temp password ('eltemplo2026')", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/admin/members/trial",
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: basePayload(),
+    });
+    const body = JSON.parse(res.body);
+
+    const [row] = await app.db
+      .select({ passwordHash: users.passwordHash })
+      .from(users)
+      .where(eq(users.id, body.id));
+
+    expect(await argon2.verify(row!.passwordHash, "eltemplo2026")).toBe(true);
+  });
+
+  it("trims whitespace from firstName and lastName", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/admin/members/trial",
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: {
+        ...basePayload(),
+        firstName: "  Soledad  ",
+        lastName: "  Mailland  ",
+      },
+    });
+
+    expect(res.statusCode).toBe(201);
+    const body = JSON.parse(res.body);
+    expect(body.firstName).toBe("Soledad");
+    expect(body.lastName).toBe("Mailland");
+  });
+
+  it("normalizes phone to last 10 digits", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/admin/members/trial",
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: { ...basePayload(), phone: "+54 9 11 5555-1234" },
+    });
+
+    expect(res.statusCode).toBe(201);
+    const body = JSON.parse(res.body);
+    expect(body.phone).toBe("1155551234");
+  });
+
+  it("rejects duplicate phone with 409 (matches via normalized last-10)", async () => {
+    // First creation succeeds.
+    const first = await app.inject({
+      method: "POST",
+      url: "/api/admin/members/trial",
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: basePayload(),
+    });
+    expect(first.statusCode).toBe(201);
+
+    // Same phone with cosmetic differences → still rejected.
+    const second = await app.inject({
+      method: "POST",
+      url: "/api/admin/members/trial",
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: {
+        ...basePayload(),
+        firstName: "Otro",
+        lastName: "Nombre",
+        phone: "+54 9 11 5555-1234",
+      },
+    });
+    expect(second.statusCode).toBe(409);
+    const body = JSON.parse(second.body);
+    expect(body.message).toContain("teléfono");
+    // Surface existing alumno's name so receptionist knows who they hit.
+    expect(body.message).toContain("Juan");
+  });
+
+  it("returns 400 when firstName/lastName/phone/branchId is missing", async () => {
+    for (const field of [
+      "firstName",
+      "lastName",
+      "phone",
+      "branchId",
+    ] as const) {
+      const payload = basePayload() as Record<string, unknown>;
+      delete payload[field];
+      const res = await app.inject({
+        method: "POST",
+        url: "/api/admin/members/trial",
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload,
+      });
+      expect(res.statusCode, `missing ${field}`).toBe(400);
+    }
+  });
+
+  it("silently strips extra fields (closed schema removes them)", async () => {
+    // Fastify's default AJV is configured with `removeAdditional: true`,
+    // so additionalProperties:false strips unknown keys rather than 400-ing.
+    // The contract we care about: the extra field never reaches storage.
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/admin/members/trial",
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: { ...basePayload(), email: "trial@test.com" },
+    });
+    expect(res.statusCode).toBe(201);
+    const body = JSON.parse(res.body);
+
+    const [row] = await app.db
+      .select({ email: users.email })
+      .from(users)
+      .where(eq(users.id, body.id));
+    expect(row?.email).toBeNull();
+  });
+
+  it("rejects phone with no digits as 409 invalid", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/admin/members/trial",
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: { ...basePayload(), phone: "no-digits-here" },
+    });
+    expect(res.statusCode).toBe(409);
+  });
+});

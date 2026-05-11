@@ -124,6 +124,35 @@
         </q-card-section>
       </q-card>
 
+      <!-- Soft-register conversion banner: only shown while the alumno is
+           still in 'prueba'. Surfaces the next concrete action (complete
+           the profile + assign a plan) so receptionists don't leave leads
+           with NULL email/DNI floating around the system. -->
+      <q-banner
+        v-if="memberProfile.status === 'prueba'"
+        class="bg-warning text-dark q-mt-md"
+        rounded
+      >
+        <template #avatar>
+          <q-icon name="fact_check" />
+        </template>
+        <div class="text-weight-medium">Alumno en prueba — datos incompletos</div>
+        <div class="text-caption">
+          Completá email, DNI y el resto de los datos para que pueda usar la app, y asignale un plan
+          para convertirlo en alumno activo.
+        </div>
+        <template #action>
+          <q-btn
+            unelevated
+            color="dark"
+            text-color="white"
+            label="Completar y convertir"
+            no-caps
+            @click="showEditDialog = true"
+          />
+        </template>
+      </q-banner>
+
       <!-- ========================================== -->
       <!-- Tabs -->
       <!-- ========================================== -->
