@@ -61,6 +61,7 @@
       <q-tab name="inactivos" label="Inactivos" icon="person_off" />
       <q-tab name="deudas" label="Deudas" icon="warning" />
       <q-tab name="conversion" label="Conversión" icon="trending_up" />
+      <q-tab name="sesiones-de-prueba" label="Sesiones de Prueba" icon="how_to_reg" />
     </q-tabs>
 
     <q-tab-panels v-model="activeTab" animated>
@@ -666,6 +667,13 @@
           </q-card>
         </div>
       </q-tab-panel>
+
+      <!-- ================================================================ -->
+      <!-- Sesiones de Prueba Tab (Phase 114) -->
+      <!-- ================================================================ -->
+      <q-tab-panel name="sesiones-de-prueba">
+        <TrialSessionsReport />
+      </q-tab-panel>
     </q-tab-panels>
   </q-page>
 </template>
@@ -694,6 +702,7 @@ import type {
 } from 'src/types/report';
 import type { BranchOption } from 'src/types/member';
 import DeudasReport from 'src/components/DeudasReport.vue';
+import TrialSessionsReport from 'src/components/reports/TrialSessionsReport.vue';
 
 // -- Setup -------------------------------------------------------------------
 
@@ -855,7 +864,15 @@ const datePresets: DatePreset[] = [
 // -- Tab state ---------------------------------------------------------------
 
 const route = useRoute();
-const VALID_TABS = ['accesos', 'cobros', 'vencimientos', 'inactivos', 'deudas', 'conversion'];
+const VALID_TABS = [
+  'accesos',
+  'cobros',
+  'vencimientos',
+  'inactivos',
+  'deudas',
+  'conversion',
+  'sesiones-de-prueba',
+];
 const initialTab = (() => {
   const q = route.query.tab;
   return typeof q === 'string' && VALID_TABS.includes(q) ? q : 'accesos';
