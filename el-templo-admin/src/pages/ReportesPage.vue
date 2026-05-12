@@ -672,7 +672,7 @@
       <!-- Sesiones de Prueba Tab (Phase 114) -->
       <!-- ================================================================ -->
       <q-tab-panel name="sesiones-de-prueba">
-        <TrialSessionsReport />
+        <TrialSessionsReport :branch-id="selectedBranchId" />
       </q-tab-panel>
     </q-tab-panels>
   </q-page>

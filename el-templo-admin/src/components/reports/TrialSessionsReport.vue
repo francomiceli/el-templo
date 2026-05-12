@@ -4,28 +4,23 @@
     <!-- Filters -->
     <!-- ================================================================== -->
     <div class="row q-col-gutter-sm q-mb-md items-end">
-      <div class="col-12 col-sm-3 col-md-2">
-        <q-select
-          v-model="filters.branchId"
-          :options="branchOptions"
-          option-value="id"
-          option-label="name"
-          label="Sede"
-          dense
-          outlined
-          clearable
-          emit-value
-          map-options
-          :loading="loadingBranches"
-        />
+      <div class="col-auto">
+        <q-btn-dropdown outline :label="dateRangeLabel" icon="date_range" dense>
+          <q-list dense>
+            <q-item
+              v-for="preset in datePresets"
+              :key="preset.label"
+              clickable
+              v-close-popup
+              @click="applyDatePreset(preset)"
+            >
+              <q-item-section>{{ preset.label }}</q-item-section>
+            </q-item>
+          </q-list>
+        </q-btn-dropdown>
       </div>
-
-      <div class="col-6 col-sm-2 col-md-2">
-        <q-input v-model="filters.dateFrom" type="date" label="Desde" dense outlined clearable />
-      </div>
-
-      <div class="col-6 col-sm-2 col-md-2">
-        <q-input v-model="filters.dateTo" type="date" label="Hasta" dense outlined clearable />
+      <div class="col-auto text-caption text-grey-7 self-center">
+        {{ dateFrom }} al {{ dateTo }}
       </div>
 
       <div class="col-12 col-sm-3 col-md-2">
@@ -250,7 +245,10 @@ import { useUsersApi, type StaffUser } from 'src/composables/useUsersApi';
 import { useAuthStore } from 'src/stores/useAuthStore';
 import { createLogger } from 'src/utils/logger';
 import { extractError } from 'src/utils/extract-error';
-import type { BranchOption } from 'src/types/member';
+
+const props = defineProps<{
+  branchId?: number | undefined;
+}>();
 
 // ─── Setup ──────────────────────────────────────────────────────────────
 
@@ -313,9 +311,6 @@ const SHIFT_OPTIONS: Array<{ value: ShiftFilter; label: string }> = [
 // ─── Filter state ───────────────────────────────────────────────────────
 
 interface Filters {
-  branchId: number | null;
-  dateFrom: string | null;
-  dateTo: string | null;
   leadStatus: LeadStatusValue[];
   attended: AttendedFilter | null;
   shift: ShiftFilter | null;
@@ -325,9 +320,6 @@ interface Filters {
 }
 
 const filters = reactive<Filters>({
-  branchId: null,
-  dateFrom: null,
-  dateTo: null,
   leadStatus: [],
   attended: null,
   shift: null,
@@ -335,6 +327,69 @@ const filters = reactive<Filters>({
   daysWithoutConvertingMin: null,
   search: '',
 });
+
+// ─── Date range (preset dropdown — matches Conversión tab) ──────────────
+
+function toIsoDate(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+function getDaysAgo(from: Date, days: number): Date {
+  const d = new Date(from);
+  d.setDate(d.getDate() - days);
+  return d;
+}
+function getMonthStart(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), 1);
+}
+function getMonthEnd(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth() + 1, 0);
+}
+
+const dateFrom = ref(toIsoDate(getDaysAgo(new Date(), 30)));
+const dateTo = ref(toIsoDate(new Date()));
+
+const dateRangeLabel = computed(() => `${dateFrom.value} — ${dateTo.value}`);
+
+interface DatePreset {
+  label: string;
+  getRange: () => { dateFrom: string; dateTo: string };
+}
+
+const datePresets: DatePreset[] = [
+  {
+    label: 'Últimos 30 días',
+    getRange: () => ({
+      dateFrom: toIsoDate(getDaysAgo(new Date(), 30)),
+      dateTo: toIsoDate(new Date()),
+    }),
+  },
+  {
+    label: 'Últimos 90 días',
+    getRange: () => ({
+      dateFrom: toIsoDate(getDaysAgo(new Date(), 90)),
+      dateTo: toIsoDate(new Date()),
+    }),
+  },
+  {
+    label: 'Este mes',
+    getRange: () => ({
+      dateFrom: toIsoDate(getMonthStart(new Date())),
+      dateTo: toIsoDate(getMonthEnd(new Date())),
+    }),
+  },
+  {
+    label: 'Desde siempre',
+    getRange: () => ({ dateFrom: '2020-01-01', dateTo: toIsoDate(new Date()) }),
+  },
+];
+
+function applyDatePreset(preset: DatePreset): void {
+  const range = preset.getRange();
+  dateFrom.value = range.dateFrom;
+  dateTo.value = range.dateTo;
+  pagination.value.page = 1;
+  void load();
+}
 
 // ─── Table state ────────────────────────────────────────────────────────
 
@@ -356,24 +411,6 @@ const pagination = ref({
 const editingNotesUserId = ref<number | null>(null);
 const editingNotesDraft = ref<string>('');
 const savingUserId = ref<number | null>(null);
-
-// ─── Branch options ─────────────────────────────────────────────────────
-
-const branchOptions = ref<BranchOption[]>([]);
-const loadingBranches = ref(false);
-
-async function loadBranches(): Promise<void> {
-  loadingBranches.value = true;
-  try {
-    branchOptions.value = await membersApi.getBranches();
-  } catch (err: unknown) {
-    log.error('Failed to load branches', {
-      error: err instanceof Error ? err.message : String(err),
-    });
-  } finally {
-    loadingBranches.value = false;
-  }
-}
 
 // ─── Gestiona options (owner-only — D-44) ───────────────────────────────
 
@@ -502,9 +539,9 @@ const columns: QTableColumn<TrialSessionsRowClient>[] = [
 
 function buildServerFilters() {
   return {
-    branchId: filters.branchId ?? undefined,
-    dateFrom: filters.dateFrom ?? undefined,
-    dateTo: filters.dateTo ?? undefined,
+    branchId: props.branchId,
+    dateFrom: dateFrom.value,
+    dateTo: dateTo.value,
     leadStatus: filters.leadStatus.length > 0 ? filters.leadStatus : undefined,
     attended: filters.attended ?? undefined,
     shift: filters.shift ?? undefined,
@@ -677,8 +714,16 @@ async function onExport(): Promise<void> {
 
 // ─── Lifecycle ──────────────────────────────────────────────────────────
 
+watch(
+  () => props.branchId,
+  () => {
+    pagination.value.page = 1;
+    void load();
+  }
+);
+
 onMounted(async () => {
-  await Promise.all([loadBranches(), loadGestionaOptionsIfOwner()]);
+  await loadGestionaOptionsIfOwner();
   await load();
 });
 
