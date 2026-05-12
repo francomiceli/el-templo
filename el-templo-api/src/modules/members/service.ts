@@ -357,6 +357,11 @@ export class MemberService {
       )
     )`;
 
+    // Phase 114 (D-38): self-join to materialize the creator-admin's name
+    // for the "Gestiona: <name>" caption in AlumnoDetailPage's "Datos de
+    // Lead" block. Mirrors the same alias() pattern used by updateLead.
+    const creator = alias(schema.users, "creator");
+
     const [row] = await this.db
       .select({
         id: schema.users.id,
@@ -381,9 +386,15 @@ export class MemberService {
         createdAt: schema.users.createdAt,
         updatedAt: schema.users.updatedAt,
         hasUsedTrial: hasUsedTrialSubquery,
+        leadStatus: schema.users.leadStatus,
+        leadNotes: schema.users.leadNotes,
+        creatorId: creator.id,
+        creatorFirstName: creator.firstName,
+        creatorLastName: creator.lastName,
       })
       .from(schema.users)
       .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
+      .leftJoin(creator, eq(creator.id, schema.users.createdBy))
       .where(and(eq(schema.users.id, id), isNull(schema.users.deletedAt)));
 
     if (!row) return null;
@@ -411,6 +422,18 @@ export class MemberService {
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
       hasUsedTrial: Boolean(row.hasUsedTrial),
+      leadStatus: row.leadStatus,
+      leadNotes: row.leadNotes,
+      createdBy: row.creatorId
+        ? {
+            userId: row.creatorId,
+            name:
+              [row.creatorFirstName, row.creatorLastName]
+                .filter(Boolean)
+                .join(" ")
+                .trim() || "—",
+          }
+        : null,
     };
   }
 

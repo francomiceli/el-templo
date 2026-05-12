@@ -97,6 +97,21 @@ export interface MemberProfile {
    * admin profile header.
    */
   hasUsedTrial: boolean;
+  /**
+   * Phase 114 (D-38): lead-lifecycle fields surfaced on the admin profile
+   * endpoint so AlumnoDetailPage's "Datos de Lead" block renders without a
+   * second round-trip. Only meaningful when `status === 'prueba'`; for
+   * other statuses the fields may be populated from historic data but the
+   * UI gate at the page level hides the block.
+   *
+   * `createdBy` is a denormalized JOIN against users (self-ref): the admin
+   * who registered the trial via POST /api/admin/members/trial (Plan 02).
+   * NULL for users created before Plan 01 / via legacy paths (D-39 — UI
+   * renders "—").
+   */
+  leadStatus: "en_seguimiento" | "cerrado" | "perdido" | null;
+  leadNotes: string | null;
+  createdBy: { userId: number; name: string } | null;
 }
 
 export interface CreateMemberInput {

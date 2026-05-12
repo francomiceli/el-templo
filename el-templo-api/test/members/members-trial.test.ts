@@ -271,4 +271,58 @@ describe("POST /api/admin/members/trial", () => {
     expect(row?.createdBy).toBe(admin!.id);
     expect(row?.createdBy).not.toBe(999999);
   });
+
+  // Phase 114 D-38: GET /api/admin/members/:userId surfaces the
+  // lead-lifecycle fields (leadStatus / leadNotes / createdBy) for the
+  // admin app's "Datos de Lead" block. The block gates on status='prueba'
+  // client-side; this test asserts the API contract that ships the fields.
+  it("GET /admin/members/:userId returns leadStatus, leadNotes, createdBy for a trial user", async () => {
+    const [admin] = await app.db
+      .select({
+        id: users.id,
+        firstName: users.firstName,
+        lastName: users.lastName,
+      })
+      .from(users)
+      .where(eq(users.email, "admin@test.com"));
+
+    // Create the trial via the public endpoint so createdBy is wired
+    // server-side (Plan 02 invariant).
+    const createRes = await app.inject({
+      method: "POST",
+      url: "/api/admin/members/trial",
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: basePayload(),
+    });
+    expect(createRes.statusCode).toBe(201);
+    const created = JSON.parse(createRes.body);
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/api/admin/members/${created.id}`,
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.status).toBe("prueba");
+    expect(body.leadStatus).toBe("en_seguimiento");
+    // leadNotes is NULL until an admin edits it (or the conversion hook
+    // prefixes the plan name in Plan 03 — neither applies to a fresh trial).
+    expect(body.leadNotes).toBeNull();
+    // createdBy is denormalized via the self-JOIN.
+    expect(body.createdBy).not.toBeNull();
+    expect(body.createdBy.userId).toBe(admin!.id);
+    const expectedName = [admin!.firstName, admin!.lastName]
+      .filter(Boolean)
+      .join(" ")
+      .trim();
+    if (expectedName.length > 0) {
+      expect(body.createdBy.name).toBe(expectedName);
+    } else {
+      // Fallback path in the service: an admin row with both names NULL
+      // would surface "—" rather than an empty string.
+      expect(body.createdBy.name).toBe("—");
+    }
+  });
 });

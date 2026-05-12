@@ -85,6 +85,25 @@ const memberProfileSchema = {
     onboardingProfile: onboardingProfileSchema,
     // Phase 102 (R7): true iff user has ≥1 is_trial=TRUE booking.
     hasUsedTrial: { type: "boolean" },
+    // Phase 114 (D-38): lead-lifecycle fields. Fastify's response
+    // serializer strips unlisted fields (see Plan 106-04), so these must
+    // be declared explicitly. `createdBy` allows additionalProperties:true
+    // because the object shape is small + closed in practice but the
+    // serializer escape hatch matches the Plan 106-04 precedent for
+    // optional denormalized JOIN payloads.
+    leadStatus: {
+      type: ["string", "null"],
+      enum: ["en_seguimiento", "cerrado", "perdido", null],
+    },
+    leadNotes: { type: ["string", "null"] },
+    createdBy: {
+      type: ["object", "null"],
+      additionalProperties: true,
+      properties: {
+        userId: { type: "integer" },
+        name: { type: "string" },
+      },
+    },
   },
 } as const;
 
