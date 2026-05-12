@@ -4,25 +4,6 @@
     <!-- Filters -->
     <!-- ================================================================== -->
     <div class="row q-col-gutter-sm q-mb-md items-end">
-      <div class="col-auto">
-        <q-btn-dropdown outline :label="dateRangeLabel" icon="date_range" dense>
-          <q-list dense>
-            <q-item
-              v-for="preset in datePresets"
-              :key="preset.label"
-              clickable
-              v-close-popup
-              @click="applyDatePreset(preset)"
-            >
-              <q-item-section>{{ preset.label }}</q-item-section>
-            </q-item>
-          </q-list>
-        </q-btn-dropdown>
-      </div>
-      <div class="col-auto text-caption text-grey-7 self-center">
-        {{ dateFrom }} al {{ dateTo }}
-      </div>
-
       <div class="col-12 col-sm-3 col-md-2">
         <q-select
           v-model="filters.leadStatus"
@@ -83,7 +64,7 @@
         />
       </div>
 
-      <div class="col-6 col-sm-2 col-md-1">
+      <div class="col-12 col-sm-3 col-md-2">
         <q-input
           v-model.number="filters.daysWithoutConvertingMin"
           type="number"
@@ -129,7 +110,7 @@
       row-key="userId"
       :loading="loading"
       v-model:pagination="pagination"
-      :rows-per-page-options="[25, 50, 100, 200]"
+      :rows-per-page-options="[20, 50, 100, 200]"
       @request="onPageChange"
       flat
       bordered
@@ -328,69 +309,6 @@ const filters = reactive<Filters>({
   search: '',
 });
 
-// ─── Date range (preset dropdown — matches Conversión tab) ──────────────
-
-function toIsoDate(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
-function getDaysAgo(from: Date, days: number): Date {
-  const d = new Date(from);
-  d.setDate(d.getDate() - days);
-  return d;
-}
-function getMonthStart(d: Date): Date {
-  return new Date(d.getFullYear(), d.getMonth(), 1);
-}
-function getMonthEnd(d: Date): Date {
-  return new Date(d.getFullYear(), d.getMonth() + 1, 0);
-}
-
-const dateFrom = ref(toIsoDate(getDaysAgo(new Date(), 30)));
-const dateTo = ref(toIsoDate(new Date()));
-
-const dateRangeLabel = computed(() => `${dateFrom.value} — ${dateTo.value}`);
-
-interface DatePreset {
-  label: string;
-  getRange: () => { dateFrom: string; dateTo: string };
-}
-
-const datePresets: DatePreset[] = [
-  {
-    label: 'Últimos 30 días',
-    getRange: () => ({
-      dateFrom: toIsoDate(getDaysAgo(new Date(), 30)),
-      dateTo: toIsoDate(new Date()),
-    }),
-  },
-  {
-    label: 'Últimos 90 días',
-    getRange: () => ({
-      dateFrom: toIsoDate(getDaysAgo(new Date(), 90)),
-      dateTo: toIsoDate(new Date()),
-    }),
-  },
-  {
-    label: 'Este mes',
-    getRange: () => ({
-      dateFrom: toIsoDate(getMonthStart(new Date())),
-      dateTo: toIsoDate(getMonthEnd(new Date())),
-    }),
-  },
-  {
-    label: 'Desde siempre',
-    getRange: () => ({ dateFrom: '2020-01-01', dateTo: toIsoDate(new Date()) }),
-  },
-];
-
-function applyDatePreset(preset: DatePreset): void {
-  const range = preset.getRange();
-  dateFrom.value = range.dateFrom;
-  dateTo.value = range.dateTo;
-  pagination.value.page = 1;
-  void load();
-}
-
 // ─── Table state ────────────────────────────────────────────────────────
 
 const rows = ref<TrialSessionsRowClient[]>([]);
@@ -400,7 +318,7 @@ const exporting = ref(false);
 
 const pagination = ref({
   page: 1,
-  rowsPerPage: 50,
+  rowsPerPage: 20,
   rowsNumber: 0,
   sortBy: null as string | null,
   descending: false,
@@ -540,8 +458,6 @@ const columns: QTableColumn<TrialSessionsRowClient>[] = [
 function buildServerFilters() {
   return {
     branchId: props.branchId,
-    dateFrom: dateFrom.value,
-    dateTo: dateTo.value,
     leadStatus: filters.leadStatus.length > 0 ? filters.leadStatus : undefined,
     attended: filters.attended ?? undefined,
     shift: filters.shift ?? undefined,
@@ -600,7 +516,7 @@ watch(filters, () => debouncedReload(), { deep: true });
 
 function onPageChange(props: Parameters<NonNullable<QTableProps['onRequest']>>[0]): void {
   pagination.value.page = props.pagination.page ?? 1;
-  pagination.value.rowsPerPage = props.pagination.rowsPerPage ?? 50;
+  pagination.value.rowsPerPage = props.pagination.rowsPerPage ?? 20;
   void load();
 }
 
