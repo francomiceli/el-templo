@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
-status: executing
-stopped_at: Phase 113 complete (admin schedule+activity CRUD; backend + frontend); ready for next phase
-last_updated: "2026-05-08T17:05:00.000Z"
-last_activity: 2026-05-08 -- Phase 113 Plan 02 complete (admin frontend UI)
+status: completed
+stopped_at: Phase 113 complete (Plan 01 backend hardening + Plan 02 admin frontend UI); ready for next phase
+last_updated: "2026-05-12T18:39:04.659Z"
+last_activity: 2026-05-08 -- Phase 113 Plan 02 complete
 progress:
-  total_phases: 103
+  total_phases: 104
   completed_phases: 90
-  total_plans: 405
-  completed_plans: 399
-  percent: 98
+  total_plans: 412
+  completed_plans: 400
+  percent: 97
 ---
 
 # Project State
@@ -181,6 +181,7 @@ _Updated after each plan completion_
 - Phase 102 added: Trial Classes (Sesiones de Prueba) — admins register potential members for a single free trial via SlotDetailDialog; `bookings.is_trial` excludes trials from capacity; one-trial-per-phone guard; "Clases de prueba" counter on alumno detail; Leads filter inferred from booking history (no `users.status` column — Option B); conversion to member reuses existing edit + Gestionar Plan flows
 - Phase 104 added: Planes vs Programas + Bundle "Todos los Programas" — separar conceptualmente plan presencial de programa virtual; nueva columna `subscription_plans.grants_all_programs` para el bundle; nueva columna `users.current_program_enrollment_id` para programa activo cuando hay múltiples enrollments; gating de `/sessions/*` por tipo de dayId (presencial vs enrollment); selector de programa en weekly view del member app; reemplazo de gating frágil de ReservasPage por `hasPresencialPlan`; seed del nuevo plan bundle ($20.000 ARS, 30 días)
 - Phase 110 added: Admin users por país + multi-sede staff — admin/gestion/owner alcance por país (`users.country`), coach/recepción multi-sede (`user_branches`), `branch_id` NOT NULL como sede personal, staff multisucursal por rol en app de miembros, Templo Online global, owner bypass; extiende `country-scope.ts` para usar `users.country` directamente y agregar branchIds para coach/recepción
+- Phase 114 added: Reporte tabular de sesiones de prueba — reemplaza el CSV manual de Google Sheets por reporte filtrable en módulo Reportes del admin (11 columnas: Lead, Fecha, Hora, Sucursal, Asistió, Estado del Lead, Gestiona, Comentarios, Turno, Periodo, Semana); nuevos campos `users.lead_status` (enum), `users.lead_notes` (TEXT), `bookings.created_by` (FK); hooks de subscription para auto-cerrar lead + prefijar plan en comentarios; descarta Rep./Asistió post rep./Asistencia Final/Profe1/Profe2 del CSV original
 
 ### Decisions
 
@@ -421,4 +422,4 @@ Last session: 2026-05-08T17:05:00.000Z
 Stopped at: Phase 113 complete (Plan 01 backend hardening + Plan 02 admin frontend UI); ready for next phase
 Resume file: None
 
-**Planned Phase:** 112 (Enrollment Service + Admin Add-ons) — 6 plans — 2026-05-04T22:51:06.993Z (Plan 01 complete)
+**Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z

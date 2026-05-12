@@ -2491,6 +2491,7 @@ _Phase 111 added: 2026-05-01 — origen: investigación caso Soledad Mailland (a
 
 - [ ] **Phase 112: Enrollment Service + Admin Add-ons** — Extract `EnrollmentService` centralizing the lifecycle of `program_enrollments` (replacing 6 dispersed inserts in `subscriptions/service.ts` + the fase-111 `tearDownBundleEnrollments`), add the four new columns + backfill, ship the admin add-on assignment endpoint with finance integration and lifecycle hooks (transfer on changePlan, teardown on cancel/expire), and add the admin UI section to manage add-ons in the member detail page. Internal structure surfaces as plans during `/gsd-plan-phase 112`.
 - [x] **Phase 113: CRUD admin de Schedules y Activities** — Backend hardening (overlap validation branch+day, activity name uniqueness, cascade-block on deactivation con `affectedSchedules` payload) + frontend admin UI (tabs Horarios/Actividades en HorariosPage, CreateSlotDialog modal). Endpoints CRUD ya existían — esta fase los endurece y agrega UX. Slots inmutables: para cambiar horario = desactivar viejo + crear nuevo. Out of scope: branches CRUD, bloqueos puntuales, fix subs huérfanas. ✓ 14/14 must-haves verified.
+- [ ] **Phase 114: Reporte tabular de sesiones de prueba** — Reporte fila-por-fila de sesiones de prueba en Reportes (admin), reemplazo del CSV manual `.docs/Sesiones de Prueba - SP - Base de datos.csv`. Columnas: Lead, Fecha, Hora, Sucursal, Asistió (auto desde attendance), Estado del Lead (enum manual: en_seguimiento/cerrado/perdido), Gestiona (admin que creó el trial), Comentarios (texto libre con prefijo auto del plan al cerrar), Turno/Periodo/Semana (derivados). Filtros: sede, fecha, estado, asistió, turno, gestiona, días sin convertir. Nuevos campos: `users.lead_status` enum nullable, `users.lead_notes` TEXT nullable, `bookings.created_by` FK users.id nullable. Hooks: lead_status='cerrado' + lead_notes prefijo al crear subscription; bookings.created_by seteado al crear trial.
 
 ## v4.85 Phase Details
 
@@ -2530,9 +2531,10 @@ _Phase 111 added: 2026-05-01 — origen: investigación caso Soledad Mailland (a
 
 ## v4.85 Progress
 
-| Phase                                   | Plans Complete | Status      | Completed |
-| --------------------------------------- | -------------- | ----------- | --------- |
-| 112. Enrollment Service + Admin Add-ons | 1/6            | In progress | -         |
+| Phase                                      | Plans Complete | Status      | Completed |
+| ------------------------------------------ | -------------- | ----------- | --------- |
+| 112. Enrollment Service + Admin Add-ons    | 1/6            | In progress | -         |
+| 114. Reporte tabular de sesiones de prueba | 0/0            | Not planned | -         |
 
 _Plan counts populated by `/gsd-plan-phase 112`._
 
@@ -2559,6 +2561,66 @@ Plans:
 
 - [x] 113-01-PLAN.md — Backend: overlap validation en createSchedule + activity name uniqueness + cascade-block on deactivation + integration tests (D-10/11/12/13/14/16)
 - [x] 113-02-PLAN.md — Frontend admin: CreateSlotDialog + tabs Horarios/Actividades en HorariosPage + cascade-error UX (D-17/18/19/20)
+
+### Phase 114: Reporte tabular de sesiones de prueba
+
+**Goal:** Reemplazar el CSV manual `.docs/Sesiones de Prueba - SP - Base de datos.csv` por un reporte tabular en el módulo Reportes del admin, alimentado automáticamente con la data que ya capturamos al crear trials y al asignar planes. Permite al equipo de gestión filtrar/auditar leads sin mantener una planilla a mano.
+
+**Depends on:** Nothing (independiente de fase 112; usa schema existente de bookings/users + módulo reports actual)
+
+**Disparador:** Hoy una persona mantiene a mano la planilla de Google Sheets con todas las sesiones de prueba (3500+ filas históricas). Toda la data ya vive en la DB (bookings is_trial=1, attendance, subscriptions, branches), salvo el estado del lead (Cerrado/Perdido/En seguimiento), los comentarios y el campo "Gestiona". Esta fase cierra ese gap con tres columnas nuevas + UI.
+
+**Columnas finales del reporte (11):** Lead, Fecha, Hora, Sucursal, Asistió, Estado del Lead, Gestiona, Comentarios, Turno, Periodo, Semana.
+
+**Columnas descartadas del CSV original:** Rep., Asistió post rep., Asistencia Final (vacías en la práctica), Profe 1, Profe 2 (no trackeamos coach por clase).
+
+**Decisiones de diseño (recap discusión 2026-05-12):**
+
+- **Estado del Lead:** enum manual con select en UI (`en_seguimiento` / `cerrado` / `perdido`). Default `en_seguimiento` al crear trial. Auto → `cerrado` al asignarle plan (en el hook de subscription creation). Override editable desde la ficha del lead.
+- **Asistió:** auto-derivado del attendance/booking status (qr_escaneado/confirmado → Sí; no_show o fecha pasada sin check-in → No; futura → vacío).
+- **Gestiona:** nuevo campo `bookings.created_by` seteado con el `request.user.id` del admin logueado al usar `POST /api/admin/trials`. Trials históricas → "—".
+- **Comentarios:** nuevo campo `users.lead_notes` (TEXT nullable). Al pasar a `cerrado`, prefijo automático con el nombre del plan vendido si está vacío. Editable.
+- **Filtros del reporte:** sede, fecha desde/hasta, estado del lead (multi-select), asistió, turno, gestiona, **días sin convertir ≥ N**.
+- **Histórico Gestiona:** no se hace backfill (mostrar "—" para trials anteriores al cambio).
+- **Asistencia Final, Rep., Asistió post rep.:** explícitamente fuera de alcance.
+
+**Out of scope:**
+
+- Tracking de coach por horario (Profe 1/Profe 2 del CSV original) — pertenece a una fase de scheduling separada.
+- Backfill de `bookings.created_by` para trials históricas.
+- Reportes admin nuevos no relacionados con trials (cobros, asistencia general, etc.).
+
+**Cambios DB previstos:**
+
+- `users.lead_status` ENUM('en_seguimiento','cerrado','perdido') NULL — default `en_seguimiento` para `status='prueba'`, NULL para el resto.
+- `users.lead_notes` TEXT NULL.
+- `bookings.created_by` INT NULL, FK → `users.id`.
+
+**Cambios backend previstos:**
+
+- Endpoint `GET /api/admin/reports/trial-sessions` (paginado + filtros + export CSV).
+- Endpoint `PATCH /api/admin/leads/:userId` (editar `lead_status` + `lead_notes`).
+- Hook en `SubscriptionService.create*` para usuarios con trial: setear `lead_status='cerrado'` y prefijar `lead_notes` con nombre del plan si está vacío.
+- Hook en `POST /api/admin/trials`: setear `bookings.created_by` con el admin logueado.
+
+**Cambios frontend previstos:**
+
+- Nueva sección/tab en Reportes del admin con tabla + filtros + export CSV.
+- En la ficha del lead: select de Estado del Lead + textarea de Comentarios (editables).
+
+**Requirements**: TRIAL-RPT-SCHEMA-01..05 (Plan 01), TRIAL-RPT-HOOKS-01..04 (Plans 02+03), TRIAL-RPT-EDIT-01..03 (Plan 04), TRIAL-RPT-API-01..05 (Plan 05), TRIAL-RPT-UI-01..05 (Plans 06+07). Derivados de los 43 D-XX lockeados en 114-CONTEXT.md.
+
+**Plans:** 7 plans
+
+Plans:
+
+- [ ] 114-01-PLAN.md — Schema migration: users.lead_status / lead_notes / created_by + 2 indexes + migration test (D-15..D-20)
+- [ ] 114-02-PLAN.md — Members service + trial hook: setear createdBy + lead_status='en_seguimiento' al crear trial (D-31)
+- [ ] 114-03-PLAN.md — Subscription conversion hook: extender recomputeUserStatus para auto-cerrar lead + prefijar plan en lead_notes (D-32, D-33, D-34)
+- [ ] 114-04-PLAN.md — PATCH /api/admin/leads/:userId: edit endpoint con scope + validación + tests (D-27..D-30)
+- [ ] 114-05-PLAN.md — GET /api/admin/reports/trial-sessions (paginado) + /export (CSV) (D-21..D-26, D-40..D-43)
+- [ ] 114-06-PLAN.md — Admin UI: tab Sesiones de Prueba en ReportesPage con filtros + tabla inline-edit + export CSV (D-35..D-37, D-39)
+- [ ] 114-07-PLAN.md — Admin UI: bloque Datos de Lead en AlumnoDetailPage para users con status='prueba' (D-38, D-39)
 
 ---
 
