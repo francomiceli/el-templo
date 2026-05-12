@@ -282,7 +282,16 @@ export const updateLeadSchema = {
       },
     },
     400: errorSchema,
-    403: errorSchema,
+    // 403 carries an extra `code` field (BRANCH_OUT_OF_SCOPE) so the admin
+    // frontend can disambiguate scope denial from generic 403s.
+    403: {
+      type: "object",
+      properties: {
+        error: { type: "string" },
+        message: { type: "string" },
+        code: { type: "string" },
+      },
+    },
     404: errorSchema,
     409: errorSchema,
   },
