@@ -17,6 +17,7 @@ import { blogRoutes } from "./modules/blog";
 import { academyRoutes } from "./modules/academy";
 import { appLandingRoutes } from "./modules/app-landing";
 import { memberRoutes } from "./modules/members";
+import { leadsRoutes } from "./modules/members/leads-routes";
 import {
   subscriptionRoutes,
   memberSubscriptionRoutes,
@@ -110,6 +111,11 @@ export async function buildApp() {
 
   // Member management routes (admin CRUD + notes)
   await app.register(memberRoutes, { prefix: "/api/admin/members" });
+
+  // Phase 114: Admin leads sub-router (PATCH lead_status / lead_notes on
+  // users with status='prueba'). Sibling of /api/admin/members because the
+  // verb space is distinct and the plugin needs its own onRequest hook.
+  await app.register(leadsRoutes, { prefix: "/api/admin/leads" });
 
   // Subscription management routes (plans CRUD + subscription lifecycle)
   await app.register(subscriptionRoutes, {
