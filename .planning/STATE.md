@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
-status: completed
-stopped_at: Phase 113 complete (Plan 01 backend hardening + Plan 02 admin frontend UI); ready for next phase
-last_updated: "2026-05-12T18:39:04.659Z"
-last_activity: 2026-05-08 -- Phase 113 Plan 02 complete
+status: verifying
+stopped_at: "Completed 114-03-PLAN.md (conversion hook: lead_status='cerrado' + lead_notes prefill on first conversion)"
+last_updated: "2026-05-12T19:33:52.562Z"
+last_activity: 2026-05-12
 progress:
   total_phases: 104
   completed_phases: 90
   total_plans: 412
-  completed_plans: 400
-  percent: 97
+  completed_plans: 403
+  percent: 98
 ---
 
 # Project State
@@ -27,8 +27,8 @@ See: .planning/PROJECT.md (updated 2026-05-04)
 
 Phase: 113 (crud-admin-schedules-activities) — COMPLETE
 Plan: 2 of 2 complete
-Status: Phase 113 complete (Plan 01 backend + Plan 02 frontend admin UI)
-Last activity: 2026-05-08 -- Phase 113 Plan 02 complete
+Status: Phase complete — ready for verification
+Last activity: 2026-05-12
 
 ## Performance Metrics
 
@@ -166,6 +166,7 @@ _Updated after each plan completion_
 | Phase 112 P04 | 26min | 5 tasks | 8 files |
 | Phase 113 P01 | 25min | 3 tasks | 6 files |
 | Phase 113 P02 | 7min | 3 tasks | 4 files |
+| Phase 114 P03 | 11min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -402,6 +403,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - Plan 112-04: BalanceService.applyDelta gained early-skip for target_kind='enrollment' (Rule 1) — admin add-on charges are one-shot, no running obligation; mirrors existing 'transaction' precedent in the same method
 - Plan 112-04: EnrollmentService constructor takes optional 3rd-arg transactionService — only the new admin route wires it; Plan 02's 11 DI sites unchanged because they never call enrollAddon
 - Plan 112-04: cancel audit reuses action='plan_assigned' with payload.cancelledByAdmin=true rather than extending the AuditAction enum — minimal-surface, defer enum widening
+- Phase 114-03: SET clause ordering matters in recomputeUserStatus — lead_status/lead_notes BEFORE converted_at to respect MySQL's left-to-right SET evaluation semantics
 
 ### Pending Todos
 
@@ -418,8 +420,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-05-08T17:05:00.000Z
-Stopped at: Phase 113 complete (Plan 01 backend hardening + Plan 02 admin frontend UI); ready for next phase
+Last session: 2026-05-12T19:33:52.537Z
+Stopped at: Completed 114-03-PLAN.md (conversion hook: lead_status='cerrado' + lead_notes prefill on first conversion)
 Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
