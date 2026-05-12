@@ -152,6 +152,87 @@ export interface TrialConversionReport {
 // without depending on reports/. Phase 106 relocation.
 export { type PaginatedResult } from "../shared/types";
 
+// -- Trial Sessions Report (Phase 114-05) ------------------------------------
+//
+// One row per LEAD (user), not per booking. The report is driven by the
+// latest non-cancelado trial booking per user (D-03 / D-42 / D-43).
+// Leads with only cancelado trials are excluded entirely.
+
+export type AttendedFilter = "true" | "false" | "pending";
+export type ShiftFilter = "TM" | "TT";
+export type LeadStatusValue = "en_seguimiento" | "cerrado" | "perdido";
+
+export interface TrialSessionsFilters {
+  branchId?: number;
+  country?: "AR" | "ES";
+  /** ISO YYYY-MM-DD on bookings.booking_date of the latest non-cancelled trial. */
+  dateFrom?: string;
+  dateTo?: string;
+  /** Multi-value: ?leadStatus=cerrado&leadStatus=perdido. */
+  leadStatus?: LeadStatusValue[];
+  attended?: AttendedFilter;
+  shift?: ShiftFilter;
+  /**
+   * Owner-only filter (D-44). The route layer silently strips this when
+   * request.user.role !== 'owner' (with a request.log.warn) — the service
+   * trusts the shape it receives.
+   */
+  gestionaUserId?: number;
+  /**
+   * Includes only NON-converted leads where
+   * DATEDIFF(CURDATE(), bookings.booking_date) >= N for the chosen
+   * representative trial booking (D-40).
+   */
+  daysWithoutConvertingMin?: number;
+  /** Token-based name search; reuses buildMemberNameSearchCondition pattern. */
+  search?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface TrialSessionsRow {
+  /** id of the latest non-cancelado trial booking for this user (D-42). */
+  bookingId: number;
+  userId: number;
+  /** firstName + lastName trimmed (D-04). */
+  lead: string;
+  /** YYYY-MM-DD — API exposes ISO; UI renders DD/MM/YYYY (D-05). */
+  bookingDate: string;
+  /** HH:MM (D-06). */
+  startTime: string;
+  branchId: number;
+  branchName: string;
+  /**
+   * D-08: 'si' when an attendance row exists for the chosen booking;
+   * 'no' when the booking_date is in the past with no attendance; null
+   * when the booking_date is today or future (session hasn't happened yet).
+   */
+  attended: "si" | "no" | null;
+  leadStatus: LeadStatusValue | null;
+  /** D-09: leadStatus ?? (convertedAt ? 'cerrado' : 'en_seguimiento'). */
+  leadStatusEffective: LeadStatusValue;
+  /** Null when the lead was self-registered or pre-dates Plan 02 (D-10/D-20). */
+  createdBy: { userId: number; name: string } | null;
+  leadNotes: string | null;
+  /** D-12: 'TM' when startTime < '12:00', else 'TT'. */
+  shift: ShiftFilter;
+  /** D-13: bookingDate.slice(0,7) — 'YYYY-MM'. */
+  period: string;
+  /** D-14: ISO Mon-Sun range — 'YYYY-MM-DD --- YYYY-MM-DD'. */
+  weekRange: string;
+  /** Math.floor((today - bookingDate) / 1day). Negative when booking is in the future. */
+  daysSinceTrial: number;
+  /** users.converted_at IS NOT NULL. */
+  converted: boolean;
+}
+
+export interface TrialSessionsReport {
+  rows: TrialSessionsRow[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
 // -- CAJA-03 — Outstanding balances (aging report) -------------------------
 // Phase 109-02. Internal naming: "aging" / "outstanding-balances". UI label
 // always "Deudas" (D-01, D-03 — never expose "aging" to users).

@@ -376,6 +376,139 @@ export const outstandingBalancesExportSchema = {
   },
 } as const;
 
+// =============================================================================
+// Trial Sessions Report Schema (Phase 114-05)
+// =============================================================================
+//
+// One row per lead (D-03 / D-42 / D-43). Listing endpoint is paginated;
+// export endpoint shares the same filters minus pagination and returns
+// binary CSV (response schema omitted on purpose).
+//
+// `leadStatus` is multi-value: accepted as a single string OR an array of
+// strings via JSON Schema `anyOf` (the existing reports module uses Fastify's
+// default AJV configuration; AJV's array coercion via `coerceTypes: 'array'`
+// is not enabled here, so we accept both shapes explicitly).
+//
+// `gestionaUserId` (D-44): the schema accepts the value. The route handler
+// silently strips it when the caller is not owner — schema-level rejection
+// would leak the existence of an owner-only filter to non-owners.
+//
+// Row sub-objects use `additionalProperties: true` on `createdBy` so
+// fast-json-stringify does not silently strip the `userId` / `name` fields
+// (mirrors the Plan 106-04 SUMMARY note).
+
+const trialSessionsQuerystringProps = {
+  branchId: { type: "integer", minimum: 1 },
+  country: { type: "string", enum: ["AR", "ES"] },
+  dateFrom: { type: "string", format: "date" },
+  dateTo: { type: "string", format: "date" },
+  leadStatus: {
+    anyOf: [
+      { type: "string", enum: ["en_seguimiento", "cerrado", "perdido"] },
+      {
+        type: "array",
+        items: {
+          type: "string",
+          enum: ["en_seguimiento", "cerrado", "perdido"],
+        },
+      },
+    ],
+  },
+  attended: { type: "string", enum: ["true", "false", "pending"] },
+  shift: { type: "string", enum: ["TM", "TT"] },
+  gestionaUserId: { type: "integer", minimum: 1 },
+  daysWithoutConvertingMin: { type: "integer", minimum: 0 },
+  search: { type: "string", maxLength: 100 },
+} as const;
+
+const trialSessionsRowSchema = {
+  type: "object",
+  properties: {
+    bookingId: { type: "integer" },
+    userId: { type: "integer" },
+    lead: { type: "string" },
+    bookingDate: { type: "string" },
+    startTime: { type: "string" },
+    branchId: { type: "integer" },
+    branchName: { type: "string" },
+    attended: {
+      anyOf: [{ type: "string", enum: ["si", "no"] }, { type: "null" }],
+    },
+    leadStatus: {
+      anyOf: [
+        {
+          type: "string",
+          enum: ["en_seguimiento", "cerrado", "perdido"],
+        },
+        { type: "null" },
+      ],
+    },
+    leadStatusEffective: {
+      type: "string",
+      enum: ["en_seguimiento", "cerrado", "perdido"],
+    },
+    createdBy: {
+      anyOf: [
+        {
+          type: "object",
+          properties: {
+            userId: { type: "integer" },
+            name: { type: "string" },
+          },
+          additionalProperties: true,
+        },
+        { type: "null" },
+      ],
+    },
+    leadNotes: { type: ["string", "null"] },
+    shift: { type: "string", enum: ["TM", "TT"] },
+    period: { type: "string" },
+    weekRange: { type: "string" },
+    daysSinceTrial: { type: "integer" },
+    converted: { type: "boolean" },
+  },
+} as const;
+
+export const trialSessionsReportSchema = {
+  querystring: {
+    type: "object",
+    properties: {
+      ...trialSessionsQuerystringProps,
+      page: { type: "integer", minimum: 1 },
+      limit: { type: "integer", minimum: 1, maximum: 200 },
+    },
+  },
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        rows: {
+          type: "array",
+          items: trialSessionsRowSchema,
+        },
+        total: { type: "integer" },
+        page: { type: "integer" },
+        limit: { type: "integer" },
+      },
+    },
+    401: errorSchema,
+    403: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+export const trialSessionsExportSchema = {
+  querystring: {
+    type: "object",
+    properties: trialSessionsQuerystringProps,
+  },
+  response: {
+    401: errorSchema,
+    403: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
 export const accessExportSchema = {
   querystring: accessReportSchema.querystring,
 } as const;
