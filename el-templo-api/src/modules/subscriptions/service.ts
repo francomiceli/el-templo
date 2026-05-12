@@ -4079,6 +4079,17 @@ export class SubscriptionService {
    *  - else leave status unchanged (freemium/prueba without sub stays as-is)
    *  - converted_at: set to CURRENT_TIMESTAMP if NULL AND new status is
    *    'activo' AND user has any is_trial booking (Phase 102-07 absorbed)
+   *
+   * Phase 114 (D-32 / D-33): the SAME conversion predicate also gates two
+   * additional lead-lifecycle writes folded into this UPDATE so they share
+   * the parent subscription transaction (atomic rollback):
+   *  - lead_status = 'cerrado' on first conversion of a trial user (override
+   *    of the 'en_seguimiento' default seeded by POST /admin/members/trial).
+   *  - lead_notes = '<plan.name>' on first conversion ONLY IF lead_notes IS
+   *    NULL OR empty string. Pre-existing manual notes are NEVER overwritten.
+   * D-34 keeps the hook scoped to subscription create — admin-initiated
+   * lead_status flips go through PATCH /admin/leads/:userId (Plan 04) which
+   * deliberately does NOT touch lead_notes.
    */
   private async recomputeUserStatus(
     userId: number,
@@ -4087,6 +4098,12 @@ export class SubscriptionService {
     // 'activo' requires a sub that has actually started — a 'scheduled' sub
     // (or an 'active' sub whose startDate is still in the future) does NOT
     // make the member active today. Hence the s.start_date <= CURDATE() guard.
+    //
+    // For the Phase 114 lead_status/lead_notes branches: the conversion
+    // predicate (converted_at IS NULL AND active-sub-started AND is_trial
+    // booking exists) is replayed because MySQL single-statement semantics
+    // evaluate all CASE expressions against the BEFORE-image of the row,
+    // so the gate is consistent across converted_at, lead_status, lead_notes.
     await tx.execute(sql`
       UPDATE users u
       SET
@@ -4116,6 +4133,49 @@ export class SubscriptionService {
             )
           THEN CURRENT_TIMESTAMP
           ELSE u.converted_at
+        END,
+        u.lead_status = CASE
+          WHEN u.converted_at IS NULL
+            AND EXISTS (
+              SELECT 1 FROM subscriptions s
+              WHERE s.user_id = u.id
+                AND s.subscription_status IN ('active','paused')
+                AND s.start_date <= CURDATE()
+                AND (s.end_date IS NULL OR s.end_date >= CURDATE())
+            )
+            AND EXISTS (
+              SELECT 1 FROM bookings b
+              WHERE b.member_id = u.id AND b.is_trial = 1
+            )
+          THEN 'cerrado'
+          ELSE u.lead_status
+        END,
+        u.lead_notes = CASE
+          WHEN u.converted_at IS NULL
+            AND (u.lead_notes IS NULL OR u.lead_notes = '')
+            AND EXISTS (
+              SELECT 1 FROM subscriptions s
+              WHERE s.user_id = u.id
+                AND s.subscription_status IN ('active','paused')
+                AND s.start_date <= CURDATE()
+                AND (s.end_date IS NULL OR s.end_date >= CURDATE())
+            )
+            AND EXISTS (
+              SELECT 1 FROM bookings b
+              WHERE b.member_id = u.id AND b.is_trial = 1
+            )
+          THEN (
+            SELECT sp.name
+            FROM subscriptions s2
+            INNER JOIN subscription_plans sp ON sp.id = s2.plan_id
+            WHERE s2.user_id = u.id
+              AND s2.subscription_status IN ('active','paused')
+              AND s2.start_date <= CURDATE()
+              AND (s2.end_date IS NULL OR s2.end_date >= CURDATE())
+            ORDER BY s2.created_at DESC
+            LIMIT 1
+          )
+          ELSE u.lead_notes
         END
       WHERE u.id = ${userId}
     `);
