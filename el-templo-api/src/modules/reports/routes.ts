@@ -14,11 +14,15 @@ import { ReportsService } from "./service";
 import { handleServiceError } from "../shared/error-handler";
 import type {
   AccessReportFilters,
+  AttendedFilter,
   ChargeReportFilters,
   ExpiringReportFilters,
   InactiveReportFilters,
+  LeadStatusValue,
   OutstandingBalancesFilters,
+  ShiftFilter,
   TrialConversionFilters,
+  TrialSessionsFilters,
 } from "./types";
 import {
   accessReportSchema,
@@ -28,6 +32,8 @@ import {
   outstandingBalancesSchema,
   outstandingBalancesExportSchema,
   trialConversionReportSchema,
+  trialSessionsReportSchema,
+  trialSessionsExportSchema,
   accessExportSchema,
   chargeExportSchema,
   expiringExportSchema,
@@ -612,6 +618,94 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
       }
     },
   );
+
+  // ============================================================================
+  // Trial Sessions Report (Phase 114-05)
+  // ============================================================================
+  //
+  // GET /trial-sessions          — paginated JSON.
+  // GET /trial-sessions/export   — CSV (BOM + UTF-8 body, 10000-row hard cap).
+  //
+  // Both routes:
+  //   - Inherit CAJA_ROLES gate + attachCountryScope from the parent plugin's
+  //     onRequest hook (D-25).
+  //   - Apply requireBranchAccess({ from: "query.branchId", optional: true }).
+  //   - Run buildTrialSessionsFilters which:
+  //     (a) builds a TrialSessionsFilters from the query,
+  //     (b) silently strips `gestionaUserId` when caller is NOT owner (D-44).
+
+  type TrialSessionsQuery = {
+    branchId?: number;
+    country?: "AR" | "ES";
+    dateFrom?: string;
+    dateTo?: string;
+    leadStatus?: LeadStatusValue | LeadStatusValue[];
+    attended?: AttendedFilter;
+    shift?: ShiftFilter;
+    gestionaUserId?: number;
+    daysWithoutConvertingMin?: number;
+    search?: string;
+    page?: number;
+    limit?: number;
+  };
+
+  fastify.get<{ Querystring: TrialSessionsQuery }>(
+    "/trial-sessions",
+    {
+      schema: trialSessionsReportSchema,
+      preHandler: [
+        requireBranchAccess({ from: "query.branchId", optional: true }),
+      ],
+    },
+    async (request, reply) => {
+      try {
+        const filters = buildTrialSessionsFilters(request);
+        return await reportsService.getTrialSessionsReport(filters);
+      } catch (err: unknown) {
+        handleServiceError(
+          err,
+          reply,
+          request.log,
+          "get trial sessions report",
+        );
+      }
+    },
+  );
+
+  fastify.get<{ Querystring: TrialSessionsQuery }>(
+    "/trial-sessions/export",
+    {
+      schema: trialSessionsExportSchema,
+      preHandler: [
+        requireBranchAccess({ from: "query.branchId", optional: true }),
+      ],
+    },
+    async (request, reply) => {
+      try {
+        const filters = buildTrialSessionsFilters(request);
+        const csv = await reportsService.exportTrialSessions(filters);
+
+        const today = new Date().toISOString().split("T")[0];
+        // The leading "\uFEFF" is the UTF-8 BOM (U+FEFF). Excel requires it to
+        // auto-detect UTF-8 in CSVs. We type the SIX-character JS escape — the
+        // literal invisible byte is forbidden in source per the plan policy.
+        reply
+          .header("Content-Type", "text/csv; charset=utf-8")
+          .header(
+            "Content-Disposition",
+            `attachment; filename="sesiones-de-prueba-${today}.csv"`,
+          )
+          .send("\uFEFF" + csv);
+      } catch (err: unknown) {
+        handleServiceError(
+          err,
+          reply,
+          request.log,
+          "export trial sessions report",
+        );
+      }
+    },
+  );
 };
 
 // =============================================================================
@@ -669,4 +763,85 @@ async function sendExcelReply(
     )
     .header("Content-Disposition", `attachment; filename="${filename}"`)
     .send(Buffer.from(buffer as ArrayBuffer));
+}
+
+/**
+ * Phase 114-05 — build TrialSessionsFilters from the request, applying the
+ * D-44 silent strip on `gestionaUserId` for non-owners.
+ *
+ * D-44: the "Gestiona" filter is owner-only. When a non-owner sends
+ * `?gestionaUserId=...`, the server SILENTLY ignores the parameter (with a
+ * `request.log.warn` for observability). We deliberately do NOT 403 — that
+ * would leak the existence of an owner-only filter to non-owners. The UI
+ * also hides the filter for non-owners (Plan 06), so reaching the server
+ * with this param signals a tampered client.
+ *
+ * `leadStatus` arrives as either a single string OR an array (AJV `anyOf`
+ * in the schema; see schemas.ts). Normalize to a non-empty array here so
+ * the service sees a uniform shape.
+ *
+ * `country` is sourced from `request.scope.country` (set by attachCountryScope
+ * on the parent plugin), NOT from `request.query.country` — the country-scope
+ * hook is the single source of truth and already honors the owner toggle.
+ */
+function buildTrialSessionsFilters(
+  request: import("fastify").FastifyRequest<{
+    Querystring: {
+      branchId?: number;
+      dateFrom?: string;
+      dateTo?: string;
+      leadStatus?:
+        | "en_seguimiento"
+        | "cerrado"
+        | "perdido"
+        | Array<"en_seguimiento" | "cerrado" | "perdido">;
+      attended?: "true" | "false" | "pending";
+      shift?: "TM" | "TT";
+      gestionaUserId?: number;
+      daysWithoutConvertingMin?: number;
+      search?: string;
+      page?: number;
+      limit?: number;
+    };
+  }>,
+): TrialSessionsFilters {
+  const q = request.query;
+
+  // D-44 silent strip: defense-in-depth at the server. The route trusts only
+  // the JWT-derived role (request.user.role), never the client-asserted role.
+  let gestionaUserId: number | undefined = q.gestionaUserId;
+  if (gestionaUserId !== undefined && request.user.role !== "owner") {
+    request.log.warn(
+      {
+        userId: request.user.userId,
+        role: request.user.role,
+        attemptedFilter: gestionaUserId,
+      },
+      "gestionaUserId filter ignored: owner-only",
+    );
+    gestionaUserId = undefined;
+  }
+
+  // Normalize leadStatus: AJV `anyOf` allows either a single string or an
+  // array. The service expects an array (or undefined).
+  let leadStatus: Array<"en_seguimiento" | "cerrado" | "perdido"> | undefined;
+  if (q.leadStatus !== undefined) {
+    leadStatus = Array.isArray(q.leadStatus) ? q.leadStatus : [q.leadStatus];
+    if (leadStatus.length === 0) leadStatus = undefined;
+  }
+
+  return {
+    branchId: q.branchId,
+    country: request.scope.country ?? undefined,
+    dateFrom: q.dateFrom,
+    dateTo: q.dateTo,
+    leadStatus,
+    attended: q.attended,
+    shift: q.shift,
+    gestionaUserId,
+    daysWithoutConvertingMin: q.daysWithoutConvertingMin,
+    search: q.search,
+    page: q.page,
+    limit: q.limit,
+  };
 }

@@ -1148,7 +1148,7 @@ export class ReportsService {
       FROM (
         SELECT b2.member_id, MAX(b2.id) AS booking_id
         FROM ${schema.bookings} AS b2
-        WHERE b2.is_trial = 1 AND b2.status <> 'cancelado'
+        WHERE b2.is_trial = 1 AND b2.booking_status <> 'cancelado'
         GROUP BY b2.member_id
       ) AS lt
       JOIN ${schema.bookings} AS b      ON b.id = lt.booking_id
@@ -1159,7 +1159,7 @@ export class ReportsService {
         ON a.member_id = b.member_id
        AND a.schedule_id = b.schedule_id
        AND a.session_date = b.booking_date
-       AND a.status = 'confirmado'
+       AND a.attendance_status = 'confirmado'
       LEFT JOIN ${schema.users} AS creator ON creator.id = u.created_by
       WHERE u.deleted_at IS NULL
         ${conds}
@@ -1206,7 +1206,7 @@ export class ReportsService {
       FROM (
         SELECT b2.member_id, MAX(b2.id) AS booking_id
         FROM ${schema.bookings} AS b2
-        WHERE b2.is_trial = 1 AND b2.status <> 'cancelado'
+        WHERE b2.is_trial = 1 AND b2.booking_status <> 'cancelado'
         GROUP BY b2.member_id
       ) AS lt
       JOIN ${schema.bookings}  AS b      ON b.id = lt.booking_id
@@ -1217,7 +1217,7 @@ export class ReportsService {
         ON a.member_id = b.member_id
        AND a.schedule_id = b.schedule_id
        AND a.session_date = b.booking_date
-       AND a.status = 'confirmado'
+       AND a.attendance_status = 'confirmado'
       LEFT JOIN ${schema.users} AS creator ON creator.id = u.created_by
       WHERE u.deleted_at IS NULL
         ${conds}
@@ -1398,11 +1398,30 @@ export class ReportsService {
     }
 
     if (filters.search !== undefined && filters.search.trim().length > 0) {
-      const searchCond = buildMemberNameSearchCondition(filters.search, {
-        includeDni: false,
+      // The shared buildMemberNameSearchCondition() emits `users.first_name`
+      // bare-column references via drizzle's `schema.users.firstName`. Our
+      // query aliases `users AS u` and `users AS creator`, so referencing
+      // the bare `users.first_name` would be ambiguous (and is actually
+      // wrong — there is no un-aliased `users` table in the FROM clause).
+      // Inline the predicate against the `u.` alias to avoid the conflict
+      // while preserving the same token-AND semantics (search by first /
+      // last / concat).
+      const tokens = filters.search
+        .split(/\s+/)
+        .map((t) => t.trim())
+        .filter((t) => t.length > 0);
+      const tokenPreds: SQL[] = tokens.map((token) => {
+        const pattern = `%${token}%`;
+        return sql`(u.first_name LIKE ${pattern}
+          OR u.last_name LIKE ${pattern}
+          OR CONCAT_WS(' ', u.first_name, u.last_name) LIKE ${pattern})`;
       });
-      if (searchCond !== null) {
-        preds.push(searchCond);
+      if (tokenPreds.length > 0) {
+        preds.push(
+          tokenPreds.length === 1
+            ? tokenPreds[0]
+            : sql.join(tokenPreds, sql` AND `),
+        );
       }
     }
 
