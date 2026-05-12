@@ -166,7 +166,7 @@ const PAGE_SIZE = 50;
 const filters = reactive<{
   branchId: number | null;
   currency: string | null;
-  search: string;
+  search: string | null;
 }>({ branchId: null, currency: null, search: '' });
 
 const items = ref<OutstandingBalanceRow[]>([]);
@@ -271,7 +271,7 @@ function currentFilters(): OutstandingBalancesFilters {
     branchId: filters.branchId ?? undefined,
     country: props.countryScope,
     currency: filters.currency ?? undefined,
-    search: filters.search.trim() ? filters.search.trim() : undefined,
+    search: filters.search?.trim() ? filters.search.trim() : undefined,
   };
 }
 
