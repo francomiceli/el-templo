@@ -205,4 +205,70 @@ describe("POST /api/admin/members/trial", () => {
     });
     expect(res.statusCode).toBe(409);
   });
+
+  // Phase 114 D-31: trial creation seeds the lead lifecycle.
+  // lead_status='en_seguimiento' (the only valid initial state for an
+  // admin-created trial) and created_by=<JWT admin id> (audit trail).
+  it("sets lead_status='en_seguimiento' and created_by from JWT", async () => {
+    // Resolve admin@test.com's id so we can assert created_by equals it.
+    const [admin] = await app.db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.email, "admin@test.com"));
+    expect(admin?.id).toBeGreaterThan(0);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/admin/members/trial",
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: basePayload(),
+    });
+    expect(res.statusCode).toBe(201);
+    const body = JSON.parse(res.body);
+
+    const [row] = await app.db
+      .select({
+        leadStatus: users.leadStatus,
+        createdBy: users.createdBy,
+        status: users.status,
+      })
+      .from(users)
+      .where(eq(users.id, body.id));
+
+    expect(row?.leadStatus).toBe("en_seguimiento");
+    expect(row?.createdBy).toBe(admin!.id);
+    // Regression guard: pre-existing trial behavior preserved.
+    expect(row?.status).toBe("prueba");
+  });
+
+  // Phase 114 D-31 / T-114-02-01: a client posting createdBy in the body
+  // must NOT be able to spoof the audit trail. Fastify's default AJV is
+  // configured with removeAdditional=true, so additionalProperties:false on
+  // the schema strips unknown keys before the handler runs (verified in
+  // sibling test above). The contract that matters: the spoofed createdBy
+  // never reaches storage — created_by comes from the JWT only.
+  it("ignores client-supplied createdBy (additionalProperties strips it)", async () => {
+    const [admin] = await app.db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.email, "admin@test.com"));
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/admin/members/trial",
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: { ...basePayload(), createdBy: 999999 },
+    });
+    expect(res.statusCode).toBe(201);
+    const body = JSON.parse(res.body);
+
+    const [row] = await app.db
+      .select({ createdBy: users.createdBy })
+      .from(users)
+      .where(eq(users.id, body.id));
+
+    // The spoofed 999999 is stripped; created_by is the JWT admin id.
+    expect(row?.createdBy).toBe(admin!.id);
+    expect(row?.createdBy).not.toBe(999999);
+  });
 });
