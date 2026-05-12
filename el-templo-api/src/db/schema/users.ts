@@ -7,6 +7,8 @@ import {
   boolean,
   date,
   index,
+  text,
+  type AnyMySqlColumn,
 } from "drizzle-orm/mysql-core";
 import { relations } from "drizzle-orm";
 import { branches } from "./branches";
@@ -49,6 +51,16 @@ export const userStatusEnum = mysqlEnum("status", [
   "prueba",
   "activo",
   "inactivo",
+]);
+// Phase 114 (D-15): lead lifecycle status for users with status='prueba'.
+// NULL for staff/freemium/activo/inactivo. Set to 'en_seguimiento' on
+// POST /admin/members/trial (Plan 02). Overridden to 'cerrado' by the
+// subscription create hook (Plan 03). Editable by admin via PATCH
+// /api/admin/leads/:userId (Plan 04).
+export const leadStatusEnum = mysqlEnum("lead_status", [
+  "en_seguimiento",
+  "cerrado",
+  "perdido",
 ]);
 
 export const users = mysqlTable(
@@ -96,6 +108,24 @@ export const users = mysqlTable(
     // Phase 102-07: trial→alumno conversion timestamp. Set once, on first
     // subscription creation if the user has any is_trial=1 booking.
     convertedAt: timestamp("converted_at"),
+    // Phase 114 (D-15): lead lifecycle status; NULL for non-leads. Set to
+    // 'en_seguimiento' on POST /admin/members/trial. Overridden to 'cerrado'
+    // by the subscription create hook when a lead converts (Plan 03).
+    // Admin-editable via PATCH /api/admin/leads/:userId (Plan 04). No DB
+    // default — explicit setter at insert time only (D-15, D-20).
+    leadStatus: leadStatusEnum,
+    // Phase 114 (D-16): free-text comments on the lead. Editable by admin.
+    // Prefilled with the plan name on first conversion if NULL/empty (D-11).
+    leadNotes: text("lead_notes"),
+    // Phase 114 (D-17): admin (users.id) who created the lead via POST
+    // /admin/members/trial. NULL for self-registered freemium, staff, and
+    // historical trials (no backfill — D-20). ON DELETE SET NULL guards
+    // against admin deletion (in practice we soft-delete, but the FK must
+    // hold). Self-referencing FK: typed via AnyMySqlColumn callback to
+    // avoid circular-init TypeScript error.
+    createdBy: int("created_by").references((): AnyMySqlColumn => users.id, {
+      onDelete: "set null",
+    }),
     // Phase 104 R5: pointer to the program_enrollment the member is currently
     // viewing. NULL means "Templo view" (only valid if user has presencial
     // plan). Set/cleared by PUT /api/members/me/current-program (Plan 04).
@@ -111,6 +141,9 @@ export const users = mysqlTable(
     // is_active column is dropped in migration 0100.
     index("idx_users_status").on(table.status),
     index("idx_users_converted_at").on(table.convertedAt),
+    // Phase 114 (D-18): filter performance for the trial sessions report.
+    index("idx_users_lead_status").on(table.leadStatus),
+    index("idx_users_created_by").on(table.createdBy),
   ],
 );
 
