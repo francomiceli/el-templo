@@ -80,6 +80,28 @@ export function useUsersApi() {
     }
   }
 
+  /**
+   * Phase 114-06 (D-44): owner-only thin wrapper that fetches the staff list
+   * and returns it directly (without mutating the shared `users` ref used by
+   * UsuariosPage). The backend endpoint is owner-only — see
+   * `el-templo-api/src/modules/users/routes.ts:24-28`. This composable does
+   * NOT widen the role gate; callers must check `authStore.user?.role ===
+   * 'owner'` before invoking, otherwise the server will 403.
+   */
+  async function fetchStaff(): Promise<StaffUser[]> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<StaffUser[]>('/admin/users');
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cargando usuarios');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   async function createUser(input: CreateStaffInput): Promise<StaffUser> {
     loading.value = true;
     error.value = null;
@@ -139,5 +161,15 @@ export function useUsersApi() {
     users.value = [];
   }
 
-  return { loading, error, users, fetchUsers, createUser, updateUser, setStaffDisabled, cleanup };
+  return {
+    loading,
+    error,
+    users,
+    fetchUsers,
+    fetchStaff,
+    createUser,
+    updateUser,
+    setStaffDisabled,
+    cleanup,
+  };
 }

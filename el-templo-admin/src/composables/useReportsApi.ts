@@ -21,6 +21,56 @@ import type {
   TrialConversionReport,
 } from 'src/types/report';
 
+// ─── Phase 114-06: Trial Sessions Report types ─────────────────────────
+
+export type TrialAttendedFilter = 'true' | 'false' | 'pending';
+export type TrialShiftFilter = 'TM' | 'TT';
+export type TrialLeadStatusValue = 'en_seguimiento' | 'cerrado' | 'perdido';
+
+export interface TrialSessionsFiltersClient {
+  branchId?: number;
+  country?: 'AR' | 'ES';
+  dateFrom?: string;
+  dateTo?: string;
+  leadStatus?: TrialLeadStatusValue[];
+  attended?: TrialAttendedFilter;
+  shift?: TrialShiftFilter;
+  // Owner-only (D-44). Frontend MUST gate sending this; server silently
+  // strips it for non-owners but we belt-and-suspenders here.
+  gestionaUserId?: number;
+  daysWithoutConvertingMin?: number;
+  search?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface TrialSessionsRowClient {
+  bookingId: number;
+  userId: number;
+  lead: string;
+  bookingDate: string; // YYYY-MM-DD
+  startTime: string; // HH:MM
+  branchId: number;
+  branchName: string;
+  attended: 'si' | 'no' | null;
+  leadStatus: TrialLeadStatusValue | null;
+  leadStatusEffective: TrialLeadStatusValue;
+  createdBy: { userId: number; name: string } | null;
+  leadNotes: string | null;
+  shift: TrialShiftFilter;
+  period: string;
+  weekRange: string;
+  daysSinceTrial: number;
+  converted: boolean;
+}
+
+export interface TrialSessionsResult {
+  rows: TrialSessionsRowClient[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
 export function useReportsApi() {
   const loading = ref(false);
   const error = ref<string | null>(null);
@@ -183,6 +233,74 @@ export function useReportsApi() {
     }
   }
 
+  // ─── Phase 114-06: Trial Sessions Report ───────────────────────────────
+  //
+  // Plan 05 SUMMARY documents the API shape:
+  //   GET /admin/reports/trial-sessions       (paginated JSON)
+  //   GET /admin/reports/trial-sessions/export (CSV with UTF-8 BOM)
+  //
+  // Multi-value query params (`leadStatus`) must be serialized as REPEATED
+  // KEYS (`?leadStatus=a&leadStatus=b`) — that is what the Fastify schema
+  // expects. axios v1's default array serializer produces `key[]=` brackets,
+  // so we use `paramsSerializer: { indexes: null }` to flatten arrays into
+  // repeated keys.
+
+  async function fetchTrialSessions(
+    filters: TrialSessionsFiltersClient
+  ): Promise<TrialSessionsResult> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const params = buildTrialSessionsParams(filters);
+      const { data } = await api.get<TrialSessionsResult>('/admin/reports/trial-sessions', {
+        params,
+        paramsSerializer: { indexes: null },
+      });
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cargando sesiones de prueba');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function exportTrialSessions(filters: TrialSessionsFiltersClient): Promise<Blob> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const params = buildTrialSessionsParams(filters);
+      const { data } = await api.get('/admin/reports/trial-sessions/export', {
+        params,
+        paramsSerializer: { indexes: null },
+        responseType: 'blob',
+      });
+      return data as Blob;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error exportando sesiones de prueba');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  /**
+   * Build a clean params record for /trial-sessions and /trial-sessions/export.
+   * Strips undefined / null / empty-string values, drops the empty page/limit
+   * for the export endpoint (Plan 05 export ignores pagination), and forwards
+   * leadStatus as an array so axios serializes it as repeated keys.
+   */
+  function buildTrialSessionsParams(filters: TrialSessionsFiltersClient): Record<string, unknown> {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(filters)) {
+      if (v === undefined || v === null) continue;
+      if (typeof v === 'string' && v.length === 0) continue;
+      if (Array.isArray(v) && v.length === 0) continue;
+      out[k] = v;
+    }
+    return out;
+  }
+
   // ─── Cleanup ───────────────────────────────────────────────────────────
 
   function cleanup() {
@@ -202,6 +320,8 @@ export function useReportsApi() {
     exportChargeHistory,
     exportExpiringMemberships,
     exportInactiveMembers,
+    fetchTrialSessions,
+    exportTrialSessions,
     cleanup,
   };
 }

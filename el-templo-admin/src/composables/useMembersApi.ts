@@ -31,6 +31,23 @@ export interface SessionLevelCount {
   count: number;
 }
 
+// Phase 114-04: PATCH /admin/leads/:userId payload + response. Mirrors
+// el-templo-api/src/modules/members/types.ts (UpdateLeadInput / LeadSnapshot).
+export type LeadStatusValue = 'en_seguimiento' | 'cerrado' | 'perdido';
+
+export interface UpdateLeadPayload {
+  leadStatus?: LeadStatusValue;
+  leadNotes?: string | null;
+}
+
+export interface LeadSnapshot {
+  userId: number;
+  leadStatus: LeadStatusValue | null;
+  leadNotes: string | null;
+  status: 'freemium' | 'prueba' | 'activo' | 'inactivo' | null;
+  createdBy: { userId: number; name: string } | null;
+}
+
 // Phase 111 REQ-4: backend contract for /admin/members/check-duplicates.
 // Mirrors el-templo-api/src/modules/members/service.ts checkDuplicates()
 // response shape exactly — see 111-04-SUMMARY.md.
@@ -225,6 +242,27 @@ export function useMembersApi() {
       return data;
     } catch (err: unknown) {
       error.value = extractError(err, 'Error verificando duplicados');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  // ─── Leads (Phase 114-04) ────────────────────────────────────────────
+  //
+  // PATCH /admin/leads/:userId mutates lead_status / lead_notes on a user
+  // with status='prueba'. Backend response shape mirrors LeadSnapshot from
+  // el-templo-api/src/modules/members/types.ts. leadNotes='' is treated as
+  // explicit clear → stored as NULL by the server (D-28).
+
+  async function updateLead(userId: number, payload: UpdateLeadPayload): Promise<LeadSnapshot> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.patch<LeadSnapshot>(`/admin/leads/${userId}`, payload);
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error actualizando lead');
       throw err;
     } finally {
       loading.value = false;
@@ -445,6 +483,7 @@ export function useMembersApi() {
     createMember,
     createTrialMember,
     updateMember,
+    updateLead,
     deleteMember,
     resetMemberPassword,
     checkDni,
