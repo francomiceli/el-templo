@@ -32,6 +32,7 @@
         <q-select
           v-model="selectedBranchId"
           :options="branchOptions"
+          :display-value="selectedBranchLabel"
           label="Sucursal"
           dense
           outlined
@@ -330,7 +331,7 @@
               outlined
               :min="1"
               :max="365"
-              style="max-width: 120px"
+              style="width: 180px"
               @update:model-value="fetchExpiringData"
             />
           </div>
@@ -419,7 +420,7 @@
               outlined
               :min="1"
               :max="365"
-              style="max-width: 120px"
+              style="width: 180px"
               @update:model-value="fetchInactiveData"
             />
           </div>
@@ -766,6 +767,11 @@ const branchOptions = ref<Array<{ label: string; value: number | undefined }>>([
   { label: 'Todas las sedes', value: undefined },
 ]);
 const loadingBranches = ref(false);
+
+const selectedBranchLabel = computed(() => {
+  const match = branchOptions.value.find((o) => o.value === selectedBranchId.value);
+  return match?.label ?? 'Todas las sedes';
+});
 
 async function fetchBranches() {
   loadingBranches.value = true;

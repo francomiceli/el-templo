@@ -70,6 +70,8 @@ export interface ChargeReportRow {
 export interface ExpiringReportRow {
   userId: number;
   memberName: string;
+  branchId: number;
+  branchName: string;
   planName: string;
   endDate: string;
   daysRemaining: number; // positive = days left, negative = days overdue

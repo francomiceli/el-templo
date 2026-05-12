@@ -138,6 +138,8 @@ export const expiringReportSchema = {
         properties: {
           userId: { type: "integer" },
           memberName: { type: "string" },
+          branchId: { type: "integer" },
+          branchName: { type: "string" },
           planName: { type: "string" },
           endDate: { type: "string" },
           daysRemaining: { type: "integer" },

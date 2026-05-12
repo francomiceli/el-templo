@@ -443,6 +443,7 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
         const sheet = workbook.addWorksheet("Vencimientos");
 
         sheet.columns = [
+          { header: "Sede", key: "branchName", width: 22 },
           { header: "Miembro", key: "memberName", width: 30 },
           { header: "Plan", key: "planName", width: 25 },
           { header: "Vence", key: "endDate", width: 15 },
@@ -455,6 +456,7 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
 
         for (const row of rows) {
           sheet.addRow({
+            branchName: row.branchName,
             memberName: row.memberName,
             planName: row.planName,
             endDate: row.endDate,

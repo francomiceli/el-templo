@@ -376,6 +376,8 @@ export class ReportsService {
         userId: schema.subscriptions.userId,
         firstName: schema.users.firstName,
         lastName: schema.users.lastName,
+        branchId: schema.subscriptions.branchId,
+        branchName: schema.branches.name,
         planName: schema.subscriptionPlans.name,
         endDate: schema.subscriptions.endDate,
         phone: schema.users.phone,
@@ -393,11 +395,16 @@ export class ReportsService {
         eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
       )
       .where(and(...conditions))
-      .orderBy(sql`DATEDIFF(${schema.subscriptions.endDate}, CURDATE()) ASC`);
+      .orderBy(
+        schema.branches.name,
+        sql`DATEDIFF(${schema.subscriptions.endDate}, CURDATE()) ASC`,
+      );
 
     return rows.map((r) => ({
       userId: r.userId,
       memberName: `${r.firstName ?? ""} ${r.lastName ?? ""}`.trim(),
+      branchId: r.branchId,
+      branchName: r.branchName,
       planName: r.planName,
       endDate: r.endDate ?? "",
       daysRemaining: Number(r.daysRemaining),
