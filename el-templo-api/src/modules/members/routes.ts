@@ -596,7 +596,11 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
     },
     async (request, reply) => {
       try {
-        const { member } = await memberService.createTrialMember(request.body);
+        // Phase 114 D-31: createdBy comes from the JWT, never the request body.
+        const { member } = await memberService.createTrialMember({
+          ...request.body,
+          createdBy: request.user.userId,
+        });
         return reply.code(201).send(member);
       } catch (err: unknown) {
         if (err instanceof ConflictError) {
