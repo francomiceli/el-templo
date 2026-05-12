@@ -22,7 +22,7 @@ Reemplazar la planilla manual de Google Sheets (`.docs/Sesiones de Prueba - SP -
 
 - **D-01:** Columnas del reporte (11, en este orden): `Lead, Fecha, Hora, Sucursal, Asistió, Estado del Lead, Gestiona, Comentarios, Turno, Periodo, Semana`.
 - **D-02:** Columnas explícitamente descartadas del CSV original: `Rep.`, `Asistió post rep.`, `Asistencia Final` (vacías en la práctica), `Profe 1`, `Profe 2` (no trackeamos coach por clase).
-- **D-03:** Una fila del reporte = una trial booking (no agrupada por user). Si un user tiene múltiples trial bookings (caso raro hoy: `bookings.is_trial=1` permite reactivar bookings canceladas en mismo slot — ver `trials-service.ts:177-209`), cada booking es una fila.
+- **D-03:** Una fila del reporte = un lead (user con `status='prueba'` o con `converted_at` set). NO una fila por booking. Si un user tiene múltiples trial bookings (ej. cancelada + reactivada), el reporte muestra la trial **NO cancelada** más reciente del user. Si todas sus trials están canceladas, el lead NO aparece en el reporte.
 
 ### Cómo se computa cada columna (locked)
 
@@ -53,7 +53,7 @@ Reemplazar la planilla manual de Google Sheets (`.docs/Sesiones de Prueba - SP -
 ### Endpoint del reporte (locked)
 
 - **D-21:** `GET /api/admin/reports/trial-sessions` — paginado, devuelve filas y metadata.
-- **D-22:** Querystring filters: `branchId?`, `dateFrom?` (ISO date, sobre `booking_date`), `dateTo?` (idem), `leadStatus?` (enum, multi-value `?leadStatus=en_seguimiento&leadStatus=perdido`), `attended?` (`true`|`false`|`pending`), `shift?` (`TM`|`TT`), `gestionaUserId?` (int, filtra por `users.created_by`), `daysWithoutConvertingMin?` (int — incluye solo leads NO convertidos donde `DATEDIFF(CURDATE(), booking_date) >= N`), `search?` (busca en `users.first_name + last_name`), `page?` (default 1), `limit?` (default 50, max 200).
+- **D-22:** Querystring filters: `branchId?`, `dateFrom?` (ISO date, sobre `booking_date`), `dateTo?` (idem), `leadStatus?` (enum, multi-value `?leadStatus=en_seguimiento&leadStatus=perdido`), `attended?` (`true`|`false`|`pending`), `shift?` (`TM`|`TT`), `gestionaUserId?` (int, filtra por `users.created_by` — **owner-only**; ver D-44), `daysWithoutConvertingMin?` (int — incluye solo leads NO convertidos donde `DATEDIFF(CURDATE(), booking_date) >= N`), `search?` (busca en `users.first_name + last_name`), `page?` (default 1), `limit?` (default 50, max 200).
 - **D-23:** Response shape:
   ```json
   {
@@ -106,17 +106,18 @@ Reemplazar la planilla manual de Google Sheets (`.docs/Sesiones de Prueba - SP -
 ### UI del admin (locked)
 
 - **D-35:** Nueva sección/sub-página en el módulo Reportes del admin: tab o nav item llamado "Sesiones de Prueba". Tabla con las 11 columnas (D-01), filtros arriba, paginación abajo, botón "Exportar CSV". Replica visual del estilo de otros reportes existentes (`ReportesPage.vue` o equivalente).
-- **D-36:** Filtros UI: select de sede (poblada vía endpoint existente de branches), date range picker, multi-select de Estado del Lead, select Asistió (Sí/No/Pendiente), select Turno (Mañana/Tarde), select Gestiona (poblada con admins/gestion/owner del sistema), input numérico "Días sin convertir ≥ N". Buscador de texto libre arriba.
+- **D-36:** Filtros UI: select de sede (poblada vía endpoint existente de branches), date range picker, multi-select de Estado del Lead, select Asistió (Sí/No/Pendiente), select Turno (Mañana/Tarde), select Gestiona (poblada con admins/gestion/owner del sistema — **solo visible para role='owner'**; ver D-44), input numérico "Días sin convertir ≥ N". Buscador de texto libre arriba.
 - **D-37:** En la tabla, `Estado del Lead` y `Comentarios` son inline-editables: click sobre el chip de estado → dropdown con los 3 valores. Click sobre comentario → textarea expandible. Save automático en blur via `PATCH /api/admin/leads/:userId`. Mostrar spinner pequeño durante el save, toast de éxito/error.
 - **D-38:** En la ficha del lead (`AlumnoDetailPage.vue` cuando el user tiene `status='prueba'`): mostrar bloque "Datos de Lead" con select de Estado + textarea de Comentarios + label "Gestiona: {nombre}" (read-only, set al crear). Solo visible para users en `prueba`.
 - **D-39:** Mostrar columna "Gestiona" como nombre + apellido del admin (`first_name`). Si NULL, mostrar `—`.
 
 ### Filtros y casos borde (locked)
 
-- **D-40:** Filtro "Días sin convertir ≥ N": solo aplica a leads NO convertidos (`converted_at IS NULL`). Calcula `DATEDIFF(CURDATE(), MIN(bookings.booking_date WHERE is_trial=1))`. Útil para "mostrame leads que hicieron prueba hace más de 7 días y no convirtieron".
+- **D-40:** Filtro "Días sin convertir ≥ N": solo aplica a leads NO convertidos (`converted_at IS NULL`). Calcula `DATEDIFF(CURDATE(), trial_date)` donde `trial_date` es el `booking_date` de la única trial activa del user (D-03). Útil para "mostrame leads que hicieron prueba hace más de 7 días y no convirtieron".
 - **D-41:** Si el user no tiene ninguna trial booking (caso teórico: alguien con `status='prueba'` pero sin booking), NO aparece en el reporte. El reporte es booking-driven, no user-driven.
-- **D-42:** Si el user tiene múltiples trial bookings (cancelado+reactivado, o caso futuro de "rep"), TODAS aparecen como filas separadas. Cada fila tiene su `bookingDate` y `attended` propios, pero comparten `leadStatus`, `leadNotes`, `gestiona` (porque esos son a nivel user).
-- **D-43:** Bookings con `status='cancelado'`: SE EXCLUYEN del reporte por default. Aún no decidimos si queremos un filtro `includeCancelled=true` — fuera de scope inicial.
+- **D-42:** Cada user-lead aparece UNA SOLA VEZ en el reporte (D-03). Si un user tiene 2 trial bookings (caso histórico de cancelado + reactivado), solo la booking activa (non-cancelado) más reciente aporta los campos `bookingDate`, `startTime`, `branchName`, `attended`. Los campos `leadStatus`, `leadNotes`, `gestiona` son del user, no de la booking.
+- **D-43:** Bookings con `status='cancelado'` se EXCLUYEN al elegir la trial representativa del lead (D-03). Si todas las trials del user están canceladas, el lead no aparece.
+- **D-44:** Filtro "Gestiona" es **OWNER-ONLY**. Para users con role `admin` o `gestion` (resto de CAJA_ROLES), el filtro NO se muestra en la UI y la API ignora silenciosamente `gestionaUserId` si llegara (con `request.log.warn` para observabilidad, sin 403). Razón: defense in depth — la UI no debería enviarlo, pero el servidor es source of truth. El selector de la UI usa `useUsersApi.fetchStaff()` (GET /admin/users, owner-only) que ya existe / se agrega en `useUsersApi.ts` si faltara — está dentro del scope owner-only existente.
 
 ### Claude's Discretion
 
