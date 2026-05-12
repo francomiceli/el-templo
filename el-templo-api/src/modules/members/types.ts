@@ -140,6 +140,33 @@ export interface CreateTrialMemberServiceInput extends CreateTrialMemberInput {
   createdBy: number;
 }
 
+/**
+ * Phase 114 (D-27): PATCH /api/admin/leads/:userId body.
+ *
+ * Both fields optional — caller may patch just status or just notes. The
+ * empty-string-to-null normalization for leadNotes happens server-side in
+ * MemberService.updateLead (D-28).
+ */
+export interface UpdateLeadInput {
+  leadStatus?: "en_seguimiento" | "cerrado" | "perdido";
+  leadNotes?: string | null;
+}
+
+/**
+ * Phase 114 (D-27): response body of PATCH /api/admin/leads/:userId.
+ * Mirrors the user row's lead-lifecycle fields plus a denormalized
+ * `createdBy` JOIN so the admin UI can render "Gestiona: <name>" without a
+ * second round-trip. `status` is included so the client can defensively
+ * assert the row is still a lead (status='prueba') after the update.
+ */
+export interface LeadSnapshot {
+  userId: number;
+  leadStatus: "en_seguimiento" | "cerrado" | "perdido" | null;
+  leadNotes: string | null;
+  createdBy: { userId: number; name: string } | null;
+  status: UserStatus | null;
+}
+
 export interface UpdateMemberInput {
   firstName?: string;
   lastName?: string;

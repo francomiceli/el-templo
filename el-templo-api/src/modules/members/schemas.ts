@@ -211,6 +211,83 @@ export const createTrialMemberSchema = {
   },
 };
 
+/**
+ * Phase 114 (D-27/D-28): PATCH /api/admin/leads/:userId schema.
+ *
+ * - leadStatus must be one of the 3 enum values.
+ * - leadNotes is string|null (max 2000); the service normalizes '' → null.
+ * - additionalProperties:false closes the body — unknown keys are stripped
+ *   silently by Fastify's default AJV (removeAdditional=true), mirroring the
+ *   spoof guard pattern on createTrialMemberSchema (Plan 02 / SUMMARY 114-02).
+ */
+export const updateLeadSchema = {
+  params: {
+    type: "object",
+    required: ["userId"],
+    properties: {
+      userId: { type: "integer", minimum: 1 },
+    },
+  },
+  body: {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      leadStatus: {
+        type: "string",
+        enum: ["en_seguimiento", "cerrado", "perdido"],
+      },
+      leadNotes: {
+        anyOf: [{ type: "string", maxLength: 2000 }, { type: "null" }],
+      },
+    },
+  },
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        userId: { type: "integer" },
+        leadStatus: {
+          anyOf: [
+            {
+              type: "string",
+              enum: ["en_seguimiento", "cerrado", "perdido"],
+            },
+            { type: "null" },
+          ],
+        },
+        leadNotes: {
+          anyOf: [{ type: "string" }, { type: "null" }],
+        },
+        status: {
+          anyOf: [
+            {
+              type: "string",
+              enum: ["freemium", "prueba", "activo", "inactivo"],
+            },
+            { type: "null" },
+          ],
+        },
+        createdBy: {
+          anyOf: [
+            {
+              type: "object",
+              properties: {
+                userId: { type: "integer" },
+                name: { type: "string" },
+              },
+            },
+            { type: "null" },
+          ],
+        },
+      },
+    },
+    400: errorSchema,
+    403: errorSchema,
+    404: errorSchema,
+    409: errorSchema,
+  },
+} as const;
+
 export const createMemberSchema = {
   body: {
     type: "object",

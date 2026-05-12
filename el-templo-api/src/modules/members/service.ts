@@ -34,6 +34,8 @@ import type {
   MemberExportRow,
   CreateMemberInput,
   CreateTrialMemberServiceInput,
+  UpdateLeadInput,
+  LeadSnapshot,
   UpdateMemberInput,
   MemberNote,
   CreateNoteInput,
@@ -41,7 +43,8 @@ import type {
   DniCheckResult,
   TotalDebtRow,
 } from "./types";
-import { ConflictError } from "../shared/errors";
+import { ConflictError, NotFoundError } from "../shared/errors";
+import { alias } from "drizzle-orm/mysql-core";
 
 export class MemberService {
   constructor(
@@ -542,6 +545,112 @@ export class MemberService {
     }
 
     return { member, tempPassword };
+  }
+
+  /**
+   * Phase 114 (D-27): PATCH /api/admin/leads/:userId — admin edits the lead
+   * lifecycle fields (lead_status, lead_notes) of a user with status='prueba'.
+   *
+   * - D-28: rejects non-leads (status !== 'prueba') with ConflictError (409).
+   * - D-28: empty-string lead_notes is normalized to NULL.
+   * - D-34: manual lead_status='cerrado' edits do NOT auto-modify lead_notes.
+   *   Only the subscription-create hook (Plan 03 / recomputeUserStatus)
+   *   prefixes the plan name into lead_notes on conversion.
+   */
+  async updateLead(
+    userId: number,
+    input: UpdateLeadInput,
+  ): Promise<LeadSnapshot> {
+    const [user] = await this.db
+      .select({
+        id: schema.users.id,
+        status: schema.users.status,
+        deletedAt: schema.users.deletedAt,
+      })
+      .from(schema.users)
+      .where(eq(schema.users.id, userId))
+      .limit(1);
+
+    if (!user || user.deletedAt) {
+      throw new NotFoundError("Lead no encontrado");
+    }
+    if (user.status !== "prueba") {
+      throw new ConflictError(
+        "El usuario no es un lead (status='prueba' requerido)",
+      );
+    }
+
+    const updateData: Partial<typeof schema.users.$inferInsert> = {};
+    if (input.leadStatus !== undefined) {
+      updateData.leadStatus = input.leadStatus;
+    }
+    if (input.leadNotes !== undefined) {
+      updateData.leadNotes =
+        input.leadNotes === "" || input.leadNotes === null
+          ? null
+          : input.leadNotes;
+    }
+
+    if (Object.keys(updateData).length > 0) {
+      await this.db
+        .update(schema.users)
+        .set(updateData)
+        .where(eq(schema.users.id, userId));
+    }
+
+    // Re-fetch with the createdBy admin JOIN so the response payload renders
+    // "Gestiona: <name>" without a second round-trip.
+    const creator = alias(schema.users, "creator");
+    const [snapshot] = await this.db
+      .select({
+        userId: schema.users.id,
+        leadStatus: schema.users.leadStatus,
+        leadNotes: schema.users.leadNotes,
+        status: schema.users.status,
+        creatorId: creator.id,
+        creatorFirstName: creator.firstName,
+        creatorLastName: creator.lastName,
+      })
+      .from(schema.users)
+      .leftJoin(creator, eq(creator.id, schema.users.createdBy))
+      .where(eq(schema.users.id, userId))
+      .limit(1);
+
+    return {
+      userId: snapshot.userId,
+      leadStatus: snapshot.leadStatus,
+      leadNotes: snapshot.leadNotes,
+      status: snapshot.status,
+      createdBy: snapshot.creatorId
+        ? {
+            userId: snapshot.creatorId,
+            name:
+              [snapshot.creatorFirstName, snapshot.creatorLastName]
+                .filter(Boolean)
+                .join(" ")
+                .trim() || "—",
+          }
+        : null,
+    };
+  }
+
+  /**
+   * Phase 114 (D-29): branch-scope helper for PATCH /api/admin/leads/:userId.
+   * Returns the lead's branchId (for canAccessBranch evaluation) or null when
+   * the user does not exist or is soft-deleted. The route handler converts
+   * null → 404 before reaching updateLead.
+   */
+  async getLeadBranchId(userId: number): Promise<number | null> {
+    const [row] = await this.db
+      .select({
+        branchId: schema.users.branchId,
+        deletedAt: schema.users.deletedAt,
+      })
+      .from(schema.users)
+      .where(eq(schema.users.id, userId))
+      .limit(1);
+    if (!row || row.deletedAt) return null;
+    return row.branchId;
   }
 
   /**
