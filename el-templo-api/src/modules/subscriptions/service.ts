@@ -4099,11 +4099,14 @@ export class SubscriptionService {
     // (or an 'active' sub whose startDate is still in the future) does NOT
     // make the member active today. Hence the s.start_date <= CURDATE() guard.
     //
-    // For the Phase 114 lead_status/lead_notes branches: the conversion
-    // predicate (converted_at IS NULL AND active-sub-started AND is_trial
-    // booking exists) is replayed because MySQL single-statement semantics
-    // evaluate all CASE expressions against the BEFORE-image of the row,
-    // so the gate is consistent across converted_at, lead_status, lead_notes.
+    // MySQL evaluates SET assignments LEFT-TO-RIGHT and later expressions
+    // see already-assigned values for earlier columns in the same row
+    // (https://dev.mysql.com/doc/refman/8.0/en/update.html). The Phase 114
+    // lead_status / lead_notes branches all gate on `u.converted_at IS NULL`
+    // (D-32: "first conversion"), so they MUST be assigned BEFORE the
+    // converted_at column itself is written — otherwise they'd see the
+    // freshly-set CURRENT_TIMESTAMP and the conversion gate would always
+    // be false on the very write that should trigger them. Order matters.
     await tx.execute(sql`
       UPDATE users u
       SET
@@ -4117,22 +4120,6 @@ export class SubscriptionService {
           ) THEN 'activo'
           WHEN u.status IN ('activo','inactivo') THEN 'inactivo'
           ELSE u.status
-        END,
-        u.converted_at = CASE
-          WHEN u.converted_at IS NULL
-            AND EXISTS (
-              SELECT 1 FROM subscriptions s
-              WHERE s.user_id = u.id
-                AND s.subscription_status IN ('active','paused')
-                AND s.start_date <= CURDATE()
-                AND (s.end_date IS NULL OR s.end_date >= CURDATE())
-            )
-            AND EXISTS (
-              SELECT 1 FROM bookings b
-              WHERE b.member_id = u.id AND b.is_trial = 1
-            )
-          THEN CURRENT_TIMESTAMP
-          ELSE u.converted_at
         END,
         u.lead_status = CASE
           WHEN u.converted_at IS NULL
@@ -4176,6 +4163,22 @@ export class SubscriptionService {
             LIMIT 1
           )
           ELSE u.lead_notes
+        END,
+        u.converted_at = CASE
+          WHEN u.converted_at IS NULL
+            AND EXISTS (
+              SELECT 1 FROM subscriptions s
+              WHERE s.user_id = u.id
+                AND s.subscription_status IN ('active','paused')
+                AND s.start_date <= CURDATE()
+                AND (s.end_date IS NULL OR s.end_date >= CURDATE())
+            )
+            AND EXISTS (
+              SELECT 1 FROM bookings b
+              WHERE b.member_id = u.id AND b.is_trial = 1
+            )
+          THEN CURRENT_TIMESTAMP
+          ELSE u.converted_at
         END
       WHERE u.id = ${userId}
     `);
