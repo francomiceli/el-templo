@@ -27,6 +27,9 @@ import type {
   PaginatedResult,
   TrialConversionFilters,
   TrialConversionReport,
+  TrialSessionsFilters,
+  TrialSessionsReport,
+  TrialSessionsRow,
 } from "./types";
 
 const DAY_LABELS: Record<number, string> = {
@@ -97,6 +100,78 @@ function computeBucketOB(ageInDays: number): DebtBucket {
 
 function emptyBucketTotals(): BucketTotals {
   return { "0-30": 0, "31-60": 0, "61-90": 0, "90+": 0 };
+}
+
+// =============================================================================
+// Trial Sessions Report (Phase 114-05) — pure helpers
+// =============================================================================
+
+const MS_PER_DAY_TS = 1000 * 60 * 60 * 24;
+
+/** Trim and join two nullable name parts with a single space. */
+function trimJoin(a: string | null, b: string | null): string {
+  return `${a ?? ""} ${b ?? ""}`.trim();
+}
+
+/** Today as ISO YYYY-MM-DD (UTC day boundary). */
+function todayISO(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+/** Normalize a DB date column value (string or Date) to ISO YYYY-MM-DD. */
+function normalizeISODate(v: string | Date): string {
+  if (typeof v === "string") return v.slice(0, 10);
+  return v.toISOString().slice(0, 10);
+}
+
+/** floor((b - a) / 1day) for two ISO YYYY-MM-DD strings (UTC day). */
+function daysBetweenISO(a: string, b: string): number {
+  const aMs = new Date(a + "T00:00:00Z").getTime();
+  const bMs = new Date(b + "T00:00:00Z").getTime();
+  return Math.floor((bMs - aMs) / MS_PER_DAY_TS);
+}
+
+/**
+ * D-14 — ISO week range Monday..Sunday for a YYYY-MM-DD date.
+ * Returned as "YYYY-MM-DD --- YYYY-MM-DD". Manual UTC arithmetic — no
+ * date-fns (per CLAUDE.md / user memory: never install deps without asking).
+ */
+function isoWeekRange(iso: string): string {
+  const d = new Date(iso + "T00:00:00Z");
+  const dow = d.getUTCDay(); // 0=Sun..6=Sat
+  // Map to ISO Mon=1..Sun=7. Offset to Monday: (dow === 0 ? -6 : 1 - dow).
+  const offsetToMon = dow === 0 ? -6 : 1 - dow;
+  const monday = new Date(d.getTime() + offsetToMon * MS_PER_DAY_TS);
+  const sunday = new Date(monday.getTime() + 6 * MS_PER_DAY_TS);
+  return `${monday.toISOString().slice(0, 10)} --- ${sunday.toISOString().slice(0, 10)}`;
+}
+
+/** RFC 4180 CSV escape: wrap fields with `,`, `"`, CR, or LF in quotes; double quotes. */
+function csvEscape(s: string): string {
+  if (
+    s.includes(",") ||
+    s.includes('"') ||
+    s.includes("\n") ||
+    s.includes("\r")
+  ) {
+    return `"${s.replace(/"/g, '""')}"`;
+  }
+  return s;
+}
+
+/** D-05 — DD/MM/YYYY from a YYYY-MM-DD ISO string. */
+function isoToDDMMYYYY(iso: string): string {
+  const [y, m, d] = iso.split("-");
+  return `${d}/${m}/${y}`;
+}
+
+/** Spanish display label for the D-09 effective lead status. */
+function leadStatusLabelES(
+  s: "en_seguimiento" | "cerrado" | "perdido",
+): string {
+  if (s === "en_seguimiento") return "En seguimiento";
+  if (s === "cerrado") return "Cerrado";
+  return "Perdido";
 }
 
 /**
@@ -1026,6 +1101,397 @@ export class ReportsService {
       byHourSlot,
       byShift,
       pendingLeads,
+    };
+  }
+
+  // ─── Trial Sessions Report (Phase 114-05) ─────────────────────────────────
+  //
+  // One row per LEAD (user), NOT per booking (D-03 / D-42 / D-43).
+  //
+  // The driver of the SELECT is a derived table `latest_trial` that picks the
+  // single representative trial booking per user: the latest non-cancelado
+  // trial. We use MAX(id) as the tiebreaker — within a user, larger id ⇒
+  // later booking (auto-increment + same-day reactivations land at the
+  // latest id). The derived-table form is used (rather than a CTE) to
+  // mirror the inline-subquery style already used by
+  // `getTrialConversionReport` on this codebase, and works identically on
+  // MySQL 5.7 and 8.x.
+  //
+  // Country scope replicates D-24: include branches where
+  // `branch.country = ${country}` OR `branch.is_virtual = 1`.
+  //
+  // SQL injection: every user-input filter (branchId, dateFrom, dateTo,
+  // leadStatus[], shift, gestionaUserId, daysWithoutConvertingMin, search,
+  // page, limit) flows through drizzle's parameterized `sql\`... ${val} ...\``
+  // template tag, never `sql.raw` and never string concatenation. The Zod/AJV
+  // schema layer is the first defense (integer/enum enforcement); this is
+  // defense-in-depth (T-114-05-04).
+
+  async getTrialSessionsReport(
+    filters: TrialSessionsFilters,
+  ): Promise<TrialSessionsReport> {
+    const page = filters.page ?? 1;
+    const limit = filters.limit ?? 50;
+    const offset = (page - 1) * limit;
+
+    // Build the list of WHERE predicates as SQL fragments. Each filter that
+    // injects user input does so via drizzle's `${...}` parameter binding —
+    // never string concat.
+    const conds = this.buildTrialSessionsConditions(filters);
+
+    // Total count: SAME `latest_trial` derived table + SAME predicates as
+    // the row query, so `total` reflects deduplicated leads — not raw
+    // booking rows. Two separate queries (count + page) per the precedent
+    // set by getChargeHistory.
+    const countRows = await this.db.execute<{ total: number }>(sql`
+      SELECT COUNT(*) AS total
+      FROM (
+        SELECT b2.member_id, MAX(b2.id) AS booking_id
+        FROM ${schema.bookings} AS b2
+        WHERE b2.is_trial = 1 AND b2.status <> 'cancelado'
+        GROUP BY b2.member_id
+      ) AS lt
+      JOIN ${schema.bookings} AS b      ON b.id = lt.booking_id
+      JOIN ${schema.users}    AS u      ON u.id = lt.member_id
+      JOIN ${schema.schedules} AS s     ON s.id = b.schedule_id
+      JOIN ${schema.branches}  AS br    ON br.id = s.branch_id
+      LEFT JOIN ${schema.attendance} AS a
+        ON a.member_id = b.member_id
+       AND a.schedule_id = b.schedule_id
+       AND a.session_date = b.booking_date
+       AND a.status = 'confirmado'
+      LEFT JOIN ${schema.users} AS creator ON creator.id = u.created_by
+      WHERE u.deleted_at IS NULL
+        ${conds}
+    `);
+    const countResult = countRows[0] as unknown as Array<{ total: number }>;
+    const total = Number(countResult[0]?.total ?? 0);
+
+    // Page query — same JOIN graph, returns the raw columns we'll derive
+    // the response rows from in JS. Sort: most recent representative
+    // trial first.
+    const rawRows = await this.db.execute<{
+      booking_id: number;
+      user_id: number;
+      first_name: string | null;
+      last_name: string | null;
+      booking_date: string | Date;
+      start_time: string;
+      branch_id: number;
+      branch_name: string;
+      attendance_id: number | null;
+      lead_status: "en_seguimiento" | "cerrado" | "perdido" | null;
+      lead_notes: string | null;
+      converted_at: string | Date | null;
+      creator_id: number | null;
+      creator_first_name: string | null;
+      creator_last_name: string | null;
+    }>(sql`
+      SELECT
+        b.id              AS booking_id,
+        u.id              AS user_id,
+        u.first_name      AS first_name,
+        u.last_name       AS last_name,
+        b.booking_date    AS booking_date,
+        s.start_time      AS start_time,
+        br.id             AS branch_id,
+        br.name           AS branch_name,
+        a.id              AS attendance_id,
+        u.lead_status     AS lead_status,
+        u.lead_notes      AS lead_notes,
+        u.converted_at    AS converted_at,
+        creator.id        AS creator_id,
+        creator.first_name AS creator_first_name,
+        creator.last_name  AS creator_last_name
+      FROM (
+        SELECT b2.member_id, MAX(b2.id) AS booking_id
+        FROM ${schema.bookings} AS b2
+        WHERE b2.is_trial = 1 AND b2.status <> 'cancelado'
+        GROUP BY b2.member_id
+      ) AS lt
+      JOIN ${schema.bookings}  AS b      ON b.id = lt.booking_id
+      JOIN ${schema.users}     AS u      ON u.id = lt.member_id
+      JOIN ${schema.schedules} AS s      ON s.id = b.schedule_id
+      JOIN ${schema.branches}  AS br     ON br.id = s.branch_id
+      LEFT JOIN ${schema.attendance} AS a
+        ON a.member_id = b.member_id
+       AND a.schedule_id = b.schedule_id
+       AND a.session_date = b.booking_date
+       AND a.status = 'confirmado'
+      LEFT JOIN ${schema.users} AS creator ON creator.id = u.created_by
+      WHERE u.deleted_at IS NULL
+        ${conds}
+      ORDER BY b.booking_date DESC, b.id DESC
+      LIMIT ${limit} OFFSET ${offset}
+    `);
+
+    const dbRows = rawRows[0] as unknown as Array<{
+      booking_id: number;
+      user_id: number;
+      first_name: string | null;
+      last_name: string | null;
+      booking_date: string | Date;
+      start_time: string;
+      branch_id: number;
+      branch_name: string;
+      attendance_id: number | null;
+      lead_status: "en_seguimiento" | "cerrado" | "perdido" | null;
+      lead_notes: string | null;
+      converted_at: string | Date | null;
+      creator_id: number | null;
+      creator_first_name: string | null;
+      creator_last_name: string | null;
+    }>;
+
+    const rows: TrialSessionsRow[] = dbRows.map((r) =>
+      this.mapTrialSessionRow(r),
+    );
+
+    return { rows, total, page, limit };
+  }
+
+  /**
+   * Export form: same query, no pagination, hard cap at 10000 rows (D-26 /
+   * T-114-05-03). Returns the CSV body as a string WITHOUT the UTF-8 BOM —
+   * the BOM is prepended at the route layer so that test fixtures can opt
+   * out cleanly if needed.
+   *
+   * RFC 4180 escaping: fields containing comma, double-quote, CR, or LF
+   * are wrapped in double quotes; any literal double quote is doubled.
+   *
+   * Spanish headers (literal accented chars; the file is UTF-8):
+   *   Lead, Fecha, Hora, Sucursal, Asistió, Estado del Lead, Gestiona,
+   *   Comentarios, Turno, Periodo, Semana
+   *
+   * Date format: DD/MM/YYYY (D-05). Hora: HH:MM (D-06). Asistió: "Sí" / "No"
+   * / "" (D-08).
+   */
+  async exportTrialSessions(filters: TrialSessionsFilters): Promise<string> {
+    // D-26 / T-114-05-03 — hard cap. Override pagination, fetch the full set.
+    const HARD_CAP = 10000;
+    const data = await this.getTrialSessionsReport({
+      ...filters,
+      page: 1,
+      limit: HARD_CAP,
+    });
+
+    const headers = [
+      "Lead",
+      "Fecha",
+      "Hora",
+      "Sucursal",
+      "Asistió",
+      "Estado del Lead",
+      "Gestiona",
+      "Comentarios",
+      "Turno",
+      "Periodo",
+      "Semana",
+    ];
+
+    const lines: string[] = [headers.map(csvEscape).join(",")];
+    for (const row of data.rows) {
+      const fechaDDMMYYYY = isoToDDMMYYYY(row.bookingDate);
+      const asistidoLabel =
+        row.attended === "si" ? "Sí" : row.attended === "no" ? "No" : "";
+      const estadoLabel = leadStatusLabelES(row.leadStatusEffective);
+      const gestionaName = row.createdBy?.name ?? "";
+      const turnoLabel = row.shift === "TM" ? "Mañana" : "Tarde";
+      const cells = [
+        row.lead,
+        fechaDDMMYYYY,
+        row.startTime,
+        row.branchName,
+        asistidoLabel,
+        estadoLabel,
+        gestionaName,
+        row.leadNotes ?? "",
+        turnoLabel,
+        row.period,
+        row.weekRange,
+      ];
+      lines.push(cells.map(csvEscape).join(","));
+    }
+
+    // CRLF per RFC 4180 (Excel-friendly).
+    return lines.join("\r\n") + "\r\n";
+  }
+
+  /**
+   * Build the WHERE-fragment list for getTrialSessionsReport. All user-input
+   * values are bound via drizzle's `${...}` parameter interpolation — never
+   * string-concatenated. The Zod/AJV layer (T1) is the first defense (integer
+   * + enum enforcement); this is defense-in-depth (T-114-05-04).
+   *
+   * Returned shape: a single SQL fragment of the form ` AND <p1> AND <p2>...`
+   * (note the leading ` AND ` so it composes cleanly after `u.deleted_at IS
+   * NULL` in the caller). Empty filters yield an empty fragment.
+   */
+  private buildTrialSessionsConditions(filters: TrialSessionsFilters): SQL {
+    const preds: SQL[] = [];
+
+    // D-24 country scope — branch's country must match OR branch is virtual.
+    if (filters.country !== undefined) {
+      preds.push(sql`(br.country = ${filters.country} OR br.is_virtual = 1)`);
+    }
+
+    if (filters.branchId !== undefined) {
+      preds.push(sql`br.id = ${filters.branchId}`);
+    }
+
+    if (filters.dateFrom !== undefined) {
+      preds.push(sql`b.booking_date >= ${filters.dateFrom}`);
+    }
+    if (filters.dateTo !== undefined) {
+      preds.push(sql`b.booking_date <= ${filters.dateTo}`);
+    }
+
+    if (filters.leadStatus !== undefined && filters.leadStatus.length > 0) {
+      // Each enum value is bound as a parameter; SQL injection-safe.
+      const placeholders = sql.join(
+        filters.leadStatus.map((v) => sql`${v}`),
+        sql`, `,
+      );
+      preds.push(sql`u.lead_status IN (${placeholders})`);
+    }
+
+    if (filters.attended !== undefined) {
+      // D-08 derivation as filter predicates. The LEFT JOIN on attendance
+      // gives `a.id IS NULL` for "no row matching" — exactly the same gate
+      // used to render 'no' vs null in JS.
+      if (filters.attended === "true") {
+        preds.push(sql`a.id IS NOT NULL`);
+      } else if (filters.attended === "false") {
+        preds.push(sql`a.id IS NULL AND b.booking_date < CURDATE()`);
+      } else {
+        // pending
+        preds.push(sql`a.id IS NULL AND b.booking_date >= CURDATE()`);
+      }
+    }
+
+    if (filters.shift !== undefined) {
+      if (filters.shift === "TM") {
+        preds.push(sql`s.start_time < '12:00'`);
+      } else {
+        preds.push(sql`s.start_time >= '12:00'`);
+      }
+    }
+
+    if (filters.gestionaUserId !== undefined) {
+      // D-44: the route layer is responsible for silently stripping this
+      // when the caller is not owner. The service trusts the shape it
+      // receives. Bound as a parameter for SQL-injection safety.
+      preds.push(sql`u.created_by = ${filters.gestionaUserId}`);
+    }
+
+    if (filters.daysWithoutConvertingMin !== undefined) {
+      // D-40: only applies to non-converted leads. `b.booking_date` IS the
+      // user's representative trial (latest non-cancelado) by construction
+      // of the `latest_trial` derived table — no per-user MIN ambiguity.
+      //
+      // PARAMETERIZATION (T-114-05-04 / defense in depth): the integer is
+      // bound via drizzle template-tag `${...}`. Zod/AJV already enforced
+      // integer minimum:0 at the schema layer.
+      preds.push(
+        sql`u.converted_at IS NULL AND DATEDIFF(CURDATE(), b.booking_date) >= ${filters.daysWithoutConvertingMin}`,
+      );
+    }
+
+    if (filters.search !== undefined && filters.search.trim().length > 0) {
+      const searchCond = buildMemberNameSearchCondition(filters.search, {
+        includeDni: false,
+      });
+      if (searchCond !== null) {
+        preds.push(searchCond);
+      }
+    }
+
+    if (preds.length === 0) return sql``;
+    return sql` AND ${sql.join(preds, sql` AND `)}`;
+  }
+
+  /**
+   * D-04..D-14 row derivations. Booking-level fields (`bookingDate`,
+   * `startTime`, `branchName`, `attended`) come from the chosen
+   * latest-non-cancelado trial booking. User-level fields (`leadStatus`,
+   * `leadNotes`, `createdBy`, `converted`, `leadStatusEffective`) come
+   * directly from the user row.
+   */
+  private mapTrialSessionRow(r: {
+    booking_id: number;
+    user_id: number;
+    first_name: string | null;
+    last_name: string | null;
+    booking_date: string | Date;
+    start_time: string;
+    branch_id: number;
+    branch_name: string;
+    attendance_id: number | null;
+    lead_status: "en_seguimiento" | "cerrado" | "perdido" | null;
+    lead_notes: string | null;
+    converted_at: string | Date | null;
+    creator_id: number | null;
+    creator_first_name: string | null;
+    creator_last_name: string | null;
+  }): TrialSessionsRow {
+    const bookingDate = normalizeISODate(r.booking_date);
+    const startTime = r.start_time.slice(0, 5);
+    const lead = trimJoin(r.first_name, r.last_name);
+    const converted = r.converted_at !== null;
+
+    // D-08 attended derivation.
+    let attended: "si" | "no" | null;
+    if (r.attendance_id !== null) {
+      attended = "si";
+    } else {
+      // Compare booking_date < today (UTC, day-level) — past sessions w/o
+      // attendance row count as "no", future/today w/o attendance is null.
+      const today = todayISO();
+      attended = bookingDate < today ? "no" : null;
+    }
+
+    // D-09 effective lead status.
+    const leadStatusEffective: "en_seguimiento" | "cerrado" | "perdido" =
+      r.lead_status ?? (converted ? "cerrado" : "en_seguimiento");
+
+    // D-12 shift.
+    const shift: "TM" | "TT" = startTime < "12:00" ? "TM" : "TT";
+
+    // D-13 period.
+    const period = bookingDate.slice(0, 7);
+
+    // D-14 week range — ISO Mon..Sun for the booking_date.
+    const weekRange = isoWeekRange(bookingDate);
+
+    // daysSinceTrial — floor((today - bookingDate) / 1d). Negative for future.
+    const daysSinceTrial = daysBetweenISO(bookingDate, todayISO());
+
+    const createdBy =
+      r.creator_id !== null
+        ? {
+            userId: r.creator_id,
+            name: trimJoin(r.creator_first_name, r.creator_last_name),
+          }
+        : null;
+
+    return {
+      bookingId: r.booking_id,
+      userId: r.user_id,
+      lead,
+      bookingDate,
+      startTime,
+      branchId: r.branch_id,
+      branchName: r.branch_name,
+      attended,
+      leadStatus: r.lead_status,
+      leadStatusEffective,
+      createdBy,
+      leadNotes: r.lead_notes,
+      shift,
+      period,
+      weekRange,
+      daysSinceTrial,
+      converted,
     };
   }
 
