@@ -153,6 +153,45 @@
         </template>
       </q-banner>
 
+      <!-- Phase 114 (D-38): "Datos de Lead" block. Only renders while the
+           alumno is in 'prueba' status. Mirrors the inline-edit pattern
+           from the Sesiones de Prueba report (Plan 06) using the same
+           PATCH /api/admin/leads/:userId endpoint via useMembersApi.
+           D-34 invariant: editing leadStatus here does NOT touch
+           leadNotes server-side (only the conversion hook in Plan 03
+           prefixes the plan name). -->
+      <q-card v-if="memberProfile.status === 'prueba'" class="q-pa-md q-mt-md" flat bordered>
+        <div class="text-subtitle1 text-weight-bold q-mb-sm">Datos de Lead</div>
+
+        <q-select
+          v-model="leadDraft.leadStatus"
+          :options="LEAD_STATUS_OPTIONS"
+          emit-value
+          map-options
+          label="Estado del Lead"
+          outlined
+          dense
+          :loading="savingLeadStatus"
+          @update:model-value="onSaveLeadStatus"
+        />
+
+        <q-input
+          v-model="leadDraft.leadNotes"
+          type="textarea"
+          label="Comentarios"
+          outlined
+          autogrow
+          maxlength="2000"
+          :loading="savingLeadNotes"
+          class="q-mt-sm"
+          @blur="onSaveLeadNotes"
+        />
+
+        <div class="q-mt-sm text-caption text-grey-7">
+          Gestiona: <strong>{{ memberProfile.createdBy?.name ?? '—' }}</strong>
+        </div>
+      </q-card>
+
       <!-- ========================================== -->
       <!-- Tabs -->
       <!-- ========================================== -->
@@ -439,14 +478,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { formatDate } from 'src/utils/format-date';
 import { useAuthStore } from 'src/stores/useAuthStore';
 import { useGoalPlanAdminApi } from 'src/composables/useGoalPlanAdminApi';
-import { useMembersApi } from 'src/composables/useMembersApi';
+import { useMembersApi, type LeadStatusValue } from 'src/composables/useMembersApi';
 import { useStatusBadge } from 'src/composables/useStatusBadge';
 import MemberProfileTab from 'src/components/MemberProfileTab.vue';
 import MemberNotesTab from 'src/components/MemberNotesTab.vue';
@@ -489,6 +528,93 @@ const goalPlanLoading = ref(false);
 const branches = ref<BranchOption[]>([]);
 const activeTab = ref('perfil');
 const showEditDialog = ref(false);
+
+// =========================================================================
+// Phase 114 (D-38): "Datos de Lead" block state
+// =========================================================================
+// Local draft mirrors the lead-lifecycle fields on memberProfile and is
+// reset whenever the profile reloads. Edits flow through
+// useMembersApi.updateLead (PATCH /admin/leads/:userId) — re-using the
+// same composable method wired in Plan 114-06 for the inline-edit cells
+// in the Sesiones de Prueba report.
+
+const LEAD_STATUS_OPTIONS: ReadonlyArray<{ value: LeadStatusValue; label: string }> = [
+  { value: 'en_seguimiento', label: 'En seguimiento' },
+  { value: 'cerrado', label: 'Cerrado' },
+  { value: 'perdido', label: 'Perdido' },
+] as const;
+
+const leadDraft = ref<{
+  leadStatus: LeadStatusValue | null;
+  leadNotes: string | null;
+}>({
+  leadStatus: null,
+  leadNotes: null,
+});
+const savingLeadStatus = ref(false);
+const savingLeadNotes = ref(false);
+
+// Sync draft with memberProfile whenever it (re)loads. The watcher fires
+// `immediate: true` so the very first load also seeds the draft.
+watch(
+  () => memberProfile.value,
+  (profile) => {
+    if (profile?.status === 'prueba') {
+      leadDraft.value.leadStatus = profile.leadStatus ?? null;
+      leadDraft.value.leadNotes = profile.leadNotes ?? null;
+    }
+  },
+  { immediate: true }
+);
+
+async function onSaveLeadStatus(newValue: LeadStatusValue): Promise<void> {
+  if (!memberProfile.value) return;
+  const previous = memberProfile.value.leadStatus;
+  savingLeadStatus.value = true;
+  try {
+    const snapshot = await membersApi.updateLead(memberProfile.value.id, {
+      leadStatus: newValue,
+    });
+    memberProfile.value.leadStatus = snapshot.leadStatus;
+    // D-34 invariant: leadNotes is NOT touched by lead_status edits
+    // server-side. memberProfile.leadNotes stays as-is.
+    $q.notify({ type: 'positive', message: 'Estado actualizado' });
+  } catch (err: unknown) {
+    leadDraft.value.leadStatus = previous;
+    const message = err instanceof Error ? err.message : 'Error al actualizar estado';
+    log.error('Failed to update lead status', {
+      error: message,
+      userId: memberProfile.value.id,
+    });
+    $q.notify({ type: 'negative', message });
+  } finally {
+    savingLeadStatus.value = false;
+  }
+}
+
+async function onSaveLeadNotes(): Promise<void> {
+  if (!memberProfile.value) return;
+  const draft = leadDraft.value.leadNotes;
+  if (draft === memberProfile.value.leadNotes) return;
+  savingLeadNotes.value = true;
+  try {
+    const snapshot = await membersApi.updateLead(memberProfile.value.id, {
+      leadNotes: draft === '' ? null : draft,
+    });
+    memberProfile.value.leadNotes = snapshot.leadNotes;
+    $q.notify({ type: 'positive', message: 'Comentario guardado' });
+  } catch (err: unknown) {
+    leadDraft.value.leadNotes = memberProfile.value.leadNotes;
+    const message = err instanceof Error ? err.message : 'Error al guardar comentario';
+    log.error('Failed to update lead notes', {
+      error: message,
+      userId: memberProfile.value.id,
+    });
+    $q.notify({ type: 'negative', message });
+  } finally {
+    savingLeadNotes.value = false;
+  }
+}
 
 const userId = computed(() => Number(route.params.userId));
 
