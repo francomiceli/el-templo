@@ -2491,7 +2491,7 @@ _Phase 111 added: 2026-05-01 — origen: investigación caso Soledad Mailland (a
 
 - [ ] **Phase 112: Enrollment Service + Admin Add-ons** — Extract `EnrollmentService` centralizing the lifecycle of `program_enrollments` (replacing 6 dispersed inserts in `subscriptions/service.ts` + the fase-111 `tearDownBundleEnrollments`), add the four new columns + backfill, ship the admin add-on assignment endpoint with finance integration and lifecycle hooks (transfer on changePlan, teardown on cancel/expire), and add the admin UI section to manage add-ons in the member detail page. Internal structure surfaces as plans during `/gsd-plan-phase 112`.
 - [x] **Phase 113: CRUD admin de Schedules y Activities** — Backend hardening (overlap validation branch+day, activity name uniqueness, cascade-block on deactivation con `affectedSchedules` payload) + frontend admin UI (tabs Horarios/Actividades en HorariosPage, CreateSlotDialog modal). Endpoints CRUD ya existían — esta fase los endurece y agrega UX. Slots inmutables: para cambiar horario = desactivar viejo + crear nuevo. Out of scope: branches CRUD, bloqueos puntuales, fix subs huérfanas. ✓ 14/14 must-haves verified.
-- [ ] **Phase 114: Reporte tabular de sesiones de prueba** — Reporte fila-por-fila de sesiones de prueba en Reportes (admin), reemplazo del CSV manual `.docs/Sesiones de Prueba - SP - Base de datos.csv`. Columnas: Lead, Fecha, Hora, Sucursal, Asistió (auto desde attendance), Estado del Lead (enum manual: en_seguimiento/cerrado/perdido), Gestiona (admin que creó el trial), Comentarios (texto libre con prefijo auto del plan al cerrar), Turno/Periodo/Semana (derivados). Filtros: sede, fecha, estado, asistió, turno, gestiona, días sin convertir. Nuevos campos: `users.lead_status` enum nullable, `users.lead_notes` TEXT nullable, `bookings.created_by` FK users.id nullable. Hooks: lead_status='cerrado' + lead_notes prefijo al crear subscription; bookings.created_by seteado al crear trial.
+- [x] **Phase 114: Reporte tabular de sesiones de prueba** — Reporte fila-por-fila (una fila por lead, post-revisión D-03) de sesiones de prueba en Reportes (admin), reemplazo del CSV manual. Columnas: Lead, Fecha, Hora, Sucursal, Asistió (auto desde attendance), Estado del Lead (enum manual: en_seguimiento/cerrado/perdido), Gestiona (admin que creó el trial — owner-only filter), Comentarios (texto libre con prefijo auto del plan al cerrar), Turno/Periodo/Semana (derivados). Filtros: sede, fecha, estado, asistió, turno, gestiona (owner-only), días sin convertir. Nuevos campos: `users.lead_status` enum nullable, `users.lead_notes` TEXT nullable, `users.created_by` FK users.id nullable (no bookings.created_by — revisado D-10/D-17). Hooks: lead_status='cerrado' + lead_notes prefijo en `recomputeUserStatus`; users.created_by seteado en `createTrialMember`. ✓ 7/7 must-haves verified (31/31 tests passing).
 
 ## v4.85 Phase Details
 
@@ -2531,10 +2531,10 @@ _Phase 111 added: 2026-05-01 — origen: investigación caso Soledad Mailland (a
 
 ## v4.85 Progress
 
-| Phase                                      | Plans Complete | Status      | Completed |
-| ------------------------------------------ | -------------- | ----------- | --------- |
-| 112. Enrollment Service + Admin Add-ons    | 1/6            | In progress | -         |
-| 114. Reporte tabular de sesiones de prueba | 0/0            | Not planned | -         |
+| Phase                                      | Plans Complete | Status      | Completed  |
+| ------------------------------------------ | -------------- | ----------- | ---------- |
+| 112. Enrollment Service + Admin Add-ons    | 1/6            | In progress | -          |
+| 114. Reporte tabular de sesiones de prueba | 7/7            | Complete    | 2026-05-12 |
 
 _Plan counts populated by `/gsd-plan-phase 112`._
 
