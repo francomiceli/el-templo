@@ -33,7 +33,7 @@ import type {
   MemberProfile,
   MemberExportRow,
   CreateMemberInput,
-  CreateTrialMemberInput,
+  CreateTrialMemberServiceInput,
   UpdateMemberInput,
   MemberNote,
   CreateNoteInput,
@@ -470,13 +470,21 @@ export class MemberService {
    * Email, DNI, document type and the rest stay NULL until the lead
    * converts (via the standard MemberFormDialog edit flow + assignPlan).
    *
+   * Phase 114 (D-31): the new user row is initialized with
+   * `lead_status='en_seguimiento'` and `created_by=<admin id>`. The
+   * `createdBy` value MUST come from the route handler (sourced from the
+   * JWT-authenticated admin) — the public request schema does NOT accept
+   * `createdBy` from the client (createTrialMemberSchema has
+   * additionalProperties:false, which Fastify's default AJV config strips
+   * before the handler runs).
+   *
    * Validation:
    *   - phone uniqueness across non-deleted users (normalized via
    *     normalizePhone — last 10 digits). Same-phone repeat would let the
    *     same person book a second trial via a different user row.
    */
   async createTrialMember(
-    input: CreateTrialMemberInput,
+    input: CreateTrialMemberServiceInput,
   ): Promise<{ member: MemberProfile; tempPassword: string }> {
     const normalizedPhone = normalizePhone(input.phone);
     if (!normalizedPhone) {
@@ -519,6 +527,11 @@ export class MemberService {
       role: "member",
       level: "alfa",
       status: "prueba" as const,
+      // Phase 114 D-31: lead lifecycle starts here. lead_status='en_seguimiento'
+      // is the only valid initial value for an admin-created trial. created_by
+      // is the JWT-authenticated admin from the route layer.
+      leadStatus: "en_seguimiento" as const,
+      createdBy: input.createdBy,
     });
 
     const userId = Number(result[0].insertId);

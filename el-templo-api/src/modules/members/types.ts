@@ -130,6 +130,16 @@ export interface CreateTrialMemberInput {
   branchId: number;
 }
 
+/**
+ * Phase 114 (D-31): service-layer payload for createTrialMember.
+ * createdBy is derived server-side from request.user.userId in the route
+ * handler — it MUST NOT be exposed on the public request schema
+ * (createTrialMemberSchema has additionalProperties:false).
+ */
+export interface CreateTrialMemberServiceInput extends CreateTrialMemberInput {
+  createdBy: number;
+}
+
 export interface UpdateMemberInput {
   firstName?: string;
   lastName?: string;
