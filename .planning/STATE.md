@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: verifying
-stopped_at: "Completed 114-03-PLAN.md (conversion hook: lead_status='cerrado' + lead_notes prefill on first conversion)"
-last_updated: "2026-05-12T19:33:52.562Z"
+stopped_at: Completed 114-04-PLAN.md
+last_updated: "2026-05-12T19:49:38.275Z"
 last_activity: 2026-05-12
 progress:
   total_phases: 104
   completed_phases: 90
   total_plans: 412
-  completed_plans: 403
+  completed_plans: 404
   percent: 98
 ---
 
@@ -167,6 +167,7 @@ _Updated after each plan completion_
 | Phase 113 P01 | 25min | 3 tasks | 6 files |
 | Phase 113 P02 | 7min | 3 tasks | 4 files |
 | Phase 114 P03 | 11min | 2 tasks | 2 files |
+| Phase 114 P04 | 12min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -404,6 +405,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - Plan 112-04: EnrollmentService constructor takes optional 3rd-arg transactionService — only the new admin route wires it; Plan 02's 11 DI sites unchanged because they never call enrollAddon
 - Plan 112-04: cancel audit reuses action='plan_assigned' with payload.cancelledByAdmin=true rather than extending the AuditAction enum — minimal-surface, defer enum widening
 - Phase 114-03: SET clause ordering matters in recomputeUserStatus — lead_status/lead_notes BEFORE converted_at to respect MySQL's left-to-right SET evaluation semantics
+- Plan 114-04: branch-scope via canAccessBranch inline (lead branchId on users row, not request payload)
 
 ### Pending Todos
 
@@ -420,8 +422,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-05-12T19:33:52.537Z
-Stopped at: Completed 114-03-PLAN.md (conversion hook: lead_status='cerrado' + lead_notes prefill on first conversion)
+Last session: 2026-05-12T19:49:38.246Z
+Stopped at: Completed 114-04-PLAN.md
 Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
