@@ -40,81 +40,135 @@
 
 ### Phase 93: Handler Concurrency
 
-**Goal**: Rapid-fire user messages produce exactly ONE bot response, not duplicates. The race condition observed in the post-v5.3.2 live test (BUG-01) is closed at the `processWithAi` entry in `el-templo-bot/src/webhook/handler.ts`.
-**Depends on**: Nothing (first phase of v5.3.3; entry-side stabilization that does NOT share code surface with Phase 94's exit-side fix per `bot-3min-response-latency.md` debug verdict)
+**Goal**: Rapid-fire user messages produce exactly ONE bot response, not duplicates. The race condition observed in the post-v5.3.2 live test (BUG-01) is closed at the `processWithAi` entry in `el-templo-bot/src/webhook/handler.ts`. **Phase 93 also owns the `DEBOUNCE_TTL_SECONDS` adjustment required by the cross-phase invariant** (see Notes) — without it, Phase 94's `OPENAI_TIMEOUT_MS=45000` would cause the dead-man switch to fire mid-OpenAI-call.
+**Depends on**: Nothing (first phase of v5.3.3; entry-side stabilization that does NOT share code surface with Phase 94's exit-side fix)
 **Requirements**: CONC-01
 **Success Criteria** (what must be TRUE):
 
 1. When the user sends 2-3 messages in rapid succession (faster than the bot's response cycle, e.g., "Hola" → "Hola?" → "Holaaaaa"), the bot generates exactly ONE response — not two, not three.
-2. The existing 3s debounce + Redis dead-man switch (`DEBOUNCE_DELAY_MS=3000`, `DEBOUNCE_TTL_SECONDS=10` in `handler.ts:95`+) either (a) is confirmed correct and the bug is elsewhere (e.g., Meta retry behaviour, ngrok jitter, Redis lock TTL interaction), or (b) is fixed at the same layer (debounce / Redis lock per phone with short TTL).
-3. A regression test exists that simulates rapid-fire inbounds for the same phone number and asserts the handler produces exactly ONE call to `provider.chat(...)` (or one outbound message), not multiple.
+2. The existing 3s debounce + Redis dead-man switch (`DEBOUNCE_DELAY_MS=3000`, `DEBOUNCE_TTL_SECONDS=10` in `handler.ts:95`+) outcome is one of: (a) confirmed correct and the bug is elsewhere, with observability shipped per the "don't fix nothing observable" anti-pattern guard (Branch 5); (b) fixed at the same layer (SETNX-race fix at `session.ts:125-155`, Branch 1 or 3); OR (c) the audit reveals an adjacent layer as the fix surface (Meta retry edge case at `handler.ts:291-306`, Branch 2; OR TTL/upstream coupling, Branch 4). See `93-CONTEXT.md` for the full 5-branch investigation order.
+3. `DEBOUNCE_TTL_SECONDS` is adjusted to satisfy the cross-phase invariant (see Notes) — static value ≥600s, OR heartbeat-refresh, OR hybrid. Plan-time choice.
+4. A regression test exists that simulates rapid-fire inbounds for the same phone number and asserts the handler produces exactly ONE call to `provider.chat(...)` (or one outbound message), not multiple.
 
 **Plans:** TBD
 
 **Notes:**
 
-- Starting point per `REQUIREMENTS.md` CONC-01: investigate whether existing debounce mechanism is already correct and bug is elsewhere, vs. mechanism failing under specific timing. Do NOT default to "introduce a queue" — `BullMQ`/`RabbitMQ` are explicitly out of scope per REQUIREMENTS.md (over-engineered at ~100 convs/day).
-- Disjoint from Phase 94: BUG-01's fix is at handler entry (concurrency control between concurrent invocations), BUG-02's fix is around `provider.chat(...)` error path (different code region, different concern). Per debug session 2026-05-05 (`bot-3min-response-latency.md`), they touch the same file but operate on disjoint surfaces — must NOT be conflated during plan execution.
+- **Cross-phase invariant (Phase 93 ↔ 94 ↔ 97) — Phase 93 owns the TTL fix.** Canonical block (must be textually identical to 93-CONTEXT.md, Phase 94 SC#1, and MACRO-ROADMAP.md constraint #6):
+
+```
+DEBOUNCE_TTL_SECONDS >= (OPENAI_TIMEOUT_MS / 1000) × MAX_TOOL_ITERATIONS
+                     + (executeTool_timeout_seconds × MAX_TOOL_ITERATIONS)
+                     + safety_buffer
+
+Concrete values (post-Phase-94+97 target):
+  OPENAI_TIMEOUT_MS = 45000             (Phase 94 LAT-01)
+  MAX_TOOL_ITERATIONS = 5               (existing handler config)
+  executeTool_timeout_seconds = 30      (Phase 95 BOOK-01 + Phase 97 RGUARD-03)
+  safety_buffer = 20
+  Minimum TTL = 45 × 5 + 30 × 5 + 20 = 395s → round up to 600s (10 min)
+```
+
+Plan-time choice of implementation: (a) static 600s TTL — simplest, offset by Phase 94's timeout bounding handler runtime; (b) heartbeat-refresh — periodic Redis `EXPIRE` while work is in-flight; (c) hybrid — moderate TTL + heartbeat. **Phase 93's TTL change MUST land before Phase 94's `OPENAI_TIMEOUT_MS=45000` ships** — see Phase 94 ship-after constraint. Full derivation in `93-CONTEXT.md` Cross-Phase Invariant section.
+
+- **Investigation order (5 branches, not 3)** — Original 3-branch structure was invalidated by `.planning/v5.3.3-codebase-audit.md`. Per the audit: Meta `whatsapp_message_id` dedup IS wired correctly (`handler.ts:291-306` + UNIQUE constraint at `el-templo-api/src/db/schema/whatsapp.ts:84`), so "dedup missing" is NOT a candidate. Audit elevated two new candidates: SETNX-race at `memory/session.ts:125-155` and TTL/upstream coupling. Full 5-branch enumeration in `93-CONTEXT.md` Investigation Order section.
+
+- **Disjoint from Phase 94**: BUG-01's fix is at handler entry (concurrency control + TTL adjustment), BUG-02's fix is around `provider.chat(...)` error path in a different file (`openai.ts:29`). Same `handler.ts` touched on different lines for different concerns — must NOT be conflated during plan execution.
+
+- **Out of scope**: `BullMQ`/`RabbitMQ` external queues (over-engineered at ~100 convs/day per REQUIREMENTS.md).
 
 ### Phase 94: OpenAI Latency + Graceful Failure
 
 **Goal**: A slow or hung OpenAI request can no longer silently stall the handler for minutes. The OpenAI SDK is bounded by an explicit timeout, the handler sends an interim UX message when the call exceeds the timeout boundary, and a graceful fallback is sent (and the bot returns cleanly) if a retry also fails. Closes BUG-02 from the post-v5.3.2 live test (~3min response latency window 22:23-22:26).
-**Depends on**: Nothing (independently plannable; BUG-02 root cause confirmed in debug session 2026-05-05 — own phase, NOT paired with Phase 93 per disjoint-code-surface verdict)
+**Depends on (planning)**: Nothing (independently plannable in parallel with Phase 93; BUG-02 root cause confirmed in debug session 2026-05-05 — disjoint code surface from Phase 93 per audit verdict; file pointers in Notes are sufficient for the planner to act without Phase 93 being planned).
+**Ship-after (execution dependency)**: Phase 93. The `OPENAI_TIMEOUT_MS=45000` value depends on `DEBOUNCE_TTL_SECONDS` being raised to satisfy the cross-phase invariant. Without that ordering, the dead-man switch fires mid-OpenAI-call and BUG-01 re-manifests as a side effect of fixing BUG-02. See **PHASE 94 SHIP CONSTRAINT** in Notes below.
 **Requirements**: LAT-01, LAT-02, LAT-03
 **Success Criteria** (what must be TRUE):
 
-1. The OpenAI client in `el-templo-bot/src/ai/openai.ts:29` is constructed with an explicit `timeout` option — default `45_000` ms (45s), env-overridable via `OPENAI_TIMEOUT_MS`. `.env.example` updated. The SDK no longer falls back to its 600s (10 min) default.
-2. When a `provider.chat(...)` call exceeds the timeout (or throws `OpenAI.APIError` for any other reason), the handler sends an interim UX message to the user (e.g., "Dame un segundo 🙌") rather than hanging silently. Wraps `provider.chat(...)` await sites at `handler.ts:584` and `handler.ts:641`.
-3. If the retry/fallback also fails (e.g., upstream is durably down), the handler sends a graceful-fallback message ("Tuve un problemita técnico, ¿me lo escribís de nuevo?" or similar) and returns cleanly — does not infinite-loop, does not silently hang, does not crash the bot process.
-4. A regression test mocks a slow/hung OpenAI response and asserts (a) the handler bails within the timeout boundary, (b) an interim message is sent to the user, and (c) the graceful fallback fires when the retry also fails.
+1. The OpenAI client in `el-templo-bot/src/ai/openai.ts:29` is constructed with an explicit `timeout` option — default `45_000` ms (45s), env-overridable via `OPENAI_TIMEOUT_MS`. `.env.example` updated. The SDK no longer falls back to its 600s (10 min) default. **Bound by the cross-phase invariant** (canonical block — must be textually identical to 93-CONTEXT.md, ROADMAP Phase 93 Notes, and MACRO-ROADMAP.md constraint #6):
+
+```
+DEBOUNCE_TTL_SECONDS >= (OPENAI_TIMEOUT_MS / 1000) × MAX_TOOL_ITERATIONS
+                     + (executeTool_timeout_seconds × MAX_TOOL_ITERATIONS)
+                     + safety_buffer
+
+Concrete values (post-Phase-94+97 target):
+  OPENAI_TIMEOUT_MS = 45000             (Phase 94 LAT-01)
+  MAX_TOOL_ITERATIONS = 5               (existing handler config)
+  executeTool_timeout_seconds = 30      (Phase 95 BOOK-01 + Phase 97 RGUARD-03)
+  safety_buffer = 20
+  Minimum TTL = 45 × 5 + 30 × 5 + 20 = 395s → round up to 600s (10 min)
+```
+
+The 45s `OPENAI_TIMEOUT_MS` is the LEFT-HAND VARIABLE that the right-hand TTL must accommodate. Phase 94 cannot choose this value independently of Phase 93's TTL choice. See PHASE 94 SHIP CONSTRAINT in Notes. 2. When a `provider.chat(...)` call exceeds the timeout (or throws `OpenAI.APIError` for any other reason), the handler sends an interim UX message to the user (e.g., "Dame un segundo 🙌") rather than hanging silently. Wraps `provider.chat(...)` await sites at `handler.ts:584` and `handler.ts:641`. 3. If the retry/fallback also fails (e.g., upstream is durably down), the handler sends a graceful-fallback message ("Tuve un problemita técnico, ¿me lo escribís de nuevo?" or similar) and returns cleanly — does not infinite-loop, does not silently hang, does not crash the bot process. 4. A regression test mocks a slow/hung OpenAI response and asserts (a) the handler bails within the timeout boundary, (b) an interim message is sent to the user, and (c) the graceful fallback fires when the retry also fails.
 
 **Plans:** TBD
 
 **Notes:**
+
+- **PHASE 94 SHIP CONSTRAINT (execution dependency on Phase 93):** Phase 94's plan and implementation can proceed in parallel with Phase 93's plan and implementation, but Phase 94 **must not merge to main** until Phase 93's `DEBOUNCE_TTL_SECONDS` adjustment commit is on the same branch. Verify before opening Phase 94's PR:
+
+  ```
+  git log --oneline | grep -i 'debounce_ttl\|TTL\|93-' | head
+  ```
+
+  The verification should show a Phase 93 commit modifying `DEBOUNCE_TTL_SECONDS` (or installing heartbeat-refresh) ahead of the Phase 94 PR's HEAD. Reviewer of Phase 94's PR is responsible for confirming this. Without it, shipping Phase 94 alone causes the dead-man switch to fire mid-OpenAI-call and BUG-01 re-manifests as a side effect of fixing BUG-02. **This is an execution dependency, NOT a planning dependency** — the planner agent for Phase 94 can produce the plan regardless of Phase 93's planning state.
 
 - **File-level pointers from debug session (`bot-3min-response-latency.md`):**
   - File 1: `/Users/bores/el-templo/el-templo-bot/src/ai/openai.ts:29` — `new OpenAI()` needs explicit `timeout: 45_000` + `OPENAI_TIMEOUT_MS` env override + `.env.example` update.
   - File 2: `/Users/bores/el-templo/el-templo-bot/src/webhook/handler.ts:584` and `:641` — wrap `provider.chat(...)` await sites with timeout/`OpenAI.APIError` handler that sends interim message + graceful fallback. The existing outer `try/catch` at `handler.ts:323` only logs today; surface to user is the new behavior.
-- **Bonus finding (carried into Phase 97 RGUARD-03):** `executeTool` localhost API calls likely have the same unbounded-await problem. Phase 94 should NOT expand scope to fix this; flag it as a Phase 97 concern.
+- **Bonus finding (carried into Phase 97 RGUARD-03):** `executeTool` localhost API calls likely have the same unbounded-await problem. Phase 94 should NOT expand scope to fix this; `withTimeout` helper is introduced by Phase 95, RGUARD-03 extends usage.
 - The exact distal trigger on 2026-04-16 22:23-22:26 (OpenAI slow that minute? ngrok jittery?) is unrecoverable because logs are stdout-only and the dev process has been restarted. The proximate structural cause (no timeout) is identifiable from code alone and matches the symptom shape unambiguously — verdict in `bot-3min-response-latency.md`. v5.4.0 fixes the logging-on-rotate gap; v5.3.3 fixes the structural defect.
 
 ### Phase 95: Booking Reliability + Graceful Degradation
 
-**Goal**: Class search returns consistent results across all venues so users can complete bookings without the bot looping on "no encontré clases disponibles". When tool calls do fail repeatedly, the bot escalates via `request_human` instead of entering an apology loop. Closes BUG-03 (booking root cause) and BUG-05 (apology-loop safety net) **paired** because BUG-05 is the safety net for when BUG-03 still fails — shipping one without the other leaves either users seeing raw failure modes (BUG-05 alone never triggers in test) or no safety net validation (BUG-03 alone leaves apology-loop unguarded).
-**Depends on**: Phase 94 (booking layer needs a stable handler — Phase 94's timeout/graceful-fallback rails are upstream of the tool-execution failure modes Phase 95 has to reason about)
+**Goal**: Class search returns consistent results across all venues so users can complete bookings without the bot looping on "no encontré clases disponibles". When tool calls do fail repeatedly, the bot escalates via `request_human` instead of entering an apology loop. Closes BUG-03 (booking root cause) and BUG-05 (apology-loop safety net) **paired** because BUG-05 is the safety net for when BUG-03 still fails. **Investigative framing**: per `.planning/v5.3.3-codebase-audit.md`, BUG-03 has 5 plausible root-cause code paths that static analysis cannot distinguish; Phase 95 must start with a focused audit task (mirroring Phase 93's audit-first structure) before authoring the fix.
+**Depends on**: Phase 94 (booking layer needs a stable handler — Phase 94's timeout/graceful-fallback rails are upstream of the tool-execution failure modes Phase 95 has to reason about). **NOT dependent on Phase 97** — Phase 95 introduces its own `withTimeout` helper for booking-tool localhost calls; Phase 97 RGUARD-03 then extends usage of the same helper.
 **Requirements**: BOOK-01, DEGR-01, DEGR-02
 **Success Criteria** (what must be TRUE):
 
-1. Class search returns consistent results across all El Templo venues — the booking tool (`book_class` or similar in `el-templo-bot`'s tool registry) can locate available classes regardless of which branch the user mentions. A user can complete a booking without the bot looping on "no encontré clases disponibles" when classes do exist.
-2. When tool calls fail repeatedly (transient errors, missing data, 5xx from localhost API), the bot does NOT enter an apology loop. Implementation: retry counter + escalate via `request_human` after 2 failed attempts. The escalation phrase reuses the v5.2-locked "Te paso con alguien del equipo, te escriben enseguida 🙌".
-3. **SC#3 invariant (RLOK-03 guardrail):** the no-escalation rule from v5.3.2 (Phase 91 OBJN-01/02) applies to **soft rejections ONLY**, NOT to tool failures. DEGR-01's `request_human` escalation triggers on **tool failures only**. Soft rejections continue to follow Phase 91's WHY/BACK-OFF Spanish framing in `system-prompt.ts`. Both rules wired without conflation. **Asserted in Phase 97 RGUARD-02 — explicit guardrail against RLOK-03 regression.**
-4. A regression test simulates (a) a successful cross-venue class search, (b) repeated tool-failure mode → assert escalation fires after 2 attempts, (c) a soft-rejection turn → assert NO `request_human` call, only WHY/BACK-OFF framing per Phase 91.
+1. Class search returns consistent results across all El Templo venues — the booking tool (`book_class` or similar in `el-templo-bot`'s tool registry) can locate available classes regardless of which branch the user mentions. A user can complete a booking without the bot looping on "no encontré clases disponibles" when classes do exist. **Root cause identified via audit task** (one of 5 plausible paths per `v5.3.3-codebase-audit.md`: LIKE-search ambiguity, cross-branch result mixing, Sunday=0/7 day-of-week confusion, LIMIT-6 truncation, `booking_count` today-filter on tomorrow-queries).
+2. When tool calls fail repeatedly (transient errors, missing data, 5xx from localhost API), the bot does NOT enter an apology loop. Implementation: retry counter + escalate via `request_human` after 2 failed attempts. The escalation phrase reuses the v5.2-locked "Te paso con alguien del equipo, te escriben enseguida 🙌". **Note**: `request_human` only sets `conversation_status='human_takeover'` — it does NOT send the handoff phrase itself; phrase comes from the model's pre-tool text governed by `system-prompt.ts:223`. Plan-time choice: trust-model / handler-side synthetic / explicit new prompt rule.
+3. **SC#3 invariant (RLOK-03 guardrail):** the no-escalation rule from v5.3.2 (Phase 91 OBJN-01/02) applies to **soft rejections ONLY**, NOT to tool failures. DEGR-01's `request_human` escalation triggers on **tool failures only**. Soft rejections continue to follow Phase 91's WHY/BACK-OFF Spanish framing in `system-prompt.ts`. Both rules wired without conflation. **Asserted in Phase 97 RGUARD-02.**
+4. **`withTimeout` helper exists** at a shared location (e.g., `el-templo-bot/src/ai/with-timeout.ts` or similar) and is used by booking-tool localhost calls at `el-templo-bot/src/ai/tools.ts:636` and `:806`. Default 30s, env-overridable. Phase 97 RGUARD-03 extends this helper to other `executeTool` sites — Phase 95 ships the helper, NOT its consumption by other tools.
+5. A regression test simulates (a) a successful cross-venue class search, (b) repeated tool-failure mode → assert escalation fires after 2 attempts, (c) a soft-rejection turn → assert NO `request_human` call, only WHY/BACK-OFF framing per Phase 91, (d) booking tool timeout → assert the booking call bails within the timeout boundary.
 
-**Plans:** TBD (likely 2 plans — one per BUG ID; ship together, reviewed together)
+**Plans:** TBD (likely 3 plans — audit, BUG-03 fix + helper, BUG-05 fix; ship together, reviewed together)
 
 **Notes:**
 
-- **Pairing rationale:** BUG-03 + BUG-05 ship together. BUG-05 is the safety net for when BUG-03 still fails. Shipping BUG-05 without BUG-03 means the safety net never triggers in test (no real failure path to exercise it). Shipping BUG-03 without BUG-05 means users still see raw apology-loop failure modes when residual booking edge cases hit. Phase 95 is designed as ONE phase with potentially 2 plans (one per BUG ID), NOT split into 2 phases.
-- **SC#3 invariant is the single most important carry-forward from v5.3.2.** The plan executor MUST wire the retry-counter escalation as a tool-failure-only branch, not a generic escalation rule. Phase 91's soft-rejection framing must remain untouched. This is asserted explicitly in Phase 97 RGUARD-02.
-- **Out of scope:** Larger `executeTool` refactor (parallelization, retry semantics, structured error taxonomy) is NOT v5.3.3 scope per REQUIREMENTS.md. Phase 95 only adds the retry counter + escalation branch; deeper refactor is v5.4+ territory.
+- **Investigative framing (audit-first, mirrors Phase 93):** BUG-03's 5 plausible code paths can only be picked via focused audit. Plan task structure: (1) Audit BUG-03 — read tool registry, class search query, branch-filtering logic, day-of-week conversion, LIMIT/pagination, today-filter logic; produce 95-AUDIT.md naming root cause; (2) Author failing tests against audit verdict; (3) Implement fix at root-cause site + introduce `withTimeout` helper + apply to booking calls; (4) Implement BUG-05 retry counter + escalation; (5) Verify full suite.
+- **Pairing rationale:** BUG-03 + BUG-05 ship together. BUG-05 is the safety net for when BUG-03 still fails. Shipping BUG-05 without BUG-03 means the safety net never triggers in test (no real failure path to exercise it). Shipping BUG-03 without BUG-05 means users still see raw apology-loop failure modes when residual booking edge cases hit. Phase 95 is designed as ONE phase with multiple plans (audit + per-BUG), NOT split into separate phases.
+- **`withTimeout` helper ownership:** Phase 95 introduces the helper FROM THE START — not as a per-call ad-hoc `Promise.race` that Phase 97 has to refactor later. Helper accepts `(promise, ms)` and returns the promise wrapped in a timeout; on timeout, throws a tagged error (e.g., `ToolTimeoutError`) that the handler distinguishes from generic tool errors. Phase 97 RGUARD-03 just imports and applies; no refactor.
+- **SC#3 invariant is the single most important carry-forward from v5.3.2.** The plan executor MUST wire the retry-counter escalation as a tool-failure-only branch, not a generic escalation rule. Phase 91's soft-rejection framing must remain untouched. No shared state between Phase 91's `whyAsked` flag and Phase 95's retry counter — they're different semantic objects on different code surfaces.
+- **Snapshot coordination with Phase 96:** Phase 96 is the canonical snapshot regeneration point (it touches `system-prompt.ts` materially per the CTXT-02 fix). If Phase 95's DEGR-01 implementation also touches `system-prompt.ts` (option iii: explicit new prompt rule for handoff phrasing), Phase 95 ONLY updates `POST_RLOK_04_BYTES` to the intermediate state — does NOT regenerate the snapshot fixture. Phase 96 regenerates the fixture once, capturing combined Phase 95 + Phase 96 prompt changes.
+- **Out of scope:** Larger `executeTool` refactor (parallelization, retry semantics, structured error taxonomy) is NOT v5.3.3 scope per REQUIREMENTS.md. Phase 95 ships the `withTimeout` helper + booking-tool consumption + BUG-05 retry/escalation; deeper refactor is v5.4+ territory.
 
 ### Phase 96: Context Awareness
 
-**Goal**: Bot does not re-ask for data the user has already provided earlier in the conversation. Closes BUG-04 from the post-v5.3.2 live test (specific failure: user said "Ignacio Bordon", bot re-asked for full name two turns later). Discrete prompt / profile-extraction work — does not touch handler, OpenAI client, or booking layers.
-**Depends on**: Phase 95 (sequencing rather than coupling — keeps the milestone linear; Phase 96 is independently plannable but lands after the booking + degradation work to keep regression-lock test budget linear)
+**Goal**: Bot does not re-ask for data the user has already provided earlier in the conversation. Closes BUG-04 from the post-v5.3.2 live test (specific failure: user said "Ignacio Bordon", bot re-asked for full name two turns later). Touches `system-prompt.ts` and/or the profile extraction layer — does NOT touch handler concurrency, OpenAI client, or booking layers. **Phase 96 is the canonical snapshot regeneration point** for the v5.3.3 milestone (see Notes).
+**Depends on**: Phase 95 (sequencing rather than coupling — keeps the milestone linear; Phase 96 is independently plannable but lands after the booking + degradation work)
 **Requirements**: CTXT-01, CTXT-02
 **Success Criteria** (what must be TRUE):
 
 1. When the user has provided structured profile data earlier in the conversation (full name, contact info, preferences, etc.), the bot does NOT re-ask for the same data. Specifically: a conversation where the user types "Ignacio Bordon" must result in NO subsequent `request for full name` from Mica.
-2. Profile extraction layer (or `system-prompt.ts` rules) ensures persisted `<profile>` data is referenced by the model rather than rediscovered. Choice between (a) prompt-level rule reminding the model to consult known profile fields, (b) extraction-layer fix that surfaces profile data more prominently, or (c) hybrid — decided at plan time.
-3. A regression test exists that simulates a multi-turn conversation where the user provides their name in turn 1, asserts the bot's turn-3 reply does NOT re-ask for full name (assert by absence of "nombre completo" / "cómo te llamás" / "tu nombre" patterns when profile field is populated).
+2. Profile extraction layer (or `system-prompt.ts` rules) ensures persisted `<profile>` data is referenced by the model rather than rediscovered. **Case → option mapping is FIXED, not deferred** (per `.planning/v5.3.3-codebase-audit.md` — `extractAndUpdateProfile` at `handler.ts:822-837` is fire-and-forget AFTER reply):
+   - **Cross-conversation case** (name persisted from prior session, model ignoring it in current turn) → **option (a) prompt-level rule alone is sufficient**. The data IS in the rendered prompt; the model just isn't reading it.
+   - **Within-2-turns case** (user types name turn N, bot re-asks turn N+1 before fire-and-forget extraction completes) → **option (a) is INSUFFICIENT; requires option (b) extraction-layer fix OR option (c) hybrid (prompt rule + extraction-layer fix)**.
 
-**Plans:** TBD
+   The only plan-time question is **which case BUG-04 actually exhibited** — Phase 96's audit task answers this via reproduction. The implementation option is determined by the case, not chosen freely.
+
+3. A regression test exists that simulates the relevant multi-turn conversation pattern (per audit verdict) and asserts the bot's reply does NOT re-ask for full name (assert by absence of "nombre completo" / "cómo te llamás" / "tu nombre" patterns when profile field is populated).
+4. **PB1.E1A snapshot fixture regenerated** at the end of Phase 96. The regeneration captures combined Phase 95 + Phase 96 `system-prompt.ts` changes (if any). `POST_RLOK_04_BYTES` constant updated to match. Commit the regenerated fixture in the same PR per v5.3.1 update discipline.
+
+**Plans:** TBD (likely 2 plans — audit + reproduction, then fix + snapshot regen)
 
 **Notes:**
 
-- Implementation choice between prompt-level rule, extraction-layer fix, and hybrid is genuinely a plan-time decision — depends on whether the existing `<profile>` tag flow already persists this data and the model is just ignoring it (→ prompt-level fix), or whether extraction is dropping it (→ extraction-layer fix). Read `extractAndUpdateProfile` flow before deciding.
-- Discrete prompt work — does NOT modify handler concurrency, OpenAI client, booking tools, or anything Phase 93/94/95 touches. Lowest-risk phase of the milestone after Phase 93 (which is investigative).
+- **Audit task before fix** — reproduce BUG-04 to determine whether the within-2-turns case or cross-conversation case applies. Read `handler.ts:822-837` (`extractAndUpdateProfile` fire-and-forget call site) and `handler.ts:1369-1466` (extraction implementation) before authoring the fix. The option-space narrowing in REQUIREMENTS.md CTXT-02 ties to which case actually triggered the live-test failure.
+- **Snapshot regeneration ownership:** Phase 96 owns the regeneration. Phase 95 only updates `POST_RLOK_04_BYTES` to an intermediate state if it touches `system-prompt.ts` for the DEGR-01 handoff-phrase prompt rule (option iii). Phase 96 then regenerates the fixture once, capturing combined changes. KGATE-05 dual-threshold (≥20% rendered AND ≥35% knowledge block) must continue to pass — verify post-regen.
+- **KGATE-05 budget coordination:** any new prompt rule consumes the rendered-prompt budget capped at `floor(BASELINE_CHARS * 0.8)`. Current post-RLOK-04 baseline is 18,370 chars (`v5-3-2-regression.test.ts:57`). Phase 96 plan must verify post-fix prompt length remains within budget.
+- Discrete prompt / extraction work — does NOT modify handler concurrency, OpenAI client, booking tools, or anything Phase 93/94/95 touches at the concurrency/timeout layer. Touches `system-prompt.ts` and possibly the extraction code in `handler.ts:1369-1466`.
 
 ### Phase 97: Backlog + Regression Lock
 
@@ -127,7 +181,7 @@
 2. Bot uses Argentine voseo consistently. Specific failure mode being closed: bot occasionally produced "tienes" (Castilian) instead of "tenés" (rioplatense voseo) in live test. **Snapshot tests will NOT catch model variance** — plan must choose between (a) multi-run sampling with statistical threshold (e.g., N=20 runs, voseo appears in ≥18 — costs N× model spend per CI run) or (b) accept-list of valid forms (both "tenés" and "tienes" PASS, only fail on neither — cheaper, weaker signal). **Decided at plan time based on CI budget.** Same decision applies to ELEV-01.
 3. **RGUARD-01:** New behavioural-integration assertions exist for every v5.3.3 fix — CONC-01, LAT-01..03, BOOK-01, DEGR-01..02, CTXT-01..02 — added to a milestone-scoped suite (likely `el-templo-bot/test/v5-3-3-regression.test.ts` mirroring v5.3.2's pattern). All passing.
 4. **RGUARD-02:** Full bot test suite passes with **zero regressions** in v5.3.2 RLOK-01..04 + v5.3.1 KGATE/BPASS/METHOD/QREG behavior. Specifically: SC#3 (no-escalation for soft rejections) still holds (Phase 95 wires retry-escalation as tool-failure branch, Phase 91 framing untouched); KGATE-05 dual-threshold (≥20% rendered AND ≥35% knowledge block) still passes; PB1.E1A snapshot tripwire still holds (or is intentionally regenerated with the regen committed in the same PR per v5.3.1 update discipline).
-5. **RGUARD-03:** Timeout pattern from LAT-01 extended to localhost API calls inside `executeTool` (bonus finding from BUG-02 debug session — same unbounded-await problem likely affects tool execution, not just `provider.chat`). Implementation may be a single shared timeout helper.
+5. **RGUARD-03:** Timeout pattern from LAT-01 extended to localhost API calls inside `executeTool`. **`withTimeout` helper is introduced by Phase 95** (booking-tool consumption); RGUARD-03 extends usage to remaining `executeTool` localhost call sites (enumeration TBD per Phase 95 audit + scan of `el-templo-bot/src/ai/tools.ts`). No refactor of Phase 95's helper — RGUARD-03 just consumes it.
 6. **Live-test validation:** A guided live-test conversation on WhatsApp (covering rapid-fire concurrency, normal latency path, cross-venue booking, repeated tool failure → escalation, name-already-given context, elevator pitch, voseo) confirms all v5.3.3 fixes hold in practice. Documented as inline transcript in the phase SUMMARY (per-path verdicts + ≤2 retries + 3rd-fail → Phase 97.1 gap-closure).
 
 **Plans:** TBD (likely 2 plans mirroring v5.3.2 Phase 92 — one for source/test changes (RGUARD-01..03 + ELEV-01 + VOSEO-01 mechanism), one for guided live test)
@@ -136,7 +190,7 @@
 
 - **Closing constraint per `MACRO-ROADMAP.md`:** Phase 97's live test must validate the bot is **production-deploy-ready**, NOT CRM-integration-ready. Acceptance focuses on behavioral/handler correctness and stability — NOT persistence layer, NOT CRM hooks, NOT multi-tenancy. Those land in v5.4.0 or Kero phase 1.
 - **Non-deterministic regression strategy is the headline plan-time decision.** Both ELEV-01 (third hook coverage) and VOSEO-01 are model-variance-bound. Multi-run sampling gives stronger signal but burns CI model spend; accept-list is cheap but weaker signal. Decide once for both at plan time so the test pattern is consistent.
-- **RGUARD-03 and the `executeTool` timeout:** the bonus finding from `bot-3min-response-latency.md` is that localhost API calls inside `executeTool` likely share the same unbounded-await defect Phase 94 fixes for `provider.chat`. Phase 97 closes this rather than spawning a separate phase. A single shared timeout helper (e.g., `withTimeout(promise, ms)`) is the obvious DRY shape — but plan may also choose direct config per call site if helper would obscure intent.
+- **RGUARD-03 and the `executeTool` timeout:** the bonus finding from `bot-3min-response-latency.md` is that localhost API calls inside `executeTool` likely share the same unbounded-await defect Phase 94 fixes for `provider.chat`. **`withTimeout(promise, ms)` helper is introduced by Phase 95** for booking-tool calls (`tools.ts:636` and `:806`). Phase 97 RGUARD-03 extends usage to remaining `executeTool` sites — does NOT refactor or replace Phase 95's helper.
 - **SC#3 invariant assertion** is the single most important RGUARD-02 line: a regression test must explicitly assert that a soft-rejection turn does NOT trigger `request_human`, even after Phase 95's escalation logic landed. This is the explicit guardrail against RLOK-03 regression.
 - This is the only test-heavy phase of v5.3.3 (parallel to Phase 92 in v5.3.2). The shape — milestone regression suite + guided live test + per-path inline transcript — is reused deliberately.
 

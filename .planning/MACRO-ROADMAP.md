@@ -2,7 +2,7 @@
 
 **Purpose:** Cross-milestone sequence that survives individual `/gsd:complete-milestone` and `/gsd:new-milestone` cycles. ROADMAP.md captures the active milestone in detail; this file captures what comes after, why, and the constraints that propagate forward.
 
-**Last updated:** 2026-05-05
+**Last updated:** 2026-05-13 (added integration-test-split constraint + Phase 93/94/97 TTL invariant per `.planning/v5.3.3-codebase-audit.md`)
 
 ---
 
@@ -87,9 +87,26 @@ For Kero to read conversations, the bot needs **durable conversation persistence
 These survive milestone boundaries — re-check them when planning each new milestone:
 
 1. **Bot env mode:** v5.3.3 closes in dev. v5.4.0 opens in prod. Don't accidentally ship dev-only assumptions (ngrok URLs, test tokens, hardcoded local API endpoints) into prod via inherited config.
-2. **No-escalation rule (v5.3.2 SC#3):** soft rejections only, NOT tool failures. Carries through every future bot phase. Already noted in v5.3.3 Phase C; will continue to apply in v5.4.0 and Kero.
+2. **No-escalation rule (v5.3.2 SC#3):** soft rejections only, NOT tool failures. Carries through every future bot phase. Already noted in v5.3.3 Phase 95; will continue to apply in v5.4.0 and Kero.
 3. **Pino logging discipline (CLAUDE.md):** never `console.log`, always Pino. v5.4.0 needs to extend this with rotation/sink, not weaken it.
 4. **Bot↔CRM persistence:** see above. The single biggest hidden dependency between bot and Kero milestones.
+5. **Integration test split (per `el-templo-bot/CLAUDE.md`):** integration tests for bot logic that exercise webhook → MySQL → Redis pipelines belong in `el-templo-api/test/whatsapp/` (shared test DB). Unit tests for bot-specific logic (AI provider, memory, state machine, in-process helpers) live in `el-templo-bot/test/`. **Per `.planning/v5.3.3-codebase-audit.md`, the existing `el-templo-api/test/whatsapp/` directory does NOT currently cover v5.3.3 BUG paths** — v5.3.3 phases will add integration tests there for the first time. Specifically: Phase 93's Fastify-`inject` rapid-fire test (if branch verdict requires integration shape), Phase 95's booking integration test. Bot-side milestone-scoped regression suite (`el-templo-bot/test/v5-3-3-regression.test.ts`) handles unit-shape assertions. This split is intentional and must be respected in plan-time test placement decisions; future bot milestones (v5.4.0+) should maintain it.
+6. **Phase 93 ↔ 94 ↔ 97 TTL/timeout invariant** — v5.3.3-specific, documented here so it survives milestone archival. Full canonical block below (dedented so it's textually identical to 93-CONTEXT.md, ROADMAP Phase 93 Notes, and ROADMAP Phase 94 SC#1). v5.4.0 prod monitoring should alert if these constants drift out of invariant range — capture as a v5.4.0 monitoring requirement when scoped.
+
+Canonical block (must be textually identical across all 4 places):
+
+```
+DEBOUNCE_TTL_SECONDS >= (OPENAI_TIMEOUT_MS / 1000) × MAX_TOOL_ITERATIONS
+                     + (executeTool_timeout_seconds × MAX_TOOL_ITERATIONS)
+                     + safety_buffer
+
+Concrete values (post-Phase-94+97 target):
+  OPENAI_TIMEOUT_MS = 45000             (Phase 94 LAT-01)
+  MAX_TOOL_ITERATIONS = 5               (existing handler config)
+  executeTool_timeout_seconds = 30      (Phase 95 BOOK-01 + Phase 97 RGUARD-03)
+  safety_buffer = 20
+  Minimum TTL = 45 × 5 + 30 × 5 + 20 = 395s → round up to 600s (10 min)
+```
 
 ---
 
