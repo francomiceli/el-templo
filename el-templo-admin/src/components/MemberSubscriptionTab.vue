@@ -6,6 +6,26 @@
     </div>
 
     <template v-else>
+      <!-- Outstanding-balance banner. Source: balances cache via
+           GET /admin/members/:id/outstanding-concepts (FIFO concepts
+           with balance > 0). Surfaces the deudor flag inline so the
+           admin does not need to flip to the Finanzas tab to see it. -->
+      <q-banner v-if="hasDebt" class="bg-red-1 text-red-10 q-mb-md" dense rounded>
+        <template #avatar>
+          <q-icon name="error" color="negative" />
+        </template>
+        <div class="row items-center q-gutter-sm">
+          <q-badge color="negative" label="DEUDOR" />
+          <div class="text-weight-medium">
+            Debe
+            <template v-for="(d, i) in debtByCurrency" :key="d.currency">
+              <span v-if="i > 0"> · </span>
+              {{ formatPrice(d.amount, d.currency) }}
+            </template>
+          </div>
+        </div>
+      </q-banner>
+
       <!-- ========================================== -->
       <!-- Presencial Subscription Card -->
       <!-- ========================================== -->
@@ -374,7 +394,12 @@ import {
   type PlanCategory,
   type SubscriptionStatus,
 } from 'src/types/subscription';
-import { PAYMENT_METHOD_OPTIONS, type PaymentMethod } from 'src/types/transaction';
+import {
+  PAYMENT_METHOD_OPTIONS,
+  type PaymentMethod,
+  type OutstandingConcept,
+} from 'src/types/transaction';
+import { useTransactionsApi } from 'src/composables/useTransactionsApi';
 import type { MemberProfile, BranchOption } from 'src/types/member';
 import AssignPlanDialog from 'src/components/AssignPlanDialog.vue';
 import ChangeFixedSchedulesDialog from 'src/components/ChangeFixedSchedulesDialog.vue';
@@ -385,6 +410,7 @@ import type { SubscriptionScheduleChangeEntry } from 'src/types/subscription';
 const log = createLogger('MemberSubscriptionTab');
 const $q = useQuasar();
 const subsApi = useSubscriptionsApi();
+const transactionsApi = useTransactionsApi();
 
 // =========================================================================
 // Props & Emits
@@ -424,6 +450,7 @@ const showAssignProgramDialog = ref(false);
 const showChangeDialog = ref(false);
 const showChangeTurnosDialog = ref(false);
 const scheduleChanges = ref<SubscriptionScheduleChangeEntry[]>([]);
+const outstandingConcepts = ref<OutstandingConcept[]>([]);
 const loadingScheduleChanges = ref(false);
 const showRenewalDialog = ref(false);
 const renewTarget = ref<SubscriptionDetail | null>(null);
@@ -443,6 +470,21 @@ const presencialSub = computed(
   () =>
     allSubscriptions.value.find((s) => !s.planCategory || s.planCategory === 'presencial') ?? null
 );
+
+// Aggregated outstanding balance per currency (drives the "Deudor" banner).
+// Coach role gets 403 from the source endpoint — we silence and leave the
+// list empty so the banner does not flash for them.
+const debtByCurrency = computed(() => {
+  const map = new Map<string, number>();
+  for (const c of outstandingConcepts.value) {
+    if (c.balance > 0) {
+      map.set(c.currency, (map.get(c.currency) ?? 0) + c.balance);
+    }
+  }
+  return Array.from(map.entries()).map(([currency, amount]) => ({ currency, amount }));
+});
+
+const hasDebt = computed(() => debtByCurrency.value.length > 0);
 
 // Branches the FixedSchedulePicker offers when the active sub's plan is
 // multi_branch. Virtual sedes (Templo Online) never host presencial anchors,
@@ -569,8 +611,28 @@ async function loadClassUsage() {
   }
 }
 
+async function loadOutstandingConcepts() {
+  try {
+    outstandingConcepts.value = await transactionsApi.getOutstandingConcepts(props.userId);
+  } catch (err: unknown) {
+    outstandingConcepts.value = [];
+    // 403 for coach role is expected (FINANCE_READ_ROLES excludes coach).
+    if (!isExpectedClientError(err)) {
+      log.warn('Error loading outstanding concepts', {
+        error: extractError(err),
+        userId: props.userId,
+      });
+    }
+  }
+}
+
 async function refreshAll() {
-  await Promise.all([loadSubscriptions(), loadHistory(), loadClassUsage()]);
+  await Promise.all([
+    loadSubscriptions(),
+    loadHistory(),
+    loadClassUsage(),
+    loadOutstandingConcepts(),
+  ]);
   await loadScheduleChanges();
 }
 
