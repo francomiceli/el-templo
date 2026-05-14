@@ -1347,12 +1347,26 @@ export class ReportsService {
     }
 
     if (filters.leadStatus !== undefined && filters.leadStatus.length > 0) {
+      // The UI shows `leadStatusEffective` which is derived (see
+      // mapTrialSessionRow): `lead_status ?? (converted ? 'cerrado' : 'en_seguimiento')`.
+      // Filtering must match the same derivation, otherwise rows with
+      // `lead_status IS NULL` (which display as 'en_seguimiento' or 'cerrado'
+      // depending on converted_at) get excluded from their own filter.
       // Each enum value is bound as a parameter; SQL injection-safe.
       const placeholders = sql.join(
         filters.leadStatus.map((v) => sql`${v}`),
         sql`, `,
       );
-      preds.push(sql`u.lead_status IN (${placeholders})`);
+      const orParts: SQL[] = [sql`u.lead_status IN (${placeholders})`];
+      if (filters.leadStatus.includes("en_seguimiento")) {
+        orParts.push(sql`(u.lead_status IS NULL AND u.converted_at IS NULL)`);
+      }
+      if (filters.leadStatus.includes("cerrado")) {
+        orParts.push(
+          sql`(u.lead_status IS NULL AND u.converted_at IS NOT NULL)`,
+        );
+      }
+      preds.push(sql`(${sql.join(orParts, sql` OR `)})`);
     }
 
     if (filters.attended !== undefined) {

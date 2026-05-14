@@ -1174,6 +1174,7 @@ const exportingExpiring = ref(false);
 
 const expiringColumns: QTableColumn[] = [
   { name: 'memberName', label: 'Miembro', field: 'memberName', align: 'left' },
+  { name: 'branchName', label: 'Sucursal', field: 'branchName', align: 'left' },
   { name: 'planName', label: 'Plan', field: 'planName', align: 'left' },
   {
     name: 'endDate',

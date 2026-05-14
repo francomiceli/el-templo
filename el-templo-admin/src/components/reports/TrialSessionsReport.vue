@@ -5,17 +5,26 @@
     <!-- ================================================================== -->
     <div class="row q-col-gutter-sm q-mb-md items-end">
       <div class="col-12 col-sm-3 col-md-2">
+        <q-input v-model="filters.search" label="Buscar" dense outlined clearable debounce="300">
+          <template #prepend>
+            <q-icon name="search" />
+          </template>
+        </q-input>
+      </div>
+
+      <div class="col-6 col-sm-2 col-md-2">
         <q-select
-          v-model="filters.leadStatus"
+          :model-value="filters.leadStatus"
           :options="LEAD_STATUS_OPTIONS"
           multiple
           emit-value
           map-options
-          label="Estado del Lead"
+          label="Estado"
           dense
           outlined
           clearable
           use-chips
+          @update:model-value="(v) => (filters.leadStatus = Array.isArray(v) ? v : [])"
         />
       </div>
 
@@ -64,7 +73,7 @@
         />
       </div>
 
-      <div class="col-12 col-sm-3 col-md-2">
+      <div class="col-6 col-sm-2 col-md-1">
         <q-input
           v-model.number="filters.daysWithoutConvertingMin"
           type="number"
@@ -76,29 +85,16 @@
         />
       </div>
 
-      <div class="col-12 col-sm-3 col-md-2">
-        <q-input v-model="filters.search" label="Buscar" dense outlined clearable debounce="300">
-          <template #prepend>
-            <q-icon name="search" />
-          </template>
-        </q-input>
+      <div class="col-auto">
+        <q-btn
+          color="primary"
+          icon="download"
+          label="Exportar CSV"
+          :loading="exporting"
+          :disable="loading"
+          @click="onExport"
+        />
       </div>
-    </div>
-
-    <!-- ================================================================== -->
-    <!-- Action bar -->
-    <!-- ================================================================== -->
-    <div class="row items-center q-mb-sm">
-      <q-btn
-        color="primary"
-        icon="download"
-        label="Exportar CSV"
-        :loading="exporting"
-        :disable="loading"
-        @click="onExport"
-      />
-      <q-space />
-      <div class="text-caption text-grey-7">Mostrando {{ rows.length }} de {{ total }}</div>
     </div>
 
     <!-- ================================================================== -->
