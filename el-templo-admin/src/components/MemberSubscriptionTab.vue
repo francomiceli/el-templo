@@ -6,6 +6,26 @@
     </div>
 
     <template v-else>
+      <!-- Outstanding-balance banner. Source: balances cache via
+           GET /admin/members/:id/outstanding-concepts (FIFO concepts
+           with balance > 0). Surfaces the deudor flag inline so the
+           admin does not need to flip to the Finanzas tab to see it. -->
+      <q-banner v-if="hasDebt" class="bg-red-1 text-red-10 q-mb-md" dense rounded>
+        <template #avatar>
+          <q-icon name="error" color="negative" />
+        </template>
+        <div class="row items-center q-gutter-sm">
+          <q-badge color="negative" label="DEUDOR" />
+          <div class="text-weight-medium">
+            Debe
+            <template v-for="(d, i) in debtByCurrency" :key="d.currency">
+              <span v-if="i > 0"> · </span>
+              {{ formatPrice(d.amount, d.currency) }}
+            </template>
+          </div>
+        </div>
+      </q-banner>
+
       <!-- ========================================== -->
       <!-- Presencial Subscription Card -->
       <!-- ========================================== -->
@@ -374,7 +394,11 @@ import {
   type PlanCategory,
   type SubscriptionStatus,
 } from 'src/types/subscription';
-import { PAYMENT_METHOD_OPTIONS, type PaymentMethod } from 'src/types/transaction';
+import {
+  PAYMENT_METHOD_OPTIONS,
+  type PaymentMethod,
+  type OutstandingConcept,
+} from 'src/types/transaction';
 import type { MemberProfile, BranchOption } from 'src/types/member';
 import AssignPlanDialog from 'src/components/AssignPlanDialog.vue';
 import ChangeFixedSchedulesDialog from 'src/components/ChangeFixedSchedulesDialog.vue';
@@ -403,6 +427,10 @@ const props = defineProps<{
   // admin clicks "Editar alumno" from the banner CTA.
   member?: MemberProfile | null;
   branches?: BranchOption[];
+  // Outstanding-balance concepts owned by the parent page (single fetch
+  // shared with the floating "D" badge on the Suscripcion tab). Passed
+  // straight through so this component does not re-fetch on tab mount.
+  outstandingConcepts?: OutstandingConcept[];
 }>();
 
 const emit = defineEmits<{
@@ -443,6 +471,22 @@ const presencialSub = computed(
   () =>
     allSubscriptions.value.find((s) => !s.planCategory || s.planCategory === 'presencial') ?? null
 );
+
+// Aggregated outstanding balance per currency (drives the "Deudor"
+// banner). The parent page owns the fetch and passes the list in; if it
+// is empty (no debt, or coach role for which the endpoint 403s), the
+// banner stays hidden.
+const debtByCurrency = computed(() => {
+  const map = new Map<string, number>();
+  for (const c of props.outstandingConcepts ?? []) {
+    if (c.balance > 0) {
+      map.set(c.currency, (map.get(c.currency) ?? 0) + c.balance);
+    }
+  }
+  return Array.from(map.entries()).map(([currency, amount]) => ({ currency, amount }));
+});
+
+const hasDebt = computed(() => debtByCurrency.value.length > 0);
 
 // Branches the FixedSchedulePicker offers when the active sub's plan is
 // multi_branch. Virtual sedes (Templo Online) never host presencial anchors,

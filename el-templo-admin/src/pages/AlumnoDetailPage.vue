@@ -206,7 +206,19 @@
         <q-tab name="perfil" label="Perfil" />
         <q-tab name="entrenamiento" label="Entrenamiento" />
         <q-tab name="notas" label="Notas" />
-        <q-tab name="suscripcion" label="Suscripcion" />
+        <q-tab name="suscripcion">
+          <div class="q-tab__label">Suscripcion</div>
+          <q-badge
+            v-if="memberHasDebt"
+            color="negative"
+            floating
+            rounded
+            text-color="white"
+            class="debtor-tab-badge"
+          >
+            D
+          </q-badge>
+        </q-tab>
         <q-tab name="programas" label="Programas" />
         <q-tab name="asistencia" label="Asistencia" />
         <q-tab name="finanzas" label="Finanzas" />
@@ -444,6 +456,7 @@
             :memberBranchIsVirtual="memberBranchIsVirtual"
             :member="memberProfile"
             :branches="branches"
+            :outstanding-concepts="outstandingConcepts"
             @subscription-changed="onSubscriptionChanged"
           />
         </q-tab-panel>
@@ -486,6 +499,9 @@ import { formatDate } from 'src/utils/format-date';
 import { useAuthStore } from 'src/stores/useAuthStore';
 import { useGoalPlanAdminApi } from 'src/composables/useGoalPlanAdminApi';
 import { useMembersApi, type LeadStatusValue } from 'src/composables/useMembersApi';
+import { useTransactionsApi } from 'src/composables/useTransactionsApi';
+import { extractError, isExpectedClientError } from 'src/utils/extract-error';
+import type { OutstandingConcept } from 'src/types/transaction';
 import { useStatusBadge } from 'src/composables/useStatusBadge';
 import MemberProfileTab from 'src/components/MemberProfileTab.vue';
 import MemberNotesTab from 'src/components/MemberNotesTab.vue';
@@ -514,6 +530,7 @@ const $q = useQuasar();
 const authStore = useAuthStore();
 const membersApi = useMembersApi();
 const goalPlanApi = useGoalPlanAdminApi();
+const transactionsApi = useTransactionsApi();
 const { getColor: getStatusColor, getLabel: getStatusLabel } = useStatusBadge();
 
 // =========================================================================
@@ -528,6 +545,13 @@ const goalPlanLoading = ref(false);
 const branches = ref<BranchOption[]>([]);
 const activeTab = ref('perfil');
 const showEditDialog = ref(false);
+const outstandingConcepts = ref<OutstandingConcept[]>([]);
+
+// Drives the floating "D" badge on the Suscripcion tab and the deudor
+// banner inside MemberSubscriptionTab. Sourced from the balances cache
+// via GET /admin/members/:id/outstanding-concepts. Coach role gets 403
+// (silenced) so the badge stays hidden for non-finance roles.
+const memberHasDebt = computed(() => outstandingConcepts.value.some((c) => c.balance > 0));
 
 // =========================================================================
 // Phase 114 (D-38): "Datos de Lead" block state
@@ -765,6 +789,21 @@ async function loadBranches() {
   }
 }
 
+async function loadOutstandingConcepts() {
+  try {
+    outstandingConcepts.value = await transactionsApi.getOutstandingConcepts(userId.value);
+  } catch (err: unknown) {
+    outstandingConcepts.value = [];
+    // 403 for coach role is expected (FINANCE_READ_ROLES excludes coach).
+    if (!isExpectedClientError(err)) {
+      log.warn('Error loading outstanding concepts', {
+        error: extractError(err),
+        userId: userId.value,
+      });
+    }
+  }
+}
+
 async function loadAll() {
   pageLoading.value = true;
   pageError.value = null;
@@ -777,6 +816,8 @@ async function loadAll() {
     loadGoalPlanDetail();
     // Phase 99 R11: load session-level counts in background (non-blocking)
     loadSessionLevels();
+    // Outstanding balance in background — drives the Suscripcion tab badge.
+    loadOutstandingConcepts();
   } catch {
     pageError.value = 'Error cargando detalle del alumno';
   } finally {
@@ -800,8 +841,10 @@ async function onMemberSaved() {
 }
 
 async function onSubscriptionChanged() {
-  // Refresh member profile in case boarding pass usage changed
-  await loadMemberProfile();
+  // Refresh member profile in case boarding pass usage changed.
+  // Also re-pull outstanding concepts because renewal / change-plan can
+  // create or settle balances — keeps the Suscripcion tab badge in sync.
+  await Promise.all([loadMemberProfile(), loadOutstandingConcepts()]);
 }
 
 // =========================================================================
