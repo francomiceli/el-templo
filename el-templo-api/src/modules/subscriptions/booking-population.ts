@@ -185,8 +185,20 @@ export async function populateBookings(
     ) => Promise<[{ affectedRows: number }, unknown]>;
   };
 
+  // ON DUPLICATE KEY UPDATE handles the case where a stale `cancelado` row
+  // exists for the same (member_id, schedule_id, booking_date) tuple — the
+  // unique index `idx_bookings_member_schedule_date` would otherwise block
+  // re-population (silent INSERT IGNORE drop) and leave the member without
+  // an active reservation. Common path: cancelFutureBookings() during a plan
+  // change/renewal sets future rows to 'cancelado' (preserving history) and
+  // the new sub re-uses the same scheduleIds.
+  //
+  // SET ordering matters: cancelled_at and waitlist_position read the OLD
+  // booking_status value via IF(), so booking_status MUST be updated last.
+  // Only `cancelado` rows are reactivated; `reservado`/`lista_espera` are
+  // left untouched (idempotent).
   const BATCH = 500;
-  let inserted = 0;
+  let affected = 0;
   for (let i = 0; i < toInsert.length; i += BATCH) {
     const slice = toInsert.slice(i, i + BATCH);
     const placeholders = slice.map(() => "(?, ?, ?, 'reservado')").join(", ");
@@ -195,17 +207,21 @@ export async function populateBookings(
       params.push(v.memberId, v.scheduleId, v.bookingDate);
     }
     const [result] = await rawConn.query(
-      `INSERT IGNORE INTO bookings (member_id, schedule_id, booking_date, booking_status) VALUES ${placeholders}`,
+      `INSERT INTO bookings (member_id, schedule_id, booking_date, booking_status) VALUES ${placeholders}
+       ON DUPLICATE KEY UPDATE
+         cancelled_at = IF(booking_status = 'cancelado', NULL, cancelled_at),
+         waitlist_position = IF(booking_status = 'cancelado', NULL, waitlist_position),
+         booking_status = IF(booking_status = 'cancelado', 'reservado', booking_status)`,
       params,
     );
-    inserted += result?.affectedRows ?? 0;
+    affected += result?.affectedRows ?? 0;
   }
 
   log.info(
-    { subId, fromDate, endDate, inserted, attempted: toInsert.length },
+    { subId, fromDate, endDate, affected, attempted: toInsert.length },
     "populateBookings complete",
   );
-  return inserted;
+  return affected;
 }
 
 /**

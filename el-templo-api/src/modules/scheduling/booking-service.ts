@@ -1192,9 +1192,15 @@ export class BookingService {
         if (holidayDates.has(dateStr)) {
           holidaysSkipped++;
         } else {
-          // Check if booking already exists (avoid duplicates)
+          // Check if booking already exists. Pull the status too so we can
+          // distinguish between a live booking (skip) and a stale `cancelado`
+          // row (reactivate). Without the reactivation branch, plan changes
+          // and renewals that re-use the same scheduleIds silently lose the
+          // alumno's slot — the unique index `idx_bookings_member_schedule_date`
+          // collides and the new booking is never created. Same shape of bug
+          // that populateBookings had with INSERT IGNORE.
           const [existing] = await this.db
-            .select({ id: schema.bookings.id })
+            .select({ id: schema.bookings.id, status: schema.bookings.status })
             .from(schema.bookings)
             .where(
               and(
@@ -1205,7 +1211,22 @@ export class BookingService {
             )
             .limit(1);
 
-          if (!existing) {
+          if (existing && existing.status === "cancelado") {
+            // Reactivate stale cancelado so the alumno gets a usable booking.
+            // Capacity is intentionally not re-checked: the admin's fixed
+            // assignment trumps the slot cap (consistent with populateBookings
+            // and migration 0122). May push the slot 1-over capacity if a
+            // waitlister was already promoted into this seat.
+            await this.db
+              .update(schema.bookings)
+              .set({
+                status: "reservado",
+                cancelledAt: null,
+                waitlistPosition: null,
+              })
+              .where(eq(schema.bookings.id, existing.id));
+            totalGenerated++;
+          } else if (!existing) {
             // Check capacity for waitlist — capacity is per the slot's own
             // branch (multi-branch anchors may span sedes with different
             // capacities).
@@ -1244,6 +1265,8 @@ export class BookingService {
             });
             totalGenerated++;
           }
+          // else: existing booking with active status (reservado/lista_espera/
+          // qr_escaneado/confirmado/no_show) — leave as-is.
         }
 
         // Move to next week
