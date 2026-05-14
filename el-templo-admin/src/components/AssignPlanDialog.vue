@@ -245,12 +245,53 @@
         <q-step
           v-if="showScheduleStep"
           :name="3"
-          title="Horarios Fijos"
+          :title="scheduleStepTitle"
           icon="calendar_today"
           :done="step > 3"
         >
+          <!-- Change-mode helper: alumno had turnos pre-populated. -->
+          <q-banner
+            v-if="props.mode === 'change' && prePopulatedFromCurrent"
+            class="bg-blue-1 text-blue-10 q-mb-sm"
+            dense
+            rounded
+          >
+            <template #avatar>
+              <q-icon name="info" color="primary" />
+            </template>
+            Cargamos los turnos que ya tenia el alumno. Podes confirmarlos tal cual o modificarlos
+            antes de continuar.
+          </q-banner>
+
+          <!-- Count exceeded: pre-populated more than the new plan allows. -->
+          <q-banner
+            v-if="
+              props.mode === 'change' &&
+              requiredSlotCount > 0 &&
+              selectedScheduleIds.length > requiredSlotCount
+            "
+            class="bg-orange-1 text-orange-10 q-mb-sm"
+            dense
+            rounded
+          >
+            <template #avatar>
+              <q-icon name="warning" color="warning" />
+            </template>
+            Tenes {{ selectedScheduleIds.length }} turnos seleccionados pero este plan permite hasta
+            {{ requiredSlotCount }}. Desmarca los que sobran para continuar.
+          </q-banner>
+
+          <!-- Change-mode hint about deactivated/cross-branch slots. -->
+          <div
+            v-if="props.mode === 'change' && prePopulatedFromCurrent"
+            class="text-caption text-grey-7 q-mb-sm"
+          >
+            Si algun turno no aparece marcado abajo, puede haber sido desactivado o pertenecer a
+            otra sucursal. Selecciona uno nuevo en su lugar.
+          </div>
+
           <div v-if="!isFixedMode" class="text-caption text-grey-7 q-mb-sm">
-            Opcional — podés fijar hasta {{ requiredSlotCount }} clases semanales o dejarlo vacío.
+            Opcional — podes fijar hasta {{ requiredSlotCount }} clases semanales o dejarlo vacio.
           </div>
 
           <FixedSchedulePicker
@@ -259,7 +300,7 @@
             :branch-id="memberBranchId"
             :required-count="requiredSlotCount"
             :allow-partial="!isFixedMode"
-            title="Selecciona los horarios fijos para este plan"
+            :title="schedulePickerTitle"
             :branch-name="memberBranchName"
             :multi-branch="selectedPlanIsMultiBranch"
             :available-branches="multiBranchPickerOptions"
@@ -688,6 +729,13 @@ const props = withDefaults(
     /** End date of the member's current subscription. Required for change mode to offer the "start after current ends" option. */
     currentSubEndDate?: string | null;
     /**
+     * Current sub's fixed-schedule IDs. In change mode the schedule step
+     * pre-populates with these so admins can keep/edit the alumno's existing
+     * turnos instead of starting blank — prevents accidental loss of fijos
+     * on plan change/renewal (Mica's report).
+     */
+    currentScheduleIds?: number[];
+    /**
      * Phase 111 REQ-2: when the member's current branch is virtual (e.g. Templo
      * Online), presencial plans are filtered out and a banner with an
      * "Editar alumno" CTA is shown. The CTA opens MemberFormDialog stacked
@@ -704,6 +752,7 @@ const props = withDefaults(
     mode: 'assign',
     categoryFilter: undefined,
     currentSubEndDate: null,
+    currentScheduleIds: () => [],
     memberBranchIsVirtual: false,
     member: null,
     branches: () => [],
@@ -805,10 +854,12 @@ const showScheduleStep = computed(() => {
   if (isOnlinePlan.value) return false;
   if (!selectedPlan.value?.classesPerWeek) return false;
   if (selectedPlan.value.bookingMode === 'fixed') return true;
-  // Flexible presencial: only expose the optional anchor step on NEW
-  // subscriptions. Plan-change flow keeps the existing minimal UX; members
-  // can add/remove anchors afterwards via "Cambiar turnos".
-  return selectedPlan.value.bookingMode === 'flexible' && props.mode !== 'change';
+  // Flexible: shown for both assign AND change modes. In change mode the
+  // step pre-populates with `currentScheduleIds` so admins can keep the
+  // alumno's existing turnos instead of silently losing them on plan
+  // renewal/change (Mica's report — change-plan was previously stripping
+  // anchors entirely for flexible plans).
+  return selectedPlan.value.bookingMode === 'flexible';
 });
 
 const confirmStep = computed(() => (showScheduleStep.value ? 4 : 3));
@@ -830,6 +881,21 @@ function goToPrevStep(): void {
 }
 
 const requiredSlotCount = computed(() => selectedPlan.value?.classesPerWeek ?? 0);
+
+// D — change-plan flow signals.
+const prePopulatedFromCurrent = computed(
+  () => props.mode === 'change' && props.currentScheduleIds.length > 0
+);
+
+const scheduleStepTitle = computed(() =>
+  props.mode === 'change' ? 'Mantene o modifica los horarios fijos' : 'Horarios Fijos'
+);
+
+const schedulePickerTitle = computed(() =>
+  props.mode === 'change'
+    ? 'Mantene o modifica los horarios fijos del alumno'
+    : 'Selecciona los horarios fijos para este plan'
+);
 
 const scheduleStepValid = computed(() => {
   if (isFixedMode.value) {
@@ -1098,7 +1164,15 @@ async function selectPlan(plan: PlanListItem) {
   assignForm.value.useOverride = false;
   assignForm.value.priceOverrideAmount = null;
   assignForm.value.priceOverrideReason = '';
-  selectedScheduleIds.value = [];
+  // D — change-plan flow: pre-populate the schedule step with the alumno's
+  // current turnos so admins keep them by default instead of starting blank.
+  // The picker stays fully editable; admin can desmark/re-pick before
+  // confirming. Switching plans re-runs selectPlan and re-pre-populates,
+  // so any unsaved edits get reset on plan switch (intentional fresh start).
+  selectedScheduleIds.value =
+    props.mode === 'change' && props.currentScheduleIds.length > 0
+      ? [...props.currentScheduleIds]
+      : [];
 
   if (props.mode === 'change') {
     // Upgrade starts a new full period from today

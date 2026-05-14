@@ -153,6 +153,7 @@
       :memberBranchName="memberBranchName"
       :boardingPassUsed="memberBoardingPassUsed"
       :currentSubEndDate="presencialSub?.endDate ?? null"
+      :currentScheduleIds="classUsage?.scheduleIds ?? []"
       :memberBranchIsVirtual="memberBranchIsVirtual ?? false"
       :member="member ?? null"
       :branches="branches ?? []"
