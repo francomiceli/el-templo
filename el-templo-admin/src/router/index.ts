@@ -22,12 +22,12 @@ export default defineRouter(function () {
   });
 
   Router.beforeEach(async (to) => {
-    const authStore = useAuthStore();
-
     // Public routes don't require authentication
     if (to.meta.public) {
       return true;
     }
+
+    const authStore = useAuthStore();
 
     // Check authentication
     const isValid = await authStore.checkAuth();
