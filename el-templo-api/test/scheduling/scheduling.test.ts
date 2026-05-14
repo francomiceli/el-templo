@@ -2677,6 +2677,122 @@ describe("Scheduling API", () => {
       expect(body.message).toContain("ya tiene asistencia");
     });
 
+    it("POST /slot/:scheduleId/:date/check-in creates booking when none exists (walk-in)", async () => {
+      // Regression: walk-in coach check-ins recorded attendance only.
+      // Slot occupancy counts (HorariosPage, analytics) drive off bookings,
+      // so without a synthetic booking the conteo of alumnos under-reports.
+      const { member } = await setupMemberWithSubscription(
+        { email: "walkin-new@test.com", dni: "70010009" },
+        { classesPerWeek: 3, name: "Plan Walkin New" },
+      );
+
+      const act = await createActivity("WalkinNew");
+      const futureSlot = getFutureSlot();
+      const slot = await createScheduleSlot(
+        act.id,
+        futureSlot.dayOfWeek,
+        futureSlot.startTime,
+        futureSlot.endTime,
+      );
+
+      const res = await app.inject({
+        method: "POST",
+        url: `${ATTENDANCE_URL}/slot/${slot.id}/${futureSlot.date}/check-in`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { memberId: member.id, reason: "Walk-in" },
+      });
+      expect(res.statusCode).toBe(201);
+
+      const [book] = await app.db
+        .select({ id: bookings.id, status: bookings.status })
+        .from(bookings)
+        .where(eq(bookings.memberId, member.id));
+      expect(book).toBeTruthy();
+      expect(book.status).toBe("confirmado");
+    });
+
+    it("POST /slot/:scheduleId/:date/check-in reactivates cancelled booking", async () => {
+      const { member } = await setupMemberWithSubscription(
+        { email: "walkin-reactivate@test.com", dni: "70010010" },
+        { classesPerWeek: 3, name: "Plan Walkin Reactivate" },
+      );
+
+      const act = await createActivity("WalkinReactivate");
+      const futureSlot = getFutureSlot();
+      const slot = await createScheduleSlot(
+        act.id,
+        futureSlot.dayOfWeek,
+        futureSlot.startTime,
+        futureSlot.endTime,
+      );
+
+      // Pre-existing cancelled booking
+      await app.db.insert(bookings).values({
+        memberId: member.id,
+        scheduleId: slot.id,
+        bookingDate: futureSlot.date,
+        status: "cancelado",
+        cancelledAt: new Date(),
+      });
+
+      const res = await app.inject({
+        method: "POST",
+        url: `${ATTENDANCE_URL}/slot/${slot.id}/${futureSlot.date}/check-in`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { memberId: member.id },
+      });
+      expect(res.statusCode).toBe(201);
+
+      const allBookings = await app.db
+        .select({
+          status: bookings.status,
+          cancelledAt: bookings.cancelledAt,
+        })
+        .from(bookings)
+        .where(eq(bookings.memberId, member.id));
+      expect(allBookings).toHaveLength(1);
+      expect(allBookings[0].status).toBe("confirmado");
+      expect(allBookings[0].cancelledAt).toBeNull();
+    });
+
+    it("POST /slot/:scheduleId/:date/check-in promotes reservado booking to confirmado", async () => {
+      const { member } = await setupMemberWithSubscription(
+        { email: "walkin-reservado@test.com", dni: "70010011" },
+        { classesPerWeek: 3, name: "Plan Walkin Reservado" },
+      );
+
+      const act = await createActivity("WalkinReservado");
+      const futureSlot = getFutureSlot();
+      const slot = await createScheduleSlot(
+        act.id,
+        futureSlot.dayOfWeek,
+        futureSlot.startTime,
+        futureSlot.endTime,
+      );
+
+      await app.db.insert(bookings).values({
+        memberId: member.id,
+        scheduleId: slot.id,
+        bookingDate: futureSlot.date,
+        status: "reservado",
+      });
+
+      const res = await app.inject({
+        method: "POST",
+        url: `${ATTENDANCE_URL}/slot/${slot.id}/${futureSlot.date}/check-in`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { memberId: member.id },
+      });
+      expect(res.statusCode).toBe(201);
+
+      const allBookings = await app.db
+        .select({ status: bookings.status })
+        .from(bookings)
+        .where(eq(bookings.memberId, member.id));
+      expect(allBookings).toHaveLength(1);
+      expect(allBookings[0].status).toBe("confirmado");
+    });
+
     it("DELETE /attendance/:attendanceId removes check-in and reverses AURA", async () => {
       const { member, subscription } = await setupMemberWithSubscription(
         { email: "slot-undo@test.com", dni: "70010006" },

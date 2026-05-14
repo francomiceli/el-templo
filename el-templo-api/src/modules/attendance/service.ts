@@ -574,26 +574,20 @@ export class AttendanceService {
         );
     }
 
-    // If member has a booking for this slot+date, update it to confirmado
-    const [booking] = await this.db
-      .select({ id: schema.bookings.id })
-      .from(schema.bookings)
-      .where(
-        and(
-          eq(schema.bookings.memberId, memberId),
-          eq(schema.bookings.scheduleId, scheduleId),
-          eq(schema.bookings.bookingDate, date),
-          sql`${schema.bookings.status} IN ('reservado', 'qr_escaneado')`,
-        ),
-      )
-      .limit(1);
-
-    if (booking) {
-      await this.db
-        .update(schema.bookings)
-        .set({ status: "confirmado" })
-        .where(eq(schema.bookings.id, booking.id));
-    }
+    // Upsert booking so walk-in check-ins (no prior booking, or booking
+    // cancelled/no_show/waitlisted) are reflected in bookedCount,
+    // slot-occupancy analytics, and any other query that drives off the
+    // bookings table. The unique index on (member_id, schedule_id,
+    // booking_date) means at most one row exists per tuple, so ON
+    // DUPLICATE KEY UPDATE handles every prior state atomically.
+    await this.db.execute(sql`
+      INSERT INTO bookings (member_id, schedule_id, booking_date, booking_status)
+      VALUES (${memberId}, ${scheduleId}, ${date}, 'confirmado')
+      ON DUPLICATE KEY UPDATE
+        cancelled_at = NULL,
+        waitlist_position = NULL,
+        booking_status = 'confirmado'
+    `);
 
     // Mirror as completed_sessions (presencial). See checkIn() for rationale.
     await this.recordPresencialSession({
