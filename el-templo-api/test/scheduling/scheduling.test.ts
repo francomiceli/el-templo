@@ -2600,6 +2600,83 @@ describe("Scheduling API", () => {
       expect(auraRow.balance).toBeGreaterThanOrEqual(10);
     });
 
+    it("POST /slot/:scheduleId/:date/check-in NOT blocked by retroactive attendance with different sessionDate", async () => {
+      // Regression: guard used DATE(checkedInAt) instead of session_date.
+      // A retroactive coach check-in (session_date in the past, checkedInAt
+      // today) wrongly blocked legitimate check-ins on today's classes.
+      const { member } = await setupMemberWithSubscription(
+        { email: "retro-att@test.com", dni: "70010007" },
+        { classesPerWeek: 3, name: "Plan Retro Attendance" },
+      );
+
+      const act = await createActivity("RetroAttendance");
+      const futureSlot = getFutureSlot();
+      const slot = await createScheduleSlot(
+        act.id,
+        futureSlot.dayOfWeek,
+        futureSlot.startTime,
+        futureSlot.endTime,
+      );
+
+      // Insert a retroactive attendance: session_date in the past,
+      // checked_in_at = now (matches today's date in any TZ).
+      await app.db.insert(attendance).values({
+        memberId: member.id,
+        branchId: testBranchId,
+        scheduleId: null,
+        sessionDate: dateOffsetStr(-2),
+        status: "confirmado",
+        source: "manual",
+      });
+
+      // Coach check-in for the future slot must succeed.
+      const res = await app.inject({
+        method: "POST",
+        url: `${ATTENDANCE_URL}/slot/${slot.id}/${futureSlot.date}/check-in`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { memberId: member.id, reason: "Retro guard regression" },
+      });
+
+      expect(res.statusCode).toBe(201);
+    });
+
+    it("POST /slot/:scheduleId/:date/check-in IS blocked by existing attendance with same sessionDate", async () => {
+      const { member } = await setupMemberWithSubscription(
+        { email: "dup-att@test.com", dni: "70010008" },
+        { classesPerWeek: 3, name: "Plan Dup Attendance" },
+      );
+
+      const act = await createActivity("DupAttendance");
+      const futureSlot = getFutureSlot();
+      const slot = await createScheduleSlot(
+        act.id,
+        futureSlot.dayOfWeek,
+        futureSlot.startTime,
+        futureSlot.endTime,
+      );
+
+      // Existing attendance for the same logical class date.
+      await app.db.insert(attendance).values({
+        memberId: member.id,
+        branchId: testBranchId,
+        scheduleId: null,
+        sessionDate: futureSlot.date,
+        status: "confirmado",
+        source: "manual",
+      });
+
+      const res = await app.inject({
+        method: "POST",
+        url: `${ATTENDANCE_URL}/slot/${slot.id}/${futureSlot.date}/check-in`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { memberId: member.id },
+      });
+
+      expect(res.statusCode).toBe(400);
+      const body = JSON.parse(res.body);
+      expect(body.message).toContain("ya tiene asistencia");
+    });
+
     it("DELETE /attendance/:attendanceId removes check-in and reverses AURA", async () => {
       const { member, subscription } = await setupMemberWithSubscription(
         { email: "slot-undo@test.com", dni: "70010006" },

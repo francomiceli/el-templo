@@ -184,14 +184,19 @@ export class AttendanceService {
 
     // Wrap duplicate check + insert + decrement in transaction
     const recordId = await this.db.transaction(async (tx) => {
-      // Re-check one-per-day inside transaction
+      // Re-check one-per-day inside transaction.
+      // Compare against sessionDate (the logical class date), NOT
+      // DATE(checkedInAt) which is the INSERT timestamp in server TZ —
+      // those diverge for retroactive coach check-ins and across
+      // timezones, causing false positives that block legitimate
+      // check-ins and false negatives that allow duplicates.
       const [existingToday] = await tx
         .select({ id: schema.attendance.id })
         .from(schema.attendance)
         .where(
           and(
             eq(schema.attendance.memberId, memberId),
-            sql`DATE(${schema.attendance.checkedInAt}) = ${todayStr}`,
+            eq(schema.attendance.sessionDate, todayStr),
           ),
         )
         .limit(1);
@@ -489,14 +494,19 @@ export class AttendanceService {
       throw new BadRequestError("Horario no encontrado");
     }
 
-    // One check-in per day guard
+    // One check-in per day guard.
+    // Compare against sessionDate (the logical class date), NOT
+    // DATE(checkedInAt) which is the INSERT timestamp in server TZ.
+    // Retroactive coach check-ins write session_date to the past while
+    // checked_in_at lands today, so DATE(checkedInAt) generates false
+    // positives that block legitimate check-ins on other dates.
     const [existingToday] = await this.db
       .select({ id: schema.attendance.id })
       .from(schema.attendance)
       .where(
         and(
           eq(schema.attendance.memberId, memberId),
-          sql`DATE(${schema.attendance.checkedInAt}) = ${date}`,
+          eq(schema.attendance.sessionDate, date),
         ),
       )
       .limit(1);
