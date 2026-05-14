@@ -399,7 +399,6 @@ import {
   type PaymentMethod,
   type OutstandingConcept,
 } from 'src/types/transaction';
-import { useTransactionsApi } from 'src/composables/useTransactionsApi';
 import type { MemberProfile, BranchOption } from 'src/types/member';
 import AssignPlanDialog from 'src/components/AssignPlanDialog.vue';
 import ChangeFixedSchedulesDialog from 'src/components/ChangeFixedSchedulesDialog.vue';
@@ -410,7 +409,6 @@ import type { SubscriptionScheduleChangeEntry } from 'src/types/subscription';
 const log = createLogger('MemberSubscriptionTab');
 const $q = useQuasar();
 const subsApi = useSubscriptionsApi();
-const transactionsApi = useTransactionsApi();
 
 // =========================================================================
 // Props & Emits
@@ -429,6 +427,10 @@ const props = defineProps<{
   // admin clicks "Editar alumno" from the banner CTA.
   member?: MemberProfile | null;
   branches?: BranchOption[];
+  // Outstanding-balance concepts owned by the parent page (single fetch
+  // shared with the floating "D" badge on the Suscripcion tab). Passed
+  // straight through so this component does not re-fetch on tab mount.
+  outstandingConcepts?: OutstandingConcept[];
 }>();
 
 const emit = defineEmits<{
@@ -450,7 +452,6 @@ const showAssignProgramDialog = ref(false);
 const showChangeDialog = ref(false);
 const showChangeTurnosDialog = ref(false);
 const scheduleChanges = ref<SubscriptionScheduleChangeEntry[]>([]);
-const outstandingConcepts = ref<OutstandingConcept[]>([]);
 const loadingScheduleChanges = ref(false);
 const showRenewalDialog = ref(false);
 const renewTarget = ref<SubscriptionDetail | null>(null);
@@ -471,12 +472,13 @@ const presencialSub = computed(
     allSubscriptions.value.find((s) => !s.planCategory || s.planCategory === 'presencial') ?? null
 );
 
-// Aggregated outstanding balance per currency (drives the "Deudor" banner).
-// Coach role gets 403 from the source endpoint — we silence and leave the
-// list empty so the banner does not flash for them.
+// Aggregated outstanding balance per currency (drives the "Deudor"
+// banner). The parent page owns the fetch and passes the list in; if it
+// is empty (no debt, or coach role for which the endpoint 403s), the
+// banner stays hidden.
 const debtByCurrency = computed(() => {
   const map = new Map<string, number>();
-  for (const c of outstandingConcepts.value) {
+  for (const c of props.outstandingConcepts ?? []) {
     if (c.balance > 0) {
       map.set(c.currency, (map.get(c.currency) ?? 0) + c.balance);
     }
@@ -611,28 +613,8 @@ async function loadClassUsage() {
   }
 }
 
-async function loadOutstandingConcepts() {
-  try {
-    outstandingConcepts.value = await transactionsApi.getOutstandingConcepts(props.userId);
-  } catch (err: unknown) {
-    outstandingConcepts.value = [];
-    // 403 for coach role is expected (FINANCE_READ_ROLES excludes coach).
-    if (!isExpectedClientError(err)) {
-      log.warn('Error loading outstanding concepts', {
-        error: extractError(err),
-        userId: props.userId,
-      });
-    }
-  }
-}
-
 async function refreshAll() {
-  await Promise.all([
-    loadSubscriptions(),
-    loadHistory(),
-    loadClassUsage(),
-    loadOutstandingConcepts(),
-  ]);
+  await Promise.all([loadSubscriptions(), loadHistory(), loadClassUsage()]);
   await loadScheduleChanges();
 }
 
