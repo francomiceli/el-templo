@@ -887,13 +887,11 @@ const prePopulatedFromCurrent = computed(
   () => props.mode === 'change' && props.currentScheduleIds.length > 0
 );
 
-const scheduleStepTitle = computed(() =>
-  props.mode === 'change' ? 'Mantene o modifica los horarios fijos' : 'Horarios Fijos'
-);
+const scheduleStepTitle = computed(() => 'Horarios Fijos');
 
 const schedulePickerTitle = computed(() =>
   props.mode === 'change'
-    ? 'Mantene o modifica los horarios fijos del alumno'
+    ? 'Horarios fijos del alumno'
     : 'Selecciona los horarios fijos para este plan'
 );
 
