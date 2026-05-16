@@ -7,6 +7,7 @@
  * Degrades silently when Redis is unavailable -- returns null / no-op.
  */
 
+import { randomBytes } from "node:crypto";
 import pino from "pino";
 import { redis, isRedisAvailable } from "../redis.js";
 
@@ -64,9 +65,59 @@ export async function getSession(
 }
 
 /**
+ * Lua script: atomic read-modify-write append to session context.
+ *
+ * Phase 93 Check 1.5 — `updateSession` had the same non-atomic get-modify-set
+ * defect class as the original debounce gate. Under concurrent invocations,
+ * two callers both read the same prior value, both append their own message
+ * to their LOCAL copy, both write back — last writer wins, prior messages
+ * lost. This script collapses the operation into a single server-side
+ * mutation so concurrent calls serialize on Redis (one Lua execution at a
+ * time per Redis docs — eval is atomic w.r.t. other commands).
+ *
+ * KEYS[1] = session key (`wa:session:<phone>`)
+ * ARGV[1] = new message (JSON-encoded SessionMessage)
+ * ARGV[2] = max messages (decimal string)
+ * ARGV[3] = TTL seconds (decimal string)
+ * ARGV[4] = updatedAt epoch ms (decimal string; supplied by client for parity
+ *           with the prior Date.now() behavior)
+ */
+const UPDATE_SESSION_SCRIPT = `
+local existing = redis.call("get", KEYS[1])
+local session
+if existing then
+  session = cjson.decode(existing)
+else
+  session = { messages = {}, updatedAt = 0 }
+end
+
+local newMessage = cjson.decode(ARGV[1])
+table.insert(session.messages, newMessage)
+
+local maxMessages = tonumber(ARGV[2])
+local n = #session.messages
+if n > maxMessages then
+  local trimmed = {}
+  for i = n - maxMessages + 1, n do
+    table.insert(trimmed, session.messages[i])
+  end
+  session.messages = trimmed
+end
+
+session.updatedAt = tonumber(ARGV[4])
+
+redis.call("set", KEYS[1], cjson.encode(session), "EX", tonumber(ARGV[3]))
+return 1
+`;
+
+/**
  * Append a message to the session context.
  * Creates a new session if none exists. Trims to last MAX_SESSION_MESSAGES.
  * Silently no-ops if Redis is unavailable or on error.
+ *
+ * Atomic: the read-modify-write is collapsed into a single Lua eval so
+ * concurrent invocations serialize on Redis. See UPDATE_SESSION_SCRIPT
+ * comment for the Phase 93 Check 1.5 background.
  */
 export async function updateSession(
   phone: string,
@@ -77,32 +128,23 @@ export async function updateSession(
     return;
   }
 
+  const key = sessionKey(phone);
+  const newMessage: SessionMessage = {
+    role,
+    content,
+    timestamp: Date.now(),
+  };
+
   try {
-    const key = sessionKey(phone);
-    const existing = await redis.get(key);
-
-    let session: SessionContext;
-
-    if (existing) {
-      session = JSON.parse(existing) as SessionContext;
-    } else {
-      session = { messages: [], updatedAt: Date.now() };
-    }
-
-    session.messages.push({
-      role,
-      content,
-      timestamp: Date.now(),
-    });
-
-    // Trim to last N messages
-    if (session.messages.length > MAX_SESSION_MESSAGES) {
-      session.messages = session.messages.slice(-MAX_SESSION_MESSAGES);
-    }
-
-    session.updatedAt = Date.now();
-
-    await redis.set(key, JSON.stringify(session), "EX", SESSION_TTL);
+    await redis.eval(
+      UPDATE_SESSION_SCRIPT,
+      1,
+      key,
+      JSON.stringify(newMessage),
+      String(MAX_SESSION_MESSAGES),
+      String(SESSION_TTL),
+      String(Date.now()),
+    );
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     log.error({ err: message, phone }, "Failed to update session context");
@@ -166,6 +208,72 @@ export async function deleteDebounce(key: string): Promise<void> {
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     log.error({ err: message, key }, "Failed to delete debounce key");
+  }
+}
+
+// ─── Atomic debounce primitive (Phase 93 Branch 1 — SETNX-race fix) ──────────
+//
+// The legacy isDebounceActive + setDebounce pair is non-atomic (two Redis
+// round-trips). Under concurrent webhook invocations both can observe the
+// key as missing before either's set lands, both proceed, and both spawn
+// AI calls — the BUG-01 duplicate-reply failure mode. The pair below
+// replaces it with a single atomic SET NX PX round-trip and a token-aware
+// Lua compare-and-delete release. Old helpers remain exported for
+// debounce.test.ts backward compat; new code should use these.
+
+/**
+ * Atomic SETNX with token-aware acquisition.
+ * Returns a unique token string on successful acquisition (caller must hold
+ * onto it and pass to releaseDebounce). Returns null if the key is already
+ * held by another holder.
+ *
+ * When Redis is unavailable, returns a synthetic token (graceful degrade —
+ * single-process semantics, no coordination needed).
+ * On Redis error, returns null (fail-closed: drop the inbound rather than
+ * fail-open and risk a duplicate reply).
+ */
+export async function tryAcquireDebounce(
+  key: string,
+  ttlSeconds: number,
+): Promise<string | null> {
+  if (!isRedisAvailable()) {
+    return randomBytes(8).toString("hex");
+  }
+  const token = randomBytes(8).toString("hex");
+  try {
+    const result = await redis.set(key, token, "EX", ttlSeconds, "NX");
+    return result === "OK" ? token : null;
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    log.error({ err: message, key }, "Failed to acquire debounce key");
+    return null;
+  }
+}
+
+/**
+ * Token-aware debounce release. Atomically deletes the key only when its
+ * current value equals our token — prevents accidental release of a peer's
+ * lock if our TTL expired and they re-acquired.
+ *
+ * No-op when Redis is unavailable. Swallows Redis errors (log only).
+ */
+export async function releaseDebounce(
+  key: string,
+  token: string,
+): Promise<void> {
+  if (!isRedisAvailable()) {
+    return;
+  }
+  try {
+    await redis.eval(
+      'if redis.call("get", KEYS[1]) == ARGV[1] then return redis.call("del", KEYS[1]) else return 0 end',
+      1,
+      key,
+      token,
+    );
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    log.error({ err: message, key }, "Failed to release debounce key");
   }
 }
 

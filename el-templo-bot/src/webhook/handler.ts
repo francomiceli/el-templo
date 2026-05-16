@@ -29,9 +29,8 @@ import {
 import {
   getSession,
   updateSession,
-  isDebounceActive,
-  setDebounce,
-  deleteDebounce,
+  tryAcquireDebounce,
+  releaseDebounce,
 } from "../memory/session.js";
 import {
   advanceStageIfComplete,
@@ -368,17 +367,22 @@ async function processWithAi(
   // Store inbound message in Redis session (before AI call so future lookups include it)
   await updateSession(phone, "user", inboundText);
 
-  // ── Debounce (quick-16 fix 2) ──────────────────────────────────────────
-  // If another handler is already in-flight for this phone, bail out early.
-  // The in-flight handler will pick up our just-stored inbound when it
-  // re-reads the session after its delay.
+  // ── Debounce (Phase 93 Branch 1 — atomic SETNX with token-aware release) ──
+  // Atomic acquisition collapses the previous non-atomic get-then-set pair
+  // (session.ts isDebounceActive + setDebounce) into a single SET NX PX
+  // round-trip. Concurrent webhook invocations for the same phone now
+  // serialize on Redis: exactly one acquires the token; all others get
+  // null and bail. The in-flight handler picks up the bailed inbounds when
+  // it re-reads the session after its 3s delay.
   const debounceKey = `wa:debounce:${phone}`;
-  const alreadyProcessing = await isDebounceActive(debounceKey);
-  if (alreadyProcessing) {
+  const debounceToken = await tryAcquireDebounce(
+    debounceKey,
+    DEBOUNCE_TTL_SECONDS,
+  );
+  if (debounceToken === null) {
     log.info({ phone }, "Debounce: in-flight handler exists, skipping AI call");
     return;
   }
-  await setDebounce(debounceKey, DEBOUNCE_TTL_SECONDS);
   try {
     await new Promise((resolve) => setTimeout(resolve, DEBOUNCE_DELAY_MS));
     await processWithAiInner(
@@ -391,7 +395,7 @@ async function processWithAi(
       currentProfile,
     );
   } finally {
-    await deleteDebounce(debounceKey);
+    await releaseDebounce(debounceKey, debounceToken);
   }
 }
 

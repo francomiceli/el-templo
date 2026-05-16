@@ -458,6 +458,8 @@ describe("handleInboundMessage - human takeover segment suppression", () => {
       isDebounceActive: async () => false,
       setDebounce: async () => {},
       deleteDebounce: async () => {},
+      tryAcquireDebounce: async () => "test-token",
+      releaseDebounce: async () => {},
     }));
 
     vi.doMock("../src/memory/profile", () => ({

@@ -79,20 +79,51 @@ async function mockRedisDel(key: string): Promise<number> {
   return redisStore.delete(key) ? 1 : 0;
 }
 
+interface MockSessionMessage {
+  role: string;
+  content: string;
+  timestamp: number;
+}
+interface MockSessionShape {
+  messages: MockSessionMessage[];
+  updatedAt: number;
+}
+
 async function mockRedisEval(
   script: string,
   _numKeys: number,
   key: string,
-  argv1: string,
+  ...argv: string[]
 ): Promise<number> {
-  // Lua compare-and-delete: if redis.call("get", KEYS[1]) == ARGV[1] then del
-  if (script.includes('redis.call("get"') && script.includes("del")) {
+  // Lua compare-and-delete (releaseDebounce): if get == argv[0] then del
+  if (
+    script.includes('redis.call("get"') &&
+    script.includes("del") &&
+    !script.includes("cjson")
+  ) {
     const current = redisStore.get(key);
-    if (current === argv1) {
+    if (current === argv[0]) {
       redisStore.delete(key);
       return 1;
     }
     return 0;
+  }
+  // Lua atomic session append (updateSession — Phase 93 Check 1.5 fix).
+  // ARGV[0]=new message JSON, ARGV[1]=maxMessages, ARGV[2]=ttl, ARGV[3]=updatedAt.
+  if (script.includes("cjson") && script.includes("messages")) {
+    const existingRaw = redisStore.get(key);
+    const session: MockSessionShape = existingRaw
+      ? (JSON.parse(existingRaw) as MockSessionShape)
+      : { messages: [], updatedAt: 0 };
+    const newMessage = JSON.parse(argv[0]) as MockSessionMessage;
+    session.messages.push(newMessage);
+    const maxMessages = Number(argv[1]);
+    if (session.messages.length > maxMessages) {
+      session.messages = session.messages.slice(-maxMessages);
+    }
+    session.updatedAt = Number(argv[3]);
+    redisStore.set(key, JSON.stringify(session));
+    return 1;
   }
   return 0;
 }
@@ -112,7 +143,7 @@ vi.mock("../src/redis", () => ({
         args[0] as string,
         args[1] as number,
         args[2] as string,
-        args[3] as string,
+        ...(args.slice(3) as string[]),
       ),
   },
   isRedisAvailable: () => redisAvailable,

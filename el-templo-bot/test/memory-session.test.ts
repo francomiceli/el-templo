@@ -28,6 +28,46 @@ const mockDelSpy = vi.fn(async (key: string) => {
   return 1;
 });
 
+interface EvalSessionShape {
+  messages: Array<{ role: string; content: string; timestamp: number }>;
+  updatedAt: number;
+}
+
+// Simulates the UPDATE_SESSION_SCRIPT Lua semantics: atomic read-modify-write
+// of the session blob with trim + TTL. Mirrors the script in
+// src/memory/session.ts so the legacy unit tests can keep asserting
+// behavioral invariants (creates, appends, trims, sets TTL) without
+// caring about the underlying Redis call shape.
+const mockEvalSpy = vi.fn(
+  async (
+    script: string,
+    _numKeys: number,
+    key: string,
+    ...argv: string[]
+  ): Promise<number> => {
+    if (script.includes("cjson") && script.includes("messages")) {
+      const existingRaw = mockStore.get(key);
+      const session: EvalSessionShape = existingRaw
+        ? (JSON.parse(existingRaw) as EvalSessionShape)
+        : { messages: [], updatedAt: 0 };
+      const newMessage = JSON.parse(argv[0]) as {
+        role: string;
+        content: string;
+        timestamp: number;
+      };
+      session.messages.push(newMessage);
+      const maxMessages = Number(argv[1]);
+      if (session.messages.length > maxMessages) {
+        session.messages = session.messages.slice(-maxMessages);
+      }
+      session.updatedAt = Number(argv[3]);
+      mockStore.set(key, JSON.stringify(session));
+      return 1;
+    }
+    return 0;
+  },
+);
+
 // ─── Mock Redis module ──────────────────────────────────────────────────────
 
 vi.mock("../src/redis", () => ({
@@ -36,6 +76,13 @@ vi.mock("../src/redis", () => ({
     set: (...args: unknown[]) =>
       mockSetSpy(...(args as [string, string, string, number])),
     del: (...args: unknown[]) => mockDelSpy(...(args as [string])),
+    eval: (...args: unknown[]) =>
+      mockEvalSpy(
+        args[0] as string,
+        args[1] as number,
+        args[2] as string,
+        ...(args.slice(3) as string[]),
+      ),
   },
   isRedisAvailable: () => mockState.available,
 }));
@@ -86,6 +133,35 @@ describe("Session Context Memory", () => {
       mockStore.delete(key);
       return 1;
     });
+    mockEvalSpy.mockImplementation(
+      async (
+        script: string,
+        _numKeys: number,
+        key: string,
+        ...argv: string[]
+      ): Promise<number> => {
+        if (script.includes("cjson") && script.includes("messages")) {
+          const existingRaw = mockStore.get(key);
+          const session: EvalSessionShape = existingRaw
+            ? (JSON.parse(existingRaw) as EvalSessionShape)
+            : { messages: [], updatedAt: 0 };
+          const newMessage = JSON.parse(argv[0]) as {
+            role: string;
+            content: string;
+            timestamp: number;
+          };
+          session.messages.push(newMessage);
+          const maxMessages = Number(argv[1]);
+          if (session.messages.length > maxMessages) {
+            session.messages = session.messages.slice(-maxMessages);
+          }
+          session.updatedAt = Number(argv[3]);
+          mockStore.set(key, JSON.stringify(session));
+          return 1;
+        }
+        return 0;
+      },
+    );
   });
 
   // ── getSession ──────────────────────────────────────────────────────────
@@ -183,15 +259,20 @@ describe("Session Context Memory", () => {
       );
     });
 
-    it("sets TTL on each update", async () => {
+    it("sets TTL on each update (via Lua eval)", async () => {
+      // Phase 93 Check 1.5: updateSession now uses atomic Lua read-modify-write.
+      // TTL is passed as ARGV[2] (decimal-string seconds) to the script which
+      // does `redis.call("set", KEYS[1], ..., "EX", tonumber(ARGV[2]))`.
       await updateSession("5491100000001", "user", "Hola");
 
-      expect(mockSetSpy).toHaveBeenCalledWith(
-        "wa:session:5491100000001",
-        expect.any(String),
-        "EX",
-        SESSION_TTL,
-      );
+      expect(mockEvalSpy).toHaveBeenCalled();
+      const lastCall =
+        mockEvalSpy.mock.calls[mockEvalSpy.mock.calls.length - 1];
+      // lastCall = [script, numKeys, key, ...argv]
+      expect(lastCall[0]).toContain("cjson");
+      expect(lastCall[2]).toBe("wa:session:5491100000001");
+      // ARGV[2] = TTL (decimal string)
+      expect(lastCall[5]).toBe(String(SESSION_TTL));
     });
 
     it("silently returns when Redis is unavailable", async () => {
@@ -199,12 +280,13 @@ describe("Session Context Memory", () => {
       await updateSession("5491100000001", "user", "Hola");
 
       // Should not attempt Redis call
+      expect(mockEvalSpy).not.toHaveBeenCalled();
       expect(mockSetSpy).not.toHaveBeenCalled();
       expect(mockGetSpy).not.toHaveBeenCalled();
     });
 
     it("silently returns on Redis error", async () => {
-      mockSetSpy.mockRejectedValueOnce(new Error("Connection refused"));
+      mockEvalSpy.mockRejectedValueOnce(new Error("Connection refused"));
 
       // Should not throw
       await expect(

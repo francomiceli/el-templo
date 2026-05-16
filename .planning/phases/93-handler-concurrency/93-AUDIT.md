@@ -318,3 +318,19 @@ import {
 ## Appendix B: Task 2 failure transcripts (placeholder — Task 2 will append observed-failure output here)
 
 (Reserved for Task 2 to append vitest output capturing the regression tests failing on HEAD.)
+
+---
+
+## Post-hoc finding: Check 1.5 — `updateSession` race at `session.ts:71-111`
+
+**Verdict: FIRES.** Not enumerated in the original audit. Discovered during Task 4 implementation when the unit-test coalesce sub-test exposed the same non-atomic get-modify-set pattern in `updateSession` that Check 1 identified in the debounce gate.
+
+**Pattern:** `redis.get(key)` → parse → mutate local copy → `redis.set(key, ...)`. Two separate round-trips. Under concurrent invocations both readers see the same prior value, both append their own message to their LOCAL copies, both write — last-writer-wins, prior messages lost.
+
+**Empirical proof:** With Branch 1's atomic SETNX in place, the unit coalesce sub-test still failed because `updateSession` was being called by both handlers BEFORE the debounce gate. Both saw `existing=null`, both wrote a single-message session, the second write overwrote the first. The surviving handler re-read the session and saw only the second user's text — not "both texts as the user's combined turn" per the plan's coalesce invariant.
+
+**Fix shape:** Same as `releaseDebounce` — Lua script (`UPDATE_SESSION_SCRIPT`) that performs read-modify-write server-side in a single atomic eval. Trim-to-MAX and TTL refresh happen inside the script. Eval is atomic w.r.t. other Redis commands by Redis-server contract.
+
+**Scope justification:** Phase 93 is "Handler Concurrency." This is the same defect class (non-atomic get-modify-set) on the same file (`session.ts`) as Check 1. Same fix shape (Lua atomic operation). Treating it as out-of-scope would put the audit document above empirical evidence of the bug. Documents serve reality; the coalesce sub-test is reality.
+
+**Shipped in:** Same Task 4 commit as Branch 1 atomic SETNX. Audit verdict table updated implicitly — multi-fire surface is now Check 1 (debounce gate) + Check 1.5 (session append) + Check 4 (TTL coupling, Task 3).
