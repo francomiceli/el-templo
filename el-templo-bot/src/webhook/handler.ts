@@ -93,8 +93,20 @@ const MAX_MESSAGE_LENGTH = 800;
 
 /** quick-16 fix 2: debounce delay to absorb consecutive messages. */
 const DEBOUNCE_DELAY_MS = 3000;
-/** quick-16 fix 2: safety-net TTL in case a handler crashes mid-turn. */
-const DEBOUNCE_TTL_SECONDS = 10;
+/**
+ * Safety-net TTL for the debounce lock if a handler crashes mid-turn.
+ *
+ * Phase 93 ↔ 94 ↔ 97 Cross-Phase Invariant:
+ *   DEBOUNCE_TTL_SECONDS >= (OPENAI_TIMEOUT_MS/1000) * MAX_TOOL_ITERATIONS
+ *                         + (executeTool_timeout * MAX_TOOL_ITERATIONS)
+ *                         + safety_buffer
+ *
+ * Worst-case post-Phase-94+97: 45*5 + 30*5 + 20 = 395s → round up to 600s.
+ * Lower values re-introduce BUG-01 as a side effect of fixing BUG-02
+ * (a dead-man switch firing mid-handler-runtime allows parallel handlers).
+ * Env-overridable for staging/test tuning; production default is 600.
+ */
+const DEBOUNCE_TTL_SECONDS = Number(process.env.DEBOUNCE_TTL_SECONDS ?? 600);
 
 /**
  * quick-16 fix 3: friendly fallback when the user sends a non-text message
