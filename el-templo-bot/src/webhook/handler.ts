@@ -11,6 +11,7 @@
 import { sql } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
+import OpenAI from "openai";
 import type * as schema from "../../../el-templo-api/src/db/schema/index.js";
 import { createAiProvider } from "../ai/provider.js";
 import type { AiProvider, ChatMessage } from "../ai/provider.js";
@@ -347,6 +348,25 @@ export async function handleInboundMessage(
       { err: errorMessage, conversationId, phone: message.phone },
       "Failed to process message with AI",
     );
+    // Phase 94 LAT-03: graceful fallback — surface a user-visible
+    // message before returning instead of leaving the user staring at
+    // an unanswered chat after a multi-minute upstream stall.
+    // Inner try/catch ensures a failed send (WhatsApp 5xx, network
+    // hiccup) does NOT crash handleInboundMessage. Worst case: the
+    // user retries on their own; no cascading failure.
+    try {
+      await sendTextMessage(
+        message.phone,
+        "Tuve un problemita técnico, ¿me lo escribís de nuevo?",
+      );
+    } catch (sendErr: unknown) {
+      const sendErrorMessage =
+        sendErr instanceof Error ? sendErr.message : String(sendErr);
+      log.error(
+        { err: sendErrorMessage, conversationId, phone: message.phone },
+        "Failed to send graceful fallback message",
+      );
+    }
   }
 }
 
@@ -413,6 +433,30 @@ async function processWithAiInner(
   clientState: ClientState,
   currentProfile: CustomerProfile | null,
 ): Promise<void> {
+  // Phase 94 LAT-02: shared single-fire guard for the interim UX message
+  // ("Dame un segundo 🙌") sent when provider.chat throws
+  // OpenAI.APIError. The two provider.chat await sites below (outside +
+  // inside the tool loop) both delegate to `sendInterimUx`, which flips
+  // the guard so a follow-up tool-loop iteration's failure does not
+  // re-send. Errors on the send itself are logged but NOT propagated —
+  // a failed interim send must not block the main flow or shadow the
+  // upstream OpenAI error.
+  let interimSent = false;
+  const sendInterimUx = async (): Promise<void> => {
+    if (interimSent) return;
+    interimSent = true;
+    try {
+      await sendTextMessage(phone, "Dame un segundo 🙌");
+    } catch (sendErr: unknown) {
+      const sendErrorMessage =
+        sendErr instanceof Error ? sendErr.message : String(sendErr);
+      log.error(
+        { err: sendErrorMessage, phone, conversationId },
+        "Failed to send interim UX message",
+      );
+    }
+  };
+
   // Build message history -- Redis session is primary, MySQL is fallback.
   // Re-read AFTER the debounce delay so we pick up any messages that
   // arrived during the wait window.
@@ -597,7 +641,20 @@ async function processWithAiInner(
 
   // Call AI with tool loop
   const provider = createAiProvider();
-  let response = await provider.chat(messages, BOT_TOOLS);
+  // Phase 94 LAT-02: wrap the initial provider.chat so an upstream
+  // OpenAI.APIError (including APIConnectionTimeoutError raised when
+  // the SDK timeout expires) triggers the interim UX message before the
+  // error propagates to the outer try/catch (which then dispatches the
+  // LAT-03 graceful fallback).
+  let response: Awaited<ReturnType<typeof provider.chat>>;
+  try {
+    response = await provider.chat(messages, BOT_TOOLS);
+  } catch (err: unknown) {
+    if (err instanceof OpenAI.APIError) {
+      await sendInterimUx();
+    }
+    throw err;
+  }
   let iterations = 0;
   let humanTakeoverTriggered = false;
   let lastToolResult = "";
@@ -654,7 +711,18 @@ async function processWithAiInner(
     }
 
     // Call AI again with tool results
-    response = await provider.chat(messages, BOT_TOOLS);
+    // Phase 94 LAT-02: same wrap-with-interim-UX shape as the initial
+    // provider.chat above. `sendInterimUx` is idempotent (single-fire
+    // guard), so iteration N+1's failure does NOT re-send the interim
+    // message — the user sees exactly one "Dame un segundo" per inbound.
+    try {
+      response = await provider.chat(messages, BOT_TOOLS);
+    } catch (err: unknown) {
+      if (err instanceof OpenAI.APIError) {
+        await sendInterimUx();
+      }
+      throw err;
+    }
   }
 
   // Determine final text
