@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v5.3.3
 milestone_name: Post-v5.3.2 Live Test Fixes
-status: roadmap_created
-stopped_at: "v5.3.3 ROADMAP.md written 2026-05-05 — Phases 93-97 detailed with goals, depends-on, success criteria, requirements, and carry-forward planning constraints. Awaiting `/gsd:plan-phase 93` to begin execution."
-last_updated: "2026-05-05T00:00:00Z"
-last_activity: "2026-05-05 — ROADMAP.md created. 5 phases (93-97) encoding the pre-resolved A→E structure. 14/14 v5.3.3 requirements mapped (CONC-01, LAT-01..03, BOOK-01, DEGR-01..02, CTXT-01..02, ELEV-01, VOSEO-01, RGUARD-01..03). Carry-forward constraints surfaced for plan-phase pickup: Phase 95 SC#3 invariant, Phase 97 non-deterministic regression strategy, Phase 97 production-deploy-ready closing constraint, Phase 94 file-level pointers for openai.ts:29 + handler.ts:584/641."
+status: phase_complete
+stopped_at: "Phase 93 (Handler Concurrency / CONC-01) shipped 2026-05-17 — multi-fire Branch 1 (SETNX-race) + Branch 4 (TTL coupling) + post-hoc Check 1.5 (updateSession race) all fixed. Atomic SETNX in session.ts, Lua updateSession, DEBOUNCE_TTL_SECONDS=600 (env-overridable). Full bot suite 609/609. Phase 93 closed. Next: Phase 94 (LAT-01 OpenAI timeout) — independently plannable in parallel; ship-after Phase 93's TTL commit (8c74c850) per Cross-Phase Invariant."
+last_updated: "2026-05-17T00:00:00Z"
+last_activity: "2026-05-17 — Phase 93 closed. Commits: b8298c89 (audit) → 08437526 (TDD tests fail-in-main) → 8c74c850 (TTL adjustment, Cross-Phase Invariant) → 2376eb31 (Branch 1 atomic SETNX + Check 1.5 Lua updateSession) → Task 5 (SUMMARY + this STATE update). Discipline diffs: console.*=0, any-type=0 (unchanged from baseline). Boundary diffs: openai.ts / handler.ts:584+:641 / routes.ts / system-prompt.ts / knowledge.ts ALL UNTOUCHED."
 progress:
   total_phases: 5
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  completed_phases: 1
+  total_plans: 1
+  completed_plans: 1
+  percent: 20
 ---
 
 # Project State
@@ -26,10 +26,10 @@ See: .planning/PROJECT.md (updated 2026-05-05)
 ## Current Position
 
 Milestone: v5.3.3 Post-v5.3.2 Live Test Fixes
-Phase: Not started (ROADMAP.md created — Phases 93-97 defined)
-Plan: —
-Status: Roadmap created. Awaiting `/gsd:plan-phase 93` to begin execution.
-Last activity: 2026-05-05 — ROADMAP.md written; 14/14 v5.3.3 requirements mapped to Phases 93-97.
+Phase: 93 (Handler Concurrency) ✅ Complete — shipped 2026-05-17
+Plan: 93-01 ✅ complete (Branch 1 + Branch 4 + Check 1.5 post-hoc — see `phases/93-handler-concurrency/93-01-SUMMARY.md`)
+Status: Phase 93 closed. **Next: Phase 94 (OpenAI Latency / LAT-01..03).** Phase 94 is independently plannable in parallel with the other Phase-95/96/97 work, but per the Cross-Phase Invariant must NOT merge until Phase 93's TTL commit `8c74c850` is on the same branch (Phase 94 PR reviewer's verification: `git log --oneline | grep -i 'debounce_ttl\|TTL\|93-' | head`).
+Last activity: 2026-05-17 — Phase 93 SUMMARY.md written, STATE + ROADMAP updated, all 5 tasks committed atomically. v5.3.3 progress: 1/5 phases complete (20%), 14/14 requirements still mapped; CONC-01 closed.
 
 ## v5.3.3 Phase Structure (locked)
 
@@ -80,7 +80,7 @@ None. v5.3.2 shipped clean. v5.3.3 ROADMAP.md complete with full coverage; BUG-0
 
 ## Session Continuity
 
-Last session: 2026-05-13
-Stopped at: Phase 93 context gathered — investigation-order (audit-first, branching on outcome) + Pino observability fallback + two-case duplicate UX (drop same-msg, coalesce different-msg) + TDD fail-in-main rule + Meta-dedup-scope-expansion-if-needed locked in CONTEXT.md.
-Resume file: `.planning/phases/93-handler-concurrency/93-CONTEXT.md`
-Next step: `/clear` → `/gsd:plan-phase 93` (research will be skipped per config; planner reads CONTEXT.md for locked decisions).
+Last session: 2026-05-17
+Stopped at: Phase 93 closed — multi-fire Branch 1 (SETNX-race) + Branch 4 (TTL coupling) + post-hoc Check 1.5 (updateSession race) all fixed; full bot suite 609/609 green; PB1.E1A snapshot tripwire untouched; Cross-Phase Invariant satisfied for Phase 94 ship-after.
+Resume file: `.planning/phases/93-handler-concurrency/93-01-SUMMARY.md`
+Next step: `/clear` → `/gsd:plan-phase 94` (research likely skipped per config; planner reads ROADMAP Phase 94 file-level pointers for `openai.ts:29` + `handler.ts:584/:641`). Phase 94 PR-gate verification command before merge: `git log --oneline | grep -i 'debounce_ttl\|TTL\|93-' | head`.

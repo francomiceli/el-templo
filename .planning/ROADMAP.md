@@ -30,7 +30,7 @@
 
 ### Phases
 
-- [ ] **Phase 93: Handler Concurrency** — BUG-01 race condition; eliminate duplicate-response on rapid-fire user messages via debounce / Redis lock per phone at handler entry (CONC-01)
+- [x] **Phase 93: Handler Concurrency** — BUG-01 race condition; eliminate duplicate-response on rapid-fire user messages via debounce / Redis lock per phone at handler entry (CONC-01) ✅ shipped 2026-05-17
 - [ ] **Phase 94: OpenAI Latency + Graceful Failure** — BUG-02 ~3min latency; explicit OpenAI client timeout + interim UX + graceful fallback at `provider.chat(...)` await sites (LAT-01..03)
 - [ ] **Phase 95: Booking Reliability + Graceful Degradation** — BUG-03 + BUG-05 paired; class search consistency across venues + tool-failure retry-counter + escalate via `request_human` after 2 failed attempts; SC#3 invariant preserved (BOOK-01, DEGR-01..02)
 - [ ] **Phase 96: Context Awareness** — BUG-04; bot does not re-ask data already provided in conversation; fix in `system-prompt.ts` or profile extraction layer (CTXT-01..02)
@@ -50,7 +50,9 @@
 3. `DEBOUNCE_TTL_SECONDS` is adjusted to satisfy the cross-phase invariant (see Notes) — static value ≥600s, OR heartbeat-refresh, OR hybrid. Plan-time choice.
 4. A regression test exists that simulates rapid-fire inbounds for the same phone number and asserts the handler produces exactly ONE call to `provider.chat(...)` (or one outbound message), not multiple.
 
-**Plans:** TBD
+**Plans:** 1 plan
+
+- [x] 93-01-PLAN.md — Audit-first close of BUG-01: 5 candidate-defect checks (SETNX-race, Meta dedup ordering, compound, TTL/upstream coupling, observability) + post-hoc Check 1.5 (updateSession race) → multi-fire fix (Branch 1 atomic SETNX + Lua updateSession + Branch 4 TTL adjustment). See [93-01-SUMMARY.md](phases/93-handler-concurrency/93-01-SUMMARY.md).
 
 **Notes:**
 
@@ -196,13 +198,13 @@ The 45s `OPENAI_TIMEOUT_MS` is the LEFT-HAND VARIABLE that the right-hand TTL mu
 
 ## Progress
 
-| Phase                                          | Plans Complete | Status      | Completed |
-| ---------------------------------------------- | -------------- | ----------- | --------- |
-| 93. Handler Concurrency                        | 0/?            | Not started | -         |
-| 94. OpenAI Latency + Graceful Failure          | 0/?            | Not started | -         |
-| 95. Booking Reliability + Graceful Degradation | 0/?            | Not started | -         |
-| 96. Context Awareness                          | 0/?            | Not started | -         |
-| 97. Backlog + Regression Lock                  | 0/?            | Not started | -         |
+| Phase                                          | Plans Complete | Status      | Completed  |
+| ---------------------------------------------- | -------------- | ----------- | ---------- |
+| 93. Handler Concurrency                        | 1/1            | ✅ Complete | 2026-05-17 |
+| 94. OpenAI Latency + Graceful Failure          | 0/?            | Not started | -          |
+| 95. Booking Reliability + Graceful Degradation | 0/?            | Not started | -          |
+| 96. Context Awareness                          | 0/?            | Not started | -          |
+| 97. Backlog + Regression Lock                  | 0/?            | Not started | -          |
 
 ---
 
