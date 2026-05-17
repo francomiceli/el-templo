@@ -13,7 +13,7 @@ All requirements derived from the post-v5.3.2 live test backlog (`/Users/bores/e
 
 <!-- Phase 93 — eliminate duplicate-response race condition on rapid-fire user messages -->
 
-- [ ] **CONC-01**: When the user sends multiple messages in rapid succession (faster than the bot's response cycle), the bot generates exactly ONE response, not duplicates. Implementation: debounce / Redis lock per phone number in `el-templo-bot/src/webhook/handler.ts` at the `processWithAi` entry, with TTL bound to worst-case handler runtime (see cross-phase invariant in ROADMAP Phase 93 Notes). Existing 3s debounce + Redis dead-man switch (`DEBOUNCE_DELAY_MS=3000`, `DEBOUNCE_TTL_SECONDS=10`) is the starting point. **Per `.planning/v5.3.3-codebase-audit.md`, candidate root causes include:** (i) **SETNX-race** — `isDebounceActive` + `setDebounce` at `el-templo-bot/src/memory/session.ts:125-155` are non-atomic (two Redis round-trips); concurrent webhook invocations can both observe "inactive" before either writes. (ii) **TTL/upstream coupling** — `DEBOUNCE_TTL_SECONDS=10` is shorter than worst-case post-Phase-94 handler runtime (~270s+); dead-man switch fires while work is in-flight, allowing parallel handlers to spawn. (iii) **Meta retry edge case** — dedup at `handler.ts:291-306` exists and is wired (UNIQUE on `whatsapp_message_id` at `el-templo-api/src/db/schema/whatsapp.ts:84`). The open question is whether dedup fires before the duplicate-response race window in all retry scenarios, NOT whether it exists. (iv) **None of the above** — observability is the deliverable per "don't fix nothing observable" anti-pattern.
+- [x] **CONC-01** ✅ (shipped 2026-05-17, Phase 93): When the user sends multiple messages in rapid succession (faster than the bot's response cycle), the bot generates exactly ONE response, not duplicates. Implementation: debounce / Redis lock per phone number in `el-templo-bot/src/webhook/handler.ts` at the `processWithAi` entry, with TTL bound to worst-case handler runtime (see cross-phase invariant in ROADMAP Phase 93 Notes). Existing 3s debounce + Redis dead-man switch (`DEBOUNCE_DELAY_MS=3000`, `DEBOUNCE_TTL_SECONDS=10`) is the starting point. **Per `.planning/v5.3.3-codebase-audit.md`, candidate root causes include:** (i) **SETNX-race** — `isDebounceActive` + `setDebounce` at `el-templo-bot/src/memory/session.ts:125-155` are non-atomic (two Redis round-trips); concurrent webhook invocations can both observe "inactive" before either writes. (ii) **TTL/upstream coupling** — `DEBOUNCE_TTL_SECONDS=10` is shorter than worst-case post-Phase-94 handler runtime (~270s+); dead-man switch fires while work is in-flight, allowing parallel handlers to spawn. (iii) **Meta retry edge case** — dedup at `handler.ts:291-306` exists and is wired (UNIQUE on `whatsapp_message_id` at `el-templo-api/src/db/schema/whatsapp.ts:84`). The open question is whether dedup fires before the duplicate-response race window in all retry scenarios, NOT whether it exists. (iv) **None of the above** — observability is the deliverable per "don't fix nothing observable" anti-pattern.
 
 ### OpenAI Latency + Graceful Failure (Phase 94)
 
@@ -66,22 +66,22 @@ All requirements derived from the post-v5.3.2 live test backlog (`/Users/bores/e
 
 ## Traceability
 
-| Requirement | Phase | Status  |
-| ----------- | ----- | ------- |
-| CONC-01     | 93    | Pending |
-| LAT-01      | 94    | Pending |
-| LAT-02      | 94    | Pending |
-| LAT-03      | 94    | Pending |
-| BOOK-01     | 95    | Pending |
-| DEGR-01     | 95    | Pending |
-| DEGR-02     | 95    | Pending |
-| CTXT-01     | 96    | Pending |
-| CTXT-02     | 96    | Pending |
-| ELEV-01     | 97    | Pending |
-| VOSEO-01    | 97    | Pending |
-| RGUARD-01   | 97    | Pending |
-| RGUARD-02   | 97    | Pending |
-| RGUARD-03   | 97    | Pending |
+| Requirement | Phase | Status                   |
+| ----------- | ----- | ------------------------ |
+| CONC-01     | 93    | ✅ Complete (2026-05-17) |
+| LAT-01      | 94    | Pending                  |
+| LAT-02      | 94    | Pending                  |
+| LAT-03      | 94    | Pending                  |
+| BOOK-01     | 95    | Pending                  |
+| DEGR-01     | 95    | Pending                  |
+| DEGR-02     | 95    | Pending                  |
+| CTXT-01     | 96    | Pending                  |
+| CTXT-02     | 96    | Pending                  |
+| ELEV-01     | 97    | Pending                  |
+| VOSEO-01    | 97    | Pending                  |
+| RGUARD-01   | 97    | Pending                  |
+| RGUARD-02   | 97    | Pending                  |
+| RGUARD-03   | 97    | Pending                  |
 
 **Coverage:**
 
@@ -93,3 +93,4 @@ All requirements derived from the post-v5.3.2 live test backlog (`/Users/bores/e
 
 _Requirements defined: 2026-05-05_
 _Last updated: 2026-05-13 after codebase audit — revised CONC-01, DEGR-01, BOOK-01, CTXT-02 to match actual code state per `.planning/v5.3.3-codebase-audit.md`_
+_2026-05-17: CONC-01 marked complete after Phase 93 closed (verified via 93-VERIFICATION.md, 13/13 PASS)._
