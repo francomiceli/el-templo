@@ -21,14 +21,35 @@ import type {
 
 const logger = pino({ name: "openai-provider" });
 
+/**
+ * Resolve the OpenAI SDK request-timeout (milliseconds).
+ *
+ * Phase 94 LAT-01: bounds the upstream call so a hung OpenAI request
+ * surfaces as `APIConnectionTimeoutError` within a known window
+ * instead of stalling for the SDK's 600s default.
+ *
+ * Env-overridable via `OPENAI_TIMEOUT_MS`; default 45_000 ms is locked
+ * by the Phase 93 ↔ 94 ↔ 97 Cross-Phase Invariant (see
+ * `el-templo-bot/.env.example` for the formula). Non-numeric or
+ * non-positive values fall back to the default — the operator gets
+ * predictable behavior even with a misconfigured env.
+ */
+function resolveOpenAiTimeoutMs(): number {
+  const raw = process.env.OPENAI_TIMEOUT_MS;
+  if (raw === undefined || raw === "") return 45_000;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 45_000;
+}
+
 export class OpenAiProvider implements AiProvider {
   private client: OpenAI;
   private model: string;
 
   constructor(model = "gpt-4o-mini") {
-    this.client = new OpenAI();
+    const timeout = resolveOpenAiTimeoutMs();
+    this.client = new OpenAI({ timeout: timeout });
     this.model = model;
-    logger.info({ model }, "OpenAI provider initialized");
+    logger.info({ model, timeout }, "OpenAI provider initialized");
   }
 
   async chat(
@@ -91,7 +112,13 @@ export class OpenAiProvider implements AiProvider {
           { status: err.status, message: err.message, code: err.code },
           "OpenAI API error",
         );
-        throw new Error(`OpenAI API error (${err.status}): ${err.message}`);
+        // Phase 94 LAT-02: re-throw the raw OpenAI.APIError so the
+        // handler's `err instanceof OpenAI.APIError` discriminator can
+        // distinguish upstream errors (interim "Dame un segundo" path)
+        // from local exceptions. The previous `new Error(...)` wrap
+        // erased `status`/`code` and forced brittle message-text
+        // matching at the call site.
+        throw err;
       }
       throw err;
     }
