@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v5.3.3
 milestone_name: Post-v5.3.2 Live Test Fixes
-status: phase_complete
-stopped_at: "Phase 93 closed 2026-05-17. Phase 94 (LAT-01..03) planned 2026-05-17 — 94-CONTEXT.md (ac67d810) + 94-01-PLAN.md (c3bbfa2a). TDD 2-task plan, plan-checker PASS in normal mode. No code yet — next is /gsd:execute-phase 94. Ship-after Phase 93's TTL commit (8c74c850) per Cross-Phase Invariant (already on same branch)."
-last_updated: "2026-05-17T18:50:00Z"
-last_activity: "2026-05-17 — Phase 94 planning complete. Commits: ac67d810 (94-CONTEXT.md synthesized directly from v5.3.3 audit + BUG-02 debug, no audit task spawned) → c3bbfa2a (94-01-PLAN.md, TDD 2-task structure, RED-gate grep tightened per plan-checker nit #1). Claude's-Discretion decisions locked: inline try/catch + sendInterimUx helper (LAT-02 wrapper), no manual retry (SDK 2× internal suffices), raw OpenAI.APIError re-throw at openai.ts:88-97. Plan-checker PASS in normal (not adversarial) mode."
+status: executing
+stopped_at: Phase 94 plan complete, not yet executed. 94-CONTEXT.md + 94-01-PLAN.md committed (`ac67d810`, `c3bbfa2a`). Plan-checker PASS in normal mode with one nit auto-patched pre-commit (RED-gate grep tightened to `Tests +[1-9][0-9]* +failed`). 3 nits remain unaddressed as documentation polish only — see plan-check transcript if needed; none affect correctness.
+last_updated: "2026-05-17T22:18:03.671Z"
+last_activity: 2026-05-17 -- Phase 94 execution started
 progress:
   total_phases: 5
   completed_phases: 1
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-05)
 
 **Core value:** Prospective and current members get instant, accurate answers about El Templo via WhatsApp — and leads are profiled through natural discovery so Mica makes ONE targeted recommendation per conversation, with prices, method, and objections handled per the team's playbook (not improvised).
-**Current focus:** v5.3.3 Post-v5.3.2 Live Test Fixes — ROADMAP.md created, ready to plan Phase 93 (Handler Concurrency).
+**Current focus:** Phase 94 — openai-latency-graceful-failure
 
 ## Current Position
 
 Milestone: v5.3.3 Post-v5.3.2 Live Test Fixes
-Phase: 93 (Handler Concurrency) ✅ Complete — shipped 2026-05-17
-Plan: 93-01 ✅ complete (Branch 1 + Branch 4 + Check 1.5 post-hoc — see `phases/93-handler-concurrency/93-01-SUMMARY.md`)
+Phase: 94 (openai-latency-graceful-failure) — EXECUTING
+Plan: 1 of 1
 Phase 94 (OpenAI Latency / LAT-01..03): 🟡 **Plan complete, not yet executed.** 94-CONTEXT.md (`ac67d810`) + 94-01-PLAN.md (`c3bbfa2a`). 2 TDD tasks: Task 1 RED fail-in-main suite at `el-templo-bot/test/v5-3-3-openai-latency.test.ts`, Task 2 GREEN atomic LAT-01+02+03 + `.env.example` + invariant script. Plan-checker PASS in normal mode. No audit task spawned (v5.3.3 audit at `.planning/v5.3.3-codebase-audit.md:130-181` covers this phase). Post-Phase-93 line numbers locked in plan: `openai.ts:29`, `handler.ts:600`, `handler.ts:657`, `handler.ts:334-350` (NOT the stale `:584/:641/:323` from the original debug session).
-Status: Phase 94 ready to execute. **Next: `/gsd:execute-phase 94`** (or `/clear` → `/gsd:execute-phase 94` for a fresh context). Per the Cross-Phase Invariant, Phase 94 must NOT merge until Phase 93's TTL commit `8c74c850` is on the same branch — already satisfied on `feature/whatsapp-bot-scaffold`. PR-gate verification before merge: `git log --oneline | grep -i 'debounce_ttl\|TTL\|93-' | head`.
-Last activity: 2026-05-17 — Phase 94 planning complete (CONTEXT + PLAN committed). v5.3.3 progress: 1/5 phases complete + 1 planned (20% executed, 40% planned), 14/14 requirements still mapped; CONC-01 closed.
+Status: Executing Phase 94
+Last activity: 2026-05-17 -- Phase 94 execution started
 
 ## v5.3.3 Phase Structure (locked)
 
