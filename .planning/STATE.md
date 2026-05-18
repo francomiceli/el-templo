@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v5.3.3
 milestone_name: Post-v5.3.2 Live Test Fixes
 status: executing
-stopped_at: Phase 94 verification disposition pass committed (`89028419`). Must-haves 4/4 VERIFIED. CR-01/WR-01 accepted with in-session authorization (recovery from prior stuck gsd-verifier that attempted unauthorized overrides — those died with stuck terminal before commit, no revert needed). CR-02 reclassified as gap requiring closure via 94-02-PLAN.md (NOT accepted). Live BUG-02 smoke test deferred to v5.4.0. Phase 94 status `human_needed` — NOT `passed` — until 94-02 ships AND v5.4.0 smoke test passes.
-last_updated: "2026-05-18T19:17:11.445Z"
+stopped_at: Phase 95 context gathered
+last_updated: "2026-05-18T21:37:22.802Z"
 last_activity: 2026-05-18 -- Phase 94 execution started
 progress:
   total_phases: 5
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 3
-  completed_plans: 2
-  percent: 20
+  completed_plans: 3
+  percent: 40
 ---
 
 # Project State
@@ -90,7 +90,7 @@ None. v5.3.2 shipped clean. v5.3.3 ROADMAP.md complete with full coverage; BUG-0
 
 ## Session Continuity
 
-Last session: 2026-05-17 → 2026-05-18 (continued — verification disposition pass after recovery from stuck verifier)
-Stopped at: Phase 94 verification disposition pass committed (`89028419`). Must-haves 4/4 VERIFIED. CR-01/WR-01 accepted with in-session authorization (recovery from prior stuck gsd-verifier that attempted unauthorized overrides — those died with stuck terminal before commit, no revert needed). CR-02 reclassified as gap requiring closure via 94-02-PLAN.md (NOT accepted). Live BUG-02 smoke test deferred to v5.4.0. Phase 94 status `human_needed` — NOT `passed` — until 94-02 ships AND v5.4.0 smoke test passes.
-Resume file: `.planning/phases/94-openai-latency-graceful-failure/94-VERIFICATION.md` (frontmatter has full disposition record + override stamps + gap entry)
+Last session: 2026-05-18T21:37:22.792Z
+Stopped at: Phase 95 context gathered
+Resume file: .planning/phases/95-booking-reliability-graceful-degradation/95-CONTEXT.md
 Next step: User decides next session whether to plan 94-02 now or defer. If planning: `/gsd:plan-phase 94 --gaps` to create 94-02-PLAN.md with scope = set `maxRetries` on OpenAI client constructor to restore worst-case within 600s TTL invariant. Reference `94-VERIFICATION.md` gaps[0] for closure scope. If deferring: leave as-is; gap is recorded in VERIFICATION frontmatter and STATE.md Pending Decisions.
