@@ -33,6 +33,19 @@ const logger = pino({ name: "openai-provider" });
  * `el-templo-bot/.env.example` for the formula). Non-numeric or
  * non-positive values fall back to the default — the operator gets
  * predictable behavior even with a misconfigured env.
+ *
+ * Companion constraint (Phase 94-02, CR-02 closure): `maxRetries` on
+ * the OpenAI client is locked to `0`. The SDK's default `maxRetries: 2`
+ * would multiply real per-`chat()` wall-clock by 3× the configured
+ * timeout, violating the Cross-Phase Invariant (worst-case
+ * `3 × 45 × 5 + 30 × 5 + 20 = 845s` exceeds `DEBOUNCE_TTL_SECONDS=600`).
+ * Setting `maxRetries: 0` keeps the formula `45 × 1 × 5 + 30 × 5 + 20
+ * = 395s ≤ 600s` true byte-for-byte. The handler already provides
+ * retry/recovery via the Phase 94 LAT-02 interim UX + LAT-03 graceful
+ * fallback path — SDK-level retries are redundant. No env-override is
+ * provided (`OPENAI_MAX_RETRIES` is deliberately absent); the
+ * invariant locks this value, and operator-tunability here would
+ * re-introduce the bug surface CR-02 closed.
  */
 function resolveOpenAiTimeoutMs(): number {
   const raw = process.env.OPENAI_TIMEOUT_MS;
@@ -47,9 +60,12 @@ export class OpenAiProvider implements AiProvider {
 
   constructor(model = "gpt-4o-mini") {
     const timeout = resolveOpenAiTimeoutMs();
-    this.client = new OpenAI({ timeout: timeout });
+    this.client = new OpenAI({ timeout: timeout, maxRetries: 0 });
     this.model = model;
-    logger.info({ model, timeout }, "OpenAI provider initialized");
+    logger.info(
+      { model, timeout, maxRetries: 0 },
+      "OpenAI provider initialized",
+    );
   }
 
   async chat(
