@@ -21,6 +21,8 @@ import { activities } from "../../src/db/schema/activities";
 import { holidays } from "../../src/db/schema/holidays";
 import { subscriptionSchedules } from "../../src/db/schema/subscription-schedules";
 import { memberProfiles } from "../../src/db/schema/member-profiles";
+import { financialTransactions } from "../../src/db/schema/financial-transactions";
+import { transactionLinks } from "../../src/db/schema/transaction-links";
 
 describe("Members Management Routes", () => {
   let app: FastifyInstance;
@@ -701,6 +703,81 @@ describe("Members Management Routes", () => {
         .from(bookings)
         .where(eq(bookings.memberId, member.id));
       expect(book.status).toBe("cancelado");
+    });
+
+    it("refuses delete with 400 SUB_HAS_ACTIVE_TRANSACTIONS when sub has non-voided charges", async () => {
+      // Phase 111 REQ-3: cancelSubscription throws when there are active
+      // charge transactions on the sub. The DELETE route surfaces this as a
+      // structured 400 so the admin frontend can render an actionable
+      // "anular en Detalle Financiero" message.
+      const member = await createMember({
+        email: "blocked-by-charges@test-members.com",
+        dni: "35888999",
+      });
+
+      // Find the auto-created active subscription
+      const [sub] = await app.db
+        .select({ id: subscriptions.id })
+        .from(subscriptions)
+        .where(eq(subscriptions.userId, member.id));
+      expect(sub).toBeDefined();
+
+      // Find admin user id for recordedBy
+      const [admin] = await app.db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.email, "admin@test.com"));
+
+      // Insert a non-voided charge transaction linked to the sub
+      const today = new Date().toISOString().split("T")[0];
+      const [txIns] = await app.db
+        .insert(financialTransactions)
+        .values({
+          memberId: member.id,
+          kind: "plan_charge",
+          direction: "inflow",
+          amount: 65000,
+          currency: "ARS",
+          paymentMethod: "cash",
+          transactionDate: today,
+          effectiveDate: today,
+          branchId: 1,
+          recordedBy: admin.id,
+        })
+        .$returningId();
+      await app.db.insert(transactionLinks).values({
+        transactionId: txIns.id,
+        targetKind: "subscription",
+        targetId: sub.id,
+        allocatedAmount: 65000,
+      });
+
+      const delRes = await app.inject({
+        method: "DELETE",
+        url: `/api/admin/members/${member.id}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(delRes.statusCode).toBe(400);
+      const body = JSON.parse(delRes.body) as {
+        code?: string;
+        details?: {
+          transactionIds?: number[];
+          totalAmount?: number;
+          currency?: string;
+        };
+      };
+      expect(body.code).toBe("SUB_HAS_ACTIVE_TRANSACTIONS");
+      expect(body.details?.transactionIds).toContain(txIns.id);
+      expect(body.details?.totalAmount).toBe(65000);
+      expect(body.details?.currency).toBe("ARS");
+
+      // The member is still readable — the delete never landed.
+      const getRes = await app.inject({
+        method: "GET",
+        url: `/api/admin/members/${member.id}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(getRes.statusCode).toBe(200);
     });
 
     it("coach cannot delete a member (403) — ADMIN_ROLES gate", async () => {

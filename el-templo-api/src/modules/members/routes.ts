@@ -919,11 +919,47 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
           request.user.userId,
           "Cancelado por eliminación del alumno",
         );
-      } catch (err) {
+      } catch (err: unknown) {
         // Members with no active/paused subscription hit NotFoundError —
-        // that is expected, keep going. Anything else is unexpected; log
-        // and rethrow so the admin sees a 500 rather than a silent partial.
-        if (!(err instanceof NotFoundError)) throw err;
+        // that is expected, keep going.
+        if (err instanceof NotFoundError) {
+          // proceed
+        } else if (err instanceof Error) {
+          // Phase 111 REQ-3: cancelSubscription refuses when there are
+          // non-voided charge transactions linked to the sub. The structured
+          // error body is JSON-encoded inside BadRequestError.message — unwrap
+          // it and surface code='SUB_HAS_ACTIVE_TRANSACTIONS' so the admin
+          // frontend can render an actionable message ("anular en Detalle
+          // Financiero y reintentar"). Any other error is unexpected.
+          try {
+            const parsed = JSON.parse(err.message) as {
+              code?: string;
+              message?: string;
+              details?: unknown;
+            };
+            if (parsed && parsed.code === "SUB_HAS_ACTIVE_TRANSACTIONS") {
+              request.log.warn(
+                {
+                  userId: request.params.userId,
+                  actorId: request.user.userId,
+                  details: parsed.details,
+                },
+                "SUB_HAS_ACTIVE_TRANSACTIONS",
+              );
+              return reply.code(400).send({
+                error: "Bad Request",
+                message: parsed.message,
+                code: parsed.code,
+                details: parsed.details,
+              });
+            }
+          } catch {
+            // Not a JSON-encoded structured error — fall through to rethrow.
+          }
+          throw err;
+        } else {
+          throw err;
+        }
       }
 
       // Catch remaining future bookings the subscription cancel didn't

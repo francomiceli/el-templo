@@ -552,6 +552,7 @@ import { useAuthStore } from 'src/stores/useAuthStore';
 import { useGoalPlanAdminApi } from 'src/composables/useGoalPlanAdminApi';
 import { useMembersApi, type LeadStatusValue } from 'src/composables/useMembersApi';
 import { useTransactionsApi } from 'src/composables/useTransactionsApi';
+import type { AxiosError } from 'axios';
 import { extractError, isExpectedClientError } from 'src/utils/extract-error';
 import type { OutstandingConcept } from 'src/types/transaction';
 import { useStatusBadge } from 'src/composables/useStatusBadge';
@@ -725,8 +726,44 @@ async function onConfirmDelete() {
     showDeleteDialog.value = false;
     await router.push('/alumnos');
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Error eliminando alumno';
-    log.error('Error deleting member', { error: message });
+    // Phase 111 REQ-3: backend refuses delete when the member's subscription
+    // has non-voided charge transactions. Surface an actionable message so
+    // the admin knows to anular in Detalle Financiero first.
+    const axiosErr = err as AxiosError<{
+      code?: string;
+      details?: { transactionIds?: number[]; totalAmount?: number; currency?: string };
+    }>;
+    const code = axiosErr.response?.data?.code;
+    if (code === 'SUB_HAS_ACTIVE_TRANSACTIONS') {
+      const details = axiosErr.response?.data?.details;
+      const count = details?.transactionIds?.length ?? 0;
+      const amount = details?.totalAmount ?? 0;
+      const currency = details?.currency ?? 'ARS';
+      const formatted = new Intl.NumberFormat('es-AR', {
+        style: 'currency',
+        currency,
+        maximumFractionDigits: 0,
+      }).format(amount);
+      log.warn('Delete blocked: active transactions', {
+        userId: memberProfile.value.id,
+        count,
+        amount,
+      });
+      $q.notify({
+        type: 'warning',
+        message: `No se puede eliminar: tiene ${count} cobro${count === 1 ? '' : 's'} activo${count === 1 ? '' : 's'} por ${formatted}. Anulalos primero en Detalle Financiero → Anular y volvé a intentar.`,
+        timeout: 8000,
+        multiLine: true,
+        actions: [{ label: 'Entendido', color: 'white' }],
+      });
+      return;
+    }
+    const message = extractError(err, 'Error eliminando alumno');
+    if (isExpectedClientError(err)) {
+      log.warn('Delete member rejected', { error: message });
+    } else {
+      log.error('Error deleting member', { error: message });
+    }
     $q.notify({ type: 'negative', message });
   } finally {
     deleting.value = false;
