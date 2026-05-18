@@ -1,8 +1,9 @@
 ---
-status: diagnosed
+status: resolved
 trigger: "bot-3min-response-latency: WhatsApp bot took ~3 minutes to respond during live test (22:23-22:26, ~2026-04-16)"
 created: 2026-05-05
-updated: 2026-05-05
+updated: 2026-05-18
+resolved_by: "Phase 94 (LAT-01..03) — explicit OpenAI timeout=45000 + maxRetries=0 (94-02 CR-02 closure) + interim UX + graceful fallback. Real worst-case per provider.chat = 45s; end-to-end ≤ 395s ≤ 600s DEBOUNCE_TTL. Pending v5.4.0 live smoke test (HUMAN-UAT)."
 mode: symptoms_prefilled, find_root_cause, defer_to_milestone
 ---
 
