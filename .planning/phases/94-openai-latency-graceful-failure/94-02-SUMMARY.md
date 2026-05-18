@@ -305,6 +305,32 @@ canonical block locations (verification step 9 result).
   `DEBOUNCE_TTL_SECONDS` floor re-derived. The two regression tests
   added here are the trip-wire that forces the discipline.
 
+## Known Issues / Follow-ups
+
+**Pre-existing flake — SC#3 graceful fallback test (NOT introduced by 94-02):**
+
+- **Test:** `SC#3 graceful fallback` — `el-templo-bot/test/v5-3-3-openai-latency.test.ts:~515`
+  (the `"sends 'Dame un segundo' AND 'Tuve un problemita técnico'; handler returns cleanly"` it-block).
+- **Origin:** Introduced in commit `fa65e5b3` (Plan 94-01 RED). Confirmed via `git blame -L 515,540`.
+- **Symptom:** `expect(interimSends.length).toBe(1)` assertion intermittently fails when
+  the full bot suite (`pnpm test`) runs under parallel load. The 1 or 2 failures, when
+  they appear, are always inside this single SC#3 test.
+- **Root cause hypothesis:** `vi.advanceTimersByTimeAsync(3500)` timing coupling with
+  promise resolution ordering — likely needs an explicit await on the interim send
+  promise before asserting `sendCalls`. Race surfaces only under contention from the
+  other 27 test files in the suite.
+- **Observed flake rate:** ~50% across 3 sequential post-merge runs of the full bot suite
+  (run 1: 615/617, run 2: 617/617, run 3: 616/617). The Phase 94-02 unit-suite alone
+  (`pnpm test v5-3-3-openai-latency`) is 8/8 PASS deterministically.
+- **Impact on Phase 94-02:** None. The two new `it()` blocks asserting `client.maxRetries === 0`
+  pass on every run, in isolation and in the full suite. Phase 94-02 stayed within its
+  declared scope and out-of-scope guardrails are clean.
+- **Disposition:** Tracked here + in `.planning/STATE.md` Pending Decisions. Out of scope
+  for 94-02 (scope creep against the plan's explicit out-of-scope guardrails). Candidate
+  remediation phase: Phase 97 (RGUARD scope expansion) or carved out as a 97.1 / v5.3.4
+  if timing allows. **MUST be resolved before v5.4.0 ships** — CI must be deterministic
+  for prod deploy.
+
 ## Self-Check: PASSED
 
 - `el-templo-bot/src/ai/openai.ts` — **MODIFIED** (constructor `:63`, logger `:65-68`, doc-comment `:37-48`)

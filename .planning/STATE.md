@@ -4,8 +4,8 @@ milestone: v5.3.3
 milestone_name: Post-v5.3.2 Live Test Fixes
 status: executing
 stopped_at: Phase 94 verification disposition pass committed (`89028419`). Must-haves 4/4 VERIFIED. CR-01/WR-01 accepted with in-session authorization (recovery from prior stuck gsd-verifier that attempted unauthorized overrides — those died with stuck terminal before commit, no revert needed). CR-02 reclassified as gap requiring closure via 94-02-PLAN.md (NOT accepted). Live BUG-02 smoke test deferred to v5.4.0. Phase 94 status `human_needed` — NOT `passed` — until 94-02 ships AND v5.4.0 smoke test passes.
-last_updated: "2026-05-18T19:11:11.318Z"
-last_activity: 2026-05-18 -- Phase 94 planning complete
+last_updated: "2026-05-18T19:17:11.445Z"
+last_activity: 2026-05-18 -- Phase 94 execution started
 progress:
   total_phases: 5
   completed_phases: 1
@@ -26,8 +26,8 @@ See: .planning/PROJECT.md (updated 2026-05-05)
 ## Current Position
 
 Milestone: v5.3.3 Post-v5.3.2 Live Test Fixes
-Phase: 94 (openai-latency-graceful-failure) — VERIFIED with pending gap closure + deferred smoke test
-Plan: 1 of 1 executed (94-01); sub-plan 94-02 pending (CR-02 gap closure, not yet written)
+Phase: 94 (openai-latency-graceful-failure) — EXECUTING
+Plan: 1 of 2
 Phase 94 (OpenAI Latency / LAT-01..03): 🟡 **Must-haves 4/4 VERIFIED; phase status `human_needed` — NOT yet `passed`.** Plan 94-01 shipped (`d3de86b1` GREEN, `fa65e5b3` RED, plan `c3bbfa2a`). Code review `7e43431d`. Verification disposition pass `89028419`:
 
 - **CR-01 (ACCEPTED, in-session auth 2026-05-18T02:39:20Z):** `instanceof OpenAI.APIError` discriminator no-ops on Anthropic. Accepted because production locks `AI_PROVIDER=openai`; Anthropic path dormant in v5.3.3. Known limitation.
@@ -35,8 +35,8 @@ Phase 94 (OpenAI Latency / LAT-01..03): 🟡 **Must-haves 4/4 VERIFIED; phase st
 - **CR-02 (GAP — NOT accepted, closure pending as 94-02-PLAN.md):** SDK default `maxRetries=2` makes real worst-case `3 × 45s = 135s`, breaking the canonical invariant formula. Real worst-case `135 × 5 + 30 × 5 + 20 = 845s` exceeds 600s `DEBOUNCE_TTL_SECONDS`. Preferred resolution: set `maxRetries` on OpenAI client (0 or 1, decided at plan time) — SDK retries are redundant with handler-level interim/graceful retry path. Invariant discipline installed in Phase 93 must hold.
 - **Live BUG-02 smoke test (DEFERRED to v5.4.0):** Cannot be exercised in dev (ngrok + Meta test tokens insufficient). v5.4.0 milestone MUST include this as an acceptance gate before Phase 94 can be marked `passed`.
 
-Status: Ready to execute
-Last activity: 2026-05-18 -- Phase 94 planning complete
+Status: Executing Phase 94
+Last activity: 2026-05-18 -- Phase 94 execution started
 
 ## v5.3.3 Phase Structure (locked)
 
@@ -77,7 +77,8 @@ Full decision log in PROJECT.md Key Decisions table.
 
 ### Pending Decisions (forward)
 
-- **Phase 94 sub-plan 94-02 (CR-02 gap closure):** Decide next session whether to plan now or defer. Scope locked: set `maxRetries` on OpenAI client in `openai.ts` constructor (0 or 1) so worst-case `provider.chat` fits within 600s TTL invariant. SDK retries are redundant with Phase 94's handler-level interim/graceful retry path. If formula must change as fallback, re-sync cross-doc invariant block across 4 canonical docs with sha256 re-check per [[feedback_multi_doc_invariant_hash_check]].
+- **Phase 94 sub-plan 94-02 (CR-02 gap closure):** SHIPPED 2026-05-18. RED `5ff993f0` → GREEN `c6c6bc0e` → SUMMARY `07c65571` → merge `64556d68`. Phase 94 unit suite 8/8, sha256 invariant unchanged. Remaining gate to mark phase `passed`: live BUG-02 smoke test (v5.4.0).
+- **v5.3.3 test-suite flake (94-01 SC#3 graceful fallback):** Pre-existing intermittent failure on `el-templo-bot/test/v5-3-3-openai-latency.test.ts:~515` (`"sends 'Dame un segundo' AND 'Tuve un problemita técnico'; handler returns cleanly"`). Introduced commit `fa65e5b3` (Plan 94-01 RED). ~50% flake rate on full bot suite (`pnpm test`) under parallel load; 0% in suite-isolated runs. Root cause hypothesis: `vi.advanceTimersByTimeAsync` + promise-resolution ordering. NOT introduced by 94-02 and not blocking Phase 94 closure. **MUST be resolved before v5.4.0** — CI must be deterministic for prod deploy. Candidate remediation: Phase 97 (RGUARD scope expansion), or carve out as 97.1 / v5.3.4 if timing allows. See `94-02-SUMMARY.md` "Known Issues / Follow-ups" for full diagnostic notes.
 - **Phase 94 live BUG-02 smoke test (v5.4.0 carry-forward):** Document as acceptance gate when scoping v5.4.0. Test = throttled-upstream WhatsApp send with observation of interim msg + graceful fallback + clean handler return. Phase 94 cannot be marked `passed` until both 94-02 ships AND v5.4.0 smoke test passes.
 - **Phase 97 (ELEV-01 + VOSEO-01) testing strategy:** decide at plan time — multi-run sampling with statistical threshold OR accept-list of valid forms. Tradeoff: CI cost vs signal strength.
 - **Phase 96 (CTXT-01/02) implementation choice:** prompt-level rule, extraction-layer fix, or hybrid — depends on whether `<profile>` tag flow already persists name and model is ignoring it (→ prompt) or extraction is dropping it (→ extraction layer). Read `extractAndUpdateProfile` flow before deciding.
