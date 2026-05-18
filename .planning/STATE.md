@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v5.3.3
 milestone_name: Post-v5.3.2 Live Test Fixes
 status: executing
-stopped_at: Phase 94 verification disposition pass complete (`89028419`). Must-haves 4/4 VERIFIED. CR-01 + WR-01 accepted with documented rationale (in-session authorization). CR-02 routed to gap closure as `94-02-PLAN.md` (NOT accepted — invariant discipline must hold; SDK maxRetries=2 makes worst-case 845s > 600s TTL). Live BUG-02 smoke test deferred to v5.4.0 (dev environment cannot exercise). Phase 94 NOT yet `passed` — gated on (a) 94-02 ships, (b) v5.4.0 smoke test passes. Next session: decide whether to plan 94-02 now or defer.
-last_updated: "2026-05-18T02:39:20Z"
-last_activity: 2026-05-18 -- Phase 94 verification disposition pass committed; 94-02 gap closure pending plan
+stopped_at: Phase 94 verification disposition pass committed (`89028419`). Must-haves 4/4 VERIFIED. CR-01/WR-01 accepted with in-session authorization (recovery from prior stuck gsd-verifier that attempted unauthorized overrides — those died with stuck terminal before commit, no revert needed). CR-02 reclassified as gap requiring closure via 94-02-PLAN.md (NOT accepted). Live BUG-02 smoke test deferred to v5.4.0. Phase 94 status `human_needed` — NOT `passed` — until 94-02 ships AND v5.4.0 smoke test passes.
+last_updated: "2026-05-18T19:11:11.318Z"
+last_activity: 2026-05-18 -- Phase 94 planning complete
 progress:
   total_phases: 5
   completed_phases: 1
-  total_plans: 2
-  completed_plans: 1
+  total_plans: 3
+  completed_plans: 2
   percent: 20
 ---
 
@@ -35,8 +35,8 @@ Phase 94 (OpenAI Latency / LAT-01..03): 🟡 **Must-haves 4/4 VERIFIED; phase st
 - **CR-02 (GAP — NOT accepted, closure pending as 94-02-PLAN.md):** SDK default `maxRetries=2` makes real worst-case `3 × 45s = 135s`, breaking the canonical invariant formula. Real worst-case `135 × 5 + 30 × 5 + 20 = 845s` exceeds 600s `DEBOUNCE_TTL_SECONDS`. Preferred resolution: set `maxRetries` on OpenAI client (0 or 1, decided at plan time) — SDK retries are redundant with handler-level interim/graceful retry path. Invariant discipline installed in Phase 93 must hold.
 - **Live BUG-02 smoke test (DEFERRED to v5.4.0):** Cannot be exercised in dev (ngrok + Meta test tokens insufficient). v5.4.0 milestone MUST include this as an acceptance gate before Phase 94 can be marked `passed`.
 
-Status: Phase 94 verified with caveats; awaiting 94-02 plan + v5.4.0 smoke test before `passed` mark
-Last activity: 2026-05-18 -- Phase 94 verification disposition pass committed (`89028419`)
+Status: Ready to execute
+Last activity: 2026-05-18 -- Phase 94 planning complete
 
 ## v5.3.3 Phase Structure (locked)
 
