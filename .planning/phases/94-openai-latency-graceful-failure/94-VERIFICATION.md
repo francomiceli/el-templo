@@ -1,23 +1,44 @@
 ---
 phase: 94-openai-latency-graceful-failure
 verified: 2026-05-17T23:05:37Z
+verification_updated: 2026-05-18T02:39:20Z
 status: human_needed
 score: 4/4 must-haves verified
-overrides_applied: 0
-gaps: []
+overrides_applied: 2
+authorization_note: |
+  CR-01 and WR-01 overrides authorized by user via explicit
+  disposition request 2026-05-17. Distinct from the prior
+  unauthorized override attempt by gsd-verifier earlier in the
+  same session (died with stuck terminal before commit). Only
+  CR-01 and WR-01 are accepted; CR-02 is routed to gap closure
+  (94-02-PLAN.md), NOT accepted.
+overrides:
+  - finding: CR-01
+    title: "instanceof OpenAI.APIError narrow-typing is provider-specific"
+    disposition: accept
+    accepted_by: matzaia2001
+    accepted_at: 2026-05-18T02:39:20Z
+    authorization: in-session (recovery from stuck verifier session)
+    rationale: "instanceof OpenAI.APIError narrow-typing applies only when AI_PROVIDER=openai. Per .env.example, production locks AI_PROVIDER=openai. The Anthropic factory path is dormant in v5.3.3. If/when Anthropic is enabled, the error narrowing must be generalized — tracked as a known limitation, not a gap."
+  - finding: WR-01
+    title: "Back-to-back interim + graceful-fallback UX contradiction"
+    disposition: accept
+    accepted_by: matzaia2001
+    accepted_at: 2026-05-18T02:39:20Z
+    authorization: in-session (recovery from stuck verifier session)
+    rationale: "Back-to-back 'Dame un segundo' + graceful fallback message is a UX rough edge but does not affect functional correctness. The common path (timeout + retry succeeds) delivers a clean user experience. The worst-case path (timeout + retry also fails) is empirically rare. Lifting interimSent to outer scope is a future UX refinement, captured as known limitation rather than a v5.3.3 blocker."
+gaps:
+  - finding: CR-02
+    title: "SDK maxRetries=2 default breaks Cross-Phase Invariant (worst-case 845s > 600s TTL)"
+    closure_plan: 94-02-PLAN.md
+    closure_status: pending_plan
+    rationale: "Not accepted as override. Invariant discipline installed in Phase 93 must hold. Resolution path: set maxRetries on OpenAI client (option a — 0 or 1, decided at plan time) so real worst-case fits within the 600s TTL. SDK-level retries are redundant with the handler-level interim/graceful retry path Phase 94 already provides. If the formula itself changes, cross-doc invariant block must be re-synchronized across 4 canonical docs with sha256 re-check."
 human_verification:
-  - test: "Decide CR-02 disposition: SDK maxRetries default is 2 — the canonical invariant formula (45s × 5 + 30s × 5 + 20 = 395s) under-counts worst-case `provider.chat` wall-clock by ~3×. Real worst-case per-call is up to 3×45000 ms = 135s (SDK transparently retries on 5xx / APIConnectionError). The phase test SC#4 locks the wrong floor."
-    expected: "User decides one of: (a) explicit `maxRetries: 0` on the OpenAI client + add SC#5 test + tighten formula (preferred — bot already has WhatsApp webhook redelivery semantics); (b) keep `maxRetries: 2`, update the invariant formula + .env.example comment block + 4 canonical-doc invariant blocks + check-debounce-invariant.sh to use TIMEOUT_S*(1+maxRetries)*MAX_TOOL_ITERATIONS = 675s and re-derive DEBOUNCE_TTL_SECONDS floor; (c) accept the gap with documented rationale (e.g., 5xx retries empirically rare in production) — record as Phase 94 deviation override."
-    why_human: "Architectural decision with cross-phase invariant implications (touches 4 canonical docs + handler comments + .env.example + script). The phase as shipped still satisfies the goal text (no infinite stall — bounded at 135s worst-case per call) and BUG-02's specific failure (~3min) is now bounded under 3min, but the canonical invariant formula is mathematically incorrect. Cannot be programmatically resolved — requires user to choose between scope expansion now vs. defer-with-known-gap."
-  - test: "Decide CR-01 disposition: LAT-02 interim UX path uses `err instanceof OpenAI.APIError` discriminator, which silently no-ops when `AI_PROVIDER=anthropic` (factory still supports it; Anthropic.APIError is a different constructor identity)."
-    expected: "User decides: (a) accept — production is locked to AI_PROVIDER=openai per .env.example line 21, Anthropic path is dormant; document as known limitation; (b) add provider-agnostic isProviderApiError helper in provider.ts and rewire handler discriminator."
-    why_human: "Provider-abstraction quality issue. Does not block BUG-02 closure for the current production path (OpenAI). Open question is whether to harden the dormant Anthropic path in v5.3.3 scope or defer."
-  - test: "Decide WR-01 disposition: When provider.chat throws APIError, the user receives 'Dame un segundo 🙌' immediately followed by 'Tuve un problemita técnico, ¿me lo escribís de nuevo?' with no perceptible delay. The 'give me a second' promise is contradicted within the same WhatsApp delivery batch."
-    expected: "User decides: (a) accept — the goal is graceful failure, not UX polish; (b) suppress the apology when interimSent === true by lifting the interimSent flag to handleInboundMessage scope. Tests SC#2 + SC#3 both assert this back-to-back sequence."
-    why_human: "UX judgment call. Both messages firing is functionally correct (handler returned cleanly, user knows something failed). Whether the sequence is acceptable depends on user-facing tone preferences that grep cannot adjudicate."
   - test: "Live BUG-02 smoke test: deploy v5.3.3 to staging with OpenAI key, simulate a slow upstream (e.g., temporarily throttle to a known-slow model or use a network sleep proxy), send an inbound WhatsApp message, observe (1) handler bails within ~45s wall-clock per provider.chat call, (2) user receives 'Dame un segundo 🙌' once, (3) user receives 'Tuve un problemita técnico…' graceful fallback, (4) bot process does not crash and is ready to handle the next message."
     expected: "End-to-end: interim message arrives within ~45s of upstream stall; graceful fallback arrives once SDK throws; no process exit / no infinite loop / no double-handling of next inbound."
     why_human: "Unit tests prove the catch path wires; only a live WhatsApp send confirms (a) Meta delivery latency does not undermine UX, (b) the LAT-02 interim message is actually perceived by the user during a real stall, (c) the graceful fallback closes the conversation gracefully on a real device."
+    defer_to: v5.4.0
+    defer_reason: "Cannot be exercised in dev — requires production deploy with throttled upstream conditions (ngrok + Meta test tokens insufficient). v5.4.0 owns the dev → prod migration; this smoke test attaches to that milestone's acceptance gate."
 ---
 
 # Phase 94: OpenAI Latency + Graceful Failure — Verification Report
@@ -31,14 +52,14 @@ human_verification:
 
 ### Observable Truths
 
-| #   | Truth                                                                                                                                                                                                    | Status   | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | When provider.chat hangs (SDK never returns), the handler bails within the timeout boundary instead of stalling for the SDK's 600s default                                                               | VERIFIED | `openai.ts:48-53` resolves `OPENAI_TIMEOUT_MS` (default 45000) and passes to `new OpenAI({ timeout })`. Behavioral spot-check: `new OpenAI({timeout:45000}).timeout === 45000` confirmed. Test SC#1 (3 sub-tests) asserts default + override + invalid-fallback all converge to expected timeout. **Caveat:** SDK `maxRetries=2` default means worst-case per-call is 3×45s=135s, not 45s — see human verification CR-02. |
-| 2   | When provider.chat throws OpenAI.APIError (incl. APIConnectionTimeoutError), the user receives 'Dame un segundo 🙌' via sendTextMessage exactly once per inbound                                         | VERIFIED | `handler.ts:445-458` defines `sendInterimUx` closure with single-fire `interimSent` guard. `handler.ts:653-656` and `:721-724` wrap both `provider.chat` await sites with `if (err instanceof OpenAI.APIError) await sendInterimUx()`. Test SC#2 asserts exactly one interim send when APIError thrown. **Caveat:** discriminator is OpenAI-specific (CR-01) — silent no-op on Anthropic provider path.                   |
-| 3   | When the OpenAI call ultimately fails, the user receives 'Tuve un problemita técnico, ¿me lo escribís de nuevo?' and processWithAi returns cleanly — no throw escapes, no infinite loop, no process exit | VERIFIED | `handler.ts:345-370` outer catch (post-mod) executes `log.error(...)` then inner-try sends graceful fallback; inner-try swallows + logs send failures. No `throw` in catch path. Test SC#3 asserts `expect(p).resolves.toBeUndefined()` AND both interim + graceful sends fired (1 each). **Caveat:** WR-01 — both messages fire back-to-back when APIError triggers LAT-02 then propagates to LAT-03; UX contradiction.  |
-| 4   | The Cross-Phase Invariant holds with current defaults: `DEBOUNCE_TTL_SECONDS (600) ≥ (OPENAI_TIMEOUT_MS/1000)*5 + 30*5 + 20 = 395`                                                                       | VERIFIED | `bash el-templo-bot/scripts/check-debounce-invariant.sh` → `Cross-phase invariant OK: TTL=600 >= minimum 395` (exit 0). Spot-check `DEBOUNCE_TTL_SECONDS=100 bash …` → INVARIANT VIOLATION (exit 1) confirms guard works in both directions. **Caveat:** formula ignores SDK retries (CR-02) — see human verification.                                                                                                    |
+| #   | Truth                                                                                                                                                                                                    | Status   | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | When provider.chat hangs (SDK never returns), the handler bails within the timeout boundary instead of stalling for the SDK's 600s default                                                               | VERIFIED | `openai.ts:48-53` resolves `OPENAI_TIMEOUT_MS` (default 45000) and passes to `new OpenAI({ timeout })`. Behavioral spot-check: `new OpenAI({timeout:45000}).timeout === 45000` confirmed. Test SC#1 (3 sub-tests) asserts default + override + invalid-fallback all converge to expected timeout. **Caveat:** SDK `maxRetries=2` default means worst-case per-call is 3×45s=135s, not 45s — see Gap CR-02 (closure planned as 94-02).                      |
+| 2   | When provider.chat throws OpenAI.APIError (incl. APIConnectionTimeoutError), the user receives 'Dame un segundo 🙌' via sendTextMessage exactly once per inbound                                         | VERIFIED | `handler.ts:445-458` defines `sendInterimUx` closure with single-fire `interimSent` guard. `handler.ts:653-656` and `:721-724` wrap both `provider.chat` await sites with `if (err instanceof OpenAI.APIError) await sendInterimUx()`. Test SC#2 asserts exactly one interim send when APIError thrown. **Caveat:** discriminator is OpenAI-specific (CR-01 — ACCEPTED, see Overrides section) — silent no-op on Anthropic provider path.                  |
+| 3   | When the OpenAI call ultimately fails, the user receives 'Tuve un problemita técnico, ¿me lo escribís de nuevo?' and processWithAi returns cleanly — no throw escapes, no infinite loop, no process exit | VERIFIED | `handler.ts:345-370` outer catch (post-mod) executes `log.error(...)` then inner-try sends graceful fallback; inner-try swallows + logs send failures. No `throw` in catch path. Test SC#3 asserts `expect(p).resolves.toBeUndefined()` AND both interim + graceful sends fired (1 each). **Caveat:** WR-01 (ACCEPTED, see Overrides section) — both messages fire back-to-back when APIError triggers LAT-02 then propagates to LAT-03; UX contradiction. |
+| 4   | The Cross-Phase Invariant holds with current defaults: `DEBOUNCE_TTL_SECONDS (600) ≥ (OPENAI_TIMEOUT_MS/1000)*5 + 30*5 + 20 = 395`                                                                       | VERIFIED | `bash el-templo-bot/scripts/check-debounce-invariant.sh` → `Cross-phase invariant OK: TTL=600 >= minimum 395` (exit 0). Spot-check `DEBOUNCE_TTL_SECONDS=100 bash …` → INVARIANT VIOLATION (exit 1) confirms guard works in both directions. **Caveat:** formula ignores SDK retries (CR-02) — gap closure planned as 94-02.                                                                                                                               |
 
-**Score:** 4/4 truths verified (with three documented caveats requiring human disposition).
+**Score:** 4/4 truths verified (with three documented caveats dispositioned — CR-01/WR-01 accepted, CR-02 routed to 94-02 gap closure — and the live smoke test deferred to v5.4.0).
 
 ### Required Artifacts
 
@@ -86,11 +107,11 @@ No `scripts/*/tests/probe-*.sh` probes declared in PLAN.md or by convention for 
 
 ### Requirements Coverage
 
-| Requirement | Source Plan | Description                                                                                                                                                     | Status    | Evidence                                                                                                                                                                                  |
-| ----------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| LAT-01      | 94-01-PLAN  | OpenAI client constructed with explicit `timeout` option in `openai.ts:29` — default 45000 ms, env-overridable via `OPENAI_TIMEOUT_MS`. `.env.example` updated. | SATISFIED | `openai.ts:48-53` + `.env.example:24-26`. Defensive parsing for invalid env. SC#1 test (3 cases) PASS.                                                                                    |
-| LAT-02      | 94-01-PLAN  | On timeout / `OpenAI.APIError`, handler sends interim UX ("Dame un segundo 🙌") rather than hanging silently. Wraps `provider.chat` at `:584` and `:641`.       | SATISFIED | `handler.ts:650-657` + `:718-725` + `sendInterimUx` closure at `:445-458`. SC#2 test PASS. **Quality caveat (CR-01):** OpenAI-specific discriminator — Anthropic path silently no-ops.    |
-| LAT-03      | 94-01-PLAN  | If retry/fallback also fails, send "Tuve un problemita técnico, ¿me lo escribís de nuevo?" and return cleanly — no infinite loop, no crash.                     | SATISFIED | `handler.ts:345-370` outer catch + inner-try graceful send. SC#3 asserts `expect(p).resolves.toBeUndefined()` and both messages fired. **UX caveat (WR-01):** back-to-back send sequence. |
+| Requirement | Source Plan | Description                                                                                                                                                     | Status    | Evidence                                                                                                                                                                                                                    |
+| ----------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| LAT-01      | 94-01-PLAN  | OpenAI client constructed with explicit `timeout` option in `openai.ts:29` — default 45000 ms, env-overridable via `OPENAI_TIMEOUT_MS`. `.env.example` updated. | SATISFIED | `openai.ts:48-53` + `.env.example:24-26`. Defensive parsing for invalid env. SC#1 test (3 cases) PASS.                                                                                                                      |
+| LAT-02      | 94-01-PLAN  | On timeout / `OpenAI.APIError`, handler sends interim UX ("Dame un segundo 🙌") rather than hanging silently. Wraps `provider.chat` at `:584` and `:641`.       | SATISFIED | `handler.ts:650-657` + `:718-725` + `sendInterimUx` closure at `:445-458`. SC#2 test PASS. **Quality caveat (CR-01 — ACCEPTED, see Overrides section):** OpenAI-specific discriminator — Anthropic path silently no-ops.    |
+| LAT-03      | 94-01-PLAN  | If retry/fallback also fails, send "Tuve un problemita técnico, ¿me lo escribís de nuevo?" and return cleanly — no infinite loop, no crash.                     | SATISFIED | `handler.ts:345-370` outer catch + inner-try graceful send. SC#3 asserts `expect(p).resolves.toBeUndefined()` and both messages fired. **UX caveat (WR-01 — ACCEPTED, see Overrides section):** back-to-back send sequence. |
 
 No orphaned requirements: REQUIREMENTS.md lists exactly LAT-01/02/03 for Phase 94 and all three are claimed by `94-01-PLAN.md` frontmatter.
 
@@ -108,25 +129,32 @@ No orphaned requirements: REQUIREMENTS.md lists exactly LAT-01/02/03 for Phase 9
 
 ### Human Verification Required
 
-1. **CR-02 disposition — SDK retries break the canonical invariant formula** (BLOCKER candidate flipped to human-needed; see frontmatter `human_verification[0]`).
-   - **Test:** Inspect `node_modules/openai/index.mjs:41` — SDK default `maxRetries: 2` not overridden by Phase 94. Real worst-case per-`provider.chat` is `3 × 45s = 135s`, not 45s. The Cross-Phase Invariant formula `(OPENAI_TIMEOUT_MS/1000) × MAX_TOOL_ITERATIONS + …` asserts a 395s floor but real worst-case is `135 × 5 + 30 × 5 + 20 = 845s > 600s TTL`.
-   - **Expected:** User decides between (a) set `maxRetries: 0` on the OpenAI client (preferred — bot has WhatsApp redelivery), (b) update the formula and TTL across 4 canonical docs + .env.example + check-debounce-invariant.sh + add SC#5 test, or (c) accept the gap with documented rationale.
-   - **Why human:** Cross-phase invariant decision with documentation ripple; cannot be resolved by grep.
-
-2. **CR-01 disposition — Anthropic provider path** (frontmatter `human_verification[1]`).
-   - **Test:** `grep "AI_PROVIDER" .env.example` shows `AI_PROVIDER=openai` is the locked default. The factory at `src/ai/provider.ts` still supports anthropic. If a future operator flips the env, LAT-02's `err instanceof OpenAI.APIError` discriminator becomes a no-op for Anthropic.APIError throws.
-   - **Expected:** Accept (production is OpenAI-only) or harden via `provider.isProviderApiError(err)` helper.
-   - **Why human:** Quality decision about hardening a dormant code path.
-
-3. **WR-01 disposition — back-to-back UX contradiction** (frontmatter `human_verification[2]`).
-   - **Test:** Run SC#3 manually — verify the two `sendCalls` entries fire back-to-back with no delay between them. User reads "Dame un segundo 🙌" immediately followed by "Tuve un problemita técnico…" — the promise is broken before they could read it.
-   - **Expected:** Either accept (functional correctness over UX polish) or lift `interimSent` to `handleInboundMessage` scope and conditionally suppress the apology.
-   - **Why human:** UX judgment; both behaviors are functionally correct.
-
-4. **Live BUG-02 smoke test** (frontmatter `human_verification[3]`).
+1. **Live BUG-02 smoke test** — deferred to v5.4.0 (frontmatter `human_verification[0]`).
    - **Test:** Deploy to staging with a real WhatsApp number, simulate slow OpenAI upstream (network throttling or a sleep proxy), send an inbound message, observe end-to-end timing + WhatsApp delivery of both interim and graceful messages.
    - **Expected:** Per phase goal — handler bails within timeout boundary, user receives both messages, bot does not crash, next inbound is handled cleanly.
-   - **Why human:** Unit tests prove wiring; only a live deploy confirms WhatsApp send latency does not undermine UX and that the multi-minute stall is no longer observable in production behavior.
+   - **Why deferred:** Cannot be exercised in dev (ngrok + Meta test tokens insufficient). v5.4.0 provisions the production environment and owns this acceptance check. **Carry-forward dependency:** v5.4.0 milestone scope MUST include this smoke test as an acceptance gate before Phase 94 can be marked closed.
+
+### Accepted Overrides
+
+Two findings from `94-REVIEW.md` accepted with documented rationale per explicit in-session user authorization 2026-05-17 (recovery from earlier stuck verifier session — distinct from the prior unauthorized override attempt that died with the terminal before commit). Both are quality / UX dispositions on already-VERIFIED must-haves — neither blocks goal achievement.
+
+1. **CR-01 — Provider-specific error narrowing (ACCEPTED)**
+   - **Finding:** `handler.ts` LAT-02 catch uses `err instanceof OpenAI.APIError`. When `AI_PROVIDER=anthropic`, the discriminator silently no-ops on `Anthropic.APIError` throws.
+   - **Disposition (verbatim):** "instanceof OpenAI.APIError narrow-typing applies only when AI_PROVIDER=openai. Per .env.example, production locks AI_PROVIDER=openai. The Anthropic factory path is dormant in v5.3.3. If/when Anthropic is enabled, the error narrowing must be generalized — tracked as a known limitation, not a gap."
+   - **Accepted by:** matzaia2001 (in-session authorization, 2026-05-18T02:39:20Z)
+
+2. **WR-01 — Back-to-back interim + graceful-fallback UX (ACCEPTED)**
+   - **Finding:** When `provider.chat` throws `APIError`, user receives "Dame un segundo 🙌" immediately followed by "Tuve un problemita técnico, ¿me lo escribís de nuevo?" with no perceptible delay.
+   - **Disposition (verbatim):** "Back-to-back 'Dame un segundo' + graceful fallback message is a UX rough edge but does not affect functional correctness. The common path (timeout + retry succeeds) delivers a clean user experience. The worst-case path (timeout + retry also fails) is empirically rare. Lifting interimSent to outer scope is a future UX refinement, captured as known limitation rather than a v5.3.3 blocker."
+   - **Accepted by:** matzaia2001 (in-session authorization, 2026-05-18T02:39:20Z)
+
+### Gaps with Planned Closure
+
+1. **CR-02 — SDK `maxRetries=2` default breaks Cross-Phase Invariant** (NOT accepted as override)
+   - **Finding:** SDK default `maxRetries: 2` (not overridden by Phase 94) makes real worst-case per-`provider.chat` call `3 × 45s = 135s`, not 45s. The canonical invariant formula `(OPENAI_TIMEOUT_MS/1000) × MAX_TOOL_ITERATIONS + …` asserts a 395s floor; real worst-case is `135 × 5 + 30 × 5 + 20 = 845s`, exceeding the 600s `DEBOUNCE_TTL_SECONDS` chosen in Phase 93.
+   - **Disposition:** NOT accepted as override. Invariant discipline installed in Phase 93 must hold; accepting this would defeat the cross-phase invariant discipline.
+   - **Closure path:** Phase 94 sub-plan `94-02-PLAN.md` (to be written). Preferred approach: option (a) — set `maxRetries` on the OpenAI client constructor in `openai.ts` to 0 (or 1, decided at plan time). Rationale: the bot already has its own retry/recovery semantics via the interim UX + graceful fallback path Phase 94 implemented; SDK-level double-retry is redundant with the handler-level retry logic and is what breaks the invariant. If the formula itself must change as a fallback, the cross-doc invariant block must be re-synchronized across 4 canonical docs (`93-CONTEXT.md`, `94-CONTEXT.md`, `ROADMAP.md`, `MACRO-ROADMAP.md`) with sha256 re-check per the multi-doc invariant discipline.
+   - **Status:** `pending_plan` (94-02-PLAN.md not yet written; planning + execution decision deferred per user, to be picked up next session if not this one).
 
 ### Out-of-Scope Verified
 
@@ -138,14 +166,17 @@ No orphaned requirements: REQUIREMENTS.md lists exactly LAT-01/02/03 for Phase 9
 
 **Phase 94 mechanically achieves its goal: BUG-02's specific failure (~3 min silent stall observed 2026-04-16) is closed.** The OpenAI SDK is now bounded by an explicit 45000 ms timeout (env-overridable), the interim UX message fires on `OpenAI.APIError`, and the graceful fallback fires from the outer catch with clean return. All 4 must-have truths are verified by tests and by direct codebase inspection.
 
-The phase status is `human_needed` rather than `passed` because:
+The phase status remains `human_needed` rather than `passed` because:
 
-1. **CR-02 (raised in 94-REVIEW.md):** The SDK's default `maxRetries=2` means worst-case per-call latency is 3× the configured timeout. The 395s invariant floor that Phase 94 locks in via SC#4 (and the canonical block across 4 docs) is mathematically incorrect — real worst-case is 845s, exceeding the 600s TTL Phase 93 chose. This needs an architectural decision: tighten the SDK config, or update the formula + TTL + 4 canonical docs + script. Either resolution touches significant surface area outside what a verifier should resolve unilaterally.
-2. **CR-01 + WR-01 + live smoke test:** quality and UX dispositions that the verifier cannot adjudicate without user input.
+1. **CR-02 (gap with planned closure):** Closure planned as `94-02-PLAN.md` — set `maxRetries` on the OpenAI client to bring real worst-case back within the 600s TTL invariant. See "Gaps with Planned Closure" above. Phase 94 cannot be marked `passed` until 94-02 ships.
+2. **Live BUG-02 smoke test (deferred):** Deferred to v5.4.0 — cannot be exercised in dev. v5.4.0 milestone scope MUST include this as an acceptance gate before Phase 94 can be marked closed.
 
-If the user prefers, Item 1 (CR-02) can be classified as `gaps_found` with a planning loop via `/gsd:plan-phase --gaps`. The verifier surfaces it as a human-decision item because the original CONTEXT.md and PLAN.md explicitly accepted the current formula and added it to 4 canonical docs as a locked decision — escalating rather than blocking respects that planning intent.
+CR-01 and WR-01 are accepted with documented rationale per explicit in-session user authorization (see "Accepted Overrides"). Neither blocks goal achievement.
+
+CR-02 was originally surfaced as a human-decision item because the canonical formula was locked across 4 docs and the verifier could not unilaterally rewrite it. User disposition (2026-05-17): reclassified as gap requiring closure via `94-02-PLAN.md`, NOT accepted as override — invariant discipline must hold.
 
 ---
 
 _Verified: 2026-05-17T23:05:37Z_
 _Verifier: Claude (gsd-verifier)_
+_Disposition pass: Claude Code (user-driven, 2026-05-18T02:39:20Z)_
