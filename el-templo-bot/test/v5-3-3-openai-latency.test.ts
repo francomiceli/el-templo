@@ -58,6 +58,27 @@ function readClientTimeout(provider: object): unknown {
   return inner.timeout;
 }
 
+/**
+ * Read the `maxRetries` field off an OpenAiProvider's underlying SDK
+ * client. Mirrors `readClientTimeout` above — same `unknown`-cast pattern
+ * and same brittleness caveat (the OpenAI SDK stores `maxRetries`
+ * publicly on the client instance but the field is not part of its
+ * documented stable surface; if the SDK ever renames or hides it the
+ * test breaks even when production code is correct). The team accepted
+ * that caveat for 94-01's `readClientTimeout` and 94-02 inherits the
+ * same trade-off for SC#1's surface — see review IN WR-08.
+ *
+ * Used by the two CR-02 regression `it()` blocks in the SC#1 describe
+ * below to assert `client.maxRetries === 0`, which closes the gap in
+ * the Cross-Phase Invariant formula: SDK default `maxRetries=2` makes
+ * real per-`provider.chat` wall-clock up to 3 × OPENAI_TIMEOUT_MS, not
+ * 1 × OPENAI_TIMEOUT_MS as the formula assumes.
+ */
+function readClientMaxRetries(provider: object): unknown {
+  const inner = (provider as { client: { maxRetries: unknown } }).client;
+  return inner.maxRetries;
+}
+
 describe("LAT-01 (SC#1) — OpenAI SDK client constructed with explicit timeout option", () => {
   const originalApiKey = process.env.OPENAI_API_KEY;
 
@@ -104,6 +125,46 @@ describe("LAT-01 (SC#1) — OpenAI SDK client constructed with explicit timeout 
     const provider = new mod.OpenAiProvider();
 
     expect(readClientTimeout(provider)).toBe(45000);
+  });
+
+  // ───────────────────────────────────────────────────────────────────────
+  // CR-02 closure (94-02): assert SDK `maxRetries` is locked to 0.
+  //
+  // The OpenAI SDK defaults to `maxRetries: 2` (see openai/index.d.ts
+  // `RequestOptions.maxRetries?: number; // default 2`). With Phase 94's
+  // `timeout: 45000` in place but no `maxRetries` override, a single
+  // `provider.chat(...)` call can take up to 3 × 45s = 135s wall-clock.
+  // Plugged into the Cross-Phase Invariant formula, real worst-case
+  // end-to-end becomes 135 × 5 + 30 × 5 + 20 = 845s — exceeding
+  // DEBOUNCE_TTL_SECONDS=600 by 245s. That is the failure mode the
+  // invariant exists to prevent (lock expires mid-handler → BUG-01
+  // reintroduced).
+  //
+  // RED state (current main, openai.ts:50 has no maxRetries option):
+  //   SDK default 2 → `expect(...).toBe(0)` fails.
+  // GREEN state (94-02 Task 2 lands `maxRetries: 0` on the constructor):
+  //   `expect(...).toBe(0)` passes.
+  // ───────────────────────────────────────────────────────────────────────
+
+  it("constructs OpenAI client with maxRetries: 0 to keep Cross-Phase Invariant within bound", async () => {
+    const mod = await import("../src/ai/openai");
+    const provider = new mod.OpenAiProvider();
+
+    // GREEN target: `new OpenAI({ timeout: 45000, maxRetries: 0 })`.
+    // RED state (current main): SDK default `maxRetries=2`.
+    expect(readClientMaxRetries(provider)).toBe(0);
+  });
+
+  it("maxRetries remains 0 even when OPENAI_TIMEOUT_MS is overridden", async () => {
+    // Lock in that `maxRetries` is not coupled to (nor affected by) the
+    // `OPENAI_TIMEOUT_MS` env override. The invariant locks maxRetries
+    // at 0; only the timeout is operator-tunable.
+    process.env.OPENAI_TIMEOUT_MS = "12345";
+
+    const mod = await import("../src/ai/openai");
+    const provider = new mod.OpenAiProvider();
+
+    expect(readClientMaxRetries(provider)).toBe(0);
   });
 });
 
