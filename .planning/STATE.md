@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v5.3.3
 milestone_name: Post-v5.3.2 Live Test Fixes
 status: executing
-stopped_at: Phase 94 plan complete, not yet executed. 94-CONTEXT.md + 94-01-PLAN.md committed (`ac67d810`, `c3bbfa2a`). Plan-checker PASS in normal mode with one nit auto-patched pre-commit (RED-gate grep tightened to `Tests +[1-9][0-9]* +failed`). 3 nits remain unaddressed as documentation polish only — see plan-check transcript if needed; none affect correctness.
-last_updated: "2026-05-17T22:18:03.671Z"
-last_activity: 2026-05-17 -- Phase 94 execution started
+stopped_at: Phase 94 verification disposition pass complete (`89028419`). Must-haves 4/4 VERIFIED. CR-01 + WR-01 accepted with documented rationale (in-session authorization). CR-02 routed to gap closure as `94-02-PLAN.md` (NOT accepted — invariant discipline must hold; SDK maxRetries=2 makes worst-case 845s > 600s TTL). Live BUG-02 smoke test deferred to v5.4.0 (dev environment cannot exercise). Phase 94 NOT yet `passed` — gated on (a) 94-02 ships, (b) v5.4.0 smoke test passes. Next session: decide whether to plan 94-02 now or defer.
+last_updated: "2026-05-18T02:39:20Z"
+last_activity: 2026-05-18 -- Phase 94 verification disposition pass committed; 94-02 gap closure pending plan
 progress:
   total_phases: 5
   completed_phases: 1
@@ -26,11 +26,17 @@ See: .planning/PROJECT.md (updated 2026-05-05)
 ## Current Position
 
 Milestone: v5.3.3 Post-v5.3.2 Live Test Fixes
-Phase: 94 (openai-latency-graceful-failure) — EXECUTING
-Plan: 1 of 1
-Phase 94 (OpenAI Latency / LAT-01..03): 🟡 **Plan complete, not yet executed.** 94-CONTEXT.md (`ac67d810`) + 94-01-PLAN.md (`c3bbfa2a`). 2 TDD tasks: Task 1 RED fail-in-main suite at `el-templo-bot/test/v5-3-3-openai-latency.test.ts`, Task 2 GREEN atomic LAT-01+02+03 + `.env.example` + invariant script. Plan-checker PASS in normal mode. No audit task spawned (v5.3.3 audit at `.planning/v5.3.3-codebase-audit.md:130-181` covers this phase). Post-Phase-93 line numbers locked in plan: `openai.ts:29`, `handler.ts:600`, `handler.ts:657`, `handler.ts:334-350` (NOT the stale `:584/:641/:323` from the original debug session).
-Status: Executing Phase 94
-Last activity: 2026-05-17 -- Phase 94 execution started
+Phase: 94 (openai-latency-graceful-failure) — VERIFIED with pending gap closure + deferred smoke test
+Plan: 1 of 1 executed (94-01); sub-plan 94-02 pending (CR-02 gap closure, not yet written)
+Phase 94 (OpenAI Latency / LAT-01..03): 🟡 **Must-haves 4/4 VERIFIED; phase status `human_needed` — NOT yet `passed`.** Plan 94-01 shipped (`d3de86b1` GREEN, `fa65e5b3` RED, plan `c3bbfa2a`). Code review `7e43431d`. Verification disposition pass `89028419`:
+
+- **CR-01 (ACCEPTED, in-session auth 2026-05-18T02:39:20Z):** `instanceof OpenAI.APIError` discriminator no-ops on Anthropic. Accepted because production locks `AI_PROVIDER=openai`; Anthropic path dormant in v5.3.3. Known limitation.
+- **WR-01 (ACCEPTED, in-session auth 2026-05-18T02:39:20Z):** back-to-back interim + graceful-fallback messages. Accepted because common path delivers clean UX; worst-case is empirically rare. `interimSent` scope-lift is a future UX refinement.
+- **CR-02 (GAP — NOT accepted, closure pending as 94-02-PLAN.md):** SDK default `maxRetries=2` makes real worst-case `3 × 45s = 135s`, breaking the canonical invariant formula. Real worst-case `135 × 5 + 30 × 5 + 20 = 845s` exceeds 600s `DEBOUNCE_TTL_SECONDS`. Preferred resolution: set `maxRetries` on OpenAI client (0 or 1, decided at plan time) — SDK retries are redundant with handler-level interim/graceful retry path. Invariant discipline installed in Phase 93 must hold.
+- **Live BUG-02 smoke test (DEFERRED to v5.4.0):** Cannot be exercised in dev (ngrok + Meta test tokens insufficient). v5.4.0 milestone MUST include this as an acceptance gate before Phase 94 can be marked `passed`.
+
+Status: Phase 94 verified with caveats; awaiting 94-02 plan + v5.4.0 smoke test before `passed` mark
+Last activity: 2026-05-18 -- Phase 94 verification disposition pass committed (`89028419`)
 
 ## v5.3.3 Phase Structure (locked)
 
@@ -71,6 +77,8 @@ Full decision log in PROJECT.md Key Decisions table.
 
 ### Pending Decisions (forward)
 
+- **Phase 94 sub-plan 94-02 (CR-02 gap closure):** Decide next session whether to plan now or defer. Scope locked: set `maxRetries` on OpenAI client in `openai.ts` constructor (0 or 1) so worst-case `provider.chat` fits within 600s TTL invariant. SDK retries are redundant with Phase 94's handler-level interim/graceful retry path. If formula must change as fallback, re-sync cross-doc invariant block across 4 canonical docs with sha256 re-check per [[feedback_multi_doc_invariant_hash_check]].
+- **Phase 94 live BUG-02 smoke test (v5.4.0 carry-forward):** Document as acceptance gate when scoping v5.4.0. Test = throttled-upstream WhatsApp send with observation of interim msg + graceful fallback + clean handler return. Phase 94 cannot be marked `passed` until both 94-02 ships AND v5.4.0 smoke test passes.
 - **Phase 97 (ELEV-01 + VOSEO-01) testing strategy:** decide at plan time — multi-run sampling with statistical threshold OR accept-list of valid forms. Tradeoff: CI cost vs signal strength.
 - **Phase 96 (CTXT-01/02) implementation choice:** prompt-level rule, extraction-layer fix, or hybrid — depends on whether `<profile>` tag flow already persists name and model is ignoring it (→ prompt) or extraction is dropping it (→ extraction layer). Read `extractAndUpdateProfile` flow before deciding.
 - **Bot ↔ CRM persistence layer:** decide at v5.4.0 scoping whether v5.4.0 owns durable conversation persistence (default lean) or Kero phase 1 owns it. See `MACRO-ROADMAP.md`.
@@ -81,7 +89,7 @@ None. v5.3.2 shipped clean. v5.3.3 ROADMAP.md complete with full coverage; BUG-0
 
 ## Session Continuity
 
-Last session: 2026-05-17
-Stopped at: Phase 94 plan complete, not yet executed. 94-CONTEXT.md + 94-01-PLAN.md committed (`ac67d810`, `c3bbfa2a`). Plan-checker PASS in normal mode with one nit auto-patched pre-commit (RED-gate grep tightened to `Tests +[1-9][0-9]* +failed`). 3 nits remain unaddressed as documentation polish only — see plan-check transcript if needed; none affect correctness.
-Resume file: `.planning/phases/94-openai-latency-graceful-failure/94-01-PLAN.md`
-Next step: `/clear` → `/gsd:execute-phase 94`. Plan is TDD 2-task: Task 1 (RED) writes failing tests against current main, Task 2 (GREEN) lands LAT-01 (`openai.ts:29` timeout) + LAT-02 (`handler.ts:600,:657` interim UX) + LAT-03 (`handler.ts:334-350` graceful fallback) + `.env.example` + `el-templo-bot/scripts/check-debounce-invariant.sh`. PR-gate verification before merge: `git log --oneline | grep -i 'debounce_ttl\|TTL\|93-' | head`.
+Last session: 2026-05-17 → 2026-05-18 (continued — verification disposition pass after recovery from stuck verifier)
+Stopped at: Phase 94 verification disposition pass committed (`89028419`). Must-haves 4/4 VERIFIED. CR-01/WR-01 accepted with in-session authorization (recovery from prior stuck gsd-verifier that attempted unauthorized overrides — those died with stuck terminal before commit, no revert needed). CR-02 reclassified as gap requiring closure via 94-02-PLAN.md (NOT accepted). Live BUG-02 smoke test deferred to v5.4.0. Phase 94 status `human_needed` — NOT `passed` — until 94-02 ships AND v5.4.0 smoke test passes.
+Resume file: `.planning/phases/94-openai-latency-graceful-failure/94-VERIFICATION.md` (frontmatter has full disposition record + override stamps + gap entry)
+Next step: User decides next session whether to plan 94-02 now or defer. If planning: `/gsd:plan-phase 94 --gaps` to create 94-02-PLAN.md with scope = set `maxRetries` on OpenAI client constructor to restore worst-case within 600s TTL invariant. Reference `94-VERIFICATION.md` gaps[0] for closure scope. If deferring: leave as-is; gap is recorded in VERIFICATION frontmatter and STATE.md Pending Decisions.
