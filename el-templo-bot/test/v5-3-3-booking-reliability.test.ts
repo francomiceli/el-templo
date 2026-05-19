@@ -141,3 +141,28 @@ describe("BUG-03 candidate (iii) — Sunday=0 vs Sunday=7 day-of-week confusion"
     );
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BUG-03 drift-guard — Drizzle schema column alias
+//
+// Catches future raw-SQL drift of the class that audit-discovered
+// candidate (vi) exemplified: the `bookings.status` Drizzle JS field
+// is aliased via `mysqlEnum("booking_status", [...])` to the MySQL
+// column `booking_status`. Raw-SQL consumers (like the correlated
+// subqueries previously at tools.ts:282 and :706 — both fixed by the
+// (vi) commit earlier in this plan) MUST reference the column name
+// `booking_status`, not the JS field alias `status`. This test pins
+// the alias mapping so any future schema rename (or accidental raw-SQL
+// drift back to `bk.status`) fails at test time.
+//
+// Per 95-AUDIT.md Section E "Defensive guardrail (recommendation, NOT
+// in current RED test set)" lines 422-434.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("BUG-03 drift-guard — Drizzle schema column alias", () => {
+  it("bookings.status maps to MySQL column `booking_status` (catches future raw-SQL drift like the audit-discovered candidate (vi))", async () => {
+    const { bookings } =
+      await import("../../el-templo-api/src/db/schema/bookings");
+    expect(bookings.status.name).toBe("booking_status");
+  });
+});
