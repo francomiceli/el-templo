@@ -279,7 +279,7 @@ async function checkSchedule(
         (SELECT COUNT(*) FROM bookings bk
          WHERE bk.schedule_id = s.id
            AND bk.booking_date = ${today}
-           AND bk.status != 'cancelado'),
+           AND bk.booking_status != 'cancelado'),
         0
       ) AS booking_count
     FROM schedules s
@@ -703,7 +703,7 @@ async function queryAlternativeSchedules(
             (SELECT COUNT(*) FROM bookings bk
              WHERE bk.schedule_id = s.id
                AND bk.booking_date = ${date}
-               AND bk.status != 'cancelado'),
+               AND bk.booking_status != 'cancelado'),
             0
           ) AS booking_count
         FROM schedules s
