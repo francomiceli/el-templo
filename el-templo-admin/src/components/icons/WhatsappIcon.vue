@@ -24,6 +24,7 @@
 svg {
   width: 1em;
   height: 1em;
+  font-size: 14px;
   vertical-align: middle;
 }
 </style>
