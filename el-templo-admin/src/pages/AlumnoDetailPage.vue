@@ -135,12 +135,11 @@
            In mobile (col-12) they stack vertically — same content, no loss. -->
       <div v-if="memberProfile.status === 'prueba'" class="row q-col-gutter-md q-mt-md">
         <!-- Col 1: conversion banner (datos incompletos).
-             Dark background + white text/icons because the previous yellow
-             warning bg made the content hard to read at a glance — this
-             card stays loud (sits at the top of every prueba profile until
-             completed) so the higher-contrast palette wins. -->
+             Original bg-warning (yellow) kept per design call; only text +
+             icons + button switched to white so the previous dark-on-yellow
+             that was hard to scan reads cleanly. -->
         <div class="col-12 col-md-4">
-          <q-banner class="bg-orange-9 text-white full-height" rounded>
+          <q-banner class="bg-warning text-white full-height" rounded>
             <template #avatar>
               <q-icon name="fact_check" color="white" />
             </template>
@@ -153,7 +152,7 @@
               <q-btn
                 unelevated
                 color="white"
-                text-color="orange-9"
+                text-color="warning"
                 label="Completar y convertir"
                 no-caps
                 @click="showEditDialog = true"
@@ -204,11 +203,11 @@
                 flat
                 dense
                 round
-                icon="chat"
                 color="green-7"
                 size="sm"
                 @click="openWhatsapp(memberProfile.phone)"
               >
+                <WhatsappIcon />
                 <q-tooltip>Abrir WhatsApp</q-tooltip>
               </q-btn>
             </div>
@@ -667,6 +666,7 @@ import MemberAttendanceTab from 'src/components/MemberAttendanceTab.vue';
 import MemberFormDialog from 'src/components/MemberFormDialog.vue';
 import MemberPhotoUpload from 'src/components/MemberPhotoUpload.vue';
 import FinancialHistoryTab from 'src/components/FinancialHistoryTab.vue';
+import WhatsappIcon from 'src/components/icons/WhatsappIcon.vue';
 import type { MemberProfile, MemberSegment, BranchOption } from 'src/types/member';
 import { SEGMENT_LABELS, SEGMENT_COLORS, AVATAR_LABELS } from 'src/types/member';
 import {

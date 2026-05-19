@@ -110,11 +110,11 @@
                     flat
                     dense
                     round
-                    icon="chat"
                     color="green-7"
                     size="sm"
                     @click="openWhatsapp(trial.phone!)"
                   >
+                    <WhatsappIcon />
                     <q-tooltip>Abrir WhatsApp</q-tooltip>
                   </q-btn>
                 </q-item-section>
@@ -152,6 +152,7 @@ import { createLogger } from 'src/utils/logger';
 import { useSchedulingApi } from 'src/composables/useSchedulingApi';
 import type { TrialListBranchGroup, TrialListItem } from 'src/types/scheduling';
 import { extractError } from 'src/utils/extract-error';
+import WhatsappIcon from 'src/components/icons/WhatsappIcon.vue';
 
 const log = createLogger('SesionesDePruebaDialog');
 const $q = useQuasar();

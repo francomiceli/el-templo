@@ -630,6 +630,12 @@ export class BookingService {
 
   /**
    * Admin remove booking (no time restriction, triggers waitlist promotion).
+   *
+   * "no_show" is treated as cancellable so an admin can undo a no-show
+   * trial booking and free the alumno to be reassigned to another trial
+   * (trials-service.ts excludes status='cancelado' from the one-trial-
+   * per-lifetime guard). no_show bookings don't occupy a slot, so we
+   * never promote the waitlist for them.
    */
   async adminRemoveBooking(bookingId: number): Promise<void> {
     const [bookingRow] = await this.db
@@ -649,6 +655,7 @@ export class BookingService {
       "qr_escaneado",
       "confirmado",
       "lista_espera",
+      "no_show",
     ];
     if (activeStatuses.includes(bookingRow.status)) {
       const slotOccupying = ["reservado", "qr_escaneado", "confirmado"];

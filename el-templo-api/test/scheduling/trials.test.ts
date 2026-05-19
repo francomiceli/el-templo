@@ -1130,4 +1130,69 @@ describe("Scheduling Trials API (Phase 102 + 103)", () => {
     });
     expect(res.statusCode).toBe(400);
   });
+
+  // ─── Admin remove booking — no_show path ────────────────────────────────
+
+  it("DELETE /admin/scheduling/bookings/:id cancels a no_show trial so the alumno can be reassigned", async () => {
+    const activity = await createActivity();
+    const futureSlot = getFutureSlot();
+    const slot = await createScheduleSlot(
+      activity.id,
+      futureSlot.dayOfWeek,
+      futureSlot.startTime,
+      futureSlot.endTime,
+    );
+
+    const userId = await createPruebaUser();
+
+    // 1) Book a trial.
+    const bookRes = await app.inject({
+      method: "POST",
+      url: TRIALS_URL,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: {
+        userId,
+        scheduleId: slot.id,
+        bookingDate: futureSlot.date,
+      },
+    });
+    expect(bookRes.statusCode).toBe(201);
+    const { bookingId } = JSON.parse(bookRes.body) as { bookingId: number };
+
+    // 2) Simulate the booking ending up in 'no_show' (background job or
+    //    manual transition — irrelevant to the fix, only the status matters).
+    await app.db
+      .update(bookings)
+      .set({ status: "no_show" })
+      .where(eq(bookings.id, bookingId));
+
+    // 3) Admin removes the booking.
+    const delRes = await app.inject({
+      method: "DELETE",
+      url: `${ADMIN_URL}/bookings/${bookingId}`,
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    expect(delRes.statusCode).toBe(200);
+
+    // 4) The booking is now status='cancelado' (was 'no_show' before).
+    const [row] = await app.db
+      .select({ status: bookings.status })
+      .from(bookings)
+      .where(eq(bookings.id, bookingId));
+    expect(row.status).toBe("cancelado");
+
+    // 5) The alumno is now eligible for a new trial (priorTrial guard
+    //    excludes cancelled rows).
+    const reAssignRes = await app.inject({
+      method: "POST",
+      url: TRIALS_URL,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: {
+        userId,
+        scheduleId: slot.id,
+        bookingDate: futureSlot.date,
+      },
+    });
+    expect(reAssignRes.statusCode).toBe(201);
+  });
 });
