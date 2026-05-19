@@ -600,7 +600,80 @@ Both options modify files outside the plan's `files_modified` frontmatter (`pack
 
 ---
 
+## H. Plan 95-02 Execution Discoveries
+
+**Appended post-execution (2026-05-19).** Plan 95-02 landed as a 4-commit chain (`d90fc782` → `1d4731f1` → `e213ee80` → `c2506276`) on branch `feature/whatsapp-bot-scaffold`. During plan-checker and execution, four discoveries surfaced that this audit (locked at `2d7cd171`, 2026-05-18) did not anticipate. Each is recorded below for traceability — the audit's Sections B/C/E above are not amended in place; this section is the canonical addendum.
+
+### H.1 — `tools.ts:706` second site of candidate (vi)
+
+**Discovered:** Plan-checker round 1 (pre-execution, 2026-05-18), before any commit landed.
+
+**Finding:** `grep -nE 'bk\.status\b' el-templo-bot/src/ai/tools.ts` returned TWO matches, not one:
+
+- Line `:282` in `checkSchedule` — the audit-named site (Section B candidate (vi), Section C, Section E).
+- Line `:706` in `queryAlternativeSchedules` — NOT enumerated in this audit. Reached at runtime via `book_class`'s no-capacity → alternative-search code path.
+
+Both are the same Drizzle column-name drift class (raw SQL `bk.status` vs Drizzle declaration `mysqlEnum("booking_status", [...])`). The audit's Section B candidate (vi) reasoning ("the SHOWSTOPPER blocking every other RED test") applies identically to `:706` even though the audit's static review missed the second site.
+
+**Resolution:** Plan 95-02 Task 1 expanded to cover BOTH sites as a single atomic semantic operation ("align ALL raw-SQL `bk.status` references with the Drizzle column declaration"). Fixed in commit `d90fc782`. The `:706` site has no dedicated RED test in Plan 95-01's suite; the fix is a same-class drift correction caught by the plan-checker.
+
+### H.2 — Date formula off-by-one in candidate (v) Concrete fix shape
+
+**Discovered:** Empirical RED→GREEN verification of Plan 95-02 Task 2 (2026-05-19).
+
+**Finding:** This audit's Section E candidate (v) "Concrete fix shape" (line 403) and the matching plan must_have stated:
+
+```
+AND bk.booking_date = (SELECT DATE_ADD(CURDATE(),
+    INTERVAL (s.day_of_week - DAYOFWEEK(CURDATE()) + 7) % 7 DAY))
+```
+
+The `+ 7) % 7` form does NOT correctly bridge the two date conventions. MySQL `DAYOFWEEK()` returns Sun=1..Sat=7 (1-indexed) while `schedules.day_of_week` follows `DAY_NAMES` (Sun=0..Sat=6, 0-indexed). With the audit formula, when `schedule.day_of_week == JS-today-day` (e.g., today Tue=2 in JS / 3 in MySQL, schedule day_of_week=3 meaning Wed JS), the expression evaluates to `(3 - 3 + 7) % 7 = 0` → CURDATE → counts TODAY's bookings instead of the next-occurrence's bookings.
+
+**Empirical verification:** the candidate (v) RED test in `el-templo-api/test/whatsapp/v5-3-3-booking.integration.test.ts:431-452` seeds a booking for `tomorrow` with a schedule whose `day_of_week == tomorrow.getUTCDay()`. Under audit formula: count=0, spotsRemaining=10, output contains `"10 cupos disponibles"` — test fails with expected `"9 cupos disponibles"`.
+
+**Correct formula:**
+
+```
+AND bk.booking_date = (SELECT DATE_ADD(CURDATE(),
+    INTERVAL (s.day_of_week - DAYOFWEEK(CURDATE()) + 8) % 7 DAY))
+```
+
+The `+ 8` (equivalent to `- 1` on `DAYOFWEEK(CURDATE())` to drop into 0-indexed, then `+ 7` to wrap into the modulus) bridges the conventions.
+
+**Resolution:** Plan 95-02 Task 2 applied the `+ 8` correction. Fixed in commit `1d4731f1`. The commit message documents the deviation under "AUDIT DEVIATIONS" with citation to this audit's Section E and the plan must_have line.
+
+### H.3 — Multi-branch shape: option (a) over audit-proposed option (b)
+
+**Discovered:** Empirical RED→GREEN verification of Plan 95-02 Task 2 (2026-05-19).
+
+**Finding:** This audit's Section E candidate (ii) "Concrete fix shape" proposed option (b) — "group `displayRows` by `branch_name`, emit per-group headers" with `*{Branch Name}*` markers showing all branches in the same response.
+
+The RED tests in `el-templo-api/test/whatsapp/v5-3-3-booking.integration.test.ts` for candidate (ii) cannot be satisfied by option (b):
+
+- **Test 1** (line 229): `expect([mentionsBranch1, mentionsBranch2]).not.toEqual([true, true])` — asserts NOT both branch names co-appear in the output. Option (b) (per-branch headers showing both) makes both booleans true → assertion fails.
+- **Test 2** (line 245): `expect(result).toMatch(/\*TST Alem\*|\*TST Constitucion\*|En TST X:|Sede TST X:/)` — requires at least one disambiguation marker.
+
+The two assertions together force option (a) — "single-branch + disambiguation request" — exactly ONE branch name appears, wrapped in a disambiguation marker, plus a request asking the user to pick a sede.
+
+**Resolution:** Plan 95-02 Task 2 implemented option (a). When `uniqueBranches.size > 1 && branchId === null`, only the first branch's classes are emitted under a `*BranchName*` header followed by `"También hay clases en otras sedes — ¿de cuál te interesa saber?"`. Single-branch and `branchId`-filtered paths preserve the existing flat-list shape with the `(branch_name)` parenthetical. Fixed in commit `1d4731f1`.
+
+### H.4 — Display cap: `slice(0, 5)` → `slice(0, 10)`
+
+**Discovered:** Empirical RED→GREEN verification of Plan 95-02 Task 2 (2026-05-19).
+
+**Finding:** This audit's Section E candidate (iv) stated the `displayRows = rows.slice(0, 5)` display cap is retained alongside the `LIMIT 6 → LIMIT 20` bump. The candidate (iv) RED test 2 (`el-templo-api/test/whatsapp/v5-3-3-booking.integration.test.ts:329`) seeds 7 schedules where the target Saturday 21:00 row sorts to position 7 under `ORDER BY s.day_of_week, s.start_time`. Any cap ≤ 6 drops Saturday from `displayRows` → `expect(result).toContain("Sábado")` fails — the test is impossible by construction with `slice(0, 5)`.
+
+**Resolution:** Plan 95-02 Task 2 raised the cap to `slice(0, 10)`. The bound is large enough to surface the seeded Saturday at position 7 while still preserving WhatsApp UX bounds (no message flooding for typical multi-class results). The total-count message dynamically reflects `displayRows.length` so the wording stays accurate: `Hay N clases en total. Te muestro las primeras X.` Fixed in commit `1d4731f1`.
+
+---
+
+**Cumulative impact on Section C "Final Branch Verdict":** none of the four discoveries change the audit's verdict. Section C's deferral rationale for candidates (i) and (iii) remains intact. Candidates (vi), (ii), (iv), (v) close as Plan 95-02 delivers. Sections B/C/E above stand as the audit-at-time-of-decision record; this Section H is the post-execution addendum that captures what mechanical execution revealed.
+
+---
+
 _Phase: 95-booking-reliability-graceful-degradation_
 _Plan: 95-01 (audit-first investigation)_
 _Audit completed: 2026-05-18_
 _HEAD at audit time: eb0c37bd_
+_Section H appended: 2026-05-19 (post Plan 95-02 execution at c2506276)_
