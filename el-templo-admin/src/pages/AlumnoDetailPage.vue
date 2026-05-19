@@ -134,11 +134,15 @@
            the admin sees the whole lead context in a single horizontal scan.
            In mobile (col-12) they stack vertically — same content, no loss. -->
       <div v-if="memberProfile.status === 'prueba'" class="row q-col-gutter-md q-mt-md">
-        <!-- Col 1: conversion banner (datos incompletos) -->
+        <!-- Col 1: conversion banner (datos incompletos).
+             Dark background + white text/icons because the previous yellow
+             warning bg made the content hard to read at a glance — this
+             card stays loud (sits at the top of every prueba profile until
+             completed) so the higher-contrast palette wins. -->
         <div class="col-12 col-md-4">
-          <q-banner class="bg-warning text-dark full-height" rounded>
+          <q-banner class="bg-orange-9 text-white full-height" rounded>
             <template #avatar>
-              <q-icon name="fact_check" />
+              <q-icon name="fact_check" color="white" />
             </template>
             <div class="text-weight-medium">Alumno en prueba — datos incompletos</div>
             <div class="text-caption q-mt-xs">
@@ -148,8 +152,8 @@
             <template #action>
               <q-btn
                 unelevated
-                color="dark"
-                text-color="white"
+                color="white"
+                text-color="orange-9"
                 label="Completar y convertir"
                 no-caps
                 @click="showEditDialog = true"
@@ -186,6 +190,28 @@
               class="q-mt-sm"
               @blur="onSaveLeadNotes"
             />
+
+            <!-- Phone + WhatsApp deep-link. Receptionist captures phone at
+                 soft-register so it's almost always present; if missing
+                 (legacy lead) we just render '—' and hide the WA button. -->
+            <div class="q-mt-sm row items-center q-gutter-sm">
+              <q-icon name="phone" size="18px" class="text-grey-7" />
+              <div class="text-body2">
+                {{ memberProfile.phone ?? '—' }}
+              </div>
+              <q-btn
+                v-if="memberProfile.phone"
+                flat
+                dense
+                round
+                icon="chat"
+                color="green-7"
+                size="sm"
+                @click="openWhatsapp(memberProfile.phone)"
+              >
+                <q-tooltip>Abrir WhatsApp</q-tooltip>
+              </q-btn>
+            </div>
 
             <div class="q-mt-sm text-caption text-grey-7">
               Gestiona: <strong>{{ memberProfile.createdBy?.name ?? '—' }}</strong>
@@ -235,307 +261,329 @@
               Sin sesión de prueba registrada
             </div>
 
+            <!-- Deep-link into Horarios with the trial's date so the modal
+                 opens already showing this alumno's row. trialDate is
+                 omitted when there's no booking yet — the dialog falls
+                 back to today and the admin can assign a fresh one. -->
             <q-btn
               outline
               color="primary"
               :label="
-                memberProfile.latestTrial?.attended === 'no'
-                  ? 'Asignar nueva sesión'
-                  : 'Modificar en Horarios'
+                memberProfile.latestTrial
+                  ? memberProfile.latestTrial.attended === 'no'
+                    ? 'Asignar nueva sesión'
+                    : 'Modificar en Horarios'
+                  : 'Asignar sesión de prueba'
               "
               icon="schedule"
               no-caps
               dense
-              :to="{ path: '/horarios', query: { openTrials: '1' } }"
+              :to="{
+                path: '/horarios',
+                query: memberProfile.latestTrial
+                  ? { openTrials: '1', trialDate: memberProfile.latestTrial.bookingDate }
+                  : { openTrials: '1' },
+              }"
             />
           </q-card>
         </div>
       </div>
 
       <!-- ========================================== -->
-      <!-- Tabs -->
+      <!-- Tabs (hidden for alumnos en prueba — they have no plan/training/
+           finanzas data yet, and the 3-col prueba block above carries the
+           only actionable context). Becomes visible automatically once
+           status flips to activo/inactivo/freemium via "Completar y
+           convertir".  -->
       <!-- ========================================== -->
-      <q-tabs
-        v-model="activeTab"
-        dense
-        align="left"
-        class="text-grey-8"
-        active-color="primary"
-        indicator-color="primary"
-      >
-        <q-tab name="perfil" label="Perfil" />
-        <q-tab name="entrenamiento" label="Entrenamiento" />
-        <q-tab name="notas" label="Notas" />
-        <q-tab name="suscripcion">
-          <div class="q-tab__label">Suscripcion</div>
-          <q-badge
-            v-if="memberHasDebt"
-            color="negative"
-            floating
-            rounded
-            text-color="white"
-            class="debtor-tab-badge"
-          >
-            D
-          </q-badge>
-        </q-tab>
-        <q-tab name="programas" label="Programas" />
-        <q-tab name="asistencia" label="Asistencia" />
-        <q-tab name="finanzas" label="Finanzas" />
-      </q-tabs>
-      <q-separator />
+      <template v-if="memberProfile.status !== 'prueba'">
+        <q-tabs
+          v-model="activeTab"
+          dense
+          align="left"
+          class="text-grey-8"
+          active-color="primary"
+          indicator-color="primary"
+        >
+          <q-tab name="perfil" label="Perfil" />
+          <q-tab name="entrenamiento" label="Entrenamiento" />
+          <q-tab name="notas" label="Notas" />
+          <q-tab name="suscripcion">
+            <div class="q-tab__label">Suscripcion</div>
+            <q-badge
+              v-if="memberHasDebt"
+              color="negative"
+              floating
+              rounded
+              text-color="white"
+              class="debtor-tab-badge"
+            >
+              D
+            </q-badge>
+          </q-tab>
+          <q-tab name="programas" label="Programas" />
+          <q-tab name="asistencia" label="Asistencia" />
+          <q-tab name="finanzas" label="Finanzas" />
+        </q-tabs>
+        <q-separator />
 
-      <q-tab-panels v-model="activeTab" animated class="q-mt-md">
-        <!-- Perfil Tab -->
-        <q-tab-panel name="perfil">
-          <MemberProfileTab :member="memberProfile" />
+        <q-tab-panels v-model="activeTab" animated class="q-mt-md">
+          <!-- Perfil Tab -->
+          <q-tab-panel name="perfil">
+            <MemberProfileTab :member="memberProfile" />
 
-          <!-- Segmentacion card -->
-          <q-card v-if="memberProfile.segment" flat bordered class="q-mt-md">
-            <q-card-section>
-              <div class="text-subtitle1 text-weight-bold q-mb-sm">Segmentacion</div>
-              <div class="row items-center q-gutter-sm">
-                <q-badge
-                  :color="SEGMENT_COLORS[memberProfile.segment as MemberSegment] ?? 'grey'"
-                  :label="
-                    SEGMENT_LABELS[memberProfile.segment as MemberSegment] ?? memberProfile.segment
-                  "
-                  class="text-body2"
-                />
-                <span v-if="memberProfile.segmentUpdatedAt" class="text-caption text-grey-6">
-                  Actualizado: {{ formatDate(memberProfile.segmentUpdatedAt) }}
-                </span>
-              </div>
-            </q-card-section>
-          </q-card>
-        </q-tab-panel>
-
-        <!-- Entrenamiento Tab -->
-        <q-tab-panel name="entrenamiento">
-          <!-- Loading state for goal plan data -->
-          <div v-if="goalPlanLoading" class="flex flex-center q-pa-lg">
-            <q-spinner-dots size="40px" color="primary" />
-          </div>
-
-          <template v-else-if="goalPlanDetail">
-            <!-- Active Goal Plan -->
-            <q-card v-if="goalPlanDetail.active" flat bordered class="q-mb-md">
+            <!-- Segmentacion card -->
+            <q-card v-if="memberProfile.segment" flat bordered class="q-mt-md">
               <q-card-section>
-                <div class="text-subtitle1 text-weight-bold q-mb-sm">Plan por Objetivos Activo</div>
-                <div class="row items-center q-gutter-sm q-mb-sm">
+                <div class="text-subtitle1 text-weight-bold q-mb-sm">Segmentacion</div>
+                <div class="row items-center q-gutter-sm">
                   <q-badge
-                    :color="goalPlanBadgeColor(goalPlanDetail.active.goalPlanType)"
-                    :label="goalPlanLabel(goalPlanDetail.active.goalPlanType)"
+                    :color="SEGMENT_COLORS[memberProfile.segment as MemberSegment] ?? 'grey'"
+                    :label="
+                      SEGMENT_LABELS[memberProfile.segment as MemberSegment] ??
+                      memberProfile.segment
+                    "
                     class="text-body2"
                   />
-                  <q-badge
-                    outline
-                    :color="goalPlanBadgeColor(goalPlanDetail.active.goalPlanType)"
-                    :label="goalPlanTierLabel(goalPlanDetail.active.goalPlanType)"
-                  />
-                </div>
-                <div class="text-caption text-grey-7">
-                  Iniciado: {{ formatDate(goalPlanDetail.active.startedAt) }}
+                  <span v-if="memberProfile.segmentUpdatedAt" class="text-caption text-grey-6">
+                    Actualizado: {{ formatDate(memberProfile.segmentUpdatedAt) }}
+                  </span>
                 </div>
               </q-card-section>
             </q-card>
+          </q-tab-panel>
 
-            <!-- No active goal plan -->
-            <q-card v-else flat bordered class="q-mb-md">
-              <q-card-section>
-                <div class="text-subtitle1 text-weight-bold q-mb-xs">Plan por Objetivos Activo</div>
-                <div class="text-grey-5 text-italic">Sin plan por objetivos activo</div>
-              </q-card-section>
-            </q-card>
+          <!-- Entrenamiento Tab -->
+          <q-tab-panel name="entrenamiento">
+            <!-- Loading state for goal plan data -->
+            <div v-if="goalPlanLoading" class="flex flex-center q-pa-lg">
+              <q-spinner-dots size="40px" color="primary" />
+            </div>
 
-            <!-- Entrenamiento Progress -->
-            <q-card flat bordered class="q-mb-md">
-              <q-card-section>
-                <div class="text-subtitle1 text-weight-bold q-mb-sm">Progreso Entrenamiento</div>
-                <div class="row q-gutter-md">
-                  <div class="col">
-                    <div class="text-center">
-                      <div class="text-h6">
-                        {{ goalPlanDetail.entrenamientoStats.totalSessions }}
+            <template v-else-if="goalPlanDetail">
+              <!-- Active Goal Plan -->
+              <q-card v-if="goalPlanDetail.active" flat bordered class="q-mb-md">
+                <q-card-section>
+                  <div class="text-subtitle1 text-weight-bold q-mb-sm">
+                    Plan por Objetivos Activo
+                  </div>
+                  <div class="row items-center q-gutter-sm q-mb-sm">
+                    <q-badge
+                      :color="goalPlanBadgeColor(goalPlanDetail.active.goalPlanType)"
+                      :label="goalPlanLabel(goalPlanDetail.active.goalPlanType)"
+                      class="text-body2"
+                    />
+                    <q-badge
+                      outline
+                      :color="goalPlanBadgeColor(goalPlanDetail.active.goalPlanType)"
+                      :label="goalPlanTierLabel(goalPlanDetail.active.goalPlanType)"
+                    />
+                  </div>
+                  <div class="text-caption text-grey-7">
+                    Iniciado: {{ formatDate(goalPlanDetail.active.startedAt) }}
+                  </div>
+                </q-card-section>
+              </q-card>
+
+              <!-- No active goal plan -->
+              <q-card v-else flat bordered class="q-mb-md">
+                <q-card-section>
+                  <div class="text-subtitle1 text-weight-bold q-mb-xs">
+                    Plan por Objetivos Activo
+                  </div>
+                  <div class="text-grey-5 text-italic">Sin plan por objetivos activo</div>
+                </q-card-section>
+              </q-card>
+
+              <!-- Entrenamiento Progress -->
+              <q-card flat bordered class="q-mb-md">
+                <q-card-section>
+                  <div class="text-subtitle1 text-weight-bold q-mb-sm">Progreso Entrenamiento</div>
+                  <div class="row q-gutter-md">
+                    <div class="col">
+                      <div class="text-center">
+                        <div class="text-h6">
+                          {{ goalPlanDetail.entrenamientoStats.totalSessions }}
+                        </div>
+                        <div class="text-caption text-grey-7">Sesiones completadas</div>
                       </div>
-                      <div class="text-caption text-grey-7">Sesiones completadas</div>
+                    </div>
+                    <div class="col">
+                      <div class="text-center">
+                        <div class="text-h6">
+                          {{ goalPlanDetail.entrenamientoStats.totalDays }}
+                        </div>
+                        <div class="text-caption text-grey-7">Dias entrenados</div>
+                      </div>
+                    </div>
+                    <div class="col">
+                      <div class="text-center">
+                        <div class="text-h6">
+                          {{ goalPlanDetail.entrenamientoStats.currentStreak }}
+                          <q-icon
+                            v-if="goalPlanDetail.entrenamientoStats.currentStreak > 0"
+                            name="local_fire_department"
+                            color="orange"
+                            size="xs"
+                          />
+                        </div>
+                        <div class="text-caption text-grey-7">Racha actual</div>
+                      </div>
                     </div>
                   </div>
-                  <div class="col">
-                    <div class="text-center">
-                      <div class="text-h6">
-                        {{ goalPlanDetail.entrenamientoStats.totalDays }}
+                </q-card-section>
+              </q-card>
+
+              <!-- Goal Plan Progress -->
+              <q-card flat bordered class="q-mb-md">
+                <q-card-section>
+                  <div class="text-subtitle1 text-weight-bold q-mb-sm">
+                    Progreso Plan por Objetivos
+                  </div>
+                  <div class="row q-gutter-md">
+                    <div class="col">
+                      <div class="text-center">
+                        <div class="text-h6">
+                          {{ goalPlanDetail.goalPlanStats.totalSessions }}
+                        </div>
+                        <div class="text-caption text-grey-7">Sesiones por objetivos</div>
                       </div>
-                      <div class="text-caption text-grey-7">Dias entrenados</div>
                     </div>
                   </div>
-                  <div class="col">
-                    <div class="text-center">
-                      <div class="text-h6">
-                        {{ goalPlanDetail.entrenamientoStats.currentStreak }}
+                </q-card-section>
+              </q-card>
+
+              <!-- Session History (last 20) -->
+              <q-card flat bordered class="q-mb-md">
+                <q-card-section>
+                  <div class="text-subtitle1 text-weight-bold q-mb-sm">Historial de Sesiones</div>
+
+                  <div v-if="recentCompletions.length === 0" class="text-grey-5 text-italic">
+                    Sin sesiones completadas
+                  </div>
+
+                  <q-list v-else separator>
+                    <q-item v-for="(completion, idx) in recentCompletions" :key="idx">
+                      <q-item-section avatar>
                         <q-icon
-                          v-if="goalPlanDetail.entrenamientoStats.currentStreak > 0"
-                          name="local_fire_department"
-                          color="orange"
-                          size="xs"
+                          :name="completion.goalPlanType ? 'explore' : 'fitness_center'"
+                          :color="completion.goalPlanType ? 'deep-orange-9' : 'primary'"
                         />
-                      </div>
-                      <div class="text-caption text-grey-7">Racha actual</div>
-                    </div>
-                  </div>
-                </div>
-              </q-card-section>
-            </q-card>
-
-            <!-- Goal Plan Progress -->
-            <q-card flat bordered class="q-mb-md">
-              <q-card-section>
-                <div class="text-subtitle1 text-weight-bold q-mb-sm">
-                  Progreso Plan por Objetivos
-                </div>
-                <div class="row q-gutter-md">
-                  <div class="col">
-                    <div class="text-center">
-                      <div class="text-h6">
-                        {{ goalPlanDetail.goalPlanStats.totalSessions }}
-                      </div>
-                      <div class="text-caption text-grey-7">Sesiones por objetivos</div>
-                    </div>
-                  </div>
-                </div>
-              </q-card-section>
-            </q-card>
-
-            <!-- Session History (last 20) -->
-            <q-card flat bordered class="q-mb-md">
-              <q-card-section>
-                <div class="text-subtitle1 text-weight-bold q-mb-sm">Historial de Sesiones</div>
-
-                <div v-if="recentCompletions.length === 0" class="text-grey-5 text-italic">
-                  Sin sesiones completadas
-                </div>
-
-                <q-list v-else separator>
-                  <q-item v-for="(completion, idx) in recentCompletions" :key="idx">
-                    <q-item-section avatar>
-                      <q-icon
-                        :name="completion.goalPlanType ? 'explore' : 'fitness_center'"
-                        :color="completion.goalPlanType ? 'deep-orange-9' : 'primary'"
-                      />
-                    </q-item-section>
-                    <q-item-section>
-                      <q-item-label>
-                        {{
-                          completion.goalPlanType
-                            ? goalPlanLabel(completion.goalPlanType)
-                            : 'Entrenamiento'
-                        }}
+                      </q-item-section>
+                      <q-item-section>
+                        <q-item-label>
+                          {{
+                            completion.goalPlanType
+                              ? goalPlanLabel(completion.goalPlanType)
+                              : 'Entrenamiento'
+                          }}
+                          <q-badge
+                            v-if="completion.duration"
+                            outline
+                            color="grey-7"
+                            :label="`${completion.duration} min`"
+                            class="q-ml-sm"
+                          />
+                        </q-item-label>
+                        <q-item-label caption>
+                          {{ formatDate(completion.completedAt) }}
+                          <span v-if="completion.rpe !== null"> · RPE {{ completion.rpe }}</span>
+                        </q-item-label>
+                      </q-item-section>
+                      <q-item-section side>
                         <q-badge
-                          v-if="completion.duration"
+                          v-if="completion.blocksCompleted"
                           outline
                           color="grey-7"
-                          :label="`${completion.duration} min`"
-                          class="q-ml-sm"
+                          :label="`${completion.blocksCompleted.length} bloques`"
                         />
-                      </q-item-label>
-                      <q-item-label caption>
-                        {{ formatDate(completion.completedAt) }}
-                        <span v-if="completion.rpe !== null"> · RPE {{ completion.rpe }}</span>
-                      </q-item-label>
-                    </q-item-section>
-                    <q-item-section side>
-                      <q-badge
-                        v-if="completion.blocksCompleted"
-                        outline
-                        color="grey-7"
-                        :label="`${completion.blocksCompleted.length} bloques`"
-                      />
-                    </q-item-section>
-                  </q-item>
-                </q-list>
-              </q-card-section>
-            </q-card>
+                      </q-item-section>
+                    </q-item>
+                  </q-list>
+                </q-card-section>
+              </q-card>
 
-            <!-- Archived Goal Plans -->
-            <q-card v-if="goalPlanDetail.archived.length > 0" flat bordered class="q-mb-md">
-              <q-card-section>
-                <div class="text-subtitle1 text-weight-bold q-mb-sm">
-                  Planes por Objetivos Anteriores
-                </div>
+              <!-- Archived Goal Plans -->
+              <q-card v-if="goalPlanDetail.archived.length > 0" flat bordered class="q-mb-md">
+                <q-card-section>
+                  <div class="text-subtitle1 text-weight-bold q-mb-sm">
+                    Planes por Objetivos Anteriores
+                  </div>
 
-                <q-list separator>
-                  <q-item v-for="(arch, idx) in goalPlanDetail.archived" :key="idx">
-                    <q-item-section avatar>
-                      <q-icon name="history" color="grey-6" />
-                    </q-item-section>
-                    <q-item-section>
-                      <q-item-label>
-                        <q-badge
-                          :color="goalPlanBadgeColor(arch.goalPlanType)"
-                          :label="goalPlanLabel(arch.goalPlanType)"
-                        />
-                      </q-item-label>
-                      <q-item-label caption>
-                        {{ formatDate(arch.startedAt) }} — {{ formatDate(arch.archivedAt) }}
-                      </q-item-label>
-                    </q-item-section>
-                    <q-item-section side>
-                      <div class="text-caption text-grey-7">
-                        {{ formatDate(arch.startedAt) }}
-                      </div>
-                    </q-item-section>
-                  </q-item>
-                </q-list>
-              </q-card-section>
-            </q-card>
-          </template>
+                  <q-list separator>
+                    <q-item v-for="(arch, idx) in goalPlanDetail.archived" :key="idx">
+                      <q-item-section avatar>
+                        <q-icon name="history" color="grey-6" />
+                      </q-item-section>
+                      <q-item-section>
+                        <q-item-label>
+                          <q-badge
+                            :color="goalPlanBadgeColor(arch.goalPlanType)"
+                            :label="goalPlanLabel(arch.goalPlanType)"
+                          />
+                        </q-item-label>
+                        <q-item-label caption>
+                          {{ formatDate(arch.startedAt) }} — {{ formatDate(arch.archivedAt) }}
+                        </q-item-label>
+                      </q-item-section>
+                      <q-item-section side>
+                        <div class="text-caption text-grey-7">
+                          {{ formatDate(arch.startedAt) }}
+                        </div>
+                      </q-item-section>
+                    </q-item>
+                  </q-list>
+                </q-card-section>
+              </q-card>
+            </template>
 
-          <!-- Goal plan data error -->
-          <div v-else class="text-center q-pa-lg text-grey-5 text-italic">
-            Sin datos de entrenamiento disponibles
-          </div>
-        </q-tab-panel>
+            <!-- Goal plan data error -->
+            <div v-else class="text-center q-pa-lg text-grey-5 text-italic">
+              Sin datos de entrenamiento disponibles
+            </div>
+          </q-tab-panel>
 
-        <!-- Notas Tab -->
-        <q-tab-panel name="notas">
-          <MemberNotesTab
-            v-if="currentUser"
-            :userId="userId"
-            :currentUserId="currentUser.id"
-            :currentUserRole="currentUser.role"
-          />
-        </q-tab-panel>
+          <!-- Notas Tab -->
+          <q-tab-panel name="notas">
+            <MemberNotesTab
+              v-if="currentUser"
+              :userId="userId"
+              :currentUserId="currentUser.id"
+              :currentUserRole="currentUser.role"
+            />
+          </q-tab-panel>
 
-        <!-- Suscripcion Tab -->
-        <q-tab-panel name="suscripcion">
-          <MemberSubscriptionTab
-            :userId="userId"
-            :memberBranchId="memberProfile.branchId"
-            :memberBranchName="memberProfile.branchName"
-            :memberBoardingPassUsed="memberBoardingPassUsed"
-            :memberBranchIsVirtual="memberBranchIsVirtual"
-            :member="memberProfile"
-            :branches="branches"
-            :outstanding-concepts="outstandingConcepts"
-            @subscription-changed="onSubscriptionChanged"
-          />
-        </q-tab-panel>
+          <!-- Suscripcion Tab -->
+          <q-tab-panel name="suscripcion">
+            <MemberSubscriptionTab
+              :userId="userId"
+              :memberBranchId="memberProfile.branchId"
+              :memberBranchName="memberProfile.branchName"
+              :memberBoardingPassUsed="memberBoardingPassUsed"
+              :memberBranchIsVirtual="memberBranchIsVirtual"
+              :member="memberProfile"
+              :branches="branches"
+              :outstanding-concepts="outstandingConcepts"
+              @subscription-changed="onSubscriptionChanged"
+            />
+          </q-tab-panel>
 
-        <!-- Programas Tab (Phase 112) -->
-        <q-tab-panel name="programas">
-          <MemberProgramsTab :user-id="userId" />
-        </q-tab-panel>
+          <!-- Programas Tab (Phase 112) -->
+          <q-tab-panel name="programas">
+            <MemberProgramsTab :user-id="userId" />
+          </q-tab-panel>
 
-        <!-- Asistencia Tab -->
-        <q-tab-panel name="asistencia">
-          <MemberAttendanceTab :userId="userId" />
-        </q-tab-panel>
+          <!-- Asistencia Tab -->
+          <q-tab-panel name="asistencia">
+            <MemberAttendanceTab :userId="userId" />
+          </q-tab-panel>
 
-        <!-- Finanzas Tab (Phase 108) -->
-        <q-tab-panel name="finanzas">
-          <FinancialHistoryTab :user-id="userId" :member-branch-id="memberProfile.branchId" />
-        </q-tab-panel>
-      </q-tab-panels>
+          <!-- Finanzas Tab (Phase 108) -->
+          <q-tab-panel name="finanzas">
+            <FinancialHistoryTab :user-id="userId" :member-branch-id="memberProfile.branchId" />
+          </q-tab-panel>
+        </q-tab-panels>
+      </template>
 
       <!-- ========================================== -->
       <!-- Edit Dialog -->
@@ -1029,6 +1077,14 @@ async function onSubscriptionChanged() {
 
 function goBack() {
   router.push('/alumnos');
+}
+
+// Same wa.me pattern as SesionesDePruebaDialog: strip non-digits so any
+// admin-stored format (+5491155551234, 11-5555-1234, etc) lands on a
+// valid WhatsApp URL.
+function openWhatsapp(phone: string): void {
+  const cleaned = phone.replace(/[^0-9]/g, '');
+  window.open(`https://wa.me/${cleaned}`, '_blank');
 }
 
 // =========================================================================

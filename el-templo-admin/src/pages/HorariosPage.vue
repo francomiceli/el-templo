@@ -285,7 +285,7 @@
       @deleted="onSlotDeleted"
     />
     <HolidaysDialog v-model:show="showHolidaysDialog" @holidays-changed="loadWeeklyGrid" />
-    <SesionesDePruebaDialog v-model:show="showTrialsDialog" />
+    <SesionesDePruebaDialog v-model:show="showTrialsDialog" :initial-date="trialsInitialDate" />
   </q-page>
 </template>
 
@@ -651,12 +651,20 @@ watch(weekStartDate, () => {
 
 const route = useRoute();
 
+// Forwarded to SesionesDePruebaDialog when arriving via deep-link so the
+// modal opens at the trial's date (instead of today). Empty string = no
+// override, dialog uses its own todayISO() default.
+const trialsInitialDate = ref<string>('');
+
 onMounted(() => {
   loadBranches();
   // Deep-link from AlumnoDetailPage's "Sesión de Prueba" card → open the
   // Sesiones de Prueba dialog directly so the admin can find the alumno's
-  // booking without an extra click.
+  // booking without an extra click. trialDate (YYYY-MM-DD) tells the modal
+  // which day to load — covers both future and past no-show trials.
   if (route.query.openTrials === '1') {
+    const td = route.query.trialDate;
+    trialsInitialDate.value = typeof td === 'string' ? td : '';
     showTrialsDialog.value = true;
   }
 });

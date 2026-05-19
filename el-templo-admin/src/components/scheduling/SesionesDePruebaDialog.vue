@@ -118,6 +118,24 @@
                     <q-tooltip>Abrir WhatsApp</q-tooltip>
                   </q-btn>
                 </q-item-section>
+                <!-- Quitar la sesión de prueba. Cancelar el booking
+                     deja al alumno disponible para una nueva (el guard
+                     de one-trial-per-lifetime excluye cancelled). -->
+                <q-item-section side>
+                  <q-btn
+                    flat
+                    dense
+                    round
+                    icon="event_busy"
+                    color="negative"
+                    size="sm"
+                    :disable="removingBookingId === trial.bookingId"
+                    :loading="removingBookingId === trial.bookingId"
+                    @click="confirmRemoveTrial(trial)"
+                  >
+                    <q-tooltip>Quitar sesión de prueba</q-tooltip>
+                  </q-btn>
+                </q-item-section>
               </q-item>
             </q-list>
           </q-card>
@@ -132,7 +150,8 @@ import { ref, computed, watch } from 'vue';
 import { useQuasar } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { useSchedulingApi } from 'src/composables/useSchedulingApi';
-import type { TrialListBranchGroup } from 'src/types/scheduling';
+import type { TrialListBranchGroup, TrialListItem } from 'src/types/scheduling';
+import { extractError } from 'src/utils/extract-error';
 
 const log = createLogger('SesionesDePruebaDialog');
 const $q = useQuasar();
@@ -140,6 +159,12 @@ const schedulingApi = useSchedulingApi();
 
 const props = defineProps<{
   show: boolean;
+  // Optional date (YYYY-MM-DD). When provided and the dialog transitions to
+  // open, the modal seeds dateInput with this instead of today's date so
+  // deep-links from AlumnoDetailPage land on the alumno's trial day. Also
+  // forces shift='all' for that open so a TM trial isn't hidden when an
+  // admin opens it after 13:00.
+  initialDate?: string;
 }>();
 
 defineEmits<{
@@ -233,6 +258,40 @@ function openWhatsapp(phone: string): void {
   window.open(`https://wa.me/${cleaned}`, '_blank');
 }
 
+// Quitar sesión de prueba: confirm + cancel booking + reload listing.
+// Cancelled trials don't count toward the one-trial-per-lifetime guard
+// (trials-service.ts excludes status='cancelado'), so this frees the
+// alumno to be reassigned to a fresh slot.
+const removingBookingId = ref<number | null>(null);
+
+function confirmRemoveTrial(trial: TrialListItem): void {
+  const fullName = `${trial.firstName} ${trial.lastName}`.trim();
+  $q.dialog({
+    title: 'Quitar sesión de prueba',
+    message: `¿Quitar la sesión de prueba de ${fullName} (${trial.startTime})? El alumno queda disponible para una nueva sesión.`,
+    cancel: { flat: true, label: 'Cancelar' },
+    ok: { color: 'negative', label: 'Quitar', noCaps: true },
+    persistent: true,
+  }).onOk(() => {
+    void removeTrial(trial);
+  });
+}
+
+async function removeTrial(trial: TrialListItem): Promise<void> {
+  removingBookingId.value = trial.bookingId;
+  try {
+    await schedulingApi.adminRemoveBooking(trial.bookingId);
+    $q.notify({ type: 'positive', message: 'Sesión de prueba quitada', timeout: 1500 });
+    await load();
+  } catch (err: unknown) {
+    const message = extractError(err, 'Error al quitar la sesión');
+    log.error('Failed to remove trial booking', { error: message, bookingId: trial.bookingId });
+    $q.notify({ type: 'negative', message });
+  } finally {
+    removingBookingId.value = null;
+  }
+}
+
 function shiftLabel(value: Shift): string {
   return shiftOptions.find((o) => o.value === value)?.label ?? value;
 }
@@ -256,13 +315,21 @@ function copyForWhatsapp(): void {
     .catch(() => $q.notify({ type: 'negative', message: 'No se pudo copiar al portapapeles' }));
 }
 
-// Auto-load when dialog opens (and reset to today's defaults).
+// Auto-load when dialog opens. If a parent passed `initialDate` (deep-link
+// from AlumnoDetailPage's Sesión de Prueba card), honor it and widen the
+// shift filter to 'all' so the trial is visible regardless of its time
+// vs the admin's current hour. Otherwise fall back to today's defaults.
 watch(
   () => props.show,
   (open) => {
     if (open) {
-      dateInput.value = todayISO();
-      shift.value = defaultShift();
+      if (props.initialDate && /^\d{4}-\d{2}-\d{2}$/.test(props.initialDate)) {
+        dateInput.value = props.initialDate;
+        shift.value = 'all';
+      } else {
+        dateInput.value = todayISO();
+        shift.value = defaultShift();
+      }
       void load();
     }
   }
