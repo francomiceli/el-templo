@@ -1254,6 +1254,51 @@ describe("Scheduling API", () => {
         .where(eq(branches.id, testBranchId));
     });
 
+    it("DELETE cancel booking accepts application/x-www-form-urlencoded (Capacitor Android default)", async () => {
+      // Pre-Apr 2026 app builds didn't force Content-Type: application/json
+      // on DELETE requests — Capacitor Android WebView falls back to
+      // application/x-www-form-urlencoded, which Fastify rejects with 415
+      // unless a parser is registered. This regression test guarantees the
+      // permissive parser stays in place so old clients keep working.
+      const { memberToken } = await setupMemberWithSubscription({
+        email: "sched-formurl@test.com",
+        dni: "80000040",
+      });
+
+      const activity = await createActivity();
+      const futureSlot = getFutureSlot();
+      const slot = await createScheduleSlot(
+        activity.id,
+        futureSlot.dayOfWeek,
+        futureSlot.startTime,
+        futureSlot.endTime,
+      );
+
+      const reserveRes = await app.inject({
+        method: "POST",
+        url: `${MEMBER_URL}/reserve`,
+        headers: { authorization: `Bearer ${memberToken}` },
+        payload: { scheduleId: slot.id, date: futureSlot.date },
+      });
+      const booking = JSON.parse(reserveRes.body);
+      expect(booking.status).toBe("reservado");
+
+      // Cancel with the problematic content-type (no body, matching the
+      // Capacitor Android default for DELETE without explicit data).
+      const cancelRes = await app.inject({
+        method: "DELETE",
+        url: `${MEMBER_URL}/bookings/${booking.id}`,
+        headers: {
+          authorization: `Bearer ${memberToken}`,
+          "content-type": "application/x-www-form-urlencoded",
+        },
+      });
+
+      expect(cancelRes.statusCode).not.toBe(415);
+      expect(cancelRes.statusCode).toBe(200);
+      expect(JSON.parse(cancelRes.body).status).toBe("cancelado");
+    });
+
     it("waitlist promotion enqueues a push notification for the promoted member", async () => {
       // Seed the waitlist_promoted template so queueNotification can find it.
       // In production this runs on cron startup; tests don't boot the cron.

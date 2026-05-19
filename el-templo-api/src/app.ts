@@ -1,6 +1,7 @@
 // Application entry point
 import Fastify from "fastify";
 import * as Sentry from "@sentry/node";
+import querystring from "node:querystring";
 import cors from "@fastify/cors";
 import databasePlugin from "./plugins/database";
 import r2Plugin from "./plugins/r2";
@@ -44,6 +45,28 @@ export async function buildApp() {
   const app = Fastify({
     logger: process.env.NODE_ENV === "test" ? { level: "silent" } : true,
   });
+
+  // Permissive content-type parser for application/x-www-form-urlencoded.
+  // Capacitor Android WebView defaults to this content-type on mutating
+  // requests with no body, causing Fastify to return 415 for old app builds
+  // (pre-Apr 2026 axios workaround). We accept and parse the body so the
+  // route runs normally — for all current routes the URL params carry the
+  // identifying info; any form fields end up in request.body as-is.
+  app.addContentTypeParser(
+    "application/x-www-form-urlencoded",
+    { parseAs: "string" },
+    (_req, body, done) => {
+      try {
+        const parsed =
+          typeof body === "string" && body.length > 0
+            ? querystring.parse(body)
+            : {};
+        done(null, parsed);
+      } catch (err) {
+        done(err instanceof Error ? err : new Error(String(err)));
+      }
+    },
+  );
 
   // CORS configuration
   await app.register(cors, {
