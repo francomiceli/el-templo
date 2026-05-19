@@ -17,8 +17,30 @@ import type * as schema from "../../../el-templo-api/src/db/schema/index.js";
 import type { ToolDefinition } from "./provider";
 import type { ClientState } from "../state/machine.js";
 import { sendInteractiveMessage } from "../whatsapp/client.js";
+import { withTimeout, ToolTimeoutError } from "./with-timeout.js";
 
 type DB = MySql2Database<typeof schema>;
+
+// ─── Tool-handler timeout (Phase 95 BOOK-01 + Phase 97 RGUARD-03) ───────────
+
+/**
+ * Resolve the tool-handler localhost-call timeout (milliseconds).
+ *
+ * Env-overridable via `EXECUTE_TOOL_TIMEOUT_MS`; default 30_000 ms is
+ * locked by the Cross-Phase Invariant (`executeTool_timeout_seconds = 30`
+ * — see `el-templo-bot/.env.example` DEBOUNCE_TTL_SECONDS block).
+ * Non-numeric or non-positive values fall back to the default for
+ * predictable behavior with a misconfigured env. Mirrors the
+ * `resolveOpenAiTimeoutMs()` pattern in `openai.ts`.
+ */
+function resolveExecuteToolTimeoutMs(): number {
+  const raw = process.env.EXECUTE_TOOL_TIMEOUT_MS;
+  if (raw === undefined || raw === "") return 30_000;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 30_000;
+}
+
+const EXECUTE_TOOL_TIMEOUT_MS = resolveExecuteToolTimeoutMs();
 
 // ─── Day name helpers ────────────────────────────────────────────────────────
 
@@ -224,21 +246,31 @@ export async function executeTool(
   conversationId?: number,
   context?: { phone: string; clientState: ClientState },
 ): Promise<string> {
-  switch (name) {
-    case "check_schedule":
-      return checkSchedule(db, args);
-    case "check_membership":
-      return checkMembership(db, args);
-    case "get_location":
-      return getLocation(db, args);
-    case "request_human":
-      return requestHuman(db, args, conversationId);
-    case "book_class":
-      return bookClass(db, args, context);
-    case "register_trial":
-      return registerTrial(db, args, context);
-    default:
-      return `Herramienta "${name}" no disponible.`;
+  try {
+    switch (name) {
+      case "check_schedule":
+        return await checkSchedule(db, args);
+      case "check_membership":
+        return await checkMembership(db, args);
+      case "get_location":
+        return await getLocation(db, args);
+      case "request_human":
+        return await requestHuman(db, args, conversationId);
+      case "book_class":
+        return await bookClass(db, args, context);
+      case "register_trial":
+        return await registerTrial(db, args, context);
+      default:
+        return `Herramienta "${name}" no disponible.`;
+    }
+  } catch (err: unknown) {
+    // Per 95-CONTEXT.md D-18: ToolTimeoutError discrimination ONLY.
+    // Plan 95-03's retry-counter allowlist consumes the exact byte-equal
+    // string `"Herramienta agotada por tiempo de espera."`.
+    if (err instanceof ToolTimeoutError) {
+      return "Herramienta agotada por tiempo de espera.";
+    }
+    throw err;
   }
 }
 
@@ -714,14 +746,19 @@ async function bookClass(
   const apiUrl = process.env.API_BASE_URL || "http://localhost:3000";
   const apiKey = process.env.BOT_API_KEY;
 
-  const response = await fetch(`${apiUrl}/api/bot/scheduling/book-class`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-bot-api-key": apiKey ?? "",
-    },
-    body: JSON.stringify({ memberId, scheduleId, date }),
-  });
+  const response = await withTimeout(
+    (signal) =>
+      fetch(`${apiUrl}/api/bot/scheduling/book-class`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-bot-api-key": apiKey ?? "",
+        },
+        body: JSON.stringify({ memberId, scheduleId, date }),
+        signal,
+      }),
+    EXECUTE_TOOL_TIMEOUT_MS,
+  );
 
   if (response.status === 201) {
     // Fetch schedule details for success message
@@ -884,19 +921,24 @@ async function registerTrial(
   const apiUrl = process.env.API_BASE_URL || "http://localhost:3000";
   const apiKey = process.env.BOT_API_KEY;
 
-  const response = await fetch(`${apiUrl}/api/bot/scheduling/register-trial`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-bot-api-key": apiKey ?? "",
-    },
-    body: JSON.stringify({
-      phone: context.phone,
-      name,
-      scheduleId,
-      date,
-    }),
-  });
+  const response = await withTimeout(
+    (signal) =>
+      fetch(`${apiUrl}/api/bot/scheduling/register-trial`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-bot-api-key": apiKey ?? "",
+        },
+        body: JSON.stringify({
+          phone: context.phone,
+          name,
+          scheduleId,
+          date,
+        }),
+        signal,
+      }),
+    EXECUTE_TOOL_TIMEOUT_MS,
+  );
 
   if (response.status === 201) {
     // Fetch schedule details for success message
