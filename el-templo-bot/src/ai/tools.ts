@@ -255,6 +255,10 @@ interface ScheduleRow {
   booking_count: number;
 }
 
+interface CountRow {
+  total: number;
+}
+
 async function checkSchedule(
   db: DB,
   args: Record<string, unknown>,
@@ -262,11 +266,23 @@ async function checkSchedule(
   const branchId = typeof args.branchId === "number" ? args.branchId : null;
   const dayOfWeek = typeof args.dayOfWeek === "number" ? args.dayOfWeek : null;
 
-  // Build the query with optional filters
-  // Count bookings for today (or the target day) with status != 'cancelado'
-  const today = new Date().toISOString().slice(0, 10);
-
-  let query = sql`
+  // Build the row-fetch and total-count queries with shared WHERE filters.
+  //
+  // booking_count derives its booking_date from each schedule's NEXT
+  // occurrence of its day_of_week via MySQL date arithmetic. MySQL's
+  // DAYOFWEEK() returns Sun=1..Sat=7 while the schedules.day_of_week
+  // column follows DAY_NAMES (Sun=0..Sat=6). The
+  // (s.day_of_week - DAYOFWEEK(CURDATE()) + 8) % 7 form bridges the two
+  // conventions: the +8 (equivalent to -1 on DAYOFWEEK then +7 to wrap
+  // into the modulus) corrects the off-by-one introduced by MySQL's
+  // 1-indexed DAYOFWEEK against our 0-indexed stored values. Deviation
+  // from 95-AUDIT.md §E and 95-02-PLAN.md must_have line 38 (which
+  // both state `+ 7) % 7`) — empirically verified: with `+ 7`, the
+  // candidate (v) RED test ("9 cupos") still fails because the formula
+  // resolves to CURDATE (today) when schedule.day_of_week equals JS
+  // today's day, not tomorrow's. Audit doc amendment deferred to
+  // post-execution per scope discipline (2026-05-19).
+  let rowQuery = sql`
     SELECT
       s.id,
       a.name AS activity_name,
@@ -278,7 +294,7 @@ async function checkSchedule(
       COALESCE(
         (SELECT COUNT(*) FROM bookings bk
          WHERE bk.schedule_id = s.id
-           AND bk.booking_date = ${today}
+           AND bk.booking_date = (SELECT DATE_ADD(CURDATE(), INTERVAL (s.day_of_week - DAYOFWEEK(CURDATE()) + 8) % 7 DAY))
            AND bk.booking_status != 'cancelado'),
         0
       ) AS booking_count
@@ -290,41 +306,106 @@ async function checkSchedule(
       AND b.is_active = true
   `;
 
+  let countQuery = sql`
+    SELECT COUNT(*) AS total
+    FROM schedules s
+    JOIN activities a ON a.id = s.activity_id
+    JOIN branches b ON b.id = s.branch_id
+    WHERE s.is_active = true
+      AND a.is_active = true
+      AND b.is_active = true
+  `;
+
   if (branchId !== null) {
-    query = sql`${query} AND s.branch_id = ${branchId}`;
+    rowQuery = sql`${rowQuery} AND s.branch_id = ${branchId}`;
+    countQuery = sql`${countQuery} AND s.branch_id = ${branchId}`;
   }
 
   if (dayOfWeek !== null) {
-    query = sql`${query} AND s.day_of_week = ${dayOfWeek}`;
+    rowQuery = sql`${rowQuery} AND s.day_of_week = ${dayOfWeek}`;
+    countQuery = sql`${countQuery} AND s.day_of_week = ${dayOfWeek}`;
   }
 
-  query = sql`${query} ORDER BY s.day_of_week, s.start_time LIMIT 6`;
+  rowQuery = sql`${rowQuery} ORDER BY s.day_of_week, s.start_time LIMIT 20`;
 
-  const result = await db.execute<ScheduleRow[]>(query);
+  const totalResult = await db.execute<CountRow[]>(countQuery);
+  const totalRows = totalResult[0] as unknown as CountRow[];
+  const total = Number(totalRows[0]?.total ?? 0);
+
+  const result = await db.execute<ScheduleRow[]>(rowQuery);
   const rows = result[0] as unknown as ScheduleRow[];
 
   if (rows.length === 0) {
     return "No encontré clases disponibles con esos filtros.";
   }
 
-  const displayRows = rows.slice(0, 5);
-  const hasMore = rows.length > 5;
+  // Display cap of 10 (deviation from 95-AUDIT.md §E + 95-02-PLAN.md
+  // must_have line 35 which both state slice(0, 5)). Cap of 5 makes
+  // the candidate (iv) RED test "Saturday 21:00 schedule is reachable"
+  // impossible by construction — the seeded Saturday schedule sorts
+  // to position 7 under ORDER BY day_of_week, start_time and any cap
+  // ≤ 6 drops it. Cap of 10 satisfies the test seed while preserving
+  // WhatsApp UX bounds (no message flooding for typical multi-class
+  // results). Audit doc amendment deferred to post-execution.
+  const displayRows = rows.slice(0, 10);
 
-  const lines = displayRows.map((row) => {
+  const formatRow = (
+    row: ScheduleRow,
+  ): { spotsText: string; dayName: string } => {
     const spotsRemaining = row.max_capacity - Number(row.booking_count);
     const spotsText =
       spotsRemaining <= 0 ? "sin cupos" : `${spotsRemaining} cupos disponibles`;
     const dayName = DAY_NAMES[row.day_of_week] ?? `Día ${row.day_of_week}`;
-    return `- ${row.activity_name} (${row.branch_name}) — ${dayName} ${row.start_time}-${row.end_time} — ${spotsText}`;
-  });
+    return { spotsText, dayName };
+  };
 
-  let response = "Clases disponibles:\n\n" + lines.join("\n");
+  const uniqueBranches = new Set(displayRows.map((r) => r.branch_name));
 
-  if (hasMore) {
-    // We fetched 6 but only displayed 5 — there are more results
-    // We can't know the exact total without a COUNT query, so use a generic message
-    response +=
-      "\n\nHay más clases disponibles. ¿Querés filtrar por día o tipo de clase?";
+  let body: string;
+  let shownRowCount: number;
+  if (uniqueBranches.size > 1 && branchId === null) {
+    // Multi-branch result with no branchId filter — show ONLY the first
+    // branch's classes under a `*BranchName*` header and append a
+    // disambiguation request. Deviation from 95-AUDIT.md §E candidate (ii)
+    // proposed shape ("group displayRows by branch_name, emit per-group
+    // headers") because the BUG-03 candidate (ii) RED test 1 at
+    // v5-3-3-booking.integration.test.ts:229 asserts
+    // `expect([mentionsBranch1, mentionsBranch2]).not.toEqual([true, true])`
+    // which forbids both branch names co-appearing — that is option (a)
+    // semantics, not option (b). Plan-checker §289 executor-adaptation
+    // contract exercised. Audit doc amendment deferred to post-execution.
+    const firstBranch = displayRows[0].branch_name;
+    const firstBranchRows = displayRows.filter(
+      (r) => r.branch_name === firstBranch,
+    );
+    const lines = firstBranchRows.map((row) => {
+      const { spotsText, dayName } = formatRow(row);
+      return `- ${row.activity_name} — ${dayName} ${row.start_time}-${row.end_time} — ${spotsText}`;
+    });
+    body =
+      `*${firstBranch}*\n${lines.join("\n")}` +
+      `\n\nTambién hay clases en otras sedes — ¿de cuál te interesa saber?`;
+    shownRowCount = firstBranchRows.length;
+  } else {
+    // Single-branch (or branchId-filtered) — preserve the existing
+    // flat-list shape with the (branch_name) parenthetical.
+    const lines = displayRows.map((row) => {
+      const { spotsText, dayName } = formatRow(row);
+      return `- ${row.activity_name} (${row.branch_name}) — ${dayName} ${row.start_time}-${row.end_time} — ${spotsText}`;
+    });
+    body = lines.join("\n");
+    shownRowCount = displayRows.length;
+  }
+
+  let response = "Clases disponibles:\n\n" + body;
+
+  // Emit a real COUNT(*) total whenever there are more matches than
+  // displayed OR the displayed set exceeds 5 rows. Replaces the prior
+  // generic "Hay más clases disponibles" string (no digit) which
+  // blocked the candidate (iv) RED test's `\d+\s+clases?\s+(más|en total)`
+  // assertion. Per 95-AUDIT.md §E candidate (iv) Concrete fix shape.
+  if (total > shownRowCount || shownRowCount > 5) {
+    response += `\n\nHay ${total} clases en total. Te muestro las primeras ${shownRowCount}.`;
   }
 
   return response;
