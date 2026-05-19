@@ -115,6 +115,23 @@ export interface MemberProfile extends MemberListItem {
   leadStatus: 'en_seguimiento' | 'cerrado' | 'perdido' | null;
   leadNotes: string | null;
   createdBy: { userId: number; name: string } | null;
+  /**
+   * Latest non-cancelled trial booking for this alumno. Surfaced on the
+   * profile so the "Sesión de Prueba" card can render fecha/hora/sucursal/
+   * asistencia without a second round-trip. NULL when the alumno has no
+   * trial bookings on record. Mirrors the attended derivation used by the
+   * trial-sessions report:
+   *   'si'  → attendance row exists for the booking
+   *   'no'  → booking_date in the past, no attendance row
+   *   null  → booking_date is today/future, pending
+   */
+  latestTrial: {
+    bookingId: number;
+    bookingDate: string;
+    startTime: string;
+    branchName: string;
+    attended: 'si' | 'no' | null;
+  } | null;
 }
 
 export interface CreateMemberInput {

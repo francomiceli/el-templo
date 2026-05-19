@@ -111,6 +111,18 @@
       flat
       bordered
     >
+      <!-- Lead slot: clickable name navigates to AlumnoDetailPage -->
+      <template #body-cell-lead="props">
+        <q-td :props="props">
+          <router-link
+            :to="`/alumnos/${props.row.userId}`"
+            class="text-primary text-weight-medium no-underline"
+          >
+            {{ props.row.lead }}
+          </router-link>
+        </q-td>
+      </template>
+
       <!-- Asistió slot -->
       <template #body-cell-attended="props">
         <q-td :props="props">
@@ -657,5 +669,11 @@ onUnmounted(() => {
   min-height: 1.5em;
   white-space: pre-wrap;
   word-break: break-word;
+}
+.no-underline {
+  text-decoration: none;
+}
+.no-underline:hover {
+  text-decoration: underline;
 }
 </style>

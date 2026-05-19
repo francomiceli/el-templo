@@ -291,6 +291,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
+import { useRoute } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { useSchedulingApi } from 'src/composables/useSchedulingApi';
@@ -648,8 +649,16 @@ watch(weekStartDate, () => {
   }
 });
 
+const route = useRoute();
+
 onMounted(() => {
   loadBranches();
+  // Deep-link from AlumnoDetailPage's "Sesión de Prueba" card → open the
+  // Sesiones de Prueba dialog directly so the admin can find the alumno's
+  // booking without an extra click.
+  if (route.query.openTrials === '1') {
+    showTrialsDialog.value = true;
+  }
 });
 
 // Load grid after branches load if auto-selected

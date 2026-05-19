@@ -399,6 +399,64 @@ export class MemberService {
 
     if (!row) return null;
 
+    // Latest non-cancelled trial booking for this member. One round-trip,
+    // mirrors the attendance derivation used by the trial-sessions report
+    // (reports/service.ts:1475). Returns null when the user never booked a
+    // trial or all trial bookings are cancelled.
+    const [trialRow] = await this.db
+      .select({
+        bookingId: schema.bookings.id,
+        bookingDate: schema.bookings.bookingDate,
+        startTime: schema.schedules.startTime,
+        branchName: schema.branches.name,
+        attendanceId: schema.attendance.id,
+      })
+      .from(schema.bookings)
+      .innerJoin(
+        schema.schedules,
+        eq(schema.schedules.id, schema.bookings.scheduleId),
+      )
+      .innerJoin(
+        schema.branches,
+        eq(schema.branches.id, schema.schedules.branchId),
+      )
+      .leftJoin(
+        schema.attendance,
+        and(
+          eq(schema.attendance.memberId, schema.bookings.memberId),
+          eq(schema.attendance.scheduleId, schema.bookings.scheduleId),
+          eq(schema.attendance.sessionDate, schema.bookings.bookingDate),
+          eq(schema.attendance.status, "confirmado"),
+        ),
+      )
+      .where(
+        and(
+          eq(schema.bookings.memberId, id),
+          eq(schema.bookings.isTrial, true),
+          ne(schema.bookings.status, "cancelado"),
+        ),
+      )
+      .orderBy(desc(schema.bookings.bookingDate))
+      .limit(1);
+
+    let latestTrial: MemberProfile["latestTrial"] = null;
+    if (trialRow) {
+      const today = new Date().toISOString().slice(0, 10);
+      const attended: "si" | "no" | null =
+        trialRow.attendanceId !== null
+          ? "si"
+          : trialRow.bookingDate < today
+            ? "no"
+            : null;
+      latestTrial = {
+        bookingId: trialRow.bookingId,
+        bookingDate: trialRow.bookingDate,
+        startTime: trialRow.startTime.slice(0, 5),
+        branchName: trialRow.branchName,
+        attended,
+      };
+    }
+
     return {
       id: row.id,
       email: row.email,
@@ -434,6 +492,7 @@ export class MemberService {
                 .trim() || "—",
           }
         : null,
+      latestTrial,
     };
   }
 

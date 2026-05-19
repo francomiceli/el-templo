@@ -112,6 +112,23 @@ export interface MemberProfile {
   leadStatus: "en_seguimiento" | "cerrado" | "perdido" | null;
   leadNotes: string | null;
   createdBy: { userId: number; name: string } | null;
+  /**
+   * Latest trial booking for the alumno, surfaced so AlumnoDetailPage's
+   * "Sesión de Prueba" block can render fecha/hora/sucursal/asistencia
+   * without a second round-trip. Cancelled trials are excluded. NULL when
+   * the alumno never booked a trial (e.g. members enrolled via legacy
+   * paths). Attended derivation mirrors the trial-sessions report:
+   *   'si'  → attendance row exists for (memberId, scheduleId, bookingDate)
+   *   'no'  → booking_date < today AND no attendance
+   *   null  → future/today, pending
+   */
+  latestTrial: {
+    bookingId: number;
+    bookingDate: string;
+    startTime: string;
+    branchName: string;
+    attended: "si" | "no" | null;
+  } | null;
 }
 
 export interface CreateMemberInput {

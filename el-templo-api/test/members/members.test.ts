@@ -478,6 +478,162 @@ describe("Members Management Routes", () => {
 
       expect(res.statusCode).toBe(404);
     });
+
+    it("returns latestTrial = null for member without trial bookings", async () => {
+      const member = await createMember({
+        email: "no-trial@test-members.com",
+        dni: "35404040",
+      });
+
+      const res = await app.inject({
+        method: "GET",
+        url: `/api/admin/members/${member.id}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.latestTrial).toBeNull();
+    });
+
+    it("returns latestTrial with attended=null for a future trial booking", async () => {
+      const member = await createMember({
+        email: "future-trial@test-members.com",
+        dni: "35414141",
+      });
+
+      const [actIns] = await app.db
+        .insert(activities)
+        .values({ name: "Test Trial Activity Future" })
+        .$returningId();
+      const [schedIns] = await app.db
+        .insert(schedules)
+        .values({
+          branchId: 1,
+          activityId: actIns.id,
+          dayOfWeek: 1,
+          startTime: "10:00",
+          endTime: "11:00",
+          maxCapacity: 10,
+        })
+        .$returningId();
+      const futureDate = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)
+        .toISOString()
+        .split("T")[0];
+      await app.db.insert(bookings).values({
+        memberId: member.id,
+        scheduleId: schedIns.id,
+        bookingDate: futureDate,
+        status: "reservado",
+        isTrial: true,
+      });
+
+      const res = await app.inject({
+        method: "GET",
+        url: `/api/admin/members/${member.id}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.latestTrial).not.toBeNull();
+      expect(body.latestTrial.bookingDate).toBe(futureDate);
+      expect(body.latestTrial.startTime).toBe("10:00");
+      expect(body.latestTrial.attended).toBeNull();
+    });
+
+    it("returns latestTrial with attended='no' for past trial without attendance", async () => {
+      const member = await createMember({
+        email: "past-no-show@test-members.com",
+        dni: "35424242",
+      });
+
+      const [actIns] = await app.db
+        .insert(activities)
+        .values({ name: "Test Trial Activity Past" })
+        .$returningId();
+      const [schedIns] = await app.db
+        .insert(schedules)
+        .values({
+          branchId: 1,
+          activityId: actIns.id,
+          dayOfWeek: 1,
+          startTime: "11:00",
+          endTime: "12:00",
+          maxCapacity: 10,
+        })
+        .$returningId();
+      const pastDate = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000)
+        .toISOString()
+        .split("T")[0];
+      await app.db.insert(bookings).values({
+        memberId: member.id,
+        scheduleId: schedIns.id,
+        bookingDate: pastDate,
+        status: "reservado",
+        isTrial: true,
+      });
+
+      const res = await app.inject({
+        method: "GET",
+        url: `/api/admin/members/${member.id}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.latestTrial.attended).toBe("no");
+    });
+
+    it("returns latestTrial with attended='si' when an attendance row exists", async () => {
+      const member = await createMember({
+        email: "past-attended@test-members.com",
+        dni: "35434343",
+      });
+
+      const [actIns] = await app.db
+        .insert(activities)
+        .values({ name: "Test Trial Activity Attended" })
+        .$returningId();
+      const [schedIns] = await app.db
+        .insert(schedules)
+        .values({
+          branchId: 1,
+          activityId: actIns.id,
+          dayOfWeek: 1,
+          startTime: "12:00",
+          endTime: "13:00",
+          maxCapacity: 10,
+        })
+        .$returningId();
+      const pastDate = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000)
+        .toISOString()
+        .split("T")[0];
+      await app.db.insert(bookings).values({
+        memberId: member.id,
+        scheduleId: schedIns.id,
+        bookingDate: pastDate,
+        status: "qr_escaneado",
+        isTrial: true,
+      });
+      await app.db.insert(attendance).values({
+        memberId: member.id,
+        scheduleId: schedIns.id,
+        branchId: 1,
+        sessionDate: pastDate,
+        status: "confirmado",
+      });
+
+      const res = await app.inject({
+        method: "GET",
+        url: `/api/admin/members/${member.id}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.latestTrial.attended).toBe("si");
+    });
   });
 
   // =========================================================================

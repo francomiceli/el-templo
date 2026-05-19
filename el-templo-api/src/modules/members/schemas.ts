@@ -104,6 +104,22 @@ const memberProfileSchema = {
         name: { type: "string" },
       },
     },
+    // Latest non-cancelled trial booking (see types.ts MemberProfile.latestTrial).
+    // Same Fastify-strips-unlisted-fields gotcha applies — must be declared.
+    latestTrial: {
+      type: ["object", "null"],
+      additionalProperties: true,
+      properties: {
+        bookingId: { type: "integer" },
+        bookingDate: { type: "string" },
+        startTime: { type: "string" },
+        branchName: { type: "string" },
+        attended: {
+          type: ["string", "null"],
+          enum: ["si", "no", null],
+        },
+      },
+    },
   },
 } as const;
 

@@ -129,73 +129,128 @@
         </q-card-section>
       </q-card>
 
-      <!-- Soft-register conversion banner: only shown while the alumno is
-           still in 'prueba'. Surfaces the next concrete action (complete
-           the profile + assign a plan) so receptionists don't leave leads
-           with NULL email/DNI floating around the system. -->
-      <q-banner
-        v-if="memberProfile.status === 'prueba'"
-        class="bg-warning text-dark q-mt-md"
-        rounded
-      >
-        <template #avatar>
-          <q-icon name="fact_check" />
-        </template>
-        <div class="text-weight-medium">Alumno en prueba — datos incompletos</div>
-        <div class="text-caption">
-          Completá email, DNI y el resto de los datos para que pueda usar la app, y asignale un plan
-          para convertirlo en alumno activo.
+      <!-- Prueba-only row: 3 cols (banner | Datos de Lead | Sesión de Prueba).
+           Consolidates what used to be three stacked full-width sections so
+           the admin sees the whole lead context in a single horizontal scan.
+           In mobile (col-12) they stack vertically — same content, no loss. -->
+      <div v-if="memberProfile.status === 'prueba'" class="row q-col-gutter-md q-mt-md">
+        <!-- Col 1: conversion banner (datos incompletos) -->
+        <div class="col-12 col-md-4">
+          <q-banner class="bg-warning text-dark full-height" rounded>
+            <template #avatar>
+              <q-icon name="fact_check" />
+            </template>
+            <div class="text-weight-medium">Alumno en prueba — datos incompletos</div>
+            <div class="text-caption q-mt-xs">
+              Completá email, DNI y el resto de los datos para que pueda usar la app, y asignale un
+              plan para convertirlo en alumno activo.
+            </div>
+            <template #action>
+              <q-btn
+                unelevated
+                color="dark"
+                text-color="white"
+                label="Completar y convertir"
+                no-caps
+                @click="showEditDialog = true"
+              />
+            </template>
+          </q-banner>
         </div>
-        <template #action>
-          <q-btn
-            unelevated
-            color="dark"
-            text-color="white"
-            label="Completar y convertir"
-            no-caps
-            @click="showEditDialog = true"
-          />
-        </template>
-      </q-banner>
 
-      <!-- Phase 114 (D-38): "Datos de Lead" block. Only renders while the
-           alumno is in 'prueba' status. Mirrors the inline-edit pattern
-           from the Sesiones de Prueba report (Plan 06) using the same
-           PATCH /api/admin/leads/:userId endpoint via useMembersApi.
-           D-34 invariant: editing leadStatus here does NOT touch
-           leadNotes server-side (only the conversion hook in Plan 03
-           prefixes the plan name). -->
-      <q-card v-if="memberProfile.status === 'prueba'" class="q-pa-md q-mt-md" flat bordered>
-        <div class="text-subtitle1 text-weight-bold q-mb-sm">Datos de Lead</div>
+        <!-- Col 2: Datos de Lead (inline-edit pattern from Plan 06) -->
+        <div class="col-12 col-md-4">
+          <q-card class="q-pa-md full-height" flat bordered>
+            <div class="text-subtitle1 text-weight-bold q-mb-sm">Datos de Lead</div>
 
-        <q-select
-          v-model="leadDraft.leadStatus"
-          :options="LEAD_STATUS_OPTIONS"
-          emit-value
-          map-options
-          label="Estado del Lead"
-          outlined
-          dense
-          :loading="savingLeadStatus"
-          @update:model-value="onSaveLeadStatus"
-        />
+            <q-select
+              v-model="leadDraft.leadStatus"
+              :options="LEAD_STATUS_OPTIONS"
+              emit-value
+              map-options
+              label="Estado del Lead"
+              outlined
+              dense
+              :loading="savingLeadStatus"
+              @update:model-value="onSaveLeadStatus"
+            />
 
-        <q-input
-          v-model="leadDraft.leadNotes"
-          type="textarea"
-          label="Comentarios"
-          outlined
-          autogrow
-          maxlength="2000"
-          :loading="savingLeadNotes"
-          class="q-mt-sm"
-          @blur="onSaveLeadNotes"
-        />
+            <q-input
+              v-model="leadDraft.leadNotes"
+              type="textarea"
+              label="Comentarios"
+              outlined
+              autogrow
+              maxlength="2000"
+              :loading="savingLeadNotes"
+              class="q-mt-sm"
+              @blur="onSaveLeadNotes"
+            />
 
-        <div class="q-mt-sm text-caption text-grey-7">
-          Gestiona: <strong>{{ memberProfile.createdBy?.name ?? '—' }}</strong>
+            <div class="q-mt-sm text-caption text-grey-7">
+              Gestiona: <strong>{{ memberProfile.createdBy?.name ?? '—' }}</strong>
+            </div>
+          </q-card>
         </div>
-      </q-card>
+
+        <!-- Col 3: Sesión de Prueba — shows the latest trial booking + a link
+             into Horarios to cancel/reassign. Both past and future trials
+             surface here: past no-shows render the "No asistió" chip and
+             the CTA copy switches to "Asignar nueva sesión". -->
+        <div class="col-12 col-md-4">
+          <q-card class="q-pa-md full-height" flat bordered>
+            <div class="text-subtitle1 text-weight-bold q-mb-sm">Sesión de Prueba</div>
+
+            <template v-if="memberProfile.latestTrial">
+              <div class="row items-center q-gutter-sm q-mb-xs">
+                <q-icon name="event" size="20px" class="text-grey-7" />
+                <div class="text-body2">
+                  <strong>{{ formatDate(memberProfile.latestTrial.bookingDate) }}</strong>
+                  <span class="q-ml-xs">a las {{ memberProfile.latestTrial.startTime }}</span>
+                </div>
+              </div>
+              <div class="row items-center q-gutter-sm q-mb-sm">
+                <q-icon name="place" size="20px" class="text-grey-7" />
+                <div class="text-body2">{{ memberProfile.latestTrial.branchName }}</div>
+              </div>
+              <div class="q-mb-sm">
+                <q-chip
+                  v-if="memberProfile.latestTrial.attended === 'si'"
+                  color="positive"
+                  text-color="white"
+                  dense
+                  label="Asistió"
+                />
+                <q-chip
+                  v-else-if="memberProfile.latestTrial.attended === 'no'"
+                  color="negative"
+                  text-color="white"
+                  dense
+                  label="No asistió"
+                />
+                <q-chip v-else color="grey-6" text-color="white" dense label="Pendiente" />
+              </div>
+            </template>
+            <div v-else class="text-grey-6 text-italic q-mb-sm">
+              Sin sesión de prueba registrada
+            </div>
+
+            <q-btn
+              outline
+              color="primary"
+              :label="
+                memberProfile.latestTrial?.attended === 'no'
+                  ? 'Asignar nueva sesión'
+                  : 'Modificar en Horarios'
+              "
+              icon="schedule"
+              no-caps
+              dense
+              :to="{ path: '/horarios', query: { openTrials: '1' } }"
+            />
+          </q-card>
+        </div>
+      </div>
 
       <!-- ========================================== -->
       <!-- Tabs -->
