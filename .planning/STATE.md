@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v5.3.3
 milestone_name: Post-v5.3.2 Live Test Fixes
 status: executing
-stopped_at: Phase 95 context gathered
-last_updated: "2026-05-18T21:37:22.802Z"
-last_activity: 2026-05-18 -- Phase 94 execution started
+stopped_at: Phase 95 plan 95-01 audit executed (Branch 3 verdict committed at 2d7cd171); plan 95-02 deferred to next session
+last_updated: "2026-05-18T22:30:00Z"
+last_activity: 2026-05-18 -- Phase 95 plan 95-01 audit + RED tests committed (2d7cd171)
 progress:
   total_phases: 5
   completed_phases: 2
-  total_plans: 3
-  completed_plans: 3
+  total_plans: 4
+  completed_plans: 4
   percent: 40
 ---
 
@@ -21,22 +21,22 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-05)
 
 **Core value:** Prospective and current members get instant, accurate answers about El Templo via WhatsApp — and leads are profiled through natural discovery so Mica makes ONE targeted recommendation per conversation, with prices, method, and objections handled per the team's playbook (not improvised).
-**Current focus:** Phase 94 — openai-latency-graceful-failure
+**Current focus:** Phase 95 — booking-reliability-graceful-degradation (Plan 95-01 audit DONE 2d7cd171; Plan 95-02 fix pending next session)
 
 ## Current Position
 
 Milestone: v5.3.3 Post-v5.3.2 Live Test Fixes
-Phase: 94 (openai-latency-graceful-failure) — EXECUTING
-Plan: 1 of 2
-Phase 94 (OpenAI Latency / LAT-01..03): 🟡 **Must-haves 4/4 VERIFIED; phase status `human_needed` — NOT yet `passed`.** Plan 94-01 shipped (`d3de86b1` GREEN, `fa65e5b3` RED, plan `c3bbfa2a`). Code review `7e43431d`. Verification disposition pass `89028419`:
+Phase: 95 (booking-reliability-graceful-degradation) — Plan 95-01 EXECUTED, awaiting 95-02 planning
+Plan: 1 of 3 (95-01 audit DONE; 95-02 fix + 95-03 escalation pending)
+
+**Phase 95 Plan 95-01 (BUG-03 audit):** SHIPPED 2026-05-18 — atomic commit `2d7cd171` `audit(95-01): branch verdict for BUG-03 + RED tests`. **Final Branch Verdict: Branch 3-{i, ii, iii, iv, v, vi}** — all six candidates fire as a maximal compound. **Candidate (vi) `bk.status` column mismatch at `tools.ts:282` was NEWLY DISCOVERED during RED-test authoring** and is the proximate SHOWSTOPPER — every `executeTool('check_schedule')` throws `Unknown column 'bk.status'` against the real `eltemplo_test` schema before reaching any other candidate's discriminator. Substantive gates green: sha256 6-pair invariant intact, tsc clean both packages, RED tests fail on master (integration 8/9, unit 1/4 with (iii) FIRES), no production source touched, exactly 3 files in commit. Two PLAN.md `<automated>` verify-block bugs documented in audit §G — see Engineering Learnings under Carry-forward planning constraints.
+
+**Phase 94 (OpenAI Latency / LAT-01..03):** 🟡 historical — Must-haves 4/4 VERIFIED; phase status `human_needed` — NOT yet `passed`. Plan 94-01 shipped (`d3de86b1` GREEN, `fa65e5b3` RED, plan `c3bbfa2a`). Plan 94-02 (CR-02 closure) shipped 2026-05-18 — RED `5ff993f0` → GREEN `c6c6bc0e` → SUMMARY `07c65571` → merge `64556d68`. Code review `7e43431d`. Verification disposition pass `89028419`:
 
 - **CR-01 (ACCEPTED, in-session auth 2026-05-18T02:39:20Z):** `instanceof OpenAI.APIError` discriminator no-ops on Anthropic. Accepted because production locks `AI_PROVIDER=openai`; Anthropic path dormant in v5.3.3. Known limitation.
 - **WR-01 (ACCEPTED, in-session auth 2026-05-18T02:39:20Z):** back-to-back interim + graceful-fallback messages. Accepted because common path delivers clean UX; worst-case is empirically rare. `interimSent` scope-lift is a future UX refinement.
-- **CR-02 (GAP — NOT accepted, closure pending as 94-02-PLAN.md):** SDK default `maxRetries=2` makes real worst-case `3 × 45s = 135s`, breaking the canonical invariant formula. Real worst-case `135 × 5 + 30 × 5 + 20 = 845s` exceeds 600s `DEBOUNCE_TTL_SECONDS`. Preferred resolution: set `maxRetries` on OpenAI client (0 or 1, decided at plan time) — SDK retries are redundant with handler-level interim/graceful retry path. Invariant discipline installed in Phase 93 must hold.
+- **CR-02 (CLOSED in 94-02):** SDK default `maxRetries=2` made real worst-case `3 × 45s = 135s`, breaking the canonical invariant formula. 94-02 set `maxRetries: 0` on OpenAI client constructor — real worst-case now `45 × 5 + 30 × 5 + 20 = 395s ≤ 600s DEBOUNCE_TTL_SECONDS`. Invariant intact, sha256 unchanged.
 - **Live BUG-02 smoke test (DEFERRED to v5.4.0):** Cannot be exercised in dev (ngrok + Meta test tokens insufficient). v5.4.0 milestone MUST include this as an acceptance gate before Phase 94 can be marked `passed`.
-
-Status: Executing Phase 94
-Last activity: 2026-05-18 -- Phase 94 execution started
 
 ## v5.3.3 Phase Structure (locked)
 
@@ -52,6 +52,7 @@ Coverage: **14/14 requirements mapped, 0 unmapped, 0 duplicates.**
 
 ## Carry-forward planning constraints (must surface in `/gsd:plan-phase`)
 
+- **Engineering Learning (v5.3.3, locked 2026-05-18) — DO NOT regenerate F-1/F-2 verify gates.** During Phase 95 Plan 95-01 plan-phase, two `<automated>` verify gates were added that turned out to be plan-author over-engineering: **(F-1)** `pnpm test ... | grep -qE "Tests +[1-9][0-9]* +failed"` for RED self-certification, and **(F-2)** `cd <pkg> && pnpm lint` for both packages. Both were security theater. F-1 fails on ANSI color codes in vitest stderr (would need `NO_COLOR=1` or `--reporter=basic`); F-2 is a no-op because neither `el-templo-bot/package.json` nor `el-templo-api/package.json` defines a `lint` script (CI runs `pnpm run lint` with `continue-on-error: true`; actual lint discipline is `husky + lint-staged` Prettier on commit). **Future plan-phase agents MUST NOT regenerate these gates.** Substantive verification surfaces that DO work and SHOULD be preserved: (a) sha256 6-pair drift sentry, (b) `pnpm tsc --noEmit` both packages (raw exit), (c) exact-file-count assertion (`git show --stat HEAD | grep -cE 'pattern' -eq N`), (d) commit subject regex (`git log -1 --format=%s | grep -qE '^prefix\(N-XX\): '`), (e) negative-assertion `git diff` guards for out-of-scope files, (f) console/any code-discipline grep on new files, (g) explicit `<human-check>` checklist that the reviewer verifies. Documented in `95-AUDIT.md §G` and audit-session transcript.
 - **Phase 95 SC#3 invariant (RLOK-03 guardrail):** No-escalation rule from v5.3.2 (Phase 91 OBJN-01/02) applies to **soft rejections ONLY**, NOT to tool failures. DEGR-01's `request_human` escalation triggers on tool failures only. Soft rejections continue to follow Phase 91's WHY/BACK-OFF Spanish framing in `system-prompt.ts`. Both rules wired without conflation. Asserted in Phase 97 RGUARD-02 explicitly.
 - **Phase 97 non-deterministic regression strategy (ELEV-01 + VOSEO-01):** Snapshot tests will NOT catch model variance. Plan must choose between (a) multi-run sampling with statistical threshold (e.g., N=20 runs, voseo in ≥18 — costs N× model spend per CI run) or (b) accept-list of valid forms (both "tenés" and "tienes" PASS, only fail on neither — cheaper, weaker signal). Decide once for both.
 - **Phase 97 closing constraint (per `MACRO-ROADMAP.md`):** Live test must validate the bot is **production-deploy-ready**, NOT CRM-integration-ready. Behavioral/handler correctness + stability — not persistence layer, not CRM hooks, not multi-tenancy. Those land in v5.4.0 or Kero phase 1.
@@ -77,6 +78,16 @@ Full decision log in PROJECT.md Key Decisions table.
 
 ### Pending Decisions (forward)
 
+- **Phase 95 Plan 95-02 (BUG-03 fix + `withTimeout` helper):** AUTHORED IN NEXT SESSION per user defer 2026-05-18. Branch 3 verdict from Plan 95-01 audit (`2d7cd171`) names the fix scope:
+  - **P0 — MUST land first:** (vi) `bk.status` → `bk.booking_status` SQL rename at `el-templo-bot/src/ai/tools.ts:282` (1 character; unblocks all other candidates' RED tests from SQL-erroring before reaching their assertions).
+  - **P0 — bundle with (vi):** (ii) cross-branch result mixing in `tools.ts:265-330` — add per-branch grouping headers `*{Branch Name}*` OR require `branchId` parameter.
+  - **P1:** (iv) LIMIT-6 truncation at `tools.ts:301-328` — add `COUNT(*)` subquery + "Hay N clases en total" + bump `LIMIT 6` → `LIMIT 20`.
+  - **P1:** (v) `booking_count` today-filter at `tools.ts:267, 281` — parameterize `booking_date` by schedule's next occurrence via `DATE_ADD(CURDATE(), INTERVAL (s.day_of_week - DAYOFWEEK(CURDATE()) + 7) % 7 DAY)`.
+  - **`withTimeout` helper (CONTEXT.md D-04/D-15/D-16):** introduce `el-templo-bot/src/ai/with-timeout.ts` + apply at `tools.ts:636` (`book_class` POST) and `tools.ts:806` (`register_trial` POST). Env var `EXECUTE_TOOL_TIMEOUT_MS=30000` per CONTEXT.md D-17. Default 30s. Phase 97 RGUARD-03 reuses SAME env var.
+  - **Drift-guard test (audit §E recommendation):** add unit assertion `expect(bookings.status.name).toBe("booking_status")` in `v5-3-3-booking-reliability.test.ts` or analogous schema-drift surface — catches future column-rename-without-raw-SQL-update bugs (the class of bug that (vi) was).
+  - **DEFERRED out of 95-02:** (iii) Sunday=0 prompt binding — touches `system-prompt.ts`, triggers `POST_RLOK_04_BYTES` regression at `v5-3-2-regression.test.ts:57`, requires Phase 96 snapshot regen of `pb1-e1a-lead-rendered.snap.txt`. Per `95-CONTEXT.md` `<domain>` "NOT in scope".
+  - **DEFERRED out of 95-02:** (i) LIKE-search ambiguity in `getLocation` — does NOT fire in current production data (only synthetic substring-overlap test seed triggers it). Low priority drive-by.
+  - Plan-phase 95-02 reference: `.planning/phases/95-booking-reliability-graceful-degradation/95-AUDIT.md` §C (Final Branch Verdict) + §E (Implementation Pointers, with concrete fix code snippets per candidate).
 - **Phase 94 sub-plan 94-02 (CR-02 gap closure):** SHIPPED 2026-05-18. RED `5ff993f0` → GREEN `c6c6bc0e` → SUMMARY `07c65571` → merge `64556d68`. Phase 94 unit suite 8/8, sha256 invariant unchanged. Remaining gate to mark phase `passed`: live BUG-02 smoke test (v5.4.0).
 - **v5.3.3 test-suite flake (94-01 SC#3 graceful fallback):** Pre-existing intermittent failure on `el-templo-bot/test/v5-3-3-openai-latency.test.ts:~515` (`"sends 'Dame un segundo' AND 'Tuve un problemita técnico'; handler returns cleanly"`). Introduced commit `fa65e5b3` (Plan 94-01 RED). ~50% flake rate on full bot suite (`pnpm test`) under parallel load; 0% in suite-isolated runs. Root cause hypothesis: `vi.advanceTimersByTimeAsync` + promise-resolution ordering. NOT introduced by 94-02 and not blocking Phase 94 closure. **MUST be resolved before v5.4.0** — CI must be deterministic for prod deploy. Candidate remediation: Phase 97 (RGUARD scope expansion), or carve out as 97.1 / v5.3.4 if timing allows. See `94-02-SUMMARY.md` "Known Issues / Follow-ups" for full diagnostic notes.
 - **Phase 94 live BUG-02 smoke test (v5.4.0 carry-forward):** Document as acceptance gate when scoping v5.4.0. Test = throttled-upstream WhatsApp send with observation of interim msg + graceful fallback + clean handler return. Phase 94 cannot be marked `passed` until both 94-02 ships AND v5.4.0 smoke test passes.
@@ -90,7 +101,7 @@ None. v5.3.2 shipped clean. v5.3.3 ROADMAP.md complete with full coverage; BUG-0
 
 ## Session Continuity
 
-Last session: 2026-05-18T21:37:22.792Z
-Stopped at: Phase 95 context gathered
-Resume file: .planning/phases/95-booking-reliability-graceful-degradation/95-CONTEXT.md
-Next step: User decides next session whether to plan 94-02 now or defer. If planning: `/gsd:plan-phase 94 --gaps` to create 94-02-PLAN.md with scope = set `maxRetries` on OpenAI client constructor to restore worst-case within 600s TTL invariant. Reference `94-VERIFICATION.md` gaps[0] for closure scope. If deferring: leave as-is; gap is recorded in VERIFICATION frontmatter and STATE.md Pending Decisions.
+Last session: 2026-05-18T22:30:00Z
+Stopped at: Phase 95 Plan 95-01 audit executed (commit `2d7cd171`); Branch 3 verdict committed with (vi) discovery; user deferred Plan 95-02 to next session.
+Resume file: `.planning/phases/95-booking-reliability-graceful-degradation/95-AUDIT.md` (§C Final Branch Verdict + §E Implementation Pointers)
+Next step: `/gsd-plan-phase 95` to author `95-02-PLAN.md` per Branch 3 fix scope (P0 (vi)+(ii), P1 (iv)+(v), `withTimeout` helper at `tools.ts:636/:806`, drift-guard test for `booking_status` column). Defer (i) and (iii) per audit §C rationale. **DO NOT regenerate F-1 RED self-cert regex or F-2 `pnpm lint` gate** — both deprecated per Carry-forward planning constraints (Engineering Learning 2026-05-18). Substantive gates only: sha256 sentry, tsc, file-count, commit subject, diff guards, console/any grep, `<human-check>` checklist.
