@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v5.3.3
 milestone_name: Post-v5.3.2 Live Test Fixes
 status: executing
-stopped_at: Phase 95 plan 95-01 audit executed (Branch 3 verdict committed at 2d7cd171); plan 95-02 deferred to next session
-last_updated: "2026-05-18T22:30:00Z"
-last_activity: 2026-05-18 -- Phase 95 plan 95-01 audit + RED tests committed (2d7cd171)
+stopped_at: Phase 95 Plan 95-02 AUTHORED + plan-checker PASSED (revision round 2 — :706 second site added via plan-checker discovery + user-authorized scope expansion 2026-05-18). Awaiting user visual review then /gsd-execute-phase 95 --plan 02.
+last_updated: "2026-05-19T03:55:15.145Z"
+last_activity: 2026-05-19 -- Phase 95 Plan 95-02 authored (TDD-make-green, 4 atomic commits, :282+:706 two-site (vi) coverage). Plan-checker round 2 PASSED with zero blockers / zero new warnings.
 progress:
   total_phases: 5
   completed_phases: 2
-  total_plans: 4
-  completed_plans: 4
+  total_plans: 5
+  completed_plans: 3
   percent: 40
 ---
 
@@ -101,7 +101,7 @@ None. v5.3.2 shipped clean. v5.3.3 ROADMAP.md complete with full coverage; BUG-0
 
 ## Session Continuity
 
-Last session: 2026-05-18T22:30:00Z
-Stopped at: Phase 95 Plan 95-01 audit executed (commit `2d7cd171`); Branch 3 verdict committed with (vi) discovery; user deferred Plan 95-02 to next session.
-Resume file: `.planning/phases/95-booking-reliability-graceful-degradation/95-AUDIT.md` (§C Final Branch Verdict + §E Implementation Pointers)
-Next step: `/gsd-plan-phase 95` to author `95-02-PLAN.md` per Branch 3 fix scope (P0 (vi)+(ii), P1 (iv)+(v), `withTimeout` helper at `tools.ts:636/:806`, drift-guard test for `booking_status` column). Defer (i) and (iii) per audit §C rationale. **DO NOT regenerate F-1 RED self-cert regex or F-2 `pnpm lint` gate** — both deprecated per Carry-forward planning constraints (Engineering Learning 2026-05-18). Substantive gates only: sha256 sentry, tsc, file-count, commit subject, diff guards, console/any grep, `<human-check>` checklist.
+Last session: 2026-05-19T03:55:15Z
+Stopped at: Phase 95 Plan 95-02 AUTHORED + plan-checker PASSED. Plan covers BUG-03 fix scope per audit verdict (candidates ii/iv/v/vi as P0/P1) + `withTimeout` helper + Drizzle drift-guard test. Revision round 2 added `tools.ts:706` second `bk.status` site (plan-checker discovery in `queryAlternativeSchedules`, user-authorized scope expansion 2026-05-18). Awaiting user visual review.
+Resume file: `.planning/phases/95-booking-reliability-graceful-degradation/95-02-PLAN.md` (4 atomic-commit chain: rename `bk.status` → fix `checkSchedule` → `withTimeout` helper → drift-guard test)
+Next step: User reviews `95-02-PLAN.md`. After approval, `/gsd-execute-phase 95 --plan 02` to run the 4-commit chain (do NOT auto-advance). After 95-02 GREEN-ships, follow up with: (a) `docs(95-02-amendment): note :706 second-site coverage` updating `95-AUDIT.md` §C/§E (deferred-post-execution per user directive to keep audit verdict record clean), (b) `/gsd-plan-phase 95` to author Plan 95-03 (BUG-05 retry counter + `request_human` escalation for DEGR-01/02 coverage — gated on 95-02 ship).
