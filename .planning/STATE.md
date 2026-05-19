@@ -3,13 +3,12 @@ gsd_state_version: 1.0
 milestone: v5.3.3
 milestone_name: Post-v5.3.2 Live Test Fixes
 status: executing
-stopped_at: Phase 95 Plan 95-02 AUTHORED + plan-checker PASSED (revision round 2 — :706 second site added via plan-checker discovery + user-authorized scope expansion 2026-05-18). Awaiting user visual review then /gsd-execute-phase 95 --plan 02.
-last_updated: "2026-05-19T03:55:15.145Z"
-last_activity: 2026-05-19 -- Phase 95 Plan 95-02 authored (TDD-make-green, 4 atomic commits, :282+:706 two-site (vi) coverage). Plan-checker round 2 PASSED with zero blockers / zero new warnings.
+stopped_at: "Phase 95 Plan 95-03 AUTHORED + plan-checker PASSED (1 BLOCKER fixed: stray `</content>`/`</invoke>` template-leakage tags deleted; 2 non-blocking WARNINGs surfaced — stale `tools.ts` line numbers post-95-02 + table pipe nit). Plan covers DEGR-01 + DEGR-02 per CONTEXT.md D-05..D-18 + D-09: local `failedToolCalls` counter in `processWithAiInner`, 4-string allowlist + `ToolTimeoutError` throw path, threshold `>= 2`, `HANDOFF_ESCALATION_PHRASE` constant + synthetic `executeTool('request_human')` + reused `humanTakeoverTriggered = true` exit, Pino `'DEGR-01 escalation triggered'` log, SC#3 guardrail negative tests pre-empting Phase 97 RGUARD-02. 2 atomic commits planned (RED + GREEN). autonomous: false — awaiting user visual review before /gsd-execute-phase 95 --plan 03."
+last_updated: "2026-05-19T20:36:33.652Z"
 progress:
   total_phases: 5
   completed_phases: 2
-  total_plans: 5
+  total_plans: 6
   completed_plans: 3
   percent: 40
 ---
@@ -21,7 +20,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-05)
 
 **Core value:** Prospective and current members get instant, accurate answers about El Templo via WhatsApp — and leads are profiled through natural discovery so Mica makes ONE targeted recommendation per conversation, with prices, method, and objections handled per the team's playbook (not improvised).
-**Current focus:** Phase 95 — booking-reliability-graceful-degradation (Plan 95-01 audit DONE 2d7cd171; Plan 95-02 fix pending next session)
+**Current focus:** Phase 95 — booking-reliability-graceful-degradation (Plan 95-01 audit DONE 2d7cd171; Plan 95-02 BUG-03 fix SHIPPED d90fc782 → 4cf60946; Plan 95-03 DEGR-01/02 escalation AUTHORED — awaiting visual review then /gsd-execute-phase 95 --plan 03)
 
 ## Current Position
 
