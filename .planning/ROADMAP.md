@@ -135,7 +135,11 @@ The 45s `OPENAI_TIMEOUT_MS` is the LEFT-HAND VARIABLE that the right-hand TTL mu
 4. **`withTimeout` helper exists** at a shared location (e.g., `el-templo-bot/src/ai/with-timeout.ts` or similar) and is used by booking-tool localhost calls at `el-templo-bot/src/ai/tools.ts:636` and `:806`. Default 30s, env-overridable. Phase 97 RGUARD-03 extends this helper to other `executeTool` sites — Phase 95 ships the helper, NOT its consumption by other tools.
 5. A regression test simulates (a) a successful cross-venue class search, (b) repeated tool-failure mode → assert escalation fires after 2 attempts, (c) a soft-rejection turn → assert NO `request_human` call, only WHY/BACK-OFF framing per Phase 91, (d) booking tool timeout → assert the booking call bails within the timeout boundary.
 
-**Plans:** TBD (likely 3 plans — audit, BUG-03 fix + helper, BUG-05 fix; ship together, reviewed together)
+**Plans:** 3 plans (locked per `95-CONTEXT.md` D-04)
+
+- [ ] 95-01-PLAN.md — Audit-first close of BUG-03: per-candidate verdicts (i LIKE-search, ii cross-branch mix, iii Sunday=0/7, iv LIMIT-6, v booking_count today-filter) → Final Branch Verdict (Branch 1/2/3) + RED tests committed atomically. Investigative; no production source modified.
+- [ ] 95-02-PLAN.md — TBD (BUG-03 fix at audit-named site + `withTimeout` helper introduction + apply to `tools.ts:636`/`:806`). **Gated on 95-AUDIT.md branch verdict** — planning begins after user reviews and approves 95-01's audit output.
+- [ ] 95-03-PLAN.md — TBD (BUG-05 retry counter + escalation via handler-side synthetic phrase + `request_human`). **Gated on 95-02 ship** — 95-02's `withTimeout` helper is the dependency.
 
 **Notes:**
 
