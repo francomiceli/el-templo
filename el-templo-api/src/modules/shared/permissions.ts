@@ -37,6 +37,17 @@ export const TRAINING_ROLES = ["coach", "owner"] as const;
 /** Roles that can access caja and reportes (gestion, admin, owner). */
 export const CAJA_ROLES = ["gestion", "admin", "owner"] as const;
 
+/** Roles that can view the simplified Deudas tab for coaches. Coach included
+ *  on top of CAJA_ROLES so professors can look up how much to collect from a
+ *  member at the door without exposing the full financial detail surface
+ *  (see FINANCE_READ_ROLES, which excludes coach for privacy). */
+export const COACH_DEBTS_ROLES = [
+  "coach",
+  "gestion",
+  "admin",
+  "owner",
+] as const;
+
 /** Roles that can access attendance features (coach, admin, owner, gestion, recepcion). */
 export const ATTENDANCE_ROLES = [
   "coach",

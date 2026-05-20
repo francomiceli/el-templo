@@ -33,6 +33,7 @@ import {
 } from "./modules/scheduling";
 import { analyticsRoutes } from "./modules/analytics";
 import { reportsRoutes } from "./modules/reports";
+import { coachRoutes } from "./modules/coach";
 import { financeRoutes } from "./modules/finance";
 import { settingsRoutes } from "./modules/settings";
 import { userRoutes } from "./modules/users";
@@ -178,6 +179,11 @@ export async function buildApp() {
   // Reports routes (access log, charges, expiring, inactive + Excel exports)
   await app.register(reportsRoutes, {
     prefix: "/api/admin/reports",
+  });
+
+  // Coach routes (simplified Deudas tab for professors at the door)
+  await app.register(coachRoutes, {
+    prefix: "/api/admin/coach",
   });
 
   // Finance routes (transactions create/void/list, financial history) — Phase 106

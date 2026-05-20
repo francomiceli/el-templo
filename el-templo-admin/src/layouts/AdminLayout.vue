@@ -53,6 +53,12 @@
           </q-item-section>
           <q-item-section>Horarios</q-item-section>
         </q-item>
+        <q-item v-if="isCoachDebtsRole" clickable v-ripple to="/deudas">
+          <q-item-section avatar>
+            <q-icon name="request_quote" />
+          </q-item-section>
+          <q-item-section>Deudas</q-item-section>
+        </q-item>
         <q-item v-if="isCajaRole" clickable v-ripple to="/planes">
           <q-item-section avatar>
             <q-icon name="card_membership" />
@@ -195,6 +201,12 @@ const isAdminRole = computed(() => ['admin', 'owner'].includes(userRole.value));
 
 // gestion, admin, owner can see caja and reportes
 const isCajaRole = computed(() => ['gestion', 'admin', 'owner'].includes(userRole.value));
+
+// coach + caja roles can see the simplified Deudas tab (server-side guard
+// uses COACH_DEBTS_ROLES; keep this in sync)
+const isCoachDebtsRole = computed(() =>
+  ['coach', 'gestion', 'admin', 'owner'].includes(userRole.value)
+);
 
 // owner only for content pages, franquicias, usuarios
 const isOwnerRole = computed(() => userRole.value === 'owner');
