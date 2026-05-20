@@ -170,8 +170,10 @@
             </div>
           </div>
 
-          <!-- Programa Vinculado (online only) -->
-          <div v-if="form.planCategory !== 'presencial'" class="q-mt-lg">
+          <!-- Programa Vinculado -->
+          <!-- Para presencial es opcional (default Foundation — Cuerpo Completo, -->
+          <!-- editable). Para planes online es obligatorio (o usar el bundle). -->
+          <div class="q-mt-lg">
             <div class="text-subtitle2 text-weight-bold q-mb-sm">Programa Vinculado</div>
             <q-select
               v-model="form.linkedProgramId"
@@ -181,9 +183,13 @@
               outlined
               emit-value
               map-options
+              clearable
               :rules="[
                 (val) =>
-                  form.grantsAllPrograms || !!val || 'Programa es requerido para planes online',
+                  form.planCategory === 'presencial' ||
+                  form.grantsAllPrograms ||
+                  !!val ||
+                  'Programa es requerido para planes online',
               ]"
               :loading="loadingPrograms"
               :disable="form.grantsAllPrograms"
@@ -375,6 +381,10 @@ async function loadPrograms() {
   loadingPrograms.value = true;
   try {
     programs.value = await programsApi.getPrograms();
+    // Programs cargados — aplicar default Foundation si corresponde
+    // (create-mode presencial sin selección previa, o edit-mode de un plan
+    // presencial legacy con linked_program_id NULL).
+    prefillFoundationProgram();
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido';
     log.error('Error loading programs', { error: message });
@@ -391,10 +401,11 @@ watch(
   () => form.value.planCategory,
   (newCategory) => {
     if (newCategory === 'presencial') {
-      // Switching to presencial: clear online-specific fields
-      form.value.linkedProgramId = null;
-      // Bundle is online-only by SPEC; force off when switching to presencial.
-      form.value.grantsAllPrograms = false;
+      // Switching to presencial: por convención todos los planes presenciales
+      // dan acceso a Foundation — Cuerpo Completo (migración 0072). Si el
+      // admin no eligió otro programa, prefijar ese default. No tocamos
+      // grantsAllPrograms ni un linkedProgramId que el admin ya haya elegido.
+      prefillFoundationProgram();
     } else {
       // Switching to online: set defaults, clear presencial-specific fields
       form.value.planTier = 'other';
@@ -403,6 +414,23 @@ watch(
     }
   }
 );
+
+const FOUNDATION_PROGRAM_NAME = 'Foundation — Cuerpo Completo';
+
+function prefillFoundationProgram() {
+  if (
+    form.value.planCategory !== 'presencial' ||
+    form.value.grantsAllPrograms ||
+    form.value.linkedProgramId !== null ||
+    programs.value.length === 0
+  ) {
+    return;
+  }
+  const foundation = programs.value.find((p) => p.isActive && p.name === FOUNDATION_PROGRAM_NAME);
+  if (foundation) {
+    form.value.linkedProgramId = foundation.id;
+  }
+}
 
 // Bundle plans don't bind to a single program — clear the linked id when
 // the toggle flips ON so we never POST both fields populated.
@@ -501,10 +529,9 @@ async function onSubmit() {
         form.value.planCategory === 'presencial'
           ? (form.value.classesPerWeek ?? undefined)
           : undefined,
-      linkedProgramId:
-        form.value.planCategory !== 'presencial' && !form.value.grantsAllPrograms
-          ? (form.value.linkedProgramId ?? undefined)
-          : undefined,
+      linkedProgramId: form.value.grantsAllPrograms
+        ? undefined
+        : (form.value.linkedProgramId ?? undefined),
       grantsAllPrograms:
         form.value.planCategory !== 'presencial' ? form.value.grantsAllPrograms : false,
       multiBranch: form.value.multiBranch,
