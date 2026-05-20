@@ -91,6 +91,63 @@ export function shouldInjectReturningNote(
 const MAX_TOOL_ITERATIONS = 5;
 const MAX_MESSAGE_LENGTH = 800;
 
+/**
+ * Phase 95 Plan 95-03 — DEGR-01 retry-counter escalation safety net.
+ *
+ * When `processWithAiInner`'s tool-loop accumulates 2 failing tool calls
+ * (per the FAILURE_ALLOWLIST classifier below), the handler synthesizes:
+ *   1. Pino `log.warn(..., 'DEGR-01 escalation triggered')`  per D-09.
+ *   2. `sendTextMessage(phone, HANDOFF_ESCALATION_PHRASE)`   per D-05.
+ *   3. `executeTool('request_human', { reason: 'auto_escalation_after_2_failures' }, ...)`
+ *      per D-07 — synthetic invocation NOT triggered by the model.
+ *   4. `humanTakeoverTriggered = true` + early `return` — preempts the
+ *      post-loop `splitMessage(replyText) -> segments[0]` emission so the
+ *      user sees EXACTLY ONE outbound message for that turn per D-08.
+ *
+ * The locked phrase is byte-exact per CONTEXT.md D-06 (handler-facing, NOT
+ * model-facing — deliberately NOT in `system-prompt.ts` so Phase 96 owns
+ * the `pb1-e1a-lead-rendered.snap.txt` regen on its own schedule).
+ */
+const HANDOFF_ESCALATION_PHRASE =
+  "Te paso con alguien del equipo, te escriben enseguida 🙌";
+
+/**
+ * Static byte-exact return strings that count as a tool-call failure per
+ * CONTEXT.md D-11. The dynamic 4th entry — the executeTool default-case
+ * `Herramienta "${name}" no disponible.` at tools.ts:264 — is NOT placed
+ * in this Set because the tool name is interpolated; it is classified by
+ * the `startsWith`/`endsWith` discriminator inside `isFailureToolResult`.
+ *
+ * Entries are source-of-truth for the counter — adding a future allowlist
+ * fail-string requires a one-line edit here AND a paired SC-C sub-test in
+ * `el-templo-bot/test/v5-3-3-degr-01-escalation.test.ts`. Degraded-UX
+ * strings (e.g., "Esa clase esta llena…" at tools.ts:803) are EXPLICITLY
+ * out per D-11 boundary (degraded ≠ failed); SC-F empirically pins this.
+ */
+const FAILURE_ALLOWLIST: ReadonlySet<string> = new Set([
+  // tools.ts:806 — bookClass catch-all fail return.
+  "No pude completar la reserva. Intenta de nuevo en un momento.",
+  // tools.ts:968 — registerTrial catch-all fail return.
+  "No pude completar el registro. Intenta de nuevo en un momento.",
+  // tools.ts:271 — executeTool ToolTimeoutError catch return (95-02 e213ee80).
+  "Herramienta agotada por tiempo de espera.",
+]);
+
+/**
+ * Single classifier for the (b) return-string branch of the DEGR-01 retry
+ * counter. Returns true if the tool result is either a byte-exact match in
+ * the static `FAILURE_ALLOWLIST` set OR a member of the dynamic
+ * `Herramienta "${name}" no disponible.` family (tools.ts:264 default
+ * case). The throw branch is handled separately inside the handler-side
+ * try/catch wrapping `executeTool` in the tool loop.
+ */
+function isFailureToolResult(result: string): boolean {
+  return (
+    FAILURE_ALLOWLIST.has(result) ||
+    (result.startsWith('Herramienta "') && result.endsWith('" no disponible.'))
+  );
+}
+
 /** quick-16 fix 2: debounce delay to absorb consecutive messages. */
 const DEBOUNCE_DELAY_MS = 3000;
 /**
@@ -657,6 +714,18 @@ async function processWithAiInner(
   }
   let iterations = 0;
   let humanTakeoverTriggered = false;
+  // Phase 95 Plan 95-03 — DEGR-01 retry counter (per CONTEXT.md D-10).
+  // Local-scoped to processWithAiInner: each new inbound creates a fresh
+  // closure; no Redis state, no cross-inbound persistence, no module-level
+  // declaration. failedToolCalls increments on EVERY failing tool call in
+  // the loop (D-12: successful tool calls do NOT reset). When the counter
+  // reaches 2 the threshold-check block synthesizes the escalation flow
+  // (HANDOFF_ESCALATION_PHRASE + request_human + early return) per D-13.
+  // lastToolName / lastToolError capture the most recent failure for the
+  // D-09 Pino observability shape.
+  let failedToolCalls = 0;
+  let lastToolName = "";
+  let lastToolError = "";
   let lastToolResult = "";
 
   while (response.toolCalls.length > 0 && iterations < MAX_TOOL_ITERATIONS) {
@@ -679,15 +748,42 @@ async function processWithAiInner(
         "Executing tool call",
       );
 
-      const toolResult = await executeTool(
-        toolCall.name,
-        toolCall.arguments,
-        db,
-        conversationId,
-        { phone, clientState },
-      );
+      // Phase 95 Plan 95-03 — DEGR-01 (a) THROW branch increment.
+      // Wrap executeTool() so an uncaught throw still increments the
+      // failure counter before re-throwing. The 95-02-shipped catch
+      // inside executeTool already converts ToolTimeoutError to the
+      // allowlist return string (see tools.ts:266-273), so this branch
+      // fires only for OTHER error types (per CONTEXT.md D-11(a)). The
+      // re-throw preserves the existing error-propagation semantics —
+      // the outer processWithAi → handleInboundMessage try/catch
+      // (handler.ts:345-369) still surfaces the LAT-03 graceful fallback.
+      let toolResult: string;
+      try {
+        toolResult = await executeTool(
+          toolCall.name,
+          toolCall.arguments,
+          db,
+          conversationId,
+          { phone, clientState },
+        );
+      } catch (err: unknown) {
+        failedToolCalls++;
+        lastToolName = toolCall.name;
+        lastToolError = err instanceof Error ? err.message : String(err);
+        throw err;
+      }
 
       lastToolResult = toolResult;
+
+      // Phase 95 Plan 95-03 — DEGR-01 (b) RETURN-STRING branch increment.
+      // Classify the tool result via FAILURE_ALLOWLIST + dynamic
+      // `Herramienta "X" no disponible.` discriminator (per CONTEXT.md
+      // D-11). Successful tool results do NOT reset the counter — D-12.
+      if (isFailureToolResult(toolResult)) {
+        failedToolCalls++;
+        lastToolName = toolCall.name;
+        lastToolError = toolResult;
+      }
 
       if (toolCall.name === "request_human") {
         humanTakeoverTriggered = true;
@@ -699,6 +795,37 @@ async function processWithAiInner(
         toolCallId: toolCall.id,
         name: toolCall.name,
       });
+
+      // Phase 95 Plan 95-03 — DEGR-01 (c) THRESHOLD CHECK.
+      // When the per-handler-invocation counter reaches 2 (per CONTEXT.md
+      // D-13 — no fuzzy thresholds, no hysteresis), synthesize the
+      // handoff flow and exit processWithAiInner via early return so the
+      // user sees EXACTLY ONE outbound message for this turn (D-08).
+      // The existing model-emitted-`request_human` path at line 761-763 +
+      // 996-1018 is preserved unchanged for the case where the model
+      // itself emits request_human in a non-failure scenario.
+      if (failedToolCalls >= 2) {
+        log.warn(
+          {
+            phone,
+            conversationId,
+            failureCount: failedToolCalls,
+            lastToolName,
+            lastToolError,
+          },
+          "DEGR-01 escalation triggered",
+        );
+        await sendTextMessage(phone, HANDOFF_ESCALATION_PHRASE);
+        await executeTool(
+          "request_human",
+          { reason: "auto_escalation_after_2_failures" },
+          db,
+          conversationId,
+          { phone, clientState },
+        );
+        humanTakeoverTriggered = true;
+        return;
+      }
     }
 
     // If buttons were sent by the tool, don't call AI again -- the interactive message IS the reply
