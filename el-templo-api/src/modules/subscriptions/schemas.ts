@@ -178,6 +178,7 @@ export const createPlanSchema = {
       linkedProgramId: { type: "integer" },
       groupMaxMembers: { type: "integer", minimum: 1 },
       grantsAllPrograms: { type: "boolean" },
+      country: { type: "string", enum: ["AR", "ES"] },
     },
   },
   response: {

@@ -113,6 +113,7 @@ export interface CreatePlanInput {
   linkedProgramId?: number;
   groupMaxMembers?: number;
   grantsAllPrograms?: boolean;
+  country?: "AR" | "ES";
 }
 
 export interface UpdatePlanInput {

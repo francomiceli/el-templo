@@ -418,6 +418,9 @@ export class SubscriptionService {
       grantsAllPrograms,
     });
 
+    const country = input.country ?? "AR";
+    const currency = country === "ES" ? "EUR" : "ARS";
+
     const result = await this.db.insert(schema.subscriptionPlans).values({
       name: input.name,
       description: input.description ?? null,
@@ -435,6 +438,8 @@ export class SubscriptionService {
       linkedProgramId,
       groupMaxMembers: input.groupMaxMembers ?? null,
       grantsAllPrograms,
+      country,
+      currency,
     });
 
     const planId = Number(result[0].insertId);

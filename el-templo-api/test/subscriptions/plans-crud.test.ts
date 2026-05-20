@@ -56,6 +56,30 @@ describe("Subscriptions API — Plans CRUD", () => {
     expect(body.priceZero).toBe(basePlan.priceZero);
   });
 
+  it("POST /plans persists country=ES with currency=EUR; defaults to AR/ARS", async () => {
+    const esRes = await app.inject({
+      method: "POST",
+      url: `${SUBSCRIPTIONS_URL}/plans`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: { ...basePlan, name: "ES Plan", country: "ES" },
+    });
+    expect(esRes.statusCode).toBe(201);
+    const esPlan = JSON.parse(esRes.body);
+    expect(esPlan.country).toBe("ES");
+    expect(esPlan.currency).toBe("EUR");
+
+    const arRes = await app.inject({
+      method: "POST",
+      url: `${SUBSCRIPTIONS_URL}/plans`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: { ...basePlan, name: "AR Plan (default country)" },
+    });
+    expect(arRes.statusCode).toBe(201);
+    const arPlan = JSON.parse(arRes.body);
+    expect(arPlan.country).toBe("AR");
+    expect(arPlan.currency).toBe("ARS");
+  });
+
   it("POST /plans validates required fields", async () => {
     const res = await app.inject({
       method: "POST",

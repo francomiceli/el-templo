@@ -68,9 +68,9 @@ describe("Country scope — RBAC matrix, cross-country guards, forward-compat (P
     esBranchId = esBranchInsert[0].id;
     arBranchId = 1;
 
-    // Seed plans directly via DB — the POST /plans endpoint does not accept
-    // country in its body (Phase 98 intentionally keeps plan creation scoped
-    // by server-derived country elsewhere).
+    // Seed plans directly via DB to keep this test focused on country scope.
+    // POST /plans now accepts country in the body (server derives currency
+    // from country: AR→ARS, ES→EUR).
     const arPlanInsert = await app.db
       .insert(schema.subscriptionPlans)
       .values({
