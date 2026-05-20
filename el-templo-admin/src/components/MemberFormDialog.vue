@@ -300,7 +300,7 @@
                   type="email"
                   dense
                   outlined
-                  :disable="true"
+                  :disable="member?.status !== 'prueba'"
                   :rules="[requiredRule('Email'), emailRule]"
                 />
               </div>
