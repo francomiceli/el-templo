@@ -2639,3 +2639,31 @@ _v4.85 added: 2026-05-04 — 1 phase (112), 24 requirements (ENROLL, ADDON-SCHEM
 **Disparador:** Evento de marketing presencial el domingo 24/05/2026 — el QR físico promociona la app y el desafío engancha leads que después conviertan a miembros presenciales o Templo Online.
 
 **Status:** Planning
+
+**Plans:** 10 plans
+
+Plans:
+**Wave 1**
+
+- [ ] 115-01-PLAN.md — Backend: schema migration 0124 (3 columnas users) + GET /me extension
+- [ ] 115-02-PLAN.md — Frontend scaffolding: módulo bar-challenge, router routes, store skeleton, window composable, UserProfile extension
+- [ ] 115-03-PLAN.md — useImageComposer composable + marco-placeholder.png 1080x1920
+
+**Wave 2** _(blocked on Wave 1 completion)_
+
+- [ ] 115-04-PLAN.md — Backend: POST /api/bar-challenge/result + service + 6 integration tests (200×2, 409, 401, 400×2)
+- [ ] 115-05-PLAN.md — Store full implementation (timer math, 3-retry submit, sessionStorage queue) + BarChallengeCard.vue (premium-dark, 3 estados)
+
+**Wave 3** _(blocked on Wave 2 completion)_
+
+- [ ] 115-06-PLAN.md — Pages Explicacion + Timer (fullscreen dark, KeepAwake, cámara) + Resultado (compose + share + fallback + retry banner)
+
+**Wave 4** _(blocked on Wave 3 completion)_
+
+- [ ] 115-07-PLAN.md — MiTemplo.vue integration: showPremiumCarousel computed + BarChallengeCard como primer slide condicional
+- [ ] 115-08-PLAN.md — [BLOCKING] Aprobación + install @capacitor/camera + @capacitor/share + cap sync + Info.plist + version bump 1.4.3→1.5.0
+
+**Wave 5** _(blocked on Wave 4 completion)_
+
+- [ ] 115-09-PLAN.md — [autonomous:false] Android AAB build + Play Console internal testing + smoke + promote to production
+- [ ] 115-10-PLAN.md — [autonomous:false] iOS Archive + TestFlight + smoke + Submit for App Review + contingency Plan B
