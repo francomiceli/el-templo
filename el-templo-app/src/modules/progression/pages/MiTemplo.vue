@@ -32,20 +32,37 @@
         @program-changed="onProgramChanged"
       />
 
-      <!-- Upsell: virtual users get carousel, presencial with linked program get CTA -->
-      <template v-else-if="showUpsellBadge">
+      <!-- Upsell: virtual users get carousel, presencial with linked program get CTA.
+           During the Bar Challenge event window (Phase 115, D-05), the carousel is
+           forced visible to ALL authenticated users and BarChallengeCard is inserted
+           as the first slide. Outside the window, behavior is unchanged. -->
+      <template v-else-if="showPremiumCarousel">
         <div class="premium-carousel">
           <div class="premium-carousel__dots">
             <span
+              v-if="barChallengeWindow.isActive"
               class="premium-carousel__dot"
               :class="{ 'premium-carousel__dot--active': premiumSlide === 0 }"
             />
             <span
               class="premium-carousel__dot"
-              :class="{ 'premium-carousel__dot--active': premiumSlide === 1 }"
+              :class="{
+                'premium-carousel__dot--active':
+                  premiumSlide === (barChallengeWindow.isActive ? 1 : 0),
+              }"
+            />
+            <span
+              class="premium-carousel__dot"
+              :class="{
+                'premium-carousel__dot--active':
+                  premiumSlide === (barChallengeWindow.isActive ? 2 : 1),
+              }"
             />
           </div>
           <div ref="premiumScroller" class="premium-carousel__scroller" @scroll="onPremiumScroll">
+            <div v-if="barChallengeWindow.isActive" class="premium-carousel__slide">
+              <BarChallengeCard />
+            </div>
             <div class="premium-carousel__slide">
               <UpsellBadge />
             </div>
@@ -155,6 +172,8 @@ import { useProgramsApi } from 'src/modules/programs/composables/useProgramsApi'
 import type { MemberEnrollmentProgress } from 'src/modules/programs/types'
 import PermissionBanner from '../components/PermissionBanner.vue'
 import UpsellBadge from '../components/UpsellBadge.vue'
+import BarChallengeCard from 'src/modules/bar-challenge/components/BarChallengeCard.vue'
+import { useBarChallengeWindow } from 'src/modules/bar-challenge/composables/useBarChallengeWindow'
 import { useNotificationStore } from 'src/stores/useNotificationStore'
 import { useRouter } from 'vue-router'
 import { createLogger } from 'src/utils/logger'
@@ -218,6 +237,15 @@ const showRestDay = computed(() => {
 const showUpsellBadge = computed(() => {
   return userStore.profile?.branchIsVirtual ?? false
 })
+
+// Phase 115 (D-05): durante la ventana del evento, el carrusel premium se
+// muestra a TODOS los usuarios autenticados (override del gate `showUpsellBadge`)
+// y `BarChallengeCard` se inserta como primer slide. Fuera de ventana,
+// comportamiento idéntico al actual.
+const barChallengeWindow = useBarChallengeWindow()
+const showPremiumCarousel = computed(
+  () => showUpsellBadge.value || barChallengeWindow.isActive.value,
+)
 
 const todayCompleted = computed(() => {
   return progressionStore.todaySession?.completed ?? false
