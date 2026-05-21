@@ -93,11 +93,11 @@
  *  - sin foto cacheada → CTA "Sacar foto ahora" (fallback, abre cámara)
  *  - sin attempt previo Y sin store.attemptResult → empty state
  *
- * Plugins Capacitor (NOT installed yet — Plan 08):
+ * Plugins Capacitor (instalados en Plan 08):
  *  - `@capacitor/camera` y `@capacitor/share` se importan vía dynamic
- *    `await import(...)` con `@ts-expect-error`. Si el plugin no resuelve en
- *    runtime, los catch's nos dejan caer al fallback `<a download>` con
- *    notify según UI-SPEC.
+ *    `await import(...)`. Si el plugin no resuelve en runtime (build web
+ *    sin nativo, o permiso denegado), los catch's nos dejan caer al
+ *    fallback `<a download>` con notify según UI-SPEC.
  */
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
@@ -196,7 +196,6 @@ async function handleShare(): Promise<void> {
     const blob = await composeWithFrame(displayPhoto.value, FRAME_PATH)
     const dataUrl = await blobToDataUrl(blob)
     try {
-      // @ts-expect-error - installed in Plan 08 (D-Capacitor approval gate)
       const shareMod: typeof import('@capacitor/share') = await import('@capacitor/share')
       const { Share } = shareMod
       await Share.share({
@@ -226,7 +225,6 @@ async function handleShare(): Promise<void> {
 
 async function handleTakePhotoAndShare(): Promise<void> {
   try {
-    // @ts-expect-error - installed in Plan 08 (D-Capacitor approval gate)
     const cam: typeof import('@capacitor/camera') = await import('@capacitor/camera')
     const { Camera, CameraResultType, CameraSource } = cam
     const photo = await Camera.getPhoto({

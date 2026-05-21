@@ -58,9 +58,8 @@
  *   409 atómico del backend.
  * - KeepAwake activado en mount, liberado en unmount (plugin ya instalado).
  * - Capture de foto via dynamic `import('@capacitor/camera')` con
- *   try/catch — el plugin se instala en Plan 08, el dynamic import + el
- *   `@ts-expect-error` permiten que este archivo type-check ahora y resuelva
- *   en runtime después del install.
+ *   try/catch — el plugin se instaló en Plan 08; el dynamic import deja la
+ *   resolución para runtime y degrada graceful si permiso denegado.
  */
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
@@ -125,7 +124,6 @@ onUnmounted(() => {
 async function onTakePhoto(): Promise<void> {
   cameraError.value = null
   try {
-    // @ts-expect-error - installed in Plan 08 (D-Capacitor approval gate)
     const cam: typeof import('@capacitor/camera') = await import('@capacitor/camera')
     const { Camera, CameraResultType, CameraSource } = cam
     const photo = await Camera.getPhoto({
