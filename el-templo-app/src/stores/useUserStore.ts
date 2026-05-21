@@ -40,6 +40,12 @@ export interface UserProfile {
   onboardingCompleted: boolean
   gender: 'male' | 'female' | 'other' | 'unspecified' | null
   dateOfBirth: string | null
+  // Phase 115 (Desafío de la Barra): set por GET /me cuando el usuario ya hizo
+  // su intento. `null` significa "todavía no intentó" (también el caso para
+  // todos los usuarios pre-evento). Plan 04 popula estos fields en el endpoint.
+  barChallengeCompleted: boolean | null
+  barChallengeSeconds: number | null
+  barChallengeAttemptedAt: string | null
 }
 
 export interface MemberSubscription {
