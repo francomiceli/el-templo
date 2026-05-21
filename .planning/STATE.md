@@ -4,8 +4,8 @@ milestone: v3.0
 milestone_name: Landing Page
 status: executing
 stopped_at: Phase 115 UI-SPEC approved
-last_updated: "2026-05-21T21:44:38.182Z"
-last_activity: 2026-05-21 -- Phase 115 planning complete
+last_updated: "2026-05-21T22:16:23.748Z"
+last_activity: 2026-05-21 -- Phase 115 execution started
 progress:
   total_phases: 16
   completed_phases: 15
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-04)
 
 **Core value:** v4.85 desacopla el lifecycle de `programEnrollments` de `subscriptions/service.ts` (extrae `EnrollmentService`) y habilita add-ons de programas asignables por admin con precio opcional, retención de progreso atado al ciclo de vida de la sub principal.
-**Current focus:** Phase 113 — crud-admin-schedules-activities
+**Current focus:** Phase 115 — evento-desafio-de-la-barra
 
 ## Current Position
 
-Phase: 113 (crud-admin-schedules-activities) — COMPLETE
-Plan: 2 of 2 complete
-Status: Ready to execute
-Last activity: 2026-05-21 -- Phase 115 planning complete
+Phase: 115 (evento-desafio-de-la-barra) — EXECUTING
+Plan: 1 of 10
+Status: Executing Phase 115
+Last activity: 2026-05-21 -- Phase 115 execution started
 
 ## Performance Metrics
 
