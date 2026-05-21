@@ -1,14 +1,40 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import { api } from 'src/boot/axios'
 import { createLogger } from 'src/utils/logger'
 
 const logger = createLogger('bar-challenge-store')
 
 /**
+ * sessionStorage key donde queda parqueado el payload del intento cuando el
+ * POST falla los 3 reintentos. Lo drenamos al próximo `GET /me` (lazy).
+ *
+ * Sólo el queue de retry usa storage. El estado del store en sí NUNCA se
+ * persiste (D-08): si el staff hace refresh accidental durante /timer,
+ * arrancamos de cero.
+ */
+const SESSION_KEY = 'bar-challenge-pending-submit'
+
+/** Threshold de "logro" — alinea con SPEC R6 (≥90s = lograste). */
+const COMPLETED_THRESHOLD_SECONDS = 90
+
+/** Backoff de reintentos del submit (D-10): 1s, 3s, 9s entre intentos. */
+const RETRY_DELAYS_MS = [1000, 3000, 9000]
+
+/**
+ * Entry de la queue de submits pendientes. `queuedAt` permite drop por
+ * antigüedad si en el futuro queremos TTL — hoy se respeta sin tope.
+ */
+interface PendingSubmit {
+  secondsHeld: number
+  queuedAt: number
+}
+
+/**
  * Resultado final del intento del usuario.
  *
  * - `completed=true` → el usuario aguantó suficiente para validar la medalla
- *   (criterio exacto definido por el backend / Plan 04).
+ *   (criterio del backend / SPEC R6 — actualmente >= 90s).
  * - `seconds` → segundos aguantados (entero >= 0).
  */
 export interface BarChallengeAttemptResult {
@@ -17,15 +43,30 @@ export interface BarChallengeAttemptResult {
 }
 
 /**
- * Phase 115 — Desafío de la Barra store skeleton.
+ * Phase 115 — Desafío de la Barra store.
  *
- * Este plan (115-02) sólo define el shape. La implementación real de las
- * acciones vive en Plan 05 (timer + envío de foto + integración con endpoint
- * de Plan 04). Las acciones acá son stubs que loggean y no mutan estado.
+ * Source of truth del flujo end-to-end del intento (Explicacion → Timer →
+ * Resultado). Estado en memoria; sobrevive navegación entre las 3 rutas
+ * mientras el SPA esté montado.
  *
  * Convención del proyecto:
  * - Pinia setup store (`defineStore(id, () => { ... })`) como sessionPlayerStore.
- * - Logger via `createLogger`, nunca `console.*`.
+ * - Logger via `createLogger`, no direct stdout via the global log object (CLAUDE.md).
+ * - Sin `any` — errores via `unknown` + narrowing (CLAUDE.md).
+ *
+ * Decisiones clave:
+ * - **D-09 (timer math):** `secondsHeld` se recalcula desde
+ *   `Date.now() - startTimestamp`, NO se incrementa con un contador en
+ *   `tick()`. Garantiza robustez contra throttling del SO mientras la cámara
+ *   nativa está abierta — al volver, el cronómetro refleja tiempo real.
+ * - **D-08 (no persistencia):** el state vive sólo en memoria. Si el usuario
+ *   hace refresh durante /timer, el flujo arranca de cero. El único uso de
+ *   sessionStorage es el queue de retry-pendiente del submit fallido.
+ * - **D-10 (retry submit):** POST con 3 reintentos (1s/3s/9s). Si los 3
+ *   fallan, push del payload a sessionStorage; `drainPendingSubmits()` (que
+ *   debe llamarse en boot / al cargar /me) lo reintenta una vez más. Si el
+ *   backend devuelve 409 ("already_attempted"), tratamos el intento como
+ *   consumido y NO encolamos retry.
  */
 export const useBarChallengeStore = defineStore('barChallenge', () => {
   // State ───────────────────────────────────────────────────────────────────
@@ -35,41 +76,217 @@ export const useBarChallengeStore = defineStore('barChallenge', () => {
   const photoBase64 = ref<string | null>(null)
   const attemptResult = ref<BarChallengeAttemptResult | null>(null)
 
-  // Actions (stubs — Plan 05 implementa el flujo real) ──────────────────────
+  // Actions ─────────────────────────────────────────────────────────────────
 
-  /** Arranca el timer. Plan 05: set `startTimestamp`, `isRunning=true`. */
+  /**
+   * Arranca el cronómetro. Reset todo el state derivado para evitar leak entre
+   * intentos consecutivos en la misma sesión (caso `?bar-challenge-force=1`
+   * en staging).
+   */
   function start(): void {
-    logger.debug('start stub')
-  }
-
-  /** Tick periódico del timer. Plan 05: incrementa `secondsHeld`. */
-  function tick(): void {
-    logger.debug('tick stub')
-  }
-
-  /** Guarda foto del usuario colgado. Plan 05: set `photoBase64`. */
-  function setPhoto(_base64: string): void {
-    logger.debug('setPhoto stub')
-  }
-
-  /** Detiene el timer y deja todo listo para `submit()`. Plan 05: set `isRunning=false`. */
-  function finalize(): void {
-    logger.debug('finalize stub')
+    startTimestamp.value = Date.now()
+    secondsHeld.value = 0
+    isRunning.value = true
+    photoBase64.value = null
+    attemptResult.value = null
+    logger.info('start', { startTimestamp: startTimestamp.value })
   }
 
   /**
-   * Envía el intento al backend (POST /bar-challenge/attempt o equivalente —
-   * spec final en Plan 04). Plan 05: hace la llamada HTTP y popula
-   * `attemptResult`.
+   * Recalcula `secondsHeld` desde `Date.now() - startTimestamp`. No-op si el
+   * timer no está corriendo o nunca arrancó. Se espera ser llamado por un
+   * `setInterval` en `Timer.vue` (~100ms — el interval refresca UI; el
+   * cálculo siempre usa wall-clock como fuente de verdad).
    */
-  async function submit(): Promise<void> {
-    logger.debug('submit stub')
-    return Promise.resolve()
+  function tick(): void {
+    if (!isRunning.value || startTimestamp.value === null) return
+    secondsHeld.value = Math.floor((Date.now() - startTimestamp.value) / 1000)
   }
 
-  /** Resetea todo el estado del intento (para reintentar o salir). */
+  /**
+   * Guarda la última foto capturada (SPEC R7 — la última gana, no acumulamos
+   * historial). Se llama tras `Camera.getPhoto()` en `Timer.vue`.
+   */
+  function setPhoto(base64: string): void {
+    photoBase64.value = base64
+    logger.info('setPhoto', { bytes: base64.length })
+  }
+
+  /**
+   * Detiene el timer y genera `attemptResult`. Dispara `submit()` en
+   * fire-and-forget (la UI no espera al backend — D-10 "optimistic UI"). Si
+   * el timer nunca arrancó, no-op defensivo.
+   */
+  function finalize(): void {
+    if (startTimestamp.value === null) {
+      logger.warn('finalize called without start')
+      return
+    }
+    const final = Math.floor((Date.now() - startTimestamp.value) / 1000)
+    isRunning.value = false
+    secondsHeld.value = final
+    attemptResult.value = {
+      completed: final >= COMPLETED_THRESHOLD_SECONDS,
+      seconds: final,
+    }
+    logger.info('finalize', attemptResult.value)
+    // Fire-and-forget — la pantalla /resultado avanza optimistic.
+    void submit()
+  }
+
+  /**
+   * POST del intento al backend con retry policy de D-10.
+   *
+   * - 4 intentos totales (1 inicial + 3 reintentos), con delays 1s/3s/9s.
+   * - 409 (`already_attempted`) → NO reintentar, NO encolar; el intento fue
+   *   consumido en otra sesión / refresh, optimistic-UI ya mostró el dato.
+   * - Otros errores tras agotar reintentos → push a sessionStorage queue;
+   *   `drainPendingSubmits()` lo recoge al próximo boot / load /me.
+   */
+  async function submit(): Promise<void> {
+    if (!attemptResult.value) {
+      logger.warn('submit called without attemptResult')
+      return
+    }
+    const payload = { secondsHeld: attemptResult.value.seconds }
+
+    for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
+      try {
+        await api.post('/bar-challenge/result', payload)
+        logger.info('submit success', { attempt })
+        return
+      } catch (err: unknown) {
+        const status = extractHttpStatus(err)
+        if (status === 409) {
+          logger.warn('submit returned 409 — already attempted elsewhere, dropping')
+          return
+        }
+        if (attempt < RETRY_DELAYS_MS.length) {
+          const delay = RETRY_DELAYS_MS[attempt] ?? 0
+          logger.warn('submit failed, retrying', {
+            attempt,
+            delay,
+            error: err instanceof Error ? err.message : String(err),
+          })
+          await sleep(delay)
+          continue
+        }
+        // Retries agotados → enqueue.
+        enqueuePending(payload.secondsHeld)
+        logger.error('submit failed after retries — queued for later', {
+          error: err instanceof Error ? err.message : String(err),
+        })
+        return
+      }
+    }
+  }
+
+  /**
+   * Limpia todo el estado del intento. NO toca la sessionStorage queue (el
+   * payload pendiente sobrevive al reset — la próxima boot lo drena).
+   * Pensado para cleanup desde `Timer.vue` cuando el usuario abandona sin
+   * finalizar.
+   */
   function reset(): void {
-    logger.debug('reset stub')
+    startTimestamp.value = null
+    secondsHeld.value = 0
+    isRunning.value = false
+    photoBase64.value = null
+    attemptResult.value = null
+    logger.info('reset')
+  }
+
+  /**
+   * Drena la queue de sessionStorage. Llamarse en app boot o tras cargar
+   * `/me`. Cada entry se reintenta UNA vez:
+   *
+   * - éxito → drop.
+   * - 409 → drop (el backend ya tiene un intento registrado).
+   * - error de red → mantener en queue.
+   *
+   * Si la queue queda vacía, se borra la key entera.
+   */
+  async function drainPendingSubmits(): Promise<void> {
+    let raw: string | null
+    try {
+      raw = sessionStorage.getItem(SESSION_KEY)
+    } catch (err: unknown) {
+      logger.error('drainPendingSubmits — failed to read sessionStorage', {
+        error: err instanceof Error ? err.message : String(err),
+      })
+      return
+    }
+    if (!raw) return
+
+    let queue: PendingSubmit[]
+    try {
+      const parsed: unknown = JSON.parse(raw)
+      queue = Array.isArray(parsed) ? (parsed as PendingSubmit[]) : []
+    } catch (err: unknown) {
+      logger.error('drainPendingSubmits — corrupt queue, dropping', {
+        error: err instanceof Error ? err.message : String(err),
+      })
+      try {
+        sessionStorage.removeItem(SESSION_KEY)
+      } catch {
+        // best-effort cleanup
+      }
+      return
+    }
+
+    const remaining: PendingSubmit[] = []
+    for (const entry of queue) {
+      try {
+        await api.post('/bar-challenge/result', { secondsHeld: entry.secondsHeld })
+        logger.info('drain: entry submitted', { secondsHeld: entry.secondsHeld })
+      } catch (err: unknown) {
+        const status = extractHttpStatus(err)
+        if (status === 409) {
+          logger.warn('drain: 409 — dropping entry', { secondsHeld: entry.secondsHeld })
+          continue
+        }
+        remaining.push(entry)
+      }
+    }
+
+    try {
+      if (remaining.length === 0) {
+        sessionStorage.removeItem(SESSION_KEY)
+      } else {
+        sessionStorage.setItem(SESSION_KEY, JSON.stringify(remaining))
+      }
+    } catch (err: unknown) {
+      logger.error('drainPendingSubmits — failed to write back queue', {
+        error: err instanceof Error ? err.message : String(err),
+      })
+    }
+  }
+
+  // Helpers ─────────────────────────────────────────────────────────────────
+
+  /**
+   * Push del payload fallido a la queue de sessionStorage. Best-effort —
+   * cualquier error de storage se loggea pero no rompe el flujo.
+   */
+  function enqueuePending(seconds: number): void {
+    try {
+      const raw = sessionStorage.getItem(SESSION_KEY)
+      let queue: PendingSubmit[] = []
+      if (raw) {
+        try {
+          const parsed: unknown = JSON.parse(raw)
+          if (Array.isArray(parsed)) queue = parsed as PendingSubmit[]
+        } catch {
+          // queue corrupta — la sobreescribimos
+        }
+      }
+      queue.push({ secondsHeld: seconds, queuedAt: Date.now() })
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify(queue))
+    } catch (err: unknown) {
+      logger.error('enqueuePending failed', {
+        error: err instanceof Error ? err.message : String(err),
+      })
+    }
   }
 
   return {
@@ -86,5 +303,26 @@ export const useBarChallengeStore = defineStore('barChallenge', () => {
     finalize,
     submit,
     reset,
+    drainPendingSubmits,
   }
 })
+
+/**
+ * Sleep helper para los reintentos. Aislado para tests futuros (poder mockear
+ * el delay).
+ */
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+/**
+ * Narrowing seguro del status HTTP de un error (axios o nativo). Devuelve
+ * `undefined` si no hay shape `response.status` reconocible.
+ */
+function extractHttpStatus(err: unknown): number | undefined {
+  if (typeof err !== 'object' || err === null) return undefined
+  const candidate = (err as { response?: unknown }).response
+  if (typeof candidate !== 'object' || candidate === null) return undefined
+  const status = (candidate as { status?: unknown }).status
+  return typeof status === 'number' ? status : undefined
+}
