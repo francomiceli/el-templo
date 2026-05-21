@@ -130,6 +130,14 @@ export const users = mysqlTable(
     // viewing. NULL means "Templo view" (only valid if user has presencial
     // plan). Set/cleared by PUT /api/members/me/current-program (Plan 04).
     currentProgramEnrollmentId: int("current_program_enrollment_id"),
+    // Phase 115 (R1, D-15): bar challenge attempt fields. NULL en las 3 = no
+    // participó. Single-attempt enforced via UPDATE condicional en POST
+    // /api/bar-challenge/result (WHERE bar_challenge_attempted_at IS NULL).
+    // Exposed siempre por GET /me (D-15), independientemente de la ventana del
+    // evento — el frontend lee userStore.profile para decidir el estado del card.
+    barChallengeCompleted: boolean("bar_challenge_completed"),
+    barChallengeSeconds: int("bar_challenge_seconds"),
+    barChallengeAttemptedAt: timestamp("bar_challenge_attempted_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
   },

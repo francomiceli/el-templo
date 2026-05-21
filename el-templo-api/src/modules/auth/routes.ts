@@ -431,6 +431,13 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           branchId: users.branchId,
           gender: users.gender,
           dateOfBirth: users.dateOfBirth,
+          // Phase 115 (R1, D-15): bar challenge attempt fields. Always
+          // returned (null if user did not participate), independent of the
+          // event window. Frontend reads userStore.profile to decide
+          // BarChallengeCard state.
+          barChallengeCompleted: users.barChallengeCompleted,
+          barChallengeSeconds: users.barChallengeSeconds,
+          barChallengeAttemptedAt: users.barChallengeAttemptedAt,
         })
         .from(users)
         .where(eq(users.id, userId))
@@ -514,6 +521,11 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         dateOfBirth: user.dateOfBirth,
         segment,
         onboardingCompleted,
+        // Phase 115 (R1, D-15): bar challenge attempt fields. Always present
+        // in the response — null for users who haven't participated.
+        barChallengeCompleted: user.barChallengeCompleted,
+        barChallengeSeconds: user.barChallengeSeconds,
+        barChallengeAttemptedAt: user.barChallengeAttemptedAt,
       };
     },
   );
