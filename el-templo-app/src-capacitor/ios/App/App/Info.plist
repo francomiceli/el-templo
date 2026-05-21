@@ -46,7 +46,7 @@
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>El Templo necesita acceso a la cámara para escanear el código QR de asistencia</string>
+	<string>El Templo necesita acceso a la cámara para escanear el código QR de asistencia y para sacar la foto del Desafío de la Barra</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>
