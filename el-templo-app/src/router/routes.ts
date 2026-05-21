@@ -44,6 +44,21 @@ const routes: RouteRecordRaw[] = [
         name: 'change-password',
         component: () => import('pages/ChangePasswordPage.vue'),
       },
+      {
+        path: 'desafio-barra',
+        name: 'desafio-barra-explicacion',
+        component: () => import('src/modules/bar-challenge/pages/Explicacion.vue'),
+      },
+      {
+        path: 'desafio-barra/timer',
+        name: 'desafio-barra-timer',
+        component: () => import('src/modules/bar-challenge/pages/Timer.vue'),
+      },
+      {
+        path: 'desafio-barra/resultado',
+        name: 'desafio-barra-resultado',
+        component: () => import('src/modules/bar-challenge/pages/Resultado.vue'),
+      },
     ],
   },
 
