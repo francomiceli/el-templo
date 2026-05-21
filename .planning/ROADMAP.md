@@ -2625,3 +2625,17 @@ Plans:
 ---
 
 _v4.85 added: 2026-05-04 — 1 phase (112), 24 requirements (ENROLL, ADDON-SCHEMA, ADDON-API, ADDON-LIFE, ADDON-ADMIN-UI, ADDON-MEMBER-UI). Origin: análisis de spaghetti `subscriptions/programas` (6 inserts duplicados + `tearDownBundleEnrollments` de fase 111) + necesidad operativa de asignar programas adicionales por admin con precio opcional. Inserción intencional entre v4.8 y v4.9 para desbloquear el split de v4.9. Deliberadamente una sola fase: refactor + feature se justifican mutuamente y la estructura interna emerge en `/gsd-plan-phase 112`._
+
+---
+
+## Ad-hoc Phases (fuera de milestone)
+
+### Phase 115: Evento Desafío de la Barra
+
+**Goal:** Habilitar un desafío single-attempt de aguantar 1:30 colgado de una barra para el evento del domingo 24/05, accesible desde el carrusel de "Mi Plan Personalizado" como primer ítem, visible sólo durante el rango de fechas del evento. Usuarios escanean QR físico → se registran como Templo Online → entran al desafío → el staff opera timer + foto + resultado → si completaron, comparten foto con marco de marca en redes para reclamar descuento físico.
+
+**Depends on:** Nothing (feature aislada, one-shot)
+
+**Disparador:** Evento de marketing presencial el domingo 24/05/2026 — el QR físico promociona la app y el desafío engancha leads que después conviertan a miembros presenciales o Templo Online.
+
+**Status:** Planning
