@@ -38,6 +38,7 @@ import { financeRoutes } from "./modules/finance";
 import { settingsRoutes } from "./modules/settings";
 import { userRoutes } from "./modules/users";
 import { onboardingRoutes } from "./modules/onboarding";
+import { barChallengeRoutes } from "./modules/bar-challenge/routes";
 import { checkInRoutes } from "./modules/check-ins";
 import { programRoutes } from "./modules/programs";
 import { notificationRoutes } from "./modules/notifications";
@@ -203,6 +204,9 @@ export async function buildApp() {
 
   // Onboarding routes (member quiz completion + profile retrieval + analytics)
   await app.register(onboardingRoutes, { prefix: "/api/onboarding" });
+
+  // Phase 115 bar challenge result endpoint (single-attempt, member-only).
+  await app.register(barChallengeRoutes, { prefix: "/api/bar-challenge" });
 
   // Check-in routes (daily energy/soreness/sleep check-ins)
   await app.register(checkInRoutes, { prefix: "/api/check-ins" });
