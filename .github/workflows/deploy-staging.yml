@@ -335,7 +335,7 @@ jobs:
 
       - name: Install rsync on server
         run: |
-          ssh ${{ secrets.SSH_USER }}@${{ secrets.SERVER_HOST }} 'which rsync || sudo apt-get update && sudo apt-get install -y rsync'
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SERVER_HOST }} 'which rsync || (sudo apt-get update && sudo apt-get install -y rsync)'
 
       # --- Backup current staging deploy for rollback ---
       - name: Backup current staging deployment
