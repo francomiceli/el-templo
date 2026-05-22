@@ -20,6 +20,9 @@ importers:
       '@capacitor/app':
         specifier: ^8.0.1
         version: 8.0.1(@capacitor/core@8.2.0)
+      '@capacitor/camera':
+        specifier: 8.2.0
+        version: 8.2.0(@capacitor/core@8.2.0)
       '@capacitor/cli':
         specifier: ^8.2.0
         version: 8.2.0
@@ -35,6 +38,9 @@ importers:
       '@capacitor/push-notifications':
         specifier: ^8.0.3
         version: 8.0.3(@capacitor/core@8.2.0)
+      '@capacitor/share':
+        specifier: 8.0.1
+        version: 8.0.1(@capacitor/core@8.2.0)
     devDependencies:
       '@capacitor/assets':
         specifier: ^3.0.5
@@ -83,6 +89,11 @@ packages:
     engines: {node: '>=10.3.0'}
     hasBin: true
 
+  '@capacitor/camera@8.2.0':
+    resolution: {integrity: sha512-hYfrT6xpL936qoEkIpJzSnb0fQCaTkOux1cXzGBfH8QLOGqr6gSLiWZlZz/fqMPmMKJMNRBqlTQkj5fuMhVZog==}
+    peerDependencies:
+      '@capacitor/core': '>=8.0.0'
+
   '@capacitor/cli@5.7.8':
     resolution: {integrity: sha512-qN8LDlREMhrYhOvVXahoJVNkP8LP55/YPRJrzTAFrMqlNJC18L3CzgWYIblFPnuwfbH/RxbfoZT/ydkwgVpMrw==}
     engines: {node: '>=16.0.0'}
@@ -108,6 +119,11 @@ packages:
 
   '@capacitor/push-notifications@8.0.3':
     resolution: {integrity: sha512-jmBBoJvOzmzem8YoO9dQJBPFiM1bksTNAoV7yksCBN10BybAOtmBF19vFPt/jr2KGAirnPZz0ne2X0OH/rRGtg==}
+    peerDependencies:
+      '@capacitor/core': '>=8.0.0'
+
+  '@capacitor/share@8.0.1':
+    resolution: {integrity: sha512-3cSBKBCJVon54rKDROP2rqGyeGks4pBh9TbaEk9S375Kbek/ZHe72N50zIa0Vn9Eac/SuhwgehO/mmA4CsUOiw==}
     peerDependencies:
       '@capacitor/core': '>=8.0.0'
 
@@ -1769,6 +1785,10 @@ snapshots:
       - supports-color
       - typescript
 
+  '@capacitor/camera@8.2.0(@capacitor/core@8.2.0)':
+    dependencies:
+      '@capacitor/core': 8.2.0
+
   '@capacitor/cli@5.7.8':
     dependencies:
       '@ionic/cli-framework-output': 2.2.8
@@ -1826,6 +1846,10 @@ snapshots:
       '@capacitor/core': 8.2.0
 
   '@capacitor/push-notifications@8.0.3(@capacitor/core@8.2.0)':
+    dependencies:
+      '@capacitor/core': 8.2.0
+
+  '@capacitor/share@8.0.1(@capacitor/core@8.2.0)':
     dependencies:
       '@capacitor/core': 8.2.0
 
