@@ -3,6 +3,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import routes from './routes'
 import { useAuthStore } from 'stores/useAuthStore'
 import { useUserStore } from 'stores/useUserStore'
+import { hasPersistedActiveAttempt } from 'src/modules/bar-challenge/stores/useBarChallengeStore'
 
 export default defineRouter(function () {
   const Router = createRouter({
@@ -21,7 +22,7 @@ export default defineRouter(function () {
     }
   })
 
-  Router.beforeEach((to) => {
+  Router.beforeEach((to, from) => {
     const authStore = useAuthStore()
 
     // Public routes that don't require authentication
@@ -47,6 +48,20 @@ export default defineRouter(function () {
       !userStore.onboardingCompleted
     ) {
       return { name: 'onboarding' }
+    }
+
+    // Bar Challenge crash-recovery guard (post-launch 2026-05-22):
+    // En iOS, abrir la cámara nativa puede matar el WKWebView. Cuando Capacitor
+    // relanza, aterriza en `/` → home. Si hay un intento activo persistido en
+    // localStorage, redirigimos al timer en vez de mostrar Mi Templo.
+    //
+    // SÓLO en navegación inicial (from === START_LOCATION, i.e. `from.name`
+    // undefined). Esto evita interceptar al usuario cuando navega
+    // intencionalmente fuera del timer (back button, link a otra pantalla).
+    const isInitialNav = from.name === undefined
+    const isHomeBound = to.name === 'home' || to.path === '/' || to.path === '/mi-templo'
+    if (authStore.isAuthenticated && isInitialNav && isHomeBound && hasPersistedActiveAttempt()) {
+      return { name: 'desafio-barra-timer' }
     }
 
     // Allow navigation

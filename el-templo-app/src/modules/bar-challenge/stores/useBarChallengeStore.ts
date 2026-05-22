@@ -8,12 +8,31 @@ const logger = createLogger('bar-challenge-store')
 /**
  * sessionStorage key donde queda parqueado el payload del intento cuando el
  * POST falla los 3 reintentos. Lo drenamos al próximo `GET /me` (lazy).
- *
- * Sólo el queue de retry usa storage. El estado del store en sí NUNCA se
- * persiste (D-08): si el staff hace refresh accidental durante /timer,
- * arrancamos de cero.
  */
 const SESSION_KEY = 'bar-challenge-pending-submit'
+
+/**
+ * localStorage key del intento activo (post-launch 2026-05-22).
+ *
+ * D-08 original: "el state vive sólo en memoria". Roto en iOS: al abrir la
+ * cámara nativa, iOS puede matar el WKWebView por presión de memoria. Al
+ * volver, Capacitor relanza el WebView en `/` y el state se pierde — el
+ * usuario aterriza en Mi Templo y tiene que reiniciar el desafío.
+ *
+ * Solución: persistir SÓLO `startTimestamp` en localStorage durante el
+ * intento activo. El timer recalcula segundos desde wall-clock (D-09), así
+ * que con startTimestamp basta para restaurar. La foto NO se persiste — si
+ * el WebView muere mid-captura, el promise de `Camera.getPhoto()` nunca
+ * resuelve y la foto se pierde antes de llegar al store de cualquier manera.
+ */
+const ACTIVE_ATTEMPT_KEY = 'bar-challenge-active-attempt'
+
+/**
+ * TTL del intento persistido. Si pasaron más de 10 min desde `start()`, lo
+ * descartamos al restaurar — evita "attempts fantasma" si el usuario nunca
+ * vuelve a abrir la app.
+ */
+const ACTIVE_ATTEMPT_TTL_MS = 10 * 60 * 1000
 
 /** Threshold de "logro" — alinea con SPEC R6 (≥90s = lograste). */
 const COMPLETED_THRESHOLD_SECONDS = 90
@@ -28,6 +47,15 @@ const RETRY_DELAYS_MS = [1000, 3000, 9000]
 interface PendingSubmit {
   secondsHeld: number
   queuedAt: number
+}
+
+/**
+ * Snapshot del intento activo persistido en localStorage. `savedAt` permite
+ * descartar entries vencidas vía `ACTIVE_ATTEMPT_TTL_MS`.
+ */
+interface PersistedActiveAttempt {
+  startTimestamp: number
+  savedAt: number
 }
 
 /**
@@ -84,12 +112,37 @@ export const useBarChallengeStore = defineStore('barChallenge', () => {
    * en staging).
    */
   function start(): void {
-    startTimestamp.value = Date.now()
+    const now = Date.now()
+    startTimestamp.value = now
     secondsHeld.value = 0
     isRunning.value = true
     photoBase64.value = null
     attemptResult.value = null
-    logger.info('start', { startTimestamp: startTimestamp.value })
+    persistActiveAttempt(now)
+    logger.info('start', { startTimestamp: now })
+  }
+
+  /**
+   * Restaura un intento activo desde localStorage. Llamado por Timer.vue en
+   * `onMounted` cuando hay un attempt persistido (caso típico: iOS mató el
+   * WebView durante la cámara y Capacitor relanzó la app).
+   *
+   * No-op (devuelve `false`) si no hay attempt persistido o está vencido por
+   * TTL. En ese caso el caller debe llamar `start()` normalmente.
+   */
+  function restoreActiveAttempt(): boolean {
+    const persisted = readPersistedActiveAttempt()
+    if (!persisted) return false
+    startTimestamp.value = persisted.startTimestamp
+    isRunning.value = true
+    photoBase64.value = null
+    attemptResult.value = null
+    secondsHeld.value = Math.floor((Date.now() - persisted.startTimestamp) / 1000)
+    logger.info('restoreActiveAttempt', {
+      startTimestamp: persisted.startTimestamp,
+      secondsHeld: secondsHeld.value,
+    })
+    return true
   }
 
   /**
@@ -129,6 +182,7 @@ export const useBarChallengeStore = defineStore('barChallenge', () => {
       completed: final >= COMPLETED_THRESHOLD_SECONDS,
       seconds: final,
     }
+    clearPersistedActiveAttempt()
     logger.info('finalize', attemptResult.value)
     // Fire-and-forget — la pantalla /resultado avanza optimistic.
     void submit()
@@ -187,6 +241,7 @@ export const useBarChallengeStore = defineStore('barChallenge', () => {
     isRunning.value = false
     photoBase64.value = null
     attemptResult.value = null
+    clearPersistedActiveAttempt()
     logger.info('reset')
   }
 
@@ -297,9 +352,80 @@ export const useBarChallengeStore = defineStore('barChallenge', () => {
     finalize,
     submit,
     reset,
+    restoreActiveAttempt,
     drainPendingSubmits,
   }
 })
+
+/**
+ * Lee el intento activo persistido en localStorage. Devuelve `null` si:
+ *  - No hay entry.
+ *  - El entry está corrupto (parse falla o shape no coincide).
+ *  - El entry venció por TTL.
+ *
+ * Si está vencido o corrupto, además limpia la key — auto-saneamiento.
+ *
+ * Exportado para uso desde el router guard (boot-time check antes de que la
+ * store esté disponible).
+ */
+export function readPersistedActiveAttempt(): PersistedActiveAttempt | null {
+  let raw: string | null
+  try {
+    raw = localStorage.getItem(ACTIVE_ATTEMPT_KEY)
+  } catch {
+    return null
+  }
+  if (!raw) return null
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    clearPersistedActiveAttempt()
+    return null
+  }
+  if (
+    typeof parsed !== 'object' ||
+    parsed === null ||
+    typeof (parsed as { startTimestamp?: unknown }).startTimestamp !== 'number' ||
+    typeof (parsed as { savedAt?: unknown }).savedAt !== 'number'
+  ) {
+    clearPersistedActiveAttempt()
+    return null
+  }
+  const entry = parsed as PersistedActiveAttempt
+  if (Date.now() - entry.savedAt > ACTIVE_ATTEMPT_TTL_MS) {
+    clearPersistedActiveAttempt()
+    return null
+  }
+  return entry
+}
+
+/**
+ * `true` si hay un intento activo válido (no vencido) en localStorage. Helper
+ * de consulta-rápida para el router guard.
+ */
+export function hasPersistedActiveAttempt(): boolean {
+  return readPersistedActiveAttempt() !== null
+}
+
+function persistActiveAttempt(startTimestamp: number): void {
+  try {
+    const entry: PersistedActiveAttempt = { startTimestamp, savedAt: Date.now() }
+    localStorage.setItem(ACTIVE_ATTEMPT_KEY, JSON.stringify(entry))
+  } catch (err: unknown) {
+    logger.error('persistActiveAttempt failed', {
+      error: err instanceof Error ? err.message : String(err),
+    })
+  }
+}
+
+function clearPersistedActiveAttempt(): void {
+  try {
+    localStorage.removeItem(ACTIVE_ATTEMPT_KEY)
+  } catch {
+    // best-effort
+  }
+}
 
 /**
  * Sleep helper para los reintentos. Aislado para tests futuros (poder mockear

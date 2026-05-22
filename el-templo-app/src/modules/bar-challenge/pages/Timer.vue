@@ -89,9 +89,15 @@ const isSuccess = computed(() => store.secondsHeld >= 90)
 const statusLabel = computed(() => (isSuccess.value ? '¡LO LOGRASTE! SEGUÍ AGUANTANDO' : 'AGUANTÁ'))
 
 onMounted(async () => {
-  // Post-launch 2026-05-21: sin guard de intento previo — los usuarios pueden
-  // reintentar ilimitadamente y el backend acepta cada submit.
-  store.start()
+  // Post-launch 2026-05-22: en iOS, abrir la cámara nativa puede matar el
+  // WKWebView por presión de memoria. Al volver, el WebView relanza y el
+  // store en memoria se pierde. Si el router guard nos trajo de vuelta acá
+  // (o si el usuario navegó manualmente a /timer tras el kill), restauramos
+  // `startTimestamp` desde localStorage en vez de arrancar de cero.
+  const restored = store.restoreActiveAttempt()
+  if (!restored) {
+    store.start()
+  }
   intervalId = window.setInterval(() => store.tick(), 100)
   try {
     await KeepAwake.keepAwake()
