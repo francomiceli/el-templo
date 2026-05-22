@@ -14,7 +14,7 @@
       </div>
 
       <!-- Heading + Body -->
-      <h3 class="bar-challenge-card__heading">{{ heading }}</h3>
+      <h3 class="bar-challenge-card__heading">¿Te animás a colgarte<br />de la barra?</h3>
 
       <div class="bar-challenge-card__footer">
         <p v-if="body" class="bar-challenge-card__body">{{ body }}</p>
@@ -59,8 +59,7 @@ const router = useRouter()
 // Post-launch 2026-05-21: la card es siempre el call-to-action inicial. No
 // distingue estado de intento previo — los usuarios pueden volver a participar
 // ilimitadamente.
-const heading = '¿Te animás a colgarte de la barra?'
-const body = 'Tenemos una sorpresa para vos'
+const body = 'Tenemos una sorpresa para vos, de la mano de Aura Club x El Calamar Loco.'
 const ctaLabel = 'Iniciar desafío'
 
 function onCtaTap(): void {
@@ -188,7 +187,9 @@ function onCtaTap(): void {
   font-weight: 600;
   color: #f0e6d6;
   letter-spacing: 0.3px;
-  margin: 12px 0 0;
+  line-height: 2.25rem;
+  padding: 10px 0;
+  margin: 0;
   animation: bar-challenge-card-fade-up 0.6s ease-out 0.15s both;
   position: relative;
 }
