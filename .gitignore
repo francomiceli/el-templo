@@ -2,6 +2,11 @@
 node_modules/
 pnpm-lock.yaml
 
+# Per-workspace pnpm config — sólo local. Su único uso es minimumReleaseAge
+# para installs interactivos del dev (no aplica en CI con --frozen-lockfile).
+# Declararlo tracked rompe el layout de node_modules que `cap sync` espera.
+pnpm-workspace.yaml
+
 .planning/intel/
 
 # AWS infrastructure variables (contains IPs, instance IDs)
