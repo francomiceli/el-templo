@@ -594,6 +594,23 @@
         @saved="onMemberSaved"
       />
 
+      <!-- Post-conversion (SP → legajo) plan assignment.
+           Mirrors the post-create flow in AlumnosPage: opens automatically
+           when the admin confirms "Cargar membresía" after completing data. -->
+      <AssignPlanDialog
+        v-if="postConvertAssignTarget"
+        v-model="showAssignFromConvert"
+        :userId="postConvertAssignTarget.id"
+        :memberBranchId="postConvertAssignTarget.branchId"
+        :memberBranchName="postConvertAssignTarget.branchName"
+        :boardingPassUsed="false"
+        :memberBranchIsVirtual="postConvertBranchIsVirtual"
+        :member="postConvertAssignTarget"
+        :branches="branches"
+        @assigned="onPostConvertAssigned"
+        @update:modelValue="onPostConvertAssignDialog"
+      />
+
       <q-dialog v-model="showDeleteDialog" persistent>
         <q-card style="min-width: 380px; max-width: 480px">
           <q-card-section>
@@ -666,6 +683,7 @@ import MemberAttendanceTab from 'src/components/MemberAttendanceTab.vue';
 import MemberFormDialog from 'src/components/MemberFormDialog.vue';
 import MemberPhotoUpload from 'src/components/MemberPhotoUpload.vue';
 import FinancialHistoryTab from 'src/components/FinancialHistoryTab.vue';
+import AssignPlanDialog from 'src/components/AssignPlanDialog.vue';
 import WhatsappIcon from 'src/components/icons/WhatsappIcon.vue';
 import type { MemberProfile, MemberSegment, BranchOption } from 'src/types/member';
 import { SEGMENT_LABELS, SEGMENT_COLORS, AVATAR_LABELS } from 'src/types/member';
@@ -1059,9 +1077,64 @@ function onPhotoUploaded(url: string) {
   }
 }
 
-async function onMemberSaved() {
+async function onMemberSaved(updated: MemberProfile | null) {
   $q.notify({ type: 'positive', message: 'Alumno actualizado' });
   await loadMemberProfile();
+
+  // SP → legajo conversion: MemberFormDialog emits the updated profile
+  // only when the alumno was in 'prueba' before the save. Mirror the
+  // post-create flow in AlumnosPage and offer to load the membership
+  // right away so the admin doesn't have to navigate to the Suscripción
+  // tab manually.
+  if (!updated) return;
+
+  $q.dialog({
+    title: '¿Cargar membresía?',
+    message: `${[updated.firstName, updated.lastName].filter(Boolean).join(' ') || updated.email} pasó a legajo. ¿Querés cargarle la membresía ahora?`,
+    cancel: { flat: true, label: 'Más tarde' },
+    ok: { color: 'primary', label: 'Cargar membresía' },
+  }).onOk(() => {
+    postConvertAssignTarget.value = updated;
+    postConvertAssignmentDone.value = false;
+    showAssignFromConvert.value = true;
+  });
+}
+
+// =========================================================================
+// SP → legajo: post-conversion plan assignment flow
+// =========================================================================
+// Mirrors the post-create flow in AlumnosPage. The Suscripción tab is now
+// visible (status moved to 'inactivo'), so even if the admin cancels this
+// dialog they can assign a plan later from the tab — but we still surface
+// the prompt because it's the natural next step after completing the data.
+
+const showAssignFromConvert = ref(false);
+const postConvertAssignTarget = ref<MemberProfile | null>(null);
+const postConvertAssignmentDone = ref(false);
+
+const postConvertBranchIsVirtual = computed(() => {
+  if (!postConvertAssignTarget.value) return false;
+  const branch = branches.value.find((b) => b.id === postConvertAssignTarget.value!.branchId);
+  return branch?.isVirtual === true;
+});
+
+async function onPostConvertAssigned() {
+  postConvertAssignmentDone.value = true;
+  await loadMemberProfile();
+}
+
+function onPostConvertAssignDialog(open: boolean) {
+  if (open) return;
+  if (!postConvertAssignmentDone.value && postConvertAssignTarget.value) {
+    $q.notify({
+      type: 'warning',
+      message:
+        'El alumno quedó como Inactivo sin membresía. Podés cargarla más tarde desde la pestaña Suscripción.',
+      timeout: 6000,
+    });
+  }
+  postConvertAssignTarget.value = null;
+  postConvertAssignmentDone.value = false;
 }
 
 async function onSubscriptionChanged() {

@@ -631,6 +631,13 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
   // required fields, cancels any active/paused subscription, and forces
   // status='inactivo' so the admin can immediately enroll the member in a
   // presencial plan (which will recompute status back to 'activo').
+  //
+  // SP → legajo conversion: when an alumno in status='prueba' (sesión de
+  // prueba lead) gets its presencial-required fields filled in, the handler
+  // promotes status to 'inactivo'. Otherwise the Suscripción tab in the
+  // admin detail page stays hidden (it gates on status !== 'prueba'), the
+  // "Gestionar Plan" button never appears, and the admin perceives the save
+  // as silently lost.
   fastify.put<{
     Params: { userId: number };
     Body: UpdateMemberInput;
@@ -644,79 +651,79 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
     },
     async (request, reply) => {
       try {
+        // Read current state up front. Needed by both the virtual→presencial
+        // conversion detection AND the SP→legajo auto-promotion, so we hoist
+        // the SELECT out of the branchId-only branch where it used to live.
+        const [current] = await fastify.db
+          .select({
+            userId: schema.users.id,
+            status: schema.users.status,
+            dni: schema.users.dni,
+            documentType: schema.users.documentType,
+            dateOfBirth: schema.users.dateOfBirth,
+            currentBranchId: schema.users.branchId,
+            currentBranchIsVirtual: schema.branches.isVirtual,
+          })
+          .from(schema.users)
+          .innerJoin(
+            schema.branches,
+            eq(schema.branches.id, schema.users.branchId),
+          )
+          .where(eq(schema.users.id, request.params.userId))
+          .limit(1);
+
+        if (!current) {
+          return reply.code(404).send({
+            error: "No encontrado",
+            message: "Miembro no encontrado",
+          });
+        }
+
         // Detect online → presencial conversion before applying the update.
-        // We need (a) the current branch's isVirtual to know where the user
-        // is coming from, and (b) the target branch's isVirtual to confirm
-        // the move actually crosses from virtual to physical.
         let isConversion = false;
 
-        if (request.body.branchId !== undefined) {
-          const [current] = await fastify.db
-            .select({
-              userId: schema.users.id,
-              dni: schema.users.dni,
-              documentType: schema.users.documentType,
-              dateOfBirth: schema.users.dateOfBirth,
-              currentBranchId: schema.users.branchId,
-              currentBranchIsVirtual: schema.branches.isVirtual,
-            })
-            .from(schema.users)
-            .innerJoin(
-              schema.branches,
-              eq(schema.branches.id, schema.users.branchId),
-            )
-            .where(eq(schema.users.id, request.params.userId))
+        if (
+          request.body.branchId !== undefined &&
+          current.currentBranchIsVirtual &&
+          request.body.branchId !== current.currentBranchId
+        ) {
+          const [target] = await fastify.db
+            .select({ isVirtual: schema.branches.isVirtual })
+            .from(schema.branches)
+            .where(eq(schema.branches.id, request.body.branchId))
             .limit(1);
 
-          if (!current) {
-            return reply.code(404).send({
-              error: "No encontrado",
-              message: "Miembro no encontrado",
-            });
-          }
+          if (target && !target.isVirtual) {
+            isConversion = true;
 
-          if (
-            current.currentBranchIsVirtual &&
-            request.body.branchId !== current.currentBranchId
-          ) {
-            const [target] = await fastify.db
-              .select({ isVirtual: schema.branches.isVirtual })
-              .from(schema.branches)
-              .where(eq(schema.branches.id, request.body.branchId))
-              .limit(1);
+            // Validate the presencial required-field set against the
+            // merged view of (incoming patch ⊕ current row). A field is
+            // satisfied if the body sets it to a non-empty value OR the
+            // user already has a non-empty value on the row.
+            type Field = {
+              key: "dni" | "documentType" | "dateOfBirth";
+              label: string;
+            };
+            const required: Field[] = [
+              { key: "dni", label: "DNI" },
+              { key: "documentType", label: "Tipo de documento" },
+              { key: "dateOfBirth", label: "Fecha de nacimiento" },
+            ];
 
-            if (target && !target.isVirtual) {
-              isConversion = true;
+            const missing: string[] = [];
+            for (const f of required) {
+              const incoming = request.body[f.key];
+              const existing = current[f.key];
+              const value =
+                incoming !== undefined ? incoming : (existing ?? null);
+              if (value === null || value === "") missing.push(f.label);
+            }
 
-              // Validate the presencial required-field set against the
-              // merged view of (incoming patch ⊕ current row). A field is
-              // satisfied if the body sets it to a non-empty value OR the
-              // user already has a non-empty value on the row.
-              type Field = {
-                key: "dni" | "documentType" | "dateOfBirth";
-                label: string;
-              };
-              const required: Field[] = [
-                { key: "dni", label: "DNI" },
-                { key: "documentType", label: "Tipo de documento" },
-                { key: "dateOfBirth", label: "Fecha de nacimiento" },
-              ];
-
-              const missing: string[] = [];
-              for (const f of required) {
-                const incoming = request.body[f.key];
-                const existing = current[f.key];
-                const value =
-                  incoming !== undefined ? incoming : (existing ?? null);
-                if (value === null || value === "") missing.push(f.label);
-              }
-
-              if (missing.length > 0) {
-                return reply.code(400).send({
-                  error: "Solicitud invalida",
-                  message: `Para convertir a presencial faltan datos: ${missing.join(", ")}`,
-                });
-              }
+            if (missing.length > 0) {
+              return reply.code(400).send({
+                error: "Solicitud invalida",
+                message: `Para convertir a presencial faltan datos: ${missing.join(", ")}`,
+              });
             }
           }
         }
@@ -799,6 +806,51 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
             request.params.userId,
           );
           if (refreshed) return refreshed;
+        } else if (current.status === "prueba") {
+          // SP → legajo auto-promotion. Compute the merged view (incoming
+          // patch ⊕ existing row) for the presencial-required fields. If
+          // they're all filled in, flip status to 'inactivo' so the
+          // Suscripción tab unlocks and the admin can assign a plan.
+          // recomputeUserStatus will then move 'inactivo' → 'activo' when
+          // the plan is actually assigned.
+          const mergedDni =
+            request.body.dni !== undefined ? request.body.dni : current.dni;
+          const mergedDocType =
+            request.body.documentType !== undefined
+              ? request.body.documentType
+              : current.documentType;
+          const mergedDob =
+            request.body.dateOfBirth !== undefined
+              ? request.body.dateOfBirth
+              : current.dateOfBirth;
+
+          const hasAll =
+            mergedDni !== null &&
+            mergedDni !== "" &&
+            mergedDocType !== null &&
+            mergedDocType !== "" &&
+            mergedDob !== null &&
+            mergedDob !== "";
+
+          if (hasAll) {
+            await fastify.db
+              .update(schema.users)
+              .set({ status: "inactivo" })
+              .where(eq(schema.users.id, request.params.userId));
+
+            request.log.info(
+              {
+                userId: request.params.userId,
+                promotedBy: request.user.userId,
+              },
+              "SP lead promoted to legajo (status='inactivo')",
+            );
+
+            const refreshed = await memberService.getMemberById(
+              request.params.userId,
+            );
+            if (refreshed) return refreshed;
+          }
         }
 
         return member;

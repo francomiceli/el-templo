@@ -2024,4 +2024,138 @@ describe("Members Management Routes", () => {
       expect(body.status).toBe(statusBefore);
     });
   });
+
+  // =========================================================================
+  // PUT /api/admin/members/:userId — SP → legajo auto-promotion
+  // =========================================================================
+  // Soft-registered "sesión de prueba" leads (status='prueba') start with
+  // most fields NULL. When the admin completes the presencial-required
+  // fields (DNI, tipo de documento, fecha de nacimiento) via the edit
+  // dialog, the handler must flip status to 'inactivo' so the Suscripción
+  // tab in the admin detail page unlocks and the admin can assign a plan.
+  // Without this flip the tab stays hidden (it gates on status !== 'prueba')
+  // and the save looks silently lost from the admin's POV.
+  describe("PUT /api/admin/members/:userId — SP → legajo auto-promotion", () => {
+    beforeEach(async () => {
+      await cleanupTestMembers();
+    });
+
+    /**
+     * Helper: soft-register an SP lead and return the new userId. Mirrors
+     * the receptionist-at-the-door flow — only firstName/lastName/phone/
+     * branchId are captured; everything else stays NULL.
+     */
+    async function softRegisterTrial(phone = "1155557777"): Promise<number> {
+      const res = await app.inject({
+        method: "POST",
+        url: "/api/admin/members/trial",
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          firstName: "Sebastian",
+          lastName: "Lead",
+          phone,
+          branchId: 1,
+        },
+      });
+      expect(res.statusCode).toBe(201);
+      const body = JSON.parse(res.body);
+      expect(body.status).toBe("prueba");
+      return body.id;
+    }
+
+    it("promotes an SP lead to 'inactivo' when all presencial fields are completed in one PUT", async () => {
+      const userId = await softRegisterTrial();
+
+      const res = await app.inject({
+        method: "PUT",
+        url: `/api/admin/members/${userId}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          firstName: "Sebastian",
+          lastName: "Lead",
+          email: "sp-promote@test-members.com",
+          dni: "39111222",
+          documentType: "DNI",
+          dateOfBirth: "1992-03-04",
+        },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.status).toBe("inactivo");
+
+      // Confirm against DB (response shape independence).
+      const [row] = await app.db
+        .select({ status: users.status, dni: users.dni })
+        .from(users)
+        .where(eq(users.id, userId));
+      expect(row?.status).toBe("inactivo");
+      expect(row?.dni).toBe("39111222");
+    });
+
+    it("keeps SP lead in 'prueba' when a required field is still missing after the PUT", async () => {
+      const userId = await softRegisterTrial("1155558888");
+
+      // Submit dni + documentType but NO dateOfBirth — still incomplete.
+      const res = await app.inject({
+        method: "PUT",
+        url: `/api/admin/members/${userId}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          firstName: "Sebastian",
+          lastName: "Lead",
+          dni: "39333444",
+          documentType: "DNI",
+        },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.status).toBe("prueba");
+
+      const [row] = await app.db
+        .select({ status: users.status, dni: users.dni })
+        .from(users)
+        .where(eq(users.id, userId));
+      expect(row?.status).toBe("prueba");
+      expect(row?.dni).toBe("39333444"); // personal data still persisted
+    });
+
+    it("promotes SP lead via merged view (existing row fields + small PUT)", async () => {
+      // Simulates a two-step completion: a previous PUT already filled
+      // dni + documentType, and this second PUT only adds dateOfBirth.
+      // The merged view should be complete → status flips to 'inactivo'.
+      const userId = await softRegisterTrial("1155559999");
+
+      await app.db
+        .update(users)
+        .set({
+          dni: "39555666",
+          documentType: "DNI",
+        })
+        .where(eq(users.id, userId));
+
+      // Sanity: still in 'prueba' because no PUT has triggered the flip yet.
+      const [pre] = await app.db
+        .select({ status: users.status })
+        .from(users)
+        .where(eq(users.id, userId));
+      expect(pre?.status).toBe("prueba");
+
+      const res = await app.inject({
+        method: "PUT",
+        url: `/api/admin/members/${userId}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          firstName: "Sebastian",
+          lastName: "Lead",
+          dateOfBirth: "1992-03-04",
+        },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.status).toBe("inactivo");
+    });
+  });
 });

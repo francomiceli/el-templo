@@ -922,8 +922,13 @@ async function onSubmit() {
         emergencyContactPhone: form.value.emergencyContactPhone || null,
         emergencyContactRelationship: form.value.emergencyContactRelationship || null,
       };
-      await membersApi.updateMember(props.member.id, updatePayload);
-      emit('saved', null);
+      const wasPrueba = props.member.status === 'prueba';
+      const updated = await membersApi.updateMember(props.member.id, updatePayload);
+      // SP → legajo conversion: surface the updated member so the parent
+      // can offer to assign a plan right away (mirrors the post-create
+      // flow in AlumnosPage). Plain edits keep emitting null so the parent
+      // doesn't get prompted for an unrelated change.
+      emit('saved', wasPrueba ? updated : null);
     } else {
       const created = await membersApi.createMember({
         email: form.value.email,
