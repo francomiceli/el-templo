@@ -1,27 +1,16 @@
 <template>
   <q-page class="bar-challenge-explicacion">
     <div class="bar-challenge-explicacion__content">
-      <h1 class="bar-challenge-explicacion__heading">Desafío de la Barra</h1>
-
-      <p class="bar-challenge-explicacion__body">
-        Aguantá colgado de la barra por al menos 1:30. Si lo lográs, compartí tu foto etiquetando a
-        @eltemplo y mostrásela al staff para llevarte tu premio. Tenés un solo intento.
-      </p>
+      <h1 class="bar-challenge-explicacion__heading">DESAFÍO AURA</h1>
 
       <ul class="bar-challenge-explicacion__rules">
         <li class="bar-challenge-explicacion__rule">
           <q-icon name="check" size="18px" class="bar-challenge-explicacion__rule-icon" />
-          <span>Un solo intento.</span>
+          <span>Aguantá colgado de la barra por al menos un minuto y medio.</span>
         </li>
         <li class="bar-challenge-explicacion__rule">
           <q-icon name="check" size="18px" class="bar-challenge-explicacion__rule-icon" />
-          <span>El staff opera el cronómetro.</span>
-        </li>
-        <li class="bar-challenge-explicacion__rule">
-          <q-icon name="check" size="18px" class="bar-challenge-explicacion__rule-icon" />
-          <span>
-            Para reclamar el premio, mostrá la foto con la etiqueta @eltemplo al staff del local.
-          </span>
+          <span>Compartilo etiquetando a @eltemplomdp y @auraclub.ar.</span>
         </li>
       </ul>
 
@@ -49,25 +38,18 @@
  *  - sin intento previo → "Comenzar" → /desafio-barra/timer
  *  - con intento previo → "Ver mi intento" → /desafio-barra/resultado
  */
-import { computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { useUserStore } from 'src/stores/useUserStore'
 
 defineOptions({ name: 'BarChallengeExplicacion' })
 
 const router = useRouter()
-const userStore = useUserStore()
 
-const alreadyAttempted = computed(() => userStore.profile?.barChallengeAttemptedAt != null)
-
-const ctaLabel = computed(() => (alreadyAttempted.value ? 'Ver mi intento' : 'Comenzar'))
+// Post-launch 2026-05-21: sin distinción de intento previo. Cualquiera puede
+// iniciar el desafío cuantas veces quiera. El backend tampoco rechaza retries.
+const ctaLabel = 'Comenzar'
 
 function onPrimaryCta(): void {
-  if (alreadyAttempted.value) {
-    void router.push('/desafio-barra/resultado')
-  } else {
-    void router.push('/desafio-barra/timer')
-  }
+  void router.push('/desafio-barra/timer')
 }
 </script>
 

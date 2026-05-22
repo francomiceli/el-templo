@@ -9,7 +9,7 @@
       <div class="bar-challenge-card__header">
         <div class="bar-challenge-card__chip">
           <q-icon name="fitness_center" size="12px" class="bar-challenge-card__chip-icon" />
-          <span class="bar-challenge-card__chip-text">DESAFÍO</span>
+          <span class="bar-challenge-card__chip-text">DESAFÍO AURA</span>
         </div>
       </div>
 
@@ -17,7 +17,7 @@
       <h3 class="bar-challenge-card__heading">{{ heading }}</h3>
 
       <div class="bar-challenge-card__footer">
-        <p class="bar-challenge-card__body">{{ body }}</p>
+        <p v-if="body" class="bar-challenge-card__body">{{ body }}</p>
         <button class="bar-challenge-card__cta" type="button" @click.stop="onCtaTap">
           <span class="bar-challenge-card__cta-text">{{ ctaLabel }}</span>
         </button>
@@ -52,45 +52,19 @@
  *                    the store if it's still in memory and surfaces "Compartir
  *                    foto" vs "Sacar foto ahora" CTAs.
  */
-import { computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { useUserStore } from 'src/stores/useUserStore'
 
 const router = useRouter()
-const userStore = useUserStore()
 
-const attemptedAt = computed(() => userStore.profile?.barChallengeAttemptedAt ?? null)
-const seconds = computed(() => userStore.profile?.barChallengeSeconds ?? null)
-const completed = computed(() => userStore.profile?.barChallengeCompleted ?? null)
-const hasAttempted = computed(() => attemptedAt.value !== null)
-
-const heading = computed(() => {
-  if (!hasAttempted.value) return 'Aguantá 1:30 colgado de la barra'
-  return completed.value ? 'Lograste el desafío' : 'Tu intento quedó'
-})
-
-const body = computed(() => {
-  if (!hasAttempted.value) return 'Mostralo al staff y llevate tu premio.'
-  return `Aguantaste ${seconds.value ?? 0}s.`
-})
-
-const ctaLabel = computed(() => {
-  if (!hasAttempted.value) return 'Iniciar desafío'
-  // D-08: la foto vive sólo en memoria del store y no se persiste. Después de
-  // un refresh perdemos `photoBase64`, así que el card no puede ofrecer
-  // "Compartir foto" de forma confiable — eso queda para /resultado, donde el
-  // store sí está vivo dentro de la sesión actual. Acá siempre llevamos a
-  // /resultado, que decide en su pantalla si muestra "Compartir foto" o
-  // "Sacar foto ahora".
-  return 'Ver mi intento'
-})
+// Post-launch 2026-05-21: la card es siempre el call-to-action inicial. No
+// distingue estado de intento previo — los usuarios pueden volver a participar
+// ilimitadamente.
+const heading = '¿Te animás a colgarte de la barra?'
+const body = 'Tenemos una sorpresa para vos'
+const ctaLabel = 'Iniciar desafío'
 
 function onCtaTap(): void {
-  if (!hasAttempted.value) {
-    void router.push('/desafio-barra')
-  } else {
-    void router.push('/desafio-barra/resultado')
-  }
+  void router.push('/desafio-barra')
 }
 </script>
 
@@ -202,12 +176,11 @@ function onCtaTap(): void {
 }
 
 .bar-challenge-card__chip-text {
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 600;
   color: #c4956a;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.8px;
   text-transform: uppercase;
-  font-family: 'Montserrat', sans-serif;
 }
 
 .bar-challenge-card__heading {
@@ -239,6 +212,7 @@ function onCtaTap(): void {
 }
 
 .bar-challenge-card__cta {
+  margin-left: auto;
   display: inline-flex;
   align-items: center;
   gap: 8px;

@@ -64,7 +64,6 @@
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useBarChallengeStore } from 'src/modules/bar-challenge/stores/useBarChallengeStore'
-import { useUserStore } from 'src/stores/useUserStore'
 import { KeepAwake } from '@capacitor-community/keep-awake'
 import { createLogger } from 'src/utils/logger'
 
@@ -72,7 +71,6 @@ defineOptions({ name: 'BarChallengeTimer' })
 
 const router = useRouter()
 const store = useBarChallengeStore()
-const userStore = useUserStore()
 const logger = createLogger('bar-challenge-timer')
 
 const cameraError = ref<string | null>(null)
@@ -91,17 +89,8 @@ const isSuccess = computed(() => store.secondsHeld >= 90)
 const statusLabel = computed(() => (isSuccess.value ? '¡LO LOGRASTE! SEGUÍ AGUANTANDO' : 'AGUANTÁ'))
 
 onMounted(async () => {
-  // R11 single-attempt guard — MUST run BEFORE store.start() / setInterval / KeepAwake.
-  // Defensa en profundidad sobre el 409 atómico del backend (Plan 04). Un
-  // deep-link directo a /desafio-barra/timer no puede iniciar un segundo intento.
-  if (userStore.profile?.barChallengeAttemptedAt != null) {
-    logger.info('R11 guard: already attempted, redirecting to /resultado', {
-      attemptedAt: userStore.profile.barChallengeAttemptedAt,
-    })
-    await router.replace('/desafio-barra/resultado')
-    return
-  }
-
+  // Post-launch 2026-05-21: sin guard de intento previo — los usuarios pueden
+  // reintentar ilimitadamente y el backend acepta cada submit.
   store.start()
   intervalId = window.setInterval(() => store.tick(), 100)
   try {

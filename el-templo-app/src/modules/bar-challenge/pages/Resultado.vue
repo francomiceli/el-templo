@@ -25,24 +25,20 @@
         <img :src="photoSrc" alt="Tu foto del desafío" class="bar-challenge-resultado__photo" />
       </div>
 
-      <!-- Headline: "Aguantaste {N} segundos" -->
+      <!-- Headline: "Tu resultado: {N} segundos!" -->
       <h1 class="bar-challenge-resultado__heading">
-        Aguantaste
+        Tu resultado:
         <span
           class="bar-challenge-resultado__num"
           :class="{ 'bar-challenge-resultado__num--success': displayCompleted }"
         >
           {{ displaySeconds }}
         </span>
-        segundos
+        segundos!
       </h1>
 
-      <!-- Body según completed -->
-      <p v-if="displayCompleted" class="bar-challenge-resultado__body">
-        Mostrá la foto etiquetando a @eltemplo al staff del local y llevate tu premio.
-      </p>
-      <p v-else class="bar-challenge-resultado__body">
-        La barra te está esperando. Vení a entrenar.
+      <p class="bar-challenge-resultado__body">
+        Etiquetá a @eltemplomdp y @auraclub.ar y participá!
       </p>
 
       <!-- CTA cluster -->
@@ -54,8 +50,8 @@
           :disabled="sharing"
           @click="handleShare"
         >
-          <q-icon name="ios_share" size="18px" />
-          <span>Compartir foto</span>
+          <q-icon name="share" size="18px" />
+          <span>Compartir</span>
         </button>
         <button
           v-else
@@ -117,7 +113,6 @@ const $q = useQuasar()
 const logger = createLogger('bar-challenge-resultado')
 
 const SESSION_KEY = 'bar-challenge-pending-submit'
-const FRAME_PATH = '/desafio-barra/marco-placeholder.png'
 
 const retryPending = ref(false)
 const sharing = ref(false)
@@ -193,7 +188,10 @@ async function handleShare(): Promise<void> {
   if (!displayPhoto.value) return
   sharing.value = true
   try {
-    const blob = await composeWithFrame(displayPhoto.value, FRAME_PATH)
+    const blob = await composeWithFrame(displayPhoto.value, {
+      secondsHeld: displaySeconds.value,
+      completed: displayCompleted.value,
+    })
     const dataUrl = await blobToDataUrl(blob)
     try {
       const shareMod: typeof import('@capacitor/share') = await import('@capacitor/share')

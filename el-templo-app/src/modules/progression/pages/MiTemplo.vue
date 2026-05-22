@@ -32,38 +32,27 @@
         @program-changed="onProgramChanged"
       />
 
-      <!-- Upsell: virtual users get carousel, presencial with linked program get CTA.
-           During the Bar Challenge event window (Phase 115, D-05), the carousel is
-           forced visible to ALL authenticated users and BarChallengeCard is inserted
-           as the first slide. Outside the window, behavior is unchanged. -->
-      <template v-else-if="showPremiumCarousel">
+      <!-- Carrusel premium (Phase 115 post-launch 2026-05-21):
+           - BarChallengeCard siempre como primer slide (visibilidad permanente).
+           - UpsellBadge sólo para usuarios virtuales (Templo Online).
+           - ProgramCtaCard siempre como último slide.
+           Se renderiza salvo cuando ProgramProgressCard se muestra arriba
+           (multi-enrollment o non-linked). -->
+      <template v-else>
         <div class="premium-carousel">
           <div class="premium-carousel__dots">
             <span
-              v-if="barChallengeWindow.isActive"
+              v-for="idx in premiumSlideCount"
+              :key="idx"
               class="premium-carousel__dot"
-              :class="{ 'premium-carousel__dot--active': premiumSlide === 0 }"
-            />
-            <span
-              class="premium-carousel__dot"
-              :class="{
-                'premium-carousel__dot--active':
-                  premiumSlide === (barChallengeWindow.isActive ? 1 : 0),
-              }"
-            />
-            <span
-              class="premium-carousel__dot"
-              :class="{
-                'premium-carousel__dot--active':
-                  premiumSlide === (barChallengeWindow.isActive ? 2 : 1),
-              }"
+              :class="{ 'premium-carousel__dot--active': premiumSlide === idx - 1 }"
             />
           </div>
           <div ref="premiumScroller" class="premium-carousel__scroller" @scroll="onPremiumScroll">
-            <div v-if="barChallengeWindow.isActive" class="premium-carousel__slide">
+            <div class="premium-carousel__slide">
               <BarChallengeCard />
             </div>
-            <div class="premium-carousel__slide">
+            <div v-if="showUpsellBadge" class="premium-carousel__slide">
               <UpsellBadge />
             </div>
             <div class="premium-carousel__slide">
@@ -72,8 +61,6 @@
           </div>
         </div>
       </template>
-
-      <ProgramCtaCard v-else :segment="userStore.segment" />
 
       <!-- Check-in Cards — horizontal swipeable row (Phase 82) -->
       <template v-if="orderedCheckIns.length > 0">
@@ -173,7 +160,6 @@ import type { MemberEnrollmentProgress } from 'src/modules/programs/types'
 import PermissionBanner from '../components/PermissionBanner.vue'
 import UpsellBadge from '../components/UpsellBadge.vue'
 import BarChallengeCard from 'src/modules/bar-challenge/components/BarChallengeCard.vue'
-import { useBarChallengeWindow } from 'src/modules/bar-challenge/composables/useBarChallengeWindow'
 import { useNotificationStore } from 'src/stores/useNotificationStore'
 import { useRouter } from 'vue-router'
 import { createLogger } from 'src/utils/logger'
@@ -201,8 +187,13 @@ function scrollCheckIns(direction: 'left' | 'right') {
 function onPremiumScroll() {
   const el = premiumScroller.value
   if (!el) return
+  const slideCount = premiumSlideCount.value
+  if (slideCount <= 1) {
+    premiumSlide.value = 0
+    return
+  }
   const scrollRatio = el.scrollLeft / (el.scrollWidth - el.clientWidth)
-  premiumSlide.value = scrollRatio > 0.5 ? 1 : 0
+  premiumSlide.value = Math.round(scrollRatio * (slideCount - 1))
 }
 
 const todayStr = computed(() => {
@@ -234,18 +225,13 @@ const showRestDay = computed(() => {
   return isRestDay.value
 })
 
-const showUpsellBadge = computed(() => {
-  return userStore.profile?.branchIsVirtual ?? false
-})
+// UpsellBadge sólo aplica a usuarios virtuales (Templo Online) — para los
+// presenciales el upsell "vení a una sede" no tiene sentido.
+const showUpsellBadge = computed(() => userStore.profile?.branchIsVirtual ?? false)
 
-// Phase 115 (D-05): durante la ventana del evento, el carrusel premium se
-// muestra a TODOS los usuarios autenticados (override del gate `showUpsellBadge`)
-// y `BarChallengeCard` se inserta como primer slide. Fuera de ventana,
-// comportamiento idéntico al actual.
-const barChallengeWindow = useBarChallengeWindow()
-const showPremiumCarousel = computed(
-  () => showUpsellBadge.value || barChallengeWindow.isActive.value,
-)
+// Cantidad real de slides activos en el carrusel premium:
+// BarChallengeCard (siempre) + ProgramCtaCard (siempre) + UpsellBadge (sólo virtual).
+const premiumSlideCount = computed(() => (showUpsellBadge.value ? 3 : 2))
 
 const todayCompleted = computed(() => {
   return progressionStore.todaySession?.completed ?? false

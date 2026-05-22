@@ -1,17 +1,16 @@
 /**
- * Bar Challenge Module Integration Tests (Phase 115 — R2, R11, D-11..D-14)
+ * Bar Challenge Module Integration Tests (Phase 115, post-launch 2026-05-21).
  *
- * Covers the four SPEC acceptance cases plus defensive bounds:
- *   1. 200 + DB persisted: secondsHeld=90 → completed=true.
- *   2. 200 + DB persisted: secondsHeld=47 → completed=false.
- *   3. 409 already_attempted: second POST does not mutate the first attempt.
+ * Política actualizada: sin límite de intentos. Cada submit sobrescribe el
+ * intento previo en la fila de `users`. El backend nunca devuelve 409.
+ *
+ * Casos cubiertos:
+ *   1. 200 + DB persistido: secondsHeld=90 → completed=true.
+ *   2. 200 + DB persistido: secondsHeld=47 → completed=false.
+ *   3. 200 + retry sobrescribe: segundo POST gana, queda en DB sin bloqueo.
  *   4. 401: missing Authorization header.
  *   5. 400 (D-13): secondsHeld>600 rejected by JSON schema.
  *   6. 400 (D-13): missing secondsHeld field rejected by JSON schema.
- *
- * Pattern mirrors `notifications.test.ts` and `admin-leads-patch.test.ts`:
- * createTestApp once, cleanAllTestData between tests, registerUser via
- * helpers to get a fresh member token per case.
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
@@ -112,32 +111,28 @@ describe("POST /api/bar-challenge/result (Phase 115 R2 + R11)", () => {
     expect(row.attemptedAt).not.toBeNull();
   });
 
-  it("409 already_attempted on second POST + first attempt preserved (R11)", async () => {
+  it("segundo POST sobrescribe al primero sin bloqueo (sin límite de intentos)", async () => {
     const { token, userId } = await makeMember();
 
     const first = await app.inject({
       method: "POST",
       url: "/api/bar-challenge/result",
       headers: { authorization: `Bearer ${token}` },
-      payload: { secondsHeld: 90 },
+      payload: { secondsHeld: 92 },
     });
     expect(first.statusCode).toBe(200);
+    expect(first.json()).toMatchObject({ completed: true, seconds: 92 });
 
+    // Segundo intento aunque el primero haya sido completed=true: sobrescribe.
     const second = await app.inject({
       method: "POST",
       url: "/api/bar-challenge/result",
       headers: { authorization: `Bearer ${token}` },
       payload: { secondsHeld: 30 },
     });
+    expect(second.statusCode).toBe(200);
+    expect(second.json()).toMatchObject({ completed: false, seconds: 30 });
 
-    expect(second.statusCode).toBe(409);
-    expect(second.json()).toMatchObject({
-      error: "already_attempted",
-      message: "Ya registraste tu intento",
-    });
-
-    // First attempt remains authoritative — UPDATE conditional did not touch
-    // the row, so seconds is still 90 (not 30).
     const [row] = await app.db
       .select({
         completed: schema.users.barChallengeCompleted,
@@ -147,8 +142,8 @@ describe("POST /api/bar-challenge/result (Phase 115 R2 + R11)", () => {
       .where(eq(schema.users.id, userId))
       .limit(1);
 
-    expect(Boolean(row.completed)).toBe(true);
-    expect(row.seconds).toBe(90);
+    expect(Boolean(row.completed)).toBe(false);
+    expect(row.seconds).toBe(30);
   });
 
   it("401 when no Authorization header is provided", async () => {

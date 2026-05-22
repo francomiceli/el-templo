@@ -38,7 +38,7 @@ export const barChallengeRoutes: FastifyPluginAsync = async (fastify) => {
    *
    * Body: `{ secondsHeld: integer in [0, 600] }`.
    * Success: 200 with `{ completed, seconds }`. `completed = secondsHeld >= 90`.
-   * Conflict (already attempted): 409 with `{ error: "already_attempted", message }`.
+   *   - Cada submit sobrescribe el intento previo; sin límite de intentos.
    * Bad request: 400 (JSON-schema violation).
    * Unauthorized: 401 (missing/invalid bearer token).
    */
@@ -51,13 +51,6 @@ export const barChallengeRoutes: FastifyPluginAsync = async (fastify) => {
 
       const service = new BarChallengeService(fastify.db, request.log);
       const result = await service.submitResult(userId, secondsHeld);
-
-      if (!result.ok) {
-        return reply.code(409).send({
-          error: "already_attempted",
-          message: "Ya registraste tu intento",
-        });
-      }
 
       return reply.code(200).send({
         completed: result.completed,

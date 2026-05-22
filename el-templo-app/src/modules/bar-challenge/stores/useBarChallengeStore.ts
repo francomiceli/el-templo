@@ -65,7 +65,7 @@ export interface BarChallengeAttemptResult {
  * - **D-10 (retry submit):** POST con 3 reintentos (1s/3s/9s). Si los 3
  *   fallan, push del payload a sessionStorage; `drainPendingSubmits()` (que
  *   debe llamarse en boot / al cargar /me) lo reintenta una vez más. Si el
- *   backend devuelve 409 ("already_attempted"), tratamos el intento como
+ *   backend devuelve 409 ("already_completed"), tratamos el intento como
  *   consumido y NO encolamos retry.
  */
 export const useBarChallengeStore = defineStore('barChallenge', () => {
@@ -135,13 +135,12 @@ export const useBarChallengeStore = defineStore('barChallenge', () => {
   }
 
   /**
-   * POST del intento al backend con retry policy de D-10.
+   * POST del intento al backend con retry policy.
    *
    * - 4 intentos totales (1 inicial + 3 reintentos), con delays 1s/3s/9s.
-   * - 409 (`already_attempted`) → NO reintentar, NO encolar; el intento fue
-   *   consumido en otra sesión / refresh, optimistic-UI ya mostró el dato.
-   * - Otros errores tras agotar reintentos → push a sessionStorage queue;
+   * - Tras agotar reintentos → push a sessionStorage queue;
    *   `drainPendingSubmits()` lo recoge al próximo boot / load /me.
+   * - El backend sobrescribe cada submit, no rechaza retries.
    */
   async function submit(): Promise<void> {
     if (!attemptResult.value) {
@@ -156,11 +155,6 @@ export const useBarChallengeStore = defineStore('barChallenge', () => {
         logger.info('submit success', { attempt })
         return
       } catch (err: unknown) {
-        const status = extractHttpStatus(err)
-        if (status === 409) {
-          logger.warn('submit returned 409 — already attempted elsewhere, dropping')
-          return
-        }
         if (attempt < RETRY_DELAYS_MS.length) {
           const delay = RETRY_DELAYS_MS[attempt] ?? 0
           logger.warn('submit failed, retrying', {
