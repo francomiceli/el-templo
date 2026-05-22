@@ -48,9 +48,9 @@
 	<key>NSCameraUsageDescription</key>
 	<string>El Templo necesita acceso a la cámara para escanear el código QR de asistencia y para sacar la foto del Desafío de la Barra</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>El Templo no guarda fotos en tu biblioteca. Apple requiere esta descripción porque el plugin de cámara incluye APIs relacionadas.</string>
+	<string>El Templo accede a tu galería de fotos para que puedas elegir una imagen al participar de un desafío o personalizar tu perfil.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>El Templo no guarda fotos en tu biblioteca. Apple requiere esta descripción porque el plugin de cámara incluye APIs relacionadas.</string>
+	<string>El Templo guarda en tu galería la foto del Desafío de la Barra para que puedas compartirla en tus redes.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>
