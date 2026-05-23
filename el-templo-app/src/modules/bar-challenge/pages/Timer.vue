@@ -63,6 +63,8 @@
  */
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useQuasar } from 'quasar'
+import { Capacitor } from '@capacitor/core'
 import { useBarChallengeStore } from 'src/modules/bar-challenge/stores/useBarChallengeStore'
 import { KeepAwake } from '@capacitor-community/keep-awake'
 import { createLogger } from 'src/utils/logger'
@@ -71,6 +73,7 @@ defineOptions({ name: 'BarChallengeTimer' })
 
 const router = useRouter()
 const store = useBarChallengeStore()
+const $q = useQuasar()
 const logger = createLogger('bar-challenge-timer')
 
 const cameraError = ref<string | null>(null)
@@ -116,11 +119,27 @@ onUnmounted(() => {
   })
 })
 
+/**
+ * Flujo de captura con permission-aware UX (post-launch 2026-05-22):
+ *  1. `checkPermissions()` para distinguir granted / prompt / denied.
+ *  2. Si `prompt` → `requestPermissions()` (dispara el prompt nativo).
+ *  3. Si `denied` (ya rechazado antes), iOS NO vuelve a mostrar el prompt —
+ *     mostramos un diálogo Quasar con CTA "Abrir Ajustes" que deep-linkea a
+ *     `app-settings:` (iOS) o cae a un mensaje en otras plataformas.
+ *  4. Si `granted` → `getPhoto()` normal.
+ *
+ * El `cameraError` inline-banner queda como fallback para errores no-permiso
+ * (ej: hardware busy, cámara fallida).
+ */
 async function onTakePhoto(): Promise<void> {
   cameraError.value = null
   try {
     const cam: typeof import('@capacitor/camera') = await import('@capacitor/camera')
     const { Camera, CameraResultType, CameraSource } = cam
+
+    const granted = await ensureCameraPermission(Camera)
+    if (!granted) return
+
     const photo = await Camera.getPhoto({
       quality: 80,
       source: CameraSource.Camera,
@@ -133,8 +152,83 @@ async function onTakePhoto(): Promise<void> {
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)
     logger.warn('camera failed', { err: msg })
-    cameraError.value = 'Sin permiso de cámara. Podés seguir el desafío sin foto.'
+    cameraError.value = 'No pudimos abrir la cámara. Podés seguir el desafío sin foto.'
   }
+}
+
+/**
+ * Resuelve permiso de cámara antes de invocar `getPhoto()`.
+ *
+ * Devuelve `true` si el permiso quedó concedido y podemos avanzar, `false` si
+ * el usuario lo rechazó o no podemos continuar. En el caso denied muestra el
+ * diálogo de redirección a Ajustes — no devuelve `false` silenciosamente.
+ */
+async function ensureCameraPermission(
+  Camera: typeof import('@capacitor/camera').Camera,
+): Promise<boolean> {
+  // Web build: el plugin maneja todo via getUserMedia; no hay checkPermissions
+  // confiable. Delegamos a getPhoto y que el browser muestre su propio prompt.
+  if (!Capacitor.isNativePlatform()) return true
+
+  let state: Awaited<ReturnType<typeof Camera.checkPermissions>>
+  try {
+    state = await Camera.checkPermissions()
+  } catch (err: unknown) {
+    logger.warn('checkPermissions failed', {
+      err: err instanceof Error ? err.message : String(err),
+    })
+    return true // Best-effort: dejá que getPhoto intente y maneje el error.
+  }
+
+  if (state.camera === 'granted') return true
+
+  if (state.camera === 'prompt' || state.camera === 'prompt-with-rationale') {
+    try {
+      const requested = await Camera.requestPermissions({ permissions: ['camera'] })
+      if (requested.camera === 'granted') return true
+    } catch (err: unknown) {
+      logger.warn('requestPermissions failed', {
+        err: err instanceof Error ? err.message : String(err),
+      })
+    }
+  }
+
+  // Llegamos acá si: state era 'denied', el usuario rechazó el prompt, o
+  // requestPermissions tiró error. En todos los casos no podemos abrir la
+  // cámara — guiamos al usuario a Ajustes.
+  showOpenSettingsDialog()
+  return false
+}
+
+/**
+ * Diálogo de redirección a Ajustes cuando el permiso de cámara está denegado.
+ * En iOS, el deep link `app-settings:` abre la página de la app en Ajustes.
+ * En Android, `package:` no es bypass-able desde un WebView, así que mostramos
+ * sólo instrucciones. Best-effort en ambos casos.
+ */
+function showOpenSettingsDialog(): void {
+  $q.dialog({
+    title: 'Activá la cámara',
+    message:
+      'Para sacar la foto del desafío necesitamos permiso de cámara. ' +
+      'Activalo en Ajustes > El Templo > Cámara.',
+    ok: { label: 'Abrir Ajustes', color: 'primary', unelevated: true },
+    cancel: { label: 'Ahora no', flat: true, color: 'grey-5' },
+    persistent: false,
+  }).onOk(() => {
+    if (Capacitor.getPlatform() === 'ios') {
+      // iOS intercepta `app-settings:` y abre Ajustes sin destruir el WebView.
+      // Si el WebView muere de todas formas (memoria), la rehidratación del
+      // bar-challenge ya cubre el caso (router guard + restoreActiveAttempt).
+      try {
+        window.location.href = 'app-settings:'
+      } catch (err: unknown) {
+        logger.warn('open ios settings failed', {
+          err: err instanceof Error ? err.message : String(err),
+        })
+      }
+    }
+  })
 }
 
 function onFinalize(): void {
