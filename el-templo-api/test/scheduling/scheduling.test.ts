@@ -1949,6 +1949,31 @@ describe("Scheduling API", () => {
       expect(JSON.parse(res.body).message).toContain("feriado");
     });
 
+    it("POST add duplicate holiday returns 409", async () => {
+      const payload = {
+        country: "AR",
+        date: "2026-08-17",
+        name: "Paso a la Inmortalidad del Gral. San Martin",
+      };
+
+      const first = await app.inject({
+        method: "POST",
+        url: `${ADMIN_URL}/holidays`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload,
+      });
+      expect(first.statusCode).toBe(201);
+
+      const second = await app.inject({
+        method: "POST",
+        url: `${ADMIN_URL}/holidays`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload,
+      });
+      expect(second.statusCode).toBe(409);
+      expect(JSON.parse(second.body).message).toContain("Ya existe");
+    });
+
     it("GET list holidays returns filtered results", async () => {
       // Add two holidays
       await app.inject({

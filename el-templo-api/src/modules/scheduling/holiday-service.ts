@@ -9,8 +9,9 @@ import { MySql2Database } from "drizzle-orm/mysql2";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
-import { NotFoundError } from "../shared/errors";
+import { ConflictError, NotFoundError } from "../shared/errors";
 import { addDays } from "../shared/date-utils";
+import { isDuplicateKeyError } from "../shared/sql-errors";
 import type { HolidayRecord } from "./types";
 
 export class HolidayService {
@@ -28,13 +29,23 @@ export class HolidayService {
     date: string,
     name: string,
   ): Promise<HolidayRecord> {
-    const result = await this.db.insert(schema.holidays).values({
-      country,
-      date,
-      name,
-    });
-
-    const holidayId = Number(result[0].insertId);
+    let holidayId: number;
+    try {
+      const result = await this.db.insert(schema.holidays).values({
+        country,
+        date,
+        name,
+      });
+      holidayId = Number(result[0].insertId);
+    } catch (err: unknown) {
+      const { isDuplicate } = isDuplicateKeyError(err);
+      if (isDuplicate) {
+        throw new ConflictError(
+          "Ya existe un feriado registrado para esa fecha y pais",
+        );
+      }
+      throw err;
+    }
 
     // Auto-cancel bookings at branches in this country on this date
     // Find all branches in this country

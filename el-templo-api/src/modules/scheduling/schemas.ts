@@ -603,6 +603,7 @@ export const addHolidaySchema = {
   response: {
     201: holidayRecordSchema,
     400: errorSchema,
+    409: errorSchema,
   },
 };
 

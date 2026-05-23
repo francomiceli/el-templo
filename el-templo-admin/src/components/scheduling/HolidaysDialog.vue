@@ -95,6 +95,7 @@ import { ref, watch } from 'vue';
 import { useQuasar } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { useSchedulingApi } from 'src/composables/useSchedulingApi';
+import { extractError, isExpectedClientError } from 'src/utils/extract-error';
 import type { HolidayRecord } from 'src/types/scheduling';
 
 const log = createLogger('HolidaysDialog');
@@ -169,9 +170,11 @@ async function onAddHoliday() {
     await loadHolidays();
     emit('holidays-changed');
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Error desconocido';
-    log.error('Error adding holiday', { error: message });
-    $q.notify({ type: 'negative', message: 'Error agregando feriado' });
+    const message = extractError(err, 'Error agregando feriado');
+    if (!isExpectedClientError(err)) {
+      log.error('Error adding holiday', { error: message });
+    }
+    $q.notify({ type: 'negative', message });
   }
 }
 
@@ -188,9 +191,11 @@ async function onRemoveHoliday(h: HolidayRecord) {
       await loadHolidays();
       emit('holidays-changed');
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Error desconocido';
-      log.error('Error removing holiday', { error: message });
-      $q.notify({ type: 'negative', message: 'Error eliminando feriado' });
+      const message = extractError(err, 'Error eliminando feriado');
+      if (!isExpectedClientError(err)) {
+        log.error('Error removing holiday', { error: message });
+      }
+      $q.notify({ type: 'negative', message });
     }
   });
 }

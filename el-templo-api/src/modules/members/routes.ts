@@ -69,35 +69,7 @@ import {
   outstandingConceptsSchema,
 } from "../finance/schemas";
 import { handleServiceError } from "../shared/error-handler";
-
-/**
- * Check if an error is a MySQL duplicate key error and extract details.
- * Drizzle wraps MySQL errors: the real MySQL error is in `err.cause`.
- */
-function isDuplicateKeyError(err: unknown): {
-  isDuplicate: boolean;
-  detail: string;
-} {
-  if (!(err instanceof Error)) return { isDuplicate: false, detail: "" };
-
-  // Drizzle wraps the MySQL error in `cause`
-  const cause = err.cause as Record<string, unknown> | undefined;
-  const causeCode = typeof cause?.code === "string" ? cause.code : "";
-  const causeSqlMessage =
-    typeof cause?.sqlMessage === "string" ? cause.sqlMessage : "";
-  const causeMessage = cause instanceof Error ? cause.message : causeSqlMessage;
-
-  // Check the cause first (Drizzle wrapper), then the error itself
-  const isDuplicate =
-    causeCode === "ER_DUP_ENTRY" ||
-    causeSqlMessage.includes("Duplicate entry") ||
-    causeMessage.includes("Duplicate entry") ||
-    err.message.includes("Duplicate entry");
-
-  const detail = causeSqlMessage || causeMessage || err.message;
-
-  return { isDuplicate, detail };
-}
+import { isDuplicateKeyError } from "../shared/sql-errors";
 
 export const memberRoutes: FastifyPluginAsync = async (fastify) => {
   const memberService = new MemberService(fastify.db, fastify.log);
