@@ -65,7 +65,11 @@ import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { Capacitor } from '@capacitor/core'
-import { useBarChallengeStore } from 'src/modules/bar-challenge/stores/useBarChallengeStore'
+import {
+  useBarChallengeStore,
+  markPhotoCaptureStart,
+  clearPhotoCaptureFlag,
+} from 'src/modules/bar-challenge/stores/useBarChallengeStore'
 import { KeepAwake } from '@capacitor-community/keep-awake'
 import { createLogger } from 'src/utils/logger'
 
@@ -140,14 +144,22 @@ async function onTakePhoto(): Promise<void> {
     const granted = await ensureCameraPermission(Camera)
     if (!granted) return
 
-    const photo = await Camera.getPhoto({
-      quality: 80,
-      source: CameraSource.Camera,
-      resultType: CameraResultType.Base64,
-      saveToGallery: false,
-    })
-    if (photo.base64String) {
-      store.setPhoto(photo.base64String)
+    // Marcamos ANTES del getPhoto. Si el WebView muere durante la cámara, el
+    // flag sobrevive en localStorage y Resultado.vue lo detecta para avisar
+    // al usuario en vez de mostrar el CTA fallback sin contexto.
+    markPhotoCaptureStart()
+    try {
+      const photo = await Camera.getPhoto({
+        quality: 80,
+        source: CameraSource.Camera,
+        resultType: CameraResultType.Base64,
+        saveToGallery: false,
+      })
+      if (photo.base64String) {
+        store.setPhoto(photo.base64String)
+      }
+    } finally {
+      clearPhotoCaptureFlag()
     }
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)

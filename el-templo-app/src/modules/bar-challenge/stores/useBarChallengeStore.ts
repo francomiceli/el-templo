@@ -28,6 +28,20 @@ const SESSION_KEY = 'bar-challenge-pending-submit'
 const ACTIVE_ATTEMPT_KEY = 'bar-challenge-active-attempt'
 
 /**
+ * localStorage key del flag "captura de foto en curso" (post-launch 2026-05-23).
+ *
+ * En Android (y iOS) abrir la cámara nativa puede matar el WebView. Si eso pasa,
+ * el `await Camera.getPhoto()` nunca resuelve y la foto se pierde silenciosamente
+ * — el usuario llega a /resultado sin foto y sin entender por qué.
+ *
+ * Lo seteamos JUSTO ANTES de `Camera.getPhoto()` y lo limpiamos al recibir el
+ * base64 (o cancelar). Si al cargar /resultado el flag sigue puesto y no hay
+ * foto en el store, sabemos que hubo un kill mid-captura y podemos mostrar un
+ * banner explicativo + abrir la cámara automáticamente.
+ */
+const PHOTO_CAPTURE_FLAG_KEY = 'bar-challenge-photo-capture-in-progress'
+
+/**
  * TTL del intento persistido. Si pasaron más de 10 min desde `start()`, lo
  * descartamos al restaurar — evita "attempts fantasma" si el usuario nunca
  * vuelve a abrir la app.
@@ -424,6 +438,39 @@ function clearPersistedActiveAttempt(): void {
     localStorage.removeItem(ACTIVE_ATTEMPT_KEY)
   } catch {
     // best-effort
+  }
+}
+
+/** Marca el inicio de una captura de foto. Llamar JUSTO antes de `Camera.getPhoto()`. */
+export function markPhotoCaptureStart(): void {
+  try {
+    localStorage.setItem(PHOTO_CAPTURE_FLAG_KEY, String(Date.now()))
+  } catch (err: unknown) {
+    logger.warn('markPhotoCaptureStart failed', {
+      err: err instanceof Error ? err.message : String(err),
+    })
+  }
+}
+
+/** Limpia el flag — captura terminó (con foto, sin foto o cancelada). */
+export function clearPhotoCaptureFlag(): void {
+  try {
+    localStorage.removeItem(PHOTO_CAPTURE_FLAG_KEY)
+  } catch {
+    // best-effort
+  }
+}
+
+/**
+ * `true` si hay un flag de captura en curso que quedó huérfano (el WebView
+ * murió antes de que `Camera.getPhoto()` resolviera). El caller debe limpiarlo
+ * tras manejar el caso para no disparar el aviso en sesiones futuras.
+ */
+export function wasPhotoCaptureInterrupted(): boolean {
+  try {
+    return localStorage.getItem(PHOTO_CAPTURE_FLAG_KEY) !== null
+  } catch {
+    return false
   }
 }
 

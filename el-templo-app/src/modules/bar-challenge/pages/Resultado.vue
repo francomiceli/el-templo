@@ -20,6 +20,11 @@
         No se pudo guardar el intento, se está reintentando.
       </div>
 
+      <!-- Aviso cuando el WebView murió mid-captura (Android/iOS low-memory) -->
+      <div v-if="photoLostByCrash" class="bar-challenge-resultado__retry-banner" role="status">
+        Tu foto se perdió por presión de memoria del sistema. Sacala ahora.
+      </div>
+
       <!-- Photo preview si tenemos foto cacheada -->
       <div v-if="displayPhoto" class="bar-challenge-resultado__photo-wrap">
         <img :src="photoSrc" alt="Tu foto del desafío" class="bar-challenge-resultado__photo" />
@@ -97,7 +102,12 @@
  */
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { useBarChallengeStore } from 'src/modules/bar-challenge/stores/useBarChallengeStore'
+import {
+  useBarChallengeStore,
+  wasPhotoCaptureInterrupted,
+  clearPhotoCaptureFlag,
+  markPhotoCaptureStart,
+} from 'src/modules/bar-challenge/stores/useBarChallengeStore'
 import { useUserStore } from 'src/stores/useUserStore'
 import { useImageComposer } from 'src/modules/bar-challenge/composables/useImageComposer'
 import { useQuasar } from 'quasar'
@@ -116,6 +126,7 @@ const SESSION_KEY = 'bar-challenge-pending-submit'
 
 const retryPending = ref(false)
 const sharing = ref(false)
+const photoLostByCrash = ref(false)
 
 // Resolve display data: prefer store (this session), fallback to user profile (cached).
 const displayPhoto = computed<string | null>(() => store.photoBase64 ?? null)
@@ -162,6 +173,15 @@ onMounted(() => {
   void store.drainPendingSubmits().then(() => {
     retryPending.value = readRetryQueueLength() > 0
   })
+
+  // Si quedó un flag de captura en curso → el WebView murió mid-foto
+  // (Android/iOS por presión de memoria). Avisamos al usuario y limpiamos
+  // el flag para no re-disparar el aviso en sesiones futuras.
+  if (wasPhotoCaptureInterrupted() && !store.photoBase64) {
+    photoLostByCrash.value = true
+    logger.warn('photo lost — webview killed during capture')
+  }
+  clearPhotoCaptureFlag()
 })
 
 function blobToDataUrl(blob: Blob): Promise<string> {
@@ -225,15 +245,23 @@ async function handleTakePhotoAndShare(): Promise<void> {
   try {
     const cam: typeof import('@capacitor/camera') = await import('@capacitor/camera')
     const { Camera, CameraResultType, CameraSource } = cam
-    const photo = await Camera.getPhoto({
-      quality: 80,
-      source: CameraSource.Camera,
-      resultType: CameraResultType.Base64,
-      saveToGallery: false,
-    })
-    if (photo.base64String) {
-      store.setPhoto(photo.base64String)
-      await handleShare()
+    // Mismo flag que en Timer.vue — si el WebView muere mid-captura, al volver
+    // sabemos avisar en vez de mostrar el botón fallback otra vez sin contexto.
+    photoLostByCrash.value = false
+    markPhotoCaptureStart()
+    try {
+      const photo = await Camera.getPhoto({
+        quality: 80,
+        source: CameraSource.Camera,
+        resultType: CameraResultType.Base64,
+        saveToGallery: false,
+      })
+      if (photo.base64String) {
+        store.setPhoto(photo.base64String)
+        await handleShare()
+      }
+    } finally {
+      clearPhotoCaptureFlag()
     }
   } catch (err: unknown) {
     logger.warn('fallback camera failed', {
