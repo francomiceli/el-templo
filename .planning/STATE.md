@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
-status: executing
-stopped_at: "Completed 116-04-PLAN.md (checkpoint: vitest deps admin)"
-last_updated: "2026-05-25T20:42:33.387Z"
+status: verifying
+stopped_at: Completed 116-05-PLAN.md
+last_updated: "2026-05-25T21:04:20.030Z"
 last_activity: 2026-05-25
 progress:
   total_phases: 16
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-05-04)
 
 Phase: 116 (refresh-tokens-auth) — EXECUTING
 Plan: 5 of 5
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-05-25
 
 ## Performance Metrics
@@ -172,6 +172,7 @@ _Updated after each plan completion_
 | Phase 116 P02 | 3min | 3 tasks | 1 files |
 | Phase 116 P03 | 5min | 3 tasks | 6 files |
 | Phase 116 P04 | 3min | 2 tasks | 3 files |
+| Phase 116 P05 | 16min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -423,6 +424,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: Plan 116-04: authStore admin login persiste ambos tokens (BLOCKER), logout borra las 3 keys, checkAuth lee adminAccessToken con fallback
 - [Phase ?]: Plan 116-04: interceptor admin con lock (refreshPromise module-scope) + dual-key localStorage (adminAccessToken/adminRefreshToken) + cleanup diferido del adminToken legacy (D-02/D-03)
 - [Phase ?]: Plan 116-04: test del lock admin escrito pero NO ejecutado — vitest ausente en admin; checkpoint blocking-human, no se instalo ninguna dependencia
+- [Phase ?]: Plan 116-05: suite de integración refresh/rotación/reuse/revocación/dual-access verde contra eltemplo_test (Req 14); refresh_tokens en TABLES_TO_CLEAN
+- [Phase ?]: Plan 116-05: el test DB auto-provisiona migración 0125 desde src/db/migrations en cada worker fresco (setup.ts); fixtures via registerUser por el phone-block de Phase 111
 
 ### Pending Todos
 
@@ -441,8 +444,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-05-25T20:42:28.803Z
-Stopped at: Completed 116-04-PLAN.md (checkpoint: vitest deps admin)
+Last session: 2026-05-25T21:04:20.011Z
+Stopped at: Completed 116-05-PLAN.md
 Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
