@@ -19,8 +19,8 @@ export const useAuthStore = defineStore('auth', () => {
   const error = ref<string | null>(null)
   const initialized = ref(false)
 
-  // Token storage composable
-  const { setToken, removeToken } = useTokenStorage()
+  // Token storage composable (Phase 116: dual-key access + refresh).
+  const { setTokens, clearTokens } = useTokenStorage()
 
   // Getters
   const isAuthenticated = computed(() => !!token.value && !!user.value)
@@ -40,10 +40,14 @@ export const useAuthStore = defineStore('auth', () => {
 
     try {
       const response = await api.post('/auth/login', { email, password })
-      const { token: newToken, user: userData } = response.data
+      const { accessToken, refreshToken, user: userData } = response.data
 
-      await setToken(newToken)
-      token.value = newToken
+      // Phase 116: persist the new access+refresh pair (D-03 cleanup of the
+      // legacy authToken happens inside setTokens). Without this the
+      // refreshToken would never be stored and the interceptor would log the
+      // user out on the first 401.
+      await setTokens(accessToken, refreshToken)
+      token.value = accessToken
       user.value = {
         id: userData.id,
         email: userData.email,
@@ -80,10 +84,11 @@ export const useAuthStore = defineStore('auth', () => {
 
     try {
       const response = await api.post('/auth/register', data)
-      const { token: newToken, user: userData, promoApplied } = response.data
+      const { accessToken, refreshToken, user: userData, promoApplied } = response.data
 
-      await setToken(newToken)
-      token.value = newToken
+      // Phase 116: persist access+refresh (legacy authToken cleaned up inside setTokens).
+      await setTokens(accessToken, refreshToken)
+      token.value = accessToken
       user.value = {
         id: userData.id,
         email: userData.email,
@@ -106,7 +111,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function logout() {
-    await removeToken()
+    await clearTokens()
     const userStore = useUserStore()
     // Phase 99: wipe the user-scoped level-selection storage BEFORE nulling
     // user/profile refs — clearSelection resolves userId defensively from
