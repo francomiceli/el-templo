@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: executing
-stopped_at: Phase 116 context gathered
-last_updated: "2026-05-25T20:36:26.031Z"
+stopped_at: "Completed 116-04-PLAN.md (checkpoint: vitest deps admin)"
+last_updated: "2026-05-25T20:42:33.387Z"
 last_activity: 2026-05-25
 progress:
   total_phases: 16
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-05-04)
 ## Current Position
 
 Phase: 116 (refresh-tokens-auth) — EXECUTING
-Plan: 4 of 5
+Plan: 5 of 5
 Status: Ready to execute
 Last activity: 2026-05-25
 
@@ -171,6 +171,7 @@ _Updated after each plan completion_
 | Phase 116 P01 | 3min | 3 tasks | 6 files |
 | Phase 116 P02 | 3min | 3 tasks | 1 files |
 | Phase 116 P03 | 5min | 3 tasks | 6 files |
+| Phase 116 P04 | 3min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -419,6 +420,9 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: Plan 116-03: refresh lock en boot/axios.ts (refreshPromise module-scope); createAuthErrorHandler exportado para testeo (D-02)
 - [Phase ?]: Plan 116-03: useTokenStorage dual-key con lectura legacy authToken como access + cleanup diferido en setTokens; aliases getToken/removeToken backwards-compat (D-03)
 - [Phase ?]: Plan 116-03: authStore login/register persisten via setTokens (BLOCKER); boot refresh silencioso si access expiro antes de /auth/me, legacy va directo (Req 11)
+- [Phase ?]: Plan 116-04: authStore admin login persiste ambos tokens (BLOCKER), logout borra las 3 keys, checkAuth lee adminAccessToken con fallback
+- [Phase ?]: Plan 116-04: interceptor admin con lock (refreshPromise module-scope) + dual-key localStorage (adminAccessToken/adminRefreshToken) + cleanup diferido del adminToken legacy (D-02/D-03)
+- [Phase ?]: Plan 116-04: test del lock admin escrito pero NO ejecutado — vitest ausente en admin; checkpoint blocking-human, no se instalo ninguna dependencia
 
 ### Pending Todos
 
@@ -433,11 +437,12 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - Plan 112-01 deferred item: pre-existing test-DB provisioning bug (per-worker setup mis-tolerates Unknown-table errors at migration 0070, blocks `pnpm test` boot via `formats.description` schema drift). Documented in `.planning/phases/112-enrollment-service-admin-add-ons/deferred-items.md`. Out of scope for v4.85; recommend a future housekeeping plan.
 - Plan 112-04 awaiting staging+prod runs of migration 0112_transaction_links_target_kind_enrollment.sql (human checkpoint — operator must run pnpm db:migrate on staging, verify SHOW COLUMNS shows the new 4-value enum + \_migrations row, then approve prod)
 - Plan 116-02 awaiting staging + production runs of migration 0125_create_refresh_tokens.sql (human checkpoint — operator must run pnpm db:migrate on staging, verify SHOW COLUMNS FROM refresh_tokens + fila en \_migrations, then approve prod)
+- Plan 116-04: vitest+jsdom no instalados en el admin — test del lock escrito y commiteado pero sin correr; requiere decision del usuario (instalar devDeps o aceptar cobertura del test de la member app)
 
 ## Session Continuity
 
-Last session: 2026-05-25T20:36:07.727Z
-Stopped at: Phase 116 context gathered
+Last session: 2026-05-25T20:42:28.803Z
+Stopped at: Completed 116-04-PLAN.md (checkpoint: vitest deps admin)
 Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
