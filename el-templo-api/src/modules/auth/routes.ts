@@ -12,6 +12,10 @@ import { AuraService } from "../aura/service";
 import { TransactionService, BalanceService } from "../finance";
 import { EnrollmentService } from "../programs/enrollment-service";
 import { normalizePhone } from "../shared";
+import {
+  RefreshTokenService,
+  RefreshTokenError,
+} from "./refresh-token-service";
 
 interface RegisterBody {
   email: string;
@@ -405,6 +409,102 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           onboardingCompleted,
         },
       };
+    },
+  );
+
+  // POST /refresh (public, body-based — D-04)
+  // Canjea un refresh token valido por un par nuevo (access JWT 30m +
+  // refresh rotado). rotate() revoca el viejo y, en caso de reuse, revoca la
+  // familia completa del user devolviendo 401 (delegado al servicio).
+  fastify.post<{ Body: { refreshToken: string } }>(
+    "/refresh",
+    {
+      schema: {
+        body: {
+          type: "object",
+          required: ["refreshToken"],
+          properties: {
+            refreshToken: { type: "string" },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const { refreshToken } = request.body;
+      const refreshTokenService = new RefreshTokenService(
+        fastify.db,
+        request.log,
+      );
+
+      let rotated: { newToken: string; userId: number };
+      try {
+        rotated = await refreshTokenService.rotate(refreshToken);
+      } catch (err: unknown) {
+        if (err instanceof RefreshTokenError) {
+          request.log.warn(
+            { code: err.code },
+            "Refresh fallido: token invalido/revocado/reusado",
+          );
+          return reply
+            .code(401)
+            .send({ error: "No autorizado", message: "Refresh invalido" });
+        }
+        throw err;
+      }
+
+      // rotate() solo devuelve userId. Consultamos users para armar el payload
+      // del access JWT (mismo patron que GET /me).
+      const [u] = await fastify.db
+        .select({ id: users.id, email: users.email, role: users.role })
+        .from(users)
+        .where(eq(users.id, rotated.userId))
+        .limit(1);
+
+      // Caso defensivo: refresh huerfano (user inexistente). No deberia
+      // ocurrir por el FK CASCADE, pero si pasa respondemos 401 + warn.
+      if (!u) {
+        request.log.warn(
+          { userId: rotated.userId },
+          "Refresh con userId sin user asociado (huerfano)",
+        );
+        return reply
+          .code(401)
+          .send({ error: "No autorizado", message: "Refresh invalido" });
+      }
+
+      const accessToken = fastify.jwt.sign(
+        { userId: u.id, email: u.email, role: u.role },
+        { expiresIn: fastify.accessTokenExpiresIn },
+      );
+
+      return { accessToken, refreshToken: rotated.newToken };
+    },
+  );
+
+  // POST /logout (public, body-based, idempotente — D-04)
+  // Revoca el refresh del body. Siempre 200 aunque el token ya este
+  // revocado/inexistente (no leak de si existia o no).
+  fastify.post<{ Body: { refreshToken: string } }>(
+    "/logout",
+    {
+      schema: {
+        body: {
+          type: "object",
+          required: ["refreshToken"],
+          properties: {
+            refreshToken: { type: "string" },
+          },
+        },
+      },
+    },
+    async (request) => {
+      const { refreshToken } = request.body;
+      const refreshTokenService = new RefreshTokenService(
+        fastify.db,
+        request.log,
+      );
+      await refreshTokenService.revoke(refreshToken);
+      return { message: "Sesion cerrada" };
     },
   );
 
