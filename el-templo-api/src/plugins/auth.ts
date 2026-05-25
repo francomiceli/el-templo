@@ -15,6 +15,10 @@ declare module "fastify" {
       request: FastifyRequest,
       reply: FastifyReply,
     ) => Promise<void>;
+    // Phase 116: short-lived access-token expiry (e.g. "30m"). Routes sign the
+    // new accessToken with fastify.jwt.sign(payload, { expiresIn: this }).
+    // The legacy `token` keeps the global 7d default (Req 8 no-change).
+    accessTokenExpiresIn: string;
   }
 }
 
@@ -27,12 +31,21 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
 
   const expiresIn = process.env.JWT_EXPIRES_IN || "7d";
 
+  // Phase 116: the new access token is short-lived (30m). @fastify/jwt accepts
+  // a per-call override on fastify.jwt.sign(payload, { expiresIn }), so the
+  // global default below stays 7d for the legacy `token` (Req 8 no-change).
+  const accessExpiresIn = process.env.JWT_ACCESS_EXPIRES_IN || "30m";
+
   await fastify.register(jwt, {
     secret,
     sign: {
       expiresIn,
     },
   });
+
+  // Expose the access expiry to route handlers (Plan 02 signs accessToken with
+  // fastify.jwt.sign(payload, { expiresIn: fastify.accessTokenExpiresIn })).
+  fastify.decorate("accessTokenExpiresIn", accessExpiresIn);
 
   fastify.decorate(
     "authenticate",
