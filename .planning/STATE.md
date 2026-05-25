@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: executing
-stopped_at: Phase 115 UI-SPEC approved
-last_updated: "2026-05-21T22:16:23.748Z"
+stopped_at: Phase 116 context gathered
+last_updated: "2026-05-25T19:14:15.936Z"
 last_activity: 2026-05-21 -- Phase 115 execution started
 progress:
   total_phases: 16
@@ -423,8 +423,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-05-21T21:07:55.575Z
-Stopped at: Phase 115 UI-SPEC approved
-Resume file: .planning/phases/115-evento-desafio-de-la-barra/115-UI-SPEC.md
+Last session: 2026-05-25T19:14:15.916Z
+Stopped at: Phase 116 context gathered
+Resume file: .planning/phases/116-refresh-tokens-auth/116-CONTEXT.md
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
