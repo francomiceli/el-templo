@@ -4,7 +4,7 @@ milestone: v3.0
 milestone_name: Landing Page
 status: executing
 stopped_at: Phase 116 context gathered
-last_updated: "2026-05-25T20:24:05.650Z"
+last_updated: "2026-05-25T20:29:06.110Z"
 last_activity: 2026-05-25
 progress:
   total_phases: 16
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-05-04)
 ## Current Position
 
 Phase: 116 (refresh-tokens-auth) — EXECUTING
-Plan: 2 of 5
+Plan: 3 of 5
 Status: Ready to execute
 Last activity: 2026-05-25
 
@@ -169,6 +169,7 @@ _Updated after each plan completion_
 | Phase 114 P03 | 11min | 2 tasks | 2 files |
 | Phase 114 P04 | 12min | 3 tasks | 6 files |
 | Phase 116 P01 | 3min | 3 tasks | 6 files |
+| Phase 116 P02 | 3min | 3 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -411,6 +412,9 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: Plan 116-01: refresh tokens persist sha256 hex only; plaintext never stored (T-116-01)
 - [Phase ?]: Plan 116-01: rotate() returns { newToken, userId } chaining old->new via replaced_by_id self-FK; reuse of a revoked token revokes the whole family (T-116-02)
 - [Phase ?]: Plan 116-01: 30m access expiry exposed via fastify.accessTokenExpiresIn decorator + JWT_ACCESS_EXPIRES_IN env; legacy token sign stays 7d, fastify.authenticate unchanged (Req 8)
+- [Phase ?]: Plan 116-02: migracion 0125 aplicada a DB local (eltemplo); checkpoint humano reservado para staging/prod
+- [Phase ?]: Plan 116-02: /auth/refresh y /auth/logout publicos body-based (D-04); rotate() devuelve userId, la ruta consulta users para firmar el access JWT
+- [Phase ?]: Plan 116-02: login/register devuelven { token, accessToken, refreshToken } (token legacy 7d intacto, Req 7); change-password revoca todos + emite par nuevo (D-01); delete-account revoca explicito (D-05)
 
 ### Pending Todos
 
@@ -424,10 +428,11 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - Plan 112-01 awaiting staging + production runs of migration 0111_program_enrollments_addon_columns.sql (human checkpoint — operator must run pnpm db:migrate on staging, sanity-check `SELECT COUNT(*) FROM program_enrollments WHERE source IS NULL` returns 0, then approve prod)
 - Plan 112-01 deferred item: pre-existing test-DB provisioning bug (per-worker setup mis-tolerates Unknown-table errors at migration 0070, blocks `pnpm test` boot via `formats.description` schema drift). Documented in `.planning/phases/112-enrollment-service-admin-add-ons/deferred-items.md`. Out of scope for v4.85; recommend a future housekeeping plan.
 - Plan 112-04 awaiting staging+prod runs of migration 0112_transaction_links_target_kind_enrollment.sql (human checkpoint — operator must run pnpm db:migrate on staging, verify SHOW COLUMNS shows the new 4-value enum + \_migrations row, then approve prod)
+- Plan 116-02 awaiting staging + production runs of migration 0125_create_refresh_tokens.sql (human checkpoint — operator must run pnpm db:migrate on staging, verify SHOW COLUMNS FROM refresh_tokens + fila en \_migrations, then approve prod)
 
 ## Session Continuity
 
-Last session: 2026-05-25T20:23:52.205Z
+Last session: 2026-05-25T20:28:34.724Z
 Stopped at: Phase 116 context gathered
 Resume file: None
 
