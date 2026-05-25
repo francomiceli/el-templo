@@ -271,11 +271,23 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         .where(eq(branches.id, branchId))
         .limit(1);
 
-      // Sign JWT
-      const token = fastify.jwt.sign({ userId, email, role: "member" });
+      // Sign JWT (legacy 7d token kept for backwards-compat — Req 7)
+      const payload = { userId, email, role: "member" };
+      const token = fastify.jwt.sign(payload);
+      // New short-lived access (30m) + opaque refresh (30d sliding)
+      const accessToken = fastify.jwt.sign(payload, {
+        expiresIn: fastify.accessTokenExpiresIn,
+      });
+      const refreshTokenService = new RefreshTokenService(
+        fastify.db,
+        request.log,
+      );
+      const refreshToken = await refreshTokenService.issue(userId);
 
       return {
         token,
+        accessToken,
+        refreshToken,
         user: {
           id: userId,
           email,
@@ -384,15 +396,27 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       const onboardingCompleted =
         profileRows.length > 0 && profileRows[0].completedAt !== null;
 
-      // Sign JWT
-      const token = fastify.jwt.sign({
+      // Sign JWT (legacy 7d token kept for backwards-compat — Req 7)
+      const payload = {
         userId: user.id,
         email: user.email,
         role: user.role,
+      };
+      const token = fastify.jwt.sign(payload);
+      // New short-lived access (30m) + opaque refresh (30d sliding)
+      const accessToken = fastify.jwt.sign(payload, {
+        expiresIn: fastify.accessTokenExpiresIn,
       });
+      const refreshTokenService = new RefreshTokenService(
+        fastify.db,
+        request.log,
+      );
+      const refreshToken = await refreshTokenService.issue(user.id);
 
       return {
         token,
+        accessToken,
+        refreshToken,
         user: {
           id: user.id,
           email: user.email,
@@ -650,7 +674,11 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       const { userId } = request.user;
 
       const userResults = await fastify.db
-        .select({ passwordHash: users.passwordHash })
+        .select({
+          email: users.email,
+          passwordHash: users.passwordHash,
+          role: users.role,
+        })
         .from(users)
         .where(eq(users.id, userId))
         .limit(1);
@@ -678,7 +706,25 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         .set({ passwordHash: newHash })
         .where(eq(users.id, userId));
 
-      return { message: "Contraseña actualizada" };
+      // D-01: revocar TODOS los refresh del user (desloguea otros devices) y
+      // emitir un par nuevo (access 30m + refresh) para el device actual, que
+      // lo recibe en el response y queda logueado.
+      const refreshTokenService = new RefreshTokenService(
+        fastify.db,
+        request.log,
+      );
+      await refreshTokenService.revokeAllForUser(userId);
+      const accessToken = fastify.jwt.sign(
+        {
+          userId,
+          email: userResults[0].email,
+          role: userResults[0].role,
+        },
+        { expiresIn: fastify.accessTokenExpiresIn },
+      );
+      const refreshToken = await refreshTokenService.issue(userId);
+
+      return { message: "Contraseña actualizada", accessToken, refreshToken };
     },
   );
 
@@ -757,6 +803,15 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           deletedAt: now,
         })
         .where(eq(users.id, userId));
+
+      // D-05: delete-account es soft-delete/anonimizacion, NO borra la fila,
+      // asi que el FK ON DELETE CASCADE no se dispara. Revocacion explicita de
+      // todos los refresh tokens del user para cerrar todas las sesiones.
+      const refreshTokenService = new RefreshTokenService(
+        fastify.db,
+        request.log,
+      );
+      await refreshTokenService.revokeAllForUser(userId);
 
       request.log.info({ userId }, "Account deleted and anonymized");
 
