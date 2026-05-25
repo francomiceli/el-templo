@@ -5,8 +5,21 @@ import type { AdminUser, AdminRole } from 'src/types/admin';
 
 const ADMIN_ROLES: AdminRole[] = ['gestion', 'coach', 'admin', 'owner', 'recepcion'];
 
+const ACCESS_KEY = 'adminAccessToken';
+const REFRESH_KEY = 'adminRefreshToken';
+const LEGACY_KEY = 'adminToken';
+
+interface LoginResponse {
+  token: string;
+  accessToken: string;
+  refreshToken: string;
+  user: AdminUser;
+}
+
 export const useAuthStore = defineStore('auth', () => {
-  const token = ref<string | null>(localStorage.getItem('adminToken'));
+  const token = ref<string | null>(
+    localStorage.getItem(ACCESS_KEY) ?? localStorage.getItem(LEGACY_KEY)
+  );
   const user = ref<AdminUser | null>(null);
   const loading = ref(false);
   const error = ref<string | null>(null);
@@ -18,16 +31,19 @@ export const useAuthStore = defineStore('auth', () => {
     error.value = null;
 
     try {
-      const { data } = await api.post('/auth/login', { email, password });
+      const { data } = await api.post<LoginResponse>('/auth/login', { email, password });
 
       // Verify admin role before accepting login
       if (!ADMIN_ROLES.includes(data.user.role)) {
         throw new Error('Acceso denegado. Solo administradores y coaches.');
       }
 
-      token.value = data.token;
+      token.value = data.accessToken;
       user.value = data.user;
-      localStorage.setItem('adminToken', data.token);
+      localStorage.setItem(ACCESS_KEY, data.accessToken);
+      localStorage.setItem(REFRESH_KEY, data.refreshToken);
+      // Deferred cleanup of the legacy single-key token (soft migration D-03).
+      localStorage.removeItem(LEGACY_KEY);
     } catch (err: unknown) {
       const axiosError = err as { message?: string; response?: { data?: { error?: string } } };
       error.value =
@@ -41,11 +57,13 @@ export const useAuthStore = defineStore('auth', () => {
   async function logout() {
     token.value = null;
     user.value = null;
-    localStorage.removeItem('adminToken');
+    localStorage.removeItem(LEGACY_KEY);
+    localStorage.removeItem(ACCESS_KEY);
+    localStorage.removeItem(REFRESH_KEY);
   }
 
   async function checkAuth(): Promise<boolean> {
-    const storedToken = localStorage.getItem('adminToken');
+    const storedToken = localStorage.getItem(ACCESS_KEY) ?? localStorage.getItem(LEGACY_KEY);
     if (!storedToken) return false;
 
     try {
