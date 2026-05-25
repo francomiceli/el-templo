@@ -2667,3 +2667,25 @@ Plans:
 
 - [ ] 115-09-PLAN.md — [autonomous:false] Android AAB build + Play Console internal testing + smoke + promote to production
 - [ ] 115-10-PLAN.md — [autonomous:false] iOS Archive + TestFlight + smoke + Submit for App Review + contingency Plan B
+
+---
+
+### Phase 116: Refresh Tokens Auth
+
+**Goal:** Eliminar el logout cada 7 días reemplazando el JWT único por un esquema access + refresh token con rotación y reuse detection, backwards-compatible para no romper apps viejas en Play Store.
+
+**Depends on:** —
+
+**Requirements**: 14 (ver 116-SPEC.md)
+
+**Status:** Spec'd (ambiguity 0.136) — pendiente discuss + plan
+
+**Plans:** 0 plans (run /gsd-plan-phase 116)
+
+Plans:
+
+- [ ] TBD
+
+---
+
+_Phase 116 added: 2026-05-25 — bug recurrente de logout en app de miembros (JWT de 7d sin refresh). Cualquier 401 borra el token y manda a /login. Objetivo: access token corto (30m) + refresh token largo (30d sliding) hasheado en DB con rotación obligatoria, endpoint /auth/refresh y /auth/logout reales, interceptor de axios con lock compartido, API backwards-compatible para evitar version skew con la app en Play Store. SPEC originalmente creado como Phase 115 (commit huérfano 8be596bf); renumerado a 116 porque 115 quedó asignado a "Evento Desafío de la Barra" en el master real._
