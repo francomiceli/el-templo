@@ -4,8 +4,8 @@ milestone: v3.0
 milestone_name: Landing Page
 status: executing
 stopped_at: Phase 116 context gathered
-last_updated: "2026-05-25T20:02:32.561Z"
-last_activity: 2026-05-25 -- Phase 116 planning complete
+last_updated: "2026-05-25T20:24:05.650Z"
+last_activity: 2026-05-25
 progress:
   total_phases: 16
   completed_phases: 15
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-04)
 
 **Core value:** v4.85 desacopla el lifecycle de `programEnrollments` de `subscriptions/service.ts` (extrae `EnrollmentService`) y habilita add-ons de programas asignables por admin con precio opcional, retención de progreso atado al ciclo de vida de la sub principal.
-**Current focus:** Phase 115 — evento-desafio-de-la-barra
+**Current focus:** Phase 116 — refresh-tokens-auth
 
 ## Current Position
 
-Phase: 115 (evento-desafio-de-la-barra) — EXECUTING
-Plan: 1 of 10
+Phase: 116 (refresh-tokens-auth) — EXECUTING
+Plan: 2 of 5
 Status: Ready to execute
-Last activity: 2026-05-25 -- Phase 116 planning complete
+Last activity: 2026-05-25
 
 ## Performance Metrics
 
@@ -168,6 +168,7 @@ _Updated after each plan completion_
 | Phase 113 P02 | 7min | 3 tasks | 4 files |
 | Phase 114 P03 | 11min | 2 tasks | 2 files |
 | Phase 114 P04 | 12min | 3 tasks | 6 files |
+| Phase 116 P01 | 3min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -407,6 +408,9 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - Plan 112-04: cancel audit reuses action='plan_assigned' with payload.cancelledByAdmin=true rather than extending the AuditAction enum — minimal-surface, defer enum widening
 - Phase 114-03: SET clause ordering matters in recomputeUserStatus — lead_status/lead_notes BEFORE converted_at to respect MySQL's left-to-right SET evaluation semantics
 - Plan 114-04: branch-scope via canAccessBranch inline (lead branchId on users row, not request payload)
+- [Phase ?]: Plan 116-01: refresh tokens persist sha256 hex only; plaintext never stored (T-116-01)
+- [Phase ?]: Plan 116-01: rotate() returns { newToken, userId } chaining old->new via replaced_by_id self-FK; reuse of a revoked token revokes the whole family (T-116-02)
+- [Phase ?]: Plan 116-01: 30m access expiry exposed via fastify.accessTokenExpiresIn decorator + JWT_ACCESS_EXPIRES_IN env; legacy token sign stays 7d, fastify.authenticate unchanged (Req 8)
 
 ### Pending Todos
 
@@ -423,8 +427,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-05-25T19:14:15.916Z
+Last session: 2026-05-25T20:23:52.205Z
 Stopped at: Phase 116 context gathered
-Resume file: .planning/phases/116-refresh-tokens-auth/116-CONTEXT.md
+Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
