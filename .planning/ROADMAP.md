@@ -2680,7 +2680,7 @@ Plans:
 
 **Status:** Spec'd (ambiguity 0.136) — pendiente discuss + plan
 
-**Plans:** 2/5 plans executed
+**Plans:** 3/5 plans executed
 
 Plans:
 

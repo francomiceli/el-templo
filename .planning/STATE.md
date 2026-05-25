@@ -4,7 +4,7 @@ milestone: v3.0
 milestone_name: Landing Page
 status: executing
 stopped_at: Phase 116 context gathered
-last_updated: "2026-05-25T20:29:06.110Z"
+last_updated: "2026-05-25T20:36:26.031Z"
 last_activity: 2026-05-25
 progress:
   total_phases: 16
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-05-04)
 ## Current Position
 
 Phase: 116 (refresh-tokens-auth) — EXECUTING
-Plan: 3 of 5
+Plan: 4 of 5
 Status: Ready to execute
 Last activity: 2026-05-25
 
@@ -170,6 +170,7 @@ _Updated after each plan completion_
 | Phase 114 P04 | 12min | 3 tasks | 6 files |
 | Phase 116 P01 | 3min | 3 tasks | 6 files |
 | Phase 116 P02 | 3min | 3 tasks | 1 files |
+| Phase 116 P03 | 5min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -415,6 +416,9 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: Plan 116-02: migracion 0125 aplicada a DB local (eltemplo); checkpoint humano reservado para staging/prod
 - [Phase ?]: Plan 116-02: /auth/refresh y /auth/logout publicos body-based (D-04); rotate() devuelve userId, la ruta consulta users para firmar el access JWT
 - [Phase ?]: Plan 116-02: login/register devuelven { token, accessToken, refreshToken } (token legacy 7d intacto, Req 7); change-password revoca todos + emite par nuevo (D-01); delete-account revoca explicito (D-05)
+- [Phase ?]: Plan 116-03: refresh lock en boot/axios.ts (refreshPromise module-scope); createAuthErrorHandler exportado para testeo (D-02)
+- [Phase ?]: Plan 116-03: useTokenStorage dual-key con lectura legacy authToken como access + cleanup diferido en setTokens; aliases getToken/removeToken backwards-compat (D-03)
+- [Phase ?]: Plan 116-03: authStore login/register persisten via setTokens (BLOCKER); boot refresh silencioso si access expiro antes de /auth/me, legacy va directo (Req 11)
 
 ### Pending Todos
 
@@ -432,7 +436,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-05-25T20:28:34.724Z
+Last session: 2026-05-25T20:36:07.727Z
 Stopped at: Phase 116 context gathered
 Resume file: None
 
