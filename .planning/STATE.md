@@ -4,8 +4,8 @@ milestone: v3.0
 milestone_name: Landing Page
 status: executing
 stopped_at: Phase 117 context gathered
-last_updated: "2026-05-26T19:22:12.709Z"
-last_activity: 2026-05-26 -- Phase 117 planning complete
+last_updated: "2026-05-26T19:47:19.616Z"
+last_activity: 2026-05-26
 progress:
   total_phases: 16
   completed_phases: 15
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-04)
 
 **Core value:** v4.85 desacopla el lifecycle de `programEnrollments` de `subscriptions/service.ts` (extrae `EnrollmentService`) y habilita add-ons de programas asignables por admin con precio opcional, retención de progreso atado al ciclo de vida de la sub principal.
-**Current focus:** Phase 116 — refresh-tokens-auth
+**Current focus:** Phase 117 — analytics-correcciones-de-exactitud-m-trica-de-miembros-nico
 
 ## Current Position
 
-Phase: 116 (refresh-tokens-auth) — EXECUTING
-Plan: 5 of 5
+Phase: 117 (analytics-correcciones-de-exactitud-m-trica-de-miembros-nico) — EXECUTING
+Plan: 2 of 6
 Status: Ready to execute
-Last activity: 2026-05-26 -- Phase 117 planning complete
+Last activity: 2026-05-26
 
 ## Performance Metrics
 
@@ -173,6 +173,7 @@ _Updated after each plan completion_
 | Phase 116 P03 | 5min | 3 tasks | 6 files |
 | Phase 116 P04 | 3min | 2 tasks | 3 files |
 | Phase 116 P05 | 16min | 2 tasks | 2 files |
+| Phase 117 P01 | 75min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -445,8 +446,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-05-26T18:48:27.165Z
+Last session: 2026-05-26T19:47:15.067Z
 Stopped at: Phase 117 context gathered
-Resume file: .planning/phases/117-analytics-correcciones-de-exactitud-m-trica-de-miembros-nico/117-CONTEXT.md
+Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
