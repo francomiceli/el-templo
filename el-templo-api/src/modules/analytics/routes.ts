@@ -11,6 +11,7 @@ import { AnalyticsService } from "./service";
 import { AttendanceMetricsService } from "./attendance-metrics-service";
 import { EngagementService } from "./engagement-service";
 import { RetentionService } from "./retention-service";
+import { AdvancedFinanceService } from "./advanced-finance-service";
 import { handleServiceError } from "../shared/error-handler";
 import type { AnalyticsFilters } from "./types";
 import {
@@ -22,6 +23,7 @@ import {
   checkInAdoptionSchema,
   engagementSchema,
   retentionSchema,
+  advancedFinanceSchema,
 } from "./schemas";
 import type { RetentionPlanCategory } from "./types";
 
@@ -59,6 +61,10 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
   );
   const engagementService = new EngagementService(fastify.db, fastify.log);
   const retentionService = new RetentionService(fastify.db, fastify.log);
+  const advancedFinanceService = new AdvancedFinanceService(
+    fastify.db,
+    fastify.log,
+  );
 
   /**
    * Guard: authenticate + gate to the operational analytics set (gestion +
@@ -311,6 +317,36 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
         return result;
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "get retention");
+      }
+    },
+  );
+
+  // GET /advanced-finance — Caja vs Devengado prorrateado + ARPU, por moneda
+  // (Phase 118 D-07/D-08). SENSIBLE → ADMIN_ROLES-only vía requireAdminAnalytics
+  // (D-11); gestion recibe 403. Scoped por sede/país.
+  fastify.get<{
+    Querystring: { branchId?: number; dateFrom?: string; dateTo?: string };
+  }>(
+    "/advanced-finance",
+    {
+      schema: advancedFinanceSchema,
+      preHandler: [
+        requireAdminAnalytics,
+        requireBranchAccess({ from: "query.branchId", optional: true }),
+      ],
+    },
+    async (request, reply) => {
+      try {
+        const filters: AnalyticsFilters = {
+          branchId: request.query.branchId,
+          country: request.scope.country ?? undefined,
+          dateFrom: request.query.dateFrom,
+          dateTo: request.query.dateTo,
+        };
+        const result = await advancedFinanceService.getAdvancedFinance(filters);
+        return result;
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "get advanced finance");
       }
     },
   );
