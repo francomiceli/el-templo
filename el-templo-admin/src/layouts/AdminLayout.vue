@@ -1,9 +1,11 @@
 <template>
   <q-layout view="lHh Lpr lFf">
-    <q-header elevated class="bg-primary">
+    <q-header elevated :class="isStaging ? 'bg-blue-9' : 'bg-primary'">
       <q-toolbar>
         <q-btn flat dense round icon="menu" @click="drawer = !drawer" />
-        <q-toolbar-title>El Templo Admin</q-toolbar-title>
+        <q-toolbar-title>{{
+          isStaging ? 'El Templo Admin (PRUEBAS)' : 'El Templo Admin'
+        }}</q-toolbar-title>
         <q-btn flat round icon="logout" @click="handleLogout">
           <q-tooltip>Cerrar sesion</q-tooltip>
         </q-btn>
@@ -189,6 +191,11 @@ const router = useRouter();
 const route = useRoute();
 const authStore = useAuthStore();
 const adminStore = useAdminStore();
+
+// Staging-only visual marker: the CI staging build sets VITE_APP_ENVIRONMENT=staging
+// (production leaves it unset). Drives the blue header + "(PRUEBAS)" title so
+// it's obvious at a glance which environment you're operating on.
+const isStaging = computed(() => import.meta.env.VITE_APP_ENVIRONMENT === 'staging');
 
 // Permission-based sidebar visibility
 const userRole = computed(() => authStore.user?.role ?? '');
