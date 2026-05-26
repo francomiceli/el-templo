@@ -50,12 +50,6 @@ const SEGMENT_KEYS: MemberSegment[] = [
   "ghost",
 ];
 
-/** Segments surfaced on the engagement worklist (D-12). */
-const NOMINAL_SEGMENTS: ReadonlyArray<"en_riesgo" | "ghost"> = [
-  "en_riesgo",
-  "ghost",
-];
-
 export class EngagementService {
   constructor(
     private db: MySql2Database<typeof schema>,
