@@ -70,23 +70,25 @@
           <div v-for="seg in segmentCountCards" :key="seg.key" class="col-6 col-sm-4 col-md-2">
             <q-card flat bordered>
               <q-card-section class="text-center q-pa-sm">
-                <q-chip :color="seg.color" text-color="white" dense size="sm" :label="seg.label" />
+                <div class="row items-center justify-center no-wrap q-gutter-xs">
+                  <q-chip
+                    :color="seg.color"
+                    text-color="white"
+                    dense
+                    size="sm"
+                    :label="seg.label"
+                  />
+                  <q-icon name="info" size="16px" class="text-grey-5 cursor-pointer">
+                    <q-tooltip max-width="220px" class="text-body2">{{
+                      seg.description
+                    }}</q-tooltip>
+                  </q-icon>
+                </div>
                 <div class="text-h6 q-mt-xs">{{ seg.count }}</div>
               </q-card-section>
             </q-card>
           </div>
         </div>
-
-        <!-- Referencia: qué significa cada segmento -->
-        <q-list dense class="q-mt-md">
-          <div class="text-caption text-grey-7 q-mb-xs">¿Qué significa cada segmento?</div>
-          <q-item v-for="seg in segmentCountCards" :key="`ref-${seg.key}`" dense class="q-px-none">
-            <q-item-section avatar style="min-width: 130px">
-              <q-chip :color="seg.color" text-color="white" dense size="sm" :label="seg.label" />
-            </q-item-section>
-            <q-item-section class="text-caption text-grey-8">{{ seg.description }}</q-item-section>
-          </q-item>
-        </q-list>
       </q-card-section>
     </q-card>
 

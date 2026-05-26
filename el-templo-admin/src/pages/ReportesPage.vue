@@ -190,67 +190,6 @@
       <!-- Asistencia Tab (Phase 117 — operativo para gestion) -->
       <!-- ================================================================ -->
       <q-tab-panel name="asistencia">
-        <div class="row items-center q-gutter-sm q-mb-md">
-          <div class="col-auto">
-            <q-btn-dropdown outline :label="asistenciaDateLabel" icon="date_range" dense>
-              <q-list dense>
-                <q-item
-                  v-for="preset in datePresets"
-                  :key="preset.label"
-                  clickable
-                  v-close-popup
-                  @click="applyAsistenciaPreset(preset)"
-                >
-                  <q-item-section>{{ preset.label }}</q-item-section>
-                </q-item>
-                <q-separator />
-                <q-item clickable @click="showAsistenciaCustomRange = !showAsistenciaCustomRange">
-                  <q-item-section>Personalizado</q-item-section>
-                  <q-item-section side>
-                    <q-icon :name="showAsistenciaCustomRange ? 'expand_less' : 'expand_more'" />
-                  </q-item-section>
-                </q-item>
-                <template v-if="showAsistenciaCustomRange">
-                  <q-item>
-                    <q-item-section>
-                      <q-input
-                        v-model="asistenciaCustomFrom"
-                        type="date"
-                        label="Desde"
-                        dense
-                        outlined
-                      />
-                    </q-item-section>
-                  </q-item>
-                  <q-item>
-                    <q-item-section>
-                      <q-input
-                        v-model="asistenciaCustomTo"
-                        type="date"
-                        label="Hasta"
-                        dense
-                        outlined
-                      />
-                    </q-item-section>
-                  </q-item>
-                  <q-item>
-                    <q-item-section>
-                      <q-btn
-                        label="Aplicar"
-                        color="primary"
-                        dense
-                        flat
-                        v-close-popup
-                        @click="applyAsistenciaCustomRange"
-                      />
-                    </q-item-section>
-                  </q-item>
-                </template>
-              </q-list>
-            </q-btn-dropdown>
-          </div>
-        </div>
-
         <AsistenciaTab
           :data="attendanceData"
           :loading="loadingAttendance"
@@ -1129,46 +1068,20 @@ async function onExportAccess() {
 // ASISTENCIA TAB (Phase 117 — operativo para gestion)
 // ============================================================================
 
-const asistenciaDateFrom = ref(toIsoDate(getMonthStart(now)));
-const asistenciaDateTo = ref(toIsoDate(getMonthEnd(now)));
-const asistenciaPresetLabel = ref('Este mes');
-const showAsistenciaCustomRange = ref(false);
-const asistenciaCustomFrom = ref(asistenciaDateFrom.value);
-const asistenciaCustomTo = ref(asistenciaDateTo.value);
-
 const attendanceData = ref<AttendanceAnalytics | null>(null);
 const uniqueMembersData = ref<UniqueMembersMetric | null>(null);
 const engagementData = ref<EngagementAnalytics | null>(null);
 const checkInAdoptionData = ref<CheckInAdoptionRow[] | null>(null);
 const loadingAttendance = ref(false);
 
-const asistenciaDateLabel = computed(() => {
-  if (asistenciaPresetLabel.value) return asistenciaPresetLabel.value;
-  return `${asistenciaDateFrom.value} - ${asistenciaDateTo.value}`;
-});
-
+// No date picker on this tab — unique members use fixed 7/14/30 windows and
+// the rest defaults to the current month (engagement/adoption are point-in-time).
 const asistenciaFilters = computed<AnalyticsFilters>(() => ({
   branchId: selectedBranchId.value,
   country: countryScope.value,
-  dateFrom: asistenciaDateFrom.value,
-  dateTo: asistenciaDateTo.value,
+  dateFrom: toIsoDate(getMonthStart(new Date())),
+  dateTo: toIsoDate(getMonthEnd(new Date())),
 }));
-
-function applyAsistenciaPreset(preset: DatePreset) {
-  const range = preset.getRange();
-  asistenciaDateFrom.value = range.dateFrom;
-  asistenciaDateTo.value = range.dateTo;
-  asistenciaPresetLabel.value = preset.label;
-  showAsistenciaCustomRange.value = false;
-  void fetchAttendanceData();
-}
-
-function applyAsistenciaCustomRange() {
-  asistenciaDateFrom.value = asistenciaCustomFrom.value;
-  asistenciaDateTo.value = asistenciaCustomTo.value;
-  asistenciaPresetLabel.value = '';
-  void fetchAttendanceData();
-}
 
 async function fetchAttendanceData() {
   loadingAttendance.value = true;

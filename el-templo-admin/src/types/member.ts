@@ -20,8 +20,8 @@ export const SEGMENT_LABELS: Record<MemberSegment, string> = {
   espartano: 'Espartano',
   intermitente: 'Intermitente',
   en_riesgo: 'En Riesgo',
-  digital_warrior: 'Digital Warrior',
-  ghost: 'Ghost',
+  digital_warrior: 'Digital',
+  ghost: 'Fantasma',
 };
 
 export const SEGMENT_COLORS: Record<MemberSegment, string> = {

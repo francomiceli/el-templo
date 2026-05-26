@@ -94,7 +94,7 @@
       <q-card-section>
         <div class="text-subtitle2 q-mb-sm">Miembros que requieren atencion</div>
         <div class="text-caption text-grey-6 q-mb-sm">
-          Ordenados por prioridad: ghost y en riesgo primero (más probable que se vayan).
+          Ordenados por prioridad: fantasma y en riesgo primero (más probable que se vayan).
         </div>
         <q-table
           v-if="prioritizedAttentionList.length > 0"

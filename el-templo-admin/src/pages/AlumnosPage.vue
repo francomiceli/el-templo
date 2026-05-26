@@ -440,8 +440,8 @@ const segmentFilterOptions: Array<{ label: string; value: MemberSegment | null }
   { label: 'Espartano', value: 'espartano' },
   { label: 'Intermitente', value: 'intermitente' },
   { label: 'En Riesgo', value: 'en_riesgo' },
-  { label: 'Digital Warrior', value: 'digital_warrior' },
-  { label: 'Ghost', value: 'ghost' },
+  { label: 'Digital', value: 'digital_warrior' },
+  { label: 'Fantasma', value: 'ghost' },
 ];
 
 const avatarFilterOptions: Array<{ label: string; value: string | null }> = [

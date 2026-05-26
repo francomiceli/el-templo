@@ -47,7 +47,7 @@
             />
             <q-input
               v-model.number="form.ghostWeeks"
-              label="Ghost (semanas de inactividad)"
+              label="Fantasma (semanas de inactividad)"
               type="number"
               :rules="[positiveInt]"
               dense
