@@ -12,6 +12,7 @@ import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { resolveMonthRange, computePriorPeriod } from "../shared/date-utils";
 import { activeMemberExists } from "../shared/active-member";
+import { applyScope } from "./scope";
 import type {
   KpiStats,
   MonetaryKpiByCurrency,
@@ -101,12 +102,14 @@ export class AnalyticsService {
       retentionRate,
       planDistribution,
       attentionList,
+      renewalRate,
     ] = await Promise.all([
       this.countNewMembers(branchId, country, dateFrom, dateTo),
       this.countChurnedMembers(branchId, country, dateFrom, dateTo),
       this.computeRetentionRate(branchId, country, dateFrom, dateTo),
       this.getPlanDistribution(branchId, country),
       this.getAttentionList(branchId, country),
+      this.getRenewalRate(branchId, country),
     ]);
 
     return {
@@ -115,6 +118,7 @@ export class AnalyticsService {
       retentionRate,
       planDistribution,
       attentionList,
+      renewalRate,
     };
   }
 
@@ -467,23 +471,67 @@ export class AnalyticsService {
     }));
   }
 
+  /**
+   * Window (in days) used to derive the `yaPago` flag (Phase 117 D-16): a
+   * member counts as "ya pagó" if they have a NON-VOIDED `plan_charge` inflow
+   * in `financial_transactions` within the last N days. 30 days matches the
+   * shortest plan cycle, so a recent payment whose subscription row has not
+   * yet been renewed is still recognized by reception.
+   */
+  private static readonly YA_PAGO_WINDOW_DAYS = 30;
+
+  /**
+   * Renewals/expirations worklist (Phase 117 D-14/D-16/D-17).
+   *
+   * Two blocks, same shape:
+   *   - `expiring`: ACTIVE subs ending in the next 7 days (daysUntilExpiry>=0,
+   *     daysOverdue null).
+   *   - `overdue`: subs whose end_date is 1..30 days in the past AND the member
+   *     is NOT currently active (negated activeMemberExists → "vencido sin
+   *     renovar"). daysOverdue = CURDATE()-end_date (real), daysUntilExpiry null.
+   *     Members overdue >30 days are excluded (out of the 1-7/8-14/15-30 buckets).
+   *
+   * Each member carries:
+   *   - `yaPago`: EXISTS recent non-voided plan_charge inflow (D-16).
+   *   - `segment`: member_profiles.segment for prioritization (D-16/D-17) — a
+   *     ghost/en_riesgo that is expiring/overdue is the highest-priority contact.
+   *
+   * "habló con coach" (D-16) is DEFERRED: it is not derivable without new
+   * schema/UI, so it is intentionally NOT implemented here.
+   *
+   * Scope (T-117-01): branchId/country filters are applied to BOTH blocks via
+   * applyScope over subscriptions.branchId — a coach/admin never sees PII
+   * (phone) of members outside their authorized branches/country.
+   */
   private async getAttentionList(
     branchId: number | undefined,
     country: "AR" | "ES" | undefined,
   ): Promise<AttentionMember[]> {
-    // Expiring: active subscriptions ending in next 7 days
-    const expiringConditions: ReturnType<typeof eq>[] = [
+    const scope = applyScope({
+      branchId,
+      country,
+      branchColumn: schema.subscriptions.branchId,
+    });
+
+    // yaPago: derived EXISTS over recent non-voided plan_charge inflows (D-16).
+    const yaPagoExpr = sql<number>`EXISTS (
+      SELECT 1 FROM financial_transactions ft
+      WHERE ft.member_id = ${schema.subscriptions.userId}
+        AND ft.kind = 'plan_charge'
+        AND ft.direction = 'inflow'
+        AND ft.voided_at IS NULL
+        AND ft.transaction_date >= DATE_SUB(CURDATE(), INTERVAL ${sql.raw(
+          String(AnalyticsService.YA_PAGO_WINDOW_DAYS),
+        )} DAY)
+    )`;
+
+    // ── Expiring: active subs ending in the next 7 days ──────────────────────
+    const expiringConditions: SQL[] = [
       sql`${schema.subscriptions.status} = 'active'`,
       sql`${schema.subscriptions.endDate} >= CURDATE()`,
       sql`${schema.subscriptions.endDate} <= DATE_ADD(CURDATE(), INTERVAL 7 DAY)`,
+      ...scope.conditions,
     ];
-
-    if (branchId !== undefined) {
-      expiringConditions.push(eq(schema.subscriptions.branchId, branchId));
-    }
-    if (country !== undefined) {
-      expiringConditions.push(eq(schema.branches.country, country));
-    }
 
     const expiringRows = await this.db
       .select({
@@ -493,6 +541,8 @@ export class AnalyticsService {
         planName: schema.subscriptionPlans.name,
         phone: schema.users.phone,
         endDate: schema.subscriptions.endDate,
+        yaPago: yaPagoExpr,
+        segment: schema.memberProfiles.segment,
       })
       .from(schema.subscriptions)
       .innerJoin(schema.users, eq(schema.users.id, schema.subscriptions.userId))
@@ -504,8 +554,12 @@ export class AnalyticsService {
         schema.subscriptionPlans,
         eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
       )
+      .leftJoin(
+        schema.memberProfiles,
+        eq(schema.memberProfiles.userId, schema.subscriptions.userId),
+      )
       .where(and(...expiringConditions))
-      .limit(10);
+      .limit(50);
 
     const expiring: AttentionMember[] = expiringRows.map((r) => {
       const endDate = r.endDate ? new Date(r.endDate) : new Date();
@@ -524,15 +578,146 @@ export class AnalyticsService {
         type: "expiring" as const,
         daysUntilExpiry,
         daysOverdue: null,
+        yaPago: Number(r.yaPago) === 1,
+        segment: r.segment ?? null,
       };
     });
 
-    // Sort expiring by days ascending (most urgent first)
-    expiring.sort(
-      (a, b) => (a.daysUntilExpiry ?? 0) - (b.daysUntilExpiry ?? 0),
-    );
+    // ── Overdue: end_date 1..30 days past AND member NOT active (no renewal) ──
+    const overdueConditions: SQL[] = [
+      sql`${schema.subscriptions.endDate} < CURDATE()`,
+      sql`${schema.subscriptions.endDate} >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)`,
+      // "vencido sin renovar": negate the canonical active predicate so a member
+      // who renewed (has an in-effect sub) drops out of the overdue worklist.
+      sql`NOT ${activeMemberExists(schema.subscriptions.userId)}`,
+      ...scope.conditions,
+    ];
 
-    return expiring.slice(0, 20);
+    const overdueRows = await this.db
+      .select({
+        userId: schema.subscriptions.userId,
+        firstName: schema.users.firstName,
+        lastName: schema.users.lastName,
+        planName: schema.subscriptionPlans.name,
+        phone: schema.users.phone,
+        daysOverdue: sql<number>`DATEDIFF(CURDATE(), ${schema.subscriptions.endDate})`,
+        yaPago: yaPagoExpr,
+        segment: schema.memberProfiles.segment,
+      })
+      .from(schema.subscriptions)
+      .innerJoin(schema.users, eq(schema.users.id, schema.subscriptions.userId))
+      .innerJoin(
+        schema.branches,
+        eq(schema.branches.id, schema.subscriptions.branchId),
+      )
+      .innerJoin(
+        schema.subscriptionPlans,
+        eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
+      )
+      .leftJoin(
+        schema.memberProfiles,
+        eq(schema.memberProfiles.userId, schema.subscriptions.userId),
+      )
+      .where(and(...overdueConditions))
+      .limit(50);
+
+    // A member may have several past subs in the window; keep the one with the
+    // smallest daysOverdue (most recent expiry) per user.
+    const overdueByUser = new Map<number, AttentionMember>();
+    for (const r of overdueRows) {
+      const daysOverdue = Number(r.daysOverdue);
+      const existing = overdueByUser.get(r.userId);
+      if (existing && (existing.daysOverdue ?? Infinity) <= daysOverdue) {
+        continue;
+      }
+      overdueByUser.set(r.userId, {
+        userId: r.userId,
+        firstName: r.firstName,
+        lastName: r.lastName,
+        planName: r.planName,
+        phone: r.phone,
+        type: "overdue" as const,
+        daysUntilExpiry: null,
+        daysOverdue,
+        yaPago: Number(r.yaPago) === 1,
+        segment: r.segment ?? null,
+      });
+    }
+    const overdue = [...overdueByUser.values()];
+
+    // Prioritize: ghost/en_riesgo first (they leave if untouched), then by
+    // urgency (overdue with most mora, then expiring soonest).
+    const priorityRank = (m: AttentionMember): number => {
+      if (m.segment === "ghost") return 0;
+      if (m.segment === "en_riesgo") return 1;
+      return 2;
+    };
+    const urgency = (m: AttentionMember): number =>
+      m.type === "overdue"
+        ? -(m.daysOverdue ?? 0) // more mora = more urgent
+        : (m.daysUntilExpiry ?? 0); // expiring sooner = more urgent
+
+    const combined = [...overdue, ...expiring].sort((a, b) => {
+      const pr = priorityRank(a) - priorityRank(b);
+      if (pr !== 0) return pr;
+      return urgency(a) - urgency(b);
+    });
+
+    return combined.slice(0, 20);
+  }
+
+  /**
+   * Operational renewal rate 7/14/30 (Phase 117 D-15). For each window N, of the
+   * members whose subscription ended within the last N days, the % that renewed
+   * (now have an in-effect subscription per activeMemberExists). Distinct
+   * members. Returns 0 for a window with no expirations. Scope (T-117-01) is
+   * applied over subscriptions.branchId.
+   */
+  private async getRenewalRate(
+    branchId: number | undefined,
+    country: "AR" | "ES" | undefined,
+  ): Promise<{ last7: number; last14: number; last30: number }> {
+    const computeWindow = async (days: number): Promise<number> => {
+      const scope = applyScope({
+        branchId,
+        country,
+        branchColumn: schema.subscriptions.branchId,
+      });
+
+      const endingConditions: SQL[] = [
+        sql`${schema.subscriptions.endDate} < CURDATE()`,
+        sql`${schema.subscriptions.endDate} >= DATE_SUB(CURDATE(), INTERVAL ${sql.raw(
+          String(days),
+        )} DAY)`,
+        ...scope.conditions,
+      ];
+
+      const [endingResult] = await this.db
+        .select({
+          ending: sql<number>`COUNT(DISTINCT ${schema.subscriptions.userId})`,
+          renewed: sql<number>`COUNT(DISTINCT CASE WHEN ${activeMemberExists(
+            schema.subscriptions.userId,
+          )} THEN ${schema.subscriptions.userId} END)`,
+        })
+        .from(schema.subscriptions)
+        .innerJoin(
+          schema.branches,
+          eq(schema.branches.id, schema.subscriptions.branchId),
+        )
+        .where(and(...endingConditions));
+
+      const ending = Number(endingResult?.ending ?? 0);
+      if (ending === 0) return 0;
+      const renewed = Number(endingResult?.renewed ?? 0);
+      return Math.round((renewed / ending) * 100);
+    };
+
+    const [last7, last14, last30] = await Promise.all([
+      computeWindow(7),
+      computeWindow(14),
+      computeWindow(30),
+    ]);
+    return { last7, last14, last30 };
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
