@@ -14,7 +14,6 @@ import { bookings } from "../../src/db/schema/bookings";
 import { schedules } from "../../src/db/schema/schedules";
 import { activities } from "../../src/db/schema/activities";
 import { branches } from "../../src/db/schema/branches";
-import { users } from "../../src/db/schema/users";
 
 const ANALYTICS_URL = "/api/admin/analytics";
 
@@ -31,6 +30,7 @@ describe("AttendanceMetricsService (Phase 117 Plan 03)", () => {
   let svc: AttendanceMetricsService;
   let branchA: number; // 'Test Branch' (AR), the seeded one
   let branchB: number; // a second AR branch, created per-suite
+  let branchES: number; // an ES branch, for cross-country scope tests
 
   // Helper: a timestamp N days ago as "YYYY-MM-DD HH:MM:SS".
   function daysAgo(n: number): Date {
@@ -61,6 +61,17 @@ describe("AttendanceMetricsService (Phase 117 Plan 03)", () => {
       .from(branches)
       .where(eq(branches.code, "TESTB"));
     branchB = b.id;
+
+    // An ES branch for cross-country scope tests (AR admin must be denied).
+    await app.db
+      .insert(branches)
+      .values({ name: "Sede ES Test", code: "TESTES", country: "ES" })
+      .onDuplicateKeyUpdate({ set: { name: "Sede ES Test" } });
+    const [es] = await app.db
+      .select({ id: branches.id })
+      .from(branches)
+      .where(eq(branches.code, "TESTES"));
+    branchES = es.id;
   });
 
   afterAll(async () => {
@@ -400,35 +411,38 @@ describe("AttendanceMetricsService (Phase 117 Plan 03)", () => {
       expect(body.last30).toBeDefined();
     });
 
-    it("coach of sede X is denied (403) when querying another sede Y (T-117-01)", async () => {
-      // Coach belongs to branchA only (createStaffUser inserts user_branches).
+    it("AR admin is denied (403) querying an ES sede; allowed on an AR sede (T-117-01)", async () => {
+      // Analytics is gated to ADMIN_ROLES (admin/owner) — coach/recepción cannot
+      // reach it. The server-side scope guard for an admin is country-level:
+      // requireBranchAccess → canAccessBranch Rule 3 denies a cross-country sede.
+      // The AR admin's country resolves from their AR branch (createStaffUser).
       await createStaffUser(app, {
-        email: "coach-x@test.com",
-        password: "coachpass123",
-        firstName: "Coach",
-        lastName: "X",
-        role: "coach",
+        email: "admin-ar@test.com",
+        password: "adminarpass123",
+        firstName: "Admin",
+        lastName: "AR",
+        role: "admin",
         branchId: branchA,
       });
-      const coachToken = await getAuthToken(
+      const arAdminToken = await getAuthToken(
         app,
-        "coach-x@test.com",
-        "coachpass123",
+        "admin-ar@test.com",
+        "adminarpass123",
       );
 
-      // Querying branchB (not in coach's user_branches) → 403 no fuga.
-      const res = await app.inject({
+      // Querying the ES sede → 403 (cross-country, no fuga de otra sede/país).
+      const denied = await app.inject({
         method: "GET",
-        url: `${ANALYTICS_URL}/attendance/unique-members?branchId=${branchB}`,
-        headers: { authorization: `Bearer ${coachToken}` },
+        url: `${ANALYTICS_URL}/attendance/unique-members?branchId=${branchES}`,
+        headers: { authorization: `Bearer ${arAdminToken}` },
       });
-      expect(res.statusCode).toBe(403);
+      expect(denied.statusCode).toBe(403);
 
-      // Querying their own sede → 200.
+      // Querying an AR sede → 200 (same country).
       const ok = await app.inject({
         method: "GET",
         url: `${ANALYTICS_URL}/attendance/unique-members?branchId=${branchA}`,
-        headers: { authorization: `Bearer ${coachToken}` },
+        headers: { authorization: `Bearer ${arAdminToken}` },
       });
       expect(ok.statusCode).toBe(200);
     });
@@ -470,25 +484,25 @@ describe("AttendanceMetricsService (Phase 117 Plan 03)", () => {
       expect(row.ratio).toBe(1);
     });
 
-    it("coach is denied (403) querying a sede outside their scope (T-117-01)", async () => {
+    it("AR admin is denied (403) querying an ES sede (T-117-01)", async () => {
       await createStaffUser(app, {
-        email: "coach-ca@test.com",
-        password: "coachpass123",
-        firstName: "Coach",
+        email: "admin-ca@test.com",
+        password: "adminarpass123",
+        firstName: "Admin",
         lastName: "CA",
-        role: "coach",
+        role: "admin",
         branchId: branchA,
       });
-      const coachToken = await getAuthToken(
+      const arAdminToken = await getAuthToken(
         app,
-        "coach-ca@test.com",
-        "coachpass123",
+        "admin-ca@test.com",
+        "adminarpass123",
       );
 
       const res = await app.inject({
         method: "GET",
-        url: `${ANALYTICS_URL}/attendance/checkin-adoption?branchId=${branchB}`,
-        headers: { authorization: `Bearer ${coachToken}` },
+        url: `${ANALYTICS_URL}/attendance/checkin-adoption?branchId=${branchES}`,
+        headers: { authorization: `Bearer ${arAdminToken}` },
       });
       expect(res.statusCode).toBe(403);
     });

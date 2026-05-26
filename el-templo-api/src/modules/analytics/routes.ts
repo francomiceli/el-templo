@@ -8,6 +8,7 @@
 
 import { FastifyPluginAsync } from "fastify";
 import { AnalyticsService } from "./service";
+import { AttendanceMetricsService } from "./attendance-metrics-service";
 import { handleServiceError } from "../shared/error-handler";
 import type { AnalyticsFilters } from "./types";
 import {
@@ -15,6 +16,8 @@ import {
   memberAnalyticsSchema,
   attendanceAnalyticsSchema,
   financialAnalyticsSchema,
+  uniqueMembersSchema,
+  checkInAdoptionSchema,
 } from "./schemas";
 
 import { ADMIN_ROLES } from "../shared/permissions";
@@ -23,6 +26,10 @@ import { requireBranchAccess } from "../shared/branch-access";
 
 export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
   const analyticsService = new AnalyticsService(fastify.db, fastify.log);
+  const attendanceMetricsService = new AttendanceMetricsService(
+    fastify.db,
+    fastify.log,
+  );
 
   /**
    * Guard: require admin/coach role on all routes in this plugin.
@@ -142,6 +149,61 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
         return result;
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "get financial analytics");
+      }
+    },
+  );
+
+  // GET /attendance/unique-members — únicos 7/14/30 (Phase 117 D-11)
+  fastify.get<{
+    Querystring: { branchId?: number; dateFrom?: string; dateTo?: string };
+  }>(
+    "/attendance/unique-members",
+    {
+      schema: uniqueMembersSchema,
+      preHandler: [
+        requireBranchAccess({ from: "query.branchId", optional: true }),
+      ],
+    },
+    async (request, reply) => {
+      try {
+        const filters: AnalyticsFilters = {
+          branchId: request.query.branchId,
+          country: request.scope.country ?? undefined,
+          dateFrom: request.query.dateFrom,
+          dateTo: request.query.dateTo,
+        };
+        const result = await attendanceMetricsService.uniqueMembers(filters);
+        return result;
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "get unique members");
+      }
+    },
+  );
+
+  // GET /attendance/checkin-adoption — ratio de check-in por sede (Phase 117 D-13)
+  fastify.get<{
+    Querystring: { branchId?: number; dateFrom?: string; dateTo?: string };
+  }>(
+    "/attendance/checkin-adoption",
+    {
+      schema: checkInAdoptionSchema,
+      preHandler: [
+        requireBranchAccess({ from: "query.branchId", optional: true }),
+      ],
+    },
+    async (request, reply) => {
+      try {
+        const filters: AnalyticsFilters = {
+          branchId: request.query.branchId,
+          country: request.scope.country ?? undefined,
+          dateFrom: request.query.dateFrom,
+          dateTo: request.query.dateTo,
+        };
+        const result =
+          await attendanceMetricsService.checkInAdoptionByBranch(filters);
+        return result;
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "get check-in adoption");
       }
     },
   );

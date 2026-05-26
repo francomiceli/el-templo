@@ -180,6 +180,53 @@ export const attendanceAnalyticsSchema = {
 } as const;
 
 // =============================================================================
+// Attendance Metrics Schemas (Phase 117 D-11 / D-13)
+// =============================================================================
+
+// GET /attendance/unique-members — { last7, last14, last30 }
+export const uniqueMembersSchema = {
+  querystring: analyticsQuerystring,
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        last7: { type: "integer" },
+        last14: { type: "integer" },
+        last30: { type: "integer" },
+      },
+    },
+    400: errorSchema,
+    401: errorSchema,
+    403: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+// GET /attendance/checkin-adoption — array of per-branch rows
+export const checkInAdoptionSchema = {
+  querystring: analyticsQuerystring,
+  response: {
+    200: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          branchId: { type: "integer" },
+          branchName: { type: "string" },
+          confirmados: { type: "integer" },
+          conCheckin: { type: "integer" },
+          ratio: { type: "number" },
+        },
+      },
+    },
+    400: errorSchema,
+    401: errorSchema,
+    403: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+// =============================================================================
 // Financial Analytics Schema
 // =============================================================================
 
