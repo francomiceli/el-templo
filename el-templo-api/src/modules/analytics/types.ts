@@ -117,6 +117,48 @@ export interface CheckInAdoptionRow {
   ratio: number;
 }
 
+// -- Engagement (Phase 117 D-12) -----------------------------------------
+
+/**
+ * Active-member counts per behavioral segment (Phase 117 D-12). The 6 segments
+ * are the canonical `MemberSegment` values (segmentation/types.ts) — analytics
+ * NEVER recalculates them, it only AGGREGATES `member_profiles.segment` for
+ * members that are active (canonical predicate `activeMemberExists`). Every key
+ * is always present and defaults to 0.
+ *
+ * `sinSegmento` is the bucket for active members whose `member_profiles.segment`
+ * is NULL (no profile row yet, or segment never computed — the member has not
+ * logged in since segmentation shipped). These members are real and active, so
+ * they are counted here rather than dropped, keeping the per-segment counts
+ * reconcilable against the total active count.
+ */
+export interface SegmentCounts {
+  nuevo: number;
+  espartano: number;
+  intermitente: number;
+  en_riesgo: number;
+  digital_warrior: number;
+  ghost: number;
+  /** Active members with no computed segment (member_profiles.segment IS NULL). */
+  sinSegmento: number;
+}
+
+/**
+ * A member on the engagement worklist (Phase 117 D-12 / D-17). Same nominal
+ * shape as `AttentionMember` (getAttentionList) — carries `phone` for the
+ * WhatsApp deep-link action in the admin. Only `en_riesgo` and `ghost` active
+ * members appear here ("activos que se van a ir si nadie los toca"). PII
+ * (phone) is gated by the ADMIN_ROLES guard + scope (T-117-01 / T-117-06).
+ */
+export interface EngagementMember {
+  userId: number;
+  firstName: string | null;
+  lastName: string | null;
+  planName: string | null;
+  phone: string | null;
+  segment: "en_riesgo" | "ghost";
+}
+
 // -- Financial Analytics -------------------------------------------------
 
 export interface OutstandingByCurrency {
