@@ -90,6 +90,33 @@ export interface AttendanceAnalytics {
   noShowRate: number;
 }
 
+// -- Attendance Metrics (Phase 117 D-11 / D-13) --------------------------
+
+/**
+ * Unique members (COUNT DISTINCT member_id) over `attendance` for the last
+ * 7 / 14 / 30 days (D-11). Each window is counted backwards from "now".
+ */
+export interface UniqueMembersMetric {
+  last7: number;
+  last14: number;
+  last30: number;
+}
+
+/**
+ * Per-branch check-in adoption (D-13 Parte B). `ratio` is `conCheckin /
+ * confirmados` in the 0..1 range (0 = nadie checkea, 1 = todos). The <50%
+ * warning is frontend logic (Plan 05). A branch with `confirmados > 0` and
+ * `conCheckin = 0` reports `ratio = 0` (never NaN). Branches with 0 confirmed
+ * bookings in scope do not appear.
+ */
+export interface CheckInAdoptionRow {
+  branchId: number;
+  branchName: string;
+  confirmados: number;
+  conCheckin: number;
+  ratio: number;
+}
+
 // -- Financial Analytics -------------------------------------------------
 
 export interface OutstandingByCurrency {
