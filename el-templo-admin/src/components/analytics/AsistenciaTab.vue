@@ -62,86 +62,6 @@
       </div>
     </div>
 
-    <!-- Conteo de activos por segmento de engagement (D-12) -->
-    <q-card v-if="props.engagement" flat bordered class="q-mb-md">
-      <q-card-section>
-        <div class="text-subtitle2 q-mb-sm">Activos por segmento de engagement</div>
-        <div class="row q-col-gutter-sm">
-          <div v-for="seg in segmentCountCards" :key="seg.key" class="col-6 col-sm-4 col-md-2">
-            <q-card flat bordered>
-              <q-card-section class="text-center q-pa-sm">
-                <div class="row items-center justify-center no-wrap q-gutter-xs">
-                  <q-chip
-                    :color="seg.color"
-                    text-color="white"
-                    dense
-                    size="sm"
-                    :label="seg.label"
-                  />
-                  <q-icon name="info" size="16px" class="text-grey-5 cursor-pointer">
-                    <q-tooltip max-width="220px" class="text-body2">{{
-                      seg.description
-                    }}</q-tooltip>
-                  </q-icon>
-                </div>
-                <div class="text-h6 q-mt-xs">{{ seg.count }}</div>
-              </q-card-section>
-            </q-card>
-          </div>
-        </div>
-      </q-card-section>
-    </q-card>
-
-    <!-- Worklist nominal en_riesgo / ghost con WhatsApp (D-12) -->
-    <q-card v-if="props.engagement" flat bordered>
-      <q-card-section>
-        <div class="text-subtitle2 q-mb-sm">
-          En riesgo / Ghost — contactar antes de que se vayan
-        </div>
-        <q-table
-          v-if="props.engagement.nominalList.length > 0"
-          :rows="props.engagement.nominalList"
-          :columns="engagementColumns"
-          row-key="userId"
-          flat
-          dense
-          :pagination="{ rowsPerPage: 10 }"
-        >
-          <template #body-cell-nombre="slotProps">
-            <q-td :props="slotProps">{{ formatMemberName(slotProps.row) }}</q-td>
-          </template>
-          <template #body-cell-segmento="slotProps">
-            <q-td :props="slotProps">
-              <q-chip
-                :color="segmentColor(slotProps.row.segment)"
-                text-color="white"
-                dense
-                size="sm"
-                :label="segmentLabel(slotProps.row.segment)"
-              />
-            </q-td>
-          </template>
-          <template #body-cell-acciones="slotProps">
-            <q-td :props="slotProps">
-              <q-btn
-                flat
-                dense
-                size="sm"
-                label="WhatsApp"
-                color="positive"
-                icon="chat"
-                :disable="!slotProps.row.phone"
-                @click="contactMember(slotProps.row)"
-              />
-            </q-td>
-          </template>
-        </q-table>
-        <div v-else class="text-center q-pa-md text-grey-5 text-italic">
-          No hay miembros en riesgo o ghost en este alcance
-        </div>
-      </q-card-section>
-    </q-card>
-
     <!-- Daily checkins line chart -->
     <div class="row q-col-gutter-md q-mb-md q-mt-none">
       <div class="col-12">
@@ -250,17 +170,9 @@ import {
 } from 'chart.js';
 import { Line } from 'vue-chartjs';
 import { COLORS } from 'src/utils/chart-colors';
-import {
-  SEGMENT_LABELS,
-  SEGMENT_COLORS,
-  SEGMENT_DESCRIPTIONS,
-  type MemberSegment,
-} from 'src/types/member';
 import type {
   AttendanceAnalytics,
   UniqueMembersMetric,
-  EngagementAnalytics,
-  EngagementMember,
   CheckInAdoptionRow,
 } from 'src/types/analytics';
 
@@ -283,7 +195,6 @@ const props = defineProps<{
   data: AttendanceAnalytics | null;
   loading: boolean;
   uniqueMembers?: UniqueMembersMetric | null;
-  engagement?: EngagementAnalytics | null;
   checkInAdoption?: CheckInAdoptionRow[] | null;
   /** Currently filtered branch (undefined = all branches in scope). */
   branchId?: number | undefined;
@@ -307,58 +218,6 @@ const lowAdoptionBranch = computed<{ branchName: string; ratioPct: number } | nu
   if (row.ratio >= ADOPTION_WARNING_THRESHOLD) return null;
   return { branchName: row.branchName, ratioPct: Math.round(row.ratio * 100) };
 });
-
-// -- Segment counts (D-12) -----------------------------------------------
-
-const segmentCountCards = computed(() => {
-  const counts = props.engagement?.counts;
-  if (!counts) return [];
-  const segmentKeys: MemberSegment[] = [
-    'nuevo',
-    'espartano',
-    'intermitente',
-    'en_riesgo',
-    'digital_warrior',
-    'ghost',
-  ];
-  // "Sin segmento" (active members with NULL segment) is intentionally hidden —
-  // it's a data-staleness bucket, not an actionable engagement category.
-  return segmentKeys.map((key) => ({
-    key,
-    label: SEGMENT_LABELS[key],
-    color: SEGMENT_COLORS[key],
-    count: counts[key],
-    description: SEGMENT_DESCRIPTIONS[key],
-  }));
-});
-
-// -- Engagement worklist (D-12) ------------------------------------------
-
-const engagementColumns = [
-  { name: 'nombre', label: 'Nombre', field: 'firstName', align: 'left' as const },
-  { name: 'plan', label: 'Plan', field: 'planName', align: 'left' as const },
-  { name: 'segmento', label: 'Segmento', field: 'segment', align: 'left' as const, sortable: true },
-  { name: 'acciones', label: 'Acciones', field: 'userId', align: 'right' as const },
-];
-
-function formatMemberName(member: EngagementMember): string {
-  const parts = [member.firstName, member.lastName].filter(Boolean);
-  return parts.length > 0 ? parts.join(' ') : `Miembro #${member.userId}`;
-}
-
-function segmentLabel(segment: string): string {
-  return SEGMENT_LABELS[segment as MemberSegment] ?? segment;
-}
-
-function segmentColor(segment: string): string {
-  return SEGMENT_COLORS[segment as MemberSegment] ?? 'grey';
-}
-
-function contactMember(member: EngagementMember): void {
-  if (!member.phone) return;
-  const cleaned = member.phone.replace(/\D/g, '');
-  window.open(`https://wa.me/${cleaned}`, '_blank');
-}
 
 // -- Chart data ----------------------------------------------------------
 
