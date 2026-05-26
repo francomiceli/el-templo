@@ -10,6 +10,7 @@ import { FastifyPluginAsync } from "fastify";
 import { AnalyticsService } from "./service";
 import { AttendanceMetricsService } from "./attendance-metrics-service";
 import { EngagementService } from "./engagement-service";
+import { RetentionService } from "./retention-service";
 import { handleServiceError } from "../shared/error-handler";
 import type { AnalyticsFilters } from "./types";
 import {
@@ -20,7 +21,9 @@ import {
   uniqueMembersSchema,
   checkInAdoptionSchema,
   engagementSchema,
+  retentionSchema,
 } from "./schemas";
+import type { RetentionPlanCategory } from "./types";
 
 import {
   ADMIN_ROLES,
@@ -55,6 +58,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
     fastify.log,
   );
   const engagementService = new EngagementService(fastify.db, fastify.log);
+  const retentionService = new RetentionService(fastify.db, fastify.log);
 
   /**
    * Guard: authenticate + gate to the operational analytics set (gestion +
@@ -271,6 +275,42 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
         return { counts, nominalList };
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "get engagement");
+      }
+    },
+  );
+
+  // GET /retention — retención por cohortes de ciclos de plan (Phase 118
+  // D-04/D-05/D-06). SENSIBLE → ADMIN_ROLES-only vía requireAdminAnalytics (D-11);
+  // gestion recibe 403. Filtrable por plan_category. Scoped por sede/país.
+  fastify.get<{
+    Querystring: {
+      branchId?: number;
+      dateFrom?: string;
+      dateTo?: string;
+      planCategory?: RetentionPlanCategory;
+    };
+  }>(
+    "/retention",
+    {
+      schema: retentionSchema,
+      preHandler: [
+        requireAdminAnalytics,
+        requireBranchAccess({ from: "query.branchId", optional: true }),
+      ],
+    },
+    async (request, reply) => {
+      try {
+        const filters: AnalyticsFilters = {
+          branchId: request.query.branchId,
+          country: request.scope.country ?? undefined,
+          dateFrom: request.query.dateFrom,
+          dateTo: request.query.dateTo,
+          planCategory: request.query.planCategory,
+        };
+        const result = await retentionService.getRetention(filters);
+        return result;
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "get retention");
       }
     },
   );
