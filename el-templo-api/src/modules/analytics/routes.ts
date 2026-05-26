@@ -9,6 +9,7 @@
 import { FastifyPluginAsync } from "fastify";
 import { AnalyticsService } from "./service";
 import { AttendanceMetricsService } from "./attendance-metrics-service";
+import { EngagementService } from "./engagement-service";
 import { handleServiceError } from "../shared/error-handler";
 import type { AnalyticsFilters } from "./types";
 import {
@@ -18,6 +19,7 @@ import {
   financialAnalyticsSchema,
   uniqueMembersSchema,
   checkInAdoptionSchema,
+  engagementSchema,
 } from "./schemas";
 
 import { ADMIN_ROLES } from "../shared/permissions";
@@ -30,6 +32,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
     fastify.db,
     fastify.log,
   );
+  const engagementService = new EngagementService(fastify.db, fastify.log);
 
   /**
    * Guard: require admin/coach role on all routes in this plugin.
@@ -204,6 +207,38 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
         return result;
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "get check-in adoption");
+      }
+    },
+  );
+
+  // GET /engagement — conteo de activos por segmento + worklist en_riesgo/ghost
+  // (Phase 117 D-12). Reutiliza segmentation (member_profiles.segment), no
+  // recalcula. PII (phone) gated por el onRequest hook (ADMIN_ROLES) + scope.
+  fastify.get<{
+    Querystring: { branchId?: number; dateFrom?: string; dateTo?: string };
+  }>(
+    "/engagement",
+    {
+      schema: engagementSchema,
+      preHandler: [
+        requireBranchAccess({ from: "query.branchId", optional: true }),
+      ],
+    },
+    async (request, reply) => {
+      try {
+        const filters: AnalyticsFilters = {
+          branchId: request.query.branchId,
+          country: request.scope.country ?? undefined,
+          dateFrom: request.query.dateFrom,
+          dateTo: request.query.dateTo,
+        };
+        const [counts, nominalList] = await Promise.all([
+          engagementService.countActiveBySegment(filters),
+          engagementService.getEngagementNominalList(filters),
+        ]);
+        return { counts, nominalList };
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "get engagement");
       }
     },
   );

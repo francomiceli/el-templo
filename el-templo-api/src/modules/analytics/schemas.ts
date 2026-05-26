@@ -227,6 +227,52 @@ export const checkInAdoptionSchema = {
 } as const;
 
 // =============================================================================
+// Engagement Schema (Phase 117 D-12)
+// =============================================================================
+
+// GET /engagement — { counts: SegmentCounts, nominalList: EngagementMember[] }
+export const engagementSchema = {
+  querystring: analyticsQuerystring,
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        counts: {
+          type: "object",
+          properties: {
+            nuevo: { type: "integer" },
+            espartano: { type: "integer" },
+            intermitente: { type: "integer" },
+            en_riesgo: { type: "integer" },
+            digital_warrior: { type: "integer" },
+            ghost: { type: "integer" },
+            sinSegmento: { type: "integer" },
+          },
+        },
+        nominalList: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              userId: { type: "integer" },
+              firstName: { type: ["string", "null"] },
+              lastName: { type: ["string", "null"] },
+              planName: { type: ["string", "null"] },
+              phone: { type: ["string", "null"] },
+              segment: { type: "string", enum: ["en_riesgo", "ghost"] },
+            },
+          },
+        },
+      },
+    },
+    400: errorSchema,
+    401: errorSchema,
+    403: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+// =============================================================================
 // Financial Analytics Schema
 // =============================================================================
 
