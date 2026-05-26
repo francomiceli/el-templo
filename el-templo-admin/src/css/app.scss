@@ -25,3 +25,18 @@ body {
 .q-tab-panel {
   background-color: transparent;
 }
+
+// Staging environment marker: recolor the brand primary to blue-9 so every
+// bg-primary surface (header, toolbars, primary buttons, badges) is obviously
+// a non-production environment. Scoped to body.staging-env, which the
+// staging-marker boot file adds only when VITE_APP_ENVIRONMENT=staging — so
+// production keeps the terracotta brand. Overriding --q-primary covers all
+// primary usages (Quasar v2 brand classes read this CSS var); the explicit
+// .bg-primary rule is a belt-and-suspenders fallback.
+body.staging-env {
+  --q-primary: #1565c0; // Quasar blue-9
+
+  .bg-primary {
+    background: #1565c0 !important;
+  }
+}

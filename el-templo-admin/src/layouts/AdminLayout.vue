@@ -1,6 +1,8 @@
 <template>
   <q-layout view="lHh Lpr lFf">
-    <q-header elevated :class="isStaging ? 'bg-blue-9' : 'bg-primary'">
+    <!-- In staging the bg-primary turns blue-9 globally (see app.scss
+         body.staging-env override); only the title text is conditional here. -->
+    <q-header elevated class="bg-primary">
       <q-toolbar>
         <q-btn flat dense round icon="menu" @click="drawer = !drawer" />
         <q-toolbar-title>{{
