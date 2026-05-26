@@ -76,6 +76,17 @@
             </q-card>
           </div>
         </div>
+
+        <!-- Referencia: qué significa cada segmento -->
+        <q-list dense class="q-mt-md">
+          <div class="text-caption text-grey-7 q-mb-xs">¿Qué significa cada segmento?</div>
+          <q-item v-for="seg in segmentCountCards" :key="`ref-${seg.key}`" dense class="q-px-none">
+            <q-item-section avatar style="min-width: 130px">
+              <q-chip :color="seg.color" text-color="white" dense size="sm" :label="seg.label" />
+            </q-item-section>
+            <q-item-section class="text-caption text-grey-8">{{ seg.description }}</q-item-section>
+          </q-item>
+        </q-list>
       </q-card-section>
     </q-card>
 
@@ -237,7 +248,12 @@ import {
 } from 'chart.js';
 import { Line } from 'vue-chartjs';
 import { COLORS } from 'src/utils/chart-colors';
-import { SEGMENT_LABELS, SEGMENT_COLORS, type MemberSegment } from 'src/types/member';
+import {
+  SEGMENT_LABELS,
+  SEGMENT_COLORS,
+  SEGMENT_DESCRIPTIONS,
+  type MemberSegment,
+} from 'src/types/member';
 import type {
   AttendanceAnalytics,
   UniqueMembersMetric,
@@ -303,19 +319,15 @@ const segmentCountCards = computed(() => {
     'digital_warrior',
     'ghost',
   ];
-  const cards = segmentKeys.map((key) => ({
+  // "Sin segmento" (active members with NULL segment) is intentionally hidden —
+  // it's a data-staleness bucket, not an actionable engagement category.
+  return segmentKeys.map((key) => ({
     key,
     label: SEGMENT_LABELS[key],
     color: SEGMENT_COLORS[key],
     count: counts[key],
+    description: SEGMENT_DESCRIPTIONS[key],
   }));
-  cards.push({
-    key: 'sinSegmento' as MemberSegment,
-    label: 'Sin segmento',
-    color: 'blue-grey',
-    count: counts.sinSegmento,
-  });
-  return cards;
 });
 
 // -- Engagement worklist (D-12) ------------------------------------------

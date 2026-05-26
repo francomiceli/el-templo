@@ -33,6 +33,18 @@ export const SEGMENT_COLORS: Record<MemberSegment, string> = {
   ghost: 'grey',
 };
 
+// Short, plain-language meaning of each engagement segment, mirroring the
+// classification logic in the API segmentation service. Shown as a legend
+// under the segment counts so reception/gestion know what each chip means.
+export const SEGMENT_DESCRIPTIONS: Record<MemberSegment, string> = {
+  nuevo: 'Recién registrado — todavía en su período inicial.',
+  espartano: 'Asiste de forma constante, cumple o supera su cupo de clases.',
+  intermitente: 'Asiste, pero por debajo del cupo esperado de su plan.',
+  en_riesgo: 'Bajó la asistencia o lleva semanas sin actividad — riesgo de baja.',
+  digital_warrior: 'Asiste poco presencialmente pero usa mucho la app (sesiones/ingresos).',
+  ghost: 'Sin actividad hace varias semanas (ni asistencia, ni app, ni sesiones).',
+};
+
 export interface SegmentThresholds {
   espartanoPct: number;
   intermitentePct: number;

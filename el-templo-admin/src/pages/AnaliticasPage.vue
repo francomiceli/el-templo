@@ -142,7 +142,6 @@
       indicator-color="primary"
     >
       <q-tab name="miembros" label="Miembros" icon="people" />
-      <q-tab name="asistencia" label="Asistencia" icon="how_to_reg" />
       <q-tab name="finanzas" label="Finanzas" icon="payments" />
       <q-tab name="programas" label="Programas" icon="school" />
     </q-tabs>
@@ -150,16 +149,6 @@
     <q-tab-panels v-model="activeTab" animated>
       <q-tab-panel name="miembros">
         <MiembrosTab :data="memberData" :loading="loadingMembers" />
-      </q-tab-panel>
-      <q-tab-panel name="asistencia">
-        <AsistenciaTab
-          :data="attendanceData"
-          :loading="loadingAttendance"
-          :unique-members="uniqueMembersData"
-          :engagement="engagementData"
-          :check-in-adoption="checkInAdoptionData"
-          :branch-id="selectedBranchId"
-        />
       </q-tab-panel>
       <q-tab-panel name="finanzas">
         <FinanzasTab
@@ -233,18 +222,13 @@ import { useAuthStore } from 'src/stores/useAuthStore';
 import { createLogger } from 'src/utils/logger';
 import { formatPrice } from 'src/utils/format-price';
 import MiembrosTab from 'src/components/analytics/MiembrosTab.vue';
-import AsistenciaTab from 'src/components/analytics/AsistenciaTab.vue';
 import FinanzasTab from 'src/components/analytics/FinanzasTab.vue';
 import type {
   KpiStats,
   MemberAnalytics,
-  AttendanceAnalytics,
   FinancialAnalytics,
   AnalyticsFilters,
   TrendInfo,
-  UniqueMembersMetric,
-  EngagementAnalytics,
-  CheckInAdoptionRow,
 } from 'src/types/analytics';
 import type { BranchOption } from 'src/types/member';
 import type { ProgramAnalytics } from 'src/types/program';
@@ -403,15 +387,10 @@ const activeTab = ref('miembros');
 
 const kpis = ref<KpiStats | null>(null);
 const memberData = ref<MemberAnalytics | null>(null);
-const attendanceData = ref<AttendanceAnalytics | null>(null);
 const financialData = ref<FinancialAnalytics | null>(null);
-const uniqueMembersData = ref<UniqueMembersMetric | null>(null);
-const engagementData = ref<EngagementAnalytics | null>(null);
-const checkInAdoptionData = ref<CheckInAdoptionRow[] | null>(null);
 
 const loadingKpis = ref(false);
 const loadingMembers = ref(false);
-const loadingAttendance = ref(false);
 const loadingFinancial = ref(false);
 const programAnalytics = ref<ProgramAnalytics | null>(null);
 const loadingProgramAnalytics = ref(false);
@@ -497,29 +476,6 @@ async function fetchMemberData() {
   }
 }
 
-async function fetchAttendanceData() {
-  loadingAttendance.value = true;
-  try {
-    // Asistencia tab also drives unique-members (D-11), engagement (D-12) and
-    // check-in adoption (D-13). Fetch them alongside the base attendance data.
-    const [attendance, unique, engagement, adoption] = await Promise.all([
-      analyticsApi.getAttendanceAnalytics(currentFilters.value),
-      analyticsApi.getUniqueMembers(currentFilters.value),
-      analyticsApi.getEngagement(currentFilters.value),
-      analyticsApi.getCheckInAdoption(currentFilters.value),
-    ]);
-    attendanceData.value = attendance;
-    uniqueMembersData.value = unique;
-    engagementData.value = engagement;
-    checkInAdoptionData.value = adoption;
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Error desconocido';
-    log.error('Error fetching attendance analytics', { error: message });
-  } finally {
-    loadingAttendance.value = false;
-  }
-}
-
 async function fetchFinancialData() {
   loadingFinancial.value = true;
   try {
@@ -548,9 +504,6 @@ async function fetchTabData() {
   switch (activeTab.value) {
     case 'miembros':
       await fetchMemberData();
-      break;
-    case 'asistencia':
-      await fetchAttendanceData();
       break;
     case 'finanzas':
       await fetchFinancialData();

@@ -56,6 +56,7 @@
       indicator-color="primary"
     >
       <q-tab name="accesos" label="Accesos" icon="login" />
+      <q-tab name="asistencia" label="Asistencia" icon="how_to_reg" />
       <q-tab name="cobros" label="Cobros" icon="payments" />
       <q-tab name="vencimientos" label="Vencimientos" icon="event_busy" />
       <q-tab name="inactivos" label="Inactivos" icon="person_off" />
@@ -183,6 +184,81 @@
             </div>
           </template>
         </q-table>
+      </q-tab-panel>
+
+      <!-- ================================================================ -->
+      <!-- Asistencia Tab (Phase 117 — operativo para gestion) -->
+      <!-- ================================================================ -->
+      <q-tab-panel name="asistencia">
+        <div class="row items-center q-gutter-sm q-mb-md">
+          <div class="col-auto">
+            <q-btn-dropdown outline :label="asistenciaDateLabel" icon="date_range" dense>
+              <q-list dense>
+                <q-item
+                  v-for="preset in datePresets"
+                  :key="preset.label"
+                  clickable
+                  v-close-popup
+                  @click="applyAsistenciaPreset(preset)"
+                >
+                  <q-item-section>{{ preset.label }}</q-item-section>
+                </q-item>
+                <q-separator />
+                <q-item clickable @click="showAsistenciaCustomRange = !showAsistenciaCustomRange">
+                  <q-item-section>Personalizado</q-item-section>
+                  <q-item-section side>
+                    <q-icon :name="showAsistenciaCustomRange ? 'expand_less' : 'expand_more'" />
+                  </q-item-section>
+                </q-item>
+                <template v-if="showAsistenciaCustomRange">
+                  <q-item>
+                    <q-item-section>
+                      <q-input
+                        v-model="asistenciaCustomFrom"
+                        type="date"
+                        label="Desde"
+                        dense
+                        outlined
+                      />
+                    </q-item-section>
+                  </q-item>
+                  <q-item>
+                    <q-item-section>
+                      <q-input
+                        v-model="asistenciaCustomTo"
+                        type="date"
+                        label="Hasta"
+                        dense
+                        outlined
+                      />
+                    </q-item-section>
+                  </q-item>
+                  <q-item>
+                    <q-item-section>
+                      <q-btn
+                        label="Aplicar"
+                        color="primary"
+                        dense
+                        flat
+                        v-close-popup
+                        @click="applyAsistenciaCustomRange"
+                      />
+                    </q-item-section>
+                  </q-item>
+                </template>
+              </q-list>
+            </q-btn-dropdown>
+          </div>
+        </div>
+
+        <AsistenciaTab
+          :data="attendanceData"
+          :loading="loadingAttendance"
+          :unique-members="uniqueMembersData"
+          :engagement="engagementData"
+          :check-in-adoption="checkInAdoptionData"
+          :branch-id="selectedBranchId"
+        />
       </q-tab-panel>
 
       <!-- ================================================================ -->
@@ -683,6 +759,7 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { useQuasar, type QTableColumn, type QTableProps } from 'quasar';
 import { useReportsApi } from 'src/composables/useReportsApi';
+import { useAnalyticsApi } from 'src/composables/useAnalyticsApi';
 import { useMembersApi } from 'src/composables/useMembersApi';
 import { useAuthStore } from 'src/stores/useAuthStore';
 import { createLogger } from 'src/utils/logger';
@@ -701,14 +778,23 @@ import type {
   TrialConversionReport,
 } from 'src/types/report';
 import type { BranchOption } from 'src/types/member';
+import type {
+  AttendanceAnalytics,
+  UniqueMembersMetric,
+  EngagementAnalytics,
+  CheckInAdoptionRow,
+  AnalyticsFilters,
+} from 'src/types/analytics';
 import DeudasReport from 'src/components/DeudasReport.vue';
 import TrialSessionsReport from 'src/components/reports/TrialSessionsReport.vue';
+import AsistenciaTab from 'src/components/analytics/AsistenciaTab.vue';
 
 // -- Setup -------------------------------------------------------------------
 
 const log = createLogger('ReportesPage');
 const $q = useQuasar();
 const reportsApi = useReportsApi();
+const analyticsApi = useAnalyticsApi();
 const membersApi = useMembersApi();
 const authStore = useAuthStore();
 
@@ -866,6 +952,7 @@ const datePresets: DatePreset[] = [
 const route = useRoute();
 const VALID_TABS = [
   'accesos',
+  'asistencia',
   'cobros',
   'vencimientos',
   'inactivos',
@@ -1035,6 +1122,74 @@ async function onExportAccess() {
     $q.notify({ type: 'negative', message: 'Error al exportar' });
   } finally {
     exportingAccess.value = false;
+  }
+}
+
+// ============================================================================
+// ASISTENCIA TAB (Phase 117 — operativo para gestion)
+// ============================================================================
+
+const asistenciaDateFrom = ref(toIsoDate(getMonthStart(now)));
+const asistenciaDateTo = ref(toIsoDate(getMonthEnd(now)));
+const asistenciaPresetLabel = ref('Este mes');
+const showAsistenciaCustomRange = ref(false);
+const asistenciaCustomFrom = ref(asistenciaDateFrom.value);
+const asistenciaCustomTo = ref(asistenciaDateTo.value);
+
+const attendanceData = ref<AttendanceAnalytics | null>(null);
+const uniqueMembersData = ref<UniqueMembersMetric | null>(null);
+const engagementData = ref<EngagementAnalytics | null>(null);
+const checkInAdoptionData = ref<CheckInAdoptionRow[] | null>(null);
+const loadingAttendance = ref(false);
+
+const asistenciaDateLabel = computed(() => {
+  if (asistenciaPresetLabel.value) return asistenciaPresetLabel.value;
+  return `${asistenciaDateFrom.value} - ${asistenciaDateTo.value}`;
+});
+
+const asistenciaFilters = computed<AnalyticsFilters>(() => ({
+  branchId: selectedBranchId.value,
+  country: countryScope.value,
+  dateFrom: asistenciaDateFrom.value,
+  dateTo: asistenciaDateTo.value,
+}));
+
+function applyAsistenciaPreset(preset: DatePreset) {
+  const range = preset.getRange();
+  asistenciaDateFrom.value = range.dateFrom;
+  asistenciaDateTo.value = range.dateTo;
+  asistenciaPresetLabel.value = preset.label;
+  showAsistenciaCustomRange.value = false;
+  void fetchAttendanceData();
+}
+
+function applyAsistenciaCustomRange() {
+  asistenciaDateFrom.value = asistenciaCustomFrom.value;
+  asistenciaDateTo.value = asistenciaCustomTo.value;
+  asistenciaPresetLabel.value = '';
+  void fetchAttendanceData();
+}
+
+async function fetchAttendanceData() {
+  loadingAttendance.value = true;
+  try {
+    // Unique members (D-11), engagement (D-12) and check-in adoption (D-13)
+    // are fetched alongside the base attendance analytics.
+    const [attendance, unique, engagement, adoption] = await Promise.all([
+      analyticsApi.getAttendanceAnalytics(asistenciaFilters.value),
+      analyticsApi.getUniqueMembers(asistenciaFilters.value),
+      analyticsApi.getEngagement(asistenciaFilters.value),
+      analyticsApi.getCheckInAdoption(asistenciaFilters.value),
+    ]);
+    attendanceData.value = attendance;
+    uniqueMembersData.value = unique;
+    engagementData.value = engagement;
+    checkInAdoptionData.value = adoption;
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.error('Error fetching attendance analytics', { error: message });
+  } finally {
+    loadingAttendance.value = false;
   }
 }
 
@@ -1478,6 +1633,9 @@ async function fetchTabData() {
     case 'accesos':
       await fetchAccessData();
       break;
+    case 'asistencia':
+      await fetchAttendanceData();
+      break;
     case 'cobros':
       await fetchChargesData();
       break;
@@ -1508,6 +1666,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   reportsApi.cleanup();
+  analyticsApi.cleanup();
   membersApi.cleanup();
 });
 </script>
