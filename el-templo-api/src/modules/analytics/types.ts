@@ -264,6 +264,34 @@ export interface RetentionAnalytics {
   invalidWindowSubs: number;
 }
 
+// -- Advanced Finance: Caja vs Devengado + ARPU (Phase 118 D-07/D-08) -----
+
+/**
+ * Advanced-finance response (Phase 118 D-07/D-08). All three series are split per
+ * currency (ARS/EUR are NEVER summed) and sorted ascending by `month` (`YYYY-MM`).
+ *
+ *   - `cashTrend` (CAJA): the canonical cash-basis revenue per month — the same
+ *     figure `FinancialAnalytics.revenueTrend` reports. A long plan paid up-front
+ *     lands fully in the month of payment.
+ *   - `accruedTrend` (DEVENGADO): `price_paid` of each subscription prorated over
+ *     its EFFECTIVE window (`[startDate, MIN(endDate, cancelledAt)]`) and
+ *     distributed across the months it touches, proportional to the days inside
+ *     each month. Honest revenue for long plans + cancellations.
+ *   - `arpu`: `accruedTrend[month] ÷ activos` per currency, where `activos` is the
+ *     canonical `activeMemberExists` count (NEVER `users.status`). A month with 0
+ *     active members reports ARPU 0 (div-by-zero guard, T-118-08).
+ *
+ * `excludedInvalidWindow` counts subscriptions skipped from the accrual because
+ * their window was invalid (null start/end, end<start, or zero-day) so the
+ * frontend can surface a caveat — these never divided by zero.
+ */
+export interface AdvancedFinanceAnalytics {
+  cashTrend: Array<{ month: string; ARS: number; EUR: number }>;
+  accruedTrend: Array<{ month: string; ARS: number; EUR: number }>;
+  arpu: Array<{ month: string; ARS: number; EUR: number }>;
+  excludedInvalidWindow: number;
+}
+
 // -- Financial Analytics -------------------------------------------------
 
 export interface OutstandingByCurrency {

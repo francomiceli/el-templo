@@ -364,6 +364,40 @@ export const retentionSchema = {
 } as const;
 
 // =============================================================================
+// Advanced Finance Schema (Phase 118 D-07/D-08)
+// =============================================================================
+
+// A per-month series item carrying both currencies (never summed).
+const monthlyByCurrencyItem = {
+  type: "object",
+  properties: {
+    month: { type: "string" },
+    ARS: { type: "number" },
+    EUR: { type: "number" },
+  },
+} as const;
+
+// GET /advanced-finance — caja + devengado prorrateado + ARPU, por moneda.
+export const advancedFinanceSchema = {
+  querystring: analyticsQuerystring,
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        cashTrend: { type: "array", items: monthlyByCurrencyItem },
+        accruedTrend: { type: "array", items: monthlyByCurrencyItem },
+        arpu: { type: "array", items: monthlyByCurrencyItem },
+        excludedInvalidWindow: { type: "integer" },
+      },
+    },
+    400: errorSchema,
+    401: errorSchema,
+    403: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+// =============================================================================
 // Financial Analytics Schema
 // =============================================================================
 
