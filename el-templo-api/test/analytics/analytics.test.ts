@@ -6,6 +6,7 @@ import {
   getAuthToken,
   registerUser,
   cleanAllTestData,
+  createStaffUser,
 } from "../helpers";
 import { bookings } from "../../src/db/schema/bookings";
 import { completedSessions } from "../../src/db/schema/completed-sessions";
@@ -741,6 +742,109 @@ describe("Analytics API", () => {
       expect(body.renewalRate).toHaveProperty("last30");
       // 1 of 2 that ended in the last 7 days renewed → 50%.
       expect(body.renewalRate.last7).toBe(50);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Phase 117 D-14/D-15/D-16/D-17 — member analytics contract + scope (Task 2)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  describe("GET /members — extended contract + scope (Plan 05)", () => {
+    let branchES: number;
+
+    beforeEach(async () => {
+      await cleanupAll();
+      await app.db
+        .insert(branches)
+        .values({ name: "Sede ES Members", code: "TESTESM", country: "ES" })
+        .onDuplicateKeyUpdate({ set: { name: "Sede ES Members" } });
+      const [es] = await app.db
+        .select({ id: branches.id })
+        .from(branches)
+        .where(eq(branches.code, "TESTESM"));
+      branchES = es.id;
+    });
+
+    it("serializes the new attentionList fields (yaPago/segment/daysOverdue/type) without stripping", async () => {
+      const plan = await createPlan({ name: `Contract-${Date.now()}` });
+      const member = await createMember({
+        email: "contract-ov@test.com",
+        dni: "90004001",
+      });
+      // Overdue 6 days, not renewed.
+      const end = new Date();
+      end.setDate(end.getDate() - 6);
+      const start = new Date();
+      start.setDate(start.getDate() - 36);
+      await app.db.insert(subscriptions).values({
+        userId: member.id,
+        planId: plan.id,
+        branchId: testBranchId,
+        status: "expired",
+        startDate: start.toISOString().split("T")[0],
+        endDate: end.toISOString().split("T")[0],
+        pricePaid: 15000,
+        priceTypeApplied: "regular",
+      });
+      await app.db
+        .insert(memberProfiles)
+        .values({ userId: member.id, segment: "en_riesgo" })
+        .onDuplicateKeyUpdate({ set: { segment: "en_riesgo" } });
+
+      const res = await app.inject({
+        method: "GET",
+        url: `${ANALYTICS_URL}/members`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      const row = body.attentionList.find(
+        (m: { userId: number }) => m.userId === member.id,
+      );
+      expect(row).toBeDefined();
+      // fast-json-stringify would drop undeclared keys — assert they survive.
+      expect(row).toHaveProperty("yaPago");
+      expect(row).toHaveProperty("segment");
+      expect(row).toHaveProperty("daysOverdue");
+      expect(row).toHaveProperty("type");
+      expect(row.type).toBe("overdue");
+      expect(row.segment).toBe("en_riesgo");
+      expect(row.daysOverdue).toBe(6);
+      expect(typeof row.yaPago).toBe("boolean");
+      // daysUntilExpiry still present in the contract (not broken).
+      expect(row).toHaveProperty("daysUntilExpiry");
+      // renewalRate present in the response.
+      expect(body.renewalRate).toHaveProperty("last30");
+    });
+
+    it("scopes attentionList by sede: AR admin denied on ES sede, allowed on AR (T-117-01)", async () => {
+      await createStaffUser(app, {
+        email: "admin-ar-members@test.com",
+        password: "adminarpass123",
+        firstName: "Admin",
+        lastName: "Members",
+        role: "admin",
+        branchId: testBranchId,
+      });
+      const arAdminToken = await getAuthToken(
+        app,
+        "admin-ar-members@test.com",
+        "adminarpass123",
+      );
+
+      const denied = await app.inject({
+        method: "GET",
+        url: `${ANALYTICS_URL}/members?branchId=${branchES}`,
+        headers: { authorization: `Bearer ${arAdminToken}` },
+      });
+      expect(denied.statusCode).toBe(403);
+
+      const ok = await app.inject({
+        method: "GET",
+        url: `${ANALYTICS_URL}/members?branchId=${testBranchId}`,
+        headers: { authorization: `Bearer ${arAdminToken}` },
+      });
+      expect(ok.statusCode).toBe(200);
     });
   });
 

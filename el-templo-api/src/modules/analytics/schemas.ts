@@ -112,10 +112,36 @@ export const memberAnalyticsSchema = {
               lastName: { type: ["string", "null"] },
               planName: { type: "string" },
               phone: { type: ["string", "null"] },
-              type: { type: "string", enum: ["expiring"] },
+              // Phase 117 D-14: 'overdue' added alongside 'expiring'.
+              type: { type: "string", enum: ["expiring", "overdue"] },
               daysUntilExpiry: { type: ["integer", "null"] },
               daysOverdue: { type: ["integer", "null"] },
+              // Phase 117 D-16/D-17: fast-json-stringify STRIPS undeclared
+              // fields — these MUST be declared or yaPago/segment vanish from
+              // the wire (lesson Phase 106-04/109-02).
+              yaPago: { type: "boolean" },
+              segment: {
+                type: ["string", "null"],
+                enum: [
+                  "nuevo",
+                  "espartano",
+                  "intermitente",
+                  "en_riesgo",
+                  "digital_warrior",
+                  "ghost",
+                  null,
+                ],
+              },
             },
+          },
+        },
+        // Phase 117 D-15: operational renewal rate 7/14/30.
+        renewalRate: {
+          type: "object",
+          properties: {
+            last7: { type: "integer" },
+            last14: { type: "integer" },
+            last30: { type: "integer" },
           },
         },
       },
