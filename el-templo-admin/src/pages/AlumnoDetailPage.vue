@@ -94,6 +94,18 @@
                 color="primary"
                 @click="showEditDialog = true"
               />
+              <!-- Freemium → sesión de prueba: pulls a self-registered member
+                   into the lead pipeline. Mirrors the prueba→activo conversion
+                   (Gestionar Plan) but in the other direction. -->
+              <q-btn
+                v-if="memberProfile.status === 'freemium'"
+                flat
+                icon="how_to_reg"
+                label="Convertir a sesión de prueba"
+                color="primary"
+                no-caps
+                @click="openConvertDialog"
+              />
               <q-btn
                 v-if="canDeleteMember"
                 flat
@@ -611,6 +623,46 @@
         @update:modelValue="onPostConvertAssignDialog"
       />
 
+      <!-- Freemium → sesión de prueba conversion dialog. Requires a PHYSICAL
+           sede (the trial session is presencial; the API rejects virtual
+           branches). -->
+      <q-dialog v-model="showConvertDialog">
+        <q-card style="min-width: 380px; max-width: 480px">
+          <q-card-section>
+            <div class="text-h6">Convertir a sesión de prueba</div>
+          </q-card-section>
+          <q-card-section class="q-pt-none">
+            <p class="text-body2 q-mb-md">
+              <strong>{{ memberName }}</strong> pasa a ser un alumno en prueba (lead). Elegí la sede
+              física donde se va a realizar la sesión de prueba.
+            </p>
+            <q-select
+              v-model="convertBranchId"
+              :options="physicalBranchOptions"
+              emit-value
+              map-options
+              option-value="id"
+              option-label="name"
+              label="Sede de la sesión de prueba"
+              outlined
+              dense
+              :disable="converting"
+            />
+          </q-card-section>
+          <q-card-actions align="right" class="q-pa-md">
+            <q-btn flat label="Cancelar" :disable="converting" @click="showConvertDialog = false" />
+            <q-btn
+              unelevated
+              color="primary"
+              label="Convertir"
+              :loading="converting"
+              :disable="convertBranchId === null"
+              @click="onConvertToTrial"
+            />
+          </q-card-actions>
+        </q-card>
+      </q-dialog>
+
       <q-dialog v-model="showDeleteDialog" persistent>
         <q-card style="min-width: 380px; max-width: 480px">
           <q-card-section>
@@ -722,6 +774,10 @@ const showEditDialog = ref(false);
 const showDeleteDialog = ref(false);
 const deleteConfirmInput = ref('');
 const deleting = ref(false);
+// Freemium → sesión de prueba conversion dialog state.
+const showConvertDialog = ref(false);
+const convertBranchId = ref<number | null>(null);
+const converting = ref(false);
 const outstandingConcepts = ref<OutstandingConcept[]>([]);
 
 // Drives the floating "D" badge on the Suscripcion tab and the deudor
@@ -832,6 +888,39 @@ const canConfirmDelete = computed(() => {
   const typed = deleteConfirmInput.value.trim().toLocaleLowerCase();
   return expected.length > 0 && typed === expected;
 });
+
+// Only physical branches are valid trial-session locations (the API rejects
+// virtual sedes). Excludes the "Templo Online" virtual branch.
+const physicalBranchOptions = computed(() => branches.value.filter((b) => !b.isVirtual));
+
+function openConvertDialog() {
+  // Default to the member's current branch if it's physical; otherwise leave
+  // it empty so the admin must make an explicit choice.
+  const current = memberProfile.value?.branchId ?? null;
+  const isPhysical = physicalBranchOptions.value.some((b) => b.id === current);
+  convertBranchId.value = isPhysical ? current : null;
+  showConvertDialog.value = true;
+}
+
+async function onConvertToTrial() {
+  if (!memberProfile.value || convertBranchId.value === null) return;
+  converting.value = true;
+  try {
+    await membersApi.convertToTrial(memberProfile.value.id, convertBranchId.value);
+    $q.notify({ type: 'positive', message: 'Alumno convertido a sesión de prueba' });
+    showConvertDialog.value = false;
+    await loadMemberProfile();
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error al convertir a sesión de prueba';
+    log.error('Failed to convert freemium to trial', {
+      error: message,
+      userId: memberProfile.value.id,
+    });
+    $q.notify({ type: 'negative', message });
+  } finally {
+    converting.value = false;
+  }
+}
 
 function onCancelDelete() {
   showDeleteDialog.value = false;

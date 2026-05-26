@@ -247,6 +247,37 @@ export const createTrialMemberSchema = {
 };
 
 /**
+ * POST /api/admin/members/:userId/convert-to-trial schema.
+ *
+ * Converts a freemium member into a sesión-de-prueba lead. branchId is the
+ * physical sede where the trial will happen (validated as non-virtual in the
+ * service). createdBy is NOT accepted from the client — it's sourced from the
+ * JWT (additionalProperties:false strips any spoof attempt, same guard as
+ * createTrialMemberSchema).
+ */
+export const convertToTrialSchema = {
+  params: {
+    type: "object",
+    required: ["userId"],
+    properties: {
+      userId: { type: "integer", minimum: 1 },
+    },
+  },
+  body: {
+    type: "object",
+    additionalProperties: false,
+    required: ["branchId"],
+    properties: {
+      branchId: { type: "integer" },
+    },
+  },
+  response: {
+    200: memberProfileSchema,
+    409: errorSchema,
+  },
+};
+
+/**
  * Phase 114 (D-27/D-28): PATCH /api/admin/leads/:userId schema.
  *
  * - leadStatus must be one of the 3 enum values.

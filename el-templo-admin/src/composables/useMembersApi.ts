@@ -129,6 +129,27 @@ export function useMembersApi() {
     }
   }
 
+  /**
+   * Convert a self-registered freemium member into a "sesión de prueba" lead.
+   * branchId must be a physical sede (the API rejects virtual branches) — that's
+   * where the trial session will later be booked.
+   */
+  async function convertToTrial(userId: number, branchId: number): Promise<MemberProfile> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.post<MemberProfile>(`/admin/members/${userId}/convert-to-trial`, {
+        branchId,
+      });
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error convirtiendo a sesión de prueba');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   async function updateMember(userId: number, input: UpdateMemberInput): Promise<MemberProfile> {
     loading.value = true;
     error.value = null;
@@ -482,6 +503,7 @@ export function useMembersApi() {
     getMember,
     createMember,
     createTrialMember,
+    convertToTrial,
     updateMember,
     updateLead,
     deleteMember,

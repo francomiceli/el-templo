@@ -34,6 +34,7 @@ import type {
   MemberExportRow,
   CreateMemberInput,
   CreateTrialMemberServiceInput,
+  ConvertFreemiumToTrialServiceInput,
   UpdateLeadInput,
   LeadSnapshot,
   UpdateMemberInput,
@@ -627,6 +628,95 @@ export class MemberService {
     }
 
     return { member, tempPassword };
+  }
+
+  /**
+   * Convert a self-registered freemium member into a "sesión de prueba" lead.
+   *
+   * Mirrors the inverse of the prueba→activo conversion (assignPlan): instead
+   * of moving a lead forward, this pulls a freemium user INTO the lead pipeline
+   * so an admin can manage them as a trial prospect.
+   *
+   * Effects (all in a single UPDATE):
+   *   - status:     'freemium' → 'prueba'
+   *   - leadStatus: NULL → 'en_seguimiento' (lead lifecycle starts here, same
+   *     initial value as createTrialMember / D-31)
+   *   - createdBy:  set to the converting admin (sourced from the JWT in the
+   *     route layer, never the request body)
+   *   - branchId:   reassigned to the chosen PHYSICAL sede — that's where the
+   *     trial session will later be booked (slots live on physical branches).
+   *
+   * Deliberately untouched:
+   *   - converted_at stays NULL so the lead-conversion hook in
+   *     recomputeUserStatus still fires correctly on the FIRST plan assignment
+   *     (it gates on converted_at IS NULL + an is_trial booking).
+   *   - email/dni/profile fields are kept — a freemium already has them, and a
+   *     prueba is allowed to carry them.
+   *
+   * Guards:
+   *   - 404 if the user doesn't exist or is soft-deleted.
+   *   - 409 if the user is not freemium (only freemium → prueba is valid; an
+   *     activo/inactivo/prueba user is rejected so we never clobber an existing
+   *     lifecycle or downgrade a paying member).
+   *   - 404 if the target branch doesn't exist.
+   *   - 409 if the target branch is virtual (a trial session must be presencial).
+   */
+  async convertFreemiumToTrial(
+    userId: number,
+    input: ConvertFreemiumToTrialServiceInput,
+  ): Promise<MemberProfile> {
+    const [user] = await this.db
+      .select({
+        id: schema.users.id,
+        status: schema.users.status,
+        deletedAt: schema.users.deletedAt,
+      })
+      .from(schema.users)
+      .where(eq(schema.users.id, userId))
+      .limit(1);
+
+    if (!user || user.deletedAt) {
+      throw new NotFoundError("Alumno no encontrado");
+    }
+    if (user.status !== "freemium") {
+      throw new ConflictError(
+        "Solo se puede convertir a sesión de prueba un alumno freemium",
+      );
+    }
+
+    const [branch] = await this.db
+      .select({
+        id: schema.branches.id,
+        isVirtual: schema.branches.isVirtual,
+      })
+      .from(schema.branches)
+      .where(eq(schema.branches.id, input.branchId))
+      .limit(1);
+
+    if (!branch) {
+      throw new NotFoundError("Sede no encontrada");
+    }
+    if (branch.isVirtual) {
+      throw new ConflictError(
+        "La sesión de prueba debe asignarse a una sede física",
+      );
+    }
+
+    await this.db
+      .update(schema.users)
+      .set({
+        status: "prueba" as const,
+        leadStatus: "en_seguimiento" as const,
+        createdBy: input.createdBy,
+        branchId: input.branchId,
+      })
+      .where(eq(schema.users.id, userId));
+
+    const member = await this.getMemberById(userId);
+    if (!member) {
+      throw new Error("Failed to retrieve converted trial member");
+    }
+    return member;
   }
 
   /**

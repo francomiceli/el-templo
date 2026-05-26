@@ -29,6 +29,7 @@ import { EmailService } from "../email";
 import type {
   CreateMemberInput,
   CreateTrialMemberInput,
+  ConvertFreemiumToTrialInput,
   UpdateMemberInput,
   MemberListParams,
 } from "./types";
@@ -37,6 +38,7 @@ import {
   getMemberSchema,
   createMemberSchema,
   createTrialMemberSchema,
+  convertToTrialSchema,
   updateMemberSchema,
   resetMemberPasswordSchema,
   checkDniSchema,
@@ -585,6 +587,56 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.code(500).send({
           error: "Error del servidor",
           message: "Error al crear sesión de prueba",
+        });
+      }
+    },
+  );
+
+  // POST /admin/members/:userId/convert-to-trial — Promote a self-registered
+  // freemium member into a "sesión de prueba" lead (status='prueba'). This is
+  // the freemium→prueba counterpart of the prueba→activo conversion that
+  // assignPlan performs. branchId must be a PHYSICAL sede (validated in the
+  // service) because the trial session that follows is presencial.
+  //
+  // requireBranchAccess gates the target branch against the admin's scope;
+  // createdBy comes from the JWT (Phase 114 D-31 spoof-guard pattern), never
+  // the request body.
+  fastify.post<{
+    Params: { userId: number };
+    Body: ConvertFreemiumToTrialInput;
+  }>(
+    "/:userId/convert-to-trial",
+    {
+      schema: convertToTrialSchema,
+      preHandler: [requireBranchAccess({ from: "body.branchId" })],
+    },
+    async (request, reply) => {
+      try {
+        const member = await memberService.convertFreemiumToTrial(
+          request.params.userId,
+          {
+            branchId: request.body.branchId,
+            createdBy: request.user.userId,
+          },
+        );
+        return reply.code(200).send(member);
+      } catch (err: unknown) {
+        if (err instanceof NotFoundError) {
+          return reply.code(404).send({
+            error: "No encontrado",
+            message: err.message,
+          });
+        }
+        if (err instanceof ConflictError) {
+          return reply.code(409).send({
+            error: "Conflicto",
+            message: err.message,
+          });
+        }
+        request.log.error({ err }, "Error converting freemium to trial");
+        return reply.code(500).send({
+          error: "Error del servidor",
+          message: "Error al convertir a sesión de prueba",
         });
       }
     },

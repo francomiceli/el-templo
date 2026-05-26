@@ -173,6 +173,22 @@ export interface CreateTrialMemberServiceInput extends CreateTrialMemberInput {
 }
 
 /**
+ * POST /api/admin/members/:userId/convert-to-trial body.
+ *
+ * Converts a self-registered freemium member into a "sesión de prueba" lead
+ * (status='prueba'). branchId MUST point to a physical (non-virtual) sede —
+ * that's where the future trial session will be booked. createdBy is derived
+ * server-side from the JWT, mirroring createTrialMember (D-31).
+ */
+export interface ConvertFreemiumToTrialInput {
+  branchId: number;
+}
+
+export interface ConvertFreemiumToTrialServiceInput extends ConvertFreemiumToTrialInput {
+  createdBy: number;
+}
+
+/**
  * Phase 114 (D-27): PATCH /api/admin/leads/:userId body.
  *
  * Both fields optional — caller may patch just status or just notes. The
