@@ -809,10 +809,34 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
           }
 
           if (!cancelledExistingSub) {
-            await fastify.db
-              .update(schema.users)
-              .set({ status: "inactivo" })
-              .where(eq(schema.users.id, request.params.userId));
+            // Phase 118-01 (D-02): admin-driven flip to 'inactivo' — record the
+            // transition with source='admin'. UPDATE + history insert run in one
+            // tx (read-before / write-after) so they roll back together. Dedupe
+            // on from==to: only write a row when the status actually changed.
+            const statusBefore = current.status;
+            await fastify.db.transaction(async (tx) => {
+              await tx
+                .update(schema.users)
+                .set({ status: "inactivo" })
+                .where(eq(schema.users.id, request.params.userId));
+
+              if (statusBefore !== "inactivo") {
+                await tx.insert(schema.userStatusHistory).values({
+                  userId: request.params.userId,
+                  fromStatus: statusBefore,
+                  toStatus: "inactivo",
+                  source: "admin",
+                });
+                request.log.info(
+                  {
+                    userId: request.params.userId,
+                    fromStatus: statusBefore,
+                    toStatus: "inactivo",
+                  },
+                  "user status transition recorded",
+                );
+              }
+            });
           }
 
           request.log.info(
@@ -857,10 +881,33 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
             mergedDob !== "";
 
           if (hasAll) {
-            await fastify.db
-              .update(schema.users)
-              .set({ status: "inactivo" })
-              .where(eq(schema.users.id, request.params.userId));
+            // Phase 118-01 (D-02): SP (prueba) → legajo (inactivo) is an
+            // admin-driven flip. This branch only runs when current.status is
+            // 'prueba', so the transition always changes the status — no dedupe
+            // branch is needed (TS proves 'prueba' !== 'inactivo'). UPDATE +
+            // history insert in one tx (read-before / write-after).
+            const statusBefore = current.status;
+            await fastify.db.transaction(async (tx) => {
+              await tx
+                .update(schema.users)
+                .set({ status: "inactivo" })
+                .where(eq(schema.users.id, request.params.userId));
+
+              await tx.insert(schema.userStatusHistory).values({
+                userId: request.params.userId,
+                fromStatus: statusBefore,
+                toStatus: "inactivo",
+                source: "admin",
+              });
+              request.log.info(
+                {
+                  userId: request.params.userId,
+                  fromStatus: statusBefore,
+                  toStatus: "inactivo",
+                },
+                "user status transition recorded",
+              );
+            });
 
             request.log.info(
               {
