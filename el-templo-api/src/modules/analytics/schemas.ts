@@ -299,6 +299,71 @@ export const engagementSchema = {
 } as const;
 
 // =============================================================================
+// Retention Schema (Phase 118 D-04/D-05/D-06)
+// =============================================================================
+
+// Querystring extends the shared analytics querystring with an optional
+// plan_category filter (D-06). `todas` means no restriction.
+const retentionQuerystring = {
+  type: "object",
+  properties: {
+    branchId: { type: "integer" },
+    dateFrom: { type: "string", format: "date" },
+    dateTo: { type: "string", format: "date" },
+    planCategory: {
+      type: "string",
+      enum: [
+        "presencial",
+        "online_regular",
+        "online_goal",
+        "online_coach",
+        "todas",
+      ],
+    },
+  },
+} as const;
+
+// GET /retention — cohorts of plan cycles + cycle distribution.
+export const retentionSchema = {
+  querystring: retentionQuerystring,
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        cohorts: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              cohort: { type: "string" },
+              size: { type: "integer" },
+              cycleRetention: {
+                type: "array",
+                items: { type: "number" },
+              },
+            },
+          },
+        },
+        maxCycle: { type: "integer" },
+        cycleDistribution: {
+          type: "object",
+          properties: {
+            ciclo1: { type: "integer" },
+            ciclo2: { type: "integer" },
+            ciclo3plus: { type: "integer" },
+          },
+        },
+        invalidWindowSubs: { type: "integer" },
+      },
+    },
+    400: errorSchema,
+    401: errorSchema,
+    403: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+// =============================================================================
 // Financial Analytics Schema
 // =============================================================================
 

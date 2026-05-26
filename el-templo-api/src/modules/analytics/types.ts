@@ -205,6 +205,65 @@ export interface EngagementMember {
   segment: "en_riesgo" | "ghost";
 }
 
+// -- Retention by cycle cohorts (Phase 118 D-04/D-05/D-06) ---------------
+
+/**
+ * Plan-category filter for the retention curve (Phase 118 D-06). `todas` means
+ * no plan-category restriction. The four concrete values mirror the
+ * `plan_category` enum (`subscription-plans.ts`).
+ */
+export type RetentionPlanCategory =
+  | "presencial"
+  | "online_regular"
+  | "online_goal"
+  | "online_coach"
+  | "todas";
+
+/**
+ * A single retention cohort (Phase 118 D-06). `cohort` is the month (`YYYY-MM`)
+ * of the member's FIRST active subscription. `size` is the number of distinct
+ * members whose first active sub falls in that month. `cycleRetention[i]` is the
+ * percentage (0..100, rounded) of the cohort that reached AT LEAST cycle `i+1`
+ * (so `cycleRetention[0]` is always 100 — every cohort member completed cycle 1
+ * by definition). A consecutive cycle is the next subscription iff
+ * `next.startDate − prev.endDate ≤ CONSECUTIVE_CYCLE_GAP_DAYS` days; a larger gap
+ * ENDS the streak (D-05) and the member does not count toward later cycles of
+ * the original cohort.
+ */
+export interface RetentionCohort {
+  cohort: string; // YYYY-MM
+  size: number;
+  /** % reaching at least cycle N, index 0 = cycle 1 (always 100). */
+  cycleRetention: number[];
+}
+
+/**
+ * Distribution of completed consecutive cycles among CURRENTLY ACTIVE members
+ * (Phase 118 D-06). "Active" is the canonical `activeMemberExists` predicate
+ * (NEVER `users.status`). Each active member is bucketed by the length of their
+ * current consecutive-cycle streak: 1, 2, or 3+. A proxy of base maturity.
+ */
+export interface CycleDistribution {
+  ciclo1: number;
+  ciclo2: number;
+  ciclo3plus: number;
+}
+
+/**
+ * Retention-by-cycle response (Phase 118 D-06). `cohorts` is sorted ascending by
+ * `cohort` month. `maxCycle` is the longest cycle index present across cohorts
+ * (so the frontend knows how many X-axis points to render). `cycleDistribution`
+ * is the maturity snapshot over active members. `invalidWindowSubs` counts subs
+ * skipped for defensive reasons (null start/end or end<start) so the frontend
+ * can surface a caveat.
+ */
+export interface RetentionAnalytics {
+  cohorts: RetentionCohort[];
+  maxCycle: number;
+  cycleDistribution: CycleDistribution;
+  invalidWindowSubs: number;
+}
+
 // -- Financial Analytics -------------------------------------------------
 
 export interface OutstandingByCurrency {
@@ -257,4 +316,10 @@ export interface AnalyticsFilters {
   country?: "AR" | "ES";
   dateFrom?: string; // YYYY-MM-DD
   dateTo?: string; // YYYY-MM-DD
+  /**
+   * Plan-category restriction (Phase 118 D-06, retention only). When absent or
+   * `todas`, no plan-category filter is applied. Ignored by metrics that do not
+   * support it.
+   */
+  planCategory?: RetentionPlanCategory;
 }
