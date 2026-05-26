@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
-status: Phase 117 fully executed; pending operador para migraciones 0128/0129 en staging+prod
-stopped_at: Phase 118 context gathered
-last_updated: "2026-05-26T22:59:00.402Z"
+status: executing
+stopped_at: Phase 118 UI-SPEC approved
+last_updated: "2026-05-26T23:40:35.240Z"
 last_activity: 2026-05-26
 progress:
   total_phases: 16
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-04)
 
 **Core value:** v4.85 desacopla el lifecycle de `programEnrollments` de `subscriptions/service.ts` (extrae `EnrollmentService`) y habilita add-ons de programas asignables por admin con precio opcional, retención de progreso atado al ciclo de vida de la sub principal.
-**Current focus:** Phase 117 — analytics-correcciones-de-exactitud-m-trica-de-miembros-nico
+**Current focus:** Phase 118 — analytics-estrat-gico-funnel-de-conversi-n-retenci-n-por-cic
 
 ## Current Position
 
-Phase: 117 (analytics-correcciones-de-exactitud-m-trica-de-miembros-nico) — EXECUTED (6/6 plans)
-Plan: 6 of 6 — COMPLETE (117-06 Frontend admin analytics)
-Status: Phase 117 fully executed; pending operador para migraciones 0128/0129 en staging+prod
+Phase: 118 (analytics-estrat-gico-funnel-de-conversi-n-retenci-n-por-cic) — EXECUTING
+Plan: 2 of 6
+Status: Ready to execute
 Last activity: 2026-05-26
 
 ## Performance Metrics
@@ -178,6 +178,7 @@ _Updated after each plan completion_
 | Phase 117 P04 | ~20min | 2 tasks | 5 files |
 | Phase 117 P05 | 25min | 2 tasks | 4 files |
 | Phase 117 P06 | ~40min | 3 tasks | 14 files |
+| Phase 118 P01 | 25min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -437,6 +438,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - Plan 117-04: EngagementService nuevo (D-09/D-12) reutiliza segmentation — countActiveBySegment lee member_profiles.segment vía LEFT JOIN + COALESCE(segment,'sinSegmento') + activeMemberExists (NUNCA users.status); bucket sinSegmento para activos sin segment calculado; getEngagementNominalList (en_riesgo/ghost activos) usa subquery correlacionada para planName (sin fan-out); applyScope sobre users.branchId; GET /engagement devuelve { counts, nominalList } con phone gated por ADMIN_ROLES + scope (T-117-01/T-117-06)
 - [Phase ?]: 117-05: attentionList completo (overdue buckets + daysOverdue real + yaPago + segment), renewalRate 7/14/30, habló-con-coach diferido (D-14/15/16/17)
 - Plan 117-06: frontend admin completo (D-11..D-17): AsistenciaTab (únicos 7/14/30 + segmentos + worklist en_riesgo/ghost con WhatsApp + warning ratio <50%), MiembrosTab (vencidos buckets + daysOverdue real + renewalRate + flag ya-pagó + priorización por segmento), FinanzasTab (revenue ARS/EUR separado). Checkpoint visual APROBADO. Follow-ups misma fase: tab Asistencia MOVIDA de AnaliticasPage a ReportesPage para habilitar rol gestion + nuevo ANALYTICS_OPERATIONAL_ROLES (gestion+admin+owner) en el onRequest hook con guard per-route requireAdminAnalytics en los 3 endpoints admin-only (/, /members, /financial) + test de RBAC (gestion 200 operacionales / 403 admin-only); ocultar bucket "Sin segmento" + tooltips de segmento; rename display-only Digital Warrior→Digital, Ghost→Fantasma en SEGMENT_LABELS (claves DB sin cambios). Sin dependencias nuevas (T-117-SC). Phase 117 ejecutada 6/6.
+- [Phase ?]: Plan 118-01: hooks de user_status_history en members/service.ts (3 sitios 'prueba', from=null en altas, read-before/write-after en convertFreemiumToTrial) y members/routes.ts (2 sitios admin 'inactivo'), todos con source='admin' y dedupe from==to dentro de la tx del UPDATE; recomputeUserStatus intacto (source='recompute'). Test real-MySQL 6/6. Donde el guard de TS prueba que el status siempre cambia se omite el branch de dedupe (TS2367).
 
 ### Pending Todos
 
@@ -456,8 +458,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-05-26T22:59:00.379Z
-Stopped at: Phase 118 context gathered
-Resume file: .planning/phases/118-analytics-estrat-gico-funnel-de-conversi-n-retenci-n-por-cic/118-CONTEXT.md
+Last session: 2026-05-26T23:40:14.592Z
+Stopped at: Phase 118 UI-SPEC approved
+Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z

@@ -2721,11 +2721,11 @@ Plans:
 **Goal:** Tableros estratégicos/financieros del módulo de analytics (segunda mitad del split de la Fase 117). 3 propuestas de `PROPUESTAS_ANALYTICS.md`: (1) funnel de conversión freemium→prueba→activo con tiempos por etapa — consume la tabla `user_status_history` creada en 117; (2) retención por cohortes de ciclos de plan (cohorte = mes de primera sub activa, eje X = ciclo N, gap consecutivo ≤30 días configurable, filtrable por plan_category + distribución de ciclos completados); (3) caja vs devengado + ARPU (devengado prorrateado price_paid/duration_days × días dentro del mes, ambas series superpuestas, separadas por moneda). Reutiliza el helper canónico de "activo" y `applyScope` de la 117.
 **Requirements**: TBD
 **Depends on:** Phase 117 (helper "activo", applyScope, tabla user_status_history)
-**Plans:** 6 plans
+**Plans:** 1/6 plans executed
 
 Plans:
 
-- [ ] 118-01-PLAN.md — Hooks de user_status_history (prueba en members/service, inactivo+admin en members/routes) + test (PRIMERA tarea, habilita el funnel)
+- [x] 118-01-PLAN.md — Hooks de user_status_history (prueba en members/service, inactivo+admin en members/routes) + test (PRIMERA tarea, habilita el funnel)
 - [ ] 118-02-PLAN.md — RetentionService: cohortes por ciclos de plan (gap 30d, corte de racha, distribución) + endpoint admin-only + test
 - [ ] 118-03-PLAN.md — AdvancedFinanceService: caja vs devengado prorrateado (ventana efectiva con cancelled_at) + ARPU por moneda + endpoint + test
 - [ ] 118-04-PLAN.md — FunnelService: cohortes por created_at, % a prueba/activo, medianas por etapa + endpoint + test (depende de 01 hooks)
