@@ -2695,11 +2695,25 @@ Plans:
 
 Plans:
 
+**Wave 1**
+
 - [ ] 117-01-PLAN.md — Fundaciones de correctitud: helper canónico "activo" + `applyScope` + 6 bug fixes in-place (no-show, multi-moneda, trend, plan distribution, perf) + tests
 - [ ] 117-02-PLAN.md — Tabla `user_status_history` (migración 0128) + backfill aproximado (0129) + hook forward-only en `recomputeUserStatus`
+
+**Wave 2** _(blocked on Wave 1 completion)_
+
 - [ ] 117-03-PLAN.md — AttendanceMetricsService: miembros únicos 7/14/30 + ratio de adopción de check-in por sede + endpoints
+
+**Wave 3** _(blocked on Wave 2 completion)_
+
 - [ ] 117-04-PLAN.md — EngagementService: conteo de activos por segmento (reutiliza segmentación) + listas nominales en_riesgo/ghost con WhatsApp + endpoint
+
+**Wave 4** _(blocked on Wave 3 completion)_
+
 - [ ] 117-05-PLAN.md — Panel de Vencimientos/Renovaciones: attentionList con buckets overdue + `daysOverdue` real + tasa de renovación 7/14/30 + flag ya pagó + cruce de segmento
+
+**Wave 5** _(blocked on Wave 4 completion)_
+
 - [ ] 117-06-PLAN.md — Frontend admin: KPI únicos, segmentos+listas, warning de ratio, panel de vencimientos, revenue por moneda
 
 ### Phase 118: Analytics estratégico: funnel de conversión + retención por ciclos de plan + caja vs devengado
