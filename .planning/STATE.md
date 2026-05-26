@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: executing
-stopped_at: Phase 117 context gathered
-last_updated: "2026-05-26T19:58:15.656Z"
+stopped_at: Completed 117-04-PLAN.md (EngagementService — conteo por segmento + worklist en_riesgo/ghost)
+last_updated: "2026-05-26T20:30:53.712Z"
 last_activity: 2026-05-26
 progress:
   total_phases: 16
@@ -26,8 +26,8 @@ See: .planning/PROJECT.md (updated 2026-05-04)
 ## Current Position
 
 Phase: 117 (analytics-correcciones-de-exactitud-m-trica-de-miembros-nico) — EXECUTING
-Plan: 4 of 6 — COMPLETE (117-04 EngagementService)
-Status: Ready to execute Plan 5 (117-05 Panel de Vencimientos/Renovaciones)
+Plan: 5 of 6 — COMPLETE (117-04 EngagementService)
+Status: Ready to execute
 Last activity: 2026-05-26
 
 ## Performance Metrics
@@ -176,6 +176,7 @@ _Updated after each plan completion_
 | Phase 117 P01 | 75min | 2 tasks | 7 files |
 | Phase 117 P03 | ~30min | 2 tasks | 5 files |
 | Phase 117 P04 | ~20min | 2 tasks | 5 files |
+| Phase 117 P05 | 25min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -433,6 +434,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - Plan 117-03: AttendanceMetricsService nuevo (D-09, NO toca el monolito service.ts) — uniqueMembers COUNT(DISTINCT member_id) por ventana half-open (D-08) + checkInAdoptionByBranch vía LEFT JOIN attendance ON (member+schedule+date) porque attendance no tiene booking_id FK; ratio 0..1 (warning <50% es frontend, Plan 05); applyScope reutilizado sobre attendance.branchId / schedules.branchId
 - Plan 117-03: el módulo analytics está gateado a ADMIN_ROLES=[admin,owner] — coach/recepción reciben 403 en el onRequest hook antes del scope de sede, así que el test de no-fuga T-117-01 usa un admin AR denegado (403, cross-country Rule 3) en una sede ES, no un coach
 - Plan 117-04: EngagementService nuevo (D-09/D-12) reutiliza segmentation — countActiveBySegment lee member_profiles.segment vía LEFT JOIN + COALESCE(segment,'sinSegmento') + activeMemberExists (NUNCA users.status); bucket sinSegmento para activos sin segment calculado; getEngagementNominalList (en_riesgo/ghost activos) usa subquery correlacionada para planName (sin fan-out); applyScope sobre users.branchId; GET /engagement devuelve { counts, nominalList } con phone gated por ADMIN_ROLES + scope (T-117-01/T-117-06)
+- [Phase ?]: 117-05: attentionList completo (overdue buckets + daysOverdue real + yaPago + segment), renewalRate 7/14/30, habló-con-coach diferido (D-14/15/16/17)
 
 ### Pending Todos
 
@@ -452,7 +454,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-05-26
+Last session: 2026-05-26T20:30:38.137Z
 Stopped at: Completed 117-04-PLAN.md (EngagementService — conteo por segmento + worklist en_riesgo/ghost)
 Resume file: None
 

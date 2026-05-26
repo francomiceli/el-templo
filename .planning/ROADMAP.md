@@ -2691,14 +2691,14 @@ Plans:
 **Goal:** Hacer que los números del módulo de analytics sean correctos (corrige 6 bugs validados contra prod: KPI de activos sobre `users.status` obsoleto, no-show con enum inexistente, revenue que suma ARS+EUR, trend de activos circular, plan distribution sin filtrar archivados ni separar por país, `DATE()` que anula índices) y agregar las métricas/listas operativas que recepción usa día a día (miembros únicos 7/14/30, engagement reutilizando segmentos, ratio de adopción de check-in por sede con warning <50%, panel de Vencimientos/Renovaciones completo). Centraliza el predicado canónico de "activo" en un helper SQL compartido + extrae `applyScope` + crea domain services nuevos (sin tocar el monolito existente, que es v4.9). Crea la tabla `user_status_history` como fundación para la Fase 118.
 **Requirements**: D-01..D-18 (decisiones de 117-CONTEXT.md)
 **Depends on:** Phase 116
-**Plans:** 4/6 plans executed
+**Plans:** 5/6 plans executed
 
 Plans:
 
 **Wave 1**
 
 - [x] 117-01-PLAN.md — Fundaciones de correctitud: helper canónico "activo" + `applyScope` + 6 bug fixes in-place (no-show, multi-moneda, trend, plan distribution, perf) + tests
-- [ ] 117-02-PLAN.md — Tabla `user_status_history` (migración 0128) + backfill aproximado (0129) + hook forward-only en `recomputeUserStatus`
+- [x] 117-02-PLAN.md — Tabla `user_status_history` (migración 0128) + backfill aproximado (0129) + hook forward-only en `recomputeUserStatus`
 
 **Wave 2** _(blocked on Wave 1 completion)_
 
@@ -2710,7 +2710,7 @@ Plans:
 
 **Wave 4** _(blocked on Wave 3 completion)_
 
-- [ ] 117-05-PLAN.md — Panel de Vencimientos/Renovaciones: attentionList con buckets overdue + `daysOverdue` real + tasa de renovación 7/14/30 + flag ya pagó + cruce de segmento
+- [x] 117-05-PLAN.md — Panel de Vencimientos/Renovaciones: attentionList con buckets overdue + `daysOverdue` real + tasa de renovación 7/14/30 + flag ya pagó + cruce de segmento
 
 **Wave 5** _(blocked on Wave 4 completion)_
 
