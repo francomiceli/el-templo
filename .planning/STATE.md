@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
-status: executing
-stopped_at: Completed 117-06-PLAN.md (Frontend admin analytics — KPI únicos/segmentos/worklists/warning/vencidos/revenue por moneda) — Phase 117 fully executed (6/6)
-last_updated: "2026-05-26T21:30:00.000Z"
+status: Phase 117 fully executed; pending operador para migraciones 0128/0129 en staging+prod
+stopped_at: Phase 118 context gathered
+last_updated: "2026-05-26T22:59:00.402Z"
 last_activity: 2026-05-26
 progress:
   total_phases: 16
-  completed_phases: 16
-  total_plans: 59
-  completed_plans: 59
-  percent: 100
+  completed_phases: 15
+  total_plans: 58
+  completed_plans: 58
+  percent: 94
 ---
 
 # Project State
@@ -456,8 +456,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-05-26T21:30:00.000Z
-Stopped at: Completed 117-06-PLAN.md (Frontend admin analytics) — Phase 117 fully executed (6/6 plans)
-Resume file: None
+Last session: 2026-05-26T22:59:00.379Z
+Stopped at: Phase 118 context gathered
+Resume file: .planning/phases/118-analytics-estrat-gico-funnel-de-conversi-n-retenci-n-por-cic/118-CONTEXT.md
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
