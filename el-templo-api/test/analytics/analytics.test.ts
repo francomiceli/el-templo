@@ -23,6 +23,8 @@ import { auraBalances } from "../../src/db/schema/aura-balances";
 import { memberNotes } from "../../src/db/schema/member-notes";
 import { branches } from "../../src/db/schema/branches";
 import { subscriptionSchedules } from "../../src/db/schema/subscription-schedules";
+import { sql } from "drizzle-orm";
+import { activeMemberExists } from "../../src/modules/shared/active-member";
 
 const ANALYTICS_URL = "/api/admin/analytics";
 const SUBSCRIPTIONS_URL = "/api/admin/subscriptions";
@@ -187,6 +189,73 @@ describe("Analytics API", () => {
     });
     return { id: txnId, amount, paymentMethod, subscriptionId: subId };
   }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Canonical "active member" predicate (Phase 117 D-01/D-02)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  describe("activeMemberExists (shared canonical predicate)", () => {
+    beforeEach(async () => {
+      await cleanupAll();
+    });
+
+    /**
+     * Count members for whom activeMemberExists is true, against MySQL real.
+     * Real clock — NO vi.useFakeTimers (it desyncs from MySQL CURDATE(),
+     * lesson from Plan 103-03).
+     */
+    async function countActiveViaHelper(): Promise<number> {
+      const predicate = activeMemberExists(users.id);
+      const [row] = await app.db
+        .select({ count: sql<number>`COUNT(*)` })
+        .from(users)
+        .where(sql`${users.role} = 'member' AND ${predicate}`);
+      return Number(row?.count ?? 0);
+    }
+
+    it("counts a member with an in-effect subscription (active + future end_date)", async () => {
+      const member = await createMember({
+        email: "active-vigente@test.com",
+        dni: "90001001",
+      });
+      const plan = await createPlan({ name: `AM-Active-${Date.now()}` });
+      // assignSubscription starts today; end_date = today + durationDays (future).
+      await assignSubscription(member.id, plan.id);
+
+      const count = await countActiveViaHelper();
+      expect(count).toBe(1);
+    });
+
+    it("excludes a ghost: subscription end_date in the past even though users.status='activo'", async () => {
+      const member = await createMember({
+        email: "fantasma-vencido@test.com",
+        dni: "90001002",
+      });
+      const plan = await createPlan({ name: `AM-Ghost-${Date.now()}` });
+      await assignSubscription(member.id, plan.id);
+
+      // Force the drift: subscription expired in the past, but users.status
+      // left stale at 'activo' (the ~48 fantasmas scenario). The canonical
+      // predicate must IGNORE users.status and look at the live subscription.
+      const past = new Date(Date.now() - 86400000 * 10)
+        .toISOString()
+        .split("T")[0];
+      const pastStart = new Date(Date.now() - 86400000 * 40)
+        .toISOString()
+        .split("T")[0];
+      await app.db
+        .update(subscriptions)
+        .set({ startDate: pastStart, endDate: past, status: "expired" })
+        .where(eq(subscriptions.userId, member.id));
+      await app.db
+        .update(users)
+        .set({ status: "activo" })
+        .where(eq(users.id, member.id));
+
+      const count = await countActiveViaHelper();
+      expect(count).toBe(0);
+    });
+  });
 
   // ═══════════════════════════════════════════════════════════════════════════
   // KPIs Endpoint
