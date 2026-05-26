@@ -1,9 +1,16 @@
 -- @data-only
 -- Crea 3 cuentas de staff (admin/gestion) para el entorno de staging.
--- Cada INSERT usa guard NOT EXISTS por email, asi que es idempotente y seguro
--- en produccion: estas cuentas YA existen en prod, por lo que ahi el INSERT se
--- saltea sin tocar las cuentas reales ni sus contrasenas. En staging (donde no
--- existen) las crea con la contrasena inicial provista.
+--
+-- Cada INSERT tiene dos guards en el WHERE:
+--   1. NOT EXISTS por email: idempotente y seguro en produccion. Estas cuentas
+--      YA existen en prod, asi que ahi el INSERT se saltea sin tocar las cuentas
+--      reales ni sus contrasenas. En staging (donde no existen) las crea.
+--   2. DATABASE() NOT REGEXP '^eltemplo_test': NO insertar en las bases de test.
+--      Las suites de integracion calibran ids de usuario fijos (p.ej.
+--      admin@test.com debe quedar en id=2, contando solo el coach de la
+--      migracion 0017). Insertar usuarios aca correria el auto-increment y
+--      romperia esos tests. La base de test es la unica donde queremos saltear
+--      la insercion -- staging y prod NO matchean este patron.
 -- branch_id=1 (El Templo Moreno), country=AR (scope admin/gestion), level=alfa,
 -- status NULL (convencion de staff). Hashes argon2id precomputados.
 INSERT INTO users (email, password_hash, first_name, last_name, role, branch_id, country, level)
@@ -17,7 +24,8 @@ SELECT
   'AR',
   'alfa'
 FROM DUAL
-WHERE NOT EXISTS (SELECT 1 FROM users WHERE email = 'martinfigueras@eltemplo.org');
+WHERE NOT EXISTS (SELECT 1 FROM users WHERE email = 'martinfigueras@eltemplo.org')
+  AND DATABASE() NOT REGEXP '^eltemplo_test';
 
 INSERT INTO users (email, password_hash, first_name, last_name, role, branch_id, country, level)
 SELECT
@@ -30,7 +38,8 @@ SELECT
   'AR',
   'alfa'
 FROM DUAL
-WHERE NOT EXISTS (SELECT 1 FROM users WHERE email = 'micaeladelpiero@eltemplo.org');
+WHERE NOT EXISTS (SELECT 1 FROM users WHERE email = 'micaeladelpiero@eltemplo.org')
+  AND DATABASE() NOT REGEXP '^eltemplo_test';
 
 INSERT INTO users (email, password_hash, first_name, last_name, role, branch_id, country, level)
 SELECT
@@ -43,4 +52,5 @@ SELECT
   'AR',
   'alfa'
 FROM DUAL
-WHERE NOT EXISTS (SELECT 1 FROM users WHERE email = 'fernandaetchepare@eltemplo.org');
+WHERE NOT EXISTS (SELECT 1 FROM users WHERE email = 'fernandaetchepare@eltemplo.org')
+  AND DATABASE() NOT REGEXP '^eltemplo_test';
