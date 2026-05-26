@@ -5,6 +5,10 @@
  * attendance analytics, and financial analytics.
  */
 
+// Reuse the canonical segment union (segmentation module) — analytics NEVER
+// redefines segments (D-12).
+import type { MemberSegment } from "../segmentation/types";
+
 // -- Trend ---------------------------------------------------------------
 
 export interface Trend {
@@ -36,15 +40,55 @@ export interface KpiStats {
 
 // -- Member Analytics ----------------------------------------------------
 
+/**
+ * A member on the renewals/expirations worklist (Phase 117 D-14/D-16).
+ *
+ * Two kinds (`type`):
+ *   - `expiring`: an ACTIVE subscription ending within the next 7 days.
+ *     `daysUntilExpiry` is the (>=0) days remaining; `daysOverdue` is null.
+ *   - `overdue`: a subscription whose `end_date` is in the past by 1..30 days
+ *     AND the member is NOT currently active (no in-effect sub — they did not
+ *     renew). `daysOverdue` is the real CURDATE()-end_date count (buckets
+ *     1-7 / 8-14 / 15-30 are a frontend classification); `daysUntilExpiry` is
+ *     null. Members overdue >30 days are NOT included.
+ *
+ * `yaPago` (D-16): true when the member has a recent (last 30 days) non-voided
+ * `plan_charge` inflow in `financial_transactions` — derived, no new schema.
+ * Used by reception to skip members who already paid but whose subscription
+ * row has not been renewed yet. ("habló con coach" is DEFERRED — see service.)
+ *
+ * `segment` (D-16/D-17): the member's engagement segment from
+ * `member_profiles.segment` (NULL when no profile / never segmented), so the
+ * worklist can be prioritized — e.g. a `ghost` that is about to expire is the
+ * highest-priority contact.
+ */
 export interface AttentionMember {
   userId: number;
   firstName: string | null;
   lastName: string | null;
   planName: string;
   phone: string | null;
-  type: "expiring";
+  type: "expiring" | "overdue";
   daysUntilExpiry: number | null;
   daysOverdue: number | null;
+  /** Recent non-voided plan_charge inflow exists (D-16). */
+  yaPago: boolean;
+  /** Engagement segment for prioritization (D-16/D-17); NULL when unknown. */
+  segment: MemberSegment | null;
+}
+
+/**
+ * Operational renewal rate (Phase 117 D-15). For each window N (7/14/30 days),
+ * of the members whose subscription ended exactly within the last N days, the
+ * percentage (0..100, rounded) that renewed — i.e. now have an in-effect
+ * subscription per the canonical `activeMemberExists` predicate. Complements
+ * the strategic retention-by-cohort curve deferred to Phase 118. When no
+ * subscription ended in a window, that window reports 0.
+ */
+export interface RenewalRate {
+  last7: number;
+  last14: number;
+  last30: number;
 }
 
 /**
@@ -65,6 +109,8 @@ export interface MemberAnalytics {
   retentionRate: number;
   planDistribution: PlanDistributionRow[];
   attentionList: AttentionMember[];
+  /** Operational renewal rate 7/14/30 (Phase 117 D-15). */
+  renewalRate: RenewalRate;
 }
 
 // -- Attendance Analytics ------------------------------------------------

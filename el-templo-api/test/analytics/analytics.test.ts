@@ -23,6 +23,8 @@ import { auraBalances } from "../../src/db/schema/aura-balances";
 import { memberNotes } from "../../src/db/schema/member-notes";
 import { branches } from "../../src/db/schema/branches";
 import { subscriptionSchedules } from "../../src/db/schema/subscription-schedules";
+import { memberProfiles } from "../../src/db/schema/member-profiles";
+import type { MemberSegment } from "../../src/modules/segmentation/types";
 import { sql } from "drizzle-orm";
 import { activeMemberExists } from "../../src/modules/shared/active-member";
 
@@ -540,6 +542,205 @@ describe("Analytics API", () => {
       expect(expiring.type).toBe("expiring");
       expect(expiring.daysUntilExpiry).toBeGreaterThanOrEqual(0);
       expect(expiring.daysUntilExpiry).toBeLessThanOrEqual(7);
+    });
+
+    // ── D-14: overdue members in buckets 1-7/8-14/15-30 with REAL daysOverdue ─
+    /**
+     * Seed an EXPIRED, non-renewed subscription whose end_date is `daysAgo`
+     * days in the past. The member is left without any in-effect subscription
+     * so activeMemberExists() is false (= "vencido sin renovar").
+     */
+    async function seedOverdueSub(
+      memberId: number,
+      planId: number,
+      daysAgo: number,
+    ): Promise<void> {
+      const end = new Date();
+      end.setDate(end.getDate() - daysAgo);
+      const endStr = end.toISOString().split("T")[0];
+      const start = new Date();
+      start.setDate(start.getDate() - daysAgo - 30);
+      const startStr = start.toISOString().split("T")[0];
+      await app.db.insert(subscriptions).values({
+        userId: memberId,
+        planId,
+        branchId: testBranchId,
+        status: "expired",
+        startDate: startStr,
+        endDate: endStr,
+        pricePaid: 15000,
+        priceTypeApplied: "regular",
+      });
+    }
+
+    async function setSegment(
+      userId: number,
+      segment: MemberSegment | null,
+    ): Promise<void> {
+      await app.db
+        .insert(memberProfiles)
+        .values({ userId, segment })
+        .onDuplicateKeyUpdate({ set: { segment } });
+    }
+
+    it("D-14: overdue members appear in buckets 1-7/8-14/15-30 with real daysOverdue; >30 excluded", async () => {
+      const plan = await createPlan({ name: `Overdue-${Date.now()}` });
+      const m3 = await createMember({ email: "ov3@test.com", dni: "90003001" });
+      const m10 = await createMember({
+        email: "ov10@test.com",
+        dni: "90003002",
+      });
+      const m20 = await createMember({
+        email: "ov20@test.com",
+        dni: "90003003",
+      });
+      const m40 = await createMember({
+        email: "ov40@test.com",
+        dni: "90003004",
+      });
+
+      await seedOverdueSub(m3.id, plan.id, 3);
+      await seedOverdueSub(m10.id, plan.id, 10);
+      await seedOverdueSub(m20.id, plan.id, 20);
+      await seedOverdueSub(m40.id, plan.id, 40); // >30 → excluded
+
+      const res = await app.inject({
+        method: "GET",
+        url: `${ANALYTICS_URL}/members`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+
+      const byId = (id: number) =>
+        body.attentionList.find((m: { userId: number }) => m.userId === id);
+
+      const o3 = byId(m3.id);
+      const o10 = byId(m10.id);
+      const o20 = byId(m20.id);
+
+      expect(o3).toBeDefined();
+      expect(o3.type).toBe("overdue");
+      expect(o3.daysOverdue).toBe(3);
+      expect(o3.daysUntilExpiry).toBeNull();
+
+      expect(o10).toBeDefined();
+      expect(o10.daysOverdue).toBe(10);
+      expect(o20).toBeDefined();
+      expect(o20.daysOverdue).toBe(20);
+
+      // Overdue >30 days does NOT appear.
+      expect(byId(m40.id)).toBeUndefined();
+    });
+
+    it("D-16: overdue member carries yaPago flag derived from recent financial_transactions", async () => {
+      const plan = await createPlan({ name: `YaPago-${Date.now()}` });
+      const paid = await createMember({
+        email: "paid@test.com",
+        dni: "90003010",
+      });
+      const unpaid = await createMember({
+        email: "unpaid@test.com",
+        dni: "90003011",
+      });
+
+      await seedOverdueSub(paid.id, plan.id, 5);
+      await seedOverdueSub(unpaid.id, plan.id, 5);
+
+      // The "paid" member has a recent non-voided plan_charge inflow.
+      const today = new Date().toISOString().split("T")[0];
+      await app.db.insert(financialTransactions).values({
+        memberId: paid.id,
+        kind: "plan_charge",
+        direction: "inflow",
+        amount: 15000,
+        currency: "ARS",
+        paymentMethod: "cash",
+        transactionDate: today,
+        effectiveDate: today,
+        branchId: testBranchId,
+        recordedBy: adminUserId,
+      });
+
+      const res = await app.inject({
+        method: "GET",
+        url: `${ANALYTICS_URL}/members`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      const byId = (id: number) =>
+        body.attentionList.find((m: { userId: number }) => m.userId === id);
+
+      expect(byId(paid.id).yaPago).toBe(true);
+      expect(byId(unpaid.id).yaPago).toBe(false);
+    });
+
+    it("D-16/D-17: overdue member carries its engagement segment for prioritization", async () => {
+      const plan = await createPlan({ name: `Seg-${Date.now()}` });
+      const ghost = await createMember({
+        email: "ghost-ov@test.com",
+        dni: "90003020",
+      });
+      await seedOverdueSub(ghost.id, plan.id, 4);
+      await setSegment(ghost.id, "ghost");
+
+      const res = await app.inject({
+        method: "GET",
+        url: `${ANALYTICS_URL}/members`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      const found = body.attentionList.find(
+        (m: { userId: number }) => m.userId === ghost.id,
+      );
+      expect(found).toBeDefined();
+      expect(found.segment).toBe("ghost");
+    });
+
+    it("D-15: renewalRate returns last7/last14/last30 windows", async () => {
+      const plan = await createPlan({ name: `Renewal-${Date.now()}` });
+      // Member who expired 5 days ago and DID renew (has an in-effect sub).
+      const renewed = await createMember({
+        email: "renewed@test.com",
+        dni: "90003030",
+      });
+      await seedOverdueSub(renewed.id, plan.id, 5);
+      const today = new Date().toISOString().split("T")[0];
+      const future = new Date(Date.now() + 86400000 * 30)
+        .toISOString()
+        .split("T")[0];
+      await app.db.insert(subscriptions).values({
+        userId: renewed.id,
+        planId: plan.id,
+        branchId: testBranchId,
+        status: "active",
+        startDate: today,
+        endDate: future,
+        pricePaid: 15000,
+        priceTypeApplied: "regular",
+      });
+      // Member who expired 5 days ago and did NOT renew.
+      const lapsed = await createMember({
+        email: "lapsed@test.com",
+        dni: "90003031",
+      });
+      await seedOverdueSub(lapsed.id, plan.id, 5);
+
+      const res = await app.inject({
+        method: "GET",
+        url: `${ANALYTICS_URL}/members`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.renewalRate).toBeDefined();
+      expect(body.renewalRate).toHaveProperty("last7");
+      expect(body.renewalRate).toHaveProperty("last14");
+      expect(body.renewalRate).toHaveProperty("last30");
+      // 1 of 2 that ended in the last 7 days renewed → 50%.
+      expect(body.renewalRate.last7).toBe(50);
     });
   });
 
