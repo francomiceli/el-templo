@@ -2686,6 +2686,29 @@ Plans:
 
 - [ ] TBD
 
+### Phase 117: Analytics: correcciones de exactitud + métrica de miembros únicos
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 116
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 117 to break down)
+
+### Phase 118: Analytics estratégico: funnel de conversión + retención por ciclos de plan + caja vs devengado
+
+**Goal:** Tableros estratégicos/financieros del módulo de analytics (segunda mitad del split de la Fase 117). 3 propuestas de `PROPUESTAS_ANALYTICS.md`: (1) funnel de conversión freemium→prueba→activo con tiempos por etapa — consume la tabla `user_status_history` creada en 117; (2) retención por cohortes de ciclos de plan (cohorte = mes de primera sub activa, eje X = ciclo N, gap consecutivo ≤30 días configurable, filtrable por plan_category + distribución de ciclos completados); (3) caja vs devengado + ARPU (devengado prorrateado price_paid/duration_days × días dentro del mes, ambas series superpuestas, separadas por moneda). Reutiliza el helper canónico de "activo" y `applyScope` de la 117.
+**Requirements**: TBD
+**Depends on:** Phase 117 (helper "activo", applyScope, tabla user_status_history)
+**Plans:** 0 plans
+**Canonical refs:** `.planning/phases/117-analytics-correcciones-de-exactitud-m-trica-de-miembros-nico/PROPUESTAS_ANALYTICS.md` (propuestas #1/#2/#4), 117-CONTEXT.md §Deferred Ideas
+
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 118 to break down)
+
 ---
 
 _Phase 116 added: 2026-05-25 — bug recurrente de logout en app de miembros (JWT de 7d sin refresh). Cualquier 401 borra el token y manda a /login. Objetivo: access token corto (30m) + refresh token largo (30d sliding) hasheado en DB con rotación obligatoria, endpoint /auth/refresh y /auth/logout reales, interceptor de axios con lock compartido, API backwards-compatible para evitar version skew con la app en Play Store. SPEC originalmente creado como Phase 115 (commit huérfano 8be596bf); renumerado a 116 porque 115 quedó asignado a "Evento Desafío de la Barra" en el master real._
