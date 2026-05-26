@@ -173,6 +173,12 @@ const TABLES_TO_CLEAN = [
   schema.auraTransactions,
   schema.memberNotes,
   schema.holidays,
+  // Phase 117: finance tables were missing here, leaking financial_transactions
+  // across tests and polluting exact-total assertions (revenue per currency).
+  // FK checks are disabled below, so order vs subscriptions/balances is moot.
+  schema.transactionLinks,
+  schema.balances,
+  schema.financialTransactions,
   // Core entity tables
   schema.promoPlans,
   schema.subscriptions,

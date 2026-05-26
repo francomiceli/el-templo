@@ -14,9 +14,23 @@ export interface Trend {
 
 // -- KPI Stats -----------------------------------------------------------
 
+/**
+ * Monetary value broken down per currency (Phase 117 D-05 / D-17). Currencies
+ * are NEVER summed across — ARS and EUR are always reported separately, each
+ * with its own trend vs the prior period.
+ */
+export interface MonetaryKpiByCurrency {
+  ARS: { value: number; trend: Trend };
+  EUR: { value: number; trend: Trend };
+}
+
 export interface KpiStats {
   activeMembers: { value: number; trend: Trend };
-  monthlyRevenue: { value: number; trend: Trend };
+  /**
+   * Monthly revenue per currency (D-05). Replaces the former single
+   * `{ value, trend }` that silently summed ARS+EUR in the owner view.
+   */
+  monthlyRevenue: MonetaryKpiByCurrency;
   dailyAttendanceAvg: { value: number; trend: Trend };
 }
 
@@ -33,11 +47,23 @@ export interface AttentionMember {
   daysOverdue: number | null;
 }
 
+/**
+ * Plan distribution row (Phase 117 D-07). Grouped by (name, country) — NOT by
+ * name alone — so "Flex (AR)" (plan id 1) and "Flex (ES)" (plan id 105) appear
+ * as separate rows instead of being summed into one. Archived plans
+ * (`is_archived = true`) are excluded.
+ */
+export interface PlanDistributionRow {
+  planName: string;
+  country: string;
+  count: number;
+}
+
 export interface MemberAnalytics {
   newMembers: number;
   churnedMembers: number;
   retentionRate: number;
-  planDistribution: Array<{ planName: string; count: number }>;
+  planDistribution: PlanDistributionRow[];
   attentionList: AttentionMember[];
 }
 
@@ -71,13 +97,34 @@ export interface OutstandingByCurrency {
   EUR: number;
 }
 
+/**
+ * A pair of revenue totals keyed by currency (Phase 117 D-05 / D-17).
+ * Currencies are NEVER summed across — ARS and EUR are reported separately.
+ */
+export interface RevenueByCurrency {
+  ARS: number;
+  EUR: number;
+}
+
 export interface FinancialAnalytics {
-  revenueTrend: Array<{ month: string; revenue: number }>;
-  revenueByMethod: { cash: number; transfer: number; card: number };
+  /**
+   * Monthly revenue trend, per currency (D-05). Each entry carries both ARS
+   * and EUR totals for the month so the owner view never sums them.
+   */
+  revenueTrend: Array<{ month: string; ARS: number; EUR: number }>;
+  /**
+   * Revenue by payment method, each method split per currency (D-05).
+   */
+  revenueByMethod: {
+    cash: RevenueByCurrency;
+    transfer: RevenueByCurrency;
+    card: RevenueByCurrency;
+  };
   revenueByBranch: Array<{
     branchId: number;
     branchName: string;
-    revenue: number;
+    ARS: number;
+    EUR: number;
   }>;
   /**
    * Total outstanding debt (amount > 0 in `balances`) at "now",

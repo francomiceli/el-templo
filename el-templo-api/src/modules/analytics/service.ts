@@ -7,22 +7,36 @@
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { eq, and, sql, isNull, inArray, gt } from "drizzle-orm";
+import { eq, and, sql, isNull, inArray, gt, type SQL } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { resolveMonthRange, computePriorPeriod } from "../shared/date-utils";
+import { activeMemberExists } from "../shared/active-member";
 import type {
   KpiStats,
+  MonetaryKpiByCurrency,
   MemberAnalytics,
+  PlanDistributionRow,
   AttendanceAnalytics,
   FinancialAnalytics,
   OutstandingByCurrency,
+  RevenueByCurrency,
   AnalyticsFilters,
   Trend,
   AttentionMember,
   HeatmapCell,
   SlotOccupancy,
 } from "./types";
+
+// Phase 117 D-08: end-exclusive upper bound for half-open date ranges
+// [dateFrom, dateTo+1day). Comparing a DATETIME column directly against this
+// preserves the index (whereas DATE(col) <= dateTo wraps the column in a
+// function and forces a full scan). Returns YYYY-MM-DD.
+function nextDay(dateStr: string): string {
+  const d = new Date(`${dateStr}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().split("T")[0];
+}
 
 export class AnalyticsService {
   constructor(
@@ -192,19 +206,19 @@ export class AnalyticsService {
     branchId: number | undefined,
     country: "AR" | "ES" | undefined,
   ): Promise<number> {
-    // Phase 103 (R10): users.is_active was dropped in migration 0100. The
-    // commercial "active member" definition is now first-class on
-    // users.status — same row count as the legacy isActive=true projection
-    // because Plan 02 backfilled the column from the same EXISTS predicate.
-    const conditions = [
-      eq(schema.users.role, "member"),
-      eq(schema.users.status, "activo"),
+    // Phase 117 D-02: stop reading the denormalized users.status (which drifts
+    // to a stale 'activo' when a sub expires without a status recompute — the
+    // ~48 fantasmas) and compute "activo" LIVE via the canonical
+    // activeMemberExists predicate. Real count is 692, not the inflated 749.
+    const conditions: SQL[] = [
+      eq(schema.users.role, "member") as unknown as SQL,
+      activeMemberExists(schema.users.id),
     ];
     if (branchId !== undefined) {
-      conditions.push(eq(schema.users.branchId, branchId));
+      conditions.push(eq(schema.users.branchId, branchId) as unknown as SQL);
     }
     if (country !== undefined) {
-      conditions.push(eq(schema.branches.country, country));
+      conditions.push(eq(schema.branches.country, country) as unknown as SQL);
     }
 
     const query = this.db
@@ -225,13 +239,21 @@ export class AnalyticsService {
     dateTo: string,
     priorFrom: string,
     priorTo: string,
-  ): Promise<{ value: number; trend: Trend }> {
+  ): Promise<MonetaryKpiByCurrency> {
+    // Phase 117 D-05 / D-17: per-currency KPI with an independent trend for
+    // each currency vs the prior period — ARS and EUR are never summed.
     const current = await this.sumRevenue(branchId, country, dateFrom, dateTo);
     const prior = await this.sumRevenue(branchId, country, priorFrom, priorTo);
 
     return {
-      value: current,
-      trend: this.computeTrend(current, prior),
+      ARS: {
+        value: current.ARS,
+        trend: this.computeTrend(current.ARS, prior.ARS),
+      },
+      EUR: {
+        value: current.EUR,
+        trend: this.computeTrend(current.EUR, prior.EUR),
+      },
     };
   }
 
@@ -272,17 +294,23 @@ export class AnalyticsService {
     dateFrom: string,
     dateTo: string,
   ): Promise<number> {
-    const conditions = [
-      eq(schema.users.role, "member"),
-      sql`DATE(${schema.users.createdAt}) >= ${dateFrom}`,
-      sql`DATE(${schema.users.createdAt}) <= ${dateTo}`,
+    // Phase 117 D-06: count only NEW members who are also ACTIVE (canonical
+    // predicate), not every role='member' created in the window — which would
+    // include freemium/prueba leads and made getActiveMembersKpi's prior-period
+    // estimate circular. Phase 117 D-08: half-open [dateFrom, dateTo+1) range so
+    // the createdAt index is usable (no DATE() wrapper).
+    const conditions: SQL[] = [
+      eq(schema.users.role, "member") as unknown as SQL,
+      activeMemberExists(schema.users.id),
+      sql`${schema.users.createdAt} >= ${dateFrom}`,
+      sql`${schema.users.createdAt} < ${nextDay(dateTo)}`,
     ];
 
     if (branchId !== undefined) {
-      conditions.push(eq(schema.users.branchId, branchId));
+      conditions.push(eq(schema.users.branchId, branchId) as unknown as SQL);
     }
     if (country !== undefined) {
-      conditions.push(eq(schema.branches.country, country));
+      conditions.push(eq(schema.branches.country, country) as unknown as SQL);
     }
 
     const [result] = await this.db
@@ -396,21 +424,28 @@ export class AnalyticsService {
   private async getPlanDistribution(
     branchId: number | undefined,
     country: "AR" | "ES" | undefined,
-  ): Promise<Array<{ planName: string; count: number }>> {
-    const conditions: ReturnType<typeof eq>[] = [
+  ): Promise<PlanDistributionRow[]> {
+    // Phase 117 D-07: exclude archived plans and group by (name, country) so
+    // homonymous plans across countries — e.g. "Flex" AR (id 1) vs "Flex" ES
+    // (id 105) — are reported as two separate rows instead of being summed.
+    const conditions: SQL[] = [
       sql`${schema.subscriptions.status} IN ('active', 'paused')`,
+      eq(schema.subscriptionPlans.isArchived, false) as unknown as SQL,
     ];
 
     if (branchId !== undefined) {
-      conditions.push(eq(schema.subscriptions.branchId, branchId));
+      conditions.push(
+        eq(schema.subscriptions.branchId, branchId) as unknown as SQL,
+      );
     }
     if (country !== undefined) {
-      conditions.push(eq(schema.branches.country, country));
+      conditions.push(eq(schema.branches.country, country) as unknown as SQL);
     }
 
     const rows = await this.db
       .select({
         planName: schema.subscriptionPlans.name,
+        country: schema.subscriptionPlans.country,
         count: sql<number>`COUNT(*)`,
       })
       .from(schema.subscriptions)
@@ -423,10 +458,11 @@ export class AnalyticsService {
         eq(schema.branches.id, schema.subscriptions.branchId),
       )
       .where(and(...conditions))
-      .groupBy(schema.subscriptionPlans.name);
+      .groupBy(schema.subscriptionPlans.name, schema.subscriptionPlans.country);
 
     return rows.map((r) => ({
       planName: r.planName,
+      country: r.country,
       count: Number(r.count),
     }));
   }
@@ -509,9 +545,11 @@ export class AnalyticsService {
     dateFrom: string,
     dateTo: string,
   ): Promise<Array<{ date: string; count: number }>> {
+    // Phase 117 D-08: half-open [dateFrom, dateTo+1) on the raw column keeps the
+    // checkedInAt index usable (DATE(col) wrapped the column and forced a scan).
     const conditions: ReturnType<typeof eq>[] = [
-      sql`DATE(${schema.attendance.checkedInAt}) >= ${dateFrom}`,
-      sql`DATE(${schema.attendance.checkedInAt}) <= ${dateTo}`,
+      sql`${schema.attendance.checkedInAt} >= ${dateFrom}`,
+      sql`${schema.attendance.checkedInAt} < ${nextDay(dateTo)}`,
     ];
 
     if (branchId !== undefined) {
@@ -555,9 +593,12 @@ export class AnalyticsService {
     dateFrom: string,
     dateTo: string,
   ): Promise<HeatmapCell[]> {
+    // Phase 117 D-08: half-open [dateFrom, dateTo+1) on the raw column keeps the
+    // checkedInAt index usable. (The DAYOFWEEK/HOUR projections below still need
+    // the raw timestamp — only the range filter is de-wrapped.)
     const conditions: ReturnType<typeof eq>[] = [
-      sql`DATE(${schema.attendance.checkedInAt}) >= ${dateFrom}`,
-      sql`DATE(${schema.attendance.checkedInAt}) <= ${dateTo}`,
+      sql`${schema.attendance.checkedInAt} >= ${dateFrom}`,
+      sql`${schema.attendance.checkedInAt} < ${nextDay(dateTo)}`,
     ];
 
     if (branchId !== undefined) {
@@ -725,10 +766,16 @@ export class AnalyticsService {
     dateFrom: string,
     dateTo: string,
   ): Promise<number> {
+    // Phase 117 D-04: the real booking enum value is 'confirmado' (see
+    // bookingStatusEnum in db/schema/bookings.ts). The previous 'confirmed'
+    // typo never matched any row, so the denominator collapsed to just the
+    // no_show rows and the rate read ~100% (or 0% when none) — never the real
+    // proportion. This bug survived because there was no test seeding real
+    // 'confirmado' rows (D-18).
     const conditions: ReturnType<typeof eq>[] = [
       sql`${schema.bookings.bookingDate} >= ${dateFrom}`,
       sql`${schema.bookings.bookingDate} <= ${dateTo}`,
-      sql`${schema.bookings.status} IN ('confirmed', 'no_show')`,
+      sql`${schema.bookings.status} IN ('confirmado', 'no_show')`,
     ];
 
     if (branchId !== undefined) {
@@ -775,28 +822,32 @@ export class AnalyticsService {
     country: "AR" | "ES" | undefined,
     dateFrom: string,
     dateTo: string,
-  ): Promise<Array<{ month: string; revenue: number }>> {
-    const conditions: ReturnType<typeof eq>[] = [
+  ): Promise<Array<{ month: string; ARS: number; EUR: number }>> {
+    // Phase 117 D-05 / D-17: group by (month, currency) and report ARS and EUR
+    // separately — never summed into one figure. Mirrors the
+    // getOutstandingByCurrency currency-split pattern.
+    const conditions: SQL[] = [
       isNull(schema.financialTransactions.voidedAt),
       inArray(schema.financialTransactions.kind, [
         "plan_charge",
         "debt_settlement",
-      ]),
-      eq(schema.financialTransactions.direction, "inflow"),
+      ]) as unknown as SQL,
+      eq(schema.financialTransactions.direction, "inflow") as unknown as SQL,
       sql`${schema.financialTransactions.transactionDate} >= ${dateFrom}`,
       sql`${schema.financialTransactions.transactionDate} <= ${dateTo}`,
     ];
 
     if (branchId !== undefined) {
-      conditions.push(eq(schema.users.branchId, branchId));
+      conditions.push(eq(schema.users.branchId, branchId) as unknown as SQL);
     }
     if (country !== undefined) {
-      conditions.push(eq(schema.branches.country, country));
+      conditions.push(eq(schema.branches.country, country) as unknown as SQL);
     }
 
     const rows = await this.db
       .select({
         month: sql<string>`DATE_FORMAT(${schema.financialTransactions.transactionDate}, '%Y-%m')`,
+        currency: schema.financialTransactions.currency,
         revenue: sql<number>`COALESCE(SUM(${schema.financialTransactions.amount}), 0)`,
       })
       .from(schema.financialTransactions)
@@ -808,14 +859,27 @@ export class AnalyticsService {
       .where(and(...conditions))
       .groupBy(
         sql`DATE_FORMAT(${schema.financialTransactions.transactionDate}, '%Y-%m')`,
+        schema.financialTransactions.currency,
       )
       .orderBy(
         sql`DATE_FORMAT(${schema.financialTransactions.transactionDate}, '%Y-%m')`,
       );
 
-    return rows.map((r) => ({
-      month: String(r.month),
-      revenue: Number(r.revenue),
+    // Collapse the (month, currency) rows into one row per month carrying both
+    // ARS and EUR totals.
+    const byMonth = new Map<string, { ARS: number; EUR: number }>();
+    for (const r of rows) {
+      const month = String(r.month);
+      const entry = byMonth.get(month) ?? { ARS: 0, EUR: 0 };
+      if (r.currency === "ARS" || r.currency === "EUR") {
+        entry[r.currency] = Number(r.revenue);
+      }
+      byMonth.set(month, entry);
+    }
+    return Array.from(byMonth.entries()).map(([month, totals]) => ({
+      month,
+      ARS: totals.ARS,
+      EUR: totals.EUR,
     }));
   }
 
@@ -824,28 +888,36 @@ export class AnalyticsService {
     country: "AR" | "ES" | undefined,
     dateFrom: string,
     dateTo: string,
-  ): Promise<{ cash: number; transfer: number; card: number }> {
-    const conditions: ReturnType<typeof eq>[] = [
+  ): Promise<{
+    cash: RevenueByCurrency;
+    transfer: RevenueByCurrency;
+    card: RevenueByCurrency;
+  }> {
+    // Phase 117 D-05 / D-17: split each payment method per currency. The
+    // payment-method type guard (T-105-17) is preserved so the kind/direction
+    // filter's exclusion of aura_credit/internal is reinforced.
+    const conditions: SQL[] = [
       isNull(schema.financialTransactions.voidedAt),
       inArray(schema.financialTransactions.kind, [
         "plan_charge",
         "debt_settlement",
-      ]),
-      eq(schema.financialTransactions.direction, "inflow"),
+      ]) as unknown as SQL,
+      eq(schema.financialTransactions.direction, "inflow") as unknown as SQL,
       sql`${schema.financialTransactions.transactionDate} >= ${dateFrom}`,
       sql`${schema.financialTransactions.transactionDate} <= ${dateTo}`,
     ];
 
     if (branchId !== undefined) {
-      conditions.push(eq(schema.users.branchId, branchId));
+      conditions.push(eq(schema.users.branchId, branchId) as unknown as SQL);
     }
     if (country !== undefined) {
-      conditions.push(eq(schema.branches.country, country));
+      conditions.push(eq(schema.branches.country, country) as unknown as SQL);
     }
 
     const rows = await this.db
       .select({
         method: schema.financialTransactions.paymentMethod,
+        currency: schema.financialTransactions.currency,
         total: sql<number>`COALESCE(SUM(${schema.financialTransactions.amount}), 0)`,
       })
       .from(schema.financialTransactions)
@@ -855,16 +927,23 @@ export class AnalyticsService {
       )
       .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
       .where(and(...conditions))
-      .groupBy(schema.financialTransactions.paymentMethod);
+      .groupBy(
+        schema.financialTransactions.paymentMethod,
+        schema.financialTransactions.currency,
+      );
 
-    const result = { cash: 0, transfer: 0, card: 0 };
+    const result = {
+      cash: { ARS: 0, EUR: 0 } as RevenueByCurrency,
+      transfer: { ARS: 0, EUR: 0 } as RevenueByCurrency,
+      card: { ARS: 0, EUR: 0 } as RevenueByCurrency,
+    };
     for (const row of rows) {
-      if (
-        row.method === "cash" ||
-        row.method === "transfer" ||
-        row.method === "card"
-      ) {
-        result[row.method] = Number(row.total);
+      const method = row.method;
+      if (method !== "cash" && method !== "transfer" && method !== "card") {
+        continue;
+      }
+      if (row.currency === "ARS" || row.currency === "EUR") {
+        result[method][row.currency] = Number(row.total);
       }
     }
     return result;
@@ -875,29 +954,36 @@ export class AnalyticsService {
     country: "AR" | "ES" | undefined,
     dateFrom: string,
     dateTo: string,
-  ): Promise<Array<{ branchId: number; branchName: string; revenue: number }>> {
-    const conditions: ReturnType<typeof eq>[] = [
+  ): Promise<
+    Array<{ branchId: number; branchName: string; ARS: number; EUR: number }>
+  > {
+    // Phase 117 D-05 / D-17: each branch row carries ARS and EUR separately —
+    // a single branch could (in theory) record both; never sum them.
+    const conditions: SQL[] = [
       isNull(schema.financialTransactions.voidedAt),
       inArray(schema.financialTransactions.kind, [
         "plan_charge",
         "debt_settlement",
-      ]),
-      eq(schema.financialTransactions.direction, "inflow"),
+      ]) as unknown as SQL,
+      eq(schema.financialTransactions.direction, "inflow") as unknown as SQL,
       sql`${schema.financialTransactions.transactionDate} >= ${dateFrom}`,
       sql`${schema.financialTransactions.transactionDate} <= ${dateTo}`,
     ];
 
     if (branchId !== undefined) {
-      conditions.push(eq(schema.financialTransactions.branchId, branchId));
+      conditions.push(
+        eq(schema.financialTransactions.branchId, branchId) as unknown as SQL,
+      );
     }
     if (country !== undefined) {
-      conditions.push(eq(schema.branches.country, country));
+      conditions.push(eq(schema.branches.country, country) as unknown as SQL);
     }
 
     const rows = await this.db
       .select({
         branchId: schema.financialTransactions.branchId,
         branchName: schema.branches.name,
+        currency: schema.financialTransactions.currency,
         total: sql<number>`COALESCE(SUM(${schema.financialTransactions.amount}), 0)`,
       })
       .from(schema.financialTransactions)
@@ -906,12 +992,32 @@ export class AnalyticsService {
         eq(schema.branches.id, schema.financialTransactions.branchId),
       )
       .where(and(...conditions))
-      .groupBy(schema.financialTransactions.branchId, schema.branches.name);
+      .groupBy(
+        schema.financialTransactions.branchId,
+        schema.branches.name,
+        schema.financialTransactions.currency,
+      );
 
-    return rows.map((r) => ({
-      branchId: r.branchId,
-      branchName: r.branchName,
-      revenue: Number(r.total),
+    const byBranch = new Map<
+      number,
+      { branchName: string; ARS: number; EUR: number }
+    >();
+    for (const r of rows) {
+      const entry = byBranch.get(r.branchId) ?? {
+        branchName: r.branchName,
+        ARS: 0,
+        EUR: 0,
+      };
+      if (r.currency === "ARS" || r.currency === "EUR") {
+        entry[r.currency] = Number(r.total);
+      }
+      byBranch.set(r.branchId, entry);
+    }
+    return Array.from(byBranch.entries()).map(([id, v]) => ({
+      branchId: id,
+      branchName: v.branchName,
+      ARS: v.ARS,
+      EUR: v.EUR,
     }));
   }
 
@@ -977,27 +1083,29 @@ export class AnalyticsService {
     country: "AR" | "ES" | undefined,
     dateFrom: string,
     dateTo: string,
-  ): Promise<number> {
-    const conditions: ReturnType<typeof eq>[] = [
+  ): Promise<RevenueByCurrency> {
+    // Phase 117 D-05 / D-17: total revenue split per currency, never summed.
+    const conditions: SQL[] = [
       isNull(schema.financialTransactions.voidedAt),
       inArray(schema.financialTransactions.kind, [
         "plan_charge",
         "debt_settlement",
-      ]),
-      eq(schema.financialTransactions.direction, "inflow"),
+      ]) as unknown as SQL,
+      eq(schema.financialTransactions.direction, "inflow") as unknown as SQL,
       sql`${schema.financialTransactions.transactionDate} >= ${dateFrom}`,
       sql`${schema.financialTransactions.transactionDate} <= ${dateTo}`,
     ];
 
     if (branchId !== undefined) {
-      conditions.push(eq(schema.users.branchId, branchId));
+      conditions.push(eq(schema.users.branchId, branchId) as unknown as SQL);
     }
     if (country !== undefined) {
-      conditions.push(eq(schema.branches.country, country));
+      conditions.push(eq(schema.branches.country, country) as unknown as SQL);
     }
 
-    const [result] = await this.db
+    const rows = await this.db
       .select({
+        currency: schema.financialTransactions.currency,
         total: sql<number>`COALESCE(SUM(${schema.financialTransactions.amount}), 0)`,
       })
       .from(schema.financialTransactions)
@@ -1006,9 +1114,16 @@ export class AnalyticsService {
         eq(schema.users.id, schema.financialTransactions.memberId),
       )
       .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
-      .where(and(...conditions));
+      .where(and(...conditions))
+      .groupBy(schema.financialTransactions.currency);
 
-    return Number(result?.total ?? 0);
+    const result: RevenueByCurrency = { ARS: 0, EUR: 0 };
+    for (const row of rows) {
+      if (row.currency === "ARS" || row.currency === "EUR") {
+        result[row.currency] = Number(row.total);
+      }
+    }
+    return result;
   }
 
   private async computeDailyAvg(
@@ -1017,9 +1132,11 @@ export class AnalyticsService {
     dateFrom: string,
     dateTo: string,
   ): Promise<number> {
+    // Phase 117 D-08: half-open [dateFrom, dateTo+1) keeps the checkedInAt index
+    // usable instead of wrapping the column in DATE().
     const conditions: ReturnType<typeof eq>[] = [
-      sql`DATE(${schema.attendance.checkedInAt}) >= ${dateFrom}`,
-      sql`DATE(${schema.attendance.checkedInAt}) <= ${dateTo}`,
+      sql`${schema.attendance.checkedInAt} >= ${dateFrom}`,
+      sql`${schema.attendance.checkedInAt} < ${nextDay(dateTo)}`,
     ];
 
     if (branchId !== undefined) {

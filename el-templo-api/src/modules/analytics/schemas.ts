@@ -39,6 +39,24 @@ const kpiValueSchema = {
   },
 } as const;
 
+// Phase 117 D-05: monetary KPI split per currency (ARS/EUR never summed).
+const monetaryKpiByCurrencySchema = {
+  type: "object",
+  properties: {
+    ARS: kpiValueSchema,
+    EUR: kpiValueSchema,
+  },
+} as const;
+
+// Phase 117 D-05: a pair of revenue totals keyed by currency.
+const revenueByCurrencySchema = {
+  type: "object",
+  properties: {
+    ARS: { type: "number" },
+    EUR: { type: "number" },
+  },
+} as const;
+
 // =============================================================================
 // KPI Schema
 // =============================================================================
@@ -50,7 +68,7 @@ export const kpiSchema = {
       type: "object",
       properties: {
         activeMembers: kpiValueSchema,
-        monthlyRevenue: kpiValueSchema,
+        monthlyRevenue: monetaryKpiByCurrencySchema,
         dailyAttendanceAvg: kpiValueSchema,
       },
     },
@@ -79,6 +97,7 @@ export const memberAnalyticsSchema = {
             type: "object",
             properties: {
               planName: { type: "string" },
+              country: { type: "string" },
               count: { type: "integer" },
             },
           },
@@ -176,16 +195,17 @@ export const financialAnalyticsSchema = {
             type: "object",
             properties: {
               month: { type: "string" },
-              revenue: { type: "number" },
+              ARS: { type: "number" },
+              EUR: { type: "number" },
             },
           },
         },
         revenueByMethod: {
           type: "object",
           properties: {
-            cash: { type: "number" },
-            transfer: { type: "number" },
-            card: { type: "number" },
+            cash: revenueByCurrencySchema,
+            transfer: revenueByCurrencySchema,
+            card: revenueByCurrencySchema,
           },
         },
         revenueByBranch: {
@@ -195,7 +215,8 @@ export const financialAnalyticsSchema = {
             properties: {
               branchId: { type: "integer" },
               branchName: { type: "string" },
-              revenue: { type: "number" },
+              ARS: { type: "number" },
+              EUR: { type: "number" },
             },
           },
         },

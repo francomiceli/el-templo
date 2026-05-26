@@ -329,15 +329,23 @@ describe("Analytics API", () => {
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body);
 
-      for (const key of [
-        "activeMembers",
-        "monthlyRevenue",
-        "dailyAttendanceAvg",
-      ]) {
+      // activeMembers + dailyAttendanceAvg keep the single { value, trend } shape.
+      for (const key of ["activeMembers", "dailyAttendanceAvg"]) {
         expect(body[key]).toBeDefined();
         expect(body[key].trend).toBeDefined();
         expect(body[key].trend.direction).toMatch(/^(up|down|flat)$/);
         expect(typeof body[key].trend.percentage).toBe("number");
+      }
+
+      // Phase 117 D-05: monthlyRevenue is now per-currency, each with its own trend.
+      expect(body.monthlyRevenue).toBeDefined();
+      for (const cur of ["ARS", "EUR"]) {
+        expect(body.monthlyRevenue[cur]).toBeDefined();
+        expect(body.monthlyRevenue[cur].trend).toBeDefined();
+        expect(body.monthlyRevenue[cur].trend.direction).toMatch(
+          /^(up|down|flat)$/,
+        );
+        expect(typeof body.monthlyRevenue[cur].trend.percentage).toBe("number");
       }
     });
   });
@@ -352,8 +360,12 @@ describe("Analytics API", () => {
     });
 
     it("should return newMembers count matching members created in date range", async () => {
-      // Create member today
-      await createMember({ email: "m1@test.com", dni: "90000002" });
+      // Phase 117 D-06: newMembers now counts only NEW *active* members
+      // (canonical predicate), so the member must have a live subscription —
+      // a bare self-registered freemium would no longer be counted.
+      const m = await createMember({ email: "m1@test.com", dni: "90000002" });
+      const plan = await createPlan({ name: `NewMembers-${Date.now()}` });
+      await assignSubscription(m.id, plan.id);
 
       // Use ±1 day range to handle UTC/MySQL timezone boundary mismatches
       const yesterday = new Date(Date.now() - 86400000)
@@ -642,8 +654,10 @@ describe("Analytics API", () => {
       const body = JSON.parse(res.body);
       expect(body.revenueTrend).toBeInstanceOf(Array);
       expect(body.revenueTrend.length).toBeGreaterThanOrEqual(1);
-      // Total: 15000 (auto from assign) + 15000 (manual) = 30000
-      expect(body.revenueTrend[0].revenue).toBe(30000);
+      // Phase 117 D-05: per-currency shape. Total ARS: 15000 (auto from assign)
+      // + 15000 (manual) = 30000; no EUR.
+      expect(body.revenueTrend[0].ARS).toBe(30000);
+      expect(body.revenueTrend[0].EUR).toBe(0);
     });
 
     it("should return revenueByMethod breakdown", async () => {
@@ -669,10 +683,12 @@ describe("Analytics API", () => {
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body);
       expect(body.revenueByMethod).toBeDefined();
-      // cash: 15000 (auto) + 5000 (manual) = 20000
-      expect(body.revenueByMethod.cash).toBe(20000);
-      expect(body.revenueByMethod.transfer).toBe(3000);
-      expect(body.revenueByMethod.card).toBe(0);
+      // Phase 117 D-05: per-currency shape. cash ARS: 15000 (auto) + 5000
+      // (manual) = 20000; transfer ARS: 3000; card: none.
+      expect(body.revenueByMethod.cash.ARS).toBe(20000);
+      expect(body.revenueByMethod.cash.EUR).toBe(0);
+      expect(body.revenueByMethod.transfer.ARS).toBe(3000);
+      expect(body.revenueByMethod.card.ARS).toBe(0);
     });
 
     it("should expose outstandingByCurrency from balances (single currency, fully paid → 0)", async () => {
@@ -762,6 +778,310 @@ describe("Analytics API", () => {
         });
         expect(res.statusCode).toBe(403);
       }
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Phase 117 bug fixes (D-02/D-04/D-05/D-06/D-07)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  describe("Phase 117 correctness fixes", () => {
+    beforeEach(async () => {
+      await cleanupAll();
+    });
+
+    async function createSchedule(): Promise<number> {
+      const [act] = await app.db.insert(activities).values({
+        name: `Act-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        branchId: testBranchId,
+      });
+      const activityId = (act as { insertId: number }).insertId;
+      const [sch] = await app.db.insert(schedules).values({
+        branchId: testBranchId,
+        activityId,
+        dayOfWeek: 1,
+        startTime: "10:00",
+        endTime: "11:00",
+      });
+      return (sch as { insertId: number }).insertId;
+    }
+
+    // ── D-04: no-show uses the real enum 'confirmado' (not 'confirmed') ──────
+    it("D-04: noShowRate uses 'confirmado' enum and returns the real proportion", async () => {
+      const member = await createMember({
+        email: "ns-m@test.com",
+        dni: "90002001",
+      });
+      const scheduleId = await createSchedule();
+      const today = new Date().toISOString().split("T")[0];
+
+      // 3 attended ('confirmado') + 1 no_show => 25% no-show.
+      await app.db.insert(bookings).values([
+        {
+          memberId: member.id,
+          scheduleId,
+          bookingDate: today,
+          status: "confirmado",
+        },
+      ]);
+      const m2 = await createMember({
+        email: "ns-m2@test.com",
+        dni: "90002002",
+      });
+      const m3 = await createMember({
+        email: "ns-m3@test.com",
+        dni: "90002003",
+      });
+      const m4 = await createMember({
+        email: "ns-m4@test.com",
+        dni: "90002004",
+      });
+      await app.db.insert(bookings).values([
+        {
+          memberId: m2.id,
+          scheduleId,
+          bookingDate: today,
+          status: "confirmado",
+        },
+        {
+          memberId: m3.id,
+          scheduleId,
+          bookingDate: today,
+          status: "confirmado",
+        },
+        {
+          memberId: m4.id,
+          scheduleId,
+          bookingDate: today,
+          status: "no_show",
+        },
+      ]);
+
+      const res = await app.inject({
+        method: "GET",
+        url: `${ANALYTICS_URL}/attendance?dateFrom=${today}&dateTo=${today}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      // 1 no_show of 4 booked = 25%. With the old 'confirmed' typo the
+      // confirmado rows would not match and the rate would be 100% (1/1).
+      expect(body.noShowRate).toBe(25);
+    });
+
+    // ── D-05: revenue never sums currencies; ARS/EUR are separate keys ───────
+    it("D-05: revenue separates ARS and EUR and never sums them", async () => {
+      const member = await createMember({
+        email: "cur-m@test.com",
+        dni: "90002010",
+      });
+      const plan = await createPlan({ name: `Cur-Plan-${Date.now()}` });
+      const sub = await assignSubscription(member.id, plan.id);
+      const today = new Date().toISOString().split("T")[0];
+
+      // One ARS inflow and one EUR inflow, both plan_charge.
+      for (const currency of ["ARS", "EUR"] as const) {
+        const [tx] = await app.db.insert(financialTransactions).values({
+          memberId: member.id,
+          kind: "plan_charge",
+          direction: "inflow",
+          amount: currency === "ARS" ? 10000 : 200,
+          currency,
+          paymentMethod: "cash",
+          transactionDate: today,
+          effectiveDate: today,
+          branchId: testBranchId,
+          recordedBy: adminUserId,
+        });
+        await app.db.insert(transactionLinks).values({
+          transactionId: (tx as { insertId: number }).insertId,
+          targetKind: "subscription",
+          targetId: sub.id as number,
+          allocatedAmount: currency === "ARS" ? 10000 : 200,
+        });
+      }
+
+      const firstOfMonth = today.substring(0, 8) + "01";
+      const res = await app.inject({
+        method: "GET",
+        url: `${ANALYTICS_URL}/financial?dateFrom=${firstOfMonth}&dateTo=${today}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+
+      // assignSubscription auto-charges priceRegular(15000) ARS, plus our
+      // 10000 ARS manual = 25000 ARS; EUR is the standalone 200.
+      // revenueTrend entry carries SEPARATE ARS/EUR — never a single summed number.
+      expect(body.revenueTrend.length).toBeGreaterThanOrEqual(1);
+      const monthRow = body.revenueTrend[0];
+      expect(monthRow.ARS).toBe(25000);
+      expect(monthRow.EUR).toBe(200);
+      expect(monthRow.revenue).toBeUndefined();
+
+      // revenueByMethod.cash is keyed by currency.
+      expect(body.revenueByMethod.cash.ARS).toBe(25000);
+      expect(body.revenueByMethod.cash.EUR).toBe(200);
+
+      // revenueByBranch separates per currency.
+      const branchRow = body.revenueByBranch.find(
+        (b: { branchId: number }) => b.branchId === testBranchId,
+      );
+      expect(branchRow.ARS).toBe(25000);
+      expect(branchRow.EUR).toBe(200);
+    });
+
+    it("D-05: monthlyRevenue KPI is split per currency", async () => {
+      const member = await createMember({
+        email: "kpi-cur@test.com",
+        dni: "90002011",
+      });
+      const plan = await createPlan({ name: `KpiCur-${Date.now()}` });
+      const sub = await assignSubscription(member.id, plan.id);
+      const today = new Date().toISOString().split("T")[0];
+
+      const [tx] = await app.db.insert(financialTransactions).values({
+        memberId: member.id,
+        kind: "plan_charge",
+        direction: "inflow",
+        amount: 500,
+        currency: "EUR",
+        paymentMethod: "cash",
+        transactionDate: today,
+        effectiveDate: today,
+        branchId: testBranchId,
+        recordedBy: adminUserId,
+      });
+      await app.db.insert(transactionLinks).values({
+        transactionId: (tx as { insertId: number }).insertId,
+        targetKind: "subscription",
+        targetId: sub.id as number,
+        allocatedAmount: 500,
+      });
+
+      const today2 = new Date().toISOString().split("T")[0];
+      const firstOfMonth = today2.substring(0, 8) + "01";
+      const res = await app.inject({
+        method: "GET",
+        url: `${ANALYTICS_URL}?dateFrom=${firstOfMonth}&dateTo=${today2}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.monthlyRevenue.ARS).toBeDefined();
+      expect(body.monthlyRevenue.EUR).toBeDefined();
+      // assignSubscription auto-charges priceRegular(15000) ARS + 500 EUR manual.
+      expect(body.monthlyRevenue.EUR.value).toBe(500);
+      expect(body.monthlyRevenue.ARS.value).toBe(15000);
+      expect(typeof body.monthlyRevenue.value).toBe("undefined");
+    });
+
+    // ── D-06: newInPeriod counts only new ACTIVE members ─────────────────────
+    it("D-06: newMembers counts only new active members, not freemium/trial", async () => {
+      // Active new member (has a subscription -> activeMemberExists true).
+      const active = await createMember({
+        email: "new-active@test.com",
+        dni: "90002020",
+      });
+      const plan = await createPlan({ name: `NewActive-${Date.now()}` });
+      await assignSubscription(active.id, plan.id);
+
+      // Freemium new member (self-registered, no subscription).
+      await createMember({ email: "new-freemium@test.com", dni: "90002021" });
+
+      const yesterday = new Date(Date.now() - 86400000)
+        .toISOString()
+        .split("T")[0];
+      const tomorrow = new Date(Date.now() + 86400000)
+        .toISOString()
+        .split("T")[0];
+      const res = await app.inject({
+        method: "GET",
+        url: `${ANALYTICS_URL}/members?dateFrom=${yesterday}&dateTo=${tomorrow}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      // Only the active member counts; the freemium one is excluded.
+      expect(body.newMembers).toBe(1);
+    });
+
+    // ── D-07: plan distribution groups by (name, country), excludes archived ─
+    it("D-07: planDistribution groups by name+country and hides archived plans", async () => {
+      const ts = Date.now();
+      const planAR = await createPlan({ name: `Flex-${ts}`, country: "AR" });
+      const planES = await createPlan({ name: `Flex-${ts}`, country: "ES" });
+      const archived = await createPlan({ name: `Archived-${ts}` });
+
+      const mAR = await createMember({
+        email: "flex-ar@test.com",
+        dni: "90002030",
+      });
+      const mES = await createMember({
+        email: "flex-es@test.com",
+        dni: "90002031",
+      });
+      const mArch = await createMember({
+        email: "arch@test.com",
+        dni: "90002032",
+      });
+
+      // Insert subscriptions directly (the /assign API enforces a cross-country
+      // guard that would reject an ES plan for an AR-branch member; here we only
+      // need active subscriptions referencing each plan to exercise the
+      // group-by-(name,country) + is_archived filter). All members share
+      // testBranchId so they pass the analytics branch/country scope; grouping
+      // is by the PLAN's country, not the branch's.
+      const today = new Date().toISOString().split("T")[0];
+      const future = new Date(Date.now() + 86400000 * 30)
+        .toISOString()
+        .split("T")[0];
+      for (const [m, p] of [
+        [mAR, planAR],
+        [mES, planES],
+        [mArch, archived],
+      ] as const) {
+        await app.db.insert(subscriptions).values({
+          userId: m.id,
+          planId: p.id as number,
+          branchId: testBranchId,
+          status: "active",
+          startDate: today,
+          endDate: future,
+          pricePaid: 15000,
+          priceTypeApplied: "regular",
+        });
+      }
+
+      // Archive the third plan after subscription creation.
+      await app.db
+        .update(subscriptionPlans)
+        .set({ isArchived: true })
+        .where(eq(subscriptionPlans.id, archived.id as number));
+
+      const res = await app.inject({
+        method: "GET",
+        url: `${ANALYTICS_URL}/members`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+
+      const flexRows = body.planDistribution.filter(
+        (p: { planName: string }) => p.planName === `Flex-${ts}`,
+      );
+      // Two separate rows: Flex (AR) and Flex (ES) — never merged.
+      expect(flexRows.length).toBe(2);
+      const countries = flexRows
+        .map((r: { country: string }) => r.country)
+        .sort();
+      expect(countries).toEqual(["AR", "ES"]);
+
+      // Archived plan does not appear.
+      const archRow = body.planDistribution.find(
+        (p: { planName: string }) => p.planName === `Archived-${ts}`,
+      );
+      expect(archRow).toBeUndefined();
     });
   });
 
