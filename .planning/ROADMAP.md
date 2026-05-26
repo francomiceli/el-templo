@@ -2688,14 +2688,19 @@ Plans:
 
 ### Phase 117: Analytics: correcciones de exactitud + métrica de miembros únicos
 
-**Goal:** [To be planned]
-**Requirements**: TBD
+**Goal:** Hacer que los números del módulo de analytics sean correctos (corrige 6 bugs validados contra prod: KPI de activos sobre `users.status` obsoleto, no-show con enum inexistente, revenue que suma ARS+EUR, trend de activos circular, plan distribution sin filtrar archivados ni separar por país, `DATE()` que anula índices) y agregar las métricas/listas operativas que recepción usa día a día (miembros únicos 7/14/30, engagement reutilizando segmentos, ratio de adopción de check-in por sede con warning <50%, panel de Vencimientos/Renovaciones completo). Centraliza el predicado canónico de "activo" en un helper SQL compartido + extrae `applyScope` + crea domain services nuevos (sin tocar el monolito existente, que es v4.9). Crea la tabla `user_status_history` como fundación para la Fase 118.
+**Requirements**: D-01..D-18 (decisiones de 117-CONTEXT.md)
 **Depends on:** Phase 116
-**Plans:** 0 plans
+**Plans:** 6 plans
 
 Plans:
 
-- [ ] TBD (run /gsd-plan-phase 117 to break down)
+- [ ] 117-01-PLAN.md — Fundaciones de correctitud: helper canónico "activo" + `applyScope` + 6 bug fixes in-place (no-show, multi-moneda, trend, plan distribution, perf) + tests
+- [ ] 117-02-PLAN.md — Tabla `user_status_history` (migración 0128) + backfill aproximado (0129) + hook forward-only en `recomputeUserStatus`
+- [ ] 117-03-PLAN.md — AttendanceMetricsService: miembros únicos 7/14/30 + ratio de adopción de check-in por sede + endpoints
+- [ ] 117-04-PLAN.md — EngagementService: conteo de activos por segmento (reutiliza segmentación) + listas nominales en_riesgo/ghost con WhatsApp + endpoint
+- [ ] 117-05-PLAN.md — Panel de Vencimientos/Renovaciones: attentionList con buckets overdue + `daysOverdue` real + tasa de renovación 7/14/30 + flag ya pagó + cruce de segmento
+- [ ] 117-06-PLAN.md — Frontend admin: KPI únicos, segmentos+listas, warning de ratio, panel de vencimientos, revenue por moneda
 
 ### Phase 118: Analytics estratégico: funnel de conversión + retención por ciclos de plan + caja vs devengado
 
