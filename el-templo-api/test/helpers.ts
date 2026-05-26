@@ -168,6 +168,7 @@ const TABLES_TO_CLEAN = [
   schema.formatCompatibility,
   schema.memberLogins,
   schema.refreshTokens,
+  schema.userStatusHistory,
   // Tables referencing layer-3 parents
   schema.attendance,
   schema.auraTransactions,

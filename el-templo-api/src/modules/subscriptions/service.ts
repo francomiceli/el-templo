@@ -4104,6 +4104,18 @@ export class SubscriptionService {
     // (or an 'active' sub whose startDate is still in the future) does NOT
     // make the member active today. Hence the s.start_date <= CURDATE() guard.
     //
+    // Phase 117 (D-10): forward-only status history hook. Read the CURRENT
+    // status BEFORE the UPDATE so we can compare it against the new value
+    // afterwards and record a row in user_status_history only when the status
+    // effectively changed (forward-only — never insert when from == to). The
+    // INSERT runs inside the same tx so it rolls back atomically with the
+    // subscription transition (T-117-04).
+    const beforeRows = await tx
+      .select({ status: schema.users.status })
+      .from(schema.users)
+      .where(eq(schema.users.id, userId));
+    const statusBefore = beforeRows[0]?.status ?? null;
+
     // MySQL evaluates SET assignments LEFT-TO-RIGHT and later expressions
     // see already-assigned values for earlier columns in the same row
     // (https://dev.mysql.com/doc/refman/8.0/en/update.html). The Phase 114
@@ -4187,5 +4199,28 @@ export class SubscriptionService {
         END
       WHERE u.id = ${userId}
     `);
+
+    // Phase 117 (D-10): re-read the status AFTER the UPDATE. Forward-only —
+    // insert a history row ONLY when the effective value changed. The new
+    // status read goes here (after the execute), never before, because the
+    // CASE above may flip it. Same tx → rolls back with the transition.
+    const afterRows = await tx
+      .select({ status: schema.users.status })
+      .from(schema.users)
+      .where(eq(schema.users.id, userId));
+    const statusAfter = afterRows[0]?.status ?? null;
+
+    if (statusAfter !== null && statusAfter !== statusBefore) {
+      await tx.insert(schema.userStatusHistory).values({
+        userId,
+        fromStatus: statusBefore,
+        toStatus: statusAfter,
+        source: "recompute",
+      });
+      this.log.info(
+        { userId, fromStatus: statusBefore, toStatus: statusAfter },
+        "user status transition recorded",
+      );
+    }
   }
 }
