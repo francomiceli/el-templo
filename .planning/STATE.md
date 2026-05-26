@@ -4,7 +4,7 @@ milestone: v3.0
 milestone_name: Landing Page
 status: executing
 stopped_at: Phase 118 UI-SPEC approved
-last_updated: "2026-05-26T23:47:38.711Z"
+last_updated: "2026-05-26T23:51:46.482Z"
 last_activity: 2026-05-26
 progress:
   total_phases: 16
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-05-04)
 ## Current Position
 
 Phase: 118 (analytics-estrat-gico-funnel-de-conversi-n-retenci-n-por-cic) — EXECUTING
-Plan: 3 of 6
+Plan: 4 of 6
 Status: Ready to execute
 Last activity: 2026-05-26
 
@@ -180,6 +180,7 @@ _Updated after each plan completion_
 | Phase 117 P06 | ~40min | 3 tasks | 14 files |
 | Phase 118 P01 | 25min | 2 tasks | 3 files |
 | Phase 118 P02 | 18min | 2 tasks | 5 files |
+| Phase 118 P05 | ~10min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -441,6 +442,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - Plan 117-06: frontend admin completo (D-11..D-17): AsistenciaTab (únicos 7/14/30 + segmentos + worklist en_riesgo/ghost con WhatsApp + warning ratio <50%), MiembrosTab (vencidos buckets + daysOverdue real + renewalRate + flag ya-pagó + priorización por segmento), FinanzasTab (revenue ARS/EUR separado). Checkpoint visual APROBADO. Follow-ups misma fase: tab Asistencia MOVIDA de AnaliticasPage a ReportesPage para habilitar rol gestion + nuevo ANALYTICS_OPERATIONAL_ROLES (gestion+admin+owner) en el onRequest hook con guard per-route requireAdminAnalytics en los 3 endpoints admin-only (/, /members, /financial) + test de RBAC (gestion 200 operacionales / 403 admin-only); ocultar bucket "Sin segmento" + tooltips de segmento; rename display-only Digital Warrior→Digital, Ghost→Fantasma en SEGMENT_LABELS (claves DB sin cambios). Sin dependencias nuevas (T-117-SC). Phase 117 ejecutada 6/6.
 - [Phase ?]: Plan 118-01: hooks de user_status_history en members/service.ts (3 sitios 'prueba', from=null en altas, read-before/write-after en convertFreemiumToTrial) y members/routes.ts (2 sitios admin 'inactivo'), todos con source='admin' y dedupe from==to dentro de la tx del UPDATE; recomputeUserStatus intacto (source='recompute'). Test real-MySQL 6/6. Donde el guard de TS prueba que el status siempre cambia se omite el branch de dedupe (TS2367).
 - [Phase ?]: Plan 118-02: RetentionService nuevo (D-09, no toca analytics/service.ts); CONSECUTIVE_CYCLE_GAP_DAYS=30 (D-04); gap >30d corta racha sin reiniciar cohorte (D-05); cohorte=mes de primera sub valida + distribucion de ciclos sobre activeMemberExists (D-06); GET /retention admin-only requireAdminAnalytics, gestion 403 (D-11); ventanas invalidas contadas en invalidWindowSubs y salteadas (T-118-05); test real-MySQL 14/14
+- [Phase 118]: Plan 118-05: D-09 borrado del display las 2 cards de engagement por segmento (AsistenciaTab) + fetch/prop en ReportesPage; backend, EngagementService, engagement.test.ts, getEngagement del composable y modulo segmentation INTACTOS
 
 ### Pending Todos
 
@@ -460,7 +462,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-05-26T23:47:20.137Z
+Last session: 2026-05-26T23:50:43.012Z
 Stopped at: Phase 118 UI-SPEC approved
 Resume file: None
 
