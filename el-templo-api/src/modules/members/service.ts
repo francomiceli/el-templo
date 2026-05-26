@@ -514,33 +514,55 @@ export class MemberService {
 
     // Phase 111-01 (REQ-9, D-26): trim firstName/lastName before insert.
     // Prevents the Soledad Mailland bug (trailing space stored in DB).
-    const result = await this.db.insert(schema.users).values({
-      email: input.email,
-      passwordHash,
-      firstName: input.firstName.trim(),
-      lastName: input.lastName.trim(),
-      phone: input.phone,
-      dni: input.dni,
-      documentType: (input.documentType as DocType) || null,
-      address: input.address || null,
-      branchId: input.branchId,
-      level: (input.level as Level) || "alfa",
-      dateOfBirth: input.dateOfBirth || null,
-      gender: (input.gender as Gender) || null,
-      emergencyContactName: input.emergencyContactName || null,
-      emergencyContactPhone: input.emergencyContactPhone || null,
-      emergencyContactRelationship: input.emergencyContactRelationship || null,
-      role: "member",
-      // Phase 103-04 (R7, D-12, BLOCKER 3): admin enrolling someone who walked
-      // into a sede starts as 'prueba'. If planId is also provided, the
-      // route handler calls subscriptionService.assignPlan which triggers
-      // Plan 02's recomputeUserStatus → flips status to 'activo' inside
-      // the same transaction. Single-owner edit per the wave-conflict
-      // resolution.
-      status: "prueba" as const,
+    // Phase 118-01 (D-02): wrap the user insert + status-history write in a
+    // single tx so the 'prueba' transition is recorded atomically. New alta →
+    // fromStatus=null, toStatus='prueba', source='admin' (staff-initiated).
+    const userId = await this.db.transaction(async (tx) => {
+      const result = await tx.insert(schema.users).values({
+        email: input.email,
+        passwordHash,
+        firstName: input.firstName.trim(),
+        lastName: input.lastName.trim(),
+        phone: input.phone,
+        dni: input.dni,
+        documentType: (input.documentType as DocType) || null,
+        address: input.address || null,
+        branchId: input.branchId,
+        level: (input.level as Level) || "alfa",
+        dateOfBirth: input.dateOfBirth || null,
+        gender: (input.gender as Gender) || null,
+        emergencyContactName: input.emergencyContactName || null,
+        emergencyContactPhone: input.emergencyContactPhone || null,
+        emergencyContactRelationship:
+          input.emergencyContactRelationship || null,
+        role: "member",
+        // Phase 103-04 (R7, D-12, BLOCKER 3): admin enrolling someone who walked
+        // into a sede starts as 'prueba'. If planId is also provided, the
+        // route handler calls subscriptionService.assignPlan which triggers
+        // Plan 02's recomputeUserStatus → flips status to 'activo' inside
+        // the same transaction. Single-owner edit per the wave-conflict
+        // resolution.
+        status: "prueba" as const,
+      });
+
+      const newUserId = Number(result[0].insertId);
+
+      // Phase 118-01 (D-02): record the freemium-less alta → 'prueba'
+      // transition. No prior status on a brand-new row, so fromStatus=null.
+      await tx.insert(schema.userStatusHistory).values({
+        userId: newUserId,
+        fromStatus: null,
+        toStatus: "prueba",
+        source: "admin",
+      });
+      this.log.info(
+        { userId: newUserId, fromStatus: null, toStatus: "prueba" },
+        "user status transition recorded",
+      );
+
+      return newUserId;
     });
 
-    const userId = Number(result[0].insertId);
     const member = await this.getMemberById(userId);
 
     if (!member) {
@@ -604,23 +626,42 @@ export class MemberService {
     const tempPassword = MEMBER_TEMP_PASSWORD;
     const passwordHash = await argon2.hash(tempPassword);
 
-    const result = await this.db.insert(schema.users).values({
-      passwordHash,
-      firstName: input.firstName.trim(),
-      lastName: input.lastName.trim(),
-      phone: normalizedPhone,
-      branchId: input.branchId,
-      role: "member",
-      level: "alfa",
-      status: "prueba" as const,
-      // Phase 114 D-31: lead lifecycle starts here. lead_status='en_seguimiento'
-      // is the only valid initial value for an admin-created trial. created_by
-      // is the JWT-authenticated admin from the route layer.
-      leadStatus: "en_seguimiento" as const,
-      createdBy: input.createdBy,
+    // Phase 118-01 (D-02): user insert + status-history write in one tx so the
+    // new lead's 'prueba' transition is recorded atomically (fromStatus=null,
+    // source='admin' — receptionist-initiated trial registration).
+    const userId = await this.db.transaction(async (tx) => {
+      const result = await tx.insert(schema.users).values({
+        passwordHash,
+        firstName: input.firstName.trim(),
+        lastName: input.lastName.trim(),
+        phone: normalizedPhone,
+        branchId: input.branchId,
+        role: "member",
+        level: "alfa",
+        status: "prueba" as const,
+        // Phase 114 D-31: lead lifecycle starts here. lead_status='en_seguimiento'
+        // is the only valid initial value for an admin-created trial. created_by
+        // is the JWT-authenticated admin from the route layer.
+        leadStatus: "en_seguimiento" as const,
+        createdBy: input.createdBy,
+      });
+
+      const newUserId = Number(result[0].insertId);
+
+      await tx.insert(schema.userStatusHistory).values({
+        userId: newUserId,
+        fromStatus: null,
+        toStatus: "prueba",
+        source: "admin",
+      });
+      this.log.info(
+        { userId: newUserId, fromStatus: null, toStatus: "prueba" },
+        "user status transition recorded",
+      );
+
+      return newUserId;
     });
 
-    const userId = Number(result[0].insertId);
     const member = await this.getMemberById(userId);
 
     if (!member) {
@@ -702,15 +743,34 @@ export class MemberService {
       );
     }
 
-    await this.db
-      .update(schema.users)
-      .set({
-        status: "prueba" as const,
-        leadStatus: "en_seguimiento" as const,
-        createdBy: input.createdBy,
-        branchId: input.branchId,
-      })
-      .where(eq(schema.users.id, userId));
+    // Phase 118-01 (D-02): the 409 guard above already restricts this path to
+    // freemium → prueba, so the transition always changes the status — no
+    // dedupe branch is needed here (TS narrows user.status to 'freemium', which
+    // can never equal the 'prueba' we write). UPDATE + history insert run in the
+    // same tx → rolls back together. source='admin' (admin-initiated convert).
+    const statusBefore = user.status;
+    await this.db.transaction(async (tx) => {
+      await tx
+        .update(schema.users)
+        .set({
+          status: "prueba" as const,
+          leadStatus: "en_seguimiento" as const,
+          createdBy: input.createdBy,
+          branchId: input.branchId,
+        })
+        .where(eq(schema.users.id, userId));
+
+      await tx.insert(schema.userStatusHistory).values({
+        userId,
+        fromStatus: statusBefore,
+        toStatus: "prueba",
+        source: "admin",
+      });
+      this.log.info(
+        { userId, fromStatus: statusBefore, toStatus: "prueba" },
+        "user status transition recorded",
+      );
+    });
 
     const member = await this.getMemberById(userId);
     if (!member) {
