@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: executing
-stopped_at: Completed 117-04-PLAN.md (EngagementService — conteo por segmento + worklist en_riesgo/ghost)
-last_updated: "2026-05-26T20:30:53.712Z"
+stopped_at: Completed 117-06-PLAN.md (Frontend admin analytics — KPI únicos/segmentos/worklists/warning/vencidos/revenue por moneda) — Phase 117 fully executed (6/6)
+last_updated: "2026-05-26T21:30:00.000Z"
 last_activity: 2026-05-26
 progress:
   total_phases: 16
-  completed_phases: 15
-  total_plans: 58
-  completed_plans: 58
-  percent: 94
+  completed_phases: 16
+  total_plans: 59
+  completed_plans: 59
+  percent: 100
 ---
 
 # Project State
@@ -25,9 +25,9 @@ See: .planning/PROJECT.md (updated 2026-05-04)
 
 ## Current Position
 
-Phase: 117 (analytics-correcciones-de-exactitud-m-trica-de-miembros-nico) — EXECUTING
-Plan: 5 of 6 — COMPLETE (117-04 EngagementService)
-Status: Ready to execute
+Phase: 117 (analytics-correcciones-de-exactitud-m-trica-de-miembros-nico) — EXECUTED (6/6 plans)
+Plan: 6 of 6 — COMPLETE (117-06 Frontend admin analytics)
+Status: Phase 117 fully executed; pending operador para migraciones 0128/0129 en staging+prod
 Last activity: 2026-05-26
 
 ## Performance Metrics
@@ -177,6 +177,7 @@ _Updated after each plan completion_
 | Phase 117 P03 | ~30min | 2 tasks | 5 files |
 | Phase 117 P04 | ~20min | 2 tasks | 5 files |
 | Phase 117 P05 | 25min | 2 tasks | 4 files |
+| Phase 117 P06 | ~40min | 3 tasks | 14 files |
 
 ## Accumulated Context
 
@@ -435,6 +436,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - Plan 117-03: el módulo analytics está gateado a ADMIN_ROLES=[admin,owner] — coach/recepción reciben 403 en el onRequest hook antes del scope de sede, así que el test de no-fuga T-117-01 usa un admin AR denegado (403, cross-country Rule 3) en una sede ES, no un coach
 - Plan 117-04: EngagementService nuevo (D-09/D-12) reutiliza segmentation — countActiveBySegment lee member_profiles.segment vía LEFT JOIN + COALESCE(segment,'sinSegmento') + activeMemberExists (NUNCA users.status); bucket sinSegmento para activos sin segment calculado; getEngagementNominalList (en_riesgo/ghost activos) usa subquery correlacionada para planName (sin fan-out); applyScope sobre users.branchId; GET /engagement devuelve { counts, nominalList } con phone gated por ADMIN_ROLES + scope (T-117-01/T-117-06)
 - [Phase ?]: 117-05: attentionList completo (overdue buckets + daysOverdue real + yaPago + segment), renewalRate 7/14/30, habló-con-coach diferido (D-14/15/16/17)
+- Plan 117-06: frontend admin completo (D-11..D-17): AsistenciaTab (únicos 7/14/30 + segmentos + worklist en_riesgo/ghost con WhatsApp + warning ratio <50%), MiembrosTab (vencidos buckets + daysOverdue real + renewalRate + flag ya-pagó + priorización por segmento), FinanzasTab (revenue ARS/EUR separado). Checkpoint visual APROBADO. Follow-ups misma fase: tab Asistencia MOVIDA de AnaliticasPage a ReportesPage para habilitar rol gestion + nuevo ANALYTICS_OPERATIONAL_ROLES (gestion+admin+owner) en el onRequest hook con guard per-route requireAdminAnalytics en los 3 endpoints admin-only (/, /members, /financial) + test de RBAC (gestion 200 operacionales / 403 admin-only); ocultar bucket "Sin segmento" + tooltips de segmento; rename display-only Digital Warrior→Digital, Ghost→Fantasma en SEGMENT_LABELS (claves DB sin cambios). Sin dependencias nuevas (T-117-SC). Phase 117 ejecutada 6/6.
 
 ### Pending Todos
 
@@ -450,12 +452,12 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - Plan 112-04 awaiting staging+prod runs of migration 0112_transaction_links_target_kind_enrollment.sql (human checkpoint — operator must run pnpm db:migrate on staging, verify SHOW COLUMNS shows the new 4-value enum + \_migrations row, then approve prod)
 - Plan 116-02 awaiting staging + production runs of migration 0125_create_refresh_tokens.sql (human checkpoint — operator must run pnpm db:migrate on staging, verify SHOW COLUMNS FROM refresh_tokens + fila en \_migrations, then approve prod)
 - Plan 116-04: vitest+jsdom no instalados en el admin — test del lock escrito y commiteado pero sin correr; requiere decision del usuario (instalar devDeps o aceptar cobertura del test de la member app)
-- Plan 117-02 awaiting staging + production runs of migrations 0128_create_user_status_history.sql + 0129_backfill_user_status_history.sql (human checkpoint: operator runs pnpm db:migrate on staging, verifies 0128/0129 in \_migrations + SELECT COUNT(\*) FROM user_status_history > 0, confirms re-run no-op, then approves prod. Staging-first STRICT, no merge to master nor push without confirmation)
+- Plan 117-02: migraciones 0128_create_user_status_history.sql + 0129_backfill_user_status_history.sql APROBADAS y aplicadas LOCALMENTE (checkpoint humano approved). Pendiente: aplicación en staging + producción vía pipeline (operator corre pnpm db:migrate on staging, verifica 0128/0129 en \_migrations + SELECT COUNT(\*) FROM user_status_history > 0, confirma re-run no-op, luego aprueba prod). Staging-first STRICT, no merge to master ni push sin confirmación.
 
 ## Session Continuity
 
-Last session: 2026-05-26T20:30:38.137Z
-Stopped at: Completed 117-04-PLAN.md (EngagementService — conteo por segmento + worklist en_riesgo/ghost)
+Last session: 2026-05-26T21:30:00.000Z
+Stopped at: Completed 117-06-PLAN.md (Frontend admin analytics) — Phase 117 fully executed (6/6 plans)
 Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
