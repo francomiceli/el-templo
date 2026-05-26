@@ -13,6 +13,9 @@ import type {
   AttendanceAnalytics,
   FinancialAnalytics,
   AnalyticsFilters,
+  UniqueMembersMetric,
+  CheckInAdoptionRow,
+  EngagementAnalytics,
 } from 'src/types/analytics';
 
 function buildParams(filters: AnalyticsFilters): Record<string, unknown> {
@@ -96,6 +99,58 @@ export function useAnalyticsApi() {
     }
   }
 
+  // -- Phase 117 new endpoints (Plans 03/04) -----------------------------
+
+  async function getUniqueMembers(filters: AnalyticsFilters = {}): Promise<UniqueMembersMetric> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<UniqueMembersMetric>(
+        '/admin/analytics/attendance/unique-members',
+        { params: buildParams(filters) }
+      );
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cargando miembros unicos');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function getCheckInAdoption(filters: AnalyticsFilters = {}): Promise<CheckInAdoptionRow[]> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<CheckInAdoptionRow[]>(
+        '/admin/analytics/attendance/checkin-adoption',
+        { params: buildParams(filters) }
+      );
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cargando adopcion de check-in');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function getEngagement(filters: AnalyticsFilters = {}): Promise<EngagementAnalytics> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<EngagementAnalytics>('/admin/analytics/engagement', {
+        params: buildParams(filters),
+      });
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cargando engagement');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   function cleanup() {
     loading.value = false;
     error.value = null;
@@ -108,6 +163,9 @@ export function useAnalyticsApi() {
     getMemberAnalytics,
     getAttendanceAnalytics,
     getFinancialAnalytics,
+    getUniqueMembers,
+    getCheckInAdoption,
+    getEngagement,
     cleanup,
   };
 }
