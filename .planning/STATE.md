@@ -26,8 +26,8 @@ See: .planning/PROJECT.md (updated 2026-05-04)
 ## Current Position
 
 Phase: 117 (analytics-correcciones-de-exactitud-m-trica-de-miembros-nico) — EXECUTING
-Plan: 3 of 6 — COMPLETE (117-03 AttendanceMetricsService)
-Status: Ready to execute Plan 4 (117-04 EngagementService)
+Plan: 4 of 6 — COMPLETE (117-04 EngagementService)
+Status: Ready to execute Plan 5 (117-05 Panel de Vencimientos/Renovaciones)
 Last activity: 2026-05-26
 
 ## Performance Metrics
@@ -175,6 +175,7 @@ _Updated after each plan completion_
 | Phase 116 P05 | 16min | 2 tasks | 2 files |
 | Phase 117 P01 | 75min | 2 tasks | 7 files |
 | Phase 117 P03 | ~30min | 2 tasks | 5 files |
+| Phase 117 P04 | ~20min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -431,6 +432,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: Plan 116-05: el test DB auto-provisiona migración 0125 desde src/db/migrations en cada worker fresco (setup.ts); fixtures via registerUser por el phone-block de Phase 111
 - Plan 117-03: AttendanceMetricsService nuevo (D-09, NO toca el monolito service.ts) — uniqueMembers COUNT(DISTINCT member_id) por ventana half-open (D-08) + checkInAdoptionByBranch vía LEFT JOIN attendance ON (member+schedule+date) porque attendance no tiene booking_id FK; ratio 0..1 (warning <50% es frontend, Plan 05); applyScope reutilizado sobre attendance.branchId / schedules.branchId
 - Plan 117-03: el módulo analytics está gateado a ADMIN_ROLES=[admin,owner] — coach/recepción reciben 403 en el onRequest hook antes del scope de sede, así que el test de no-fuga T-117-01 usa un admin AR denegado (403, cross-country Rule 3) en una sede ES, no un coach
+- Plan 117-04: EngagementService nuevo (D-09/D-12) reutiliza segmentation — countActiveBySegment lee member_profiles.segment vía LEFT JOIN + COALESCE(segment,'sinSegmento') + activeMemberExists (NUNCA users.status); bucket sinSegmento para activos sin segment calculado; getEngagementNominalList (en_riesgo/ghost activos) usa subquery correlacionada para planName (sin fan-out); applyScope sobre users.branchId; GET /engagement devuelve { counts, nominalList } con phone gated por ADMIN_ROLES + scope (T-117-01/T-117-06)
 
 ### Pending Todos
 
@@ -450,8 +452,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-05-26T19:58:15.638Z
-Stopped at: Completed 117-03-PLAN.md (AttendanceMetricsService — únicos + ratio check-in)
+Last session: 2026-05-26
+Stopped at: Completed 117-04-PLAN.md (EngagementService — conteo por segmento + worklist en_riesgo/ghost)
 Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z

@@ -2691,7 +2691,7 @@ Plans:
 **Goal:** Hacer que los números del módulo de analytics sean correctos (corrige 6 bugs validados contra prod: KPI de activos sobre `users.status` obsoleto, no-show con enum inexistente, revenue que suma ARS+EUR, trend de activos circular, plan distribution sin filtrar archivados ni separar por país, `DATE()` que anula índices) y agregar las métricas/listas operativas que recepción usa día a día (miembros únicos 7/14/30, engagement reutilizando segmentos, ratio de adopción de check-in por sede con warning <50%, panel de Vencimientos/Renovaciones completo). Centraliza el predicado canónico de "activo" en un helper SQL compartido + extrae `applyScope` + crea domain services nuevos (sin tocar el monolito existente, que es v4.9). Crea la tabla `user_status_history` como fundación para la Fase 118.
 **Requirements**: D-01..D-18 (decisiones de 117-CONTEXT.md)
 **Depends on:** Phase 116
-**Plans:** 3/6 plans executed
+**Plans:** 4/6 plans executed
 
 Plans:
 
@@ -2706,7 +2706,7 @@ Plans:
 
 **Wave 3** _(blocked on Wave 2 completion)_
 
-- [ ] 117-04-PLAN.md — EngagementService: conteo de activos por segmento (reutiliza segmentación) + listas nominales en_riesgo/ghost con WhatsApp + endpoint
+- [x] 117-04-PLAN.md — EngagementService: conteo de activos por segmento (reutiliza segmentación) + listas nominales en_riesgo/ghost con WhatsApp + endpoint
 
 **Wave 4** _(blocked on Wave 3 completion)_
 
