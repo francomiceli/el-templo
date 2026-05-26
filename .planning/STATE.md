@@ -4,7 +4,7 @@ milestone: v3.0
 milestone_name: Landing Page
 status: executing
 stopped_at: Phase 117 context gathered
-last_updated: "2026-05-26T19:47:19.616Z"
+last_updated: "2026-05-26T19:58:15.656Z"
 last_activity: 2026-05-26
 progress:
   total_phases: 16
@@ -443,10 +443,11 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - Plan 112-04 awaiting staging+prod runs of migration 0112_transaction_links_target_kind_enrollment.sql (human checkpoint — operator must run pnpm db:migrate on staging, verify SHOW COLUMNS shows the new 4-value enum + \_migrations row, then approve prod)
 - Plan 116-02 awaiting staging + production runs of migration 0125_create_refresh_tokens.sql (human checkpoint — operator must run pnpm db:migrate on staging, verify SHOW COLUMNS FROM refresh_tokens + fila en \_migrations, then approve prod)
 - Plan 116-04: vitest+jsdom no instalados en el admin — test del lock escrito y commiteado pero sin correr; requiere decision del usuario (instalar devDeps o aceptar cobertura del test de la member app)
+- Plan 117-02 awaiting staging + production runs of migrations 0128_create_user_status_history.sql + 0129_backfill_user_status_history.sql (human checkpoint: operator runs pnpm db:migrate on staging, verifies 0128/0129 in \_migrations + SELECT COUNT(\*) FROM user_status_history > 0, confirms re-run no-op, then approves prod. Staging-first STRICT, no merge to master nor push without confirmation)
 
 ## Session Continuity
 
-Last session: 2026-05-26T19:47:15.067Z
+Last session: 2026-05-26T19:58:15.638Z
 Stopped at: Phase 117 context gathered
 Resume file: None
 
