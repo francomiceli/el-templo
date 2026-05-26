@@ -46,12 +46,17 @@ export const documentTypeEnum = mysqlEnum("document_type", [
 // (POST /register → 'freemium', POST /api/admin/members → 'prueba',
 // POST /api/admin/trials → 'prueba'). Subscription create/cancel transitions
 // recompute the value via SubscriptionService.recomputeUserStatus.
-export const userStatusEnum = mysqlEnum("status", [
+// Phase 117 (D-10): exported value list so user-status-history.ts can declare
+// from_status / to_status columns sharing the exact same enum values without
+// reusing the column-bound userStatusEnum (which hardcodes the column name
+// "status").
+export const USER_STATUS_VALUES = [
   "freemium",
   "prueba",
   "activo",
   "inactivo",
-]);
+] as const;
+export const userStatusEnum = mysqlEnum("status", USER_STATUS_VALUES);
 // Phase 114 (D-15): lead lifecycle status for users with status='prueba'.
 // NULL for staff/freemium/activo/inactivo. Set to 'en_seguimiento' on
 // POST /admin/members/trial (Plan 02). Overridden to 'cerrado' by the

@@ -54,3 +54,4 @@ export * from "./promo-plans";
 export * from "./day-modes";
 export * from "./audit-log";
 export * from "./refresh-tokens";
+export * from "./user-status-history";
