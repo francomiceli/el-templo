@@ -7,19 +7,46 @@
     No hay datos para el periodo seleccionado
   </div>
   <template v-else>
-    <!-- Daily checkins line chart -->
+    <!-- Representatividad warning: la sede filtrada casi no pasa lista (D-13) -->
+    <q-banner v-if="lowAdoptionBranch" dense rounded class="bg-orange-2 text-orange-10 q-mb-md">
+      <template #avatar>
+        <q-icon name="warning" color="orange-9" />
+      </template>
+      Solo el {{ lowAdoptionBranch.ratioPct }}% de las reservas confirmadas de
+      <b>{{ lowAdoptionBranch.branchName }}</b> registran check-in. Los miembros únicos y el
+      engagement de esta sede <b>no son representativos</b> — la gente asiste pero no pasa lista.
+    </q-banner>
+
+    <!-- KPI: miembros únicos 7 / 14 / 30 (D-11) + no-show -->
     <div class="row q-col-gutter-md q-mb-md">
-      <div class="col-12 col-md-8">
+      <div class="col-12 col-sm-6 col-md-3">
         <q-card flat bordered>
-          <q-card-section>
-            <div class="text-subtitle2 q-mb-sm">Asistencias por dia</div>
-            <div style="height: 300px; position: relative">
-              <Line :data="dailyCheckinsData" :options="lineChartOptions" />
-            </div>
+          <q-card-section class="text-center">
+            <div class="text-caption text-grey-7">Miembros únicos (7 días)</div>
+            <div class="text-h4 text-primary">{{ uniqueMembersDisplay.last7 }}</div>
+            <q-icon name="groups" size="28px" class="q-mt-sm text-grey-5" />
           </q-card-section>
         </q-card>
       </div>
-      <div class="col-12 col-md-4">
+      <div class="col-12 col-sm-6 col-md-3">
+        <q-card flat bordered>
+          <q-card-section class="text-center">
+            <div class="text-caption text-grey-7">Miembros únicos (14 días)</div>
+            <div class="text-h4 text-primary">{{ uniqueMembersDisplay.last14 }}</div>
+            <q-icon name="groups" size="28px" class="q-mt-sm text-grey-5" />
+          </q-card-section>
+        </q-card>
+      </div>
+      <div class="col-12 col-sm-6 col-md-3">
+        <q-card flat bordered>
+          <q-card-section class="text-center">
+            <div class="text-caption text-grey-7">Miembros únicos (30 días)</div>
+            <div class="text-h4 text-primary">{{ uniqueMembersDisplay.last30 }}</div>
+            <q-icon name="groups" size="28px" class="q-mt-sm text-grey-5" />
+          </q-card-section>
+        </q-card>
+      </div>
+      <div class="col-12 col-sm-6 col-md-3">
         <q-card flat bordered>
           <q-card-section class="text-center">
             <div class="text-caption text-grey-7">Tasa de no-show</div>
@@ -29,7 +56,88 @@
             >
               {{ props.data.noShowRate.toFixed(1) }}%
             </div>
-            <q-icon name="event_busy" size="32px" class="q-mt-sm text-grey-5" />
+            <q-icon name="event_busy" size="28px" class="q-mt-sm text-grey-5" />
+          </q-card-section>
+        </q-card>
+      </div>
+    </div>
+
+    <!-- Conteo de activos por segmento de engagement (D-12) -->
+    <q-card v-if="props.engagement" flat bordered class="q-mb-md">
+      <q-card-section>
+        <div class="text-subtitle2 q-mb-sm">Activos por segmento de engagement</div>
+        <div class="row q-col-gutter-sm">
+          <div v-for="seg in segmentCountCards" :key="seg.key" class="col-6 col-sm-4 col-md-2">
+            <q-card flat bordered>
+              <q-card-section class="text-center q-pa-sm">
+                <q-chip :color="seg.color" text-color="white" dense size="sm" :label="seg.label" />
+                <div class="text-h6 q-mt-xs">{{ seg.count }}</div>
+              </q-card-section>
+            </q-card>
+          </div>
+        </div>
+      </q-card-section>
+    </q-card>
+
+    <!-- Worklist nominal en_riesgo / ghost con WhatsApp (D-12) -->
+    <q-card v-if="props.engagement" flat bordered>
+      <q-card-section>
+        <div class="text-subtitle2 q-mb-sm">
+          En riesgo / Ghost — contactar antes de que se vayan
+        </div>
+        <q-table
+          v-if="props.engagement.nominalList.length > 0"
+          :rows="props.engagement.nominalList"
+          :columns="engagementColumns"
+          row-key="userId"
+          flat
+          dense
+          :pagination="{ rowsPerPage: 10 }"
+        >
+          <template #body-cell-nombre="slotProps">
+            <q-td :props="slotProps">{{ formatMemberName(slotProps.row) }}</q-td>
+          </template>
+          <template #body-cell-segmento="slotProps">
+            <q-td :props="slotProps">
+              <q-chip
+                :color="segmentColor(slotProps.row.segment)"
+                text-color="white"
+                dense
+                size="sm"
+                :label="segmentLabel(slotProps.row.segment)"
+              />
+            </q-td>
+          </template>
+          <template #body-cell-acciones="slotProps">
+            <q-td :props="slotProps">
+              <q-btn
+                flat
+                dense
+                size="sm"
+                label="WhatsApp"
+                color="positive"
+                icon="chat"
+                :disable="!slotProps.row.phone"
+                @click="contactMember(slotProps.row)"
+              />
+            </q-td>
+          </template>
+        </q-table>
+        <div v-else class="text-center q-pa-md text-grey-5 text-italic">
+          No hay miembros en riesgo o ghost en este alcance
+        </div>
+      </q-card-section>
+    </q-card>
+
+    <!-- Daily checkins line chart -->
+    <div class="row q-col-gutter-md q-mb-md q-mt-none">
+      <div class="col-12">
+        <q-card flat bordered>
+          <q-card-section>
+            <div class="text-subtitle2 q-mb-sm">Asistencias por dia</div>
+            <div style="height: 300px; position: relative">
+              <Line :data="dailyCheckinsData" :options="lineChartOptions" />
+            </div>
           </q-card-section>
         </q-card>
       </div>
@@ -129,7 +237,14 @@ import {
 } from 'chart.js';
 import { Line } from 'vue-chartjs';
 import { COLORS } from 'src/utils/chart-colors';
-import type { AttendanceAnalytics } from 'src/types/analytics';
+import { SEGMENT_LABELS, SEGMENT_COLORS, type MemberSegment } from 'src/types/member';
+import type {
+  AttendanceAnalytics,
+  UniqueMembersMetric,
+  EngagementAnalytics,
+  EngagementMember,
+  CheckInAdoptionRow,
+} from 'src/types/analytics';
 
 // -- Register Chart.js components ----------------------------------------
 
@@ -149,7 +264,87 @@ ChartJS.register(
 const props = defineProps<{
   data: AttendanceAnalytics | null;
   loading: boolean;
+  uniqueMembers?: UniqueMembersMetric | null;
+  engagement?: EngagementAnalytics | null;
+  checkInAdoption?: CheckInAdoptionRow[] | null;
+  /** Currently filtered branch (undefined = all branches in scope). */
+  branchId?: number | undefined;
 }>();
+
+// -- Unique members (D-11) -----------------------------------------------
+
+const uniqueMembersDisplay = computed<UniqueMembersMetric>(
+  () => props.uniqueMembers ?? { last7: 0, last14: 0, last30: 0 }
+);
+
+// -- Low check-in adoption warning (D-13) --------------------------------
+// Only when a single branch is filtered AND its check-in ratio is < 50%.
+
+const ADOPTION_WARNING_THRESHOLD = 0.5;
+
+const lowAdoptionBranch = computed<{ branchName: string; ratioPct: number } | null>(() => {
+  if (props.branchId === undefined || !props.checkInAdoption) return null;
+  const row = props.checkInAdoption.find((r) => r.branchId === props.branchId);
+  if (!row || row.confirmados === 0) return null;
+  if (row.ratio >= ADOPTION_WARNING_THRESHOLD) return null;
+  return { branchName: row.branchName, ratioPct: Math.round(row.ratio * 100) };
+});
+
+// -- Segment counts (D-12) -----------------------------------------------
+
+const segmentCountCards = computed(() => {
+  const counts = props.engagement?.counts;
+  if (!counts) return [];
+  const segmentKeys: MemberSegment[] = [
+    'nuevo',
+    'espartano',
+    'intermitente',
+    'en_riesgo',
+    'digital_warrior',
+    'ghost',
+  ];
+  const cards = segmentKeys.map((key) => ({
+    key,
+    label: SEGMENT_LABELS[key],
+    color: SEGMENT_COLORS[key],
+    count: counts[key],
+  }));
+  cards.push({
+    key: 'sinSegmento' as MemberSegment,
+    label: 'Sin segmento',
+    color: 'blue-grey',
+    count: counts.sinSegmento,
+  });
+  return cards;
+});
+
+// -- Engagement worklist (D-12) ------------------------------------------
+
+const engagementColumns = [
+  { name: 'nombre', label: 'Nombre', field: 'firstName', align: 'left' as const },
+  { name: 'plan', label: 'Plan', field: 'planName', align: 'left' as const },
+  { name: 'segmento', label: 'Segmento', field: 'segment', align: 'left' as const, sortable: true },
+  { name: 'acciones', label: 'Acciones', field: 'userId', align: 'right' as const },
+];
+
+function formatMemberName(member: EngagementMember): string {
+  const parts = [member.firstName, member.lastName].filter(Boolean);
+  return parts.length > 0 ? parts.join(' ') : `Miembro #${member.userId}`;
+}
+
+function segmentLabel(segment: string): string {
+  return SEGMENT_LABELS[segment as MemberSegment] ?? segment;
+}
+
+function segmentColor(segment: string): string {
+  return SEGMENT_COLORS[segment as MemberSegment] ?? 'grey';
+}
+
+function contactMember(member: EngagementMember): void {
+  if (!member.phone) return;
+  const cleaned = member.phone.replace(/\D/g, '');
+  window.open(`https://wa.me/${cleaned}`, '_blank');
+}
 
 // -- Chart data ----------------------------------------------------------
 

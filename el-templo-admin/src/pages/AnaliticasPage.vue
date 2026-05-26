@@ -152,7 +152,14 @@
         <MiembrosTab :data="memberData" :loading="loadingMembers" />
       </q-tab-panel>
       <q-tab-panel name="asistencia">
-        <AsistenciaTab :data="attendanceData" :loading="loadingAttendance" />
+        <AsistenciaTab
+          :data="attendanceData"
+          :loading="loadingAttendance"
+          :unique-members="uniqueMembersData"
+          :engagement="engagementData"
+          :check-in-adoption="checkInAdoptionData"
+          :branch-id="selectedBranchId"
+        />
       </q-tab-panel>
       <q-tab-panel name="finanzas">
         <FinanzasTab
@@ -235,6 +242,9 @@ import type {
   FinancialAnalytics,
   AnalyticsFilters,
   TrendInfo,
+  UniqueMembersMetric,
+  EngagementAnalytics,
+  CheckInAdoptionRow,
 } from 'src/types/analytics';
 import type { BranchOption } from 'src/types/member';
 import type { ProgramAnalytics } from 'src/types/program';
@@ -395,6 +405,9 @@ const kpis = ref<KpiStats | null>(null);
 const memberData = ref<MemberAnalytics | null>(null);
 const attendanceData = ref<AttendanceAnalytics | null>(null);
 const financialData = ref<FinancialAnalytics | null>(null);
+const uniqueMembersData = ref<UniqueMembersMetric | null>(null);
+const engagementData = ref<EngagementAnalytics | null>(null);
+const checkInAdoptionData = ref<CheckInAdoptionRow[] | null>(null);
 
 const loadingKpis = ref(false);
 const loadingMembers = ref(false);
@@ -432,8 +445,10 @@ const kpiCards = computed<KpiCard[]>(() => {
       key: 'monthlyRevenue',
       label: 'Ingresos',
       icon: 'payments',
-      formattedValue: formatCurrency(k.monthlyRevenue.value),
-      trend: k.monthlyRevenue.trend,
+      // Per-currency revenue (D-05/D-17): pick the currency matching the
+      // selected country — ARS and EUR are never summed.
+      formattedValue: formatCurrency(k.monthlyRevenue[displayCurrency.value].value),
+      trend: k.monthlyRevenue[displayCurrency.value].trend,
     },
     {
       key: 'dailyAttendanceAvg',
@@ -485,7 +500,18 @@ async function fetchMemberData() {
 async function fetchAttendanceData() {
   loadingAttendance.value = true;
   try {
-    attendanceData.value = await analyticsApi.getAttendanceAnalytics(currentFilters.value);
+    // Asistencia tab also drives unique-members (D-11), engagement (D-12) and
+    // check-in adoption (D-13). Fetch them alongside the base attendance data.
+    const [attendance, unique, engagement, adoption] = await Promise.all([
+      analyticsApi.getAttendanceAnalytics(currentFilters.value),
+      analyticsApi.getUniqueMembers(currentFilters.value),
+      analyticsApi.getEngagement(currentFilters.value),
+      analyticsApi.getCheckInAdoption(currentFilters.value),
+    ]);
+    attendanceData.value = attendance;
+    uniqueMembersData.value = unique;
+    engagementData.value = engagement;
+    checkInAdoptionData.value = adoption;
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido';
     log.error('Error fetching attendance analytics', { error: message });
