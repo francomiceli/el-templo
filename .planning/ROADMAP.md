@@ -2722,7 +2722,7 @@ Plans:
 **Requirements**: TBD
 **Depends on:** Phase 117 (helper "activo", applyScope, tabla user_status_history)
 **Plans:** 0 plans
-**Canonical refs:** `.planning/phases/117-analytics-correcciones-de-exactitud-m-trica-de-miembros-nico/PROPUESTAS_ANALYTICS.md` (propuestas #1/#2/#4), 117-CONTEXT.md §Deferred Ideas
+**Canonical refs:** `.planning/phases/118-analytics-estrat-gico-funnel-de-conversi-n-retenci-n-por-cic/118-NOTES-FROM-117.md` (LECTURA OBLIGATORIA — hallazgos de la 117: el hook de `user_status_history` NO captura `prueba`/`inactivo`/admin, backfill aproximado, helpers a reutilizar, autorización), `.planning/phases/117-analytics-correcciones-de-exactitud-m-trica-de-miembros-nico/PROPUESTAS_ANALYTICS.md` (propuestas #1/#2/#4), 117-CONTEXT.md §Deferred Ideas
 
 Plans:
 
