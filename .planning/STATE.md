@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: verifying
-stopped_at: Completed 116-05-PLAN.md
-last_updated: "2026-05-25T21:04:20.030Z"
+stopped_at: Phase 117 context gathered
+last_updated: "2026-05-26T18:48:27.291Z"
 last_activity: 2026-05-25
 progress:
   total_phases: 16
@@ -190,6 +190,7 @@ _Updated after each plan completion_
 - Phase 110 added: Admin users por país + multi-sede staff — admin/gestion/owner alcance por país (`users.country`), coach/recepción multi-sede (`user_branches`), `branch_id` NOT NULL como sede personal, staff multisucursal por rol en app de miembros, Templo Online global, owner bypass; extiende `country-scope.ts` para usar `users.country` directamente y agregar branchIds para coach/recepción
 - Phase 114 added: Reporte tabular de sesiones de prueba — reemplaza el CSV manual de Google Sheets por reporte filtrable en módulo Reportes del admin (11 columnas: Lead, Fecha, Hora, Sucursal, Asistió, Estado del Lead, Gestiona, Comentarios, Turno, Periodo, Semana); nuevos campos `users.lead_status` (enum), `users.lead_notes` (TEXT), `bookings.created_by` (FK); hooks de subscription para auto-cerrar lead + prefijar plan en comentarios; descarta Rep./Asistió post rep./Asistencia Final/Profe1/Profe2 del CSV original
 - Phase 116 added: Refresh tokens auth — reemplaza JWT único de 7d por access (30m) + refresh token (30d sliding) con rotación obligatoria y reuse detection; nueva tabla `refresh_tokens` (hash, expires_at, revoked_at); endpoints `/auth/refresh` y `/auth/logout` reales; interceptor de axios en app+admin con lock compartido para evitar refresh storms; API backwards-compatible (devuelve `{ token, accessToken, refreshToken }`) para no romper apps viejas en Play Store. Origen: bug recurrente de logout cada 7d en app de miembros. SPEC creado originalmente como Phase 115 (commit huérfano 8be596bf), renumerado a 116 porque 115 quedó asignado a "Evento Desafío de la Barra"
+- Phase 117 added: Analytics — correcciones de exactitud + métrica de miembros únicos. Corrige 4 bugs descubiertos analizando prod (2026-05-26): KPI de activos lee `users.status` obsoleto (~48 fantasmas, sin cron), no-show rate usa enum inexistente `'confirmed'` (→ siempre 100%/0), revenue suma ARS+EUR en vista owner, trend de activos circular mezcla freemium/prueba. Arquitectura: centralizar la definición de "activo" (hoy triplicada en recomputeUserStatus/analytics/reports), filtrar `is_archived` en plan distribution, split del service de 1112 LOC (facade) + `applyScope`. Feature: miembros únicos últimos 7/14/30 días en tab Asistencias. Detalle completo con refs archivo:línea en FINDINGS.md del directorio de la fase
 
 ### Decisions
 
@@ -444,8 +445,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-05-25T21:04:20.011Z
-Stopped at: Completed 116-05-PLAN.md
-Resume file: None
+Last session: 2026-05-26T18:48:27.165Z
+Stopped at: Phase 117 context gathered
+Resume file: .planning/phases/117-analytics-correcciones-de-exactitud-m-trica-de-miembros-nico/117-CONTEXT.md
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
