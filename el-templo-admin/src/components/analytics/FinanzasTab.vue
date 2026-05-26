@@ -12,7 +12,10 @@
       <div class="col-12 col-md-8">
         <q-card flat bordered>
           <q-card-section>
-            <div class="text-subtitle2 q-mb-sm">Ingresos por mes</div>
+            <div class="text-subtitle2 q-mb-sm">
+              Ingresos por mes
+              <span class="text-caption text-grey-6">(ARS y EUR por separado)</span>
+            </div>
             <div style="height: 300px; position: relative">
               <Bar :data="revenueTrendData" :options="revenueChartOptions" />
             </div>
@@ -22,24 +25,27 @@
       <div class="col-12 col-md-4">
         <q-card flat bordered class="q-mb-md">
           <q-card-section>
-            <div class="text-subtitle2 q-mb-sm">Ingresos por metodo</div>
+            <div class="text-subtitle2 q-mb-sm">
+              Ingresos por metodo
+              <span class="text-caption text-grey-6">({{ props.currency }})</span>
+            </div>
             <div class="column q-gutter-sm">
               <div class="row items-center justify-between">
                 <span class="text-caption">Efectivo</span>
                 <span class="text-weight-bold">{{
-                  formatCurrency(props.data.revenueByMethod.cash)
+                  formatCurrency(props.data.revenueByMethod.cash[currencyCode])
                 }}</span>
               </div>
               <div class="row items-center justify-between">
                 <span class="text-caption">Transferencia</span>
                 <span class="text-weight-bold">{{
-                  formatCurrency(props.data.revenueByMethod.transfer)
+                  formatCurrency(props.data.revenueByMethod.transfer[currencyCode])
                 }}</span>
               </div>
               <div class="row items-center justify-between">
                 <span class="text-caption">Tarjeta</span>
                 <span class="text-weight-bold">{{
-                  formatCurrency(props.data.revenueByMethod.card)
+                  formatCurrency(props.data.revenueByMethod.card[currencyCode])
                 }}</span>
               </div>
             </div>
@@ -124,6 +130,10 @@ const props = withDefaults(
 
 // -- Currency formatter --------------------------------------------------
 
+// `currency` is the country-derived display currency (ARS/EUR). Revenue is
+// reported per-currency (D-05/D-17) and NEVER summed across currencies.
+const currencyCode = computed<'ARS' | 'EUR'>(() => props.currency);
+
 function formatCurrency(value: number): string {
   return formatPrice(value, props.currency);
 }
@@ -134,10 +144,13 @@ const revenueChartOptions = computed(() => ({
   responsive: true,
   maintainAspectRatio: false,
   plugins: {
-    legend: { display: false },
+    legend: { display: true, position: 'top' as const },
     tooltip: {
       callbacks: {
-        label: (ctx: TooltipItem<'bar'>) => formatPrice(ctx.parsed.y ?? 0, props.currency),
+        label: (ctx: TooltipItem<'bar'>) => {
+          const code = ctx.dataset.label === 'EUR' ? 'EUR' : 'ARS';
+          return `${code}: ${formatPrice(ctx.parsed.y ?? 0, code)}`;
+        },
       },
     },
   },
@@ -146,6 +159,7 @@ const revenueChartOptions = computed(() => ({
   },
 }));
 
+// ARS and EUR are separate datasets so they are never summed into one bar.
 const revenueTrendData = computed(() => {
   if (!props.data) return { labels: [], datasets: [] };
   const trend = props.data.revenueTrend;
@@ -153,9 +167,14 @@ const revenueTrendData = computed(() => {
     labels: trend.map((t) => t.month),
     datasets: [
       {
-        label: 'Ingresos',
-        data: trend.map((t) => t.revenue),
+        label: 'ARS',
+        data: trend.map((t) => t.ARS),
         backgroundColor: COLORS.primary,
+      },
+      {
+        label: 'EUR',
+        data: trend.map((t) => t.EUR),
+        backgroundColor: COLORS.accent,
       },
     ],
   };
@@ -178,15 +197,18 @@ const branchChartOptions = computed(() => ({
   },
 }));
 
+// Per-branch revenue in the displayed currency (branches belong to one country,
+// so the non-displayed currency is 0 for them). Never summed across currencies.
 const revenueByBranchData = computed(() => {
   if (!props.data) return { labels: [], datasets: [] };
   const byBranch = props.data.revenueByBranch;
+  const code = currencyCode.value;
   return {
     labels: byBranch.map((b) => b.branchName),
     datasets: [
       {
-        label: 'Ingresos',
-        data: byBranch.map((b) => b.revenue),
+        label: `Ingresos (${code})`,
+        data: byBranch.map((b) => b[code]),
         backgroundColor: byBranch.map((_, i) => chartColors[i % chartColors.length]),
       },
     ],
