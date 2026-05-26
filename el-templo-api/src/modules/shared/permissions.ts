@@ -37,6 +37,16 @@ export const TRAINING_ROLES = ["coach", "owner"] as const;
 /** Roles that can access caja and reportes (gestion, admin, owner). */
 export const CAJA_ROLES = ["gestion", "admin", "owner"] as const;
 
+/** Roles that can read the operational analytics endpoints surfaced inside
+ *  Reportes — attendance, unique members, check-in adoption, and engagement
+ *  (Phase 117). Mirrors the Reportes route access (gestion + admin + owner).
+ *  The financial/KPI/member analytics endpoints stay admin-only (ADMIN_ROLES). */
+export const ANALYTICS_OPERATIONAL_ROLES = [
+  "gestion",
+  "admin",
+  "owner",
+] as const;
+
 /** Roles that can view the simplified Deudas tab for coaches. Coach included
  *  on top of CAJA_ROLES so professors can look up how much to collect from a
  *  member at the door without exposing the full financial detail surface

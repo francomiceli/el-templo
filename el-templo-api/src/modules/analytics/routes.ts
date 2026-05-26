@@ -22,9 +22,31 @@ import {
   engagementSchema,
 } from "./schemas";
 
-import { ADMIN_ROLES } from "../shared/permissions";
+import {
+  ADMIN_ROLES,
+  ANALYTICS_OPERATIONAL_ROLES,
+} from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
 import { requireBranchAccess } from "../shared/branch-access";
+import type { FastifyReply, FastifyRequest } from "fastify";
+
+/**
+ * Per-route guard for the admin-only analytics endpoints (KPI, members,
+ * financial). The plugin-wide onRequest hook only gates access to the
+ * operational set (gestion + admin + owner); these routes additionally
+ * require ADMIN_ROLES so gestion cannot reach financial/member analytics.
+ */
+const requireAdminAnalytics = async (
+  request: FastifyRequest,
+  reply: FastifyReply,
+) => {
+  if (!(ADMIN_ROLES as readonly string[]).includes(request.user.role)) {
+    return reply.code(403).send({
+      error: "Acceso denegado",
+      message: "Acceso de administrador requerido",
+    });
+  }
+};
 
 export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
   const analyticsService = new AnalyticsService(fastify.db, fastify.log);
@@ -35,11 +57,17 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
   const engagementService = new EngagementService(fastify.db, fastify.log);
 
   /**
-   * Guard: require admin/coach role on all routes in this plugin.
+   * Guard: authenticate + gate to the operational analytics set (gestion +
+   * admin + owner) and attach country scope. Admin-only endpoints (KPI,
+   * members, financial) layer `requireAdminAnalytics` on top via preHandler.
    */
   fastify.addHook("onRequest", async (request, reply) => {
     await fastify.authenticate(request, reply);
-    if (!(ADMIN_ROLES as readonly string[]).includes(request.user.role)) {
+    if (
+      !(ANALYTICS_OPERATIONAL_ROLES as readonly string[]).includes(
+        request.user.role,
+      )
+    ) {
       return reply.code(403).send({
         error: "Acceso denegado",
         message: "Acceso de administrador requerido",
@@ -56,6 +84,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
     {
       schema: kpiSchema,
       preHandler: [
+        requireAdminAnalytics,
         requireBranchAccess({ from: "query.branchId", optional: true }),
       ],
     },
@@ -83,6 +112,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
     {
       schema: memberAnalyticsSchema,
       preHandler: [
+        requireAdminAnalytics,
         requireBranchAccess({ from: "query.branchId", optional: true }),
       ],
     },
@@ -137,6 +167,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
     {
       schema: financialAnalyticsSchema,
       preHandler: [
+        requireAdminAnalytics,
         requireBranchAccess({ from: "query.branchId", optional: true }),
       ],
     },
@@ -213,7 +244,8 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
 
   // GET /engagement — conteo de activos por segmento + worklist en_riesgo/ghost
   // (Phase 117 D-12). Reutiliza segmentation (member_profiles.segment), no
-  // recalcula. PII (phone) gated por el onRequest hook (ADMIN_ROLES) + scope.
+  // recalcula. PII (phone) gated por el onRequest hook (ANALYTICS_OPERATIONAL_ROLES:
+  // gestion contacta a los socios en riesgo) + scope por sede/país.
   fastify.get<{
     Querystring: { branchId?: number; dateFrom?: string; dateTo?: string };
   }>(

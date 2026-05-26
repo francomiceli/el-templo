@@ -1084,6 +1084,53 @@ describe("Analytics API", () => {
         expect(res.statusCode).toBe(403);
       }
     });
+
+    it("gestion reaches operational endpoints but is denied on admin-only ones (Phase 117)", async () => {
+      await createStaffUser(app, {
+        email: "gestion-analytics@test.com",
+        password: "gestionpass123",
+        firstName: "Gestion",
+        lastName: "Analytics",
+        role: "gestion",
+        branchId: testBranchId,
+      });
+      const gestionToken = await getAuthToken(
+        app,
+        "gestion-analytics@test.com",
+        "gestionpass123",
+      );
+
+      // Operational analytics surfaced inside Reportes — gestion is allowed.
+      const operational = [
+        `${ANALYTICS_URL}/attendance`,
+        `${ANALYTICS_URL}/attendance/unique-members`,
+        `${ANALYTICS_URL}/attendance/checkin-adoption`,
+        `${ANALYTICS_URL}/engagement`,
+      ];
+      for (const url of operational) {
+        const res = await app.inject({
+          method: "GET",
+          url,
+          headers: { authorization: `Bearer ${gestionToken}` },
+        });
+        expect(res.statusCode).toBe(200);
+      }
+
+      // Financial / KPI / member analytics stay admin-only — gestion is denied.
+      const adminOnly = [
+        ANALYTICS_URL,
+        `${ANALYTICS_URL}/members`,
+        `${ANALYTICS_URL}/financial`,
+      ];
+      for (const url of adminOnly) {
+        const res = await app.inject({
+          method: "GET",
+          url,
+          headers: { authorization: `Bearer ${gestionToken}` },
+        });
+        expect(res.statusCode).toBe(403);
+      }
+    });
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
