@@ -194,7 +194,6 @@
           :data="attendanceData"
           :loading="loadingAttendance"
           :unique-members="uniqueMembersData"
-          :engagement="engagementData"
           :check-in-adoption="checkInAdoptionData"
           :branch-id="selectedBranchId"
         />
@@ -720,7 +719,6 @@ import type { BranchOption } from 'src/types/member';
 import type {
   AttendanceAnalytics,
   UniqueMembersMetric,
-  EngagementAnalytics,
   CheckInAdoptionRow,
   AnalyticsFilters,
 } from 'src/types/analytics';
@@ -1070,7 +1068,6 @@ async function onExportAccess() {
 
 const attendanceData = ref<AttendanceAnalytics | null>(null);
 const uniqueMembersData = ref<UniqueMembersMetric | null>(null);
-const engagementData = ref<EngagementAnalytics | null>(null);
 const checkInAdoptionData = ref<CheckInAdoptionRow[] | null>(null);
 const loadingAttendance = ref(false);
 
@@ -1086,17 +1083,15 @@ const asistenciaFilters = computed<AnalyticsFilters>(() => ({
 async function fetchAttendanceData() {
   loadingAttendance.value = true;
   try {
-    // Unique members (D-11), engagement (D-12) and check-in adoption (D-13)
-    // are fetched alongside the base attendance analytics.
-    const [attendance, unique, engagement, adoption] = await Promise.all([
+    // Unique members (D-11) and check-in adoption (D-13) are fetched
+    // alongside the base attendance analytics.
+    const [attendance, unique, adoption] = await Promise.all([
       analyticsApi.getAttendanceAnalytics(asistenciaFilters.value),
       analyticsApi.getUniqueMembers(asistenciaFilters.value),
-      analyticsApi.getEngagement(asistenciaFilters.value),
       analyticsApi.getCheckInAdoption(asistenciaFilters.value),
     ]);
     attendanceData.value = attendance;
     uniqueMembersData.value = unique;
-    engagementData.value = engagement;
     checkInAdoptionData.value = adoption;
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido';
