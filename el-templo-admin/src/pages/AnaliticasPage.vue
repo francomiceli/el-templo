@@ -144,6 +144,9 @@
       <q-tab name="miembros" label="Miembros" icon="people" />
       <q-tab name="finanzas" label="Finanzas" icon="payments" />
       <q-tab name="programas" label="Programas" icon="school" />
+      <q-tab name="funnel" label="Funnel" icon="filter_alt" />
+      <q-tab name="retencion" label="Retención" icon="replay" />
+      <q-tab name="finanzas-avanzadas" label="Finanzas avanzadas" icon="trending_up" />
     </q-tabs>
 
     <q-tab-panels v-model="activeTab" animated>
@@ -209,6 +212,26 @@
           </div>
         </div>
       </q-tab-panel>
+
+      <!-- Funnel Tab (Phase 118) -->
+      <q-tab-panel name="funnel">
+        <FunnelTab :data="funnelData" :loading="loadingFunnel" />
+      </q-tab-panel>
+
+      <!-- Retención Tab (Phase 118) -->
+      <q-tab-panel name="retencion">
+        <RetencionTab
+          v-model:plan-category="retentionPlanCategory"
+          :data="retentionData"
+          :loading="loadingRetention"
+          @update:plan-category="onRetentionFilterChange"
+        />
+      </q-tab-panel>
+
+      <!-- Finanzas avanzadas Tab (Phase 118) -->
+      <q-tab-panel name="finanzas-avanzadas">
+        <FinanzasAvanzadasTab :data="advancedFinanceData" :loading="loadingAdvancedFinance" />
+      </q-tab-panel>
     </q-tab-panels>
   </q-page>
 </template>
@@ -223,12 +246,19 @@ import { createLogger } from 'src/utils/logger';
 import { formatPrice } from 'src/utils/format-price';
 import MiembrosTab from 'src/components/analytics/MiembrosTab.vue';
 import FinanzasTab from 'src/components/analytics/FinanzasTab.vue';
+import FunnelTab from 'src/components/analytics/FunnelTab.vue';
+import RetencionTab from 'src/components/analytics/RetencionTab.vue';
+import FinanzasAvanzadasTab from 'src/components/analytics/FinanzasAvanzadasTab.vue';
 import type {
   KpiStats,
   MemberAnalytics,
   FinancialAnalytics,
   AnalyticsFilters,
   TrendInfo,
+  FunnelAnalytics,
+  RetentionAnalytics,
+  AdvancedFinanceAnalytics,
+  RetentionPlanCategory,
 } from 'src/types/analytics';
 import type { BranchOption } from 'src/types/member';
 import type { ProgramAnalytics } from 'src/types/program';
@@ -395,6 +425,19 @@ const loadingFinancial = ref(false);
 const programAnalytics = ref<ProgramAnalytics | null>(null);
 const loadingProgramAnalytics = ref(false);
 
+// Phase 118 — funnel / retención / finanzas avanzadas
+const funnelData = ref<FunnelAnalytics | null>(null);
+const retentionData = ref<RetentionAnalytics | null>(null);
+const advancedFinanceData = ref<AdvancedFinanceAnalytics | null>(null);
+
+const loadingFunnel = ref(false);
+const loadingRetention = ref(false);
+const loadingAdvancedFinance = ref(false);
+
+// Local plan_category filter for the Retención tab (D-06). Re-fetches the
+// cohort curve server-side. Default 'todas' (no restriction).
+const retentionPlanCategory = ref<RetentionPlanCategory>('todas');
+
 // -- KPI cards -----------------------------------------------------------
 
 interface KpiCard {
@@ -500,6 +543,53 @@ async function fetchProgramAnalytics() {
   }
 }
 
+async function fetchFunnelData() {
+  loadingFunnel.value = true;
+  try {
+    funnelData.value = await analyticsApi.getFunnel(currentFilters.value);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.error('Error fetching funnel analytics', { error: message });
+    funnelData.value = null;
+  } finally {
+    loadingFunnel.value = false;
+  }
+}
+
+async function fetchRetentionData() {
+  loadingRetention.value = true;
+  try {
+    retentionData.value = await analyticsApi.getRetention({
+      ...currentFilters.value,
+      planCategory: retentionPlanCategory.value,
+    });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.error('Error fetching retention analytics', { error: message });
+    retentionData.value = null;
+  } finally {
+    loadingRetention.value = false;
+  }
+}
+
+async function fetchAdvancedFinanceData() {
+  loadingAdvancedFinance.value = true;
+  try {
+    advancedFinanceData.value = await analyticsApi.getAdvancedFinance(currentFilters.value);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.error('Error fetching advanced finance analytics', { error: message });
+    advancedFinanceData.value = null;
+  } finally {
+    loadingAdvancedFinance.value = false;
+  }
+}
+
+// Re-fetch the retention curve when the local plan_category filter changes.
+function onRetentionFilterChange() {
+  void fetchRetentionData();
+}
+
 async function fetchTabData() {
   switch (activeTab.value) {
     case 'miembros':
@@ -510,6 +600,15 @@ async function fetchTabData() {
       break;
     case 'programas':
       await fetchProgramAnalytics();
+      break;
+    case 'funnel':
+      await fetchFunnelData();
+      break;
+    case 'retencion':
+      await fetchRetentionData();
+      break;
+    case 'finanzas-avanzadas':
+      await fetchAdvancedFinanceData();
       break;
   }
 }

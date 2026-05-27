@@ -16,6 +16,9 @@ import type {
   UniqueMembersMetric,
   CheckInAdoptionRow,
   EngagementAnalytics,
+  FunnelAnalytics,
+  RetentionAnalytics,
+  AdvancedFinanceAnalytics,
 } from 'src/types/analytics';
 
 function buildParams(filters: AnalyticsFilters): Record<string, unknown> {
@@ -24,6 +27,7 @@ function buildParams(filters: AnalyticsFilters): Record<string, unknown> {
   if (filters.country !== undefined) params.country = filters.country;
   if (filters.dateFrom !== undefined) params.dateFrom = filters.dateFrom;
   if (filters.dateTo !== undefined) params.dateTo = filters.dateTo;
+  if (filters.planCategory !== undefined) params.planCategory = filters.planCategory;
   return params;
 }
 
@@ -151,6 +155,59 @@ export function useAnalyticsApi() {
     }
   }
 
+  // -- Phase 118 new endpoints (Plans 02/03/04) --------------------------
+
+  async function getFunnel(filters: AnalyticsFilters = {}): Promise<FunnelAnalytics> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<FunnelAnalytics>('/admin/analytics/funnel', {
+        params: buildParams(filters),
+      });
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cargando funnel de conversion');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function getRetention(filters: AnalyticsFilters = {}): Promise<RetentionAnalytics> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<RetentionAnalytics>('/admin/analytics/retention', {
+        params: buildParams(filters),
+      });
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cargando retencion por ciclos');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function getAdvancedFinance(
+    filters: AnalyticsFilters = {}
+  ): Promise<AdvancedFinanceAnalytics> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<AdvancedFinanceAnalytics>(
+        '/admin/analytics/advanced-finance',
+        { params: buildParams(filters) }
+      );
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cargando finanzas avanzadas');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   function cleanup() {
     loading.value = false;
     error.value = null;
@@ -166,6 +223,9 @@ export function useAnalyticsApi() {
     getUniqueMembers,
     getCheckInAdoption,
     getEngagement,
+    getFunnel,
+    getRetention,
+    getAdvancedFinance,
     cleanup,
   };
 }

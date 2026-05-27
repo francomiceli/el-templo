@@ -227,6 +227,122 @@ export interface FinancialAnalytics {
   outstandingByCurrency: OutstandingByCurrency;
 }
 
+// -- Funnel (Phase 118 D-01/D-03) ----------------------------------------
+
+/**
+ * A single conversion-funnel cohort (Phase 118 D-03). `cohortMonth` is the
+ * month (`YYYY-MM`) of `users.created_at`. `size` is the cohort size in scope.
+ * `toPruebaPct` / `toActivoPct` are 0..100 percentages. Median fields are whole
+ * days, computed ONLY over the users who reached that stage, and are `null`
+ * (never NaN) when no user reached it (T-118-12).
+ *
+ * CAVEAT (D-01): precise `prueba`/`activo` transitions are forward-only since
+ * 2026-05-26; older cohorts are approximated (the `activo` stage falls back to
+ * `MIN(subscriptions.created_at)`). The FunnelTab surfaces a permanent ramp-up
+ * caveat banner.
+ */
+export interface FunnelCohort {
+  cohortMonth: string; // YYYY-MM
+  size: number;
+  toPruebaPct: number;
+  toActivoPct: number;
+  medianDaysFreemiumToPrueba: number | null;
+  medianDaysPruebaToActivo: number | null;
+}
+
+/**
+ * GET /admin/analytics/funnel response (Phase 118 D-01/D-03). `cohorts` is
+ * sorted ascending by `cohortMonth`.
+ */
+export interface FunnelAnalytics {
+  cohorts: FunnelCohort[];
+}
+
+// -- Retención por ciclos (Phase 118 D-04/D-05/D-06) ---------------------
+
+/**
+ * Plan-category filter for the retention curve (Phase 118 D-06). `todas` means
+ * no plan-category restriction; the four concrete values mirror the backend
+ * `plan_category` enum.
+ */
+export type RetentionPlanCategory =
+  | 'presencial'
+  | 'online_regular'
+  | 'online_goal'
+  | 'online_coach'
+  | 'todas';
+
+/**
+ * A single retention cohort (Phase 118 D-06). `cohort` is the month (`YYYY-MM`)
+ * of the member's FIRST active subscription. `cycleRetention[i]` is the
+ * percentage (0..100) of the cohort that reached AT LEAST cycle `i+1`
+ * (`cycleRetention[0]` is always 100). A consecutive cycle counts iff
+ * `next.startDate − prev.endDate ≤ 30` days (D-04); a larger gap ENDS the
+ * streak (D-05).
+ */
+export interface RetentionCohort {
+  cohort: string; // YYYY-MM
+  size: number;
+  /** % reaching at least cycle N, index 0 = cycle 1 (always 100). */
+  cycleRetention: number[];
+}
+
+/**
+ * Distribution of completed consecutive cycles among CURRENTLY ACTIVE members
+ * (Phase 118 D-06). "Active" is the canonical `activeMemberExists` predicate.
+ */
+export interface CycleDistribution {
+  ciclo1: number;
+  ciclo2: number;
+  ciclo3plus: number;
+}
+
+/**
+ * GET /admin/analytics/retention response (Phase 118 D-06). `cohorts` is sorted
+ * ascending by `cohort` month. `maxCycle` is the longest cycle index present
+ * across cohorts (drives the X-axis length). `invalidWindowSubs` counts subs
+ * skipped for defensive reasons (null start/end or end<start) so the frontend
+ * can surface a caveat.
+ */
+export interface RetentionAnalytics {
+  cohorts: RetentionCohort[];
+  maxCycle: number;
+  cycleDistribution: CycleDistribution;
+  invalidWindowSubs: number;
+}
+
+// -- Finanzas avanzadas: Caja vs Devengado + ARPU (Phase 118 D-07/D-08) ---
+
+/**
+ * A single month point split per currency (ARS/EUR NEVER summed).
+ */
+export interface AdvancedFinancePoint {
+  month: string; // YYYY-MM
+  ARS: number;
+  EUR: number;
+}
+
+/**
+ * GET /admin/analytics/advanced-finance response (Phase 118 D-07/D-08). All
+ * three series are split per currency and sorted ascending by `month`.
+ *
+ *   - `cashTrend` (CAJA): canonical cash-basis revenue per month.
+ *   - `accruedTrend` (DEVENGADO): `price_paid` prorated over each sub's
+ *     effective window and distributed across the months it touches.
+ *   - `arpu`: `accruedTrend[month] ÷ activos` per currency (activeMemberExists
+ *     denominator; 0 activos → ARPU 0).
+ *
+ * `excludedInvalidWindow` counts subscriptions skipped from the accrual because
+ * their window was invalid (null start/end, end<start, or zero-day) so the
+ * frontend can surface a caveat — these never divided by zero.
+ */
+export interface AdvancedFinanceAnalytics {
+  cashTrend: AdvancedFinancePoint[];
+  accruedTrend: AdvancedFinancePoint[];
+  arpu: AdvancedFinancePoint[];
+  excludedInvalidWindow: number;
+}
+
 // -- Filter params -------------------------------------------------------
 
 export interface AnalyticsFilters {
@@ -234,4 +350,9 @@ export interface AnalyticsFilters {
   country?: 'AR' | 'ES';
   dateFrom?: string; // YYYY-MM-DD
   dateTo?: string; // YYYY-MM-DD
+  /**
+   * Plan-category restriction (Phase 118 D-06, retention only). When absent or
+   * `todas`, no plan-category filter is applied. Ignored by other metrics.
+   */
+  planCategory?: RetentionPlanCategory;
 }
