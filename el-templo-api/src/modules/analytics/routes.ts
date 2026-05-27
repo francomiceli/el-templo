@@ -27,7 +27,7 @@ import {
   advancedFinanceSchema,
   funnelSchema,
 } from "./schemas";
-import type { RetentionPlanCategory } from "./types";
+import type { FunnelEntryOrigin, RetentionPlanCategory } from "./types";
 
 import {
   ADMIN_ROLES,
@@ -290,13 +290,14 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
 
   // GET /retention — retención por cohortes de ciclos de plan (Phase 118
   // D-04/D-05/D-06). SENSIBLE → ADMIN_ROLES-only vía requireAdminAnalytics (D-11);
-  // gestion recibe 403. Filtrable por plan_category. Scoped por sede/país.
+  // gestion recibe 403. Filtrable por plan_category y duración. Scoped por sede/país.
   fastify.get<{
     Querystring: {
       branchId?: number;
       dateFrom?: string;
       dateTo?: string;
       planCategory?: RetentionPlanCategory;
+      durationDays?: number;
     };
   }>(
     "/retention",
@@ -315,6 +316,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
           dateFrom: request.query.dateFrom,
           dateTo: request.query.dateTo,
           planCategory: request.query.planCategory,
+          durationDays: request.query.durationDays,
         };
         const result = await retentionService.getRetention(filters);
         return result;
@@ -358,7 +360,12 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
   // (Phase 118 D-01/D-03). SENSIBLE → ADMIN_ROLES-only vía requireAdminAnalytics
   // (D-11); gestion recibe 403. Scoped por sede/país (users.branchId).
   fastify.get<{
-    Querystring: { branchId?: number; dateFrom?: string; dateTo?: string };
+    Querystring: {
+      branchId?: number;
+      dateFrom?: string;
+      dateTo?: string;
+      entryOrigin?: FunnelEntryOrigin;
+    };
   }>(
     "/funnel",
     {
@@ -375,6 +382,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
           country: request.scope.country ?? undefined,
           dateFrom: request.query.dateFrom,
           dateTo: request.query.dateTo,
+          entryOrigin: request.query.entryOrigin,
         };
         const result = await funnelService.getFunnel(filters);
         return result;

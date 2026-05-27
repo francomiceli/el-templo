@@ -146,7 +146,6 @@
       <q-tab name="programas" label="Programas" icon="school" />
       <q-tab name="funnel" label="Funnel" icon="filter_alt" />
       <q-tab name="retencion" label="Retención" icon="replay" />
-      <q-tab name="finanzas-avanzadas" label="Finanzas avanzadas" icon="trending_up" />
     </q-tabs>
 
     <q-tab-panels v-model="activeTab" animated>
@@ -159,6 +158,11 @@
           :loading="loadingFinancial"
           :currency="displayCurrency"
         />
+        <!-- Finanzas avanzadas (caja vs devengado + ARPU) — below the standard
+             financial cards in the same tab (Phase 118 follow-up). -->
+        <q-separator class="q-my-lg" />
+        <div class="text-h6 q-mb-md">Finanzas avanzadas</div>
+        <FinanzasAvanzadasTab :data="advancedFinanceData" :loading="loadingAdvancedFinance" />
       </q-tab-panel>
 
       <!-- Programas Tab -->
@@ -215,22 +219,24 @@
 
       <!-- Funnel Tab (Phase 118) -->
       <q-tab-panel name="funnel">
-        <FunnelTab :data="funnelData" :loading="loadingFunnel" />
+        <FunnelTab
+          v-model:entry-origin="funnelEntryOrigin"
+          :data="funnelData"
+          :loading="loadingFunnel"
+          @update:entry-origin="onFunnelFilterChange"
+        />
       </q-tab-panel>
 
       <!-- Retención Tab (Phase 118) -->
       <q-tab-panel name="retencion">
         <RetencionTab
           v-model:plan-category="retentionPlanCategory"
+          v-model:duration-days="retentionDurationDays"
           :data="retentionData"
           :loading="loadingRetention"
-          @update:plan-category="onRetentionFilterChange"
+          @update:plan-category="onRetentionCategoryChange"
+          @update:duration-days="onRetentionFilterChange"
         />
-      </q-tab-panel>
-
-      <!-- Finanzas avanzadas Tab (Phase 118) -->
-      <q-tab-panel name="finanzas-avanzadas">
-        <FinanzasAvanzadasTab :data="advancedFinanceData" :loading="loadingAdvancedFinance" />
       </q-tab-panel>
     </q-tab-panels>
   </q-page>
@@ -259,6 +265,7 @@ import type {
   RetentionAnalytics,
   AdvancedFinanceAnalytics,
   RetentionPlanCategory,
+  FunnelEntryOrigin,
 } from 'src/types/analytics';
 import type { BranchOption } from 'src/types/member';
 import type { ProgramAnalytics } from 'src/types/program';
@@ -438,6 +445,14 @@ const loadingAdvancedFinance = ref(false);
 // cohort curve server-side. Default 'todas' (no restriction).
 const retentionPlanCategory = ref<RetentionPlanCategory>('todas');
 
+// Local plan-duration filter for the Retención tab (follow-up). `null` = todas.
+// Built from the durations the backend reports as available in scope/category.
+const retentionDurationDays = ref<number | null>(null);
+
+// Local entry-origin segment for the Funnel tab (funnel follow-up). Re-fetches
+// the funnel server-side. Default 'all' (classic 3-stage funnel).
+const funnelEntryOrigin = ref<FunnelEntryOrigin>('all');
+
 // -- KPI cards -----------------------------------------------------------
 
 interface KpiCard {
@@ -546,7 +561,10 @@ async function fetchProgramAnalytics() {
 async function fetchFunnelData() {
   loadingFunnel.value = true;
   try {
-    funnelData.value = await analyticsApi.getFunnel(currentFilters.value);
+    funnelData.value = await analyticsApi.getFunnel({
+      ...currentFilters.value,
+      entryOrigin: funnelEntryOrigin.value,
+    });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido';
     log.error('Error fetching funnel analytics', { error: message });
@@ -562,6 +580,7 @@ async function fetchRetentionData() {
     retentionData.value = await analyticsApi.getRetention({
       ...currentFilters.value,
       planCategory: retentionPlanCategory.value,
+      durationDays: retentionDurationDays.value ?? undefined,
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido';
@@ -585,9 +604,21 @@ async function fetchAdvancedFinanceData() {
   }
 }
 
-// Re-fetch the retention curve when the local plan_category filter changes.
+// Re-fetch the retention curve when a local filter changes.
 function onRetentionFilterChange() {
   void fetchRetentionData();
+}
+
+// Changing the category can change which durations exist → reset the duration
+// filter to "todas" so we never keep an orphan duration not in the new set.
+function onRetentionCategoryChange() {
+  retentionDurationDays.value = null;
+  void fetchRetentionData();
+}
+
+// Re-fetch the funnel when the local entry-origin segment changes.
+function onFunnelFilterChange() {
+  void fetchFunnelData();
 }
 
 async function fetchTabData() {
@@ -596,7 +627,8 @@ async function fetchTabData() {
       await fetchMemberData();
       break;
     case 'finanzas':
-      await fetchFinancialData();
+      // Finanzas avanzadas now lives in the Finanzas tab → fetch both.
+      await Promise.all([fetchFinancialData(), fetchAdvancedFinanceData()]);
       break;
     case 'programas':
       await fetchProgramAnalytics();
@@ -606,9 +638,6 @@ async function fetchTabData() {
       break;
     case 'retencion':
       await fetchRetentionData();
-      break;
-    case 'finanzas-avanzadas':
-      await fetchAdvancedFinanceData();
       break;
   }
 }

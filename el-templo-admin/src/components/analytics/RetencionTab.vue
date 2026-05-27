@@ -8,8 +8,8 @@
     suscripción, no los ciclos intermedios. La curva es 100% confiable solo para cohortes nuevas.
   </q-banner>
 
-  <!-- plan_category filter (D-06) -->
-  <div class="row q-mb-md">
+  <!-- plan_category (D-06) + duration filters -->
+  <div class="row q-col-gutter-md q-mb-md">
     <div class="col-12 col-sm-4">
       <q-select
         :model-value="props.planCategory"
@@ -20,6 +20,18 @@
         emit-value
         map-options
         @update:model-value="onPlanCategoryChange"
+      />
+    </div>
+    <div class="col-12 col-sm-4">
+      <q-select
+        :model-value="props.durationDays"
+        :options="durationOptions"
+        label="Duración del plan"
+        dense
+        outlined
+        emit-value
+        map-options
+        @update:model-value="onDurationChange"
       />
     </div>
   </div>
@@ -95,10 +107,12 @@ const props = defineProps<{
   data: RetentionAnalytics | null;
   loading: boolean;
   planCategory: RetentionPlanCategory;
+  durationDays: number | null;
 }>();
 
 const emit = defineEmits<{
   'update:planCategory': [value: RetentionPlanCategory];
+  'update:durationDays': [value: number | null];
 }>();
 
 const planCategoryOptions: Array<{ label: string; value: RetentionPlanCategory }> = [
@@ -111,6 +125,21 @@ const planCategoryOptions: Array<{ label: string; value: RetentionPlanCategory }
 
 function onPlanCategoryChange(value: RetentionPlanCategory): void {
   emit('update:planCategory', value);
+}
+
+// Duration options are built from the durations the backend reports as present
+// in the current scope/category (`null` = todas). Stays in sync as the category
+// filter changes the available set.
+const durationOptions = computed<Array<{ label: string; value: number | null }>>(() => {
+  const opts: Array<{ label: string; value: number | null }> = [{ label: 'Todas', value: null }];
+  for (const d of props.data?.availableDurations ?? []) {
+    opts.push({ label: `${d} días`, value: d });
+  }
+  return opts;
+});
+
+function onDurationChange(value: number | null): void {
+  emit('update:durationDays', value);
 }
 
 // -- Retention curve (multi-cohort, X = ciclo N) -------------------------

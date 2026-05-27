@@ -255,16 +255,37 @@ export interface CycleDistribution {
  * (so the frontend knows how many X-axis points to render). `cycleDistribution`
  * is the maturity snapshot over active members. `invalidWindowSubs` counts subs
  * skipped for defensive reasons (null start/end or end<start) so the frontend
- * can surface a caveat.
+ * can surface a caveat. `availableDurations` lists the distinct plan durations
+ * (whole days, sorted asc) present in the current scope/category — the frontend
+ * builds the duration filter options from it (Phase 118 follow-up).
  */
 export interface RetentionAnalytics {
   cohorts: RetentionCohort[];
   maxCycle: number;
   cycleDistribution: CycleDistribution;
   invalidWindowSubs: number;
+  availableDurations: number[];
 }
 
 // -- Conversion funnel freemium → prueba → activo (Phase 118 D-01/D-03) ---
+
+/**
+ * Funnel entry-origin segment (Phase 118 follow-up). Discriminates trials by the
+ * `from_status` of their EARLIEST `prueba` transition in `user_status_history`:
+ *
+ *   - `all`: no segmentation — the classic 3-stage cohort funnel
+ *     `freemium → prueba → activo` over every user created in the cohort month.
+ *   - `directo`: trials created directly as `prueba` (`from_status = NULL`) — the
+ *     Meta-ads / WhatsApp / walk-in channel. Returns a 2-stage `prueba → activo`
+ *     funnel (`toPruebaPct` is 100 by construction; the freemium stage is N/A).
+ *   - `freemium`: trials that converted from a freemium account
+ *     (`from_status = 'freemium'`). Same 2-stage `prueba → activo` shape.
+ *
+ * `directo`/`freemium` only classify users that have a `prueba` transition, so —
+ * like the rest of the funnel — they are precise forward-only since the Plan 01
+ * hooks (2026-05-26). Users without a `prueba` row appear only in `all`.
+ */
+export type FunnelEntryOrigin = "all" | "directo" | "freemium";
 
 /**
  * A single funnel cohort (Phase 118 D-03). `cohortMonth` is the month
@@ -306,6 +327,12 @@ export interface FunnelCohort {
  */
 export interface FunnelAnalytics {
   cohorts: FunnelCohort[];
+  /**
+   * Echoes the requested segment so the frontend renders the right shape:
+   * `all` → 3-stage (freemium → prueba → activo); `directo`/`freemium` →
+   * 2-stage (prueba → activo).
+   */
+  entryOrigin: FunnelEntryOrigin;
 }
 
 // -- Advanced Finance: Caja vs Devengado + ARPU (Phase 118 D-07/D-08) -----
@@ -394,4 +421,20 @@ export interface AnalyticsFilters {
    * support it.
    */
   planCategory?: RetentionPlanCategory;
+  /**
+   * Plan-duration restriction in whole days (Phase 118 follow-up, retention
+   * only). Exact match on `subscription_plans.duration_days`. When absent, no
+   * duration filter is applied. Lets the retention curve be read per plan length
+   * (a "cycle 2" on a 30-day plan ≠ a "cycle 2" on a 240-day plan). Ignored by
+   * metrics that do not support it.
+   */
+  durationDays?: number;
+  /**
+   * Funnel entry-origin segment (Phase 118 follow-up, funnel only). Attributes
+   * conversions by the path the trial came from. When absent or `all`, the
+   * classic 3-stage cohort funnel is returned; `directo` / `freemium` return a
+   * 2-stage `prueba → activo` funnel restricted to trials of that origin.
+   * Ignored by metrics that do not support it.
+   */
+  entryOrigin?: FunnelEntryOrigin;
 }

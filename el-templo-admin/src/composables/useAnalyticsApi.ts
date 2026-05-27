@@ -28,6 +28,8 @@ function buildParams(filters: AnalyticsFilters): Record<string, unknown> {
   if (filters.dateFrom !== undefined) params.dateFrom = filters.dateFrom;
   if (filters.dateTo !== undefined) params.dateTo = filters.dateTo;
   if (filters.planCategory !== undefined) params.planCategory = filters.planCategory;
+  if (filters.durationDays !== undefined) params.durationDays = filters.durationDays;
+  if (filters.entryOrigin !== undefined) params.entryOrigin = filters.entryOrigin;
   return params;
 }
 

@@ -304,6 +304,111 @@ describe("FunnelService (Phase 118 Plan 04)", () => {
   });
 
   // ═══════════════════════════════════════════════════════════════════════
+  // Entry-origin segmentation (funnel follow-up) — attribute conversions by
+  // the path the trial came from: directo (prueba creada directa, from=NULL,
+  // canal Meta ads/WhatsApp) vs freemium (freemium → prueba). Each segment is
+  // a 2-stage prueba → activo funnel.
+  // ═══════════════════════════════════════════════════════════════════════
+
+  describe("entry-origin segmentation", () => {
+    /**
+     * One cohort (2026-03) mixing every origin:
+     *   d1: null → prueba → activo        [directo, converted]
+     *   d2: null → prueba                 [directo, not converted]
+     *   f1: freemium → prueba → activo    [freemium, converted]
+     *   f2: freemium → prueba             [freemium, not converted]
+     *   s1: only a sub, no prueba row     [unclassifiable → only in `all`]
+     *   o1: inactivo → prueba (rebound)   ['otro' → only in `all`]
+     */
+    async function seedMixedCohort() {
+      const d1 = await createMember(
+        "eo-d1@test.com",
+        "94090001",
+        "2026-03-01T10:00:00Z",
+      );
+      await addTransition(d1, null, "prueba", "2026-03-01T10:00:00Z");
+      await addTransition(d1, "prueba", "activo", "2026-03-08T10:00:00Z"); // +7d
+
+      const d2 = await createMember(
+        "eo-d2@test.com",
+        "94090002",
+        "2026-03-02T10:00:00Z",
+      );
+      await addTransition(d2, null, "prueba", "2026-03-02T10:00:00Z");
+
+      const f1 = await createMember(
+        "eo-f1@test.com",
+        "94090003",
+        "2026-03-03T10:00:00Z",
+      );
+      await addTransition(f1, "freemium", "prueba", "2026-03-13T10:00:00Z");
+      await addTransition(f1, "prueba", "activo", "2026-03-16T10:00:00Z"); // +3d
+
+      const f2 = await createMember(
+        "eo-f2@test.com",
+        "94090004",
+        "2026-03-04T10:00:00Z",
+      );
+      await addTransition(f2, "freemium", "prueba", "2026-03-09T10:00:00Z");
+
+      const s1 = await createMember(
+        "eo-s1@test.com",
+        "94090005",
+        "2026-03-05T10:00:00Z",
+      );
+      await addSub(s1, "2026-03-20T10:00:00Z");
+
+      const o1 = await createMember(
+        "eo-o1@test.com",
+        "94090006",
+        "2026-03-06T10:00:00Z",
+      );
+      await addTransition(o1, "inactivo", "prueba", "2026-03-10T10:00:00Z");
+    }
+
+    it("all (default) includes every origin in the cohort", async () => {
+      await seedMixedCohort();
+      const res = await svc.getFunnel({});
+      expect(res.entryOrigin).toBe("all");
+      const mar = res.cohorts.find((c) => c.cohortMonth === "2026-03");
+      expect(mar!.size).toBe(6);
+    });
+
+    it("directo keeps only trials created directly as prueba (from=NULL)", async () => {
+      await seedMixedCohort();
+      const res = await svc.getFunnel({ entryOrigin: "directo" });
+      expect(res.entryOrigin).toBe("directo");
+      const mar = res.cohorts.find((c) => c.cohortMonth === "2026-03");
+      expect(mar!.size).toBe(2); // d1, d2 only (s1/o1/freemium excluded)
+      expect(mar!.toPruebaPct).toBe(100); // all are prueba by construction
+      expect(mar!.toActivoPct).toBe(50); // only d1 converted
+      expect(mar!.medianDaysPruebaToActivo).toBe(7); // d1: +7d
+    });
+
+    it("freemium keeps only trials converted from a freemium account", async () => {
+      await seedMixedCohort();
+      const res = await svc.getFunnel({ entryOrigin: "freemium" });
+      expect(res.entryOrigin).toBe("freemium");
+      const mar = res.cohorts.find((c) => c.cohortMonth === "2026-03");
+      expect(mar!.size).toBe(2); // f1, f2 only
+      expect(mar!.toActivoPct).toBe(50); // only f1 converted
+      expect(mar!.medianDaysPruebaToActivo).toBe(3); // f1: +3d
+    });
+
+    it("segments never mix: directo + freemium sizes sum to less than `all`", async () => {
+      await seedMixedCohort();
+      const all = await svc.getFunnel({});
+      const directo = await svc.getFunnel({ entryOrigin: "directo" });
+      const freemium = await svc.getFunnel({ entryOrigin: "freemium" });
+      const sz = (r: { cohorts: { cohortMonth: string; size: number }[] }) =>
+        r.cohorts.find((c) => c.cohortMonth === "2026-03")?.size ?? 0;
+      // s1 (no prueba) + o1 (otro) live only in `all`.
+      expect(sz(all)).toBe(6);
+      expect(sz(directo) + sz(freemium)).toBe(4);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════
   // Scope (D-11 / T-118-11)
   // ═══════════════════════════════════════════════════════════════════════
 
@@ -400,6 +505,28 @@ describe("FunnelService (Phase 118 Plan 04)", () => {
       );
       expect(jan).toBeDefined();
       expect(jan.toPruebaPct).toBe(100);
+    });
+
+    it("echoes the entryOrigin segment from the querystring", async () => {
+      const u = await createMember(
+        "e-seg@test.com",
+        "94081001",
+        "2026-01-02T10:00:00Z",
+      );
+      await addTransition(u, null, "prueba", "2026-01-02T10:00:00Z");
+
+      const res = await app.inject({
+        method: "GET",
+        url: `${ANALYTICS_URL}/funnel?entryOrigin=directo`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.entryOrigin).toBe("directo");
+      const jan = body.cohorts.find(
+        (c: { cohortMonth: string }) => c.cohortMonth === "2026-01",
+      );
+      expect(jan.size).toBe(1);
     });
 
     it("AR admin is denied (403) querying an ES sede; allowed on AR (T-118-11)", async () => {

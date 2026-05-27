@@ -39,7 +39,12 @@ import { and, eq, sql, type SQL } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { applyScope } from "./scope";
-import type { AnalyticsFilters, FunnelAnalytics, FunnelCohort } from "./types";
+import type {
+  AnalyticsFilters,
+  FunnelAnalytics,
+  FunnelCohort,
+  FunnelEntryOrigin,
+} from "./types";
 
 /** A user reduced to what the funnel algorithm needs. */
 interface UserRow {
@@ -105,6 +110,12 @@ export class FunnelService {
    * days per stage. Guards: cohort with no converters → 0% and `null` median.
    */
   async getFunnel(filters: AnalyticsFilters): Promise<FunnelAnalytics> {
+    // Entry-origin segment (funnel follow-up). `all` = classic 3-stage funnel
+    // over the whole cohort; `directo`/`freemium` restrict the cohort to trials
+    // of that origin (the `from_status` of the earliest `prueba` transition) and
+    // read as a 2-stage prueba → activo funnel.
+    const entryOrigin: FunnelEntryOrigin = filters.entryOrigin ?? "all";
+
     const { conditions: scopeConditions, needsBranchJoin } = applyScope({
       branchId: filters.branchId,
       country: filters.country,
@@ -135,19 +146,23 @@ export class FunnelService {
     );
 
     if (userRows.length === 0) {
-      return { cohorts: [] };
+      return { cohorts: [], entryOrigin };
     }
 
     const userIds = userRows.map((u) => u.userId);
 
     // ── prueba / activo transitions from user_status_history ───────────────
-    // Earliest transition per (user, target stage). Forward-only precise data
-    // since the Plan 01 hooks (D-01). Older cohorts simply have no row.
+    // All prueba/activo rows for the in-scope users; we reduce to the EARLIEST
+    // per (user, stage) in JS so we can also keep the `from_status` of the first
+    // prueba transition (the entry-origin discriminator — not recoverable from a
+    // MIN(changed_at) GROUP BY). Forward-only precise data since the Plan 01
+    // hooks (D-01); older cohorts simply have no row.
     const historyRows = await this.db
       .select({
         userId: schema.userStatusHistory.userId,
+        fromStatus: schema.userStatusHistory.fromStatus,
         toStatus: schema.userStatusHistory.toStatus,
-        changedAt: sql<string>`MIN(${schema.userStatusHistory.changedAt})`,
+        changedAt: sql<string>`${schema.userStatusHistory.changedAt}`,
       })
       .from(schema.userStatusHistory)
       .where(
@@ -159,19 +174,36 @@ export class FunnelService {
             sql`, `,
           )})`,
         ),
-      )
-      .groupBy(
-        schema.userStatusHistory.userId,
-        schema.userStatusHistory.toStatus,
       );
 
     const pruebaAt = new Map<number, number>();
     const activoFromHistory = new Map<number, number>();
+    // Origin of the EARLIEST prueba transition per user: from_status NULL →
+    // 'directo' (created as prueba), 'freemium' → 'freemium' (converted lead),
+    // anything else (e.g. inactivo → prueba rebound) → 'otro' (matches neither
+    // segment). Used only when entryOrigin !== 'all'.
+    const pruebaOrigin = new Map<number, FunnelEntryOrigin | "otro">();
     for (const r of historyRows) {
       if (r.changedAt === null) continue;
       const ms = toMs(r.changedAt);
-      if (r.toStatus === "prueba") pruebaAt.set(r.userId, ms);
-      else if (r.toStatus === "activo") activoFromHistory.set(r.userId, ms);
+      if (r.toStatus === "prueba") {
+        const prev = pruebaAt.get(r.userId);
+        if (prev === undefined || ms < prev) {
+          pruebaAt.set(r.userId, ms);
+          pruebaOrigin.set(
+            r.userId,
+            r.fromStatus === null
+              ? "directo"
+              : r.fromStatus === "freemium"
+                ? "freemium"
+                : "otro",
+          );
+        }
+      } else if (r.toStatus === "activo") {
+        const prev = activoFromHistory.get(r.userId);
+        if (prev === undefined || ms < prev)
+          activoFromHistory.set(r.userId, ms);
+      }
     }
 
     // ── activo historical approximation: MIN(subscriptions.created_at) ─────
@@ -232,6 +264,14 @@ export class FunnelService {
       const stages = stagesByUser.get(u.userId);
       if (stages === undefined) continue;
 
+      // Entry-origin segmentation: keep only trials whose earliest prueba came
+      // from the requested origin. Users without a prueba transition (no entry
+      // in pruebaOrigin) and 'otro' rebounds are excluded from segmented views —
+      // they appear only in `all`.
+      if (entryOrigin !== "all" && pruebaOrigin.get(u.userId) !== entryOrigin) {
+        continue;
+      }
+
       let acc = cohortMap.get(u.cohort);
       if (acc === undefined) {
         acc = {
@@ -278,6 +318,6 @@ export class FunnelService {
         medianDaysPruebaToActivo: median(acc.daysPruebaToActivo),
       }));
 
-    return { cohorts };
+    return { cohorts, entryOrigin };
   }
 }

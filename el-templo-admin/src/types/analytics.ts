@@ -251,11 +251,23 @@ export interface FunnelCohort {
 }
 
 /**
+ * Funnel entry-origin segment (funnel follow-up). Attributes conversions by the
+ * path the trial came from:
+ *   - `all`: classic 3-stage cohort funnel freemium → prueba → activo.
+ *   - `directo`: trials created directly as prueba (Meta ads / WhatsApp / walk-in).
+ *   - `freemium`: trials that converted from a freemium account.
+ * `directo`/`freemium` read as a 2-stage prueba → activo funnel.
+ */
+export type FunnelEntryOrigin = 'all' | 'directo' | 'freemium';
+
+/**
  * GET /admin/analytics/funnel response (Phase 118 D-01/D-03). `cohorts` is
- * sorted ascending by `cohortMonth`.
+ * sorted ascending by `cohortMonth`. `entryOrigin` echoes the requested segment
+ * so the chart renders the right shape (3-stage for `all`, 2-stage otherwise).
  */
 export interface FunnelAnalytics {
   cohorts: FunnelCohort[];
+  entryOrigin: FunnelEntryOrigin;
 }
 
 // -- Retención por ciclos (Phase 118 D-04/D-05/D-06) ---------------------
@@ -302,13 +314,16 @@ export interface CycleDistribution {
  * ascending by `cohort` month. `maxCycle` is the longest cycle index present
  * across cohorts (drives the X-axis length). `invalidWindowSubs` counts subs
  * skipped for defensive reasons (null start/end or end<start) so the frontend
- * can surface a caveat.
+ * can surface a caveat. `availableDurations` lists the distinct plan durations
+ * (whole days, sorted asc) present in the current scope/category — the duration
+ * filter options are built from it.
  */
 export interface RetentionAnalytics {
   cohorts: RetentionCohort[];
   maxCycle: number;
   cycleDistribution: CycleDistribution;
   invalidWindowSubs: number;
+  availableDurations: number[];
 }
 
 // -- Finanzas avanzadas: Caja vs Devengado + ARPU (Phase 118 D-07/D-08) ---
@@ -355,4 +370,15 @@ export interface AnalyticsFilters {
    * `todas`, no plan-category filter is applied. Ignored by other metrics.
    */
   planCategory?: RetentionPlanCategory;
+  /**
+   * Plan-duration restriction in whole days (retention only). Exact match on the
+   * plan's duration. When absent, no duration filter is applied. Ignored by other
+   * metrics.
+   */
+  durationDays?: number;
+  /**
+   * Funnel entry-origin segment (funnel follow-up, funnel only). When absent or
+   * `all`, the classic 3-stage funnel is returned. Ignored by other metrics.
+   */
+  entryOrigin?: FunnelEntryOrigin;
 }

@@ -98,12 +98,21 @@ export class RetentionService {
 
     const conditions: SQL[] = [...scopeConditions];
 
-    // plan_category filter (D-06). `todas` / undefined → no restriction.
-    const needsPlanJoin =
+    // plan_category (D-06) + plan-duration (follow-up) filters. Both restrict via
+    // the subscription_plans join. `todas` / undefined → no category restriction;
+    // undefined durationDays → no duration restriction.
+    const hasCategoryFilter =
       filters.planCategory !== undefined && filters.planCategory !== "todas";
-    if (needsPlanJoin) {
+    const hasDurationFilter = filters.durationDays !== undefined;
+    const needsPlanJoin = hasCategoryFilter || hasDurationFilter;
+    if (hasCategoryFilter) {
       conditions.push(
         sql`${schema.subscriptionPlans.planCategory} = ${filters.planCategory}`,
+      );
+    }
+    if (hasDurationFilter) {
+      conditions.push(
+        sql`${schema.subscriptionPlans.durationDays} = ${filters.durationDays}`,
       );
     }
 
@@ -204,8 +213,67 @@ export class RetentionService {
       });
 
     const cycleDistribution = await this.cycleDistribution(filters);
+    const availableDurations = await this.availableDurations(filters);
 
-    return { cohorts, maxCycle, cycleDistribution, invalidWindowSubs };
+    return {
+      cohorts,
+      maxCycle,
+      cycleDistribution,
+      invalidWindowSubs,
+      availableDurations,
+    };
+  }
+
+  /**
+   * Distinct plan durations (whole days, sorted asc) present among the scoped
+   * subscriptions — the frontend builds the duration filter options from this.
+   * Honors scope + plan_category but NOT the duration filter itself, so the
+   * dropdown always lists every duration available for the current scope/category
+   * (changing the duration selection never shrinks the option list).
+   */
+  private async availableDurations(
+    filters: AnalyticsFilters,
+  ): Promise<number[]> {
+    const { conditions: scopeConditions, needsBranchJoin } = applyScope({
+      branchId: filters.branchId,
+      country: filters.country,
+      branchColumn: schema.subscriptions.branchId,
+    });
+
+    const conditions: SQL[] = [...scopeConditions];
+    if (
+      filters.planCategory !== undefined &&
+      filters.planCategory !== "todas"
+    ) {
+      conditions.push(
+        sql`${schema.subscriptionPlans.planCategory} = ${filters.planCategory}`,
+      );
+    }
+
+    let query = this.db
+      .selectDistinct({ durationDays: schema.subscriptionPlans.durationDays })
+      .from(schema.subscriptions)
+      .innerJoin(
+        schema.subscriptionPlans,
+        eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
+      )
+      .$dynamic();
+
+    if (needsBranchJoin) {
+      query = query.innerJoin(
+        schema.branches,
+        eq(schema.branches.id, schema.subscriptions.branchId),
+      );
+    }
+
+    const rows = await query.where(
+      conditions.length > 0 ? and(...conditions) : undefined,
+    );
+
+    return rows
+      .map((r) => r.durationDays)
+      .filter((d): d is number => d !== null)
+      .sort((a, b) => a - b);
   }
 
   /**
@@ -256,11 +324,18 @@ export class RetentionService {
       ...scopeConditions,
     ];
 
-    const needsPlanJoin =
+    const hasCategoryFilter =
       filters.planCategory !== undefined && filters.planCategory !== "todas";
-    if (needsPlanJoin) {
+    const hasDurationFilter = filters.durationDays !== undefined;
+    const needsPlanJoin = hasCategoryFilter || hasDurationFilter;
+    if (hasCategoryFilter) {
       conditions.push(
         sql`${schema.subscriptionPlans.planCategory} = ${filters.planCategory}`,
+      );
+    }
+    if (hasDurationFilter) {
+      conditions.push(
+        sql`${schema.subscriptionPlans.durationDays} = ${filters.durationDays}`,
       );
     }
 

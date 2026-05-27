@@ -303,7 +303,8 @@ export const engagementSchema = {
 // =============================================================================
 
 // Querystring extends the shared analytics querystring with an optional
-// plan_category filter (D-06). `todas` means no restriction.
+// plan_category filter (D-06) and an optional plan-duration filter (whole days,
+// exact match — Phase 118 follow-up). `todas` means no category restriction.
 const retentionQuerystring = {
   type: "object",
   properties: {
@@ -320,6 +321,7 @@ const retentionQuerystring = {
         "todas",
       ],
     },
+    durationDays: { type: "integer" },
   },
 } as const;
 
@@ -354,6 +356,10 @@ export const retentionSchema = {
           },
         },
         invalidWindowSubs: { type: "integer" },
+        availableDurations: {
+          type: "array",
+          items: { type: "integer" },
+        },
       },
     },
     400: errorSchema,
@@ -367,10 +373,26 @@ export const retentionSchema = {
 // Funnel Schema (Phase 118 D-01/D-03)
 // =============================================================================
 
+// Querystring extends the shared analytics querystring with an optional
+// entry-origin segment (funnel follow-up). `all` (or absent) = classic 3-stage
+// funnel; `directo`/`freemium` = 2-stage prueba → activo by trial origin.
+const funnelQuerystring = {
+  type: "object",
+  properties: {
+    branchId: { type: "integer" },
+    dateFrom: { type: "string", format: "date" },
+    dateTo: { type: "string", format: "date" },
+    entryOrigin: {
+      type: "string",
+      enum: ["all", "directo", "freemium"],
+    },
+  },
+} as const;
+
 // GET /funnel — conversion funnel freemium → prueba → activo by cohort. Medians
 // are nullable integers (null when a cohort had no converters — never NaN).
 export const funnelSchema = {
-  querystring: analyticsQuerystring,
+  querystring: funnelQuerystring,
   response: {
     200: {
       type: "object",
@@ -388,6 +410,10 @@ export const funnelSchema = {
               medianDaysPruebaToActivo: { type: ["number", "null"] },
             },
           },
+        },
+        entryOrigin: {
+          type: "string",
+          enum: ["all", "directo", "freemium"],
         },
       },
     },
