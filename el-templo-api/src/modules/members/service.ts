@@ -886,7 +886,10 @@ export class MemberService {
   }
 
   /**
-   * Update member profile fields. Does NOT allow changing email or password.
+   * Update member profile fields. Password is never changeable here. Email is
+   * write-once: it can be SET when the member has none yet (trial → alumno
+   * conversion — trials are created with email=NULL), but an email already on
+   * file stays immutable since it's the member's app login identity.
    */
   async updateMember(
     id: number,
@@ -934,6 +937,32 @@ export class MemberService {
         | "sigma"
         | "omega"
         | "spartan";
+
+    // Write-once email: only set it when the member has none yet (trial →
+    // alumno flow). Ignored silently if an email is already on file so we
+    // never repoint an existing login identity from this generic edit path.
+    if (
+      input.email !== undefined &&
+      input.email.trim() !== "" &&
+      (existing.email === null || existing.email === "")
+    ) {
+      const email = input.email.trim();
+      const [emailClash] = await this.db
+        .select({ id: schema.users.id })
+        .from(schema.users)
+        .where(
+          and(
+            eq(schema.users.email, email),
+            ne(schema.users.id, id),
+            isNull(schema.users.deletedAt),
+          ),
+        )
+        .limit(1);
+      if (emailClash) {
+        throw new ConflictError("El email ingresado ya está en uso");
+      }
+      updateData.email = email;
+    }
 
     if (Object.keys(updateData).length > 0) {
       // When the member's sede changes, cascade the destructive cleanup the

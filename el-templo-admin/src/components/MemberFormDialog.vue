@@ -296,12 +296,12 @@
               <div class="col-12 col-sm-6">
                 <q-input
                   v-model="form.email"
-                  label="Email *"
+                  label="Email"
                   type="email"
                   dense
                   outlined
-                  :disable="member?.status !== 'prueba'"
-                  :rules="[requiredRule('Email'), emailRule]"
+                  :disable="member?.status !== 'prueba' && !!member?.email"
+                  :rules="[emailRule]"
                 />
               </div>
               <div class="col-12 col-sm-6">
@@ -772,7 +772,7 @@ watch(
       form.value = {
         firstName: props.member.firstName ?? '',
         lastName: props.member.lastName ?? '',
-        email: props.member.email,
+        email: props.member.email ?? '',
         phone: props.member.phone ?? '',
         dni: props.member.dni ?? '',
         branchId: props.member.branchId,
@@ -908,6 +908,9 @@ async function onSubmit() {
   try {
     if (isEditMode.value && props.member) {
       const updatePayload: UpdateMemberInput = {
+        // Only sent when set: the backend honors it solely for members
+        // without an email yet (trial → alumno) and ignores it otherwise.
+        email: form.value.email || undefined,
         firstName: form.value.firstName,
         lastName: form.value.lastName,
         phone: form.value.phone || null,

@@ -926,6 +926,12 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
 
         return member;
       } catch (err: unknown) {
+        if (err instanceof ConflictError) {
+          return reply
+            .code(409)
+            .send({ error: "Conflicto", message: err.message });
+        }
+
         const { isDuplicate, detail } = isDuplicateKeyError(err);
 
         if (isDuplicate) {

@@ -420,6 +420,10 @@ export const updateMemberSchema = {
     // debt/payment workflow.
     additionalProperties: false,
     properties: {
+      // Email is only honored when the member has no email on file yet
+      // (trial → alumno conversion). The service ignores it once one is set,
+      // since it's the member's app login identity. See updateMember.
+      email: { type: "string", format: "email" },
       firstName: { type: "string" },
       lastName: { type: "string" },
       phone: { type: "string" },

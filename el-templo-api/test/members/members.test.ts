@@ -709,6 +709,90 @@ describe("Members Management Routes", () => {
       expect(row?.firstName).toBe("Updated");
       expect(row?.lastName).toBe("Mailland");
     });
+
+    // Write-once email: a trial (email=NULL) can have its email set via the
+    // standard edit flow on the way to becoming an alumno.
+    it("sets the email when the member has none yet (trial → alumno)", async () => {
+      const trialRes = await app.inject({
+        method: "POST",
+        url: "/api/admin/members/trial",
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          firstName: "Lead",
+          lastName: "SinMail",
+          phone: "+5491166660001",
+          branchId: 1,
+        },
+      });
+      expect(trialRes.statusCode).toBe(201);
+      const trial = JSON.parse(trialRes.body);
+
+      const res = await app.inject({
+        method: "PUT",
+        url: `/api/admin/members/${trial.id}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { email: "nuevo-alumno@test.com" },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const [row] = await app.db
+        .select({ email: users.email })
+        .from(users)
+        .where(eq(users.id, trial.id as number));
+      expect(row?.email).toBe("nuevo-alumno@test.com");
+    });
+
+    // An email already on file is immutable — the field is the member's app
+    // login identity. The generic edit path silently ignores email changes.
+    it("ignores email change when the member already has one", async () => {
+      const member = await createMember();
+
+      const res = await app.inject({
+        method: "PUT",
+        url: `/api/admin/members/${member.id}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { email: "otro@test.com" },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const [row] = await app.db
+        .select({ email: users.email })
+        .from(users)
+        .where(eq(users.id, member.id as number));
+      expect(row?.email).toBe(getBaseMember().email);
+    });
+
+    it("returns 409 when setting an email already used by another member", async () => {
+      const member = await createMember(); // owns getBaseMember().email
+      const trialRes = await app.inject({
+        method: "POST",
+        url: "/api/admin/members/trial",
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          firstName: "Lead",
+          lastName: "Dup",
+          phone: "+5491166660002",
+          branchId: 1,
+        },
+      });
+      const trial = JSON.parse(trialRes.body);
+
+      const res = await app.inject({
+        method: "PUT",
+        url: `/api/admin/members/${trial.id}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { email: getBaseMember().email },
+      });
+
+      expect(res.statusCode).toBe(409);
+      // The trial stays without an email.
+      const [row] = await app.db
+        .select({ email: users.email })
+        .from(users)
+        .where(eq(users.id, trial.id as number));
+      expect(row?.email).toBeNull();
+      void member;
+    });
   });
 
   // =========================================================================

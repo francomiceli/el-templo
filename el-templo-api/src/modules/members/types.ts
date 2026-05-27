@@ -216,6 +216,7 @@ export interface LeadSnapshot {
 }
 
 export interface UpdateMemberInput {
+  email?: string;
   firstName?: string;
   lastName?: string;
   phone?: string;

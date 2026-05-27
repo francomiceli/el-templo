@@ -175,6 +175,7 @@ export interface CreateTrialMemberInput {
 }
 
 export interface UpdateMemberInput {
+  email?: string;
   firstName?: string;
   lastName?: string;
   phone?: string | null;
