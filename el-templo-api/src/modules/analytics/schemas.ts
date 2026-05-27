@@ -364,6 +364,41 @@ export const retentionSchema = {
 } as const;
 
 // =============================================================================
+// Funnel Schema (Phase 118 D-01/D-03)
+// =============================================================================
+
+// GET /funnel — conversion funnel freemium → prueba → activo by cohort. Medians
+// are nullable integers (null when a cohort had no converters — never NaN).
+export const funnelSchema = {
+  querystring: analyticsQuerystring,
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        cohorts: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              cohortMonth: { type: "string" },
+              size: { type: "integer" },
+              toPruebaPct: { type: "number" },
+              toActivoPct: { type: "number" },
+              medianDaysFreemiumToPrueba: { type: ["number", "null"] },
+              medianDaysPruebaToActivo: { type: ["number", "null"] },
+            },
+          },
+        },
+      },
+    },
+    400: errorSchema,
+    401: errorSchema,
+    403: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+// =============================================================================
 // Advanced Finance Schema (Phase 118 D-07/D-08)
 // =============================================================================
 

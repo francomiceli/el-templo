@@ -264,6 +264,50 @@ export interface RetentionAnalytics {
   invalidWindowSubs: number;
 }
 
+// -- Conversion funnel freemium → prueba → activo (Phase 118 D-01/D-03) ---
+
+/**
+ * A single funnel cohort (Phase 118 D-03). `cohortMonth` is the month
+ * (`YYYY-MM`) of `users.created_at` — every user created that month falls in the
+ * same cohort. `size` is the number of users in the cohort (in scope).
+ *
+ *   - `toPruebaPct`: % of the cohort that reached the `prueba` stage (a
+ *     transition to 'prueba' exists in `user_status_history`). CAVEAT (D-01):
+ *     `prueba` rows are precise ONLY forward-only since 2026-05-26 (Plan 01
+ *     hooks); older cohorts under-count. The frontend surfaces the ramp-up
+ *     caveat.
+ *   - `toActivoPct`: % of the cohort that reached `activo` — a transition to
+ *     'activo' in `user_status_history` OR, as a historical approximation
+ *     (D-01), the existence of at least one subscription
+ *     (`MIN(subscriptions.created_at)`).
+ *   - `medianDaysFreemiumToPrueba`: median whole-days from `users.created_at` to
+ *     the `prueba` transition, computed ONLY over the users who actually reached
+ *     `prueba` (not the whole cohort). `null` when no user reached `prueba`
+ *     (never NaN, T-118-12).
+ *   - `medianDaysPruebaToActivo`: median whole-days from the `prueba` transition
+ *     to the `activo` moment, computed ONLY over users who passed through BOTH
+ *     stages. `null` when no user passed through both.
+ */
+export interface FunnelCohort {
+  cohortMonth: string; // YYYY-MM
+  size: number;
+  toPruebaPct: number;
+  toActivoPct: number;
+  medianDaysFreemiumToPrueba: number | null;
+  medianDaysPruebaToActivo: number | null;
+}
+
+/**
+ * Conversion-funnel response (Phase 118 D-01/D-03). `cohorts` is sorted ascending
+ * by `cohortMonth`. The historical `activo` stage is approximated via
+ * `MIN(subscriptions.created_at)`; precise `prueba`/`activo` transitions are
+ * forward-only since 2026-05-26 — the frontend (Plan 06) shows the ramp-up
+ * caveat (D-01).
+ */
+export interface FunnelAnalytics {
+  cohorts: FunnelCohort[];
+}
+
 // -- Advanced Finance: Caja vs Devengado + ARPU (Phase 118 D-07/D-08) -----
 
 /**
