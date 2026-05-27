@@ -4,8 +4,8 @@ milestone: v3.0
 milestone_name: Landing Page
 status: executing
 stopped_at: Phase 118 UI-SPEC approved
-last_updated: "2026-05-26T23:59:53.001Z"
-last_activity: 2026-05-26
+last_updated: "2026-05-27T00:07:20.070Z"
+last_activity: 2026-05-27
 progress:
   total_phases: 16
   completed_phases: 15
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-05-04)
 ## Current Position
 
 Phase: 118 (analytics-estrat-gico-funnel-de-conversi-n-retenci-n-por-cic) — EXECUTING
-Plan: 5 of 6
+Plan: 6 of 6
 Status: Ready to execute
-Last activity: 2026-05-26
+Last activity: 2026-05-27
 
 ## Performance Metrics
 
@@ -182,6 +182,7 @@ _Updated after each plan completion_
 | Phase 118 P02 | 18min | 2 tasks | 5 files |
 | Phase 118 P05 | ~10min | 2 tasks | 2 files |
 | Phase 118 P03 | ~12min | 2 tasks | 5 files |
+| Phase 118 P04 | 5min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -445,6 +446,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: Plan 118-02: RetentionService nuevo (D-09, no toca analytics/service.ts); CONSECUTIVE_CYCLE_GAP_DAYS=30 (D-04); gap >30d corta racha sin reiniciar cohorte (D-05); cohorte=mes de primera sub valida + distribucion de ciclos sobre activeMemberExists (D-06); GET /retention admin-only requireAdminAnalytics, gestion 403 (D-11); ventanas invalidas contadas en invalidWindowSubs y salteadas (T-118-05); test real-MySQL 14/14
 - [Phase 118]: Plan 118-05: D-09 borrado del display las 2 cards de engagement por segmento (AsistenciaTab) + fetch/prop en ReportesPage; backend, EngagementService, engagement.test.ts, getEngagement del composable y modulo segmentation INTACTOS
 - [Phase 118]: Plan 118-03: AdvancedFinanceService nuevo (D-09, no toca analytics/service.ts); caja replica el filtro canonico de getRevenueTrend (kind plan_charge/debt_settlement, inflow, voided_at NULL) por moneda; devengado prorratea pricePaid sobre ventana efectiva [start, MIN(end, cancelledAt)] porque cancelSubscription NO acorta end_date (D-07); ARPU = devengado/mes / activeMemberExists (NUNCA users.status) con guard div-by-zero -> ARPU 0 (D-08); ARS/EUR jamas sumadas; /advanced-finance ADMIN_ROLES-only requireAdminAnalytics, gestion 403 (D-11); ventanas invalidas (null/0/end<start) excluidas + excludedInvalidWindow (T-118-08); test real-MySQL 14/14 (D-12)
+- [Phase ?]: Plan 118-04: FunnelService nuevo (D-09, monolito intacto); cohorte=mes de users.created_at (D-03); activo histórico aproximado con MIN(subscriptions.created_at) (D-01); medianas por etapa null-safe; /funnel admin-only (D-11)
 
 ### Pending Todos
 
@@ -464,7 +466,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-05-26T23:59:24.058Z
+Last session: 2026-05-27T00:06:53.013Z
 Stopped at: Phase 118 UI-SPEC approved
 Resume file: None
 
