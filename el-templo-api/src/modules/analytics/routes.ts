@@ -12,6 +12,7 @@ import { AttendanceMetricsService } from "./attendance-metrics-service";
 import { EngagementService } from "./engagement-service";
 import { RetentionService } from "./retention-service";
 import { AdvancedFinanceService } from "./advanced-finance-service";
+import { FunnelService } from "./funnel-service";
 import { handleServiceError } from "../shared/error-handler";
 import type { AnalyticsFilters } from "./types";
 import {
@@ -24,6 +25,7 @@ import {
   engagementSchema,
   retentionSchema,
   advancedFinanceSchema,
+  funnelSchema,
 } from "./schemas";
 import type { RetentionPlanCategory } from "./types";
 
@@ -65,6 +67,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
     fastify.db,
     fastify.log,
   );
+  const funnelService = new FunnelService(fastify.db, fastify.log);
 
   /**
    * Guard: authenticate + gate to the operational analytics set (gestion +
@@ -347,6 +350,36 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
         return result;
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "get advanced finance");
+      }
+    },
+  );
+
+  // GET /funnel — funnel de conversión freemium → prueba → activo por cohorte
+  // (Phase 118 D-01/D-03). SENSIBLE → ADMIN_ROLES-only vía requireAdminAnalytics
+  // (D-11); gestion recibe 403. Scoped por sede/país (users.branchId).
+  fastify.get<{
+    Querystring: { branchId?: number; dateFrom?: string; dateTo?: string };
+  }>(
+    "/funnel",
+    {
+      schema: funnelSchema,
+      preHandler: [
+        requireAdminAnalytics,
+        requireBranchAccess({ from: "query.branchId", optional: true }),
+      ],
+    },
+    async (request, reply) => {
+      try {
+        const filters: AnalyticsFilters = {
+          branchId: request.query.branchId,
+          country: request.scope.country ?? undefined,
+          dateFrom: request.query.dateFrom,
+          dateTo: request.query.dateTo,
+        };
+        const result = await funnelService.getFunnel(filters);
+        return result;
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "get funnel");
       }
     },
   );
