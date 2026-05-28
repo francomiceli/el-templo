@@ -421,7 +421,10 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   // POST /members/:userId/subscription/cancel — Cancel subscription
-  fastify.post<{ Params: { userId: number }; Body: { notes?: string } }>(
+  fastify.post<{
+    Params: { userId: number };
+    Body: { notes?: string; subscriptionId?: number };
+  }>(
     "/members/:userId/subscription/cancel",
     { schema: cancelSubscriptionSchema },
     async (request, reply) => {
@@ -430,6 +433,7 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
           request.params.userId,
           request.user.userId,
           request.body.notes,
+          request.body.subscriptionId,
         );
         return sub;
       } catch (err: unknown) {

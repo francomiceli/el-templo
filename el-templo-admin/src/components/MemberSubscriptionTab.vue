@@ -40,7 +40,19 @@
         @edit-start-date="openEditStartDate(presencialSub!)"
         @pause="confirmPause"
         @resume="confirmResume"
-        @cancel="confirmCancel"
+        @cancel="confirmCancel()"
+      />
+
+      <!-- Renovación programada (sub scheduled cuando coexiste con la activa).
+           Card propio para que el admin pueda cancelarla por separado sin
+           tocar la membresía vigente — caso Pomilio. -->
+      <SubscriptionCard
+        v-if="presencialScheduledSub"
+        :subscription="presencialScheduledSub"
+        label="Renovación programada"
+        @change-turnos="openChangeTurnos"
+        @edit-start-date="openEditStartDate(presencialScheduledSub!)"
+        @cancel="confirmCancel(presencialScheduledSub!)"
       />
 
       <!-- Fixed turnos change history -->
@@ -467,10 +479,38 @@ const paymentMethodOptions = PAYMENT_METHOD_OPTIONS;
 // Computed — split subscriptions
 // =========================================================================
 
+// Membresía presencial "vigente" — preferimos active/paused; recién si no hay,
+// caemos a la scheduled (alumno que solo tiene una renovación pendiente).
 const presencialSub = computed(
   () =>
-    allSubscriptions.value.find((s) => !s.planCategory || s.planCategory === 'presencial') ?? null
+    allSubscriptions.value.find(
+      (s) =>
+        (!s.planCategory || s.planCategory === 'presencial') &&
+        (s.status === 'active' || s.status === 'paused')
+    ) ??
+    allSubscriptions.value.find(
+      (s) => (!s.planCategory || s.planCategory === 'presencial') && s.status === 'scheduled'
+    ) ??
+    null
 );
+
+// Renovación programada visible como card aparte SOLO cuando ya hay una
+// activa/pausada arriba — así el admin puede cancelarla por separado sin
+// tocar la membresía vigente (caso Pomilio). Si solo existe la scheduled,
+// ya aparece como `presencialSub` arriba.
+const presencialScheduledSub = computed(() => {
+  const hasActive = allSubscriptions.value.some(
+    (s) =>
+      (!s.planCategory || s.planCategory === 'presencial') &&
+      (s.status === 'active' || s.status === 'paused')
+  );
+  if (!hasActive) return null;
+  return (
+    allSubscriptions.value.find(
+      (s) => (!s.planCategory || s.planCategory === 'presencial') && s.status === 'scheduled'
+    ) ?? null
+  );
+});
 
 // Aggregated outstanding balance per currency (drives the "Deudor"
 // banner). The parent page owns the fetch and passes the list in; if it
@@ -726,11 +766,27 @@ function confirmResume() {
   });
 }
 
-function confirmCancel() {
-  $q.dialog({
-    title: 'Cancelar suscripción presencial',
-    html: true,
-    message: `
+// Sin `target` cancela la sub vigente (presencialSub) — comportamiento
+// histórico. Con `target` cancela esa sub específica (caso típico: la
+// renovación programada como card aparte, donde no queremos tocar la
+// membresía activa).
+function confirmCancel(target?: SubscriptionDetail | null) {
+  const sub = target ?? presencialSub.value;
+  if (!sub) return;
+  const isScheduled = sub.status === 'scheduled';
+
+  const scheduledMessage = `
+      <div class="q-mb-sm">Vas a cancelar <b>solo la renovación programada</b>. La membresía actual no se toca.</div>
+      <ul class="q-mt-none q-mb-sm" style="padding-left: 20px;">
+        <li><b>Borrar la deuda pendiente</b> de la renovación en Finanzas (queda en 0).</li>
+        <li>Conservar cualquier <b>saldo a favor</b> que el alumno tenga por esta sub.</li>
+      </ul>
+      <div class="q-mt-sm text-caption text-grey-7">
+        Si la renovación tiene cobros activos, primero anulalos desde Detalle Financiero — esta acción se bloqueará hasta entonces.
+      </div>
+    `;
+
+  const activeMessage = `
       <div class="q-mb-sm">Esta acción <b>no se puede deshacer</b>. Vas a:</div>
       <ul class="q-mt-none q-mb-sm" style="padding-left: 20px;">
         <li>Cancelar todas las <b>reservas futuras</b> de esta suscripción.</li>
@@ -741,25 +797,39 @@ function confirmCancel() {
       <div class="q-mt-sm text-caption text-grey-7">
         Si esta sub tiene cobros activos, primero anulalos desde Detalle Financiero — esta acción se bloqueará hasta entonces.
       </div>
-    `,
+    `;
+
+  $q.dialog({
+    title: isScheduled ? 'Cancelar renovación programada' : 'Cancelar suscripción presencial',
+    html: true,
+    message: isScheduled ? scheduledMessage : activeMessage,
     prompt: {
       model: '',
       type: 'textarea',
       label: 'Notas (opcional)',
     },
     cancel: { flat: true, label: 'Volver' },
-    ok: { color: 'negative', label: 'Cancelar suscripción' },
+    ok: {
+      color: 'negative',
+      label: isScheduled ? 'Cancelar renovación' : 'Cancelar suscripción',
+    },
   }).onOk(async (notes: string) => {
     actionLoading.value = true;
     try {
-      await subsApi.cancelSubscription(props.userId, notes.trim() || undefined);
-      $q.notify({ type: 'positive', message: 'Suscripcion cancelada' });
+      await subsApi.cancelSubscription(props.userId, notes.trim() || undefined, sub.id);
+      $q.notify({
+        type: 'positive',
+        message: isScheduled ? 'Renovación cancelada' : 'Suscripcion cancelada',
+      });
       emit('subscription-changed');
       refreshAll();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Error desconocido';
       log.error('Error cancelling subscription', { error: message });
-      $q.notify({ type: 'negative', message: 'Error cancelando suscripcion' });
+      $q.notify({
+        type: 'negative',
+        message: isScheduled ? 'Error cancelando renovación' : 'Error cancelando suscripcion',
+      });
     } finally {
       actionLoading.value = false;
     }

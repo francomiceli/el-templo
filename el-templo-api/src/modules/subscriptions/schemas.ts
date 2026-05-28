@@ -476,6 +476,11 @@ export const cancelSubscriptionSchema = {
     type: "object",
     properties: {
       notes: { type: "string" },
+      // Optional: target a specific subscription (must belong to userId).
+      // Without it, the service falls back to the "current" sub (active /
+      // paused preferred over scheduled). Pass the scheduled sub's id to
+      // cancel a programmed renewal without touching the active membership.
+      subscriptionId: { type: "integer", minimum: 1 },
     },
   },
   response: {

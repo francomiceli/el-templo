@@ -227,4 +227,41 @@ describe("Subscriptions API — Renewal", () => {
     expect(statuses).toContain("active");
     expect(statuses).toContain("scheduled");
   });
+
+  // Prevención del caso Pomilio (mayo 2026): venía pagando 75 EUR por un
+  // priceOverride, pero la renovación tomaba plan.priceRegular (100) y dejaba
+  // 25 de deuda fantasma. La renovación debe heredar lo que el miembro ya
+  // pagaba para que el override se propague.
+  it("renewal pricePaid hereda currentSub.pricePaid (carries forward overrides)", async () => {
+    const plan = await createPlan(app, adminToken, {
+      name: "Renewal Override Plan",
+      classesPerWeek: 2,
+      durationDays: 30,
+      priceRegular: 10000,
+      priceZero: 0,
+    });
+    const member = await createMember(app);
+
+    // Asignación con precio especial (override 7500, distinto a priceRegular).
+    await assignPlan(app, adminToken, member.id, {
+      planId: plan.id,
+      startDate: todayStr(),
+      priceOverrideAmount: 7500,
+      priceOverrideReason: "Descuento negociado",
+    });
+
+    const renewRes = await app.inject({
+      method: "POST",
+      url: `${SUBSCRIPTIONS_URL}/members/${member.id}/subscription/renew`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: { paymentMethod: "cash", amountReceived: 7500 },
+    });
+    expect(renewRes.statusCode).toBe(201);
+    const newSub = JSON.parse(renewRes.body);
+
+    // Antes del fix esto era 10000 (plan.priceRegular). Ahora debe ser 7500
+    // (lo que el miembro venía pagando) — sin esto, el cobro de 7500 contra
+    // una deuda sembrada en 10000 dejaba 2500 de deuda fantasma.
+    expect(newSub.pricePaid).toBe(7500);
+  });
 });

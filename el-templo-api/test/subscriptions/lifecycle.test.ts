@@ -788,6 +788,84 @@ describe("Subscriptions API — Lifecycle", () => {
         );
       expect(postBalance[0].amount).toBe(-25000);
     });
+
+    // Caso Pomilio: el admin debe poder cancelar SOLO la renovación
+    // programada por id, sin que la membresía vigente se vea afectada.
+    it("cancel por subscriptionId cancela solo la scheduled (la activa queda intacta)", async () => {
+      const plan = await createPlan(app, adminToken, {
+        name: "Cancel Scheduled Plan",
+        classesPerWeek: 2,
+        durationDays: 30,
+        priceRegular: 10000,
+        priceZero: 0,
+      });
+      const member = await createMember(app);
+
+      // 1. Membresía activa (sin cobro para no chocar con REQ-3).
+      const assignRes = await assignPlan(app, adminToken, member.id, {
+        planId: plan.id,
+        startDate: todayStr(),
+        priceOverrideAmount: 0,
+        priceOverrideReason: "test (no charge — REQ-3 isolation)",
+      });
+      const activeId = assignRes.body.id as number;
+
+      // 2. Renovación temprana → scheduled (también sin cobro).
+      const renewRes = await app.inject({
+        method: "POST",
+        url: `${SUBSCRIPTIONS_URL}/members/${member.id}/subscription/renew`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { paymentMethod: "cash", amountReceived: 0 },
+      });
+      expect(renewRes.statusCode).toBe(201);
+      const scheduledId = (JSON.parse(renewRes.body) as { id: number }).id;
+      expect(scheduledId).not.toBe(activeId);
+
+      // 3. Cancelar SOLO la scheduled por subscriptionId.
+      const cancelRes = await app.inject({
+        method: "POST",
+        url: `${SUBSCRIPTIONS_URL}/members/${member.id}/subscription/cancel`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { subscriptionId: scheduledId, notes: "Renovación errada" },
+      });
+      expect(cancelRes.statusCode).toBe(200);
+      const cancelled = JSON.parse(cancelRes.body);
+      expect(cancelled.id).toBe(scheduledId);
+      expect(cancelled.status).toBe("cancelled");
+
+      // 4. La membresía activa debe seguir activa (sin cascade).
+      const [activeRow] = await app.db
+        .select()
+        .from(schema.subscriptions)
+        .where(eq(schema.subscriptions.id, activeId));
+      expect(activeRow.status).toBe("active");
+    });
+
+    it("cancel por subscriptionId devuelve 404 si la sub no pertenece al alumno", async () => {
+      const plan = await createPlan(app, adminToken, {
+        name: "Guard Cancel Plan",
+        classesPerWeek: 2,
+        durationDays: 30,
+        priceRegular: 10000,
+        priceZero: 0,
+      });
+      const member = await createMember(app);
+      await assignPlan(app, adminToken, member.id, {
+        planId: plan.id,
+        priceOverrideAmount: 0,
+        priceOverrideReason: "test (no charge — REQ-3 isolation)",
+      });
+
+      // Id que no existe en absoluto → la guarda lo trata igual que una sub
+      // de otro alumno (no aparece en getMemberSubscriptions(userId)).
+      const res = await app.inject({
+        method: "POST",
+        url: `${SUBSCRIPTIONS_URL}/members/${member.id}/subscription/cancel`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { subscriptionId: 999999 },
+      });
+      expect(res.statusCode).toBe(404);
+    });
   });
 
   describe("Pricing preview", () => {

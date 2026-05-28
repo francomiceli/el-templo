@@ -257,13 +257,21 @@ export function useSubscriptionsApi() {
     }
   }
 
-  async function cancelSubscription(userId: number, notes?: string): Promise<SubscriptionDetail> {
+  // `subscriptionId` opcional: cancela una sub específica del alumno. Sin él,
+  // el backend cae al comportamiento legacy (la "actual": active/paused antes
+  // que scheduled). Se usa, por ejemplo, para cancelar solo la renovación
+  // programada sin tocar la membresía vigente.
+  async function cancelSubscription(
+    userId: number,
+    notes?: string,
+    subscriptionId?: number
+  ): Promise<SubscriptionDetail> {
     loading.value = true;
     error.value = null;
     try {
       const { data } = await api.post<SubscriptionDetail>(
         `/admin/subscriptions/members/${userId}/subscription/cancel`,
-        { notes }
+        { notes, subscriptionId }
       );
       return data;
     } catch (err: unknown) {

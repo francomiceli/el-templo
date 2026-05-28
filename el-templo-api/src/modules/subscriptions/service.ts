@@ -1835,12 +1835,29 @@ export class SubscriptionService {
     userId: number,
     actorId: number,
     notes?: string | null,
+    subscriptionId?: number,
   ): Promise<SubscriptionDetail> {
-    const sub = await this.getMemberSubscription(userId);
-    if (!sub) {
-      throw new NotFoundError(
-        "No se encontro suscripcion activa, pausada o programada",
-      );
+    // If subscriptionId is provided the admin is targeting a specific sub
+    // (e.g., the scheduled renewal of caso Pomilio, where the active membership
+    // must NOT be touched). Otherwise fall back to the "current" sub
+    // (active/paused preferred) — the legacy behaviour for callers that
+    // don't yet pass the id.
+    let sub: SubscriptionDetail | null;
+    if (subscriptionId !== undefined) {
+      const all = await this.getMemberSubscriptions(userId);
+      sub = all.find((s) => s.id === subscriptionId) ?? null;
+      if (!sub) {
+        throw new NotFoundError(
+          "No se encontro la suscripcion indicada para este alumno",
+        );
+      }
+    } else {
+      sub = await this.getMemberSubscription(userId);
+      if (!sub) {
+        throw new NotFoundError(
+          "No se encontro suscripcion activa, pausada o programada",
+        );
+      }
     }
     if (
       sub.status !== "active" &&
@@ -1917,29 +1934,35 @@ export class SubscriptionService {
         .set(updateData)
         .where(eq(schema.subscriptions.id, sub.id));
 
-      // Also cancel any scheduled successor
-      const scheduledSuccessors = await tx
-        .select({ id: schema.subscriptions.id })
-        .from(schema.subscriptions)
-        .where(
-          and(
-            eq(schema.subscriptions.userId, userId),
-            eq(schema.subscriptions.status, "scheduled"),
-          ),
-        );
-      await tx
-        .update(schema.subscriptions)
-        .set({
-          status: "cancelled",
-          cancelledAt: new Date(),
-          notes: "Cancelado por cancelacion de suscripcion activa",
-        })
-        .where(
-          and(
-            eq(schema.subscriptions.userId, userId),
-            eq(schema.subscriptions.status, "scheduled"),
-          ),
-        );
+      // Cascade-cancel scheduled successors ONLY when killing the current
+      // membership (active/paused). When the admin cancels a scheduled sub
+      // directly (e.g., reverting a wrong renewal — caso Pomilio), the
+      // current membership must stay intact, so we skip the cascade.
+      let scheduledSuccessors: { id: number }[] = [];
+      if (sub.status !== "scheduled") {
+        scheduledSuccessors = await tx
+          .select({ id: schema.subscriptions.id })
+          .from(schema.subscriptions)
+          .where(
+            and(
+              eq(schema.subscriptions.userId, userId),
+              eq(schema.subscriptions.status, "scheduled"),
+            ),
+          );
+        await tx
+          .update(schema.subscriptions)
+          .set({
+            status: "cancelled",
+            cancelledAt: new Date(),
+            notes: "Cancelado por cancelacion de suscripcion activa",
+          })
+          .where(
+            and(
+              eq(schema.subscriptions.userId, userId),
+              eq(schema.subscriptions.status, "scheduled"),
+            ),
+          );
+      }
 
       // Forgive phantom debt: when a sub was assigned without a paid charge,
       // recordAssignmentCharge seeds a positive balance row so the unpaid
@@ -2895,13 +2918,12 @@ export class SubscriptionService {
         ? Math.ceil(plan.durationDays / 7) * plan.classesPerWeek
         : null;
 
-    // Derive renewal price from the plan using the same price type as original assignment
-    const renewalPrice =
-      currentSub.priceTypeApplied === "zero"
-        ? plan.priceZero
-        : currentSub.priceTypeApplied === "credit_card" && plan.priceCreditCard
-          ? plan.priceCreditCard
-          : plan.priceRegular;
+    // Lock in whatever the member was actually paying so any negotiated
+    // price/override carries forward. Caso Pomilio (mayo 2026): venía pagando
+    // 75 EUR pero plan.priceRegular era 100, y la renovación grababa 100 →
+    // deuda fantasma de 25. Tomar currentSub.pricePaid preserva el override.
+    // priceTypeApplied se hereda en línea ~2972 y queda consistente.
+    const renewalPrice = currentSub.pricePaid;
 
     // If old sub is already expired, close it now.
     // If still active (early renewal), leave it active — auto-expire will
