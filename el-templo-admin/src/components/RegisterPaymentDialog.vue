@@ -30,21 +30,14 @@
           map-options
         />
         <q-input v-model="fecha" label="Fecha *" type="date" dense outlined />
-        <q-input
-          v-model="notes"
-          label="Notas (opcional)"
-          type="textarea"
-          dense
-          outlined
-          autogrow
-        />
+        <q-input v-model="notes" label="Notas (opcional)" type="textarea" dense outlined autogrow />
       </q-card-section>
 
       <q-separator />
 
       <q-card-section>
-        <div class="row items-center justify-between q-mb-sm">
-          <div class="text-subtitle2">Conceptos pendientes (FIFO)</div>
+        <div class="row items-center justify-between q-mb-xs">
+          <div class="text-subtitle2">Conceptos pendientes</div>
           <q-btn
             flat
             dense
@@ -55,17 +48,21 @@
           />
         </div>
 
-        <div v-if="visibleConcepts.length === 0" class="text-grey-6">
-          Sin saldos pendientes
+        <div v-if="visibleConcepts.length > 0" class="text-caption text-grey-7 q-mb-sm">
+          El monto se reparte automáticamente entre los saldos pendientes, empezando por el más
+          antiguo. Podés ajustar cuánto se asigna a cada concepto en los campos de la derecha.
         </div>
+
+        <div v-if="visibleConcepts.length === 0" class="text-grey-6">Sin saldos pendientes</div>
 
         <q-list v-else separator>
           <q-item v-for="c in visibleConcepts" :key="conceptKey(c)">
             <q-item-section>
               <q-item-label>{{ c.description }}</q-item-label>
               <q-item-label caption>
-                Saldo: {{ formatPrice(c.balance, c.currency) }} · Hace
-                {{ c.ageInDays }} día{{ c.ageInDays === 1 ? '' : 's' }}
+                Saldo: {{ formatPrice(c.balance, c.currency) }} · Hace {{ c.ageInDays }} día{{
+                  c.ageInDays === 1 ? '' : 's'
+                }}
               </q-item-label>
             </q-item-section>
             <q-item-section side style="min-width: 140px">
@@ -165,8 +162,7 @@ const paymentMethodOptions = PAYMENT_METHOD_OPTIONS;
 
 // Default desde el array — NO hardcodear 'cash'. Si el array estuviera vacío (no debería),
 // caemos a 'cash' que es un valor presente en el enum del schema (financial-transactions.ts).
-const defaultPaymentMethod: PaymentMethod =
-  PAYMENT_METHOD_OPTIONS[0]?.value ?? 'cash';
+const defaultPaymentMethod: PaymentMethod = PAYMENT_METHOD_OPTIONS[0]?.value ?? 'cash';
 
 function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
@@ -221,9 +217,7 @@ const visibleConcepts = computed<OutstandingConcept[]>(() => {
 // Fallback 'ARS' es safe porque isInvalid bloquea Confirmar cuando visibleConcepts
 // está vacío (montoRecibido === null al abrir + auto-FIFO no aloca nada → sumAllocated === 0
 // → isInvalid === true). El currency real se usa solo cuando hay al menos 1 concepto visible.
-const displayCurrency = computed<string>(
-  () => visibleConcepts.value[0]?.currency ?? 'ARS'
-);
+const displayCurrency = computed<string>(() => visibleConcepts.value[0]?.currency ?? 'ARS');
 
 const totalSaldos = computed<number>(() =>
   visibleConcepts.value.reduce((sum, c) => sum + c.balance, 0)
@@ -234,10 +228,7 @@ function conceptKey(c: OutstandingConcept): string {
 }
 
 const sumAllocated = computed<number>(() =>
-  visibleConcepts.value.reduce(
-    (sum, c) => sum + (allocations[conceptKey(c)] ?? 0),
-    0
-  )
+  visibleConcepts.value.reduce((sum, c) => sum + (allocations[conceptKey(c)] ?? 0), 0)
 );
 
 // D-09 / D-10 / D-11: Confirmar disabled cuando:
@@ -265,9 +256,7 @@ const sumStatus = computed<'ok' | 'short' | 'over'>(() => {
   return 'over';
 });
 
-const sumDiff = computed<number>(() =>
-  Math.abs((montoRecibido.value ?? 0) - sumAllocated.value)
-);
+const sumDiff = computed<number>(() => Math.abs((montoRecibido.value ?? 0) - sumAllocated.value));
 
 // =========================================================================
 // Auto-FIFO greedy (D-07, per 108-PATTERNS §8)
@@ -308,12 +297,7 @@ function resetAllocationsToZero(): void {
 
 // D-07: re-ejecutar auto-FIFO cuando cambia el monto recibido.
 watch(montoRecibido, (val) => {
-  if (
-    val === null ||
-    typeof val !== 'number' ||
-    !Number.isFinite(val) ||
-    val <= 0
-  ) {
+  if (val === null || typeof val !== 'number' || !Number.isFinite(val) || val <= 0) {
     resetAllocationsToZero();
     return;
   }
