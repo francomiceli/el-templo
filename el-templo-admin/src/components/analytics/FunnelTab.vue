@@ -1,66 +1,84 @@
 <template>
   <div>
-    <!-- Permanent ramp-up caveat (D-01) — always visible -->
-    <q-banner dense rounded class="bg-orange-2 text-orange-10 q-mb-md">
-      <template #avatar>
-        <q-icon name="info" color="orange-9" />
-      </template>
-      Las transiciones precisas de prueba e inactivo se registran solo desde el 26/05/2026. Los
-      datos anteriores son aproximados (reconstruidos desde la primera suscripción). Las cohortes
-      nuevas se vuelven confiables con el tiempo — período de ramp-up.
-    </q-banner>
-
-    <!-- Entry-origin segment toggle — attributes conversions by trial origin -->
-    <div class="q-mb-md">
-      <q-btn-toggle
-        :model-value="props.entryOrigin"
-        no-caps
-        unelevated
-        spread
-        toggle-color="primary"
-        color="grey-3"
-        text-color="grey-8"
-        :options="originOptions"
-        @update:model-value="onOriginChange"
-      />
-      <div class="text-caption text-grey-7 q-mt-xs">{{ originHint }}</div>
+    <!-- Coming-soon gate: the funnel depends on `→prueba` transitions that only
+         start accruing forward-only (hooks shipped 2026-05-26). Until enough
+         new cohorts complete prueba → activo it would render a misleading
+         empty middle stage, so we show a placeholder. Flip `comingSoon` to
+         false to re-enable the (fully wired) funnel below. -->
+    <div v-if="comingSoon" class="text-center q-pa-xl">
+      <q-icon name="hourglass_top" size="48px" color="grey-5" />
+      <div class="text-h6 q-mt-md">Próximamente</div>
+      <div class="text-body2 text-grey-7 q-mt-sm" style="max-width: 540px; margin: 0 auto">
+        Esta vista estará disponible cuando se acumule suficiente información sobre el paso de
+        <b>prueba → activo</b> (y de <b>freemium → prueba → activo</b>). El registro de esas
+        transiciones empezó el 26/05/2026; el embudo se vuelve consultable a medida que las cohortes
+        nuevas completan su recorrido.
+      </div>
     </div>
 
-    <div v-if="props.loading" class="q-pa-md">
-      <q-skeleton type="rect" height="300px" class="q-mb-md" />
-      <q-skeleton type="rect" height="120px" />
-    </div>
-    <div
-      v-else-if="!props.data || props.data.cohorts.length === 0"
-      class="text-center q-pa-xl text-grey-5 text-italic"
-    >
-      Aún no hay cohortes con datos de conversión en este alcance
-    </div>
     <template v-else>
-      <!-- Funnel chart -->
-      <q-card flat bordered class="q-mb-md">
-        <q-card-section>
-          <div class="text-subtitle2 q-mb-sm">{{ chartTitle }}</div>
-          <div style="height: 300px; position: relative">
-            <Bar :data="funnelChartData" :options="funnelOptions" />
-          </div>
-        </q-card-section>
-      </q-card>
+      <!-- Permanent ramp-up caveat (D-01) — always visible -->
+      <q-banner dense rounded class="bg-orange-2 text-orange-10 q-mb-md">
+        <template #avatar>
+          <q-icon name="info" color="orange-9" />
+        </template>
+        Las transiciones precisas de prueba e inactivo se registran solo desde el 26/05/2026. Los
+        datos anteriores son aproximados (reconstruidos desde la primera suscripción). Las cohortes
+        nuevas se vuelven confiables con el tiempo — período de ramp-up.
+      </q-banner>
 
-      <!-- Median days per stage -->
-      <q-card flat bordered>
-        <q-card-section>
-          <div class="text-subtitle2 q-mb-sm">Tiempo mediano por etapa</div>
-          <div class="row q-col-gutter-md">
-            <div v-for="card in medianCards" :key="card.label" class="col-12 col-sm-6">
-              <div class="text-center q-pa-sm">
-                <div class="text-h4 text-primary">{{ card.value }}</div>
-                <div class="text-caption text-grey-7">{{ card.label }}</div>
+      <!-- Entry-origin segment toggle — attributes conversions by trial origin -->
+      <div class="q-mb-md">
+        <q-btn-toggle
+          :model-value="props.entryOrigin"
+          no-caps
+          unelevated
+          spread
+          toggle-color="primary"
+          color="grey-3"
+          text-color="grey-8"
+          :options="originOptions"
+          @update:model-value="onOriginChange"
+        />
+        <div class="text-caption text-grey-7 q-mt-xs">{{ originHint }}</div>
+      </div>
+
+      <div v-if="props.loading" class="q-pa-md">
+        <q-skeleton type="rect" height="300px" class="q-mb-md" />
+        <q-skeleton type="rect" height="120px" />
+      </div>
+      <div
+        v-else-if="!props.data || props.data.cohorts.length === 0"
+        class="text-center q-pa-xl text-grey-5 text-italic"
+      >
+        Aún no hay cohortes con datos de conversión en este alcance
+      </div>
+      <template v-else>
+        <!-- Funnel chart -->
+        <q-card flat bordered class="q-mb-md">
+          <q-card-section>
+            <div class="text-subtitle2 q-mb-sm">{{ chartTitle }}</div>
+            <div style="height: 300px; position: relative">
+              <Bar :data="funnelChartData" :options="funnelOptions" />
+            </div>
+          </q-card-section>
+        </q-card>
+
+        <!-- Median days per stage -->
+        <q-card flat bordered>
+          <q-card-section>
+            <div class="text-subtitle2 q-mb-sm">Tiempo mediano por etapa</div>
+            <div class="row q-col-gutter-md">
+              <div v-for="card in medianCards" :key="card.label" class="col-12 col-sm-6">
+                <div class="text-center q-pa-sm">
+                  <div class="text-h4 text-primary">{{ card.value }}</div>
+                  <div class="text-caption text-grey-7">{{ card.label }}</div>
+                </div>
               </div>
             </div>
-          </div>
-        </q-card-section>
-      </q-card>
+          </q-card-section>
+        </q-card>
+      </template>
     </template>
   </div>
 </template>
@@ -84,6 +102,10 @@ import type { FunnelAnalytics, FunnelEntryOrigin } from 'src/types/analytics';
 // -- Register Chart.js components ----------------------------------------
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
+
+// Funnel is deferred until `→prueba` instrumentation accrues enough forward-only
+// data (see template). Flip to false to re-enable the wired funnel.
+const comingSoon = true;
 
 // -- Props / emits -------------------------------------------------------
 

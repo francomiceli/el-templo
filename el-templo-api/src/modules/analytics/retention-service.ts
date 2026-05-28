@@ -42,6 +42,7 @@ import type {
   RetentionAnalytics,
   RetentionCohort,
   CycleDistribution,
+  RetentionPlanOption,
 } from "./types";
 
 /**
@@ -98,27 +99,14 @@ export class RetentionService {
 
     const conditions: SQL[] = [...scopeConditions];
 
-    // plan_category (D-06) + plan-duration (follow-up) filters. Both restrict via
-    // the subscription_plans join. `todas` / undefined → no category restriction;
-    // undefined durationDays → no duration restriction.
-    const hasCategoryFilter =
-      filters.planCategory !== undefined && filters.planCategory !== "todas";
-    const hasDurationFilter = filters.durationDays !== undefined;
-    const needsPlanJoin = hasCategoryFilter || hasDurationFilter;
-    if (hasCategoryFilter) {
-      conditions.push(
-        sql`${schema.subscriptionPlans.planCategory} = ${filters.planCategory}`,
-      );
-    }
-    if (hasDurationFilter) {
-      conditions.push(
-        sql`${schema.subscriptionPlans.durationDays} = ${filters.durationDays}`,
-      );
+    // Plan filter (follow-up): exact match on subscriptions.plan_id. No plan join
+    // needed — plan_id lives on the subscription row. Undefined → no restriction.
+    if (filters.planId !== undefined) {
+      conditions.push(eq(schema.subscriptions.planId, filters.planId));
     }
 
-    // Build the SELECT, conditionally joining branches (country scope) and/or
-    // subscription_plans (plan_category filter). Order by member then startDate
-    // so the streak walk is a single linear pass per member.
+    // Build the SELECT, conditionally joining branches (country scope). Order by
+    // member then startDate so the streak walk is a single linear pass per member.
     let query = this.db
       .select({
         userId: schema.subscriptions.userId,
@@ -132,12 +120,6 @@ export class RetentionService {
       query = query.innerJoin(
         schema.branches,
         eq(schema.branches.id, schema.subscriptions.branchId),
-      );
-    }
-    if (needsPlanJoin) {
-      query = query.innerJoin(
-        schema.subscriptionPlans,
-        eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
       );
     }
 
@@ -213,45 +195,39 @@ export class RetentionService {
       });
 
     const cycleDistribution = await this.cycleDistribution(filters);
-    const availableDurations = await this.availableDurations(filters);
+    const availablePlans = await this.availablePlans(filters);
 
     return {
       cohorts,
       maxCycle,
       cycleDistribution,
       invalidWindowSubs,
-      availableDurations,
+      availablePlans,
     };
   }
 
   /**
-   * Distinct plan durations (whole days, sorted asc) present among the scoped
-   * subscriptions — the frontend builds the duration filter options from this.
-   * Honors scope + plan_category but NOT the duration filter itself, so the
-   * dropdown always lists every duration available for the current scope/category
-   * (changing the duration selection never shrinks the option list).
+   * Distinct plans (id, name, durationDays) present among the scoped
+   * subscriptions — the frontend builds the plan filter options from this and
+   * shows the duration in parentheses. Honors scope but NOT the plan filter
+   * itself, so the dropdown always lists every plan available in scope (selecting
+   * one never shrinks the option list). Sorted by duration then name.
    */
-  private async availableDurations(
+  private async availablePlans(
     filters: AnalyticsFilters,
-  ): Promise<number[]> {
+  ): Promise<RetentionPlanOption[]> {
     const { conditions: scopeConditions, needsBranchJoin } = applyScope({
       branchId: filters.branchId,
       country: filters.country,
       branchColumn: schema.subscriptions.branchId,
     });
 
-    const conditions: SQL[] = [...scopeConditions];
-    if (
-      filters.planCategory !== undefined &&
-      filters.planCategory !== "todas"
-    ) {
-      conditions.push(
-        sql`${schema.subscriptionPlans.planCategory} = ${filters.planCategory}`,
-      );
-    }
-
     let query = this.db
-      .selectDistinct({ durationDays: schema.subscriptionPlans.durationDays })
+      .selectDistinct({
+        id: schema.subscriptionPlans.id,
+        name: schema.subscriptionPlans.name,
+        durationDays: schema.subscriptionPlans.durationDays,
+      })
       .from(schema.subscriptions)
       .innerJoin(
         schema.subscriptionPlans,
@@ -267,13 +243,15 @@ export class RetentionService {
     }
 
     const rows = await query.where(
-      conditions.length > 0 ? and(...conditions) : undefined,
+      scopeConditions.length > 0 ? and(...scopeConditions) : undefined,
     );
 
-    return rows
-      .map((r) => r.durationDays)
-      .filter((d): d is number => d !== null)
-      .sort((a, b) => a - b);
+    return rows.sort((a, b) => {
+      const da = a.durationDays ?? Number.MAX_SAFE_INTEGER;
+      const db = b.durationDays ?? Number.MAX_SAFE_INTEGER;
+      if (da !== db) return da - db;
+      return a.name < b.name ? -1 : a.name > b.name ? 1 : 0;
+    });
   }
 
   /**
@@ -306,7 +284,7 @@ export class RetentionService {
    * Distribution of current consecutive-cycle streaks among CURRENTLY ACTIVE
    * members (D-06). "Active" is the canonical `activeMemberExists` predicate
    * (NEVER `users.status`). Buckets: cycle 1 / 2 / 3+. Reads the same scoped (and
-   * optionally plan-category-filtered) subscriptions per active member and reuses
+   * optionally plan-filtered) subscriptions per active member and reuses
    * `streakLength`. An inactive member with 3 historical cycles is NOT counted.
    */
   private async cycleDistribution(
@@ -324,19 +302,9 @@ export class RetentionService {
       ...scopeConditions,
     ];
 
-    const hasCategoryFilter =
-      filters.planCategory !== undefined && filters.planCategory !== "todas";
-    const hasDurationFilter = filters.durationDays !== undefined;
-    const needsPlanJoin = hasCategoryFilter || hasDurationFilter;
-    if (hasCategoryFilter) {
-      conditions.push(
-        sql`${schema.subscriptionPlans.planCategory} = ${filters.planCategory}`,
-      );
-    }
-    if (hasDurationFilter) {
-      conditions.push(
-        sql`${schema.subscriptionPlans.durationDays} = ${filters.durationDays}`,
-      );
+    // Plan filter (follow-up): exact match on subscriptions.plan_id (no join).
+    if (filters.planId !== undefined) {
+      conditions.push(eq(schema.subscriptions.planId, filters.planId));
     }
 
     let query = this.db
@@ -352,12 +320,6 @@ export class RetentionService {
       query = query.innerJoin(
         schema.branches,
         eq(schema.branches.id, schema.subscriptions.branchId),
-      );
-    }
-    if (needsPlanJoin) {
-      query = query.innerJoin(
-        schema.subscriptionPlans,
-        eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
       );
     }
 

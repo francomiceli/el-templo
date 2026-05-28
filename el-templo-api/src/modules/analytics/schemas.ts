@@ -302,26 +302,15 @@ export const engagementSchema = {
 // Retention Schema (Phase 118 D-04/D-05/D-06)
 // =============================================================================
 
-// Querystring extends the shared analytics querystring with an optional
-// plan_category filter (D-06) and an optional plan-duration filter (whole days,
-// exact match — Phase 118 follow-up). `todas` means no category restriction.
+// Querystring extends the shared analytics querystring with an optional plan
+// filter (follow-up): exact match on subscriptions.plan_id. Absent → no filter.
 const retentionQuerystring = {
   type: "object",
   properties: {
     branchId: { type: "integer" },
     dateFrom: { type: "string", format: "date" },
     dateTo: { type: "string", format: "date" },
-    planCategory: {
-      type: "string",
-      enum: [
-        "presencial",
-        "online_regular",
-        "online_goal",
-        "online_coach",
-        "todas",
-      ],
-    },
-    durationDays: { type: "integer" },
+    planId: { type: "integer" },
   },
 } as const;
 
@@ -356,9 +345,16 @@ export const retentionSchema = {
           },
         },
         invalidWindowSubs: { type: "integer" },
-        availableDurations: {
+        availablePlans: {
           type: "array",
-          items: { type: "integer" },
+          items: {
+            type: "object",
+            properties: {
+              id: { type: "integer" },
+              name: { type: "string" },
+              durationDays: { type: ["integer", "null"] },
+            },
+          },
         },
       },
     },

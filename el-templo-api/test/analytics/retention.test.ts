@@ -290,11 +290,12 @@ describe("RetentionService (Phase 118 Plan 02)", () => {
   });
 
   // ═══════════════════════════════════════════════════════════════════════
-  // plan_category filter (D-06)
+  // planId filter + availablePlans (follow-up) — read the curve per concrete
+  // plan (a "cycle 2" on a 30d plan ≠ on a 240d plan).
   // ═══════════════════════════════════════════════════════════════════════
 
-  describe("planCategory filter", () => {
-    it("planCategory='presencial' excludes online subs", async () => {
+  describe("planId filter + availablePlans", () => {
+    it("planId restricts the cohort to subs of that plan", async () => {
       const presMember = await createMember("p-pre@test.com", "93020001");
       const onlMember = await createMember("p-onl@test.com", "93020002");
       await addSub({
@@ -311,26 +312,18 @@ describe("RetentionService (Phase 118 Plan 02)", () => {
       });
 
       const all = await svc.getRetention({});
-      const allJan = all.cohorts.find((c) => c.cohort === "2026-01");
-      expect(allJan!.size).toBe(2);
+      expect(all.cohorts.find((c) => c.cohort === "2026-01")!.size).toBe(2);
 
-      const presOnly = await svc.getRetention({ planCategory: "presencial" });
-      const presJan = presOnly.cohorts.find((c) => c.cohort === "2026-01");
-      expect(presJan!.size).toBe(1);
+      const presOnly = await svc.getRetention({ planId: presencialPlan });
+      expect(presOnly.cohorts.find((c) => c.cohort === "2026-01")!.size).toBe(
+        1,
+      );
 
-      const todas = await svc.getRetention({ planCategory: "todas" });
-      expect(todas.cohorts.find((c) => c.cohort === "2026-01")!.size).toBe(2);
+      const onlOnly = await svc.getRetention({ planId: onlinePlan });
+      expect(onlOnly.cohorts.find((c) => c.cohort === "2026-01")!.size).toBe(1);
     });
-  });
 
-  // ═══════════════════════════════════════════════════════════════════════
-  // durationDays filter + availableDurations (Phase 118 follow-up) — read the
-  // curve per plan length (a "cycle 2" on a 30d plan ≠ on a 240d plan).
-  // ═══════════════════════════════════════════════════════════════════════
-
-  describe("durationDays filter + availableDurations", () => {
-    // Both seed plans are 30 days; create a 240-day presencial plan.
-    async function makeLongPlan(): Promise<number> {
+    it("availablePlans lists distinct plans in scope (id/name/durationDays), sorted by duration", async () => {
       const [lp] = await app.db.insert(subscriptionPlans).values({
         name: `RetLong-${Date.now()}`,
         country: "AR",
@@ -340,82 +333,38 @@ describe("RetentionService (Phase 118 Plan 02)", () => {
         durationDays: 240,
         classesPerWeek: 3,
       });
-      return (lp as { insertId: number }).insertId;
-    }
+      const longPlan = (lp as { insertId: number }).insertId;
 
-    it("durationDays restricts the cohort to subs of that plan length", async () => {
-      const longPlan = await makeLongPlan();
-      const short = await createMember("d-short@test.com", "93030001");
-      const long = await createMember("d-long@test.com", "93030002");
+      const a = await createMember("ap-a@test.com", "93031001");
+      const b = await createMember("ap-b@test.com", "93031002");
       await addSub({
-        userId: short,
+        userId: a,
         startDate: "2026-01-01",
         endDate: "2026-01-31",
         planId: presencialPlan, // 30d
       });
       await addSub({
-        userId: long,
+        userId: b,
         startDate: "2026-01-01",
         endDate: "2026-08-28",
         planId: longPlan, // 240d
       });
 
-      const all = await svc.getRetention({});
-      expect(all.cohorts.find((c) => c.cohort === "2026-01")!.size).toBe(2);
-
-      const d30 = await svc.getRetention({ durationDays: 30 });
-      expect(d30.cohorts.find((c) => c.cohort === "2026-01")!.size).toBe(1);
-
-      const d240 = await svc.getRetention({ durationDays: 240 });
-      expect(d240.cohorts.find((c) => c.cohort === "2026-01")!.size).toBe(1);
-    });
-
-    it("availableDurations lists distinct plan durations in scope, sorted asc", async () => {
-      const longPlan = await makeLongPlan();
-      const a = await createMember("dd-a@test.com", "93031001");
-      const b = await createMember("dd-b@test.com", "93031002");
-      await addSub({
-        userId: a,
-        startDate: "2026-01-01",
-        endDate: "2026-01-31",
-        planId: presencialPlan, // 30
-      });
-      await addSub({
-        userId: b,
-        startDate: "2026-01-01",
-        endDate: "2026-08-28",
-        planId: longPlan, // 240
-      });
-
       const res = await svc.getRetention({});
-      expect(res.availableDurations).toEqual([30, 240]);
-      // ignores the duration filter itself → full list even when filtered.
-      const filtered = await svc.getRetention({ durationDays: 30 });
-      expect(filtered.availableDurations).toEqual([30, 240]);
-    });
+      // Only plans with subs in scope; sorted by duration asc (30 before 240).
+      expect(res.availablePlans.map((p) => p.id)).toEqual([
+        presencialPlan,
+        longPlan,
+      ]);
+      expect(res.availablePlans.map((p) => p.durationDays)).toEqual([30, 240]);
+      expect(res.availablePlans[0].name).toContain("RetPresencial");
 
-    it("availableDurations honors planCategory", async () => {
-      const longPlan = await makeLongPlan(); // presencial 240
-      const presM = await createMember("dc-pre@test.com", "93032001");
-      const onlM = await createMember("dc-onl@test.com", "93032002");
-      await addSub({
-        userId: presM,
-        startDate: "2026-01-01",
-        endDate: "2026-08-28",
-        planId: longPlan, // presencial 240
-      });
-      await addSub({
-        userId: onlM,
-        startDate: "2026-01-01",
-        endDate: "2026-01-31",
-        planId: onlinePlan, // online 30
-      });
-
-      const pres = await svc.getRetention({ planCategory: "presencial" });
-      expect(pres.availableDurations).toEqual([240]);
-
-      const onl = await svc.getRetention({ planCategory: "online_regular" });
-      expect(onl.availableDurations).toEqual([30]);
+      // ignores the plan filter itself → full list even when filtered.
+      const filtered = await svc.getRetention({ planId: presencialPlan });
+      expect(filtered.availablePlans.map((p) => p.id)).toEqual([
+        presencialPlan,
+        longPlan,
+      ]);
     });
   });
 

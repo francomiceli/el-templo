@@ -27,8 +27,7 @@ function buildParams(filters: AnalyticsFilters): Record<string, unknown> {
   if (filters.country !== undefined) params.country = filters.country;
   if (filters.dateFrom !== undefined) params.dateFrom = filters.dateFrom;
   if (filters.dateTo !== undefined) params.dateTo = filters.dateTo;
-  if (filters.planCategory !== undefined) params.planCategory = filters.planCategory;
-  if (filters.durationDays !== undefined) params.durationDays = filters.durationDays;
+  if (filters.planId !== undefined) params.planId = filters.planId;
   if (filters.entryOrigin !== undefined) params.entryOrigin = filters.entryOrigin;
   return params;
 }

@@ -273,16 +273,16 @@ export interface FunnelAnalytics {
 // -- Retención por ciclos (Phase 118 D-04/D-05/D-06) ---------------------
 
 /**
- * Plan-category filter for the retention curve (Phase 118 D-06). `todas` means
- * no plan-category restriction; the four concrete values mirror the backend
- * `plan_category` enum.
+ * A plan offered as a retention filter option (follow-up). The retention curve
+ * is filterable by a single concrete plan (`planId`); the selector is built from
+ * `availablePlans` and shows the duration in parentheses. `durationDays` may be
+ * null for legacy plans with no duration set.
  */
-export type RetentionPlanCategory =
-  | 'presencial'
-  | 'online_regular'
-  | 'online_goal'
-  | 'online_coach'
-  | 'todas';
+export interface RetentionPlanOption {
+  id: number;
+  name: string;
+  durationDays: number | null;
+}
 
 /**
  * A single retention cohort (Phase 118 D-06). `cohort` is the month (`YYYY-MM`)
@@ -314,16 +314,15 @@ export interface CycleDistribution {
  * ascending by `cohort` month. `maxCycle` is the longest cycle index present
  * across cohorts (drives the X-axis length). `invalidWindowSubs` counts subs
  * skipped for defensive reasons (null start/end or end<start) so the frontend
- * can surface a caveat. `availableDurations` lists the distinct plan durations
- * (whole days, sorted asc) present in the current scope/category — the duration
- * filter options are built from it.
+ * can surface a caveat. `availablePlans` lists the distinct plans present in the
+ * current scope — the plan filter options are built from it.
  */
 export interface RetentionAnalytics {
   cohorts: RetentionCohort[];
   maxCycle: number;
   cycleDistribution: CycleDistribution;
   invalidWindowSubs: number;
-  availableDurations: number[];
+  availablePlans: RetentionPlanOption[];
 }
 
 // -- Finanzas avanzadas: Caja vs Devengado + ARPU (Phase 118 D-07/D-08) ---
@@ -366,16 +365,11 @@ export interface AnalyticsFilters {
   dateFrom?: string; // YYYY-MM-DD
   dateTo?: string; // YYYY-MM-DD
   /**
-   * Plan-category restriction (Phase 118 D-06, retention only). When absent or
-   * `todas`, no plan-category filter is applied. Ignored by other metrics.
-   */
-  planCategory?: RetentionPlanCategory;
-  /**
-   * Plan-duration restriction in whole days (retention only). Exact match on the
-   * plan's duration. When absent, no duration filter is applied. Ignored by other
+   * Plan restriction (retention only, follow-up). Exact match on the
+   * subscription's plan. When absent, no plan filter is applied. Ignored by other
    * metrics.
    */
-  durationDays?: number;
+  planId?: number;
   /**
    * Funnel entry-origin segment (funnel follow-up, funnel only). When absent or
    * `all`, the classic 3-stage funnel is returned. Ignored by other metrics.

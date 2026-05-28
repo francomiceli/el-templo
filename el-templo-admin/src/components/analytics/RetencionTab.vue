@@ -8,30 +8,30 @@
     suscripción, no los ciclos intermedios. La curva es 100% confiable solo para cohortes nuevas.
   </q-banner>
 
-  <!-- plan_category (D-06) + duration filters -->
+  <!-- Filters: plan (server-side re-fetch) + year (client-side, reduces lines) -->
   <div class="row q-col-gutter-md q-mb-md">
-    <div class="col-12 col-sm-4">
+    <div class="col-12 col-sm-5">
       <q-select
-        :model-value="props.planCategory"
-        :options="planCategoryOptions"
-        label="Categoría de plan"
+        :model-value="props.planId"
+        :options="planOptions"
+        label="Plan"
         dense
         outlined
         emit-value
         map-options
-        @update:model-value="onPlanCategoryChange"
+        @update:model-value="onPlanChange"
       />
     </div>
-    <div class="col-12 col-sm-4">
+    <div class="col-12 col-sm-3">
       <q-select
-        :model-value="props.durationDays"
-        :options="durationOptions"
-        label="Duración del plan"
+        v-model="selectedYear"
+        :options="yearOptions"
+        label="Año de la cohorte"
         dense
         outlined
         emit-value
         map-options
-        @update:model-value="onDurationChange"
+        :disable="yearOptions.length === 0"
       />
     </div>
   </div>
@@ -53,6 +53,11 @@
         <div class="text-subtitle2 q-mb-sm">Retención por ciclos de plan</div>
         <div style="height: 300px; position: relative">
           <Line :data="retentionChartData" :options="retentionOptions" />
+        </div>
+        <div class="text-caption text-grey-7 q-mt-sm">
+          Cada línea es una cohorte: los miembros cuyo <b>ciclo 1</b> (primera suscripción) empezó
+          ese mes — p. ej. «Marzo 2026» son los que arrancaron en marzo de 2026. El eje X son
+          <b>ciclos consecutivos</b> (renovaciones sin cortar más de 30 días), no meses calendario.
         </div>
       </q-card-section>
     </q-card>
@@ -81,7 +86,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -95,7 +100,7 @@ import {
 } from 'chart.js';
 import { Line } from 'vue-chartjs';
 import { chartColors } from 'src/utils/chart-colors';
-import type { RetentionAnalytics, RetentionPlanCategory } from 'src/types/analytics';
+import type { RetentionAnalytics } from 'src/types/analytics';
 
 // -- Register Chart.js components ----------------------------------------
 
@@ -106,53 +111,96 @@ ChartJS.register(CategoryScale, LinearScale, LineElement, PointElement, Title, T
 const props = defineProps<{
   data: RetentionAnalytics | null;
   loading: boolean;
-  planCategory: RetentionPlanCategory;
-  durationDays: number | null;
+  planId: number | null;
 }>();
 
 const emit = defineEmits<{
-  'update:planCategory': [value: RetentionPlanCategory];
-  'update:durationDays': [value: number | null];
+  'update:planId': [value: number | null];
 }>();
 
-const planCategoryOptions: Array<{ label: string; value: RetentionPlanCategory }> = [
-  { label: 'Todas', value: 'todas' },
-  { label: 'Presencial', value: 'presencial' },
-  { label: 'Online regular', value: 'online_regular' },
-  { label: 'Online goal', value: 'online_goal' },
-  { label: 'Online coach', value: 'online_coach' },
-];
+// -- Plan filter (server-side) -------------------------------------------
 
-function onPlanCategoryChange(value: RetentionPlanCategory): void {
-  emit('update:planCategory', value);
-}
-
-// Duration options are built from the durations the backend reports as present
-// in the current scope/category (`null` = todas). Stays in sync as the category
-// filter changes the available set.
-const durationOptions = computed<Array<{ label: string; value: number | null }>>(() => {
-  const opts: Array<{ label: string; value: number | null }> = [{ label: 'Todas', value: null }];
-  for (const d of props.data?.availableDurations ?? []) {
-    opts.push({ label: `${d} días`, value: d });
+// Options come from the plans the backend reports as present in scope; the
+// duration is shown in parentheses. `null` = todos los planes.
+const planOptions = computed<Array<{ label: string; value: number | null }>>(() => {
+  const opts: Array<{ label: string; value: number | null }> = [
+    { label: 'Todos los planes', value: null },
+  ];
+  for (const p of props.data?.availablePlans ?? []) {
+    const dur = p.durationDays !== null ? ` (${p.durationDays} días)` : '';
+    opts.push({ label: `${p.name}${dur}`, value: p.id });
   }
   return opts;
 });
 
-function onDurationChange(value: number | null): void {
-  emit('update:durationDays', value);
+function onPlanChange(value: number | null): void {
+  emit('update:planId', value);
 }
 
-// -- Retention curve (multi-cohort, X = ciclo N) -------------------------
+// -- Year filter (client-side — keeps the chart from drawing too many lines) --
+
+const MONTH_NAMES = [
+  'Enero',
+  'Febrero',
+  'Marzo',
+  'Abril',
+  'Mayo',
+  'Junio',
+  'Julio',
+  'Agosto',
+  'Septiembre',
+  'Octubre',
+  'Noviembre',
+  'Diciembre',
+];
+
+// "YYYY-MM" → "Mes Año" (es). Falls back to the raw value if malformed.
+function cohortLabel(cohort: string): string {
+  const [year, month] = cohort.split('-');
+  const name = MONTH_NAMES[Number(month) - 1];
+  return name !== undefined ? `${name} ${year}` : cohort;
+}
+
+const availableYears = computed<string[]>(() => {
+  const set = new Set<string>();
+  for (const c of props.data?.cohorts ?? []) set.add(c.cohort.slice(0, 4));
+  return [...set].sort();
+});
+
+const yearOptions = computed(() => availableYears.value.map((y) => ({ label: y, value: y })));
+
+const selectedYear = ref<string | null>(null);
+
+// Default to the most recent year; re-clamp if the available set changes (e.g.
+// after a plan filter re-fetch) so we never keep a year that no longer exists.
+watch(
+  availableYears,
+  (years) => {
+    if (years.length === 0) {
+      selectedYear.value = null;
+    } else if (selectedYear.value === null || !years.includes(selectedYear.value)) {
+      selectedYear.value = years[years.length - 1];
+    }
+  },
+  { immediate: true }
+);
+
+const filteredCohorts = computed(() =>
+  (props.data?.cohorts ?? []).filter(
+    (c) => selectedYear.value === null || c.cohort.slice(0, 4) === selectedYear.value
+  )
+);
+
+// -- Retention curve (one line per cohort of the selected year) ----------
 
 const retentionChartData = computed(() => {
-  if (!props.data) return { labels: [] as string[], datasets: [] };
-  const maxCycle = Math.max(props.data.maxCycle, 1);
+  const maxCycle = Math.max(props.data?.maxCycle ?? 1, 1);
   // X-axis labels are cycle numbers (ciclo N), NOT calendar months.
   const labels = Array.from({ length: maxCycle }, (_, i) => `Ciclo ${i + 1}`);
   return {
     labels,
-    datasets: props.data.cohorts.map((cohort, i) => ({
-      label: cohort.cohort,
+    datasets: filteredCohorts.value.map((cohort, i) => ({
+      label: cohortLabel(cohort.cohort),
       data: labels.map((_, idx) => cohort.cycleRetention[idx] ?? null),
       borderColor: chartColors[i % chartColors.length],
       backgroundColor: chartColors[i % chartColors.length],

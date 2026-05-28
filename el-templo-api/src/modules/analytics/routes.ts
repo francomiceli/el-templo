@@ -27,7 +27,7 @@ import {
   advancedFinanceSchema,
   funnelSchema,
 } from "./schemas";
-import type { FunnelEntryOrigin, RetentionPlanCategory } from "./types";
+import type { FunnelEntryOrigin } from "./types";
 
 import {
   ADMIN_ROLES,
@@ -290,14 +290,13 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
 
   // GET /retention — retención por cohortes de ciclos de plan (Phase 118
   // D-04/D-05/D-06). SENSIBLE → ADMIN_ROLES-only vía requireAdminAnalytics (D-11);
-  // gestion recibe 403. Filtrable por plan_category y duración. Scoped por sede/país.
+  // gestion recibe 403. Filtrable por plan (planId). Scoped por sede/país.
   fastify.get<{
     Querystring: {
       branchId?: number;
       dateFrom?: string;
       dateTo?: string;
-      planCategory?: RetentionPlanCategory;
-      durationDays?: number;
+      planId?: number;
     };
   }>(
     "/retention",
@@ -315,8 +314,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
           country: request.scope.country ?? undefined,
           dateFrom: request.query.dateFrom,
           dateTo: request.query.dateTo,
-          planCategory: request.query.planCategory,
-          durationDays: request.query.durationDays,
+          planId: request.query.planId,
         };
         const result = await retentionService.getRetention(filters);
         return result;

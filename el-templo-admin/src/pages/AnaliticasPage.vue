@@ -230,12 +230,10 @@
       <!-- Retención Tab (Phase 118) -->
       <q-tab-panel name="retencion">
         <RetencionTab
-          v-model:plan-category="retentionPlanCategory"
-          v-model:duration-days="retentionDurationDays"
+          v-model:plan-id="retentionPlanId"
           :data="retentionData"
           :loading="loadingRetention"
-          @update:plan-category="onRetentionCategoryChange"
-          @update:duration-days="onRetentionFilterChange"
+          @update:plan-id="onRetentionFilterChange"
         />
       </q-tab-panel>
     </q-tab-panels>
@@ -264,7 +262,6 @@ import type {
   FunnelAnalytics,
   RetentionAnalytics,
   AdvancedFinanceAnalytics,
-  RetentionPlanCategory,
   FunnelEntryOrigin,
 } from 'src/types/analytics';
 import type { BranchOption } from 'src/types/member';
@@ -441,13 +438,9 @@ const loadingFunnel = ref(false);
 const loadingRetention = ref(false);
 const loadingAdvancedFinance = ref(false);
 
-// Local plan_category filter for the Retención tab (D-06). Re-fetches the
-// cohort curve server-side. Default 'todas' (no restriction).
-const retentionPlanCategory = ref<RetentionPlanCategory>('todas');
-
-// Local plan-duration filter for the Retención tab (follow-up). `null` = todas.
-// Built from the durations the backend reports as available in scope/category.
-const retentionDurationDays = ref<number | null>(null);
+// Local plan filter for the Retención tab (follow-up). `null` = todos los planes.
+// Re-fetches the cohort curve server-side. Options built from availablePlans.
+const retentionPlanId = ref<number | null>(null);
 
 // Local entry-origin segment for the Funnel tab (funnel follow-up). Re-fetches
 // the funnel server-side. Default 'all' (classic 3-stage funnel).
@@ -579,8 +572,7 @@ async function fetchRetentionData() {
   try {
     retentionData.value = await analyticsApi.getRetention({
       ...currentFilters.value,
-      planCategory: retentionPlanCategory.value,
-      durationDays: retentionDurationDays.value ?? undefined,
+      planId: retentionPlanId.value ?? undefined,
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido';
@@ -604,15 +596,8 @@ async function fetchAdvancedFinanceData() {
   }
 }
 
-// Re-fetch the retention curve when a local filter changes.
+// Re-fetch the retention curve when the local plan filter changes.
 function onRetentionFilterChange() {
-  void fetchRetentionData();
-}
-
-// Changing the category can change which durations exist → reset the duration
-// filter to "todas" so we never keep an orphan duration not in the new set.
-function onRetentionCategoryChange() {
-  retentionDurationDays.value = null;
   void fetchRetentionData();
 }
 
