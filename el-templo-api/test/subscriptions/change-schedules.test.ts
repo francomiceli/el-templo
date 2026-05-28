@@ -39,6 +39,26 @@ describe("Subscriptions API — PATCH /:id/schedules (change fixed turnos)", () 
     await cleanAllTestData(app);
   });
 
+  // `branches` is intentionally NOT cleaned by cleanAllTestData (the seed sede
+  // id 1 must survive). Tests share a DB per worker (isolate:false), so a fixed
+  // branch code may already exist from another file. Upsert + select-by-code
+  // keeps these inserts idempotent and avoids ER_DUP_ENTRY collisions.
+  async function upsertBranch(
+    name: string,
+    code: string,
+    country: string,
+  ): Promise<number> {
+    await app.db
+      .insert(branches)
+      .values({ name, code, country })
+      .onDuplicateKeyUpdate({ set: { name } });
+    const [row] = await app.db
+      .select({ id: branches.id })
+      .from(branches)
+      .where(eq(branches.code, code));
+    return row.id;
+  }
+
   async function createScheduleSlots(
     branchId: number,
     count: number,
@@ -412,12 +432,7 @@ describe("Subscriptions API — PATCH /:id/schedules (change fixed turnos)", () 
 
   it("multi_branch plan: accepts anchors split across branches in the same country", async () => {
     // Create a second AR branch (sede secundaria) for the multi-branch case.
-    const secondBranchInsert = await app.db.insert(branches).values({
-      name: "Test Branch B",
-      code: "TESTB",
-      country: "AR",
-    });
-    const secondBranchId = Number(secondBranchInsert[0].insertId);
+    const secondBranchId = await upsertBranch("Test Branch B", "TESTB", "AR");
 
     const plan = await createPlan(app, adminToken, {
       name: "Fixed Multi-Branch 2x",
@@ -450,12 +465,7 @@ describe("Subscriptions API — PATCH /:id/schedules (change fixed turnos)", () 
 
   it("multi_branch plan: rejects anchors in a different country", async () => {
     // Spanish (ES) branch — cross-country must be rejected even for multi_branch.
-    const esBranchInsert = await app.db.insert(branches).values({
-      name: "Test Branch ES",
-      code: "TESTES",
-      country: "ES",
-    });
-    const esBranchId = Number(esBranchInsert[0].insertId);
+    const esBranchId = await upsertBranch("Test Branch ES", "TESTES", "ES");
 
     const plan = await createPlan(app, adminToken, {
       name: "Fixed Multi-Branch X-Country 2x",
@@ -482,12 +492,7 @@ describe("Subscriptions API — PATCH /:id/schedules (change fixed turnos)", () 
   });
 
   it("non-multi_branch plan: rejects anchors in another sede (regression)", async () => {
-    const secondBranchInsert = await app.db.insert(branches).values({
-      name: "Test Branch C",
-      code: "TESTC",
-      country: "AR",
-    });
-    const secondBranchId = Number(secondBranchInsert[0].insertId);
+    const secondBranchId = await upsertBranch("Test Branch C", "TESTC", "AR");
 
     const plan = await createPlan(app, adminToken, {
       name: "Fixed Single-Branch 2x",
@@ -513,12 +518,7 @@ describe("Subscriptions API — PATCH /:id/schedules (change fixed turnos)", () 
   });
 
   it("changeFixedSchedules: multi_branch plan accepts cross-sede swap", async () => {
-    const secondBranchInsert = await app.db.insert(branches).values({
-      name: "Test Branch D",
-      code: "TESTD",
-      country: "AR",
-    });
-    const secondBranchId = Number(secondBranchInsert[0].insertId);
+    const secondBranchId = await upsertBranch("Test Branch D", "TESTD", "AR");
 
     const plan = await createPlan(app, adminToken, {
       name: "Fixed Multi-Branch Swap 2x",
