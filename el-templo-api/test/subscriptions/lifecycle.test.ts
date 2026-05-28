@@ -280,6 +280,65 @@ describe("Subscriptions API — Lifecycle", () => {
       expect(historyBody.subscriptions).toHaveLength(1);
       expect(historyBody.subscriptions[0].status).toBe("expired");
     });
+
+    it("autoExpireDueSubscriptions (cron) expires lapsed subs and recomputes users.status without a read", async () => {
+      const plan = await createPlan(app, adminToken, { durationDays: 30 });
+      const member = await createMember(app);
+
+      // Assign a currently-valid plan so recompute sets users.status='activo'.
+      await assignPlan(app, adminToken, member.id, {
+        planId: plan.id,
+        startDate: todayStr(),
+      });
+
+      // Force the sub past its end date. The persisted users.status stays the
+      // stale 'activo' from the assign — nothing reads this member's detail.
+      await app.db
+        .update(subscriptions)
+        .set({ startDate: dateOffsetStr(-10), endDate: dateOffsetStr(-5) })
+        .where(eq(subscriptions.userId, member.id));
+
+      const [before] = await app.db
+        .select({ status: schema.users.status })
+        .from(schema.users)
+        .where(eq(schema.users.id, member.id));
+      expect(before.status).toBe("activo");
+
+      // Run the bulk expire the daily cron invokes — no per-member read.
+      const { SubscriptionService } =
+        await import("../../src/modules/subscriptions/service");
+      const { AuraService } = await import("../../src/modules/aura");
+      const { TransactionService, BalanceService } =
+        await import("../../src/modules/finance");
+      const { EnrollmentService } =
+        await import("../../src/modules/programs/enrollment-service");
+      const aura = new AuraService(app.db);
+      const balances = new BalanceService(app.db, app.log);
+      const txns = new TransactionService(app.db, app.log, balances);
+      const enrollments = new EnrollmentService(app.db, app.log);
+      const svc = new SubscriptionService(
+        app.db,
+        app.log,
+        aura,
+        txns,
+        enrollments,
+      );
+
+      const processed = await svc.autoExpireDueSubscriptions();
+      expect(processed).toBeGreaterThanOrEqual(1);
+
+      const [sub] = await app.db
+        .select({ status: subscriptions.status })
+        .from(subscriptions)
+        .where(eq(subscriptions.userId, member.id));
+      expect(sub.status).toBe("expired");
+
+      const [after] = await app.db
+        .select({ status: schema.users.status })
+        .from(schema.users)
+        .where(eq(schema.users.id, member.id));
+      expect(after.status).toBe("inactivo");
+    });
   });
 
   describe("Pause / resume / cancel", () => {

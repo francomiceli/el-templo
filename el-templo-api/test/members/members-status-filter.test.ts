@@ -1,27 +1,39 @@
 /**
- * Phase 103 Plan 04 (R8 + R10): integration tests for the migrated members
- * API status enum.
+ * Members API status enum filter — integration tests.
  *
- * R8 — `GET /api/admin/members?status=todos|freemium|prueba|activo|inactivo`
- *      reads `users.status` directly (no derived isActiveSubquery). The legacy
- *      `'leads'` and `'alumnos'` values are no longer accepted.
- * R10 — Response payload includes `status` per row (string enum) and no
- *       longer includes `isActive`.
+ * The list status (filter + per-row projection) is computed LIVE from
+ * subscriptions, mirroring recomputeUserStatus's CASE, rather than read from
+ * the lazily-updated `users.status` column: a member counts as 'activo' only
+ * while they hold an active/paused sub that has started and not ended;
+ * otherwise an 'activo'/'inactivo' column reads as 'inactivo'; 'freemium' and
+ * 'prueba' (not derivable from subs) pass through. This keeps the buscador
+ * correct even when the persisted column is stale (the lapsed-member bug:
+ * users.status stays 'activo' until the auto-expire cron or an expire-on-read
+ * fires). The legacy `'leads'`/`'alumnos'` enum values are still rejected.
  *
- * Fixture seeds 4 users — one per enum value — and one staff user (which
- * never appears in /admin/members since the route filters by role='member').
+ * Fixture seeds 4 users — one per enum value — with the 'activo' user backed
+ * by a real active subscription so its computed status matches its column.
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
 import argon2 from "argon2";
 import { eq, and, isNull, sql } from "drizzle-orm";
-import { createTestApp, getAuthToken, cleanAllTestData } from "../helpers";
+import {
+  createTestApp,
+  getAuthToken,
+  cleanAllTestData,
+  todayStr,
+  dateOffsetStr,
+} from "../helpers";
 import { users } from "../../src/db/schema/users";
+import { subscriptionPlans } from "../../src/db/schema/subscription-plans";
+import { subscriptions } from "../../src/db/schema/subscriptions";
 
-describe("GET /api/admin/members — status enum filter (Phase 103 R8, R10)", () => {
+describe("GET /api/admin/members — status enum filter (computed from subscriptions)", () => {
   let app: FastifyInstance;
   let adminToken: string;
   const branchId = 1;
+  let planId: number;
 
   let userFreemium: number;
   let userPrueba: number;
@@ -37,37 +49,77 @@ describe("GET /api/admin/members — status enum filter (Phase 103 R8, R10)", ()
     await app.close();
   });
 
+  const passwordHash = () => argon2.hash("ignored");
+
+  async function makeMember(
+    firstName: string,
+    status: "freemium" | "prueba" | "activo" | "inactivo",
+  ): Promise<number> {
+    const [row] = await app.db
+      .insert(users)
+      .values({
+        email: `${firstName.toLowerCase()}-${Date.now()}@test.com`,
+        passwordHash: await passwordHash(),
+        firstName,
+        lastName: "Test",
+        phone: null,
+        dni: `${firstName.slice(0, 1)}${Date.now() % 100000}`,
+        branchId,
+        role: "member",
+        level: "alfa",
+        status,
+      })
+      .$returningId();
+    return row.id;
+  }
+
+  /** Insert a subscription row directly (bypasses service-layer recompute). */
+  async function seedSubscription(
+    userId: number,
+    status: "active" | "paused" | "expired",
+    startDate: string,
+    endDate: string,
+  ): Promise<void> {
+    await app.db.insert(subscriptions).values({
+      userId,
+      planId,
+      branchId,
+      status,
+      startDate,
+      endDate,
+      pricePaid: 15000,
+      priceTypeApplied: "regular",
+    });
+  }
+
   beforeEach(async () => {
     await cleanAllTestData(app);
 
-    const passwordHash = await argon2.hash("ignored");
-
-    async function makeMember(
-      firstName: string,
-      status: "freemium" | "prueba" | "activo" | "inactivo",
-    ): Promise<number> {
-      const [row] = await app.db
-        .insert(users)
-        .values({
-          email: `${firstName.toLowerCase()}@test.com`,
-          passwordHash,
-          firstName,
-          lastName: "Test",
-          phone: null,
-          dni: `${firstName.slice(0, 1)}${Date.now() % 100000}`,
-          branchId,
-          role: "member",
-          level: "alfa",
-          status,
-        })
-        .$returningId();
-      return row.id;
-    }
+    const [plan] = await app.db.insert(subscriptionPlans).values({
+      name: `StatusFilterPlan-${Date.now()}`,
+      country: "AR",
+      planCategory: "online_regular",
+      bookingMode: "flexible",
+      priceRegular: 15000,
+      priceZero: 10000,
+      durationDays: 30,
+      classesPerWeek: null,
+    });
+    planId = (plan as { insertId: number }).insertId;
 
     userFreemium = await makeMember("FreemiumUser", "freemium");
     userPrueba = await makeMember("PruebaUser", "prueba");
     userActivo = await makeMember("ActivoUser", "activo");
     userInactivo = await makeMember("InactivoUser", "inactivo");
+
+    // The 'activo' user is backed by a real, currently-valid subscription so
+    // its computed status matches its persisted column.
+    await seedSubscription(
+      userActivo,
+      "active",
+      dateOffsetStr(-10),
+      dateOffsetStr(20),
+    );
   });
 
   interface ListResponse {
@@ -205,5 +257,77 @@ describe("GET /api/admin/members — status enum filter (Phase 103 R8, R10)", ()
       .from(users)
       .where(eq(users.id, body.id));
     expect(row?.status).toBe("prueba");
+  });
+
+  // ─── Stale-column regression (the lapsed-member bug) ──────────────────
+  // A member whose only subscription has lapsed keeps users.status='activo'
+  // in the DB until the auto-expire cron / expire-on-read fires. The list
+  // must still show them as 'inactivo' because it computes the status live.
+
+  it("a member with status='activo' but an EXPIRED sub reads as 'inactivo' in the list", async () => {
+    const stale = await makeMember("StaleLapsed", "activo");
+    await seedSubscription(
+      stale,
+      "expired",
+      dateOffsetStr(-40),
+      dateOffsetStr(-1),
+    );
+
+    // The persisted column is still the stale 'activo'.
+    const [row] = await app.db
+      .select({ status: users.status })
+      .from(users)
+      .where(eq(users.id, stale));
+    expect(row?.status).toBe("activo");
+
+    // ?status=activo must NOT include the lapsed member...
+    const activo = await listMembers("status=activo");
+    expect(activo.members.map((m) => m.id)).not.toContain(stale);
+    // ...and the backed active user IS still there.
+    expect(activo.members.map((m) => m.id)).toContain(userActivo);
+
+    // ?status=inactivo includes them, computed as inactivo.
+    const inactivo = await listMembers("status=inactivo");
+    const staleRow = inactivo.members.find((m) => m.id === stale);
+    expect(staleRow).toBeDefined();
+    expect(staleRow?.status).toBe("inactivo");
+  });
+
+  it("a member with status='activo' but NO subscription reads as 'inactivo'", async () => {
+    const stale = await makeMember("StaleNoSub", "activo");
+
+    const inactivo = await listMembers("status=inactivo");
+    expect(inactivo.members.map((m) => m.id)).toContain(stale);
+
+    const activo = await listMembers("status=activo");
+    expect(activo.members.map((m) => m.id)).not.toContain(stale);
+  });
+
+  it("a 'paused' subscription still counts as 'activo' in the list", async () => {
+    const paused = await makeMember("PausedUser", "activo");
+    await seedSubscription(
+      paused,
+      "paused",
+      dateOffsetStr(-5),
+      dateOffsetStr(25),
+    );
+
+    const activo = await listMembers("status=activo");
+    const row = activo.members.find((m) => m.id === paused);
+    expect(row).toBeDefined();
+    expect(row?.status).toBe("activo");
+  });
+
+  it("an active sub whose startDate is still in the future does NOT make 'activo'", async () => {
+    const future = await makeMember("FutureStart", "inactivo");
+    await seedSubscription(
+      future,
+      "active",
+      dateOffsetStr(5),
+      dateOffsetStr(35),
+    );
+
+    const inactivo = await listMembers("status=inactivo");
+    expect(inactivo.members.map((m) => m.id)).toContain(future);
   });
 });

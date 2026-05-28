@@ -43,6 +43,7 @@ import type {
   UpdateNoteInput,
   DniCheckResult,
   TotalDebtRow,
+  UserStatus,
 } from "./types";
 import { ConflictError, NotFoundError } from "../shared/errors";
 import { alias } from "drizzle-orm/mysql-core";
@@ -195,17 +196,37 @@ export class MemberService {
       );
     }
 
-    // Phase 103 (R8): direct read of users.status. The legacy 'leads'/'alumnos'
-    // derivation is gone — Plan 02's recomputeUserStatus keeps users.status in
-    // sync with subscription/booking transitions, so a single column read is
-    // the truth. 'todos' (or undefined) is a no-op.
+    // Effective status, computed live from subscriptions rather than read
+    // from the (lazily-updated) users.status column. The persisted column is
+    // a denormalized cache refreshed by recomputeUserStatus on subscription
+    // transitions and by the daily auto-expire cron, but a member whose only
+    // sub silently lapsed can carry a stale 'activo' until that runs. Deriving
+    // here mirrors recomputeUserStatus's CASE exactly so the list (and its
+    // status filter) is always correct, independent of cache freshness.
+    // 'freemium'/'prueba' are not derivable from subs, so they pass through.
+    const effectiveStatusExpr = sql<UserStatus>`(
+      CASE
+        WHEN EXISTS (
+          SELECT 1 FROM subscriptions s
+          WHERE s.user_id = users.id
+            AND s.subscription_status IN ('active','paused')
+            AND s.start_date <= CURDATE()
+            AND (s.end_date IS NULL OR s.end_date >= CURDATE())
+        ) THEN 'activo'
+        WHEN users.status IN ('activo','inactivo') THEN 'inactivo'
+        ELSE users.status
+      END
+    )`;
+
+    // Status filter compares against the computed expression so it stays
+    // consistent with what the list displays. 'todos' (or undefined) is a no-op.
     if (
       status === "freemium" ||
       status === "prueba" ||
       status === "activo" ||
       status === "inactivo"
     ) {
-      conditions.push(eq(schema.users.status, status));
+      conditions.push(sql`${effectiveStatusExpr} = ${status}`);
     }
     // status === "todos" or undefined → no-op
 
@@ -269,10 +290,10 @@ export class MemberService {
         level: schema.users.level,
         branchId: schema.users.branchId,
         branchName: schema.branches.name,
-        // Phase 103 (R10): direct projection of users.status (replaces
-        // the derived isActiveSubquery). Plan 02's recomputeUserStatus
-        // keeps this column in sync with sub create/cancel transitions.
-        status: schema.users.status,
+        // Computed live (see effectiveStatusExpr above) so a member whose
+        // subscription lapsed reads 'inactivo' immediately, without waiting
+        // for the auto-expire cron to refresh the persisted users.status.
+        status: effectiveStatusExpr,
         createdAt: schema.users.createdAt,
         planName: planNameSubquery,
         segment: segmentSubquery,

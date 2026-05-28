@@ -1583,6 +1583,38 @@ export class SubscriptionService {
   }
 
   /**
+   * Bulk auto-expire: find every user with an active subscription past its
+   * end date and run the per-user expire path for each. The per-user
+   * autoExpireSubscriptions already handles scheduled-successor activation,
+   * enrollment teardown and recomputeUserStatus, so this just fans it out.
+   *
+   * Complements the "expire on read" pattern: without a daily sweep,
+   * users.status stays stale (e.g. 'activo' for a lapsed member) for every
+   * consumer that reads the column directly — the admin members-list status
+   * filter, analytics, the member app — until someone opens that member's
+   * detail. Returns the number of users processed. Invoked by the daily cron.
+   */
+  async autoExpireDueSubscriptions(): Promise<number> {
+    const today = todayDateString();
+    const due = await this.db
+      .select({ userId: schema.subscriptions.userId })
+      .from(schema.subscriptions)
+      .where(
+        and(
+          eq(schema.subscriptions.status, "active"),
+          sql`${schema.subscriptions.endDate} < ${today}`,
+        ),
+      )
+      .groupBy(schema.subscriptions.userId);
+
+    for (const row of due) {
+      await this.autoExpireSubscriptions(row.userId);
+    }
+
+    return due.length;
+  }
+
+  /**
    * List schedule-change audit entries for a subscription (newest first).
    */
   async listScheduleChanges(
