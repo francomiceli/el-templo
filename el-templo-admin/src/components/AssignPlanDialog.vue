@@ -167,8 +167,37 @@
                     />
                   </div>
                 </div>
+                <!-- Informational breakdown of the suggested difference -->
+                <q-card
+                  v-if="changePlanPreviewData?.allowed"
+                  flat
+                  bordered
+                  class="bg-grey-1 q-mt-sm"
+                >
+                  <q-card-section class="q-py-sm">
+                    <div class="row items-center justify-between">
+                      <span class="text-caption text-grey-7">
+                        {{ selectedPlan?.name }} ({{ priceTypeLabel }})
+                      </span>
+                      <span>{{ formatPrice(keepNewPlanPrice, displayCurrency) }}</span>
+                    </div>
+                    <div class="row items-center justify-between">
+                      <span class="text-caption text-grey-7">
+                        Ya pagó ({{ changePlanPreviewData.currentPlan.name }})
+                      </span>
+                      <span class="text-positive">
+                        −{{ formatPrice(keepAlreadyPaid, displayCurrency) }}
+                      </span>
+                    </div>
+                    <q-separator class="q-my-xs" />
+                    <div class="row items-center justify-between text-weight-bold">
+                      <span>Diferencia a cobrar</span>
+                      <span>{{ formatPrice(chargeBase, displayCurrency) }}</span>
+                    </div>
+                  </q-card-section>
+                </q-card>
                 <div class="text-caption text-grey-7 q-mt-xs">
-                  El alumno abona la diferencia entre planes. No se prorratea.
+                  Se cobra la diferencia entre planes. No se prorratea por los días sin usar.
                 </div>
               </div>
             </template>
@@ -811,6 +840,8 @@ const props = withDefaults(
     categoryFilter?: 'presencial' | 'online';
     /** End date of the member's current subscription. Required for change mode to offer the "start after current ends" option. */
     currentSubEndDate?: string | null;
+    /** Plan ID of the member's current subscription. In change mode it's filtered out of the list (no point changing to the same plan). */
+    currentPlanId?: number | null;
     /**
      * Current sub's fixed-schedule IDs. In change mode the schedule step
      * pre-populates with these so admins can keep/edit the alumno's existing
@@ -835,6 +866,7 @@ const props = withDefaults(
     mode: 'assign',
     categoryFilter: undefined,
     currentSubEndDate: null,
+    currentPlanId: null,
     currentScheduleIds: () => [],
     memberBranchIsVirtual: false,
     member: null,
@@ -888,6 +920,12 @@ const keepExpiryDate = ref<string>('');
 const keepDiffAmount = ref<number | null>(null);
 
 const isKeepMode = computed(() => props.mode === 'change' && changeMode.value === 'now_keep');
+
+// 'mantener vencimiento': informational breakdown of the suggested difference
+// (new plan price at the selected price type − amount already paid).
+const keepNewPlanPrice = computed(() => getBasePrice());
+const keepAlreadyPaid = computed(() => changePlanPreviewData.value?.currentPlan.pricePaid ?? 0);
+const priceTypeLabel = computed(() => PRICE_TYPE_LABELS[assignForm.value.priceTypeApplied]);
 
 // Derived start mode for the payload + summary logic that still thinks in the
 // original two-mode model. 'now_keep' is an immediate change, so it maps to 'now'.
@@ -1003,6 +1041,11 @@ const scheduleStepValid = computed(() => {
 
 const filteredPlans = computed(() => {
   let list = plans.value;
+  // Change mode: drop the current plan — there's no point "changing" to the
+  // same plan the member already has.
+  if (props.mode === 'change' && props.currentPlanId != null) {
+    list = list.filter((p) => p.id !== props.currentPlanId);
+  }
   // Phase 111 REQ-2: virtual-branch members cannot receive presencial plans.
   // Drop them from the list so the admin doesn't even see the option; the
   // banner above the empty list explains the CTA path (edit alumno → change
@@ -1199,7 +1242,10 @@ const changeModeOptions = computed(() => {
     },
   ];
   if (canOfferAfterCurrent.value) {
-    opts.push({ label: 'Ahora, manteniendo el vencimiento', value: 'now_keep' });
+    opts.push({
+      label: `Ahora, manteniendo el vencimiento (vence ${keepExpiryDate.value ? formatDate(keepExpiryDate.value) : '—'})`,
+      value: 'now_keep',
+    });
     opts.push({
       label: `Cuando termine el plan actual (vence ${afterCurrentEndDate.value ? formatDate(afterCurrentEndDate.value) : '—'})`,
       value: 'after_current',
