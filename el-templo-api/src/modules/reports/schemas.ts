@@ -128,6 +128,11 @@ export const expiringReportSchema = {
       branchId: { type: "integer" },
       daysWindow: { type: "integer", minimum: 1 },
       includeExpired: { type: "boolean" },
+      // When false/omitted, members who already have future coverage of the
+      // same category (an active/paused/scheduled subscription ending after
+      // the expiring one) are hidden — they already renewed, so they are not
+      // a renewal target. Set true to surface them flagged.
+      includeRenewed: { type: "boolean" },
     },
   },
   response: {
@@ -145,6 +150,7 @@ export const expiringReportSchema = {
           daysRemaining: { type: "integer" },
           phone: { type: ["string", "null"] },
           currency: { type: "string" },
+          hasFutureCoverage: { type: "boolean" },
         },
       },
     },

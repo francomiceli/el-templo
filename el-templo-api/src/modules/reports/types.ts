@@ -34,6 +34,10 @@ export interface ExpiringReportFilters {
   country?: "AR" | "ES";
   daysWindow?: number; // default 7
   includeExpired?: boolean; // default true
+  // default false — hide members who already have future coverage of the same
+  // category (already renewed). Set true to include them (flagged via the
+  // hasFutureCoverage row field).
+  includeRenewed?: boolean;
 }
 
 export interface InactiveReportFilters {
@@ -77,6 +81,10 @@ export interface ExpiringReportRow {
   daysRemaining: number; // positive = days left, negative = days overdue
   phone: string | null;
   currency: string; // "ARS" | "EUR" — REQ-98-10 / D-13 (from subscriptions.currency)
+  // true when the member already has future coverage of the same category
+  // (an active/paused/scheduled subscription ending after this one). Such rows
+  // are hidden unless includeRenewed is set.
+  hasFutureCoverage: boolean;
 }
 
 export interface InactiveReportRow {

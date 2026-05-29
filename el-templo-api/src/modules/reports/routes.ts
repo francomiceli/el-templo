@@ -147,6 +147,7 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
       branchId?: number;
       daysWindow?: number;
       includeExpired?: boolean;
+      includeRenewed?: boolean;
     };
   }>(
     "/expiring",
@@ -163,6 +164,7 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
           country: request.scope.country ?? undefined,
           daysWindow: request.query.daysWindow,
           includeExpired: request.query.includeExpired,
+          includeRenewed: request.query.includeRenewed,
         };
         return await reportsService.getExpiringMemberships(filters);
       } catch (err: unknown) {
@@ -424,6 +426,7 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
       branchId?: number;
       daysWindow?: number;
       includeExpired?: boolean;
+      includeRenewed?: boolean;
     };
   }>(
     "/expiring/export",
@@ -440,6 +443,7 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
           country: request.scope.country ?? undefined,
           daysWindow: request.query.daysWindow,
           includeExpired: request.query.includeExpired,
+          includeRenewed: request.query.includeRenewed,
         };
         const rows = await reportsService.exportExpiringMemberships(filters);
 

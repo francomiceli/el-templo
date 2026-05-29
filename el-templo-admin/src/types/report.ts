@@ -38,6 +38,9 @@ export interface ExpiringReportRow {
   daysRemaining: number;
   phone: string | null;
   currency?: string;
+  // true when the member already has future coverage of the same category
+  // (already renewed). Only relevant when includeRenewed is set.
+  hasFutureCoverage?: boolean;
 }
 
 export interface InactiveReportRow {
@@ -87,6 +90,9 @@ export interface ExpiringReportParams {
   country?: 'AR' | 'ES';
   daysWindow?: number;
   includeExpired?: boolean;
+  // default false — include members who already renewed (future same-category
+  // coverage). When true, those rows return with hasFutureCoverage = true.
+  includeRenewed?: boolean;
 }
 
 export interface InactiveReportParams {

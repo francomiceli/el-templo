@@ -359,6 +359,19 @@
             />
           </div>
 
+          <div class="col-auto">
+            <q-toggle
+              v-model="expiringIncludeRenewed"
+              label="Incluir ya renovados"
+              @update:model-value="fetchExpiringData"
+            >
+              <q-tooltip>
+                Por defecto se ocultan los alumnos que ya tienen una membresia futura cargada (ya
+                renovaron). Activalo para verlos igual.
+              </q-tooltip>
+            </q-toggle>
+          </div>
+
           <q-space />
 
           <div class="col-auto">
@@ -383,6 +396,21 @@
           :pagination="{ rowsPerPage: 0 }"
           hide-pagination
         >
+          <template #body-cell-memberName="props">
+            <q-td :props="props">
+              {{ props.row.memberName }}
+              <q-badge
+                v-if="props.row.hasFutureCoverage"
+                color="positive"
+                class="q-ml-sm"
+                label="Ya renovó"
+              >
+                <q-tooltip>
+                  Ya tiene una membresia futura cargada de la misma categoria.
+                </q-tooltip>
+              </q-badge>
+            </q-td>
+          </template>
           <template #body-cell-daysRemaining="props">
             <q-td :props="props">
               <template v-if="props.row.daysRemaining > 0">
@@ -1231,6 +1259,7 @@ async function onExportCharges() {
 
 const expiringDaysWindow = ref(7);
 const expiringIncludeExpired = ref(true);
+const expiringIncludeRenewed = ref(false);
 const expiringRows = ref<ExpiringReportRow[]>([]);
 const loadingExpiring = ref(false);
 const exportingExpiring = ref(false);
@@ -1265,6 +1294,7 @@ async function fetchExpiringData() {
       country: countryScope.value,
       daysWindow: expiringDaysWindow.value,
       includeExpired: expiringIncludeExpired.value,
+      includeRenewed: expiringIncludeRenewed.value,
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido';
@@ -1282,6 +1312,7 @@ async function onExportExpiring() {
       country: countryScope.value,
       daysWindow: expiringDaysWindow.value,
       includeExpired: expiringIncludeExpired.value,
+      includeRenewed: expiringIncludeRenewed.value,
     });
     const today = new Date().toISOString().split('T')[0];
     downloadBlob(blob, `reportes-vencimientos-${today}.xlsx`);

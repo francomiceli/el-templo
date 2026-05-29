@@ -419,10 +419,31 @@ export class ReportsService {
   ): Promise<ExpiringReportRow[]> {
     const daysWindow = filters.daysWindow ?? 7;
     const includeExpired = filters.includeExpired ?? true;
+    const includeRenewed = filters.includeRenewed ?? false;
 
     const statusValues = includeExpired
       ? ["active", "paused", "expired"]
       : ["active", "paused"];
+
+    // "Future coverage" = the member already renewed. There exists ANOTHER
+    // subscription of the SAME category group (presencial vs online) that is
+    // still active/paused or scheduled and ends AFTER the expiring one. We
+    // don't require contiguity (a small start gap still counts as renewed) and
+    // we don't rely on previous_subscription_id — category + end_date is more
+    // robust. Category grouping collapses online_regular/online_goal into one
+    // "online" bucket, mirroring the dual-subscription rule (presencial and
+    // online are independent; two of the same group are mutually exclusive).
+    const coverageExists = sql`EXISTS (
+      SELECT 1
+      FROM ${schema.subscriptions} sub2
+      JOIN ${schema.subscriptionPlans} sp2 ON sp2.id = sub2.plan_id
+      WHERE sub2.user_id = ${schema.subscriptions.userId}
+        AND sub2.id <> ${schema.subscriptions.id}
+        AND sub2.subscription_status IN ('active', 'paused', 'scheduled')
+        AND sub2.end_date IS NOT NULL
+        AND sub2.end_date > ${schema.subscriptions.endDate}
+        AND (sp2.plan_category = 'presencial') = (${schema.subscriptionPlans.planCategory} = 'presencial')
+    )`;
 
     const conditions: ReturnType<typeof sql>[] = [
       sql`${schema.subscriptions.status} IN (${sql.join(
@@ -436,6 +457,11 @@ export class ReportsService {
     if (!includeExpired) {
       // Only show those not yet expired
       conditions.push(sql`${schema.subscriptions.endDate} >= CURDATE()`);
+    }
+
+    if (!includeRenewed) {
+      // Hide members who already renewed (have future same-category coverage).
+      conditions.push(sql`NOT ${coverageExists}`);
     }
 
     if (filters.branchId !== undefined) {
@@ -458,6 +484,7 @@ export class ReportsService {
         phone: schema.users.phone,
         currency: schema.subscriptions.currency,
         daysRemaining: sql<number>`DATEDIFF(${schema.subscriptions.endDate}, CURDATE())`,
+        hasFutureCoverage: sql<number>`${coverageExists}`,
       })
       .from(schema.subscriptions)
       .innerJoin(schema.users, eq(schema.users.id, schema.subscriptions.userId))
@@ -485,6 +512,7 @@ export class ReportsService {
       daysRemaining: Number(r.daysRemaining),
       phone: r.phone,
       currency: r.currency ?? "ARS",
+      hasFutureCoverage: Boolean(Number(r.hasFutureCoverage)),
     }));
   }
 

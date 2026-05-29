@@ -505,6 +505,265 @@ describe("Reports API", () => {
       expect(found).toBeDefined();
       expect(found.daysRemaining).toBeLessThan(0); // negative = overdue
     });
+
+    // ─── Future coverage (already-renewed) ────────────────────────────────
+    //
+    // A member who already loaded a future subscription of the SAME category
+    // is no longer a renewal target. By default those rows are hidden; the
+    // includeRenewed flag surfaces them with hasFutureCoverage = true.
+
+    function isoFromNow(days: number): string {
+      const d = new Date();
+      d.setDate(d.getDate() + days);
+      return d.toISOString().split("T")[0];
+    }
+
+    /** Insert a subscription row directly (bypasses business rules so we can
+     * stage future/cancelled coverage that the assign endpoint would reject). */
+    async function insertSubscription(opts: {
+      userId: number;
+      planId: number;
+      status: "active" | "paused" | "scheduled" | "cancelled";
+      startDate: string;
+      endDate: string;
+    }): Promise<void> {
+      await app.db.insert(subscriptions).values({
+        userId: opts.userId,
+        planId: opts.planId,
+        branchId: testBranchId,
+        status: opts.status,
+        startDate: opts.startDate,
+        endDate: opts.endDate,
+        pricePaid: 10000,
+        priceTypeApplied: "regular",
+      });
+    }
+
+    it("hides members who already renewed (future same-category coverage) by default", async () => {
+      const plan = await createPlan({
+        name: "Plan Presencial Reno",
+        durationDays: 5,
+        planCategory: "presencial",
+      });
+      const member = await createMember({
+        email: "renewed@test.com",
+        firstName: "Ya",
+        lastName: "Renovo",
+      });
+
+      // Active sub expiring in 3 days.
+      const startActive = new Date();
+      startActive.setDate(startActive.getDate() - 2);
+      await assignSubscription(member.id, plan.id, {
+        startDate: startActive.toISOString().split("T")[0],
+      });
+
+      // Future presencial coverage starting when the active one ends.
+      await insertSubscription({
+        userId: member.id,
+        planId: plan.id,
+        status: "scheduled",
+        startDate: isoFromNow(3),
+        endDate: isoFromNow(33),
+      });
+
+      const res = await app.inject({
+        method: "GET",
+        url: `${REPORTS_URL}/expiring?daysWindow=7`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      const found = body.find(
+        (r: { userId: number }) => r.userId === member.id,
+      );
+      expect(found).toBeUndefined();
+    });
+
+    it("includes already-renewed members flagged when includeRenewed=true", async () => {
+      const plan = await createPlan({
+        name: "Plan Presencial Reno2",
+        durationDays: 5,
+        planCategory: "presencial",
+      });
+      const startActive = new Date();
+      startActive.setDate(startActive.getDate() - 2);
+
+      const renewedMember = await createMember({
+        email: "renewed2@test.com",
+        firstName: "Reno",
+        lastName: "Vado",
+      });
+      await assignSubscription(renewedMember.id, plan.id, {
+        startDate: startActive.toISOString().split("T")[0],
+      });
+      await insertSubscription({
+        userId: renewedMember.id,
+        planId: plan.id,
+        status: "scheduled",
+        startDate: isoFromNow(3),
+        endDate: isoFromNow(33),
+      });
+
+      // A member expiring without any future coverage.
+      const plainMember = await createMember({
+        email: "plain@test.com",
+        firstName: "Sin",
+        lastName: "Cobertura",
+      });
+      await assignSubscription(plainMember.id, plan.id, {
+        startDate: startActive.toISOString().split("T")[0],
+      });
+
+      const res = await app.inject({
+        method: "GET",
+        url: `${REPORTS_URL}/expiring?daysWindow=7&includeRenewed=true`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+
+      const renewed = body.find(
+        (r: { userId: number }) => r.userId === renewedMember.id,
+      );
+      expect(renewed).toBeDefined();
+      expect(renewed.hasFutureCoverage).toBe(true);
+
+      const plain = body.find(
+        (r: { userId: number }) => r.userId === plainMember.id,
+      );
+      expect(plain).toBeDefined();
+      expect(plain.hasFutureCoverage).toBe(false);
+    });
+
+    it("does NOT hide a member whose future coverage is a different category", async () => {
+      const presencialPlan = await createPlan({
+        name: "Plan Presencial XCat",
+        durationDays: 5,
+        planCategory: "presencial",
+      });
+      const onlinePlan = await createPlan({
+        name: "Plan Online XCat",
+        durationDays: 30,
+        planCategory: "online_regular",
+      });
+      const member = await createMember({
+        email: "xcat@test.com",
+        firstName: "Otra",
+        lastName: "Categoria",
+      });
+
+      const startActive = new Date();
+      startActive.setDate(startActive.getDate() - 2);
+      await assignSubscription(member.id, presencialPlan.id, {
+        startDate: startActive.toISOString().split("T")[0],
+      });
+      // Future coverage is ONLINE — must not tap the expiring presencial sub.
+      await insertSubscription({
+        userId: member.id,
+        planId: onlinePlan.id,
+        status: "scheduled",
+        startDate: isoFromNow(3),
+        endDate: isoFromNow(33),
+      });
+
+      const res = await app.inject({
+        method: "GET",
+        url: `${REPORTS_URL}/expiring?daysWindow=7`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      const found = body.find(
+        (r: { userId: number }) => r.userId === member.id,
+      );
+      expect(found).toBeDefined();
+      expect(found.hasFutureCoverage).toBe(false);
+    });
+
+    it("counts a future sub as coverage even with a start gap (only end_date matters)", async () => {
+      const plan = await createPlan({
+        name: "Plan Gap",
+        durationDays: 5,
+        planCategory: "presencial",
+      });
+      const member = await createMember({
+        email: "gap@test.com",
+        firstName: "Con",
+        lastName: "Hueco",
+      });
+
+      const startActive = new Date();
+      startActive.setDate(startActive.getDate() - 2);
+      await assignSubscription(member.id, plan.id, {
+        startDate: startActive.toISOString().split("T")[0],
+      });
+      // Starts 3 days AFTER the active one ends (gap), but ends later → covers.
+      await insertSubscription({
+        userId: member.id,
+        planId: plan.id,
+        status: "scheduled",
+        startDate: isoFromNow(6),
+        endDate: isoFromNow(36),
+      });
+
+      const res = await app.inject({
+        method: "GET",
+        url: `${REPORTS_URL}/expiring?daysWindow=7`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      const found = body.find(
+        (r: { userId: number }) => r.userId === member.id,
+      );
+      expect(found).toBeUndefined();
+    });
+
+    it("does NOT count a cancelled future subscription as coverage", async () => {
+      const plan = await createPlan({
+        name: "Plan Cancelled Coverage",
+        durationDays: 5,
+        planCategory: "presencial",
+      });
+      const member = await createMember({
+        email: "cancelledcov@test.com",
+        firstName: "Cancelo",
+        lastName: "LaReno",
+      });
+
+      const startActive = new Date();
+      startActive.setDate(startActive.getDate() - 2);
+      await assignSubscription(member.id, plan.id, {
+        startDate: startActive.toISOString().split("T")[0],
+      });
+      // Future sub exists but is cancelled → not real coverage.
+      await insertSubscription({
+        userId: member.id,
+        planId: plan.id,
+        status: "cancelled",
+        startDate: isoFromNow(3),
+        endDate: isoFromNow(33),
+      });
+
+      const res = await app.inject({
+        method: "GET",
+        url: `${REPORTS_URL}/expiring?daysWindow=7`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      const found = body.find(
+        (r: { userId: number }) => r.userId === member.id,
+      );
+      expect(found).toBeDefined();
+      expect(found.hasFutureCoverage).toBe(false);
+    });
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
