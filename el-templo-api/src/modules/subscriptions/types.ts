@@ -242,6 +242,14 @@ export interface AssignPlanInput {
   notes?: string;
   startMode?: "now" | "after_current";
   /**
+   * "Mantener vencimiento" (change-plan only). When set, changePlanNow makes
+   * the new subscription inherit this expiry (the current sub's endDate)
+   * instead of starting a fresh `startDate + durationDays` period, and the
+   * class budget is prorated to the inherited window. Ignored by
+   * changePlanAfterCurrent. Format: YYYY-MM-DD, must be after startDate.
+   */
+  endDateOverride?: string;
+  /**
    * Monto efectivamente recibido al asignar (D-12, D-13).
    * Backward-compat: undefined → defaults to pricePaid en service layer.
    * Validación: 0 <= amountReceived <= pricePaid (cap-violación = 400).
@@ -278,7 +286,7 @@ export interface ChangePlanPreview {
   targetPlan: { id: number; name: string; priceRegular: number };
   proration: ProrationResult | null; // null if not allowed
   netAmount: number | null; // null if not allowed; new plan priceRegular minus proration credit
-  expiryDate?: string; // only if downgrade blocked -- current subscription endDate
+  expiryDate?: string; // current subscription endDate (always set; used to pre-fill "mantener vencimiento")
 }
 
 // ─── Pricing Types ──────────────────────────────────────────────────────────

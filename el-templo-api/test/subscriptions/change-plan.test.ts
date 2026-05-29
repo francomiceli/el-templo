@@ -300,6 +300,157 @@ describe("Subscriptions API — Change plan", () => {
     });
   });
 
+  describe("endDateOverride (mantener vencimiento)", () => {
+    it("inherits current expiry, prorates class budget, charges the difference", async () => {
+      // Flex → Flex+ (the real Mica case): same 30-day duration, more
+      // classes/week and a higher price. Member is 15 days into Flex.
+      const flex = await createPlan(app, adminToken, {
+        name: "Flex",
+        classesPerWeek: 2,
+        durationDays: 30,
+        priceRegular: 80000,
+        priceZero: 65000,
+      });
+      const flexPlus = await createPlan(app, adminToken, {
+        name: "Flex+",
+        classesPerWeek: 6,
+        durationDays: 30,
+        priceRegular: 100000,
+        priceZero: 80000,
+      });
+      const member = await createMember(app);
+
+      // Started 15 days ago → expiry is 15 days from today.
+      await assignPlan(app, adminToken, member.id, {
+        planId: flex.id,
+        startDate: dateOffsetStr(-15),
+      });
+      const inheritedExpiry = dateOffsetStr(15);
+
+      const res = await app.inject({
+        method: "POST",
+        url: `${SUBSCRIPTIONS_URL}/members/${member.id}/subscription/change-plan`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          planId: flexPlus.id,
+          branchId: 1,
+          startDate: todayStr(),
+          priceTypeApplied: "zero",
+          paymentMethod: "cash",
+          endDateOverride: inheritedExpiry,
+          priceOverrideAmount: 15000,
+          priceOverrideReason: "Cambio de plan manteniendo vencimiento",
+        },
+      });
+
+      expect(res.statusCode).toBe(201);
+      const body = JSON.parse(res.body);
+      expect(body.planId).toBe(flexPlus.id);
+      // Expiry is inherited, not reset to today + 30.
+      expect(body.endDate).toBe(inheritedExpiry);
+      // Charges the manual difference, not the prorated price.
+      expect(body.pricePaid).toBe(15000);
+
+      // Class budget is prorated to the inherited window:
+      // ceil(15 / 7) = 3 weeks × 6 classes = 18.
+      const newSubRows = await app.db
+        .select()
+        .from(subscriptions)
+        .where(eq(subscriptions.id, body.id as number));
+      expect(newSubRows[0].classesRemaining).toBe(18);
+      expect(newSubRows[0].classesBudget).toBe(18);
+
+      // The difference is recorded as a payment.
+      const txnRows = await app.db
+        .select({ amount: financialTransactions.amount })
+        .from(financialTransactions)
+        .where(eq(financialTransactions.memberId, member.id));
+      expect(txnRows.some((t) => t.amount === 15000)).toBe(true);
+    });
+
+    it("rejects an endDateOverride that is not after the start date", async () => {
+      const flex = await createPlan(app, adminToken, {
+        name: "Flex Reject",
+        classesPerWeek: 2,
+        durationDays: 30,
+        priceRegular: 80000,
+        priceZero: 65000,
+      });
+      const flexPlus = await createPlan(app, adminToken, {
+        name: "Flex+ Reject",
+        classesPerWeek: 6,
+        durationDays: 30,
+        priceRegular: 100000,
+        priceZero: 80000,
+      });
+      const member = await createMember(app);
+      await assignPlan(app, adminToken, member.id, {
+        planId: flex.id,
+        startDate: dateOffsetStr(-15),
+      });
+
+      const res = await app.inject({
+        method: "POST",
+        url: `${SUBSCRIPTIONS_URL}/members/${member.id}/subscription/change-plan`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          planId: flexPlus.id,
+          branchId: 1,
+          startDate: todayStr(),
+          priceTypeApplied: "zero",
+          paymentMethod: "cash",
+          // Equal to startDate → invalid (must be strictly after).
+          endDateOverride: todayStr(),
+          priceOverrideAmount: 15000,
+          priceOverrideReason: "Cambio de plan manteniendo vencimiento",
+        },
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect(JSON.parse(res.body).message).toContain("posterior");
+    });
+
+    it("without endDateOverride still resets to a full period (regression)", async () => {
+      const flex = await createPlan(app, adminToken, {
+        name: "Flex Reset",
+        classesPerWeek: 2,
+        durationDays: 30,
+        priceRegular: 80000,
+        priceZero: 65000,
+      });
+      const flexPlus = await createPlan(app, adminToken, {
+        name: "Flex+ Reset",
+        classesPerWeek: 6,
+        durationDays: 30,
+        priceRegular: 100000,
+        priceZero: 80000,
+      });
+      const member = await createMember(app);
+      await assignPlan(app, adminToken, member.id, {
+        planId: flex.id,
+        startDate: dateOffsetStr(-15),
+      });
+
+      const res = await app.inject({
+        method: "POST",
+        url: `${SUBSCRIPTIONS_URL}/members/${member.id}/subscription/change-plan`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          planId: flexPlus.id,
+          branchId: 1,
+          startDate: todayStr(),
+          priceTypeApplied: "zero",
+          paymentMethod: "cash",
+        },
+      });
+
+      expect(res.statusCode).toBe(201);
+      const body = JSON.parse(res.body);
+      // Fresh full period from today, not the old 15-day-remaining expiry.
+      expect(body.endDate).toBe(dateOffsetStr(30));
+    });
+  });
+
   describe("startMode=after_current (scheduled change)", () => {
     it("creates scheduled sub starting on current.endDate, full price charged", async () => {
       const planA = await createPlan(app, adminToken, {

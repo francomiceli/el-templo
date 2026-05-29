@@ -365,6 +365,10 @@ export const changePlanSchema = {
         type: "string",
         enum: ["now", "after_current"],
       },
+      // "Mantener vencimiento": when present, the new sub inherits this expiry
+      // (the current sub's endDate) instead of starting a fresh full period.
+      // Only honored by changePlanNow (startMode='now' / startDate<=today).
+      endDateOverride: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
     },
   },
   response: {

@@ -2178,6 +2178,9 @@ export class SubscriptionService {
       targetPlan: targetPlanInfo,
       proration,
       netAmount,
+      // Surfaced so the admin UI can pre-fill the "mantener vencimiento" option
+      // (new plan inherits this expiry) without a second round-trip.
+      expiryDate: sub.endDate ?? undefined,
     };
   }
 
@@ -2372,16 +2375,35 @@ export class SubscriptionService {
         );
       }
 
-      // Calculate new period
-      const startDate = new Date(input.startDate);
-      const endDate = new Date(startDate);
-      endDate.setDate(endDate.getDate() + targetPlan.durationDays);
-      const endDateStr = endDate.toISOString().split("T")[0];
-
-      const classesRemaining =
-        targetPlan.classesPerWeek !== null
-          ? Math.ceil(targetPlan.durationDays / 7) * targetPlan.classesPerWeek
-          : null;
+      // Calculate new period. Default: fresh full period from startDate.
+      // "Mantener vencimiento" (endDateOverride): inherit the current sub's
+      // expiry instead, and prorate the class budget to the inherited window
+      // (whole weeks at the new plan's weekly rate) so a 15-day carryover
+      // doesn't grant a full 30-day cupo.
+      let endDateStr: string;
+      let classesRemaining: number | null;
+      if (input.endDateOverride) {
+        if (input.endDateOverride <= input.startDate) {
+          throw new BadRequestError(
+            "El vencimiento debe ser posterior a la fecha de inicio",
+          );
+        }
+        endDateStr = input.endDateOverride;
+        const inheritedDays = daysBetween(input.startDate, endDateStr);
+        classesRemaining =
+          targetPlan.classesPerWeek !== null
+            ? Math.ceil(inheritedDays / 7) * targetPlan.classesPerWeek
+            : null;
+      } else {
+        const startDate = new Date(input.startDate);
+        const endDate = new Date(startDate);
+        endDate.setDate(endDate.getDate() + targetPlan.durationDays);
+        endDateStr = endDate.toISOString().split("T")[0];
+        classesRemaining =
+          targetPlan.classesPerWeek !== null
+            ? Math.ceil(targetPlan.durationDays / 7) * targetPlan.classesPerWeek
+            : null;
+      }
 
       // ── Atomic new-sub creation (Phase 103 D-16) ──
       // Wrap the new subscription INSERT + dependent writes in a single

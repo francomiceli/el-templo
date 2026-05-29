@@ -130,112 +130,162 @@
               />
             </div>
 
-            <!-- Start date -->
-            <q-input
-              v-model="assignForm.startDate"
-              label="Fecha de inicio"
-              type="date"
-              dense
-              outlined
-              :min="startDateMin"
-              :max="startDateMax"
-              class="q-mb-xs"
-            />
-            <div class="text-caption text-grey-7 q-mb-xs">
-              Vencimiento estimado: {{ calculatedEndDate ? formatDate(calculatedEndDate) : '—' }}
-            </div>
-            <q-banner v-if="isFutureStart" dense rounded class="bg-blue-1 q-mb-md">
-              <template #avatar>
-                <q-icon name="schedule" color="primary" />
-              </template>
-              La membresía quedará programada y se activará automáticamente el
-              {{ formatDate(assignForm.startDate) }}.
-            </q-banner>
-            <div v-else class="q-mb-md" />
-
-            <!-- Boarding pass -->
-            <div class="q-mb-md">
-              <q-toggle
-                v-model="assignForm.boardingPass"
-                label="Usar Boarding Pass"
-                :disable="boardingPassUsed"
-                @update:model-value="onPricingOptionChange"
+            <!-- Change mode: timing selector (replaces the free start-date
+                 picker). Drives reset / keep-expiry / after-current. -->
+            <template v-if="props.mode === 'change'">
+              <div class="text-caption text-grey-7 q-mb-xs">Cómo aplicar el cambio</div>
+              <q-option-group
+                :model-value="changeMode"
+                :options="changeModeOptions"
+                color="primary"
+                class="q-mb-sm"
+                @update:model-value="onChangeMode"
               />
-              <div v-if="boardingPassUsed" class="text-caption text-grey-5 q-ml-md">
-                Ya utilizado
-              </div>
-            </div>
-
-            <!-- AURA discount -->
-            <div v-if="!assignForm.boardingPass && !assignForm.useOverride" class="q-mb-md">
-              <q-select
-                v-model="assignForm.auraSpend"
-                :options="auraOptions"
-                label="Descuento AURA"
-                dense
-                outlined
-                emit-value
-                map-options
-                clearable
-                @update:model-value="onPricingOptionChange"
-              />
-            </div>
-
-            <!-- Price override -->
-            <div class="q-mb-md">
-              <q-toggle
-                v-model="assignForm.useOverride"
-                label="Precio personalizado"
-                @update:model-value="onOverrideToggle"
-              />
-              <template v-if="assignForm.useOverride">
-                <div class="row q-col-gutter-sm q-mt-xs">
-                  <div class="col-12 col-sm-4">
+              <!-- 'mantener vencimiento': editable inherited expiry + the
+                   difference to charge (no proration). -->
+              <div v-if="isKeepMode" class="q-mb-md q-pl-md">
+                <div class="row q-col-gutter-sm">
+                  <div class="col-12 col-sm-6">
                     <q-input
-                      v-model.number="assignForm.priceOverrideAmount"
-                      label="Monto"
+                      v-model="keepExpiryDate"
+                      label="Vencimiento"
+                      type="date"
+                      dense
+                      outlined
+                      :min="startDateMin"
+                      :max="startDateMax"
+                    />
+                  </div>
+                  <div class="col-12 col-sm-6">
+                    <q-input
+                      v-model.number="keepDiffAmount"
+                      label="Diferencia a cobrar"
                       type="number"
                       dense
                       outlined
                       prefix="$"
                     />
                   </div>
-                  <div class="col-12 col-sm-8">
-                    <q-input
-                      v-model="assignForm.priceOverrideReason"
-                      label="Razon (requerida)"
-                      dense
-                      outlined
-                    />
-                  </div>
                 </div>
-              </template>
-            </div>
+                <div class="text-caption text-grey-7 q-mt-xs">
+                  El alumno abona la diferencia entre planes. No se prorratea.
+                </div>
+              </div>
+            </template>
 
-            <!-- Live pricing preview -->
-            <q-card flat bordered class="bg-grey-1">
-              <q-card-section>
-                <div class="text-subtitle2 text-weight-bold q-mb-sm">Resumen de Precio</div>
-                <div class="row q-gutter-x-lg">
-                  <div>
-                    <div class="text-caption text-grey-7">Precio base</div>
-                    <div>{{ formatPrice(pricingDisplay.basePrice, displayCurrency) }}</div>
-                  </div>
-                  <div v-if="pricingDisplay.discountAmount > 0">
-                    <div class="text-caption text-grey-7">Descuento</div>
-                    <div class="text-positive">
-                      -{{ formatPrice(pricingDisplay.discountAmount, displayCurrency) }}
-                    </div>
-                  </div>
-                  <div>
-                    <div class="text-caption text-grey-7">Precio final</div>
-                    <div class="text-h6 text-weight-bold">
-                      {{ formatPrice(pricingDisplay.finalPrice, displayCurrency) }}
-                    </div>
-                  </div>
+            <!-- Assign mode: free start-date picker -->
+            <template v-else>
+              <q-input
+                v-model="assignForm.startDate"
+                label="Fecha de inicio"
+                type="date"
+                dense
+                outlined
+                :min="startDateMin"
+                :max="startDateMax"
+                class="q-mb-xs"
+              />
+              <div class="text-caption text-grey-7 q-mb-xs">
+                Vencimiento estimado: {{ calculatedEndDate ? formatDate(calculatedEndDate) : '—' }}
+              </div>
+              <q-banner v-if="isFutureStart" dense rounded class="bg-blue-1 q-mb-md">
+                <template #avatar>
+                  <q-icon name="schedule" color="primary" />
+                </template>
+                La membresía quedará programada y se activará automáticamente el
+                {{ formatDate(assignForm.startDate) }}.
+              </q-banner>
+              <div v-else class="q-mb-md" />
+            </template>
+
+            <!-- Pricing options (boarding / AURA / override / live preview).
+                 Hidden in 'mantener vencimiento': there the charge is the
+                 manual difference, not a discounted plan price. -->
+            <template v-if="!isKeepMode">
+              <!-- Boarding pass -->
+              <div class="q-mb-md">
+                <q-toggle
+                  v-model="assignForm.boardingPass"
+                  label="Usar Boarding Pass"
+                  :disable="boardingPassUsed"
+                  @update:model-value="onPricingOptionChange"
+                />
+                <div v-if="boardingPassUsed" class="text-caption text-grey-5 q-ml-md">
+                  Ya utilizado
                 </div>
-              </q-card-section>
-            </q-card>
+              </div>
+
+              <!-- AURA discount -->
+              <div v-if="!assignForm.boardingPass && !assignForm.useOverride" class="q-mb-md">
+                <q-select
+                  v-model="assignForm.auraSpend"
+                  :options="auraOptions"
+                  label="Descuento AURA"
+                  dense
+                  outlined
+                  emit-value
+                  map-options
+                  clearable
+                  @update:model-value="onPricingOptionChange"
+                />
+              </div>
+
+              <!-- Price override -->
+              <div class="q-mb-md">
+                <q-toggle
+                  v-model="assignForm.useOverride"
+                  label="Precio personalizado"
+                  @update:model-value="onOverrideToggle"
+                />
+                <template v-if="assignForm.useOverride">
+                  <div class="row q-col-gutter-sm q-mt-xs">
+                    <div class="col-12 col-sm-4">
+                      <q-input
+                        v-model.number="assignForm.priceOverrideAmount"
+                        label="Monto"
+                        type="number"
+                        dense
+                        outlined
+                        prefix="$"
+                      />
+                    </div>
+                    <div class="col-12 col-sm-8">
+                      <q-input
+                        v-model="assignForm.priceOverrideReason"
+                        label="Razon (requerida)"
+                        dense
+                        outlined
+                      />
+                    </div>
+                  </div>
+                </template>
+              </div>
+
+              <!-- Live pricing preview -->
+              <q-card flat bordered class="bg-grey-1">
+                <q-card-section>
+                  <div class="text-subtitle2 text-weight-bold q-mb-sm">Resumen de Precio</div>
+                  <div class="row q-gutter-x-lg">
+                    <div>
+                      <div class="text-caption text-grey-7">Precio base</div>
+                      <div>{{ formatPrice(pricingDisplay.basePrice, displayCurrency) }}</div>
+                    </div>
+                    <div v-if="pricingDisplay.discountAmount > 0">
+                      <div class="text-caption text-grey-7">Descuento</div>
+                      <div class="text-positive">
+                        -{{ formatPrice(pricingDisplay.discountAmount, displayCurrency) }}
+                      </div>
+                    </div>
+                    <div>
+                      <div class="text-caption text-grey-7">Precio final</div>
+                      <div class="text-h6 text-weight-bold">
+                        {{ formatPrice(pricingDisplay.finalPrice, displayCurrency) }}
+                      </div>
+                    </div>
+                  </div>
+                </q-card-section>
+              </q-card>
+            </template>
           </template>
         </q-step>
 
@@ -318,32 +368,10 @@
               <q-spinner-dots size="40px" color="primary" />
             </div>
 
-            <!-- Start mode toggle: only available in change mode when current sub has a future endDate -->
-            <div
-              v-if="props.mode === 'change' && canOfferAfterCurrent && !loadingPreview"
-              class="q-mb-md"
-            >
-              <div class="text-caption text-grey-7 q-mb-xs">Cuando iniciar el nuevo plan</div>
-              <q-btn-toggle
-                v-model="startMode"
-                toggle-color="primary"
-                spread
-                no-caps
-                :options="[
-                  { label: 'Cambiar ahora', value: 'now' },
-                  {
-                    label: `Empezar el ${formatDate(afterCurrentStartDate)}`,
-                    value: 'after_current',
-                  },
-                ]"
-              />
-              <div v-if="startMode === 'after_current'" class="text-caption text-grey-6 q-mt-xs">
-                El plan actual continua hasta {{ formatDate(afterCurrentStartDate) }}. El nuevo plan
-                queda programado y se cobra ahora.
-              </div>
-            </div>
+            <!-- The change-mode (reset / keep-expiry / after-current) is now
+                 chosen in step 2; Confirm only reviews + records the cobro. -->
 
-            <!-- Downgrade blocked message (only applies to "cambiar ahora" — after_current has no proration so downgrade is allowed) -->
+            <!-- Downgrade blocked message (only applies to immediate change — after_current has no proration so downgrade is allowed) -->
             <q-card
               v-if="
                 props.mode === 'change' &&
@@ -372,10 +400,12 @@
               </q-card-section>
             </q-card>
 
-            <!-- Change plan (now): summary with proration -->
+            <!-- Change plan (now, reset): summary with proration -->
             <q-card
               v-if="
-                props.mode === 'change' && startMode === 'now' && changePlanPreviewData?.allowed
+                props.mode === 'change' &&
+                changeMode === 'now_reset' &&
+                changePlanPreviewData?.allowed
               "
               flat
               bordered
@@ -441,6 +471,57 @@
                     <q-item-section class="text-weight-bold text-h6">Total a cobrar</q-item-section>
                     <q-item-section side class="text-weight-bold text-h5 text-primary">
                       {{ formatPrice(changePlanPreviewData.netAmount!, displayCurrency) }}
+                    </q-item-section>
+                  </q-item>
+                </q-list>
+              </q-card-section>
+            </q-card>
+
+            <!-- Change plan (now, keep expiry): inherit expiry, charge the difference -->
+            <q-card
+              v-if="isKeepMode && changePlanPreviewData?.allowed"
+              flat
+              bordered
+              class="q-mb-md"
+            >
+              <q-card-section>
+                <div class="text-subtitle1 text-weight-bold q-mb-md">
+                  Cambio Manteniendo Vencimiento
+                </div>
+                <q-list dense>
+                  <q-item>
+                    <q-item-section>Plan actual</q-item-section>
+                    <q-item-section side>
+                      {{ changePlanPreviewData.currentPlan.name }} —
+                      {{
+                        formatPrice(changePlanPreviewData.currentPlan.pricePaid, displayCurrency)
+                      }}
+                    </q-item-section>
+                  </q-item>
+                  <q-separator spaced />
+                  <q-item>
+                    <q-item-section>Nuevo plan</q-item-section>
+                    <q-item-section side class="text-weight-medium">
+                      {{ changePlanPreviewData.targetPlan.name }}
+                    </q-item-section>
+                  </q-item>
+                  <q-item>
+                    <q-item-section>Vencimiento (se mantiene)</q-item-section>
+                    <q-item-section side>{{ formatDate(keepExpiryDate) }}</q-item-section>
+                  </q-item>
+                  <q-item v-if="showScheduleStep && selectedScheduleIds.length > 0">
+                    <q-item-section>Horarios fijos</q-item-section>
+                    <q-item-section side class="text-weight-medium">
+                      {{ formatSelectedSchedules() }}
+                    </q-item-section>
+                  </q-item>
+                  <q-separator spaced />
+                  <q-item class="bg-blue-1 rounded-borders q-pa-sm">
+                    <q-item-section class="text-weight-bold text-h6">
+                      Diferencia a cobrar
+                    </q-item-section>
+                    <q-item-section side class="text-weight-bold text-h5 text-primary">
+                      {{ formatPrice(chargeBase, displayCurrency) }}
                     </q-item-section>
                   </q-item>
                 </q-list>
@@ -647,7 +728,9 @@
           v-if="step === 2"
           color="primary"
           label="Continuar"
-          :disable="assignForm.useOverride && !assignForm.priceOverrideReason?.trim()"
+          :disable="
+            (assignForm.useOverride && !assignForm.priceOverrideReason?.trim()) || keepFieldsInvalid
+          "
           @click="step = showScheduleStep ? 3 : confirmStep"
         />
         <q-btn
@@ -793,9 +876,24 @@ const assignForm = ref({
   notes: '',
 });
 
-// Change-mode only: "now" (proration, current ends immediately) vs
-// "after_current" (queued, starts on current.endDate, full price).
-const startMode = ref<'now' | 'after_current'>('now');
+// Change-mode only: single source of truth for how the change applies.
+//   'now_reset'     → fresh full period from today, proration credit (legacy).
+//   'now_keep'      → inherit the current sub's expiry, charge the difference.
+//   'after_current' → queue a scheduled sub that starts on current.endDate.
+const changeMode = ref<'now_reset' | 'now_keep' | 'after_current'>('now_reset');
+
+// 'now_keep': editable inherited expiry (pre-filled from the change preview)
+// and the difference to charge (pre-filled = new plan price − amount paid).
+const keepExpiryDate = ref<string>('');
+const keepDiffAmount = ref<number | null>(null);
+
+const isKeepMode = computed(() => props.mode === 'change' && changeMode.value === 'now_keep');
+
+// Derived start mode for the payload + summary logic that still thinks in the
+// original two-mode model. 'now_keep' is an immediate change, so it maps to 'now'.
+const startMode = computed<'now' | 'after_current'>(() =>
+  changeMode.value === 'after_current' ? 'after_current' : 'now'
+);
 
 const paymentMethodOptions = PAYMENT_METHOD_OPTIONS;
 
@@ -868,7 +966,7 @@ function goToPrevStep(): void {
   // Mirrors the per-step "Volver" callbacks the stepper-navigation blocks
   // had before the action bar was unified.
   if (step.value === confirmStep.value) {
-    step.value = props.mode === 'change' ? 1 : showScheduleStep.value ? 3 : 2;
+    step.value = showScheduleStep.value ? 3 : 2;
     return;
   }
   if (step.value === 3) {
@@ -985,6 +1083,11 @@ const pricingDisplay = computed(() => {
 // - mode='change' + startMode='now' (proration activa) → netAmount del preview.
 // - resto (assign / change-after_current) → finalPrice del pricingDisplay.
 const chargeBase = computed<number>(() => {
+  // 'mantener vencimiento': cobramos la diferencia manual, no el prorrateo.
+  // Debe evaluarse ANTES de la rama de prorrateo (es también startMode 'now').
+  if (isKeepMode.value) {
+    return Math.max(0, keepDiffAmount.value ?? 0);
+  }
   if (assignForm.value.useOverride && assignForm.value.priceOverrideAmount !== null) {
     return assignForm.value.priceOverrideAmount;
   }
@@ -1019,7 +1122,20 @@ const isCobroInvalid = computed<boolean>(() => {
   return false;
 });
 
+// 'mantener vencimiento': block step 2 → Confirm until the inherited expiry is
+// a future date and the difference is a valid non-negative amount. Mirrors the
+// backend guard (endDateOverride must be after startDate).
+const keepFieldsInvalid = computed<boolean>(() => {
+  if (!isKeepMode.value) return false;
+  if (!keepExpiryDate.value || keepExpiryDate.value <= offsetIso(0)) return true;
+  if (keepDiffAmount.value === null || keepDiffAmount.value < 0) return true;
+  return false;
+});
+
 const calculatedEndDate = computed(() => {
+  // 'mantener vencimiento': el vencimiento es el heredado (editable), no el
+  // período completo desde el inicio.
+  if (isKeepMode.value) return keepExpiryDate.value;
   if (!selectedPlan.value || !assignForm.value.startDate) return '';
   const start = new Date(assignForm.value.startDate);
   const end = new Date(start);
@@ -1061,6 +1177,35 @@ const canOfferAfterCurrent = computed(() => {
   if (!props.currentSubEndDate) return false;
   const today = new Date().toISOString().split('T')[0];
   return props.currentSubEndDate >= today;
+});
+
+// 'now_reset' expiry: a fresh full period from today.
+const resetEndDate = computed(() => {
+  if (!selectedPlan.value) return '';
+  const end = new Date();
+  end.setHours(0, 0, 0, 0);
+  end.setDate(end.getDate() + selectedPlan.value.durationDays);
+  return end.toISOString().split('T')[0];
+});
+
+// Change-mode radio options. 'now_keep' and 'after_current' require a current
+// sub that hasn't expired yet (a future expiry to inherit / queue behind);
+// when it already expired only a fresh reset makes sense.
+const changeModeOptions = computed(() => {
+  const opts = [
+    {
+      label: `Ahora, reiniciando el ciclo (vence ${resetEndDate.value ? formatDate(resetEndDate.value) : '—'})`,
+      value: 'now_reset',
+    },
+  ];
+  if (canOfferAfterCurrent.value) {
+    opts.push({ label: 'Ahora, manteniendo el vencimiento', value: 'now_keep' });
+    opts.push({
+      label: `Cuando termine el plan actual (vence ${afterCurrentEndDate.value ? formatDate(afterCurrentEndDate.value) : '—'})`,
+      value: 'after_current',
+    });
+  }
+  return opts;
 });
 
 // Currency used for every price in this dialog. Derived from the selected
@@ -1173,13 +1318,17 @@ async function selectPlan(plan: PlanListItem) {
       : [];
 
   if (props.mode === 'change') {
-    // Upgrade starts a new full period from today
+    // Default to a fresh full period from today; admin can switch to
+    // 'mantener vencimiento' or 'after_current' in step 2.
     assignForm.value.startDate = new Date().toISOString().split('T')[0];
+    changeMode.value = 'now_reset';
 
     // Fetch change plan preview
     loadingPreview.value = true;
     try {
       changePlanPreviewData.value = await subsApi.getChangePlanPreview(props.userId, plan.id);
+      // Pre-fill the inherited expiry for the 'mantener vencimiento' option.
+      keepExpiryDate.value = changePlanPreviewData.value?.expiryDate ?? '';
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Error desconocido';
       log.error('Error loading change plan preview', { error: message });
@@ -1192,7 +1341,29 @@ async function selectPlan(plan: PlanListItem) {
   loadPricingPreview();
 }
 
+// 'mantener vencimiento': the difference to charge = new plan price (at the
+// selected price type) − amount already paid for the current plan. Re-run
+// whenever the price type changes or the keep option is (re)selected.
+function recomputeKeepDiff() {
+  const paid = changePlanPreviewData.value?.currentPlan.pricePaid ?? 0;
+  keepDiffAmount.value = Math.max(0, getBasePrice() - paid);
+}
+
+function onChangeMode(mode: 'now_reset' | 'now_keep' | 'after_current') {
+  changeMode.value = mode;
+  if (mode === 'now_keep') {
+    keepExpiryDate.value = changePlanPreviewData.value?.expiryDate ?? keepExpiryDate.value;
+    recomputeKeepDiff();
+  }
+  // Reset the per-confirm cobro pre-fill so it re-seeds from the new chargeBase.
+  amountReceived.value = null;
+}
+
 function onPricingOptionChange() {
+  if (isKeepMode.value) {
+    recomputeKeepDiff();
+    return;
+  }
   if (!assignForm.value.boardingPass && !assignForm.value.useOverride) {
     loadPricingPreview();
   }
@@ -1254,17 +1425,25 @@ async function executeConfirm() {
         const dates = schedulePickerRef.value?.getStartDates() ?? {};
         return Object.keys(dates).length > 0 ? dates : undefined;
       })(),
-      boardingPass: assignForm.value.boardingPass || undefined,
+      boardingPass: isKeepMode.value ? undefined : assignForm.value.boardingPass || undefined,
       auraSpend:
-        !assignForm.value.boardingPass && !assignForm.value.useOverride
+        !isKeepMode.value && !assignForm.value.boardingPass && !assignForm.value.useOverride
           ? (assignForm.value.auraSpend ?? undefined)
           : undefined,
-      priceOverrideAmount: assignForm.value.useOverride
-        ? (assignForm.value.priceOverrideAmount ?? undefined)
-        : undefined,
-      priceOverrideReason: assignForm.value.useOverride
-        ? assignForm.value.priceOverrideReason || undefined
-        : undefined,
+      // 'mantener vencimiento': charge the difference via the override
+      // mechanism (pricePaid = difference, no proration) and inherit the
+      // current sub's expiry. Otherwise honor the manual override section.
+      priceOverrideAmount: isKeepMode.value
+        ? (keepDiffAmount.value ?? undefined)
+        : assignForm.value.useOverride
+          ? (assignForm.value.priceOverrideAmount ?? undefined)
+          : undefined,
+      priceOverrideReason: isKeepMode.value
+        ? 'Cambio de plan manteniendo vencimiento'
+        : assignForm.value.useOverride
+          ? assignForm.value.priceOverrideReason || undefined
+          : undefined,
+      endDateOverride: isKeepMode.value ? keepExpiryDate.value : undefined,
       notes: assignForm.value.notes.trim() || undefined,
       startMode: props.mode === 'change' ? startMode.value : undefined,
       // Phase 107 D-12/D-13: cobro al asignar. Si chargeBase=0 (plan gratuito)
@@ -1332,7 +1511,9 @@ watch(
         priceOverrideReason: '',
         notes: '',
       };
-      startMode.value = 'now';
+      changeMode.value = 'now_reset';
+      keepExpiryDate.value = '';
+      keepDiffAmount.value = null;
       // Phase 107 D-02: reset del cobro al reabrir el dialog. Se pre-llena
       // automáticamente al entrar al step Confirmar mediante el watch debajo.
       amountReceived.value = null;

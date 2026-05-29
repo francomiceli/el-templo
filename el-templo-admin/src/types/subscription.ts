@@ -250,6 +250,12 @@ export interface AssignPlanInput {
   notes?: string;
   startMode?: 'now' | 'after_current';
   /**
+   * "Mantener vencimiento" (cambio de plan): el nuevo plan hereda este
+   * vencimiento (el de la sub actual) en vez de arrancar un período completo.
+   * Solo lo respeta el cambio inmediato (startMode='now'). Formato YYYY-MM-DD.
+   */
+  endDateOverride?: string;
+  /**
    * Monto efectivamente recibido al asignar plan (Phase 107 D-12, D-13).
    * Backward-compat: undefined → backend defaults to pricePaid.
    * Validación frontend: 0 <= amountReceived <= chargeBase (botón Confirmar
