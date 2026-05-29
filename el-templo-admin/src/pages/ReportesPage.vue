@@ -1259,6 +1259,9 @@ async function onExportCharges() {
 
 const expiringDaysWindow = ref(7);
 const expiringIncludeExpired = ref(true);
+// Off por defecto: oculta a los alumnos que ya tienen una membresia futura
+// cargada de la misma categoria (ya renovaron). El backend los marca con
+// hasFutureCoverage; al activarlo se muestran con el badge "Ya renovó".
 const expiringIncludeRenewed = ref(false);
 const expiringRows = ref<ExpiringReportRow[]>([]);
 const loadingExpiring = ref(false);
