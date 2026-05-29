@@ -644,11 +644,21 @@ describe("Reports API", () => {
         durationDays: 5,
         planCategory: "presencial",
       });
-      const onlinePlan = await createPlan({
+      // Insert the online plan directly — the create-plan endpoint applies
+      // extra validation to online categories that the presencial defaults
+      // don't satisfy; we only need a plan of a different category here.
+      const [insertedOnline] = await app.db.insert(subscriptionPlans).values({
         name: "Plan Online XCat",
-        durationDays: 30,
+        planTier: "other",
+        bookingMode: "flexible",
         planCategory: "online_regular",
+        priceRegular: 10000,
+        priceZero: 8000,
+        durationDays: 30,
       });
+      const onlinePlan = {
+        id: (insertedOnline as { insertId: number }).insertId,
+      };
       const member = await createMember({
         email: "xcat@test.com",
         firstName: "Otra",
