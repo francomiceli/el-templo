@@ -88,6 +88,12 @@ export interface ChargeReportParams {
 export interface ExpiringReportParams {
   branchId?: number;
   country?: 'AR' | 'ES';
+  // Expiration date range (YYYY-MM-DD). When both are set the server lists
+  // subscriptions whose end_date falls within [dateFrom, dateTo].
+  dateFrom?: string;
+  dateTo?: string;
+  // Legacy window mode (kept for back-compat): end_date <= today + daysWindow.
+  // The admin now always sends dateFrom/dateTo instead.
   daysWindow?: number;
   includeExpired?: boolean;
   // default false — include members who already renewed (future same-category

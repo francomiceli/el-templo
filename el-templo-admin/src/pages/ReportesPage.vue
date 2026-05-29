@@ -339,22 +339,24 @@
         <div class="row items-center q-gutter-sm q-mb-md">
           <div class="col-auto">
             <q-input
-              v-model.number="expiringDaysWindow"
-              type="number"
-              label="Ventana de dias"
+              v-model="expiringFrom"
+              type="date"
+              label="Vence desde"
               dense
               outlined
-              :min="1"
-              :max="365"
               style="width: 180px"
               @update:model-value="fetchExpiringData"
             />
           </div>
 
           <div class="col-auto">
-            <q-toggle
-              v-model="expiringIncludeExpired"
-              label="Incluir vencidos"
+            <q-input
+              v-model="expiringTo"
+              type="date"
+              label="Vence hasta"
+              dense
+              outlined
+              style="width: 180px"
               @update:model-value="fetchExpiringData"
             />
           </div>
@@ -1257,8 +1259,19 @@ async function onExportCharges() {
 // VENCIMIENTOS TAB
 // ============================================================================
 
-const expiringDaysWindow = ref(7);
-const expiringIncludeExpired = ref(true);
+// Date range for expirations. Default replicates the previous behaviour
+// (today → today + 7 days). Built from the browser's LOCAL date to avoid the
+// UTC skew that toISOString() introduces in the evening (Argentina is UTC-3).
+function expiringDefaultDay(offsetDays: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + offsetDays);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+const expiringFrom = ref(expiringDefaultDay(0));
+const expiringTo = ref(expiringDefaultDay(7));
 // Off por defecto: oculta a los alumnos que ya tienen una membresia futura
 // cargada de la misma categoria (ya renovaron). El backend los marca con
 // hasFutureCoverage; al activarlo se muestran con el badge "Ya renovó".
@@ -1295,8 +1308,8 @@ async function fetchExpiringData() {
     expiringRows.value = await reportsApi.getExpiringMemberships({
       branchId: selectedBranchId.value,
       country: countryScope.value,
-      daysWindow: expiringDaysWindow.value,
-      includeExpired: expiringIncludeExpired.value,
+      dateFrom: expiringFrom.value || undefined,
+      dateTo: expiringTo.value || undefined,
       includeRenewed: expiringIncludeRenewed.value,
     });
   } catch (err: unknown) {
@@ -1313,8 +1326,8 @@ async function onExportExpiring() {
     const blob = await reportsApi.exportExpiringMemberships({
       branchId: selectedBranchId.value,
       country: countryScope.value,
-      daysWindow: expiringDaysWindow.value,
-      includeExpired: expiringIncludeExpired.value,
+      dateFrom: expiringFrom.value || undefined,
+      dateTo: expiringTo.value || undefined,
       includeRenewed: expiringIncludeRenewed.value,
     });
     const today = new Date().toISOString().split('T')[0];

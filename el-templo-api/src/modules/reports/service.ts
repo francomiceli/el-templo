@@ -421,9 +421,18 @@ export class ReportsService {
     const includeExpired = filters.includeExpired ?? true;
     const includeRenewed = filters.includeRenewed ?? false;
 
-    const statusValues = includeExpired
-      ? ["active", "paused", "expired"]
-      : ["active", "paused"];
+    // Range mode: explicit [dateFrom, dateTo] on end_date. Falls back to the
+    // legacy window (end_date <= today + daysWindow) when not provided.
+    const useRange =
+      filters.dateFrom !== undefined && filters.dateTo !== undefined;
+
+    // In range mode we always consider expired-status subs too — the date
+    // range itself is the time cut, so there's no separate "include expired"
+    // switch. Legacy mode keeps the includeExpired behaviour.
+    const statusValues =
+      useRange || includeExpired
+        ? ["active", "paused", "expired"]
+        : ["active", "paused"];
 
     // "Future coverage" = the member already renewed. There exists ANOTHER
     // subscription of the SAME category group (presencial vs online) that is
@@ -451,12 +460,23 @@ export class ReportsService {
         sql`, `,
       )})`,
       sql`${schema.subscriptions.endDate} IS NOT NULL`,
-      sql`${schema.subscriptions.endDate} <= DATE_ADD(CURDATE(), INTERVAL ${daysWindow} DAY)`,
     ];
 
-    if (!includeExpired) {
-      // Only show those not yet expired
-      conditions.push(sql`${schema.subscriptions.endDate} >= CURDATE()`);
+    if (useRange) {
+      conditions.push(
+        sql`${schema.subscriptions.endDate} >= ${filters.dateFrom}`,
+      );
+      conditions.push(
+        sql`${schema.subscriptions.endDate} <= ${filters.dateTo}`,
+      );
+    } else {
+      conditions.push(
+        sql`${schema.subscriptions.endDate} <= DATE_ADD(CURDATE(), INTERVAL ${daysWindow} DAY)`,
+      );
+      if (!includeExpired) {
+        // Only show those not yet expired
+        conditions.push(sql`${schema.subscriptions.endDate} >= CURDATE()`);
+      }
     }
 
     if (!includeRenewed) {

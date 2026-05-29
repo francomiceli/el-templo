@@ -774,6 +774,107 @@ describe("Reports API", () => {
       expect(found).toBeDefined();
       expect(found.hasFutureCoverage).toBe(false);
     });
+
+    // ─── Date range mode ───────────────────────────────────────────────────
+    //
+    // When dateFrom & dateTo are provided, the report lists subscriptions whose
+    // end_date falls within [dateFrom, dateTo] — regardless of how far that is
+    // from today, and without a separate "include expired" switch.
+
+    it("filters expiring memberships by an explicit date range", async () => {
+      const plan = await createPlan({
+        name: "Plan Range",
+        durationDays: 30,
+        planCategory: "presencial",
+      });
+
+      const inRange = await createMember({
+        email: "inrange@test.com",
+        firstName: "Dentro",
+        lastName: "Rango",
+      });
+      const tooFar = await createMember({
+        email: "toofar@test.com",
+        firstName: "Muy",
+        lastName: "Lejos",
+      });
+      const tooSoon = await createMember({
+        email: "toosoon@test.com",
+        firstName: "Muy",
+        lastName: "Pronto",
+      });
+
+      await insertSubscription({
+        userId: inRange.id,
+        planId: plan.id,
+        status: "active",
+        startDate: isoFromNow(-20),
+        endDate: isoFromNow(10),
+      });
+      await insertSubscription({
+        userId: tooFar.id,
+        planId: plan.id,
+        status: "active",
+        startDate: isoFromNow(0),
+        endDate: isoFromNow(40),
+      });
+      await insertSubscription({
+        userId: tooSoon.id,
+        planId: plan.id,
+        status: "active",
+        startDate: isoFromNow(-40),
+        endDate: isoFromNow(2),
+      });
+
+      const res = await app.inject({
+        method: "GET",
+        url: `${REPORTS_URL}/expiring?dateFrom=${isoFromNow(5)}&dateTo=${isoFromNow(20)}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      const ids = body.map((r: { userId: number }) => r.userId);
+      expect(ids).toContain(inRange.id);
+      expect(ids).not.toContain(tooFar.id);
+      expect(ids).not.toContain(tooSoon.id);
+    });
+
+    it("range mode surfaces already-expired subscriptions within the range", async () => {
+      const plan = await createPlan({
+        name: "Plan Range Past",
+        durationDays: 30,
+        planCategory: "presencial",
+      });
+      const member = await createMember({
+        email: "pastrange@test.com",
+        firstName: "Vencio",
+        lastName: "EnRango",
+      });
+
+      // Expired 5 days ago.
+      await insertSubscription({
+        userId: member.id,
+        planId: plan.id,
+        status: "active",
+        startDate: isoFromNow(-35),
+        endDate: isoFromNow(-5),
+      });
+
+      const res = await app.inject({
+        method: "GET",
+        url: `${REPORTS_URL}/expiring?dateFrom=${isoFromNow(-30)}&dateTo=${isoFromNow(0)}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      const found = body.find(
+        (r: { userId: number }) => r.userId === member.id,
+      );
+      expect(found).toBeDefined();
+      expect(found.daysRemaining).toBeLessThan(0); // negative = overdue
+    });
   });
 
   // ═══════════════════════════════════════════════════════════════════════════

@@ -145,6 +145,8 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get<{
     Querystring: {
       branchId?: number;
+      dateFrom?: string;
+      dateTo?: string;
       daysWindow?: number;
       includeExpired?: boolean;
       includeRenewed?: boolean;
@@ -162,6 +164,8 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
         const filters: ExpiringReportFilters = {
           branchId: request.query.branchId,
           country: request.scope.country ?? undefined,
+          dateFrom: request.query.dateFrom,
+          dateTo: request.query.dateTo,
           daysWindow: request.query.daysWindow,
           includeExpired: request.query.includeExpired,
           includeRenewed: request.query.includeRenewed,
@@ -424,6 +428,8 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get<{
     Querystring: {
       branchId?: number;
+      dateFrom?: string;
+      dateTo?: string;
       daysWindow?: number;
       includeExpired?: boolean;
       includeRenewed?: boolean;
@@ -441,6 +447,8 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
         const filters: ExpiringReportFilters = {
           branchId: request.query.branchId,
           country: request.scope.country ?? undefined,
+          dateFrom: request.query.dateFrom,
+          dateTo: request.query.dateTo,
           daysWindow: request.query.daysWindow,
           includeExpired: request.query.includeExpired,
           includeRenewed: request.query.includeRenewed,

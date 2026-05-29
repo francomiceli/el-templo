@@ -126,6 +126,11 @@ export const expiringReportSchema = {
     type: "object",
     properties: {
       branchId: { type: "integer" },
+      // Expiration date range (YYYY-MM-DD). When both are present the report
+      // lists subscriptions whose end_date falls within [dateFrom, dateTo] and
+      // daysWindow/includeExpired are ignored.
+      dateFrom: { type: "string", format: "date" },
+      dateTo: { type: "string", format: "date" },
       daysWindow: { type: "integer", minimum: 1 },
       includeExpired: { type: "boolean" },
       // When false/omitted, members who already have future coverage of the

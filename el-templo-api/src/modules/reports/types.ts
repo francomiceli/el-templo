@@ -32,8 +32,13 @@ export interface ChargeReportFilters {
 export interface ExpiringReportFilters {
   branchId?: number;
   country?: "AR" | "ES";
-  daysWindow?: number; // default 7
-  includeExpired?: boolean; // default true
+  // Expiration date range (YYYY-MM-DD). When BOTH are present the query lists
+  // subscriptions whose end_date is within [dateFrom, dateTo] and daysWindow/
+  // includeExpired are ignored. This is the path the admin now uses.
+  dateFrom?: string;
+  dateTo?: string;
+  daysWindow?: number; // default 7 — legacy window mode (no date range given)
+  includeExpired?: boolean; // default true — legacy window mode only
   // default false — hide members who already have future coverage of the same
   // category (already renewed). Set true to include them (flagged via the
   // hasFutureCoverage row field).
