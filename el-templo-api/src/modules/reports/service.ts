@@ -517,9 +517,13 @@ export class ReportsService {
         eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
       )
       .where(and(...conditions))
+      // Order by expiration urgency (oldest/closest end_date first). The sede
+      // is no longer a sort key — the branch selector handles filtering. Name
+      // is the tie-breaker so the order is stable within a given date.
       .orderBy(
-        schema.branches.name,
         sql`DATEDIFF(${schema.subscriptions.endDate}, CURDATE()) ASC`,
+        schema.users.firstName,
+        schema.users.lastName,
       );
 
     return rows.map((r) => ({
