@@ -210,6 +210,43 @@ export const listMembersSchema = {
   },
 };
 
+/**
+ * Lightweight member typeahead for scheduling dialogs. Returns only the fields
+ * needed to render an autocomplete option (id/name/dni); see listMembers for
+ * the heavyweight, filterable listing.
+ */
+export const searchMembersSchema = {
+  querystring: {
+    type: "object",
+    required: ["search"],
+    properties: {
+      search: { type: "string", minLength: 1 },
+      limit: { type: "integer", minimum: 1, maximum: 50, default: 10 },
+    },
+  },
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        members: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              id: { type: "integer" },
+              firstName: { type: ["string", "null"] },
+              lastName: { type: ["string", "null"] },
+              dni: { type: ["string", "null"] },
+              planName: { type: ["string", "null"] },
+              status: { type: ["string", "null"] },
+            },
+          },
+        },
+      },
+    },
+  },
+};
+
 export const getMemberSchema = {
   params: {
     type: "object",

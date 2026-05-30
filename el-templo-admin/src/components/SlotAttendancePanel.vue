@@ -306,10 +306,10 @@ function onMemberSearch(val: string, update: (fn: () => void) => void, _abort: (
 
   searchingMembers.value = true;
   membersApi
-    .getMembers({ search: val, limit: 15 })
-    .then((result) => {
+    .searchMembers(val, 15)
+    .then((members) => {
       update(() => {
-        memberSearchResults.value = result.members.map((m) => {
+        memberSearchResults.value = members.map((m) => {
           // Determine subscription status for warning badges
           let statusLabel = 'Sin plan';
           let statusColor = 'grey';

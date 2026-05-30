@@ -854,10 +854,10 @@ function onMemberSearch(val: string, update: (fn: () => void) => void, _abort: (
   }
   searchingMembers.value = true;
   membersApi
-    .getMembers({ search: val, limit: 10 })
-    .then((result) => {
+    .searchMembers(val, 10)
+    .then((members) => {
       update(() => {
-        memberSearchResults.value = result.members.map((m) => ({
+        memberSearchResults.value = members.map((m) => ({
           id: m.id,
           displayLabel: `${m.firstName} ${m.lastName}${m.dni ? ` (${m.dni})` : ''}`,
         }));

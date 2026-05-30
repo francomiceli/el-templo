@@ -30,6 +30,8 @@ import type { TrainingLevel } from "../shared/training-constants";
 import type {
   MemberListParams,
   MemberListItem,
+  MemberSearchParams,
+  MemberSearchItem,
   MemberProfile,
   MemberExportRow,
   CreateMemberInput,
@@ -361,6 +363,82 @@ export class MemberService {
     }));
 
     return { members, total, totalDebtByCurrency };
+  }
+
+  /**
+   * Lightweight member typeahead for the scheduling dialogs.
+   *
+   * Deliberately NOT a thin wrapper over listMembers: that endpoint runs a
+   * COUNT(*), a per-currency debt aggregate, and five correlated subqueries
+   * (status/plan/segment/avatar/trial) per row — all useless for an
+   * autocomplete and the cause of the 10s timeout when searching a common
+   * substring. This query projects only id/name/dni, so even though the
+   * `LIKE '%token%'` is a full scan, materializing + ordering the matches is
+   * cheap and the LIMIT keeps the result small.
+   */
+  async searchMembers(params: MemberSearchParams): Promise<MemberSearchItem[]> {
+    const { search, country, limit } = params;
+
+    const searchCondition = buildMemberNameSearchCondition(search);
+    // No meaningful tokens (e.g. only whitespace) → nothing to search for.
+    if (!searchCondition) return [];
+
+    const conditions: SQL[] = [
+      eq(schema.users.role, "member"),
+      isNull(schema.users.deletedAt),
+      searchCondition,
+    ];
+
+    // Country scope mirrors listMembers: members on virtual branches (e.g.
+    // Templo Online) are cross-country and must stay visible to staff.
+    if (country !== undefined) {
+      const countryOrVirtual = or(
+        eq(schema.branches.country, country),
+        eq(schema.branches.isVirtual, true),
+      );
+      if (countryOrVirtual) conditions.push(countryOrVirtual);
+    }
+
+    // Active subscription plan name — same subquery as listMembers, for the
+    // "Sin plan / Activa / Inactiva" badge in SlotAttendancePanel.
+    const planNameSubquery = sql<string | null>`(
+      SELECT sp.name FROM subscriptions s
+      JOIN subscription_plans sp ON sp.id = s.plan_id
+      WHERE s.user_id = users.id AND s.subscription_status IN ('active','paused')
+      ORDER BY s.created_at DESC LIMIT 1
+    )`;
+
+    // Effective status computed live from subscriptions (mirrors listMembers'
+    // effectiveStatusExpr) so a lapsed member reads 'inactivo' immediately,
+    // without waiting for the auto-expire cron to refresh users.status.
+    const effectiveStatusExpr = sql<UserStatus>`(
+      CASE
+        WHEN EXISTS (
+          SELECT 1 FROM subscriptions s
+          WHERE s.user_id = users.id
+            AND s.subscription_status IN ('active','paused')
+            AND s.start_date <= CURDATE()
+            AND (s.end_date IS NULL OR s.end_date >= CURDATE())
+        ) THEN 'activo'
+        WHEN users.status IN ('activo','inactivo') THEN 'inactivo'
+        ELSE users.status
+      END
+    )`;
+
+    return this.db
+      .select({
+        id: schema.users.id,
+        firstName: schema.users.firstName,
+        lastName: schema.users.lastName,
+        dni: schema.users.dni,
+        planName: planNameSubquery,
+        status: effectiveStatusExpr,
+      })
+      .from(schema.users)
+      .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
+      .where(and(...conditions))
+      .orderBy(schema.users.firstName, schema.users.lastName)
+      .limit(limit);
   }
 
   /**

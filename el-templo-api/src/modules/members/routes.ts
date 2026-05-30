@@ -35,6 +35,7 @@ import type {
 } from "./types";
 import {
   listMembersSchema,
+  searchMembersSchema,
   getMemberSchema,
   createMemberSchema,
   createTrialMemberSchema,
@@ -345,6 +346,25 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       return { ...result, page, limit };
     },
   );
+
+  // GET /admin/members/search — Lightweight typeahead for scheduling dialogs.
+  // Must be defined BEFORE the :userId param route so "/search" isn't captured
+  // as a userId. Returns only id/name/dni (no listMembers enrichment) to keep
+  // the autocomplete fast even on common substrings.
+  fastify.get<{
+    Querystring: {
+      search: string;
+      limit?: number;
+    };
+  }>("/search", { schema: searchMembersSchema }, async (request) => {
+    const { search, limit = 10 } = request.query;
+    const members = await memberService.searchMembers({
+      search,
+      country: request.scope.country ?? undefined,
+      limit,
+    });
+    return { members };
+  });
 
   // GET /admin/members/:userId — Get member profile
   fastify.get<{ Params: { userId: number } }>(

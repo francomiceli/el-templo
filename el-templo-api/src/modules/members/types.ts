@@ -39,6 +39,33 @@ export interface MemberListParams {
   limit: number;
 }
 
+/**
+ * Lightweight typeahead search params. Unlike MemberListParams this carries no
+ * filters, pagination, or status — it backs the member autocomplete in the
+ * scheduling dialogs, which only need id/name/dni to render an option label.
+ */
+export interface MemberSearchParams {
+  search: string;
+  /** Country scope, plumbed from request.scope.country (mirrors listMembers). */
+  country?: "AR" | "ES";
+  limit: number;
+}
+
+/**
+ * Single typeahead result row. Carries the two enrichment fields the
+ * scheduling autocompletes actually render (plan name + effective status for
+ * the "Activa/Inactiva/Sin plan" badge) — but NOT the full listMembers
+ * payload (debt aggregate, segment, avatar, trial flag, COUNT).
+ */
+export interface MemberSearchItem {
+  id: number;
+  firstName: string | null;
+  lastName: string | null;
+  dni: string | null;
+  planName: string | null;
+  status: UserStatus | null;
+}
+
 export interface MemberListItem {
   id: number;
   email: string | null;

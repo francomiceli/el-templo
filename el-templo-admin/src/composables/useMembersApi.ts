@@ -63,6 +63,17 @@ export interface DuplicateMatch {
   matchedField: 'dni' | 'phone';
 }
 
+// Lightweight typeahead result from GET /admin/members/search. Mirrors
+// el-templo-api MemberSearchItem — only the fields needed to render an option.
+export interface MemberSearchResult {
+  id: number;
+  firstName: string | null;
+  lastName: string | null;
+  dni: string | null;
+  planName: string | null;
+  status: 'freemium' | 'prueba' | 'activo' | 'inactivo' | null;
+}
+
 export function useMembersApi() {
   const loading = ref(false);
   const error = ref<string | null>(null);
@@ -81,6 +92,20 @@ export function useMembersApi() {
     } finally {
       loading.value = false;
     }
+  }
+
+  /**
+   * Lightweight member typeahead for scheduling dialogs. Hits the dedicated
+   * /admin/members/search endpoint (id/name/dni + plan/status only) instead of
+   * the heavy listing endpoint, which timed out on common substrings.
+   * Intentionally does NOT touch the shared loading flag — callers track their
+   * own per-typeahead loading state.
+   */
+  async function searchMembers(search: string, limit = 10): Promise<MemberSearchResult[]> {
+    const { data } = await api.get<{ members: MemberSearchResult[] }>('/admin/members/search', {
+      params: { search, limit },
+    });
+    return data.members;
   }
 
   async function getMember(userId: number): Promise<MemberProfile> {
@@ -500,6 +525,7 @@ export function useMembersApi() {
     loading,
     error,
     getMembers,
+    searchMembers,
     getMember,
     createMember,
     createTrialMember,
