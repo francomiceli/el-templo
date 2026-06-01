@@ -23,6 +23,7 @@ import { subscriptionSchedules } from "../../src/db/schema/subscription-schedule
 import { memberProfiles } from "../../src/db/schema/member-profiles";
 import { financialTransactions } from "../../src/db/schema/financial-transactions";
 import { transactionLinks } from "../../src/db/schema/transaction-links";
+import { balances } from "../../src/db/schema/balances";
 
 describe("Members Management Routes", () => {
   let app: FastifyInstance;
@@ -310,6 +311,59 @@ describe("Members Management Routes", () => {
       expect(body.members).toHaveLength(1);
       expect(body.members[0].email).toBe("noplan@test.com");
       expect(body.members[0].planName).toBeNull();
+    });
+
+    it("exposes totalDebtByCurrency to admin but withholds it from gestion", async () => {
+      // No-plan member (so the assignment charge doesn't seed its own balance)
+      // with a single outstanding row → the aggregate is deterministic.
+      const { user } = await registerUser(app, {
+        email: "debtor@test-members.com",
+        password: "password123",
+        branchId: 1,
+      });
+      await app.db.insert(balances).values({
+        memberId: user.id as number,
+        targetKind: "subscription",
+        targetId: 999999,
+        currency: "ARS",
+        amount: 5000,
+      });
+
+      // owner/admin: sees the financial aggregate.
+      const adminRes = await app.inject({
+        method: "GET",
+        url: "/api/admin/members",
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(adminRes.statusCode).toBe(200);
+      expect(JSON.parse(adminRes.body).totalDebtByCurrency).toEqual([
+        { currency: "ARS", amount: 5000 },
+      ]);
+
+      // gestion: still gets the members list, but the debt figure is withheld
+      // server-side (defense in depth behind the AlumnosPage banner gate).
+      await createStaffUser(app, {
+        email: "gestion@test-members.com",
+        password: "gestionpass123",
+        firstName: "Ges",
+        lastName: "Tion",
+        role: "gestion",
+        branchId: 1,
+      });
+      const gestionToken = await getAuthToken(
+        app,
+        "gestion@test-members.com",
+        "gestionpass123",
+      );
+      const gestionRes = await app.inject({
+        method: "GET",
+        url: "/api/admin/members",
+        headers: { authorization: `Bearer ${gestionToken}` },
+      });
+      expect(gestionRes.statusCode).toBe(200);
+      const gestionBody = JSON.parse(gestionRes.body);
+      expect(gestionBody.members.length).toBeGreaterThan(0);
+      expect(gestionBody.totalDebtByCurrency).toEqual([]);
     });
   });
 

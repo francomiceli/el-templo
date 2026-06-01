@@ -157,9 +157,11 @@
       </div>
     </div>
 
-    <!-- Total debt banner (only when Solo deudores is on and there are debts) -->
+    <!-- Total debt banner — owner/admin only (financial data), and only when
+         Solo deudores is on and there are debts. The backend also withholds
+         the aggregate from other roles (defense in depth). -->
     <q-banner
-      v-if="filters.debtorOnly && totalDebtByCurrency.length > 0"
+      v-if="canSeeTotalDebt && filters.debtorOnly && totalDebtByCurrency.length > 0"
       class="bg-red-1 text-red-10 q-mb-sm"
       dense
       rounded
@@ -335,6 +337,11 @@ const { getColor: getStatusColor, getLabel: getStatusLabel } = useStatusBadge();
 // =========================================================================
 
 const isOwner = computed(() => authStore.user?.role === 'owner');
+// "Deuda total" es dato financiero: solo owner/admin. El backend además no
+// devuelve el agregado a otros roles (defensa en profundidad).
+const canSeeTotalDebt = computed(
+  () => authStore.user?.role === 'owner' || authStore.user?.role === 'admin'
+);
 
 const countryOptions = [
   { label: 'Argentina', value: 'AR' as const },

@@ -29,6 +29,14 @@ export interface MemberListParams {
    */
   debtorOnly?: boolean;
   /**
+   * Gate for the `totalDebtByCurrency` aggregate (financial data): only
+   * owner/admin may see it. When false the service skips the debt query
+   * entirely and returns an empty aggregate, so non-privileged roles
+   * (gestion, coach, recepcion) never receive the figure — defense in depth
+   * behind the AlumnosPage banner gate. Plumbed from request.user.role.
+   */
+  includeTotalDebt?: boolean;
+  /**
    * Phase 103 (R8): first-class users.status filter (replaces the Phase
    * 102 derived "leads/alumnos" model). 'todos' is a no-op default.
    * Reads users.status directly — see Plan 02 for the recompute helper

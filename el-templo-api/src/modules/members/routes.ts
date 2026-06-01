@@ -337,6 +337,10 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         avatarType,
         country: request.scope.country ?? undefined,
         debtorOnly,
+        // "Deuda total" aggregate is owner/admin-only financial data.
+        includeTotalDebt: (ADMIN_ROLES as readonly string[]).includes(
+          request.user.role,
+        ),
         status,
         page,
         limit,

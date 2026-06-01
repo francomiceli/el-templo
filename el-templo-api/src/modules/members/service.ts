@@ -77,6 +77,7 @@ export class MemberService {
       avatarType,
       country,
       debtorOnly,
+      includeTotalDebt,
       status,
       page,
       limit,
@@ -315,16 +316,28 @@ export class MemberService {
     // and saldado rows (D-07 zero amounts kept for audit), so the banner
     // shows what members still owe. Response shape `TotalDebtRow[]` is
     // preserved unchanged for the AlumnosPage banner contract.
-    const totalDebtPromise = this.db
-      .select({
-        currency: schema.balances.currency,
-        amount: sql<number>`CAST(SUM(${schema.balances.amount}) AS SIGNED)`,
-      })
-      .from(schema.balances)
-      .innerJoin(schema.users, eq(schema.users.id, schema.balances.memberId))
-      .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
-      .where(and(sql`${schema.balances.amount} > 0`, whereClause))
-      .groupBy(schema.balances.currency);
+    //
+    // Gated to owner/admin (includeTotalDebt): the aggregate is financial data
+    // that gestion/coach/recepcion must not see. When not authorized we skip
+    // the query outright and return an empty aggregate.
+    const totalDebtPromise: Promise<TotalDebtRow[]> = includeTotalDebt
+      ? this.db
+          .select({
+            currency: schema.balances.currency,
+            amount: sql<number>`CAST(SUM(${schema.balances.amount}) AS SIGNED)`,
+          })
+          .from(schema.balances)
+          .innerJoin(
+            schema.users,
+            eq(schema.users.id, schema.balances.memberId),
+          )
+          .innerJoin(
+            schema.branches,
+            eq(schema.branches.id, schema.users.branchId),
+          )
+          .where(and(sql`${schema.balances.amount} > 0`, whereClause))
+          .groupBy(schema.balances.currency)
+      : Promise.resolve<TotalDebtRow[]>([]);
 
     const [countResult, rows, totalDebtRows] = await Promise.all([
       countPromise,
