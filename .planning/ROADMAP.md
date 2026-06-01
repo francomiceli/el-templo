@@ -2732,6 +2732,19 @@ Plans:
 - [x] 118-05-PLAN.md — Frontend D-09: borrar las 2 cards de engagement por segmento de AsistenciaTab + getEngagement del Promise.all de ReportesPage
 - [ ] 118-06-PLAN.md — Frontend: 3 tabs nuevas (Funnel/Retención/Finanzas avanzadas) + composable + tipos + verificación visual
 
+### Phase 119: Campaña de sesión de prueba freemium (reserva self-service + sistema de email reutilizable)
+
+**Goal:** Activar la conversión de usuarios freemium (`users.status='freemium'`, sin suscripción ni trial previo) mediante una campaña de email que les ofrece una sesión de prueba gratis presencial en la sede que elijan. Una sola fase grande que cruza 4 capas: (1) **API** — endpoint nuevo para que un freemium reserve su propia sesión de prueba (bypasea la validación de suscripción, reusa `trials-service.ts` + guard de una-por-vida, no consume capacidad); la trial no se puede cancelar ni re-reservar desde la app. (2) **App** — reutilizar la vista de Reservas existente (`ReservasPage.vue`) para que el freemium elija UNA clase como sesión de prueba, con selección de sede física (vive en "Templo Online", la oferta es presencial); entrada por deep link desde el email. (3) **Email** — sistema de campañas REUTILIZABLE sobre Resend (ya integrado, sin deps nuevas): tabla de campaña/envíos, unsubscribe propio, token de reserva personalizado por usuario, template HTML responsive, tracking de funnel (enviado→abierto→click→reservó→asistió→convirtió, apoyado en `user_status_history`). Doble CTA: reservar en la app + WhatsApp (cae al flujo tradicional admin). (4) **Campaña** — query de freemium elegibles + disparo. Bump minor del member app (feature).
+**Requirements**: TBD (ver 119-CONTEXT.md)
+**Depends on:** Phase 102 (trials-service), Phase 117 (user_status_history)
+**Plans:** Not yet planned
+
+Plans:
+
+- [ ] TBD
+
 ---
+
+_Phase 119 added: 2026-06-01 — campaña de reactivación/conversión de freemium con sesión de prueba self-service y sistema de email de campañas reutilizable. Decidido como una sola fase grande (4 capas). Email sobre Resend con infra propia liviana para tracking de funnel integrado._
 
 _Phase 116 added: 2026-05-25 — bug recurrente de logout en app de miembros (JWT de 7d sin refresh). Cualquier 401 borra el token y manda a /login. Objetivo: access token corto (30m) + refresh token largo (30d sliding) hasheado en DB con rotación obligatoria, endpoint /auth/refresh y /auth/logout reales, interceptor de axios con lock compartido, API backwards-compatible para evitar version skew con la app en Play Store. SPEC originalmente creado como Phase 115 (commit huérfano 8be596bf); renumerado a 116 porque 115 quedó asignado a "Evento Desafío de la Barra" en el master real._
