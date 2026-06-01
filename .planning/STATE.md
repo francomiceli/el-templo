@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: executing
-stopped_at: Phase 118 UI-SPEC approved
-last_updated: "2026-05-27T00:07:20.070Z"
+stopped_at: Phase 119 context gathered
+last_updated: "2026-06-01T23:36:18.129Z"
 last_activity: 2026-05-27
 progress:
   total_phases: 16
@@ -466,8 +466,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-05-27T00:06:53.013Z
-Stopped at: Phase 118 UI-SPEC approved
-Resume file: None
+Last session: 2026-06-01T23:36:18.105Z
+Stopped at: Phase 119 context gathered
+Resume file: .planning/phases/119-campa-a-de-sesi-n-de-prueba-freemium-reserva-self-service-si/119-CONTEXT.md
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
