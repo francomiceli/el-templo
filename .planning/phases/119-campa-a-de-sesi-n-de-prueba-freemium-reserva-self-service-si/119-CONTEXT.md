@@ -53,13 +53,19 @@ Activar la conversión de usuarios **freemium** (`users.status='freemium'`, sin 
 - **D-18:** Tracking **completo**: `enviado → abierto (pixel) → click (redirect con token) → reservó → asistió → convirtió`. La apertura por pixel es aproximada (Apple Mail Privacy la infla) pero se incluye como contexto. Click vía redirect con token es la métrica confiable. `asistió/convirtió` se apoyan en `user_status_history` (fase 117).
 - **D-19:** El funnel se ve en una **sección "Campañas" dedicada en el admin** (no dentro de analytics/Reportes): lista de campañas + funnel por campaña. Pensado como hogar del sistema reutilizable.
 
+### Activación en la app (deep link / "modo reservar prueba")
+
+- **D-20:** El **"modo reservar prueba" se activa por elegibilidad del usuario, NO por el token del link.** Cualquier freemium elegible (status freemium + sin trial previo + sin sub) ve el modo prueba al abrir Reservas, venga del mail o no. Más robusto (funciona aunque pierda el mail, reinstale la app o entre directo). La oferta de prueba es legítima y abierta a todo freemium, no un secreto gateado.
+- **D-21:** **El token del email NO autoriza ni autentica la reserva.** Su rol es: (a) trackear el click del funnel, (b) deep-linkear directo a la pantalla de reserva de prueba. La autorización real la valida el **backend server-side** por estado del usuario (sesión autenticada + freemium elegible + guard una-por-vida). Esto evita el agujero de "cualquiera con el link reserva gratis".
+- **D-22:** `ReservasPage.vue` pasa de 2 a 3 estados: (1) **muro actual** (`!hasPresencialPlan`, líneas 9-22) para no-elegibles; (2) **modo reservar prueba** para freemium elegible — elegir sede física primero (reusa el patrón `isMultiBranch`/branch selector), banner "Tu sesión de prueba gratis", grid a 30 días, reserva como trial, sin cancelar; (3) **prueba ya reservada** — "ya tenés tu sesión de prueba para [fecha] en [sede]", sin opción de reservar otra ni cancelar.
+
 ### Claude's Discretion
 
 - Diseño del esquema de las tablas de campaña/envíos/eventos (campaign, sends, tracking events) y de la columna `source`/distinción self-service en bookings/trials.
-- Mecanismo del token (firma, payload usuario+campaña, cómo pre-identifica/pre-autentica la pantalla de reserva al abrir el deep link).
+- Implementación técnica del token de tracking/navegación (firma, payload usuario+campaña, expiración a 30 días) — siempre dentro de la regla D-21 (no autoriza).
 - Implementación del pixel de apertura y del redirect de click (endpoints de tracking).
-- Cómo se ofrece la opción de reserva-de-prueba en `ReservasPage.vue` para un freemium (empty state actual lo bloquea — `ReservasPage.vue:8-22`) y el endpoint nuevo (`reserve-trial`) vs extender `/reserve`.
-- Estructura del deep link y fallback a store/web si la app no está instalada.
+- Endpoint nuevo (`reserve-trial`) vs extender `/reserve` para la reserva self-service del freemium.
+- Estructura del deep link y fallback a store/web si la app no está instalada (el CTA de WhatsApp ya cubre el caso sin app).
 - El **copy/tono y el asunto** del email (contenido a aportar/iterar con el usuario; ver Specific Ideas).
 - Número(s) de WhatsApp y mensaje pre-cargado del CTA de WhatsApp.
   </decisions>
