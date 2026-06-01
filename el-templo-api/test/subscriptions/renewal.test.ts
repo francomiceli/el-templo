@@ -264,4 +264,87 @@ describe("Subscriptions API — Renewal", () => {
     // una deuda sembrada en 10000 dejaba 2500 de deuda fantasma.
     expect(newSub.pricePaid).toBe(7500);
   });
+
+  // Precio personalizado en la renovación: el admin puede negociar un precio
+  // distinto al heredado para ESTE período. Tiene prioridad sobre el precio
+  // arrastrado y queda registrado con su razón.
+  it("renewal con precio personalizado usa el override y lo persiste", async () => {
+    const plan = await createPlan(app, adminToken, {
+      name: "Renew Custom Price Plan",
+      classesPerWeek: 2,
+      durationDays: 30,
+      priceRegular: 10000,
+      priceZero: 0,
+    });
+    const member = await createMember(app);
+
+    await assignPlan(app, adminToken, member.id, {
+      planId: plan.id,
+      startDate: todayStr(),
+    });
+
+    const renewRes = await app.inject({
+      method: "POST",
+      url: `${SUBSCRIPTIONS_URL}/members/${member.id}/subscription/renew`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: {
+        paymentMethod: "cash",
+        amountReceived: 6000,
+        priceOverrideAmount: 6000,
+        priceOverrideReason: "Promo renovación",
+      },
+    });
+    expect(renewRes.statusCode).toBe(201);
+    const newSub = JSON.parse(renewRes.body);
+
+    // El override (6000) pisa el precio heredado (10000 = priceRegular).
+    expect(newSub.pricePaid).toBe(6000);
+
+    // Override persistido en la nueva suscripción.
+    const newSubRows = await app.db
+      .select()
+      .from(subscriptions)
+      .where(eq(subscriptions.id, newSub.id as number));
+    expect(newSubRows[0].priceOverrideAmount).toBe(6000);
+    expect(newSubRows[0].priceOverrideReason).toBe("Promo renovación");
+
+    // El cobro registrado usa el monto del override.
+    const txnRows = await app.db
+      .select({
+        amount: financialTransactions.amount,
+        targetId: transactionLinks.targetId,
+      })
+      .from(financialTransactions)
+      .leftJoin(
+        transactionLinks,
+        eq(transactionLinks.transactionId, financialTransactions.id),
+      )
+      .where(eq(financialTransactions.memberId, member.id));
+    const renewalTxn = txnRows.find((t) => t.targetId === newSub.id);
+    expect(renewalTxn!.amount).toBe(6000);
+  });
+
+  it("renewal con priceOverrideAmount sin razón devuelve 400", async () => {
+    const plan = await createPlan(app, adminToken, {
+      name: "Renew Override No Reason Plan",
+      classesPerWeek: 2,
+      durationDays: 30,
+      priceRegular: 10000,
+      priceZero: 0,
+    });
+    const member = await createMember(app);
+
+    await assignPlan(app, adminToken, member.id, {
+      planId: plan.id,
+      startDate: todayStr(),
+    });
+
+    const renewRes = await app.inject({
+      method: "POST",
+      url: `${SUBSCRIPTIONS_URL}/members/${member.id}/subscription/renew`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: { paymentMethod: "cash", priceOverrideAmount: 6000 },
+    });
+    expect(renewRes.statusCode).toBe(400);
+  });
 });

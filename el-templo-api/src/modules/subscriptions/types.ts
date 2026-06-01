@@ -264,6 +264,14 @@ export interface RenewSubscriptionInput {
    * Backward-compat: undefined → defaults to renewalPrice en service layer.
    */
   amountReceived?: number;
+  /**
+   * Precio personalizado para esta renovación. Si se provee (>= 0), reemplaza
+   * el precio heredado de la suscripción anterior y requiere
+   * `priceOverrideReason`. undefined → se hereda `currentSub.pricePaid`.
+   */
+  priceOverrideAmount?: number;
+  /** Razón del precio personalizado. Requerida si hay `priceOverrideAmount`. */
+  priceOverrideReason?: string;
 }
 
 // ─── Plan Change / Proration Types ─────────────────────────────────────────

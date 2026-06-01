@@ -263,10 +263,38 @@
             <q-item>
               <q-item-section>Precio</q-item-section>
               <q-item-section side class="text-weight-bold text-h6">{{
-                formatPrice(renewTarget.pricePaid, renewTarget.currency ?? 'ARS')
+                formatPrice(renewalChargeBase, renewTarget.currency ?? 'ARS')
               }}</q-item-section>
             </q-item>
           </q-list>
+
+          <!-- Precio personalizado -->
+          <div class="q-mt-md">
+            <q-toggle v-model="renewalUseOverride" label="Precio personalizado" />
+            <template v-if="renewalUseOverride">
+              <div class="row q-col-gutter-sm q-mt-xs">
+                <div class="col-12 col-sm-4">
+                  <q-input
+                    v-model.number="renewalOverrideAmount"
+                    label="Monto"
+                    type="number"
+                    dense
+                    outlined
+                    prefix="$"
+                    :min="0"
+                  />
+                </div>
+                <div class="col-12 col-sm-8">
+                  <q-input
+                    v-model="renewalOverrideReason"
+                    label="Razon (requerida)"
+                    dense
+                    outlined
+                  />
+                </div>
+              </div>
+            </template>
+          </div>
 
           <div class="row q-col-gutter-md q-mt-md">
             <div class="col-12 col-sm-6">
@@ -326,6 +354,7 @@
             icon="check"
             :loading="renewalLoading"
             :disable="
+              renewalOverrideInvalid ||
               renewalAmountReceived === null ||
               renewalAmountReceived < 0 ||
               renewalAmountReceived > renewalChargeBase
@@ -387,7 +416,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useQuasar } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { formatDate } from 'src/utils/format-date';
@@ -475,6 +504,9 @@ const renewTarget = ref<SubscriptionDetail | null>(null);
 const renewalMethod = ref<PaymentMethod>('cash');
 const renewalLoading = ref(false);
 const renewalAmountReceived = ref<number | null>(null);
+const renewalUseOverride = ref(false);
+const renewalOverrideAmount = ref<number | null>(null);
+const renewalOverrideReason = ref('');
 const showEditStartDateDialog = ref(false);
 const editStartDateTarget = ref<SubscriptionDetail | null>(null);
 
@@ -567,7 +599,25 @@ const renewalActivationDate = computed(() => {
   return formatDate(renewTarget.value.endDate);
 });
 
-const renewalChargeBase = computed(() => renewTarget.value?.pricePaid ?? 0);
+const renewalChargeBase = computed(() => {
+  if (
+    renewalUseOverride.value &&
+    renewalOverrideAmount.value !== null &&
+    renewalOverrideAmount.value >= 0
+  ) {
+    return renewalOverrideAmount.value;
+  }
+  return renewTarget.value?.pricePaid ?? 0;
+});
+
+// El override es válido si está activo, tiene monto >= 0 y una razón no vacía.
+const renewalOverrideInvalid = computed(
+  () =>
+    renewalUseOverride.value &&
+    (renewalOverrideAmount.value === null ||
+      renewalOverrideAmount.value < 0 ||
+      renewalOverrideReason.value.trim() === '')
+);
 
 const renewalPendingBalance = computed(() =>
   Math.max(0, renewalChargeBase.value - (renewalAmountReceived.value ?? 0))
@@ -670,8 +720,17 @@ async function refreshAll() {
 function openRenewal(sub: SubscriptionDetail) {
   renewTarget.value = sub;
   renewalAmountReceived.value = sub.pricePaid ?? 0;
+  renewalUseOverride.value = false;
+  renewalOverrideAmount.value = null;
+  renewalOverrideReason.value = '';
   showRenewalDialog.value = true;
 }
+
+// Al cambiar el precio a cobrar (override on/off o monto), por defecto se
+// cobra el total. El admin luego puede ajustar a un cobro parcial.
+watch(renewalChargeBase, (base) => {
+  renewalAmountReceived.value = base;
+});
 
 function openEditStartDate(sub: SubscriptionDetail) {
   editStartDateTarget.value = sub;
@@ -692,12 +751,21 @@ async function executeRenewal() {
       paymentMethod: renewalMethod.value,
       amountReceived:
         renewalChargeBase.value === 0 ? undefined : (renewalAmountReceived.value ?? undefined),
+      ...(renewalUseOverride.value && renewalOverrideAmount.value !== null
+        ? {
+            priceOverrideAmount: renewalOverrideAmount.value,
+            priceOverrideReason: renewalOverrideReason.value.trim(),
+          }
+        : {}),
     });
     $q.notify({ type: 'positive', message: 'Suscripcion renovada correctamente' });
     showRenewalDialog.value = false;
     renewTarget.value = null;
     renewalMethod.value = 'cash';
     renewalAmountReceived.value = null;
+    renewalUseOverride.value = false;
+    renewalOverrideAmount.value = null;
+    renewalOverrideReason.value = '';
     refreshAll();
     emit('subscription-changed');
   } catch (err: unknown) {

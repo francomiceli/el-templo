@@ -268,6 +268,10 @@ export interface RenewSubscriptionInput {
   paymentMethod: PaymentMethod;
   /** Cobro al renovar (Phase 107). Backward-compat: undefined → renewalPrice. */
   amountReceived?: number;
+  /** Precio personalizado para esta renovación. Requiere priceOverrideReason. */
+  priceOverrideAmount?: number;
+  /** Razón del precio personalizado. Requerida si hay priceOverrideAmount. */
+  priceOverrideReason?: string;
 }
 
 // ─── Plan Change / Proration Types ─────────────────────────────────────────

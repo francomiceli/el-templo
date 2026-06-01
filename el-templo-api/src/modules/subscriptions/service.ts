@@ -2972,12 +2972,31 @@ export class SubscriptionService {
         ? Math.ceil(plan.durationDays / 7) * plan.classesPerWeek
         : null;
 
-    // Lock in whatever the member was actually paying so any negotiated
-    // price/override carries forward. Caso Pomilio (mayo 2026): venía pagando
-    // 75 EUR pero plan.priceRegular era 100, y la renovación grababa 100 →
-    // deuda fantasma de 25. Tomar currentSub.pricePaid preserva el override.
-    // priceTypeApplied se hereda en línea ~2972 y queda consistente.
-    const renewalPrice = currentSub.pricePaid;
+    // Precio de la renovación. Por defecto se hereda lo que el miembro venía
+    // pagando, para que cualquier override negociado se arrastre. Caso Pomilio
+    // (mayo 2026): venía pagando 75 EUR pero plan.priceRegular era 100, y la
+    // renovación grababa 100 → deuda fantasma de 25. Tomar currentSub.pricePaid
+    // preserva el override. priceTypeApplied se hereda más abajo y queda
+    // consistente.
+    //
+    // Si el admin ingresa un precio personalizado para ESTA renovación, tiene
+    // prioridad sobre el heredado (mismo patrón que assignPlan/changePlan).
+    let renewalPrice = currentSub.pricePaid;
+    let renewalOverrideAmount: number | null = null;
+    let renewalOverrideReason: string | null = null;
+    if (
+      input.priceOverrideAmount !== undefined &&
+      input.priceOverrideAmount >= 0
+    ) {
+      if (!input.priceOverrideReason) {
+        throw new BadRequestError(
+          "Se requiere una razon para el precio personalizado",
+        );
+      }
+      renewalPrice = input.priceOverrideAmount;
+      renewalOverrideAmount = input.priceOverrideAmount;
+      renewalOverrideReason = input.priceOverrideReason;
+    }
 
     // If old sub is already expired, close it now.
     // If still active (early renewal), leave it active — auto-expire will
@@ -3049,6 +3068,8 @@ export class SubscriptionService {
           | "regular"
           | "zero"
           | "credit_card",
+        priceOverrideAmount: renewalOverrideAmount,
+        priceOverrideReason: renewalOverrideReason,
         classesRemaining: periodBudget,
         classesBudget: periodBudget,
         previousSubscriptionId: currentSub.id,

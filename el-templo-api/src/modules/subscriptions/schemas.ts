@@ -393,6 +393,8 @@ export const renewSubscriptionSchema = {
     properties: {
       paymentMethod: { type: "string", enum: ["cash", "transfer", "card"] },
       amountReceived: { type: "integer", minimum: 0 },
+      priceOverrideAmount: { type: "integer", minimum: 0 },
+      priceOverrideReason: { type: "string" },
     },
   },
   response: {
