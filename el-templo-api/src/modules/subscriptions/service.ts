@@ -678,7 +678,7 @@ export class SubscriptionService {
       );
 
     const mapped = rows.map((r) => this.mapSubscriptionRow(r));
-    return Promise.all(mapped.map((m) => this.enrichWithScheduleIds(m)));
+    return this.enrichManyWithScheduleIds(mapped);
   }
 
   /**
@@ -736,7 +736,7 @@ export class SubscriptionService {
       .orderBy(desc(schema.subscriptions.createdAt));
 
     const mapped = rows.map((r) => this.mapSubscriptionRow(r));
-    return Promise.all(mapped.map((m) => this.enrichWithScheduleIds(m)));
+    return this.enrichManyWithScheduleIds(mapped);
   }
 
   /**
@@ -3811,6 +3811,49 @@ export class SubscriptionService {
   ): Promise<SubscriptionDetail> {
     const scheduleIds = await this.getSubscriptionScheduleIds(detail.id);
     return { ...detail, scheduleIds };
+  }
+
+  /**
+   * Batch variant of enrichWithScheduleIds for list endpoints.
+   *
+   * The per-row enrich (`Promise.all(details.map(enrichWithScheduleIds))`) fired
+   * one subscription_schedules query per subscription — an N+1 that, for a member
+   * with a long history, holds a pool connection per row and starves the pool
+   * under concurrent admin load (root cause of the simultaneous 10s timeouts on
+   * the member detail tab). This collapses it to a single `IN (...)` query.
+   */
+  private async enrichManyWithScheduleIds(
+    details: SubscriptionDetail[],
+  ): Promise<SubscriptionDetail[]> {
+    if (details.length === 0) return details;
+
+    const rows = await this.db
+      .select({
+        subscriptionId: schema.subscriptionSchedules.subscriptionId,
+        scheduleId: schema.subscriptionSchedules.scheduleId,
+      })
+      .from(schema.subscriptionSchedules)
+      .where(
+        inArray(
+          schema.subscriptionSchedules.subscriptionId,
+          details.map((d) => d.id),
+        ),
+      );
+
+    const bySubscription = new Map<number, number[]>();
+    for (const row of rows) {
+      const existing = bySubscription.get(row.subscriptionId);
+      if (existing) {
+        existing.push(row.scheduleId);
+      } else {
+        bySubscription.set(row.subscriptionId, [row.scheduleId]);
+      }
+    }
+
+    return details.map((detail) => ({
+      ...detail,
+      scheduleIds: bySubscription.get(detail.id) ?? [],
+    }));
   }
 
   /**
