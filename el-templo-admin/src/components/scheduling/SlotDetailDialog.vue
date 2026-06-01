@@ -385,9 +385,14 @@
             </div>
             <template v-else>
               <!-- Picker for existing prueba alumnos that haven't used their
-                   SP yet. Only shown when there's at least one match — the
-                   "Crear nuevo" path below covers the empty case. -->
-              <template v-if="eligibleTrials.length > 0">
+                   SP yet. Gated on the FULL list (eligibleTrialsAll), not the
+                   filtered view: otherwise typing a query that matches nobody
+                   collapses eligibleTrials to 0 and unmounts the input
+                   mid-search ("se me va el renglón"). With the full list as the
+                   gate, the input stays put and the #no-option slot renders
+                   "Sin resultados". The empty-branch case (no eligible trials
+                   at all) still falls through to "Crear nuevo" below. -->
+              <template v-if="eligibleTrialsAll.length > 0">
                 <q-select
                   v-model="selectedTrialUser"
                   :options="eligibleTrials"
