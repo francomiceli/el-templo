@@ -392,7 +392,11 @@ import { useQuasar } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { formatDate } from 'src/utils/format-date';
 import { formatPrice } from 'src/utils/format-price';
-import { extractError, isExpectedClientError } from 'src/utils/extract-error';
+import {
+  extractError,
+  isExpectedClientError,
+  parseActiveTransactionsBlock,
+} from 'src/utils/extract-error';
 import { useSubscriptionsApi } from 'src/composables/useSubscriptionsApi';
 import {
   PLAN_TIER_LABELS,
@@ -825,12 +829,34 @@ function confirmCancel(target?: SubscriptionDetail | null) {
       emit('subscription-changed');
       refreshAll();
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Error desconocido';
-      log.error('Error cancelling subscription', { error: message });
-      $q.notify({
-        type: 'negative',
-        message: isScheduled ? 'Error cancelando renovación' : 'Error cancelando suscripcion',
-      });
+      // Phase 111 REQ-3: backend refuses cancel when the sub has non-voided
+      // charge transactions. Surface the actionable message instead of the
+      // generic one so the admin knows to anular in Detalle Financiero first.
+      const block = parseActiveTransactionsBlock(err, 'cancelar');
+      if (block) {
+        log.warn('Cancel blocked: active transactions', {
+          userId: props.userId,
+          count: block.count,
+        });
+        $q.notify({
+          type: 'warning',
+          message: block.message,
+          timeout: 8000,
+          multiLine: true,
+          actions: [{ label: 'Entendido', color: 'white' }],
+        });
+        return;
+      }
+      const message = extractError(
+        err,
+        isScheduled ? 'Error cancelando renovación' : 'Error cancelando suscripcion'
+      );
+      if (isExpectedClientError(err)) {
+        log.warn('Cancel subscription rejected', { error: message });
+      } else {
+        log.error('Error cancelling subscription', { error: message });
+      }
+      $q.notify({ type: 'negative', message });
     } finally {
       actionLoading.value = false;
     }
@@ -856,9 +882,29 @@ function confirmCancelPrograma() {
       emit('subscription-changed');
       refreshAll();
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Error desconocido';
-      log.error('Error cancelling program subscription', { error: message });
-      $q.notify({ type: 'negative', message: 'Error cancelando programa' });
+      // Phase 111 REQ-3: same active-transactions guard applies to programs.
+      const block = parseActiveTransactionsBlock(err, 'cancelar');
+      if (block) {
+        log.warn('Cancel program blocked: active transactions', {
+          userId: props.userId,
+          count: block.count,
+        });
+        $q.notify({
+          type: 'warning',
+          message: block.message,
+          timeout: 8000,
+          multiLine: true,
+          actions: [{ label: 'Entendido', color: 'white' }],
+        });
+        return;
+      }
+      const message = extractError(err, 'Error cancelando programa');
+      if (isExpectedClientError(err)) {
+        log.warn('Cancel program rejected', { error: message });
+      } else {
+        log.error('Error cancelling program subscription', { error: message });
+      }
+      $q.notify({ type: 'negative', message });
     } finally {
       actionLoading.value = false;
     }
