@@ -56,6 +56,7 @@ import {
   cancelBookingSchema,
   myBookingsSchema,
   reserveTrialSchema,
+  cancelTrialSchema,
   trialEligibilitySchema,
 } from "./schemas";
 import type { DayOfWeek, AffectedScheduleRef } from "./types";
@@ -748,6 +749,23 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.code(201).send(result);
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "member reserve trial");
+      }
+    },
+  );
+
+  // POST /cancel-trial — freemium cancels their own self-service trial (D-03
+  // revised). Reverts prueba→freemium; blocked inside the 24h window.
+  fastify.post(
+    "/cancel-trial",
+    { schema: cancelTrialSchema },
+    async (request, reply) => {
+      try {
+        const result = await trialService.cancelTrialSelfService(
+          request.user.userId,
+        );
+        return result;
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "member cancel trial");
       }
     },
   );

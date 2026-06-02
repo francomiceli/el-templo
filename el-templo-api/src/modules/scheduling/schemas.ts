@@ -756,14 +756,35 @@ export const trialEligibilitySchema = {
         booking: {
           type: "object",
           properties: {
+            bookingId: { type: "integer" },
             date: { type: "string" },
+            startTime: { type: "string" },
             branchId: { type: "integer" },
             branchName: { type: "string" },
             branchAddress: { type: ["string", "null"] },
+            canModify: { type: "boolean" },
           },
         },
       },
     },
+  },
+} as const;
+
+/**
+ * Phase 119 (D-03 revised): POST /cancel-trial — no body; the caller is
+ * identified by the member JWT. Reverts prueba→freemium when outside 24h.
+ */
+export const cancelTrialSchema = {
+  response: {
+    200: {
+      type: "object",
+      required: ["cancelled"],
+      properties: {
+        cancelled: { type: "boolean" },
+      },
+    },
+    400: errorSchema,
+    409: errorSchema,
   },
 } as const;
 

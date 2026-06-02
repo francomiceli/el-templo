@@ -26,9 +26,21 @@ import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import { and, asc, desc, eq, inArray, ne, or, sql } from "drizzle-orm";
 import * as schema from "../../db/schema";
-import { ConflictError, NotFoundError } from "../shared/errors";
+import {
+  BadRequestError,
+  ConflictError,
+  NotFoundError,
+} from "../shared/errors";
 import type { CountryCode } from "../shared/country-scope";
+import { buildClassDateTime } from "../shared/date-utils";
 import type { BookingService } from "./booking-service";
+
+/**
+ * Phase 119 (D-03 revised): a self-service trial can be cancelled or changed up
+ * to this many hours before the class starts. Inside the window it's locked
+ * (mirrors a same-day reservation, which is always inside 24h).
+ */
+const TRIAL_CANCEL_CUTOFF_HOURS = 24;
 
 /**
  * Subscription statuses that disqualify a user from booking a trial: an
@@ -55,10 +67,14 @@ export interface TrialEligibility {
   eligible: boolean;
   alreadyBooked: boolean;
   booking?: {
+    bookingId: number;
     date: string;
+    startTime: string;
     branchId: number;
     branchName: string;
     branchAddress: string | null;
+    // True while the class is still >24h away — the app shows cancel/change.
+    canModify: boolean;
   };
 }
 
@@ -352,7 +368,10 @@ export class TrialService {
     // the app shows the confirmation card even after promotion to 'prueba'.
     const [booking] = await this.db
       .select({
+        bookingId: schema.bookings.id,
         date: schema.bookings.bookingDate,
+        startTime: schema.schedules.startTime,
+        branchTimezone: schema.branches.timezone,
         branchId: schema.branches.id,
         branchName: schema.branches.name,
         branchAddress: schema.branches.address,
@@ -381,10 +400,17 @@ export class TrialService {
         eligible: false,
         alreadyBooked: true,
         booking: {
+          bookingId: booking.bookingId,
           date: booking.date,
+          startTime: booking.startTime,
           branchId: booking.branchId,
           branchName: booking.branchName,
           branchAddress: booking.branchAddress,
+          canModify: this.isOutsideCancelWindow(
+            booking.date,
+            booking.startTime,
+            booking.branchTimezone,
+          ),
         },
       };
     }
@@ -410,6 +436,107 @@ export class TrialService {
     }
 
     return { eligible: true, alreadyBooked: false };
+  }
+
+  /**
+   * True when the class is still more than TRIAL_CANCEL_CUTOFF_HOURS away — i.e.
+   * the trial can still be cancelled/changed. Branch-timezone + DST aware via
+   * buildClassDateTime, matching booking-service's window helpers so a BCN trial
+   * and an AR trial each use their own local clock.
+   */
+  private isOutsideCancelWindow(
+    date: string,
+    startTime: string,
+    tz: string,
+  ): boolean {
+    const classTime = buildClassDateTime(date, startTime, tz);
+    const cutoff = new Date(
+      classTime.getTime() - TRIAL_CANCEL_CUTOFF_HOURS * 60 * 60 * 1000,
+    );
+    return new Date() <= cutoff;
+  }
+
+  /**
+   * Phase 119 (D-03 revised): a freemium cancels their own self-service trial.
+   *
+   * Cancels the non-cancelled is_trial booking AND reverts the user prueba→
+   * freemium (so they re-enter the lead funnel and can book another trial — the
+   * one-per-lifetime guard ignores cancelled trials). The "change" flow in the
+   * app is cancel-then-rebook, so this is the single mutation behind both.
+   *
+   * Guards:
+   *   - 409 if the user has no non-cancelled trial booking.
+   *   - 400 if the class starts within TRIAL_CANCEL_CUTOFF_HOURS (same-day /
+   *     <24h reservations are locked — mirrors the reserve-time copy).
+   */
+  async cancelTrialSelfService(userId: number): Promise<{ cancelled: true }> {
+    const [row] = await this.db
+      .select({
+        bookingId: schema.bookings.id,
+        date: schema.bookings.bookingDate,
+        startTime: schema.schedules.startTime,
+        tz: schema.branches.timezone,
+      })
+      .from(schema.bookings)
+      .innerJoin(
+        schema.schedules,
+        eq(schema.schedules.id, schema.bookings.scheduleId),
+      )
+      .innerJoin(
+        schema.branches,
+        eq(schema.branches.id, schema.schedules.branchId),
+      )
+      .where(
+        and(
+          eq(schema.bookings.memberId, userId),
+          eq(schema.bookings.isTrial, true),
+          ne(schema.bookings.status, "cancelado"),
+        ),
+      )
+      .orderBy(desc(schema.bookings.bookingDate))
+      .limit(1);
+
+    if (!row) {
+      throw new ConflictError("No tenés una sesión de prueba reservada");
+    }
+
+    if (!this.isOutsideCancelWindow(row.date, row.startTime, row.tz)) {
+      throw new BadRequestError(
+        "Tu sesión de prueba empieza dentro de las próximas 24 horas y ya no se puede cancelar ni cambiar. Si necesitás algo, escribinos por WhatsApp.",
+      );
+    }
+
+    await this.db.transaction(async (tx) => {
+      await tx
+        .update(schema.bookings)
+        .set({ status: "cancelado", cancelledAt: new Date() })
+        .where(eq(schema.bookings.id, row.bookingId));
+
+      // Only revert if still 'prueba' (defensive: never clobber a user who
+      // became a member out-of-band). Record the history row only when we win.
+      const upd = await tx
+        .update(schema.users)
+        .set({ status: "freemium" as const })
+        .where(
+          and(eq(schema.users.id, userId), eq(schema.users.status, "prueba")),
+        );
+      const flipped = (upd as unknown as [{ affectedRows?: number }])[0]
+        ?.affectedRows;
+      if (flipped === 1) {
+        await tx.insert(schema.userStatusHistory).values({
+          userId,
+          fromStatus: "prueba",
+          toStatus: "freemium",
+          source: "self_service",
+        });
+      }
+    });
+
+    this.log.info(
+      { userId, bookingId: row.bookingId },
+      "Self-service trial cancelled (prueba→freemium)",
+    );
+    return { cancelled: true };
   }
 
   /**
