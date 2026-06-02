@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: executing
-stopped_at: Completed 119-05-PLAN.md (member-app trial reservation + deep linking; device verification deferred to HUMAN-UAT)
-last_updated: "2026-06-02T02:26:16.388Z"
+stopped_at: "119-06 tasks 1-2 done + committed (admin Campañas section); BLOCKING human-verify checkpoint reached — needs visual verification before advancing"
+last_updated: "2026-06-02T03:10:00.000Z"
 last_activity: 2026-06-02
 progress:
   total_phases: 16
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-05-04)
 
 Phase: 119 (campa-a-de-sesi-n-de-prueba-freemium-reserva-self-service-si) — EXECUTING
 Plan: 6 of 7
-Status: Ready to execute
+Status: 119-06 paused at BLOCKING human-verify checkpoint (tasks 1-2 committed; admin verification pending)
 Last activity: 2026-06-02
 
 ## Performance Metrics
@@ -187,6 +187,7 @@ _Updated after each plan completion_
 | Phase 119 P02 | 12 | 2 tasks | 8 files |
 | Phase 119 P03 | ~22min | 2 tasks | 6 files |
 | Phase 119 P04 | ~9min | 3 tasks | 12 files |
+| Phase 119 P06 | ~12min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
