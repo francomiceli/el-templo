@@ -3,6 +3,7 @@ import {
   mysqlTable,
   int,
   varchar,
+  text,
   timestamp,
   index,
   uniqueIndex,
@@ -44,6 +45,15 @@ export const campaigns = mysqlTable("campaigns", {
     .notNull(),
   // Optional country scope ('AR' | 'ES'); NULL = global.
   country: varchar("country", { length: 2 }),
+  // Phase 119 (CR-02): the admin-entered email copy (copySlots), persisted so
+  // the send pipeline renders the real headline/subheadline/body instead of
+  // hard-coded placeholders. headline mirrors the schema's 255-char limit;
+  // body is TEXT (schema allows up to 5000 chars).
+  headline: varchar("headline", { length: 255 }),
+  subheadline: varchar("subheadline", { length: 255 }),
+  body: text("body"),
+  // Self-hosted hero image URL (D-27); stored as-is, never fetched.
+  heroImageUrl: varchar("hero_image_url", { length: 500 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   sentAt: timestamp("sent_at"),
 });

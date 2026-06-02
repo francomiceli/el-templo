@@ -140,6 +140,27 @@ export class CampaignService {
     const country =
       input.country === "AR" || input.country === "ES" ? input.country : null;
 
+    // CR-02 + WR-04: persist the admin-entered copy so the send pipeline renders
+    // the real email instead of placeholders. Enforce length server-side too —
+    // the JSON schema caps these, but create() is the trust boundary of record.
+    const headline = input.copySlots.headline.trim();
+    const subheadline = input.copySlots.subheadline.trim();
+    const body = input.copySlots.body.trim();
+    const heroImageUrl = input.heroImageUrl?.trim() || null;
+
+    if (!headline)
+      throw new BadRequestError("El titular del email es requerido");
+    if (headline.length > 255)
+      throw new BadRequestError("El titular no puede superar 255 caracteres");
+    if (subheadline.length > 255)
+      throw new BadRequestError("El subtítulo no puede superar 255 caracteres");
+    if (body.length > 5000)
+      throw new BadRequestError("El cuerpo no puede superar 5000 caracteres");
+    if (heroImageUrl && heroImageUrl.length > 500)
+      throw new BadRequestError(
+        "La URL de la imagen hero no puede superar 500 caracteres",
+      );
+
     const [inserted] = await this.db
       .insert(schema.campaigns)
       .values({
@@ -148,6 +169,10 @@ export class CampaignService {
         status: "draft",
         createdBy: adminUserId,
         country,
+        headline,
+        subheadline,
+        body,
+        heroImageUrl,
       })
       .$returningId();
 
@@ -493,6 +518,10 @@ export class CampaignService {
     status: string;
     createdBy: number;
     country: string | null;
+    headline?: string | null;
+    subheadline?: string | null;
+    body?: string | null;
+    heroImageUrl?: string | null;
     createdAt: Date;
     sentAt: Date | null;
   }): CampaignRecord {
@@ -503,6 +532,10 @@ export class CampaignService {
       status: row.status,
       createdBy: row.createdBy,
       country: row.country,
+      headline: row.headline ?? null,
+      subheadline: row.subheadline ?? null,
+      body: row.body ?? null,
+      heroImageUrl: row.heroImageUrl ?? null,
       createdAt: row.createdAt,
       sentAt: row.sentAt,
     };
@@ -534,15 +567,25 @@ export class CampaignService {
 
   /** Build the template merge vars for one recipient's tracking token. */
   private buildTemplateVars(
-    campaign: { id: number; subject: string },
+    campaign: {
+      id: number;
+      subject: string;
+      headline?: string | null;
+      subheadline?: string | null;
+      body?: string | null;
+      heroImageUrl?: string | null;
+    },
     token: string,
     sedes: BranchAddress[],
   ): TrialCampaignVars {
     const encoded = encodeURIComponent(token);
     return {
-      headline: campaign.subject,
-      subheadline: "",
-      body: "",
+      // CR-02: render the admin-entered copy. Fall back to the subject only if a
+      // legacy campaign predates the copy columns (headline is NULL).
+      headline: campaign.headline ?? campaign.subject,
+      subheadline: campaign.subheadline ?? "",
+      body: campaign.body ?? "",
+      ...(campaign.heroImageUrl ? { heroImageUrl: campaign.heroImageUrl } : {}),
       trackingPixelUrl: `${TRACKING_API_BASE}/api/campaigns/track/open?t=${encoded}`,
       // Click is tracked server-side; the redirect target is derived from an
       // allowlist (app.eltemplo.org), never echoed from query input (D-25).

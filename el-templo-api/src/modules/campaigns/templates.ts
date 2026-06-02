@@ -120,12 +120,19 @@ export async function trialCampaignHtml(
     headline,
     subheadline,
     body,
+    heroImageUrl,
     trackingPixelUrl,
     ctaAppUrl,
     whatsappUrl,
     sedes,
     unsubscribeUrl,
   } = vars;
+
+  // CR-02: use the admin-supplied hero when present; otherwise the default
+  // self-hosted asset (D-27 — no CDN, the URL is escaped before interpolation).
+  const heroSrc = heroImageUrl
+    ? esc(heroImageUrl)
+    : `${EMAIL_IMAGE_BASE}/hero.png`;
 
   const sedeRows = sedes.map(sedeRow).join("");
 
@@ -172,7 +179,7 @@ export async function trialCampaignHtml(
     <mj-section background-color="${MARBLE_CREAM}" padding="32px 24px 16px 24px">
       <mj-column>
         <mj-image src="${EMAIL_IMAGE_BASE}/logo.png" alt="El Templo" width="160px" align="center" padding="0 0 24px 0" />
-        <mj-image src="${EMAIL_IMAGE_BASE}/hero.png" alt="Entrenamiento en El Templo" width="552px" padding="0" />
+        <mj-image src="${heroSrc}" alt="Entrenamiento en El Templo" width="552px" padding="0" />
       </mj-column>
     </mj-section>
 

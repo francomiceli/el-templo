@@ -30,6 +30,11 @@ export interface TrialCampaignVars {
   subheadline: string;
   /** Body copy (1–2 short paragraphs; supports plain text). */
   body: string;
+  /**
+   * Optional self-hosted hero image URL (D-27). When omitted, the template
+   * falls back to its default eltemplo.org-hosted hero asset.
+   */
+  heroImageUrl?: string;
   /** Open-tracking pixel URL (GET /api/campaigns/track/open?t=<token>). */
   trackingPixelUrl: string;
   /** Primary CTA URL (click-tracked redirect to the trial deep link). */
@@ -88,6 +93,11 @@ export interface CampaignRecord {
   status: string;
   createdBy: number;
   country: string | null;
+  /** Persisted email copy (CR-02); null on legacy/blank campaigns. */
+  headline: string | null;
+  subheadline: string | null;
+  body: string | null;
+  heroImageUrl: string | null;
   createdAt: Date;
   sentAt: Date | null;
 }
