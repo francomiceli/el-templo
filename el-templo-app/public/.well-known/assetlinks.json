@@ -1,0 +1,22 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.eltemplo.app",
+      "sha256_cert_fingerprints": [
+        "TODO_PROD_PLAY_APP_SIGNING_SHA256: copy from Play Console > App integrity > App signing key certificate (NOT the upload key). Format: AA:BB:CC:... (32 colon-separated hex pairs)."
+      ]
+    }
+  },
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.eltemplo.app.staging",
+      "sha256_cert_fingerprints": [
+        "TODO_STAGING_SHA256: distinct from prod. Copy from the staging signing key (Play Console internal track or the staging keystore fingerprint)."
+      ]
+    }
+  }
+]

@@ -20,6 +20,17 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+
+            <!-- Phase 119 (D-25): App Links for the freemium trial deep link.
+                 Binds https://app.eltemplo.org/r/trial to this app; verified via
+                 https://app.eltemplo.org/.well-known/assetlinks.json. The host is
+                 app.eltemplo.org (the el-templo-app web build), NOT eltemplo.org. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="app.eltemplo.org" android:pathPrefix="/r/trial" />
+            </intent-filter>
         </activity>
 
         <provider
