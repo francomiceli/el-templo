@@ -40,10 +40,14 @@ export interface TrialEligibility {
   eligible: boolean
   alreadyBooked: boolean
   booking?: {
+    bookingId: number
     date: string
+    startTime: string
     branchId: number
     branchName: string
     branchAddress: string | null
+    // True while the class is still >24h away — show cancel/change affordances.
+    canModify: boolean
   }
 }
 
@@ -116,6 +120,15 @@ export function useSchedulingApi() {
     return response.data
   }
 
+  async function cancelTrial(): Promise<{ cancelled: boolean }> {
+    const response = await api.post<{ cancelled: boolean }>(
+      '/members/scheduling/cancel-trial',
+      {},
+      { signal: getSignal() },
+    )
+    return response.data
+  }
+
   async function getBonusUsage(): Promise<BonusUsage> {
     const response = await api.get<BonusUsage>('/members/scheduling/bonus-usage', {
       signal: getSignal(),
@@ -139,6 +152,7 @@ export function useSchedulingApi() {
     getBonusUsage,
     getTrialEligibility,
     reserveTrial,
+    cancelTrial,
     cleanup,
   }
 }

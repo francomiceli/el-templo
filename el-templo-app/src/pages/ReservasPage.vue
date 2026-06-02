@@ -16,7 +16,31 @@
           <p class="next-class-card__time">{{ trialConfirmationBody }}</p>
         </div>
       </div>
-      <q-btn no-caps flat color="positive" class="q-mt-md" @click="openTrialWhatsApp">
+      <!-- >24h before the class: self-service change/cancel. Inside 24h it's
+           locked, so we fall back to the WhatsApp affordance. -->
+      <template v-if="trialBooking.canModify">
+        <div class="row q-gutter-sm q-mt-md justify-center">
+          <q-btn
+            no-caps
+            rounded
+            outline
+            color="primary"
+            label="Cambiar horario"
+            :loading="trialCancelLoading"
+            @click="onChangeTrial"
+          />
+          <q-btn
+            no-caps
+            rounded
+            color="negative"
+            label="Cancelar"
+            :loading="trialCancelLoading"
+            @click="openTrialCancelDialog"
+          />
+        </div>
+        <p class="reservas__empty-text q-mt-sm">Podés cambiar o cancelar hasta 24 horas antes.</p>
+      </template>
+      <q-btn v-else no-caps flat color="positive" class="q-mt-md" @click="openTrialWhatsApp">
         <q-icon
           name="img:/icons/whatsapp.svg"
           size="18px"
@@ -50,9 +74,7 @@
         <q-icon name="card_giftcard" size="20px" class="trial-banner__icon" />
         <div class="trial-banner__text">
           <p class="trial-banner__heading">Tu sesión de prueba gratis</p>
-          <p class="trial-banner__body">
-            Elegí una sede y un horario en los próximos 30 días. Es gratis y sin compromiso.
-          </p>
+          <p class="trial-banner__body">Elegí una sede y un horario. Es gratis y sin compromiso.</p>
         </div>
       </div>
 
@@ -229,8 +251,8 @@
         </div>
 
         <p class="reservas__policy">
-          Podés reservar UNA sesión de prueba dentro de los próximos 30 días. No se puede cancelar
-          ni reprogramar desde la app — si necesitás cambiarla, escribinos por WhatsApp.
+          Es tu sesión de prueba gratis. Podés cancelarla o cambiarla hasta 24 horas antes; dentro
+          de las 24 horas queda fija.
         </p>
       </template>
     </template>
@@ -559,6 +581,28 @@
       </q-card>
     </q-dialog>
 
+    <!-- Trial cancel confirmation dialog (D-03 revised, >24h only) -->
+    <q-dialog v-model="trialCancelDialog" persistent>
+      <q-card style="min-width: 300px">
+        <q-card-section>
+          <div class="text-h6">Cancelar tu sesión de prueba</div>
+        </q-card-section>
+        <q-card-section class="q-pt-none">
+          ¿Seguro que querés cancelar tu sesión de prueba? Vas a poder reservar otra cuando quieras.
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat label="No, volver" color="grey" v-close-popup :disable="trialCancelLoading" />
+          <q-btn
+            flat
+            label="Sí, cancelar"
+            color="negative"
+            :loading="trialCancelLoading"
+            @click="confirmTrialCancel"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
     <!-- Cancel confirmation dialog -->
     <q-dialog v-model="cancelDialog.show" persistent>
       <q-card style="min-width: 300px">
@@ -614,6 +658,7 @@ const {
   getBonusUsage,
   getTrialEligibility,
   reserveTrial,
+  cancelTrial,
   cleanup,
 } = useSchedulingApi()
 const bonusUsage = ref<{
@@ -691,8 +736,9 @@ const trialConfirmationBody = computed(() => {
   const d = new Date(b.date + 'T00:00:00')
   const dayLabel = DAY_LABELS_FULL[((d.getDay() === 0 ? 7 : d.getDay()) as DayOfWeek) ?? 1] ?? ''
   const dateStr = `${d.getDate()} ${MONTH_ABBREV[d.getMonth()]}`
+  const timeStr = formatTime(b.startTime)
   const sede = b.branchAddress ? `${b.branchName} (${b.branchAddress})` : b.branchName
-  return `Te esperamos el ${dayLabel} ${dateStr} en ${sede}. ¡Llegá unos minutos antes!`
+  return `Te esperamos el ${dayLabel} ${dateStr} a las ${timeStr} en ${sede}. ¡Llegá unos minutos antes!`
 })
 
 // 30-day forward bound for the trial grid (D-05): disable navigating past a week
@@ -1176,9 +1222,17 @@ function onTrialSlotTap(slot: WeeklySlotView) {
   const sede =
     branchOptions.value.find((o) => o.value === trialBranchId.value)?.label ?? 'la sede elegida'
 
+  // The 24h change/cancel window is decided server-side; here we only pick the
+  // matching confirmation copy. <24h away (typically same-day) → locked.
+  const classStart = zonedWallClockToUtc(date, slot.startTime, branchTimezone.value)
+  const modifiable = classStart.getTime() - Date.now() >= 24 * 60 * 60 * 1000
+  const policyLine = modifiable
+    ? 'Podés cancelar o cambiar hasta 24 horas antes.'
+    : 'Como falta menos de 24 horas, no se va a poder cancelar ni cambiar.'
+
   trialDialog.value = {
     show: true,
-    message: `¿Reservar ${slot.activityName} el ${dayLabel} ${dateStr} a las ${timeStr} en ${sede}? Es tu única sesión de prueba, no se puede cancelar ni cambiar.`,
+    message: `¿Reservar ${slot.activityName} el ${dayLabel} ${dateStr} a las ${timeStr} en ${sede}? Es tu única sesión de prueba. ${policyLine}`,
     loading: false,
     scheduleId: slot.id,
     date,
@@ -1203,6 +1257,56 @@ async function confirmTrialReserve() {
     log.warn('Trial reserve failed', { error: message })
   } finally {
     trialDialog.value.loading = false
+  }
+}
+
+// ─── Trial change / cancel (Phase 119, D-03 revised) ────────────────
+// Both go through the same cancel endpoint (prueba→freemium). "Change" then
+// drops the user back onto the grid to rebook; "Cancel" just confirms.
+
+const trialCancelLoading = ref(false)
+const trialCancelDialog = ref(false)
+
+/** Cancel the trial booking; returns true on success. Errors are surfaced. */
+async function cancelTrialBooking(): Promise<boolean> {
+  trialCancelLoading.value = true
+  try {
+    await cancelTrial()
+    await loadTrialEligibility()
+    return true
+  } catch (err: unknown) {
+    const message = extractError(
+      err,
+      'No pudimos cancelar tu sesión de prueba. Probá de nuevo o escribinos por WhatsApp.',
+    )
+    $q.notify({ type: 'negative', message })
+    log.warn('Trial cancel failed', { error: message })
+    return false
+  } finally {
+    trialCancelLoading.value = false
+  }
+}
+
+async function onChangeTrial() {
+  const ok = await cancelTrialBooking()
+  if (ok) {
+    // loadTrialEligibility flipped the user back to freemium → the grid shows.
+    $q.notify({ type: 'info', message: 'Elegí tu nuevo horario de prueba' })
+  }
+}
+
+function openTrialCancelDialog() {
+  trialCancelDialog.value = true
+}
+
+async function confirmTrialCancel() {
+  const ok = await cancelTrialBooking()
+  trialCancelDialog.value = false
+  if (ok) {
+    $q.notify({
+      type: 'positive',
+      message: 'Tu sesión de prueba fue cancelada. Podés reservar otra cuando quieras.',
+    })
   }
 }
 
