@@ -1,10 +1,11 @@
 ---
 phase: 119
 slug: campa-a-de-sesi-n-de-prueba-freemium-reserva-self-service-si
-status: draft
+status: approved
 shadcn_initialized: false
 preset: none
 created: 2026-06-01
+reviewed_at: 2026-06-01
 ---
 
 # Phase 119 — UI Design Contract
@@ -72,7 +73,7 @@ Exceptions:
 
 - **Tap targets:** all tappable controls (slot-card "Reservar" button, CTA buttons in email, branch select) must be ≥ **44px** tall for touch.
 - **Email content width:** fixed **600px** container (table-based). Mobile media query collapses to **100%** with **16px** side gutters.
-- App `slot-card`/`day-pill` use existing 6px/12px values from `ReservasPage.vue` — keep them unchanged for visual consistency (do not re-spec the existing grid).
+- App `slot-card`/`day-pill` use existing 6px/12px values from `ReservasPage.vue` — keep them unchanged for visual consistency (do not re-spec the existing grid). Estos valores son heredados del componente existente y quedan explícitamente FUERA del contrato de espaciado de la Fase 119 — no se cambian y no se adoptan para elementos nuevos.
 
 ---
 
@@ -80,14 +81,14 @@ Exceptions:
 
 ### App / Admin (Quasar)
 
-| Role                 | Size | Weight | Line Height | Font                                                             |
-| -------------------- | ---- | ------ | ----------- | ---------------------------------------------------------------- |
-| Display / page title | 20px | 700    | 1.2         | Montserrat                                                       |
-| Heading / card title | 16px | 700    | 1.2         | Montserrat                                                       |
-| Body                 | 14px | 400    | 1.5         | Geologica                                                        |
-| Label / caption      | 12px | 600    | 1.3         | Montserrat (uppercase, letter-spacing 0.05em for section labels) |
+| Role                 | Size | Weight           | Line Height | Font                                                             |
+| -------------------- | ---- | ---------------- | ----------- | ---------------------------------------------------------------- |
+| Display / page title | 20px | 700              | 1.2         | Montserrat                                                       |
+| Heading / card title | 16px | 700              | 1.2         | Montserrat                                                       |
+| Body                 | 14px | 400              | 1.5         | Geologica                                                        |
+| Label / caption      | 12px | 700 (reusa bold) | 1.3         | Montserrat (uppercase, letter-spacing 0.05em for section labels) |
 
-Weights: **400 (regular)** + **700 (bold)**. (600 semibold appears in existing labels; treat it as the bold-family for small caps labels — do not introduce additional weights.)
+Weights: **400 (regular)** + **700 (bold)** — exactamente 2 pesos en el contrato de esta fase. Los estilos de label existentes con peso 600 en `quasar.variables.scss` se preservan tal cual; este spec NO introduce 600 como peso nuevo (carve-out legacy, fuera del contrato de pesos de esta fase).
 
 ### Email (MJML / web-safe)
 
