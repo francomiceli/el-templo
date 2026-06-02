@@ -702,6 +702,71 @@ export const cancelBookingSchema = {
   },
 };
 
+/**
+ * Phase 119 (D-01/D-05/D-06/D-21): reserveTrialSchema
+ *
+ * POST /api/members/scheduling/reserve-trial
+ * A freemium member reserves their own single trial session. The handler
+ * delegates to TrialService.reserveTrialSelfService(request.user.userId, body):
+ * eligibility is revalidated server-side, so the body never carries any token
+ * (D-21). additionalProperties:false rejects extra fields (e.g. a smuggled
+ * userId or token).
+ */
+export const reserveTrialSchema = {
+  body: {
+    type: "object",
+    required: ["scheduleId", "date", "branchId"],
+    properties: {
+      scheduleId: { type: "integer", minimum: 1 },
+      date: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+      branchId: { type: "integer", minimum: 1 },
+    },
+    additionalProperties: false,
+  },
+  response: {
+    201: {
+      type: "object",
+      required: ["bookingId"],
+      properties: {
+        bookingId: { type: "integer" },
+      },
+    },
+    400: errorSchema,
+    404: errorSchema,
+    409: errorSchema,
+  },
+} as const;
+
+/**
+ * Phase 119 (D-20): trialEligibilitySchema
+ *
+ * GET /api/members/scheduling/trial-eligibility
+ * Drives the 3 ReservasPage states. `/me` does NOT expose users.status, so the
+ * app needs this endpoint to know whether the caller can reserve a trial.
+ * Auth is the member JWT (applied by the section-level onRequest hook).
+ */
+export const trialEligibilitySchema = {
+  response: {
+    200: {
+      type: "object",
+      required: ["eligible", "alreadyBooked"],
+      properties: {
+        eligible: { type: "boolean" },
+        alreadyBooked: { type: "boolean" },
+        booking: {
+          type: "object",
+          properties: {
+            date: { type: "string" },
+            branchId: { type: "integer" },
+            branchName: { type: "string" },
+            branchAddress: { type: ["string", "null"] },
+          },
+        },
+      },
+    },
+  },
+} as const;
+
 export const myBookingsSchema = {
   querystring: {
     type: "object",

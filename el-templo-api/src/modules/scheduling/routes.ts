@@ -55,6 +55,8 @@ import {
   reserveSchema,
   cancelBookingSchema,
   myBookingsSchema,
+  reserveTrialSchema,
+  trialEligibilitySchema,
 } from "./schemas";
 import type { DayOfWeek, AffectedScheduleRef } from "./types";
 
@@ -648,6 +650,14 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
   );
   subscriptionService.setBookingService(bookingService);
 
+  // Phase 119: self-service trial. BookingService is injected so the trial
+  // path reuses the 30-day window + dayOfWeek/holiday validation (D-05).
+  const trialService = new TrialService(
+    fastify.db,
+    fastify.log,
+    bookingService,
+  );
+
   /**
    * Guard: require authentication (any role) on all routes in this plugin.
    */
@@ -719,6 +729,44 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
       handleServiceError(err, reply, request.log, "member reserve");
     }
   });
+
+  // POST /reserve-trial — freemium self-service trial reservation (D-01).
+  // Atomically promotes freemium→prueba and books the trial. Eligibility is
+  // revalidated server-side from user state; the email token never authorizes
+  // (D-21).
+  fastify.post<{
+    Body: { scheduleId: number; date: string; branchId: number };
+  }>(
+    "/reserve-trial",
+    { schema: reserveTrialSchema },
+    async (request, reply) => {
+      try {
+        const result = await trialService.reserveTrialSelfService(
+          request.user.userId,
+          request.body,
+        );
+        return reply.code(201).send(result);
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "member reserve trial");
+      }
+    },
+  );
+
+  // GET /trial-eligibility — drives the 3 ReservasPage states (D-20).
+  fastify.get(
+    "/trial-eligibility",
+    { schema: trialEligibilitySchema },
+    async (request, reply) => {
+      try {
+        const result = await trialService.getTrialEligibility(
+          request.user.userId,
+        );
+        return result;
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "member trial eligibility");
+      }
+    },
+  );
 
   // GET /bonus-usage — fixed-plan members' bonus-class counter
   fastify.get("/bonus-usage", async (request, reply) => {
