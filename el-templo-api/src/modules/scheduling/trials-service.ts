@@ -242,10 +242,21 @@ export class TrialService {
     // 5. Validate the booking date (30-day window + dayOfWeek/holiday/not-past).
     //    Skips the subscription check (freemium has none) by going through the
     //    dedicated trial validator instead of BookingService.reserve.
-    await this.bookingService.validateTrialBookingDate(
+    const scheduleBranchId = await this.bookingService.validateTrialBookingDate(
       input.scheduleId,
       input.date,
     );
+
+    // CR-01: branch coherence. Both branchId and scheduleId are independent,
+    // attacker-controllable body fields. Without this guard a freemium could be
+    // promoted into Sede A (users.branchId = A) while their trial booking lands
+    // on a Sede B slot, corrupting the coach briefing and the confirmation card.
+    // Mirrors the admin bookTrial guard (user.branchId vs schedule.branchId).
+    if (scheduleBranchId !== input.branchId) {
+      throw new ConflictError(
+        "El horario elegido no pertenece a la sede seleccionada",
+      );
+    }
 
     // 6. Promote freemium→prueba AND insert the trial booking atomically.
     const statusBefore = user.status; // 'freemium'

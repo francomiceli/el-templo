@@ -1339,7 +1339,7 @@ export class BookingService {
   async validateTrialBookingDate(
     scheduleId: number,
     date: string,
-  ): Promise<void> {
+  ): Promise<number> {
     const scheduleRow = await this.getScheduleSlotRaw(scheduleId);
     if (!scheduleRow) throw new NotFoundError("Horario no encontrado");
     if (!scheduleRow.isActive) {
@@ -1352,6 +1352,10 @@ export class BookingService {
       date,
       TRIAL_BOOKING_WINDOW_DAYS,
     );
+    // Phase 119 (CR-01): return the schedule's branch so the self-service trial
+    // path can assert it matches the chosen branch (cross-sede coherence). The
+    // admin bookTrial path guards this independently via user.branchId.
+    return scheduleRow.branchId;
   }
 
   // ─── Private Helpers ──────────────────────────────────────────────────────
