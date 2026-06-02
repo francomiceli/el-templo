@@ -11,9 +11,9 @@ tags:
     deep-links,
     app-links,
     universal-links,
-    checkpoint-pending,
+    human-uat-deferred,
   ]
-status: checkpoint-pending
+status: complete
 requires:
   - 119-03 (GET /trial-eligibility + POST /reserve-trial backend endpoints)
 provides:
@@ -127,9 +127,23 @@ No new security surface beyond the plan's threat register. T-119-05-01 (token ne
 - `appUrlOpen` + `app.eltemplo.org` present in deep-links.ts; `deep-links` in quasar.config.js; `autoVerify` + `app.eltemplo.org` in AndroidManifest.xml; `associated-domains` + `applinks:app.eltemplo.org` in App.entitlements; both .well-known files exist and parse as valid JSON.
 - `npx vue-tsc --noEmit`: zero errors in the touched files (`ReservasPage.vue`, `useSchedulingApi.ts`, `deep-links.ts`); total project error count unchanged at the pre-existing baseline of 24 (out-of-scope `import.meta.env`/`$router`/test-typing noise) — no regression introduced (verified by stashing the changes: 24 before and after).
 
-## Checkpoint Status
+## Verificación humana DIFERIDA (Task 3 → HUMAN-UAT)
 
-**Task 3 is a `checkpoint:human-verify` with `gate="blocking"` — NOT auto-approved.** Execution stopped here per the non-autonomous plan. The three states + reserve flow + deep link require human verification on a device/emulator (eligible freemium fixture + native build). See the orchestrator-returned checkpoint message for exact verification steps. This SUMMARY will be finalized (self-check, metrics, state advance) after the checkpoint is approved and any follow-up adjustments land.
+**Task 3 era un `checkpoint:human-verify` con `gate="blocking"`.** El plan es CODE-COMPLETE (Tasks 1 y 2 commiteados: f3abcbb9, cc0a015a); por decisión del usuario la verificación en dispositivo/emulador se DIFIERE a UAT manual y NO bloquea el avance de la fase. Los ítems pendientes quedan persistidos en `119-05-HUMAN-UAT.md` (status: partial, todos `[pending]`).
+
+### Ítems de verificación diferidos (requieren device/emulator + fixture freemium elegible + build nativa)
+
+1. **Estado 1 (muro) sin cambios** — un usuario NO elegible (ya tiene plan o ya usó la prueba) ve el muro "Activá tu plan" intacto.
+2. **Estado 2 (modo reservar prueba)** — freemium elegible ve el banner "Tu sesión de prueba gratis", el selector de sede primero, la grilla de 30 días (no se puede navegar más allá de +30d), y NINGÚN control de cancelar.
+3. **Estado 3 (prueba reservada)** — al reservar un slot, el diálogo muestra la copy "no se puede cancelar ni cambiar"; al confirmar la página pasa a "Tu sesión de prueba está reservada" (fecha + sede + dirección), sin controles de reservar/cancelar.
+4. **Reserve flow end-to-end** — `reserveTrial(scheduleId, date, branchId)` ejecuta y la UI transiciona estado 2 → estado 3.
+5. **Deep link** — abrir `https://app.eltemplo.org/r/trial?t=<cualquiera>` en device/emulator: con la app nativa instalada abre la app nativa en la pantalla de Reservas trial (token ignorado para auth, D-21); sin la app nativa instalada abre el web app de `app.eltemplo.org` (NO el landing), con el CTA de WhatsApp como fallback robusto.
+6. **Warm brand check** — paleta cálida (terracotta/cream), SIN azul en ninguna parte.
+
+### TODOs del deployer (gating de producción, NO bloquean el render UAT)
+
+- **assetlinks.json SHA-256 fingerprints** — los `sha256_cert_fingerprints` son placeholders TODO. La verificación de Android App Links usa el certificado de **Play App Signing** (Google re-firma los AAB subidos), obtenible SOLO desde Play Console > App integrity > App signing key certificate — NO del upload keystore del repo. Completar ambas entradas (prod `com.eltemplo.app` y staging `com.eltemplo.app.staging`, fingerprints distintos) antes de que App Links auto-verifique en producción.
+- **Servir `.well-known/*` como archivos estáticos** — el-templo-app es un Quasar SPA. El hosting web / rewrite de history-mode de `app.eltemplo.org` DEBE excluir `/.well-known/*` del catch-all de `index.html` para que `assetlinks.json` y `apple-app-site-association` resuelvan como JSON estático (`Content-Type: application/json`, sin redirect). Quasar copia `public/` verbatim al root del build; confirmar que el web server (nginx/rsync target) sirve `/.well-known/*` directo y no lo rutea por el SPA fallback. Sin CDN.
 
 ## Self-Check: PASSED
 
