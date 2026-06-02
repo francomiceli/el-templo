@@ -239,6 +239,14 @@ export class CampaignService {
    *
    * When RESEND_API_KEY is unset the batch call no-ops (Plan 02 guard) — send
    * still records the audience without crashing.
+   *
+   * WR-01/WR-05: a status gate makes the mass-send single-shot. We atomically
+   * claim the campaign with `status='draft' -> 'sending'` (WHERE status='draft')
+   * and bail if 0 rows changed — that rejects a second concurrent click and a
+   * re-send of an already-`sent`/`sending` campaign, so duplicate delivery no
+   * longer relies solely on Resend's idempotency window. A campaign left in
+   * `sending` after a crash needs a deliberate manual reset to `draft` (safer
+   * than auto-resuming into a possibly-still-in-flight send).
    */
   async send(campaignId: number): Promise<SendResult> {
     const [campaign] = await this.db
@@ -248,6 +256,28 @@ export class CampaignService {
       .limit(1);
 
     if (!campaign) throw new BadRequestError("Campaña no encontrada");
+
+    // ── Atomic status gate (WR-01) ────────────────────────────────────────
+    // Flip draft -> sending in one statement; affectedRows tells us if we won
+    // the claim. Anything other than 1 means another send already owns it.
+    const claim = await this.db
+      .update(schema.campaigns)
+      .set({ status: "sending" })
+      .where(
+        and(
+          eq(schema.campaigns.id, campaignId),
+          eq(schema.campaigns.status, "draft"),
+        ),
+      );
+    const claimed = (claim as unknown as { affectedRows?: number })
+      .affectedRows;
+    if (claimed !== 1) {
+      throw new BadRequestError(
+        campaign.status === "sent"
+          ? "Esta campaña ya fue enviada"
+          : "Esta campaña ya se está enviando",
+      );
+    }
 
     const scopeCountry =
       campaign.country === "AR" || campaign.country === "ES"
@@ -331,11 +361,18 @@ export class CampaignService {
       }
     }
 
-    // ── Mark the campaign sent ────────────────────────────────────────────
+    // ── Mark the campaign sent (WR-05) ────────────────────────────────────
+    // Only flip our own 'sending' claim to 'sent' so a partial-failure re-run or
+    // a concurrent path can't be silently overwritten. sent_at is stamped once.
     await this.db
       .update(schema.campaigns)
       .set({ status: "sent", sentAt: campaign.sentAt ?? new Date() })
-      .where(eq(schema.campaigns.id, campaignId));
+      .where(
+        and(
+          eq(schema.campaigns.id, campaignId),
+          eq(schema.campaigns.status, "sending"),
+        ),
+      );
 
     const [{ total }] = await this.db
       .select({
