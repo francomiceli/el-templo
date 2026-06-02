@@ -4,8 +4,8 @@ milestone: v3.0
 milestone_name: Landing Page
 status: executing
 stopped_at: Phase 119 planned (7 plans, 4 waves, verified)
-last_updated: "2026-06-02T01:07:45.588Z"
-last_activity: 2026-05-27
+last_updated: "2026-06-02T01:36:51.326Z"
+last_activity: 2026-06-02
 progress:
   total_phases: 16
   completed_phases: 15
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-04)
 
 **Core value:** v4.85 desacopla el lifecycle de `programEnrollments` de `subscriptions/service.ts` (extrae `EnrollmentService`) y habilita add-ons de programas asignables por admin con precio opcional, retención de progreso atado al ciclo de vida de la sub principal.
-**Current focus:** Phase 118 — analytics-estrat-gico-funnel-de-conversi-n-retenci-n-por-cic
+**Current focus:** Phase 119 — campa-a-de-sesi-n-de-prueba-freemium-reserva-self-service-si
 
 ## Current Position
 
-Phase: 118 (analytics-estrat-gico-funnel-de-conversi-n-retenci-n-por-cic) — EXECUTING
-Plan: 6 of 6
+Phase: 119 (campa-a-de-sesi-n-de-prueba-freemium-reserva-self-service-si) — EXECUTING
+Plan: 2 of 7
 Status: Ready to execute
-Last activity: 2026-05-27
+Last activity: 2026-06-02
 
 ## Performance Metrics
 
@@ -183,6 +183,7 @@ _Updated after each plan completion_
 | Phase 118 P05 | ~10min | 2 tasks | 2 files |
 | Phase 118 P03 | ~12min | 2 tasks | 5 files |
 | Phase 118 P04 | 5min | 2 tasks | 5 files |
+| Phase 119 P01 | ~14min | 3 tasks | 16 files |
 
 ## Accumulated Context
 
@@ -402,6 +403,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - Plan 113-02: ActivitiesDialog.vue refactored from `<q-dialog>` floating modal into an embedded panel (props `:active` instead of `:show`, no `update:show` emit) — file kept by name, parent imports under alias `ActivitiesPanel` to minimize git history churn while honoring the tabbed layout (D-18). HorariosPage gained q-tabs (Horarios | Actividades), a `Crear horario` header button gated by `v-if="activeTab === 'horarios'"` and `:disable="!selectedBranchId"`, and an `onCascadeError` toast that lists up to 5 affected schedules using `DAY_SHORT_LABELS[dow] HH:MM-HH:MM (branchName)` plus "y N más" overflow. SlotDetailDialog.vue intentionally untouched (D-19).
 - Plan 113-02: Slot creation 4xx errors render INLINE on the form (text-negative caption) instead of as a toast — UX rationale is the admin keeps the form open and corrects the conflicting time/branch immediately. Cascade-error from activity deactivation DOES use a toast (no form to preserve).
 - Plan 113-02: Tasks 2 and 3 committed together (Rule 3) because Task 3 changed ActivitiesDialog's props/emit contract spanning HorariosPage; splitting would have left an intermediate state failing tsc. 3 pre-existing tsc errors in `pdf/session-pdf-builder.ts` (pdfmake @types drift) deferred to a future housekeeping plan; verified by stash that they were not introduced by this plan.
+- Plan 119-01: campaign schema foundation — 4 reusable tables (campaigns/campaign_sends/campaign_events/campaign_unsubscribes) mirroring user-status-history.ts; UNIQUE(campaign_id,user_id) for audience idempotency (D-12), UNIQUE(email) for unsubscribe suppression (D-15); branches.address + bookings.source nullable columns. Migration backfill matches sedes by name LIKE (not code) because branch codes drift across environments — each UPDATE is an idempotent no-op where the sede is absent. 8 Wave 0 RED scaffolds use it.todo (compile-valid, no DB execution) honoring the project rule to not run the full suite locally.
 
 - Plan 111-06: data-fix migrations use defensive WHERE-on-BEFORE-state guards + DELETE by id + INSERT … SELECT … WHERE NOT EXISTS — re-runnable as 0-row no-op (verified by Tests 2 and 3)
 - Plan 111-06: refactored run-migrations.ts to export splitSqlStatements + guarded auto-run with require.main check, so integration tests share the production parser without triggering a real migration on import
@@ -466,8 +468,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-02T01:07:45.570Z
-Stopped at: Phase 119 planned (7 plans, 4 waves, verified)
-Resume file: .planning/phases/119-campa-a-de-sesi-n-de-prueba-freemium-reserva-self-service-si/119-01-PLAN.md
+Last session: 2026-06-02T01:36:51.305Z
+Stopped at: Completed 119-01-PLAN.md (schema foundation + Wave 0 scaffolds)
+Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
