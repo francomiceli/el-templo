@@ -20,10 +20,13 @@
     </div>
 
     <!-- ================================================================== -->
-    <!-- Global Filters: Country (owner only) + Branch -->
+    <!-- Global Filter: Country (owner only) -->
+    <!-- WR-06: the campaign audience is country-scoped server-side, so a -->
+    <!-- "Sucursal" selector next to the irreversible send button would -->
+    <!-- misrepresent the blast radius. It was removed (was a no-op). -->
     <!-- ================================================================== -->
-    <div class="row items-center q-gutter-sm q-mb-md">
-      <div v-if="isOwner" class="col-auto" style="min-width: 180px">
+    <div v-if="isOwner" class="row items-center q-gutter-sm q-mb-md">
+      <div class="col-auto" style="min-width: 180px">
         <q-select
           v-model="selectedCountry"
           :options="countryOptions"
@@ -33,20 +36,6 @@
           emit-value
           map-options
           @update:model-value="onCountryChange"
-        />
-      </div>
-      <div class="col-12 col-sm-3">
-        <q-select
-          v-model="selectedBranchId"
-          :options="branchOptions"
-          :display-value="selectedBranchLabel"
-          label="Sucursal"
-          dense
-          outlined
-          emit-value
-          map-options
-          :loading="loadingBranches"
-          @update:model-value="onBranchChange"
         />
       </div>
     </div>
@@ -251,7 +240,6 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useQuasar, type QTableColumn } from 'quasar';
 import { useCampaignsApi } from 'src/composables/useCampaignsApi';
-import { useMembersApi } from 'src/composables/useMembersApi';
 import { useAuthStore } from 'src/stores/useAuthStore';
 import { createLogger } from 'src/utils/logger';
 import CampaignFunnel from 'src/components/campaigns/CampaignFunnel.vue';
@@ -261,14 +249,12 @@ import type {
   CampaignCountry,
   CreateCampaignInput,
 } from 'src/types/campaign';
-import type { BranchOption } from 'src/types/member';
 
 // -- Setup -------------------------------------------------------------------
 
 const log = createLogger('CampaniasPage');
 const $q = useQuasar();
 const campaignsApi = useCampaignsApi();
-const membersApi = useMembersApi();
 const authStore = useAuthStore();
 
 // -- Country selector (owner-only) -------------------------------------------
@@ -290,40 +276,6 @@ const countryScope = computed<CampaignCountry | undefined>(() =>
 
 async function onCountryChange() {
   await fetchCampaigns();
-}
-
-// -- Branch filter -----------------------------------------------------------
-
-const selectedBranchId = ref<number | undefined>(undefined);
-const branchOptions = ref<Array<{ label: string; value: number | undefined }>>([
-  { label: 'Todas las sedes', value: undefined },
-]);
-const loadingBranches = ref(false);
-
-const selectedBranchLabel = computed(() => {
-  const match = branchOptions.value.find((o) => o.value === selectedBranchId.value);
-  return match?.label ?? 'Todas las sedes';
-});
-
-async function fetchBranches() {
-  loadingBranches.value = true;
-  try {
-    const branches = await membersApi.getBranches();
-    branchOptions.value = [
-      { label: 'Todas las sedes', value: undefined },
-      ...branches.map((b: BranchOption) => ({ label: b.name, value: b.id })),
-    ];
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Error desconocido';
-    log.error('Error fetching branches', { error: message });
-  } finally {
-    loadingBranches.value = false;
-  }
-}
-
-function onBranchChange() {
-  // Branch filter is informational here (campaign audience is country-scoped
-  // server-side); kept for visual consistency with ReportesPage.
 }
 
 // -- Tab state ---------------------------------------------------------------
@@ -552,12 +504,10 @@ async function confirmSend() {
 // -- Lifecycle ---------------------------------------------------------------
 
 onMounted(async () => {
-  await fetchBranches();
   await fetchCampaigns();
 });
 
 onUnmounted(() => {
   campaignsApi.cleanup();
-  membersApi.cleanup();
 });
 </script>
