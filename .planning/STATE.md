@@ -4,7 +4,7 @@ milestone: v3.0
 milestone_name: Landing Page
 status: executing
 stopped_at: Completed 119-01-PLAN.md (schema foundation + Wave 0 scaffolds)
-last_updated: "2026-06-02T02:00:16.326Z"
+last_updated: "2026-06-02T02:11:31.499Z"
 last_activity: 2026-06-02
 progress:
   total_phases: 16
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-05-04)
 ## Current Position
 
 Phase: 119 (campa-a-de-sesi-n-de-prueba-freemium-reserva-self-service-si) — EXECUTING
-Plan: 3 of 7
+Plan: 4 of 7
 Status: Ready to execute
 Last activity: 2026-06-02
 
@@ -185,6 +185,7 @@ _Updated after each plan completion_
 | Phase 118 P04 | 5min | 2 tasks | 5 files |
 | Phase 119 P01 | ~14min | 3 tasks | 16 files |
 | Phase 119 P02 | 12 | 2 tasks | 8 files |
+| Phase 119 P03 | ~22min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -451,6 +452,9 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase 118]: Plan 118-03: AdvancedFinanceService nuevo (D-09, no toca analytics/service.ts); caja replica el filtro canonico de getRevenueTrend (kind plan_charge/debt_settlement, inflow, voided_at NULL) por moneda; devengado prorratea pricePaid sobre ventana efectiva [start, MIN(end, cancelledAt)] porque cancelSubscription NO acorta end_date (D-07); ARPU = devengado/mes / activeMemberExists (NUNCA users.status) con guard div-by-zero -> ARPU 0 (D-08); ARS/EUR jamas sumadas; /advanced-finance ADMIN_ROLES-only requireAdminAnalytics, gestion 403 (D-11); ventanas invalidas (null/0/end<start) excluidas + excludedInvalidWindow (T-118-08); test real-MySQL 14/14 (D-12)
 - [Phase ?]: Plan 118-04: FunnelService nuevo (D-09, monolito intacto); cohorte=mes de users.created_at (D-03); activo histórico aproximado con MIN(subscriptions.created_at) (D-01); medianas por etapa null-safe; /funnel admin-only (D-11)
 - [Phase 119]: Plan 119-02: instalado mjml@5.2.2 (D-23, única dep aprobada); mjml v5 es async → trialCampaignHtml devuelve Promise<string>; añadido src/types/mjml.d.ts (v5 sin types); EmailService.sendCampaignBatch con idempotencyKey + degradación silenciosa (D-12); CAMPAIGN_EMAIL_FROM como placeholder TBD (Plan 07, D-17); template MJML bulletproof con VML roundrect, paleta cálida (sin azul), imágenes self-hosted en eltemplo.org/email (D-27)
+- [Phase ?]: Plan 119-03: standalone reserveTrialSelfService promotes freemium→prueba + history + booking in ONE tx; one-per-lifetime + cancelled-row reactivation inline (D-01/D-26).
+- [Phase ?]: Plan 119-03: booking window parameterized via assertDateWithinWindow(windowDays) — reserve=+2d, validateTrialBookingDate=+30d (D-05); trial path skips the subscription check.
+- [Phase ?]: Plan 119-03: BookingService injected into TrialService as optional 3rd ctor arg; reserveTrialSchema additionalProperties:false rejects forged token — server-side state is sole authorization (D-21).
 
 ### Pending Todos
 
@@ -470,7 +474,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-02T02:00:02.143Z
+Last session: 2026-06-02T02:11:11.500Z
 Stopped at: Completed 119-01-PLAN.md (schema foundation + Wave 0 scaffolds)
 Resume file: None
 
