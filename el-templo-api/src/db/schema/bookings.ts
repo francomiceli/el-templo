@@ -6,6 +6,7 @@ import {
   timestamp,
   mysqlEnum,
   boolean,
+  varchar,
   index,
   uniqueIndex,
 } from "drizzle-orm/mysql-core";
@@ -38,6 +39,9 @@ export const bookings = mysqlTable(
     bookedAt: timestamp("booked_at").defaultNow().notNull(),
     cancelledAt: timestamp("cancelled_at"),
     isTrial: boolean("is_trial").notNull().default(false),
+    // D-02: booking origin — 'self_service' | 'admin' | NULL (legacy = admin).
+    // Drives funnel attribution (D-18). Nullable; existing rows stay NULL.
+    source: varchar("source", { length: 16 }),
   },
   (table) => [
     index("idx_bookings_schedule_date_status").on(
