@@ -24,10 +24,43 @@
 
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
-import { and, asc, desc, eq, ne, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, ne, or, sql } from "drizzle-orm";
 import * as schema from "../../db/schema";
 import { ConflictError, NotFoundError } from "../shared/errors";
 import type { CountryCode } from "../shared/country-scope";
+import type { BookingService } from "./booking-service";
+
+/**
+ * Subscription statuses that disqualify a user from booking a trial: an
+ * active/paused/scheduled sub means they are (or are about to be) a member,
+ * not a freemium lead. Mirrors the campaign-audience predicate (D-08/D-20).
+ */
+const BLOCKING_SUBSCRIPTION_STATUSES = [
+  "active",
+  "paused",
+  "scheduled",
+] as const;
+
+export interface ReserveTrialSelfServiceInput {
+  scheduleId: number;
+  date: string; // YYYY-MM-DD
+  branchId: number;
+}
+
+export interface ReserveTrialSelfServiceResult {
+  bookingId: number;
+}
+
+export interface TrialEligibility {
+  eligible: boolean;
+  alreadyBooked: boolean;
+  booking?: {
+    date: string;
+    branchId: number;
+    branchName: string;
+    branchAddress: string | null;
+  };
+}
 
 export interface BookTrialInput {
   userId: number;
@@ -93,7 +126,280 @@ export class TrialService {
   constructor(
     private db: MySql2Database<typeof schema>,
     private log: FastifyBaseLogger,
+    // Phase 119: optional so the admin trial flows (bookTrial / listTrials)
+    // keep their 2-arg construction. The self-service trial path injects it to
+    // reuse the 30-day window + dayOfWeek/holiday validation (D-05).
+    private bookingService?: BookingService,
   ) {}
+
+  /**
+   * Phase 119 (D-01/D-02/D-05/D-06/D-20/D-21/D-26): self-service trial.
+   *
+   * A freemium user reserves their own single trial session. This atomically
+   * promotes them freemium→prueba (replicating members/service.ts
+   * convertFreemiumToTrial) AND inserts the trial booking, all in ONE
+   * db.transaction so a failure rolls both back (D-26).
+   *
+   * Authorization is PURELY server-side state (D-21): the campaign email token
+   * is never read here — the caller is identified by their member JWT and the
+   * guards below revalidate eligibility from the database every time.
+   *
+   * Guards (all run BEFORE the tx so we never leave dangling state):
+   *   - 404 if the user or chosen branch doesn't exist.
+   *   - 409 if user.status !== 'freemium' (never clobber an existing lifecycle).
+   *   - 409 if the chosen branch is virtual (a trial must be presencial, D-06).
+   *   - 409 if the user already has a non-cancelled is_trial booking (one per
+   *     lifetime, D-03).
+   *   - 409 if the user has an active/paused/scheduled subscription (they are
+   *     already a member, not a lead).
+   *   - the date is validated against the 30-day window + dayOfWeek/holiday/
+   *     not-past checks via BookingService (D-05), but NOT the subscription
+   *     check (a freemium has none).
+   */
+  async reserveTrialSelfService(
+    userId: number,
+    input: ReserveTrialSelfServiceInput,
+  ): Promise<ReserveTrialSelfServiceResult> {
+    if (!this.bookingService) {
+      // Defensive: this method requires the BookingService dependency. The
+      // member plugin always injects it; this guard turns a misconfiguration
+      // into a clear 500 instead of a confusing undefined call.
+      throw new Error("reserveTrialSelfService requires a BookingService");
+    }
+
+    // 1. Validate user exists and is freemium (status is the authorization).
+    const [user] = await this.db
+      .select({
+        id: schema.users.id,
+        status: schema.users.status,
+        deletedAt: schema.users.deletedAt,
+      })
+      .from(schema.users)
+      .where(eq(schema.users.id, userId))
+      .limit(1);
+    if (!user || user.deletedAt)
+      throw new NotFoundError("Alumno no encontrado");
+    if (user.status !== "freemium") {
+      throw new ConflictError(
+        "Solo un alumno freemium puede reservar una sesión de prueba",
+      );
+    }
+
+    // 2. Validate the chosen branch exists and is physical (D-06).
+    const [branch] = await this.db
+      .select({
+        id: schema.branches.id,
+        isVirtual: schema.branches.isVirtual,
+      })
+      .from(schema.branches)
+      .where(eq(schema.branches.id, input.branchId))
+      .limit(1);
+    if (!branch) throw new NotFoundError("Sede no encontrada");
+    if (branch.isVirtual) {
+      throw new ConflictError(
+        "La sesión de prueba debe asignarse a una sede física",
+      );
+    }
+
+    // 3. One-trial-per-lifetime guard (cancelled trials don't count).
+    const [priorTrial] = await this.db
+      .select({ bookingDate: schema.bookings.bookingDate })
+      .from(schema.bookings)
+      .where(
+        and(
+          eq(schema.bookings.memberId, userId),
+          eq(schema.bookings.isTrial, true),
+          ne(schema.bookings.status, "cancelado"),
+        ),
+      )
+      .limit(1);
+    if (priorTrial) {
+      const [y, m, d] = priorTrial.bookingDate.split("-");
+      throw new ConflictError(
+        `Ya tenés una sesión de prueba reservada para el ${d}/${m}/${y}`,
+      );
+    }
+
+    // 4. No active/paused/scheduled subscription (already a member, not a lead).
+    const [activeSub] = await this.db
+      .select({ id: schema.subscriptions.id })
+      .from(schema.subscriptions)
+      .where(
+        and(
+          eq(schema.subscriptions.userId, userId),
+          inArray(schema.subscriptions.status, [
+            ...BLOCKING_SUBSCRIPTION_STATUSES,
+          ]),
+        ),
+      )
+      .limit(1);
+    if (activeSub) {
+      throw new ConflictError(
+        "Ya tenés una suscripción — no podés reservar una sesión de prueba",
+      );
+    }
+
+    // 5. Validate the booking date (30-day window + dayOfWeek/holiday/not-past).
+    //    Skips the subscription check (freemium has none) by going through the
+    //    dedicated trial validator instead of BookingService.reserve.
+    await this.bookingService.validateTrialBookingDate(
+      input.scheduleId,
+      input.date,
+    );
+
+    // 6. Promote freemium→prueba AND insert the trial booking atomically.
+    const statusBefore = user.status; // 'freemium'
+    const bookingId = await this.db.transaction(async (tx) => {
+      await tx
+        .update(schema.users)
+        .set({
+          status: "prueba" as const,
+          leadStatus: "en_seguimiento" as const,
+          createdBy: null, // D-02: self-service has no admin author
+          branchId: input.branchId, // D-06: chosen physical branch
+        })
+        .where(eq(schema.users.id, userId));
+
+      await tx.insert(schema.userStatusHistory).values({
+        userId,
+        fromStatus: statusBefore,
+        toStatus: "prueba",
+        source: "self_service", // D-02 (varchar(16), fits)
+      });
+
+      // Reactivate a previously-cancelled exact slot+date row if present to
+      // avoid a unique-constraint 500 on (member_id, schedule_id, booking_date).
+      const [existing] = await tx
+        .select({ id: schema.bookings.id })
+        .from(schema.bookings)
+        .where(
+          and(
+            eq(schema.bookings.memberId, userId),
+            eq(schema.bookings.scheduleId, input.scheduleId),
+            eq(schema.bookings.bookingDate, input.date),
+          ),
+        )
+        .limit(1);
+
+      if (existing) {
+        await tx
+          .update(schema.bookings)
+          .set({
+            status: "reservado",
+            isTrial: true,
+            source: "self_service",
+            cancelledAt: null,
+            waitlistPosition: null,
+          })
+          .where(eq(schema.bookings.id, existing.id));
+        return existing.id;
+      }
+
+      const inserted = await tx.insert(schema.bookings).values({
+        memberId: userId,
+        scheduleId: input.scheduleId,
+        bookingDate: input.date,
+        status: "reservado",
+        isTrial: true,
+        source: "self_service", // D-18 attribution
+      });
+      return Number(inserted[0].insertId);
+    });
+
+    this.log.info(
+      { userId, bookingId, scheduleId: input.scheduleId, date: input.date },
+      "Self-service trial reserved (freemium→prueba)",
+    );
+
+    return { bookingId };
+  }
+
+  /**
+   * Phase 119 (D-20): trial eligibility for the member app's ReservasPage.
+   *
+   * `/me` does NOT expose users.status, so the app cannot tell whether the
+   * caller can reserve a trial. This drives the 3 ReservasPage states:
+   *   - eligible=true, alreadyBooked=false  → show the trial booking UI
+   *   - alreadyBooked=true (+ booking)      → show the confirmation card
+   *   - eligible=false, alreadyBooked=false → show the existing muro
+   *
+   * Eligibility = same predicate as reserveTrialSelfService's guards:
+   *   status==='freemium' + no active/paused/scheduled sub + no non-cancelled
+   *   is_trial booking. The token never participates (D-21).
+   */
+  async getTrialEligibility(userId: number): Promise<TrialEligibility> {
+    const [user] = await this.db
+      .select({
+        status: schema.users.status,
+        deletedAt: schema.users.deletedAt,
+      })
+      .from(schema.users)
+      .where(eq(schema.users.id, userId))
+      .limit(1);
+
+    // Existing trial booking (any non-cancelled is_trial) takes precedence so
+    // the app shows the confirmation card even after promotion to 'prueba'.
+    const [booking] = await this.db
+      .select({
+        date: schema.bookings.bookingDate,
+        branchId: schema.branches.id,
+        branchName: schema.branches.name,
+        branchAddress: schema.branches.address,
+      })
+      .from(schema.bookings)
+      .innerJoin(
+        schema.schedules,
+        eq(schema.schedules.id, schema.bookings.scheduleId),
+      )
+      .innerJoin(
+        schema.branches,
+        eq(schema.branches.id, schema.schedules.branchId),
+      )
+      .where(
+        and(
+          eq(schema.bookings.memberId, userId),
+          eq(schema.bookings.isTrial, true),
+          ne(schema.bookings.status, "cancelado"),
+        ),
+      )
+      .orderBy(desc(schema.bookings.bookingDate))
+      .limit(1);
+
+    if (booking) {
+      return {
+        eligible: false,
+        alreadyBooked: true,
+        booking: {
+          date: booking.date,
+          branchId: booking.branchId,
+          branchName: booking.branchName,
+          branchAddress: booking.branchAddress,
+        },
+      };
+    }
+
+    if (!user || user.deletedAt || user.status !== "freemium") {
+      return { eligible: false, alreadyBooked: false };
+    }
+
+    const [activeSub] = await this.db
+      .select({ id: schema.subscriptions.id })
+      .from(schema.subscriptions)
+      .where(
+        and(
+          eq(schema.subscriptions.userId, userId),
+          inArray(schema.subscriptions.status, [
+            ...BLOCKING_SUBSCRIPTION_STATUSES,
+          ]),
+        ),
+      )
+      .limit(1);
+    if (activeSub) {
+      return { eligible: false, alreadyBooked: false };
+    }
+
+    return { eligible: true, alreadyBooked: false };
+  }
 
   /**
    * Phase 103: Book an existing prueba user into a specific class slot.

@@ -31,6 +31,14 @@ import {
   ConflictError,
 } from "../shared/errors";
 
+/**
+ * Member self-booking window: today .. today + N days (branch-local).
+ * Trials (Phase 119, D-05) use a longer window so a freemium can pick a
+ * trial date up to a month out without affecting members' tighter window.
+ */
+const MEMBER_BOOKING_WINDOW_DAYS = 2;
+const TRIAL_BOOKING_WINDOW_DAYS = 30;
+
 export class BookingService {
   constructor(
     private db: MySql2Database<typeof schema>,
@@ -62,52 +70,14 @@ export class BookingService {
       );
     }
 
-    // 2. Validate date is within booking window: today to today+2 days
-    //    "today" is evaluated in the branch's timezone so BCN and AR
-    //    members each see their own day boundary.
-    const tz = scheduleRow.branchTimezone;
-    const today = todayInTz(tz);
-    const maxDate = addDays(today, 2);
-    if (date < today || date > maxDate) {
-      throw new BadRequestError(
-        "Solo podes reservar desde hoy hasta 2 dias en adelante",
-      );
-    }
-
-    if (!this.isWithinBookingWindow(scheduleRow.startTime, date, tz)) {
-      throw new BadRequestError("Este horario ya paso");
-    }
-
-    // 3. Validate date matches schedule's dayOfWeek
-    const dateObj = new Date(date + "T12:00:00Z"); // Noon UTC to avoid timezone shifts
-    const dateDay = dateObj.getUTCDay(); // 0=Sun, 1=Mon, ..., 6=Sat
-    const isoDayOfWeek = dateDay === 0 ? 7 : dateDay; // Convert to ISO (1=Mon, 7=Sun)
-    if (isoDayOfWeek !== scheduleRow.dayOfWeek) {
-      throw new BadRequestError("La fecha no corresponde al dia del horario");
-    }
-
-    // 4. Check holiday
-    const [branch] = await this.db
-      .select({ country: schema.branches.country })
-      .from(schema.branches)
-      .where(eq(schema.branches.id, scheduleRow.branchId));
-
-    if (branch) {
-      const [holiday] = await this.db
-        .select({ id: schema.holidays.id })
-        .from(schema.holidays)
-        .where(
-          and(
-            eq(schema.holidays.country, branch.country),
-            eq(schema.holidays.date, date),
-          ),
-        )
-        .limit(1);
-
-      if (holiday) {
-        throw new BadRequestError("Este dia esta cancelado por feriado");
-      }
-    }
+    // 2-4. Validate the booking date against the +2 day member window plus the
+    //      not-past, dayOfWeek and holiday checks. Trials use the same checks
+    //      with a 30-day window (see validateTrialBookingDate / D-05).
+    await this.assertDateWithinWindow(
+      scheduleRow,
+      date,
+      MEMBER_BOOKING_WINDOW_DAYS,
+    );
 
     // 5. Check active subscription
     const subscription =
@@ -136,6 +106,10 @@ export class BookingService {
     // within their own country. Staff bypass for the same reason as the
     // multi-branch check below: an admin/coach using the member app to
     // entrenar may legitimately train across regions.
+    const [branch] = await this.db
+      .select({ country: schema.branches.country })
+      .from(schema.branches)
+      .where(eq(schema.branches.id, scheduleRow.branchId));
     if (actorRole === "member" && branch) {
       const [subBranch] = await this.db
         .select({ country: schema.branches.country })
@@ -341,6 +315,7 @@ export class BookingService {
         scheduleId: schema.bookings.scheduleId,
         bookingDate: schema.bookings.bookingDate,
         status: schema.bookings.status,
+        isTrial: schema.bookings.isTrial,
       })
       .from(schema.bookings)
       .where(eq(schema.bookings.id, bookingId));
@@ -348,6 +323,15 @@ export class BookingService {
     if (!bookingRow) throw new NotFoundError("Reserva no encontrada");
     if (bookingRow.memberId !== memberId) {
       throw new BadRequestError("Esta reserva no te pertenece");
+    }
+
+    // Phase 119 (D-03): trial bookings are one-per-lifetime and cannot be
+    // cancelled from the member app — there's no re-reserve affordance, so
+    // allowing a cancel would strand the freemium with no trial and no way back.
+    if (bookingRow.isTrial) {
+      throw new BadRequestError(
+        "La sesión de prueba no se puede cancelar desde la app",
+      );
     }
 
     // 2. Validate booking is in an active state
@@ -1339,7 +1323,104 @@ export class BookingService {
     );
   }
 
+  /**
+   * Phase 119 (D-05): validate a trial booking date against the 30-day window.
+   *
+   * Public so TrialService.reserveTrialSelfService can reuse the SAME date
+   * validation (not-past, dayOfWeek, holiday) as member reservations without
+   * duplicating the logic — but with a 30-day window instead of +2 days and
+   * WITHOUT the subscription check (a freemium has no subscription; that's why
+   * reserve-trial is a separate path, not /reserve).
+   *
+   * Loads the schedule row (timezone + dayOfWeek + branch) and delegates to
+   * the shared assertDateWithinWindow helper. Throws NotFoundError if the slot
+   * doesn't exist and BadRequestError for any invalid date.
+   */
+  async validateTrialBookingDate(
+    scheduleId: number,
+    date: string,
+  ): Promise<void> {
+    const scheduleRow = await this.getScheduleSlotRaw(scheduleId);
+    if (!scheduleRow) throw new NotFoundError("Horario no encontrado");
+    if (!scheduleRow.isActive) {
+      throw new BadRequestError(
+        scheduleRow.inactiveReason ?? "Este horario no esta activo",
+      );
+    }
+    await this.assertDateWithinWindow(
+      scheduleRow,
+      date,
+      TRIAL_BOOKING_WINDOW_DAYS,
+    );
+  }
+
   // ─── Private Helpers ──────────────────────────────────────────────────────
+
+  /**
+   * Shared date-window validation for member reservations (+2d) and trials
+   * (+30d). Runs four checks in order, all branch-timezone aware:
+   *   - date within [today, today + windowDays]
+   *   - the slot hasn't already passed today (isWithinBookingWindow)
+   *   - the date's dayOfWeek matches the schedule's dayOfWeek
+   *   - the date is not a holiday in the branch's country
+   * The subscription check is intentionally NOT here — callers add it as needed.
+   */
+  private async assertDateWithinWindow(
+    scheduleRow: {
+      branchId: number;
+      branchTimezone: string;
+      startTime: string;
+      dayOfWeek: number;
+    },
+    date: string,
+    windowDays: number,
+  ): Promise<void> {
+    // "today" is evaluated in the branch's timezone so BCN and AR members each
+    // see their own day boundary.
+    const tz = scheduleRow.branchTimezone;
+    const today = todayInTz(tz);
+    const maxDate = addDays(today, windowDays);
+    if (date < today || date > maxDate) {
+      throw new BadRequestError(
+        `Solo podes reservar desde hoy hasta ${windowDays} dias en adelante`,
+      );
+    }
+
+    if (!this.isWithinBookingWindow(scheduleRow.startTime, date, tz)) {
+      throw new BadRequestError("Este horario ya paso");
+    }
+
+    // dayOfWeek match (noon UTC to avoid timezone shifts)
+    const dateObj = new Date(date + "T12:00:00Z");
+    const dateDay = dateObj.getUTCDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+    const isoDayOfWeek = dateDay === 0 ? 7 : dateDay; // Convert to ISO (1=Mon, 7=Sun)
+    if (isoDayOfWeek !== scheduleRow.dayOfWeek) {
+      throw new BadRequestError("La fecha no corresponde al dia del horario");
+    }
+
+    // Holiday check
+    const [branch] = await this.db
+      .select({ country: schema.branches.country })
+      .from(schema.branches)
+      .where(eq(schema.branches.id, scheduleRow.branchId));
+
+    if (branch) {
+      const [holiday] = await this.db
+        .select({ id: schema.holidays.id })
+        .from(schema.holidays)
+        .where(
+          and(
+            eq(schema.holidays.country, branch.country),
+            eq(schema.holidays.date, date),
+          ),
+        )
+        .limit(1);
+
+      if (holiday) {
+        throw new BadRequestError("Este dia esta cancelado por feriado");
+      }
+    }
+  }
 
   /**
    * Check if now is within booking window (up to 5 min before class).
