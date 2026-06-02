@@ -1,0 +1,7 @@
+# Self-hosted campaign email images (Phase 119, D-27 — NO CDN).
+#
+# Served at https://eltemplo.org/email/<file>. Drop the brand art here:
+#   - logo.png  (El Templo logo, ~160px wide)
+#   - hero.png  (brand hero image, full-width within the 600px email)
+#
+# These are user-supplied art assets; this placeholder ensures the path exists.
