@@ -42,6 +42,7 @@ import { barChallengeRoutes } from "./modules/bar-challenge/routes";
 import { checkInRoutes } from "./modules/check-ins";
 import { programRoutes } from "./modules/programs";
 import { notificationRoutes } from "./modules/notifications";
+import { campaignRoutes } from "./modules/campaigns/routes";
 
 export async function buildApp() {
   const app = Fastify({
@@ -216,6 +217,10 @@ export async function buildApp() {
 
   // Notification routes (push notifications, preferences, admin templates)
   await app.register(notificationRoutes, { prefix: "/api/notifications" });
+
+  // Campaign routes (Phase 119): public tracking (open/click/unsubscribe) +
+  // admin campaign create/list/send/funnel/eligible-count.
+  await app.register(campaignRoutes, { prefix: "/api/campaigns" });
 
   // Health check endpoint
   app.get("/health", async () => {
