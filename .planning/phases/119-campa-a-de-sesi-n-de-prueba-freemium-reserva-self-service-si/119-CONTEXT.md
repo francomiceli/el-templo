@@ -59,13 +59,27 @@ Activar la conversión de usuarios **freemium** (`users.status='freemium'`, sin 
 - **D-21:** **El token del email NO autoriza ni autentica la reserva.** Su rol es: (a) trackear el click del funnel, (b) deep-linkear directo a la pantalla de reserva de prueba. La autorización real la valida el **backend server-side** por estado del usuario (sesión autenticada + freemium elegible + guard una-por-vida). Esto evita el agujero de "cualquiera con el link reserva gratis".
 - **D-22:** `ReservasPage.vue` pasa de 2 a 3 estados: (1) **muro actual** (`!hasPresencialPlan`, líneas 9-22) para no-elegibles; (2) **modo reservar prueba** para freemium elegible — elegir sede física primero (reusa el patrón `isMultiBranch`/branch selector), banner "Tu sesión de prueba gratis", grid a 30 días, reserva como trial, sin cancelar; (3) **prueba ya reservada** — "ya tenés tu sesión de prueba para [fecha] en [sede]", sin opción de reservar otra ni cancelar.
 
+### Decisiones post-research (D-23..D-27)
+
+- **D-23:** El HTML del email se construye con **MJML** (dependencia nueva, **aprobada por el usuario**). Compila a HTML table-based bulletproof; reduce bugs cross-cliente. Dep de build en el-templo-api. (Excepción explícita a la regla "no deps sin aprobar".)
+- **D-24:** Agregar columna **`address`** a la tabla `branches` (migración + editable en el form de sedes del admin). Fuente de las direcciones del email (D-13); reutilizable (web, otros mails). Hoy `branches` no tiene `address`.
+- **D-25:** Deep link vía **App Links (Android) / Universal Links (iOS)** sobre el dominio **`app.eltemplo.org`** (la web app, mismo código Capacitor que las nativas → fallback natural: sin app nativa, el mismo link abre la web app con la pantalla de reserva). Archivos `.well-known` (assetlinks.json + apple-app-site-association) hospedados en `app.eltemplo.org`. Requiere config nativa (intent filters / associated domains) + rebuild de tiendas (entra con el bump minor). `eltemplo.org` = landing (el-templo-web); `app.eltemplo.org` = web app.
+- **D-26:** Endpoint **nuevo `reserve-trial`** para la reserva self-service (NO extender `/reserve`). Replica el patrón atómico de `members/service.ts:convertFreemiumToTrial` (UPDATE status + insert en `user_status_history`) combinado con el booking en la misma transacción.
+- **D-27:** Imágenes del email **self-hosted** en `el-templo-web/public/email/` (servidas desde `eltemplo.org`), cumpliendo la regla NO-CDN.
+
+### Restricciones de integración detectadas por el research (para el planner)
+
+- `trials-service.bookTrial` exige `status='prueba'` + sede coincidente ANTES de reservar → el `reserve-trial` debe promover freemium→'prueba' y fijar la sede física elegida ANTES (misma transacción).
+- Ventana de booking hoy..+2d hardcodeada (`booking-service.ts:71`) → necesita override condicional a +30 días para trials.
+- El check-in QR **bloquea sin suscripción** (`attendance/service.ts:71`) → un freemium en 'prueba' NO puede auto-checkin; la asistencia a la prueba se registra vía **check-in del coach** (`forceCheckIn`/`coachCheckIn`). De ahí sale la atribución "asistió" del funnel.
+- `/me` no expone `users.status` → la elegibilidad (D-20) necesita endpoint dedicado `GET /members/scheduling/trial-eligibility`.
+- Subdominio de envío **`send.eltemplo.org`** para Resend (coexiste con el SPF de Google Workspace).
+
 ### Claude's Discretion
 
 - Diseño del esquema de las tablas de campaña/envíos/eventos (campaign, sends, tracking events) y de la columna `source`/distinción self-service en bookings/trials.
 - Implementación técnica del token de tracking/navegación (firma, payload usuario+campaña, expiración a 30 días) — siempre dentro de la regla D-21 (no autoriza).
 - Implementación del pixel de apertura y del redirect de click (endpoints de tracking).
-- Endpoint nuevo (`reserve-trial`) vs extender `/reserve` para la reserva self-service del freemium.
-- Estructura del deep link y fallback a store/web si la app no está instalada (el CTA de WhatsApp ya cubre el caso sin app).
 - El **copy/tono y el asunto** del email (contenido a aportar/iterar con el usuario; ver Specific Ideas).
 - Número(s) de WhatsApp y mensaje pre-cargado del CTA de WhatsApp.
   </decisions>
@@ -79,6 +93,7 @@ Activar la conversión de usuarios **freemium** (`users.status='freemium'`, sin 
 ### Roadmap / requisitos de la fase
 
 - `.planning/ROADMAP.md` § "Phase 119" — goal y boundary de esta fase.
+- `.planning/phases/119-campa-a-de-sesi-n-de-prueba-freemium-reserva-self-service-si/119-RESEARCH.md` — research técnico (Resend batch/dominio, MJML, deep linking Capacitor, pixel/redirect, bloqueos de integración, Assumptions Log). **Leer antes de planificar.**
 - `.planning/PROJECT.md` — contexto de la plataforma (8 sedes: 7 Mar del Plata + 1 Barcelona; multi-país).
 
 ### Reserva / trials / asistencia (API)
