@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: executing
-stopped_at: Completed 119-01-PLAN.md (schema foundation + Wave 0 scaffolds)
+stopped_at: Completed 119-05-PLAN.md (member-app trial reservation + deep linking; device verification deferred to HUMAN-UAT)
 last_updated: "2026-06-02T02:26:16.388Z"
 last_activity: 2026-06-02
 progress:
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-05-04)
 ## Current Position
 
 Phase: 119 (campa-a-de-sesi-n-de-prueba-freemium-reserva-self-service-si) — EXECUTING
-Plan: 5 of 7
+Plan: 6 of 7
 Status: Ready to execute
 Last activity: 2026-06-02
 
@@ -382,6 +382,7 @@ Recent decisions affecting current work:
 - Plan 109-03: Conceptos column rendered as '<TARGET_KIND_LABEL_ES> #<targetId>' joined by ', ' (W5 stub — granular labels deferred until ops requests)
 - Plan 109-04: Excel export redirected from client-side xlsx (not installed in admin) to backend endpoint /api/admin/reports/outstanding-balances/export — mirrors Plan 109-03 redirection precedent; net result is simpler client + single-source-of-truth filter semantics + integration tests against real MySQL
 - Plan 109-04: DeudasReport encapsulates own load lifecycle on mount + filter/countryScope watches; ReportesPage.fetchTabData switch unchanged (no case 'deudas' needed) — keeps component self-contained and avoids two competing data flows when owner toggles country
+- Plan 119-05: CODE-COMPLETE con verificación humana DIFERIDA. Tasks 1-2 commiteados (f3abcbb9 composable + 3-state ReservasPage; cc0a015a deep links + App Links/Universal Links). El checkpoint blocking Task 3 (3 estados + reserve flow + deep link + warm-brand sobre device/emulator) NO se ejecutó por decisión del usuario; los 6 ítems quedan persistidos en 119-05-HUMAN-UAT.md (status: partial, todos [pending], blocked_by: physical-device). Dos TODOs del deployer gatean producción (no el UAT): SHA-256 fingerprints reales en assetlinks.json desde Play App Signing, y servir /.well-known/\* como JSON estático excluido del SPA catch-all de app.eltemplo.org.
 - Plan 109-04: bucketTotals shape discriminator at runtime (Object.prototype.hasOwnProperty.call(bt, '0-30')) — gracefully handles flat BucketTotals (non-owner) vs per-currency keyed map (owner) without runtime assertion
 - Plan 109-05: cross-aggregation sanity test asserts Σ revenueByMethod = Σ revenueByKind = Σ revenueByBranch = monthlyRevenue over a single mixed-scenario seed (10 rows incl. 1 voided + 1 outflow refund); 5/5 cases PASS; W7 symmetric branch invariant covered explicitly
 - Plan 109-05: VERIFICATION.md scaffold mirrors Phase 108 pattern + adds prominent "Smoke Pendiente — Handoff al Operador" section at top because skip_checkpoints mode (Phase 107/108 precedent); 6 smoke escenarios PENDING, 22/22 D-XX decisions covered, "NO viernes" appears 4× in sign-off pre-flight
