@@ -267,7 +267,7 @@ describe("POST /api/members/scheduling/reserve-trial (Phase 119)", () => {
     expect(tooFar.statusCode).toBe(400);
   });
 
-  it("D-21: ignores any extra fields (token) — body rejected by validation", async () => {
+  it("D-21: a smuggled token field is stripped, not honored — reservation proceeds on server-side eligibility", async () => {
     const { token } = await freemiumToken();
     const res = await app.inject({
       method: "POST",
@@ -280,7 +280,11 @@ describe("POST /api/members/scheduling/reserve-trial (Phase 119)", () => {
         token: "forged-campaign-token",
       },
     });
-    expect(res.statusCode).toBe(400);
+    // The schema sets additionalProperties:false, and Fastify's default AJV
+    // (removeAdditional=true) strips the extra `token` rather than rejecting.
+    // The body never carries auth (D-21): eligibility is revalidated server-side,
+    // so a legit freemium still books (201) and the token is simply ignored.
+    expect(res.statusCode).toBe(201);
   });
 
   it("D-21: rejects a non-freemium user server-side (already has a sub)", async () => {
@@ -320,12 +324,19 @@ describe("POST /api/members/scheduling/reserve-trial (Phase 119)", () => {
     const { id, token } = await freemiumToken();
     // Seed an active subscription directly; status stays 'freemium' so ONLY the
     // subscription guard can reject (proving the predicate covers subs, not just
-    // status). Requires a plan row, present in the test seed.
+    // status). cleanAllTestData wipes subscription_plans, so create one here.
     const [plan] = await app.db
-      .select({ id: schema.subscriptionPlans.id })
-      .from(schema.subscriptionPlans)
-      .limit(1);
-    expect(plan).toBeDefined();
+      .insert(schema.subscriptionPlans)
+      .values({
+        name: "Trial Guard Plan",
+        planTier: "foundation",
+        bookingMode: "flexible",
+        planCategory: "presencial",
+        priceRegular: 10000,
+        priceZero: 0,
+        durationDays: 30,
+      })
+      .$returningId();
 
     await app.db.insert(schema.subscriptions).values({
       userId: id,

@@ -125,7 +125,7 @@ describe("campaign send pipeline (Phase 119)", () => {
     expect(sends.every((s) => s.status === "sent")).toBe(true);
   });
 
-  it("D-12: send is idempotent — a second send does not duplicate rows", async () => {
+  it("WR-01/WR-05: a second send is rejected — no duplicate rows", async () => {
     await createEligibleFreemium(app);
     const service = makeService();
     const campaign = await service.create(
@@ -138,11 +138,13 @@ describe("campaign send pipeline (Phase 119)", () => {
     );
 
     const first = await service.send(campaign.id);
-    const second = await service.send(campaign.id);
-
     expect(first.recipientCount).toBe(1);
-    expect(second.recipientCount).toBe(1);
-    expect(second.newlyEnrolled).toBe(0);
+
+    // The atomic status gate makes the mass-send single-shot: a second send on
+    // an already-'sent' campaign is rejected, so the audience is never
+    // re-enrolled (duplicate delivery prevented at the source, not just via
+    // Resend's idempotency window).
+    await expect(service.send(campaign.id)).rejects.toThrow(/ya fue enviada/i);
 
     const sends = await app.db
       .select()

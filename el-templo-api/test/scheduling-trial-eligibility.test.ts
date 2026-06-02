@@ -115,11 +115,19 @@ describe("GET /api/members/scheduling/trial-eligibility (Phase 119)", () => {
 
   it("D-20: eligible=false for a user with an active subscription", async () => {
     const { id, token } = await freemiumToken();
+    // cleanAllTestData wipes subscription_plans, so create one for the sub.
     const [plan] = await app.db
-      .select({ id: schema.subscriptionPlans.id })
-      .from(schema.subscriptionPlans)
-      .limit(1);
-    expect(plan).toBeDefined();
+      .insert(schema.subscriptionPlans)
+      .values({
+        name: "Eligibility Guard Plan",
+        planTier: "foundation",
+        bookingMode: "flexible",
+        planCategory: "presencial",
+        priceRegular: 10000,
+        priceZero: 0,
+        durationDays: 30,
+      })
+      .$returningId();
     await app.db.insert(schema.subscriptions).values({
       userId: id,
       planId: plan.id,
