@@ -99,9 +99,36 @@ None — no new security surface beyond the plan's `<threat_model>`. UI gating (
 - Task 2 grep gates: `campanias` in `routes.ts` + `AdminLayout.vue`; `useCampaignsApi` + `createCampaign` + `no se puede deshacer` in `CampaniasPage.vue`. No blue.
 - `npx vue-tsc --noEmit` — zero errors in any campaign/campanias/AdminLayout/routes file (pre-existing unrelated errors out of scope).
 
-## Checkpoint Status
+## Checkpoint Status — Verificación humana DIFERIDA
 
-Task 3 is a `checkpoint:human-verify` with `gate="blocking"`. This plan is non-autonomous — the executor STOPPED at the checkpoint and did NOT self-approve. The admin section must be human-verified (nav visibility, standalone /campanias, create draft, list badges, funnel + caveat, send confirmation gate, warm brand) before the phase advances. See the checkpoint message returned to the orchestrator.
+Tasks 1 and 2 are CODE-COMPLETE and committed (812f9c82, 2d718bcc). Task 3 is a
+`checkpoint:human-verify` with `gate="blocking"`. The executor STOPPED at the checkpoint
+and did NOT self-approve. Per user decision (2026-06-02), the browser/visual verification
+is **DEFERRED**: the plan is closed as CODE-COMPLETE and the 7 verification items are
+persisted as deferred UAT in [119-06-HUMAN-UAT.md](./119-06-HUMAN-UAT.md) (status: partial,
+all items pending) to be run against admin-staging before the campaign goes live.
+
+**Deferred browser-verification items (7):**
+
+1. **Nav visibility by role** — "Campañas" q-item (icon `campaign`) appears in the admin
+   left nav for owner/admin and is absent for lower roles (coach/recepcionista).
+2. **Standalone section** — `/campanias` is a standalone section (NOT under
+   Analíticas/Reportes) with the header + caption + country/branch filters.
+3. **Create draft** — "Nueva campaña" dialog (name/subject/copy) creates a draft that
+   then appears in the list with a grey "draft" badge (D-12).
+4. **List rows** — the campaign list shows name, status badge
+   (draft grey / sending warning / sent positive), sent date, and recipient count (D-19).
+5. **6-stage funnel + Apple-Mail-Privacy caveat** — opening a campaign renders the 6 stages
+   (enviado → abierto → click → reservó → asistió → convirtió) and the "abierto"
+   approximate caveat banner (Apple Mail Privacy) appears (D-18).
+6. **Send confirmation with recipient count** — "Enviar campaña" opens a dialog showing the
+   recipient count and the "no se puede deshacer" copy before the irreversible send (D-11);
+   cancel without sending.
+7. **Warm-brand, no blue** — the section and dialogs use the warm brand
+   (terracotta/cream), with NO blue anywhere.
+
+These items are visual/functional and require a running admin-staging build; they were not
+self-approved. Plan 06 proceeds as CODE-COMPLETE with these tracked as deferred UAT.
 
 ## Self-Check: PASSED
 
