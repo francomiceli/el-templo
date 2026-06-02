@@ -13,7 +13,7 @@
  * tokens are rejected by `validateCampaignToken`.
  */
 
-import { createHmac } from "crypto";
+import { createHmac, timingSafeEqual } from "crypto";
 
 /** Default token lifetime: 30 days (D-04), expressed in seconds. */
 export const CAMPAIGN_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60;
@@ -95,8 +95,18 @@ export function validateCampaignToken(
     .update(payloadB64)
     .digest("base64url");
 
-  // Constant-time-ish compare via length + value; signature mismatch → reject.
-  if (providedSignature !== expectedSignature) return null;
+  // CR-03: constant-time compare to avoid a timing oracle on the HMAC. A plain
+  // `!==` short-circuits on the first differing byte, leaking signature bytes to
+  // an attacker who can submit many tracking requests. timingSafeEqual requires
+  // equal-length buffers, so reject a length mismatch up front (also non-leaky).
+  const providedBuf = Buffer.from(providedSignature);
+  const expectedBuf = Buffer.from(expectedSignature);
+  if (
+    providedBuf.length !== expectedBuf.length ||
+    !timingSafeEqual(providedBuf, expectedBuf)
+  ) {
+    return null;
+  }
 
   try {
     const payloadStr = Buffer.from(payloadB64, "base64url").toString("utf-8");
