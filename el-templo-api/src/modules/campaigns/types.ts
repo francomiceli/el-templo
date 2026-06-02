@@ -41,3 +41,82 @@ export interface TrialCampaignVars {
   /** Unsubscribe URL (GET /api/campaigns/unsubscribe?t=<token>). */
   unsubscribeUrl: string;
 }
+
+/**
+ * A freemium user eligible for the trial-session campaign (D-08/09/10).
+ * Returned by `CampaignService.listEligible()`; carries only what the send
+ * pipeline needs (the email snapshot + the user's branch for sede addressing).
+ */
+export interface EligibleUser {
+  userId: number;
+  email: string;
+  branchId: number;
+  /** ISO-2 country of the user's branch ('AR' | 'ES'), used for WhatsApp link. */
+  country: string | null;
+}
+
+/**
+ * Per-section copy the trial template consumes (D-12). User-supplied per the
+ * UI-SPEC Copywriting Contract — the template defines structure, not copy.
+ */
+export interface CampaignCopySlots {
+  headline: string;
+  subheadline: string;
+  body: string;
+}
+
+/**
+ * Input to create a draft campaign (D-12). `heroImageUrl` must be an
+ * eltemplo.org-hosted asset (D-27) — stored as-is, never fetched.
+ */
+export interface CreateCampaignInput {
+  name: string;
+  subject: string;
+  /** Optional country scope ('AR' | 'ES'); null/undefined = global. */
+  country?: "AR" | "ES" | null;
+  /** Optional self-hosted hero image URL (D-27). */
+  heroImageUrl?: string;
+  /** Per-section copy for the template. */
+  copySlots: CampaignCopySlots;
+}
+
+/** A persisted campaign row (the `campaigns` table shape). */
+export interface CampaignRecord {
+  id: number;
+  name: string;
+  subject: string;
+  status: string;
+  createdBy: number;
+  country: string | null;
+  createdAt: Date;
+  sentAt: Date | null;
+}
+
+/** A campaign in the admin list, augmented with its recipient count. */
+export interface CampaignListItem extends CampaignRecord {
+  recipientCount: number;
+}
+
+/** Result of a `CampaignService.send()` call. */
+export interface SendResult {
+  campaignId: number;
+  /** Number of campaign_sends rows after this send (idempotent total). */
+  recipientCount: number;
+  /** Number of NEW recipients enrolled by this call. */
+  newlyEnrolled: number;
+}
+
+/**
+ * The 6-stage per-campaign funnel (D-18/D-19). `aperturaAproximada` flags that
+ * the "abierto" stage under-counts (Apple Mail Privacy / images-off).
+ */
+export interface FunnelStages {
+  enviado: number;
+  abierto: number;
+  click: number;
+  reservo: number;
+  asistio: number;
+  convirtio: number;
+  /** Always true — opens are inherently approximate (D-18). */
+  aperturaAproximada: boolean;
+}
