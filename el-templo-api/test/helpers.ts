@@ -142,6 +142,13 @@ export async function registerUser(
  * branches / spom_config rows.
  */
 const TABLES_TO_CLEAN = [
+  // Phase 119 campaign tables. FK ordering (FK checks are disabled below, so
+  // strictly cosmetic, but kept correct): events -> sends -> unsubscribes ->
+  // campaigns, all before users.
+  schema.campaignEvents,
+  schema.campaignSends,
+  schema.campaignUnsubscribes,
+  schema.campaigns,
   // Notification + onboarding (FK to users)
   schema.pendingNotifications,
   schema.notificationPreferences,
@@ -425,5 +432,101 @@ export async function createStaffUser(
       .values({ userId: result.id, branchId: data.branchId });
   }
 
+  return result.id;
+}
+
+// =========================================================================
+// Phase 119 campaign / trial fixtures
+// =========================================================================
+
+/**
+ * Create a freemium user that is ELIGIBLE for the trial-session campaign and
+ * for self-service trial reservation (Phase 119, D-08/D-10/D-20).
+ *
+ * Eligibility predicate (matches the audience query minus email/unsubscribe):
+ *   - status = 'freemium'
+ *   - a non-null email (so the campaign can address them)
+ *   - created_at older than 3 days (D-10 freshness guard)
+ *   - no active/paused/scheduled subscription
+ *   - no non-cancelled is_trial booking
+ *
+ * Inserts the user directly (bypasses /register, which forces freemium + a
+ * fresh created_at) so the test can pin an old created_at. Returns the user id
+ * and the email snapshot used by campaign_sends.
+ */
+export async function createEligibleFreemium(
+  app: FastifyInstance,
+  overrides: { email?: string; createdAt?: Date; branchId?: number } = {},
+): Promise<{ id: number; email: string }> {
+  const uniqueSuffix = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+  const email = overrides.email ?? `freemium-${uniqueSuffix}@test.com`;
+  // Default created_at = 10 days ago (comfortably older than the 3-day guard).
+  const createdAt =
+    overrides.createdAt ?? new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
+  const passwordHash = await argon2.hash("pass123456");
+
+  const [result] = await app.db
+    .insert(schema.users)
+    .values({
+      email,
+      passwordHash,
+      firstName: "Free",
+      lastName: "Mium",
+      role: "member",
+      branchId: overrides.branchId ?? 1,
+      status: "freemium",
+      createdAt,
+    })
+    .$returningId();
+
+  return { id: result.id, email };
+}
+
+/**
+ * Create a campaign row directly in the DB. Returns the campaign id.
+ */
+export async function createTestCampaign(
+  app: FastifyInstance,
+  createdBy: number,
+  overrides: Partial<{
+    name: string;
+    subject: string;
+    status: string;
+    country: string | null;
+  }> = {},
+): Promise<number> {
+  const [result] = await app.db
+    .insert(schema.campaigns)
+    .values({
+      name: overrides.name ?? "Test Campaign",
+      subject: overrides.subject ?? "Tu sesión de prueba gratis",
+      status: overrides.status ?? "draft",
+      createdBy,
+      country: overrides.country ?? null,
+    })
+    .$returningId();
+  return result.id;
+}
+
+/**
+ * Create a campaign_send row directly in the DB. Returns the send id.
+ */
+export async function createTestSend(
+  app: FastifyInstance,
+  campaignId: number,
+  userId: number,
+  email: string,
+  overrides: Partial<{ status: string; resendMessageId: string }> = {},
+): Promise<number> {
+  const [result] = await app.db
+    .insert(schema.campaignSends)
+    .values({
+      campaignId,
+      userId,
+      email,
+      status: overrides.status ?? "sent",
+      resendMessageId: overrides.resendMessageId ?? null,
+    })
+    .$returningId();
   return result.id;
 }
