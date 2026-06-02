@@ -269,8 +269,11 @@ export class CampaignService {
           eq(schema.campaigns.status, "draft"),
         ),
       );
-    const claimed = (claim as unknown as { affectedRows?: number })
-      .affectedRows;
+    // Drizzle/mysql2 returns `[ResultSetHeader, FieldPacket[]]`, so affectedRows
+    // lives at [0] — reading it off the array itself yields undefined and would
+    // make every first send fail the claim.
+    const claimed = (claim as unknown as [{ affectedRows?: number }])[0]
+      ?.affectedRows;
     if (claimed !== 1) {
       throw new BadRequestError(
         campaign.status === "sent"
@@ -302,8 +305,9 @@ export class CampaignService {
           set: { email: sql`${schema.campaignSends.email}` },
         });
       // affectedRows: 1 = inserted, 2 = updated (existing) under ON DUPLICATE.
-      const affected = (result as unknown as { affectedRows?: number })
-        .affectedRows;
+      // mysql2 wraps it as `[ResultSetHeader, ...]` — read it off [0].
+      const affected = (result as unknown as [{ affectedRows?: number }])[0]
+        ?.affectedRows;
       if (affected === 1) newlyEnrolled += 1;
     }
 
