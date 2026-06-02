@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: executing
-stopped_at: "119-06 tasks 1-2 done + committed (admin Campañas section); BLOCKING human-verify checkpoint reached — needs visual verification before advancing"
-last_updated: "2026-06-02T03:10:00.000Z"
+stopped_at: "119-06 CODE-COMPLETE (admin Campañas section, commits 812f9c82/2d718bcc); Task 3 browser verification DEFERRED to 119-06-HUMAN-UAT.md per user. Advanced to plan 7/7."
+last_updated: "2026-06-02T02:52:20Z"
 last_activity: 2026-06-02
 progress:
   total_phases: 16
@@ -26,8 +26,8 @@ See: .planning/PROJECT.md (updated 2026-05-04)
 ## Current Position
 
 Phase: 119 (campa-a-de-sesi-n-de-prueba-freemium-reserva-self-service-si) — EXECUTING
-Plan: 6 of 7
-Status: 119-06 paused at BLOCKING human-verify checkpoint (tasks 1-2 committed; admin verification pending)
+Plan: 7 of 7
+Status: 119-06 CODE-COMPLETE; Task 3 admin browser verification DEFERRED to 119-06-HUMAN-UAT.md (7 items, status partial). Next: 119-07 (infra prod).
 Last activity: 2026-06-02
 
 ## Performance Metrics
@@ -462,6 +462,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: Plan 119-04: /track/click derives its 302 destination via CampaignService.trialDeepLink against a fixed allowlisted host (app.eltemplo.org, D-25) with a fail-closed host assertion — never echoes raw query input (anti open-redirect).
 - [Phase ?]: Plan 119-04: send() enrolls idempotently via ON DUPLICATE KEY on UNIQUE(campaign_id,user_id), chunks ≤100 to EmailService.sendCampaignBatch with idempotencyKey, degrades without RESEND_API_KEY (no new Resend in module, Pitfall 3).
 - [Phase ?]: Plan 119-04: campaign funnel 'convirtió' = user_status_history toStatus='activo' after sent_at, aligned with funnel-service.ts (A6); attendance/conversion join on userId within the sent_at + self_service window.
+- [Phase 119]: Plan 119-06: CODE-COMPLETE con verificación humana DIFERIDA por decisión del usuario (2026-06-02). Tasks 1-2 commiteados (812f9c82 useCampaignsApi + CampaignFunnel; 2d718bcc CampaniasPage + route + nav + create dialog + send confirmation). El checkpoint blocking Task 3 (nav por rol, sección standalone /campanias, crear borrador, filas de lista, funnel 6 etapas + caveat Apple-Mail-Privacy, confirmación de envío con conteo de destinatarios, warm-brand sin azul) NO se ejecutó ni se auto-aprobó; los 7 ítems quedan persistidos en 119-06-HUMAN-UAT.md (status: partial, todos [pending], blocked_by: admin-staging-build). Correr contra admin-staging antes del envío en vivo de la campaña (Plan 07). Fase avanza a plan 7/7.
 
 ### Pending Todos
 

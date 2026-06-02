@@ -2737,7 +2737,7 @@ Plans:
 **Goal:** Activar la conversión de usuarios freemium (`users.status='freemium'`, sin suscripción ni trial previo) mediante una campaña de email que les ofrece una sesión de prueba gratis presencial en la sede que elijan. Una sola fase grande que cruza 4 capas: (1) **API** — endpoint nuevo para que un freemium reserve su propia sesión de prueba (bypasea la validación de suscripción, reusa `trials-service.ts` + guard de una-por-vida, no consume capacidad); la trial no se puede cancelar ni re-reservar desde la app. (2) **App** — reutilizar la vista de Reservas existente (`ReservasPage.vue`) para que el freemium elija UNA clase como sesión de prueba, con selección de sede física (vive en "Templo Online", la oferta es presencial); entrada por deep link desde el email. (3) **Email** — sistema de campañas REUTILIZABLE sobre Resend (ya integrado, sin deps nuevas): tabla de campaña/envíos, unsubscribe propio, token de reserva personalizado por usuario, template HTML responsive, tracking de funnel (enviado→abierto→click→reservó→asistió→convirtió, apoyado en `user_status_history`). Doble CTA: reservar en la app + WhatsApp (cae al flujo tradicional admin). (4) **Campaña** — query de freemium elegibles + disparo. Bump minor del member app (feature).
 **Requirements**: D-01..D-27 (ver 119-CONTEXT.md — las decisiones D-NN son los requisitos de la fase)
 **Depends on:** Phase 102 (trials-service), Phase 117 (user_status_history)
-**Plans:** 5/7 plans executed
+**Plans:** 6/7 plans executed
 
 Plans:
 
@@ -2746,7 +2746,7 @@ Plans:
 - [x] 119-03-PLAN.md — Backend reserva: reserve-trial (promote-and-book atómico) + trial-eligibility + ventana 30d + guard de cancel
 - [x] 119-04-PLAN.md — Módulo campañas: token HMAC + tracking (pixel/click/unsubscribe) + audiencia + send batch + funnel + rutas admin
 - [x] 119-05-PLAN.md — Member app: 3er estado de ReservasPage + deep links (App Links/Universal Links + .well-known)
-- [ ] 119-06-PLAN.md — Admin: sección Campañas (lista + funnel 6 etapas + confirmación de envío)
+- [x] 119-06-PLAN.md — Admin: sección Campañas (lista + funnel 6 etapas + confirmación de envío)
 - [ ] 119-07-PLAN.md — Infra prod: verificar dominio Resend + API key + .well-known reachable + crear y enviar la campaña
 
 ---
