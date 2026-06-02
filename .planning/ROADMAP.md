@@ -2747,7 +2747,7 @@ Plans:
 - [x] 119-04-PLAN.md — Módulo campañas: token HMAC + tracking (pixel/click/unsubscribe) + audiencia + send batch + funnel + rutas admin
 - [x] 119-05-PLAN.md — Member app: 3er estado de ReservasPage + deep links (App Links/Universal Links + .well-known)
 - [x] 119-06-PLAN.md — Admin: sección Campañas (lista + funnel 6 etapas + confirmación de envío)
-- [ ] 119-07-PLAN.md — Infra prod: verificar dominio Resend + API key + .well-known reachable + crear y enviar la campaña
+- [~] 119-07-PLAN.md — Infra prod: Task 1 (env doc Resend, commit 2a9dcbc4) HECHO; Tasks 2-4 GATES HUMANOS pendientes (verificar dominio Resend/DNS + RESEND_API_KEY prod + copy/imágenes + .well-known reachable + crear y ENVIAR la campaña irreversible). .well-known en app.eltemplo.org devuelve SPA HTML, no JSON → follow-up de deploy. Checklist A-E en 119-07-SUMMARY.md
 
 ---
 

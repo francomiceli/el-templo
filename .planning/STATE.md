@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: executing
-stopped_at: "119-06 CODE-COMPLETE (admin Campañas section, commits 812f9c82/2d718bcc); Task 3 browser verification DEFERRED to 119-06-HUMAN-UAT.md per user. Advanced to plan 7/7."
-last_updated: "2026-06-02T02:52:20Z"
+stopped_at: "119-07 HUMAN-GATE-PENDING — Task 1 (prod Resend env doc) committed 2a9dcbc4; Tasks 2-4 are blocking human gates (Resend domain/DNS verify + prod RESEND_API_KEY, user copy/image assets, irreversible first send). .well-known on app.eltemplo.org returns SPA index.html (not JSON) → deploy-dependent follow-up. Remaining human steps A-E in 119-07-SUMMARY.md."
+last_updated: "2026-06-02T03:30:00Z"
 last_activity: 2026-06-02
 progress:
   total_phases: 16
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-05-04)
 
 Phase: 119 (campa-a-de-sesi-n-de-prueba-freemium-reserva-self-service-si) — EXECUTING
 Plan: 7 of 7
-Status: 119-06 CODE-COMPLETE; Task 3 admin browser verification DEFERRED to 119-06-HUMAN-UAT.md (7 items, status partial). Next: 119-07 (infra prod).
+Status: 119-07 HUMAN-GATE-PENDING. Task 1 (prod Resend env doc) committed 2a9dcbc4. Tasks 2-4 are blocking human gates the user runs externally: (A) Resend send.eltemplo.org domain verify (SPF/DKIM/Envelope-From/MX) + (B) set prod RESEND_API_KEY/CAMPAIGN_EMAIL_FROM, (C) supply copy + logo/hero images + confirm WhatsApp numbers, (D) fix .well-known serving on app.eltemplo.org (currently returns SPA HTML, not JSON — deploy-dependent), (E) create campaign, cross-client preview, then irreversible "Enviar campaña". Phase 119 NOT yet shipped — pending the human send. Full checklist in 119-07-SUMMARY.md.
 Last activity: 2026-06-02
 
 ## Performance Metrics
@@ -463,6 +463,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: Plan 119-04: send() enrolls idempotently via ON DUPLICATE KEY on UNIQUE(campaign_id,user_id), chunks ≤100 to EmailService.sendCampaignBatch with idempotencyKey, degrades without RESEND_API_KEY (no new Resend in module, Pitfall 3).
 - [Phase ?]: Plan 119-04: campaign funnel 'convirtió' = user_status_history toStatus='activo' after sent_at, aligned with funnel-service.ts (A6); attendance/conversion join on userId within the sent_at + self_service window.
 - [Phase 119]: Plan 119-06: CODE-COMPLETE con verificación humana DIFERIDA por decisión del usuario (2026-06-02). Tasks 1-2 commiteados (812f9c82 useCampaignsApi + CampaignFunnel; 2d718bcc CampaniasPage + route + nav + create dialog + send confirmation). El checkpoint blocking Task 3 (nav por rol, sección standalone /campanias, crear borrador, filas de lista, funnel 6 etapas + caveat Apple-Mail-Privacy, confirmación de envío con conteo de destinatarios, warm-brand sin azul) NO se ejecutó ni se auto-aprobó; los 7 ítems quedan persistidos en 119-06-HUMAN-UAT.md (status: partial, todos [pending], blocked_by: admin-staging-build). Correr contra admin-staging antes del envío en vivo de la campaña (Plan 07). Fase avanza a plan 7/7.
+- [Phase 119]: Plan 119-07: HUMAN-GATE-PENDING (2026-06-02). Plan no-autónomo: sólo Task 1 era automatizable y quedó commiteado (2a9dcbc4 — finaliza .env.example del sender de campañas: RESEND_API_KEY prod-required + degradación silenciosa, CAMPAIGN_EMAIL_FROM con sender send.eltemplo.org + pasos humanos de verificación de dominio Resend/DNS SPF/DKIM/Envelope-From/MX que conviven con Google Workspace, D-17). Tasks 2-4 son gates humanos bloqueantes que el usuario ejecuta externamente (NO auto-aprobados, NO se disparó ningún envío real, NO se pushea): (A) verificar dominio Resend, (B) setear secrets prod, (C) copy + imágenes logo/hero + números WhatsApp, (D) arreglar serving de .well-known, (E) crear campaña + preview cross-client + "Enviar campaña" irreversible (D-11). Verificación .well-known en app.eltemplo.org: ambos paths devuelven el index.html del SPA (HTTP 200 pero content-type text/html), NO el JSON — los deep-link files de Plan 05 NO se sirven correctamente todavía → follow-up dependiente de deploy (sin deploy no solicitado, MEMORY). Checklist humano completo A-E en 119-07-SUMMARY.md.
 
 ### Pending Todos
 
@@ -482,8 +483,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-02T02:25:44.285Z
-Stopped at: Completed 119-01-PLAN.md (schema foundation + Wave 0 scaffolds)
-Resume file: None
+Last session: 2026-06-02T03:30:00Z
+Stopped at: 119-07 HUMAN-GATE-PENDING — Task 1 committed (2a9dcbc4); Tasks 2-4 are blocking human gates. Remaining human checklist (A-E) in 119-07-SUMMARY.md. No send fired, no push.
+Resume file: .planning/phases/119-campa-a-de-sesi-n-de-prueba-freemium-reserva-self-service-si/119-07-SUMMARY.md
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
