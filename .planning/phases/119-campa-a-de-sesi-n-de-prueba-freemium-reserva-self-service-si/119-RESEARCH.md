@@ -600,21 +600,12 @@ await resend.batch.send(
 | A7  | `branches` no tiene columna `address` (D-13)                | Phase Requirements | Verificado: schema solo tiene name/code/timezone/country/capacity. Decisión: agregar `address` o hardcodear en template |
 | A8  | Trial se atiende solo vía coach check-in (no QR self)       | Pitfall 1          | Si se decide habilitar QR para 'prueba', cambia attendance/service                                                      |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **¿`reserve-trial` nuevo endpoint o extender `/reserve`?**
-   - What we know: la lógica de socios (`/reserve`) valida sub, budget, bonus, límite semanal — todo irrelevante/conflictivo para trials.
-   - What's unclear: cuánto refactor de `trials-service.bookTrial` aceptar.
-   - Recommendation: **endpoint nuevo `POST /members/scheduling/reserve-trial`** que reúse el guard una-por-vida y la reactivación de booking cancelado de `trials-service`, con su propia transacción de promoción.
-
-2. **¿Dónde se hostean las imágenes del email bajo la regla NO CDN?**
-   - Recommendation: `el-templo-web/public/email/` (estático en `eltemplo.org`). Confirmar con usuario si R2 es aceptable.
-
-3. **¿Deep link App Links completo o custom scheme v1?**
-   - Recommendation: evaluar esfuerzo; WhatsApp (D-14) ya cubre el caso sin app, así que un App Link "best effort" + fallback web es suficiente para v1.
-
-4. **¿`branches` necesita columna `address` (D-13)?**
-   - Recommendation: confirmar con usuario; si las direcciones son estables, hardcodear en el template es "cortito pero bien hecho"; si cambian, columna nueva.
+1. **¿`reserve-trial` nuevo endpoint o extender `/reserve`?** — **RESOLVED: D-26** → endpoint nuevo `POST /members/scheduling/reserve-trial` (no extender `/reserve`).
+2. **¿Dónde se hostean las imágenes del email bajo la regla NO CDN?** — **RESOLVED: D-27** → `el-templo-web/public/email/` (estático en `eltemplo.org`).
+3. **¿Deep link App Links completo o custom scheme v1?** — **RESOLVED: D-25** → App Links/Universal Links completo sobre `app.eltemplo.org`.
+4. **¿`branches` necesita columna `address` (D-13)?** — **RESOLVED: D-24** → sí, columna `address` + backfill desde `el-templo-web/data/sedes.ts`; edición desde el admin DIFERIDA (no se construye UI de gestión de sedes en esta fase).
 
 ## Environment Availability
 

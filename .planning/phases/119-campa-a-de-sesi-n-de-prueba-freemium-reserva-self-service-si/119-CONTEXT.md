@@ -62,7 +62,7 @@ Activar la conversión de usuarios **freemium** (`users.status='freemium'`, sin 
 ### Decisiones post-research (D-23..D-27)
 
 - **D-23:** El HTML del email se construye con **MJML** (dependencia nueva, **aprobada por el usuario**). Compila a HTML table-based bulletproof; reduce bugs cross-cliente. Dep de build en el-templo-api. (Excepción explícita a la regla "no deps sin aprobar".)
-- **D-24:** Agregar columna **`address`** a la tabla `branches` (migración + editable en el form de sedes del admin). Fuente de las direcciones del email (D-13); reutilizable (web, otros mails). Hoy `branches` no tiene `address`.
+- **D-24:** Agregar columna **`address`** a la tabla `branches` (migración + **backfill** desde las 8 direcciones canónicas de `el-templo-web/data/sedes.ts`). Fuente de las direcciones del email (D-13); reutilizable (web, otros mails). Hoy `branches` no tiene `address`. **Edición desde el admin DIFERIDA** (decisión 2026-06-01): no existe form de gestión de sedes en el admin hoy y construirlo es scope-creep para esta fase; las direcciones son estables. Si cambian, se actualizan por migración/DB hasta que exista gestión de sedes. (Ver Deferred Ideas.)
 - **D-25:** Deep link vía **App Links (Android) / Universal Links (iOS)** sobre el dominio **`app.eltemplo.org`** (la web app, mismo código Capacitor que las nativas → fallback natural: sin app nativa, el mismo link abre la web app con la pantalla de reserva). Archivos `.well-known` (assetlinks.json + apple-app-site-association) hospedados en `app.eltemplo.org`. Requiere config nativa (intent filters / associated domains) + rebuild de tiendas (entra con el bump minor). `eltemplo.org` = landing (el-templo-web); `app.eltemplo.org` = web app.
 - **D-26:** Endpoint **nuevo `reserve-trial`** para la reserva self-service (NO extender `/reserve`). Replica el patrón atómico de `members/service.ts:convertFreemiumToTrial` (UPDATE status + insert en `user_status_history`) combinado con el booking en la misma transacción.
 - **D-27:** Imágenes del email **self-hosted** en `el-templo-web/public/email/` (servidas desde `eltemplo.org`), cumpliendo la regla NO-CDN.
@@ -178,6 +178,7 @@ Activar la conversión de usuarios **freemium** (`users.status='freemium'`, sin 
 - **Landing web de reserva** (en `el-templo-web`) como alternativa a la app — descartada para esta fase (la app + WhatsApp cubren los dos canales).
 - **Email Service Swap** (Resend → nodemailer + Workspace SMTP) — pendiente del backlog general; esta fase sigue sobre Resend.
 - **Centralizar el cliente Resend duplicado** (franchise/gladius/academy/app-landing instancian Resend suelto) — oportunidad de limpieza; abordar solo si no expande el scope.
+- **Gestión de sedes en el admin (form editable de `branches`, incl. `address`)** — diferido de D-24: hoy no hay UI de gestión de sedes; en esta fase la `address` se backfillea por migración. Construir el form editable es una fase futura.
 
 ### Reviewed Todos (not folded)
 
