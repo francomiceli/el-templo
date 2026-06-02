@@ -4,7 +4,7 @@ milestone: v3.0
 milestone_name: Landing Page
 status: executing
 stopped_at: Completed 119-01-PLAN.md (schema foundation + Wave 0 scaffolds)
-last_updated: "2026-06-02T02:11:31.499Z"
+last_updated: "2026-06-02T02:26:16.388Z"
 last_activity: 2026-06-02
 progress:
   total_phases: 16
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-05-04)
 ## Current Position
 
 Phase: 119 (campa-a-de-sesi-n-de-prueba-freemium-reserva-self-service-si) — EXECUTING
-Plan: 4 of 7
+Plan: 5 of 7
 Status: Ready to execute
 Last activity: 2026-06-02
 
@@ -186,6 +186,7 @@ _Updated after each plan completion_
 | Phase 119 P01 | ~14min | 3 tasks | 16 files |
 | Phase 119 P02 | 12 | 2 tasks | 8 files |
 | Phase 119 P03 | ~22min | 2 tasks | 6 files |
+| Phase 119 P04 | ~9min | 3 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -455,6 +456,10 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: Plan 119-03: standalone reserveTrialSelfService promotes freemium→prueba + history + booking in ONE tx; one-per-lifetime + cancelled-row reactivation inline (D-01/D-26).
 - [Phase ?]: Plan 119-03: booking window parameterized via assertDateWithinWindow(windowDays) — reserve=+2d, validateTrialBookingDate=+30d (D-05); trial path skips the subscription check.
 - [Phase ?]: Plan 119-03: BookingService injected into TrialService as optional 3rd ctor arg; reserveTrialSchema additionalProperties:false rejects forged token — server-side state is sole authorization (D-21).
+- [Phase ?]: Plan 119-04: HMAC campaign token identifies sendId only, never authorizes (D-21); exp now+30d epoch seconds (D-04).
+- [Phase ?]: Plan 119-04: /track/click derives its 302 destination via CampaignService.trialDeepLink against a fixed allowlisted host (app.eltemplo.org, D-25) with a fail-closed host assertion — never echoes raw query input (anti open-redirect).
+- [Phase ?]: Plan 119-04: send() enrolls idempotently via ON DUPLICATE KEY on UNIQUE(campaign_id,user_id), chunks ≤100 to EmailService.sendCampaignBatch with idempotencyKey, degrades without RESEND_API_KEY (no new Resend in module, Pitfall 3).
+- [Phase ?]: Plan 119-04: campaign funnel 'convirtió' = user_status_history toStatus='activo' after sent_at, aligned with funnel-service.ts (A6); attendance/conversion join on userId within the sent_at + self_service window.
 
 ### Pending Todos
 
@@ -474,7 +479,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-02T02:11:11.500Z
+Last session: 2026-06-02T02:25:44.285Z
 Stopped at: Completed 119-01-PLAN.md (schema foundation + Wave 0 scaffolds)
 Resume file: None
 
