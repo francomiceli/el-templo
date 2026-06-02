@@ -93,6 +93,12 @@
           </q-item-section>
           <q-item-section>Reportes</q-item-section>
         </q-item>
+        <q-item v-if="isAdminRole" clickable v-ripple to="/campanias">
+          <q-item-section avatar>
+            <q-icon name="campaign" />
+          </q-item-section>
+          <q-item-section>Campañas</q-item-section>
+        </q-item>
 
         <!-- Landing (owner only) -->
         <template v-if="isOwnerRole">
