@@ -5,8 +5,30 @@
       <TemploLoader size="lg" />
     </div>
 
-    <!-- Blocked state — user has no presencial plan (no sub, online, or bundle) -->
-    <div v-else-if="!hasPresencialPlan" class="reservas__empty">
+    <!-- State 3 — trial already booked (D-22): confirmation card, no reserve/cancel -->
+    <div v-else-if="trialBooking" class="reservas__empty">
+      <div class="next-class-card next-class-card--confirmed">
+        <div class="next-class-card__icon">
+          <q-icon name="check_circle" size="32px" color="positive" />
+        </div>
+        <div class="next-class-card__info">
+          <p class="next-class-card__activity">Tu sesión de prueba está reservada</p>
+          <p class="next-class-card__time">{{ trialConfirmationBody }}</p>
+        </div>
+      </div>
+      <q-btn no-caps flat color="positive" class="q-mt-md" @click="openTrialWhatsApp">
+        <q-icon
+          name="img:/icons/whatsapp.svg"
+          size="18px"
+          class="q-mr-sm"
+          style="filter: brightness(0) invert(1)"
+        />
+        ¿Necesitás cambiarla? Escribinos
+      </q-btn>
+    </div>
+
+    <!-- Blocked state — user has no presencial plan and is NOT a trial-eligible freemium -->
+    <div v-else-if="!hasPresencialPlan && !trialEligible" class="reservas__empty">
       <q-icon name="event_available" size="64px" color="grey-5" />
       <h2 class="reservas__empty-title">{{ emptyTitle }}</h2>
       <p class="reservas__empty-text">{{ emptyText }}</p>
@@ -20,6 +42,198 @@
         Consultá por tu plan
       </q-btn>
     </div>
+
+    <!-- State 2 — modo reservar prueba (freemium elegible, D-20/D-22) -->
+    <template v-else-if="trialEligible">
+      <!-- Trial banner -->
+      <div class="trial-banner q-mb-md">
+        <q-icon name="card_giftcard" size="20px" class="trial-banner__icon" />
+        <div class="trial-banner__text">
+          <p class="trial-banner__heading">Tu sesión de prueba gratis</p>
+          <p class="trial-banner__body">
+            Elegí una sede y un horario en los próximos 30 días. Es gratis y sin compromiso.
+          </p>
+        </div>
+      </div>
+
+      <!-- Branch selector — ALWAYS shown for trial mode (D-06): freemium must pick a physical sede -->
+      <div class="q-mb-md flex justify-center">
+        <q-select
+          v-model="trialBranchId"
+          :options="branchOptions"
+          dense
+          rounded
+          outlined
+          emit-value
+          map-options
+          class="branch-select"
+          :display-value="trialBranchId ? undefined : 'Elegí una sede para ver los horarios'"
+        >
+          <template #prepend>
+            <q-icon name="location_on" size="18px" color="primary" />
+          </template>
+          <template #append>
+            <q-icon name="unfold_more" size="16px" color="grey-6" />
+          </template>
+        </q-select>
+      </div>
+
+      <!-- Grid hidden until a sede is chosen -->
+      <div v-if="!trialBranchId" class="day-slots__empty">
+        <q-icon name="event_busy" size="40px" color="grey-4" />
+        <p>Elegí una sede para ver los horarios disponibles.</p>
+      </div>
+
+      <template v-else>
+        <!-- Day selector strip (30-day window, D-05) -->
+        <div class="day-strip q-mb-md">
+          <div class="day-strip__nav">
+            <q-btn flat dense round icon="chevron_left" size="sm" @click="changeWeek(-1)" />
+            <q-btn flat dense no-caps class="day-strip__week-label" @click="goToCurrentWeek">
+              {{ weekLabel }}
+            </q-btn>
+            <q-btn
+              flat
+              dense
+              round
+              icon="chevron_right"
+              size="sm"
+              :disable="!canGoForward"
+              @click="changeWeek(1)"
+            />
+          </div>
+          <div class="day-strip__days">
+            <button
+              v-for="day in visibleDays"
+              :key="day"
+              class="day-pill"
+              :class="{
+                'day-pill--selected': selectedDay === day,
+                'day-pill--today': isToday(day),
+                'day-pill--past': isDayPast(day),
+              }"
+              @click="selectedDay = day"
+            >
+              <span class="day-pill__abbrev">{{ DAY_LABELS[day] }}</span>
+              <span class="day-pill__date">{{ dayDateNumber(day) }}</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Selected day's slots (NO cancel affordance — D-03) -->
+        <div class="day-slots">
+          <div v-if="selectedDayHoliday" class="day-slots__holiday">
+            <q-icon name="celebration" size="20px" />
+            <span>{{ selectedDayHoliday }}</span>
+          </div>
+
+          <template v-if="morningSlots.length > 0">
+            <p v-if="afternoonSlots.length > 0" class="day-slots__period">Turno Mañana</p>
+            <div
+              v-for="slot in morningSlots"
+              :key="slot.id"
+              class="slot-card"
+              :class="slotCardClass(slot)"
+              @click="onTrialSlotTap(slot)"
+            >
+              <div class="slot-card__time">
+                <span class="slot-card__hour">{{ formatTime(slot.startTime) }}</span>
+                <span class="slot-card__activity">{{ slot.activityName }}</span>
+              </div>
+              <div class="slot-card__right">
+                <template v-if="isSlotHoliday(slot)">
+                  <q-badge color="accent" label="Feriado" />
+                </template>
+                <template v-else-if="slot.isFull">
+                  <span class="slot-card__occupancy slot-card__occupancy--full">
+                    {{ slot.bookedCount }}/{{ slot.maxCapacity }}
+                  </span>
+                  <span class="slot-card__badge slot-card__badge--full">Completo</span>
+                </template>
+                <template v-else-if="isSlotPast(slot)">
+                  <span class="slot-card__occupancy"
+                    >{{ slot.bookedCount }}/{{ slot.maxCapacity }}</span
+                  >
+                </template>
+                <template v-else>
+                  <span class="slot-card__occupancy"
+                    >{{ slot.bookedCount }}/{{ slot.maxCapacity }}</span
+                  >
+                  <q-btn
+                    flat
+                    dense
+                    no-caps
+                    color="primary"
+                    label="Reservar"
+                    class="slot-card__action"
+                    @click.stop="onTrialSlotTap(slot)"
+                  />
+                </template>
+              </div>
+            </div>
+          </template>
+
+          <template v-if="afternoonSlots.length > 0">
+            <p v-if="morningSlots.length > 0" class="day-slots__period">Turno Tarde</p>
+            <div
+              v-for="slot in afternoonSlots"
+              :key="slot.id"
+              class="slot-card"
+              :class="slotCardClass(slot)"
+              @click="onTrialSlotTap(slot)"
+            >
+              <div class="slot-card__time">
+                <span class="slot-card__hour">{{ formatTime(slot.startTime) }}</span>
+                <span class="slot-card__activity">{{ slot.activityName }}</span>
+              </div>
+              <div class="slot-card__right">
+                <template v-if="isSlotHoliday(slot)">
+                  <q-badge color="accent" label="Feriado" />
+                </template>
+                <template v-else-if="slot.isFull">
+                  <span class="slot-card__occupancy slot-card__occupancy--full">
+                    {{ slot.bookedCount }}/{{ slot.maxCapacity }}
+                  </span>
+                  <span class="slot-card__badge slot-card__badge--full">Completo</span>
+                </template>
+                <template v-else-if="isSlotPast(slot)">
+                  <span class="slot-card__occupancy"
+                    >{{ slot.bookedCount }}/{{ slot.maxCapacity }}</span
+                  >
+                </template>
+                <template v-else>
+                  <span class="slot-card__occupancy"
+                    >{{ slot.bookedCount }}/{{ slot.maxCapacity }}</span
+                  >
+                  <q-btn
+                    flat
+                    dense
+                    no-caps
+                    color="primary"
+                    label="Reservar"
+                    class="slot-card__action"
+                    @click.stop="onTrialSlotTap(slot)"
+                  />
+                </template>
+              </div>
+            </div>
+          </template>
+
+          <div
+            v-if="morningSlots.length === 0 && afternoonSlots.length === 0"
+            class="day-slots__empty"
+          >
+            <q-icon name="event_busy" size="40px" color="grey-4" />
+            <p>No hay horarios este día</p>
+          </div>
+        </div>
+
+        <p class="reservas__policy">
+          Podés reservar UNA sesión de prueba dentro de los próximos 30 días. No se puede cancelar
+          ni reprogramar desde la app — si necesitás cambiarla, escribinos por WhatsApp.
+        </p>
+      </template>
+    </template>
 
     <template v-else>
       <!-- Branch selector -->
@@ -323,6 +537,28 @@
       </q-card>
     </q-dialog>
 
+    <!-- Trial reserve confirmation dialog (no-cancel copy, D-03) -->
+    <q-dialog v-model="trialDialog.show" persistent>
+      <q-card style="min-width: 300px">
+        <q-card-section>
+          <div class="text-h6">Reservar tu sesión de prueba</div>
+        </q-card-section>
+        <q-card-section class="q-pt-none">
+          {{ trialDialog.message }}
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat label="Cancelar" color="grey" v-close-popup />
+          <q-btn
+            flat
+            label="Confirmar prueba"
+            color="primary"
+            :loading="trialDialog.loading"
+            @click="confirmTrialReserve"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
     <!-- Cancel confirmation dialog -->
     <q-dialog v-model="cancelDialog.show" persistent>
       <q-card style="min-width: 300px">
@@ -352,6 +588,7 @@ import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useQuasar } from 'quasar'
 import TemploLoader from 'src/components/TemploLoader.vue'
 import { useSchedulingApi } from 'src/composables/useSchedulingApi'
+import type { TrialEligibility } from 'src/composables/useSchedulingApi'
 import { useUserStore } from 'src/stores/useUserStore'
 import { createLogger } from 'src/utils/logger'
 import { extractError } from 'src/utils/extract-error'
@@ -369,8 +606,16 @@ import { buildWhatsAppUrl } from 'src/utils/whatsapp'
 const $q = useQuasar()
 const log = createLogger('ReservasV2')
 const userStore = useUserStore()
-const { getWeeklyGrid, reserve, cancelBooking, getBranches, getBonusUsage, cleanup } =
-  useSchedulingApi()
+const {
+  getWeeklyGrid,
+  reserve,
+  cancelBooking,
+  getBranches,
+  getBonusUsage,
+  getTrialEligibility,
+  reserveTrial,
+  cleanup,
+} = useSchedulingApi()
 const bonusUsage = ref<{
   applicable: boolean
   used?: number
@@ -424,6 +669,58 @@ const branchOptions = computed(() =>
     value: b.id,
   })),
 )
+
+// ─── Trial mode (Phase 119, D-20/D-22) ──────────────────────────────
+// Eligibility comes from the backend ONLY (server-side state is the sole
+// authorization — the campaign email token never authorizes, D-21).
+const TRIAL_WINDOW_DAYS = 30
+const trialEligibility = ref<TrialEligibility | null>(null)
+const trialBranchId = ref<number | null>(null)
+
+const trialEligible = computed(
+  () => trialEligibility.value?.eligible === true && !trialEligibility.value?.alreadyBooked,
+)
+const trialBooking = computed(() =>
+  trialEligibility.value?.alreadyBooked ? (trialEligibility.value.booking ?? null) : null,
+)
+const isTrialMode = computed(() => trialEligible.value)
+
+const trialConfirmationBody = computed(() => {
+  const b = trialBooking.value
+  if (!b) return ''
+  const d = new Date(b.date + 'T00:00:00')
+  const dayLabel = DAY_LABELS_FULL[((d.getDay() === 0 ? 7 : d.getDay()) as DayOfWeek) ?? 1] ?? ''
+  const dateStr = `${d.getDate()} ${MONTH_ABBREV[d.getMonth()]}`
+  const sede = b.branchAddress ? `${b.branchName} (${b.branchAddress})` : b.branchName
+  return `Te esperamos el ${dayLabel} ${dateStr} en ${sede}. ¡Llegá unos minutos antes!`
+})
+
+// 30-day forward bound for the trial grid (D-05): disable navigating past a week
+// whose Monday is already beyond today+30d.
+const canGoForward = computed(() => {
+  if (!isTrialMode.value) return true
+  const today = todayInTz(branchTimezone.value)
+  const [y, m, d] = today.split('-').map(Number)
+  const maxDate = new Date(Date.UTC(y!, m! - 1, d!, 12, 0, 0))
+  maxDate.setUTCDate(maxDate.getUTCDate() + TRIAL_WINDOW_DAYS)
+  // The Monday of the week AFTER the currently shown week:
+  const nextWeekMonday = new Date(weekStart.value)
+  nextWeekMonday.setUTCDate(nextWeekMonday.getUTCDate() + 7)
+  return nextWeekMonday <= maxDate
+})
+
+const trialDialog = ref({
+  show: false,
+  message: '',
+  loading: false,
+  scheduleId: 0,
+  date: '',
+})
+
+function openTrialWhatsApp(): void {
+  const message = 'Hola, necesito cambiar mi sesión de prueba'
+  window.open(buildWhatsAppUrl(userStore.profile?.branchCountry, message), '_blank')
+}
 
 // ─── Dialogs ────────────────────────────────────────────────────────
 const reserveDialog = ref({
@@ -864,6 +1161,51 @@ async function confirmReserve() {
   }
 }
 
+// ─── Trial reserve flow (Phase 119, D-03) ───────────────────────────
+
+function onTrialSlotTap(slot: WeeklySlotView) {
+  if (isSlotHoliday(slot)) return
+  if (isSlotPast(slot)) return
+  if (slot.isFull) return
+
+  const date = dateForDay(slot.dayOfWeek as DayOfWeek)
+  const dayLabel = DAY_LABELS_FULL[slot.dayOfWeek as DayOfWeek]
+  const d = new Date(date + 'T00:00:00')
+  const dateStr = `${d.getDate()} ${MONTH_ABBREV[d.getMonth()]}`
+  const timeStr = formatTime(slot.startTime)
+  const sede =
+    branchOptions.value.find((o) => o.value === trialBranchId.value)?.label ?? 'la sede elegida'
+
+  trialDialog.value = {
+    show: true,
+    message: `¿Reservar ${slot.activityName} el ${dayLabel} ${dateStr} a las ${timeStr} en ${sede}? Es tu única sesión de prueba, no se puede cancelar ni cambiar.`,
+    loading: false,
+    scheduleId: slot.id,
+    date,
+  }
+}
+
+async function confirmTrialReserve() {
+  if (!trialBranchId.value) return
+  trialDialog.value.loading = true
+  try {
+    await reserveTrial(trialDialog.value.scheduleId, trialDialog.value.date, trialBranchId.value)
+    trialDialog.value.show = false
+    $q.notify({ type: 'positive', message: 'Tu sesión de prueba está reservada' })
+    // Re-fetch eligibility so the page flips to the confirmation card (state 3).
+    await loadTrialEligibility()
+  } catch (err: unknown) {
+    const message = extractError(
+      err,
+      'No pudimos reservar tu sesión de prueba. Probá de nuevo o escribinos por WhatsApp.',
+    )
+    $q.notify({ type: 'negative', message })
+    log.warn('Trial reserve failed', { error: message })
+  } finally {
+    trialDialog.value.loading = false
+  }
+}
+
 function promptCancelBooking(booking: BookingRecord) {
   const dayLabel = DAY_LABELS_FULL[booking.dayOfWeek as DayOfWeek] ?? ''
   cancelDialog.value = {
@@ -917,9 +1259,25 @@ async function loadBonusUsage() {
   }
 }
 
+async function loadTrialEligibility() {
+  try {
+    trialEligibility.value = await getTrialEligibility()
+  } catch (err: unknown) {
+    if (err instanceof Error && err.name === 'CanceledError') return
+    // Non-critical — if eligibility can't be resolved, fall back to the
+    // existing presencial/muro branching (trialEligible stays false).
+    trialEligibility.value = null
+    log.warn('Failed to load trial eligibility', { error: extractError(err, 'unknown') })
+  }
+}
+
 async function loadGrid() {
   try {
-    const branchId = isMultiBranch.value ? (selectedBranchId.value ?? undefined) : undefined
+    const branchId = isTrialMode.value
+      ? (trialBranchId.value ?? undefined)
+      : isMultiBranch.value
+        ? (selectedBranchId.value ?? undefined)
+        : undefined
     const data = await getWeeklyGrid(formatWeekStart(weekStart.value), branchId)
 
     // Adopt the viewing branch's timezone. If this is the first load or
@@ -950,10 +1308,41 @@ async function loadGrid() {
 
 watch(selectedBranchId, () => loadGrid())
 
+// Trial mode: reloading the grid for the chosen physical sede (D-06). Reset the
+// week to "today" so the 30-day window starts from the current week.
+watch(trialBranchId, () => {
+  if (!trialEligible.value) return
+  weekStart.value = getMondayInTz(branchTimezone.value)
+  selectedDay.value = getTodayDow(branchTimezone.value)
+  loadGrid()
+})
+
 onMounted(async () => {
   if (!userStore.subscription && !userStore.subscriptionLoading) {
     await userStore.loadSubscription()
   }
+
+  // Resolve trial eligibility first — it gates the 3 ReservasPage states (D-22).
+  await loadTrialEligibility()
+
+  if (trialEligible.value) {
+    // Trial mode: load the physical-branch options for the sede selector (D-06).
+    // The grid stays empty until the user picks a sede.
+    try {
+      branches.value = await getBranches()
+    } catch {
+      // fall through — selector simply renders empty
+    }
+    loading.value = false
+    return
+  }
+
+  if (trialBooking.value) {
+    // Already-booked confirmation card (state 3) needs no grid.
+    loading.value = false
+    return
+  }
+
   if (isMultiBranch.value) {
     try {
       branches.value = await getBranches()
@@ -996,6 +1385,44 @@ onBeforeUnmount(() => cleanup())
 .bonus-banner__period {
   color: $grey-7;
   font-weight: 400;
+}
+
+// ─── Trial banner (Phase 119) — warm palette, Sandy Beige fill ───────
+.trial-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  background: #e5d9c8; // Sandy Beige
+  border-left: 4px solid $primary;
+  border-radius: 10px;
+}
+
+.trial-banner__icon {
+  color: $primary;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.trial-banner__heading {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  color: $primary;
+  margin: 0;
+}
+
+.trial-banner__body {
+  font-size: 13px;
+  color: #8a8472; // Olive Stone
+  margin: 4px 0 0;
+  line-height: 1.4;
+}
+
+.next-class-card--confirmed {
+  border-left-color: $positive;
+  width: 100%;
+  max-width: 420px;
 }
 
 .reservas__loading {

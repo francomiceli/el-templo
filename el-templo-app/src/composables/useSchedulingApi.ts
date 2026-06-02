@@ -28,6 +28,25 @@ interface BranchOption {
   name: string
 }
 
+/**
+ * Trial eligibility for the freemium self-service reservation flow (Phase 119).
+ * Authorization is server-side state only — the campaign email token is never
+ * trusted here (D-21). Drives the 3 ReservasPage states (D-22):
+ *   - eligible && !alreadyBooked → "modo reservar prueba"
+ *   - alreadyBooked             → "prueba reservada" confirmation card
+ *   - neither                   → existing muro
+ */
+export interface TrialEligibility {
+  eligible: boolean
+  alreadyBooked: boolean
+  booking?: {
+    date: string
+    branchId: number
+    branchName: string
+    branchAddress: string | null
+  }
+}
+
 export function useSchedulingApi() {
   let abortController: AbortController | null = null
 
@@ -77,6 +96,26 @@ export function useSchedulingApi() {
     return response.data
   }
 
+  async function getTrialEligibility(): Promise<TrialEligibility> {
+    const response = await api.get<TrialEligibility>('/members/scheduling/trial-eligibility', {
+      signal: getSignal(),
+    })
+    return response.data
+  }
+
+  async function reserveTrial(
+    scheduleId: number,
+    date: string,
+    branchId: number,
+  ): Promise<BookingRecord> {
+    const response = await api.post<BookingRecord>(
+      '/members/scheduling/reserve-trial',
+      { scheduleId, date, branchId },
+      { signal: getSignal() },
+    )
+    return response.data
+  }
+
   async function getBonusUsage(): Promise<BonusUsage> {
     const response = await api.get<BonusUsage>('/members/scheduling/bonus-usage', {
       signal: getSignal(),
@@ -98,6 +137,8 @@ export function useSchedulingApi() {
     getMyBookings,
     getBranches,
     getBonusUsage,
+    getTrialEligibility,
+    reserveTrial,
     cleanup,
   }
 }
