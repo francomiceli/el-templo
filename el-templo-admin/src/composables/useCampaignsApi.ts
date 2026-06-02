@@ -86,6 +86,39 @@ export function useCampaignsApi() {
     }
   }
 
+  async function getCampaignSender(): Promise<string> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<{ from: string }>('/campaigns/admin/sender');
+      return data.from;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cargando el remitente de campañas');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function sendTestCampaign(
+    id: number,
+    email: string
+  ): Promise<{ from: string; to: string }> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.post<{ from: string; to: string }>(`/campaigns/admin/${id}/test`, {
+        email,
+      });
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error enviando el email de prueba');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   async function getEligibleCount(country?: CampaignCountry): Promise<number> {
     loading.value = true;
     error.value = null;
@@ -114,6 +147,8 @@ export function useCampaignsApi() {
     getCampaignFunnel,
     createCampaign,
     sendCampaign,
+    getCampaignSender,
+    sendTestCampaign,
     getEligibleCount,
     cleanup,
   };

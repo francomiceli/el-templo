@@ -103,4 +103,41 @@ export class EmailService {
       throw err;
     }
   }
+
+  /** The configured campaign sender address (shown in the admin preview UI). */
+  campaignSender(): string {
+    return CAMPAIGN_FROM;
+  }
+
+  /**
+   * Send a single PREVIEW/test email. Unlike sendCampaignBatch (which is part of
+   * an irreversible mass send), this is meant for "send me a test first":
+   *   - it throws when RESEND_API_KEY is unset (a silent no-op would make the
+   *     admin think the test was delivered), and
+   *   - it inspects Resend's `{ error }` response and throws on it, so a sandbox
+   *     rejection ("you can only send to your own address") surfaces to the UI
+   *     instead of being swallowed.
+   */
+  async sendCampaignTest(message: {
+    to: string;
+    subject: string;
+    html: string;
+  }): Promise<void> {
+    const apiKey = process.env.RESEND_API_KEY;
+    if (!apiKey) {
+      throw new Error(
+        "El servicio de email no está configurado (RESEND_API_KEY)",
+      );
+    }
+
+    const resend = new Resend(apiKey);
+    const { error } = await resend.emails.send({
+      from: CAMPAIGN_FROM,
+      ...message,
+    });
+    if (error) {
+      throw new Error(error.message || "Resend rechazó el envío de prueba");
+    }
+    this.log.info({ to: message.to }, "Campaign test email sent");
+  }
 }

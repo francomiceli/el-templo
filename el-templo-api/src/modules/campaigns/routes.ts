@@ -27,6 +27,7 @@ import {
   createCampaignSchema,
   listCampaignsSchema,
   campaignIdSchema,
+  testCampaignSchema,
   eligibleCountSchema,
 } from "./schemas";
 import type { CreateCampaignInput } from "./types";
@@ -215,6 +216,32 @@ export const campaignRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(403).send({ error: "Acceso de owner requerido" });
       }
       return service.send(request.params.id);
+    },
+  );
+
+  // GET /admin/sender — the configured campaign sender address (preview dialog).
+  fastify.get(
+    "/admin/sender",
+    { preHandler: [fastify.authenticate] },
+    async (request, reply) => {
+      if (!(ADMIN_ROLES as readonly string[]).includes(request.user.role)) {
+        return reply.status(403).send({ error: "Acceso de admin requerido" });
+      }
+      return { from: service.senderAddress() };
+    },
+  );
+
+  // POST /admin/:id/test — send ONE preview email to a single address.
+  // Inert (no enrollment / no status change), so admins (not owner-only) can
+  // preview before the irreversible mass send.
+  fastify.post<{ Params: { id: number }; Body: { email: string } }>(
+    "/admin/:id/test",
+    { preHandler: [fastify.authenticate], schema: testCampaignSchema },
+    async (request, reply) => {
+      if (!(ADMIN_ROLES as readonly string[]).includes(request.user.role)) {
+        return reply.status(403).send({ error: "Acceso de admin requerido" });
+      }
+      return service.sendTest(request.params.id, request.body.email);
     },
   );
 

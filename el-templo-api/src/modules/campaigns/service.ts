@@ -397,6 +397,60 @@ export class CampaignService {
     };
   }
 
+  /** The configured campaign sender address (for the admin preview dialog). */
+  senderAddress(): string {
+    return this.email.campaignSender();
+  }
+
+  /**
+   * Send ONE preview email of a campaign to an arbitrary address ("send me a
+   * test first", checklist Paso 6). Renders the exact same template the mass
+   * send uses, so the preview is faithful, but it is deliberately inert:
+   *   - subject is prefixed with [PRUEBA] so it can't be mistaken for the real
+   *     blast in the admin's inbox,
+   *   - the tracking token is signed with sendId=0, so any open/click write
+   *     references no real send row and degrades silently (never pollutes the
+   *     funnel),
+   *   - it does NOT enroll the audience, flip the status, or stamp sent_at.
+   * Resend errors (e.g. a sandbox rejection) propagate as a BadRequestError so
+   * the admin sees why the preview did not arrive.
+   */
+  async sendTest(
+    campaignId: number,
+    toEmail: string,
+  ): Promise<{ from: string; to: string }> {
+    const [campaign] = await this.db
+      .select()
+      .from(schema.campaigns)
+      .where(eq(schema.campaigns.id, campaignId))
+      .limit(1);
+    if (!campaign) throw new BadRequestError("Campaña no encontrada");
+
+    const scopeCountry =
+      campaign.country === "AR" || campaign.country === "ES"
+        ? campaign.country
+        : null;
+    const sedes = await this.loadSedes(scopeCountry);
+
+    const token = signCampaignToken({ userId: 0, campaignId, sendId: 0 });
+    const vars = this.buildTemplateVars(campaign, token, sedes);
+    const html = await trialCampaignHtml(vars);
+
+    try {
+      await this.email.sendCampaignTest({
+        to: toEmail,
+        subject: `[PRUEBA] ${campaign.subject}`,
+        html,
+      });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      throw new BadRequestError(`No se pudo enviar la prueba: ${message}`);
+    }
+
+    this.log.info({ campaignId, to: toEmail }, "campaign test email sent");
+    return { from: this.email.campaignSender(), to: toEmail };
+  }
+
   /**
    * Per-campaign 6-stage funnel (D-18/D-19), crossing campaign_sends +
    * campaign_events × bookings × attendance × user_status_history:

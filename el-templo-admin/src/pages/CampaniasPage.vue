@@ -96,6 +96,17 @@
                 <q-tooltip>Ver funnel</q-tooltip>
               </q-btn>
               <q-btn
+                v-if="props.row.status === 'draft'"
+                round
+                flat
+                dense
+                icon="forward_to_inbox"
+                color="secondary"
+                @click="openTestDialog(props.row)"
+              >
+                <q-tooltip>Enviar email de prueba</q-tooltip>
+              </q-btn>
+              <q-btn
                 v-if="props.row.status === 'draft' && isOwner"
                 round
                 flat
@@ -229,6 +240,50 @@
             :loading="sending"
             :disable="loadingEligible"
             @click="confirmSend"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
+    <!-- ================================================================== -->
+    <!-- Test send dialog — preview to a single inbox (no mass send) -->
+    <!-- ================================================================== -->
+    <q-dialog v-model="testDialog" persistent>
+      <q-card style="min-width: 420px; max-width: 90vw">
+        <q-card-section class="row items-center">
+          <q-icon name="forward_to_inbox" color="secondary" size="26px" class="q-mr-sm" />
+          <div class="text-h6">Enviar email de prueba</div>
+        </q-card-section>
+        <q-card-section class="q-gutter-sm">
+          <div class="text-caption text-grey-7">
+            Se envía una sola copia (con el asunto prefijado
+            <span class="text-weight-medium">[PRUEBA]</span>) para revisar cómo se ve el email. No
+            afecta a la audiencia ni al funnel.
+          </div>
+          <div class="text-body2">
+            <span class="text-grey-7">Desde:</span>
+            <span class="text-weight-medium">{{ senderFrom || 'cargando…' }}</span>
+          </div>
+          <q-input
+            v-model="testEmail"
+            label="Para (email)"
+            type="email"
+            dense
+            outlined
+            autofocus
+            :rules="[emailRule]"
+            hint="Con el remitente de prueba (sandbox) solo llega a la dirección de tu cuenta de Resend."
+          />
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat label="Cancelar" v-close-popup :disable="sendingTest" />
+          <q-btn
+            color="secondary"
+            label="Enviar prueba"
+            unelevated
+            :loading="sendingTest"
+            :disable="!isValidTestEmail"
+            @click="confirmTestSend"
           />
         </q-card-actions>
       </q-card>
@@ -498,6 +553,55 @@ async function confirmSend() {
     });
   } finally {
     sending.value = false;
+  }
+}
+
+// -- Test send dialog (preview to a single inbox) ----------------------------
+
+const testDialog = ref(false);
+const sendingTest = ref(false);
+const testEmail = ref('');
+const senderFrom = ref('');
+const campaignToTest = ref<CampaignListItem | null>(null);
+
+const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
+function emailRule(val: string): boolean | string {
+  return EMAIL_RE.test((val ?? '').trim()) || 'Email inválido';
+}
+
+const isValidTestEmail = computed(() => EMAIL_RE.test(testEmail.value.trim()));
+
+async function openTestDialog(campaign: CampaignListItem) {
+  campaignToTest.value = campaign;
+  testEmail.value = authStore.user?.email ?? '';
+  testDialog.value = true;
+  try {
+    senderFrom.value = await campaignsApi.getCampaignSender();
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.error('Error fetching campaign sender', { error: message });
+    senderFrom.value = '';
+  }
+}
+
+async function confirmTestSend() {
+  const campaign = campaignToTest.value;
+  if (!campaign || !isValidTestEmail.value) return;
+  sendingTest.value = true;
+  try {
+    const result = await campaignsApi.sendTestCampaign(campaign.id, testEmail.value.trim());
+    $q.notify({ type: 'positive', message: `Email de prueba enviado a ${result.to}` });
+    testDialog.value = false;
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.error('Error sending test campaign', { error: message });
+    $q.notify({
+      type: 'negative',
+      message: campaignsApi.error.value ?? 'Error enviando el email de prueba',
+    });
+  } finally {
+    sendingTest.value = false;
   }
 }
 

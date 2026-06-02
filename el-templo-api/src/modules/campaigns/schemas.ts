@@ -63,6 +63,30 @@ export const campaignIdSchema = {
   },
 } as const;
 
+/**
+ * POST /admin/:id/test — send ONE preview email to a single address.
+ * additionalProperties:false so no token/recipient list can be smuggled in.
+ */
+export const testCampaignSchema = {
+  params: {
+    type: "object",
+    required: ["id"],
+    properties: { id: { type: "integer", minimum: 1 } },
+  },
+  body: {
+    type: "object",
+    required: ["email"],
+    properties: {
+      email: {
+        type: "string",
+        pattern: "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
+        maxLength: 254,
+      },
+    },
+    additionalProperties: false,
+  },
+} as const;
+
 /** GET /admin/eligible-count — optional country filter. */
 export const eligibleCountSchema = {
   querystring: {

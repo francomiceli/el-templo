@@ -207,3 +207,70 @@ describe("campaign send pipeline (Phase 119)", () => {
     expect(campaignRow.sentAt).not.toBeNull();
   });
 });
+
+describe("campaign test send (Phase 119)", () => {
+  it("sends one [PRUEBA] preview without enrolling the audience or changing status", async () => {
+    // An eligible freemium exists, but a test send must NOT enroll them.
+    await createEligibleFreemium(app);
+    const email = new EmailService(app.log);
+    const spy = vi
+      .spyOn(email, "sendCampaignTest")
+      .mockResolvedValue(undefined);
+    const service = makeService(email);
+    const campaign = await service.create(
+      {
+        name: "Preview",
+        subject: "Tu sesión de prueba",
+        copySlots: { headline: "Headline", subheadline: "Sub", body: "Body" },
+      },
+      ownerId,
+    );
+
+    const result = await service.sendTest(
+      campaign.id,
+      "comunidad@eltemplo.org",
+    );
+
+    // The preview is delivered to exactly the requested address, subject-tagged.
+    expect(spy).toHaveBeenCalledTimes(1);
+    const [message] = spy.mock.calls[0];
+    expect(message.to).toBe("comunidad@eltemplo.org");
+    expect(message.subject).toMatch(/^\[PRUEBA\] /);
+    expect(message.html).toContain("Headline");
+    expect(result.to).toBe("comunidad@eltemplo.org");
+
+    // Inert: no campaign_sends rows, status stays draft.
+    const sends = await app.db
+      .select()
+      .from(schema.campaignSends)
+      .where(eq(schema.campaignSends.campaignId, campaign.id));
+    expect(sends).toHaveLength(0);
+    const [row] = await app.db
+      .select()
+      .from(schema.campaigns)
+      .where(eq(schema.campaigns.id, campaign.id));
+    expect(row.status).toBe("draft");
+
+    spy.mockRestore();
+  });
+
+  it("surfaces a Resend failure as an error (never a silent success)", async () => {
+    const email = new EmailService(app.log);
+    vi.spyOn(email, "sendCampaignTest").mockRejectedValue(
+      new Error("You can only send testing emails to your own email address"),
+    );
+    const service = makeService(email);
+    const campaign = await service.create(
+      {
+        name: "Preview Fail",
+        subject: "S",
+        copySlots: { headline: "H", subheadline: "S", body: "B" },
+      },
+      ownerId,
+    );
+
+    await expect(
+      service.sendTest(campaign.id, "alguien@gmail.com"),
+    ).rejects.toThrow(/No se pudo enviar la prueba/i);
+  });
+});
