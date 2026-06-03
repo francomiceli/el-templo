@@ -24,10 +24,24 @@
 
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
-import { and, asc, desc, eq, ne, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, ne, or, sql } from "drizzle-orm";
 import * as schema from "../../db/schema";
 import { ConflictError, NotFoundError } from "../shared/errors";
 import type { CountryCode } from "../shared/country-scope";
+
+/**
+ * Booking statuses that count as a trial still "in flight" — neither cancelled
+ * nor closed as a no-show. A trial booking in any of these states, dated today
+ * or later, blocks re-booking and hides the alumno from the eligible-trials
+ * picker. Past-dated bookings in these states are stale (the class already
+ * happened) and get closed as no_show on re-book.
+ */
+const ACTIVE_TRIAL_STATUSES = [
+  "reservado",
+  "qr_escaneado",
+  "confirmado",
+  "lista_espera",
+] as const;
 
 export interface BookTrialInput {
   userId: number;
@@ -146,67 +160,84 @@ export class TrialService {
       );
     }
 
-    // 4. One-trial-per-lifetime guard. Cancelled trials don't count so
-    //    admin can cancel + re-book if the alumno reschedules.
-    const [priorTrial] = await this.db
+    // 4. One-PENDING-trial guard. Only a trial dated today or later (in an
+    //    active status) blocks re-booking — that's a real upcoming session, so
+    //    the admin must cancel it first. A trial whose date has already passed
+    //    is stale (no-show or lapsed) and is closed below rather than blocking.
+    const [pendingTrial] = await this.db
       .select({ bookingDate: schema.bookings.bookingDate })
       .from(schema.bookings)
       .where(
         and(
           eq(schema.bookings.memberId, input.userId),
           eq(schema.bookings.isTrial, true),
-          ne(schema.bookings.status, "cancelado"),
+          inArray(schema.bookings.status, [...ACTIVE_TRIAL_STATUSES]),
+          sql`${schema.bookings.bookingDate} >= CURDATE()`,
         ),
       )
       .orderBy(desc(schema.bookings.bookingDate))
       .limit(1);
 
-    if (priorTrial) {
-      const [y, m, d] = priorTrial.bookingDate.split("-");
+    if (pendingTrial) {
+      const [y, m, d] = pendingTrial.bookingDate.split("-");
       throw new ConflictError(
         `El alumno ya tiene una sesión de prueba reservada para el ${d}/${m}/${y}`,
       );
     }
 
-    // 5. Insert booking. There's a UNIQUE constraint on
-    //    (member_id, schedule_id, booking_date) regardless of status, so a
-    //    plain INSERT would 500 if the user previously cancelled a booking
-    //    on this exact slot+date. We look for a cancelled row for this
-    //    (user, slot, date) tuple and reactivate it; otherwise INSERT fresh.
-    let bookingId: number;
-    const [existingCancelled] = await this.db
-      .select({ id: schema.bookings.id })
-      .from(schema.bookings)
-      .where(
-        and(
-          eq(schema.bookings.memberId, input.userId),
-          eq(schema.bookings.scheduleId, input.scheduleId),
-          eq(schema.bookings.bookingDate, input.bookingDate),
-        ),
-      )
-      .limit(1);
-
-    if (existingCancelled) {
-      await this.db
+    // 5. Close any stale (past-dated) pending trials as no_show, then insert
+    //    the new booking — atomically, so the alumno never ends up with two
+    //    open trials or a closed-but-not-rebooked state. There's a UNIQUE
+    //    constraint on (member_id, schedule_id, booking_date) regardless of
+    //    status, so a plain INSERT would 500 if a booking already exists on
+    //    this exact slot+date; we reactivate that row instead.
+    const bookingId = await this.db.transaction(async (tx) => {
+      await tx
         .update(schema.bookings)
-        .set({
-          status: "reservado",
-          isTrial: true,
-          cancelledAt: null,
-          waitlistPosition: null,
-        })
-        .where(eq(schema.bookings.id, existingCancelled.id));
-      bookingId = existingCancelled.id;
-    } else {
-      const bookingInsert = await this.db.insert(schema.bookings).values({
+        .set({ status: "no_show" })
+        .where(
+          and(
+            eq(schema.bookings.memberId, input.userId),
+            eq(schema.bookings.isTrial, true),
+            inArray(schema.bookings.status, [...ACTIVE_TRIAL_STATUSES]),
+            sql`${schema.bookings.bookingDate} < CURDATE()`,
+          ),
+        );
+
+      const [existing] = await tx
+        .select({ id: schema.bookings.id })
+        .from(schema.bookings)
+        .where(
+          and(
+            eq(schema.bookings.memberId, input.userId),
+            eq(schema.bookings.scheduleId, input.scheduleId),
+            eq(schema.bookings.bookingDate, input.bookingDate),
+          ),
+        )
+        .limit(1);
+
+      if (existing) {
+        await tx
+          .update(schema.bookings)
+          .set({
+            status: "reservado",
+            isTrial: true,
+            cancelledAt: null,
+            waitlistPosition: null,
+          })
+          .where(eq(schema.bookings.id, existing.id));
+        return existing.id;
+      }
+
+      const bookingInsert = await tx.insert(schema.bookings).values({
         memberId: input.userId,
         scheduleId: input.scheduleId,
         bookingDate: input.bookingDate,
         status: "reservado",
         isTrial: true,
       });
-      bookingId = Number(bookingInsert[0].insertId);
-    }
+      return Number(bookingInsert[0].insertId);
+    });
 
     this.log.info(
       {
@@ -250,11 +281,18 @@ export class TrialService {
         and(
           eq(schema.users.status, "prueba"),
           eq(schema.users.branchId, branchId),
+          // Exclude only alumnos with a still-PENDING trial (an active-status
+          // booking dated today or later). A trial whose date has already
+          // passed no longer hides the alumno — they simply didn't attend (or
+          // their slot lapsed), so the admin can re-book them. Without the date
+          // guard a one-time no-show vanished from the picker forever, forcing
+          // admins to create duplicate alumno records as a workaround.
           sql`NOT EXISTS (
             SELECT 1 FROM bookings b
             WHERE b.member_id = users.id
               AND b.is_trial = 1
-              AND b.booking_status != 'cancelado'
+              AND b.booking_status IN ('reservado','qr_escaneado','confirmado','lista_espera')
+              AND b.booking_date >= CURDATE()
           )`,
         ),
       )

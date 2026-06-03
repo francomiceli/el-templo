@@ -755,6 +755,89 @@ describe("Scheduling Trials API (Phase 102 + 103)", () => {
     expect(ids).not.toContain(freemiumId);
   });
 
+  it("GET /trials/eligible includes a prueba user whose only trial already passed (re-bookable after a no-show)", async () => {
+    const activity = await createActivity();
+    const futureSlot = getFutureSlot();
+    const slot = await createScheduleSlot(
+      activity.id,
+      futureSlot.dayOfWeek,
+      futureSlot.startTime,
+      futureSlot.endTime,
+    );
+    const userId = await createPruebaUser({ firstName: "PastTrial" });
+
+    // A past-dated trial left open ('reservado') — the alumno never showed and
+    // nothing closed it. Inserted directly since the API only books future
+    // dates. Before the fix this hid the alumno from the picker forever.
+    await app.db.insert(bookings).values({
+      memberId: userId,
+      scheduleId: slot.id,
+      bookingDate: "2026-03-05", // past (pinned now = 2026-03-11)
+      status: "reservado",
+      isTrial: true,
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: `${ELIGIBLE_URL}?branchId=${testBranchId}`,
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const ids = (
+      JSON.parse(res.body) as { users: Array<{ id: number }> }
+    ).users.map((u) => u.id);
+    expect(ids).toContain(userId);
+  });
+
+  it("POST /trials re-books a user whose previous trial passed, closing the stale one as no_show", async () => {
+    const activity = await createActivity();
+    const futureSlot = getFutureSlot();
+    const slot = await createScheduleSlot(
+      activity.id,
+      futureSlot.dayOfWeek,
+      futureSlot.startTime,
+      futureSlot.endTime,
+    );
+    const userId = await createPruebaUser({ firstName: "Rebook" });
+
+    // Stale past trial in an active status (didn't show, never closed).
+    const [stale] = await app.db
+      .insert(bookings)
+      .values({
+        memberId: userId,
+        scheduleId: slot.id,
+        bookingDate: "2026-03-05",
+        status: "reservado",
+        isTrial: true,
+      })
+      .$returningId();
+
+    const res = await app.inject({
+      method: "POST",
+      url: TRIALS_URL,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: { userId, scheduleId: slot.id, bookingDate: futureSlot.date },
+    });
+    expect(res.statusCode).toBe(201);
+
+    // The stale trial is now closed as no_show.
+    const [staleRow] = await app.db
+      .select({ status: bookings.status })
+      .from(bookings)
+      .where(eq(bookings.id, stale.id));
+    expect(staleRow.status).toBe("no_show");
+
+    // Exactly one active trial remains — the freshly booked future one.
+    const active = (
+      await app.db
+        .select({ status: bookings.status, date: bookings.bookingDate })
+        .from(bookings)
+        .where(and(eq(bookings.memberId, userId), eq(bookings.isTrial, true)))
+    ).filter((r) => r.status === "reservado");
+    expect(active).toHaveLength(1);
+    expect(active[0].date).toBe(futureSlot.date);
+  });
+
   // ─── 102-06: list trials grouped by branch ────────────────────────────
 
   it("GET /trials lists active trials for a date grouped by branch (102-06)", async () => {
