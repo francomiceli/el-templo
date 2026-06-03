@@ -10,6 +10,10 @@ const IGNORED_ERRORS = [
   'ResizeObserver loop',
   'Script error.',
   'The play() request was interrupted',
+  // iOS/WKWebView equivalent of the above: html5-qrcode's internal video.play()
+  // rejects with this AbortError when the user navigates away from /check-in
+  // before the camera stream starts. Benign teardown race, not a real failure.
+  'The operation was aborted',
 ]
 
 const DENY_URLS = [

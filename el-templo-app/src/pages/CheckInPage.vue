@@ -78,8 +78,14 @@ const resultBranchName = ref('')
 
 let scanner: Html5Qrcode | null = null
 let scanProcessed = false
+let startTimer: ReturnType<typeof setTimeout> | null = null
+let isTearingDown = false
 
 async function startScanner() {
+  // Bail if the page is already being left: starting the camera now would let
+  // html5-qrcode's internal video.play() reject with an AbortError once the
+  // element is gone (the source of the Sentry noise on iOS).
+  if (isTearingDown) return
   try {
     scanner = new Html5Qrcode('qr-reader')
     await scanner.start(
@@ -96,6 +102,9 @@ async function startScanner() {
       () => {},
     )
   } catch (err: unknown) {
+    // A teardown mid-start surfaces here as an AbortError — expected and benign,
+    // not a permission problem, so don't flip the UI to permission-denied.
+    if (isTearingDown) return
     log.warn('Camera access failed', {
       error: err instanceof Error ? err.message : String(err),
     })
@@ -143,20 +152,33 @@ function goBack() {
 }
 
 onMounted(() => {
-  // Small delay to ensure DOM element is ready
-  setTimeout(() => {
+  // Small delay to ensure DOM element is ready. Tracked so a fast navigation
+  // away (before the timer fires) cancels it instead of starting the camera on
+  // an unmounted component.
+  startTimer = setTimeout(() => {
+    startTimer = null
     if (state.value === 'scanning') {
-      startScanner()
+      void startScanner()
     }
   }, 100)
 })
 
+function teardown() {
+  isTearingDown = true
+  if (startTimer) {
+    clearTimeout(startTimer)
+    startTimer = null
+  }
+}
+
 onBeforeRouteLeave(async () => {
+  teardown()
   await stopScanner()
 })
 
 onBeforeUnmount(() => {
-  stopScanner()
+  teardown()
+  void stopScanner()
   cleanup()
 })
 </script>
