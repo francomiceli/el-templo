@@ -685,24 +685,16 @@
                 <li>El historial de pagos, asistencias y AURA queda atribuido al registro.</li>
               </ul>
             </q-banner>
-            <p class="text-caption text-grey-7 q-mb-md">
+            <p class="text-caption text-grey-7 q-mb-none">
               La acción no se puede deshacer desde el admin.
             </p>
-            <q-input
-              v-model="deleteConfirmInput"
-              label="Escribí el nombre completo para confirmar"
-              dense
-              outlined
-              autofocus
-              :disable="deleting"
-            />
           </q-card-section>
           <q-card-actions align="right" class="q-pa-md">
             <q-btn flat label="Cancelar" :disable="deleting" @click="onCancelDelete" />
             <q-btn
               color="negative"
               label="Eliminar"
-              :disable="!canConfirmDelete"
+              :disable="deleting"
               :loading="deleting"
               @click="onConfirmDelete"
             />
@@ -775,7 +767,6 @@ const branches = ref<BranchOption[]>([]);
 const activeTab = ref('perfil');
 const showEditDialog = ref(false);
 const showDeleteDialog = ref(false);
-const deleteConfirmInput = ref('');
 const deleting = ref(false);
 // Freemium → sesión de prueba conversion dialog state.
 const showConvertDialog = ref(false);
@@ -885,13 +876,6 @@ const canDeleteMember = computed(() => {
   return role === 'admin' || role === 'owner' || role === 'gestion';
 });
 
-const canConfirmDelete = computed(() => {
-  if (deleting.value) return false;
-  const expected = memberName.value.trim().toLocaleLowerCase();
-  const typed = deleteConfirmInput.value.trim().toLocaleLowerCase();
-  return expected.length > 0 && typed === expected;
-});
-
 // Only physical branches are valid trial-session locations (the API rejects
 // virtual sedes). Excludes the "Templo Online" virtual branch.
 const physicalBranchOptions = computed(() => branches.value.filter((b) => !b.isVirtual));
@@ -927,11 +911,10 @@ async function onConvertToTrial() {
 
 function onCancelDelete() {
   showDeleteDialog.value = false;
-  deleteConfirmInput.value = '';
 }
 
 async function onConfirmDelete() {
-  if (!canConfirmDelete.value || !memberProfile.value) return;
+  if (deleting.value || !memberProfile.value) return;
   deleting.value = true;
   try {
     await membersApi.deleteMember(memberProfile.value.id);
