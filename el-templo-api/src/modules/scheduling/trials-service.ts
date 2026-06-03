@@ -28,6 +28,7 @@ import { and, asc, desc, eq, inArray, ne, or, sql } from "drizzle-orm";
 import * as schema from "../../db/schema";
 import { ConflictError, NotFoundError } from "../shared/errors";
 import type { CountryCode } from "../shared/country-scope";
+import { todayInTz } from "../shared/date-utils";
 
 /**
  * Booking statuses that count as a trial still "in flight" — neither cancelled
@@ -127,13 +128,20 @@ export class TrialService {
    *     the slot, mirroring the Phase 102-06 cancellation contract)
    */
   async bookTrial(input: BookTrialInput): Promise<BookTrialResult> {
-    // 1. Validate schedule exists.
+    // 1. Validate schedule exists. Pull the branch timezone too so "today" is
+    //    computed in the sede's wall-clock (not the DB server's), matching how
+    //    booking dates are chosen and keeping the past/future split correct.
     const [scheduleRow] = await this.db
       .select({
         id: schema.schedules.id,
         branchId: schema.schedules.branchId,
+        branchTz: schema.branches.timezone,
       })
       .from(schema.schedules)
+      .innerJoin(
+        schema.branches,
+        eq(schema.branches.id, schema.schedules.branchId),
+      )
       .where(eq(schema.schedules.id, input.scheduleId));
     if (!scheduleRow) throw new NotFoundError("Horario no encontrado");
 
@@ -164,6 +172,7 @@ export class TrialService {
     //    active status) blocks re-booking — that's a real upcoming session, so
     //    the admin must cancel it first. A trial whose date has already passed
     //    is stale (no-show or lapsed) and is closed below rather than blocking.
+    const today = todayInTz(scheduleRow.branchTz);
     const [pendingTrial] = await this.db
       .select({ bookingDate: schema.bookings.bookingDate })
       .from(schema.bookings)
@@ -172,7 +181,7 @@ export class TrialService {
           eq(schema.bookings.memberId, input.userId),
           eq(schema.bookings.isTrial, true),
           inArray(schema.bookings.status, [...ACTIVE_TRIAL_STATUSES]),
-          sql`${schema.bookings.bookingDate} >= CURDATE()`,
+          sql`${schema.bookings.bookingDate} >= ${today}`,
         ),
       )
       .orderBy(desc(schema.bookings.bookingDate))
@@ -200,7 +209,7 @@ export class TrialService {
             eq(schema.bookings.memberId, input.userId),
             eq(schema.bookings.isTrial, true),
             inArray(schema.bookings.status, [...ACTIVE_TRIAL_STATUSES]),
-            sql`${schema.bookings.bookingDate} < CURDATE()`,
+            sql`${schema.bookings.bookingDate} < ${today}`,
           ),
         );
 
@@ -268,6 +277,15 @@ export class TrialService {
   async listEligibleTrials(
     branchId: number,
   ): Promise<ListEligibleTrialsResult> {
+    // "Today" in the sede's wall-clock so the past/future split matches how
+    // booking dates are chosen (and isn't skewed by the DB server's clock).
+    const [branchRow] = await this.db
+      .select({ tz: schema.branches.timezone })
+      .from(schema.branches)
+      .where(eq(schema.branches.id, branchId))
+      .limit(1);
+    const today = todayInTz(branchRow?.tz ?? "America/Argentina/Buenos_Aires");
+
     const rows = await this.db
       .select({
         id: schema.users.id,
@@ -292,7 +310,7 @@ export class TrialService {
             WHERE b.member_id = users.id
               AND b.is_trial = 1
               AND b.booking_status IN ('reservado','qr_escaneado','confirmado','lista_espera')
-              AND b.booking_date >= CURDATE()
+              AND b.booking_date >= ${today}
           )`,
         ),
       )
