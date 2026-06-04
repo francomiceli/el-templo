@@ -2830,7 +2830,7 @@ Plans:
 
 **Wave 2** _(blocked on Wave 1 completion)_
 
-- [ ] 120-03-PLAN.md — Breakdowns engine (FUND-03) + cohorts half-open [from,to) weekly/monthly (FUND-05) + currency isolation (FUND-04)
+- [x] 120-03-PLAN.md — Breakdowns engine (FUND-03) + cohorts half-open [from,to) weekly/monthly (FUND-05) + currency isolation (FUND-04)
 
 **Wave 3** _(blocked on Wave 2 completion)_
 
@@ -2910,7 +2910,7 @@ Plans:
 
 | Phase                                          | Plans Complete | Status      | Completed |
 | ---------------------------------------------- | -------------- | ----------- | --------- |
-| 120. Fundación transversal + Ticket            | 2/4            | In Progress |           |
+| 120. Fundación transversal + Ticket            | 3/4            | In Progress |           |
 | 121. Vencimiento (Churn + Renovación)          | 0/TBD          | Not started | -         |
 | 122. LTV / vida del cliente                    | 0/TBD          | Not started | -         |
 | 123. Asistencia + Funnel (Frecuencia + Prueba) | 0/TBD          | Not started | -         |

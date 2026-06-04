@@ -33,9 +33,9 @@
 
 - [x] **FUND-01**: Existe un mecanismo de `duration_tier` (`monthly | long_term`) por plan, resuelto por flag y no por nombre, consumible por todas las métricas para el breakdown corto/largo plazo.
 - [x] **FUND-02**: Helper común que devuelve toda métrica como nominal + porcentaje + n (tamaño de muestra) en una estructura uniforme reutilizada por los 6 bloques.
-- [ ] **FUND-03**: Motor de breakdowns que abre cualquier métrica por sucursal, país, duración de plan y nombre de plan, devolviendo los segmentos comparables lado a lado (no solo como filtro).
-- [ ] **FUND-04**: Toda métrica financiera se calcula y devuelve aislada por moneda (ARS y EUR nunca se suman en un mismo total).
-- [ ] **FUND-05**: Las métricas de cohorte respetan el rango de fechas `[from, to)` del panel y exponen vista semanal/mensual seleccionable donde aplique (corrige caveat #1).
+- [x] **FUND-03**: Motor de breakdowns que abre cualquier métrica por sucursal, país, duración de plan y nombre de plan, devolviendo los segmentos comparables lado a lado (no solo como filtro).
+- [x] **FUND-04**: Toda métrica financiera se calcula y devuelve aislada por moneda (ARS y EUR nunca se suman en un mismo total).
+- [x] **FUND-05**: Las métricas de cohorte respetan el rango de fechas `[from, to)` del panel y exponen vista semanal/mensual seleccionable donde aplique (corrige caveat #1).
 
 ### Bloque 1 — Churn de no renovación (CHURN)
 
@@ -109,9 +109,9 @@
 | ----------- | --------- | -------- |
 | FUND-01     | Phase 120 | Complete |
 | FUND-02     | Phase 120 | Complete |
-| FUND-03     | Phase 120 | Pending  |
-| FUND-04     | Phase 120 | Pending  |
-| FUND-05     | Phase 120 | Pending  |
+| FUND-03     | Phase 120 | Complete |
+| FUND-04     | Phase 120 | Complete |
+| FUND-05     | Phase 120 | Complete |
 | TICKET-01   | Phase 120 | Pending  |
 | TICKET-02   | Phase 120 | Pending  |
 | TICKET-03   | Phase 120 | Pending  |
