@@ -2918,17 +2918,24 @@ Plans:
 
 **Risks / notas:** Decisión abierta — alcance exacto del refactor de segmentación batch (FREQ-06): ¿entra completo o se difiere exponiendo solo la métrica de frecuencia? El mapeo fino banda↔segmento se define con quien maneja el módulo de segmentación (umbrales no documentados en el brief). Es la fase de mayor riesgo por el cron. Resolver en `discuss-phase`.
 
-**Plans:** TBD (surface during `/gsd-plan-phase 123`)
+**Plans:** 3 plans (3 waves)
+
+Plans:
+
+- [ ] 123-01-PLAN.md — FrequencyService (FREQ-01..04): visits/week rolling 4w + bands + cooling-down + check-in adoption reuse + GET /frequency
+- [ ] 123-02-PLAN.md — TrialFunnelService (FUNNEL-01..05): reserva→asistencia→compra cascade + rates + new-lead + ~21d window + turno/plan-bought breakdowns + GET /trial-funnel
+- [ ] 123-03-PLAN.md — Segmentation golden-case (FREQ-05/06): active-0-visits→en_riesgo override + tuneable threshold + existing nightly batch fed (no new cron)
+
 **UI hint:** no (backend-first; sin UI de admin en alcance)
 
 ## v5.0 Progress
 
-| Phase                                          | Plans Complete | Status      | Completed  |
-| ---------------------------------------------- | -------------- | ----------- | ---------- |
-| 120. Fundación transversal + Ticket            | 4/4            | Complete    | 2026-06-04 |
-| 121. Vencimiento (Churn + Renovación)          | 3/3            | Complete    | 2026-06-04 |
-| 122. LTV / vida del cliente                    | 3/3            | Complete    | 2026-06-04 |
-| 123. Asistencia + Funnel (Frecuencia + Prueba) | 0/TBD          | Not started | -          |
+| Phase                                          | Plans Complete | Status   | Completed  |
+| ---------------------------------------------- | -------------- | -------- | ---------- |
+| 120. Fundación transversal + Ticket            | 4/4            | Complete | 2026-06-04 |
+| 121. Vencimiento (Churn + Renovación)          | 3/3            | Complete | 2026-06-04 |
+| 122. LTV / vida del cliente                    | 3/3            | Complete | 2026-06-04 |
+| 123. Asistencia + Funnel (Frecuencia + Prueba) | 0/3            | Planned  | -          |
 
 _Plan counts populated by `/gsd-plan-phase`._
 
