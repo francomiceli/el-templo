@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v5.0
 milestone_name: Métricas de Gestión
 status: executing
-stopped_at: Completed 120-01-PLAN.md
-last_updated: "2026-06-04T01:00:45.662Z"
+stopped_at: Completed 120-02-PLAN.md
+last_updated: "2026-06-04T01:30:00.000Z"
 last_activity: 2026-06-04
 progress:
   total_phases: 4
   completed_phases: 0
   total_plans: 4
-  completed_plans: 1
+  completed_plans: 2
   percent: 0
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-06-03)
 ## Current Position
 
 Phase: 120 (fundaci-n-transversal-ticket-promedio) — EXECUTING
-Plan: 2 of 4
+Plan: 3 of 4
 Status: Ready to execute
 Last activity: 2026-06-04
 
-Progress: [███░░░░░░░] 25%
+Progress: [█████░░░░░] 50%
 
 ## Performance Metrics
 
@@ -191,6 +191,7 @@ _Updated after each plan completion_
 | Phase 119 P04 | ~9min | 3 tasks | 12 files |
 | Phase 119 P06 | ~12min | 2 tasks | 6 files |
 | Phase 120 P01 | 2min | 3 tasks | 3 files |
+| Phase 120 P02 | ~6min | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -399,6 +400,7 @@ Recent decisions affecting current work:
 - Plan 111-02: TxHandle imported from finance/balance-service (canonical export site) rather than redefined locally. AuditTargetKind union includes 'member' to support REQ-8 reconciliation entries.
 - Phase 111-03: cancelSubscription signature gained required actorId param; 3 internal callers updated to source from request.user.userId (T-111-14/15 mitigation)
 - Phase 111-03: Structured 4xx body emitted by route layer via JSON.parse on BadRequestError.message — preserves global handleServiceError pipeline; cancelErrorSchema whitelists code+details for Fastify response serializer
+- Plan 120-02: subscriptions.price_regular_snapshot (nullable int, migration 0136, ONLY migration in Phase 120 per D-06) captures the plan's priceRegular at the 4 real-charge insert sites (assign/change-now/change-after/renew). The 5th bulkMigratePlan insert (pricePaid:0, no plan_charge) is deliberately left NULL — grep count == 4 by design. No backfill (list price was never stored); historical discount falls back to current priceRegular with disclaimer in Plan 04.
 - Plan 111-04: phone match runs at SQL level via RIGHT(REGEXP_REPLACE(phone, '[^0-9]', ''), 10) — no schema change, no index. Reused for both /admin/members/check-duplicates and /auth/register phone block (single source of normalization in shared/phone.ts).
 
 Plan 111-04: helpers.ts registerUser default phone now per-call unique via timestamp-tail + in-process counter (Rule 3 fix unblocking dozens of legacy callers under the new uniqueness check). Mirrors existing dni randomization pattern.

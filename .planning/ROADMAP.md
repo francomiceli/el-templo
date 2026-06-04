@@ -2826,7 +2826,7 @@ Plans:
 **Wave 1**
 
 - [x] 120-01-PLAN.md — Foundation utilities: duration-tier (FUND-01) + metric-shape nominal+%+n & median (FUND-02)
-- [ ] 120-02-PLAN.md — Forward price snapshot: subscriptions.price_regular_snapshot column + 0136 migration + capture at 4 SubscriptionService insert sites (TICKET-03 base)
+- [x] 120-02-PLAN.md — Forward price snapshot: subscriptions.price_regular_snapshot column + 0136 migration + capture at 4 SubscriptionService insert sites (TICKET-03 base)
 
 **Wave 2** _(blocked on Wave 1 completion)_
 
@@ -2910,7 +2910,7 @@ Plans:
 
 | Phase                                          | Plans Complete | Status      | Completed |
 | ---------------------------------------------- | -------------- | ----------- | --------- |
-| 120. Fundación transversal + Ticket            | 1/4            | In Progress |           |
+| 120. Fundación transversal + Ticket            | 2/4            | In Progress |           |
 | 121. Vencimiento (Churn + Renovación)          | 0/TBD          | Not started | -         |
 | 122. LTV / vida del cliente                    | 0/TBD          | Not started | -         |
 | 123. Asistencia + Funnel (Frecuencia + Prueba) | 0/TBD          | Not started | -         |
