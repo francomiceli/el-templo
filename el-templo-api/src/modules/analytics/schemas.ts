@@ -663,6 +663,98 @@ export const churnSchema = {
 } as const;
 
 // =============================================================================
+// Frecuencia de asistencia Schema (Phase 123 Block 4 — FREQ-01..04)
+// =============================================================================
+
+// Reusable `{ nominal, percentage, n }` envelope for frequency band counts
+// (FUND-02 / metric-shape.ts). Declared so every MetricShape on the wire is
+// fully described (fast-json-stringify STRIPS undeclared fields).
+const frequencyMetricShapeSchema = {
+  type: "object",
+  properties: {
+    nominal: { type: "integer" },
+    percentage: { type: "number" },
+    n: { type: "integer" },
+  },
+} as const;
+
+// The four frequency bands.
+const frequencyBandEnum = {
+  type: "string",
+  enum: ["inactivo", "bajo", "medio", "alto"],
+} as const;
+
+// GET /frequency — visits/week bands, distribution (incl. active-0-visits),
+// cooling-down list (band drop + % variación), reused per-branch check-in
+// adoption, and 4-axis breakdowns. No `window` param (frequency does not use
+// it) → reuses analyticsQuerystring. ADMIN_ROLES-only (gestion gets 403).
+// errorSchema covers 400/401/403/500. EVERY field declared.
+export const frequencySchema = {
+  querystring: analyticsQuerystring,
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        distribution: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              band: frequencyBandEnum,
+              count: frequencyMetricShapeSchema,
+            },
+          },
+        },
+        coolingDown: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              userId: { type: "integer" },
+              currentBand: frequencyBandEnum,
+              priorBand: frequencyBandEnum,
+              pctVariacion: { type: ["number", "null"] },
+            },
+          },
+        },
+        checkInAdoption: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              branchId: { type: "integer" },
+              branchName: { type: "string" },
+              confirmados: { type: "integer" },
+              conCheckin: { type: "integer" },
+              ratio: { type: "number" },
+            },
+          },
+        },
+        breakdowns: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              axis: {
+                type: "string",
+                enum: ["branch", "country", "duration", "plan"],
+              },
+              key: { type: "string" },
+              band: frequencyBandEnum,
+              count: frequencyMetricShapeSchema,
+            },
+          },
+        },
+      },
+    },
+    400: errorSchema,
+    401: errorSchema,
+    403: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+// =============================================================================
 // Tasa de renovación Schema (Phase 121 Block 2 — RENOV-01..04)
 // =============================================================================
 

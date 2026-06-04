@@ -17,6 +17,7 @@ import { TicketService } from "./ticket-service";
 import { ChurnService } from "./churn-service";
 import { RenewalService } from "./renewal-service";
 import { LtvService } from "./ltv-service";
+import { FrequencyService } from "./frequency-service";
 import { handleServiceError } from "../shared/error-handler";
 import type { AnalyticsFilters } from "./types";
 import {
@@ -34,6 +35,7 @@ import {
   churnSchema,
   renewalSchema,
   ltvSchema,
+  frequencySchema,
 } from "./schemas";
 import type { FunnelEntryOrigin } from "./types";
 
@@ -80,6 +82,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
   const churnService = new ChurnService(fastify.db, fastify.log);
   const renewalService = new RenewalService(fastify.db, fastify.log);
   const ltvService = new LtvService(fastify.db, fastify.log);
+  const frequencyService = new FrequencyService(fastify.db, fastify.log);
 
   /**
    * Guard: authenticate + gate to the operational analytics set (gestion +
@@ -546,6 +549,45 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
         return result;
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "get funnel");
+      }
+    },
+  );
+
+  // GET /frequency — frecuencia de asistencia por miembro (Phase 123 Block 4,
+  // FREQ-01..04). Visits/week sobre las últimas 4 semanas rodantes (normalizado
+  // para <4 sem), distribución por bandas (incl. activos con 0 visitas →
+  // Inactivo), lista "enfriándose" (bajó ≥1 banda) con % de variación, adopción
+  // de check-in por sede reutilizada (D-123-06), y breakdowns por
+  // sucursal/país/duración/plan. SENSIBLE → ADMIN_ROLES-only vía
+  // requireAdminAnalytics; gestion recibe 403 (D-123-14). Scoped por sede/país
+  // (attendance.branchId / subscriptions.branchId). Sin `window`.
+  fastify.get<{
+    Querystring: {
+      branchId?: number;
+      dateFrom?: string;
+      dateTo?: string;
+    };
+  }>(
+    "/frequency",
+    {
+      schema: frequencySchema,
+      preHandler: [
+        requireAdminAnalytics,
+        requireBranchAccess({ from: "query.branchId", optional: true }),
+      ],
+    },
+    async (request, reply) => {
+      try {
+        const filters: AnalyticsFilters = {
+          branchId: request.query.branchId,
+          country: request.scope.country ?? undefined,
+          dateFrom: request.query.dateFrom,
+          dateTo: request.query.dateTo,
+        };
+        const result = await frequencyService.getFrequency(filters);
+        return result;
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "get frequency");
       }
     },
   );
