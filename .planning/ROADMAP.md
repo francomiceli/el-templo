@@ -2857,11 +2857,11 @@ Plans:
 
 **Risks / notas:** Decisiones abiertas — ¿se retira `renewalRate` 7/14/30 o convive con el Bloque 2? Edge case: persona con varios vencimientos en el rango → evaluar churn sobre su último vencimiento del rango (confirmar con dato real). Resolver en `discuss-phase`.
 
-**Plans:** 3 plans (3 waves, backend-only; tests run in CI)
+**Plans:** 1/3 plans executed
 
 Plans:
 
-- [ ] 121-01-PLAN.md — Shared expiry-cohort engine (cohorte por end_date, predicados retención/madurez) + wire types ChurnAnalytics/RenewalAnalytics + test primitivo
+- [x] 121-01-PLAN.md — Shared expiry-cohort engine (cohorte por end_date, predicados retención/madurez) + wire types ChurnAnalytics/RenewalAnalytics + test primitivo
 - [ ] 121-02-PLAN.md — ChurnService person-based (multi-N, churn maduro, serie provisoria, breakdowns) + GET /churn + churnSchema + deprecación métricas viejas (D-09) + test
 - [ ] 121-03-PLAN.md — RenewalService (renovados÷vencidos misma cohorte, número vivo enGracia, breakdowns) + GET /renewal + renewalSchema + deprecación getRenewalRate (D-09) + test
 
@@ -2920,7 +2920,7 @@ Plans:
 | Phase                                          | Plans Complete | Status      | Completed  |
 | ---------------------------------------------- | -------------- | ----------- | ---------- |
 | 120. Fundación transversal + Ticket            | 4/4            | Complete    | 2026-06-04 |
-| 121. Vencimiento (Churn + Renovación)          | 0/TBD          | Not started | -          |
+| 121. Vencimiento (Churn + Renovación)          | 1/3            | In Progress |            |
 | 122. LTV / vida del cliente                    | 0/TBD          | Not started | -          |
 | 123. Asistencia + Funnel (Frecuencia + Prueba) | 0/TBD          | Not started | -          |
 

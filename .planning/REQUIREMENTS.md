@@ -39,16 +39,16 @@
 
 ### Bloque 1 — Churn de no renovación (CHURN)
 
-- [ ] **CHURN-01**: El gestor obtiene el churn como **personas distintas** (no suscripciones) cuya sub venció en `[from, to)` y no registraron sub nueva dentro de N días — reemplaza la métrica vieja basada en `updated_at`.
+- [x] **CHURN-01**: El gestor obtiene el churn como **personas distintas** (no suscripciones) cuya sub venció en `[from, to)` y no registraron sub nueva dentro de N días — reemplaza la métrica vieja basada en `updated_at`.
 - [ ] **CHURN-02**: El parámetro N es configurable y libre (no fijo); el endpoint acepta múltiples N en simultáneo para la vista comparativa (churn@5 / @10 / @15 lado a lado).
 - [ ] **CHURN-03**: Solo entran al cálculo personas cuyo vencimiento ocurrió hace ≥ N días ("churn maduro"); las que siguen en ventana de gracia se excluyen de numerador y denominador hasta madurar.
-- [ ] **CHURN-04**: Renovación anticipada (paga antes de vencer) y cambio de duración (mensual↔largo plazo) cuentan como retención, no como churn. Una sub en pausa no cuenta como vencida.
+- [x] **CHURN-04**: Renovación anticipada (paga antes de vencer) y cambio de duración (mensual↔largo plazo) cuentan como retención, no como churn. Una sub en pausa no cuenta como vencida.
 - [ ] **CHURN-05**: El gestor obtiene una serie histórica de churn por cohorte de vencimiento mes a mes, con marca de períodos provisorios (cohorte aún inmadura).
 - [ ] **CHURN-06**: El churn se abre por los breakdowns estándar (duración, nombre de plan, sucursal, país) con nominal + % + n.
 
 ### Bloque 2 — Tasa de renovación (RENOV)
 
-- [ ] **RENOV-01**: El gestor obtiene la tasa de renovación = renovados ÷ vencidos en la franja `[from, to)`, sobre la misma cohorte de personas que el Bloque 1.
+- [x] **RENOV-01**: El gestor obtiene la tasa de renovación = renovados ÷ vencidos en la franja `[from, to)`, sobre la misma cohorte de personas que el Bloque 1.
 - [ ] **RENOV-02**: El corte renovación/reactivación es configurable y arranca en 15 días (volver a pagar dentro de 15 días = renovación; después = reactivación, fuera de alcance).
 - [ ] **RENOV-03**: La tasa es un "número vivo": no se fuerza que renovación% + churn% = 100; la consistencia entre ambos solo se cumple cuando toda la cohorte maduró (en_gracia = 0).
 - [ ] **RENOV-04**: La renovación se ordena y compara por segmento (sucursal, país, corto/largo, nombre de plan) para descubrir buenos y malos performers.
@@ -116,13 +116,13 @@
 | TICKET-02   | Phase 120 | Complete |
 | TICKET-03   | Phase 120 | Complete |
 | TICKET-04   | Phase 120 | Complete |
-| CHURN-01    | Phase 121 | Pending  |
+| CHURN-01    | Phase 121 | Complete |
 | CHURN-02    | Phase 121 | Pending  |
 | CHURN-03    | Phase 121 | Pending  |
-| CHURN-04    | Phase 121 | Pending  |
+| CHURN-04    | Phase 121 | Complete |
 | CHURN-05    | Phase 121 | Pending  |
 | CHURN-06    | Phase 121 | Pending  |
-| RENOV-01    | Phase 121 | Pending  |
+| RENOV-01    | Phase 121 | Complete |
 | RENOV-02    | Phase 121 | Pending  |
 | RENOV-03    | Phase 121 | Pending  |
 | RENOV-04    | Phase 121 | Pending  |
