@@ -232,7 +232,7 @@ export class TrialFunnelService {
     filters: AnalyticsFilters,
     windowDays: number,
   ): Promise<TrialBookingRow[]> {
-    const { conditions: scopeConditions, needsBranchJoin } = applyScope({
+    const { conditions: scopeConditions } = applyScope({
       branchId: filters.branchId,
       country: filters.country,
       branchColumn: schema.schedules.branchId,
@@ -296,7 +296,28 @@ export class TrialFunnelService {
       DATE_ADD(${schema.bookings.bookingDate}, INTERVAL ${windowDays} DAY) > CURDATE()
     )`;
 
-    let query = this.db
+    // `branches` is joined UNCONDITIONALLY (flavor A): the branch/country/turno
+    // breakdowns always need the branch row, and the single cohort scan feeds both
+    // the top-line and every breakdown axis in JS. Because branches is always in
+    // the FROM, the country scope condition (`branches.country = ?`, added to
+    // `scopeConditions` only when the filter is active) is always resolvable — so
+    // the `needsBranchJoin` 500-risk from churn/renewal (where branches was NOT
+    // joined) does not apply here. The joins live in the STATIC chain (no
+    // `.$dynamic()`): selecting `schema.branches.*` requires branches to be in the
+    // FROM at `.select()` time, otherwise Drizzle infers those columns as `never`
+    // and the prepared-query type breaks at build (post-merge tsc gate).
+    const conditions: SQL[] = [
+      eq(schema.bookings.isTrial, true),
+      newLeadCondition,
+      ...rangeConditions(
+        schema.bookings.bookingDate,
+        filters.dateFrom,
+        filters.dateTo,
+      ),
+      ...scopeConditions,
+    ];
+
+    const result = await this.db
       .select({
         bookingDate: sql<string>`${schema.bookings.bookingDate}`,
         status: sql<string>`${schema.bookings.status}`,
@@ -313,32 +334,11 @@ export class TrialFunnelService {
         schema.schedules,
         eq(schema.schedules.id, schema.bookings.scheduleId),
       )
-      .$dynamic();
-
-    // Always need branches for the branch/country breakdown keys; when a country
-    // filter is active the join is REQUIRED for the scope condition too. Either
-    // way we join branches (flavor A here — branch name is always needed), but we
-    // only ADD the country scope condition when the filter is present.
-    query = query.innerJoin(
-      schema.branches,
-      eq(schema.branches.id, schema.schedules.branchId),
-    );
-    // `needsBranchJoin` is satisfied by the unconditional join above; reference
-    // it so the scope discipline stays explicit and grep-verifiable.
-    void needsBranchJoin;
-
-    const conditions: SQL[] = [
-      eq(schema.bookings.isTrial, true),
-      newLeadCondition,
-      ...rangeConditions(
-        schema.bookings.bookingDate,
-        filters.dateFrom,
-        filters.dateTo,
-      ),
-      ...scopeConditions,
-    ];
-
-    const result = await query.where(and(...conditions));
+      .innerJoin(
+        schema.branches,
+        eq(schema.branches.id, schema.schedules.branchId),
+      )
+      .where(and(...conditions));
 
     return result.map((r) => ({
       bookingDate: String(r.bookingDate),
