@@ -2823,9 +2823,17 @@ _Phase 116 added: 2026-05-25 — bug recurrente de logout en app de miembros (JW
 
 Plans:
 
+**Wave 1**
+
 - [ ] 120-01-PLAN.md — Foundation utilities: duration-tier (FUND-01) + metric-shape nominal+%+n & median (FUND-02)
 - [ ] 120-02-PLAN.md — Forward price snapshot: subscriptions.price_regular_snapshot column + 0136 migration + capture at 4 SubscriptionService insert sites (TICKET-03 base)
+
+**Wave 2** _(blocked on Wave 1 completion)_
+
 - [ ] 120-03-PLAN.md — Breakdowns engine (FUND-03) + cohorts half-open [from,to) weekly/monthly (FUND-05) + currency isolation (FUND-04)
+
+**Wave 3** _(blocked on Wave 2 completion)_
+
 - [ ] 120-04-PLAN.md — Block 6 Ticket service + GET /ticket + schema/types + integration tests (TICKET-01/02/03/04)
 
 ### Phase 121: Vencimiento — Churn de no renovación + Tasa de renovación
