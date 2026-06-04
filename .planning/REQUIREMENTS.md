@@ -1,144 +1,101 @@
-# Requirements: El Templo v5.0 — Métricas de Gestión
+# Requirements: El Templo v5.1 — Nuevo Sistema de Entrenamiento
 
-**Defined:** 2026-06-03
-**Core Value:** El panel de gestión reemplaza y amplía sus métricas con 6 bloques nuevos/mejorados que miden personas (no suscripciones), respetan el rango de fechas del panel, aíslan moneda ARS/EUR y se pueden comparar lado a lado por sucursal/país/duración/plan. El gestor puede diagnosticar churn, renovación, conversión de pruebas, frecuencia de asistencia, vida del cliente y ticket promedio sobre datos correctos.
+**Defined:** 2026-06-04
+**Core Value:** El sistema de entrenamiento deja de progresar de forma implícita (subir de nivel + `dificultadLineal`) y pasa a apoyarse en un **árbol de habilidades** explícito, construido sobre 3 ejes ortogonales (gesto / palanca / contracción). Sobre ese cimiento, un principiante absoluto entra por el nivel **Kairos** (sesiones ultra-simples que heredan de Alfa) y cualquier alumno puede **ajustar la dificultad de un ejercicio en plena sesión**, con el árbol sirviendo el equivalente correcto y recordando lo que domina.
 
-**Reference:** `ESPECIFICACION-METRICAS-GESTION.md` (spec de negocio, fuente de verdad) + `BRIEF-METRICAS-GESTION.md` (inventario actual) + `METRICAS_GESTION_HANDOFF_2026-06-02.md` (estructura de fases y hallazgos de código). Continúa la línea de analytics de las fases 117-118.
+**Reference:** `.planning/research/new-training-system-design.md` (doc de diseño, fuente de verdad) + `.docs/new-training-system/BRIEF-PROFES.md` (decisiones de dominio) + audios en `.docs/new-training-system/`.
 
-**Alcance:** Backend-first — servicios, endpoints, tests y migraciones. La UI del admin para consumir estos bloques es una fase de frontend posterior, fuera de este milestone.
+**Orden de construcción:** el **árbol (Eje 2) es el cimiento** y va primero (fase 0 de estructuración de datos). Kairos (Eje 1) y el ajuste in-session (Eje 3) se apoyan sobre él.
 
-**Reglas transversales (aplican a todos los bloques salvo indicación):**
+**Decisiones ya tomadas (no se re-litigan):**
 
-- **Nominal + % + n siempre juntos.** Todo porcentaje expone su tamaño de muestra.
-- **Breakdowns comparables.** Toda métrica se abre y compara lado a lado por sucursal, país, duración de plan (corto/largo) y nombre de plan.
-- **Aislamiento de moneda.** ARS y EUR nunca se suman.
-- **Cortes temporales.** Vistas semanal/mensual donde aplique; las cohortes respetan el rango de fechas del panel (no ventanas rodantes "desde hoy" salvo que se especifique).
-- **`duration_tier` por flag** (`monthly | long_term`), no hardcodeando nombres de plan.
+- Modelado por **estructuración de las 3 dimensiones** (gesto/palanca/contracción), no cableando aristas a mano. El grafo y el orden emergen de las dimensiones + el SPOM.
+- Bootstrap asistido por **LLM** propone la descomposición; **revisión humana de profes** la fija.
+- El árbol **auto-construye desde el orden del SPOM/`dificultadLineal`**; los profes ajustan después en un **editor de árbol del admin**. `BRIEF-PROFES` NO bloquea el milestone.
+- Kairos: modelo **híbrido** (nivel real que hereda de Alfa, ejercicios `difficulty=1`, formato **solo lineal + 2 ej/bloque**). Alcance de código **solo estructural** — la conversión de la sesión de prueba es del lado profes/clase, NO requisito de código.
+- Alumnos nuevos arrancan en **Kairos** por defecto; graduación automática (X sesiones) o salto manual del coach.
+- Eje 3: disparo **manual** (botones), criterio binario contra la prescripción del SPOM, un escalón por toque, **se recuerda** lo dominado pero **NO** cambia nivel ni SPOM automáticamente.
 
 **Decisiones abiertas (se resuelven en el `discuss-phase` de cada fase, NO ahora):**
 
-- `duration_tier`: columna explícita en `subscription_plans` (migración) vs derivado de `durationDays`. Validar contra planes reales.
-- Bloque 4: ¿el refactor de segmentación batch nocturna entra en alcance o se difiere?
-- `renewalRate` 7/14/30 actual: ¿se retira o convive con el Bloque 2?
-- ARPU (Finanzas Avanzadas): ¿se jubila o convive con el LTV del Bloque 5?
-- Edge cases: churn sobre el último vencimiento del rango (B1); reactivación como una vida con gap vs dos vidas (B5).
+- Agrupación visible del árbol: `category` (fina, ~22 valores) vs `pattern` (gruesa, ~9). El feedback de profes apunta a `category`.
+- Eje transversal "estático/dinámico": atributo/filtro (no categoría paralela) — confirmar con profes.
+- INITIUM en sesiones Kairos: ¿se baja a 2 ejercicios o queda excluido del "2 por bloque"?
+- Umbral exacto de sesiones para graduar Kairos → Alfa.
+- Cómo se **captura** "dominar" (criterio binario ya decidido: cumplir o no la prescripción del bloque del día).
+- Dosis lineales exactas de Kairos (4×12, 5×8…) — de los profes.
 
 ---
 
-## v5.0 Requirements
+## v5.1 Requirements
 
-~35 requirements en 7 categorías (1 fundación transversal + 6 bloques).
+18 requirements en 3 categorías (3 ejes). El árbol (TREE) es el cimiento y se construye primero.
 
-### Fundación transversal (FUND)
+### Eje 2 — Árbol de habilidades (TREE) · cimiento
 
-- [x] **FUND-01**: Existe un mecanismo de `duration_tier` (`monthly | long_term`) por plan, resuelto por flag y no por nombre, consumible por todas las métricas para el breakdown corto/largo plazo.
-- [x] **FUND-02**: Helper común que devuelve toda métrica como nominal + porcentaje + n (tamaño de muestra) en una estructura uniforme reutilizada por los 6 bloques.
-- [x] **FUND-03**: Motor de breakdowns que abre cualquier métrica por sucursal, país, duración de plan y nombre de plan, devolviendo los segmentos comparables lado a lado (no solo como filtro).
-- [x] **FUND-04**: Toda métrica financiera se calcula y devuelve aislada por moneda (ARS y EUR nunca se suman en un mismo total).
-- [x] **FUND-05**: Las métricas de cohorte respetan el rango de fechas `[from, to)` del panel y exponen vista semanal/mensual seleccionable donde aplique (corrige caveat #1).
+- [ ] **TREE-01**: Las 3 dimensiones de cada ejercicio (gesto/sub-familia, palanca/posición, contracción) existen como datos estructurados en el esquema, separadas del campo `position` actual (que hoy mezcla palanca + implemento + orientación).
+- [ ] **TREE-02**: Un proceso de bootstrap asistido por LLM propone la descomposición (gesto / palanca / contracción) de cada ejercicio a partir de su nombre, con salida revisable antes de aplicarse.
+- [ ] **TREE-03**: Los profes pueden revisar y corregir la descomposición propuesta por el LLM antes de fijarla como dato de verdad.
+- [ ] **TREE-04**: El sistema auto-construye el grafo ramificado (DAG) de progresiones a partir del orden del SPOM/`dificultadLineal` y las 3 dimensiones estructuradas (sub-familias paralelas dentro de cada ruta, ordenadas por palanca y contracción).
+- [ ] **TREE-05**: Los ejercicios quedan saneados: los ~103 sin ruta reciben ruta, los duplicados (mismo ejercicio repetido en varios niveles) se resuelven y `position` se separa en sus conceptos.
+- [ ] **TREE-06**: El miembro ve su % de avance por familia/nodo del árbol, agrupado por la categoría temática existente (Tracción / Empuje / Piernas / Core / Movilidad).
+- [ ] **TREE-07**: Los profes editan el árbol desde una sección nueva del admin: reordenan ejercicios, agrupan/separan sub-familias y ajustan precedencias sobre el grafo ya construido.
 
-### Bloque 1 — Churn de no renovación (CHURN)
+### Eje 1 — Nivel Kairos (KAIROS)
 
-- [x] **CHURN-01**: El gestor obtiene el churn como **personas distintas** (no suscripciones) cuya sub venció en `[from, to)` y no registraron sub nueva dentro de N días — reemplaza la métrica vieja basada en `updated_at`.
-- [x] **CHURN-02**: El parámetro N es configurable y libre (no fijo); el endpoint acepta múltiples N en simultáneo para la vista comparativa (churn@5 / @10 / @15 lado a lado).
-- [x] **CHURN-03**: Solo entran al cálculo personas cuyo vencimiento ocurrió hace ≥ N días ("churn maduro"); las que siguen en ventana de gracia se excluyen de numerador y denominador hasta madurar.
-- [x] **CHURN-04**: Renovación anticipada (paga antes de vencer) y cambio de duración (mensual↔largo plazo) cuentan como retención, no como churn. Una sub en pausa no cuenta como vencida.
-- [x] **CHURN-05**: El gestor obtiene una serie histórica de churn por cohorte de vencimiento mes a mes, con marca de períodos provisorios (cohorte aún inmadura).
-- [x] **CHURN-06**: El churn se abre por los breakdowns estándar (duración, nombre de plan, sucursal, país) con nominal + % + n.
+- [ ] **KAIROS-01**: El nivel `kairos` existe en el enum de niveles en API, app y admin (5→6 niveles: kairos → alfa → delta → sigma → omega → spartan), incluido su mapeo a level-group.
+- [ ] **KAIROS-02**: La generación de sesión Kairos hereda de Alfa, tomando los ejercicios Alfa de `difficulty = 1` (el escalón más fácil) mientras no haya contenido propio de Kairos.
+- [ ] **KAIROS-03**: Las sesiones Kairos fuerzan, sobre el esqueleto de bloques normal, formato **solo lineal** (sets×reps) con exactamente **2 ejercicios por bloque** (sin EMOM/AMRAP/circuitos/complejos).
+- [ ] **KAIROS-04**: Los alumnos nuevos arrancan en Kairos por defecto (cambia el default de `users.level` de `alfa` a `kairos`).
+- [ ] **KAIROS-05**: Un alumno gradúa automáticamente de Kairos a Alfa al cumplir un umbral configurable de sesiones completadas.
+- [ ] **KAIROS-06**: El coach puede saltar manualmente a un alumno de nivel, anulando la graduación automática.
+- [ ] **KAIROS-07**: El selector de nivel muestra el 6º recuadrito (Kairos) en app y admin sin romper el layout (scroll/paginado donde haga falta).
 
-### Bloque 2 — Tasa de renovación (RENOV)
+### Eje 3 — Ajuste de dificultad in-session (ADJUST)
 
-- [x] **RENOV-01**: El gestor obtiene la tasa de renovación = renovados ÷ vencidos en la franja `[from, to)`, sobre la misma cohorte de personas que el Bloque 1.
-- [x] **RENOV-02**: El corte renovación/reactivación es configurable y arranca en 15 días (volver a pagar dentro de 15 días = renovación; después = reactivación, fuera de alcance).
-- [x] **RENOV-03**: La tasa es un "número vivo": no se fuerza que renovación% + churn% = 100; la consistencia entre ambos solo se cumple cuando toda la cohorte maduró (en_gracia = 0).
-- [x] **RENOV-04**: La renovación se ordena y compara por segmento (sucursal, país, corto/largo, nombre de plan) para descubrir buenos y malos performers.
-
-### Bloque 3 — Funnel de sesiones de prueba (FUNNEL)
-
-- [x] **FUNNEL-01**: El gestor obtiene la cascada reserva → asistencia → compra con los tres números y las dos tasas: `tasa_show = asistieron ÷ reservaron`, `tasa_cierre = compraron ÷ asistieron` (sobre asistentes, no reservas), `punta_a_punta = compraron ÷ reservaron`.
-- [x] **FUNNEL-02**: La conversión usa una ventana de atribución configurable (~21 días desde la sesión); la cohorte madura sola hasta cerrar la ventana.
-- [x] **FUNNEL-03**: Solo cuentan leads nuevos sin suscripción paga previa; quien ya fue miembro y vuelve es reactivación, no conversión de prueba.
-- [x] **FUNNEL-04**: La cohorte se ancla por la **fecha de la sesión de prueba agendada** (no por fecha de reserva ni de compra), con cortes semanal/mensual respetando el filtro.
-- [x] **FUNNEL-05**: El funnel se abre por sucursal, país, turno/horario y plan que terminan comprando, con nominal y %. (No es el funnel freemium→prueba→activo de la sección 6, que está apagado.)
-
-### Bloque 4 — Frecuencia de asistencia por miembro (FREQ)
-
-- [x] **FREQ-01**: El gestor obtiene la frecuencia = promedio de visitas/semana por miembro sobre las últimas 4 semanas rodantes, normalizando a los miembros con < 4 semanas de antigüedad.
-- [x] **FREQ-02**: Cada miembro cae en una banda (Inactivo 0 / Bajo ~1 / Medio ~2 / Alto 3+) y el gestor ve la distribución (cuántos miembros por banda), incluyendo activos con 0 visitas.
-- [x] **FREQ-03**: El gestor obtiene la lista de "enfriándose": miembros que bajaron al menos una banda entre las 4 semanas actuales y las 4 previas, con el % de variación al lado.
-- [x] **FREQ-04**: Toda vista de frecuencia expone al lado el % de adopción de check-in de la sede como condición de validez del dato (corrige caveat #6).
-- [x] **FREQ-05**: La frecuencia alimenta y corrige los segmentos existentes (espartano/intermitente/en_riesgo/ghost…) que se mantienen y mejoran.
-- [x] **FREQ-06**: El recálculo de segmentación corre en un proceso batch (ej. nightly) usando la frecuencia como insumo, en vez de solo al login con cooldown (corrige caveat #8). _(Alcance exacto a confirmar en discuss-phase.)_
-
-### Bloque 5 — LTV / vida del cliente (LTV)
-
-- [x] **LTV-01**: El gestor obtiene el lifetime headline = 1 ÷ churn mensual (usando el churn del Bloque 1), por los breakdowns estándar.
-- [x] **LTV-02**: El gestor obtiene el lifetime robusto vía Kaplan-Meier (mediana de supervivencia), tratando a los clientes activos como datos censurados (sin descartarlos).
-- [x] **LTV-03**: El fin de vida de un cliente se define con la lógica de churn maduro del Bloque 1 (los bloques se encadenan).
-- [x] **LTV-04**: El LTV monetario se calcula desde pagos reales: proyectado (lifetime × ingreso mensual real por cliente) y observado (suma real pagada en la vida del cliente cerrado), nunca vía ARPU snapshot.
-- [x] **LTV-05**: El LTV se devuelve separado por moneda y se abre por sucursal, país y plan (qué membresía retiene vidas más largas y deja más plata).
-
-### Bloque 6 — Ticket promedio (TICKET)
-
-- [x] **TICKET-01**: El gestor obtiene el ticket por plan = promedio de `price_paid` realmente cobrado (no precio de lista), capturando descuentos automáticamente.
-- [x] **TICKET-02**: El ticket global = suma total cobrada ÷ cantidad de cobros (promedio ponderado por volumen, no promedio de promedios), por moneda, sobre todos los cobros de membresía del período por fecha de cobro.
-- [x] **TICKET-03**: El gestor obtiene el descuento promedio aplicado = `price_paid` vs precio de lista del plan, por plan y por sede, con la mediana junto al promedio para amortiguar outliers.
-- [x] **TICKET-04**: El ticket se devuelve aislado por moneda y se abre por corto/largo plazo, sucursal y país.
+- [ ] **ADJUST-01**: Durante la sesión, el miembro puede pedir "↓ más fácil" o "más difícil ↑" por ejercicio desde el player.
+- [ ] **ADJUST-02**: Al pedir el ajuste, el árbol sirve el ejercicio vecino un escalón arriba/abajo conservando ruta, contracción, formato y dosis del bloque (solo cambia el ejercicio por su vecino en la cadena ruta × contracción).
+- [ ] **ADJUST-03**: El sistema persiste un registro de "ejercicio dominado / bajado" por miembro (nuevo, distinto del "completado" local + RPE de la sesión entera).
+- [ ] **ADJUST-04**: El registro de dominado alimenta el % de avance del árbol (TREE-06) y es visible para el coach.
 
 ---
 
 ## Future Requirements (deferred)
 
-- **UI del admin** para los 6 bloques (visualización, comparadores lado a lado, tooltips de provisionalidad). Fase de frontend posterior.
-- **Reactivación** como métrica propia (quien vuelve después del corte de 15 días).
-- **Activación temprana** (primeras N semanas del cliente nuevo).
-- **MRR con componentes** (nuevo / expansión / contracción / churn).
+- **Contenido propio de Kairos** cargado por los profes (ejercicios específicos del nivel); mientras tanto Kairos hereda de Alfa.
+- **Upsell por estancamiento** ("estancado en piernas → plan de $X") apoyado en el registro de dominados del árbol.
+- **Ejes adicionales** de dificultad si los profes los identifican (tempo, rango, asistencia con banda).
+- **Trabajo "de pie"** y otras prescripciones de Kairos pendientes del audio del Trainer.
 
 ## Out of Scope
 
-- Visualización/dashboards en el admin durante este milestone (backend-first).
-- Mezclar monedas en cualquier total (prohibido por regla transversal).
-- Reescribir el funnel freemium→prueba→activo de la sección 6 (apagado; el Bloque 3 es otra cosa).
-- Splits de archivos largos (v4.9 Refactor Splits).
+- Cambio automático de nivel o de la planificación del SPOM a partir del ajuste in-session (sigue siendo criterio del coach).
+- Sistema de "dominar" por volumen/repeticiones (el criterio es binario contra la prescripción del bloque, no acumulativo).
+- Atar Kairos al funnel de conversión de la sesión de prueba (fase 123 de v5.0): la conversión es del lado profes/clase, no de este milestone.
+- UI del admin para las 6 métricas de v5.0 (milestone de frontend aparte, en cola).
+- Splits mecánicos de archivos largos (v4.9 Refactor Splits, en cola).
 
 ## Traceability
 
-<!-- REQ-ID → Phase (filled by roadmap 2026-06-03). 35/35 mapped, 100% coverage. -->
+<!-- REQ-ID → Phase (filled by roadmap). 0/18 mapped hasta correr el roadmapper. -->
 
-| Requirement | Phase     | Status   |
-| ----------- | --------- | -------- |
-| FUND-01     | Phase 120 | Complete |
-| FUND-02     | Phase 120 | Complete |
-| FUND-03     | Phase 120 | Complete |
-| FUND-04     | Phase 120 | Complete |
-| FUND-05     | Phase 120 | Complete |
-| TICKET-01   | Phase 120 | Complete |
-| TICKET-02   | Phase 120 | Complete |
-| TICKET-03   | Phase 120 | Complete |
-| TICKET-04   | Phase 120 | Complete |
-| CHURN-01    | Phase 121 | Complete |
-| CHURN-02    | Phase 121 | Complete |
-| CHURN-03    | Phase 121 | Complete |
-| CHURN-04    | Phase 121 | Complete |
-| CHURN-05    | Phase 121 | Complete |
-| CHURN-06    | Phase 121 | Complete |
-| RENOV-01    | Phase 121 | Complete |
-| RENOV-02    | Phase 121 | Complete |
-| RENOV-03    | Phase 121 | Complete |
-| RENOV-04    | Phase 121 | Complete |
-| LTV-01      | Phase 122 | Complete |
-| LTV-02      | Phase 122 | Complete |
-| LTV-03      | Phase 122 | Complete |
-| LTV-04      | Phase 122 | Complete |
-| LTV-05      | Phase 122 | Complete |
-| FREQ-01     | Phase 123 | Complete |
-| FREQ-02     | Phase 123 | Complete |
-| FREQ-03     | Phase 123 | Complete |
-| FREQ-04     | Phase 123 | Complete |
-| FREQ-05     | Phase 123 | Complete |
-| FREQ-06     | Phase 123 | Complete |
-| FUNNEL-01   | Phase 123 | Complete |
-| FUNNEL-02   | Phase 123 | Complete |
-| FUNNEL-03   | Phase 123 | Complete |
-| FUNNEL-04   | Phase 123 | Complete |
-| FUNNEL-05   | Phase 123 | Complete |
+| Requirement | Phase | Status  |
+| ----------- | ----- | ------- |
+| TREE-01     | TBD   | Pending |
+| TREE-02     | TBD   | Pending |
+| TREE-03     | TBD   | Pending |
+| TREE-04     | TBD   | Pending |
+| TREE-05     | TBD   | Pending |
+| TREE-06     | TBD   | Pending |
+| TREE-07     | TBD   | Pending |
+| KAIROS-01   | TBD   | Pending |
+| KAIROS-02   | TBD   | Pending |
+| KAIROS-03   | TBD   | Pending |
+| KAIROS-04   | TBD   | Pending |
+| KAIROS-05   | TBD   | Pending |
+| KAIROS-06   | TBD   | Pending |
+| KAIROS-07   | TBD   | Pending |
+| ADJUST-01   | TBD   | Pending |
+| ADJUST-02   | TBD   | Pending |
+| ADJUST-03   | TBD   | Pending |
+| ADJUST-04   | TBD   | Pending |
