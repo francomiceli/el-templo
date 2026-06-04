@@ -72,11 +72,11 @@
 
 ### Bloque 5 — LTV / vida del cliente (LTV)
 
-- [ ] **LTV-01**: El gestor obtiene el lifetime headline = 1 ÷ churn mensual (usando el churn del Bloque 1), por los breakdowns estándar.
+- [x] **LTV-01**: El gestor obtiene el lifetime headline = 1 ÷ churn mensual (usando el churn del Bloque 1), por los breakdowns estándar.
 - [x] **LTV-02**: El gestor obtiene el lifetime robusto vía Kaplan-Meier (mediana de supervivencia), tratando a los clientes activos como datos censurados (sin descartarlos).
-- [ ] **LTV-03**: El fin de vida de un cliente se define con la lógica de churn maduro del Bloque 1 (los bloques se encadenan).
-- [ ] **LTV-04**: El LTV monetario se calcula desde pagos reales: proyectado (lifetime × ingreso mensual real por cliente) y observado (suma real pagada en la vida del cliente cerrado), nunca vía ARPU snapshot.
-- [ ] **LTV-05**: El LTV se devuelve separado por moneda y se abre por sucursal, país y plan (qué membresía retiene vidas más largas y deja más plata).
+- [x] **LTV-03**: El fin de vida de un cliente se define con la lógica de churn maduro del Bloque 1 (los bloques se encadenan).
+- [x] **LTV-04**: El LTV monetario se calcula desde pagos reales: proyectado (lifetime × ingreso mensual real por cliente) y observado (suma real pagada en la vida del cliente cerrado), nunca vía ARPU snapshot.
+- [x] **LTV-05**: El LTV se devuelve separado por moneda y se abre por sucursal, país y plan (qué membresía retiene vidas más largas y deja más plata).
 
 ### Bloque 6 — Ticket promedio (TICKET)
 
@@ -126,11 +126,11 @@
 | RENOV-02    | Phase 121 | Complete |
 | RENOV-03    | Phase 121 | Complete |
 | RENOV-04    | Phase 121 | Complete |
-| LTV-01      | Phase 122 | Pending  |
+| LTV-01      | Phase 122 | Complete |
 | LTV-02      | Phase 122 | Complete |
-| LTV-03      | Phase 122 | Pending  |
-| LTV-04      | Phase 122 | Pending  |
-| LTV-05      | Phase 122 | Pending  |
+| LTV-03      | Phase 122 | Complete |
+| LTV-04      | Phase 122 | Complete |
+| LTV-05      | Phase 122 | Complete |
 | FREQ-01     | Phase 123 | Pending  |
 | FREQ-02     | Phase 123 | Pending  |
 | FREQ-03     | Phase 123 | Pending  |

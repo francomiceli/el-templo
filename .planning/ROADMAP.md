@@ -2888,12 +2888,12 @@ Plans:
 
 **Risks / notas:** Decisiones abiertas — ¿se jubila el ARPU de Finanzas Avanzadas o convive con el LTV? Edge case: reactivación (se fue y volvió) → una vida con gap vs dos vidas, se resuelve con el corte de 15 días de la fase 121. Kaplan-Meier es algoritmo estadístico nuevo: aislado en fase propia con tests dedicados. Resolver en `discuss-phase`.
 
-**Plans:** 1/3 plans executed
+**Plans:** 2/3 plans executed
 
 Plans:
 
 - [x] 122-01-PLAN.md — Kaplan-Meier survival-median pure helper + edge-case tests + LtvAnalytics wire contract (LTV-02)
-- [ ] 122-02-PLAN.md — LtvService (headline 1÷churn, KM median, monetary projected/observed from real payments, per-currency, breakdowns) + GET /ltv + ltvSchema + ARPU @deprecated (LTV-01..05)
+- [x] 122-02-PLAN.md — LtvService (headline 1÷churn, KM median, monetary projected/observed from real payments, per-currency, breakdowns) + GET /ltv + ltvSchema + ARPU @deprecated (LTV-01..05)
 - [ ] 122-03-PLAN.md — Real-MySQL integration test for LTV-01..05 + ADMIN auth gate
       **UI hint:** no (backend-first; sin UI de admin en alcance)
 
@@ -2927,7 +2927,7 @@ Plans:
 | ---------------------------------------------- | -------------- | ----------- | ---------- |
 | 120. Fundación transversal + Ticket            | 4/4            | Complete    | 2026-06-04 |
 | 121. Vencimiento (Churn + Renovación)          | 3/3            | Complete    | 2026-06-04 |
-| 122. LTV / vida del cliente                    | 1/3            | In Progress |            |
+| 122. LTV / vida del cliente                    | 2/3            | In Progress |            |
 | 123. Asistencia + Funnel (Frecuencia + Prueba) | 0/TBD          | Not started | -          |
 
 _Plan counts populated by `/gsd-plan-phase`._

@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v5.0
 milestone_name: Métricas de Gestión
 status: executing
-stopped_at: Completed 122-01-PLAN.md
-last_updated: "2026-06-04T13:03:42.565Z"
+stopped_at: Completed 122-02-PLAN.md
+last_updated: "2026-06-04T13:11:29.362Z"
 last_activity: 2026-06-04
 progress:
   total_phases: 4
   completed_phases: 2
   total_plans: 10
-  completed_plans: 8
+  completed_plans: 9
   percent: 50
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-06-03)
 ## Current Position
 
 Phase: 122 (ltv-vida-del-cliente) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-06-04
 
-Progress: [████████░░] 80%
+Progress: [█████████░] 90%
 
 ## Performance Metrics
 
@@ -198,6 +198,7 @@ _Updated after each plan completion_
 | Phase 121 P02 | 6min | 3 tasks | 5 files |
 | Phase 121 P03 | 4min | 3 tasks | 5 files |
 | Phase 122 P01 | 7min | 2 tasks | 3 files |
+| Phase 122 P02 | 18min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -505,11 +506,16 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - Plan 116-02 awaiting staging + production runs of migration 0125_create_refresh_tokens.sql (human checkpoint — operator must run pnpm db:migrate on staging, verify SHOW COLUMNS FROM refresh_tokens + fila en \_migrations, then approve prod)
 - Plan 116-04: vitest+jsdom no instalados en el admin — test del lock escrito y commiteado pero sin correr; requiere decision del usuario (instalar devDeps o aceptar cobertura del test de la member app)
 - Plan 117-02: migraciones 0128_create_user_status_history.sql + 0129_backfill_user_status_history.sql APROBADAS y aplicadas LOCALMENTE (checkpoint humano approved). Pendiente: aplicación en staging + producción vía pipeline (operator corre pnpm db:migrate on staging, verifica 0128/0129 en \_migrations + SELECT COUNT(\*) FROM user_status_history > 0, confirma re-run no-op, luego aprueba prod). Staging-first STRICT, no merge to master ni push sin confirmación.
+- Plan 122-02: LTV headline reuses ChurnService (1÷churn pct), never recomputed; churn 0 → null (never NaN/∞)
+- Plan 122-02: survival cohort closed=matured&&!retained (event), active/in-grace=censored (kept); life span first-start..last-expiry (closed) / first-start..today (censored), months=days÷30; first-start as correlated MIN(start_date) subquery (same user+branch, non-paused)
+- Plan 122-02: monetary LTV from financial_transactions canonical filter (never list price); observed=mean closed totals, monthlyRealRevenue=mean(total÷months), projected=headline×monthlyRealRevenue; ARS/EUR never summed; ft upper bound EXCLUSIVE to match half-open cohort
+- Plan 122-02: ARPU annotated @deprecated D-122-01 (math/schema/type byte-unchanged) — LTV monetary is canonical replacement, physical removal deferred to admin-UI phase (Phase 121 D-09 precedent)
+- Plan 122-02: no integration test in this plan — test/analytics/ltv.test.ts owned by Plan 03, runs in CI only
 
 ## Session Continuity
 
-Last session: 2026-06-04T13:03:42.541Z
-Stopped at: Completed 122-01-PLAN.md
+Last session: 2026-06-04T13:11:29.347Z
+Stopped at: Completed 122-02-PLAN.md
 Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
