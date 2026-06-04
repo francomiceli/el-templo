@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v5.0
 milestone_name: Métricas de Gestión
-status: executing
+status: verifying
 stopped_at: Completed 122-02-PLAN.md
-last_updated: "2026-06-04T13:11:29.362Z"
+last_updated: "2026-06-04T13:18:11.969Z"
 last_activity: 2026-06-04
 progress:
   total_phases: 4
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 10
-  completed_plans: 9
-  percent: 50
+  completed_plans: 10
+  percent: 75
 ---
 
 # Project State
@@ -27,10 +27,10 @@ See: .planning/PROJECT.md (updated 2026-06-03)
 
 Phase: 122 (ltv-vida-del-cliente) — EXECUTING
 Plan: 3 of 3
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-06-04
 
-Progress: [█████████░] 90%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -199,6 +199,7 @@ _Updated after each plan completion_
 | Phase 121 P03 | 4min | 3 tasks | 5 files |
 | Phase 122 P01 | 7min | 2 tasks | 3 files |
 | Phase 122 P02 | 18min | 2 tasks | 4 files |
+| Phase 122 P03 | ~9min | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -490,6 +491,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: getRenewalRate annotated @deprecated Phase 121 D-09 pointing to GET /renewal; behavior + callers unchanged, removal deferred to admin-UI phase
 - [Phase ?]: Plan 122-01: KM median = first event time S(t)<=0.5; ties collapse to one step; censored customers stay in at-risk denominator (D-122-05)
 - [Phase ?]: Plan 122-01: LtvMonetary keeps ARS/EUR as separate LtvCurrencyBlock (never summed, D-122-09); projected vs observed LTV both real-payment based (D-122-07)
+- [Phase ?]: Plan 122-03: ltv.test.ts asserts headline derives from churn.window.churn.percentage for identical filters (both services instantiated); cohort n includes censored lives (=== churn n, D-122-05); observed monetary = exact real-payment sum seeded below list price (D-122-08); ARS/EUR never summed (D-122-09); gestion 403 / admin 200; voidedAt marker from MySQL NOW() keeps grep 'new Date()' literal at 0 for TZ-flake safety.
 
 ### Pending Todos
 
@@ -514,7 +516,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-04T13:11:29.347Z
+Last session: 2026-06-04T13:17:40.181Z
 Stopped at: Completed 122-02-PLAN.md
 Resume file: None
 

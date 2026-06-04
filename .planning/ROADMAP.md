@@ -2792,7 +2792,7 @@ _Phase 116 added: 2026-05-25 — bug recurrente de logout en app de miembros (JW
 
 - [x] **Phase 120: Fundación transversal + Ticket promedio** — `duration_tier` por flag + helpers comunes (nominal+%+n, motor de breakdowns comparables, vista semanal/mensual respetando el rango, aislamiento de moneda, cohortes por rango `[from,to)`) + Bloque 6 (ticket promedio ponderado por `price_paid`, descuento vs `priceRegular`, mediana ante outliers, por moneda). Ticket es chico y estrena los helpers de la fundación. (completed 2026-06-04)
 - [x] **Phase 121: Vencimiento — Churn de no renovación + Tasa de renovación** — Bloque 1 (churn person-based, cohorte por `end_date ∈ [from,to)`, churn maduro ≥N días, N libre/multi-N, serie histórica con marca de provisorios) + Bloque 2 (renovación = renovados÷vencidos sobre la misma cohorte, corte renovación/reactivación 15d configurable, número "vivo"). Comparten el motor de cohorte por `end_date`; reemplazan las métricas viejas juntas. (completed 2026-06-04)
-- [ ] **Phase 122: LTV / vida del cliente** — Bloque 5: lifetime headline `1÷churn mensual` (usa el churn de la fase 121) + robusto Kaplan-Meier (mediana de supervivencia con censura para activos) + LTV monetario desde pagos reales (proyectado y observado, nunca ARPU), separado por moneda, abierto por sucursal/país/plan. Depende del churn de la fase 121; Kaplan-Meier merece fase propia con tests.
+- [x] **Phase 122: LTV / vida del cliente** — Bloque 5: lifetime headline `1÷churn mensual` (usa el churn de la fase 121) + robusto Kaplan-Meier (mediana de supervivencia con censura para activos) + LTV monetario desde pagos reales (proyectado y observado, nunca ARPU), separado por moneda, abierto por sucursal/país/plan. Depende del churn de la fase 121; Kaplan-Meier merece fase propia con tests. (completed 2026-06-04)
 - [ ] **Phase 123: Asistencia + Funnel — Frecuencia de asistencia + Funnel de sesiones de prueba** — Bloque 4 (frecuencia visitas/sem por miembro sobre 4 semanas rodantes, bandas Inactivo/Bajo/Medio/Alto, lista "enfriándose", adopción de check-in al lado, recálculo batch de segmentación) + Bloque 3 (cascada reserva→asistencia→compra, `tasa_cierre`=compraron÷asistieron, ventana de atribución ~21d, solo leads nuevos, cohorte por fecha de sesión agendada). Independientes del eje de vencimiento; Bloque 4 es el de mayor riesgo por el cron de segmentación.
 
 ## v5.0 Phase Details
@@ -2888,13 +2888,13 @@ Plans:
 
 **Risks / notas:** Decisiones abiertas — ¿se jubila el ARPU de Finanzas Avanzadas o convive con el LTV? Edge case: reactivación (se fue y volvió) → una vida con gap vs dos vidas, se resuelve con el corte de 15 días de la fase 121. Kaplan-Meier es algoritmo estadístico nuevo: aislado en fase propia con tests dedicados. Resolver en `discuss-phase`.
 
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 
 Plans:
 
 - [x] 122-01-PLAN.md — Kaplan-Meier survival-median pure helper + edge-case tests + LtvAnalytics wire contract (LTV-02)
 - [x] 122-02-PLAN.md — LtvService (headline 1÷churn, KM median, monetary projected/observed from real payments, per-currency, breakdowns) + GET /ltv + ltvSchema + ARPU @deprecated (LTV-01..05)
-- [ ] 122-03-PLAN.md — Real-MySQL integration test for LTV-01..05 + ADMIN auth gate
+- [x] 122-03-PLAN.md — Real-MySQL integration test for LTV-01..05 + ADMIN auth gate
       **UI hint:** no (backend-first; sin UI de admin en alcance)
 
 ### Phase 123: Asistencia + Funnel — Frecuencia de asistencia + Funnel de sesiones de prueba
@@ -2927,7 +2927,7 @@ Plans:
 | ---------------------------------------------- | -------------- | ----------- | ---------- |
 | 120. Fundación transversal + Ticket            | 4/4            | Complete    | 2026-06-04 |
 | 121. Vencimiento (Churn + Renovación)          | 3/3            | Complete    | 2026-06-04 |
-| 122. LTV / vida del cliente                    | 2/3            | In Progress |            |
+| 122. LTV / vida del cliente                    | 3/3            | Complete    | 2026-06-04 |
 | 123. Asistencia + Funnel (Frecuencia + Prueba) | 0/TBD          | Not started | -          |
 
 _Plan counts populated by `/gsd-plan-phase`._
