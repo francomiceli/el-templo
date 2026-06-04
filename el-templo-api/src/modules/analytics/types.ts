@@ -623,6 +623,116 @@ export interface RenewalAnalytics {
   breakdowns: RenewalSegmentRow[];
 }
 
+// -- LTV / vida del cliente (Phase 122 — LTV-01..05) ---------------------
+
+/**
+ * The per-currency monetary LTV block for ONE currency (D-122-07 / D-122-09).
+ * ARS and EUR are NEVER summed — `LtvCurrencyBlock` owns the figures for a single
+ * currency and `LtvMonetary` holds one block per currency. Every monetary figure is
+ * computed from REAL payments (`financial_transactions`), NEVER from an ARPU snapshot
+ * or list price (D-122-07 caveat #8): the projected/observed split lets the panel
+ * compare an estimate against the exact sum over already-closed lives.
+ *
+ * All averages are nullable (`number | null`) because the underlying cohort can be
+ * empty: a `null` means "no data" and is declared `["number","null"]` on the wire so
+ * the JSON never carries NaN (mirrors `TicketCohortAverage.average`).
+ */
+export interface LtvCurrencyBlock {
+  /**
+   * Projected LTV: `lifetime × ingreso_mensual_real_promedio_por_cliente`, where the
+   * monthly real revenue per customer comes from real payments (D-122-07). `null`
+   * when the cohort is empty or the lifetime headline is unavailable (churn 0).
+   */
+  projected: number | null;
+  /**
+   * Observed LTV: the EXACT sum of all real payments over the CLOSED customers' lives
+   * (no estimation, D-122-07). `null` when there are no closed lives in this currency.
+   */
+  observed: number | null;
+  /**
+   * The real monthly revenue per customer this block was built on, derived from real
+   * payments (`LTV_observado ÷ lifetime`, or the cohort mean of monthly real revenue).
+   * Surfaced so the panel can audit the projection. `null` when the cohort is empty.
+   */
+  monthlyRealRevenue: number | null;
+  /** Sample size for this currency's monetary figures (closed lives counted). */
+  n: number;
+}
+
+/**
+ * The monetary LTV surface, one block per currency (D-122-09 — ARS / EUR never
+ * summed). An unknown currency is skipped upstream, never folded into either block.
+ */
+export interface LtvMonetary {
+  ARS: LtvCurrencyBlock;
+  EUR: LtvCurrencyBlock;
+}
+
+/**
+ * One LTV breakdown segment (LTV-05 / D-122-09): the LTV figures for one value of one
+ * breakdown `axis` (branch / country / plan — `duration` is available via the shared
+ * `ChurnRenewalAxis` but optional for LTV). Reuses the churn/renovación axis union so
+ * the breakdown contract stays uniform across blocks. Each row carries its own
+ * headline / survival median / per-currency monetary block so segments are directly
+ * comparable (which membership retains the longest, most-valuable lives).
+ */
+export interface LtvSegmentRow {
+  /** The breakdown axis this row is grouped by. */
+  axis: ChurnRenewalAxis;
+  /** The segment key within the axis (branch name, country, duration tier, or plan name). */
+  key: string;
+  /**
+   * Headline lifetime in months for this segment (`1 ÷ churn_mensual`, D-122-03).
+   * `null` when the segment churn is 0 (no finite lifetime — never NaN/∞).
+   */
+  lifetimeHeadlineMonths: number | null;
+  /**
+   * Kaplan-Meier survival median (months) for this segment (D-122-05). `null` when the
+   * cohort is empty / single-customer / survival never crosses 0.5.
+   */
+  survivalMedianMonths: number | null;
+  /** Per-currency monetary LTV for this segment (ARS / EUR never summed). */
+  monetary: LtvMonetary;
+  /** Cohort sample size for this segment. */
+  n: number;
+}
+
+/**
+ * LTV / vida del cliente analytics (Phase 122). The customer-lifetime block chained
+ * onto the Phase 121 churn engine: the "end of life" is exactly the matured,
+ * not-retained churn event (D-122-02), and reactivation inherits the same 15-day
+ * renovación window (D-122-04). Exposes TWO duration numbers so the panel can compare
+ * them (a large gap between headline and KM median signals front-loaded churn):
+ *
+ *   - `lifetimeHeadlineMonths`: the simple `1 ÷ churn_mensual` reusing Phase 121's
+ *     person-based churn (D-122-03). `null` when churn is 0 (no finite lifetime).
+ *   - `survivalMedianMonths`: the robust Kaplan-Meier survival median treating active
+ *     customers as censored data (D-122-05). `null` when the cohort is too small or
+ *     survival never crosses 0.5.
+ *
+ * Monetary LTV (`monetary`) is per currency, from REAL payments only (D-122-07), with
+ * a projected/observed split. Everything is opened by branch / country / plan via
+ * `breakdowns` (D-122-09). `n` is the matured cohort size (always reported).
+ */
+export interface LtvAnalytics {
+  /**
+   * Headline lifetime in months: `1 ÷ churn_mensual` (D-122-03), reusing the Phase
+   * 121 person-based churn. `null` when churn is 0 (no finite lifetime — never NaN).
+   */
+  lifetimeHeadlineMonths: number | null;
+  /**
+   * Kaplan-Meier survival median in months (D-122-05). `null` when the cohort is
+   * empty / single-customer / survival never reaches the median threshold.
+   */
+  survivalMedianMonths: number | null;
+  /** Per-currency monetary LTV (projected + observed, real-payment based, D-122-07). */
+  monetary: LtvMonetary;
+  /** LTV opened by branch / country / plan (LTV-05 / D-122-09). */
+  breakdowns: LtvSegmentRow[];
+  /** The matured cohort size the headline / survival median were computed over. */
+  n: number;
+}
+
 // -- Financial Analytics -------------------------------------------------
 
 export interface OutstandingByCurrency {
