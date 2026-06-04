@@ -12,6 +12,9 @@
 - **v4.5 Planes Online — Digital Monetization** - Phases 89-91 (planned)
 - **v4.6 iOS App Store Launch** - Phases 93-95 (planned)
 - **v4.7 Full Body & ROM — Coach Session Requests** - Phases 96-97 (planned)
+- **v4.8 Modelo Financiero** - Phases 105-109 (complete)
+- **v4.85 Enrollment Service + Admin Add-ons** - Phases 112-114 (complete/in progress)
+- **v5.0 Métricas de Gestión** - Phases 120-123 (planned)
 
 ---
 
@@ -2754,3 +2757,151 @@ Plans:
 _Phase 119 added: 2026-06-01 — campaña de reactivación/conversión de freemium con sesión de prueba self-service y sistema de email de campañas reutilizable. Decidido como una sola fase grande (4 capas). Email sobre Resend con infra propia liviana para tracking de funnel integrado._
 
 _Phase 116 added: 2026-05-25 — bug recurrente de logout en app de miembros (JWT de 7d sin refresh). Cualquier 401 borra el token y manda a /login. Objetivo: access token corto (30m) + refresh token largo (30d sliding) hasheado en DB con rotación obligatoria, endpoint /auth/refresh y /auth/logout reales, interceptor de axios con lock compartido, API backwards-compatible para evitar version skew con la app en Play Store. SPEC originalmente creado como Phase 115 (commit huérfano 8be596bf); renumerado a 116 porque 115 quedó asignado a "Evento Desafío de la Barra" en el master real._
+
+---
+
+## v5.0 Overview
+
+**Milestone:** v5.0 — Métricas de Gestión
+**Started:** 2026-06-03
+**Phases:** 4 (120-123)
+**Granularity:** fine
+**Coverage:** 35/35 requirements mapped (100%)
+**Continues from:** Phase 119 (ad-hoc freemium campaign). First phase of this milestone is **Phase 120** — numbering is NOT reset.
+
+**Scope.** Backend-first reemplazo y ampliación de las métricas del panel de gestión con 6 bloques nuevos/mejorados (churn person-based, renovación, funnel de sesiones de prueba, frecuencia de asistencia, LTV con Kaplan-Meier, ticket promedio), más una fundación transversal de helpers comunes. Servicios + endpoints + tests + migraciones. La UI del admin para consumir estos bloques queda fuera de alcance (fase de frontend posterior).
+
+**Dependency axis (drives phase order).** `duration_tier` + helpers (nominal+%+n, motor de breakdowns, semanal/mensual, aislamiento de moneda) → **churn** (Bloque 1) → **LTV** (Bloque 5). Renovación (Bloque 2) comparte el motor de cohorte por `end_date` con churn. Funnel de prueba (Bloque 3) y Frecuencia (Bloque 4) son independientes del eje de vencimiento. NO se mete todo en una sola fase: mezclar migración + algoritmo estadístico (Kaplan-Meier) + refactor de cron de segmentación en un commit atómico es frágil de testear/revisar/shippear.
+
+**Reglas transversales (aplican a todos los bloques).** Nominal + % + n siempre juntos; breakdowns comparables lado a lado por sucursal/país/duración de plan/nombre de plan; aislamiento de moneda ARS/EUR; vistas semanal/mensual respetando el rango del panel; `duration_tier` por flag (`monthly | long_term`), no hardcodeando nombres de plan.
+
+**Decisiones abiertas (se resuelven en el `discuss-phase` de cada fase, NO en el roadmap).**
+
+- `duration_tier`: columna explícita en `subscription_plans` (migración) vs derivado de `durationDays`. Validar contra planes reales. (Fase 120)
+- Alcance del refactor de segmentación batch nocturna (FREQ-06): ¿entra o se difiere exponiendo solo la métrica de frecuencia? (Fase 123)
+- `renewalRate` 7/14/30 actual: ¿se retira o convive con el Bloque 2? (Fase 121)
+- ARPU (Finanzas Avanzadas): ¿se jubila o convive con el LTV del Bloque 5? (Fase 122)
+- Edge case B1: persona con varios vencimientos en el rango → churn sobre su último vencimiento. (Fase 121)
+- Edge case B5: reactivación (se fue y volvió) → una vida con gap vs dos vidas. (Fase 122)
+
+**Reemplaza vs. agrega.** Bloque 1 elimina `churnedMembers` (basado en `updated_at`, frágil); Bloque 2 reescribe `retentionRate`; Bloque 4 mantiene y mejora los segmentos de engagement existentes. Resto de las métricas (KPIs, asistencia, finanzas, reportes) intacto.
+
+**Reference:** `ESPECIFICACION-METRICAS-GESTION.md` (spec de negocio, fuente de verdad) + `BRIEF-METRICAS-GESTION.md` (inventario actual) + `METRICAS_GESTION_HANDOFF_2026-06-02.md` (estructura de fases y hallazgos de código verificados).
+
+## v5.0 Phases
+
+- [ ] **Phase 120: Fundación transversal + Ticket promedio** — `duration_tier` por flag + helpers comunes (nominal+%+n, motor de breakdowns comparables, vista semanal/mensual respetando el rango, aislamiento de moneda, cohortes por rango `[from,to)`) + Bloque 6 (ticket promedio ponderado por `price_paid`, descuento vs `priceRegular`, mediana ante outliers, por moneda). Ticket es chico y estrena los helpers de la fundación.
+- [ ] **Phase 121: Vencimiento — Churn de no renovación + Tasa de renovación** — Bloque 1 (churn person-based, cohorte por `end_date ∈ [from,to)`, churn maduro ≥N días, N libre/multi-N, serie histórica con marca de provisorios) + Bloque 2 (renovación = renovados÷vencidos sobre la misma cohorte, corte renovación/reactivación 15d configurable, número "vivo"). Comparten el motor de cohorte por `end_date`; reemplazan las métricas viejas juntas.
+- [ ] **Phase 122: LTV / vida del cliente** — Bloque 5: lifetime headline `1÷churn mensual` (usa el churn de la fase 121) + robusto Kaplan-Meier (mediana de supervivencia con censura para activos) + LTV monetario desde pagos reales (proyectado y observado, nunca ARPU), separado por moneda, abierto por sucursal/país/plan. Depende del churn de la fase 121; Kaplan-Meier merece fase propia con tests.
+- [ ] **Phase 123: Asistencia + Funnel — Frecuencia de asistencia + Funnel de sesiones de prueba** — Bloque 4 (frecuencia visitas/sem por miembro sobre 4 semanas rodantes, bandas Inactivo/Bajo/Medio/Alto, lista "enfriándose", adopción de check-in al lado, recálculo batch de segmentación) + Bloque 3 (cascada reserva→asistencia→compra, `tasa_cierre`=compraron÷asistieron, ventana de atribución ~21d, solo leads nuevos, cohorte por fecha de sesión agendada). Independientes del eje de vencimiento; Bloque 4 es el de mayor riesgo por el cron de segmentación.
+
+## v5.0 Phase Details
+
+### Phase 120: Fundación transversal + Ticket promedio
+
+**Goal:** Construir la fundación transversal que consumen los 6 bloques (mecanismo de `duration_tier` por flag, helpers de presentación nominal+%+n, motor de breakdowns comparables, aislamiento de moneda, cohortes por rango de fechas con vista semanal/mensual) y validarla entregando el Bloque 6 (ticket promedio) como primer consumidor real. End state: cualquier métrica puede expresarse como nominal+%+n, abrirse por sucursal/país/duración/plan lado a lado, devolverse aislada por moneda, y el gestor obtiene el ticket promedio ponderado real por plan/global con descuento y mediana.
+
+**Depends on:** Nothing (primera fase del milestone; v4.8 finance + analytics 117/118 en producción)
+
+**Requirements** (9/35):
+
+- FUND-01..05 — `duration_tier` por flag + helper nominal+%+n + motor de breakdowns + aislamiento de moneda + cohortes por rango con vista semanal/mensual
+- TICKET-01..04 — ticket por plan (promedio de `price_paid`) + ticket global ponderado + descuento promedio vs `priceRegular` (con mediana) + aislamiento de moneda y breakdowns
+
+**Success Criteria** (what must be TRUE at phase completion):
+
+1. Existe un mecanismo `duration_tier` (`monthly | long_term`) resuelto por flag (no por nombre de plan) consumible por todas las métricas; el breakdown corto/largo plazo se computa desde él y un rename de plan no rompe el reporte.
+2. Un helper común devuelve toda métrica como una estructura uniforme con nominal + porcentaje + tamaño de muestra (n), reutilizable por los 6 bloques; un motor de breakdowns abre cualquier métrica por sucursal, país, duración y nombre de plan devolviendo los segmentos comparables lado a lado (no solo como filtro).
+3. Toda métrica financiera se devuelve aislada por moneda (ARS y EUR nunca se suman en un total); las cohortes respetan el rango `[from,to)` del panel y exponen vista semanal/mensual donde aplique.
+4. El endpoint de ticket devuelve el ticket por plan como promedio de `price_paid` realmente cobrado (captura descuentos automáticamente) y el ticket global como suma total cobrada ÷ cantidad de cobros (promedio ponderado por volumen, por fecha de cobro), por moneda.
+5. El endpoint expone el descuento promedio aplicado (`price_paid` vs `priceRegular`) por plan y por sede, con la mediana junto al promedio para amortiguar outliers, y abre el ticket por corto/largo plazo, sucursal y país.
+
+**Risks / notas:** Decisión abierta — `duration_tier` columna explícita en `subscription_plans` (migración) vs derivado de `durationDays`; resolver en `discuss-phase` validando contra planes reales (el enum actual `planTier` solo tiene `flex`, no existe "Flex+" como tier). Fuente de descuento ya disponible: `subscription_plans.priceRegular`.
+
+**Plans:** TBD (surface during `/gsd-plan-phase 120`)
+**UI hint:** no (backend-first; sin UI de admin en alcance)
+
+### Phase 121: Vencimiento — Churn de no renovación + Tasa de renovación
+
+**Goal:** Reemplazar las métricas frágiles de churn/retención por un par person-based correcto, construido sobre un único motor de cohorte por `end_date ∈ [from,to)`. End state: el gestor obtiene el churn como personas distintas (con churn maduro y multi-N comparativo) y la tasa de renovación como número vivo sobre la misma cohorte, ambos abiertos por los breakdowns estándar, con la métrica vieja basada en `updated_at` eliminada.
+
+**Depends on:** Phase 120 (helpers nominal+%+n, motor de breakdowns, cohortes por rango, `duration_tier`)
+
+**Requirements** (10/35):
+
+- CHURN-01..06 — churn como personas distintas vencidas en `[from,to)` sin sub nueva en N días + N libre/multi-N + churn maduro (≥N días) + renovación anticipada/cambio de duración cuentan como retención + serie histórica con marca de provisorios + breakdowns
+- RENOV-01..04 — renovados÷vencidos sobre la misma cohorte + corte renovación/reactivación 15d configurable + número vivo (no fuerza renovación%+churn%=100) + comparación por segmento
+
+**Success Criteria** (what must be TRUE at phase completion):
+
+1. El endpoint de churn devuelve **personas distintas** (no suscripciones) cuya sub venció en `[from,to)` y no registraron sub nueva dentro de N días; la métrica vieja basada en `updated_at` (`churnedMembers`) queda eliminada.
+2. El parámetro N es libre y el endpoint acepta múltiples N en simultáneo para la vista comparativa (churn@5 / @10 / @15 lado a lado); solo entran personas cuyo vencimiento ocurrió hace ≥N días (churn maduro), excluyendo del numerador y denominador a las que siguen en gracia.
+3. Renovación anticipada (paga antes de vencer) y cambio de duración (mensual↔largo) cuentan como retención (no churn); una sub en pausa no cuenta como vencida; el endpoint expone una serie histórica de churn por cohorte de vencimiento mes a mes con marca de períodos provisorios (cohorte inmadura).
+4. El endpoint de renovación devuelve la tasa = renovados ÷ vencidos en `[from,to)` sobre la misma cohorte que el churn, con corte renovación/reactivación configurable arrancando en 15 días; la tasa es un número vivo que no se fuerza a sumar 100 con el churn (solo coinciden cuando `en_gracia = 0`).
+5. Tanto churn como renovación se abren por los breakdowns estándar (duración, nombre de plan, sucursal, país) con nominal + % + n, y la renovación se ordena/compara por segmento para descubrir buenos y malos performers.
+
+**Risks / notas:** Decisiones abiertas — ¿se retira `renewalRate` 7/14/30 o convive con el Bloque 2? Edge case: persona con varios vencimientos en el rango → evaluar churn sobre su último vencimiento del rango (confirmar con dato real). Resolver en `discuss-phase`.
+
+**Plans:** TBD (surface during `/gsd-plan-phase 121`)
+**UI hint:** no (backend-first; sin UI de admin en alcance)
+
+### Phase 122: LTV / vida del cliente
+
+**Goal:** Entregar la vida del cliente encadenada al churn de la fase anterior: un headline simple y un estimador robusto que maneja censura, más el valor monetario derivado de pagos reales. End state: el gestor obtiene cuánto dura un cliente (headline `1÷churn` + mediana de supervivencia Kaplan-Meier) y cuánto vale (proyectado y observado desde pagos reales), separado por moneda y abierto por sucursal/país/plan.
+
+**Depends on:** Phase 121 (lógica de churn maduro define el fin de vida) y Phase 120 (helpers/breakdowns, aislamiento de moneda)
+
+**Requirements** (5/35):
+
+- LTV-01..05 — headline `1÷churn mensual` + Kaplan-Meier (mediana de supervivencia con censura) + fin de vida por churn maduro del Bloque 1 + LTV monetario desde pagos reales (proyectado y observado, no ARPU) + separado por moneda y abierto por sucursal/país/plan
+
+**Success Criteria** (what must be TRUE at phase completion):
+
+1. El endpoint devuelve el lifetime headline = 1 ÷ churn mensual (reutilizando el churn de la fase 121), abierto por los breakdowns estándar.
+2. El endpoint devuelve el lifetime robusto vía Kaplan-Meier (mediana de supervivencia), tratando a los clientes activos como datos censurados sin descartarlos, y el fin de vida de un cliente se define con la lógica de churn maduro de la fase 121 (los bloques se encadenan).
+3. El LTV monetario se calcula desde pagos reales: proyectado (lifetime × ingreso mensual real por cliente) y observado (suma real pagada en la vida del cliente cerrado), nunca vía ARPU snapshot.
+4. El LTV se devuelve separado por moneda (ARS y EUR nunca se suman) y se abre por sucursal, país y plan, mostrando qué membresía retiene vidas más largas y deja más plata.
+
+**Risks / notas:** Decisiones abiertas — ¿se jubila el ARPU de Finanzas Avanzadas o convive con el LTV? Edge case: reactivación (se fue y volvió) → una vida con gap vs dos vidas, se resuelve con el corte de 15 días de la fase 121. Kaplan-Meier es algoritmo estadístico nuevo: aislado en fase propia con tests dedicados. Resolver en `discuss-phase`.
+
+**Plans:** TBD (surface during `/gsd-plan-phase 122`)
+**UI hint:** no (backend-first; sin UI de admin en alcance)
+
+### Phase 123: Asistencia + Funnel — Frecuencia de asistencia + Funnel de sesiones de prueba
+
+**Goal:** Entregar las dos métricas independientes del eje de vencimiento: la frecuencia de asistencia como alarma proactiva de churn (con su refactor de segmentación) y el funnel diagnóstico de sesiones de prueba reserva→asistencia→compra. End state: el gestor ve la distribución de frecuencia por bandas con la lista "enfriándose" y la adopción de check-in como condición de validez, y obtiene la cascada del funnel con las tasas de cada escalón ancladas por fecha de sesión agendada.
+
+**Depends on:** Phase 120 (helpers/breakdowns, vista semanal/mensual). Independiente de las fases 121/122.
+
+**Requirements** (11/35):
+
+- FREQ-01..06 — frecuencia visitas/sem por miembro sobre 4 semanas rodantes (normalizada para <4 sem) + bandas Inactivo/Bajo/Medio/Alto con distribución (incl. activos con 0 visitas) + lista "enfriándose" (bajó ≥1 banda) con % de variación + adopción de check-in al lado + alimenta y corrige los segmentos existentes + recálculo batch de segmentación
+- FUNNEL-01..05 — cascada reserva→asistencia→compra con `tasa_show`/`tasa_cierre`/`punta_a_punta` + ventana de atribución configurable ~21d + solo leads nuevos sin sub paga previa + cohorte por fecha de sesión de prueba agendada + breakdowns por sucursal/país/turno/plan
+
+**Success Criteria** (what must be TRUE at phase completion):
+
+1. El endpoint de frecuencia devuelve el promedio de visitas/semana por miembro sobre las últimas 4 semanas rodantes (normalizado para <4 semanas de antigüedad) y la distribución por bandas (Inactivo 0 / Bajo ~1 / Medio ~2 / Alto 3+), incluyendo activos con 0 visitas.
+2. El endpoint devuelve la lista de "enfriándose" (miembros que bajaron ≥1 banda entre las 4 semanas actuales y las 4 previas) con el % de variación, y expone al lado el % de adopción de check-in de la sede como condición de validez del dato.
+3. La frecuencia alimenta y corrige los segmentos existentes (espartano/intermitente/en_riesgo/ghost…) y el recálculo de segmentación corre en un proceso batch (ej. nightly) usando la frecuencia como insumo, en vez de solo al login con cooldown.
+4. El endpoint de funnel devuelve la cascada reserva→asistencia→compra con los tres números y las tasas `tasa_show = asistieron÷reservaron`, `tasa_cierre = compraron÷asistieron` (sobre asistentes) y `punta_a_punta = compraron÷reservaron`, usando una ventana de atribución configurable (~21d) que madura sola.
+5. El funnel cuenta solo leads nuevos sin suscripción paga previa, ancla la cohorte por la fecha de la sesión de prueba agendada (con cortes semanal/mensual), y se abre por sucursal, país, turno/horario y plan que terminan comprando, con nominal y %.
+
+**Risks / notas:** Decisión abierta — alcance exacto del refactor de segmentación batch (FREQ-06): ¿entra completo o se difiere exponiendo solo la métrica de frecuencia? El mapeo fino banda↔segmento se define con quien maneja el módulo de segmentación (umbrales no documentados en el brief). Es la fase de mayor riesgo por el cron. Resolver en `discuss-phase`.
+
+**Plans:** TBD (surface during `/gsd-plan-phase 123`)
+**UI hint:** no (backend-first; sin UI de admin en alcance)
+
+## v5.0 Progress
+
+| Phase                                          | Plans Complete | Status      | Completed |
+| ---------------------------------------------- | -------------- | ----------- | --------- |
+| 120. Fundación transversal + Ticket            | 0/TBD          | Not started | -         |
+| 121. Vencimiento (Churn + Renovación)          | 0/TBD          | Not started | -         |
+| 122. LTV / vida del cliente                    | 0/TBD          | Not started | -         |
+| 123. Asistencia + Funnel (Frecuencia + Prueba) | 0/TBD          | Not started | -         |
+
+_Plan counts populated by `/gsd-plan-phase`._
+
+---
+
+_v5.0 added: 2026-06-03 — 4 phases (120-123), 35 requirements (FUND, CHURN, RENOV, FUNNEL, FREQ, LTV, TICKET). Backend-first reemplazo/ampliación de métricas del panel de gestión (6 bloques + fundación transversal). Eje de dependencia: `duration_tier`/helpers → churn → LTV; funnel y frecuencia independientes. Continúa numeración desde fase 119 (campaña freemium ad-hoc). UI de admin fuera de alcance (fase de frontend posterior). Decisiones abiertas (`duration_tier` columna vs derivado, alcance batch FREQ-06, `renewalRate` 7/14/30, ARPU) diferidas a cada `discuss-phase`._

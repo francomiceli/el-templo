@@ -3,10 +3,10 @@ gsd_state_version: 1.0
 milestone: v5.0
 milestone_name: Métricas de Gestión
 status: planning
-last_updated: "2026-06-04T00:04:00.978Z"
-last_activity: 2026-06-04
+last_updated: "2026-06-03T00:00:00.000Z"
+last_activity: 2026-06-03
 progress:
-  total_phases: 0
+  total_phases: 4
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -20,14 +20,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-03)
 
 **Core value:** v5.0 reemplaza y amplía las métricas del panel de gestión con 6 bloques nuevos/mejorados (churn person-based, renovación, funnel de prueba, frecuencia, LTV/Kaplan-Meier, ticket), backend-first, con aislamiento de moneda y breakdowns comparables.
-**Current focus:** Defining requirements → roadmap (phases 120+). Nota: fase 119 (campaña freemium) sigue en gate humano pendiente, preservada fuera de este milestone.
+**Current focus:** Roadmap creado (4 fases: 120 Fundación+Ticket, 121 Vencimiento, 122 LTV, 123 Asistencia+Funnel). Próximo: `/gsd-plan-phase 120`. Nota: fase 119 (campaña freemium) sigue en gate humano pendiente, preservada fuera de este milestone.
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 120 — Fundación transversal + Ticket promedio (not started)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-06-04 — Milestone v5.0 started
+Status: Roadmap complete — awaiting plan-phase 120
+Last activity: 2026-06-03 — Roadmap v5.0 creado (4 fases, 35 reqs, 100% coverage)
+
+Progress: [----] 0/4 phases · 0/35 requirements
 
 ## Performance Metrics
 

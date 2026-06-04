@@ -103,4 +103,42 @@
 
 ## Traceability
 
-<!-- Filled by roadmap: REQ-ID → Phase -->
+<!-- REQ-ID → Phase (filled by roadmap 2026-06-03). 35/35 mapped, 100% coverage. -->
+
+| Requirement | Phase     | Status  |
+| ----------- | --------- | ------- |
+| FUND-01     | Phase 120 | Pending |
+| FUND-02     | Phase 120 | Pending |
+| FUND-03     | Phase 120 | Pending |
+| FUND-04     | Phase 120 | Pending |
+| FUND-05     | Phase 120 | Pending |
+| TICKET-01   | Phase 120 | Pending |
+| TICKET-02   | Phase 120 | Pending |
+| TICKET-03   | Phase 120 | Pending |
+| TICKET-04   | Phase 120 | Pending |
+| CHURN-01    | Phase 121 | Pending |
+| CHURN-02    | Phase 121 | Pending |
+| CHURN-03    | Phase 121 | Pending |
+| CHURN-04    | Phase 121 | Pending |
+| CHURN-05    | Phase 121 | Pending |
+| CHURN-06    | Phase 121 | Pending |
+| RENOV-01    | Phase 121 | Pending |
+| RENOV-02    | Phase 121 | Pending |
+| RENOV-03    | Phase 121 | Pending |
+| RENOV-04    | Phase 121 | Pending |
+| LTV-01      | Phase 122 | Pending |
+| LTV-02      | Phase 122 | Pending |
+| LTV-03      | Phase 122 | Pending |
+| LTV-04      | Phase 122 | Pending |
+| LTV-05      | Phase 122 | Pending |
+| FREQ-01     | Phase 123 | Pending |
+| FREQ-02     | Phase 123 | Pending |
+| FREQ-03     | Phase 123 | Pending |
+| FREQ-04     | Phase 123 | Pending |
+| FREQ-05     | Phase 123 | Pending |
+| FREQ-06     | Phase 123 | Pending |
+| FUNNEL-01   | Phase 123 | Pending |
+| FUNNEL-02   | Phase 123 | Pending |
+| FUNNEL-03   | Phase 123 | Pending |
+| FUNNEL-04   | Phase 123 | Pending |
+| FUNNEL-05   | Phase 123 | Pending |
