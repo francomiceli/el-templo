@@ -47,7 +47,7 @@
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { and, sql, type SQL } from "drizzle-orm";
+import { and, eq, sql, type SQL } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { applyScope } from "./scope";
@@ -162,26 +162,38 @@ export class ChurnService {
     filters: AnalyticsFilters,
     window: number,
   ): Promise<{ window: ChurnWindowResult; enGracia: number }> {
-    const { conditions: scopeConditions } = applyScope({
+    const { conditions: scopeConditions, needsBranchJoin } = applyScope({
       branchId: filters.branchId,
       country: filters.country,
       branchColumn: schema.subscriptions.branchId,
     });
 
-    const rows = await this.db
+    // Country scope filters on `branches.country`, so join `branches` only when a
+    // country filter is active (needsBranchJoin). Without this the bare
+    // `branches.country` condition references a table not in the FROM → 500. The
+    // join never fans out (each sub has exactly one branch FK). The breakdown
+    // queries already join branches unconditionally (flavor A).
+    let query = this.db
       .select({
         userId: schema.subscriptions.userId,
         matured: maturedExpr(window),
         retained: retainedExpr(window),
       })
       .from(schema.subscriptions)
-      .where(
-        and(
-          ...expiryCohortConditions(filters.dateFrom, filters.dateTo),
-          lastExpiryPerPersonExpr(filters.dateFrom, filters.dateTo),
-          ...scopeConditions,
-        ),
+      .$dynamic();
+    if (needsBranchJoin) {
+      query = query.innerJoin(
+        schema.branches,
+        eq(schema.branches.id, schema.subscriptions.branchId),
       );
+    }
+    const rows = await query.where(
+      and(
+        ...expiryCohortConditions(filters.dateFrom, filters.dateTo),
+        lastExpiryPerPersonExpr(filters.dateFrom, filters.dateTo),
+        ...scopeConditions,
+      ),
+    );
 
     const acc = emptyChurnAcc();
     let enGracia = 0;
@@ -222,25 +234,33 @@ export class ChurnService {
     filters: AnalyticsFilters,
     window: number,
   ): Promise<ChurnWindowResult> {
-    const { conditions: scopeConditions } = applyScope({
+    const { conditions: scopeConditions, needsBranchJoin } = applyScope({
       branchId: filters.branchId,
       country: filters.country,
       branchColumn: schema.subscriptions.branchId,
     });
 
-    const rows = await this.db
+    // Join `branches` only under an active country filter (see officialAndGrace).
+    let query = this.db
       .select({
         matured: maturedExpr(window),
         retained: retainedExpr(window),
       })
       .from(schema.subscriptions)
-      .where(
-        and(
-          ...expiryCohortConditions(filters.dateFrom, filters.dateTo),
-          lastExpiryPerPersonExpr(filters.dateFrom, filters.dateTo),
-          ...scopeConditions,
-        ),
+      .$dynamic();
+    if (needsBranchJoin) {
+      query = query.innerJoin(
+        schema.branches,
+        eq(schema.branches.id, schema.subscriptions.branchId),
       );
+    }
+    const rows = await query.where(
+      and(
+        ...expiryCohortConditions(filters.dateFrom, filters.dateTo),
+        lastExpiryPerPersonExpr(filters.dateFrom, filters.dateTo),
+        ...scopeConditions,
+      ),
+    );
 
     const acc = emptyChurnAcc();
     for (const r of rows) {
@@ -265,7 +285,7 @@ export class ChurnService {
     filters: AnalyticsFilters,
     window: number,
   ): Promise<ChurnSeriesPoint[]> {
-    const { conditions: scopeConditions } = applyScope({
+    const { conditions: scopeConditions, needsBranchJoin } = applyScope({
       branchId: filters.branchId,
       country: filters.country,
       branchColumn: schema.subscriptions.branchId,
@@ -273,20 +293,28 @@ export class ChurnService {
 
     const bucket = bucketExpr(schema.subscriptions.endDate, "monthly");
 
-    const rows = await this.db
+    // Join `branches` only under an active country filter (see officialAndGrace).
+    let query = this.db
       .select({
         bucket,
         matured: maturedExpr(window),
         retained: retainedExpr(window),
       })
       .from(schema.subscriptions)
-      .where(
-        and(
-          ...expiryCohortConditions(filters.dateFrom, filters.dateTo),
-          lastExpiryPerPersonExpr(filters.dateFrom, filters.dateTo),
-          ...scopeConditions,
-        ),
+      .$dynamic();
+    if (needsBranchJoin) {
+      query = query.innerJoin(
+        schema.branches,
+        eq(schema.branches.id, schema.subscriptions.branchId),
       );
+    }
+    const rows = await query.where(
+      and(
+        ...expiryCohortConditions(filters.dateFrom, filters.dateTo),
+        lastExpiryPerPersonExpr(filters.dateFrom, filters.dateTo),
+        ...scopeConditions,
+      ),
+    );
 
     // Accumulate per bucket; a bucket is provisional if ANY of its persons has not
     // yet matured (the cohort is still settling).

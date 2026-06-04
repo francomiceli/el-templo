@@ -41,7 +41,7 @@
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { and, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { applyScope } from "./scope";
@@ -135,26 +135,38 @@ export class RenewalService {
     filters: AnalyticsFilters,
     window: number,
   ): Promise<{ renewal: RenewalAnalytics["renewal"]; enGracia: number }> {
-    const { conditions: scopeConditions } = applyScope({
+    const { conditions: scopeConditions, needsBranchJoin } = applyScope({
       branchId: filters.branchId,
       country: filters.country,
       branchColumn: schema.subscriptions.branchId,
     });
 
-    const rows = await this.db
+    // Country scope filters on `branches.country`, so join `branches` only when a
+    // country filter is active (needsBranchJoin). Without this the bare
+    // `branches.country` condition references a table not in the FROM → 500. The
+    // join never fans out (each sub has exactly one branch FK). The breakdown
+    // query already joins branches unconditionally (flavor A).
+    let query = this.db
       .select({
         userId: schema.subscriptions.userId,
         matured: maturedExpr(window),
         retained: retainedExpr(window),
       })
       .from(schema.subscriptions)
-      .where(
-        and(
-          ...expiryCohortConditions(filters.dateFrom, filters.dateTo),
-          lastExpiryPerPersonExpr(filters.dateFrom, filters.dateTo),
-          ...scopeConditions,
-        ),
+      .$dynamic();
+    if (needsBranchJoin) {
+      query = query.innerJoin(
+        schema.branches,
+        eq(schema.branches.id, schema.subscriptions.branchId),
       );
+    }
+    const rows = await query.where(
+      and(
+        ...expiryCohortConditions(filters.dateFrom, filters.dateTo),
+        lastExpiryPerPersonExpr(filters.dateFrom, filters.dateTo),
+        ...scopeConditions,
+      ),
+    );
 
     const acc = emptyRenewalAcc();
     let enGracia = 0;
