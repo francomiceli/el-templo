@@ -574,6 +574,95 @@ export const ticketSchema = {
 } as const;
 
 // =============================================================================
+// Churn de no renovación Schema (Phase 121 Block 1 — CHURN-01..06)
+// =============================================================================
+
+// Local querystring extension (T-121-04): adds the `window` param to the shared
+// analytics querystring WITHOUT mutating the shared const. `window` is an integer
+// bounded 1..365 so a malformed / oversized N is rejected before it reaches the
+// service. branchId/dateFrom/dateTo carry over from analyticsQuerystring.
+const churnQuerystring = {
+  type: "object",
+  properties: {
+    branchId: { type: "integer" },
+    dateFrom: { type: "string", format: "date" },
+    dateTo: { type: "string", format: "date" },
+    window: { type: "integer", minimum: 1, maximum: 365 },
+  },
+} as const;
+
+// The canonical `{ nominal, percentage, n }` envelope (FUND-02 / metric-shape.ts).
+// Declared here so every churn MetricShape on the wire is fully described
+// (fast-json-stringify STRIPS undeclared fields).
+const churnMetricShapeSchema = {
+  type: "object",
+  properties: {
+    nominal: { type: "integer" },
+    percentage: { type: "number" },
+    n: { type: "integer" },
+  },
+} as const;
+
+// One multi-N comparative column / the official window result.
+const churnWindowResultSchema = {
+  type: "object",
+  properties: {
+    windowDays: { type: "integer" },
+    churn: churnMetricShapeSchema,
+  },
+} as const;
+
+// GET /churn — person-based churn (CHURN-01) with the official window, multi-N
+// comparison (5/10/15), enGracia, monthly provisional series, and 4-axis
+// breakdowns. ADMIN_ROLES-only (gestion gets 403). errorSchema covers
+// 400/401/403/500.
+export const churnSchema = {
+  querystring: churnQuerystring,
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        window: churnWindowResultSchema,
+        comparison: {
+          type: "array",
+          items: churnWindowResultSchema,
+        },
+        enGracia: { type: "integer" },
+        series: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              bucket: { type: "string" },
+              churn: churnMetricShapeSchema,
+              provisional: { type: "boolean" },
+            },
+          },
+        },
+        breakdowns: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              axis: {
+                type: "string",
+                enum: ["branch", "country", "duration", "plan"],
+              },
+              key: { type: "string" },
+              churn: churnMetricShapeSchema,
+            },
+          },
+        },
+      },
+    },
+    400: errorSchema,
+    401: errorSchema,
+    403: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+// =============================================================================
 // Financial Analytics Schema
 // =============================================================================
 

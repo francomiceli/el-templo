@@ -14,6 +14,7 @@ import { RetentionService } from "./retention-service";
 import { AdvancedFinanceService } from "./advanced-finance-service";
 import { FunnelService } from "./funnel-service";
 import { TicketService } from "./ticket-service";
+import { ChurnService } from "./churn-service";
 import { handleServiceError } from "../shared/error-handler";
 import type { AnalyticsFilters } from "./types";
 import {
@@ -28,6 +29,7 @@ import {
   advancedFinanceSchema,
   funnelSchema,
   ticketSchema,
+  churnSchema,
 } from "./schemas";
 import type { FunnelEntryOrigin } from "./types";
 
@@ -71,6 +73,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
   );
   const funnelService = new FunnelService(fastify.db, fastify.log);
   const ticketService = new TicketService(fastify.db, fastify.log);
+  const churnService = new ChurnService(fastify.db, fastify.log);
 
   /**
    * Guard: authenticate + gate to the operational analytics set (gestion +
@@ -384,6 +387,44 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
         return result;
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "get ticket");
+      }
+    },
+  );
+
+  // GET /churn — churn de no renovación person-based por vencimiento de cohorte
+  // (Phase 121 Block 1, CHURN-01..06). SENSIBLE → ADMIN_ROLES-only vía
+  // requireAdminAnalytics; gestion recibe 403. Scoped por sede/país
+  // (subscriptions.branchId). `window` (ventana de renovación, default 15) se
+  // valida y acota en churnSchema (T-121-04) antes de llegar al servicio.
+  fastify.get<{
+    Querystring: {
+      branchId?: number;
+      dateFrom?: string;
+      dateTo?: string;
+      window?: number;
+    };
+  }>(
+    "/churn",
+    {
+      schema: churnSchema,
+      preHandler: [
+        requireAdminAnalytics,
+        requireBranchAccess({ from: "query.branchId", optional: true }),
+      ],
+    },
+    async (request, reply) => {
+      try {
+        const filters: AnalyticsFilters = {
+          branchId: request.query.branchId,
+          country: request.scope.country ?? undefined,
+          dateFrom: request.query.dateFrom,
+          dateTo: request.query.dateTo,
+          window: request.query.window,
+        };
+        const result = await churnService.getChurn(filters);
+        return result;
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "get churn");
       }
     },
   );

@@ -326,6 +326,17 @@ export class AnalyticsService {
     return Number(result?.count ?? 0);
   }
 
+  /**
+   * @deprecated Phase 121 D-09: legacy churn metric keyed off `updatedAt` of
+   * `cancelled` subscriptions — fragile and NOT person-based. Superseded by the
+   * canonical person-based churn at `GET /api/admin/analytics/churn`
+   * (`ChurnService.getChurn`), which counts DISTINCT persons whose membership
+   * expired by `endDate` in `[from, to)` and did not renew within the configured
+   * window (churn maduro). Kept live during Phase 121 so the current admin
+   * dashboard does not break; physical removal happens in the admin-UI phase when
+   * the cards reconnect to `/churn`. Do NOT add new callers.
+   */
+  // @deprecated Phase 121 D-09: use ChurnService / GET /churn
   private async countChurnedMembers(
     branchId: number | undefined,
     country: "AR" | "ES" | undefined,
@@ -357,6 +368,17 @@ export class AnalyticsService {
     return Number(result?.count ?? 0);
   }
 
+  /**
+   * @deprecated Phase 121 D-09: legacy retention metric — uses an INCLUSIVE
+   * `<= dateTo` window and a coarse "any active/paused sub exists" renewal test,
+   * NOT the person-based expiry cohort. Superseded by the canonical person-based
+   * churn/renovación at `GET /api/admin/analytics/churn`
+   * (`ChurnService.getChurn`) — renov% is `100 − churn%` only when `enGracia === 0`
+   * (the "número vivo"). Kept live during Phase 121 so the current admin dashboard
+   * does not break; physical removal happens in the admin-UI phase when the cards
+   * reconnect to `/churn`. Do NOT add new callers.
+   */
+  // @deprecated Phase 121 D-09: use ChurnService / GET /churn
   private async computeRetentionRate(
     branchId: number | undefined,
     country: "AR" | "ES" | undefined,
