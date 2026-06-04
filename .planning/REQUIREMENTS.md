@@ -1,130 +1,106 @@
-# Requirements: El Templo v4.85 — Enrollment Service + Admin Add-ons
+# Requirements: El Templo v5.0 — Métricas de Gestión
 
-**Defined:** 2026-05-04
-**Core Value:** El lifecycle de `programEnrollments` está centralizado en un único servicio (`EnrollmentService`) que sirve tanto a las creaciones automáticas vía suscripción como a las asignaciones manuales del admin (add-ons). El admin puede regalar o cobrar programas adicionales sobre la sub activa de un miembro, y los add-ons heredan el ciclo de vida de la sub principal sin acoplar lógica duplicada.
+**Defined:** 2026-06-03
+**Core Value:** El panel de gestión reemplaza y amplía sus métricas con 6 bloques nuevos/mejorados que miden personas (no suscripciones), respetan el rango de fechas del panel, aíslan moneda ARS/EUR y se pueden comparar lado a lado por sucursal/país/duración/plan. El gestor puede diagnosticar churn, renovación, conversión de pruebas, frecuencia de asistencia, vida del cliente y ticket promedio sobre datos correctos.
 
-**Reference:** Conversación 2026-05-04 (transcripts en `.docs/WhatsApp Ptt 2026-05-04 at 14.28.21.txt` y `.docs/WhatsApp Ptt 2026-05-04 at 14.29.51.txt`) + análisis arquitectural en chat principal — diagnóstico del spaghetti `subscriptions/programas` (6 inserts duplicados, fase 111 como síntoma reciente). Inserción entre v4.8 (cerrado) y v4.9 (queued — refactor splits): v4.85 desbloquea v4.9 al sacar la lógica de enrollment fuera de `subscriptions/service.ts`.
+**Reference:** `ESPECIFICACION-METRICAS-GESTION.md` (spec de negocio, fuente de verdad) + `BRIEF-METRICAS-GESTION.md` (inventario actual) + `METRICAS_GESTION_HANDOFF_2026-06-02.md` (estructura de fases y hallazgos de código). Continúa la línea de analytics de las fases 117-118.
 
-**Decisiones clave:**
+**Alcance:** Backend-first — servicios, endpoints, tests y migraciones. La UI del admin para consumir estos bloques es una fase de frontend posterior, fuera de este milestone.
 
-- **A** — Add-ons se transfieren automáticamente al cambiar de plan (sin recobrar).
-- **C** — Add-ons se cancelan cuando muere la sub principal (sin refund automático).
-- **A** — `pricePaid` se cobra como `financial_transaction` independiente al asignar (puede ser 0 = regalo).
-- **Bloqueo (no alerta)** ante programa duplicado activo — admin debe cancelar el viejo primero.
-- Asignación de add-on como acción aparte (no flow combinado con renovación; deferred).
+**Reglas transversales (aplican a todos los bloques salvo indicación):**
 
----
+- **Nominal + % + n siempre juntos.** Todo porcentaje expone su tamaño de muestra.
+- **Breakdowns comparables.** Toda métrica se abre y compara lado a lado por sucursal, país, duración de plan (corto/largo) y nombre de plan.
+- **Aislamiento de moneda.** ARS y EUR nunca se suman.
+- **Cortes temporales.** Vistas semanal/mensual donde aplique; las cohortes respetan el rango de fechas del panel (no ventanas rodantes "desde hoy" salvo que se especifique).
+- **`duration_tier` por flag** (`monthly | long_term`), no hardcodeando nombres de plan.
 
-## v4.85 Requirements
+**Decisiones abiertas (se resuelven en el `discuss-phase` de cada fase, NO ahora):**
 
-24 requirements en 6 categorías. Refactor + feature van juntos: extracción de `EnrollmentService` precede al feature de add-ons para evitar empeorar el acoplamiento existente.
-
-### EnrollmentService Refactor (ENROLL)
-
-- [x] **ENROLL-01
-      **: Toda creación de `programEnrollments` pasa por `EnrollmentService.enrollFromPlan()` — reemplaza los 6 inserts inline en `subscriptions/service.ts` (líneas aproximadas 1204, 1257, 2485, 2536, 3191, 3872).
-- [x] **ENROLL-02
-      **: Todo teardown de `programEnrollments` pasa por `EnrollmentService.tearDownForSubscription()` — reemplaza `tearDownBundleEnrollments` (introducido en fase 111), generalizado para todas las `source` de enrollment.
-- [x] **ENROLL-03
-      **: Métodos mutadores de `EnrollmentService` aceptan parámetro `tx?` opcional para preservar atomicidad cuando son invocados dentro de transacciones existentes en `subscriptions/service.ts`.
-- [x] **ENROLL-04
-      **: Tests existentes de fase 111 (teardown on cancel/expire + recompute `user.status`) pasan sin modificaciones después del refactor — no regresión de comportamiento.
-- [x] **ENROLL-05
-      **: `EnrollmentService` vive en `el-templo-api/src/modules/programs/` y se inyecta a `SubscriptionService` por constructor (DI pattern establecido en fase 56).
-
-### Schema Changes (ADDON-SCHEMA)
-
-- [ ] **ADDON-SCHEMA-01**: `program_enrollments` tiene columna `source` (enum `plan_linked` | `plan_bundle` | `admin_addon`), NOT NULL.
-- [ ] **ADDON-SCHEMA-02**: `program_enrollments` tiene columna `price_paid` (int, nullable). Null = no aplica (enrollment automático por plan); 0 = regalo; > 0 = monto cobrado.
-- [ ] **ADDON-SCHEMA-03**: `program_enrollments` tiene columna `assigned_by` (FK `users.id`, nullable) — auditoría del admin que asignó el add-on. Null para enrollments automáticos.
-- [ ] **ADDON-SCHEMA-04**: `program_enrollments` tiene columna `subscription_id` (FK `subscriptions.id`, nullable) — vincula el enrollment al lifecycle de una sub específica.
-- [ ] **ADDON-SCHEMA-05**: Migration backfilea registros existentes — `source` derivado del plan original (plan con `linkedProgramId` → `plan_linked`, plan con `grantsAllPrograms` → `plan_bundle`); `subscription_id` resuelto donde sea unívoco.
-
-### Admin Add-on API (ADDON-API)
-
-- [x] **ADDON-API-01
-      **: Admin asigna add-on via `POST /api/admin/users/:userId/program-addons` con payload `{ programId, pricePaid?, notes? }`.
-- [x] **ADDON-API-02
-      **: Asignación requiere sub activa del miembro target; sin sub activa → HTTP 400 con código de error explícito.
-- [x] **ADDON-API-03
-      **: `pricePaid > 0` genera `financial_transaction` (kind apropiado del módulo finance v4.8) atómicamente con la creación del enrollment, link via `transaction_links` con `target_kind = enrollment`.
-- [x] **ADDON-API-04
-      **: `pricePaid = 0` o null crea enrollment sin transacción financiera (regalo).
-- [x] **ADDON-API-05
-      **: Programa duplicado activo → HTTP 409 (forzar cancelar el enrollment viejo primero); no se permite tener dos enrollments activas del mismo programa por user.
-- [x] **ADDON-API-06
-      **: Admin/owner puede cancelar un add-on individual via endpoint existente de cancelación de enrollment; el endpoint respeta el rol y emite log de auditoría.
-
-### Lifecycle Hooks (ADDON-LIFE)
-
-- [x] **ADDON-LIFE-01
-      **: `changePlanNow` transfiere add-ons activos de la sub vieja a la nueva (update de `subscription_id`); no se recobra `pricePaid`.
-- [x] **ADDON-LIFE-02
-      **: `changePlanAfterCurrent` mantiene add-ons en la sub actual hasta que muera; transferencia se aplica al activar la scheduled successor.
-- [x] **ADDON-LIFE-03
-      **: Cancel/expire de sub → `EnrollmentService.tearDownForSubscription()` cancela add-ons asociados (status → `cancelled`).
-- [x] **ADDON-LIFE-04
-      **: Teardown de add-on por cancelación de sub NO genera refund automático (decisión C: el add-on muere con la sub; reembolso es decisión de producto fuera de scope).
-
-### Admin Frontend (ADDON-ADMIN-UI)
-
-- [ ] **ADDON-ADMIN-UI-01**: Detalle del miembro tiene sección "Programas" con lista de enrollments activas, cada una con badge `incluido en plan` o `add-on` según `source`.
-- [ ] **ADDON-ADMIN-UI-02**: Cada fila de add-on muestra `pricePaid`, fecha de asignación, y nombre del admin que lo asignó (`assigned_by`).
-- [ ] **ADDON-ADMIN-UI-03**: Botón "Asignar programa adicional" abre modal con dropdown de programas activos disponibles, input opcional de precio (default 0), campo de notas opcional.
-- [ ] **ADDON-ADMIN-UI-04**: Admin cancela un add-on individual desde la lista con confirmación; UI refleja el estado actualizado tras la respuesta.
-- [ ] **ADDON-ADMIN-UI-05**: UI muestra errores accionables del backend — sub inactiva ("Asignar plan primero"), programa duplicado ("Cancelar la inscripción existente primero").
-
-### Member Frontend (ADDON-MEMBER-UI)
-
-- [ ] **ADDON-MEMBER-UI-01**: Dropdown de programas en home del member muestra todas las enrollments activas (linked + add-ons) sin distinción visual; reutiliza el patrón bundle existente.
-- [ ] **ADDON-MEMBER-UI-02**: Member alterna entre programas via dropdown; selección dispara contenido del weekly view (comportamiento bundle preservado, sin nueva UI).
+- `duration_tier`: columna explícita en `subscription_plans` (migración) vs derivado de `durationDays`. Validar contra planes reales.
+- Bloque 4: ¿el refactor de segmentación batch nocturna entra en alcance o se difiere?
+- `renewalRate` 7/14/30 actual: ¿se retira o convive con el Bloque 2?
+- ARPU (Finanzas Avanzadas): ¿se jubila o convive con el LTV del Bloque 5?
+- Edge cases: churn sobre el último vencimiento del rango (B1); reactivación como una vida con gap vs dos vidas (B5).
 
 ---
 
-## Future Requirements (Deferred)
+## v5.0 Requirements
 
-- **Flow combinado "renovar + regalar"**: botón único en `RenewSubscriptionDialog` con checkbox "Regalar programa" + dropdown. Cubierto manualmente por el endpoint actual; se evalúa según fricción operativa.
-- **Refund explícito al cancelar add-on**: política de devolución de `pricePaid` al cancelar manualmente un add-on antes de su completion. Decisión de producto pendiente.
-- **Add-ons sin sub activa**: caso "ex-alumno vuelve solo por programa puntual" — descartado en v4.85, requiere repensar invariantes.
+~35 requirements en 7 categorías (1 fundación transversal + 6 bloques).
 
-## Out of Scope (Explicit Exclusions)
+### Fundación transversal (FUND)
 
-- **Add-ons como producto vendible al member en su app**: solo asignación admin en v4.85.
-- **Multi-currency en `pricePaid`**: hereda la moneda de la sub activa del miembro; sin override.
-- **Pausar add-on independientemente de la sub**: el lifecycle del add-on sigue al de la sub; no hay pausado granular.
-- **Reactivación automática de add-ons al re-suscribirse**: si la sub muere y el miembro vuelve a contratar, los add-ons NO reviven (decisión C).
-- **Splits mecánicos de archivos largos**: corresponde a v4.9 (Refactor Splits, queued).
+- [ ] **FUND-01**: Existe un mecanismo de `duration_tier` (`monthly | long_term`) por plan, resuelto por flag y no por nombre, consumible por todas las métricas para el breakdown corto/largo plazo.
+- [ ] **FUND-02**: Helper común que devuelve toda métrica como nominal + porcentaje + n (tamaño de muestra) en una estructura uniforme reutilizada por los 6 bloques.
+- [ ] **FUND-03**: Motor de breakdowns que abre cualquier métrica por sucursal, país, duración de plan y nombre de plan, devolviendo los segmentos comparables lado a lado (no solo como filtro).
+- [ ] **FUND-04**: Toda métrica financiera se calcula y devuelve aislada por moneda (ARS y EUR nunca se suman en un mismo total).
+- [ ] **FUND-05**: Las métricas de cohorte respetan el rango de fechas `[from, to)` del panel y exponen vista semanal/mensual seleccionable donde aplique (corrige caveat #1).
+
+### Bloque 1 — Churn de no renovación (CHURN)
+
+- [ ] **CHURN-01**: El gestor obtiene el churn como **personas distintas** (no suscripciones) cuya sub venció en `[from, to)` y no registraron sub nueva dentro de N días — reemplaza la métrica vieja basada en `updated_at`.
+- [ ] **CHURN-02**: El parámetro N es configurable y libre (no fijo); el endpoint acepta múltiples N en simultáneo para la vista comparativa (churn@5 / @10 / @15 lado a lado).
+- [ ] **CHURN-03**: Solo entran al cálculo personas cuyo vencimiento ocurrió hace ≥ N días ("churn maduro"); las que siguen en ventana de gracia se excluyen de numerador y denominador hasta madurar.
+- [ ] **CHURN-04**: Renovación anticipada (paga antes de vencer) y cambio de duración (mensual↔largo plazo) cuentan como retención, no como churn. Una sub en pausa no cuenta como vencida.
+- [ ] **CHURN-05**: El gestor obtiene una serie histórica de churn por cohorte de vencimiento mes a mes, con marca de períodos provisorios (cohorte aún inmadura).
+- [ ] **CHURN-06**: El churn se abre por los breakdowns estándar (duración, nombre de plan, sucursal, país) con nominal + % + n.
+
+### Bloque 2 — Tasa de renovación (RENOV)
+
+- [ ] **RENOV-01**: El gestor obtiene la tasa de renovación = renovados ÷ vencidos en la franja `[from, to)`, sobre la misma cohorte de personas que el Bloque 1.
+- [ ] **RENOV-02**: El corte renovación/reactivación es configurable y arranca en 15 días (volver a pagar dentro de 15 días = renovación; después = reactivación, fuera de alcance).
+- [ ] **RENOV-03**: La tasa es un "número vivo": no se fuerza que renovación% + churn% = 100; la consistencia entre ambos solo se cumple cuando toda la cohorte maduró (en_gracia = 0).
+- [ ] **RENOV-04**: La renovación se ordena y compara por segmento (sucursal, país, corto/largo, nombre de plan) para descubrir buenos y malos performers.
+
+### Bloque 3 — Funnel de sesiones de prueba (FUNNEL)
+
+- [ ] **FUNNEL-01**: El gestor obtiene la cascada reserva → asistencia → compra con los tres números y las dos tasas: `tasa_show = asistieron ÷ reservaron`, `tasa_cierre = compraron ÷ asistieron` (sobre asistentes, no reservas), `punta_a_punta = compraron ÷ reservaron`.
+- [ ] **FUNNEL-02**: La conversión usa una ventana de atribución configurable (~21 días desde la sesión); la cohorte madura sola hasta cerrar la ventana.
+- [ ] **FUNNEL-03**: Solo cuentan leads nuevos sin suscripción paga previa; quien ya fue miembro y vuelve es reactivación, no conversión de prueba.
+- [ ] **FUNNEL-04**: La cohorte se ancla por la **fecha de la sesión de prueba agendada** (no por fecha de reserva ni de compra), con cortes semanal/mensual respetando el filtro.
+- [ ] **FUNNEL-05**: El funnel se abre por sucursal, país, turno/horario y plan que terminan comprando, con nominal y %. (No es el funnel freemium→prueba→activo de la sección 6, que está apagado.)
+
+### Bloque 4 — Frecuencia de asistencia por miembro (FREQ)
+
+- [ ] **FREQ-01**: El gestor obtiene la frecuencia = promedio de visitas/semana por miembro sobre las últimas 4 semanas rodantes, normalizando a los miembros con < 4 semanas de antigüedad.
+- [ ] **FREQ-02**: Cada miembro cae en una banda (Inactivo 0 / Bajo ~1 / Medio ~2 / Alto 3+) y el gestor ve la distribución (cuántos miembros por banda), incluyendo activos con 0 visitas.
+- [ ] **FREQ-03**: El gestor obtiene la lista de "enfriándose": miembros que bajaron al menos una banda entre las 4 semanas actuales y las 4 previas, con el % de variación al lado.
+- [ ] **FREQ-04**: Toda vista de frecuencia expone al lado el % de adopción de check-in de la sede como condición de validez del dato (corrige caveat #6).
+- [ ] **FREQ-05**: La frecuencia alimenta y corrige los segmentos existentes (espartano/intermitente/en_riesgo/ghost…) que se mantienen y mejoran.
+- [ ] **FREQ-06**: El recálculo de segmentación corre en un proceso batch (ej. nightly) usando la frecuencia como insumo, en vez de solo al login con cooldown (corrige caveat #8). _(Alcance exacto a confirmar en discuss-phase.)_
+
+### Bloque 5 — LTV / vida del cliente (LTV)
+
+- [ ] **LTV-01**: El gestor obtiene el lifetime headline = 1 ÷ churn mensual (usando el churn del Bloque 1), por los breakdowns estándar.
+- [ ] **LTV-02**: El gestor obtiene el lifetime robusto vía Kaplan-Meier (mediana de supervivencia), tratando a los clientes activos como datos censurados (sin descartarlos).
+- [ ] **LTV-03**: El fin de vida de un cliente se define con la lógica de churn maduro del Bloque 1 (los bloques se encadenan).
+- [ ] **LTV-04**: El LTV monetario se calcula desde pagos reales: proyectado (lifetime × ingreso mensual real por cliente) y observado (suma real pagada en la vida del cliente cerrado), nunca vía ARPU snapshot.
+- [ ] **LTV-05**: El LTV se devuelve separado por moneda y se abre por sucursal, país y plan (qué membresía retiene vidas más largas y deja más plata).
+
+### Bloque 6 — Ticket promedio (TICKET)
+
+- [ ] **TICKET-01**: El gestor obtiene el ticket por plan = promedio de `price_paid` realmente cobrado (no precio de lista), capturando descuentos automáticamente.
+- [ ] **TICKET-02**: El ticket global = suma total cobrada ÷ cantidad de cobros (promedio ponderado por volumen, no promedio de promedios), por moneda, sobre todos los cobros de membresía del período por fecha de cobro.
+- [ ] **TICKET-03**: El gestor obtiene el descuento promedio aplicado = `price_paid` vs precio de lista del plan, por plan y por sede, con la mediana junto al promedio para amortiguar outliers.
+- [ ] **TICKET-04**: El ticket se devuelve aislado por moneda y se abre por corto/largo plazo, sucursal y país.
 
 ---
+
+## Future Requirements (deferred)
+
+- **UI del admin** para los 6 bloques (visualización, comparadores lado a lado, tooltips de provisionalidad). Fase de frontend posterior.
+- **Reactivación** como métrica propia (quien vuelve después del corte de 15 días).
+- **Activación temprana** (primeras N semanas del cliente nuevo).
+- **MRR con componentes** (nuevo / expansión / contracción / churn).
+
+## Out of Scope
+
+- Visualización/dashboards en el admin durante este milestone (backend-first).
+- Mezclar monedas en cualquier total (prohibido por regla transversal).
+- Reescribir el funnel freemium→prueba→activo de la sección 6 (apagado; el Bloque 3 es otra cosa).
+- Splits de archivos largos (v4.9 Refactor Splits).
 
 ## Traceability
 
-| REQ-ID             | Phase |
-| ------------------ | ----- |
-| ENROLL-01          | 112   |
-| ENROLL-02          | 112   |
-| ENROLL-03          | 112   |
-| ENROLL-04          | 112   |
-| ENROLL-05          | 112   |
-| ADDON-SCHEMA-01    | 112   |
-| ADDON-SCHEMA-02    | 112   |
-| ADDON-SCHEMA-03    | 112   |
-| ADDON-SCHEMA-04    | 112   |
-| ADDON-SCHEMA-05    | 112   |
-| ADDON-API-01       | 112   |
-| ADDON-API-02       | 112   |
-| ADDON-API-03       | 112   |
-| ADDON-API-04       | 112   |
-| ADDON-API-05       | 112   |
-| ADDON-API-06       | 112   |
-| ADDON-LIFE-01      | 112   |
-| ADDON-LIFE-02      | 112   |
-| ADDON-LIFE-03      | 112   |
-| ADDON-LIFE-04      | 112   |
-| ADDON-ADMIN-UI-01  | 112   |
-| ADDON-ADMIN-UI-02  | 112   |
-| ADDON-ADMIN-UI-03  | 112   |
-| ADDON-ADMIN-UI-04  | 112   |
-| ADDON-ADMIN-UI-05  | 112   |
-| ADDON-MEMBER-UI-01 | 112   |
-| ADDON-MEMBER-UI-02 | 112   |
+<!-- Filled by roadmap: REQ-ID → Phase -->
