@@ -506,6 +506,123 @@ export interface TicketAnalytics {
   excludedNoLink: number;
 }
 
+// -- Churn + Renovación Analytics (Phase 121) ----------------------------
+
+/**
+ * The breakdown axis a churn/renovación segment row is grouped by (CHURN-06 /
+ * RENOV-04). Mirrors the standard analytics breakdown axes — branch / country /
+ * duration tier / plan. These are ADDITIVE grouping keys, NEVER access filters
+ * (scope stays in `applyScope`).
+ */
+export type ChurnRenewalAxis = "branch" | "country" | "duration" | "plan";
+
+/**
+ * One churn segment (CHURN-06): the churn `{ nominal, percentage, n }` for one
+ * value of one breakdown `axis`. `nominal` = churned persons, `n` = matured
+ * cohort size for the segment.
+ */
+export interface ChurnSegmentRow {
+  /** The breakdown axis this row is grouped by. */
+  axis: ChurnRenewalAxis;
+  /** The segment key within the axis (branch name, country, duration tier, or plan name). */
+  key: string;
+  /** Churn for this segment (`nominal` = churned, `n` = matured cohort). */
+  churn: MetricShape;
+}
+
+/**
+ * One multi-N comparative churn column (D-07 / CHURN-02): the churn at a specific
+ * window. The comparative view shows several of these side by side (default set
+ * `CHURN_COMPARISON_WINDOWS`); the OFFICIAL churn that pairs with renovación uses
+ * the single configured window.
+ */
+export interface ChurnWindowResult {
+  /** The window (in whole days) this churn was computed at. */
+  windowDays: number;
+  /** Churn at this window (`nominal` = churned, `n` = matured cohort). */
+  churn: MetricShape;
+}
+
+/**
+ * One point of the monthly churn series (CHURN-05): the churn for the expiry
+ * cohort of one bucket. `provisional` is `true` when the cohort has NOT yet
+ * matured (its expiries are still within `windowDays` of today), so the value is
+ * not final and the frontend should mark it as such.
+ */
+export interface ChurnSeriesPoint {
+  /** The monthly bucket key (`YYYY-MM`) of the expiry cohort. */
+  bucket: string;
+  /** Churn for this cohort (`nominal` = churned, `n` = matured cohort). */
+  churn: MetricShape;
+  /** `true` when the cohort has not yet matured (>= windowDays old) — value is provisional. */
+  provisional: boolean;
+}
+
+/**
+ * Churn de no renovación analytics (Phase 121 Block 1). Person-based: distinct
+ * persons whose membership expired in `[from, to)` (D-01, cohort from
+ * `expiry-cohort.ts`) and who did NOT renew within the configured window (D-05),
+ * counted only once matured (D-08). Shares ONE cohort definition with renovación
+ * so churn% and renov% sit on the same denominator (RENOV-01).
+ */
+export interface ChurnAnalytics {
+  /**
+   * The OFFICIAL churn at the configured ventana that pairs with renovación
+   * (D-07). Same window the renovación block uses.
+   */
+  window: ChurnWindowResult;
+  /**
+   * The multi-N comparative columns (default `CHURN_COMPARISON_WINDOWS` =
+   * 5/10/15) side by side — exploration view only (D-07 / CHURN-02).
+   */
+  comparison: ChurnWindowResult[];
+  /**
+   * Persons in the grace window (expired < windowDays ago) excluded from the
+   * matured churn calculation (D-08). Surfaced so the frontend can show the
+   * "número vivo" not yet counted.
+   */
+  enGracia: number;
+  /** Monthly churn series by expiry cohort (CHURN-05), provisional flag per point. */
+  series: ChurnSeriesPoint[];
+  /** Churn opened by branch / country / duration / plan (CHURN-06). */
+  breakdowns: ChurnSegmentRow[];
+}
+
+/**
+ * One renovación segment (RENOV-04): the renewal `{ nominal, percentage, n }` for
+ * one value of one breakdown `axis`. `nominal` = renovados, `n` = matured cohort
+ * size (vencidos) for the segment. Sortable / comparable.
+ */
+export interface RenewalSegmentRow {
+  /** The breakdown axis this row is grouped by. */
+  axis: ChurnRenewalAxis;
+  /** The segment key within the axis (branch name, country, duration tier, or plan name). */
+  key: string;
+  /** Renewal for this segment (`nominal` = renovados, `n` = matured cohort / vencidos). */
+  renewal: MetricShape;
+}
+
+/**
+ * Tasa de renovación analytics (Phase 121 Block 2). `renovados ÷ vencidos` over
+ * the SAME matured expiry cohort as churn (RENOV-01). The renewal predicate is the
+ * shared `retainedExpr` at the configured window (default
+ * `RENOVATION_WINDOW_DEFAULT_DAYS`, D-07).
+ */
+export interface RenewalAnalytics {
+  /** The configured renovación window (whole days) this rate was computed at. */
+  windowDays: number;
+  /** Renewal over the matured cohort (`nominal` = renovados, `n` = vencidos). */
+  renewal: MetricShape;
+  /**
+   * Persons still in the grace window (excluded from the matured cohort) — the
+   * "número vivo" (RENOV-03 / D-07). `renov% + churn%` only sum to 100 when
+   * `enGracia === 0`; this field exposes that residual rather than forcing the sum.
+   */
+  enGracia: number;
+  /** Renewal opened by branch / country / duration / plan (RENOV-04). */
+  breakdowns: RenewalSegmentRow[];
+}
+
 // -- Financial Analytics -------------------------------------------------
 
 export interface OutstandingByCurrency {
@@ -573,4 +690,12 @@ export interface AnalyticsFilters {
    * Ignored by metrics that do not support it.
    */
   entryOrigin?: FunnelEntryOrigin;
+  /**
+   * Renovación window in whole days (Phase 121, churn/renovación only, D-07). The
+   * single configurable "ventana de renovación": churn/renovación use it as the
+   * renewal window (no new sub within it = churneó; a new sub within it =
+   * renovado) and the maturity gate. When absent it defaults to
+   * `RENOVATION_WINDOW_DEFAULT_DAYS`. Ignored by metrics that don't support it.
+   */
+  window?: number;
 }
