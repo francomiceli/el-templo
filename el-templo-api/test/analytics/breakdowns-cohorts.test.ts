@@ -99,7 +99,7 @@ describe("breakdowns + cohorts primitives (Phase 120 Plan 03)", () => {
   ): Promise<number> {
     const [u] = await app.db.insert(users).values({
       email,
-      password: "x",
+      passwordHash: "x",
       firstName: "BC",
       lastName: "Tester",
       branchId,
