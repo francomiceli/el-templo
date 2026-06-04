@@ -733,6 +733,89 @@ export interface LtvAnalytics {
   n: number;
 }
 
+// -- Frecuencia de asistencia (Phase 123 Block 4 — FREQ-01..04) ----------
+
+/**
+ * The four frequency bands a member is classified into by visits/week
+ * (D-123-04). `inactivo` (0 visits) is the actionable signal; the cutoffs
+ * between bajo / medio / alto live as named constants in `frequency-service.ts`.
+ * Mirrors the `FrequencyBand` exported by the service (kept in sync here so the
+ * wire types do not import from the service module).
+ */
+export type FrequencyBand = "inactivo" | "bajo" | "medio" | "alto";
+
+/**
+ * The breakdown axis a frequency segment row is grouped by (D-123-14). Same
+ * standard axes as churn/renovación — branch / country / duration tier / plan.
+ * ADDITIVE grouping keys, NEVER access filters (scope stays in `applyScope`).
+ */
+export type FrequencyBreakdownAxis = "branch" | "country" | "duration" | "plan";
+
+/**
+ * One band of the frequency distribution (D-123-04): the count of active members
+ * in `band` over the active population. `count.nominal` = members in the band,
+ * `count.n` = the active population. Active-with-0-visits members fold into
+ * `inactivo`.
+ */
+export interface FrequencyDistributionRow {
+  /** The band this row counts. */
+  band: FrequencyBand;
+  /** Count of active members in this band (`nominal`) over the population (`n`). */
+  count: MetricShape;
+}
+
+/**
+ * One "enfriándose" (cooling-down) member (D-123-05): a member whose
+ * current-window band rank dropped strictly below their prior-window band rank.
+ * `pctVariacion` is informative (the trigger is the band drop, not the %) and is
+ * `null` when the prior window had 0 visits/week (declared `["number","null"]`
+ * on the wire — never NaN).
+ */
+export interface FrequencyCoolingRow {
+  /** The member's user id. */
+  userId: number;
+  /** The member's CURRENT-window band. */
+  currentBand: FrequencyBand;
+  /** The member's PRIOR-window band (strictly higher rank than `currentBand`). */
+  priorBand: FrequencyBand;
+  /** % change in visits/week (current vs prior); `null` when prior is 0. */
+  pctVariacion: number | null;
+}
+
+/**
+ * One frequency breakdown segment (D-123-14): the band count `{ nominal,
+ * percentage, n }` for one band of one value of one breakdown `axis`. `nominal`
+ * = members of that band in the segment, `n` = the segment's active population.
+ */
+export interface FrequencySegmentRow {
+  /** The breakdown axis this row is grouped by. */
+  axis: FrequencyBreakdownAxis;
+  /** The segment key within the axis (branch name, country, duration tier, or plan composite). */
+  key: string;
+  /** The band this row counts within the segment. */
+  band: FrequencyBand;
+  /** Count of active members of this band in the segment (`nominal`) over the segment population (`n`). */
+  count: MetricShape;
+}
+
+/**
+ * Frecuencia de asistencia analytics (Phase 123 Block 4). Per-member visits/week
+ * over the rolling last 4 weeks (normalized for <4-week members, D-123-03),
+ * surfaced as the band distribution (incl. active-0-visits → Inactivo), the
+ * cooling-down list, the reused per-branch check-in adoption ratio (validity
+ * gate, D-123-06), and the 4-axis breakdowns.
+ */
+export interface FrequencyAnalytics {
+  /** Band distribution over the active population (D-123-04). */
+  distribution: FrequencyDistributionRow[];
+  /** Members who dropped ≥1 band vs the prior 4 weeks, with % de variación (D-123-05). */
+  coolingDown: FrequencyCoolingRow[];
+  /** Per-branch check-in adoption ratio (REUSED from AttendanceMetricsService, D-123-06). */
+  checkInAdoption: CheckInAdoptionRow[];
+  /** Band counts opened by branch / country / duration / plan (D-123-14). */
+  breakdowns: FrequencySegmentRow[];
+}
+
 // -- Financial Analytics -------------------------------------------------
 
 export interface OutstandingByCurrency {
