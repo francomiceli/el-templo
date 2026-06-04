@@ -1090,6 +1090,7 @@ export class SubscriptionService {
           classesBudget: classesRemaining,
           notes: input.notes ?? null,
           currency: plan.currency,
+          priceRegularSnapshot: plan.priceRegular,
         });
 
         const newSubscriptionId = Number(insResult[0].insertId);
@@ -2430,6 +2431,7 @@ export class SubscriptionService {
           // country transitions are rejected above, but this is an explicit
           // grep-visible marker that currency follows the plan.
           currency: newPlan.currency,
+          priceRegularSnapshot: newPlan.priceRegular,
         });
 
         const subId = Number(insResult[0].insertId);
@@ -2804,6 +2806,7 @@ export class SubscriptionService {
         previousSubscriptionId: currentSub.id,
         notes: input.notes ?? null,
         currency: targetPlan.currency,
+        priceRegularSnapshot: targetPlan.priceRegular,
       });
 
       const subId = Number(insResult[0].insertId);
@@ -3074,6 +3077,7 @@ export class SubscriptionService {
         classesBudget: periodBudget,
         previousSubscriptionId: currentSub.id,
         currency: plan.currency,
+        priceRegularSnapshot: plan.priceRegular,
       });
 
       const subId = Number(insResult[0].insertId);
