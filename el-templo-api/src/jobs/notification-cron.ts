@@ -22,6 +22,7 @@ import type * as schema from "../db/schema";
 import * as s from "../db/schema";
 import { NotificationService } from "../modules/notifications/service";
 import { SegmentationService } from "../modules/segmentation/service";
+import { FrequencyService } from "../modules/analytics/frequency-service";
 // segment_transition template keys are defined in SEGMENT_TRANSITION_TEMPLATES
 import { SEGMENT_TRANSITION_TEMPLATES } from "../modules/notifications/types";
 import type { MemberSegment } from "../modules/segmentation/types";
@@ -217,6 +218,29 @@ export async function startNotificationJobs(
           .from(s.memberProfiles)
           .where(isNotNull(s.memberProfiles.onboardingCompletedAt));
 
+        // Frequency golden-case signal (Phase 123, D-123-01): compute the set of
+        // active members with 0 visits in the window (or cooling down) ONCE via a
+        // single batched query, then thread it into each per-member recalc as one
+        // more input. A frequency failure degrades gracefully to the legacy ladder
+        // (empty set → isFrequencyGoldenCase:false) rather than aborting the batch
+        // (T-123-11). No new cron is added — this extends the existing 03:00 batch.
+        let goldenCase = new Set<number>();
+        try {
+          const { frequencyZeroVisitWindowDays } =
+            await segmentationService.getThresholds();
+          goldenCase = await new FrequencyService(
+            db,
+            log,
+          ).coolingOrInactiveUserIds(frequencyZeroVisitWindowDays);
+        } catch (freqErr: unknown) {
+          const fMsg =
+            freqErr instanceof Error ? freqErr.message : "Unknown error";
+          log.warn(
+            { err: fMsg },
+            "Frequency golden-case pre-fetch failed; falling back to legacy segment ladder",
+          );
+        }
+
         let transitionsFound = 0;
         let notificationsQueued = 0;
         let ghostReattempts = 0;
@@ -225,9 +249,11 @@ export async function startNotificationJobs(
           try {
             const oldSegment = profile.segment as MemberSegment | null;
 
-            // Calculate new segment (bypass cooldown by calling calculateSegment directly)
+            // Calculate new segment (bypass cooldown by calling calculateSegment
+            // directly), feeding the pre-computed frequency golden-case signal.
             const newSegment = await segmentationService.calculateSegment(
               profile.userId,
+              { isFrequencyGoldenCase: goldenCase.has(profile.userId) },
             );
 
             // Persist the new segment
