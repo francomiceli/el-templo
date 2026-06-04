@@ -4,13 +4,13 @@ milestone: v5.0
 milestone_name: Métricas de Gestión
 status: executing
 stopped_at: Phase 123 context gathered
-last_updated: "2026-06-04T16:21:53.554Z"
+last_updated: "2026-06-04T16:32:16.153Z"
 last_activity: 2026-06-04
 progress:
   total_phases: 4
   completed_phases: 3
   total_plans: 13
-  completed_plans: 11
+  completed_plans: 12
   percent: 75
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-06-03)
 ## Current Position
 
 Phase: 123 (asistencia-funnel-frecuencia-de-asistencia-funnel-de-sesione) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-06-04
 
-Progress: [█████████░] 85%
+Progress: [█████████░] 92%
 
 ## Performance Metrics
 
@@ -201,6 +201,7 @@ _Updated after each plan completion_
 | Phase 122 P02 | 18min | 2 tasks | 4 files |
 | Phase 122 P03 | ~9min | 1 tasks | 1 files |
 | Phase 123 P01 | 12min | 3 tasks | 5 files |
+| Phase 123 P02 | 7 | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -495,6 +496,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: Plan 122-03: ltv.test.ts asserts headline derives from churn.window.churn.percentage for identical filters (both services instantiated); cohort n includes censored lives (=== churn n, D-122-05); observed monetary = exact real-payment sum seeded below list price (D-122-08); ARS/EUR never summed (D-122-09); gestion 403 / admin 200; voidedAt marker from MySQL NOW() keeps grep 'new Date()' literal at 0 for TZ-flake safety.
 - [Phase ?]: 123-01: Frequency bands as named constants BAJO_MAX=1.5/MEDIO_MAX=2.5 visits/week; membership age on users.createdAt clamped [1,4] weeks (D-123-03/04)
 - [Phase ?]: 123-01: getFrequency scoped; coolingOrInactiveUserIds scope-unaware (global nightly batch); checkInAdoption reused from AttendanceMetricsService (D-123-06)
+- [Phase ?]: TrialFunnelService (123-02): asistió desde bookings.status (no attendance, D-123-07); compró = primera sub paga en [sesión, sesión+window) vía DATE_ADD; leads nuevos vía NOT EXISTS sub paga previa; subqueries correlacionadas con prefijo explícito schema.bookings.\* (lección 121/122)
 
 ### Pending Todos
 
@@ -519,7 +521,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-04T16:21:35.907Z
+Last session: 2026-06-04T16:31:58.721Z
 Stopped at: Phase 123 context gathered
 Resume file: None
 

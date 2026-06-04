@@ -55,11 +55,11 @@
 
 ### Bloque 3 — Funnel de sesiones de prueba (FUNNEL)
 
-- [ ] **FUNNEL-01**: El gestor obtiene la cascada reserva → asistencia → compra con los tres números y las dos tasas: `tasa_show = asistieron ÷ reservaron`, `tasa_cierre = compraron ÷ asistieron` (sobre asistentes, no reservas), `punta_a_punta = compraron ÷ reservaron`.
-- [ ] **FUNNEL-02**: La conversión usa una ventana de atribución configurable (~21 días desde la sesión); la cohorte madura sola hasta cerrar la ventana.
-- [ ] **FUNNEL-03**: Solo cuentan leads nuevos sin suscripción paga previa; quien ya fue miembro y vuelve es reactivación, no conversión de prueba.
-- [ ] **FUNNEL-04**: La cohorte se ancla por la **fecha de la sesión de prueba agendada** (no por fecha de reserva ni de compra), con cortes semanal/mensual respetando el filtro.
-- [ ] **FUNNEL-05**: El funnel se abre por sucursal, país, turno/horario y plan que terminan comprando, con nominal y %. (No es el funnel freemium→prueba→activo de la sección 6, que está apagado.)
+- [x] **FUNNEL-01**: El gestor obtiene la cascada reserva → asistencia → compra con los tres números y las dos tasas: `tasa_show = asistieron ÷ reservaron`, `tasa_cierre = compraron ÷ asistieron` (sobre asistentes, no reservas), `punta_a_punta = compraron ÷ reservaron`.
+- [x] **FUNNEL-02**: La conversión usa una ventana de atribución configurable (~21 días desde la sesión); la cohorte madura sola hasta cerrar la ventana.
+- [x] **FUNNEL-03**: Solo cuentan leads nuevos sin suscripción paga previa; quien ya fue miembro y vuelve es reactivación, no conversión de prueba.
+- [x] **FUNNEL-04**: La cohorte se ancla por la **fecha de la sesión de prueba agendada** (no por fecha de reserva ni de compra), con cortes semanal/mensual respetando el filtro.
+- [x] **FUNNEL-05**: El funnel se abre por sucursal, país, turno/horario y plan que terminan comprando, con nominal y %. (No es el funnel freemium→prueba→activo de la sección 6, que está apagado.)
 
 ### Bloque 4 — Frecuencia de asistencia por miembro (FREQ)
 
@@ -137,8 +137,8 @@
 | FREQ-04     | Phase 123 | Complete |
 | FREQ-05     | Phase 123 | Pending  |
 | FREQ-06     | Phase 123 | Pending  |
-| FUNNEL-01   | Phase 123 | Pending  |
-| FUNNEL-02   | Phase 123 | Pending  |
-| FUNNEL-03   | Phase 123 | Pending  |
-| FUNNEL-04   | Phase 123 | Pending  |
-| FUNNEL-05   | Phase 123 | Pending  |
+| FUNNEL-01   | Phase 123 | Complete |
+| FUNNEL-02   | Phase 123 | Complete |
+| FUNNEL-03   | Phase 123 | Complete |
+| FUNNEL-04   | Phase 123 | Complete |
+| FUNNEL-05   | Phase 123 | Complete |

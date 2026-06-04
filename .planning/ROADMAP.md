@@ -2918,12 +2918,12 @@ Plans:
 
 **Risks / notas:** Decisión abierta — alcance exacto del refactor de segmentación batch (FREQ-06): ¿entra completo o se difiere exponiendo solo la métrica de frecuencia? El mapeo fino banda↔segmento se define con quien maneja el módulo de segmentación (umbrales no documentados en el brief). Es la fase de mayor riesgo por el cron. Resolver en `discuss-phase`.
 
-**Plans:** 1/3 plans executed
+**Plans:** 2/3 plans executed
 
 Plans:
 
 - [x] 123-01-PLAN.md — FrequencyService (FREQ-01..04): visits/week rolling 4w + bands + cooling-down + check-in adoption reuse + GET /frequency
-- [ ] 123-02-PLAN.md — TrialFunnelService (FUNNEL-01..05): reserva→asistencia→compra cascade + rates + new-lead + ~21d window + turno/plan-bought breakdowns + GET /trial-funnel
+- [x] 123-02-PLAN.md — TrialFunnelService (FUNNEL-01..05): reserva→asistencia→compra cascade + rates + new-lead + ~21d window + turno/plan-bought breakdowns + GET /trial-funnel
 - [ ] 123-03-PLAN.md — Segmentation golden-case (FREQ-05/06): active-0-visits→en_riesgo override + tuneable threshold + existing nightly batch fed (no new cron)
 
 **UI hint:** no (backend-first; sin UI de admin en alcance)
@@ -2935,7 +2935,7 @@ Plans:
 | 120. Fundación transversal + Ticket            | 4/4            | Complete    | 2026-06-04 |
 | 121. Vencimiento (Churn + Renovación)          | 3/3            | Complete    | 2026-06-04 |
 | 122. LTV / vida del cliente                    | 3/3            | Complete    | 2026-06-04 |
-| 123. Asistencia + Funnel (Frecuencia + Prueba) | 1/3            | In Progress |            |
+| 123. Asistencia + Funnel (Frecuencia + Prueba) | 2/3            | In Progress |            |
 
 _Plan counts populated by `/gsd-plan-phase`._
 
