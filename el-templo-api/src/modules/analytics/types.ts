@@ -8,6 +8,9 @@
 // Reuse the canonical segment union (segmentation module) — analytics NEVER
 // redefines segments (D-12).
 import type { MemberSegment } from "../segmentation/types";
+// Phase 120 Block 6: the ticket reuses the canonical `{ nominal, percentage, n }`
+// envelope (FUND-02) for every ticket figure rather than redefining it.
+import type { MetricShape } from "./metric-shape";
 
 // -- Trend ---------------------------------------------------------------
 
@@ -360,6 +363,147 @@ export interface AdvancedFinanceAnalytics {
   accruedTrend: Array<{ month: string; ARS: number; EUR: number }>;
   arpu: Array<{ month: string; ARS: number; EUR: number }>;
   excludedInvalidWindow: number;
+}
+
+// -- Ticket promedio (Phase 120 Block 6 — TICKET-01..04) -----------------
+
+/**
+ * The average of a single cohort of charges plus its sample size. Used for the
+ * list-price vs discounted/customized split (both per-plan and global). `average`
+ * is `null` when the cohort is empty (`n === 0`) so the wire shape never carries
+ * NaN; the schema declares it `["number","null"]`.
+ */
+export interface TicketCohortAverage {
+  /** Mean `price_paid` of this cohort, or `null` when the cohort is empty. */
+  average: number | null;
+  /** Number of charges in this cohort. */
+  n: number;
+}
+
+/**
+ * The two-cohort split of a ticket figure so discounts/overrides do not silently
+ * distort the headline number (TICKET must read cleanly):
+ *   - `listPrice`:  charges placed at the agreed list price with no override
+ *     (`price_paid === listBase` AND `priceOverrideAmount` is null).
+ *   - `discounted`: charges placed below list price OR with a price override/
+ *     customization applied (`price_paid < listBase` OR `priceOverrideAmount` is
+ *     non-null).
+ * `$0` charges (`price_paid === 0`) belong to NEITHER cohort — they are excluded
+ * from both averages and surfaced separately via `zeroCount`/`zeroPct`.
+ */
+export interface TicketCohortSplit {
+  listPrice: TicketCohortAverage;
+  discounted: TicketCohortAverage;
+}
+
+/**
+ * Per-plan ticket row (grouped by `(name, country)` so "Flex (AR)" ≠ "Flex (ES)").
+ * Every figure here is for ONE currency — the per-currency block owns the array.
+ */
+export interface TicketPlanRow {
+  /** Plan display name. */
+  planName: string;
+  /** Plan country (`AR` | `ES`). Part of the grouping key alongside `planName`. */
+  country: string;
+  /**
+   * Duration tier derived from the plan's `durationDays` via `deriveDurationTier`
+   * (`"monthly"` | `"long_term"`); `null` for excluded one-off plans.
+   */
+  durationTier: "monthly" | "long_term" | null;
+  /**
+   * The plan's volume-weighted ticket over its charges with `price_paid > 0`:
+   * `nominal` = mean `price_paid`, `n` = count of those charges. `$0` charges are
+   * excluded from this average and reported via `zeroCount`/`zeroPct`.
+   */
+  ticket: MetricShape;
+  /** Mean discount fraction (0..1) vs list base; `null` when no priced charge. */
+  discountMean: number | null;
+  /** Median discount fraction (0..1) vs list base; `null` when no priced charge. */
+  discountMedian: number | null;
+  /** Count of `$0` charges (`price_paid === 0`) placed on this plan. */
+  zeroCount: number;
+  /** `zeroCount` as a percentage of ALL the plan's charges (incl. `$0`); `0` when none. */
+  zeroPct: number;
+  /** List-price vs discounted/customized split of this plan's priced charges. */
+  cohorts: TicketCohortSplit;
+}
+
+/** Per-branch ticket row (one currency, owned by the per-currency block). */
+export interface TicketBranchRow {
+  /** Branch display name. */
+  branchName: string;
+  /** Volume-weighted ticket over the branch's `price_paid > 0` charges. */
+  ticket: MetricShape;
+  /** Mean discount fraction (0..1) for the branch; `null` when no priced charge. */
+  discountMean: number | null;
+  /** Median discount fraction (0..1) for the branch; `null` when no priced charge. */
+  discountMedian: number | null;
+}
+
+/** Per-duration-tier ticket row (one currency, owned by the per-currency block). */
+export interface TicketDurationRow {
+  /** The duration tier (`"monthly"` | `"long_term"`). One-off plans are excluded. */
+  durationTier: "monthly" | "long_term";
+  /** Volume-weighted ticket over the tier's `price_paid > 0` charges. */
+  ticket: MetricShape;
+}
+
+/**
+ * The complete ticket payload for ONE currency. ARS and EUR are NEVER summed —
+ * each currency owns its own block (FUND-04 / TICKET-04).
+ */
+export interface TicketCurrencyBlock {
+  /**
+   * Volume-weighted GLOBAL ticket: `SUM(price_paid) / COUNT(charges)` over all
+   * `price_paid > 0` charges in this currency (TICKET-02 — NOT the mean of the
+   * per-plan means). `nominal` = the weighted average, `n` = the charge count.
+   */
+  global: MetricShape;
+  /** List-price vs discounted/customized split of the global priced charges. */
+  globalCohorts: TicketCohortSplit;
+  /** Count of GLOBAL `$0` charges (`price_paid === 0`) in this currency. */
+  zeroCount: number;
+  /** Global `zeroCount` as a percentage of ALL charges (incl. `$0`); `0` when none. */
+  zeroPct: number;
+  /** Global mean discount fraction (0..1); `null` when no priced charge. */
+  discountMean: number | null;
+  /** Global median discount fraction (0..1); `null` when no priced charge. */
+  discountMedian: number | null;
+  /** Per-plan ticket rows, grouped by `(name, country)`. */
+  perPlan: TicketPlanRow[];
+  /** Per-branch ticket rows. */
+  byBranch: TicketBranchRow[];
+  /** Per-duration-tier ticket rows. */
+  byDuration: TicketDurationRow[];
+}
+
+/**
+ * Ticket promedio analytics (Phase 120 Block 6). Per currency: the per-plan and
+ * volume-weighted global ticket sourced from the LINKED `subscriptions.price_paid`
+ * (NOT `financial_transactions.amount`, which is cash received and can be a partial
+ * payment), the `$0` charge count/%, the mean+median discount vs the
+ * `price_regular_snapshot` (current-`priceRegular` fallback for historical rows),
+ * and the list-price vs discounted/customized cohort split.
+ *
+ * Caveat counts:
+ *   - `historicalFallbackCount`: charges whose subscription had a NULL
+ *     `priceRegularSnapshot` and whose discount therefore fell back to the plan's
+ *     CURRENT `priceRegular` (the list price was never stored) — surfaced so the
+ *     frontend can disclaim the discount fidelity for those rows.
+ *   - `excludedNoLink` (MANDATORY): in-period `plan_charge`s with NO subscription
+ *     link (e.g. enrollment-only charges linked via `target_kind='enrollment'`).
+ *     These are NOT membership charges, so they are excluded from every ticket
+ *     figure and surfaced here rather than silently dropped.
+ */
+export interface TicketAnalytics {
+  byCurrency: {
+    ARS: TicketCurrencyBlock;
+    EUR: TicketCurrencyBlock;
+  };
+  /** Count of priced charges that fell back to the plan's current `priceRegular`. */
+  historicalFallbackCount: number;
+  /** MANDATORY: in-period `plan_charge`s with no subscription link (per currency, summed). */
+  excludedNoLink: number;
 }
 
 // -- Financial Analytics -------------------------------------------------
