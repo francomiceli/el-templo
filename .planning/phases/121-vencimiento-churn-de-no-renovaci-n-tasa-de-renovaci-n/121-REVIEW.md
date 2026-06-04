@@ -20,6 +20,12 @@ findings:
   info: 3
   total: 9
 status: issues_found
+resolution:
+  critical_resolved: 2
+  resolved_in: 70967c7d
+  warnings_open: 4
+  info_open: 3
+  note: "CR-01 (retainedExpr continuity) + CR-02 (subquery scope) fixed same-branch; warnings/info deferred."
 ---
 
 # Phase 121: Code Review Report
