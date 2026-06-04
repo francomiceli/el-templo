@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v5.0
 milestone_name: Métricas de Gestión
 status: verifying
-stopped_at: Completed 120-01-PLAN.md
-last_updated: "2026-06-04T01:21:05.728Z"
+stopped_at: Phase 121 context gathered
+last_updated: "2026-06-04T02:17:17.411Z"
 last_activity: 2026-06-04
 progress:
   total_phases: 4
@@ -495,8 +495,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-04T01:20:07.546Z
-Stopped at: Completed 120-01-PLAN.md
-Resume file: None
+Last session: 2026-06-04T02:17:17.390Z
+Stopped at: Phase 121 context gathered
+Resume file: .planning/phases/121-vencimiento-churn-de-no-renovaci-n-tasa-de-renovaci-n/121-CONTEXT.md
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
