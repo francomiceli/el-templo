@@ -2,9 +2,10 @@
 gsd_state_version: 1.0
 milestone: v5.0
 milestone_name: Métricas de Gestión
-status: planning
-last_updated: "2026-06-03T00:00:00.000Z"
-last_activity: 2026-06-03
+status: completed
+stopped_at: Phase 120 context gathered
+last_updated: "2026-06-04T00:24:29.321Z"
+last_activity: 2026-06-03 — Roadmap v5.0 creado (4 fases, 35 reqs, 100% coverage)
 progress:
   total_phases: 4
   completed_phases: 0
@@ -484,8 +485,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-02T03:30:00Z
-Stopped at: 119-07 HUMAN-GATE-PENDING — Task 1 committed (2a9dcbc4); Tasks 2-4 are blocking human gates. Remaining human checklist (A-E) in 119-07-SUMMARY.md. No send fired, no push.
-Resume file: .planning/phases/119-campa-a-de-sesi-n-de-prueba-freemium-reserva-self-service-si/119-07-SUMMARY.md
+Last session: 2026-06-04T00:24:29.304Z
+Stopped at: Phase 120 context gathered
+Resume file: .planning/phases/120-fundaci-n-transversal-ticket-promedio/120-CONTEXT.md
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
