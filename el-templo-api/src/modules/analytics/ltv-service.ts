@@ -116,11 +116,6 @@ interface ClassifiedLife {
   closed: boolean;
 }
 
-/** A fresh empty per-currency monetary block (no data → all-null averages). */
-function emptyCurrencyBlock(): LtvCurrencyBlock {
-  return { projected: null, observed: null, monthlyRealRevenue: null, n: 0 };
-}
-
 /** Narrow a raw currency string to the supported union, or `null` (never summed in). */
 function toCurrency(raw: string | null | undefined): Currency | null {
   return raw === "EUR" ? "EUR" : raw === "ARS" ? "ARS" : null;
