@@ -15,6 +15,7 @@
 - **v4.8 Modelo Financiero** - Phases 105-109 (complete)
 - **v4.85 Enrollment Service + Admin Add-ons** - Phases 112-114 (complete/in progress)
 - **v5.0 Métricas de Gestión** - Phases 120-123 (planned)
+- **v5.1 Nuevo Sistema de Entrenamiento** - Phases 124-131 (planned)
 
 ---
 
@@ -2942,3 +2943,250 @@ _Plan counts populated by `/gsd-plan-phase`._
 ---
 
 _v5.0 added: 2026-06-03 — 4 phases (120-123), 35 requirements (FUND, CHURN, RENOV, FUNNEL, FREQ, LTV, TICKET). Backend-first reemplazo/ampliación de métricas del panel de gestión (6 bloques + fundación transversal). Eje de dependencia: `duration_tier`/helpers → churn → LTV; funnel y frecuencia independientes. Continúa numeración desde fase 119 (campaña freemium ad-hoc). UI de admin fuera de alcance (fase de frontend posterior). Decisiones abiertas (`duration_tier` columna vs derivado, alcance batch FREQ-06, `renewalRate` 7/14/30, ARPU) diferidas a cada `discuss-phase`._
+
+---
+
+## v5.1 Overview
+
+**Milestone:** v5.1 — Nuevo Sistema de Entrenamiento
+**Started:** 2026-06-04
+**Phases:** 8 (124-131)
+**Granularity:** fine
+**Coverage:** 18/18 requirements mapped (100%)
+**Continues from:** Phase 123 (v5.0 Métricas de Gestión). First phase of this milestone is **Phase 124** — numbering is NOT reset.
+
+**Scope.** Reestructurar el sistema de entrenamiento alrededor de un **árbol de habilidades** (DAG) construido sobre 3 ejes ortogonales (gesto/sub-familia, palanca/posición, contracción). El árbol es el **cimiento** y va primero; sobre él se levantan el **nivel Kairos** (escalón previo a Alfa, híbrido que hereda de Alfa con formato lineal forzado) y el **ajuste de dificultad in-session** (botones más fácil/más difícil que sirven el vecino correcto y dejan un registro de "dominado"). Backend-first, brownfield: los niveles son un enum hardcodeado en `exercises.ts`/`users.ts`/`completed-sessions.ts`/`level-mapping.ts` y admin `constants/levels.ts` — agregar Kairos toca todos esos lugares.
+
+**Dependency axis (drives phase order).** TREE es el cimiento. Dentro de TREE: la estructuración de datos (TREE-01/05, fase 124) es la bedrock, luego el bootstrap+revisión que puebla las dimensiones (TREE-02/03, fase 125), luego el grafo derivado (TREE-04, fase 126); recién sobre el grafo se exponen el % de avance al miembro (TREE-06, fase 127) y el editor de árbol al admin (TREE-07, fase 128). Kairos (Eje 1) depende del catálogo saneado (fase 124) pero NO del grafo. El ajuste in-session (Eje 3, fase 131) depende del grafo (fase 126, que provee la primitiva "vecino arriba/abajo") y del % del árbol (fase 127); incluye su propio registro de "dominado" como modelo de datos. NO se mezcla migración de esquema + bootstrap LLM + construcción de grafo + enum de nivel en un commit atómico: cada eje y cada capa es frágil de testear/revisar por separado.
+
+**Decisiones ya tomadas (no se re-litigan en el roadmap ni en discuss-phase).** Modelado por estructuración de las 3 dimensiones (no cablear aristas); bootstrap LLM + revisión humana; árbol auto-construye desde el orden del SPOM/`dificultadLineal` y los profes ajustan después en el editor del admin (`BRIEF-PROFES` NO bloquea); Kairos híbrido (nivel real que hereda de Alfa, ejercicios `difficulty=1`, formato solo lineal + 2 ej/bloque, alcance de código SOLO estructural — la conversión de la sesión de prueba NO es requisito de código, no se ata al funnel 123 de v5.0); alumnos nuevos arrancan en Kairos por defecto; Eje 3 disparo manual, criterio binario contra la prescripción del SPOM, un escalón por toque, se recuerda lo dominado pero NO cambia nivel ni SPOM automáticamente.
+
+**Decisiones abiertas (se resuelven en el `discuss-phase` de cada fase, NO en el roadmap).**
+
+- Agrupación visible del árbol: `category` (fina, ~22) vs `pattern` (gruesa, ~9) — feedback de profes apunta a `category`. (Fases 124/127)
+- Eje transversal "estático/dinámico" como atributo/filtro, no categoría paralela — confirmar con profes. (Fase 127)
+- INITIUM en sesiones Kairos: ¿se baja a 2 ejercicios o queda excluido del "2 por bloque"? (Fase 129)
+- Umbral exacto de sesiones para graduar Kairos → Alfa. (Fase 130)
+- Cómo se _captura_ "dominar" (el criterio binario ya está decidido; la mecánica de captura no). (Fase 131)
+- Dosis lineales exactas de Kairos (4×12, 5×8…) — de los profes. (Fases 129/131)
+
+**Out of scope (confirmado).** Cambio automático de nivel o de la planificación del SPOM a partir del ajuste in-session (sigue siendo criterio del coach); contenido propio de Kairos cargado por Fran (mientras tanto hereda de Alfa); upsell por estancamiento; ejes adicionales (tempo, rango, banda); trabajo "de pie" del audio del Trainer; atar Kairos al funnel de conversión de la sesión de prueba.
+
+**Reference:** `.planning/research/new-training-system-design.md` (doc de diseño, fuente de verdad) + `.docs/new-training-system/BRIEF-PROFES.md` (decisiones de dominio) + audios en `.docs/new-training-system/`.
+
+## v5.1 Phases
+
+- [ ] **Phase 124: Estructura de datos de las 3 dimensiones + saneo** — Esquema gesto/palanca/contracción separado del `position` sucio + saneo del catálogo (~103 sin ruta, duplicados, `position` que mezcla 3 conceptos). Bedrock del milestone.
+- [ ] **Phase 125: Bootstrap LLM + revisión de profes de la descomposición** — Proceso que propone gesto/palanca/contracción por nombre, con salida revisable que los profes aceptan/corrigen/rechazan antes de fijarla como verdad.
+- [ ] **Phase 126: Auto-construcción del grafo (DAG) de progresiones** — Grafo ramificado derivado del orden del SPOM/`dificultadLineal` + las 3 dimensiones; provee la primitiva "vecino un escalón arriba/abajo" que necesita el Eje 3.
+- [ ] **Phase 127: % de avance del árbol para el miembro** — El miembro ve su progreso por familia/nodo del árbol agrupado por categoría temática (Tracción/Empuje/Piernas/Core/Movilidad).
+- [ ] **Phase 128: Editor de árbol en el admin** — Sección nueva donde los profes reordenan ejercicios, agrupan/separan sub-familias y ajustan precedencias sobre el grafo ya construido.
+- [ ] **Phase 129: Nivel Kairos — enum, herencia de Alfa y formato lineal** — 5→6 niveles en API/app/admin + generación que hereda de Alfa (`difficulty=1`) con capa que fuerza formato solo lineal + 2 ej/bloque.
+- [ ] **Phase 130: Asignación, graduación y selector de Kairos** — Default de alumno nuevo = Kairos + graduación automática por umbral + salto manual del coach + 6º recuadrito en el selector de nivel.
+- [ ] **Phase 131: Ajuste de dificultad in-session + registro de "dominado / bajado"** — Persistencia nueva de dominado/bajado por miembro (distinta del "completado" local + RPE, referenciada a nodos del árbol) + botones más fácil/más difícil en el player que sirven el vecino correcto del árbol conservando ruta/contracción/formato/dosis, alimentan el % y los ve el coach.
+
+## v5.1 Phase Details
+
+### Phase 124: Estructura de datos de las 3 dimensiones + saneo
+
+**Goal:** Las 3 dimensiones de dificultad (gesto/sub-familia, palanca/posición, contracción) existen como datos estructurados y limpios en el esquema, separadas del campo `position` actual (que hoy mezcla palanca + implemento + orientación), con el catálogo de ejercicios saneado para que el resto del milestone construya sobre datos confiables. End state: cualquier ejercicio puede leerse por sus 3 dimensiones como columnas/relaciones propias, ningún ejercicio queda sin ruta, los duplicados están resueltos y `position` queda descompuesto sin pérdida de información.
+
+**Depends on:** Nothing (cimiento / fase 0 del milestone; v5.0 en `verifying`)
+
+**Requirements** (2/18):
+
+- TREE-01 — gesto/sub-familia, palanca/posición y contracción como datos estructurados, separados del `position` actual
+- TREE-05 — saneo: ~103 ejercicios sin ruta reciben ruta, duplicados resueltos, `position` separado en sus conceptos
+
+**Success Criteria** (what must be TRUE at phase completion):
+
+1. Cada ejercicio tiene gesto/sub-familia, palanca/posición y contracción como campos estructurados propios, distintos del campo `position` heredado.
+2. Los ~103 ejercicios sin ruta tienen ruta asignada (ninguno queda huérfano de ruta).
+3. Los duplicados (mismo ejercicio repetido en varios niveles) están resueltos según un criterio explícito y documentado.
+4. El campo `position` queda descompuesto en sus conceptos (palanca vs implemento vs orientación) sin perder información del dato original.
+
+**Risks / notas:** Brownfield — el enum de niveles está hardcodeado en `exercises.ts`/`users.ts`/`completed-sessions.ts`/`level-mapping.ts`/admin `constants/levels.ts` (no se toca acá, pero el catálogo de ~1.493 ejercicios sí). `effort` (contracción) ya está 70% poblado y limpio; `position` (palanca) 53% poblado y sucio. Decisión abierta diferida: agrupación visible `category` vs `pattern` (puede informar el esquema, no lo bloquea). Migración + saneo de datos productivos: validar contra datos reales, idempotencia.
+
+**Plans:** TBD
+**UI hint:** no (backend-first; esquema + saneo de datos)
+
+### Phase 125: Bootstrap LLM + revisión de profes de la descomposición
+
+**Goal:** Las 3 dimensiones de cada ejercicio quedan pobladas mediante una propuesta automática asistida por LLM que los profes revisan y fijan, sin requerir carga manual desde cero. End state: existe una propuesta de gesto/palanca/contracción por ejercicio en estado revisable, y un profe puede aceptarla, corregirla o rechazarla antes de que se convierta en dato de verdad sobre los campos de la fase 124.
+
+**Depends on:** Phase 124 (los campos estructurados deben existir para poblarlos)
+
+**Requirements** (2/18):
+
+- TREE-02 — bootstrap asistido por LLM que propone la descomposición por nombre, con salida revisable antes de aplicarse
+- TREE-03 — los profes revisan y corrigen la descomposición propuesta antes de fijarla como verdad
+
+**Success Criteria** (what must be TRUE at phase completion):
+
+1. Un proceso genera, a partir del nombre del ejercicio, una propuesta de gesto/palanca/contracción para cada ejercicio.
+2. La propuesta queda en un estado revisable y NO se aplica como verdad automáticamente.
+3. Un profe puede aceptar, corregir o rechazar la descomposición propuesta antes de fijarla.
+4. Una vez fijada, la descomposición queda persistida como dato de verdad sobre los campos estructurados de la fase 124.
+
+**Risks / notas:** El bootstrap LLM es un proceso de un solo uso / re-ejecutable, no un servicio en caliente — diseñar para revisión humana como gate obligatorio (TREE-03), nunca auto-aplicar. La revisión la hacen los profes desde una superficie (puede ser parte del admin o una vista dedicada). `BRIEF-PROFES` NO bloquea esta fase.
+
+**Plans:** TBD
+**UI hint:** yes
+
+### Phase 126: Auto-construcción del grafo (DAG) de progresiones
+
+**Goal:** El sistema construye automáticamente el grafo ramificado (DAG) de progresiones de ejercicios a partir del orden del SPOM/`dificultadLineal` y las 3 dimensiones ya estructuradas, sin que nadie cablee aristas a mano. End state: existe un grafo navegable donde cada ruta contiene sus sub-familias paralelas ordenadas por palanca y contracción, regenerable de forma determinística, y para cualquier ejercicio se puede resolver su vecino un escalón arriba/abajo en su cadena (ruta × contracción) — la primitiva que consumirá el Eje 3.
+
+**Depends on:** Phase 125 (necesita las dimensiones pobladas y fijadas)
+
+**Requirements** (1/18):
+
+- TREE-04 — auto-construir el grafo ramificado (DAG) desde el orden del SPOM/`dificultadLineal` + las 3 dimensiones (sub-familias paralelas dentro de cada ruta, ordenadas por palanca y contracción)
+
+**Success Criteria** (what must be TRUE at phase completion):
+
+1. Existe un grafo (DAG) de progresiones donde cada ruta contiene sus sub-familias paralelas.
+2. Dentro de cada sub-familia, los nodos están ordenados por palanca y contracción de forma consistente con el orden del SPOM.
+3. El grafo se regenera de forma determinística a partir de los datos (orden del SPOM + dimensiones), no de una lista cableada a mano.
+4. Para cualquier ejercicio del grafo se puede resolver su vecino un escalón arriba/abajo dentro de su cadena (ruta × contracción) — primitiva para el Eje 3.
+
+**Risks / notas:** El algoritmo `exercise-fallback.ts` ya elige "ejercicio equivalente" por `(route, effort, difficulty, level)` — reutilizable como base para la resolución de vecinos. `dificultadLineal` (1-12) es el aplastamiento de los 3 ejes con empates (ej: dl=2 en planche tiene 7 hermanos): la construcción debe desambiguar empates usando las dimensiones estructuradas. Decisión ya tomada: el orden sale del SPOM, los profes ajustan después (fase 128).
+
+**Plans:** TBD
+**UI hint:** no (backend-first; motor de construcción del grafo)
+
+### Phase 127: % de avance del árbol para el miembro
+
+**Goal:** El miembro ve su progreso a través del árbol de habilidades, agrupado por las categorías temáticas existentes. End state: el miembro abre su árbol y ve un % de avance por familia/nodo, agrupado por Tracción/Empuje/Piernas/Core/Movilidad, reflejando el grafo real construido en la fase 126.
+
+**Depends on:** Phase 126 (el grafo es la estructura que se muestra)
+
+**Requirements** (1/18):
+
+- TREE-06 — el miembro ve su % de avance por familia/nodo del árbol, agrupado por categoría temática existente
+
+**Success Criteria** (what must be TRUE at phase completion):
+
+1. El miembro ve un % de avance por familia/nodo del árbol.
+2. El avance se agrupa visualmente por categoría temática (Tracción / Empuje / Piernas / Core / Movilidad).
+3. La vista refleja el grafo construido en la fase 126 (las familias/nodos mostrados corresponden al DAG real).
+
+**Risks / notas:** Decisiones abiertas diferidas a `discuss-phase` — agrupación visible `category` (fina, ~22) vs `pattern` (gruesa, ~9); eje transversal estático/dinámico como atributo/filtro (no categoría paralela). En esta fase el % se calcula sobre el avance ya conocido (nivel + sesiones); el registro de "dominado" y el ajuste in-session de la fase 131 lo enriquecen y cierran el lazo después. Mapeo ruta→categoría es casi 1:1 con `pattern`.
+
+**Plans:** TBD
+**UI hint:** yes
+
+### Phase 128: Editor de árbol en el admin
+
+**Goal:** Los profes pueden ajustar el árbol auto-construido (reordenar ejercicios, agrupar/separar sub-familias, cambiar precedencias) desde una sección nueva del admin, sin tocar la base de datos a mano. End state: existe un editor de árbol en el admin donde un cambio de orden/agrupación/precedencia del profe persiste y prevalece sobre el orden auto-construido del SPOM.
+
+**Depends on:** Phase 126 (se edita el grafo ya construido)
+
+**Requirements** (1/18):
+
+- TREE-07 — los profes editan el árbol desde una sección nueva del admin: reordenan, agrupan/separan sub-familias y ajustan precedencias sobre el grafo construido
+
+**Success Criteria** (what must be TRUE at phase completion):
+
+1. Existe una sección nueva en el admin dedicada a editar el árbol de habilidades.
+2. Un profe puede reordenar ejercicios dentro de una sub-familia y ver el cambio reflejado.
+3. Un profe puede agrupar o separar sub-familias y ajustar precedencias sobre el grafo ya construido.
+4. Los ajustes del profe persisten y prevalecen sobre el orden auto-construido del SPOM.
+
+**Risks / notas:** Esta es la pieza que "desbloquea el milestone sin esperar curaduría manual previa": el árbol arranca auto-construido y los profes lo refinan acá. El editor debe distinguir el orden derivado del SPOM (default) de los overrides del profe para que una re-construcción del grafo no pise los ajustes manuales.
+
+**Plans:** TBD
+**UI hint:** yes
+
+### Phase 129: Nivel Kairos — enum, herencia de Alfa y formato lineal
+
+**Goal:** El nivel Kairos existe en todo el sistema y genera sesiones que heredan de Alfa pero forzadas a un formato ultra-simple (solo lineal + 2 ej/bloque), sin contenido propio todavía. End state: un alumno en Kairos recibe una sesión con el esqueleto de bloques normal, tomando ejercicios Alfa de `difficulty=1`, cada bloque en sets×reps con 2 ejercicios, sin EMOM/AMRAP/circuitos/complejos.
+
+**Depends on:** Phase 124 (catálogo saneado y confiable). NO depende del grafo (fase 126).
+
+**Requirements** (3/18):
+
+- KAIROS-01 — el nivel `kairos` existe en el enum en API, app y admin (kairos → alfa → delta → sigma → omega → spartan), incluido el mapeo a level-group
+- KAIROS-02 — la generación Kairos hereda de Alfa, tomando los ejercicios Alfa de `difficulty = 1` mientras no haya contenido propio
+- KAIROS-03 — las sesiones Kairos fuerzan formato solo lineal (sets×reps) con exactamente 2 ejercicios por bloque
+
+**Success Criteria** (what must be TRUE at phase completion):
+
+1. `kairos` existe como nivel en API, app y admin (orden kairos → alfa → delta → sigma → omega → spartan) con su mapeo a level-group.
+2. Una sesión de un alumno Kairos se genera tomando los ejercicios Alfa de `difficulty = 1`.
+3. Cada bloque de una sesión Kairos sale en formato solo lineal (sets×reps), sin EMOM/AMRAP/circuitos/complejos.
+4. Cada bloque de una sesión Kairos tiene exactamente 2 ejercicios (según la resolución de discuss-phase para el INITIUM).
+
+**Risks / notas:** Brownfield crítico — el enum toca `exercises.ts`, `users.ts`, `completed-sessions.ts`, `level-mapping.ts` y admin `constants/levels.ts`. El nivel ya funciona como override de lectura (`dayId = W{semana}-{día}-{nivel}`, Alfa ya es caso especial en `routes.ts`); los formatos Singlet/For Quality/lineal ya existen en la tabla `formats`. Decisiones abiertas diferidas: cómo aplica el "2 por bloque" al INITIUM (hoy fijo en 4) — ¿se baja a 2 o queda excluido?; mapeo kairos→levelGroup (probablemente alfa_delta); dosis lineales exactas (de los profes).
+
+**Plans:** TBD
+**UI hint:** no (backend-first; enum + capa de generación; la UI del recuadrito va en la fase 130)
+
+### Phase 130: Asignación, graduación y selector de Kairos
+
+**Goal:** Todo alumno nuevo arranca en Kairos y avanza a Alfa de forma automática (umbral configurable) o por decisión del coach, con el nivel visible en los selectores de app y admin sin romper el layout. End state: un alumno recién creado queda en Kairos, gradúa solo al cumplir el umbral o por salto manual del coach, y el 6º recuadrito se ve en ambos selectores.
+
+**Depends on:** Phase 129 (el nivel debe existir y generar sesiones antes de asignarlo y mostrarlo)
+
+**Requirements** (4/18):
+
+- KAIROS-04 — los alumnos nuevos arrancan en Kairos por defecto (cambia el default de `users.level` de `alfa` a `kairos`)
+- KAIROS-05 — graduación automática de Kairos a Alfa al cumplir un umbral configurable de sesiones completadas
+- KAIROS-06 — el coach puede saltar manualmente a un alumno de nivel, anulando la graduación automática
+- KAIROS-07 — el selector de nivel muestra el 6º recuadrito (Kairos) en app y admin sin romper el layout
+
+**Success Criteria** (what must be TRUE at phase completion):
+
+1. Un alumno recién creado queda en nivel Kairos por defecto (default de `users.level` = `kairos`).
+2. Un alumno gradúa automáticamente de Kairos a Alfa al alcanzar un umbral configurable de sesiones completadas.
+3. El coach puede saltar manualmente a un alumno de nivel, anulando la graduación automática.
+4. El selector de nivel muestra el 6º recuadrito (Kairos) en app y admin sin romper el layout (scroll/paginado donde haga falta).
+
+**Risks / notas:** Cambiar el default de `users.level` afecta todo registro nuevo — coordinar con los flujos de registro/onboarding y trial existentes. Lógica nueva de graduación + override manual que la anula (no debe volver a "degradar" tras un salto manual del coach). Decisión abierta diferida: umbral exacto de sesiones para graduar (configurable, número a definir con producto/profes).
+
+**Plans:** TBD
+**UI hint:** yes
+
+### Phase 131: Ajuste de dificultad in-session + registro de "dominado / bajado"
+
+**Goal:** Durante la sesión, el miembro puede subir o bajar la dificultad de un ejercicio puntual desde el player y el árbol le sirve el vecino correcto (conservando ruta/contracción/formato/dosis del bloque), persistiendo el cambio en un registro nuevo de "dominado / bajado" (distinto del "completado" local + RPE) que alimenta el % del árbol y ve el coach. End state: existe un registro persistente de dominado/bajado por miembro referenciado a nodos del grafo; los botones "↓ más fácil / más difícil ↑" funcionan por ejercicio; el reemplazo es el vecino un escalón en la cadena; el registro se actualiza y el % del árbol + la vista del coach lo reflejan, sin tocar nivel ni SPOM.
+
+**Depends on:** Phase 126 (primitiva vecino arriba/abajo + nodos del árbol como referencia), Phase 127 (% del árbol a alimentar)
+
+**Requirements** (4/18):
+
+- ADJUST-03 — persistir un registro de "ejercicio dominado / bajado" por miembro (nuevo, distinto del "completado" local + RPE de la sesión entera)
+- ADJUST-01 — el miembro puede pedir "↓ más fácil" o "más difícil ↑" por ejercicio desde el player durante la sesión
+- ADJUST-02 — el árbol sirve el ejercicio vecino un escalón arriba/abajo conservando ruta, contracción, formato y dosis del bloque
+- ADJUST-04 — el registro de dominado alimenta el % de avance del árbol (TREE-06) y es visible para el coach
+
+**Success Criteria** (what must be TRUE at phase completion):
+
+1. Existe un registro persistente de "ejercicio dominado / bajado" por miembro, distinto del "completado" local + RPE de la sesión entera, que referencia un nodo/ejercicio concreto del árbol (fase 126).
+2. El miembro puede pedir "↓ más fácil" o "más difícil ↑" por ejercicio desde el player durante la sesión.
+3. Al pedir el ajuste, el ejercicio se reemplaza por su vecino un escalón arriba/abajo conservando ruta, contracción, formato y dosis del bloque (solo cambia el ejercicio), y queda reflejado en el registro sin cambiar automáticamente el nivel ni el SPOM.
+4. El % de avance del árbol (fase 127) y la vista del coach reflejan lo que el miembro dominó/bajó.
+
+**Risks / notas:** Hoy solo existe "completado" local + RPE de la sesión entera; el registro de dominado/bajado es nuevo y es el modelo de datos sobre el que se apoya el ajuste in-session (por eso se construyen juntos en esta fase). El player (`DayPlayer.vue`, `BlockProgressionView.vue`) hoy NO tiene botones más fácil/difícil. Anti-salto natural: manual + un escalón por toque. Decisión abierta diferida: cómo se _captura_ "dominar" exactamente (el criterio binario contra la prescripción del bloque del día ya está decidido; la mecánica de captura — qué evento la persiste — no). Out of scope confirmado: el ajuste NO cambia el nivel ni la planificación del SPOM (sigue siendo criterio del coach). Decisión abierta compartida con Kairos: dosis lineales exactas. Habilita upsell futuro (estancamiento) — fuera de alcance este milestone. Plan probable: split interno (modelo de datos del registro primero, botones + resolución de vecino + vista del coach después).
+
+**Plans:** TBD
+**UI hint:** yes
+
+## v5.1 Progress
+
+| Phase                                          | Plans Complete | Status      | Completed |
+| ---------------------------------------------- | -------------- | ----------- | --------- |
+| 124. Estructura 3 dimensiones + saneo          | 0/TBD          | Not started | -         |
+| 125. Bootstrap LLM + revisión de profes        | 0/TBD          | Not started | -         |
+| 126. Auto-construcción del grafo (DAG)         | 0/TBD          | Not started | -         |
+| 127. % de avance del árbol (miembro)           | 0/TBD          | Not started | -         |
+| 128. Editor de árbol (admin)                   | 0/TBD          | Not started | -         |
+| 129. Kairos — enum, herencia, formato lineal   | 0/TBD          | Not started | -         |
+| 130. Kairos — asignación, graduación, selector | 0/TBD          | Not started | -         |
+| 131. Ajuste in-session + registro de dominado  | 0/TBD          | Not started | -         |
+
+_Plan counts populated by `/gsd-plan-phase`._
+
+---
+
+_v5.1 added: 2026-06-04 — 8 phases (124-131), 18 requirements (TREE, KAIROS, ADJUST) en 3 ejes. El árbol de habilidades (TREE) es el cimiento y va primero: estructura de datos (124) → bootstrap LLM + revisión (125) → grafo DAG (126) → % miembro (127) / editor admin (128). Sobre el cimiento: nivel Kairos (129 enum+generación, 130 asignación+graduación+selector) y ajuste in-session (131 registro de dominado + botones + vecino del árbol, fusionado desde las ex-fases 131/132). Backend-first, brownfield (enum de niveles hardcodeado en 5 lugares). Continúa numeración desde fase 123 (v5.0). Decisiones de dominio (agrupación category/pattern, INITIUM en Kairos, umbral de graduación, captura de "dominar", dosis lineales) diferidas a cada `discuss-phase`. Fuente de verdad: `.planning/research/new-training-system-design.md`._

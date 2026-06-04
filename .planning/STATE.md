@@ -3,10 +3,10 @@ gsd_state_version: 1.0
 milestone: v5.1
 milestone_name: Nuevo Sistema de Entrenamiento
 status: planning
-last_updated: "2026-06-04T22:31:55.092Z"
+last_updated: "2026-06-04T23:00:00.000Z"
 last_activity: 2026-06-04
 progress:
-  total_phases: 0
+  total_phases: 8
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -17,17 +17,17 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-06-03)
+See: .planning/PROJECT.md (updated 2026-06-04)
 
-**Core value:** v5.0 reemplaza y amplía las métricas del panel de gestión con 6 bloques nuevos/mejorados (churn person-based, renovación, funnel de prueba, frecuencia, LTV/Kaplan-Meier, ticket), backend-first, con aislamiento de moneda y breakdowns comparables.
-**Current focus:** Phase 123 — asistencia-funnel-frecuencia-de-asistencia-funnel-de-sesione
+**Core value:** v5.1 reestructura el sistema de entrenamiento alrededor de un árbol de habilidades (DAG) sobre 3 ejes ortogonales (gesto/palanca/contracción). Sobre ese cimiento: el nivel Kairos para principiantes (hereda de Alfa, formato lineal forzado) y el ajuste de dificultad in-session (botones más fácil/más difícil que sirven el vecino correcto y recuerdan lo dominado). Backend-first, brownfield.
+**Current focus:** Phase 124 — Estructura de datos de las 3 dimensiones + saneo (cimiento del árbol)
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: Not started — roadmap created (124-131 mapped)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-06-04 — Milestone v5.1 started
+Status: Roadmap complete, awaiting plan-phase 124
+Last activity: 2026-06-04 — v5.1 roadmap created (8 phases, 18/18 reqs mapped)
 
 ## Performance Metrics
 

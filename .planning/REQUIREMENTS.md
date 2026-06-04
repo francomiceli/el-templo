@@ -77,25 +77,25 @@
 
 ## Traceability
 
-<!-- REQ-ID → Phase (filled by roadmap). 0/18 mapped hasta correr el roadmapper. -->
+<!-- REQ-ID → Phase (filled by roadmap). 18/18 mapped (fases 124-131, v5.1). -->
 
-| Requirement | Phase | Status  |
-| ----------- | ----- | ------- |
-| TREE-01     | TBD   | Pending |
-| TREE-02     | TBD   | Pending |
-| TREE-03     | TBD   | Pending |
-| TREE-04     | TBD   | Pending |
-| TREE-05     | TBD   | Pending |
-| TREE-06     | TBD   | Pending |
-| TREE-07     | TBD   | Pending |
-| KAIROS-01   | TBD   | Pending |
-| KAIROS-02   | TBD   | Pending |
-| KAIROS-03   | TBD   | Pending |
-| KAIROS-04   | TBD   | Pending |
-| KAIROS-05   | TBD   | Pending |
-| KAIROS-06   | TBD   | Pending |
-| KAIROS-07   | TBD   | Pending |
-| ADJUST-01   | TBD   | Pending |
-| ADJUST-02   | TBD   | Pending |
-| ADJUST-03   | TBD   | Pending |
-| ADJUST-04   | TBD   | Pending |
+| Requirement | Phase     | Status  |
+| ----------- | --------- | ------- |
+| TREE-01     | Phase 124 | Pending |
+| TREE-02     | Phase 125 | Pending |
+| TREE-03     | Phase 125 | Pending |
+| TREE-04     | Phase 126 | Pending |
+| TREE-05     | Phase 124 | Pending |
+| TREE-06     | Phase 127 | Pending |
+| TREE-07     | Phase 128 | Pending |
+| KAIROS-01   | Phase 129 | Pending |
+| KAIROS-02   | Phase 129 | Pending |
+| KAIROS-03   | Phase 129 | Pending |
+| KAIROS-04   | Phase 130 | Pending |
+| KAIROS-05   | Phase 130 | Pending |
+| KAIROS-06   | Phase 130 | Pending |
+| KAIROS-07   | Phase 130 | Pending |
+| ADJUST-01   | Phase 131 | Pending |
+| ADJUST-02   | Phase 131 | Pending |
+| ADJUST-03   | Phase 131 | Pending |
+| ADJUST-04   | Phase 131 | Pending |
