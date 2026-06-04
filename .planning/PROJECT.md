@@ -4,37 +4,40 @@
 
 A multi-app platform for El Templo Calistenia, a calisthenics gym chain with 8 locations (7 Mar del Plata, 1 Barcelona). The monorepo contains: a Fastify API (el-templo-api), a member mobile app (el-templo-app), a coach/admin web app (el-templo-admin), and a public-facing marketing site (el-templo-web). v1 delivered the Training module, v2 the Admin app, v3 the landing page and public web presence, v4 begins ecosystem integration — consolidating admin operations, adding attendance/scheduling, and laying the foundation for AURA economy and lifestyle features.
 
-## Current Milestone: v4.85 Enrollment Service + Admin Add-ons
+## Current Milestone: v5.0 Métricas de Gestión
 
-**Goal:** Centralizar el lifecycle de `programEnrollments` en un `EnrollmentService` único (eliminando 6 inserts duplicados en `subscriptions/service.ts`) y, sobre esa base, habilitar que el admin asigne programas adicionales (add-ons) con precio opcional sobre la suscripción activa de un miembro.
+**Goal:** Reemplazar y ampliar las métricas del panel de gestión con 6 bloques nuevos/mejorados (churn person-based, renovación, funnel de sesiones de prueba, frecuencia de asistencia, LTV con Kaplan-Meier, ticket promedio), backend-first, con aislamiento de moneda ARS/EUR y breakdowns comparables por sucursal/país/plan.
 
-**Target features:**
+**Target features (6 bloques):**
 
-- Refactor: `EnrollmentService` centraliza creación/teardown/transferencia/lectura de `programEnrollments`. Reemplaza los 6 inserts dispersos en `subscriptions/service.ts` y absorbe `tearDownBundleEnrollments` (fase 111) generalizándolo.
-- Schema: nuevas columnas en `program_enrollments` (`source` enum `plan_linked` | `plan_bundle` | `admin_addon`, `pricePaid` nullable int, `assignedBy` FK users, `subscriptionId` FK subscriptions). Migration con backfill.
-- Endpoint admin: `POST /admin/users/:userId/program-addons` con `{ programId, pricePaid?, notes? }`. Bloquea duplicado activo del mismo programa. Genera `financial_transaction` si `pricePaid > 0`. Requiere sub activa.
-- Hook en `changePlan`: transferencia automática de add-ons activos al `subscriptionId` de la sub nueva (decisión A).
-- Hook en cancel/expire: teardown extendido a add-ons (decisión C: `status = cancelled` cuando muere la sub).
-- UI admin: sección "Programas" en detalle del miembro con lista de enrollments activas (badge `plan` / `add-on`), botón "Asignar programa adicional", cancelar add-on individual.
-- UI member: verificación de que el dropdown de programas en home muestra todas las enrollments activas (probablemente sin cambios de código, reutiliza patrón bundle).
+- **Fundación transversal:** flag `duration_tier` (monthly | long_term) en planes + helpers comunes (nominal + % + n siempre juntos; motor de breakdowns comparables; vista semanal/mensual respetando el rango del panel; aislamiento de moneda).
+- **Bloque 1 — Churn no-renovación:** person-based, cohorte por `end_date ∈ [from,to)`, "churn maduro" (vencidos hace ≥N días), N configurable/multi-N. Reemplaza el `churnedMembers` frágil (basado en `updated_at`).
+- **Bloque 2 — Tasa de renovación:** mismo motor de cohorte que B1, renovados÷vencidos, corte renovación/reactivación a 15 días (configurable). Formaliza `retentionRate`.
+- **Bloque 3 — Funnel de prueba (cascada):** reserva→asistencia→compra con tasa de cada escalón; `tasa_cierre = compraron÷asistieron`; ventana de atribución ~21d; solo leads sin sub paga previa; cohorte por fecha de sesión agendada.
+- **Bloque 4 — Frecuencia de asistencia:** visitas/sem por miembro (4 sem rodantes), bandas Inactivo/Bajo/Medio/Alto, lista "enfriándose", adopción de check-in al lado. Incluye propuesta de recálculo batch nocturno de segmentación.
+- **Bloque 5 — LTV:** headline `1/churn mensual` + robusto Kaplan-Meier (mediana de supervivencia, maneja censura). LTV monetario desde pagos reales (no ARPU). Por moneda. Depende del churn del B1.
+- **Bloque 6 — Ticket promedio:** promedio ponderado de `price_paid` por plan/global; bonus descuento vs `priceRegular` y mediana ante outliers. Por moneda.
 
 **Decisiones clave:**
 
-- Add-on vive mientras viva la sub principal — al cancelar/expirar la sub, los add-ons también se cancelan (decisión C).
-- `pricePaid` se cobra como `financial_transaction` independiente al asignar; puede ser 0 (regalo).
-- Programa duplicado activo → bloqueo (no alerta), forzar a cancelar el viejo primero.
-- Asignación de add-on como acción aparte (no flow combinado con renovación).
+- Backend-first: servicios + endpoints + tests + migraciones primero; la UI del admin viene en fase posterior.
+- `duration_tier` por flag, NO hardcodeando nombres de plan ("Flex"/"Flex+").
+- El Bloque 3 (funnel de prueba) es prioritario: línea base para medir el impacto del futuro nivel Kairos (milestone Nuevo Sistema de Entrenamiento, v5.1+).
+- Reemplaza churn/retención viejos; `renewalRate` 7/14/30 y ARPU "a decidir" en discuss-phase.
 
 **Out of scope this milestone:**
 
-- Flow combinado "renovar + regalar programa" en un solo botón (deferred — el endpoint suelto cubre el caso de uso por ahora).
-- Add-ons sin sub activa (no se puede asignar ni usar sin sub).
-- Splits mecánicos de archivos largos (corresponde a v4.9).
-- Transferencia de add-ons cuando la sub principal se pausa (no contemplado — los add-ons siguen el ciclo de la sub).
+- UI del admin para los 6 bloques (fase de frontend posterior; este milestone es backend-first).
+- Reactivación, activación temprana, MRR con componentes (mencionados en el spec pero fuera de alcance).
+- Splits mecánicos de archivos largos (corresponde a v4.9 Refactor Splits, en cola).
 
-**Reference:** Conversación 2026-05-04 con decisiones A/C/A registradas en transcripts `.docs/WhatsApp Ptt 2026-05-04 at 14.28.21.txt` y `.docs/WhatsApp Ptt 2026-05-04 at 14.29.51.txt` + análisis arquitectural en chat (spaghetti subscriptions/programas, 6 inserts duplicados, precede a v4.9).
+**Reference:** `BRIEF-METRICAS-GESTION.md` (inventario de métricas actuales) + `ESPECIFICACION-METRICAS-GESTION.md` (spec de negocio, fuente de verdad) + `METRICAS_GESTION_HANDOFF_2026-06-02.md` (estructura de fases y hallazgos de código).
 
-## Previous Milestone: v4.8 Modelo Financiero
+## Previous Milestone: v4.85 Enrollment Service + Admin Add-ons
+
+**Phases 112-114.** `EnrollmentService` centraliza el lifecycle de `programEnrollments`; endpoint admin de program add-ons con precio opcional; transferencia automática de add-ons en cambio de plan; teardown en cancel/expire. (Fases sueltas posteriores sin milestone formal: 116 refresh tokens, 117-118 analytics, 119 campaña freemium.)
+
+## Earlier Milestone: v4.8 Modelo Financiero
 
 **Phases 105-109.** Completed 2026-04-29. Modelo transaccional unificado (`financial_transactions` + `transaction_links`) reemplazando `payments` + `debts`. CajaPage v2 con summary por kind, reporte aging de deudas, export Excel.
 
@@ -84,14 +87,15 @@ Members know exactly what to train today, complete guided sessions with block st
 
 ### Active
 
-See: .planning/REQUIREMENTS.md (v4.85 scope — Enrollment Service + Admin Add-ons)
+See: .planning/REQUIREMENTS.md (v5.0 scope — Métricas de Gestión)
 
 ### Out of Scope
 
 - ~~**APK Signing / Play Store**~~ — Now active as v4.3 (Phases 74-77)
-- **Lifestyle / Mi Camino** — v5.0 (habits, journal, challenges, philosophical tools)
-- **AURA Economy (milestones, store)** — v5.0 (foundation tables in v4.0, but economy features later)
-- **Social / Agora** — v5.0+ (feed, missions, reactions, career path)
+- **Nuevo Sistema de Entrenamiento** — v5.1+ (nivel Kairos + árbol de habilidades + ajuste de dificultad in-session; diseño en `.planning/research/new-training-system-design.md`)
+- **Lifestyle / Mi Camino** — v5.x/v6.0 (habits, journal, challenges, philosophical tools)
+- **AURA Economy (milestones, store)** — v5.x/v6.0 (foundation tables in v4.0, but economy features later)
+- **Social / Agora** — v6.0+ (feed, missions, reactions, career path)
 - **Online model + Payment gateway** — v6.0+ (freemium, premium gate, Mercado Pago/Stripe)
 - **Multi-tenancy / SaaS** — Not a goal. El Templo only.
 - **DeportNet import** — One-time migration, already done
@@ -169,4 +173,4 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
-_Last updated: 2026-05-04 — Milestone v4.85 (Enrollment Service + Admin Add-ons) initialized. Phase 112+ to come. v4.8 (Modelo Financiero, phases 105-109) marked complete; v4.9 (Refactor Splits) remains queued after v4.85._
+_Last updated: 2026-06-03 — Milestone v5.0 (Métricas de Gestión) initialized. Phases 120+ to come (continues from phase 119). Backend-first; 6 bloques de métricas. Fases sueltas 116-119 shipeadas sin milestone formal. v4.9 (Refactor Splits) y Nuevo Sistema de Entrenamiento (v5.1+) quedan en cola._

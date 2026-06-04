@@ -1,34 +1,33 @@
 ---
 gsd_state_version: 1.0
-milestone: v3.0
-milestone_name: Landing Page
-status: executing
-stopped_at: "119-07 HUMAN-GATE-PENDING — Task 1 (prod Resend env doc) committed 2a9dcbc4; Tasks 2-4 are blocking human gates (Resend domain/DNS verify + prod RESEND_API_KEY, user copy/image assets, irreversible first send). .well-known on app.eltemplo.org returns SPA index.html (not JSON) → deploy-dependent follow-up. Remaining human steps A-E in 119-07-SUMMARY.md."
-last_updated: "2026-06-02T03:30:00Z"
-last_activity: 2026-06-02
+milestone: v5.0
+milestone_name: Métricas de Gestión
+status: planning
+last_updated: "2026-06-04T00:04:00.978Z"
+last_activity: 2026-06-04
 progress:
-  total_phases: 16
-  completed_phases: 15
-  total_plans: 58
-  completed_plans: 58
-  percent: 94
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-05-04)
+See: .planning/PROJECT.md (updated 2026-06-03)
 
-**Core value:** v4.85 desacopla el lifecycle de `programEnrollments` de `subscriptions/service.ts` (extrae `EnrollmentService`) y habilita add-ons de programas asignables por admin con precio opcional, retención de progreso atado al ciclo de vida de la sub principal.
-**Current focus:** Phase 119 — campa-a-de-sesi-n-de-prueba-freemium-reserva-self-service-si
+**Core value:** v5.0 reemplaza y amplía las métricas del panel de gestión con 6 bloques nuevos/mejorados (churn person-based, renovación, funnel de prueba, frecuencia, LTV/Kaplan-Meier, ticket), backend-first, con aislamiento de moneda y breakdowns comparables.
+**Current focus:** Defining requirements → roadmap (phases 120+). Nota: fase 119 (campaña freemium) sigue en gate humano pendiente, preservada fuera de este milestone.
 
 ## Current Position
 
-Phase: 119 (campa-a-de-sesi-n-de-prueba-freemium-reserva-self-service-si) — EXECUTING
-Plan: 7 of 7
-Status: 119-07 HUMAN-GATE-PENDING. Task 1 (prod Resend env doc) committed 2a9dcbc4. Tasks 2-4 are blocking human gates the user runs externally: (A) Resend send.eltemplo.org domain verify (SPF/DKIM/Envelope-From/MX) + (B) set prod RESEND_API_KEY/CAMPAIGN_EMAIL_FROM, (C) supply copy + logo/hero images + confirm WhatsApp numbers, (D) fix .well-known serving on app.eltemplo.org (currently returns SPA HTML, not JSON — deploy-dependent), (E) create campaign, cross-client preview, then irreversible "Enviar campaña". Phase 119 NOT yet shipped — pending the human send. Full checklist in 119-07-SUMMARY.md.
-Last activity: 2026-06-02
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-06-04 — Milestone v5.0 started
 
 ## Performance Metrics
 
