@@ -1,17 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v5.0
-milestone_name: Métricas de Gestión
-status: verifying
-stopped_at: Phase 123 context gathered
-last_updated: "2026-06-04T16:39:20.384Z"
+milestone: v5.1
+milestone_name: Nuevo Sistema de Entrenamiento
+status: planning
+last_updated: "2026-06-04T22:31:55.092Z"
 last_activity: 2026-06-04
 progress:
-  total_phases: 4
-  completed_phases: 4
-  total_plans: 13
-  completed_plans: 13
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -25,12 +24,10 @@ See: .planning/PROJECT.md (updated 2026-06-03)
 
 ## Current Position
 
-Phase: 123 (asistencia-funnel-frecuencia-de-asistencia-funnel-de-sesione) — EXECUTING
-Plan: 3 of 3
-Status: Phase complete — ready for verification
-Last activity: 2026-06-04
-
-Progress: [██████████] 100%
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-06-04 — Milestone v5.1 started
 
 ## Performance Metrics
 
