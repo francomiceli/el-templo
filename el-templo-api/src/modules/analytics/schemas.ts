@@ -663,6 +663,74 @@ export const churnSchema = {
 } as const;
 
 // =============================================================================
+// Tasa de renovación Schema (Phase 121 Block 2 — RENOV-01..04)
+// =============================================================================
+
+// Local querystring extension (T-121-08): adds the `window` param to the shared
+// analytics querystring WITHOUT mutating the shared const, mirroring
+// churnQuerystring. `window` is an integer bounded 1..365 so a malformed /
+// oversized N is rejected before it reaches the service. branchId/dateFrom/dateTo
+// carry over from analyticsQuerystring.
+const renewalQuerystring = {
+  type: "object",
+  properties: {
+    branchId: { type: "integer" },
+    dateFrom: { type: "string", format: "date" },
+    dateTo: { type: "string", format: "date" },
+    window: { type: "integer", minimum: 1, maximum: 365 },
+  },
+} as const;
+
+// The canonical `{ nominal, percentage, n }` envelope (FUND-02 / metric-shape.ts),
+// declared here so every renewal MetricShape on the wire is fully described
+// (fast-json-stringify STRIPS undeclared fields — lesson 106-04/109-02).
+const renewalMetricShapeSchema = {
+  type: "object",
+  properties: {
+    nominal: { type: "integer" },
+    percentage: { type: "number" },
+    n: { type: "integer" },
+  },
+} as const;
+
+// GET /renewal — person-based renovación (renovados ÷ vencidos) over the SAME
+// matured expiry cohort as churn (RENOV-01), with the configurable window
+// (default 15, RENOV-02), the enGracia número vivo (RENOV-03), and 4-axis
+// breakdowns (RENOV-04). ADMIN_ROLES-only (gestion gets 403). errorSchema covers
+// 400/401/403/500.
+export const renewalSchema = {
+  querystring: renewalQuerystring,
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        windowDays: { type: "integer" },
+        renewal: renewalMetricShapeSchema,
+        enGracia: { type: "integer" },
+        breakdowns: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              axis: {
+                type: "string",
+                enum: ["branch", "country", "duration", "plan"],
+              },
+              key: { type: "string" },
+              renewal: renewalMetricShapeSchema,
+            },
+          },
+        },
+      },
+    },
+    400: errorSchema,
+    401: errorSchema,
+    403: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+// =============================================================================
 // Financial Analytics Schema
 // =============================================================================
 

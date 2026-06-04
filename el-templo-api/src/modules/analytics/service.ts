@@ -694,7 +694,18 @@ export class AnalyticsService {
    * (now have an in-effect subscription per activeMemberExists). Distinct
    * members. Returns 0 for a window with no expirations. Scope (T-117-01) is
    * applied over subscriptions.branchId.
+   *
+   * @deprecated Phase 121 D-09: operational 7/14/30 metric anchored to fixed
+   * CURDATE() windows, NOT person-cohort renovación. Superseded by the canonical
+   * person-based renovación at `GET /api/admin/analytics/renewal`
+   * (`RenewalService.getRenewal`), which counts DISTINCT matured persons whose
+   * membership expired by `endDate` in `[from, to)` and renewed within the single
+   * configurable window — over the SAME cohort churn uses (RENOV-01). Kept live
+   * during Phase 121 so the current admin dashboard does not break; physical
+   * removal happens in the admin-UI phase when the cards reconnect to `/renewal`.
+   * Do NOT add new callers.
    */
+  // @deprecated Phase 121 D-09: use RenewalService / GET /renewal
   private async getRenewalRate(
     branchId: number | undefined,
     country: "AR" | "ES" | undefined,
