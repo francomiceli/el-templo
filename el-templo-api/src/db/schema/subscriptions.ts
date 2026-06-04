@@ -62,6 +62,10 @@ export const subscriptions = mysqlTable(
     boardingPassUsed: boolean("boarding_pass_used").default(false).notNull(),
     priceOverrideAmount: int("price_override_amount"),
     priceOverrideReason: text("price_override_reason"),
+    // nullable — NULL for all rows before migration 0136; captures the plan's
+    // current price_regular at each new membership charge for the faithful
+    // ticket discount (D-05).
+    priceRegularSnapshot: int("price_regular_snapshot"),
     pausedAt: timestamp("paused_at"),
     pauseEndDate: date("pause_end_date", { mode: "string" }),
     resumedAt: timestamp("resumed_at"),
