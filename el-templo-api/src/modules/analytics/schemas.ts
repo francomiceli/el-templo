@@ -455,6 +455,125 @@ export const advancedFinanceSchema = {
 } as const;
 
 // =============================================================================
+// Ticket promedio Schema (Phase 120 Block 6 — TICKET-01..04)
+// =============================================================================
+
+// CRITICAL (lesson 106-04/109-02, schemas.ts:119-121): fast-json-stringify STRIPS
+// any field not declared here — every ticket field below (incl. the cohort split,
+// nullable discount/average fields, and excludedNoLink) MUST be declared or it
+// vanishes from the wire.
+
+// A `{ average, n }` cohort figure; `average` is nullable (null when empty cohort).
+const ticketCohortAverageSchema = {
+  type: "object",
+  properties: {
+    average: { type: ["number", "null"] },
+    n: { type: "integer" },
+  },
+} as const;
+
+// The list-price vs discounted/customized split.
+const ticketCohortSplitSchema = {
+  type: "object",
+  properties: {
+    listPrice: ticketCohortAverageSchema,
+    discounted: ticketCohortAverageSchema,
+  },
+} as const;
+
+// The `{ nominal, percentage, n }` envelope (FUND-02) used for every ticket figure.
+const ticketMetricShapeSchema = {
+  type: "object",
+  properties: {
+    nominal: { type: "number" },
+    percentage: { type: "number" },
+    n: { type: "integer" },
+  },
+} as const;
+
+// One per-currency block: global + cohorts + zero + discount + breakdowns.
+const ticketCurrencyBlockSchema = {
+  type: "object",
+  properties: {
+    global: ticketMetricShapeSchema,
+    globalCohorts: ticketCohortSplitSchema,
+    zeroCount: { type: "integer" },
+    zeroPct: { type: "number" },
+    discountMean: { type: ["number", "null"] },
+    discountMedian: { type: ["number", "null"] },
+    perPlan: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          planName: { type: "string" },
+          country: { type: "string" },
+          durationTier: {
+            type: ["string", "null"],
+            enum: ["monthly", "long_term", null],
+          },
+          ticket: ticketMetricShapeSchema,
+          discountMean: { type: ["number", "null"] },
+          discountMedian: { type: ["number", "null"] },
+          zeroCount: { type: "integer" },
+          zeroPct: { type: "number" },
+          cohorts: ticketCohortSplitSchema,
+        },
+      },
+    },
+    byBranch: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          branchName: { type: "string" },
+          ticket: ticketMetricShapeSchema,
+          discountMean: { type: ["number", "null"] },
+          discountMedian: { type: ["number", "null"] },
+        },
+      },
+    },
+    byDuration: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          durationTier: { type: "string", enum: ["monthly", "long_term"] },
+          ticket: ticketMetricShapeSchema,
+        },
+      },
+    },
+  },
+} as const;
+
+// GET /ticket — per-currency ticket from linked price_paid, cohort split,
+// excludedNoLink. ADMIN_ROLES-only (gestion gets 403). errorSchema covers
+// 400/401/403/500.
+export const ticketSchema = {
+  querystring: analyticsQuerystring,
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        byCurrency: {
+          type: "object",
+          properties: {
+            ARS: ticketCurrencyBlockSchema,
+            EUR: ticketCurrencyBlockSchema,
+          },
+        },
+        historicalFallbackCount: { type: "integer" },
+        excludedNoLink: { type: "integer" },
+      },
+    },
+    400: errorSchema,
+    401: errorSchema,
+    403: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+// =============================================================================
 // Financial Analytics Schema
 // =============================================================================
 

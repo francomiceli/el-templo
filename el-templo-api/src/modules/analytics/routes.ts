@@ -13,6 +13,7 @@ import { EngagementService } from "./engagement-service";
 import { RetentionService } from "./retention-service";
 import { AdvancedFinanceService } from "./advanced-finance-service";
 import { FunnelService } from "./funnel-service";
+import { TicketService } from "./ticket-service";
 import { handleServiceError } from "../shared/error-handler";
 import type { AnalyticsFilters } from "./types";
 import {
@@ -26,6 +27,7 @@ import {
   retentionSchema,
   advancedFinanceSchema,
   funnelSchema,
+  ticketSchema,
 } from "./schemas";
 import type { FunnelEntryOrigin } from "./types";
 
@@ -68,6 +70,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
     fastify.log,
   );
   const funnelService = new FunnelService(fastify.db, fastify.log);
+  const ticketService = new TicketService(fastify.db, fastify.log);
 
   /**
    * Guard: authenticate + gate to the operational analytics set (gestion +
@@ -350,6 +353,37 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
         return result;
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "get advanced finance");
+      }
+    },
+  );
+
+  // GET /ticket — ticket promedio por moneda desde subscriptions.price_paid
+  // (Phase 120 Block 6, TICKET-01..04). SENSIBLE → ADMIN_ROLES-only vía
+  // requireAdminAnalytics; gestion recibe 403. Scoped por sede/país
+  // (financialTransactions.branchId).
+  fastify.get<{
+    Querystring: { branchId?: number; dateFrom?: string; dateTo?: string };
+  }>(
+    "/ticket",
+    {
+      schema: ticketSchema,
+      preHandler: [
+        requireAdminAnalytics,
+        requireBranchAccess({ from: "query.branchId", optional: true }),
+      ],
+    },
+    async (request, reply) => {
+      try {
+        const filters: AnalyticsFilters = {
+          branchId: request.query.branchId,
+          country: request.scope.country ?? undefined,
+          dateFrom: request.query.dateFrom,
+          dateTo: request.query.dateTo,
+        };
+        const result = await ticketService.getTicket(filters);
+        return result;
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "get ticket");
       }
     },
   );
