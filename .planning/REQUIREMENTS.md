@@ -31,8 +31,8 @@
 
 ### Fundación transversal (FUND)
 
-- [ ] **FUND-01**: Existe un mecanismo de `duration_tier` (`monthly | long_term`) por plan, resuelto por flag y no por nombre, consumible por todas las métricas para el breakdown corto/largo plazo.
-- [ ] **FUND-02**: Helper común que devuelve toda métrica como nominal + porcentaje + n (tamaño de muestra) en una estructura uniforme reutilizada por los 6 bloques.
+- [x] **FUND-01**: Existe un mecanismo de `duration_tier` (`monthly | long_term`) por plan, resuelto por flag y no por nombre, consumible por todas las métricas para el breakdown corto/largo plazo.
+- [x] **FUND-02**: Helper común que devuelve toda métrica como nominal + porcentaje + n (tamaño de muestra) en una estructura uniforme reutilizada por los 6 bloques.
 - [ ] **FUND-03**: Motor de breakdowns que abre cualquier métrica por sucursal, país, duración de plan y nombre de plan, devolviendo los segmentos comparables lado a lado (no solo como filtro).
 - [ ] **FUND-04**: Toda métrica financiera se calcula y devuelve aislada por moneda (ARS y EUR nunca se suman en un mismo total).
 - [ ] **FUND-05**: Las métricas de cohorte respetan el rango de fechas `[from, to)` del panel y exponen vista semanal/mensual seleccionable donde aplique (corrige caveat #1).
@@ -105,40 +105,40 @@
 
 <!-- REQ-ID → Phase (filled by roadmap 2026-06-03). 35/35 mapped, 100% coverage. -->
 
-| Requirement | Phase     | Status  |
-| ----------- | --------- | ------- |
-| FUND-01     | Phase 120 | Pending |
-| FUND-02     | Phase 120 | Pending |
-| FUND-03     | Phase 120 | Pending |
-| FUND-04     | Phase 120 | Pending |
-| FUND-05     | Phase 120 | Pending |
-| TICKET-01   | Phase 120 | Pending |
-| TICKET-02   | Phase 120 | Pending |
-| TICKET-03   | Phase 120 | Pending |
-| TICKET-04   | Phase 120 | Pending |
-| CHURN-01    | Phase 121 | Pending |
-| CHURN-02    | Phase 121 | Pending |
-| CHURN-03    | Phase 121 | Pending |
-| CHURN-04    | Phase 121 | Pending |
-| CHURN-05    | Phase 121 | Pending |
-| CHURN-06    | Phase 121 | Pending |
-| RENOV-01    | Phase 121 | Pending |
-| RENOV-02    | Phase 121 | Pending |
-| RENOV-03    | Phase 121 | Pending |
-| RENOV-04    | Phase 121 | Pending |
-| LTV-01      | Phase 122 | Pending |
-| LTV-02      | Phase 122 | Pending |
-| LTV-03      | Phase 122 | Pending |
-| LTV-04      | Phase 122 | Pending |
-| LTV-05      | Phase 122 | Pending |
-| FREQ-01     | Phase 123 | Pending |
-| FREQ-02     | Phase 123 | Pending |
-| FREQ-03     | Phase 123 | Pending |
-| FREQ-04     | Phase 123 | Pending |
-| FREQ-05     | Phase 123 | Pending |
-| FREQ-06     | Phase 123 | Pending |
-| FUNNEL-01   | Phase 123 | Pending |
-| FUNNEL-02   | Phase 123 | Pending |
-| FUNNEL-03   | Phase 123 | Pending |
-| FUNNEL-04   | Phase 123 | Pending |
-| FUNNEL-05   | Phase 123 | Pending |
+| Requirement | Phase     | Status   |
+| ----------- | --------- | -------- |
+| FUND-01     | Phase 120 | Complete |
+| FUND-02     | Phase 120 | Complete |
+| FUND-03     | Phase 120 | Pending  |
+| FUND-04     | Phase 120 | Pending  |
+| FUND-05     | Phase 120 | Pending  |
+| TICKET-01   | Phase 120 | Pending  |
+| TICKET-02   | Phase 120 | Pending  |
+| TICKET-03   | Phase 120 | Pending  |
+| TICKET-04   | Phase 120 | Pending  |
+| CHURN-01    | Phase 121 | Pending  |
+| CHURN-02    | Phase 121 | Pending  |
+| CHURN-03    | Phase 121 | Pending  |
+| CHURN-04    | Phase 121 | Pending  |
+| CHURN-05    | Phase 121 | Pending  |
+| CHURN-06    | Phase 121 | Pending  |
+| RENOV-01    | Phase 121 | Pending  |
+| RENOV-02    | Phase 121 | Pending  |
+| RENOV-03    | Phase 121 | Pending  |
+| RENOV-04    | Phase 121 | Pending  |
+| LTV-01      | Phase 122 | Pending  |
+| LTV-02      | Phase 122 | Pending  |
+| LTV-03      | Phase 122 | Pending  |
+| LTV-04      | Phase 122 | Pending  |
+| LTV-05      | Phase 122 | Pending  |
+| FREQ-01     | Phase 123 | Pending  |
+| FREQ-02     | Phase 123 | Pending  |
+| FREQ-03     | Phase 123 | Pending  |
+| FREQ-04     | Phase 123 | Pending  |
+| FREQ-05     | Phase 123 | Pending  |
+| FREQ-06     | Phase 123 | Pending  |
+| FUNNEL-01   | Phase 123 | Pending  |
+| FUNNEL-02   | Phase 123 | Pending  |
+| FUNNEL-03   | Phase 123 | Pending  |
+| FUNNEL-04   | Phase 123 | Pending  |
+| FUNNEL-05   | Phase 123 | Pending  |

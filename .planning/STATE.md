@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v5.0
 milestone_name: Métricas de Gestión
 status: executing
-stopped_at: Phase 120 context gathered
-last_updated: "2026-06-04T00:53:23.252Z"
-last_activity: 2026-06-04 -- Phase 120 planning complete
+stopped_at: Completed 120-01-PLAN.md
+last_updated: "2026-06-04T01:00:45.662Z"
+last_activity: 2026-06-04
 progress:
   total_phases: 4
   completed_phases: 0
   total_plans: 4
-  completed_plans: 0
+  completed_plans: 1
   percent: 0
 ---
 
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-03)
 
 **Core value:** v5.0 reemplaza y amplía las métricas del panel de gestión con 6 bloques nuevos/mejorados (churn person-based, renovación, funnel de prueba, frecuencia, LTV/Kaplan-Meier, ticket), backend-first, con aislamiento de moneda y breakdowns comparables.
-**Current focus:** Roadmap creado (4 fases: 120 Fundación+Ticket, 121 Vencimiento, 122 LTV, 123 Asistencia+Funnel). Próximo: `/gsd-plan-phase 120`. Nota: fase 119 (campaña freemium) sigue en gate humano pendiente, preservada fuera de este milestone.
+**Current focus:** Phase 120 — fundaci-n-transversal-ticket-promedio
 
 ## Current Position
 
-Phase: 120 — Fundación transversal + Ticket promedio (not started)
-Plan: —
+Phase: 120 (fundaci-n-transversal-ticket-promedio) — EXECUTING
+Plan: 2 of 4
 Status: Ready to execute
-Last activity: 2026-06-04 -- Phase 120 planning complete
+Last activity: 2026-06-04
 
-Progress: [----] 0/4 phases · 0/35 requirements
+Progress: [███░░░░░░░] 25%
 
 ## Performance Metrics
 
@@ -190,6 +190,7 @@ _Updated after each plan completion_
 | Phase 119 P03 | ~22min | 2 tasks | 6 files |
 | Phase 119 P04 | ~9min | 3 tasks | 12 files |
 | Phase 119 P06 | ~12min | 2 tasks | 6 files |
+| Phase 120 P01 | 2min | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -466,6 +467,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: Plan 119-04: campaign funnel 'convirtió' = user_status_history toStatus='activo' after sent_at, aligned with funnel-service.ts (A6); attendance/conversion join on userId within the sent_at + self_service window.
 - [Phase 119]: Plan 119-06: CODE-COMPLETE con verificación humana DIFERIDA por decisión del usuario (2026-06-02). Tasks 1-2 commiteados (812f9c82 useCampaignsApi + CampaignFunnel; 2d718bcc CampaniasPage + route + nav + create dialog + send confirmation). El checkpoint blocking Task 3 (nav por rol, sección standalone /campanias, crear borrador, filas de lista, funnel 6 etapas + caveat Apple-Mail-Privacy, confirmación de envío con conteo de destinatarios, warm-brand sin azul) NO se ejecutó ni se auto-aprobó; los 7 ítems quedan persistidos en 119-06-HUMAN-UAT.md (status: partial, todos [pending], blocked_by: admin-staging-build). Correr contra admin-staging antes del envío en vivo de la campaña (Plan 07). Fase avanza a plan 7/7.
 - [Phase 119]: Plan 119-07: HUMAN-GATE-PENDING (2026-06-02). Plan no-autónomo: sólo Task 1 era automatizable y quedó commiteado (2a9dcbc4 — finaliza .env.example del sender de campañas: RESEND_API_KEY prod-required + degradación silenciosa, CAMPAIGN_EMAIL_FROM con sender send.eltemplo.org + pasos humanos de verificación de dominio Resend/DNS SPF/DKIM/Envelope-From/MX que conviven con Google Workspace, D-17). Tasks 2-4 son gates humanos bloqueantes que el usuario ejecuta externamente (NO auto-aprobados, NO se disparó ningún envío real, NO se pushea): (A) verificar dominio Resend, (B) setear secrets prod, (C) copy + imágenes logo/hero + números WhatsApp, (D) arreglar serving de .well-known, (E) crear campaña + preview cross-client + "Enviar campaña" irreversible (D-11). Verificación .well-known en app.eltemplo.org: ambos paths devuelven el index.html del SPA (HTTP 200 pero content-type text/html), NO el JSON — los deep-link files de Plan 05 NO se sirven correctamente todavía → follow-up dependiente de deploy (sin deploy no solicitado, MEMORY). Checklist humano completo A-E en 119-07-SUMMARY.md.
+- [Phase ?]: 120-01: deriveDurationTier derives tier from durationDays (named constants 1/31), not planTier enum — rename-robust, no migration (D-01/D-02)
+- [Phase ?]: 120-01: metricShape { nominal, percentage, n } envelope + verbatim median; div-by-zero guard returns 0/null, never NaN (FUND-02)
 
 ### Pending Todos
 
@@ -485,8 +488,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-04T00:24:29.304Z
-Stopped at: Phase 120 context gathered
-Resume file: .planning/phases/120-fundaci-n-transversal-ticket-promedio/120-CONTEXT.md
+Last session: 2026-06-04T01:00:45.623Z
+Stopped at: Completed 120-01-PLAN.md
+Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z

@@ -2818,14 +2818,14 @@ _Phase 116 added: 2026-05-25 — bug recurrente de logout en app de miembros (JW
 
 **Risks / notas:** Decisión abierta — `duration_tier` columna explícita en `subscription_plans` (migración) vs derivado de `durationDays`; resolver en `discuss-phase` validando contra planes reales (el enum actual `planTier` solo tiene `flex`, no existe "Flex+" como tier). Fuente de descuento ya disponible: `subscription_plans.priceRegular`.
 
-**Plans:** 4 plans (3 waves)
+**Plans:** 1/4 plans executed
 **UI hint:** no (backend-first; sin UI de admin en alcance)
 
 Plans:
 
 **Wave 1**
 
-- [ ] 120-01-PLAN.md — Foundation utilities: duration-tier (FUND-01) + metric-shape nominal+%+n & median (FUND-02)
+- [x] 120-01-PLAN.md — Foundation utilities: duration-tier (FUND-01) + metric-shape nominal+%+n & median (FUND-02)
 - [ ] 120-02-PLAN.md — Forward price snapshot: subscriptions.price_regular_snapshot column + 0136 migration + capture at 4 SubscriptionService insert sites (TICKET-03 base)
 
 **Wave 2** _(blocked on Wave 1 completion)_
@@ -2910,7 +2910,7 @@ Plans:
 
 | Phase                                          | Plans Complete | Status      | Completed |
 | ---------------------------------------------- | -------------- | ----------- | --------- |
-| 120. Fundación transversal + Ticket            | 0/TBD          | Not started | -         |
+| 120. Fundación transversal + Ticket            | 1/4            | In Progress |           |
 | 121. Vencimiento (Churn + Renovación)          | 0/TBD          | Not started | -         |
 | 122. LTV / vida del cliente                    | 0/TBD          | Not started | -         |
 | 123. Asistencia + Funnel (Frecuencia + Prueba) | 0/TBD          | Not started | -         |
