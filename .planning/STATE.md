@@ -2,9 +2,10 @@
 gsd_state_version: 1.0
 milestone: v5.1
 milestone_name: Nuevo Sistema de Entrenamiento
-status: planning
-last_updated: "2026-06-04T23:00:00.000Z"
-last_activity: 2026-06-04
+status: completed
+stopped_at: Phase 124 context gathered
+last_updated: "2026-06-04T23:25:15.027Z"
+last_activity: 2026-06-04 — v5.1 roadmap created (8 phases, 18/18 reqs mapped)
 progress:
   total_phases: 8
   completed_phases: 0
@@ -520,8 +521,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-04T16:39:15.567Z
-Stopped at: Phase 123 context gathered
-Resume file: None
+Last session: 2026-06-04T23:25:15.007Z
+Stopped at: Phase 124 context gathered
+Resume file: .planning/phases/124-estructura-de-datos-de-las-3-dimensiones-saneo/124-CONTEXT.md
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
