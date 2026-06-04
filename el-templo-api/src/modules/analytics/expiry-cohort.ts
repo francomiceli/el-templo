@@ -106,9 +106,11 @@ export function expiryCohortConditions(
  * guaranteeing the distinct-persons count (CHURN-01).
  *
  * Implemented as a correlated `NOT EXISTS`: there is no OTHER in-range, non-paused
- * row `s2` for the same user with a strictly-later `endDate` (or an equal `endDate`
- * but a larger `id`, as the tie-break). `from` / `to` are bound as parameters,
- * never string-interpolated (T-121-01).
+ * row `s2` FOR THE SAME BRANCH and user with a strictly-later `endDate` (or an equal
+ * `endDate` but a larger `id`, as the tie-break). The `s2.branch_id` match keeps the
+ * last-expiry collapse inside the active scope (CR-02): a person's expiry at another
+ * branch never suppresses their cohort row in a branch-filtered view. `from` / `to`
+ * are bound as parameters, never string-interpolated (T-121-01).
  *
  * Spread the result alongside `expiryCohortConditions(from, to)` so the surviving
  * rows are exactly "one per person, their last expiry in range".
@@ -131,6 +133,7 @@ export function lastExpiryPerPersonExpr(
     WHERE s2.user_id = ${schema.subscriptions.userId}
       AND s2.id <> ${schema.subscriptions.id}
       AND s2.subscription_status <> 'paused'
+      AND s2.branch_id = ${schema.subscriptions.branchId}
       ${lower}
       ${upper}
       AND (
@@ -142,14 +145,21 @@ export function lastExpiryPerPersonExpr(
 
 /**
  * Retention predicate (D-05 / D-06 / CHURN-04): TRUE for a person whose membership
- * expired at `E` and who has a DISTINCT later subscription row (different `id`, same
- * `user_id`) whose `start_date` is ON OR BEFORE `E + windowDays` and gives
- * continuity.
+ * expired at `E` and who has a DISTINCT CONTINUATION subscription row (different `id`,
+ * same `user_id`, same `branch_id`) that EXTENDS past the expiry (`end_date > E`) and
+ * whose `start_date` is ON OR BEFORE `E + windowDays`.
  *
  *   - Plan change AND duration change (mensual↔largo) count as renovación — the
  *     predicate does NOT constrain `plan_id`.
  *   - An EARLY renewal counts with NO lower bound on how early — there is NO floor on
  *     `start_date`, only the `<= E + windowDays` ceiling.
+ *   - The `end_date > E` continuity gate is what distinguishes a genuine renewal from
+ *     the person's OWN earlier (already-expired) cycle (CR-01): a prior cycle ends on
+ *     or before `E`, so it can never satisfy the gate. Without it, any member with a
+ *     subscription history is mislabelled as retained.
+ *   - The `s_next.branch_id = E.branch_id` match keeps the retention decision inside
+ *     the active scope (CR-02) — an out-of-scope sub never flips a churn/renovación
+ *     outcome in a branch-filtered view.
  *   - Detection is over `subscriptions` rows, NOT payments.
  *
  * `windowDays` is an INTEGER the SERVICE controls; it is the ONLY value passed
@@ -165,6 +175,9 @@ export function retainedExpr(windowDays: number): SQL {
     SELECT 1 FROM subscriptions s_next
     WHERE s_next.user_id = ${schema.subscriptions.userId}
       AND s_next.id <> ${schema.subscriptions.id}
+      AND s_next.subscription_status <> 'paused'
+      AND s_next.branch_id = ${schema.subscriptions.branchId}
+      AND s_next.end_date > ${schema.subscriptions.endDate}
       AND s_next.start_date <= DATE_ADD(${schema.subscriptions.endDate}, INTERVAL ${n} DAY)
   )`;
 }
