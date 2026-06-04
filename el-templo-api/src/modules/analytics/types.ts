@@ -816,6 +816,101 @@ export interface FrequencyAnalytics {
   breakdowns: FrequencySegmentRow[];
 }
 
+// -- Trial-session Funnel Analytics (Phase 123 Block 3 — FUNNEL-01..05) --
+
+/**
+ * The breakdown axis a trial-funnel segment row is grouped by (FUNNEL-05).
+ * `branch`/`country`/`plan` mirror the standard axes; `turno` is a funnel-LOCAL
+ * axis (bucketed from `schedules.startTime`, NOT part of the shared
+ * `breakdowns.ts`). The `plan` axis groups by the plan the lead BOUGHT
+ * (D-123-09), NOT the trial plan. ADDITIVE grouping keys, never access filters.
+ */
+export type TrialFunnelAxis = "branch" | "country" | "turno" | "plan";
+
+/**
+ * The three cascade counts (D-123-08/07/09): every new-lead trial booking
+ * (`reservaron`), the subset that attended (`asistieron`, from
+ * `bookings.status`), and the subset that bought a first paid sub in the window
+ * (`compraron`).
+ */
+export interface TrialFunnelStageCounts {
+  /** New-lead trial bookings in the cohort, regardless of final status. */
+  reservaron: number;
+  /** Bookings with status IN ('qr_escaneado','confirmado') (D-123-07). */
+  asistieron: number;
+  /** Leads who bought a first paid sub within the attribution window (D-123-09). */
+  compraron: number;
+}
+
+/**
+ * The three cascade rates (D-123-11), each a `{ nominal, percentage, n }`
+ * envelope (div-by-zero → 0, never NaN):
+ *   - tasaShow     = asistieron ÷ reservaron
+ *   - tasaCierre   = compraron ÷ asistieron (denominator = ASISTENTES)
+ *   - puntaAPunta  = compraron ÷ reservaron
+ */
+export interface TrialFunnelRates {
+  /** asistieron ÷ reservaron. */
+  tasaShow: MetricShape;
+  /** compraron ÷ asistieron (over asistentes, NOT reservas — D-123-11). */
+  tasaCierre: MetricShape;
+  /** compraron ÷ reservaron (end-to-end). */
+  puntaAPunta: MetricShape;
+}
+
+/**
+ * One bucket of the weekly/monthly cascade series (D-123-04/10/12). The cohort
+ * is anchored by `bookings.bookingDate` and bucketed `%x-W%v` (weekly) / `%Y-%m`
+ * (monthly). `provisional` is true when ANY of the bucket's sessions has not yet
+ * matured (sessionDate + attribution window > today — D-123-12).
+ */
+export interface TrialFunnelSeriesRow {
+  /** The bucket key (`%x-W%v` weekly or `%Y-%m` monthly). */
+  bucket: string;
+  /** The three rates for this bucket. */
+  rates: TrialFunnelRates;
+  /** The three counts for this bucket. */
+  counts: TrialFunnelStageCounts;
+  /** True when the bucket's attribution window has not fully elapsed (D-123-12). */
+  provisional: boolean;
+}
+
+/**
+ * One breakdown segment (FUNNEL-05): the cascade counts + rates for one value of
+ * one axis. branch/country/turno/plan-bought; the plan axis only counts buyers
+ * (the bought plan is undefined for a non-converter — D-123-09).
+ */
+export interface TrialFunnelBreakdownRow {
+  /** The breakdown axis this row is grouped by. */
+  axis: TrialFunnelAxis;
+  /** The segment key within the axis (branch name, country, turno, or plan-bought composite). */
+  key: string;
+  /** The three rates for this segment. */
+  rates: TrialFunnelRates;
+  /** The three counts for this segment. */
+  counts: TrialFunnelStageCounts;
+}
+
+/**
+ * Trial-session funnel analytics (Phase 123 Block 3). The cascade
+ * reservó → asistió → compró over the NEW-LEAD trial cohort anchored by the
+ * scheduled-session date, with the three rates, the weekly+monthly provisional
+ * series, the branch/country/turno/plan-bought breakdowns, and the effective
+ * attribution window in whole days (D-123-12).
+ */
+export interface TrialFunnelAnalytics {
+  /** The official cascade counts over the whole new-lead cohort. */
+  counts: TrialFunnelStageCounts;
+  /** The official cascade rates over the whole new-lead cohort. */
+  rates: TrialFunnelRates;
+  /** Weekly + monthly cascade series with the provisional flag (D-123-12). */
+  series: TrialFunnelSeriesRow[];
+  /** Cascade opened by branch / country / turno / plan-bought (FUNNEL-05). */
+  breakdowns: TrialFunnelBreakdownRow[];
+  /** The effective attribution window in whole days (default 21, D-123-12). */
+  attributionWindowDays: number;
+}
+
 // -- Financial Analytics -------------------------------------------------
 
 export interface OutstandingByCurrency {
@@ -884,11 +979,15 @@ export interface AnalyticsFilters {
    */
   entryOrigin?: FunnelEntryOrigin;
   /**
-   * Renovación window in whole days (Phase 121, churn/renovación only, D-07). The
-   * single configurable "ventana de renovación": churn/renovación use it as the
-   * renewal window (no new sub within it = churneó; a new sub within it =
-   * renovado) and the maturity gate. When absent it defaults to
-   * `RENOVATION_WINDOW_DEFAULT_DAYS`. Ignored by metrics that don't support it.
+   * Configurable window in whole days, reused by two metrics:
+   *   - churn/renovación (Phase 121, D-07): the "ventana de renovación" — the
+   *     renewal window (no new sub within it = churneó) and the maturity gate;
+   *     defaults to `RENOVATION_WINDOW_DEFAULT_DAYS`.
+   *   - trial funnel (Phase 123, D-123-12): the attribution window — `compró` =
+   *     the lead's first paid sub within `[sessionDate, sessionDate + window)`;
+   *     defaults to `TRIAL_ATTRIBUTION_WINDOW_DEFAULT_DAYS`. A cohort period
+   *     whose window has not fully elapsed is flagged provisional.
+   * Ignored by metrics that don't support it.
    */
   window?: number;
 }
