@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v5.0
 milestone_name: Métricas de Gestión
-status: executing
-stopped_at: Completed 120-03-PLAN.md
-last_updated: "2026-06-04T01:09:00.000Z"
+status: verifying
+stopped_at: Completed 120-01-PLAN.md
+last_updated: "2026-06-04T01:21:05.728Z"
 last_activity: 2026-06-04
 progress:
   total_phases: 4
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 4
-  completed_plans: 3
-  percent: 0
+  completed_plans: 4
+  percent: 25
 ---
 
 # Project State
@@ -27,10 +27,10 @@ See: .planning/PROJECT.md (updated 2026-06-03)
 
 Phase: 120 (fundaci-n-transversal-ticket-promedio) — EXECUTING
 Plan: 4 of 4
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-06-04
 
-Progress: [███████░░░] 75%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -193,6 +193,7 @@ _Updated after each plan completion_
 | Phase 120 P01 | 2min | 3 tasks | 3 files |
 | Phase 120 P02 | ~6min | 3 tasks | 3 files |
 | Phase 120 P03 | ~3min | 3 tasks | 3 files |
+| Phase 120 P04 | 6min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -472,6 +473,9 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase 119]: Plan 119-07: HUMAN-GATE-PENDING (2026-06-02). Plan no-autónomo: sólo Task 1 era automatizable y quedó commiteado (2a9dcbc4 — finaliza .env.example del sender de campañas: RESEND_API_KEY prod-required + degradación silenciosa, CAMPAIGN_EMAIL_FROM con sender send.eltemplo.org + pasos humanos de verificación de dominio Resend/DNS SPF/DKIM/Envelope-From/MX que conviven con Google Workspace, D-17). Tasks 2-4 son gates humanos bloqueantes que el usuario ejecuta externamente (NO auto-aprobados, NO se disparó ningún envío real, NO se pushea): (A) verificar dominio Resend, (B) setear secrets prod, (C) copy + imágenes logo/hero + números WhatsApp, (D) arreglar serving de .well-known, (E) crear campaña + preview cross-client + "Enviar campaña" irreversible (D-11). Verificación .well-known en app.eltemplo.org: ambos paths devuelven el index.html del SPA (HTTP 200 pero content-type text/html), NO el JSON — los deep-link files de Plan 05 NO se sirven correctamente todavía → follow-up dependiente de deploy (sin deploy no solicitado, MEMORY). Checklist humano completo A-E en 119-07-SUMMARY.md.
 - [Phase ?]: 120-01: deriveDurationTier derives tier from durationDays (named constants 1/31), not planTier enum — rename-robust, no migration (D-01/D-02)
 - [Phase ?]: 120-01: metricShape { nominal, percentage, n } envelope + verbatim median; div-by-zero guard returns 0/null, never NaN (FUND-02)
+- [Phase 120]: Plan 120-04: Ticket value + discount numerator from subscriptions.price_paid, NOT financial_transactions.amount (cash received can be partial → would misreport partials as discounts); FT is universe/period filter ONLY (kind='plan_charge' only, half-open [from,to), currency-isolated)
+- [Phase 120]: Plan 120-04: excludedNoLink (mandatory) = in-period plan_charge universe minus matched-subscription count per currency; INNER join on target_kind='subscription' excludes enrollment-only charges, surfaced not dropped
+- [Phase 120]: Plan 120-04: Cohort split listPrice (price_paid==listBase AND no override) vs discounted (below base OR override); listBase = priceRegularSnapshot ?? plan.priceRegular, snapshot-null counted in historicalFallbackCount; $0 charges in neither cohort
 
 ### Pending Todos
 
@@ -491,7 +495,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-04T01:00:45.623Z
+Last session: 2026-06-04T01:20:07.546Z
 Stopped at: Completed 120-01-PLAN.md
 Resume file: None
 

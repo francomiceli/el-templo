@@ -80,10 +80,10 @@
 
 ### Bloque 6 — Ticket promedio (TICKET)
 
-- [ ] **TICKET-01**: El gestor obtiene el ticket por plan = promedio de `price_paid` realmente cobrado (no precio de lista), capturando descuentos automáticamente.
-- [ ] **TICKET-02**: El ticket global = suma total cobrada ÷ cantidad de cobros (promedio ponderado por volumen, no promedio de promedios), por moneda, sobre todos los cobros de membresía del período por fecha de cobro.
-- [ ] **TICKET-03**: El gestor obtiene el descuento promedio aplicado = `price_paid` vs precio de lista del plan, por plan y por sede, con la mediana junto al promedio para amortiguar outliers.
-- [ ] **TICKET-04**: El ticket se devuelve aislado por moneda y se abre por corto/largo plazo, sucursal y país.
+- [x] **TICKET-01**: El gestor obtiene el ticket por plan = promedio de `price_paid` realmente cobrado (no precio de lista), capturando descuentos automáticamente.
+- [x] **TICKET-02**: El ticket global = suma total cobrada ÷ cantidad de cobros (promedio ponderado por volumen, no promedio de promedios), por moneda, sobre todos los cobros de membresía del período por fecha de cobro.
+- [x] **TICKET-03**: El gestor obtiene el descuento promedio aplicado = `price_paid` vs precio de lista del plan, por plan y por sede, con la mediana junto al promedio para amortiguar outliers.
+- [x] **TICKET-04**: El ticket se devuelve aislado por moneda y se abre por corto/largo plazo, sucursal y país.
 
 ---
 
@@ -112,10 +112,10 @@
 | FUND-03     | Phase 120 | Complete |
 | FUND-04     | Phase 120 | Complete |
 | FUND-05     | Phase 120 | Complete |
-| TICKET-01   | Phase 120 | Pending  |
-| TICKET-02   | Phase 120 | Pending  |
-| TICKET-03   | Phase 120 | Pending  |
-| TICKET-04   | Phase 120 | Pending  |
+| TICKET-01   | Phase 120 | Complete |
+| TICKET-02   | Phase 120 | Complete |
+| TICKET-03   | Phase 120 | Complete |
+| TICKET-04   | Phase 120 | Complete |
 | CHURN-01    | Phase 121 | Pending  |
 | CHURN-02    | Phase 121 | Pending  |
 | CHURN-03    | Phase 121 | Pending  |
