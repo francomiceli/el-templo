@@ -142,6 +142,15 @@ export class AdvancedFinanceService {
       const accr = accrual.map.get(month) ?? { ARS: 0, EUR: 0 };
       cashTrend.push({ month, ARS: cash.ARS, EUR: cash.EUR });
       accruedTrend.push({ month, ARS: accr.ARS, EUR: accr.EUR });
+      // @deprecated Phase 122 D-122-01 — replaced by GET /ltv monetary LTV
+      // (real-payment based, non-snapshot). ARPU divides accrued revenue by a
+      // POINT-IN-TIME active-member snapshot (`activeMemberCount`), the snapshot
+      // denominator caveat #8 of the métricas spec. The canonical replacement is
+      // the per-customer real-payment LTV at `GET /api/admin/analytics/ltv`
+      // (`LtvService`). Kept FUNCTIONING + math/schema/type byte-unchanged so the
+      // current Finanzas Avanzadas dashboard does not break; physical removal is
+      // the admin-UI phase (same D-09 precedent as Phase 121). Do NOT add new callers.
+      //
       // ARPU = devengado del mes ÷ activos. Guard div-by-zero (T-118-08): a
       // month with 0 active members reports ARPU 0 (documented), never NaN.
       arpu.push({
@@ -339,6 +348,14 @@ export class AdvancedFinanceService {
   }
 
   /**
+   * @deprecated Phase 122 D-122-01 — replaced by GET /ltv monetary LTV
+   * (real-payment based, non-snapshot). This is the ARPU denominator: a
+   * POINT-IN-TIME active-member snapshot (caveat #8 of the métricas spec). The
+   * canonical monetary metric is now the per-customer real-payment LTV at
+   * `GET /api/admin/analytics/ltv` (`LtvService`). Kept FUNCTIONING + unchanged so
+   * the current Finanzas Avanzadas dashboard does not break; physical removal is the
+   * admin-UI phase (same D-09 precedent as Phase 121). Do NOT add new callers.
+   *
    * Count of currently-active members (D-08 ARPU denominator). Uses the canonical
    * `activeMemberExists` predicate (NEVER `users.status`). Scoped via `applyScope`
    * on `users.branchId` (flavor B conditional branch join). This is a point-in-time

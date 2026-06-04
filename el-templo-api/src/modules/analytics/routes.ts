@@ -16,6 +16,7 @@ import { FunnelService } from "./funnel-service";
 import { TicketService } from "./ticket-service";
 import { ChurnService } from "./churn-service";
 import { RenewalService } from "./renewal-service";
+import { LtvService } from "./ltv-service";
 import { handleServiceError } from "../shared/error-handler";
 import type { AnalyticsFilters } from "./types";
 import {
@@ -32,6 +33,7 @@ import {
   ticketSchema,
   churnSchema,
   renewalSchema,
+  ltvSchema,
 } from "./schemas";
 import type { FunnelEntryOrigin } from "./types";
 
@@ -77,6 +79,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
   const ticketService = new TicketService(fastify.db, fastify.log);
   const churnService = new ChurnService(fastify.db, fastify.log);
   const renewalService = new RenewalService(fastify.db, fastify.log);
+  const ltvService = new LtvService(fastify.db, fastify.log);
 
   /**
    * Guard: authenticate + gate to the operational analytics set (gestion +
@@ -466,6 +469,47 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
         return result;
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "get renewal");
+      }
+    },
+  );
+
+  // GET /ltv — LTV / vida del cliente, chained onto the SAME matured expiry cohort as
+  // churn (Phase 122 Block 5, LTV-01..05). Headline = 1 ÷ churn (reusing ChurnService),
+  // robust Kaplan-Meier survival median (active lives censored), monetary LTV from REAL
+  // payments (projected + observed, never list price), all per-currency + opened by
+  // branch/country/plan. SENSIBLE → ADMIN_ROLES-only vía requireAdminAnalytics; gestion
+  // recibe 403. Scoped por sede/país (subscriptions.branchId cohort, users.branchId
+  // money). `window` (ventana de renovación, default 15) se valida y acota en ltvSchema
+  // (T-122-04) antes de llegar al servicio.
+  fastify.get<{
+    Querystring: {
+      branchId?: number;
+      dateFrom?: string;
+      dateTo?: string;
+      window?: number;
+    };
+  }>(
+    "/ltv",
+    {
+      schema: ltvSchema,
+      preHandler: [
+        requireAdminAnalytics,
+        requireBranchAccess({ from: "query.branchId", optional: true }),
+      ],
+    },
+    async (request, reply) => {
+      try {
+        const filters: AnalyticsFilters = {
+          branchId: request.query.branchId,
+          country: request.scope.country ?? undefined,
+          dateFrom: request.query.dateFrom,
+          dateTo: request.query.dateTo,
+          window: request.query.window,
+        };
+        const result = await ltvService.getLtv(filters);
+        return result;
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "get ltv");
       }
     },
   );

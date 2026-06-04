@@ -731,6 +731,88 @@ export const renewalSchema = {
 } as const;
 
 // =============================================================================
+// LTV / vida del cliente Schema (Phase 122 Block 5 — LTV-01..05)
+// =============================================================================
+
+// Local querystring extension (T-122-04): adds the `window` param to the shared
+// analytics querystring WITHOUT mutating the shared const, mirroring
+// churnQuerystring / renewalQuerystring. `window` is an integer bounded 1..365 so a
+// malformed / oversized N is rejected before it reaches the service.
+// branchId/dateFrom/dateTo carry over from analyticsQuerystring.
+const ltvQuerystring = {
+  type: "object",
+  properties: {
+    branchId: { type: "integer" },
+    dateFrom: { type: "string", format: "date" },
+    dateTo: { type: "string", format: "date" },
+    window: { type: "integer", minimum: 1, maximum: 365 },
+  },
+} as const;
+
+// One per-currency monetary LTV block (D-122-07/09). Every monetary figure is
+// `["number","null"]` because the underlying cohort can be empty (null = no data,
+// NEVER NaN on the wire). Declared so fast-json-stringify does not STRIP these fields.
+const ltvCurrencyBlockSchema = {
+  type: "object",
+  properties: {
+    projected: { type: ["number", "null"] },
+    observed: { type: ["number", "null"] },
+    monthlyRealRevenue: { type: ["number", "null"] },
+    n: { type: "integer" },
+  },
+} as const;
+
+// The per-currency monetary surface — ARS / EUR never summed (D-122-09).
+const ltvMonetarySchema = {
+  type: "object",
+  properties: {
+    ARS: ltvCurrencyBlockSchema,
+    EUR: ltvCurrencyBlockSchema,
+  },
+} as const;
+
+// GET /ltv — LTV / vida del cliente (LTV-01..05). The `1 ÷ churn` headline +
+// Kaplan-Meier survival median (both `["number","null"]`, D-122-05) + per-currency
+// monetary block (projected/observed, real-payment based) + branch/country/plan
+// breakdowns, each segment carrying its own headline / median / monetary block.
+// ADMIN_ROLES-only (gestion gets 403). errorSchema covers 400/401/403/500.
+export const ltvSchema = {
+  querystring: ltvQuerystring,
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        lifetimeHeadlineMonths: { type: ["number", "null"] },
+        survivalMedianMonths: { type: ["number", "null"] },
+        monetary: ltvMonetarySchema,
+        breakdowns: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              axis: {
+                type: "string",
+                enum: ["branch", "country", "duration", "plan"],
+              },
+              key: { type: "string" },
+              lifetimeHeadlineMonths: { type: ["number", "null"] },
+              survivalMedianMonths: { type: ["number", "null"] },
+              monetary: ltvMonetarySchema,
+              n: { type: "integer" },
+            },
+          },
+        },
+        n: { type: "integer" },
+      },
+    },
+    400: errorSchema,
+    401: errorSchema,
+    403: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+// =============================================================================
 // Financial Analytics Schema
 // =============================================================================
 
