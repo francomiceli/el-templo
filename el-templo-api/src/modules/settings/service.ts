@@ -71,6 +71,10 @@ export class SettingsService {
         SEGMENT_SETTINGS_KEYS.WINDOW_DAYS,
         SEGMENT_DEFAULTS.WINDOW_DAYS,
       ),
+      frequencyZeroVisitWindowDays: parseOrDefault(
+        SEGMENT_SETTINGS_KEYS.FREQUENCY_ZERO_VISIT_WINDOW_DAYS,
+        SEGMENT_DEFAULTS.FREQUENCY_ZERO_VISIT_WINDOW_DAYS,
+      ),
     };
   }
 
@@ -88,6 +92,8 @@ export class SettingsService {
       ghostWeeks: SEGMENT_SETTINGS_KEYS.GHOST_WEEKS,
       nuevoDays: SEGMENT_SETTINGS_KEYS.NUEVO_DAYS,
       windowDays: SEGMENT_SETTINGS_KEYS.WINDOW_DAYS,
+      frequencyZeroVisitWindowDays:
+        SEGMENT_SETTINGS_KEYS.FREQUENCY_ZERO_VISIT_WINDOW_DAYS,
     };
 
     for (const [prop, settingKey] of Object.entries(keyMap)) {

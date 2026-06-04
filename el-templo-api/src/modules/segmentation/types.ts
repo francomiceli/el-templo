@@ -24,6 +24,10 @@ export const SEGMENT_SETTINGS_KEYS = {
   GHOST_WEEKS: "segment.ghost_weeks",
   NUEVO_DAYS: "segment.nuevo_days",
   WINDOW_DAYS: "segment.window_days",
+  // Golden-case (FREQ-05/06, D-123-02): rolling window in days over which an
+  // active (paying) member with ZERO visits is forced to `en_riesgo`. Tuneable
+  // via system_settings (mirrors the other thresholds — NOT an env var).
+  FREQUENCY_ZERO_VISIT_WINDOW_DAYS: "segment.frequency_zero_visit_window_days",
 } as const;
 
 // ─── Default Threshold Values ─────────────────────────────────────────────
@@ -35,6 +39,8 @@ export const SEGMENT_DEFAULTS = {
   GHOST_WEEKS: 8,
   NUEVO_DAYS: 30,
   WINDOW_DAYS: 28,
+  // 4-week rolling window, matching the frequency metric window (D-123-03).
+  FREQUENCY_ZERO_VISIT_WINDOW_DAYS: 28,
 } as const;
 
 // ─── Threshold Configuration Interface ────────────────────────────────────
@@ -46,6 +52,7 @@ export interface SegmentThresholds {
   ghostWeeks: number;
   nuevoDays: number;
   windowDays: number;
+  frequencyZeroVisitWindowDays: number;
 }
 
 // ─── Display Metadata (for admin UI) ──────────────────────────────────────

@@ -79,6 +79,10 @@ export class SegmentationService {
         SEGMENT_SETTINGS_KEYS.WINDOW_DAYS,
         SEGMENT_DEFAULTS.WINDOW_DAYS,
       ),
+      frequencyZeroVisitWindowDays: parseOrDefault(
+        SEGMENT_SETTINGS_KEYS.FREQUENCY_ZERO_VISIT_WINDOW_DAYS,
+        SEGMENT_DEFAULTS.FREQUENCY_ZERO_VISIT_WINDOW_DAYS,
+      ),
     };
   }
 
@@ -94,7 +98,10 @@ export class SegmentationService {
    * 6. Intermitente — 40-80% of plan budget used
    * 7. En Riesgo — <40% of plan budget (fallback)
    */
-  async calculateSegment(userId: number): Promise<MemberSegment> {
+  async calculateSegment(
+    userId: number,
+    opts?: { isFrequencyGoldenCase?: boolean },
+  ): Promise<MemberSegment> {
     const thresholds = await this.getThresholds();
 
     // Step 1: Get user's registration date
@@ -109,12 +116,28 @@ export class SegmentationService {
       return "ghost";
     }
 
-    // Step 2: Nuevo check (per D-07)
+    // Step 2: Nuevo check (per D-07) — wins over the golden case so a brand-new
+    // member is never forced to en_riesgo for not having shown up yet.
     const daysSinceRegistration =
       (Date.now() - user.createdAt.getTime()) / (1000 * 60 * 60 * 24);
 
     if (daysSinceRegistration < thresholds.nuevoDays) {
       return "nuevo";
+    }
+
+    // Step 2b: Frequency golden case (FREQ-05/06, D-123-02). The ONLY frequency
+    // → segment override: an ACTIVE (paying) member with 0 visits in the
+    // tuneable window (or cooling down) gets `en_riesgo`. Gated on active-paid-
+    // sub so it never clobbers non-paying or higher-engagement results, and
+    // placed after the nuevo guard so brand-new members stay "nuevo". The fine
+    // multi-band → segment mapping is explicitly NOT introduced (deferred).
+    //
+    // The nightly batch pre-computes the golden-case set once and threads it in
+    // via `opts.isFrequencyGoldenCase` (DRY/perf — single batched query). When
+    // absent (the login path), the per-user signal is computed inline so the
+    // login recalc keeps working without a frequency pre-fetch.
+    if (await this.isFrequencyGoldenCase(userId, thresholds, opts)) {
+      return "en_riesgo";
     }
 
     // Step 3: Get last activity dates
@@ -266,6 +289,63 @@ export class SegmentationService {
     }
 
     return "en_riesgo";
+  }
+
+  /**
+   * The frequency "golden case" (FREQ-05/06, D-123-02): an ACTIVE (active/paused
+   * subscription) member with ZERO visits in the tuneable
+   * `frequencyZeroVisitWindowDays` window. This is the ONLY frequency → segment
+   * override added by Phase 123.
+   *
+   * When the nightly batch supplies `opts.isFrequencyGoldenCase` it is used
+   * directly (the batch computes the set once via a single batched query —
+   * D-123-01); otherwise the per-user signal is computed inline (active-sub
+   * lookup + attendance COUNT in the window) so the login path keeps working
+   * without a frequency pre-fetch. The batch signal additionally captures the
+   * cooling-down case; the inline path covers the zero-visits case directly.
+   */
+  private async isFrequencyGoldenCase(
+    userId: number,
+    thresholds: SegmentThresholds,
+    opts?: { isFrequencyGoldenCase?: boolean },
+  ): Promise<boolean> {
+    if (opts?.isFrequencyGoldenCase !== undefined) {
+      return opts.isFrequencyGoldenCase;
+    }
+
+    // Inline per-user signal: gate on an active/paused subscription first.
+    const [activeSub] = await this.db
+      .select({ id: schema.subscriptions.id })
+      .from(schema.subscriptions)
+      .where(
+        and(
+          eq(schema.subscriptions.userId, userId),
+          inArray(schema.subscriptions.status, ["active", "paused"]),
+        ),
+      )
+      .limit(1);
+
+    if (!activeSub) {
+      return false;
+    }
+
+    // Zero visits in the rolling golden-case window → golden case.
+    const windowStart = new Date(
+      Date.now() -
+        thresholds.frequencyZeroVisitWindowDays * 24 * 60 * 60 * 1000,
+    );
+
+    const [attendanceResult] = await this.db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(schema.attendance)
+      .where(
+        and(
+          eq(schema.attendance.memberId, userId),
+          gte(schema.attendance.checkedInAt, windowStart),
+        ),
+      );
+
+    return (attendanceResult?.count ?? 0) === 0;
   }
 
   /**
