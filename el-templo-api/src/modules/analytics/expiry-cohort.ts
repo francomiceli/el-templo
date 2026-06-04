@@ -128,17 +128,27 @@ export function lastExpiryPerPersonExpr(
   // from/to side simply omits its fragment (same semantics as rangeConditions).
   const lower = from !== undefined ? sql`AND s2.end_date >= ${from}` : sql``;
   const upper = to !== undefined ? sql`AND s2.end_date < ${to}` : sql``;
+  // Outer-row references are qualified with the LITERAL `subscriptions.` prefix
+  // rather than `${schema.subscriptions.col}`. Drizzle qualifies columns in
+  // `.where()` but renders the SAME column reference UNQUALIFIED inside `sql`
+  // fragments placed in `.select()` (where this engine's sibling predicates live).
+  // An unqualified `id` / `end_date` inside the correlated subquery collides with
+  // the inner alias's own same-named columns — MySQL resolves it to the innermost
+  // scope (e.g. `s2.id <> s2.id` → always false), and is outright AMBIGUOUS once the
+  // outer query joins `branches`/`subscriptionPlans` (the breakdown queries) → 500.
+  // The explicit `subscriptions.` qualifier is unambiguous in every consumer because
+  // all three query builders keep the outer table unaliased.
   return sql`NOT EXISTS (
     SELECT 1 FROM subscriptions s2
-    WHERE s2.user_id = ${schema.subscriptions.userId}
-      AND s2.id <> ${schema.subscriptions.id}
+    WHERE s2.user_id = subscriptions.user_id
+      AND s2.id <> subscriptions.id
       AND s2.subscription_status <> 'paused'
-      AND s2.branch_id = ${schema.subscriptions.branchId}
+      AND s2.branch_id = subscriptions.branch_id
       ${lower}
       ${upper}
       AND (
-        s2.end_date > ${schema.subscriptions.endDate}
-        OR (s2.end_date = ${schema.subscriptions.endDate} AND s2.id > ${schema.subscriptions.id})
+        s2.end_date > subscriptions.end_date
+        OR (s2.end_date = subscriptions.end_date AND s2.id > subscriptions.id)
       )
   )`;
 }
@@ -171,14 +181,23 @@ export function lastExpiryPerPersonExpr(
  */
 export function retainedExpr(windowDays: number): SQL {
   const n = sql.raw(String(windowDays));
+  // Outer-row references use the LITERAL `subscriptions.` prefix, NOT
+  // `${schema.subscriptions.col}` — this predicate lives in `.select()`, where
+  // Drizzle renders that column reference UNQUALIFIED. An unqualified `id` /
+  // `end_date` collides with the inner `s_next` alias's same-named columns: MySQL
+  // resolves to the innermost scope, so `s_next.id <> id` becomes `s_next.id <>
+  // s_next.id` (always false) and `s_next.end_date > end_date` becomes a no-op
+  // self-comparison — `retainedExpr` would NEVER match, mislabelling every renewal
+  // as churn. With a join (breakdown queries) the bare `id` is also AMBIGUOUS → 500.
+  // Explicit `subscriptions.` qualification is unambiguous (outer table is unaliased).
   return sql`EXISTS (
     SELECT 1 FROM subscriptions s_next
-    WHERE s_next.user_id = ${schema.subscriptions.userId}
-      AND s_next.id <> ${schema.subscriptions.id}
+    WHERE s_next.user_id = subscriptions.user_id
+      AND s_next.id <> subscriptions.id
       AND s_next.subscription_status <> 'paused'
-      AND s_next.branch_id = ${schema.subscriptions.branchId}
-      AND s_next.end_date > ${schema.subscriptions.endDate}
-      AND s_next.start_date <= DATE_ADD(${schema.subscriptions.endDate}, INTERVAL ${n} DAY)
+      AND s_next.branch_id = subscriptions.branch_id
+      AND s_next.end_date > subscriptions.end_date
+      AND s_next.start_date <= DATE_ADD(subscriptions.end_date, INTERVAL ${n} DAY)
   )`;
 }
 
@@ -198,5 +217,9 @@ export function retainedExpr(windowDays: number): SQL {
  */
 export function maturedExpr(windowDays: number): SQL {
   const n = sql.raw(String(windowDays));
-  return sql`${schema.subscriptions.endDate} <= DATE_SUB(CURDATE(), INTERVAL ${n} DAY)`;
+  // Literal `subscriptions.end_date` (not `${schema.subscriptions.endDate}`) so the
+  // reference stays qualified in `.select()` position too. It is unambiguous today
+  // (no joined table has `end_date`), but the explicit qualifier is consistent with
+  // the correlated-subquery predicates above and immune to a future same-named join.
+  return sql`subscriptions.end_date <= DATE_SUB(CURDATE(), INTERVAL ${n} DAY)`;
 }
