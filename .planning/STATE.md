@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v5.0
 milestone_name: Métricas de Gestión
-status: executing
+status: verifying
 stopped_at: Phase 121 context gathered
-last_updated: "2026-06-04T03:07:38.107Z"
+last_updated: "2026-06-04T03:14:55.795Z"
 last_activity: 2026-06-04
 progress:
   total_phases: 4
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 7
-  completed_plans: 6
-  percent: 25
+  completed_plans: 7
+  percent: 50
 ---
 
 # Project State
@@ -27,10 +27,10 @@ See: .planning/PROJECT.md (updated 2026-06-03)
 
 Phase: 121 (vencimiento-churn-de-no-renovaci-n-tasa-de-renovaci-n) — EXECUTING
 Plan: 3 of 3
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-06-04
 
-Progress: [█████████░] 86%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -196,6 +196,7 @@ _Updated after each plan completion_
 | Phase 120 P04 | 6min | 3 tasks | 5 files |
 | Phase 121 P01 | 5min | 3 tasks | 3 files |
 | Phase 121 P02 | 6min | 3 tasks | 5 files |
+| Phase 121 P03 | 4min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -482,6 +483,9 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: Phase 121: CHURN_COMPARISON_WINDOWS=[5,10,15], RENOVATION_WINDOW_DEFAULT_DAYS=15 (D-07)
 - [Phase ?]: Churn person-based via JS folding over per-person cohort rows; identical maturity+retention gating across official/multi-N/series/breakdown paths
 - [Phase ?]: Legacy churn/retention metrics annotated @deprecated (D-09); physical removal deferred to admin-UI phase
+- [Phase ?]: Renovación = matured AND retained over the SAME per-person cohort churn uses; renewal.n equals churn's denominator (RENOV-01), asserted in renewal.test.ts
+- [Phase ?]: enGracia exposed as the número vivo (RENOV-03/D-07); renov%+churn% reconcile only over the matured cohort, grace residual surfaced not folded
+- [Phase ?]: getRenewalRate annotated @deprecated Phase 121 D-09 pointing to GET /renewal; behavior + callers unchanged, removal deferred to admin-UI phase
 
 ### Pending Todos
 
@@ -501,7 +505,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-04T03:07:19.797Z
+Last session: 2026-06-04T03:14:48.382Z
 Stopped at: Phase 121 context gathered
 Resume file: None
 

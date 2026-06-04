@@ -2791,7 +2791,7 @@ _Phase 116 added: 2026-05-25 — bug recurrente de logout en app de miembros (JW
 ## v5.0 Phases
 
 - [x] **Phase 120: Fundación transversal + Ticket promedio** — `duration_tier` por flag + helpers comunes (nominal+%+n, motor de breakdowns comparables, vista semanal/mensual respetando el rango, aislamiento de moneda, cohortes por rango `[from,to)`) + Bloque 6 (ticket promedio ponderado por `price_paid`, descuento vs `priceRegular`, mediana ante outliers, por moneda). Ticket es chico y estrena los helpers de la fundación. (completed 2026-06-04)
-- [ ] **Phase 121: Vencimiento — Churn de no renovación + Tasa de renovación** — Bloque 1 (churn person-based, cohorte por `end_date ∈ [from,to)`, churn maduro ≥N días, N libre/multi-N, serie histórica con marca de provisorios) + Bloque 2 (renovación = renovados÷vencidos sobre la misma cohorte, corte renovación/reactivación 15d configurable, número "vivo"). Comparten el motor de cohorte por `end_date`; reemplazan las métricas viejas juntas.
+- [x] **Phase 121: Vencimiento — Churn de no renovación + Tasa de renovación** — Bloque 1 (churn person-based, cohorte por `end_date ∈ [from,to)`, churn maduro ≥N días, N libre/multi-N, serie histórica con marca de provisorios) + Bloque 2 (renovación = renovados÷vencidos sobre la misma cohorte, corte renovación/reactivación 15d configurable, número "vivo"). Comparten el motor de cohorte por `end_date`; reemplazan las métricas viejas juntas. (completed 2026-06-04)
 - [ ] **Phase 122: LTV / vida del cliente** — Bloque 5: lifetime headline `1÷churn mensual` (usa el churn de la fase 121) + robusto Kaplan-Meier (mediana de supervivencia con censura para activos) + LTV monetario desde pagos reales (proyectado y observado, nunca ARPU), separado por moneda, abierto por sucursal/país/plan. Depende del churn de la fase 121; Kaplan-Meier merece fase propia con tests.
 - [ ] **Phase 123: Asistencia + Funnel — Frecuencia de asistencia + Funnel de sesiones de prueba** — Bloque 4 (frecuencia visitas/sem por miembro sobre 4 semanas rodantes, bandas Inactivo/Bajo/Medio/Alto, lista "enfriándose", adopción de check-in al lado, recálculo batch de segmentación) + Bloque 3 (cascada reserva→asistencia→compra, `tasa_cierre`=compraron÷asistieron, ventana de atribución ~21d, solo leads nuevos, cohorte por fecha de sesión agendada). Independientes del eje de vencimiento; Bloque 4 es el de mayor riesgo por el cron de segmentación.
 
@@ -2857,13 +2857,13 @@ Plans:
 
 **Risks / notas:** Decisiones abiertas — ¿se retira `renewalRate` 7/14/30 o convive con el Bloque 2? Edge case: persona con varios vencimientos en el rango → evaluar churn sobre su último vencimiento del rango (confirmar con dato real). Resolver en `discuss-phase`.
 
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 
 Plans:
 
 - [x] 121-01-PLAN.md — Shared expiry-cohort engine (cohorte por end_date, predicados retención/madurez) + wire types ChurnAnalytics/RenewalAnalytics + test primitivo
 - [x] 121-02-PLAN.md — ChurnService person-based (multi-N, churn maduro, serie provisoria, breakdowns) + GET /churn + churnSchema + deprecación métricas viejas (D-09) + test
-- [ ] 121-03-PLAN.md — RenewalService (renovados÷vencidos misma cohorte, número vivo enGracia, breakdowns) + GET /renewal + renewalSchema + deprecación getRenewalRate (D-09) + test
+- [x] 121-03-PLAN.md — RenewalService (renovados÷vencidos misma cohorte, número vivo enGracia, breakdowns) + GET /renewal + renewalSchema + deprecación getRenewalRate (D-09) + test
 
 **Nota de desvío (D-09):** El Success Criterion #1 ("la métrica vieja `churnedMembers` queda eliminada") se satisface a nivel milestone: en la Fase 121 las métricas viejas quedan **deprecadas-pero-presentes** (anotadas, apuntando a los endpoints nuevos como canónicos) para no romper el dashboard admin; la eliminación física ocurre en la fase de UI del admin cuando las tarjetas se reconecten.
 
@@ -2920,7 +2920,7 @@ Plans:
 | Phase                                          | Plans Complete | Status      | Completed  |
 | ---------------------------------------------- | -------------- | ----------- | ---------- |
 | 120. Fundación transversal + Ticket            | 4/4            | Complete    | 2026-06-04 |
-| 121. Vencimiento (Churn + Renovación)          | 2/3            | In Progress |            |
+| 121. Vencimiento (Churn + Renovación)          | 3/3            | Complete    | 2026-06-04 |
 | 122. LTV / vida del cliente                    | 0/TBD          | Not started | -          |
 | 123. Asistencia + Funnel (Frecuencia + Prueba) | 0/TBD          | Not started | -          |
 

@@ -49,9 +49,9 @@
 ### Bloque 2 — Tasa de renovación (RENOV)
 
 - [x] **RENOV-01**: El gestor obtiene la tasa de renovación = renovados ÷ vencidos en la franja `[from, to)`, sobre la misma cohorte de personas que el Bloque 1.
-- [ ] **RENOV-02**: El corte renovación/reactivación es configurable y arranca en 15 días (volver a pagar dentro de 15 días = renovación; después = reactivación, fuera de alcance).
-- [ ] **RENOV-03**: La tasa es un "número vivo": no se fuerza que renovación% + churn% = 100; la consistencia entre ambos solo se cumple cuando toda la cohorte maduró (en_gracia = 0).
-- [ ] **RENOV-04**: La renovación se ordena y compara por segmento (sucursal, país, corto/largo, nombre de plan) para descubrir buenos y malos performers.
+- [x] **RENOV-02**: El corte renovación/reactivación es configurable y arranca en 15 días (volver a pagar dentro de 15 días = renovación; después = reactivación, fuera de alcance).
+- [x] **RENOV-03**: La tasa es un "número vivo": no se fuerza que renovación% + churn% = 100; la consistencia entre ambos solo se cumple cuando toda la cohorte maduró (en_gracia = 0).
+- [x] **RENOV-04**: La renovación se ordena y compara por segmento (sucursal, país, corto/largo, nombre de plan) para descubrir buenos y malos performers.
 
 ### Bloque 3 — Funnel de sesiones de prueba (FUNNEL)
 
@@ -123,9 +123,9 @@
 | CHURN-05    | Phase 121 | Complete |
 | CHURN-06    | Phase 121 | Complete |
 | RENOV-01    | Phase 121 | Complete |
-| RENOV-02    | Phase 121 | Pending  |
-| RENOV-03    | Phase 121 | Pending  |
-| RENOV-04    | Phase 121 | Pending  |
+| RENOV-02    | Phase 121 | Complete |
+| RENOV-03    | Phase 121 | Complete |
+| RENOV-04    | Phase 121 | Complete |
 | LTV-01      | Phase 122 | Pending  |
 | LTV-02      | Phase 122 | Pending  |
 | LTV-03      | Phase 122 | Pending  |
