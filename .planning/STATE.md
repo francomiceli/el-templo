@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v5.0
 milestone_name: Métricas de Gestión
-status: verifying
-stopped_at: Phase 121 context gathered
-last_updated: "2026-06-04T03:31:36.648Z"
+status: executing
+stopped_at: Completed 122-01-PLAN.md
+last_updated: "2026-06-04T13:03:42.565Z"
 last_activity: 2026-06-04
 progress:
   total_phases: 4
   completed_phases: 2
-  total_plans: 7
-  completed_plans: 7
+  total_plans: 10
+  completed_plans: 8
   percent: 50
 ---
 
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-03)
 
 **Core value:** v5.0 reemplaza y amplía las métricas del panel de gestión con 6 bloques nuevos/mejorados (churn person-based, renovación, funnel de prueba, frecuencia, LTV/Kaplan-Meier, ticket), backend-first, con aislamiento de moneda y breakdowns comparables.
-**Current focus:** Phase 121 — vencimiento-churn-de-no-renovaci-n-tasa-de-renovaci-n
+**Current focus:** Phase 122 — ltv-vida-del-cliente
 
 ## Current Position
 
-Phase: 121 (vencimiento-churn-de-no-renovaci-n-tasa-de-renovaci-n) — EXECUTING
-Plan: 3 of 3
-Status: Phase complete — ready for verification
+Phase: 122 (ltv-vida-del-cliente) — EXECUTING
+Plan: 2 of 3
+Status: Ready to execute
 Last activity: 2026-06-04
 
-Progress: [██████████] 100%
+Progress: [████████░░] 80%
 
 ## Performance Metrics
 
@@ -197,6 +197,7 @@ _Updated after each plan completion_
 | Phase 121 P01 | 5min | 3 tasks | 3 files |
 | Phase 121 P02 | 6min | 3 tasks | 5 files |
 | Phase 121 P03 | 4min | 3 tasks | 5 files |
+| Phase 122 P01 | 7min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -486,6 +487,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: Renovación = matured AND retained over the SAME per-person cohort churn uses; renewal.n equals churn's denominator (RENOV-01), asserted in renewal.test.ts
 - [Phase ?]: enGracia exposed as the número vivo (RENOV-03/D-07); renov%+churn% reconcile only over the matured cohort, grace residual surfaced not folded
 - [Phase ?]: getRenewalRate annotated @deprecated Phase 121 D-09 pointing to GET /renewal; behavior + callers unchanged, removal deferred to admin-UI phase
+- [Phase ?]: Plan 122-01: KM median = first event time S(t)<=0.5; ties collapse to one step; censored customers stay in at-risk denominator (D-122-05)
+- [Phase ?]: Plan 122-01: LtvMonetary keeps ARS/EUR as separate LtvCurrencyBlock (never summed, D-122-09); projected vs observed LTV both real-payment based (D-122-07)
 
 ### Pending Todos
 
@@ -505,8 +508,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-04T03:14:48.382Z
-Stopped at: Phase 121 context gathered
+Last session: 2026-06-04T13:03:42.541Z
+Stopped at: Completed 122-01-PLAN.md
 Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
