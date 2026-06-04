@@ -18,6 +18,7 @@ import { ChurnService } from "./churn-service";
 import { RenewalService } from "./renewal-service";
 import { LtvService } from "./ltv-service";
 import { FrequencyService } from "./frequency-service";
+import { TrialFunnelService } from "./trial-funnel-service";
 import { handleServiceError } from "../shared/error-handler";
 import type { AnalyticsFilters } from "./types";
 import {
@@ -36,6 +37,7 @@ import {
   renewalSchema,
   ltvSchema,
   frequencySchema,
+  trialFunnelSchema,
 } from "./schemas";
 import type { FunnelEntryOrigin } from "./types";
 
@@ -83,6 +85,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
   const renewalService = new RenewalService(fastify.db, fastify.log);
   const ltvService = new LtvService(fastify.db, fastify.log);
   const frequencyService = new FrequencyService(fastify.db, fastify.log);
+  const trialFunnelService = new TrialFunnelService(fastify.db, fastify.log);
 
   /**
    * Guard: authenticate + gate to the operational analytics set (gestion +
@@ -588,6 +591,48 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
         return result;
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "get frequency");
+      }
+    },
+  );
+
+  // GET /trial-funnel — funnel de sesiones de prueba reservó→asistió→compró
+  // (Phase 123 Block 3, FUNNEL-01..05). Cohorte de leads NUEVOS (sin sub paga
+  // previa) anclada por la fecha de la sesión agendada; asistió desde
+  // bookings.status (D-123-07); compró = primera sub paga dentro de la ventana de
+  // atribución (~21d, configurable vía `window`) que madura sola; tasas con
+  // metricShape; breakdowns por sucursal/país/turno/plan-comprado. SENSIBLE →
+  // ADMIN_ROLES-only vía requireAdminAnalytics; gestion recibe 403 (D-123-14).
+  // Scoped por sede/país (schedules.branchId). `window` (ventana de atribución)
+  // se valida y acota en trialFunnelSchema (T-123-08) antes de llegar al servicio.
+  fastify.get<{
+    Querystring: {
+      branchId?: number;
+      dateFrom?: string;
+      dateTo?: string;
+      window?: number;
+    };
+  }>(
+    "/trial-funnel",
+    {
+      schema: trialFunnelSchema,
+      preHandler: [
+        requireAdminAnalytics,
+        requireBranchAccess({ from: "query.branchId", optional: true }),
+      ],
+    },
+    async (request, reply) => {
+      try {
+        const filters: AnalyticsFilters = {
+          branchId: request.query.branchId,
+          country: request.scope.country ?? undefined,
+          dateFrom: request.query.dateFrom,
+          dateTo: request.query.dateTo,
+          window: request.query.window,
+        };
+        const result = await trialFunnelService.getTrialFunnel(filters);
+        return result;
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "get trial funnel");
       }
     },
   );

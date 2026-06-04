@@ -755,6 +755,108 @@ export const frequencySchema = {
 } as const;
 
 // =============================================================================
+// Funnel de sesiones de prueba Schema (Phase 123 Block 3 — FUNNEL-01..05)
+// =============================================================================
+
+// Local querystring extension (T-123-08): adds the `window` (attribution window)
+// param to the shared analytics querystring WITHOUT mutating the shared const,
+// mirroring churnQuerystring. `window` is an integer bounded 1..365 so a
+// malformed / oversized N is rejected before it reaches the service. The bounded
+// value reaches the predicate as a SERVICE-controlled typed integer.
+// branchId/dateFrom/dateTo carry over from analyticsQuerystring.
+const trialFunnelQuerystring = {
+  type: "object",
+  properties: {
+    branchId: { type: "integer" },
+    dateFrom: { type: "string", format: "date" },
+    dateTo: { type: "string", format: "date" },
+    window: { type: "integer", minimum: 1, maximum: 365 },
+  },
+} as const;
+
+// The canonical `{ nominal, percentage, n }` envelope (FUND-02 / metric-shape.ts),
+// declared so every funnel MetricShape on the wire is fully described
+// (fast-json-stringify STRIPS undeclared fields).
+const trialFunnelMetricShapeSchema = {
+  type: "object",
+  properties: {
+    nominal: { type: "integer" },
+    percentage: { type: "number" },
+    n: { type: "integer" },
+  },
+} as const;
+
+// The three cascade counts (reservaron/asistieron/compraron — D-123-08/07/09).
+const trialFunnelCountsSchema = {
+  type: "object",
+  properties: {
+    reservaron: { type: "integer" },
+    asistieron: { type: "integer" },
+    compraron: { type: "integer" },
+  },
+} as const;
+
+// The three cascade rates (tasa_show / tasa_cierre / punta_a_punta — D-123-11).
+const trialFunnelRatesSchema = {
+  type: "object",
+  properties: {
+    tasaShow: trialFunnelMetricShapeSchema,
+    tasaCierre: trialFunnelMetricShapeSchema,
+    puntaAPunta: trialFunnelMetricShapeSchema,
+  },
+} as const;
+
+// GET /trial-funnel — trial-session cascade reservó→asistió→compró over the
+// new-lead cohort, with the three rates, the weekly+monthly provisional series,
+// the branch/country/turno/plan-bought breakdowns, and the effective attribution
+// window. ADMIN_ROLES-only (gestion gets 403). errorSchema covers
+// 400/401/403/500. EVERY field declared (fast-json-stringify STRIPS undeclared).
+export const trialFunnelSchema = {
+  querystring: trialFunnelQuerystring,
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        counts: trialFunnelCountsSchema,
+        rates: trialFunnelRatesSchema,
+        series: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              bucket: { type: "string" },
+              counts: trialFunnelCountsSchema,
+              rates: trialFunnelRatesSchema,
+              provisional: { type: "boolean" },
+            },
+          },
+        },
+        breakdowns: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              axis: {
+                type: "string",
+                enum: ["branch", "country", "turno", "plan"],
+              },
+              key: { type: "string" },
+              counts: trialFunnelCountsSchema,
+              rates: trialFunnelRatesSchema,
+            },
+          },
+        },
+        attributionWindowDays: { type: "integer" },
+      },
+    },
+    400: errorSchema,
+    401: errorSchema,
+    403: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+// =============================================================================
 // Tasa de renovación Schema (Phase 121 Block 2 — RENOV-01..04)
 // =============================================================================
 
