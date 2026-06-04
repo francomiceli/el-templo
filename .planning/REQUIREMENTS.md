@@ -40,11 +40,11 @@
 ### Bloque 1 — Churn de no renovación (CHURN)
 
 - [x] **CHURN-01**: El gestor obtiene el churn como **personas distintas** (no suscripciones) cuya sub venció en `[from, to)` y no registraron sub nueva dentro de N días — reemplaza la métrica vieja basada en `updated_at`.
-- [ ] **CHURN-02**: El parámetro N es configurable y libre (no fijo); el endpoint acepta múltiples N en simultáneo para la vista comparativa (churn@5 / @10 / @15 lado a lado).
-- [ ] **CHURN-03**: Solo entran al cálculo personas cuyo vencimiento ocurrió hace ≥ N días ("churn maduro"); las que siguen en ventana de gracia se excluyen de numerador y denominador hasta madurar.
+- [x] **CHURN-02**: El parámetro N es configurable y libre (no fijo); el endpoint acepta múltiples N en simultáneo para la vista comparativa (churn@5 / @10 / @15 lado a lado).
+- [x] **CHURN-03**: Solo entran al cálculo personas cuyo vencimiento ocurrió hace ≥ N días ("churn maduro"); las que siguen en ventana de gracia se excluyen de numerador y denominador hasta madurar.
 - [x] **CHURN-04**: Renovación anticipada (paga antes de vencer) y cambio de duración (mensual↔largo plazo) cuentan como retención, no como churn. Una sub en pausa no cuenta como vencida.
-- [ ] **CHURN-05**: El gestor obtiene una serie histórica de churn por cohorte de vencimiento mes a mes, con marca de períodos provisorios (cohorte aún inmadura).
-- [ ] **CHURN-06**: El churn se abre por los breakdowns estándar (duración, nombre de plan, sucursal, país) con nominal + % + n.
+- [x] **CHURN-05**: El gestor obtiene una serie histórica de churn por cohorte de vencimiento mes a mes, con marca de períodos provisorios (cohorte aún inmadura).
+- [x] **CHURN-06**: El churn se abre por los breakdowns estándar (duración, nombre de plan, sucursal, país) con nominal + % + n.
 
 ### Bloque 2 — Tasa de renovación (RENOV)
 
@@ -117,11 +117,11 @@
 | TICKET-03   | Phase 120 | Complete |
 | TICKET-04   | Phase 120 | Complete |
 | CHURN-01    | Phase 121 | Complete |
-| CHURN-02    | Phase 121 | Pending  |
-| CHURN-03    | Phase 121 | Pending  |
+| CHURN-02    | Phase 121 | Complete |
+| CHURN-03    | Phase 121 | Complete |
 | CHURN-04    | Phase 121 | Complete |
-| CHURN-05    | Phase 121 | Pending  |
-| CHURN-06    | Phase 121 | Pending  |
+| CHURN-05    | Phase 121 | Complete |
+| CHURN-06    | Phase 121 | Complete |
 | RENOV-01    | Phase 121 | Complete |
 | RENOV-02    | Phase 121 | Pending  |
 | RENOV-03    | Phase 121 | Pending  |

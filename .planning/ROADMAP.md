@@ -2857,12 +2857,12 @@ Plans:
 
 **Risks / notas:** Decisiones abiertas — ¿se retira `renewalRate` 7/14/30 o convive con el Bloque 2? Edge case: persona con varios vencimientos en el rango → evaluar churn sobre su último vencimiento del rango (confirmar con dato real). Resolver en `discuss-phase`.
 
-**Plans:** 1/3 plans executed
+**Plans:** 2/3 plans executed
 
 Plans:
 
 - [x] 121-01-PLAN.md — Shared expiry-cohort engine (cohorte por end_date, predicados retención/madurez) + wire types ChurnAnalytics/RenewalAnalytics + test primitivo
-- [ ] 121-02-PLAN.md — ChurnService person-based (multi-N, churn maduro, serie provisoria, breakdowns) + GET /churn + churnSchema + deprecación métricas viejas (D-09) + test
+- [x] 121-02-PLAN.md — ChurnService person-based (multi-N, churn maduro, serie provisoria, breakdowns) + GET /churn + churnSchema + deprecación métricas viejas (D-09) + test
 - [ ] 121-03-PLAN.md — RenewalService (renovados÷vencidos misma cohorte, número vivo enGracia, breakdowns) + GET /renewal + renewalSchema + deprecación getRenewalRate (D-09) + test
 
 **Nota de desvío (D-09):** El Success Criterion #1 ("la métrica vieja `churnedMembers` queda eliminada") se satisface a nivel milestone: en la Fase 121 las métricas viejas quedan **deprecadas-pero-presentes** (anotadas, apuntando a los endpoints nuevos como canónicos) para no romper el dashboard admin; la eliminación física ocurre en la fase de UI del admin cuando las tarjetas se reconecten.
@@ -2920,7 +2920,7 @@ Plans:
 | Phase                                          | Plans Complete | Status      | Completed  |
 | ---------------------------------------------- | -------------- | ----------- | ---------- |
 | 120. Fundación transversal + Ticket            | 4/4            | Complete    | 2026-06-04 |
-| 121. Vencimiento (Churn + Renovación)          | 1/3            | In Progress |            |
+| 121. Vencimiento (Churn + Renovación)          | 2/3            | In Progress |            |
 | 122. LTV / vida del cliente                    | 0/TBD          | Not started | -          |
 | 123. Asistencia + Funnel (Frecuencia + Prueba) | 0/TBD          | Not started | -          |
 

@@ -4,13 +4,13 @@ milestone: v5.0
 milestone_name: Métricas de Gestión
 status: executing
 stopped_at: Phase 121 context gathered
-last_updated: "2026-06-04T02:57:56.889Z"
+last_updated: "2026-06-04T03:07:38.107Z"
 last_activity: 2026-06-04
 progress:
   total_phases: 4
   completed_phases: 1
   total_plans: 7
-  completed_plans: 5
+  completed_plans: 6
   percent: 25
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-06-03)
 ## Current Position
 
 Phase: 121 (vencimiento-churn-de-no-renovaci-n-tasa-de-renovaci-n) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-06-04
 
-Progress: [███████░░░] 71%
+Progress: [█████████░] 86%
 
 ## Performance Metrics
 
@@ -195,6 +195,7 @@ _Updated after each plan completion_
 | Phase 120 P03 | ~3min | 3 tasks | 3 files |
 | Phase 120 P04 | 6min | 3 tasks | 5 files |
 | Phase 121 P01 | 5min | 3 tasks | 3 files |
+| Phase 121 P02 | 6min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -479,6 +480,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase 120]: Plan 120-04: Cohort split listPrice (price_paid==listBase AND no override) vs discounted (below base OR override); listBase = priceRegularSnapshot ?? plan.priceRegular, snapshot-null counted in historicalFallbackCount; $0 charges in neither cohort
 - [Phase ?]: Phase 121 Plan 01: extracted shared expiry-cohort engine (expiry-cohort.ts) — churn + renovación consume one cohort definition (RENOV-01 DRY)
 - [Phase ?]: Phase 121: CHURN_COMPARISON_WINDOWS=[5,10,15], RENOVATION_WINDOW_DEFAULT_DAYS=15 (D-07)
+- [Phase ?]: Churn person-based via JS folding over per-person cohort rows; identical maturity+retention gating across official/multi-N/series/breakdown paths
+- [Phase ?]: Legacy churn/retention metrics annotated @deprecated (D-09); physical removal deferred to admin-UI phase
 
 ### Pending Todos
 
@@ -498,7 +501,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-04T02:57:50.785Z
+Last session: 2026-06-04T03:07:19.797Z
 Stopped at: Phase 121 context gathered
 Resume file: None
 
