@@ -63,10 +63,10 @@
 
 ### Bloque 4 — Frecuencia de asistencia por miembro (FREQ)
 
-- [ ] **FREQ-01**: El gestor obtiene la frecuencia = promedio de visitas/semana por miembro sobre las últimas 4 semanas rodantes, normalizando a los miembros con < 4 semanas de antigüedad.
-- [ ] **FREQ-02**: Cada miembro cae en una banda (Inactivo 0 / Bajo ~1 / Medio ~2 / Alto 3+) y el gestor ve la distribución (cuántos miembros por banda), incluyendo activos con 0 visitas.
-- [ ] **FREQ-03**: El gestor obtiene la lista de "enfriándose": miembros que bajaron al menos una banda entre las 4 semanas actuales y las 4 previas, con el % de variación al lado.
-- [ ] **FREQ-04**: Toda vista de frecuencia expone al lado el % de adopción de check-in de la sede como condición de validez del dato (corrige caveat #6).
+- [x] **FREQ-01**: El gestor obtiene la frecuencia = promedio de visitas/semana por miembro sobre las últimas 4 semanas rodantes, normalizando a los miembros con < 4 semanas de antigüedad.
+- [x] **FREQ-02**: Cada miembro cae en una banda (Inactivo 0 / Bajo ~1 / Medio ~2 / Alto 3+) y el gestor ve la distribución (cuántos miembros por banda), incluyendo activos con 0 visitas.
+- [x] **FREQ-03**: El gestor obtiene la lista de "enfriándose": miembros que bajaron al menos una banda entre las 4 semanas actuales y las 4 previas, con el % de variación al lado.
+- [x] **FREQ-04**: Toda vista de frecuencia expone al lado el % de adopción de check-in de la sede como condición de validez del dato (corrige caveat #6).
 - [ ] **FREQ-05**: La frecuencia alimenta y corrige los segmentos existentes (espartano/intermitente/en_riesgo/ghost…) que se mantienen y mejoran.
 - [ ] **FREQ-06**: El recálculo de segmentación corre en un proceso batch (ej. nightly) usando la frecuencia como insumo, en vez de solo al login con cooldown (corrige caveat #8). _(Alcance exacto a confirmar en discuss-phase.)_
 
@@ -131,10 +131,10 @@
 | LTV-03      | Phase 122 | Complete |
 | LTV-04      | Phase 122 | Complete |
 | LTV-05      | Phase 122 | Complete |
-| FREQ-01     | Phase 123 | Pending  |
-| FREQ-02     | Phase 123 | Pending  |
-| FREQ-03     | Phase 123 | Pending  |
-| FREQ-04     | Phase 123 | Pending  |
+| FREQ-01     | Phase 123 | Complete |
+| FREQ-02     | Phase 123 | Complete |
+| FREQ-03     | Phase 123 | Complete |
+| FREQ-04     | Phase 123 | Complete |
 | FREQ-05     | Phase 123 | Pending  |
 | FREQ-06     | Phase 123 | Pending  |
 | FUNNEL-01   | Phase 123 | Pending  |

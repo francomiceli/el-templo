@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v5.0
 milestone_name: Métricas de Gestión
-status: verifying
+status: executing
 stopped_at: Phase 123 context gathered
-last_updated: "2026-06-04T15:52:21.454Z"
+last_updated: "2026-06-04T16:21:53.554Z"
 last_activity: 2026-06-04
 progress:
   total_phases: 4
   completed_phases: 3
-  total_plans: 10
-  completed_plans: 10
+  total_plans: 13
+  completed_plans: 11
   percent: 75
 ---
 
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-03)
 
 **Core value:** v5.0 reemplaza y amplía las métricas del panel de gestión con 6 bloques nuevos/mejorados (churn person-based, renovación, funnel de prueba, frecuencia, LTV/Kaplan-Meier, ticket), backend-first, con aislamiento de moneda y breakdowns comparables.
-**Current focus:** Phase 122 — ltv-vida-del-cliente
+**Current focus:** Phase 123 — asistencia-funnel-frecuencia-de-asistencia-funnel-de-sesione
 
 ## Current Position
 
-Phase: 122 (ltv-vida-del-cliente) — EXECUTING
-Plan: 3 of 3
-Status: Phase complete — ready for verification
+Phase: 123 (asistencia-funnel-frecuencia-de-asistencia-funnel-de-sesione) — EXECUTING
+Plan: 2 of 3
+Status: Ready to execute
 Last activity: 2026-06-04
 
-Progress: [██████████] 100%
+Progress: [█████████░] 85%
 
 ## Performance Metrics
 
@@ -200,6 +200,7 @@ _Updated after each plan completion_
 | Phase 122 P01 | 7min | 2 tasks | 3 files |
 | Phase 122 P02 | 18min | 2 tasks | 4 files |
 | Phase 122 P03 | ~9min | 1 tasks | 1 files |
+| Phase 123 P01 | 12min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -492,6 +493,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: Plan 122-01: KM median = first event time S(t)<=0.5; ties collapse to one step; censored customers stay in at-risk denominator (D-122-05)
 - [Phase ?]: Plan 122-01: LtvMonetary keeps ARS/EUR as separate LtvCurrencyBlock (never summed, D-122-09); projected vs observed LTV both real-payment based (D-122-07)
 - [Phase ?]: Plan 122-03: ltv.test.ts asserts headline derives from churn.window.churn.percentage for identical filters (both services instantiated); cohort n includes censored lives (=== churn n, D-122-05); observed monetary = exact real-payment sum seeded below list price (D-122-08); ARS/EUR never summed (D-122-09); gestion 403 / admin 200; voidedAt marker from MySQL NOW() keeps grep 'new Date()' literal at 0 for TZ-flake safety.
+- [Phase ?]: 123-01: Frequency bands as named constants BAJO_MAX=1.5/MEDIO_MAX=2.5 visits/week; membership age on users.createdAt clamped [1,4] weeks (D-123-03/04)
+- [Phase ?]: 123-01: getFrequency scoped; coolingOrInactiveUserIds scope-unaware (global nightly batch); checkInAdoption reused from AttendanceMetricsService (D-123-06)
 
 ### Pending Todos
 
@@ -516,8 +519,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-04T15:52:21.425Z
+Last session: 2026-06-04T16:21:35.907Z
 Stopped at: Phase 123 context gathered
-Resume file: .planning/phases/123-asistencia-funnel-frecuencia-de-asistencia-funnel-de-sesione/123-CONTEXT.md
+Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
