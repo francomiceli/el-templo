@@ -2818,8 +2818,15 @@ _Phase 116 added: 2026-05-25 — bug recurrente de logout en app de miembros (JW
 
 **Risks / notas:** Decisión abierta — `duration_tier` columna explícita en `subscription_plans` (migración) vs derivado de `durationDays`; resolver en `discuss-phase` validando contra planes reales (el enum actual `planTier` solo tiene `flex`, no existe "Flex+" como tier). Fuente de descuento ya disponible: `subscription_plans.priceRegular`.
 
-**Plans:** TBD (surface during `/gsd-plan-phase 120`)
+**Plans:** 4 plans (3 waves)
 **UI hint:** no (backend-first; sin UI de admin en alcance)
+
+Plans:
+
+- [ ] 120-01-PLAN.md — Foundation utilities: duration-tier (FUND-01) + metric-shape nominal+%+n & median (FUND-02)
+- [ ] 120-02-PLAN.md — Forward price snapshot: subscriptions.price_regular_snapshot column + 0136 migration + capture at 4 SubscriptionService insert sites (TICKET-03 base)
+- [ ] 120-03-PLAN.md — Breakdowns engine (FUND-03) + cohorts half-open [from,to) weekly/monthly (FUND-05) + currency isolation (FUND-04)
+- [ ] 120-04-PLAN.md — Block 6 Ticket service + GET /ticket + schema/types + integration tests (TICKET-01/02/03/04)
 
 ### Phase 121: Vencimiento — Churn de no renovación + Tasa de renovación
 
