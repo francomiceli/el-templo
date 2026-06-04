@@ -2793,7 +2793,7 @@ _Phase 116 added: 2026-05-25 — bug recurrente de logout en app de miembros (JW
 - [x] **Phase 120: Fundación transversal + Ticket promedio** — `duration_tier` por flag + helpers comunes (nominal+%+n, motor de breakdowns comparables, vista semanal/mensual respetando el rango, aislamiento de moneda, cohortes por rango `[from,to)`) + Bloque 6 (ticket promedio ponderado por `price_paid`, descuento vs `priceRegular`, mediana ante outliers, por moneda). Ticket es chico y estrena los helpers de la fundación. (completed 2026-06-04)
 - [x] **Phase 121: Vencimiento — Churn de no renovación + Tasa de renovación** — Bloque 1 (churn person-based, cohorte por `end_date ∈ [from,to)`, churn maduro ≥N días, N libre/multi-N, serie histórica con marca de provisorios) + Bloque 2 (renovación = renovados÷vencidos sobre la misma cohorte, corte renovación/reactivación 15d configurable, número "vivo"). Comparten el motor de cohorte por `end_date`; reemplazan las métricas viejas juntas. (completed 2026-06-04)
 - [x] **Phase 122: LTV / vida del cliente** — Bloque 5: lifetime headline `1÷churn mensual` (usa el churn de la fase 121) + robusto Kaplan-Meier (mediana de supervivencia con censura para activos) + LTV monetario desde pagos reales (proyectado y observado, nunca ARPU), separado por moneda, abierto por sucursal/país/plan. Depende del churn de la fase 121; Kaplan-Meier merece fase propia con tests. (completed 2026-06-04)
-- [ ] **Phase 123: Asistencia + Funnel — Frecuencia de asistencia + Funnel de sesiones de prueba** — Bloque 4 (frecuencia visitas/sem por miembro sobre 4 semanas rodantes, bandas Inactivo/Bajo/Medio/Alto, lista "enfriándose", adopción de check-in al lado, recálculo batch de segmentación) + Bloque 3 (cascada reserva→asistencia→compra, `tasa_cierre`=compraron÷asistieron, ventana de atribución ~21d, solo leads nuevos, cohorte por fecha de sesión agendada). Independientes del eje de vencimiento; Bloque 4 es el de mayor riesgo por el cron de segmentación.
+- [x] **Phase 123: Asistencia + Funnel — Frecuencia de asistencia + Funnel de sesiones de prueba** — Bloque 4 (frecuencia visitas/sem por miembro sobre 4 semanas rodantes, bandas Inactivo/Bajo/Medio/Alto, lista "enfriándose", adopción de check-in al lado, recálculo batch de segmentación) + Bloque 3 (cascada reserva→asistencia→compra, `tasa_cierre`=compraron÷asistieron, ventana de atribución ~21d, solo leads nuevos, cohorte por fecha de sesión agendada). Independientes del eje de vencimiento; Bloque 4 es el de mayor riesgo por el cron de segmentación. (completed 2026-06-04)
 
 ## v5.0 Phase Details
 
@@ -2918,24 +2918,24 @@ Plans:
 
 **Risks / notas:** Decisión abierta — alcance exacto del refactor de segmentación batch (FREQ-06): ¿entra completo o se difiere exponiendo solo la métrica de frecuencia? El mapeo fino banda↔segmento se define con quien maneja el módulo de segmentación (umbrales no documentados en el brief). Es la fase de mayor riesgo por el cron. Resolver en `discuss-phase`.
 
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 
 Plans:
 
 - [x] 123-01-PLAN.md — FrequencyService (FREQ-01..04): visits/week rolling 4w + bands + cooling-down + check-in adoption reuse + GET /frequency
 - [x] 123-02-PLAN.md — TrialFunnelService (FUNNEL-01..05): reserva→asistencia→compra cascade + rates + new-lead + ~21d window + turno/plan-bought breakdowns + GET /trial-funnel
-- [ ] 123-03-PLAN.md — Segmentation golden-case (FREQ-05/06): active-0-visits→en_riesgo override + tuneable threshold + existing nightly batch fed (no new cron)
+- [x] 123-03-PLAN.md — Segmentation golden-case (FREQ-05/06): active-0-visits→en_riesgo override + tuneable threshold + existing nightly batch fed (no new cron)
 
 **UI hint:** no (backend-first; sin UI de admin en alcance)
 
 ## v5.0 Progress
 
-| Phase                                          | Plans Complete | Status      | Completed  |
-| ---------------------------------------------- | -------------- | ----------- | ---------- |
-| 120. Fundación transversal + Ticket            | 4/4            | Complete    | 2026-06-04 |
-| 121. Vencimiento (Churn + Renovación)          | 3/3            | Complete    | 2026-06-04 |
-| 122. LTV / vida del cliente                    | 3/3            | Complete    | 2026-06-04 |
-| 123. Asistencia + Funnel (Frecuencia + Prueba) | 2/3            | In Progress |            |
+| Phase                                          | Plans Complete | Status   | Completed  |
+| ---------------------------------------------- | -------------- | -------- | ---------- |
+| 120. Fundación transversal + Ticket            | 4/4            | Complete | 2026-06-04 |
+| 121. Vencimiento (Churn + Renovación)          | 3/3            | Complete | 2026-06-04 |
+| 122. LTV / vida del cliente                    | 3/3            | Complete | 2026-06-04 |
+| 123. Asistencia + Funnel (Frecuencia + Prueba) | 3/3            | Complete | 2026-06-04 |
 
 _Plan counts populated by `/gsd-plan-phase`._
 

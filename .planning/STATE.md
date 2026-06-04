@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v5.0
 milestone_name: Métricas de Gestión
-status: executing
+status: verifying
 stopped_at: Phase 123 context gathered
-last_updated: "2026-06-04T16:32:16.153Z"
+last_updated: "2026-06-04T16:39:20.384Z"
 last_activity: 2026-06-04
 progress:
   total_phases: 4
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 13
-  completed_plans: 12
-  percent: 75
+  completed_plans: 13
+  percent: 100
 ---
 
 # Project State
@@ -27,10 +27,10 @@ See: .planning/PROJECT.md (updated 2026-06-03)
 
 Phase: 123 (asistencia-funnel-frecuencia-de-asistencia-funnel-de-sesione) — EXECUTING
 Plan: 3 of 3
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-06-04
 
-Progress: [█████████░] 92%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -202,6 +202,7 @@ _Updated after each plan completion_
 | Phase 122 P03 | ~9min | 1 tasks | 1 files |
 | Phase 123 P01 | 12min | 3 tasks | 5 files |
 | Phase 123 P02 | 7 | 3 tasks | 5 files |
+| Phase 123 P03 | ~5min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -497,6 +498,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: 123-01: Frequency bands as named constants BAJO_MAX=1.5/MEDIO_MAX=2.5 visits/week; membership age on users.createdAt clamped [1,4] weeks (D-123-03/04)
 - [Phase ?]: 123-01: getFrequency scoped; coolingOrInactiveUserIds scope-unaware (global nightly batch); checkInAdoption reused from AttendanceMetricsService (D-123-06)
 - [Phase ?]: TrialFunnelService (123-02): asistió desde bookings.status (no attendance, D-123-07); compró = primera sub paga en [sesión, sesión+window) vía DATE_ADD; leads nuevos vía NOT EXISTS sub paga previa; subqueries correlacionadas con prefijo explícito schema.bookings.\* (lección 121/122)
+- [Phase ?]: Plan 123-03: Frequency golden-case override forces en_riesgo for active members with 0 visits in tuneable system_settings window (default 28d); fed into existing 03:00 batch via single batched query, no new cron, login path unchanged (D-123-01/02)
 
 ### Pending Todos
 
@@ -521,7 +523,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-04T16:31:58.721Z
+Last session: 2026-06-04T16:39:15.567Z
 Stopped at: Phase 123 context gathered
 Resume file: None
 
