@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v5.1
 milestone_name: Nuevo Sistema de Entrenamiento
-status: ready_to_plan
-stopped_at: Phase 129 complete (2/2) — ready to discuss Phase 130
-last_updated: 2026-06-05T05:36:24.719Z
-last_activity: 2026-06-05 -- Phase 129 Plan 02 executed (kairos generation gate at 4 pipeline points + unit-level gate test, Option B)
+status: executing
+stopped_at: Phase 130 Plan 01 executed (kairos default + level_override migration 0141 + schema + new-member flips + coach override + regression tests)
+last_updated: "2026-06-05T05:50:50.511Z"
+last_activity: 2026-06-05 -- Phase 130 Plan 01 executed (staging, not pushed)
 progress:
   total_phases: 8
   completed_phases: 6
-  total_plans: 15
-  completed_plans: 467
-  percent: 75
+  total_plans: 23
+  completed_plans: 17
+  percent: 74
 ---
 
 # Project State
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 ## Current Position
 
 Phase: 130
-Plan: Not started
-Status: Ready to plan
-Last activity: 2026-06-05
+Plan: 01 complete (next: 02)
+Status: Executing
+Last activity: 2026-06-05 -- Phase 130 Plan 01 executed (staging, not pushed)
 
 ## Performance Metrics
 
@@ -557,11 +557,14 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - Plan 122-02: monetary LTV from financial_transactions canonical filter (never list price); observed=mean closed totals, monthlyRealRevenue=mean(total÷months), projected=headline×monthlyRealRevenue; ARS/EUR never summed; ft upper bound EXCLUSIVE to match half-open cohort
 - Plan 122-02: ARPU annotated @deprecated D-122-01 (math/schema/type byte-unchanged) — LTV monetary is canonical replacement, physical removal deferred to admin-UI phase (Phase 121 D-09 precedent)
 - Plan 122-02: no integration test in this plan — test/analytics/ltv.test.ts owned by Plan 03, runs in CI only
+- Plan 130-01: migration 0141 flips users.level DEFAULT alfa→kairos (additive, existing rows untouched) + ADD COLUMN level_override BOOLEAN DEFAULT 0; enum order byte-identical to schema/0140; both statements in one file, no `;` in comments
+- Plan 130-01: new-member level=kairos at every creation path (auth/register insert+echo, createMember default ||"kairos", createTrialMember); explicit input.level still honored; legacy import-members.ts deliberately kept "alfa" (historical levels)
+- Plan 130-01: updateMember sets level_override=true ONLY on a level change → sticky coach decision. Contract for Plan 02: auto-graduation MUST skip members with level_override=true. Non-level edits leave level + flag untouched (D-05)
 
 ## Session Continuity
 
 Last session: 2026-06-05T05:15:15.851Z
-Stopped at: Phase 129 Plan 02 executed (kairos generation gate + unit test); phase 129 ready_for_verification
+Stopped at: Phase 130 Plan 01 executed (kairos default + level_override migration 0141 + new-member flips + coach override + regression tests)
 Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
