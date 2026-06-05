@@ -998,6 +998,7 @@ async function loadSessionLevels(): Promise<void> {
 // =========================================================================
 
 const LEVEL_GREEK_MAP: Record<string, string> = {
+  kairos: '\u03B1', // kairos reuses Alfa's glyph (Phase 129, member-app parity)
   alfa: '\u03B1',
   delta: '\u0394',
   sigma: '\u03A3',
@@ -1006,6 +1007,7 @@ const LEVEL_GREEK_MAP: Record<string, string> = {
 };
 
 const LEVEL_NAMES: Record<string, string> = {
+  kairos: 'Kairos',
   alfa: 'Alfa',
   delta: 'Delta',
   sigma: 'Sigma',
@@ -1023,6 +1025,8 @@ function levelDisplayName(level: string): string {
 
 function levelColor(level: string): string {
   switch (level.toLowerCase()) {
+    case 'kairos':
+      return 'amber-6';
     case 'alfa':
       return 'amber-8';
     case 'delta':

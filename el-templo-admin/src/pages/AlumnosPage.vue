@@ -425,6 +425,7 @@ const branchFilterOptions = ref<Array<{ label: string; value: number | string | 
 
 const levelFilterOptions = [
   { label: 'Todos', value: null },
+  { label: 'Kairos', value: 'kairos' },
   { label: 'Alfa', value: 'alfa' },
   { label: 'Delta', value: 'delta' },
   { label: 'Sigma', value: 'sigma' },
@@ -575,6 +576,7 @@ const visibleColumns = computed<QTableProps['columns']>(() => columns);
 // =========================================================================
 
 const LEVEL_GREEK_MAP: Record<string, string> = {
+  kairos: '\u03B1', // kairos reuses Alfa's glyph (Phase 129, member-app parity)
   alfa: '\u03B1', // alpha
   delta: '\u0394', // Delta
   sigma: '\u03A3', // Sigma
@@ -588,6 +590,8 @@ function greekLevel(level: string): string {
 
 function levelColor(level: string): string {
   switch (level.toLowerCase()) {
+    case 'kairos':
+      return 'amber-6';
     case 'alfa':
       return 'amber-8';
     case 'delta':
