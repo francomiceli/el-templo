@@ -2957,9 +2957,9 @@ _v5.0 added: 2026-06-03 — 4 phases (120-123), 35 requirements (FUND, CHURN, RE
 
 **Scope.** Reestructurar el sistema de entrenamiento alrededor de un **árbol de habilidades** (DAG) construido sobre 3 ejes ortogonales (gesto/sub-familia, palanca/posición, contracción). El árbol es el **cimiento** y va primero; sobre él se levantan el **nivel Kairos** (escalón previo a Alfa, híbrido que hereda de Alfa con formato lineal forzado) y el **ajuste de dificultad in-session** (botones más fácil/más difícil que sirven el vecino correcto y dejan un registro de "dominado"). Backend-first, brownfield: los niveles son un enum hardcodeado en `exercises.ts`/`users.ts`/`completed-sessions.ts`/`level-mapping.ts` y admin `constants/levels.ts` — agregar Kairos toca todos esos lugares.
 
-**Dependency axis (drives phase order).** TREE es el cimiento. Dentro de TREE: la estructuración de datos (TREE-01/05, fase 124) es la bedrock, luego el bootstrap+revisión que puebla las dimensiones (TREE-02/03, fase 125), luego el grafo derivado (TREE-04, fase 126); recién sobre el grafo se exponen el % de avance al miembro (TREE-06, fase 127) y el editor de árbol al admin (TREE-07, fase 128). Kairos (Eje 1) depende del catálogo saneado (fase 124) pero NO del grafo. El ajuste in-session (Eje 3, fase 131) depende del grafo (fase 126, que provee la primitiva "vecino arriba/abajo") y del % del árbol (fase 127); incluye su propio registro de "dominado" como modelo de datos. NO se mezcla migración de esquema + bootstrap LLM + construcción de grafo + enum de nivel en un commit atómico: cada eje y cada capa es frágil de testear/revisar por separado.
+**Dependency axis (drives phase order).** TREE es el cimiento. Dentro de TREE: la estructuración de datos (TREE-01/05, fase 124) es la bedrock, luego el bootstrap+revisión que puebla las dimensiones (TREE-02/03, fase 125), luego el grafo derivado (TREE-04, fase 126); recién sobre el grafo se exponen el % de avance al miembro (TREE-06, fase 127) y el editor de árbol al admin (TREE-07, fase 128). Kairos (Eje 1) depende del catálogo saneado (fase 124) pero NO del grafo. El ajuste in-session (Eje 3, fase 131) depende del grafo (fase 126, que provee la primitiva "vecino arriba/abajo") y del % del árbol (fase 127); incluye su propio registro de "dominado" como modelo de datos. NO se mezcla migración de esquema + bootstrap heurístico + construcción de grafo + enum de nivel en un commit atómico: cada eje y cada capa es frágil de testear/revisar por separado.
 
-**Decisiones ya tomadas (no se re-litigan en el roadmap ni en discuss-phase).** Modelado por estructuración de las 3 dimensiones (no cablear aristas); bootstrap LLM + revisión humana; árbol auto-construye desde el orden del SPOM/`dificultadLineal` y los profes ajustan después en el editor del admin (`BRIEF-PROFES` NO bloquea); Kairos híbrido (nivel real que hereda de Alfa, ejercicios `difficulty=1`, formato solo lineal + 2 ej/bloque, alcance de código SOLO estructural — la conversión de la sesión de prueba NO es requisito de código, no se ata al funnel 123 de v5.0); alumnos nuevos arrancan en Kairos por defecto; Eje 3 disparo manual, criterio binario contra la prescripción del SPOM, un escalón por toque, se recuerda lo dominado pero NO cambia nivel ni SPOM automáticamente.
+**Decisiones ya tomadas (no se re-litigan en el roadmap ni en discuss-phase).** Modelado por estructuración de las 3 dimensiones (no cablear aristas); bootstrap heurístico (sin API) + revisión humana; árbol auto-construye desde el orden del SPOM/`dificultadLineal` y los profes ajustan después en el editor del admin (`BRIEF-PROFES` NO bloquea); Kairos híbrido (nivel real que hereda de Alfa, ejercicios `difficulty=1`, formato solo lineal + 2 ej/bloque, alcance de código SOLO estructural — la conversión de la sesión de prueba NO es requisito de código, no se ata al funnel 123 de v5.0); alumnos nuevos arrancan en Kairos por defecto; Eje 3 disparo manual, criterio binario contra la prescripción del SPOM, un escalón por toque, se recuerda lo dominado pero NO cambia nivel ni SPOM automáticamente.
 
 **Decisiones abiertas (se resuelven en el `discuss-phase` de cada fase, NO en el roadmap).**
 
@@ -2977,7 +2977,7 @@ _v5.0 added: 2026-06-03 — 4 phases (120-123), 35 requirements (FUND, CHURN, RE
 ## v5.1 Phases
 
 - [x] **Phase 124: Estructura de datos de las 3 dimensiones + saneo** — Esquema gesto/palanca/contracción separado del `position` sucio + saneo del catálogo (~103 sin ruta, duplicados, `position` que mezcla 3 conceptos). Bedrock del milestone. (completed 2026-06-05)
-- [ ] **Phase 125: Bootstrap LLM + revisión de profes de la descomposición** — Proceso que propone gesto/palanca/contracción por nombre, con salida revisable que los profes aceptan/corrigen/rechazan antes de fijarla como verdad.
+- [ ] **Phase 125: Bootstrap heurístico + revisión de profes de la descomposición** — Proceso heurístico (sin API) que propone sub-familia/palanca/ruta-pendiente por nombre+ruta, con salida revisable (tabla `exercise_dimension_proposals`) que los profes aceptan/corrigen/rechazan en una tabla filtrable del admin antes de fijarla como verdad.
 - [ ] **Phase 126: Auto-construcción del grafo (DAG) de progresiones** — Grafo ramificado derivado del orden del SPOM/`dificultadLineal` + las 3 dimensiones; provee la primitiva "vecino un escalón arriba/abajo" que necesita el Eje 3.
 - [ ] **Phase 127: % de avance del árbol para el miembro** — El miembro ve su progreso por familia/nodo del árbol agrupado por categoría temática (Tracción/Empuje/Piernas/Core/Movilidad).
 - [ ] **Phase 128: Editor de árbol en el admin** — Sección nueva donde los profes reordenan ejercicios, agrupan/separan sub-familias y ajustan precedencias sobre el grafo ya construido.
@@ -3016,25 +3016,25 @@ Plans:
 
 **UI hint:** no (backend-first; esquema + saneo de datos)
 
-### Phase 125: Bootstrap LLM + revisión de profes de la descomposición
+### Phase 125: Bootstrap heurístico + revisión de profes de la descomposición
 
-**Goal:** Las 3 dimensiones de cada ejercicio quedan pobladas mediante una propuesta automática asistida por LLM que los profes revisan y fijan, sin requerir carga manual desde cero. End state: existe una propuesta de gesto/palanca/contracción por ejercicio en estado revisable, y un profe puede aceptarla, corregirla o rechazarla antes de que se convierta en dato de verdad sobre los campos de la fase 124.
+**Goal:** Las 3 dimensiones de cada ejercicio (sub-familia/gesto, leverage/palanca, y ruta para los `route_pending`) quedan pobladas mediante una propuesta automática **heurística** (reglas sobre códigos de ruta + keywords, sin API) que los profes revisan y fijan, sin carga manual desde cero. End state: existe una propuesta por ejercicio en una tabla separada (`exercise_dimension_proposals`) en estado revisable, y un profe puede aceptarla, corregirla o rechazarla (en una tabla filtrable del admin, aceptar-grupo + override) antes de que se escriba en las columnas de verdad de la fase 124.
 
-**Depends on:** Phase 124 (los campos estructurados deben existir para poblarlos)
+**Depends on:** Phase 124 (los campos estructurados + catálogo de sub-familias deben existir para poblarlos)
 
 **Requirements** (2/18):
 
-- TREE-02 — bootstrap asistido por LLM que propone la descomposición por nombre, con salida revisable antes de aplicarse
+- TREE-02 — bootstrap heurístico (reglas sobre ruta + keywords de palanca, sin API) que propone la descomposición por nombre, con salida revisable antes de aplicarse
 - TREE-03 — los profes revisan y corrigen la descomposición propuesta antes de fijarla como verdad
 
 **Success Criteria** (what must be TRUE at phase completion):
 
-1. Un proceso genera, a partir del nombre del ejercicio, una propuesta de gesto/palanca/contracción para cada ejercicio.
+1. Un proceso heurístico genera, a partir del nombre + ruta del ejercicio, una propuesta de sub-familia/gesto + palanca + ruta-pendiente para cada ejercicio (no toca `effort`).
 2. La propuesta queda en un estado revisable y NO se aplica como verdad automáticamente.
 3. Un profe puede aceptar, corregir o rechazar la descomposición propuesta antes de fijarla.
 4. Una vez fijada, la descomposición queda persistida como dato de verdad sobre los campos estructurados de la fase 124.
 
-**Risks / notas:** El bootstrap LLM es un proceso de un solo uso / re-ejecutable, no un servicio en caliente — diseñar para revisión humana como gate obligatorio (TREE-03), nunca auto-aplicar. La revisión la hacen los profes desde una superficie (puede ser parte del admin o una vista dedicada). `BRIEF-PROFES` NO bloquea esta fase.
+**Risks / notas:** Motor = **heurístico, sin API** (decisión discuss-125: la `ANTHROPIC_API_KEY` es placeholder/nunca desplegada — la feature de IA de franchise de la Phase 38 es código durmiente). El bootstrap es un script one-off re-ejecutable e idempotente (analog `saneo-exercises.ts`), no un servicio en caliente; revisión humana como gate obligatorio (TREE-03), nunca auto-aplicar. Propuestas en tabla separada (`exercise_dimension_proposals`), no en `exercises`. A esta altura el árbol NO existe (126) → revisión sobre lista plana, distinta del editor de árbol (128). `BRIEF-PROFES` NO bloquea esta fase.
 
 **Plans:** TBD
 **UI hint:** yes
@@ -3183,7 +3183,7 @@ Plans:
 | Phase                                          | Plans Complete | Status      | Completed  |
 | ---------------------------------------------- | -------------- | ----------- | ---------- |
 | 124. Estructura 3 dimensiones + saneo          | 2/2            | Complete    | 2026-06-05 |
-| 125. Bootstrap LLM + revisión de profes        | 0/TBD          | Not started | -          |
+| 125. Bootstrap heurístico + revisión de profes | 0/TBD          | Not started | -          |
 | 126. Auto-construcción del grafo (DAG)         | 0/TBD          | Not started | -          |
 | 127. % de avance del árbol (miembro)           | 0/TBD          | Not started | -          |
 | 128. Editor de árbol (admin)                   | 0/TBD          | Not started | -          |
@@ -3195,4 +3195,4 @@ _Plan counts populated by `/gsd-plan-phase`._
 
 ---
 
-_v5.1 added: 2026-06-04 — 8 phases (124-131), 18 requirements (TREE, KAIROS, ADJUST) en 3 ejes. El árbol de habilidades (TREE) es el cimiento y va primero: estructura de datos (124) → bootstrap LLM + revisión (125) → grafo DAG (126) → % miembro (127) / editor admin (128). Sobre el cimiento: nivel Kairos (129 enum+generación, 130 asignación+graduación+selector) y ajuste in-session (131 registro de dominado + botones + vecino del árbol, fusionado desde las ex-fases 131/132). Backend-first, brownfield (enum de niveles hardcodeado en 5 lugares). Continúa numeración desde fase 123 (v5.0). Decisiones de dominio (agrupación category/pattern, INITIUM en Kairos, umbral de graduación, captura de "dominar", dosis lineales) diferidas a cada `discuss-phase`. Fuente de verdad: `.planning/research/new-training-system-design.md`._
+_v5.1 added: 2026-06-04 — 8 phases (124-131), 18 requirements (TREE, KAIROS, ADJUST) en 3 ejes. El árbol de habilidades (TREE) es el cimiento y va primero: estructura de datos (124) → bootstrap heurístico + revisión (125) → grafo DAG (126) → % miembro (127) / editor admin (128). Sobre el cimiento: nivel Kairos (129 enum+generación, 130 asignación+graduación+selector) y ajuste in-session (131 registro de dominado + botones + vecino del árbol, fusionado desde las ex-fases 131/132). Backend-first, brownfield (enum de niveles hardcodeado en 5 lugares). Continúa numeración desde fase 123 (v5.0). Decisiones de dominio (agrupación category/pattern, INITIUM en Kairos, umbral de graduación, captura de "dominar", dosis lineales) diferidas a cada `discuss-phase`. Fuente de verdad: `.planning/research/new-training-system-design.md`._

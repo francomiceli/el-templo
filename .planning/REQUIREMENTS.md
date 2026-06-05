@@ -10,7 +10,7 @@
 **Decisiones ya tomadas (no se re-litigan):**
 
 - Modelado por **estructuración de las 3 dimensiones** (gesto/palanca/contracción), no cableando aristas a mano. El grafo y el orden emergen de las dimensiones + el SPOM.
-- Bootstrap asistido por **LLM** propone la descomposición; **revisión humana de profes** la fija.
+- Primer pase **heurístico** (reglas sobre códigos de ruta + keywords, sin API) propone la descomposición; **revisión humana de profes** la fija. _(Cambiado de LLM a heurístico en discuss-125 — la `ANTHROPIC_API_KEY` es placeholder/nunca desplegada.)_
 - El árbol **auto-construye desde el orden del SPOM/`dificultadLineal`**; los profes ajustan después en un **editor de árbol del admin**. `BRIEF-PROFES` NO bloquea el milestone.
 - Kairos: modelo **híbrido** (nivel real que hereda de Alfa, ejercicios `difficulty=1`, formato **solo lineal + 2 ej/bloque**). Alcance de código **solo estructural** — la conversión de la sesión de prueba es del lado profes/clase, NO requisito de código.
 - Alumnos nuevos arrancan en **Kairos** por defecto; graduación automática (X sesiones) o salto manual del coach.
@@ -34,8 +34,8 @@
 ### Eje 2 — Árbol de habilidades (TREE) · cimiento
 
 - [x] **TREE-01**: Las 3 dimensiones de cada ejercicio (gesto/sub-familia, palanca/posición, contracción) existen como datos estructurados en el esquema, separadas del campo `position` actual (que hoy mezcla palanca + implemento + orientación).
-- [ ] **TREE-02**: Un proceso de bootstrap asistido por LLM propone la descomposición (gesto / palanca / contracción) de cada ejercicio a partir de su nombre, con salida revisable antes de aplicarse.
-- [ ] **TREE-03**: Los profes pueden revisar y corregir la descomposición propuesta por el LLM antes de fijarla como dato de verdad.
+- [ ] **TREE-02**: Un proceso de bootstrap **heurístico** (reglas deterministas sobre los códigos de ruta + keywords de palanca, sin API) propone la descomposición (gesto / palanca / ruta para los `route_pending`) de cada ejercicio a partir de su nombre, con salida revisable antes de aplicarse. _(Motor cambiado de LLM a heurístico en discuss-125; mismo objetivo, distinto motor.)_
+- [ ] **TREE-03**: Los profes pueden revisar y corregir la descomposición propuesta antes de fijarla como dato de verdad.
 - [ ] **TREE-04**: El sistema auto-construye el grafo ramificado (DAG) de progresiones a partir del orden del SPOM/`dificultadLineal` y las 3 dimensiones estructuradas (sub-familias paralelas dentro de cada ruta, ordenadas por palanca y contracción).
 - [x] **TREE-05**: Los ejercicios quedan saneados: los ~103 sin ruta reciben ruta, los duplicados (mismo ejercicio repetido en varios niveles) se resuelven y `position` se separa en sus conceptos.
 - [ ] **TREE-06**: El miembro ve su % de avance por familia/nodo del árbol, agrupado por la categoría temática existente (Tracción / Empuje / Piernas / Core / Movilidad).
