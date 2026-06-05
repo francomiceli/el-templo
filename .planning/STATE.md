@@ -4,13 +4,13 @@ milestone: v5.1
 milestone_name: Nuevo Sistema de Entrenamiento
 status: executing
 stopped_at: Phase 126 context gathered
-last_updated: "2026-06-05T02:26:40.982Z"
+last_updated: "2026-06-05T02:32:21.353Z"
 last_activity: 2026-06-05
 progress:
   total_phases: 8
   completed_phases: 2
   total_plans: 8
-  completed_plans: 6
+  completed_plans: 7
   percent: 25
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 ## Current Position
 
 Phase: 126 (auto-construcci-n-del-grafo-dag-de-progresiones) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-06-05
 
@@ -206,6 +206,7 @@ _Updated after each plan completion_
 | Phase 125 P02 | ~25min | 2 tasks | 4 files |
 | Phase 125 P03 | 30min | 2 tasks | 5 files |
 | Phase 126 P01 | 2min | 2 tasks | 3 files |
+| Phase 126 P02 | 6min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -511,6 +512,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: 125-02: TREE-03 (API revisión de profes) completo — /admin/exercises/proposals\* bajo hook TRAINING_ROLES; tests CI deferidos
 - [Phase ?]: 125-03: TREE-03 frontend (ProposalReviewPage + useProposalsApi) consumiendo /admin/exercises/proposals\*; tabla agrupada por ruta con inline-edit + accept/reject + aceptar-grupo; nav y ruta /proposals (coach/owner)
 - [Phase ?]: Plan 126-01: exercise_progressions edge table — source enum (auto|manual) partitions regenerable auto backbone from preserved manual overrides (D-03); both endpoint FKs ON DELETE CASCADE (T-126-01); edge UNIQUE backs Plan 02 dedupe; hand-written migration 0139.
+- [Phase ?]: Plan 126-02: graph constructor regenerates only source='auto' edges (DELETE WHERE source='auto' + bulk INSERT in a transaction), never touching manual profe overrides (D-03)
+- [Phase ?]: Plan 126-02: backbone partitioned by composite subfamilyId|effort so effort is never crossed (D-04); chains ordered by dl with stable id tiebreak (D-05); strictly consecutive, no cross-edges (D-02)
 
 ### Pending Todos
 
@@ -535,7 +538,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-05T02:26:23.188Z
+Last session: 2026-06-05T02:32:15.502Z
 Stopped at: Phase 126 context gathered
 Resume file: None
 
