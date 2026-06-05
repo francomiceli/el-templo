@@ -620,7 +620,7 @@ export class MemberService {
     const tempPassword = MEMBER_TEMP_PASSWORD;
     const passwordHash = await argon2.hash(tempPassword);
 
-    type Level = "alfa" | "delta" | "sigma" | "omega" | "spartan";
+    type Level = "kairos" | "alfa" | "delta" | "sigma" | "omega" | "spartan";
     type Gender = "male" | "female" | "other";
     type DocType = "DNI" | "Pasaporte" | "NIE" | "NIF" | "Otro";
 
@@ -640,7 +640,10 @@ export class MemberService {
         documentType: (input.documentType as DocType) || null,
         address: input.address || null,
         branchId: input.branchId,
-        level: (input.level as Level) || "alfa",
+        // Phase 130 (KAIROS-04, D-01): new members default to kairos when no
+        // explicit level is supplied. An explicit input.level (e.g. 'delta') is
+        // still honored — the default only applies when the field is omitted.
+        level: (input.level as Level) || "kairos",
         dateOfBirth: input.dateOfBirth || null,
         gender: (input.gender as Gender) || null,
         emergencyContactName: input.emergencyContactName || null,
@@ -749,7 +752,9 @@ export class MemberService {
         phone: normalizedPhone,
         branchId: input.branchId,
         role: "member",
-        level: "alfa",
+        // Phase 130 (KAIROS-04, D-01): admin-created trial/lead members are
+        // born kairos like every other new member.
+        level: "kairos",
         status: "prueba" as const,
         // Phase 114 D-31: lead lifecycle starts here. lead_status='en_seguimiento'
         // is the only valid initial value for an admin-created trial. created_by
@@ -1042,13 +1047,20 @@ export class MemberService {
       updateData.emergencyContactRelationship =
         input.emergencyContactRelationship;
     if (input.branchId !== undefined) updateData.branchId = input.branchId;
-    if (input.level !== undefined)
+    if (input.level !== undefined) {
       updateData.level = input.level as
+        | "kairos"
         | "alfa"
         | "delta"
         | "sigma"
         | "omega"
         | "spartan";
+      // Phase 130 (KAIROS-06, D-03): a coach manually changing the level is a
+      // sticky decision. Set level_override=true so auto-graduation (Plan 02)
+      // never reverts it. Only set on a level change — a non-level edit (phone,
+      // name, etc.) leaves the flag untouched (D-05 invariant).
+      updateData.levelOverride = true;
+    }
 
     // Write-once email: only set it when the member has none yet (trial →
     // alumno flow). Ignored silently if an email is already on file so we

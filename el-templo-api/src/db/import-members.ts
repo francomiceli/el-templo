@@ -795,6 +795,10 @@ async function main(): Promise<void> {
             lastName: m.lastName || null,
             role: "member",
             branchId,
+            // Phase 130 (D-01): INTENTIONALLY left "alfa". This is the legacy
+            // CSV bulk import of historical members who carry a real historical
+            // level — the kairos default applies only to genuinely new members
+            // (auth/register + admin create/trial), not backfilled history.
             level: "alfa",
             phone: m.phone,
             dni: m.dni,

@@ -174,7 +174,10 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         phone,
         gender,
         role: "member",
-        level: "alfa",
+        // Phase 130 (KAIROS-04, D-01): new self-registered members are born
+        // kairos. Server-assigned — never read from the request body, so a
+        // member cannot self-promote (T-130-01).
+        level: "kairos",
         // Phase 103-03 (R7, D-12, D-13): online self-register starts as freemium.
         // If a valid promoCode follows, assignPlan → recomputeUserStatus flips
         // it to 'activo' inside the same transaction (Plan 02 wiring).
@@ -294,7 +297,8 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           firstName: firstNameTrimmed,
           lastName: lastNameTrimmed,
           role: "member",
-          level: "alfa",
+          // Phase 130 (KAIROS-04, D-01): echo must match the row written above.
+          level: "kairos",
           branchId,
           branchName: branchRow?.name ?? "",
           branchIsVirtual: branchRow?.isVirtual ?? false,
