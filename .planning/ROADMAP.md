@@ -2983,7 +2983,7 @@ _v5.0 added: 2026-06-03 — 4 phases (120-123), 35 requirements (FUND, CHURN, RE
 - [x] **Phase 127: % de avance del árbol para el miembro** — El miembro ve su progreso por familia/nodo del árbol agrupado por categoría temática (Tracción/Empuje/Piernas/Core/Movilidad). (completed 2026-06-05)
 - [x] **Phase 128: Editor de árbol en el admin** — Sección nueva donde los profes reordenan ejercicios, agrupan/separan sub-familias y ajustan precedencias sobre el grafo ya construido. (3/3 plans executed, ready_for_verification — UAT visual diferida) (completed 2026-06-05)
 - [x] **Phase 129: Nivel Kairos — enum, herencia de Alfa y formato lineal** — 5→6 niveles en API/app/admin + generación que hereda de Alfa (`difficulty=1`) con capa que fuerza formato solo lineal + 2 ej/bloque. (completed 2026-06-05)
-- [ ] **Phase 130: Asignación, graduación y selector de Kairos** — Default de alumno nuevo = Kairos + graduación automática por umbral + salto manual del coach + 6º recuadrito en el selector de nivel.
+- [x] **Phase 130: Asignación, graduación y selector de Kairos** — Default de alumno nuevo = Kairos + graduación automática por umbral + salto manual del coach + 6º recuadrito en el selector de nivel. (4/4 plans executed, ready_for_verification — UAT visual diferida) (completed 2026-06-05)
 - [ ] **Phase 131: Ajuste de dificultad in-session + registro de "dominado / bajado"** — Persistencia nueva de dominado/bajado por miembro (distinta del "completado" local + RPE, referenciada a nodos del árbol) + botones más fácil/más difícil en el player que sirven el vecino correcto del árbol conservando ruta/contracción/formato/dosis, alimentan el % y los ve el coach.
 
 ## v5.1 Phase Details
@@ -3213,7 +3213,7 @@ Plans:
 
 - [x] 130-02-PLAN.md — Auto-graduation kairos→alfa (KAIROS_GRADUATION_THRESHOLD=12 + GraduationService one-way, skips level_override, wired into 3 completion paths, no cron) + 5 tests (KAIROS-05)
 - [x] 130-03-PLAN.md — Admin selector: Kairos box in MemberFormDialog + AlumnosPage/AlumnoDetailPage glyph/name/color/filter (KAIROS-07 admin half; app half = 130-04)
-- [ ] 130-04-PLAN.md — App selector: Kairos in onboarding self-pick (decision) + header dropdown verification (KAIROS-07)
+- [x] 130-04-PLAN.md — App selector: Kairos FIRST box in onboarding self-pick (decision=include-kairos) + header dropdown verified (KAIROS-07 app half complete; human-verify visual UAT deferred)
       **UI hint:** yes
 
 ### Phase 131: Ajuste de dificultad in-session + registro de "dominado / bajado"
@@ -3243,16 +3243,16 @@ Plans:
 
 ## v5.1 Progress
 
-| Phase                                          | Plans Complete | Status      | Completed  |
-| ---------------------------------------------- | -------------- | ----------- | ---------- |
-| 124. Estructura 3 dimensiones + saneo          | 2/2            | Complete    | 2026-06-05 |
-| 125. Bootstrap heurístico + revisión de profes | 3/3            | Complete    | 2026-06-05 |
-| 126. Auto-construcción del grafo (DAG)         | 3/3            | Complete    | 2026-06-05 |
-| 127. % de avance del árbol (miembro)           | 2/2            | Complete    | 2026-06-05 |
-| 128. Editor de árbol (admin)                   | 3/3            | Complete    | 2026-06-05 |
-| 129. Kairos — enum, herencia, formato lineal   | 2/2            | Complete    | 2026-06-05 |
-| 130. Kairos — asignación, graduación, selector | 3/4            | In progress | -          |
-| 131. Ajuste in-session + registro de dominado  | 0/TBD          | Not started | -          |
+| Phase                                          | Plans Complete | Status                 | Completed  |
+| ---------------------------------------------- | -------------- | ---------------------- | ---------- |
+| 124. Estructura 3 dimensiones + saneo          | 2/2            | Complete               | 2026-06-05 |
+| 125. Bootstrap heurístico + revisión de profes | 3/3            | Complete               | 2026-06-05 |
+| 126. Auto-construcción del grafo (DAG)         | 3/3            | Complete               | 2026-06-05 |
+| 127. % de avance del árbol (miembro)           | 2/2            | Complete               | 2026-06-05 |
+| 128. Editor de árbol (admin)                   | 3/3            | Complete               | 2026-06-05 |
+| 129. Kairos — enum, herencia, formato lineal   | 2/2            | Complete               | 2026-06-05 |
+| 130. Kairos — asignación, graduación, selector | 4/4            | Ready for verification | -          |
+| 131. Ajuste in-session + registro de dominado  | 0/TBD          | Not started            | -          |
 
 _Plan counts populated by `/gsd-plan-phase`._
 

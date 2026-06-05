@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v5.1
 milestone_name: Nuevo Sistema de Entrenamiento
 status: executing
-stopped_at: Phase 130 Plan 03 executed (Kairos 6th level in admin selector/filter/display maps — kairos first, glyph α, warm amber-6; human-verify deferred)
-last_updated: "2026-06-05T06:02:00.000Z"
-last_activity: 2026-06-05 -- Phase 130 Plan 03 executed (staging, not pushed)
+stopped_at: Phase 130 Plan 04 executed (Kairos first box in member-app onboarding self-pick; header dropdown verified; KAIROS-07 complete app+admin). Phase 130 ready_for_verification.
+last_updated: "2026-06-05T06:20:00.000Z"
+last_activity: 2026-06-05 -- Phase 130 Plan 04 executed (staging, not pushed); phase 130 ready for verification
 progress:
   total_phases: 8
-  completed_phases: 6
+  completed_phases: 7
   total_plans: 19
   completed_plans: 19
-  percent: 79
+  percent: 88
 ---
 
 # Project State
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 ## Current Position
 
 Phase: 130
-Plan: 03 complete (next: 04)
-Status: Executing
-Last activity: 2026-06-05 -- Phase 130 Plan 03 executed (staging, not pushed)
+Plan: 04 complete (all 4 plans done)
+Status: Ready for verification
+Last activity: 2026-06-05 -- Phase 130 Plan 04 executed (staging, not pushed); phase 130 ready for verification
 
 ## Performance Metrics
 
@@ -219,6 +219,7 @@ _Updated after each plan completion_
 | Phase 129 P01 | ~35min | 2 tasks | 18 files |
 | Phase 129 P02 | ~25min | 2 tasks | 7 files |
 | Phase 130 P03 | ~2min | 2 tasks | 3 files |
+| Phase 130 P04 | ~10min | 1 task | 1 file |
 
 ## Accumulated Context
 
@@ -564,11 +565,12 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - Plan 130-01: updateMember sets level_override=true ONLY on a level change → sticky coach decision. Contract for Plan 02: auto-graduation MUST skip members with level_override=true. Non-level edits leave level + flag untouched (D-05)
 - Plan 130-02 (KAIROS-05, D-02/D-03): KAIROS_GRADUATION_THRESHOLD=12 lives in shared/training-constants.ts (single source, no inline literal). GraduationService.maybeGraduateKairos(userId): one-way kairos→alfa at threshold, early-returns on non-kairos OR level_override=true, guarded `UPDATE ... WHERE id=? AND level='kairos'` (idempotent/race-safe). Count is TOTAL completed_sessions (all levels)
 - Plan 130-02: graduation is event-driven (NO cron), wired as a guarded try/catch side effect into all 3 completed-session insert paths — sessions/routes.ts + goal-plans/routes.ts (after AURA award), attendance/service.ts (inline inside recordPresencialSession after the presencial mirror insert). 5 tests in test/kairos/kairos-graduation.test.ts (CI). API tsc green. staging, not pushed
+- Plan 130-04 (KAIROS-07 app half, D-04): decision pre-resolved include-kairos (overnight). Prepended `{ value: 'kairos', label: 'α Kairos' }` FIRST in LEVEL_SELECTOR_QUESTION.options (onboarding/types.ts) → self-pick now kairos→alfa→delta→sigma→omega (5 boxes; spartan still excluded — earned, not claimed). 5 boxes is below OnboardingQuestion's `>5` scrollable threshold → no layout break. HeaderLevelDropdown.vue already v-for's TRAINING_LEVELS (kairos first since 129) → VERIFIED, no change. Gate = app lint (0 errs) + quasar build (succeeded; vue-tsc not a runnable script here, build covers full tsc). human-verify (visual UAT) DEFERRED. KAIROS-07 now complete app+admin. staging, not pushed. Phase 130 ready_for_verification.
 
 ## Session Continuity
 
-Last session: 2026-06-05T06:02:00.000Z
-Stopped at: Phase 130 Plan 03 executed (Kairos 6th level in admin selector/filter/display maps — kairos first, glyph α, warm amber-6; human-verify deferred)
+Last session: 2026-06-05T06:20:00.000Z
+Stopped at: Phase 130 Plan 04 executed (Kairos first box in member-app onboarding self-pick; header dropdown verified; KAIROS-07 complete app+admin). Phase 130 ready_for_verification.
 Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z

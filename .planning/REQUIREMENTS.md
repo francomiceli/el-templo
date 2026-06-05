@@ -49,7 +49,7 @@
 - [x] **KAIROS-04**: Los alumnos nuevos arrancan en Kairos por defecto (cambia el default de `users.level` de `alfa` a `kairos`).
 - [x] **KAIROS-05**: Un alumno gradúa automáticamente de Kairos a Alfa al cumplir un umbral configurable de sesiones completadas.
 - [x] **KAIROS-06**: El coach puede saltar manualmente a un alumno de nivel, anulando la graduación automática.
-- [ ] **KAIROS-07**: El selector de nivel muestra el 6º recuadrito (Kairos) en app y admin sin romper el layout (scroll/paginado donde haga falta).
+- [x] **KAIROS-07**: El selector de nivel muestra el 6º recuadrito (Kairos) en app y admin sin romper el layout (scroll/paginado donde haga falta).
 
 ### Eje 3 — Ajuste de dificultad in-session (ADJUST)
 
@@ -94,7 +94,7 @@
 | KAIROS-04   | Phase 130 | Done     |
 | KAIROS-05   | Phase 130 | Done     |
 | KAIROS-06   | Phase 130 | Done     |
-| KAIROS-07   | Phase 130 | Pending  |
+| KAIROS-07   | Phase 130 | Done     |
 | ADJUST-01   | Phase 131 | Pending  |
 | ADJUST-02   | Phase 131 | Pending  |
 | ADJUST-03   | Phase 131 | Pending  |
