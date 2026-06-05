@@ -11,33 +11,36 @@ import {
 import * as schema from "../../src/db/schema";
 
 /**
- * Integration test for the admin/coach tree editor — Phase 128 Plan 02 (TREE-07).
+ * Integration test for the admin/coach tree editor (TREE-07), reworked for
+ * "Progresión por ruta + Habilidad". The partition axis is now `(route × effort)`
+ * (sub-families are gone) and the GET response groups categories → routes[].
  *
- * Seeds a real 126-style two-partition graph in the per-worker MySQL test DB:
- *   - subfamily A (PULL): 3 canonical CON nodes at dl 1/3/5 with an auto chain
- *   - subfamily B (PUSH): 2 canonical CON nodes at dl 1/5 with an auto chain
+ * Seeds a real two-partition graph in the per-worker MySQL test DB:
+ *   - route PULLR (PULL → Tracción): 3 canonical CON nodes at dl 1/3/5, auto chain
+ *   - route PUSHR (PUSH → Empuje):   2 canonical CON nodes at dl 1/5,   auto chain
  *
  * Covers every editor route:
  *   - GET  /tree        → editable structure, auto/manual tagged, no 'reached'
  *   - POST /reorder     → rewrites partition as manual chain + clears its auto
  *   - POST /precedence  → add/remove a single manual cross-edge, idempotent add
- *   - POST /regroup     → reassign subfamily_id + bounded incident-edge prune
+ *   - POST /regroup     → reassign exercises.route + bounded incident-edge prune
  *   - AUTH              → member→403, no token→401, bad ids→4xx not 500
  */
-describe("tree-editor admin routes (Phase 128 Plan 02)", () => {
+describe("tree-editor admin routes (progresión por ruta)", () => {
   let app: FastifyInstance;
   let coachToken: string;
 
   // ── Seed helpers ───────────────────────────────────────────────────────────
 
-  async function createSubfamily(
-    route: string,
-    name: string,
-    sortOrder: number,
+  /** Insert one route (the INNER-JOIN target via exercises.route = routes.code). */
+  async function createRoute(
+    code: string,
+    displayName: string,
+    excludedFromTree = false,
   ): Promise<number> {
     const [row] = await app.db
-      .insert(schema.exerciseSubfamilies)
-      .values({ route, name, sortOrder })
+      .insert(schema.routes)
+      .values({ code, displayName, excludedFromTree })
       .$returningId();
     return row.id;
   }
@@ -47,7 +50,8 @@ describe("tree-editor admin routes (Phase 128 Plan 02)", () => {
     pattern: string;
     effort: string;
     dl: number;
-    subfamilyId: number | null;
+    route: string;
+    habilidad?: string | null;
   }): Promise<number> {
     const [row] = await app.db
       .insert(schema.exercises)
@@ -58,8 +62,8 @@ describe("tree-editor admin routes (Phase 128 Plan 02)", () => {
         effort: opts.effort,
         difficulty: 1,
         dificultadLineal: opts.dl,
-        route: "TEST",
-        subfamilyId: opts.subfamilyId,
+        route: opts.route,
+        habilidad: opts.habilidad ?? null,
       })
       .$returningId();
     return row.id;
@@ -91,42 +95,42 @@ describe("tree-editor admin routes (Phase 128 Plan 02)", () => {
   }
 
   /**
-   * Seed two partitions:
-   *   A (subfamily A, CON): a1(dl1) → a3(dl3) → a5(dl5)  auto
-   *   B (subfamily B, CON): b1(dl1) → b5(dl5)            auto
+   * Seed two partitions (route codes are also the partition dimension):
+   *   PULLR (CON): a1(dl1) → a3(dl3) → a5(dl5)  auto
+   *   PUSHR (CON): b1(dl1) → b5(dl5)            auto
    */
   async function seedGraph(): Promise<{
-    subA: number;
-    subB: number;
+    routeA: number;
+    routeB: number;
     a1: number;
     a3: number;
     a5: number;
     b1: number;
     b5: number;
   }> {
-    const subA = await createSubfamily("PULLR", "Dominadas", 1);
-    const subB = await createSubfamily("PUSHR", "Fondos", 2);
+    const routeA = await createRoute("PULLR", "Dominadas");
+    const routeB = await createRoute("PUSHR", "Fondos");
 
     const a1 = await createExercise({
       name: "A dl1",
       pattern: "PULL",
       effort: "CON",
       dl: 1,
-      subfamilyId: subA,
+      route: "PULLR",
     });
     const a3 = await createExercise({
       name: "A dl3",
       pattern: "PULL",
       effort: "CON",
       dl: 3,
-      subfamilyId: subA,
+      route: "PULLR",
     });
     const a5 = await createExercise({
       name: "A dl5",
       pattern: "PULL",
       effort: "CON",
       dl: 5,
-      subfamilyId: subA,
+      route: "PULLR",
     });
     await linkEdge(a1, a3, "auto");
     await linkEdge(a3, a5, "auto");
@@ -136,18 +140,18 @@ describe("tree-editor admin routes (Phase 128 Plan 02)", () => {
       pattern: "PUSH",
       effort: "CON",
       dl: 1,
-      subfamilyId: subB,
+      route: "PUSHR",
     });
     const b5 = await createExercise({
       name: "B dl5",
       pattern: "PUSH",
       effort: "CON",
       dl: 5,
-      subfamilyId: subB,
+      route: "PUSHR",
     });
     await linkEdge(b1, b5, "auto");
 
-    return { subA, subB, a1, a3, a5, b1, b5 };
+    return { routeA, routeB, a1, a3, a5, b1, b5 };
   }
 
   function authHeaders(token: string): { authorization: string } {
@@ -164,9 +168,8 @@ describe("tree-editor admin routes (Phase 128 Plan 02)", () => {
 
   beforeEach(async () => {
     await cleanAllTestData(app);
-    // exercise_progressions / exercise_subfamilies are not in cleanAllTestData.
+    // exercise_progressions is not in cleanAllTestData (exercises + routes ARE).
     await app.db.delete(schema.exerciseProgressions);
-    await app.db.delete(schema.exerciseSubfamilies);
 
     // Fresh coach token per test (the user is wiped by cleanAllTestData).
     const email = `tree-editor-coach-${Date.now()}-${Math.random()
@@ -191,7 +194,7 @@ describe("tree-editor admin routes (Phase 128 Plan 02)", () => {
       [
         "POST",
         "/api/admin/tree-editor/reorder",
-        { subfamilyId: 1, effort: "CON", orderedExerciseIds: [1] },
+        { route: "PULLR", effort: "CON", orderedExerciseIds: [1] },
       ],
       [
         "POST",
@@ -201,7 +204,7 @@ describe("tree-editor admin routes (Phase 128 Plan 02)", () => {
       [
         "POST",
         "/api/admin/tree-editor/regroup",
-        { exerciseIds: [1], targetSubfamilyId: 2 },
+        { exerciseIds: [1], targetRoute: "PUSHR" },
       ],
     ];
     for (const [method, url, payload] of routes) {
@@ -211,7 +214,7 @@ describe("tree-editor admin routes (Phase 128 Plan 02)", () => {
   });
 
   it("rejects a MEMBER token with 403 on every route", async () => {
-    const { subA, a1, a3, a5, subB } = await seedGraph();
+    const { a1, a3, a5 } = await seedGraph();
     const { token } = await registerUser(app, {
       email: `tree-editor-member-${Date.now()}@test.com`,
       password: "password123",
@@ -223,7 +226,7 @@ describe("tree-editor admin routes (Phase 128 Plan 02)", () => {
       [
         "POST",
         "/api/admin/tree-editor/reorder",
-        { subfamilyId: subA, effort: "CON", orderedExerciseIds: [a5, a3, a1] },
+        { route: "PULLR", effort: "CON", orderedExerciseIds: [a5, a3, a1] },
       ],
       [
         "POST",
@@ -233,7 +236,7 @@ describe("tree-editor admin routes (Phase 128 Plan 02)", () => {
       [
         "POST",
         "/api/admin/tree-editor/regroup",
-        { exerciseIds: [a1], targetSubfamilyId: subB },
+        { exerciseIds: [a1], targetRoute: "PUSHR" },
       ],
     ];
     for (const [method, url, payload] of calls) {
@@ -250,7 +253,7 @@ describe("tree-editor admin routes (Phase 128 Plan 02)", () => {
   // ── READ (D-06) ─────────────────────────────────────────────────────────────
 
   it("GET /tree returns the editable structure tagged auto, with no 'reached' field", async () => {
-    const { subA, a1, a3, a5 } = await seedGraph();
+    const { routeA, a1, a3, a5 } = await seedGraph();
 
     const res = await app.inject({
       method: "GET",
@@ -264,9 +267,9 @@ describe("tree-editor admin routes (Phase 128 Plan 02)", () => {
       (c: { key: string }) => c.key === "Tracción",
     );
     expect(traccion).toBeDefined();
-    const sfA = traccion.subfamilies.find((s: { id: number }) => s.id === subA);
-    expect(sfA).toBeDefined();
-    const conPart = sfA.partitions.find(
+    const rtA = traccion.routes.find((r: { id: number }) => r.id === routeA);
+    expect(rtA).toBeDefined();
+    const conPart = rtA.partitions.find(
       (p: { effort: string }) => p.effort === "CON",
     );
     expect(conPart.overridden).toBe(false);
@@ -283,14 +286,14 @@ describe("tree-editor admin routes (Phase 128 Plan 02)", () => {
   // ── REORDER (D-02/D-03) ─────────────────────────────────────────────────────
 
   it("POST /reorder rewrites the partition as manual edges and clears its auto edges", async () => {
-    const { subA, a1, a3, a5, b1, b5 } = await seedGraph();
+    const { routeA, a1, a3, a5, b1, b5 } = await seedGraph();
 
     const res = await app.inject({
       method: "POST",
       url: "/api/admin/tree-editor/reorder",
       headers: authHeaders(coachToken),
       payload: {
-        subfamilyId: subA,
+        route: "PULLR",
         effort: "CON",
         orderedExerciseIds: [a5, a1, a3],
       },
@@ -324,8 +327,8 @@ describe("tree-editor admin routes (Phase 128 Plan 02)", () => {
     const traccion = body.categories.find(
       (c: { key: string }) => c.key === "Tracción",
     );
-    const sfA = traccion.subfamilies.find((s: { id: number }) => s.id === subA);
-    const conPart = sfA.partitions.find(
+    const rtA = traccion.routes.find((r: { id: number }) => r.id === routeA);
+    const conPart = rtA.partitions.find(
       (p: { effort: string }) => p.effort === "CON",
     );
     expect(conPart.overridden).toBe(true);
@@ -335,9 +338,9 @@ describe("tree-editor admin routes (Phase 128 Plan 02)", () => {
   });
 
   it("POST /reorder is idempotent (re-applying the same order converges)", async () => {
-    const { subA, a1, a3, a5 } = await seedGraph();
+    const { a1, a3, a5 } = await seedGraph();
     const payload = {
-      subfamilyId: subA,
+      route: "PULLR",
       effort: "CON",
       orderedExerciseIds: [a5, a1, a3],
     };
@@ -360,14 +363,14 @@ describe("tree-editor admin routes (Phase 128 Plan 02)", () => {
 
   it("POST /reorder of a single-node partition returns an explicit no-op and writes nothing (WR-04)", async () => {
     await seedGraph();
-    // A brand-new subfamily with exactly ONE CON node — a single-node partition.
-    const subC = await createSubfamily("PULLS", "Una sola", 3);
+    // A brand-new route with exactly ONE CON node — a single-node partition.
+    const routeC = await createRoute("PULLS", "Una sola");
     const c1 = await createExercise({
       name: "C dl1",
       pattern: "PULL",
       effort: "CON",
       dl: 1,
-      subfamilyId: subC,
+      route: "PULLS",
     });
     const before = await getEdges();
 
@@ -375,7 +378,7 @@ describe("tree-editor admin routes (Phase 128 Plan 02)", () => {
       method: "POST",
       url: "/api/admin/tree-editor/reorder",
       headers: authHeaders(coachToken),
-      payload: { subfamilyId: subC, effort: "CON", orderedExerciseIds: [c1] },
+      payload: { route: "PULLS", effort: "CON", orderedExerciseIds: [c1] },
     });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.body);
@@ -399,22 +402,22 @@ describe("tree-editor admin routes (Phase 128 Plan 02)", () => {
     const traccion = tree.categories.find(
       (c: { key: string }) => c.key === "Tracción",
     );
-    const sfC = traccion.subfamilies.find((s: { id: number }) => s.id === subC);
-    const conPart = sfC.partitions.find(
+    const rtC = traccion.routes.find((r: { id: number }) => r.id === routeC);
+    const conPart = rtC.partitions.find(
       (p: { effort: string }) => p.effort === "CON",
     );
     expect(conPart.overridden).toBe(false);
   });
 
   it("POST /reorder with an id set not matching the partition → 400 (not 500)", async () => {
-    const { subA, a1, a3 } = await seedGraph();
+    const { a1, a3 } = await seedGraph();
     const res = await app.inject({
       method: "POST",
       url: "/api/admin/tree-editor/reorder",
       headers: authHeaders(coachToken),
       // missing a5
       payload: {
-        subfamilyId: subA,
+        route: "PULLR",
         effort: "CON",
         orderedExerciseIds: [a1, a3],
       },
@@ -478,10 +481,10 @@ describe("tree-editor admin routes (Phase 128 Plan 02)", () => {
     const { a1, a5 } = await seedGraph();
     const before = await getEdges();
 
-    // a1 and a5 live in the SAME (subfamily A × CON) partition. A precedence
-    // edge here would falsely lock the partition's auto backbone in rebuild and
-    // collide with the auto chain in getNeighbor — reorder owns same-partition
-    // ordering (D-03/D-04). It must be rejected at the service boundary.
+    // a1 and a5 live in the SAME (route PULLR × CON) partition. A precedence edge
+    // here would falsely lock the partition's auto backbone in rebuild and collide
+    // with the auto chain in getNeighbor — reorder owns same-partition ordering
+    // (D-03/D-04). It must be rejected at the service boundary.
     const res = await app.inject({
       method: "POST",
       url: "/api/admin/tree-editor/precedence",
@@ -524,26 +527,26 @@ describe("tree-editor admin routes (Phase 128 Plan 02)", () => {
 
   // ── REGROUP (D-05) ──────────────────────────────────────────────────────────
 
-  it("POST /regroup reassigns subfamily_id and prunes only the broken incident edge", async () => {
-    const { subA, subB, a1, a3, a5, b1, b5 } = await seedGraph();
+  it("POST /regroup reassigns exercises.route and prunes only the broken incident edge", async () => {
+    const { a1, a3, a5, b1, b5 } = await seedGraph();
 
-    // Move a5 from subfamily A to subfamily B. a3→a5 (was same-partition in A)
-    // becomes cross-partition → pruned. a1→a3 (both still in A) survives.
-    // b1→b5 (both still in B) survives.
+    // Move a5 from route PULLR to route PUSHR. a3→a5 (was same-partition in PULLR)
+    // becomes cross-partition → pruned. a1→a3 (both still in PULLR) survives.
+    // b1→b5 (both still in PUSHR) survives.
     const res = await app.inject({
       method: "POST",
       url: "/api/admin/tree-editor/regroup",
       headers: authHeaders(coachToken),
-      payload: { exerciseIds: [a5], targetSubfamilyId: subB },
+      payload: { exerciseIds: [a5], targetRoute: "PUSHR" },
     });
     expect(res.statusCode).toBe(200);
 
-    // subfamily_id changed
+    // route changed
     const [moved] = await app.db
-      .select({ subfamilyId: schema.exercises.subfamilyId })
+      .select({ route: schema.exercises.route })
       .from(schema.exercises)
       .where(eq(schema.exercises.id, a5));
-    expect(moved.subfamilyId).toBe(subB);
+    expect(moved.route).toBe("PUSHR");
 
     const edges = await getEdges();
     // a3→a5 pruned (now cross-partition); a1→a3 and b1→b5 survive.
@@ -564,24 +567,24 @@ describe("tree-editor admin routes (Phase 128 Plan 02)", () => {
     expect(a1a3).toHaveLength(1);
   });
 
-  it("POST /regroup with a non-existent target subfamily → 404 (not 500)", async () => {
+  it("POST /regroup with a non-existent target route → 404 (not 500)", async () => {
     const { a1 } = await seedGraph();
     const res = await app.inject({
       method: "POST",
       url: "/api/admin/tree-editor/regroup",
       headers: authHeaders(coachToken),
-      payload: { exerciseIds: [a1], targetSubfamilyId: 9999999 },
+      payload: { exerciseIds: [a1], targetRoute: "NOPE_ROUTE" },
     });
     expect(res.statusCode).toBe(404);
   });
 
   it("POST /regroup with a non-existent exercise id → 404 (not 500)", async () => {
-    const { subB } = await seedGraph();
+    await seedGraph();
     const res = await app.inject({
       method: "POST",
       url: "/api/admin/tree-editor/regroup",
       headers: authHeaders(coachToken),
-      payload: { exerciseIds: [9999999], targetSubfamilyId: subB },
+      payload: { exerciseIds: [9999999], targetRoute: "PUSHR" },
     });
     expect(res.statusCode).toBe(404);
   });

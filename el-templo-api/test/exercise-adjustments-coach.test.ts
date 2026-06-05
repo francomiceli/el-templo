@@ -12,8 +12,10 @@
  *   4. no token → 401.
  *
  * Seeds exercise_adjustments rows directly (member_id + exercise_id +
- * to_exercise_id + status + created_at). Cleans up only the rows it seeds, in FK
- * order (adjustments → exercises → sub-families); users via cleanAllTestData.
+ * to_exercise_id + status + created_at). The coach read resolves names via joins
+ * on `exercises` only (no route/sub-family axis), so the seed needs only bare
+ * exercises. Cleans up only the rows it seeds, in FK order (adjustments →
+ * exercises); users via cleanAllTestData.
  */
 
 import { describe, it, expect, beforeAll, afterEach, afterAll } from "vitest";
@@ -33,20 +35,9 @@ describe("GET /api/admin/exercise-adjustments/:memberId (Phase 131 Plan 02)", ()
 
   const MARK = `ADJUST_COACH_${Date.now()}`;
   const seededExerciseIds: number[] = [];
-  const seededSubfamilyIds: number[] = [];
   const seededMemberIds: number[] = [];
 
-  async function seedSubfamily(name: string): Promise<number> {
-    const [res] = await app.db
-      .insert(schema.exerciseSubfamilies)
-      .values({ route: "TEST", name: `${MARK}_${name}` })
-      .$returningId();
-    seededSubfamilyIds.push(res.id);
-    return res.id;
-  }
-
   async function seedExercise(name: string): Promise<number> {
-    const sf = await seedSubfamily(name);
     const [res] = await app.db
       .insert(schema.exercises)
       .values({
@@ -55,7 +46,7 @@ describe("GET /api/admin/exercise-adjustments/:memberId (Phase 131 Plan 02)", ()
         exercise: `${MARK}_${name}`,
         effort: "EXC",
         route: "TEST",
-        subfamilyId: sf,
+        progressionStep: 1,
         dificultadLineal: 3,
       })
       .$returningId();
@@ -141,12 +132,6 @@ describe("GET /api/admin/exercise-adjustments/:memberId (Phase 131 Plan 02)", ()
         .delete(schema.exercises)
         .where(inArray(schema.exercises.id, seededExerciseIds));
       seededExerciseIds.length = 0;
-    }
-    if (seededSubfamilyIds.length > 0) {
-      await app.db
-        .delete(schema.exerciseSubfamilies)
-        .where(inArray(schema.exerciseSubfamilies.id, seededSubfamilyIds));
-      seededSubfamilyIds.length = 0;
     }
     seededMemberIds.length = 0;
   });

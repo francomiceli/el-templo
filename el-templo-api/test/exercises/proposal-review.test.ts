@@ -1,24 +1,25 @@
 /**
- * Phase 125 Plan 02 — Integration test for the profe proposal-review flow
- * (`ProposalService`). Runs against real MySQL (eltemplo_test_<worker>),
- * CI-only — do NOT run the suite locally (project policy: local gate is tsc).
+ * Integration test for the profe proposal-review flow (`ProposalService`),
+ * reworked for "Progresión por ruta + Habilidad". Runs against real MySQL
+ * (eltemplo_test_<worker>), CI-only — do NOT run the suite locally (project
+ * policy: local gate is tsc).
  *
  * Contract under test (D-02/D-07):
- *   A. accept writes truth columns: resolves/creates exercise_subfamilies, sets
- *      exercises.subfamily_id + leverage; the proposal flips to `accepted`.
- *   B. accept on a route_pending row sets exercises.route + route_pending=0.
+ *   A. accept writes truth columns: sets exercises.progression_step + habilidad;
+ *      the proposal flips to `accepted`.
+ *   B. accept on a route_pending row sets exercises.route + route_pending=0 and
+ *      still writes the step.
  *   C. reject flips the proposal to `rejected` and leaves exercises untouched
- *      (subfamily_id / leverage / route all unchanged).
+ *      (progression_step / habilidad / route all unchanged).
  *   D. accept with inline override fields uses the overrides, not the proposed
  *      values.
- *   E. bulk-accept-group accepts every proposal in a route group.
+ *   E. bulk-accept accepts every proposal in the list.
  *   F. listProposals returns pending proposals filtered by route, each row
- *      carrying the exercise name + current route.
+ *      carrying the exercise name + current route + proposed step/habilidad.
  *
  * Seeds exercises + proposals directly via Drizzle (NOT via API) with a unique
- * MARK so the test only touches its own rows. Real clock (fake timers desync
- * from MySQL). FK-safe cleanup in afterEach: delete proposals THEN exercises
- * THEN seeded subfamilies.
+ * MARK so the test only touches its own rows. Real clock (fake timers desync from
+ * MySQL). FK-safe cleanup in afterEach: delete proposals THEN exercises.
  */
 
 import { describe, it, expect, beforeAll, afterEach, afterAll } from "vitest";
@@ -28,7 +29,7 @@ import { createTestApp } from "../helpers";
 import * as schema from "../../src/db/schema";
 import { ProposalService } from "../../src/modules/admin/proposal-service";
 
-describe("ProposalService — proposal review (Phase 125 Plan 02)", () => {
+describe("ProposalService — proposal review (progresión por ruta)", () => {
   let app: FastifyInstance;
   let service: ProposalService;
 
@@ -37,7 +38,6 @@ describe("ProposalService — proposal review (Phase 125 Plan 02)", () => {
   const MARK = `PR${`${Date.now()}`.slice(-9)}`;
   const seededExerciseIds: number[] = [];
   const seededProposalIds: number[] = [];
-  const seededSubfamilyRoutes = new Set<string>();
 
   async function seedExercise(opts: {
     name: string;
@@ -62,16 +62,16 @@ describe("ProposalService — proposal review (Phase 125 Plan 02)", () => {
 
   async function seedProposal(opts: {
     exerciseId: number;
-    proposedSubfamily: string | null;
-    proposedLeverage?: string | null;
+    proposedStep?: number | null;
+    proposedHabilidad?: string | null;
     proposedRoute?: string | null;
   }): Promise<number> {
     const [res] = await app.db
       .insert(schema.exerciseDimensionProposals)
       .values({
         exerciseId: opts.exerciseId,
-        proposedSubfamily: opts.proposedSubfamily,
-        proposedLeverage: opts.proposedLeverage ?? null,
+        proposedStep: opts.proposedStep ?? null,
+        proposedHabilidad: opts.proposedHabilidad ?? null,
         proposedRoute: opts.proposedRoute ?? null,
         engine: "heuristic-test",
       })
@@ -81,15 +81,15 @@ describe("ProposalService — proposal review (Phase 125 Plan 02)", () => {
   }
 
   async function getExercise(id: number): Promise<{
-    subfamilyId: number | null;
-    leverage: string | null;
+    progressionStep: number | null;
+    habilidad: string | null;
     route: string;
     routePending: boolean;
   }> {
     const [row] = await app.db
       .select({
-        subfamilyId: schema.exercises.subfamilyId,
-        leverage: schema.exercises.leverage,
+        progressionStep: schema.exercises.progressionStep,
+        habilidad: schema.exercises.habilidad,
         route: schema.exercises.route,
         routePending: schema.exercises.routePending,
       })
@@ -104,20 +104,6 @@ describe("ProposalService — proposal review (Phase 125 Plan 02)", () => {
       .from(schema.exerciseDimensionProposals)
       .where(eq(schema.exerciseDimensionProposals.id, id));
     return row.status;
-  }
-
-  async function getSubfamily(id: number): Promise<{
-    route: string;
-    name: string;
-  }> {
-    const [row] = await app.db
-      .select({
-        route: schema.exerciseSubfamilies.route,
-        name: schema.exerciseSubfamilies.name,
-      })
-      .from(schema.exerciseSubfamilies)
-      .where(eq(schema.exerciseSubfamilies.id, id));
-    return row;
   }
 
   beforeAll(async () => {
@@ -135,52 +121,37 @@ describe("ProposalService — proposal review (Phase 125 Plan 02)", () => {
       seededProposalIds.length = 0;
     }
     if (seededExerciseIds.length > 0) {
-      // Detach the subfamily FK before deleting the catalog rows below.
-      await app.db
-        .update(schema.exercises)
-        .set({ subfamilyId: null })
-        .where(inArray(schema.exercises.id, seededExerciseIds));
       await app.db
         .delete(schema.exercises)
         .where(inArray(schema.exercises.id, seededExerciseIds));
       seededExerciseIds.length = 0;
     }
-    // Clean any subfamilies the accept flow created for our marked routes.
-    for (const route of seededSubfamilyRoutes) {
-      await app.db
-        .delete(schema.exerciseSubfamilies)
-        .where(eq(schema.exerciseSubfamilies.route, route));
-    }
-    seededSubfamilyRoutes.clear();
   });
 
   afterAll(async () => {
     await app.close();
   });
 
-  it("A — accept resolves/creates subfamily + sets subfamily_id + leverage; proposal → accepted", async () => {
+  it("A — accept sets progression_step + habilidad; proposal → accepted", async () => {
     const route = `${MARK}_A`;
-    seededSubfamilyRoutes.add(route);
     const exId = await seedExercise({ name: `${MARK}_A_ex`, route });
     const propId = await seedProposal({
       exerciseId: exId,
-      proposedSubfamily: "Planche",
-      proposedLeverage: "tuck",
+      proposedStep: 2,
+      proposedHabilidad: null,
     });
 
     await service.accept(propId);
 
     const ex = await getExercise(exId);
-    expect(ex.subfamilyId).not.toBeNull();
-    expect(ex.leverage).toBe("tuck");
+    expect(ex.progressionStep).toBe(2);
+    expect(ex.habilidad).toBeNull();
+    // route is untouched (not a route_pending row, no override).
+    expect(ex.route).toBe(route);
     expect(await getProposalStatus(propId)).toBe("accepted");
-
-    const sf = await getSubfamily(ex.subfamilyId as number);
-    expect(sf.route).toBe(route);
-    expect(sf.name).toBe("Planche");
   });
 
-  it("B — accept on a route_pending row sets route + clears route_pending", async () => {
+  it("B — accept on a route_pending row sets route + clears route_pending + writes step", async () => {
     const route = ""; // route_pending rows have an empty route until accept
     const exId = await seedExercise({
       name: `${MARK}_B_ex`,
@@ -189,21 +160,16 @@ describe("ProposalService — proposal review (Phase 125 Plan 02)", () => {
     });
     const propId = await seedProposal({
       exerciseId: exId,
-      proposedSubfamily: "Front Lever",
-      proposedLeverage: "straddle",
+      proposedStep: 1,
       proposedRoute: `${MARK}_B_FL`,
     });
-    seededSubfamilyRoutes.add(`${MARK}_B_FL`);
 
     await service.accept(propId);
 
     const ex = await getExercise(exId);
     expect(ex.route).toBe(`${MARK}_B_FL`);
     expect(ex.routePending).toBe(false);
-    expect(ex.subfamilyId).not.toBeNull();
-    // subfamily resolved against the NEW (proposed) route.
-    const sf = await getSubfamily(ex.subfamilyId as number);
-    expect(sf.route).toBe(`${MARK}_B_FL`);
+    expect(ex.progressionStep).toBe(1);
   });
 
   it("C — reject flips status and leaves exercises untouched", async () => {
@@ -211,8 +177,8 @@ describe("ProposalService — proposal review (Phase 125 Plan 02)", () => {
     const exId = await seedExercise({ name: `${MARK}_C_ex`, route });
     const propId = await seedProposal({
       exerciseId: exId,
-      proposedSubfamily: "Back Lever",
-      proposedLeverage: "full",
+      proposedStep: 3,
+      proposedHabilidad: "RINGS",
     });
 
     const before = await getExercise(exId);
@@ -220,48 +186,38 @@ describe("ProposalService — proposal review (Phase 125 Plan 02)", () => {
 
     const after = await getExercise(exId);
     expect(await getProposalStatus(propId)).toBe("rejected");
-    expect(after.subfamilyId).toBe(before.subfamilyId); // still null
-    expect(after.leverage).toBe(before.leverage); // still null
+    expect(after.progressionStep).toBe(before.progressionStep); // still null
+    expect(after.progressionStep).toBeNull();
+    expect(after.habilidad).toBe(before.habilidad); // still null
     expect(after.route).toBe(before.route);
     expect(after.routePending).toBe(before.routePending);
   });
 
   it("D — accept uses inline override fields over the proposed values", async () => {
     const route = `${MARK}_D`;
-    seededSubfamilyRoutes.add(route);
     const exId = await seedExercise({ name: `${MARK}_D_ex`, route });
     const propId = await seedProposal({
       exerciseId: exId,
-      proposedSubfamily: "WrongName",
-      proposedLeverage: "tuck",
+      proposedStep: 2,
+      proposedHabilidad: "WRONG",
     });
 
     await service.accept(propId, {
-      proposedSubfamily: "CorrectName",
-      proposedLeverage: "full",
+      proposedStep: 5,
+      proposedHabilidad: "RINGS",
     });
 
     const ex = await getExercise(exId);
-    expect(ex.leverage).toBe("full");
-    const sf = await getSubfamily(ex.subfamilyId as number);
-    expect(sf.name).toBe("CorrectName");
+    expect(ex.progressionStep).toBe(5);
+    expect(ex.habilidad).toBe("RINGS");
   });
 
-  it("E — bulk-accept-group accepts every proposal in a route group", async () => {
+  it("E — bulk-accept accepts every proposal in the list", async () => {
     const route = `${MARK}_E`;
-    seededSubfamilyRoutes.add(route);
     const ex1 = await seedExercise({ name: `${MARK}_E_ex1`, route });
     const ex2 = await seedExercise({ name: `${MARK}_E_ex2`, route });
-    const p1 = await seedProposal({
-      exerciseId: ex1,
-      proposedSubfamily: "Handstand",
-      proposedLeverage: "tuck",
-    });
-    const p2 = await seedProposal({
-      exerciseId: ex2,
-      proposedSubfamily: "Handstand",
-      proposedLeverage: "straddle",
-    });
+    const p1 = await seedProposal({ exerciseId: ex1, proposedStep: 1 });
+    const p2 = await seedProposal({ exerciseId: ex2, proposedStep: 2 });
 
     const count = await service.bulkAccept([p1, p2]);
 
@@ -270,17 +226,17 @@ describe("ProposalService — proposal review (Phase 125 Plan 02)", () => {
     expect(await getProposalStatus(p2)).toBe("accepted");
     const e1 = await getExercise(ex1);
     const e2 = await getExercise(ex2);
-    expect(e1.subfamilyId).not.toBeNull();
-    expect(e2.subfamilyId).not.toBeNull();
+    expect(e1.progressionStep).toBe(1);
+    expect(e2.progressionStep).toBe(2);
   });
 
-  it("F — listProposals returns pending proposals filtered by route with the exercise name", async () => {
+  it("F — listProposals returns pending proposals filtered by route with name + proposed fields", async () => {
     const route = `${MARK}_F`;
     const exId = await seedExercise({ name: `${MARK}_F_ex`, route });
     await seedProposal({
       exerciseId: exId,
-      proposedSubfamily: "Muscle Up",
-      proposedLeverage: null,
+      proposedStep: 4,
+      proposedHabilidad: "WIDE",
     });
 
     const result = await service.listProposals({ route });
@@ -290,6 +246,8 @@ describe("ProposalService — proposal review (Phase 125 Plan 02)", () => {
     expect(row).toBeDefined();
     expect(row?.exerciseName).toBe(`${MARK}_F_ex`);
     expect(row?.currentRoute).toBe(route);
+    expect(row?.proposedStep).toBe(4);
+    expect(row?.proposedHabilidad).toBe("WIDE");
     expect(row?.status).toBe("pending");
   });
 });

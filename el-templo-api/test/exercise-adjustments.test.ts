@@ -1,8 +1,9 @@
 /**
  * Phase 131 Plan 01 — Integration test for the in-session difficulty adjustment
- * endpoint (POST /api/exercise-adjustments) and ExerciseAdjustmentService. Runs
- * against real MySQL (eltemplo_test_<worker>), CI-only — do NOT run the suite
- * locally (project policy: local gate is tsc).
+ * endpoint (POST /api/exercise-adjustments) and ExerciseAdjustmentService.
+ * Reworked for "Progresión por ruta + Habilidad". Runs against real MySQL
+ * (eltemplo_test_<worker>), CI-only — do NOT run the suite locally (project
+ * policy: local gate is tsc).
  *
  * Contracts under test (ADJUST-01/02/03, D-02/D-03/D-04/D-06):
  *   1. swap up → dominado: a member with a harder neighbor POSTs direction='up'
@@ -13,17 +14,16 @@
  *   3. chain end → null: a tap at the end of the chain (getNeighbor null) → 200
  *      with { neighbor: null, message }; NO row inserted.
  *   4. member-scope (T-131-01, D-04): the persisted member_id is ALWAYS the
- *      authenticated user, even when a spoofed memberId/userId is sent in the
- *      body (rejected by additionalProperties:false; the row's member_id is the
- *      token user regardless).
+ *      authenticated user, even when a spoofed memberId/userId is sent in the body.
  *   5. FK invalid exercise: a non-existent exerciseId → getNeighbor null →
  *      graceful no-op (200, no 500, no orphan row).
  *   6. auth: no token → 401.
  *
  * Seeds the graph EDGES via the auto-backbone constructor (same as the Phase 126
- * primitive test) so getNeighbor resolves. Real clock. Cleans up only the rows
- * it seeds, in FK order (adjustments → edges → exercises → sub-families); the
- * member is registered via the auth API and removed by cleanAllTestData.
+ * primitive test) so getNeighbor resolves: a `routes` row (the constructor INNER-
+ * JOINs it) + exercises with `progression_step`. Real clock. Cleans up only the
+ * rows it seeds, in FK order (adjustments → edges → exercises → routes); the member
+ * is registered via the auth API and removed by cleanAllTestData.
  */
 
 import { describe, it, expect, beforeAll, afterEach, afterAll } from "vitest";
@@ -33,28 +33,29 @@ import { createTestApp, registerUser, cleanAllTestData } from "./helpers";
 import * as schema from "../src/db/schema";
 import { runRebuildProgressionGraph } from "../rebuild-progression-graph";
 
-describe("POST /api/exercise-adjustments (Phase 131 Plan 01)", () => {
+describe("POST /api/exercise-adjustments (progresión por ruta)", () => {
   let app: FastifyInstance;
 
   const MARK = `ADJUST_TEST_${Date.now()}`;
+  // routes.code is varchar(20): a short prefix keeps `${PREFIX}${label}` in bounds.
+  const PREFIX = `R${(Date.now() % 1e9).toString(36).toUpperCase()}`; // ≤ 7 chars
   const seededExerciseIds: number[] = [];
-  const seededSubfamilyIds: number[] = [];
+  const seededRouteCodes: string[] = [];
   const seededMemberIds: number[] = [];
 
-  async function seedSubfamily(name: string): Promise<number> {
-    const [res] = await app.db
-      .insert(schema.exerciseSubfamilies)
-      .values({ route: "TEST", name: `${MARK}_${name}` })
-      .$returningId();
-    seededSubfamilyIds.push(res.id);
-    return res.id;
+  async function seedRoute(label: string): Promise<string> {
+    const code = `${PREFIX}${label}`;
+    await app.db.insert(schema.routes).values({ code });
+    seededRouteCodes.push(code);
+    return code;
   }
 
   async function seedExercise(opts: {
     name: string;
     effort: string;
-    subfamilyId: number | null;
+    route: string;
     dl: number;
+    progressionStep?: number | null;
     videoUrl?: string | null;
   }): Promise<number> {
     const [res] = await app.db
@@ -64,8 +65,8 @@ describe("POST /api/exercise-adjustments (Phase 131 Plan 01)", () => {
         category: "test",
         exercise: `${MARK}_${opts.name}`,
         effort: opts.effort,
-        route: "TEST",
-        subfamilyId: opts.subfamilyId,
+        route: opts.route,
+        progressionStep: opts.progressionStep ?? null,
         dificultadLineal: opts.dl,
         videoUrl: opts.videoUrl ?? null,
       })
@@ -90,32 +91,34 @@ describe("POST /api/exercise-adjustments (Phase 131 Plan 01)", () => {
   }
 
   /**
-   * Seed a 3-node chain (low → mid → high) of the SAME effort in a fresh
-   * sub-family and build the auto backbone so getNeighbor resolves. Returns the
-   * three exercise ids.
+   * Seed a 3-node chain (low → mid → high) of the SAME effort on a fresh route and
+   * build the auto backbone so getNeighbor resolves. Returns the three exercise ids.
    */
   async function seedChain(
     label: string,
     effort = "EXC",
   ): Promise<{ low: number; mid: number; high: number }> {
-    const sf = await seedSubfamily(label);
+    const route = await seedRoute(label);
     const low = await seedExercise({
       name: `${label}_low`,
       effort,
-      subfamilyId: sf,
+      route,
       dl: 1,
+      progressionStep: 1,
     });
     const mid = await seedExercise({
       name: `${label}_mid`,
       effort,
-      subfamilyId: sf,
+      route,
       dl: 3,
+      progressionStep: 2,
     });
     const high = await seedExercise({
       name: `${label}_high`,
       effort,
-      subfamilyId: sf,
+      route,
       dl: 5,
+      progressionStep: 3,
       // Seed a clip on the harder neighbor so the WR-03 contract (the response
       // carries the neighbor's videoUrl for the in-session swap) is asserted.
       videoUrl: `https://videos.test/${MARK}_${label}_high.mp4`,
@@ -130,8 +133,8 @@ describe("POST /api/exercise-adjustments (Phase 131 Plan 01)", () => {
 
   afterEach(async () => {
     // FK order: adjustments referencing seeded exercises/members first, then the
-    // progression edges, then the exercises, then the sub-families. Members are
-    // removed by cleanAllTestData at file scope.
+    // progression edges, then the exercises, then the routes. Members are removed
+    // by cleanAllTestData at file scope.
     if (seededExerciseIds.length > 0 || seededMemberIds.length > 0) {
       if (seededMemberIds.length > 0) {
         await app.db
@@ -164,11 +167,11 @@ describe("POST /api/exercise-adjustments (Phase 131 Plan 01)", () => {
         seededExerciseIds.length = 0;
       }
     }
-    if (seededSubfamilyIds.length > 0) {
+    if (seededRouteCodes.length > 0) {
       await app.db
-        .delete(schema.exerciseSubfamilies)
-        .where(inArray(schema.exerciseSubfamilies.id, seededSubfamilyIds));
-      seededSubfamilyIds.length = 0;
+        .delete(schema.routes)
+        .where(inArray(schema.routes.code, seededRouteCodes));
+      seededRouteCodes.length = 0;
     }
     seededMemberIds.length = 0;
   });

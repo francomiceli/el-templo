@@ -5,32 +5,37 @@ import { createTestApp, registerUser, cleanAllTestData } from "../helpers";
 import * as schema from "../../src/db/schema";
 
 /**
- * Integration test for GET /api/tree-progress/me (Phase 127 Plan 01, TREE-06).
+ * Integration test for GET /api/tree-progress/me (TREE-06), reworked for
+ * "Progresión por ruta + Habilidad". The response keeps the `subfamilies[]` field
+ * name for the member-app contract, but each group is now one ROUTE.
  *
- * Seeds a real 126-style graph in the per-worker MySQL test DB:
- *   - subfamily A (PULL → Tracción) with 3 canonical nodes at dl 2/5/8
- *   - subfamily B (PUSH → Empuje) with 2 canonical nodes at dl 1/9
+ * Seeds a real backbone graph in the per-worker MySQL test DB:
+ *   - route PULLR (PULL → Tracción) with 3 canonical nodes at dl 2/5/8
+ *   - route PUSHR (PUSH → Empuje) with 2 canonical nodes at dl 1/9
  *   - exercise_progressions edges so the nodes are real graph nodes
- *   - three OFF-graph exercises (non-canonical / off-effort / NULL subfamily)
- *     that MUST NOT appear in the tree
+ *   - OFF-graph exercises (non-canonical / off-effort / habilidad variant /
+ *     excluded route) that MUST NOT appear in the tree
  *
- * Asserts: 5-category grouping order, per-subfamily %, reached-by-ceiling,
- * 401-without-token, and own-scope isolation (member A's higher level never
- * leaks into member B's tree).
+ * Asserts: 5-category grouping order, per-route %, reached-by-ceiling,
+ * 401-without-token, and own-scope isolation (member A's higher level never leaks
+ * into member B's tree). The structure source mirrors rebuild-progression-graph:
+ *   canonical_exercise_id IS NULL AND effort IN ('CON','EXC','ISO')
+ *   AND habilidad IS NULL AND routes.excluded_from_tree = false
  */
 describe("GET /api/tree-progress/me", () => {
   let app: FastifyInstance;
 
   // ── Seed helpers ─────────────────────────────────────────────────────────
 
-  async function createSubfamily(
-    route: string,
-    name: string,
-    sortOrder: number,
+  /** Insert one route (the INNER-JOIN target via exercises.route = routes.code). */
+  async function createRoute(
+    code: string,
+    displayName: string,
+    excludedFromTree = false,
   ): Promise<number> {
     const [row] = await app.db
-      .insert(schema.exerciseSubfamilies)
-      .values({ route, name, sortOrder })
+      .insert(schema.routes)
+      .values({ code, displayName, excludedFromTree })
       .$returningId();
     return row.id;
   }
@@ -40,8 +45,9 @@ describe("GET /api/tree-progress/me", () => {
     pattern: string;
     effort: string;
     dl: number;
-    subfamilyId: number | null;
+    route: string;
     canonicalExerciseId?: number | null;
+    habilidad?: string | null;
   }): Promise<number> {
     const [row] = await app.db
       .insert(schema.exercises)
@@ -52,8 +58,8 @@ describe("GET /api/tree-progress/me", () => {
         effort: opts.effort,
         difficulty: 1,
         dificultadLineal: opts.dl,
-        route: "TEST",
-        subfamilyId: opts.subfamilyId,
+        route: opts.route,
+        habilidad: opts.habilidad ?? null,
         canonicalExerciseId: opts.canonicalExerciseId ?? null,
       })
       .$returningId();
@@ -100,57 +106,57 @@ describe("GET /api/tree-progress/me", () => {
   }
 
   /**
-   * Seed the standard two-subfamily graph plus off-graph noise.
-   * Returns the created subfamily ids and the node exercise ids by dl.
+   * Seed the standard two-route graph plus off-graph noise.
+   * Returns the created route ids and the node exercise ids by dl.
    */
   async function seedGraph(): Promise<{
-    subA: number;
-    subB: number;
+    routeA: number;
+    routeB: number;
     aNodes: number[];
     bNodes: number[];
   }> {
-    const subA = await createSubfamily("PULLR", "Dominadas", 1);
-    const subB = await createSubfamily("PUSHR", "Fondos", 2);
+    const routeA = await createRoute("PULLR", "Dominadas");
+    const routeB = await createRoute("PUSHR", "Fondos");
 
-    // Subfamily A (PULL → Tracción): dl 2, 5, 8
+    // Route A (PULL → Tracción): dl 2, 5, 8
     const a2 = await createExercise({
       name: "Pull node dl2",
       pattern: "PULL",
       effort: "CON",
       dl: 2,
-      subfamilyId: subA,
+      route: "PULLR",
     });
     const a5 = await createExercise({
       name: "Pull node dl5",
       pattern: "PULL",
       effort: "CON",
       dl: 5,
-      subfamilyId: subA,
+      route: "PULLR",
     });
     const a8 = await createExercise({
       name: "Pull node dl8",
       pattern: "PULL",
       effort: "CON",
       dl: 8,
-      subfamilyId: subA,
+      route: "PULLR",
     });
     await linkEdge(a2, a5);
     await linkEdge(a5, a8);
 
-    // Subfamily B (PUSH → Empuje): dl 1, 9
+    // Route B (PUSH → Empuje): dl 1, 9
     const b1 = await createExercise({
       name: "Push node dl1",
       pattern: "PUSH",
       effort: "CON",
       dl: 1,
-      subfamilyId: subB,
+      route: "PUSHR",
     });
     const b9 = await createExercise({
       name: "Push node dl9",
       pattern: "PUSH",
       effort: "CON",
       dl: 9,
-      subfamilyId: subB,
+      route: "PUSHR",
     });
     await linkEdge(b1, b9);
 
@@ -161,7 +167,7 @@ describe("GET /api/tree-progress/me", () => {
       pattern: "PULL",
       effort: "CON",
       dl: 3,
-      subfamilyId: subA,
+      route: "PULLR",
       canonicalExerciseId: a2,
     });
     // (2) off-effort (effort NOT IN CON/EXC/ISO)
@@ -170,18 +176,28 @@ describe("GET /api/tree-progress/me", () => {
       pattern: "PUSH",
       effort: "",
       dl: 4,
-      subfamilyId: subB,
+      route: "PUSHR",
     });
-    // (3) NULL subfamily_id (unconfirmed)
+    // (3) Habilidad variant (habilidad != NULL → off the backbone)
     await createExercise({
-      name: "Off-graph unconfirmed",
+      name: "Off-graph habilidad variant",
       pattern: "PULL",
       effort: "CON",
       dl: 6,
-      subfamilyId: null,
+      route: "PULLR",
+      habilidad: "WIDE",
+    });
+    // (4) excluded route (movilidad/games never enter the strength tree)
+    await createRoute("EXCLR", "Movilidad de prueba", true);
+    await createExercise({
+      name: "Off-graph excluded-route node",
+      pattern: "PULL",
+      effort: "CON",
+      dl: 7,
+      route: "EXCLR",
     });
 
-    return { subA, subB, aNodes: [a2, a5, a8], bNodes: [b1, b9] };
+    return { routeA, routeB, aNodes: [a2, a5, a8], bNodes: [b1, b9] };
   }
 
   function findCategory(
@@ -215,12 +231,11 @@ describe("GET /api/tree-progress/me", () => {
 
   beforeEach(async () => {
     await cleanAllTestData(app);
-    // exercise_adjustments / exercise_subfamilies / exercise_progressions are
-    // not in cleanAllTestData; wipe them so each test starts from an empty
-    // graph. Adjustments first (FK → exercises/users).
+    // exercise_adjustments / exercise_progressions are not in cleanAllTestData
+    // (exercises + routes ARE); wipe them so each test starts from an empty graph.
+    // Adjustments first (FK → exercises/users), then edges.
     await app.db.delete(schema.exerciseAdjustments);
     await app.db.delete(schema.exerciseProgressions);
-    await app.db.delete(schema.exerciseSubfamilies);
   });
 
   it("returns 401 for unauthenticated request", async () => {
@@ -256,7 +271,7 @@ describe("GET /api/tree-progress/me", () => {
     ]);
   });
 
-  it("computes per-subfamily % from the member's level ceiling and never shows off-graph nodes", async () => {
+  it("computes per-route % from the member's level ceiling and never shows off-graph nodes", async () => {
     const { aNodes, bNodes } = await seedGraph();
     const reg = await registerUser(app, {
       email: `tree-sigma-${Date.now()}@test.com`,
@@ -327,7 +342,7 @@ describe("GET /api/tree-progress/me", () => {
     const idB = (regB.user as { id: number }).id;
 
     await setLevel(idA, "spartan"); // ceiling 12 → everything reached
-    await setLevel(idB, "alfa"); // ceiling 3 → only dl2 in subfamily A reached
+    await setLevel(idB, "alfa"); // ceiling 3 → only dl2 in route A reached
 
     const resA = await app.inject({
       method: "GET",

@@ -1,26 +1,32 @@
 /**
- * Phase 126 Plan 02 — Integration test for the deterministic graph constructor
- * (`rebuild-progression-graph.ts`). Runs against real MySQL
- * (eltemplo_test_<worker>), CI-only — do NOT run the suite locally (project
- * policy: local gate is tsc).
+ * Integration test for the deterministic graph constructor
+ * (`rebuild-progression-graph.ts`), reworked for "Progresión por ruta + Habilidad".
+ * Runs against real MySQL (eltemplo_test_<worker>), CI-only — do NOT run the suite
+ * locally (project policy: local gate is tsc).
  *
  * Contract under test (TREE-04, D-02/D-03/D-04/D-05):
- *   A. Backbone: 3 exercises in one (subfamily × effort) at dl 1,3,5 yield exactly
- *      2 auto edges in dl order (a→b, b→c). A single-exercise partition → 0 edges.
+ *   A. Backbone: 3 exercises in one (route × effort) at progression_step 1,2,3 yield
+ *      exactly 2 auto edges in step order (a→b, b→c). Single-node partition → 0 edges.
  *   B. Idempotency: running twice yields the identical auto edge set, no dupes.
  *   C. Manual-preserving: a pre-existing source='manual' edge survives a rebuild
  *      untouched (D-03).
- *   D. Effort NOT crossed: an EXC and a CON exercise in the same sub-family never
- *      share an auto edge (D-04).
- *   E. Exclusion: an exercise with NULL subfamily_id appears in no edge.
- *   F. Tiebreak determinism: two exercises at the same dl in one partition produce
- *      the identical edge orientation across runs (D-05).
+ *   D. Effort NOT crossed: an EXC and a CON exercise in the same route never share
+ *      an auto edge (D-04).
+ *   E. Habilidad excluded: an exercise with habilidad != NULL is off-backbone and
+ *      appears in no auto edge.
+ *   E2. Excluded route: a route with excluded_from_tree=1 yields 0 edges.
+ *   F. Tiebreak determinism: two exercises at the same step+dl in one partition
+ *      produce the identical edge orientation across runs, by id (D-05).
+ *   G. Empty-effort confirmed exercises are excluded (WR-04).
+ *   H. progression_step ordering overrides dificultad_lineal.
+ *   Locked: a (route × effort) partition that owns a same-partition manual edge is
+ *      not regenerated; untouched partitions still regenerate (D-02).
  *
- * Seeds exercises + sub-families directly via Drizzle (NOT via API). Real clock
- * (fake timers desync from MySQL). Cleans up only the rows it seeds, in afterEach
- * — deleting this test's exercise_progressions rows THEN exercises THEN
- * sub-families (FK order; the FKs are ON DELETE CASCADE but we delete explicitly
- * so the test stays self-contained).
+ * Seeds routes + exercises directly via Drizzle (NOT via API). The backbone READ
+ * INNER-JOINs `routes` on `e.route = r.code`, so every route code used MUST have a
+ * `routes` row or its nodes vanish from the graph. Real clock (fake timers desync
+ * from MySQL). Cleans up only the rows it seeds, in afterEach — edges THEN exercises
+ * THEN routes (FK / dependency order).
  */
 
 import { describe, it, expect, beforeAll, afterEach, afterAll } from "vitest";
@@ -31,47 +37,54 @@ import * as schema from "../../src/db/schema";
 import {
   runRebuildProgressionGraph,
   readExerciseNodes,
+  readManualEdgePartitionRows,
 } from "../../rebuild-progression-graph";
 
-describe("rebuild-progression-graph (Phase 126 Plan 02)", () => {
+describe("rebuild-progression-graph (progresión por ruta)", () => {
   let app: FastifyInstance;
 
-  // Unique marker so the test only ever touches and cleans its own rows even if
-  // a real catalog is present in the per-worker DB.
-  const MARK = `PROGRESSION_TEST_${Date.now()}`;
+  // Unique, short marker so the test only ever touches and cleans its own rows
+  // even if a real catalog is present in the per-worker DB. routes.code is
+  // varchar(20): keep the prefix small so `${PREFIX}${suffix}` stays in bounds.
+  const PREFIX = `R${(Date.now() % 1e9).toString(36).toUpperCase()}`; // ≤ 7 chars
   const seededExerciseIds: number[] = [];
-  const seededSubfamilyIds: number[] = [];
+  const seededRouteCodes: string[] = [];
 
-  /** Insert one sub-family (FK target for exercises) and track it for cleanup. */
-  async function seedSubfamily(name: string): Promise<number> {
-    const [res] = await app.db
-      .insert(schema.exerciseSubfamilies)
-      .values({ route: "TEST", name: `${MARK}_${name}`, sortOrder: 0 })
-      .$returningId();
-    seededSubfamilyIds.push(res.id);
-    return res.id;
+  /** Insert one route (FK target via e.route = r.code) and track it for cleanup. */
+  async function seedRoute(
+    suffix: string,
+    excludedFromTree = false,
+  ): Promise<string> {
+    const code = `${PREFIX}${suffix}`;
+    await app.db.insert(schema.routes).values({ code, excludedFromTree });
+    seededRouteCodes.push(code);
+    return code;
   }
 
   /**
    * Insert one exercise (filling the NOT NULL columns) and track its id for
-   * cleanup. `name` carries the MARK; canonicalExerciseId left NULL so the row is
-   * canonical. `subfamilyId` may be null to exercise the exclusion path (Test E).
+   * cleanup. `exercise` carries the PREFIX; canonicalExerciseId left NULL so the
+   * row is canonical. `habilidad` defaults NULL (on-backbone); set it to push the
+   * row off the backbone (Test E). `progressionStep` may be null (linear routes).
    */
   async function seedExercise(opts: {
     name: string;
     effort: string;
     dl: number;
-    subfamilyId: number | null;
+    route: string;
+    progressionStep?: number | null;
+    habilidad?: string | null;
   }): Promise<number> {
     const [res] = await app.db
       .insert(schema.exercises)
       .values({
         pattern: "test",
         category: "test",
-        exercise: `${MARK}_${opts.name}`,
+        exercise: `${PREFIX}_${opts.name}`,
         effort: opts.effort,
-        route: "TEST",
-        subfamilyId: opts.subfamilyId ?? undefined,
+        route: opts.route,
+        progressionStep: opts.progressionStep ?? null,
+        habilidad: opts.habilidad ?? null,
         dificultadLineal: opts.dl,
       })
       .$returningId();
@@ -79,7 +92,7 @@ describe("rebuild-progression-graph (Phase 126 Plan 02)", () => {
     return res.id;
   }
 
-  /** Read back the auto edges incident to any of the given exercise ids. */
+  /** Read back the edges incident to any of the given exercise ids. */
   async function getAutoEdges(exerciseIds: number[]): Promise<
     {
       fromExerciseId: number;
@@ -109,7 +122,7 @@ describe("rebuild-progression-graph (Phase 126 Plan 02)", () => {
 
   afterEach(async () => {
     // Delete this test's edges first (explicit FK order), then exercises, then
-    // sub-families. Edges scoped to the seeded exercise ids only.
+    // routes. Edges scoped to the seeded exercise ids only.
     if (seededExerciseIds.length > 0) {
       await app.db
         .delete(schema.exerciseProgressions)
@@ -130,11 +143,11 @@ describe("rebuild-progression-graph (Phase 126 Plan 02)", () => {
         .where(inArray(schema.exercises.id, seededExerciseIds));
       seededExerciseIds.length = 0;
     }
-    if (seededSubfamilyIds.length > 0) {
+    if (seededRouteCodes.length > 0) {
       await app.db
-        .delete(schema.exerciseSubfamilies)
-        .where(inArray(schema.exerciseSubfamilies.id, seededSubfamilyIds));
-      seededSubfamilyIds.length = 0;
+        .delete(schema.routes)
+        .where(inArray(schema.routes.code, seededRouteCodes));
+      seededRouteCodes.length = 0;
     }
   });
 
@@ -142,25 +155,28 @@ describe("rebuild-progression-graph (Phase 126 Plan 02)", () => {
     await app.close();
   });
 
-  it("A — backbone: 3 exercises at dl 1,3,5 yield exactly 2 auto edges in dl order", async () => {
-    const sf = await seedSubfamily("A");
+  it("A — backbone: 3 exercises at step 1,2,3 yield exactly 2 auto edges in step order", async () => {
+    const route = await seedRoute("A");
     const a = await seedExercise({
       name: "A1",
       effort: "CON",
       dl: 1,
-      subfamilyId: sf,
+      route,
+      progressionStep: 1,
     });
     const b = await seedExercise({
       name: "A3",
       effort: "CON",
       dl: 3,
-      subfamilyId: sf,
+      route,
+      progressionStep: 2,
     });
     const c = await seedExercise({
       name: "A5",
       effort: "CON",
       dl: 5,
-      subfamilyId: sf,
+      route,
+      progressionStep: 3,
     });
 
     await runRebuildProgressionGraph(app.db);
@@ -169,7 +185,7 @@ describe("rebuild-progression-graph (Phase 126 Plan 02)", () => {
       (e) => e.source === "auto",
     );
     expect(edges).toHaveLength(2);
-    // a→b and b→c, in dl order.
+    // a→b and b→c, in step order.
     expect(edges).toContainEqual({
       fromExerciseId: a,
       toExerciseId: b,
@@ -187,12 +203,13 @@ describe("rebuild-progression-graph (Phase 126 Plan 02)", () => {
   });
 
   it("A2 — a single-exercise partition produces 0 edges", async () => {
-    const sf = await seedSubfamily("A2");
+    const route = await seedRoute("A2");
     const only = await seedExercise({
       name: "A2only",
       effort: "CON",
       dl: 2,
-      subfamilyId: sf,
+      route,
+      progressionStep: 1,
     });
 
     await runRebuildProgressionGraph(app.db);
@@ -202,24 +219,27 @@ describe("rebuild-progression-graph (Phase 126 Plan 02)", () => {
   });
 
   it("B — idempotency: running twice yields the identical auto edge set, no dupes", async () => {
-    const sf = await seedSubfamily("B");
+    const route = await seedRoute("B");
     const a = await seedExercise({
       name: "B1",
       effort: "ISO",
       dl: 1,
-      subfamilyId: sf,
+      route,
+      progressionStep: 1,
     });
     const b = await seedExercise({
       name: "B2",
       effort: "ISO",
       dl: 2,
-      subfamilyId: sf,
+      route,
+      progressionStep: 2,
     });
     const c = await seedExercise({
       name: "B3",
       effort: "ISO",
       dl: 3,
-      subfamilyId: sf,
+      route,
+      progressionStep: 3,
     });
 
     await runRebuildProgressionGraph(app.db);
@@ -241,33 +261,37 @@ describe("rebuild-progression-graph (Phase 126 Plan 02)", () => {
   });
 
   it("C — manual edges survive a rebuild untouched (D-03)", async () => {
-    const sf = await seedSubfamily("C");
+    const route = await seedRoute("C");
     const a = await seedExercise({
       name: "C1",
       effort: "CON",
       dl: 1,
-      subfamilyId: sf,
+      route,
+      progressionStep: 1,
     });
     const b = await seedExercise({
       name: "C2",
       effort: "CON",
       dl: 2,
-      subfamilyId: sf,
+      route,
+      progressionStep: 2,
     });
     // A manual cross-effort edge a profe could author in 128 — the constructor
-    // would NEVER produce this (effort differs / non-consecutive), so its survival
-    // is solely due to the source='auto'-scoped DELETE.
+    // would NEVER produce this (effort differs), so its survival is solely due to
+    // the source='auto'-scoped DELETE. Cross-effort → does NOT lock the partition.
     const manualFrom = await seedExercise({
       name: "Cmanual_from",
       effort: "EXC",
       dl: 9,
-      subfamilyId: sf,
+      route,
+      progressionStep: 1,
     });
     const manualTo = await seedExercise({
       name: "Cmanual_to",
       effort: "ISO",
       dl: 1,
-      subfamilyId: sf,
+      route,
+      progressionStep: 1,
     });
 
     await app.db.insert(schema.exerciseProgressions).values({
@@ -293,56 +317,62 @@ describe("rebuild-progression-graph (Phase 126 Plan 02)", () => {
     });
   });
 
-  it("locked partition — a (subfamily×effort) partition with a manual edge is NOT regenerated; untouched partitions still regenerate (D-02)", async () => {
-    // Partition X: subfamily X, effort CON, three nodes at dl 1/3/5. Its auto
-    // chain has been REPLACED by the editor with a MANUAL chain in a different
-    // order (dl 5→1→3), and X's auto edges deleted — exactly what Plan 02's
-    // editor does on the first override. X must therefore be LOCKED: a rebuild
-    // must NOT delete its manual edges nor re-insert the dl-ascending auto chain.
-    const sfX = await seedSubfamily("LockedX");
+  it("locked partition — a (route×effort) partition with a same-partition manual edge is NOT regenerated; untouched partitions still regenerate (D-02)", async () => {
+    // Partition X: route X, effort CON, three nodes at step 1/2/3. Its auto chain
+    // has been REPLACED by the editor with a MANUAL chain in a different order
+    // (5→1→3), and X's auto edges deleted — exactly what the editor does on the
+    // first override. X must therefore be LOCKED: a rebuild must NOT delete its
+    // manual edges nor re-insert the ascending auto chain.
+    const routeX = await seedRoute("X");
     const x1 = await seedExercise({
       name: "X1",
       effort: "CON",
       dl: 1,
-      subfamilyId: sfX,
+      route: routeX,
+      progressionStep: 1,
     });
     const x3 = await seedExercise({
       name: "X3",
       effort: "CON",
       dl: 3,
-      subfamilyId: sfX,
+      route: routeX,
+      progressionStep: 2,
     });
     const x5 = await seedExercise({
       name: "X5",
       effort: "CON",
       dl: 5,
-      subfamilyId: sfX,
+      route: routeX,
+      progressionStep: 3,
     });
 
-    // Partition Y: subfamily Y, effort CON, three nodes at dl 1/3/5 — untouched
-    // (no manual edge). It must regenerate its full auto backbone on rebuild.
-    const sfY = await seedSubfamily("UnlockedY");
+    // Partition Y: route Y, effort CON, three nodes — untouched (no manual edge).
+    // It must regenerate its full auto backbone on rebuild.
+    const routeY = await seedRoute("Y");
     const y1 = await seedExercise({
       name: "Y1",
       effort: "CON",
       dl: 1,
-      subfamilyId: sfY,
+      route: routeY,
+      progressionStep: 1,
     });
     const y3 = await seedExercise({
       name: "Y3",
       effort: "CON",
       dl: 3,
-      subfamilyId: sfY,
+      route: routeY,
+      progressionStep: 2,
     });
     const y5 = await seedExercise({
       name: "Y5",
       effort: "CON",
       dl: 5,
-      subfamilyId: sfY,
+      route: routeY,
+      progressionStep: 3,
     });
 
     // Lock X: write its manual chain in the profe's chosen order (5→1→3). All
-    // endpoints are inside partition X (same subfamily × effort), so this is a
+    // endpoints are inside partition X (same route × effort), so this is a
     // same-partition chain rewrite that locks the partition (D-02/D-03).
     await app.db.insert(schema.exerciseProgressions).values([
       { fromExerciseId: x5, toExerciseId: x1, source: "manual" },
@@ -367,7 +397,7 @@ describe("rebuild-progression-graph (Phase 126 Plan 02)", () => {
     // No auto edge was resurrected for the locked partition.
     expect(xEdges.some((e) => e.source === "auto")).toBe(false);
 
-    // Partition Y: full auto backbone (y1→y3, y3→y5) in dl order, all auto.
+    // Partition Y: full auto backbone (y1→y3, y3→y5) in step order, all auto.
     const yEdges = await getAutoEdges([y1, y3, y5]);
     expect(yEdges).toHaveLength(2);
     expect(yEdges).toContainEqual({
@@ -408,25 +438,27 @@ describe("rebuild-progression-graph (Phase 126 Plan 02)", () => {
     );
   });
 
-  it("D — effort is NOT crossed: EXC and CON in the same sub-family never share an edge (D-04)", async () => {
-    const sf = await seedSubfamily("D");
+  it("D — effort is NOT crossed: EXC and CON in the same route never share an edge (D-04)", async () => {
+    const route = await seedRoute("D");
     const exc = await seedExercise({
       name: "Dexc",
       effort: "EXC",
       dl: 1,
-      subfamilyId: sf,
+      route,
+      progressionStep: 1,
     });
     const con = await seedExercise({
       name: "Dcon",
       effort: "CON",
       dl: 2,
-      subfamilyId: sf,
+      route,
+      progressionStep: 1,
     });
 
     await runRebuildProgressionGraph(app.db);
 
     const edges = await getAutoEdges([exc, con]);
-    // Each is the lone member of its (subfamily × effort) partition → 0 edges, and
+    // Each is the lone member of its (route × effort) partition → 0 edges, and
     // crucially NO edge connects across effort.
     expect(
       edges.some(
@@ -438,58 +470,101 @@ describe("rebuild-progression-graph (Phase 126 Plan 02)", () => {
     expect(edges).toHaveLength(0);
   });
 
-  it("E — exercises with NULL subfamily_id are excluded from the graph", async () => {
-    const sf = await seedSubfamily("E");
-    const confirmed = await seedExercise({
-      name: "Econfirmed",
+  it("E — Habilidad variants (habilidad != NULL) are off-backbone and appear in no edge", async () => {
+    const route = await seedRoute("E");
+    // Two backbone nodes (habilidad NULL) form the chain...
+    const base1 = await seedExercise({
+      name: "Ebase1",
       effort: "CON",
       dl: 1,
-      subfamilyId: sf,
+      route,
+      progressionStep: 1,
     });
-    const unconfirmed = await seedExercise({
-      name: "Eunconfirmed",
+    const base2 = await seedExercise({
+      name: "Ebase2",
       effort: "CON",
       dl: 2,
-      subfamilyId: null,
+      route,
+      progressionStep: 2,
+    });
+    // ...a Habilidad variant at the same step is parallel, off the backbone.
+    const variant = await seedExercise({
+      name: "Evariant",
+      effort: "CON",
+      dl: 2,
+      route,
+      progressionStep: 2,
+      habilidad: "WIDE",
     });
 
     await runRebuildProgressionGraph(app.db);
 
-    const edges = await getAutoEdges([confirmed, unconfirmed]);
-    // The unconfirmed (NULL subfamily) exercise appears in NO edge.
+    const edges = await getAutoEdges([base1, base2, variant]);
+    // The variant appears in NO edge.
     expect(
       edges.some(
-        (e) =>
-          e.fromExerciseId === unconfirmed || e.toExerciseId === unconfirmed,
+        (e) => e.fromExerciseId === variant || e.toExerciseId === variant,
       ),
     ).toBe(false);
+    // The backbone pair still chains (base1→base2), and that's the only edge.
+    expect(edges).toHaveLength(1);
+    expect(edges).toContainEqual({
+      fromExerciseId: base1,
+      toExerciseId: base2,
+      source: "auto",
+    });
+  });
+
+  it("E2 — a route with excluded_from_tree=1 yields 0 edges", async () => {
+    const route = await seedRoute("E2", true); // excluded (movilidad/games)
+    const a = await seedExercise({
+      name: "E2a",
+      effort: "CON",
+      dl: 1,
+      route,
+      progressionStep: 1,
+    });
+    const b = await seedExercise({
+      name: "E2b",
+      effort: "CON",
+      dl: 2,
+      route,
+      progressionStep: 2,
+    });
+
+    await runRebuildProgressionGraph(app.db);
+
+    const edges = await getAutoEdges([a, b]);
+    expect(edges).toHaveLength(0);
   });
 
   it("G — empty-effort confirmed exercises are excluded from the graph (WR-04)", async () => {
-    const sf = await seedSubfamily("G");
-    // Two confirmed canonical exercises with effort='' in the same sub-family.
-    // effort is a free varchar and the catalog demonstrably holds '' rows
-    // (exercise-fallback.ts filters effort = ''). They must NOT form a partition
-    // or chain — an empty-effort axis is meaningless (D-04).
+    const route = await seedRoute("G");
+    // Two confirmed canonical exercises with effort='' in the same route. effort
+    // is a free varchar and the catalog demonstrably holds '' rows; they must NOT
+    // form a partition or chain — an empty-effort axis is meaningless (D-04).
     const empty1 = await seedExercise({
       name: "Gempty1",
       effort: "",
       dl: 1,
-      subfamilyId: sf,
+      route,
+      progressionStep: 1,
     });
     const empty2 = await seedExercise({
       name: "Gempty2",
       effort: "",
       dl: 2,
-      subfamilyId: sf,
+      route,
+      progressionStep: 2,
     });
-    // A real CON exercise in the same sub-family, single member → 0 edges, so the
-    // ONLY way an edge could appear incident to these ids is the (wrong) '' chain.
+    // A real CON exercise in the same route, single member → 0 edges, so the ONLY
+    // way an edge could appear incident to these ids is the (wrong) '' chain.
     const con = await seedExercise({
       name: "Gcon",
       effort: "CON",
       dl: 3,
-      subfamilyId: sf,
+      route,
+      progressionStep: 1,
     });
 
     await runRebuildProgressionGraph(app.db);
@@ -508,28 +583,64 @@ describe("rebuild-progression-graph (Phase 126 Plan 02)", () => {
     expect(edges).toHaveLength(0);
   });
 
-  it("F — dl-tiebreak is deterministic by id across runs (D-05)", async () => {
-    const sf = await seedSubfamily("F");
-    // Two exercises at the SAME dl in one partition. Seeded in reverse id-vs-name
-    // order to prove the tiebreak is by id, not insertion/name order.
+  it("H — progression_step ordering overrides dificultad_lineal", async () => {
+    const route = await seedRoute("H");
+    // Step order is the OPPOSITE of dl order: the backbone must follow step.
+    const easyStep = await seedExercise({
+      name: "Hstep1",
+      effort: "CON",
+      dl: 9, // high dl...
+      route,
+      progressionStep: 1, // ...but earliest step → head of chain
+    });
+    const hardStep = await seedExercise({
+      name: "Hstep2",
+      effort: "CON",
+      dl: 1, // low dl...
+      route,
+      progressionStep: 2, // ...but later step → tail of chain
+    });
+
+    await runRebuildProgressionGraph(app.db);
+
+    const edges = (await getAutoEdges([easyStep, hardStep])).filter(
+      (e) => e.source === "auto",
+    );
+    expect(edges).toHaveLength(1);
+    // Edge follows progression_step (easyStep→hardStep), NOT dl (which would
+    // orient hardStep→easyStep).
+    expect(edges).toContainEqual({
+      fromExerciseId: easyStep,
+      toExerciseId: hardStep,
+      source: "auto",
+    });
+  });
+
+  it("F — same step+dl tiebreak is deterministic by id across runs (D-05)", async () => {
+    const route = await seedRoute("F");
+    // Two exercises at the SAME step AND dl in one partition. Seeded so the
+    // tiebreak is provably by id (ascending), not insertion/name order.
     const first = await seedExercise({
       name: "Ftie_a",
       effort: "CON",
       dl: 4,
-      subfamilyId: sf,
+      route,
+      progressionStep: 1,
     });
     const second = await seedExercise({
       name: "Ftie_b",
       effort: "CON",
       dl: 4,
-      subfamilyId: sf,
+      route,
+      progressionStep: 1,
     });
-    // A third at a higher dl so there is at least one edge to orient.
+    // A third at a higher step so there is at least one edge to orient.
     const third = await seedExercise({
       name: "Ftie_c",
       effort: "CON",
       dl: 6,
-      subfamilyId: sf,
+      route,
+      progressionStep: 2,
     });
 
     await runRebuildProgressionGraph(app.db);
@@ -546,7 +657,7 @@ describe("rebuild-progression-graph (Phase 126 Plan 02)", () => {
 
     // Identical orientation across runs (stable id tiebreak).
     expect(run2).toEqual(run1);
-    // Smaller id (first) precedes larger id (second) at the tied dl, then second→third.
+    // Smaller id (first) precedes larger id (second) at the tie, then second→third.
     expect(run1).toEqual([`${first}->${second}`, `${second}->${third}`].sort());
   });
 });
@@ -554,10 +665,11 @@ describe("rebuild-progression-graph (Phase 126 Plan 02)", () => {
 /**
  * Pure unit tests for `readExerciseNodes` — the result-narrowing helper. These
  * exercise data-error paths the integration suite cannot reach (the DB column
- * `dificultad_lineal` is NOT NULL DEFAULT 1, so a NaN dl cannot be seeded), so
- * the unit test feeds the raw mysql2 `[rows, fields]` shape directly. No DB.
+ * `dificultad_lineal` is NOT NULL DEFAULT 1, so a NaN dl cannot be seeded), so the
+ * unit test feeds the raw mysql2 `[rows, fields]` shape directly. No DB. The
+ * helper now reads route + progressionStep (NOT subfamilyId).
  */
-describe("readExerciseNodes (Phase 126 — WR-05 / WR-04 data hygiene)", () => {
+describe("readExerciseNodes (data hygiene — WR-04 / WR-05)", () => {
   /** Wrap rows in the mysql2 db.execute() shape: [rows, fields]. */
   function asResult(rows: unknown[]): unknown {
     return [rows, []];
@@ -566,12 +678,24 @@ describe("readExerciseNodes (Phase 126 — WR-05 / WR-04 data hygiene)", () => {
   it("WR-05 — skips a row with a non-finite dl instead of coercing it to 0", () => {
     const nodes = readExerciseNodes(
       asResult([
-        { id: 1, subfamilyId: 10, effort: "CON", dl: 1 },
+        { id: 1, route: "FL", effort: "CON", dl: 1, progressionStep: 1 },
         // A NaN dl: must be SKIPPED, not planted at dl=0 (which would sort below
         // every legitimate dl≥1 and become the wrong head of the chain).
-        { id: 2, subfamilyId: 10, effort: "CON", dl: Number.NaN },
-        { id: 3, subfamilyId: 10, effort: "CON", dl: "not-a-number" },
-        { id: 4, subfamilyId: 10, effort: "CON", dl: 3 },
+        {
+          id: 2,
+          route: "FL",
+          effort: "CON",
+          dl: Number.NaN,
+          progressionStep: 2,
+        },
+        {
+          id: 3,
+          route: "FL",
+          effort: "CON",
+          dl: "not-a-number",
+          progressionStep: 3,
+        },
+        { id: 4, route: "FL", effort: "CON", dl: 3, progressionStep: 4 },
       ]),
     );
     expect(nodes.map((n) => n.id).sort((a, b) => a - b)).toEqual([1, 4]);
@@ -581,30 +705,88 @@ describe("readExerciseNodes (Phase 126 — WR-05 / WR-04 data hygiene)", () => {
   it("WR-04 — skips a row with an empty or invalid effort", () => {
     const nodes = readExerciseNodes(
       asResult([
-        { id: 1, subfamilyId: 10, effort: "CON", dl: 1 },
-        { id: 2, subfamilyId: 10, effort: "", dl: 2 }, // empty → off-graph
-        { id: 3, subfamilyId: 10, effort: "WAT", dl: 3 }, // invalid → off-graph
-        { id: 4, subfamilyId: 10, effort: "ISO", dl: 4 },
+        { id: 1, route: "FL", effort: "CON", dl: 1, progressionStep: 1 },
+        { id: 2, route: "FL", effort: "", dl: 2, progressionStep: 2 }, // empty → off-graph
+        { id: 3, route: "FL", effort: "WAT", dl: 3, progressionStep: 3 }, // invalid → off-graph
+        { id: 4, route: "FL", effort: "ISO", dl: 4, progressionStep: 4 },
       ]),
     );
     expect(nodes.map((n) => n.id).sort((a, b) => a - b)).toEqual([1, 4]);
     expect(nodes.map((n) => n.effort).sort()).toEqual(["CON", "ISO"]);
   });
 
-  it("still skips non-finite id / subfamilyId (existing contract)", () => {
+  it("skips non-finite id and empty route (new partition axis)", () => {
     const nodes = readExerciseNodes(
       asResult([
-        { id: Number.NaN, subfamilyId: 10, effort: "CON", dl: 1 },
-        { id: 2, subfamilyId: Number.NaN, effort: "CON", dl: 2 },
-        { id: 3, subfamilyId: 10, effort: "CON", dl: 3 },
+        {
+          id: Number.NaN,
+          route: "FL",
+          effort: "CON",
+          dl: 1,
+          progressionStep: 1,
+        },
+        { id: 2, route: "", effort: "CON", dl: 2, progressionStep: 2 }, // empty route → off-graph
+        { id: 3, route: "FL", effort: "CON", dl: 3, progressionStep: 3 },
       ]),
     );
     expect(nodes.map((n) => n.id)).toEqual([3]);
+    expect(nodes[0].route).toBe("FL");
+  });
+
+  it("keeps a NULL progression_step as null (linear routes), never coerces to 0", () => {
+    const nodes = readExerciseNodes(
+      asResult([
+        { id: 1, route: "PS", effort: "CON", dl: 5, progressionStep: null },
+        {
+          id: 2,
+          route: "PS",
+          effort: "CON",
+          dl: 7,
+          progressionStep: undefined,
+        },
+      ]),
+    );
+    expect(nodes).toHaveLength(2);
+    expect(nodes.every((n) => n.progressionStep === null)).toBe(true);
   });
 
   it("returns [] for a non-array or malformed result", () => {
     expect(readExerciseNodes(null)).toEqual([]);
     expect(readExerciseNodes([null])).toEqual([]);
     expect(readExerciseNodes("nope")).toEqual([]);
+  });
+});
+
+/**
+ * Pure unit tests for `readManualEdgePartitionRows` — narrows the locked-partition
+ * query result. A locked partition is keyed by (route, effort); rows with an empty
+ * route or an invalid/empty effort must be skipped so a bad row can never (fail to)
+ * lock a partition silently.
+ */
+describe("readManualEdgePartitionRows (locked-partition narrowing)", () => {
+  function asResult(rows: unknown[]): unknown {
+    return [rows, []];
+  }
+
+  it("keeps valid (route, effort) rows and skips empty route / invalid effort", () => {
+    const parts = readManualEdgePartitionRows(
+      asResult([
+        { route: "FL", effort: "CON" },
+        { route: "", effort: "CON" }, // empty route → skip
+        { route: "MU", effort: "" }, // empty effort → skip
+        { route: "PL", effort: "WAT" }, // invalid effort → skip
+        { route: "BL", effort: "ISO" },
+      ]),
+    );
+    expect(parts).toEqual([
+      { route: "FL", effort: "CON" },
+      { route: "BL", effort: "ISO" },
+    ]);
+  });
+
+  it("returns [] for a non-array or malformed result", () => {
+    expect(readManualEdgePartitionRows(null)).toEqual([]);
+    expect(readManualEdgePartitionRows([null])).toEqual([]);
+    expect(readManualEdgePartitionRows("nope")).toEqual([]);
   });
 });
