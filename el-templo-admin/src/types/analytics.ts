@@ -357,6 +357,347 @@ export interface AdvancedFinanceAnalytics {
   excludedInvalidWindow: number;
 }
 
+// -- Shared metric envelope (Phase 120-123) ------------------------------
+
+/**
+ * The uniform envelope for a count-of-a-population metric, mirrored from the
+ * backend `MetricShape` (el-templo-api/src/modules/analytics/metric-shape.ts).
+ * Every field is always present (defaulted to 0) so the wire shape is stable.
+ *   - `nominal`:    the raw count being reported.
+ *   - `percentage`: `nominal / n` as an integer percentage; `0` when `n === 0`.
+ *   - `n`:          the sample size / denominator. Always reported.
+ */
+export interface MetricShape {
+  nominal: number;
+  percentage: number;
+  n: number;
+}
+
+// -- Ticket promedio (Phase 120 Block 6 — D-01) --------------------------
+
+/**
+ * The average of a single cohort of charges plus its sample size. `average` is
+ * `null` when the cohort is empty (`n === 0`) so the wire shape never carries NaN.
+ */
+export interface TicketCohortAverage {
+  average: number | null;
+  n: number;
+}
+
+/**
+ * The list-price vs discounted/customized split of a ticket figure so discounts
+ * do not distort the headline. `$0` charges belong to NEITHER cohort (surfaced
+ * separately via `zeroCount`/`zeroPct`).
+ */
+export interface TicketCohortSplit {
+  listPrice: TicketCohortAverage;
+  discounted: TicketCohortAverage;
+}
+
+/**
+ * Per-plan ticket row (grouped by `(name, country)`). Every figure is for ONE
+ * currency — the per-currency block owns the array.
+ */
+export interface TicketPlanRow {
+  planName: string;
+  country: string;
+  durationTier: 'monthly' | 'long_term' | null;
+  ticket: MetricShape;
+  discountMean: number | null;
+  discountMedian: number | null;
+  zeroCount: number;
+  zeroPct: number;
+  cohorts: TicketCohortSplit;
+}
+
+/** Per-branch ticket row (one currency). */
+export interface TicketBranchRow {
+  branchName: string;
+  ticket: MetricShape;
+  discountMean: number | null;
+  discountMedian: number | null;
+}
+
+/** Per-duration-tier ticket row (one currency). One-off plans excluded. */
+export interface TicketDurationRow {
+  durationTier: 'monthly' | 'long_term';
+  ticket: MetricShape;
+}
+
+/**
+ * The complete ticket payload for ONE currency. ARS and EUR are NEVER summed —
+ * each currency owns its own block (TICKET-04).
+ */
+export interface TicketCurrencyBlock {
+  global: MetricShape;
+  globalCohorts: TicketCohortSplit;
+  zeroCount: number;
+  zeroPct: number;
+  discountMean: number | null;
+  discountMedian: number | null;
+  perPlan: TicketPlanRow[];
+  byBranch: TicketBranchRow[];
+  byDuration: TicketDurationRow[];
+}
+
+/**
+ * GET /admin/analytics/ticket response (Phase 120 Block 6). Per-currency
+ * volume-weighted ticket from `subscriptions.price_paid`, the `$0` charge
+ * count/%, mean+median discount, and the list-price vs discounted cohort split.
+ *   - `historicalFallbackCount`: charges that fell back to the plan's current
+ *     `priceRegular` (the list price was never stored).
+ *   - `excludedNoLink`: in-period charges with no subscription link, excluded.
+ */
+export interface TicketAnalytics {
+  byCurrency: {
+    ARS: TicketCurrencyBlock;
+    EUR: TicketCurrencyBlock;
+  };
+  historicalFallbackCount: number;
+  excludedNoLink: number;
+}
+
+// -- Churn + Renovación (Phase 121 — D-02 / D-03) ------------------------
+
+/**
+ * The breakdown axis a churn/renovación segment row is grouped by. ADDITIVE
+ * grouping keys, NEVER access filters.
+ */
+export type ChurnRenewalAxis = 'branch' | 'country' | 'duration' | 'plan';
+
+/** One churn segment (CHURN-06): churn `{ nominal, percentage, n }` per axis value. */
+export interface ChurnSegmentRow {
+  axis: ChurnRenewalAxis;
+  key: string;
+  churn: MetricShape;
+}
+
+/** One comparative churn column at a specific window (CHURN-02). */
+export interface ChurnWindowResult {
+  windowDays: number;
+  churn: MetricShape;
+}
+
+/**
+ * One point of the monthly churn series (CHURN-05). `provisional` is `true` when
+ * the cohort has NOT yet matured (value not final).
+ */
+export interface ChurnSeriesPoint {
+  bucket: string; // YYYY-MM
+  churn: MetricShape;
+  provisional: boolean;
+}
+
+/**
+ * GET /admin/analytics/churn response (Phase 121 Block 1). Person-based churn of
+ * non-renewal over the matured expiry cohort, sharing ONE cohort definition with
+ * renovación so churn% and renov% sit on the same denominator.
+ */
+export interface ChurnAnalytics {
+  /** OFFICIAL churn at the configured window that pairs with renovación. */
+  window: ChurnWindowResult;
+  /** Multi-N comparative columns (default 5/10/15) — exploration view. */
+  comparison: ChurnWindowResult[];
+  /** Persons in the grace window excluded from the matured churn ("número vivo"). */
+  enGracia: number;
+  /** Monthly churn series by expiry cohort, provisional flag per point. */
+  series: ChurnSeriesPoint[];
+  /** Churn opened by branch / country / duration / plan. */
+  breakdowns: ChurnSegmentRow[];
+}
+
+/** One renovación segment (RENOV-04): renewal `{ nominal, percentage, n }` per axis value. */
+export interface RenewalSegmentRow {
+  axis: ChurnRenewalAxis;
+  key: string;
+  renewal: MetricShape;
+}
+
+/**
+ * GET /admin/analytics/renewal response (Phase 121 Block 2). `renovados ÷
+ * vencidos` over the SAME matured expiry cohort as churn. `enGracia` is the
+ * "número vivo" residual (renov% + churn% only sum to 100 when `enGracia === 0`).
+ */
+export interface RenewalAnalytics {
+  windowDays: number;
+  renewal: MetricShape;
+  enGracia: number;
+  breakdowns: RenewalSegmentRow[];
+}
+
+// -- LTV / vida del cliente (Phase 122 — D-05) ---------------------------
+
+/**
+ * The per-currency monetary LTV block for ONE currency. ARS and EUR are NEVER
+ * summed. Every figure is from REAL payments. All averages are `number | null`
+ * (a `null` means "no data", never NaN on the wire).
+ */
+export interface LtvCurrencyBlock {
+  projected: number | null;
+  observed: number | null;
+  monthlyRealRevenue: number | null;
+  n: number;
+}
+
+/** The monetary LTV surface, one block per currency (ARS / EUR never summed). */
+export interface LtvMonetary {
+  ARS: LtvCurrencyBlock;
+  EUR: LtvCurrencyBlock;
+}
+
+/**
+ * One LTV breakdown segment (LTV-05). Reuses the churn/renovación axis union.
+ * Each row carries its own headline / survival median / per-currency monetary.
+ */
+export interface LtvSegmentRow {
+  axis: ChurnRenewalAxis;
+  key: string;
+  lifetimeHeadlineMonths: number | null;
+  survivalMedianMonths: number | null;
+  monetary: LtvMonetary;
+  n: number;
+}
+
+/**
+ * GET /admin/analytics/ltv response (Phase 122). Exposes TWO duration numbers:
+ *   - `lifetimeHeadlineMonths`: simple `1 ÷ churn_mensual` (`null` when churn 0).
+ *   - `survivalMedianMonths`:   robust Kaplan-Meier survival median (`null` when
+ *     the cohort is too small or survival never crosses 0.5).
+ * Monetary LTV is per currency, from REAL payments only, projected vs observed.
+ */
+export interface LtvAnalytics {
+  lifetimeHeadlineMonths: number | null;
+  survivalMedianMonths: number | null;
+  monetary: LtvMonetary;
+  breakdowns: LtvSegmentRow[];
+  /** The matured cohort size the headline / survival median were computed over. */
+  n: number;
+}
+
+// -- Frecuencia de asistencia (Phase 123 Block 4 — D-04) -----------------
+
+/**
+ * The four frequency bands a member is classified into by visits/week.
+ * `inactivo` (0 visits) is the actionable signal.
+ */
+export type FrequencyBand = 'inactivo' | 'bajo' | 'medio' | 'alto';
+
+/** The breakdown axis a frequency segment row is grouped by. */
+export type FrequencyBreakdownAxis = 'branch' | 'country' | 'duration' | 'plan';
+
+/** One band of the frequency distribution. `count.nominal` = members in band, `count.n` = population. */
+export interface FrequencyDistributionRow {
+  band: FrequencyBand;
+  count: MetricShape;
+}
+
+/**
+ * One "enfriándose" (cooling-down) member (D-123-05): a member whose
+ * current-window band rank dropped below their prior-window band rank.
+ * `name` + `phone` are enriched from the `users` join (Phase 132 D-12) so the
+ * list is export-ready (nombre → perfil, `tel:`, CSV) in a single call. PII —
+ * only ever for members within the caller's scope; `/frequency` is ADMIN-only.
+ * `pctVariacion` is informative and `null` when the prior window had 0 visits.
+ */
+export interface FrequencyCoolingRow {
+  userId: number;
+  /** Full name (`firstName + lastName`, trimmed) — Phase 132 D-12 enrichment. */
+  name: string;
+  /** Phone (`null` when `users.phone` is null) — Phase 132 D-12 enrichment. */
+  phone: string | null;
+  currentBand: FrequencyBand;
+  priorBand: FrequencyBand;
+  pctVariacion: number | null;
+}
+
+/** One frequency breakdown segment: the band count for one band of one axis value. */
+export interface FrequencySegmentRow {
+  axis: FrequencyBreakdownAxis;
+  key: string;
+  band: FrequencyBand;
+  count: MetricShape;
+}
+
+/**
+ * GET /admin/analytics/frequency response (Phase 123 Block 4). Per-member
+ * visits/week over the rolling last 4 weeks, surfaced as the band distribution
+ * (incl. active-0-visits → Inactivo), the cooling-down list (with name/phone),
+ * the per-branch check-in adoption ratio (validity gate), and the breakdowns.
+ */
+export interface FrequencyAnalytics {
+  distribution: FrequencyDistributionRow[];
+  coolingDown: FrequencyCoolingRow[];
+  checkInAdoption: CheckInAdoptionRow[];
+  breakdowns: FrequencySegmentRow[];
+}
+
+// -- Trial-session Funnel (Phase 123 Block 3 — D-06) ---------------------
+
+/**
+ * A trial-session turno (shift) bucket. mañana = [07,10), tarde = [17,20),
+ * everything else `"otro"`. Used as a funnel breakdown axis value AND
+ * (mañana/tarde only) as the D-10 turno INPUT filter (`AnalyticsFilters.turno`).
+ */
+export type TrialTurno = 'manana' | 'tarde' | 'otro';
+
+/**
+ * The breakdown axis a trial-funnel segment row is grouped by. `turno` is a
+ * funnel-LOCAL axis; the `plan` axis groups by the plan the lead BOUGHT.
+ */
+export type TrialFunnelAxis = 'branch' | 'country' | 'turno' | 'plan';
+
+/** The three cascade counts: reservaron → asistieron → compraron. */
+export interface TrialFunnelStageCounts {
+  reservaron: number;
+  asistieron: number;
+  compraron: number;
+}
+
+/**
+ * The three cascade rates (each a `{ nominal, percentage, n }` envelope):
+ *   - tasaShow    = asistieron ÷ reservaron
+ *   - tasaCierre  = compraron ÷ asistieron (denominator = ASISTENTES) — the star rate
+ *   - puntaAPunta = compraron ÷ reservaron
+ */
+export interface TrialFunnelRates {
+  tasaShow: MetricShape;
+  tasaCierre: MetricShape;
+  puntaAPunta: MetricShape;
+}
+
+/**
+ * One bucket of the weekly/monthly cascade series. `provisional` is `true` when
+ * the bucket's attribution window has not fully elapsed.
+ */
+export interface TrialFunnelSeriesRow {
+  bucket: string; // %x-W%v weekly or %Y-%m monthly
+  rates: TrialFunnelRates;
+  counts: TrialFunnelStageCounts;
+  provisional: boolean;
+}
+
+/** One breakdown segment: the cascade counts + rates for one axis value. */
+export interface TrialFunnelBreakdownRow {
+  axis: TrialFunnelAxis;
+  key: string;
+  rates: TrialFunnelRates;
+  counts: TrialFunnelStageCounts;
+}
+
+/**
+ * GET /admin/analytics/trial-funnel response (Phase 123 Block 3). The cascade
+ * reservó → asistió → compró over the new-lead trial cohort, with the three
+ * rates, the weekly+monthly provisional series, the breakdowns, and the
+ * effective attribution window in whole days.
+ */
+export interface TrialFunnelAnalytics {
+  counts: TrialFunnelStageCounts;
+  rates: TrialFunnelRates;
+  series: TrialFunnelSeriesRow[];
+  breakdowns: TrialFunnelBreakdownRow[];
+  attributionWindowDays: number;
+}
+
 // -- Filter params -------------------------------------------------------
 
 export interface AnalyticsFilters {
@@ -365,14 +706,27 @@ export interface AnalyticsFilters {
   dateFrom?: string; // YYYY-MM-DD
   dateTo?: string; // YYYY-MM-DD
   /**
-   * Plan restriction (retention only, follow-up). Exact match on the
-   * subscription's plan. When absent, no plan filter is applied. Ignored by other
-   * metrics.
+   * Plan restriction. Exact match on the subscription's plan (Phase 132 D-10:
+   * accepted as an INPUT filter by all 6 v5.0 metrics + retention). When absent,
+   * no plan filter is applied.
    */
   planId?: number;
   /**
-   * Funnel entry-origin segment (funnel follow-up, funnel only). When absent or
-   * `all`, the classic 3-stage funnel is returned. Ignored by other metrics.
+   * Turno (shift) restriction (Phase 132 D-10). Applies ONLY to the funnel
+   * (`getTrialFunnel`) and frecuencia (`getFrequency`) metrics — the only ones
+   * with a class schedule. `'manana'` = [07,10), `'tarde'` = [17,20). Ignored
+   * (hidden in the UI) for ticket/churn/renovación/LTV (per-subscription).
+   */
+  turno?: 'manana' | 'tarde';
+  /**
+   * Maturation/comparison window in whole days (Phase 132 D-02/D-05). Serialized
+   * for the metrics that accept it (churn / renewal / ltv / trial-funnel); when
+   * absent each endpoint uses its configured default.
+   */
+  window?: number;
+  /**
+   * Funnel entry-origin segment (Phase 118 funnel only). When absent or `all`,
+   * the classic 3-stage funnel is returned. Ignored by other metrics.
    */
   entryOrigin?: FunnelEntryOrigin;
 }
