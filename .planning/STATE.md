@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v5.1
 milestone_name: Nuevo Sistema de Entrenamiento
-status: verifying
-stopped_at: Phase 126 context gathered
-last_updated: "2026-06-05T03:45:59.450Z"
+status: ready_to_plan
+stopped_at: Phase 127 complete (2/2) — ready to discuss Phase 128
+last_updated: 2026-06-05T03:55:44.847Z
 last_activity: 2026-06-05
 progress:
   total_phases: 8
   completed_phases: 4
   total_plans: 10
-  completed_plans: 10
+  completed_plans: 462
   percent: 50
 ---
 
@@ -21,20 +21,20 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-04)
 
 **Core value:** v5.1 reestructura el sistema de entrenamiento alrededor de un árbol de habilidades (DAG) sobre 3 ejes ortogonales (gesto/palanca/contracción). Sobre ese cimiento: el nivel Kairos para principiantes (hereda de Alfa, formato lineal forzado) y el ajuste de dificultad in-session (botones más fácil/más difícil que sirven el vecino correcto y recuerdan lo dominado). Backend-first, brownfield.
-**Current focus:** Phase 126 — auto-construcci-n-del-grafo-dag-de-progresiones
+**Current focus:** Phase 128 — editor de árbol en el admin
 
 ## Current Position
 
-Phase: 126 (auto-construcci-n-del-grafo-dag-de-progresiones) — EXECUTING
-Plan: 3 of 3
-Status: Phase complete — ready for verification
+Phase: 128
+Plan: Not started
+Status: Ready to plan
 Last activity: 2026-06-05
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 14 (v4.1)
+- Total plans completed: 16 (v4.1)
 - Average duration: ~11min
 - Total execution time: ~122min
 
@@ -46,6 +46,7 @@ Last activity: 2026-06-05
 | 59    | 4/4   | ~34min | ~9min    |
 | 60    | 3/3   | ~52min | ~17min   |
 | 97    | 3     | -      | -        |
+| 127   | 2     | -      | -        |
 
 **Recent Trend (from v4.0):**
 
