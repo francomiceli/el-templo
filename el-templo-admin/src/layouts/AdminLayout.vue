@@ -40,6 +40,12 @@
             </q-item-section>
             <q-item-section>Ejercicios</q-item-section>
           </q-item>
+          <q-item clickable v-ripple to="/proposals">
+            <q-item-section avatar>
+              <q-icon name="rule" />
+            </q-item-section>
+            <q-item-section>Revisión de dimensiones</q-item-section>
+          </q-item>
         </template>
 
         <!-- Gestion -->
