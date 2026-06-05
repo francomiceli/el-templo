@@ -3000,14 +3000,20 @@ _v5.0 added: 2026-06-03 — 4 phases (120-123), 35 requirements (FUND, CHURN, RE
 
 **Success Criteria** (what must be TRUE at phase completion):
 
-1. Cada ejercicio tiene gesto/sub-familia, palanca/posición y contracción como campos estructurados propios, distintos del campo `position` heredado.
-2. Los ~103 ejercicios sin ruta tienen ruta asignada (ninguno queda huérfano de ruta).
-3. Los duplicados (mismo ejercicio repetido en varios niveles) están resueltos según un criterio explícito y documentado.
-4. El campo `position` queda descompuesto en sus conceptos (palanca vs implemento vs orientación) sin perder información del dato original.
+1. Cada ejercicio tiene gesto/sub-familia (tabla catálogo + FK), palanca (`leverage` nullable) y contracción (`effort` existente) accesibles como campos estructurados propios, distintos del campo `position` heredado.
+2. Los ejercicios sin ruta significativa (vacía/placeholder) quedan detectados y marcados como "pendiente de ruta" (D-08); la asignación real de ruta se difiere a 125/128 (LLM propone + profes confirman). Ninguno se borra ni inventa ruta acá.
+3. Los duplicados EXACTOS (mismo nombre + `dificultadLineal` + ruta + `effort`, D-06) quedan resueltos por soft-merge vía `canonical_exercise_id` (self-FK, sin deletes); el mismo ejercicio en distintos niveles/dl se preserva como escalón distinto.
+4. La migración es aditiva: `position` queda intacto como legacy (D-11); el eje palanca vive en la nueva columna `leverage` y el implemento ya está separado en `equipment`. Sin reescritura ni pérdida del dato original.
 
 **Risks / notas:** Brownfield — el enum de niveles está hardcodeado en `exercises.ts`/`users.ts`/`completed-sessions.ts`/`level-mapping.ts`/admin `constants/levels.ts` (no se toca acá, pero el catálogo de ~1.493 ejercicios sí). `effort` (contracción) ya está 70% poblado y limpio; `position` (palanca) 53% poblado y sucio. Decisión abierta diferida: agrupación visible `category` vs `pattern` (puede informar el esquema, no lo bloquea). Migración + saneo de datos productivos: validar contra datos reales, idempotencia.
 
-**Plans:** TBD
+**Plans:** 2 plans
+
+Plans:
+
+- [ ] 124-01-PLAN.md — Schema Drizzle de las 3 dimensiones (tabla exercise_subfamilies + columnas subfamily_id/leverage/canonical_exercise_id/route_pending) + migración aditiva 0137 (TREE-01)
+- [ ] 124-02-PLAN.md — Saneo: script idempotente de soft-merge de dupes exactos (puntero canónico, sin deletes) + marcado de ruta-pendiente + integration test (TREE-05)
+
 **UI hint:** no (backend-first; esquema + saneo de datos)
 
 ### Phase 125: Bootstrap LLM + revisión de profes de la descomposición
