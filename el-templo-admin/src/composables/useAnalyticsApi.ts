@@ -19,6 +19,12 @@ import type {
   FunnelAnalytics,
   RetentionAnalytics,
   AdvancedFinanceAnalytics,
+  TicketAnalytics,
+  ChurnAnalytics,
+  RenewalAnalytics,
+  LtvAnalytics,
+  FrequencyAnalytics,
+  TrialFunnelAnalytics,
 } from 'src/types/analytics';
 
 function buildParams(filters: AnalyticsFilters): Record<string, unknown> {
@@ -28,6 +34,8 @@ function buildParams(filters: AnalyticsFilters): Record<string, unknown> {
   if (filters.dateFrom !== undefined) params.dateFrom = filters.dateFrom;
   if (filters.dateTo !== undefined) params.dateTo = filters.dateTo;
   if (filters.planId !== undefined) params.planId = filters.planId;
+  if (filters.turno !== undefined) params.turno = filters.turno;
+  if (filters.window !== undefined) params.window = filters.window;
   if (filters.entryOrigin !== undefined) params.entryOrigin = filters.entryOrigin;
   return params;
 }
@@ -209,6 +217,104 @@ export function useAnalyticsApi() {
     }
   }
 
+  // -- Phase 132: v5.0 management metrics (Plans 01/02 backend) -----------
+
+  async function getTicket(filters: AnalyticsFilters = {}): Promise<TicketAnalytics> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<TicketAnalytics>('/admin/analytics/ticket', {
+        params: buildParams(filters),
+      });
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cargando ticket promedio');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function getChurn(filters: AnalyticsFilters = {}): Promise<ChurnAnalytics> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<ChurnAnalytics>('/admin/analytics/churn', {
+        params: buildParams(filters),
+      });
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cargando churn');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function getRenewal(filters: AnalyticsFilters = {}): Promise<RenewalAnalytics> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<RenewalAnalytics>('/admin/analytics/renewal', {
+        params: buildParams(filters),
+      });
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cargando renovación');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function getLtv(filters: AnalyticsFilters = {}): Promise<LtvAnalytics> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<LtvAnalytics>('/admin/analytics/ltv', {
+        params: buildParams(filters),
+      });
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cargando LTV');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function getFrequency(filters: AnalyticsFilters = {}): Promise<FrequencyAnalytics> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<FrequencyAnalytics>('/admin/analytics/frequency', {
+        params: buildParams(filters),
+      });
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cargando frecuencia');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function getTrialFunnel(filters: AnalyticsFilters = {}): Promise<TrialFunnelAnalytics> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<TrialFunnelAnalytics>('/admin/analytics/trial-funnel', {
+        params: buildParams(filters),
+      });
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cargando funnel de prueba');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   function cleanup() {
     loading.value = false;
     error.value = null;
@@ -227,6 +333,12 @@ export function useAnalyticsApi() {
     getFunnel,
     getRetention,
     getAdvancedFinance,
+    getTicket,
+    getChurn,
+    getRenewal,
+    getLtv,
+    getFrequency,
+    getTrialFunnel,
     cleanup,
   };
 }
