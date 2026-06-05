@@ -468,6 +468,61 @@ export const getDaySessionDetailsSchema = {
   },
 };
 
+// ---------------------------------------------------------------------------
+// Dimension Proposal Review Schemas (Phase 125-02 — TREE-03)
+// ---------------------------------------------------------------------------
+
+export const listProposalsQuerySchema = {
+  querystring: {
+    type: "object" as const,
+    properties: {
+      route: { type: "string", maxLength: 20 },
+      status: { type: "string", enum: ["pending", "accepted", "rejected"] },
+    },
+    additionalProperties: false,
+  },
+};
+
+export const acceptProposalSchema = {
+  params: {
+    type: "object" as const,
+    required: ["id"] as const,
+    properties: {
+      id: { type: "integer" },
+    },
+  },
+  body: {
+    type: "object" as const,
+    properties: {
+      proposedSubfamily: { type: "string", minLength: 1, maxLength: 150 },
+      proposedLeverage: { type: ["string", "null"], maxLength: 50 },
+      proposedRoute: { type: "string", minLength: 1, maxLength: 20 },
+    },
+    additionalProperties: false,
+  },
+};
+
+export const rejectProposalSchema = {
+  params: {
+    type: "object" as const,
+    required: ["id"] as const,
+    properties: {
+      id: { type: "integer" },
+    },
+  },
+};
+
+export const bulkAcceptSchema = {
+  body: {
+    type: "object" as const,
+    required: ["ids"] as const,
+    properties: {
+      ids: { type: "array", items: { type: "integer" }, minItems: 1 },
+    },
+    additionalProperties: false,
+  },
+};
+
 export const getCompatibleFormatsBatchSchema = {
   body: {
     type: "object",

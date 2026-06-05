@@ -1,0 +1,263 @@
+/**
+ * ProposalService — profe review of the heuristic dimension proposals (TREE-03).
+ *
+ * Phase 125 Plan 02. Consumes `exercise_dimension_proposals` (the reviewable
+ * pending rows the bootstrap of Plan 01 inserted) and lets a profe accept /
+ * correct / reject each one before it becomes truth on `exercises`.
+ *
+ * Boundary (D-02):
+ *   - `accept` is the ONLY write that touches the phase-124 truth columns. It
+ *     runs inside a `db.transaction` so the subfamily resolve-or-create, the
+ *     `exercises` update, and the proposal status flip commit atomically (no
+ *     half-applied truth). It resolves-or-CREATEs the `exercise_subfamilies`
+ *     row (the catalog is empty after 124), sets `exercises.subfamily_id` +
+ *     `leverage`, and — for a `route_pending` row (or when an override supplies
+ *     a route) — sets `exercises.route` and clears `route_pending`.
+ *   - `reject` writes ONLY the proposal status; it never touches `exercises`.
+ *   - NEVER writes the contraction column (D-03 — contraction is trusted as-is)
+ *     and NEVER deletes an `exercises` row (historical FKs from
+ *     session_prescriptions / program_content_blocks).
+ *
+ * Instance methods (constructed with `db`) because accept spans multiple tables
+ * in a transaction.
+ */
+
+import { eq, and, asc, sql } from "drizzle-orm";
+import type { MySql2Database } from "drizzle-orm/mysql2";
+import type { SQL } from "drizzle-orm";
+import * as schema from "../../db/schema";
+
+export type ProposalStatus = "pending" | "accepted" | "rejected";
+
+export interface ListProposalsFilters {
+  route?: string;
+  status?: ProposalStatus;
+}
+
+export interface ProposalListItem {
+  id: number;
+  exerciseId: number;
+  exerciseName: string;
+  currentRoute: string;
+  routePending: boolean;
+  proposedSubfamily: string | null;
+  proposedLeverage: string | null;
+  proposedRoute: string | null;
+  status: ProposalStatus;
+  engine: string | null;
+  confidence: number | null;
+}
+
+export interface ListProposalsResult {
+  proposals: ProposalListItem[];
+  total: number;
+}
+
+/** Inline-edit overrides a profe can supply when accepting (D-07). */
+export interface AcceptOverrides {
+  proposedSubfamily?: string;
+  proposedLeverage?: string | null;
+  proposedRoute?: string;
+}
+
+export class ProposalService {
+  constructor(private readonly db: MySql2Database<typeof schema>) {}
+
+  /**
+   * List proposals, filtered/grouped by route (D-07). Default status is
+   * `pending`. Joins `exercises` so each row carries the exercise name + the
+   * exercise's REAL current route (grouping uses the exercise route, not the
+   * proposed one) + the route_pending flag. Ordered by route then exercise name
+   * so the UI can group by route.
+   */
+  async listProposals(
+    filters: ListProposalsFilters,
+  ): Promise<ListProposalsResult> {
+    const conditions: SQL[] = [];
+
+    conditions.push(
+      eq(schema.exerciseDimensionProposals.status, filters.status ?? "pending"),
+    );
+
+    if (filters.route !== undefined) {
+      conditions.push(eq(schema.exercises.route, filters.route));
+    }
+
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const [countRow] = await this.db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(schema.exerciseDimensionProposals)
+      .innerJoin(
+        schema.exercises,
+        eq(schema.exerciseDimensionProposals.exerciseId, schema.exercises.id),
+      )
+      .where(whereClause);
+
+    const total = Number(countRow?.count ?? 0);
+
+    const rows = await this.db
+      .select({
+        id: schema.exerciseDimensionProposals.id,
+        exerciseId: schema.exerciseDimensionProposals.exerciseId,
+        exerciseName: schema.exercises.exercise,
+        currentRoute: schema.exercises.route,
+        routePending: schema.exercises.routePending,
+        proposedSubfamily: schema.exerciseDimensionProposals.proposedSubfamily,
+        proposedLeverage: schema.exerciseDimensionProposals.proposedLeverage,
+        proposedRoute: schema.exerciseDimensionProposals.proposedRoute,
+        status: schema.exerciseDimensionProposals.status,
+        engine: schema.exerciseDimensionProposals.engine,
+        confidence: schema.exerciseDimensionProposals.confidence,
+      })
+      .from(schema.exerciseDimensionProposals)
+      .innerJoin(
+        schema.exercises,
+        eq(schema.exerciseDimensionProposals.exerciseId, schema.exercises.id),
+      )
+      .where(whereClause)
+      .orderBy(asc(schema.exercises.route), asc(schema.exercises.exercise));
+
+    return { proposals: rows, total };
+  }
+
+  /**
+   * Accept a proposal (D-02), transactionally writing the phase-124 truth
+   * columns. Returns true on success; throws if the proposal does not exist.
+   *
+   * NEVER writes the contraction column. NEVER deletes any row.
+   */
+  async accept(id: number, overrides?: AcceptOverrides): Promise<boolean> {
+    return this.db.transaction(async (tx) => {
+      const [proposal] = await tx
+        .select()
+        .from(schema.exerciseDimensionProposals)
+        .where(eq(schema.exerciseDimensionProposals.id, id));
+
+      if (!proposal) {
+        throw new Error(`Propuesta ${id} no encontrada`);
+      }
+
+      const [exercise] = await tx
+        .select({
+          id: schema.exercises.id,
+          route: schema.exercises.route,
+          routePending: schema.exercises.routePending,
+        })
+        .from(schema.exercises)
+        .where(eq(schema.exercises.id, proposal.exerciseId));
+
+      if (!exercise) {
+        throw new Error(`Ejercicio ${proposal.exerciseId} no encontrado`);
+      }
+
+      // Resolve final values from overrides (D-07 inline edit) falling back to
+      // the proposed fields.
+      const finalSubfamily =
+        overrides?.proposedSubfamily ?? proposal.proposedSubfamily ?? null;
+      const finalLeverage =
+        overrides?.proposedLeverage !== undefined
+          ? overrides.proposedLeverage
+          : (proposal.proposedLeverage ?? null);
+      const overrideRoute = overrides?.proposedRoute;
+      const proposedRoute = proposal.proposedRoute ?? null;
+
+      // Only set the route for a route_pending exercise (D-03: never overwrite
+      // an existing route) OR when a profe explicitly overrides it.
+      const shouldWriteRoute =
+        overrideRoute !== undefined ||
+        (exercise.routePending && proposedRoute !== null);
+      const finalRoute = overrideRoute ?? proposedRoute;
+
+      // Build the exercises truth-column update. NEVER touches the contraction
+      // column (D-03).
+      const exerciseUpdate: {
+        subfamilyId?: number;
+        leverage?: string | null;
+        route?: string;
+        routePending?: boolean;
+      } = {
+        leverage: finalLeverage,
+      };
+
+      // (1) Resolve-or-create the exercise_subfamilies row (catalog is empty
+      // after 124). Match on (route, name) where route = the exercise's
+      // effective route.
+      if (finalSubfamily !== null) {
+        const effectiveRoute =
+          shouldWriteRoute && finalRoute !== null ? finalRoute : exercise.route;
+
+        const [existing] = await tx
+          .select({ id: schema.exerciseSubfamilies.id })
+          .from(schema.exerciseSubfamilies)
+          .where(
+            and(
+              eq(schema.exerciseSubfamilies.route, effectiveRoute),
+              eq(schema.exerciseSubfamilies.name, finalSubfamily),
+            ),
+          );
+
+        let subfamilyId: number;
+        if (existing) {
+          subfamilyId = existing.id;
+        } else {
+          const [created] = await tx
+            .insert(schema.exerciseSubfamilies)
+            .values({ route: effectiveRoute, name: finalSubfamily })
+            .$returningId();
+          subfamilyId = created.id;
+        }
+        exerciseUpdate.subfamilyId = subfamilyId;
+      }
+
+      // (2/3) route + route_pending for route_pending rows (or override).
+      if (shouldWriteRoute && finalRoute !== null) {
+        exerciseUpdate.route = finalRoute;
+        exerciseUpdate.routePending = false;
+      }
+
+      await tx
+        .update(schema.exercises)
+        .set(exerciseUpdate)
+        .where(eq(schema.exercises.id, exercise.id));
+
+      // (4) Mark the proposal accepted.
+      await tx
+        .update(schema.exerciseDimensionProposals)
+        .set({ status: "accepted" })
+        .where(eq(schema.exerciseDimensionProposals.id, id));
+
+      return true;
+    });
+  }
+
+  /**
+   * Reject a proposal (D-02): status-only flip. NEVER writes any `exercises`
+   * truth column. Returns true if a row was updated.
+   */
+  async reject(id: number): Promise<boolean> {
+    const [result] = await this.db
+      .update(schema.exerciseDimensionProposals)
+      .set({ status: "rejected" })
+      .where(eq(schema.exerciseDimensionProposals.id, id));
+
+    return result.affectedRows > 0;
+  }
+
+  /**
+   * Accept every proposal in the list (D-07 "aceptar grupo"). Each accept runs
+   * its own transaction (one bad proposal does not roll back the others).
+   * Returns the count successfully accepted.
+   */
+  async bulkAccept(
+    ids: number[],
+    overridesById?: Record<number, AcceptOverrides>,
+  ): Promise<number> {
+    let acceptedCount = 0;
+    for (const id of ids) {
+      await this.accept(id, overridesById?.[id]);
+      acceptedCount += 1;
+    }
+    return acceptedCount;
+  }
+}
