@@ -2984,7 +2984,7 @@ _v5.0 added: 2026-06-03 — 4 phases (120-123), 35 requirements (FUND, CHURN, RE
 - [x] **Phase 128: Editor de árbol en el admin** — Sección nueva donde los profes reordenan ejercicios, agrupan/separan sub-familias y ajustan precedencias sobre el grafo ya construido. (3/3 plans executed, ready_for_verification — UAT visual diferida) (completed 2026-06-05)
 - [x] **Phase 129: Nivel Kairos — enum, herencia de Alfa y formato lineal** — 5→6 niveles en API/app/admin + generación que hereda de Alfa (`difficulty=1`) con capa que fuerza formato solo lineal + 2 ej/bloque. (completed 2026-06-05)
 - [x] **Phase 130: Asignación, graduación y selector de Kairos** — Default de alumno nuevo = Kairos + graduación automática por umbral + salto manual del coach + 6º recuadrito en el selector de nivel. (4/4 plans executed, ready_for_verification — UAT visual diferida) (completed 2026-06-05)
-- [ ] **Phase 131: Ajuste de dificultad in-session + registro de "dominado / bajado"** — Persistencia nueva de dominado/bajado por miembro (distinta del "completado" local + RPE, referenciada a nodos del árbol) + botones más fácil/más difícil en el player que sirven el vecino correcto del árbol conservando ruta/contracción/formato/dosis, alimentan el % y los ve el coach.
+- [x] **Phase 131: Ajuste de dificultad in-session + registro de "dominado / bajado"** — Persistencia nueva de dominado/bajado por miembro (distinta del "completado" local + RPE, referenciada a nodos del árbol) + botones más fácil/más difícil en el player que sirven el vecino correcto del árbol conservando ruta/contracción/formato/dosis, alimentan el % y los ve el coach. (completed 2026-06-05)
 
 ## v5.1 Phase Details
 
@@ -3238,7 +3238,7 @@ Plans:
 
 **Risks / notas:** Hoy solo existe "completado" local + RPE de la sesión entera; el registro de dominado/bajado es nuevo y es el modelo de datos sobre el que se apoya el ajuste in-session (por eso se construyen juntos en esta fase). El player (`DayPlayer.vue`, `BlockProgressionView.vue`) hoy NO tiene botones más fácil/difícil. Anti-salto natural: manual + un escalón por toque. Decisión abierta diferida: cómo se _captura_ "dominar" exactamente (el criterio binario contra la prescripción del bloque del día ya está decidido; la mecánica de captura — qué evento la persiste — no). Out of scope confirmado: el ajuste NO cambia el nivel ni la planificación del SPOM (sigue siendo criterio del coach). Decisión abierta compartida con Kairos: dosis lineales exactas. Habilita upsell futuro (estancamiento) — fuera de alcance este milestone. Plan probable: split interno (modelo de datos del registro primero, botones + resolución de vecino + vista del coach después).
 
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 
 Plans:
 **Wave 1**
@@ -3248,22 +3248,22 @@ Plans:
 **Wave 2** _(blocked on Wave 1 completion)_
 
 - [x] 131-02-PLAN.md — enriquecer % del árbol (127) con dominado + vista del coach (endpoint + admin) (wave 2)
-- [ ] 131-03-PLAN.md — botones más fácil/difícil en el player + swap del vecino (member app) (wave 2)
+- [x] 131-03-PLAN.md — botones más fácil/difícil en el player + swap del vecino (member app) (wave 2)
 
 **UI hint:** yes
 
 ## v5.1 Progress
 
-| Phase                                          | Plans Complete | Status      | Completed  |
-| ---------------------------------------------- | -------------- | ----------- | ---------- |
-| 124. Estructura 3 dimensiones + saneo          | 2/2            | Complete    | 2026-06-05 |
-| 125. Bootstrap heurístico + revisión de profes | 3/3            | Complete    | 2026-06-05 |
-| 126. Auto-construcción del grafo (DAG)         | 3/3            | Complete    | 2026-06-05 |
-| 127. % de avance del árbol (miembro)           | 2/2            | Complete    | 2026-06-05 |
-| 128. Editor de árbol (admin)                   | 3/3            | Complete    | 2026-06-05 |
-| 129. Kairos — enum, herencia, formato lineal   | 2/2            | Complete    | 2026-06-05 |
-| 130. Kairos — asignación, graduación, selector | 4/4            | Complete    | 2026-06-05 |
-| 131. Ajuste in-session + registro de dominado  | 2/3            | In Progress |            |
+| Phase                                          | Plans Complete | Status   | Completed  |
+| ---------------------------------------------- | -------------- | -------- | ---------- |
+| 124. Estructura 3 dimensiones + saneo          | 2/2            | Complete | 2026-06-05 |
+| 125. Bootstrap heurístico + revisión de profes | 3/3            | Complete | 2026-06-05 |
+| 126. Auto-construcción del grafo (DAG)         | 3/3            | Complete | 2026-06-05 |
+| 127. % de avance del árbol (miembro)           | 2/2            | Complete | 2026-06-05 |
+| 128. Editor de árbol (admin)                   | 3/3            | Complete | 2026-06-05 |
+| 129. Kairos — enum, herencia, formato lineal   | 2/2            | Complete | 2026-06-05 |
+| 130. Kairos — asignación, graduación, selector | 4/4            | Complete | 2026-06-05 |
+| 131. Ajuste in-session + registro de dominado  | 3/3            | Complete | 2026-06-05 |
 
 _Plan counts populated by `/gsd-plan-phase`._
 

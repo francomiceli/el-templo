@@ -53,8 +53,8 @@
 
 ### Eje 3 — Ajuste de dificultad in-session (ADJUST)
 
-- [ ] **ADJUST-01**: Durante la sesión, el miembro puede pedir "↓ más fácil" o "más difícil ↑" por ejercicio desde el player.
-- [ ] **ADJUST-02**: Al pedir el ajuste, el árbol sirve el ejercicio vecino un escalón arriba/abajo conservando ruta, contracción, formato y dosis del bloque (solo cambia el ejercicio por su vecino en la cadena ruta × contracción).
+- [x] **ADJUST-01**: Durante la sesión, el miembro puede pedir "↓ más fácil" o "más difícil ↑" por ejercicio desde el player.
+- [x] **ADJUST-02**: Al pedir el ajuste, el árbol sirve el ejercicio vecino un escalón arriba/abajo conservando ruta, contracción, formato y dosis del bloque (solo cambia el ejercicio por su vecino en la cadena ruta × contracción).
 - [x] **ADJUST-03**: El sistema persiste un registro de "ejercicio dominado / bajado" por miembro (nuevo, distinto del "completado" local + RPE de la sesión entera).
 - [x] **ADJUST-04**: El registro de dominado alimenta el % de avance del árbol (TREE-06) y es visible para el coach.
 
@@ -95,7 +95,7 @@
 | KAIROS-05   | Phase 130 | Done          |
 | KAIROS-06   | Phase 130 | Done          |
 | KAIROS-07   | Phase 130 | Done          |
-| ADJUST-01   | Phase 131 | Pending       |
-| ADJUST-02   | Phase 131 | Pending       |
+| ADJUST-01   | Phase 131 | Complete      |
+| ADJUST-02   | Phase 131 | Complete      |
 | ADJUST-03   | Phase 131 | Done (131-01) |
 | ADJUST-04   | Phase 131 | Complete      |

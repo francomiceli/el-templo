@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v5.1
 milestone_name: Nuevo Sistema de Entrenamiento
 status: executing
-stopped_at: Phase 130 Plan 04 executed (Kairos first box in member-app onboarding self-pick; header dropdown verified; KAIROS-07 complete app+admin). Phase 130 ready_for_verification.
-last_updated: "2026-06-05T06:48:01.161Z"
+stopped_at: Phase 131 Plan 03 executed (in-session difficulty adjustment buttons "más fácil/más difícil" in the player + useExerciseAdjustment composable + neighbor swap preserving block dose; ADJUST-01/02 complete; capstone of milestone v5.1). Phase 131 ready_for_verification. human-verify (visual player UAT) deferred — overnight run.
+last_updated: "2026-06-05T06:52:48.236Z"
 last_activity: 2026-06-05
 progress:
   total_phases: 8
-  completed_phases: 7
+  completed_phases: 8
   total_plans: 22
-  completed_plans: 21
-  percent: 88
+  completed_plans: 22
+  percent: 100
 ---
 
 # Project State
@@ -26,8 +26,8 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 ## Current Position
 
 Phase: 131
-Plan: 2 of 03 complete
-Status: Ready to execute
+Plan: 3 of 03 complete
+Status: ready_for_verification (phase 131 — all 3 plans executed; milestone v5.1 capstone; human-verify visual UAT deferred)
 Last activity: 2026-06-05
 
 ## Performance Metrics
@@ -543,6 +543,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase 130]: 130-03 (KAIROS-07 admin half, D-04): Kairos added FIRST to every admin level option array (MemberFormDialog levelOptions, AlumnosPage levelFilterOptions) matching constants/levels.ts LEVEL_ORDER; both MemberFormDialog form defaults flipped alfa→kairos (D-01). Display maps on AlumnosPage + AlumnoDetailPage gained kairos → glyph 'α' (reuses Alfa's, member-app parity), name 'Kairos', warm color amber-6 (lighter than alfa's amber-8, entry tier; no blue, no hex). No markup change — q-select dropdown holds 6 entries natively. Local gate = admin lint (0 errors) + quasar build (succeeded, vue-tsc clean). human-verify checkpoint DEFERRED (overnight); visual UAT pending. staging, not pushed.
 - [Phase ?]: 131-02: coach dominado/bajado view in a separate /api/admin/exercise-adjustments plugin (TRAINING_ROLES, 403 for members); member POST untouched
 - [Phase ?]: 131-02: tree-% reached AUGMENTED with latest-dominado per node (latest-per-node wins); level/SPOM untouched (D-06)
+- [Phase 131]: 131-03 (CAPSTONE v5.1): in-session adjustment is a member-facing surface on BlockProgressionView (detail row, not ExerciseCard). useExerciseAdjustment composable returns {neighbor,message} from POST /exercise-adjustments; PARENT (DayPlayer) owns the swap — mutates the SOURCE session.blocks[*].exercises[i] (playableBlocks computed re-derives), replacing ONLY exerciseId/exerciseName/contraction + clearing videoUrl (endpoint serves none, refetched next load), preserving reps/seconds/format/dose/sortOrder/rest (D-03). isSubmitting guard + :disable = one-tap-one-step. neighbor null → q.notify message, no change. Never touches level/SPOM (D-06). Local gate = app lint (0 errors) + vue-tsc clean on the 3 files (no pnpm typecheck script). human-verify visual UAT DEFERRED (overnight). staging, not pushed.
 
 ### Pending Todos
 
@@ -573,7 +574,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-05T06:47:53.468Z
+Last session: 2026-06-05T06:52:48.214Z
 Stopped at: Phase 130 Plan 04 executed (Kairos first box in member-app onboarding self-pick; header dropdown verified; KAIROS-07 complete app+admin). Phase 130 ready_for_verification.
 Resume file: None
 
