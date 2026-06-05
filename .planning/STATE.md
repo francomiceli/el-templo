@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v5.1
 milestone_name: Nuevo Sistema de Entrenamiento
-status: executing
+status: verifying
 stopped_at: Phase 125 context gathered
-last_updated: "2026-06-05T01:15:13.182Z"
+last_updated: "2026-06-05T01:25:57.079Z"
 last_activity: 2026-06-05
 progress:
   total_phases: 8
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 5
-  completed_plans: 4
-  percent: 13
+  completed_plans: 5
+  percent: 25
 ---
 
 # Project State
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 
 Phase: 125 (bootstrap-llm-revisi-n-de-profes-de-la-descomposici-n) — EXECUTING
 Plan: 3 of 3
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-06-05
 
 ## Performance Metrics
@@ -204,6 +204,7 @@ _Updated after each plan completion_
 | Phase 124 P01 | 6min | 2 tasks | 4 files |
 | Phase 124 P02 | 12min | 2 tasks | 2 files |
 | Phase 125 P02 | ~25min | 2 tasks | 4 files |
+| Phase 125 P03 | 30min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -507,6 +508,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: 125-01: heuristic bootstrap (no LLM/API) writes pending proposals to exercise_dimension_proposals; UNIQUE(exercise_id) + INSERT...WHERE NOT EXISTS idempotent; route guess only for route_pending; never writes truth columns (TREE-02)
 - [Phase ?]: 125-02: accept es transaccional (resolve-or-create subfamilia + truth columns + status flip atómico); reject solo status; nunca contracción ni delete
 - [Phase ?]: 125-02: TREE-03 (API revisión de profes) completo — /admin/exercises/proposals\* bajo hook TRAINING_ROLES; tests CI deferidos
+- [Phase ?]: 125-03: TREE-03 frontend (ProposalReviewPage + useProposalsApi) consumiendo /admin/exercises/proposals\*; tabla agrupada por ruta con inline-edit + accept/reject + aceptar-grupo; nav y ruta /proposals (coach/owner)
 
 ### Pending Todos
 
@@ -531,7 +533,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-05T01:14:54.867Z
+Last session: 2026-06-05T01:21:15.353Z
 Stopped at: Phase 125 context gathered
 Resume file: None
 
