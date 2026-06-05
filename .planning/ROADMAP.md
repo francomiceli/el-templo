@@ -2981,7 +2981,7 @@ _v5.0 added: 2026-06-03 — 4 phases (120-123), 35 requirements (FUND, CHURN, RE
 - [x] **Phase 125: Bootstrap heurístico + revisión de profes de la descomposición** — Proceso heurístico (sin API) que propone sub-familia/palanca/ruta-pendiente por nombre+ruta, con salida revisable (tabla `exercise_dimension_proposals`) que los profes aceptan/corrigen/rechazan en una tabla filtrable del admin antes de fijarla como verdad. (completed 2026-06-05)
 - [x] **Phase 126: Auto-construcción del grafo (DAG) de progresiones** — Grafo ramificado derivado del orden del SPOM/`dificultadLineal` + las 3 dimensiones; provee la primitiva "vecino un escalón arriba/abajo" que necesita el Eje 3. (completed 2026-06-05)
 - [x] **Phase 127: % de avance del árbol para el miembro** — El miembro ve su progreso por familia/nodo del árbol agrupado por categoría temática (Tracción/Empuje/Piernas/Core/Movilidad). (completed 2026-06-05)
-- [ ] **Phase 128: Editor de árbol en el admin** — Sección nueva donde los profes reordenan ejercicios, agrupan/separan sub-familias y ajustan precedencias sobre el grafo ya construido. (3/3 plans executed, ready_for_verification — UAT visual diferida)
+- [x] **Phase 128: Editor de árbol en el admin** — Sección nueva donde los profes reordenan ejercicios, agrupan/separan sub-familias y ajustan precedencias sobre el grafo ya construido. (3/3 plans executed, ready_for_verification — UAT visual diferida) (completed 2026-06-05)
 - [ ] **Phase 129: Nivel Kairos — enum, herencia de Alfa y formato lineal** — 5→6 niveles en API/app/admin + generación que hereda de Alfa (`difficulty=1`) con capa que fuerza formato solo lineal + 2 ej/bloque.
 - [ ] **Phase 130: Asignación, graduación y selector de Kairos** — Default de alumno nuevo = Kairos + graduación automática por umbral + salto manual del coach + 6º recuadrito en el selector de nivel.
 - [ ] **Phase 131: Ajuste de dificultad in-session + registro de "dominado / bajado"** — Persistencia nueva de dominado/bajado por miembro (distinta del "completado" local + RPE, referenciada a nodos del árbol) + botones más fácil/más difícil en el player que sirven el vecino correcto del árbol conservando ruta/contracción/formato/dosis, alimentan el % y los ve el coach.
@@ -3131,7 +3131,7 @@ Plans:
 
 **Risks / notas:** Esta es la pieza que "desbloquea el milestone sin esperar curaduría manual previa": el árbol arranca auto-construido y los profes lo refinan acá. El editor debe distinguir el orden derivado del SPOM (default) de los overrides del profe para que una re-construcción del grafo no pise los ajustes manuales.
 
-**Plans:** 3/3 plans executed (ready_for_verification — Plan 03 human-verify UAT deferred)
+**Plans:** 3/3 plans complete
 
 Plans:
 
@@ -3227,7 +3227,7 @@ Plans:
 | 125. Bootstrap heurístico + revisión de profes | 3/3            | Complete    | 2026-06-05 |
 | 126. Auto-construcción del grafo (DAG)         | 3/3            | Complete    | 2026-06-05 |
 | 127. % de avance del árbol (miembro)           | 2/2            | Complete    | 2026-06-05 |
-| 128. Editor de árbol (admin)                   | 2/3            | In Progress |            |
+| 128. Editor de árbol (admin)                   | 3/3            | Complete    | 2026-06-05 |
 | 129. Kairos — enum, herencia, formato lineal   | 0/TBD          | Not started | -          |
 | 130. Kairos — asignación, graduación, selector | 0/TBD          | Not started | -          |
 | 131. Ajuste in-session + registro de dominado  | 0/TBD          | Not started | -          |

@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v5.1
 milestone_name: Nuevo Sistema de Entrenamiento
-status: executing
-stopped_at: Phase 126 context gathered
-last_updated: "2026-06-05T05:30:00.000Z"
+status: ready_to_plan
+stopped_at: Phase 128 complete (3/3) — ready to discuss Phase 129
+last_updated: 2026-06-05T04:36:36.791Z
 last_activity: 2026-06-05 -- Phase 128 Plan 03 executed (admin Editor de árbol UI; human-verify deferred)
 progress:
   total_phases: 8
   completed_phases: 5
   total_plans: 14
-  completed_plans: 14
-  percent: 65
+  completed_plans: 465
+  percent: 63
 ---
 
 # Project State
@@ -21,20 +21,20 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-04)
 
 **Core value:** v5.1 reestructura el sistema de entrenamiento alrededor de un árbol de habilidades (DAG) sobre 3 ejes ortogonales (gesto/palanca/contracción). Sobre ese cimiento: el nivel Kairos para principiantes (hereda de Alfa, formato lineal forzado) y el ajuste de dificultad in-session (botones más fácil/más difícil que sirven el vecino correcto y recuerdan lo dominado). Backend-first, brownfield.
-**Current focus:** Phase 128 — editor de árbol en el admin (3/3 plans executed; ready_for_verification)
+**Current focus:** Phase 129 — nivel kairos — enum, herencia de alfa y formato lineal
 
 ## Current Position
 
-Phase: 128
-Plan: 03 complete (3/3 — phase code-complete)
-Status: ready_for_verification (Plan 03 human-verify UAT deferred — unattended overnight run)
-Last activity: 2026-06-05 -- Phase 128 Plan 03 executed (admin Editor de árbol UI)
+Phase: 129
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-06-05
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 16 (v4.1)
+- Total plans completed: 19 (v4.1)
 - Average duration: ~11min
 - Total execution time: ~122min
 
@@ -47,6 +47,7 @@ Last activity: 2026-06-05 -- Phase 128 Plan 03 executed (admin Editor de árbol 
 | 60    | 3/3   | ~52min | ~17min   |
 | 97    | 3     | -      | -        |
 | 127   | 2     | -      | -        |
+| 128   | 3     | -      | -        |
 
 **Recent Trend (from v4.0):**
 
