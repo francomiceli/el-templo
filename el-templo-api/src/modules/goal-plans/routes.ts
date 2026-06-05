@@ -10,6 +10,7 @@ import { eq, and, like, sql, desc } from "drizzle-orm";
 import * as schema from "../../db/schema";
 import { GoalPlanService, SubscriptionRequiredError } from "./service";
 import { AuraService } from "../aura/service";
+import { GraduationService } from "../members/graduation-service";
 import { GOAL_PLAN_METADATA, ALL_GOAL_PLAN_TYPES } from "./constants";
 import { assembleVideoUrl } from "../shared/video-url";
 import { buildMemberNameSearchCondition } from "../shared";
@@ -101,6 +102,7 @@ function goalPlanSessionToResponse(session: DaySession) {
 export const goalPlanRoutes: FastifyPluginAsync = async (fastify) => {
   const goalPlanService = new GoalPlanService(fastify.db);
   const auraService = new AuraService(fastify.db);
+  const graduationService = new GraduationService(fastify.db, fastify.log);
 
   // =========================================================================
   // Member Endpoints (require authentication)
@@ -339,6 +341,17 @@ export const goalPlanRoutes: FastifyPluginAsync = async (fastify) => {
           request.log.warn(
             { err: auraErr, userId, dayId },
             "AURA award failed for goal plan completion",
+          );
+        }
+
+        // Phase 130 (KAIROS-05, D-02): event-driven auto-graduation. Guarded
+        // so a graduation failure never fails the goal-plan completion.
+        try {
+          await graduationService.maybeGraduateKairos(userId);
+        } catch (gradErr: unknown) {
+          request.log.warn(
+            { err: gradErr, userId, dayId },
+            "Kairos graduation check failed after goal plan completion (graceful degradation)",
           );
         }
 

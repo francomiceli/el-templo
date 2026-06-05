@@ -31,6 +31,7 @@ import {
 import type { LevelGroup, DaySession, ExerciseLevel } from "./types";
 import { isKairos } from "./pipeline/utils/kairos";
 import { AuraService } from "../aura/service";
+import { GraduationService } from "../members/graduation-service";
 import { StreakService } from "../streaks";
 import { ProgramsService } from "../programs/service";
 import { NotificationService } from "../notifications/service";
@@ -344,6 +345,7 @@ async function resolveSessionView(
 export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
   const sessionService = new SessionGeneratorService(fastify.db);
   const auraService = new AuraService(fastify.db);
+  const graduationService = new GraduationService(fastify.db, fastify.log);
   const streakService = new StreakService(fastify.db, auraService, fastify.log);
   const programsService = new ProgramsService(fastify.db, fastify.log);
   const notificationService = new NotificationService(fastify.db, fastify.log);
@@ -810,6 +812,18 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
         request.log.warn(
           { err: auraErr, userId, dayId },
           "AURA award failed for session completion",
+        );
+      }
+
+      // Phase 130 (KAIROS-05, D-02): event-driven auto-graduation. A kairos
+      // member who just crossed the completed-session threshold graduates to
+      // alfa. Guarded so a graduation failure never fails the completion.
+      try {
+        await graduationService.maybeGraduateKairos(userId);
+      } catch (gradErr: unknown) {
+        request.log.warn(
+          { err: gradErr, userId },
+          "Kairos graduation check failed after session completion (graceful degradation)",
         );
       }
 
