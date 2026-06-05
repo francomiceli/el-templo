@@ -27,6 +27,16 @@ export const TRAINING_LEVELS = [
 
 export type TrainingLevel = (typeof TRAINING_LEVELS)[number];
 
+/**
+ * Phase 130 (KAIROS-05, D-02): completed-session count at which a `kairos`
+ * member auto-graduates to `alfa`. Default 12 (≈1 month at 3×/week). This is
+ * the SINGLE source of truth for the graduation threshold — never hardcode the
+ * number anywhere else (D-02: "single named constant, no scattered hardcode").
+ * Graduation is one-way (kairos→alfa only) and skips members whose level was
+ * manually set by a coach (users.level_override=true, D-03).
+ */
+export const KAIROS_GRADUATION_THRESHOLD = 12;
+
 /** Type guard: is the string a valid TrainingLevel? */
 export function isTrainingLevel(value: unknown): value is TrainingLevel {
   return (
