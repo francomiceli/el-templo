@@ -27,6 +27,7 @@ import { AppError } from "../shared/errors";
 import {
   type Category,
   CATEGORY_ORDER,
+  FALLBACK_CATEGORY,
   patternToCategory,
   isMappedPattern,
 } from "../tree-progress/category-map";
@@ -279,8 +280,20 @@ export class TreeEditorService {
         );
       }
       const category = patternToCategory(node.pattern);
-      const subfamilies = byCategory.get(category);
-      if (!subfamilies) continue;
+      // A node must NEVER silently disappear from the editable tree. If the
+      // mapped category is not one of the seeded CATEGORY_ORDER buckets (a
+      // future category-map change), route the node into FALLBACK_CATEGORY
+      // (guaranteed seeded — it is a member of CATEGORY_ORDER) and warn so the
+      // drift surfaces operationally instead of hiding the node from the profe.
+      let subfamilies = byCategory.get(category);
+      if (!subfamilies) {
+        this.log?.warn(
+          { pattern: node.pattern, category, exerciseId: node.exerciseId },
+          "tree-editor: mapped category absent from CATEGORY_ORDER — node routed to fallback category",
+        );
+        subfamilies = byCategory.get(FALLBACK_CATEGORY);
+        if (!subfamilies) continue; // unreachable: FALLBACK_CATEGORY is seeded.
+      }
       let sf = subfamilies.get(node.subfamilyId);
       if (!sf) {
         sf = {
