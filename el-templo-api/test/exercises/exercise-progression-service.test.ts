@@ -4,27 +4,40 @@
  * (eltemplo_test_<worker>), CI-only — do NOT run the suite locally (project
  * policy: local gate is tsc).
  *
- * Contracts under test (TREE-04, D-04/D-05):
- *   A. up:   getNeighbor(mid, 'up') → the next-harder same-effort exercise.
- *   B. down: getNeighbor(mid, 'down') → the next-easier same-effort exercise.
- *   C. chain end up:   getNeighbor(top, 'up') → null.
- *   D. chain end down: getNeighbor(bottom, 'down') → null.
- *   E. effort fixed (D-04): a CON exercise in the SAME sub-family is never
- *      returned for an EXC target — the contraction is never crossed.
- *   F. tiebreak (D-05): two candidates sharing the adjacent dl → the smaller-id
- *      one is returned deterministically.
- *   G. excluded: an exercise with NULL subfamily_id resolves no neighbor (null).
+ * The primitive is an ADJACENCY LOOKUP over the persisted `exercise_progressions`
+ * table (D-03), NOT a re-derivation from the `exercises` catalog. So these tests
+ * seed the EDGES (by running the auto-backbone constructor and/or inserting
+ * manual edges) and assert getNeighbor reads adjacency from the table.
  *
- * Seeds exercises directly via Drizzle (NOT via API). Real clock (fake timers
- * desync from MySQL). Cleans up only the rows it seeds, in afterEach.
+ * Contracts under test (TREE-04, D-03/D-04/D-05):
+ *   A. up:   getNeighbor(mid, 'up') → to_exercise_id of the edge from mid (harder).
+ *   B. down: getNeighbor(mid, 'down') → from_exercise_id of the edge into mid.
+ *   C. chain end up:   getNeighbor(top, 'up') → null (no outgoing edge).
+ *   D. chain end down: getNeighbor(bottom, 'down') → null (no incoming edge).
+ *   E. effort fixed (D-04): a manual cross-effort edge is NOT followed — the
+ *      contraction is never crossed.
+ *   F. persisted tiebreak up (D-05): the backbone consecutive edge is followed,
+ *      so the runtime neighbor equals the persisted successor on a dl tie.
+ *   F2. persisted tiebreak down (WR-02): the `down` neighbor equals the persisted
+ *      PREDECESSOR on a dl tie (not merely the smallest-id dl-closest catalog row).
+ *   G. excluded: an exercise with NULL subfamily_id resolves no neighbor (null).
+ *   H. manual edge honored (D-03): a profe-authored source='manual' edge is
+ *      followed by the primitive even though the auto backbone would not produce it.
+ *   I. empty-effort off-graph (WR-03): a target with effort='' resolves null, and
+ *      an edge pointing at an effort='' neighbor is never returned.
+ *
+ * Seeds exercises + sub-families + edges directly via Drizzle (NOT via API). Real
+ * clock (fake timers desync from MySQL). Cleans up only the rows it seeds, in
+ * afterEach (edges → exercises → sub-families, FK order).
  */
 
 import { describe, it, expect, beforeAll, afterEach, afterAll } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { inArray } from "drizzle-orm";
+import { inArray, or } from "drizzle-orm";
 import { createTestApp } from "../helpers";
 import * as schema from "../../src/db/schema";
 import { ExerciseProgressionService } from "../../src/modules/sessions/progressions/exercise-progression-service";
+import { runRebuildProgressionGraph } from "../../rebuild-progression-graph";
 
 describe("ExerciseProgressionService.getNeighbor (Phase 126 Plan 03)", () => {
   let app: FastifyInstance;
@@ -78,16 +91,35 @@ describe("ExerciseProgressionService.getNeighbor (Phase 126 Plan 03)", () => {
     return res.id;
   }
 
+  /** Insert one directed edge into the persisted graph. */
+  async function seedEdge(
+    from: number,
+    to: number,
+    source: "auto" | "manual",
+  ): Promise<void> {
+    await app.db
+      .insert(schema.exerciseProgressions)
+      .values({ fromExerciseId: from, toExerciseId: to, source });
+  }
+
   beforeAll(async () => {
     app = await createTestApp();
     service = new ExerciseProgressionService(app.db);
   });
 
   afterEach(async () => {
-    // Delete seeded exercises first (they reference sub-families), then the
-    // sub-families (explicit FK order — exercises.subfamily_id is ON DELETE SET
-    // NULL, but we delete explicitly so the test stays self-contained).
+    // Delete this test's edges first (incident to any seeded exercise), then the
+    // exercises (which reference sub-families), then the sub-families. Explicit
+    // FK order even though the FKs cascade, so the test stays self-contained.
     if (seededIds.length > 0) {
+      await app.db
+        .delete(schema.exerciseProgressions)
+        .where(
+          or(
+            inArray(schema.exerciseProgressions.fromExerciseId, seededIds),
+            inArray(schema.exerciseProgressions.toExerciseId, seededIds),
+          ),
+        );
       await app.db
         .delete(schema.exercises)
         .where(inArray(schema.exercises.id, seededIds));
@@ -105,7 +137,7 @@ describe("ExerciseProgressionService.getNeighbor (Phase 126 Plan 03)", () => {
     await app.close();
   });
 
-  it("A — up returns the next-harder same-effort exercise", async () => {
+  it("A — up follows the persisted edge from the target (next harder)", async () => {
     const sf = await seedSubfamily("A");
     const low = await seedExercise({
       name: "A_low",
@@ -126,6 +158,9 @@ describe("ExerciseProgressionService.getNeighbor (Phase 126 Plan 03)", () => {
       dl: 5,
     });
 
+    // Build the auto backbone from the catalog (low→mid→high).
+    await runRebuildProgressionGraph(app.db);
+
     const neighbor = await service.getNeighbor(mid, "up");
     expect(neighbor).not.toBeNull();
     expect(neighbor?.id).toBe(high);
@@ -133,7 +168,7 @@ describe("ExerciseProgressionService.getNeighbor (Phase 126 Plan 03)", () => {
     expect(neighbor?.id).not.toBe(low);
   });
 
-  it("B — down returns the next-easier same-effort exercise", async () => {
+  it("B — down follows the persisted edge into the target (next easier)", async () => {
     const sf = await seedSubfamily("B");
     const low = await seedExercise({
       name: "B_low",
@@ -154,12 +189,14 @@ describe("ExerciseProgressionService.getNeighbor (Phase 126 Plan 03)", () => {
       dl: 5,
     });
 
+    await runRebuildProgressionGraph(app.db);
+
     const neighbor = await service.getNeighbor(mid, "down");
     expect(neighbor).not.toBeNull();
     expect(neighbor?.id).toBe(low);
   });
 
-  it("C — at the top of the chain up returns null", async () => {
+  it("C — at the top of the chain up returns null (no outgoing edge)", async () => {
     const sf = await seedSubfamily("C");
     await seedExercise({
       name: "C_low",
@@ -174,11 +211,13 @@ describe("ExerciseProgressionService.getNeighbor (Phase 126 Plan 03)", () => {
       dl: 5,
     });
 
+    await runRebuildProgressionGraph(app.db);
+
     const neighbor = await service.getNeighbor(top, "up");
     expect(neighbor).toBeNull();
   });
 
-  it("D — at the bottom of the chain down returns null", async () => {
+  it("D — at the bottom of the chain down returns null (no incoming edge)", async () => {
     const sf = await seedSubfamily("D");
     const bottom = await seedExercise({
       name: "D_bottom",
@@ -193,11 +232,13 @@ describe("ExerciseProgressionService.getNeighbor (Phase 126 Plan 03)", () => {
       dl: 5,
     });
 
+    await runRebuildProgressionGraph(app.db);
+
     const neighbor = await service.getNeighbor(bottom, "down");
     expect(neighbor).toBeNull();
   });
 
-  it("E — effort is fixed: an EXC target never returns a CON neighbor (D-04)", async () => {
+  it("E — effort is fixed: a manual cross-effort edge is NOT followed (D-04)", async () => {
     const sf = await seedSubfamily("E");
     const exMid = await seedExercise({
       name: "E_exc_mid",
@@ -211,24 +252,29 @@ describe("ExerciseProgressionService.getNeighbor (Phase 126 Plan 03)", () => {
       subfamilyId: sf,
       dl: 5,
     });
-    // A CON exercise sits at dl 4 in the SAME sub-family — closer by dl than the
-    // EXC dl-5, yet must be ignored because effort is fixed.
-    const conMid = await seedExercise({
-      name: "E_con_mid",
+    // A CON exercise in the SAME sub-family. A profe could (mistakenly, for this
+    // test) author a manual cross-effort edge exMid→conHigh; the primitive must
+    // ignore it because effort is fixed (D-04).
+    const conHigh = await seedExercise({
+      name: "E_con_high",
       effort: "CON",
       subfamilyId: sf,
-      dl: 4,
+      dl: 6,
     });
+
+    // Auto backbone wires exMid→exHigh. Add a manual cross-effort edge.
+    await runRebuildProgressionGraph(app.db);
+    await seedEdge(exMid, conHigh, "manual");
 
     const neighbor = await service.getNeighbor(exMid, "up");
     expect(neighbor).not.toBeNull();
-    // Returns the EXC dl-5, never the closer-by-dl CON dl-4.
+    // Returns the same-effort EXC successor, never the cross-effort CON neighbor.
     expect(neighbor?.id).toBe(exHigh);
-    expect(neighbor?.id).not.toBe(conMid);
+    expect(neighbor?.id).not.toBe(conHigh);
     expect(neighbor?.contraction).toBe("EXC");
   });
 
-  it("F — dl ties are broken deterministically by smallest id (D-05)", async () => {
+  it("F — up neighbor equals the persisted backbone successor on a dl tie (D-05)", async () => {
     const sf = await seedSubfamily("F");
     const mid = await seedExercise({
       name: "F_mid",
@@ -236,7 +282,9 @@ describe("ExerciseProgressionService.getNeighbor (Phase 126 Plan 03)", () => {
       subfamilyId: sf,
       dl: 3,
     });
-    // Two candidates share the adjacent dl 5. The smaller-id one must win.
+    // Two candidates share dl 5. The backbone constructor sorts dl asc, id asc and
+    // chains mid → min(tie) → max(tie); so mid's persisted successor is the
+    // smaller-id tie. The primitive reads that edge.
     const tieA = await seedExercise({
       name: "F_tie_a",
       effort: "EXC",
@@ -249,11 +297,50 @@ describe("ExerciseProgressionService.getNeighbor (Phase 126 Plan 03)", () => {
       subfamilyId: sf,
       dl: 5,
     });
-    const expectedId = Math.min(tieA, tieB);
+    const expectedUp = Math.min(tieA, tieB);
+
+    await runRebuildProgressionGraph(app.db);
 
     const neighbor = await service.getNeighbor(mid, "up");
     expect(neighbor).not.toBeNull();
-    expect(neighbor?.id).toBe(expectedId);
+    expect(neighbor?.id).toBe(expectedUp);
+  });
+
+  it("F2 — down neighbor equals the persisted backbone predecessor on a dl tie (WR-02)", async () => {
+    const sf = await seedSubfamily("F2");
+    // Two tied candidates at the LOWER dl, then a higher target. The backbone is
+    // min(tie) → max(tie) → top, so top's persisted predecessor is the LARGER-id
+    // tie (max). A naive catalog re-derivation ("dl-closest then smallest id")
+    // would instead return the smaller-id tie — this test pins the persisted
+    // predecessor and would fail under that old behavior.
+    const tieA = await seedExercise({
+      name: "F2_tie_a",
+      effort: "EXC",
+      subfamilyId: sf,
+      dl: 3,
+    });
+    const tieB = await seedExercise({
+      name: "F2_tie_b",
+      effort: "EXC",
+      subfamilyId: sf,
+      dl: 3,
+    });
+    const top = await seedExercise({
+      name: "F2_top",
+      effort: "EXC",
+      subfamilyId: sf,
+      dl: 5,
+    });
+    const expectedDown = Math.max(tieA, tieB);
+    const notExpected = Math.min(tieA, tieB);
+
+    await runRebuildProgressionGraph(app.db);
+
+    const neighbor = await service.getNeighbor(top, "down");
+    expect(neighbor).not.toBeNull();
+    // The persisted predecessor is the larger-id tie, NOT the dl-closest smallest id.
+    expect(neighbor?.id).toBe(expectedDown);
+    expect(neighbor?.id).not.toBe(notExpected);
   });
 
   it("G — an exercise with NULL subfamily_id resolves no neighbor", async () => {
@@ -274,9 +361,89 @@ describe("ExerciseProgressionService.getNeighbor (Phase 126 Plan 03)", () => {
       dl: 3,
     });
 
+    await runRebuildProgressionGraph(app.db);
+
     const up = await service.getNeighbor(excluded, "up");
     const down = await service.getNeighbor(excluded, "down");
     expect(up).toBeNull();
     expect(down).toBeNull();
+  });
+
+  it("H — a manual edge is honored by the primitive (D-03)", async () => {
+    // The whole rationale of persisting the graph (D-03) is that the primitive
+    // reads MANUAL edges authored by profes in phase 128, not just the auto
+    // backbone. Here a profe reorders the chain: they author a same-effort manual
+    // edge a→c that the auto backbone would NOT produce (a's auto successor is b),
+    // and the primitive must follow it.
+    const sf = await seedSubfamily("H");
+    const a = await seedExercise({
+      name: "H_a",
+      effort: "ISO",
+      subfamilyId: sf,
+      dl: 2,
+    });
+    const b = await seedExercise({
+      name: "H_b",
+      effort: "ISO",
+      subfamilyId: sf,
+      dl: 8,
+    });
+    const c = await seedExercise({
+      name: "H_c",
+      effort: "ISO",
+      subfamilyId: sf,
+      dl: 9,
+    });
+
+    // Build the auto backbone (a→b→c by dl). c's only auto predecessor is b.
+    await runRebuildProgressionGraph(app.db);
+
+    // The profe deletes the auto edge b→c and authors a manual edge a→c (jump c
+    // straight onto a). Now the ONLY incoming edge to c is the manual a→c.
+    await app.db
+      .delete(schema.exerciseProgressions)
+      .where(inArray(schema.exerciseProgressions.toExerciseId, [c]));
+    await seedEdge(a, c, "manual");
+
+    // getNeighbor(c,'down') must follow the persisted manual edge → a, proving the
+    // primitive reads `manual` edges (catalog re-derivation would have returned b,
+    // the dl-closest catalog row, instead).
+    const downManualOnly = await service.getNeighbor(c, "down");
+    expect(downManualOnly).not.toBeNull();
+    expect(downManualOnly?.id).toBe(a);
+    expect(downManualOnly?.id).not.toBe(b);
+  });
+
+  it("I — empty-effort target and empty-effort neighbor are off-graph (WR-03)", async () => {
+    const sf = await seedSubfamily("I");
+    // A real same-effort neighbor exists, plus an edge into the empty-effort
+    // target — proving the null is due to the target's invalid effort.
+    const realNeighbor = await seedExercise({
+      name: "I_real",
+      effort: "EXC",
+      subfamilyId: sf,
+      dl: 2,
+    });
+    const emptyTarget = await seedExercise({
+      name: "I_empty",
+      effort: "",
+      subfamilyId: sf,
+      dl: 4,
+    });
+    // Manually wire an edge realNeighbor → emptyTarget (auto rebuild would never
+    // create it: the empty-effort row is excluded from the node set, WR-04).
+    await seedEdge(realNeighbor, emptyTarget, "manual");
+
+    // Target has effort='' → off-graph, never gets an `'' as Contraction` cast.
+    const up = await service.getNeighbor(emptyTarget, "up");
+    const down = await service.getNeighbor(emptyTarget, "down");
+    expect(up).toBeNull();
+    expect(down).toBeNull();
+
+    // And from the real node, the only outgoing edge points at the empty-effort
+    // neighbor (different effort), so it is filtered out → null, never an invalid
+    // Contraction.
+    const upFromReal = await service.getNeighbor(realNeighbor, "up");
+    expect(upFromReal).toBeNull();
   });
 });
