@@ -16,6 +16,7 @@
 - **v4.85 Enrollment Service + Admin Add-ons** - Phases 112-114 (complete/in progress)
 - **v5.0 Métricas de Gestión** - Phases 120-123 (planned)
 - **v5.1 Nuevo Sistema de Entrenamiento** - Phases 124-131 (planned)
+- **v5.2 UI de Métricas de Gestión (admin)** - Phase 132 (planned)
 
 ---
 
@@ -3097,7 +3098,13 @@ Plans:
 
 **Risks / notas:** Decisiones abiertas diferidas a `discuss-phase` — agrupación visible `category` (fina, ~22) vs `pattern` (gruesa, ~9); eje transversal estático/dinámico como atributo/filtro (no categoría paralela). En esta fase el % se calcula sobre el avance ya conocido (nivel + sesiones); el registro de "dominado" y el ajuste in-session de la fase 131 lo enriquecen y cierran el lazo después. Mapeo ruta→categoría es casi 1:1 con `pattern`.
 
-**Plans:** TBD
+**Plans:** 2 plans
+
+Plans:
+
+- [ ] 127-01-PLAN.md — Backend: pattern→category map + tree-progress service (reads 126 DAG, computes server-side %) + member-scoped GET /api/tree-progress/me + integration test
+- [ ] 127-02-PLAN.md — Member app: types + composable + store + Mi Árbol view (5 thematic category sections with per-family %), render-only
+
 **UI hint:** yes
 
 ### Phase 128: Editor de árbol en el admin
@@ -3214,3 +3221,54 @@ _Plan counts populated by `/gsd-plan-phase`._
 ---
 
 _v5.1 added: 2026-06-04 — 8 phases (124-131), 18 requirements (TREE, KAIROS, ADJUST) en 3 ejes. El árbol de habilidades (TREE) es el cimiento y va primero: estructura de datos (124) → bootstrap heurístico + revisión (125) → grafo DAG (126) → % miembro (127) / editor admin (128). Sobre el cimiento: nivel Kairos (129 enum+generación, 130 asignación+graduación+selector) y ajuste in-session (131 registro de dominado + botones + vecino del árbol, fusionado desde las ex-fases 131/132). Backend-first, brownfield (enum de niveles hardcodeado en 5 lugares). Continúa numeración desde fase 123 (v5.0). Decisiones de dominio (agrupación category/pattern, INITIUM en Kairos, umbral de graduación, captura de "dominar", dosis lineales) diferidas a cada `discuss-phase`. Fuente de verdad: `.planning/research/new-training-system-design.md`._
+
+---
+
+## v5.2 Overview
+
+**Milestone:** v5.2 — UI de Métricas de Gestión (admin)
+**Started:** 2026-06-04
+**Phases:** 1 (132)
+**Continues from:** Phase 131 (v5.1). Numbering is NOT reset.
+
+**Scope.** Exponer en el panel de Analíticas del admin las **6 métricas de gestión de v5.0** que hoy existen solo en el backend (endpoints implementados, sin UI): ticket promedio, churn de no-renovación, tasa de renovación, LTV, frecuencia de asistencia y funnel de sesiones de prueba. Cierra el milestone v5.0 del lado de presentación. Incluye la **eliminación física** de las métricas viejas/ARPU deprecadas que ocupaban ese lugar (no solo ocultarlas).
+
+**Pre-condición.** Backend de las 6 métricas ya en prod/staging (fases 120-123). Endpoints: `GET /admin/analytics/ticket`, `/churn`, `/renewal`, `/ltv`, `/frequency`, `/trial-funnel` (todos en `el-templo-api/src/modules/analytics/routes.ts`, guardados por roles admin, con scope país/sucursal). El frontend no consume ninguno todavía.
+
+**Decisiones abiertas (se resuelven en `discuss-phase`).** Cómo se agrupan las 6 métricas en tabs/cards del `AnaliticasPage.vue`; qué visualización usa cada una (curva/serie/embudo/distribución); exactamente qué métricas deprecadas se borran (ARPU de `FinanzasAvanzadasTab`, `renewalRate` legacy 7/14/30 de `MiembrosTab`, etc.) y si algo se conserva por compatibilidad.
+
+## v5.2 Phases
+
+- [ ] **Phase 132: Exponer las 6 métricas de gestión v5.0 en el admin + limpiar deprecadas** — Cablear los 6 endpoints en el frontend (`useAnalyticsApi.ts` + tipos en `types/analytics.ts`), renderizar las 6 métricas en `AnaliticasPage.vue` (tabs/componentes nuevos), y eliminar físicamente las métricas viejas/ARPU deprecadas.
+
+## v5.2 Phase Details
+
+### Phase 132: Exponer las 6 métricas de gestión v5.0 en el admin + limpiar deprecadas
+
+**Goal:** Las 6 métricas de gestión de v5.0 (ticket promedio, churn de no-renovación, tasa de renovación, LTV, frecuencia de asistencia, funnel de sesiones) quedan visibles y consultables en el panel de Analíticas del admin, consumiendo los endpoints backend ya existentes, con scope de país/sucursal funcionando; y las métricas viejas/ARPU deprecadas que ocupaban ese lugar quedan eliminadas físicamente del frontend (no solo ocultas). End state: un usuario admin abre Analíticas y ve las 6 métricas nuevas con sus filtros, sin restos de las métricas reemplazadas.
+
+**Depends on:** Phases 120-123 (backend de las 6 métricas, ya desplegado/CI-verde)
+
+**Success Criteria** (what must be TRUE at phase completion):
+
+1. `useAnalyticsApi.ts` tiene métodos para los 6 endpoints (`getTicket`, `getChurn`, `getRenewal`, `getLtv`, `getFrequency`, `getTrialFunnel`) con sus interfaces TS en `types/analytics.ts`.
+2. Las 6 métricas se renderizan en `AnaliticasPage.vue` (tabs/componentes nuevos), respetando el scope país/sucursal y los roles admin existentes.
+3. Las métricas viejas/ARPU deprecadas (ej. ARPU de `FinanzasAvanzadasTab`, `renewalRate` legacy 7/14/30 de `MiembrosTab`) están eliminadas físicamente del frontend, no ocultas.
+4. No quedan llamadas muertas ni componentes huérfanos de las métricas reemplazadas.
+
+**Risks / notas:** Frontend-only (no toca el backend ni el esquema). Hay solape entre métricas nuevas y viejas (renovación de fase 121 vs `renewalRate` de fase 117 en `MiembrosTab`; ticket de fase 120 vs ARPU de fase 118 en `FinanzasAvanzadasTab`) — el riesgo está en borrar lo correcto sin romper otras tabs. Definir agrupación/visualización en `discuss-phase`. Verificar contra los datos reales de los endpoints (algunos cálculos son pesados: Kaplan-Meier en LTV, cohortes en churn).
+
+**Plans:** TBD
+**UI hint:** yes
+
+## v5.2 Progress
+
+| Phase                                           | Plans Complete | Status      | Completed |
+| ----------------------------------------------- | -------------- | ----------- | --------- |
+| 132. Exponer 6 métricas v5.0 en admin + limpiar | 0/TBD          | Not started | -         |
+
+_Plan counts populated by `/gsd-plan-phase`._
+
+---
+
+_v5.2 added: 2026-06-04 — 1 phase (132). Cierra v5.0 del lado de UI: expone en el admin las 6 métricas de gestión que quedaron backend-only (fases 120-123) y elimina físicamente las métricas viejas/ARPU deprecadas. Frontend-only, sin migraciones. Continúa numeración desde fase 131 (v5.1). Milestone separada para no mezclar la UI de métricas con el Nuevo Sistema de Entrenamiento (v5.1). Agrupación/visualización de tabs y alcance exacto de borrado diferidos a `discuss-phase`._
