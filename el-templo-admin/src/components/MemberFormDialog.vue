@@ -598,7 +598,7 @@ const form = ref({
   phone: '',
   dni: '',
   branchId: null as number | null,
-  level: 'alfa',
+  level: 'kairos',
   documentType: null as string | null,
   address: '',
   dateOfBirth: '',
@@ -615,6 +615,7 @@ const form = ref({
 const branchOptions = computed(() => props.branches.map((b) => ({ label: b.name, value: b.id })));
 
 const levelOptions = [
+  { label: 'Kairos', value: 'kairos' },
   { label: 'Alfa', value: 'alfa' },
   { label: 'Delta', value: 'delta' },
   { label: 'Sigma', value: 'sigma' },
@@ -795,7 +796,7 @@ watch(
         phone: '',
         dni: '',
         branchId: null,
-        level: 'alfa',
+        level: 'kairos',
         documentType: null,
         address: '',
         dateOfBirth: '',
