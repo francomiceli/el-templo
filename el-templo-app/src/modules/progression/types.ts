@@ -93,6 +93,12 @@ export interface TreeCategory {
 
 /** Full response of GET /api/tree-progress/me. */
 export interface TreeProgressResponse {
+  /**
+   * Member's `users.level`. Mirrors the authoritative backend DTO
+   * (service.ts / schemas.ts / 127-01-SUMMARY). Not currently rendered by the
+   * Mi Árbol view, but kept on the type so the contract stays in sync.
+   */
+  level: 'alfa' | 'delta' | 'sigma' | 'omega' | 'spartan'
   categories: TreeCategory[]
 }
 
