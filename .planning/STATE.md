@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v5.1
 milestone_name: Nuevo Sistema de Entrenamiento
-status: Phase 129 code-complete on staging (not pushed); ready_for_verification; KAIROS-01/02/03 satisfied
-stopped_at: Phase 129 Plan 02 executed (kairos generation gate + unit test)
-last_updated: "2026-06-05T05:15:15.869Z"
+status: ready_to_plan
+stopped_at: Phase 129 complete (2/2) — ready to discuss Phase 130
+last_updated: 2026-06-05T05:36:24.719Z
 last_activity: 2026-06-05 -- Phase 129 Plan 02 executed (kairos generation gate at 4 pipeline points + unit-level gate test, Option B)
 progress:
   total_phases: 8
   completed_phases: 6
   total_plans: 15
-  completed_plans: 15
+  completed_plans: 467
   percent: 75
 ---
 
@@ -21,20 +21,20 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-04)
 
 **Core value:** v5.1 reestructura el sistema de entrenamiento alrededor de un árbol de habilidades (DAG) sobre 3 ejes ortogonales (gesto/palanca/contracción). Sobre ese cimiento: el nivel Kairos para principiantes (hereda de Alfa, formato lineal forzado) y el ajuste de dificultad in-session (botones más fácil/más difícil que sirven el vecino correcto y recuerdan lo dominado). Backend-first, brownfield.
-**Current focus:** Phase 129 — nivel kairos — enum, herencia de alfa y formato lineal
+**Current focus:** Phase 130 — asignación, graduación y selector de kairos
 
 ## Current Position
 
-Phase: 129
-Plan: 02 complete (kairos generation gate + unit test); phase 129 code-complete, ready_for_verification
-Status: Phase 129 code-complete on staging (not pushed); ready_for_verification; KAIROS-01/02/03 satisfied
-Last activity: 2026-06-05 -- Phase 129 Plan 02 executed (kairos generation gate at 4 pipeline points + unit-level gate test, Option B)
+Phase: 130
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-06-05
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 19 (v4.1)
+- Total plans completed: 21 (v4.1)
 - Average duration: ~11min
 - Total execution time: ~122min
 
@@ -48,6 +48,7 @@ Last activity: 2026-06-05 -- Phase 129 Plan 02 executed (kairos generation gate 
 | 97    | 3     | -      | -        |
 | 127   | 2     | -      | -        |
 | 128   | 3     | -      | -        |
+| 129   | 2     | -      | -        |
 
 **Recent Trend (from v4.0):**
 
