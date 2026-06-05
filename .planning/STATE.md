@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v5.1
 milestone_name: Nuevo Sistema de Entrenamiento
 status: executing
-stopped_at: Phase 131 Plan 01 executed (exercise_adjustments table + migration 0142, ExerciseAdjustmentService reusing 126 getNeighbor, member-scoped POST /api/exercise-adjustments, integration tests). tsc green, committed on staging, not pushed.
-last_updated: "2026-06-05T06:36:03.782Z"
-last_activity: 2026-06-05 -- Phase 131 Plan 01 complete
+stopped_at: Phase 130 Plan 04 executed (Kairos first box in member-app onboarding self-pick; header dropdown verified; KAIROS-07 complete app+admin). Phase 130 ready_for_verification.
+last_updated: "2026-06-05T06:48:01.161Z"
+last_activity: 2026-06-05
 progress:
   total_phases: 8
   completed_phases: 7
-  total_plans: 25
+  total_plans: 22
   completed_plans: 21
-  percent: 84
+  percent: 88
 ---
 
 # Project State
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 ## Current Position
 
 Phase: 131
-Plan: 01 of 03 complete
-Status: Plan 01 executed (backend foundation); Plans 02-03 pending. Tests run in CI — confirm before pushing to staging.
-Last activity: 2026-06-05 -- Phase 131 Plan 01 complete
+Plan: 2 of 03 complete
+Status: Ready to execute
+Last activity: 2026-06-05
 
 ## Performance Metrics
 
@@ -221,6 +221,7 @@ _Updated after each plan completion_
 | Phase 129 P02 | ~25min | 2 tasks | 7 files |
 | Phase 130 P03 | ~2min | 2 tasks | 3 files |
 | Phase 130 P04 | ~10min | 1 task | 1 file |
+| Phase 131 P02 | ~35m | 2 tasks | 17 files |
 
 ## Accumulated Context
 
@@ -540,6 +541,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase 129]: 129-02 (KAIROS-02/03): kairos generation gated behind isKairos(ctx.memberLevel) at 4 minimal pipeline points (stage-3 budget 2/block, stage-5 + INITIUM linear format Singlet/For Quality, stage-6 alfa-only dificultadLineal=1, INITIUM size 2); all branches pure-additive, non-kairos paths byte-identical (D-07). New queryFormatByName() in format-fallback.ts.
 - [Phase 129]: 129-02 Task 2 = Option B (orchestrator decision): full SPOM-seeded end-to-end generation is NOT CI-runnable here (SPOM CSVs git-ignored under .docs/, seedSPOM() mis-pathed), so the gate is proven at the unit level (mock DB + fallback modules, real gated functions) mirroring rom-generator.test.ts. test/unit/kairos-gate.test.ts covers isKairos + stage-3/5/6 + INITIUM + D-07 regression. tsc green. Executed on staging, NOT pushed — push to staging for CI to run the suite.
 - [Phase 130]: 130-03 (KAIROS-07 admin half, D-04): Kairos added FIRST to every admin level option array (MemberFormDialog levelOptions, AlumnosPage levelFilterOptions) matching constants/levels.ts LEVEL_ORDER; both MemberFormDialog form defaults flipped alfa→kairos (D-01). Display maps on AlumnosPage + AlumnoDetailPage gained kairos → glyph 'α' (reuses Alfa's, member-app parity), name 'Kairos', warm color amber-6 (lighter than alfa's amber-8, entry tier; no blue, no hex). No markup change — q-select dropdown holds 6 entries natively. Local gate = admin lint (0 errors) + quasar build (succeeded, vue-tsc clean). human-verify checkpoint DEFERRED (overnight); visual UAT pending. staging, not pushed.
+- [Phase ?]: 131-02: coach dominado/bajado view in a separate /api/admin/exercise-adjustments plugin (TRAINING_ROLES, 403 for members); member POST untouched
+- [Phase ?]: 131-02: tree-% reached AUGMENTED with latest-dominado per node (latest-per-node wins); level/SPOM untouched (D-06)
 
 ### Pending Todos
 
@@ -570,7 +573,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-05T06:20:00.000Z
+Last session: 2026-06-05T06:47:53.468Z
 Stopped at: Phase 130 Plan 04 executed (Kairos first box in member-app onboarding self-pick; header dropdown verified; KAIROS-07 complete app+admin). Phase 130 ready_for_verification.
 Resume file: None
 
