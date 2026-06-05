@@ -65,12 +65,17 @@ export async function runRebuildProgressionGraph<
   // ── 1. READ confirmed canonical exercises (read-only report before mutate) ──
   //
   // Only nodes that are CONFIRMED (subfamily_id IS NOT NULL) and CANONICAL
-  // (canonical_exercise_id IS NULL, D-01) participate in the graph.
+  // (canonical_exercise_id IS NULL, D-01) participate in the graph. The effort
+  // axis MUST be a real contraction (CON/EXC/ISO): `effort` is a free
+  // varchar(10) and the catalog demonstrably holds empty-effort rows (see
+  // exercise-fallback.ts filtering effort = ''), so an empty/invalid-effort row
+  // is off-graph and must NEVER form a partition/backbone (WR-04, D-04).
   const exerciseRows = await db.execute(
     sql`SELECT id, subfamily_id AS subfamilyId, effort, dificultad_lineal AS dl
         FROM exercises
         WHERE subfamily_id IS NOT NULL
-          AND canonical_exercise_id IS NULL`,
+          AND canonical_exercise_id IS NULL
+          AND effort IN ('CON', 'EXC', 'ISO')`,
   );
   const nodes = readExerciseNodes(exerciseRows);
 
@@ -150,11 +155,16 @@ function countPartitions(nodes: ExerciseNode[]): number {
   return keys.size;
 }
 
+/** The only effort values that are valid contraction partition axes (D-04). */
+const VALID_EFFORTS = new Set<string>(["CON", "EXC", "ISO"]);
+
 /**
  * Narrow a mysql2 db.execute() result into typed exercise nodes without `any`
  * (CLAUDE.md TS rule). The driver returns [rows, fields]; rows is our array.
- * Rows with a non-finite id or subfamilyId are skipped defensively (the READ
- * already filters NULL subfamily_id, but coercion is explicit here).
+ * Rows with a non-finite id, non-finite subfamilyId, non-finite dl, or an
+ * invalid/empty effort are SKIPPED defensively as data errors — never coerced.
+ * The READ already filters NULL subfamily_id and non-contraction effort, but
+ * the skips are explicit here so a bad row can never silently distort a chain.
  */
 function readExerciseNodes(result: unknown): ExerciseNode[] {
   if (!Array.isArray(result)) return [];
@@ -167,15 +177,17 @@ function readExerciseNodes(result: unknown): ExerciseNode[] {
     const id = Number(rec.id);
     const subfamilyId = Number(rec.subfamilyId);
     const dl = Number(rec.dl);
+    const effort = typeof rec.effort === "string" ? rec.effort : "";
+    // Skip data errors instead of fabricating a default. A non-finite dl coerced
+    // to 0 would sort BELOW every legitimate dl (which start at 1) and silently
+    // plant the row at the head of its chain (WR-05). An empty/invalid effort is
+    // off-graph and must not form a partition (WR-04). dl is NOT NULL DEFAULT 1
+    // in the schema, so the dl skip should be unreachable — skipping is strictly
+    // safer than inventing an ordering key.
     if (!Number.isFinite(id) || !Number.isFinite(subfamilyId)) continue;
-    out.push({
-      id,
-      subfamilyId,
-      effort:
-        typeof rec.effort === "string" ? rec.effort : String(rec.effort ?? ""),
-      // dl is NOT NULL DEFAULT 1 in the schema; coerce defensively to 0 on NaN.
-      dl: Number.isFinite(dl) ? dl : 0,
-    });
+    if (!Number.isFinite(dl)) continue;
+    if (!VALID_EFFORTS.has(effort)) continue;
+    out.push({ id, subfamilyId, effort, dl });
   }
   return out;
 }
