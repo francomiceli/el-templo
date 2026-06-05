@@ -22,7 +22,12 @@ export const completedSessions = mysqlTable(
     // Level the session was played at (parsed from day_id suffix). May differ
     // from the user's current users.level when a member trains at a level
     // they selected in the header dropdown.
+    // Phase 129 (KAIROS-01): kept in lock-step with users.level (kairos first).
+    // A kairos member's presencial check-in snapshots level='kairos' here, so
+    // this enum must accept it. Widened additively by migration 0140; this
+    // column has no DEFAULT (always set explicitly at insert).
     sessionLevel: mysqlEnum("session_level", [
+      "kairos",
       "alfa",
       "delta",
       "sigma",

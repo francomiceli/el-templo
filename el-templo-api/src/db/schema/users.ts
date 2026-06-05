@@ -21,7 +21,13 @@ export const roleEnum = mysqlEnum("role", [
   "gestion",
   "recepcion",
 ]);
+// Phase 129 (KAIROS-01, D-01): `kairos` is the new entry-level tier, added FIRST.
+// Order: kairos -> alfa -> delta -> sigma -> omega -> spartan. The column DEFAULT
+// stays "alfa" this phase (the default change to kairos is phase 130). The enum
+// value list/order here MUST stay byte-identical to migration 0140's ALTER to
+// avoid enum drift (lesson 125/126). First arg "level" is the column name — unchanged.
 export const levelEnum = mysqlEnum("level", [
+  "kairos",
   "alfa",
   "delta",
   "sigma",
