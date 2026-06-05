@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v5.1
 milestone_name: Nuevo Sistema de Entrenamiento
-status: executing
+status: verifying
 stopped_at: Phase 126 context gathered
-last_updated: "2026-06-05T03:25:56.438Z"
-last_activity: 2026-06-05 -- Phase 127 planning complete
+last_updated: "2026-06-05T03:38:01.318Z"
+last_activity: 2026-06-05
 progress:
   total_phases: 8
   completed_phases: 3
   total_plans: 10
-  completed_plans: 8
+  completed_plans: 9
   percent: 38
 ---
 
@@ -27,8 +27,8 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 
 Phase: 126 (auto-construcci-n-del-grafo-dag-de-progresiones) — EXECUTING
 Plan: 3 of 3
-Status: Ready to execute
-Last activity: 2026-06-05 -- Phase 127 planning complete
+Status: Phase complete — ready for verification
+Last activity: 2026-06-05
 
 ## Performance Metrics
 
@@ -208,6 +208,7 @@ _Updated after each plan completion_
 | Phase 126 P01 | 2min | 2 tasks | 3 files |
 | Phase 126 P02 | 6min | 2 tasks | 2 files |
 | Phase 126 P03 | 5min | 2 tasks | 2 files |
+| Phase 127 P01 | 22min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -516,6 +517,9 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: Plan 126-01: exercise_progressions edge table — source enum (auto|manual) partitions regenerable auto backbone from preserved manual overrides (D-03); both endpoint FKs ON DELETE CASCADE (T-126-01); edge UNIQUE backs Plan 02 dedupe; hand-written migration 0139.
 - [Phase ?]: Plan 126-02: graph constructor regenerates only source='auto' edges (DELETE WHERE source='auto' + bulk INSERT in a transaction), never touching manual profe overrides (D-03)
 - [Phase ?]: Plan 126-02: backbone partitioned by composite subfamilyId|effort so effort is never crossed (D-04); chains ordered by dl with stable id tiebreak (D-05); strictly consecutive, no cross-edges (D-02)
+- [Phase ?]: 127-01: reached proxy = (dl <= level ceiling) OR (exerciseId in completed sessions via session_prescriptions); branch b active, replaceable by 131 dominado registry
+- [Phase ?]: 127-01: tree grouping by exercises.pattern collapsed to 5 categories (Traccion/Empuje/Piernas/Core/Movilidad); KL/CARDIO/PLYO->Piernas, FLOW->Movilidad, empty->Movilidad fallback with warn log
+- [Phase ?]: 127-01: GET /api/tree-progress/me member-scoped to request.user.userId; node set = 126 DAG scope predicate; all 5 categories always render
 
 ### Pending Todos
 
@@ -540,7 +544,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-05T02:36:16.990Z
+Last session: 2026-06-05T03:37:32.675Z
 Stopped at: Phase 126 context gathered
 Resume file: None
 

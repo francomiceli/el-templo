@@ -3098,13 +3098,13 @@ Plans:
 
 **Risks / notas:** Decisiones abiertas diferidas a `discuss-phase` — agrupación visible `category` (fina, ~22) vs `pattern` (gruesa, ~9); eje transversal estático/dinámico como atributo/filtro (no categoría paralela). En esta fase el % se calcula sobre el avance ya conocido (nivel + sesiones); el registro de "dominado" y el ajuste in-session de la fase 131 lo enriquecen y cierran el lazo después. Mapeo ruta→categoría es casi 1:1 con `pattern`.
 
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 
 Plans:
 
 **Wave 1**
 
-- [ ] 127-01-PLAN.md — Backend: pattern→category map + tree-progress service (reads 126 DAG, computes server-side %) + member-scoped GET /api/tree-progress/me + integration test
+- [x] 127-01-PLAN.md — Backend: pattern→category map + tree-progress service (reads 126 DAG, computes server-side %) + member-scoped GET /api/tree-progress/me + integration test
 
 **Wave 2** _(blocked on Wave 1 completion)_
 
@@ -3215,7 +3215,7 @@ Plans:
 | 124. Estructura 3 dimensiones + saneo          | 2/2            | Complete    | 2026-06-05 |
 | 125. Bootstrap heurístico + revisión de profes | 3/3            | Complete    | 2026-06-05 |
 | 126. Auto-construcción del grafo (DAG)         | 3/3            | Complete    | 2026-06-05 |
-| 127. % de avance del árbol (miembro)           | 0/TBD          | Not started | -          |
+| 127. % de avance del árbol (miembro)           | 1/2            | In Progress |            |
 | 128. Editor de árbol (admin)                   | 0/TBD          | Not started | -          |
 | 129. Kairos — enum, herencia, formato lineal   | 0/TBD          | Not started | -          |
 | 130. Kairos — asignación, graduación, selector | 0/TBD          | Not started | -          |
