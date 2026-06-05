@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v5.1
 milestone_name: Nuevo Sistema de Entrenamiento
-status: executing
+status: verifying
 stopped_at: Completed 132-03-PLAN.md
-last_updated: "2026-06-05T16:25:42.034Z"
+last_updated: "2026-06-05T16:33:34.963Z"
 last_activity: 2026-06-05
 progress:
   total_phases: 8
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 
 Phase: 132 (exponer-metricas-gestion-v50-admin) — EXECUTING
 Plan: 6 of 6
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-06-05
 
 ## Performance Metrics
@@ -228,6 +228,7 @@ _Updated after each plan completion_
 | Phase 132 P3 | 12 | 2 tasks | 2 files |
 | Phase 132 P04 | ~2min | 2 tasks | 2 files |
 | Phase 132 P5 | ~8min | 2 tasks | 2 files |
+| Phase 132 P06 | 15min | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -557,6 +558,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: 132-03: frontend contract layer — 6 mirrored analytics interfaces + MetricShape + 6 typed fetch methods + turno/window filters
 - [Phase ?]: [Phase 132]: .vue verified via eslint (type-aware); vue-tsc not installed, full SFC typecheck in CI
 - [Phase ?]: [Phase 132]: ConversionTab + IngresosTab presentational (props-in); page 132-06 owns fetch
+- [Phase ?]: 132-06: 6 v5.0 metrics wired into AnaliticasPage across 4 thematic tabs + Plan/Turno filters; deprecated FunnelTab/ARPU/Renovación/Tasa-de-retención deleted (D-15/16/17/18)
 
 ### Pending Todos
 
@@ -587,7 +589,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-05T16:25:33.736Z
+Last session: 2026-06-05T16:33:28.281Z
 Stopped at: Completed 132-03-PLAN.md
 Resume file: None
 
