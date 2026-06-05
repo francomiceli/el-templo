@@ -33,7 +33,7 @@
 
 ### Eje 2 — Árbol de habilidades (TREE) · cimiento
 
-- [ ] **TREE-01**: Las 3 dimensiones de cada ejercicio (gesto/sub-familia, palanca/posición, contracción) existen como datos estructurados en el esquema, separadas del campo `position` actual (que hoy mezcla palanca + implemento + orientación).
+- [x] **TREE-01**: Las 3 dimensiones de cada ejercicio (gesto/sub-familia, palanca/posición, contracción) existen como datos estructurados en el esquema, separadas del campo `position` actual (que hoy mezcla palanca + implemento + orientación).
 - [ ] **TREE-02**: Un proceso de bootstrap asistido por LLM propone la descomposición (gesto / palanca / contracción) de cada ejercicio a partir de su nombre, con salida revisable antes de aplicarse.
 - [ ] **TREE-03**: Los profes pueden revisar y corregir la descomposición propuesta por el LLM antes de fijarla como dato de verdad.
 - [ ] **TREE-04**: El sistema auto-construye el grafo ramificado (DAG) de progresiones a partir del orden del SPOM/`dificultadLineal` y las 3 dimensiones estructuradas (sub-familias paralelas dentro de cada ruta, ordenadas por palanca y contracción).
@@ -79,23 +79,23 @@
 
 <!-- REQ-ID → Phase (filled by roadmap). 18/18 mapped (fases 124-131, v5.1). -->
 
-| Requirement | Phase     | Status  |
-| ----------- | --------- | ------- |
-| TREE-01     | Phase 124 | Pending |
-| TREE-02     | Phase 125 | Pending |
-| TREE-03     | Phase 125 | Pending |
-| TREE-04     | Phase 126 | Pending |
-| TREE-05     | Phase 124 | Pending |
-| TREE-06     | Phase 127 | Pending |
-| TREE-07     | Phase 128 | Pending |
-| KAIROS-01   | Phase 129 | Pending |
-| KAIROS-02   | Phase 129 | Pending |
-| KAIROS-03   | Phase 129 | Pending |
-| KAIROS-04   | Phase 130 | Pending |
-| KAIROS-05   | Phase 130 | Pending |
-| KAIROS-06   | Phase 130 | Pending |
-| KAIROS-07   | Phase 130 | Pending |
-| ADJUST-01   | Phase 131 | Pending |
-| ADJUST-02   | Phase 131 | Pending |
-| ADJUST-03   | Phase 131 | Pending |
-| ADJUST-04   | Phase 131 | Pending |
+| Requirement | Phase     | Status   |
+| ----------- | --------- | -------- |
+| TREE-01     | Phase 124 | Complete |
+| TREE-02     | Phase 125 | Pending  |
+| TREE-03     | Phase 125 | Pending  |
+| TREE-04     | Phase 126 | Pending  |
+| TREE-05     | Phase 124 | Pending  |
+| TREE-06     | Phase 127 | Pending  |
+| TREE-07     | Phase 128 | Pending  |
+| KAIROS-01   | Phase 129 | Pending  |
+| KAIROS-02   | Phase 129 | Pending  |
+| KAIROS-03   | Phase 129 | Pending  |
+| KAIROS-04   | Phase 130 | Pending  |
+| KAIROS-05   | Phase 130 | Pending  |
+| KAIROS-06   | Phase 130 | Pending  |
+| KAIROS-07   | Phase 130 | Pending  |
+| ADJUST-01   | Phase 131 | Pending  |
+| ADJUST-02   | Phase 131 | Pending  |
+| ADJUST-03   | Phase 131 | Pending  |
+| ADJUST-04   | Phase 131 | Pending  |

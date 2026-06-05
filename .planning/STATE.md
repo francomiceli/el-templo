@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v5.1
 milestone_name: Nuevo Sistema de Entrenamiento
-status: completed
+status: executing
 stopped_at: Phase 124 context gathered
-last_updated: "2026-06-04T23:25:15.027Z"
-last_activity: 2026-06-04 — v5.1 roadmap created (8 phases, 18/18 reqs mapped)
+last_updated: "2026-06-05T00:11:41.089Z"
+last_activity: 2026-06-05 -- Completed 124-01-PLAN.md (schema + migration 0137)
 progress:
   total_phases: 8
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 2
+  completed_plans: 1
   percent: 0
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-04)
 
 **Core value:** v5.1 reestructura el sistema de entrenamiento alrededor de un árbol de habilidades (DAG) sobre 3 ejes ortogonales (gesto/palanca/contracción). Sobre ese cimiento: el nivel Kairos para principiantes (hereda de Alfa, formato lineal forzado) y el ajuste de dificultad in-session (botones más fácil/más difícil que sirven el vecino correcto y recuerdan lo dominado). Backend-first, brownfield.
-**Current focus:** Phase 124 — Estructura de datos de las 3 dimensiones + saneo (cimiento del árbol)
+**Current focus:** Phase 124 — estructura-de-datos-de-las-3-dimensiones-saneo
 
 ## Current Position
 
-Phase: Not started — roadmap created (124-131 mapped)
-Plan: —
-Status: Roadmap complete, awaiting plan-phase 124
-Last activity: 2026-06-04 — v5.1 roadmap created (8 phases, 18/18 reqs mapped)
+Phase: 124 (estructura-de-datos-de-las-3-dimensiones-saneo) — EXECUTING
+Plan: 2 of 2
+Status: Ready to execute
+Last activity: 2026-06-05 -- Completed 124-01-PLAN.md (schema + migration 0137)
 
 ## Performance Metrics
 
@@ -201,6 +201,7 @@ _Updated after each plan completion_
 | Phase 123 P01 | 12min | 3 tasks | 5 files |
 | Phase 123 P02 | 7 | 3 tasks | 5 files |
 | Phase 123 P03 | ~5min | 3 tasks | 5 files |
+| Phase 124 P01 | 6min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -383,6 +384,9 @@ Recent decisions affecting current work:
 - Owner-aware country resolution: owner without ?country sees ALL countries (no filter); owner with ?country=XX filters; non-owners locked to scope.country (T-106-02 mitigation per Phase 106-03)
 - Plan 106-04: financialHistorySchema response uses additionalProperties:true on loose-passthrough objects (transaction, links, voidInfo) — Fastify fast-json-stringify strips unlisted fields by default, so Warning #6 idiom requires the explicit escape hatch (Rule 1 fix). Phase 109 audit can flip to strict by replacing with full property listings.
 - Plan 106-04: GET /api/admin/members/:userId/financial-history mounted on members/routes.ts (D-09 sub-resource) with per-handler FINANCE_READ_ROLES privacy override placed BEFORE target lookup so coach denials don't disclose membership existence. Cross-country guard uses !request.scope.isOwner (NOT scope.country) per Plan 02 SUMMARY lesson.
+- Plan 124-01: leverage modeled as nullable varchar(50), NOT a global enum (D-03/D-05); palanca is structured-but-optional. Contracción reuses the existing effort field (D-02). Gesto is a first-class catalog table exercise_subfamilies (D-01).
+- Plan 124-01: canonical_exercise_id + route_pending added as schema only in 124; saneo data writes (canonical pointers + route-pending flags) deferred to Plan 02 TS script (detect/report before mutating, analog backfill-gender.ts).
+- Plan 124-01: migration 0137 is pure additive DDL (zero row mutations) so historical FKs from session_prescriptions/program_content_blocks stay intact (D-07 soft-merge, no deletes); additive/idempotent/reversible.
 - Plan 106-05: backward-compat aliases (PAYMENT_METHOD_OPTIONS as alias of PAYMENT_METHOD_FILTER_OPTIONS, LegacyPaymentMethod 3-key narrow type) avoid renaming churn across unrelated callsites; only CajaPage business logic changed. Phase 109 widens.
 - Plan 106-05: kind='plan_charge' bind on listTransactions in CajaPage preserves legacy /payments cobros semantics during Phase 106 (D-14 closure scope); debt_settlement surfaces via Plan 04 financial-history. Phase 109 adds UI kind dropdown.
 - Plan 106-05: Task 1 grep regex for owner-override was overly strict (Prettier formatted across multiple lines); used Plan 03 SUMMARY canonical evidence (grep -c 'request.scope.isOwner' routes.ts === 4) as verification gate. No Plan 03 file modifications — Wave 4 conflict-free invariant intact.
@@ -521,8 +525,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-04T23:25:15.007Z
+Last session: 2026-06-05T00:11:41.066Z
 Stopped at: Phase 124 context gathered
-Resume file: .planning/phases/124-estructura-de-datos-de-las-3-dimensiones-saneo/124-CONTEXT.md
+Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z

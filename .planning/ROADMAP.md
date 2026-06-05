@@ -3007,11 +3007,11 @@ _v5.0 added: 2026-06-03 — 4 phases (120-123), 35 requirements (FUND, CHURN, RE
 
 **Risks / notas:** Brownfield — el enum de niveles está hardcodeado en `exercises.ts`/`users.ts`/`completed-sessions.ts`/`level-mapping.ts`/admin `constants/levels.ts` (no se toca acá, pero el catálogo de ~1.493 ejercicios sí). `effort` (contracción) ya está 70% poblado y limpio; `position` (palanca) 53% poblado y sucio. Decisión abierta diferida: agrupación visible `category` vs `pattern` (puede informar el esquema, no lo bloquea). Migración + saneo de datos productivos: validar contra datos reales, idempotencia.
 
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 
 Plans:
 
-- [ ] 124-01-PLAN.md — Schema Drizzle de las 3 dimensiones (tabla exercise_subfamilies + columnas subfamily_id/leverage/canonical_exercise_id/route_pending) + migración aditiva 0137 (TREE-01)
+- [x] 124-01-PLAN.md — Schema Drizzle de las 3 dimensiones (tabla exercise_subfamilies + columnas subfamily_id/leverage/canonical_exercise_id/route_pending) + migración aditiva 0137 (TREE-01)
 - [ ] 124-02-PLAN.md — Saneo: script idempotente de soft-merge de dupes exactos (puntero canónico, sin deletes) + marcado de ruta-pendiente + integration test (TREE-05)
 
 **UI hint:** no (backend-first; esquema + saneo de datos)
@@ -3182,7 +3182,7 @@ Plans:
 
 | Phase                                          | Plans Complete | Status      | Completed |
 | ---------------------------------------------- | -------------- | ----------- | --------- |
-| 124. Estructura 3 dimensiones + saneo          | 0/TBD          | Not started | -         |
+| 124. Estructura 3 dimensiones + saneo          | 1/2            | In Progress |           |
 | 125. Bootstrap LLM + revisión de profes        | 0/TBD          | Not started | -         |
 | 126. Auto-construcción del grafo (DAG)         | 0/TBD          | Not started | -         |
 | 127. % de avance del árbol (miembro)           | 0/TBD          | Not started | -         |
