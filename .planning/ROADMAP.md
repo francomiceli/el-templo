@@ -3201,8 +3201,15 @@ Plans:
 
 **Risks / notas:** Cambiar el default de `users.level` afecta todo registro nuevo — coordinar con los flujos de registro/onboarding y trial existentes. Lógica nueva de graduación + override manual que la anula (no debe volver a "degradar" tras un salto manual del coach). Decisión abierta diferida: umbral exacto de sesiones para graduar (configurable, número a definir con producto/profes).
 
-**Plans:** TBD
-**UI hint:** yes
+**Plans:** 4 plans
+
+Plans:
+
+- [ ] 130-01-PLAN.md — Default kairos (migration 0141 + schema) + new-member level=kairos everywhere + coach level_override flag + regression tests (KAIROS-04, KAIROS-06)
+- [ ] 130-02-PLAN.md — Auto-graduation kairos→alfa (threshold constant + GraduationService wired into 3 completion paths) + tests (KAIROS-05)
+- [ ] 130-03-PLAN.md — Admin selector: Kairos box in MemberFormDialog + AlumnosPage/AlumnoDetailPage glyph/name/color/filter (KAIROS-07)
+- [ ] 130-04-PLAN.md — App selector: Kairos in onboarding self-pick (decision) + header dropdown verification (KAIROS-07)
+      **UI hint:** yes
 
 ### Phase 131: Ajuste de dificultad in-session + registro de "dominado / bajado"
 
