@@ -47,6 +47,13 @@ import { metricShape } from "./metric-shape";
 import { deriveDurationTier } from "./duration-tier";
 import { breakdownSegmentKey, type BreakdownAxis } from "./breakdowns";
 import { AttendanceMetricsService } from "./attendance-metrics-service";
+import {
+  TURNO_MANANA_START_HOUR,
+  TURNO_MANANA_END_HOUR,
+  TURNO_TARDE_START_HOUR,
+  TURNO_TARDE_END_HOUR,
+} from "./trial-funnel-service";
+import type { TrialTurno } from "./types";
 import type {
   AnalyticsFilters,
   CheckInAdoptionRow,
@@ -157,6 +164,25 @@ function pctVariacion(current: number, prior: number): number | null {
   return Math.round(((current - prior) / prior) * 100);
 }
 
+/**
+ * SQL predicate restricting `schedules.startTime` (a `"HH:MM"` varchar) to a
+ * turno (Phase 132 D-10). Mirrors the JS `classifyTurno` rule (mañana = [07,10),
+ * tarde = [17,20)) by casting the leading hour. `"otro"` is never a selectable
+ * input (the route schema enum is ["manana","tarde"]) so only the two bounded
+ * ranges are ever built. Returns `null` for any non mañana/tarde value (defensive
+ * — the caller skips the join when the predicate is null).
+ */
+function turnoHourCondition(turno: TrialTurno): SQL | null {
+  const hour = sql`CAST(LEFT(${schema.schedules.startTime}, 2) AS UNSIGNED)`;
+  if (turno === "manana") {
+    return sql`${hour} >= ${TURNO_MANANA_START_HOUR} AND ${hour} < ${TURNO_MANANA_END_HOUR}`;
+  }
+  if (turno === "tarde") {
+    return sql`${hour} >= ${TURNO_TARDE_START_HOUR} AND ${hour} < ${TURNO_TARDE_END_HOUR}`;
+  }
+  return null;
+}
+
 /** One active member reduced to what the band folding needs. */
 interface ActiveMemberRow {
   userId: number;
@@ -251,6 +277,18 @@ export class FrequencyService {
       branchColumn: schema.subscriptions.branchId,
     });
 
+    // Plan INPUT filter (Phase 132 D-10): restrict the active population to a
+    // single plan's subscribers. Appended AFTER scope (never relaxes it).
+    const populationConditions: SQL[] = [
+      inArray(schema.subscriptions.status, ["active", "paused"]),
+      ...scopeConditions,
+    ];
+    if (filters.planId !== undefined) {
+      populationConditions.push(
+        eq(schema.subscriptions.planId, filters.planId),
+      );
+    }
+
     // Country scope filters on `branches.country`; this query joins `branches`
     // unconditionally (flavor A) because every axis below also needs the branch
     // name, so the join is always present and `needsBranchJoin` is moot here.
@@ -281,12 +319,7 @@ export class FrequencyService {
         schema.subscriptionPlans,
         sql`${schema.subscriptionPlans.id} = ${schema.subscriptions.planId}`,
       )
-      .where(
-        and(
-          inArray(schema.subscriptions.status, ["active", "paused"]),
-          ...scopeConditions,
-        ),
-      );
+      .where(and(...populationConditions));
 
     // Dedup by userId (keep the first seen sub) so a member with >1 active sub
     // is one population member.
@@ -345,6 +378,17 @@ export class FrequencyService {
       ...scopeConditions,
     ];
 
+    // Turno INPUT filter (Phase 132 D-10): restrict visits to those whose
+    // attended schedule's startTime classifies to the turno. The inner join to
+    // `schedules` naturally drops visits with a NULL scheduleId (no schedule →
+    // no turno). Appended AFTER scope (never relaxes it). `"otro"` is not a
+    // selectable input so the predicate is always non-null for manana/tarde.
+    const turnoCondition =
+      filters.turno !== undefined ? turnoHourCondition(filters.turno) : null;
+    if (turnoCondition !== null) {
+      conditions.push(turnoCondition);
+    }
+
     let query = this.db
       .select({
         memberId: schema.attendance.memberId,
@@ -356,6 +400,12 @@ export class FrequencyService {
       query = query.innerJoin(
         schema.branches,
         eq(schema.branches.id, schema.attendance.branchId),
+      );
+    }
+    if (turnoCondition !== null) {
+      query = query.innerJoin(
+        schema.schedules,
+        eq(schema.schedules.id, schema.attendance.scheduleId),
       );
     }
     const rows = await query

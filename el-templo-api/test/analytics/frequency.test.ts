@@ -14,6 +14,8 @@ import { subscriptions } from "../../src/db/schema/subscriptions";
 import { subscriptionPlans } from "../../src/db/schema/subscription-plans";
 import { branches } from "../../src/db/schema/branches";
 import { attendance } from "../../src/db/schema/attendance";
+import { schedules } from "../../src/db/schema/schedules";
+import { activities } from "../../src/db/schema/activities";
 
 const ANALYTICS_URL = "/api/admin/analytics";
 
@@ -149,6 +151,41 @@ describe("FrequencyService (Phase 123 Plan 01)", () => {
       memberId: userId,
       branchId,
       scheduleId: null,
+      sessionDate: ymd(checkedInAt),
+      checkedInAt,
+    });
+  }
+
+  /** Create a schedule with a given startTime (drives the turno filter). */
+  async function createSchedule(
+    startTime: string,
+    branchId = branchA,
+  ): Promise<number> {
+    const [act] = await app.db.insert(activities).values({
+      name: `Act-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    });
+    const activityId = (act as { insertId: number }).insertId;
+    const [sch] = await app.db.insert(schedules).values({
+      branchId,
+      activityId,
+      dayOfWeek: 1,
+      startTime,
+      endTime: "23:00",
+    });
+    return (sch as { insertId: number }).insertId;
+  }
+
+  /** Insert one attendance check-in attached to a schedule (drives turno). */
+  async function addVisitWithSchedule(
+    userId: number,
+    checkedInAt: Date,
+    scheduleId: number,
+    branchId = branchA,
+  ): Promise<void> {
+    await app.db.insert(attendance).values({
+      memberId: userId,
+      branchId,
+      scheduleId,
       sessionDate: ymd(checkedInAt),
       checkedInAt,
     });
@@ -362,6 +399,95 @@ describe("FrequencyService (Phase 123 Plan 01)", () => {
 
     const row = result.coolingDown.find((c) => c.userId === esUser);
     expect(row).toBeUndefined();
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // planId + turno INPUT filters (Phase 132 D-10)
+  // ═══════════════════════════════════════════════════════════════════════
+
+  it("planId restricts the active population to that plan's subscribers (D-10)", async () => {
+    // Member on planAR (kept) vs member on planES (excluded by planId=planAR).
+    const arUser = await createMember("freq-planA@test.com", daysAgo(60));
+    await addActiveSub(arUser, branchA, planAR);
+    const esUser = await createMember(
+      "freq-planB@test.com",
+      daysAgo(60),
+      branchES,
+    );
+    await addActiveSub(esUser, branchES, planES);
+
+    const result = await svc.getFrequency({ planId: planAR });
+
+    // The active population (sum over the distribution `n`) is plan-A only (1).
+    const inactivo = result.distribution.find((d) => d.band === "inactivo");
+    expect(inactivo?.count.n).toBe(1);
+  });
+
+  it("turno=manana classifies frequency over mañana schedules only (D-10)", async () => {
+    // >4 weeks tenure so the divisor is the full 4 weeks.
+    const u = await createMember("freq-turno@test.com", daysAgo(90));
+    await addActiveSub(u);
+    const mananaSchedule = await createSchedule("08:00");
+    const tardeSchedule = await createSchedule("18:00");
+    // 2 mañana visits in the current window → 2/4 = 0.5/wk → Bajo.
+    await addVisitWithSchedule(u, daysAgo(2), mananaSchedule);
+    await addVisitWithSchedule(u, daysAgo(5), mananaSchedule);
+    // 10 tarde visits the mañana filter must ignore → total 12/4 = 3/wk → Alto.
+    for (let i = 0; i < 10; i++) {
+      await addVisitWithSchedule(u, daysAgo(3 + i), tardeSchedule);
+    }
+
+    const all = await svc.getFrequency({});
+    const manana = await svc.getFrequency({ turno: "manana" });
+
+    // Unfiltered: all 12 visits → Alto. Restricted to the 2 mañana visits the
+    // member drops to Bajo — proving only mañana attendance was counted.
+    const altoAll = all.distribution.find((d) => d.band === "alto");
+    expect(altoAll?.count.nominal).toBe(1);
+    const bajoManana = manana.distribution.find((d) => d.band === "bajo");
+    expect(bajoManana?.count.nominal).toBe(1);
+    const altoManana = manana.distribution.find((d) => d.band === "alto");
+    expect(altoManana?.count.nominal).toBe(0);
+    // The member is still in the population (active), just in a lower band.
+    const total = manana.distribution.reduce((s, d) => s + d.count.nominal, 0);
+    expect(total).toBe(1);
+  });
+
+  it("planId filter is AND-ed with branch scope — plan-A member in branch X excluded when scoped to branch Y (T-132-05)", async () => {
+    // plan-AR member in branchES; caller scoped to branchA with planId=planAR.
+    const esUser = await createMember(
+      "freq-plan-scope@test.com",
+      daysAgo(60),
+      branchES,
+    );
+    await addActiveSub(esUser, branchES, planAR);
+
+    const result = await svc.getFrequency({
+      branchId: branchA,
+      planId: planAR,
+    });
+
+    // Scoped to branchA → the branchES member is not in the population.
+    const total = result.distribution.reduce((s, d) => s + d.count.n, 0);
+    // n is the population repeated per band; take any band's n.
+    expect(result.distribution[0]?.count.n).toBe(0);
+    expect(total).toBe(0);
+  });
+
+  it("rejects a non-integer planId and an invalid turno with 400 (T-132-06)", async () => {
+    const badPlan = await app.inject({
+      method: "GET",
+      url: `${ANALYTICS_URL}/frequency?planId=notInteger`,
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    expect(badPlan.statusCode).toBe(400);
+
+    const badTurno = await app.inject({
+      method: "GET",
+      url: `${ANALYTICS_URL}/frequency?turno=invalid`,
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    expect(badTurno.statusCode).toBe(400);
   });
 
   // ═══════════════════════════════════════════════════════════════════════

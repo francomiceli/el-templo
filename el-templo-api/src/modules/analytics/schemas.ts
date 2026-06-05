@@ -701,13 +701,30 @@ const frequencyBandEnum = {
   enum: ["inactivo", "bajo", "medio", "alto"],
 } as const;
 
+// Local querystring extension (Phase 132 D-10): adds the optional `planId`
+// (plan INPUT filter) and `turno` (shift INPUT filter, mañana/tarde only) to the
+// shared analytics querystring WITHOUT mutating the shared const. `planId` is an
+// integer; `turno` enum EXCLUDES "otro" (not a selectable input — T-132-03). A
+// malformed planId/turno is rejected with 400 before the service (T-132-06).
+// branchId/dateFrom/dateTo carry over.
+const frequencyQuerystring = {
+  type: "object",
+  properties: {
+    branchId: { type: "integer" },
+    dateFrom: { type: "string", format: "date" },
+    dateTo: { type: "string", format: "date" },
+    planId: { type: "integer" },
+    turno: { type: "string", enum: ["manana", "tarde"] },
+  },
+} as const;
+
 // GET /frequency — visits/week bands, distribution (incl. active-0-visits),
 // cooling-down list (band drop + % variación), reused per-branch check-in
-// adoption, and 4-axis breakdowns. No `window` param (frequency does not use
-// it) → reuses analyticsQuerystring. ADMIN_ROLES-only (gestion gets 403).
-// errorSchema covers 400/401/403/500. EVERY field declared.
+// adoption, and 4-axis breakdowns. Accepts planId + turno INPUT filters (D-10)
+// AND-ed after scope. ADMIN_ROLES-only (gestion gets 403). errorSchema covers
+// 400/401/403/500. EVERY field declared.
 export const frequencySchema = {
-  querystring: analyticsQuerystring,
+  querystring: frequencyQuerystring,
   response: {
     200: {
       type: "object",

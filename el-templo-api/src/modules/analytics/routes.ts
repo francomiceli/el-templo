@@ -581,6 +581,8 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
       branchId?: number;
       dateFrom?: string;
       dateTo?: string;
+      planId?: number;
+      turno?: "manana" | "tarde";
     };
   }>(
     "/frequency",
@@ -598,6 +600,9 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
           country: request.scope.country ?? undefined,
           dateFrom: request.query.dateFrom,
           dateTo: request.query.dateTo,
+          // Phase 132 D-10: plan + turno INPUT filters, AND-ed after scope.
+          planId: request.query.planId,
+          turno: request.query.turno,
         };
         const result = await frequencyService.getFrequency(filters);
         return result;
