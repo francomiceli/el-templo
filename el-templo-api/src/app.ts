@@ -12,6 +12,7 @@ import progressionPlugin from "./plugins/progression";
 import treeProgressPlugin from "./plugins/tree-progress";
 import treeEditorPlugin from "./plugins/tree-editor";
 import exerciseAdjustmentsPlugin from "./plugins/exercise-adjustments";
+import exerciseAdjustmentsCoachPlugin from "./plugins/exercise-adjustments-coach";
 import { authRoutes } from "./modules/auth";
 import { adminRoutes } from "./modules/admin";
 import { goalPlanRoutes } from "./modules/goal-plans";
@@ -122,6 +123,10 @@ export async function buildApp() {
 
   // Exercise-adjustments plugin (in-session difficulty adjustment — Phase 131)
   await app.register(exerciseAdjustmentsPlugin);
+
+  // Exercise-adjustments coach plugin (coach/owner read of a member's
+  // dominado/bajado log — Phase 131 Plan 02)
+  await app.register(exerciseAdjustmentsCoachPlugin);
 
   // Routes
   await app.register(authRoutes, { prefix: "/api/auth" });

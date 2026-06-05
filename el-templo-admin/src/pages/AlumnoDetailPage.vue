@@ -514,6 +514,55 @@
                 </q-card-section>
               </q-card>
 
+              <!-- Ajustes in-session (Phase 131): the member's dominado/bajado
+                   records. Warm palette (amber/terracotta — no blue). Hidden
+                   while loading shows a small spinner; empty shows an italic
+                   placeholder. -->
+              <q-card flat bordered class="q-mb-md">
+                <q-card-section>
+                  <div class="text-subtitle1 text-weight-bold q-mb-sm">
+                    Ajustes de dificultad (dominado / bajado)
+                  </div>
+
+                  <div v-if="adjustmentsLoading" class="flex flex-center q-pa-md">
+                    <q-spinner-dots size="32px" color="primary" />
+                  </div>
+
+                  <div v-else-if="memberAdjustments.length === 0" class="text-grey-5 text-italic">
+                    Sin ajustes registrados
+                  </div>
+
+                  <q-list v-else separator>
+                    <q-item v-for="adj in memberAdjustments" :key="adj.id">
+                      <q-item-section avatar>
+                        <q-icon
+                          :name="adj.status === 'dominado' ? 'trending_up' : 'trending_down'"
+                          :color="adj.status === 'dominado' ? 'green-8' : 'deep-orange-7'"
+                        />
+                      </q-item-section>
+                      <q-item-section>
+                        <q-item-label>
+                          {{ adj.exerciseName }}
+                          <q-badge
+                            :color="adj.status === 'dominado' ? 'green-8' : 'deep-orange-7'"
+                            :label="adj.status === 'dominado' ? 'Dominado' : 'Bajado'"
+                            class="q-ml-sm"
+                          />
+                        </q-item-label>
+                        <q-item-label v-if="adj.toExerciseName" caption>
+                          → {{ adj.toExerciseName }}
+                        </q-item-label>
+                      </q-item-section>
+                      <q-item-section side>
+                        <div class="text-caption text-grey-7">
+                          {{ formatDate(adj.date) }}
+                        </div>
+                      </q-item-section>
+                    </q-item>
+                  </q-list>
+                </q-card-section>
+              </q-card>
+
               <!-- Archived Goal Plans -->
               <q-card v-if="goalPlanDetail.archived.length > 0" flat bordered class="q-mb-md">
                 <q-card-section>
@@ -715,6 +764,8 @@ import { useAuthStore } from 'src/stores/useAuthStore';
 import { useGoalPlanAdminApi } from 'src/composables/useGoalPlanAdminApi';
 import { useMembersApi, type LeadStatusValue } from 'src/composables/useMembersApi';
 import { useTransactionsApi } from 'src/composables/useTransactionsApi';
+import { useExerciseAdjustmentsApi } from 'src/composables/useExerciseAdjustmentsApi';
+import type { MemberAdjustment } from 'src/types/exercise-adjustments';
 import {
   extractError,
   isExpectedClientError,
@@ -752,6 +803,7 @@ const authStore = useAuthStore();
 const membersApi = useMembersApi();
 const goalPlanApi = useGoalPlanAdminApi();
 const transactionsApi = useTransactionsApi();
+const adjustmentsApi = useExerciseAdjustmentsApi();
 const { getColor: getStatusColor, getLabel: getStatusLabel } = useStatusBadge();
 
 // =========================================================================
@@ -773,6 +825,12 @@ const showConvertDialog = ref(false);
 const convertBranchId = ref<number | null>(null);
 const converting = ref(false);
 const outstandingConcepts = ref<OutstandingConcept[]>([]);
+
+// Phase 131 (ADJUST-04): the member's in-session dominado/bajado log, shown in
+// the Entrenamiento tab. Loaded in the background; a 403 (non-TRAINING role)
+// just leaves the list empty (silenced).
+const memberAdjustments = ref<MemberAdjustment[]>([]);
+const adjustmentsLoading = ref(false);
 
 // Drives the floating "D" badge on the Suscripcion tab and the deudor
 // banner inside MemberSubscriptionTab. Sourced from the balances cache
@@ -1112,6 +1170,25 @@ async function loadOutstandingConcepts() {
   }
 }
 
+// Phase 131 (ADJUST-04): the member's dominado/bajado log. Background load;
+// a 403 (role not in TRAINING_ROLES) silently yields an empty list.
+async function loadMemberAdjustments() {
+  adjustmentsLoading.value = true;
+  try {
+    memberAdjustments.value = await adjustmentsApi.fetchMemberAdjustments(userId.value);
+  } catch (err: unknown) {
+    memberAdjustments.value = [];
+    if (!isExpectedClientError(err)) {
+      log.warn('Error loading member adjustments', {
+        error: extractError(err),
+        userId: userId.value,
+      });
+    }
+  } finally {
+    adjustmentsLoading.value = false;
+  }
+}
+
 async function loadAll() {
   pageLoading.value = true;
   pageError.value = null;
@@ -1126,6 +1203,8 @@ async function loadAll() {
     loadSessionLevels();
     // Outstanding balance in background — drives the Suscripcion tab badge.
     loadOutstandingConcepts();
+    // Phase 131: in-session dominado/bajado log (Entrenamiento tab).
+    loadMemberAdjustments();
   } catch {
     pageError.value = 'Error cargando detalle del alumno';
   } finally {

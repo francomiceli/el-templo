@@ -50,3 +50,28 @@ export const errorResponseSchema = {
     error: { type: "string" },
   },
 } as const;
+
+/**
+ * Coach read of a member's dominado/bajado log (Plan 02, ADJUST-04). Newest
+ * first. `toExerciseName` is null only when the served-neighbor join misses
+ * (defensive — a row is written only when a neighbor was resolved).
+ */
+const memberAdjustmentRowSchema = {
+  type: "object",
+  properties: {
+    id: { type: "number" },
+    exerciseId: { type: "number" },
+    exerciseName: { type: "string" },
+    toExerciseId: { type: ["number", "null"] },
+    toExerciseName: { type: ["string", "null"] },
+    status: { type: "string", enum: ["dominado", "bajado"] },
+    dayId: { type: "string" },
+    date: { type: "string" },
+    createdAt: { type: "string" },
+  },
+} as const;
+
+export const memberAdjustmentsResponseSchema = {
+  type: "array",
+  items: memberAdjustmentRowSchema,
+} as const;
