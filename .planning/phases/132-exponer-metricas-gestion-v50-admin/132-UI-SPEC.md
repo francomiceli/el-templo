@@ -1,10 +1,11 @@
 ---
 phase: 132
 slug: exponer-metricas-gestion-v50-admin
-status: draft
+status: approved
 shadcn_initialized: false
 preset: none
 created: 2026-06-05
+reviewed_at: 2026-06-05
 ---
 
 # Phase 132 — UI Design Contract
