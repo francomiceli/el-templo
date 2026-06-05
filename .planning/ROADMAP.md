@@ -2976,7 +2976,7 @@ _v5.0 added: 2026-06-03 — 4 phases (120-123), 35 requirements (FUND, CHURN, RE
 
 ## v5.1 Phases
 
-- [ ] **Phase 124: Estructura de datos de las 3 dimensiones + saneo** — Esquema gesto/palanca/contracción separado del `position` sucio + saneo del catálogo (~103 sin ruta, duplicados, `position` que mezcla 3 conceptos). Bedrock del milestone.
+- [x] **Phase 124: Estructura de datos de las 3 dimensiones + saneo** — Esquema gesto/palanca/contracción separado del `position` sucio + saneo del catálogo (~103 sin ruta, duplicados, `position` que mezcla 3 conceptos). Bedrock del milestone. (completed 2026-06-05)
 - [ ] **Phase 125: Bootstrap LLM + revisión de profes de la descomposición** — Proceso que propone gesto/palanca/contracción por nombre, con salida revisable que los profes aceptan/corrigen/rechazan antes de fijarla como verdad.
 - [ ] **Phase 126: Auto-construcción del grafo (DAG) de progresiones** — Grafo ramificado derivado del orden del SPOM/`dificultadLineal` + las 3 dimensiones; provee la primitiva "vecino un escalón arriba/abajo" que necesita el Eje 3.
 - [ ] **Phase 127: % de avance del árbol para el miembro** — El miembro ve su progreso por familia/nodo del árbol agrupado por categoría temática (Tracción/Empuje/Piernas/Core/Movilidad).
@@ -3007,12 +3007,12 @@ _v5.0 added: 2026-06-03 — 4 phases (120-123), 35 requirements (FUND, CHURN, RE
 
 **Risks / notas:** Brownfield — el enum de niveles está hardcodeado en `exercises.ts`/`users.ts`/`completed-sessions.ts`/`level-mapping.ts`/admin `constants/levels.ts` (no se toca acá, pero el catálogo de ~1.493 ejercicios sí). `effort` (contracción) ya está 70% poblado y limpio; `position` (palanca) 53% poblado y sucio. Decisión abierta diferida: agrupación visible `category` vs `pattern` (puede informar el esquema, no lo bloquea). Migración + saneo de datos productivos: validar contra datos reales, idempotencia.
 
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 
 Plans:
 
 - [x] 124-01-PLAN.md — Schema Drizzle de las 3 dimensiones (tabla exercise_subfamilies + columnas subfamily_id/leverage/canonical_exercise_id/route_pending) + migración aditiva 0137 (TREE-01)
-- [ ] 124-02-PLAN.md — Saneo: script idempotente de soft-merge de dupes exactos (puntero canónico, sin deletes) + marcado de ruta-pendiente + integration test (TREE-05)
+- [x] 124-02-PLAN.md — Saneo: script idempotente de soft-merge de dupes exactos (puntero canónico, sin deletes) + marcado de ruta-pendiente + integration test (TREE-05)
 
 **UI hint:** no (backend-first; esquema + saneo de datos)
 
@@ -3180,16 +3180,16 @@ Plans:
 
 ## v5.1 Progress
 
-| Phase                                          | Plans Complete | Status      | Completed |
-| ---------------------------------------------- | -------------- | ----------- | --------- |
-| 124. Estructura 3 dimensiones + saneo          | 1/2            | In Progress |           |
-| 125. Bootstrap LLM + revisión de profes        | 0/TBD          | Not started | -         |
-| 126. Auto-construcción del grafo (DAG)         | 0/TBD          | Not started | -         |
-| 127. % de avance del árbol (miembro)           | 0/TBD          | Not started | -         |
-| 128. Editor de árbol (admin)                   | 0/TBD          | Not started | -         |
-| 129. Kairos — enum, herencia, formato lineal   | 0/TBD          | Not started | -         |
-| 130. Kairos — asignación, graduación, selector | 0/TBD          | Not started | -         |
-| 131. Ajuste in-session + registro de dominado  | 0/TBD          | Not started | -         |
+| Phase                                          | Plans Complete | Status      | Completed  |
+| ---------------------------------------------- | -------------- | ----------- | ---------- |
+| 124. Estructura 3 dimensiones + saneo          | 2/2            | Complete    | 2026-06-05 |
+| 125. Bootstrap LLM + revisión de profes        | 0/TBD          | Not started | -          |
+| 126. Auto-construcción del grafo (DAG)         | 0/TBD          | Not started | -          |
+| 127. % de avance del árbol (miembro)           | 0/TBD          | Not started | -          |
+| 128. Editor de árbol (admin)                   | 0/TBD          | Not started | -          |
+| 129. Kairos — enum, herencia, formato lineal   | 0/TBD          | Not started | -          |
+| 130. Kairos — asignación, graduación, selector | 0/TBD          | Not started | -          |
+| 131. Ajuste in-session + registro de dominado  | 0/TBD          | Not started | -          |
 
 _Plan counts populated by `/gsd-plan-phase`._
 

@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v5.1
 milestone_name: Nuevo Sistema de Entrenamiento
-status: executing
-stopped_at: Phase 124 context gathered
-last_updated: "2026-06-05T00:11:41.089Z"
-last_activity: 2026-06-05 -- Completed 124-01-PLAN.md (schema + migration 0137)
+status: verifying
+stopped_at: Completed 124-02-PLAN.md
+last_updated: "2026-06-05T00:18:35.335Z"
+last_activity: 2026-06-05
 progress:
   total_phases: 8
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 2
-  completed_plans: 1
-  percent: 0
+  completed_plans: 2
+  percent: 13
 ---
 
 # Project State
@@ -27,8 +27,8 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 
 Phase: 124 (estructura-de-datos-de-las-3-dimensiones-saneo) — EXECUTING
 Plan: 2 of 2
-Status: Ready to execute
-Last activity: 2026-06-05 -- Completed 124-01-PLAN.md (schema + migration 0137)
+Status: Phase complete — ready for verification
+Last activity: 2026-06-05
 
 ## Performance Metrics
 
@@ -202,6 +202,7 @@ _Updated after each plan completion_
 | Phase 123 P02 | 7 | 3 tasks | 5 files |
 | Phase 123 P03 | ~5min | 3 tasks | 5 files |
 | Phase 124 P01 | 6min | 2 tasks | 4 files |
+| Phase 124 P02 | 12min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -501,6 +502,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: 123-01: getFrequency scoped; coolingOrInactiveUserIds scope-unaware (global nightly batch); checkInAdoption reused from AttendanceMetricsService (D-123-06)
 - [Phase ?]: TrialFunnelService (123-02): asistió desde bookings.status (no attendance, D-123-07); compró = primera sub paga en [sesión, sesión+window) vía DATE_ADD; leads nuevos vía NOT EXISTS sub paga previa; subqueries correlacionadas con prefijo explícito schema.bookings.\* (lección 121/122)
 - [Phase ?]: Plan 123-03: Frequency golden-case override forces en_riesgo for active members with 0 visits in tuneable system_settings window (default 28d); fed into existing 03:00 batch via single batched query, no new cron, login path unchanged (D-123-01/02)
+- [Phase ?]: 124-02: saneo en script TS (no SQL) reporta conteos antes de mutar; soft-merge a canonical MIN(id) sin deletes; route_pending por route='' (D-06/D-07/D-08)
 
 ### Pending Todos
 
@@ -525,8 +527,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-05T00:11:41.066Z
-Stopped at: Phase 124 context gathered
+Last session: 2026-06-05T00:18:35.316Z
+Stopped at: Completed 124-02-PLAN.md
 Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
