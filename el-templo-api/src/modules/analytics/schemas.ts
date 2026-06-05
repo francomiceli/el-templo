@@ -788,6 +788,11 @@ const trialFunnelQuerystring = {
     dateFrom: { type: "string", format: "date" },
     dateTo: { type: "string", format: "date" },
     window: { type: "integer", minimum: 1, maximum: 365 },
+    // Phase 132 D-10: optional plan INPUT filter (plan BOUGHT axis, D-123-09) +
+    // turno INPUT filter. `turno` enum EXCLUDES "otro" (not a selectable input —
+    // T-132-03); a malformed planId/turno is rejected with 400 (T-132-02).
+    planId: { type: "integer" },
+    turno: { type: "string", enum: ["manana", "tarde"] },
   },
 } as const;
 

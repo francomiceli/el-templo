@@ -462,6 +462,100 @@ describe("TrialFunnelService (Phase 123 Plan 02)", () => {
   });
 
   // ═══════════════════════════════════════════════════════════════════════
+  // planId + turno INPUT filters (Phase 132 D-10)
+  // ═══════════════════════════════════════════════════════════════════════
+
+  describe("planId + turno input filters (Phase 132 D-10)", () => {
+    it("turno=manana restricts the cohort to the morning schedule (D-10)", async () => {
+      const sessionDate = daysAgo(40); // matured
+      const schedManana = await createSchedule("08:00");
+      const schedTarde = await createSchedule("18:00");
+      const mManana = await createMember();
+      const mTarde = await createMember();
+      await addTrialBooking(mManana, schedManana, sessionDate, "confirmado");
+      await addTrialBooking(mTarde, schedTarde, sessionDate, "confirmado");
+
+      const result = await svc.getTrialFunnel({ turno: "manana" });
+      // Only the 08:00 cohort row survives the turno filter.
+      expect(result.counts.reservaron).toBe(1);
+      expect(result.counts.asistieron).toBe(1);
+      // The only turno breakdown segment is mañana.
+      const turnoRows = result.breakdowns.filter((b) => b.axis === "turno");
+      expect(turnoRows.map((r) => r.key)).toEqual(["manana"]);
+    });
+
+    it("planId restricts compró to buyers of that plan (plan BOUGHT axis, D-123-09)", async () => {
+      const sched = await createSchedule("08:00");
+      const sessionDate = daysAgo(60); // long matured
+      // A distinct "target" plan we filter on, plus the default plan.
+      const [tp] = await app.db.insert(subscriptionPlans).values({
+        name: `TargetPlan-${Date.now()}`,
+        country: "AR",
+        priceRegular: 22000,
+        priceZero: 12000,
+        durationDays: 90,
+        classesPerWeek: 4,
+      });
+      const targetPlanId = (tp as { insertId: number }).insertId;
+
+      const mTarget = await createMember();
+      const mOther = await createMember();
+      await addTrialBooking(mTarget, sched, sessionDate, "confirmado");
+      await addTrialBooking(mOther, sched, sessionDate, "confirmado");
+      const buyDate = dateStr(
+        new Date(
+          new Date(`${sessionDate}T00:00:00Z`).getTime() + 3 * 86_400_000,
+        ),
+      );
+      // mTarget buys the target plan (in window); mOther buys the default plan.
+      await addSub(mTarget, buyDate, { plan: targetPlanId });
+      await addSub(mOther, buyDate, { plan: planId });
+
+      const result = await svc.getTrialFunnel({ planId: targetPlanId });
+      // Both attended, but only the target-plan buyer counts as compró.
+      expect(result.counts.reservaron).toBe(2);
+      expect(result.counts.asistieron).toBe(2);
+      expect(result.counts.compraron).toBe(1);
+    });
+
+    it("turno is AND-ed with country scope — no cross-branch leak (T-132-01)", async () => {
+      const sessionDate = daysAgo(40);
+      // A mañana AR booking and a mañana ES booking.
+      const schedAR = await createSchedule("08:00", branchA);
+      const schedES = await createSchedule("08:00", branchES);
+      const mAR = await createMember(branchA);
+      const mES = await createMember(branchES);
+      await addTrialBooking(mAR, schedAR, sessionDate, "confirmado");
+      await addTrialBooking(mES, schedES, sessionDate, "confirmado");
+
+      // turno=manana scoped to AR: the ES mañana booking must NOT leak in.
+      const result = await svc.getTrialFunnel({
+        turno: "manana",
+        country: "AR",
+      });
+      expect(result.counts.reservaron).toBe(1);
+    });
+
+    it("rejects a turno value outside the manana/tarde enum with 400 (T-132-03)", async () => {
+      const res = await app.inject({
+        method: "GET",
+        url: `${ANALYTICS_URL}/trial-funnel?turno=invalid`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(res.statusCode).toBe(400);
+    });
+
+    it("rejects turno=otro as an input value (T-132-03)", async () => {
+      const res = await app.inject({
+        method: "GET",
+        url: `${ANALYTICS_URL}/trial-funnel?turno=otro`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(res.statusCode).toBe(400);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════
   // Auth — ADMIN_ROLES-only (gestion 403, admin 200) (D-123-14)
   // ═══════════════════════════════════════════════════════════════════════
 

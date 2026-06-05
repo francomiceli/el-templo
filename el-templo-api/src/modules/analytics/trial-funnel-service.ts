@@ -59,7 +59,13 @@ import type {
   TrialFunnelRates,
   TrialFunnelSeriesRow,
   TrialFunnelStageCounts,
+  TrialTurno,
 } from "./types";
+
+// Re-exported from `./types` (the single shared literal) so existing importers of
+// `TrialTurno` from this service keep working while `AnalyticsFilters` references
+// it without a circular service import.
+export type { TrialTurno } from "./types";
 
 // ── Turno cutoffs (D-123-13) — named constants, NOT env vars ────────────────
 // `schedules.startTime` is `HH:MM` wall-clock in the sede's LOCAL timezone
@@ -73,9 +79,6 @@ export const TURNO_TARDE_END_HOUR = 20;
 
 /** The default attribution window (D-123-12) when the caller passes no `window`. */
 export const TRIAL_ATTRIBUTION_WINDOW_DEFAULT_DAYS = 21;
-
-/** The funnel cascade stages a turno/plan/branch segment can be in. */
-export type TrialTurno = "manana" | "tarde" | "otro";
 
 /**
  * Classify a schedule `startTime` (`"HH:MM"`, sede-local wall-clock) into a turno
@@ -182,7 +185,17 @@ export class TrialFunnelService {
     const attributionWindowDays =
       filters.window ?? TRIAL_ATTRIBUTION_WINDOW_DEFAULT_DAYS;
 
-    const rows = await this.readCohort(filters, attributionWindowDays);
+    const fetched = await this.readCohort(filters, attributionWindowDays);
+
+    // Turno INPUT filter (Phase 132 D-10): restrict the already-scoped cohort to
+    // bookings whose schedule classifies to the selected turno. Applied in-memory
+    // AFTER the scoped DB fetch (mirroring foldBreakdown's r.startTime read), so
+    // turno NEVER relaxes the country/branch scope (T-132-01). "otro" is never a
+    // selectable input (schema enum is manana/tarde); guarded defensively anyway.
+    const rows =
+      filters.turno === undefined || filters.turno === "otro"
+        ? fetched
+        : fetched.filter((r) => classifyTurno(r.startTime) === filters.turno);
 
     // ── Official cascade over the whole new-lead cohort ────────────────────
     const overall = emptyCascadeAcc();
@@ -242,9 +255,21 @@ export class TrialFunnelService {
     // freemium/promo grant is NOT a purchase — D-123-09).
     const paidSubPredicate = sql`s.price_paid > 0 AND s.price_type_applied <> 'zero'`;
 
+    // Plan INPUT filter (Phase 132 D-10): the plan axis groups by the plan BOUGHT,
+    // so the planId filter restricts the compró/bought-plan detection to that plan
+    // ONLY — a lead who bought a DIFFERENT plan then counts as not-compró under
+    // this filter. The new-lead exclusion deliberately stays UNRESTRICTED (a prior
+    // paid sub of ANY plan still makes the lead a returner). Appended as an EXTRA
+    // predicate after the paid-sub predicate — never relaxes scope (T-132-01).
+    const boughtPlanPredicate =
+      filters.planId === undefined
+        ? paidSubPredicate
+        : sql`${paidSubPredicate} AND s.plan_id = ${filters.planId}`;
+
     // New-lead exclusion (D-123-10): EXCLUDE any booking whose member already has
     // a PRIOR paid subscription that started strictly before the session date.
     // Outer refs qualified with the literal schema.bookings.* prefix (T-123-09).
+    // Uses the UNRESTRICTED paid-sub predicate (any plan makes a returner).
     const newLeadCondition = sql`NOT EXISTS (
       SELECT 1 FROM subscriptions s
       WHERE s.user_id = ${schema.bookings.memberId}
@@ -255,12 +280,13 @@ export class TrialFunnelService {
     // Compró (D-123-09): 1 when the member has at least one paid subscription
     // whose start_date falls in the half-open window [sessionDate, sessionDate +
     // windowDays). DATE_ADD with a bound integer keeps the window service-typed
-    // (T-123-08). Outer refs explicitly qualified (T-123-09).
+    // (T-123-08). Outer refs explicitly qualified (T-123-09). Under a planId
+    // filter only purchases of that plan count (boughtPlanPredicate).
     const comproExpr = sql<number>`(
       EXISTS (
         SELECT 1 FROM subscriptions s
         WHERE s.user_id = ${schema.bookings.memberId}
-          AND ${paidSubPredicate}
+          AND ${boughtPlanPredicate}
           AND s.start_date >= ${schema.bookings.bookingDate}
           AND s.start_date < DATE_ADD(${schema.bookings.bookingDate}, INTERVAL ${windowDays} DAY)
       )
@@ -272,7 +298,7 @@ export class TrialFunnelService {
       SELECT sp.name FROM subscriptions s
       JOIN subscription_plans sp ON sp.id = s.plan_id
       WHERE s.user_id = ${schema.bookings.memberId}
-        AND ${paidSubPredicate}
+        AND ${boughtPlanPredicate}
         AND s.start_date >= ${schema.bookings.bookingDate}
         AND s.start_date < DATE_ADD(${schema.bookings.bookingDate}, INTERVAL ${windowDays} DAY)
       ORDER BY s.start_date ASC, s.id ASC
@@ -282,7 +308,7 @@ export class TrialFunnelService {
       SELECT sp.country FROM subscriptions s
       JOIN subscription_plans sp ON sp.id = s.plan_id
       WHERE s.user_id = ${schema.bookings.memberId}
-        AND ${paidSubPredicate}
+        AND ${boughtPlanPredicate}
         AND s.start_date >= ${schema.bookings.bookingDate}
         AND s.start_date < DATE_ADD(${schema.bookings.bookingDate}, INTERVAL ${windowDays} DAY)
       ORDER BY s.start_date ASC, s.id ASC

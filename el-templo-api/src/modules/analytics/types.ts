@@ -819,6 +819,16 @@ export interface FrequencyAnalytics {
 // -- Trial-session Funnel Analytics (Phase 123 Block 3 — FUNNEL-01..05) --
 
 /**
+ * A trial-session turno (shift) bucket (D-123-13), classified from a schedule's
+ * `startTime`: mañana = [07,10), tarde = [17,20), everything else `"otro"`. Used
+ * both as a funnel breakdown axis value AND (mañana/tarde only) as the D-10 turno
+ * INPUT filter. The runtime classifier `classifyTurno` lives in
+ * `trial-funnel-service.ts`; this is the single shared literal so `AnalyticsFilters`
+ * can reference it without a circular service import.
+ */
+export type TrialTurno = "manana" | "tarde" | "otro";
+
+/**
  * The breakdown axis a trial-funnel segment row is grouped by (FUNNEL-05).
  * `branch`/`country`/`plan` mirror the standard axes; `turno` is a funnel-LOCAL
  * axis (bucketed from `schedules.startTime`, NOT part of the shared
@@ -990,4 +1000,13 @@ export interface AnalyticsFilters {
    * Ignored by metrics that don't support it.
    */
   window?: number;
+  /**
+   * Turno (shift) INPUT filter (Phase 132 D-10), supported ONLY by the metrics
+   * that carry a class schedule (trial funnel; frequency in plan 132-02). Restricts
+   * the cohort to bookings whose schedule `startTime` classifies to this turno via
+   * `classifyTurno` (mañana = [07,10), tarde = [17,20)). `"otro"` is NOT a
+   * selectable input value (the schema enum is ["manana","tarde"]) — it only exists
+   * as a breakdown bucket. Ignored by per-subscription metrics with no schedule.
+   */
+  turno?: TrialTurno;
 }

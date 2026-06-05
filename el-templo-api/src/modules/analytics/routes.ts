@@ -622,6 +622,8 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
       dateFrom?: string;
       dateTo?: string;
       window?: number;
+      planId?: number;
+      turno?: "manana" | "tarde";
     };
   }>(
     "/trial-funnel",
@@ -640,6 +642,8 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
           dateFrom: request.query.dateFrom,
           dateTo: request.query.dateTo,
           window: request.query.window,
+          planId: request.query.planId,
+          turno: request.query.turno,
         };
         const result = await trialFunnelService.getTrialFunnel(filters);
         return result;
