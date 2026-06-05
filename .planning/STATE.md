@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v5.1
 milestone_name: Nuevo Sistema de Entrenamiento
-status: verifying
+status: executing
 stopped_at: Phase 126 context gathered
-last_updated: "2026-06-05T01:40:29.104Z"
-last_activity: 2026-06-05
+last_updated: "2026-06-05T02:21:25.082Z"
+last_activity: 2026-06-05 -- Phase 126 planning complete
 progress:
   total_phases: 8
   completed_phases: 2
-  total_plans: 5
+  total_plans: 8
   completed_plans: 5
   percent: 25
 ---
@@ -27,8 +27,8 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 
 Phase: 125 (bootstrap-llm-revisi-n-de-profes-de-la-descomposici-n) — EXECUTING
 Plan: 3 of 3
-Status: Phase complete — ready for verification
-Last activity: 2026-06-05
+Status: Ready to execute
+Last activity: 2026-06-05 -- Phase 126 planning complete
 
 ## Performance Metrics
 

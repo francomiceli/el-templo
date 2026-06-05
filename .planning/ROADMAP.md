@@ -3068,7 +3068,12 @@ Plans:
 
 Plans:
 
+**Wave 1**
+
 - [ ] 126-01-PLAN.md — exercise_progressions table + migration 0139 (schema foundation)
+
+**Wave 2** _(blocked on Wave 1 completion)_
+
 - [ ] 126-02-PLAN.md — runRebuildProgressionGraph constructor (linear backbone, auto edges) + test
 - [ ] 126-03-PLAN.md — getNeighbor primitive (dl-adjacent same-effort neighbor) + test
 
