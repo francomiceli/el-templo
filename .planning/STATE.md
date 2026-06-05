@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v5.1
 milestone_name: Nuevo Sistema de Entrenamiento
-status: executing
-stopped_at: Phase 129 Plan 01 complete (kairos enum foundation)
-last_updated: "2026-06-05T05:01:06.813Z"
-last_activity: 2026-06-05 -- Phase 129 Plan 01 executed (kairos enum + level unions)
+status: Phase 129 code-complete on staging (not pushed); ready_for_verification; KAIROS-01/02/03 satisfied
+stopped_at: Phase 129 Plan 02 executed (kairos generation gate + unit test)
+last_updated: "2026-06-05T05:15:15.869Z"
+last_activity: 2026-06-05 -- Phase 129 Plan 02 executed (kairos generation gate at 4 pipeline points + unit-level gate test, Option B)
 progress:
   total_phases: 8
-  completed_phases: 5
-  total_plans: 16
+  completed_phases: 6
+  total_plans: 15
   completed_plans: 15
-  percent: 65
+  percent: 75
 ---
 
 # Project State
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 ## Current Position
 
 Phase: 129
-Plan: 01 complete (kairos enum foundation); next is Plan 02 (generation layer)
-Status: Plan 01 executed on staging (not pushed); KAIROS-01 satisfied
-Last activity: 2026-06-05 -- Phase 129 Plan 01 executed (kairos enum + migration 0140 + level unions)
+Plan: 02 complete (kairos generation gate + unit test); phase 129 code-complete, ready_for_verification
+Status: Phase 129 code-complete on staging (not pushed); ready_for_verification; KAIROS-01/02/03 satisfied
+Last activity: 2026-06-05 -- Phase 129 Plan 02 executed (kairos generation gate at 4 pipeline points + unit-level gate test, Option B)
 
 ## Performance Metrics
 
@@ -216,6 +216,7 @@ _Updated after each plan completion_
 | Phase 128 P02 | ~12min | 2 tasks | 7 files |
 | Phase 128 P03 | ~15min | 2 tasks | 5 files |
 | Phase 129 P01 | ~35min | 2 tasks | 18 files |
+| Phase 129 P02 | ~25min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -532,6 +533,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase 129]: 129-01: kairos->levelGroup alfa_delta via explicit switch case (D-02), no new LevelGroup; kairos reuses Alfa difficulty cap (3) + Alfa glyph (α) since it inherits Alfa content (D-03)
 - [Phase 129]: 129-01: introduced `ContentLevel = Exclude<ExerciseLevel,'kairos'>` + `toContentLevel()` (kairos->alfa) to separate member levels from the kairos-less exercises.level enum; encodes the D-03 inheritance once for Plan 02. completed_sessions.session_level widened in lock-step (presencial check-in snapshots users.level)
 - [Phase 129]: 129-01: local gates = API tsc + app/admin lint+build (vue-tsc absent); selector/preview UI NOT touched (deferred to phase 130). Executed on staging, NOT pushed
+- [Phase 129]: 129-02 (KAIROS-02/03): kairos generation gated behind isKairos(ctx.memberLevel) at 4 minimal pipeline points (stage-3 budget 2/block, stage-5 + INITIUM linear format Singlet/For Quality, stage-6 alfa-only dificultadLineal=1, INITIUM size 2); all branches pure-additive, non-kairos paths byte-identical (D-07). New queryFormatByName() in format-fallback.ts.
+- [Phase 129]: 129-02 Task 2 = Option B (orchestrator decision): full SPOM-seeded end-to-end generation is NOT CI-runnable here (SPOM CSVs git-ignored under .docs/, seedSPOM() mis-pathed), so the gate is proven at the unit level (mock DB + fallback modules, real gated functions) mirroring rom-generator.test.ts. test/unit/kairos-gate.test.ts covers isKairos + stage-3/5/6 + INITIUM + D-07 regression. tsc green. Executed on staging, NOT pushed — push to staging for CI to run the suite.
 
 ### Pending Todos
 
@@ -556,8 +559,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-05T03:45:44.327Z
-Stopped at: Phase 126 context gathered
+Last session: 2026-06-05T05:15:15.851Z
+Stopped at: Phase 129 Plan 02 executed (kairos generation gate + unit test); phase 129 ready_for_verification
 Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z

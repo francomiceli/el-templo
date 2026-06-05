@@ -2982,7 +2982,7 @@ _v5.0 added: 2026-06-03 — 4 phases (120-123), 35 requirements (FUND, CHURN, RE
 - [x] **Phase 126: Auto-construcción del grafo (DAG) de progresiones** — Grafo ramificado derivado del orden del SPOM/`dificultadLineal` + las 3 dimensiones; provee la primitiva "vecino un escalón arriba/abajo" que necesita el Eje 3. (completed 2026-06-05)
 - [x] **Phase 127: % de avance del árbol para el miembro** — El miembro ve su progreso por familia/nodo del árbol agrupado por categoría temática (Tracción/Empuje/Piernas/Core/Movilidad). (completed 2026-06-05)
 - [x] **Phase 128: Editor de árbol en el admin** — Sección nueva donde los profes reordenan ejercicios, agrupan/separan sub-familias y ajustan precedencias sobre el grafo ya construido. (3/3 plans executed, ready_for_verification — UAT visual diferida) (completed 2026-06-05)
-- [ ] **Phase 129: Nivel Kairos — enum, herencia de Alfa y formato lineal** — 5→6 niveles en API/app/admin + generación que hereda de Alfa (`difficulty=1`) con capa que fuerza formato solo lineal + 2 ej/bloque.
+- [x] **Phase 129: Nivel Kairos — enum, herencia de Alfa y formato lineal** — 5→6 niveles en API/app/admin + generación que hereda de Alfa (`difficulty=1`) con capa que fuerza formato solo lineal + 2 ej/bloque. (completed 2026-06-05)
 - [ ] **Phase 130: Asignación, graduación y selector de Kairos** — Default de alumno nuevo = Kairos + graduación automática por umbral + salto manual del coach + 6º recuadrito en el selector de nivel.
 - [ ] **Phase 131: Ajuste de dificultad in-session + registro de "dominado / bajado"** — Persistencia nueva de dominado/bajado por miembro (distinta del "completado" local + RPE, referenciada a nodos del árbol) + botones más fácil/más difícil en el player que sirven el vecino correcto del árbol conservando ruta/contracción/formato/dosis, alimentan el % y los ve el coach.
 
@@ -3166,7 +3166,7 @@ Plans:
 
 **Risks / notas:** Brownfield crítico — el enum toca `exercises.ts`, `users.ts`, `completed-sessions.ts`, `level-mapping.ts` y admin `constants/levels.ts`. El nivel ya funciona como override de lectura (`dayId = W{semana}-{día}-{nivel}`, Alfa ya es caso especial en `routes.ts`); los formatos Singlet/For Quality/lineal ya existen en la tabla `formats`. Decisiones abiertas diferidas: cómo aplica el "2 por bloque" al INITIUM (hoy fijo en 4) — ¿se baja a 2 o queda excluido?; mapeo kairos→levelGroup (probablemente alfa_delta); dosis lineales exactas (de los profes).
 
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 
 Plans:
 
@@ -3176,7 +3176,7 @@ Plans:
 
 **Wave 2** _(blocked on Wave 1 completion)_
 
-- [ ] 129-02-PLAN.md — KAIROS-02/03: kairos generation inherits Alfa (effectiveLevel alfa, dificultadLineal=1), forces linear format only + exactly 2 ex/block incl INITIUM, gated on memberLevel==='kairos' + regression/kairos integration tests
+- [x] 129-02-PLAN.md — KAIROS-02/03: kairos generation inherits Alfa (effectiveLevel alfa, dificultadLineal=1), forces linear format only + exactly 2 ex/block incl INITIUM, gated on memberLevel==='kairos' + regression/kairos integration tests
       **UI hint:** no (backend-first; enum + capa de generación; la UI del recuadrito va en la fase 130)
 
 ### Phase 130: Asignación, graduación y selector de Kairos
@@ -3238,7 +3238,7 @@ Plans:
 | 126. Auto-construcción del grafo (DAG)         | 3/3            | Complete    | 2026-06-05 |
 | 127. % de avance del árbol (miembro)           | 2/2            | Complete    | 2026-06-05 |
 | 128. Editor de árbol (admin)                   | 3/3            | Complete    | 2026-06-05 |
-| 129. Kairos — enum, herencia, formato lineal   | 1/2            | In Progress |            |
+| 129. Kairos — enum, herencia, formato lineal   | 2/2            | Complete    | 2026-06-05 |
 | 130. Kairos — asignación, graduación, selector | 0/TBD          | Not started | -          |
 | 131. Ajuste in-session + registro de dominado  | 0/TBD          | Not started | -          |
 
