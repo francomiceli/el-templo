@@ -52,7 +52,7 @@ Borrados **confirmados** (los reemplazan directo las 6 nuevas):
 - **D-16:** borrar la card **ARPU mensual** en `FinanzasAvanzadasTab.vue` (la reemplaza el nuevo Ticket promedio). **Conservar** el chart "Caja vs Devengado" de ese mismo tab.
 - **D-17:** borrar **FunnelTab.vue** completo (funnel fase 118 freemium→prueba→activo, hoy "coming soon") + su `<q-tab>`/`<q-tab-panel>` y estado/fetch en `AnaliticasPage.vue`. Lo reemplaza el nuevo Funnel de sesiones de prueba (reservó→asistió→compró).
 - **D-18:** borrar la card simple **"Tasa de retención"** en `MiembrosTab.vue` (se duplica con churn+renovación nuevos).
-- **D-19:** borrar el archivo huérfano **AsistenciaTab.vue** (código muerto de fase 117, nunca renderizado) como higiene.
+- **D-19 — CANCELADO (2026-06-05, premisa falsa).** NO borrar `AsistenciaTab.vue`. La premisa original ("huérfano / nunca renderizado") es incorrecta: el archivo está **vivo**, importado y renderizado en `ReportesPage.vue` (import L757, render L193) como el tab de Asistencia que la **fase 117 movió a Reportes**. También referenciado en `chart-colors.ts`. Conservar tal cual; borrarlo rompería ReportesPage. Verificado por grep + decisión de Nacho.
 
 Borrados **descartados** (se conservan — las 6 nuevas NO los cubren):
 
