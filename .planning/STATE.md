@@ -4,14 +4,14 @@ milestone: v5.1
 milestone_name: Nuevo Sistema de Entrenamiento
 status: verifying
 stopped_at: Phase 126 context gathered
-last_updated: "2026-06-05T03:38:01.318Z"
+last_updated: "2026-06-05T03:45:59.450Z"
 last_activity: 2026-06-05
 progress:
   total_phases: 8
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 10
-  completed_plans: 9
-  percent: 38
+  completed_plans: 10
+  percent: 50
 ---
 
 # Project State
@@ -209,6 +209,7 @@ _Updated after each plan completion_
 | Phase 126 P02 | 6min | 2 tasks | 2 files |
 | Phase 126 P03 | 5min | 2 tasks | 2 files |
 | Phase 127 P01 | 22min | 3 tasks | 8 files |
+| Phase 127 P02 | ~25min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -520,6 +521,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: 127-01: reached proxy = (dl <= level ceiling) OR (exerciseId in completed sessions via session_prescriptions); branch b active, replaceable by 131 dominado registry
 - [Phase ?]: 127-01: tree grouping by exercises.pattern collapsed to 5 categories (Traccion/Empuje/Piernas/Core/Movilidad); KL/CARDIO/PLYO->Piernas, FLOW->Movilidad, empty->Movilidad fallback with warn log
 - [Phase ?]: 127-01: GET /api/tree-progress/me member-scoped to request.user.userId; node set = 126 DAG scope predicate; all 5 categories always render
+- [Phase ?]: 127-02: Mi Árbol member view (/mi-arbol) renders GET /tree-progress/me verbatim — render-only, server % (D-05); local gate = lint+quasar build (no vue-tsc in app); human-verify DEFERRED to HUMAN-UAT
 
 ### Pending Todos
 
@@ -544,7 +546,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-05T03:37:32.675Z
+Last session: 2026-06-05T03:45:44.327Z
 Stopped at: Phase 126 context gathered
 Resume file: None
 

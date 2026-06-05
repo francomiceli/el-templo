@@ -2980,7 +2980,7 @@ _v5.0 added: 2026-06-03 — 4 phases (120-123), 35 requirements (FUND, CHURN, RE
 - [x] **Phase 124: Estructura de datos de las 3 dimensiones + saneo** — Esquema gesto/palanca/contracción separado del `position` sucio + saneo del catálogo (~103 sin ruta, duplicados, `position` que mezcla 3 conceptos). Bedrock del milestone. (completed 2026-06-05)
 - [x] **Phase 125: Bootstrap heurístico + revisión de profes de la descomposición** — Proceso heurístico (sin API) que propone sub-familia/palanca/ruta-pendiente por nombre+ruta, con salida revisable (tabla `exercise_dimension_proposals`) que los profes aceptan/corrigen/rechazan en una tabla filtrable del admin antes de fijarla como verdad. (completed 2026-06-05)
 - [x] **Phase 126: Auto-construcción del grafo (DAG) de progresiones** — Grafo ramificado derivado del orden del SPOM/`dificultadLineal` + las 3 dimensiones; provee la primitiva "vecino un escalón arriba/abajo" que necesita el Eje 3. (completed 2026-06-05)
-- [ ] **Phase 127: % de avance del árbol para el miembro** — El miembro ve su progreso por familia/nodo del árbol agrupado por categoría temática (Tracción/Empuje/Piernas/Core/Movilidad).
+- [x] **Phase 127: % de avance del árbol para el miembro** — El miembro ve su progreso por familia/nodo del árbol agrupado por categoría temática (Tracción/Empuje/Piernas/Core/Movilidad). (completed 2026-06-05)
 - [ ] **Phase 128: Editor de árbol en el admin** — Sección nueva donde los profes reordenan ejercicios, agrupan/separan sub-familias y ajustan precedencias sobre el grafo ya construido.
 - [ ] **Phase 129: Nivel Kairos — enum, herencia de Alfa y formato lineal** — 5→6 niveles en API/app/admin + generación que hereda de Alfa (`difficulty=1`) con capa que fuerza formato solo lineal + 2 ej/bloque.
 - [ ] **Phase 130: Asignación, graduación y selector de Kairos** — Default de alumno nuevo = Kairos + graduación automática por umbral + salto manual del coach + 6º recuadrito en el selector de nivel.
@@ -3098,7 +3098,7 @@ Plans:
 
 **Risks / notas:** Decisiones abiertas diferidas a `discuss-phase` — agrupación visible `category` (fina, ~22) vs `pattern` (gruesa, ~9); eje transversal estático/dinámico como atributo/filtro (no categoría paralela). En esta fase el % se calcula sobre el avance ya conocido (nivel + sesiones); el registro de "dominado" y el ajuste in-session de la fase 131 lo enriquecen y cierran el lazo después. Mapeo ruta→categoría es casi 1:1 con `pattern`.
 
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 
 Plans:
 
@@ -3108,7 +3108,7 @@ Plans:
 
 **Wave 2** _(blocked on Wave 1 completion)_
 
-- [ ] 127-02-PLAN.md — Member app: types + composable + store + Mi Árbol view (5 thematic category sections with per-family %), render-only
+- [x] 127-02-PLAN.md — Member app: types + composable + store + Mi Árbol view (5 thematic category sections with per-family %), render-only
 
 **UI hint:** yes
 
@@ -3215,7 +3215,7 @@ Plans:
 | 124. Estructura 3 dimensiones + saneo          | 2/2            | Complete    | 2026-06-05 |
 | 125. Bootstrap heurístico + revisión de profes | 3/3            | Complete    | 2026-06-05 |
 | 126. Auto-construcción del grafo (DAG)         | 3/3            | Complete    | 2026-06-05 |
-| 127. % de avance del árbol (miembro)           | 1/2            | In Progress |            |
+| 127. % de avance del árbol (miembro)           | 2/2            | Complete    | 2026-06-05 |
 | 128. Editor de árbol (admin)                   | 0/TBD          | Not started | -          |
 | 129. Kairos — enum, herencia, formato lineal   | 0/TBD          | Not started | -          |
 | 130. Kairos — asignación, graduación, selector | 0/TBD          | Not started | -          |
