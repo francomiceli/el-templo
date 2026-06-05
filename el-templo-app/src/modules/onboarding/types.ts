@@ -342,12 +342,15 @@ export function lookupReflect(key: QuizKeyV2, value: string): string | null {
 export type TemploLevel = 'kairos' | 'alfa' | 'delta' | 'sigma' | 'omega' | 'spartan'
 
 // Spartan intentionally excluded: earned/assigned, not self-claimed during onboarding.
-// Kairos likewise is assigned (entry tier), not self-claimed here — the onboarding
-// selector UI is phase 130. TemploLevel retains both for DB/API/admin parity.
+// Phase 130 (KAIROS-07, D-04): Kairos added FIRST as the entry-tier box. Kairos is the
+// auto-assigned default level for new members; surfacing it first lets an absolute
+// beginner self-identify as Kairos (kairos→alfa→delta→sigma→omega order). The glyph 'α'
+// and name parity mirror level-display.ts (Phase 129) — do not redefine here.
 export const LEVEL_SELECTOR_QUESTION: QuizQuestionV2 = {
   key: 'trainingBackground', // reuses key slot for component compatibility
   text: '¿En qué nivel entrenás?',
   options: [
+    { value: 'kairos', label: 'α Kairos' },
     { value: 'alfa', label: 'α Alfa' },
     { value: 'delta', label: 'Δ Delta' },
     { value: 'sigma', label: 'Σ Sigma' },
