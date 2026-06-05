@@ -512,14 +512,17 @@ export class TreeEditorService {
     }
 
     const nodes = await this.loadGraphNodes();
-    const nodeIds = new Set(nodes.map((n) => n.exerciseId));
-    if (!nodeIds.has(fromExerciseId)) {
+    const nodeById = new Map<number, NodeRow>();
+    for (const n of nodes) nodeById.set(n.exerciseId, n);
+    const fromNode = nodeById.get(fromExerciseId);
+    const toNode = nodeById.get(toExerciseId);
+    if (!fromNode) {
       throw new TreeEditorError(
         `El ejercicio ${fromExerciseId} no es un nodo del grafo`,
         404,
       );
     }
-    if (!nodeIds.has(toExerciseId)) {
+    if (!toNode) {
       throw new TreeEditorError(
         `El ejercicio ${toExerciseId} no es un nodo del grafo`,
         404,
@@ -527,6 +530,22 @@ export class TreeEditorService {
     }
 
     if (op === "add") {
+      // D-04 boundary: a precedence/cross-edge MUST connect two DIFFERENT
+      // (subfamily × effort) partitions. A same-partition manual edge is a
+      // reorder/chain concern (D-03), and writing one here would (a) lock the
+      // partition's auto backbone in rebuild (readManualEdgePartitions) and
+      // (b) coexist with the auto backbone → getNeighbor ambiguity. Reject it
+      // so reorderPartition stays the only path that locks a partition.
+      if (
+        fromNode.subfamilyId === toNode.subfamilyId &&
+        fromNode.effort === toNode.effort
+      ) {
+        throw new TreeEditorError(
+          "Una arista de precedencia debe cruzar particiones; " +
+            "use reordenar para cambiar el orden dentro de una particion",
+        );
+      }
+
       const existing = await this.db
         .select({ id: schema.exerciseProgressions.id })
         .from(schema.exerciseProgressions)

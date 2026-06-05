@@ -426,6 +426,29 @@ describe("tree-editor admin routes (Phase 128 Plan 02)", () => {
     expect(res.statusCode).toBe(400);
   });
 
+  it("POST /precedence rejects a SAME-partition add with 400 and writes nothing (WR-01)", async () => {
+    const { a1, a5 } = await seedGraph();
+    const before = await getEdges();
+
+    // a1 and a5 live in the SAME (subfamily A × CON) partition. A precedence
+    // edge here would falsely lock the partition's auto backbone in rebuild and
+    // collide with the auto chain in getNeighbor — reorder owns same-partition
+    // ordering (D-03/D-04). It must be rejected at the service boundary.
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/admin/tree-editor/precedence",
+      headers: authHeaders(coachToken),
+      payload: { fromExerciseId: a1, toExerciseId: a5, op: "add" },
+    });
+    expect(res.statusCode).toBe(400);
+
+    // Nothing was written: the edge set is byte-identical to before the call,
+    // and in particular no manual a1→a5 row exists.
+    const after = await getEdges();
+    expect(after).toEqual(before);
+    expect(after).not.toContainEqual({ from: a1, to: a5, source: "manual" });
+  });
+
   it("POST /precedence remove never deletes an auto edge", async () => {
     const { a1, a3 } = await seedGraph();
     // a1→a3 exists as auto; remove must be a no-op on auto edges.
