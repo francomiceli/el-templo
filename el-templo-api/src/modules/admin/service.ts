@@ -88,9 +88,7 @@ export class AdminSessionService {
     } else if (filter.goalPlanType === "notnull") {
       conditions.push(isNotNull(schema.sessions.goalPlanType));
     } else if (filter.goalPlanType) {
-      conditions.push(
-        eq(schema.sessions.goalPlanType, filter.goalPlanType),
-      );
+      conditions.push(eq(schema.sessions.goalPlanType, filter.goalPlanType));
     }
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
@@ -170,8 +168,7 @@ export class AdminSessionService {
       const routesSummary = sessionBlocks
         .map((b) => {
           // ROM blocks show zone display names
-          if (b.role.startsWith("ROM_"))
-            return ROM_DISPLAY[b.role] || b.role;
+          if (b.role.startsWith("ROM_")) return ROM_DISPLAY[b.role] || b.role;
           if (b.role === "INITIUM") return "I";
           let label = b.role.charAt(0);
           if (b.role === "DEUTEROS_1") label = "D1";
@@ -314,11 +311,7 @@ export class AdminSessionService {
    * Batch fetch all session details for a given week+day (eliminates N+1).
    * Returns fully hydrated sessions sorted by memberLevel.
    */
-  async getDaySessionDetails(
-    week: number,
-    day: string,
-    goalPlanType?: string,
-  ) {
+  async getDaySessionDetails(week: number, day: string, goalPlanType?: string) {
     // 1. Get all sessions for this week+day, optionally filtered by goalPlanType
     const conditions = [
       eq(schema.sessions.week, week),
@@ -655,9 +648,7 @@ export class AdminSessionService {
 
     // Import SessionGeneratorService dynamically to avoid circular deps
     const { SessionGeneratorService } = await import("../sessions/service.js");
-    const { generateRomSession } = await import(
-      "../sessions/rom-generator.js"
-    );
+    const { generateRomSession } = await import("../sessions/rom-generator.js");
     const sessionService = new SessionGeneratorService(this.db);
 
     // Load day modes for ROM routing (per D-17)
@@ -712,10 +703,19 @@ export class AdminSessionService {
         | undefined;
 
       for (const levelGroup of levelGroups) {
-        // Map levelGroup to memberLevels
+        // Map levelGroup to memberLevels.
+        // WR-01: kairos is materialized in the alfa_delta group so a
+        // `W{week}-{day}-kairos` session exists for kairos members to read
+        // (routes.ts builds that dayId; without generation it would 404). It is
+        // listed LAST so alfa generates first and defines `sharedFormats`
+        // (cross-level format consistency) for alfa/delta exactly as before —
+        // D-07: alfa/delta generation is byte-unchanged. The non-linear
+        // sharedFormats forced onto the kairos session are overridden back to
+        // the linear format inside runBlockPipeline (WR-02 gate), so the kairos
+        // session still comes out linear (D-04).
         const memberLevels: ExerciseLevel[] =
           levelGroup === "alfa_delta"
-            ? ["alfa", "delta"]
+            ? ["alfa", "delta", "kairos"]
             : levelGroup === "sigma"
               ? ["sigma"]
               : ["omega", "spartan"];
