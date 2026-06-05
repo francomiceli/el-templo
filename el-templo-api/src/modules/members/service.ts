@@ -1048,18 +1048,25 @@ export class MemberService {
         input.emergencyContactRelationship;
     if (input.branchId !== undefined) updateData.branchId = input.branchId;
     if (input.level !== undefined) {
-      updateData.level = input.level as
+      const newLevel = input.level as
         | "kairos"
         | "alfa"
         | "delta"
         | "sigma"
         | "omega"
         | "spartan";
-      // Phase 130 (KAIROS-06, D-03): a coach manually changing the level is a
-      // sticky decision. Set level_override=true so auto-graduation (Plan 02)
-      // never reverts it. Only set on a level change — a non-level edit (phone,
-      // name, etc.) leaves the flag untouched (D-05 invariant).
-      updateData.levelOverride = true;
+      updateData.level = newLevel;
+      // Phase 130 (KAIROS-06, D-03/D-05): a coach manually CHANGING the level is
+      // a sticky decision — set level_override=true so auto-graduation (Plan 02)
+      // never reverts it. We must gate on an actual value change, not on
+      // input.level being present: the admin edit form always sends the
+      // member's current level alongside unrelated field edits (phone, DNI,
+      // name), so keying off presence would poison the flag on every routine
+      // edit and permanently kill auto-graduation (CR-01). When the level is
+      // sent but unchanged, leave the flag untouched.
+      if (newLevel !== existing.level) {
+        updateData.levelOverride = true;
+      }
     }
 
     // Write-once email: only set it when the member has none yet (trial →
