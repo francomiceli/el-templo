@@ -3211,7 +3211,7 @@ Plans:
 
 **Wave 2** _(blocked on Wave 1 completion)_
 
-- [ ] 130-02-PLAN.md — Auto-graduation kairos→alfa (threshold constant + GraduationService wired into 3 completion paths) + tests (KAIROS-05)
+- [x] 130-02-PLAN.md — Auto-graduation kairos→alfa (KAIROS_GRADUATION_THRESHOLD=12 + GraduationService one-way, skips level_override, wired into 3 completion paths, no cron) + 5 tests (KAIROS-05)
 - [ ] 130-03-PLAN.md — Admin selector: Kairos box in MemberFormDialog + AlumnosPage/AlumnoDetailPage glyph/name/color/filter (KAIROS-07)
 - [ ] 130-04-PLAN.md — App selector: Kairos in onboarding self-pick (decision) + header dropdown verification (KAIROS-07)
       **UI hint:** yes

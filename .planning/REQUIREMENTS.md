@@ -47,8 +47,8 @@
 - [x] **KAIROS-02**: La generación de sesión Kairos hereda de Alfa, tomando los ejercicios Alfa de `difficulty = 1` (el escalón más fácil) mientras no haya contenido propio de Kairos.
 - [x] **KAIROS-03**: Las sesiones Kairos fuerzan, sobre el esqueleto de bloques normal, formato **solo lineal** (sets×reps) con exactamente **2 ejercicios por bloque** (sin EMOM/AMRAP/circuitos/complejos).
 - [x] **KAIROS-04**: Los alumnos nuevos arrancan en Kairos por defecto (cambia el default de `users.level` de `alfa` a `kairos`).
-- [ ] **KAIROS-05**: Un alumno gradúa automáticamente de Kairos a Alfa al cumplir un umbral configurable de sesiones completadas.
-- [ ] **KAIROS-06**: El coach puede saltar manualmente a un alumno de nivel, anulando la graduación automática.
+- [x] **KAIROS-05**: Un alumno gradúa automáticamente de Kairos a Alfa al cumplir un umbral configurable de sesiones completadas.
+- [x] **KAIROS-06**: El coach puede saltar manualmente a un alumno de nivel, anulando la graduación automática.
 - [ ] **KAIROS-07**: El selector de nivel muestra el 6º recuadrito (Kairos) en app y admin sin romper el layout (scroll/paginado donde haga falta).
 
 ### Eje 3 — Ajuste de dificultad in-session (ADJUST)
@@ -92,8 +92,8 @@
 | KAIROS-02   | Phase 129 | Complete |
 | KAIROS-03   | Phase 129 | Complete |
 | KAIROS-04   | Phase 130 | Done     |
-| KAIROS-05   | Phase 130 | Pending  |
-| KAIROS-06   | Phase 130 | Pending  |
+| KAIROS-05   | Phase 130 | Done     |
+| KAIROS-06   | Phase 130 | Done     |
 | KAIROS-07   | Phase 130 | Pending  |
 | ADJUST-01   | Phase 131 | Pending  |
 | ADJUST-02   | Phase 131 | Pending  |
