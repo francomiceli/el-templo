@@ -112,6 +112,16 @@
         :total-sessions="progressionStore.stats?.totalSessions ?? 0"
       />
 
+      <!-- Mi Árbol — entry point into the skill-tree advancement view (Phase 127) -->
+      <button class="mi-arbol-card" @click="goToMiArbol">
+        <q-icon name="park" class="mi-arbol-card__icon" />
+        <span class="mi-arbol-card__text">
+          <span class="mi-arbol-card__title">Mi Árbol</span>
+          <span class="mi-arbol-card__subtitle">Tu avance por cada familia de ejercicios</span>
+        </span>
+        <q-icon name="chevron_right" class="mi-arbol-card__chevron" />
+      </button>
+
       <!-- Existing stats, RPE trend, and evaluation sections -->
       <GeneralContent
         :rpe-trend="progressionStore.rpeTrend"
@@ -172,6 +182,10 @@ const programProgress = ref<MemberEnrollmentProgress | null>(null)
 const checkInsRowRef = ref<HTMLElement | null>(null)
 const premiumScroller = ref<HTMLElement | null>(null) as Ref<HTMLElement | null>
 const premiumSlide = ref(0)
+
+function goToMiArbol() {
+  void router.push('/mi-arbol')
+}
 
 function scrollCheckIns(direction: 'left' | 'right') {
   const el = checkInsRowRef.value
@@ -438,6 +452,56 @@ onMounted(async () => {
     max-width: 280px;
     flex-shrink: 0;
     scroll-snap-align: start;
+  }
+}
+
+// Mi Árbol entry-point card (Phase 127)
+.mi-arbol-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 16px;
+  border: 1px solid rgba($secondary, 0.25);
+  border-radius: 12px;
+  background-color: white;
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 0.15s ease;
+
+  &:hover {
+    background-color: rgba($secondary, 0.06);
+  }
+
+  &__icon {
+    font-size: 28px;
+    color: $secondary;
+    flex-shrink: 0;
+  }
+
+  &__text {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+  }
+
+  &__title {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    color: $primary;
+  }
+
+  &__subtitle {
+    font-size: 13px;
+    color: rgba($accent, 0.7);
+  }
+
+  &__chevron {
+    font-size: 22px;
+    color: rgba($secondary, 0.6);
+    flex-shrink: 0;
   }
 }
 
