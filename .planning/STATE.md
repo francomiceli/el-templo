@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v5.1
 milestone_name: Nuevo Sistema de Entrenamiento
 status: verifying
-stopped_at: Completed 124-02-PLAN.md
-last_updated: "2026-06-05T00:18:35.335Z"
+stopped_at: Phase 125 context gathered
+last_updated: "2026-06-05T00:43:46.291Z"
 last_activity: 2026-06-05
 progress:
   total_phases: 8
@@ -527,8 +527,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-05T00:18:35.316Z
-Stopped at: Completed 124-02-PLAN.md
-Resume file: None
+Last session: 2026-06-05T00:43:46.270Z
+Stopped at: Phase 125 context gathered
+Resume file: .planning/phases/125-bootstrap-llm-revisi-n-de-profes-de-la-descomposici-n/125-CONTEXT.md
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
