@@ -7,6 +7,8 @@
  *   3. Override skips: kairos + override=true + ≥THRESHOLD sessions → kairos.
  *   4. One-way: alfa + ≥THRESHOLD sessions → alfa (never demoted/re-evaluated).
  *   5. Idempotent: a second call on an already-graduated alfa member is a no-op.
+ *   6. Per-day dedup: graduation counts DISTINCT training-days, so two
+ *      completions on the SAME date count as one toward the threshold (WR-02).
  *
  * The service is exercised directly (no HTTP), seeding users.level /
  * level_override and completed_sessions straight through the DB. Runs in CI
@@ -60,8 +62,9 @@ describe("Phase 130 - kairos auto-graduation", () => {
     return userId;
   }
 
-  // Seed `n` completed_sessions rows for a member. Each gets a distinct dayId so
-  // they are independent completion rows.
+  // Seed `n` completed_sessions rows for a member, each on a DISTINCT training
+  // day. Graduation counts COUNT(DISTINCT date) (WR-02), so distinct dates are
+  // what move a member toward the threshold. Each row also gets a distinct dayId.
   async function seedCompletedSessions(
     userId: number,
     n: number,
@@ -71,7 +74,9 @@ describe("Phase 130 - kairos auto-graduation", () => {
       userId,
       dayId: `grad-W${i + 1}-lunes-kairos`,
       sessionLevel: "kairos" as const,
-      date: "2026-06-01",
+      // Distinct YYYY-MM-DD per row (2026-06-01, 02, 03, ...) so each counts as
+      // its own training day.
+      date: distinctDate(i),
       branchId: 1,
       startedAt: now,
       completedAt: now,
@@ -80,6 +85,14 @@ describe("Phase 130 - kairos auto-graduation", () => {
     if (rows.length > 0) {
       await app.db.insert(completedSessions).values(rows);
     }
+  }
+
+  // 0-based index -> a distinct YYYY-MM-DD starting at 2026-06-01. Enough range
+  // for any plausible threshold.
+  function distinctDate(i: number): string {
+    const base = new Date(Date.UTC(2026, 5, 1)); // 2026-06-01 UTC
+    base.setUTCDate(base.getUTCDate() + i);
+    return base.toISOString().slice(0, 10);
   }
 
   async function readLevel(userId: number): Promise<string | undefined> {
@@ -160,6 +173,55 @@ describe("Phase 130 - kairos auto-graduation", () => {
     expect(await readLevel(userId)).toBe("alfa");
 
     // Second call: still alfa, no error, no change.
+    await service.maybeGraduateKairos(userId);
+    expect(await readLevel(userId)).toBe("alfa");
+  });
+
+  // Test 6 (WR-02): graduation counts DISTINCT training-days, not raw rows. The
+  // attendance presencial mirror can insert several completed_sessions rows on
+  // the same date (coach re-check-in, force check-in, waitlist promotion +
+  // manual check-in), so two completions on ONE day must count as a single day
+  // toward the threshold — otherwise a member graduates early.
+  it("counts two same-date completions as one day toward the threshold", async () => {
+    const userId = await makeMember({
+      email: "grad-sameday@test.com",
+      level: "kairos",
+      levelOverride: false,
+    });
+
+    // Seed THRESHOLD-1 DISTINCT days, then add a duplicate row on the very last
+    // day. Raw COUNT(*) would be THRESHOLD (and wrongly graduate); COUNT(DISTINCT
+    // date) is THRESHOLD-1, so the member must stay kairos.
+    await seedCompletedSessions(userId, KAIROS_GRADUATION_THRESHOLD - 1);
+    const now = new Date();
+    const lastDay = distinctDate(KAIROS_GRADUATION_THRESHOLD - 2);
+    await app.db.insert(completedSessions).values({
+      userId,
+      dayId: `grad-dup-${lastDay}-kairos`,
+      sessionLevel: "kairos" as const,
+      date: lastDay, // same date as the last seeded day
+      branchId: 1,
+      startedAt: now,
+      completedAt: now,
+      blocksCompleted: ["NUCLEUS"],
+    });
+
+    await service.maybeGraduateKairos(userId);
+    expect(await readLevel(userId)).toBe("kairos");
+
+    // Adding ONE more genuinely distinct day reaches THRESHOLD distinct days and
+    // now graduates — confirming the duplicate above was the only thing held back.
+    await app.db.insert(completedSessions).values({
+      userId,
+      dayId: `grad-extra-kairos`,
+      sessionLevel: "kairos" as const,
+      date: distinctDate(KAIROS_GRADUATION_THRESHOLD - 1),
+      branchId: 1,
+      startedAt: now,
+      completedAt: now,
+      blocksCompleted: ["NUCLEUS"],
+    });
+
     await service.maybeGraduateKairos(userId);
     expect(await readLevel(userId)).toBe("alfa");
   });

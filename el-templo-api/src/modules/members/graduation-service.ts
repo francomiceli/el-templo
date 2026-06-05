@@ -53,11 +53,20 @@ export class GraduationService {
     // Sticky coach override: a manual placement is never reverted (D-03).
     if (member.levelOverride) return;
 
-    // Total completed sessions across all levels (graduation is on lifetime
-    // completion volume, not per-level). Mirrors the COUNT pattern in
-    // MemberService.getSessionLevelCounts.
+    // Distinct training-DAYS completed across all levels (graduation is on
+    // lifetime days trained, not raw row volume). We count DISTINCT date — not
+    // COUNT(*) — because the attendance presencial mirror can insert multiple
+    // completed_sessions rows for the same day (coach re-check-in, force
+    // check-in, waitlist promotion + manual check-in), which would otherwise
+    // inflate the count and graduate a member before THRESHOLD distinct days
+    // (WR-02). DISTINCT date also matches the "12 sessions ≈ 1 month at 3×/week"
+    // intent and the "days trained" stat in sessions/routes.ts.
     const [countRow] = await this.db
-      .select({ count: sql<number>`COUNT(*)`.as("count") })
+      .select({
+        count: sql<number>`COUNT(DISTINCT ${schema.completedSessions.date})`.as(
+          "count",
+        ),
+      })
       .from(schema.completedSessions)
       .where(eq(schema.completedSessions.userId, userId));
 
