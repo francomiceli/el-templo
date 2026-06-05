@@ -29,6 +29,7 @@ import {
   type CompleteSessionInput,
 } from "./schemas";
 import type { LevelGroup, DaySession, ExerciseLevel } from "./types";
+import { isKairos } from "./pipeline/utils/kairos";
 import { AuraService } from "../aura/service";
 import { StreakService } from "../streaks";
 import { ProgramsService } from "../programs/service";
@@ -430,7 +431,12 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
           .from(schema.dayModes)
           .where(eq(schema.dayModes.dayOfWeek, dayNumber));
         if (dayModeRow?.sessionMode === "rom") {
-          effectiveLevel = memberLevel === "alfa" ? "alfa" : "delta";
+          // WR-04 / D-03: kairos inherits Alfa, so on ROM days a kairos member
+          // reads the alfa ROM variant (not delta). Mapping non-alfa→delta
+          // would hand kairos a full delta ROM session, breaking the "kairos
+          // always trains ultra-simple" promise.
+          effectiveLevel =
+            memberLevel === "alfa" || isKairos(memberLevel) ? "alfa" : "delta";
         }
       }
 
@@ -543,8 +549,9 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
         if (dayName !== "domingo") {
           const dayNum = DAY_NAME_TO_NUMBER[dayName];
           const isRomDay = dayNum ? romDayNumbers.has(dayNum) : false;
+          // WR-04 / D-03: kairos inherits Alfa → alfa ROM variant on ROM days.
           const effectiveLevel = isRomDay
-            ? memberLevel === "alfa"
+            ? memberLevel === "alfa" || isKairos(memberLevel)
               ? "alfa"
               : "delta"
             : memberLevel;
@@ -571,8 +578,9 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
         }
         const dayNum = DAY_NAME_TO_NUMBER[dayName];
         const isRomDay = dayNum ? romDayNumbers.has(dayNum) : false;
+        // WR-04 / D-03: kairos inherits Alfa → alfa ROM variant on ROM days.
         const effectiveLevel = isRomDay
-          ? memberLevel === "alfa"
+          ? memberLevel === "alfa" || isKairos(memberLevel)
             ? "alfa"
             : "delta"
           : memberLevel;
