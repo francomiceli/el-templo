@@ -66,6 +66,29 @@ describe("GET /api/tree-progress/me", () => {
       .values({ fromExerciseId: fromId, toExerciseId: toId, source: "auto" });
   }
 
+  /**
+   * Seed a single exercise_adjustments row for the latest-dominado seam (phase
+   * 131, ADJUST-04). `createdAt` is explicit so the latest-wins ordering is
+   * deterministic across rows.
+   */
+  async function seedAdjustment(opts: {
+    memberId: number;
+    exerciseId: number;
+    toExerciseId: number;
+    status: "dominado" | "bajado";
+    createdAt: Date;
+  }): Promise<void> {
+    await app.db.insert(schema.exerciseAdjustments).values({
+      memberId: opts.memberId,
+      exerciseId: opts.exerciseId,
+      toExerciseId: opts.toExerciseId,
+      status: opts.status,
+      dayId: "W1-lunes-sigma",
+      date: "2026-06-05",
+      createdAt: opts.createdAt,
+    });
+  }
+
   async function setLevel(
     userId: number,
     level: "alfa" | "delta" | "sigma" | "omega" | "spartan",
@@ -192,8 +215,10 @@ describe("GET /api/tree-progress/me", () => {
 
   beforeEach(async () => {
     await cleanAllTestData(app);
-    // exercise_subfamilies / exercise_progressions are not in cleanAllTestData;
-    // wipe them so each test starts from an empty graph.
+    // exercise_adjustments / exercise_subfamilies / exercise_progressions are
+    // not in cleanAllTestData; wipe them so each test starts from an empty
+    // graph. Adjustments first (FK → exercises/users).
+    await app.db.delete(schema.exerciseAdjustments);
     await app.db.delete(schema.exerciseProgressions);
     await app.db.delete(schema.exerciseSubfamilies);
   });
@@ -324,5 +349,114 @@ describe("GET /api/tree-progress/me", () => {
     const subB = findCategory(bodyB, "Tracción").subfamilies[0];
     expect(subB.reachedNodes).toBe(1);
     expect(subB.percent).toBe(33);
+  });
+
+  // ── Phase 131 (ADJUST-04): latest-dominado enriches "reached" ─────────────
+
+  it("A — a latest 'dominado' record marks an above-ceiling node as reached", async () => {
+    const { bNodes } = await seedGraph();
+    const reg = await registerUser(app, {
+      email: `tree-dominado-${Date.now()}@test.com`,
+      password: "password123",
+      branchId: 1,
+    });
+    const memberId = (reg.user as { id: number }).id;
+    // alfa ceiling = 3 → in Empuje, dl1 reached by ceiling, dl9 NOT.
+    await setLevel(memberId, "alfa");
+
+    // The member dominated the dl9 node (above ceiling, no completed session).
+    await seedAdjustment({
+      memberId,
+      exerciseId: bNodes[1], // dl9
+      toExerciseId: bNodes[0],
+      status: "dominado",
+      createdAt: new Date("2026-06-05T10:00:00Z"),
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/tree-progress/me",
+      headers: { authorization: `Bearer ${reg.token}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    const empuje = findCategory(body, "Empuje");
+    const subB = empuje.subfamilies[0];
+
+    // Both dl1 (ceiling) and dl9 (dominado) now reached → 100%.
+    const b9 = subB.nodes.find((n) => n.exerciseId === bNodes[1]);
+    expect(b9?.reached).toBe(true);
+    expect(subB.reachedNodes).toBe(2);
+    expect(subB.totalNodes).toBe(2);
+    expect(subB.percent).toBe(100);
+  });
+
+  it("B — latest record wins: a 'bajado' after a 'dominado' un-counts the node", async () => {
+    const { bNodes } = await seedGraph();
+    const reg = await registerUser(app, {
+      email: `tree-latest-${Date.now()}@test.com`,
+      password: "password123",
+      branchId: 1,
+    });
+    const memberId = (reg.user as { id: number }).id;
+    await setLevel(memberId, "alfa"); // ceiling 3 → dl9 not reached by proxy
+
+    // Earlier dominado, then a LATER bajado for the same node → latest is bajado.
+    await seedAdjustment({
+      memberId,
+      exerciseId: bNodes[1], // dl9
+      toExerciseId: bNodes[0],
+      status: "dominado",
+      createdAt: new Date("2026-06-05T10:00:00Z"),
+    });
+    await seedAdjustment({
+      memberId,
+      exerciseId: bNodes[1], // dl9
+      toExerciseId: bNodes[0],
+      status: "bajado",
+      createdAt: new Date("2026-06-05T11:00:00Z"),
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/tree-progress/me",
+      headers: { authorization: `Bearer ${reg.token}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    const subB = findCategory(body, "Empuje").subfamilies[0];
+
+    // dl9's latest record is bajado → NOT reached. Only dl1 (ceiling) counts.
+    const b9 = subB.nodes.find((n) => n.exerciseId === bNodes[1]);
+    expect(b9?.reached).toBe(false);
+    expect(subB.reachedNodes).toBe(1);
+    expect(subB.percent).toBe(50);
+  });
+
+  it("C — the level-ceiling proxy still marks nodes reached with no adjustment records (no regression)", async () => {
+    const { aNodes } = await seedGraph();
+    const reg = await registerUser(app, {
+      email: `tree-noreg-${Date.now()}@test.com`,
+      password: "password123",
+      branchId: 1,
+    });
+    const memberId = (reg.user as { id: number }).id;
+    // sigma ceiling = 8 → Tracción dl2,5,8 all reached purely by ceiling.
+    await setLevel(memberId, "sigma");
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/tree-progress/me",
+      headers: { authorization: `Bearer ${reg.token}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    const subA = findCategory(body, "Tracción").subfamilies[0];
+    expect(subA.totalNodes).toBe(aNodes.length);
+    expect(subA.reachedNodes).toBe(3);
+    expect(subA.percent).toBe(100);
   });
 });

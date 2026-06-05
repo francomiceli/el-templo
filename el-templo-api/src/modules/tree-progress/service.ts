@@ -13,9 +13,9 @@
  * Subfamilies that own zero such nodes are omitted. Every node maps to a
  * subfamily (subfamily_id) and to a category via patternToCategory(pattern).
  *
- * REACHED PROXY (D-03, documented + replaceable by phase 131's "dominado"
- * registry without rewriting this view):
- *   A node is "reached" iff EITHER
+ * REACHED PROXY (D-03; AUGMENTED — not replaced — by phase 131's "dominado"
+ * registry, D-05/D-06):
+ *   A node is "reached" iff ANY of:
  *     (a) its dificultadLineal ≤ the member's level ceiling
  *         (alfa→3, delta→6, sigma→8, omega→10, spartan→12), derived from
  *         LEVEL_LINEAR_MIN of the NEXT level minus 1, spartan capped at the
@@ -23,8 +23,14 @@
  *     (b) its exerciseId appears in the member's completed sessions. Branch (b)
  *         is ACTIVE here: completed_sessions.exercisesCompleted stores
  *         *prescription* ids (not exercise ids), so we resolve prescription →
- *         exercise via session_prescriptions.exercise_id. This is the seam that
- *         phase 131 replaces with the richer dominado registry.
+ *         exercise via session_prescriptions.exercise_id; OR
+ *     (c) the member's LATEST `exercise_adjustments` record for that node is
+ *         `dominado` (phase 131, ADJUST-04). This is the third branch the
+ *         dominado registry ADDS on top of (a)/(b) — it never replaces them.
+ *         "Latest-per-node wins" (D-05): for each exercise the most recent row
+ *         (MAX created_at, id as tie-break) decides; a later `bajado` un-counts
+ *         an earlier `dominado`. This only widens the READ of "reached" — it
+ *         never touches the member's level or SPOM (D-06).
  *
  * PERCENT: percent = total === 0 ? 0 : round(reached / total * 100). Integer
  * counts are authoritative and aggregate upward (category counts = sum of its
@@ -177,6 +183,64 @@ async function loadCompletedExerciseIds(
 }
 
 /**
+ * Collect the exercise ids whose LATEST exercise_adjustments record for this
+ * member is `dominado` (branch c — phase 131, ADJUST-04). Mirrors
+ * loadCompletedExerciseIds: read the member's rows, reduce to the latest per
+ * exercise_id (MAX created_at, id as deterministic tie-break for equal
+ * timestamps), and keep only those whose latest status is `dominado`. A later
+ * `bajado` therefore un-counts an earlier `dominado` (D-05, latest-per-node
+ * wins). Returns an empty set when the member has no adjustment records.
+ *
+ * READ-ONLY: this widens the "reached" definition only; level/SPOM are never
+ * written here (D-06).
+ */
+async function loadDominatedExerciseIds(
+  db: MySql2Database<typeof schema>,
+  userId: number,
+): Promise<Set<number>> {
+  const rows = await db
+    .select({
+      exerciseId: schema.exerciseAdjustments.exerciseId,
+      status: schema.exerciseAdjustments.status,
+      createdAt: schema.exerciseAdjustments.createdAt,
+      id: schema.exerciseAdjustments.id,
+    })
+    .from(schema.exerciseAdjustments)
+    .where(eq(schema.exerciseAdjustments.memberId, userId));
+
+  // Reduce to the latest row per exercise_id. Tie-break on id so that rows
+  // sharing a created_at (same-second taps) resolve deterministically to the
+  // higher id (the more recent insert).
+  interface LatestRow {
+    status: "dominado" | "bajado";
+    createdAt: Date;
+    id: number;
+  }
+  const latestByExercise = new Map<number, LatestRow>();
+  for (const row of rows) {
+    const current = latestByExercise.get(row.exerciseId);
+    const rowTime = row.createdAt.getTime();
+    const isNewer =
+      current === undefined ||
+      rowTime > current.createdAt.getTime() ||
+      (rowTime === current.createdAt.getTime() && row.id > current.id);
+    if (isNewer) {
+      latestByExercise.set(row.exerciseId, {
+        status: row.status,
+        createdAt: row.createdAt,
+        id: row.id,
+      });
+    }
+  }
+
+  const dominated = new Set<number>();
+  for (const [exerciseId, latest] of latestByExercise) {
+    if (latest.status === "dominado") dominated.add(exerciseId);
+  }
+  return dominated;
+}
+
+/**
  * Read the phase-126 DAG node set (confirmed canonical exercises participating
  * in the graph) joined with their subfamily metadata. Mirrors the
  * rebuild-progression-graph scope predicate exactly so the tree shows the real
@@ -245,10 +309,13 @@ export async function buildMemberTree(
   const level: ExerciseLevel = (user?.level as ExerciseLevel | null) ?? "alfa";
   const ceiling = levelCeiling(level);
 
-  const [nodes, completedExerciseIds] = await Promise.all([
-    loadGraphNodes(db),
-    loadCompletedExerciseIds(db, userId),
-  ]);
+  const [nodes, completedExerciseIds, dominatedExerciseIds] = await Promise.all(
+    [
+      loadGraphNodes(db),
+      loadCompletedExerciseIds(db, userId),
+      loadDominatedExerciseIds(db, userId),
+    ],
+  );
 
   // Bucket nodes by category → subfamily, computing the reached flag per node.
   // Warn once per distinct unmapped pattern so catalog drift surfaces (D-01).
@@ -276,7 +343,8 @@ export async function buildMemberTree(
     const category = patternToCategory(node.pattern);
     const reached =
       node.dificultadLineal <= ceiling ||
-      completedExerciseIds.has(node.exerciseId);
+      completedExerciseIds.has(node.exerciseId) ||
+      dominatedExerciseIds.has(node.exerciseId);
 
     const subfamilies = byCategory.get(category);
     if (!subfamilies) continue; // unreachable: every category preallocated
