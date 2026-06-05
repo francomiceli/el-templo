@@ -4,13 +4,13 @@ milestone: v5.1
 milestone_name: Nuevo Sistema de Entrenamiento
 status: executing
 stopped_at: Phase 125 context gathered
-last_updated: "2026-06-05T01:08:12.308Z"
+last_updated: "2026-06-05T01:15:13.182Z"
 last_activity: 2026-06-05
 progress:
   total_phases: 8
   completed_phases: 1
   total_plans: 5
-  completed_plans: 3
+  completed_plans: 4
   percent: 13
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 ## Current Position
 
 Phase: 125 (bootstrap-llm-revisi-n-de-profes-de-la-descomposici-n) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-06-05
 
@@ -203,6 +203,7 @@ _Updated after each plan completion_
 | Phase 123 P03 | ~5min | 3 tasks | 5 files |
 | Phase 124 P01 | 6min | 2 tasks | 4 files |
 | Phase 124 P02 | 12min | 2 tasks | 2 files |
+| Phase 125 P02 | ~25min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -504,6 +505,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: Plan 123-03: Frequency golden-case override forces en_riesgo for active members with 0 visits in tuneable system_settings window (default 28d); fed into existing 03:00 batch via single batched query, no new cron, login path unchanged (D-123-01/02)
 - [Phase ?]: 124-02: saneo en script TS (no SQL) reporta conteos antes de mutar; soft-merge a canonical MIN(id) sin deletes; route_pending por route='' (D-06/D-07/D-08)
 - [Phase ?]: 125-01: heuristic bootstrap (no LLM/API) writes pending proposals to exercise_dimension_proposals; UNIQUE(exercise_id) + INSERT...WHERE NOT EXISTS idempotent; route guess only for route_pending; never writes truth columns (TREE-02)
+- [Phase ?]: 125-02: accept es transaccional (resolve-or-create subfamilia + truth columns + status flip atómico); reject solo status; nunca contracción ni delete
+- [Phase ?]: 125-02: TREE-03 (API revisión de profes) completo — /admin/exercises/proposals\* bajo hook TRAINING_ROLES; tests CI deferidos
 
 ### Pending Todos
 
@@ -528,7 +531,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-05T01:08:06.618Z
+Last session: 2026-06-05T01:14:54.867Z
 Stopped at: Phase 125 context gathered
 Resume file: None
 
