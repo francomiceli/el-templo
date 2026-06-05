@@ -28,7 +28,10 @@ import type { FastifyInstance } from "fastify";
 import { inArray, or } from "drizzle-orm";
 import { createTestApp } from "../helpers";
 import * as schema from "../../src/db/schema";
-import { runRebuildProgressionGraph } from "../../rebuild-progression-graph";
+import {
+  runRebuildProgressionGraph,
+  readExerciseNodes,
+} from "../../rebuild-progression-graph";
 
 describe("rebuild-progression-graph (Phase 126 Plan 02)", () => {
   let app: FastifyInstance;
@@ -347,6 +350,49 @@ describe("rebuild-progression-graph (Phase 126 Plan 02)", () => {
     ).toBe(false);
   });
 
+  it("G — empty-effort confirmed exercises are excluded from the graph (WR-04)", async () => {
+    const sf = await seedSubfamily("G");
+    // Two confirmed canonical exercises with effort='' in the same sub-family.
+    // effort is a free varchar and the catalog demonstrably holds '' rows
+    // (exercise-fallback.ts filters effort = ''). They must NOT form a partition
+    // or chain — an empty-effort axis is meaningless (D-04).
+    const empty1 = await seedExercise({
+      name: "Gempty1",
+      effort: "",
+      dl: 1,
+      subfamilyId: sf,
+    });
+    const empty2 = await seedExercise({
+      name: "Gempty2",
+      effort: "",
+      dl: 2,
+      subfamilyId: sf,
+    });
+    // A real CON exercise in the same sub-family, single member → 0 edges, so the
+    // ONLY way an edge could appear incident to these ids is the (wrong) '' chain.
+    const con = await seedExercise({
+      name: "Gcon",
+      effort: "CON",
+      dl: 3,
+      subfamilyId: sf,
+    });
+
+    await runRebuildProgressionGraph(app.db);
+
+    const edges = await getAutoEdges([empty1, empty2, con]);
+    // The empty-effort rows appear in NO edge — no '' backbone was formed.
+    expect(
+      edges.some(
+        (e) =>
+          e.fromExerciseId === empty1 ||
+          e.toExerciseId === empty1 ||
+          e.fromExerciseId === empty2 ||
+          e.toExerciseId === empty2,
+      ),
+    ).toBe(false);
+    expect(edges).toHaveLength(0);
+  });
+
   it("F — dl-tiebreak is deterministic by id across runs (D-05)", async () => {
     const sf = await seedSubfamily("F");
     // Two exercises at the SAME dl in one partition. Seeded in reverse id-vs-name
@@ -387,5 +433,63 @@ describe("rebuild-progression-graph (Phase 126 Plan 02)", () => {
     expect(run2).toEqual(run1);
     // Smaller id (first) precedes larger id (second) at the tied dl, then second→third.
     expect(run1).toEqual([`${first}->${second}`, `${second}->${third}`].sort());
+  });
+});
+
+/**
+ * Pure unit tests for `readExerciseNodes` — the result-narrowing helper. These
+ * exercise data-error paths the integration suite cannot reach (the DB column
+ * `dificultad_lineal` is NOT NULL DEFAULT 1, so a NaN dl cannot be seeded), so
+ * the unit test feeds the raw mysql2 `[rows, fields]` shape directly. No DB.
+ */
+describe("readExerciseNodes (Phase 126 — WR-05 / WR-04 data hygiene)", () => {
+  /** Wrap rows in the mysql2 db.execute() shape: [rows, fields]. */
+  function asResult(rows: unknown[]): unknown {
+    return [rows, []];
+  }
+
+  it("WR-05 — skips a row with a non-finite dl instead of coercing it to 0", () => {
+    const nodes = readExerciseNodes(
+      asResult([
+        { id: 1, subfamilyId: 10, effort: "CON", dl: 1 },
+        // A NaN dl: must be SKIPPED, not planted at dl=0 (which would sort below
+        // every legitimate dl≥1 and become the wrong head of the chain).
+        { id: 2, subfamilyId: 10, effort: "CON", dl: Number.NaN },
+        { id: 3, subfamilyId: 10, effort: "CON", dl: "not-a-number" },
+        { id: 4, subfamilyId: 10, effort: "CON", dl: 3 },
+      ]),
+    );
+    expect(nodes.map((n) => n.id).sort((a, b) => a - b)).toEqual([1, 4]);
+    expect(nodes.some((n) => n.dl === 0)).toBe(false);
+  });
+
+  it("WR-04 — skips a row with an empty or invalid effort", () => {
+    const nodes = readExerciseNodes(
+      asResult([
+        { id: 1, subfamilyId: 10, effort: "CON", dl: 1 },
+        { id: 2, subfamilyId: 10, effort: "", dl: 2 }, // empty → off-graph
+        { id: 3, subfamilyId: 10, effort: "WAT", dl: 3 }, // invalid → off-graph
+        { id: 4, subfamilyId: 10, effort: "ISO", dl: 4 },
+      ]),
+    );
+    expect(nodes.map((n) => n.id).sort((a, b) => a - b)).toEqual([1, 4]);
+    expect(nodes.map((n) => n.effort).sort()).toEqual(["CON", "ISO"]);
+  });
+
+  it("still skips non-finite id / subfamilyId (existing contract)", () => {
+    const nodes = readExerciseNodes(
+      asResult([
+        { id: Number.NaN, subfamilyId: 10, effort: "CON", dl: 1 },
+        { id: 2, subfamilyId: Number.NaN, effort: "CON", dl: 2 },
+        { id: 3, subfamilyId: 10, effort: "CON", dl: 3 },
+      ]),
+    );
+    expect(nodes.map((n) => n.id)).toEqual([3]);
+  });
+
+  it("returns [] for a non-array or malformed result", () => {
+    expect(readExerciseNodes(null)).toEqual([]);
+    expect(readExerciseNodes([null])).toEqual([]);
+    expect(readExerciseNodes("nope")).toEqual([]);
   });
 });

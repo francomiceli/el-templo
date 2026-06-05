@@ -40,7 +40,7 @@ import { sql } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 
 /** A confirmed-canonical exercise row (only the columns the constructor needs). */
-interface ExerciseNode {
+export interface ExerciseNode {
   id: number;
   subfamilyId: number;
   effort: string;
@@ -166,7 +166,7 @@ const VALID_EFFORTS = new Set<string>(["CON", "EXC", "ISO"]);
  * The READ already filters NULL subfamily_id and non-contraction effort, but
  * the skips are explicit here so a bad row can never silently distort a chain.
  */
-function readExerciseNodes(result: unknown): ExerciseNode[] {
+export function readExerciseNodes(result: unknown): ExerciseNode[] {
   if (!Array.isArray(result)) return [];
   const rows = result[0];
   if (!Array.isArray(rows)) return [];
