@@ -96,7 +96,17 @@ export const users = mysqlTable(
     // Authoritative source for `attachCountryScope` for admin/gestion (replaces
     // JOIN to branches.country). REQ-1 / D-12.
     country: varchar("country", { length: 2 }),
-    level: levelEnum.default("alfa").notNull(),
+    // Phase 130 (KAIROS-04, D-01): new members are born kairos. The DEFAULT
+    // flip is additive — migration 0141 changes only the column DEFAULT, not
+    // existing rows (D-05). Enum value list/order lives in levelEnum above and
+    // must stay byte-identical to migration 0141's ALTER.
+    level: levelEnum.default("kairos").notNull(),
+    // Phase 130 (KAIROS-06, D-03): sticky coach override. Set true when a coach
+    // manually changes a member's level via PUT /api/admin/members/:userId.
+    // Auto-graduation (Plan 02) SKIPS members with level_override=true so a
+    // manual coach decision is never reverted by the automatic kairos→alfa
+    // promotion. Defaults false; existing rows backfill to 0 in migration 0141.
+    levelOverride: boolean("level_override").notNull().default(false),
     phone: varchar("phone", { length: 30 }),
     dni: varchar("dni", { length: 20 }).unique(),
     documentType: documentTypeEnum,
