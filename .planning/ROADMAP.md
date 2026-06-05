@@ -3166,8 +3166,13 @@ Plans:
 
 **Risks / notas:** Brownfield crítico — el enum toca `exercises.ts`, `users.ts`, `completed-sessions.ts`, `level-mapping.ts` y admin `constants/levels.ts`. El nivel ya funciona como override de lectura (`dayId = W{semana}-{día}-{nivel}`, Alfa ya es caso especial en `routes.ts`); los formatos Singlet/For Quality/lineal ya existen en la tabla `formats`. Decisiones abiertas diferidas: cómo aplica el "2 por bloque" al INITIUM (hoy fijo en 4) — ¿se baja a 2 o queda excluido?; mapeo kairos→levelGroup (probablemente alfa_delta); dosis lineales exactas (de los profes).
 
-**Plans:** TBD
-**UI hint:** no (backend-first; enum + capa de generación; la UI del recuadrito va en la fase 130)
+**Plans:** 2 plans
+
+Plans:
+
+- [ ] 129-01-PLAN.md — KAIROS-01: add `kairos` to the API levelEnum (migration 0140, additive, DEFAULT stays alfa) + every typed level union/Record across API/app/admin + map kairos→levelGroup alfa_delta
+- [ ] 129-02-PLAN.md — KAIROS-02/03: kairos generation inherits Alfa (effectiveLevel alfa, dificultadLineal=1), forces linear format only + exactly 2 ex/block incl INITIUM, gated on memberLevel==='kairos' + regression/kairos integration tests
+      **UI hint:** no (backend-first; enum + capa de generación; la UI del recuadrito va en la fase 130)
 
 ### Phase 130: Asignación, graduación y selector de Kairos
 
