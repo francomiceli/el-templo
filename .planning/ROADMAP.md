@@ -3036,8 +3036,14 @@ Plans:
 
 **Risks / notas:** Motor = **heurístico, sin API** (decisión discuss-125: la `ANTHROPIC_API_KEY` es placeholder/nunca desplegada — la feature de IA de franchise de la Phase 38 es código durmiente). El bootstrap es un script one-off re-ejecutable e idempotente (analog `saneo-exercises.ts`), no un servicio en caliente; revisión humana como gate obligatorio (TREE-03), nunca auto-aplicar. Propuestas en tabla separada (`exercise_dimension_proposals`), no en `exercises`. A esta altura el árbol NO existe (126) → revisión sobre lista plana, distinta del editor de árbol (128). `BRIEF-PROFES` NO bloquea esta fase.
 
-**Plans:** TBD
-**UI hint:** yes
+**Plans:** 3 plans
+
+Plans:
+
+- [ ] 125-01-PLAN.md — backend: exercise_dimension_proposals schema + migration 0138 + heuristic bootstrap script + CI tests (TREE-02)
+- [ ] 125-02-PLAN.md — backend: review API (list/accept/reject/bulk-accept) in admin module + transactional truth-write + CI tests (TREE-03)
+- [ ] 125-03-PLAN.md — frontend: ProposalReviewPage + useProposalsApi composable + router/nav entry (TREE-03)
+      **UI hint:** yes
 
 ### Phase 126: Auto-construcción del grafo (DAG) de progresiones
 
