@@ -25,10 +25,12 @@ import {
 import type { FallbackAction } from "../fallback/types";
 import {
   getAllowedLevels,
+  toContentLevel,
   LEVEL_LINEAR_BASE,
   LEVEL_LINEAR_MIN,
   LEVEL_PROGRESSION,
   type ExerciseLevel,
+  type ContentLevel,
 } from "./utils/level-mapping";
 
 /** Pattern for detecting unilateral exercises from name or position */
@@ -58,12 +60,15 @@ function getLinearDifficultyTarget(
 ): {
   minDificultadLineal: number;
   maxDificultadLineal: number;
-  targetLevel: ExerciseLevel;
+  targetLevel: ContentLevel;
 } {
+  // Phase 129 (D-03): resolve the member level to its content level (kairos ->
+  // alfa) before any content lookup. From here down `level` is a ContentLevel.
+  const level = toContentLevel(memberLevel);
   const isNivelSuperior =
     difficultyBucket === "Nivel Superior" ||
     difficultyBucket === "Nivel Superior 1";
-  const currentIndex = LEVEL_PROGRESSION.indexOf(memberLevel);
+  const currentIndex = LEVEL_PROGRESSION.indexOf(level);
 
   // Nivel Superior (at intensity >= 85%): shift to next level's first difficulty
   if (isNivelSuperior && intensity >= 85) {
@@ -100,9 +105,9 @@ function getLinearDifficultyTarget(
   const effectiveBucket = isNaN(bucket) ? 3 : bucket;
 
   return {
-    minDificultadLineal: LEVEL_LINEAR_MIN[memberLevel],
-    maxDificultadLineal: LEVEL_LINEAR_BASE[memberLevel] + effectiveBucket,
-    targetLevel: memberLevel,
+    minDificultadLineal: LEVEL_LINEAR_MIN[level],
+    maxDificultadLineal: LEVEL_LINEAR_BASE[level] + effectiveBucket,
+    targetLevel: level,
   };
 }
 
@@ -159,8 +164,10 @@ export async function selectExercises(
       ctx.difficultyBucket,
     );
 
-  // Add trace if level was shifted
-  if (targetLevel !== ctx.memberLevel) {
+  // Add trace if level was shifted. Compare against the resolved content level
+  // so the kairos -> alfa content resolution (Phase 129, D-03) is NOT mistaken
+  // for an intensity-driven shift.
+  if (targetLevel !== toContentLevel(ctx.memberLevel)) {
     const shiftTrace = createTraceEvent(
       updatedCtx,
       "HIGH_INTENSITY_LEVEL_SHIFT",

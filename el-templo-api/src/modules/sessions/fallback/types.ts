@@ -5,10 +5,13 @@
  * are traced for auditability in the pipeline.
  */
 
-import type { Contraction, LevelGroup, ExerciseLevel } from "../types";
+import type { Contraction, LevelGroup, ContentLevel } from "../types";
 
-/** Re-export ExerciseLevel for backward compatibility */
-export type { ExerciseLevel } from "../types";
+// Phase 129 (D-03): the fallback system operates purely on exercise *content*
+// levels (queried against exercises.level), never on the kairos member level —
+// kairos resolves to Alfa content upstream before fallback runs. So every level
+// field here is a ContentLevel (kairos-excluded).
+export type { ContentLevel } from "../types";
 
 /**
  * Fallback result discriminated union
@@ -33,8 +36,8 @@ export type FallbackAction =
   | {
       type: "LEVEL_WIDENED";
       tier: number;
-      from: readonly ExerciseLevel[];
-      to: readonly ExerciseLevel[];
+      from: readonly ContentLevel[];
+      to: readonly ContentLevel[];
     }
   | { type: "SCOPE_WIDENED"; tier: number; from: string; to: string }
   | {
@@ -116,10 +119,10 @@ export interface ExerciseRequirements {
   readonly minDificultadLineal: number;
   /** Linear difficulty scale (1-12) - max allowed difficulty for exercise selection */
   readonly maxDificultadLineal: number;
-  readonly allowedLevels: readonly ExerciseLevel[];
+  readonly allowedLevels: readonly ContentLevel[];
   readonly count: number;
   readonly levelGroup: LevelGroup;
-  readonly memberLevel: ExerciseLevel;
+  readonly memberLevel: ContentLevel;
   /** SPOM category for category-based fallback (e.g., "Empuje", "Jalón") */
   readonly category?: string;
   /** Exercise names to exclude (for deduplication across contractions) */

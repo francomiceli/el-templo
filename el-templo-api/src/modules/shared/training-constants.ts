@@ -15,7 +15,9 @@ export const TRAINING_DAYS = [
 export type TrainingDay = (typeof TRAINING_DAYS)[number];
 
 /** Valid member training levels. */
+// Phase 129 (KAIROS-01): kairos first. isTrainingLevel accepts it automatically.
 export const TRAINING_LEVELS = [
+  "kairos",
   "alfa",
   "delta",
   "sigma",
@@ -58,6 +60,8 @@ export const MOBILITY_SORT_ORDER = 999;
 
 /** Maximum exercise difficulty per member level */
 export const LEVEL_DIFFICULTY_MAP: Record<string, number> = {
+  // Phase 129 (KAIROS-02): kairos inherits Alfa's content, so reuse Alfa's cap (3).
+  kairos: 3,
   alfa: 3,
   delta: 6,
   sigma: 8,

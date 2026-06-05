@@ -26,7 +26,7 @@ import type {
   FallbackAction,
   FallbackPolicy,
   ExerciseRequirements,
-  ExerciseLevel,
+  ContentLevel,
 } from "./types";
 import type { Contraction, LevelGroup } from "../types";
 
@@ -49,7 +49,7 @@ const CONTRACTION_SUBSTITUTION: Record<Contraction, Contraction[]> = {
 };
 
 /** Level widening for each level group (graduated to avoid pulling distant levels) */
-const LEVEL_WIDENING: Record<LevelGroup, readonly ExerciseLevel[][]> = {
+const LEVEL_WIDENING: Record<LevelGroup, readonly ContentLevel[][]> = {
   alfa_delta: [
     ["alfa", "delta"],
     ["alfa", "delta", "sigma"],
@@ -74,7 +74,7 @@ const LEVEL_WIDENING: Record<LevelGroup, readonly ExerciseLevel[][]> = {
 function getExpandedLevels(
   levelGroup: LevelGroup,
   tier: number,
-): readonly ExerciseLevel[] {
+): readonly ContentLevel[] {
   const expansions = LEVEL_WIDENING[levelGroup];
   const index = Math.min(tier - 2, expansions.length - 1);
   return expansions[Math.max(0, index)] ?? expansions[expansions.length - 1];
@@ -90,7 +90,7 @@ async function queryExercises(
   contraction: Contraction,
   minDificultadLineal: number,
   maxDificultadLineal: number,
-  allowedLevels: readonly ExerciseLevel[],
+  allowedLevels: readonly ContentLevel[],
   excludeNames?: Set<string>,
 ): Promise<ExerciseCandidate[]> {
   const results = await db
@@ -137,7 +137,7 @@ async function queryExercisesIncludingEmptyEffort(
   contraction: Contraction,
   minDificultadLineal: number,
   maxDificultadLineal: number,
-  allowedLevels: readonly ExerciseLevel[],
+  allowedLevels: readonly ContentLevel[],
   excludeNames?: Set<string>,
 ): Promise<ExerciseCandidate[]> {
   const results = await db
@@ -195,7 +195,7 @@ async function queryExercisesByCategory(
   contraction: Contraction,
   minDificultadLineal: number,
   maxDificultadLineal: number,
-  allowedLevels: readonly ExerciseLevel[],
+  allowedLevels: readonly ContentLevel[],
   excludeNames?: Set<string>,
 ): Promise<ExerciseCandidate[]> {
   const results = await db
@@ -245,7 +245,7 @@ async function queryExercisesAnyRoute(
   contraction: Contraction,
   minDificultadLineal: number,
   maxDificultadLineal: number,
-  allowedLevels: readonly ExerciseLevel[],
+  allowedLevels: readonly ContentLevel[],
   excludeNames?: Set<string>,
 ): Promise<ExerciseCandidate[]> {
   const results = await db
@@ -291,7 +291,7 @@ async function queryExercisesWithScopeWidening(
   contraction: Contraction,
   minDificultadLineal: number,
   maxDificultadLineal: number,
-  allowedLevels: readonly ExerciseLevel[],
+  allowedLevels: readonly ContentLevel[],
   excludeNames?: Set<string>,
 ): Promise<ExerciseCandidate[]> {
   // Extract parent category from route (e.g., "PRESS-H" -> "PRESS")
@@ -377,7 +377,7 @@ export async function selectExercisesWithFallback(
   const actions: FallbackAction[] = [];
   let currentMinDificultadLineal = minDificultadLineal;
   let currentDificultadLineal = maxDificultadLineal;
-  let currentLevels: readonly ExerciseLevel[] = [memberLevel];
+  let currentLevels: readonly ContentLevel[] = [memberLevel];
   let currentContraction = contraction;
   let currentRoute = route;
 
@@ -838,7 +838,7 @@ export async function queryCrossRouteExercises(
   contraction: Contraction,
   minDificultadLineal: number,
   maxDificultadLineal: number,
-  allowedLevels: readonly ExerciseLevel[],
+  allowedLevels: readonly ContentLevel[],
   excludeNames?: Set<string>,
 ): Promise<ExerciseCandidate[]> {
   // Helper: run query with given field condition, first exact contraction then including empty effort

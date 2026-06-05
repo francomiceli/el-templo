@@ -25,7 +25,7 @@ import {
   queryFormatsAnyLevel,
   selectBestFormat,
 } from "../fallback/format-fallback";
-import type { ExerciseLevel } from "./utils/level-mapping";
+import type { ContentLevel } from "./utils/level-mapping";
 import { ROUTE_TO_MOBILITY_ROUTES } from "./utils/mobility-routes";
 import { calculateExerciseOffset, selectWithVariety } from "./utils/variety";
 import { REST_TIMES, ISO_SECONDS } from "./utils/constants";
@@ -41,7 +41,8 @@ const INITIUM_POOL_SIZE = 20;
 const INITIUM_REPS_PER_EXERCISE = 30;
 const INITIUM_SERIES = 2;
 const INITIUM_CONTRACTION_MIX: ContractionMix = { CON: 2, EXC: 1, ISO: 0 };
-const INITIUM_LEVELS: ExerciseLevel[] = [
+// Exercise *content* levels (never 'kairos' — kairos borrows Alfa content, D-03).
+const INITIUM_LEVELS: ContentLevel[] = [
   "alfa",
   "delta",
   "sigma",

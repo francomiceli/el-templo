@@ -39,6 +39,10 @@ import { NotificationService } from "../notifications/service";
  */
 function levelToLevelGroup(level: string): LevelGroup {
   switch (level) {
+    // Phase 129 (D-02): kairos reuses the alfa_delta group. The default already
+    // returns alfa_delta, but the explicit case prevents silent misrouting if
+    // the default ever changes.
+    case "kairos":
     case "alfa":
     case "delta":
       return "alfa_delta";

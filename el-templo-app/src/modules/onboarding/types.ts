@@ -338,10 +338,12 @@ export function lookupReflect(key: QuizKeyV2, value: string): string | null {
 }
 
 // Level selector question (conditional step 2.5 — shown only when trainingBackground === 'el_templo')
-export type TemploLevel = 'alfa' | 'delta' | 'sigma' | 'omega' | 'spartan'
+// Phase 129 (KAIROS-01): kairos added for DB/API/admin parity (widened users.level).
+export type TemploLevel = 'kairos' | 'alfa' | 'delta' | 'sigma' | 'omega' | 'spartan'
 
 // Spartan intentionally excluded: earned/assigned, not self-claimed during onboarding.
-// TemploLevel type retains 'spartan' for DB/API/admin parity.
+// Kairos likewise is assigned (entry tier), not self-claimed here — the onboarding
+// selector UI is phase 130. TemploLevel retains both for DB/API/admin parity.
 export const LEVEL_SELECTOR_QUESTION: QuizQuestionV2 = {
   key: 'trainingBackground', // reuses key slot for component compatibility
   text: '¿En qué nivel entrenás?',

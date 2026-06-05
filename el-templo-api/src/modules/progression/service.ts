@@ -2,11 +2,12 @@
  * Greek letter mapping for level display
  */
 export const GREEK_LETTER_MAP: Record<string, string> = {
-  alfa: '\u03B1',    // α (lowercase alpha)
-  delta: '\u0394',   // Δ
-  sigma: '\u03A3',   // Σ
-  omega: '\u03A9',   // Ω
-  spartan: '\u03A9', // Ω (same as omega)
+  kairos: "\u03B1", // kairos inherits Alfa, reuses Alfa's glyph (Phase 129)
+  alfa: "\u03B1", //α (lowercase alpha)
+  delta: "\u0394", // Δ
+  sigma: "\u03A3", // Σ
+  omega: "\u03A9", // Ω
+  spartan: "\u03A9", // Ω (same as omega)
 };
 
 /**
@@ -19,10 +20,12 @@ export function calculateStreak(sessions: { date: string }[]): number {
   if (sessions.length === 0) return 0;
 
   // Get unique dates and sort descending (most recent first)
-  const uniqueDates = [...new Set(sessions.map(s => s.date))].sort((a, b) => b.localeCompare(a));
+  const uniqueDates = [...new Set(sessions.map((s) => s.date))].sort((a, b) =>
+    b.localeCompare(a),
+  );
 
-  const today = new Date().toISOString().split('T')[0];
-  const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+  const today = new Date().toISOString().split("T")[0];
+  const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
 
   // Check if most recent session is today or yesterday
   const mostRecent = uniqueDates[0];
@@ -32,12 +35,12 @@ export function calculateStreak(sessions: { date: string }[]): number {
 
   // Count consecutive calendar days
   let streak = 1;
-  let currentDate = new Date(mostRecent + 'T00:00:00');
+  let currentDate = new Date(mostRecent + "T00:00:00");
 
   for (let i = 1; i < uniqueDates.length; i++) {
     const expectedDate = new Date(currentDate);
     expectedDate.setDate(expectedDate.getDate() - 1);
-    const expectedStr = expectedDate.toISOString().split('T')[0];
+    const expectedStr = expectedDate.toISOString().split("T")[0];
 
     if (uniqueDates[i] === expectedStr) {
       streak++;
@@ -72,8 +75,8 @@ export function checkEligibility(avgRpe: number | null): boolean {
  * @returns Localized short date label
  */
 export function formatDateLabel(dateStr: string): string {
-  const date = new Date(dateStr + 'T00:00:00');
-  return date.toLocaleDateString('es-ES', { month: 'short', day: 'numeric' });
+  const date = new Date(dateStr + "T00:00:00");
+  return date.toLocaleDateString("es-ES", { month: "short", day: "numeric" });
 }
 
 /**

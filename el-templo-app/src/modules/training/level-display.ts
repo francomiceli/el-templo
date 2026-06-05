@@ -12,7 +12,8 @@
  * consumed by the selection store (useUserStore.selectedLevel) and content composables.
  */
 
-export const TRAINING_LEVELS = ['alfa', 'delta', 'sigma', 'omega', 'spartan'] as const
+// Phase 129 (KAIROS-01): kairos added first. Mirrors the API canonical sources.
+export const TRAINING_LEVELS = ['kairos', 'alfa', 'delta', 'sigma', 'omega', 'spartan'] as const
 export type Level = (typeof TRAINING_LEVELS)[number]
 
 /**
@@ -24,6 +25,7 @@ export type Level = (typeof TRAINING_LEVELS)[number]
  *   spartan -> Ω  (U+03A9, same as omega per server source)
  */
 export const LEVEL_GREEK_MAP: Record<Level, string> = {
+  kairos: 'α', // α — kairos inherits Alfa, reuses Alfa's glyph (Phase 129)
   alfa: 'α', // α
   delta: 'Δ', // Δ
   sigma: 'Σ', // Σ
@@ -35,6 +37,7 @@ export const LEVEL_GREEK_MAP: Record<Level, string> = {
  * Proper-cased display names (server's getLevelDisplayName parity).
  */
 export const LEVEL_DISPLAY_MAP: Record<Level, string> = {
+  kairos: 'Kairos',
   alfa: 'Alfa',
   delta: 'Delta',
   sigma: 'Sigma',

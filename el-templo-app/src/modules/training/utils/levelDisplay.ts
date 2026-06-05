@@ -11,23 +11,25 @@
  * - Spartan maps to Omega (both are highest tier)
  */
 export const LEVEL_GREEK_MAP: Record<string, string> = {
+  kairos: 'α', // kairos inherits Alfa, reuses Alfa's glyph (Phase 129)
   alfa: 'α',
   delta: 'Δ',
   sigma: 'Σ',
   omega: 'Ω',
   spartan: 'Ω',
-};
+}
 
 /**
  * Map of level codes to their display names (proper capitalization).
  */
 const LEVEL_NAMES: Record<string, string> = {
+  kairos: 'Kairos',
   alfa: 'Alfa',
   delta: 'Delta',
   sigma: 'Sigma',
   omega: 'Omega',
   spartan: 'Spartan',
-};
+}
 
 /**
  * Get the Greek letter for a member level.
@@ -43,8 +45,8 @@ const LEVEL_NAMES: Record<string, string> = {
  * getLevelGreek('unknown') // 'unknown'
  */
 export function getLevelGreek(level: string): string {
-  const normalized = level.toLowerCase();
-  return LEVEL_GREEK_MAP[normalized] ?? level;
+  const normalized = level.toLowerCase()
+  return LEVEL_GREEK_MAP[normalized] ?? level
 }
 
 /**
@@ -60,15 +62,15 @@ export function getLevelGreek(level: string): string {
  * getLevelDisplayFull('unknown') // 'unknown'
  */
 export function getLevelDisplayFull(level: string): string {
-  const normalized = level.toLowerCase();
-  const greek = LEVEL_GREEK_MAP[normalized];
-  const name = LEVEL_NAMES[normalized];
+  const normalized = level.toLowerCase()
+  const greek = LEVEL_GREEK_MAP[normalized]
+  const name = LEVEL_NAMES[normalized]
 
   if (greek && name) {
-    return `${greek} ${name}`;
+    return `${greek} ${name}`
   }
 
-  return level;
+  return level
 }
 
 /**
@@ -83,6 +85,6 @@ export function getLevelDisplayFull(level: string): string {
  * formatLevelName('unknown') // 'unknown'
  */
 export function formatLevelName(level: string): string {
-  const normalized = level.toLowerCase();
-  return LEVEL_NAMES[normalized] ?? level;
+  const normalized = level.toLowerCase()
+  return LEVEL_NAMES[normalized] ?? level
 }

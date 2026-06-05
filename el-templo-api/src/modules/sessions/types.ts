@@ -14,7 +14,25 @@ export type { FormatParams };
 export type LevelGroup = "alfa_delta" | "sigma" | "omega";
 
 /** Individual exercise level - member's actual training level */
-export type ExerciseLevel = "alfa" | "delta" | "sigma" | "omega" | "spartan";
+// Phase 129 (KAIROS-01): kairos added first. No new LevelGroup — kairos reuses
+// alfa_delta (D-02); its real constraint lives in the generation layer (Plan 02).
+export type ExerciseLevel =
+  | "kairos"
+  | "alfa"
+  | "delta"
+  | "sigma"
+  | "omega"
+  | "spartan";
+
+/**
+ * Exercise *content* level — the values the exercises.exercise_level column
+ * holds. Excludes "kairos" (Phase 129, D-03): kairos is a member level with no
+ * own exercise content; its generation resolves to Alfa content upstream before
+ * any exercises.level query. Use ContentLevel anywhere a value flows into an
+ * exercises.level query or a map keyed by exercise content rather than member
+ * level.
+ */
+export type ContentLevel = Exclude<ExerciseLevel, "kairos">;
 
 /** Block roles in a training session (5 blocks for regular, 3 for ROM) */
 export type BlockRole =

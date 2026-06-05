@@ -5,7 +5,8 @@
  */
 
 export interface ProgressionLevel {
-  current: 'alfa' | 'delta' | 'sigma' | 'omega' | 'spartan'
+  // Phase 129 (KAIROS-01): kairos added for parity with the widened users.level enum.
+  current: 'kairos' | 'alfa' | 'delta' | 'sigma' | 'omega' | 'spartan'
   displayName: string
   greekLetter: string
 }
@@ -98,7 +99,7 @@ export interface TreeProgressResponse {
    * (service.ts / schemas.ts / 127-01-SUMMARY). Not currently rendered by the
    * Mi Árbol view, but kept on the type so the contract stays in sync.
    */
-  level: 'alfa' | 'delta' | 'sigma' | 'omega' | 'spartan'
+  level: 'kairos' | 'alfa' | 'delta' | 'sigma' | 'omega' | 'spartan'
   categories: TreeCategory[]
 }
 

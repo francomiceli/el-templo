@@ -34,8 +34,14 @@
 import { eq, and, isNull, inArray } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import * as schema from "../../db/schema";
-import { LEVEL_LINEAR_MIN } from "../sessions/pipeline/utils/level-mapping";
-import type { ExerciseLevel } from "../sessions/pipeline/utils/level-mapping";
+import {
+  LEVEL_LINEAR_MIN,
+  toContentLevel,
+} from "../sessions/pipeline/utils/level-mapping";
+import type {
+  ExerciseLevel,
+  ContentLevel,
+} from "../sessions/pipeline/utils/level-mapping";
 import {
   type Category,
   CATEGORY_ORDER,
@@ -91,7 +97,7 @@ export interface MemberTree {
  * the whole "reached" definition without touching level-mapping.
  */
 const DL_SCALE_MAX = 12;
-const LEVEL_ORDER: readonly ExerciseLevel[] = [
+const LEVEL_ORDER: readonly ContentLevel[] = [
   "alfa",
   "delta",
   "sigma",
@@ -100,7 +106,9 @@ const LEVEL_ORDER: readonly ExerciseLevel[] = [
 ];
 
 export function levelCeiling(level: ExerciseLevel): number {
-  const idx = LEVEL_ORDER.indexOf(level);
+  // Phase 129 (D-03): kairos draws Alfa content, so its ceiling is Alfa's.
+  const contentLevel = toContentLevel(level);
+  const idx = LEVEL_ORDER.indexOf(contentLevel);
   const next = LEVEL_ORDER[idx + 1];
   if (!next) return DL_SCALE_MAX; // spartan → 12
   return LEVEL_LINEAR_MIN[next] - 1;

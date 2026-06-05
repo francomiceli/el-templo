@@ -25,7 +25,10 @@ import type {
 
 const log = createLogger('members-api');
 
-export type SessionLevelKey = 'alfa' | 'delta' | 'sigma' | 'omega' | 'spartan';
+// Phase 129 (KAIROS-01): kairos added for parity with the widened users.level /
+// completed_sessions.session_level enums — a member's session counts may now be
+// reported under 'kairos'.
+export type SessionLevelKey = 'kairos' | 'alfa' | 'delta' | 'sigma' | 'omega' | 'spartan';
 export interface SessionLevelCount {
   level: SessionLevelKey;
   count: number;
