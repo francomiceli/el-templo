@@ -212,7 +212,7 @@ interface Emits {
   (e: 'complete-block'): void
   (e: 'toggle-exercise-complete', payload: { prescriptionId: number }): void
   (e: 'change-deuteros'): void
-  (e: 'adjust', payload: { exerciseId: number; direction: 'up' | 'down' }): void
+  (e: 'adjust', payload: { exerciseId: number; direction: 'up' | 'down'; blockId: string }): void
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -505,12 +505,16 @@ const canAdjustCurrentSlide = computed(() => {
   return !isMobilitySlide.value && !isReviewingPrevious.value && currentSlideExercise.value !== null
 })
 
-// Emit the adjust request with the current exercise's catalog node id (D-02).
+// Emit the adjust request with the current exercise's catalog node id (D-02)
+// AND the viewed block's identity (WR-01). Carrying blockId lets the swap target
+// the EXACT occurrence the member tapped — a movement can recur across blocks,
+// and matching by exerciseId alone would mutate the wrong (first-matching) block.
 function onAdjust(direction: 'up' | 'down'): void {
   if (!canAdjustCurrentSlide.value) return
   const exercise = currentSlideExercise.value
-  if (!exercise) return
-  emit('adjust', { exerciseId: exercise.exerciseId, direction })
+  const block = viewingBlock.value
+  if (!exercise || !block) return
+  emit('adjust', { exerciseId: exercise.exerciseId, direction, blockId: block.blockId })
 }
 </script>
 
