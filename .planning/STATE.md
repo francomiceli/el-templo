@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v5.1
 milestone_name: Nuevo Sistema de Entrenamiento
 status: executing
-stopped_at: Phase 132 context gathered
-last_updated: "2026-06-05T16:10:54.818Z"
+stopped_at: Completed 132-03-PLAN.md
+last_updated: "2026-06-05T16:15:58.351Z"
 last_activity: 2026-06-05
 progress:
   total_phases: 8
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 ## Current Position
 
 Phase: 132 (exponer-metricas-gestion-v50-admin) — EXECUTING
-Plan: 3 of 6
+Plan: 4 of 6
 Status: Ready to execute
 Last activity: 2026-06-05
 
@@ -225,6 +225,7 @@ _Updated after each plan completion_
 | Phase 131 P02 | ~35m | 2 tasks | 17 files |
 | Phase 132 P01 | ~25min | 2 tasks | 11 files |
 | Phase 132 P02 | 20min | 2 tasks | 5 files |
+| Phase 132 P3 | 12 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -551,6 +552,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: [Phase 132]: TrialTurno literal moved to types.ts (no circular import); trial-funnel-service re-exports; new-lead exclusion stays planId-unrestricted
 - [Phase ?]: [Phase 132]: frequency coolingDown[] enriched with name+phone reusing the existing users join (D-12, export-ready in one call)
 - [Phase ?]: [Phase 132]: frequency turno filter applied in SQL (join schedules + hour range) not in-memory, since frequency aggregates visit counts in the DB
+- [Phase ?]: 132-03: frontend contract layer — 6 mirrored analytics interfaces + MetricShape + 6 typed fetch methods + turno/window filters
 
 ### Pending Todos
 
@@ -581,8 +583,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-05T16:10:37.247Z
-Stopped at: Phase 132 context gathered
+Last session: 2026-06-05T16:15:58.331Z
+Stopped at: Completed 132-03-PLAN.md
 Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
