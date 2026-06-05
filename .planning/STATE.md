@@ -4,7 +4,7 @@ milestone: v5.1
 milestone_name: Nuevo Sistema de Entrenamiento
 status: executing
 stopped_at: Phase 132 context gathered
-last_updated: "2026-06-05T16:03:02.628Z"
+last_updated: "2026-06-05T16:10:54.818Z"
 last_activity: 2026-06-05
 progress:
   total_phases: 8
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 ## Current Position
 
 Phase: 132 (exponer-metricas-gestion-v50-admin) — EXECUTING
-Plan: 2 of 6
+Plan: 3 of 6
 Status: Ready to execute
 Last activity: 2026-06-05
 
@@ -224,6 +224,7 @@ _Updated after each plan completion_
 | Phase 130 P04 | ~10min | 1 task | 1 file |
 | Phase 131 P02 | ~35m | 2 tasks | 17 files |
 | Phase 132 P01 | ~25min | 2 tasks | 11 files |
+| Phase 132 P02 | 20min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -548,6 +549,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase 131]: 131-03 (CAPSTONE v5.1): in-session adjustment is a member-facing surface on BlockProgressionView (detail row, not ExerciseCard). useExerciseAdjustment composable returns {neighbor,message} from POST /exercise-adjustments; PARENT (DayPlayer) owns the swap — mutates the SOURCE session.blocks[*].exercises[i] (playableBlocks computed re-derives), replacing ONLY exerciseId/exerciseName/contraction + clearing videoUrl (endpoint serves none, refetched next load), preserving reps/seconds/format/dose/sortOrder/rest (D-03). isSubmitting guard + :disable = one-tap-one-step. neighbor null → q.notify message, no change. Never touches level/SPOM (D-06). Local gate = app lint (0 errors) + vue-tsc clean on the 3 files (no pnpm typecheck script). human-verify visual UAT DEFERRED (overnight). staging, not pushed.
 - [Phase ?]: [Phase 132]: planId threaded via shared subscriptionPlanFilter() in expiry-cohort.ts (DRY across churn/renewal/ltv); ticket excludedNoLink suppressed under planId
 - [Phase ?]: [Phase 132]: TrialTurno literal moved to types.ts (no circular import); trial-funnel-service re-exports; new-lead exclusion stays planId-unrestricted
+- [Phase ?]: [Phase 132]: frequency coolingDown[] enriched with name+phone reusing the existing users join (D-12, export-ready in one call)
+- [Phase ?]: [Phase 132]: frequency turno filter applied in SQL (join schedules + hour range) not in-memory, since frequency aggregates visit counts in the DB
 
 ### Pending Todos
 
@@ -578,7 +581,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-05T16:02:50.003Z
+Last session: 2026-06-05T16:10:37.247Z
 Stopped at: Phase 132 context gathered
 Resume file: None
 
