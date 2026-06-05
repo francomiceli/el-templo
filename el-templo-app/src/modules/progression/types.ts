@@ -56,6 +56,46 @@ export interface WeeklySummary {
   sessionBudget: number | null
 }
 
+// --- Tree progress types (Phase 127) ---
+//
+// Mirror the authoritative DTO returned by GET /api/tree-progress/me
+// (see 127-01-SUMMARY.md). All percentages are computed server-side; the
+// client renders them verbatim and computes nothing (D-05).
+
+/** A single exercise node within a subfamily. */
+export interface TreeNode {
+  exerciseId: number
+  name: string
+  dificultadLineal: number
+  reached: boolean
+}
+
+/** A subfamily (e.g. "Dominadas") with its server-computed advancement. */
+export interface TreeSubfamily {
+  id: number
+  name: string
+  route: string
+  totalNodes: number
+  reachedNodes: number
+  percent: number
+  nodes: TreeNode[]
+}
+
+/** One of the 5 thematic categories (Tracción/Empuje/Piernas/Core/Movilidad). */
+export interface TreeCategory {
+  key: string
+  label: string
+  totalNodes: number
+  reachedNodes: number
+  percent: number
+  subfamilies: TreeSubfamily[]
+}
+
+/** Full response of GET /api/tree-progress/me. */
+export interface TreeProgressResponse {
+  categories: TreeCategory[]
+}
+
 // --- Check-in types (Phase 82) ---
 
 export type CheckInQuestionType = 'energy' | 'soreness' | 'sleep'
