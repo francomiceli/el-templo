@@ -3102,7 +3102,12 @@ Plans:
 
 Plans:
 
+**Wave 1**
+
 - [ ] 127-01-PLAN.md — Backend: pattern→category map + tree-progress service (reads 126 DAG, computes server-side %) + member-scoped GET /api/tree-progress/me + integration test
+
+**Wave 2** _(blocked on Wave 1 completion)_
+
 - [ ] 127-02-PLAN.md — Member app: types + composable + store + Mi Árbol view (5 thematic category sections with per-family %), render-only
 
 **UI hint:** yes
