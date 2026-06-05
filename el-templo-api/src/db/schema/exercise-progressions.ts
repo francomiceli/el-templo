@@ -17,10 +17,10 @@ import { exercises } from "./exercises";
  * `source='auto'` edges, never touching `manual` ones — this enum is what makes
  * that scoped, non-destructive regeneration possible.
  */
-export const exerciseProgressionSource = mysqlEnum(
-  "exercise_progression_source",
-  ["auto", "manual"],
-);
+export const exerciseProgressionSource = mysqlEnum("source", [
+  "auto",
+  "manual",
+]);
 
 /**
  * Exercise progressions — the directed edges of the v5.1 skill tree (DAG).
