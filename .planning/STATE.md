@@ -4,7 +4,7 @@ milestone: v5.1
 milestone_name: Nuevo Sistema de Entrenamiento
 status: executing
 stopped_at: Completed 132-03-PLAN.md
-last_updated: "2026-06-05T16:15:58.351Z"
+last_updated: "2026-06-05T16:21:13.362Z"
 last_activity: 2026-06-05
 progress:
   total_phases: 8
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 ## Current Position
 
 Phase: 132 (exponer-metricas-gestion-v50-admin) — EXECUTING
-Plan: 4 of 6
+Plan: 5 of 6
 Status: Ready to execute
 Last activity: 2026-06-05
 
@@ -226,6 +226,7 @@ _Updated after each plan completion_
 | Phase 132 P01 | ~25min | 2 tasks | 11 files |
 | Phase 132 P02 | 20min | 2 tasks | 5 files |
 | Phase 132 P3 | 12 | 2 tasks | 2 files |
+| Phase 132 P04 | ~2min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -553,6 +554,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: [Phase 132]: frequency coolingDown[] enriched with name+phone reusing the existing users join (D-12, export-ready in one call)
 - [Phase ?]: [Phase 132]: frequency turno filter applied in SQL (join schedules + hour range) not in-memory, since frequency aggregates visit counts in the DB
 - [Phase ?]: 132-03: frontend contract layer — 6 mirrored analytics interfaces + MetricShape + 6 typed fetch methods + turno/window filters
+- [Phase ?]: [Phase 132]: .vue verified via eslint (type-aware); vue-tsc not installed, full SFC typecheck in CI
+- [Phase ?]: [Phase 132]: ConversionTab + IngresosTab presentational (props-in); page 132-06 owns fetch
 
 ### Pending Todos
 
@@ -583,7 +586,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-05T16:15:58.331Z
+Last session: 2026-06-05T16:20:55.041Z
 Stopped at: Completed 132-03-PLAN.md
 Resume file: None
 
