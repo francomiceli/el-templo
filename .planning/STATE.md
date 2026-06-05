@@ -4,14 +4,14 @@ milestone: v5.1
 milestone_name: Nuevo Sistema de Entrenamiento
 status: executing
 stopped_at: Phase 126 context gathered
-last_updated: "2026-06-05T04:08:30.780Z"
-last_activity: 2026-06-05 -- Phase 128 planning complete
+last_updated: "2026-06-05T05:05:00.000Z"
+last_activity: 2026-06-05 -- Phase 128 Plan 02 executed (tree-editor backend + tests)
 progress:
   total_phases: 8
   completed_phases: 4
   total_plans: 13
-  completed_plans: 11
-  percent: 50
+  completed_plans: 13
+  percent: 54
 ---
 
 # Project State
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 ## Current Position
 
 Phase: 128
-Plan: 01 complete (next: 02)
+Plan: 02 complete (next: 03)
 Status: Executing
-Last activity: 2026-06-05 -- Phase 128 Plan 01 executed (locked-partition guard + test)
+Last activity: 2026-06-05 -- Phase 128 Plan 02 executed (tree-editor backend + tests)
 
 ## Performance Metrics
 
@@ -212,6 +212,7 @@ _Updated after each plan completion_
 | Phase 127 P01 | 22min | 3 tasks | 8 files |
 | Phase 127 P02 | ~25min | 2 tasks | 7 files |
 | Phase 128 P01 | 6min | 2 tasks | 2 files |
+| Phase 128 P02 | ~12min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
