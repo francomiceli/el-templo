@@ -82,6 +82,34 @@ export async function queryFormatsAnyLevel(
 }
 
 /**
+ * Query a single format by its exact name.
+ *
+ * Used by the Kairos gate (Phase 129) to force the canonical linear format
+ * (Singlet / For Quality) directly, bypassing the compatibility matrix.
+ * Returns null if no format with that name exists in the `formats` table.
+ */
+export async function queryFormatByName(
+  db: MySql2Database<typeof schema>,
+  name: string,
+): Promise<FormatCandidate | null> {
+  const results = await db
+    .select({
+      formatId: schema.formats.id,
+      name: schema.formats.name,
+    })
+    .from(schema.formats)
+    .where(eq(schema.formats.name, name));
+
+  if (results.length === 0) return null;
+
+  return {
+    formatId: results[0].formatId,
+    name: results[0].name,
+    compatibility: 1,
+  };
+}
+
+/**
  * Query formats with given criteria
  */
 async function queryFormats(

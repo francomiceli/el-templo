@@ -17,9 +17,17 @@ import type {
 } from "./context";
 import type { BlockRole } from "../types";
 import { createTraceEvent, appendTrace } from "./context";
-import { selectFormatWithFallback } from "../fallback/format-fallback";
+import {
+  selectFormatWithFallback,
+  queryFormatByName,
+} from "../fallback/format-fallback";
 import type { FallbackAction } from "../fallback/types";
 import { levelGroupToLevel } from "./utils/level-mapping";
+import {
+  isKairos,
+  KAIROS_LINEAR_FORMAT_NAME,
+  KAIROS_LINEAR_FORMAT_FALLBACK,
+} from "./utils/kairos";
 
 /** Map BlockRole to format_compatibility block enum */
 function roleToBlock(
@@ -80,6 +88,42 @@ export async function selectFormat(
   db: MySql2Database<typeof schema>,
   excludeFormatNames?: string[],
 ): Promise<BlockContextWithFormat> {
+  // Kairos (D-04): force the canonical linear (sets-by-reps) format BEFORE the
+  // compatibility-matrix fallback ladder — no EMOM/AMRAP/circuit/complex. Look
+  // up "Singlet" by name, falling back to "For Quality" if absent. This is a
+  // pure additive branch: every non-kairos path below is unchanged (D-07).
+  if (isKairos(ctx.memberLevel)) {
+    let linearFormat = await queryFormatByName(db, KAIROS_LINEAR_FORMAT_NAME);
+    let usedFallbackName = false;
+    if (!linearFormat) {
+      linearFormat = await queryFormatByName(db, KAIROS_LINEAR_FORMAT_FALLBACK);
+      usedFallbackName = true;
+    }
+    if (!linearFormat) {
+      throw new Error(
+        `Kairos linear format missing from seed: neither "${KAIROS_LINEAR_FORMAT_NAME}" nor "${KAIROS_LINEAR_FORMAT_FALLBACK}" exists in the formats table`,
+      );
+    }
+    const kairosFormatTrace = createTraceEvent(
+      ctx,
+      "KAIROS_FORMAT_FORCED",
+      "INFO",
+      {
+        formatId: linearFormat.formatId,
+        formatName: linearFormat.name,
+        usedFallbackName,
+        reason: "Kairos forces a linear sets-by-reps format only (D-04)",
+      },
+    );
+    return {
+      ...appendTrace(ctx, kairosFormatTrace),
+      format: {
+        formatId: linearFormat.formatId,
+        name: linearFormat.name,
+      },
+    };
+  }
+
   const block = roleToBlock(ctx.role);
   // Use levelGroup representative for format lookup (ensures alfa and delta get same format)
   const level = levelGroupToLevel(ctx.levelGroup);

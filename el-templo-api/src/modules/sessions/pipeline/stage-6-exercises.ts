@@ -32,6 +32,11 @@ import {
   type ExerciseLevel,
   type ContentLevel,
 } from "./utils/level-mapping";
+import {
+  isKairos,
+  KAIROS_INHERITED_LEVEL,
+  KAIROS_DIFICULTAD_LINEAL,
+} from "./utils/kairos";
 
 /** Pattern for detecting unilateral exercises from name or position */
 const UNILATERAL_PATTERN = /\b(O\.?[AL]|ONE\s*(ARM|LEG))\b/i;
@@ -148,7 +153,6 @@ export async function selectExercises(
   ctx: BlockContextWithFormat,
   db: MySql2Database<typeof schema>,
 ): Promise<BlockContextWithExercises> {
-  const allowedLevels = getAllowedLevels(ctx.levelGroup);
   const selectedExercises: SelectedExercise[] = [];
   let updatedCtx = ctx;
   let anyFailed = false;
@@ -156,13 +160,50 @@ export async function selectExercises(
   // Track already-selected exercise names to prevent duplicates across contractions
   const excludedNames: Set<string> = new Set();
 
-  // Calculate linear difficulty target (handles Nivel Superior and high-intensity shifts)
-  const { minDificultadLineal, maxDificultadLineal, targetLevel } =
-    getLinearDifficultyTarget(
+  // Resolve allowed levels + linear difficulty target.
+  //
+  // Kairos (D-03): inherit Alfa content at the lowest linear rung. Restrict
+  // candidates to level='alfa' and force dificultadLineal min=max=1, bypassing
+  // the Nivel Superior / high-intensity shift entirely. dificultadLineal=1 (not
+  // the 1-3 `difficulty` bucket) is the column the candidate query filters on.
+  // This is a pure additive branch: the non-kairos path below is unchanged (D-07).
+  let allowedLevels: ContentLevel[];
+  let minDificultadLineal: number;
+  let maxDificultadLineal: number;
+  let targetLevel: ContentLevel;
+
+  if (isKairos(ctx.memberLevel)) {
+    allowedLevels = [KAIROS_INHERITED_LEVEL];
+    minDificultadLineal = KAIROS_DIFICULTAD_LINEAL;
+    maxDificultadLineal = KAIROS_DIFICULTAD_LINEAL;
+    targetLevel = KAIROS_INHERITED_LEVEL;
+
+    const kairosInheritTrace = createTraceEvent(
+      updatedCtx,
+      "KAIROS_INHERIT_ALFA",
+      "INFO",
+      {
+        allowedLevels,
+        minDificultadLineal,
+        maxDificultadLineal,
+        targetLevel,
+        reason:
+          "Kairos inherits Alfa exercises at dificultadLineal=1 (D-03), bypassing the intensity shift",
+      },
+    );
+    updatedCtx = appendTrace(updatedCtx, kairosInheritTrace);
+  } else {
+    allowedLevels = getAllowedLevels(ctx.levelGroup);
+    // Calculate linear difficulty target (handles Nivel Superior and high-intensity shifts)
+    const target = getLinearDifficultyTarget(
       ctx.memberLevel,
       ctx.intensity,
       ctx.difficultyBucket,
     );
+    minDificultadLineal = target.minDificultadLineal;
+    maxDificultadLineal = target.maxDificultadLineal;
+    targetLevel = target.targetLevel;
+  }
 
   // Add trace if level was shifted. Compare against the resolved content level
   // so the kairos -> alfa content resolution (Phase 129, D-03) is NOT mistaken
