@@ -3036,11 +3036,11 @@ Plans:
 
 **Risks / notas:** Motor = **heurístico, sin API** (decisión discuss-125: la `ANTHROPIC_API_KEY` es placeholder/nunca desplegada — la feature de IA de franchise de la Phase 38 es código durmiente). El bootstrap es un script one-off re-ejecutable e idempotente (analog `saneo-exercises.ts`), no un servicio en caliente; revisión humana como gate obligatorio (TREE-03), nunca auto-aplicar. Propuestas en tabla separada (`exercise_dimension_proposals`), no en `exercises`. A esta altura el árbol NO existe (126) → revisión sobre lista plana, distinta del editor de árbol (128). `BRIEF-PROFES` NO bloquea esta fase.
 
-**Plans:** 3 plans
+**Plans:** 1/3 plans executed
 
 Plans:
 
-- [ ] 125-01-PLAN.md — backend: exercise_dimension_proposals schema + migration 0138 + heuristic bootstrap script + CI tests (TREE-02)
+- [x] 125-01-PLAN.md — backend: exercise_dimension_proposals schema + migration 0138 + heuristic bootstrap script + CI tests (TREE-02)
 - [ ] 125-02-PLAN.md — backend: review API (list/accept/reject/bulk-accept) in admin module + transactional truth-write + CI tests (TREE-03)
 - [ ] 125-03-PLAN.md — frontend: ProposalReviewPage + useProposalsApi composable + router/nav entry (TREE-03)
       **UI hint:** yes
@@ -3189,7 +3189,7 @@ Plans:
 | Phase                                          | Plans Complete | Status      | Completed  |
 | ---------------------------------------------- | -------------- | ----------- | ---------- |
 | 124. Estructura 3 dimensiones + saneo          | 2/2            | Complete    | 2026-06-05 |
-| 125. Bootstrap heurístico + revisión de profes | 0/TBD          | Not started | -          |
+| 125. Bootstrap heurístico + revisión de profes | 1/3            | In Progress |            |
 | 126. Auto-construcción del grafo (DAG)         | 0/TBD          | Not started | -          |
 | 127. % de avance del árbol (miembro)           | 0/TBD          | Not started | -          |
 | 128. Editor de árbol (admin)                   | 0/TBD          | Not started | -          |
