@@ -758,7 +758,11 @@ export const getMemberSessionLevelsSchema = {
             properties: {
               level: {
                 type: "string",
-                enum: ["alfa", "delta", "sigma", "omega", "spartan"],
+                // WR-03: kairos must be accepted in this RESPONSE enum. Once a
+                // member is kairos, the level-counts aggregation yields a
+                // {level:"kairos"} row; without this, Fastify response
+                // serialization would strip or 500 that row.
+                enum: ["kairos", "alfa", "delta", "sigma", "omega", "spartan"],
               },
               count: { type: "integer", minimum: 0 },
             },

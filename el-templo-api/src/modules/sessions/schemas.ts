@@ -34,6 +34,14 @@ export const generateSessionSchema = {
         enum: ["lunes", "martes", "miercoles", "jueves", "viernes", "sabado"],
       },
       levelGroup: { type: "string", enum: ["alfa_delta", "sigma", "omega"] },
+      // WR-03 / IN-03: declare the optional memberLevel (incl. kairos) so the
+      // kairos generation entry point is a typed contract instead of an
+      // undeclared body property read via cast. When omitted, the handler
+      // derives the level from levelGroup (back-compat preserved).
+      memberLevel: {
+        type: "string",
+        enum: ["kairos", "alfa", "delta", "sigma", "omega", "spartan"],
+      },
     },
   },
 };
@@ -42,6 +50,7 @@ export interface GenerateSessionInput {
   week: number;
   day: "lunes" | "martes" | "miercoles" | "jueves" | "viernes" | "sabado";
   levelGroup: "alfa_delta" | "sigma" | "omega";
+  memberLevel?: "kairos" | "alfa" | "delta" | "sigma" | "omega" | "spartan";
 }
 
 export const getSessionByIdSchema = {

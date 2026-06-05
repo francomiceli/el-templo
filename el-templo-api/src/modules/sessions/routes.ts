@@ -637,17 +637,15 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
 
       const { week, day, levelGroup } = request.body;
 
-      // Extract optional memberLevel from request body, or derive from levelGroup
-      const body = request.body as GenerateSessionInput & {
-        memberLevel?: ExerciseLevel;
-      };
-      const memberLevel =
-        body.memberLevel ??
-        ((levelGroup === "alfa_delta"
+      // WR-03 / IN-03: memberLevel is now a declared (optional) body property
+      // including kairos — no cast needed. When omitted, derive from levelGroup.
+      const memberLevel: ExerciseLevel =
+        request.body.memberLevel ??
+        (levelGroup === "alfa_delta"
           ? "delta"
           : levelGroup === "sigma"
             ? "sigma"
-            : "omega") as ExerciseLevel);
+            : "omega");
 
       // Check if already exists in cache
       const dayId = `W${week}-${day}-${memberLevel}`;
