@@ -1,107 +1,52 @@
 /**
- * bootstrap-dimensions.ts -- Heuristic first pass of the 3-dimension
- * decomposition for the v5.1 skill tree (Phase 125 Plan 01, TREE-02).
+ * bootstrap-dimensions.ts — Heuristic first pass of the per-route progression
+ * decomposition (rework de "Progresión por ruta + Habilidad").
  *
- * Reads the ~1.493-row exercise catalog and writes deterministic, REVIEWABLE
- * proposals into `exercise_dimension_proposals` (status = 'pending'). It NEVER
- * writes the phase-124 truth columns on `exercises` (subfamily_id / leverage /
- * route / route_pending) and never touches `effort` (D-01/D-03) -- a profe
- * confirms each proposal in the review screen of Plan 02, which is what writes
- * the truth columns.
+ * Reads the exercise catalog and writes deterministic, REVIEWABLE proposals into
+ * `exercise_dimension_proposals` (status = 'pending'). It NEVER writes the truth
+ * columns on `exercises` (progression_step / habilidad / route / route_pending) —
+ * a profe confirms each proposal in the review screen of Plan 02, which is what
+ * writes the truth columns.
  *
- * ENGINE = HEURISTIC, deterministic, NO LLM/API (D-05). It imports no AI SDK and
- * reads no AI API key (see CONTEXT D-05 — the prior LLM bootstrap was dropped).
- * The `route` column already encodes the skill family/area, so the engine
- * derives:
+ * ENGINE = HEURISTIC, deterministic, NO LLM/API (D-05). Classification lives in
+ * the single source of truth `src/modules/exercises/route-progression-map.ts`:
+ * `classify(name + position, route)` returns the progression step + Habilidad for
+ * each exercise within its route. Strategies per route type:
+ *   - token  → progression_step = step rank; non-default variant → habilidad.
+ *   - linear → progression_step = NULL (engine orders by dificultad_lineal);
+ *              intensity modifiers (W/OL/JUMP) → habilidad.
+ *   - unknown→ progression_step = NULL + confidence 0 (the profe resolves it).
+ *   - excluded (movilidad/games) → SKIPPED (out of the strength tree).
  *
- *   1. proposed_subfamily  via ROUTE_TO_SUBFAMILY (route code -> canonical name).
- *      Unmapped codes fall back to the raw (upper-cased) route code so families
- *      still cluster (the profe renames in review, D-04). Empty route -> NULL.
- *   2. proposed_leverage   via LEVERAGE_KEYWORDS matched on the lowercased name
- *      (tuck / adv tuck / straddle / half / full and analogs). Nullable when
- *      nothing matches (leverage is per-family, D-03).
- *   3. proposed_route      ONLY for exercises with route_pending = 1 (D-03): a
- *      best-guess route code inferred from the name. NEVER overwrite an existing
- *      route -- a routed exercise gets proposed_route = NULL.
+ * proposed_route is still inferred ONLY for route_pending exercises (D-03): a
+ * best-guess route code from the name. A normally-routed exercise gets NULL.
  *
  * Idempotent / resumable (D-06): only inserts a proposal where one does not yet
- * exist for that exercise. A UNIQUE(exercise_id) on the table (migration 0138)
- * backs the NOT-EXISTS guard, so re-running creates no duplicates and a run that
- * fails mid-way can be resumed.
+ * exist for that exercise (UNIQUE(exercise_id), migration 0138).
  *
- * console.log is acceptable here: this is a standalone one-off CLI maintenance
- * tool (analog `saneo-exercises.ts` / `backfill-gender.ts`), NOT the API server.
- * The "never console.log" rule (CLAUDE.md) targets the server (request.log/
- * app.log) and the frontend apps.
+ * console.log is acceptable here: standalone one-off CLI maintenance tool (analog
+ * saneo-exercises.ts / backfill-gender.ts), NOT the API server.
  *
  * Usage: npx tsx bootstrap-dimensions.ts
- * Works against any environment via .env DATABASE_URL -- but it is meant to be
- * inspected first: it prints the to-process / will-insert counts BEFORE mutating.
  */
 
 import "dotenv/config";
 import { createSingleConnection } from "./src/db/index";
 import { sql } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
+import { classify } from "./src/modules/exercises/route-progression-map";
 
 /** Engine metadata tag stamped on every generated proposal. */
-const ENGINE = "heuristic-v1";
+const ENGINE = "route-progression-v1";
 
-/**
- * Route code -> canonical sub-family name (D-04/D-05). The `route` column on
- * exercises already encodes the skill family/area; this map gives each family a
- * canonical display name so proposals from the same family cluster naturally.
- *
- * Keys are upper-cased route codes. The known codes come from the design doc
- * (new-training-system-design.md): "24-32 codes that are skill families
- * (PL=planche, FL=front lever, BL=back lever, HS=handstand, MU=muscle-up,
- * L=L-sit, etc.)". Codes NOT listed here fall back to the raw upper-cased route
- * code (still a deterministic, clustering name a profe renames in review).
- * Fine normalization (merge/split) is profe + tree-editor work (128), NOT this
- * pass (D-04).
- */
-const ROUTE_TO_SUBFAMILY: Record<string, string> = {
-  PL: "Planche",
-  FL: "Front Lever",
-  BL: "Back Lever",
-  HS: "Handstand",
-  MU: "Muscle Up",
-  L: "L-Sit",
-  VIC: "Victorian",
-  DF: "Dragon Flag",
-  HSPU: "Handstand Push Up",
-  OAC: "One Arm Chin",
-  OAP: "One Arm Push Up",
-  PU: "Pull Up",
-  DIP: "Dip",
-  SQ: "Squat",
-  PIKE: "Pike",
-};
-
-/**
- * Leverage keyword -> canonical leverage value (D-03/D-05). The lever arm axis
- * is universal across sub-families (tuck < adv tuck < straddle < half < full).
- * Matched against the lowercased exercise name; the FIRST match in `order` wins,
- * so the more specific "adv tuck" is checked before the bare "tuck". Nothing
- * matches -> proposed_leverage = NULL (leverage is per-family, often N/A).
- */
-const LEVERAGE_KEYWORDS: { keywords: string[]; leverage: string }[] = [
-  {
-    keywords: ["adv tuck", "advanced tuck", "adv. tuck"],
-    leverage: "Adv Tuck",
-  },
-  { keywords: ["tuck"], leverage: "Tuck" },
-  { keywords: ["straddle"], leverage: "Straddle" },
-  { keywords: ["half lay", "half-lay", "half"], leverage: "Half" },
-  { keywords: ["full lay", "full-lay", "full", "layout"], leverage: "Full" },
-  { keywords: ["one arm", "one-arm", "1 arm", "1-arm"], leverage: "One Arm" },
-];
+/** Confidence per classification kind (the profe re-reviews regardless). */
+const CONFIDENCE = { step: 100, linear: 80, unknown: 0 } as const;
 
 /**
  * Best-guess route code from a name, used ONLY for route_pending exercises
  * (D-03). Scans the name for any known family keyword and returns its route
- * code; returns null when nothing is recognizable (the profe assigns the route
- * in review). Order matters: longer/more specific phrases first.
+ * code; returns null when nothing is recognizable. Order matters: longer/more
+ * specific phrases first.
  */
 const NAME_TO_ROUTE_GUESS: { keywords: string[]; route: string }[] = [
   { keywords: ["handstand push", "hspu"], route: "HSPU" },
@@ -110,17 +55,16 @@ const NAME_TO_ROUTE_GUESS: { keywords: string[]; route: string }[] = [
   { keywords: ["back lever", "back-lever"], route: "BL" },
   { keywords: ["planche", "plancha"], route: "PL" },
   { keywords: ["muscle up", "muscle-up", "muscleup"], route: "MU" },
-  { keywords: ["victorian"], route: "VIC" },
-  { keywords: ["dragon flag"], route: "DF" },
+  { keywords: ["pistol", "sentadilla a una pierna"], route: "PS" },
   { keywords: ["l-sit", "l sit", "lsit"], route: "L" },
-  { keywords: ["pull up", "pull-up", "dominada"], route: "PU" },
-  { keywords: ["dip", "fondo"], route: "DIP" },
+  { keywords: ["dip", "fondo"], route: "HD/ID" },
 ];
 
 /** A row read from the exercise catalog (only the columns the engine needs). */
 interface CatalogRow {
   id: number;
   name: string;
+  position: string;
   route: string;
   routePending: boolean;
 }
@@ -128,27 +72,10 @@ interface CatalogRow {
 /** A proposal the engine decided to insert for one exercise. */
 interface ProposalToInsert {
   exerciseId: number;
-  proposedSubfamily: string | null;
-  proposedLeverage: string | null;
+  proposedStep: number | null;
+  proposedHabilidad: string | null;
   proposedRoute: string | null;
-}
-
-/** Canonical sub-family name from a route code (empty route -> NULL). */
-function subfamilyFromRoute(route: string): string | null {
-  const code = route.trim().toUpperCase();
-  if (code === "") return null;
-  return ROUTE_TO_SUBFAMILY[code] ?? code;
-}
-
-/** Canonical leverage from a name, or NULL when no keyword matches. */
-function leverageFromName(name: string): string | null {
-  const lower = name.toLowerCase();
-  for (const entry of LEVERAGE_KEYWORDS) {
-    if (entry.keywords.some((kw) => lower.includes(kw))) {
-      return entry.leverage;
-    }
-  }
-  return null;
+  confidence: number;
 }
 
 /** Best-guess route code from a name, or NULL when unrecognizable. */
@@ -163,10 +90,10 @@ function routeGuessFromName(name: string): string | null {
 }
 
 /**
- * Run the heuristic bootstrap against an open Drizzle connection. Exported so
- * the integration test can drive it against the per-worker test DB without
- * spawning a process. Generic over the schema so both the app's typed db and a
- * bare createSingleConnection() db are accepted.
+ * Run the heuristic bootstrap against an open Drizzle connection. Exported so the
+ * integration test can drive it against the per-worker test DB without spawning a
+ * process. Generic over the schema so both the app's typed db and a bare
+ * createSingleConnection() db are accepted.
  */
 export async function runBootstrap<TSchema extends Record<string, unknown>>(
   db: MySql2Database<TSchema>,
@@ -174,7 +101,7 @@ export async function runBootstrap<TSchema extends Record<string, unknown>>(
   // ── 1. READ exercises + existing proposals (read-only report before mutate) ──
 
   const exerciseRows = await db.execute(
-    sql`SELECT id, exercise AS name, route, route_pending AS routePending
+    sql`SELECT id, exercise AS name, position, route, route_pending AS routePending
         FROM exercises`,
   );
   const catalog = readCatalogRows(exerciseRows);
@@ -186,41 +113,79 @@ export async function runBootstrap<TSchema extends Record<string, unknown>>(
 
   const toProcess = catalog.filter((row) => !existing.has(row.id));
 
-  console.log(`\n=== Exercise Dimension Bootstrap (Phase 125 Plan 01) ===`);
+  console.log(`\n=== Exercise Dimension Bootstrap (Progresión por ruta) ===`);
   console.log(`Timestamp: ${new Date().toISOString()}`);
   console.log(`Engine: ${ENGINE} (heuristic, no LLM/API)`);
   console.log(`Exercises in catalog: ${catalog.length}`);
   console.log(`Already have a proposal (skipped): ${existing.size}`);
-  console.log(`Will generate proposals for: ${toProcess.length}\n`);
 
   if (toProcess.length === 0) {
-    console.log(`Nothing to do -- every exercise already has a proposal.`);
+    console.log(`\nNothing to do -- every exercise already has a proposal.`);
     return;
   }
 
   // ── 2. TRANSFORM (deterministic heuristic, no API) ──
+  //
+  // classify() reads name + position together: position often carries the
+  // orientation/variant while the leverage/step lives in the name (and vice
+  // versa). Excluded routes (movilidad/games) produce NO proposal.
 
-  const proposals: ProposalToInsert[] = toProcess.map((row) => ({
-    exerciseId: row.id,
-    proposedSubfamily: subfamilyFromRoute(row.route),
-    proposedLeverage: leverageFromName(row.name),
-    // proposed_route ONLY for route_pending rows; NEVER overwrite an existing
-    // route (D-03). A normally-routed exercise gets NULL here.
-    proposedRoute: row.routePending ? routeGuessFromName(row.name) : null,
-  }));
+  const proposals: ProposalToInsert[] = [];
+  let skippedExcluded = 0;
+  let routePendingCount = 0;
+  const kindCounts = { step: 0, linear: 0, unknown: 0 };
+  for (const row of toProcess) {
+    // route_pending rows (empty/placeholder route) come FIRST: they can't be
+    // classified yet (no route), so we only propose a best-guess route for the
+    // profe and leave step/habilidad NULL. Skipping classify here also avoids the
+    // empty-route → "excluded" path eating these saneo rows (D-03).
+    if (row.routePending) {
+      routePendingCount += 1;
+      proposals.push({
+        exerciseId: row.id,
+        proposedStep: null,
+        proposedHabilidad: null,
+        proposedRoute: routeGuessFromName(row.name),
+        confidence: 0,
+      });
+      continue;
+    }
+    const result = classify(`${row.name} ${row.position}`, row.route);
+    if (result.kind === "excluded") {
+      skippedExcluded += 1;
+      continue;
+    }
+    kindCounts[result.kind] += 1;
+    proposals.push({
+      exerciseId: row.id,
+      proposedStep: result.step,
+      proposedHabilidad: result.habilidad,
+      // A normally-routed exercise never re-proposes its route (D-03).
+      proposedRoute: null,
+      confidence: CONFIDENCE[result.kind],
+    });
+  }
+
+  console.log(`Will generate proposals for: ${proposals.length}`);
+  console.log(
+    `  step: ${kindCounts.step}  linear: ${kindCounts.linear}  unknown→pending: ${kindCounts.unknown}  route_pending: ${routePendingCount}`,
+  );
+  console.log(
+    `Skipped (excluded routes — movilidad/games): ${skippedExcluded}\n`,
+  );
 
   // ── 3. INSERT proposals (pending). NEVER write any exercises truth column. ──
   //
   // Idempotency (D-06): only rows without an existing proposal reach here. The
   // UNIQUE(exercise_id) on the table backs this guard at the DB level. We insert
-  // one row at a time so a mid-run failure leaves the already-inserted rows in
-  // place and a re-run resumes from where it stopped.
+  // one row at a time so a mid-run failure leaves already-inserted rows in place
+  // and a re-run resumes from where it stopped.
   let inserted = 0;
   for (const p of proposals) {
     await db.execute(
       sql`INSERT INTO exercise_dimension_proposals
-            (exercise_id, proposed_subfamily, proposed_leverage, proposed_route, status, engine)
-          SELECT ${p.exerciseId}, ${p.proposedSubfamily}, ${p.proposedLeverage}, ${p.proposedRoute}, 'pending', ${ENGINE}
+            (exercise_id, proposed_step, proposed_habilidad, proposed_route, status, engine, confidence)
+          SELECT ${p.exerciseId}, ${p.proposedStep}, ${p.proposedHabilidad}, ${p.proposedRoute}, 'pending', ${ENGINE}, ${p.confidence}
           WHERE NOT EXISTS (
             SELECT 1 FROM exercise_dimension_proposals WHERE exercise_id = ${p.exerciseId}
           )`,
@@ -250,6 +215,10 @@ function readCatalogRows(result: unknown): CatalogRow[] {
     out.push({
       id,
       name: typeof rec.name === "string" ? rec.name : String(rec.name ?? ""),
+      position:
+        typeof rec.position === "string"
+          ? rec.position
+          : String(rec.position ?? ""),
       route:
         typeof rec.route === "string" ? rec.route : String(rec.route ?? ""),
       // route_pending comes back as 0/1 (TINYINT) — coerce to boolean.

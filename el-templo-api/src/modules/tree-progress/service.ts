@@ -2,16 +2,17 @@
  * tree-progress / service — Phase 127 Plan 01 (TREE-06).
  *
  * buildMemberTree(db, userId, log) computes a member's skill-tree progress as a
- * nested structure: category → subfamily → nodes, with a % "reached" at every
- * level, ALL computed server-side (D-05). The client sends nothing that
- * influences the numbers (T-127-02).
+ * nested structure: category → route → nodes, with a % "reached" at every level,
+ * ALL computed server-side (D-05). The client sends nothing that influences the
+ * numbers (T-127-02). (The response keeps the `subfamilies[]` field name for the
+ * member-app contract, but each group is now one ROUTE.)
  *
- * STRUCTURE SOURCE (D-04): the node set is the phase-126 DAG node scope, read
- * with the EXACT predicate from rebuild-progression-graph.ts:
- *   subfamily_id IS NOT NULL AND canonical_exercise_id IS NULL
- *   AND effort IN ('CON','EXC','ISO')
- * Subfamilies that own zero such nodes are omitted. Every node maps to a
- * subfamily (subfamily_id) and to a category via patternToCategory(pattern).
+ * STRUCTURE SOURCE (D-04): the node set is the rework backbone scope, read with
+ * the EXACT predicate from rebuild-progression-graph.ts:
+ *   canonical_exercise_id IS NULL AND effort IN ('CON','EXC','ISO')
+ *   AND habilidad IS NULL AND routes.excluded_from_tree = false
+ * Routes that own zero such nodes are omitted. Every node maps to a route and to
+ * a category via patternToCategory(pattern).
  *
  * REACHED PROXY (D-03; AUGMENTED — not replaced — by phase 131's "dominado"
  * registry, D-05/D-06):
@@ -120,16 +121,15 @@ export function levelCeiling(level: ExerciseLevel): number {
   return LEVEL_LINEAR_MIN[next] - 1;
 }
 
-/** A confirmed-canonical graph node row joined with its subfamily metadata. */
+/** A confirmed-canonical backbone graph node row joined with its route metadata. */
 interface NodeRow {
   exerciseId: number;
   exerciseName: string;
   pattern: string;
   dificultadLineal: number;
-  subfamilyId: number;
-  subfamilyName: string;
-  subfamilyRoute: string;
-  subfamilySortOrder: number;
+  routeId: number;
+  routeCode: string;
+  routeDisplayName: string;
 }
 
 function round(n: number): number {
@@ -241,10 +241,13 @@ async function loadDominatedExerciseIds(
 }
 
 /**
- * Read the phase-126 DAG node set (confirmed canonical exercises participating
- * in the graph) joined with their subfamily metadata. Mirrors the
- * rebuild-progression-graph scope predicate exactly so the tree shows the real
- * graph, not a hardcoded list.
+ * Read the rework backbone graph node set (confirmed canonical exercises that
+ * sit on the per-route progression) joined with their route metadata. Mirrors
+ * the rebuild-progression-graph scope predicate exactly so the tree shows the
+ * real graph, not a hardcoded list:
+ *   canonical_exercise_id IS NULL AND effort IN ('CON','EXC','ISO')
+ *   AND habilidad IS NULL (backbone only — Habilidad variants are parallel)
+ *   AND routes.excluded_from_tree = false (movilidad/games fuera del árbol).
  */
 async function loadGraphNodes(
   db: MySql2Database<typeof schema>,
@@ -255,39 +258,35 @@ async function loadGraphNodes(
       exerciseName: schema.exercises.exercise,
       pattern: schema.exercises.pattern,
       dificultadLineal: schema.exercises.dificultadLineal,
-      subfamilyId: schema.exercises.subfamilyId,
-      subfamilyName: schema.exerciseSubfamilies.name,
-      subfamilyRoute: schema.exerciseSubfamilies.route,
-      subfamilySortOrder: schema.exerciseSubfamilies.sortOrder,
+      routeId: schema.routes.id,
+      routeCode: schema.routes.code,
+      routeDisplayName: schema.routes.displayName,
     })
     .from(schema.exercises)
-    .innerJoin(
-      schema.exerciseSubfamilies,
-      eq(schema.exercises.subfamilyId, schema.exerciseSubfamilies.id),
-    )
+    .innerJoin(schema.routes, eq(schema.exercises.route, schema.routes.code))
     .where(
       and(
         // canonical_exercise_id IS NULL — only canonical nodes (D-04).
         isNull(schema.exercises.canonicalExerciseId),
         // effort IN ('CON','EXC','ISO') — real contraction axis only (D-04).
         inArray(schema.exercises.effort, ["CON", "EXC", "ISO"]),
+        // habilidad IS NULL — only the backbone (Habilidad variants are parallel).
+        isNull(schema.exercises.habilidad),
+        // excluded routes (movilidad/games) never enter the strength tree.
+        eq(schema.routes.excludedFromTree, false),
       ),
     );
 
-  // The inner join already enforces subfamily_id IS NOT NULL (a NULL FK cannot
-  // match a subfamilies row); narrow the type to a non-null subfamilyId.
-  return rows
-    .filter((r): r is NodeRow => r.subfamilyId !== null)
-    .map((r) => ({
-      exerciseId: r.exerciseId,
-      exerciseName: r.exerciseName,
-      pattern: r.pattern,
-      dificultadLineal: r.dificultadLineal,
-      subfamilyId: r.subfamilyId,
-      subfamilyName: r.subfamilyName,
-      subfamilyRoute: r.subfamilyRoute,
-      subfamilySortOrder: r.subfamilySortOrder,
-    }));
+  // display_name is nullable; fall back to the route code so a group always has a label.
+  return rows.map((r) => ({
+    exerciseId: r.exerciseId,
+    exerciseName: r.exerciseName,
+    pattern: r.pattern,
+    dificultadLineal: r.dificultadLineal,
+    routeId: r.routeId,
+    routeCode: r.routeCode,
+    routeDisplayName: r.routeDisplayName ?? r.routeCode,
+  }));
 }
 
 /**
@@ -321,15 +320,14 @@ export async function buildMemberTree(
   // Warn once per distinct unmapped pattern so catalog drift surfaces (D-01).
   const warnedPatterns = new Set<string>();
 
-  interface SubfamilyAccumulator {
+  interface RouteAccumulator {
     id: number;
     name: string;
     route: string;
-    sortOrder: number;
     nodes: TreeNode[];
   }
-  // category key → (subfamilyId → accumulator)
-  const byCategory = new Map<Category, Map<number, SubfamilyAccumulator>>();
+  // category key → (routeId → accumulator)
+  const byCategory = new Map<Category, Map<number, RouteAccumulator>>();
   for (const cat of CATEGORY_ORDER) byCategory.set(cat, new Map());
 
   for (const node of nodes) {
@@ -348,16 +346,15 @@ export async function buildMemberTree(
 
     const subfamilies = byCategory.get(category);
     if (!subfamilies) continue; // unreachable: every category preallocated
-    let acc = subfamilies.get(node.subfamilyId);
+    let acc = subfamilies.get(node.routeId);
     if (!acc) {
       acc = {
-        id: node.subfamilyId,
-        name: node.subfamilyName,
-        route: node.subfamilyRoute,
-        sortOrder: node.subfamilySortOrder,
+        id: node.routeId,
+        name: node.routeDisplayName,
+        route: node.routeCode,
         nodes: [],
       };
-      subfamilies.set(node.subfamilyId, acc);
+      subfamilies.set(node.routeId, acc);
     }
     acc.nodes.push({
       exerciseId: node.exerciseId,
@@ -371,9 +368,9 @@ export async function buildMemberTree(
   // subfamilies ordered by sortOrder then name; nodes by dificultadLineal then id.
   const categories: TreeCategory[] = CATEGORY_ORDER.map((key) => {
     const subfamilyMap =
-      byCategory.get(key) ?? new Map<number, SubfamilyAccumulator>();
+      byCategory.get(key) ?? new Map<number, RouteAccumulator>();
     const subfamilies: TreeSubfamily[] = Array.from(subfamilyMap.values())
-      .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
+      .sort((a, b) => a.name.localeCompare(b.name))
       .map((acc) => {
         const sortedNodes = acc.nodes
           .slice()

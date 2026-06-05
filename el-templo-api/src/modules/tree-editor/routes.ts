@@ -63,7 +63,7 @@ export const treeEditorRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   fastify.post<{
-    Body: { subfamilyId: number; effort: string; orderedExerciseIds: number[] };
+    Body: { route: string; effort: string; orderedExerciseIds: number[] };
   }>(
     "/reorder",
     {
@@ -80,9 +80,9 @@ export const treeEditorRoutes: FastifyPluginAsync = async (fastify) => {
     },
     async (request, reply) => {
       try {
-        const { subfamilyId, effort, orderedExerciseIds } = request.body;
+        const { route, effort, orderedExerciseIds } = request.body;
         return await service.reorderPartition(
-          subfamilyId,
+          route,
           effort,
           orderedExerciseIds,
         );
@@ -137,7 +137,7 @@ export const treeEditorRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   fastify.post<{
-    Body: { exerciseIds: number[]; targetSubfamilyId: number };
+    Body: { exerciseIds: number[]; targetRoute: string };
   }>(
     "/regroup",
     {
@@ -154,14 +154,14 @@ export const treeEditorRoutes: FastifyPluginAsync = async (fastify) => {
     },
     async (request, reply) => {
       try {
-        const { exerciseIds, targetSubfamilyId } = request.body;
-        return await service.reassignSubfamily(exerciseIds, targetSubfamilyId);
+        const { exerciseIds, targetRoute } = request.body;
+        return await service.reassignRoute(exerciseIds, targetRoute);
       } catch (err: unknown) {
         return handleServiceError(
           err,
           reply,
           request.log,
-          "tree-editor.reassignSubfamily",
+          "tree-editor.reassignRoute",
         );
       }
     },

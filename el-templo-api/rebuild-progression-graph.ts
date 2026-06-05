@@ -1,37 +1,34 @@
 /**
- * rebuild-progression-graph.ts -- Deterministic constructor of the v5.1 skill-tree
- * progression graph (DAG), Phase 126 Plan 02 (TREE-04).
+ * rebuild-progression-graph.ts -- Deterministic constructor of the skill-tree
+ * progression graph (DAG), reworked for "Progresión por ruta + Habilidad".
  *
- * Reads the confirmed 3-dimension decomposition on `exercises` and writes the
- * LINEAR BACKBONE of the DAG into `exercise_progressions` as `source='auto'`
- * edges: one chain per `(subfamily_id × effort)` partition, connecting exercises
- * consecutively in ascending `dificultad_lineal` order (D-02). It derives ONLY
- * the linear backbone -- there are NO speculative cross-edges between partitions
- * or across effort; cross-family/cross-effort edges are profe work in phase 128.
+ * Reads the confirmed per-route progression on `exercises` and writes the LINEAR
+ * BACKBONE of the DAG into `exercise_progressions` as `source='auto'` edges: one
+ * chain per `(route × effort)` partition, connecting exercises consecutively in
+ * ascending `(progression_step, dificultad_lineal)` order (D-02). It derives ONLY
+ * the linear backbone -- NO speculative cross-edges between partitions or across
+ * effort; those are profe work in phase 128.
  *
  * Regenerable + manual-preserving (D-03): the write step DELETEs and re-inserts
  * ONLY `source='auto'` edges inside a single transaction, so re-running converges
- * to the same auto backbone (the edge UNIQUE backs the dedupe) and never touches
- * `source='manual'` edges authored by profes in 128.
+ * and never touches `source='manual'` edges authored by profes.
  *
  * Determinism (D-04/D-05):
- *   - effort is NEVER crossed: an EXC and a CON exercise in the same sub-family
- *     live in different partitions and never share an auto edge (D-04).
- *   - `dl` ties within a partition are broken by a stable secondary key (`id`,
- *     smaller first) so the chain orientation is identical across runs (D-05).
+ *   - effort is NEVER crossed: an EXC and a CON exercise in the same route live
+ *     in different partitions and never share an auto edge (D-04).
+ *   - within a partition, order by `progression_step` (NULL for linear/leg routes,
+ *     which then order by `dl`), then `dl`, then `id` as a stable tiebreak (D-05).
  *
- * Node scope (D-01/Discretion): only CONFIRMED canonical exercises participate --
- * rows with NULL `subfamily_id` (unconfirmed) are excluded, and only canonical
- * rows (`canonical_exercise_id IS NULL`) are nodes; soft-merged dupes are not.
+ * Node scope (backbone): only exercises ON the per-route progression participate —
+ *   canonical_exercise_id IS NULL  (canonical only)
+ *   AND effort IN ('CON','EXC','ISO')
+ *   AND habilidad IS NULL          (Habilidad variants are parallel, off-backbone)
+ *   AND routes.excluded_from_tree = false  (movilidad/games fuera del árbol)
  *
- * console.log is acceptable here: this is a standalone one-off CLI maintenance
- * tool (analog `bootstrap-dimensions.ts`), NOT the API server. The "never
- * console.log" rule (CLAUDE.md) targets the server (request.log / app.log) and
- * the frontend apps.
+ * console.log is acceptable here: standalone one-off CLI maintenance tool, NOT the
+ * API server.
  *
  * Usage: npx tsx rebuild-progression-graph.ts
- * Works against any environment via .env DATABASE_URL -- it prints the
- * to-process / will-write counts BEFORE mutating.
  */
 
 import "dotenv/config";
@@ -39,12 +36,14 @@ import { createSingleConnection } from "./src/db/index";
 import { sql } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 
-/** A confirmed-canonical exercise row (only the columns the constructor needs). */
+/** A backbone exercise row (only the columns the constructor needs). */
 export interface ExerciseNode {
   id: number;
-  subfamilyId: number;
+  route: string;
   effort: string;
   dl: number;
+  /** Step rank within (route × effort); NULL for linear routes (order by dl). */
+  progressionStep: number | null;
 }
 
 /** A single directed auto edge the constructor decided to insert. */
@@ -54,15 +53,14 @@ interface EdgeToInsert {
 }
 
 /**
- * A same-partition manual edge, narrowed to the partition coordinates of its
- * FROM endpoint. Used only to derive the LOCKED partition set (D-02). A partition
- * `(subfamilyId × effort)` is LOCKED when at least one manual edge has BOTH its
- * FROM and TO nodes inside that same partition (a manual chain rewrite re-homes
- * the partition's edges as `from→to` within it, D-03). Cross-partition manual
- * precedence edges (D-04) do NOT lock either endpoint's backbone.
+ * A same-partition manual edge, narrowed to the partition coordinates of its FROM
+ * endpoint. Used only to derive the LOCKED partition set (D-02). A partition
+ * `(route × effort)` is LOCKED when at least one manual edge has BOTH its FROM and
+ * TO nodes inside that same partition (a manual chain rewrite, D-03). Cross-
+ * partition manual precedence edges (D-04) do NOT lock either endpoint's backbone.
  */
 interface ManualEdgePartition {
-  subfamilyId: number;
+  route: string;
   effort: string;
 }
 
@@ -75,56 +73,41 @@ interface ManualEdgePartition {
 export async function runRebuildProgressionGraph<
   TSchema extends Record<string, unknown>,
 >(db: MySql2Database<TSchema>): Promise<void> {
-  // ── 1. READ confirmed canonical exercises (read-only report before mutate) ──
-  //
-  // Only nodes that are CONFIRMED (subfamily_id IS NOT NULL) and CANONICAL
-  // (canonical_exercise_id IS NULL, D-01) participate in the graph. The effort
-  // axis MUST be a real contraction (CON/EXC/ISO): `effort` is a free
-  // varchar(10) and the catalog demonstrably holds empty-effort rows (see
-  // exercise-fallback.ts filtering effort = ''), so an empty/invalid-effort row
-  // is off-graph and must NEVER form a partition/backbone (WR-04, D-04).
+  // ── 1. READ backbone nodes (read-only report before mutate) ──
   const exerciseRows = await db.execute(
-    sql`SELECT id, subfamily_id AS subfamilyId, effort, dificultad_lineal AS dl
-        FROM exercises
-        WHERE subfamily_id IS NOT NULL
-          AND canonical_exercise_id IS NULL
-          AND effort IN ('CON', 'EXC', 'ISO')`,
+    sql`SELECT e.id,
+               e.route AS route,
+               e.effort,
+               e.dificultad_lineal AS dl,
+               e.progression_step AS progressionStep
+        FROM exercises e
+        JOIN routes r ON r.code = e.route
+        WHERE e.canonical_exercise_id IS NULL
+          AND e.effort IN ('CON', 'EXC', 'ISO')
+          AND e.habilidad IS NULL
+          AND r.excluded_from_tree = 0`,
   );
   const nodes = readExerciseNodes(exerciseRows);
 
   // ── 1b. READ the LOCKED partition set (D-02) ─────────────────────────────────
-  //
-  // A partition `(subfamilyId × effort)` that owns ANY same-partition `manual`
-  // edge is LOCKED: the profe has overridden its order, so the constructor must
-  // NOT regenerate it (neither delete its auto edges nor re-insert a backbone).
-  // We lock by the FROM endpoint's partition and ONLY for manual edges whose FROM
-  // and TO nodes live in the SAME partition (a chain rewrite, D-03) — cross-
-  // partition manual precedence edges (D-04) lock neither endpoint's backbone.
   const manualEdgePartitions = await readManualEdgePartitions(db);
   const lockedPartitions = new Set<string>();
   for (const mep of manualEdgePartitions) {
-    lockedPartitions.add(`${mep.subfamilyId}|${mep.effort}`);
+    lockedPartitions.add(`${mep.route}|${mep.effort}`);
   }
 
   // ── 2. TRANSFORM (pure, in-memory, deterministic, NO inference -- D-02) ──
-  //
-  // Partition by the composite key (subfamilyId × effort) so effort is NEVER
-  // crossed (D-04). Within each partition order by dl ascending with a stable
-  // id tiebreak (D-05), then emit the consecutive linear backbone. Locked
-  // partitions emit NO auto edges — their order is owned by the profe.
   const edges = buildBackboneEdges(nodes, lockedPartitions);
 
-  // Auto edges are deleted+reinserted ONLY for UNLOCKED partitions, so the
-  // scoped DELETE targets exactly the FROM nodes of unlocked partitions. Locked
-  // partitions are never touched by the WRITE step.
+  // Auto edges are deleted+reinserted ONLY for UNLOCKED partitions.
   const unlockedNodeIds = nodes
-    .filter((n) => !lockedPartitions.has(`${n.subfamilyId}|${n.effort}`))
+    .filter((n) => !lockedPartitions.has(`${n.route}|${n.effort}`))
     .map((n) => n.id);
 
-  console.log(`\n=== Rebuild Progression Graph (Phase 126 Plan 02) ===`);
+  console.log(`\n=== Rebuild Progression Graph (Progresión por ruta) ===`);
   console.log(`Timestamp: ${new Date().toISOString()}`);
-  console.log(`Confirmed canonical exercises (nodes): ${nodes.length}`);
-  console.log(`Partitions (subfamily × effort): ${countPartitions(nodes)}`);
+  console.log(`Backbone exercises (nodes): ${nodes.length}`);
+  console.log(`Partitions (route × effort): ${countPartitions(nodes)}`);
   console.log(
     `Locked partitions (own a manual edge, skipped): ${lockedPartitions.size}`,
   );
@@ -133,17 +116,8 @@ export async function runRebuildProgressionGraph<
   );
 
   // ── 3. WRITE -- regenerate auto edges ONLY for unlocked partitions (D-02/D-03) ──
-  //
-  // The DELETE-then-INSERT runs in a single transaction so a concurrent reader
-  // never sees a half-rebuilt graph, and a mid-run failure rolls back cleanly.
-  // The edge UNIQUE (from, to) guarantees no duplicates within the auto set.
-  // The DELETE is scoped to auto edges whose FROM node belongs to an unlocked
-  // partition: this replaces the old GLOBAL `DELETE ... WHERE source='auto'` so
-  // a locked partition's auto edges (if any linger) are never wiped, and the
-  // backbone build already excludes locked partitions from the re-insert.
   await db.transaction(async (tx) => {
     // Guard against an empty IN list (no unlocked nodes → nothing to delete).
-    // An empty IN () is a MySQL syntax error, so skip the delete entirely.
     if (unlockedNodeIds.length > 0) {
       await tx.execute(
         sql`DELETE FROM exercise_progressions
@@ -170,32 +144,25 @@ export async function runRebuildProgressionGraph<
  * Read the LOCKED partition coordinates from `exercise_progressions` (D-02).
  *
  * A partition is locked when a `source='manual'` edge has BOTH endpoints in the
- * same `(subfamily_id × effort)` partition — i.e. a same-partition chain rewrite
- * (D-03). We join the edge to the exercises of BOTH endpoints and keep only rows
- * where they share `subfamily_id` AND `effort`, returning the FROM endpoint's
- * partition coordinates. Cross-partition manual precedence edges (D-04) are
- * excluded by the same-partition predicate, so they never lock a backbone.
- *
- * Result is narrowed via the same defensive pattern as `readExerciseNodes` —
- * no `any` (CLAUDE.md TS rule). Only CONFIRMED canonical nodes form a partition,
- * so we require both endpoints to be confirmed/canonical/valid-effort, matching
- * the node READ above (a manual edge touching an off-graph node cannot lock a
- * backbone that the constructor would never build).
+ * same `(route × effort)` partition — a same-partition chain rewrite (D-03). Both
+ * endpoints must be backbone nodes (canonical, valid effort, habilidad IS NULL),
+ * matching the node READ above. Cross-partition manual precedence edges (D-04) are
+ * excluded by the same-route/same-effort predicate, so they never lock a backbone.
  */
 async function readManualEdgePartitions<
   TSchema extends Record<string, unknown>,
 >(db: MySql2Database<TSchema>): Promise<ManualEdgePartition[]> {
   const rows = await db.execute(
-    sql`SELECT ef.subfamily_id AS subfamilyId, ef.effort AS effort
+    sql`SELECT ef.route AS route, ef.effort AS effort
         FROM exercise_progressions ep
         JOIN exercises ef ON ef.id = ep.from_exercise_id
         JOIN exercises et ON et.id = ep.to_exercise_id
         WHERE ep.source = 'manual'
-          AND ef.subfamily_id IS NOT NULL
-          AND et.subfamily_id IS NOT NULL
           AND ef.canonical_exercise_id IS NULL
           AND et.canonical_exercise_id IS NULL
-          AND ef.subfamily_id = et.subfamily_id
+          AND ef.habilidad IS NULL
+          AND et.habilidad IS NULL
+          AND ef.route = et.route
           AND ef.effort = et.effort
           AND ef.effort IN ('CON', 'EXC', 'ISO')`,
   );
@@ -204,10 +171,8 @@ async function readManualEdgePartitions<
 
 /**
  * Narrow a mysql2 db.execute() result into typed locked-partition coordinates
- * without `any` (CLAUDE.md TS rule). Mirrors `readExerciseNodes`: the driver
- * returns [rows, fields]; rows is our array. Rows with a non-finite subfamilyId
- * or an invalid/empty effort are SKIPPED defensively as data errors so a bad row
- * can never lock (or fail to lock) a partition silently.
+ * without `any`. Rows with an empty route or an invalid/empty effort are SKIPPED
+ * defensively so a bad row can never lock (or fail to lock) a partition silently.
  */
 export function readManualEdgePartitionRows(
   result: unknown,
@@ -219,25 +184,24 @@ export function readManualEdgePartitionRows(
   for (const raw of rows) {
     if (typeof raw !== "object" || raw === null) continue;
     const rec = raw as Record<string, unknown>;
-    const subfamilyId = Number(rec.subfamilyId);
+    const route = typeof rec.route === "string" ? rec.route : "";
     const effort = typeof rec.effort === "string" ? rec.effort : "";
-    if (!Number.isFinite(subfamilyId)) continue;
+    if (route === "") continue;
     if (!VALID_EFFORTS.has(effort)) continue;
-    out.push({ subfamilyId, effort });
+    out.push({ route, effort });
   }
   return out;
 }
 
 /**
- * Partition the nodes by (subfamilyId × effort), order each partition by dl
- * ascending with a stable id tiebreak (D-05), and emit the consecutive linear
- * backbone (from = element[i], to = element[i+1]). A single-node partition emits
- * 0 edges. Pure and deterministic -- no inference, no cross-partition edges (D-02).
+ * Partition the nodes by (route × effort), order each partition by
+ * (progression_step, dl, id) (D-05), and emit the consecutive linear backbone
+ * (from = element[i], to = element[i+1]). A single-node partition emits 0 edges.
+ * Pure and deterministic -- no inference, no cross-partition edges (D-02).
  *
- * `lockedPartitions` holds the `${subfamilyId}|${effort}` keys (the SAME key shape
- * used here) of partitions that own a manual edge (D-02). Any node whose partition
- * key is locked emits NO backbone edges — the profe's manual chain owns that
- * partition's order and the constructor must not regenerate it.
+ * `lockedPartitions` holds the `${route}|${effort}` keys of partitions that own a
+ * manual edge (D-02). Any node whose partition key is locked emits NO backbone
+ * edges — the profe's manual chain owns that partition's order.
  */
 function buildBackboneEdges(
   nodes: ExerciseNode[],
@@ -246,7 +210,7 @@ function buildBackboneEdges(
   const partitions = new Map<string, ExerciseNode[]>();
   for (const node of nodes) {
     // effort is part of the key, so EXC and CON never share a partition (D-04).
-    const key = `${node.subfamilyId}|${node.effort}`;
+    const key = `${node.route}|${node.effort}`;
     // Skip locked partitions entirely — no auto backbone is emitted for them.
     if (lockedPartitions.has(key)) continue;
     const bucket = partitions.get(key);
@@ -259,8 +223,21 @@ function buildBackboneEdges(
 
   const edges: EdgeToInsert[] = [];
   for (const bucket of partitions.values()) {
-    // Stable order: primary key dl ascending, deterministic tiebreak by id (D-05).
-    bucket.sort((a, b) => (a.dl !== b.dl ? a.dl - b.dl : a.id - b.id));
+    // Stable order: progression_step ascending (NULL = linear → falls to dl),
+    // then dl ascending, then id as a deterministic tiebreak (D-05). Within a
+    // partition all nodes share a route → same strategy → step is all-NULL or
+    // all-int, so NULL/int never mix.
+    bucket.sort((a, b) => {
+      if (
+        a.progressionStep !== null &&
+        b.progressionStep !== null &&
+        a.progressionStep !== b.progressionStep
+      ) {
+        return a.progressionStep - b.progressionStep;
+      }
+      if (a.dl !== b.dl) return a.dl - b.dl;
+      return a.id - b.id;
+    });
     for (let i = 0; i < bucket.length - 1; i += 1) {
       edges.push({
         fromExerciseId: bucket[i].id,
@@ -271,10 +248,10 @@ function buildBackboneEdges(
   return edges;
 }
 
-/** Distinct (subfamilyId × effort) partition count, for the report only. */
+/** Distinct (route × effort) partition count, for the report only. */
 function countPartitions(nodes: ExerciseNode[]): number {
   const keys = new Set<string>();
-  for (const node of nodes) keys.add(`${node.subfamilyId}|${node.effort}`);
+  for (const node of nodes) keys.add(`${node.route}|${node.effort}`);
   return keys.size;
 }
 
@@ -282,12 +259,9 @@ function countPartitions(nodes: ExerciseNode[]): number {
 const VALID_EFFORTS = new Set<string>(["CON", "EXC", "ISO"]);
 
 /**
- * Narrow a mysql2 db.execute() result into typed exercise nodes without `any`
- * (CLAUDE.md TS rule). The driver returns [rows, fields]; rows is our array.
- * Rows with a non-finite id, non-finite subfamilyId, non-finite dl, or an
- * invalid/empty effort are SKIPPED defensively as data errors — never coerced.
- * The READ already filters NULL subfamily_id and non-contraction effort, but
- * the skips are explicit here so a bad row can never silently distort a chain.
+ * Narrow a mysql2 db.execute() result into typed exercise nodes without `any`.
+ * Rows with a non-finite id, non-finite dl, or an invalid/empty effort are SKIPPED
+ * defensively. progression_step may be NULL (linear routes) — kept as null.
  */
 export function readExerciseNodes(result: unknown): ExerciseNode[] {
   if (!Array.isArray(result)) return [];
@@ -298,19 +272,20 @@ export function readExerciseNodes(result: unknown): ExerciseNode[] {
     if (typeof raw !== "object" || raw === null) continue;
     const rec = raw as Record<string, unknown>;
     const id = Number(rec.id);
-    const subfamilyId = Number(rec.subfamilyId);
     const dl = Number(rec.dl);
+    const route = typeof rec.route === "string" ? rec.route : "";
     const effort = typeof rec.effort === "string" ? rec.effort : "";
-    // Skip data errors instead of fabricating a default. A non-finite dl coerced
-    // to 0 would sort BELOW every legitimate dl (which start at 1) and silently
-    // plant the row at the head of its chain (WR-05). An empty/invalid effort is
-    // off-graph and must not form a partition (WR-04). dl is NOT NULL DEFAULT 1
-    // in the schema, so the dl skip should be unreachable — skipping is strictly
-    // safer than inventing an ordering key.
-    if (!Number.isFinite(id) || !Number.isFinite(subfamilyId)) continue;
-    if (!Number.isFinite(dl)) continue;
+    // progression_step is nullable (NULL for linear routes); keep null, never
+    // coerce a NULL to 0 (which would plant the row at the head of its chain).
+    const rawStep = rec.progressionStep;
+    const stepNum =
+      rawStep === null || rawStep === undefined ? null : Number(rawStep);
+    const progressionStep =
+      stepNum !== null && Number.isFinite(stepNum) ? stepNum : null;
+    if (!Number.isFinite(id) || !Number.isFinite(dl)) continue;
+    if (route === "") continue;
     if (!VALID_EFFORTS.has(effort)) continue;
-    out.push({ id, subfamilyId, effort, dl });
+    out.push({ id, route, effort, dl, progressionStep });
   }
   return out;
 }

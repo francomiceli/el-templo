@@ -37,10 +37,10 @@ export const exerciseProposalStatus = mysqlEnum("status", [
  * `exercises`, never `pending` proposals — keeping proposals in their own table
  * enforces that boundary.
  *
- * Proposed-column widths mirror the phase-124 truth columns so the accept flow
- * (Plan 02) never truncates:
- *   - proposed_subfamily  150  -> exercise_subfamilies.name (150)
- *   - proposed_leverage    50  -> exercises.leverage (50), nullable (D-03)
+ * Rework "progresión por ruta": el bootstrap propone el escalón (progression_step)
+ * + la Habilidad (variante paralela) en vez de sub-familia/palanca:
+ *   - proposed_step       INT  -> exercises.progression_step (rank); NULL = linear/unknown
+ *   - proposed_habilidad  100  -> exercises.habilidad (100), nullable
  *   - proposed_route       20  -> exercises.route (20), only for route_pending (D-03)
  *
  * `exercise_id` FK uses ON DELETE CASCADE (contrast with the 124 truth columns'
@@ -56,8 +56,10 @@ export const exerciseDimensionProposals = mysqlTable(
     exerciseId: int("exercise_id")
       .references(() => exercises.id, { onDelete: "cascade" })
       .notNull(),
-    proposedSubfamily: varchar("proposed_subfamily", { length: 150 }),
-    proposedLeverage: varchar("proposed_leverage", { length: 50 }),
+    /** Escalón de progresión propuesto (rank); NULL para linear/unknown. */
+    proposedStep: int("proposed_step"),
+    /** Habilidad propuesta (variante paralela); NULL si va en el backbone. */
+    proposedHabilidad: varchar("proposed_habilidad", { length: 100 }),
     proposedRoute: varchar("proposed_route", { length: 20 }),
     status: exerciseProposalStatus.default("pending").notNull(),
     engine: varchar("engine", { length: 30 }),

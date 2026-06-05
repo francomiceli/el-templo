@@ -4,7 +4,7 @@ export { TreeEditorService, TreeEditorError } from "./service";
 export type {
   EditableTree,
   EditableCategory,
-  EditableSubfamily,
+  EditableRoute,
   EditablePartition,
   EditableNode,
   PrecedenceEdge,

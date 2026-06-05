@@ -1,22 +1,24 @@
 /**
- * tree-editor / service — Phase 128 Plan 02 (TREE-07).
+ * tree-editor / service — Phase 128 Plan 02 (TREE-07), reworked for
+ * "Progresión por ruta + Habilidad".
  *
  * The admin/coach-scoped persistence layer that lets profes refine the
- * auto-built skill tree (D-06). All overrides persist in the EXISTING
+ * auto-built skill tree (D-06). All ORDER overrides persist in the EXISTING
  * `exercise_progressions` table as `source='manual'` (D-01) — no new table, no
- * new column, no migration. Regroup is a data UPDATE of `exercises.subfamily_id`
- * (D-05), also no migration.
+ * new column. Regroup is a data UPDATE of `exercises.route` (move a misrouted
+ * exercise to another route), also no migration.
  *
- * Node scope is the EXACT phase-126/127 DAG scope (copied verbatim from
- * tree-progress/service.ts): a node is a confirmed canonical exercise
+ * Node scope is the EXACT rework backbone scope (copied verbatim from
+ * tree-progress/service.ts): a confirmed canonical exercise
  *   canonical_exercise_id IS NULL AND effort IN ('CON','EXC','ISO')
- * with a non-null subfamily_id (enforced by the inner join). The same predicate
- * is reused for the READ and for FK/partition-membership validation of every
- * write input (T-128-04).
+ *   AND habilidad IS NULL AND routes.excluded_from_tree = false
+ * The partition is now `(route × effort)` (the sub-family axis is gone). The same
+ * predicate is reused for the READ and for partition-membership validation of
+ * every write input (T-128-04).
  *
  * Pairs with Plan 01's locked-partition guard: writing a same-partition manual
- * chain LOCKS that `(subfamily × effort)` partition so a rebuild never clobbers
- * it. On first override of a partition the editor deletes that partition's
+ * chain LOCKS that `(route × effort)` partition so a rebuild never clobbers it.
+ * On first override of a partition the editor deletes that partition's
  * `source='auto'` edges and writes the manual chain (D-02/D-03).
  */
 
@@ -75,9 +77,13 @@ export interface EditablePartition {
   nodes: EditableNode[];
 }
 
-export interface EditableSubfamily {
+/** One route group (kept the field shape; the axis is now route, not sub-family). */
+export interface EditableRoute {
+  /** routes.id (the group key for the UI). */
   id: number;
+  /** routes.display_name (or the code as fallback). */
   name: string;
+  /** routes.code — also the partition dimension. */
   route: string;
   partitions: EditablePartition[];
 }
@@ -85,7 +91,7 @@ export interface EditableSubfamily {
 export interface EditableCategory {
   key: Category;
   label: Category;
-  subfamilies: EditableSubfamily[];
+  routes: EditableRoute[];
 }
 
 export interface PrecedenceEdge {
@@ -116,17 +122,16 @@ export interface MutationResult {
 
 // ── Internal row shapes ──────────────────────────────────────────────────────
 
-/** A confirmed-canonical graph node joined with its subfamily metadata. */
+/** A confirmed-canonical backbone graph node joined with its route metadata. */
 interface NodeRow {
   exerciseId: number;
   name: string;
   pattern: string;
   dificultadLineal: number;
   effort: string;
-  subfamilyId: number;
-  subfamilyName: string;
-  subfamilyRoute: string;
-  subfamilySortOrder: number;
+  routeId: number;
+  routeCode: string;
+  routeDisplayName: string;
 }
 
 /** A persisted edge row (both endpoints). */
@@ -136,8 +141,9 @@ interface EdgeRow {
   source: EdgeSource;
 }
 
-function partitionKey(subfamilyId: number, effort: string): string {
-  return `${subfamilyId}|${effort}`;
+/** Partition key over the `(route × effort)` axis. */
+function partitionKey(route: string, effort: string): string {
+  return `${route}|${effort}`;
 }
 
 export class TreeEditorService {
@@ -147,9 +153,10 @@ export class TreeEditorService {
   ) {}
 
   /**
-   * Read the phase-126 DAG node set (confirmed canonical exercises) joined with
-   * subfamily metadata. Mirrors tree-progress/service.ts loadGraphNodes EXACTLY
-   * (D-06): same scope predicate, no member 'reached' branch.
+   * Read the rework backbone node set (confirmed canonical exercises on the
+   * per-route progression) joined with route metadata. Mirrors
+   * tree-progress/service.ts loadGraphNodes EXACTLY (D-06): same scope predicate,
+   * no member 'reached' branch.
    */
   private async loadGraphNodes(): Promise<NodeRow[]> {
     const rows = await this.db
@@ -159,37 +166,31 @@ export class TreeEditorService {
         pattern: schema.exercises.pattern,
         dificultadLineal: schema.exercises.dificultadLineal,
         effort: schema.exercises.effort,
-        subfamilyId: schema.exercises.subfamilyId,
-        subfamilyName: schema.exerciseSubfamilies.name,
-        subfamilyRoute: schema.exerciseSubfamilies.route,
-        subfamilySortOrder: schema.exerciseSubfamilies.sortOrder,
+        routeId: schema.routes.id,
+        routeCode: schema.routes.code,
+        routeDisplayName: schema.routes.displayName,
       })
       .from(schema.exercises)
-      .innerJoin(
-        schema.exerciseSubfamilies,
-        eq(schema.exercises.subfamilyId, schema.exerciseSubfamilies.id),
-      )
+      .innerJoin(schema.routes, eq(schema.exercises.route, schema.routes.code))
       .where(
         and(
           isNull(schema.exercises.canonicalExerciseId),
           inArray(schema.exercises.effort, [...VALID_EFFORTS]),
+          isNull(schema.exercises.habilidad),
+          eq(schema.routes.excludedFromTree, false),
         ),
       );
 
-    // The inner join already enforces subfamily_id IS NOT NULL; narrow the type.
-    return rows
-      .filter((r): r is NodeRow => r.subfamilyId !== null)
-      .map((r) => ({
-        exerciseId: r.exerciseId,
-        name: r.name,
-        pattern: r.pattern,
-        dificultadLineal: r.dificultadLineal,
-        effort: r.effort,
-        subfamilyId: r.subfamilyId,
-        subfamilyName: r.subfamilyName,
-        subfamilyRoute: r.subfamilyRoute,
-        subfamilySortOrder: r.subfamilySortOrder,
-      }));
+    return rows.map((r) => ({
+      exerciseId: r.exerciseId,
+      name: r.name,
+      pattern: r.pattern,
+      dificultadLineal: r.dificultadLineal,
+      effort: r.effort,
+      routeId: r.routeId,
+      routeCode: r.routeCode,
+      routeDisplayName: r.routeDisplayName ?? r.routeCode,
+    }));
   }
 
   /** Load every persisted edge (both auto and manual), typed. */
@@ -209,12 +210,12 @@ export class TreeEditorService {
   }
 
   /**
-   * buildEditableTree — category → subfamily → (effort) partition → ordered
-   * nodes, every partition tagged auto vs overridden (D-06). When a partition is
+   * buildEditableTree — category → route → (effort) partition → ordered nodes,
+   * every partition tagged auto vs overridden (D-06). When a partition is
    * overridden (owns a same-partition manual chain) the nodes are ordered by that
-   * manual chain; otherwise by dificultad_lineal then id (the auto order). The
-   * cross-partition precedence edges are returned separately so the UI can draw
-   * the DAG branches/convergences (D-04).
+   * manual chain; otherwise by progression_step then dificultad_lineal then id
+   * (the auto order). The cross-partition precedence edges are returned separately
+   * so the UI can draw the DAG branches/convergences (D-04).
    */
   async buildEditableTree(): Promise<EditableTree> {
     const [nodes, edges] = await Promise.all([
@@ -240,11 +241,11 @@ export class TreeEditorService {
       const samePartition =
         from !== undefined &&
         to !== undefined &&
-        from.subfamilyId === to.subfamilyId &&
+        from.routeCode === to.routeCode &&
         from.effort === to.effort;
 
       if (samePartition && e.source === "manual") {
-        const key = partitionKey(from.subfamilyId, from.effort);
+        const key = partitionKey(from.routeCode, from.effort);
         lockedPartitions.add(key);
         let next = manualChainNext.get(key);
         if (!next) {
@@ -261,23 +262,22 @@ export class TreeEditorService {
       } else if (!samePartition) {
         precedenceEdges.push(e);
       }
-      // same-partition auto edges are the backbone — implicit in dl ordering.
+      // same-partition auto edges are the backbone — implicit in step ordering.
     }
 
-    // Bucket nodes: category → subfamily → effort partition.
+    // Bucket nodes: category → route → effort partition.
     const warnedPatterns = new Set<string>();
     interface PartitionAcc {
       effort: string;
       nodes: NodeRow[];
     }
-    interface SubfamilyAcc {
+    interface RouteAcc {
       id: number;
       name: string;
       route: string;
-      sortOrder: number;
       partitions: Map<string, PartitionAcc>; // keyed by effort
     }
-    const byCategory = new Map<Category, Map<number, SubfamilyAcc>>();
+    const byCategory = new Map<Category, Map<number, RouteAcc>>();
     for (const cat of CATEGORY_ORDER) byCategory.set(cat, new Map());
 
     for (const node of nodes) {
@@ -292,37 +292,39 @@ export class TreeEditorService {
       // A node must NEVER silently disappear from the editable tree. If the
       // mapped category is not one of the seeded CATEGORY_ORDER buckets (a
       // future category-map change), route the node into FALLBACK_CATEGORY
-      // (guaranteed seeded — it is a member of CATEGORY_ORDER) and warn so the
-      // drift surfaces operationally instead of hiding the node from the profe.
-      let subfamilies = byCategory.get(category);
-      if (!subfamilies) {
+      // (guaranteed seeded) and warn so the drift surfaces operationally.
+      let routesInCat = byCategory.get(category);
+      if (!routesInCat) {
         this.log?.warn(
           { pattern: node.pattern, category, exerciseId: node.exerciseId },
           "tree-editor: mapped category absent from CATEGORY_ORDER — node routed to fallback category",
         );
-        subfamilies = byCategory.get(FALLBACK_CATEGORY);
-        if (!subfamilies) continue; // unreachable: FALLBACK_CATEGORY is seeded.
+        routesInCat = byCategory.get(FALLBACK_CATEGORY);
+        if (!routesInCat) continue; // unreachable: FALLBACK_CATEGORY is seeded.
       }
-      let sf = subfamilies.get(node.subfamilyId);
-      if (!sf) {
-        sf = {
-          id: node.subfamilyId,
-          name: node.subfamilyName,
-          route: node.subfamilyRoute,
-          sortOrder: node.subfamilySortOrder,
+      let rt = routesInCat.get(node.routeId);
+      if (!rt) {
+        rt = {
+          id: node.routeId,
+          name: node.routeDisplayName,
+          route: node.routeCode,
           partitions: new Map(),
         };
-        subfamilies.set(node.subfamilyId, sf);
+        routesInCat.set(node.routeId, rt);
       }
-      let part = sf.partitions.get(node.effort);
+      let part = rt.partitions.get(node.effort);
       if (!part) {
         part = { effort: node.effort, nodes: [] };
-        sf.partitions.set(node.effort, part);
+        rt.partitions.set(node.effort, part);
       }
       part.nodes.push(node);
     }
 
-    /** Order a partition's nodes: by the manual chain if overridden, else dl/id. */
+    /**
+     * Order a partition's nodes: by the manual chain if overridden, else by
+     * progression_step then dl/id (the auto backbone order). progression_step is
+     * NULL for linear routes (legs), so dl is the effective key there.
+     */
     const orderNodes = (
       key: string,
       overridden: boolean,
@@ -390,19 +392,16 @@ export class TreeEditorService {
     };
 
     const categories: EditableCategory[] = CATEGORY_ORDER.map((key) => {
-      const subfamilyMap =
-        byCategory.get(key) ?? new Map<number, SubfamilyAcc>();
-      const subfamilies: EditableSubfamily[] = Array.from(subfamilyMap.values())
-        .sort(
-          (a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name),
-        )
-        .map((sf) => {
+      const routeMap = byCategory.get(key) ?? new Map<number, RouteAcc>();
+      const routes: EditableRoute[] = Array.from(routeMap.values())
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((rt) => {
           const partitions: EditablePartition[] = Array.from(
-            sf.partitions.values(),
+            rt.partitions.values(),
           )
             .sort((a, b) => a.effort.localeCompare(b.effort))
             .map((part) => {
-              const pKey = partitionKey(sf.id, part.effort);
+              const pKey = partitionKey(rt.route, part.effort);
               const overridden = lockedPartitions.has(pKey);
               return {
                 effort: part.effort,
@@ -411,28 +410,28 @@ export class TreeEditorService {
               };
             });
           return {
-            id: sf.id,
-            name: sf.name,
-            route: sf.route,
+            id: rt.id,
+            name: rt.name,
+            route: rt.route,
             partitions,
           };
         });
-      return { key, label: key, subfamilies };
+      return { key, label: key, routes };
     });
 
     return { categories, precedenceEdges };
   }
 
   /**
-   * reorderPartition — rewrite a `(subfamilyId × effort)` partition as a
-   * consecutive `source='manual'` chain in the given order (D-03). The id set
-   * must EXACTLY match the partition's node set (no extra/missing ids). In ONE
-   * transaction: delete that partition's `source='auto'` edges AND any existing
-   * same-partition `source='manual'` edges, then insert the new manual chain.
-   * Idempotent: re-applying the same order converges (UNIQUE(from,to) dedupes).
+   * reorderPartition — rewrite a `(route × effort)` partition as a consecutive
+   * `source='manual'` chain in the given order (D-03). The id set must EXACTLY
+   * match the partition's node set (no extra/missing ids). In ONE transaction:
+   * delete that partition's `source='auto'` edges AND any existing same-partition
+   * `source='manual'` edges, then insert the new manual chain. Idempotent:
+   * re-applying the same order converges (UNIQUE(from,to) dedupes).
    */
   async reorderPartition(
-    subfamilyId: number,
+    route: string,
     effort: string,
     orderedExerciseIds: number[],
   ): Promise<MutationResult> {
@@ -444,11 +443,11 @@ export class TreeEditorService {
 
     const nodes = await this.loadGraphNodes();
     const partitionNodes = nodes.filter(
-      (n) => n.subfamilyId === subfamilyId && n.effort === effort,
+      (n) => n.routeCode === route && n.effort === effort,
     );
     if (partitionNodes.length === 0) {
       throw new TreeEditorError(
-        `Particion (subfamily ${subfamilyId} × ${effort}) sin nodos`,
+        `Particion (ruta ${route} × ${effort}) sin nodos`,
         404,
       );
     }
@@ -466,17 +465,16 @@ export class TreeEditorService {
     for (const id of orderedExerciseIds) {
       if (!partitionIds.has(id)) {
         throw new TreeEditorError(
-          `El ejercicio ${id} no pertenece a la particion (subfamily ${subfamilyId} × ${effort})`,
+          `El ejercicio ${id} no pertenece a la particion (ruta ${route} × ${effort})`,
         );
       }
     }
 
     // A single-node partition has nothing to chain: a manual edge needs two
     // distinct endpoints, so no chain can be written and the partition can
-    // NEVER be marked overridden. Return an EXPLICIT no-op result (instead of a
-    // confusing silent {edgesWritten:0}) and touch NOTHING — a single-node
-    // partition owns no intra-partition edges to delete, so this leaves no
-    // half-locked state (WR-04).
+    // NEVER be marked overridden. Return an EXPLICIT no-op result and touch
+    // NOTHING — a single-node partition owns no intra-partition edges to delete,
+    // so this leaves no half-locked state (WR-04).
     if (partitionNodes.length === 1) {
       return {
         ok: true,
@@ -570,13 +568,13 @@ export class TreeEditorService {
 
     if (op === "add") {
       // D-04 boundary: a precedence/cross-edge MUST connect two DIFFERENT
-      // (subfamily × effort) partitions. A same-partition manual edge is a
+      // (route × effort) partitions. A same-partition manual edge is a
       // reorder/chain concern (D-03), and writing one here would (a) lock the
       // partition's auto backbone in rebuild (readManualEdgePartitions) and
       // (b) coexist with the auto backbone → getNeighbor ambiguity. Reject it
       // so reorderPartition stays the only path that locks a partition.
       if (
-        fromNode.subfamilyId === toNode.subfamilyId &&
+        fromNode.routeCode === toNode.routeCode &&
         fromNode.effort === toNode.effort
       ) {
         throw new TreeEditorError(
@@ -622,39 +620,37 @@ export class TreeEditorService {
   }
 
   /**
-   * reassignSubfamily — group/split subfamilies by reassigning
-   * `exercises.subfamily_id` (D-05, data UPDATE, NO migration). In ONE
-   * transaction: validate the target subfamily + every exercise id exists, UPDATE
-   * subfamily_id, then prune the now-inconsistent edges incident to a moved node.
+   * reassignRoute — move misrouted exercises to another route by updating
+   * `exercises.route` (data UPDATE, NO migration). In ONE transaction: validate
+   * the target route exists + every exercise id exists, UPDATE route, then prune
+   * the now-inconsistent edges incident to a moved node.
    *
    * ORPHAN POLICY (bounded + reversible, D-05): only edges INCIDENT to a moved
    * exercise are considered. We delete an incident edge iff, AFTER the move, its
-   * two endpoints no longer share the same `(subfamily_id × effort)` partition —
-   * a same-partition backbone link that the move broke. Cross-partition
-   * precedence edges that were ALREADY cross-partition before the move are left
-   * untouched (they are intentional DAG branches, D-04). Edges between two
-   * non-moved nodes are never touched. This keeps the cleanup scoped to exactly
-   * the partitions the move disturbed; the profe re-runs reorder to rebuild a
-   * destination backbone (no auto regeneration is forced here).
+   * two endpoints no longer share the same `(route × effort)` partition — a
+   * same-partition backbone link that the move broke. Cross-partition precedence
+   * edges that were ALREADY cross-partition before the move are left untouched
+   * (intentional DAG branches, D-04). Edges between two non-moved nodes are never
+   * touched. The profe re-runs reorder to rebuild a destination backbone.
    */
-  async reassignSubfamily(
+  async reassignRoute(
     exerciseIds: number[],
-    targetSubfamilyId: number,
+    targetRoute: string,
   ): Promise<MutationResult> {
     const uniqueIds = [...new Set(exerciseIds)];
     if (uniqueIds.length === 0) {
       throw new TreeEditorError("exerciseIds vacio");
     }
 
-    // Validate the target subfamily exists.
-    const [targetSf] = await this.db
-      .select({ id: schema.exerciseSubfamilies.id })
-      .from(schema.exerciseSubfamilies)
-      .where(eq(schema.exerciseSubfamilies.id, targetSubfamilyId))
+    // Validate the target route exists in the routes catalog.
+    const [targetRow] = await this.db
+      .select({ code: schema.routes.code })
+      .from(schema.routes)
+      .where(eq(schema.routes.code, targetRoute))
       .limit(1);
-    if (!targetSf) {
+    if (!targetRow) {
       throw new TreeEditorError(
-        `La sub-familia destino ${targetSubfamilyId} no existe`,
+        `La ruta destino ${targetRoute} no existe`,
         404,
       );
     }
@@ -663,7 +659,7 @@ export class TreeEditorService {
     const exRows = await this.db
       .select({
         id: schema.exercises.id,
-        subfamilyId: schema.exercises.subfamilyId,
+        route: schema.exercises.route,
         effort: schema.exercises.effort,
       })
       .from(schema.exercises)
@@ -679,15 +675,13 @@ export class TreeEditorService {
 
     let edgesDeleted = 0;
     await this.db.transaction(async (tx) => {
-      // 1. Reassign subfamily_id for the moved exercises.
+      // 1. Reassign route for the moved exercises.
       await tx
         .update(schema.exercises)
-        .set({ subfamilyId: targetSubfamilyId })
+        .set({ route: targetRoute })
         .where(inArray(schema.exercises.id, uniqueIds));
 
-      // 2. Load every edge incident to a moved node, with BOTH endpoints'
-      //    POST-move (subfamily_id, effort) coords (the update above is visible
-      //    inside the tx).
+      // 2. Load every edge incident to a moved node.
       const incident = await tx
         .select({
           id: schema.exerciseProgressions.id,
@@ -695,10 +689,7 @@ export class TreeEditorService {
           toExerciseId: schema.exerciseProgressions.toExerciseId,
         })
         .from(schema.exerciseProgressions)
-        .where(
-          // incident = from OR to is a moved node
-          inArray(schema.exerciseProgressions.fromExerciseId, uniqueIds),
-        );
+        .where(inArray(schema.exerciseProgressions.fromExerciseId, uniqueIds));
       const incidentTo = await tx
         .select({
           id: schema.exerciseProgressions.id,
@@ -724,21 +715,18 @@ export class TreeEditorService {
       const coordRows = await tx
         .select({
           id: schema.exercises.id,
-          subfamilyId: schema.exercises.subfamilyId,
+          route: schema.exercises.route,
           effort: schema.exercises.effort,
         })
         .from(schema.exercises)
         .where(inArray(schema.exercises.id, [...endpointIds]));
-      const coordById = new Map<
-        number,
-        { subfamilyId: number | null; effort: string }
-      >();
+      const coordById = new Map<number, { route: string; effort: string }>();
       for (const r of coordRows) {
-        coordById.set(r.id, { subfamilyId: r.subfamilyId, effort: r.effort });
+        coordById.set(r.id, { route: r.route, effort: r.effort });
       }
 
       // 3. Delete an incident edge iff its two endpoints no longer share the
-      //    same (subfamily_id × effort) partition AFTER the move.
+      //    same (route × effort) partition AFTER the move.
       const toDelete: number[] = [];
       for (const e of incidentById.values()) {
         const a = coordById.get(e.fromExerciseId);
@@ -748,11 +736,7 @@ export class TreeEditorService {
           toDelete.push(e.id);
           continue;
         }
-        const samePartition =
-          a.subfamilyId !== null &&
-          b.subfamilyId !== null &&
-          a.subfamilyId === b.subfamilyId &&
-          a.effort === b.effort;
+        const samePartition = a.route === b.route && a.effort === b.effort;
         if (!samePartition) {
           toDelete.push(e.id);
         }

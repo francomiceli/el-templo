@@ -52,7 +52,7 @@ const editablePartitionSchema = {
   },
 } as const;
 
-const editableSubfamilySchema = {
+const editableRouteSchema = {
   type: "object",
   properties: {
     id: { type: "number" },
@@ -67,7 +67,7 @@ const editableCategorySchema = {
   properties: {
     key: { type: "string" },
     label: { type: "string" },
-    subfamilies: { type: "array", items: editableSubfamilySchema },
+    routes: { type: "array", items: editableRouteSchema },
   },
 } as const;
 
@@ -83,10 +83,10 @@ export const editableTreeResponseSchema = {
 /** POST /reorder body — rewrite a partition's manual chain in a new order. */
 export const reorderBodySchema = {
   type: "object",
-  required: ["subfamilyId", "effort", "orderedExerciseIds"],
+  required: ["route", "effort", "orderedExerciseIds"],
   additionalProperties: false,
   properties: {
-    subfamilyId: { type: "number" },
+    route: { type: "string" },
     effort: { type: "string", enum: EFFORT_ENUM },
     orderedExerciseIds: {
       type: "array",
@@ -108,10 +108,10 @@ export const precedenceBodySchema = {
   },
 } as const;
 
-/** POST /regroup body — reassign exercises to a target subfamily. */
+/** POST /regroup body — move misrouted exercises to a target route. */
 export const regroupBodySchema = {
   type: "object",
-  required: ["exerciseIds", "targetSubfamilyId"],
+  required: ["exerciseIds", "targetRoute"],
   additionalProperties: false,
   properties: {
     exerciseIds: {
@@ -119,7 +119,7 @@ export const regroupBodySchema = {
       items: { type: "number" },
       minItems: 1,
     },
-    targetSubfamilyId: { type: "number" },
+    targetRoute: { type: "string" },
   },
 } as const;
 

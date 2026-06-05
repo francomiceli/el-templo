@@ -494,11 +494,34 @@ export const acceptProposalSchema = {
   body: {
     type: "object" as const,
     properties: {
-      proposedSubfamily: { type: "string", minLength: 1, maxLength: 150 },
-      proposedLeverage: { type: ["string", "null"], maxLength: 50 },
+      // Escalón de progresión (rank); null = off-backbone (linear/unknown).
+      proposedStep: { type: ["integer", "null"] },
+      // Habilidad (variante paralela); null = va en el backbone.
+      proposedHabilidad: { type: ["string", "null"], maxLength: 100 },
       proposedRoute: { type: "string", minLength: 1, maxLength: 20 },
     },
     additionalProperties: false,
+  },
+};
+
+/**
+ * GET /admin/exercises/route-progression-map — the per-route progression model
+ * (strategy + ordered step tokens + Habilidad vocab) the review screen consumes.
+ * Keyed by route code; additionalProperties carries the per-route shape.
+ */
+export const routeProgressionMapSchema = {
+  response: {
+    200: {
+      type: "object" as const,
+      additionalProperties: {
+        type: "object" as const,
+        properties: {
+          strategy: { type: "string", enum: ["token", "linear", "excluded"] },
+          steps: { type: "array", items: { type: "string" } },
+          habilidades: { type: "array", items: { type: "string" } },
+        },
+      },
+    },
   },
 };
 

@@ -7,7 +7,6 @@ import {
   index,
   type AnyMySqlColumn,
 } from "drizzle-orm/mysql-core";
-import { exerciseSubfamilies } from "./exercise-subfamilies";
 
 export const exerciseLevelEnum = mysqlEnum("exercise_level", [
   "alfa",
@@ -35,17 +34,18 @@ export const exercises = mysqlTable(
     dificultadLineal: int("dificultad_lineal").notNull().default(1),
     route: varchar("route", { length: 20 }).notNull(),
     /**
-     * Sub-familia (gesto) FK — nullable in 124 (D-01/D-10: catalog may be
-     * empty/minimal until the bootstrap of 125 populates it).
+     * Progresión por ruta (rework): rank del escalón dentro de la partición
+     * (ruta × contracción), ordenado fácil→difícil. NULL para rutas "linear"
+     * (piernas, que ordenan por dificultad_lineal) y para ejercicios sin escalón
+     * resuelto (pending). Lo puebla el bootstrap (classify) y lo corrige el profe.
      */
-    subfamilyId: int("subfamily_id").references(() => exerciseSubfamilies.id, {
-      onDelete: "set null",
-    }),
+    progressionStep: int("progression_step"),
     /**
-     * Palanca/posición — nullable, per-family vocabulary (D-03/D-05). NOT a
-     * global enum: forcing one would leave N/A across most of the catalog.
+     * Habilidad — variante paralela opcional (mismo nivel, otra herramienta/forma:
+     * agarre supino, anillas, una pierna, etc.). NULL = variante default / en el
+     * backbone. Un ejercicio con habilidad != NULL queda FUERA de la cadena lineal.
      */
-    leverage: varchar("leverage", { length: 50 }),
+    habilidad: varchar("habilidad", { length: 100 }),
     /**
      * Canonical pointer for soft-merge of exact dupes (D-07). Self-FK, no
      * deletes: exercises.id is referenced by session_prescriptions and
@@ -78,7 +78,7 @@ export const exercises = mysqlTable(
     ),
     index("exercises_level_idx").on(table.level),
     index("exercises_dificultad_lineal_idx").on(table.dificultadLineal),
-    index("exercises_subfamily_idx").on(table.subfamilyId),
+    index("exercises_route_step_idx").on(table.route, table.progressionStep),
     index("exercises_canonical_idx").on(table.canonicalExerciseId),
   ],
 );

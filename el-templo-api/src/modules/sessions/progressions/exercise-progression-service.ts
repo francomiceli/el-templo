@@ -24,7 +24,10 @@
  *    we pick deterministically: closest by dl, then smallest id.
  *  - D-06: reuses the `ExerciseCandidate` return shape rather than reimplementing it.
  *
- * Exercises with NULL `subfamily_id` are not in the graph and resolve no neighbor.
+ * Graph membership is defined by the PERSISTED edges, not a catalog column: the
+ * rebuild (Fase 4) only emits edges for backbone nodes (route not excluded, effort
+ * a real contraction, `habilidad IS NULL`), so an off-graph exercise (excluded
+ * route / Habilidad variant) simply has no incident edges and resolves no neighbor.
  * Empty/invalid-effort rows (`effort` is a free varchar(10); the catalog holds
  * `effort=''` rows) are off-graph and resolve no neighbor — the `Contraction` cast
  * is never applied to a non-contraction value (WR-03).
@@ -87,21 +90,22 @@ export class ExerciseProgressionService {
     exerciseId: number,
     direction: NeighborDirection,
   ): Promise<ExerciseCandidate | null> {
-    // Step 1: load the target row. Excluded from the graph if missing, if it has
-    // no sub-family, or if its effort is not a real contraction (off-graph).
+    // Step 1: load the target row. Excluded from the graph if missing or if its
+    // effort is not a real contraction (off-graph). Off-graph nodes (excluded
+    // route / Habilidad) carry no incident edges, so the edge walk below is the
+    // real membership gate.
     const [target] = await this.db
       .select({
         id: schema.exercises.id,
-        subfamilyId: schema.exercises.subfamilyId,
         effort: schema.exercises.effort,
         dificultadLineal: schema.exercises.dificultadLineal,
       })
       .from(schema.exercises)
       .where(eq(schema.exercises.id, exerciseId));
 
-    if (!target || target.subfamilyId === null) {
+    if (!target) {
       this.log?.debug(
-        { exerciseId, direction, reason: !target ? "missing" : "no-subfamily" },
+        { exerciseId, direction, reason: "missing" },
         "getNeighbor: target excluded from graph",
       );
       return null;
@@ -151,7 +155,6 @@ export class ExerciseProgressionService {
       .select({
         id: schema.exercises.id,
         name: schema.exercises.exercise,
-        subfamilyId: schema.exercises.subfamilyId,
         dificultadLineal: schema.exercises.dificultadLineal,
         effort: schema.exercises.effort,
         position: schema.exercises.position,
@@ -164,13 +167,10 @@ export class ExerciseProgressionService {
         ),
       );
 
-    // Drop any candidate that is off-graph (NULL subfamily_id) or whose effort is
-    // not a real contraction (defensive — the effort eq above already constrains
-    // to targetEffort, which is a valid Contraction, but this keeps the cast
-    // honest, WR-03).
-    const valid = candidates.filter(
-      (c) => c.subfamilyId !== null && asContraction(c.effort) !== null,
-    );
+    // Drop any candidate whose effort is not a real contraction (defensive — the
+    // effort eq above already constrains to targetEffort, which is a valid
+    // Contraction, but this keeps the cast honest, WR-03).
+    const valid = candidates.filter((c) => asContraction(c.effort) !== null);
 
     if (valid.length === 0) {
       this.log?.debug(

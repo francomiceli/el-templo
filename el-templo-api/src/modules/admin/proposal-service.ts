@@ -6,12 +6,10 @@
  * correct / reject each one before it becomes truth on `exercises`.
  *
  * Boundary (D-02):
- *   - `accept` is the ONLY write that touches the phase-124 truth columns. It
- *     runs inside a `db.transaction` so the subfamily resolve-or-create, the
- *     `exercises` update, and the proposal status flip commit atomically (no
- *     half-applied truth). It resolves-or-CREATEs the `exercise_subfamilies`
- *     row (the catalog is empty after 124), sets `exercises.subfamily_id` +
- *     `leverage`, and — for a `route_pending` row (or when an override supplies
+ *   - `accept` is the ONLY write that touches the truth columns. It runs inside a
+ *     `db.transaction` so the `exercises` update and the proposal status flip
+ *     commit atomically (no half-applied truth). It sets `exercises.progression_step`
+ *     + `habilidad`, and — for a `route_pending` row (or when an override supplies
  *     a route) — sets `exercises.route` and clears `route_pending`.
  *   - `reject` writes ONLY the proposal status; it never touches `exercises`.
  *   - NEVER writes the contraction column (D-03 — contraction is trusted as-is)
@@ -40,8 +38,8 @@ export interface ProposalListItem {
   exerciseName: string;
   currentRoute: string;
   routePending: boolean;
-  proposedSubfamily: string | null;
-  proposedLeverage: string | null;
+  proposedStep: number | null;
+  proposedHabilidad: string | null;
   proposedRoute: string | null;
   status: ProposalStatus;
   engine: string | null;
@@ -55,8 +53,10 @@ export interface ListProposalsResult {
 
 /** Inline-edit overrides a profe can supply when accepting (D-07). */
 export interface AcceptOverrides {
-  proposedSubfamily?: string;
-  proposedLeverage?: string | null;
+  /** Step rank; null to mark the exercise off-backbone (linear/unknown). */
+  proposedStep?: number | null;
+  /** Habilidad variant; null to put the exercise on the backbone. */
+  proposedHabilidad?: string | null;
   proposedRoute?: string;
 }
 
@@ -103,8 +103,8 @@ export class ProposalService {
         exerciseName: schema.exercises.exercise,
         currentRoute: schema.exercises.route,
         routePending: schema.exercises.routePending,
-        proposedSubfamily: schema.exerciseDimensionProposals.proposedSubfamily,
-        proposedLeverage: schema.exerciseDimensionProposals.proposedLeverage,
+        proposedStep: schema.exerciseDimensionProposals.proposedStep,
+        proposedHabilidad: schema.exerciseDimensionProposals.proposedHabilidad,
         proposedRoute: schema.exerciseDimensionProposals.proposedRoute,
         status: schema.exerciseDimensionProposals.status,
         engine: schema.exerciseDimensionProposals.engine,
@@ -152,13 +152,16 @@ export class ProposalService {
       }
 
       // Resolve final values from overrides (D-07 inline edit) falling back to
-      // the proposed fields.
-      const finalSubfamily =
-        overrides?.proposedSubfamily ?? proposal.proposedSubfamily ?? null;
-      const finalLeverage =
-        overrides?.proposedLeverage !== undefined
-          ? overrides.proposedLeverage
-          : (proposal.proposedLeverage ?? null);
+      // the proposed fields. `!== undefined` so a profe can explicitly clear a
+      // value (step → null = off-backbone, habilidad → null = on the backbone).
+      const finalStep =
+        overrides?.proposedStep !== undefined
+          ? overrides.proposedStep
+          : (proposal.proposedStep ?? null);
+      const finalHabilidad =
+        overrides?.proposedHabilidad !== undefined
+          ? overrides.proposedHabilidad
+          : (proposal.proposedHabilidad ?? null);
       const overrideRoute = overrides?.proposedRoute;
       const proposedRoute = proposal.proposedRoute ?? null;
 
@@ -169,48 +172,20 @@ export class ProposalService {
         (exercise.routePending && proposedRoute !== null);
       const finalRoute = overrideRoute ?? proposedRoute;
 
-      // Build the exercises truth-column update. NEVER touches the contraction
-      // column (D-03).
+      // Build the exercises truth-column update: the progression step + Habilidad
+      // are the core of the decision and are ALWAYS written on accept. NEVER
+      // touches the contraction column (D-03).
       const exerciseUpdate: {
-        subfamilyId?: number;
-        leverage?: string | null;
+        progressionStep: number | null;
+        habilidad: string | null;
         route?: string;
         routePending?: boolean;
       } = {
-        leverage: finalLeverage,
+        progressionStep: finalStep,
+        habilidad: finalHabilidad,
       };
 
-      // (1) Resolve-or-create the exercise_subfamilies row (catalog is empty
-      // after 124). Match on (route, name) where route = the exercise's
-      // effective route.
-      if (finalSubfamily !== null) {
-        const effectiveRoute =
-          shouldWriteRoute && finalRoute !== null ? finalRoute : exercise.route;
-
-        const [existing] = await tx
-          .select({ id: schema.exerciseSubfamilies.id })
-          .from(schema.exerciseSubfamilies)
-          .where(
-            and(
-              eq(schema.exerciseSubfamilies.route, effectiveRoute),
-              eq(schema.exerciseSubfamilies.name, finalSubfamily),
-            ),
-          );
-
-        let subfamilyId: number;
-        if (existing) {
-          subfamilyId = existing.id;
-        } else {
-          const [created] = await tx
-            .insert(schema.exerciseSubfamilies)
-            .values({ route: effectiveRoute, name: finalSubfamily })
-            .$returningId();
-          subfamilyId = created.id;
-        }
-        exerciseUpdate.subfamilyId = subfamilyId;
-      }
-
-      // (2/3) route + route_pending for route_pending rows (or override).
+      // route + route_pending for route_pending rows (or override).
       if (shouldWriteRoute && finalRoute !== null) {
         exerciseUpdate.route = finalRoute;
         exerciseUpdate.routePending = false;

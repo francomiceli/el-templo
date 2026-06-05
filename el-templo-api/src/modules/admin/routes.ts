@@ -5,6 +5,7 @@ import { AdminSessionService, SessionFilter } from "./service";
 import { AdminEditService } from "./edit-service";
 import { ExerciseService } from "./exercise-service";
 import { ProposalService } from "./proposal-service";
+import { routeProgressionReviewMap } from "../exercises/route-progression-map";
 import { VideoService } from "./video-service";
 import { parseDayId } from "../shared/training-constants";
 import { assembleVideoUrl } from "../shared/video-url";
@@ -42,6 +43,7 @@ import {
   acceptProposalSchema,
   rejectProposalSchema,
   bulkAcceptSchema,
+  routeProgressionMapSchema,
 } from "./schemas";
 import {
   listExercisesSchema,
@@ -1371,8 +1373,8 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post<{
     Params: { id: number };
     Body: {
-      proposedSubfamily?: string;
-      proposedLeverage?: string | null;
+      proposedStep?: number | null;
+      proposedHabilidad?: string | null;
       proposedRoute?: string;
     };
   }>(
@@ -1406,6 +1408,26 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
         return { success: true };
       } catch (err: unknown) {
         return handleServiceError(err, reply, request.log, "reject proposal");
+      }
+    },
+  );
+
+  // GET /admin/exercises/route-progression-map - per-route step/Habilidad vocab
+  // (single source of truth shared with the bootstrap + engine). The review
+  // screen uses it to offer step-token + Habilidad options per route.
+  fastify.get(
+    "/exercises/route-progression-map",
+    { schema: routeProgressionMapSchema },
+    async (_request, reply) => {
+      try {
+        return routeProgressionReviewMap();
+      } catch (err: unknown) {
+        return handleServiceError(
+          err,
+          reply,
+          _request.log,
+          "route-progression-map",
+        );
       }
     },
   );
