@@ -55,7 +55,7 @@
 
 - [ ] **ADJUST-01**: Durante la sesión, el miembro puede pedir "↓ más fácil" o "más difícil ↑" por ejercicio desde el player.
 - [ ] **ADJUST-02**: Al pedir el ajuste, el árbol sirve el ejercicio vecino un escalón arriba/abajo conservando ruta, contracción, formato y dosis del bloque (solo cambia el ejercicio por su vecino en la cadena ruta × contracción).
-- [ ] **ADJUST-03**: El sistema persiste un registro de "ejercicio dominado / bajado" por miembro (nuevo, distinto del "completado" local + RPE de la sesión entera).
+- [x] **ADJUST-03**: El sistema persiste un registro de "ejercicio dominado / bajado" por miembro (nuevo, distinto del "completado" local + RPE de la sesión entera).
 - [ ] **ADJUST-04**: El registro de dominado alimenta el % de avance del árbol (TREE-06) y es visible para el coach.
 
 ---
@@ -79,23 +79,23 @@
 
 <!-- REQ-ID → Phase (filled by roadmap). 18/18 mapped (fases 124-131, v5.1). -->
 
-| Requirement | Phase     | Status   |
-| ----------- | --------- | -------- |
-| TREE-01     | Phase 124 | Complete |
-| TREE-02     | Phase 125 | Complete |
-| TREE-03     | Phase 125 | Complete |
-| TREE-04     | Phase 126 | Complete |
-| TREE-05     | Phase 124 | Complete |
-| TREE-06     | Phase 127 | Complete |
-| TREE-07     | Phase 128 | Complete |
-| KAIROS-01   | Phase 129 | Complete |
-| KAIROS-02   | Phase 129 | Complete |
-| KAIROS-03   | Phase 129 | Complete |
-| KAIROS-04   | Phase 130 | Done     |
-| KAIROS-05   | Phase 130 | Done     |
-| KAIROS-06   | Phase 130 | Done     |
-| KAIROS-07   | Phase 130 | Done     |
-| ADJUST-01   | Phase 131 | Pending  |
-| ADJUST-02   | Phase 131 | Pending  |
-| ADJUST-03   | Phase 131 | Pending  |
-| ADJUST-04   | Phase 131 | Pending  |
+| Requirement | Phase     | Status        |
+| ----------- | --------- | ------------- |
+| TREE-01     | Phase 124 | Complete      |
+| TREE-02     | Phase 125 | Complete      |
+| TREE-03     | Phase 125 | Complete      |
+| TREE-04     | Phase 126 | Complete      |
+| TREE-05     | Phase 124 | Complete      |
+| TREE-06     | Phase 127 | Complete      |
+| TREE-07     | Phase 128 | Complete      |
+| KAIROS-01   | Phase 129 | Complete      |
+| KAIROS-02   | Phase 129 | Complete      |
+| KAIROS-03   | Phase 129 | Complete      |
+| KAIROS-04   | Phase 130 | Done          |
+| KAIROS-05   | Phase 130 | Done          |
+| KAIROS-06   | Phase 130 | Done          |
+| KAIROS-07   | Phase 130 | Done          |
+| ADJUST-01   | Phase 131 | Pending       |
+| ADJUST-02   | Phase 131 | Pending       |
+| ADJUST-03   | Phase 131 | Done (131-01) |
+| ADJUST-04   | Phase 131 | Pending       |

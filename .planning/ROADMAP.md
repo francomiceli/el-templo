@@ -3241,23 +3241,29 @@ Plans:
 **Plans:** 3 plans en 2 waves
 
 Plans:
-- [ ] 131-01-PLAN.md — exercise_adjustments table + migración 0142 + servicio (getNeighbor + persistir) + endpoint miembro + tests (wave 1)
+**Wave 1**
+
+- [x] 131-01-PLAN.md — exercise_adjustments table + migración 0142 + servicio (getNeighbor + persistir) + endpoint miembro + tests (wave 1) ✅ 2026-06-05
+
+**Wave 2** _(blocked on Wave 1 completion)_
+
 - [ ] 131-02-PLAN.md — enriquecer % del árbol (127) con dominado + vista del coach (endpoint + admin) (wave 2)
 - [ ] 131-03-PLAN.md — botones más fácil/difícil en el player + swap del vecino (member app) (wave 2)
+
 **UI hint:** yes
 
 ## v5.1 Progress
 
-| Phase                                          | Plans Complete | Status      | Completed  |
-| ---------------------------------------------- | -------------- | ----------- | ---------- |
-| 124. Estructura 3 dimensiones + saneo          | 2/2            | Complete    | 2026-06-05 |
-| 125. Bootstrap heurístico + revisión de profes | 3/3            | Complete    | 2026-06-05 |
-| 126. Auto-construcción del grafo (DAG)         | 3/3            | Complete    | 2026-06-05 |
-| 127. % de avance del árbol (miembro)           | 2/2            | Complete    | 2026-06-05 |
-| 128. Editor de árbol (admin)                   | 3/3            | Complete    | 2026-06-05 |
-| 129. Kairos — enum, herencia, formato lineal   | 2/2            | Complete    | 2026-06-05 |
-| 130. Kairos — asignación, graduación, selector | 4/4            | Complete    | 2026-06-05 |
-| 131. Ajuste in-session + registro de dominado  | 0/3            | Planned     | -          |
+| Phase                                          | Plans Complete | Status   | Completed  |
+| ---------------------------------------------- | -------------- | -------- | ---------- |
+| 124. Estructura 3 dimensiones + saneo          | 2/2            | Complete | 2026-06-05 |
+| 125. Bootstrap heurístico + revisión de profes | 3/3            | Complete | 2026-06-05 |
+| 126. Auto-construcción del grafo (DAG)         | 3/3            | Complete | 2026-06-05 |
+| 127. % de avance del árbol (miembro)           | 2/2            | Complete | 2026-06-05 |
+| 128. Editor de árbol (admin)                   | 3/3            | Complete | 2026-06-05 |
+| 129. Kairos — enum, herencia, formato lineal   | 2/2            | Complete | 2026-06-05 |
+| 130. Kairos — asignación, graduación, selector | 4/4            | Complete | 2026-06-05 |
+| 131. Ajuste in-session + registro de dominado  | 0/3            | Planned  | -          |
 
 _Plan counts populated by `/gsd-plan-phase`._
 

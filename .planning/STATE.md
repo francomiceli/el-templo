@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v5.1
 milestone_name: Nuevo Sistema de Entrenamiento
-status: ready_to_plan
-stopped_at: Phase 130 complete (4/4) — ready to discuss Phase 131
-last_updated: 2026-06-05T06:22:01.334Z
-last_activity: 2026-06-05 -- Phase 130 Plan 04 executed (staging, not pushed); phase 130 ready for verification
+status: executing
+stopped_at: Phase 131 Plan 01 executed (exercise_adjustments table + migration 0142, ExerciseAdjustmentService reusing 126 getNeighbor, member-scoped POST /api/exercise-adjustments, integration tests). tsc green, committed on staging, not pushed.
+last_updated: "2026-06-05T06:36:03.782Z"
+last_activity: 2026-06-05 -- Phase 131 Plan 01 complete
 progress:
   total_phases: 8
   completed_phases: 7
-  total_plans: 19
-  completed_plans: 471
-  percent: 88
+  total_plans: 25
+  completed_plans: 21
+  percent: 84
 ---
 
 # Project State
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 ## Current Position
 
 Phase: 131
-Plan: Not started
-Status: Ready to plan
-Last activity: 2026-06-05
+Plan: 01 of 03 complete
+Status: Plan 01 executed (backend foundation); Plans 02-03 pending. Tests run in CI — confirm before pushing to staging.
+Last activity: 2026-06-05 -- Phase 131 Plan 01 complete
 
 ## Performance Metrics
 
@@ -49,7 +49,7 @@ Last activity: 2026-06-05
 | 127   | 2     | -      | -        |
 | 128   | 3     | -      | -        |
 | 129   | 2     | -      | -        |
-| 130 | 4 | - | - |
+| 130   | 4     | -      | -        |
 
 **Recent Trend (from v4.0):**
 
