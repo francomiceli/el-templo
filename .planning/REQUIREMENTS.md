@@ -39,7 +39,7 @@
 - [x] **TREE-04**: El sistema auto-construye el grafo ramificado (DAG) de progresiones a partir del orden del SPOM/`dificultadLineal` y las 3 dimensiones estructuradas (sub-familias paralelas dentro de cada ruta, ordenadas por palanca y contracción).
 - [x] **TREE-05**: Los ejercicios quedan saneados: los ~103 sin ruta reciben ruta, los duplicados (mismo ejercicio repetido en varios niveles) se resuelven y `position` se separa en sus conceptos.
 - [x] **TREE-06**: El miembro ve su % de avance por familia/nodo del árbol, agrupado por la categoría temática existente (Tracción / Empuje / Piernas / Core / Movilidad).
-- [ ] **TREE-07**: Los profes editan el árbol desde una sección nueva del admin: reordenan ejercicios, agrupan/separan sub-familias y ajustan precedencias sobre el grafo ya construido.
+- [x] **TREE-07**: Los profes editan el árbol desde una sección nueva del admin: reordenan ejercicios, agrupan/separan sub-familias y ajustan precedencias sobre el grafo ya construido.
 
 ### Eje 1 — Nivel Kairos (KAIROS)
 
@@ -87,7 +87,7 @@
 | TREE-04     | Phase 126 | Complete |
 | TREE-05     | Phase 124 | Complete |
 | TREE-06     | Phase 127 | Complete |
-| TREE-07     | Phase 128 | Pending  |
+| TREE-07     | Phase 128 | Complete |
 | KAIROS-01   | Phase 129 | Pending  |
 | KAIROS-02   | Phase 129 | Pending  |
 | KAIROS-03   | Phase 129 | Pending  |

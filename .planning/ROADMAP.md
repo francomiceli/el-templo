@@ -3131,12 +3131,17 @@ Plans:
 
 **Risks / notas:** Esta es la pieza que "desbloquea el milestone sin esperar curaduría manual previa": el árbol arranca auto-construido y los profes lo refinan acá. El editor debe distinguir el orden derivado del SPOM (default) de los overrides del profe para que una re-construcción del grafo no pise los ajustes manuales.
 
-**Plans:** 3 plans
+**Plans:** 1/3 plans executed
 
 Plans:
 
-- [ ] 128-01-PLAN.md — Rebuild locked-partition guard (D-02): a (subfamily×effort) partition with a manual edge is not regenerated; dedicated integration test
+**Wave 1**
+
+- [x] 128-01-PLAN.md — Rebuild locked-partition guard (D-02): a (subfamily×effort) partition with a manual edge is not regenerated; dedicated integration test
 - [ ] 128-02-PLAN.md — tree-editor backend: admin/coach endpoints for read/reorder/precedence/regroup persisting source='manual' (D-01/D-03/D-04/D-05) + integration tests
+
+**Wave 2** _(blocked on Wave 1 completion)_
+
 - [ ] 128-03-PLAN.md — Admin 'Editor de árbol' UI: expandable tree, up/down reorder, auto/manual badges, precedence + regroup dialogs (human-verify checkpoint)
       **UI hint:** yes
 
@@ -3222,7 +3227,7 @@ Plans:
 | 125. Bootstrap heurístico + revisión de profes | 3/3            | Complete    | 2026-06-05 |
 | 126. Auto-construcción del grafo (DAG)         | 3/3            | Complete    | 2026-06-05 |
 | 127. % de avance del árbol (miembro)           | 2/2            | Complete    | 2026-06-05 |
-| 128. Editor de árbol (admin)                   | 0/TBD          | Not started | -          |
+| 128. Editor de árbol (admin)                   | 1/3            | In Progress |            |
 | 129. Kairos — enum, herencia, formato lineal   | 0/TBD          | Not started | -          |
 | 130. Kairos — asignación, graduación, selector | 0/TBD          | Not started | -          |
 | 131. Ajuste in-session + registro de dominado  | 0/TBD          | Not started | -          |
