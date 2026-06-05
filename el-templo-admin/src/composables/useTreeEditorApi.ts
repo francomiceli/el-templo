@@ -51,7 +51,7 @@ export function useTreeEditorApi() {
       const message = extractError(err, 'Error reordenando la partición');
       error.value = message;
       log.error('Failed to reorder partition', {
-        subfamilyId: body.subfamilyId,
+        route: body.route,
         effort: body.effort,
         error: message,
       });
@@ -87,7 +87,7 @@ export function useTreeEditorApi() {
       error.value = message;
       log.error('Failed to regroup exercises', {
         exerciseIds: body.exerciseIds,
-        targetSubfamilyId: body.targetSubfamilyId,
+        targetRoute: body.targetRoute,
         error: message,
       });
       Notify.create({ type: 'negative', message });

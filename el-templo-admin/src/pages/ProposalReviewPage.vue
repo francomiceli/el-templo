@@ -2,7 +2,7 @@
   <q-page class="q-pa-md">
     <!-- Header -->
     <div class="row items-center q-mb-md">
-      <div class="text-h5">Revisión de dimensiones</div>
+      <div class="text-h5">Revisión de progresiones</div>
       <q-space />
       <q-chip v-if="total > 0" color="primary" text-color="white" icon="pending_actions">
         {{ total }} pendientes
@@ -10,9 +10,9 @@
     </div>
 
     <div class="text-caption text-grey-7 q-mb-md">
-      Propuestas automáticas de sub-familia, palanca y ruta. Editá inline lo que haga falta, aceptá
-      el grupo completo de una ruta, o aceptá / rechazá fila por fila. Aceptar fija la dimensión
-      como verdad sobre el ejercicio.
+      Propuestas automáticas de escalón de progresión, Habilidad (variante paralela) y ruta. Editá
+      inline lo que haga falta, aceptá el grupo completo de una ruta, o aceptá / rechazá fila por
+      fila. Aceptar fija la progresión como verdad sobre el ejercicio.
     </div>
 
     <!-- Filter bar -->
@@ -62,6 +62,12 @@
         <div class="text-subtitle1 text-weight-medium">
           Ruta {{ group.route || '(sin ruta)' }}
           <q-badge color="grey-6" class="q-ml-sm">{{ group.rows.length }}</q-badge>
+          <q-badge
+            v-if="group.unmatched > 0"
+            color="orange"
+            class="q-ml-xs"
+            :label="`${group.unmatched} sin escalón`"
+          />
         </div>
         <q-space />
         <q-btn
@@ -91,29 +97,38 @@
           <q-td :props="props">
             <div class="text-weight-medium">{{ props.row.exerciseName }}</div>
             <div v-if="props.row.routePending" class="text-caption text-orange">ruta pendiente</div>
+            <div v-else-if="isUnmatched(props.row)" class="text-caption text-orange">
+              sin escalón resuelto
+            </div>
           </q-td>
         </template>
 
-        <!-- Sub-family: click to edit (free text) -->
-        <template #body-cell-proposedSubfamily="props">
-          <q-td :props="props">
-            <q-input
-              :model-value="props.row.proposedSubfamily"
-              dense
-              outlined
-              placeholder="Sin asignar"
-              style="min-width: 160px"
-              @update:model-value="(val) => onEditField(props.row, 'proposedSubfamily', val)"
-            />
-          </q-td>
-        </template>
-
-        <!-- Leverage: inline select (nullable, clearable) -->
-        <template #body-cell-proposedLeverage="props">
+        <!-- Step (progression rank): select of the route's step tokens when available -->
+        <template #body-cell-proposedStep="props">
           <q-td :props="props">
             <q-select
-              :model-value="props.row.proposedLeverage"
-              :options="leverageOptions"
+              v-if="stepOptionsFor(props.row).length > 0"
+              :model-value="props.row.proposedStep"
+              :options="stepOptionsFor(props.row)"
+              dense
+              outlined
+              emit-value
+              map-options
+              clearable
+              placeholder="Sin escalón"
+              style="min-width: 180px"
+              @update:model-value="(val) => onEditStep(props.row, val)"
+            />
+            <span v-else class="text-grey-6">— lineal</span>
+          </q-td>
+        </template>
+
+        <!-- Habilidad: select of the route's variant vocab + free text, nullable -->
+        <template #body-cell-proposedHabilidad="props">
+          <q-td :props="props">
+            <q-select
+              :model-value="props.row.proposedHabilidad"
+              :options="habilidadOptionsFor(props.row)"
               dense
               outlined
               emit-value
@@ -122,8 +137,8 @@
               new-value-mode="add-unique"
               use-input
               placeholder="—"
-              style="min-width: 130px"
-              @update:model-value="(val) => onEditField(props.row, 'proposedLeverage', val)"
+              style="min-width: 150px"
+              @update:model-value="(val) => onEditHabilidad(props.row, val)"
             />
           </q-td>
         </template>
@@ -142,7 +157,7 @@
               clearable
               style="min-width: 110px"
               color="warning"
-              @update:model-value="(val) => onEditField(props.row, 'proposedRoute', val)"
+              @update:model-value="(val) => onEditRoute(props.row, val)"
             />
             <span v-else class="text-grey-6">{{ props.row.currentRoute }}</span>
           </q-td>
@@ -185,7 +200,12 @@ import { ref, reactive, computed, onMounted } from 'vue';
 import { useQuasar } from 'quasar';
 import type { QTableProps } from 'quasar';
 import { useProposalsApi } from 'src/composables/useProposalsApi';
-import type { Proposal, ProposalStatus, AcceptOverrides } from 'src/types/proposal';
+import type {
+  Proposal,
+  ProposalStatus,
+  AcceptOverrides,
+  RouteProgressionMap,
+} from 'src/types/proposal';
 
 const $q = useQuasar();
 const proposalsApi = useProposalsApi();
@@ -199,6 +219,8 @@ const proposals = ref<Proposal[]>([]);
 const total = ref(0);
 const rowBusyId = ref<number | null>(null);
 const bulkBusyRoute = ref<string | null>(null);
+/** Per-route progression model (steps + Habilidad vocab) — single source of truth. */
+const routeMap = ref<RouteProgressionMap>({});
 
 const filters = reactive<{ route: string; status: ProposalStatus }>({
   route: '',
@@ -257,17 +279,40 @@ const statusOptions: { label: string; value: ProposalStatus }[] = [
   { label: 'Rechazadas', value: 'rejected' },
 ];
 
-// Leverage vocab (D-03 — keyword-matched, nullable, per-family). Free typing
-// is allowed via new-value-mode for families with other vocabularies.
-const leverageOptions = ['tuck', 'adv tuck', 'straddle', 'half', 'full'].map((v) => ({
-  label: v,
-  value: v,
-}));
-
 const statusLabel = computed(() => {
   const found = statusOptions.find((o) => o.value === filters.status);
   return found ? found.label.toLowerCase() : '';
 });
+
+// =========================================================================
+// Route-map helpers (per-row step + Habilidad vocab from the backend map)
+// =========================================================================
+
+/** The route to look up the map under: the proposed one for a pending row, else current. */
+function routeKey(row: Proposal): string {
+  const raw = row.routePending ? (row.proposedRoute ?? '') : row.currentRoute;
+  return raw.trim().toUpperCase();
+}
+
+/** Ordered step-token options for the row's route (empty for linear/excluded/unmapped). */
+function stepOptionsFor(row: Proposal): { label: string; value: number }[] {
+  const info = routeMap.value[routeKey(row)];
+  if (!info || info.strategy !== 'token') return [];
+  return info.steps.map((token, i) => ({ label: `${i} · ${token}`, value: i }));
+}
+
+/** Habilidad vocab options for the row's route (free typing still allowed). */
+function habilidadOptionsFor(row: Proposal): { label: string; value: string }[] {
+  const info = routeMap.value[routeKey(row)];
+  if (!info) return [];
+  return info.habilidades.map((v) => ({ label: v, value: v }));
+}
+
+/** A token-strategy row with no resolved step is "unmatched" (needs a profe). */
+function isUnmatched(row: Proposal): boolean {
+  const info = routeMap.value[routeKey(row)];
+  return !!info && info.strategy === 'token' && row.proposedStep === null;
+}
 
 // =========================================================================
 // Columns
@@ -282,16 +327,16 @@ const columns: QTableProps['columns'] = [
     sortable: false,
   },
   {
-    name: 'proposedSubfamily',
-    label: 'Sub-familia',
-    field: 'proposedSubfamily',
+    name: 'proposedStep',
+    label: 'Escalón',
+    field: 'proposedStep',
     align: 'left',
     sortable: false,
   },
   {
-    name: 'proposedLeverage',
-    label: 'Palanca',
-    field: 'proposedLeverage',
+    name: 'proposedHabilidad',
+    label: 'Habilidad',
+    field: 'proposedHabilidad',
     align: 'left',
     sortable: false,
   },
@@ -328,7 +373,11 @@ const groupedProposals = computed(() => {
     }
   }
   return Array.from(groups.entries())
-    .map(([route, rows]) => ({ route, rows }))
+    .map(([route, rows]) => ({
+      route,
+      rows,
+      unmatched: rows.filter((r) => isUnmatched(r)).length,
+    }))
     .sort((a, b) => a.route.localeCompare(b.route));
 });
 
@@ -349,25 +398,37 @@ async function loadProposals() {
   }
 }
 
+async function loadRouteMap() {
+  try {
+    routeMap.value = await proposalsApi.fetchRouteMap();
+  } catch {
+    // Error already handled by the composable; the screen degrades to free entry.
+  }
+}
+
 // =========================================================================
 // Inline edit — edits mutate the local row; sent as overrides on accept.
 // =========================================================================
 
-function onEditField(
-  row: Proposal,
-  field: 'proposedSubfamily' | 'proposedLeverage' | 'proposedRoute',
-  value: string | number | null
-) {
-  const normalized = value === '' || value === null ? null : String(value);
-  row[field] = normalized;
+function onEditStep(row: Proposal, value: number | null) {
+  row.proposedStep = value === null || value === undefined ? null : Number(value);
+}
+
+function onEditHabilidad(row: Proposal, value: string | null) {
+  row.proposedHabilidad = value === '' || value === null ? null : String(value);
+}
+
+function onEditRoute(row: Proposal, value: string | null) {
+  row.proposedRoute = value === '' || value === null ? null : String(value);
 }
 
 /** Build the accept-override body from the (possibly edited) row. */
 function overridesFor(row: Proposal): AcceptOverrides {
-  const overrides: AcceptOverrides = {};
-  if (row.proposedSubfamily) overrides.proposedSubfamily = row.proposedSubfamily;
-  // leverage is nullable — send explicit null so the profe can clear it.
-  overrides.proposedLeverage = row.proposedLeverage;
+  const overrides: AcceptOverrides = {
+    // Both are nullable — send explicitly so the profe can set OR clear them.
+    proposedStep: row.proposedStep,
+    proposedHabilidad: row.proposedHabilidad,
+  };
   if (row.routePending && row.proposedRoute) overrides.proposedRoute = row.proposedRoute;
   return overrides;
 }
@@ -430,6 +491,7 @@ function onFilterChange() {
 // =========================================================================
 
 onMounted(() => {
+  loadRouteMap();
   loadProposals();
 });
 </script>

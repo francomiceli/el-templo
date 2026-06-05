@@ -17,7 +17,7 @@ export interface TreeNode {
   orderSource: OrderSource;
 }
 
-/** A subfamily × effort partition with its ordered nodes. */
+/** A route × effort partition with its ordered nodes. */
 export interface TreePartition {
   effort: string;
   /** true ⇒ this partition is owned by a profe manual chain (locked over auto). */
@@ -25,19 +25,22 @@ export interface TreePartition {
   nodes: TreeNode[];
 }
 
-/** A subfamily grouping one or more effort partitions. */
-export interface TreeSubfamily {
+/** A route grouping one or more effort partitions (the partition axis is route). */
+export interface TreeRoute {
+  /** routes.id (the group key for the UI). */
   id: number;
+  /** routes.display_name (or the code as fallback). */
   name: string;
+  /** routes.code — also the partition dimension. */
   route: string;
   partitions: TreePartition[];
 }
 
-/** A top-level category (pattern → category map) grouping subfamilies. */
+/** A top-level category (pattern → category map) grouping routes. */
 export interface TreeCategory {
   key: string;
   label: string;
-  subfamilies: TreeSubfamily[];
+  routes: TreeRoute[];
 }
 
 /** A cross-partition precedence edge (DAG branch) returned separately. */
@@ -55,7 +58,8 @@ export interface EditableTree {
 
 /** POST /admin/tree-editor/reorder request body. */
 export interface ReorderBody {
-  subfamilyId: number;
+  /** routes.code — the partition dimension. */
+  route: string;
   effort: Effort;
   orderedExerciseIds: number[];
 }
@@ -67,10 +71,11 @@ export interface PrecedenceBody {
   op: 'add' | 'remove';
 }
 
-/** POST /admin/tree-editor/regroup request body. */
+/** POST /admin/tree-editor/regroup request body — move exercises to a target route. */
 export interface RegroupBody {
   exerciseIds: number[];
-  targetSubfamilyId: number;
+  /** routes.code of the destination route. */
+  targetRoute: string;
 }
 
 /** Shared mutation result for reorder/precedence/regroup. */
@@ -78,4 +83,8 @@ export interface MutationResult {
   ok: boolean;
   edgesWritten: number;
   edgesDeleted: number;
+  /** Set on a reorder of a single-node partition (nothing to chain). */
+  singleNode?: boolean;
+  /** Optional human-readable note accompanying a no-op result. */
+  message?: string;
 }

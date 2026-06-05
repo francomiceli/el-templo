@@ -19,8 +19,8 @@
 
     <div class="text-caption text-grey-7 q-mb-md">
       Refiná el árbol auto-construido por el SPOM. Reordená ejercicios dentro de una partición con
-      las flechas, agregá o quitá precedencias entre ramas, y reagrupá ejercicios a otra
-      sub-familia. Cada orden/arista muestra si es
+      las flechas, agregá o quitá precedencias entre ramas, y reasigná ejercicios a otra ruta. Cada
+      orden/arista muestra si es
       <q-badge color="grey-6" label="Auto" class="q-mx-xs" /> (por defecto del SPOM) o
       <q-badge color="primary" label="Manual" class="q-mx-xs" /> (override del profe). Lo manual
       prevalece y sobrevive a una reconstrucción del grafo.
@@ -55,12 +55,12 @@
           default-opened
         >
           <q-card-section class="q-pt-none">
-            <!-- Subfamily -->
+            <!-- Route -->
             <q-expansion-item
-              v-for="subfamily in category.subfamilies"
-              :key="subfamily.id"
-              :label="subfamily.name"
-              :caption="`Ruta ${subfamily.route}`"
+              v-for="rt in category.routes"
+              :key="rt.id"
+              :label="rt.name"
+              :caption="`Ruta ${rt.route}`"
               icon="folder"
               header-class="text-body1"
               class="q-mb-xs"
@@ -68,8 +68,8 @@
               <q-card-section class="q-py-sm">
                 <!-- Partition (effort) -->
                 <div
-                  v-for="partition in subfamily.partitions"
-                  :key="`${subfamily.id}-${partition.effort}`"
+                  v-for="partition in rt.partitions"
+                  :key="`${rt.id}-${partition.effort}`"
                   class="q-mb-md"
                 >
                   <div class="row items-center q-mb-xs">
@@ -86,10 +86,10 @@
                       no-caps
                       size="sm"
                       icon="low_priority"
-                      label="Reagrupar"
+                      label="Reasignar ruta"
                       color="secondary"
                       :disable="partition.nodes.length === 0"
-                      @click="openRegroup(subfamily, partition)"
+                      @click="openRegroup(rt, partition)"
                     />
                     <q-btn
                       flat
@@ -132,9 +132,9 @@
                             round
                             size="sm"
                             icon="keyboard_arrow_up"
-                            :disable="index === 0 || isBusy(subfamily.id, partition.effort)"
+                            :disable="index === 0 || isBusy(rt.id, partition.effort)"
                             aria-label="Subir"
-                            @click="moveNode(subfamily, partition, index, -1)"
+                            @click="moveNode(rt, partition, index, -1)"
                           />
                           <q-btn
                             flat
@@ -144,10 +144,10 @@
                             icon="keyboard_arrow_down"
                             :disable="
                               index === partition.nodes.length - 1 ||
-                              isBusy(subfamily.id, partition.effort)
+                              isBusy(rt.id, partition.effort)
                             "
                             aria-label="Bajar"
-                            @click="moveNode(subfamily, partition, index, 1)"
+                            @click="moveNode(rt, partition, index, 1)"
                           />
                         </div>
                       </q-item-section>
@@ -256,13 +256,13 @@
       </q-card>
     </q-dialog>
 
-    <!-- Regroup dialog -->
+    <!-- Regroup (reassign route) dialog -->
     <q-dialog v-model="regroupDialog.open">
       <q-card style="min-width: 360px">
-        <q-card-section class="text-subtitle1">Reagrupar ejercicios</q-card-section>
+        <q-card-section class="text-subtitle1">Reasignar ruta</q-card-section>
         <q-card-section class="q-pt-none">
           <div class="text-caption text-grey-7 q-mb-sm">
-            Mové uno o más ejercicios de esta partición a otra sub-familia.
+            Mové uno o más ejercicios de esta partición a otra ruta.
           </div>
           <q-select
             v-model="regroupDialog.exerciseIds"
@@ -277,9 +277,9 @@
             class="q-mb-sm"
           />
           <q-select
-            v-model="regroupDialog.targetSubfamilyId"
-            :options="subfamilyOptions"
-            label="Sub-familia destino"
+            v-model="regroupDialog.targetRoute"
+            :options="routeOptions"
+            label="Ruta destino"
             dense
             outlined
             emit-value
@@ -290,7 +290,7 @@
           <q-btn flat label="Cancelar" color="grey-7" @click="regroupDialog.open = false" />
           <q-btn
             unelevated
-            label="Reagrupar"
+            label="Reasignar"
             color="primary"
             :loading="mutating"
             :disable="!canSubmitRegroup"
@@ -309,7 +309,7 @@ import { useTreeEditorApi } from 'src/composables/useTreeEditorApi';
 import type {
   EditableTree,
   TreeCategory,
-  TreeSubfamily,
+  TreeRoute,
   TreePartition,
   PrecedenceEdge,
   Effort,
@@ -326,12 +326,17 @@ const { loading } = treeApi;
 const categories = ref<TreeCategory[]>([]);
 const precedenceEdges = ref<PrecedenceEdge[]>([]);
 const mutating = ref(false);
-/** Key `${subfamilyId}-${effort}` currently being reordered (disables its buttons). */
+/** Key `${routeId}-${effort}` currently being reordered (disables its buttons). */
 const busyPartition = ref<string | null>(null);
 
 interface SelectOption {
   label: string;
   value: number;
+}
+
+interface RouteOption {
+  label: string;
+  value: string;
 }
 
 const precedenceDialog = reactive<{
@@ -349,15 +354,15 @@ const precedenceDialog = reactive<{
 const regroupDialog = reactive<{
   open: boolean;
   exerciseIds: number[];
-  targetSubfamilyId: number | null;
+  targetRoute: string | null;
   nodeOptions: SelectOption[];
-  sourceSubfamilyId: number | null;
+  sourceRouteId: number | null;
 }>({
   open: false,
   exerciseIds: [],
-  targetSubfamilyId: null,
+  targetRoute: null,
   nodeOptions: [],
-  sourceSubfamilyId: null,
+  sourceRouteId: null,
 });
 
 // =========================================================================
@@ -368,8 +373,8 @@ const regroupDialog = reactive<{
 const allNodes = computed(() => {
   const out: { exerciseId: number; name: string }[] = [];
   for (const cat of categories.value) {
-    for (const sub of cat.subfamilies) {
-      for (const part of sub.partitions) {
+    for (const rt of cat.routes) {
+      for (const part of rt.partitions) {
         for (const node of part.nodes) {
           out.push({ exerciseId: node.exerciseId, name: node.name });
         }
@@ -383,14 +388,17 @@ const allNodeOptions = computed<SelectOption[]>(() =>
   allNodes.value.map((n) => ({ label: n.name, value: n.exerciseId }))
 );
 
-const subfamilyOptions = computed<SelectOption[]>(() => {
-  const out: SelectOption[] = [];
+/** Distinct routes (by code) currently in the tree, for the reassign-route target. */
+const routeOptions = computed<RouteOption[]>(() => {
+  const byCode = new Map<string, string>();
   for (const cat of categories.value) {
-    for (const sub of cat.subfamilies) {
-      out.push({ label: `${sub.name} (${sub.route})`, value: sub.id });
+    for (const rt of cat.routes) {
+      if (!byCode.has(rt.route)) byCode.set(rt.route, `${rt.name} (${rt.route})`);
     }
   }
-  return out;
+  return Array.from(byCode.entries())
+    .map(([value, label]) => ({ label, value }))
+    .sort((a, b) => a.label.localeCompare(b.label));
 });
 
 function nodeName(exerciseId: number): string {
@@ -398,8 +406,8 @@ function nodeName(exerciseId: number): string {
   return found ? found.name : `#${exerciseId}`;
 }
 
-function isBusy(subfamilyId: number, effort: string): boolean {
-  return busyPartition.value === `${subfamilyId}-${effort}`;
+function isBusy(routeId: number, effort: string): boolean {
+  return busyPartition.value === `${routeId}-${effort}`;
 }
 
 const canSubmitPrecedence = computed(
@@ -410,7 +418,7 @@ const canSubmitPrecedence = computed(
 );
 
 const canSubmitRegroup = computed(
-  () => regroupDialog.exerciseIds.length > 0 && regroupDialog.targetSubfamilyId !== null
+  () => regroupDialog.exerciseIds.length > 0 && regroupDialog.targetRoute !== null
 );
 
 // =========================================================================
@@ -431,12 +439,7 @@ async function loadTree() {
 // Reorder (up/down) — refetch on success for robustness/consistency.
 // =========================================================================
 
-async function moveNode(
-  subfamily: TreeSubfamily,
-  partition: TreePartition,
-  index: number,
-  direction: -1 | 1
-) {
+async function moveNode(rt: TreeRoute, partition: TreePartition, index: number, direction: -1 | 1) {
   const target = index + direction;
   if (target < 0 || target >= partition.nodes.length) return;
 
@@ -448,11 +451,11 @@ async function moveNode(
   orderedExerciseIds[index] = swapped;
   orderedExerciseIds[target] = moved;
 
-  const key = `${subfamily.id}-${partition.effort}`;
+  const key = `${rt.id}-${partition.effort}`;
   busyPartition.value = key;
   try {
     await treeApi.reorderPartition({
-      subfamilyId: subfamily.id,
+      route: rt.route,
       effort: partition.effort as Effort,
       orderedExerciseIds,
     });
@@ -518,29 +521,29 @@ async function removeEdge(fromExerciseId: number, toExerciseId: number) {
 }
 
 // =========================================================================
-// Regroup dialog
+// Regroup (reassign route) dialog
 // =========================================================================
 
-function openRegroup(subfamily: TreeSubfamily, partition: TreePartition) {
+function openRegroup(rt: TreeRoute, partition: TreePartition) {
   regroupDialog.nodeOptions = partition.nodes.map((n) => ({
     label: n.name,
     value: n.exerciseId,
   }));
   regroupDialog.exerciseIds = [];
-  regroupDialog.targetSubfamilyId = null;
-  regroupDialog.sourceSubfamilyId = subfamily.id;
+  regroupDialog.targetRoute = null;
+  regroupDialog.sourceRouteId = rt.id;
   regroupDialog.open = true;
 }
 
 async function confirmRegroup() {
-  if (!canSubmitRegroup.value || regroupDialog.targetSubfamilyId === null) return;
+  if (!canSubmitRegroup.value || regroupDialog.targetRoute === null) return;
   mutating.value = true;
   try {
     await treeApi.regroup({
       exerciseIds: regroupDialog.exerciseIds,
-      targetSubfamilyId: regroupDialog.targetSubfamilyId,
+      targetRoute: regroupDialog.targetRoute,
     });
-    $q.notify({ type: 'positive', message: 'Ejercicios reagrupados' });
+    $q.notify({ type: 'positive', message: 'Ejercicios reasignados' });
     regroupDialog.open = false;
     await loadTree();
   } catch {

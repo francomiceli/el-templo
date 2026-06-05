@@ -8,6 +8,7 @@ import type {
   ProposalFilters,
   AcceptOverrides,
   BulkAcceptResponse,
+  RouteProgressionMap,
 } from 'src/types/proposal';
 
 const log = createLogger('useProposalsApi');
@@ -71,6 +72,19 @@ export function useProposalsApi() {
     }
   }
 
+  async function fetchRouteMap(): Promise<RouteProgressionMap> {
+    try {
+      const { data } = await api.get<RouteProgressionMap>('/admin/exercises/route-progression-map');
+      return data;
+    } catch (err: unknown) {
+      const message = extractError(err, 'Error cargando el mapa de progresiones');
+      error.value = message;
+      log.error('Failed to fetch route-progression map', { error: message });
+      Notify.create({ type: 'negative', message });
+      throw err;
+    }
+  }
+
   async function bulkAccept(ids: number[]): Promise<BulkAcceptResponse> {
     try {
       const { data } = await api.post<BulkAcceptResponse>(
@@ -91,6 +105,7 @@ export function useProposalsApi() {
     loading,
     error,
     fetchProposals,
+    fetchRouteMap,
     acceptProposal,
     rejectProposal,
     bulkAccept,
