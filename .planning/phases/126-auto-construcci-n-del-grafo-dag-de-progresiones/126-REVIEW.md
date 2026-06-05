@@ -16,7 +16,23 @@ findings:
   warning: 5
   info: 4
   total: 9
-status: issues
+status: clean
+fixed_at: 2026-06-04
+fixed:
+  - WR-01
+  - WR-02
+  - WR-03
+  - WR-04
+  - WR-05
+fix_notes: >-
+  All 5 Warning findings fixed on staging. WR-01/02/03 in commit a5d0a227
+  (getNeighbor rewritten as an adjacency lookup over exercise_progressions;
+  effort narrowed via asContraction; manual edges honored). WR-04/05 in commit
+  48b6f211 (rebuild READ filters effort IN CON/EXC/ISO; readExerciseNodes skips
+  non-finite dl and invalid/empty effort instead of coercing). Info findings
+  IN-01..IN-04 left as-is (non-blocking; IN-04's empty-effort coverage is now
+  partially addressed by the new WR-03/WR-04 tests). tsc --noEmit green; tests
+  encode the new table-backed contracts and run in CI.
 ---
 
 # Phase 126: Code Review Report
@@ -24,7 +40,7 @@ status: issues
 **Reviewed:** 2026-06-04
 **Depth:** standard
 **Files Reviewed:** 7
-**Status:** issues_found
+**Status:** fixed (all 5 Warnings resolved 2026-06-04 — see frontmatter `fix_notes`)
 
 ## Summary
 
