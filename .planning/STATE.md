@@ -4,7 +4,7 @@ milestone: v5.1
 milestone_name: Nuevo Sistema de Entrenamiento
 status: executing
 stopped_at: Completed 132-03-PLAN.md
-last_updated: "2026-06-05T16:21:13.362Z"
+last_updated: "2026-06-05T16:25:42.034Z"
 last_activity: 2026-06-05
 progress:
   total_phases: 8
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 ## Current Position
 
 Phase: 132 (exponer-metricas-gestion-v50-admin) — EXECUTING
-Plan: 5 of 6
+Plan: 6 of 6
 Status: Ready to execute
 Last activity: 2026-06-05
 
@@ -227,6 +227,7 @@ _Updated after each plan completion_
 | Phase 132 P02 | 20min | 2 tasks | 5 files |
 | Phase 132 P3 | 12 | 2 tasks | 2 files |
 | Phase 132 P04 | ~2min | 2 tasks | 2 files |
+| Phase 132 P5 | ~8min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -586,7 +587,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-05T16:20:55.041Z
+Last session: 2026-06-05T16:25:33.736Z
 Stopped at: Completed 132-03-PLAN.md
 Resume file: None
 

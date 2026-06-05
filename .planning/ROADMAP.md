@@ -3307,7 +3307,7 @@ _v5.1 added: 2026-06-04 — 8 phases (124-131), 18 requirements (TREE, KAIROS, A
 
 **Risks / notas:** Mayormente frontend, **+ 3 extensiones acotadas de backend** (decididas en `132-CONTEXT.md`, SIN migraciones): filtro por plan como entrada en las 6 métricas + filtro por turno en funnel/frecuencia (D-10); el cruce turno×sucursal del funnel sale vía filtro+breakdown, sin agregación 2D (D-11); enriquecer `frequency-service` con nombre/teléfono para la lista accionable (D-12). Borrado físico de deprecadas mapeado (D-15→D-21): fuera cards Renovación 7/14/30 + Tasa de retención simple (`MiembrosTab`), ARPU mensual (`FinanzasAvanzadasTab`, conservando Caja vs Devengado), `FunnelTab` viejo, y archivo huérfano `AsistenciaTab`; se conserva `RetencionTab` (curvas por ciclo, no duplicado). Visualización pre-cerrada por Nacho en `DECISIONES-VISUALIZACION.md`. Cálculos pesados ya resueltos en backend (Kaplan-Meier LTV, cohortes churn).
 
-**Plans:** 4/6 plans executed
+**Plans:** 5/6 plans executed
 
 Plans:
 
@@ -3326,7 +3326,7 @@ Plans:
 **Wave 4** _(blocked on Wave 3 completion)_
 
 - [x] 132-04-PLAN.md — Tabs ConversionTab (funnel D-06) + IngresosTab (ticket D-01 + LTV D-05, por moneda)
-- [ ] 132-05-PLAN.md — Tabs RetencionGestionTab (churn+renovación D-02/D-03) + FrecuenciaTab (bandas + lista enfriándose + CSV D-04/D-13/D-14)
+- [x] 132-05-PLAN.md — Tabs RetencionGestionTab (churn+renovación D-02/D-03) + FrecuenciaTab (bandas + lista enfriándose + CSV D-04/D-13/D-14)
 
 **Wave 5** _(blocked on Wave 4 completion)_
 
@@ -3338,7 +3338,7 @@ Plans:
 
 | Phase                                           | Plans Complete | Status      | Completed |
 | ----------------------------------------------- | -------------- | ----------- | --------- |
-| 132. Exponer 6 métricas v5.0 en admin + limpiar | 4/6            | In Progress |           |
+| 132. Exponer 6 métricas v5.0 en admin + limpiar | 5/6            | In Progress |           |
 
 _Plan counts populated by `/gsd-plan-phase`._
 
