@@ -3305,7 +3305,7 @@ _v5.1 added: 2026-06-04 — 8 phases (124-131), 18 requirements (TREE, KAIROS, A
 3. Las métricas viejas/ARPU deprecadas (ej. ARPU de `FinanzasAvanzadasTab`, `renewalRate` legacy 7/14/30 de `MiembrosTab`) están eliminadas físicamente del frontend, no ocultas.
 4. No quedan llamadas muertas ni componentes huérfanos de las métricas reemplazadas.
 
-**Risks / notas:** Frontend-only (no toca el backend ni el esquema). Hay solape entre métricas nuevas y viejas (renovación de fase 121 vs `renewalRate` de fase 117 en `MiembrosTab`; ticket de fase 120 vs ARPU de fase 118 en `FinanzasAvanzadasTab`) — el riesgo está en borrar lo correcto sin romper otras tabs. Definir agrupación/visualización en `discuss-phase`. Verificar contra los datos reales de los endpoints (algunos cálculos son pesados: Kaplan-Meier en LTV, cohortes en churn).
+**Risks / notas:** Mayormente frontend, **+ 3 extensiones acotadas de backend** (decididas en `132-CONTEXT.md`, SIN migraciones): filtro por plan como entrada en las 6 métricas + filtro por turno en funnel/frecuencia (D-10); el cruce turno×sucursal del funnel sale vía filtro+breakdown, sin agregación 2D (D-11); enriquecer `frequency-service` con nombre/teléfono para la lista accionable (D-12). Borrado físico de deprecadas mapeado (D-15→D-21): fuera cards Renovación 7/14/30 + Tasa de retención simple (`MiembrosTab`), ARPU mensual (`FinanzasAvanzadasTab`, conservando Caja vs Devengado), `FunnelTab` viejo, y archivo huérfano `AsistenciaTab`; se conserva `RetencionTab` (curvas por ciclo, no duplicado). Visualización pre-cerrada por Nacho en `DECISIONES-VISUALIZACION.md`. Cálculos pesados ya resueltos en backend (Kaplan-Meier LTV, cohortes churn).
 
 **Plans:** TBD
 **UI hint:** yes
