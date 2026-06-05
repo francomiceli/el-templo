@@ -423,6 +423,100 @@ describe("INITIUM gate (D-05 size=2 + D-04 linear format)", () => {
   });
 });
 
+describe("runBlockPipeline forcedFormat gate (WR-02: kairos stays linear even when a non-linear format is forced)", () => {
+  // A full SpomService stub covering stages 1-4 so runBlockPipeline reaches
+  // the stage-5 forcedFormat decision. The shapes mirror what the real stages
+  // consume (rotator → route → spom rule → intensity rule → contraction rule).
+  function makeFullSpomService(): unknown {
+    return {
+      getWeeklyRotator: vi.fn().mockResolvedValue({
+        nucleusRouteId: 1,
+        deuteros1RouteId: 1,
+        deuteros2RouteId: 1,
+        athlosRouteId: 1,
+      }),
+      getRouteById: vi.fn().mockResolvedValue({ code: "PUSH" }),
+      getSpomRule: vi.fn().mockResolvedValue({
+        id: 1,
+        intensity: 70,
+        pattern: "PUSH",
+        pattern2: null,
+        category: "Fuerza",
+        wave: 1,
+      }),
+      getIntensityRule: vi.fn().mockResolvedValue(INTENSITY_RULE),
+      getContractionRule: vi.fn().mockResolvedValue({
+        concentrico: 1,
+        excentrico: 0,
+        isometrico: 0,
+      }),
+    };
+  }
+
+  // A non-linear format that would violate D-04 if it leaked onto a kairos block.
+  const NON_LINEAR_FORCED = { formatId: 7, name: "AMRAP" };
+
+  it("ignores a non-linear forcedFormat for a kairos block and forces Singlet", async () => {
+    const { runBlockPipeline } =
+      await import("../../src/modules/sessions/pipeline");
+    const ctx: BlockContext = {
+      week: 1,
+      day: "lunes",
+      levelGroup: "alfa_delta",
+      memberLevel: "kairos",
+      blockId: "W1-lunes-kairos-DEUTEROS_2",
+      role: "DEUTEROS_2",
+      trace: [],
+    };
+
+    const block = await runBlockPipeline(
+      ctx,
+      makeFullSpomService() as never,
+      FAKE_DB,
+      { forcedFormat: NON_LINEAR_FORCED },
+    );
+
+    // The forced AMRAP must NOT win — the kairos linear gate runs instead.
+    expect(block.format.name).toBe("Singlet");
+    expect(queryFormatByNameMock).toHaveBeenCalledWith(FAKE_DB, "Singlet");
+    expect(block.trace.some((t) => t.code === "KAIROS_FORMAT_FORCED")).toBe(
+      true,
+    );
+    // The non-kairos FORMAT_FORCED (forcedFormat) branch must NOT have fired.
+    expect(block.trace.some((t) => t.code === "FORMAT_FORCED")).toBe(false);
+  });
+
+  it("still honors forcedFormat for a non-kairos block (D-07 — forcedFormat unchanged)", async () => {
+    const { runBlockPipeline } =
+      await import("../../src/modules/sessions/pipeline");
+    const ctx: BlockContext = {
+      week: 1,
+      day: "lunes",
+      levelGroup: "alfa_delta",
+      memberLevel: "alfa",
+      blockId: "W1-lunes-alfa-DEUTEROS_2",
+      role: "DEUTEROS_2",
+      trace: [],
+    };
+
+    const block = await runBlockPipeline(
+      ctx,
+      makeFullSpomService() as never,
+      FAKE_DB,
+      { forcedFormat: NON_LINEAR_FORCED },
+    );
+
+    // alfa keeps the forced format — kairos gate did not leak.
+    expect(block.format.name).toBe("AMRAP");
+    expect(block.trace.some((t) => t.code === "FORMAT_FORCED")).toBe(true);
+    expect(block.trace.some((t) => t.code === "KAIROS_FORMAT_FORCED")).toBe(
+      false,
+    );
+    // The kairos linear by-name lookup must NOT run for alfa.
+    expect(queryFormatByNameMock).not.toHaveBeenCalled();
+  });
+});
+
 describe("D-07 regression invariant — kairos behavior never leaks to non-kairos", () => {
   it("alfa and delta take the unchanged branch at every gate point", async () => {
     const { deriveBudget } =
