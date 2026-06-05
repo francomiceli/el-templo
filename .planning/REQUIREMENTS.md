@@ -43,7 +43,7 @@
 
 ### Eje 1 — Nivel Kairos (KAIROS)
 
-- [ ] **KAIROS-01**: El nivel `kairos` existe en el enum de niveles en API, app y admin (5→6 niveles: kairos → alfa → delta → sigma → omega → spartan), incluido su mapeo a level-group.
+- [x] **KAIROS-01**: El nivel `kairos` existe en el enum de niveles en API, app y admin (5→6 niveles: kairos → alfa → delta → sigma → omega → spartan), incluido su mapeo a level-group.
 - [ ] **KAIROS-02**: La generación de sesión Kairos hereda de Alfa, tomando los ejercicios Alfa de `difficulty = 1` (el escalón más fácil) mientras no haya contenido propio de Kairos.
 - [ ] **KAIROS-03**: Las sesiones Kairos fuerzan, sobre el esqueleto de bloques normal, formato **solo lineal** (sets×reps) con exactamente **2 ejercicios por bloque** (sin EMOM/AMRAP/circuitos/complejos).
 - [ ] **KAIROS-04**: Los alumnos nuevos arrancan en Kairos por defecto (cambia el default de `users.level` de `alfa` a `kairos`).
@@ -88,7 +88,7 @@
 | TREE-05     | Phase 124 | Complete |
 | TREE-06     | Phase 127 | Complete |
 | TREE-07     | Phase 128 | Complete |
-| KAIROS-01   | Phase 129 | Pending  |
+| KAIROS-01   | Phase 129 | Complete |
 | KAIROS-02   | Phase 129 | Pending  |
 | KAIROS-03   | Phase 129 | Pending  |
 | KAIROS-04   | Phase 130 | Pending  |

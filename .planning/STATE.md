@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v5.1
 milestone_name: Nuevo Sistema de Entrenamiento
-status: ready_to_plan
-stopped_at: Phase 128 complete (3/3) — ready to discuss Phase 129
-last_updated: 2026-06-05T04:36:36.791Z
-last_activity: 2026-06-05 -- Phase 128 Plan 03 executed (admin Editor de árbol UI; human-verify deferred)
+status: executing
+stopped_at: Phase 129 Plan 01 complete (kairos enum foundation)
+last_updated: "2026-06-05T05:01:06.813Z"
+last_activity: 2026-06-05 -- Phase 129 Plan 01 executed (kairos enum + level unions)
 progress:
   total_phases: 8
   completed_phases: 5
-  total_plans: 14
-  completed_plans: 465
-  percent: 63
+  total_plans: 16
+  completed_plans: 15
+  percent: 65
 ---
 
 # Project State
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 ## Current Position
 
 Phase: 129
-Plan: Not started
-Status: Ready to plan
-Last activity: 2026-06-05
+Plan: 01 complete (kairos enum foundation); next is Plan 02 (generation layer)
+Status: Plan 01 executed on staging (not pushed); KAIROS-01 satisfied
+Last activity: 2026-06-05 -- Phase 129 Plan 01 executed (kairos enum + migration 0140 + level unions)
 
 ## Performance Metrics
 
@@ -215,6 +215,7 @@ _Updated after each plan completion_
 | Phase 128 P01 | 6min | 2 tasks | 2 files |
 | Phase 128 P02 | ~12min | 2 tasks | 7 files |
 | Phase 128 P03 | ~15min | 2 tasks | 5 files |
+| Phase 129 P01 | ~35min | 2 tasks | 18 files |
 
 ## Accumulated Context
 
@@ -527,6 +528,10 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: 127-01: tree grouping by exercises.pattern collapsed to 5 categories (Traccion/Empuje/Piernas/Core/Movilidad); KL/CARDIO/PLYO->Piernas, FLOW->Movilidad, empty->Movilidad fallback with warn log
 - [Phase ?]: 127-01: GET /api/tree-progress/me member-scoped to request.user.userId; node set = 126 DAG scope predicate; all 5 categories always render
 - [Phase ?]: 127-02: Mi Árbol member view (/mi-arbol) renders GET /tree-progress/me verbatim — render-only, server % (D-05); local gate = lint+quasar build (no vue-tsc in app); human-verify DEFERRED to HUMAN-UAT
+- [Phase 129]: 129-01 (KAIROS-01): kairos added FIRST to users.level enum (order kairos,alfa,delta,sigma,omega,spartan), DEFAULT stays alfa (default change = phase 130); migration 0140 byte-identical to TS schema (enum-drift lesson 125/126), no `;` in SQL comments
+- [Phase 129]: 129-01: kairos->levelGroup alfa_delta via explicit switch case (D-02), no new LevelGroup; kairos reuses Alfa difficulty cap (3) + Alfa glyph (α) since it inherits Alfa content (D-03)
+- [Phase 129]: 129-01: introduced `ContentLevel = Exclude<ExerciseLevel,'kairos'>` + `toContentLevel()` (kairos->alfa) to separate member levels from the kairos-less exercises.level enum; encodes the D-03 inheritance once for Plan 02. completed_sessions.session_level widened in lock-step (presencial check-in snapshots users.level)
+- [Phase 129]: 129-01: local gates = API tsc + app/admin lint+build (vue-tsc absent); selector/preview UI NOT touched (deferred to phase 130). Executed on staging, NOT pushed
 
 ### Pending Todos
 

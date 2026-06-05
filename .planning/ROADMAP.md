@@ -3166,11 +3166,16 @@ Plans:
 
 **Risks / notas:** Brownfield crítico — el enum toca `exercises.ts`, `users.ts`, `completed-sessions.ts`, `level-mapping.ts` y admin `constants/levels.ts`. El nivel ya funciona como override de lectura (`dayId = W{semana}-{día}-{nivel}`, Alfa ya es caso especial en `routes.ts`); los formatos Singlet/For Quality/lineal ya existen en la tabla `formats`. Decisiones abiertas diferidas: cómo aplica el "2 por bloque" al INITIUM (hoy fijo en 4) — ¿se baja a 2 o queda excluido?; mapeo kairos→levelGroup (probablemente alfa_delta); dosis lineales exactas (de los profes).
 
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 
 Plans:
 
-- [ ] 129-01-PLAN.md — KAIROS-01: add `kairos` to the API levelEnum (migration 0140, additive, DEFAULT stays alfa) + every typed level union/Record across API/app/admin + map kairos→levelGroup alfa_delta
+**Wave 1**
+
+- [x] 129-01-PLAN.md — KAIROS-01: add `kairos` to the API levelEnum (migration 0140, additive, DEFAULT stays alfa) + every typed level union/Record across API/app/admin + map kairos→levelGroup alfa_delta
+
+**Wave 2** _(blocked on Wave 1 completion)_
+
 - [ ] 129-02-PLAN.md — KAIROS-02/03: kairos generation inherits Alfa (effectiveLevel alfa, dificultadLineal=1), forces linear format only + exactly 2 ex/block incl INITIUM, gated on memberLevel==='kairos' + regression/kairos integration tests
       **UI hint:** no (backend-first; enum + capa de generación; la UI del recuadrito va en la fase 130)
 
@@ -3233,7 +3238,7 @@ Plans:
 | 126. Auto-construcción del grafo (DAG)         | 3/3            | Complete    | 2026-06-05 |
 | 127. % de avance del árbol (miembro)           | 2/2            | Complete    | 2026-06-05 |
 | 128. Editor de árbol (admin)                   | 3/3            | Complete    | 2026-06-05 |
-| 129. Kairos — enum, herencia, formato lineal   | 0/TBD          | Not started | -          |
+| 129. Kairos — enum, herencia, formato lineal   | 1/2            | In Progress |            |
 | 130. Kairos — asignación, graduación, selector | 0/TBD          | Not started | -          |
 | 131. Ajuste in-session + registro de dominado  | 0/TBD          | Not started | -          |
 
