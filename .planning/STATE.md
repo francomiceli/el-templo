@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v5.1
 milestone_name: Nuevo Sistema de Entrenamiento
-status: milestone_complete
-stopped_at: Milestone complete (Phase 131 was final phase)
-last_updated: 2026-06-05T07:12:25.028Z
+status: completed
+stopped_at: Phase 132 context gathered
+last_updated: "2026-06-05T15:10:17.994Z"
 last_activity: 2026-06-05
 progress:
   total_phases: 8
   completed_phases: 8
   total_plans: 22
-  completed_plans: 474
+  completed_plans: 22
   percent: 100
 ---
 
@@ -575,8 +575,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-05T06:52:48.214Z
-Stopped at: Phase 130 Plan 04 executed (Kairos first box in member-app onboarding self-pick; header dropdown verified; KAIROS-07 complete app+admin). Phase 130 ready_for_verification.
-Resume file: None
+Last session: 2026-06-05T15:10:17.957Z
+Stopped at: Phase 132 context gathered
+Resume file: .planning/phases/132-exponer-metricas-gestion-v50-admin/132-CONTEXT.md
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
