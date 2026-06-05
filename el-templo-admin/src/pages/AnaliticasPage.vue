@@ -175,7 +175,6 @@
       <q-tab name="miembros" label="Miembros" icon="people" />
       <q-tab name="finanzas" label="Finanzas" icon="payments" />
       <q-tab name="programas" label="Programas" icon="school" />
-      <q-tab name="funnel" label="Funnel" icon="filter_alt" />
       <q-tab name="retencion" label="Retención (ciclos)" icon="timeline" />
     </q-tabs>
 
@@ -272,16 +271,6 @@
         </div>
       </q-tab-panel>
 
-      <!-- Funnel Tab (Phase 118) -->
-      <q-tab-panel name="funnel">
-        <FunnelTab
-          v-model:entry-origin="funnelEntryOrigin"
-          :data="funnelData"
-          :loading="loadingFunnel"
-          @update:entry-origin="onFunnelFilterChange"
-        />
-      </q-tab-panel>
-
       <!-- Retención Tab (Phase 118) -->
       <q-tab-panel name="retencion">
         <RetencionTab
@@ -305,7 +294,6 @@ import { createLogger } from 'src/utils/logger';
 import { formatPrice } from 'src/utils/format-price';
 import MiembrosTab from 'src/components/analytics/MiembrosTab.vue';
 import FinanzasTab from 'src/components/analytics/FinanzasTab.vue';
-import FunnelTab from 'src/components/analytics/FunnelTab.vue';
 import RetencionTab from 'src/components/analytics/RetencionTab.vue';
 import FinanzasAvanzadasTab from 'src/components/analytics/FinanzasAvanzadasTab.vue';
 import ConversionTab from 'src/components/analytics/ConversionTab.vue';
@@ -318,10 +306,8 @@ import type {
   FinancialAnalytics,
   AnalyticsFilters,
   TrendInfo,
-  FunnelAnalytics,
   RetentionAnalytics,
   AdvancedFinanceAnalytics,
-  FunnelEntryOrigin,
   TrialFunnelAnalytics,
   ChurnAnalytics,
   RenewalAnalytics,
@@ -540,12 +526,10 @@ const loadingFinancial = ref(false);
 const programAnalytics = ref<ProgramAnalytics | null>(null);
 const loadingProgramAnalytics = ref(false);
 
-// Phase 118 — funnel / retención / finanzas avanzadas
-const funnelData = ref<FunnelAnalytics | null>(null);
+// Phase 118 — retención / finanzas avanzadas
 const retentionData = ref<RetentionAnalytics | null>(null);
 const advancedFinanceData = ref<AdvancedFinanceAnalytics | null>(null);
 
-const loadingFunnel = ref(false);
 const loadingRetention = ref(false);
 const loadingAdvancedFinance = ref(false);
 
@@ -565,10 +549,6 @@ const loadingIngresos = ref(false);
 // Local plan filter for the Retención tab (follow-up). `null` = todos los planes.
 // Re-fetches the cohort curve server-side. Options built from availablePlans.
 const retentionPlanId = ref<number | null>(null);
-
-// Local entry-origin segment for the Funnel tab (funnel follow-up). Re-fetches
-// the funnel server-side. Default 'all' (classic 3-stage funnel).
-const funnelEntryOrigin = ref<FunnelEntryOrigin>('all');
 
 // -- KPI cards -----------------------------------------------------------
 
@@ -672,22 +652,6 @@ async function fetchProgramAnalytics() {
     log.error('Error fetching program analytics', { error: message });
   } finally {
     loadingProgramAnalytics.value = false;
-  }
-}
-
-async function fetchFunnelData() {
-  loadingFunnel.value = true;
-  try {
-    funnelData.value = await analyticsApi.getFunnel({
-      ...currentFilters.value,
-      entryOrigin: funnelEntryOrigin.value,
-    });
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Error desconocido';
-    log.error('Error fetching funnel analytics', { error: message });
-    funnelData.value = null;
-  } finally {
-    loadingFunnel.value = false;
   }
 }
 
@@ -797,11 +761,6 @@ function onRetentionFilterChange() {
   void fetchRetentionData();
 }
 
-// Re-fetch the funnel when the local entry-origin segment changes.
-function onFunnelFilterChange() {
-  void fetchFunnelData();
-}
-
 async function fetchTabData() {
   switch (activeTab.value) {
     case 'conversion':
@@ -825,9 +784,6 @@ async function fetchTabData() {
       break;
     case 'programas':
       await fetchProgramAnalytics();
-      break;
-    case 'funnel':
-      await fetchFunnelData();
       break;
     case 'retencion':
       await fetchRetentionData();
