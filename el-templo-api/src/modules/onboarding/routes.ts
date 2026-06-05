@@ -71,7 +71,7 @@ const completeSchema = {
       },
       level: {
         type: "string",
-        enum: ["alfa", "delta", "sigma", "omega", "spartan"],
+        enum: ["kairos", "alfa", "delta", "sigma", "omega", "spartan"],
       },
       goal: {
         type: "string",

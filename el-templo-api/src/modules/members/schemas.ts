@@ -157,7 +157,7 @@ export const listMembersSchema = {
       multiBranch: { type: "boolean" },
       level: {
         type: "string",
-        enum: ["alfa", "delta", "sigma", "omega", "spartan"],
+        enum: ["kairos", "alfa", "delta", "sigma", "omega", "spartan"],
       },
       planId: { type: "integer" },
       segment: {
@@ -419,7 +419,7 @@ export const createMemberSchema = {
       planId: { type: "integer" },
       level: {
         type: "string",
-        enum: ["alfa", "delta", "sigma", "omega", "spartan"],
+        enum: ["kairos", "alfa", "delta", "sigma", "omega", "spartan"],
       },
       dateOfBirth: {
         type: ["string", "null"],
@@ -482,7 +482,7 @@ export const updateMemberSchema = {
       branchId: { type: "integer" },
       level: {
         type: "string",
-        enum: ["alfa", "delta", "sigma", "omega", "spartan"],
+        enum: ["kairos", "alfa", "delta", "sigma", "omega", "spartan"],
       },
     },
   },
@@ -597,7 +597,7 @@ export const exportMembersSchema = {
       multiBranch: { type: "boolean" },
       level: {
         type: "string",
-        enum: ["alfa", "delta", "sigma", "omega", "spartan"],
+        enum: ["kairos", "alfa", "delta", "sigma", "omega", "spartan"],
       },
       // Phase 103 (R8): export uses the same status enum as the list endpoint.
       status: {

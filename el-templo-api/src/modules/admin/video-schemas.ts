@@ -12,21 +12,14 @@ export const listExercisesSchema = {
       category: { type: "string" },
       level: {
         type: "string",
-        enum: ["alfa", "delta", "sigma", "omega", "spartan"],
+        enum: ["kairos", "alfa", "delta", "sigma", "omega", "spartan"],
       },
       route: { type: "string" },
       effort: { type: "string", enum: ["CON", "EXC", "ISO", "empty"] },
       hasVideo: { type: "boolean" },
       equipment: {
         type: "string",
-        enum: [
-          "barras",
-          "anillas",
-          "paralelas",
-          "cajon",
-          "ninguno",
-          "empty",
-        ],
+        enum: ["barras", "anillas", "paralelas", "cajon", "ninguno", "empty"],
       },
     },
     additionalProperties: false,

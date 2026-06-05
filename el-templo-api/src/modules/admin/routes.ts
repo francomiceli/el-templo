@@ -968,7 +968,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
             effort: { type: "string", enum: ["CON", "EXC", "ISO", ""] },
             level: {
               type: "string",
-              enum: ["alfa", "delta", "sigma", "omega", "spartan"],
+              enum: ["kairos", "alfa", "delta", "sigma", "omega", "spartan"],
             },
             difficulty: { type: "integer", minimum: 1, maximum: 12 },
             dificultadLineal: { type: "integer", minimum: 1, maximum: 12 },
