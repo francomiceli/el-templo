@@ -9,6 +9,7 @@ export * from "./weekly-rotator";
 export * from "./formats";
 export * from "./format-compatibility";
 export * from "./exercises";
+export * from "./exercise-subfamilies";
 export * from "./spom-config";
 export * from "./sessions";
 export * from "./session-blocks";
