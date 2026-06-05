@@ -11,6 +11,7 @@ import sessionsPlugin from "./plugins/sessions";
 import progressionPlugin from "./plugins/progression";
 import treeProgressPlugin from "./plugins/tree-progress";
 import treeEditorPlugin from "./plugins/tree-editor";
+import exerciseAdjustmentsPlugin from "./plugins/exercise-adjustments";
 import { authRoutes } from "./modules/auth";
 import { adminRoutes } from "./modules/admin";
 import { goalPlanRoutes } from "./modules/goal-plans";
@@ -118,6 +119,9 @@ export async function buildApp() {
 
   // Tree-editor plugin (admin/coach skill-tree editor — Phase 128)
   await app.register(treeEditorPlugin);
+
+  // Exercise-adjustments plugin (in-session difficulty adjustment — Phase 131)
+  await app.register(exerciseAdjustmentsPlugin);
 
   // Routes
   await app.register(authRoutes, { prefix: "/api/auth" });
