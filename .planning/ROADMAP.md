@@ -3064,13 +3064,13 @@ Plans:
 
 **Risks / notas:** El algoritmo `exercise-fallback.ts` ya elige "ejercicio equivalente" por `(route, effort, difficulty, level)` — reutilizable como base para la resolución de vecinos. `dificultadLineal` (1-12) es el aplastamiento de los 3 ejes con empates (ej: dl=2 en planche tiene 7 hermanos): la construcción debe desambiguar empates usando las dimensiones estructuradas. Decisión ya tomada: el orden sale del SPOM, los profes ajustan después (fase 128).
 
-**Plans:** 3 plans
+**Plans:** 1/3 plans executed
 
 Plans:
 
 **Wave 1**
 
-- [ ] 126-01-PLAN.md — exercise_progressions table + migration 0139 (schema foundation)
+- [x] 126-01-PLAN.md — exercise_progressions table + migration 0139 (schema foundation)
 
 **Wave 2** _(blocked on Wave 1 completion)_
 
@@ -3202,7 +3202,7 @@ Plans:
 | ---------------------------------------------- | -------------- | ----------- | ---------- |
 | 124. Estructura 3 dimensiones + saneo          | 2/2            | Complete    | 2026-06-05 |
 | 125. Bootstrap heurístico + revisión de profes | 3/3            | Complete    | 2026-06-05 |
-| 126. Auto-construcción del grafo (DAG)         | 0/TBD          | Not started | -          |
+| 126. Auto-construcción del grafo (DAG)         | 1/3            | In Progress |            |
 | 127. % de avance del árbol (miembro)           | 0/TBD          | Not started | -          |
 | 128. Editor de árbol (admin)                   | 0/TBD          | Not started | -          |
 | 129. Kairos — enum, herencia, formato lineal   | 0/TBD          | Not started | -          |

@@ -36,7 +36,7 @@
 - [x] **TREE-01**: Las 3 dimensiones de cada ejercicio (gesto/sub-familia, palanca/posición, contracción) existen como datos estructurados en el esquema, separadas del campo `position` actual (que hoy mezcla palanca + implemento + orientación).
 - [x] **TREE-02**: Un proceso de bootstrap **heurístico** (reglas deterministas sobre los códigos de ruta + keywords de palanca, sin API) propone la descomposición (gesto / palanca / ruta para los `route_pending`) de cada ejercicio a partir de su nombre, con salida revisable antes de aplicarse. _(Motor cambiado de LLM a heurístico en discuss-125; mismo objetivo, distinto motor.)_
 - [x] **TREE-03**: Los profes pueden revisar y corregir la descomposición propuesta antes de fijarla como dato de verdad.
-- [ ] **TREE-04**: El sistema auto-construye el grafo ramificado (DAG) de progresiones a partir del orden del SPOM/`dificultadLineal` y las 3 dimensiones estructuradas (sub-familias paralelas dentro de cada ruta, ordenadas por palanca y contracción).
+- [x] **TREE-04**: El sistema auto-construye el grafo ramificado (DAG) de progresiones a partir del orden del SPOM/`dificultadLineal` y las 3 dimensiones estructuradas (sub-familias paralelas dentro de cada ruta, ordenadas por palanca y contracción).
 - [x] **TREE-05**: Los ejercicios quedan saneados: los ~103 sin ruta reciben ruta, los duplicados (mismo ejercicio repetido en varios niveles) se resuelven y `position` se separa en sus conceptos.
 - [ ] **TREE-06**: El miembro ve su % de avance por familia/nodo del árbol, agrupado por la categoría temática existente (Tracción / Empuje / Piernas / Core / Movilidad).
 - [ ] **TREE-07**: Los profes editan el árbol desde una sección nueva del admin: reordenan ejercicios, agrupan/separan sub-familias y ajustan precedencias sobre el grafo ya construido.
@@ -84,7 +84,7 @@
 | TREE-01     | Phase 124 | Complete |
 | TREE-02     | Phase 125 | Complete |
 | TREE-03     | Phase 125 | Complete |
-| TREE-04     | Phase 126 | Pending  |
+| TREE-04     | Phase 126 | Complete |
 | TREE-05     | Phase 124 | Complete |
 | TREE-06     | Phase 127 | Pending  |
 | TREE-07     | Phase 128 | Pending  |
