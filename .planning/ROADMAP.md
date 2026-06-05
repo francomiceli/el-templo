@@ -3064,7 +3064,14 @@ Plans:
 
 **Risks / notas:** El algoritmo `exercise-fallback.ts` ya elige "ejercicio equivalente" por `(route, effort, difficulty, level)` — reutilizable como base para la resolución de vecinos. `dificultadLineal` (1-12) es el aplastamiento de los 3 ejes con empates (ej: dl=2 en planche tiene 7 hermanos): la construcción debe desambiguar empates usando las dimensiones estructuradas. Decisión ya tomada: el orden sale del SPOM, los profes ajustan después (fase 128).
 
-**Plans:** TBD
+**Plans:** 3 plans
+
+Plans:
+
+- [ ] 126-01-PLAN.md — exercise_progressions table + migration 0139 (schema foundation)
+- [ ] 126-02-PLAN.md — runRebuildProgressionGraph constructor (linear backbone, auto edges) + test
+- [ ] 126-03-PLAN.md — getNeighbor primitive (dl-adjacent same-effort neighbor) + test
+
 **UI hint:** no (backend-first; motor de construcción del grafo)
 
 ### Phase 127: % de avance del árbol para el miembro
