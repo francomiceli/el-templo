@@ -279,9 +279,12 @@ describe("POST /api/exercise-adjustments (Phase 131 Plan 01)", () => {
     const victim = await seedMember();
     const attacker = await seedMember();
 
-    // Attacker tries to write a record as the victim by spoofing a body id.
-    // additionalProperties:false rejects the unknown field; even so the handler
-    // would ignore it. Assert the schema rejects it AND no victim row appears.
+    // Attacker tries to write a record as the victim by spoofing body ids.
+    // Fastify runs with removeAdditional=true, so the unknown memberId/userId
+    // props are STRIPPED (not rejected with 400) and the request SUCCEEDS.
+    // The security property is that the handler scopes the write to
+    // request.user.userId (the attacker), so the spoof can never touch the
+    // victim — assert exactly that, not a 400.
     const spoof = await app.inject({
       method: "POST",
       url: "/api/exercise-adjustments",
@@ -295,23 +298,12 @@ describe("POST /api/exercise-adjustments (Phase 131 Plan 01)", () => {
         userId: victim.id,
       },
     });
-    expect(spoof.statusCode).toBe(400); // unknown property rejected by schema
+    // Spoofed extra props are stripped; request succeeds like a clean one.
+    expect(spoof.statusCode).toBe(200);
+    expect(JSON.parse(spoof.body).neighbor.id).toBe(high);
 
-    // A clean request from the attacker writes a row owned by the ATTACKER.
-    const clean = await app.inject({
-      method: "POST",
-      url: "/api/exercise-adjustments",
-      headers: { authorization: `Bearer ${attacker.token}` },
-      payload: {
-        exerciseId: mid,
-        direction: "up",
-        dayId: "W1-lunes-sigma",
-        date: "2026-06-05",
-      },
-    });
-    expect(clean.statusCode).toBe(200);
-    expect(JSON.parse(clean.body).neighbor.id).toBe(high);
-
+    // The spoof must NOT have created a row owned by the victim, and the row
+    // it did write must be owned by the ATTACKER (request.user.userId).
     const victimRows = await app.db
       .select()
       .from(schema.exerciseAdjustments)

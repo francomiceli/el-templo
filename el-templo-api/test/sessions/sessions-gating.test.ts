@@ -222,6 +222,13 @@ describe("Sessions gating (Phase 104 R7 + R8)", () => {
 
   it("R7 case 3: presencial user with ?view=templo returns 200 with view='templo'", async () => {
     const member = await createTestMember(app);
+    // Pin level to "alfa": this case proves VIEW resolution, not level
+    // selection, and seeds alfa-level sessions below. New members default to
+    // "kairos" (KAIROS-04), which would resolve a *-kairos dayId → null.
+    await app.db
+      .update(schema.users)
+      .set({ level: "alfa" })
+      .where(eq(schema.users.id, member.id));
     const presencial = await insertPlan(app, {
       name: "Presencial Test",
       planCategory: "presencial",
@@ -247,6 +254,14 @@ describe("Sessions gating (Phase 104 R7 + R8)", () => {
 
   it("R7 case 4: user with active GP enrollment + currentProgramEnrollmentId + ?view=program returns 200 with GP-* dayIds", async () => {
     const member = await createTestMember(app);
+    // Pin level to "alfa": this case proves VIEW resolution, not level
+    // selection, and seeds an alfa-level GP-* session below. New members
+    // default to "kairos" (KAIROS-04), which would resolve a *-kairos
+    // dayId → null.
+    await app.db
+      .update(schema.users)
+      .set({ level: "alfa" })
+      .where(eq(schema.users.id, member.id));
     const program = await insertProgram(app, {
       name: "Piernas y Gluteos",
       goalPlanType: "piernas_gluteos",

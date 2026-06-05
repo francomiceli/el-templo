@@ -41,7 +41,7 @@ describe("Auth Routes", () => {
       expect(body).toHaveProperty("token");
       expect(body.user).toHaveProperty("email", "newuser@test.com");
       expect(body.user).toHaveProperty("role", "member");
-      expect(body.user).toHaveProperty("level", "alfa");
+      expect(body.user).toHaveProperty("level", "kairos");
       expect(body.user).toHaveProperty("branchId", 1);
     });
 

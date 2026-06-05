@@ -396,7 +396,7 @@ describe("Members Management Routes", () => {
       // Phase 103 (R7): admin-create with planId triggers assignPlan ->
       // recomputeUserStatus -> 'activo'. Without planId it would be 'prueba'.
       expect(body.status).toBe("activo");
-      expect(body.level).toBe("alfa");
+      expect(body.level).toBe("kairos");
       expect(body.role).toBe("member");
       expect(body).toHaveProperty("branchName");
       expect(body).toHaveProperty("createdAt");

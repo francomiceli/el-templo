@@ -53,7 +53,7 @@ describe("POST /api/admin/members/trial", () => {
     expect(body.phone).toBe("1155551234");
     expect(body.branchId).toBe(1);
     expect(body.status).toBe("prueba");
-    expect(body.level).toBe("alfa");
+    expect(body.level).toBe("kairos");
     expect(body.role).toBe("member");
     expect(body).not.toHaveProperty("tempPassword");
 

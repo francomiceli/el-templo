@@ -292,7 +292,7 @@ describe("Session Routes", () => {
         .select({ id: schema.users.id, level: schema.users.level })
         .from(schema.users)
         .where(eq(schema.users.email, "stamp-other-level@test.com"));
-      expect(userRow!.level).toBe("alfa");
+      expect(userRow!.level).toBe("kairos");
 
       const [completion] = await app.db
         .select({
