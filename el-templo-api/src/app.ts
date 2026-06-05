@@ -9,6 +9,7 @@ import authPlugin from "./plugins/auth";
 import spomPlugin from "./plugins/spom";
 import sessionsPlugin from "./plugins/sessions";
 import progressionPlugin from "./plugins/progression";
+import treeProgressPlugin from "./plugins/tree-progress";
 import { authRoutes } from "./modules/auth";
 import { adminRoutes } from "./modules/admin";
 import { goalPlanRoutes } from "./modules/goal-plans";
@@ -110,6 +111,9 @@ export async function buildApp() {
 
   // Progression plugin (member stats and evaluation requests)
   await app.register(progressionPlugin);
+
+  // Tree-progress plugin (member skill-tree % advancement — Phase 127)
+  await app.register(treeProgressPlugin);
 
   // Routes
   await app.register(authRoutes, { prefix: "/api/auth" });
