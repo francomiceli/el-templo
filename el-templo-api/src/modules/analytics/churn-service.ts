@@ -60,6 +60,7 @@ import {
   lastExpiryPerPersonExpr,
   retainedExpr,
   maturedExpr,
+  subscriptionPlanFilter,
   RENOVATION_WINDOW_DEFAULT_DAYS,
   CHURN_COMPARISON_WINDOWS,
 } from "./expiry-cohort";
@@ -192,6 +193,7 @@ export class ChurnService {
         ...expiryCohortConditions(filters.dateFrom, filters.dateTo),
         lastExpiryPerPersonExpr(filters.dateFrom, filters.dateTo),
         ...scopeConditions,
+        ...subscriptionPlanFilter(filters.planId),
       ),
     );
 
@@ -259,6 +261,7 @@ export class ChurnService {
         ...expiryCohortConditions(filters.dateFrom, filters.dateTo),
         lastExpiryPerPersonExpr(filters.dateFrom, filters.dateTo),
         ...scopeConditions,
+        ...subscriptionPlanFilter(filters.planId),
       ),
     );
 
@@ -313,6 +316,7 @@ export class ChurnService {
         ...expiryCohortConditions(filters.dateFrom, filters.dateTo),
         lastExpiryPerPersonExpr(filters.dateFrom, filters.dateTo),
         ...scopeConditions,
+        ...subscriptionPlanFilter(filters.planId),
       ),
     );
 
@@ -399,6 +403,7 @@ export class ChurnService {
           ...expiryCohortConditions(filters.dateFrom, filters.dateTo),
           lastExpiryPerPersonExpr(filters.dateFrom, filters.dateTo),
           ...scopeConditions,
+          ...subscriptionPlanFilter(filters.planId),
         ),
       );
 

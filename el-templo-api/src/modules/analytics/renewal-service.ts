@@ -53,6 +53,7 @@ import {
   lastExpiryPerPersonExpr,
   retainedExpr,
   maturedExpr,
+  subscriptionPlanFilter,
   RENOVATION_WINDOW_DEFAULT_DAYS,
 } from "./expiry-cohort";
 import type {
@@ -165,6 +166,7 @@ export class RenewalService {
         ...expiryCohortConditions(filters.dateFrom, filters.dateTo),
         lastExpiryPerPersonExpr(filters.dateFrom, filters.dateTo),
         ...scopeConditions,
+        ...subscriptionPlanFilter(filters.planId),
       ),
     );
 
@@ -240,6 +242,7 @@ export class RenewalService {
           ...expiryCohortConditions(filters.dateFrom, filters.dateTo),
           lastExpiryPerPersonExpr(filters.dateFrom, filters.dateTo),
           ...scopeConditions,
+          ...subscriptionPlanFilter(filters.planId),
         ),
       );
 

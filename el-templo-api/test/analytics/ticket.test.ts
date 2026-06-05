@@ -558,6 +558,68 @@ describe("TicketService (Phase 120 Plan 04)", () => {
   });
 
   // ═══════════════════════════════════════════════════════════════════════
+  // planId INPUT filter (Phase 132 D-10) — restricts the ticket to ONE plan
+  // ═══════════════════════════════════════════════════════════════════════
+
+  it("planId filter restricts the ticket to charges of that plan only", async () => {
+    const mA = await createMember("tk-plan-a@test.com", "94011001");
+    const mB = await createMember("tk-plan-b@test.com", "94011002");
+    // Plan AR charge of 15000, plan Long charge of 40000 — both in scope.
+    await seedMembershipCharge({
+      userId: mA,
+      planId: planArId,
+      pricePaid: 15000,
+      priceRegularSnapshot: 15000,
+    });
+    await seedMembershipCharge({
+      userId: mB,
+      planId: planLongId,
+      pricePaid: 40000,
+      priceRegularSnapshot: 40000,
+    });
+
+    const res = await svc.getTicket({ ...RANGE, planId: planArId });
+    // Only the plan-AR charge is counted: global reflects 15000 over n=1.
+    expect(res.byCurrency.ARS.global.n).toBe(1);
+    expect(res.byCurrency.ARS.global.nominal).toBe(15000);
+    // perPlan has ONLY plan AR (plan Long is filtered out entirely).
+    expect(res.byCurrency.ARS.perPlan.length).toBe(1);
+    expect(res.byCurrency.ARS.perPlan[0].planName).toBe("Ticket AR Mensual");
+  });
+
+  it("planId is AND-ed with branch scope — no cross-branch leak (T-132-01)", async () => {
+    // A plan-AR charge lives in branch A; the caller is scoped to the ES branch.
+    const m = await createMember("tk-plan-cross@test.com", "94012001", branchA);
+    await seedMembershipCharge({
+      userId: m,
+      planId: planArId,
+      pricePaid: 15000,
+      priceRegularSnapshot: 15000,
+      currency: "ARS",
+      branchId: branchA,
+    });
+
+    // planId=AR (a real plan) but scoped to a DIFFERENT branch → no data: the
+    // plan filter must AND with scope, never bypass it.
+    const res = await svc.getTicket({
+      ...RANGE,
+      planId: planArId,
+      branchId: branchES,
+    });
+    expect(res.byCurrency.ARS.global.n).toBe(0);
+    expect(res.byCurrency.ARS.perPlan.length).toBe(0);
+  });
+
+  it("rejects a non-integer planId with 400 (schema, T-132-02)", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: `${ANALYTICS_URL}/ticket?dateFrom=2026-03-01&dateTo=2026-04-01&planId=notAnInteger`,
+      headers: { authorization: `Bearer ${ownerToken}` },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════
   // Route auth — ADMIN_ROLES-only (gestion 403, admin 200), wire shape
   // ═══════════════════════════════════════════════════════════════════════
 

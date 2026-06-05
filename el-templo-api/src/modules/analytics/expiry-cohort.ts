@@ -45,7 +45,7 @@
  *
  * No DB access, no logging, no `any`.
  */
-import { sql, type SQL } from "drizzle-orm";
+import { eq, sql, type SQL } from "drizzle-orm";
 import * as schema from "../../db/schema";
 import { rangeConditions } from "./cohorts";
 
@@ -96,6 +96,22 @@ export function expiryCohortConditions(
     // D-03 / CHURN-04: a paused membership did not truly expire — exclude it.
     sql`${schema.subscriptions.status} <> 'paused'`,
   ];
+}
+
+/**
+ * Plan INPUT filter (Phase 132 D-10): an EXTRA exact-match condition on
+ * `subscriptions.plan_id`, returned as a (possibly empty) array so it spreads
+ * into the cohort `and(...)` AFTER `...scopeConditions` — an ADDITIVE restriction
+ * that AND-s with country/branch scope, never a scope bypass (T-132-01). When
+ * `planId` is absent the array is empty (no filter). Shared by churn / renovación
+ * / LTV so all three sit on the SAME plan-filtered expiry cohort.
+ *
+ * @param planId the concrete plan to restrict to, or `undefined` for no filter.
+ * @returns the WHERE fragments to spread into the query's `and(...)`.
+ */
+export function subscriptionPlanFilter(planId: number | undefined): SQL[] {
+  if (planId === undefined) return [];
+  return [eq(schema.subscriptions.planId, planId)];
 }
 
 /**

@@ -546,11 +546,26 @@ const ticketCurrencyBlockSchema = {
   },
 } as const;
 
+// Local querystring extension (Phase 132 D-10): adds the optional `planId` plan
+// INPUT filter to the shared analytics querystring WITHOUT mutating the shared
+// const (ticket otherwise reuses analyticsQuerystring). `planId` is an integer →
+// a non-integer value is rejected with 400 before the service (T-132-02).
+// branchId/dateFrom/dateTo carry over.
+const ticketQuerystring = {
+  type: "object",
+  properties: {
+    branchId: { type: "integer" },
+    dateFrom: { type: "string", format: "date" },
+    dateTo: { type: "string", format: "date" },
+    planId: { type: "integer" },
+  },
+} as const;
+
 // GET /ticket — per-currency ticket from linked price_paid, cohort split,
 // excludedNoLink. ADMIN_ROLES-only (gestion gets 403). errorSchema covers
 // 400/401/403/500.
 export const ticketSchema = {
-  querystring: analyticsQuerystring,
+  querystring: ticketQuerystring,
   response: {
     200: {
       type: "object",
@@ -588,6 +603,8 @@ const churnQuerystring = {
     dateFrom: { type: "string", format: "date" },
     dateTo: { type: "string", format: "date" },
     window: { type: "integer", minimum: 1, maximum: 365 },
+    // Phase 132 D-10: optional plan INPUT filter (T-132-02 — non-integer → 400).
+    planId: { type: "integer" },
   },
 } as const;
 
@@ -872,6 +889,8 @@ const renewalQuerystring = {
     dateFrom: { type: "string", format: "date" },
     dateTo: { type: "string", format: "date" },
     window: { type: "integer", minimum: 1, maximum: 365 },
+    // Phase 132 D-10: optional plan INPUT filter (T-132-02 — non-integer → 400).
+    planId: { type: "integer" },
   },
 } as const;
 
@@ -940,6 +959,8 @@ const ltvQuerystring = {
     dateFrom: { type: "string", format: "date" },
     dateTo: { type: "string", format: "date" },
     window: { type: "integer", minimum: 1, maximum: 365 },
+    // Phase 132 D-10: optional plan INPUT filter (T-132-02 — non-integer → 400).
+    planId: { type: "integer" },
   },
 } as const;
 

@@ -377,7 +377,12 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
   // requireAdminAnalytics; gestion recibe 403. Scoped por sede/país
   // (financialTransactions.branchId).
   fastify.get<{
-    Querystring: { branchId?: number; dateFrom?: string; dateTo?: string };
+    Querystring: {
+      branchId?: number;
+      dateFrom?: string;
+      dateTo?: string;
+      planId?: number;
+    };
   }>(
     "/ticket",
     {
@@ -394,6 +399,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
           country: request.scope.country ?? undefined,
           dateFrom: request.query.dateFrom,
           dateTo: request.query.dateTo,
+          planId: request.query.planId,
         };
         const result = await ticketService.getTicket(filters);
         return result;
@@ -414,6 +420,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
       dateFrom?: string;
       dateTo?: string;
       window?: number;
+      planId?: number;
     };
   }>(
     "/churn",
@@ -432,6 +439,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
           dateFrom: request.query.dateFrom,
           dateTo: request.query.dateTo,
           window: request.query.window,
+          planId: request.query.planId,
         };
         const result = await churnService.getChurn(filters);
         return result;
@@ -452,6 +460,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
       dateFrom?: string;
       dateTo?: string;
       window?: number;
+      planId?: number;
     };
   }>(
     "/renewal",
@@ -470,6 +479,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
           dateFrom: request.query.dateFrom,
           dateTo: request.query.dateTo,
           window: request.query.window,
+          planId: request.query.planId,
         };
         const result = await renewalService.getRenewal(filters);
         return result;
@@ -493,6 +503,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
       dateFrom?: string;
       dateTo?: string;
       window?: number;
+      planId?: number;
     };
   }>(
     "/ltv",
@@ -511,6 +522,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
           dateFrom: request.query.dateFrom,
           dateTo: request.query.dateTo,
           window: request.query.window,
+          planId: request.query.planId,
         };
         const result = await ltvService.getLtv(filters);
         return result;

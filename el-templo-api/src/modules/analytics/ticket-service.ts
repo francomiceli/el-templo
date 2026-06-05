@@ -306,12 +306,17 @@ export class TicketService {
 
     // excludedNoLink = in-period plan_charge universe MINUS matched membership
     // charges, summed across currencies (enrollment-only + any unlinked charge).
+    // When a planId INPUT filter is active the universe count is NOT plan-scoped
+    // (it has no subscription join), so the diff would over-report — the no-link
+    // diagnostic is meaningless for a single-plan view, so report 0 instead.
     let excludedNoLink = 0;
-    for (const currency of CURRENCIES) {
-      const universe = universeByCurrency.get(currency) ?? 0;
-      const matched = matchedByCurrency.get(currency) ?? 0;
-      const diff = universe - matched;
-      excludedNoLink += diff > 0 ? diff : 0;
+    if (filters.planId === undefined) {
+      for (const currency of CURRENCIES) {
+        const universe = universeByCurrency.get(currency) ?? 0;
+        const matched = matchedByCurrency.get(currency) ?? 0;
+        const diff = universe - matched;
+        excludedNoLink += diff > 0 ? diff : 0;
+      }
     }
 
     return { byCurrency, historicalFallbackCount, excludedNoLink };
@@ -439,6 +444,12 @@ export class TicketService {
         filters.dateTo,
       ),
     ];
+    // D-10 plan INPUT filter: restrict to the linked subscription's plan,
+    // AND-ed AFTER scope (T-132-01 — never a scope bypass). The subscriptions
+    // join already exists below; the planId column is qualified.
+    if (filters.planId !== undefined) {
+      conditions.push(eq(schema.subscriptions.planId, filters.planId));
+    }
 
     const rows = await this.db
       .select({

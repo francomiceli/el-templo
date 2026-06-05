@@ -55,6 +55,7 @@ import {
   lastExpiryPerPersonExpr,
   retainedExpr,
   maturedExpr,
+  subscriptionPlanFilter,
   RENOVATION_WINDOW_DEFAULT_DAYS,
 } from "./expiry-cohort";
 import { kaplanMeierMedian, type KaplanMeierObservation } from "./kaplan-meier";
@@ -245,6 +246,7 @@ export class LtvService {
           ...expiryCohortConditions(filters.dateFrom, filters.dateTo),
           lastExpiryPerPersonExpr(filters.dateFrom, filters.dateTo),
           ...scopeConditions,
+          ...subscriptionPlanFilter(filters.planId),
         ),
       );
 
