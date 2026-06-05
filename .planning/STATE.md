@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v5.1
 milestone_name: Nuevo Sistema de Entrenamiento
-status: executing
-stopped_at: Phase 130 Plan 04 executed (Kairos first box in member-app onboarding self-pick; header dropdown verified; KAIROS-07 complete app+admin). Phase 130 ready_for_verification.
-last_updated: "2026-06-05T06:20:00.000Z"
+status: ready_to_plan
+stopped_at: Phase 130 complete (4/4) — ready to discuss Phase 131
+last_updated: 2026-06-05T06:22:01.334Z
 last_activity: 2026-06-05 -- Phase 130 Plan 04 executed (staging, not pushed); phase 130 ready for verification
 progress:
   total_phases: 8
   completed_phases: 7
   total_plans: 19
-  completed_plans: 19
+  completed_plans: 471
   percent: 88
 ---
 
@@ -21,20 +21,20 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-04)
 
 **Core value:** v5.1 reestructura el sistema de entrenamiento alrededor de un árbol de habilidades (DAG) sobre 3 ejes ortogonales (gesto/palanca/contracción). Sobre ese cimiento: el nivel Kairos para principiantes (hereda de Alfa, formato lineal forzado) y el ajuste de dificultad in-session (botones más fácil/más difícil que sirven el vecino correcto y recuerdan lo dominado). Backend-first, brownfield.
-**Current focus:** Phase 130 — asignación, graduación y selector de kairos
+**Current focus:** Phase 131 — ajuste de dificultad in session + registro de "dominado / bajado"
 
 ## Current Position
 
-Phase: 130
-Plan: 04 complete (all 4 plans done)
-Status: Ready for verification
-Last activity: 2026-06-05 -- Phase 130 Plan 04 executed (staging, not pushed); phase 130 ready for verification
+Phase: 131
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-06-05
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 21 (v4.1)
+- Total plans completed: 25 (v4.1)
 - Average duration: ~11min
 - Total execution time: ~122min
 
@@ -49,6 +49,7 @@ Last activity: 2026-06-05 -- Phase 130 Plan 04 executed (staging, not pushed); p
 | 127   | 2     | -      | -        |
 | 128   | 3     | -      | -        |
 | 129   | 2     | -      | -        |
+| 130   | 4     | -      | -        |
 
 **Recent Trend (from v4.0):**
 
