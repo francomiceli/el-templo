@@ -23,7 +23,7 @@
           outlined
           emit-value
           map-options
-          @update:model-value="onFilterChange"
+          @update:model-value="onScopeChange"
         />
       </div>
 
@@ -37,6 +37,33 @@
           emit-value
           map-options
           :loading="loadingBranches"
+          @update:model-value="onScopeChange"
+        />
+      </div>
+
+      <div class="col-12 col-sm-3">
+        <q-select
+          v-model="selectedPlanId"
+          :options="planOptions"
+          label="Plan"
+          dense
+          outlined
+          emit-value
+          map-options
+          :loading="loadingPlans"
+          @update:model-value="onFilterChange"
+        />
+      </div>
+
+      <div v-if="showTurnoFilter" class="col-auto" style="min-width: 160px">
+        <q-select
+          v-model="selectedTurno"
+          :options="turnoOptions"
+          label="Turno"
+          dense
+          outlined
+          emit-value
+          map-options
           @update:model-value="onFilterChange"
         />
       </div>
@@ -141,14 +168,42 @@
       active-color="primary"
       indicator-color="primary"
     >
+      <q-tab name="conversion" label="Conversión" icon="filter_alt" />
+      <q-tab name="retencion-gestion" label="Retención" icon="replay" />
+      <q-tab name="frecuencia" label="Asistencia" icon="event_available" />
+      <q-tab name="ingresos" label="Ingresos" icon="payments" />
       <q-tab name="miembros" label="Miembros" icon="people" />
       <q-tab name="finanzas" label="Finanzas" icon="payments" />
       <q-tab name="programas" label="Programas" icon="school" />
       <q-tab name="funnel" label="Funnel" icon="filter_alt" />
-      <q-tab name="retencion" label="Retención" icon="replay" />
+      <q-tab name="retencion" label="Retención (ciclos)" icon="timeline" />
     </q-tabs>
 
     <q-tab-panels v-model="activeTab" animated>
+      <!-- Conversión — Funnel de sesiones de prueba (Phase 132, D-06) -->
+      <q-tab-panel name="conversion">
+        <ConversionTab :data="trialFunnelData" :loading="loadingTrialFunnel" />
+      </q-tab-panel>
+
+      <!-- Retención — Churn + Renovación (Phase 132, D-02/D-03) -->
+      <q-tab-panel name="retencion-gestion">
+        <RetencionGestionTab
+          :churn="churnData"
+          :renewal="renewalData"
+          :loading="loadingRetencionGestion"
+        />
+      </q-tab-panel>
+
+      <!-- Asistencia — Frecuencia (Phase 132, D-04) -->
+      <q-tab-panel name="frecuencia">
+        <FrecuenciaTab :data="frequencyData" :loading="loadingFrecuencia" />
+      </q-tab-panel>
+
+      <!-- Ingresos — Ticket + LTV (Phase 132, D-01/D-05) -->
+      <q-tab-panel name="ingresos">
+        <IngresosTab :ticket="ticketData" :ltv="ltvData" :loading="loadingIngresos" />
+      </q-tab-panel>
+
       <q-tab-panel name="miembros">
         <MiembrosTab :data="memberData" :loading="loadingMembers" />
       </q-tab-panel>
@@ -253,6 +308,10 @@ import FinanzasTab from 'src/components/analytics/FinanzasTab.vue';
 import FunnelTab from 'src/components/analytics/FunnelTab.vue';
 import RetencionTab from 'src/components/analytics/RetencionTab.vue';
 import FinanzasAvanzadasTab from 'src/components/analytics/FinanzasAvanzadasTab.vue';
+import ConversionTab from 'src/components/analytics/ConversionTab.vue';
+import RetencionGestionTab from 'src/components/analytics/RetencionGestionTab.vue';
+import FrecuenciaTab from 'src/components/analytics/FrecuenciaTab.vue';
+import IngresosTab from 'src/components/analytics/IngresosTab.vue';
 import type {
   KpiStats,
   MemberAnalytics,
@@ -263,6 +322,12 @@ import type {
   RetentionAnalytics,
   AdvancedFinanceAnalytics,
   FunnelEntryOrigin,
+  TrialFunnelAnalytics,
+  ChurnAnalytics,
+  RenewalAnalytics,
+  FrequencyAnalytics,
+  TicketAnalytics,
+  LtvAnalytics,
 } from 'src/types/analytics';
 import type { BranchOption } from 'src/types/member';
 import type { ProgramAnalytics } from 'src/types/program';
@@ -315,6 +380,49 @@ async function fetchBranches() {
     loadingBranches.value = false;
   }
 }
+
+// -- Plan filter (Phase 132 D-09) — applies to all 6 v5.0 metrics --------
+
+const selectedPlanId = ref<number | null>(null);
+const planOptions = ref<Array<{ label: string; value: number | null }>>([
+  { label: 'Todos los planes', value: null },
+]);
+const loadingPlans = ref(false);
+
+async function fetchPlans() {
+  loadingPlans.value = true;
+  try {
+    const plans = await membersApi.getPlans(false, {
+      branchId: selectedBranchId.value,
+      country: isOwner.value ? selectedCountry.value : undefined,
+    });
+    planOptions.value = [
+      { label: 'Todos los planes', value: null },
+      ...plans.map((p) => ({ label: p.name, value: p.id })),
+    ];
+    // Drop a stale plan selection if it is no longer in the new scope.
+    if (selectedPlanId.value !== null && !plans.some((p) => p.id === selectedPlanId.value)) {
+      selectedPlanId.value = null;
+    }
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.error('Error fetching plans', { error: message });
+  } finally {
+    loadingPlans.value = false;
+  }
+}
+
+// -- Turno filter (Phase 132 D-09/D-10) — only funnel + frecuencia -------
+
+const selectedTurno = ref<'manana' | 'tarde' | null>(null);
+const turnoOptions = [
+  { label: 'Todos los turnos', value: null },
+  { label: 'Mañana', value: 'manana' as const },
+  { label: 'Tarde', value: 'tarde' as const },
+];
+const showTurnoFilter = computed(
+  () => activeTab.value === 'conversion' || activeTab.value === 'frecuencia'
+);
 
 // -- Date range filter ---------------------------------------------------
 
@@ -411,6 +519,9 @@ const currentFilters = computed<AnalyticsFilters>(() => ({
   country: isOwner.value ? selectedCountry.value : undefined,
   dateFrom: dateFrom.value,
   dateTo: dateTo.value,
+  // Plan filter applies to all 6 v5.0 metrics (D-09/D-10). Turno is NOT spread
+  // here — it is passed per-fetch only by conversión + frecuencia.
+  planId: selectedPlanId.value ?? undefined,
 }));
 
 // -- Tab state -----------------------------------------------------------
@@ -437,6 +548,19 @@ const advancedFinanceData = ref<AdvancedFinanceAnalytics | null>(null);
 const loadingFunnel = ref(false);
 const loadingRetention = ref(false);
 const loadingAdvancedFinance = ref(false);
+
+// Phase 132 — the 6 v5.0 management metrics across 4 thematic tabs
+const trialFunnelData = ref<TrialFunnelAnalytics | null>(null);
+const churnData = ref<ChurnAnalytics | null>(null);
+const renewalData = ref<RenewalAnalytics | null>(null);
+const frequencyData = ref<FrequencyAnalytics | null>(null);
+const ticketData = ref<TicketAnalytics | null>(null);
+const ltvData = ref<LtvAnalytics | null>(null);
+
+const loadingTrialFunnel = ref(false);
+const loadingRetencionGestion = ref(false);
+const loadingFrecuencia = ref(false);
+const loadingIngresos = ref(false);
 
 // Local plan filter for the Retención tab (follow-up). `null` = todos los planes.
 // Re-fetches the cohort curve server-side. Options built from availablePlans.
@@ -596,6 +720,78 @@ async function fetchAdvancedFinanceData() {
   }
 }
 
+// -- Phase 132 fetches: the 6 v5.0 management metrics --------------------
+
+async function fetchConversion() {
+  loadingTrialFunnel.value = true;
+  try {
+    trialFunnelData.value = await analyticsApi.getTrialFunnel({
+      ...currentFilters.value,
+      turno: selectedTurno.value ?? undefined,
+    });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.error('Error fetching trial funnel analytics', { error: message });
+    trialFunnelData.value = null;
+  } finally {
+    loadingTrialFunnel.value = false;
+  }
+}
+
+async function fetchRetencionGestion() {
+  loadingRetencionGestion.value = true;
+  try {
+    const [churn, renewal] = await Promise.all([
+      analyticsApi.getChurn(currentFilters.value),
+      analyticsApi.getRenewal(currentFilters.value),
+    ]);
+    churnData.value = churn;
+    renewalData.value = renewal;
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.error('Error fetching churn/renewal analytics', { error: message });
+    churnData.value = null;
+    renewalData.value = null;
+  } finally {
+    loadingRetencionGestion.value = false;
+  }
+}
+
+async function fetchFrecuencia() {
+  loadingFrecuencia.value = true;
+  try {
+    frequencyData.value = await analyticsApi.getFrequency({
+      ...currentFilters.value,
+      turno: selectedTurno.value ?? undefined,
+    });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.error('Error fetching frequency analytics', { error: message });
+    frequencyData.value = null;
+  } finally {
+    loadingFrecuencia.value = false;
+  }
+}
+
+async function fetchIngresos() {
+  loadingIngresos.value = true;
+  try {
+    const [ticket, ltv] = await Promise.all([
+      analyticsApi.getTicket(currentFilters.value),
+      analyticsApi.getLtv(currentFilters.value),
+    ]);
+    ticketData.value = ticket;
+    ltvData.value = ltv;
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.error('Error fetching ticket/ltv analytics', { error: message });
+    ticketData.value = null;
+    ltvData.value = null;
+  } finally {
+    loadingIngresos.value = false;
+  }
+}
+
 // Re-fetch the retention curve when the local plan filter changes.
 function onRetentionFilterChange() {
   void fetchRetentionData();
@@ -608,6 +804,18 @@ function onFunnelFilterChange() {
 
 async function fetchTabData() {
   switch (activeTab.value) {
+    case 'conversion':
+      await fetchConversion();
+      break;
+    case 'retencion-gestion':
+      await fetchRetencionGestion();
+      break;
+    case 'frecuencia':
+      await fetchFrecuencia();
+      break;
+    case 'ingresos':
+      await fetchIngresos();
+      break;
     case 'miembros':
       await fetchMemberData();
       break;
@@ -631,6 +839,13 @@ async function onFilterChange() {
   await Promise.all([fetchKpis(), fetchTabData()]);
 }
 
+// Country / branch changes also re-scope the plan list (D-09). Refetch plans
+// first (which drops a now-out-of-scope plan selection), then the metrics.
+async function onScopeChange() {
+  await fetchPlans();
+  await onFilterChange();
+}
+
 // -- Tab change: lazy load -----------------------------------------------
 
 watch(activeTab, () => {
@@ -640,7 +855,7 @@ watch(activeTab, () => {
 // -- Lifecycle -----------------------------------------------------------
 
 onMounted(async () => {
-  await fetchBranches();
+  await Promise.all([fetchBranches(), fetchPlans()]);
   await Promise.all([fetchKpis(), fetchTabData()]);
 });
 
