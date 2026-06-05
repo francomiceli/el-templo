@@ -4,14 +4,14 @@ milestone: v5.1
 milestone_name: Nuevo Sistema de Entrenamiento
 status: executing
 stopped_at: Phase 126 context gathered
-last_updated: "2026-06-05T05:05:00.000Z"
-last_activity: 2026-06-05 -- Phase 128 Plan 02 executed (tree-editor backend + tests)
+last_updated: "2026-06-05T05:30:00.000Z"
+last_activity: 2026-06-05 -- Phase 128 Plan 03 executed (admin Editor de árbol UI; human-verify deferred)
 progress:
   total_phases: 8
-  completed_phases: 4
-  total_plans: 13
-  completed_plans: 13
-  percent: 54
+  completed_phases: 5
+  total_plans: 14
+  completed_plans: 14
+  percent: 65
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-04)
 
 **Core value:** v5.1 reestructura el sistema de entrenamiento alrededor de un árbol de habilidades (DAG) sobre 3 ejes ortogonales (gesto/palanca/contracción). Sobre ese cimiento: el nivel Kairos para principiantes (hereda de Alfa, formato lineal forzado) y el ajuste de dificultad in-session (botones más fácil/más difícil que sirven el vecino correcto y recuerdan lo dominado). Backend-first, brownfield.
-**Current focus:** Phase 128 — editor de árbol en el admin
+**Current focus:** Phase 128 — editor de árbol en el admin (3/3 plans executed; ready_for_verification)
 
 ## Current Position
 
 Phase: 128
-Plan: 02 complete (next: 03)
-Status: Executing
-Last activity: 2026-06-05 -- Phase 128 Plan 02 executed (tree-editor backend + tests)
+Plan: 03 complete (3/3 — phase code-complete)
+Status: ready_for_verification (Plan 03 human-verify UAT deferred — unattended overnight run)
+Last activity: 2026-06-05 -- Phase 128 Plan 03 executed (admin Editor de árbol UI)
 
 ## Performance Metrics
 
@@ -213,6 +213,7 @@ _Updated after each plan completion_
 | Phase 127 P02 | ~25min | 2 tasks | 7 files |
 | Phase 128 P01 | 6min | 2 tasks | 2 files |
 | Phase 128 P02 | ~12min | 2 tasks | 7 files |
+| Phase 128 P03 | ~15min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
