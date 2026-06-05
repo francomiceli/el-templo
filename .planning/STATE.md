@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v5.1
 milestone_name: Nuevo Sistema de Entrenamiento
 status: executing
-stopped_at: Phase 130 Plan 02 executed (GraduationService kairos→alfa + threshold constant 12 + wired into 3 completion paths + 5 tests)
-last_updated: "2026-06-05T06:10:00.000Z"
-last_activity: 2026-06-05 -- Phase 130 Plan 02 executed (staging, not pushed)
+stopped_at: Phase 130 Plan 03 executed (Kairos 6th level in admin selector/filter/display maps — kairos first, glyph α, warm amber-6; human-verify deferred)
+last_updated: "2026-06-05T06:02:00.000Z"
+last_activity: 2026-06-05 -- Phase 130 Plan 03 executed (staging, not pushed)
 progress:
   total_phases: 8
   completed_phases: 6
   total_plans: 19
-  completed_plans: 18
+  completed_plans: 19
   percent: 79
 ---
 
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 ## Current Position
 
 Phase: 130
-Plan: 02 complete (next: 03)
+Plan: 03 complete (next: 04)
 Status: Executing
-Last activity: 2026-06-05 -- Phase 130 Plan 02 executed (staging, not pushed)
+Last activity: 2026-06-05 -- Phase 130 Plan 03 executed (staging, not pushed)
 
 ## Performance Metrics
 
@@ -218,6 +218,7 @@ _Updated after each plan completion_
 | Phase 128 P03 | ~15min | 2 tasks | 5 files |
 | Phase 129 P01 | ~35min | 2 tasks | 18 files |
 | Phase 129 P02 | ~25min | 2 tasks | 7 files |
+| Phase 130 P03 | ~2min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -536,6 +537,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase 129]: 129-01: local gates = API tsc + app/admin lint+build (vue-tsc absent); selector/preview UI NOT touched (deferred to phase 130). Executed on staging, NOT pushed
 - [Phase 129]: 129-02 (KAIROS-02/03): kairos generation gated behind isKairos(ctx.memberLevel) at 4 minimal pipeline points (stage-3 budget 2/block, stage-5 + INITIUM linear format Singlet/For Quality, stage-6 alfa-only dificultadLineal=1, INITIUM size 2); all branches pure-additive, non-kairos paths byte-identical (D-07). New queryFormatByName() in format-fallback.ts.
 - [Phase 129]: 129-02 Task 2 = Option B (orchestrator decision): full SPOM-seeded end-to-end generation is NOT CI-runnable here (SPOM CSVs git-ignored under .docs/, seedSPOM() mis-pathed), so the gate is proven at the unit level (mock DB + fallback modules, real gated functions) mirroring rom-generator.test.ts. test/unit/kairos-gate.test.ts covers isKairos + stage-3/5/6 + INITIUM + D-07 regression. tsc green. Executed on staging, NOT pushed — push to staging for CI to run the suite.
+- [Phase 130]: 130-03 (KAIROS-07 admin half, D-04): Kairos added FIRST to every admin level option array (MemberFormDialog levelOptions, AlumnosPage levelFilterOptions) matching constants/levels.ts LEVEL_ORDER; both MemberFormDialog form defaults flipped alfa→kairos (D-01). Display maps on AlumnosPage + AlumnoDetailPage gained kairos → glyph 'α' (reuses Alfa's, member-app parity), name 'Kairos', warm color amber-6 (lighter than alfa's amber-8, entry tier; no blue, no hex). No markup change — q-select dropdown holds 6 entries natively. Local gate = admin lint (0 errors) + quasar build (succeeded, vue-tsc clean). human-verify checkpoint DEFERRED (overnight); visual UAT pending. staging, not pushed.
 
 ### Pending Todos
 
@@ -565,8 +567,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-05T06:10:00.000Z
-Stopped at: Phase 130 Plan 02 executed (GraduationService kairos→alfa + threshold 12 + wired into 3 completion paths + 5 tests)
+Last session: 2026-06-05T06:02:00.000Z
+Stopped at: Phase 130 Plan 03 executed (Kairos 6th level in admin selector/filter/display maps — kairos first, glyph α, warm amber-6; human-verify deferred)
 Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z

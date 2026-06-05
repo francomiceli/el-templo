@@ -3212,7 +3212,7 @@ Plans:
 **Wave 2** _(blocked on Wave 1 completion)_
 
 - [x] 130-02-PLAN.md — Auto-graduation kairos→alfa (KAIROS_GRADUATION_THRESHOLD=12 + GraduationService one-way, skips level_override, wired into 3 completion paths, no cron) + 5 tests (KAIROS-05)
-- [ ] 130-03-PLAN.md — Admin selector: Kairos box in MemberFormDialog + AlumnosPage/AlumnoDetailPage glyph/name/color/filter (KAIROS-07)
+- [x] 130-03-PLAN.md — Admin selector: Kairos box in MemberFormDialog + AlumnosPage/AlumnoDetailPage glyph/name/color/filter (KAIROS-07 admin half; app half = 130-04)
 - [ ] 130-04-PLAN.md — App selector: Kairos in onboarding self-pick (decision) + header dropdown verification (KAIROS-07)
       **UI hint:** yes
 
@@ -3251,7 +3251,7 @@ Plans:
 | 127. % de avance del árbol (miembro)           | 2/2            | Complete    | 2026-06-05 |
 | 128. Editor de árbol (admin)                   | 3/3            | Complete    | 2026-06-05 |
 | 129. Kairos — enum, herencia, formato lineal   | 2/2            | Complete    | 2026-06-05 |
-| 130. Kairos — asignación, graduación, selector | 1/4            | In progress | -          |
+| 130. Kairos — asignación, graduación, selector | 3/4            | In progress | -          |
 | 131. Ajuste in-session + registro de dominado  | 0/TBD          | Not started | -          |
 
 _Plan counts populated by `/gsd-plan-phase`._
