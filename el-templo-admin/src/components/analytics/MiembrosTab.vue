@@ -7,9 +7,11 @@
     No hay datos para el periodo seleccionado
   </div>
   <template v-else>
-    <!-- Stat cards: Nuevos + Bajas + Retencion -->
+    <!-- Stat cards: Nuevos + Bajas (operativos — conservados D-21).
+         Tasa de retención (D-18) y Renovación 7/14/30 (D-15) eliminadas: las
+         reemplazan las nuevas métricas Churn + Renovación (tab Retención v5.0). -->
     <div class="row q-col-gutter-md q-mb-md">
-      <div class="col-12 col-sm-4">
+      <div class="col-12 col-sm-6">
         <q-card flat bordered>
           <q-card-section class="text-center">
             <div class="text-caption text-grey-7">Nuevos</div>
@@ -17,49 +19,11 @@
           </q-card-section>
         </q-card>
       </div>
-      <div class="col-12 col-sm-4">
+      <div class="col-12 col-sm-6">
         <q-card flat bordered>
           <q-card-section class="text-center">
             <div class="text-caption text-grey-7">Bajas</div>
             <div class="text-h4 text-negative">{{ props.data.churnedMembers }}</div>
-          </q-card-section>
-        </q-card>
-      </div>
-      <div class="col-12 col-sm-4">
-        <q-card flat bordered>
-          <q-card-section class="text-center">
-            <div class="text-caption text-grey-7">Tasa de retencion</div>
-            <div
-              class="text-h4"
-              :class="
-                props.data.retentionRate >= 80
-                  ? 'text-positive'
-                  : props.data.retentionRate >= 50
-                    ? 'text-warning'
-                    : 'text-negative'
-              "
-            >
-              {{ props.data.retentionRate.toFixed(1) }}%
-            </div>
-          </q-card-section>
-        </q-card>
-      </div>
-    </div>
-
-    <!-- Renewal rate 7/14/30 (D-15) -->
-    <div class="row q-col-gutter-md q-mb-md">
-      <div v-for="r in renewalRateCards" :key="r.key" class="col-12 col-sm-4">
-        <q-card flat bordered>
-          <q-card-section class="text-center">
-            <div class="text-caption text-grey-7">{{ r.label }}</div>
-            <div
-              class="text-h4"
-              :class="
-                r.value >= 70 ? 'text-positive' : r.value >= 40 ? 'text-warning' : 'text-negative'
-              "
-            >
-              {{ r.value.toFixed(0) }}%
-            </div>
           </q-card-section>
         </q-card>
       </div>
@@ -245,18 +209,6 @@ const props = defineProps<{
 // -- Setup ---------------------------------------------------------------
 
 const router = useRouter();
-
-// -- Renewal rate 7/14/30 (D-15) -----------------------------------------
-
-const renewalRateCards = computed(() => {
-  const rr = props.data?.renewalRate;
-  if (!rr) return [];
-  return [
-    { key: 'last7', label: 'Renovación (7 días)', value: rr.last7 },
-    { key: 'last14', label: 'Renovación (14 días)', value: rr.last14 },
-    { key: 'last30', label: 'Renovación (30 días)', value: rr.last30 },
-  ];
-});
 
 // -- Attention list prioritization (D-16) --------------------------------
 // Ghost / en_riesgo about to expire are the highest-priority contacts. Sort

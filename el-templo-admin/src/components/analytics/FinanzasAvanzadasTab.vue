@@ -35,26 +35,6 @@
         </q-card>
       </div>
     </div>
-
-    <!-- ARPU per currency -->
-    <q-card flat bordered>
-      <q-card-section>
-        <div class="text-subtitle2 q-mb-sm">ARPU mensual</div>
-        <div class="row q-col-gutter-md">
-          <div
-            v-for="entry in arpuEntries"
-            :key="entry.currency"
-            class="col-12"
-            :class="arpuEntries.length > 1 ? 'col-sm-6' : 'col-sm-12'"
-          >
-            <div class="text-center q-pa-sm">
-              <div class="text-h4">{{ formatPrice(entry.value, entry.currency) }}</div>
-              <div class="text-caption text-grey-7">ARPU mensual ({{ entry.currency }})</div>
-            </div>
-          </div>
-        </div>
-      </q-card-section>
-    </q-card>
   </template>
 </template>
 
@@ -157,18 +137,4 @@ function chartOptions(cur: CurrencyCode) {
     },
   };
 }
-
-// -- ARPU per currency (latest month with data) --------------------------
-
-const arpuEntries = computed<Array<{ currency: CurrencyCode; value: number }>>(() => {
-  if (!props.data) return [];
-  const entries: Array<{ currency: CurrencyCode; value: number }> = [];
-  for (const cur of renderedCurrencies.value) {
-    // Use the most recent month's ARPU for the scoped currency.
-    const points = props.data.arpu;
-    const latest = points.length > 0 ? points[points.length - 1]![cur] : 0;
-    entries.push({ currency: cur, value: latest });
-  }
-  return entries;
-});
 </script>
