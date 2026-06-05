@@ -165,11 +165,21 @@ interface ActiveMemberRow {
   country: string;
   planName: string;
   durationDays: number | null;
+  /** Member firstName (Phase 132 D-12) — composes `name` on the cooling-down row. */
+  firstName: string;
+  /** Member lastName (Phase 132 D-12) — composes `name` on the cooling-down row. */
+  lastName: string;
+  /** Member phone (Phase 132 D-12) — null-safe, surfaced on the cooling-down row. */
+  phone: string | null;
 }
 
 /** Per-member computed bands for the current and prior windows. */
 interface MemberBands {
   userId: number;
+  /** Member full name (Phase 132 D-12), carried from ActiveMemberRow. */
+  name: string;
+  /** Member phone (Phase 132 D-12), carried from ActiveMemberRow (null-safe). */
+  phone: string | null;
   currentBand: FrequencyBand;
   priorBand: FrequencyBand;
   currentVisitsPerWeek: number;
@@ -248,6 +258,11 @@ export class FrequencyService {
       .select({
         userId: schema.subscriptions.userId,
         createdAt: schema.users.createdAt,
+        // PII enrichment (Phase 132 D-12): reuse the existing `users` join to
+        // pull name + phone so the cooling-down list is export-ready.
+        firstName: schema.users.firstName,
+        lastName: schema.users.lastName,
+        phone: schema.users.phone,
         branchName: schema.branches.name,
         country: schema.subscriptionPlans.country,
         planName: schema.subscriptionPlans.name,
@@ -286,6 +301,11 @@ export class FrequencyService {
         country: String(r.country ?? ""),
         planName: String(r.planName ?? ""),
         durationDays: r.durationDays === null ? null : Number(r.durationDays),
+        // PII enrichment (Phase 132 D-12). Names String-coerced like branchName;
+        // phone stays null-safe (null → null, never the string "null").
+        firstName: String(r.firstName ?? ""),
+        lastName: String(r.lastName ?? ""),
+        phone: r.phone === null ? null : String(r.phone),
       });
     }
     return [...byUser.values()];
@@ -368,6 +388,9 @@ export class FrequencyService {
       const priorVisitsPerWeek = priorVisits / weeks;
       return {
         userId: m.userId,
+        // Carry the PII enrichment (Phase 132 D-12) through to buildCoolingDown.
+        name: `${m.firstName} ${m.lastName}`.trim(),
+        phone: m.phone,
         currentBand: classifyBand(currentVisitsPerWeek),
         priorBand: classifyBand(priorVisitsPerWeek),
         currentVisitsPerWeek,
@@ -407,6 +430,9 @@ export class FrequencyService {
       if (bandRank(m.currentBand) < bandRank(m.priorBand)) {
         out.push({
           userId: m.userId,
+          // PII enrichment (Phase 132 D-12) — export-ready in one call.
+          name: m.name,
+          phone: m.phone,
           currentBand: m.currentBand,
           priorBand: m.priorBand,
           pctVariacion: pctVariacion(

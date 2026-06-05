@@ -728,6 +728,12 @@ export const frequencySchema = {
             type: "object",
             properties: {
               userId: { type: "integer" },
+              // PII enrichment (Phase 132 D-12): name+phone so the cooling-down
+              // list is export-ready in one call. fast-json-stringify STRIPS
+              // undeclared fields → both MUST be declared here. phone is
+              // ["string","null"] (null-safe, never NaN on the wire).
+              name: { type: "string" },
+              phone: { type: ["string", "null"] },
               currentBand: frequencyBandEnum,
               priorBand: frequencyBandEnum,
               pctVariacion: { type: ["number", "null"] },

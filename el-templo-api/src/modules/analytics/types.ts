@@ -774,6 +774,19 @@ export interface FrequencyDistributionRow {
 export interface FrequencyCoolingRow {
   /** The member's user id. */
   userId: number;
+  /**
+   * The member's full name (`firstName + lastName`, trimmed). Enriched from the
+   * `users` join (Phase 132 D-12) so the "enfriándose" list is export-ready
+   * (nombre → perfil, CSV) in a single call. PII — only ever for members within
+   * the caller's `applyScope` (country/branch); `/frequency` is ADMIN_ROLES-only.
+   */
+  name: string;
+  /**
+   * The member's phone (Phase 132 D-12). `null` when `users.phone` is null —
+   * declared `["string","null"]` on the wire (never NaN/undefined). Drives the
+   * `tel:` call link in the frequency tab. PII — same scope gate as `name`.
+   */
+  phone: string | null;
   /** The member's CURRENT-window band. */
   currentBand: FrequencyBand;
   /** The member's PRIOR-window band (strictly higher rank than `currentBand`). */

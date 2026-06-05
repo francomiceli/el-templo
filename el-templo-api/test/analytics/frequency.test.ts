@@ -296,6 +296,75 @@ describe("FrequencyService (Phase 123 Plan 01)", () => {
   });
 
   // ═══════════════════════════════════════════════════════════════════════
+  // Cooling-down PII enrichment — name + phone (Phase 132 D-12)
+  // ═══════════════════════════════════════════════════════════════════════
+
+  /** Make a member who drops a band (Alto → Bajo) so they land in coolingDown. */
+  async function makeCoolingMember(email: string): Promise<number> {
+    const u = await createMember(email, daysAgo(90));
+    await addActiveSub(u);
+    // PRIOR window [now-56d, now-28d): 12 visits → Alto.
+    for (let i = 0; i < 12; i++) {
+      await addVisit(u, daysAgo(30 + i));
+    }
+    // CURRENT window [now-28d, now): 2 visits → Bajo.
+    await addVisit(u, daysAgo(2));
+    await addVisit(u, daysAgo(10));
+    return u;
+  }
+
+  it("enriches coolingDown[] with name (firstName+lastName) and phone (D-12)", async () => {
+    const u = await makeCoolingMember("freq-d12-name@test.com");
+    // Set a known name + phone for the assertion.
+    await app.db
+      .update(users)
+      .set({ firstName: "Carla", lastName: "Gomez", phone: "+5491155551234" })
+      .where(eq(users.id, u));
+
+    const result = await svc.getFrequency({});
+
+    const row = result.coolingDown.find((c) => c.userId === u);
+    expect(row).toBeDefined();
+    expect(row?.name).toBe("Carla Gomez");
+    expect(row?.phone).toBe("+5491155551234");
+  });
+
+  it("returns phone: null (not undefined, not '') for a member with NULL phone (D-12)", async () => {
+    const u = await makeCoolingMember("freq-d12-nullphone@test.com");
+    await app.db.update(users).set({ phone: null }).where(eq(users.id, u));
+
+    const result = await svc.getFrequency({});
+
+    const row = result.coolingDown.find((c) => c.userId === u);
+    expect(row).toBeDefined();
+    expect(row?.phone).toBeNull();
+    // typeof null === "object"; the contract is strictly null, never undefined/"".
+    expect(row?.phone).not.toBe("");
+    expect(row?.phone).not.toBeUndefined();
+  });
+
+  it("does NOT return a cooling-down member outside the caller's branch scope (PII stays in scope, T-132-04)", async () => {
+    // A cooling-down member in branchES.
+    const esUser = await createMember(
+      "freq-d12-scope@test.com",
+      daysAgo(90),
+      branchES,
+    );
+    await addActiveSub(esUser, branchES, planES);
+    for (let i = 0; i < 12; i++) {
+      await addVisit(esUser, daysAgo(30 + i), branchES);
+    }
+    await addVisit(esUser, daysAgo(2), branchES);
+    await addVisit(esUser, daysAgo(10), branchES);
+
+    // Caller scoped to branchA → the ES member's PII must NOT appear.
+    const result = await svc.getFrequency({ branchId: branchA });
+
+    const row = result.coolingDown.find((c) => c.userId === esUser);
+    expect(row).toBeUndefined();
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════
   // Auth — ADMIN_ROLES-only (gestion 403, admin 200) (D-123-14)
   // ═══════════════════════════════════════════════════════════════════════
 
