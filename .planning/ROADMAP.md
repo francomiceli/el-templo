@@ -3238,7 +3238,12 @@ Plans:
 
 **Risks / notas:** Hoy solo existe "completado" local + RPE de la sesión entera; el registro de dominado/bajado es nuevo y es el modelo de datos sobre el que se apoya el ajuste in-session (por eso se construyen juntos en esta fase). El player (`DayPlayer.vue`, `BlockProgressionView.vue`) hoy NO tiene botones más fácil/difícil. Anti-salto natural: manual + un escalón por toque. Decisión abierta diferida: cómo se _captura_ "dominar" exactamente (el criterio binario contra la prescripción del bloque del día ya está decidido; la mecánica de captura — qué evento la persiste — no). Out of scope confirmado: el ajuste NO cambia el nivel ni la planificación del SPOM (sigue siendo criterio del coach). Decisión abierta compartida con Kairos: dosis lineales exactas. Habilita upsell futuro (estancamiento) — fuera de alcance este milestone. Plan probable: split interno (modelo de datos del registro primero, botones + resolución de vecino + vista del coach después).
 
-**Plans:** TBD
+**Plans:** 3 plans en 2 waves
+
+Plans:
+- [ ] 131-01-PLAN.md — exercise_adjustments table + migración 0142 + servicio (getNeighbor + persistir) + endpoint miembro + tests (wave 1)
+- [ ] 131-02-PLAN.md — enriquecer % del árbol (127) con dominado + vista del coach (endpoint + admin) (wave 2)
+- [ ] 131-03-PLAN.md — botones más fácil/difícil en el player + swap del vecino (member app) (wave 2)
 **UI hint:** yes
 
 ## v5.1 Progress
@@ -3252,7 +3257,7 @@ Plans:
 | 128. Editor de árbol (admin)                   | 3/3            | Complete    | 2026-06-05 |
 | 129. Kairos — enum, herencia, formato lineal   | 2/2            | Complete    | 2026-06-05 |
 | 130. Kairos — asignación, graduación, selector | 4/4            | Complete    | 2026-06-05 |
-| 131. Ajuste in-session + registro de dominado  | 0/TBD          | Not started | -          |
+| 131. Ajuste in-session + registro de dominado  | 0/3            | Planned     | -          |
 
 _Plan counts populated by `/gsd-plan-phase`._
 

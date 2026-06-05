@@ -43,11 +43,11 @@ Reviewed the Phase 130 backend (migration 0141, default-flip, `GraduationService
 
 The migration is correctly additive (DEFAULT flip + new column only, no row mutation, enum order byte-identical to schema/0140, no `;` in comments). Auto-graduation is genuinely one-way, override-aware, idempotent, and race-safe: the level-scoped `UPDATE ... WHERE id=? AND level='kairos'` means two concurrent completions crossing the threshold cannot double-promote or land on a wrong level. All three completion paths are wired and each is `try/catch`-guarded so a graduation failure can never roll back the completion. The graduation tests assert real DB outcomes (not vacuous). New-member paths are flipped to `kairos` with no surviving `level: "alfa"` creation site (legacy CSV import is the documented exemption). Selectors render Kairos via glyph/name maps with a warm `amber` palette, no raw `"kairos"` leak, no `any`, no `console.log`.
 
-One blocker, however, defeats the feature's headline behavior in production: the sticky-override flag is set on _presence_ of `input.level`, but the real admin edit form always sends the member's current level — so any routine profile edit silently sets `level_override=true` and permanently disables auto-graduation. The "invariant" regression test passes only because it tests a payload (level omitted) that the real client never sends.
+One blocker, however, defeats the feature's headline behavior in production: the sticky-override flag is set on *presence* of `input.level`, but the real admin edit form always sends the member's current level — so any routine profile edit silently sets `level_override=true` and permanently disables auto-graduation. The "invariant" regression test passes only because it tests a payload (level omitted) that the real client never sends.
 
 ## Critical Issues
 
-### CR-01: Sticky override set on level _presence_, not on level _change_ — any admin profile edit permanently disables auto-graduation
+### CR-01: Sticky override set on level *presence*, not on level *change* — any admin profile edit permanently disables auto-graduation
 
 **File:** `el-templo-api/src/modules/members/service.ts:1051-1064` (and client `el-templo-admin/src/components/MemberFormDialog.vue:910-920`)
 
@@ -61,7 +61,7 @@ if (input.level !== undefined) {
 }
 ```
 
-The code comment asserts "Only set on a level change — a non-level edit leaves the flag untouched (D-05 invariant)." That is false: it keys off `input.level !== undefined`, not off a value change. The real admin edit form (`MemberFormDialog.vue` submit) **always** includes `level: form.value.level` in the edit payload (populated from `props.member.level` at line 780), so editing a phone number / DNI / name on a member sends the member's _current_ level and the backend flips `level_override=true`.
+The code comment asserts "Only set on a level change — a non-level edit leaves the flag untouched (D-05 invariant)." That is false: it keys off `input.level !== undefined`, not off a value change. The real admin edit form (`MemberFormDialog.vue` submit) **always** includes `level: form.value.level` in the edit payload (populated from `props.member.level` at line 780), so editing a phone number / DNI / name on a member sends the member's *current* level and the backend flips `level_override=true`.
 
 Consequence: a brand-new `kairos` member is set to override the first time an admin touches their profile (adding DNI, fixing a name during trial→alumno onboarding — extremely common). From that point `maybeGraduateKairos` early-returns on `member.levelOverride` and the member **never auto-graduates to alfa**. The phase's headline KAIROS-05 behavior is silently dead for essentially every member in practice. This is a correctness/data-integrity defect, not a style issue: the `level_override` column gets poisoned by edits that were never a coach level decision, and there is no path to clear it.
 
@@ -72,12 +72,7 @@ The 130-01 regression test that claims to protect this invariant (`kairos-defaul
 ```ts
 if (input.level !== undefined) {
   const newLevel = input.level as
-    | "kairos"
-    | "alfa"
-    | "delta"
-    | "sigma"
-    | "omega"
-    | "spartan";
+    | "kairos" | "alfa" | "delta" | "sigma" | "omega" | "spartan";
   updateData.level = newLevel;
   // Only a real change is a sticky coach decision (D-03/D-05).
   if (newLevel !== existing.level) {
@@ -86,7 +81,7 @@ if (input.level !== undefined) {
 }
 ```
 
-(`existing` is already fetched at line 1015 and exposes `.level`.) Add a regression test that mirrors the real client: send the **full** edit payload including the unchanged `level` plus a changed phone, and assert `level_override` stays `false`; and a second test sending a _different_ level and asserting it becomes `true`.
+(`existing` is already fetched at line 1015 and exposes `.level`.) Add a regression test that mirrors the real client: send the **full** edit payload including the unchanged `level` plus a changed phone, and assert `level_override` stays `false`; and a second test sending a *different* level and asserting it becomes `true`.
 
 ## Warnings
 
