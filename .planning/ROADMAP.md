@@ -2978,7 +2978,7 @@ _v5.0 added: 2026-06-03 — 4 phases (120-123), 35 requirements (FUND, CHURN, RE
 
 - [x] **Phase 124: Estructura de datos de las 3 dimensiones + saneo** — Esquema gesto/palanca/contracción separado del `position` sucio + saneo del catálogo (~103 sin ruta, duplicados, `position` que mezcla 3 conceptos). Bedrock del milestone. (completed 2026-06-05)
 - [x] **Phase 125: Bootstrap heurístico + revisión de profes de la descomposición** — Proceso heurístico (sin API) que propone sub-familia/palanca/ruta-pendiente por nombre+ruta, con salida revisable (tabla `exercise_dimension_proposals`) que los profes aceptan/corrigen/rechazan en una tabla filtrable del admin antes de fijarla como verdad. (completed 2026-06-05)
-- [ ] **Phase 126: Auto-construcción del grafo (DAG) de progresiones** — Grafo ramificado derivado del orden del SPOM/`dificultadLineal` + las 3 dimensiones; provee la primitiva "vecino un escalón arriba/abajo" que necesita el Eje 3.
+- [x] **Phase 126: Auto-construcción del grafo (DAG) de progresiones** — Grafo ramificado derivado del orden del SPOM/`dificultadLineal` + las 3 dimensiones; provee la primitiva "vecino un escalón arriba/abajo" que necesita el Eje 3. (completed 2026-06-05)
 - [ ] **Phase 127: % de avance del árbol para el miembro** — El miembro ve su progreso por familia/nodo del árbol agrupado por categoría temática (Tracción/Empuje/Piernas/Core/Movilidad).
 - [ ] **Phase 128: Editor de árbol en el admin** — Sección nueva donde los profes reordenan ejercicios, agrupan/separan sub-familias y ajustan precedencias sobre el grafo ya construido.
 - [ ] **Phase 129: Nivel Kairos — enum, herencia de Alfa y formato lineal** — 5→6 niveles en API/app/admin + generación que hereda de Alfa (`difficulty=1`) con capa que fuerza formato solo lineal + 2 ej/bloque.
@@ -3064,7 +3064,7 @@ Plans:
 
 **Risks / notas:** El algoritmo `exercise-fallback.ts` ya elige "ejercicio equivalente" por `(route, effort, difficulty, level)` — reutilizable como base para la resolución de vecinos. `dificultadLineal` (1-12) es el aplastamiento de los 3 ejes con empates (ej: dl=2 en planche tiene 7 hermanos): la construcción debe desambiguar empates usando las dimensiones estructuradas. Decisión ya tomada: el orden sale del SPOM, los profes ajustan después (fase 128).
 
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 
 Plans:
 
@@ -3075,7 +3075,7 @@ Plans:
 **Wave 2** _(blocked on Wave 1 completion)_
 
 - [x] 126-02-PLAN.md — runRebuildProgressionGraph constructor (linear backbone, auto edges) + test
-- [ ] 126-03-PLAN.md — getNeighbor primitive (dl-adjacent same-effort neighbor) + test
+- [x] 126-03-PLAN.md — getNeighbor primitive (dl-adjacent same-effort neighbor) + test
 
 **UI hint:** no (backend-first; motor de construcción del grafo)
 
@@ -3202,7 +3202,7 @@ Plans:
 | ---------------------------------------------- | -------------- | ----------- | ---------- |
 | 124. Estructura 3 dimensiones + saneo          | 2/2            | Complete    | 2026-06-05 |
 | 125. Bootstrap heurístico + revisión de profes | 3/3            | Complete    | 2026-06-05 |
-| 126. Auto-construcción del grafo (DAG)         | 2/3            | In Progress |            |
+| 126. Auto-construcción del grafo (DAG)         | 3/3            | Complete    | 2026-06-05 |
 | 127. % de avance del árbol (miembro)           | 0/TBD          | Not started | -          |
 | 128. Editor de árbol (admin)                   | 0/TBD          | Not started | -          |
 | 129. Kairos — enum, herencia, formato lineal   | 0/TBD          | Not started | -          |
