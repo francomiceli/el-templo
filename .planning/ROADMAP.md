@@ -3311,11 +3311,25 @@ _v5.1 added: 2026-06-04 — 8 phases (124-131), 18 requirements (TREE, KAIROS, A
 
 Plans:
 
+**Wave 1**
+
 - [ ] 132-01-PLAN.md — Backend D-10/D-11: filtro plan (5 servicios) + turno (trial-funnel) como entrada + routes/schemas + tests
+
+**Wave 2** _(blocked on Wave 1 completion)_
+
 - [ ] 132-02-PLAN.md — Backend D-12/D-10: enriquecer frequency coolingDown con nombre/teléfono + filtro plan/turno + tests
+
+**Wave 3** _(blocked on Wave 2 completion)_
+
 - [ ] 132-03-PLAN.md — Frontend SC-1: 6 métodos en useAnalyticsApi + 6 interfaces TS (output shapes) + filtros turno/window
+
+**Wave 4** _(blocked on Wave 3 completion)_
+
 - [ ] 132-04-PLAN.md — Tabs ConversionTab (funnel D-06) + IngresosTab (ticket D-01 + LTV D-05, por moneda)
 - [ ] 132-05-PLAN.md — Tabs RetencionGestionTab (churn+renovación D-02/D-03) + FrecuenciaTab (bandas + lista enfriándose + CSV D-04/D-13/D-14)
+
+**Wave 5** _(blocked on Wave 4 completion)_
+
 - [ ] 132-06-PLAN.md — AnaliticasPage: montar 4 tabs (D-07/D-08) + filtros plan/turno (D-09) + borrado físico D-15/D-16/D-17/D-18 (sin tocar AsistenciaTab/getMemberAnalytics)
 
 **UI hint:** yes

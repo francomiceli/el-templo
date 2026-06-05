@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v5.1
 milestone_name: Nuevo Sistema de Entrenamiento
-status: completed
+status: executing
 stopped_at: Phase 132 context gathered
-last_updated: "2026-06-05T15:10:17.994Z"
-last_activity: 2026-06-05
+last_updated: "2026-06-05T15:47:47.147Z"
+last_activity: 2026-06-05 -- Phase 132 planning complete
 progress:
   total_phases: 8
   completed_phases: 8
@@ -27,8 +27,8 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 
 Phase: 131
 Plan: Not started
-Status: Milestone complete
-Last activity: 2026-06-05
+Status: Ready to execute
+Last activity: 2026-06-05 -- Phase 132 planning complete
 
 ## Performance Metrics
 
