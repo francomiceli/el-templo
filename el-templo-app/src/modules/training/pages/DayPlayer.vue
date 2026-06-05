@@ -343,6 +343,7 @@ async function onToggleExerciseComplete(payload: { prescriptionId: number }): Pr
 async function onAdjustExercise(payload: {
   exerciseId: number
   direction: 'up' | 'down'
+  blockId: string
 }): Promise<void> {
   const s = session.value
   if (!s) return
@@ -368,24 +369,37 @@ async function onAdjustExercise(payload: {
 
   const neighbor = result.neighbor
 
+  // WR-01: target the EXACT block the member tapped (by blockId), not the first
+  // block that happens to contain the exerciseId. A movement can recur across
+  // blocks; matching by exerciseId alone would mutate the wrong occurrence.
+  const block = s.blocks.find((b) => b.blockId === payload.blockId)
+  if (!block) return
+  const idx = block.exercises.findIndex((ex) => ex.exerciseId === payload.exerciseId)
+  if (idx === -1) return
+
+  const current = block.exercises[idx]
+
+  // WR-02: the swapped-in exercise is a DIFFERENT movement, so clear any prior
+  // completion for the old exerciseId in this block. Otherwise the now-absent
+  // id would ship in `exercisesCompleted` at session end and drift into the
+  // tree-% "completed" set. The member must complete the swapped exercise
+  // afresh. (No-op if it was never marked complete.)
+  if (player.value) {
+    await player.value.clearExerciseCompletion(block.role, payload.exerciseId)
+  }
+
   // Swap ONLY the exercise identity into the source session block, preserving
   // the block's prescription (reps/seconds/format/dose/sortOrder/rest). The
   // playableBlocks computed re-derives from session.blocks, so mutating the
   // source exercise reflects through to the player.
-  for (const block of s.blocks) {
-    const idx = block.exercises.findIndex((ex) => ex.exerciseId === payload.exerciseId)
-    if (idx === -1) continue
-    const current = block.exercises[idx]
-    block.exercises[idx] = {
-      ...current,
-      exerciseId: neighbor.id,
-      exerciseName: neighbor.name,
-      contraction: neighbor.contraction,
-      // No video URL is served by the adjustment endpoint; clear it so the
-      // stale clip isn't shown (it is refetched on the next session load).
-      videoUrl: null,
-    }
-    break // one tap = one swap
+  block.exercises[idx] = {
+    ...current,
+    exerciseId: neighbor.id,
+    exerciseName: neighbor.name,
+    contraction: neighbor.contraction,
+    // WR-03: the endpoint returns the neighbor's clip URL so the swapped
+    // exercise renders in-session immediately — no blank clip, no re-fetch.
+    videoUrl: neighbor.videoUrl,
   }
 }
 
