@@ -19,7 +19,7 @@ import { exercises } from "./exercises";
  * (subfamily_id / leverage / route, route_pending=0) — or rejects it, which
  * touches nothing on `exercises`.
  */
-export const exerciseProposalStatus = mysqlEnum("exercise_proposal_status", [
+export const exerciseProposalStatus = mysqlEnum("status", [
   "pending",
   "accepted",
   "rejected",

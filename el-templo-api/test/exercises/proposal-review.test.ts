@@ -32,7 +32,9 @@ describe("ProposalService — proposal review (Phase 125 Plan 02)", () => {
   let app: FastifyInstance;
   let service: ProposalService;
 
-  const MARK = `PROP_TEST_${Date.now()}`;
+  // Keep MARK short: it prefixes `route` (varchar(20)) with suffixes up to `_B_FL`,
+  // so MARK must stay <= 15 chars. `PR` + last 9 digits of the timestamp = 11 chars.
+  const MARK = `PR${`${Date.now()}`.slice(-9)}`;
   const seededExerciseIds: number[] = [];
   const seededProposalIds: number[] = [];
   const seededSubfamilyRoutes = new Set<string>();
