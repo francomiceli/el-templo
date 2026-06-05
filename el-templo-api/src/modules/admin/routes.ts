@@ -4,6 +4,7 @@ import * as schema from "../../db/schema";
 import { AdminSessionService, SessionFilter } from "./service";
 import { AdminEditService } from "./edit-service";
 import { ExerciseService } from "./exercise-service";
+import { ProposalService } from "./proposal-service";
 import { VideoService } from "./video-service";
 import { parseDayId } from "../shared/training-constants";
 import { assembleVideoUrl } from "../shared/video-url";
@@ -37,6 +38,10 @@ import {
   searchExercisesSchema,
   getDaySessionDetailsSchema,
   getCompatibleFormatsBatchSchema,
+  listProposalsQuerySchema,
+  acceptProposalSchema,
+  rejectProposalSchema,
+  bulkAcceptSchema,
 } from "./schemas";
 import {
   listExercisesSchema,
@@ -51,6 +56,7 @@ import { TRAINING_ROLES } from "../shared/permissions";
 export const adminRoutes: FastifyPluginAsync = async (fastify) => {
   const adminService = new AdminSessionService(fastify.db);
   const editService = new AdminEditService(fastify.db);
+  const proposalService = new ProposalService(fastify.db);
 
   // Role check hook for all routes
   fastify.addHook("onRequest", async (request, reply) => {
@@ -1309,6 +1315,98 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
       );
 
       return { urls };
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // Dimension Proposal Review (Phase 125-02 — TREE-03)
+  // Auth inherited from the plugin-level onRequest hook (TRAINING_ROLES).
+  // -------------------------------------------------------------------------
+
+  // GET /admin/exercises/proposals - List proposals (filter/group by route, default pending)
+  fastify.get<{
+    Querystring: {
+      route?: string;
+      status?: "pending" | "accepted" | "rejected";
+    };
+  }>(
+    "/exercises/proposals",
+    { schema: listProposalsQuerySchema },
+    async (request, reply) => {
+      try {
+        return await proposalService.listProposals(request.query);
+      } catch (err: unknown) {
+        return handleServiceError(err, reply, request.log, "list proposals");
+      }
+    },
+  );
+
+  // POST /admin/exercises/proposals/bulk-accept - Accept every proposal in a group
+  // (registered before the :id routes to avoid any literal/param collision).
+  fastify.post<{ Body: { ids: number[] } }>(
+    "/exercises/proposals/bulk-accept",
+    { schema: bulkAcceptSchema },
+    async (request, reply) => {
+      try {
+        const acceptedCount = await proposalService.bulkAccept(
+          request.body.ids,
+        );
+        request.log.info(
+          { ids: request.body.ids, acceptedCount },
+          "Proposals bulk-accepted",
+        );
+        return { success: true, acceptedCount };
+      } catch (err: unknown) {
+        return handleServiceError(
+          err,
+          reply,
+          request.log,
+          "bulk-accept proposals",
+        );
+      }
+    },
+  );
+
+  // POST /admin/exercises/proposals/:id/accept - Accept (optional inline overrides)
+  fastify.post<{
+    Params: { id: number };
+    Body: {
+      proposedSubfamily?: string;
+      proposedLeverage?: string | null;
+      proposedRoute?: string;
+    };
+  }>(
+    "/exercises/proposals/:id/accept",
+    { schema: acceptProposalSchema },
+    async (request, reply) => {
+      try {
+        await proposalService.accept(request.params.id, request.body);
+        request.log.info(
+          { proposalId: request.params.id },
+          "Proposal accepted",
+        );
+        return { success: true };
+      } catch (err: unknown) {
+        return handleServiceError(err, reply, request.log, "accept proposal");
+      }
+    },
+  );
+
+  // POST /admin/exercises/proposals/:id/reject - Reject (status-only, no truth write)
+  fastify.post<{ Params: { id: number } }>(
+    "/exercises/proposals/:id/reject",
+    { schema: rejectProposalSchema },
+    async (request, reply) => {
+      try {
+        await proposalService.reject(request.params.id);
+        request.log.info(
+          { proposalId: request.params.id },
+          "Proposal rejected",
+        );
+        return { success: true };
+      } catch (err: unknown) {
+        return handleServiceError(err, reply, request.log, "reject proposal");
+      }
     },
   );
 };
