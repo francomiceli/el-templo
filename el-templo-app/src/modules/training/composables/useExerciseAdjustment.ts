@@ -15,6 +15,11 @@ export interface AdjustmentNeighbor {
   dificultadLineal: number
   contraction: string
   position: string | null
+  /**
+   * The neighbor's clip URL so the player renders the swapped exercise
+   * in-session without a re-fetch (WR-03). Null when the catalog row has none.
+   */
+  videoUrl: string | null
 }
 
 /** Response from POST /api/exercise-adjustments (Plan 01 contract). */

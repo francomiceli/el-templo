@@ -19,6 +19,7 @@
  * block's exercise identity only; level and SPOM remain the coach's criterion.
  */
 
+import { eq } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
@@ -38,12 +39,26 @@ export interface AdjustmentContext {
 }
 
 /**
+ * Neighbor returned to the player to swap into the session block (WR-03).
+ * Extends the `getNeighbor` candidate with the `videoUrl` the player needs to
+ * render the swapped clip in-session — without a re-fetch — so the member sees
+ * the harder/easier movement immediately after tapping. `videoUrl` is loaded
+ * with a single targeted read of the resolved neighbor row (see `adjust`);
+ * `ExerciseCandidate` is intentionally NOT widened, to avoid forcing every
+ * fallback-ladder query to select a column it does not need.
+ */
+export interface AdjustmentNeighbor extends ExerciseCandidate {
+  /** The neighbor's clip URL, or null when the catalog row has none. */
+  readonly videoUrl: string | null;
+}
+
+/**
  * Result of an adjustment request.
  *  - `neighbor` is the resolved exercise to swap in (or `null` at chain end).
  *  - `message` is non-null only on the no-op (chain end) path.
  */
 export interface AdjustmentResult {
-  readonly neighbor: ExerciseCandidate | null;
+  readonly neighbor: AdjustmentNeighbor | null;
   readonly message: string | null;
 }
 
@@ -120,6 +135,18 @@ export class ExerciseAdjustmentService {
       "exercise-adjustment: recorded",
     );
 
-    return { neighbor, message: null };
+    // Load the neighbor's clip URL so the player can render the swapped exercise
+    // in-session without a re-fetch (WR-03). The neighbor row is already
+    // identified by `getNeighbor`; this is a single keyed read. A NULL clip is a
+    // legitimate value (catalog row without a video) — surfaced as `null`.
+    const [neighborRow] = await this.db
+      .select({ videoUrl: schema.exercises.videoUrl })
+      .from(schema.exercises)
+      .where(eq(schema.exercises.id, neighbor.id));
+
+    return {
+      neighbor: { ...neighbor, videoUrl: neighborRow?.videoUrl ?? null },
+      message: null,
+    };
   }
 }

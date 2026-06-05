@@ -55,6 +55,7 @@ describe("POST /api/exercise-adjustments (Phase 131 Plan 01)", () => {
     effort: string;
     subfamilyId: number | null;
     dl: number;
+    videoUrl?: string | null;
   }): Promise<number> {
     const [res] = await app.db
       .insert(schema.exercises)
@@ -66,6 +67,7 @@ describe("POST /api/exercise-adjustments (Phase 131 Plan 01)", () => {
         route: "TEST",
         subfamilyId: opts.subfamilyId,
         dificultadLineal: opts.dl,
+        videoUrl: opts.videoUrl ?? null,
       })
       .$returningId();
     seededExerciseIds.push(res.id);
@@ -114,6 +116,9 @@ describe("POST /api/exercise-adjustments (Phase 131 Plan 01)", () => {
       effort,
       subfamilyId: sf,
       dl: 5,
+      // Seed a clip on the harder neighbor so the WR-03 contract (the response
+      // carries the neighbor's videoUrl for the in-session swap) is asserted.
+      videoUrl: `https://videos.test/${MARK}_${label}_high.mp4`,
     });
     await runRebuildProgressionGraph(app.db);
     return { low, mid, high };
@@ -194,6 +199,9 @@ describe("POST /api/exercise-adjustments (Phase 131 Plan 01)", () => {
     expect(body.message).toBeNull();
     expect(body.neighbor).not.toBeNull();
     expect(body.neighbor.id).toBe(high);
+    // WR-03: the response carries the neighbor's clip URL so the player renders
+    // the swapped exercise in-session without a re-fetch (no blank clip).
+    expect(body.neighbor.videoUrl).toContain("_high.mp4");
 
     const rows = await app.db
       .select()

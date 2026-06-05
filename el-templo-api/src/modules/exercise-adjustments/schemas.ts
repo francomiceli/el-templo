@@ -31,6 +31,9 @@ const neighborSchema = {
     dificultadLineal: { type: "number" },
     contraction: { type: "string" },
     position: { type: ["string", "null"] },
+    // The neighbor's clip URL so the player renders the swapped exercise
+    // in-session without a re-fetch (WR-03). Null when the catalog row has none.
+    videoUrl: { type: ["string", "null"] },
   },
 } as const;
 
