@@ -89,6 +89,32 @@
             @click="onSlideComplete"
           />
         </div>
+
+        <!-- Per-exercise difficulty adjustment (más fácil / más difícil) -->
+        <div v-if="canAdjustCurrentSlide" class="block-progression__detail-adjust-row">
+          <q-btn
+            outline
+            dense
+            no-caps
+            class="block-progression__adjust-btn"
+            color="secondary"
+            icon="south"
+            label="más fácil"
+            :disable="isAdjusting"
+            @click="onAdjust('down')"
+          />
+          <q-btn
+            outline
+            dense
+            no-caps
+            class="block-progression__adjust-btn"
+            color="primary"
+            icon-right="north"
+            label="más difícil"
+            :disable="isAdjusting"
+            @click="onAdjust('up')"
+          />
+        </div>
       </div>
 
       <!-- Compact exercise list — always visible -->
@@ -177,6 +203,7 @@ interface Props {
   completedBlocks: BlockRole[]
   elapsedSeconds: number
   completedExercises: Record<string, number[]>
+  isAdjusting?: boolean
 }
 
 interface Emits {
@@ -185,10 +212,15 @@ interface Emits {
   (e: 'complete-block'): void
   (e: 'toggle-exercise-complete', payload: { prescriptionId: number }): void
   (e: 'change-deuteros'): void
+  (e: 'adjust', payload: { exerciseId: number; direction: 'up' | 'down' }): void
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  isAdjusting: false,
+})
 const emit = defineEmits<Emits>()
+
+const isAdjusting = computed(() => props.isAdjusting)
 
 // Viewing state — separate from active block progress
 const viewingBlockIndex = ref(props.activeBlockIndex)
@@ -466,6 +498,20 @@ function onSlideComplete(): void {
     emit('toggle-exercise-complete', { prescriptionId: exercise.exerciseId })
   }
 }
+
+// Difficulty adjustment is only available for a real (non-mobility,
+// non-reviewing) exercise slide of the active block.
+const canAdjustCurrentSlide = computed(() => {
+  return !isMobilitySlide.value && !isReviewingPrevious.value && currentSlideExercise.value !== null
+})
+
+// Emit the adjust request with the current exercise's catalog node id (D-02).
+function onAdjust(direction: 'up' | 'down'): void {
+  if (!canAdjustCurrentSlide.value) return
+  const exercise = currentSlideExercise.value
+  if (!exercise) return
+  emit('adjust', { exerciseId: exercise.exerciseId, direction })
+}
 </script>
 
 <style scoped lang="scss">
@@ -619,6 +665,18 @@ function onSlideComplete(): void {
   flex-shrink: 0;
   padding-left: 20px;
   padding-right: 20px;
+}
+
+.block-progression__detail-adjust-row {
+  display: flex;
+  gap: 8px;
+}
+
+.block-progression__adjust-btn {
+  flex: 1;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 // Block navigation at bottom

@@ -71,11 +71,13 @@
         :completed-blocks="completedBlocks"
         :elapsed-seconds="elapsedSeconds"
         :completed-exercises="allCompletedExercises"
+        :is-adjusting="isAdjusting"
         @back="handleBackNavigation"
         @restart="restartSession"
         @complete-block="onBlockComplete"
         @toggle-exercise-complete="onToggleExerciseComplete"
         @change-deuteros="onChangeDeuteros"
+        @adjust="onAdjustExercise"
       />
     </template>
   </q-page>
@@ -100,6 +102,7 @@ import BlockProgressionView from '../components/BlockProgressionView.vue'
 import { useSessionPlayer } from '../composables/useSessionPlayer'
 import { useWakeLock } from '../composables/useWakeLock'
 import { useSessionCompletion } from '../composables/useSessionCompletion'
+import { useExerciseAdjustment } from '../composables/useExerciseAdjustment'
 import { useWeekStore } from '../stores/weekStore'
 import { useWeekData } from '../composables/useWeekData'
 import { getWeekDates, formatDayName, getDateState } from '../composables/useDateNavigation'
@@ -130,6 +133,13 @@ const {
 
 // Session completion composable
 const { isSubmitting, totalDaysTrained, completeSession } = useSessionCompletion()
+
+// In-session difficulty adjustment composable
+const {
+  isSubmitting: isAdjusting,
+  adjustExercise,
+  cleanup: cleanupAdjustment,
+} = useExerciseAdjustment()
 
 // Route parameter
 const dateParam = computed(() => route.params.date as string)
@@ -319,6 +329,63 @@ function onCelebrationViewSummary(): void {
 async function onToggleExerciseComplete(payload: { prescriptionId: number }): Promise<void> {
   if (player.value) {
     await player.value.toggleExerciseComplete(payload.prescriptionId)
+  }
+}
+
+/**
+ * Handle a per-exercise difficulty adjustment from the player (D-02/D-03).
+ * Calls the Plan 01 endpoint (which persists the dominado/bajado record and
+ * resolves the one-step tree neighbor), then swaps ONLY the exercise identity
+ * into the SOURCE session block — preserving the block's route/contraction
+ * dose/format. One tap = one step. At the chain end (neighbor null) the
+ * returned message is shown and nothing changes.
+ */
+async function onAdjustExercise(payload: {
+  exerciseId: number
+  direction: 'up' | 'down'
+}): Promise<void> {
+  const s = session.value
+  if (!s) return
+
+  const result = await adjustExercise(
+    payload.exerciseId,
+    payload.direction,
+    s.dayId,
+    dateParam.value,
+  )
+  if (!result) return // transport/server error — already logged, change nothing
+
+  // Chain end / off-graph — surface the message, change nothing.
+  if (!result.neighbor) {
+    $q.notify({
+      type: 'info',
+      message: result.message ?? 'Ya estás en el extremo de la cadena.',
+      position: 'top',
+      timeout: 2500,
+    })
+    return
+  }
+
+  const neighbor = result.neighbor
+
+  // Swap ONLY the exercise identity into the source session block, preserving
+  // the block's prescription (reps/seconds/format/dose/sortOrder/rest). The
+  // playableBlocks computed re-derives from session.blocks, so mutating the
+  // source exercise reflects through to the player.
+  for (const block of s.blocks) {
+    const idx = block.exercises.findIndex((ex) => ex.exerciseId === payload.exerciseId)
+    if (idx === -1) continue
+    const current = block.exercises[idx]
+    block.exercises[idx] = {
+      ...current,
+      exerciseId: neighbor.id,
+      exerciseName: neighbor.name,
+      contraction: neighbor.contraction,
+      // No video URL is served by the adjustment endpoint; clear it so the
+      // stale clip isn't shown (it is refetched on the next session load).
+      videoUrl: null,
+    }
+    break // one tap = one swap
   }
 }
 
@@ -570,6 +637,7 @@ watch(
 onUnmounted(() => {
   if (player.value) player.value.cleanup()
   wakeLock.cleanup()
+  cleanupAdjustment()
   userStore.registerMidSessionGuard(null)
 })
 </script>
