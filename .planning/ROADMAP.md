@@ -3307,13 +3307,13 @@ _v5.1 added: 2026-06-04 — 8 phases (124-131), 18 requirements (TREE, KAIROS, A
 
 **Risks / notas:** Mayormente frontend, **+ 3 extensiones acotadas de backend** (decididas en `132-CONTEXT.md`, SIN migraciones): filtro por plan como entrada en las 6 métricas + filtro por turno en funnel/frecuencia (D-10); el cruce turno×sucursal del funnel sale vía filtro+breakdown, sin agregación 2D (D-11); enriquecer `frequency-service` con nombre/teléfono para la lista accionable (D-12). Borrado físico de deprecadas mapeado (D-15→D-21): fuera cards Renovación 7/14/30 + Tasa de retención simple (`MiembrosTab`), ARPU mensual (`FinanzasAvanzadasTab`, conservando Caja vs Devengado), `FunnelTab` viejo, y archivo huérfano `AsistenciaTab`; se conserva `RetencionTab` (curvas por ciclo, no duplicado). Visualización pre-cerrada por Nacho en `DECISIONES-VISUALIZACION.md`. Cálculos pesados ya resueltos en backend (Kaplan-Meier LTV, cohortes churn).
 
-**Plans:** 6 plans
+**Plans:** 1/6 plans executed
 
 Plans:
 
 **Wave 1**
 
-- [ ] 132-01-PLAN.md — Backend D-10/D-11: filtro plan (5 servicios) + turno (trial-funnel) como entrada + routes/schemas + tests
+- [x] 132-01-PLAN.md — Backend D-10/D-11: filtro plan (5 servicios) + turno (trial-funnel) como entrada + routes/schemas + tests
 
 **Wave 2** _(blocked on Wave 1 completion)_
 
@@ -3338,7 +3338,7 @@ Plans:
 
 | Phase                                           | Plans Complete | Status      | Completed |
 | ----------------------------------------------- | -------------- | ----------- | --------- |
-| 132. Exponer 6 métricas v5.0 en admin + limpiar | 0/6            | Not started | -         |
+| 132. Exponer 6 métricas v5.0 en admin + limpiar | 1/6            | In Progress |           |
 
 _Plan counts populated by `/gsd-plan-phase`._
 

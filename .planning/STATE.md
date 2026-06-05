@@ -4,8 +4,8 @@ milestone: v5.1
 milestone_name: Nuevo Sistema de Entrenamiento
 status: executing
 stopped_at: Phase 132 context gathered
-last_updated: "2026-06-05T15:47:47.147Z"
-last_activity: 2026-06-05 -- Phase 132 planning complete
+last_updated: "2026-06-05T16:03:02.628Z"
+last_activity: 2026-06-05
 progress:
   total_phases: 8
   completed_phases: 8
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-04)
 
 **Core value:** v5.1 reestructura el sistema de entrenamiento alrededor de un árbol de habilidades (DAG) sobre 3 ejes ortogonales (gesto/palanca/contracción). Sobre ese cimiento: el nivel Kairos para principiantes (hereda de Alfa, formato lineal forzado) y el ajuste de dificultad in-session (botones más fácil/más difícil que sirven el vecino correcto y recuerdan lo dominado). Backend-first, brownfield.
-**Current focus:** Milestone complete
+**Current focus:** Phase 132 — exponer-metricas-gestion-v50-admin
 
 ## Current Position
 
-Phase: 131
-Plan: Not started
+Phase: 132 (exponer-metricas-gestion-v50-admin) — EXECUTING
+Plan: 2 of 6
 Status: Ready to execute
-Last activity: 2026-06-05 -- Phase 132 planning complete
+Last activity: 2026-06-05
 
 ## Performance Metrics
 
@@ -223,6 +223,7 @@ _Updated after each plan completion_
 | Phase 130 P03 | ~2min | 2 tasks | 3 files |
 | Phase 130 P04 | ~10min | 1 task | 1 file |
 | Phase 131 P02 | ~35m | 2 tasks | 17 files |
+| Phase 132 P01 | ~25min | 2 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -545,6 +546,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: 131-02: coach dominado/bajado view in a separate /api/admin/exercise-adjustments plugin (TRAINING_ROLES, 403 for members); member POST untouched
 - [Phase ?]: 131-02: tree-% reached AUGMENTED with latest-dominado per node (latest-per-node wins); level/SPOM untouched (D-06)
 - [Phase 131]: 131-03 (CAPSTONE v5.1): in-session adjustment is a member-facing surface on BlockProgressionView (detail row, not ExerciseCard). useExerciseAdjustment composable returns {neighbor,message} from POST /exercise-adjustments; PARENT (DayPlayer) owns the swap — mutates the SOURCE session.blocks[*].exercises[i] (playableBlocks computed re-derives), replacing ONLY exerciseId/exerciseName/contraction + clearing videoUrl (endpoint serves none, refetched next load), preserving reps/seconds/format/dose/sortOrder/rest (D-03). isSubmitting guard + :disable = one-tap-one-step. neighbor null → q.notify message, no change. Never touches level/SPOM (D-06). Local gate = app lint (0 errors) + vue-tsc clean on the 3 files (no pnpm typecheck script). human-verify visual UAT DEFERRED (overnight). staging, not pushed.
+- [Phase ?]: [Phase 132]: planId threaded via shared subscriptionPlanFilter() in expiry-cohort.ts (DRY across churn/renewal/ltv); ticket excludedNoLink suppressed under planId
+- [Phase ?]: [Phase 132]: TrialTurno literal moved to types.ts (no circular import); trial-funnel-service re-exports; new-lead exclusion stays planId-unrestricted
 
 ### Pending Todos
 
@@ -575,8 +578,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-05T15:10:17.957Z
+Last session: 2026-06-05T16:02:50.003Z
 Stopped at: Phase 132 context gathered
-Resume file: .planning/phases/132-exponer-metricas-gestion-v50-admin/132-CONTEXT.md
+Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
