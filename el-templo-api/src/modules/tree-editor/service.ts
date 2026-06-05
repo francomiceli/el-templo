@@ -103,6 +103,15 @@ export interface MutationResult {
   ok: true;
   edgesWritten: number;
   edgesDeleted: number;
+  /**
+   * Set on a reorder of a single-node partition: there is nothing to chain, so
+   * no manual edge is written and the partition CANNOT be marked overridden.
+   * Returned explicitly (instead of a confusing silent {edgesWritten:0}) so the
+   * UI can disable/explain the reorder control for single-node partitions.
+   */
+  singleNode?: true;
+  /** Optional human-readable note accompanying a no-op result (e.g. singleNode). */
+  message?: string;
 }
 
 // ── Internal row shapes ──────────────────────────────────────────────────────
@@ -460,6 +469,23 @@ export class TreeEditorService {
           `El ejercicio ${id} no pertenece a la particion (subfamily ${subfamilyId} × ${effort})`,
         );
       }
+    }
+
+    // A single-node partition has nothing to chain: a manual edge needs two
+    // distinct endpoints, so no chain can be written and the partition can
+    // NEVER be marked overridden. Return an EXPLICIT no-op result (instead of a
+    // confusing silent {edgesWritten:0}) and touch NOTHING — a single-node
+    // partition owns no intra-partition edges to delete, so this leaves no
+    // half-locked state (WR-04).
+    if (partitionNodes.length === 1) {
+      return {
+        ok: true,
+        edgesWritten: 0,
+        edgesDeleted: 0,
+        singleNode: true,
+        message:
+          "La particion tiene un solo nodo: no hay nada que reordenar y no puede marcarse como override.",
+      };
     }
 
     const partitionIdList = [...partitionIds];

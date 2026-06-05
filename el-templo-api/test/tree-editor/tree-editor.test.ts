@@ -358,6 +358,54 @@ describe("tree-editor admin routes (Phase 128 Plan 02)", () => {
     expect(second).toEqual(first);
   });
 
+  it("POST /reorder of a single-node partition returns an explicit no-op and writes nothing (WR-04)", async () => {
+    await seedGraph();
+    // A brand-new subfamily with exactly ONE CON node — a single-node partition.
+    const subC = await createSubfamily("PULLS", "Una sola", 3);
+    const c1 = await createExercise({
+      name: "C dl1",
+      pattern: "PULL",
+      effort: "CON",
+      dl: 1,
+      subfamilyId: subC,
+    });
+    const before = await getEdges();
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/admin/tree-editor/reorder",
+      headers: authHeaders(coachToken),
+      payload: { subfamilyId: subC, effort: "CON", orderedExerciseIds: [c1] },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    // Explicit single-node signal, no edges written/deleted.
+    expect(body.singleNode).toBe(true);
+    expect(body.edgesWritten).toBe(0);
+    expect(body.edgesDeleted).toBe(0);
+    expect(typeof body.message).toBe("string");
+
+    // Nothing touched in the DB → no half-locked partition.
+    const after = await getEdges();
+    expect(after).toEqual(before);
+
+    // The partition is NOT marked overridden (no manual edge exists for it).
+    const treeRes = await app.inject({
+      method: "GET",
+      url: "/api/admin/tree-editor/tree",
+      headers: authHeaders(coachToken),
+    });
+    const tree = JSON.parse(treeRes.body);
+    const traccion = tree.categories.find(
+      (c: { key: string }) => c.key === "Tracción",
+    );
+    const sfC = traccion.subfamilies.find((s: { id: number }) => s.id === subC);
+    const conPart = sfC.partitions.find(
+      (p: { effort: string }) => p.effort === "CON",
+    );
+    expect(conPart.overridden).toBe(false);
+  });
+
   it("POST /reorder with an id set not matching the partition → 400 (not 500)", async () => {
     const { subA, a1, a3 } = await seedGraph();
     const res = await app.inject({

@@ -130,6 +130,15 @@ export const mutationResultSchema = {
     ok: { type: "boolean" },
     edgesWritten: { type: "number" },
     edgesDeleted: { type: "number" },
+    /**
+     * Present and true only on a reorder of a single-node partition: nothing
+     * was chained and the partition cannot be marked overridden (WR-04). Lets
+     * the UI disable/explain the reorder control instead of showing a silent
+     * no-op success.
+     */
+    singleNode: { type: "boolean" },
+    /** Optional human-readable note accompanying a no-op result. */
+    message: { type: "string" },
   },
 } as const;
 
