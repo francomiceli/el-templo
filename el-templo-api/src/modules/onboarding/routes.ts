@@ -24,7 +24,7 @@ import type {
 interface CompleteBody {
   ageRange: AgeRange;
   trainingBackground: TrainingBackground;
-  level?: "alfa" | "delta" | "sigma" | "omega" | "spartan";
+  level?: "kairos" | "alfa" | "delta" | "sigma" | "omega" | "spartan";
   goal: GoalChoice;
   painPoint: PainPoint;
   trainingFrequency: TrainingFrequency;

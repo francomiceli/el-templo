@@ -111,6 +111,7 @@ const GENDER_LABELS: Record<string, string> = {
 };
 
 const LEVEL_NAMES: Record<string, string> = {
+  kairos: 'Kairos',
   alfa: 'Alfa',
   delta: 'Delta',
   sigma: 'Sigma',

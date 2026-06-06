@@ -11,7 +11,7 @@
  * - Spartan maps to Omega (both are highest tier)
  */
 export const LEVEL_GREEK_MAP: Record<string, string> = {
-  kairos: 'α', // kairos inherits Alfa, reuses Alfa's glyph (Phase 129)
+  kairos: '☉', // kairos = tiempo/ciclo, glyph propio
   alfa: 'α',
   delta: 'Δ',
   sigma: 'Σ',

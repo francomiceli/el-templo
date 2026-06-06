@@ -113,6 +113,11 @@
                   />
                 </q-td>
               </template>
+              <template #body-cell-kairos="props">
+                <q-td :props="props">
+                  <StatusIndicator :status="props.row.kairos" :locked="!isFutureWeek" />
+                </q-td>
+              </template>
               <template #body-cell-alfa="props">
                 <q-td :props="props">
                   <StatusIndicator :status="props.row.alfa" :locked="!isFutureWeek" />
@@ -460,6 +465,7 @@ const levelOptions = [
 const summaryColumns = [
   { name: 'day', label: 'Dia', field: 'dayLabel', align: 'left' as const },
   { name: 'modo', label: 'Tipo de Sesion', field: 'modo', align: 'left' as const },
+  { name: 'kairos', label: 'Kairos', field: 'kairos', align: 'center' as const },
   { name: 'alfa', label: 'Alfa', field: 'alfa', align: 'center' as const },
   { name: 'delta', label: 'Delta', field: 'delta', align: 'center' as const },
   { name: 'sigma', label: 'Sigma', field: 'sigma', align: 'center' as const },
@@ -485,6 +491,9 @@ const summaryRows = computed(() => {
       day: d.day,
       dayLabel: dayLabels[d.day] || d.day,
       modo,
+      // kairos vive en el grupo alfa_delta (se genera junto con alfa/delta), así
+      // que comparte su status — mismo criterio que alfa y delta.
+      kairos: alfaDeltaStatus,
       alfa: alfaDeltaStatus,
       delta: alfaDeltaStatus,
       sigma:

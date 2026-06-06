@@ -128,7 +128,7 @@ export class MemberService {
       conditions.push(
         eq(
           schema.users.level,
-          level as "alfa" | "delta" | "sigma" | "omega" | "spartan",
+          level as "kairos" | "alfa" | "delta" | "sigma" | "omega" | "spartan",
         ),
       );
     }
@@ -1484,7 +1484,7 @@ export class MemberService {
       conditions.push(
         eq(
           schema.users.level,
-          level as "alfa" | "delta" | "sigma" | "omega" | "spartan",
+          level as "kairos" | "alfa" | "delta" | "sigma" | "omega" | "spartan",
         ),
       );
     }

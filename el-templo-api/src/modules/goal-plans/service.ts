@@ -65,7 +65,11 @@ function getBlockRoles(week: number): BlockRole[] {
 function levelGroupToMemberLevels(levelGroup: LevelGroup): ExerciseLevel[] {
   switch (levelGroup) {
     case "alfa_delta":
-      return ["alfa", "delta"];
+      // kairos se materializa en alfa_delta (igual que en el generador regular,
+      // admin/service.ts) para que exista una sesión GP-...-kairos. Va LAST: alfa
+      // genera primero y define sharedFormats; el formato no-lineal forzado sobre
+      // kairos lo revierte a lineal el gate WR-02 dentro de runBlockPipeline.
+      return ["alfa", "delta", "kairos"];
     case "sigma":
       return ["sigma"];
     case "omega":

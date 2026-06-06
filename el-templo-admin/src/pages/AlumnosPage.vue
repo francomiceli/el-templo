@@ -576,7 +576,7 @@ const visibleColumns = computed<QTableProps['columns']>(() => columns);
 // =========================================================================
 
 const LEVEL_GREEK_MAP: Record<string, string> = {
-  kairos: '\u03B1', // kairos reuses Alfa's glyph (Phase 129, member-app parity)
+  kairos: '\u2609', // \u2609 kairos = tiempo/ciclo, glyph propio
   alfa: '\u03B1', // alpha
   delta: '\u0394', // Delta
   sigma: '\u03A3', // Sigma

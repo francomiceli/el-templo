@@ -139,6 +139,7 @@ const loading = ref(false);
 const error = ref<string | null>(null);
 
 const levelOptions = [
+  { label: 'Kairos', value: 'kairos' },
   { label: 'Alfa', value: 'alfa' },
   { label: 'Delta', value: 'delta' },
   { label: 'Sigma', value: 'sigma' },

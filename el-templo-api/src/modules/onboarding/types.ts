@@ -112,7 +112,13 @@ export type AvatarLetter =
   | "K";
 export type Gender = "male" | "female" | "other" | "unspecified";
 
-export type TemploLevel = "alfa" | "delta" | "sigma" | "omega" | "spartan";
+export type TemploLevel =
+  | "kairos"
+  | "alfa"
+  | "delta"
+  | "sigma"
+  | "omega"
+  | "spartan";
 
 export interface CompleteOnboardingInputV2 {
   userId: number;

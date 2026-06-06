@@ -397,9 +397,10 @@ const pdfDayLoading = ref<string | null>(null);
 const showGeneralDatePicker = ref(false);
 
 const DAYS = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
-const DISPLAY_LEVELS = ['alfa', 'delta', 'sigma', 'omega', 'spartan'];
+const DISPLAY_LEVELS = ['kairos', 'alfa', 'delta', 'sigma', 'omega', 'spartan'];
+// ROM days solo generan alfa/delta (kairos no tiene sesión ROM) → sin kairos aquí.
 const ROM_DISPLAY_LEVELS = ['alfa', 'delta'];
-const PDF_LEVELS = ['alfa', 'delta', 'sigma', 'omega'];
+const PDF_LEVELS = ['kairos', 'alfa', 'delta', 'sigma'];
 
 // Day mode state
 function isDayGroupRom(dayGroup: DayGroup): boolean {
@@ -749,6 +750,8 @@ function dayLabel(day: string): string {
 
 function levelColor(level: string): string {
   switch (level) {
+    case 'kairos':
+      return 'amber-6';
     case 'alfa':
       return 'amber-8';
     case 'delta':
@@ -766,6 +769,8 @@ function levelColor(level: string): string {
 
 function memberLevelLabel(level: string): string {
   switch (level) {
+    case 'kairos':
+      return 'Kairos';
     case 'alfa':
       return 'Alfa';
     case 'delta':

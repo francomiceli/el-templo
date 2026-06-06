@@ -148,7 +148,7 @@ export const getGoalPlanSessionSchema = {
 export interface GetGoalPlanSessionInput {
   week: number;
   day: string;
-  level?: "alfa" | "delta" | "sigma" | "omega" | "spartan";
+  level?: "kairos" | "alfa" | "delta" | "sigma" | "omega" | "spartan";
 }
 
 export const completeGoalPlanSchema = {

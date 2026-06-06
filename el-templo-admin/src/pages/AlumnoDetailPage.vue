@@ -1056,7 +1056,7 @@ async function loadSessionLevels(): Promise<void> {
 // =========================================================================
 
 const LEVEL_GREEK_MAP: Record<string, string> = {
-  kairos: '\u03B1', // kairos reuses Alfa's glyph (Phase 129, member-app parity)
+  kairos: '\u2609', // \u2609 kairos = tiempo/ciclo, glyph propio
   alfa: '\u03B1',
   delta: '\u0394',
   sigma: '\u03A3',

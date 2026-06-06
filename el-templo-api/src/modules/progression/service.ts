@@ -2,7 +2,7 @@
  * Greek letter mapping for level display
  */
 export const GREEK_LETTER_MAP: Record<string, string> = {
-  kairos: "\u03B1", // kairos inherits Alfa, reuses Alfa's glyph (Phase 129)
+  kairos: "\u2609", // \u2609 kairos = tiempo/ciclo, glyph propio
   alfa: "\u03B1", //α (lowercase alpha)
   delta: "\u0394", // Δ
   sigma: "\u03A3", // Σ

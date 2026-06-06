@@ -25,7 +25,7 @@ export type Level = (typeof TRAINING_LEVELS)[number]
  *   spartan -> Ω  (U+03A9, same as omega per server source)
  */
 export const LEVEL_GREEK_MAP: Record<Level, string> = {
-  kairos: 'α', // α — kairos inherits Alfa, reuses Alfa's glyph (Phase 129)
+  kairos: '☉', // ☉ — kairos = tiempo/ciclo, glyph propio (no comparte con Alfa)
   alfa: 'α', // α
   delta: 'Δ', // Δ
   sigma: 'Σ', // Σ
