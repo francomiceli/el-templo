@@ -69,14 +69,22 @@ interface SelectExercisesArgs {
 
 const selectExercisesWithFallbackMock =
   vi.fn<
-    (req: SelectExercisesArgs) => Promise<FallbackResult<ExerciseCandidate>>
+    (
+      req: SelectExercisesArgs,
+      db?: unknown,
+      policy?: { maxTier: number; relaxationOrder: readonly string[] },
+    ) => Promise<FallbackResult<ExerciseCandidate>>
   >();
 const queryCrossRouteExercisesMock =
   vi.fn<() => Promise<ExerciseCandidate[]>>();
 
 vi.mock("../../src/modules/sessions/fallback/exercise-fallback", () => ({
-  selectExercisesWithFallback: (req: SelectExercisesArgs) =>
-    selectExercisesWithFallbackMock(req),
+  // Forward all args (req, db, policy) so tests can assert the kairos tight policy.
+  selectExercisesWithFallback: (
+    req: SelectExercisesArgs,
+    db?: unknown,
+    policy?: { maxTier: number; relaxationOrder: readonly string[] },
+  ) => selectExercisesWithFallbackMock(req, db, policy),
   queryCrossRouteExercises: () => queryCrossRouteExercisesMock(),
 }));
 
@@ -321,6 +329,39 @@ describe("Stage-6 exercise gate (D-03: Alfa exercises at dificultadLineal=1)", (
     expect(result.trace.some((t) => t.code === "KAIROS_INHERIT_ALFA")).toBe(
       true,
     );
+    // The kairos selection runs a TIGHT policy (maxTier 1) so the generic ladder's
+    // Tier-2 difficulty blowout (dl 1..999) can never pull a hard exercise in.
+    const policy = selectExercisesWithFallbackMock.mock.calls[0][2];
+    expect(policy?.maxTier).toBe(1);
+  });
+
+  it("kairos falls back to dificultadLineal=2 ONLY when no dl=1 candidate exists", async () => {
+    const { selectExercises } =
+      await import("../../src/modules/sessions/pipeline/stage-6-exercises");
+    // Pass 1 (dl=1) finds nothing → failed; the code must retry at dl=2 (and never
+    // widen past it). Subsequent calls use the default 'exact' from beforeEach.
+    selectExercisesWithFallbackMock.mockResolvedValueOnce({
+      status: "failed",
+      data: [],
+      tier: 1,
+      actions: [],
+    });
+    const ctx = {
+      ...makeContractionCtx("kairos"),
+      format: { formatId: 42, name: "Singlet" },
+    };
+    await selectExercises(ctx, FAKE_DB);
+
+    // Exactly two passes: dl=1, then dl=2 — both under the tight policy.
+    expect(selectExercisesWithFallbackMock).toHaveBeenCalledTimes(2);
+    const pass1 = selectExercisesWithFallbackMock.mock.calls[0];
+    const pass2 = selectExercisesWithFallbackMock.mock.calls[1];
+    expect(pass1[0].minDificultadLineal).toBe(1);
+    expect(pass1[0].maxDificultadLineal).toBe(1);
+    expect(pass2[0].minDificultadLineal).toBe(2);
+    expect(pass2[0].maxDificultadLineal).toBe(2);
+    expect(pass1[2]?.maxTier).toBe(1);
+    expect(pass2[2]?.maxTier).toBe(1);
   });
 
   it("uses getAllowedLevels + the linear difficulty target UNCHANGED for alfa (D-07)", async () => {
@@ -341,6 +382,8 @@ describe("Stage-6 exercise gate (D-03: Alfa exercises at dificultadLineal=1)", (
     expect(result.trace.some((t) => t.code === "KAIROS_INHERIT_ALFA")).toBe(
       false,
     );
+    // D-07: non-kairos passes NO tight policy override (uses the default ladder).
+    expect(selectExercisesWithFallbackMock.mock.calls[0][2]).toBeUndefined();
   });
 });
 

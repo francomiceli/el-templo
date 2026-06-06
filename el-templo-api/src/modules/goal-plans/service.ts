@@ -14,6 +14,7 @@ import { SpomService } from "../spom/service";
 import { SessionGeneratorService } from "../sessions/service";
 import { runGoalPlanBlockPipeline } from "../sessions/pipeline/goal-plan-pipeline";
 import { createInitialContext } from "../sessions/pipeline/context";
+import { isKairos } from "../sessions/pipeline/utils/kairos";
 import type {
   LevelGroup,
   BlockRole,
@@ -413,8 +414,10 @@ export class GoalPlanService {
               }
             }
 
-            // Capture formats from first generated session for cross-level consistency
-            if (!sharedFormats) {
+            // Capture formats from first generated session for cross-level
+            // consistency. NEVER from a kairos session (it forces the linear format,
+            // which must not leak onto alfa/delta/sigma/omega); alfa/delta still define it.
+            if (!sharedFormats && !isKairos(memberLevel)) {
               sharedFormats = new Map();
               for (const block of session.blocks) {
                 if (block.role !== "INITIUM") {

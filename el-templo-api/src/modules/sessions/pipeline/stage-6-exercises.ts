@@ -312,21 +312,50 @@ export async function selectExercises(
     }
 
     // Use fallback ladder for exercise selection, excluding already-selected names
-    const result = await selectExercisesWithFallback(
-      {
-        route: ctx.route,
-        contraction,
-        minDificultadLineal, // Linear difficulty scale (1-12) lower bound
-        maxDificultadLineal, // Linear difficulty scale (1-12) upper bound
-        allowedLevels, // For Tier 2+ fallback
-        count: requiredCount,
-        levelGroup: ctx.levelGroup,
-        memberLevel: targetLevel, // For Tier 0 exact match (may be shifted up)
-        category: ctx.category, // SPOM category for Tier 5 category-based fallback
-        excludeNames: excludedNames, // Prevent duplicate exercise names
-      },
-      db,
-    );
+    const baseRequirements = {
+      route: ctx.route,
+      contraction,
+      minDificultadLineal, // Linear difficulty scale (1-12) lower bound
+      maxDificultadLineal, // Linear difficulty scale (1-12) upper bound
+      allowedLevels, // For Tier 2+ fallback
+      count: requiredCount,
+      levelGroup: ctx.levelGroup,
+      memberLevel: targetLevel, // For Tier 0 exact match (may be shifted up)
+      category: ctx.category, // SPOM category for Tier 5 category-based fallback
+      excludeNames: excludedNames, // Prevent duplicate exercise names
+    };
+
+    // Kairos: los ejercicios deben ser dificultadLineal=1, con fallback a =2 SÓLO si
+    // la ruta no tiene candidato dl=1 — nunca el blowout del Tier-2 del ladder genérico
+    // (que ensancha la dificultad a 1..999 y metería un ejercicio difícil en un bloque
+    // de principiante). Una política TIGHT (exacto + misma categoría, sin ensanchar
+    // dificultad/nivel/ruta) lo mantiene en contenido alfa: prueba dl=1, después dl=2.
+    // El path no-kairos queda igual (D-07).
+    let result;
+    if (isKairos(ctx.memberLevel)) {
+      const KAIROS_TIGHT_POLICY = {
+        maxTier: 1,
+        relaxationOrder: ["category"],
+      } as const;
+      result = await selectExercisesWithFallback(
+        { ...baseRequirements, minDificultadLineal: 1, maxDificultadLineal: 1 },
+        db,
+        KAIROS_TIGHT_POLICY,
+      );
+      if (result.status === "failed") {
+        result = await selectExercisesWithFallback(
+          {
+            ...baseRequirements,
+            minDificultadLineal: 2,
+            maxDificultadLineal: 2,
+          },
+          db,
+          KAIROS_TIGHT_POLICY,
+        );
+      }
+    } else {
+      result = await selectExercisesWithFallback(baseRequirements, db);
+    }
 
     // Handle fallback result
     if (result.status === "failed") {

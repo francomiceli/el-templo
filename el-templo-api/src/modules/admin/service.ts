@@ -15,6 +15,7 @@ import * as schema from "../../db/schema";
 import type { SessionStatus } from "./types";
 import type { LevelGroup, ExerciseLevel } from "../sessions/types";
 import { SpomService } from "../spom/service";
+import { isKairos } from "../sessions/pipeline/utils/kairos";
 import {
   TRAINING_DAYS,
   DAY_OF_WEEK_MAP,
@@ -749,8 +750,12 @@ export class AdminSessionService {
             });
 
             // Capture formats from the first generated session of the day
-            // INITIUM excluded (uses separate pipeline, always Interval Training)
-            if (!sharedFormats) {
+            // INITIUM excluded (uses separate pipeline, always Interval Training).
+            // NEVER capture from a kairos session: kairos forces the linear "Singlet"
+            // format (D-04), and if it were the first generated session (e.g. alfa/delta
+            // already existed and were skipped) its Singlet would leak onto sigma/omega.
+            // alfa/delta are non-kairos and still define sharedFormats as before (D-07).
+            if (!sharedFormats && !isKairos(memberLevel)) {
               sharedFormats = new Map();
               for (const block of session.blocks) {
                 if (block.role !== "INITIUM") {
