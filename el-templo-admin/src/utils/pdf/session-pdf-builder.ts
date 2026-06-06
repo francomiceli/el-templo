@@ -396,6 +396,8 @@ function buildInitiumPage(block: PdfBlockPage): Content[] {
           bold: true,
           characterSpacing: 20,
           font: 'Roboto',
+          // Baja los glyphs Roboto a la línea de NIVEL/☉ y separa del ☉ (UAT 2026-06-06)
+          margin: [20, 14, 0, 0],
         },
       ],
       columnGap: 8,
@@ -491,7 +493,9 @@ function buildLevelBox(lb: PdfLevelBlock, targetBoxHeight?: number): ContentStac
                 font: 'NunitoSans',
                 characterSpacing: 4,
               },
-              kairosGlyphColumn(76, 16, 6),
+              // topMargin/leftMargin: ☉ a la línea base de "NIVEL" y con el mismo
+              // espacio que el α de las cajas no-kairos (UAT 2026-06-06)
+              kairosGlyphColumn(76, 26, 24),
               {
                 width: 'auto',
                 text: `  |  ${routeName} ${lb.intensity}%`,
