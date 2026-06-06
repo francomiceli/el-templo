@@ -57,13 +57,13 @@ const LEVEL_ORDER = ['kairos', 'alfa', 'delta', 'sigma'];
  * onto the text baseline. NOTE: the vertical offset is eyeballed against the
  * generated PDF — tune `topMargin` per call-site in UAT if it sits high/low.
  */
-function kairosGlyphColumn(diameter: number, topMargin: number): Column {
+function kairosGlyphColumn(diameter: number, topMargin: number, leftMargin = 0): Column {
   const r = diameter / 2;
   const ring = Math.max(5, Math.round(diameter * 0.1));
   const dot = Math.max(5, Math.round(diameter * 0.16));
   return {
-    width: diameter,
-    margin: [0, topMargin, 0, 0],
+    width: diameter + leftMargin,
+    margin: [leftMargin, topMargin, 0, 0],
     canvas: [
       {
         type: 'ellipse' as const,
@@ -387,11 +387,11 @@ function buildInitiumPage(block: PdfBlockPage): Content[] {
           bold: true,
           font: 'NunitoSans',
         },
-        kairosGlyphColumn(80, 26),
+        kairosGlyphColumn(80, 30, 28),
         {
           width: 'auto',
           text: '  α Δ Σ',
-          fontSize: 80,
+          fontSize: 100,
           color: GOLD,
           bold: true,
           characterSpacing: 20,
@@ -491,7 +491,7 @@ function buildLevelBox(lb: PdfLevelBlock, targetBoxHeight?: number): ContentStac
                 font: 'NunitoSans',
                 characterSpacing: 4,
               },
-              kairosGlyphColumn(60, 22),
+              kairosGlyphColumn(76, 16, 6),
               {
                 width: 'auto',
                 text: `  |  ${routeName} ${lb.intensity}%`,
@@ -856,9 +856,13 @@ function computeDeuterosFontSize(block: PdfBlockPage): number {
  * Reuses the bordered level boxes from NUCLEUS/EPIKOS layout.
  */
 function buildDeuterosSplitPages(deut1: PdfBlockPage, deut2: PdfBlockPage): Content[] {
+  // Página 1 = topRow del grid (kairos+alfa), página 2 = bottomRow (delta+sigma).
+  // DEBE espejar los filtros topRow/bottomRow de buildBlockPageWithGrid: si un par
+  // cruza filas, cada nivel cae en una fila distinta y la caja se estira a página
+  // completa (regresión kairos 2026-06-06).
   const levelPairs: [string, string][] = [
-    ['alfa', 'delta'],
-    ['sigma', 'omega'],
+    ['kairos', 'alfa'],
+    ['delta', 'sigma'],
   ];
 
   const content: Content[] = [];
