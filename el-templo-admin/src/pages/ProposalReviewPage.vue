@@ -223,7 +223,8 @@ const bulkBusyRoute = ref<string | null>(null);
 const routeMap = ref<RouteProgressionMap>({});
 
 const filters = reactive<{ route: string; status: ProposalStatus }>({
-  route: '',
+  // Arrancamos en PL por defecto (ruta más poblada para revisar primero).
+  route: 'PL',
   status: 'pending',
 });
 
@@ -314,6 +315,71 @@ function isUnmatched(row: Proposal): boolean {
   return !!info && info.strategy === 'token' && row.proposedStep === null;
 }
 
+// ── Sugerencia de escalón desde el nombre (mismo criterio que el classify del
+//    backend: frase whole-word, token más específico primero). Es solo una
+//    PRE-asignación editable: el select sigue permitiendo corregir.
+
+/** Normaliza a palabras: mayúsculas, sin puntos, separadores → espacio. */
+function normalizeWords(raw: string): string[] {
+  return raw
+    .toUpperCase()
+    .replace(/\./g, '')
+    .replace(/[-_/]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(' ')
+    .filter((w) => w.length > 0);
+}
+
+/** True si `tokenWords` aparece como frase contigua whole-word en `words`. */
+function phraseAppears(words: string[], tokenWords: string[]): boolean {
+  if (tokenWords.length === 0 || tokenWords.length > words.length) return false;
+  for (let i = 0; i + tokenWords.length <= words.length; i++) {
+    let all = true;
+    for (let j = 0; j < tokenWords.length; j++) {
+      if (words[i + j] !== tokenWords[j]) {
+        all = false;
+        break;
+      }
+    }
+    if (all) return true;
+  }
+  return false;
+}
+
+/**
+ * Escalón sugerido por el NOMBRE del ejercicio para la ruta de la fila, o null si
+ * ningún token de escalón aparece. Empareja el token más específico primero (más
+ * palabras, luego más largo) para que "ADV TUCK" gane sobre "TUCK".
+ */
+function suggestStepFromName(row: Proposal): number | null {
+  const info = routeMap.value[routeKey(row)];
+  if (!info || info.strategy !== 'token') return null;
+  const words = normalizeWords(row.exerciseName);
+  const candidates = info.steps
+    .map((token, index) => ({ tokenWords: normalizeWords(token), token, index }))
+    .sort((a, b) => b.tokenWords.length - a.tokenWords.length || b.token.length - a.token.length);
+  for (const c of candidates) {
+    if (phraseAppears(words, c.tokenWords)) return c.index;
+  }
+  return null;
+}
+
+/**
+ * Pre-asigna el escalón sugerido por el nombre a toda fila que todavía no tenga uno
+ * (proposed_step null), dejando intactas las que ya traen escalón del backend. Se
+ * corre tras cargar propuestas + mapa; la sugerencia queda en proposedStep, así que
+ * se envía al aceptar y el select la muestra para corregir.
+ */
+function applyStepSuggestions() {
+  for (const row of proposals.value) {
+    if (row.proposedStep === null) {
+      const suggested = suggestStepFromName(row);
+      if (suggested !== null) row.proposedStep = suggested;
+    }
+  }
+}
+
 // =========================================================================
 // Columns
 // =========================================================================
@@ -393,6 +459,8 @@ async function loadProposals() {
     });
     proposals.value = result.proposals;
     total.value = result.total;
+    // Pre-asigna escalón por nombre a las filas sin escalón (requiere el mapa).
+    applyStepSuggestions();
   } catch {
     // Error already handled by the composable.
   }
@@ -490,8 +558,9 @@ function onFilterChange() {
 // Lifecycle
 // =========================================================================
 
-onMounted(() => {
-  loadRouteMap();
-  loadProposals();
+onMounted(async () => {
+  // El mapa primero: applyStepSuggestions() (dentro de loadProposals) lo necesita.
+  await loadRouteMap();
+  await loadProposals();
 });
 </script>
