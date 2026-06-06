@@ -24,9 +24,6 @@ import { generatePrescriptions } from "./stage-7-prescription";
 // Import INITIUM special pipeline
 import { runInitiumPipeline } from "./initium-pipeline";
 
-// Kairos linear-format gate (D-04)
-import { isKairos } from "./utils/kairos";
-
 /** Options for block pipeline execution */
 export interface BlockPipelineOptions {
   /** Force a specific format (used for Deuteros consistency) */
@@ -76,15 +73,10 @@ export async function runBlockPipeline(
     // Stage 4: Derive contraction mix
     const ctx4 = await deriveContraction(ctx3, spomService);
 
-    // Stage 5: Select format (or use forced format for Deuteros consistency).
-    // D-04 gate (WR-02): a forced format (DEUTEROS_2 reuse OR cross-level
-    // sharedFormats) must NEVER override the kairos linear-format constraint.
-    // For kairos blocks we always run selectFormat (which forces the linear
-    // sets-by-reps format), ignoring forcedFormat — so a non-linear format
-    // captured from alfa/delta can never leak onto a kairos block. This is a
-    // pure additive branch: non-kairos behavior is unchanged (D-07).
+    // Stage 5: Select format (or use forced format for Deuteros consistency /
+    // cross-level sharedFormats). Kairos is treated like any other level here.
     let ctx5;
-    if (options?.forcedFormat && !isKairos(ctx4.memberLevel)) {
+    if (options?.forcedFormat) {
       // Skip format selection, use forced format (for DEUTEROS_2 to match DEUTEROS_1)
       const formatTrace = createTraceEvent(ctx4, "FORMAT_FORCED", "INFO", {
         reason: "Deuteros blocks must share same format",

@@ -259,40 +259,19 @@ describe("Stage-3 budget gate (D-05: 2 exercises per non-INITIUM block)", () => 
   });
 });
 
-describe("Stage-5 format gate (D-04: linear format only)", () => {
-  it("forces the linear format (Singlet) for kairos, BEFORE the fallback ladder", async () => {
+describe("Stage-5 format gate: kairos selects format like any other level", () => {
+  it("uses the compatibility-matrix ladder for kairos (no linear format forced)", async () => {
     const { selectFormat } =
       await import("../../src/modules/sessions/pipeline/stage-5-format");
     const ctx = await selectFormat(makeContractionCtx("kairos"), FAKE_DB);
-    expect(ctx.format.name).toBe("Singlet");
-    expect(queryFormatByNameMock).toHaveBeenCalledWith(FAKE_DB, "Singlet");
-    // The compatibility-matrix ladder must NOT have been consulted for kairos.
-    expect(selectFormatWithFallbackMock).not.toHaveBeenCalled();
-    expect(ctx.trace.some((t) => t.code === "KAIROS_FORMAT_FORCED")).toBe(true);
-  });
-
-  it("falls back to 'For Quality' when Singlet is absent from the seed", async () => {
-    queryFormatByNameMock.mockImplementation(
-      async (_db: unknown, name: string) =>
-        name === "For Quality"
-          ? { formatId: 43, name: "For Quality", compatibility: 1 }
-          : null,
+    // Kairos goes through the same fallback ladder as alfa — no Singlet forcing.
+    expect(selectFormatWithFallbackMock).toHaveBeenCalledTimes(1);
+    expect(ctx.format.name).toBe("AMRAP");
+    // The by-name linear lookup must NOT run, and no force trace is emitted.
+    expect(queryFormatByNameMock).not.toHaveBeenCalled();
+    expect(ctx.trace.some((t) => t.code === "KAIROS_FORMAT_FORCED")).toBe(
+      false,
     );
-    const { selectFormat } =
-      await import("../../src/modules/sessions/pipeline/stage-5-format");
-    const ctx = await selectFormat(makeContractionCtx("kairos"), FAKE_DB);
-    expect(ctx.format.name).toBe("For Quality");
-    expect(queryFormatByNameMock).toHaveBeenCalledWith(FAKE_DB, "Singlet");
-    expect(queryFormatByNameMock).toHaveBeenCalledWith(FAKE_DB, "For Quality");
-  });
-
-  it("throws a seed-integrity error when neither linear format exists", async () => {
-    queryFormatByNameMock.mockResolvedValue(null);
-    const { selectFormat } =
-      await import("../../src/modules/sessions/pipeline/stage-5-format");
-    await expect(
-      selectFormat(makeContractionCtx("kairos"), FAKE_DB),
-    ).rejects.toThrow(/Kairos linear format missing/);
   });
 
   it("uses the compatibility-matrix ladder UNCHANGED for alfa (D-07)", async () => {
@@ -466,7 +445,7 @@ describe("INITIUM gate (D-05 size=2 + D-04 linear format)", () => {
   });
 });
 
-describe("runBlockPipeline forcedFormat gate (WR-02: kairos stays linear even when a non-linear format is forced)", () => {
+describe("runBlockPipeline forcedFormat: kairos honors forcedFormat like any level", () => {
   // A full SpomService stub covering stages 1-4 so runBlockPipeline reaches
   // the stage-5 forcedFormat decision. The shapes mirror what the real stages
   // consume (rotator → route → spom rule → intensity rule → contraction rule).
@@ -496,10 +475,10 @@ describe("runBlockPipeline forcedFormat gate (WR-02: kairos stays linear even wh
     };
   }
 
-  // A non-linear format that would violate D-04 if it leaked onto a kairos block.
+  // The format forced onto DEUTEROS_2 / via cross-level sharedFormats.
   const NON_LINEAR_FORCED = { formatId: 7, name: "AMRAP" };
 
-  it("ignores a non-linear forcedFormat for a kairos block and forces Singlet", async () => {
+  it("honors forcedFormat for a kairos block (no Singlet forcing)", async () => {
     const { runBlockPipeline } =
       await import("../../src/modules/sessions/pipeline");
     const ctx: BlockContext = {
@@ -519,14 +498,13 @@ describe("runBlockPipeline forcedFormat gate (WR-02: kairos stays linear even wh
       { forcedFormat: NON_LINEAR_FORCED },
     );
 
-    // The forced AMRAP must NOT win — the kairos linear gate runs instead.
-    expect(block.format.name).toBe("Singlet");
-    expect(queryFormatByNameMock).toHaveBeenCalledWith(FAKE_DB, "Singlet");
+    // Kairos honors the forced format like any other level — no Singlet forcing.
+    expect(block.format.name).toBe("AMRAP");
+    expect(queryFormatByNameMock).not.toHaveBeenCalled();
     expect(block.trace.some((t) => t.code === "KAIROS_FORMAT_FORCED")).toBe(
-      true,
+      false,
     );
-    // The non-kairos FORMAT_FORCED (forcedFormat) branch must NOT have fired.
-    expect(block.trace.some((t) => t.code === "FORMAT_FORCED")).toBe(false);
+    expect(block.trace.some((t) => t.code === "FORMAT_FORCED")).toBe(true);
   });
 
   it("still honors forcedFormat for a non-kairos block (D-07 — forcedFormat unchanged)", async () => {
