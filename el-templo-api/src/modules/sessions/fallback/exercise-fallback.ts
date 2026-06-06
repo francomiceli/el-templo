@@ -822,6 +822,136 @@ export async function selectExercisesWithFallback(
 }
 
 /**
+ * SPOM-rule categories use a coarse taxonomy ("SUP PULL", "SUP PUSH", "INF CADERA",
+ * "INF RODILLA") that does NOT exist in exercises.category (which uses "PULL
+ * HORIZONTAL", "PUSH VERTICAL", "HIP DOMINANT", ...). The generic ladder's Tier-1
+ * category match therefore never finds anything for those rules — non-kairos levels
+ * survive via the difficulty/level/route tiers, but the kairos TIGHT policy has no
+ * other escape, so a route with no alfa dl 1-2 content (e.g. FLR) failed the whole
+ * session (W16-lunes-kairos, 2026-06-06). This map translates the SPOM taxonomy to
+ * the real exercises taxonomy so the kairos rescue can stay within the same
+ * movement family.
+ */
+const SPOM_TO_EXERCISE_CATEGORIES: Record<string, readonly string[]> = {
+  "SUP PULL": ["PULL HORIZONTAL", "PULL VERTICAL"],
+  "SUP PUSH": ["PUSH HORIZONTAL", "PUSH VERTICAL"],
+  "INF CADERA": ["HIP DOMINANT"],
+  "INF RODILLA": ["KNEE DOMINANT", "LUNGE"],
+};
+
+/**
+ * Kairos rescue selector — last resort when the block route has no content at the
+ * kairos difficulty (dl 1-2, alfa). Two steps, BOTH at strict difficulty + level
+ * (dificultadLineal/level are never relaxed — that is the kairos invariant):
+ *
+ *  1. Same movement family: the SPOM category translated via
+ *     SPOM_TO_EXERCISE_CATEGORIES (emits CATEGORY_MATCHED → "se usaron ejercicios
+ *     de la misma categoria" warning).
+ *  2. Any route (emits ROUTE_DROPPED → "se usaron ejercicios de otras rutas").
+ *
+ * Picks the easiest candidates first (lowest dificultadLineal, then id) instead of
+ * the generic ladder's midpoint proximity.
+ */
+export async function selectKairosRescueExercises(
+  requirements: ExerciseRequirements,
+  db: MySql2Database<typeof schema>,
+): Promise<FallbackResult<ExerciseCandidate>> {
+  const {
+    route,
+    contraction,
+    minDificultadLineal,
+    maxDificultadLineal,
+    count,
+    memberLevel,
+    category,
+    excludeNames,
+  } = requirements;
+
+  const levels: readonly ContentLevel[] = [memberLevel];
+  const actions: FallbackAction[] = [];
+
+  /** Dedup by id — primary + secondary category can match the same exercise twice */
+  function dedupById(pool: ExerciseCandidate[]): ExerciseCandidate[] {
+    const seen = new Set<number>();
+    const unique: ExerciseCandidate[] = [];
+    for (const ex of pool) {
+      if (!seen.has(ex.id)) {
+        seen.add(ex.id);
+        unique.push(ex);
+      }
+    }
+    return unique;
+  }
+
+  /** Easiest first: lowest dificultadLineal, then id for determinism */
+  function pickEasiest(
+    pool: ExerciseCandidate[],
+    n: number,
+  ): ExerciseCandidate[] {
+    return [...pool]
+      .sort((a, b) => a.dificultadLineal - b.dificultadLineal || a.id - b.id)
+      .slice(0, n);
+  }
+
+  // Step 1: same movement family via the SPOM → exercises category translation
+  const mappedCategories = SPOM_TO_EXERCISE_CATEGORIES[category ?? ""] ?? [];
+  if (mappedCategories.length > 0) {
+    let pool: ExerciseCandidate[] = [];
+    for (const mappedCategory of mappedCategories) {
+      pool = pool.concat(
+        await queryExercisesByCategory(
+          db,
+          mappedCategory,
+          contraction,
+          minDificultadLineal,
+          maxDificultadLineal,
+          levels,
+          excludeNames,
+        ),
+      );
+    }
+
+    const uniquePool = dedupById(pool);
+    if (uniquePool.length >= count) {
+      actions.push({
+        type: "CATEGORY_MATCHED",
+        tier: 1,
+        category: mappedCategories.join("/"),
+        originalRoute: route,
+      });
+      return {
+        status: "fallback",
+        data: pickEasiest(uniquePool, count),
+        tier: 1,
+        actions,
+      };
+    }
+  }
+
+  // Step 2: any route at strict difficulty + level
+  const anyPool = await queryExercisesAnyRoute(
+    db,
+    contraction,
+    minDificultadLineal,
+    maxDificultadLineal,
+    levels,
+    excludeNames,
+  );
+
+  if (anyPool.length >= count) {
+    actions.push({ type: "ROUTE_DROPPED", tier: 6, originalRoute: route });
+    return {
+      status: "fallback",
+      data: pickEasiest(anyPool, count),
+      tier: 6,
+      actions,
+    };
+  }
+
+  return { status: "failed", data: [] as [], tier: 6, actions };
+}
+
+/**
  * Query cross-route exercises using SPOM pattern_2.
  *
  * Lookup strategy:

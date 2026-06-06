@@ -75,6 +75,10 @@ const selectExercisesWithFallbackMock =
       policy?: { maxTier: number; relaxationOrder: readonly string[] },
     ) => Promise<FallbackResult<ExerciseCandidate>>
   >();
+const selectKairosRescueExercisesMock =
+  vi.fn<
+    (req: SelectExercisesArgs) => Promise<FallbackResult<ExerciseCandidate>>
+  >();
 const queryCrossRouteExercisesMock =
   vi.fn<() => Promise<ExerciseCandidate[]>>();
 
@@ -85,6 +89,8 @@ vi.mock("../../src/modules/sessions/fallback/exercise-fallback", () => ({
     db?: unknown,
     policy?: { maxTier: number; relaxationOrder: readonly string[] },
   ) => selectExercisesWithFallbackMock(req, db, policy),
+  selectKairosRescueExercises: (req: SelectExercisesArgs) =>
+    selectKairosRescueExercisesMock(req),
   queryCrossRouteExercises: () => queryCrossRouteExercisesMock(),
 }));
 
@@ -341,6 +347,65 @@ describe("Stage-6 exercise gate (D-03: Alfa exercises at dificultadLineal=1)", (
     expect(pass2[0].maxDificultadLineal).toBe(2);
     expect(pass1[2]?.maxTier).toBe(1);
     expect(pass2[2]?.maxTier).toBe(1);
+    // dl=2 succeeded — the rescue selector must NOT run.
+    expect(selectKairosRescueExercisesMock).not.toHaveBeenCalled();
+  });
+
+  it("kairos calls the rescue selector (dl 1-2 strict) when both dl=1 and dl=2 fail", async () => {
+    const { selectExercises } =
+      await import("../../src/modules/sessions/pipeline/stage-6-exercises");
+    // Both tight passes fail (route has no alfa dl 1-2 content — the FLR case).
+    selectExercisesWithFallbackMock.mockResolvedValue({
+      status: "failed",
+      data: [],
+      tier: 1,
+      actions: [],
+    });
+    // The rescue finds a same-family candidate from another route.
+    selectKairosRescueExercisesMock.mockResolvedValue({
+      status: "fallback",
+      data: [
+        {
+          id: 9,
+          name: "Row Inclined",
+          dificultadLineal: 1,
+          contraction: "CON",
+          position: null,
+        },
+      ],
+      tier: 1,
+      actions: [
+        {
+          type: "CATEGORY_MATCHED",
+          tier: 1,
+          category: "PULL HORIZONTAL/PULL VERTICAL",
+          originalRoute: "FLR",
+        },
+      ],
+    });
+    const ctx = {
+      ...makeContractionCtx("kairos"),
+      format: { formatId: 42, name: "Singlet" },
+    };
+    const result = await selectExercises(ctx, FAKE_DB);
+
+    // The rescue runs once per failing contraction, at dl 1-2 strict.
+    expect(selectKairosRescueExercisesMock).toHaveBeenCalledTimes(1);
+    const rescueReq = selectKairosRescueExercisesMock.mock.calls[0][0];
+    expect(rescueReq.minDificultadLineal).toBe(1);
+    expect(rescueReq.maxDificultadLineal).toBe(2);
+    expect(rescueReq.allowedLevels).toEqual(["alfa"]);
+    // The block no longer fails: the rescued exercise is selected and the
+    // fallback action is traced (it surfaces as a generate warning upstream).
+    expect(result.exercises.map((e) => e.name)).toContain("Row Inclined");
+    expect(
+      result.trace.some(
+        (t) =>
+          t.code === "EXERCISE_FALLBACK" &&
+          (t.decision as Record<string, unknown>)?.action ===
+            "CATEGORY_MATCHED",
+      ),
+    ).toBe(true);
   });
 
   it("uses getAllowedLevels + the linear difficulty target UNCHANGED for alfa (D-07)", async () => {
@@ -361,8 +426,10 @@ describe("Stage-6 exercise gate (D-03: Alfa exercises at dificultadLineal=1)", (
     expect(result.trace.some((t) => t.code === "KAIROS_INHERIT_ALFA")).toBe(
       false,
     );
-    // D-07: non-kairos passes NO tight policy override (uses the default ladder).
+    // D-07: non-kairos passes NO tight policy override (uses the default ladder)
+    // and never reaches the kairos rescue selector.
     expect(selectExercisesWithFallbackMock.mock.calls[0][2]).toBeUndefined();
+    expect(selectKairosRescueExercisesMock).not.toHaveBeenCalled();
   });
 });
 

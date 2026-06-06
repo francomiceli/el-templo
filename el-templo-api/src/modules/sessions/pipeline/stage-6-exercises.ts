@@ -19,6 +19,7 @@ import type { Contraction, SelectedExercise } from "../types";
 import { createTraceEvent, appendTrace } from "./context";
 import {
   selectExercisesWithFallback,
+  selectKairosRescueExercises,
   queryCrossRouteExercises,
   type ExerciseCandidate,
 } from "../fallback/exercise-fallback";
@@ -351,6 +352,21 @@ export async function selectExercises(
           },
           db,
           KAIROS_TIGHT_POLICY,
+        );
+      }
+      // Rescue: la ruta no tiene contenido alfa dl 1-2 (caso FLR) y la categoría
+      // SPOM literal nunca matchea exercises.category. Busca en la misma familia
+      // de movimiento (categorías SPOM traducidas) y por último en cualquier ruta,
+      // SIEMPRE a dl 1-2 + alfa estricto. Sus actions (CATEGORY_MATCHED /
+      // ROUTE_DROPPED) salen como warnings del generate vía los traces de abajo.
+      if (result.status === "failed") {
+        result = await selectKairosRescueExercises(
+          {
+            ...baseRequirements,
+            minDificultadLineal: 1,
+            maxDificultadLineal: 2,
+          },
+          db,
         );
       }
     } else {
