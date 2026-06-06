@@ -8,7 +8,13 @@
  */
 
 import pdfMake from 'pdfmake/build/pdfmake';
-import { TDocumentDefinitions, Content, ContentStack, ContextPageSize } from 'pdfmake/interfaces';
+import {
+  TDocumentDefinitions,
+  Content,
+  ContentStack,
+  ContextPageSize,
+  Column,
+} from 'pdfmake/interfaces';
 import {
   CINZEL_REGULAR_BASE64,
   CINZEL_BOLD_BASE64,
@@ -41,7 +47,37 @@ const LEVEL_SYMBOLS: Record<string, string> = {
   omega: 'Ω',
 };
 
-const LEVEL_ORDER = ['alfa', 'delta', 'sigma', 'omega'];
+const LEVEL_ORDER = ['kairos', 'alfa', 'delta', 'sigma'];
+
+/**
+ * Kairos glyph (☉) drawn as a VECTOR — Roboto (the PDF font) lacks U+2609, so the
+ * character would render as tofu. We draw a gold ring + centre dot (sol/ciclo) and
+ * return it as a `columns` item so it sits inline beside the text glyphs (α/Δ/Σ).
+ * `diameter` ≈ the cap-height of the adjacent text glyph; `topMargin` drops the ring
+ * onto the text baseline. NOTE: the vertical offset is eyeballed against the
+ * generated PDF — tune `topMargin` per call-site in UAT if it sits high/low.
+ */
+function kairosGlyphColumn(diameter: number, topMargin: number): Column {
+  const r = diameter / 2;
+  const ring = Math.max(5, Math.round(diameter * 0.1));
+  const dot = Math.max(5, Math.round(diameter * 0.16));
+  return {
+    width: diameter,
+    margin: [0, topMargin, 0, 0],
+    canvas: [
+      {
+        type: 'ellipse' as const,
+        x: r,
+        y: r,
+        r1: r - ring / 2,
+        r2: r - ring / 2,
+        lineColor: GOLD,
+        lineWidth: ring,
+      },
+      { type: 'ellipse' as const, x: r, y: r, r1: dot, r2: dot, color: GOLD },
+    ],
+  };
+}
 
 // Contraction abbreviations (matching example format: "CON.", "EXC.", "ISO.")
 const CONTRACTION_ABBR: Record<string, string> = {
@@ -339,20 +375,22 @@ function buildInitiumPage(block: PdfBlockPage): Content[] {
       font: 'NunitoSans',
     },
     { text: '', margin: [0, 112, 0, 0] },
-    // NIVEL α Δ Σ Ω — bolder
+    // NIVEL ☉ α Δ Σ — kairos (☉ vector) primero, luego alfa/delta/sigma. El ☉ se
+    // dibuja vectorial (Roboto no lo tiene), así que esto es un columns en vez de text.
     {
-      text: [
-        { text: 'NIVEL  ', fontSize: 100, color: GOLD, bold: true, font: 'NunitoSans' },
+      columns: [
         {
-          text: 'α ',
-          fontSize: 110,
+          width: 'auto',
+          text: 'NIVEL  ',
+          fontSize: 100,
           color: GOLD,
           bold: true,
-          font: 'Roboto',
-          characterSpacing: 10,
+          font: 'NunitoSans',
         },
+        kairosGlyphColumn(80, 26),
         {
-          text: ' Δ Σ Ω',
+          width: 'auto',
+          text: '  α Δ Σ',
           fontSize: 80,
           color: GOLD,
           bold: true,
@@ -360,6 +398,7 @@ function buildInitiumPage(block: PdfBlockPage): Content[] {
           font: 'Roboto',
         },
       ],
+      columnGap: 8,
       margin: [260, 0, 0, 0],
     },
     { text: '', margin: [0, 80, 0, 0] },
@@ -438,28 +477,54 @@ function buildLevelBox(lb: PdfLevelBlock, targetBoxHeight?: number): ContentStac
 
   return {
     stack: [
-      // Level header: "NIVEL α | Route Intensity%"
-      {
-        text: [
-          {
-            text: 'NIVEL ',
-            fontSize: 94,
-            bold: true,
-            color: GOLD,
-            font: 'NunitoSans',
-            characterSpacing: 4,
+      // Level header: "NIVEL α | Route Intensity%". Kairos draws its ☉ glyph as a
+      // vector (Roboto lacks it), so its header is a columns row instead of a text run.
+      lb.level === 'kairos'
+        ? {
+            columns: [
+              {
+                width: 'auto',
+                text: 'NIVEL ',
+                fontSize: 94,
+                bold: true,
+                color: GOLD,
+                font: 'NunitoSans',
+                characterSpacing: 4,
+              },
+              kairosGlyphColumn(60, 22),
+              {
+                width: 'auto',
+                text: `  |  ${routeName} ${lb.intensity}%`,
+                fontSize: 84,
+                bold: true,
+                color: GOLD,
+                font: 'NunitoSans',
+              },
+            ],
+            columnGap: 8,
+            margin: [0, 0, 0, 16],
+          }
+        : {
+            text: [
+              {
+                text: 'NIVEL ',
+                fontSize: 94,
+                bold: true,
+                color: GOLD,
+                font: 'NunitoSans',
+                characterSpacing: 4,
+              },
+              { text: `${symbol}`, fontSize: symbolSize, color: GOLD, bold: true, font: 'Roboto' },
+              {
+                text: `  |  ${routeName} ${lb.intensity}%`,
+                fontSize: 84,
+                bold: true,
+                color: GOLD,
+                font: 'NunitoSans',
+              },
+            ],
+            margin: [0, 0, 0, 16],
           },
-          { text: `${symbol}`, fontSize: symbolSize, color: GOLD, bold: true, font: 'Roboto' },
-          {
-            text: `  |  ${routeName} ${lb.intensity}%`,
-            fontSize: 84,
-            bold: true,
-            color: GOLD,
-            font: 'NunitoSans',
-          },
-        ],
-        margin: [0, 0, 0, 16],
-      },
       // Exercise box with rounded border via canvas
       {
         canvas: [
@@ -494,8 +559,8 @@ function buildLevelBox(lb: PdfLevelBlock, targetBoxHeight?: number): ContentStac
  */
 function buildBlockPageWithGrid(block: PdfBlockPage, isHalf = false): Content[] {
   const levelBlocks = block.levelBlocks || [];
-  const topRow = levelBlocks.filter((lb) => lb.level === 'alfa' || lb.level === 'delta');
-  const bottomRow = levelBlocks.filter((lb) => lb.level === 'sigma' || lb.level === 'omega');
+  const topRow = levelBlocks.filter((lb) => lb.level === 'kairos' || lb.level === 'alfa');
+  const bottomRow = levelBlocks.filter((lb) => lb.level === 'delta' || lb.level === 'sigma');
 
   // Sort within rows
   const sortByLevel = (a: PdfLevelBlock, b: PdfLevelBlock) =>
@@ -564,7 +629,7 @@ function buildBlockPageWithGrid(block: PdfBlockPage, isHalf = false): Content[] 
 
   content.push({ text: '', margin: [0, isHalf ? 24 : 56, 0, 0] });
 
-  // Top row: α and Δ
+  // Top row: ☉ kairos and α alfa
   if (topRow.length > 0) {
     content.push({
       columns: topRow.map((lb) => ({
@@ -578,7 +643,7 @@ function buildBlockPageWithGrid(block: PdfBlockPage, isHalf = false): Content[] 
 
   content.push({ text: '', margin: [0, isHalf ? 24 : 48, 0, 0] });
 
-  // Bottom row: Σ and Ω
+  // Bottom row: Δ delta and Σ sigma
   if (bottomRow.length > 0) {
     content.push({
       columns: bottomRow.map((lb) => ({
@@ -645,20 +710,36 @@ function buildDeuterosLevelCol(lb: PdfLevelBlock, exFontSize: number): ContentSt
 
   return {
     stack: [
-      // Level header: "α | Route Intensity%"
-      {
-        text: [
-          { text: `${symbol}`, fontSize: symbolSize, color: GOLD, bold: true, font: 'Roboto' },
-          {
-            text: `  |  ${routeDisplay} ${lb.intensity}%`,
-            fontSize: routeFontSize,
-            bold: true,
-            color: GOLD,
-            font: 'NunitoSans',
+      // Level header: "α | Route Intensity%". Kairos draws its ☉ glyph as a vector.
+      lb.level === 'kairos'
+        ? {
+            columns: [
+              kairosGlyphColumn(Math.round(symbolSize * 0.7), Math.round(symbolSize * 0.18)),
+              {
+                width: 'auto',
+                text: `  |  ${routeDisplay} ${lb.intensity}%`,
+                fontSize: routeFontSize,
+                bold: true,
+                color: GOLD,
+                font: 'NunitoSans',
+              },
+            ],
+            columnGap: 6,
+            margin: [0, 0, 0, Math.round(exFontSize * 0.5)],
+          }
+        : {
+            text: [
+              { text: `${symbol}`, fontSize: symbolSize, color: GOLD, bold: true, font: 'Roboto' },
+              {
+                text: `  |  ${routeDisplay} ${lb.intensity}%`,
+                fontSize: routeFontSize,
+                bold: true,
+                color: GOLD,
+                font: 'NunitoSans',
+              },
+            ],
+            margin: [0, 0, 0, Math.round(exFontSize * 0.5)],
           },
-        ],
-        margin: [0, 0, 0, Math.round(exFontSize * 0.5)],
-      },
       ...exercises,
     ],
   };

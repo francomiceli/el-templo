@@ -12,7 +12,7 @@ const DAY_LABELS: Record<string, string> = {
   sabado: 'SÁBADO',
 };
 
-const LEVEL_ORDER = ['alfa', 'delta', 'sigma', 'omega'];
+const LEVEL_ORDER = ['kairos', 'alfa', 'delta', 'sigma'];
 
 /**
  * Build a display string for format + params.
@@ -312,7 +312,7 @@ const ROM_ZONE_LABELS: Record<string, string> = {
  * Transform multiple sessions (one per level) into a single PdfDaySession
  * with multi-level grids for each block.
  *
- * @param sessions - All sessions for one day (alfa, delta, sigma, omega)
+ * @param sessions - All sessions for one day (kairos, alfa, delta, sigma)
  */
 export function sessionsToPdfDay(sessions: SessionDetail[]): PdfDaySession {
   const first = sessions[0];
