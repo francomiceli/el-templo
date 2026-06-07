@@ -12,7 +12,10 @@
  *   2. effort IN ('CON','EXC','ISO')   — real contraction axes only (D-04)
  *   3. habilidad IS NULL               — Habilidad variants are parallel,
  *                                        off-backbone
- *   4. routes.excluded_from_tree = 0   — movilidad/games never enter the tree
+ *   4. milestone_exercise_id IS NULL   — hitos (or unclassified) only; a
+ *                                        VARIANTE hangs off its milestone and
+ *                                        leaves the backbone (R1-FILTER, 133)
+ *   5. routes.excluded_from_tree = 0   — movilidad/games never enter the tree
  *
  * MANUAL MIRROR: the raw-SQL reads in `rebuild-progression-graph.ts`
  * (readBackboneNodes + readManualEdgePartitions) must stay mirrored with this
@@ -43,6 +46,7 @@ export function backboneNodeConditions(): SQL[] {
     isNull(schema.exercises.canonicalExerciseId),
     inArray(schema.exercises.effort, [...VALID_EFFORTS]),
     isNull(schema.exercises.habilidad),
+    isNull(schema.exercises.milestoneExerciseId),
     eq(schema.routes.excludedFromTree, false),
   ];
 }

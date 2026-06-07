@@ -23,7 +23,12 @@
  *   canonical_exercise_id IS NULL  (canonical only)
  *   AND effort IN ('CON','EXC','ISO')
  *   AND habilidad IS NULL          (Habilidad variants are parallel, off-backbone)
+ *   AND milestone_exercise_id IS NULL  (variantes cuelgan de su hito, fuera del
+ *                                       backbone — R1-FILTER, phase 133)
  *   AND routes.excluded_from_tree = false  (movilidad/games fuera del árbol)
+ * This is the manual mirror of `backboneNodeConditions()` in
+ * src/modules/exercises/backbone-scope.ts — keep both in sync (there is a
+ * node-set consistency test guarding the mirror).
  *
  * console.log is acceptable here: standalone one-off CLI maintenance tool, NOT the
  * API server.
@@ -152,6 +157,7 @@ export async function readBackboneNodes<
         WHERE e.canonical_exercise_id IS NULL
           AND e.effort IN ('CON', 'EXC', 'ISO')
           AND e.habilidad IS NULL
+          AND e.milestone_exercise_id IS NULL
           AND r.excluded_from_tree = 0`,
   );
   return readExerciseNodes(exerciseRows);
@@ -162,9 +168,12 @@ export async function readBackboneNodes<
  *
  * A partition is locked when a `source='manual'` edge has BOTH endpoints in the
  * same `(route × effort)` partition — a same-partition chain rewrite (D-03). Both
- * endpoints must be backbone nodes (canonical, valid effort, habilidad IS NULL),
- * matching the node READ above. Cross-partition manual precedence edges (D-04) are
- * excluded by the same-route/same-effort predicate, so they never lock a backbone.
+ * endpoints must be backbone nodes (canonical, valid effort, habilidad IS NULL,
+ * milestone_exercise_id IS NULL), matching the node READ above — a manual mirror
+ * of `backboneNodeConditions()` in src/modules/exercises/backbone-scope.ts; keep
+ * both in sync (node-set consistency test guards the mirror). Cross-partition
+ * manual precedence edges (D-04) are excluded by the same-route/same-effort
+ * predicate, so they never lock a backbone.
  */
 async function readManualEdgePartitions<
   TSchema extends Record<string, unknown>,
@@ -179,6 +188,8 @@ async function readManualEdgePartitions<
           AND et.canonical_exercise_id IS NULL
           AND ef.habilidad IS NULL
           AND et.habilidad IS NULL
+          AND ef.milestone_exercise_id IS NULL
+          AND et.milestone_exercise_id IS NULL
           AND ef.route = et.route
           AND ef.effort = et.effort
           AND ef.effort IN ('CON', 'EXC', 'ISO')`,
