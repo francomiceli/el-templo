@@ -33,6 +33,7 @@ import ExerciseFlowNode from 'components/treemap/ExerciseFlowNode.vue';
 import type { ExerciseNodeData } from 'components/treemap/ExerciseFlowNode.vue';
 import CategoryFlowNode from 'components/treemap/CategoryFlowNode.vue';
 import type { CategoryNodeData } from 'components/treemap/CategoryFlowNode.vue';
+import { DL_BANDS, bandTextClass, type DlBand } from 'src/constants/levels';
 
 type FlowNodeData = RouteNodeData | ExerciseNodeData | CategoryNodeData;
 type FlowNode = Node<FlowNodeData>;
@@ -639,6 +640,15 @@ function minimapColor(node: Node): string {
   return 'transparent';
 }
 
+// ── Leyenda de bandas de dificultad (R2-BANDS) ────────────────────────────────
+
+/** Label compacto de la leyenda: `kairos 1–2`, `alfa 3`, `delta 4–6`, … */
+function bandLegendLabel(band: DlBand): string {
+  return band.min === band.max
+    ? `${band.level} ${band.min}`
+    : `${band.level} ${band.min}–${band.max}`;
+}
+
 // ── Page sizing ───────────────────────────────────────────────────────────────
 
 /**
@@ -725,6 +735,30 @@ onUnmounted(() => {
       </q-select>
 
       <q-space />
+
+      <!-- Leyenda de bandas de dificultad (R2-BANDS) — colapsa a botón palette en viewport angosto -->
+      <div v-if="$q.screen.width >= 1100" class="row items-center q-gutter-xs">
+        <q-badge
+          v-for="legendBand in DL_BANDS"
+          :key="legendBand.level"
+          :color="legendBand.color"
+          :class="bandTextClass(legendBand)"
+          :label="bandLegendLabel(legendBand)"
+        />
+      </div>
+      <q-btn v-else flat dense round icon="palette" aria-label="Leyenda de bandas de dificultad">
+        <q-menu>
+          <div class="column q-pa-sm q-gutter-xs">
+            <q-badge
+              v-for="legendBand in DL_BANDS"
+              :key="legendBand.level"
+              :color="legendBand.color"
+              :class="bandTextClass(legendBand)"
+              :label="bandLegendLabel(legendBand)"
+            />
+          </div>
+        </q-menu>
+      </q-btn>
 
       <div class="row items-center q-gutter-xs text-caption text-grey-7">
         <q-badge color="grey-6" label="Auto" />

@@ -1,6 +1,10 @@
 <script setup lang="ts">
+import { computed } from 'vue';
+import { colors } from 'quasar';
 import { Handle, Position } from '@vue-flow/core';
 import type { Effort, OrderSource } from 'src/types/tree-editor';
+// R2-BANDS: la banda se resuelve contra DL_BANDS (mapeo locked) vía dlBand().
+import { dlBand, bandTextClass } from 'src/constants/levels';
 
 /** Data payload of an exercise (chain step) node in the tree map canvas. */
 export interface ExerciseNodeData {
@@ -16,7 +20,26 @@ export interface ExerciseNodeData {
   stepIndex: number;
 }
 
-defineProps<{ data: ExerciseNodeData; selected?: boolean }>();
+const props = defineProps<{ data: ExerciseNodeData; selected?: boolean }>();
+
+// ── Banda de dificultad (R2-BANDS) ───────────────────────────────────────────
+
+const band = computed(() => dlBand(props.data.dl));
+
+/** Stripe de 4px del color de la banda; convive con --manual/--selected (solo lado izquierdo). */
+const stripeStyle = computed(() =>
+  band.value ? { borderLeft: `4px solid ${colors.getPaletteColor(band.value.color)}` } : {}
+);
+
+const badgeColor = computed(() => band.value?.color ?? 'grey-6');
+const badgeTextClass = computed(() => (band.value ? bandTextClass(band.value) : 'text-white'));
+
+/** Tooltip `{banda} (dl {min}–{max})` — rango colapsado cuando min === max (ej. `alfa (dl 3)`). */
+const bandTooltip = computed(() => {
+  if (!band.value) return null;
+  const { level, min, max } = band.value;
+  return min === max ? `${level} (dl ${min})` : `${level} (dl ${min}–${max})`;
+});
 </script>
 
 <template>
@@ -26,6 +49,7 @@ defineProps<{ data: ExerciseNodeData; selected?: boolean }>();
       'exercise-flow-node--selected': selected,
       'exercise-flow-node--manual': data.orderSource === 'manual',
     }"
+    :style="stripeStyle"
   >
     <!-- Top/bottom handles: chain edges land here (vertical layout); dragging from
          one node to another creates a manual precedence (page's onConnect). -->
@@ -34,7 +58,9 @@ defineProps<{ data: ExerciseNodeData; selected?: boolean }>();
     <div class="exercise-flow-node__body">
       <div class="exercise-flow-node__name">{{ data.name }}</div>
       <div class="exercise-flow-node__meta">
-        <span>dl {{ data.dl ?? '—' }}</span>
+        <q-badge :color="badgeColor" :class="badgeTextClass" :label="`dl ${data.dl ?? '—'}`">
+          <q-tooltip v-if="bandTooltip">{{ bandTooltip }}</q-tooltip>
+        </q-badge>
         <q-badge
           v-if="data.orderSource === 'manual'"
           color="primary"
