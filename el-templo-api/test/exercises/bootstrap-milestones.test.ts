@@ -35,6 +35,7 @@ import { eq, inArray } from "drizzle-orm";
 import { createTestApp } from "../helpers";
 import * as schema from "../../src/db/schema";
 import { runBootstrapMilestones } from "../../bootstrap-milestones";
+import { runBootstrapElitePrereqs } from "../../bootstrap-elite-prereqs";
 
 describe("bootstrap CLIs fase 133 (hitos R1 + prereqs de élite R4)", () => {
   let app: FastifyInstance;
@@ -291,6 +292,107 @@ describe("bootstrap CLIs fase 133 (hitos R1 + prereqs de élite R4)", () => {
       const byId = new Map(proposals.map((p) => [p.exerciseId, p]));
       expect(byId.get(acceptedId)?.stepRank).toBe(2);
       expect(byId.get(pendingId)?.stepRank).toBeNull();
+    });
+  });
+
+  describe("bootstrap-elite-prereqs (aristas manual cross-ruta R4)", () => {
+    /** Edges whose FROM endpoint is one of this test's seeded exercises. */
+    async function getSeededEdges(): Promise<
+      { from: number; to: number; source: string }[]
+    > {
+      if (seededIds.length === 0) return [];
+      const rows = await app.db
+        .select({
+          from: schema.exerciseProgressions.fromExerciseId,
+          to: schema.exerciseProgressions.toExerciseId,
+          source: schema.exerciseProgressions.source,
+        })
+        .from(schema.exerciseProgressions)
+        .where(inArray(schema.exerciseProgressions.fromExerciseId, seededIds));
+      return rows.map((r) => ({
+        from: r.from,
+        to: r.to,
+        source: r.source as string,
+      }));
+    }
+
+    it("F — seeds exactly one manual edge FL(max dl < piso) → FLR(primer dl); missing PLPU/PL pair skips without throwing", async () => {
+      const flIds: number[] = [];
+      for (let dl = 1; dl <= 6; dl++) {
+        flIds.push(
+          await seedExercise({ name: `FL CON dl${dl}`, route: "FL", dl }),
+        );
+      }
+      const flrIds: number[] = [];
+      for (let dl = 5; dl <= 8; dl++) {
+        flrIds.push(
+          await seedExercise({ name: `FLR CON dl${dl}`, route: "FLR", dl }),
+        );
+      }
+
+      const result = await runBootstrapElitePrereqs(app.db);
+
+      // FLR pair inserted; PLPU pair skipped (routes absent in the test DB).
+      expect(result.inserted).toBe(1);
+      expect(result.skipped).toBeGreaterThanOrEqual(1);
+
+      const edges = await getSeededEdges();
+      expect(edges).toHaveLength(1);
+      // target = first FLR by (dl ASC, id ASC) = dl 5; source = FL with the
+      // greatest dl strictly below 5 = dl 4 (flIds[3]).
+      expect(edges[0]).toEqual({
+        from: flIds[3],
+        to: flrIds[0],
+        source: "manual",
+      });
+    });
+
+    it("G — is idempotent: a second run inserts 0 and leaves the single edge", async () => {
+      for (let dl = 1; dl <= 6; dl++) {
+        await seedExercise({ name: `FL CON dl${dl}`, route: "FL", dl });
+      }
+      for (let dl = 5; dl <= 8; dl++) {
+        await seedExercise({ name: `FLR CON dl${dl}`, route: "FLR", dl });
+      }
+
+      const first = await runBootstrapElitePrereqs(app.db);
+      const second = await runBootstrapElitePrereqs(app.db);
+
+      expect(first.inserted).toBe(1);
+      expect(second.inserted).toBe(0);
+      const edges = await getSeededEdges();
+      expect(edges).toHaveLength(1);
+    });
+
+    it("H — a pre-existing manual edge into the elite route skips the pair and is never deleted/updated", async () => {
+      const flLow = await seedExercise({
+        name: "FL CON dl1",
+        route: "FL",
+        dl: 1,
+      });
+      await seedExercise({ name: "FL CON dl4", route: "FL", dl: 4 });
+      const flrFirst = await seedExercise({
+        name: "FLR CON dl5",
+        route: "FLR",
+        dl: 5,
+      });
+      // Profe-authored manual cross-route edge (different from the rule's pick).
+      await app.db.insert(schema.exerciseProgressions).values({
+        fromExerciseId: flLow,
+        toExerciseId: flrFirst,
+        source: "manual",
+      });
+
+      const result = await runBootstrapElitePrereqs(app.db);
+
+      expect(result.inserted).toBe(0);
+      const edges = await getSeededEdges();
+      expect(edges).toHaveLength(1);
+      expect(edges[0]).toEqual({
+        from: flLow,
+        to: flrFirst,
+        source: "manual",
+      });
     });
   });
 });
