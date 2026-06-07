@@ -31,6 +31,7 @@ import type {
   AcceptMilestoneBody,
   MilestoneVariant,
 } from 'src/types/tree-editor';
+import { subGroupDisplayName } from 'src/types/tree-editor';
 import type { Proposal, RouteProgressionMap, AcceptOverrides } from 'src/types/proposal';
 import RouteFlowNode from 'components/treemap/RouteFlowNode.vue';
 import type { RouteNodeData } from 'components/treemap/RouteFlowNode.vue';
@@ -38,6 +39,8 @@ import ExerciseFlowNode from 'components/treemap/ExerciseFlowNode.vue';
 import type { ExerciseNodeData } from 'components/treemap/ExerciseFlowNode.vue';
 import CategoryFlowNode from 'components/treemap/CategoryFlowNode.vue';
 import type { CategoryNodeData } from 'components/treemap/CategoryFlowNode.vue';
+import SubgroupFlowNode from 'components/treemap/SubgroupFlowNode.vue';
+import type { SubgroupNodeData } from 'components/treemap/SubgroupFlowNode.vue';
 import MilestoneReviewList from 'components/treemap/MilestoneReviewList.vue';
 import type {
   EditableMilestoneRow,
@@ -46,7 +49,7 @@ import type {
 } from 'components/treemap/MilestoneReviewList.vue';
 import { DL_BANDS, dlBand, bandTextClass, type DlBand } from 'src/constants/levels';
 
-type FlowNodeData = RouteNodeData | ExerciseNodeData | CategoryNodeData;
+type FlowNodeData = RouteNodeData | ExerciseNodeData | CategoryNodeData | SubgroupNodeData;
 type FlowNode = Node<FlowNodeData>;
 
 const EFFORTS: Effort[] = ['CON', 'EXC', 'ISO'];
@@ -65,6 +68,7 @@ const LAYOUT = {
   chainIndent: 20, // x offset of the chain relative to its route node (centers 200 under 240)
   chainTopGap: 14, // gap between the route node and the first chain step
   stepY: 86, // vertical distance between chain steps
+  subgroupGap: 26, // y offset of the sub-grupo label above its first route node (R3)
 } as const;
 
 const AUTO_COLOR = '#9e9e9e';
@@ -88,6 +92,38 @@ const reassignTarget = ref<{ label: string; value: string } | null>(null);
 
 // Search state
 const searchFilter = ref('');
+
+// ── Sub-grupo filter (R3 — visual grouper + filter, NOT a navigation axis) ───
+/** UPPERCASE DB value of the selected sub-grupo, or null = show everything. */
+const subGroupFilter = ref<string | null>(null);
+
+/** Filter options derived from the payload (display name label, UPPERCASE value). */
+const subGroupOptions = computed<{ label: string; value: string }[]>(() => {
+  const t = tree.value;
+  if (!t) return [];
+  const present = new Set<string>();
+  for (const cat of t.categories) {
+    for (const rt of cat.routes) {
+      if (rt.subGroup !== '') present.add(rt.subGroup);
+    }
+  }
+  return [...present]
+    .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
+    .map((sg) => ({ label: subGroupDisplayName(sg), value: sg }));
+});
+
+/** Active filter matches no route at all → canvas empty state (LOCKED copy). */
+const subGroupFilterEmpty = computed<boolean>(() => {
+  const t = tree.value;
+  const filter = subGroupFilter.value;
+  if (!t || !filter) return false;
+  return !t.categories.some((c) => c.routes.some((r) => r.subGroup === filter));
+});
+
+function onSubGroupFilterChange(): void {
+  selectedExercise.value = null;
+  rebuildGraph();
+}
 
 // ── Proposal review state (Revisión de dimensiones absorbed into the map) ─────
 const proposals = ref<Proposal[]>([]);
@@ -175,6 +211,15 @@ function rebuildGraph(): void {
 
   let bandY = 0;
   for (const cat of t.categories) {
+    // R3: filter by sub-grupo (hide routes of other sub-grupos), then order the
+    // band's columns by sub-grupo (alphabetical, code-point — UPPERCASE ASCII).
+    // Array.prototype.sort is stable: routes keep their payload order inside a group.
+    const bandRoutes = cat.routes
+      .filter((rt) => !subGroupFilter.value || rt.subGroup === subGroupFilter.value)
+      .slice()
+      .sort((a, b) => (a.subGroup < b.subGroup ? -1 : a.subGroup > b.subGroup ? 1 : 0));
+    if (bandRoutes.length === 0) continue; // band fully filtered out — skip its header too
+
     ns.push({
       id: `cat-${cat.key}`,
       type: 'category',
@@ -187,14 +232,29 @@ function rebuildGraph(): void {
 
     // The band must clear its longest expanded chain before the next one starts.
     let maxChainLen = 0;
+    let prevSubGroup: string | null = null;
 
-    cat.routes.forEach((rt, routeIndex) => {
+    bandRoutes.forEach((rt, routeIndex) => {
       const part = rt.partitions.find((p) => p.effort === selectedEffort.value);
       const chain = part?.nodes ?? [];
       const isExpanded = expandedRoutes.value.has(rt.route) && chain.length > 0;
       if (isExpanded) maxChainLen = Math.max(maxChainLen, chain.length);
       const routeX = routeIndex * LAYOUT.routeColW;
       const routeY = bandY + LAYOUT.catH;
+
+      // R3: sub-grupo label above the FIRST column of each group (visual grouper).
+      if (rt.subGroup !== '' && rt.subGroup !== prevSubGroup) {
+        ns.push({
+          id: `subgroup-${cat.key}-${rt.subGroup}`,
+          type: 'subgroup',
+          position: { x: routeX, y: routeY - LAYOUT.subgroupGap },
+          data: { label: subGroupDisplayName(rt.subGroup) },
+          draggable: false,
+          selectable: false,
+          focusable: false,
+        });
+      }
+      prevSubGroup = rt.subGroup;
 
       ns.push({
         id: `route-${rt.route}`,
@@ -918,6 +978,9 @@ const allSearchOptions = computed<SearchOption[]>(() => {
   const opts: SearchOption[] = [];
   for (const cat of t.categories) {
     for (const rt of cat.routes) {
+      // Routes hidden by the sub-grupo filter are not searchable (their nodes
+      // are off the canvas — selecting them could not expand/center anything).
+      if (subGroupFilter.value && rt.subGroup !== subGroupFilter.value) continue;
       const part = rt.partitions.find((p) => p.effort === selectedEffort.value);
       for (const ex of part?.nodes ?? []) {
         opts.push({ label: `${ex.name} · ${rt.route}`, value: ex.exerciseId, route: rt.route });
@@ -1055,6 +1118,21 @@ onUnmounted(() => {
         </template>
       </q-select>
 
+      <!-- Filtro de sub-grupo (R3 — agrupador visual + filtro, no navegación) -->
+      <q-select
+        v-model="subGroupFilter"
+        :options="subGroupOptions"
+        label="Sub-grupo"
+        dense
+        outlined
+        clearable
+        emit-value
+        map-options
+        options-dense
+        class="tree-map-toolbar__subgroup"
+        @update:model-value="onSubGroupFilterChange"
+      />
+
       <q-space />
 
       <!-- Leyenda de bandas de dificultad (R2-BANDS) — colapsa a botón palette en viewport angosto -->
@@ -1124,6 +1202,9 @@ onUnmounted(() => {
         <template #node-category="props">
           <CategoryFlowNode :data="props.data" />
         </template>
+        <template #node-subgroup="props">
+          <SubgroupFlowNode :data="props.data" />
+        </template>
         <template #node-route="props">
           <RouteFlowNode :data="props.data" @review="openReview(props.data.code)" />
         </template>
@@ -1131,6 +1212,11 @@ onUnmounted(() => {
           <ExerciseFlowNode :data="props.data" :selected="props.selected" />
         </template>
       </VueFlow>
+
+      <!-- Empty state del filtro de sub-grupo (copy LOCKED) -->
+      <div v-if="subGroupFilterEmpty" class="tree-map-canvas__empty text-caption text-grey-6">
+        No hay rutas en este sub-grupo.
+      </div>
 
       <!-- Review drawer: pending dimension proposals of one route -->
       <q-card v-if="reviewRoute" class="tree-map-review" flat bordered>
@@ -1406,11 +1492,24 @@ onUnmounted(() => {
   &__search {
     width: 260px;
   }
+
+  &__subgroup {
+    width: 180px;
+  }
 }
 
 .tree-map-canvas {
   // Height is set inline at runtime (recomputeCanvasHeight).
   position: relative;
+
+  &__empty {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 5;
+    pointer-events: none;
+  }
 }
 
 .tree-map-panel {

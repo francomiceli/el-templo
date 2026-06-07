@@ -33,7 +33,37 @@ export interface TreeRoute {
   name: string;
   /** routes.code — also the partition dimension. */
   route: string;
+  /**
+   * Dominant fine-category of the route's backbone nodes (R3 sub-grupo).
+   * UPPERCASE DB value, '' when the route has no votes — mirror of Plan 04's
+   * required field in GET /admin/tree-editor/tree.
+   */
+  subGroup: string;
   partitions: TreePartition[];
+}
+
+/**
+ * Sub-grupo display names (UI-SPEC C3 — LOCKED es-AR title case list).
+ * Keys are the UPPERCASE DB values of exercises.category.
+ */
+export const SUB_GROUP_DISPLAY_NAMES: Record<string, string> = {
+  'PULL VERTICAL': 'Pull Vertical',
+  'PULL HORIZONTAL': 'Pull Horizontal',
+  'PUSH VERTICAL': 'Push Vertical',
+  'PUSH HORIZONTAL': 'Push Horizontal',
+  'KNEE DOMINANT': 'Knee Dominant',
+  'HIP DOMINANT': 'Hip Dominant',
+  'CORE ANTERIOR': 'Core Anterior',
+  'CORE POSTERIOR': 'Core Posterior',
+  'CORE LATERAL': 'Core Lateral',
+  OBLICUOS: 'Oblicuos',
+};
+
+/** Display name of a sub-grupo: LOCKED list first, generic title-case fallback. */
+export function subGroupDisplayName(subGroup: string): string {
+  const locked = SUB_GROUP_DISPLAY_NAMES[subGroup];
+  if (locked) return locked;
+  return subGroup.toLowerCase().replace(/\b\p{L}/gu, (ch) => ch.toUpperCase());
 }
 
 /** A top-level category (pattern → category map) grouping routes. */
