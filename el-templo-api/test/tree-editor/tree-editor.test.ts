@@ -52,18 +52,23 @@ describe("tree-editor admin routes (progresión por ruta)", () => {
     dl: number;
     route: string;
     habilidad?: string | null;
+    /** Fine DB category (UPPERCASE); defaults to the pattern, as before. */
+    category?: string;
+    /** NOT NULL → milestone VARIANTE, off the backbone (phase 133 R1-FILTER). */
+    milestoneExerciseId?: number | null;
   }): Promise<number> {
     const [row] = await app.db
       .insert(schema.exercises)
       .values({
         pattern: opts.pattern,
-        category: opts.pattern,
+        category: opts.category ?? opts.pattern,
         exercise: opts.name,
         effort: opts.effort,
         difficulty: 1,
         dificultadLineal: opts.dl,
         route: opts.route,
         habilidad: opts.habilidad ?? null,
+        milestoneExerciseId: opts.milestoneExerciseId ?? null,
       })
       .$returningId();
     return row.id;
@@ -281,6 +286,164 @@ describe("tree-editor admin routes (progresión por ruta)", () => {
       expect(node.orderSource).toBe("auto");
       expect(node).not.toHaveProperty("reached");
     }
+  });
+
+  // ── subGroup (R3 — dominant fine category per route, phase 133) ─────────────
+
+  it("GET /tree returns subGroup per route: the dominant fine category wins (R3-SUBGRP)", async () => {
+    await seedGraph();
+    // A dedicated route where the fine category is split 3-to-1: the majority
+    // category must win.
+    const routeC = await createRoute("PULLV", "Vertical");
+    await createExercise({
+      name: "C v1",
+      pattern: "PULL",
+      effort: "CON",
+      dl: 1,
+      route: "PULLV",
+      category: "PULL VERTICAL",
+    });
+    await createExercise({
+      name: "C v2",
+      pattern: "PULL",
+      effort: "CON",
+      dl: 2,
+      route: "PULLV",
+      category: "PULL VERTICAL",
+    });
+    await createExercise({
+      name: "C v3",
+      pattern: "PULL",
+      effort: "CON",
+      dl: 3,
+      route: "PULLV",
+      category: "PULL VERTICAL",
+    });
+    await createExercise({
+      name: "C core",
+      pattern: "PULL",
+      effort: "CON",
+      dl: 4,
+      route: "PULLV",
+      category: "CORE ANTERIOR",
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/admin/tree-editor/tree",
+      headers: authHeaders(coachToken),
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+
+    const traccion = body.categories.find(
+      (c: { key: string }) => c.key === "Tracción",
+    );
+    const rtC = traccion.routes.find((r: { id: number }) => r.id === routeC);
+    expect(rtC).toBeDefined();
+    // Majority category (3 PULL VERTICAL vs 1 CORE ANTERIOR), UPPERCASE from DB.
+    expect(rtC.subGroup).toBe("PULL VERTICAL");
+
+    // Shape: EVERY route in the payload carries a subGroup string.
+    for (const cat of body.categories) {
+      for (const rt of cat.routes) {
+        expect(typeof rt.subGroup).toBe("string");
+      }
+    }
+  });
+
+  it("subGroup — variantes (milestone_exercise_id NOT NULL) do not vote (R3-SUBGRP)", async () => {
+    await seedGraph();
+    // One milestone (PULL VERTICAL) + TWO variantes hanging off it whose fine
+    // category (CORE ANTERIOR) would win the vote if variantes were counted.
+    const routeC = await createRoute("PULLV", "Vertical");
+    const hito = await createExercise({
+      name: "C hito",
+      pattern: "PULL",
+      effort: "CON",
+      dl: 1,
+      route: "PULLV",
+      category: "PULL VERTICAL",
+    });
+    const var1 = await createExercise({
+      name: "C var1",
+      pattern: "PULL",
+      effort: "CON",
+      dl: 2,
+      route: "PULLV",
+      category: "CORE ANTERIOR",
+      milestoneExerciseId: hito,
+    });
+    const var2 = await createExercise({
+      name: "C var2",
+      pattern: "PULL",
+      effort: "CON",
+      dl: 3,
+      route: "PULLV",
+      category: "CORE ANTERIOR",
+      milestoneExerciseId: hito,
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/admin/tree-editor/tree",
+      headers: authHeaders(coachToken),
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+
+    const traccion = body.categories.find(
+      (c: { key: string }) => c.key === "Tracción",
+    );
+    const rtC = traccion.routes.find((r: { id: number }) => r.id === routeC);
+    expect(rtC).toBeDefined();
+    // Only the milestone votes → PULL VERTICAL, not the variantes' majority.
+    expect(rtC.subGroup).toBe("PULL VERTICAL");
+
+    // And the variantes are not nodes of the route either (Task 1 filter).
+    const nodeIds = rtC.partitions.flatMap(
+      (p: { nodes: Array<{ exerciseId: number }> }) =>
+        p.nodes.map((n) => n.exerciseId),
+    );
+    expect(nodeIds).toEqual([hito]);
+    expect(nodeIds).not.toContain(var1);
+    expect(nodeIds).not.toContain(var2);
+  });
+
+  it("subGroup — a count tie resolves to the alphabetically smaller category (deterministic)", async () => {
+    await seedGraph();
+    // 1 vote each: "CORE ANTERIOR" < "PULL VERTICAL" alphabetically → wins.
+    const routeC = await createRoute("PULLV", "Vertical");
+    await createExercise({
+      name: "C tie1",
+      pattern: "PULL",
+      effort: "CON",
+      dl: 1,
+      route: "PULLV",
+      category: "PULL VERTICAL",
+    });
+    await createExercise({
+      name: "C tie2",
+      pattern: "PULL",
+      effort: "CON",
+      dl: 2,
+      route: "PULLV",
+      category: "CORE ANTERIOR",
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/admin/tree-editor/tree",
+      headers: authHeaders(coachToken),
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+
+    const traccion = body.categories.find(
+      (c: { key: string }) => c.key === "Tracción",
+    );
+    const rtC = traccion.routes.find((r: { id: number }) => r.id === routeC);
+    expect(rtC.subGroup).toBe("CORE ANTERIOR");
   });
 
   // ── REORDER (D-02/D-03) ─────────────────────────────────────────────────────
