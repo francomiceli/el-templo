@@ -38,12 +38,14 @@ type FlowNode = Node<FlowNodeData>;
 const EFFORTS: Effort[] = ['CON', 'EXC', 'ISO'];
 
 // ── Layout constants (manual layout: chains are linear, no graph engine needed) ──
-// Grid layout: categories side by side at the top as horizontal BANDS; inside a
-// band the routes run LEFT→RIGHT (one column each); an expanded chain grows DOWN
-// under its own route, so expanding one route never reflows the others.
+// Stacked-band layout: categories are horizontal BANDS stacked TOP→BOTTOM
+// (Tracción first, then Empuje, …); inside a band the routes run LEFT→RIGHT
+// (one column each) and an expanded chain grows DOWN under its own route. A
+// band's height adapts to its longest expanded chain, so expanding a route
+// pushes the bands below instead of overlapping them.
 const LAYOUT = {
   routeColW: 270, // column width per route
-  catGap: 90, // horizontal gap between category bands
+  bandGap: 110, // vertical gap between category bands
   catH: 56, // space under the category title
   routeH: 76, // route node row height
   chainIndent: 20, // x offset of the chain relative to its route node (centers 200 under 240)
@@ -113,24 +115,28 @@ function rebuildGraph(): void {
   const ns: FlowNode[] = [];
   const es: Edge[] = [];
 
-  let bandX = 0;
+  let bandY = 0;
   for (const cat of t.categories) {
     ns.push({
       id: `cat-${cat.key}`,
       type: 'category',
-      position: { x: bandX, y: 0 },
+      position: { x: 0, y: bandY },
       data: { label: cat.label },
       draggable: false,
       selectable: false,
       focusable: false,
     });
 
+    // The band must clear its longest expanded chain before the next one starts.
+    let maxChainLen = 0;
+
     cat.routes.forEach((rt, routeIndex) => {
       const part = rt.partitions.find((p) => p.effort === selectedEffort.value);
       const chain = part?.nodes ?? [];
       const isExpanded = expandedRoutes.value.has(rt.route) && chain.length > 0;
-      const routeX = bandX + routeIndex * LAYOUT.routeColW;
-      const routeY = LAYOUT.catH;
+      if (isExpanded) maxChainLen = Math.max(maxChainLen, chain.length);
+      const routeX = routeIndex * LAYOUT.routeColW;
+      const routeY = bandY + LAYOUT.catH;
 
       ns.push({
         id: `route-${rt.route}`,
@@ -187,7 +193,11 @@ function rebuildGraph(): void {
       }
     });
 
-    bandX += Math.max(cat.routes.length, 1) * LAYOUT.routeColW + LAYOUT.catGap;
+    bandY +=
+      LAYOUT.catH +
+      LAYOUT.routeH +
+      (maxChainLen > 0 ? LAYOUT.chainTopGap + maxChainLen * LAYOUT.stepY : 0) +
+      LAYOUT.bandGap;
   }
 
   // Cross-route precedence edges — only when both endpoints are on the canvas.
