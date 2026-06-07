@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v5.1
 milestone_name: Nuevo Sistema de Entrenamiento
 status: executing
-stopped_at: Phase 133 UI-SPEC approved
-last_updated: "2026-06-07T21:54:07.232Z"
+stopped_at: Completed 133-04-PLAN.md
+last_updated: "2026-06-07T22:19:52.412Z"
 last_activity: 2026-06-07
 progress:
   total_phases: 8
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 ## Current Position
 
 Phase: 133 (calidad-del-rbol-hitos-can-nicos-variantes-bandas-de-dificul) — EXECUTING
-Plan: 4 of 7
+Plan: 5 of 7
 Status: Ready to execute
 Last activity: 2026-06-07
 
@@ -232,6 +232,7 @@ _Updated after each plan completion_
 | Phase 133 P01 | 7min | 2 tasks tasks | 5 files files |
 | Phase 133 P02 | 6min | 2 tasks | 7 files |
 | Phase 133 P03 | 20min | 3 tasks | 6 files |
+| Phase 133 P04 | ~32min | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -571,6 +572,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: 133-03: matching de movimiento por ORDEN DECLARADO del MOVEMENT_VOCAB (no sort por longitud) — OA gana a TTB en nombres 'OA TTB ...'
 - [Phase ?]: 133-03: proposeMilestones corre sobre el catálogo COMPLETO y particiona internamente; exclusión de ya-propuestos solo en el INSERT
 - [Phase ?]: 133-03: ejercicios sin movimiento detectado no se agrupan — cada uno propuesto como hito con confidence 40
+- [Phase 133]: 133-04: filtro de variantes con helper compartido backboneNodeConditions() + espejo crudo testeado; subGroup dominante en memoria con tie-break por code-points; readBackboneNodes() exportado para el test de consistencia
 
 ### Pending Todos
 
@@ -601,8 +603,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-07T21:53:59.288Z
-Stopped at: Phase 133 UI-SPEC approved
+Last session: 2026-06-07T22:19:52.390Z
+Stopped at: Completed 133-04-PLAN.md
 Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
