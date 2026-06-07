@@ -38,16 +38,6 @@ const routes: RouteRecordRaw[] = [
         meta: { allowedRoles: ['coach', 'owner'] as AdminRole[] },
       },
       {
-        path: 'proposals',
-        component: () => import('pages/ProposalReviewPage.vue'),
-        meta: { allowedRoles: ['coach', 'owner'] as AdminRole[] },
-      },
-      {
-        path: 'tree-editor',
-        component: () => import('pages/TreeEditorPage.vue'),
-        meta: { allowedRoles: ['coach', 'owner'] as AdminRole[] },
-      },
-      {
         path: 'tree-map',
         component: () => import('pages/TreeMapPage.vue'),
         meta: { allowedRoles: ['coach', 'owner'] as AdminRole[] },

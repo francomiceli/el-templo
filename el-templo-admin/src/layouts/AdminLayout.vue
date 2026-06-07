@@ -40,18 +40,6 @@
             </q-item-section>
             <q-item-section>Ejercicios</q-item-section>
           </q-item>
-          <q-item clickable v-ripple to="/proposals">
-            <q-item-section avatar>
-              <q-icon name="rule" />
-            </q-item-section>
-            <q-item-section>Revisión de dimensiones</q-item-section>
-          </q-item>
-          <q-item clickable v-ripple to="/tree-editor">
-            <q-item-section avatar>
-              <q-icon name="account_tree" />
-            </q-item-section>
-            <q-item-section>Editor de árbol</q-item-section>
-          </q-item>
           <q-item clickable v-ripple to="/tree-map">
             <q-item-section avatar>
               <q-icon name="hub" />

@@ -738,7 +738,6 @@ onUnmounted(() => {
       </div>
 
       <q-btn flat dense icon="unfold_less" label="Colapsar" no-caps @click="collapseAll" />
-      <q-btn flat dense icon="view_list" label="Vista lista" no-caps to="/tree-editor" />
       <q-btn
         flat
         dense
