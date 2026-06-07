@@ -1002,6 +1002,191 @@ export class TreeEditorService {
   }
 
   /**
+   * listMilestoneReview — the pending hito/variante proposals of a route, for
+   * the /tree-map review drawer (R1-REV). A flat join proposals × exercises
+   * (no correlated subqueries — Pitfall 3); the visual grouping by
+   * (movementToken, stepRank) is the frontend's job. Only `pending` rows are
+   * served: accepted/rejected proposals are done reviewing.
+   */
+  async listMilestoneReview(route: string): Promise<MilestoneReviewRow[]> {
+    const rows = await this.db
+      .select({
+        exerciseId: schema.exerciseMilestoneProposals.exerciseId,
+        name: schema.exercises.exercise,
+        dl: schema.exercises.dificultadLineal,
+        effort: schema.exercises.effort,
+        movementToken: schema.exerciseMilestoneProposals.movementToken,
+        stepRank: schema.exerciseMilestoneProposals.stepRank,
+        proposedMilestoneExerciseId:
+          schema.exerciseMilestoneProposals.proposedMilestoneExerciseId,
+        status: schema.exerciseMilestoneProposals.status,
+        confidence: schema.exerciseMilestoneProposals.confidence,
+      })
+      .from(schema.exerciseMilestoneProposals)
+      .innerJoin(
+        schema.exercises,
+        eq(schema.exerciseMilestoneProposals.exerciseId, schema.exercises.id),
+      )
+      .where(
+        and(
+          eq(schema.exercises.route, route),
+          eq(schema.exerciseMilestoneProposals.status, "pending"),
+        ),
+      )
+      .orderBy(
+        asc(schema.exercises.dificultadLineal),
+        asc(schema.exerciseMilestoneProposals.exerciseId),
+      );
+    return rows;
+  }
+
+  /**
+   * getVariants — the exercises hanging off a milestone via the TRUTH column
+   * (`exercises.milestone_exercise_id`), for the side panel. Proposals never
+   * show here: only what a profe already accepted. Unknown/variant-less hito →
+   * empty array (the panel mirrors it).
+   */
+  async getVariants(exerciseId: number): Promise<MilestoneVariant[]> {
+    return this.db
+      .select({
+        id: schema.exercises.id,
+        name: schema.exercises.exercise,
+        dl: schema.exercises.dificultadLineal,
+      })
+      .from(schema.exercises)
+      .where(eq(schema.exercises.milestoneExerciseId, exerciseId))
+      .orderBy(
+        asc(schema.exercises.dificultadLineal),
+        asc(schema.exercises.id),
+      );
+  }
+
+  /**
+   * promoteToMilestone — swap a variante with its hito, transactionally:
+   *
+   *   (1) free the NEW hito first (milestone → NULL) so the "a variante points
+   *       at a hito" invariant never breaks mid-flight;
+   *   (2) the ex-hito becomes a variante of the new one;
+   *   (3) every OTHER variante of the ex-hito re-points to the new hito;
+   *   (4) incident edges of the ex-hito re-point to the new hito — an edge
+   *       that would become a self-edge (it connected the pair) is deleted,
+   *       and a re-point that would collide with an existing UNIQUE(from,to)
+   *       row deletes the old edge instead of updating.
+   *
+   * Leaves zero dangling references: after the swap no exercise's
+   * milestone_exercise_id can point at a variante.
+   */
+  async promoteToMilestone(exerciseId: number): Promise<MutationResult> {
+    let edgesDeleted = 0;
+    let edgesWritten = 0;
+
+    await this.db.transaction(async (tx) => {
+      const [exercise] = await tx
+        .select({
+          id: schema.exercises.id,
+          milestoneExerciseId: schema.exercises.milestoneExerciseId,
+        })
+        .from(schema.exercises)
+        .where(eq(schema.exercises.id, exerciseId));
+      if (!exercise) {
+        throw new TreeEditorError(`Ejercicio ${exerciseId} no encontrado`, 404);
+      }
+      if (exercise.milestoneExerciseId === null) {
+        throw new TreeEditorError(
+          "El ejercicio no es una variante — solo una variante puede promoverse a hito",
+        );
+      }
+      const oldHito = exercise.milestoneExerciseId;
+
+      // (1) The promoted exercise becomes the hito (frees the target of the
+      // re-points below before anything points at it).
+      await tx
+        .update(schema.exercises)
+        .set({ milestoneExerciseId: null })
+        .where(eq(schema.exercises.id, exerciseId));
+
+      // (2) The ex-hito hangs off the new hito.
+      await tx
+        .update(schema.exercises)
+        .set({ milestoneExerciseId: exerciseId })
+        .where(eq(schema.exercises.id, oldHito));
+
+      // (3) Every other variante of the ex-hito re-points to the new hito
+      // (the ex-hito itself no longer matches: its milestone is exerciseId).
+      await tx
+        .update(schema.exercises)
+        .set({ milestoneExerciseId: exerciseId })
+        .where(eq(schema.exercises.milestoneExerciseId, oldHito));
+
+      // (4) Re-point the ex-hito's incident edges to the new hito.
+      const outgoing = await tx
+        .select({
+          id: schema.exerciseProgressions.id,
+          fromExerciseId: schema.exerciseProgressions.fromExerciseId,
+          toExerciseId: schema.exerciseProgressions.toExerciseId,
+        })
+        .from(schema.exerciseProgressions)
+        .where(eq(schema.exerciseProgressions.fromExerciseId, oldHito));
+      const incoming = await tx
+        .select({
+          id: schema.exerciseProgressions.id,
+          fromExerciseId: schema.exerciseProgressions.fromExerciseId,
+          toExerciseId: schema.exerciseProgressions.toExerciseId,
+        })
+        .from(schema.exerciseProgressions)
+        .where(eq(schema.exerciseProgressions.toExerciseId, oldHito));
+      const incidentById = new Map<
+        number,
+        { id: number; fromExerciseId: number; toExerciseId: number }
+      >();
+      for (const e of [...outgoing, ...incoming]) incidentById.set(e.id, e);
+
+      for (const e of incidentById.values()) {
+        const newFrom =
+          e.fromExerciseId === oldHito ? exerciseId : e.fromExerciseId;
+        const newTo = e.toExerciseId === oldHito ? exerciseId : e.toExerciseId;
+
+        // An edge between the pair would become a self-edge — delete it.
+        if (newFrom === newTo) {
+          await tx
+            .delete(schema.exerciseProgressions)
+            .where(eq(schema.exerciseProgressions.id, e.id));
+          edgesDeleted += 1;
+          continue;
+        }
+
+        // UNIQUE(from,to): when the re-pointed row already exists, drop the
+        // old edge instead of updating into a duplicate.
+        const [existing] = await tx
+          .select({ id: schema.exerciseProgressions.id })
+          .from(schema.exerciseProgressions)
+          .where(
+            and(
+              eq(schema.exerciseProgressions.fromExerciseId, newFrom),
+              eq(schema.exerciseProgressions.toExerciseId, newTo),
+            ),
+          )
+          .limit(1);
+        if (existing && existing.id !== e.id) {
+          await tx
+            .delete(schema.exerciseProgressions)
+            .where(eq(schema.exerciseProgressions.id, e.id));
+          edgesDeleted += 1;
+          continue;
+        }
+
+        await tx
+          .update(schema.exerciseProgressions)
+          .set({ fromExerciseId: newFrom, toExerciseId: newTo })
+          .where(eq(schema.exerciseProgressions.id, e.id));
+        edgesWritten += 1;
+      }
+    });
+
+    return { ok: true, edgesWritten, edgesDeleted };
+  }
+
+  /**
    * rejectMilestoneReview — status-only flip of the PENDING milestone proposal
    * to 'rejected'. NEVER touches `exercises` (any column). 404 when the
    * exercise has no pending proposal.
