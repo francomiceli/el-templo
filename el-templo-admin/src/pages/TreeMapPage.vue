@@ -477,6 +477,17 @@ function minimapColor(node: Node): string {
   return 'transparent';
 }
 
+// ── Page sizing ───────────────────────────────────────────────────────────────
+
+/**
+ * q-page style-fn: lock the page to exactly the viewport minus the layout
+ * header (offset is the real header height), so the canvas never creates a
+ * vertical scroll and the MiniMap stays on screen.
+ */
+function pageStyleFn(offset: number): Record<string, string> {
+  return { height: `calc(100vh - ${offset}px)` };
+}
+
 // ── Lifecycle ─────────────────────────────────────────────────────────────────
 
 onMounted(() => {
@@ -489,7 +500,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <q-page class="tree-map-page">
+  <q-page class="tree-map-page" :style-fn="pageStyleFn">
     <!-- Toolbar -->
     <div class="tree-map-toolbar row items-center q-gutter-sm q-px-md q-py-sm">
       <div class="text-h6">Mapa del árbol</div>
@@ -561,7 +572,7 @@ onUnmounted(() => {
         :edges="edges"
         :min-zoom="0.08"
         :max-zoom="2"
-        fit-view-on-init
+        :default-viewport="{ x: 24, y: 16, zoom: 0.8 }"
         @node-click="onNodeClick"
         @node-drag-stop="onNodeDragStop"
         @connect="onConnect"
@@ -686,9 +697,10 @@ onUnmounted(() => {
 
 <style lang="scss" scoped>
 .tree-map-page {
+  // Height is set by pageStyleFn (q-page style-fn) to viewport minus header.
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 50px);
+  overflow: hidden;
 }
 
 .tree-map-toolbar {
