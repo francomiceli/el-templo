@@ -25,7 +25,7 @@ import '@vue-flow/controls/dist/style.css';
 import '@vue-flow/minimap/dist/style.css';
 import { useTreeEditorApi } from 'src/composables/useTreeEditorApi';
 import { useProposalsApi } from 'src/composables/useProposalsApi';
-import type { EditableTree, Effort } from 'src/types/tree-editor';
+import type { EditableTree, Effort, AcceptMilestoneBody } from 'src/types/tree-editor';
 import type { Proposal, RouteProgressionMap, AcceptOverrides } from 'src/types/proposal';
 import RouteFlowNode from 'components/treemap/RouteFlowNode.vue';
 import type { RouteNodeData } from 'components/treemap/RouteFlowNode.vue';
@@ -33,6 +33,12 @@ import ExerciseFlowNode from 'components/treemap/ExerciseFlowNode.vue';
 import type { ExerciseNodeData } from 'components/treemap/ExerciseFlowNode.vue';
 import CategoryFlowNode from 'components/treemap/CategoryFlowNode.vue';
 import type { CategoryNodeData } from 'components/treemap/CategoryFlowNode.vue';
+import MilestoneReviewList from 'components/treemap/MilestoneReviewList.vue';
+import type {
+  EditableMilestoneRow,
+  MergedReviewRow,
+  HitoCandidate,
+} from 'components/treemap/MilestoneReviewList.vue';
 import { DL_BANDS, bandTextClass, type DlBand } from 'src/constants/levels';
 
 type FlowNodeData = RouteNodeData | ExerciseNodeData | CategoryNodeData;
@@ -83,8 +89,11 @@ const proposals = ref<Proposal[]>([]);
 const routeMap = ref<RouteProgressionMap>({});
 /** routes.code whose pending proposals are open in the review drawer (null = closed). */
 const reviewRoute = ref<string | null>(null);
+/** exerciseId of the row with a mutation in flight (per-row loading state). */
 const proposalBusyId = ref<number | null>(null);
 const bulkBusy = ref(false);
+/** Pending hito/variante proposals of the open route (plan 05), with editable state. */
+const milestoneRows = ref<EditableMilestoneRow[]>([]);
 
 // ── Data loading ──────────────────────────────────────────────────────────────
 
@@ -449,12 +458,38 @@ function onEdgeClick(event: EdgeMouseEvent): void {
   });
 }
 
-// ── Proposal review drawer (Revisión de dimensiones) ─────────────────────────
+// ── Proposal review drawer (Revisión de dimensiones + hito/variante) ─────────
 
-/** Pending proposals of the route open in the drawer. */
-const reviewRows = computed<Proposal[]>(() => {
+/**
+ * Drawer rows: pending dimension proposals MERGED with the pending hito/variante
+ * proposals of the route, keyed by exerciseId (UI-SPEC C4 — one pass per row).
+ * The wrappers are rebuilt on recompute but point at the stable underlying
+ * objects, so in-place edits (selects/toggle) survive.
+ */
+const mergedReviewRows = computed<MergedReviewRow[]>(() => {
   if (!reviewRoute.value) return [];
-  return pendingByRoute.value.get(reviewRoute.value.trim().toUpperCase()) ?? [];
+  const dimensionRows = pendingByRoute.value.get(reviewRoute.value.trim().toUpperCase()) ?? [];
+  const byExercise = new Map<number, MergedReviewRow>();
+  for (const p of dimensionRows) {
+    byExercise.set(p.exerciseId, {
+      exerciseId: p.exerciseId,
+      name: p.exerciseName,
+      proposal: p,
+      milestone: null,
+    });
+  }
+  for (const m of milestoneRows.value) {
+    const existing = byExercise.get(m.exerciseId);
+    if (existing) existing.milestone = m;
+    else
+      byExercise.set(m.exerciseId, {
+        exerciseId: m.exerciseId,
+        name: m.name,
+        proposal: null,
+        milestone: m,
+      });
+  }
+  return [...byExercise.values()];
 });
 
 const reviewRouteName = computed(() => {
@@ -464,9 +499,25 @@ const reviewRouteName = computed(() => {
   return rt?.name ?? reviewRoute.value;
 });
 
+/** Fetch the route's pending hito/variante proposals and seed their editable state. */
+async function loadMilestoneReview(code: string): Promise<void> {
+  try {
+    const rows = await treeApi.getMilestoneReview(code);
+    milestoneRows.value = rows.map((r) => ({
+      ...r,
+      role: r.proposedMilestoneExerciseId === null ? 'hito' : 'variante',
+      targetId: r.proposedMilestoneExerciseId,
+    }));
+  } catch {
+    // composable already notified; keep the previous rows.
+  }
+}
+
 function openReview(code: string): void {
   selectedExercise.value = null;
   reviewRoute.value = code;
+  milestoneRows.value = [];
+  void loadMilestoneReview(code);
   // Expand the route so accepted exercises appear in the chain right away.
   if (!expandedRoutes.value.has(code)) {
     expandedRoutes.value = new Set([...expandedRoutes.value, code]);
@@ -476,6 +527,7 @@ function openReview(code: string): void {
 
 function closeReview(): void {
   reviewRoute.value = null;
+  milestoneRows.value = [];
 }
 
 /** Ordered step-token options for a proposal's route (empty = linear/excluded). */
@@ -506,8 +558,15 @@ function overridesFor(p: Proposal): AcceptOverrides {
   return overrides;
 }
 
+/** Refetch everything the review mutations may have changed (no optimistic updates). */
+async function refreshReviewData(): Promise<void> {
+  const tasks: Promise<void>[] = [loadProposals(), loadTree()];
+  if (reviewRoute.value) tasks.push(loadMilestoneReview(reviewRoute.value));
+  await Promise.all(tasks);
+}
+
 async function acceptOne(p: Proposal): Promise<void> {
-  proposalBusyId.value = p.id;
+  proposalBusyId.value = p.exerciseId;
   try {
     await proposalsApi.acceptProposal(p.id, overridesFor(p));
     $q.notify({ type: 'positive', message: `"${p.exerciseName}" aceptado` });
@@ -520,7 +579,7 @@ async function acceptOne(p: Proposal): Promise<void> {
 }
 
 async function rejectOne(p: Proposal): Promise<void> {
-  proposalBusyId.value = p.id;
+  proposalBusyId.value = p.exerciseId;
   try {
     await proposalsApi.rejectProposal(p.id);
     $q.notify({ type: 'info', message: `"${p.exerciseName}" rechazado` });
@@ -532,8 +591,160 @@ async function rejectOne(p: Proposal): Promise<void> {
   }
 }
 
+// ── Hito/variante review flows (R1-REV, locked decision 2: one pass) ─────────
+
+/** exerciseId → {name, dl} across the whole tree (variant targets, candidate labels). */
+const exerciseLookup = computed<Map<number, { name: string; dl: number | null }>>(() => {
+  const map = new Map<number, { name: string; dl: number | null }>();
+  const t = tree.value;
+  if (!t) return map;
+  for (const cat of t.categories) {
+    for (const rt of cat.routes) {
+      for (const part of rt.partitions) {
+        for (const ex of part.nodes) {
+          map.set(ex.exerciseId, { name: ex.name, dl: ex.dificultadLineal });
+        }
+      }
+    }
+  }
+  return map;
+});
+
+/** Display name of a candidate hito (review rows first, then the tree, then the id). */
+function hitoNameOf(exerciseId: number): string {
+  const inRows = milestoneRows.value.find((r) => r.exerciseId === exerciseId);
+  if (inRows) return inRows.name;
+  return exerciseLookup.value.get(exerciseId)?.name ?? `#${exerciseId}`;
+}
+
+/** Candidates of the SAME group (movementToken × stepRank), `nombre — dl N` (UI-SPEC C4). */
+function hitoCandidatesFor(row: MergedReviewRow): HitoCandidate[] {
+  const m = row.milestone;
+  if (!m) return [];
+  const options: HitoCandidate[] = milestoneRows.value
+    .filter(
+      (r) =>
+        r.exerciseId !== m.exerciseId &&
+        r.movementToken === m.movementToken &&
+        r.stepRank === m.stepRank
+    )
+    .map((r) => ({ label: `${r.name} — dl ${r.dl}`, value: r.exerciseId }));
+  // Keep the heuristic's proposed hito selectable even if it left the pending list.
+  const proposed = m.proposedMilestoneExerciseId;
+  if (proposed !== null && !options.some((o) => o.value === proposed)) {
+    const info = exerciseLookup.value.get(proposed);
+    options.unshift({
+      label: info ? `${info.name} — dl ${info.dl ?? '—'}` : `#${proposed}`,
+      value: proposed,
+    });
+  }
+  return options;
+}
+
+/** True when the exercise lives in a partition with a manual (locked) chain. */
+function isInLockedPartition(exerciseId: number): boolean {
+  const t = tree.value;
+  if (!t) return false;
+  for (const cat of t.categories) {
+    for (const rt of cat.routes) {
+      for (const part of rt.partitions) {
+        if (part.overridden && part.nodes.some((n) => n.exerciseId === exerciseId)) return true;
+      }
+    }
+  }
+  return false;
+}
+
+/** ONE-tx accept of both axes (dimension overrides ride the same transaction). */
+async function acceptMilestoneRow(row: MergedReviewRow): Promise<void> {
+  const m = row.milestone;
+  if (!m) return;
+  proposalBusyId.value = row.exerciseId;
+  try {
+    const body: AcceptMilestoneBody = { exerciseId: row.exerciseId, role: m.role };
+    if (m.role === 'variante' && m.targetId !== null) body.milestoneExerciseId = m.targetId;
+    if (row.proposal) {
+      body.dimensionOverrides = {
+        step: row.proposal.proposedStep,
+        habilidad: row.proposal.proposedHabilidad,
+      };
+    }
+    await treeApi.acceptMilestoneReview(body);
+    const outcome =
+      m.role === 'hito'
+        ? 'Hito'
+        : `Variante de ${m.targetId !== null ? hitoNameOf(m.targetId) : '—'}`;
+    $q.notify({ type: 'positive', message: `Propuesta aceptada: ${row.name} → ${outcome}.` });
+    await refreshReviewData();
+  } catch {
+    // composable already notified; previous state intact (no optimistic updates)
+  } finally {
+    proposalBusyId.value = null;
+  }
+}
+
+/**
+ * Row accept dispatch: rows with a hito/variante proposal go through the ONE-tx
+ * accept (both axes); dimension-only rows keep the existing flow unchanged.
+ * Accepting a variante inside a hand-ordered (locked) chain asks for explicit
+ * confirmation BEFORE the POST (UI-SPEC locked copy).
+ */
+function onAcceptRow(row: MergedReviewRow): void {
+  const m = row.milestone;
+  if (!m) {
+    if (row.proposal) void acceptOne(row.proposal);
+    return;
+  }
+  if (m.role === 'variante' && isInLockedPartition(row.exerciseId)) {
+    $q.dialog({
+      title: 'La cadena se va a editar',
+      message: `"${row.name}" está en una cadena ordenada a mano. Al marcarlo como variante sale de la cadena y sus vecinos se reconectan.`,
+      cancel: { label: 'Cancelar', flat: true },
+      ok: { label: 'Aceptar igual', color: 'primary' },
+    }).onOk(() => {
+      void acceptMilestoneRow(row);
+    });
+    return;
+  }
+  void acceptMilestoneRow(row);
+}
+
+/** Row reject dispatch — analogous to accept (milestone axis first, else dimension). */
+function onRejectRow(row: MergedReviewRow): void {
+  if (row.milestone) {
+    void (async () => {
+      proposalBusyId.value = row.exerciseId;
+      try {
+        await treeApi.rejectMilestoneReview(row.exerciseId);
+        $q.notify({ type: 'info', message: `"${row.name}" rechazado` });
+        if (reviewRoute.value) await loadMilestoneReview(reviewRoute.value);
+      } catch {
+        // composable already notified
+      } finally {
+        proposalBusyId.value = null;
+      }
+    })();
+    return;
+  }
+  if (row.proposal) void rejectOne(row.proposal);
+}
+
+// In-place edit handlers (the list component is presentational and only emits).
+function onUpdateRole(row: MergedReviewRow, role: 'hito' | 'variante'): void {
+  if (row.milestone) row.milestone.role = role;
+}
+function onUpdateTarget(row: MergedReviewRow, targetId: number | null): void {
+  if (row.milestone) row.milestone.targetId = targetId;
+}
+function onUpdateStep(row: MergedReviewRow, step: number | null): void {
+  if (row.proposal) row.proposal.proposedStep = step;
+}
+function onUpdateHabilidad(row: MergedReviewRow, habilidad: string | null): void {
+  if (row.proposal) row.proposal.proposedHabilidad = habilidad;
+}
+
 function bulkAcceptRoute(): void {
-  const rows = reviewRows.value;
+  const rows = mergedReviewRows.value;
   if (rows.length === 0) return;
   $q.dialog({
     title: 'Aceptar todas',
@@ -544,11 +755,36 @@ function bulkAcceptRoute(): void {
     void (async () => {
       bulkBusy.value = true;
       try {
-        const res = await proposalsApi.bulkAccept(rows.map((r) => r.id));
-        $q.notify({ type: 'positive', message: `${res.acceptedCount} propuestas aceptadas` });
-        await Promise.all([loadProposals(), loadTree()]);
+        let accepted = 0;
+        // Rows with a hito/variante proposal: both axes per row, one tx each.
+        for (const row of rows) {
+          const m = row.milestone;
+          if (!m) continue;
+          if (m.role === 'variante' && m.targetId === null) continue; // sin hito elegido — queda pendiente
+          const body: AcceptMilestoneBody = { exerciseId: row.exerciseId, role: m.role };
+          if (m.role === 'variante' && m.targetId !== null) body.milestoneExerciseId = m.targetId;
+          if (row.proposal) {
+            body.dimensionOverrides = {
+              step: row.proposal.proposedStep,
+              habilidad: row.proposal.proposedHabilidad,
+            };
+          }
+          await treeApi.acceptMilestoneReview(body);
+          accepted += 1;
+        }
+        // Dimension-only rows keep the existing bulk endpoint.
+        const dimensionOnlyIds = rows.flatMap((r) =>
+          !r.milestone && r.proposal ? [r.proposal.id] : []
+        );
+        if (dimensionOnlyIds.length > 0) {
+          const res = await proposalsApi.bulkAccept(dimensionOnlyIds);
+          accepted += res.acceptedCount;
+        }
+        $q.notify({ type: 'positive', message: `${accepted} propuestas aceptadas` });
+        await refreshReviewData();
       } catch {
-        // composable already notified
+        // composable already notified; refetch so partial progress is visible
+        await refreshReviewData();
       } finally {
         bulkBusy.value = false;
       }
@@ -818,7 +1054,7 @@ onUnmounted(() => {
             <div class="col">
               <div class="text-subtitle2">Revisión — {{ reviewRouteName }}</div>
               <div class="text-caption text-grey-7">
-                {{ reviewRows.length }} propuestas pendientes
+                {{ mergedReviewRows.length }} propuestas pendientes
               </div>
             </div>
             <q-btn
@@ -829,7 +1065,7 @@ onUnmounted(() => {
               no-caps
               label="Aceptar todas"
               :loading="bulkBusy"
-              :disable="reviewRows.length === 0"
+              :disable="mergedReviewRows.length === 0"
               class="q-mr-sm"
               @click="bulkAcceptRoute"
             />
@@ -846,82 +1082,21 @@ onUnmounted(() => {
         </q-card-section>
         <q-separator />
         <q-card-section class="tree-map-review__list q-pa-none">
-          <div v-if="reviewRows.length === 0" class="q-pa-md text-grey-6 text-caption">
-            No quedan propuestas pendientes en esta ruta 🎉
-          </div>
-          <q-list v-else separator>
-            <q-item v-for="row in reviewRows" :key="row.id" class="column q-py-sm">
-              <div class="row items-center no-wrap full-width">
-                <div class="col text-body2 text-weight-medium">
-                  {{ row.exerciseName }}
-                  <q-badge
-                    v-if="isUnmatched(row)"
-                    color="orange-8"
-                    label="sin escalón"
-                    class="q-ml-xs"
-                  />
-                </div>
-                <q-btn
-                  flat
-                  dense
-                  round
-                  size="sm"
-                  icon="check"
-                  color="positive"
-                  :loading="proposalBusyId === row.id"
-                  aria-label="Aceptar"
-                  @click="acceptOne(row)"
-                >
-                  <q-tooltip>Aceptar</q-tooltip>
-                </q-btn>
-                <q-btn
-                  flat
-                  dense
-                  round
-                  size="sm"
-                  icon="close"
-                  color="negative"
-                  :loading="proposalBusyId === row.id"
-                  aria-label="Rechazar"
-                  @click="rejectOne(row)"
-                >
-                  <q-tooltip>Rechazar</q-tooltip>
-                </q-btn>
-              </div>
-              <div class="row q-col-gutter-sm q-mt-xs full-width">
-                <div class="col-6">
-                  <q-select
-                    v-if="stepOptionsFor(row).length > 0"
-                    :model-value="row.proposedStep"
-                    :options="stepOptionsFor(row)"
-                    label="Escalón"
-                    dense
-                    outlined
-                    clearable
-                    emit-value
-                    map-options
-                    @update:model-value="(v: number | null) => (row.proposedStep = v)"
-                  />
-                  <div v-else class="text-caption text-grey-6 q-pt-sm">
-                    ruta lineal (sin tokens)
-                  </div>
-                </div>
-                <div class="col-6">
-                  <q-select
-                    :model-value="row.proposedHabilidad"
-                    :options="habilidadOptionsFor(row)"
-                    label="Habilidad"
-                    dense
-                    outlined
-                    clearable
-                    use-input
-                    new-value-mode="add-unique"
-                    @update:model-value="(v: string | null) => (row.proposedHabilidad = v)"
-                  />
-                </div>
-              </div>
-            </q-item>
-          </q-list>
+          <MilestoneReviewList
+            :rows="mergedReviewRows"
+            :route="reviewRoute"
+            :busy-exercise-id="proposalBusyId"
+            :step-options="stepOptionsFor"
+            :habilidad-options="habilidadOptionsFor"
+            :unmatched="isUnmatched"
+            :hito-candidates="hitoCandidatesFor"
+            @accept="onAcceptRow"
+            @reject="onRejectRow"
+            @update-role="onUpdateRole"
+            @update-target="onUpdateTarget"
+            @update-step="onUpdateStep"
+            @update-habilidad="onUpdateHabilidad"
+          />
         </q-card-section>
       </q-card>
 
