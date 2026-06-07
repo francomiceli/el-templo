@@ -3351,12 +3351,26 @@ _Plan counts populated by `/gsd-plan-phase`._
 
 Plans:
 
+**Wave 1**
+
 - [ ] 133-01-PLAN.md — Migración 0145: columna milestone_exercise_id + tabla exercise_milestone_proposals (wave 1)
 - [ ] 133-02-PLAN.md — R2 admin: DL_BANDS + levelColor extraído + stripe/badge dl + leyenda (wave 1)
+
+**Wave 2** _(blocked on Wave 1 completion)_
+
 - [ ] 133-03-PLAN.md — Heurística de hitos (movimiento × escalón) + CLIs idempotentes bootstrap-milestones / bootstrap-elite-prereqs (wave 2)
 - [ ] 133-04-PLAN.md — Predicado backbone compartido + filtro de variantes en 4 caminos + subGroup en EditableTree (wave 2)
+
+**Wave 3** _(blocked on Wave 2 completion)_
+
 - [ ] 133-05-PLAN.md — Endpoints de revisión hito/variante: accept/reject transaccional + poda + promote + variants (wave 3)
+
+**Wave 4** _(blocked on Wave 3 completion)_
+
 - [ ] 133-06-PLAN.md — Drawer hito/variante + señal split TTB + panel lateral con variantes/promoción (wave 4)
+
+**Wave 5** _(blocked on Wave 4 completion)_
+
 - [ ] 133-07-PLAN.md — Sub-grupos R3 (labels + filtro) + aristas R4 gris punteado + badge prereq (wave 5)
 
 ### Phase 134: Árbol del miembro — estados de nodo y criterio de avance objetivo (member app)

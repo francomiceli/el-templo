@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v5.1
 milestone_name: Nuevo Sistema de Entrenamiento
-status: verifying
-stopped_at: Completed 132-03-PLAN.md
-last_updated: "2026-06-05T16:33:34.963Z"
-last_activity: 2026-06-05
+status: executing
+stopped_at: Phase 133 UI-SPEC approved
+last_updated: "2026-06-07T21:06:47.442Z"
+last_activity: 2026-06-07 -- Phase 133 planning complete
 progress:
   total_phases: 8
   completed_phases: 8
@@ -27,8 +27,8 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 
 Phase: 132 (exponer-metricas-gestion-v50-admin) — EXECUTING
 Plan: 6 of 6
-Status: Phase complete — ready for verification
-Last activity: 2026-06-05
+Status: Ready to execute
+Last activity: 2026-06-07 -- Phase 133 planning complete
 
 ## Performance Metrics
 
@@ -591,8 +591,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-05T16:33:28.281Z
-Stopped at: Completed 132-03-PLAN.md
-Resume file: None
+Last session: 2026-06-07T20:36:25.070Z
+Stopped at: Phase 133 UI-SPEC approved
+Resume file: .planning/phases/133-calidad-del-rbol-hitos-can-nicos-variantes-bandas-de-dificul/133-UI-SPEC.md
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
