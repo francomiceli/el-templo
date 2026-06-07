@@ -4,7 +4,7 @@ milestone: v5.1
 milestone_name: Nuevo Sistema de Entrenamiento
 status: executing
 stopped_at: Phase 133 UI-SPEC approved
-last_updated: "2026-06-07T21:34:24.679Z"
+last_updated: "2026-06-07T21:54:07.232Z"
 last_activity: 2026-06-07
 progress:
   total_phases: 8
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 ## Current Position
 
 Phase: 133 (calidad-del-rbol-hitos-can-nicos-variantes-bandas-de-dificul) — EXECUTING
-Plan: 3 of 7
+Plan: 4 of 7
 Status: Ready to execute
 Last activity: 2026-06-07
 
@@ -231,6 +231,7 @@ _Updated after each plan completion_
 | Phase 132 P06 | 15min | 3 tasks | 4 files |
 | Phase 133 P01 | 7min | 2 tasks tasks | 5 files files |
 | Phase 133 P02 | 6min | 2 tasks | 7 files |
+| Phase 133 P03 | 20min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -567,6 +568,9 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: [Phase 133]: FK proposed_milestone_exercise_id con nombre acortado (62 chars) por límite de 64 de MySQL en nombres de constraint
 - [Phase ?]: [Phase 133]: levelColor consolidada en constants/levels.ts + DL_BANDS locked (kairos 1-2/alfa 3/delta 4-6/sigma 7-8/omega 9-10/spartan 11-12); dlBand+bandTextClass como API de bandas para planes 06/07
 - [Phase ?]: [Phase 133]: stripe de banda via colors.getPaletteColor() de Quasar (token como fuente de verdad, sin hex hardcodeado); contraste charcoal sobre amber (kairos/alfa)
+- [Phase ?]: 133-03: matching de movimiento por ORDEN DECLARADO del MOVEMENT_VOCAB (no sort por longitud) — OA gana a TTB en nombres 'OA TTB ...'
+- [Phase ?]: 133-03: proposeMilestones corre sobre el catálogo COMPLETO y particiona internamente; exclusión de ya-propuestos solo en el INSERT
+- [Phase ?]: 133-03: ejercicios sin movimiento detectado no se agrupan — cada uno propuesto como hito con confidence 40
 
 ### Pending Todos
 
@@ -597,7 +601,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-07T21:31:42.728Z
+Last session: 2026-06-07T21:53:59.288Z
 Stopped at: Phase 133 UI-SPEC approved
 Resume file: None
 
