@@ -480,27 +480,43 @@ function minimapColor(node: Node): string {
 // ── Page sizing ───────────────────────────────────────────────────────────────
 
 /**
- * q-page style-fn: lock the page to exactly the viewport minus the layout
- * header (offset is the real header height), so the canvas never creates a
- * vertical scroll and the MiniMap stays on screen.
+ * The canvas gets EXACTLY the viewport height remaining below its own top edge,
+ * measured at runtime. A CSS calc against the header is not enough: the layout
+ * can render extra siblings above the page (e.g. the low-sessions q-banner in
+ * AdminLayout's q-page-container), which would push the canvas bottom — and the
+ * MiniMap/Controls — below the fold. Re-measured on window resize and on any
+ * body reflow (banner appearing/disappearing).
  */
-function pageStyleFn(offset: number): Record<string, string> {
-  return { height: `calc(100vh - ${offset}px)` };
+const canvasEl = ref<HTMLElement | null>(null);
+const canvasHeight = ref(600);
+let resizeObserver: ResizeObserver | null = null;
+
+function recomputeCanvasHeight(): void {
+  const el = canvasEl.value;
+  if (!el) return;
+  canvasHeight.value = Math.max(window.innerHeight - el.getBoundingClientRect().top, 320);
 }
 
 // ── Lifecycle ─────────────────────────────────────────────────────────────────
 
 onMounted(() => {
+  recomputeCanvasHeight();
+  resizeObserver = new ResizeObserver(recomputeCanvasHeight);
+  resizeObserver.observe(document.body);
+  window.addEventListener('resize', recomputeCanvasHeight);
   void loadTree();
 });
 
 onUnmounted(() => {
+  resizeObserver?.disconnect();
+  resizeObserver = null;
+  window.removeEventListener('resize', recomputeCanvasHeight);
   treeApi.cleanup();
 });
 </script>
 
 <template>
-  <q-page class="tree-map-page" :style-fn="pageStyleFn">
+  <q-page class="tree-map-page">
     <!-- Toolbar -->
     <div class="tree-map-toolbar row items-center q-gutter-sm q-px-md q-py-sm">
       <div class="text-h6">Mapa del árbol</div>
@@ -565,14 +581,14 @@ onUnmounted(() => {
       />
     </div>
 
-    <!-- Canvas -->
-    <div class="tree-map-canvas">
+    <!-- Canvas (height measured at runtime — see recomputeCanvasHeight) -->
+    <div ref="canvasEl" class="tree-map-canvas" :style="{ height: `${canvasHeight}px` }">
       <VueFlow
         :nodes="nodes"
         :edges="edges"
         :min-zoom="0.08"
         :max-zoom="2"
-        :default-viewport="{ x: 24, y: 16, zoom: 0.8 }"
+        :default-viewport="{ x: 24, y: 16, zoom: 0.65 }"
         @node-click="onNodeClick"
         @node-drag-stop="onNodeDragStop"
         @connect="onConnect"
@@ -697,9 +713,6 @@ onUnmounted(() => {
 
 <style lang="scss" scoped>
 .tree-map-page {
-  // Height is set by pageStyleFn (q-page style-fn) to viewport minus header.
-  display: flex;
-  flex-direction: column;
   overflow: hidden;
 }
 
@@ -714,9 +727,8 @@ onUnmounted(() => {
 }
 
 .tree-map-canvas {
+  // Height is set inline at runtime (recomputeCanvasHeight).
   position: relative;
-  flex: 1;
-  min-height: 0;
 }
 
 .tree-map-panel {
