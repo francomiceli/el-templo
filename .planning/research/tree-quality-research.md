@@ -57,7 +57,14 @@
 
 **Orden sugerido:** R2+R3 (baratos, solo lectura/UI, mejoran visibilidad ya) → R1 (el estructural, requiere curación de profes — encaja con la revisión de propuestas pendiente: aceptar propuesta podría marcar hito vs variante) → R4 → R6 (member app) → R5.
 
-## 4. Decisiones abiertas para discutir
+## 4. Decisiones tomadas (2026-06-07, con el usuario)
+
+1. **R1 vínculo:** columna nueva `milestone_exercise_id` (NO reusar `canonical_exercise_id` — semánticas distintas; canonical queda libre para dedup futura). Backbone agrega `AND milestone_exercise_id IS NULL`.
+2. **R1 curación:** heurística propone hitos (ejercicio más canónico por movimiento × escalón, token exacto del route-progression-map), profe corrige en el drawer de revisión del mapa. Mismo patrón bootstrap→revisión de fase 125.
+3. **R2 bandas:** niveles de miembro existentes INCLUYENDO kairos: kairos dl 1-2, alfa 3, delta 4-6, sigma 7-8, omega 9-10, spartan 11-12. Color por nivel + dl numérico visible en cada nodo.
+4. **TTB split:** se decide después CON los profes en la revisión, pero la separación TTB / Windshield / ATW es importante — dejar señalizado en la UI de revisión (no perderlo).
+
+## 5. Decisiones abiertas originales (histórico)
 
 1. R1: ¿el vínculo hito↔variante es columna nueva (`milestone_exercise_id`) o se reusa `canonical_exercise_id` (hoy sin uso real: 0 filas)? Reusar evita migración pero mezcla semánticas ("mismo ejercicio con otro nombre" vs "variante del hito").
 2. R1: ¿quién elige los hitos? Opción A: heurística (el de nombre más corto / más genérico por movimiento+posición) propuesta al profe; Opción B: 100% manual en el drawer de revisión.
