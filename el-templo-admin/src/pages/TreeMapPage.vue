@@ -38,16 +38,17 @@ type FlowNode = Node<FlowNodeData>;
 const EFFORTS: Effort[] = ['CON', 'EXC', 'ISO'];
 
 // ── Layout constants (manual layout: chains are linear, no graph engine needed) ──
-// Vertical layout: one COLUMN per category (side by side at the top); routes
-// stack downward inside their column; an expanded chain grows DOWN, indented.
+// Grid layout: categories side by side at the top as horizontal BANDS; inside a
+// band the routes run LEFT→RIGHT (one column each); an expanded chain grows DOWN
+// under its own route, so expanding one route never reflows the others.
 const LAYOUT = {
-  colW: 320, // column width per category
+  routeColW: 270, // column width per route
+  catGap: 90, // horizontal gap between category bands
   catH: 56, // space under the category title
   routeH: 76, // route node row height
-  chainIndent: 48, // x offset of the chain relative to its route node
+  chainIndent: 20, // x offset of the chain relative to its route node (centers 200 under 240)
   chainTopGap: 14, // gap between the route node and the first chain step
   stepY: 86, // vertical distance between chain steps
-  chainBottomGap: 26, // gap after the last chain step
 } as const;
 
 const AUTO_COLOR = '#9e9e9e';
@@ -112,30 +113,29 @@ function rebuildGraph(): void {
   const ns: FlowNode[] = [];
   const es: Edge[] = [];
 
-  t.categories.forEach((cat, colIndex) => {
-    const x0 = colIndex * LAYOUT.colW;
-    let y = 0;
-
+  let bandX = 0;
+  for (const cat of t.categories) {
     ns.push({
       id: `cat-${cat.key}`,
       type: 'category',
-      position: { x: x0, y },
+      position: { x: bandX, y: 0 },
       data: { label: cat.label },
       draggable: false,
       selectable: false,
       focusable: false,
     });
-    y += LAYOUT.catH;
 
-    for (const rt of cat.routes) {
+    cat.routes.forEach((rt, routeIndex) => {
       const part = rt.partitions.find((p) => p.effort === selectedEffort.value);
       const chain = part?.nodes ?? [];
       const isExpanded = expandedRoutes.value.has(rt.route) && chain.length > 0;
+      const routeX = bandX + routeIndex * LAYOUT.routeColW;
+      const routeY = LAYOUT.catH;
 
       ns.push({
         id: `route-${rt.route}`,
         type: 'route',
-        position: { x: x0, y },
+        position: { x: routeX, y: routeY },
         data: {
           name: rt.name,
           code: rt.route,
@@ -145,10 +145,9 @@ function rebuildGraph(): void {
         },
         draggable: false,
       });
-      y += LAYOUT.routeH;
 
       if (isExpanded) {
-        y += LAYOUT.chainTopGap;
+        const chainY0 = routeY + LAYOUT.routeH + LAYOUT.chainTopGap;
         const manual = part?.overridden ?? false;
         let prevId: string | null = null;
         chain.forEach((ex, i) => {
@@ -156,7 +155,7 @@ function rebuildGraph(): void {
           ns.push({
             id,
             type: 'exercise',
-            position: { x: x0 + LAYOUT.chainIndent, y: y + i * LAYOUT.stepY },
+            position: { x: routeX + LAYOUT.chainIndent, y: chainY0 + i * LAYOUT.stepY },
             data: {
               exerciseId: ex.exerciseId,
               name: ex.name,
@@ -185,10 +184,11 @@ function rebuildGraph(): void {
           }
           prevId = id;
         });
-        y += chain.length * LAYOUT.stepY + LAYOUT.chainBottomGap;
       }
-    }
-  });
+    });
+
+    bandX += Math.max(cat.routes.length, 1) * LAYOUT.routeColW + LAYOUT.catGap;
+  }
 
   // Cross-route precedence edges — only when both endpoints are on the canvas.
   const visibleExercises = new Set(ns.filter((n) => n.type === 'exercise').map((n) => n.id));
