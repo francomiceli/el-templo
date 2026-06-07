@@ -4,8 +4,8 @@ milestone: v5.1
 milestone_name: Nuevo Sistema de Entrenamiento
 status: executing
 stopped_at: Phase 133 UI-SPEC approved
-last_updated: "2026-06-07T21:06:47.442Z"
-last_activity: 2026-06-07 -- Phase 133 planning complete
+last_updated: "2026-06-07T21:22:24.542Z"
+last_activity: 2026-06-07
 progress:
   total_phases: 8
   completed_phases: 8
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-04)
 
 **Core value:** v5.1 reestructura el sistema de entrenamiento alrededor de un árbol de habilidades (DAG) sobre 3 ejes ortogonales (gesto/palanca/contracción). Sobre ese cimiento: el nivel Kairos para principiantes (hereda de Alfa, formato lineal forzado) y el ajuste de dificultad in-session (botones más fácil/más difícil que sirven el vecino correcto y recuerdan lo dominado). Backend-first, brownfield.
-**Current focus:** Phase 132 — exponer-metricas-gestion-v50-admin
+**Current focus:** Phase 133 — calidad-del-rbol-hitos-can-nicos-variantes-bandas-de-dificul
 
 ## Current Position
 
-Phase: 132 (exponer-metricas-gestion-v50-admin) — EXECUTING
-Plan: 6 of 6
+Phase: 133 (calidad-del-rbol-hitos-can-nicos-variantes-bandas-de-dificul) — EXECUTING
+Plan: 2 of 7
 Status: Ready to execute
-Last activity: 2026-06-07 -- Phase 133 planning complete
+Last activity: 2026-06-07
 
 ## Performance Metrics
 
@@ -229,6 +229,7 @@ _Updated after each plan completion_
 | Phase 132 P04 | ~2min | 2 tasks | 2 files |
 | Phase 132 P5 | ~8min | 2 tasks | 2 files |
 | Phase 132 P06 | 15min | 3 tasks | 4 files |
+| Phase 133 P01 | 7min | 2 tasks tasks | 5 files files |
 
 ## Accumulated Context
 
@@ -561,6 +562,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: [Phase 132]: .vue verified via eslint (type-aware); vue-tsc not installed, full SFC typecheck in CI
 - [Phase ?]: [Phase 132]: ConversionTab + IngresosTab presentational (props-in); page 132-06 owns fetch
 - [Phase ?]: 132-06: 6 v5.0 metrics wired into AnaliticasPage across 4 thematic tabs + Plan/Turno filters; deprecated FunnelTab/ARPU/Renovación/Tasa-de-retención deleted (D-15/16/17/18)
+- [Phase ?]: [Phase 133]: Opción A confirmada — tabla exercise_milestone_proposals separada del truth (espejo de 0138); milestone_exercise_id solo se escribe en el accept transaccional del profe
+- [Phase ?]: [Phase 133]: FK proposed_milestone_exercise_id con nombre acortado (62 chars) por límite de 64 de MySQL en nombres de constraint
 
 ### Pending Todos
 
@@ -591,8 +594,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-07T20:36:25.070Z
+Last session: 2026-06-07T21:22:14.355Z
 Stopped at: Phase 133 UI-SPEC approved
-Resume file: .planning/phases/133-calidad-del-rbol-hitos-can-nicos-variantes-bandas-de-dificul/133-UI-SPEC.md
+Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
