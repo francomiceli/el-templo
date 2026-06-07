@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v5.1
 milestone_name: Nuevo Sistema de Entrenamiento
-status: executing
-stopped_at: Completed 133-05-PLAN.md
-last_updated: "2026-06-07T23:14:04.493Z"
+status: verifying
+stopped_at: Completed 133-07-PLAN.md
+last_updated: "2026-06-07T23:26:48.594Z"
 last_activity: 2026-06-07
 progress:
   total_phases: 8
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 
 Phase: 133 (calidad-del-rbol-hitos-can-nicos-variantes-bandas-de-dificul) — EXECUTING
 Plan: 7 of 7
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-06-07
 
 ## Performance Metrics
@@ -235,6 +235,7 @@ _Updated after each plan completion_
 | Phase 133 P04 | ~32min | 2 tasks | 9 files |
 | Phase 133 P05 | 19min | 3 tasks | 5 files |
 | Phase 133 P06 | 22min | 3 tasks | 4 files |
+| Phase 133 P07 | ~8min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -581,6 +582,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: 133-06: Reject 'análogo' = dispatch — fila con propuesta de hito rechaza solo ese eje (rejectMilestoneReview); la dimensión queda pendiente y revisable
 - [Phase ?]: 133-06: MilestoneReviewList extraído como componente presentacional con emits granulares (evita vue/no-mutating-props); TreeMapPage conserva estado y mutaciones
 - [Phase ?]: 133-06: 'Aceptar todas' saltea variantes sin hito elegido y acepta secuencialmente los dos ejes por fila (una tx backend c/u) + bulkAccept para solo-dimensión
+- [Phase 133]: 133-07: arista agregada prereq-agg usa routes.code; click en R4 manual conserva la baja existente con el copy LOCKED en el diálogo; búsqueda scopeada al filtro de sub-grupo
 
 ### Pending Todos
 
@@ -611,8 +613,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-07T23:13:57.071Z
-Stopped at: Completed 133-05-PLAN.md
+Last session: 2026-06-07T23:26:48.574Z
+Stopped at: Completed 133-07-PLAN.md
 Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z

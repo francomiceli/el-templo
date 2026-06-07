@@ -3347,7 +3347,7 @@ _Plan counts populated by `/gsd-plan-phase`._
 **Goal:** Convertir las escaleras largas con empates (TTB CON = 102 ejercicios / 11 niveles) en escaleras de 8-13 hitos canónicos con variantes colgando, y hacer la dificultad visible en el mapa. R1: migración `milestone_exercise_id` + heurística que propone hito por (movimiento × escalón) + revisión hito/variante en el drawer de /tree-map + backbone/getNeighbor/rebuild filtran variantes. R2: bandas de dificultad por nodo usando niveles existentes CON kairos (dl 1-2 kairos, 3 alfa, 4-6 delta, 7-8 sigma, 9-10 omega, 11-12 spartan; color + dl numérico). R3: sub-grupos por `category` fina (Pull Vertical/Horizontal, etc.) dentro de las 5 categorías. R4: prerequisitos cross-ruta en gris para rutas de élite (FLR, PLPU). Señalizar split TTB (TTB/Windshield/ATW) para decisión de profes. Research + decisiones cerradas: `.planning/research/tree-quality-research.md` §3-4.
 **Requirements**: R1-MIG, R1-HEUR, R1-REV, R1-FILTER, R2-BANDS, R3-SUBGRP, R4-XRUTA, TTB-SIG (derivados del goal — sin IDs mapeados en REQUIREMENTS.md)
 **Depends on:** Phase 132
-**Plans:** 6/7 plans executed
+**Plans:** 7/7 plans complete
 
 Plans:
 
@@ -3371,7 +3371,7 @@ Plans:
 
 **Wave 5** _(blocked on Wave 4 completion)_
 
-- [ ] 133-07-PLAN.md — Sub-grupos R3 (labels + filtro) + aristas R4 gris punteado + badge prereq (wave 5)
+- [x] 133-07-PLAN.md — Sub-grupos R3 (labels + filtro) + aristas R4 gris punteado + badge prereq (wave 5)
 
 ### Phase 134: Árbol del miembro — estados de nodo y criterio de avance objetivo (member app)
 
