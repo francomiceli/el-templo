@@ -7,10 +7,11 @@
  * numbers (T-127-02). (The response keeps the `subfamilies[]` field name for the
  * member-app contract, but each group is now one ROUTE.)
  *
- * STRUCTURE SOURCE (D-04): the node set is the rework backbone scope, read with
- * the EXACT predicate from rebuild-progression-graph.ts:
- *   canonical_exercise_id IS NULL AND effort IN ('CON','EXC','ISO')
- *   AND habilidad IS NULL AND routes.excluded_from_tree = false
+ * STRUCTURE SOURCE (D-04): the node set is the rework backbone scope, read via
+ * the shared `backboneNodeConditions()` helper
+ * (../exercises/backbone-scope.ts) — the single Drizzle source of truth also
+ * consumed by tree-editor, manually mirrored by the raw SQL in
+ * rebuild-progression-graph.ts (phase 133 Plan 04).
  * Routes that own zero such nodes are omitted. Every node maps to a route and to
  * a category via patternToCategory(pattern).
  *
@@ -38,9 +39,10 @@
  * subfamilies' counts); rounding happens only at display time.
  */
 
-import { eq, and, isNull, inArray } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import * as schema from "../../db/schema";
+import { backboneNodeConditions } from "../exercises/backbone-scope";
 import {
   LEVEL_LINEAR_MIN,
   toContentLevel,
@@ -242,12 +244,10 @@ async function loadDominatedExerciseIds(
 
 /**
  * Read the rework backbone graph node set (confirmed canonical exercises that
- * sit on the per-route progression) joined with their route metadata. Mirrors
- * the rebuild-progression-graph scope predicate exactly so the tree shows the
- * real graph, not a hardcoded list:
- *   canonical_exercise_id IS NULL AND effort IN ('CON','EXC','ISO')
- *   AND habilidad IS NULL (backbone only — Habilidad variants are parallel)
- *   AND routes.excluded_from_tree = false (movilidad/games fuera del árbol).
+ * sit on the per-route progression) joined with their route metadata. The scope
+ * predicate is the shared `backboneNodeConditions()` helper (see
+ * ../exercises/backbone-scope.ts for the full funnel contract), so the tree
+ * shows the real graph, not a hardcoded list.
  */
 async function loadGraphNodes(
   db: MySql2Database<typeof schema>,
@@ -264,18 +264,7 @@ async function loadGraphNodes(
     })
     .from(schema.exercises)
     .innerJoin(schema.routes, eq(schema.exercises.route, schema.routes.code))
-    .where(
-      and(
-        // canonical_exercise_id IS NULL — only canonical nodes (D-04).
-        isNull(schema.exercises.canonicalExerciseId),
-        // effort IN ('CON','EXC','ISO') — real contraction axis only (D-04).
-        inArray(schema.exercises.effort, ["CON", "EXC", "ISO"]),
-        // habilidad IS NULL — only the backbone (Habilidad variants are parallel).
-        isNull(schema.exercises.habilidad),
-        // excluded routes (movilidad/games) never enter the strength tree.
-        eq(schema.routes.excludedFromTree, false),
-      ),
-    );
+    .where(and(...backboneNodeConditions()));
 
   // display_name is nullable; fall back to the route code so a group always has a label.
   return rows.map((r) => ({

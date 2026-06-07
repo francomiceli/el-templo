@@ -8,13 +8,12 @@
  * new column. Regroup is a data UPDATE of `exercises.route` (move a misrouted
  * exercise to another route), also no migration.
  *
- * Node scope is the EXACT rework backbone scope (copied verbatim from
- * tree-progress/service.ts): a confirmed canonical exercise
- *   canonical_exercise_id IS NULL AND effort IN ('CON','EXC','ISO')
- *   AND habilidad IS NULL AND routes.excluded_from_tree = false
- * The partition is now `(route × effort)` (the sub-family axis is gone). The same
- * predicate is reused for the READ and for partition-membership validation of
- * every write input (T-128-04).
+ * Node scope is the shared backbone predicate from
+ * `../exercises/backbone-scope.ts` (`backboneNodeConditions()`), the single
+ * Drizzle source of truth also consumed by tree-progress (phase 133 Plan 04 —
+ * end of the VERBATIM copies). The partition is now `(route × effort)` (the
+ * sub-family axis is gone). The same predicate is reused for the READ and for
+ * partition-membership validation of every write input (T-128-04).
  *
  * Pairs with Plan 01's locked-partition guard: writing a same-partition manual
  * chain LOCKS that `(route × effort)` partition so a rebuild never clobbers it.
@@ -22,10 +21,14 @@
  * `source='auto'` edges and writes the manual chain (D-02/D-03).
  */
 
-import { eq, and, isNull, inArray } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import * as schema from "../../db/schema";
 import { AppError } from "../shared/errors";
+import {
+  backboneNodeConditions,
+  VALID_EFFORTS,
+} from "../exercises/backbone-scope";
 import {
   type Category,
   CATEGORY_ORDER,
@@ -34,8 +37,11 @@ import {
   isMappedPattern,
 } from "../tree-progress/category-map";
 
-/** The three real contraction-axis effort values that form a partition (D-04). */
-const VALID_EFFORTS = ["CON", "EXC", "ISO"] as const;
+/**
+ * Re-exported from `../exercises/backbone-scope.ts` (its home since phase 133
+ * Plan 04) so existing imports keep working.
+ */
+export { VALID_EFFORTS };
 export type Effort = (typeof VALID_EFFORTS)[number];
 
 function isEffort(value: string): value is Effort {
@@ -154,9 +160,9 @@ export class TreeEditorService {
 
   /**
    * Read the rework backbone node set (confirmed canonical exercises on the
-   * per-route progression) joined with route metadata. Mirrors
-   * tree-progress/service.ts loadGraphNodes EXACTLY (D-06): same scope predicate,
-   * no member 'reached' branch.
+   * per-route progression) joined with route metadata. The scope predicate is
+   * the shared `backboneNodeConditions()` helper — the same node set
+   * tree-progress serves to members (D-06), with no member 'reached' branch.
    */
   private async loadGraphNodes(): Promise<NodeRow[]> {
     const rows = await this.db
@@ -172,14 +178,7 @@ export class TreeEditorService {
       })
       .from(schema.exercises)
       .innerJoin(schema.routes, eq(schema.exercises.route, schema.routes.code))
-      .where(
-        and(
-          isNull(schema.exercises.canonicalExerciseId),
-          inArray(schema.exercises.effort, [...VALID_EFFORTS]),
-          isNull(schema.exercises.habilidad),
-          eq(schema.routes.excludedFromTree, false),
-        ),
-      );
+      .where(and(...backboneNodeConditions()));
 
     return rows.map((r) => ({
       exerciseId: r.exerciseId,

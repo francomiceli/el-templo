@@ -74,20 +74,7 @@ export async function runRebuildProgressionGraph<
   TSchema extends Record<string, unknown>,
 >(db: MySql2Database<TSchema>): Promise<void> {
   // ── 1. READ backbone nodes (read-only report before mutate) ──
-  const exerciseRows = await db.execute(
-    sql`SELECT e.id,
-               e.route AS route,
-               e.effort,
-               e.dificultad_lineal AS dl,
-               e.progression_step AS progressionStep
-        FROM exercises e
-        JOIN routes r ON r.code = e.route
-        WHERE e.canonical_exercise_id IS NULL
-          AND e.effort IN ('CON', 'EXC', 'ISO')
-          AND e.habilidad IS NULL
-          AND r.excluded_from_tree = 0`,
-  );
-  const nodes = readExerciseNodes(exerciseRows);
+  const nodes = await readBackboneNodes(db);
 
   // ── 1b. READ the LOCKED partition set (D-02) ─────────────────────────────────
   const manualEdgePartitions = await readManualEdgePartitions(db);
@@ -138,6 +125,36 @@ export async function runRebuildProgressionGraph<
     `Rebuild complete: ${edges.length} auto edges written for unlocked partitions; ` +
       `${lockedPartitions.size} locked partitions left untouched (manual edges preserved).`,
   );
+}
+
+/**
+ * Read the backbone node set with the raw-SQL scope predicate. Exported so the
+ * node-set consistency test can compare this read against the shared Drizzle
+ * helper on the same seed (T-133-30).
+ *
+ * Scope: manual mirror of `backboneNodeConditions()` in
+ * src/modules/exercises/backbone-scope.ts — keep both in sync BY HAND (a
+ * node-set consistency test in test/exercises/rebuild-progression-graph.test.ts
+ * guards the mirror). The raw SQL only ever interpolates via `${}`
+ * (parameterized — T-133-31).
+ */
+export async function readBackboneNodes<
+  TSchema extends Record<string, unknown>,
+>(db: MySql2Database<TSchema>): Promise<ExerciseNode[]> {
+  const exerciseRows = await db.execute(
+    sql`SELECT e.id,
+               e.route AS route,
+               e.effort,
+               e.dificultad_lineal AS dl,
+               e.progression_step AS progressionStep
+        FROM exercises e
+        JOIN routes r ON r.code = e.route
+        WHERE e.canonical_exercise_id IS NULL
+          AND e.effort IN ('CON', 'EXC', 'ISO')
+          AND e.habilidad IS NULL
+          AND r.excluded_from_tree = 0`,
+  );
+  return readExerciseNodes(exerciseRows);
 }
 
 /**
