@@ -15,6 +15,8 @@ export interface RouteNodeData {
   expanded: boolean;
   /** Dimension proposals pending profe review for this route (0 = none). */
   pendingCount: number;
+  /** true ⇒ the route has INCOMING cross-route prerequisites (R4 — élite route). */
+  hasPrereq: boolean;
 }
 
 defineProps<{ data: RouteNodeData }>();
@@ -43,6 +45,19 @@ defineEmits<{ review: [] }>();
         <q-badge v-if="data.overridden" color="primary" label="Manual" />
       </div>
     </div>
+    <!-- R4: badge prereq (ruta élite) — a la IZQUIERDA del pending cuando coexisten. -->
+    <q-badge
+      v-if="data.hasPrereq"
+      outline
+      color="grey-8"
+      label="prereq"
+      class="route-flow-node__prereq"
+      :class="{ 'route-flow-node__prereq--shifted': data.pendingCount > 0 }"
+    >
+      <q-tooltip
+        >Esta ruta tiene prerequisitos en otra ruta. Expandí ambas para ver las aristas.</q-tooltip
+      >
+    </q-badge>
     <q-badge
       v-if="data.pendingCount > 0"
       color="orange-8"
@@ -52,6 +67,13 @@ defineEmits<{ review: [] }>();
       {{ data.pendingCount }}
       <q-tooltip>{{ data.pendingCount }} propuestas por revisar — click para abrir</q-tooltip>
     </q-badge>
+    <!-- Visual-only inlet for the aggregated cross-route prereq edge (R4, collapsed endpoints). -->
+    <Handle
+      type="target"
+      :position="Position.Top"
+      :connectable="false"
+      class="route-flow-node__handle"
+    />
     <!-- Visual-only outlet for the dashed "start of chain" edge (chain grows down). -->
     <Handle
       type="source"
@@ -123,6 +145,18 @@ defineEmits<{ review: [] }>();
     right: -8px;
     cursor: pointer;
     font-weight: 700;
+  }
+
+  &__prereq {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    background: #fff;
+
+    // pending mantiene la prioridad visual (UI-SPEC C6) — prereq corre a su izquierda.
+    &--shifted {
+      right: 24px;
+    }
   }
 }
 </style>

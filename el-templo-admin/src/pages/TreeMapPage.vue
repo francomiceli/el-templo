@@ -73,6 +73,15 @@ const LAYOUT = {
 
 const AUTO_COLOR = '#9e9e9e';
 const MANUAL_COLOR = '#96593a'; // $primary (terracotta)
+// R4 cross-route prerequisites (UI-SPEC Capa semántica 2 — LOCKED): grey-8 dashed
+// '8 4' + ArrowClosed, NOT animated. Distinct from the '6 4' #bdbdbd start-of-chain
+// dash and from the animated terracotta manual precedences.
+const XRUTA_COLOR = '#757575'; // grey-8
+const XRUTA_EDGE_STYLE = {
+  stroke: XRUTA_COLOR,
+  strokeDasharray: '8 4',
+  strokeWidth: 2,
+} as const;
 
 const $q = useQuasar();
 const treeApi = useTreeEditorApi();
@@ -198,6 +207,28 @@ function findChainOf(routeCode: string) {
 
 // ── Graph construction (tree + expanded + effort → nodes/edges) ───────────────
 
+/** exerciseId → routes.code across the whole tree (R4 cross-route classification). */
+const exerciseRouteMap = computed<Map<number, string>>(() => {
+  const map = new Map<number, string>();
+  const t = tree.value;
+  if (!t) return map;
+  for (const cat of t.categories) {
+    for (const rt of cat.routes) {
+      for (const part of rt.partitions) {
+        for (const ex of part.nodes) map.set(ex.exerciseId, rt.route);
+      }
+    }
+  }
+  return map;
+});
+
+/** True when a precedence edge crosses routes (R4) — same-route edges keep their render. */
+function isCrossRouteEdge(fromExerciseId: number, toExerciseId: number): boolean {
+  const fromRoute = exerciseRouteMap.value.get(fromExerciseId);
+  const toRoute = exerciseRouteMap.value.get(toExerciseId);
+  return fromRoute !== undefined && toRoute !== undefined && fromRoute !== toRoute;
+}
+
 function rebuildGraph(): void {
   const t = tree.value;
   if (!t) {
@@ -208,6 +239,15 @@ function rebuildGraph(): void {
 
   const ns: FlowNode[] = [];
   const es: Edge[] = [];
+
+  // R4: routes with INCOMING cross-route prerequisites (élite routes — badge prereq).
+  const prereqTargets = new Set<string>();
+  for (const pe of t.precedenceEdges) {
+    if (isCrossRouteEdge(pe.fromExerciseId, pe.toExerciseId)) {
+      const toRoute = exerciseRouteMap.value.get(pe.toExerciseId);
+      if (toRoute !== undefined) prereqTargets.add(toRoute);
+    }
+  }
 
   let bandY = 0;
   for (const cat of t.categories) {
@@ -267,6 +307,7 @@ function rebuildGraph(): void {
           overridden: part?.overridden ?? false,
           expanded: isExpanded,
           pendingCount: pendingByRoute.value.get(rt.route.trim().toUpperCase())?.length ?? 0,
+          hasPrereq: prereqTargets.has(rt.route),
         },
         draggable: false,
       });
@@ -319,27 +360,72 @@ function rebuildGraph(): void {
       LAYOUT.bandGap;
   }
 
-  // Cross-route precedence edges — only when both endpoints are on the canvas.
+  // Precedence edges. Same-route (cross-effort-partition) edges keep the existing
+  // render and the both-endpoints-visible gate. Cross-route (R4) edges render grey
+  // dashed node→node when both endpoints are expanded, and AGGREGATE to a single
+  // route→route edge per route pair when an endpoint is collapsed (Pitfall 7 —
+  // a prerequisite must never be invisible).
   const visibleExercises = new Set(ns.filter((n) => n.type === 'exercise').map((n) => n.id));
+  const visibleRouteNodes = new Set(ns.filter((n) => n.type === 'route').map((n) => n.id));
+  const aggregated = new Map<
+    string,
+    { fromRoute: string; toRoute: string; pairs: { from: number; to: number }[] }
+  >();
+
   for (const pe of t.precedenceEdges) {
     const source = `ex-${pe.fromExerciseId}`;
     const target = `ex-${pe.toExerciseId}`;
-    if (visibleExercises.has(source) && visibleExercises.has(target)) {
+    const bothVisible = visibleExercises.has(source) && visibleExercises.has(target);
+    const crossRoute = isCrossRouteEdge(pe.fromExerciseId, pe.toExerciseId);
+
+    if (bothVisible) {
       es.push({
         id: `prec-${pe.fromExerciseId}-${pe.toExerciseId}`,
         source,
         target,
-        animated: true,
-        style: { stroke: pe.source === 'manual' ? MANUAL_COLOR : AUTO_COLOR, strokeWidth: 2 },
+        // R4 LOCKED style; same-route manual precedences keep terracotta animated.
+        animated: !crossRoute,
+        style: crossRoute
+          ? { ...XRUTA_EDGE_STYLE }
+          : { stroke: pe.source === 'manual' ? MANUAL_COLOR : AUTO_COLOR, strokeWidth: 2 },
         markerEnd: MarkerType.ArrowClosed,
         data: {
           precedence: true,
+          crossRoute,
           edgeSource: pe.source,
           from: pe.fromExerciseId,
           to: pe.toExerciseId,
         },
       });
+    } else if (crossRoute) {
+      const fromRoute = exerciseRouteMap.value.get(pe.fromExerciseId);
+      const toRoute = exerciseRouteMap.value.get(pe.toExerciseId);
+      if (
+        fromRoute !== undefined &&
+        toRoute !== undefined &&
+        visibleRouteNodes.has(`route-${fromRoute}`) &&
+        visibleRouteNodes.has(`route-${toRoute}`)
+      ) {
+        const key = `${fromRoute}→${toRoute}`;
+        const bucket = aggregated.get(key);
+        const pair = { from: pe.fromExerciseId, to: pe.toExerciseId };
+        if (bucket) bucket.pairs.push(pair);
+        else aggregated.set(key, { fromRoute, toRoute, pairs: [pair] });
+      }
     }
+  }
+
+  // ONE aggregated edge per route pair (deduplicated), same R4 style.
+  for (const agg of aggregated.values()) {
+    es.push({
+      id: `prereq-agg-${agg.fromRoute}-${agg.toRoute}`,
+      source: `route-${agg.fromRoute}`,
+      target: `route-${agg.toRoute}`,
+      animated: false,
+      style: { ...XRUTA_EDGE_STYLE },
+      markerEnd: MarkerType.ArrowClosed,
+      data: { crossRouteAgg: true, pairs: agg.pairs },
+    });
   }
 
   nodes.value = ns;
@@ -493,21 +579,61 @@ function onConnect(connection: Connection): void {
   });
 }
 
-/** Clicking a MANUAL precedence edge offers to remove it. */
+/** LOCKED R4 copy: `Prerequisito: {ejercicio origen} ({ruta}) → {ejercicio destino} ({ruta})`. */
+function prereqEdgeCopy(fromExerciseId: number, toExerciseId: number): string {
+  const fromName = exerciseLookup.value.get(fromExerciseId)?.name ?? `#${fromExerciseId}`;
+  const toName = exerciseLookup.value.get(toExerciseId)?.name ?? `#${toExerciseId}`;
+  const fromRoute = exerciseRouteMap.value.get(fromExerciseId) ?? '—';
+  const toRoute = exerciseRouteMap.value.get(toExerciseId) ?? '—';
+  return `Prerequisito: ${fromName} (${fromRoute}) → ${toName} (${toRoute})`;
+}
+
+/**
+ * Edge click. R4 cross-route edges show the LOCKED prerequisite copy (the
+ * aggregated route→route edge lists every pair it summarizes); manual edges
+ * keep the existing removal flow (baja via /precedence — no new UI).
+ */
 function onEdgeClick(event: EdgeMouseEvent): void {
   const data = event.edge.data as
-    | { precedence?: boolean; edgeSource?: string; from?: number; to?: number }
+    | {
+        precedence?: boolean;
+        crossRoute?: boolean;
+        crossRouteAgg?: boolean;
+        pairs?: { from: number; to: number }[];
+        edgeSource?: string;
+        from?: number;
+        to?: number;
+      }
     | undefined;
-  if (!data?.precedence || typeof data.from !== 'number' || typeof data.to !== 'number') return;
-  if (data.edgeSource !== 'manual') {
-    $q.notify({ type: 'info', message: 'Esta precedencia es automática (no se borra desde acá)' });
+
+  // Aggregated R4 edge (collapsed endpoints): list the pairs it summarizes.
+  if (data?.crossRouteAgg && data.pairs) {
+    $q.dialog({
+      title: 'Prerequisitos entre rutas',
+      message: data.pairs.map((p) => prereqEdgeCopy(p.from, p.to)).join(' · '),
+      ok: { label: 'Cerrar', flat: true },
+    });
     return;
   }
+
+  if (!data?.precedence || typeof data.from !== 'number' || typeof data.to !== 'number') return;
   const from = data.from;
   const to = data.to;
+
+  if (data.edgeSource !== 'manual') {
+    $q.notify({
+      type: 'info',
+      message: data.crossRoute
+        ? prereqEdgeCopy(from, to)
+        : 'Esta precedencia es automática (no se borra desde acá)',
+    });
+    return;
+  }
   $q.dialog({
     title: 'Eliminar precedencia manual',
-    message: '¿Eliminar esta precedencia entre ramas?',
+    message: data.crossRoute
+      ? `${prereqEdgeCopy(from, to)}. ¿Eliminar esta precedencia?`
+      : '¿Eliminar esta precedencia entre ramas?',
     cancel: { label: 'Cancelar', flat: true },
     ok: { label: 'Eliminar', color: 'negative' },
   }).onOk(() => {
