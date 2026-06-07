@@ -43,7 +43,13 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { eq } from "drizzle-orm";
-import { createTestApp, cleanAllTestData } from "../helpers";
+import {
+  createTestApp,
+  registerUser,
+  createStaffUser,
+  getAuthToken,
+  cleanAllTestData,
+} from "../helpers";
 import * as schema from "../../src/db/schema";
 import { TreeEditorService } from "../../src/modules/tree-editor/service";
 import { ExerciseProgressionService } from "../../src/modules/sessions/progressions/exercise-progression-service";
@@ -51,6 +57,11 @@ import { ExerciseProgressionService } from "../../src/modules/sessions/progressi
 describe("tree-editor milestone review (hito/variante, R1-REV)", () => {
   let app: FastifyInstance;
   let service: TreeEditorService;
+  let coachToken: string;
+
+  function authHeaders(token: string): { authorization: string } {
+    return { authorization: `Bearer ${token}` };
+  }
 
   // ── Seed helpers (mirror tree-editor.test.ts) ───────────────────────────────
 
@@ -217,6 +228,20 @@ describe("tree-editor milestone review (hito/variante, R1-REV)", () => {
     await app.db.delete(schema.exerciseProgressions);
     await app.db.delete(schema.exerciseMilestoneProposals);
     await app.db.delete(schema.exerciseDimensionProposals);
+
+    // Fresh coach token per test (the user is wiped by cleanAllTestData).
+    const email = `milestone-review-coach-${Date.now()}-${Math.random()
+      .toString(36)
+      .slice(2)}@test.com`;
+    await createStaffUser(app, {
+      email,
+      password: "password123",
+      firstName: "Coach",
+      lastName: "Milestone",
+      role: "coach",
+      branchId: 1,
+    });
+    coachToken = await getAuthToken(app, email, "password123");
   });
 
   // ── Test 1: accept hito ─────────────────────────────────────────────────────
@@ -939,5 +964,242 @@ describe("tree-editor milestone review (hito/variante, R1-REV)", () => {
     await expect(service.promoteToMilestone(9999999)).rejects.toMatchObject({
       statusCode: 404,
     });
+  });
+
+  // ── HTTP surface: authz per endpoint (T-133-40, patrón T-128-03) ────────────
+
+  /** Every new endpoint as [method, url, payload] — the 5 routes of R1-REV. */
+  function milestoneEndpoints(
+    ids: { exerciseId: number; milestoneExerciseId: number } = {
+      exerciseId: 1,
+      milestoneExerciseId: 2,
+    },
+  ): Array<[string, string, object | undefined]> {
+    return [
+      ["GET", "/api/admin/tree-editor/milestone-review?route=MR1", undefined],
+      [
+        "GET",
+        `/api/admin/tree-editor/milestone/${ids.milestoneExerciseId}/variants`,
+        undefined,
+      ],
+      [
+        "POST",
+        "/api/admin/tree-editor/milestone-review/accept",
+        {
+          exerciseId: ids.exerciseId,
+          role: "variante",
+          milestoneExerciseId: ids.milestoneExerciseId,
+        },
+      ],
+      [
+        "POST",
+        "/api/admin/tree-editor/milestone-review/reject",
+        { exerciseId: ids.exerciseId },
+      ],
+      [
+        "POST",
+        "/api/admin/tree-editor/milestone/promote",
+        { exerciseId: ids.exerciseId },
+      ],
+    ];
+  }
+
+  it("12 — rejects an unauthenticated request with 401 on every milestone endpoint", async () => {
+    for (const [method, url, payload] of milestoneEndpoints()) {
+      const res = await app.inject({ method: method as "GET", url, payload });
+      expect(res.statusCode).toBe(401);
+    }
+  });
+
+  it("13 — rejects a MEMBER token with 403 on every milestone endpoint", async () => {
+    const { token } = await registerUser(app, {
+      email: `milestone-review-member-${Date.now()}@test.com`,
+      password: "password123",
+      branchId: 1,
+    });
+    for (const [method, url, payload] of milestoneEndpoints()) {
+      const res = await app.inject({
+        method: method as "GET",
+        url,
+        headers: authHeaders(token),
+        payload,
+      });
+      expect(res.statusCode).toBe(403);
+    }
+  });
+
+  it("14 — coach gets 200 on every milestone endpoint (full happy path over HTTP, truth verified in DB)", async () => {
+    await createRoute("MR1", "Ruta Uno");
+    const m = await createExercise({
+      name: "T14 M",
+      pattern: "PULL",
+      effort: "CON",
+      dl: 1,
+      route: "MR1",
+    });
+    const x = await createExercise({
+      name: "T14 X",
+      pattern: "PULL",
+      effort: "CON",
+      dl: 3,
+      route: "MR1",
+    });
+    const r = await createExercise({
+      name: "T14 R",
+      pattern: "PULL",
+      effort: "CON",
+      dl: 4,
+      route: "MR1",
+    });
+    const dimId = await seedDimensionProposal({
+      exerciseId: x,
+      proposedStep: 2,
+    });
+    await seedMilestoneProposal({
+      exerciseId: x,
+      proposedMilestoneExerciseId: m,
+    });
+    await seedMilestoneProposal({ exerciseId: r });
+
+    // GET /milestone-review → the two pending rows.
+    const listRes = await app.inject({
+      method: "GET",
+      url: "/api/admin/tree-editor/milestone-review?route=MR1",
+      headers: authHeaders(coachToken),
+    });
+    expect(listRes.statusCode).toBe(200);
+    const listBody = JSON.parse(listRes.body);
+    expect(
+      listBody.rows
+        .map((row: { exerciseId: number }) => row.exerciseId)
+        .sort((a: number, b: number) => a - b),
+    ).toEqual([x, r].sort((a, b) => a - b));
+
+    // E2E: POST accept variante → 200 + truth written atomically.
+    const acceptRes = await app.inject({
+      method: "POST",
+      url: "/api/admin/tree-editor/milestone-review/accept",
+      headers: authHeaders(coachToken),
+      payload: { exerciseId: x, role: "variante", milestoneExerciseId: m },
+    });
+    expect(acceptRes.statusCode).toBe(200);
+    expect(JSON.parse(acceptRes.body).ok).toBe(true);
+    const xRow = await getExerciseRow(x);
+    expect(xRow.milestoneExerciseId).toBe(m);
+    expect(xRow.progressionStep).toBe(2);
+    expect(await getDimensionProposalStatus(dimId)).toBe("accepted");
+    expect(await getMilestoneProposalStatus(x)).toBe("accepted");
+
+    // GET variants of the hito → the freshly accepted variante.
+    const variantsRes = await app.inject({
+      method: "GET",
+      url: `/api/admin/tree-editor/milestone/${m}/variants`,
+      headers: authHeaders(coachToken),
+    });
+    expect(variantsRes.statusCode).toBe(200);
+    expect(
+      JSON.parse(variantsRes.body).variants.map((v: { id: number }) => v.id),
+    ).toEqual([x]);
+
+    // POST reject → 200, status-only.
+    const rejectRes = await app.inject({
+      method: "POST",
+      url: "/api/admin/tree-editor/milestone-review/reject",
+      headers: authHeaders(coachToken),
+      payload: { exerciseId: r },
+    });
+    expect(rejectRes.statusCode).toBe(200);
+    expect(await getMilestoneProposalStatus(r)).toBe("rejected");
+    expect((await getExerciseRow(r)).milestoneExerciseId).toBeNull();
+
+    // POST promote → 200 + swap verified.
+    const promoteRes = await app.inject({
+      method: "POST",
+      url: "/api/admin/tree-editor/milestone/promote",
+      headers: authHeaders(coachToken),
+      payload: { exerciseId: x },
+    });
+    expect(promoteRes.statusCode).toBe(200);
+    expect((await getExerciseRow(x)).milestoneExerciseId).toBeNull();
+    expect((await getExerciseRow(m)).milestoneExerciseId).toBe(x);
+  });
+
+  it("15 — HTTP validation errors are typed 400/404, never 500 (Tests 7/11 over the wire)", async () => {
+    await createRoute("MR1", "Ruta Uno");
+    const hito = await createExercise({
+      name: "T15 hito",
+      pattern: "PULL",
+      effort: "CON",
+      dl: 1,
+      route: "MR1",
+    });
+    const x = await createExercise({
+      name: "T15 X",
+      pattern: "PULL",
+      effort: "CON",
+      dl: 3,
+      route: "MR1",
+    });
+
+    // accept variante without milestoneExerciseId → 400 (handler guard).
+    const missingTarget = await app.inject({
+      method: "POST",
+      url: "/api/admin/tree-editor/milestone-review/accept",
+      headers: authHeaders(coachToken),
+      payload: { exerciseId: x, role: "variante" },
+    });
+    expect(missingTarget.statusCode).toBe(400);
+
+    // accept variante against a non-existent hito → 404.
+    const ghostTarget = await app.inject({
+      method: "POST",
+      url: "/api/admin/tree-editor/milestone-review/accept",
+      headers: authHeaders(coachToken),
+      payload: {
+        exerciseId: x,
+        role: "variante",
+        milestoneExerciseId: 9999999,
+      },
+    });
+    expect(ghostTarget.statusCode).toBe(404);
+
+    // body with extra properties: additionalProperties:false + Fastify's Ajv
+    // (removeAdditional) STRIPS the unknown key at the schema boundary — the
+    // injected field never reaches the handler/service (T-133-43). Same
+    // platform contract as every existing tree-editor endpoint.
+    const extraProps = await app.inject({
+      method: "POST",
+      url: "/api/admin/tree-editor/milestone-review/accept",
+      headers: authHeaders(coachToken),
+      payload: { exerciseId: x, role: "hito", hack: true },
+    });
+    expect(extraProps.statusCode).toBe(200);
+    expect((await getExerciseRow(x)).milestoneExerciseId).toBeNull();
+
+    // reject without a pending proposal → 404.
+    const rejectNothing = await app.inject({
+      method: "POST",
+      url: "/api/admin/tree-editor/milestone-review/reject",
+      headers: authHeaders(coachToken),
+      payload: { exerciseId: x },
+    });
+    expect(rejectNothing.statusCode).toBe(404);
+
+    // promote a non-variante → 400.
+    const promoteHito = await app.inject({
+      method: "POST",
+      url: "/api/admin/tree-editor/milestone/promote",
+      headers: authHeaders(coachToken),
+      payload: { exerciseId: hito },
+    });
+    expect(promoteHito.statusCode).toBe(400);
+
+    // GET milestone-review without route → 400 (querystring schema).
+    const noRoute = await app.inject({
+      method: "GET",
+      url: "/api/admin/tree-editor/milestone-review",
+      headers: authHeaders(coachToken),
+    });
+    expect(noRoute.statusCode).toBe(400);
   });
 });

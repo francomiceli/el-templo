@@ -131,6 +131,130 @@ export const regroupBodySchema = {
   },
 } as const;
 
+// ── Milestone review (phase 133 Plan 05 — R1-REV) ────────────────────────────
+
+/** GET /milestone-review querystring — the route whose proposals to review. */
+export const milestoneReviewQuerySchema = {
+  type: "object",
+  required: ["route"],
+  additionalProperties: false,
+  properties: {
+    route: { type: "string", minLength: 1 },
+  },
+} as const;
+
+/** One pending hito/variante proposal row (drawer contract, Plan 06). */
+const milestoneReviewRowSchema = {
+  type: "object",
+  required: [
+    "exerciseId",
+    "name",
+    "dl",
+    "effort",
+    "movementToken",
+    "stepRank",
+    "proposedMilestoneExerciseId",
+    "status",
+    "confidence",
+  ],
+  properties: {
+    exerciseId: { type: "number" },
+    name: { type: "string" },
+    /** dificultad_lineal. */
+    dl: { type: "number" },
+    effort: { type: "string" },
+    movementToken: { type: ["string", "null"] },
+    stepRank: { type: ["number", "null"] },
+    /** NULL = proposed as HITO; NOT NULL = proposed as variante of that hito. */
+    proposedMilestoneExerciseId: { type: ["number", "null"] },
+    status: { type: "string", enum: ["pending", "accepted", "rejected"] },
+    confidence: { type: ["number", "null"] },
+  },
+} as const;
+
+/** GET /milestone-review response. */
+export const milestoneReviewResponseSchema = {
+  type: "object",
+  properties: {
+    rows: { type: "array", items: milestoneReviewRowSchema },
+  },
+} as const;
+
+/** GET /milestone/:exerciseId/variants params. */
+export const milestoneVariantsParamsSchema = {
+  type: "object",
+  required: ["exerciseId"],
+  additionalProperties: false,
+  properties: {
+    exerciseId: { type: "number" },
+  },
+} as const;
+
+/** GET /milestone/:exerciseId/variants response (truth column, not proposals). */
+export const milestoneVariantsResponseSchema = {
+  type: "object",
+  properties: {
+    variants: {
+      type: "array",
+      items: {
+        type: "object",
+        required: ["id", "name", "dl"],
+        properties: {
+          id: { type: "number" },
+          name: { type: "string" },
+          dl: { type: "number" },
+        },
+      },
+    },
+  },
+} as const;
+
+/**
+ * POST /milestone-review/accept body. `milestoneExerciseId` is conditionally
+ * required (role='variante') — enforced in the handler (JSON schema can't
+ * express it without if/then noise). `dimensionOverrides` rides the SAME
+ * transaction (locked decision 2): undefined keeps the proposed value, null is
+ * an explicit clear.
+ */
+export const milestoneAcceptBodySchema = {
+  type: "object",
+  required: ["exerciseId", "role"],
+  additionalProperties: false,
+  properties: {
+    exerciseId: { type: "number" },
+    role: { type: "string", enum: ["hito", "variante"] },
+    milestoneExerciseId: { type: "number" },
+    dimensionOverrides: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        step: { type: ["number", "null"] },
+        habilidad: { type: ["string", "null"] },
+      },
+    },
+  },
+} as const;
+
+/** POST /milestone-review/reject body — status-only flip, never touches exercises. */
+export const milestoneRejectBodySchema = {
+  type: "object",
+  required: ["exerciseId"],
+  additionalProperties: false,
+  properties: {
+    exerciseId: { type: "number" },
+  },
+} as const;
+
+/** POST /milestone/promote body — the VARIANTE to swap with its hito. */
+export const milestonePromoteBodySchema = {
+  type: "object",
+  required: ["exerciseId"],
+  additionalProperties: false,
+  properties: {
+    exerciseId: { type: "number" },
+  },
+} as const;
+
 /** Shared success envelope for the mutating endpoints. */
 export const mutationResultSchema = {
   type: "object",
