@@ -91,6 +91,14 @@ export interface EditableRoute {
   name: string;
   /** routes.code — also the partition dimension. */
   route: string;
+  /**
+   * R3 sub-group: the dominant fine `exercises.category` among the route's
+   * backbone nodes (variantes never vote — they are off the node set). UPPERCASE
+   * straight from the DB (e.g. "PULL VERTICAL"); title-casing is the frontend's
+   * job (UI-SPEC C3). Ties resolve to the alphabetically smaller category;
+   * "" when no backbone node carries a category.
+   */
+  subGroup: string;
   partitions: EditablePartition[];
 }
 
@@ -133,6 +141,8 @@ interface NodeRow {
   exerciseId: number;
   name: string;
   pattern: string;
+  /** Fine DB category (UPPERCASE) — votes for the route's subGroup (R3). */
+  category: string;
   dificultadLineal: number;
   effort: string;
   routeId: number;
@@ -170,6 +180,7 @@ export class TreeEditorService {
         exerciseId: schema.exercises.id,
         name: schema.exercises.exercise,
         pattern: schema.exercises.pattern,
+        category: schema.exercises.category,
         dificultadLineal: schema.exercises.dificultadLineal,
         effort: schema.exercises.effort,
         routeId: schema.routes.id,
@@ -184,6 +195,7 @@ export class TreeEditorService {
       exerciseId: r.exerciseId,
       name: r.name,
       pattern: r.pattern,
+      category: r.category,
       dificultadLineal: r.dificultadLineal,
       effort: r.effort,
       routeId: r.routeId,
@@ -275,6 +287,8 @@ export class TreeEditorService {
       name: string;
       route: string;
       partitions: Map<string, PartitionAcc>; // keyed by effort
+      /** Fine-category vote count over the route's backbone nodes (R3). */
+      categoryVotes: Map<string, number>;
     }
     const byCategory = new Map<Category, Map<number, RouteAcc>>();
     for (const cat of CATEGORY_ORDER) byCategory.set(cat, new Map());
@@ -308,6 +322,7 @@ export class TreeEditorService {
           name: node.routeDisplayName,
           route: node.routeCode,
           partitions: new Map(),
+          categoryVotes: new Map(),
         };
         routesInCat.set(node.routeId, rt);
       }
@@ -317,7 +332,37 @@ export class TreeEditorService {
         rt.partitions.set(node.effort, part);
       }
       part.nodes.push(node);
+      // subGroup vote (R3): count the fine category IN MEMORY over the already
+      // loaded backbone nodes — no correlated subqueries (Pitfall 3). Variantes
+      // never reach this loop (filtered out of the node set by the backbone
+      // predicate), so they never vote. Empty categories don't vote.
+      if (node.category !== "") {
+        rt.categoryVotes.set(
+          node.category,
+          (rt.categoryVotes.get(node.category) ?? 0) + 1,
+        );
+      }
     }
+
+    /**
+     * Resolve a route's subGroup: the category with the most votes; on a count
+     * tie the alphabetically smaller category wins (plain code-point comparison
+     * — deterministic, locale-independent). "" when the route has no votes.
+     */
+    const dominantCategory = (votes: ReadonlyMap<string, number>): string => {
+      let winner = "";
+      let winnerCount = 0;
+      for (const [category, count] of votes) {
+        if (
+          count > winnerCount ||
+          (count === winnerCount && winner !== "" && category < winner)
+        ) {
+          winner = category;
+          winnerCount = count;
+        }
+      }
+      return winner;
+    };
 
     /**
      * Order a partition's nodes: by the manual chain if overridden, else by
@@ -412,6 +457,7 @@ export class TreeEditorService {
             id: rt.id,
             name: rt.name,
             route: rt.route,
+            subGroup: dominantCategory(rt.categoryVotes),
             partitions,
           };
         });

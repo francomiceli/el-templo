@@ -54,10 +54,18 @@ const editablePartitionSchema = {
 
 const editableRouteSchema = {
   type: "object",
+  required: ["subGroup"],
   properties: {
     id: { type: "number" },
     name: { type: "string" },
     route: { type: "string" },
+    /**
+     * R3 sub-group: dominant fine `exercises.category` among the route's
+     * backbone nodes, UPPERCASE from the DB (e.g. "PULL VERTICAL"). Always a
+     * string ("" when the route has no categorized nodes) — never undefined.
+     * Title-casing es-AR is the frontend's responsibility (UI-SPEC C3).
+     */
+    subGroup: { type: "string" },
     partitions: { type: "array", items: editablePartitionSchema },
   },
 } as const;
