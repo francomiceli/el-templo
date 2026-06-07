@@ -3342,6 +3342,28 @@ Plans:
 
 _Plan counts populated by `/gsd-plan-phase`._
 
+### Phase 133: Calidad del árbol — hitos canónicos, variantes, bandas de dificultad y sub-grupos (backend + admin)
+
+**Goal:** Convertir las escaleras largas con empates (TTB CON = 102 ejercicios / 11 niveles) en escaleras de 8-13 hitos canónicos con variantes colgando, y hacer la dificultad visible en el mapa. R1: migración `milestone_exercise_id` + heurística que propone hito por (movimiento × escalón) + revisión hito/variante en el drawer de /tree-map + backbone/getNeighbor/rebuild filtran variantes. R2: bandas de dificultad por nodo usando niveles existentes CON kairos (dl 1-2 kairos, 3 alfa, 4-6 delta, 7-8 sigma, 9-10 omega, 11-12 spartan; color + dl numérico). R3: sub-grupos por `category` fina (Pull Vertical/Horizontal, etc.) dentro de las 5 categorías. R4: prerequisitos cross-ruta en gris para rutas de élite (FLR, PLPU). Señalizar split TTB (TTB/Windshield/ATW) para decisión de profes. Research + decisiones cerradas: `.planning/research/tree-quality-research.md` §3-4.
+**Requirements**: TBD
+**Depends on:** Phase 132
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 133 to break down)
+
+### Phase 134: Árbol del miembro — estados de nodo y criterio de avance objetivo (member app)
+
+**Goal:** Llevar la calidad del árbol a la experiencia del miembro. R6: estados de nodo tipo videojuego en Mi Árbol (Bloqueado/Disponible/En progreso/Dominado derivados de prerequisitos + el `reached` existente de tree-progress) + bandas de dificultad visibles (mismo mapeo kairos→spartan de la fase 133). R5: criterio de avance objetivo por hito (3×8 reps dinámico / 3×30s isométrico, patrón RR) mostrado en el player como definición falsable de "dominado" — complementa el tap manual de fase 131, no lo reemplaza. Research: `.planning/research/tree-quality-research.md` §3.
+**Requirements**: TBD
+**Depends on:** Phase 133
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 134 to break down)
+
 ---
 
 _v5.2 added: 2026-06-04 — 1 phase (132). Cierra v5.0 del lado de UI: expone en el admin las 6 métricas de gestión que quedaron backend-only (fases 120-123) y elimina físicamente las métricas viejas/ARPU deprecadas. Frontend-only, sin migraciones. Continúa numeración desde fase 131 (v5.1). Milestone separada para no mezclar la UI de métricas con el Nuevo Sistema de Entrenamiento (v5.1). Agrupación/visualización de tabs y alcance exacto de borrado diferidos a `discuss-phase`._
