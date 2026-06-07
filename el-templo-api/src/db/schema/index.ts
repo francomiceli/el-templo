@@ -10,6 +10,7 @@ export * from "./formats";
 export * from "./format-compatibility";
 export * from "./exercises";
 export * from "./exercise-dimension-proposals";
+export * from "./exercise-milestone-proposals";
 export * from "./exercise-progressions";
 export * from "./exercise-adjustments";
 export * from "./spom-config";

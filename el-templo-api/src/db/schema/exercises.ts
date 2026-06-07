@@ -57,6 +57,19 @@ export const exercises = mysqlTable(
       { onDelete: "set null" },
     ),
     /**
+     * Eje hito/variante (R1, phase 133). NULL = hito o sin clasificar →
+     * entra al backbone del árbol. NOT NULL = variante colgando del hito
+     * apuntado → fuera del backbone. Truth escrito SOLO por el accept
+     * transaccional del profe (proposal accept), NUNCA por la heurística —
+     * las propuestas viven en exercise_milestone_proposals. Self-FK con
+     * ON DELETE SET NULL: si el hito se borra, la variante vuelve a ser
+     * hito (nunca queda una referencia colgante).
+     */
+    milestoneExerciseId: int("milestone_exercise_id").references(
+      (): AnyMySqlColumn => exercises.id,
+      { onDelete: "set null" },
+    ),
+    /**
      * "Pendiente de ruta" marker for the saneo detection (D-08). Default
      * false; the saneo of Plan 02 flips it for exercises with empty/placeholder
      * route. Real route assignment is proposed by the LLM (125) + confirmed by
@@ -80,5 +93,6 @@ export const exercises = mysqlTable(
     index("exercises_dificultad_lineal_idx").on(table.dificultadLineal),
     index("exercises_route_step_idx").on(table.route, table.progressionStep),
     index("exercises_canonical_idx").on(table.canonicalExerciseId),
+    index("exercises_milestone_idx").on(table.milestoneExerciseId),
   ],
 );
