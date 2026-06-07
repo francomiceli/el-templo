@@ -118,13 +118,14 @@ describe("tree-editor milestone review (hito/variante, R1-REV)", () => {
       .sort((a, b) => a.from - b.from || a.to - b.to);
   }
 
-  /** Insert a PENDING milestone proposal for an exercise (engine NOT NULL). */
+  /** Insert a milestone proposal for an exercise (engine NOT NULL). */
   async function seedMilestoneProposal(opts: {
     exerciseId: number;
     proposedMilestoneExerciseId?: number | null;
     movementToken?: string | null;
     stepRank?: number | null;
     confidence?: number | null;
+    status?: "pending" | "accepted" | "rejected";
   }): Promise<number> {
     const [row] = await app.db
       .insert(schema.exerciseMilestoneProposals)
@@ -135,6 +136,7 @@ describe("tree-editor milestone review (hito/variante, R1-REV)", () => {
         stepRank: opts.stepRank ?? null,
         engine: "test-engine",
         confidence: opts.confidence ?? null,
+        status: opts.status ?? "pending",
       })
       .$returningId();
     return row.id;
@@ -656,5 +658,286 @@ describe("tree-editor milestone review (hito/variante, R1-REV)", () => {
     // Nothing was written by any failed attempt.
     expect((await getExerciseRow(x)).milestoneExerciseId).toBeNull();
     expect((await getExerciseRow(m)).milestoneExerciseId).toBeNull();
+  });
+
+  // ── Test 8: listMilestoneReview (drawer read) ───────────────────────────────
+
+  it("8 — listMilestoneReview returns only PENDING proposals of the route with the row shape", async () => {
+    await createRoute("MR1", "Ruta Uno");
+    await createRoute("MR2", "Ruta Dos");
+    const m = await createExercise({
+      name: "T8 M",
+      pattern: "PULL",
+      effort: "CON",
+      dl: 1,
+      route: "MR1",
+    });
+    const p1 = await createExercise({
+      name: "T8 P1",
+      pattern: "PULL",
+      effort: "CON",
+      dl: 2,
+      route: "MR1",
+    });
+    const p2 = await createExercise({
+      name: "T8 P2",
+      pattern: "PULL",
+      effort: "EXC",
+      dl: 4,
+      route: "MR1",
+    });
+    const acceptedEx = await createExercise({
+      name: "T8 accepted",
+      pattern: "PULL",
+      effort: "CON",
+      dl: 5,
+      route: "MR1",
+    });
+    const rejectedEx = await createExercise({
+      name: "T8 rejected",
+      pattern: "PULL",
+      effort: "CON",
+      dl: 6,
+      route: "MR1",
+    });
+    const otherRouteEx = await createExercise({
+      name: "T8 other",
+      pattern: "PUSH",
+      effort: "CON",
+      dl: 1,
+      route: "MR2",
+    });
+
+    await seedMilestoneProposal({
+      exerciseId: p1,
+      proposedMilestoneExerciseId: m,
+      movementToken: "OA",
+      stepRank: 2,
+      confidence: 80,
+    });
+    await seedMilestoneProposal({
+      exerciseId: p2,
+      proposedMilestoneExerciseId: null,
+      movementToken: null,
+      stepRank: null,
+      confidence: 40,
+    });
+    await seedMilestoneProposal({ exerciseId: acceptedEx, status: "accepted" });
+    await seedMilestoneProposal({ exerciseId: rejectedEx, status: "rejected" });
+    await seedMilestoneProposal({ exerciseId: otherRouteEx });
+
+    const rows = await service.listMilestoneReview("MR1");
+
+    expect(rows.map((r) => r.exerciseId).sort((a, b) => a - b)).toEqual(
+      [p1, p2].sort((a, b) => a - b),
+    );
+    const row1 = rows.find((r) => r.exerciseId === p1);
+    expect(row1).toEqual({
+      exerciseId: p1,
+      name: "T8 P1",
+      dl: 2,
+      effort: "CON",
+      movementToken: "OA",
+      stepRank: 2,
+      proposedMilestoneExerciseId: m,
+      status: "pending",
+      confidence: 80,
+    });
+    const row2 = rows.find((r) => r.exerciseId === p2);
+    expect(row2).toEqual({
+      exerciseId: p2,
+      name: "T8 P2",
+      dl: 4,
+      effort: "EXC",
+      movementToken: null,
+      stepRank: null,
+      proposedMilestoneExerciseId: null,
+      status: "pending",
+      confidence: 40,
+    });
+  });
+
+  // ── Test 9: getVariants (truth, not proposals) ──────────────────────────────
+
+  it("9 — getVariants returns the exercises whose milestone_exercise_id = hito (truth column)", async () => {
+    await createRoute("MR1", "Ruta Uno");
+    const m = await createExercise({
+      name: "T9 M",
+      pattern: "PULL",
+      effort: "CON",
+      dl: 1,
+      route: "MR1",
+    });
+    const v1 = await createExercise({
+      name: "T9 V1",
+      pattern: "PULL",
+      effort: "CON",
+      dl: 2,
+      route: "MR1",
+      milestoneExerciseId: m,
+    });
+    const v2 = await createExercise({
+      name: "T9 V2",
+      pattern: "PULL",
+      effort: "CON",
+      dl: 3,
+      route: "MR1",
+      milestoneExerciseId: m,
+    });
+    // Proposal-only variante: must NOT appear (truth not written yet).
+    const proposedOnly = await createExercise({
+      name: "T9 proposed",
+      pattern: "PULL",
+      effort: "CON",
+      dl: 4,
+      route: "MR1",
+    });
+    await seedMilestoneProposal({
+      exerciseId: proposedOnly,
+      proposedMilestoneExerciseId: m,
+    });
+
+    const variants = await service.getVariants(m);
+
+    expect(variants).toEqual([
+      { id: v1, name: "T9 V1", dl: 2 },
+      { id: v2, name: "T9 V2", dl: 3 },
+    ]);
+    expect(variants.map((v) => v.id)).not.toContain(proposedOnly);
+  });
+
+  // ── Test 10: promoteToMilestone (transactional swap) ────────────────────────
+
+  it("10 — promote swaps roles transactionally: ex-hito + other variantes re-point, incident edges follow", async () => {
+    await createRoute("MR1", "Ruta Uno");
+    const a = await createExercise({
+      name: "T10 A",
+      pattern: "PULL",
+      effort: "CON",
+      dl: 1,
+      route: "MR1",
+    });
+    const m = await createExercise({
+      name: "T10 M",
+      pattern: "PULL",
+      effort: "CON",
+      dl: 3,
+      route: "MR1",
+    });
+    const b = await createExercise({
+      name: "T10 B",
+      pattern: "PULL",
+      effort: "CON",
+      dl: 5,
+      route: "MR1",
+    });
+    const x = await createExercise({
+      name: "T10 X",
+      pattern: "PULL",
+      effort: "CON",
+      dl: 3,
+      route: "MR1",
+      milestoneExerciseId: m,
+    });
+    const y = await createExercise({
+      name: "T10 Y",
+      pattern: "PULL",
+      effort: "CON",
+      dl: 4,
+      route: "MR1",
+      milestoneExerciseId: m,
+    });
+    await linkEdge(a, m, "auto");
+    await linkEdge(m, b, "manual");
+
+    const result = await service.promoteToMilestone(x);
+    expect(result.ok).toBe(true);
+
+    // Roles swapped.
+    expect((await getExerciseRow(x)).milestoneExerciseId).toBeNull();
+    expect((await getExerciseRow(m)).milestoneExerciseId).toBe(x);
+    expect((await getExerciseRow(y)).milestoneExerciseId).toBe(x);
+
+    // Incident edges re-pointed, SAME sources, no self-edges, no duplicates.
+    const edges = await getEdges();
+    expect(edges).toContainEqual({ from: a, to: x, source: "auto" });
+    expect(edges).toContainEqual({ from: x, to: b, source: "manual" });
+    expect(edges.filter((e) => e.from === m || e.to === m)).toHaveLength(0);
+    expect(edges.filter((e) => e.from === e.to)).toHaveLength(0);
+    const keys = edges.map((e) => `${e.from}→${e.to}`);
+    expect(new Set(keys).size).toBe(keys.length);
+
+    // Integrity: ZERO rows whose milestone_exercise_id points at a variante.
+    const classified = await app.db
+      .select({
+        id: schema.exercises.id,
+        milestoneExerciseId: schema.exercises.milestoneExerciseId,
+      })
+      .from(schema.exercises);
+    const milestoneOf = new Map(
+      classified.map((r) => [r.id, r.milestoneExerciseId]),
+    );
+    for (const r of classified) {
+      if (r.milestoneExerciseId !== null) {
+        expect(milestoneOf.get(r.milestoneExerciseId)).toBeNull();
+      }
+    }
+  });
+
+  it("10b — promote deletes would-be self-edges and resolves UNIQUE(from,to) collisions by dropping the old edge", async () => {
+    await createRoute("MR1", "Ruta Uno");
+    const a = await createExercise({
+      name: "T10b A",
+      pattern: "PULL",
+      effort: "CON",
+      dl: 1,
+      route: "MR1",
+    });
+    const m = await createExercise({
+      name: "T10b M",
+      pattern: "PULL",
+      effort: "CON",
+      dl: 3,
+      route: "MR1",
+    });
+    const x = await createExercise({
+      name: "T10b X",
+      pattern: "PULL",
+      effort: "CON",
+      dl: 3,
+      route: "MR1",
+      milestoneExerciseId: m,
+    });
+    // a→m would re-point to a→x, which ALREADY exists → the old edge dies.
+    await linkEdge(a, m, "manual");
+    await linkEdge(a, x, "auto");
+    // x→m would re-point to x→x (self-edge) → deleted.
+    await linkEdge(x, m, "auto");
+
+    await service.promoteToMilestone(x);
+
+    const edges = await getEdges();
+    // The pre-existing a→x survives untouched; a→m and x→m are gone.
+    expect(edges).toEqual([{ from: a, to: x, source: "auto" }]);
+  });
+
+  // ── Test 11: promote validations ────────────────────────────────────────────
+
+  it("11 — promote on a non-variante → 400; non-existent exercise → 404", async () => {
+    await createRoute("MR1", "Ruta Uno");
+    const hito = await createExercise({
+      name: "T11 hito",
+      pattern: "PULL",
+      effort: "CON",
+      dl: 1,
+      route: "MR1",
+    });
+
+    await expect(service.promoteToMilestone(hito)).rejects.toMatchObject({
+      statusCode: 400,
+    });
+    await expect(service.promoteToMilestone(9999999)).rejects.toMatchObject({
+      statusCode: 404,
+    });
   });
 });
