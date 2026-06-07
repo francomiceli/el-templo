@@ -52,6 +52,12 @@
             </q-item-section>
             <q-item-section>Editor de árbol</q-item-section>
           </q-item>
+          <q-item clickable v-ripple to="/tree-map">
+            <q-item-section avatar>
+              <q-icon name="hub" />
+            </q-item-section>
+            <q-item-section>Mapa del árbol</q-item-section>
+          </q-item>
         </template>
 
         <!-- Gestion -->
