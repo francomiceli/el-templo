@@ -365,8 +365,12 @@ const COMPILED: Readonly<Record<string, CompiledRoute>> = Object.fromEntries(
   }),
 );
 
-/** True when `tokenWords` appears as a contiguous whole-word phrase in `words`. */
-function phraseAppears(words: string[], tokenWords: string[]): boolean {
+/**
+ * True when `tokenWords` appears as a contiguous whole-word phrase in `words`.
+ * Exported for reuse by `milestone-heuristic.ts` (Don't Hand-Roll: one phrase
+ * matcher for the whole token machinery).
+ */
+export function phraseAppears(words: string[], tokenWords: string[]): boolean {
   if (tokenWords.length === 0 || tokenWords.length > words.length) return false;
   for (let i = 0; i + tokenWords.length <= words.length; i++) {
     let all = true;
