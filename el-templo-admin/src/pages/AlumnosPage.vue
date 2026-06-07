@@ -321,6 +321,7 @@ import type {
   UserStatus,
 } from 'src/types/member';
 import { SEGMENT_LABELS, SEGMENT_COLORS } from 'src/types/member';
+import { levelColor } from 'src/constants/levels';
 import MemberFormDialog from 'src/components/MemberFormDialog.vue';
 import TrialMemberFormDialog from 'src/components/TrialMemberFormDialog.vue';
 import AssignPlanDialog from 'src/components/AssignPlanDialog.vue';
@@ -586,25 +587,6 @@ const LEVEL_GREEK_MAP: Record<string, string> = {
 
 function greekLevel(level: string): string {
   return LEVEL_GREEK_MAP[level.toLowerCase()] ?? level;
-}
-
-function levelColor(level: string): string {
-  switch (level.toLowerCase()) {
-    case 'kairos':
-      return 'amber-6';
-    case 'alfa':
-      return 'amber-8';
-    case 'delta':
-      return 'deep-orange-7';
-    case 'sigma':
-      return 'brown-8';
-    case 'omega':
-      return 'red-9';
-    case 'spartan':
-      return 'grey-9';
-    default:
-      return 'grey';
-  }
 }
 
 // =========================================================================

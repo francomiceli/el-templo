@@ -785,6 +785,7 @@ import AssignPlanDialog from 'src/components/AssignPlanDialog.vue';
 import WhatsappIcon from 'src/components/icons/WhatsappIcon.vue';
 import type { MemberProfile, MemberSegment, BranchOption } from 'src/types/member';
 import { SEGMENT_LABELS, SEGMENT_COLORS, AVATAR_LABELS } from 'src/types/member';
+import { levelColor } from 'src/constants/levels';
 import {
   GOAL_PLAN_TYPE_LABELS,
   GOAL_PLAN_TIER_MAP,
@@ -1079,25 +1080,6 @@ function greekLevel(level: string): string {
 
 function levelDisplayName(level: string): string {
   return LEVEL_NAMES[level.toLowerCase()] ?? level;
-}
-
-function levelColor(level: string): string {
-  switch (level.toLowerCase()) {
-    case 'kairos':
-      return 'amber-6';
-    case 'alfa':
-      return 'amber-8';
-    case 'delta':
-      return 'deep-orange-7';
-    case 'sigma':
-      return 'brown-8';
-    case 'omega':
-      return 'red-9';
-    case 'spartan':
-      return 'grey-9';
-    default:
-      return 'grey';
-  }
 }
 
 // =========================================================================

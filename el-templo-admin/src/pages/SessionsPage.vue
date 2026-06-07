@@ -361,6 +361,7 @@ import {
   type GoalPlanType,
 } from 'src/types/goal-plan';
 import type { SessionSummary } from 'src/types/session';
+import { levelColor } from 'src/constants/levels';
 
 const log = createLogger('SessionsPage');
 
@@ -746,25 +747,6 @@ function dayLabel(day: string): string {
     sabado: 'Sabado',
   };
   return labels[day] || day;
-}
-
-function levelColor(level: string): string {
-  switch (level) {
-    case 'kairos':
-      return 'amber-6';
-    case 'alfa':
-      return 'amber-8';
-    case 'delta':
-      return 'deep-orange-7';
-    case 'sigma':
-      return 'brown-8';
-    case 'omega':
-      return 'red-9';
-    case 'spartan':
-      return 'grey-9';
-    default:
-      return 'grey';
-  }
 }
 
 function memberLevelLabel(level: string): string {

@@ -346,6 +346,7 @@ import {
 } from 'src/utils/contraction-helpers';
 import { NO_PARAMS_FORMAT_NAMES, normalizeFormatName } from 'src/constants/formats';
 import { getRouteLabel } from 'src/constants/route-labels';
+import { levelColor } from 'src/constants/levels';
 
 const props = defineProps<{
   blockGroup: BlockGroup;
@@ -613,23 +614,6 @@ function onFormatFilter(val: string, update: (fn: () => void) => void) {
 }
 
 // Level helpers
-function levelColor(level: string): string {
-  switch (level) {
-    case 'alfa':
-      return 'amber-8';
-    case 'delta':
-      return 'deep-orange-7';
-    case 'sigma':
-      return 'brown-8';
-    case 'omega':
-      return 'red-9';
-    case 'spartan':
-      return 'grey-9';
-    default:
-      return 'grey';
-  }
-}
-
 function levelLabel(level: string): string {
   return level.charAt(0).toUpperCase() + level.slice(1).toLowerCase();
 }
