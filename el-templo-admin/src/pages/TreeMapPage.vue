@@ -12,7 +12,7 @@
  *  - click a manual precedence edge → confirm → POST /precedence remove
  *  - side panel "Reasignar ruta" → POST /regroup
  */
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { useQuasar } from 'quasar';
 import { VueFlow, useVueFlow, MarkerType } from '@vue-flow/core';
 import type { Connection, Edge, Node, NodeMouseEvent, EdgeMouseEvent } from '@vue-flow/core';
@@ -25,7 +25,12 @@ import '@vue-flow/controls/dist/style.css';
 import '@vue-flow/minimap/dist/style.css';
 import { useTreeEditorApi } from 'src/composables/useTreeEditorApi';
 import { useProposalsApi } from 'src/composables/useProposalsApi';
-import type { EditableTree, Effort, AcceptMilestoneBody } from 'src/types/tree-editor';
+import type {
+  EditableTree,
+  Effort,
+  AcceptMilestoneBody,
+  MilestoneVariant,
+} from 'src/types/tree-editor';
 import type { Proposal, RouteProgressionMap, AcceptOverrides } from 'src/types/proposal';
 import RouteFlowNode from 'components/treemap/RouteFlowNode.vue';
 import type { RouteNodeData } from 'components/treemap/RouteFlowNode.vue';
@@ -39,7 +44,7 @@ import type {
   MergedReviewRow,
   HitoCandidate,
 } from 'components/treemap/MilestoneReviewList.vue';
-import { DL_BANDS, bandTextClass, type DlBand } from 'src/constants/levels';
+import { DL_BANDS, dlBand, bandTextClass, type DlBand } from 'src/constants/levels';
 
 type FlowNodeData = RouteNodeData | ExerciseNodeData | CategoryNodeData;
 type FlowNode = Node<FlowNodeData>;
@@ -792,6 +797,86 @@ function bulkAcceptRoute(): void {
   });
 }
 
+// ── Side panel: hito ↔ variantes (R1-REV, UI-SPEC C5) ────────────────────────
+
+/** Variantes of the selected hito (truth). null = not fetched yet (lazy on expand). */
+const variants = ref<MilestoneVariant[] | null>(null);
+const variantsLoading = ref(false);
+/** Variante shown in the panel (picked from the variants list); null = hito view. */
+const selectedVariant = ref<MilestoneVariant | null>(null);
+/** Promote in flight — disables "Marcar como hito" / "Promover a hito" buttons. */
+const promoteBusy = ref(false);
+
+// Selecting another exercise (or clearing) drops the variant state of the panel.
+watch(selectedExercise, () => {
+  selectedVariant.value = null;
+  variants.value = null;
+});
+
+const variantsLabel = computed(() =>
+  variants.value === null ? 'Variantes' : `Variantes (${variants.value.length})`
+);
+
+/** Lazy fetch — called when the expansion opens, NOT on node selection. */
+function onVariantsExpand(): void {
+  if (variants.value === null && !variantsLoading.value) void loadVariants();
+}
+
+async function loadVariants(): Promise<void> {
+  const sel = selectedExercise.value;
+  if (!sel) return;
+  variantsLoading.value = true;
+  try {
+    variants.value = await treeApi.getVariants(sel.exerciseId);
+  } catch {
+    // composable already notified; expansion keeps the unloaded state.
+  } finally {
+    variantsLoading.value = false;
+  }
+}
+
+/** Band-colored dl badge bits for a listed variante (R2-BANDS constants). */
+function variantBandColor(dl: number): string {
+  return dlBand(dl)?.color ?? 'grey-6';
+}
+function variantBandTextClass(dl: number): string {
+  const band = dlBand(dl);
+  return band ? bandTextClass(band) : 'text-white';
+}
+
+/** Confirmation (LOCKED copy) before the transactional variante↔hito swap. */
+function confirmPromote(variant: MilestoneVariant): void {
+  const hito = selectedExercise.value;
+  if (!hito || promoteBusy.value) return;
+  $q.dialog({
+    title: 'Promover a hito',
+    message: `"${variant.name}" pasa a ser el hito y "${hito.name}" pasa a variante. Las cadenas del árbol se recalculan.`,
+    cancel: { label: 'Cancelar', flat: true },
+    ok: { label: 'Promover', color: 'primary' },
+  }).onOk(() => {
+    void promoteVariant(variant, hito.name);
+  });
+}
+
+async function promoteVariant(variant: MilestoneVariant, formerHitoName: string): Promise<void> {
+  promoteBusy.value = true;
+  try {
+    await treeApi.promoteMilestone(variant.id);
+    $q.notify({
+      type: 'positive',
+      message: `${variant.name} ahora es el hito; ${formerHitoName} pasó a variante.`,
+    });
+    // Las cadenas cambiaron — selección vieja inválida, refetch del árbol completo.
+    selectedVariant.value = null;
+    selectedExercise.value = null;
+    await loadTree();
+  } catch {
+    // composable already notified; previous state intact.
+  } finally {
+    promoteBusy.value = false;
+  }
+}
+
 // ── Reassign route (side panel action) ────────────────────────────────────────
 
 const routeOptions = computed(() => {
@@ -1102,70 +1187,176 @@ onUnmounted(() => {
 
       <!-- Side panel: selected exercise -->
       <q-card v-if="selectedExercise" class="tree-map-panel" flat bordered>
-        <q-card-section class="q-pb-xs">
-          <div class="row items-start no-wrap">
-            <div class="col">
-              <div class="text-subtitle2">{{ selectedExercise.name }}</div>
-              <div class="text-caption text-grey-7">
-                {{ selectedExercise.route }} · {{ selectedExercise.effort }} · escalón
-                {{ selectedExercise.stepIndex + 1 }} · dl {{ selectedExercise.dl ?? '—' }}
-                <q-badge
-                  :color="selectedExercise.orderSource === 'manual' ? 'primary' : 'grey-6'"
-                  :label="selectedExercise.orderSource === 'manual' ? 'Manual' : 'Auto'"
-                  class="q-ml-xs"
-                />
+        <!-- Vista variante: entidad elegida desde la lista de variantes (UI-SPEC C5) -->
+        <template v-if="selectedVariant">
+          <q-card-section class="q-pb-xs">
+            <div class="row items-start no-wrap">
+              <div class="col">
+                <div class="text-subtitle2">{{ selectedVariant.name }}</div>
+                <div class="text-caption text-grey-7">
+                  <q-badge
+                    :color="variantBandColor(selectedVariant.dl)"
+                    :class="variantBandTextClass(selectedVariant.dl)"
+                    :label="`dl ${selectedVariant.dl}`"
+                  />
+                  <q-badge
+                    color="grey-7"
+                    outline
+                    class="q-ml-xs cursor-pointer"
+                    role="button"
+                    tabindex="0"
+                    @click="selectedVariant = null"
+                  >
+                    Variante de: {{ selectedExercise.name }}
+                  </q-badge>
+                </div>
               </div>
+              <q-btn
+                flat
+                dense
+                round
+                size="sm"
+                icon="close"
+                aria-label="Cerrar"
+                @click="selectedExercise = null"
+              />
+            </div>
+          </q-card-section>
+          <q-separator />
+          <q-card-section class="q-gutter-sm">
+            <q-btn
+              outline
+              dense
+              size="sm"
+              label="Promover a hito"
+              no-caps
+              class="full-width"
+              :loading="promoteBusy"
+              :disable="promoteBusy"
+              @click="confirmPromote(selectedVariant)"
+            />
+          </q-card-section>
+        </template>
+
+        <!-- Vista hito: nodo del canvas (el backbone solo contiene hitos) -->
+        <template v-else>
+          <q-card-section class="q-pb-xs">
+            <div class="row items-start no-wrap">
+              <div class="col">
+                <div class="text-subtitle2">{{ selectedExercise.name }}</div>
+                <div class="text-caption text-grey-7">
+                  {{ selectedExercise.route }} · {{ selectedExercise.effort }} · escalón
+                  {{ selectedExercise.stepIndex + 1 }} · dl {{ selectedExercise.dl ?? '—' }}
+                  <q-badge
+                    :color="selectedExercise.orderSource === 'manual' ? 'primary' : 'grey-6'"
+                    :label="selectedExercise.orderSource === 'manual' ? 'Manual' : 'Auto'"
+                    class="q-ml-xs"
+                  />
+                  <q-badge color="primary" outline label="Hito" class="q-ml-xs" />
+                </div>
+              </div>
+              <q-btn
+                flat
+                dense
+                round
+                size="sm"
+                icon="close"
+                aria-label="Cerrar"
+                @click="selectedExercise = null"
+              />
+            </div>
+          </q-card-section>
+          <q-separator />
+          <q-card-section class="q-gutter-sm">
+            <div class="text-caption text-grey-7">Mover en la escalera</div>
+            <div class="row q-gutter-sm">
+              <q-btn
+                dense
+                outline
+                icon="arrow_upward"
+                label="Más fácil"
+                no-caps
+                size="sm"
+                @click="moveSelected(-1)"
+              />
+              <q-btn
+                dense
+                outline
+                icon-right="arrow_downward"
+                label="Más difícil"
+                no-caps
+                size="sm"
+                @click="moveSelected(1)"
+              />
             </div>
             <q-btn
-              flat
-              dense
-              round
-              size="sm"
-              icon="close"
-              aria-label="Cerrar"
-              @click="selectedExercise = null"
-            />
-          </div>
-        </q-card-section>
-        <q-separator />
-        <q-card-section class="q-gutter-sm">
-          <div class="text-caption text-grey-7">Mover en la escalera</div>
-          <div class="row q-gutter-sm">
-            <q-btn
               dense
               outline
-              icon="arrow_upward"
-              label="Más fácil"
+              color="primary"
+              icon="alt_route"
+              label="Reasignar ruta"
               no-caps
               size="sm"
-              @click="moveSelected(-1)"
+              class="full-width"
+              @click="reassignOpen = true"
             />
-            <q-btn
-              dense
-              outline
-              icon-right="arrow_downward"
-              label="Más difícil"
-              no-caps
-              size="sm"
-              @click="moveSelected(1)"
-            />
-          </div>
-          <q-btn
+            <div class="text-caption text-grey-6">
+              Tip: también podés arrastrar el ejercicio a otra posición de su escalera, o dibujar
+              una flecha hacia un ejercicio de otra rama para crear una precedencia.
+            </div>
+          </q-card-section>
+          <q-separator />
+          <!-- Variantes del hito (fetch lazy al expandir — UI-SPEC C5) -->
+          <q-expansion-item
+            :key="selectedExercise.exerciseId"
             dense
-            outline
-            color="primary"
-            icon="alt_route"
-            label="Reasignar ruta"
-            no-caps
-            size="sm"
-            class="full-width"
-            @click="reassignOpen = true"
-          />
-          <div class="text-caption text-grey-6">
-            Tip: también podés arrastrar el ejercicio a otra posición de su escalera, o dibujar una
-            flecha hacia un ejercicio de otra rama para crear una precedencia.
-          </div>
-        </q-card-section>
+            :label="variantsLabel"
+            @show="onVariantsExpand"
+          >
+            <div v-if="variantsLoading" class="q-px-md q-pb-sm">
+              <q-skeleton type="text" />
+              <q-skeleton type="text" width="60%" />
+            </div>
+            <div
+              v-else-if="variants !== null && variants.length === 0"
+              class="q-px-md q-pb-sm text-caption text-grey-6"
+            >
+              Este hito no tiene variantes asignadas.
+            </div>
+            <q-list v-else-if="variants !== null" dense>
+              <q-item
+                v-for="variant in variants"
+                :key="variant.id"
+                dense
+                clickable
+                @click="selectedVariant = variant"
+              >
+                <q-item-section>
+                  <div class="row items-center no-wrap">
+                    <span class="text-body2">{{ variant.name }}</span>
+                    <q-badge
+                      :color="variantBandColor(variant.dl)"
+                      :class="variantBandTextClass(variant.dl)"
+                      :label="`dl ${variant.dl}`"
+                      class="q-ml-xs"
+                    />
+                  </div>
+                </q-item-section>
+                <q-item-section side>
+                  <q-btn
+                    flat
+                    dense
+                    size="sm"
+                    label="Marcar como hito"
+                    no-caps
+                    :disable="promoteBusy"
+                    @click.stop="confirmPromote(variant)"
+                  />
+                </q-item-section>
+              </q-item>
+            </q-list>
+          </q-expansion-item>
+        </template>
       </q-card>
     </div>
 
