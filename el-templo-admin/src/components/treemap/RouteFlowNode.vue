@@ -13,9 +13,13 @@ export interface RouteNodeData {
   overridden: boolean;
   /** true ⇒ the chain is currently rendered on the canvas. */
   expanded: boolean;
+  /** Dimension proposals pending profe review for this route (0 = none). */
+  pendingCount: number;
 }
 
 defineProps<{ data: RouteNodeData }>();
+
+defineEmits<{ review: [] }>();
 </script>
 
 <template>
@@ -39,6 +43,15 @@ defineProps<{ data: RouteNodeData }>();
         <q-badge v-if="data.overridden" color="primary" label="Manual" />
       </div>
     </div>
+    <q-badge
+      v-if="data.pendingCount > 0"
+      color="orange-8"
+      class="route-flow-node__pending"
+      @click.stop="$emit('review')"
+    >
+      {{ data.pendingCount }}
+      <q-tooltip>{{ data.pendingCount }} propuestas por revisar — click para abrir</q-tooltip>
+    </q-badge>
     <!-- Visual-only outlet for the dashed "start of chain" edge (chain grows down). -->
     <Handle
       type="source"
@@ -51,6 +64,7 @@ defineProps<{ data: RouteNodeData }>();
 
 <style lang="scss" scoped>
 .route-flow-node {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -101,6 +115,14 @@ defineProps<{ data: RouteNodeData }>();
 
   &__handle {
     opacity: 0;
+  }
+
+  &__pending {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    cursor: pointer;
+    font-weight: 700;
   }
 }
 </style>

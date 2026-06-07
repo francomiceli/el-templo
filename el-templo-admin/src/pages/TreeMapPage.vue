@@ -24,7 +24,9 @@ import '@vue-flow/core/dist/theme-default.css';
 import '@vue-flow/controls/dist/style.css';
 import '@vue-flow/minimap/dist/style.css';
 import { useTreeEditorApi } from 'src/composables/useTreeEditorApi';
+import { useProposalsApi } from 'src/composables/useProposalsApi';
 import type { EditableTree, Effort } from 'src/types/tree-editor';
+import type { Proposal, RouteProgressionMap, AcceptOverrides } from 'src/types/proposal';
 import RouteFlowNode from 'components/treemap/RouteFlowNode.vue';
 import type { RouteNodeData } from 'components/treemap/RouteFlowNode.vue';
 import ExerciseFlowNode from 'components/treemap/ExerciseFlowNode.vue';
@@ -58,6 +60,7 @@ const MANUAL_COLOR = '#96593a'; // $primary (terracotta)
 
 const $q = useQuasar();
 const treeApi = useTreeEditorApi();
+const proposalsApi = useProposalsApi();
 const { setCenter } = useVueFlow();
 
 const tree = ref<EditableTree | null>(null);
@@ -73,6 +76,14 @@ const reassignTarget = ref<{ label: string; value: string } | null>(null);
 
 // Search state
 const searchFilter = ref('');
+
+// ── Proposal review state (Revisión de dimensiones absorbed into the map) ─────
+const proposals = ref<Proposal[]>([]);
+const routeMap = ref<RouteProgressionMap>({});
+/** routes.code whose pending proposals are open in the review drawer (null = closed). */
+const reviewRoute = ref<string | null>(null);
+const proposalBusyId = ref<number | null>(null);
+const bulkBusy = ref(false);
 
 // ── Data loading ──────────────────────────────────────────────────────────────
 
@@ -90,6 +101,38 @@ async function loadTree(): Promise<void> {
     // fetchTree already notified + logged; keep the previous canvas.
   }
 }
+
+/** Load pending proposals (badges) + the per-route progression map (selects). */
+async function loadProposals(): Promise<void> {
+  try {
+    const [list, map] = await Promise.all([
+      proposalsApi.fetchProposals({ status: 'pending' }),
+      proposalsApi.fetchRouteMap(),
+    ]);
+    proposals.value = list.proposals;
+    routeMap.value = map;
+    rebuildGraph();
+  } catch {
+    // composable already notified; keep previous proposal state.
+  }
+}
+
+/** Effective route key of a proposal (proposed route wins while route is pending). */
+function proposalRouteKey(p: Proposal): string {
+  const raw = p.routePending && p.proposedRoute ? p.proposedRoute : p.currentRoute;
+  return raw.trim().toUpperCase();
+}
+
+const pendingByRoute = computed<Map<string, Proposal[]>>(() => {
+  const grouped = new Map<string, Proposal[]>();
+  for (const p of proposals.value) {
+    const key = proposalRouteKey(p);
+    const bucket = grouped.get(key);
+    if (bucket) bucket.push(p);
+    else grouped.set(key, [p]);
+  }
+  return grouped;
+});
 
 /** The selected-effort partition node list of a route, or null. */
 function findChainOf(routeCode: string) {
@@ -148,6 +191,7 @@ function rebuildGraph(): void {
           count: chain.length,
           overridden: part?.overridden ?? false,
           expanded: isExpanded,
+          pendingCount: pendingByRoute.value.get(rt.route.trim().toUpperCase())?.length ?? 0,
         },
         draggable: false,
       });
@@ -236,6 +280,7 @@ function onNodeClick(event: NodeMouseEvent): void {
     if (data.count === 0) return;
     toggleRoute(data.code);
   } else if (node.type === 'exercise') {
+    reviewRoute.value = null;
     selectedExercise.value = node.data as ExerciseNodeData;
   }
 }
@@ -403,6 +448,113 @@ function onEdgeClick(event: EdgeMouseEvent): void {
   });
 }
 
+// ── Proposal review drawer (Revisión de dimensiones) ─────────────────────────
+
+/** Pending proposals of the route open in the drawer. */
+const reviewRows = computed<Proposal[]>(() => {
+  if (!reviewRoute.value) return [];
+  return pendingByRoute.value.get(reviewRoute.value.trim().toUpperCase()) ?? [];
+});
+
+const reviewRouteName = computed(() => {
+  const t = tree.value;
+  if (!t || !reviewRoute.value) return reviewRoute.value ?? '';
+  const rt = t.categories.flatMap((c) => c.routes).find((r) => r.route === reviewRoute.value);
+  return rt?.name ?? reviewRoute.value;
+});
+
+function openReview(code: string): void {
+  selectedExercise.value = null;
+  reviewRoute.value = code;
+  // Expand the route so accepted exercises appear in the chain right away.
+  if (!expandedRoutes.value.has(code)) {
+    expandedRoutes.value = new Set([...expandedRoutes.value, code]);
+    rebuildGraph();
+  }
+}
+
+function closeReview(): void {
+  reviewRoute.value = null;
+}
+
+/** Ordered step-token options for a proposal's route (empty = linear/excluded). */
+function stepOptionsFor(p: Proposal): { label: string; value: number }[] {
+  const info = routeMap.value[proposalRouteKey(p)];
+  if (!info || info.strategy !== 'token') return [];
+  return info.steps.map((token, i) => ({ label: `${i} · ${token}`, value: i }));
+}
+
+/** Habilidad vocab options for a proposal's route (free typing still allowed). */
+function habilidadOptionsFor(p: Proposal): string[] {
+  return routeMap.value[proposalRouteKey(p)]?.habilidades ?? [];
+}
+
+/** A token-strategy proposal with no resolved step still needs a profe choice. */
+function isUnmatched(p: Proposal): boolean {
+  const info = routeMap.value[proposalRouteKey(p)];
+  return !!info && info.strategy === 'token' && p.proposedStep === null;
+}
+
+/** Accept-override body from the (possibly edited) row — same shape as the old page. */
+function overridesFor(p: Proposal): AcceptOverrides {
+  const overrides: AcceptOverrides = {
+    proposedStep: p.proposedStep,
+    proposedHabilidad: p.proposedHabilidad,
+  };
+  if (p.routePending && p.proposedRoute) overrides.proposedRoute = p.proposedRoute;
+  return overrides;
+}
+
+async function acceptOne(p: Proposal): Promise<void> {
+  proposalBusyId.value = p.id;
+  try {
+    await proposalsApi.acceptProposal(p.id, overridesFor(p));
+    $q.notify({ type: 'positive', message: `"${p.exerciseName}" aceptado` });
+    await Promise.all([loadProposals(), loadTree()]);
+  } catch {
+    // composable already notified
+  } finally {
+    proposalBusyId.value = null;
+  }
+}
+
+async function rejectOne(p: Proposal): Promise<void> {
+  proposalBusyId.value = p.id;
+  try {
+    await proposalsApi.rejectProposal(p.id);
+    $q.notify({ type: 'info', message: `"${p.exerciseName}" rechazado` });
+    await loadProposals();
+  } catch {
+    // composable already notified
+  } finally {
+    proposalBusyId.value = null;
+  }
+}
+
+function bulkAcceptRoute(): void {
+  const rows = reviewRows.value;
+  if (rows.length === 0) return;
+  $q.dialog({
+    title: 'Aceptar todas',
+    message: `Se aceptan las ${rows.length} propuestas pendientes de ${reviewRouteName.value} tal como están. ¿Confirmás?`,
+    cancel: { label: 'Cancelar', flat: true },
+    ok: { label: 'Aceptar todas', color: 'primary' },
+  }).onOk(() => {
+    void (async () => {
+      bulkBusy.value = true;
+      try {
+        const res = await proposalsApi.bulkAccept(rows.map((r) => r.id));
+        $q.notify({ type: 'positive', message: `${res.acceptedCount} propuestas aceptadas` });
+        await Promise.all([loadProposals(), loadTree()]);
+      } catch {
+        // composable already notified
+      } finally {
+        bulkBusy.value = false;
+      }
+    })();
+  });
+}
+
 // ── Reassign route (side panel action) ────────────────────────────────────────
 
 const routeOptions = computed(() => {
@@ -515,6 +667,7 @@ onMounted(() => {
   resizeObserver.observe(document.body);
   window.addEventListener('resize', recomputeCanvasHeight);
   void loadTree();
+  void loadProposals();
 });
 
 onUnmounted(() => {
@@ -576,6 +729,12 @@ onUnmounted(() => {
       <div class="row items-center q-gutter-xs text-caption text-grey-7">
         <q-badge color="grey-6" label="Auto" />
         <q-badge color="primary" label="Manual" />
+        <q-badge v-if="proposals.length > 0" color="orange-8">
+          {{ proposals.length }} por revisar
+          <q-tooltip
+            >Propuestas de dimensiones pendientes — click en el badge de una ruta</q-tooltip
+          >
+        </q-badge>
       </div>
 
       <q-btn flat dense icon="unfold_less" label="Colapsar" no-caps @click="collapseAll" />
@@ -612,12 +771,126 @@ onUnmounted(() => {
           <CategoryFlowNode :data="props.data" />
         </template>
         <template #node-route="props">
-          <RouteFlowNode :data="props.data" />
+          <RouteFlowNode :data="props.data" @review="openReview(props.data.code)" />
         </template>
         <template #node-exercise="props">
           <ExerciseFlowNode :data="props.data" :selected="props.selected" />
         </template>
       </VueFlow>
+
+      <!-- Review drawer: pending dimension proposals of one route -->
+      <q-card v-if="reviewRoute" class="tree-map-review" flat bordered>
+        <q-card-section class="q-pb-xs">
+          <div class="row items-center no-wrap">
+            <div class="col">
+              <div class="text-subtitle2">Revisión — {{ reviewRouteName }}</div>
+              <div class="text-caption text-grey-7">
+                {{ reviewRows.length }} propuestas pendientes
+              </div>
+            </div>
+            <q-btn
+              dense
+              outline
+              color="primary"
+              size="sm"
+              no-caps
+              label="Aceptar todas"
+              :loading="bulkBusy"
+              :disable="reviewRows.length === 0"
+              class="q-mr-sm"
+              @click="bulkAcceptRoute"
+            />
+            <q-btn
+              flat
+              dense
+              round
+              size="sm"
+              icon="close"
+              aria-label="Cerrar"
+              @click="closeReview"
+            />
+          </div>
+        </q-card-section>
+        <q-separator />
+        <q-card-section class="tree-map-review__list q-pa-none">
+          <div v-if="reviewRows.length === 0" class="q-pa-md text-grey-6 text-caption">
+            No quedan propuestas pendientes en esta ruta 🎉
+          </div>
+          <q-list v-else separator>
+            <q-item v-for="row in reviewRows" :key="row.id" class="column q-py-sm">
+              <div class="row items-center no-wrap full-width">
+                <div class="col text-body2 text-weight-medium">
+                  {{ row.exerciseName }}
+                  <q-badge
+                    v-if="isUnmatched(row)"
+                    color="orange-8"
+                    label="sin escalón"
+                    class="q-ml-xs"
+                  />
+                </div>
+                <q-btn
+                  flat
+                  dense
+                  round
+                  size="sm"
+                  icon="check"
+                  color="positive"
+                  :loading="proposalBusyId === row.id"
+                  aria-label="Aceptar"
+                  @click="acceptOne(row)"
+                >
+                  <q-tooltip>Aceptar</q-tooltip>
+                </q-btn>
+                <q-btn
+                  flat
+                  dense
+                  round
+                  size="sm"
+                  icon="close"
+                  color="negative"
+                  :loading="proposalBusyId === row.id"
+                  aria-label="Rechazar"
+                  @click="rejectOne(row)"
+                >
+                  <q-tooltip>Rechazar</q-tooltip>
+                </q-btn>
+              </div>
+              <div class="row q-col-gutter-sm q-mt-xs full-width">
+                <div class="col-6">
+                  <q-select
+                    v-if="stepOptionsFor(row).length > 0"
+                    :model-value="row.proposedStep"
+                    :options="stepOptionsFor(row)"
+                    label="Escalón"
+                    dense
+                    outlined
+                    clearable
+                    emit-value
+                    map-options
+                    @update:model-value="(v: number | null) => (row.proposedStep = v)"
+                  />
+                  <div v-else class="text-caption text-grey-6 q-pt-sm">
+                    ruta lineal (sin tokens)
+                  </div>
+                </div>
+                <div class="col-6">
+                  <q-select
+                    :model-value="row.proposedHabilidad"
+                    :options="habilidadOptionsFor(row)"
+                    label="Habilidad"
+                    dense
+                    outlined
+                    clearable
+                    use-input
+                    new-value-mode="add-unique"
+                    @update:model-value="(v: string | null) => (row.proposedHabilidad = v)"
+                  />
+                </div>
+              </div>
+            </q-item>
+          </q-list>
+        </q-card-section>
+      </q-card>
 
       <!-- Side panel: selected exercise -->
       <q-card v-if="selectedExercise" class="tree-map-panel" flat bordered>
@@ -748,5 +1021,22 @@ onUnmounted(() => {
   width: 280px;
   z-index: 10;
   background: #fff;
+}
+
+.tree-map-review {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  bottom: 12px;
+  width: 420px;
+  z-index: 10;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+
+  &__list {
+    flex: 1;
+    overflow-y: auto;
+  }
 }
 </style>
