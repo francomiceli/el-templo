@@ -88,3 +88,43 @@ export interface MutationResult {
   /** Optional human-readable note accompanying a no-op result. */
   message?: string;
 }
+
+// ── Milestone review (Phase 133 Plan 06 — R1-REV) ─────────────────────────────
+// Mirrors the Plan-05 endpoint contracts 1:1 (tree-editor/schemas.ts).
+
+/** One pending hito/variante proposal row from GET /milestone-review?route=. */
+export interface MilestoneReviewRow {
+  exerciseId: number;
+  name: string;
+  /** dificultad_lineal. */
+  dl: number;
+  effort: string;
+  movementToken: string | null;
+  stepRank: number | null;
+  /** NULL = proposed as HITO; NOT NULL = proposed as variante of that hito. */
+  proposedMilestoneExerciseId: number | null;
+  status: 'pending' | 'accepted' | 'rejected';
+  confidence: number | null;
+}
+
+/** One variante hanging off a hito (truth column) — GET /milestone/:id/variants. */
+export interface MilestoneVariant {
+  id: number;
+  name: string;
+  dl: number;
+}
+
+/**
+ * POST /milestone-review/accept body. `milestoneExerciseId` is required when
+ * role='variante'. `dimensionOverrides` rides the SAME transaction (locked
+ * decision 2): undefined keeps the proposed value, null is an explicit clear.
+ */
+export interface AcceptMilestoneBody {
+  exerciseId: number;
+  role: 'hito' | 'variante';
+  milestoneExerciseId?: number;
+  dimensionOverrides?: {
+    step?: number | null;
+    habilidad?: string | null;
+  };
+}
