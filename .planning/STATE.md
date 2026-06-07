@@ -4,7 +4,7 @@ milestone: v5.1
 milestone_name: Nuevo Sistema de Entrenamiento
 status: executing
 stopped_at: Phase 133 UI-SPEC approved
-last_updated: "2026-06-07T21:22:24.542Z"
+last_updated: "2026-06-07T21:34:24.679Z"
 last_activity: 2026-06-07
 progress:
   total_phases: 8
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 ## Current Position
 
 Phase: 133 (calidad-del-rbol-hitos-can-nicos-variantes-bandas-de-dificul) — EXECUTING
-Plan: 2 of 7
+Plan: 3 of 7
 Status: Ready to execute
 Last activity: 2026-06-07
 
@@ -230,6 +230,7 @@ _Updated after each plan completion_
 | Phase 132 P5 | ~8min | 2 tasks | 2 files |
 | Phase 132 P06 | 15min | 3 tasks | 4 files |
 | Phase 133 P01 | 7min | 2 tasks tasks | 5 files files |
+| Phase 133 P02 | 6min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -564,6 +565,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: 132-06: 6 v5.0 metrics wired into AnaliticasPage across 4 thematic tabs + Plan/Turno filters; deprecated FunnelTab/ARPU/Renovación/Tasa-de-retención deleted (D-15/16/17/18)
 - [Phase ?]: [Phase 133]: Opción A confirmada — tabla exercise_milestone_proposals separada del truth (espejo de 0138); milestone_exercise_id solo se escribe en el accept transaccional del profe
 - [Phase ?]: [Phase 133]: FK proposed_milestone_exercise_id con nombre acortado (62 chars) por límite de 64 de MySQL en nombres de constraint
+- [Phase ?]: [Phase 133]: levelColor consolidada en constants/levels.ts + DL_BANDS locked (kairos 1-2/alfa 3/delta 4-6/sigma 7-8/omega 9-10/spartan 11-12); dlBand+bandTextClass como API de bandas para planes 06/07
+- [Phase ?]: [Phase 133]: stripe de banda via colors.getPaletteColor() de Quasar (token como fuente de verdad, sin hex hardcodeado); contraste charcoal sobre amber (kairos/alfa)
 
 ### Pending Todos
 
@@ -594,7 +597,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-07T21:22:14.355Z
+Last session: 2026-06-07T21:31:42.728Z
 Stopped at: Phase 133 UI-SPEC approved
 Resume file: None
 
