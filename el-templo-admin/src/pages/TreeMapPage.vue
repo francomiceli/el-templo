@@ -38,14 +38,16 @@ type FlowNode = Node<FlowNodeData>;
 const EFFORTS: Effort[] = ['CON', 'EXC', 'ISO'];
 
 // ── Layout constants (manual layout: chains are linear, no graph engine needed) ──
+// Vertical layout: one COLUMN per category (side by side at the top); routes
+// stack downward inside their column; an expanded chain grows DOWN, indented.
 const LAYOUT = {
-  catH: 48,
-  rowH: 64,
-  rowGap: 24,
-  catGap: 48,
-  chainX0: 320,
-  stepX: 264,
-  exYOffset: 2,
+  colW: 320, // column width per category
+  catH: 56, // space under the category title
+  routeH: 76, // route node row height
+  chainIndent: 48, // x offset of the chain relative to its route node
+  chainTopGap: 14, // gap between the route node and the first chain step
+  stepY: 86, // vertical distance between chain steps
+  chainBottomGap: 26, // gap after the last chain step
 } as const;
 
 const AUTO_COLOR = '#9e9e9e';
@@ -109,13 +111,15 @@ function rebuildGraph(): void {
 
   const ns: FlowNode[] = [];
   const es: Edge[] = [];
-  let y = 0;
 
-  for (const cat of t.categories) {
+  t.categories.forEach((cat, colIndex) => {
+    const x0 = colIndex * LAYOUT.colW;
+    let y = 0;
+
     ns.push({
       id: `cat-${cat.key}`,
       type: 'category',
-      position: { x: 0, y },
+      position: { x: x0, y },
       data: { label: cat.label },
       draggable: false,
       selectable: false,
@@ -131,7 +135,7 @@ function rebuildGraph(): void {
       ns.push({
         id: `route-${rt.route}`,
         type: 'route',
-        position: { x: 0, y },
+        position: { x: x0, y },
         data: {
           name: rt.name,
           code: rt.route,
@@ -141,8 +145,10 @@ function rebuildGraph(): void {
         },
         draggable: false,
       });
+      y += LAYOUT.routeH;
 
       if (isExpanded) {
+        y += LAYOUT.chainTopGap;
         const manual = part?.overridden ?? false;
         let prevId: string | null = null;
         chain.forEach((ex, i) => {
@@ -150,7 +156,7 @@ function rebuildGraph(): void {
           ns.push({
             id,
             type: 'exercise',
-            position: { x: LAYOUT.chainX0 + i * LAYOUT.stepX, y: y + LAYOUT.exYOffset },
+            position: { x: x0 + LAYOUT.chainIndent, y: y + i * LAYOUT.stepY },
             data: {
               exerciseId: ex.exerciseId,
               name: ex.name,
@@ -179,12 +185,10 @@ function rebuildGraph(): void {
           }
           prevId = id;
         });
+        y += chain.length * LAYOUT.stepY + LAYOUT.chainBottomGap;
       }
-
-      y += LAYOUT.rowH + LAYOUT.rowGap;
     }
-    y += LAYOUT.catGap;
-  }
+  });
 
   // Cross-route precedence edges — only when both endpoints are on the canvas.
   const visibleExercises = new Set(ns.filter((n) => n.type === 'exercise').map((n) => n.id));
@@ -247,8 +251,9 @@ function onEffortChange(): void {
 
 /**
  * Drag-reorder: when an exercise node is dropped, recompute its chain order by
- * x position (the dragged node uses its dropped x; siblings keep their layout x)
- * and persist via /reorder. Any no-op drop just snaps the layout back.
+ * y position (the dragged node uses its dropped y; siblings keep their layout y,
+ * read from the generated nodes) and persist via /reorder. Any no-op drop just
+ * snaps the layout back.
  */
 async function onNodeDragStop(event: { node: Node }): Promise<void> {
   const node = event.node as FlowNode;
@@ -260,12 +265,18 @@ async function onNodeDragStop(event: { node: Node }): Promise<void> {
     return;
   }
 
-  const withX = part.nodes.map((ex, i) => ({
+  const layoutY = new Map(
+    nodes.value.filter((n) => n.type === 'exercise').map((n) => [n.id, n.position.y])
+  );
+  const withY = part.nodes.map((ex) => ({
     exerciseId: ex.exerciseId,
-    x: ex.exerciseId === data.exerciseId ? node.position.x : LAYOUT.chainX0 + i * LAYOUT.stepX,
+    y:
+      ex.exerciseId === data.exerciseId
+        ? node.position.y
+        : (layoutY.get(`ex-${ex.exerciseId}`) ?? 0),
   }));
-  withX.sort((a, b) => a.x - b.x);
-  const ordered = withX.map((w) => w.exerciseId);
+  withY.sort((a, b) => a.y - b.y);
+  const ordered = withY.map((w) => w.exerciseId);
   const current = part.nodes.map((ex) => ex.exerciseId);
 
   if (ordered.join(',') === current.join(',')) {
@@ -605,7 +616,7 @@ onUnmounted(() => {
             <q-btn
               dense
               outline
-              icon="arrow_back"
+              icon="arrow_upward"
               label="Más fácil"
               no-caps
               size="sm"
@@ -614,7 +625,7 @@ onUnmounted(() => {
             <q-btn
               dense
               outline
-              icon-right="arrow_forward"
+              icon-right="arrow_downward"
               label="Más difícil"
               no-caps
               size="sm"

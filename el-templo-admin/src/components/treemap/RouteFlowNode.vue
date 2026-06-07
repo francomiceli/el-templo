@@ -39,10 +39,10 @@ defineProps<{ data: RouteNodeData }>();
         <q-badge v-if="data.overridden" color="primary" label="Manual" />
       </div>
     </div>
-    <!-- Visual-only outlet for the dashed "start of chain" edge. -->
+    <!-- Visual-only outlet for the dashed "start of chain" edge (chain grows down). -->
     <Handle
       type="source"
-      :position="Position.Right"
+      :position="Position.Bottom"
       :connectable="false"
       class="route-flow-node__handle"
     />

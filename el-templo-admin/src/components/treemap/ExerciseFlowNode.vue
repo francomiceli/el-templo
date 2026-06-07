@@ -27,9 +27,9 @@ defineProps<{ data: ExerciseNodeData; selected?: boolean }>();
       'exercise-flow-node--manual': data.orderSource === 'manual',
     }"
   >
-    <!-- Left/right handles: chain edges land here; dragging from one node to
-         another creates a manual precedence (handled by the page's onConnect). -->
-    <Handle type="target" :position="Position.Left" class="exercise-flow-node__handle" />
+    <!-- Top/bottom handles: chain edges land here (vertical layout); dragging from
+         one node to another creates a manual precedence (page's onConnect). -->
+    <Handle type="target" :position="Position.Top" class="exercise-flow-node__handle" />
     <div class="exercise-flow-node__step">{{ data.stepIndex + 1 }}</div>
     <div class="exercise-flow-node__body">
       <div class="exercise-flow-node__name">{{ data.name }}</div>
@@ -43,7 +43,7 @@ defineProps<{ data: ExerciseNodeData; selected?: boolean }>();
         />
       </div>
     </div>
-    <Handle type="source" :position="Position.Right" class="exercise-flow-node__handle" />
+    <Handle type="source" :position="Position.Bottom" class="exercise-flow-node__handle" />
   </div>
 </template>
 
