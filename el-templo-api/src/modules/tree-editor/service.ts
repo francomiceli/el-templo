@@ -21,9 +21,14 @@
  * `source='auto'` edges and writes the manual chain (D-02/D-03).
  */
 
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, asc } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import * as schema from "../../db/schema";
+import {
+  acceptInTransaction,
+  type AcceptOverrides,
+  type ProposalTx,
+} from "../admin/proposal-service";
 import { AppError } from "../shared/errors";
 import {
   backboneNodeConditions,
@@ -132,6 +137,51 @@ export interface MutationResult {
   singleNode?: true;
   /** Optional human-readable note accompanying a no-op result (e.g. singleNode). */
   message?: string;
+}
+
+// ── Milestone review DTOs (phase 133 Plan 05 — R1-REV, also the Plan-06 contract) ──
+
+export const MILESTONE_ROLES = ["hito", "variante"] as const;
+export type MilestoneRole = (typeof MILESTONE_ROLES)[number];
+
+/** One pending hito/variante proposal row for the /tree-map review drawer. */
+export interface MilestoneReviewRow {
+  exerciseId: number;
+  name: string;
+  /** dificultad_lineal. */
+  dl: number;
+  effort: string;
+  movementToken: string | null;
+  stepRank: number | null;
+  /** NULL = proposed as HITO; NOT NULL = proposed as variante of that hito. */
+  proposedMilestoneExerciseId: number | null;
+  status: "pending" | "accepted" | "rejected";
+  confidence: number | null;
+}
+
+/** A variante hanging off a milestone (TRUTH column, not proposals). */
+export interface MilestoneVariant {
+  id: number;
+  name: string;
+  dl: number;
+}
+
+/**
+ * Inline dimension overrides the profe can supply in the SAME pass (locked
+ * decision 2). `undefined` = keep the proposed value; `null` = explicit clear
+ * (mirrors AcceptOverrides' `!== undefined` semantics).
+ */
+export interface MilestoneDimensionOverrides {
+  step?: number | null;
+  habilidad?: string | null;
+}
+
+export interface AcceptMilestoneReviewInput {
+  exerciseId: number;
+  role: MilestoneRole;
+  /** Required when role='variante': the hito the exercise hangs off. */
+  milestoneExerciseId?: number;
+  dimensionOverrides?: MilestoneDimensionOverrides;
 }
 
 // ── Internal row shapes ──────────────────────────────────────────────────────
@@ -795,6 +845,315 @@ export class TreeEditorService {
     });
 
     return { ok: true, edgesWritten: 0, edgesDeleted };
+  }
+
+  // ── Milestone review (phase 133 Plan 05 — R1-REV) ───────────────────────────
+
+  /**
+   * acceptMilestoneReview — ONE coach pass = ONE transaction (locked decision
+   * 2). This is the ONLY write path of the truth column
+   * `exercises.milestone_exercise_id` (the phase-125 boundary: heuristics only
+   * ever propose; profes confirm here, under the plugin role guard).
+   *
+   * Inside a single `db.transaction`:
+   *   (a) accept the exercise's PENDING dimension proposal (if one exists) via
+   *       the shared `acceptInTransaction`, applying `dimensionOverrides`;
+   *   (b) validate the variante target (exists 404 / same (route × effort)
+   *       partition 400 / itself a hito 400 / no variantes hanging off the
+   *       degraded exercise 400) — validation failures AFTER (a) roll the
+   *       whole pass back, which is exactly the all-or-nothing the drawer
+   *       relies on;
+   *   (c) write the truth: NULL for role='hito', the hito id for 'variante';
+   *   (d) role='variante' → bounded prune of the degraded exercise's incident
+   *       edges (Pitfall 2 — covers LOCKED partitions the rebuild never
+   *       touches), re-chaining prev→next inside the partition;
+   *   (e) flip the PENDING milestone proposal to 'accepted' if one exists —
+   *       when none exists the pass proceeds anyway (ad-hoc classification
+   *       from the side panel).
+   */
+  async acceptMilestoneReview(
+    input: AcceptMilestoneReviewInput,
+  ): Promise<MutationResult> {
+    const { exerciseId, role } = input;
+
+    let targetId: number | null = null;
+    if (role === "variante") {
+      if (input.milestoneExerciseId === undefined) {
+        throw new TreeEditorError(
+          "milestoneExerciseId es requerido cuando role='variante'",
+        );
+      }
+      if (input.milestoneExerciseId === exerciseId) {
+        throw new TreeEditorError(
+          "Un ejercicio no puede ser variante de si mismo",
+        );
+      }
+      targetId = input.milestoneExerciseId;
+    }
+
+    let edgesDeleted = 0;
+    let edgesWritten = 0;
+
+    await this.db.transaction(async (tx) => {
+      const [exercise] = await tx
+        .select({
+          id: schema.exercises.id,
+          route: schema.exercises.route,
+          effort: schema.exercises.effort,
+        })
+        .from(schema.exercises)
+        .where(eq(schema.exercises.id, exerciseId));
+      if (!exercise) {
+        throw new TreeEditorError(`Ejercicio ${exerciseId} no encontrado`, 404);
+      }
+
+      // (a) Accept the pending DIMENSION proposal first — same tx, so any
+      // later validation failure rolls this back too (all-or-nothing).
+      const [dimProposal] = await tx
+        .select({ id: schema.exerciseDimensionProposals.id })
+        .from(schema.exerciseDimensionProposals)
+        .where(
+          and(
+            eq(schema.exerciseDimensionProposals.exerciseId, exerciseId),
+            eq(schema.exerciseDimensionProposals.status, "pending"),
+          ),
+        )
+        .orderBy(asc(schema.exerciseDimensionProposals.id))
+        .limit(1);
+      if (dimProposal) {
+        let overrides: AcceptOverrides | undefined;
+        const o = input.dimensionOverrides;
+        if (o !== undefined) {
+          overrides = {};
+          if (o.step !== undefined) overrides.proposedStep = o.step;
+          if (o.habilidad !== undefined) {
+            overrides.proposedHabilidad = o.habilidad;
+          }
+        }
+        await acceptInTransaction(tx, dimProposal.id, overrides);
+      }
+
+      // (b) Variante target validations (T-133-41: typed 400/404, never 500).
+      if (role === "variante" && targetId !== null) {
+        const [target] = await tx
+          .select({
+            id: schema.exercises.id,
+            route: schema.exercises.route,
+            effort: schema.exercises.effort,
+            milestoneExerciseId: schema.exercises.milestoneExerciseId,
+          })
+          .from(schema.exercises)
+          .where(eq(schema.exercises.id, targetId));
+        if (!target) {
+          throw new TreeEditorError(`El hito ${targetId} no existe`, 404);
+        }
+        if (
+          target.route !== exercise.route ||
+          target.effort !== exercise.effort
+        ) {
+          throw new TreeEditorError(
+            "El hito debe pertenecer a la misma particion (ruta × esfuerzo) que el ejercicio",
+          );
+        }
+        if (target.milestoneExerciseId !== null) {
+          throw new TreeEditorError(
+            "El hito destino es a su vez una variante — elegi un hito del backbone",
+          );
+        }
+        const [hanging] = await tx
+          .select({ id: schema.exercises.id })
+          .from(schema.exercises)
+          .where(eq(schema.exercises.milestoneExerciseId, exerciseId))
+          .limit(1);
+        if (hanging) {
+          throw new TreeEditorError(
+            "El ejercicio tiene variantes asignadas — promové otra variante a hito primero",
+          );
+        }
+      }
+
+      // (c) Truth write — the ONLY place milestone_exercise_id is set.
+      await tx
+        .update(schema.exercises)
+        .set({ milestoneExerciseId: targetId })
+        .where(eq(schema.exercises.id, exerciseId));
+
+      // (d) Bounded prune of the degraded exercise's incident edges.
+      if (role === "variante") {
+        const pruned = await this.pruneDegradedVariantEdges(tx, exercise);
+        edgesDeleted = pruned.deleted;
+        edgesWritten = pruned.written;
+      }
+
+      // (e) Flip the pending milestone proposal — if none exists, proceed
+      // (ad-hoc classification from the panel).
+      await tx
+        .update(schema.exerciseMilestoneProposals)
+        .set({ status: "accepted" })
+        .where(
+          and(
+            eq(schema.exerciseMilestoneProposals.exerciseId, exerciseId),
+            eq(schema.exerciseMilestoneProposals.status, "pending"),
+          ),
+        );
+    });
+
+    return { ok: true, edgesWritten, edgesDeleted };
+  }
+
+  /**
+   * rejectMilestoneReview — status-only flip of the PENDING milestone proposal
+   * to 'rejected'. NEVER touches `exercises` (any column). 404 when the
+   * exercise has no pending proposal.
+   */
+  async rejectMilestoneReview(exerciseId: number): Promise<MutationResult> {
+    const result = await this.db
+      .update(schema.exerciseMilestoneProposals)
+      .set({ status: "rejected" })
+      .where(
+        and(
+          eq(schema.exerciseMilestoneProposals.exerciseId, exerciseId),
+          eq(schema.exerciseMilestoneProposals.status, "pending"),
+        ),
+      );
+    if (readAffectedRows(result) === 0) {
+      throw new TreeEditorError(
+        `No hay propuesta de hito pendiente para el ejercicio ${exerciseId}`,
+        404,
+      );
+    }
+    return { ok: true, edgesWritten: 0, edgesDeleted: 0 };
+  }
+
+  /**
+   * Bounded orphan policy when an exercise is degraded to variante (Pattern 3
+   * / Pitfall 2 — works for LOCKED partitions too, where the rebuild never
+   * enters). Mirrors reassignRoute's incident-edge handling, INSIDE the
+   * caller's transaction:
+   *
+   *   - Load every edge incident to the degraded exercise (from + to).
+   *   - Delete them ALL by id (`inArray` — bounded, never a bulk wipe,
+   *     T-128-05). A variante must keep ZERO incident edges so getNeighbor can
+   *     never serve it again.
+   *   - If the exercise sat in the MIDDLE of a same-partition chain (had at
+   *     least one same-partition predecessor AND successor), re-chain
+   *     prev→next (skipping rows that already exist — UNIQUE(from,to)). The
+   *     new edge is 'manual' when ANY pruned same-partition edge was manual
+   *     (preserves the partition lock), else 'auto'.
+   *   - Cross-partition incident edges are deleted WITHOUT re-chaining
+   *     (precedence branches are never invented across partitions).
+   */
+  private async pruneDegradedVariantEdges(
+    tx: ProposalTx,
+    exercise: { id: number; route: string; effort: string },
+  ): Promise<{ deleted: number; written: number }> {
+    const outgoing = await tx
+      .select({
+        id: schema.exerciseProgressions.id,
+        fromExerciseId: schema.exerciseProgressions.fromExerciseId,
+        toExerciseId: schema.exerciseProgressions.toExerciseId,
+        source: schema.exerciseProgressions.source,
+      })
+      .from(schema.exerciseProgressions)
+      .where(eq(schema.exerciseProgressions.fromExerciseId, exercise.id));
+    const incoming = await tx
+      .select({
+        id: schema.exerciseProgressions.id,
+        fromExerciseId: schema.exerciseProgressions.fromExerciseId,
+        toExerciseId: schema.exerciseProgressions.toExerciseId,
+        source: schema.exerciseProgressions.source,
+      })
+      .from(schema.exerciseProgressions)
+      .where(eq(schema.exerciseProgressions.toExerciseId, exercise.id));
+
+    const incidentById = new Map<
+      number,
+      {
+        id: number;
+        fromExerciseId: number;
+        toExerciseId: number;
+        source: string;
+      }
+    >();
+    for (const e of [...outgoing, ...incoming]) incidentById.set(e.id, e);
+    if (incidentById.size === 0) return { deleted: 0, written: 0 };
+
+    // Coords of every OTHER endpoint, to classify same- vs cross-partition.
+    const otherIds = new Set<number>();
+    for (const e of incidentById.values()) {
+      otherIds.add(
+        e.fromExerciseId === exercise.id ? e.toExerciseId : e.fromExerciseId,
+      );
+    }
+    const coordRows = await tx
+      .select({
+        id: schema.exercises.id,
+        route: schema.exercises.route,
+        effort: schema.exercises.effort,
+      })
+      .from(schema.exercises)
+      .where(inArray(schema.exercises.id, [...otherIds]));
+    const coordById = new Map<number, { route: string; effort: string }>();
+    for (const r of coordRows) {
+      coordById.set(r.id, { route: r.route, effort: r.effort });
+    }
+
+    // Same-partition predecessors/successors of the degraded exercise.
+    const prevs: { otherId: number; source: string }[] = [];
+    const nexts: { otherId: number; source: string }[] = [];
+    for (const e of incidentById.values()) {
+      const otherId =
+        e.fromExerciseId === exercise.id ? e.toExerciseId : e.fromExerciseId;
+      const coords = coordById.get(otherId);
+      const samePartition =
+        coords !== undefined &&
+        coords.route === exercise.route &&
+        coords.effort === exercise.effort;
+      if (!samePartition) continue;
+      if (e.toExerciseId === exercise.id) {
+        prevs.push({ otherId, source: e.source });
+      } else {
+        nexts.push({ otherId, source: e.source });
+      }
+    }
+
+    // Delete every incident edge by id — bounded, never a bulk wipe.
+    const idsToDelete = [...incidentById.keys()];
+    await tx
+      .delete(schema.exerciseProgressions)
+      .where(inArray(schema.exerciseProgressions.id, idsToDelete));
+    const deleted = idsToDelete.length;
+    let written = 0;
+
+    // Re-chain prev→next when the exercise sat in the MIDDLE of a chain.
+    if (prevs.length > 0 && nexts.length > 0) {
+      const anyManual = [...prevs, ...nexts].some((e) => e.source === "manual");
+      const newSource: EdgeSource = anyManual ? "manual" : "auto";
+      for (const prev of prevs) {
+        for (const next of nexts) {
+          if (prev.otherId === next.otherId) continue; // never a self-edge
+          const [existing] = await tx
+            .select({ id: schema.exerciseProgressions.id })
+            .from(schema.exerciseProgressions)
+            .where(
+              and(
+                eq(schema.exerciseProgressions.fromExerciseId, prev.otherId),
+                eq(schema.exerciseProgressions.toExerciseId, next.otherId),
+              ),
+            )
+            .limit(1);
+          if (existing) continue; // UNIQUE(from,to) — already chained
+          await tx.insert(schema.exerciseProgressions).values({
+            fromExerciseId: prev.otherId,
+            toExerciseId: next.otherId,
+            source: newSource,
+          });
+          written += 1;
+        }
+      }
+    }
+
+    return { deleted, written };
   }
 }
 

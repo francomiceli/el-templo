@@ -60,6 +60,106 @@ export interface AcceptOverrides {
   proposedRoute?: string;
 }
 
+/**
+ * The Drizzle transaction handle `accept()` runs inside. Derived from the
+ * `db.transaction` callback signature so it stays in lockstep with the driver
+ * types — shareable by services that embed the dimension accept inside their
+ * OWN transaction (phase 133 Plan 05: the tree-editor milestone accept).
+ */
+export type ProposalTx = Parameters<
+  Parameters<MySql2Database<typeof schema>["transaction"]>[0]
+>[0];
+
+/**
+ * The transactional body of `ProposalService.accept` (D-02), extracted in
+ * phase 133 Plan 05 so the tree-editor's ONE-pass milestone accept can run the
+ * dimension accept inside ITS transaction (locked decision 2: dimension +
+ * hito/variante commit atomically in a single coach pass). Behavior is
+ * byte-identical to the pre-extraction accept: writes the phase-124 truth
+ * columns + flips the proposal status, NEVER touches the contraction column,
+ * NEVER deletes a row. Throws if the proposal or its exercise is missing.
+ */
+export async function acceptInTransaction(
+  tx: ProposalTx,
+  id: number,
+  overrides?: AcceptOverrides,
+): Promise<boolean> {
+  const [proposal] = await tx
+    .select()
+    .from(schema.exerciseDimensionProposals)
+    .where(eq(schema.exerciseDimensionProposals.id, id));
+
+  if (!proposal) {
+    throw new Error(`Propuesta ${id} no encontrada`);
+  }
+
+  const [exercise] = await tx
+    .select({
+      id: schema.exercises.id,
+      route: schema.exercises.route,
+      routePending: schema.exercises.routePending,
+    })
+    .from(schema.exercises)
+    .where(eq(schema.exercises.id, proposal.exerciseId));
+
+  if (!exercise) {
+    throw new Error(`Ejercicio ${proposal.exerciseId} no encontrado`);
+  }
+
+  // Resolve final values from overrides (D-07 inline edit) falling back to
+  // the proposed fields. `!== undefined` so a profe can explicitly clear a
+  // value (step → null = off-backbone, habilidad → null = on the backbone).
+  const finalStep =
+    overrides?.proposedStep !== undefined
+      ? overrides.proposedStep
+      : (proposal.proposedStep ?? null);
+  const finalHabilidad =
+    overrides?.proposedHabilidad !== undefined
+      ? overrides.proposedHabilidad
+      : (proposal.proposedHabilidad ?? null);
+  const overrideRoute = overrides?.proposedRoute;
+  const proposedRoute = proposal.proposedRoute ?? null;
+
+  // Only set the route for a route_pending exercise (D-03: never overwrite
+  // an existing route) OR when a profe explicitly overrides it.
+  const shouldWriteRoute =
+    overrideRoute !== undefined ||
+    (exercise.routePending && proposedRoute !== null);
+  const finalRoute = overrideRoute ?? proposedRoute;
+
+  // Build the exercises truth-column update: the progression step + Habilidad
+  // are the core of the decision and are ALWAYS written on accept. NEVER
+  // touches the contraction column (D-03).
+  const exerciseUpdate: {
+    progressionStep: number | null;
+    habilidad: string | null;
+    route?: string;
+    routePending?: boolean;
+  } = {
+    progressionStep: finalStep,
+    habilidad: finalHabilidad,
+  };
+
+  // route + route_pending for route_pending rows (or override).
+  if (shouldWriteRoute && finalRoute !== null) {
+    exerciseUpdate.route = finalRoute;
+    exerciseUpdate.routePending = false;
+  }
+
+  await tx
+    .update(schema.exercises)
+    .set(exerciseUpdate)
+    .where(eq(schema.exercises.id, exercise.id));
+
+  // (4) Mark the proposal accepted.
+  await tx
+    .update(schema.exerciseDimensionProposals)
+    .set({ status: "accepted" })
+    .where(eq(schema.exerciseDimensionProposals.id, id));
+
+  return true;
+}
+
 export class ProposalService {
   constructor(private readonly db: MySql2Database<typeof schema>) {}
 
@@ -126,84 +226,13 @@ export class ProposalService {
    * columns. Returns true on success; throws if the proposal does not exist.
    *
    * NEVER writes the contraction column. NEVER deletes any row.
+   *
+   * The transactional body lives in the exported `acceptInTransaction` so the
+   * tree-editor milestone accept (phase 133 Plan 05) can embed it inside its
+   * own transaction — this wrapper only supplies the transaction.
    */
   async accept(id: number, overrides?: AcceptOverrides): Promise<boolean> {
-    return this.db.transaction(async (tx) => {
-      const [proposal] = await tx
-        .select()
-        .from(schema.exerciseDimensionProposals)
-        .where(eq(schema.exerciseDimensionProposals.id, id));
-
-      if (!proposal) {
-        throw new Error(`Propuesta ${id} no encontrada`);
-      }
-
-      const [exercise] = await tx
-        .select({
-          id: schema.exercises.id,
-          route: schema.exercises.route,
-          routePending: schema.exercises.routePending,
-        })
-        .from(schema.exercises)
-        .where(eq(schema.exercises.id, proposal.exerciseId));
-
-      if (!exercise) {
-        throw new Error(`Ejercicio ${proposal.exerciseId} no encontrado`);
-      }
-
-      // Resolve final values from overrides (D-07 inline edit) falling back to
-      // the proposed fields. `!== undefined` so a profe can explicitly clear a
-      // value (step → null = off-backbone, habilidad → null = on the backbone).
-      const finalStep =
-        overrides?.proposedStep !== undefined
-          ? overrides.proposedStep
-          : (proposal.proposedStep ?? null);
-      const finalHabilidad =
-        overrides?.proposedHabilidad !== undefined
-          ? overrides.proposedHabilidad
-          : (proposal.proposedHabilidad ?? null);
-      const overrideRoute = overrides?.proposedRoute;
-      const proposedRoute = proposal.proposedRoute ?? null;
-
-      // Only set the route for a route_pending exercise (D-03: never overwrite
-      // an existing route) OR when a profe explicitly overrides it.
-      const shouldWriteRoute =
-        overrideRoute !== undefined ||
-        (exercise.routePending && proposedRoute !== null);
-      const finalRoute = overrideRoute ?? proposedRoute;
-
-      // Build the exercises truth-column update: the progression step + Habilidad
-      // are the core of the decision and are ALWAYS written on accept. NEVER
-      // touches the contraction column (D-03).
-      const exerciseUpdate: {
-        progressionStep: number | null;
-        habilidad: string | null;
-        route?: string;
-        routePending?: boolean;
-      } = {
-        progressionStep: finalStep,
-        habilidad: finalHabilidad,
-      };
-
-      // route + route_pending for route_pending rows (or override).
-      if (shouldWriteRoute && finalRoute !== null) {
-        exerciseUpdate.route = finalRoute;
-        exerciseUpdate.routePending = false;
-      }
-
-      await tx
-        .update(schema.exercises)
-        .set(exerciseUpdate)
-        .where(eq(schema.exercises.id, exercise.id));
-
-      // (4) Mark the proposal accepted.
-      await tx
-        .update(schema.exerciseDimensionProposals)
-        .set({ status: "accepted" })
-        .where(eq(schema.exerciseDimensionProposals.id, id));
-
-      return true;
-    });
+    return this.db.transaction((tx) => acceptInTransaction(tx, id, overrides));
   }
 
   /**
