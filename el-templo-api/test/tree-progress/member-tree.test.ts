@@ -14,13 +14,15 @@ import * as schema from "../../src/db/schema";
  *   - route PUSHR (PUSH → Empuje) with 2 canonical nodes at dl 1/9
  *   - exercise_progressions edges so the nodes are real graph nodes
  *   - OFF-graph exercises (non-canonical / off-effort / habilidad variant /
- *     excluded route) that MUST NOT appear in the tree
+ *     excluded route / milestone variante) that MUST NOT appear in the tree
  *
  * Asserts: 5-category grouping order, per-route %, reached-by-ceiling,
  * 401-without-token, and own-scope isolation (member A's higher level never leaks
- * into member B's tree). The structure source mirrors rebuild-progression-graph:
+ * into member B's tree). The structure source is the shared backbone predicate
+ * (src/modules/exercises/backbone-scope.ts), mirrored by rebuild-progression-graph:
  *   canonical_exercise_id IS NULL AND effort IN ('CON','EXC','ISO')
- *   AND habilidad IS NULL AND routes.excluded_from_tree = false
+ *   AND habilidad IS NULL AND milestone_exercise_id IS NULL
+ *   AND routes.excluded_from_tree = false
  */
 describe("GET /api/tree-progress/me", () => {
   let app: FastifyInstance;
@@ -48,6 +50,7 @@ describe("GET /api/tree-progress/me", () => {
     route: string;
     canonicalExerciseId?: number | null;
     habilidad?: string | null;
+    milestoneExerciseId?: number | null;
   }): Promise<number> {
     const [row] = await app.db
       .insert(schema.exercises)
@@ -61,6 +64,7 @@ describe("GET /api/tree-progress/me", () => {
         route: opts.route,
         habilidad: opts.habilidad ?? null,
         canonicalExerciseId: opts.canonicalExerciseId ?? null,
+        milestoneExerciseId: opts.milestoneExerciseId ?? null,
       })
       .$returningId();
     return row.id;
@@ -195,6 +199,17 @@ describe("GET /api/tree-progress/me", () => {
       effort: "CON",
       dl: 7,
       route: "EXCLR",
+    });
+    // (5) milestone VARIANTE (milestone_exercise_id NOT NULL → off the backbone,
+    //     phase 133 R1-FILTER). At dl 4 it would be reached by any sigma+ member
+    //     and would inflate Tracción's counts/percent if it leaked into the tree.
+    await createExercise({
+      name: "Off-graph milestone variante",
+      pattern: "PULL",
+      effort: "CON",
+      dl: 4,
+      route: "PULLR",
+      milestoneExerciseId: a2,
     });
 
     return { routeA, routeB, aNodes: [a2, a5, a8], bNodes: [b1, b9] };

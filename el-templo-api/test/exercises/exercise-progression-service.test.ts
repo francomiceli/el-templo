@@ -61,7 +61,9 @@ describe("ExerciseProgressionService.getNeighbor (progresión por ruta)", () => 
   /**
    * Insert one exercise (filling the NOT NULL columns) and track its id for
    * cleanup. `habilidad` defaults NULL (on-backbone); set it to push the row off
-   * the backbone (Test G). `progressionStep` orders the partition.
+   * the backbone (Test G). `milestoneExerciseId` defaults NULL (hito); set it to
+   * make the row a VARIANTE, off the backbone (Test J — phase 133 R1-FILTER).
+   * `progressionStep` orders the partition.
    */
   async function seedExercise(opts: {
     name: string;
@@ -70,6 +72,7 @@ describe("ExerciseProgressionService.getNeighbor (progresión por ruta)", () => 
     dl: number;
     progressionStep?: number | null;
     habilidad?: string | null;
+    milestoneExerciseId?: number | null;
   }): Promise<number> {
     const [res] = await app.db
       .insert(schema.exercises)
@@ -81,6 +84,7 @@ describe("ExerciseProgressionService.getNeighbor (progresión por ruta)", () => 
         route: opts.route,
         progressionStep: opts.progressionStep ?? null,
         habilidad: opts.habilidad ?? null,
+        milestoneExerciseId: opts.milestoneExerciseId ?? null,
         dificultadLineal: opts.dl,
       })
       .$returningId();
@@ -441,6 +445,54 @@ describe("ExerciseProgressionService.getNeighbor (progresión por ruta)", () => 
     expect(downManualOnly).not.toBeNull();
     expect(downManualOnly?.id).toBe(a);
     expect(downManualOnly?.id).not.toBe(b);
+  });
+
+  it("J — a milestone VARIANTE is never returned as a neighbor after a rebuild (R1-FILTER)", async () => {
+    // low and high are milestones; the variante of low sits BETWEEN them by
+    // step/dl. With the milestone filter the rebuild leaves the variante with no
+    // incident edges, so adjacency from its neighbors skips it entirely
+    // (membership is by edges) and the variante itself resolves no neighbor.
+    const route = await seedRoute("J");
+    const low = await seedExercise({
+      name: "J_low",
+      effort: "CON",
+      route,
+      dl: 1,
+      progressionStep: 1,
+    });
+    const variante = await seedExercise({
+      name: "J_variante",
+      effort: "CON",
+      route,
+      dl: 3,
+      progressionStep: 2,
+      milestoneExerciseId: low,
+    });
+    const high = await seedExercise({
+      name: "J_high",
+      effort: "CON",
+      route,
+      dl: 5,
+      progressionStep: 3,
+    });
+
+    await runRebuildProgressionGraph(app.db);
+
+    // From the milestone below: up goes straight to the next milestone.
+    const upFromLow = await service.getNeighbor(low, "up");
+    expect(upFromLow).not.toBeNull();
+    expect(upFromLow?.id).toBe(high);
+    expect(upFromLow?.id).not.toBe(variante);
+
+    // From the milestone above: down goes straight to the previous milestone.
+    const downFromHigh = await service.getNeighbor(high, "down");
+    expect(downFromHigh).not.toBeNull();
+    expect(downFromHigh?.id).toBe(low);
+    expect(downFromHigh?.id).not.toBe(variante);
+
+    // The variante itself carries no incident edges → no neighbors at all.
+    expect(await service.getNeighbor(variante, "up")).toBeNull();
+    expect(await service.getNeighbor(variante, "down")).toBeNull();
   });
 
   it("I — empty-effort target and empty-effort neighbor are off-graph (WR-03)", async () => {

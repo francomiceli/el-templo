@@ -31,11 +31,13 @@
 
 import { describe, it, expect, beforeAll, afterEach, afterAll } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { inArray, or } from "drizzle-orm";
+import { and, eq, inArray, or } from "drizzle-orm";
 import { createTestApp } from "../helpers";
 import * as schema from "../../src/db/schema";
+import { backboneNodeConditions } from "../../src/modules/exercises/backbone-scope";
 import {
   runRebuildProgressionGraph,
+  readBackboneNodes,
   readExerciseNodes,
   readManualEdgePartitionRows,
 } from "../../rebuild-progression-graph";
@@ -65,7 +67,10 @@ describe("rebuild-progression-graph (progresión por ruta)", () => {
    * Insert one exercise (filling the NOT NULL columns) and track its id for
    * cleanup. `exercise` carries the PREFIX; canonicalExerciseId left NULL so the
    * row is canonical. `habilidad` defaults NULL (on-backbone); set it to push the
-   * row off the backbone (Test E). `progressionStep` may be null (linear routes).
+   * row off the backbone (Test E). `milestoneExerciseId` defaults NULL (hito /
+   * sin clasificar); set it to make the row a VARIANTE hanging off a milestone,
+   * off the backbone (Test V — phase 133 R1-FILTER). `progressionStep` may be
+   * null (linear routes).
    */
   async function seedExercise(opts: {
     name: string;
@@ -74,6 +79,7 @@ describe("rebuild-progression-graph (progresión por ruta)", () => {
     route: string;
     progressionStep?: number | null;
     habilidad?: string | null;
+    milestoneExerciseId?: number | null;
   }): Promise<number> {
     const [res] = await app.db
       .insert(schema.exercises)
@@ -85,6 +91,7 @@ describe("rebuild-progression-graph (progresión por ruta)", () => {
         route: opts.route,
         progressionStep: opts.progressionStep ?? null,
         habilidad: opts.habilidad ?? null,
+        milestoneExerciseId: opts.milestoneExerciseId ?? null,
         dificultadLineal: opts.dl,
       })
       .$returningId();
@@ -513,6 +520,126 @@ describe("rebuild-progression-graph (progresión por ruta)", () => {
       toExerciseId: base2,
       source: "auto",
     });
+  });
+
+  it("V — a variante (milestone_exercise_id NOT NULL) is off-backbone: no incident edges, chain connects prev→next milestone (R1-FILTER)", async () => {
+    const route = await seedRoute("V");
+    // Two milestones form the chain (steps 1 and 3, dl 1 and 5)...
+    const hito1 = await seedExercise({
+      name: "Vhito1",
+      effort: "CON",
+      dl: 1,
+      route,
+      progressionStep: 1,
+    });
+    const hito2 = await seedExercise({
+      name: "Vhito2",
+      effort: "CON",
+      dl: 5,
+      route,
+      progressionStep: 3,
+    });
+    // ...and a VARIANTE of hito1 sits BETWEEN them (step 2, dl 3). Without the
+    // milestone filter the backbone would chain hito1→variante→hito2 (2 edges);
+    // with it, the variante vanishes and the chain is hito1→hito2 (1 edge).
+    const variante = await seedExercise({
+      name: "Vvariante",
+      effort: "CON",
+      dl: 3,
+      route,
+      progressionStep: 2,
+      milestoneExerciseId: hito1,
+    });
+
+    await runRebuildProgressionGraph(app.db);
+
+    const edges = await getAutoEdges([hito1, hito2, variante]);
+    // The variante appears in NO edge.
+    expect(
+      edges.some(
+        (e) => e.fromExerciseId === variante || e.toExerciseId === variante,
+      ),
+    ).toBe(false);
+    // The milestone chain connects prev→next directly, and that's the only edge.
+    expect(edges).toHaveLength(1);
+    expect(edges).toContainEqual({
+      fromExerciseId: hito1,
+      toExerciseId: hito2,
+      source: "auto",
+    });
+  });
+
+  it("node-set consistency — the shared Drizzle helper and the rebuild's raw SELECT return the same exercise ids (Pattern 4 / T-133-30)", async () => {
+    // Seed a mix that exercises EVERY condition of the funnel: two milestones
+    // (in), a milestone variante (out), a habilidad variante (out), a node on an
+    // excluded route (out). Both reads are full-DB scans, so set equality holds
+    // regardless of any pre-existing catalog rows in the per-worker DB.
+    const route = await seedRoute("NS");
+    const hitoA = await seedExercise({
+      name: "NShitoA",
+      effort: "CON",
+      dl: 1,
+      route,
+      progressionStep: 1,
+    });
+    const hitoB = await seedExercise({
+      name: "NShitoB",
+      effort: "ISO",
+      dl: 4,
+      route,
+      progressionStep: 1,
+    });
+    const variante = await seedExercise({
+      name: "NSvariante",
+      effort: "CON",
+      dl: 2,
+      route,
+      progressionStep: 2,
+      milestoneExerciseId: hitoA,
+    });
+    const habVariant = await seedExercise({
+      name: "NShab",
+      effort: "CON",
+      dl: 3,
+      route,
+      progressionStep: 3,
+      habilidad: "WIDE",
+    });
+    const exclRoute = await seedRoute("NX", true);
+    const exclNode = await seedExercise({
+      name: "NSexcl",
+      effort: "CON",
+      dl: 1,
+      route: exclRoute,
+      progressionStep: 1,
+    });
+
+    // Drizzle path: the shared helper (the predicate tree-editor/tree-progress
+    // spread into and(...)).
+    const drizzleRows = await app.db
+      .select({ id: schema.exercises.id })
+      .from(schema.exercises)
+      .innerJoin(schema.routes, eq(schema.exercises.route, schema.routes.code))
+      .where(and(...backboneNodeConditions()));
+    const drizzleIds = drizzleRows.map((r) => r.id).sort((a, b) => a - b);
+
+    // Raw-SQL path: the rebuild's exported node read (the manual mirror).
+    const rawIds = (await readBackboneNodes(app.db))
+      .map((n) => n.id)
+      .sort((a, b) => a - b);
+
+    // The two node-sets are IDENTICAL — the manual mirror has not drifted.
+    expect(rawIds).toEqual(drizzleIds);
+
+    // And the funnel behaves as specified on this seed: milestones in,
+    // variante / habilidad / excluded-route nodes out — in BOTH paths.
+    for (const ids of [drizzleIds, rawIds]) {
+      expect(ids).toContain(hitoA);
+      expect(ids).toContain(hitoB);
+      expect(ids).not.toContain(variante);
+      expect(ids).not.toContain(habVariant);
+      expect(ids).not.toContain(exclNode);
+    }
   });
 
   it("E2 — a route with excluded_from_tree=1 yields 0 edges", async () => {
