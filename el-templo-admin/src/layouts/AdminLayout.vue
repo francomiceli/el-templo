@@ -44,7 +44,7 @@
             <q-item-section avatar>
               <q-icon name="hub" />
             </q-item-section>
-            <q-item-section>Mapa del árbol</q-item-section>
+            <q-item-section>Árbol</q-item-section>
           </q-item>
         </template>
 

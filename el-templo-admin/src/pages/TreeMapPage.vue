@@ -682,7 +682,7 @@ onUnmounted(() => {
   <q-page class="tree-map-page">
     <!-- Toolbar -->
     <div class="tree-map-toolbar row items-center q-gutter-sm q-px-md q-py-sm">
-      <div class="text-h6">Mapa del árbol</div>
+      <div class="text-h6">Árbol de ejercicios</div>
 
       <q-btn-toggle
         :model-value="selectedEffort"
