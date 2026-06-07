@@ -10,7 +10,7 @@
  *   5. Real-client invariant: the production admin form ALWAYS sends `level`
  *      (seeded from the member's current level). Editing an unrelated field
  *      (phone) with the unchanged level must leave level + override untouched
- *      (CR-01 / D-05) AND the member must still auto-graduate.
+ *      (CR-01 / D-05).
  *
  * Runs in CI (project policy: integration suite is not run locally).
  */
@@ -24,9 +24,6 @@ import {
   cleanAllTestData,
 } from "../helpers";
 import { users } from "../../src/db/schema/users";
-import { completedSessions } from "../../src/db/schema/completed-sessions";
-import { GraduationService } from "../../src/modules/members/graduation-service";
-import { KAIROS_GRADUATION_THRESHOLD } from "../../src/modules/shared/training-constants";
 
 describe("Phase 130 - kairos default and coach override", () => {
   let app: FastifyInstance;
@@ -207,10 +204,9 @@ describe("Phase 130 - kairos default and coach override", () => {
   // Test 5 (CR-01 invariant, real-client shape): the production admin edit form
   // ALWAYS sends `level` (seeded from the member's current level). Editing an
   // unrelated field (phone) while resending the UNCHANGED level must NOT flip
-  // level_override, and the member must still auto-graduate afterwards. This is
-  // the payload the real client emits — the old test omitted `level` and so
-  // never exercised the broken path.
-  it("PUT with the full payload (unchanged level + phone change) keeps override false AND still auto-graduates", async () => {
+  // level_override. This is the payload the real client emits — the old test
+  // omitted `level` and so never exercised the broken path.
+  it("PUT with the full payload (unchanged level + phone change) keeps override false", async () => {
     const createRes = await app.inject({
       method: "POST",
       url: "/api/admin/members",
@@ -247,16 +243,6 @@ describe("Phase 130 - kairos default and coach override", () => {
     row = await readLevelRow(member.id);
     expect(row?.level).toBe("kairos");
     expect(row?.levelOverride).toBe(false);
-
-    // And because override stayed false, the member still auto-graduates once
-    // they reach the threshold (the whole point KAIROS-05 must not be poisoned
-    // by a routine profile edit).
-    await seedDistinctCompletedDays(member.id, KAIROS_GRADUATION_THRESHOLD);
-    const graduation = new GraduationService(app.db, app.log);
-    await graduation.maybeGraduateKairos(member.id);
-
-    row = await readLevelRow(member.id);
-    expect(row?.level).toBe("alfa");
   });
 
   // Test 6 (CR-01): a genuine level CHANGE via the same full-payload PUT still
@@ -296,30 +282,4 @@ describe("Phase 130 - kairos default and coach override", () => {
     expect(row?.level).toBe("delta");
     expect(row?.levelOverride).toBe(true);
   });
-
-  // Seed `n` completed_sessions rows on DISTINCT training days so they count
-  // toward the COUNT(DISTINCT date) graduation threshold (WR-02).
-  async function seedDistinctCompletedDays(
-    userId: number,
-    n: number,
-  ): Promise<void> {
-    const now = new Date();
-    const rows = Array.from({ length: n }, (_, i) => {
-      const d = new Date(Date.UTC(2026, 5, 1));
-      d.setUTCDate(d.getUTCDate() + i);
-      return {
-        userId,
-        dayId: `inv-W${i + 1}-lunes-kairos`,
-        sessionLevel: "kairos" as const,
-        date: d.toISOString().slice(0, 10),
-        branchId: 1,
-        startedAt: now,
-        completedAt: now,
-        blocksCompleted: ["NUCLEUS"],
-      };
-    });
-    if (rows.length > 0) {
-      await app.db.insert(completedSessions).values(rows);
-    }
-  }
 });

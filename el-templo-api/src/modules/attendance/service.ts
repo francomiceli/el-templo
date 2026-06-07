@@ -19,7 +19,6 @@ import {
 import { validateQrToken } from "../shared/qr-token";
 import { SubscriptionService } from "../subscriptions/service";
 import { AuraService } from "../aura/service";
-import { GraduationService } from "../members/graduation-service";
 import type {
   AttendanceRecord,
   AttendanceListParams,
@@ -740,19 +739,6 @@ export class AttendanceService {
         blocksCompleted: ["INITIUM", "NUCLEUS", "DEUTEROS_1", "ATHLOS"],
         goalPlanType: "presencial",
       });
-
-      // Phase 130 (KAIROS-05, D-02): event-driven auto-graduation off the
-      // presencial completed-session mirror. Nested guard so a graduation
-      // failure can never break the attendance mirror.
-      try {
-        const graduationService = new GraduationService(this.db, this.log);
-        await graduationService.maybeGraduateKairos(input.memberId);
-      } catch (gradErr: unknown) {
-        this.log.warn(
-          { err: gradErr, memberId: input.memberId },
-          "Kairos graduation check failed after presencial check-in (graceful degradation)",
-        );
-      }
     } catch (err) {
       this.log.error(
         { err, memberId: input.memberId, dateStr: input.dateStr },
