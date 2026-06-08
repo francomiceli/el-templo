@@ -21,7 +21,7 @@
  * `source='auto'` edges and writes the manual chain (D-02/D-03).
  */
 
-import { eq, and, inArray, asc } from "drizzle-orm";
+import { eq, and, inArray, asc, isNotNull } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import * as schema from "../../db/schema";
 import {
@@ -80,6 +80,16 @@ export interface EditableNode {
   effort: string;
   /** 'manual' when this node's partition is profe-overridden, else 'auto'. */
   orderSource: EdgeSource;
+  /**
+   * The variantes hanging off this hito via the TRUTH column
+   * (`exercises.milestone_exercise_id`), ordered by dl ascending (Plan-03 D-11).
+   * Embedded from a SEPARATE batched query (`loadVariantsByMilestone`) so the
+   * canvas draws the collapsible hierarchy without N on-demand round-trips. A
+   * variant-less hito carries `[]`. Variantes themselves are OFF the backbone
+   * node set (backbone predicate excludes `milestone_exercise_id IS NOT NULL`),
+   * so they never appear as top-level nodes — only inside this array.
+   */
+  variants: MilestoneVariant[];
 }
 
 export interface EditablePartition {
@@ -279,6 +289,49 @@ export class TreeEditorService {
   }
 
   /**
+   * loadVariantsByMilestone — ONE batched select of EVERY variante (the rows
+   * whose `milestone_exercise_id IS NOT NULL`), grouped in JS into a
+   * `Map<milestone_exercise_id, MilestoneVariant[]>` (the load-all-and-group
+   * pattern of loadGraphNodes/loadAllEdges — avoids correlated subqueries,
+   * Pitfall 3). Same column shape as `getVariants` (the on-demand side-panel
+   * read) but for all hitos at once, ordered by dl asc then id so each group is
+   * dl-ascending. This is the EXACT complement of `backboneNodeConditions()`'s
+   * `milestone_exercise_id IS NULL` clause: the backbone predicate is NEVER
+   * touched (B-NOREGRESION) — variantes leave the backbone and travel here.
+   */
+  private async loadVariantsByMilestone(): Promise<
+    Map<number, MilestoneVariant[]>
+  > {
+    const rows = await this.db
+      .select({
+        milestoneExerciseId: schema.exercises.milestoneExerciseId,
+        id: schema.exercises.id,
+        name: schema.exercises.exercise,
+        dl: schema.exercises.dificultadLineal,
+      })
+      .from(schema.exercises)
+      .where(isNotNull(schema.exercises.milestoneExerciseId))
+      .orderBy(
+        asc(schema.exercises.dificultadLineal),
+        asc(schema.exercises.id),
+      );
+
+    const byMilestone = new Map<number, MilestoneVariant[]>();
+    for (const r of rows) {
+      // isNotNull in the predicate guarantees milestoneExerciseId is non-null;
+      // the column type is `number | null`, so narrow before keying the map.
+      if (r.milestoneExerciseId === null) continue;
+      let group = byMilestone.get(r.milestoneExerciseId);
+      if (!group) {
+        group = [];
+        byMilestone.set(r.milestoneExerciseId, group);
+      }
+      group.push({ id: r.id, name: r.name, dl: r.dl });
+    }
+    return byMilestone;
+  }
+
+  /**
    * buildEditableTree — category → route → (effort) partition → ordered nodes,
    * every partition tagged auto vs overridden (D-06). When a partition is
    * overridden (owns a same-partition manual chain) the nodes are ordered by that
@@ -287,9 +340,10 @@ export class TreeEditorService {
    * so the UI can draw the DAG branches/convergences (D-04).
    */
   async buildEditableTree(): Promise<EditableTree> {
-    const [nodes, edges] = await Promise.all([
+    const [nodes, edges, variantsByMilestone] = await Promise.all([
       this.loadGraphNodes(),
       this.loadAllEdges(),
+      this.loadVariantsByMilestone(),
     ]);
 
     const nodeById = new Map<number, NodeRow>();
@@ -481,6 +535,7 @@ export class TreeEditorService {
         dificultadLineal: n.dificultadLineal,
         effort: n.effort,
         orderSource: overridden ? "manual" : "auto",
+        variants: variantsByMilestone.get(n.exerciseId) ?? [],
       });
 
       if (!overridden) {
