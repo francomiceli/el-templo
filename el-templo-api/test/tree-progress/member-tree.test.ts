@@ -99,6 +99,71 @@ describe("GET /api/tree-progress/me", () => {
     });
   }
 
+  /**
+   * Seed a completed session whose `exercisesCompleted` references a
+   * session_prescriptions row resolving to `exerciseId`. Mirrors the
+   * prescription→exercise resolution of loadCompletedExerciseIds (branch b /
+   * the second "dominado" signal of D-01). Builds the minimal FK chain:
+   * session → session_block → session_prescription, then a completed_session
+   * pointing at that prescription id.
+   */
+  async function seedCompletedSession(opts: {
+    userId: number;
+    exerciseId: number;
+  }): Promise<void> {
+    const dayId = `W1-lunes-sigma-${opts.exerciseId}`;
+    const [session] = await app.db
+      .insert(schema.sessions)
+      .values({
+        dayId,
+        week: 1,
+        day: "lunes",
+        levelGroup: "sigma",
+        blockCount: 1,
+      })
+      .$returningId();
+    const [block] = await app.db
+      .insert(schema.sessionBlocks)
+      .values({
+        sessionId: session.id,
+        blockId: "NUCLEUS-1",
+        role: "NUCLEUS",
+        route: "PULLR",
+        pattern: "PULL",
+        intensity: 1,
+        repsBudget: 24,
+        formatId: 1,
+        formatName: "Straight Sets",
+        exerciseCount: 1,
+        sortOrder: 0,
+      })
+      .$returningId();
+    const [prescription] = await app.db
+      .insert(schema.sessionPrescriptions)
+      .values({
+        blockId: block.id,
+        exerciseId: opts.exerciseId,
+        exerciseName: "Completed node",
+        contraction: "CON",
+        reps: 8,
+        seconds: 0,
+        rest: 60,
+        sortOrder: 0,
+      })
+      .$returningId();
+    await app.db.insert(schema.completedSessions).values({
+      userId: opts.userId,
+      dayId,
+      sessionLevel: "sigma",
+      date: "2026-06-05",
+      branchId: 1,
+      startedAt: new Date("2026-06-05T10:00:00Z"),
+      completedAt: new Date("2026-06-05T11:00:00Z"),
+      blocksCompleted: ["NUCLEUS"],
+      exercisesCompleted: { NUCLEUS: [prescription.id] },
+    });
+  }
+
   async function setLevel(
     userId: number,
     level: "alfa" | "delta" | "sigma" | "omega" | "spartan",
@@ -228,7 +293,13 @@ describe("GET /api/tree-progress/me", () => {
       percent: number;
       totalNodes: number;
       reachedNodes: number;
-      nodes: Array<{ exerciseId: number; reached: boolean; name: string }>;
+      nodes: Array<{
+        exerciseId: number;
+        reached: boolean;
+        name: string;
+        state: "dominado" | "en_progreso" | "disponible" | "bloqueado";
+        band: "alfa" | "delta" | "sigma" | "omega" | "spartan";
+      }>;
     }>;
   } {
     const cat = body.categories.find((c) => c.key === key);
@@ -488,5 +559,271 @@ describe("GET /api/tree-progress/me", () => {
     expect(subA.totalNodes).toBe(aNodes.length);
     expect(subA.reachedNodes).toBe(3);
     expect(subA.percent).toBe(100);
+  });
+
+  // ── Phase 134 (R6, D-01..D-08): node states + difficulty band ─────────────
+
+  it("S1 — dl <= ceiling alone yields disponible/en_progreso, NEVER dominado (D-01)", async () => {
+    const { aNodes } = await seedGraph();
+    const reg = await registerUser(app, {
+      email: `tree-s1-${Date.now()}@test.com`,
+      password: "password123",
+      branchId: 1,
+    });
+    const memberId = (reg.user as { id: number }).id;
+    // sigma ceiling = 8 → Tracción dl2,5,8 all below/at ceiling, NO evidence.
+    await setLevel(memberId, "sigma");
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/tree-progress/me",
+      headers: { authorization: `Bearer ${reg.token}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    const subA = findCategory(body, "Tracción").subfamilies[0];
+
+    // No node is dominado purely by ceiling (heart of D-01/R5).
+    for (const n of subA.nodes) expect(n.state).not.toBe("dominado");
+    // Every node is reachable by ceiling → all disponible-base; exactly one
+    // becomes the frontier, the rest stay disponible.
+    const states = subA.nodes.map((n) => n.state).sort();
+    expect(states).toEqual(["disponible", "disponible", "en_progreso"].sort());
+  });
+
+  it("S2 — exactly one en_progreso (frontier) per route, the first non-dominado disponible (D-02)", async () => {
+    const { aNodes, bNodes } = await seedGraph();
+    const reg = await registerUser(app, {
+      email: `tree-s2-${Date.now()}@test.com`,
+      password: "password123",
+      branchId: 1,
+    });
+    const memberId = (reg.user as { id: number }).id;
+    // alfa ceiling = 3 → A: dl2 disponible-base, dl5/dl8 above ceiling; B: dl1
+    // disponible-base, dl9 above ceiling. No evidence, no edges dominated.
+    await setLevel(memberId, "alfa");
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/tree-progress/me",
+      headers: { authorization: `Bearer ${reg.token}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    const subA = findCategory(body, "Tracción").subfamilies[0];
+    const subB = findCategory(body, "Empuje").subfamilies[0];
+
+    // Exactly one frontier per route.
+    expect(subA.nodes.filter((n) => n.state === "en_progreso")).toHaveLength(1);
+    expect(subB.nodes.filter((n) => n.state === "en_progreso")).toHaveLength(1);
+    // The frontier is the lowest-dl reachable node (the route's "next up").
+    const frontierA = subA.nodes.find((n) => n.state === "en_progreso");
+    const frontierB = subB.nodes.find((n) => n.state === "en_progreso");
+    expect(frontierA?.exerciseId).toBe(aNodes[0]); // dl2
+    expect(frontierB?.exerciseId).toBe(bNodes[0]); // dl1
+  });
+
+  it("S3 — bloqueado: dl > ceiling AND a graph prereq not dominated (D-04/D-06)", async () => {
+    const { aNodes } = await seedGraph();
+    const reg = await registerUser(app, {
+      email: `tree-s3-${Date.now()}@test.com`,
+      password: "password123",
+      branchId: 1,
+    });
+    const memberId = (reg.user as { id: number }).id;
+    // alfa ceiling = 3 → A: dl2 reachable; dl5 has prereq dl2 (edge dl2→dl5);
+    // dl8 has prereq dl5. Nothing dominated → dl5 and dl8 are bloqueado.
+    await setLevel(memberId, "alfa");
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/tree-progress/me",
+      headers: { authorization: `Bearer ${reg.token}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    const subA = findCategory(body, "Tracción").subfamilies[0];
+
+    const dl5 = subA.nodes.find((n) => n.exerciseId === aNodes[1]);
+    const dl8 = subA.nodes.find((n) => n.exerciseId === aNodes[2]);
+    // dl5 > ceiling(3) and its only prereq dl2 is NOT dominated → bloqueado.
+    expect(dl5?.state).toBe("bloqueado");
+    expect(dl8?.state).toBe("bloqueado");
+  });
+
+  it("S4 — disponible via D-06: dl > ceiling but all graph prereqs dominated (hybrid gating)", async () => {
+    const { aNodes } = await seedGraph();
+    const reg = await registerUser(app, {
+      email: `tree-s4-${Date.now()}@test.com`,
+      password: "password123",
+      branchId: 1,
+    });
+    const memberId = (reg.user as { id: number }).id;
+    // alfa ceiling = 3 → dl5 is above ceiling. Dominate its prereq dl2 so the
+    // graph unlocks dl5 even though dl5 > ceiling (D-06 hybrid).
+    await setLevel(memberId, "alfa");
+    await seedAdjustment({
+      memberId,
+      exerciseId: aNodes[0], // dl2 (prereq of dl5)
+      toExerciseId: aNodes[1],
+      status: "dominado",
+      createdAt: new Date("2026-06-05T10:00:00Z"),
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/tree-progress/me",
+      headers: { authorization: `Bearer ${reg.token}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    const subA = findCategory(body, "Tracción").subfamilies[0];
+
+    // dl2 dominated (evidence) → dominado. dl5 unlocked by graph → disponible
+    // or en_progreso (frontier), NEVER bloqueado.
+    const dl2 = subA.nodes.find((n) => n.exerciseId === aNodes[0]);
+    const dl5 = subA.nodes.find((n) => n.exerciseId === aNodes[1]);
+    expect(dl2?.state).toBe("dominado");
+    expect(dl5?.state).not.toBe("bloqueado");
+    // dl5 is now the route frontier (first non-dominado, prereqs satisfied).
+    expect(dl5?.state).toBe("en_progreso");
+    // dl8 still has prereq dl5 not dominated and dl8 > ceiling → bloqueado.
+    const dl8 = subA.nodes.find((n) => n.exerciseId === aNodes[2]);
+    expect(dl8?.state).toBe("bloqueado");
+  });
+
+  it("S5 — dominado by latest exercise_adjustments=dominado; a later bajado un-dominates (D-01 latest-per-node)", async () => {
+    const { aNodes } = await seedGraph();
+    const reg = await registerUser(app, {
+      email: `tree-s5-${Date.now()}@test.com`,
+      password: "password123",
+      branchId: 1,
+    });
+    const memberId = (reg.user as { id: number }).id;
+    await setLevel(memberId, "alfa"); // ceiling 3 → dl8 above ceiling
+
+    // First a dominado on dl8 → state dominado.
+    await seedAdjustment({
+      memberId,
+      exerciseId: aNodes[2], // dl8
+      toExerciseId: aNodes[1],
+      status: "dominado",
+      createdAt: new Date("2026-06-05T10:00:00Z"),
+    });
+    const res1 = await app.inject({
+      method: "GET",
+      url: "/api/tree-progress/me",
+      headers: { authorization: `Bearer ${reg.token}` },
+    });
+    const body1 = JSON.parse(res1.body);
+    const dl8a = findCategory(body1, "Tracción").subfamilies[0].nodes.find(
+      (n) => n.exerciseId === aNodes[2],
+    );
+    expect(dl8a?.state).toBe("dominado");
+
+    // Then a LATER bajado for the same node → latest wins → no longer dominado.
+    await seedAdjustment({
+      memberId,
+      exerciseId: aNodes[2], // dl8
+      toExerciseId: aNodes[1],
+      status: "bajado",
+      createdAt: new Date("2026-06-05T11:00:00Z"),
+    });
+    const res2 = await app.inject({
+      method: "GET",
+      url: "/api/tree-progress/me",
+      headers: { authorization: `Bearer ${reg.token}` },
+    });
+    const body2 = JSON.parse(res2.body);
+    const dl8b = findCategory(body2, "Tracción").subfamilies[0].nodes.find(
+      (n) => n.exerciseId === aNodes[2],
+    );
+    // dl8 > ceiling, prereq dl5 not dominated → bloqueado once un-dominated.
+    expect(dl8b?.state).toBe("bloqueado");
+  });
+
+  it("S6 — dominado by a completed session (prescription → exercise resolution, D-01)", async () => {
+    const { bNodes } = await seedGraph();
+    const reg = await registerUser(app, {
+      email: `tree-s6-${Date.now()}@test.com`,
+      password: "password123",
+      branchId: 1,
+    });
+    const memberId = (reg.user as { id: number }).id;
+    await setLevel(memberId, "alfa"); // ceiling 3 → dl9 above ceiling
+
+    // Complete a session whose prescription resolves to the dl9 node.
+    await seedCompletedSession({ userId: memberId, exerciseId: bNodes[1] });
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/tree-progress/me",
+      headers: { authorization: `Bearer ${reg.token}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    const subB = findCategory(body, "Empuje").subfamilies[0];
+    const dl9 = subB.nodes.find((n) => n.exerciseId === bNodes[1]);
+    expect(dl9?.state).toBe("dominado");
+  });
+
+  it("S7 — band is derived from dificultadLineal (D-08): alfa/delta/sigma/omega/spartan", async () => {
+    // Bands: alfa[1..3] delta[4..6] sigma[7..8] omega[9..10] spartan[11..12].
+    // Seeded backbone covers dl 1,2,5,8,9 → alfa,alfa,delta,sigma,omega.
+    const { aNodes, bNodes } = await seedGraph();
+    const reg = await registerUser(app, {
+      email: `tree-s7-${Date.now()}@test.com`,
+      password: "password123",
+      branchId: 1,
+    });
+    await setLevel((reg.user as { id: number }).id, "spartan");
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/tree-progress/me",
+      headers: { authorization: `Bearer ${reg.token}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    const subA = findCategory(body, "Tracción").subfamilies[0];
+    const subB = findCategory(body, "Empuje").subfamilies[0];
+    const bandOf = (
+      nodes: Array<{ exerciseId: number; band: string }>,
+      id: number,
+    ) => nodes.find((n) => n.exerciseId === id)?.band;
+
+    expect(bandOf(subA.nodes, aNodes[0])).toBe("alfa"); // dl2
+    expect(bandOf(subA.nodes, aNodes[1])).toBe("delta"); // dl5
+    expect(bandOf(subA.nodes, aNodes[2])).toBe("sigma"); // dl8
+    expect(bandOf(subB.nodes, bNodes[0])).toBe("alfa"); // dl1
+    expect(bandOf(subB.nodes, bNodes[1])).toBe("omega"); // dl9
+  });
+
+  it("S8 — reached flag and percent are unchanged by the state layer (D-05)", async () => {
+    const { bNodes } = await seedGraph();
+    const reg = await registerUser(app, {
+      email: `tree-s8-${Date.now()}@test.com`,
+      password: "password123",
+      branchId: 1,
+    });
+    const memberId = (reg.user as { id: number }).id;
+    // sigma ceiling = 8 → Empuje dl1 reached, dl9 not → 50% (same as the legacy
+    // assertion in the per-route % test; the state layer must not move it).
+    await setLevel(memberId, "sigma");
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/tree-progress/me",
+      headers: { authorization: `Bearer ${reg.token}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    const subB = findCategory(body, "Empuje").subfamilies[0];
+    expect(subB.reachedNodes).toBe(1);
+    expect(subB.percent).toBe(50);
+    const b1 = subB.nodes.find((n) => n.exerciseId === bNodes[0]);
+    const b9 = subB.nodes.find((n) => n.exerciseId === bNodes[1]);
+    expect(b1?.reached).toBe(true);
+    expect(b9?.reached).toBe(false);
   });
 });
