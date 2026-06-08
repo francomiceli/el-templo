@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v5.1
 milestone_name: Nuevo Sistema de Entrenamiento
 status: verifying
-stopped_at: Phase 134 context gathered
-last_updated: "2026-06-08T12:47:34.823Z"
+stopped_at: Phase 135 context gathered
+last_updated: "2026-06-08T15:45:21.048Z"
 last_activity: 2026-06-08
 progress:
   total_phases: 8
@@ -621,8 +621,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-08T12:47:34.804Z
-Stopped at: Phase 134 context gathered
-Resume file: None
+Last session: 2026-06-08T15:45:21.022Z
+Stopped at: Phase 135 context gathered
+Resume file: .planning/phases/135-rbol-del-admin-jerarqu-a-visual-de-hitos-y-variantes-en-tree/135-CONTEXT.md
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
