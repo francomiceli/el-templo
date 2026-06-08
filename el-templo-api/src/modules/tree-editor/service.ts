@@ -921,12 +921,18 @@ export class TreeEditorService {
           id: schema.exercises.id,
           route: schema.exercises.route,
           effort: schema.exercises.effort,
+          habilidad: schema.exercises.habilidad,
         })
         .from(schema.exercises)
         .where(eq(schema.exercises.id, exerciseId));
       if (!exercise) {
         throw new TreeEditorError(`Ejercicio ${exerciseId} no encontrado`, 404);
       }
+      // Backbone membership BEFORE this pass (funnel condition 3): a NULL
+      // habilidad means the exercise is on the backbone. We compare against the
+      // final habilidad below to detect a NULL → NOT NULL transition that
+      // silently pushes the node off-backbone and must prune its edges (WR-01).
+      const wasOnBackbone = exercise.habilidad === null;
 
       // (a) Accept the pending DIMENSION proposal first — same tx, so any
       // later validation failure rolls this back too (all-or-nothing).
@@ -1004,6 +1010,26 @@ export class TreeEditorService {
         const pruned = await this.pruneDegradedVariantEdges(tx, exercise);
         edgesDeleted = pruned.deleted;
         edgesWritten = pruned.written;
+      } else {
+        // role='hito': the truth write above keeps the exercise on the
+        // backbone via condition 4, BUT step (a)'s dimension accept (proposal
+        // value or override) can set `habilidad` to a non-null value, which
+        // removes the node via funnel condition 3 (habilidad IS NULL). When
+        // that NULL → NOT NULL transition happens the node leaves the backbone
+        // yet keeps every incident edge — getNeighbor would keep serving it and
+        // buildEditableTree would render phantom precedence edges (WR-01). Prune
+        // those edges with the SAME bounded re-chain used for variantes.
+        const [afterRow] = await tx
+          .select({ habilidad: schema.exercises.habilidad })
+          .from(schema.exercises)
+          .where(eq(schema.exercises.id, exerciseId));
+        const nowOffBackbone =
+          afterRow !== undefined && afterRow.habilidad !== null;
+        if (wasOnBackbone && nowOffBackbone) {
+          const pruned = await this.pruneDegradedVariantEdges(tx, exercise);
+          edgesDeleted = pruned.deleted;
+          edgesWritten = pruned.written;
+        }
       }
 
       // (e) Flip the pending milestone proposal — if none exists, proceed

@@ -130,6 +130,17 @@ export async function acceptInTransaction(
   // Build the exercises truth-column update: the progression step + Habilidad
   // are the core of the decision and are ALWAYS written on accept. NEVER
   // touches the contraction column (D-03).
+  //
+  // EDGE-PRUNE BOUNDARY (WR-01): writing a non-null `habilidad` removes the
+  // exercise from the backbone (backbone-scope funnel condition 3) but this
+  // dimension-only accept deliberately does NOT prune the now-stale incident
+  // `exercise_progressions` edges — it has no view of the partition chain and
+  // importing the tree-editor prune here would be a circular dependency. Any
+  // accept that can set `habilidad` NULL → NOT NULL MUST go through
+  // `TreeEditorService.acceptMilestoneReview`, which embeds this body in its
+  // transaction and runs the bounded prune afterwards. The pure dimension
+  // review UI only ever clears habilidad to null for backbone candidates, so
+  // the off-backbone transition cannot originate here in practice.
   const exerciseUpdate: {
     progressionStep: number | null;
     habilidad: string | null;
