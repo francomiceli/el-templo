@@ -231,6 +231,18 @@ export function readManualEdgePartitionRows(
  * manual edge (D-02). Any node whose partition key is locked emits NO backbone
  * edges — the profe's manual chain owns that partition's order.
  */
+/**
+ * Total-order step key: a null `progression_step` sorts AFTER every resolved
+ * step (chain tail). Shared rule so the comparator stays transitive even when a
+ * partition mixes pending (null) and resolved (int) rows (WR-05). The tree
+ * editor mirrors this exact rule so canvas and persisted backbone agree (CR-01).
+ */
+function stepOf(n: ExerciseNode): number {
+  return n.progressionStep === null
+    ? Number.POSITIVE_INFINITY
+    : n.progressionStep;
+}
+
 function buildBackboneEdges(
   nodes: ExerciseNode[],
   lockedPartitions: ReadonlySet<string>,
@@ -251,21 +263,15 @@ function buildBackboneEdges(
 
   const edges: EdgeToInsert[] = [];
   for (const bucket of partitions.values()) {
-    // Stable order: progression_step ascending (NULL = linear → falls to dl),
-    // then dl ascending, then id as a deterministic tiebreak (D-05). Within a
-    // partition all nodes share a route → same strategy → step is all-NULL or
-    // all-int, so NULL/int never mix.
-    bucket.sort((a, b) => {
-      if (
-        a.progressionStep !== null &&
-        b.progressionStep !== null &&
-        a.progressionStep !== b.progressionStep
-      ) {
-        return a.progressionStep - b.progressionStep;
-      }
-      if (a.dl !== b.dl) return a.dl - b.dl;
-      return a.id - b.id;
-    });
+    // Stable, TOTAL order: progression_step ascending, then dl ascending, then
+    // id as a deterministic tiebreak (D-05). A partition can legitimately MIX
+    // NULL and int steps (token-strategy routes: classify() leaves unmatched
+    // names step=null while accepted siblings get ints — see the
+    // progression_step schema comment), so the comparator must define an order
+    // for NULL too. Treating NULL as +Infinity sinks step-less (pending) rows
+    // to the chain tail and keeps the comparator transitive (WR-05 — a
+    // both-non-null-only compare is non-transitive once a NULL is present).
+    bucket.sort((a, b) => stepOf(a) - stepOf(b) || a.dl - b.dl || a.id - b.id);
     for (let i = 0; i < bucket.length - 1; i += 1) {
       edges.push({
         fromExerciseId: bucket[i].id,
