@@ -91,29 +91,33 @@
         </div>
 
         <!-- Per-exercise difficulty adjustment (más fácil / más difícil) -->
-        <div v-if="canAdjustCurrentSlide" class="block-progression__detail-adjust-row">
-          <q-btn
-            outline
-            dense
-            no-caps
-            class="block-progression__adjust-btn"
-            color="secondary"
-            icon="south"
-            label="más fácil"
-            :disable="isAdjusting"
-            @click="onAdjust('down')"
-          />
-          <q-btn
-            outline
-            dense
-            no-caps
-            class="block-progression__adjust-btn"
-            color="primary"
-            icon-right="north"
-            label="más difícil"
-            :disable="isAdjusting"
-            @click="onAdjust('up')"
-          />
+        <div v-if="canAdjustCurrentSlide" class="block-progression__detail-adjust">
+          <!-- Objective advance criterion (R5, D-07) — complements the fase-131 tap -->
+          <div class="block-progression__detail-criterion">{{ advanceCriterion }}</div>
+          <div class="block-progression__detail-adjust-row">
+            <q-btn
+              outline
+              dense
+              no-caps
+              class="block-progression__adjust-btn"
+              color="secondary"
+              icon="south"
+              label="más fácil"
+              :disable="isAdjusting"
+              @click="onAdjust('down')"
+            />
+            <q-btn
+              outline
+              dense
+              no-caps
+              class="block-progression__adjust-btn"
+              color="primary"
+              icon-right="north"
+              label="más difícil"
+              :disable="isAdjusting"
+              @click="onAdjust('up')"
+            />
+          </div>
         </div>
       </div>
 
@@ -505,6 +509,15 @@ const canAdjustCurrentSlide = computed(() => {
   return !isMobilitySlide.value && !isReviewingPrevious.value && currentSlideExercise.value !== null
 })
 
+// Objective advance criterion (R5, D-07): derived deterministically at runtime
+// from the current exercise's contraction — no migration, no new column, impossible
+// to desync. ISO → isometric hold target; CON/EXC → dynamic rep target.
+// This COMPLEMENTS the fase-131 manual dominado tap, it does not replace it.
+const advanceCriterion = computed(() => {
+  if (currentSlideExercise.value?.contraction === 'ISO') return 'Objetivo: 3×30s'
+  return 'Objetivo: 3×8 (reinicia en 3×5)'
+})
+
 // Emit the adjust request with the current exercise's catalog node id (D-02)
 // AND the viewed block's identity (WR-01). Carrying blockId lets the swap target
 // the EXACT occurrence the member tapped — a movement can recur across blocks,
@@ -669,6 +682,19 @@ function onAdjust(direction: 'up' | 'down'): void {
   flex-shrink: 0;
   padding-left: 20px;
   padding-right: 20px;
+}
+
+.block-progression__detail-adjust {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.block-progression__detail-criterion {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: rgba($secondary, 0.65);
 }
 
 .block-progression__detail-adjust-row {
