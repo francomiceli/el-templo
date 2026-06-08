@@ -771,12 +771,14 @@ export class TreeEditorService {
       );
     }
 
-    // Validate every exercise id exists; capture its current partition coords.
+    // Validate every exercise id exists; capture its current partition coords
+    // and its milestone link (for the hito/variante invariant check below).
     const exRows = await this.db
       .select({
         id: schema.exercises.id,
         route: schema.exercises.route,
         effort: schema.exercises.effort,
+        milestoneExerciseId: schema.exercises.milestoneExerciseId,
       })
       .from(schema.exercises)
       .where(inArray(schema.exercises.id, uniqueIds));
@@ -789,8 +791,50 @@ export class TreeEditorService {
       );
     }
 
+    const movedIds = new Set(uniqueIds);
+
     let edgesDeleted = 0;
     await this.db.transaction(async (tx) => {
+      // 0. Guard the "variante same (route × effort) partition as its hito"
+      // invariant that acceptMilestoneReview enforces (WR-02). Moving a hito
+      // (or a variante) by route alone can strand the other side in a
+      // different route, manufacturing cross-route milestone links that no
+      // profe authored. Reject with a typed 400 asking the profe to resolve
+      // the variantes first, rather than silently corrupting the graph.
+      //
+      // (a) A moved variante whose hito is NOT also being moved would end up
+      //     in a different route than its hito.
+      const movedVarianteWithStayingHito = exRows.find(
+        (r) =>
+          r.milestoneExerciseId !== null &&
+          !movedIds.has(r.milestoneExerciseId),
+      );
+      if (movedVarianteWithStayingHito) {
+        throw new TreeEditorError(
+          "No se puede mover una variante sin su hito — promové la variante a hito o mové el hito también primero",
+        );
+      }
+
+      // (b) A moved hito (milestone target) that still has variantes left
+      //     behind (not in the moved set) would strand those variantes.
+      const movedHitoIds = exRows
+        .filter((r) => r.milestoneExerciseId === null)
+        .map((r) => r.id);
+      if (movedHitoIds.length > 0) {
+        const strandedVariants = await tx
+          .select({ id: schema.exercises.id })
+          .from(schema.exercises)
+          .where(inArray(schema.exercises.milestoneExerciseId, movedHitoIds));
+        const strandedBehind = strandedVariants.filter(
+          (v) => !movedIds.has(v.id),
+        );
+        if (strandedBehind.length > 0) {
+          throw new TreeEditorError(
+            "No se puede mover un hito con variantes asignadas que quedan en la ruta original — mové también sus variantes o reasignalas primero",
+          );
+        }
+      }
+
       // 1. Reassign route for the moved exercises.
       await tx
         .update(schema.exercises)
@@ -1131,6 +1175,8 @@ export class TreeEditorService {
       const [exercise] = await tx
         .select({
           id: schema.exercises.id,
+          route: schema.exercises.route,
+          effort: schema.exercises.effort,
           milestoneExerciseId: schema.exercises.milestoneExerciseId,
         })
         .from(schema.exercises)
@@ -1144,6 +1190,29 @@ export class TreeEditorService {
         );
       }
       const oldHito = exercise.milestoneExerciseId;
+
+      // Guard the same-partition invariant before swapping (WR-02). If a prior
+      // route move stranded this variante in a different (route × effort)
+      // partition than its hito, re-pointing the ex-hito's incident edges to
+      // the promoted exercise would manufacture cross-route precedence edges
+      // the R4 UI renders as bogus "prerequisitos". Reject and ask the profe
+      // to fix the routing first.
+      const [oldHitoRow] = await tx
+        .select({
+          route: schema.exercises.route,
+          effort: schema.exercises.effort,
+        })
+        .from(schema.exercises)
+        .where(eq(schema.exercises.id, oldHito));
+      if (
+        oldHitoRow !== undefined &&
+        (oldHitoRow.route !== exercise.route ||
+          oldHitoRow.effort !== exercise.effort)
+      ) {
+        throw new TreeEditorError(
+          "La variante y su hito están en particiones (ruta × esfuerzo) distintas — reasigná la ruta primero",
+        );
+      }
 
       // (1) The promoted exercise becomes the hito (frees the target of the
       // re-points below before anything points at it).
