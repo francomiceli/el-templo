@@ -14,6 +14,11 @@ const treeNodeSchema = {
     name: { type: "string" },
     dificultadLineal: { type: "number" },
     reached: { type: "boolean" },
+    // Phase 134 (D-01..D-08): per-node state + difficulty band. Fastify strips
+    // any response prop not declared here, so both MUST be present or the
+    // member-app contract silently loses them.
+    state: { type: "string" }, // dominado | en_progreso | disponible | bloqueado
+    band: { type: "string" }, // alfa | delta | sigma | omega | spartan
   },
 } as const;
 

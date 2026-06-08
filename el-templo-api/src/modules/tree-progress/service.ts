@@ -63,12 +63,27 @@ export interface TreeLogger {
   warn(obj: Record<string, unknown>, msg?: string): void;
 }
 
+/**
+ * The four videogame-style node states (phase 134, D-01..D-04). A separate
+ * layer from `reached`/`percent` (D-05) — these describe per-node availability:
+ *   - dominado:    evidence-based mastery (D-01); dl ≤ ceiling NEVER dominates.
+ *   - en_progreso: the route frontier (D-02) — the first non-dominado,
+ *                  prereq-satisfied node; at most one per route.
+ *   - disponible:  prereqs satisfied (D-06), not dominado, not the frontier.
+ *   - bloqueado:   dl > ceiling AND a graph prereq is not dominado (D-06).
+ */
+export type NodeState = "dominado" | "en_progreso" | "disponible" | "bloqueado";
+
 /** A single leaf node of the tree. */
 export interface TreeNode {
   exerciseId: number;
   name: string;
   dificultadLineal: number;
   reached: boolean;
+  /** Server-computed availability state (D-01..D-04). Client renders verbatim. */
+  state: NodeState;
+  /** Difficulty band derived from dificultadLineal (D-08). Never 'kairos' for a node. */
+  band: ContentLevel;
 }
 
 /** A subfamily grouping nodes under a category. */
@@ -121,6 +136,22 @@ export function levelCeiling(level: ExerciseLevel): number {
   const next = LEVEL_ORDER[idx + 1];
   if (!next) return DL_SCALE_MAX; // spartan → 12
   return LEVEL_LINEAR_MIN[next] - 1;
+}
+
+/**
+ * Difficulty band for a node's dificultadLineal (phase 134, D-08): the highest
+ * content level whose LEVEL_LINEAR_MIN floor is ≤ dl. The thresholds are read
+ * from the single LEVEL_LINEAR_MIN source ({alfa:1, delta:4, sigma:7, omega:9,
+ * spartan:11}) — never hardcoded here (DRY). dl ≥ 1 always, so every node lands
+ * on at least 'alfa'; 'kairos' has no dl floor distinct from alfa (it draws alfa
+ * content), so it is never emitted as a node band.
+ */
+export function bandForDl(dl: number): ContentLevel {
+  let band: ContentLevel = LEVEL_ORDER[0]; // 'alfa' — the floor for dl ≥ 1
+  for (const level of LEVEL_ORDER) {
+    if (dl >= LEVEL_LINEAR_MIN[level]) band = level;
+  }
+  return band;
 }
 
 /** A confirmed-canonical backbone graph node row joined with its route metadata. */
@@ -393,6 +424,27 @@ export async function buildMemberTree(
       completedExerciseIds.has(node.exerciseId) ||
       dominatedExerciseIds.has(node.exerciseId);
 
+    // ── Node state, a layer separate from `reached` (D-01..D-06) ──────────
+    // dominado is evidence-only: dl ≤ ceiling NEVER dominates (D-01).
+    const dominado =
+      dominatedExerciseIds.has(node.exerciseId) ||
+      completedExerciseIds.has(node.exerciseId);
+    // disponible-base gating (D-06): reachable by level ceiling OR every graph
+    // prereq dominated. A node with no curated prereq is gated by ceiling only.
+    const prereqIds = prereqsByNode.get(node.exerciseId);
+    const allPrereqsDominated =
+      prereqIds === undefined ||
+      Array.from(prereqIds).every((id) => dominatedExerciseIds.has(id));
+    const disponibleBase =
+      node.dificultadLineal <= ceiling || allPrereqsDominated;
+    // Provisional state — en_progreso (the frontier) is promoted in a SECOND
+    // per-route pass below, because "frontier" depends on the full route order.
+    const state: NodeState = dominado
+      ? "dominado"
+      : disponibleBase
+        ? "disponible"
+        : "bloqueado";
+
     const subfamilies = byCategory.get(category);
     if (!subfamilies) continue; // unreachable: every category preallocated
     let acc = subfamilies.get(node.routeId);
@@ -410,6 +462,8 @@ export async function buildMemberTree(
       name: node.exerciseName,
       dificultadLineal: node.dificultadLineal,
       reached,
+      state,
+      band: bandForDl(node.dificultadLineal),
     });
   }
 
@@ -428,6 +482,12 @@ export async function buildMemberTree(
               a.dificultadLineal - b.dificultadLineal ||
               a.exerciseId - b.exerciseId,
           );
+        // SECOND pass (D-02): walking the ordered route, promote the FIRST
+        // disponible (non-dominado, prereq-satisfied) node to en_progreso — the
+        // route's single "next up" frontier. Computed here, not in the node
+        // loop, because the frontier depends on the full route order.
+        const frontier = sortedNodes.find((n) => n.state === "disponible");
+        if (frontier) frontier.state = "en_progreso";
         const reachedNodes = sortedNodes.filter((n) => n.reached).length;
         return {
           id: acc.id,
