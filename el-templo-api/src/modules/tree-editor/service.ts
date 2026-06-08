@@ -194,6 +194,12 @@ interface NodeRow {
   /** Fine DB category (UPPERCASE) — votes for the route's subGroup (R3). */
   category: string;
   dificultadLineal: number;
+  /**
+   * progression_step — NULL for linear/leg routes and for token-strategy rows
+   * whose step is still unresolved. Used to order auto (non-overridden)
+   * partitions in lock-step with the rebuild's persisted backbone chain (CR-01).
+   */
+  progressionStep: number | null;
   effort: string;
   routeId: number;
   routeCode: string;
@@ -232,6 +238,7 @@ export class TreeEditorService {
         pattern: schema.exercises.pattern,
         category: schema.exercises.category,
         dificultadLineal: schema.exercises.dificultadLineal,
+        progressionStep: schema.exercises.progressionStep,
         effort: schema.exercises.effort,
         routeId: schema.routes.id,
         routeCode: schema.routes.code,
@@ -247,6 +254,7 @@ export class TreeEditorService {
       pattern: r.pattern,
       category: r.category,
       dificultadLineal: r.dificultadLineal,
+      progressionStep: r.progressionStep,
       effort: r.effort,
       routeId: r.routeId,
       routeCode: r.routeCode,
@@ -433,10 +441,23 @@ export class TreeEditorService {
       });
 
       if (!overridden) {
+        // Mirror the rebuild's TOTAL order so the canvas/GET /tree chain agrees
+        // with the persisted `exercise_progressions` backbone that getNeighbor
+        // serves to members (CR-01). A partition can legitimately MIX NULL and
+        // int progression_step (token-strategy routes leave unmatched names
+        // step=null while accepted siblings get ints), so NULL must be ordered
+        // too: treat it as +Infinity (step-less rows sink to the tail), then
+        // dl, then id — keeping the comparator transitive. This must stay in
+        // lock-step with `stepOf` in rebuild-progression-graph.ts (WR-05).
+        const stepOf = (n: NodeRow): number =>
+          n.progressionStep === null
+            ? Number.POSITIVE_INFINITY
+            : n.progressionStep;
         return partNodes
           .slice()
           .sort(
             (a, b) =>
+              stepOf(a) - stepOf(b) ||
               a.dificultadLineal - b.dificultadLineal ||
               a.exerciseId - b.exerciseId,
           )
