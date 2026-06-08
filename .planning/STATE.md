@@ -4,7 +4,7 @@ milestone: v5.1
 milestone_name: Nuevo Sistema de Entrenamiento
 status: executing
 stopped_at: Phase 134 context gathered
-last_updated: "2026-06-08T12:39:11.085Z"
+last_updated: "2026-06-08T12:43:11.812Z"
 last_activity: 2026-06-08
 progress:
   total_phases: 8
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 ## Current Position
 
 Phase: 134 (rbol-del-miembro-estados-de-nodo-y-criterio-de-avance-objeti) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-06-08
 
@@ -237,6 +237,7 @@ _Updated after each plan completion_
 | Phase 133 P06 | 22min | 3 tasks | 4 files |
 | Phase 133 P07 | ~8min | 2 tasks | 4 files |
 | Phase 134 P01 | ~14min | 3 tasks | 3 files |
+| Phase 134 P03 | 10min | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -587,6 +588,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: [Phase 134]: member tree node state/band server-computed in buildMemberTree (D-05); separate layer from reached/percent
 - [Phase ?]: [Phase 134]: dominado is evidence-only (adjustments=dominado OR completed session); dl<=ceiling never dominates (D-01)
 - [Phase ?]: [Phase 134]: disponible/bloqueado use D-06 hybrid gating; en_progreso frontier computed in a second per-route pass (D-02)
+- [Phase ?]: 134-03 advance criterion
 
 ### Pending Todos
 
@@ -617,7 +619,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-08T12:38:51.833Z
+Last session: 2026-06-08T12:43:05.461Z
 Stopped at: Phase 134 context gathered
 Resume file: None
 
