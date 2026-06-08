@@ -278,6 +278,62 @@ async function loadGraphNodes(
   }));
 }
 
+/** A single directed progression edge `from → to` (phase 134, D-06 gating). */
+interface EdgeRow {
+  fromExerciseId: number;
+  toExerciseId: number;
+}
+
+/**
+ * Read every persisted progression edge (both `auto` backbone and `manual`
+ * cross-route overrides) as `from → to` pairs. Together they form the "graph
+ * prereqs" used to gate Bloqueado/Disponible (D-06). Mirrors
+ * tree-editor/service.ts::loadAllEdges. Global graph data (no per-member rows),
+ * so it leaks nothing about other members (T-134-01).
+ */
+async function loadEdges(
+  db: MySql2Database<typeof schema>,
+): Promise<EdgeRow[]> {
+  const rows = await db
+    .select({
+      fromExerciseId: schema.exerciseProgressions.fromExerciseId,
+      toExerciseId: schema.exerciseProgressions.toExerciseId,
+    })
+    .from(schema.exerciseProgressions);
+  return rows.map((r) => ({
+    fromExerciseId: r.fromExerciseId,
+    toExerciseId: r.toExerciseId,
+  }));
+}
+
+/**
+ * Build the per-node "graph prereq" map for D-06 gating: node id → set of
+ * prereq exercise ids (the `from` of every edge pointing AT that node). Edges
+ * may point at off-backbone exercises, so only prereqs that are themselves
+ * loaded backbone nodes are kept — a non-backbone prereq must never silently
+ * block a node. Degrades gracefully (D-06): a node with no curated incoming
+ * edge gets an empty prereq set and is gated by the level ceiling alone.
+ */
+function buildPrereqMap(
+  nodes: NodeRow[],
+  edges: EdgeRow[],
+): Map<number, Set<number>> {
+  const backboneIds = new Set<number>(nodes.map((n) => n.exerciseId));
+  const prereqs = new Map<number, Set<number>>();
+  for (const edge of edges) {
+    // Only gate on prereqs that exist on the backbone the member can see.
+    if (!backboneIds.has(edge.toExerciseId)) continue;
+    if (!backboneIds.has(edge.fromExerciseId)) continue;
+    let set = prereqs.get(edge.toExerciseId);
+    if (!set) {
+      set = new Set<number>();
+      prereqs.set(edge.toExerciseId, set);
+    }
+    set.add(edge.fromExerciseId);
+  }
+  return prereqs;
+}
+
 /**
  * Build the member's nested skill-tree progress. Read-only; never accepts a
  * target user id from input (the caller passes request.user.userId — T-127-01).
@@ -297,13 +353,17 @@ export async function buildMemberTree(
   const level: ExerciseLevel = (user?.level as ExerciseLevel | null) ?? "alfa";
   const ceiling = levelCeiling(level);
 
-  const [nodes, completedExerciseIds, dominatedExerciseIds] = await Promise.all(
-    [
+  const [nodes, completedExerciseIds, dominatedExerciseIds, edges] =
+    await Promise.all([
       loadGraphNodes(db),
       loadCompletedExerciseIds(db, userId),
       loadDominatedExerciseIds(db, userId),
-    ],
-  );
+      loadEdges(db),
+    ]);
+
+  // node id → set of in-tree prereq ids (D-06 graph gating). Off-backbone
+  // prereqs are filtered out so they never block a member-visible node.
+  const prereqsByNode = buildPrereqMap(nodes, edges);
 
   // Bucket nodes by category → subfamily, computing the reached flag per node.
   // Warn once per distinct unmapped pattern so catalog drift surfaces (D-01).
