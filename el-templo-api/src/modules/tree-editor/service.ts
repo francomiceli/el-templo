@@ -335,6 +335,16 @@ export class TreeEditorService {
     }
 
     // Bucket nodes: category → route → effort partition.
+    //
+    // ONE ROUTE → ONE CATEGORY (WR-07): a route's exercises can carry mixed
+    // patterns (nothing in the schema prevents it, and /regroup makes it easy
+    // to create). Bucketing per-NODE would scatter ONE route across MULTIPLE
+    // category columns, each holding only a subset of every `(route × effort)`
+    // partition — which makes the frontend emit duplicate `route-${code}` node
+    // ids AND makes a drag-reorder post a partial partition (400). So we first
+    // accumulate every route's FULL node set (regardless of per-node pattern),
+    // tally each route's PATTERN-category votes, then place the whole route in
+    // its single dominant pattern-category bucket below.
     const warnedPatterns = new Set<string>();
     interface PartitionAcc {
       effort: string;
@@ -347,9 +357,14 @@ export class TreeEditorService {
       partitions: Map<string, PartitionAcc>; // keyed by effort
       /** Fine-category vote count over the route's backbone nodes (R3). */
       categoryVotes: Map<string, number>;
+      /**
+       * PATTERN→Category vote count over the route's backbone nodes — picks the
+       * single column the whole route lands in (WR-07). Distinct from
+       * `categoryVotes` (fine `exercises.category`, the R3 sub-group label).
+       */
+      patternCategoryVotes: Map<Category, number>;
     }
-    const byCategory = new Map<Category, Map<number, RouteAcc>>();
-    for (const cat of CATEGORY_ORDER) byCategory.set(cat, new Map());
+    const allRoutes = new Map<number, RouteAcc>();
 
     for (const node of nodes) {
       if (!isMappedPattern(node.pattern) && !warnedPatterns.has(node.pattern)) {
@@ -360,20 +375,7 @@ export class TreeEditorService {
         );
       }
       const category = patternToCategory(node.pattern);
-      // A node must NEVER silently disappear from the editable tree. If the
-      // mapped category is not one of the seeded CATEGORY_ORDER buckets (a
-      // future category-map change), route the node into FALLBACK_CATEGORY
-      // (guaranteed seeded) and warn so the drift surfaces operationally.
-      let routesInCat = byCategory.get(category);
-      if (!routesInCat) {
-        this.log?.warn(
-          { pattern: node.pattern, category, exerciseId: node.exerciseId },
-          "tree-editor: mapped category absent from CATEGORY_ORDER — node routed to fallback category",
-        );
-        routesInCat = byCategory.get(FALLBACK_CATEGORY);
-        if (!routesInCat) continue; // unreachable: FALLBACK_CATEGORY is seeded.
-      }
-      let rt = routesInCat.get(node.routeId);
+      let rt = allRoutes.get(node.routeId);
       if (!rt) {
         rt = {
           id: node.routeId,
@@ -381,8 +383,9 @@ export class TreeEditorService {
           route: node.routeCode,
           partitions: new Map(),
           categoryVotes: new Map(),
+          patternCategoryVotes: new Map(),
         };
-        routesInCat.set(node.routeId, rt);
+        allRoutes.set(node.routeId, rt);
       }
       let part = rt.partitions.get(node.effort);
       if (!part) {
@@ -390,6 +393,10 @@ export class TreeEditorService {
         rt.partitions.set(node.effort, part);
       }
       part.nodes.push(node);
+      rt.patternCategoryVotes.set(
+        category,
+        (rt.patternCategoryVotes.get(category) ?? 0) + 1,
+      );
       // subGroup vote (R3): count the fine category IN MEMORY over the already
       // loaded backbone nodes — no correlated subqueries (Pitfall 3). Variantes
       // never reach this loop (filtered out of the node set by the backbone
@@ -400,6 +407,42 @@ export class TreeEditorService {
           (rt.categoryVotes.get(node.category) ?? 0) + 1,
         );
       }
+    }
+
+    /**
+     * Pick a route's single home category: the pattern-category with the most
+     * votes; ties resolve to CATEGORY_ORDER position (deterministic). Falls
+     * back to FALLBACK_CATEGORY when the winning category is not a seeded
+     * CATEGORY_ORDER bucket (a future category-map drift) and warns.
+     */
+    const routeHomeCategory = (rt: RouteAcc): Category => {
+      let winner: Category | null = null;
+      let winnerCount = 0;
+      for (const cat of CATEGORY_ORDER) {
+        const count = rt.patternCategoryVotes.get(cat) ?? 0;
+        if (count > winnerCount) {
+          winner = cat;
+          winnerCount = count;
+        }
+      }
+      if (winner === null) {
+        this.log?.warn(
+          { routeId: rt.id, route: rt.route },
+          "tree-editor: route has no seeded-category votes — routed to fallback category",
+        );
+        return FALLBACK_CATEGORY;
+      }
+      return winner;
+    };
+
+    // Place each whole route in its single dominant category bucket (WR-07).
+    const byCategory = new Map<Category, Map<number, RouteAcc>>();
+    for (const cat of CATEGORY_ORDER) byCategory.set(cat, new Map());
+    for (const rt of allRoutes.values()) {
+      const home = routeHomeCategory(rt);
+      const bucket = byCategory.get(home) ?? byCategory.get(FALLBACK_CATEGORY);
+      if (!bucket) continue; // unreachable: FALLBACK_CATEGORY is seeded.
+      bucket.set(rt.id, rt);
     }
 
     /**
