@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v5.1
 milestone_name: Nuevo Sistema de Entrenamiento
-status: verifying
+status: executing
 stopped_at: Phase 135 context gathered
-last_updated: "2026-06-08T15:45:21.048Z"
+last_updated: "2026-06-08T16:21:01.557Z"
 last_activity: 2026-06-08
 progress:
   total_phases: 8
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-04)
 
 **Core value:** v5.1 reestructura el sistema de entrenamiento alrededor de un árbol de habilidades (DAG) sobre 3 ejes ortogonales (gesto/palanca/contracción). Sobre ese cimiento: el nivel Kairos para principiantes (hereda de Alfa, formato lineal forzado) y el ajuste de dificultad in-session (botones más fácil/más difícil que sirven el vecino correcto y recuerdan lo dominado). Backend-first, brownfield.
-**Current focus:** Phase 134 — rbol-del-miembro-estados-de-nodo-y-criterio-de-avance-objeti
+**Current focus:** Phase 135 — rbol-del-admin-jerarqu-a-visual-de-hitos-y-variantes-en-tree
 
 ## Current Position
 
-Phase: 134 (rbol-del-miembro-estados-de-nodo-y-criterio-de-avance-objeti) — EXECUTING
-Plan: 3 of 3
-Status: Phase complete — ready for verification
+Phase: 135 (rbol-del-admin-jerarqu-a-visual-de-hitos-y-variantes-en-tree) — EXECUTING
+Plan: 2 of 4
+Status: Ready to execute
 Last activity: 2026-06-08
 
 ## Performance Metrics
@@ -239,6 +239,7 @@ _Updated after each plan completion_
 | Phase 134 P01 | ~14min | 3 tasks | 3 files |
 | Phase 134 P03 | 10min | 1 tasks | 1 files |
 | Phase 134 P02 | ~3min | 2 tasks | 4 files |
+| Phase 135 P01 | 5min | 3 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -591,6 +592,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: [Phase 134]: dominado is evidence-only (adjustments=dominado OR completed session); dl<=ceiling never dominates (D-01)
 - [Phase ?]: [Phase 134]: disponible/bloqueado use D-06 hybrid gating; en_progreso frontier computed in a second per-route pass (D-02)
 - [Phase ?]: 134-03 advance criterion
+- [Phase ?]: [Phase 135]: bootstrap-milestones --apply milestone-only by contract (aborts on pending dimension proposals, exit 2); reuses acceptMilestoneReview as the only milestone_exercise_id writer, hitos before variantes, idempotent (pending-only)
 
 ### Pending Todos
 
@@ -621,8 +623,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-08T15:45:21.022Z
+Last session: 2026-06-08T16:20:56.439Z
 Stopped at: Phase 135 context gathered
-Resume file: .planning/phases/135-rbol-del-admin-jerarqu-a-visual-de-hitos-y-variantes-en-tree/135-CONTEXT.md
+Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
