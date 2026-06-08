@@ -3376,13 +3376,15 @@ Plans:
 ### Phase 134: Árbol del miembro — estados de nodo y criterio de avance objetivo (member app)
 
 **Goal:** Llevar la calidad del árbol a la experiencia del miembro. R6: estados de nodo tipo videojuego en Mi Árbol (Bloqueado/Disponible/En progreso/Dominado derivados de prerequisitos + el `reached` existente de tree-progress) + bandas de dificultad visibles (mismo mapeo kairos→spartan de la fase 133). R5: criterio de avance objetivo por hito (3×8 reps dinámico / 3×30s isométrico, patrón RR) mostrado en el player como definición falsable de "dominado" — complementa el tap manual de fase 131, no lo reemplaza. Research: `.planning/research/tree-quality-research.md` §3.
-**Requirements**: TBD
+**Requirements**: R5, R6 (ver 134-CONTEXT.md, decisiones D-01..D-08)
 **Depends on:** Phase 133
-**Plans:** 0 plans
+**Plans:** 3 plans
 
 Plans:
 
-- [ ] TBD (run /gsd-plan-phase 134 to break down)
+- [ ] 134-01-PLAN.md — R6 backend: `state` (4 estados D-01..D-04) + `band` por nodo en buildMemberTree + carga de aristas para gating D-06; extiende schema y test de integración
+- [ ] 134-02-PLAN.md — R6 member-app: refresh de Mi Árbol (ícono/color por estado + dl + banda, anillo re-etiquetado "a tu alcance") sobre el contrato de 134-01
+- [ ] 134-03-PLAN.md — R5 player: criterio de avance objetivo (3×30s ISO / 3×8 CON·EXC) junto al ajuste de fase 131, derivado de la contracción en runtime
 
 ---
 
