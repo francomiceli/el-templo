@@ -2,17 +2,20 @@
   <q-card class="tree-category" flat bordered>
     <q-card-section class="tree-category__header">
       <div class="tree-category__title">{{ category.label }}</div>
-      <q-circular-progress
-        :value="category.percent"
-        :max="100"
-        size="48px"
-        :thickness="0.18"
-        color="primary"
-        show-value
-        class="tree-category__ring"
-      >
-        <span class="tree-category__ring-value">{{ category.percent }}%</span>
-      </q-circular-progress>
+      <div class="tree-category__ring-wrap">
+        <q-circular-progress
+          :value="category.percent"
+          :max="100"
+          size="48px"
+          :thickness="0.18"
+          color="primary"
+          show-value
+          class="tree-category__ring"
+        >
+          <span class="tree-category__ring-value">{{ category.percent }}%</span>
+        </q-circular-progress>
+        <span class="tree-category__ring-caption">a tu alcance</span>
+      </div>
     </q-card-section>
 
     <q-card-section class="tree-category__body">
@@ -75,10 +78,25 @@ defineProps<Props>()
     letter-spacing: 0.08em;
   }
 
+  &__ring-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+
   &__ring-value {
     font-size: 12px;
     font-weight: 700;
     color: $secondary;
+  }
+
+  &__ring-caption {
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: rgba($accent, 0.5);
   }
 
   &__body {

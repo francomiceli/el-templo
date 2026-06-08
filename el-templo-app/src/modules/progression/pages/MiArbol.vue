@@ -3,6 +3,11 @@
     <header class="mi-arbol__intro">
       <h1 class="mi-arbol__title">Mi Árbol</h1>
       <p class="mi-arbol__subtitle">Tu avance por cada familia de ejercicios</p>
+      <p class="mi-arbol__disclaimer">
+        El anillo mide lo que tenés <strong>a tu alcance</strong> por tu nivel. El verde
+        <q-icon name="check_circle" size="13px" class="mi-arbol__disclaimer-icon" />
+        <strong>Dominado</strong> marca lo que ya conquistaste con evidencia: son cosas distintas.
+      </p>
     </header>
 
     <!-- Loading State -->
@@ -86,6 +91,23 @@ onUnmounted(() => {
     font-size: 14px;
     color: rgba($accent, 0.7);
     margin: 0;
+  }
+
+  &__disclaimer {
+    font-size: 12px;
+    line-height: 1.45;
+    color: rgba($accent, 0.65);
+    margin: 8px 0 0;
+
+    strong {
+      color: $accent;
+      font-weight: 700;
+    }
+  }
+
+  &__disclaimer-icon {
+    color: $positive;
+    vertical-align: text-bottom;
   }
 
   &__loading,
