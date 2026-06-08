@@ -3386,6 +3386,18 @@ Plans:
 - [x] 134-02-PLAN.md — R6 member-app: refresh de Mi Árbol (ícono/color por estado + dl + banda, anillo re-etiquetado "a tu alcance") sobre el contrato de 134-01
 - [x] 134-03-PLAN.md — R5 player: criterio de avance objetivo (3×30s ISO / 3×8 CON·EXC) junto al ajuste de fase 131, derivado de la contracción en runtime
 
+### Phase 135: Árbol del admin — jerarquía visual de hitos y variantes en /tree-map
+
+**Goal:** Hacer que el árbol del admin (`/tree-map`, `EditableTree`) muestre rutas largas como una jerarquía de hitos canónicos con sus variantes colgando/colapsables, en vez de ~70 ejercicios planos ordenados por `dificultadLineal` (caso testigo: Front Lever). Dos bloques: **(A) Poblar datos** — auto-aplicar la heurística movimiento×escalón de fase 133 a `exercises.milestone_exercise_id` (hoy `bootstrap-milestones.ts` solo _propone_ en `exercise_milestone_proposals`, nunca escribe la columna de verdad); el drawer de revisión de 133 queda como herramienta de corrección, no de carga inicial. **(B) Render jerárquico** — el endpoint `GET /admin/tree-editor/tree` hoy excluye variantes (`milestone_exercise_id IS NULL` vía `backboneNodeConditions()`); devolver variantes agrupadas bajo su hito + nodo hito **colapsable** en `EditableTree`/`ExerciseFlowNode`, reusando bandas (color/dl) y sub-grupo `category`. Diagnóstico raíz: la infra de 133 existe pero los hitos nunca se poblaron (columna NULL en todos) y el canvas nunca dibujó la jerarquía (variantes solo en el panel lateral C5).
+**Requirements**: A-POBLADO (auto-aplicar heurística + idempotencia/rollback), A-CORRECCION (drawer existente ajusta), B-ENDPOINT (payload jerárquico hito→variantes), B-RENDER (nodo hito colapsable + bandas + sub-grupo), B-NOREGRESION (no romper el filtro backbone que consumen member-tree/getNeighbor/rebuild). Derivados del goal — sin IDs en REQUIREMENTS.md.
+**Depends on:** Phase 133 (infra hito/variante + heurística + drawer), Phase 134.
+**Decisiones abiertas (resolver en discuss-phase):** (1) poblado auto vs manual y su idempotencia/rollback; (2) correr el poblado en local primero vs migración de datos a prod (toca datos reales → migración, no seed); (3) alcance del canvas-rework: colapsables anidados sobre el layout actual vs layout de grafo tipo skill-tree con Vue Flow (el "diferido" de 133/134); (4) ¿la heurística clasifica bien Front Lever o necesita ajuste antes de auto-aplicar? Validar con dry-run local.
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 135 to break down)
+
 ---
 
 _v5.2 added: 2026-06-04 — 1 phase (132). Cierra v5.0 del lado de UI: expone en el admin las 6 métricas de gestión que quedaron backend-only (fases 120-123) y elimina físicamente las métricas viejas/ARPU deprecadas. Frontend-only, sin migraciones. Continúa numeración desde fase 131 (v5.1). Milestone separada para no mezclar la UI de métricas con el Nuevo Sistema de Entrenamiento (v5.1). Agrupación/visualización de tabs y alcance exacto de borrado diferidos a `discuss-phase`._

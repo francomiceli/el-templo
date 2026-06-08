@@ -246,6 +246,7 @@ _Updated after each plan completion_
 
 - Phase 133 added: Calidad del árbol — hitos canónicos + variantes (milestone_exercise_id), bandas de dificultad con kairos, sub-grupos por category fina, prereqs cross-ruta (R1-R4 de tree-quality-research.md; decisiones cerradas 2026-06-07)
 - Phase 134 added: Árbol del miembro — estados de nodo Bloqueado/Disponible/Dominado + criterio de avance objetivo 3×8/3×30s en player (R5-R6)
+- Phase 135 added: Árbol del admin — jerarquía visual de hitos/variantes en /tree-map (auto-poblar milestone_exercise_id con la heurística de 133 + render hito colapsable con variantes; hoy Front Lever se ve plano porque los hitos nunca se poblaron)
 - Phase 70 added: Personalizadas Cycle Config — configurable cycle length per plan, progress bars in member app
 - Phase 86 added: QR Promo — Free Month Campaign
 - Phase 88 (was 89): Gender-Based Notification Personalization — gender inference, registration field, gendered notification copy
