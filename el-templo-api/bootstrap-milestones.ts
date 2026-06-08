@@ -54,10 +54,15 @@ export async function runBootstrapMilestones<
   // ── 1. READ the milestone-candidate scope (read-only report before mutate) ──
   //
   // Same scope as the current backbone (canonical IS NULL, valid contraction,
-  // no habilidad, route in the tree). The milestone filter itself does NOT
-  // apply here — we are proposing it. The LEFT JOIN pulls the profe-corrected
-  // step ONLY from ACCEPTED dimension proposals (UNIQUE(exercise_id) on that
-  // table guarantees no fan-out).
+  // no habilidad, route in the tree). The hito-vs-variante decision itself is
+  // what we are proposing, BUT we still exclude rows that are ALREADY a
+  // confirmed truth-variante (milestone_exercise_id IS NOT NULL): those are
+  // settled decisions, not candidates (WR-04). Re-proposing them would (a)
+  // re-open an already-accepted decision in the drawer and (b) let a
+  // truth-variante win moreCanonical and become a group milestone target the
+  // accept endpoint rejects, dead-ending the whole group. The LEFT JOIN pulls
+  // the profe-corrected step ONLY from ACCEPTED dimension proposals
+  // (UNIQUE(exercise_id) on that table guarantees no fan-out).
   const exerciseRows = await db.execute(
     sql`SELECT e.id,
                e.exercise AS name,
@@ -72,6 +77,7 @@ export async function runBootstrapMilestones<
         WHERE e.canonical_exercise_id IS NULL
           AND e.effort IN ('CON', 'EXC', 'ISO')
           AND e.habilidad IS NULL
+          AND e.milestone_exercise_id IS NULL
           AND r.excluded_from_tree = 0`,
   );
   const catalog = readCatalogRows(exerciseRows);
