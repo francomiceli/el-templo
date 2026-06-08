@@ -25,6 +25,24 @@ const editableNodeSchema = {
     effort: { type: "string" },
     /** 'manual' when this node's partition order is profe-owned, else 'auto'. */
     orderSource: { type: "string", enum: ["auto", "manual"] },
+    /**
+     * Variantes hanging off this hito (TRUTH column milestone_exercise_id),
+     * ordered by dl ascending — embedded so the canvas draws the collapsible
+     * hierarchy without N on-demand round-trips (Plan-03 D-11). Item shape is
+     * VERBATIM from milestoneVariantsResponseSchema; a variant-less hito → [].
+     */
+    variants: {
+      type: "array",
+      items: {
+        type: "object",
+        required: ["id", "name", "dl"],
+        properties: {
+          id: { type: "number" },
+          name: { type: "string" },
+          dl: { type: "number" },
+        },
+      },
+    },
   },
 } as const;
 
