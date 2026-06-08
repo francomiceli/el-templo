@@ -15,6 +15,12 @@ export interface TreeNode {
   dificultadLineal: number | null;
   effort: string;
   orderSource: OrderSource;
+  /**
+   * Variantes hanging off this hito (Plan 03 backend contract — embedded per
+   * hito, ordered by dl ascending, `[]` when the hito has no variants). 1:1
+   * mirror of the backend EditableNode.variants shape.
+   */
+  variants: MilestoneVariant[];
 }
 
 /** A route × effort partition with its ordered nodes. */

@@ -2,7 +2,7 @@
 import { computed } from 'vue';
 import { colors } from 'quasar';
 import { Handle, Position } from '@vue-flow/core';
-import type { Effort, OrderSource } from 'src/types/tree-editor';
+import type { Effort, OrderSource, MilestoneVariant } from 'src/types/tree-editor';
 // R2-BANDS: la banda se resuelve contra DL_BANDS (mapeo locked) vía dlBand().
 import { dlBand, bandTextClass } from 'src/constants/levels';
 
@@ -18,9 +18,29 @@ export interface ExerciseNodeData {
   effort: Effort;
   /** 0-based position within the chain (display: escalón N). */
   stepIndex: number;
+  /**
+   * Variantes hanging off this hito (Plan 03 contract, dl asc; `[]` = none).
+   * 1:1 mirror of the backend; drives the chevron + "+N variantes" counter.
+   */
+  variants: MilestoneVariant[];
+  /**
+   * Whether the page currently renders this hito's variantes below it.
+   * State LIVES IN THE PAGE (expandedMilestones, D-10) — the node only reads it.
+   */
+  variantsExpanded: boolean;
 }
 
 const props = defineProps<{ data: ExerciseNodeData; selected?: boolean }>();
+
+/** The page owns the expansion state; the node only emits the toggle intent. */
+const emit = defineEmits<{ toggleVariants: [exerciseId: number] }>();
+
+/** Chevron + counter only when the hito actually has variantes. */
+const hasVariants = computed(() => props.data.variants.length > 0);
+
+function onToggle(): void {
+  emit('toggleVariants', props.data.exerciseId);
+}
 
 // ── Banda de dificultad (R2-BANDS) ───────────────────────────────────────────
 
@@ -67,8 +87,32 @@ const bandTooltip = computed(() => {
           label="Manual"
           class="q-ml-xs"
         />
+        <!-- "+N variantes" counter: solo cuando hay variantes Y el hito está colapsado.
+             Al expandir, las variantes cuelgan en el canvas y el chip desaparece (D-09/D-10). -->
+        <q-badge
+          v-if="hasVariants && !data.variantsExpanded"
+          color="grey-7"
+          class="q-ml-xs exercise-flow-node__variants-count"
+          :label="`+${data.variants.length} variantes`"
+          @click.stop="onToggle"
+        >
+          <q-tooltip>{{ data.variants.length }} variantes — click para expandir</q-tooltip>
+        </q-badge>
       </div>
     </div>
+    <!-- Chevron toggle (patrón RouteFlowNode): solo si hay variantes. @click.stop para
+         no disparar la selección del nodo (el panel lateral sigue funcionando, D-10). -->
+    <q-icon
+      v-if="hasVariants"
+      :name="data.variantsExpanded ? 'unfold_less' : 'unfold_more'"
+      size="18px"
+      class="exercise-flow-node__chevron"
+      @click.stop="onToggle"
+    >
+      <q-tooltip>{{
+        data.variantsExpanded ? 'Colapsar variantes' : 'Expandir variantes'
+      }}</q-tooltip>
+    </q-icon>
     <Handle type="source" :position="Position.Bottom" class="exercise-flow-node__handle" />
   </div>
 </template>
@@ -139,6 +183,21 @@ const bandTooltip = computed(() => {
     width: 8px;
     height: 8px;
     background: $grey-6;
+  }
+
+  &__chevron {
+    flex-shrink: 0;
+    margin-left: auto;
+    color: $grey-7;
+    cursor: pointer;
+
+    &:hover {
+      color: $primary;
+    }
+  }
+
+  &__variants-count {
+    cursor: pointer;
   }
 }
 </style>
