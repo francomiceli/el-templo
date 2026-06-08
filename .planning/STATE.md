@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v5.1
 milestone_name: Nuevo Sistema de Entrenamiento
-status: verifying
+status: executing
 stopped_at: Phase 134 context gathered
-last_updated: "2026-06-08T12:20:01.782Z"
-last_activity: 2026-06-07
+last_updated: "2026-06-08T12:39:11.085Z"
+last_activity: 2026-06-08
 progress:
   total_phases: 8
   completed_phases: 8
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-04)
 
 **Core value:** v5.1 reestructura el sistema de entrenamiento alrededor de un árbol de habilidades (DAG) sobre 3 ejes ortogonales (gesto/palanca/contracción). Sobre ese cimiento: el nivel Kairos para principiantes (hereda de Alfa, formato lineal forzado) y el ajuste de dificultad in-session (botones más fácil/más difícil que sirven el vecino correcto y recuerdan lo dominado). Backend-first, brownfield.
-**Current focus:** Phase 133 — calidad-del-rbol-hitos-can-nicos-variantes-bandas-de-dificul
+**Current focus:** Phase 134 — rbol-del-miembro-estados-de-nodo-y-criterio-de-avance-objeti
 
 ## Current Position
 
-Phase: 133 (calidad-del-rbol-hitos-can-nicos-variantes-bandas-de-dificul) — EXECUTING
-Plan: 7 of 7
-Status: Phase complete — ready for verification
-Last activity: 2026-06-07
+Phase: 134 (rbol-del-miembro-estados-de-nodo-y-criterio-de-avance-objeti) — EXECUTING
+Plan: 2 of 3
+Status: Ready to execute
+Last activity: 2026-06-08
 
 ## Performance Metrics
 
@@ -236,6 +236,7 @@ _Updated after each plan completion_
 | Phase 133 P05 | 19min | 3 tasks | 5 files |
 | Phase 133 P06 | 22min | 3 tasks | 4 files |
 | Phase 133 P07 | ~8min | 2 tasks | 4 files |
+| Phase 134 P01 | ~14min | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -583,6 +584,9 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: 133-06: MilestoneReviewList extraído como componente presentacional con emits granulares (evita vue/no-mutating-props); TreeMapPage conserva estado y mutaciones
 - [Phase ?]: 133-06: 'Aceptar todas' saltea variantes sin hito elegido y acepta secuencialmente los dos ejes por fila (una tx backend c/u) + bulkAccept para solo-dimensión
 - [Phase 133]: 133-07: arista agregada prereq-agg usa routes.code; click en R4 manual conserva la baja existente con el copy LOCKED en el diálogo; búsqueda scopeada al filtro de sub-grupo
+- [Phase ?]: [Phase 134]: member tree node state/band server-computed in buildMemberTree (D-05); separate layer from reached/percent
+- [Phase ?]: [Phase 134]: dominado is evidence-only (adjustments=dominado OR completed session); dl<=ceiling never dominates (D-01)
+- [Phase ?]: [Phase 134]: disponible/bloqueado use D-06 hybrid gating; en_progreso frontier computed in a second per-route pass (D-02)
 
 ### Pending Todos
 
@@ -613,8 +617,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-08T12:20:01.749Z
+Last session: 2026-06-08T12:38:51.833Z
 Stopped at: Phase 134 context gathered
-Resume file: .planning/phases/134-rbol-del-miembro-estados-de-nodo-y-criterio-de-avance-objeti/134-CONTEXT.md
+Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
