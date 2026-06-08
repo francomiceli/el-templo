@@ -396,6 +396,11 @@ export async function buildMemberTree(
   // prereqs are filtered out so they never block a member-visible node.
   const prereqsByNode = buildPrereqMap(nodes, edges);
 
+  // Falsable evidence of mastery (adjustment=dominado OR completed session, D-01).
+  // Gates both a node's own `dominado` state and whether it satisfies a prereq.
+  const isDominated = (id: number): boolean =>
+    dominatedExerciseIds.has(id) || completedExerciseIds.has(id);
+
   // Bucket nodes by category → subfamily, computing the reached flag per node.
   // Warn once per distinct unmapped pattern so catalog drift surfaces (D-01).
   const warnedPatterns = new Set<string>();
@@ -426,15 +431,13 @@ export async function buildMemberTree(
 
     // ── Node state, a layer separate from `reached` (D-01..D-06) ──────────
     // dominado is evidence-only: dl ≤ ceiling NEVER dominates (D-01).
-    const dominado =
-      dominatedExerciseIds.has(node.exerciseId) ||
-      completedExerciseIds.has(node.exerciseId);
+    const dominado = isDominated(node.exerciseId);
     // disponible-base gating (D-06): reachable by level ceiling OR every graph
     // prereq dominated. A node with no curated prereq is gated by ceiling only.
     const prereqIds = prereqsByNode.get(node.exerciseId);
     const allPrereqsDominated =
       prereqIds === undefined ||
-      Array.from(prereqIds).every((id) => dominatedExerciseIds.has(id));
+      Array.from(prereqIds).every((id) => isDominated(id));
     const disponibleBase =
       node.dificultadLineal <= ceiling || allPrereqsDominated;
     // Provisional state — en_progreso (the frontier) is promoted in a SECOND

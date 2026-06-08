@@ -826,4 +826,36 @@ describe("GET /api/tree-progress/me", () => {
     expect(b1?.reached).toBe(true);
     expect(b9?.reached).toBe(false);
   });
+
+  it("S9 — a prereq dominated via a completed session unlocks the downstream node (D-06 uses the full D-01 evidence)", async () => {
+    const { aNodes } = await seedGraph();
+    const reg = await registerUser(app, {
+      email: `tree-s9-${Date.now()}@test.com`,
+      password: "password123",
+      branchId: 1,
+    });
+    const memberId = (reg.user as { id: number }).id;
+    // alfa ceiling = 3 → dl5 (aNodes[1]) is above ceiling, gated by its prereq
+    // dl2 (aNodes[0]). Dominate dl2 by a COMPLETED SESSION (not an adjustment).
+    // The D-06 gating must treat session-evidence as "dominado" exactly like an
+    // adjustment record (parity with D-01), else dl5 stays wrongly bloqueado.
+    await setLevel(memberId, "alfa");
+    await seedCompletedSession({ userId: memberId, exerciseId: aNodes[0] });
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/tree-progress/me",
+      headers: { authorization: `Bearer ${reg.token}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    const subA = findCategory(body, "Tracción").subfamilies[0];
+    const dl2 = subA.nodes.find((n) => n.exerciseId === aNodes[0]);
+    const dl5 = subA.nodes.find((n) => n.exerciseId === aNodes[1]);
+    // dl2 dominated by session → dominado; dl5 unlocked by the graph (D-06),
+    // becomes the route frontier, NEVER bloqueado.
+    expect(dl2?.state).toBe("dominado");
+    expect(dl5?.state).not.toBe("bloqueado");
+    expect(dl5?.state).toBe("en_progreso");
+  });
 });
