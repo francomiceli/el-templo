@@ -37,11 +37,15 @@ function row(
     route?: string;
     effort?: string;
     acceptedStep?: number | null;
+    position?: string | null;
   } = {},
 ): CatalogRow {
   return {
     id,
     name,
+    // null by default → classify() falls back to `name` (WR-06 convention),
+    // preserving the name-token behavior these seeds were written against.
+    position: opts.position ?? null,
     route: opts.route ?? "TTB",
     effort: opts.effort ?? "CON",
     dificultadLineal: opts.dl ?? 5,

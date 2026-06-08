@@ -66,6 +66,7 @@ export async function runBootstrapMilestones<
   const exerciseRows = await db.execute(
     sql`SELECT e.id,
                e.exercise AS name,
+               e.position AS position,
                e.route,
                e.effort,
                e.dificultad_lineal AS dificultadLineal,
@@ -160,6 +161,7 @@ function readCatalogRows(result: unknown): CatalogRow[] {
     out.push({
       id,
       name: typeof rec.name === "string" ? rec.name : String(rec.name ?? ""),
+      position: typeof rec.position === "string" ? rec.position : null,
       route:
         typeof rec.route === "string" ? rec.route : String(rec.route ?? ""),
       effort:

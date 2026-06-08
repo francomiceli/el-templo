@@ -45,6 +45,13 @@ import {
 export interface CatalogRow {
   id: number;
   name: string;
+  /**
+   * `exercises.position` — the PRIMARY carrier of step tokens for several
+   * routes (the catalog stores step tokens here for FL/PL etc.; see the
+   * route-progression-map contract: "the bootstrap calls classify() with
+   * `position || name`"). null/blank when the route has no position data.
+   */
+  position: string | null;
   route: string;
   effort: string;
   dificultadLineal: number;
@@ -53,6 +60,15 @@ export interface CatalogRow {
    * status is 'accepted' (profe-corrected step); otherwise null.
    */
   acceptedStep: number | null;
+}
+
+/**
+ * The classify() input convention shared by both bootstraps: prefer the
+ * `position` column (where the catalog stores step tokens for several routes)
+ * and fall back to `name` when position is blank/absent (WR-06).
+ */
+export function classifyInput(position: string | null, name: string): string {
+  return position !== null && position.trim() !== "" ? position : name;
 }
 
 /** One milestone proposal emitted per catalog row. */
@@ -161,8 +177,13 @@ export function proposeMilestones(rows: CatalogRow[]): MilestoneProposal[] {
     const classified: ClassifiedRow = {
       row,
       movement: detectMovement(nameWords, routeKey),
-      // acceptedStep (profe-corrected) wins; otherwise classify() LIVE.
-      step: row.acceptedStep ?? classify(row.name, row.route).step,
+      // acceptedStep (profe-corrected) wins; otherwise classify() LIVE on the
+      // `position || name` convention (WR-06) — position is the primary step
+      // token carrier for several routes, so classifying on name alone buckets
+      // those rows into the "none" step and distorts group composition.
+      step:
+        row.acceptedStep ??
+        classify(classifyInput(row.position, row.name), row.route).step,
       tokenCount: nameWords.length,
     };
     const partitionKey = `${routeKey}|${row.effort.trim().toUpperCase()}`;
