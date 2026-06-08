@@ -3392,14 +3392,14 @@ Plans:
 **Requirements**: A-POBLADO (auto-aplicar heurística + idempotencia/rollback), A-CORRECCION (drawer existente ajusta), B-ENDPOINT (payload jerárquico hito→variantes), B-RENDER (nodo hito colapsable + bandas + sub-grupo), B-NOREGRESION (no romper el filtro backbone que consumen member-tree/getNeighbor/rebuild). Derivados del goal — sin IDs en REQUIREMENTS.md.
 **Depends on:** Phase 133 (infra hito/variante + heurística + drawer), Phase 134.
 **Decisiones abiertas (resolver en discuss-phase):** (1) poblado auto vs manual y su idempotencia/rollback; (2) correr el poblado en local primero vs migración de datos a prod (toca datos reales → migración, no seed); (3) alcance del canvas-rework: colapsables anidados sobre el layout actual vs layout de grafo tipo skill-tree con Vue Flow (el "diferido" de 133/134); (4) ¿la heurística clasifica bien Front Lever o necesita ajuste antes de auto-aplicar? Validar con dry-run local.
-**Plans:** 2/4 plans executed
+**Plans:** 3/4 plans executed
 
 Plans:
 
 - [x] 135-01-PLAN.md — Block A: dry-run plan printer + transactional --apply (bulk accept pending milestone proposals) + idempotency test
 - [ ] 135-02-PLAN.md — Block A→prod: catalog-parity check (D-07) + 0146 DATA migration populating milestone_exercise_id + rollback doc
 - [x] 135-03-PLAN.md — Block B backend: variants[] embedded in GET /tree via separate batched query (backbone predicate untouched) + no-regression test
-- [ ] 135-04-PLAN.md — Block B frontend: collapsible hito node (chevron + "+N variantes", collapsed default) with banded variants on the /tree-map canvas
+- [x] 135-04-PLAN.md — Block B frontend: collapsible hito node (chevron + "+N variantes", collapsed default) with banded variants on the /tree-map canvas
 
 ---
 
