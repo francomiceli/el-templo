@@ -37,6 +37,8 @@ import RouteFlowNode from 'components/treemap/RouteFlowNode.vue';
 import type { RouteNodeData } from 'components/treemap/RouteFlowNode.vue';
 import ExerciseFlowNode from 'components/treemap/ExerciseFlowNode.vue';
 import type { ExerciseNodeData } from 'components/treemap/ExerciseFlowNode.vue';
+import VariantFlowNode from 'components/treemap/VariantFlowNode.vue';
+import type { VariantNodeData } from 'components/treemap/VariantFlowNode.vue';
 import CategoryFlowNode from 'components/treemap/CategoryFlowNode.vue';
 import type { CategoryNodeData } from 'components/treemap/CategoryFlowNode.vue';
 import SubgroupFlowNode from 'components/treemap/SubgroupFlowNode.vue';
@@ -49,7 +51,12 @@ import type {
 } from 'components/treemap/MilestoneReviewList.vue';
 import { DL_BANDS, dlBand, bandTextClass, type DlBand } from 'src/constants/levels';
 
-type FlowNodeData = RouteNodeData | ExerciseNodeData | CategoryNodeData | SubgroupNodeData;
+type FlowNodeData =
+  | RouteNodeData
+  | ExerciseNodeData
+  | CategoryNodeData
+  | SubgroupNodeData
+  | VariantNodeData;
 type FlowNode = Node<FlowNodeData>;
 
 const EFFORTS: Effort[] = ['CON', 'EXC', 'ISO'];
@@ -69,6 +76,9 @@ const LAYOUT = {
   chainTopGap: 14, // gap between the route node and the first chain step
   stepY: 86, // vertical distance between chain steps
   subgroupGap: 26, // y offset of the sub-grupo label above its first route node (R3)
+  variantIndent: 28, // extra x offset of variant sub-nodes relative to their hito
+  variantTopGap: 12, // gap between a hito and its first variant row when expanded
+  variantY: 58, // vertical distance between stacked variant rows
 } as const;
 
 const AUTO_COLOR = '#9e9e9e';
@@ -91,6 +101,9 @@ const { setCenter } = useVueFlow();
 const tree = ref<EditableTree | null>(null);
 const selectedEffort = ref<Effort>('CON');
 const expandedRoutes = ref<Set<string>>(new Set());
+// Hito expansion state lives HERE, not in ExerciseFlowNode (D-10). Starts EMPTY =
+// every hito collapsed by default; mirrors expandedRoutes exactly.
+const expandedMilestones = ref<Set<number>>(new Set());
 const selectedExercise = ref<ExerciseNodeData | null>(null);
 const nodes = ref<FlowNode[]>([]);
 const edges = ref<Edge[]>([]);
@@ -153,6 +166,20 @@ async function loadTree(): Promise<void> {
     // Drop expanded/selected state that no longer exists after a refetch.
     const routeCodes = new Set(tree.value.categories.flatMap((c) => c.routes.map((r) => r.route)));
     expandedRoutes.value = new Set([...expandedRoutes.value].filter((r) => routeCodes.has(r)));
+    // Keep only hitos that still carry variantes (mirror of the route cleanup above).
+    const variantBearing = new Set<number>();
+    for (const cat of tree.value.categories) {
+      for (const rt of cat.routes) {
+        for (const part of rt.partitions) {
+          for (const ex of part.nodes) {
+            if (ex.variants.length > 0) variantBearing.add(ex.exerciseId);
+          }
+        }
+      }
+    }
+    expandedMilestones.value = new Set(
+      [...expandedMilestones.value].filter((id) => variantBearing.has(id))
+    );
     if (selectedExercise.value && !findChainOf(selectedExercise.value.route)) {
       selectedExercise.value = null;
     }
@@ -270,15 +297,15 @@ function rebuildGraph(): void {
       focusable: false,
     });
 
-    // The band must clear its longest expanded chain before the next one starts.
-    let maxChainLen = 0;
+    // The band must clear its tallest expanded chain (in px) before the next one
+    // starts — measured as an extent so expanded variant rows are accounted for.
+    let maxChainExtent = 0;
     let prevSubGroup: string | null = null;
 
     bandRoutes.forEach((rt, routeIndex) => {
       const part = rt.partitions.find((p) => p.effort === selectedEffort.value);
       const chain = part?.nodes ?? [];
       const isExpanded = expandedRoutes.value.has(rt.route) && chain.length > 0;
-      if (isExpanded) maxChainLen = Math.max(maxChainLen, chain.length);
       const routeX = routeIndex * LAYOUT.routeColW;
       const routeY = bandY + LAYOUT.catH;
 
@@ -316,12 +343,18 @@ function rebuildGraph(): void {
         const chainY0 = routeY + LAYOUT.routeH + LAYOUT.chainTopGap;
         const manual = part?.overridden ?? false;
         let prevId: string | null = null;
+        // Bottom-most y reached by this chain, including any expanded variant rows,
+        // so the band height clears everything (no overlap with the next band).
+        let chainBottomY = chainY0;
         chain.forEach((ex, i) => {
           const id = `ex-${ex.exerciseId}`;
+          const variants = ex.variants ?? [];
+          const variantsExpanded = expandedMilestones.value.has(ex.exerciseId);
+          const hitoY = chainY0 + i * LAYOUT.stepY;
           ns.push({
             id,
             type: 'exercise',
-            position: { x: routeX + LAYOUT.chainIndent, y: chainY0 + i * LAYOUT.stepY },
+            position: { x: routeX + LAYOUT.chainIndent, y: hitoY },
             data: {
               exerciseId: ex.exerciseId,
               name: ex.name,
@@ -330,8 +363,11 @@ function rebuildGraph(): void {
               route: rt.route,
               effort: selectedEffort.value,
               stepIndex: i,
+              variants,
+              variantsExpanded,
             },
           });
+          chainBottomY = Math.max(chainBottomY, hitoY);
           if (prevId === null) {
             es.push({
               id: `start-${rt.route}`,
@@ -349,14 +385,44 @@ function rebuildGraph(): void {
             });
           }
           prevId = id;
+
+          // Expanded hito → render its variantes hanging below (dl asc, banded).
+          // Distinct dashed grey edge (XRUTA style), NOT the backbone chain stroke.
+          if (variantsExpanded && variants.length > 0) {
+            const variantX = routeX + LAYOUT.chainIndent + LAYOUT.variantIndent;
+            variants.forEach((variant, vi) => {
+              const variantNodeId = `var-${variant.id}`;
+              const variantY = hitoY + LAYOUT.variantTopGap + (vi + 1) * LAYOUT.variantY;
+              ns.push({
+                id: variantNodeId,
+                type: 'variant',
+                position: { x: variantX, y: variantY },
+                data: { variantId: variant.id, name: variant.name, dl: variant.dl },
+                draggable: false,
+                selectable: false,
+                focusable: false,
+              });
+              es.push({
+                id: `variant-${id}-${variantNodeId}`,
+                source: id,
+                target: variantNodeId,
+                animated: false,
+                style: { ...XRUTA_EDGE_STYLE },
+              });
+              chainBottomY = Math.max(chainBottomY, variantY);
+            });
+          }
         });
+
+        // Extent (px) from the band's chain start down to its lowest node.
+        maxChainExtent = Math.max(maxChainExtent, chainBottomY - chainY0 + LAYOUT.stepY);
       }
     });
 
     bandY +=
       LAYOUT.catH +
       LAYOUT.routeH +
-      (maxChainLen > 0 ? LAYOUT.chainTopGap + maxChainLen * LAYOUT.stepY : 0) +
+      (maxChainExtent > 0 ? LAYOUT.chainTopGap + maxChainExtent : 0) +
       LAYOUT.bandGap;
   }
 
@@ -454,8 +520,18 @@ function toggleRoute(code: string): void {
   rebuildGraph();
 }
 
+/** Toggle a hito's variantes open/closed (page-owned state, D-10). */
+function toggleMilestone(exerciseId: number): void {
+  const next = new Set(expandedMilestones.value);
+  if (next.has(exerciseId)) next.delete(exerciseId);
+  else next.add(exerciseId);
+  expandedMilestones.value = next;
+  rebuildGraph();
+}
+
 function collapseAll(): void {
   expandedRoutes.value = new Set();
+  expandedMilestones.value = new Set();
   selectedExercise.value = null;
   rebuildGraph();
 }
@@ -1147,6 +1223,7 @@ async function onSearchSelect(opt: SearchOption | null): Promise<void> {
 function minimapColor(node: Node): string {
   if (node.type === 'route') return MANUAL_COLOR;
   if (node.type === 'exercise') return '#d4d4d4';
+  if (node.type === 'variant') return '#ebebeb';
   return 'transparent';
 }
 
@@ -1335,7 +1412,14 @@ onUnmounted(() => {
           <RouteFlowNode :data="props.data" @review="openReview(props.data.code)" />
         </template>
         <template #node-exercise="props">
-          <ExerciseFlowNode :data="props.data" :selected="props.selected" />
+          <ExerciseFlowNode
+            :data="props.data"
+            :selected="props.selected"
+            @toggle-variants="toggleMilestone"
+          />
+        </template>
+        <template #node-variant="props">
+          <VariantFlowNode :data="props.data" />
         </template>
       </VueFlow>
 
