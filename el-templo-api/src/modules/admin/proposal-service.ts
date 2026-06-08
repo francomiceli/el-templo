@@ -160,8 +160,16 @@ export async function acceptInTransaction(
   return true;
 }
 
+/** Minimal logger surface (request.log / app.log compatible). No console.log. */
+export interface ProposalServiceLogger {
+  warn(obj: Record<string, unknown>, msg?: string): void;
+}
+
 export class ProposalService {
-  constructor(private readonly db: MySql2Database<typeof schema>) {}
+  constructor(
+    private readonly db: MySql2Database<typeof schema>,
+    private readonly log?: ProposalServiceLogger,
+  ) {}
 
   /**
    * List proposals, filtered/grouped by route (D-07). Default status is
@@ -259,8 +267,21 @@ export class ProposalService {
   ): Promise<number> {
     let acceptedCount = 0;
     for (const id of ids) {
-      await this.accept(id, overridesById?.[id]);
-      acceptedCount += 1;
+      try {
+        await this.accept(id, overridesById?.[id]);
+        acceptedCount += 1;
+      } catch (err: unknown) {
+        // Honor the docblock contract: one bad proposal must NOT abort the
+        // rest or lose the partial count (WR-08). Log and continue so the
+        // caller still learns how many proposals actually landed.
+        this.log?.warn(
+          {
+            proposalId: id,
+            error: err instanceof Error ? err.message : String(err),
+          },
+          "bulkAccept: skipped a proposal that failed to accept",
+        );
+      }
     }
     return acceptedCount;
   }

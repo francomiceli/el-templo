@@ -58,7 +58,7 @@ import { TRAINING_ROLES } from "../shared/permissions";
 export const adminRoutes: FastifyPluginAsync = async (fastify) => {
   const adminService = new AdminSessionService(fastify.db);
   const editService = new AdminEditService(fastify.db);
-  const proposalService = new ProposalService(fastify.db);
+  const proposalService = new ProposalService(fastify.db, fastify.log);
 
   // Role check hook for all routes
   fastify.addHook("onRequest", async (request, reply) => {
