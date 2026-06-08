@@ -69,6 +69,11 @@ export interface TreeNode {
   name: string
   dificultadLineal: number
   reached: boolean
+  // Phase 134 (R6): server-computed node state and difficulty band. Mirror the
+  // authoritative DTO (134-01-SUMMARY) and render verbatim — the client derives
+  // nothing about state or gating (D-05). `band` reuses the level union style.
+  state: 'dominado' | 'en_progreso' | 'disponible' | 'bloqueado'
+  band: 'kairos' | 'alfa' | 'delta' | 'sigma' | 'omega' | 'spartan'
 }
 
 /** A subfamily (e.g. "Dominadas") with its server-computed advancement. */
