@@ -966,6 +966,7 @@ export class TreeEditorService {
           route: schema.exercises.route,
           effort: schema.exercises.effort,
           habilidad: schema.exercises.habilidad,
+          milestoneExerciseId: schema.exercises.milestoneExerciseId,
         })
         .from(schema.exercises)
         .where(eq(schema.exercises.id, exerciseId));
@@ -1041,6 +1042,20 @@ export class TreeEditorService {
             "El ejercicio tiene variantes asignadas — promové otra variante a hito primero",
           );
         }
+      }
+
+      // (b2) Re-promotion guard (WR-03): accepting role='hito' on an exercise
+      // that is ALREADY a truth-variante would set milestone_exercise_id back
+      // to NULL and re-enter the backbone with ZERO edges — its neighbors were
+      // re-chained around it at degrade time and this path never undoes that.
+      // In a LOCKED partition the rebuild never repairs it, so the node floats
+      // disconnected forever (getNeighbor → null both ways). The intended
+      // inverse is promoteToMilestone, which re-points edges. Reject and steer
+      // the profe there instead of silently corrupting the chain.
+      if (role === "hito" && exercise.milestoneExerciseId !== null) {
+        throw new TreeEditorError(
+          "El ejercicio ya es una variante — usá 'promover a hito' para reintegrarlo al backbone con sus aristas",
+        );
       }
 
       // (c) Truth write — the ONLY place milestone_exercise_id is set.
