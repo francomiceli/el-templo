@@ -56,6 +56,8 @@ describe("tree-editor admin routes (progresión por ruta)", () => {
     category?: string;
     /** NOT NULL → milestone VARIANTE, off the backbone (phase 133 R1-FILTER). */
     milestoneExerciseId?: number | null;
+    /** Step rank within (route × effort); NULL = no resolved step. */
+    progressionStep?: number | null;
   }): Promise<number> {
     const [row] = await app.db
       .insert(schema.exercises)
@@ -69,6 +71,7 @@ describe("tree-editor admin routes (progresión por ruta)", () => {
         route: opts.route,
         habilidad: opts.habilidad ?? null,
         milestoneExerciseId: opts.milestoneExerciseId ?? null,
+        progressionStep: opts.progressionStep ?? null,
       })
       .$returningId();
     return row.id;
@@ -286,6 +289,60 @@ describe("tree-editor admin routes (progresión por ruta)", () => {
       expect(node.orderSource).toBe("auto");
       expect(node).not.toHaveProperty("reached");
     }
+  });
+
+  it("GET /tree auto order follows progression_step over dl, with null steps last (CR-01)", async () => {
+    // A partition where step order OPPOSES dl order (inverse of rebuild test H):
+    // s1 has dl 9 at step 1, s2 has dl 1 at step 2, plus a step-less (null) row
+    // with a middle dl. The editor must return step order (s1, s2) with the
+    // null-step row sunk to the tail — matching the persisted auto backbone.
+    const routeS = await createRoute("PULLSTEP", "Escalonada");
+    const s1 = await createExercise({
+      name: "S step1 dl9",
+      pattern: "PULL",
+      effort: "CON",
+      dl: 9,
+      route: "PULLSTEP",
+      progressionStep: 1,
+    });
+    const s2 = await createExercise({
+      name: "S step2 dl1",
+      pattern: "PULL",
+      effort: "CON",
+      dl: 1,
+      route: "PULLSTEP",
+      progressionStep: 2,
+    });
+    const sNull = await createExercise({
+      name: "S nostep dl5",
+      pattern: "PULL",
+      effort: "CON",
+      dl: 5,
+      route: "PULLSTEP",
+      progressionStep: null,
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/admin/tree-editor/tree",
+      headers: authHeaders(coachToken),
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    const allRoutes = body.categories.flatMap(
+      (c: { routes: { route: string; partitions: unknown[] }[] }) => c.routes,
+    );
+    const rtS = allRoutes.find(
+      (r: { route: string }) => r.route === "PULLSTEP",
+    );
+    expect(rtS).toBeDefined();
+    const conPart = rtS.partitions.find(
+      (p: { effort: string }) => p.effort === "CON",
+    );
+    expect(conPart.overridden).toBe(false);
+    expect(
+      conPart.nodes.map((n: { exerciseId: number }) => n.exerciseId),
+    ).toEqual([s1, s2, sNull]);
   });
 
   // ── subGroup (R3 — dominant fine category per route, phase 133) ─────────────
