@@ -429,4 +429,94 @@ describe("Session Routes", () => {
         .where(eq(schema.dayModes.dayOfWeek, 6));
     });
   });
+
+  // ---------------------------------------------------------------
+  // KAIROS transition fallback (v5.1): a kairos member with no approved
+  // kairos session for a day reads the alfa session instead of a 404,
+  // until coaches build the kairos library.
+  // ---------------------------------------------------------------
+  describe("KAIROS transition fallback (v5.1)", () => {
+    // Pin the session member to kairos explicitly so the fallback is exercised
+    // regardless of the registration default (self-proving test).
+    beforeAll(async () => {
+      await app.db
+        .update(schema.users)
+        .set({ level: "kairos" })
+        .where(eq(schema.users.email, "session-member@test.com"));
+    });
+
+    // 2026-02-24 is a Tuesday (normal, non-ROM day) in Week 1 (anchor 2026-02-23).
+    it("daily — kairos member with no kairos session reads the approved alfa session", async () => {
+      // Seed ONLY the alfa session. With the fallback the kairos member gets
+      // W1-martes-alfa; without it the server looks up W1-martes-kairos (not
+      // seeded) and returns 404 — the falsifiable proof.
+      const [inserted] = await app.db
+        .insert(schema.sessions)
+        .values({
+          dayId: "W1-martes-alfa",
+          week: 1,
+          day: "martes",
+          levelGroup: "alfa_delta",
+          blockCount: 0,
+          status: "approved",
+          sessionMode: "regular",
+        })
+        .$returningId();
+      expect(inserted.id).toBeGreaterThan(0);
+
+      const res = await app.inject({
+        method: "GET",
+        url: "/api/sessions/daily?date=2026-02-24",
+        headers: { authorization: `Bearer ${memberToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.dayId).toBe("W1-martes-alfa");
+
+      await app.db
+        .delete(schema.sessions)
+        .where(eq(schema.sessions.dayId, "W1-martes-alfa"));
+    });
+
+    it("daily — still 404 when neither kairos nor alfa session is approved", async () => {
+      const res = await app.inject({
+        method: "GET",
+        url: "/api/sessions/daily?date=2026-02-24",
+        headers: { authorization: `Bearer ${memberToken}` },
+      });
+      expect(res.statusCode).toBe(404);
+    });
+
+    it("weekly — kairos member sees the alfa session on days with no kairos session", async () => {
+      const [inserted] = await app.db
+        .insert(schema.sessions)
+        .values({
+          dayId: "W1-martes-alfa",
+          week: 1,
+          day: "martes",
+          levelGroup: "alfa_delta",
+          blockCount: 0,
+          status: "approved",
+          sessionMode: "regular",
+        })
+        .$returningId();
+      expect(inserted.id).toBeGreaterThan(0);
+
+      const res = await app.inject({
+        method: "GET",
+        url: "/api/sessions/weekly?weekStart=2026-02-23",
+        headers: { authorization: `Bearer ${memberToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.sessions["2026-02-24"]).not.toBeNull();
+      expect(body.sessions["2026-02-24"].dayId).toBe("W1-martes-alfa");
+
+      await app.db
+        .delete(schema.sessions)
+        .where(eq(schema.sessions.dayId, "W1-martes-alfa"));
+    });
+  });
 });

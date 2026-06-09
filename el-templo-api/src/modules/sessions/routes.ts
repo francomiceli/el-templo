@@ -449,7 +449,18 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
           : `W${week}-${dayName}-${effectiveLevel}`;
 
       // 8. Check DB for approved session only (no auto-generation for members)
-      const session = await sessionService.getSessionByDayId(dayId, true); // requireApproved=true
+      let session = await sessionService.getSessionByDayId(dayId, true); // requireApproved=true
+      // v5.1 transition (KAIROS): a kairos member with no approved kairos session
+      // for this day reads the alfa session instead of a 404, until coaches build
+      // the kairos library. ROM days already resolved to alfa above, so this only
+      // fires on normal days where effectiveLevel stayed 'kairos'.
+      if (!session && effectiveLevel === "kairos") {
+        const alfaDayId =
+          !buildAsTemplo && goalPlanType
+            ? `GP-${goalPlanType}-W${week}-${dayName}-alfa`
+            : `W${week}-${dayName}-alfa`;
+        session = await sessionService.getSessionByDayId(alfaDayId, true);
+      }
       if (!session) {
         return reply.status(404).send({
           error: "Sesion no disponible",
@@ -560,6 +571,15 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
               ? `GP-${goalPlanType}-W${week}-${dayName}-${effectiveLevel}`
               : `W${week}-${dayName}-${effectiveLevel}`;
           dayIds.push(dayId);
+          // v5.1 transition (KAIROS): also fetch the alfa fallback so a kairos
+          // member sees the alfa session on days with no approved kairos session.
+          if (effectiveLevel === "kairos") {
+            dayIds.push(
+              !buildAsTemplo && goalPlanType
+                ? `GP-${goalPlanType}-W${week}-${dayName}-alfa`
+                : `W${week}-${dayName}-alfa`,
+            );
+          }
         }
       }
 
@@ -588,7 +608,16 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
           !buildAsTemplo && goalPlanType
             ? `GP-${goalPlanType}-W${week}-${dayName}-${effectiveLevel}`
             : `W${week}-${dayName}-${effectiveLevel}`;
-        const session = batchSessions.get(dayId);
+        let session = batchSessions.get(dayId);
+        // v5.1 transition (KAIROS): fall back to the alfa session when no kairos
+        // session is approved for this day.
+        if (!session && effectiveLevel === "kairos") {
+          const alfaDayId =
+            !buildAsTemplo && goalPlanType
+              ? `GP-${goalPlanType}-W${week}-${dayName}-alfa`
+              : `W${week}-${dayName}-alfa`;
+          session = batchSessions.get(alfaDayId);
+        }
         sessionsMap[date] = session
           ? sessionToResponse(session, formatDescriptions)
           : null;
