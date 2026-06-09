@@ -1166,6 +1166,62 @@ async function confirmReassign(): Promise<void> {
   }
 }
 
+// ── Convert to variante (side panel action) ──────────────────────────────────
+//
+// Takes the selected hito and makes it a variante of another hito via
+// acceptMilestoneReview (role='variante') — the ad-hoc panel path the backend
+// supports without a pending proposal (service.ts step (e)). The target must be
+// a backbone hito in the SAME (route × effort) partition (backend T-133-41);
+// hitoOptions enforces that, and a hito that already has variantes hanging is
+// blocked in the template (the backend rejects it too).
+
+const convertOpen = ref(false);
+const convertTarget = ref<{ label: string; value: number } | null>(null);
+const convertBusy = ref(false);
+
+/** Candidate target hitos: backbone nodes in the SAME (route × effort), minus self. */
+const hitoOptions = computed(() => {
+  const t = tree.value;
+  const sel = selectedExercise.value;
+  if (!t || !sel) return [];
+  const rt = t.categories.flatMap((c) => c.routes).find((r) => r.route === sel.route);
+  if (!rt) return [];
+  return rt.partitions
+    .filter((p) => p.effort === sel.effort)
+    .flatMap((p) => p.nodes)
+    .filter((n) => n.exerciseId !== sel.exerciseId)
+    .map((n) => ({
+      label: `${n.name} · dl ${n.dificultadLineal ?? '—'}`,
+      value: n.exerciseId,
+    }));
+});
+
+async function confirmConvertToVariant(): Promise<void> {
+  const sel = selectedExercise.value;
+  const target = convertTarget.value;
+  if (!sel || !target || convertBusy.value) return;
+  convertBusy.value = true;
+  try {
+    await treeApi.acceptMilestoneReview({
+      exerciseId: sel.exerciseId,
+      role: 'variante',
+      milestoneExerciseId: target.value,
+    });
+    $q.notify({
+      type: 'positive',
+      message: `"${sel.name}" ahora es variante de ${target.label}.`,
+    });
+    convertOpen.value = false;
+    convertTarget.value = null;
+    selectedExercise.value = null;
+    await loadTree();
+  } catch {
+    // composable already notified
+  } finally {
+    convertBusy.value = false;
+  }
+}
+
 // ── Search (expand + center on an exercise) ───────────────────────────────────
 
 interface SearchOption {
@@ -1596,6 +1652,21 @@ onUnmounted(() => {
               class="full-width"
               @click="reassignOpen = true"
             />
+            <q-btn
+              dense
+              outline
+              color="primary"
+              icon="subdirectory_arrow_right"
+              label="Convertir en variante de…"
+              no-caps
+              size="sm"
+              class="full-width"
+              :disable="selectedExercise.variants.length > 0"
+              @click="convertOpen = true"
+            />
+            <div v-if="selectedExercise.variants.length > 0" class="text-caption text-grey-6">
+              Este hito tiene variantes colgando. Promové una variante a hito antes de convertirlo.
+            </div>
             <div class="text-caption text-grey-6">
               Tip: también podés arrastrar el ejercicio a otra posición de su escalera, o dibujar
               una flecha hacia un ejercicio de otra rama para crear una precedencia.
@@ -1682,6 +1753,43 @@ onUnmounted(() => {
             no-caps
             :disable="!reassignTarget"
             @click="confirmReassign"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
+    <!-- Convert to variante dialog -->
+    <q-dialog v-model="convertOpen">
+      <q-card style="min-width: 360px">
+        <q-card-section>
+          <div class="text-subtitle1">Convertir en variante</div>
+          <div class="text-caption text-grey-7">
+            "{{ selectedExercise?.name }}" pasa a ser variante del hito que elijas: sale del
+            backbone y cuelga debajo de ese hito.
+          </div>
+        </q-card-section>
+        <q-card-section class="q-pt-none">
+          <q-select
+            v-model="convertTarget"
+            :options="hitoOptions"
+            label="Hito destino (misma ruta y esfuerzo)"
+            outlined
+            dense
+          />
+          <div v-if="hitoOptions.length === 0" class="text-caption text-grey-6 q-mt-sm">
+            No hay otros hitos en {{ selectedExercise?.route }} ·
+            {{ selectedExercise?.effort }} para elegir como destino.
+          </div>
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat label="Cancelar" no-caps @click="convertOpen = false" />
+          <q-btn
+            color="primary"
+            label="Convertir en variante"
+            no-caps
+            :loading="convertBusy"
+            :disable="!convertTarget || convertBusy"
+            @click="confirmConvertToVariant"
           />
         </q-card-actions>
       </q-card>
