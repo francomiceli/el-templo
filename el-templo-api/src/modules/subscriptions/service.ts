@@ -2925,7 +2925,12 @@ export class SubscriptionService {
       );
     }
 
-    // Find current subscription (active or expired)
+    // Find current subscription (active or expired). An active sub ALWAYS
+    // wins over an expired one regardless of createdAt: the legacy data
+    // import (2026-04-01) wrote historical expired subs with createdAt newer
+    // than the member's real active sub, and ordering by createdAt alone made
+    // renew pick the imported expired row — creating a second active sub
+    // starting today instead of a scheduled one (caso Lorenzino/Pandolfo).
     const [currentSub] = await this.db
       .select({
         id: schema.subscriptions.id,
@@ -2946,7 +2951,10 @@ export class SubscriptionService {
           ),
         ),
       )
-      .orderBy(desc(schema.subscriptions.createdAt))
+      .orderBy(
+        sql`CASE ${schema.subscriptions.status} WHEN 'active' THEN 0 ELSE 1 END`,
+        desc(schema.subscriptions.createdAt),
+      )
       .limit(1);
 
     if (!currentSub) {

@@ -347,4 +347,69 @@ describe("Subscriptions API — Renewal", () => {
     });
     expect(renewRes.statusCode).toBe(400);
   });
+
+  // Regresión del bug de la importación legacy (jun 2026): el import masivo
+  // del 2026-04-01 creó subs históricas 'expired' con created_at POSTERIOR al
+  // de la sub realmente vigente del miembro. El renew ordenaba solo por
+  // createdAt desc y elegía la expirada importada → trataba la renovación
+  // como "plan vencido" y creaba una SEGUNDA sub activa desde hoy, en vez de
+  // programarla desde el fin de la vigente (casos Lorenzino/Pandolfo/
+  // Lecatsas). Una sub activa debe ganar siempre sobre una expirada.
+  it("renew prefiere la sub activa sobre una expirada con createdAt más nuevo", async () => {
+    const plan = await createPlan(app, adminToken, {
+      name: "Legacy Import Renewal Plan",
+      classesPerWeek: undefined,
+      durationDays: 30,
+      priceRegular: 10000,
+      priceZero: 5000,
+    });
+    const member = await createMember(app);
+
+    const assignResult = await assignPlan(app, adminToken, member.id, {
+      planId: plan.id,
+      startDate: todayStr(),
+    });
+    const activeSubId = assignResult.body.id as number;
+
+    // Simula la sub histórica importada: expirada, período pasado, pero con
+    // created_at más nuevo que el de la activa (artefacto del import).
+    await app.db.insert(subscriptions).values({
+      userId: member.id,
+      planId: plan.id,
+      branchId: 1,
+      status: "expired",
+      startDate: dateOffsetStr(-90),
+      endDate: dateOffsetStr(-60),
+      pricePaid: 0,
+      priceTypeApplied: "regular",
+      currency: "ARS",
+      createdAt: new Date(Date.now() + 60 * 60 * 1000),
+    });
+
+    const res = await app.inject({
+      method: "POST",
+      url: `${SUBSCRIPTIONS_URL}/members/${member.id}/subscription/renew`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: { paymentMethod: "cash" },
+    });
+
+    expect(res.statusCode).toBe(201);
+    const newSub = JSON.parse(res.body);
+
+    // Renovación anticipada de la vigente: queda programada desde su fin,
+    // no activa desde hoy.
+    expect(newSub.status).toBe("scheduled");
+    expect(newSub.previousSubscriptionId).toBe(activeSubId);
+    expect(newSub.startDate).toBe(dateOffsetStr(30));
+    expect(newSub.endDate).toBe(dateOffsetStr(60));
+
+    // El miembro no debe quedar con más de una sub activa.
+    const allSubs = await app.db
+      .select()
+      .from(subscriptions)
+      .where(eq(subscriptions.userId, member.id));
+    const actives = allSubs.filter((s) => s.status === "active");
+    expect(actives).toHaveLength(1);
+    expect(actives[0].id).toBe(activeSubId);
+  });
 });
