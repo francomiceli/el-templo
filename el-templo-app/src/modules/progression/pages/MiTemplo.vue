@@ -112,8 +112,9 @@
         :total-sessions="progressionStore.stats?.totalSessions ?? 0"
       />
 
-      <!-- Mi Árbol — entry point into the skill-tree advancement view (Phase 127) -->
-      <button class="mi-arbol-card" @click="goToMiArbol">
+      <!-- Mi Árbol — entry point into the skill-tree advancement view (Phase 127).
+           Gated off for members until the v5.1 training-data rollout runs (featureFlags). -->
+      <button v-if="MEMBER_TREE_ENABLED" class="mi-arbol-card" @click="goToMiArbol">
         <q-icon name="park" class="mi-arbol-card__icon" />
         <span class="mi-arbol-card__text">
           <span class="mi-arbol-card__title">Mi Árbol</span>
@@ -152,6 +153,7 @@ import { useCheckInApi } from '../composables/useCheckInApi'
 import CheckInCard from '../components/CheckInCard.vue'
 import { CHECK_IN_QUESTIONS, type CheckInQuestionConfig, type CheckInQuestionType } from '../types'
 import { useUserStore } from 'src/stores/useUserStore'
+import { MEMBER_TREE_ENABLED } from 'src/config/featureFlags'
 import { useWeekData } from 'src/modules/training/composables/useWeekData'
 import { getRouteName } from 'src/modules/training/utils/routeNames'
 import SessionCtaCard from '../components/SessionCtaCard.vue'

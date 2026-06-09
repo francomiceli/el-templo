@@ -186,6 +186,7 @@ import { useStoryNavigation } from '../composables/useStoryNavigation'
 
 // Utils
 import { getRouteName } from '../utils/routeNames'
+import { IN_SESSION_ADJUST_ENABLED } from 'src/config/featureFlags'
 import { formatDose, formatQuickDose } from '../utils/formatDose'
 
 const BLOCK_NAMES: Record<string, string> = {
@@ -504,9 +505,17 @@ function onSlideComplete(): void {
 }
 
 // Difficulty adjustment is only available for a real (non-mobility,
-// non-reviewing) exercise slide of the active block.
+// non-reviewing) exercise slide of the active block. Gated off for members
+// until the v5.1 progression-graph rollout runs (featureFlags) — without it the
+// swap finds no neighbour and the control would be a confusing no-op. Hiding
+// this also hides the objective-criterion label that lives in the same block.
 const canAdjustCurrentSlide = computed(() => {
-  return !isMobilitySlide.value && !isReviewingPrevious.value && currentSlideExercise.value !== null
+  return (
+    IN_SESSION_ADJUST_ENABLED &&
+    !isMobilitySlide.value &&
+    !isReviewingPrevious.value &&
+    currentSlideExercise.value !== null
+  )
 })
 
 // Objective advance criterion (R5, D-07): derived deterministically at runtime
