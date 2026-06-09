@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v5.3.3
 milestone_name: Post-v5.3.2 Live Test Fixes
 status: executing
-stopped_at: "Phase 95 Plan 95-03 EXECUTED — Commit 1 RED (b1d8bd73) + Commit 2 GREEN (22a07dc7) shipped. Test infrastructure flakiness in v5-3-3-degr-01-escalation.test.ts identified during execution; deferred to Phase 97 or dedicated pre-v5.4.0 debug session (see Pending Decisions). Phase 95 closed."
-last_updated: "2026-05-20T05:15:53.000Z"
+stopped_at: "Phase 96 context gathered — Case A locked, 4 deliverables scoped (CTXT rule + Sunday=0 + snapshot regen + Finding #4 helper), Finding #2 carved to NEW Phase 96.5"
+last_updated: "2026-06-09T18:23:52.370Z"
 progress:
   total_phases: 5
   completed_phases: 2
@@ -101,7 +101,7 @@ None. v5.3.2 shipped clean. v5.3.3 ROADMAP.md complete with full coverage; BUG-0
 
 ## Session Continuity
 
-Last session: 2026-05-19T03:55:15Z
-Stopped at: Phase 95 Plan 95-02 AUTHORED + plan-checker PASSED. Plan covers BUG-03 fix scope per audit verdict (candidates ii/iv/v/vi as P0/P1) + `withTimeout` helper + Drizzle drift-guard test. Revision round 2 added `tools.ts:706` second `bk.status` site (plan-checker discovery in `queryAlternativeSchedules`, user-authorized scope expansion 2026-05-18). Awaiting user visual review.
-Resume file: `.planning/phases/95-booking-reliability-graceful-degradation/95-02-PLAN.md` (4 atomic-commit chain: rename `bk.status` → fix `checkSchedule` → `withTimeout` helper → drift-guard test)
+Last session: 2026-06-09T18:23:52.359Z
+Stopped at: Phase 96 context gathered — Case A locked, 4 deliverables scoped (CTXT rule + Sunday=0 + snapshot regen + Finding #4 helper), Finding #2 carved to NEW Phase 96.5
+Resume file: .planning/phases/96-context-awareness/96-CONTEXT.md
 Next step: User reviews `95-02-PLAN.md`. After approval, `/gsd-execute-phase 95 --plan 02` to run the 4-commit chain (do NOT auto-advance). After 95-02 GREEN-ships, follow up with: (a) `docs(95-02-amendment): note :706 second-site coverage` updating `95-AUDIT.md` §C/§E (deferred-post-execution per user directive to keep audit verdict record clean), (b) `/gsd-plan-phase 95` to author Plan 95-03 (BUG-05 retry counter + `request_human` escalation for DEGR-01/02 coverage — gated on 95-02 ship).
