@@ -211,6 +211,8 @@ export interface TrialSessionsRow {
   lead: string;
   /** YYYY-MM-DD — API exposes ISO; UI renders DD/MM/YYYY (D-05). */
   bookingDate: string;
+  /** YYYY-MM-DD — when the trial booking (SP) was created (bookings.booked_at). */
+  bookingCreatedAt: string;
   /** HH:MM (D-06). */
   startTime: string;
   branchId: number;

@@ -397,6 +397,14 @@ const columns: QTableColumn<TrialSessionsRowClient>[] = [
     format: (val: string) => formatDateDdMmYyyy(val),
   },
   {
+    name: 'bookingCreatedAt',
+    label: 'Creación',
+    field: 'bookingCreatedAt',
+    align: 'left',
+    sortable: false,
+    format: (val: string) => formatDateDdMmYyyy(val),
+  },
+  {
     name: 'startTime',
     label: 'Hora',
     field: 'startTime',

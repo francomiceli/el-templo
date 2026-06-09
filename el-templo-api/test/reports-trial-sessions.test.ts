@@ -356,6 +356,8 @@ describe("Reports API — Trial Sessions (Phase 114-05)", () => {
       name: "AdminAR Local",
     });
     expect(antonino.period).toBe(antonino.bookingDate.slice(0, 7));
+    // bookingCreatedAt — ISO date of the SP creation (bookings.booked_at).
+    expect(antonino.bookingCreatedAt).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect(antonino.weekRange).toMatch(
       /^\d{4}-\d{2}-\d{2} --- \d{4}-\d{2}-\d{2}$/,
     );
@@ -895,7 +897,7 @@ describe("Reports API — Trial Sessions (Phase 114-05)", () => {
 
     // Header line — Spanish with literal accented "Asistió".
     const expectedHeader =
-      "Lead,Fecha,Hora,Sucursal,Asistió,Estado del Lead,Gestiona,Comentarios,Turno,Periodo,Semana";
+      "Lead,Fecha,Creación,Hora,Sucursal,Asistió,Estado del Lead,Gestiona,Comentarios,Turno,Periodo,Semana";
     const afterBom = decoded.slice(1);
     const firstLine = afterBom.split("\r\n")[0];
     expect(firstLine).toBe(expectedHeader);

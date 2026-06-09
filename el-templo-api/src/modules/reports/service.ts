@@ -1228,6 +1228,7 @@ export class ReportsService {
       first_name: string | null;
       last_name: string | null;
       booking_date: string | Date;
+      booked_at: string | Date;
       start_time: string;
       branch_id: number;
       branch_name: string;
@@ -1245,6 +1246,7 @@ export class ReportsService {
         u.first_name      AS first_name,
         u.last_name       AS last_name,
         b.booking_date    AS booking_date,
+        b.booked_at       AS booked_at,
         s.start_time      AS start_time,
         br.id             AS branch_id,
         br.name           AS branch_name,
@@ -1283,6 +1285,7 @@ export class ReportsService {
       first_name: string | null;
       last_name: string | null;
       booking_date: string | Date;
+      booked_at: string | Date;
       start_time: string;
       branch_id: number;
       branch_name: string;
@@ -1312,8 +1315,8 @@ export class ReportsService {
    * are wrapped in double quotes; any literal double quote is doubled.
    *
    * Spanish headers (literal accented chars; the file is UTF-8):
-   *   Lead, Fecha, Hora, Sucursal, Asistió, Estado del Lead, Gestiona,
-   *   Comentarios, Turno, Periodo, Semana
+   *   Lead, Fecha, Creación, Hora, Sucursal, Asistió, Estado del Lead,
+   *   Gestiona, Comentarios, Turno, Periodo, Semana
    *
    * Date format: DD/MM/YYYY (D-05). Hora: HH:MM (D-06). Asistió: "Sí" / "No"
    * / "" (D-08).
@@ -1330,6 +1333,7 @@ export class ReportsService {
     const headers = [
       "Lead",
       "Fecha",
+      "Creación",
       "Hora",
       "Sucursal",
       "Asistió",
@@ -1344,6 +1348,7 @@ export class ReportsService {
     const lines: string[] = [headers.map(csvEscape).join(",")];
     for (const row of data.rows) {
       const fechaDDMMYYYY = isoToDDMMYYYY(row.bookingDate);
+      const creacionDDMMYYYY = isoToDDMMYYYY(row.bookingCreatedAt);
       const asistidoLabel =
         row.attended === "si" ? "Sí" : row.attended === "no" ? "No" : "";
       const estadoLabel = leadStatusLabelES(row.leadStatusEffective);
@@ -1352,6 +1357,7 @@ export class ReportsService {
       const cells = [
         row.lead,
         fechaDDMMYYYY,
+        creacionDDMMYYYY,
         row.startTime,
         row.branchName,
         asistidoLabel,
@@ -1508,6 +1514,7 @@ export class ReportsService {
     first_name: string | null;
     last_name: string | null;
     booking_date: string | Date;
+    booked_at: string | Date;
     start_time: string;
     branch_id: number;
     branch_name: string;
@@ -1520,6 +1527,8 @@ export class ReportsService {
     creator_last_name: string | null;
   }): TrialSessionsRow {
     const bookingDate = normalizeISODate(r.booking_date);
+    // Fecha de creación de la SP (sesión de prueba) = cuándo se registró el booking.
+    const bookingCreatedAt = normalizeISODate(r.booked_at);
     const startTime = r.start_time.slice(0, 5);
     const lead = trimJoin(r.first_name, r.last_name);
     const converted = r.converted_at !== null;
@@ -1564,6 +1573,7 @@ export class ReportsService {
       userId: r.user_id,
       lead,
       bookingDate,
+      bookingCreatedAt,
       startTime,
       branchId: r.branch_id,
       branchName: r.branch_name,

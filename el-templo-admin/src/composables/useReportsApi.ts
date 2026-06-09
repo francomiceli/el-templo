@@ -49,6 +49,7 @@ export interface TrialSessionsRowClient {
   userId: number;
   lead: string;
   bookingDate: string; // YYYY-MM-DD
+  bookingCreatedAt: string; // YYYY-MM-DD — fecha de creación de la SP
   startTime: string; // HH:MM
   branchId: number;
   branchName: string;

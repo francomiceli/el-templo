@@ -439,6 +439,7 @@ const trialSessionsRowSchema = {
     userId: { type: "integer" },
     lead: { type: "string" },
     bookingDate: { type: "string" },
+    bookingCreatedAt: { type: "string" },
     startTime: { type: "string" },
     branchId: { type: "integer" },
     branchName: { type: "string" },
