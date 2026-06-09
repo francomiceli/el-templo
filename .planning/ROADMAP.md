@@ -167,7 +167,9 @@ The 45s `OPENAI_TIMEOUT_MS` is the LEFT-HAND VARIABLE that the right-hand TTL mu
 3. A regression test exists that simulates the relevant multi-turn conversation pattern (per audit verdict) and asserts the bot's reply does NOT re-ask for full name (assert by absence of "nombre completo" / "cómo te llamás" / "tu nombre" patterns when profile field is populated).
 4. **PB1.E1A snapshot fixture regenerated** at the end of Phase 96. The regeneration captures combined Phase 95 + Phase 96 `system-prompt.ts` changes (if any). `POST_RLOK_04_BYTES` constant updated to match. Commit the regenerated fixture in the same PR per v5.3.1 update discipline.
 
-**Plans:** TBD (likely 2 plans — audit + reproduction, then fix + snapshot regen)
+**Plans:** 1 plan (single-plan structure locked per CONTEXT.md `<specifics>` — Case A locked empirically; no investigative branching; D-03 + D-06 + D-09 + D-10 + D-12 land atomically in one GREEN commit per CONTEXT.md D-19)
+
+- [ ] 96-01-PLAN.md — Mechanical encoding of CONTEXT.md D-03..D-23: D-03 CTXT rule + D-06 Sunday=0 directive in `system-prompt.ts`, D-12 `parseExtractionResponse` helper + caller refactor in `handler.ts`, D-09 snapshot regen of `pb1-e1a-lead-rendered.snap.txt`, D-10 `POST_RLOK_04_BYTES` bump, D-15 + D-16 six tests in NEW `v5-3-3-context-awareness.test.ts`, transitions pre-existing (iii) RED at `v5-3-3-booking-reliability.test.ts:55` to GREEN automatically. Atomic RED → GREEN → SUMMARY commit cadence.
 
 **Notes:**
 
