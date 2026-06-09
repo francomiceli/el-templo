@@ -1,13 +1,37 @@
 ---
-status: deferred
+status: partially-resolved
 plan: 135-02
 phase: 135-rbol-del-admin-jerarqu-a-visual-de-hitos-y-variantes-en-tree
 reason: prod-data-rollout-prerequisite-missing
 decided: 2026-06-08
 decided_by: user (execute-phase checkpoint)
+updated: 2026-06-08
 ---
 
-# 135-02 — DIFERIDO (no ejecutado)
+# 135-02 — PARCIALMENTE RESUELTO (migración 0146 milestone-only)
+
+## ACTUALIZACIÓN 2026-06-08 — se creó 0146 (alcance acotado)
+
+Tras sembrar el árbol en local (rollout heurístico completo: aceptar 1176
+dimensiones → generar → aplicar), el usuario pidió llevarlo a staging+master vía
+migración. Se resolvió el problema de keying que había bloqueado 135-02:
+
+- **`0146_populate_milestone_exercise_id.sql`** (commit `18bcff33`) — asigna
+  `milestone_exercise_id` a **47 variantes** (bajo 23 hitos), keyeado por
+  **identidad natural** `(exercise, route, effort, dificultad_lineal)` — único en
+  las 70 filas involucradas (0 colisiones). Validado: reproduce el seed por id
+  byte-idéntico sobre una copia pre-seed. Idempotente (`IS NULL` guard), reversible.
+- **Alcance acotado a milestone-only**: las ~1176 aceptaciones de dimensión
+  (habilidad/step/route, baja confianza, sin clave natural limpia) NO se migran —
+  los profes completan el agrupamiento con el editor. El visual de la jerarquía
+  solo necesita `milestone_exercise_id`.
+
+**Lo que sigue diferido:** el rollout de datos de dimensiones (revisión de profes,
+fase 125) y un poblado más rico/agresivo del árbol. Ver todo `v51-milestone-data-rollout`.
+
+---
+
+# 135-02 — Contexto original del bloqueo
 
 ## Decisión
 
