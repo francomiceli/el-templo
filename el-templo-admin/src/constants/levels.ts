@@ -33,15 +33,16 @@ export function levelColor(level: string): string {
 /**
  * Difficulty-band mapping for the exercise tree (R2-BANDS).
  *
- * Mapeo de UI deliberado y LOCKED (tree-quality-research.md §4.3):
- * kairos 1-2 / alfa 3 / delta 4-6 / sigma 7-8 / omega 9-10 / spartan 11-12.
+ * Mapeo de UI para el árbol, alineado con el modelo real de niveles:
+ * alfa 1-3 / delta 4-6 / sigma 7-8 / omega 9-10 / spartan 11-12.
  *
- * NO coincide con LEVEL_LINEAR_MIN del API (allá alfa arranca en dl 1) y
- * NO debe "corregirse" para derivarlo de ese mapeo.
+ * Kairos NO tiene banda propia: hereda el contenido de alfa (techo dl 3) y el
+ * backend nunca emite una banda 'kairos' (bandForDl: todo dl ≥ 1 es alfa). Por
+ * eso dl 1-3 se pintan como alfa — coincide con LEVEL_LINEAR_MIN del API
+ * (alfa arranca en dl 1).
  */
 export const DL_BANDS = [
-  { level: 'kairos', min: 1, max: 2, color: 'amber-6' },
-  { level: 'alfa', min: 3, max: 3, color: 'amber-8' },
+  { level: 'alfa', min: 1, max: 3, color: 'amber-8' },
   { level: 'delta', min: 4, max: 6, color: 'deep-orange-7' },
   { level: 'sigma', min: 7, max: 8, color: 'brown-8' },
   { level: 'omega', min: 9, max: 10, color: 'red-9' },
@@ -61,8 +62,8 @@ export function dlBand(dl: number | null | undefined): DlBand | null {
 
 /**
  * Text class for content rendered on top of a band color.
- * Amber bands (kairos/alfa) need charcoal text — white fails contrast on amber.
+ * The amber band (alfa) needs charcoal text — white fails contrast on amber.
  */
 export function bandTextClass(band: DlBand): string {
-  return band.level === 'kairos' || band.level === 'alfa' ? 'text-grey-10' : 'text-white';
+  return band.level === 'alfa' ? 'text-grey-10' : 'text-white';
 }

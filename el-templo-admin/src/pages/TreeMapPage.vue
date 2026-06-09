@@ -1285,11 +1285,13 @@ function minimapColor(node: Node): string {
 
 // ── Leyenda de bandas de dificultad (R2-BANDS) ────────────────────────────────
 
-/** Label compacto de la leyenda: `kairos 1–2`, `alfa 3`, `delta 4–6`, … */
+/** Label compacto de la leyenda: `alfa 1–3`, `delta 4–6`, `sigma 7–8`, … */
 function bandLegendLabel(band: DlBand): string {
-  return band.min === band.max
-    ? `${band.level} ${band.min}`
-    : `${band.level} ${band.min}–${band.max}`;
+  // Widen from the literal band bounds so a single-dl band (min===max) still
+  // renders, without tripping TS literal-overlap narrowing (as const).
+  const min: number = band.min;
+  const max: number = band.max;
+  return min === max ? `${band.level} ${min}` : `${band.level} ${min}–${max}`;
 }
 
 // ── Page sizing ───────────────────────────────────────────────────────────────
