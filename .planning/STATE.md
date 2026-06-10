@@ -602,7 +602,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [ ] **Phase 112 Plan 02: EnrollmentService extraction** — wave 2, depends on Plan 01 (next)
 - [ ] **Phase 112 Plans 03-06** — lifecycle hooks, admin add-on API, admin UI, member-app verification
 - [ ] **Rollout de datos v5.1** — poblar milestone_exercise_id (local + prod) — `.planning/todos/pending/v51-milestone-data-rollout.md`
-- [ ] **Compensar días (pausa retroactiva) en admin** — diseño cerrado 2026-06-09, fase chica post-UAT v5.0/v5.1 — `.planning/todos/pending/2026-06-10-compensar-d-as-pausa-retroactiva-en-admin.md`
+- [x] **Compensar días (pausa retroactiva) en admin** — implementado 2026-06-10 (endpoint + modal + tests, pendiente CI/UAT) — `.planning/todos/completed/2026-06-10-compensar-d-as-pausa-retroactiva-en-admin.md`
 
 ### Blockers/Concerns
 

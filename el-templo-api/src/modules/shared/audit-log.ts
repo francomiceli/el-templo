@@ -25,7 +25,8 @@ export type AuditAction =
   | "subscription_cancelled"
   | "transaction_voided"
   | "plan_assigned"
-  | "reconciliation";
+  | "reconciliation"
+  | "days_compensated";
 
 export type AuditTargetKind = "subscription" | "transaction" | "member";
 

@@ -1846,6 +1846,174 @@ export class SubscriptionService {
   }
 
   /**
+   * Compensate untrained days retroactively (pausa retroactiva).
+   *
+   * Reception use case: a member missed classes (trip, injury) but never
+   * asked for a pause in time — by the time they're back, pauseSubscription
+   * is useless (it only pauses from today onward and cancels future
+   * bookings, the opposite of what's needed). This credits the missed
+   * range instead: endDate += days in [fromDate, toDate] (inclusive),
+   * bookings for the extended tail regenerate via populateBookings
+   * (idempotent INSERT IGNORE), and the sub stays active with
+   * pausedAt/resumedAt untouched (those describe live pauses only).
+   *
+   * Guards:
+   * - Sub must be active with a concrete endDate.
+   * - Range must be fully in the past and inside the sub's period.
+   * - Reason is mandatory (audit trail).
+   * - Attendance inside the range blocks (the member DID train those days
+   *   — same pattern as editSubscriptionStartDate).
+   * - A scheduled renewal blocks: it chains from the current endDate, so
+   *   extending underneath it would overlap both subs. Admin must cancel
+   *   the renewal first or compensate before renewing.
+   *
+   * Writes one audit_log row (action='days_compensated') inside the same
+   * transaction as the endDate update.
+   */
+  async compensateDays(
+    subscriptionId: number,
+    input: { fromDate: string; toDate: string; reason: string },
+    actorId: number,
+  ): Promise<SubscriptionDetail> {
+    const sub = await this.getSubscriptionById(subscriptionId);
+    if (!sub) {
+      throw new NotFoundError("Suscripcion no encontrada");
+    }
+
+    if (sub.status !== "active") {
+      throw new BadRequestError(
+        "Solo se pueden compensar días de suscripciones activas",
+      );
+    }
+    if (!sub.endDate) {
+      throw new BadRequestError(
+        "La suscripcion no tiene fecha de vencimiento definida",
+      );
+    }
+
+    const reason = input.reason?.trim();
+    if (!reason) {
+      throw new BadRequestError("El motivo es obligatorio");
+    }
+
+    const { fromDate, toDate } = input;
+    if (fromDate > toDate) {
+      throw new BadRequestError(
+        "La fecha Desde debe ser anterior o igual a la fecha Hasta",
+      );
+    }
+
+    const today = todayDateString();
+    if (toDate >= today) {
+      throw new BadRequestError(
+        "El rango a compensar debe estar completamente en el pasado",
+      );
+    }
+    if (fromDate < sub.startDate || toDate > sub.endDate) {
+      throw new BadRequestError(
+        "El rango a compensar debe estar dentro del período de la suscripción",
+      );
+    }
+
+    // The member trained inside the range → those days weren't missed.
+    // Same guard pattern as editSubscriptionStartDate.
+    const attendanceConflict = await this.db
+      .select({ id: schema.attendance.id })
+      .from(schema.attendance)
+      .where(
+        and(
+          eq(schema.attendance.memberId, sub.userId),
+          sql`${schema.attendance.sessionDate} >= ${fromDate}`,
+          sql`${schema.attendance.sessionDate} <= ${toDate}`,
+        ),
+      )
+      .limit(1);
+
+    if (attendanceConflict.length > 0) {
+      throw new BadRequestError(
+        "El alumno tiene asistencias registradas dentro del rango a compensar",
+      );
+    }
+
+    // A scheduled renewal chains from the current endDate — extending it
+    // underneath would make both subs overlap. Same-category only: an
+    // online programa queued for the member doesn't block compensating
+    // the presencial sub.
+    const scheduledRenewal = await this.db
+      .select({ id: schema.subscriptions.id })
+      .from(schema.subscriptions)
+      .innerJoin(
+        schema.subscriptionPlans,
+        eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
+      )
+      .where(
+        and(
+          eq(schema.subscriptions.userId, sub.userId),
+          eq(schema.subscriptions.status, "scheduled"),
+          eq(schema.subscriptionPlans.planCategory, sub.planCategory),
+        ),
+      )
+      .limit(1);
+
+    if (scheduledRenewal.length > 0) {
+      throw new BadRequestError(
+        "El alumno tiene una renovación programada. Cancelala primero o compensá los días antes de renovar",
+      );
+    }
+
+    const daysCredited = daysBetween(fromDate, toDate) + 1;
+    const newEndDateObj = new Date(sub.endDate);
+    newEndDateObj.setDate(newEndDateObj.getDate() + daysCredited);
+    const newEndDate = newEndDateObj.toISOString().split("T")[0];
+    const prevEndDate = sub.endDate;
+
+    await this.db.transaction(async (tx) => {
+      await tx
+        .update(schema.subscriptions)
+        .set({ endDate: newEndDate })
+        .where(eq(schema.subscriptions.id, subscriptionId));
+
+      await auditLog.write(tx, {
+        actorId,
+        action: "days_compensated",
+        targetKind: "subscription",
+        targetId: subscriptionId,
+        payload: {
+          subId: subscriptionId,
+          fromDate,
+          toDate,
+          daysCredited,
+          prevEndDate,
+          newEndDate,
+        },
+        reason,
+      });
+    });
+
+    // Seed bookings for the extended tail. Idempotent (INSERT IGNORE), so
+    // already-materialized future bookings stay put. (External helper, not
+    // transaction-aware — kept on this.db, same as resumeSubscription.)
+    await populateBookings(this.db, this.log, subscriptionId);
+
+    const updated = await this.getSubscriptionById(subscriptionId);
+    if (!updated) throw new Error("Failed to retrieve updated subscription");
+
+    this.log.info(
+      {
+        subscriptionId,
+        actorId,
+        fromDate,
+        toDate,
+        daysCredited,
+        prevEndDate,
+        newEndDate,
+      },
+      "Subscription days compensated",
+    );
+    return updated;
+  }
+
+  /**
    * Cancel an active or paused subscription.
    * Also cancels any scheduled (early-renewed) subscription for this member.
    *

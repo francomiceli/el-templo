@@ -760,6 +760,30 @@ export const editStartDateSchema = {
   },
 };
 
+export const compensateDaysSchema = {
+  params: {
+    type: "object",
+    required: ["subscriptionId"],
+    properties: {
+      subscriptionId: { type: "integer" },
+    },
+  },
+  body: {
+    type: "object",
+    required: ["fromDate", "toDate", "reason"],
+    properties: {
+      fromDate: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+      toDate: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+      reason: { type: "string", minLength: 1 },
+    },
+  },
+  response: {
+    200: subscriptionDetailSchema,
+    400: errorSchema,
+    404: errorSchema,
+  },
+};
+
 export const changeFixedSchedulesSchema = {
   params: {
     type: "object",

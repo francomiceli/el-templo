@@ -417,6 +417,26 @@ export function useSubscriptionsApi() {
     }
   }
 
+  async function compensateDays(
+    subscriptionId: number,
+    input: { fromDate: string; toDate: string; reason: string }
+  ): Promise<SubscriptionDetail> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.post<SubscriptionDetail>(
+        `/admin/subscriptions/subscriptions/${subscriptionId}/compensate-days`,
+        input
+      );
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error compensando días');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   async function listScheduleChanges(
     subscriptionId: number
   ): Promise<SubscriptionScheduleChangeEntry[]> {
@@ -459,6 +479,7 @@ export function useSubscriptionsApi() {
     deactivatePromo,
     changeFixedSchedules,
     editSubscriptionStartDate,
+    compensateDays,
     listScheduleChanges,
     cleanup,
   };

@@ -40,6 +40,7 @@
         @edit-start-date="openEditStartDate(presencialSub!)"
         @pause="confirmPause"
         @resume="confirmResume"
+        @compensate="openCompensateDialog"
         @cancel="confirmCancel()"
       />
 
@@ -408,6 +409,77 @@
             icon="pause"
             :loading="actionLoading"
             @click="executePause"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
+    <!-- Compensar días (pausa retroactiva): acredita días no entrenados
+         extendiendo el vencimiento. Para ausencias que ya pasaron, donde
+         Pausar no sirve (solo pausa desde hoy y cancela reservas). -->
+    <q-dialog v-model="showCompensateDialog">
+      <q-card style="width: 450px; max-width: 95vw">
+        <q-card-section>
+          <div class="text-h6">Compensar días</div>
+        </q-card-section>
+        <q-separator />
+        <q-card-section>
+          <div class="text-body2 q-mb-md">
+            Acredita días que el alumno no entrenó (viaje, lesión, vacaciones) extendiendo la fecha
+            de vencimiento. El rango debe estar en el pasado.
+          </div>
+          <div class="row q-col-gutter-sm q-mb-md">
+            <div class="col-6">
+              <q-input
+                v-model="compensateFromInput"
+                label="Desde"
+                type="date"
+                dense
+                outlined
+                :min="compensateMinDate"
+                :max="compensateMaxDate"
+              />
+            </div>
+            <div class="col-6">
+              <q-input
+                v-model="compensateToInput"
+                label="Hasta"
+                type="date"
+                dense
+                outlined
+                :min="compensateFromInput || compensateMinDate"
+                :max="compensateMaxDate"
+              />
+            </div>
+          </div>
+          <q-input
+            v-model="compensateReasonInput"
+            label="Motivo"
+            type="textarea"
+            autogrow
+            dense
+            outlined
+            :rules="[(v) => !!v?.trim() || 'El motivo es obligatorio']"
+          />
+          <q-banner v-if="compensatePreview" dense rounded class="bg-blue-1 text-blue-10 q-mt-sm">
+            <template #avatar>
+              <q-icon name="more_time" />
+            </template>
+            Se acreditan
+            <b>{{ compensatePreview.days }} {{ compensatePreview.days === 1 ? 'día' : 'días' }}</b
+            >: vencimiento {{ formatDate(compensatePreview.prevEndDate) }} →
+            {{ formatDate(compensatePreview.newEndDate) }}
+          </q-banner>
+        </q-card-section>
+        <q-card-actions align="right" class="q-pa-md">
+          <q-btn flat label="Cancelar" color="grey" @click="showCompensateDialog = false" />
+          <q-btn
+            color="warning"
+            label="Compensar"
+            icon="more_time"
+            :loading="actionLoading"
+            :disable="!compensateValid"
+            @click="executeCompensate"
           />
         </q-card-actions>
       </q-card>
@@ -811,6 +883,84 @@ async function executePause() {
     const message = err instanceof Error ? err.message : 'Error desconocido';
     log.error('Error pausing subscription', { error: message });
     $q.notify({ type: 'negative', message: 'Error pausando suscripcion' });
+  } finally {
+    actionLoading.value = false;
+  }
+}
+
+// ─── Compensar días (pausa retroactiva) ──────────────────────────────────
+
+const showCompensateDialog = ref(false);
+const compensateFromInput = ref<string | null>(null);
+const compensateToInput = ref<string | null>(null);
+const compensateReasonInput = ref('');
+
+// El rango debe estar completamente en el pasado y dentro del período de la sub.
+const compensateMaxDate = computed(() => {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return d.toISOString().split('T')[0];
+});
+const compensateMinDate = computed(() => presencialSub.value?.startDate ?? undefined);
+
+const compensatePreview = computed(() => {
+  const sub = presencialSub.value;
+  const from = compensateFromInput.value;
+  const to = compensateToInput.value;
+  if (!sub?.endDate || !from || !to || from > to) return null;
+  const days = Math.round((new Date(to).getTime() - new Date(from).getTime()) / 86400000) + 1;
+  const end = new Date(sub.endDate);
+  end.setDate(end.getDate() + days);
+  return {
+    days,
+    prevEndDate: sub.endDate,
+    newEndDate: end.toISOString().split('T')[0],
+  };
+});
+
+const compensateValid = computed(
+  () =>
+    compensatePreview.value !== null &&
+    compensateToInput.value !== null &&
+    compensateToInput.value <= compensateMaxDate.value &&
+    compensateReasonInput.value.trim() !== ''
+);
+
+function openCompensateDialog() {
+  compensateFromInput.value = null;
+  compensateToInput.value = null;
+  compensateReasonInput.value = '';
+  showCompensateDialog.value = true;
+}
+
+async function executeCompensate() {
+  const sub = presencialSub.value;
+  if (!sub || !compensateFromInput.value || !compensateToInput.value) return;
+  actionLoading.value = true;
+  try {
+    await subsApi.compensateDays(sub.id, {
+      fromDate: compensateFromInput.value,
+      toDate: compensateToInput.value,
+      reason: compensateReasonInput.value.trim(),
+    });
+    const days = compensatePreview.value?.days ?? 0;
+    $q.notify({
+      type: 'positive',
+      message: `Se acreditaron ${days} ${days === 1 ? 'día' : 'días'} al vencimiento`,
+    });
+    emit('subscription-changed');
+    refreshAll();
+    showCompensateDialog.value = false;
+  } catch (err: unknown) {
+    // Los 400 traen mensajes accionables (asistencias en rango, renovación
+    // programada) — se muestran tal cual en vez de un genérico.
+    const message = extractError(err, 'Error compensando días');
+    if (isExpectedClientError(err)) {
+      log.warn('Compensate days rejected by server', { error: message });
+    } else {
+      log.error('Error compensating days', { error: message });
+    }
+    $q.notify({ type: 'negative', message, timeout: 5000 });
   } finally {
     actionLoading.value = false;
   }

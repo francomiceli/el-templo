@@ -164,6 +164,14 @@
           color="warning"
           @click="emit('pause')"
         />
+        <q-btn
+          v-if="isPresencial"
+          flat
+          icon="more_time"
+          label="Compensar días"
+          color="warning"
+          @click="emit('compensate')"
+        />
         <q-btn flat icon="cancel" label="Cancelar" color="negative" @click="emit('cancel')" />
       </template>
       <template v-else-if="subscription.status === 'paused'">
@@ -244,6 +252,7 @@ const emit = defineEmits<{
   'edit-start-date': [];
   pause: [];
   resume: [];
+  compensate: [];
   cancel: [];
 }>();
 

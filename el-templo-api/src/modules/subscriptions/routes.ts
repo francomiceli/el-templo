@@ -45,6 +45,7 @@ import {
   classUsageSchema,
   pricingPreviewSchema,
   changeFixedSchedulesSchema,
+  compensateDaysSchema,
   editStartDateSchema,
   listScheduleChangesSchema,
   listPromosSchema,
@@ -364,6 +365,28 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
           request.log,
           "edit subscription start date",
         );
+      }
+    },
+  );
+
+  // POST /subscriptions/:subscriptionId/compensate-days — Retroactive pause:
+  // credit untrained past days by extending endDate (audit-logged).
+  fastify.post<{
+    Params: { subscriptionId: number };
+    Body: { fromDate: string; toDate: string; reason: string };
+  }>(
+    "/subscriptions/:subscriptionId/compensate-days",
+    { schema: compensateDaysSchema },
+    async (request, reply) => {
+      try {
+        const sub = await subscriptionService.compensateDays(
+          request.params.subscriptionId,
+          request.body,
+          request.user.userId,
+        );
+        return sub;
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "compensate days");
       }
     },
   );
