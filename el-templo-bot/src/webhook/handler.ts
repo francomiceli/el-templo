@@ -1572,6 +1572,56 @@ function splitMessage(text: string): string[] {
 }
 
 /**
+ * Parses an extraction response from the AI provider, tolerating markdown
+ * fences (```json ... ``` or ``` ... ```) that gpt-4o-mini may wrap JSON in.
+ *
+ * Returns `null` on truly malformed content — preserves the existing
+ * "skip update on parse failure" semantics at extractAndUpdateProfile.
+ *
+ * Defensive hardening of CTXT-02 / Finding #4: empirical evidence from
+ * 2026-06-09 live UAT repro showed gpt-4o-mini wrapping extraction output
+ * in fences, silently dropping branchPreference and notes fields.
+ *
+ * Exported for unit tests (`test/v5-3-3-context-awareness.test.ts` T3/T4)
+ * per CONTEXT.md D-12 Claude's Discretion (D-14: file-private OR exported
+ * for tests — chose exported because the test file imports it directly).
+ */
+export function parseExtractionResponse(
+  rawContent: string,
+): Record<string, unknown> | null {
+  const trimmed = rawContent.trim();
+
+  // Two-pass strip (Claude's Discretion shape per D-13):
+  //   pass 1: leading ``` or ```json
+  //   pass 2: trailing ```
+  const stripped = trimmed
+    .replace(/^```(?:json)?\s*\n?/, "")
+    .replace(/\n?\s*```$/, "")
+    .trim();
+
+  if (stripped.length === 0) {
+    return null;
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(stripped);
+    // Narrow to object-shape per D-12 return type; arrays and primitives
+    // are NOT valid extraction outputs (the AI is instructed to emit a
+    // JSON object with named fields).
+    if (
+      typeof parsed === "object" &&
+      parsed !== null &&
+      !Array.isArray(parsed)
+    ) {
+      return parsed as Record<string, unknown>;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Extract profile updates from a conversation exchange using a lightweight AI call.
  *
  * This is fire-and-forget: errors are logged but never propagated.
@@ -1602,11 +1652,11 @@ async function extractAndUpdateProfile(
     const extractionResponse = await provider.chat(extractionPrompt);
     const rawContent = extractionResponse.content ?? "{}";
 
-    // Explicit inner try/catch for JSON.parse -- malformed AI output must not propagate
-    let extracted: Record<string, unknown>;
-    try {
-      extracted = JSON.parse(rawContent) as Record<string, unknown>;
-    } catch {
+    // Parse extraction response — tolerates markdown fences per D-12/D-13.
+    // Helper returns `null` on malformed content; the existing skip-on-failure
+    // semantics are preserved via the `if (!extracted)` guard below.
+    const extracted = parseExtractionResponse(rawContent);
+    if (!extracted) {
       log.warn(
         { phone, rawContent },
         "Profile extraction returned malformed JSON, skipping update",

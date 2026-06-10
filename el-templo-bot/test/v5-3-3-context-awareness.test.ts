@@ -76,8 +76,9 @@ describe("D-05 SC#3 guardrail — CTXT rule co-exists with SOFT_REJECTION fixtur
       expect(prompt).toContain("*Datos ya provistos:*");
 
       // SOFT_REJECTION-rule marker (verified against system-prompt.ts:70 / :79).
-      // Both WHY and BACKOFF rule constants start with `*REGLA — el lead`.
-      expect(prompt).toMatch(/\*REGLA — el lead/);
+      // WHY rule starts `*REGLA — el lead expresó rechazo:*`; BACKOFF rule
+      // starts `*REGLA — back-off después de la WHY:*`.
+      expect(prompt).toMatch(/\*REGLA — (el lead|back-off)/);
 
       // Same-line collision guard — assert CTXT and SOFT_REJECTION rules
       // render on DISTINCT lines (D-05 SC#3 invariant; Phase 97 RGUARD-02
@@ -86,7 +87,9 @@ describe("D-05 SC#3 guardrail — CTXT rule co-exists with SOFT_REJECTION fixtur
       const ctxtIdx = lines.findIndex((l) =>
         l.includes("*Datos ya provistos:*"),
       );
-      const softIdx = lines.findIndex((l) => /\*REGLA — el lead/.test(l));
+      const softIdx = lines.findIndex((l) =>
+        /\*REGLA — (el lead|back-off)/.test(l),
+      );
       expect(ctxtIdx).toBeGreaterThanOrEqual(0);
       expect(softIdx).toBeGreaterThanOrEqual(0);
       expect(ctxtIdx).not.toBe(softIdx);

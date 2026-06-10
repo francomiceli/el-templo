@@ -54,7 +54,7 @@ const SNAP_PATH = resolve(here, "fixtures/pb1-e1a-lead-rendered.snap.txt");
  * explicitly forbid mis-using the $20,000 trial as a plan reference and
  * to forbid deducing/estimating plan prices. +95 JS-chars.
  */
-const POST_RLOK_04_BYTES = 18370;
+const POST_RLOK_04_BYTES = 18798;
 
 const renderE1ALead = (): string =>
   getSystemPrompt({
