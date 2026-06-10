@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v5.3.3
 milestone_name: Post-v5.3.2 Live Test Fixes
 status: executing
-stopped_at: "Phase 96 context gathered — Case A locked, 4 deliverables scoped (CTXT rule + Sunday=0 + snapshot regen + Finding #4 helper), Finding #2 carved to NEW Phase 96.5"
-last_updated: "2026-06-09T18:55:34.349Z"
+stopped_at: "Phase 96 shipped 2026-06-10 (bea9a10a GREEN + 4598dcea SUMMARY). v5.4.0 production-ready path locked in this STATE.md. Next: Phase 96.5 (date hallucination fix) in a fresh session per locked path step 1."
+last_updated: "2026-06-10T15:00:00.000Z"
 progress:
-  total_phases: 5
-  completed_phases: 2
-  total_plans: 7
-  completed_plans: 3
-  percent: 40
+  total_phases: 6 # 93/94/95/96/97 original + 96.5 NEW per locked path
+  completed_phases: 3 # 93 passed, 95 closed (beb2282b), 96 complete (96-01-SUMMARY.md); 94 human_needed pending BUG-02 smoke; 97 + 96.5 not started
+  total_plans: 10 # 7 shipped + 96.5 (~1) + 97 (~2 per ROADMAP) estimated
+  completed_plans: 7 # 93-01, 94-01, 94-02, 95-01, 95-02, 95-03, 96-01
+  percent: 70
 ---
 
 # Project State
@@ -111,9 +111,87 @@ Full decision log in PROJECT.md Key Decisions table.
 
 None. v5.3.2 shipped clean. v5.3.3 ROADMAP.md complete with full coverage; BUG-02 root cause known — Phase 94 fully plannable with file-level pointers.
 
+## v5.4.0 Production-Ready Path (LOCKED 2026-06-10)
+
+**Intent:** Deploy v5.4.0 to production with material confidence, NOT in partial state. Owner explicitly chose the long path (production-ready) over the short path (soft launch on incomplete substrate). Each phase must close before initiating the next, unless deviation is documented inline with rationale.
+
+**Principle locked:** Rigor proportional to impact — every phase below maintains D-XX numbering, audit trail, 6-pair sha256 invariant `67670b1e1099bf7c8a5285414736f16e8a010a010348bf6566790d0db3163344`, plan-checker discipline, and F-1/F-2 deprecation discipline. Manual UAT > documented narratives — two rounds of manual testing are non-negotiable. Hard time budget cap per execute: 90 min before §9a fallback (lesson from Phase 96 5.5h timeout). Snapshot-regen-bearing executes MUST explicitly flag the inline `pnpm exec tsx -e` approach in the execute prompt.
+
+### Mandatory phases (MUST close before v5.4.0 deploy)
+
+1. **Phase 96.5 — Date hallucination fix** (~3-5h, ~30 LOC pure-prompt + snapshot date-stub infra)
+   - **Trigger:** HARD BLOCKER pre-v5.4.0. Production: bot offers "Lunes 2023-11-06" → confirmation `fetch failed` → zero successful trial bookings until fixed. Confirmed pure-prompt hallucination via Phase 96 discuss Finding #2 investigation (verbatim verdict in 96-CONTEXT.md).
+   - **Pre-conditions:** Phase 96 closed ✅.
+   - **Execute-prompt guidance:** Snapshot regen step was likely hang point of Phase 96's 5.5h executor timeout. For Phase 96.5 (also snapshot-regen + date stub), pre-flag `pnpm exec tsx -e` inline approach with `Date.now()` stub explicitly. KGATE-05 margin after Phase 96 = 118 chars; estimated Phase 96.5 directive ~25 chars → ~93 chars margin remaining.
+
+2. **/gsd-debug session — el-templo-api 30 pre-existing failures** (~1-3h)
+   - **Scope:** investigate root cause of the 30 failing tests in `el-templo-api/test/` (subscriptions: 6, whatsapp/ai-tools: 20, whatsapp/v5-3-3-booking.integration: 1, whatsapp/webhook: 3). Failure set verified identical across stash-and-rerun on 2026-06-10.
+   - **Trigger:** documented in Pending Decisions as carry-forward debt; hypothesis = DB seed drift but UNVERIFIED. Potentially hides a production bug.
+   - **Pre-conditions:** Phase 96.5 closed.
+   - **Expected outcome — one of three branches:**
+     - **(a)** Root cause = test infra (DB seed drift) → document + accept + ship.
+     - **(b)** Root cause = mix of test infra + 1-2 production bugs → fix bugs as Phase 98 or absorb into v5.4.0 scope.
+     - **(c)** Root cause = multiple production bugs → re-evaluate v5.4.0 scope entirely.
+
+3. **Phase 97 — Regression Lock + ELEV-01 + VOSEO-01 + RGUARD-01..03** (~8-14h, likely 2 sessions minimum — scope discovery during discuss-phase before plan can author meaningfully; NO pre-existing 97-CONTEXT.md or 97-AUDIT.md, unlike Phase 94/96 which had file-level pointers locked before plan time)
+   - **Scope:** RGUARD-01..03 (milestone-scoped regression suite + `withTimeout` extension to remaining `executeTool` sites), ELEV-01 (third elevator hook), VOSEO-01 (Argentine voseo consistency). Non-deterministic regression strategy (sampling vs accept-list) decided at plan time.
+   - **Potential scope expansion:** may absorb the 94-01 SC#3 + 95-03 DEGR-01 test flakes if root cause analysis fits within scope (both share the `vi.useFakeTimers + advanceTimersByTimeAsync + promise-resolution-ordering` family per STATE.md Pending Decisions).
+   - **Trigger:** regression protection for v5.4.0 + final UX rules locked.
+   - **Pre-conditions:** Phase 96.5 + /gsd-debug closed.
+
+4. **Manual UAT Round 2 — Real API connected** (~2-4h)
+   - **Scope:** bot connected to real `el-templo-api` (no dev seeds), comprehensive flow testing: registration, booking, cancellation, after-hours, soft rejection, full trial flow. Validates Phase 96 CTXT rule + Phase 96.5 date fix + Phase 97 regression lock empirically.
+   - **Trigger:** phase rigor assumes "the system is good"; Round 2 validates with production-like setup.
+   - **Expected outcome:** list of new findings (expectable 0-5 bugs); each triaged against v5.4.0 blocker / Phase 98 / v5.4+ backlog. Finding #3 (`fetch failed` on Confirmar) gets its real test here.
+   - **Pre-conditions:** Phase 97 closed.
+
+5. **Phase 94 BUG-02 smoke test — staging deploy** (~1-2h)
+   - **Scope:** throttled-upstream WhatsApp send test in staging environment with observation of interim msg + graceful fallback + clean handler return.
+   - **Trigger:** Phase 94 is currently `human_needed` waiting on this smoke test. Without it, Phase 94 cannot be marked `passed` and v5.3.3 milestone is structurally incomplete.
+   - **Pre-conditions:** Manual UAT Round 2 closed + staging environment up.
+
+### Strongly recommended phases (deploying without these = material risk)
+
+6. **Production Environment Setup Verification** (~2-4h) — real staging (not dev), WhatsApp Business API verified (no test number), production DB with real seeds, Redis production-ready (correct TTLs per cross-phase invariant + persistence config), basic monitoring/alerting.
+
+7. **Error Handling + Observability Review** (~2-4h) — audit all catch blocks in `handler.ts` + scheduler files, logging strategy review (Pino sink/rotation for v5.4.0 per MACRO-ROADMAP.md #3), alerting setup, runtime monitoring. MACRO-ROADMAP.md flags a v5.4.0 monitoring requirement: alert if `OPENAI_TIMEOUT_MS`, `MAX_TOOL_ITERATIONS`, `executeTool_timeout_seconds`, `safety_buffer`, or `DEBOUNCE_TTL_SECONDS` drift out of invariant range.
+
+8. **Load + Concurrency Test** (~2-3h) — 5-10 simultaneous conversations, bot under sustained load (1 hour with messages every 30s), verify Phase 93 concurrency under stress, identify memory leaks or race conditions.
+
+9. **Rollback Plan** (~1-2h) — documented procedure for post-deploy revert, DB snapshot pre-deploy, tagged release in git for fast revert, basic incident response playbook. (Note: `deploy/RUNBOOK.md` and `deploy/backup.sh`/`restore.sh` exist for the API stack — extend to cover bot.)
+
+10. **Security + Secrets Audit** (~1-2h) — API keys in env vars verified, `.env.production` NOT in git (`.gitignore` currently lists `.env` and `deploy/.aws-vars` + `deploy/.credentials` ✓), OpenAI key with rate limits configured, WhatsApp tokens validated, secret rotation procedure documented.
+
+### Estimates and cadence
+
+- **Mandatory (1-5):** 15-28 hours (Phase 97 recalibrated +3-6h based on scope-discovery analysis)
+- **Mandatory + Recommended (1-10):** 25-43 hours
+- **At a pace of 3-5 hours per session:** 7-14 more sessions
+
+### Post-deploy expectations (captured for v5.4.0 scoping)
+
+- **Pre-deploy:** stage v5.4.0 in staging for 3-7 days with internal simulated use.
+- **Deploy:** soft launch — start with 5-10 trial users, do NOT open general registration.
+- **Weeks 1-2 post-deploy:** watch logs intensively, expect a **Phase 98 emergency fix track** with bugs that only appear with real users.
+- **Week 3+:** if stable, expand registration.
+
+### Accepted risks (document but proceed)
+
+- v5.4.0 will deploy with some imperfection — normal, not failure.
+- Phase 98 emergency fix track is **expected** post-deploy.
+- Some "unknown unknowns" will only surface with real users.
+- Mitigation: rollback plan (#9) + observability (#7) + soft launch.
+
+### Instructions for GSD using this roadmap
+
+- Reference this roadmap section in each upcoming `/gsd-discuss-phase` invocation as context.
+- If owner requests deviation from the path at any point, surface the consequence clearly before proceeding.
+- **DO NOT auto-execute any phase** — wait for owner at each step.
+- Sequencing rule: each item closes before the next begins, except where the path itself permits parallelism (none currently identified).
+
 ## Session Continuity
 
-Last session: 2026-06-09T18:23:52.359Z
-Stopped at: Phase 96 context gathered — Case A locked, 4 deliverables scoped (CTXT rule + Sunday=0 + snapshot regen + Finding #4 helper), Finding #2 carved to NEW Phase 96.5
-Resume file: .planning/phases/96-context-awareness/96-CONTEXT.md
-Next step: User reviews `95-02-PLAN.md`. After approval, `/gsd-execute-phase 95 --plan 02` to run the 4-commit chain (do NOT auto-advance). After 95-02 GREEN-ships, follow up with: (a) `docs(95-02-amendment): note :706 second-site coverage` updating `95-AUDIT.md` §C/§E (deferred-post-execution per user directive to keep audit verdict record clean), (b) `/gsd-plan-phase 95` to author Plan 95-03 (BUG-05 retry counter + `request_human` escalation for DEGR-01/02 coverage — gated on 95-02 ship).
+Last session: 2026-06-10T15:00:00.000Z
+Stopped at: Phase 96 shipped (CTXT-01/02 + Sunday=0 carry-forward + Finding #4 markdown-fence helper absorbed) via `bea9a10a` GREEN + `4598dcea` SUMMARY. v5.4.0 production-ready path locked in STATE.md roadmap section above. 3 carry-forward debt items documented in Pending Decisions (94-01 SC#3 flake, 95-03 DEGR-01 flakes, el-templo-api 30 pre-existing failures).
+Resume file: STATE.md roadmap section — "v5.4.0 Production-Ready Path (LOCKED 2026-06-10)" path step 1
+Next step: `/gsd-discuss-phase 96.5` per locked path step 1 (date hallucination fix — HARD BLOCKER pre-v5.4.0; ~3-5h pure-prompt + snapshot date-stub infra; pre-flag `pnpm exec tsx -e` + `Date.now()` stub approach in execute prompt to avoid Phase 96 5.5h timeout pattern).
