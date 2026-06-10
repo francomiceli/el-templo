@@ -54,7 +54,7 @@ import type { TransactionService } from "../finance";
 import type { TxHandle } from "../finance/balance-service";
 import type { PaymentMethod } from "../finance/types";
 import type { GoalPlanType } from "../goal-plans/types";
-import { populateBookings } from "./booking-population";
+import { populateBookings, cancelBookingsInRange } from "./booking-population";
 import { auditLog } from "../shared/audit-log";
 import { EnrollmentService } from "../programs/enrollment-service";
 
@@ -1846,20 +1846,28 @@ export class SubscriptionService {
   }
 
   /**
-   * Compensate untrained days retroactively (pausa retroactiva).
+   * Compensate untrained days (pausa retroactiva o congelamiento futuro).
    *
-   * Reception use case: a member missed classes (trip, injury) but never
-   * asked for a pause in time — by the time they're back, pauseSubscription
-   * is useless (it only pauses from today onward and cancels future
-   * bookings, the opposite of what's needed). This credits the missed
-   * range instead: endDate += days in [fromDate, toDate] (inclusive),
-   * bookings for the extended tail regenerate via populateBookings
-   * (idempotent INSERT IGNORE), and the sub stays active with
-   * pausedAt/resumedAt untouched (those describe live pauses only).
+   * Reception use cases:
+   * - Past range: a member missed classes (trip, injury) but never asked
+   *   for a pause in time — by the time they're back, pauseSubscription
+   *   is useless (it only pauses from today onward and cancels future
+   *   bookings, the opposite of what's needed).
+   * - Future range: the member announces today an absence that hasn't
+   *   started yet ("me voy de viaje del 20 al 30") and reception wants to
+   *   register it on the spot. The sub stays active; fixed-slot bookings
+   *   inside the future range are cancelled so they release capacity.
+   *
+   * Effect: endDate += days in [fromDate, toDate] (inclusive), bookings
+   * for the extended tail regenerate via populateBookings (idempotent),
+   * bookings inside the future part of the range get cancelled AFTER the
+   * populate (populate reactivates 'cancelado' rows via ON DUPLICATE KEY,
+   * so order matters), and pausedAt/resumedAt stay untouched (those
+   * describe live pauses only).
    *
    * Guards:
    * - Sub must be active with a concrete endDate.
-   * - Range must be fully in the past and inside the sub's period.
+   * - Range must be inside the sub's period (past, future or mixed).
    * - Reason is mandatory (audit trail).
    * - Attendance inside the range blocks (the member DID train those days
    *   — same pattern as editSubscriptionStartDate).
@@ -1903,12 +1911,6 @@ export class SubscriptionService {
       );
     }
 
-    const today = todayDateString();
-    if (toDate >= today) {
-      throw new BadRequestError(
-        "El rango a compensar debe estar completamente en el pasado",
-      );
-    }
     if (fromDate < sub.startDate || toDate > sub.endDate) {
       throw new BadRequestError(
         "El rango a compensar debe estar dentro del período de la suscripción",
@@ -1994,6 +1996,21 @@ export class SubscriptionService {
     // already-materialized future bookings stay put. (External helper, not
     // transaction-aware — kept on this.db, same as resumeSubscription.)
     await populateBookings(this.db, this.log, subscriptionId);
+
+    // Frozen future days: the member announced they won't attend, so their
+    // fixed-slot reservations inside the range must release capacity. Runs
+    // AFTER populateBookings — populate reactivates 'cancelado' rows via
+    // ON DUPLICATE KEY UPDATE, so the inverse order would undo this.
+    const today = todayDateString();
+    if (toDate >= today) {
+      await cancelBookingsInRange(
+        this.db,
+        this.log,
+        subscriptionId,
+        fromDate > today ? fromDate : today,
+        toDate,
+      );
+    }
 
     const updated = await this.getSubscriptionById(subscriptionId);
     if (!updated) throw new Error("Failed to retrieve updated subscription");

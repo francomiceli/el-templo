@@ -414,9 +414,10 @@
       </q-card>
     </q-dialog>
 
-    <!-- Compensar días (pausa retroactiva): acredita días no entrenados
-         extendiendo el vencimiento. Para ausencias que ya pasaron, donde
-         Pausar no sirve (solo pausa desde hoy y cancela reservas). -->
+    <!-- Compensar días: acredita días no entrenados extendiendo el
+         vencimiento. Rango pasado (ausencia que ya ocurrió, donde Pausar
+         no sirve) o futuro (congelar días avisados con anticipación —
+         se cancelan las reservas fijas de esos días). -->
     <q-dialog v-model="showCompensateDialog">
       <q-card style="width: 450px; max-width: 95vw">
         <q-card-section>
@@ -425,8 +426,8 @@
         <q-separator />
         <q-card-section>
           <div class="text-body2 q-mb-md">
-            Acredita días que el alumno no entrenó (viaje, lesión, vacaciones) extendiendo la fecha
-            de vencimiento. El rango debe estar en el pasado.
+            Acredita días que el alumno no entrenó o no va a entrenar (viaje, lesión, vacaciones)
+            extendiendo la fecha de vencimiento. El rango puede incluir días pasados y futuros.
           </div>
           <div class="row q-col-gutter-sm q-mb-md">
             <div class="col-6">
@@ -469,6 +470,10 @@
             <b>{{ compensatePreview.days }} {{ compensatePreview.days === 1 ? 'día' : 'días' }}</b
             >: vencimiento {{ formatDate(compensatePreview.prevEndDate) }} →
             {{ formatDate(compensatePreview.newEndDate) }}
+            <template v-if="compensateTouchesFuture">
+              <br />
+              Se cancelarán las reservas de turnos fijos dentro del rango.
+            </template>
           </q-banner>
         </q-card-section>
         <q-card-actions align="right" class="q-pa-md">
@@ -895,13 +900,16 @@ const compensateFromInput = ref<string | null>(null);
 const compensateToInput = ref<string | null>(null);
 const compensateReasonInput = ref('');
 
-// El rango debe estar completamente en el pasado y dentro del período de la sub.
-const compensateMaxDate = computed(() => {
-  const d = new Date();
-  d.setDate(d.getDate() - 1);
-  return d.toISOString().split('T')[0];
-});
+// El rango debe estar dentro del período de la sub (pasado, futuro o mixto).
+const compensateMaxDate = computed(() => presencialSub.value?.endDate ?? undefined);
 const compensateMinDate = computed(() => presencialSub.value?.startDate ?? undefined);
+
+// Si el rango toca días futuros, las reservas fijas de esos días se cancelan.
+const compensateTouchesFuture = computed(() => {
+  const to = compensateToInput.value;
+  if (!to) return false;
+  return to >= new Date().toISOString().split('T')[0];
+});
 
 const compensatePreview = computed(() => {
   const sub = presencialSub.value;
@@ -922,6 +930,7 @@ const compensateValid = computed(
   () =>
     compensatePreview.value !== null &&
     compensateToInput.value !== null &&
+    compensateMaxDate.value !== undefined &&
     compensateToInput.value <= compensateMaxDate.value &&
     compensateReasonInput.value.trim() !== ''
 );

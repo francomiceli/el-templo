@@ -171,17 +171,19 @@ describe("Subscriptions API — POST /:id/compensate-days (pausa retroactiva)", 
     expect(body.message).toContain("período");
   });
 
-  it("400 cuando el rango no está completamente en el pasado", async () => {
+  it("acepta rango mixto pasado+futuro y extiende el vencimiento", async () => {
     const { subId } = await setupActiveSub();
 
+    // 6 días inclusivos: today-3 .. today+2 (cruza hoy)
     const { statusCode, body } = await compensate(subId, {
       fromDate: dateOffsetStr(-3),
-      toDate: dateOffsetStr(0), // hoy no cuenta como pasado
-      reason: "Viaje",
+      toDate: dateOffsetStr(2),
+      reason: "Lesión, vuelve en unos días",
     });
 
-    expect(statusCode).toBe(400);
-    expect(body.message).toContain("pasado");
+    expect(statusCode).toBe(200);
+    expect(body.endDate).toBe(dateOffsetStr(16));
+    expect(body.status).toBe("active");
   });
 
   it("400 cuando falta el motivo (schema) o viene vacío (service)", async () => {
@@ -248,5 +250,82 @@ describe("Subscriptions API — POST /:id/compensate-days (pausa retroactiva)", 
     expect(body.endDate).toBe(dateOffsetStr(17));
     expect(await countBeyond(endDate)).toBe(1);
     expect(await countBeyond(body.endDate as string)).toBe(0);
+  });
+
+  it("rango futuro: extiende vencimiento y cancela las reservas fijas del rango", async () => {
+    await app.db.insert(activities).values({
+      name: "Calistenia CompensateFuture",
+      isActive: true,
+    });
+    const actRows = await app.db.select({ id: activities.id }).from(activities);
+    const activityId = actRows[actRows.length - 1].id;
+    const slotResult = await app.db.insert(schedules).values({
+      branchId: 1,
+      activityId,
+      dayOfWeek: 1,
+      startTime: "08:00",
+      endTime: "09:00",
+      isActive: true,
+    });
+    const scheduleId = Number(slotResult[0].insertId);
+
+    const { subId, memberId } = await setupActiveSub(
+      {
+        name: "Fixed Compensate Future 1x",
+        bookingMode: "fixed",
+        classesPerWeek: 1,
+      },
+      { scheduleIds: [scheduleId] },
+    );
+
+    // Congelar today+1 .. today+7 (7 días): una ventana de 7 días consecutivos
+    // contiene exactamente un lunes → exactamente una reserva fija a cancelar.
+    const fromDate = dateOffsetStr(1);
+    const toDate = dateOffsetStr(7);
+
+    const countInRange = async (status: string): Promise<number> => {
+      const rows = await app.db
+        .select({ c: sql<number>`COUNT(*)` })
+        .from(bookings)
+        .where(
+          and(
+            eq(bookings.memberId, memberId),
+            sql`${bookings.bookingDate} >= ${fromDate}`,
+            sql`${bookings.bookingDate} <= ${toDate}`,
+            sql`${bookings.status} = ${status}`,
+          ),
+        );
+      return Number(rows[0].c);
+    };
+
+    expect(await countInRange("reservado")).toBe(1);
+
+    const { statusCode, body } = await compensate(subId, {
+      fromDate,
+      toDate,
+      reason: "Viaje avisado con anticipación",
+    });
+
+    expect(statusCode).toBe(200);
+    // 7 días acreditados sobre endDate = today+10
+    expect(body.endDate).toBe(dateOffsetStr(17));
+    // La reserva dentro del rango congelado quedó cancelada (libera cupo)
+    expect(await countInRange("reservado")).toBe(0);
+    expect(await countInRange("cancelado")).toBe(1);
+
+    // Las reservas fuera del rango congelado siguen activas: la cola va
+    // hasta el nuevo vencimiento (today+17), así que después del rango
+    // quedan los lunes de (today+7, today+17] — al menos uno.
+    const beyondRange = await app.db
+      .select({ c: sql<number>`COUNT(*)` })
+      .from(bookings)
+      .where(
+        and(
+          eq(bookings.memberId, memberId),
+          gt(bookings.bookingDate, toDate),
+          sql`${bookings.status} = 'reservado'`,
+        ),
+      );
+    expect(Number(beyondRange[0].c)).toBeGreaterThanOrEqual(1);
   });
 });

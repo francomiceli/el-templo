@@ -12,6 +12,9 @@
  *   - clearFutureBookings: delete active (non-cancelled) bookings for a
  *     sub's member from fromDate onward.
  *
+ *   - cancelBookingsInRange: mark active bookings inside [fromDate, toDate]
+ *     as cancelled (frozen days the member won't attend).
+ *
  * These are not exposed to external callers — consumed only by the
  * subscription service to keep invariants right.
  */
@@ -277,6 +280,67 @@ export async function clearFutureBookings(
     "clearFutureBookings complete",
   );
   return deleted;
+}
+
+/**
+ * Mark active bookings (reservado/lista_espera) for the member owning
+ * `subId` as cancelled when their bookingDate falls inside
+ * [fromDate, toDate]. Used by compensateDays when the compensated range
+ * includes future days: the member won't attend, so their fixed-slot
+ * reservations must release capacity for others.
+ *
+ * Note: a later populateBookings over the same window reactivates these
+ * rows (ON DUPLICATE KEY UPDATE above) — acceptable, same exposure as
+ * pause→resume regeneration.
+ *
+ * Returns rows cancelled.
+ */
+export async function cancelBookingsInRange(
+  db: MySql2Database<typeof schema>,
+  log: FastifyBaseLogger,
+  subId: number,
+  fromDate: string,
+  toDate: string,
+): Promise<number> {
+  const [sub] = await db
+    .select({ userId: schema.subscriptions.userId })
+    .from(schema.subscriptions)
+    .where(eq(schema.subscriptions.id, subId));
+  if (!sub) return 0;
+
+  const scheduleRows = await db
+    .select({ scheduleId: schema.subscriptionSchedules.scheduleId })
+    .from(schema.subscriptionSchedules)
+    .where(eq(schema.subscriptionSchedules.subscriptionId, subId));
+  if (scheduleRows.length === 0) return 0;
+
+  const result = await db
+    .update(schema.bookings)
+    .set({
+      status: "cancelado",
+      cancelledAt: new Date(),
+      waitlistPosition: null,
+    })
+    .where(
+      and(
+        eq(schema.bookings.memberId, sub.userId),
+        inArray(
+          schema.bookings.scheduleId,
+          scheduleRows.map((r) => r.scheduleId),
+        ),
+        gte(schema.bookings.bookingDate, fromDate),
+        sql`${schema.bookings.bookingDate} <= ${toDate}`,
+        sql`${schema.bookings.status} IN ('reservado', 'lista_espera')`,
+      ),
+    );
+
+  const cancelled =
+    (result as unknown as [{ affectedRows: number }])[0]?.affectedRows ?? 0;
+  log.info(
+    { subId, fromDate, toDate, cancelled },
+    "cancelBookingsInRange complete",
+  );
+  return cancelled;
 }
 
 /**
