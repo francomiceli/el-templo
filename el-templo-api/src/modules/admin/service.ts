@@ -710,10 +710,11 @@ export class AdminSessionService {
         // (routes.ts builds that dayId; without generation it would 404). It is
         // listed LAST so alfa generates first and defines `sharedFormats`
         // (cross-level format consistency) for alfa/delta exactly as before —
-        // D-07: alfa/delta generation is byte-unchanged. The non-linear
-        // sharedFormats forced onto the kairos session are overridden back to
-        // the linear format inside runBlockPipeline (WR-02 gate), so the kairos
-        // session still comes out linear (D-04).
+        // D-07: alfa/delta generation is byte-unchanged. The kairos session
+        // shares the day's formats like any other level; its only remaining
+        // gates are block size (D-05, non-INITIUM) and Alfa content (D-03).
+        // INITIUM in particular generates identically for every level — the
+        // printed sheet renders it once for the whole day.
         const memberLevels: ExerciseLevel[] =
           levelGroup === "alfa_delta"
             ? ["alfa", "delta", "kairos"]
@@ -750,11 +751,11 @@ export class AdminSessionService {
             });
 
             // Capture formats from the first generated session of the day
-            // INITIUM excluded (uses separate pipeline, always Interval Training).
-            // NEVER capture from a kairos session: kairos forces the linear "Singlet"
-            // format (D-04), and if it were the first generated session (e.g. alfa/delta
-            // already existed and were skipped) its Singlet would leak onto sigma/omega.
-            // alfa/delta are non-kairos and still define sharedFormats as before (D-07).
+            // INITIUM excluded (uses separate pipeline, identical across levels).
+            // NEVER capture from a kairos session: conservative guard so a partial
+            // regenerate (alfa/delta skipped, kairos first) can't define the day's
+            // sharedFormats for sigma/omega. alfa/delta still define sharedFormats
+            // as before (D-07).
             if (!sharedFormats && !isKairos(memberLevel)) {
               sharedFormats = new Map();
               for (const block of session.blocks) {

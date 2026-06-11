@@ -1,9 +1,11 @@
 /**
  * Unit tests for the Kairos generation gate (Phase 129, Plan 02)
  *
- * Proves the four pipeline injection points (stage-3 budget, stage-5 format,
- * stage-6 exercises, INITIUM pipeline) behave correctly for memberLevel='kairos'
- * AND — critically — leave every non-kairos path byte-for-byte unchanged (D-07).
+ * Proves the pipeline injection points (stage-3 budget, stage-5 format,
+ * stage-6 exercises) behave correctly for memberLevel='kairos' AND — critically —
+ * leave every non-kairos path byte-for-byte unchanged (D-07). The INITIUM
+ * pipeline has NO kairos gate: INITIUM is the shared day warmup and must come
+ * out identical for every level (asserted below).
  *
  * WHY this is a unit-level (mocked-DB) test, not full end-to-end generation:
  * Full SPOM-seeded session generation is NOT runnable in CI here. The SPOM CSVs
@@ -433,12 +435,10 @@ describe("Stage-6 exercise gate (D-03: Alfa exercises at dificultadLineal=1)", (
   });
 });
 
-describe("INITIUM gate (D-05 size=2 + D-04 linear format)", () => {
-  it("selects exactly 2 INITIUM exercises and the linear format for kairos", async () => {
-    const { runInitiumPipeline } =
-      await import("../../src/modules/sessions/pipeline/initium-pipeline");
-    // INITIUM queries the exercises table directly via db.select(); mock a pool
-    // large enough that selectWithVariety can return the forced count.
+describe("INITIUM is the shared day warmup — identical for kairos and every other level", () => {
+  // INITIUM queries the exercises table directly via db.select(); mock a pool
+  // large enough that selectWithVariety can return the full count.
+  function makeInitiumDb(): never {
     const pool = Array.from({ length: 10 }, (_, i) => ({
       id: i + 1,
       name: `Mobility ${i + 1}`,
@@ -448,7 +448,7 @@ describe("INITIUM gate (D-05 size=2 + D-04 linear format)", () => {
       category: "Movilidad",
       mobilityRelated: null,
     }));
-    const db = {
+    return {
       select: vi.fn().mockReturnValue({
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockReturnValue({
@@ -459,19 +459,51 @@ describe("INITIUM gate (D-05 size=2 + D-04 linear format)", () => {
         }),
       }),
     } as never;
+  }
 
-    const block = await runInitiumPipeline(makeInitiumCtx("kairos"), db);
-    expect(block.exercises).toHaveLength(2);
-    expect(block.format.name).toBe("Singlet");
-    expect(queryFormatByNameMock).toHaveBeenCalledWith(db, "Singlet");
+  it("selects 4 INITIUM exercises and the level-agnostic format for kairos (no kairos gate)", async () => {
+    queryFormatsAnyLevelMock.mockResolvedValue([METCON_FORMAT]);
+    selectBestFormatMock.mockReturnValue(METCON_FORMAT);
+    const { runInitiumPipeline } =
+      await import("../../src/modules/sessions/pipeline/initium-pipeline");
+
+    const block = await runInitiumPipeline(
+      makeInitiumCtx("kairos"),
+      makeInitiumDb(),
+    );
+    expect(block.exercises).toHaveLength(4);
+    expect(block.format.name).toBe("AMRAP");
+    expect(queryFormatsAnyLevelMock).toHaveBeenCalledTimes(1);
+    // No by-name linear-format lookup and no kairos traces: the gate is gone.
+    expect(queryFormatByNameMock).not.toHaveBeenCalled();
     expect(
       block.trace.some((t) => t.code === "KAIROS_INITIUM_SIZE_FORCED"),
-    ).toBe(true);
+    ).toBe(false);
     expect(
       block.trace.some((t) => t.code === "KAIROS_INITIUM_FORMAT_FORCED"),
-    ).toBe(true);
-    // The non-kairos level-agnostic format pick must NOT run for kairos.
-    expect(queryFormatsAnyLevelMock).not.toHaveBeenCalled();
+    ).toBe(false);
+  });
+
+  it("produces an INITIUM identical to alfa's for the same week/day inputs", async () => {
+    queryFormatsAnyLevelMock.mockResolvedValue([METCON_FORMAT]);
+    selectBestFormatMock.mockReturnValue(METCON_FORMAT);
+    const { runInitiumPipeline } =
+      await import("../../src/modules/sessions/pipeline/initium-pipeline");
+
+    const kairosBlock = await runInitiumPipeline(
+      makeInitiumCtx("kairos"),
+      makeInitiumDb(),
+    );
+    const alfaBlock = await runInitiumPipeline(
+      makeInitiumCtx("alfa"),
+      makeInitiumDb(),
+    );
+
+    // Same exercises, same prescriptions, same format — the printed sheet
+    // renders INITIUM once for the whole day, so any divergence is a bug.
+    expect(kairosBlock.exercises).toEqual(alfaBlock.exercises);
+    expect(kairosBlock.format).toEqual(alfaBlock.format);
+    expect(kairosBlock.formatParams).toEqual(alfaBlock.formatParams);
   });
 
   it("selects 4 INITIUM exercises and the level-agnostic format for alfa (D-07)", async () => {
@@ -479,32 +511,14 @@ describe("INITIUM gate (D-05 size=2 + D-04 linear format)", () => {
     selectBestFormatMock.mockReturnValue(METCON_FORMAT);
     const { runInitiumPipeline } =
       await import("../../src/modules/sessions/pipeline/initium-pipeline");
-    const pool = Array.from({ length: 10 }, (_, i) => ({
-      id: i + 1,
-      name: `Mobility ${i + 1}`,
-      effort: "CON",
-      difficulty: 1,
-      pattern: "FLOW",
-      category: "Movilidad",
-      mobilityRelated: null,
-    }));
-    const db = {
-      select: vi.fn().mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            orderBy: vi.fn().mockReturnValue({
-              limit: vi.fn().mockResolvedValue(pool),
-            }),
-          }),
-        }),
-      }),
-    } as never;
 
-    const block = await runInitiumPipeline(makeInitiumCtx("alfa"), db);
+    const block = await runInitiumPipeline(
+      makeInitiumCtx("alfa"),
+      makeInitiumDb(),
+    );
     expect(block.exercises).toHaveLength(4);
     expect(block.format.name).toBe("AMRAP");
     expect(queryFormatsAnyLevelMock).toHaveBeenCalledTimes(1);
-    // The kairos by-name format lookup must NOT run for alfa.
     expect(queryFormatByNameMock).not.toHaveBeenCalled();
     expect(
       block.trace.some((t) => t.code === "KAIROS_INITIUM_SIZE_FORCED"),

@@ -23,7 +23,6 @@ import type { BlockPlan, ContractionMix } from "../types";
 import { createTraceEvent, appendTrace } from "./context";
 import {
   queryFormatsAnyLevel,
-  queryFormatByName,
   selectBestFormat,
 } from "../fallback/format-fallback";
 import type { ContentLevel } from "./utils/level-mapping";
@@ -31,12 +30,6 @@ import { ROUTE_TO_MOBILITY_ROUTES } from "./utils/mobility-routes";
 import { calculateExerciseOffset, selectWithVariety } from "./utils/variety";
 import { REST_TIMES, ISO_SECONDS } from "./utils/constants";
 import { getDefaultFormatParams } from "../../admin/format-params";
-import {
-  isKairos,
-  KAIROS_BLOCK_SIZE,
-  KAIROS_LINEAR_FORMAT_NAME,
-  KAIROS_LINEAR_FORMAT_FALLBACK,
-} from "./utils/kairos";
 
 // Fixed INITIUM parameters (per spec and existing validator ranges)
 const INITIUM_INTENSITY = 30;
@@ -71,9 +64,9 @@ interface InitiumExercise {
  * Select the best format for INITIUM block.
  * Uses level-agnostic query with intensity=55 (minimum with compatibility entries).
  *
- * Kairos (D-04): the INITIUM block is also forced to the linear sets-by-reps
- * format ("Singlet", fallback "For Quality") so the whole session is linear.
- * The gate is a pure additive branch — the non-kairos path is unchanged (D-07).
+ * INITIUM is the shared day warmup: it must come out IDENTICAL for every member
+ * level (kairos included) so the printed sheet and all per-level sessions agree.
+ * No level-dependent input may enter this selection.
  */
 async function selectInitiumFormat(
   db: MySql2Database<typeof schema>,
@@ -84,37 +77,6 @@ async function selectInitiumFormat(
   ctx: BlockContext;
 }> {
   let updatedCtx = ctx;
-
-  // Kairos: force the linear format by name before the level-agnostic pick.
-  if (isKairos(ctx.memberLevel)) {
-    let linearFormat = await queryFormatByName(db, KAIROS_LINEAR_FORMAT_NAME);
-    let usedFallbackName = false;
-    if (!linearFormat) {
-      linearFormat = await queryFormatByName(db, KAIROS_LINEAR_FORMAT_FALLBACK);
-      usedFallbackName = true;
-    }
-    if (!linearFormat) {
-      throw new Error(
-        `Kairos linear format missing from seed: neither "${KAIROS_LINEAR_FORMAT_NAME}" nor "${KAIROS_LINEAR_FORMAT_FALLBACK}" exists in the formats table`,
-      );
-    }
-    const kairosFormatTrace = createTraceEvent(
-      updatedCtx,
-      "KAIROS_INITIUM_FORMAT_FORCED",
-      "INFO",
-      {
-        formatId: linearFormat.formatId,
-        formatName: linearFormat.name,
-        usedFallbackName,
-        reason: "Kairos forces the INITIUM block to a linear format (D-04)",
-      },
-    );
-    updatedCtx = appendTrace(updatedCtx, kairosFormatTrace);
-    return {
-      format: { formatId: linearFormat.formatId, name: linearFormat.name },
-      ctx: updatedCtx,
-    };
-  }
 
   let formatCandidates = await queryFormatsAnyLevel(db, "initium", 55);
 
@@ -465,25 +427,6 @@ export async function runInitiumPipeline(
   const repsBudget = ctx.week % 2 === 0 ? 100 : 80;
   const exerciseOffset = calculateExerciseOffset(ctx.week, ctx.day);
 
-  // Kairos (D-05): exactly 2 INITIUM exercises instead of the default 4. Pure
-  // additive branch — non-kairos sessions keep INITIUM_EXERCISE_COUNT (D-07).
-  const initiumExerciseCount = isKairos(ctx.memberLevel)
-    ? KAIROS_BLOCK_SIZE
-    : INITIUM_EXERCISE_COUNT;
-
-  if (isKairos(ctx.memberLevel)) {
-    const sizeTrace = createTraceEvent(
-      updatedCtx,
-      "KAIROS_INITIUM_SIZE_FORCED",
-      "INFO",
-      {
-        forcedCount: initiumExerciseCount,
-        reason: "Kairos forces exactly 2 INITIUM exercises (D-05)",
-      },
-    );
-    updatedCtx = appendTrace(updatedCtx, sizeTrace);
-  }
-
   const paramsTrace = createTraceEvent(
     updatedCtx,
     "INITIUM_PARAMS_SET",
@@ -494,7 +437,7 @@ export async function runInitiumPipeline(
       pattern: INITIUM_PATTERN,
       category: INITIUM_CATEGORY,
       repsBudget,
-      exerciseCount: initiumExerciseCount,
+      exerciseCount: INITIUM_EXERCISE_COUNT,
       difficultyBucket: String(INITIUM_DIFFICULTY_BUCKET),
       contractionMix: INITIUM_CONTRACTION_MIX,
     },
@@ -520,7 +463,7 @@ export async function runInitiumPipeline(
       updatedCtx,
       goalPlanMobilityRoutes,
       exerciseOffset,
-      initiumExerciseCount,
+      INITIUM_EXERCISE_COUNT,
     );
     updatedCtx = goalPlanContextResult.ctx;
     if (goalPlanContextResult.exercises) {
@@ -534,7 +477,7 @@ export async function runInitiumPipeline(
       updatedCtx,
       ctx.nucleusRoute,
       exerciseOffset,
-      initiumExerciseCount,
+      INITIUM_EXERCISE_COUNT,
     );
     updatedCtx = contextualResult.ctx;
     if (contextualResult.exercises) {
@@ -547,7 +490,7 @@ export async function runInitiumPipeline(
     exerciseResults = await selectGenericExercises(
       db,
       exerciseOffset,
-      initiumExerciseCount,
+      INITIUM_EXERCISE_COUNT,
     );
   }
 

@@ -68,8 +68,8 @@ function levelGroupToMemberLevels(levelGroup: LevelGroup): ExerciseLevel[] {
     case "alfa_delta":
       // kairos se materializa en alfa_delta (igual que en el generador regular,
       // admin/service.ts) para que exista una sesión GP-...-kairos. Va LAST: alfa
-      // genera primero y define sharedFormats; el formato no-lineal forzado sobre
-      // kairos lo revierte a lineal el gate WR-02 dentro de runBlockPipeline.
+      // genera primero y define sharedFormats, que kairos comparte como cualquier
+      // nivel (sus únicos gates son tamaño de bloque D-05 y contenido Alfa D-03).
       return ["alfa", "delta", "kairos"];
     case "sigma":
       return ["sigma"];

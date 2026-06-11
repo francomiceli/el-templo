@@ -4,8 +4,13 @@
  * Kairos is a member level that inherits Alfa content but forces an
  * ultra-simple session shape:
  *   - D-03: Alfa exercises at the lowest linear rung (dificultadLineal = 1)
- *   - D-04: linear sets-by-reps format only (no EMOM/AMRAP/circuit/complex)
- *   - D-05: exactly 2 exercises per block, INITIUM included
+ *   - D-05: exactly 2 exercises per non-INITIUM block
+ *
+ * INITIUM is explicitly EXCLUDED from every kairos gate: it is the shared day
+ * warmup, identical across all member levels (the printed sheet renders it
+ * once for the whole day). The original D-04 (linear format on every block,
+ * INITIUM included) was rolled back for INITIUM because it made the kairos
+ * warmup diverge from the rest of the day.
  *
  * D-07 (load-bearing invariant): adding Kairos must NOT change existing
  * alfa/delta/sigma/omega/spartan generation. EVERY kairos behavior is gated
@@ -25,22 +30,8 @@ export function isKairos(memberLevel: ExerciseLevel): boolean {
   return memberLevel === "kairos";
 }
 
-/** D-05: exactly 2 exercises per kairos block (INITIUM included). */
+/** D-05: exactly 2 exercises per kairos non-INITIUM block. */
 export const KAIROS_BLOCK_SIZE = 2;
-
-/**
- * D-04: the canonical linear (sets-by-reps) format forced on every kairos block.
- *
- * "Singlet" and "For Quality" are BOTH seeded sets-by-reps formats (they render
- * via getDefaultFormatParams handlers `singlet` / `for_quality`). "Singlet" is
- * the purest sets-by-reps with no time domain, so it is the primary choice.
- * NOTE: "Straight Sets" is referenced in fallback DEFAULT_FORMATS but is NOT in
- * the seed CSV ("[Planificaciones] - Base de Datos - Formatos.csv") — do NOT use
- * it here. Fall back to "For Quality" only if "Singlet" is absent from the
- * `formats` table.
- */
-export const KAIROS_LINEAR_FORMAT_NAME = "Singlet";
-export const KAIROS_LINEAR_FORMAT_FALLBACK = "For Quality";
 
 /**
  * D-03/D-06: kairos has no own exercise content yet, so it draws from Alfa
