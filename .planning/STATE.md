@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v5.3.3
 milestone_name: Post-v5.3.2 Live Test Fixes
 status: executing
-stopped_at: "Phase 96 shipped 2026-06-10 (bea9a10a GREEN + 4598dcea SUMMARY). v5.4.0 production-ready path locked in this STATE.md. Next: Phase 96.5 (date hallucination fix) in a fresh session per locked path step 1."
-last_updated: "2026-06-10T15:00:00.000Z"
+stopped_at: "Phase 96.5 context gathered — D-01..D-04 locked (Option D wording, render-time prompt args via getSystemPrompt opts, frozen miércoles 2026-06-10, 5-test scope); D-02a Argentine timezone deferred to plan-phase. Next: /gsd-plan-phase 96.5."
+last_updated: "2026-06-12T15:48:41.389Z"
 progress:
   total_phases: 6 # 93/94/95/96/97 original + 96.5 NEW per locked path
   completed_phases: 3 # 93 passed, 95 closed (beb2282b), 96 complete (96-01-SUMMARY.md); 94 human_needed pending BUG-02 smoke; 97 + 96.5 not started
   total_plans: 10 # 7 shipped + 96.5 (~1) + 97 (~2 per ROADMAP) estimated
-  completed_plans: 7 # 93-01, 94-01, 94-02, 95-01, 95-02, 95-03, 96-01
+  completed_plans: 7 # 93-01, 94-01, 94-02, 95-01, 95-02, 95-03, 96-01 (Phase 95 SUMMARY backfill deferred to milestone-hygiene commit)
   percent: 70
 ---
 
@@ -191,7 +191,7 @@ None. v5.3.2 shipped clean. v5.3.3 ROADMAP.md complete with full coverage; BUG-0
 
 ## Session Continuity
 
-Last session: 2026-06-10T15:00:00.000Z
-Stopped at: Phase 96 shipped (CTXT-01/02 + Sunday=0 carry-forward + Finding #4 markdown-fence helper absorbed) via `bea9a10a` GREEN + `4598dcea` SUMMARY. v5.4.0 production-ready path locked in STATE.md roadmap section above. 3 carry-forward debt items documented in Pending Decisions (94-01 SC#3 flake, 95-03 DEGR-01 flakes, el-templo-api 30 pre-existing failures).
-Resume file: STATE.md roadmap section — "v5.4.0 Production-Ready Path (LOCKED 2026-06-10)" path step 1
-Next step: `/gsd-discuss-phase 96.5` per locked path step 1 (date hallucination fix — HARD BLOCKER pre-v5.4.0; ~3-5h pure-prompt + snapshot date-stub infra; pre-flag `pnpm exec tsx -e` + `Date.now()` stub approach in execute prompt to avoid Phase 96 5.5h timeout pattern).
+Last session: 2026-06-12T15:48:41.376Z
+Stopped at: Phase 96.5 context gathered — D-01..D-04 locked (Option D wording, render-time prompt args via getSystemPrompt opts, frozen miércoles 2026-06-10, 5-test scope); D-02a Argentine timezone deferred to plan-phase. Next: /gsd-plan-phase 96.5.
+Resume file: .planning/phases/96.5-date-grounding-fix/96.5-CONTEXT.md
+Next step: `/gsd-plan-phase 96.5` per locked path step 1 (discuss-phase committed in `e7b9f570` + `2edd0887`; D-01..D-04 locked, D-02a Argentine timezone deferred to plan-phase, plan-phase must surface execute-prompt pre-flag for `pnpm exec tsx -e` regen + explicit `todayISO`/`todayDayName` kwargs to avoid Phase 96 5.5h timeout pattern).
