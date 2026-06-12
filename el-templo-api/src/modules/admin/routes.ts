@@ -312,6 +312,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
         request.params.sessionId,
         request.params.blockId,
         request.body.sourceBlockId,
+        request.user.userId,
       );
       if (!success) {
         return reply

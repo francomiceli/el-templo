@@ -22,6 +22,7 @@ import {
   DAY_NAME_TO_NUMBER,
   parseDayId,
 } from "../shared/training-constants";
+import { syncInitiumAcrossDay } from "./initium-sync";
 
 export interface SessionFilter {
   week?: number;
@@ -954,6 +955,7 @@ export class AdminSessionService {
     sessionId: number,
     targetBlockId: number,
     sourceBlockId: number,
+    userId: number,
   ): Promise<boolean> {
     // Validate target block belongs to the given session
     const [targetBlock] = await this.db
@@ -1041,6 +1043,10 @@ export class AdminSessionService {
         );
       }
     });
+
+    // INITIUM es el warmup compartido del día: si el bloque reemplazado es un
+    // INITIUM, replicar a las sesiones hermanas (invariante "uno solo por día").
+    await syncInitiumAcrossDay(this.db, targetBlockId, userId);
 
     return true;
   }

@@ -23,6 +23,7 @@ import * as schema from "../../db/schema";
 import { PrescribeService } from "./prescribe-service";
 import { getDefaultFormatParams } from "./format-params";
 import { revertToPendingIfApproved, logEdit } from "./session-edit-helpers";
+import { syncInitiumAcrossDay } from "./initium-sync";
 import { ExerciseSwapService } from "./exercise-swap-service";
 import { SessionMutationService } from "./session-mutation-service";
 import { parseDayId, LEVEL_DIFFICULTY_MAP } from "../shared/training-constants";
@@ -91,7 +92,9 @@ export class AdminEditService {
   }
 
   async swapExercise(params: SwapExerciseParams) {
-    return this.swapService.swapExercise(params);
+    const result = await this.swapService.swapExercise(params);
+    await syncInitiumAcrossDay(this.db, params.blockId, params.userId);
+    return result;
   }
 
   async getMobilityPool(blockRoute: string): Promise<ExercisePoolItem[]> {
@@ -119,15 +122,21 @@ export class AdminEditService {
   // === Delegated to SessionMutationService ===
 
   async addExercise(params: AddExerciseParams) {
-    return this.mutationService.addExercise(params);
+    const result = await this.mutationService.addExercise(params);
+    await syncInitiumAcrossDay(this.db, params.blockId, params.userId);
+    return result;
   }
 
   async removeExercise(params: RemoveExerciseParams) {
-    return this.mutationService.removeExercise(params);
+    const result = await this.mutationService.removeExercise(params);
+    await syncInitiumAcrossDay(this.db, params.blockId, params.userId);
+    return result;
   }
 
   async reorderExercise(params: ReorderExerciseParams) {
-    return this.mutationService.reorderExercise(params);
+    const result = await this.mutationService.reorderExercise(params);
+    await syncInitiumAcrossDay(this.db, params.blockId, params.userId);
+    return result;
   }
 
   async updateBlockRole(params: {
@@ -140,7 +149,22 @@ export class AdminEditService {
   }
 
   async resetToAlgorithm(params: ResetToAlgorithmParams) {
-    return this.mutationService.resetToAlgorithm(params);
+    const result = await this.mutationService.resetToAlgorithm(params);
+    // El reset regenera todos los bloques (INITIUM incluido): propagar el
+    // INITIUM nuevo a las sesiones hermanas del día.
+    const [initiumBlock] = await this.db
+      .select({ id: schema.sessionBlocks.id })
+      .from(schema.sessionBlocks)
+      .where(
+        and(
+          eq(schema.sessionBlocks.sessionId, params.sessionId),
+          eq(schema.sessionBlocks.role, "INITIUM"),
+        ),
+      );
+    if (initiumBlock) {
+      await syncInitiumAcrossDay(this.db, initiumBlock.id, params.userId);
+    }
+    return result;
   }
 
   // === Route-level business logic (extracted from routes — L13) ===
@@ -319,6 +343,7 @@ export class AdminEditService {
 
     await revertToPendingIfApproved(this.db, sessionId);
     await logEdit(this.db, sessionId, userId, "prescription_edit");
+    await syncInitiumAcrossDay(this.db, blockId, userId);
 
     const [updated] = await this.db
       .select()
@@ -517,6 +542,7 @@ export class AdminEditService {
 
     await revertToPendingIfApproved(this.db, sessionId);
     await logEdit(this.db, sessionId, userId, "format_change");
+    await syncInitiumAcrossDay(this.db, blockId, userId);
     return this.getBlockWithExercises(blockId);
   }
 
@@ -541,6 +567,7 @@ export class AdminEditService {
       .where(eq(schema.sessionBlocks.id, blockId));
     await revertToPendingIfApproved(this.db, sessionId);
     await logEdit(this.db, sessionId, userId, "format_params_update");
+    await syncInitiumAcrossDay(this.db, blockId, userId);
     return { formatParams };
   }
 
@@ -570,6 +597,7 @@ export class AdminEditService {
 
     await revertToPendingIfApproved(this.db, sessionId);
     await logEdit(this.db, sessionId, userId, "custom_title_update");
+    await syncInitiumAcrossDay(this.db, blockId, userId);
     return { customTitle: normalized };
   }
 

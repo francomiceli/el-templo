@@ -14,7 +14,8 @@ export type EditAction =
   | "reset_to_algorithm"
   | "status_change"
   | "custom_title_update"
-  | "route_update";
+  | "route_update"
+  | "initium_sync";
 
 /** Preview block for member-facing session view */
 export interface PreviewBlock {

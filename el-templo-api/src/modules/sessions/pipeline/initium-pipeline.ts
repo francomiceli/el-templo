@@ -21,10 +21,7 @@ import * as schema from "../../../db/schema";
 import type { BlockContext } from "./context";
 import type { BlockPlan, ContractionMix } from "../types";
 import { createTraceEvent, appendTrace } from "./context";
-import {
-  queryFormatsAnyLevel,
-  selectBestFormat,
-} from "../fallback/format-fallback";
+import { queryFormatsAnyLevel } from "../fallback/format-fallback";
 import type { ContentLevel } from "./utils/level-mapping";
 import { ROUTE_TO_MOBILITY_ROUTES } from "./utils/mobility-routes";
 import { calculateExerciseOffset, selectWithVariety } from "./utils/variety";
@@ -92,7 +89,16 @@ async function selectInitiumFormat(
     if (filtered.length > 0) formatCandidates = filtered;
   }
 
-  const selectedFormat = selectBestFormat(formatCandidates);
+  // Pick determinista por (week, day) — NO selectBestFormat (random): el
+  // INITIUM debe salir con el MISMO formato en todas las sesiones del día.
+  // La variedad entre días/semanas la da el offset (mismo esquema que la
+  // selección de ejercicios).
+  const bestCompat = Math.min(...formatCandidates.map((c) => c.compatibility));
+  const bestGroup = formatCandidates
+    .filter((c) => c.compatibility === bestCompat)
+    .sort((a, b) => a.formatId - b.formatId);
+  const selectedFormat =
+    bestGroup[calculateExerciseOffset(ctx.week, ctx.day) % bestGroup.length];
 
   const formatTrace = createTraceEvent(
     updatedCtx,
