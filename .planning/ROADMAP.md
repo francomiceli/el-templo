@@ -195,7 +195,7 @@ The 45s `OPENAI_TIMEOUT_MS` is the LEFT-HAND VARIABLE that the right-hand TTL mu
 
 **Plans:** 1 plan (single-plan structure mirrors Phase 96; mechanical encoding of discuss-phase decisions in one RED → GREEN → SUMMARY chain).
 
-- [ ] 96-5-01-PLAN.md — TBD (gated on `/gsd-discuss-phase 96.5` output)
+- [ ] 96.5-01-PLAN.md — TBD (gated on `/gsd-discuss-phase 96.5` output)
 
 **Notes:**
 
