@@ -12,7 +12,7 @@
 - ✅ **v5.3 Conversational Sales & Playbook Engine** — Phases 82-85 (shipped 2026-04-08)
 - ✅ **v5.3.1 Prompt Architecture Refactor** — Phases 86-88 (shipped 2026-04-14)
 - ✅ **v5.3.2 Post-v5.3.1 Live Test Fixes** — Phases 89-92 (shipped 2026-04-16)
-- 🚧 **v5.3.3 Post-v5.3.2 Live Test Fixes** — Phases 93-97 (in progress)
+- 🚧 **v5.3.3 Post-v5.3.2 Live Test Fixes** — Phases 93-97 + 96.5 (in progress)
 
 > See `.planning/MACRO-ROADMAP.md` for the cross-milestone sequence (v5.3.3 → v5.4.0 Production Deployment → Kero CRM).
 
@@ -34,6 +34,7 @@
 - [ ] **Phase 94: OpenAI Latency + Graceful Failure** — BUG-02 ~3min latency; explicit OpenAI client timeout + interim UX + graceful fallback at `provider.chat(...)` await sites (LAT-01..03)
 - [ ] **Phase 95: Booking Reliability + Graceful Degradation** — BUG-03 + BUG-05 paired; class search consistency across venues + tool-failure retry-counter + escalate via `request_human` after 2 failed attempts; SC#3 invariant preserved (BOOK-01, DEGR-01..02)
 - [ ] **Phase 96: Context Awareness** — BUG-04; bot does not re-ask data already provided in conversation; fix in `system-prompt.ts` or profile extraction layer (CTXT-01..02)
+- [ ] **Phase 96.5: Date Grounding Fix** — Finding #2 from Phase 96 live UAT; bot grounds today's date instead of hallucinating "Lunes 2023-11-06"; second `*Convención:*` line in `system-prompt.ts` + snapshot date-stub infrastructure (DATE-01) **HARD BLOCKER pre-v5.4.0**
 - [ ] **Phase 97: Backlog + Regression Lock** — BACKLOG-01 (third elevator hook) + BACKLOG-02 (voseo consistency, non-deterministic strategy) + v5.3.3 regression suite + extend timeout pattern to `executeTool` localhost calls (ELEV-01, VOSEO-01, RGUARD-01..03)
 
 ## Phase Details
@@ -178,6 +179,42 @@ The 45s `OPENAI_TIMEOUT_MS` is the LEFT-HAND VARIABLE that the right-hand TTL mu
 - **KGATE-05 budget coordination:** any new prompt rule consumes the rendered-prompt budget capped at `floor(BASELINE_CHARS * 0.8)`. Current post-RLOK-04 baseline is 18,370 chars (`v5-3-2-regression.test.ts:57`). Phase 96 plan must verify post-fix prompt length remains within budget.
 - Discrete prompt / extraction work — does NOT modify handler concurrency, OpenAI client, booking tools, or anything Phase 93/94/95 touches at the concurrency/timeout layer. Touches `system-prompt.ts` and possibly the extraction code in `handler.ts:1369-1466`.
 
+### Phase 96.5: Date Grounding Fix
+
+**Goal**: Bot grounds the current date instead of hallucinating past dates. Closes Finding #2 from Phase 96 live UAT (2026-06-09) where the bot offered date `"2023-11-06"` to a `register_trial` call when actual date was 2026-06-09 (~2.5 years in past). In production: users receive past dates ("¿lunes de 2023?"), `register_trial` confirmation triggers `fetch failed` because the backend rejects schedule_id + invalid date combination, net result = zero successful trial bookings until fixed. Inserted between Phase 96 and Phase 97 as a fractional phase per the locked v5.4.0 production-ready path (STATE.md 2026-06-10).
+**Depends on**: Phase 96 (shipped 2026-06-10, `bea9a10a` GREEN + `4598dcea` SUMMARY). Snapshot regen ownership inherited — the second `*Convención:*` line lands in the same insertion region as Phase 96's first `*Convención:*` (Sunday=0 directive). No section heading refactor needed.
+**Requirements**: DATE-01 (NEW — bot must reference today's date verbatim in system prompt; date hallucination prevented at prompt-grounding layer).
+**Success Criteria** (what must be TRUE):
+
+1. **SC#1 — prompt anchor present:** `system-prompt.ts` contains `*Convención:* Hoy es ${TODAY_ISO} (${DAY_NAME_TODAY}).` (or equivalent audit-verbatim wording locked at discuss-phase time) as a second single-line `*Convención:*` marker before `*Reglas de uso de herramientas (CRITICO):*`.
+2. **SC#2 — rendered prompt grounds the date:** Rendered PB1.E1A lead prompt includes today's date in ISO format (`YYYY-MM-DD`) AND the Spanish day name (`lunes`/`martes`/.../`domingo`).
+3. **SC#3 — snapshot fixture byte-equal across day boundaries:** `pb1-e1a-lead-rendered.snap.txt` is byte-equal regardless of when `pnpm test` runs. Achieved via `Date.now()` stub at test boot (`vi.useFakeTimers` OR `globalThis.Date` override OR equivalent). Decided at plan time.
+4. **SC#4 — KGATE-05 budget preserved:** `POST_RLOK_04_BYTES` bumped from 18798 to measured post-fix value. Measured value must be ≤ 18916 cap (`floor(BASELINE_CHARS * 0.8)`). Expected directive ~25 chars → expected post-fix value ~18823 → ~93 char margin remaining.
+5. **SC#5 — 6-pair sha256 invariant unchanged:** Canonical `DEBOUNCE_TTL_SECONDS` block at all 6 anchors continues to hash `67670b1e1099bf7c8a5285414736f16e8a010a010348bf6566790d0db3163344`. Phase 96.5 modifies zero terms in the invariant.
+6. **SC#6 — register_trial tool calls grounded:** A regression test simulates a multi-turn lead conversation reaching `register_trial`; asserts the `date` argument the model dispatches matches today's ISO date (no 2023 hallucinations). The test must use the date stub so behavior is deterministic regardless of run wall-clock.
+
+**Plans:** 1 plan (single-plan structure mirrors Phase 96; mechanical encoding of discuss-phase decisions in one RED → GREEN → SUMMARY chain).
+
+- [ ] 96-5-01-PLAN.md — TBD (gated on `/gsd-discuss-phase 96.5` output)
+
+**Notes:**
+
+- **Empirical grounding for the case verdict.** Finding #2's verdict was locked at "pure model hallucination" during Phase 96 discuss session (2026-06-09). Read trail: `el-templo-bot/src/ai/tools.ts:279-288` (ScheduleRow has NO date column, only `day_of_week`), `tools.ts:415` and `:426` (output formatters emit only `${dayName} ${start_time}-${end_time}`, never a date string), `tools.ts:691` (`book_class` accepts `date` from MODEL args verbatim) and `tools.ts:869` (`register_trial` ditto). System prompt `grep "date|fecha|Hoy|today"` returned empty. No tool/data/seed/API touches needed — pure-prompt fix at the grounding layer.
+
+- **Insertion region ownership.** Phase 96 established the first `*Convención:*` line (Sunday=0 directive) immediately before `*Reglas de uso de herramientas (CRITICO):*` at `system-prompt.ts:217`. Phase 96.5 lands a SECOND `*Convención:*` line in the same region. No structural refactor. The two markers coexist as parallel single-line directives.
+
+- **Snapshot regen + date stub coordination.** The snapshot fixture (`pb1-e1a-lead-rendered.snap.txt`) byte-equal lock is the structural anchor. Without a `Date.now()` stub, the fixture would diff every day at midnight. Plan-time choice: (a) `vi.useFakeTimers` at test boot, (b) `globalThis.Date` constructor override, (c) capture date string into a render-time constant injected by the test harness. Plan-phase decides; discuss-phase enumerates tradeoffs.
+
+- **Execute-prompt guidance pre-flagged for plan and execute.** Snapshot regeneration was the likely hang point of Phase 96's 5.5h executor timeout. For Phase 96.5 (same surface — snapshot regen + Date.now() stub), the execute prompt MUST explicitly call out `pnpm exec tsx -e` inline with the `Date.now()` stub approach. Without that pre-flag, the executor agent risks rediscovering the regen approach mid-run and hanging. This guidance is locked in STATE.md's "v5.4.0 Production-Ready Path" path step 1.
+
+- **KGATE-05 budget arithmetic.** Post-Phase-96 baseline: 18798 bytes (`POST_RLOK_04_BYTES`). Cap: 18916 (`floor(BASELINE_CHARS * 0.8) = floor(23646 * 0.8)`). Current margin: 118 chars. Expected directive (`*Convención:* Hoy es YYYY-MM-DD (dayname).`) is ~45 chars including trailing newline + escaping — well within margin even at the high end. If actual directive exceeds ~110 chars at discuss-phase, surface as KGATE-05 risk before plan-phase.
+
+- **Out of scope** (each enumerated to prevent scope drift in plan-phase):
+  - **Tool-layer date validation** (`tools.ts` rejecting past dates server-side) → defensive belt-and-suspenders; Phase 96.5 fixes the prompt-grounding root cause. Tool validation can be added as a v5.4.0 hardening item if Manual UAT Round 2 reveals residual hallucinations.
+  - **Timezone handling** (Argentine BST/ART vs UTC) → `${TODAY_ISO}` uses the server's local date; production deploys to sa-east-1 (per `deploy/DEPLOYMENT-CHECKLIST.md`), aligning with Argentine business hours. Cross-timezone edge cases are v5.4+ territory.
+  - **Phase 96 surfaces** (CTXT rule, parseExtractionResponse helper, SOFT_REJECTION region) → all UNCHANGED.
+  - **Other handler regions** (concurrency guard, OpenAI client, tool loop, retry counter) → UNCHANGED. Phase 96.5 modifies exactly one surface: `system-prompt.ts` insertion region around `:217+`.
+
 ### Phase 97: Backlog + Regression Lock
 
 **Goal**: Close the two low-priority backlog items (third elevator-pitch hook + voseo consistency), lock all v5.3.3 fixes against future regression, extend the timeout pattern from Phase 94 to `executeTool` localhost calls (debug-session bonus finding), and validate via guided live test that the bot is **production-deploy-ready** (NOT CRM-integration-ready). Mirrors v5.3.2 Phase 92 shape — milestone-scoped regression suite + live-test gate.
@@ -210,6 +247,7 @@ The 45s `OPENAI_TIMEOUT_MS` is the LEFT-HAND VARIABLE that the right-hand TTL mu
 | 94. OpenAI Latency + Graceful Failure          | 2/2            | Complete    | 2026-05-18 |
 | 95. Booking Reliability + Graceful Degradation | 0/?            | Not started | -          |
 | 96. Context Awareness                          | 0/?            | Not started | -          |
+| 96.5. Date Grounding Fix                       | 0/1            | Not started | -          |
 | 97. Backlog + Regression Lock                  | 0/?            | Not started | -          |
 
 ---
