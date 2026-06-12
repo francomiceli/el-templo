@@ -563,14 +563,13 @@ function buildLevelBox(lb: PdfLevelBlock, targetBoxHeight?: number): ContentStac
  */
 function buildBlockPageWithGrid(block: PdfBlockPage, isHalf = false): Content[] {
   const levelBlocks = block.levelBlocks || [];
-  const topRow = levelBlocks.filter((lb) => lb.level === 'kairos' || lb.level === 'alfa');
-  const bottomRow = levelBlocks.filter((lb) => lb.level === 'delta' || lb.level === 'sigma');
-
-  // Sort within rows
-  const sortByLevel = (a: PdfLevelBlock, b: PdfLevelBlock) =>
-    LEVEL_ORDER.indexOf(a.level) - LEVEL_ORDER.indexOf(b.level);
-  topRow.sort(sortByLevel);
-  bottomRow.sort(sortByLevel);
+  // Slots fijos del grid 2x2: cada nivel tiene SIEMPRE la misma posición.
+  // Un nivel ausente (p.ej. semana generada sin kairos) deja su slot vacío en
+  // vez de desaparecer: así el nivel presente conserva su media página y la
+  // caja de ancho fijo (LEVEL_BOX_WIDTH) no queda desfasada del texto.
+  const findLevel = (level: string) => levelBlocks.find((lb) => lb.level === level);
+  const topRow = [findLevel('kairos'), findLevel('alfa')];
+  const bottomRow = [findLevel('delta'), findLevel('sigma')];
 
   const headerFontSize = isHalf ? 88 : 130;
   const mobilityFontSize = isHalf ? 56 : 68;
@@ -633,31 +632,30 @@ function buildBlockPageWithGrid(block: PdfBlockPage, isHalf = false): Content[] 
 
   content.push({ text: '', margin: [0, isHalf ? 24 : 56, 0, 0] });
 
-  // Top row: ☉ kairos and α alfa
-  if (topRow.length > 0) {
-    content.push({
-      columns: topRow.map((lb) => ({
-        ...buildLevelBox(lb, targetBoxHeight),
-        width: '*',
-      })),
+  // Una fila se renderiza si tiene al menos un nivel; los slots vacíos se
+  // rellenan con una columna en blanco del mismo ancho para no romper el grid.
+  const buildRow = (row: (PdfLevelBlock | undefined)[]): Content | null => {
+    if (!row.some(Boolean)) return null;
+    return {
+      columns: row.map((lb) =>
+        lb
+          ? { ...buildLevelBox(lb, targetBoxHeight), width: '*' as const }
+          : { text: '', width: '*' as const }
+      ),
       columnGap: 100,
       margin: [60, 0, 60, 0],
-    });
-  }
+    };
+  };
+
+  // Top row: ☉ kairos and α alfa
+  const topContent = buildRow(topRow);
+  if (topContent) content.push(topContent);
 
   content.push({ text: '', margin: [0, isHalf ? 24 : 48, 0, 0] });
 
   // Bottom row: Δ delta and Σ sigma
-  if (bottomRow.length > 0) {
-    content.push({
-      columns: bottomRow.map((lb) => ({
-        ...buildLevelBox(lb, targetBoxHeight),
-        width: '*',
-      })),
-      columnGap: 100,
-      margin: [60, 0, 60, 0],
-    });
-  }
+  const bottomContent = buildRow(bottomRow);
+  if (bottomContent) content.push(bottomContent);
 
   return content;
 }
