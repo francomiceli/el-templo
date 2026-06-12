@@ -57,13 +57,18 @@ const LEVEL_ORDER = ['kairos', 'alfa', 'delta', 'sigma'];
  * onto the text baseline. NOTE: the vertical offset is eyeballed against the
  * generated PDF — tune `topMargin` per call-site in UAT if it sits high/low.
  */
-function kairosGlyphColumn(diameter: number, topMargin: number, leftMargin = 0): Column {
+function kairosGlyphColumn(
+  diameter: number,
+  topMargin: number,
+  leftMargin = 0,
+  rightMargin = 0
+): Column {
   const r = diameter / 2;
   const ring = Math.max(5, Math.round(diameter * 0.1));
   const dot = Math.max(5, Math.round(diameter * 0.16));
   return {
-    width: diameter + leftMargin,
-    margin: [leftMargin, topMargin, 0, 0],
+    width: diameter + leftMargin + rightMargin,
+    margin: [leftMargin, topMargin, rightMargin, 0],
     canvas: [
       {
         type: 'ellipse' as const,
@@ -494,8 +499,9 @@ function buildLevelBox(lb: PdfLevelBlock, targetBoxHeight?: number): ContentStac
                 characterSpacing: 4,
               },
               // topMargin/leftMargin: ☉ a la línea base de "NIVEL" y con el mismo
-              // espacio que el α de las cajas no-kairos (UAT 2026-06-06)
-              kairosGlyphColumn(76, 26, 24),
+              // espacio que el α de las cajas no-kairos (UAT 2026-06-06).
+              // rightMargin: aire entre el ☉ y el "|" (UAT 2026-06-12).
+              kairosGlyphColumn(76, 26, 24, 12),
               {
                 width: 'auto',
                 text: `  |  ${routeName} ${lb.intensity}%`,
