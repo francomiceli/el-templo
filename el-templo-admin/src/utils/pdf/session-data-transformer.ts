@@ -14,6 +14,28 @@ const DAY_LABELS: Record<string, string> = {
 
 const LEVEL_ORDER = ['kairos', 'alfa', 'delta', 'sigma'];
 
+// INITIUM es el calentamiento compartido del día: se imprime UNA vez para todos
+// los niveles. Desde el fix de generación post-v5.1 sale idéntico en todas las
+// sesiones, pero semanas viejas o ediciones manuales pueden divergir — por eso
+// la fuente se elige con orden determinista (alfa = canónico) en vez de tomar
+// la primera sesión que llegue del API (orden de filesort, no garantizado).
+const INITIUM_SOURCE_ORDER = ['alfa', 'delta', 'sigma', 'kairos'];
+
+/** Pick the canonical INITIUM block: first level in INITIUM_SOURCE_ORDER that has one. */
+function findInitiumBlock(sessions: SessionDetail[]): SessionBlock | undefined {
+  const byLevel = new Map(sessions.map((s) => [s.memberLevel, s]));
+  for (const level of INITIUM_SOURCE_ORDER) {
+    const block = byLevel.get(level)?.blocks.find((b) => b.role === 'INITIUM');
+    if (block) return block;
+  }
+  // Fallback: any session with an INITIUM (covers levels outside the list)
+  for (const s of sessions) {
+    const block = s.blocks.find((b) => b.role === 'INITIUM');
+    if (block) return block;
+  }
+  return undefined;
+}
+
 /**
  * Build a display string for format + params.
  * Examples: "AMRAP 10' X3", "TIME CAP 12'", "COMPLEX X3", "TABATA 20"/10" X8"
@@ -333,21 +355,18 @@ export function sessionsToPdfDay(sessions: SessionDetail[]): PdfDaySession {
   if (isRom) {
     // ROM sessions: INITIUM warmup + 3 zone blocks, 2 tiers (alfa=BASICO, delta=AVANZADO)
 
-    // INITIUM: same across all levels — grab from any session
-    for (const s of sessions) {
-      const initium = s.blocks.find((b) => b.role === 'INITIUM');
-      if (initium) {
-        blocks.push({
-          role: 'INITIUM',
-          blockName: initium.pattern || 'PYROS',
-          formatName: formatNameWithParams(initium.formatName, initium.formatParams),
-          customTitle: initium.customTitle ?? null, // Phase 100
-          simpleExercises: initium.exercises.map((e) =>
-            formatInitiumExercise(e, initium.formatName)
-          ),
-        });
-        break;
-      }
+    // INITIUM compartido del día — fuente determinista (ver INITIUM_SOURCE_ORDER)
+    const romInitium = findInitiumBlock(sessions);
+    if (romInitium) {
+      blocks.push({
+        role: 'INITIUM',
+        blockName: romInitium.pattern || 'PYROS',
+        formatName: formatNameWithParams(romInitium.formatName, romInitium.formatParams),
+        customTitle: romInitium.customTitle ?? null, // Phase 100
+        simpleExercises: romInitium.exercises.map((e) =>
+          formatInitiumExercise(e, romInitium.formatName)
+        ),
+      });
     }
 
     for (const zone of ROM_ZONES) {
@@ -377,19 +396,16 @@ export function sessionsToPdfDay(sessions: SessionDetail[]): PdfDaySession {
     return { dayName, week, blocks };
   }
 
-  // INITIUM: same across all levels - grab from any session
-  for (const s of sessions) {
-    const initium = s.blocks.find((b) => b.role === 'INITIUM');
-    if (initium) {
-      blocks.push({
-        role: 'INITIUM',
-        blockName: initium.pattern || 'PYROS',
-        formatName: formatNameWithParams(initium.formatName, initium.formatParams),
-        customTitle: initium.customTitle ?? null, // Phase 100
-        simpleExercises: initium.exercises.map((e) => formatInitiumExercise(e, initium.formatName)),
-      });
-      break;
-    }
+  // INITIUM compartido del día — fuente determinista (ver INITIUM_SOURCE_ORDER)
+  const initium = findInitiumBlock(sessions);
+  if (initium) {
+    blocks.push({
+      role: 'INITIUM',
+      blockName: initium.pattern || 'PYROS',
+      formatName: formatNameWithParams(initium.formatName, initium.formatParams),
+      customTitle: initium.customTitle ?? null, // Phase 100
+      simpleExercises: initium.exercises.map((e) => formatInitiumExercise(e, initium.formatName)),
+    });
   }
 
   // NUCLEUS
