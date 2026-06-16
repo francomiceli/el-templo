@@ -30,11 +30,20 @@ const FIXTURE_PATH = resolve(
 
 describe("Rendered prompt snapshot tripwire (PB1.E1A lead)", () => {
   it("renders byte-equal to the committed fixture", () => {
+    // Phase 96.5 (DATE-01): the fixture is regenerated with FROZEN date
+    // kwargs (todayISO: '2026-06-10', todayDayName: 'miércoles' per
+    // CONTEXT.md D-03) to bake worst-case KGATE-05 stress into the
+    // byte-equal lock. The render call MUST pass the same frozen kwargs
+    // so this tripwire remains deterministic across day boundaries.
+    // Production callers (handler.ts) omit these kwargs and get the
+    // Argentine local-date default-fallback transparently.
     const expected = readFileSync(FIXTURE_PATH, "utf8");
     const actual = getSystemPrompt({
       clientState: "lead",
       activePlaybook: "PB1",
       currentStage: "E1A",
+      todayISO: "2026-06-10",
+      todayDayName: "miércoles",
     });
     expect(actual).toEqual(expected);
   });

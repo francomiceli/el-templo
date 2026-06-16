@@ -43,6 +43,76 @@ interface SystemPromptOptions {
    * baseline render path or you will break the snapshot byte-equality.
    */
   softRejectionRule?: "why" | "backoff";
+  /**
+   * v5.3.3 Phase 96.5 (DATE-01): today's date in ISO YYYY-MM-DD format,
+   * interpolated into the second `*Convención:*` directive. Optional —
+   * defaults to today in America/Argentina/Buenos_Aires via Intl.DateTimeFormat.
+   * Production callers (handler.ts) omit this so defaults apply; tests +
+   * snapshot regen pass an explicit value for deterministic output.
+   */
+  todayISO?: string;
+  /**
+   * v5.3.3 Phase 96.5 (DATE-01): today's Spanish day name (e.g., 'lunes',
+   * 'miércoles'), interpolated into the second `*Convención:*` directive.
+   * Optional — defaults to today's Argentine day name via Intl.DateTimeFormat
+   * + the DAY_NAMES lookup.
+   */
+  todayDayName?: string;
+}
+
+/**
+ * v5.3.3 Phase 96.5 (DATE-01): Spanish day names indexed 0=domingo..6=sábado
+ * (matches the existing Sunday=0 convention at the first `*Convención:*`
+ * directive). File-private — single consumer; Phase 95 D-16 / Phase 96 D-14
+ * co-location precedent (externalize when a second consumer materializes).
+ */
+const DAY_NAMES = [
+  "domingo",
+  "lunes",
+  "martes",
+  "miércoles",
+  "jueves",
+  "viernes",
+  "sábado",
+] as const;
+
+/**
+ * Resolves today's date in America/Argentina/Buenos_Aires for default
+ * `todayISO` / `todayDayName` kwargs of getSystemPrompt. Production-correct
+ * anchor — bot users are in Argentina; sa-east-1 deploy server may be in
+ * São Paulo (UTC-3 currently, no DST since 2009). Intl is hermetic — no
+ * dependencies, future-proofs against DST policy change.
+ *
+ * weekday: 'short' returns deterministic 'Sun'..'Sat' regardless of node
+ * ICU build (safer than weekday: 'long' in es-AR which could render either
+ * 'Miércoles' or 'miércoles' depending on locale data).
+ */
+function getArgentineToday(): { iso: string; dayName: string } {
+  const now = new Date();
+  const iso = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Argentina/Buenos_Aires",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(now);
+  const weekdayShort = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Argentina/Buenos_Aires",
+    weekday: "short",
+  }).format(now);
+  const weekdayMap: Record<string, number> = {
+    Sun: 0,
+    Mon: 1,
+    Tue: 2,
+    Wed: 3,
+    Thu: 4,
+    Fri: 5,
+    Sat: 6,
+  };
+  const idx = weekdayMap[weekdayShort];
+  // Defensive narrowing — idx should always be 0..6 for valid weekdayShort,
+  // but TypeScript needs the fallback to satisfy the index signature.
+  const dayName = DAY_NAMES[idx !== undefined ? idx : 0];
+  return { iso, dayName };
 }
 
 /**
@@ -178,6 +248,14 @@ const STATE_SECTIONS: Record<ClientState, string> = {
  * Optionally appends state-specific and profile context sections.
  */
 export function getSystemPrompt(options?: SystemPromptOptions): string {
+  // v5.3.3 Phase 96.5 (DATE-01): resolve today's date for the second
+  // *Convención:* directive. Production callers omit the kwargs → defaults
+  // to Argentine local date via Intl.DateTimeFormat. Tests + snapshot regen
+  // pass explicit kwargs for deterministic output.
+  const argToday = getArgentineToday();
+  const todayISO = options?.todayISO ?? argToday.iso;
+  const todayDayName = options?.todayDayName ?? argToday.dayName;
+
   const base = `Soy *Mica*, del equipo de administracion de El Templo. Hablo en nombre de El Templo ("En El Templo tenemos...", "Ofrecemos...").
 
 *Tono y estilo*
@@ -215,6 +293,8 @@ Tengo estas herramientas para responder consultas:
 - *register_trial*: Registrar a un lead para una clase de prueba gratuita.
 
 *Convención:* el día de la semana se codifica como 0=domingo, 1=lunes, ..., 6=sábado.
+
+*Convención:* Hoy es ${todayISO} (${todayDayName}). Nunca ofrezcas fechas anteriores a hoy.
 
 *Reglas de uso de herramientas (CRITICO):*
 

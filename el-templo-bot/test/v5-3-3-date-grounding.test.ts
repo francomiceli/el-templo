@@ -52,8 +52,13 @@ describe("DATE-01 — *Convención:* Hoy es directive present in rendered prompt
       todayISO: "2026-06-10",
       todayDayName: "miércoles",
     });
+    // Rule 1 deviation: CONTEXT.md D-04 #1 wrote the regex as `\w+`, but
+    // JavaScript `\w` is ASCII-only and does not match `é` in `miércoles`
+    // (the worst-case D-03 day name). Substituted `\S+` (non-whitespace,
+    // Unicode-safe) which preserves the structural lock — any non-empty
+    // day-name token — while actually matching the locked frozen date.
     expect(prompt).toMatch(
-      /\*Convención:\* Hoy es \d{4}-\d{2}-\d{2} \(\w+\)\. Nunca ofrezcas fechas anteriores a hoy\./,
+      /\*Convención:\* Hoy es \d{4}-\d{2}-\d{2} \(\S+\)\. Nunca ofrezcas fechas anteriores a hoy\./,
     );
   });
 });
@@ -131,8 +136,12 @@ describe("DATE-01 — default fallback resolves Argentine local date via Intl.Da
       currentStage: "E1A",
     });
 
+    // Rule 1 deviation: same `\w` ASCII limitation as T1 — `\w` won't
+    // match `é` / `á` in Spanish day names like `miércoles` / `sábado`,
+    // and the default fallback could legitimately render those names on
+    // the corresponding weekday. `\S+` captures any non-whitespace token.
     const match = prompt.match(
-      /\*Convención:\* Hoy es (\d{4}-\d{2}-\d{2}) \((\w+)\)\. Nunca ofrezcas fechas anteriores a hoy\./,
+      /\*Convención:\* Hoy es (\d{4}-\d{2}-\d{2}) \((\S+)\)\. Nunca ofrezcas fechas anteriores a hoy\./,
     );
     expect(match).not.toBeNull();
     if (match === null) {

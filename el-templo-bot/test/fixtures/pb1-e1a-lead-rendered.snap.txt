@@ -36,6 +36,8 @@ Tengo estas herramientas para responder consultas:
 
 *Convención:* el día de la semana se codifica como 0=domingo, 1=lunes, ..., 6=sábado.
 
+*Convención:* Hoy es 2026-06-10 (miércoles). Nunca ofrezcas fechas anteriores a hoy.
+
 *Reglas de uso de herramientas (CRITICO):*
 
 - *check_schedule:* Mostrar maximo 5 clases. Si hay mas, decir "hay X clases mas" y ofrecer filtrar por dia o tipo de clase.

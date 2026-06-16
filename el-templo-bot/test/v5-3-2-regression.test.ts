@@ -54,13 +54,21 @@ const SNAP_PATH = resolve(here, "fixtures/pb1-e1a-lead-rendered.snap.txt");
  * explicitly forbid mis-using the $20,000 trial as a plan reference and
  * to forbid deducing/estimating plan prices. +95 JS-chars.
  */
-const POST_RLOK_04_BYTES = 18798;
+const POST_RLOK_04_BYTES = 18884;
 
+// Phase 96.5 (DATE-01): the fixture is regenerated with FROZEN date kwargs
+// (todayISO: '2026-06-10', todayDayName: 'miércoles' per CONTEXT.md D-03) to
+// bake worst-case KGATE-05 stress into the byte-equal lock. The helper MUST
+// pass the same frozen kwargs so RLOK-02 byte-equal remains deterministic
+// across day boundaries. Production callers (handler.ts) omit these kwargs
+// and get the Argentine local-date default-fallback transparently.
 const renderE1ALead = (): string =>
   getSystemPrompt({
     clientState: "lead",
     activePlaybook: "PB1",
     currentStage: "E1A",
+    todayISO: "2026-06-10",
+    todayDayName: "miércoles",
   });
 
 // ───────────────────────────────────────────────────────────────────────────
