@@ -12,7 +12,7 @@
 - ✅ **v5.3 Conversational Sales & Playbook Engine** — Phases 82-85 (shipped 2026-04-08)
 - ✅ **v5.3.1 Prompt Architecture Refactor** — Phases 86-88 (shipped 2026-04-14)
 - ✅ **v5.3.2 Post-v5.3.1 Live Test Fixes** — Phases 89-92 (shipped 2026-04-16)
-- 🚧 **v5.3.3 Post-v5.3.2 Live Test Fixes** — Phases 93-97 + 96.5 (in progress)
+- 🚧 **v5.3.3 Post-v5.3.2 Live Test Fixes** — Phases 93-97 + 96.5 + 98 (in progress)
 
 > See `.planning/MACRO-ROADMAP.md` for the cross-milestone sequence (v5.3.3 → v5.4.0 Production Deployment → Kero CRM).
 
@@ -34,8 +34,9 @@
 - [ ] **Phase 94: OpenAI Latency + Graceful Failure** — BUG-02 ~3min latency; explicit OpenAI client timeout + interim UX + graceful fallback at `provider.chat(...)` await sites (LAT-01..03)
 - [ ] **Phase 95: Booking Reliability + Graceful Degradation** — BUG-03 + BUG-05 paired; class search consistency across venues + tool-failure retry-counter + escalate via `request_human` after 2 failed attempts; SC#3 invariant preserved (BOOK-01, DEGR-01..02)
 - [ ] **Phase 96: Context Awareness** — BUG-04; bot does not re-ask data already provided in conversation; fix in `system-prompt.ts` or profile extraction layer (CTXT-01..02)
-- [ ] **Phase 96.5: Date Grounding Fix** — Finding #2 from Phase 96 live UAT; bot grounds today's date instead of hallucinating "Lunes 2023-11-06"; second `*Convención:*` line in `system-prompt.ts` + snapshot date-stub infrastructure (DATE-01) **HARD BLOCKER pre-v5.4.0**
-- [ ] **Phase 97: Backlog + Regression Lock** — BACKLOG-01 (third elevator hook) + BACKLOG-02 (voseo consistency, non-deterministic strategy) + v5.3.3 regression suite + extend timeout pattern to `executeTool` localhost calls (ELEV-01, VOSEO-01, RGUARD-01..03)
+- [x] **Phase 96.5: Date Grounding Fix** — Finding #2 from Phase 96 live UAT; bot grounds today's date instead of hallucinating "Lunes 2023-11-06"; second `*Convención:*` line in `system-prompt.ts` + snapshot date-stub infrastructure (DATE-01) ✅ shipped 2026-06-16
+- [ ] **Phase 98: Test Hygiene (98-A/B/C)** — restore green baseline on `el-templo-api` test suite (30 failures classified (a) pure test-infra via `/gsd-debug` 2026-06-16); test-infra ONLY, zero production source touches; MUST precede Phase 97 RGUARD-01 (regression lock cannot sit on top of 30-red baseline)
+- [ ] **Phase 97: Backlog + Regression Lock** — BACKLOG-01 (third elevator hook) + BACKLOG-02 (voseo consistency, non-deterministic strategy) + v5.3.3 regression suite + extend timeout pattern to `executeTool` localhost calls (ELEV-01, VOSEO-01, RGUARD-01..03); Phase 97 plan-phase MAY absorb Phase 98 98-A/B/C into RGUARD-01 scope at discuss-time
 
 ## Phase Details
 
@@ -215,6 +216,41 @@ The 45s `OPENAI_TIMEOUT_MS` is the LEFT-HAND VARIABLE that the right-hand TTL mu
   - **Phase 96 surfaces** (CTXT rule, parseExtractionResponse helper, SOFT_REJECTION region) → all UNCHANGED.
   - **Other handler regions** (concurrency guard, OpenAI client, tool loop, retry counter) → UNCHANGED. Phase 96.5 modifies exactly one surface: `system-prompt.ts` insertion region around `:217+`.
 
+### Phase 98: Test Hygiene (98-A/B/C)
+
+**Goal**: Restore green baseline on `el-templo-api` test suite by fixing the 30 test-side issues classified in `/gsd-debug` session `api-30-test-failures-triage` (2026-06-16) as verdict **(a) PURE TEST-INFRA / TEST-STALENESS**. Test-infra ONLY — zero production source modifications. MUST precede Phase 97 RGUARD-01 because the "milestone-scoped regression suite" cannot lock a regression baseline on top of a 30-red API test suite: new API regressions during Phase 97 + Manual UAT Round 2 would be indistinguishable from existing noise.
+**Depends on**: Phase 96.5 (shipped 2026-06-16, `d835c18a` SUMMARY) + `/gsd-debug` api-30 triage (resolved 2026-06-16, classification verdict (a)).
+**Requirements**: HYG-01 (NEW — green baseline on `el-templo-api` test suite; 29 of 30 newly-green failures + 1 deferred BUG-03 (i) RED).
+**Success Criteria** (what must be TRUE):
+
+1. **SC#1 — green baseline restored:** `cd el-templo-api && pnpm test --run` exits with `511 passed / 1 failed / 512 total`. The single failure is BUG-03 candidate (i) LIKE-search at `el-templo-bot/src/ai/tools.ts:455`, intentionally deferred per "DEFERRED out of 95-02: (i) LIKE-search ambiguity — does NOT fire in current production data; only synthetic substring-overlap test seed triggers it". Phase 95 owns this RED.
+
+2. **SC#2 — 98-A subscriptions.test.ts (6 failures → green):** replace hard-coded `startDate: "2026-03-01"` + 30-day duration with today-relative date helper. `autoExpireSubscriptions` at `el-templo-api/src/modules/subscriptions/service.ts:775-788` continues to operate correctly (auto-expire is working as designed; tests must give it a future `endDate`).
+
+3. **SC#3 — 98-B ai-tools.test.ts (20 failures → green):** fix cleanup filter `branches WHERE code LIKE 'TST%'` to match actual seeded `code='alem'` (use seed-registry pattern OR explicit `WHERE code IN (...)` enumeration). Update stale assertion `"20 lugares"` → `"cupos disponibles"` matching intentional production wording at `el-templo-bot/src/ai/tools.ts:389`. **Note:** the origin of the wording change is NOT attributed (would be conjecture); treat as intentional prod state.
+
+4. **SC#4 — 98-C webhook.test.ts (3 failures → green):** add OpenAI mock for inbound text path so placeholder `sk-xxxxxxxx` does not 401 on outbound LLM reply. Update image-message test assertion to match current production behavior at `el-templo-bot/src/webhook/handler.ts:323-354` (store + reply, NOT silent drop) — change is anchored to "quick-16 fix 3" per inline comments at `handler.ts:323` + `client.ts:358` (CONFIRMED via independent cross-verification 2026-06-16).
+
+5. **SC#5 — zero production source modifications:** `git diff` shows ZERO changes to `el-templo-api/src/**` AND `el-templo-bot/src/**`. Hard verify-gate per plan-phase.
+
+6. **SC#6 — `pnpm tsc --noEmit` clean** on both `el-templo-api/` and `el-templo-bot/` post-fix.
+
+**Plans:** 3 plans (98-A subscriptions / 98-B ai-tools / 98-C webhook) OR 1 plan with 3 atomic sub-commits — decided at plan time. Single-plan structure preferred if test-file isolation makes a single GREEN commit per fix-zone clean.
+
+**Notes:**
+
+- **Test-infra only.** HARD GUARD: zero production source touches across all plans. Both `el-templo-api/src/**` and `el-templo-bot/src/**` UNCHANGED.
+- **BUG-03 (i) stays RED.** The single intentional Phase 95-deferred RED at `tools.ts:455` does NOT get closed in this phase. Phase 98 verifies the 29 OTHER failures green; (i) remains RED via existing deferred-scope marker.
+- **Wording-change attribution NOT asserted.** The `"20 lugares"` → `"cupos disponibles"` change in production wording is intentional but the origin (which prior phase rewrote it) is NOT attributed — that would be conjecture. The test is updated to match current intentional production state, period.
+- **Image-handler change IS anchored.** The current store + reply behavior in `el-templo-bot/src/webhook/handler.ts:323-354` is traceable to "quick-16 fix 3" per inline comments at `handler.ts:323` + `client.ts:358`. Test gets updated to match the post-quick-16-fix-3 production behavior. Cross-verified by owner 2026-06-16.
+- **Phase 97 absorption option.** Phase 97 plan-phase MAY absorb 98-A/B/C into RGUARD-01 scope at discuss-time if coupling proves tight. Default execution path: ship Phase 98 first; Phase 97 builds on the green baseline. The Phase 97 discuss-phase reads the `/gsd-debug` resolved session at `.planning/debug/resolved/api-30-test-failures-triage.md` for evidence-ready ingestion.
+- **Out of scope:**
+  - Production source fixes — Phase 98 is HARD TEST-INFRA-ONLY. If any failure in 98-A/B/C unexpectedly reveals a production bug at fix time, STOP and re-classify per `/gsd-debug` (a/b/c) framework; do NOT silently absorb.
+  - Modifying the wording in `el-templo-bot/src/ai/tools.ts:389` — that's intentional prod state.
+  - Closing BUG-03 (i) at `tools.ts:455` — Phase 95 owns the deferred-scope marker.
+  - `el-templo-bot/` test suite changes (Phase 96.5 just shipped clean; do not touch).
+- **6-pair sha256 invariant UNCHANGED.** Phase 98 modifies zero terms in the canonical block.
+
 ### Phase 97: Backlog + Regression Lock
 
 **Goal**: Close the two low-priority backlog items (third elevator-pitch hook + voseo consistency), lock all v5.3.3 fixes against future regression, extend the timeout pattern from Phase 94 to `executeTool` localhost calls (debug-session bonus finding), and validate via guided live test that the bot is **production-deploy-ready** (NOT CRM-integration-ready). Mirrors v5.3.2 Phase 92 shape — milestone-scoped regression suite + live-test gate.
@@ -247,7 +283,8 @@ The 45s `OPENAI_TIMEOUT_MS` is the LEFT-HAND VARIABLE that the right-hand TTL mu
 | 94. OpenAI Latency + Graceful Failure          | 2/2            | Complete    | 2026-05-18 |
 | 95. Booking Reliability + Graceful Degradation | 0/?            | Not started | -          |
 | 96. Context Awareness                          | 0/?            | Not started | -          |
-| 96.5. Date Grounding Fix                       | 0/1            | Not started | -          |
+| 96.5. Date Grounding Fix                       | 1/1            | ✅ Complete | 2026-06-16 |
+| 98. Test Hygiene (98-A/B/C)                    | 0/?            | Not started | -          |
 | 97. Backlog + Regression Lock                  | 0/?            | Not started | -          |
 
 ---
