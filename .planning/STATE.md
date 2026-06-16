@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v5.3.3
 milestone_name: Post-v5.3.2 Live Test Fixes
 status: executing
-stopped_at: "Phase 96.5 context gathered — D-01..D-04 locked (Option D wording, render-time prompt args via getSystemPrompt opts, frozen miércoles 2026-06-10, 5-test scope); D-02a Argentine timezone deferred to plan-phase. Next: /gsd-plan-phase 96.5."
-last_updated: "2026-06-12T15:48:41.389Z"
+stopped_at: "Phase 96.5 SHIPPED 2026-06-16 (atomic chain 3fe47642 RED → c3c74909 GREEN → d835c18a SUMMARY). DATE-01 closed; v5.4.0 production-ready path step 1 = DONE. ~25 min execute wall-clock (Phase 96 5.5h timeout pattern AVOIDED via pre-flagged pnpm exec tsx -e regen approach). KGATE-05 margin remaining = 32 chars (tighter than estimated 56-76; flag for Phase 97 plan-phase). Next: /gsd-debug per locked path step 2."
+last_updated: "2026-06-16T17:00:00.000Z"
 progress:
   total_phases: 6 # 93/94/95/96/97 original + 96.5 NEW per locked path
-  completed_phases: 3 # 93 passed, 95 closed (beb2282b), 96 complete (96-01-SUMMARY.md); 94 human_needed pending BUG-02 smoke; 97 + 96.5 not started
-  total_plans: 10 # 7 shipped + 96.5 (~1) + 97 (~2 per ROADMAP) estimated
-  completed_plans: 7 # 93-01, 94-01, 94-02, 95-01, 95-02, 95-03, 96-01 (Phase 95 SUMMARY backfill deferred to milestone-hygiene commit)
-  percent: 70
+  completed_phases: 4 # 93 passed, 95 closed (beb2282b), 96 complete (96-01-SUMMARY.md), 96.5 complete (96.5-01-SUMMARY.md d835c18a); 94 human_needed pending BUG-02 smoke; 97 not started
+  total_plans: 10 # 8 shipped + 97 (~2 per ROADMAP) estimated
+  completed_plans: 8 # 93-01, 94-01, 94-02, 95-01, 95-02, 95-03, 96-01, 96.5-01 (Phase 95 SUMMARY backfill deferred to milestone-hygiene commit)
+  percent: 80
 ---
 
 # Project State
@@ -119,10 +119,10 @@ None. v5.3.2 shipped clean. v5.3.3 ROADMAP.md complete with full coverage; BUG-0
 
 ### Mandatory phases (MUST close before v5.4.0 deploy)
 
-1. **Phase 96.5 — Date hallucination fix** (~3-5h, ~30 LOC pure-prompt + snapshot date-stub infra)
-   - **Trigger:** HARD BLOCKER pre-v5.4.0. Production: bot offers "Lunes 2023-11-06" → confirmation `fetch failed` → zero successful trial bookings until fixed. Confirmed pure-prompt hallucination via Phase 96 discuss Finding #2 investigation (verbatim verdict in 96-CONTEXT.md).
+1. **Phase 96.5 — Date hallucination fix** ✅ SHIPPED 2026-06-16 (`3fe47642` RED → `c3c74909` GREEN → `d835c18a` SUMMARY → STATE update). ~25 min execute wall-clock (within 90-min cap; Phase 96 5.5h timeout pattern AVOIDED). DATE-01 closed. **KGATE-05 margin remaining = 32 chars** (tighter than estimated 56-76; flag for Phase 97 plan-phase: pre-measure new directive additions against the 32-char ceiling before authoring).
+   - **Original trigger (preserved for audit):** HARD BLOCKER pre-v5.4.0. Production: bot offered "Lunes 2023-11-06" → confirmation `fetch failed` → zero successful trial bookings until fixed. Pure-prompt hallucination per Phase 96 discuss Finding #2 investigation.
    - **Pre-conditions:** Phase 96 closed ✅.
-   - **Execute-prompt guidance:** Snapshot regen step was likely hang point of Phase 96's 5.5h executor timeout. For Phase 96.5 (also snapshot-regen + date stub), pre-flag `pnpm exec tsx -e` inline approach with `Date.now()` stub explicitly. KGATE-05 margin after Phase 96 = 118 chars; estimated Phase 96.5 directive ~25 chars → ~93 chars margin remaining.
+   - **Execute-prompt guidance proven correct:** the pre-flagged `pnpm exec tsx -e` regen approach with explicit `todayISO`/`todayDayName` kwargs (NOT `vi.useFakeTimers` / `globalThis.Date` / `vi.spyOn`) prevented Phase 96's 5.5h timeout recurrence. Reuse this pattern verbatim for any future snapshot-regen-bearing phase.
 
 2. **/gsd-debug session — el-templo-api 30 pre-existing failures** (~1-3h)
    - **Scope:** investigate root cause of the 30 failing tests in `el-templo-api/test/` (subscriptions: 6, whatsapp/ai-tools: 20, whatsapp/v5-3-3-booking.integration: 1, whatsapp/webhook: 3). Failure set verified identical across stash-and-rerun on 2026-06-10.
@@ -191,7 +191,7 @@ None. v5.3.2 shipped clean. v5.3.3 ROADMAP.md complete with full coverage; BUG-0
 
 ## Session Continuity
 
-Last session: 2026-06-12T15:48:41.376Z
-Stopped at: Phase 96.5 context gathered — D-01..D-04 locked (Option D wording, render-time prompt args via getSystemPrompt opts, frozen miércoles 2026-06-10, 5-test scope); D-02a Argentine timezone deferred to plan-phase. Next: /gsd-plan-phase 96.5.
-Resume file: .planning/phases/96.5-date-grounding-fix/96.5-CONTEXT.md
-Next step: `/gsd-plan-phase 96.5` per locked path step 1 (discuss-phase committed in `e7b9f570` + `2edd0887`; D-01..D-04 locked, D-02a Argentine timezone deferred to plan-phase, plan-phase must surface execute-prompt pre-flag for `pnpm exec tsx -e` regen + explicit `todayISO`/`todayDayName` kwargs to avoid Phase 96 5.5h timeout pattern).
+Last session: 2026-06-16T17:00:00.000Z
+Stopped at: Phase 96.5 SHIPPED — atomic chain `3fe47642` (RED, 1 file) → `c3c74909` (GREEN, 5 files vs planned 3 — Rule 1 regex `\w+`→`\S+` for accented `é` + Rule 3 `rendered-prompt-snapshot.test.ts` kwargs fix, both per Phase 96 5-vs-4 precedent) → `d835c18a` (SUMMARY, 1 file). 5/5 new tests PASS. POST_RLOK_04_BYTES 18798 → 18884 (margin 32 chars). 6-pair sha256 invariant byte-equal. Negative-diff guards (handler.ts/tools.ts/baseline.ts) all 0. v5.4.0 path step 1 = DONE.
+Resume file: .planning/phases/96.5-date-grounding-fix/96.5-01-SUMMARY.md
+Next step: `/gsd-debug` per locked v5.4.0 path step 2 — investigate el-templo-api 30 pre-existing test failures (subscriptions: 6, whatsapp/ai-tools: 20, whatsapp/v5-3-3-booking.integration: 1, whatsapp/webhook: 3). Triage outcome (a/b/c) gates whether v5.4.0 scope expands. Then path step 3 = `/gsd-discuss-phase 97` (NO pre-existing 97-CONTEXT/AUDIT; scope-discovery expected at discuss-time; budget 8-14h across ≥2 sessions; pre-measure new directive additions against the **32-char KGATE-05 ceiling** before locking wording).
