@@ -57,7 +57,7 @@ beforeEach(async () => {
   // Seed a branch
   const [branchResult] = await pool.execute(
     `INSERT INTO branches (name, code, max_capacity, is_active, created_at, updated_at)
-     VALUES ('Test Alem', 'alem', 20, true, NOW(), NOW())`,
+     VALUES ('Test Alem', 'TSTA', 20, true, NOW(), NOW())`,
   );
   branchId = (branchResult as { insertId: number }).insertId;
 
@@ -109,7 +109,7 @@ describe("check_schedule", () => {
     expect(result).toContain("Test Alem");
     expect(result).toContain("Lunes");
     expect(result).toContain("08:00-09:00");
-    expect(result).toContain("20 lugares");
+    expect(result).toContain("20 cupos disponibles");
   });
 
   it("filters by branchId", async () => {
@@ -150,7 +150,17 @@ describe("check_schedule", () => {
   });
 
   it("accounts for bookings in spots remaining", async () => {
-    const today = new Date().toISOString().slice(0, 10);
+    // D-12 fix: production check_schedule resolves bookings against the next
+    // occurrence of `day_of_week`, not today. Mirror prod's exact SQL formula
+    // via round-trip so the seeded booking_date matches the queried date.
+    // dayOfWeek: 1 == Monday (MySQL DAYOFWEEK convention).
+    const [dateRows] = await pool.execute(
+      `SELECT DATE_ADD(CURDATE(), INTERVAL (? - DAYOFWEEK(CURDATE()) + 8) % 7 DAY) AS d`,
+      [1],
+    );
+    const nextOccurrence = (dateRows as Array<{ d: Date }>)[0].d
+      .toISOString()
+      .slice(0, 10);
 
     // Add 18 bookings
     for (let i = 0; i < 18; i++) {
@@ -163,19 +173,26 @@ describe("check_schedule", () => {
       const bookerId = (uResult as { insertId: number }).insertId;
 
       await pool.execute(
-        `INSERT INTO bookings (member_id, schedule_id, booking_date, status, booked_at)
+        `INSERT INTO bookings (member_id, schedule_id, booking_date, booking_status, booked_at)
          VALUES (?, ?, ?, 'reservado', NOW())`,
-        [bookerId, scheduleId, today],
+        [bookerId, scheduleId, nextOccurrence],
       );
     }
 
     const result = await executeTool("check_schedule", { dayOfWeek: 1 }, db);
 
-    expect(result).toContain("2 lugares");
+    expect(result).toContain("2 cupos disponibles");
   });
 
   it("shows 'lleno' when at capacity", async () => {
-    const today = new Date().toISOString().slice(0, 10);
+    // D-12 fix: same next-occurrence derivation as the preceding test.
+    const [dateRows] = await pool.execute(
+      `SELECT DATE_ADD(CURDATE(), INTERVAL (? - DAYOFWEEK(CURDATE()) + 8) % 7 DAY) AS d`,
+      [1],
+    );
+    const nextOccurrence = (dateRows as Array<{ d: Date }>)[0].d
+      .toISOString()
+      .slice(0, 10);
 
     // Fill to capacity (20 bookings)
     for (let i = 0; i < 20; i++) {
@@ -188,15 +205,18 @@ describe("check_schedule", () => {
       const fullId = (uResult as { insertId: number }).insertId;
 
       await pool.execute(
-        `INSERT INTO bookings (member_id, schedule_id, booking_date, status, booked_at)
+        `INSERT INTO bookings (member_id, schedule_id, booking_date, booking_status, booked_at)
          VALUES (?, ?, ?, 'reservado', NOW())`,
-        [fullId, scheduleId, today],
+        [fullId, scheduleId, nextOccurrence],
       );
     }
 
     const result = await executeTool("check_schedule", { dayOfWeek: 1 }, db);
 
-    expect(result).toContain("lleno");
+    // Production emits "sin cupos" when spotsRemaining <= 0 (tools.ts:389).
+    // The test description references "lleno" as the semantic intent
+    // ("capacity reached"); prod's actual full-capacity wording is "sin cupos".
+    expect(result).toContain("sin cupos");
   });
 
   it("does not count cancelled bookings in spots", async () => {
@@ -213,7 +233,7 @@ describe("check_schedule", () => {
       const cancelId = (uResult as { insertId: number }).insertId;
 
       await pool.execute(
-        `INSERT INTO bookings (member_id, schedule_id, booking_date, status, booked_at)
+        `INSERT INTO bookings (member_id, schedule_id, booking_date, booking_status, booked_at)
          VALUES (?, ?, ?, 'cancelado', NOW())`,
         [cancelId, scheduleId, today],
       );
@@ -222,7 +242,7 @@ describe("check_schedule", () => {
     const result = await executeTool("check_schedule", { dayOfWeek: 1 }, db);
 
     // All 20 spots should be available since all bookings are cancelled
-    expect(result).toContain("20 lugares");
+    expect(result).toContain("20 cupos disponibles");
   });
 });
 
@@ -232,7 +252,7 @@ describe("check_membership", () => {
   it("returns subscription info for active member", async () => {
     // Create active subscription
     await pool.execute(
-      `INSERT INTO subscriptions (user_id, plan_id, branch_id, status, start_date, end_date, price_paid, price_type_applied, created_at, updated_at)
+      `INSERT INTO subscriptions (user_id, plan_id, branch_id, subscription_status, start_date, end_date, price_paid, price_type_applied, created_at, updated_at)
        VALUES (?, ?, ?, 'active', '2026-03-01', '2026-03-31', 15000, 'regular', NOW(), NOW())`,
       [userId, planId, branchId],
     );
@@ -308,15 +328,15 @@ describe("get_location", () => {
     const result = await executeTool("get_location", {}, db);
 
     expect(result).toContain("Test Alem");
-    expect(result).toContain("google.com/maps/search");
-    expect(result).toContain("Av. Leandro N. Alem 896");
+    expect(result).toContain("Alem 3958, Mar del Plata");
+    expect(result).toContain("maps.app.goo.gl");
   });
 
   it("filters by branch name", async () => {
     // Add a second branch
     await pool.execute(
       `INSERT INTO branches (name, code, max_capacity, is_active, created_at, updated_at)
-       VALUES ('Test Constitucion', 'constitucion', 15, true, NOW(), NOW())`,
+       VALUES ('Test Constitucion', 'TSTC', 15, true, NOW(), NOW())`,
     );
 
     const result = await executeTool(
@@ -326,7 +346,7 @@ describe("get_location", () => {
     );
 
     expect(result).toContain("Test Constitucion");
-    expect(result).toContain("Av. Constitución 1050");
+    expect(result).toContain("Av. Constitucion 6745, Mar del Plata");
     expect(result).not.toContain("Test Alem");
   });
 
