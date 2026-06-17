@@ -1,7 +1,8 @@
 # Phase 98: Test Hygiene (98-A/B/C) — Context
 
 **Gathered:** 2026-06-17
-**Status:** Ready for planning
+**Updated:** 2026-06-17 (post-97.5 retry — D-12/D-13/D-14 added; SC#5 status refreshed)
+**Status:** Ready for replanning (Phase 97.5 prod-fix shipped — retry path unblocked)
 
 <domain>
 ## Phase Boundary
@@ -13,6 +14,8 @@ Restore green baseline on `el-templo-api` test suite by closing the 30 test-side
 - **98-C** — `el-templo-api/test/whatsapp/webhook.test.ts` (3 failures): missing AI-provider mock (placeholder `sk-xxxxxxxx` 401s) + stale image-test assertion (production now stores + replies per "quick-16 fix 3", test still asserts silent drop).
 
 **HARD GUARD (SC#5):** Zero production source touches. `git diff` MUST show zero changes to `el-templo-api/src/**` AND `el-templo-bot/src/**`. If any failure unexpectedly reveals a production bug at fix time, STOP and re-classify per `/gsd-debug` (a/b/c) framework — do NOT silently absorb.
+
+**Post-97.5 retry status (2026-06-17):** The first Phase 98 run halted when Task 2 expansion uncovered the `sub.status` → `subscription_status` raw-SQL column drift (HALT.md guard fired correctly per the STOP-and-reclassify rule). **Phase 97.5 then shipped the prod-fix** (commits `56deb8d2` GREEN + `b19a7400` post-merge mock update + `2483b7aa` SHIPPED) — `sub.subscription_status` and `s.subscription_status` are now the canonical raw-SQL column names at all 8 sites in `el-templo-bot/src/ai/tools.ts` and `el-templo-bot/src/state/machine.ts` (verified 2026-06-17: `grep -n subscription_status` confirms the renames landed). **Phase 98 retry is therefore once again test-side-only as originally scoped** — SC#5 (zero src/ touches) still holds for the retry. The prod-fix already landed in 97.5 and is OUT OF SCOPE for Phase 98 retry. If a NEW production bug surfaces during the retry, the STOP-and-reclassify guard fires again — same protocol as before.
 
 **Single deliverable:** Three test files updated + 1 new helper export in `test/helpers.ts`. Target: `cd el-templo-api && pnpm test --run` exits `511 passed / 1 failed / 512 total` (the 1 fail = BUG-03 (i) LIKE-search RED at `el-templo-bot/src/ai/tools.ts:455`, intentionally deferred per Phase 95 — STAYS RED).
 
@@ -238,16 +241,158 @@ SUMMARY (Phase 98 ship: 29 newly green + 1 deferred RED preserved + invariants v
 - **3 separate plans** (`98-01-subs`, `98-02-ai-tools`, `98-03-webhook`) — 3× planning overhead; multi-PR cycle; Phase 97 wait grows. File isolation already gives per-zone atomicity via sub-commit chain — separate plans add overhead without gain.
 - **1 plan, 1 combined RED + 1 combined GREEN** — loses per-zone revert; harder to honor STOP-and-reclassify guard; mixes fix-zone signal in CI.
 
+### D-12 — 98-B check_schedule date-mismatch fix (test-side only)
+
+**Locked:** Two tests in `el-templo-api/test/whatsapp/ai-tools.test.ts` fail because they seed bookings with `today` while the production `check_schedule` query resolves bookings against the **next occurrence** of the schedule's `day_of_week`. The bookings never land on the queried date, so the spots-remaining count is wrong.
+
+**Failing tests (verified 2026-06-17):**
+
+- `:153-175` `check_schedule > accounts for bookings in spots remaining` — seeds 18 bookings via `INSERT INTO bookings (member_id, schedule_id, booking_date, status, booked_at) VALUES (?, ?, ?, 'reservado', NOW())` with `today = new Date().toISOString().slice(0, 10)` (line 153); asserts `result.toContain("2 lugares")`. **Both the wording (`"2 lugares"` → `"2 cupos disponibles"` per D-06) AND the date logic must be fixed for this test to pass.**
+- `:178-200` `check_schedule > shows 'lleno' when at capacity` — same `today` seeding pattern (line 179) with 20 bookings; asserts `result.toContain("lleno")` (wording already correct, only date logic needs fixing).
+
+**Production query at `el-templo-bot/src/ai/tools.ts` (verified 2026-06-17, lines 327-330):**
+
+```sql
+COALESCE(
+  (SELECT COUNT(*) FROM bookings bk
+   WHERE bk.schedule_id = s.id
+     AND bk.booking_date = (SELECT DATE_ADD(CURDATE(), INTERVAL (s.day_of_week - DAYOFWEEK(CURDATE()) + 8) % 7 DAY))
+     AND bk.booking_status != 'cancelado'),
+  0
+) AS booking_count
+```
+
+The `(s.day_of_week - DAYOFWEEK(CURDATE()) + 8) % 7` expression yields:
+
+- `0` if today IS the schedule's day_of_week → query looks at TODAY
+- `1..6` otherwise → query looks at the NEXT occurrence of `day_of_week`
+
+So seeding `today` only matches when `today.day_of_week === dayOfWeek` argument (1 = Monday). On 2026-06-17 (Wednesday, ISO day 3 / MySQL DAYOFWEEK 4), seeding Monday-schedule bookings → query targets Monday 2026-06-22 → 0 bookings counted → reports "20 cupos disponibles" instead of "2"/"lleno".
+
+**Fix rule:** Replace `today` with the **next-occurrence date** matching the schedule's `day_of_week` (test uses `dayOfWeek: 1` at lines 172 and 197). Two acceptable shapes (plan-phase picks one):
+
+1. **JS-side mirror of the SQL math** — compute `nextOccurrence(dayOfWeek)` in JS using the same `(dayOfWeek - jsToday + 8) % 7` mapping (note: MySQL `DAYOFWEEK` is 1-Sun..7-Sat; JS `getDay()` is 0-Sun..6-Sat — convert carefully). Could be a new test helper `nextOccurrenceISO(mysqlDayOfWeek: number): string` in `test/helpers.ts`.
+2. **Round-trip via the same SQL** — `SELECT DATE_ADD(CURDATE(), INTERVAL (? - DAYOFWEEK(CURDATE()) + 8) % 7 DAY) AS d` to get the date from MySQL; use the returned string as `booking_date`. Avoids JS/MySQL day-of-week-numbering mismatch entirely.
+
+**Recommended (plan-phase to confirm):** Option 2 (SQL round-trip) — same source of truth as production, no JS↔MySQL day-of-week-numbering mismatch risk.
+
+**Both `:166` (and `:191`, `:216`) bookings INSERTs ALSO need the `status` → `booking_status` column rename per D-13 (WIP patch).** The date fix and the column rename are independent test-side issues at the SAME INSERT statements — both required.
+
+**Rationale:**
+
+- **Test-side only, SC#5 compliant.** The fix lives in test seed setup; zero `el-templo-bot/src/**` touches.
+- **Locks correct test intent.** The tests were trying to verify spots-remaining logic against a populated booking row; without this fix they would pass with `"20 cupos disponibles"` (the empty-bookings case) and silently lose coverage of the populated-bookings path.
+- **Diagnosed but never landed.** This fix is documented in `98-HALT.md` ("Diagnosis surfaced but NOT applied (still latent in ai-tools.test.ts)" section) but is NOT in `phase-98-preserve/task-1-green-baseline` (Task 1 scope was `subscriptions.test.ts` only) and NOT in `98-TASK-2-WIP.patch` (the WIP applied the column renames + wording + address fixes but did not address the date math). **Without D-12, the planner will drop this and SC#1 (511 pass) won't be reached** — these 2 tests stay RED.
+
+**Rejected alternatives:**
+
+- **`vi.useFakeTimers + vi.setSystemTime` to pin today to a Monday** — hard-rejected per D-01 (same three reasons: debug-session explicit warning, STATE.md DEGR-01/LAT-03 flaky on fake timers, Phase 96 5.5h timeout root cause).
+- **Change production query to look at `today` instead of next-occurrence** — VIOLATES SC#5; would also break the production semantic ("check next class on day X").
+- **Skip these 2 tests** — drops coverage; the populated-bookings path is exactly what the spots-remaining tests are FOR.
+
+### D-13 — 98-B authoritative source: 98-TASK-2-WIP.patch (DO NOT re-derive)
+
+**Locked:** The Phase 98 retry plan MUST `git apply` `.planning/phases/98-test-hygiene-98-a-b-c/98-TASK-2-WIP.patch` for 98-B. The patch encodes operator-authorized expanded Task 2 scope (10 sites total, up from the original 4) decided in the first Phase 98 run before the halt. The planner must NOT re-derive these site lists from scratch — they were already triaged and locked.
+
+**Patch metadata (verified 2026-06-17):**
+
+- Path: `.planning/phases/98-test-hygiene-98-a-b-c/98-TASK-2-WIP.patch`
+- Size: 4620 bytes, 104 lines, 12 additions / 12 deletions
+- sha256: `5d452fc7f73e3bc561bc6d7564e8420bbc42f91e7c9ce51f102beea3ccf875f1`
+- Origin: working tree of `worktree-agent-a10bd401b163da68c` (uncommitted snapshot saved at halt time)
+
+**Sites the patch encodes (10 changes across `el-templo-api/test/whatsapp/ai-tools.test.ts`):**
+
+Plan-authorized D-05 + D-06 (4 sites — original Task 2 scope):
+
+- `:60` `code='alem'` → `code='TSTA'` (seed rename per D-05; aligns with cleanup filter `LIKE 'TST%'` at `:55`)
+- `:112` `"20 lugares"` → `"20 cupos disponibles"` (per D-06)
+- `:174` `"2 lugares"` → `"2 cupos disponibles"` (per D-06; number `2` preserved)
+- `:225` `"20 lugares"` → `"20 cupos disponibles"` (per D-06)
+
+Operator-authorized expansions during the first Phase 98 run (6 sites added live to fix latent failures revealed by the cleanup-cascade close):
+
+- `:166` bookings INSERT — `status` → `booking_status` (column-name drift; bookings table prod query already uses `booking_status` correctly at `tools.ts:330`)
+- `:191` bookings INSERT — `status` → `booking_status` (same)
+- `:216` bookings INSERT — `status` → `booking_status` (same)
+- `:235` subscriptions INSERT — `status` → `subscription_status` (column-name drift; **NOW MATCHES** the post-97.5 prod canonical name at `tools.ts:495,500` and `machine.ts:77` — verified 2026-06-17)
+- `:312` `get_location` address + maps-link assertions — `"Av. Leandro N. Alem 896"` → `"Alem 3958, Mar del Plata"` (matches `BRANCH_ADDRESSES['alem']` at `tools.ts:64`); `"google.com/maps/search"` → `"maps.app.goo.gl"` (matches `BRANCH_MAPS_LINKS['alem']` — prod uses short links, verified 2026-06-17 at `tools.ts:71`)
+- `:319` `code='constitucion'` (12 chars) → `code='TSTC'` (4 chars; respects `branches.code varchar(10)` and TST-prefix convention per D-05)
+- `:329` `get_location` Constitucion address — `"Av. Constitución 1050"` → `"Av. Constitucion 6745, Mar del Plata"` (matches `BRANCH_ADDRESSES['constitucion']` at `tools.ts:62` — no accent in prod key)
+
+**Apply protocol (lock for plan-phase):**
+
+```bash
+cd /Users/bores/el-templo
+git apply .planning/phases/98-test-hygiene-98-a-b-c/98-TASK-2-WIP.patch
+```
+
+If the patch fails to apply due to drift in `ai-tools.test.ts` since the snapshot, plan-phase must inspect the conflict, re-derive the affected hunks from the patch's intent (the 10 site list above), and re-verify each site's current line number. **Do NOT regenerate the site list from scratch** — the 10-site triage was operator-authorized and is the locked record.
+
+**D-12 + D-13 interaction:** The 3 bookings INSERTs at `:166`/`:191`/`:216` need BOTH the column rename (this D-13, via patch) AND the date fix (D-12, separate edit). Plan-phase sequences them: apply the patch first, then layer the D-12 date-fix edits on top of the renamed columns.
+
+**Rationale:**
+
+- **Encodes operator-authorized scope expansion.** The first Phase 98 run discovered 8 latent failures beneath the cleanup-filter cascade, classified them into test-side defects, and the operator authorized fixing all of them. The 10-site list is the LOCKED outcome of that triage — re-deriving risks losing the operator authorization audit trail.
+- **Reduces planner cognitive load.** Plan-phase doesn't need to re-trace the address mismatches, the column drifts, or the varchar(10) constraint on `code` — the patch encodes the resolved decisions.
+- **`get_location` test fixes only land via this patch.** D-01 through D-11 cover subscriptions / cleanup-filter / wording / mocks but NOT the `get_location` address/maps-link assertions. Without D-13, those tests stay RED post-retry.
+
+**Rejected alternatives:**
+
+- **Re-derive the 10 sites in plan-phase** — loses operator authorization audit trail; risks omissions (already happened with `:423` in the original D-01 draft).
+- **Discard the WIP patch and treat 98-B as 4 sites only** — leaves the `get_location` address tests + the 4 column renames latent; SC#1 (511 pass) won't be reached.
+
+### D-14 — 98-A authoritative source: cherry-pick from `phase-98-preserve/task-1-green-baseline`
+
+**Locked:** The Phase 98 retry plan MUST cherry-pick commit `95d58f98` from `phase-98-preserve/task-1-green-baseline` for 98-A. The commit encodes the GREEN baseline for 98-A (`el-templo-api/test/subscriptions/subscriptions.test.ts` + `el-templo-api/test/helpers.ts`) and was preserved on a durable branch surviving worktree cleanup.
+
+**Commit metadata (verified 2026-06-17):**
+
+- SHA: `95d58f981470bcc5adb95ff63d1c7cda2cdc1a82` (full)
+- Short: `95d58f98`
+- Subject: `test(98-A): rewrite 6 stale startDate sites + add futureDateISO helper`
+- Branch: `phase-98-preserve/task-1-green-baseline` (durable; survived worktree cleanup post-halt)
+- Files: `el-templo-api/test/helpers.ts`, `el-templo-api/test/subscriptions/subscriptions.test.ts`
+
+**D-02 revision under D-14:** Task 1 was authorized to deviate from the original plan: the `addDays` import (D-02 Step 2) was omitted because D-03's non-tautological inequality (`expect(new Date(body.endDate).getTime()).toBeGreaterThan(Date.now())`) made it vestigial. The committed code uses ONLY `futureDateISO(7)` for the dynamic `startDate` at `:366` and the inequality assertion for `:375` endDate. No `addDays` reference exists in the test file.
+
+**Therefore D-02 NO LONGER APPLIES to the retry.** Plan-phase MUST NOT re-introduce the `addDays` import (would be a no-op edit; would diverge from the preserved commit; would re-test what `test/unit/date-utils.test.ts` already covers per D-03). The cherry-pick alone closes 98-A.
+
+**Cherry-pick protocol (lock for plan-phase):**
+
+```bash
+git cherry-pick 95d58f98
+```
+
+If cherry-pick conflicts (e.g., `test/helpers.ts` has gained new exports since the preserve was created), resolve by KEEPING the preserved `futureDateISO` export and merging cleanly with any new exports — the preserved commit is the authoritative source for 98-A test changes; surrounding helpers churn is independent.
+
+**D-04 carry-forward:** The preserved commit honors D-04 (does NOT touch `:537` / `:721` / `:733` — the 3 leave-alone sites). Plan-phase verifies this is still true post-cherry-pick (negative-assertion `git diff` on those line ranges).
+
+**Rationale:**
+
+- **Durable preservation.** The preserve branch was created specifically to survive worktree cleanup; the cherry-pick is a single deterministic operation.
+- **Test-side only, SC#5 compliant.** The cherry-pick only touches `test/helpers.ts` + `test/subscriptions/subscriptions.test.ts`. Zero `src/` touches.
+- **D-02 deviation already audit-trailed.** HALT.md "What was committed before halt" section documents the operator-authorized D-02 omission verbatim — D-14 inherits that decision and locks it for the retry.
+- **Avoids re-doing triaged work.** 6 sites were already correctly identified, fixed, and GREEN-verified in the original execute. Re-deriving them risks regression to the original `2026-03-01` find-replace error (would miss `:423`).
+
+**Rejected alternatives:**
+
+- **Re-implement 98-A from scratch using D-01 rules** — loses the operator-authorized D-02 omission; risks the literal-find-replace regression; doubles execute effort for the same result.
+- **Cherry-pick + add `addDays` import as "completeness"** — re-introduces vestigial code; diverges from the preserved commit; violates the locked D-03 non-tautological inequality decision.
+
 ### Claude's Discretion
 
 Plan-phase resolves these details using the locked decisions above:
 
 - **Exact canned `.chat()` response text** for D-07's mock (single short Spanish string, e.g., a greeting-shape; doesn't need to be semantically meaningful — tests assert count + literal echo, not content quality).
 - **Exact assertion ordering** within each test (group lifecycle assertions; defer dynamic-date assertions).
-- **Exact site enumeration in `subscriptions.test.ts`** — D-01 lists the 6 stale sites and 3 leave-alone sites verified 2026-06-17. Plan-phase re-confirms current line numbers by grepping `startDate:` (drift expected) but does NOT re-derive the rule and does NOT drive the fix off the literal `"2026-03-01"` (misses `:423`'s `2026-04-01`); each site is evaluated by the D-01 rule (compute `startDate + plan.durationDays`; past + expected-active → stale) per D-04.
+- **Exact site enumeration in `subscriptions.test.ts`** — SUPERSEDED BY D-14 (cherry-pick is now authoritative). Plan-phase no longer re-derives sites for 98-A.
 - **Whether to also rename `'TSTB'` → `'TSTB'` consistency check** — no change planned, but plan-phase confirms the seed at `:119` still uses the TST prefix.
 - **Test description renames** (e.g., D-09's image-test) — plan-phase locks exact strings.
-- **Whether the new `futureDateISO` helper is exported as a named export or added to a `dateHelpers` namespace** — default: named export (matches existing `createTestApp`, `getAuthToken`, `registerUser` shape in `test/helpers.ts`).
+- **Whether the new `futureDateISO` helper is exported as a named export or added to a `dateHelpers` namespace** — SUPERSEDED BY D-14 (the preserved commit already exports as a named export; cherry-pick locks it).
+- **D-12 date-fix shape** — Option 1 (JS mirror with a new `nextOccurrenceISO` helper) vs Option 2 (SQL round-trip). Recommended Option 2; plan-phase locks the exact shape.
+- **WIP patch apply order vs D-12 date-fix layering** — apply patch first (renames `status` → `booking_status` at `:166`/`:191`/`:216`), then layer D-12 date-fix edits (replace `today` with next-occurrence date at the same INSERT statements). Plan-phase locks the exact diff hunks.
+- **WIP patch conflict handling** — if `git apply` fails due to drift, re-derive only the conflicting hunks from the 10-site list in D-13; do NOT re-triage from scratch.
 
 </decisions>
 
@@ -263,6 +408,13 @@ Plan-phase resolves these details using the locked decisions above:
 - `.planning/debug/resolved/api-30-test-failures-triage.md` — `/gsd-debug` resolved session; classification verdict (a) PURE TEST-INFRA; per-file root-cause traces with verbatim failure output and source-line citations; recommended Phase 98 fix loci. **Evidence-ready ingestion for plan-phase per ROADMAP §Notes.**
 - `.planning/STATE.md` — current focus, v5.4.0 production-ready path, carry-forward planning constraints (F-1/F-2 deprecation, sha256 invariant, 90-min execute hard cap, atomic RED→GREEN→SUMMARY cadence).
 - `.planning/phases/95-booking-reliability-graceful-degradation/95-AUDIT.md` BUG-03 (i) — Phase 95-deferred RED at `el-templo-bot/src/ai/tools.ts:455`; STAYS RED in Phase 98; Phase 95 owns eventual GREEN.
+
+### Phase 98 retry preserved artifacts (MUST consume — D-12/D-13/D-14)
+
+- `.planning/phases/98-test-hygiene-98-a-b-c/98-HALT.md` — halt rationale, preserved-artifact inventory, post-halt failure breakdown (5/20 with class/surface table), Phase 95 (vi) systemic-drift parallel, **D-12 diagnosis verbatim** ("Diagnosis surfaced but NOT applied" section: check_schedule date-mismatch root cause + fix shape). **READ BEFORE PLANNING THE RETRY.**
+- `.planning/phases/98-test-hygiene-98-a-b-c/98-TASK-2-WIP.patch` — 10-site authoritative patch for 98-B (sha256 `5d452fc7f73e3bc561bc6d7564e8420bbc42f91e7c9ce51f102beea3ccf875f1`, 4620 bytes, 12+/12−). Plan applies via `git apply`. Encodes D-05/D-06 + operator-authorized expansion (column renames + address fixes + `'constitucion'→'TSTC'` rename + maps-link short-URL fix). See D-13.
+- `phase-98-preserve/task-1-green-baseline` (git ref) — durable preservation branch with commit `95d58f98` (`test(98-A): rewrite 6 stale startDate sites + add futureDateISO helper`). Plan cherry-picks for 98-A. Encodes the operator-authorized D-02-omission deviation. See D-14.
+- `.planning/phases/97.5-prod-fix-raw-sql-column-drift/` — adjacent phase (SHIPPED 2026-06-17 commits `56deb8d2` GREEN + `b19a7400` post-merge mock update + `2483b7aa` SHIPPED). Landed the `sub.status` → `subscription_status` raw-SQL renames at 8 sites in `el-templo-bot/src/ai/tools.ts` and `el-templo-bot/src/state/machine.ts`. **97.5 is the precondition for Phase 98 retry being viable**: without 97.5, the SC#5 STOP-and-reclassify guard would re-fire on the same 3 `check_membership` tests. With 97.5 shipped, 98-B's subscriptions INSERT `status → subscription_status` rename (`:235` in the WIP patch) now matches the prod column name and SC#5 (zero src/ touches) holds.
 
 ### Test files (the fix surfaces)
 

@@ -127,3 +127,56 @@ Delegated to plan-phase (locked in CONTEXT.md `<decisions>` → "Claude's Discre
 - Closing BUG-03 (i) at `tools.ts:455` (Phase 95 owns).
 - `el-templo-bot/` test suite changes.
 - Cross-timezone edge cases for date helper.
+
+---
+
+## Addendum 2026-06-17 (post-97.5 retry alignment)
+
+**Trigger:** Phase 97.5 prod-fix shipped (`56deb8d2` GREEN + `b19a7400` post-merge mock update + `2483b7aa` SHIPPED), unblocking the Phase 98 retry path. The original CONTEXT.md was authored before the halt and was missing items that only live in HALT.md and the preserved artifacts. Operator-authorized addendum to refresh CONTEXT for the retry.
+
+**HALT.md's stated stance:** "No re-discussion of Phase 98 scope needed — the WIP patch + Task 1 branch capture the test-side intent verbatim." Operator overrode this for one specific gap: the check_schedule date-mismatch fix (diagnosed in HALT but never applied to any artifact) would be dropped by the planner without an explicit decision. Other deltas are scope-locking references, not new scope.
+
+**Verifications performed before writing:**
+
+- `git rev-parse phase-98-preserve/task-1-green-baseline` → `95d58f981470bcc5adb95ff63d1c7cda2cdc1a82` ✓
+- `shasum -a 256 98-TASK-2-WIP.patch` → `5d452fc7f73e3bc561bc6d7564e8420bbc42f91e7c9ce51f102beea3ccf875f1` (4620 bytes, 12+/12−) ✓
+- Production DATE_ADD next-occurrence formula intact at `el-templo-bot/src/ai/tools.ts` ~`:329` ✓
+- `el-templo-api/test/whatsapp/ai-tools.test.ts:153-175` and `:178-200` still seed bookings with `today = new Date().toISOString().slice(0, 10)` ✓
+- Phase 97.5 prod-fix landed: `grep -n subscription_status` confirms 8 sites renamed in `el-templo-bot/src/ai/tools.ts` (`:454`, `:495`, `:500`, `:539`) and `el-templo-bot/src/state/machine.ts` (`:40`, `:77`, `:90`, `:116`) ✓
+
+### Decisions added
+
+| ID   | Decision                                                                                                                                         | Reason it needed locking                                                                                                                                   |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D-12 | 98-B check_schedule date-mismatch fix (test-side only). Replace `today` seed with next-occurrence date matching `dayOfWeek` argument.            | Diagnosed in HALT.md but NOT in any preserved artifact. Without an explicit decision, planner drops it → 2 tests stay RED → SC#1 (511 pass) not reached.   |
+| D-13 | 98-B authoritative source: `98-TASK-2-WIP.patch` (10 sites). Plan applies via `git apply`; does NOT re-derive.                                   | Encodes operator-authorized scope expansion from 4 → 10 sites. Re-deriving loses audit trail and risks omissions (e.g., the `get_location` address tests). |
+| D-14 | 98-A authoritative source: cherry-pick `95d58f98` from `phase-98-preserve/task-1-green-baseline`. D-02 NO LONGER applies (vestigial under D-03). | Operator-authorized D-02 deviation already audit-trailed in HALT.md; cherry-pick is the deterministic, audit-preserving recovery path.                     |
+
+### Domain section refresh (no new scope — status update only)
+
+Added "Post-97.5 retry status (2026-06-17)" paragraph to `<domain>`:
+
+- 97.5 shipped → `sub.subscription_status` / `s.subscription_status` is canonical
+- Phase 98 retry is once again test-side-only as originally scoped
+- SC#5 (zero src/ touches) still holds for the retry
+- STOP-and-reclassify guard remains armed if a NEW prod bug surfaces
+
+### Canonical refs extension
+
+New "Phase 98 retry preserved artifacts (MUST consume — D-12/D-13/D-14)" subsection added to `<canonical_refs>`, citing:
+
+- `98-HALT.md` (D-12 diagnosis verbatim)
+- `98-TASK-2-WIP.patch` (D-13 authoritative for 98-B)
+- `phase-98-preserve/task-1-green-baseline` git ref (D-14 authoritative for 98-A)
+- `.planning/phases/97.5-prod-fix-raw-sql-column-drift/` (precondition for SC#5 holding)
+
+### Items NOT changed (HALT.md correctly captured these)
+
+- D-01..D-11 substance — locked in original CONTEXT, no re-discussion warranted.
+- 6-pair sha256 invariant — unchanged.
+- F-1/F-2 deprecation, 90-min execute hard cap, atomic RED→GREEN→SUMMARY cadence — unchanged.
+- Deferred ideas list — unchanged.
+
+### Next step
+
+`/clear` then `/gsd-plan-phase 98` to regenerate plan `98-01` consuming the refreshed CONTEXT (D-12 + D-13 + D-14 + updated SC#5 note + new canonical refs). Operator requested optional review of the regenerated plan before execute to confirm D-12 + WIP-patch-apply landed correctly.
