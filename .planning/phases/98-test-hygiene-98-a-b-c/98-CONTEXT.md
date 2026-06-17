@@ -8,8 +8,8 @@
 
 Restore green baseline on `el-templo-api` test suite by closing the 30 test-side failures classified in `/gsd-debug` session `api-30-test-failures-triage` (resolved 2026-06-16) as verdict **(a) PURE TEST-INFRA / TEST-STALENESS**. Three independent fix zones across three test files:
 
-- **98-A** — `el-templo-api/test/subscriptions/subscriptions.test.ts` (6 failures): temporal fixture staleness (hard-coded `startDate: "2026-03-01"` past `endDate`; `autoExpireSubscriptions` correctly expires before lookup).
-- **98-B** — `el-templo-api/test/whatsapp/ai-tools.test.ts` (20 failures): broken cleanup filter mismatch (`LIKE 'TST%'` vs `code='alem'` seed) + 1 stale wording assertion (`'20 lugares'` vs prod `'cupos disponibles'`).
+- **98-A** — `el-templo-api/test/subscriptions/subscriptions.test.ts` (6 failures): temporal fixture staleness (hard-coded past `startDate` literals — mostly `"2026-03-01"`, with one `"2026-04-01"` at `:423` — whose computed `endDate` is now past; `autoExpireSubscriptions` correctly expires before lookup). See D-01 for the exact rule + site classification.
+- **98-B** — `el-templo-api/test/whatsapp/ai-tools.test.ts` (20 failures): broken cleanup filter mismatch (`LIKE 'TST%'` vs `code='alem'` seed) + 3 stale wording assertions (`'<N> lugares'` vs prod `'<N> cupos disponibles'` at `:112`, `:174`, `:225`).
 - **98-C** — `el-templo-api/test/whatsapp/webhook.test.ts` (3 failures): missing AI-provider mock (placeholder `sk-xxxxxxxx` 401s) + stale image-test assertion (production now stores + replies per "quick-16 fix 3", test still asserts silent drop).
 
 **HARD GUARD (SC#5):** Zero production source touches. `git diff` MUST show zero changes to `el-templo-api/src/**` AND `el-templo-bot/src/**`. If any failure unexpectedly reveals a production bug at fix time, STOP and re-classify per `/gsd-debug` (a/b/c) framework — do NOT silently absorb.
@@ -32,7 +32,36 @@ Restore green baseline on `el-templo-api` test suite by closing the 30 test-side
 
 ### D-01 — 98-A relative-date strategy: shared helper in `test/helpers.ts`
 
-**Locked:** Add `futureDateISO(daysFromToday: number): string` to `el-templo-api/test/helpers.ts`. Replaces the 7 hard-coded `startDate: "2026-03-01"` sites in `subscriptions.test.ts` (lines 132, 366, 388, 406, 423, 584, 721, 733). Plan-phase enumerates the exact site list against current file state.
+**Locked:** Add `futureDateISO(daysFromToday: number): string` to `el-templo-api/test/helpers.ts`. Replace **6 stale `startDate` sites** in `subscriptions.test.ts` (the 6 reported failures). **Drive the fix by the rule below, NOT by a find-replace of `"2026-03-01"`** — the literal `"2026-03-01"` enumeration in this section's earlier draft was inaccurate.
+
+**Decision rule (apply per `startDate` site):**
+
+Compute `startDate + plan.durationDays`. If that end date is already in the **past** relative to today AND the test expects the subscription to remain active/usable → **STALE**: replace the literal with `futureDateISO(...)`. If the date is intentionally past (auto-expire test) OR a fixed future date whose exact string is coupled to assertions → **LEAVE IT**. `autoExpireSubscriptions` flips active→expired once `endDate < today`, which is the root cause of the 6 stale failures.
+
+**Actual classification** (re-confirm by grepping current line numbers at plan-phase time — they drift):
+
+**STALE — replace with `futureDateISO` (6 sites = the 6 reported failures):**
+
+- `:132` `startDate "2026-03-01"` (ends 2026-03-31, past)
+- `:366` `startDate "2026-03-01"` (ends past). The `:366` test has **two coupled echo assertions** that must both become dynamic per D-03 (verified 2026-06-17):
+  - `:374` `expect(body.startDate).toBe("2026-03-01")` → compare to computed `start`.
+  - `:375` `expect(body.endDate).toBe("2026-03-31")` → compare to computed `end` (or assert "endDate in future"); comment `// 30 days from Mar 1` for math context.
+  - **LEAVE-ALONE within the same test:** `:606` `expect(body.endDate >= "2026-03-31").toBe(true)` is a resilient lower-bound assertion — a future `endDate` still satisfies it. DO NOT modify `:606`.
+- `:388` `startDate "2026-03-01"` (past)
+- `:406` `startDate "2026-03-01"` (past)
+- `:423` `startDate "2026-04-01"` (ends 2026-05-01, past) — **NOTE:** this is `2026-04-01`, NOT `2026-03-01`. A naive find-replace of `"2026-03-01"` MISSES this stale site and SC#1 (511 pass) won't be reached.
+- `:584` `startDate "2026-03-01"` (past)
+
+**DO NOT TOUCH — intentional, currently passing:**
+
+- `:537` `startDate "2025-01-01"` — intentionally past; this test verifies the auto-expire path (404 + history-row). Replacing it breaks the test's purpose.
+- `:721` `startDate "2026-06-01"` — future; still active.
+- `:733` `startDate "2026-07-01"` — future; still active.
+- Both `:721`/`:733` have assertions at `:746-758` that check the listing contains the exact strings `"2026-06-01"` and `"2026-07-01"` (history-ordering test). Replacing these dates breaks green tests. Leave them as fixed literals.
+
+**Net:** 6 sites become future-relative; 3 stay fixed (`:537`/`:721`/`:733`). After the fix, `cd el-templo-api && pnpm test --run` for this file should be green, contributing to the phase-wide SC#1 target of 511 passed / 1 failed / 512 total.
+
+**Verified against** `el-templo-api/test/subscriptions/subscriptions.test.ts` on **2026-06-17**.
 
 **Rationale:**
 
@@ -43,8 +72,9 @@ Restore green baseline on `el-templo-api` test suite by closing the 30 test-side
 **Rejected alternatives:**
 
 - **File-local helper** in `subscriptions.test.ts` — same function, scoped. Rejected because Phase 97 RGUARD-01 is a likely second consumer; co-location only justified when a second consumer hasn't materialized (Phase 95 D-16 / Phase 96 D-14 precedent), but here the second consumer is already on the roadmap.
-- **`vi.useFakeTimers() + vi.setSystemTime('2026-03-01')`** — would let `'2026-03-01'` literals stay. **HARD REJECT.** Three reasons: (i) debug session explicit warning ("avoid fake-timer side-effects"); (ii) STATE.md carry-forward flags DEGR-01 / LAT-03 family as already-flaky on `vi.useFakeTimers + advanceTimersByTimeAsync`; (iii) `vi.useFakeTimers` is the exact Date/timer landmine behind Phase 96's 5.5h execute timeout.
-- **Inline `new Date(Date.now() + 86400000).toISOString().split('T')[0]` per call site** — 7+ duplicated expressions, tortured assertions, violates DRY (`CLAUDE.md` flags repetition aggressively).
+- **`vi.useFakeTimers() + vi.setSystemTime(...)`** — would let the past-date literals stay. **HARD REJECT.** Three reasons: (i) debug session explicit warning ("avoid fake-timer side-effects"); (ii) STATE.md carry-forward flags DEGR-01 / LAT-03 family as already-flaky on `vi.useFakeTimers + advanceTimersByTimeAsync`; (iii) `vi.useFakeTimers` is the exact Date/timer landmine behind Phase 96's 5.5h execute timeout.
+- **Inline `new Date(Date.now() + 86400000).toISOString().split('T')[0]` per call site** — 6+ duplicated expressions, tortured assertions, violates DRY (`CLAUDE.md` flags repetition aggressively).
+- **Find-replace of the literal `"2026-03-01"`** — MISSES `:423` (`2026-04-01`), and would naively rewrite `:537`/`:721`/`:733` if extended without the rule. Drive by rule, not by literal.
 
 ### D-02 — 98-A endDate math: reuse `addDays` from prod date-utils
 
@@ -64,9 +94,15 @@ Restore green baseline on `el-templo-api` test suite by closing the 30 test-side
 
 **Rationale:** Subscription lifecycle tests verify subscription behavior, not date arithmetic. Keep assertion strength focused on the contract that matters (the sub IS active / endDate IS in the future / pause works on a live sub).
 
-### D-04 — 98-A scope guard: do NOT touch the passing peer test
+### D-04 — 98-A scope guard: do NOT touch the passing peer tests
 
-**Locked:** `subscriptions.test.ts:537` uses `startDate: "2025-01-01"` deliberately to verify the auto-expire path (passing test: `GET /members/:userId/subscription auto-expires past endDate`). DO NOT replace this literal — it's intentionally past and the test asserts the 404 + history-row behavior. Same for `:721`/`:733` (history-listing tests with intentional past + future spread): plan-phase verifies these are still intentional vs stale on a per-site basis.
+**Locked:** Three sites in `subscriptions.test.ts` are intentional and currently passing — DO NOT replace these literals (verified 2026-06-17, see D-01):
+
+- `:537` `startDate: "2025-01-01"` — deliberately past; verifies the auto-expire path (404 + history-row behavior).
+- `:721` `startDate: "2026-06-01"` — future and still active; assertion at `:746-758` checks the exact string `"2026-06-01"` (history-ordering test).
+- `:733` `startDate: "2026-07-01"` — future and still active; same assertion-coupling at `:746-758` checks `"2026-07-01"`.
+
+Replacing any of these breaks the test's purpose (`:537`) or breaks currently-green assertions (`:721`/`:733`).
 
 ### D-05 — 98-B cleanup: rename seed `'alem'` → `'TSTA'`
 
@@ -84,15 +120,22 @@ Restore green baseline on `el-templo-api` test suite by closing the 30 test-side
 - **Extend LIKE filter** to `WHERE code LIKE 'TST%' OR code = 'alem'` — semantically odd (delete a production-looking code); risk if global setup ever seeds a real `'alem'` branch.
 - **Seed-registry by-ID pattern** (track inserted IDs, `DELETE WHERE id IN (...)`) — over-engineered for a 1-line bug; requires top-level state plumbing across tests; engineering balance fails ("over-engineered" per `CLAUDE.md` preference).
 
-### D-06 — 98-B wording assertion: exact `'cupos disponibles'`
+### D-06 — 98-B wording assertion: exact `'cupos disponibles'` at all 3 stale sites
 
-**Locked:** `el-templo-api/test/whatsapp/ai-tools.test.ts:112` updates from `expect(result).toContain("20 lugares")` to `expect(result).toContain("20 cupos disponibles")`.
+**Locked:** `el-templo-api/test/whatsapp/ai-tools.test.ts` updates the stale `"<N> lugares"` wording to `"<N> cupos disponibles"` at **three sites** (number-aware — preserve each site's spot count; do NOT blind-replace `"20 lugares"`). Verified 2026-06-17 against the live file:
+
+- `:112` `"20 lugares"` → `"20 cupos disponibles"`
+- `:174` `"2 lugares"` → `"2 cupos disponibles"` — **NOTE:** number is `"2"`, not `"20"`. A naive find-replace of `"20 lugares"` MISSES this site and SC#1 (511 pass) won't be reached.
+- `:225` `"20 lugares"` → `"20 cupos disponibles"`
+
+Each assertion shape: `expect(result).toContain("<N> cupos disponibles")`.
 
 **Rationale:**
 
 - ROADMAP SC#3 specifies the exact `"cupos disponibles"` wording — locks the intentional production text.
 - Production source at `el-templo-bot/src/ai/tools.ts:389` is the source of truth (`${spotsRemaining} cupos disponibles`). Wording is a deliberate prod decision (origin NOT attributed per ROADMAP §Notes — treat as intentional state).
 - Stronger signal than a looser `"cupos"` substring; future wording regressions (e.g., degenerate output) caught.
+- Completeness verified: these are the ONLY `"lugares"` sites in `ai-tools.test.ts` (no further drift expected at plan-phase time).
 
 ### D-07 — 98-C AI mock: `vi.mock` the provider factory
 
@@ -116,16 +159,23 @@ Restore green baseline on `el-templo-api` test suite by closing the 30 test-side
 - **Real `OPENAI_API_KEY` in CI** — real API calls in tests (cost, flakiness, non-determinism); local dev requires keys; tests fail when OpenAI degrades. Industry bad practice.
 - **MockAiProvider class in `el-templo-bot/src/ai/`** — modifies bot src. **VIOLATES SC#5.** Out of scope.
 
-### D-08 — 98-C text-test assertion update: replace `"Echo: ..."` literal
+### D-08 — 98-C text-test assertion update: replace `"Echo: ..."` literal at both sites
 
-**Locked:** Two text-test assertions at `webhook.test.ts:292` and `:339` currently assert the pre-AI echo pattern (`"Echo: Hello from WhatsApp!"`). Plan-phase replaces these with the exact canned response text chosen for D-07's mock (default: a single short Spanish greeting). Assertion shape:
+**Locked:** The `"Echo: Hello from WhatsApp!"` literal appears at **two sites** in the new-sender text test (verified 2026-06-17 — these are the ONLY occurrences in `webhook.test.ts`):
+
+- `:292` `expect(echoMessages[0].content).toBe("Echo: Hello from WhatsApp!")` — DB content check.
+- `:298` `sendTextMessage` 2nd-arg assertion — `expect(sendTextMessage).toHaveBeenCalledWith("5491100000001", "Echo: Hello from WhatsApp!")`.
+
+Plan-phase replaces both with the exact canned response text chosen for D-07's mock (default: a single short Spanish greeting). Assertion shape:
 
 ```ts
 expect(echoMessages[0].content).toBe(<CANNED_REPLY>);
 expect(sendTextMessage).toHaveBeenCalledWith("5491100000001", <CANNED_REPLY>);
 ```
 
-**Rationale:** The "Echo: ..." literal is a pre-AI-integration leftover and is technically stale even ignoring the 401. Updating to the mock's canned text aligns assertion with current production behavior shape (AI round-trip → outbound text via `sendTextMessage`).
+The existing-sender text test (around `:339-340`) is **count-based, not literal-based** — it is invariant under this change and DOES NOT need editing.
+
+**Rationale:** The `"Echo: ..."` literal is a pre-AI-integration leftover and is technically stale even ignoring the 401. Updating both sites to the mock's canned text aligns assertion with current production behavior shape (AI round-trip → outbound text via `sendTextMessage`).
 
 ### D-09 — 98-C image-test assertion: count + semantic substring
 
@@ -194,7 +244,7 @@ Plan-phase resolves these details using the locked decisions above:
 
 - **Exact canned `.chat()` response text** for D-07's mock (single short Spanish string, e.g., a greeting-shape; doesn't need to be semantically meaningful — tests assert count + literal echo, not content quality).
 - **Exact assertion ordering** within each test (group lifecycle assertions; defer dynamic-date assertions).
-- **Exact site enumeration in `subscriptions.test.ts`** — plan-phase greps `startDate: "2026-03-01"` against current file state (some sites may have shifted from line numbers documented in debug session); each must be evaluated as "stale (replace with helper)" vs "intentionally past (preserve)" per D-04.
+- **Exact site enumeration in `subscriptions.test.ts`** — D-01 lists the 6 stale sites and 3 leave-alone sites verified 2026-06-17. Plan-phase re-confirms current line numbers by grepping `startDate:` (drift expected) but does NOT re-derive the rule and does NOT drive the fix off the literal `"2026-03-01"` (misses `:423`'s `2026-04-01`); each site is evaluated by the D-01 rule (compute `startDate + plan.durationDays`; past + expected-active → stale) per D-04.
 - **Whether to also rename `'TSTB'` → `'TSTB'` consistency check** — no change planned, but plan-phase confirms the seed at `:119` still uses the TST prefix.
 - **Test description renames** (e.g., D-09's image-test) — plan-phase locks exact strings.
 - **Whether the new `futureDateISO` helper is exported as a named export or added to a `dateHelpers` namespace** — default: named export (matches existing `createTestApp`, `getAuthToken`, `registerUser` shape in `test/helpers.ts`).
@@ -216,7 +266,7 @@ Plan-phase resolves these details using the locked decisions above:
 
 ### Test files (the fix surfaces)
 
-- `el-templo-api/test/subscriptions/subscriptions.test.ts` — 98-A target (6 failures); hard-coded `startDate: "2026-03-01"` at 7 sites + 1 intentional past at `:537`.
+- `el-templo-api/test/subscriptions/subscriptions.test.ts` — 98-A target (6 failures); 6 stale `startDate` sites (5× `"2026-03-01"` + 1× `"2026-04-01"` at `:423`) + 3 leave-alone sites (`:537` intentional past; `:721`/`:733` future with exact-string assertions at `:746-758`). Exact rule and per-site classification in D-01.
 - `el-templo-api/test/whatsapp/ai-tools.test.ts` — 98-B target (20 failures); `beforeEach` cleanup-filter mismatch + 1 stale wording assertion at `:112`.
 - `el-templo-api/test/whatsapp/webhook.test.ts` — 98-C target (3 failures); missing AI mock + stale image-test assertion at `:388-417`.
 - `el-templo-api/test/helpers.ts` — 98-A helper landing site (`futureDateISO` export added).
