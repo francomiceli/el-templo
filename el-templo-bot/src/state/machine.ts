@@ -37,7 +37,7 @@ interface UserRow {
 }
 
 interface SubscriptionRow {
-  status: string;
+  subscription_status: string;
   end_date: string | null;
   is_trial: number; // MySQL boolean from joined plan
 }
@@ -74,7 +74,7 @@ export async function determineClientState(
 
     // 2. Look up subscriptions (most recent first) with plan info for is_trial
     const subResult = await db.execute(
-      sql`SELECT s.status, s.end_date, sp.is_trial
+      sql`SELECT s.subscription_status, s.end_date, sp.is_trial
           FROM subscriptions s
           JOIN subscription_plans sp ON s.plan_id = sp.id
           WHERE s.user_id = ${userId}
@@ -87,7 +87,7 @@ export async function determineClientState(
     }
 
     // 3. Check for active subscription
-    const activeSub = subRows.find((s) => s.status === "active");
+    const activeSub = subRows.find((s) => s.subscription_status === "active");
 
     if (activeSub) {
       // Check if end_date is in the past
@@ -113,7 +113,7 @@ export async function determineClientState(
     }
 
     // 4. Check for paused subscription (treat similarly to active for state purposes)
-    const pausedSub = subRows.find((s) => s.status === "paused");
+    const pausedSub = subRows.find((s) => s.subscription_status === "paused");
 
     if (pausedSub) {
       return { state: "inactive_member", userId };
