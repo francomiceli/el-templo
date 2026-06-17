@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v5.3.3
 milestone_name: Post-v5.3.2 Live Test Fixes
 status: verifying
-stopped_at: Phase 97.5 SHIPPED 2026-06-17 (gsd-verifier 6/6 SC PASS). Raw-SQL Column-Drift Prod-Fix complete; sweep-lint guardrail active; Phase 98 reopen + Phase 97 RGUARD-01 unblocked.
-last_updated: "2026-06-17T19:50:07.447Z"
+stopped_at: Phase 98 CONTEXT refreshed post-97.5 (D-12/D-13/D-14 added)
+last_updated: "2026-06-17T20:32:08.799Z"
 progress:
   total_phases: 8
   completed_phases: 5
@@ -205,7 +205,7 @@ None. v5.3.2 shipped clean. v5.3.3 ROADMAP.md complete with full coverage; BUG-0
 
 ## Session Continuity
 
-Last session: 2026-06-17T19:50:07.441Z
-Stopped at: Phase 97.5 SHIPPED 2026-06-17 (gsd-verifier 6/6 SC PASS). Raw-SQL Column-Drift Prod-Fix complete; sweep-lint guardrail active; Phase 98 reopen + Phase 97 RGUARD-01 unblocked.
-Resume file: .planning/phases/97.5-raw-sql-column-drift-prod-fix/97.5-VERIFICATION.md
+Last session: 2026-06-17T20:32:08.789Z
+Stopped at: Phase 98 CONTEXT refreshed post-97.5 (D-12/D-13/D-14 added)
+Resume file: .planning/phases/98-test-hygiene-98-a-b-c/98-CONTEXT.md
 Next step: `/clear` then `/gsd-discuss-phase 98` (or directly `/gsd-plan-phase 98` with `--reviews` if absorbing 98-A/B/C into RGUARD-01 scope is preferred per Phase 98 absorption option). Cherry-pick recipe at `.planning/phases/98-test-hygiene-98-a-b-c/98-HALT.md`. After Phase 98 reopen ships GREEN, Phase 97 RGUARD-01 lock can finally execute. KGATE-05 ceiling for Phase 97 directive additions remains **32 chars** post-Phase-96.5 ship.
