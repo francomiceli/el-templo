@@ -233,7 +233,7 @@ The 45s `OPENAI_TIMEOUT_MS` is the LEFT-HAND VARIABLE that the right-hand TTL mu
 
 **Plans:** 1 plan (single-plan TDD structure; mirrors Phase 96.5's mechanical encoding of discuss-phase decisions in one RED → GREEN → SUMMARY chain).
 
-- [ ] 97.5-01-PLAN.md — TBD (gated on `/gsd-discuss-phase 97.5` output)
+- [ ] 97.5-01-PLAN.md — RED (drift integration test + sweep-lint) -> GREEN (Option B rename in tools.ts + machine.ts, 8 sites) -> SUMMARY
 
 **Notes:**
 
