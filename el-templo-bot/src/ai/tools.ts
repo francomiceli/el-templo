@@ -451,7 +451,7 @@ interface UserRow {
 
 interface SubscriptionRow {
   plan_name: string;
-  status: string;
+  subscription_status: string;
   start_date: string;
   end_date: string | null;
   price_paid: number;
@@ -492,12 +492,12 @@ async function checkMembership(
 
   // Find active or paused subscription
   const subResult = await db.execute<SubscriptionRow[]>(
-    sql`SELECT sp.name AS plan_name, sub.status, sub.start_date, sub.end_date,
+    sql`SELECT sp.name AS plan_name, sub.subscription_status, sub.start_date, sub.end_date,
                sub.price_paid, sp.classes_per_week, sp.multi_branch
         FROM subscriptions sub
         JOIN subscription_plans sp ON sp.id = sub.plan_id
         WHERE sub.user_id = ${user.id}
-          AND sub.status IN ('active', 'paused')
+          AND sub.subscription_status IN ('active', 'paused')
         ORDER BY sub.start_date DESC
         LIMIT 1`,
   );
@@ -535,7 +535,8 @@ async function checkMembership(
       ? `${sub.classes_per_week} clases/semana`
       : "clases ilimitadas";
   const multiBranchText = Number(sub.multi_branch) ? "Sí" : "No";
-  const statusText = sub.status === "active" ? "Activa" : "Pausada";
+  const statusText =
+    sub.subscription_status === "active" ? "Activa" : "Pausada";
 
   return [
     `Membresía de ${userName}:`,
