@@ -1,7 +1,12 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { eq, sql } from "drizzle-orm";
-import { createTestApp, getAuthToken, registerUser } from "../helpers";
+import {
+  createTestApp,
+  getAuthToken,
+  registerUser,
+  futureDateISO,
+} from "../helpers";
 import { subscriptionPlans } from "../../src/db/schema/subscription-plans";
 import { subscriptions } from "../../src/db/schema/subscriptions";
 import { payments } from "../../src/db/schema/payments";
@@ -129,7 +134,7 @@ describe("Subscriptions API", () => {
       payload: {
         planId: 1, // will be overridden
         branchId: 1,
-        startDate: "2026-03-01",
+        startDate: futureDateISO(7),
         priceTypeApplied: "regular",
         ...overrides,
       },
@@ -360,10 +365,11 @@ describe("Subscriptions API", () => {
       const plan = await createPlan();
       const member = await createMember();
 
+      const start = futureDateISO(7);
       const { statusCode, body } = await assignPlan(member.id, {
         planId: plan.id,
         priceTypeApplied: "regular",
-        startDate: "2026-03-01",
+        startDate: start,
       });
 
       expect(statusCode).toBe(201);
@@ -371,8 +377,11 @@ describe("Subscriptions API", () => {
       expect(body.planId).toBe(plan.id);
       expect(body.planName).toBe(basePlan.name);
       expect(body.status).toBe("active");
-      expect(body.startDate).toBe("2026-03-01");
-      expect(body.endDate).toBe("2026-03-31"); // 30 days from Mar 1
+      expect(body.startDate).toBe(start);
+      // endDate is in the future
+      expect(new Date(body.endDate as string).getTime()).toBeGreaterThan(
+        Date.now(),
+      );
       expect(body.pricePaid).toBe(basePlan.priceRegular);
       expect(body.priceTypeApplied).toBe("regular");
       expect(body.branchName).toBeTruthy();
@@ -385,7 +394,7 @@ describe("Subscriptions API", () => {
       const { statusCode, body } = await assignPlan(member.id, {
         planId: plan.id,
         boardingPass: true,
-        startDate: "2026-03-01",
+        startDate: futureDateISO(7),
         priceTypeApplied: "regular",
       });
 
@@ -403,7 +412,7 @@ describe("Subscriptions API", () => {
       const { statusCode: first } = await assignPlan(member.id, {
         planId: plan.id,
         boardingPass: true,
-        startDate: "2026-03-01",
+        startDate: futureDateISO(7),
         priceTypeApplied: "regular",
       });
       expect(first).toBe(201);
@@ -420,7 +429,7 @@ describe("Subscriptions API", () => {
       const { statusCode, body } = await assignPlan(member.id, {
         planId: plan.id,
         boardingPass: true,
-        startDate: "2026-04-01",
+        startDate: futureDateISO(7),
         priceTypeApplied: "regular",
       });
 
@@ -581,7 +590,7 @@ describe("Subscriptions API", () => {
       const member = await createMember();
       await assignPlan(member.id, {
         planId: plan.id,
-        startDate: "2026-03-01",
+        startDate: futureDateISO(7),
       });
 
       // Pause

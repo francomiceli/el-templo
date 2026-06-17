@@ -78,3 +78,25 @@ export async function registerUser(
   }
   return JSON.parse(response.body);
 }
+
+/**
+ * Return today + N days as an ISO date string ("YYYY-MM-DD").
+ * Uses noon UTC internally to avoid DST/day-boundary drift; mirrors the
+ * noon-UTC pattern from src/modules/shared/date-utils.ts so test fixtures
+ * stay consistent with production date arithmetic.
+ */
+export function futureDateISO(daysFromToday: number): string {
+  const now = new Date();
+  const d = new Date(
+    Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate(),
+      12,
+      0,
+      0,
+    ),
+  );
+  d.setUTCDate(d.getUTCDate() + daysFromToday);
+  return d.toISOString().split("T")[0];
+}
