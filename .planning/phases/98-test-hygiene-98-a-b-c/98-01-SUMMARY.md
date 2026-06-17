@@ -3,9 +3,13 @@ phase: 98-test-hygiene-98-a-b-c
 plan: 01
 subsystem: testing
 tags: [test-infra, cherry-pick, patch-apply, vi-mock, recovery]
-status: tasks-1-3-green-awaiting-task-4-checkpoint
+status: complete
 completed_at: 2026-06-17
 duration: "13m 8s"
+task_4_sign_off: approved_2026-06-17_by_operator
+merge_commit: 1206ced6
+merge_target: feature/whatsapp-bot-scaffold
+merge_scope: local_only_no_push_no_master
 
 dependency_graph:
   requires:
@@ -146,3 +150,20 @@ Commits claimed:
 Self-check verification at commit time below.
 
 ## Self-Check: PASSED
+
+---
+
+## Post-Merge & Sign-off (added 2026-06-17 after operator approval)
+
+**Task 4 (HUMAN_VERIFY) verdict:** Approved by operator. Two runs were observed during human-verify:
+
+- Run 1: 4 failures total, 3 of which clustered in `el-templo-api/test/whatsapp/ai-tools-membership-drift.test.ts` (a Phase-97.5-owned file, NOT a Phase 98 file).
+- Run 2 (retry): clean `519 passed / 1 failed / 520 total` — single deferred RED is `BUG-03 candidate (i)` at `el-templo-bot/src/ai/tools.ts:455` (Phase-95-owned, by design).
+
+The transient cluster in `ai-tools-membership-drift.test.ts` was captured as a separate finding (NOT a Phase 98 defect — see scope boundary in finding doc) and routed to Phase 97 RGUARD-01 scope: `.planning/phases/98-test-hygiene-98-a-b-c/98-FINDINGS-phase-97-bound.md` (finding id `98-FINDING-01`). The flake must close before RGUARD-01 can lock its regression baseline.
+
+**Post-merge test gate (orchestrator, after `1206ced6`):** First run hit `519 passed / 1 failed / 520 total` (same single deferred RED). Dual `pnpm exec tsc --noEmit` clean on both `el-templo-api` and `el-templo-bot` (exit 0). SC#5 HARD GUARD verified clean across the 3 task commits.
+
+**Merge:** `1206ced6` (no-ff merge of `worktree-agent-a371436131680cef1` → `feature/whatsapp-bot-scaffold`). Local only — does NOT push, does NOT merge to master. The user owns `el-templo-bot` to integration-ready; another developer owns real API/turnera wiring + deploy.
+
+**Phase 98 status:** Complete. Unblocks Phase 97 RGUARD-01 once the flake captured in `98-FINDING-01` is closed.
