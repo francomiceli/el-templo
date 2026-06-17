@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v5.3.3
 milestone_name: Post-v5.3.2 Live Test Fixes
-status: blocked
-stopped_at: Phase 98 HALTED 2026-06-17 — STOP-and-reclassify guard fired. Task 1 (98-A) committed 95d58f98; Task 2 (98-B) cascade-close exposed production bug in el-templo-bot raw SQL (sub.status / s.status vs subscription_status column at tools.ts:495,500 + machine.ts:77). Same drift class as Phase 95 BUG-03 (vi) bk.status; treat as SYSTEMIC. Halt artifacts at 98-HALT.md; debug session at bot-raw-sql-status-column-drift.md (open). Phase 97 RGUARD-01 and v5.4.0 path step 3 stay blocked until prod-fix phase lands. NEXT: /gsd-debug bot-raw-sql-status-column-drift for full sweep, then /gsd-discuss-phase + /gsd-plan-phase for the prod-fix phase.
-last_updated: "2026-06-17T14:57:46.733Z"
+status: executing
+stopped_at: Phase 98 context gathered (5b2a656f) — 11 decisions locked across 98-A/B/C + plan structure; ready for /gsd-plan-phase 98
+last_updated: "2026-06-17T17:31:41.329Z"
 progress:
-  total_phases: 7
+  total_phases: 8
   completed_phases: 4
   total_plans: 9
   completed_plans: 5
-  percent: 56
+  percent: 50
 ---
 
 # Project State
@@ -25,9 +25,9 @@ See: .planning/PROJECT.md (updated 2026-05-05)
 ## Current Position
 
 Milestone: v5.3.3 Post-v5.3.2 Live Test Fixes
-Phase: 98 (test-hygiene-98-a-b-c) — HALTED 2026-06-17 (STOP-and-reclassify guard fired; see `.planning/phases/98-test-hygiene-98-a-b-c/98-HALT.md`)
+Phase: 97.5 (raw-sql-column-drift-prod-fix) — INSERTED 2026-06-17 between Phase 96.5 and Phase 98. Phase 98 remains HALTED at .planning/phases/98-test-hygiene-98-a-b-c/98-HALT.md and reopens after 97.5 ships.
 Plan: 1 of 1 (paused mid-Task-2; Task 1 commit at 95d58f98 preserved on `phase-98-preserve/task-1-green-baseline`; Task 2 WIP at `98-TASK-2-WIP.patch`)
-Blocker: prod-fix phase required first — debug session `.planning/debug/bot-raw-sql-status-column-drift.md` (open) ready for /gsd-debug sweep
+Blocker: Phase 97.5 must ship before Phase 98 reopen and Phase 97 RGUARD-01. Debug session `.planning/debug/bot-raw-sql-status-column-drift.md` DIAGNOSED 2026-06-17 (full sweep complete: 3 confirmed drift sites, Option B fix locked, sweep-lint design captured). Awaiting `/gsd-discuss-phase 97.5`.
 
 **Phase 95 Plan 95-01 (BUG-03 audit):** SHIPPED 2026-05-18 — atomic commit `2d7cd171` `audit(95-01): branch verdict for BUG-03 + RED tests`. **Final Branch Verdict: Branch 3-{i, ii, iii, iv, v, vi}** — all six candidates fire as a maximal compound. **Candidate (vi) `bk.status` column mismatch at `tools.ts:282` was NEWLY DISCOVERED during RED-test authoring** and is the proximate SHOWSTOPPER — every `executeTool('check_schedule')` throws `Unknown column 'bk.status'` against the real `eltemplo_test` schema before reaching any other candidate's discriminator. Substantive gates green: sha256 6-pair invariant intact, tsc clean both packages, RED tests fail on master (integration 8/9, unit 1/4 with (iii) FIRES), no production source touched, exactly 3 files in commit. Two PLAN.md `<automated>` verify-block bugs documented in audit §G — see Engineering Learnings under Carry-forward planning constraints.
 
@@ -71,6 +71,10 @@ Coverage: **14/14 requirements mapped, 0 unmapped, 0 duplicates.**
 - v5.3.2 timeline: 2026-04-14 → 2026-04-16 (3 days, 13 tasks across 5 plans, 37 files, +6,041 net LOC)
 
 ## Accumulated Context
+
+### Roadmap Evolution
+
+- Phase 97.5 inserted after Phase 96.5: Raw-SQL Column-Drift Prod-Fix — systemic Drizzle column-name drift in el-templo-bot raw SQL (3 sites: tools.ts:495,500 + machine.ts:77). Discovered via Phase 98 STOP-and-reclassify guard 2026-06-17. Same drift class as Phase 95 BUG-03 (vi). TDD-shaped (RED → GREEN → sweep-lint guardrail). Blocks Phase 97 RGUARD-01 and Phase 98 reopen. (URGENT)
 
 ### Decisions
 
