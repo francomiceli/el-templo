@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v5.3.3
 milestone_name: Post-v5.3.2 Live Test Fixes
-status: executing
-stopped_at: "v5.4.0 path step 2 (/gsd-debug api-30 triage) DONE 2026-06-16 → verdict (a) PURE TEST-INFRA / TEST-STALENESS, 0 production bugs. Phase 98 (test hygiene 98-A/B/C) inserted as NEW path step 3 BEFORE Phase 97 (RGUARD-01 cannot lock a regression baseline on top of 30-red API suite). Phase 97 bumped to path step 4 (with absorption option). Mandatory steps now 1-6 (18-32h); recommended 7-11 (28-47h total). Next: /clear then /gsd-discuss-phase 98 OR /gsd-discuss-phase 97 --absorb-98 (owner decides at next session)."
-last_updated: "2026-06-16T18:00:00.000Z"
+status: RESOLVED via triage 2026-06-16. ZERO production source bugs identified across all 30 failures. v5.4.0 staging gate step 2 UNBLOCKED.
+stopped_at: Phase 98 context gathered (5b2a656f) — 11 decisions locked across 98-A/B/C + plan structure; ready for /gsd-plan-phase 98
+last_updated: "2026-06-17T13:02:20.942Z"
 progress:
-  total_phases: 6 # 93/94/95/96/97 original + 96.5 NEW per locked path
-  completed_phases: 4 # 93 passed, 95 closed (beb2282b), 96 complete (96-01-SUMMARY.md), 96.5 complete (96.5-01-SUMMARY.md d835c18a); 94 human_needed pending BUG-02 smoke; 97 not started
-  total_plans: 10 # 8 shipped + 97 (~2 per ROADMAP) estimated
-  completed_plans: 8 # 93-01, 94-01, 94-02, 95-01, 95-02, 95-03, 96-01, 96.5-01 (Phase 95 SUMMARY backfill deferred to milestone-hygiene commit)
-  percent: 80
+  total_phases: 7
+  completed_phases: 4
+  total_plans: 8
+  completed_plans: 5
+  percent: 57
 ---
 
 # Project State
@@ -200,7 +200,7 @@ None. v5.3.2 shipped clean. v5.3.3 ROADMAP.md complete with full coverage; BUG-0
 
 ## Session Continuity
 
-Last session: 2026-06-16T18:00:00.000Z
-Stopped at: `/gsd-debug` api-30-test-failures-triage CLASSIFIED 2026-06-16 → verdict **(a) PURE TEST-INFRA / TEST-STALENESS**. Zero production source bugs across all 30 failures. Per-file: subscriptions (6) = temporal-fixture staleness (`startDate: "2026-03-01"` 77d past); ai-tools (20) = broken cleanup filter `branches LIKE 'TST%'` vs seeded `'alem'` cascade + stale `"20 lugares"` vs intentional prod `"cupos disponibles"`; booking.integration (1) = Phase 95 (i) RED unchanged; webhook (3) = missing OpenAI mock + stale silent-drop assertion vs current store+reply ("quick-16 fix 3"). Both cross-verified independently by owner. v5.4.0 path RE-SEQUENCED: Phase 98 (test hygiene 98-A/B/C, ~3-4h, test-infra ONLY) inserted as path step 3 BEFORE Phase 97; Phase 97 bumped to step 4 with absorption option.
-Resume file: .planning/debug/resolved/api-30-test-failures-triage.md
+Last session: 2026-06-17T13:02:20.928Z
+Stopped at: Phase 98 context gathered (5b2a656f) — 11 decisions locked across 98-A/B/C + plan structure; ready for /gsd-plan-phase 98
+Resume file: .planning/phases/98-test-hygiene-98-a-b-c/98-CONTEXT.md
 Next step: `/clear` then either (a) `/gsd-discuss-phase 98` to plan the test-hygiene phase as a separate ship, OR (b) skip directly to `/gsd-discuss-phase 97` and instruct discuss-phase to absorb 98-A/B/C into RGUARD-01 scope. Owner decides at next session. KGATE-05 ceiling for Phase 97 directive additions remains **32 chars** post-Phase-96.5 ship.
