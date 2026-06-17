@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v5.3.3
 milestone_name: Post-v5.3.2 Live Test Fixes
 status: executing
-stopped_at: Phase 98 context gathered (5b2a656f) — 11 decisions locked across 98-A/B/C + plan structure; ready for /gsd-plan-phase 98
-last_updated: "2026-06-17T17:31:41.329Z"
+stopped_at: "Phase 97.5 context gathered (f8529235) — 5 decisions locked: D-01 RED at el-templo-api/test/whatsapp/ai-tools-membership-drift.test.ts, D-02 regex sweep-lint with bare-column + synthetic-fixture sub-clauses, D-03 hybrid Drizzle introspection + subset coverage assertion, D-04 inline rename in both SubscriptionRow declarations, D-05 RED-first sweep-lint. Ready for /gsd-plan-phase 97.5."
+last_updated: "2026-06-17T17:56:51.760Z"
 progress:
   total_phases: 8
   completed_phases: 4
@@ -205,7 +205,7 @@ None. v5.3.2 shipped clean. v5.3.3 ROADMAP.md complete with full coverage; BUG-0
 
 ## Session Continuity
 
-Last session: 2026-06-17T13:02:20.928Z
-Stopped at: Phase 98 context gathered (5b2a656f) — 11 decisions locked across 98-A/B/C + plan structure; ready for /gsd-plan-phase 98
-Resume file: .planning/phases/98-test-hygiene-98-a-b-c/98-CONTEXT.md
-Next step: `/clear` then either (a) `/gsd-discuss-phase 98` to plan the test-hygiene phase as a separate ship, OR (b) skip directly to `/gsd-discuss-phase 97` and instruct discuss-phase to absorb 98-A/B/C into RGUARD-01 scope. Owner decides at next session. KGATE-05 ceiling for Phase 97 directive additions remains **32 chars** post-Phase-96.5 ship.
+Last session: 2026-06-17T17:56:38.666Z
+Stopped at: Phase 97.5 context gathered (f8529235) — 5 decisions locked: D-01 RED at el-templo-api/test/whatsapp/ai-tools-membership-drift.test.ts, D-02 regex sweep-lint with bare-column + synthetic-fixture sub-clauses, D-03 hybrid Drizzle introspection + subset coverage assertion, D-04 inline rename in both SubscriptionRow declarations, D-05 RED-first sweep-lint. Ready for /gsd-plan-phase 97.5.
+Resume file: .planning/phases/97.5-raw-sql-column-drift-prod-fix/97.5-CONTEXT.md
+Next step: `/clear` then `/gsd-plan-phase 97.5` to plan the Raw-SQL Column-Drift Prod-Fix (5 decisions locked in 97.5-CONTEXT.md: D-01 dedicated RED at el-templo-api/test/whatsapp/ai-tools-membership-drift.test.ts; D-02 regex+accumulator sweep-lint with REQUIRED bare-column coverage + synthetic-drift positive control; D-03 hybrid Drizzle introspection + must-include SUBSET assertion anchored on plain-word→prefixed renames; D-04 inline rename in both SubscriptionRow declarations, NO §E-style hardcoded pin; D-05 RED-first sweep-lint, canonical 3-commit chain RED → GREEN → SUMMARY). Phase 98 reopen and Phase 97 RGUARD-01 stay blocked until 97.5 ships. KGATE-05 ceiling for Phase 97 directive additions remains **32 chars** post-Phase-96.5 ship.
