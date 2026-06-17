@@ -79,7 +79,7 @@ describe("Client State Machine", () => {
         [
           [
             {
-              status: "active",
+              subscription_status: "active",
               end_date: futureDate.toISOString().split("T")[0],
               is_trial: 0,
             },
@@ -103,7 +103,7 @@ describe("Client State Machine", () => {
         [
           [
             {
-              status: "active",
+              subscription_status: "active",
               end_date: futureDate.toISOString().split("T")[0],
               is_trial: 0,
             },
@@ -127,7 +127,7 @@ describe("Client State Machine", () => {
         [
           [
             {
-              status: "active",
+              subscription_status: "active",
               end_date: pastDate.toISOString().split("T")[0],
               is_trial: 0,
             },
@@ -144,7 +144,16 @@ describe("Client State Machine", () => {
     it("returns 'trial' when user only has trial subscriptions", async () => {
       const db = createMockDb([
         [[{ id: 42, first_name: "Maria", is_active: 1 }], []], // user found
-        [[{ status: "expired", end_date: "2025-01-01", is_trial: 1 }], []], // only trial sub, expired
+        [
+          [
+            {
+              subscription_status: "expired",
+              end_date: "2025-01-01",
+              is_trial: 1,
+            },
+          ],
+          [],
+        ], // only trial sub, expired
       ]);
 
       const result = await determineClientState("5491100000001", db as never);
@@ -157,8 +166,16 @@ describe("Client State Machine", () => {
         [[{ id: 42, first_name: "Carlos", is_active: 1 }], []], // user found
         [
           [
-            { status: "cancelled", end_date: "2025-01-01", is_trial: 0 },
-            { status: "expired", end_date: "2024-06-01", is_trial: 0 },
+            {
+              subscription_status: "cancelled",
+              end_date: "2025-01-01",
+              is_trial: 0,
+            },
+            {
+              subscription_status: "expired",
+              end_date: "2024-06-01",
+              is_trial: 0,
+            },
           ],
           [],
         ], // non-trial expired subs
@@ -172,7 +189,16 @@ describe("Client State Machine", () => {
     it("returns 'inactive_member' when subscription is paused", async () => {
       const db = createMockDb([
         [[{ id: 42, first_name: "Ana", is_active: 1 }], []], // user found
-        [[{ status: "paused", end_date: "2026-06-01", is_trial: 0 }], []], // paused subscription
+        [
+          [
+            {
+              subscription_status: "paused",
+              end_date: "2026-06-01",
+              is_trial: 0,
+            },
+          ],
+          [],
+        ], // paused subscription
       ]);
 
       const result = await determineClientState("5491100000001", db as never);
@@ -183,7 +209,7 @@ describe("Client State Machine", () => {
     it("returns 'active_member' when subscription has null end_date (unlimited) and has attendance", async () => {
       const db = createMockDb([
         [[{ id: 42, first_name: "Luis", is_active: 1 }], []], // user found
-        [[{ status: "active", end_date: null, is_trial: 0 }], []], // active subscription, no end_date
+        [[{ subscription_status: "active", end_date: null, is_trial: 0 }], []], // active subscription, no end_date
         [[{ cnt: 3 }], []], // 3 attendances
       ]);
 
