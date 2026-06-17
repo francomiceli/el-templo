@@ -38,6 +38,26 @@ vi.mock(
   },
 );
 
+// Mock createAiProvider so tests don't hit the OpenAI API. The canned reply
+// shape `{ content, toolCalls: [] }` matches AiResponse (provider.ts:33-36).
+// toolCalls: [] makes the handler skip the executeTool loop entirely
+// (handler.ts:708 checks response.toolCalls.length > 0 before entering).
+vi.mock("../../../el-templo-bot/src/ai/provider", async (importOriginal) => {
+  const original =
+    await importOriginal<
+      typeof import("../../../el-templo-bot/src/ai/provider")
+    >();
+  return {
+    ...original,
+    createAiProvider: vi.fn(() => ({
+      chat: vi.fn().mockResolvedValue({
+        content: "Hola, soy Mica.",
+        toolCalls: [],
+      }),
+    })),
+  };
+});
+
 // Import after mock setup
 import { webhookRoutes } from "../../../el-templo-bot/src/webhook/routes";
 import { sendTextMessage } from "../../../el-templo-bot/src/whatsapp/client";
@@ -289,13 +309,13 @@ describe("WhatsApp Webhook", () => {
       );
       const echoMessages = echoRows as Record<string, unknown>[];
       expect(echoMessages).toHaveLength(1);
-      expect(echoMessages[0].content).toBe("Echo: Hello from WhatsApp!");
+      expect(echoMessages[0].content).toBe("Hola, soy Mica.");
       expect(echoMessages[0].whatsapp_message_id).toBe("wamid.sent.mock123");
 
       // Verify sendTextMessage was called correctly
       expect(sendTextMessage).toHaveBeenCalledWith(
         "5491100000001",
-        "Echo: Hello from WhatsApp!",
+        "Hola, soy Mica.",
       );
     });
   });
@@ -386,7 +406,7 @@ describe("WhatsApp Webhook", () => {
   });
 
   describe("POST /webhook — non-text message (image)", () => {
-    it("returns 200 but does not store or reply", async () => {
+    it("returns 200, stores inbound, and sends non-text fallback", async () => {
       const payload = makeImagePayload("5491100000004", "wamid.image001");
 
       const res = await app.inject({
@@ -398,22 +418,30 @@ describe("WhatsApp Webhook", () => {
       expect(res.statusCode).toBe(200);
       expect(res.body).toBe("EVENT_RECEIVED");
 
-      // Small delay to ensure no async processing occurred
-      await new Promise((r) => setTimeout(r, 100));
+      // Handler now stores inbound + sends non-text fallback reply
+      // (handler.ts:323-358 "quick-16 fix 3"). Await the handler instead of
+      // sleeping for a fixed duration — see waitForHandler() above.
+      await waitForHandler();
 
-      // No messages created
-      const [msgRows] = await pool.execute("SELECT * FROM whatsapp_messages");
+      // 1 inbound (the image) + 1 outbound fallback reply.
+      const [msgRows] = await pool.execute(
+        "SELECT * FROM whatsapp_messages ORDER BY id",
+      );
       const messages = msgRows as Record<string, unknown>[];
-      expect(messages).toHaveLength(0);
+      expect(messages).toHaveLength(2);
+      expect(sendTextMessage).toHaveBeenCalledOnce();
 
-      // No conversations created
+      // Semantic anchor: getNonTextFallback("image") at handler.ts:173-188
+      // returns text starting with "Recibí tu imagen, pero …". Asserting the
+      // substring keeps the test robust to Spanish-copy polish.
+      expect(messages[1].content).toContain("imagen");
+
+      // Inbound INSERT triggered conversation creation.
       const [convRows] = await pool.execute(
         "SELECT * FROM whatsapp_conversations WHERE phone = '5491100000004'",
       );
       const conversations = convRows as Record<string, unknown>[];
-      expect(conversations).toHaveLength(0);
-
-      expect(sendTextMessage).not.toHaveBeenCalled();
+      expect(conversations).toHaveLength(1);
     });
   });
 
