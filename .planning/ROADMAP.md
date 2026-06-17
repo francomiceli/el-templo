@@ -35,8 +35,9 @@
 - [ ] **Phase 95: Booking Reliability + Graceful Degradation** — BUG-03 + BUG-05 paired; class search consistency across venues + tool-failure retry-counter + escalate via `request_human` after 2 failed attempts; SC#3 invariant preserved (BOOK-01, DEGR-01..02)
 - [ ] **Phase 96: Context Awareness** — BUG-04; bot does not re-ask data already provided in conversation; fix in `system-prompt.ts` or profile extraction layer (CTXT-01..02)
 - [x] **Phase 96.5: Date Grounding Fix** — Finding #2 from Phase 96 live UAT; bot grounds today's date instead of hallucinating "Lunes 2023-11-06"; second `*Convención:*` line in `system-prompt.ts` + snapshot date-stub infrastructure (DATE-01) ✅ shipped 2026-06-16
-- [ ] **Phase 98: Test Hygiene (98-A/B/C)** — restore green baseline on `el-templo-api` test suite (30 failures classified (a) pure test-infra via `/gsd-debug` 2026-06-16); test-infra ONLY, zero production source touches; MUST precede Phase 97 RGUARD-01 (regression lock cannot sit on top of 30-red baseline)
-- [ ] **Phase 97: Backlog + Regression Lock** — BACKLOG-01 (third elevator hook) + BACKLOG-02 (voseo consistency, non-deterministic strategy) + v5.3.3 regression suite + extend timeout pattern to `executeTool` localhost calls (ELEV-01, VOSEO-01, RGUARD-01..03); Phase 97 plan-phase MAY absorb Phase 98 98-A/B/C into RGUARD-01 scope at discuss-time
+- [ ] **NEW — Prod-fix phase (Phase 97.5 or 98.fix)** — raw-SQL ↔ Drizzle-column-name drift sweep + fix across `el-templo-bot/src/**` and `el-templo-api/src/**`. **Discovered 2026-06-17 via Phase 98 STOP-and-reclassify guard.** Confirmed sites: `tools.ts:495,500` (`sub.status` → `sub.subscription_status`), `machine.ts:77` (`s.status`); same drift class as Phase 95 BUG-03 (vi) `bk.status` → `bk.booking_status` — treated as SYSTEMIC, full sweep required (not point-fix). TDD-shaped (RED reproducing `Unknown column 'X' in 'field list'`; GREEN sweep-fix; sweep-lint test prevents regression). Debug session input at `.planning/debug/bot-raw-sql-status-column-drift.md` (open). **Blocks Phase 97 RGUARD-01 and Phase 98 reopen.** Awaiting `/gsd-debug` full sweep + plan-phase.
+- [ ] **Phase 98: Test Hygiene (98-A/B/C)** — ⚠ HALTED 2026-06-17 per plan's STOP-and-reclassify guard; Task 1 (98-A) committed `95d58f98` preserved on `phase-98-preserve/task-1-green-baseline`; Task 2 (98-B) WIP preserved at `98-TASK-2-WIP.patch`; Task 3 (98-C) + Task 4 not started. Halt narrative at `.planning/phases/98-test-hygiene-98-a-b-c/98-HALT.md`. **Reopens after the prod-fix phase ships** — cherry-pick Task 1 + apply Task 2 WIP + Task 3 (vi.mock for AI provider) + Task 4 (human-verify checkpoint). Original verdict (a) "pure test-infra" was incomplete — see verdict amendment in `.planning/debug/resolved/api-30-test-failures-triage.md`. MUST still precede Phase 97 RGUARD-01.
+- [ ] **Phase 97: Backlog + Regression Lock** — BACKLOG-01 (third elevator hook) + BACKLOG-02 (voseo consistency, non-deterministic strategy) + v5.3.3 regression suite + extend timeout pattern to `executeTool` localhost calls (ELEV-01, VOSEO-01, RGUARD-01..03); Phase 97 plan-phase MAY absorb Phase 98 98-A/B/C into RGUARD-01 scope at discuss-time. **BLOCKED on prod-fix phase + Phase 98 reopen completion.**
 
 ## Phase Details
 
@@ -216,9 +217,17 @@ The 45s `OPENAI_TIMEOUT_MS` is the LEFT-HAND VARIABLE that the right-hand TTL mu
   - **Phase 96 surfaces** (CTXT rule, parseExtractionResponse helper, SOFT_REJECTION region) → all UNCHANGED.
   - **Other handler regions** (concurrency guard, OpenAI client, tool loop, retry counter) → UNCHANGED. Phase 96.5 modifies exactly one surface: `system-prompt.ts` insertion region around `:217+`.
 
-### Phase 98: Test Hygiene (98-A/B/C)
+### Phase 98: Test Hygiene (98-A/B/C) — ⏸ HALTED 2026-06-17
 
-**Goal**: Restore green baseline on `el-templo-api` test suite by fixing the 30 test-side issues classified in `/gsd-debug` session `api-30-test-failures-triage` (2026-06-16) as verdict **(a) PURE TEST-INFRA / TEST-STALENESS**. Test-infra ONLY — zero production source modifications. MUST precede Phase 97 RGUARD-01 because the "milestone-scoped regression suite" cannot lock a regression baseline on top of a 30-red API test suite: new API regressions during Phase 97 + Manual UAT Round 2 would be indistinguishable from existing noise.
+**⚠ HALT:** Phase 98 halted mid-Task-2 per the plan's STOP-and-reclassify guard. Closing the D-05 cleanup cascade in `ai-tools.test.ts` exposed a production bug in `el-templo-bot` raw SQL (`sub.status` / `s.status` at `tools.ts:495,500` + `machine.ts:77` but the SQL column is `subscription_status`). Same drift class as Phase 95 BUG-03 (vi) `bk.status` → `bk.booking_status` — treated as SYSTEMIC. SC#5 HARD GUARD (zero production source modifications) prevents the fix landing in Phase 98 by design. **A new prod-fix phase (97.5) is queued ahead of Phase 98 reopen.** See `.planning/phases/98-test-hygiene-98-a-b-c/98-HALT.md` for the halt narrative, preserved artifacts, and re-plan inputs. The original verdict-(a) classification in `.planning/debug/resolved/api-30-test-failures-triage.md` is amended to (b) — see verdict-amendment block in that file.
+
+**Preserved at halt:**
+
+- Task 1 (98-A): committed `95d58f98` on `phase-98-preserve/task-1-green-baseline` (durable) and `worktree-agent-a10bd401b163da68c` (worktree). Closes 6 of 30 reds. Cherry-pick on Phase 98 reopen.
+- Task 2 (98-B) WIP: `.planning/phases/98-test-hygiene-98-a-b-c/98-TASK-2-WIP.patch` (104 lines). Includes plan-authorized D-05/D-06 + operator-authorized expansion (`booking_status` renames, `Alem 3958` / `Av. Constitucion 6745` address fixes, `'TSTC'` for varchar(10) overflow, `maps.app.goo.gl` for short-link assertion). Plus diagnosis (not yet fixed) of check_schedule date mismatch at `:153`/`:178`. Apply on Phase 98 reopen.
+- Task 3 (98-C) + Task 4 (human-verify): not started.
+
+**Goal (unchanged for reopen):** Restore green baseline on `el-templo-api` test suite by fixing the test-side issues originally classified in `/gsd-debug` session `api-30-test-failures-triage` (2026-06-16) as verdict (a) PURE TEST-INFRA — amended 2026-06-17 to verdict (b) test-infra + 1 systemic prod bug class (raw-SQL column-name drift). Phase 98 remains test-infra ONLY — zero production source modifications. The prod-bug class is owned by the new Phase 97.5. MUST still precede Phase 97 RGUARD-01.
 **Depends on**: Phase 96.5 (shipped 2026-06-16, `d835c18a` SUMMARY) + `/gsd-debug` api-30 triage (resolved 2026-06-16, classification verdict (a)).
 **Requirements**: HYG-01 (NEW — green baseline on `el-templo-api` test suite; 29 of 30 newly-green failures + 1 deferred BUG-03 (i) RED).
 **Success Criteria** (what must be TRUE):
@@ -279,15 +288,16 @@ The 45s `OPENAI_TIMEOUT_MS` is the LEFT-HAND VARIABLE that the right-hand TTL mu
 
 ## Progress
 
-| Phase                                          | Plans Complete | Status      | Completed  |
-| ---------------------------------------------- | -------------- | ----------- | ---------- |
-| 93. Handler Concurrency                        | 1/1            | ✅ Complete | 2026-05-17 |
-| 94. OpenAI Latency + Graceful Failure          | 2/2            | Complete    | 2026-05-18 |
-| 95. Booking Reliability + Graceful Degradation | 0/?            | Not started | -          |
-| 96. Context Awareness                          | 0/?            | Not started | -          |
-| 96.5. Date Grounding Fix                       | 1/1            | ✅ Complete | 2026-06-16 |
-| 98. Test Hygiene (98-A/B/C)                    | 0/?            | Not started | -          |
-| 97. Backlog + Regression Lock                  | 0/?            | Not started | -          |
+| Phase                                           | Plans Complete | Status                                                                                                | Completed  |
+| ----------------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------------- | ---------- |
+| 93. Handler Concurrency                         | 1/1            | ✅ Complete                                                                                           | 2026-05-17 |
+| 94. OpenAI Latency + Graceful Failure           | 2/2            | Complete                                                                                              | 2026-05-18 |
+| 95. Booking Reliability + Graceful Degradation  | 0/?            | Not started                                                                                           | -          |
+| 96. Context Awareness                           | 0/?            | Not started                                                                                           | -          |
+| 96.5. Date Grounding Fix                        | 1/1            | ✅ Complete                                                                                           | 2026-06-16 |
+| 97.5. Prod-fix: raw-SQL column-name drift sweep | 0/?            | ⏸ Blocked (needs /gsd-debug + plan)                                                                   | -          |
+| 98. Test Hygiene (98-A/B/C)                     | 0.33/1         | ⏸ HALTED 2026-06-17 (STOP-and-reclassify; Task 1 committed, Task 2 WIP preserved, reopens after 97.5) | -          |
+| 97. Backlog + Regression Lock                   | 0/?            | ⏸ Blocked on 97.5 + 98                                                                                | -          |
 
 ---
 

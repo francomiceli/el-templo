@@ -1,15 +1,38 @@
 ---
 slug: api-30-test-failures-triage
-status: resolved
+status: resolved-with-amendment
 trigger: "el-templo-api 30 pre-existing test failures — pre-v5.4.0 staging gate triage. Carry-forward debt blocking v5.4.0 path step 2. User invocation 2026-06-16 after Phase 96.5 ship at HEAD 4e5d8d75."
 created: 2026-06-16
-updated: 2026-06-16
+updated: 2026-06-17
 goal: find_root_cause_only
 specialist_dispatch_enabled: true
 v54_gate: true
+verdict_amendment:
+  date: 2026-06-17
+  trigger: Phase 98 STOP-and-reclassify (operator-authorized halt)
+  original_verdict: "(a) pure test-infra / seed drift"
+  amended_verdict: "(b) test-infra + 1 systemic production bug class — raw-SQL ↔ Drizzle-column-name drift"
+  evidence_pointer: .planning/phases/98-test-hygiene-98-a-b-c/98-HALT.md
+  followup_debug_session: bot-raw-sql-status-column-drift (status: open)
 ---
 
 # Debug — el-templo-api 30 pre-existing test failures (pre-v5.4.0 staging gate)
+
+## ⚠ Verdict amendment (2026-06-17 — Phase 98 halt)
+
+Phase 98 (test-hygiene-98-a-b-c) was authorized 2026-06-17 to land the test-infra fixes implied by this session's verdict (a). Task 1 (98-A, subscriptions startDate rewrite) committed clean at `95d58f98`. Task 2 (98-B, ai-tools cleanup-cascade close) closed the masking drift at `:60` (`'alem'` → `'TSTA'`) and surfaced 8 latent failures beneath it. Operator authorized expanded Task 2 scope to fix those latents — applying `status` → `subscription_status` at the test INSERT (`:235`) made the row insertable, which then exposed that **`el-templo-bot/src/ai/tools.ts:495,500` and `el-templo-bot/src/state/machine.ts:77` read `sub.status` / `s.status` in raw SQL**, but the actual SQL column is `subscription_status` (migration `0032_subscriptions.sql:32`).
+
+**This is a confirmed production bug, not test-infra.** Of the original 30 failures, at least 3 (check_membership cluster in `ai-tools.test.ts`) plus likely 3+ in `webhook.test.ts` (state machine propagation) are verdict (b), not verdict (a). The verdict-(a) classification was correct at the symptom level (cascade-masked SELECT failures look like INSERT failures) but missed the downstream prod bug because the cascade was never closed during this triage session.
+
+**Pattern is systemic:** this is the second instance of the same drift class. First instance was `bk.status` → `bk.booking_status` (Phase 95 BUG-03 (vi), fixed at `tools.ts:330` and `:824`). Two instances in two sibling tables (bookings, subscriptions) → treat as systemic raw-SQL ↔ Drizzle-column-name drift.
+
+**Follow-up debug session:** `.planning/debug/bot-raw-sql-status-column-drift.md` (open) — full sweep of `el-templo-bot/src/**` and `el-templo-api/src/**` for the drift class, then TDD-shaped prod-fix phase before Phase 97 RGUARD-01.
+
+**Phase 98 status:** halted at `.planning/phases/98-test-hygiene-98-a-b-c/98-HALT.md`. Task 1 commit preserved on `phase-98-preserve/task-1-green-baseline`. Task 2 WIP preserved at `98-TASK-2-WIP.patch`. Reopens after the prod-fix phase ships.
+
+This session stays `resolved-with-amendment` rather than reopened because the original triage goal (find root cause) was met at the level visible 2026-06-16; the deeper diagnosis required the cascade-close work that Phase 98 actually performed. The amendment captures the corrected understanding without re-litigating the original triage decisions.
+
+---
 
 ## Symptoms
 

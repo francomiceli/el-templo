@@ -1,0 +1,104 @@
+diff --git a/el-templo-api/test/whatsapp/ai-tools.test.ts b/el-templo-api/test/whatsapp/ai-tools.test.ts
+index ca24aed3..b45c7a8f 100644
+--- a/el-templo-api/test/whatsapp/ai-tools.test.ts
++++ b/el-templo-api/test/whatsapp/ai-tools.test.ts
+@@ -57,7 +57,7 @@ beforeEach(async () => {
+   // Seed a branch
+   const [branchResult] = await pool.execute(
+     `INSERT INTO branches (name, code, max_capacity, is_active, created_at, updated_at)
+-     VALUES ('Test Alem', 'alem', 20, true, NOW(), NOW())`,
++     VALUES ('Test Alem', 'TSTA', 20, true, NOW(), NOW())`,
+   );
+   branchId = (branchResult as { insertId: number }).insertId;
+ 
+@@ -109,7 +109,7 @@ describe("check_schedule", () => {
+     expect(result).toContain("Test Alem");
+     expect(result).toContain("Lunes");
+     expect(result).toContain("08:00-09:00");
+-    expect(result).toContain("20 lugares");
++    expect(result).toContain("20 cupos disponibles");
+   });
+ 
+   it("filters by branchId", async () => {
+@@ -163,7 +163,7 @@ describe("check_schedule", () => {
+       const bookerId = (uResult as { insertId: number }).insertId;
+ 
+       await pool.execute(
+-        `INSERT INTO bookings (member_id, schedule_id, booking_date, status, booked_at)
++        `INSERT INTO bookings (member_id, schedule_id, booking_date, booking_status, booked_at)
+          VALUES (?, ?, ?, 'reservado', NOW())`,
+         [bookerId, scheduleId, today],
+       );
+@@ -171,7 +171,7 @@ describe("check_schedule", () => {
+ 
+     const result = await executeTool("check_schedule", { dayOfWeek: 1 }, db);
+ 
+-    expect(result).toContain("2 lugares");
++    expect(result).toContain("2 cupos disponibles");
+   });
+ 
+   it("shows 'lleno' when at capacity", async () => {
+@@ -188,7 +188,7 @@ describe("check_schedule", () => {
+       const fullId = (uResult as { insertId: number }).insertId;
+ 
+       await pool.execute(
+-        `INSERT INTO bookings (member_id, schedule_id, booking_date, status, booked_at)
++        `INSERT INTO bookings (member_id, schedule_id, booking_date, booking_status, booked_at)
+          VALUES (?, ?, ?, 'reservado', NOW())`,
+         [fullId, scheduleId, today],
+       );
+@@ -213,7 +213,7 @@ describe("check_schedule", () => {
+       const cancelId = (uResult as { insertId: number }).insertId;
+ 
+       await pool.execute(
+-        `INSERT INTO bookings (member_id, schedule_id, booking_date, status, booked_at)
++        `INSERT INTO bookings (member_id, schedule_id, booking_date, booking_status, booked_at)
+          VALUES (?, ?, ?, 'cancelado', NOW())`,
+         [cancelId, scheduleId, today],
+       );
+@@ -222,7 +222,7 @@ describe("check_schedule", () => {
+     const result = await executeTool("check_schedule", { dayOfWeek: 1 }, db);
+ 
+     // All 20 spots should be available since all bookings are cancelled
+-    expect(result).toContain("20 lugares");
++    expect(result).toContain("20 cupos disponibles");
+   });
+ });
+ 
+@@ -232,7 +232,7 @@ describe("check_membership", () => {
+   it("returns subscription info for active member", async () => {
+     // Create active subscription
+     await pool.execute(
+-      `INSERT INTO subscriptions (user_id, plan_id, branch_id, status, start_date, end_date, price_paid, price_type_applied, created_at, updated_at)
++      `INSERT INTO subscriptions (user_id, plan_id, branch_id, subscription_status, start_date, end_date, price_paid, price_type_applied, created_at, updated_at)
+        VALUES (?, ?, ?, 'active', '2026-03-01', '2026-03-31', 15000, 'regular', NOW(), NOW())`,
+       [userId, planId, branchId],
+     );
+@@ -308,15 +308,15 @@ describe("get_location", () => {
+     const result = await executeTool("get_location", {}, db);
+ 
+     expect(result).toContain("Test Alem");
+-    expect(result).toContain("google.com/maps/search");
+-    expect(result).toContain("Av. Leandro N. Alem 896");
++    expect(result).toContain("Alem 3958, Mar del Plata");
++    expect(result).toContain("maps.app.goo.gl");
+   });
+ 
+   it("filters by branch name", async () => {
+     // Add a second branch
+     await pool.execute(
+       `INSERT INTO branches (name, code, max_capacity, is_active, created_at, updated_at)
+-       VALUES ('Test Constitucion', 'constitucion', 15, true, NOW(), NOW())`,
++       VALUES ('Test Constitucion', 'TSTC', 15, true, NOW(), NOW())`,
+     );
+ 
+     const result = await executeTool(
+@@ -326,7 +326,7 @@ describe("get_location", () => {
+     );
+ 
+     expect(result).toContain("Test Constitucion");
+-    expect(result).toContain("Av. Constitución 1050");
++    expect(result).toContain("Av. Constitucion 6745, Mar del Plata");
+     expect(result).not.toContain("Test Alem");
+   });
+ 
