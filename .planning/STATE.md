@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v5.3.3
 milestone_name: Post-v5.3.2 Live Test Fixes
 status: executing
-stopped_at: "Phase 97.5 context gathered (f8529235) — 5 decisions locked: D-01 RED at el-templo-api/test/whatsapp/ai-tools-membership-drift.test.ts, D-02 regex sweep-lint with bare-column + synthetic-fixture sub-clauses, D-03 hybrid Drizzle introspection + subset coverage assertion, D-04 inline rename in both SubscriptionRow declarations, D-05 RED-first sweep-lint. Ready for /gsd-plan-phase 97.5."
-last_updated: "2026-06-17T17:56:51.760Z"
+stopped_at: Phase 97.5 plan-phase complete (332e360b) — gsd-planner + gsd-pattern-mapper + gsd-plan-checker all PASS. Ready for execute.
+last_updated: "2026-06-17T18:37:42.764Z"
 progress:
   total_phases: 8
   completed_phases: 4
-  total_plans: 9
+  total_plans: 10
   completed_plans: 5
   percent: 50
 ---
@@ -25,9 +25,9 @@ See: .planning/PROJECT.md (updated 2026-05-05)
 ## Current Position
 
 Milestone: v5.3.3 Post-v5.3.2 Live Test Fixes
-Phase: 97.5 (raw-sql-column-drift-prod-fix) — INSERTED 2026-06-17 between Phase 96.5 and Phase 98. Phase 98 remains HALTED at .planning/phases/98-test-hygiene-98-a-b-c/98-HALT.md and reopens after 97.5 ships.
+Phase: 97.5 (raw-sql-column-drift-prod-fix) — PLANNED 2026-06-17 (plan-checker PASS across all 10 dimensions). Single-plan TDD chain ready: 97.5-01-PLAN.md (RED integration + RED sweep-lint → GREEN Option B rename → SUMMARY). Phase 98 remains HALTED; reopens after 97.5 ships.
 Plan: 1 of 1 (paused mid-Task-2; Task 1 commit at 95d58f98 preserved on `phase-98-preserve/task-1-green-baseline`; Task 2 WIP at `98-TASK-2-WIP.patch`)
-Blocker: Phase 97.5 must ship before Phase 98 reopen and Phase 97 RGUARD-01. Debug session `.planning/debug/bot-raw-sql-status-column-drift.md` DIAGNOSED 2026-06-17 (full sweep complete: 3 confirmed drift sites, Option B fix locked, sweep-lint design captured). Awaiting `/gsd-discuss-phase 97.5`.
+Blocker: Phase 97.5 ready to execute. Phase 98 reopen and Phase 97 RGUARD-01 stay blocked until 97.5 GREEN ships on master.
 
 **Phase 95 Plan 95-01 (BUG-03 audit):** SHIPPED 2026-05-18 — atomic commit `2d7cd171` `audit(95-01): branch verdict for BUG-03 + RED tests`. **Final Branch Verdict: Branch 3-{i, ii, iii, iv, v, vi}** — all six candidates fire as a maximal compound. **Candidate (vi) `bk.status` column mismatch at `tools.ts:282` was NEWLY DISCOVERED during RED-test authoring** and is the proximate SHOWSTOPPER — every `executeTool('check_schedule')` throws `Unknown column 'bk.status'` against the real `eltemplo_test` schema before reaching any other candidate's discriminator. Substantive gates green: sha256 6-pair invariant intact, tsc clean both packages, RED tests fail on master (integration 8/9, unit 1/4 with (iii) FIRES), no production source touched, exactly 3 files in commit. Two PLAN.md `<automated>` verify-block bugs documented in audit §G — see Engineering Learnings under Carry-forward planning constraints.
 
@@ -205,7 +205,7 @@ None. v5.3.2 shipped clean. v5.3.3 ROADMAP.md complete with full coverage; BUG-0
 
 ## Session Continuity
 
-Last session: 2026-06-17T17:56:38.666Z
-Stopped at: Phase 97.5 context gathered (f8529235) — 5 decisions locked: D-01 RED at el-templo-api/test/whatsapp/ai-tools-membership-drift.test.ts, D-02 regex sweep-lint with bare-column + synthetic-fixture sub-clauses, D-03 hybrid Drizzle introspection + subset coverage assertion, D-04 inline rename in both SubscriptionRow declarations, D-05 RED-first sweep-lint. Ready for /gsd-plan-phase 97.5.
-Resume file: .planning/phases/97.5-raw-sql-column-drift-prod-fix/97.5-CONTEXT.md
-Next step: `/clear` then `/gsd-plan-phase 97.5` to plan the Raw-SQL Column-Drift Prod-Fix (5 decisions locked in 97.5-CONTEXT.md: D-01 dedicated RED at el-templo-api/test/whatsapp/ai-tools-membership-drift.test.ts; D-02 regex+accumulator sweep-lint with REQUIRED bare-column coverage + synthetic-drift positive control; D-03 hybrid Drizzle introspection + must-include SUBSET assertion anchored on plain-word→prefixed renames; D-04 inline rename in both SubscriptionRow declarations, NO §E-style hardcoded pin; D-05 RED-first sweep-lint, canonical 3-commit chain RED → GREEN → SUMMARY). Phase 98 reopen and Phase 97 RGUARD-01 stay blocked until 97.5 ships. KGATE-05 ceiling for Phase 97 directive additions remains **32 chars** post-Phase-96.5 ship.
+Last session: 2026-06-17T18:37:42.760Z
+Stopped at: Phase 97.5 plan-phase complete (332e360b) — gsd-planner + gsd-pattern-mapper + gsd-plan-checker all PASS. Ready for execute.
+Resume file: .planning/phases/97.5-raw-sql-column-drift-prod-fix/97.5-01-PLAN.md
+Next step: `/clear` then `/gsd-execute-phase 97.5` to run the 4-task RED → GREEN → SUMMARY chain. Plan verified PASS; threat model low/low; must_haves cover all 6 SC items. Plan: `.planning/phases/97.5-raw-sql-column-drift-prod-fix/97.5-01-PLAN.md` (321 lines, 4 tasks).
