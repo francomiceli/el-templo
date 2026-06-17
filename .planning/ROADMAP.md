@@ -235,7 +235,9 @@ The 45s `OPENAI_TIMEOUT_MS` is the LEFT-HAND VARIABLE that the right-hand TTL mu
 
 6. **SC#6 — `pnpm tsc --noEmit` clean** on both `el-templo-api/` and `el-templo-bot/` post-fix.
 
-**Plans:** 3 plans (98-A subscriptions / 98-B ai-tools / 98-C webhook) OR 1 plan with 3 atomic sub-commits — decided at plan time. Single-plan structure preferred if test-file isolation makes a single GREEN commit per fix-zone clean.
+**Plans:** 1 plan (locked per CONTEXT.md D-11 — single-plan structure with 3 atomic sub-commit chains 98-A → 98-B → 98-C + SUMMARY; mirrors Phase 96.5 atomic cadence)
+
+- [ ] 98-01-PLAN.md — Test-hygiene: futureDateISO helper + 6 stale subscriptions startDate rewrites (98-A), seed rename alem→TSTA + 3 wording assertions (98-B), AI provider vi.mock + image-test rewrite for store+reply (98-C). Three atomic GREEN commits + SUMMARY; zero production source touches (SC#5 HARD GUARD).
 
 **Notes:**
 
