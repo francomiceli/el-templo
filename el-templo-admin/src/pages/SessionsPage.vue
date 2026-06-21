@@ -401,7 +401,7 @@ const DAYS = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
 const DISPLAY_LEVELS = ['kairos', 'alfa', 'delta', 'sigma', 'omega', 'spartan'];
 // ROM days solo generan alfa/delta (kairos no tiene sesión ROM) → sin kairos aquí.
 const ROM_DISPLAY_LEVELS = ['alfa', 'delta'];
-const PDF_LEVELS = ['kairos', 'alfa', 'delta', 'sigma'];
+const PDF_LEVELS = ['alfa', 'delta', 'sigma', 'kairos'];
 
 // Day mode state
 function isDayGroupRom(dayGroup: DayGroup): boolean {

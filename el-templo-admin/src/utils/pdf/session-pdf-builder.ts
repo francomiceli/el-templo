@@ -47,7 +47,7 @@ const LEVEL_SYMBOLS: Record<string, string> = {
   omega: 'Ω',
 };
 
-const LEVEL_ORDER = ['kairos', 'alfa', 'delta', 'sigma'];
+const LEVEL_ORDER = ['alfa', 'delta', 'sigma', 'kairos'];
 
 /**
  * Kairos glyph (☉) drawn as a VECTOR — Roboto (the PDF font) lacks U+2609, so the
@@ -380,7 +380,7 @@ function buildInitiumPage(block: PdfBlockPage): Content[] {
       font: 'NunitoSans',
     },
     { text: '', margin: [0, 112, 0, 0] },
-    // NIVEL ☉ α Δ Σ — kairos (☉ vector) primero, luego alfa/delta/sigma. El ☉ se
+    // NIVEL α Δ Σ ☉ — alfa/delta/sigma y kairos (☉ vector) AL FINAL. El ☉ se
     // dibuja vectorial (Roboto no lo tiene), así que esto es un columns en vez de text.
     {
       columns: [
@@ -392,18 +392,18 @@ function buildInitiumPage(block: PdfBlockPage): Content[] {
           bold: true,
           font: 'NunitoSans',
         },
-        kairosGlyphColumn(80, 30, 28),
         {
           width: 'auto',
-          text: '  α Δ Σ',
+          text: 'α Δ Σ',
           fontSize: 100,
           color: GOLD,
           bold: true,
           characterSpacing: 20,
           font: 'Roboto',
-          // Baja los glyphs Roboto a la línea de NIVEL/☉ y separa del ☉ (UAT 2026-06-06)
-          margin: [20, 14, 0, 0],
+          // Baja los glyphs Roboto a la línea de NIVEL (UAT 2026-06-06)
+          margin: [0, 14, 0, 0],
         },
+        kairosGlyphColumn(80, 30, 24),
       ],
       columnGap: 8,
       margin: [260, 0, 0, 0],
@@ -574,8 +574,8 @@ function buildBlockPageWithGrid(block: PdfBlockPage, isHalf = false): Content[] 
   // vez de desaparecer: así el nivel presente conserva su media página y la
   // caja de ancho fijo (LEVEL_BOX_WIDTH) no queda desfasada del texto.
   const findLevel = (level: string) => levelBlocks.find((lb) => lb.level === level);
-  const topRow = [findLevel('kairos'), findLevel('alfa')];
-  const bottomRow = [findLevel('delta'), findLevel('sigma')];
+  const topRow = [findLevel('alfa'), findLevel('delta')];
+  const bottomRow = [findLevel('sigma'), findLevel('kairos')];
 
   const headerFontSize = isHalf ? 88 : 130;
   const mobilityFontSize = isHalf ? 56 : 68;
@@ -653,13 +653,13 @@ function buildBlockPageWithGrid(block: PdfBlockPage, isHalf = false): Content[] 
     };
   };
 
-  // Top row: ☉ kairos and α alfa
+  // Top row: α alfa and Δ delta
   const topContent = buildRow(topRow);
   if (topContent) content.push(topContent);
 
   content.push({ text: '', margin: [0, isHalf ? 24 : 48, 0, 0] });
 
-  // Bottom row: Δ delta and Σ sigma
+  // Bottom row: Σ sigma and ☉ kairos
   const bottomContent = buildRow(bottomRow);
   if (bottomContent) content.push(bottomContent);
 
@@ -864,13 +864,13 @@ function computeDeuterosFontSize(block: PdfBlockPage): number {
  * Reuses the bordered level boxes from NUCLEUS/EPIKOS layout.
  */
 function buildDeuterosSplitPages(deut1: PdfBlockPage, deut2: PdfBlockPage): Content[] {
-  // Página 1 = topRow del grid (kairos+alfa), página 2 = bottomRow (delta+sigma).
+  // Página 1 = topRow del grid (alfa+delta), página 2 = bottomRow (sigma+kairos).
   // DEBE espejar los filtros topRow/bottomRow de buildBlockPageWithGrid: si un par
   // cruza filas, cada nivel cae en una fila distinta y la caja se estira a página
   // completa (regresión kairos 2026-06-06).
   const levelPairs: [string, string][] = [
-    ['kairos', 'alfa'],
-    ['delta', 'sigma'],
+    ['alfa', 'delta'],
+    ['sigma', 'kairos'],
   ];
 
   const content: Content[] = [];

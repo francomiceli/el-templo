@@ -12,7 +12,7 @@ const DAY_LABELS: Record<string, string> = {
   sabado: 'SÁBADO',
 };
 
-const LEVEL_ORDER = ['kairos', 'alfa', 'delta', 'sigma'];
+const LEVEL_ORDER = ['alfa', 'delta', 'sigma', 'kairos'];
 
 // INITIUM es el calentamiento compartido del día: se imprime UNA vez para todos
 // los niveles. Desde el fix de generación post-v5.1 sale idéntico en todas las
