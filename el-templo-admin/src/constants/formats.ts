@@ -33,6 +33,10 @@ export const NO_PARAMS_FORMATS: string[] = [
   'ladder_corta',
   'ladder_block',
   'broken_ladder',
+  // Open Style: el tiempo lo decide el profe sobre la marcha (final de clase),
+  // no se configura. I Go You Go: una sola ronda, no se eligen rondas.
+  'open_style',
+  'i_go_you_go',
 ];
 
 /**
@@ -66,6 +70,8 @@ export const NO_PARAMS_FORMAT_NAMES: string[] = [
   'ladder_corta',
   'ladder_block',
   'broken_ladder',
+  'open_style',
+  'i_go,_you_go',
 ];
 
 /**

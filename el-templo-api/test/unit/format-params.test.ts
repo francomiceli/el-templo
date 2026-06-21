@@ -286,14 +286,27 @@ describe("getDefaultFormatParams", () => {
     };
     expect(accumulate.target).toBeGreaterThan(0);
     expect(["reps", "seconds"]).toContain(accumulate.unit);
+  });
 
+  it("leaves I Go You Go and Open Style without configurable params", () => {
+    // El coach no elige rondas en I Go You Go (siempre una ronda) ni tiempo en
+    // Open Style (lo decide sobre la marcha): los factories no setean valores.
     const iGoYouGo = getDefaultFormatParams(
       "I Go, You Go",
       DEFAULT_CONTEXT,
     ) as {
-      totalRounds: number;
+      type: string;
+      totalRounds?: number;
     };
-    expect(iGoYouGo.totalRounds).toBeGreaterThan(0);
+    expect(iGoYouGo.type).toBe("i_go_you_go");
+    expect(iGoYouGo.totalRounds).toBeUndefined();
+
+    const openStyle = getDefaultFormatParams("Open Style", DEFAULT_CONTEXT) as {
+      type: string;
+      minutes?: number;
+    };
+    expect(openStyle.type).toBe("open_style");
+    expect(openStyle.minutes).toBeUndefined();
   });
 });
 

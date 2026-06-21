@@ -646,8 +646,15 @@ async function onFormatChange(newFormat: string) {
   try {
     // Change format for ALL level blocks in this group + sibling (DEUTEROS sync)
     const allLevelBlocks = [...props.blockGroup.levelBlocks, ...(props.siblingLevelBlocks || [])];
+    // INITIUM es un calentamiento compartido: changeBlockFormat dispara
+    // syncInitiumAcrossDay, que replica (delete+insert) las prescripciones a
+    // todos los bloques INITIUM hermanos del día. Cascadear sobre todos los
+    // niveles en paralelo corre N syncs concurrentes que pisan las mismas
+    // filas y DUPLICAN ejercicios. Para INITIUM cambiamos UN bloque y dejamos
+    // que el sync lo propague al resto.
+    const blocksToChange = isInitium.value ? allLevelBlocks.slice(0, 1) : allLevelBlocks;
     await Promise.all(
-      allLevelBlocks.map((lb) =>
+      blocksToChange.map((lb) =>
         editApi.changeBlockFormat(lb.sessionId, lb.block.id, format.formatId, format.formatName)
       )
     );
@@ -692,8 +699,11 @@ async function onUpdateFormatParams(newParams: Record<string, unknown>) {
   formatChanging.value = true;
   try {
     const allLevelBlocks = [...props.blockGroup.levelBlocks, ...(props.siblingLevelBlocks || [])];
+    // Mismo motivo que en onFormatChange: para INITIUM, una sola escritura y el
+    // sync propaga (evita la carrera que duplica prescripciones).
+    const blocksToUpdate = isInitium.value ? allLevelBlocks.slice(0, 1) : allLevelBlocks;
     await Promise.all(
-      allLevelBlocks.map((lb) => editApi.updateFormatParams(lb.sessionId, lb.block.id, newParams))
+      blocksToUpdate.map((lb) => editApi.updateFormatParams(lb.sessionId, lb.block.id, newParams))
     );
 
     $q.notify({

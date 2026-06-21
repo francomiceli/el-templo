@@ -165,7 +165,10 @@
         @blur="onBlur"
         @keyup.enter="onBlur"
       />
+      <!-- Tabata: rondas fijas (8 = 4 min). El coach no elige rondas en Tabata;
+           interval/hiit sí las configuran. -->
       <q-input
+        v-if="String(localParams.type) !== 'tabata'"
         v-model.number="localParams.rounds"
         type="number"
         dense
@@ -254,11 +257,10 @@
       />
     </div>
 
-    <!-- Time Cap / For Tech / Open Style (minutes only) -->
+    <!-- Time Cap / For Tech (minutes only). Open Style NO configura tiempo:
+         lo decide el profe sobre la marcha al final de la clase. -->
     <div
-      v-else-if="
-        localParams && ['time_cap', 'for_tech', 'open_style'].includes(String(localParams.type))
-      "
+      v-else-if="localParams && ['time_cap', 'for_tech'].includes(String(localParams.type))"
       class="row items-center q-gutter-sm"
     >
       <q-input
@@ -276,22 +278,8 @@
       />
     </div>
 
-    <!-- I Go, You Go (totalRounds) -->
-    <div v-else-if="localParams?.type === 'i_go_you_go'" class="row items-center q-gutter-sm">
-      <q-input
-        v-model.number="localParams.totalRounds"
-        type="number"
-        dense
-        outlined
-        :dark="dark"
-        :min="2"
-        :max="40"
-        label="Rondas totales"
-        style="min-width: 120px"
-        @blur="onBlur"
-        @keyup.enter="onBlur"
-      />
-    </div>
+    <!-- I Go, You Go: sin config. Siempre una sola ronda (las cantidades van
+         en las reps totales por ejercicio), así que no se eligen rondas. -->
 
     <!-- Ladder / Ladder Corta (direction + start + step + rounds) -->
     <div

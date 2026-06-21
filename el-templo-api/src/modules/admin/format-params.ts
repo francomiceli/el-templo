@@ -101,7 +101,7 @@ export type FormatParams =
   | { type: "wave_loading"; waves: number }
   | { type: "drop_set"; drops: number }
   | { type: "rest_pause"; pauseSeconds: number }
-  | { type: "open_style"; minutes: number }
+  | { type: "open_style"; minutes?: number }
   | {
       type: "emom_for_time";
       emomMinutes: number;
@@ -353,10 +353,9 @@ function buildExactMap(
     benchmark_wod: () => ({ type: "benchmark_wod" }),
     hero_wod: () => ({ type: "hero_wod" }),
     "buy-in_/_cash-out": () => ({ type: "buy_in_cash_out" }),
-    "i_go,_you_go": () => ({
-      type: "i_go_you_go",
-      totalRounds: DEFAULTS.I_GO_YOU_GO_ROUNDS,
-    }),
+    // I Go You Go: una sola ronda (las cantidades van en las reps por ejercicio),
+    // así que no se setea totalRounds — el coach no elige rondas.
+    "i_go,_you_go": () => ({ type: "i_go_you_go" }),
     floater_wod: () => ({ type: "floater_wod" }),
     acropolis: () => ({
       type: "acropolis",
@@ -373,10 +372,9 @@ function buildExactMap(
       type: "rest_pause",
       pauseSeconds: DEFAULTS.REST_PAUSE_SECONDS,
     }),
-    open_style: () => ({
-      type: "open_style",
-      minutes: DEFAULTS.OPEN_STYLE_MINUTES,
-    }),
+    // Open Style: el tiempo lo decide el profe sobre la marcha (final de clase),
+    // no se configura ni se imprime un valor fijo.
+    open_style: () => ({ type: "open_style" }),
     "emom_+_for_time": () => ({
       type: "emom_for_time",
       emomMinutes: DEFAULTS.EMOM_FOR_TIME_EMOM_MINUTES,
@@ -679,7 +677,9 @@ export function formatParamsLabel(params: FormatParams): string {
     case "rest_pause":
       return `Rest-Pause - ${params.pauseSeconds}s`;
     case "open_style":
-      return `Open Style - ${params.minutes} min`;
+      return params.minutes
+        ? `Open Style - ${params.minutes} min`
+        : "Open Style";
     case "emom_for_time":
       return `EMOM ${params.emomMinutes}' (${params.intervalSeconds}s) + For Time`;
     case "broken_ladder":
