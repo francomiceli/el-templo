@@ -400,8 +400,9 @@ function buildInitiumPage(block: PdfBlockPage): Content[] {
           bold: true,
           characterSpacing: 20,
           font: 'Roboto',
-          // Baja los glyphs Roboto a la línea de NIVEL (UAT 2026-06-06)
-          margin: [0, 14, 0, 0],
+          // Baja los glyphs Roboto a la línea de NIVEL (UAT 2026-06-06) y deja
+          // aire a la izquierda del α para que no quede pegado a "NIVEL".
+          margin: [24, 14, 0, 0],
         },
         kairosGlyphColumn(80, 30, 24),
       ],
