@@ -258,7 +258,7 @@ export interface RegisterPaymentInput {
 //   - owner: keyed by currency, e.g. { ARS: BucketTotals, EUR: BucketTotals }.
 // We NEVER sum amounts across different currencies.
 
-export type DebtBucket = '0-30' | '31-60' | '61-90' | '90+';
+export type DebtBucket = '0-5' | '6-10' | '11-15' | '15+';
 
 export interface OutstandingBalanceRow {
   memberId: number;

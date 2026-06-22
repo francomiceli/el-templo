@@ -346,7 +346,7 @@ export const outstandingBalancesSchema = {
               ageInDays: { type: "integer" },
               bucket: {
                 type: "string",
-                enum: ["0-30", "31-60", "61-90", "90+"],
+                enum: ["0-5", "6-10", "11-15", "15+"],
               },
             },
           },

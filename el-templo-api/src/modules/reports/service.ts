@@ -92,14 +92,14 @@ function computeAgeInDaysOB(effectiveDate: string): number {
 
 /** D-05 bucket boundaries (closed intervals). */
 function computeBucketOB(ageInDays: number): DebtBucket {
-  if (ageInDays <= 30) return "0-30";
-  if (ageInDays <= 60) return "31-60";
-  if (ageInDays <= 90) return "61-90";
-  return "90+";
+  if (ageInDays <= 5) return "0-5";
+  if (ageInDays <= 10) return "6-10";
+  if (ageInDays <= 15) return "11-15";
+  return "15+";
 }
 
 function emptyBucketTotals(): BucketTotals {
-  return { "0-30": 0, "31-60": 0, "61-90": 0, "90+": 0 };
+  return { "0-5": 0, "6-10": 0, "11-15": 0, "15+": 0 };
 }
 
 // =============================================================================

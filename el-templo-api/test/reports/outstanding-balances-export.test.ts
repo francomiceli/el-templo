@@ -325,8 +325,8 @@ describe("Reports API — GET /outstanding-balances/export (Phase 109-04)", () =
     expect(firstRow.getCell(1).value).toBe("Juan Pérez");
     expect(firstRow.getCell(6).value).toBe("ARS");
     expect(firstRow.getCell(7).value).toBe(45);
-    // 45d → bucket "31-60 días"
-    expect(firstRow.getCell(8).value).toBe("31-60 días");
+    // 45d → bucket "15+ días"
+    expect(firstRow.getCell(8).value).toBe("15+ días");
     expect(firstRow.getCell(10).value).toBe("Plan");
   });
 

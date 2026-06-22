@@ -153,12 +153,12 @@ const api = useTransactionsApi();
 
 // Internal naming (D-01): aging / outstanding-balances. UI labels always
 // in Spanish — the constants below are what the user actually sees.
-const BUCKETS: DebtBucket[] = ['0-30', '31-60', '61-90', '90+'];
+const BUCKETS: DebtBucket[] = ['0-5', '6-10', '11-15', '15+'];
 const BUCKET_LABELS_ES: Record<DebtBucket, string> = {
-  '0-30': 'Hasta 30 días',
-  '31-60': '31-60 días',
-  '61-90': '61-90 días',
-  '90+': '90+ días',
+  '0-5': 'Hasta 5 días',
+  '6-10': '6-10 días',
+  '11-15': '11-15 días',
+  '15+': '15+ días',
 };
 const CURRENCY_OPTIONS = ['ARS', 'EUR'];
 const PAGE_SIZE = 50;
@@ -175,10 +175,10 @@ const currentPage = ref(1);
 const loading = ref(false);
 const exporting = ref(false);
 const bucketTotalsFlat = ref<BucketTotals>({
-  '0-30': 0,
-  '31-60': 0,
-  '61-90': 0,
-  '90+': 0,
+  '0-5': 0,
+  '6-10': 0,
+  '11-15': 0,
+  '15+': 0,
 });
 const bucketTotalsByCurrency = ref<Record<string, BucketTotals>>({});
 const currencyKeys = computed(() => Object.keys(bucketTotalsByCurrency.value).sort());
@@ -252,14 +252,14 @@ const columns = [
 ];
 
 function bucketColor(b: DebtBucket): string {
-  if (b === '0-30') return 'positive';
-  if (b === '31-60') return 'warning';
-  if (b === '61-90') return 'orange';
+  if (b === '0-5') return 'positive';
+  if (b === '6-10') return 'warning';
+  if (b === '11-15') return 'orange';
   return 'negative';
 }
 
 function emptyBucketTotals(): BucketTotals {
-  return { '0-30': 0, '31-60': 0, '61-90': 0, '90+': 0 };
+  return { '0-5': 0, '6-10': 0, '11-15': 0, '15+': 0 };
 }
 
 function rowKey(r: OutstandingBalanceRow): string {
@@ -293,9 +293,9 @@ async function load(reset = true): Promise<void> {
     total.value = res.total;
 
     const bt = res.bucketTotals;
-    // Discriminator: the flat shape is keyed by bucket strings ('0-30' …);
+    // Discriminator: the flat shape is keyed by bucket strings ('0-5' …);
     // the per-currency shape is keyed by currency codes ('ARS', 'EUR' …).
-    const looksFlat = Object.prototype.hasOwnProperty.call(bt, '0-30');
+    const looksFlat = Object.prototype.hasOwnProperty.call(bt, '0-5');
     if (looksFlat) {
       bucketTotalsFlat.value = bt as BucketTotals;
       bucketTotalsByCurrency.value = {};

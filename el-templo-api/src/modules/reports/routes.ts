@@ -727,11 +727,11 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
 // Mirror of admin frontend labels (DeudasReport.vue). Duplicated inline here
 // per Phase 109-03 precedent — promote to shared module if a 4th consumer
 // surfaces. Bucket label keeps "días" lowercased to match D-01 UI strings.
-const BUCKET_LABEL_ES: Record<"0-30" | "31-60" | "61-90" | "90+", string> = {
-  "0-30": "Hasta 30 días",
-  "31-60": "31-60 días",
-  "61-90": "61-90 días",
-  "90+": "90+ días",
+const BUCKET_LABEL_ES: Record<"0-5" | "6-10" | "11-15" | "15+", string> = {
+  "0-5": "Hasta 5 días",
+  "6-10": "6-10 días",
+  "11-15": "11-15 días",
+  "15+": "15+ días",
 };
 
 const TARGET_KIND_LABEL_ES: Record<string, string> = {

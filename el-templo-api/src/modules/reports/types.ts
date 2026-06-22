@@ -258,7 +258,7 @@ export interface TrialSessionsReport {
 // subscription.
 
 /** D-05 buckets, computed in JS from DATEDIFF(today, effectiveDate). */
-export type DebtBucket = "0-30" | "31-60" | "61-90" | "90+";
+export type DebtBucket = "0-5" | "6-10" | "11-15" | "15+";
 
 /**
  * One row of the Deudas report.
@@ -318,7 +318,7 @@ export type BucketTotals = Record<DebtBucket, number>;
  * bucketTotals:
  *  - Non-owner (single-currency by country scope): flat BucketTotals.
  *  - Owner (potentially multi-currency): keyed by currency code, e.g.
- *    { ARS: { '0-30': ..., '31-60': ... }, EUR: { ... } }.
+ *    { ARS: { '0-5': ..., '6-10': ... }, EUR: { ... } }.
  *  NEVER sum amounts across different currencies (D-06).
  */
 export interface OutstandingBalancesResult {

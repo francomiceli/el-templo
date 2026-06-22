@@ -4,9 +4,9 @@
  * Coverage matrix:
  *   - RBAC: coach 403, recepcion 403, gestion/admin/owner 200.
  *   - Empty result: empty rows + zeroed BucketTotals.
- *   - Bucket boundaries (D-05): days 30/31/60/61/90/91 each land in the
+ *   - Bucket boundaries (D-05): days 5/6/10/11/15/16 each land in the
  *     correct bucket.
- *   - Future effective_date clamps to ageInDays=0 (bucket '0-30').
+ *   - Future effective_date clamps to ageInDays=0 (bucket '0-5').
  *   - Default sort = ageInDays DESC (oldest first).
  *   - Filter: branchId, currency, search.
  *   - Pagination: 75 rows → page 1 returns 50, page 2 returns 25.
@@ -403,24 +403,24 @@ describe("Reports API — GET /outstanding-balances (Phase 109-02)", () => {
     expect(body.page).toBe(1);
     expect(body.limit).toBe(50);
     expect(body.bucketTotals).toEqual({
-      "0-30": 0,
-      "31-60": 0,
-      "61-90": 0,
-      "90+": 0,
+      "0-5": 0,
+      "6-10": 0,
+      "11-15": 0,
+      "15+": 0,
     });
   });
 
   // ─── Bucket boundaries (D-05) ───────────────────────────────────────────
 
-  it("BUCKETS: bucket math matches D-05 boundaries (30/31/60/61/90/91)", async () => {
+  it("BUCKETS: bucket math matches D-05 boundaries (5/6/10/11/15/16)", async () => {
     // Seed 6 subscription-backed balances at the canonical boundary days.
     const boundaries: Array<{ offset: number; bucket: string }> = [
-      { offset: -30, bucket: "0-30" },
-      { offset: -31, bucket: "31-60" },
-      { offset: -60, bucket: "31-60" },
-      { offset: -61, bucket: "61-90" },
-      { offset: -90, bucket: "61-90" },
-      { offset: -91, bucket: "90+" },
+      { offset: -5, bucket: "0-5" },
+      { offset: -6, bucket: "6-10" },
+      { offset: -10, bucket: "6-10" },
+      { offset: -11, bucket: "11-15" },
+      { offset: -15, bucket: "11-15" },
+      { offset: -16, bucket: "15+" },
     ];
     for (const b of boundaries) {
       await seedSubscriptionWithBalance({
@@ -445,15 +445,15 @@ describe("Reports API — GET /outstanding-balances (Phase 109-02)", () => {
     // Map by ageInDays for stable lookup.
     const byAge = new Map<number, { bucket: string; ageInDays: number }>();
     for (const r of body.rows) byAge.set(r.ageInDays, r);
-    expect(byAge.get(30)?.bucket).toBe("0-30");
-    expect(byAge.get(31)?.bucket).toBe("31-60");
-    expect(byAge.get(60)?.bucket).toBe("31-60");
-    expect(byAge.get(61)?.bucket).toBe("61-90");
-    expect(byAge.get(90)?.bucket).toBe("61-90");
-    expect(byAge.get(91)?.bucket).toBe("90+");
+    expect(byAge.get(5)?.bucket).toBe("0-5");
+    expect(byAge.get(6)?.bucket).toBe("6-10");
+    expect(byAge.get(10)?.bucket).toBe("6-10");
+    expect(byAge.get(11)?.bucket).toBe("11-15");
+    expect(byAge.get(15)?.bucket).toBe("11-15");
+    expect(byAge.get(16)?.bucket).toBe("15+");
   });
 
-  it("BUCKETS-FUTURE: future effective_date clamps ageInDays to 0 (bucket '0-30')", async () => {
+  it("BUCKETS-FUTURE: future effective_date clamps ageInDays to 0 (bucket '0-5')", async () => {
     await seedSubscriptionWithBalance({
       app,
       branchId: ctx.arBranchId,
@@ -471,7 +471,7 @@ describe("Reports API — GET /outstanding-balances (Phase 109-02)", () => {
     const body = res.json();
     expect(body.rows).toHaveLength(1);
     expect(body.rows[0].ageInDays).toBe(0);
-    expect(body.rows[0].bucket).toBe("0-30");
+    expect(body.rows[0].bucket).toBe("0-5");
   });
 
   // ─── Sorting ─────────────────────────────────────────────────────────────
@@ -684,22 +684,22 @@ describe("Reports API — GET /outstanding-balances (Phase 109-02)", () => {
   // ─── Multi-currency (D-06) ───────────────────────────────────────────────
 
   it("OWNER-MULTI-CURRENCY: bucketTotals keyed by currency for owner across ARS+EUR", async () => {
-    // ARS in '31-60' bucket
+    // ARS in '6-10' bucket
     await seedSubscriptionWithBalance({
       app,
       branchId: ctx.arBranchId,
       planId: ctx.planArId,
       planCurrency: "ARS",
-      startDateOffsetDays: -45,
+      startDateOffsetDays: -8,
       amount: 1500,
     });
-    // EUR in '61-90' bucket
+    // EUR in '11-15' bucket
     await seedSubscriptionWithBalance({
       app,
       branchId: ctx.esBranchId,
       planId: ctx.planEsId,
       planCurrency: "EUR",
-      startDateOffsetDays: -75,
+      startDateOffsetDays: -13,
       amount: 800,
     });
 
@@ -711,8 +711,8 @@ describe("Reports API — GET /outstanding-balances (Phase 109-02)", () => {
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body.bucketTotals).toEqual({
-      ARS: { "0-30": 0, "31-60": 1500, "61-90": 0, "90+": 0 },
-      EUR: { "0-30": 0, "31-60": 0, "61-90": 800, "90+": 0 },
+      ARS: { "0-5": 0, "6-10": 1500, "11-15": 0, "15+": 0 },
+      EUR: { "0-5": 0, "6-10": 0, "11-15": 800, "15+": 0 },
     });
   });
 
@@ -722,7 +722,7 @@ describe("Reports API — GET /outstanding-balances (Phase 109-02)", () => {
       branchId: ctx.arBranchId,
       planId: ctx.planArId,
       planCurrency: "ARS",
-      startDateOffsetDays: -45,
+      startDateOffsetDays: -8,
       amount: 1500,
     });
 
@@ -734,10 +734,10 @@ describe("Reports API — GET /outstanding-balances (Phase 109-02)", () => {
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body.bucketTotals).toEqual({
-      "0-30": 0,
-      "31-60": 1500,
-      "61-90": 0,
-      "90+": 0,
+      "0-5": 0,
+      "6-10": 1500,
+      "11-15": 0,
+      "15+": 0,
     });
   });
 
