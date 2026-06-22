@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v5.1
 milestone_name: Nuevo Sistema de Entrenamiento
-status: executing
-stopped_at: Phase 135 context gathered
-last_updated: "2026-06-08T17:10:54.991Z"
+status: verifying
+stopped_at: Phase 136 context gathered
+last_updated: "2026-06-22T21:28:37.294Z"
 last_activity: 2026-06-08
 progress:
   total_phases: 8
@@ -627,8 +627,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-08T17:10:54.966Z
-Stopped at: Phase 135 context gathered
-Resume file: None
+Last session: 2026-06-22T21:28:37.269Z
+Stopped at: Phase 136 context gathered
+Resume file: .planning/phases/136-redise-o-del-sistema-de-segmentaci-n-etiqueta-de-asistencia-/136-CONTEXT.md
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
