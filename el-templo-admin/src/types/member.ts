@@ -20,7 +20,11 @@ export const SEGMENT_LABELS: Record<MemberSegment, string> = {
   espartano: 'Espartano',
   intermitente: 'Intermitente',
   en_riesgo: 'En Riesgo',
-  digital_warrior: 'Digital',
+  // digital_warrior se calcula en el motor (baja asistencia presencial + uso de
+  // app), pero operativamente es gente "En Riesgo" de baja presencial. Se muestra
+  // como En Riesgo en todo el admin para leerlo a golpe de vista; el motor y el
+  // enum no cambian.
+  digital_warrior: 'En Riesgo',
   ghost: 'Fantasma',
 };
 
@@ -29,7 +33,7 @@ export const SEGMENT_COLORS: Record<MemberSegment, string> = {
   espartano: 'green',
   intermitente: 'amber',
   en_riesgo: 'orange',
-  digital_warrior: 'purple',
+  digital_warrior: 'orange',
   ghost: 'grey',
 };
 

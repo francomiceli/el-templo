@@ -291,7 +291,7 @@ const segments = [
   { value: 'espartano', label: 'Espartano' },
   { value: 'intermitente', label: 'Intermitente' },
   { value: 'en_riesgo', label: 'En Riesgo' },
-  { value: 'digital_warrior', label: 'Digital' },
+  { value: 'digital_warrior', label: 'En Riesgo (App)' },
   { value: 'ghost', label: 'Fantasma' },
 ];
 

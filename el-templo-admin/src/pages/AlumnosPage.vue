@@ -449,7 +449,9 @@ const segmentFilterOptions: Array<{ label: string; value: MemberSegment | null }
   { label: 'Espartano', value: 'espartano' },
   { label: 'Intermitente', value: 'intermitente' },
   { label: 'En Riesgo', value: 'en_riesgo' },
-  { label: 'Digital', value: 'digital_warrior' },
+  // Mismo riesgo presencial que 'en_riesgo' pero con uso de app — se muestra como
+  // "En Riesgo" en la tabla; el filtro permite aislarlos por separado.
+  { label: 'En Riesgo (App)', value: 'digital_warrior' },
   { label: 'Fantasma', value: 'ghost' },
 ];
 
