@@ -84,6 +84,8 @@ const bookingRecordSchema = {
     // admin UI can split the slot roster into Reservados vs Sesiones de
     // Prueba without a second fetch.
     isTrial: { type: "boolean" },
+    segment: { type: ["string", "null"] },
+    avatarType: { type: ["string", "null"] },
   },
 } as const;
 

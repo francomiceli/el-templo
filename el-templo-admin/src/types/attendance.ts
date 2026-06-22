@@ -41,4 +41,6 @@ export interface SlotAttendanceItem {
   attendanceId: number | null;
   checkedInAt: string | null;
   source: 'qr' | 'manual' | null;
+  segment: string | null;
+  avatarType: string | null;
 }

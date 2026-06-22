@@ -319,9 +319,15 @@ export class SchedulingService {
         bookedAt: schema.bookings.bookedAt,
         cancelledAt: schema.bookings.cancelledAt,
         isTrial: schema.bookings.isTrial,
+        segment: schema.memberProfiles.segment,
+        avatarType: schema.memberProfiles.avatarType,
       })
       .from(schema.bookings)
       .innerJoin(schema.users, eq(schema.users.id, schema.bookings.memberId))
+      .leftJoin(
+        schema.memberProfiles,
+        eq(schema.memberProfiles.userId, schema.bookings.memberId),
+      )
       .where(
         and(
           eq(schema.bookings.scheduleId, scheduleId),
@@ -346,6 +352,8 @@ export class SchedulingService {
       bookedAt: r.bookedAt.toISOString(),
       cancelledAt: r.cancelledAt?.toISOString() ?? null,
       isTrial: r.isTrial,
+      segment: r.segment ?? null,
+      avatarType: r.avatarType ?? null,
     }));
 
     // Query attendance records for this branch + date

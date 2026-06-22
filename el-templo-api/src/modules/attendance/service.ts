@@ -369,6 +369,8 @@ export class AttendanceService {
       attendanceId: number | null;
       checkedInAt: string | null;
       source: "qr" | "manual" | null;
+      segment: string | null;
+      avatarType: string | null;
     }>;
   }> {
     // Get all bookings for this slot+date
@@ -379,9 +381,15 @@ export class AttendanceService {
         memberFirstName: schema.users.firstName,
         memberLastName: schema.users.lastName,
         bookingStatus: schema.bookings.status,
+        segment: schema.memberProfiles.segment,
+        avatarType: schema.memberProfiles.avatarType,
       })
       .from(schema.bookings)
       .innerJoin(schema.users, eq(schema.users.id, schema.bookings.memberId))
+      .leftJoin(
+        schema.memberProfiles,
+        eq(schema.memberProfiles.userId, schema.bookings.memberId),
+      )
       .where(
         and(
           eq(schema.bookings.scheduleId, scheduleId),
@@ -399,9 +407,15 @@ export class AttendanceService {
         memberLastName: schema.users.lastName,
         checkedInAt: schema.attendance.checkedInAt,
         source: schema.attendance.source,
+        segment: schema.memberProfiles.segment,
+        avatarType: schema.memberProfiles.avatarType,
       })
       .from(schema.attendance)
       .innerJoin(schema.users, eq(schema.users.id, schema.attendance.memberId))
+      .leftJoin(
+        schema.memberProfiles,
+        eq(schema.memberProfiles.userId, schema.attendance.memberId),
+      )
       .where(
         and(
           eq(schema.attendance.scheduleId, scheduleId),
@@ -420,6 +434,8 @@ export class AttendanceService {
         attendanceId: number | null;
         checkedInAt: string | null;
         source: "qr" | "manual" | null;
+        segment: string | null;
+        avatarType: string | null;
       }
     >();
 
@@ -434,6 +450,8 @@ export class AttendanceService {
         attendanceId: null,
         checkedInAt: null,
         source: null,
+        segment: b.segment ?? null,
+        avatarType: b.avatarType ?? null,
       });
     }
 
@@ -461,6 +479,8 @@ export class AttendanceService {
               ? a.checkedInAt.toISOString()
               : String(a.checkedInAt),
           source: a.source as "qr" | "manual",
+          segment: a.segment ?? null,
+          avatarType: a.avatarType ?? null,
         });
       }
     }

@@ -66,6 +66,11 @@ export interface BookingRecord {
   // Phase 102: trial bookings don't consume capacity; admin UI splits
   // "Reservados" from "Sesiones de Prueba" using this flag.
   isTrial: boolean;
+  // Behavioral segment + onboarding avatar of the member, surfaced so the
+  // admin slot roster can tag each alumno without a second fetch. Null when
+  // the member has no profile row / no value yet.
+  segment: string | null;
+  avatarType: string | null;
 }
 
 export interface HolidayRecord {

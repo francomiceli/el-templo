@@ -1849,6 +1849,10 @@ export class BookingService {
       bookedAt: row.bookedAt.toISOString(),
       cancelledAt: row.cancelledAt?.toISOString() ?? null,
       isTrial: row.isTrial,
+      // These callsites (single-booking lookups) don't render the admin slot
+      // roster, so the member profile isn't joined — segment/avatar stay null.
+      segment: null,
+      avatarType: null,
     };
   }
 }

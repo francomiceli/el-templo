@@ -131,6 +131,9 @@
             <q-item v-for="booking in activeRegularBookings" :key="booking.id">
               <q-item-section>
                 <q-item-label>{{ booking.memberName }}</q-item-label>
+                <q-item-label caption>
+                  <MemberTags :segment="booking.segment" :avatar-type="booking.avatarType" />
+                </q-item-label>
               </q-item-section>
               <q-item-section side>
                 <div class="row items-center q-gutter-xs">
@@ -161,6 +164,9 @@
               <q-item v-for="booking in activeTrialBookings" :key="booking.id">
                 <q-item-section>
                   <q-item-label>{{ booking.memberName }}</q-item-label>
+                  <q-item-label caption>
+                    <MemberTags :segment="booking.segment" :avatar-type="booking.avatarType" />
+                  </q-item-label>
                 </q-item-section>
                 <q-item-section side>
                   <div class="row items-center q-gutter-xs">
@@ -193,6 +199,9 @@
                   <q-item-label>{{ booking.memberName }}</q-item-label>
                   <q-item-label v-if="booking.waitlistPosition" caption>
                     Posición {{ booking.waitlistPosition }}
+                  </q-item-label>
+                  <q-item-label caption>
+                    <MemberTags :segment="booking.segment" :avatar-type="booking.avatarType" />
                   </q-item-label>
                 </q-item-section>
                 <q-item-section side>
@@ -244,6 +253,11 @@
                     v-if="isTrialMember(member)"
                     color="warning"
                     label="PRUEBA"
+                    class="q-ml-xs"
+                  />
+                  <MemberTags
+                    :segment="member.segment"
+                    :avatar-type="member.avatarType"
                     class="q-ml-xs"
                   />
                 </q-item-label>
@@ -544,6 +558,7 @@ import { useAttendanceApi } from 'src/composables/useAttendanceApi';
 import { useMembersApi } from 'src/composables/useMembersApi';
 import { extractError } from 'src/utils/extract-error';
 import TrialMemberFormDialog from 'src/components/TrialMemberFormDialog.vue';
+import MemberTags from 'src/components/scheduling/MemberTags.vue';
 import type { BranchOption, MemberProfile } from 'src/types/member';
 import type {
   SlotDetailView,

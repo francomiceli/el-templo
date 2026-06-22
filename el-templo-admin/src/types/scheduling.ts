@@ -101,6 +101,8 @@ export interface BookingRecord {
   bookedAt: string;
   cancelledAt: string | null;
   isTrial: boolean;
+  segment: string | null;
+  avatarType: string | null;
 }
 
 export interface HolidayRecord {

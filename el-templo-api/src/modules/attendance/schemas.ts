@@ -112,6 +112,8 @@ const slotAttendanceItemSchema = {
     attendanceId: { type: ["integer", "null"] },
     checkedInAt: { type: ["string", "null"] },
     source: { type: ["string", "null"] },
+    segment: { type: ["string", "null"] },
+    avatarType: { type: ["string", "null"] },
   },
 } as const;
 
