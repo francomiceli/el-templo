@@ -3401,6 +3401,22 @@ Plans:
 - [x] 135-03-PLAN.md — Block B backend: variants[] embedded in GET /tree via separate batched query (backbone predicate untouched) + no-regression test
 - [x] 135-04-PLAN.md — Block B frontend: collapsible hito node (chevron + "+N variantes", collapsed default) with banded variants on the /tree-map canvas
 
+### Phase 136: Rediseño del sistema de segmentación — etiqueta de Asistencia (Óptima/Regular/Alerta/Ausente) que reemplaza el segmento actual + nueva dimensión de Antigüedad
+
+**Goal:** Reemplazar el "segmento" de asistencia actual (`nuevo`/`espartano`/`intermitente`/`en_riesgo`/`digital_warrior`/`ghost`) por una etiqueta de **Asistencia** basada 100% en el % de uso de la membresía sobre la ventana móvil de 28 días que ya usa el motor: **Óptima** (≥75%), **Regular** (50–74%), **Alerta** (1–49%, requiere observación), **Ausente** (0%, detona seguimiento). La etiqueta de Asistencia reemplaza el segmento en TODO el admin (Alumnos, Analytics, Notificaciones, Horarios). Además se agrega una dimensión NUEVA de **Antigüedad** derivada de `users.createdAt` (**Nuevo** 0–1m / **1–3m** / **3–6m** / **+6m**) que NO reemplaza nada. Ambas etiquetas se muestran como chips por alumno en la lista de asistencia de Horarios (`SlotDetailDialog`). Pertenece al dominio del milestone de Métricas de Gestión (v5.0).
+
+**Alcance / impacto (10 áreas):** enum DB `member_segment` + migración con mapeo de datos existentes; motor `segmentation/service.ts` + `types.ts` (desaparecen nuevo/ghost/digital_warrior/golden-case); analytics (engagement worklist/counts/breakdowns/schemas); notificaciones (templates de transición + cron nocturno 3AM `notification-cron.ts`); `members/service.ts` (filtro + subquery); frontend admin (`types/member.ts` labels/colors/descriptions, `types/analytics.ts`, AlumnosPage filtro, AlumnoDetailPage, NotificacionesPage, `MemberTags.vue`); `el-templo-app` useUserStore; tests (segmentation/golden-case/engagement/notifications); seeds.
+
+**Decisiones de producto abiertas (resolver en discuss-phase):** (1) notis automáticas de transición + cron nocturno atados a en_riesgo/ghost/recovery/ghost_monthly_reattempt — ¿rediseñar con los nuevos estados o desactivar?; (2) Antigüedad — ¿solo Horarios o también Alumnos/detalle/analytics? ¿persistir o calcular al vuelo?; (3) miembro sin plan activo (sin `classesPerWeek`) — ¿Ausente o sin etiqueta?; (4) cortes 75/50/1 — ¿configurables vía `system_settings` (como hoy `espartano_pct`) o fijos en código?
+
+**Requirements**: TBD (derivar en discuss/plan)
+**Depends on:** Phase 135
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 136 to break down)
+
 ---
 
 _v5.2 added: 2026-06-04 — 1 phase (132). Cierra v5.0 del lado de UI: expone en el admin las 6 métricas de gestión que quedaron backend-only (fases 120-123) y elimina físicamente las métricas viejas/ARPU deprecadas. Frontend-only, sin migraciones. Continúa numeración desde fase 131 (v5.1). Milestone separada para no mezclar la UI de métricas con el Nuevo Sistema de Entrenamiento (v5.1). Agrupación/visualización de tabs y alcance exacto de borrado diferidos a `discuss-phase`._
