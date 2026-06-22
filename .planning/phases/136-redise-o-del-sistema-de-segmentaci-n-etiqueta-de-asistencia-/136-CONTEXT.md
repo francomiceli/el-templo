@@ -148,8 +148,8 @@ Reemplazar el "segmento" de asistencia actual del miembro por una etiqueta de **
 <specifics>
 ## Specific Ideas
 
-- Las dos etiquetas que el usuario quiere ver por alumno en Horarios son **Antigüedad** + **Asistencia**. Reemplazan conceptualmente al par segmento+avatar que se mostraba antes.
-- **Abierto/confirmar (menor):** ¿se mantiene también el chip de **avatar (A–K)** en Horarios junto a las dos etiquetas nuevas, o se quita? Default propuesto: mantenerlo (info ortogonal ya implementada), pero confirmable sin bloquear el plan.
+- Las dos etiquetas que el usuario quiere ver por alumno en Horarios son **Antigüedad** + **Asistencia**. Reemplazan al par segmento+avatar que se mostraba antes.
+- **D-12 (decidido):** se **quita el chip de avatar (A–K) de Horarios**. `MemberTags.vue` pasa a mostrar SOLO Antigüedad + Asistencia. El avatar se sigue usando en otras pantallas (no se elimina del sistema), solo deja de mostrarse en el `SlotDetailDialog`. Esto implica dejar de exponer `avatarType` en los endpoints de slot si no lo consume nadie más en Horarios.
 - Verificación en prod (2026-06-22): notis de segmento confirmadas activas vía query a `pending_notifications` JOIN `notification_templates`.
   </specifics>
 
