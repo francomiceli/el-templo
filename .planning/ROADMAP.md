@@ -3409,13 +3409,18 @@ Plans:
 
 **Decisiones de producto abiertas (resolver en discuss-phase):** (1) notis automáticas de transición + cron nocturno atados a en_riesgo/ghost/recovery/ghost_monthly_reattempt — ¿rediseñar con los nuevos estados o desactivar?; (2) Antigüedad — ¿solo Horarios o también Alumnos/detalle/analytics? ¿persistir o calcular al vuelo?; (3) miembro sin plan activo (sin `classesPerWeek`) — ¿Ausente o sin etiqueta?; (4) cortes 75/50/1 — ¿configurables vía `system_settings` (como hoy `espartano_pct`) o fijos en código?
 
-**Requirements**: TBD (derivar en discuss/plan)
+**Requirements**: D-01..D-12 (decisiones bloqueadas del CONTEXT, sin IDs formales en REQUIREMENTS.md)
 **Depends on:** Phase 135
-**Plans:** 0 plans
+**Plans:** 6 plans
 
 Plans:
 
-- [ ] TBD (run /gsd-plan-phase 136 to break down)
+- [ ] 136-01-PLAN.md — Motor de segmentación a 4 bandas de % (Óptima/Regular/Alerta/Ausente) + enum DB + migración con recálculo en limpio (FUNDACIONAL)
+- [ ] 136-02-PLAN.md — Notificaciones: reconectar disparadores a los nuevos estados (copy/template_key preservados) + cron 3AM
+- [ ] 136-03-PLAN.md — Analytics: counts + worklist de seguimiento (alerta/ausente) + schemas
+- [ ] 136-04-PLAN.md — members/service filtro+subquery + member app (useUserStore + SegmentGreeting)
+- [ ] 136-05-PLAN.md — Frontend admin: tipos display/analytics + AlumnosPage/AlumnoDetailPage/NotificacionesPage
+- [ ] 136-06-PLAN.md — Antigüedad al vuelo en Horarios + MemberTags (Antigüedad+Asistencia, sin avatar) + quitar badge QR/Manual
 
 ---
 
