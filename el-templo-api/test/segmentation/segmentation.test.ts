@@ -1,25 +1,23 @@
 /**
  * Segmentation Integration Tests
  *
- * Tests behavioral segment calculation logic, /auth/me integration,
- * settings CRUD, and member list filtering.
+ * Tests the Attendance label calculation (4 bands by % of membership usage over
+ * a rolling 28-day window), /auth/me integration, and member list filtering.
  *
  * Runs against real MySQL (eltemplo_test database).
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import {
   createTestApp,
   registerUser,
   getAuthToken,
-  createStaffUser,
   cleanAllTestData,
 } from "../helpers";
 import * as schema from "../../src/db/schema";
 import { SegmentationService } from "../../src/modules/segmentation/service";
-import type { MemberSegment } from "../../src/modules/segmentation/types";
 
 describe("Segmentation", () => {
   let app: FastifyInstance;
@@ -37,20 +35,9 @@ describe("Segmentation", () => {
   beforeEach(async () => {
     // Use the shared FK-safe cleaner so residual rows from prior test files
     // (subscription_schedules, bookings, payments, …) don't block the
-    // subscriptions delete. The narrow cleanup that lived here used to work
-    // because subscription tests left less residual state — adding the
-    // scheduled-status flow + plan-edit history makes that fragile.
+    // subscriptions delete.
     await cleanAllTestData(app);
-
-    // Seed segment threshold settings for all tests
-    await app.db.insert(schema.systemSettings).values([
-      { settingKey: "segment.espartano_pct", settingValue: "80" },
-      { settingKey: "segment.intermitente_pct", settingValue: "40" },
-      { settingKey: "segment.en_riesgo_weeks", settingValue: "2" },
-      { settingKey: "segment.ghost_weeks", settingValue: "8" },
-      { settingKey: "segment.nuevo_days", settingValue: "30" },
-      { settingKey: "segment.window_days", settingValue: "28" },
-    ]);
+    // No threshold settings seed: cut points are fixed in code (D-03).
   });
 
   // ─── Helper: create a member with a specific registration date ────────
@@ -132,49 +119,6 @@ describe("Segmentation", () => {
     }
   }
 
-  // ─── Helper: insert login records ─────────────────────────────────────
-
-  async function insertLogins(
-    userId: number,
-    count: number,
-    withinDays: number,
-  ): Promise<void> {
-    const now = Date.now();
-    for (let i = 0; i < count; i++) {
-      const daysAgo = Math.floor((withinDays / count) * i);
-      const loggedInAt = new Date(now - daysAgo * 24 * 60 * 60 * 1000);
-      await app.db.insert(schema.memberLogins).values({
-        userId,
-        loggedInAt,
-      });
-    }
-  }
-
-  // ─── Helper: insert session completions ───────────────────────────────
-
-  async function insertSessionCompletions(
-    userId: number,
-    count: number,
-    withinDays: number,
-  ): Promise<void> {
-    const now = Date.now();
-    for (let i = 0; i < count; i++) {
-      const daysAgo = Math.floor((withinDays / count) * i);
-      const completedAt = new Date(now - daysAgo * 24 * 60 * 60 * 1000);
-      const startedAt = new Date(completedAt.getTime() - 60 * 60 * 1000);
-      const dateStr = completedAt.toISOString().split("T")[0];
-      await app.db.insert(schema.completedSessions).values({
-        userId,
-        dayId: `W1-test-${i}`,
-        date: dateStr,
-        branchId: 1,
-        startedAt,
-        completedAt,
-        blocksCompleted: JSON.stringify(["NUCLEUS"]),
-      });
-    }
-  }
-
   // ─── Helper: create member profile ────────────────────────────────────
 
   async function createMemberProfile(userId: number): Promise<void> {
@@ -189,11 +133,11 @@ describe("Segmentation", () => {
   }
 
   // =========================================================================
-  // Group 1: Segment Calculation Logic
+  // Group 1: Attendance Label Calculation (4 bands)
   // =========================================================================
 
-  describe("Segment Calculation Logic", () => {
-    it("new member (< 30 days) always gets nuevo regardless of attendance", async () => {
+  describe("Attendance Label Calculation", () => {
+    it("member < 1 month of tenure gets NULL regardless of attendance (D-07)", async () => {
       const userId = await createMemberWithDate(
         "new-member@test.com",
         new Date(), // registered today
@@ -205,117 +149,104 @@ describe("Segmentation", () => {
       const service = new SegmentationService(app.db, app.log);
       const segment = await service.calculateSegment(userId);
 
-      expect(segment).toBe("nuevo");
+      expect(segment).toBeNull();
     });
 
-    it("member with 80%+ attendance gets espartano", async () => {
+    it("member with no active plan gets NULL (no denominator, D-08)", async () => {
       const userId = await createMemberWithDate(
-        "espartano@test.com",
-        new Date(Date.now() - 60 * 24 * 60 * 60 * 1000), // 60 days ago
+        "noplan@test.com",
+        new Date(Date.now() - 60 * 24 * 60 * 60 * 1000),
       );
-
-      await assignPlan(userId, 3); // 3x/week = 12 expected in 28 days
-      await insertAttendance(userId, 10, 28); // 10/12 = 83%
+      // No subscription assigned.
+      await insertAttendance(userId, 4, 28);
 
       const service = new SegmentationService(app.db, app.log);
       const segment = await service.calculateSegment(userId);
 
-      expect(segment).toBe("espartano");
+      expect(segment).toBeNull();
     });
 
-    it("member with 40-80% attendance gets intermitente", async () => {
+    it("member with >= 75% usage gets optima", async () => {
       const userId = await createMemberWithDate(
-        "intermitente@test.com",
+        "optima@test.com",
+        new Date(Date.now() - 60 * 24 * 60 * 60 * 1000),
+      );
+
+      await assignPlan(userId, 3); // 3x/week = 12 expected in 28 days
+      await insertAttendance(userId, 10, 28); // 10/12 = 83% → optima
+
+      const service = new SegmentationService(app.db, app.log);
+      const segment = await service.calculateSegment(userId);
+
+      expect(segment).toBe("optima");
+    });
+
+    it("member with > 100% usage stays optima (D-04)", async () => {
+      const userId = await createMemberWithDate(
+        "over100@test.com",
+        new Date(Date.now() - 60 * 24 * 60 * 60 * 1000),
+      );
+
+      await assignPlan(userId, 2); // 2x/week = 8 expected in 28 days
+      await insertAttendance(userId, 12, 28); // 12/8 = 150% → optima
+
+      const service = new SegmentationService(app.db, app.log);
+      const segment = await service.calculateSegment(userId);
+
+      expect(segment).toBe("optima");
+    });
+
+    it("member with 50-74% usage gets regular", async () => {
+      const userId = await createMemberWithDate(
+        "regular@test.com",
         new Date(Date.now() - 60 * 24 * 60 * 60 * 1000),
       );
 
       await assignPlan(userId, 5); // 5x/week = 20 expected in 28 days
-      await insertAttendance(userId, 10, 28); // 10/20 = 50%
+      await insertAttendance(userId, 10, 28); // 10/20 = 50% → regular
 
       const service = new SegmentationService(app.db, app.log);
       const segment = await service.calculateSegment(userId);
 
-      expect(segment).toBe("intermitente");
+      expect(segment).toBe("regular");
     });
 
-    it("member with <40% attendance for 2+ weeks gets en_riesgo", async () => {
+    it("member with 1-49% usage gets alerta", async () => {
       const userId = await createMemberWithDate(
-        "enriesgo@test.com",
+        "alerta@test.com",
         new Date(Date.now() - 60 * 24 * 60 * 60 * 1000),
       );
 
       await assignPlan(userId, 5); // 5x/week = 20 expected
-      await insertAttendance(userId, 3, 28); // 3/20 = 15%
-
-      // Need a recent login/activity within 2 weeks to avoid inactivity trigger
-      await insertLogins(userId, 1, 1);
+      await insertAttendance(userId, 3, 28); // 3/20 = 15% → alerta
 
       const service = new SegmentationService(app.db, app.log);
       const segment = await service.calculateSegment(userId);
 
-      expect(segment).toBe("en_riesgo");
+      expect(segment).toBe("alerta");
     });
 
-    it("member inactive 8+ weeks gets ghost", async () => {
+    it("member with 0% usage gets ausente", async () => {
       const userId = await createMemberWithDate(
-        "ghost@test.com",
-        new Date(Date.now() - 120 * 24 * 60 * 60 * 1000), // 120 days ago
-      );
-
-      // Last activity was 9 weeks ago
-      const nineWeeksAgo = new Date(Date.now() - 63 * 24 * 60 * 60 * 1000);
-      await app.db.insert(schema.attendance).values({
-        memberId: userId,
-        branchId: 1,
-        checkedInAt: nineWeeksAgo,
-        sessionDate: nineWeeksAgo.toISOString().split("T")[0],
-      });
-
-      const service = new SegmentationService(app.db, app.log);
-      const segment = await service.calculateSegment(userId);
-
-      expect(segment).toBe("ghost");
-    });
-
-    it("member with low attendance but high app usage gets digital_warrior", async () => {
-      const userId = await createMemberWithDate(
-        "digitalwarrior@test.com",
+        "ausente@test.com",
         new Date(Date.now() - 60 * 24 * 60 * 60 * 1000),
       );
 
-      await assignPlan(userId, 5); // 5x/week = 20 expected
-      await insertAttendance(userId, 2, 28); // 2/20 = 10% (low)
-
-      // High app usage: 3 session completions + 4 login days = 7 total
-      await insertSessionCompletions(userId, 3, 28);
-      await insertLogins(userId, 4, 28);
+      await assignPlan(userId, 3); // 3x/week = 12 expected
+      // No attendance at all → 0% → ausente.
 
       const service = new SegmentationService(app.db, app.log);
       const segment = await service.calculateSegment(userId);
 
-      expect(segment).toBe("digital_warrior");
+      expect(segment).toBe("ausente");
     });
 
-    it("member with no subscription and no activity gets ghost", async () => {
-      const userId = await createMemberWithDate(
-        "nosub@test.com",
-        new Date(Date.now() - 120 * 24 * 60 * 60 * 1000),
-      );
-      // No subscription, no attendance, no logins, no sessions
-
-      const service = new SegmentationService(app.db, app.log);
-      const segment = await service.calculateSegment(userId);
-
-      expect(segment).toBe("ghost");
-    });
-
-    it("paused subscription members still get segmented", async () => {
+    it("paused subscription members still get classified", async () => {
       const userId = await createMemberWithDate(
         "paused@test.com",
         new Date(Date.now() - 60 * 24 * 60 * 60 * 1000),
       );
 
-      // Create plan and subscription with paused status
       const [plan] = await app.db
         .insert(schema.subscriptionPlans)
         .values({
@@ -342,22 +273,22 @@ describe("Segmentation", () => {
         pausedAt: new Date(),
       });
 
-      // Some attendance in window -> intermitente
-      await insertAttendance(userId, 6, 28); // 6/12 = 50%
+      // 6/12 = 50% → regular.
+      await insertAttendance(userId, 6, 28);
 
       const service = new SegmentationService(app.db, app.log);
       const segment = await service.calculateSegment(userId);
 
-      expect(segment).toBe("intermitente");
+      expect(segment).toBe("regular");
     });
   });
 
   // =========================================================================
-  // Group 2: Plan-Relative Thresholds
+  // Group 2: Plan-Relative Classification
   // =========================================================================
 
-  describe("Plan-Relative Thresholds", () => {
-    it("member on 2x/week plan attending 2x/week = 100% = espartano", async () => {
+  describe("Plan-Relative Classification", () => {
+    it("member on 2x/week plan attending 2x/week = 100% = optima", async () => {
       const userId = await createMemberWithDate(
         "plan2x@test.com",
         new Date(Date.now() - 60 * 24 * 60 * 60 * 1000),
@@ -369,50 +300,32 @@ describe("Segmentation", () => {
       const service = new SegmentationService(app.db, app.log);
       const segment = await service.calculateSegment(userId);
 
-      expect(segment).toBe("espartano");
+      expect(segment).toBe("optima");
     });
 
-    it("member on 5x/week plan attending 2x/week = 40% = intermitente (barely)", async () => {
-      const userId = await createMemberWithDate(
-        "plan5x@test.com",
-        new Date(Date.now() - 60 * 24 * 60 * 60 * 1000),
-      );
-
-      await assignPlan(userId, 5); // 5x/week = 20 expected
-      await insertAttendance(userId, 8, 28); // 8/20 = 40%
-
-      const service = new SegmentationService(app.db, app.log);
-      const segment = await service.calculateSegment(userId);
-
-      expect(segment).toBe("intermitente");
-    });
-
-    it("same absolute attendance produces different segments based on plan", async () => {
-      // Member A: 2x/week plan, attending 6 times in 28 days = 75% = intermitente
+    it("same absolute attendance produces different labels based on plan", async () => {
+      // Member A: 2x/week plan, 6 visits in 28 days = 75% = optima.
       const userA = await createMemberWithDate(
         "planA@test.com",
         new Date(Date.now() - 60 * 24 * 60 * 60 * 1000),
       );
       await assignPlan(userA, 2); // 8 expected
-      await insertAttendance(userA, 6, 28); // 6/8 = 75% -> intermitente
+      await insertAttendance(userA, 6, 28); // 6/8 = 75% → optima
 
-      // Member B: 5x/week plan, attending 6 times in 28 days = 30% = en_riesgo
+      // Member B: 5x/week plan, 6 visits in 28 days = 30% = alerta.
       const userB = await createMemberWithDate(
         "planB@test.com",
         new Date(Date.now() - 60 * 24 * 60 * 60 * 1000),
       );
       await assignPlan(userB, 5); // 20 expected
-      await insertAttendance(userB, 6, 28); // 6/20 = 30% -> en_riesgo
-
-      // Recent login to avoid inactivity-based en_riesgo
-      await insertLogins(userB, 1, 1);
+      await insertAttendance(userB, 6, 28); // 6/20 = 30% → alerta
 
       const service = new SegmentationService(app.db, app.log);
       const segmentA = await service.calculateSegment(userA);
       const segmentB = await service.calculateSegment(userB);
 
-      expect(segmentA).toBe("intermitente");
-      expect(segmentB).toBe("en_riesgo");
+      expect(segmentA).toBe("optima");
+      expect(segmentB).toBe("alerta");
     });
   });
 
@@ -462,8 +375,8 @@ describe("Segmentation", () => {
 
       const body = JSON.parse(res.body);
       expect(body).toHaveProperty("segment");
-      // New member registered just now -> should be nuevo
-      expect(body.segment).toBe("nuevo");
+      // New member registered just now (< 1 month) → no label (NULL, D-07).
+      expect(body.segment).toBeNull();
     });
 
     it("non-member roles (coach/admin) do NOT trigger segment calculation", async () => {
@@ -495,103 +408,12 @@ describe("Segmentation", () => {
   });
 
   // =========================================================================
-  // Group 4: Settings API
-  // =========================================================================
-
-  describe("Settings API", () => {
-    it("GET /api/admin/settings/segments returns all 6 threshold values", async () => {
-      const res = await app.inject({
-        method: "GET",
-        url: "/api/admin/settings/segments",
-        headers: { authorization: `Bearer ${adminToken}` },
-      });
-
-      expect(res.statusCode).toBe(200);
-      const body = JSON.parse(res.body);
-
-      expect(body).toEqual({
-        espartanoPct: 80,
-        intermitentePct: 40,
-        enRiesgoWeeks: 2,
-        ghostWeeks: 8,
-        nuevoDays: 30,
-        windowDays: 28,
-      });
-    });
-
-    it("PUT /api/admin/settings/segments updates thresholds", async () => {
-      const putRes = await app.inject({
-        method: "PUT",
-        url: "/api/admin/settings/segments",
-        headers: { authorization: `Bearer ${adminToken}` },
-        payload: {
-          espartanoPct: 90,
-          ghostWeeks: 10,
-        },
-      });
-
-      expect(putRes.statusCode).toBe(200);
-
-      const getRes = await app.inject({
-        method: "GET",
-        url: "/api/admin/settings/segments",
-        headers: { authorization: `Bearer ${adminToken}` },
-      });
-
-      const body = JSON.parse(getRes.body);
-      expect(body.espartanoPct).toBe(90);
-      expect(body.ghostWeeks).toBe(10);
-      // Unchanged values remain
-      expect(body.intermitentePct).toBe(40);
-    });
-
-    it("PUT validates positive integers (rejects negative/zero)", async () => {
-      const res = await app.inject({
-        method: "PUT",
-        url: "/api/admin/settings/segments",
-        headers: { authorization: `Bearer ${adminToken}` },
-        payload: {
-          espartanoPct: 0,
-        },
-      });
-
-      expect(res.statusCode).toBe(400);
-    });
-
-    it("non-admin roles get 403 on settings endpoints", async () => {
-      // Create a coach user
-      await createStaffUser(app, {
-        email: "coach-settings@test.com",
-        password: "password123",
-        firstName: "Coach",
-        lastName: "Test",
-        role: "coach",
-        branchId: 1,
-      });
-
-      const coachToken = await getAuthToken(
-        app,
-        "coach-settings@test.com",
-        "password123",
-      );
-
-      const getRes = await app.inject({
-        method: "GET",
-        url: "/api/admin/settings/segments",
-        headers: { authorization: `Bearer ${coachToken}` },
-      });
-
-      expect(getRes.statusCode).toBe(403);
-    });
-  });
-
-  // =========================================================================
-  // Group 5: Member List Segment Filter
+  // Group 4: Member List Segment Filter
   // =========================================================================
 
   describe("Member List Segment Filter", () => {
-    it("GET /api/admin/members?segment=espartano returns only espartano members", async () => {
-      // Create two members with profiles, different segments
+    it("GET /api/admin/members?segment=optima returns only optima members", async () => {
+      // Create two members with profiles, different labels.
       const userA = await createMemberWithDate(
         "memberA@test.com",
         new Date(Date.now() - 60 * 24 * 60 * 60 * 1000),
@@ -604,20 +426,20 @@ describe("Segmentation", () => {
       await createMemberProfile(userA);
       await createMemberProfile(userB);
 
-      // Set segments directly
+      // Set labels directly
       await app.db
         .update(schema.memberProfiles)
-        .set({ segment: "espartano" })
+        .set({ segment: "optima" })
         .where(eq(schema.memberProfiles.userId, userA));
 
       await app.db
         .update(schema.memberProfiles)
-        .set({ segment: "ghost" })
+        .set({ segment: "ausente" })
         .where(eq(schema.memberProfiles.userId, userB));
 
       const res = await app.inject({
         method: "GET",
-        url: "/api/admin/members?segment=espartano",
+        url: "/api/admin/members?segment=optima",
         headers: { authorization: `Bearer ${adminToken}` },
       });
 
@@ -625,7 +447,7 @@ describe("Segmentation", () => {
       const body = JSON.parse(res.body);
 
       expect(body.members.length).toBe(1);
-      expect(body.members[0].segment).toBe("espartano");
+      expect(body.members[0].segment).toBe("optima");
     });
 
     it("GET /api/admin/members returns segment field in member list items", async () => {
@@ -638,7 +460,7 @@ describe("Segmentation", () => {
 
       await app.db
         .update(schema.memberProfiles)
-        .set({ segment: "intermitente" })
+        .set({ segment: "alerta" })
         .where(eq(schema.memberProfiles.userId, userId));
 
       const res = await app.inject({
@@ -654,7 +476,7 @@ describe("Segmentation", () => {
         (m: Record<string, unknown>) => m.email === "list-segment@test.com",
       );
       expect(member).toBeDefined();
-      expect(member.segment).toBe("intermitente");
+      expect(member.segment).toBe("alerta");
     });
 
     it("GET /api/admin/members/:userId returns segment and segmentUpdatedAt", async () => {
@@ -668,7 +490,7 @@ describe("Segmentation", () => {
       const now = new Date();
       await app.db
         .update(schema.memberProfiles)
-        .set({ segment: "en_riesgo", segmentUpdatedAt: now })
+        .set({ segment: "alerta", segmentUpdatedAt: now })
         .where(eq(schema.memberProfiles.userId, userId));
 
       const res = await app.inject({
@@ -680,7 +502,7 @@ describe("Segmentation", () => {
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body);
 
-      expect(body.segment).toBe("en_riesgo");
+      expect(body.segment).toBe("alerta");
       expect(body.segmentUpdatedAt).toBeTruthy();
     });
   });
