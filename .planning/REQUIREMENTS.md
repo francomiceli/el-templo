@@ -102,3 +102,33 @@
 ## Traceability
 
 <!-- Filled by roadmap: REQ-ID → Phase -->
+
+| Requirement | Phase                                          | Status  |
+| ----------- | ---------------------------------------------- | ------- |
+| VAL-01      | Phase 137 — Validación (cimiento)              | Pending |
+| VAL-02      | Phase 137 — Validación (cimiento)              | Pending |
+| VAL-03      | Phase 137 — Validación (cimiento)              | Pending |
+| VAL-04      | Phase 137 — Validación (cimiento)              | Pending |
+| VAL-05      | Phase 137 — Validación (cimiento)              | Pending |
+| VAL-06      | Phase 137 — Validación (cimiento)              | Pending |
+| VAL-07      | Phase 137 — Validación (cimiento)              | Pending |
+| CAJA-01     | Phase 138 — Entidad caja + saldos              | Pending |
+| CAJA-02     | Phase 138 — Entidad caja + saldos              | Pending |
+| CAJA-03     | Phase 138 — Entidad caja + saldos              | Pending |
+| CAJA-04     | Phase 138 — Entidad caja + saldos              | Pending |
+| MOV-01      | Phase 139 — Movimientos inter-caja y egresos   | Pending |
+| MOV-02      | Phase 139 — Movimientos inter-caja y egresos   | Pending |
+| MOV-03      | Phase 139 — Movimientos inter-caja y egresos   | Pending |
+| MOV-04      | Phase 139 — Movimientos inter-caja y egresos   | Pending |
+| CARGA-01    | Phase 140 — Carga única + cobro suelto + profe | Pending |
+| CARGA-02    | Phase 140 — Carga única + cobro suelto + profe | Pending |
+| CARGA-03    | Phase 140 — Carga única + cobro suelto + profe | Pending |
+| CARGA-04    | Phase 140 — Carga única + cobro suelto + profe | Pending |
+| REP-01      | Phase 141 — Reportes para la admin             | Pending |
+| REP-02      | Phase 141 — Reportes para la admin             | Pending |
+| REP-03      | Phase 141 — Reportes para la admin             | Pending |
+| REP-04      | Phase 141 — Reportes para la admin             | Pending |
+| MIG-01      | Phase 142 — Config + transición Contabilium    | Pending |
+| MIG-02      | Phase 142 — Config + transición Contabilium    | Pending |
+
+**Coverage:** 25/25 v5.2 requirements mapped → exactly one phase each. No orphans, no duplicates.

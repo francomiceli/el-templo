@@ -3,10 +3,10 @@ gsd_state_version: 1.0
 milestone: v5.2
 milestone_name: Módulo Contable — Libro de Caja
 status: planning
-last_updated: "2026-06-23T18:33:13.363Z"
+last_updated: "2026-06-23T19:00:00.000Z"
 last_activity: 2026-06-23
 progress:
-  total_phases: 0
+  total_phases: 6
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -19,15 +19,16 @@ progress:
 
 See: .planning/PROJECT.md (updated 2026-06-04)
 
-**Core value:** v5.1 reestructura el sistema de entrenamiento alrededor de un árbol de habilidades (DAG) sobre 3 ejes ortogonales (gesto/palanca/contracción). Sobre ese cimiento: el nivel Kairos para principiantes (hereda de Alfa, formato lineal forzado) y el ajuste de dificultad in-session (botones más fácil/más difícil que sirven el vecino correcto y recuerdan lo dominado). Backend-first, brownfield.
-**Current focus:** Phase 136 — rediseño de segmentación (Asistencia + Antigüedad) — CODE-COMPLETE + verificada (human_needed)
+**Core value:** El registro de un pago se carga **una sola vez** en el Administrador (fuente de verdad) y propaga solo: activa la membresía al instante e impacta la caja. Se elimina el triple tipeo (Forms + Contabilium + Admin). El Administrador pasa a ser el **libro de caja** del negocio (efectivo×sucursal + central + banco×moneda), con validación de pagos (PENDIENTE→VALIDADO), movimientos inter-caja y egresos. Se monta sobre el modelo financiero transaccional v4.8 (~60% existe). Backend-heavy, brownfield.
+**Current focus:** Phase 137 — Máquina de estados de validación (cimiento del Módulo Contable; redefine "dinero firme", bloquea 138-142) — roadmap created, awaiting plan-phase
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 137 — Máquina de estados de validación (cimiento) — not started
 Plan: —
-Status: Defining requirements
-Last activity: 2026-06-23 — Milestone v5.2 started
+Status: Roadmap created (6 phases, 137-142; 25/25 reqs mapped)
+Last activity: 2026-06-23 — Roadmap for v5.2 Módulo Contable created (phases 137-142, continues from 136)
+Next: /gsd-plan-phase 137
 
 ## Performance Metrics
 
@@ -246,6 +247,12 @@ _Updated after each plan completion_
 
 ### Roadmap Evolution
 
+- Phase 137 added (nueva milestone v5.2 Módulo Contable): Máquina de estados de validación — CIMIENTO. `validation_status` (pendiente/observado/corregido/validado) ORTOGONAL al soft-void existente (ANULADO); el filtro canónico de "dinero firme" pasa a `validation_status='validado' AND voided_at IS NULL`, sin romper las 6 métricas v5.0 (migración DEFAULT 'validado' + backfill + auditar call sites). Profe→PENDIENTE / admin→VALIDADO; corregir=anular+recrear; membresía se activa al instante. Bloquea 138-142. (VAL-01..07)
+- Phase 138 added: Entidad caja + saldos — tabla `cash_registers` (efectivo×sucursal + central + banco×moneda, `currency` fija) + `cash_register_id` en el ledger (≠ branchId) + saldo firme derivado (solo VALIDADOS, pendientes aparte) + aislamiento de moneda. (CAJA-01..04)
+- Phase 139 added: Movimientos inter-caja y egresos — movimiento=una fila (origen+destino, neto 0) con esperado-vs-contado; egreso=destino NULL + nota libre (sin categoría); ambos void ortogonal; no contaminan `balances`; `cash_transfer`/`expense` en KINDS_ALLOWED_WITHOUT_LINKS. (MOV-01..04)
+- Phase 140 added: Carga única que propaga + cobro suelto + rol profe (CORAZÓN) — extender `recordAssignmentCharge` (cashRegisterId + validationStatus por rol), UI dead-simple idempotente, cobro suelto sin membresía, rol profe acotado (carga PENDIENTE, no valida/anula/ve saldos). (CARGA-01..04)
+- Phase 141 added: Reportes para la admin — bandeja de pendientes por antigüedad (+ observados + alerta configurable), saldo firme/pendiente por caja, historial de movimientos/egresos, reusando export Excel/PDF existente. (REP-01..04)
+- Phase 142 added: Config + transición Contabilium — perillas de config (política de validación; activación instantánea/diferida) con casa definida (`finance_settings` tras borrado del subsistema en 136-07) + regla documentada de "qué dato manda" en la convivencia con Contabilium (corte limpio + asientos de apertura). (MIG-01, MIG-02)
 - Phase 133 added: Calidad del árbol — hitos canónicos + variantes (milestone_exercise_id), bandas de dificultad con kairos, sub-grupos por category fina, prereqs cross-ruta (R1-R4 de tree-quality-research.md; decisiones cerradas 2026-06-07)
 - Phase 134 added: Árbol del miembro — estados de nodo Bloqueado/Disponible/Dominado + criterio de avance objetivo 3×8/3×30s en player (R5-R6)
 - Phase 135 added: Árbol del admin — jerarquía visual de hitos/variantes en /tree-map (auto-poblar milestone_exercise_id con la heurística de 133 + render hito colapsable con variantes; hoy Front Lever se ve plano porque los hitos nunca se poblaron)

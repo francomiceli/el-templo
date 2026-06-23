@@ -16,7 +16,8 @@
 - **v4.85 Enrollment Service + Admin Add-ons** - Phases 112-114 (complete/in progress)
 - **v5.0 Métricas de Gestión** - Phases 120-123 (planned)
 - **v5.1 Nuevo Sistema de Entrenamiento** - Phases 124-131 (planned)
-- **v5.2 UI de Métricas de Gestión (admin)** - Phase 132 (planned)
+- **v5.2 UI de Métricas + Calidad del Árbol + Segmentación (admin)** - Phases 132-136 (complete)
+- **v5.2 Módulo Contable / Libro de Caja** - Phases 137-142 (planned)
 
 ---
 
@@ -3426,3 +3427,147 @@ Plans:
 ---
 
 _v5.2 added: 2026-06-04 — 1 phase (132). Cierra v5.0 del lado de UI: expone en el admin las 6 métricas de gestión que quedaron backend-only (fases 120-123) y elimina físicamente las métricas viejas/ARPU deprecadas. Frontend-only, sin migraciones. Continúa numeración desde fase 131 (v5.1). Milestone separada para no mezclar la UI de métricas con el Nuevo Sistema de Entrenamiento (v5.1). Agrupación/visualización de tabs y alcance exacto de borrado diferidos a `discuss-phase`._
+
+---
+
+## v5.2 (Módulo Contable) Overview
+
+**Milestone:** v5.2 — Módulo Contable / Libro de Caja
+**Started:** 2026-06-23
+**Phases:** 6 (137-142)
+**Continues from:** Phase 136 (v5.2 UI Métricas/Árbol/Segmentación). Numbering is NOT reset.
+**Granularity:** fine (config.json)
+
+**Scope.** Convertir al Administrador en el **libro de caja único** (fuente de verdad): el profe carga un pago **una sola vez** y esa carga activa la membresía al instante + impacta la caja, eliminando el triple tipeo (Forms + Contabilium + Admin). Se monta **ENCIMA** del modelo financiero transaccional v4.8 (`financial_transactions`, `transaction_links`, `balances`, `subscriptions`, `recordAssignmentCharge`) — ~60% ya existe, **cero dependencias nuevas**. Agrega: (1) máquina de estados de validación (PENDIENTE/OBSERVADO/CORREGIDO/VALIDADO) ortogonal al soft-void existente (ANULADO); (2) entidad caja (efectivo×sucursal + central + banco×moneda) con saldo firme derivado; (3) movimientos inter-caja (una fila) + egresos (destino NULL); (4) carga única que propaga + cobro suelto + rol profe; (5) reportes para la admin (pendientes, saldos, historial); (6) perillas de config + regla de transición Contabilium.
+
+**Pre-condición.** Modelo financiero v4.8 en prod (`financial_transactions` con `paymentMethod`, `branchId`, soft-void; `transaction_links` M:N; `balances` con `applyDelta` atómico; aislamiento de moneda cableado). Métricas de gestión v5.0 (fases 120-123) consumen el filtro canónico de ingresos `direction='inflow' AND voided_at IS NULL`.
+
+**Riesgo central (alto blast radius).** Introducir `validation_status` redefine "dinero firme" → el filtro canónico pasa a `voided_at IS NULL AND validation_status='validado'`, que consumen ~6 lugares **incluidas las 6 métricas de gestión de v5.0**. Mitigación: migración `DEFAULT 'validado'` + backfill + auditar todos los call sites + tests de regresión. Por eso **VAL va primero** (fase 137) y bloquea todo lo demás.
+
+**Decisiones de arquitectura ya cerradas (no se re-litigan; ver `.planning/research/modulo-contable/`):**
+
+- **ANULADO ortogonal al `validation_status`** (dos ejes, NO un enum único). No se reescribe `void()`. "Dinero firme" = `validation_status='validado' AND voided_at IS NULL`.
+- **Movimiento inter-caja = una sola fila** (origen+destino, neto 0); **egreso = misma fila con destino NULL**. Reusan `financial_transactions` extendiendo `kind` (`cash_transfer`, `expense`).
+- **Banco por moneda** (banco ARS + banco EUR); cada caja tiene `currency` fija; ninguna caja mezcla monedas.
+- **Saldo de caja derivado** (suma) en v1; materializar solo con evidencia de performance.
+- **"Corregir" un OBSERVADO = anular+recrear**, no UPDATE (preserva inmutabilidad del ledger).
+- **Activar membresía ≠ validar pago.** Membresía instantánea; pago entra PENDIENTE (profe) o VALIDADO (admin).
+- **Carga única** = extender `recordAssignmentCharge`, NO endpoint paralelo.
+
+**Decisiones abiertas (se resuelven en el `discuss-phase` de cada fase, NO ahora):** idempotencia de la carga única; `validation_status` como columna vs. tabla satélite; `memberId` para egresos (member-sentinel vs. nullable); casa de las perillas tras el borrado del subsistema de settings (fase 136-07); umbral de antigüedad del pendiente + destinatario de la alerta; corte limpio vs. convivencia con Contabilium + asientos de apertura; rol profe existente vs. nuevo; unidad de `amount` (centavos vs. entero).
+
+## v5.2 (Módulo Contable) Phases
+
+- [ ] **Phase 137: Máquina de estados de validación (cimiento)** — `validation_status` ortogonal al soft-void + filtro canónico de "dinero firme" reescrito sin romper las 6 métricas v5.0 + transiciones validar/observar/corregir/anular con rastro de auditoría.
+- [ ] **Phase 138: Entidad caja + saldos** — tabla `cash_registers` (efectivo×sucursal + central + banco×moneda, `currency` fija) + `cash_register_id` en el ledger + saldo firme derivado (solo VALIDADOS) con pendientes mostrados aparte + aislamiento de moneda.
+- [ ] **Phase 139: Movimientos inter-caja y egresos** — movimiento (una fila origen+destino, neto 0) con reconciliación esperado-vs-contado + egreso (destino NULL, nota libre) + void ortogonal de ambos, sin contaminar `balances`.
+- [ ] **Phase 140: Carga única que propaga + cobro suelto + rol profe** — UI dead-simple que registra el pago una vez y propaga atómico (membresía + caja) de forma idempotente + cobro suelto + rol profe acotado (carga PENDIENTE, no valida/anula).
+- [ ] **Phase 141: Reportes para la admin** — bandeja de pendientes por antigüedad (+ observados, + alerta configurable) + saldo firme/pendiente por caja + historial de movimientos/egresos, reusando el export Excel/PDF existente.
+- [ ] **Phase 142: Config + transición Contabilium** — perillas de configuración (política de validación; activación instantánea/diferida) con casa definida y funcional + regla documentada de "qué dato manda" durante la convivencia con Contabilium por etapa.
+
+## v5.2 (Módulo Contable) Phase Details
+
+### Phase 137: Máquina de estados de validación (cimiento)
+
+**Goal:** Una transacción de cobro tiene un estado de validación (PENDIENTE/OBSERVADO/CORREGIDO/VALIDADO) **ortogonal** al soft-void existente (ANULADO), y el filtro canónico de "dinero firme" pasa a contar solo VALIDADOS — **sin alterar los números de las 6 métricas de gestión de v5.0** (todos los call sites auditados, migración con backfill `validado`, CI verde). End state: un pago cargado por profe nace PENDIENTE y NO suma al saldo firme hasta que el admin lo valida; el admin puede observar/corregir (anular+recrear) y anular (con rastro), y la membresía se activa al instante independiente del estado del pago.
+**Depends on:** Nothing nuevo del milestone (se monta sobre v4.8 + v5.0 ya en prod). **Bloquea 138-142.**
+**Requirements:** VAL-01, VAL-02, VAL-03, VAL-04, VAL-05, VAL-06, VAL-07
+**Success Criteria** (what must be TRUE at phase completion):
+
+1. `financial_transactions` tiene `validation_status` (pendiente/observado/corregido/validado), coexistiendo con el soft-void (`voided_at`) sin reescribir `void()`; un pago puede estar VALIDADO y luego anularse (ANULADO = `voided_at IS NOT NULL`, eje separado). (VAL-01)
+2. Un pago cargado por profe nace PENDIENTE y uno cargado por admin nace VALIDADO; el rol se resuelve server-side, no se confía en el cliente. (VAL-02)
+3. El admin puede validar un PENDIENTE (pasa a dinero firme), observarlo, y corregirlo mediante anular+recrear (no UPDATE), dejando rastro en la tabla de eventos de validación. (VAL-03, VAL-04)
+4. El filtro canónico de ingresos/saldo firme cuenta solo `validation_status='validado' AND voided_at IS NULL`, centralizado en un helper reutilizable; un test de regresión confirma que cargar un PENDIENTE NO mueve el summary/saldo y que las 6 métricas v5.0 dan los mismos números que antes (backfill `validado`). (VAL-05)
+5. Solo el admin puede anular (motivo + autor + fecha); al anular un pago con membresía asociada, un popup decide 1-a-1 si la membresía sigue activa (default: activa). (VAL-06)
+6. La membresía se activa al instante al cargar el pago, independiente del `validation_status` del cobro (un PENDIENTE ya salda la deuda del socio en `balances`, pero NO suma a caja firme). (VAL-07)
+
+**Plans:** TBD
+
+### Phase 138: Entidad caja + saldos
+
+**Goal:** Existe la caja como entidad de primera clase (efectivo por sucursal + efectivo central + banco por moneda), cada pago se asocia a una caja distinta de su `branchId`, y el saldo firme de cada caja (suma de VALIDADOS, derivado) es consultable con los pendientes mostrados aparte. End state: el admin puede ver cuánto "debería haber" en cada caja, con monedas nunca mezcladas.
+**Depends on:** Phase 137 (el saldo firme ya filtra por `validado`).
+**Requirements:** CAJA-01, CAJA-02, CAJA-03, CAJA-04
+**Success Criteria** (what must be TRUE at phase completion):
+
+1. Existe `cash_registers` con tipos efectivo/banco, `branch_id` (NULL para central y banco global) y `currency` NOT NULL fija; hay seed de cajas efectivo×sucursal, efectivo central, banco ARS y banco EUR. (CAJA-01)
+2. `financial_transactions` tiene `cash_register_id` (la plata) conceptualmente desacoplado de `branchId` (dónde se cobró); una transferencia cobrada en una sucursal puede caer en la caja banco. (CAJA-02)
+3. `CashRegisterService.getBalance` devuelve el saldo firme derivado (Σ VALIDADOS de esa caja) y los PENDIENTES por separado, sin que estos sumen al firme. (CAJA-03)
+4. El sistema rechaza asociar a una caja un monto de moneda distinta a la suya (espejo del guard de `applyDelta`); ningún saldo ni reporte suma monedas distintas. (CAJA-04)
+
+**Plans:** TBD
+**UI hint:** yes
+
+### Phase 139: Movimientos inter-caja y egresos
+
+**Goal:** El admin puede mover plata entre cajas (una sola operación origen+destino, neto sistema 0) registrando esperado-vs-contado, y registrar egresos (salida real, destino NULL, nota libre) que restan del saldo; ambos se pueden anular con rastro y ninguno contamina los `balances` del socio. End state: el saldo de cada caja refleja movimientos y egresos, y un retiro mal cargado se anula sin descuadrar.
+**Depends on:** Phase 138 (necesita cajas con saldo).
+**Requirements:** MOV-01, MOV-02, MOV-03, MOV-04
+**Success Criteria** (what must be TRUE at phase completion):
+
+1. Un movimiento inter-caja se registra como una sola fila (`kind='cash_transfer'`, origen+destino) en una `db.transaction`; la suma de saldos de todas las cajas de la misma moneda no cambia tras el movimiento (invariante testeada). Movimiento solo entre cajas de igual moneda. (MOV-01)
+2. El movimiento captura `expected_amount` (saldo derivado al momento) vs. `counted_amount` (físico) y persiste la diferencia con rastro, sin "ajustar" silenciosamente el saldo. (MOV-02)
+3. Un egreso (`kind='expense'`, destino NULL) resta del saldo de su caja con monto + nota libre (sin categoría en v1); `cash_transfer`/`expense` están en `KINDS_ALLOWED_WITHOUT_LINKS` y NO tocan `balances` (verificado por test). (MOV-03)
+4. Movimientos y egresos se anulan con el mismo soft-void ortogonal que los pagos (motivo + autor + fecha), nunca con delete. (MOV-04)
+
+**Plans:** TBD
+**UI hint:** yes
+
+### Phase 140: Carga única que propaga + cobro suelto + rol profe
+
+**Goal:** El corazón del milestone: el profe registra un pago desde una UI dead-simple en pocos toques y ese único registro propaga atómicamente (activa/renueva membresía + impacta el saldo de la caja correcta) de forma idempotente, soportando también cobros sueltos no atados a membresía; el rol profe existe con permisos acotados (carga PENDIENTE, no valida ni anula). End state: el profe carga un pago una sola vez y la admin deja de re-tipear.
+**Depends on:** Phase 137 (validation_status por rol), Phase 138 (resolución de caja por defecto), Phase 139 (modelo de caja completo).
+**Requirements:** CARGA-01, CARGA-02, CARGA-03, CARGA-04
+**Success Criteria** (what must be TRUE at phase completion):
+
+1. El profe registra un pago desde una pantalla dead-simple del admin en pocos toques (socio, monto, medio de pago, caja con default resuelto por `paymentMethod`+`branchId`), sin re-tipear en otro sistema. (CARGA-01)
+2. Un solo registro propaga atómicamente en una `db.transaction` idempotente (clave de deduplicación): activa/renueva la membresía + impacta el saldo de la caja correspondiente; un doble click/retry no duplica. (CARGA-02)
+3. La misma UI soporta cobros sueltos (pago sin membresía asociada) reusando el modelo existente sin schema nuevo. (CARGA-03)
+4. El rol profe existe en el admin con permisos acotados: puede cargar pagos (entran PENDIENTE), NO puede validar, observar, anular ni ver saldos de caja; un test de autorización confirma el bloqueo. (CARGA-04)
+
+**Plans:** TBD
+**UI hint:** yes
+
+### Phase 141: Reportes para la admin
+
+**Goal:** La admin tiene la vista de control completa: bandeja de pendientes ordenada por antigüedad (con observados y alerta configurable por umbral), saldo firme y pendiente por caja, e historial de movimientos/egresos por caja/período, todo exportable reusando el export Excel/PDF existente. End state: la validación reemplaza al cierre de caja diario como control cotidiano.
+**Depends on:** Phase 137 (estados), Phase 138 (saldos por caja), Phase 139 (movimientos/egresos).
+**Requirements:** REP-01, REP-02, REP-03, REP-04
+**Success Criteria** (what must be TRUE at phase completion):
+
+1. La admin ve una bandeja de pendientes ordenada por antigüedad junto a los observados, con alerta configurable cuando un pendiente supera el umbral definido. (REP-01)
+2. La admin ve el saldo firme y pendiente por caja (efectivo×sucursal, central, banco×moneda), con la moneda siempre al lado y sin totales cross-currency. (REP-02)
+3. La admin ve el historial de movimientos inter-caja y egresos filtrable por caja/período. (REP-03)
+4. Los reportes nuevos se exportan reusando el export Excel/PDF existente (exceljs / pdfmake), sin un mecanismo de export paralelo. (REP-04)
+
+**Plans:** TBD
+**UI hint:** yes
+
+### Phase 142: Config + transición Contabilium
+
+**Goal:** Las perillas de configuración del módulo tienen una casa definida y funcional tras el borrado del subsistema de settings (fase 136-07), y está documentada la regla de "qué dato manda" durante la convivencia con Contabilium por etapa de reemplazo. End state: el equipo sabe dónde se configura la política de validación / activación, y hay una regla escrita de transición que evita recrear el doble tipeo.
+**Depends on:** Phase 137 (las perillas gobiernan validación/activación; pueden plegarse aquí o en 137 según discuss-phase).
+**Requirements:** MIG-01, MIG-02
+**Success Criteria** (what must be TRUE at phase completion):
+
+1. Las perillas de configuración (política de validación: todos vs. dudosos; activación de membresía instantánea vs. diferida) tienen una casa de configuración definida (tabla `finance_settings` o equivalente, scoped) y funcional desde el admin, NO cableadas en código. (MIG-01)
+2. Está documentada la regla de "qué dato manda" durante la convivencia con Contabilium por etapa (registro de ingresos/caja vive solo en el Administrador desde el corte; facturación AFIP queda en Contabilium, fuera de scope), incluyendo el criterio de corte limpio + asientos de apertura por caja. (MIG-02)
+
+**Plans:** TBD
+
+## v5.2 (Módulo Contable) Progress
+
+| Phase                                       | Plans Complete | Status      | Completed |
+| ------------------------------------------- | -------------- | ----------- | --------- |
+| 137. Máquina de estados de validación       | 0/?            | Not started | -         |
+| 138. Entidad caja + saldos                  | 0/?            | Not started | -         |
+| 139. Movimientos inter-caja y egresos       | 0/?            | Not started | -         |
+| 140. Carga única + cobro suelto + rol profe | 0/?            | Not started | -         |
+| 141. Reportes para la admin                 | 0/?            | Not started | -         |
+| 142. Config + transición Contabilium        | 0/?            | Not started | -         |
+
+_Plan counts populated by `/gsd-plan-phase`._
+
+---
+
+_v5.2 (Módulo Contable) added: 2026-06-23 — 6 phases (137-142), 25 requirements (VAL, CAJA, MOV, CARGA, REP, MIG). Backend-heavy sobre v4.8 (~60% existe, cero deps nuevas). **VAL (137) es el cimiento y va primero** por su blast radius sobre las 6 métricas v5.0 (redefine "dinero firme"). Orden de construcción del research: VAL → CAJA → MOV → CARGA → REP → MIG. Continúa numeración desde fase 136 (NO se resetea). Decisiones de arquitectura cerradas (ANULADO ortogonal, movimiento=una fila, banco×moneda, saldo derivado, corregir=anular+recrear); decisiones de dominio (idempotencia, casa de perillas, member sentinel, corte Contabilium, umbral de pendiente) diferidas a cada `discuss-phase`. Fuente de verdad: `BRIEF-MODULO-CONTABLE-FRANCO.md` + `.planning/research/modulo-contable/` (ARCHITECTURE/FEATURES/PITFALLS)._
