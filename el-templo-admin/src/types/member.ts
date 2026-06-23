@@ -5,58 +5,38 @@
 
 export type DocumentType = 'DNI' | 'Pasaporte' | 'NIE' | 'NIF' | 'Otro';
 
-// ─── Behavioral Segmentation (Phase 79) ─────────────────────────────────────
+// ─── Etiqueta de Asistencia (Phase 136, D-01) ───────────────────────────────
+// Reemplaza al segmento conductual de Phase 79 por 4 bandas basadas 100% en el
+// % de uso de la membresía sobre una ventana móvil de 28 días (≥75 / 50-74 /
+// 1-49 / 0). Los cortes son fijos en código (D-03); no hay thresholds
+// configurables. Un miembro con < 1 mes de antigüedad o sin plan activo queda
+// con segment NULL (sin etiqueta).
 
-export type MemberSegment =
-  | 'nuevo'
-  | 'espartano'
-  | 'intermitente'
-  | 'en_riesgo'
-  | 'digital_warrior'
-  | 'ghost';
+export type MemberSegment = 'optima' | 'regular' | 'alerta' | 'ausente';
 
 export const SEGMENT_LABELS: Record<MemberSegment, string> = {
-  nuevo: 'Nuevo',
-  espartano: 'Espartano',
-  intermitente: 'Intermitente',
-  en_riesgo: 'En Riesgo',
-  // digital_warrior se calcula en el motor (baja asistencia presencial + uso de
-  // app), pero operativamente es gente "En Riesgo" de baja presencial. Se muestra
-  // como En Riesgo en todo el admin para leerlo a golpe de vista; el motor y el
-  // enum no cambian.
-  digital_warrior: 'En Riesgo',
-  ghost: 'Fantasma',
+  optima: 'Óptima',
+  regular: 'Regular',
+  alerta: 'Alerta',
+  ausente: 'Ausente',
 };
 
 export const SEGMENT_COLORS: Record<MemberSegment, string> = {
-  nuevo: 'blue',
-  espartano: 'green',
-  intermitente: 'amber',
-  en_riesgo: 'orange',
-  digital_warrior: 'orange',
-  ghost: 'grey',
+  optima: 'green',
+  regular: 'amber',
+  alerta: 'orange',
+  ausente: 'red',
 };
 
-// Short, plain-language meaning of each engagement segment, mirroring the
-// classification logic in the API segmentation service. Shown as a legend
-// under the segment counts so reception/gestion know what each chip means.
+// Short, plain-language meaning of each attendance band, mirroring the % cutoffs
+// in the API segmentation service. Shown as a legend so reception/gestion know
+// what each chip means.
 export const SEGMENT_DESCRIPTIONS: Record<MemberSegment, string> = {
-  nuevo: 'Recién registrado — todavía en su período inicial.',
-  espartano: 'Asiste de forma constante, cumple o supera su cupo de clases.',
-  intermitente: 'Asiste, pero por debajo del cupo esperado de su plan.',
-  en_riesgo: 'Bajó la asistencia o lleva semanas sin actividad — riesgo de baja.',
-  digital_warrior: 'Asiste poco presencialmente pero usa mucho la app (sesiones/ingresos).',
-  ghost: 'Sin actividad hace varias semanas (ni asistencia, ni app, ni sesiones).',
+  optima: 'Usa ≥75% de su cupo de clases.',
+  regular: 'Usa 50-74% de su cupo.',
+  alerta: 'Usa menos de la mitad de su cupo — requiere observación.',
+  ausente: 'Sin asistencia en la ventana — detona seguimiento.',
 };
-
-export interface SegmentThresholds {
-  espartanoPct: number;
-  intermitentePct: number;
-  enRiesgoWeeks: number;
-  ghostWeeks: number;
-  nuevoDays: number;
-  windowDays: number;
-}
 
 // Phase 103 (R10): user lifecycle status. NULL only for staff rows
 // (members always have a value). UI labels mirror the enum 1:1

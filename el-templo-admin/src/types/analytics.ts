@@ -148,26 +148,24 @@ export interface CheckInAdoptionRow {
 // -- Engagement (Phase 117 D-12) -----------------------------------------
 
 /**
- * Active-member counts per behavioral segment (Phase 117 D-12). The 6 segments
- * are the canonical `MemberSegment` values — analytics only AGGREGATES
+ * Active-member counts per attendance band (Phase 136 D-01). The 4 bands are the
+ * canonical `MemberSegment` values — analytics only AGGREGATES
  * `member_profiles.segment` for active members. Every key defaults to 0.
  * `sinSegmento` is the bucket for active members with no computed segment.
  */
 export interface SegmentCounts {
-  nuevo: number;
-  espartano: number;
-  intermitente: number;
-  en_riesgo: number;
-  digital_warrior: number;
-  ghost: number;
+  optima: number;
+  regular: number;
+  alerta: number;
+  ausente: number;
   /** Active members with no computed segment (member_profiles.segment IS NULL). */
   sinSegmento: number;
 }
 
 /**
- * A member on the engagement worklist (Phase 117 D-12 / D-17). Same nominal
- * shape as `AttentionMember`, carries `phone` for the WhatsApp deep-link. Only
- * `en_riesgo` and `ghost` active members appear.
+ * A member on the engagement worklist (Phase 117 D-12 / D-17, Phase 136 D-01).
+ * Same nominal shape as `AttentionMember`, carries `phone` for the WhatsApp
+ * deep-link. Only `alerta` and `ausente` active members appear.
  */
 export interface EngagementMember {
   userId: number;
@@ -175,12 +173,12 @@ export interface EngagementMember {
   lastName: string | null;
   planName: string | null;
   phone: string | null;
-  segment: 'en_riesgo' | 'ghost';
+  segment: 'alerta' | 'ausente';
 }
 
 /**
- * GET /admin/analytics/engagement response (Phase 117 D-12): per-segment active
- * counts + the en_riesgo/ghost nominal worklist.
+ * GET /admin/analytics/engagement response (Phase 117 D-12, Phase 136 D-01):
+ * per-band active counts + the alerta/ausente nominal worklist.
  */
 export interface EngagementAnalytics {
   counts: SegmentCounts;
