@@ -339,6 +339,17 @@ The 45s `OPENAI_TIMEOUT_MS` is the LEFT-HAND VARIABLE that the right-hand TTL mu
 | 98. Test Hygiene (98-A/B/C)                     | 1/1            | Complete               | 2026-06-17 |
 | 97. Backlog + Regression Lock                   | 0/?            | ⏸ Blocked on 97.5 + 98 | -          |
 
+### Phase 99: Bot copy and price disclosure fixes
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 98
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 99 to break down)
+
 ---
 
 <details>
