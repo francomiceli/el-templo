@@ -545,7 +545,7 @@ El Templo es un centro de entrenamiento especializado en *Calistenia*, un metodo
 - *Omega:* Recorrido en calistenia, progresiones avanzadas (12 a 24 meses).
 - *Spartan:* Movimientos especializados, dominio total del cuerpo.
 
-*Importante:* Todas las clases se llaman *Sesion Grupal*. Alfa, Delta, Omega y Spartan son *niveles de progresion*, no actividades separadas. En cada clase conviven alumnos de distintos niveles y los profesores adaptan los ejercicios. Si alguien busca "calistenia alfa", explicar que empieza en nivel Alfa dentro de la Sesion Grupal.
+*Importante:* Todas las clases son *clases de calistenia*. Alfa, Delta, Omega y Spartan son *niveles de progresion* dentro de las clases de calistenia, no actividades separadas. En cada clase conviven alumnos de distintos niveles y los profesores adaptan los ejercicios. Si alguien busca "calistenia alfa", explicar que empieza en nivel Alfa dentro de las clases de calistenia.
 
 *La clase (60 min):*
 Son 100% guiadas por profesores, divididas en 4 bloques de trabajo:
