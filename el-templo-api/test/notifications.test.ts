@@ -20,6 +20,10 @@ import {
   cleanAllTestData,
 } from "./helpers";
 import { NotificationService } from "../src/modules/notifications/service";
+import {
+  SEGMENT_TRANSITION_TEMPLATES,
+  TEMPLATE_SEEDS,
+} from "../src/modules/notifications/types";
 import * as schema from "../src/db/schema";
 import { eq, sql } from "drizzle-orm";
 
@@ -424,10 +428,10 @@ describe("Notification Module", () => {
   // =========================================================================
   describe("Send to Segment", () => {
     it("POST /api/notifications/admin/send-segment with valid segment returns 200", async () => {
-      // Create a member_profile with a known segment for the test member
+      // Create a member_profile with a known Attendance label for the test member
       await app.db.insert(schema.memberProfiles).values({
         userId: memberId,
-        segment: "espartano",
+        segment: "optima",
         segmentUpdatedAt: new Date(),
       });
 
@@ -446,7 +450,7 @@ describe("Notification Module", () => {
         payload: {
           title: "Test Segment Send",
           body: "Test body for segment notification",
-          segmentIds: ["espartano"],
+          segmentIds: ["optima"],
         },
       });
 
@@ -463,7 +467,7 @@ describe("Notification Module", () => {
         payload: {
           title: "Unauthorized",
           body: "Should not work",
-          segmentIds: ["espartano"],
+          segmentIds: ["optima"],
         },
       });
 
@@ -471,15 +475,15 @@ describe("Notification Module", () => {
     });
 
     it("POST /api/notifications/admin/send-segment with segment that has no members returns queued: 0", async () => {
-      // No member_profiles with 'ghost' segment in test data
+      // No member_profiles with 'ausente' Attendance label in test data
       const res = await app.inject({
         method: "POST",
         url: "/api/notifications/admin/send-segment",
         headers: { authorization: `Bearer ${adminToken}` },
         payload: {
           title: "Empty Segment",
-          body: "No members in ghost segment",
-          segmentIds: ["ghost"],
+          body: "No members in ausente segment",
+          segmentIds: ["ausente"],
         },
       });
 
@@ -896,15 +900,15 @@ describe("Notification Module", () => {
         .set({ gender: "female" })
         .where(eq(schema.users.id, femaleMemberId));
 
-      // Create member_profiles with known segment for both members
+      // Create member_profiles with known Attendance label for both members
       await app.db.insert(schema.memberProfiles).values({
         userId: memberId,
-        segment: "espartano",
+        segment: "optima",
         segmentUpdatedAt: new Date(),
       });
       await app.db.insert(schema.memberProfiles).values({
         userId: femaleMemberId,
-        segment: "espartano",
+        segment: "optima",
         segmentUpdatedAt: new Date(),
       });
 
@@ -931,7 +935,7 @@ describe("Notification Module", () => {
           body: "Cuerpo default",
           titleFemale: "Titulo femenino",
           bodyFemale: "Cuerpo femenino",
-          segmentIds: ["espartano"],
+          segmentIds: ["optima"],
         },
       });
 
@@ -958,6 +962,63 @@ describe("Notification Module", () => {
       const femaleNotif = femaleNotifications[femaleNotifications.length - 1];
       expect(femaleNotif.title).toBe("Titulo femenino");
       expect(femaleNotif.body).toBe("Cuerpo femenino");
+    });
+  });
+
+  // =========================================================================
+  // 8. Segment Transition Mapping (D-10: triggers rewired, copy preserved)
+  // =========================================================================
+  describe("Segment Transition Mapping", () => {
+    /** Resolve a template seed by its key for copy assertions. */
+    function seedFor(templateKey: string) {
+      const seed = TEMPLATE_SEEDS.find((t) => t.templateKey === templateKey);
+      expect(seed).toBeDefined();
+      return seed!;
+    }
+
+    it("maps the 4 Attendance triggers to the original template_keys", () => {
+      expect(SEGMENT_TRANSITION_TEMPLATES["any_to_alerta"]).toBe(
+        "segment_transition_en_riesgo",
+      );
+      expect(SEGMENT_TRANSITION_TEMPLATES["alerta_to_ausente"]).toBe(
+        "segment_transition_ghost",
+      );
+      expect(SEGMENT_TRANSITION_TEMPLATES["recovery_to_active"]).toBe(
+        "segment_transition_recovery",
+      );
+      expect(SEGMENT_TRANSITION_TEMPLATES["any_to_optima"]).toBe(
+        "segment_transition_espartano",
+      );
+    });
+
+    it("does NOT reference the legacy segment trigger keys", () => {
+      expect(SEGMENT_TRANSITION_TEMPLATES["any_to_en_riesgo"]).toBeUndefined();
+      expect(
+        SEGMENT_TRANSITION_TEMPLATES["en_riesgo_to_ghost"],
+      ).toBeUndefined();
+      expect(SEGMENT_TRANSITION_TEMPLATES["any_to_espartano"]).toBeUndefined();
+    });
+
+    it("preserves the push copy for each rewired trigger (D-10)", () => {
+      // Alerta → "Tu práctica te espera"
+      const alerta = seedFor("segment_transition_en_riesgo");
+      expect(alerta.title).toBe("Tu práctica te espera");
+
+      // Ausente → "El Templo no cierra"
+      const ausente = seedFor("segment_transition_ghost");
+      expect(ausente.title).toBe("El Templo no cierra");
+
+      // Recovery → "¡Bienvenido de vuelta!"
+      const recovery = seedFor("segment_transition_recovery");
+      expect(recovery.title).toBe("¡Bienvenido de vuelta!");
+
+      // Óptima → "¡Semana increíble!"
+      const optima = seedFor("segment_transition_espartano");
+      expect(optima.title).toBe("¡Semana increíble!");
+
+      // Monthly re-attempt for Ausente reuses the same template, unchanged.
+      const reattempt = seedFor("ghost_monthly_reattempt");
+      expect(reattempt.title).toBe("Sin prisa, sin pausa");
     });
   });
 });

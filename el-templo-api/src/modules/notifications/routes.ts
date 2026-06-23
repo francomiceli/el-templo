@@ -15,15 +15,8 @@ import { NotificationService } from "./service";
 import { NOTIFICATION_CATEGORIES, type NotificationCategory } from "./types";
 import { ADMIN_ROLES, OWNER_ROLES } from "../shared/permissions";
 import * as schema from "../../db/schema";
-
-/** Valid member segment values matching memberSegmentEnum */
-type MemberSegment =
-  | "nuevo"
-  | "espartano"
-  | "intermitente"
-  | "en_riesgo"
-  | "digital_warrior"
-  | "ghost";
+// Attendance label values (4 bands) — single source of truth (D-01).
+import type { MemberSegment } from "../segmentation/types";
 
 // ---- Fastify JSON Schemas for request validation ----
 
@@ -152,14 +145,7 @@ const sendSegmentSchema = {
         type: "array",
         items: {
           type: "string",
-          enum: [
-            "nuevo",
-            "espartano",
-            "intermitente",
-            "en_riesgo",
-            "digital_warrior",
-            "ghost",
-          ],
+          enum: ["optima", "regular", "alerta", "ausente"],
         },
         minItems: 1,
       },
