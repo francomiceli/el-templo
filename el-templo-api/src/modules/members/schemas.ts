@@ -30,6 +30,9 @@ const memberListItemSchema = {
     planName: { type: ["string", "null"] },
     segment: { type: ["string", "null"] },
     avatarType: { type: ["string", "null"] },
+    // Vencimiento countdown source: active/paused subscription end date
+    // (YYYY-MM-DD) or null. The pill label is derived client-side.
+    endDate: { type: ["string", "null"] },
     createdAt: { type: "string" },
     // Phase 102 (R7): true iff user has ≥1 is_trial=TRUE booking.
     hasUsedTrial: { type: "boolean" },

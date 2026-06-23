@@ -252,6 +252,9 @@ describe("Members Management Routes", () => {
       expect(body.members.length).toBeGreaterThanOrEqual(1);
       // Member was created with planId => auto-subscription => planName should be set
       expect(body.members[0]).toHaveProperty("planName", "Test Plan");
+      // Vencimiento source: active subscription end date (YYYY-MM-DD) for the
+      // countdown pill. Derived from the same active/paused subscription.
+      expect(body.members[0].endDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     });
 
     it("filters by planId returns only members with that plan", async () => {
@@ -311,6 +314,8 @@ describe("Members Management Routes", () => {
       expect(body.members).toHaveLength(1);
       expect(body.members[0].email).toBe("noplan@test.com");
       expect(body.members[0].planName).toBeNull();
+      // No active subscription => no Vencimiento source.
+      expect(body.members[0].endDate).toBeNull();
     });
 
     it("exposes totalDebtByCurrency to admin but withholds it from gestion", async () => {

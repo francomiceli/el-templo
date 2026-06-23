@@ -306,6 +306,14 @@ export class SchedulingService {
     // Get all bookings (not cancelled) for this slot + date.
     // Phase 102: trials are returned alongside regular bookings — the admin
     // UI splits them visually using `isTrial`. This is NOT a capacity query.
+    // Active/paused subscription end date for the Vencimiento countdown pill.
+    // Correlated subquery (most recent active/paused sub); null when none.
+    const endDateExpr = sql<string | null>`(
+      SELECT DATE_FORMAT(s.end_date, '%Y-%m-%d') FROM subscriptions s
+      WHERE s.user_id = ${schema.users.id} AND s.subscription_status IN ('active','paused')
+      ORDER BY s.created_at DESC LIMIT 1
+    )`;
+
     const bookingRows = await this.db
       .select({
         id: schema.bookings.id,
@@ -321,6 +329,7 @@ export class SchedulingService {
         isTrial: schema.bookings.isTrial,
         segment: schema.memberProfiles.segment,
         createdAt: schema.users.createdAt,
+        endDate: endDateExpr,
       })
       .from(schema.bookings)
       .innerJoin(schema.users, eq(schema.users.id, schema.bookings.memberId))
@@ -354,6 +363,7 @@ export class SchedulingService {
       isTrial: r.isTrial,
       segment: r.segment ?? null,
       seniority: computeSeniority(r.createdAt),
+      endDate: r.endDate ?? null,
     }));
 
     // Query attendance records for this branch + date

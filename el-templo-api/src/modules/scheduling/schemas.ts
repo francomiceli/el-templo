@@ -89,6 +89,9 @@ const bookingRecordSchema = {
     // in the slot roster. Computed on the fly from users.createdAt; null on
     // single-booking lookups where the profile/createdAt isn't joined.
     seniority: { type: ["string", "null"] },
+    // Vencimiento countdown source: active/paused subscription end date
+    // (YYYY-MM-DD) or null. The pill label is derived client-side.
+    endDate: { type: ["string", "null"] },
   },
 } as const;
 

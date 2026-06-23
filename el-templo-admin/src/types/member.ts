@@ -42,12 +42,52 @@ export const SEGMENT_DESCRIPTIONS: Record<MemberSegment, string> = {
 // users.createdAt in the slot endpoints. Surfaced only in Horarios.
 export type MemberSeniority = 'nuevo' | '1-3m' | '3-6m' | '6m+';
 
+// Números a secas (sin "meses") para ahorrar espacio en la fila de pills de
+// Horarios — deja lugar para la pill de Vencimiento.
 export const SENIORITY_LABELS: Record<MemberSeniority, string> = {
   nuevo: 'Nuevo',
-  '1-3m': '1-3 meses',
-  '3-6m': '3-6 meses',
-  '6m+': '+6 meses',
+  '1-3m': '1-3',
+  '3-6m': '3-6',
+  '6m+': '+6',
 };
+
+// ─── Etiqueta de Vencimiento (cuenta regresiva) ─────────────────────────────
+// Cuenta regresiva al vencimiento de la suscripción activa/paused, derivada
+// on-the-fly de `endDate` (subscriptions.end_date). Hitos DISCRETOS (no rangos):
+// la pill solo se activa en los días exactos de aviso, salvo "Vencida" que
+// persiste a partir del día siguiente al vencimiento.
+//   10 días → "10 Venc" (aviso temprano)   5 días → "5 Venc"
+//    7 días → "7 Venc"                      1 día  → "1 Venc" (día anterior)
+//    0 días → "Hoy" (mismo día)            < 0     → "Vencida" (si no renovó)
+
+export interface ExpiryBadge {
+  label: string;
+  color: string;
+}
+
+/**
+ * Map an active subscription end date to its Vencimiento pill, or null when no
+ * milestone applies for `todayIso`. Both args are 'YYYY-MM-DD'. Day count is a
+ * pure calendar-day diff (caller supplies "today" in the branch timezone).
+ */
+export function expiryBadge(
+  endDate: string | null | undefined,
+  todayIso: string
+): ExpiryBadge | null {
+  if (!endDate) return null;
+  const end = Date.parse(`${endDate}T00:00:00`);
+  const today = Date.parse(`${todayIso}T00:00:00`);
+  if (Number.isNaN(end) || Number.isNaN(today)) return null;
+  const days = Math.round((end - today) / 86_400_000);
+
+  if (days < 0) return { label: 'Vencida', color: 'red-10' };
+  if (days === 0) return { label: 'Hoy', color: 'red' };
+  if (days === 1) return { label: '1 Venc', color: 'red' };
+  if (days === 5) return { label: '5 Venc', color: 'deep-orange' };
+  if (days === 7) return { label: '7 Venc', color: 'orange' };
+  if (days === 10) return { label: '10 Venc', color: 'amber' };
+  return null;
+}
 
 // Phase 103 (R10): user lifecycle status. NULL only for staff rows
 // (members always have a value). UI labels mirror the enum 1:1
@@ -73,6 +113,8 @@ export interface MemberListItem {
   planName: string | null;
   segment: MemberSegment | null;
   avatarType: string | null;
+  // Active/paused subscription end date (YYYY-MM-DD) for the Vencimiento pill.
+  endDate: string | null;
   createdAt: string;
   hasUsedTrial: boolean;
 }

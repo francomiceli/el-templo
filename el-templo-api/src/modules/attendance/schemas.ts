@@ -116,6 +116,9 @@ const slotAttendanceItemSchema = {
     // Phase 136 D-06/D-12: tenure label (Antigüedad) replaces avatarType
     // in the slot roster. Computed on the fly from users.createdAt.
     seniority: { type: ["string", "null"] },
+    // Vencimiento countdown source: active/paused subscription end date
+    // (YYYY-MM-DD) or null. The pill label is derived client-side.
+    endDate: { type: ["string", "null"] },
   },
 } as const;
 

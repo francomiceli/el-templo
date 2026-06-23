@@ -376,8 +376,19 @@ export class AttendanceService {
       // users.createdAt — surfaced only in Horarios. Null when createdAt
       // is missing (defensive).
       seniority: MemberSeniority | null;
+      // Active/paused subscription end date (YYYY-MM-DD) for the Vencimiento
+      // countdown pill. Null when no active/paused subscription.
+      endDate: string | null;
     }>;
   }> {
+    // Active/paused subscription end date for the Vencimiento countdown pill.
+    // Correlated subquery (most recent active/paused sub); null when none.
+    const endDateExpr = sql<string | null>`(
+      SELECT DATE_FORMAT(s.end_date, '%Y-%m-%d') FROM subscriptions s
+      WHERE s.user_id = ${schema.users.id} AND s.subscription_status IN ('active','paused')
+      ORDER BY s.created_at DESC LIMIT 1
+    )`;
+
     // Get all bookings for this slot+date
     const bookingRows = await this.db
       .select({
@@ -388,6 +399,7 @@ export class AttendanceService {
         bookingStatus: schema.bookings.status,
         segment: schema.memberProfiles.segment,
         createdAt: schema.users.createdAt,
+        endDate: endDateExpr,
       })
       .from(schema.bookings)
       .innerJoin(schema.users, eq(schema.users.id, schema.bookings.memberId))
@@ -414,6 +426,7 @@ export class AttendanceService {
         source: schema.attendance.source,
         segment: schema.memberProfiles.segment,
         createdAt: schema.users.createdAt,
+        endDate: endDateExpr,
       })
       .from(schema.attendance)
       .innerJoin(schema.users, eq(schema.users.id, schema.attendance.memberId))
@@ -441,6 +454,7 @@ export class AttendanceService {
         source: "qr" | "manual" | null;
         segment: string | null;
         seniority: MemberSeniority | null;
+        endDate: string | null;
       }
     >();
 
@@ -457,6 +471,7 @@ export class AttendanceService {
         source: null,
         segment: b.segment ?? null,
         seniority: computeSeniority(b.createdAt),
+        endDate: b.endDate ?? null,
       });
     }
 
@@ -486,6 +501,7 @@ export class AttendanceService {
           source: a.source as "qr" | "manual",
           segment: a.segment ?? null,
           seniority: computeSeniority(a.createdAt),
+          endDate: a.endDate ?? null,
         });
       }
     }

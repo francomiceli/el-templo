@@ -260,6 +260,14 @@ export class MemberService {
       WHERE mp.user_id = users.id LIMIT 1
     )`;
 
+    // Subquery: active/paused subscription end date for the Vencimiento
+    // countdown pill (YYYY-MM-DD); null when no active/paused subscription.
+    const endDateSubquery = sql<string | null>`(
+      SELECT DATE_FORMAT(s.end_date, '%Y-%m-%d') FROM subscriptions s
+      WHERE s.user_id = users.id AND s.subscription_status IN ('active','paused')
+      ORDER BY s.created_at DESC LIMIT 1
+    )`;
+
     // Phase 102 (R7): EXISTS projection for the trial-history boolean.
     // Returns 1/0 from MySQL; coerced to boolean in the mapper below.
     // Uses idx_bookings_member_date (member_id prefix) for the lookup.
@@ -306,6 +314,7 @@ export class MemberService {
         planName: planNameSubquery,
         segment: segmentSubquery,
         avatarType: avatarTypeSubquery,
+        endDate: endDateSubquery,
         hasUsedTrial: hasUsedTrialSubquery,
       })
       .from(schema.users)
@@ -376,6 +385,7 @@ export class MemberService {
       planName: r.planName ?? null,
       segment: r.segment ?? null,
       avatarType: r.avatarType ?? null,
+      endDate: r.endDate ?? null,
       createdAt: r.createdAt.toISOString(),
       hasUsedTrial: Boolean(r.hasUsedTrial),
     }));

@@ -1854,6 +1854,7 @@ export class BookingService {
       // segment/seniority stay null (Phase 136 D-12: avatar dropped).
       segment: null,
       seniority: null,
+      endDate: null,
     };
   }
 }

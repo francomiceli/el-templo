@@ -132,7 +132,12 @@
               <q-item-section>
                 <q-item-label>{{ booking.memberName }}</q-item-label>
                 <q-item-label caption>
-                  <MemberTags :segment="booking.segment" :seniority="booking.seniority" />
+                  <MemberTags
+                    :segment="booking.segment"
+                    :seniority="booking.seniority"
+                    :end-date="booking.endDate"
+                    :timezone="branchTimezone"
+                  />
                 </q-item-label>
               </q-item-section>
               <q-item-section side>
@@ -165,7 +170,12 @@
                 <q-item-section>
                   <q-item-label>{{ booking.memberName }}</q-item-label>
                   <q-item-label caption>
-                    <MemberTags :segment="booking.segment" :seniority="booking.seniority" />
+                    <MemberTags
+                      :segment="booking.segment"
+                      :seniority="booking.seniority"
+                      :end-date="booking.endDate"
+                      :timezone="branchTimezone"
+                    />
                   </q-item-label>
                 </q-item-section>
                 <q-item-section side>
@@ -201,7 +211,12 @@
                     Posición {{ booking.waitlistPosition }}
                   </q-item-label>
                   <q-item-label caption>
-                    <MemberTags :segment="booking.segment" :seniority="booking.seniority" />
+                    <MemberTags
+                      :segment="booking.segment"
+                      :seniority="booking.seniority"
+                      :end-date="booking.endDate"
+                      :timezone="branchTimezone"
+                    />
                   </q-item-label>
                 </q-item-section>
                 <q-item-section side>
@@ -258,6 +273,8 @@
                   <MemberTags
                     :segment="member.segment"
                     :seniority="member.seniority"
+                    :end-date="member.endDate"
+                    :timezone="branchTimezone"
                     class="q-ml-xs"
                   />
                 </q-item-label>

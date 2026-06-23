@@ -108,6 +108,11 @@ export interface MemberListItem {
    */
   segment: MemberSegment | null;
   avatarType: string | null;
+  /**
+   * Active/paused subscription end date (YYYY-MM-DD) for the Vencimiento
+   * countdown pill. Null when the member has no active/paused subscription.
+   */
+  endDate: string | null;
   createdAt: string;
   /**
    * Phase 102 (R7): true iff the user has at least one is_trial=TRUE booking

@@ -79,6 +79,9 @@ export interface BookingRecord {
   // Phase 136 D-05/D-06/D-12: tenure label computed on the fly from
   // users.createdAt — shown only in Horarios, replacing the avatar chip.
   seniority: MemberSeniority | null;
+  // Active/paused subscription end date (YYYY-MM-DD) for the Vencimiento
+  // countdown pill. Null when the member has no active/paused subscription.
+  endDate: string | null;
 }
 
 export interface HolidayRecord {

@@ -226,6 +226,18 @@
         </q-td>
       </template>
 
+      <!-- Vencimiento (cuenta regresiva): pill solo en hitos 10/7/5/1/hoy/vencida -->
+      <template #body-cell-vencimiento="props">
+        <q-td :props="props">
+          <q-badge
+            v-if="vencBadge(props.row.endDate)"
+            :color="vencBadge(props.row.endDate)!.color"
+            :label="vencBadge(props.row.endDate)!.label"
+          />
+          <span v-else class="text-grey-5 text-italic">&mdash;</span>
+        </q-td>
+      </template>
+
       <!-- Nivel column with Greek letter -->
       <template #body-cell-nivel="props">
         <q-td :props="props">
@@ -320,7 +332,8 @@ import type {
   TotalDebtRow,
   UserStatus,
 } from 'src/types/member';
-import { SEGMENT_LABELS, SEGMENT_COLORS } from 'src/types/member';
+import { SEGMENT_LABELS, SEGMENT_COLORS, expiryBadge } from 'src/types/member';
+import { todayInTz } from 'src/utils/tz';
 import { levelColor } from 'src/constants/levels';
 import MemberFormDialog from 'src/components/MemberFormDialog.vue';
 import TrialMemberFormDialog from 'src/components/TrialMemberFormDialog.vue';
@@ -515,6 +528,14 @@ const columns: QTableProps['columns'] = [
     style: 'width: 130px',
   },
   {
+    name: 'vencimiento',
+    label: 'Vencimiento',
+    field: 'endDate',
+    align: 'center',
+    sortable: false,
+    style: 'width: 110px',
+  },
+  {
     name: 'sucursal',
     label: 'Sucursal',
     field: 'branchName',
@@ -622,6 +643,12 @@ function segmentLabel(segment: string): string {
 
 function segmentColor(segment: string): string {
   return SEGMENT_COLORS[segment as MemberSegment] ?? 'grey';
+}
+
+// Vencimiento countdown pill (10/7/5/1/hoy/vencida) from the active sub end
+// date. Day count uses AR "today" — the list spans all branches.
+function vencBadge(endDate: string | null) {
+  return expiryBadge(endDate, todayInTz('America/Argentina/Buenos_Aires'));
 }
 
 // =========================================================================
