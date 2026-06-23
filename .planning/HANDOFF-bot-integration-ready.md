@@ -165,7 +165,7 @@ Default concrete values: `OPENAI_TIMEOUT_MS=45000` (`openai.ts:50-55`), `MAX_TOO
 - Generate a new migration: `pnpm --filter el-templo-api db:generate`.
 - Push schema state for dev iteration: `pnpm --filter el-templo-api db:push`.
 - Drizzle Studio: `pnpm --filter el-templo-api db:studio`.
-- Latest migration in `el-templo-api/src/db/migrations/` (45 files total): `0043_populate_timezone_tables.sql`. Sequence tail: `…0040_whatsapp_message_unique_raw.sql`, `0041_update_client_state_enum.sql`, `0042_add_branch_address_columns.sql`, `0043_populate_timezone_tables.sql`.
+- Latest migration in `el-templo-api/src/db/migrations/` (44 files total): `0043_populate_timezone_tables.sql`. Sequence tail: `…0040_whatsapp_message_unique_raw.sql`, `0041_update_client_state_enum.sql`, `0042_add_branch_address_columns.sql`, `0043_populate_timezone_tables.sql`.
 - npm-script source of truth: `el-templo-api/package.json:12-20`.
 
 ### `eltemplo` (dev/prod) vs `eltemplo_test`
@@ -250,7 +250,7 @@ For Meta token + phone-number-id setup, the existing guides are:
 1. Start API + bot + ngrok per above; verify Meta webhook configured + subscribed.
 2. Seed real branches/plans/schedules: `pnpm --filter el-templo-api seed:production` (with the `CONFIRM_PRODUCTION_SEED=yes` gate).
 3. From your real WhatsApp account, message the test phone number (the one tied to `WHATSAPP_PHONE_ID`).
-4. The bot's `determineClientState` will classify you as `lead` (no `users` row yet), seat you in playbook PB1, run the discovery flow with profile-tag extraction, present the trial-class scheduling flow when it advances, dispatch `register_trial` via HTTP POST to the API (`tools.ts:921-942`), then on success drive `check_schedule` + interactive-button confirmation to dispatch `book_class` (`tools.ts:746-762`).
+4. The bot's `determineClientState` will classify you as `lead` (no `users` row yet), seat you in playbook PB1, run the discovery flow with profile-tag extraction, and present the trial-class scheduling flow when it advances. **For a lead/trial, the booking is driven by `register_trial`** via HTTP POST to the API (`tools.ts:921-942`), with `check_schedule` resolving availability and an interactive-button confirmation closing the trial class — this is the exact path exercised in live testing 2026-06-17. `book_class` (`tools.ts:746-762`) is the **existing-member** path for booking regular classes; it is NOT triggered in the new-lead trial flow — exercise it separately by messaging from a phone that resolves to an `active_member`.
 5. To exercise `request_human` → handoff, type a phrase that surfaces `softRejection` strongly enough to elicit the LLM to call the tool (e.g., persistent agitated rejection); the handler sets `conversation_status='human_takeover'` and the bot stays silent thereafter (see §6 known issues — silent-dead-end UX gap).
 6. To exercise schedulers: insert a `bookings` row with `class_at` ≈ now + `CLASS_REMINDER_HOURS` (default 2 h) and watch the cron tick at `:30`/`:00` (`*/30 * * * *` in Argentine TZ); insert a `users` row with `trial_class_at` ≈ now and watch the hourly trial-followup tick during 10-19 local.
 
