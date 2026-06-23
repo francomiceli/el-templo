@@ -8,13 +8,11 @@ import { isTrainingLevel, type Level } from 'src/modules/training/level-display'
 // Re-export Level for backward compatibility with existing imports.
 export type { Level }
 
-export type MemberSegment =
-  | 'nuevo'
-  | 'espartano'
-  | 'intermitente'
-  | 'en_riesgo'
-  | 'digital_warrior'
-  | 'ghost'
+// Phase 136 (D-01): Attendance label (4 bands by % membership usage over 28d)
+// replaces the legacy 6-value behavioral segment. `segment` may be NULL for
+// members <1 month old or without an active plan (D-07/D-08) — consumers fall
+// back gracefully (see SegmentGreeting `?? 'Hola,'`).
+export type MemberSegment = 'optima' | 'regular' | 'alerta' | 'ausente'
 
 export type SubscriptionStatus =
   | 'active'

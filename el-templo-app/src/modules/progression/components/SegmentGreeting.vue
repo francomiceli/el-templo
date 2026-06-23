@@ -31,14 +31,14 @@ const props = defineProps<Props>()
  * {name} is a placeholder split point — text before it becomes the greeting message,
  * text after becomes the suffix (if any).
  */
-// Segment greeting prefixes — keys preserved for future copywriting
-const SEGMENT_GREETINGS: Record<string, string> = {
-  nuevo: 'Hola,',
-  espartano: 'Hola,',
-  intermitente: 'Hola,',
-  en_riesgo: 'Hola,',
-  digital_warrior: 'Hola,',
-  ghost: 'Hola,',
+// Phase 136 (D-01): one entry per Attendance band. Copy is uniform ('Hola,')
+// for now — keys are kept as a copywriting hook. NULL segment (<1 month / no
+// active plan) falls back to 'Hola,' below.
+const SEGMENT_GREETINGS: Record<MemberSegment, string> = {
+  optima: 'Hola,',
+  regular: 'Hola,',
+  alerta: 'Hola,',
+  ausente: 'Hola,',
 }
 
 const greetingMessage = computed(() => {
