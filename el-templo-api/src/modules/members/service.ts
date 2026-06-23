@@ -49,6 +49,7 @@ import type {
 } from "./types";
 import { ConflictError, NotFoundError } from "../shared/errors";
 import { alias } from "drizzle-orm/mysql-core";
+import type { MemberSegment } from "../segmentation/types";
 
 export class MemberService {
   constructor(
@@ -155,7 +156,9 @@ export class MemberService {
       }
     }
 
-    // Segment filter: filter by behavioral segment from member_profiles
+    // Segment filter (Phase 136): filter by the Attendance label stored in
+    // member_profiles.member_segment. The query param is validated against the
+    // 4-band enum in schemas.ts before reaching here.
     if (segment !== undefined) {
       conditions.push(
         sql`EXISTS (
@@ -243,8 +246,10 @@ export class MemberService {
       ORDER BY s.created_at DESC LIMIT 1
     )`;
 
-    // Subquery: behavioral segment from member_profiles
-    const segmentSubquery = sql<string | null>`(
+    // Subquery: Attendance label (Phase 136) from member_profiles. Reads the
+    // physical column `member_segment` (name unchanged); the value is now one
+    // of the 4 Attendance bands or NULL (<1 month / no active plan, D-07/D-08).
+    const segmentSubquery = sql<MemberSegment | null>`(
       SELECT mp.member_segment FROM member_profiles mp
       WHERE mp.user_id = users.id LIMIT 1
     )`;

@@ -160,16 +160,13 @@ export const listMembersSchema = {
         enum: ["kairos", "alfa", "delta", "sigma", "omega", "spartan"],
       },
       planId: { type: "integer" },
+      // Phase 136 (D-01): Attendance label replaces the legacy 6-value
+      // behavioral segment. Fastify rejects values outside this enum with a
+      // 400 before the handler — keep it aligned with the admin filter (plan
+      // 05) so legitimate `?segment=alerta` requests are not rejected.
       segment: {
         type: "string",
-        enum: [
-          "nuevo",
-          "espartano",
-          "intermitente",
-          "en_riesgo",
-          "digital_warrior",
-          "ghost",
-        ],
+        enum: ["optima", "regular", "alerta", "ausente"],
       },
       avatarType: { type: "string" },
       country: { type: "string", enum: ["AR", "ES"] },

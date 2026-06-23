@@ -5,6 +5,8 @@
  * and internal notes system.
  */
 
+import type { MemberSegment } from "../segmentation/types";
+
 export type DocumentType = "DNI" | "Pasaporte" | "NIE" | "NIF" | "Otro";
 
 export type UserStatus = "freemium" | "prueba" | "activo" | "inactivo";
@@ -15,6 +17,12 @@ export interface MemberListParams {
   multiBranch?: boolean;
   level?: string;
   planId?: number;
+  /**
+   * Phase 136 (D-01): Attendance label filter. Validated against the 4-band
+   * enum (optima/regular/alerta/ausente) by listMembersSchema before reaching
+   * the service; typed as string here because the Fastify querystring is a
+   * raw string narrowed at the schema boundary.
+   */
   segment?: string;
   avatarType?: string;
   /**
@@ -93,7 +101,12 @@ export interface MemberListItem {
    */
   status: UserStatus | null;
   planName: string | null;
-  segment: string | null;
+  /**
+   * Phase 136 (D-01): Attendance label (optima/regular/alerta/ausente) read
+   * from member_profiles.member_segment. NULL for members <1 month old or
+   * without an active plan (D-07/D-08) — the front degrades gracefully.
+   */
+  segment: MemberSegment | null;
   avatarType: string | null;
   createdAt: string;
   /**
