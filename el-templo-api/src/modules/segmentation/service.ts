@@ -23,9 +23,7 @@ import {
   ATTENDANCE_REGULAR_PCT,
   ATTENDANCE_WINDOW_DAYS,
 } from "./types";
-
-/** A member must have ≥ 1 month of tenure before an Attendance label applies (D-07). */
-const MIN_TENURE_DAYS = 30;
+import { computeSeniority } from "../shared/date-utils";
 
 /** Skip recalculation if segment was updated within this many milliseconds */
 const RECALC_COOLDOWN_MS = 60 * 60 * 1000; // 1 hour
@@ -65,10 +63,10 @@ export class SegmentationService {
       return null;
     }
 
-    const daysSinceRegistration =
-      (Date.now() - user.createdAt.getTime()) / (1000 * 60 * 60 * 24);
-
-    if (daysSinceRegistration < MIN_TENURE_DAYS) {
+    // Guard uses the exact same "nuevo" tenure boundary as the Antigüedad pill
+    // (computeSeniority, D-06) so the two can never disagree: a member tagged
+    // "Nuevo" must never carry an Attendance label.
+    if (computeSeniority(user.createdAt) === "nuevo") {
       return null;
     }
 

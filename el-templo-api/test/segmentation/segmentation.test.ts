@@ -152,6 +152,24 @@ describe("Segmentation", () => {
       expect(segment).toBeNull();
     });
 
+    it("member at 30 days is still 'Nuevo' (< 1 month = 30.44d) and gets NULL", async () => {
+      // Regression: the tenure guard must use the exact same boundary as the
+      // Antigüedad pill (computeSeniority, 30.44 days/month). At 30 days the
+      // member is still "Nuevo", so it must never carry an Attendance label.
+      const userId = await createMemberWithDate(
+        "boundary-30d@test.com",
+        new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+      );
+
+      await assignPlan(userId, 3);
+      await insertAttendance(userId, 12, 7); // 100%+ attendance
+
+      const service = new SegmentationService(app.db, app.log);
+      const segment = await service.calculateSegment(userId);
+
+      expect(segment).toBeNull();
+    });
+
     it("member with no active plan gets NULL (no denominator, D-08)", async () => {
       const userId = await createMemberWithDate(
         "noplan@test.com",
