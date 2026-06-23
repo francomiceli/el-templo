@@ -2,16 +2,16 @@
  * Engagement Service (Phase 117 D-12 / D-09 / D-17).
  *
  * A NEW domain service (per D-09) that REUSES the existing segmentation module
- * — it does NOT recalculate segments or invent thresholds. The 6 behavioral
- * segments are computed and persisted by `segmentation/service.ts` into
- * `member_profiles.segment` (recalculated on member login, 1h cooldown). This
- * service only READS that column and AGGREGATES:
+ * — it does NOT recalculate segments or invent thresholds. The 4 Attendance
+ * bands (Phase 136 D-01) are computed and persisted by `segmentation/service.ts`
+ * into `member_profiles.segment` (recalculated on member login, 1h cooldown).
+ * This service only READS that column and AGGREGATES:
  *
  *   - countActiveBySegment: how many ACTIVE members (canonical
  *     `activeMemberExists` predicate, never `users.status`) sit in each of the
- *     6 segments + a `sinSegmento` bucket for active members whose segment is
- *     NULL (no profile / never logged in since segmentation shipped).
- *   - getEngagementNominalList: the worklist of active `en_riesgo` / `ghost`
+ *     4 bands + a `sinSegmento` bucket for active members whose segment is
+ *     NULL (no profile / under 1 month / no active plan — left NULL by design).
+ *   - getEngagementNominalList: the worklist of active `alerta` / `ausente`
  *     members ("los que se van a ir si nadie los toca") with phone for the
  *     WhatsApp action — same nominal shape as analytics' getAttentionList.
  *
@@ -40,14 +40,12 @@ import type {
   EngagementMember,
 } from "./types";
 
-/** The 6 canonical segments (segmentation/types.ts) — NOT redefined here. */
+/** The 4 canonical Attendance bands (segmentation/types.ts) — NOT redefined here. */
 const SEGMENT_KEYS: MemberSegment[] = [
-  "nuevo",
-  "espartano",
-  "intermitente",
-  "en_riesgo",
-  "digital_warrior",
-  "ghost",
+  "optima",
+  "regular",
+  "alerta",
+  "ausente",
 ];
 
 export class EngagementService {
@@ -59,9 +57,9 @@ export class EngagementService {
   /**
    * Count ACTIVE members grouped by their persisted `member_profiles.segment`
    * (D-12). Only members that are active per the canonical `activeMemberExists`
-   * predicate are counted — a non-active member with a stale `ghost` segment is
+   * predicate are counted — a non-active member with a stale `ausente` band is
    * NOT counted. Active members with NULL segment (no profile row, or never
-   * computed) land in `sinSegmento` so the per-segment counts reconcile against
+   * computed) land in `sinSegmento` so the per-band counts reconcile against
    * the total active count. Scope via applyScope on `users.branchId` (D-17).
    * Reused, never recalculated.
    */
@@ -111,12 +109,10 @@ export class EngagementService {
           );
 
     const counts: SegmentCounts = {
-      nuevo: 0,
-      espartano: 0,
-      intermitente: 0,
-      en_riesgo: 0,
-      digital_warrior: 0,
-      ghost: 0,
+      optima: 0,
+      regular: 0,
+      alerta: 0,
+      ausente: 0,
       sinSegmento: 0,
     };
 
@@ -142,7 +138,7 @@ export class EngagementService {
   }
 
   /**
-   * Nominal worklist of ACTIVE `en_riesgo` / `ghost` members (D-12 / D-17). Same
+   * Nominal worklist of ACTIVE `alerta` / `ausente` members (D-12 / D-17). Same
    * shape as getAttentionList (userId / firstName / lastName / planName / phone)
    * plus the segment so the admin can prioritize. Only active members are
    * included (canonical predicate). The member's plan name is taken from the
@@ -161,7 +157,7 @@ export class EngagementService {
 
     const conditions: SQL[] = [
       eq(schema.users.role, "member") as unknown as SQL,
-      sql`${schema.memberProfiles.segment} IN ('en_riesgo','ghost')`,
+      sql`${schema.memberProfiles.segment} IN ('alerta','ausente')`,
       activeMemberExists(schema.users.id),
       ...scopeConditions,
     ];
@@ -202,17 +198,17 @@ export class EngagementService {
           .where(and(...conditions))
       : await base.where(and(...conditions));
 
-    // Sort ghost before en_riesgo (ghost = higher urgency), then by name for a
-    // stable list. The admin can re-sort; this is a sensible default.
-    const urgency: Record<"en_riesgo" | "ghost", number> = {
-      ghost: 0,
-      en_riesgo: 1,
+    // Sort ausente before alerta (ausente = higher urgency, 0% usage), then by
+    // name for a stable list. The admin can re-sort; this is a sensible default.
+    const urgency: Record<"alerta" | "ausente", number> = {
+      ausente: 0,
+      alerta: 1,
     };
 
     return rows
       .filter(
-        (r): r is typeof r & { segment: "en_riesgo" | "ghost" } =>
-          r.segment === "en_riesgo" || r.segment === "ghost",
+        (r): r is typeof r & { segment: "alerta" | "ausente" } =>
+          r.segment === "alerta" || r.segment === "ausente",
       )
       .map((r) => ({
         userId: r.userId,

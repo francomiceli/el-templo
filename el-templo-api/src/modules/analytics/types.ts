@@ -60,9 +60,9 @@ export interface KpiStats {
  * Used by reception to skip members who already paid but whose subscription
  * row has not been renewed yet. ("habló con coach" is DEFERRED — see service.)
  *
- * `segment` (D-16/D-17): the member's engagement segment from
+ * `segment` (D-16/D-17): the member's Attendance band from
  * `member_profiles.segment` (NULL when no profile / never segmented), so the
- * worklist can be prioritized — e.g. a `ghost` that is about to expire is the
+ * worklist can be prioritized — e.g. an `ausente` that is about to expire is the
  * highest-priority contact.
  */
 export interface AttentionMember {
@@ -169,34 +169,33 @@ export interface CheckInAdoptionRow {
 // -- Engagement (Phase 117 D-12) -----------------------------------------
 
 /**
- * Active-member counts per behavioral segment (Phase 117 D-12). The 6 segments
- * are the canonical `MemberSegment` values (segmentation/types.ts) — analytics
- * NEVER recalculates them, it only AGGREGATES `member_profiles.segment` for
- * members that are active (canonical predicate `activeMemberExists`). Every key
- * is always present and defaults to 0.
+ * Active-member counts per Attendance band (Phase 136 D-01). The 4 bands are the
+ * canonical `MemberSegment` values (segmentation/types.ts) — analytics NEVER
+ * recalculates them, it only AGGREGATES `member_profiles.segment` for members
+ * that are active (canonical predicate `activeMemberExists`). Every key is always
+ * present and defaults to 0.
  *
  * `sinSegmento` is the bucket for active members whose `member_profiles.segment`
- * is NULL (no profile row yet, or segment never computed — the member has not
- * logged in since segmentation shipped). These members are real and active, so
- * they are counted here rather than dropped, keeping the per-segment counts
- * reconcilable against the total active count.
+ * is NULL (no profile row yet, segment never computed, or member under 1 month /
+ * without an active plan — the engine leaves those NULL by design, D-07/D-08).
+ * These members are real and active, so they are counted here rather than
+ * dropped, keeping the per-band counts reconcilable against the total active
+ * count.
  */
 export interface SegmentCounts {
-  nuevo: number;
-  espartano: number;
-  intermitente: number;
-  en_riesgo: number;
-  digital_warrior: number;
-  ghost: number;
-  /** Active members with no computed segment (member_profiles.segment IS NULL). */
+  optima: number;
+  regular: number;
+  alerta: number;
+  ausente: number;
+  /** Active members with no computed band (member_profiles.segment IS NULL). */
   sinSegmento: number;
 }
 
 /**
- * A member on the engagement worklist (Phase 117 D-12 / D-17). Same nominal
- * shape as `AttentionMember` (getAttentionList) — carries `phone` for the
- * WhatsApp deep-link action in the admin. Only `en_riesgo` and `ghost` active
- * members appear here ("activos que se van a ir si nadie los toca"). PII
+ * A member on the engagement worklist (Phase 117 D-12 / D-17, Phase 136 D-01).
+ * Same nominal shape as `AttentionMember` (getAttentionList) — carries `phone`
+ * for the WhatsApp deep-link action in the admin. Only `alerta` and `ausente`
+ * active members appear here ("activos que se van a ir si nadie los toca"). PII
  * (phone) is gated by the ADMIN_ROLES guard + scope (T-117-01 / T-117-06).
  */
 export interface EngagementMember {
@@ -205,7 +204,7 @@ export interface EngagementMember {
   lastName: string | null;
   planName: string | null;
   phone: string | null;
-  segment: "en_riesgo" | "ghost";
+  segment: "alerta" | "ausente";
 }
 
 // -- Retention by cycle cohorts (Phase 118 D-04/D-05/D-06) ---------------
