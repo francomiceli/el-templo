@@ -343,10 +343,10 @@
           <q-tab-panel name="perfil">
             <MemberProfileTab :member="memberProfile" />
 
-            <!-- Segmentacion card -->
+            <!-- Asistencia card -->
             <q-card v-if="memberProfile.segment" flat bordered class="q-mt-md">
               <q-card-section>
-                <div class="text-subtitle1 text-weight-bold q-mb-sm">Segmentacion</div>
+                <div class="text-subtitle1 text-weight-bold q-mb-sm">Asistencia</div>
                 <div class="row items-center q-gutter-sm">
                   <q-badge
                     :color="SEGMENT_COLORS[memberProfile.segment as MemberSegment] ?? 'grey'"

@@ -58,7 +58,7 @@
       <q-card-section>
         <div class="text-subtitle2 q-mb-sm">Miembros que requieren atencion</div>
         <div class="text-caption text-grey-6 q-mb-sm">
-          Ordenados por prioridad: fantasma y en riesgo primero (más probable que se vayan).
+          Ordenados por prioridad: ausentes y en alerta primero (más probable que se vayan).
         </div>
         <q-table
           v-if="prioritizedAttentionList.length > 0"
@@ -210,13 +210,14 @@ const props = defineProps<{
 
 const router = useRouter();
 
-// -- Attention list prioritization (D-16) --------------------------------
-// Ghost / en_riesgo about to expire are the highest-priority contacts. Sort
-// them first; within the same priority keep the backend's urgency order.
+// -- Attention list prioritization (D-16, Phase 136 D-01) ----------------
+// Ausente / alerta about to expire are the highest-priority contacts. Sort
+// them first; within the same priority keep the backend's urgency order
+// (alineado con priorityRank del backend: ausente=0, alerta=1, resto=2).
 
 const SEGMENT_PRIORITY: Record<string, number> = {
-  ghost: 0,
-  en_riesgo: 1,
+  ausente: 0,
+  alerta: 1,
 };
 
 const prioritizedAttentionList = computed<AttentionMember[]>(() => {

@@ -287,12 +287,10 @@ interface TemplateRow {
 // Segments
 // ----------------------------------------------------------------
 const segments = [
-  { value: 'nuevo', label: 'Nuevo' },
-  { value: 'espartano', label: 'Espartano' },
-  { value: 'intermitente', label: 'Intermitente' },
-  { value: 'en_riesgo', label: 'En Riesgo' },
-  { value: 'digital_warrior', label: 'En Riesgo (App)' },
-  { value: 'ghost', label: 'Fantasma' },
+  { value: 'optima', label: 'Óptima' },
+  { value: 'regular', label: 'Regular' },
+  { value: 'alerta', label: 'Alerta' },
+  { value: 'ausente', label: 'Ausente' },
 ];
 
 // ----------------------------------------------------------------

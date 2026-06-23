@@ -135,7 +135,7 @@
         <q-select
           v-model="filters.segment"
           :options="segmentFilterOptions"
-          label="Segmento"
+          label="Asistencia"
           dense
           outlined
           emit-value
@@ -445,14 +445,10 @@ const statusFilterOptions: Array<{ label: string; value: UserStatus | null }> = 
 
 const segmentFilterOptions: Array<{ label: string; value: MemberSegment | null }> = [
   { label: 'Todos', value: null },
-  { label: 'Nuevo', value: 'nuevo' },
-  { label: 'Espartano', value: 'espartano' },
-  { label: 'Intermitente', value: 'intermitente' },
-  { label: 'En Riesgo', value: 'en_riesgo' },
-  // Mismo riesgo presencial que 'en_riesgo' pero con uso de app — se muestra como
-  // "En Riesgo" en la tabla; el filtro permite aislarlos por separado.
-  { label: 'En Riesgo (App)', value: 'digital_warrior' },
-  { label: 'Fantasma', value: 'ghost' },
+  { label: 'Óptima', value: 'optima' },
+  { label: 'Regular', value: 'regular' },
+  { label: 'Alerta', value: 'alerta' },
+  { label: 'Ausente', value: 'ausente' },
 ];
 
 const avatarFilterOptions: Array<{ label: string; value: string | null }> = [
@@ -512,7 +508,7 @@ const columns: QTableProps['columns'] = [
   },
   {
     name: 'segmento',
-    label: 'Segmento',
+    label: 'Asistencia',
     field: 'segment',
     align: 'center',
     sortable: false,
