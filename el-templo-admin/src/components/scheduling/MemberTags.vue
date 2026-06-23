@@ -1,9 +1,10 @@
 <template>
   <span v-if="seniority || segment" class="row inline items-center q-gutter-xs">
-    <!-- Antigüedad (Phase 136 D-05/D-06): neutral chip, shown only in Horarios -->
-    <q-badge v-if="seniority" outline color="grey-7" :label="seniorityLabel" class="text-caption" />
+    <!-- Antigüedad (Phase 136 D-05/D-06): neutral chip, shown only in Horarios.
+         Default q-badge size to match the "PRUEBA" pill (no text-caption — it inflates line-height). -->
+    <q-badge v-if="seniority" outline color="grey-7" :label="seniorityLabel" />
     <!-- Asistencia (D-07): omitted when segment is null (<1 mes / sin plan) -->
-    <q-badge v-if="segment" :color="segmentColor" :label="segmentLabel" class="text-caption" />
+    <q-badge v-if="segment" :color="segmentColor" :label="segmentLabel" />
   </span>
 </template>
 
