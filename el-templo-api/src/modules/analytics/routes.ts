@@ -273,7 +273,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
     },
   );
 
-  // GET /engagement — conteo de activos por segmento + worklist en_riesgo/ghost
+  // GET /engagement — conteo de activos por banda + worklist alerta/ausente
   // (Phase 117 D-12). Reutiliza segmentation (member_profiles.segment), no
   // recalcula. PII (phone) gated por el onRequest hook (ANALYTICS_OPERATIONAL_ROLES:
   // gestion contacta a los socios en riesgo) + scope por sede/país.

@@ -515,8 +515,8 @@ export class AnalyticsService {
    *
    * Each member carries:
    *   - `yaPago`: EXISTS recent non-voided plan_charge inflow (D-16).
-   *   - `segment`: member_profiles.segment for prioritization (D-16/D-17) — a
-   *     ghost/en_riesgo that is expiring/overdue is the highest-priority contact.
+   *   - `segment`: member_profiles.segment for prioritization (D-16/D-17) — an
+   *     ausente/alerta that is expiring/overdue is the highest-priority contact.
    *
    * "habló con coach" (D-16) is DEFERRED: it is not derivable without new
    * schema/UI, so it is intentionally NOT implemented here.
@@ -667,11 +667,11 @@ export class AnalyticsService {
     }
     const overdue = [...overdueByUser.values()];
 
-    // Prioritize: ghost/en_riesgo first (they leave if untouched), then by
+    // Prioritize: ausente/alerta first (they leave if untouched), then by
     // urgency (overdue with most mora, then expiring soonest).
     const priorityRank = (m: AttentionMember): number => {
-      if (m.segment === "ghost") return 0;
-      if (m.segment === "en_riesgo") return 1;
+      if (m.segment === "ausente") return 0;
+      if (m.segment === "alerta") return 1;
       return 2;
     };
     const urgency = (m: AttentionMember): number =>
