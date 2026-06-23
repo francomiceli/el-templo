@@ -677,14 +677,14 @@ describe("Analytics API", () => {
       expect(byId(unpaid.id).yaPago).toBe(false);
     });
 
-    it("D-16/D-17: overdue member carries its engagement segment for prioritization", async () => {
+    it("D-16/D-17: overdue member carries its Attendance band for prioritization", async () => {
       const plan = await createPlan({ name: `Seg-${Date.now()}` });
-      const ghost = await createMember({
-        email: "ghost-ov@test.com",
+      const ausente = await createMember({
+        email: "ausente-ov@test.com",
         dni: "90003020",
       });
-      await seedOverdueSub(ghost.id, plan.id, 4);
-      await setSegment(ghost.id, "ghost");
+      await seedOverdueSub(ausente.id, plan.id, 4);
+      await setSegment(ausente.id, "ausente");
 
       const res = await app.inject({
         method: "GET",
@@ -694,10 +694,42 @@ describe("Analytics API", () => {
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body);
       const found = body.attentionList.find(
-        (m: { userId: number }) => m.userId === ghost.id,
+        (m: { userId: number }) => m.userId === ausente.id,
       );
       expect(found).toBeDefined();
-      expect(found.segment).toBe("ghost");
+      expect(found.segment).toBe("ausente");
+    });
+
+    it("136-D-01: attention-list orders ausente before alerta at equal urgency", async () => {
+      const plan = await createPlan({ name: `Order-${Date.now()}` });
+      const alerta = await createMember({
+        email: "ord-alerta@test.com",
+        dni: "90003040",
+      });
+      const ausente = await createMember({
+        email: "ord-ausente@test.com",
+        dni: "90003041",
+      });
+      // Same urgency: both overdue by the same number of days.
+      await seedOverdueSub(alerta.id, plan.id, 5);
+      await seedOverdueSub(ausente.id, plan.id, 5);
+      await setSegment(alerta.id, "alerta");
+      await setSegment(ausente.id, "ausente");
+
+      const res = await app.inject({
+        method: "GET",
+        url: `${ANALYTICS_URL}/members`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      const ids = body.attentionList.map((m: { userId: number }) => m.userId);
+      const idxAusente = ids.indexOf(ausente.id);
+      const idxAlerta = ids.indexOf(alerta.id);
+      expect(idxAusente).toBeGreaterThanOrEqual(0);
+      expect(idxAlerta).toBeGreaterThanOrEqual(0);
+      // priorityRank: ausente (0) ranks ahead of alerta (1) at equal urgency.
+      expect(idxAusente).toBeLessThan(idxAlerta);
     });
 
     it("D-15: renewalRate returns last7/last14/last30 windows", async () => {
@@ -788,8 +820,8 @@ describe("Analytics API", () => {
       });
       await app.db
         .insert(memberProfiles)
-        .values({ userId: member.id, segment: "en_riesgo" })
-        .onDuplicateKeyUpdate({ set: { segment: "en_riesgo" } });
+        .values({ userId: member.id, segment: "alerta" })
+        .onDuplicateKeyUpdate({ set: { segment: "alerta" } });
 
       const res = await app.inject({
         method: "GET",
@@ -808,7 +840,7 @@ describe("Analytics API", () => {
       expect(row).toHaveProperty("daysOverdue");
       expect(row).toHaveProperty("type");
       expect(row.type).toBe("overdue");
-      expect(row.segment).toBe("en_riesgo");
+      expect(row.segment).toBe("alerta");
       expect(row.daysOverdue).toBe(6);
       expect(typeof row.yaPago).toBe("boolean");
       // daysUntilExpiry still present in the contract (not broken).
