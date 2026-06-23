@@ -151,11 +151,6 @@ const routes: RouteRecordRaw[] = [
         meta: { allowedRoles: ['owner'] as AdminRole[] },
       },
       {
-        path: 'configuracion',
-        component: () => import('pages/ConfiguracionPage.vue'),
-        meta: { allowedRoles: ['admin', 'owner'] as AdminRole[] },
-      },
-      {
         path: 'notificaciones',
         component: () => import('pages/NotificacionesPage.vue'),
         meta: { allowedRoles: ['admin', 'owner'] as AdminRole[] },
