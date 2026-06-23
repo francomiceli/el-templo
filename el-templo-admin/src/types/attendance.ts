@@ -42,5 +42,7 @@ export interface SlotAttendanceItem {
   checkedInAt: string | null;
   source: 'qr' | 'manual' | null;
   segment: string | null;
-  avatarType: string | null;
+  // Phase 136 D-06/D-12: tenure label (Antigüedad) replaces the avatar chip
+  // in Horarios. Computed on the fly from users.createdAt.
+  seniority: 'nuevo' | '1-3m' | '3-6m' | '6m+' | null;
 }

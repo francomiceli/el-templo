@@ -132,7 +132,7 @@
               <q-item-section>
                 <q-item-label>{{ booking.memberName }}</q-item-label>
                 <q-item-label caption>
-                  <MemberTags :segment="booking.segment" :avatar-type="booking.avatarType" />
+                  <MemberTags :segment="booking.segment" :seniority="booking.seniority" />
                 </q-item-label>
               </q-item-section>
               <q-item-section side>
@@ -165,7 +165,7 @@
                 <q-item-section>
                   <q-item-label>{{ booking.memberName }}</q-item-label>
                   <q-item-label caption>
-                    <MemberTags :segment="booking.segment" :avatar-type="booking.avatarType" />
+                    <MemberTags :segment="booking.segment" :seniority="booking.seniority" />
                   </q-item-label>
                 </q-item-section>
                 <q-item-section side>
@@ -201,7 +201,7 @@
                     Posición {{ booking.waitlistPosition }}
                   </q-item-label>
                   <q-item-label caption>
-                    <MemberTags :segment="booking.segment" :avatar-type="booking.avatarType" />
+                    <MemberTags :segment="booking.segment" :seniority="booking.seniority" />
                   </q-item-label>
                 </q-item-section>
                 <q-item-section side>
@@ -257,18 +257,13 @@
                   />
                   <MemberTags
                     :segment="member.segment"
-                    :avatar-type="member.avatarType"
+                    :seniority="member.seniority"
                     class="q-ml-xs"
                   />
                 </q-item-label>
                 <q-item-label caption>
                   <template v-if="member.attendanceId && member.checkedInAt">
                     {{ formatTime(member.checkedInAt) }}
-                    <q-badge
-                      :color="member.source === 'qr' ? 'info' : 'grey-7'"
-                      :label="member.source === 'qr' ? 'QR' : 'Manual'"
-                      class="q-ml-xs"
-                    />
                   </template>
                   <template v-else-if="!member.bookingId">
                     <span class="text-grey-5">(sin reserva)</span>

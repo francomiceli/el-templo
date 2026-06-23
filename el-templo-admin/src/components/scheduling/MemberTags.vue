@@ -1,9 +1,9 @@
 <template>
-  <span v-if="segment || avatarType" class="row inline items-center q-gutter-xs">
+  <span v-if="seniority || segment" class="row inline items-center q-gutter-xs">
+    <!-- Antigüedad (Phase 136 D-05/D-06): neutral chip, shown only in Horarios -->
+    <q-badge v-if="seniority" outline color="grey-7" :label="seniorityLabel" class="text-caption" />
+    <!-- Asistencia (D-07): omitted when segment is null (<1 mes / sin plan) -->
     <q-badge v-if="segment" :color="segmentColor" :label="segmentLabel" class="text-caption" />
-    <q-badge v-if="avatarType" outline color="grey-7" :label="avatarType" class="text-caption">
-      <q-tooltip>{{ avatarLabel }}</q-tooltip>
-    </q-badge>
   </span>
 </template>
 
@@ -12,13 +12,14 @@ import { computed } from 'vue';
 import {
   SEGMENT_LABELS,
   SEGMENT_COLORS,
-  AVATAR_LABELS,
+  SENIORITY_LABELS,
   type MemberSegment,
+  type MemberSeniority,
 } from 'src/types/member';
 
 const props = defineProps<{
   segment: string | null;
-  avatarType: string | null;
+  seniority: string | null;
 }>();
 
 const segmentLabel = computed(() =>
@@ -29,7 +30,7 @@ const segmentColor = computed(() =>
   props.segment ? (SEGMENT_COLORS[props.segment as MemberSegment] ?? 'grey') : 'grey'
 );
 
-const avatarLabel = computed(() =>
-  props.avatarType ? (AVATAR_LABELS[props.avatarType] ?? props.avatarType) : ''
+const seniorityLabel = computed(() =>
+  props.seniority ? (SENIORITY_LABELS[props.seniority as MemberSeniority] ?? props.seniority) : ''
 );
 </script>

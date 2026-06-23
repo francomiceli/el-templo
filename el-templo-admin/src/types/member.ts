@@ -38,6 +38,17 @@ export const SEGMENT_DESCRIPTIONS: Record<MemberSegment, string> = {
   ausente: 'Sin asistencia en la ventana — detona seguimiento.',
 };
 
+// Phase 136 D-05/D-06: tenure ("Antigüedad") band, derived on the fly from
+// users.createdAt in the slot endpoints. Surfaced only in Horarios.
+export type MemberSeniority = 'nuevo' | '1-3m' | '3-6m' | '6m+';
+
+export const SENIORITY_LABELS: Record<MemberSeniority, string> = {
+  nuevo: 'Nuevo',
+  '1-3m': '1-3 meses',
+  '3-6m': '3-6 meses',
+  '6m+': '+6 meses',
+};
+
 // Phase 103 (R10): user lifecycle status. NULL only for staff rows
 // (members always have a value). UI labels mirror the enum 1:1
 // (Freemium, En Prueba, Activo, Inactivo) per CONTEXT D-09.
