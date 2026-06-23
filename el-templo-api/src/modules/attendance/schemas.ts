@@ -113,7 +113,9 @@ const slotAttendanceItemSchema = {
     checkedInAt: { type: ["string", "null"] },
     source: { type: ["string", "null"] },
     segment: { type: ["string", "null"] },
-    avatarType: { type: ["string", "null"] },
+    // Phase 136 D-06/D-12: tenure label (Antigüedad) replaces avatarType
+    // in the slot roster. Computed on the fly from users.createdAt.
+    seniority: { type: ["string", "null"] },
   },
 } as const;
 

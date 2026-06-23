@@ -1850,9 +1850,10 @@ export class BookingService {
       cancelledAt: row.cancelledAt?.toISOString() ?? null,
       isTrial: row.isTrial,
       // These callsites (single-booking lookups) don't render the admin slot
-      // roster, so the member profile isn't joined — segment/avatar stay null.
+      // roster, so neither the member profile nor createdAt is joined —
+      // segment/seniority stay null (Phase 136 D-12: avatar dropped).
       segment: null,
-      avatarType: null,
+      seniority: null,
     };
   }
 }

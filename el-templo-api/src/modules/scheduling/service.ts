@@ -13,7 +13,7 @@ import { MySql2Database } from "drizzle-orm/mysql2";
 import { eq, and, sql, inArray, gte, lte, lt, gt } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
-import { addDays } from "../shared/date-utils";
+import { addDays, computeSeniority } from "../shared/date-utils";
 import type {
   ScheduleSlot,
   WeeklySlotView,
@@ -320,7 +320,7 @@ export class SchedulingService {
         cancelledAt: schema.bookings.cancelledAt,
         isTrial: schema.bookings.isTrial,
         segment: schema.memberProfiles.segment,
-        avatarType: schema.memberProfiles.avatarType,
+        createdAt: schema.users.createdAt,
       })
       .from(schema.bookings)
       .innerJoin(schema.users, eq(schema.users.id, schema.bookings.memberId))
@@ -353,7 +353,7 @@ export class SchedulingService {
       cancelledAt: r.cancelledAt?.toISOString() ?? null,
       isTrial: r.isTrial,
       segment: r.segment ?? null,
-      avatarType: r.avatarType ?? null,
+      seniority: computeSeniority(r.createdAt),
     }));
 
     // Query attendance records for this branch + date

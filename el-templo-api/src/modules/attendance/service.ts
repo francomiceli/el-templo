@@ -15,6 +15,8 @@ import {
   getWeekRange,
   todayInTz,
   buildClassDateTime,
+  computeSeniority,
+  type MemberSeniority,
 } from "../shared/date-utils";
 import { validateQrToken } from "../shared/qr-token";
 import { SubscriptionService } from "../subscriptions/service";
@@ -370,7 +372,10 @@ export class AttendanceService {
       checkedInAt: string | null;
       source: "qr" | "manual" | null;
       segment: string | null;
-      avatarType: string | null;
+      // Phase 136 D-05/D-06: tenure label computed on the fly from
+      // users.createdAt — surfaced only in Horarios. Null when createdAt
+      // is missing (defensive).
+      seniority: MemberSeniority | null;
     }>;
   }> {
     // Get all bookings for this slot+date
@@ -382,7 +387,7 @@ export class AttendanceService {
         memberLastName: schema.users.lastName,
         bookingStatus: schema.bookings.status,
         segment: schema.memberProfiles.segment,
-        avatarType: schema.memberProfiles.avatarType,
+        createdAt: schema.users.createdAt,
       })
       .from(schema.bookings)
       .innerJoin(schema.users, eq(schema.users.id, schema.bookings.memberId))
@@ -408,7 +413,7 @@ export class AttendanceService {
         checkedInAt: schema.attendance.checkedInAt,
         source: schema.attendance.source,
         segment: schema.memberProfiles.segment,
-        avatarType: schema.memberProfiles.avatarType,
+        createdAt: schema.users.createdAt,
       })
       .from(schema.attendance)
       .innerJoin(schema.users, eq(schema.users.id, schema.attendance.memberId))
@@ -435,7 +440,7 @@ export class AttendanceService {
         checkedInAt: string | null;
         source: "qr" | "manual" | null;
         segment: string | null;
-        avatarType: string | null;
+        seniority: MemberSeniority | null;
       }
     >();
 
@@ -451,7 +456,7 @@ export class AttendanceService {
         checkedInAt: null,
         source: null,
         segment: b.segment ?? null,
-        avatarType: b.avatarType ?? null,
+        seniority: computeSeniority(b.createdAt),
       });
     }
 
@@ -480,7 +485,7 @@ export class AttendanceService {
               : String(a.checkedInAt),
           source: a.source as "qr" | "manual",
           segment: a.segment ?? null,
-          avatarType: a.avatarType ?? null,
+          seniority: computeSeniority(a.createdAt),
         });
       }
     }

@@ -200,3 +200,35 @@ export function computePriorPeriod(
     priorTo: toDateString(priorTo),
   };
 }
+
+/**
+ * Tenure ("Antigüedad") label for a member, derived on the fly from
+ * users.createdAt. Phase 136 D-05/D-06: surfaced only in Horarios (slot
+ * endpoints), never persisted — no column / enum / cron.
+ */
+export type MemberSeniority = "nuevo" | "1-3m" | "3-6m" | "6m+";
+
+/** Days per average month, used to derive month boundaries from a day delta. */
+const DAYS_PER_MONTH = 30.44;
+
+/**
+ * Classify a member's tenure into a seniority band from their createdAt.
+ * Boundaries in months (D-06): [0,1)=nuevo, [1,3)=1-3m, [3,6)=3-6m, [6,∞)=6m+.
+ * Returns null when createdAt is missing (defensive) or in the future.
+ */
+export function computeSeniority(
+  createdAt: Date | string | null | undefined,
+): MemberSeniority | null {
+  if (createdAt == null) return null;
+  const created = createdAt instanceof Date ? createdAt : new Date(createdAt);
+  const ms = created.getTime();
+  if (Number.isNaN(ms)) return null;
+
+  const days = (Date.now() - ms) / (1000 * 60 * 60 * 24);
+  const months = days / DAYS_PER_MONTH;
+
+  if (months < 1) return "nuevo";
+  if (months < 3) return "1-3m";
+  if (months < 6) return "3-6m";
+  return "6m+";
+}

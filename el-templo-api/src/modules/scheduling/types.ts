@@ -2,6 +2,12 @@
  * Scheduling module types.
  */
 
+import type { MemberSeniority } from "../shared/date-utils";
+
+// Re-exported so consumers of the slot endpoints can reference the tenure
+// union from the scheduling contract (Phase 136 D-06).
+export type { MemberSeniority };
+
 export type BookingStatus =
   | "reservado"
   | "qr_escaneado"
@@ -66,11 +72,13 @@ export interface BookingRecord {
   // Phase 102: trial bookings don't consume capacity; admin UI splits
   // "Reservados" from "Sesiones de Prueba" using this flag.
   isTrial: boolean;
-  // Behavioral segment + onboarding avatar of the member, surfaced so the
-  // admin slot roster can tag each alumno without a second fetch. Null when
-  // the member has no profile row / no value yet.
+  // Attendance label (segment) of the member, surfaced so the admin slot
+  // roster can tag each alumno without a second fetch. Null when the member
+  // has no profile row / no value yet (<1 mes, sin plan).
   segment: string | null;
-  avatarType: string | null;
+  // Phase 136 D-05/D-06/D-12: tenure label computed on the fly from
+  // users.createdAt — shown only in Horarios, replacing the avatar chip.
+  seniority: MemberSeniority | null;
 }
 
 export interface HolidayRecord {

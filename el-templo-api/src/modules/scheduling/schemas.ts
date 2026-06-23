@@ -85,7 +85,10 @@ const bookingRecordSchema = {
     // Prueba without a second fetch.
     isTrial: { type: "boolean" },
     segment: { type: ["string", "null"] },
-    avatarType: { type: ["string", "null"] },
+    // Phase 136 D-06/D-12: tenure label (Antigüedad) replaces avatarType
+    // in the slot roster. Computed on the fly from users.createdAt; null on
+    // single-booking lookups where the profile/createdAt isn't joined.
+    seniority: { type: ["string", "null"] },
   },
 } as const;
 
