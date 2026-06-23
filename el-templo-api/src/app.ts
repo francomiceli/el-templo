@@ -39,7 +39,6 @@ import { analyticsRoutes } from "./modules/analytics";
 import { reportsRoutes } from "./modules/reports";
 import { coachRoutes } from "./modules/coach";
 import { financeRoutes } from "./modules/finance";
-import { settingsRoutes } from "./modules/settings";
 import { userRoutes } from "./modules/users";
 import { onboardingRoutes } from "./modules/onboarding";
 import { barChallengeRoutes } from "./modules/bar-challenge/routes";
@@ -208,11 +207,6 @@ export async function buildApp() {
   // Finance routes (transactions create/void/list, financial history) — Phase 106
   await app.register(financeRoutes, {
     prefix: "/api/admin/finance",
-  });
-
-  // Settings routes (system-wide settings: grace period, etc.)
-  await app.register(settingsRoutes, {
-    prefix: "/api/admin/settings",
   });
 
   // User management routes (owner-only staff CRUD)

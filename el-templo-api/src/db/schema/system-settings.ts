@@ -9,7 +9,7 @@ import {
 
 /**
  * System settings table for global configuration values.
- * Key-value store with typed access through the SettingsService.
+ * Key-value store de configuración del sistema (usado por streaks).
  */
 export const systemSettings = mysqlTable("system_settings", {
   id: int("id").primaryKey().autoincrement(),
