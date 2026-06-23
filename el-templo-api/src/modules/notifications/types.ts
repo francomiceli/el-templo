@@ -46,14 +46,18 @@ export interface SegmentTransition {
 }
 
 /**
- * Maps segment transition patterns to notification template keys.
+ * Maps Attendance-label transition patterns to notification template keys.
  * Transition key format: `{from}_to_{to}` or `any_to_{to}` for catch-all.
+ *
+ * Phase 136 (D-10): the trigger states were rewired to the new Attendance
+ * bands (optima/regular/alerta/ausente) while PRESERVING the original
+ * template_key values (and therefore the copy in TEMPLATE_SEEDS) untouched.
  */
 export const SEGMENT_TRANSITION_TEMPLATES: Record<string, string> = {
-  any_to_en_riesgo: "segment_transition_en_riesgo",
-  en_riesgo_to_ghost: "segment_transition_ghost",
+  any_to_alerta: "segment_transition_en_riesgo",
+  alerta_to_ausente: "segment_transition_ghost",
   recovery_to_active: "segment_transition_recovery",
-  any_to_espartano: "segment_transition_espartano",
+  any_to_optima: "segment_transition_espartano",
 };
 
 // ── Template Seed Data ──────────────────────────────────────────────────────

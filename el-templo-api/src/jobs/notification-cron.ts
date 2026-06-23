@@ -22,7 +22,6 @@ import type * as schema from "../db/schema";
 import * as s from "../db/schema";
 import { NotificationService } from "../modules/notifications/service";
 import { SegmentationService } from "../modules/segmentation/service";
-import { FrequencyService } from "../modules/analytics/frequency-service";
 // segment_transition template keys are defined in SEGMENT_TRANSITION_TEMPLATES
 import { SEGMENT_TRANSITION_TEMPLATES } from "../modules/notifications/types";
 import type { MemberSegment } from "../modules/segmentation/types";
@@ -35,32 +34,41 @@ const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 /**
  * Determine the transition key for the SEGMENT_TRANSITION_TEMPLATES map.
  * Returns null if no notification should fire for this transition.
+ *
+ * Phase 136 (D-10): rewired to the 4 Attendance bands. `newSegment` can be
+ * null (calculateSegment returns null for <1 month tenure or no active plan),
+ * in which case no transition notification fires.
  */
 function getTransitionTemplateKey(
-  oldSegment: string | null,
-  newSegment: string,
+  oldSegment: MemberSegment | null,
+  newSegment: MemberSegment | null,
 ): string | null {
-  // Any -> En Riesgo
-  if (newSegment === "en_riesgo" && oldSegment !== "en_riesgo") {
-    return SEGMENT_TRANSITION_TEMPLATES["any_to_en_riesgo"] ?? null;
+  // No label calculated (<1 month / no plan) → never notify.
+  if (newSegment === null) {
+    return null;
   }
 
-  // En Riesgo -> Ghost
-  if (newSegment === "ghost" && oldSegment === "en_riesgo") {
-    return SEGMENT_TRANSITION_TEMPLATES["en_riesgo_to_ghost"] ?? null;
+  // Any -> Alerta (low attendance) — preserves "Tu práctica te espera".
+  if (newSegment === "alerta" && oldSegment !== "alerta") {
+    return SEGMENT_TRANSITION_TEMPLATES["any_to_alerta"] ?? null;
   }
 
-  // Recovery: (en_riesgo | ghost) -> (intermitente | espartano)
+  // Alerta -> Ausente (0% attendance) — preserves "El Templo no cierra".
+  if (newSegment === "ausente" && oldSegment === "alerta") {
+    return SEGMENT_TRANSITION_TEMPLATES["alerta_to_ausente"] ?? null;
+  }
+
+  // Recovery: (alerta | ausente) -> (optima | regular) — "¡Bienvenido de vuelta!".
   if (
-    (oldSegment === "en_riesgo" || oldSegment === "ghost") &&
-    (newSegment === "intermitente" || newSegment === "espartano")
+    (oldSegment === "alerta" || oldSegment === "ausente") &&
+    (newSegment === "optima" || newSegment === "regular")
   ) {
     return SEGMENT_TRANSITION_TEMPLATES["recovery_to_active"] ?? null;
   }
 
-  // Any -> Espartano (when wasn't already espartano)
-  if (newSegment === "espartano" && oldSegment !== "espartano") {
-    return SEGMENT_TRANSITION_TEMPLATES["any_to_espartano"] ?? null;
+  // Any -> Óptima (when wasn't already óptima) — "¡Semana increíble!".
+  if (newSegment === "optima" && oldSegment !== "optima") {
+    return SEGMENT_TRANSITION_TEMPLATES["any_to_optima"] ?? null;
   }
 
   return null;
@@ -218,29 +226,6 @@ export async function startNotificationJobs(
           .from(s.memberProfiles)
           .where(isNotNull(s.memberProfiles.onboardingCompletedAt));
 
-        // Frequency golden-case signal (Phase 123, D-123-01): compute the set of
-        // active members with 0 visits in the window (or cooling down) ONCE via a
-        // single batched query, then thread it into each per-member recalc as one
-        // more input. A frequency failure degrades gracefully to the legacy ladder
-        // (empty set → isFrequencyGoldenCase:false) rather than aborting the batch
-        // (T-123-11). No new cron is added — this extends the existing 03:00 batch.
-        let goldenCase = new Set<number>();
-        try {
-          const { frequencyZeroVisitWindowDays } =
-            await segmentationService.getThresholds();
-          goldenCase = await new FrequencyService(
-            db,
-            log,
-          ).coolingOrInactiveUserIds(frequencyZeroVisitWindowDays);
-        } catch (freqErr: unknown) {
-          const fMsg =
-            freqErr instanceof Error ? freqErr.message : "Unknown error";
-          log.warn(
-            { err: fMsg },
-            "Frequency golden-case pre-fetch failed; falling back to legacy segment ladder",
-          );
-        }
-
         let transitionsFound = 0;
         let notificationsQueued = 0;
         let ghostReattempts = 0;
@@ -249,11 +234,12 @@ export async function startNotificationJobs(
           try {
             const oldSegment = profile.segment as MemberSegment | null;
 
-            // Calculate new segment (bypass cooldown by calling calculateSegment
-            // directly), feeding the pre-computed frequency golden-case signal.
+            // Calculate new Attendance label (bypass cooldown by calling
+            // calculateSegment directly). Returns null for <1 month tenure or
+            // members without an active plan (D-07/D-08) — persisting null is
+            // valid and simply means "no label".
             const newSegment = await segmentationService.calculateSegment(
               profile.userId,
-              { isFrequencyGoldenCase: goldenCase.has(profile.userId) },
             );
 
             // Persist the new segment
@@ -293,10 +279,12 @@ export async function startNotificationJobs(
               }
             }
 
-            // Ghost monthly re-attempt (per D-04)
+            // Monthly re-attempt for members who stay Ausente (per D-10).
+            // Reuses ghost_reattempt_count / last_ghost_reattempt_at and the
+            // ghost_monthly_reattempt template unchanged.
             if (
-              newSegment === "ghost" &&
-              oldSegment === "ghost" // No transition — member was already ghost
+              newSegment === "ausente" &&
+              oldSegment === "ausente" // No transition — member was already ausente
             ) {
               const reattemptCount = profile.ghostReattemptCount ?? 0;
               const lastReattempt = profile.lastGhostReattemptAt;
