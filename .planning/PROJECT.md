@@ -4,7 +4,38 @@
 
 A multi-app platform for El Templo Calistenia, a calisthenics gym chain with 8 locations (7 Mar del Plata, 1 Barcelona). The monorepo contains: a Fastify API (el-templo-api), a member mobile app (el-templo-app), a coach/admin web app (el-templo-admin), and a public-facing marketing site (el-templo-web). v1 delivered the Training module, v2 the Admin app, v3 the landing page and public web presence, v4 begins ecosystem integration — consolidating admin operations, adding attendance/scheduling, and laying the foundation for AURA economy and lifestyle features.
 
-## Current Milestone: v5.1 Nuevo Sistema de Entrenamiento
+## Current Milestone: v5.2 Módulo Contable en el Administrador — Libro de Caja
+
+**Goal:** Convertir al Administrador en el libro de caja único (fuente de verdad), eliminando el triple tipeo del registro de pagos, con validación de pagos (PENDIENTE→VALIDADO) y gestión de cajas (efectivo/banco) con movimientos inter-caja y egresos. Se monta sobre el modelo financiero transaccional existente (v4.8).
+
+**Target features:**
+
+- **Carga única que propaga (corazón del milestone):** UI dead-simple para que el profe cargue un pago **una sola vez** en el Administrador, y esa carga active la membresía al instante + registre el dinero en caja, automáticamente. Elimina el doble/triple tipeo (Forms + Contabilium + Admin) del lado de El Templo.
+- **Máquina de estados de validación:** profe carga PENDIENTE / admin carga VALIDADO; flujo OBSERVADO→CORREGIDO ("corregir" = anular+recrear, no UPDATE). ANULADO se mantiene **ortogonal** (soft-void existente), NO como estado del enum. "Dinero firme" = `status='validado' AND voided_at IS NULL`. Activar membresía ≠ validar pago.
+- **Entidad Caja:** efectivo por sucursal + efectivo central + **banco por moneda** (banco ARS + banco EUR; cada caja tiene `currency` fija, hereda el aislamiento de moneda del ledger). Saldo firme = solo VALIDADOS; saldo derivado en v1 (materializar solo con evidencia de performance).
+- **Movimientos inter-caja y egresos:** movimiento = **una sola fila** (origen+destino, neto 0); egreso = misma fila con destino NULL (salida real, sin categoría / nota libre por ahora). Reusan `financial_transactions` extendiendo `kind`. `memberId` deja de bloquear egresos (sentinel o nullable).
+- **Reportes para la admin:** bandeja de pendientes (por antigüedad) + observados, saldo por caja, historial de movimientos/egresos. Reusa el export Excel/PDF existente.
+
+**Decisiones clave:**
+
+- **~60% del modelo YA EXISTE (v4.8): se construye ENCIMA, no se rediseña.** `transaction_links` ya hace pago≠membresía; soft-void ya es ANULADO-con-rastro; `recordAssignmentCharge` ya activa membresía+cobro+saldo atómicamente; aislamiento de moneda ya cableado. **Cero dependencias nuevas.**
+- **Blast radius del estado de validación (riesgo ALTO):** hoy la "caja" filtra `inflow AND voided_at IS NULL` sin estado de validación. Meter PENDIENTE obliga a reescribir el filtro canónico de ingresos que consumen ~6 lugares, **incluidas las 6 métricas de gestión de v5.0 (fases 120-123)**. Mitigación: migración `DEFAULT 'validado'` + backfill + auditar todos los call sites.
+- **Contabilium: reemplazo progresivo** (facturación electrónica AFIP/ARCA = lo último). Durante la transición conviven; definir regla explícita de "qué dato manda" por etapa.
+- **Refunds:** estado ANULADO con rastro (nunca borrar), solo admin; popup decide membresía 1-a-1 (default: queda activa).
+- **No hay cierre de caja diario:** la reconciliación física = el momento del movimiento/retiro (esperado vs. contado). El control cotidiano ES la validación.
+- **Perillas de config (validación todos/dudosos, activación instantánea/diferida):** la fase 136-07 borró el subsistema de settings del admin → definir nueva casa en discuss-phase.
+
+**Out of scope this milestone:**
+
+- Facturación electrónica AFIP/ARCA (último escalón del reemplazo de Contabilium).
+- Categorización de egresos (proveedor/dueño/gasto) — por ahora salida + nota libre.
+- Gateway de pago automático / integración con medio de pago — todo es carga manual.
+- Cierre de turno con float, sync bidireccional con Contabilium — anti-features descartados.
+- Reestructuración financiera en Google Sheets (plan de cuentas, márgenes, proyección) — otro documento.
+
+**Reference:** `BRIEF-MODULO-CONTABLE-FRANCO.md` (raíz, brief de diseño consolidado) + `.planning/research/modulo-contable/` (FEATURES/ARCHITECTURE/PITFALLS/STACK con contraste vs. brief).
+
+## Previous Milestone: v5.1 Nuevo Sistema de Entrenamiento
 
 **Goal:** Reestructurar el sistema de entrenamiento alrededor de un árbol de habilidades (DAG) construido sobre 3 ejes ortogonales (gesto / palanca / contracción), y sobre ese cimiento habilitar el nivel Kairos para principiantes y el ajuste de dificultad in-session.
 
@@ -30,7 +61,7 @@ A multi-app platform for El Templo Calistenia, a calisthenics gym chain with 8 l
 
 **Reference:** `.planning/research/new-training-system-design.md` (doc de diseño, fuente de verdad) + `.docs/new-training-system/BRIEF-PROFES.md` (decisiones de dominio para los profes) + audios en `.docs/new-training-system/`.
 
-## Previous Milestone: v5.0 Métricas de Gestión
+## Earlier Milestone: v5.0 Métricas de Gestión
 
 **Phases 120-123.** Backend-first: 6 bloques de métricas de gestión (churn no-renovación person-based, tasa de renovación, funnel de sesiones de prueba, frecuencia de asistencia, LTV con Kaplan-Meier, ticket promedio), con aislamiento de moneda ARS/EUR y breakdowns comparables por sucursal/país/plan. Reemplaza churn/retención viejos y ARPU. 120 en prod; 121-122 CI-verde en `origin/staging`; 123 (asistencia+funnel) local sin pushear (UAT pendiente). UI del admin para exponer los 6 bloques quedó para un milestone de frontend posterior. Refs: `ESPECIFICACION-METRICAS-GESTION.md`, `METRICAS_GESTION_HANDOFF_2026-06-02.md`.
 
@@ -88,7 +119,7 @@ Members know exactly what to train today, complete guided sessions with block st
 
 ### Active
 
-See: .planning/REQUIREMENTS.md (v5.1 scope — Nuevo Sistema de Entrenamiento)
+See: .planning/REQUIREMENTS.md (v5.2 scope — Módulo Contable / Libro de Caja)
 
 ### Out of Scope
 

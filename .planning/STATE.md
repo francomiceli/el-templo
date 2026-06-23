@@ -1,17 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v5.1
-milestone_name: Nuevo Sistema de Entrenamiento
-status: human_needed
-stopped_at: Phase 136 ejecutada (7/7 planes) + verificada — pendiente UAT visual + push
-last_updated: "2026-06-23T00:11:24.663Z"
+milestone: v5.2
+milestone_name: Módulo Contable — Libro de Caja
+status: planning
+last_updated: "2026-06-23T18:33:13.363Z"
 last_activity: 2026-06-23
 progress:
-  total_phases: 8
-  completed_phases: 8
-  total_plans: 22
-  completed_plans: 22
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -25,10 +24,10 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 
 ## Current Position
 
-Phase: 136 (redise-o-del-sistema-de-segmentaci-n-etiqueta-de-asistencia) — VERIFICADA (human_needed)
-Plan: 7 of 7 ejecutados
-Status: 12/12 must-haves PASS — pendiente UAT visual (8 ítems) + push a staging para correr CI
-Last activity: 2026-06-23
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-06-23 — Milestone v5.2 started
 
 ## Performance Metrics
 
