@@ -3411,16 +3411,17 @@ Plans:
 
 **Requirements**: D-01..D-12 (decisiones bloqueadas del CONTEXT, sin IDs formales en REQUIREMENTS.md)
 **Depends on:** Phase 135
-**Plans:** 1/7 plans executed
+**Plans:** 7/7 plans executed — verificada (12/12 must-haves PASS, status human_needed: 8 ítems de UAT visual)
 
 Plans:
 
 - [x] 136-01-PLAN.md — Motor de segmentación a 4 bandas de % (Óptima/Regular/Alerta/Ausente) + enum DB + migración con recálculo en limpio (FUNDACIONAL)
-- [ ] 136-02-PLAN.md — Notificaciones: reconectar disparadores a los nuevos estados (copy/template_key preservados) + cron 3AM
-- [ ] 136-03-PLAN.md — Analytics: counts + worklist de seguimiento (alerta/ausente) + schemas
-- [ ] 136-04-PLAN.md — members/service filtro+subquery + member app (useUserStore + SegmentGreeting)
-- [ ] 136-05-PLAN.md — Frontend admin: tipos display/analytics + AlumnosPage/AlumnoDetailPage/NotificacionesPage
-- [ ] 136-06-PLAN.md — Antigüedad al vuelo en Horarios + MemberTags (Antigüedad+Asistencia, sin avatar) + quitar badge QR/Manual
+- [x] 136-02-PLAN.md — Notificaciones: reconectar disparadores a los nuevos estados (copy/template_key preservados) + cron 3AM
+- [x] 136-03-PLAN.md — Analytics: counts + worklist de seguimiento (alerta/ausente) + schemas + priorityRank remap
+- [x] 136-04-PLAN.md — members/service filtro+subquery + members/schemas enum + member app (useUserStore + SegmentGreeting)
+- [x] 136-05-PLAN.md — Frontend admin: tipos display/analytics + AlumnosPage/AlumnoDetailPage/NotificacionesPage + MiembrosTab
+- [x] 136-06-PLAN.md — Antigüedad al vuelo en Horarios + MemberTags (Antigüedad+Asistencia, sin avatar) + quitar badge QR/Manual
+- [x] 136-07-PLAN.md — Eliminar el subsistema de settings de thresholds (módulo API + página/composable admin + ruta + nav)
 
 ---
 

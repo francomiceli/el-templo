@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v5.1
 milestone_name: Nuevo Sistema de Entrenamiento
-status: verifying
-stopped_at: Phase 136 context gathered
+status: human_needed
+stopped_at: Phase 136 ejecutada (7/7 planes) + verificada — pendiente UAT visual + push
 last_updated: "2026-06-23T00:11:24.663Z"
 last_activity: 2026-06-23
 progress:
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-04)
 
 **Core value:** v5.1 reestructura el sistema de entrenamiento alrededor de un árbol de habilidades (DAG) sobre 3 ejes ortogonales (gesto/palanca/contracción). Sobre ese cimiento: el nivel Kairos para principiantes (hereda de Alfa, formato lineal forzado) y el ajuste de dificultad in-session (botones más fácil/más difícil que sirven el vecino correcto y recuerdan lo dominado). Backend-first, brownfield.
-**Current focus:** Phase 135 — rbol-del-admin-jerarqu-a-visual-de-hitos-y-variantes-en-tree
+**Current focus:** Phase 136 — rediseño de segmentación (Asistencia + Antigüedad) — CODE-COMPLETE + verificada (human_needed)
 
 ## Current Position
 
-Phase: 135 (rbol-del-admin-jerarqu-a-visual-de-hitos-y-variantes-en-tree) — EXECUTING
-Plan: 4 of 4
-Status: Phase complete — ready for verification
+Phase: 136 (redise-o-del-sistema-de-segmentaci-n-etiqueta-de-asistencia) — VERIFICADA (human_needed)
+Plan: 7 of 7 ejecutados
+Status: 12/12 must-haves PASS — pendiente UAT visual (8 ítems) + push a staging para correr CI
 Last activity: 2026-06-23
 
 ## Performance Metrics
