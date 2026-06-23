@@ -1,85 +1,54 @@
 /**
  * Segmentation Module Types
  *
- * Defines behavioral segment types, threshold configuration,
- * and display metadata for the admin UI.
+ * Defines the Attendance label (4 bands based on % membership usage over a
+ * rolling 28-day window) and display metadata for the admin UI.
+ *
+ * Phase 136 (D-01..D-04): the 6-value behavioral segment + the system_settings
+ * threshold configuration were removed. The cut points are now fixed in code.
  */
 
 // ─── Segment Type ─────────────────────────────────────────────────────────
 
-export type MemberSegment =
-  | "nuevo"
-  | "espartano"
-  | "intermitente"
-  | "en_riesgo"
-  | "digital_warrior"
-  | "ghost";
+/**
+ * Attendance label (D-01). Replaces the legacy 6-value behavioral segment.
+ * Classified 100% by % of membership usage over the rolling 28-day window.
+ */
+export type MemberSegment = "optima" | "regular" | "alerta" | "ausente";
 
-// ─── Settings Keys (stored in system_settings table) ──────────────────────
+// ─── Fixed Cut Points (D-03: in code, NOT in system_settings) ─────────────
 
-export const SEGMENT_SETTINGS_KEYS = {
-  ESPARTANO_PCT: "segment.espartano_pct",
-  INTERMITENTE_PCT: "segment.intermitente_pct",
-  EN_RIESGO_WEEKS: "segment.en_riesgo_weeks",
-  GHOST_WEEKS: "segment.ghost_weeks",
-  NUEVO_DAYS: "segment.nuevo_days",
-  WINDOW_DAYS: "segment.window_days",
-  // Golden-case (FREQ-05/06, D-123-02): rolling window in days over which an
-  // active (paying) member with ZERO visits is forced to `en_riesgo`. Tuneable
-  // via system_settings (mirrors the other thresholds — NOT an env var).
-  FREQUENCY_ZERO_VISIT_WINDOW_DAYS: "segment.frequency_zero_visit_window_days",
-} as const;
+/** >= 75% of plan budget used → Óptima. */
+export const ATTENDANCE_OPTIMA_PCT = 75;
 
-// ─── Default Threshold Values ─────────────────────────────────────────────
+/** 50% <= pct < 75% → Regular. */
+export const ATTENDANCE_REGULAR_PCT = 50;
 
-export const SEGMENT_DEFAULTS = {
-  ESPARTANO_PCT: 80,
-  INTERMITENTE_PCT: 40,
-  EN_RIESGO_WEEKS: 2,
-  GHOST_WEEKS: 8,
-  NUEVO_DAYS: 30,
-  WINDOW_DAYS: 28,
-  // 4-week rolling window, matching the frequency metric window (D-123-03).
-  FREQUENCY_ZERO_VISIT_WINDOW_DAYS: 28,
-} as const;
+/** 1% <= pct < 50% → Alerta (any usage > 0 below Regular). */
+export const ATTENDANCE_ALERTA_PCT = 1;
 
-// ─── Threshold Configuration Interface ────────────────────────────────────
-
-export interface SegmentThresholds {
-  espartanoPct: number;
-  intermitentePct: number;
-  enRiesgoWeeks: number;
-  ghostWeeks: number;
-  nuevoDays: number;
-  windowDays: number;
-  frequencyZeroVisitWindowDays: number;
-}
+/** Rolling window in days for the attendance percentage (D-02). */
+export const ATTENDANCE_WINDOW_DAYS = 28;
 
 // ─── Display Metadata (for admin UI) ──────────────────────────────────────
 
 export const SEGMENT_LABELS: Record<MemberSegment, string> = {
-  nuevo: "Nuevo",
-  espartano: "Espartano",
-  intermitente: "Intermitente",
-  en_riesgo: "En Riesgo",
-  digital_warrior: "Digital Warrior",
-  ghost: "Ghost",
+  optima: "Óptima",
+  regular: "Regular",
+  alerta: "Alerta",
+  ausente: "Ausente",
 };
 
 export const SEGMENT_COLORS: Record<MemberSegment, string> = {
-  nuevo: "blue",
-  espartano: "green",
-  intermitente: "amber",
-  en_riesgo: "orange",
-  digital_warrior: "purple",
-  ghost: "grey",
+  optima: "green",
+  regular: "amber",
+  alerta: "orange",
+  ausente: "red",
 };
 
 export const SEGMENT_VALUES: MemberSegment[] = [
-  "nuevo",
-  "espartano",
-  "intermitente",
-  "en_riesgo",
-  "digital_warrior",
-  "ghost",
+  "optima",
+  "regular",
+  "alerta",
+  "ausente",
 ];
