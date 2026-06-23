@@ -4,8 +4,8 @@ milestone: v5.1
 milestone_name: Nuevo Sistema de Entrenamiento
 status: verifying
 stopped_at: Phase 136 context gathered
-last_updated: "2026-06-22T21:28:37.294Z"
-last_activity: 2026-06-08
+last_updated: "2026-06-23T00:11:24.663Z"
+last_activity: 2026-06-23
 progress:
   total_phases: 8
   completed_phases: 8
@@ -27,8 +27,8 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 
 Phase: 135 (rbol-del-admin-jerarqu-a-visual-de-hitos-y-variantes-en-tree) — EXECUTING
 Plan: 4 of 4
-Status: Plan 04 code complete — awaiting human-verify checkpoint (visual render on /tree-map)
-Last activity: 2026-06-08
+Status: Phase complete — ready for verification
+Last activity: 2026-06-23
 
 ## Performance Metrics
 
@@ -627,8 +627,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-22T21:28:37.269Z
+Last session: 2026-06-23T00:11:24.640Z
 Stopped at: Phase 136 context gathered
-Resume file: .planning/phases/136-redise-o-del-sistema-de-segmentaci-n-etiqueta-de-asistencia-/136-CONTEXT.md
+Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z

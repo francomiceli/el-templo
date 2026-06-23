@@ -3411,11 +3411,11 @@ Plans:
 
 **Requirements**: D-01..D-12 (decisiones bloqueadas del CONTEXT, sin IDs formales en REQUIREMENTS.md)
 **Depends on:** Phase 135
-**Plans:** 6 plans
+**Plans:** 1/7 plans executed
 
 Plans:
 
-- [ ] 136-01-PLAN.md — Motor de segmentación a 4 bandas de % (Óptima/Regular/Alerta/Ausente) + enum DB + migración con recálculo en limpio (FUNDACIONAL)
+- [x] 136-01-PLAN.md — Motor de segmentación a 4 bandas de % (Óptima/Regular/Alerta/Ausente) + enum DB + migración con recálculo en limpio (FUNDACIONAL)
 - [ ] 136-02-PLAN.md — Notificaciones: reconectar disparadores a los nuevos estados (copy/template_key preservados) + cron 3AM
 - [ ] 136-03-PLAN.md — Analytics: counts + worklist de seguimiento (alerta/ausente) + schemas
 - [ ] 136-04-PLAN.md — members/service filtro+subquery + member app (useUserStore + SegmentGreeting)
