@@ -67,6 +67,23 @@ export class AttendanceService {
 
     const tz = branchRow.timezone;
 
+    // Coach self-scan branch (D-Q2). A user with role 'coach' uses the member
+    // check-in flow to register their OWN attendance, validated against their
+    // assigned branch(es) in user_branches. This is operational attendance for
+    // the coach — independent of rating attribution (which comes from the
+    // weekly roster, D-Q1) — and bypasses ALL member enforcement (subscription,
+    // plan multiBranch, weekly limit, monthly budget, matching booking) and AURA
+    // (kept off so the coach's AURA balance stays clean). The one-per-day guard
+    // still applies.
+    const [scanningUser] = await this.db
+      .select({ role: schema.users.role })
+      .from(schema.users)
+      .where(eq(schema.users.id, memberId));
+
+    if (scanningUser?.role === "coach") {
+      return this.coachSelfScan(memberId, branchId, tz);
+    }
+
     // Check subscription (auto-expire catches expired subs, returns null = hard block)
     const subscription =
       await this.subscriptionService.getMemberSubscription(memberId);
@@ -275,6 +292,80 @@ export class AttendanceService {
         scheduleId: matchingBooking.scheduleId,
       },
       "Booking confirmed on QR check-in",
+    );
+
+    return this.getRecordById(recordId);
+  }
+
+  /**
+   * Coach QR self-scan (D-Q2).
+   *
+   * Records the coach's OWN attendance after validating that the QR's branch is
+   * one the coach is assigned to (user_branches). Skips ALL member enforcement
+   * (subscription/plan/budget/booking) and awards NO AURA — this is operational
+   * attendance for the coach, not member-program credit. Independent of rating
+   * attribution (the roster owns that, D-Q1): does NOT touch coach_ratings or
+   * class_coach_assignments. Keeps the one-per-day guard.
+   */
+  private async coachSelfScan(
+    coachId: number,
+    branchId: number,
+    tz: string,
+  ): Promise<AttendanceRecord> {
+    // Validate the coach is assigned to the QR's branch (T-143-10:
+    // elevation-of-privilege — a coach must not self-scan in a branch they are
+    // not assigned to).
+    const [assignment] = await this.db
+      .select({ id: schema.userBranches.id })
+      .from(schema.userBranches)
+      .where(
+        and(
+          eq(schema.userBranches.userId, coachId),
+          eq(schema.userBranches.branchId, branchId),
+        ),
+      )
+      .limit(1);
+
+    if (!assignment) {
+      throw new BadRequestError("No estas asignado a esta sede");
+    }
+
+    const now = new Date();
+    const todayStr = todayInTz(tz, now);
+
+    // One-per-day guard (T-143-12). Compare against sessionDate (logical class
+    // date), consistent with the member path's authoritative check.
+    const recordId = await this.db.transaction(async (tx) => {
+      const [existingToday] = await tx
+        .select({ id: schema.attendance.id })
+        .from(schema.attendance)
+        .where(
+          and(
+            eq(schema.attendance.memberId, coachId),
+            eq(schema.attendance.sessionDate, todayStr),
+          ),
+        )
+        .limit(1);
+
+      if (existingToday) {
+        throw new BadRequestError("Ya registraste asistencia hoy");
+      }
+
+      const result = await tx.insert(schema.attendance).values({
+        memberId: coachId,
+        branchId,
+        sessionDate: todayStr,
+        status: "confirmado",
+        source: "qr",
+        checkedInAt: now,
+      });
+
+      return Number(result[0].insertId);
+    });
+
+    this.log.info(
+      { coachId, branchId, sessionDate: todayStr },
+      "Coach QR self-scan recorded",
     );
 
     return this.getRecordById(recordId);
