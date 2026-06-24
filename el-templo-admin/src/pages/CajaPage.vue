@@ -57,11 +57,9 @@
         <MovimientosTab :selected-country="selectedCountry" :is-owner="isOwner" />
       </q-tab-panel>
 
-      <!-- Mov. y egresos — Plan 04 fills this with MovEgresosTab -->
+      <!-- Mov. y egresos — historial filterable, NULL-member rows (REP-03) -->
       <q-tab-panel :name="CAJA_TABS.movEgresos" class="q-px-none">
-        <div class="text-caption text-grey-5 q-pa-md">
-          Historial de movimientos y egresos — disponible en breve.
-        </div>
+        <MovEgresosTab :selected-country="selectedCountry" :is-owner="isOwner" />
       </q-tab-panel>
     </q-tab-panels>
   </q-page>
@@ -73,6 +71,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from 'src/stores/useAuthStore';
 import { CAJA_TABS, CAJA_DEFAULT_TAB, CAJA_TAB_NAMES, type CajaTab } from 'src/constants/caja';
 import BandejaPendientesTab from 'src/components/caja/BandejaPendientesTab.vue';
+import MovEgresosTab from 'src/components/caja/MovEgresosTab.vue';
 import MovimientosTab from 'src/components/caja/MovimientosTab.vue';
 import SaldosPorCajaTab from 'src/components/caja/SaldosPorCajaTab.vue';
 
