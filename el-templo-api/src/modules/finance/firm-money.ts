@@ -37,9 +37,31 @@ export function firmMoneyConditions(): SQL[] {
 }
 
 /**
- * Raw-SQL fragment of the firm-money predicate for the 3 call sites that build
- * SQL strings (analytics/service.ts, reports/service.ts x2). Static constant
- * with NO user-input interpolation — safe to embed in a WHERE/EXISTS clause.
- * Combine with the caller's own `direction`/`kind` conditions via AND.
+ * Raw-SQL fragment of the firm-money predicate for the call sites that build
+ * SQL strings with UNqualified columns. Static constant with NO user-input
+ * interpolation — safe to embed in a WHERE/EXISTS clause. Combine with the
+ * caller's own `direction`/`kind` conditions via AND.
+ *
+ * Use this ONLY where `financial_transactions` is the sole/unaliased table in
+ * scope. When the raw SQL references the table via an alias (e.g. `ft`, `fx`)
+ * inside a correlated subquery that JOINs other tables, use
+ * `firmMoneySqlFor(alias)` instead — unqualified columns in a correlated
+ * subquery are a known footgun that can silently bind to the wrong table.
  */
 export const FIRM_MONEY_SQL = `voided_at IS NULL AND validation_status = 'validado'`;
+
+/**
+ * Alias-qualified form of {@link FIRM_MONEY_SQL} for the 3 raw-SQL call sites
+ * that reference `financial_transactions` through an alias inside a correlated
+ * subquery (analytics/service.ts yaPagoExpr `ft`, reports/service.ts
+ * charge-history `ft`, reports/service.ts trial-conversion `fx`).
+ *
+ * `alias` is a hard-coded internal table alias (never user input), so the
+ * resulting fragment is a static, injection-safe constant. Single source of
+ * truth: both columns always carry the same alias, so they bind unambiguously
+ * to `financial_transactions` even when the surrounding query joins other
+ * tables.
+ */
+export function firmMoneySqlFor(alias: string): string {
+  return `${alias}.voided_at IS NULL AND ${alias}.validation_status = 'validado'`;
+}

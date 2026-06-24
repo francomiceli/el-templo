@@ -21,7 +21,6 @@ import {
   gte,
   lte,
   inArray,
-  isNull,
   type SQL,
 } from "drizzle-orm";
 import { alias } from "drizzle-orm/mysql-core";
@@ -33,6 +32,7 @@ import { buildMemberNameSearchCondition } from "../shared/member-search";
 import type { PaginatedResult } from "../shared/types";
 import { auditLog } from "../shared/audit-log";
 import { BalanceService, type TxHandle } from "./balance-service";
+import { firmMoneyConditions } from "./firm-money";
 import type {
   CreateTransactionInput,
   ObserveTransactionInput,
@@ -1152,7 +1152,9 @@ export class TransactionService {
   async getSummary(filters: FinanceSummaryFilters): Promise<FinanceSummary> {
     const conds: SQL[] = [
       eq(schema.financialTransactions.direction, "inflow"),
-      isNull(schema.financialTransactions.voidedAt),
+      // Firm-money axis (not voided AND validated). Phase 137 (VAL-05): a
+      // PENDIENTE must NOT count as firm cash. Sourced from the canonical helper.
+      ...firmMoneyConditions(),
     ];
     if (filters.branchId !== undefined) {
       conds.push(eq(schema.financialTransactions.branchId, filters.branchId));

@@ -185,6 +185,11 @@ export class AdvancedFinanceService {
 
     const conditions: SQL[] = [
       isNull(schema.financialTransactions.voidedAt),
+      // Phase 137 (VAL-05): firm money counts only validated rows.
+      eq(
+        schema.financialTransactions.validationStatus,
+        "validado",
+      ) as unknown as SQL,
       inArray(schema.financialTransactions.kind, [
         "plan_charge",
         "debt_settlement",
