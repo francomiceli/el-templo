@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v5.2
 milestone_name: Módulo Contable — Libro de Caja
 status: executing
-stopped_at: Completed 138-01-PLAN.md
-last_updated: "2026-06-24T18:09:08.532Z"
+stopped_at: Completed 138-03-PLAN.md (Phase 138 COMPLETE)
+last_updated: "2026-06-24T18:20:00.000Z"
 last_activity: 2026-06-24
 progress:
   total_phases: 13
-  completed_phases: 6
+  completed_phases: 7
   total_plans: 38
-  completed_plans: 36
-  percent: 46
+  completed_plans: 38
+  percent: 49
 ---
 
 # Project State
@@ -25,11 +25,11 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 
 ## Current Position
 
-Phase: 138 (Entidad caja + saldos) — EXECUTING
-Plan: 3 of 3
-Status: Ready to execute
+Phase: 138 (Entidad caja + saldos) — COMPLETE (3/3 plans)
+Plan: 3 of 3 — done
+Status: Phase complete — ready for /gsd:verify-work
 Last activity: 2026-06-24
-Next: ejecutar 143-02-PLAN.md
+Next: verificar Phase 138 / iniciar Phase 139 (movimientos inter-caja y egresos)
 
 ## Performance Metrics
 
@@ -252,6 +252,7 @@ _Updated after each plan completion_
 | Phase 137 P03 | ~18min | 3 tasks | 9 files |
 | Phase 138 P01 | 10min | 3 tasks | 5 files |
 | Phase 138 P138-02 | ~75min | 3 tasks | 13 files |
+| Phase 138 P138-03 | ~30min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -621,6 +622,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: 137-03: 13 firm-money call sites centralized through firm-money.ts with validation_status='validado'; subscriptions cancel guard kept as deliberate integrity exception — VAL-05 blast-radius closed; backfill keeps the 6 v5.0 metrics identical
 - [Phase 138]: [Phase 138]: cutoff_date is a per-caja column seeded with one global value (no settings-table dependency); cash_registers seed is SELECT-driven off branches (8 on prod baseline, scales with branch count)
 - [Phase 138]: 138-02: resolveCashRegister (single reusable caja resolver, D-01) + currency guard (D-09) live in CashRegisterService; wired at the single create() insert site so all 9 create paths auto-stamp cash_register_id server-side (CAJA-02/04). Reused by phase 140.
+- [Phase 138]: 138-03: CashRegisterService.getBalance = saldo DERIVADO (no materializado, D-08) = opening_balance + Σ validados de la caja DESDE cutoff_date, reusando firmMoneyConditions() (filtro canónico 137, nunca inlineado). PENDIENTES en SUM separada, nunca sumados al firme (CAJA-03). inflow-only en 138 con marker // TODO 139 (egresos firmados). Suite de integración CAJA-01..04 (18 tests). Backend-only (D-10, sin REST/UI). Phase 138 COMPLETE.
 
 ### Pending Todos
 
@@ -653,8 +655,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-24T18:09:08.498Z
-Stopped at: Completed 138-01-PLAN.md
+Last session: 2026-06-24T18:20:00.000Z
+Stopped at: Completed 138-03-PLAN.md (Phase 138 COMPLETE)
 Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
