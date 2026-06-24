@@ -35,6 +35,7 @@ import { auditLog } from "../shared/audit-log";
 import { BalanceService, type TxHandle } from "./balance-service";
 import type {
   CreateTransactionInput,
+  ObserveTransactionInput,
   FinanceSummary,
   FinanceSummaryFilters,
   FinancialHistoryFilters,
@@ -57,12 +58,53 @@ const KINDS_ALLOWED_WITHOUT_LINKS: ReadonlyArray<string> = [
   "adjustment",
 ];
 
+/**
+ * Phase 137 (VAL-06 / T-137-13): the minimal slice of SubscriptionService that
+ * void() needs to cancel a linked subscription inside its OWN tx. Declared as a
+ * narrow interface (not the concrete class) to avoid a circular import —
+ * SubscriptionService already depends on TransactionService, so the back-edge
+ * is wired at runtime via setSubscriptionCanceller() (mirror of
+ * SubscriptionService.setBookingService).
+ *
+ * `_cancelSubscription` runs against the caller's tx handle and, with
+ * skipActiveChargesGuard=true, bypasses the SUB_HAS_ACTIVE_TRANSACTIONS guard
+ * because the charge being voided is already soft-voided in that same tx.
+ */
+export interface SubscriptionCanceller {
+  _cancelSubscription(
+    tx: TxHandle,
+    userId: number,
+    actorId: number,
+    notes: string | null | undefined,
+    subscriptionId: number | undefined,
+    opts: { skipActiveChargesGuard?: boolean },
+  ): Promise<void>;
+}
+
 export class TransactionService {
+  /**
+   * Phase 137 (VAL-06): back-edge to SubscriptionService for the
+   * void(keepMembershipActive=false) branch. Injected post-construction to
+   * break the circular dependency (SubscriptionService → TransactionService).
+   * When unset, void(keepMembershipActive=false) throws rather than silently
+   * leaving the sub active (loud failure over silent data drift).
+   */
+  private subscriptionCanceller?: SubscriptionCanceller;
+
   constructor(
     private readonly db: DbInstance,
     private readonly log: FastifyBaseLogger,
     private readonly balanceService: BalanceService,
   ) {}
+
+  /**
+   * Wire the SubscriptionService back-edge used by
+   * void(keepMembershipActive=false). Mirror of
+   * SubscriptionService.setBookingService — avoids a circular constructor.
+   */
+  setSubscriptionCanceller(canceller: SubscriptionCanceller): void {
+    this.subscriptionCanceller = canceller;
+  }
 
   /**
    * Create a financial transaction with its links and atomically maintain
@@ -183,6 +225,14 @@ export class TransactionService {
           branchId: input.branchId,
           recordedBy,
           notes: input.notes ?? null,
+          // Phase 137 (VAL-02): birth validation status. Defaults to 'validado'
+          // (matches the column DEFAULT) when undefined — so the 4 internal
+          // recordAssignmentCharge callers (admin path) keep producing validado
+          // without edits. 'pendiente' arrives ONLY from the server-side
+          // role→status derivation (coach loads). NOTE: applyDelta below runs
+          // REGARDLESS of this value — a PENDIENTE still settles the member's
+          // balance (D-09); only the read-side firm-money filter excludes it.
+          validationStatus: input.validationStatus ?? "validado",
         });
       const transactionId = Number(inserted[0].insertId);
 
@@ -231,16 +281,163 @@ export class TransactionService {
   }
 
   /**
-   * Void a previously-created transaction. Sets the soft-void triplet
-   * (voidedAt, voidedBy, voidReason) and reverses the cache delta inside
-   * the same db.transaction. Throws if the transaction does not exist or
-   * has already been voided.
+   * Void a previously-created transaction. Public entry point: opens its own
+   * db.transaction and delegates to _void(tx, ...) so the soft-void + balance
+   * rollback + audit row + (optional) subscription cancellation are atomic.
+   * Throws if the transaction does not exist or has already been voided.
+   *
+   * Phase 137 (VAL-06 / D-10): `input.keepMembershipActive` (default true).
+   * When false, the linked subscription is cancelled inside the same tx.
    */
   async void(
     id: number,
     voidedBy: number,
     input: VoidTransactionInput,
   ): Promise<TransactionDetail> {
+    return await this.db.transaction(async (tx) => {
+      await this._void(tx, id, voidedBy, input);
+
+      const linkRows = await tx
+        .select()
+        .from(schema.transactionLinks)
+        .where(eq(schema.transactionLinks.transactionId, id));
+      const [updatedRow] = await tx
+        .select()
+        .from(schema.financialTransactions)
+        .where(eq(schema.financialTransactions.id, id));
+
+      return { ...updatedRow, links: linkRows };
+    });
+  }
+
+  /**
+   * Phase 137 (Pitfall 3): atomic soft-void primitive that operates against
+   * the CALLER's tx handle (mirror of create(tx?)). The public void() wraps it
+   * in this.db.transaction; correct() calls it inside its own tx so the
+   * void+recreate pair commits/rolls back together.
+   *
+   * `statusOverride='corregido'` ALSO sets validation_status='corregido' on the
+   * voided row — distinguishing a void-for-correction from a void-for-refund
+   * (D-05). When omitted, validation_status is left untouched (a plain anular).
+   *
+   * `input.keepMembershipActive=false` (VAL-06 / T-137-13): after the charge is
+   * soft-voided, cancel the linked subscription via SubscriptionCanceller in
+   * THIS same tx, skipping the active-charges guard (the charge is already
+   * soft-voided here). Default true leaves the sub untouched.
+   */
+  private async _void(
+    tx: TxHandle,
+    id: number,
+    voidedBy: number,
+    input: VoidTransactionInput,
+    statusOverride?: "corregido",
+  ): Promise<void> {
+    const [existing] = await tx
+      .select()
+      .from(schema.financialTransactions)
+      .where(eq(schema.financialTransactions.id, id));
+    if (!existing) {
+      throw new NotFoundError("Transaccion no encontrada");
+    }
+    if (existing.voidedAt !== null) {
+      throw new BadRequestError("La transaccion ya fue anulada");
+    }
+    if (!input.reason || input.reason.trim().length === 0) {
+      throw new BadRequestError("Razon de anulacion requerida");
+    }
+
+    await tx
+      .update(schema.financialTransactions)
+      .set({
+        voidedAt: new Date(),
+        voidedBy,
+        voidReason: input.reason,
+        // D-05: mark void-for-correction distinctly. A plain anular leaves
+        // validation_status as-is (orthogonal axis untouched).
+        ...(statusOverride ? { validationStatus: statusOverride } : {}),
+      })
+      .where(eq(schema.financialTransactions.id, id));
+
+    const linkRows = await tx
+      .select()
+      .from(schema.transactionLinks)
+      .where(eq(schema.transactionLinks.transactionId, id));
+
+    // Reverse the original effect: pass the original (pre-void) row +
+    // sign=-1 so applyDelta computes `-1 * baseDelta` and undoes the
+    // create-time effect on the cache exactly.
+    await this.balanceService.applyDelta(tx, existing, linkRows, -1);
+
+    // VAL-06 / D-10: optionally cancel the linked subscription. Only the
+    // explicit keepMembershipActive=false triggers this — default true (and
+    // undefined) leaves the sub active. Runs in THIS tx so the cancel rolls
+    // back together with the soft-void if anything later throws.
+    if (input.keepMembershipActive === false) {
+      const subLink = linkRows.find((l) => l.targetKind === "subscription");
+      if (subLink) {
+        if (!this.subscriptionCanceller) {
+          throw new Error(
+            "SubscriptionCanceller no inyectado — setSubscriptionCanceller() falta (phase 137)",
+          );
+        }
+        await this.subscriptionCanceller._cancelSubscription(
+          tx,
+          existing.memberId,
+          voidedBy,
+          `Cancelacion por anulacion de cobro #${id}`,
+          subLink.targetId,
+          { skipActiveChargesGuard: true },
+        );
+      }
+    }
+
+    // REQ-7 (Phase 111 D-13 / D-15): forensic audit row for transaction
+    // voids. Atomic with the soft-void update + balance rollback — if any
+    // of the writes above throws after this point, the audit row vanishes
+    // (helper requires tx handle; never opens its own transaction).
+    await auditLog.write(tx, {
+      actorId: voidedBy,
+      action: "transaction_voided",
+      targetKind: "transaction",
+      targetId: id,
+      payload: {
+        txId: id,
+        amount: existing.amount,
+        currency: existing.currency,
+        voidedAt: new Date().toISOString(),
+        voidReason: input.reason,
+        statusOverride: statusOverride ?? null,
+        keepMembershipActive: input.keepMembershipActive ?? true,
+        links: linkRows.map((l) => ({
+          targetKind: l.targetKind,
+          targetId: l.targetId,
+          allocatedAmount: l.allocatedAmount,
+        })),
+      },
+      reason: input.reason,
+    });
+
+    this.log.info(
+      {
+        transactionId: id,
+        voidedBy,
+        reason: input.reason,
+        statusOverride: statusOverride ?? null,
+        keepMembershipActive: input.keepMembershipActive ?? true,
+      },
+      "Financial transaction voided",
+    );
+  }
+
+  /**
+   * Phase 137 (VAL-03): transition a pendiente charge → validado. The money
+   * becomes firm (the canonical firm-money read filter now counts it). Writes a
+   * forensic audit row (transaction_validated) atomic with the status update.
+   *
+   * Throws NotFoundError if absent, BadRequestError if already voided or not in
+   * 'pendiente' (validate only advances pendiente → validado).
+   */
+  async validate(id: number, adminId: number): Promise<TransactionDetail> {
     return await this.db.transaction(async (tx) => {
       const [existing] = await tx
         .select()
@@ -250,66 +447,250 @@ export class TransactionService {
         throw new NotFoundError("Transaccion no encontrada");
       }
       if (existing.voidedAt !== null) {
-        throw new BadRequestError("La transaccion ya fue anulada");
+        throw new BadRequestError("La transaccion fue anulada");
       }
-      if (!input.reason || input.reason.trim().length === 0) {
-        throw new BadRequestError("Razon de anulacion requerida");
+      if (existing.validationStatus !== "pendiente") {
+        throw new BadRequestError(
+          "Solo se puede validar una transaccion pendiente",
+        );
       }
 
       await tx
         .update(schema.financialTransactions)
-        .set({
-          voidedAt: new Date(),
-          voidedBy,
-          voidReason: input.reason,
-        })
+        .set({ validationStatus: "validado" })
         .where(eq(schema.financialTransactions.id, id));
 
-      const linkRows = await tx
-        .select()
-        .from(schema.transactionLinks)
-        .where(eq(schema.transactionLinks.transactionId, id));
-
-      // Reverse the original effect: pass the original (pre-void) row +
-      // sign=-1 so applyDelta computes `-1 * baseDelta` and undoes the
-      // create-time effect on the cache exactly.
-      await this.balanceService.applyDelta(tx, existing, linkRows, -1);
-
-      // REQ-7 (Phase 111 D-13 / D-15): forensic audit row for transaction
-      // voids. Atomic with the soft-void update + balance rollback — if any
-      // of the writes above throws after this point, the audit row vanishes
-      // (helper requires tx handle; never opens its own transaction).
       await auditLog.write(tx, {
-        actorId: voidedBy,
-        action: "transaction_voided",
+        actorId: adminId,
+        action: "transaction_validated",
         targetKind: "transaction",
         targetId: id,
         payload: {
           txId: id,
           amount: existing.amount,
           currency: existing.currency,
-          voidedAt: new Date().toISOString(),
-          voidReason: input.reason,
-          links: linkRows.map((l) => ({
-            targetKind: l.targetKind,
-            targetId: l.targetId,
-            allocatedAmount: l.allocatedAmount,
-          })),
+          from: "pendiente",
+          to: "validado",
         },
-        reason: input.reason,
       });
+
+      this.log.info(
+        { transactionId: id, adminId },
+        "Financial transaction validated",
+      );
 
       const [updatedRow] = await tx
         .select()
         .from(schema.financialTransactions)
         .where(eq(schema.financialTransactions.id, id));
+      const linkRows = await tx
+        .select()
+        .from(schema.transactionLinks)
+        .where(eq(schema.transactionLinks.transactionId, id));
+      return { ...updatedRow, links: linkRows };
+    });
+  }
+
+  /**
+   * Phase 137 (VAL-04 / D-04): transition a pendiente charge → observado (a
+   * problem flagged, not yet corrected — e.g. the admin needs to ask the coach
+   * for the right datum). Requires a reason. Writes transaction_observed audit.
+   *
+   * Throws if absent, voided, or not in 'pendiente'.
+   */
+  async observe(
+    id: number,
+    adminId: number,
+    input: ObserveTransactionInput,
+  ): Promise<TransactionDetail> {
+    return await this.db.transaction(async (tx) => {
+      if (!input.reason || input.reason.trim().length === 0) {
+        throw new BadRequestError("Razon de observacion requerida");
+      }
+      const [existing] = await tx
+        .select()
+        .from(schema.financialTransactions)
+        .where(eq(schema.financialTransactions.id, id));
+      if (!existing) {
+        throw new NotFoundError("Transaccion no encontrada");
+      }
+      if (existing.voidedAt !== null) {
+        throw new BadRequestError("La transaccion fue anulada");
+      }
+      if (existing.validationStatus !== "pendiente") {
+        throw new BadRequestError(
+          "Solo se puede observar una transaccion pendiente",
+        );
+      }
+
+      await tx
+        .update(schema.financialTransactions)
+        .set({ validationStatus: "observado" })
+        .where(eq(schema.financialTransactions.id, id));
+
+      await auditLog.write(tx, {
+        actorId: adminId,
+        action: "transaction_observed",
+        targetKind: "transaction",
+        targetId: id,
+        payload: {
+          txId: id,
+          amount: existing.amount,
+          currency: existing.currency,
+          from: "pendiente",
+          to: "observado",
+        },
+        reason: input.reason,
+      });
 
       this.log.info(
-        { transactionId: id, voidedBy, reason: input.reason },
-        "Financial transaction voided",
+        { transactionId: id, adminId, reason: input.reason },
+        "Financial transaction observed",
       );
 
+      const [updatedRow] = await tx
+        .select()
+        .from(schema.financialTransactions)
+        .where(eq(schema.financialTransactions.id, id));
+      const linkRows = await tx
+        .select()
+        .from(schema.transactionLinks)
+        .where(eq(schema.transactionLinks.transactionId, id));
       return { ...updatedRow, links: linkRows };
+    });
+  }
+
+  /**
+   * Phase 137 (VAL-04 / D-05): correct a mis-loaded charge by ANULAR + RECREAR
+   * (never UPDATE — ledger immutability). In ONE db.transaction:
+   *   1. _void the original (validation_status='corregido' + voided_at set).
+   *   2. create() a NEW row born 'validado' (admin author), copying every field
+   *      from the original except the `correctedFields` overrides + carrying
+   *      over the original's links.
+   *   3. INSERT a transaction_links row linking new → original
+   *      (target_kind='transaction') so the trail shows the replacement.
+   *   4. auditLog.write transaction_corrected.
+   *
+   * Atomic: if the create fails, the void never commits (no orphan voided row).
+   * `correctedFields` may change ONLY amount / memberId / paymentMethod.
+   */
+  async correct(
+    originalId: number,
+    correctedFields: Partial<
+      Pick<CreateTransactionInput, "amount" | "memberId" | "paymentMethod">
+    >,
+    adminId: number,
+  ): Promise<TransactionDetail> {
+    return await this.db.transaction(async (tx) => {
+      const [original] = await tx
+        .select()
+        .from(schema.financialTransactions)
+        .where(eq(schema.financialTransactions.id, originalId));
+      if (!original) {
+        throw new NotFoundError("Transaccion no encontrada");
+      }
+      if (original.voidedAt !== null) {
+        throw new BadRequestError(
+          "No se puede corregir una transaccion ya anulada",
+        );
+      }
+
+      // Carry over the original's links so the recreated charge keeps the same
+      // allocations (e.g. its subscription link). Amount overrides re-balance
+      // the single-link case; multi-link corrections are out of scope (the
+      // typical correctable error is amount/member/method, not allocations).
+      const originalLinks = await tx
+        .select()
+        .from(schema.transactionLinks)
+        .where(eq(schema.transactionLinks.transactionId, originalId));
+
+      // 1. Void the original, marking it 'corregido' (void-for-correction).
+      await this._void(
+        tx,
+        originalId,
+        adminId,
+        { reason: "Correccion de transaccion" },
+        "corregido",
+      );
+
+      // 2. Build the new input: copy from the original, apply overrides. When
+      // amount changes and there is exactly ONE link, re-point its
+      // allocatedAmount to the new amount so TXN-06 (Σalloc === amount) holds.
+      const newAmount = correctedFields.amount ?? original.amount;
+      const newLinks =
+        originalLinks.length === 1
+          ? [
+              {
+                targetKind: originalLinks[0].targetKind,
+                targetId: originalLinks[0].targetId,
+                allocatedAmount:
+                  correctedFields.amount !== undefined
+                    ? newAmount
+                    : originalLinks[0].allocatedAmount,
+              },
+            ]
+          : originalLinks.map((l) => ({
+              targetKind: l.targetKind,
+              targetId: l.targetId,
+              allocatedAmount: l.allocatedAmount,
+            }));
+
+      const newInput: CreateTransactionInput = {
+        memberId: correctedFields.memberId ?? original.memberId,
+        kind: original.kind,
+        direction: original.direction,
+        amount: newAmount,
+        currency: original.currency,
+        paymentMethod: correctedFields.paymentMethod ?? original.paymentMethod,
+        transactionDate: original.transactionDate,
+        effectiveDate: original.effectiveDate,
+        branchId: original.branchId,
+        notes: original.notes,
+        validationStatus: "validado",
+        links: newLinks,
+      };
+
+      // 3. Create the replacement in the SAME tx (born 'validado').
+      const created = await this.create(newInput, adminId, tx);
+
+      // 4. Link the new tx → original (target_kind='transaction') for the
+      // trail. allocatedAmount 0: this is a provenance link, not a money
+      // allocation (applyDelta ignores target_kind='transaction' links).
+      await tx.insert(schema.transactionLinks).values({
+        transactionId: created.id,
+        targetKind: "transaction",
+        targetId: originalId,
+        allocatedAmount: 0,
+      });
+
+      // 5. Forensic audit row for the correction.
+      await auditLog.write(tx, {
+        actorId: adminId,
+        action: "transaction_corrected",
+        targetKind: "transaction",
+        targetId: originalId,
+        payload: {
+          originalTxId: originalId,
+          newTxId: created.id,
+          correctedFields,
+          originalAmount: original.amount,
+          newAmount,
+        },
+        reason: "Correccion de transaccion",
+      });
+
+      this.log.info(
+        { originalTxId: originalId, newTxId: created.id, adminId },
+        "Financial transaction corrected (void + recreate)",
+      );
+
+      // Re-read the new row with its full link set (including the provenance
+      // link inserted above) for the returned detail.
+      const finalLinks = await tx
+        .select()
+        .from(schema.transactionLinks)
+        .where(eq(schema.transactionLinks.transactionId, created.id));
+      return { ...created, links: finalLinks };
     });
   }
 

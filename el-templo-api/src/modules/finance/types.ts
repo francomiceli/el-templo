@@ -43,6 +43,17 @@ export interface CreateTransactionLinkInput {
   allocatedAmount: number;
 }
 
+/**
+ * Phase 137 (VAL-02): the validation_status a freshly-created transaction is
+ * born with. Derived SERVER-SIDE from the authenticated user's role
+ * (coach→'pendiente', everyone else→'validado') — NEVER read from the raw
+ * client body. Optional: when omitted the DB column DEFAULT 'validado' applies,
+ * so all 4 internal recordAssignmentCharge callers (admin path) stay correct
+ * without edits. Only 'pendiente'/'validado' are valid at birth; 'observado'
+ * and 'corregido' are reachable only via observe()/correct() transitions.
+ */
+export type InitialValidationStatus = "pendiente" | "validado";
+
 export interface CreateTransactionInput {
   memberId: number;
   kind: TransactionKind;
@@ -57,11 +68,36 @@ export interface CreateTransactionInput {
   effectiveDate: string;
   branchId: number;
   notes?: string | null;
+  /**
+   * Phase 137 (VAL-02): birth validation status. Defaults to 'validado' when
+   * undefined (matches the DB column DEFAULT). Set to 'pendiente' ONLY by the
+   * server-side role→status derivation (coach loads). NEVER sourced from the
+   * raw request body.
+   */
+  validationStatus?: InitialValidationStatus;
   links: CreateTransactionLinkInput[];
+}
+
+/**
+ * Phase 137 (VAL-04 / D-04): input for observe() — flag a pendiente charge as
+ * 'observado' (a problem spotted, not yet corrected). Reason is mandatory so
+ * the audit trail records WHY it was observed (D-07).
+ */
+export interface ObserveTransactionInput {
+  reason: string;
 }
 
 export interface VoidTransactionInput {
   reason: string;
+  /**
+   * Phase 137 (D-10 / VAL-06): when voiding a charge that activated a
+   * membership, decide whether the linked subscription stays active. Default
+   * true (current behaviour — the sub is untouched). When false, void()
+   * cancels the linked subscription inside the SAME db.transaction via
+   * SubscriptionService._cancelSubscription (skipping the active-charges
+   * guard, since this very charge is soft-voided in that same tx).
+   */
+  keepMembershipActive?: boolean;
 }
 
 // -- Service output shapes ---------------------------------------------------
