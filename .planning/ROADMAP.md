@@ -3462,7 +3462,7 @@ _v5.2 added: 2026-06-04 — 1 phase (132). Cierra v5.0 del lado de UI: expone en
 - [x] **Phase 137: Máquina de estados de validación (cimiento)** — `validation_status` ortogonal al soft-void + filtro canónico de "dinero firme" reescrito sin romper las 6 métricas v5.0 + transiciones validar/observar/corregir/anular con rastro de auditoría. (completed 2026-06-24)
 - [x] **Phase 138: Entidad caja + saldos** — tabla `cash_registers` (efectivo×sucursal + central + banco×moneda, `currency` fija) + `cash_register_id` en el ledger + saldo firme derivado (solo VALIDADOS) con pendientes mostrados aparte + aislamiento de moneda.
 - [x] **Phase 139: Movimientos inter-caja y egresos** — movimiento (asiento de 2 filas linkeadas, neto 0) con reconciliación esperado-vs-contado + egreso (1 fila outflow, nota libre) + void ortogonal del par, sin contaminar `balances`. (completed 2026-06-24)
-- [ ] **Phase 140: Carga única que propaga + cobro suelto + rol profe** — UI dead-simple que registra el pago una vez y propaga atómico (membresía + caja) de forma idempotente + cobro suelto + rol profe acotado (carga PENDIENTE, no valida/anula).
+- [x] **Phase 140: Carga única que propaga + cobro suelto + rol profe** — UI dead-simple que registra el pago una vez y propaga atómico (membresía + caja) de forma idempotente + cobro suelto + rol profe acotado (carga PENDIENTE, no valida/anula). (completed 2026-06-24)
 - [ ] **Phase 141: Reportes para la admin** — bandeja de pendientes por antigüedad (+ observados, + alerta configurable) + saldo firme/pendiente por caja + historial de movimientos/egresos, reusando el export Excel/PDF existente.
 - [ ] **Phase 142: Config + transición Contabilium** — perillas de configuración (política de validación; activación instantánea/diferida) con casa definida y funcional + regla documentada de "qué dato manda" durante la convivencia con Contabilium por etapa.
 
@@ -3539,12 +3539,12 @@ Plans:
 3. La misma UI soporta cobros sueltos (pago sin membresía asociada) reusando el modelo existente sin schema nuevo. (CARGA-03)
 4. El rol profe existe en el admin con permisos acotados: puede cargar pagos (entran PENDIENTE), NO puede validar, observar, anular ni ver saldos de caja; un test de autorización confirma el bloqueo. (CARGA-04)
 
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 Plans:
 
 - [x] 140-01-PLAN.md — Backend foundation: migration 0156 idempotency_key, FINANCE_LOAD_ROLES, recorderRole+idempotencyKey threading through renewSubscription, cobro-suelto plumbing
 - [x] 140-02-PLAN.md — coach-load-routes.ts plugin (renew / cobro-suelto / autocompletar / mis-cargas) + endpoint idempotency dedup + auth/idempotency integration tests
-- [ ] 140-03-PLAN.md — CargarPagoPage.vue PoS screen + useFinanceLoadApi composable + route/nav per UI-SPEC (human-verify checkpoint)
+- [x] 140-03-PLAN.md — CargarPagoPage.vue PoS screen + useFinanceLoadApi composable + route/nav per UI-SPEC (human-verify checkpoint)
       **UI hint:** yes
 
 ### Phase 141: Reportes para la admin
@@ -3581,7 +3581,7 @@ Plans:
 | 137. Máquina de estados de validación       | 3/3            | Complete    | 2026-06-24 |
 | 138. Entidad caja + saldos                  | 2/3            | In Progress |            |
 | 139. Movimientos inter-caja y egresos       | 3/3            | Complete    | 2026-06-24 |
-| 140. Carga única + cobro suelto + rol profe | 2/3            | In Progress |            |
+| 140. Carga única + cobro suelto + rol profe | 3/3            | Complete    | 2026-06-24 |
 | 141. Reportes para la admin                 | 0/?            | Not started | -          |
 | 142. Config + transición Contabilium        | 0/?            | Not started | -          |
 
