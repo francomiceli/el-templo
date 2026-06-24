@@ -3593,7 +3593,7 @@ _Plan counts populated by `/gsd-plan-phase`._
 
 **Estado del código (verificado):** `schedules` sin `coachId`; `attendance` sin profe; `WeeklySlotView`/`ReservasPage` no traen ni muestran profe; role `coach` SÍ existe (sin `bio`); `user_branches` mapea coach↔sucursales pero no a horarios.
 
-**Plans:** 4/5 plans executed
+**Plans:** 5/5 plans complete
 
 Plans:
 
@@ -3601,7 +3601,7 @@ Plans:
 - [x] 143-02-PLAN.md — Módulo API ratings: roster CRUD + pending/submit con atribución + vista owner + tests
 - [x] 143-03-PLAN.md — QR self-scan del profe validado contra user_branches + tests
 - [x] 143-04-PLAN.md — Admin: grilla de roster en Horarios (Surface 1) + PuntuacionesPage owner-only (Surface 3)
-- [ ] 143-05-PLAN.md — App miembro: RatingPromptDialog class-framed (Surface 2) + useRatingsApi + montaje
+- [x] 143-05-PLAN.md — App miembro: RatingPromptDialog class-framed (Surface 2) + useRatingsApi + montaje
 
 ---
 

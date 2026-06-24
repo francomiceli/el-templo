@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v5.2
 milestone_name: Módulo Contable — Libro de Caja
-status: executing
+status: verifying
 stopped_at: Completed 143-01-PLAN.md
-last_updated: "2026-06-24T01:53:11.812Z"
+last_updated: "2026-06-24T02:00:11.276Z"
 last_activity: 2026-06-24
 progress:
   total_phases: 12
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 32
-  completed_plans: 30
-  percent: 33
+  completed_plans: 31
+  percent: 42
 ---
 
 # Project State
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 
 Phase: 143 (profesor-por-clase-puntuaci-n-post-clase-presencial) — EXECUTING
 Plan: 5 of 5
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-06-24
 Next: ejecutar 143-02-PLAN.md
 
@@ -246,6 +246,7 @@ _Updated after each plan completion_
 | Phase 143 P01 | 5min | 2 tasks | 4 files |
 | Phase 143 P02 | ~7min | 2 tasks | 7 files |
 | Phase 143 P03 | ~8min | 2 tasks | 2 files |
+| Phase 143 P05 | ~6min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -608,6 +609,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: [Phase 135]: bootstrap-milestones --apply milestone-only by contract (aborts on pending dimension proposals, exit 2); reuses acceptMilestoneReview as the only milestone_exercise_id writer, hitos before variantes, idempotent (pending-only)
 - [Phase ?]: [Phase 143-01]: class_coach_assignments uniqueIndex natural-key (branch,week,day,slot) impide doble profe por slot/semana a nivel DB (D-A2)
 - [Phase ?]: [Phase 143-01]: coach_ratings append-only sin unique; guard one-shot miembro+clase en service layer (D-P2)
+- [Phase 143-05]: RatingPromptDialog (Surface 2) class-framed estilo Uber: salteable (sin persistent, D-P1) + one-shot por clase vía Capacitor Preferences (D-P2); nunca expone al profe (D-A3); estrellas Terracotta color=primary
+- [Phase 143-05]: el-templo-app sin script typecheck ni vue-tsc; verificación canónica de frontend = ESLint (plugin vue); tsc reporta errores pre-existentes de resolución .vue fuera de scope
 
 ### Pending Todos
 
@@ -640,7 +643,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-24T01:53:11.788Z
+Last session: 2026-06-24T01:57:49.639Z
 Stopped at: Completed 143-01-PLAN.md
 Resume file: None
 
