@@ -287,6 +287,55 @@ export interface OutstandingConcept {
   effectiveDate: string; // YYYY-MM-DD para auditoría / orden FIFO
 }
 
+// -- Phase 139: MovementService (movimientos inter-caja + egresos) ----------
+
+/**
+ * Phase 139 (MOV-01/MOV-02): input para registrar un movimiento inter-caja —
+ * el asiento de doble entrada (2 filas linkeadas, neto 0). La reconciliación
+ * esperado-vs-contado (D-04) es opcional: cuando `countedAmount` se omite, no
+ * se materializa un ajuste (solo se deja el rastro del esperado en el audit).
+ *
+ * `adminId` es el actor server-side (request.user.userId) — NUNCA del body.
+ * `notes` es texto libre opcional. Las monedas se derivan de las cajas (guard
+ * same-currency en el servicio); el body no las trae.
+ */
+export interface RegisterMovementInput {
+  origenCajaId: number;
+  destinoCajaId: number;
+  amount: number;
+  /**
+   * Conteo físico de la caja origen al momento (D-04). Cuando difiere del
+   * esperado, el servicio inserta una fila kind='adjustment' que corrige el
+   * saldo de origen a lo contado + un audit 'reconciliation'. Omitido = sin
+   * ajuste (solo rastro del esperado).
+   */
+  countedAmount?: number;
+  notes?: string | null;
+}
+
+/**
+ * Phase 139 (MOV-03): input para registrar un egreso — 1 fila outflow que resta
+ * del saldo de su caja. Sin categoría en v1 (solo `notes` libre).
+ */
+export interface RegisterExpenseInput {
+  cajaId: number;
+  amount: number;
+  notes?: string | null;
+}
+
+/**
+ * Phase 139 (MOV-01): resultado de registrar un movimiento. Devuelve los ids de
+ * ambas patas + el id del ajuste de reconciliación (null cuando no hubo
+ * diferencia) + el esperado/contado para que el caller (route) los exponga.
+ */
+export interface MovementDetail {
+  outflowTxId: number; // pata origen (kind='cash_transfer', outflow)
+  inflowTxId: number; // pata destino (kind='cash_transfer', inflow)
+  adjustmentTxId: number | null; // ajuste de reconciliación (solo si counted != expected)
+  expectedAmount: number; // saldo firme de origen al momento (D-04)
+  countedAmount: number | null; // conteo físico, si se proveyó
+}
+
 // Phase 138 (D-06/D-08/CAJA-03) — saldo DERIVADO de una caja. firmeBalance es
 // opening_balance + Σ validados de la caja desde cutoff_date (reusa
 // firmMoneyConditions). pendienteAmount (validation_status='pendiente') se
