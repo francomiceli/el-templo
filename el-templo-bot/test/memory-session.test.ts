@@ -107,6 +107,8 @@ import {
   getSession,
   updateSession,
   deleteSession,
+  recordInboundAt,
+  getLatestInboundAt,
   SESSION_TTL,
   MAX_SESSION_MESSAGES,
 } from "../src/memory/session";
@@ -324,6 +326,87 @@ describe("Session Context Memory", () => {
 
     it("MAX_SESSION_MESSAGES is 20", () => {
       expect(MAX_SESSION_MESSAGES).toBe(20);
+    });
+  });
+
+  // ── DBNC-01 inbound-at helpers (Phase 100 trailing-debounce loop) ───────
+  //
+  // recordInboundAt / getLatestInboundAt are the Redis-backed primitives the
+  // poll-and-extend loop in handler.ts uses to detect "did a newer inbound
+  // arrive since I last looked?" — last-write-wins semantics is intentional
+  // because the loop only consumes the monotonic-increase test.
+
+  describe("DBNC-01 inbound-at helpers", () => {
+    it("recordInboundAt + getLatestInboundAt round-trip the epoch ms", async () => {
+      const phone = "5491100000010";
+      const ts = 1_700_000_000_123;
+
+      await recordInboundAt(phone, ts, 600);
+      const stored = mockStore.get(`wa:inbound_at:${phone}`);
+      expect(stored).toBe(String(ts));
+
+      const retrieved = await getLatestInboundAt(phone);
+      expect(retrieved).toBe(ts);
+    });
+
+    it("recordInboundAt writes with EX TTL from the caller", async () => {
+      const phone = "5491100000011";
+      await recordInboundAt(phone, 1_700_000_000_000, 600);
+
+      // The SET call shape: (key, value, "EX", ttlSeconds)
+      expect(mockSetSpy).toHaveBeenCalled();
+      const lastCall = mockSetSpy.mock.calls[mockSetSpy.mock.calls.length - 1];
+      expect(lastCall[0]).toBe(`wa:inbound_at:${phone}`);
+      expect(lastCall[1]).toBe(String(1_700_000_000_000));
+      expect(lastCall[2]).toBe("EX");
+      expect(lastCall[3]).toBe(600);
+    });
+
+    it("getLatestInboundAt returns null when the key is missing", async () => {
+      const result = await getLatestInboundAt("5491100000012");
+      expect(result).toBeNull();
+    });
+
+    it("getLatestInboundAt returns null when the stored value is NaN", async () => {
+      const phone = "5491100000013";
+      mockStore.set(`wa:inbound_at:${phone}`, "not-a-number");
+      const result = await getLatestInboundAt(phone);
+      expect(result).toBeNull();
+    });
+
+    it("recordInboundAt silently no-ops when Redis is unavailable", async () => {
+      mockState.available = false;
+      await recordInboundAt("5491100000014", 1_700_000_000_000, 600);
+      // No Redis call attempted
+      expect(mockSetSpy).not.toHaveBeenCalled();
+    });
+
+    it("getLatestInboundAt returns null when Redis is unavailable", async () => {
+      mockState.available = false;
+      const result = await getLatestInboundAt("5491100000015");
+      expect(result).toBeNull();
+      expect(mockGetSpy).not.toHaveBeenCalled();
+    });
+
+    it("recordInboundAt silently swallows Redis errors (does not throw)", async () => {
+      mockSetSpy.mockRejectedValueOnce(new Error("Connection refused"));
+      await expect(
+        recordInboundAt("5491100000016", 1_700_000_000_000, 600),
+      ).resolves.toBeUndefined();
+    });
+
+    it("getLatestInboundAt returns null on Redis error", async () => {
+      mockGetSpy.mockRejectedValueOnce(new Error("Connection refused"));
+      const result = await getLatestInboundAt("5491100000017");
+      expect(result).toBeNull();
+    });
+
+    it("getLatestInboundAt parses string timestamps to numbers", async () => {
+      const phone = "5491100000018";
+      mockStore.set(`wa:inbound_at:${phone}`, "1700000000999");
+      const result = await getLatestInboundAt(phone);
+      expect(result).toBe(1_700_000_000_999);
+      expect(typeof result).toBe("number");
     });
   });
 });
