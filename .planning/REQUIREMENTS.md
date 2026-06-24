@@ -71,10 +71,10 @@
 
 ### Reportes para la admin (REP)
 
-- [ ] **REP-01**: La admin ve una **bandeja de pendientes** ordenada por antigüedad, con alerta configurable cuando un pendiente supera cierto tiempo (junto a los observados).
-- [ ] **REP-02**: La admin ve el **saldo firme y pendiente por caja** (efectivo por sucursal, central, banco por moneda).
+- [x] **REP-01**: La admin ve una **bandeja de pendientes** ordenada por antigüedad, con alerta configurable cuando un pendiente supera cierto tiempo (junto a los observados).
+- [x] **REP-02**: La admin ve el **saldo firme y pendiente por caja** (efectivo por sucursal, central, banco por moneda).
 - [ ] **REP-03**: La admin ve el **historial de movimientos inter-caja y egresos** por caja/período.
-- [ ] **REP-04**: Los reportes nuevos se **exportan reusando** el export Excel/PDF existente.
+- [x] **REP-04**: Los reportes nuevos se **exportan reusando** el export Excel/PDF existente.
 
 ### Transición Contabilium y configuración (MIG)
 
@@ -124,10 +124,10 @@
 | CARGA-02    | Phase 140 — Carga única + cobro suelto + profe | Complete |
 | CARGA-03    | Phase 140 — Carga única + cobro suelto + profe | Complete |
 | CARGA-04    | Phase 140 — Carga única + cobro suelto + profe | Complete |
-| REP-01      | Phase 141 — Reportes para la admin             | Pending  |
-| REP-02      | Phase 141 — Reportes para la admin             | Pending  |
+| REP-01      | Phase 141 — Reportes para la admin             | Complete |
+| REP-02      | Phase 141 — Reportes para la admin             | Complete |
 | REP-03      | Phase 141 — Reportes para la admin             | Pending  |
-| REP-04      | Phase 141 — Reportes para la admin             | Pending  |
+| REP-04      | Phase 141 — Reportes para la admin             | Complete |
 | MIG-01      | Phase 142 — Config + transición Contabilium    | Pending  |
 | MIG-02      | Phase 142 — Config + transición Contabilium    | Pending  |
 
