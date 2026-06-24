@@ -105,6 +105,17 @@ export const FINANCE_WRITE_ROLES = [
   "recepcion",
 ] as const;
 
+/**
+ * Roles that can use the coach LOAD endpoints (Phase 140 D-06): the dead-simple
+ * PoS "Cargar pago" surface where coach renewals/standalone charges are born
+ * PENDIENTE (validation_status derived server-side from the role, never the
+ * body). = FINANCE_WRITE_ROLES + coach. This gates ONLY the load endpoints;
+ * coach stays ABSENT from FINANCE_VOID_ROLES / FINANCE_ADJUSTMENT_ROLES /
+ * FINANCE_READ_ROLES (no validating/observing/voiding, no caja balances —
+ * D-06/D-08). Do NOT widen those three sets.
+ */
+export const FINANCE_LOAD_ROLES = [...FINANCE_WRITE_ROLES, "coach"] as const;
+
 /** Roles that can create kind=adjustment (sensitive — Phase 106 D-01). */
 export const FINANCE_ADJUSTMENT_ROLES = ["owner", "admin", "gestion"] as const;
 

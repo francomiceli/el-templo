@@ -268,6 +268,11 @@ export class TransactionService {
           // REGARDLESS of this value — a PENDIENTE still settles the member's
           // balance (D-09); only the read-side firm-money filter excludes it.
           validationStatus: input.validationStatus ?? "validado",
+          // Phase 140 (CARGA-02 / D-09): persist the client-generated idempotency
+          // ticket key. NULL for every admin/historical path (multiple NULLs are
+          // allowed under the UNIQUE index); a duplicate non-null key raises
+          // ER_DUP_ENTRY at the DB, caught endpoint-side in Wave 2 (Pitfall 3).
+          idempotencyKey: input.idempotencyKey ?? null,
         });
       const transactionId = Number(inserted[0].insertId);
 

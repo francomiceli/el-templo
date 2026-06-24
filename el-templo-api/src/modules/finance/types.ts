@@ -96,6 +96,17 @@ export interface CreateTransactionInput {
    * exposed through the REST body — the route schema must NOT accept it.
    */
   cashRegisterId?: number | null;
+  /**
+   * Phase 140 (CARGA-02 / D-09): client-generated opaque ticket key for
+   * idempotent coach loads — a UUID minted on each "Confirmar" tap, NOT a
+   * secret. When set, create() persists it on the row; the nullable UNIQUE
+   * index (uq_financial_tx_idempotency_key) rejects a duplicate non-null key
+   * at the DB layer so a double-tap/retry cannot create two charges. The
+   * ER_DUP_ENTRY → return-existing handling lands endpoint-side in Wave 2
+   * (Pitfall 3: the renewal tx must roll back before re-reading). Omitted/NULL
+   * for every admin/historical path (multiple NULLs are allowed).
+   */
+  idempotencyKey?: string | null;
   links: CreateTransactionLinkInput[];
 }
 
