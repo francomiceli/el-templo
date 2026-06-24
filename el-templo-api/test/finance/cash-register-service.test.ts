@@ -19,12 +19,17 @@
 import { describe, it, beforeAll, afterAll, expect } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { eq, inArray } from "drizzle-orm";
-import { createTestApp } from "../helpers";
+import { createTestApp, registerUser } from "../helpers";
 import * as schema from "../../src/db/schema";
 import { CashRegisterService } from "../../src/modules/finance/cash-register-service";
+import { TransactionService } from "../../src/modules/finance/transaction-service";
+import { BalanceService } from "../../src/modules/finance/balance-service";
 
 let app: FastifyInstance;
 let service: CashRegisterService;
+let txService: TransactionService;
+let adminId: number;
+let memberId: number;
 
 // A throwaway branch + its cajas used by the resolver/guard tests. Created in
 // beforeAll, torn down in afterAll, so these tests are self-contained and do
@@ -84,18 +89,50 @@ beforeAll(async () => {
     Number(bcAr[0].insertId),
     Number(bcEur[0].insertId),
   );
+
+  // TransactionService with the resolver injected — exercises the single
+  // create() insert-site wiring (CAJA-02).
+  const balanceService = new BalanceService(app.db, app.log);
+  txService = new TransactionService(app.db, app.log, balanceService, service);
+
+  const [admin] = await app.db
+    .select({ id: schema.users.id })
+    .from(schema.users)
+    .where(eq(schema.users.email, "admin@test.com"))
+    .limit(1);
+  if (!admin) {
+    throw new Error(
+      "Seeded admin@test.com user not found — check test/setup.ts",
+    );
+  }
+  adminId = admin.id;
+
+  const member = await registerUser(app, {
+    email: `caja-member-${Date.now()}@test.local`,
+    password: "TestPass123!",
+    firstName: "Caja",
+    lastName: "Tester",
+    branchId: arsBranchId,
+  });
+  memberId = (member.user as { id: number }).id;
 });
 
 afterAll(async () => {
+  // Children first to satisfy FKs (financial_transactions/balances → branches,
+  // cash_registers → branches). The per-worker DB is dropped per run by
+  // globalSetup, so this is best-effort isolation rather than strict cleanup.
+  if (memberId) {
+    await app.db
+      .delete(schema.balances)
+      .where(eq(schema.balances.memberId, memberId));
+    await app.db
+      .delete(schema.financialTransactions)
+      .where(eq(schema.financialTransactions.memberId, memberId));
+  }
   if (seededCajaIds.length > 0) {
     await app.db
       .delete(schema.cashRegisters)
       .where(inArray(schema.cashRegisters.id, seededCajaIds));
-  }
-  for (const bId of [arsBranchId, eurBranchId]) {
-    if (bId) {
-      await app.db.delete(schema.branches).where(eq(schema.branches.id, bId));
-    }
   }
   await app.close();
 });
@@ -177,12 +214,98 @@ describe("CashRegisterService", () => {
   });
 
   describe("create stamps caja", () => {
-    // CAJA-02: a cash charge via recordAssignmentCharge (not REST) still
-    // stamps a non-null cash_register_id (single insert-site wiring).
-    it.todo(
-      "create() populates cash_register_id via the resolver on every path",
-    );
-    it.todo("an aura_credit charge persists cash_register_id NULL");
+    // CAJA-02: a cash charge (via create(), the single insert site that all 9
+    // create paths funnel through) stamps a non-null cash_register_id.
+    it("create() populates cash_register_id via the resolver on every path", async () => {
+      const result = await txService.create(
+        {
+          memberId,
+          kind: "adjustment",
+          direction: "inflow",
+          amount: 500,
+          currency: "ARS",
+          paymentMethod: "cash",
+          transactionDate: "2026-02-01",
+          effectiveDate: "2026-02-01",
+          branchId: arsBranchId,
+          notes: null,
+          links: [],
+        },
+        adminId,
+      );
+      const [row] = await app.db
+        .select({
+          cashRegisterId: schema.financialTransactions.cashRegisterId,
+        })
+        .from(schema.financialTransactions)
+        .where(eq(schema.financialTransactions.id, result.id));
+      // cash → efectivo caja of arsBranch.
+      expect(row.cashRegisterId).toBe(seededCajaIds[0]);
+    });
+
+    it("a transfer charge stamps the banco caja of the currency", async () => {
+      const result = await txService.create(
+        {
+          memberId,
+          kind: "adjustment",
+          direction: "inflow",
+          amount: 700,
+          currency: "ARS",
+          paymentMethod: "transfer",
+          transactionDate: "2026-02-01",
+          effectiveDate: "2026-02-01",
+          branchId: arsBranchId,
+          notes: null,
+          links: [],
+        },
+        adminId,
+      );
+      const [row] = await app.db
+        .select({
+          cashRegisterId: schema.financialTransactions.cashRegisterId,
+        })
+        .from(schema.financialTransactions)
+        .where(eq(schema.financialTransactions.id, result.id));
+      // transfer → a banco caja of the tx currency. (The test DB may carry more
+      // than one banco ARS — from the global seed and this file's own seed — so
+      // assert by the resolved caja's type/currency, not a specific id.)
+      expect(row.cashRegisterId).not.toBeNull();
+      const [caja] = await app.db
+        .select({
+          type: schema.cashRegisters.type,
+          currency: schema.cashRegisters.currency,
+        })
+        .from(schema.cashRegisters)
+        .where(eq(schema.cashRegisters.id, row.cashRegisterId as number));
+      expect(caja.type).toBe("banco");
+      expect(caja.currency).toBe("ARS");
+    });
+
+    it("an aura_credit charge persists cash_register_id NULL", async () => {
+      const result = await txService.create(
+        {
+          memberId,
+          kind: "adjustment",
+          direction: "inflow",
+          amount: 300,
+          currency: "ARS",
+          paymentMethod: "aura_credit",
+          transactionDate: "2026-02-01",
+          effectiveDate: "2026-02-01",
+          branchId: arsBranchId,
+          notes: null,
+          links: [],
+        },
+        adminId,
+      );
+      const [row] = await app.db
+        .select({
+          cashRegisterId: schema.financialTransactions.cashRegisterId,
+        })
+        .from(schema.financialTransactions)
+        .where(eq(schema.financialTransactions.id, result.id));
+      expect(row.cashRegisterId).toBeNull();
+    });
   });
 
   describe("getBalance firme = opening + Σ validados since cutoff", () => {

@@ -32,6 +32,7 @@ import { buildMemberNameSearchCondition } from "../shared/member-search";
 import type { PaginatedResult } from "../shared/types";
 import { auditLog } from "../shared/audit-log";
 import { BalanceService, type TxHandle } from "./balance-service";
+import { CashRegisterService } from "./cash-register-service";
 import { firmMoneyConditions } from "./firm-money";
 import type {
   CreateTransactionInput,
@@ -95,6 +96,7 @@ export class TransactionService {
     private readonly db: DbInstance,
     private readonly log: FastifyBaseLogger,
     private readonly balanceService: BalanceService,
+    private readonly cashRegisterService: CashRegisterService,
   ) {}
 
   /**
@@ -210,6 +212,23 @@ export class TransactionService {
         }
       }
 
+      // 1e. Phase 138 (CAJA-02 / D-01): resolve the caja SERVER-SIDE from the
+      // paymentMethod. This is the single choke-point — running it here covers
+      // ALL 9 create paths (REST, recordAssignmentCharge ×4, enrollment add-on,
+      // correct() re-create) without editing any caller. The optional
+      // input.cashRegisterId override is honored only for internal
+      // pre-resolution (never sourced from the request body, D-03); `null` is a
+      // valid override meaning "no caja". The resolver also enforces the
+      // currency guard (D-09/CAJA-04) for the cash→efectivo branch.
+      const cashRegisterId =
+        input.cashRegisterId !== undefined
+          ? input.cashRegisterId
+          : await this.cashRegisterService.resolveCashRegister(
+              input.paymentMethod,
+              input.branchId,
+              input.currency ?? "ARS",
+            );
+
       // 2. INSERT financial_transactions.
       const inserted = await txHandle
         .insert(schema.financialTransactions)
@@ -223,6 +242,7 @@ export class TransactionService {
           transactionDate: input.transactionDate,
           effectiveDate: input.effectiveDate,
           branchId: input.branchId,
+          cashRegisterId,
           recordedBy,
           notes: input.notes ?? null,
           // Phase 137 (VAL-02): birth validation status. Defaults to 'validado'

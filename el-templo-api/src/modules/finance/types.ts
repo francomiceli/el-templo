@@ -75,6 +75,18 @@ export interface CreateTransactionInput {
    * raw request body.
    */
   validationStatus?: InitialValidationStatus;
+  /**
+   * Phase 138 (CAJA-02 / D-01..D-03): the caja the payment lands in. SERVER-
+   * DERIVED — NEVER read from the raw request body (like validationStatus).
+   * When undefined (the normal case), create() runs
+   * CashRegisterService.resolveCashRegister(paymentMethod, branchId, currency)
+   * itself, so all 9 create paths auto-stamp without per-caller edits. The
+   * optional slot exists ONLY for internal pre-resolution (e.g. a future
+   * phase 139 movimiento that already knows its caja); `null` is a valid value
+   * meaning "no caja" (aura_credit/internal). D-03: no manual override is
+   * exposed through the REST body — the route schema must NOT accept it.
+   */
+  cashRegisterId?: number | null;
   links: CreateTransactionLinkInput[];
 }
 
