@@ -2225,6 +2225,14 @@ export class SubscriptionService {
           and(
             eq(schema.transactionLinks.targetKind, "subscription"),
             eq(schema.transactionLinks.targetId, sub.id),
+            // Phase 137 (VAL-05) — EXCEPCION DELIBERADA (site #14 de la
+            // auditoria de call-sites). Este guard NO es un filtro de
+            // "ingresos firmes": chequea integridad — si la sub tiene cobros
+            // VIVOS (no anulados) antes de cancelarla. Un PENDIENTE ES un
+            // cobro vivo (la membresia ya esta activa) y DEBE seguir
+            // bloqueando la cancelacion, asi que aqui queda `voided_at IS NULL`
+            // SOLO. Agregar validation_status='validado' dejaria cancelar una
+            // sub con un pendiente sin anular. NO portar el predicado firme.
             isNull(schema.financialTransactions.voidedAt),
           ),
         );
