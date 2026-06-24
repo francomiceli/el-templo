@@ -275,3 +275,15 @@ export interface OutstandingConcept {
   ageInDays: number; // días desde effectiveDate (clamp 0 si futuro)
   effectiveDate: string; // YYYY-MM-DD para auditoría / orden FIFO
 }
+
+// Phase 138 (D-06/D-08/CAJA-03) — saldo DERIVADO de una caja. firmeBalance es
+// opening_balance + Σ validados de la caja desde cutoff_date (reusa
+// firmMoneyConditions). pendienteAmount (validation_status='pendiente') se
+// reporta SEPARADO y NUNCA se suma al firme. La derivación queda detrás de la
+// firma del método (D-08): los callers no saben si es calculado o cacheado.
+export interface CashRegisterBalance {
+  cashRegisterId: number;
+  currency: string;
+  firmeBalance: number; // opening_balance + Σ validados desde cutoff (CAJA-03)
+  pendienteAmount: number; // Σ pendientes desde cutoff, SEPARADO (CAJA-03)
+}

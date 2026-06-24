@@ -10,12 +10,13 @@
 // auto-stamps `cash_register_id`, and is REUSED verbatim by phase 140 (carga
 // única del profe) — do NOT reinvent the resolver there.
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, gte, isNull, sql } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
-import { BadRequestError } from "../shared/errors";
-import type { PaymentMethod } from "./types";
+import { BadRequestError, NotFoundError } from "../shared/errors";
+import { firmMoneyConditions } from "./firm-money";
+import type { CashRegisterBalance, PaymentMethod } from "./types";
 
 type DbInstance = MySql2Database<typeof schema>;
 
@@ -98,5 +99,85 @@ export class CashRegisterService {
       );
     }
     return efectivo.id;
+  }
+
+  /**
+   * Derived firm balance of a caja (D-06/D-08/CAJA-03). NOT materialized — the
+   * saldo is always computed on read, and the derivation is hidden behind this
+   * signature so phase 139 can extend the body (outflows) without changing the
+   * contract for callers.
+   *
+   * firmeBalance = opening_balance + Σ(validados, no anulados) DESDE cutoff_date,
+   *   reusing firmMoneyConditions() so it inherits the canonical phase-137 filter
+   *   (never inline `validado` / `voided_at IS NULL` here — D-08/T-138-09).
+   *
+   * pendienteAmount = Σ(validation_status='pendiente', no anulados) DESDE cutoff,
+   *   returned SEPARATELY and NEVER added to firmeBalance (CAJA-03/T-138-07).
+   *
+   * Pre-cutoff rows are labeled for history but excluded by the
+   * gte(transactionDate, cutoffDate) gate on every SUM (T-138-08).
+   *
+   * INFLOW-ONLY in phase 138 — no cash_transfer/expense outflows exist yet.
+   * // TODO 139: subtract outflows (cash_transfer/expense) from firmeBalance —
+   * // phase 139 extends this body (signed movements) without changing the signature.
+   *
+   * @throws NotFoundError when no caja exists for `cashRegisterId`.
+   */
+  async getBalance(cashRegisterId: number): Promise<CashRegisterBalance> {
+    const [caja] = await this.db
+      .select({
+        openingBalance: schema.cashRegisters.openingBalance,
+        currency: schema.cashRegisters.currency,
+        cutoffDate: schema.cashRegisters.cutoffDate,
+      })
+      .from(schema.cashRegisters)
+      .where(eq(schema.cashRegisters.id, cashRegisterId))
+      .limit(1);
+    if (!caja) {
+      throw new NotFoundError(`No existe la caja ${cashRegisterId}`);
+    }
+
+    // firmeBalance: clone of getSummary's firm SUM (transaction-service.ts),
+    // scoped to THIS caja, inflow-only, gated by cutoff, reusing the canonical
+    // firm-money filter.
+    const [firmRow] = await this.db
+      .select({
+        total: sql<number>`COALESCE(SUM(${schema.financialTransactions.amount}), 0)`,
+      })
+      .from(schema.financialTransactions)
+      .where(
+        and(
+          eq(schema.financialTransactions.cashRegisterId, cashRegisterId),
+          eq(schema.financialTransactions.direction, "inflow"),
+          ...firmMoneyConditions(),
+          gte(schema.financialTransactions.transactionDate, caja.cutoffDate),
+        ),
+      );
+    const firmeBalance = caja.openingBalance + Number(firmRow?.total ?? 0);
+
+    // pendienteAmount: a SEPARATE SUM (validation_status='pendiente', not
+    // voided, since cutoff). NEVER added to firmeBalance (CAJA-03).
+    const [pendRow] = await this.db
+      .select({
+        total: sql<number>`COALESCE(SUM(${schema.financialTransactions.amount}), 0)`,
+      })
+      .from(schema.financialTransactions)
+      .where(
+        and(
+          eq(schema.financialTransactions.cashRegisterId, cashRegisterId),
+          eq(schema.financialTransactions.direction, "inflow"),
+          eq(schema.financialTransactions.validationStatus, "pendiente"),
+          isNull(schema.financialTransactions.voidedAt),
+          gte(schema.financialTransactions.transactionDate, caja.cutoffDate),
+        ),
+      );
+    const pendienteAmount = Number(pendRow?.total ?? 0);
+
+    return {
+      cashRegisterId,
+      currency: caja.currency,
+      firmeBalance,
+      pendienteAmount,
+    };
   }
 }

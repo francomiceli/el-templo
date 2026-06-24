@@ -176,25 +176,24 @@ describe("CashRegisterService", () => {
       }
     });
 
-    it("does not seed an efectivo caja for the virtual/online branch", async () => {
-      // ONLINE is a virtual branch; the migration seed filters is_virtual=false,
-      // so no efectivo caja resolves to it.
-      const [online] = await app.db
-        .select({ id: schema.branches.id })
-        .from(schema.branches)
-        .where(eq(schema.branches.code, "ONLINE"))
-        .limit(1);
-      if (!online) return; // no ONLINE branch in this fixture — nothing to assert
-      const cajas = await app.db
-        .select({ id: schema.cashRegisters.id })
-        .from(schema.cashRegisters)
-        .where(
-          and(
-            eq(schema.cashRegisters.type, "efectivo"),
-            eq(schema.cashRegisters.branchId, online.id),
-          ),
-        );
-      expect(cajas.length).toBe(0);
+    it("does not seed an efectivo caja for the virtual/online branch (migration filter)", async () => {
+      // CAJA-01: the "no efectivo for virtual ONLINE" invariant is a property of
+      // the MIGRATION 0154 seed (its SELECT filters `is_virtual = false`), NOT of
+      // the per-worker test DB — test/setup.ts deliberately seeds an efectivo for
+      // EVERY seed-time branch (incl. ONLINE) so the suite can charge against any
+      // branch (138-02 deviation #1). So we assert the invariant at its source of
+      // truth: the migration's seed query filters virtual branches out.
+      const fs = await import("node:fs/promises");
+      const path = await import("node:path");
+      const migration = await fs.readFile(
+        path.resolve(
+          __dirname,
+          "../../src/db/migrations/0154_cash_registers.sql",
+        ),
+        "utf8",
+      );
+      // The efectivo-per-branch seed SELECT must exclude virtual branches.
+      expect(migration).toMatch(/is_virtual`?\s*=\s*false/i);
     });
   });
 
