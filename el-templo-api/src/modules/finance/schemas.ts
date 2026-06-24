@@ -608,6 +608,99 @@ export const voidMovementSchema = {
   },
 } as const;
 
+// -- Phase 141: reportes para la admin (REP-01 / REP-02 / REP-04) ----------
+
+const PENDING_TRAY_STATUS_ENUM = ["pendientes", "observados", "todos"] as const;
+
+/**
+ * GET /pending-tray — bandeja de pendientes (REP-01). Querystring: status
+ * (Pendientes/Observados/Todos, D-04), owner-override country, branchId,
+ * dateFrom/dateTo, page/limit. Loose response (passthrough) like
+ * listTransactionsSchema — the service shape (PendingTrayItem) is trusted.
+ */
+export const pendingTraySchema = {
+  querystring: {
+    type: "object",
+    properties: {
+      status: { type: "string", enum: PENDING_TRAY_STATUS_ENUM },
+      country: { type: "string", minLength: 2, maxLength: 2 },
+      branchId: { type: "integer", minimum: 1 },
+      dateFrom: { type: "string", format: "date" },
+      dateTo: { type: "string", format: "date" },
+      ...paginationQuerystring,
+    },
+    additionalProperties: false,
+  },
+  response: {
+    401: errorSchema,
+    403: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+/**
+ * GET /pending-tray/export — same querystring as pendingTraySchema MINUS
+ * page/limit (server returns ALL matching rows). Binary .xlsx attachment, so
+ * no JSON response schema is registered (mirror exportTransactionsSchema).
+ */
+export const pendingTrayExportSchema = {
+  querystring: {
+    type: "object",
+    properties: {
+      status: { type: "string", enum: PENDING_TRAY_STATUS_ENUM },
+      country: { type: "string", minLength: 2, maxLength: 2 },
+      branchId: { type: "integer", minimum: 1 },
+      dateFrom: { type: "string", format: "date" },
+      dateTo: { type: "string", format: "date" },
+    },
+    additionalProperties: false,
+  },
+  response: {
+    401: errorSchema,
+    403: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+/**
+ * GET /cash-registers/balances — saldos por caja (REP-02). Querystring: only
+ * `country` (owner override; non-owner scope is pinned server-side). Loose
+ * response (flat CajaSaldoRow array).
+ */
+export const cashBalancesSchema = {
+  querystring: {
+    type: "object",
+    properties: {
+      country: { type: "string", minLength: 2, maxLength: 2 },
+    },
+    additionalProperties: false,
+  },
+  response: {
+    401: errorSchema,
+    403: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+/**
+ * GET /cash-registers/balances/export — same querystring as cashBalancesSchema.
+ * Binary .xlsx attachment; no JSON response schema.
+ */
+export const cashBalancesExportSchema = {
+  querystring: {
+    type: "object",
+    properties: {
+      country: { type: "string", minLength: 2, maxLength: 2 },
+    },
+    additionalProperties: false,
+  },
+  response: {
+    401: errorSchema,
+    403: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
 // -- Re-exported helper fragments for Plan 03 (reads) ----------------------
 
 export const SHARED_ERROR_SCHEMA = errorSchema;

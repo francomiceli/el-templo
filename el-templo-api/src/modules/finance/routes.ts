@@ -37,6 +37,10 @@ import {
   registerMovementSchema,
   registerExpenseSchema,
   voidMovementSchema,
+  pendingTraySchema,
+  pendingTrayExportSchema,
+  cashBalancesSchema,
+  cashBalancesExportSchema,
 } from "./schemas";
 import {
   FINANCE_READ_ROLES,
@@ -59,6 +63,7 @@ import type {
   TransactionListFilters,
   RegisterMovementInput,
   RegisterExpenseInput,
+  PendingTrayFilters,
 } from "./types";
 
 export const financeRoutes: FastifyPluginAsync = async (fastify) => {
@@ -920,6 +925,234 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
       }
     },
   );
+
+  // ===================================================================
+  // Phase 141 (REP-01): GET /pending-tray — bandeja de pendientes
+  // pendiente+observado oldest-first, TS aging + isOverdue (OVERDUE_DAYS),
+  // recorder + caja name, paginated. Coach 403 via the module guard.
+  // ===================================================================
+  fastify.get<{
+    Querystring: {
+      status?: "pendientes" | "observados" | "todos";
+      country?: string;
+      branchId?: number;
+      dateFrom?: string;
+      dateTo?: string;
+      page?: number;
+      limit?: number;
+    };
+  }>("/pending-tray", { schema: pendingTraySchema }, async (request, reply) => {
+    try {
+      // Owner-aware country resolution — mirror of GET /transactions.
+      let country: string | undefined;
+      if (request.scope.isOwner) {
+        country = request.query.country
+          ? request.query.country.toUpperCase()
+          : undefined;
+      } else {
+        country = request.scope.country ?? undefined;
+      }
+
+      const filters: PendingTrayFilters = {
+        status: request.query.status,
+        country: country as PendingTrayFilters["country"],
+        branchId: request.query.branchId,
+        dateFrom: request.query.dateFrom,
+        dateTo: request.query.dateTo,
+        page: request.query.page,
+        limit: request.query.limit,
+      };
+      return await transactionService.listPendingTray(filters);
+    } catch (err: unknown) {
+      handleServiceError(err, reply, request.log, "finance pending tray");
+      return reply;
+    }
+  });
+
+  // ===================================================================
+  // Phase 141 (REP-04): GET /pending-tray/export — bandeja .xlsx
+  // Same filters minus page/limit (all rows). Reuses the exceljs pattern.
+  // ===================================================================
+  fastify.get<{
+    Querystring: {
+      status?: "pendientes" | "observados" | "todos";
+      country?: string;
+      branchId?: number;
+      dateFrom?: string;
+      dateTo?: string;
+    };
+  }>(
+    "/pending-tray/export",
+    { schema: pendingTrayExportSchema },
+    async (request, reply) => {
+      try {
+        let country: string | undefined;
+        if (request.scope.isOwner) {
+          country = request.query.country
+            ? request.query.country.toUpperCase()
+            : undefined;
+        } else {
+          country = request.scope.country ?? undefined;
+        }
+
+        const filters: PendingTrayFilters = {
+          status: request.query.status,
+          country: country as PendingTrayFilters["country"],
+          branchId: request.query.branchId,
+          dateFrom: request.query.dateFrom,
+          dateTo: request.query.dateTo,
+          // All rows: defense-in-depth max=200 in the service; bump the limit.
+          limit: 200,
+          page: 1,
+        };
+        const result = await transactionService.listPendingTray(filters);
+
+        const workbook = new Workbook();
+        workbook.creator = "El Templo";
+        workbook.created = new Date();
+        const sheet = workbook.addWorksheet("Bandeja");
+        sheet.columns = [
+          { header: "Fecha", key: "fecha", width: 12 },
+          { header: "Socio", key: "socio", width: 28 },
+          { header: "Monto", key: "monto", width: 14 },
+          { header: "Moneda", key: "moneda", width: 10 },
+          { header: "Medio", key: "medio", width: 16 },
+          { header: "Caja", key: "caja", width: 22 },
+          { header: "Cargado por", key: "cargadoPor", width: 24 },
+          { header: "Antigüedad (días)", key: "antiguedad", width: 16 },
+          { header: "Estado", key: "estado", width: 14 },
+          { header: "Vencido", key: "vencido", width: 10 },
+        ];
+        styleHeaderRow(sheet.getRow(1));
+
+        for (const row of result.rows) {
+          sheet.addRow({
+            fecha: row.transactionDate,
+            socio: row.memberName,
+            monto: row.amount,
+            moneda: row.currency,
+            medio:
+              PAYMENT_METHOD_LABELS_ES[row.paymentMethod] ?? row.paymentMethod,
+            caja: row.cashRegisterName,
+            cargadoPor: row.recorderName,
+            antiguedad: row.ageInDays,
+            estado:
+              VALIDATION_STATUS_LABELS_ES[row.validationStatus] ??
+              row.validationStatus,
+            vencido: row.isOverdue ? "Sí" : "No",
+          });
+        }
+
+        const buffer = await workbook.xlsx.writeBuffer();
+        const today = new Date().toISOString().split("T")[0];
+        reply
+          .header(
+            "Content-Type",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          )
+          .header(
+            "Content-Disposition",
+            `attachment; filename="bandeja-${today}.xlsx"`,
+          )
+          .send(Buffer.from(buffer as ArrayBuffer));
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "export pending tray");
+      }
+    },
+  );
+
+  // ===================================================================
+  // Phase 141 (REP-02): GET /cash-registers/balances — saldos por caja
+  // firme+pendiente per active caja (getBalance reuse) + type + currency.
+  // Non-owner sees only their country's sucursal cajas; central/banco
+  // (branch-less) owner-only. Coach 403 via the module guard.
+  // ===================================================================
+  fastify.get<{ Querystring: { country?: string } }>(
+    "/cash-registers/balances",
+    { schema: cashBalancesSchema },
+    async (request, reply) => {
+      try {
+        let country: string | undefined;
+        if (request.scope.isOwner) {
+          country = request.query.country
+            ? request.query.country.toUpperCase()
+            : undefined;
+        } else {
+          country = request.scope.country ?? undefined;
+        }
+        return await cashRegisterService.listActiveCajasWithBalance({
+          isOwner: request.scope.isOwner,
+          country: country ?? null,
+        });
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "finance cash balances");
+        return reply;
+      }
+    },
+  );
+
+  // ===================================================================
+  // Phase 141 (REP-04): GET /cash-registers/balances/export — saldos .xlsx
+  // Same scope as the read. Reuses the exceljs pattern.
+  // ===================================================================
+  fastify.get<{ Querystring: { country?: string } }>(
+    "/cash-registers/balances/export",
+    { schema: cashBalancesExportSchema },
+    async (request, reply) => {
+      try {
+        let country: string | undefined;
+        if (request.scope.isOwner) {
+          country = request.query.country
+            ? request.query.country.toUpperCase()
+            : undefined;
+        } else {
+          country = request.scope.country ?? undefined;
+        }
+        const rows = await cashRegisterService.listActiveCajasWithBalance({
+          isOwner: request.scope.isOwner,
+          country: country ?? null,
+        });
+
+        const workbook = new Workbook();
+        workbook.creator = "El Templo";
+        workbook.created = new Date();
+        const sheet = workbook.addWorksheet("Saldos");
+        sheet.columns = [
+          { header: "Caja", key: "caja", width: 24 },
+          { header: "Tipo", key: "tipo", width: 14 },
+          { header: "Moneda", key: "moneda", width: 10 },
+          { header: "Saldo firme", key: "firme", width: 16 },
+          { header: "Pendiente", key: "pendiente", width: 16 },
+        ];
+        styleHeaderRow(sheet.getRow(1));
+
+        for (const row of rows) {
+          sheet.addRow({
+            caja: row.name,
+            tipo: CAJA_TYPE_LABELS_ES[row.type] ?? row.type,
+            moneda: row.currency,
+            firme: row.firmeBalance,
+            pendiente: row.pendienteAmount,
+          });
+        }
+
+        const buffer = await workbook.xlsx.writeBuffer();
+        const today = new Date().toISOString().split("T")[0];
+        reply
+          .header(
+            "Content-Type",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          )
+          .header(
+            "Content-Disposition",
+            `attachment; filename="saldos-${today}.xlsx"`,
+          )
+          .send(Buffer.from(buffer as ArrayBuffer));
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "export cash balances");
+      }
+    },
+  );
 };
 
 // =============================================================================
@@ -937,6 +1170,33 @@ const KIND_LABELS_ES: Record<TransactionKind, string> = {
   cash_transfer: "Movimiento entre cajas",
   expense: "Egreso",
 };
+
+/** Phase 141: Spanish labels for the bandeja "Estado" column. */
+const VALIDATION_STATUS_LABELS_ES: Record<string, string> = {
+  pendiente: "Pendiente",
+  observado: "Observado",
+  corregido: "Corregido",
+  validado: "Validado",
+};
+
+/** Phase 141: Spanish labels for the saldos "Tipo" column. */
+const CAJA_TYPE_LABELS_ES: Record<string, string> = {
+  efectivo: "Efectivo",
+  banco: "Banco",
+};
+
+/**
+ * Phase 141: style an exceljs header row (bold + light grey fill). Mirror of
+ * the inline styling used by /transactions/export.
+ */
+function styleHeaderRow(headerRow: import("exceljs").Row): void {
+  headerRow.font = { bold: true };
+  headerRow.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "FFE0E0E0" },
+  };
+}
 
 /** Spanish labels for payment methods. Mirror of admin frontend. */
 const PAYMENT_METHOD_LABELS_ES: Record<PaymentMethod, string> = {
