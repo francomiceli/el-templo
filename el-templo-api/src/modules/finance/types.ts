@@ -164,14 +164,16 @@ export interface TransactionListItem {
   id: number;
   transactionDate: string; // YYYY-MM-DD
   effectiveDate: string; // YYYY-MM-DD
-  memberId: number;
+  /** Phase 139 (D-06): null for egresos/movimientos (sin socio). */
+  memberId: number | null;
   memberName: string; // CONCAT(first_name, ' ', last_name)
   kind: TransactionKind;
   direction: TransactionDirection;
   amount: number;
   currency: string;
   paymentMethod: PaymentMethod;
-  branchId: number;
+  /** Phase 139: null for movimientos/egresos a cajas branch-less. */
+  branchId: number | null;
   branchName: string;
   recordedBy: number;
   recorderName: string;

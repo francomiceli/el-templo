@@ -57,6 +57,11 @@ type DbInstance = MySql2Database<typeof schema>;
 const KINDS_ALLOWED_WITHOUT_LINKS: ReadonlyArray<string> = [
   "advance_payment",
   "adjustment",
+  // Phase 139 (D-07): movimientos inter-caja (cash_transfer) y egresos (expense)
+  // no son deuda de socio — no llevan links de subscription/debt_balance, así que
+  // applyDelta los ignora (no-op) y create() los acepta con links: [].
+  "cash_transfer",
+  "expense",
 ];
 
 /**
@@ -143,24 +148,33 @@ export class TransactionService {
         );
       }
 
-      // 1b. Member exists.
-      const memberExists = await txHandle
-        .select({ id: schema.users.id })
-        .from(schema.users)
-        .where(eq(schema.users.id, input.memberId))
-        .limit(1);
-      if (memberExists.length === 0) {
-        throw new NotFoundError("Miembro no encontrado");
+      // 1b. Member exists. Phase 139 (D-06): a null memberId is valid for
+      // cash_transfer/expense/movement rows (egreso/movimiento no tienen socio)
+      // — skip the lookup entirely. Only null short-circuits; other kinds still
+      // require a real member.
+      if (input.memberId !== null) {
+        const memberExists = await txHandle
+          .select({ id: schema.users.id })
+          .from(schema.users)
+          .where(eq(schema.users.id, input.memberId))
+          .limit(1);
+        if (memberExists.length === 0) {
+          throw new NotFoundError("Miembro no encontrado");
+        }
       }
 
-      // 1c. Branch exists.
-      const branchExists = await txHandle
-        .select({ id: schema.branches.id })
-        .from(schema.branches)
-        .where(eq(schema.branches.id, input.branchId))
-        .limit(1);
-      if (branchExists.length === 0) {
-        throw new NotFoundError("Sucursal no encontrada");
+      // 1c. Branch exists. Phase 139 (extends D-06 to branch_id): a movimiento/
+      // egreso to a branch-less central/banco caja has no sucursal — skip the
+      // lookup when branchId is null. Only null short-circuits.
+      if (input.branchId !== null) {
+        const branchExists = await txHandle
+          .select({ id: schema.branches.id })
+          .from(schema.branches)
+          .where(eq(schema.branches.id, input.branchId))
+          .limit(1);
+        if (branchExists.length === 0) {
+          throw new NotFoundError("Sucursal no encontrada");
+        }
       }
 
       // 1d. For each link, probe target_id exists in the table matching
@@ -331,6 +345,35 @@ export class TransactionService {
   }
 
   /**
+   * Phase 139 (D-08 / MOV-04): void N transactions ATOMICALLY in one
+   * db.transaction. A movimiento inter-caja is a 2-row asiento (+ an optional
+   * reconciliation adjustment row); voiding it must anular ALL its rows together
+   * so the net-0 invariant never half-breaks (Pitfall 3). MovementService (Plan
+   * 03) passes both leg ids here; an egreso uses the single-row void() instead.
+   *
+   * Wraps the private _void(tx, ...) per id in order — keeps _void private
+   * (research Access note option a). Rejects an empty ids[] with BadRequestError.
+   * Each _void enforces the not-already-voided + reason-required guards, so a
+   * second void of the same id (or an empty reason) rolls the whole pair back.
+   */
+  async voidPair(
+    ids: number[],
+    voidedBy: number,
+    input: VoidTransactionInput,
+  ): Promise<void> {
+    if (ids.length === 0) {
+      throw new BadRequestError(
+        "voidPair requiere al menos un id de transaccion",
+      );
+    }
+    await this.db.transaction(async (tx) => {
+      for (const id of ids) {
+        await this._void(tx, id, voidedBy, input);
+      }
+    });
+  }
+
+  /**
    * Phase 137 (Pitfall 3): atomic soft-void primitive that operates against
    * the CALLER's tx handle (mirror of create(tx?)). The public void() wraps it
    * in this.db.transaction; correct() calls it inside its own tx so the
@@ -398,6 +441,14 @@ export class TransactionService {
         if (!this.subscriptionCanceller) {
           throw new Error(
             "SubscriptionCanceller no inyectado — setSubscriptionCanceller() falta (phase 137)",
+          );
+        }
+        // Phase 139: a row linked to a subscription always has a real member
+        // (cash_transfer/expense carry no subscription link), so memberId is
+        // non-null here. Narrow explicitly to satisfy tsc under number | null.
+        if (existing.memberId === null) {
+          throw new BadRequestError(
+            "No se puede cancelar la suscripcion de una transaccion sin socio",
           );
         }
         await this.subscriptionCanceller._cancelSubscription(

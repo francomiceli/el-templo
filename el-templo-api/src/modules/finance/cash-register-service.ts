@@ -47,7 +47,7 @@ export class CashRegisterService {
    */
   async resolveCashRegister(
     paymentMethod: PaymentMethod,
-    branchId: number,
+    branchId: number | null,
     currency: string,
   ): Promise<number | null> {
     if (paymentMethod === "aura_credit" || paymentMethod === "internal") {
@@ -72,7 +72,15 @@ export class CashRegisterService {
       return banco.id;
     }
 
-    // paymentMethod === "cash" → efectivo de la sucursal.
+    // paymentMethod === "cash" → efectivo de la sucursal. Phase 139: branchId
+    // puede ser null en el ledger (movimientos/egresos branch-less), pero esos
+    // SIEMPRE pasan un cashRegisterId explícito y nunca llegan al resolver. Un
+    // cobro 'cash' sin sucursal no tiene caja efectivo derivable — guard explícito.
+    if (branchId === null) {
+      throw new BadRequestError(
+        "No se puede resolver la caja efectivo sin sucursal",
+      );
+    }
     const [efectivo] = await this.db
       .select({
         id: schema.cashRegisters.id,

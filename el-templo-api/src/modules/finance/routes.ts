@@ -121,6 +121,17 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           });
         }
 
+        // Phase 139: the REST create path is for member charges (branchId
+        // required). Movimientos/egresos (branchId null) go through their own
+        // Plan 03 routes, never here — reject a null branch on this endpoint.
+        if (request.body.branchId === null) {
+          return reply.code(400).send({
+            error: "Solicitud invalida",
+            message: "branchId es requerido",
+          });
+        }
+        const bodyBranchId = request.body.branchId;
+
         // T-106-03: non-owner cannot post against a branch in another country.
         if (!request.scope.isOwner) {
           const [branchRow] = await fastify.db
@@ -130,7 +141,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
               isVirtual: schema.branches.isVirtual,
             })
             .from(schema.branches)
-            .where(eq(schema.branches.id, request.body.branchId))
+            .where(eq(schema.branches.id, bodyBranchId))
             .limit(1);
           if (!branchRow) {
             return reply.code(404).send({
@@ -637,13 +648,16 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
 // Helpers (Phase 109 D-15)
 // =============================================================================
 
-/** Spanish labels for the 5 transaction kinds. Mirror of admin frontend. */
+/** Spanish labels for the 7 transaction kinds. Mirror of admin frontend. */
 const KIND_LABELS_ES: Record<TransactionKind, string> = {
   plan_charge: "Cobro de plan",
   debt_settlement: "Pago de saldo",
   refund: "Reembolso",
   adjustment: "Ajuste",
   advance_payment: "Pago anticipado",
+  // Phase 139: movimiento inter-caja + egreso.
+  cash_transfer: "Movimiento entre cajas",
+  expense: "Egreso",
 };
 
 /** Spanish labels for payment methods. Mirror of admin frontend. */

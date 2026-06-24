@@ -1237,6 +1237,10 @@ export class AnalyticsService {
       { branchName: string; ARS: number; EUR: number }
     >();
     for (const r of rows) {
+      // Phase 139: financial_transactions.branchId is now nullable (movimientos/
+      // egresos branch-less). The INNER JOIN branches already drops NULL-branch
+      // rows; this guard makes the narrowing explicit for tsc and the Map key.
+      if (r.branchId === null) continue;
       const entry = byBranch.get(r.branchId) ?? {
         branchName: r.branchName,
         ARS: 0,
