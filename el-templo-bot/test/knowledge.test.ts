@@ -435,7 +435,7 @@ describe("Response quality (QUAL-01 through QUAL-07)", () => {
   // QUAL-10: Levels not activities
   describe("QUAL-10: Levels not activities", () => {
     it("knowledge clarifies Alfa/Delta/Omega/Spartan are levels", () => {
-      expect(knowledge).toMatch(/Sesion Grupal/);
+      expect(knowledge).toMatch(/clases de calistenia/);
       expect(knowledge).toMatch(/niveles de progresion/i);
     });
     it("system prompt has level disambiguation rule", () => {
