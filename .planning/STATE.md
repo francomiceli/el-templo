@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v5.2
 milestone_name: Módulo Contable — Libro de Caja
 status: verifying
-stopped_at: Completed 137-02-PLAN.md (validation state machine — validate/observe/correct + void keepMembershipActive + server-side role→status)
-last_updated: "2026-06-24T15:22:44.419Z"
+stopped_at: Phase 138 context gathered
+last_updated: "2026-06-24T16:21:47.621Z"
 last_activity: 2026-06-24
 progress:
   total_phases: 13
@@ -649,8 +649,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-24T15:22:44.400Z
-Stopped at: Completed 137-02-PLAN.md (validation state machine — validate/observe/correct + void keepMembershipActive + server-side role→status)
-Resume file: None
+Last session: 2026-06-24T16:21:47.587Z
+Stopped at: Phase 138 context gathered
+Resume file: .planning/phases/138-entidad-caja-saldos/138-CONTEXT.md
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
