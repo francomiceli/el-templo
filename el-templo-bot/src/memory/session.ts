@@ -22,6 +22,15 @@ export const MAX_SESSION_MESSAGES = 20;
 /** Redis key prefix for session context */
 const KEY_PREFIX = "wa:session:";
 
+/**
+ * Redis key prefix for the per-phone last-inbound timestamp used by the
+ * Phase 100 DBNC-01 trailing-debounce poll-and-extend loop. The loop reads
+ * this on every poll-tick to detect "is the timestamp newer than what I
+ * saw last iteration?" (a monotonic-increase test — last-write-wins is
+ * the intended semantics; no CAS needed).
+ */
+const INBOUND_AT_KEY_PREFIX = "wa:inbound_at:";
+
 export interface SessionMessage {
   role: "user" | "assistant";
   content: string;
@@ -290,5 +299,75 @@ export async function deleteSession(phone: string): Promise<void> {
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     log.error({ err: message, phone }, "Failed to delete session context");
+  }
+}
+
+// ─── DBNC-01 inbound-at helpers (Phase 100 trailing-debounce loop) ───────────
+//
+// `recordInboundAt` writes the per-phone last-inbound epoch-ms timestamp
+// to `wa:inbound_at:<phone>` with a caller-supplied TTL (the handler passes
+// DEBOUNCE_TTL_SECONDS so cleanup piggybacks on the existing constant).
+// `getLatestInboundAt` is the loop's poll-tick read — it parses to number
+// and returns null on missing/NaN/Redis-down. Last-write-wins semantics:
+// the loop only consumes the monotonic-increase test (latest > seen).
+// Both helpers gracefully degrade if Redis is unavailable (no throw).
+
+/**
+ * Atomically write the per-phone last-inbound timestamp with a caller-supplied
+ * TTL. No-op when Redis is unavailable; swallows Redis errors (log + return).
+ *
+ * @param phone       WhatsApp phone in canonical form (e.g., "5491100000000")
+ * @param epochMs     The inbound arrival time (typically Date.now() at the
+ *                    handler entry point — captured BEFORE the SETNX race)
+ * @param ttlSeconds  TTL for the key; callers pass DEBOUNCE_TTL_SECONDS so
+ *                    cleanup piggybacks on the existing constant (Phase 93
+ *                    safety-net invariant — 600s default).
+ */
+export async function recordInboundAt(
+  phone: string,
+  epochMs: number,
+  ttlSeconds: number,
+): Promise<void> {
+  if (!isRedisAvailable()) {
+    return;
+  }
+  try {
+    await redis.set(
+      `${INBOUND_AT_KEY_PREFIX}${phone}`,
+      String(epochMs),
+      "EX",
+      ttlSeconds,
+    );
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    log.error({ err: message, phone }, "Failed to record inbound timestamp");
+  }
+}
+
+/**
+ * Read the per-phone last-inbound epoch-ms timestamp. Returns null when:
+ *   - Redis is unavailable (graceful degrade — the loop's `?? firstSeenAt`
+ *     fallback then drives the deadline check against the SETNX-acquired-at)
+ *   - The key is missing
+ *   - The stored value fails to parse to a finite number (NaN guard)
+ *   - The Redis read throws (log + return null)
+ */
+export async function getLatestInboundAt(
+  phone: string,
+): Promise<number | null> {
+  if (!isRedisAvailable()) {
+    return null;
+  }
+  try {
+    const raw = await redis.get(`${INBOUND_AT_KEY_PREFIX}${phone}`);
+    if (raw === null) {
+      return null;
+    }
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : null;
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    log.error({ err: message, phone }, "Failed to read inbound timestamp");
+    return null;
   }
 }
