@@ -3482,9 +3482,9 @@ _v5.2 added: 2026-06-04 — 1 phase (132). Cierra v5.0 del lado de UI: expone en
 5. Solo el admin puede anular (motivo + autor + fecha); al anular un pago con membresía asociada, un popup decide 1-a-1 si la membresía sigue activa (default: activa). (VAL-06)
 6. La membresía se activa al instante al cargar el pago, independiente del `validation_status` del cobro (un PENDIENTE ya salda la deuda del socio en `balances`, pero NO suma a caja firme). (VAL-07)
 
-**Plans:** 3 plans (3 waves — schema/helper foundation → state-machine services → call-site refactor + regression)
+**Plans:** 1/3 plans executed
 
-- [ ] 137-01-PLAN.md — Schema validation_status + migración 0153 + audit action types + helper canónico firm-money.ts + test scaffolds (VAL-01, VAL-05)
+- [x] 137-01-PLAN.md — Schema validation_status + migración 0153 + audit action types + helper canónico firm-money.ts + test scaffolds (VAL-01, VAL-05)
 - [ ] 137-02-PLAN.md — Máquina de estados: validate/observe/correct + void extendido (\_void atómico) + derivación rol→status server-side + keepMembershipActive (VAL-02, VAL-03, VAL-04, VAL-06, VAL-07)
 - [ ] 137-03-PLAN.md — Refactor 13 call sites al filtro firme + excepción documentada (subscriptions:2127) + test de regresión R1-R4 de las 6 métricas v5.0 (VAL-05, VAL-07)
 
@@ -3564,7 +3564,7 @@ _v5.2 added: 2026-06-04 — 1 phase (132). Cierra v5.0 del lado de UI: expone en
 
 | Phase                                       | Plans Complete | Status      | Completed |
 | ------------------------------------------- | -------------- | ----------- | --------- |
-| 137. Máquina de estados de validación       | 0/3            | Planned     | -         |
+| 137. Máquina de estados de validación       | 1/3            | In Progress |           |
 | 138. Entidad caja + saldos                  | 0/?            | Not started | -         |
 | 139. Movimientos inter-caja y egresos       | 0/?            | Not started | -         |
 | 140. Carga única + cobro suelto + rol profe | 0/?            | Not started | -         |

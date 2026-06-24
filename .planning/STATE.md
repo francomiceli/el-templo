@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v5.2
 milestone_name: Módulo Contable — Libro de Caja
-status: verifying
+status: executing
 stopped_at: Phase 137 context gathered
-last_updated: "2026-06-24T13:49:23.795Z"
+last_updated: "2026-06-24T14:47:11.707Z"
 last_activity: 2026-06-24
 progress:
-  total_phases: 12
+  total_phases: 13
   completed_phases: 5
-  total_plans: 32
-  completed_plans: 31
-  percent: 42
+  total_plans: 35
+  completed_plans: 32
+  percent: 38
 ---
 
 # Project State
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-04)
 
 **Core value:** El registro de un pago se carga **una sola vez** en el Administrador (fuente de verdad) y propaga solo: activa la membresía al instante e impacta la caja. Se elimina el triple tipeo (Forms + Contabilium + Admin). El Administrador pasa a ser el **libro de caja** del negocio (efectivo×sucursal + central + banco×moneda), con validación de pagos (PENDIENTE→VALIDADO), movimientos inter-caja y egresos. Se monta sobre el modelo financiero transaccional v4.8 (~60% existe). Backend-heavy, brownfield.
-**Current focus:** Phase 143 — profesor-por-clase-puntuaci-n-post-clase-presencial
+**Current focus:** Phase 137 — Máquina de estados de validación (cimiento)
 
 ## Current Position
 
-Phase: 143 (profesor-por-clase-puntuaci-n-post-clase-presencial) — EXECUTING
-Plan: 5 of 5
-Status: Phase complete — ready for verification
+Phase: 137 (Máquina de estados de validación (cimiento)) — EXECUTING
+Plan: 2 of 3
+Status: Ready to execute
 Last activity: 2026-06-24
 Next: ejecutar 143-02-PLAN.md
 
@@ -247,11 +247,13 @@ _Updated after each plan completion_
 | Phase 143 P02 | ~7min | 2 tasks | 7 files |
 | Phase 143 P03 | ~8min | 2 tasks | 2 files |
 | Phase 143 P05 | ~6min | 2 tasks | 3 files |
+| Phase 137 P01 | ~12min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
 ### Roadmap Evolution
 
+- Phase 144 added (standalone app/api/admin, numerada después de 143, NO depende de ella ni del Módulo Contable v5.2): Notificaciones y bloqueo de vencimiento de membresía/plan — 3 entregables: (1) notificación push de vencimiento de plan ~7d antes, réplica del cron "Program Renewal Warning" pero sobre `subscriptions.end_date` + nuevo template `plan_renewal_warning` en `notifications/types.ts`; (2) pop-up in-app a 7 y 3 días del vencimiento con botón a WhatsApp (`buildWhatsAppUrl`); (3) bloqueo de reserva cuando `booking_date > subscription.end_date` en `booking-service.ts reserve()` (hoy ese check NO existe — bug latente) + pop-up en `ReservasPage.vue` con botón a WhatsApp. Reutiliza `pending_notifications`+FCM+`notification-cron` y `el-templo-app/src/utils/whatsapp.ts`. Decisiones abiertas (categoría entrenamiento vs programas, copy 7 vs 3d, anti-repetición del pop-up, salteable vs bloqueante, planes sin end_date, alcance presencial vs online) → discuss-phase. (PLAN-NOTIF, PLAN-POPUP, BOOK-BLOCK)
 - Phase 143 added (standalone app/admin, numerada después de v5.2 Módulo Contable 137-142, NO depende de ella): Profesor por clase + Puntuación post clase presencial — construir la cadena profe↔clase inexistente (asignación owner profe↔sucursal en Horarios, profe se marca como dictante escaneando el QR de la instancia validado contra su sucursal, app muestra el profe) + rating del profesor estilo Uber vía pop-up al volver a la app tras una clase presencial. Solo presencial; puntúa al profesor (no RPE). Reutiliza role `coach`+`user_branches`. Brief: `BRIEF-PUNTUACION-PROFES.md`. Decisiones abiertas (escala, salteable, co-dictado, fallback sin scan, reporte owner) → discuss-phase.
 - Phase 137 added (nueva milestone v5.2 Módulo Contable): Máquina de estados de validación — CIMIENTO. `validation_status` (pendiente/observado/corregido/validado) ORTOGONAL al soft-void existente (ANULADO); el filtro canónico de "dinero firme" pasa a `validation_status='validado' AND voided_at IS NULL`, sin romper las 6 métricas v5.0 (migración DEFAULT 'validado' + backfill + auditar call sites). Profe→PENDIENTE / admin→VALIDADO; corregir=anular+recrear; membresía se activa al instante. Bloquea 138-142. (VAL-01..07)
 - Phase 138 added: Entidad caja + saldos — tabla `cash_registers` (efectivo×sucursal + central + banco×moneda, `currency` fija) + `cash_register_id` en el ledger (≠ branchId) + saldo firme derivado (solo VALIDADOS, pendientes aparte) + aislamiento de moneda. (CAJA-01..04)
@@ -611,6 +613,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: [Phase 143-01]: coach_ratings append-only sin unique; guard one-shot miembro+clase en service layer (D-P2)
 - [Phase 143-05]: RatingPromptDialog (Surface 2) class-framed estilo Uber: salteable (sin persistent, D-P1) + one-shot por clase vía Capacitor Preferences (D-P2); nunca expone al profe (D-A3); estrellas Terracotta color=primary
 - [Phase 143-05]: el-templo-app sin script typecheck ni vue-tsc; verificación canónica de frontend = ESLint (plugin vue); tsc reporta errores pre-existentes de resolución .vue fuera de scope
+- [Phase ?]: [Phase 137]: Migration 0153 hand-written (not drizzle-kit generate) — runner reads .sql by name + \_migrations table is source of truth; generate prompted for unrelated sessions.goal_plan_type drift
 
 ### Pending Todos
 
@@ -643,8 +646,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-24T13:49:23.775Z
+Last session: 2026-06-24T14:47:07.229Z
 Stopped at: Phase 137 context gathered
-Resume file: .planning/phases/137-m-quina-de-estados-de-validaci-n-cimiento/137-CONTEXT.md
+Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
