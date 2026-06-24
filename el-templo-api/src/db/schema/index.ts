@@ -60,3 +60,5 @@ export * from "./audit-log";
 export * from "./refresh-tokens";
 export * from "./user-status-history";
 export * from "./campaigns";
+export * from "./class-coach-assignments";
+export * from "./coach-ratings";
