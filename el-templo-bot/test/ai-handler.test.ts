@@ -6,7 +6,7 @@
  * 4. OpenAI provider unaffected by ChatMessage.toolCalls addition
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { ChatMessage } from "../src/ai/provider";
 
 // ─── Test Group 2: Anthropic tool_use block reconstruction ──────────────────
@@ -382,7 +382,24 @@ describe("OpenAiProvider - tool_calls mapping", () => {
 // ─── Test Group 1: Human takeover suppresses extra segments ─────────────────
 
 describe("handleInboundMessage - human takeover segment suppression", () => {
+  // Phase 100 DBNC-01: handler now uses a trailing-debounce poll loop with
+  // a default 7s quiet window. This test asserts handoff segment behavior,
+  // not timing — override the quiet window to a tiny value so the loop
+  // elapses on the FIRST poll-tick (250ms) and the test stays fast under
+  // real timers.
+  const originalQuiet = process.env.DEBOUNCE_QUIET_WINDOW_MS;
+
   beforeEach(() => {
+    process.env.DEBOUNCE_QUIET_WINDOW_MS = "250";
+    vi.resetModules();
+  });
+
+  afterEach(() => {
+    if (originalQuiet !== undefined) {
+      process.env.DEBOUNCE_QUIET_WINDOW_MS = originalQuiet;
+    } else {
+      delete process.env.DEBOUNCE_QUIET_WINDOW_MS;
+    }
     vi.resetModules();
   });
 
@@ -460,6 +477,14 @@ describe("handleInboundMessage - human takeover segment suppression", () => {
       deleteDebounce: async () => {},
       tryAcquireDebounce: async () => "test-token",
       releaseDebounce: async () => {},
+      // Phase 100 DBNC-01: handler imports these for the poll-and-extend
+      // loop. Returning null from getLatestInboundAt makes the loop see
+      // "no newer inbound" and elapse the quiet-window on the FIRST tick
+      // (firstSeenAt is captured at loop entry, and Date.now() is real-clock
+      // here — so the now - lastObserved diff is whatever real wall-time
+      // has elapsed). This test doesn't useFakeTimers — real clock applies.
+      recordInboundAt: async () => {},
+      getLatestInboundAt: async () => null,
     }));
 
     vi.doMock("../src/memory/profile", () => ({

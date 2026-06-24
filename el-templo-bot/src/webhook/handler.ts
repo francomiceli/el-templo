@@ -33,6 +33,8 @@ import {
   updateSession,
   tryAcquireDebounce,
   releaseDebounce,
+  recordInboundAt,
+  getLatestInboundAt,
 } from "../memory/session.js";
 import {
   advanceStageIfComplete,
@@ -149,8 +151,45 @@ function isFailureToolResult(result: string): boolean {
   );
 }
 
-/** quick-16 fix 2: debounce delay to absorb consecutive messages. */
-const DEBOUNCE_DELAY_MS = 3000;
+/**
+ * Phase 100 DBNC-01 — trailing-debounce quiet window.
+ *
+ * Wait this long after the LAST inbound before firing `processWithAiInner`.
+ * Replaces the legacy fixed 3-second `setTimeout` debounce (the fixed
+ * window punished single-message senders with a 3s wait for nothing and
+ * was too aggressive for multi-message senders — 3s wasn't long enough
+ * to catch a slow typer). Trailing-debounce solves both with one
+ * mechanism, bounded by `DEBOUNCE_HARD_CAP_MS` below.
+ *
+ * Default: 7000ms. Env-overridable for staging/test tuning.
+ */
+// prettier-ignore
+const DEBOUNCE_QUIET_WINDOW_MS = Number(process.env.DEBOUNCE_QUIET_WINDOW_MS ?? 7000);
+
+/**
+ * Phase 100 DBNC-01 — absolute max wait from FIRST inbound to firing.
+ *
+ * Protects against non-stop typers stalling the bot forever. When the loop
+ * runs longer than this, it fires with `firedReason: "cap"` (pino info
+ * log) regardless of typing rate.
+ *
+ * Default: 30000ms. MUST be << `DEBOUNCE_TTL_SECONDS * 1000 = 600000ms`;
+ * current ratio is ~20x headroom (30s cap << 600s SETNX dead-man-switch),
+ * so the Phase 93 lock-TTL safety-net still bounds runaway handlers.
+ * Env-overridable for staging/test tuning.
+ */
+// prettier-ignore
+const DEBOUNCE_HARD_CAP_MS = Number(process.env.DEBOUNCE_HARD_CAP_MS ?? 30000);
+
+/**
+ * Phase 100 DBNC-01 — sleep granularity inside the poll-and-extend loop.
+ *
+ * NOT env-overridable (implementation constant). Too small wastes Redis
+ * round-trips; too large degrades responsiveness near the quiet-window edge.
+ * 500ms is the locked default — 14 ticks per 7s quiet window.
+ */
+const DEBOUNCE_POLL_INTERVAL_MS = 500;
+
 /**
  * Safety-net TTL for the debounce lock if a handler crashes mid-turn.
  *
@@ -445,13 +484,24 @@ async function processWithAi(
   // Store inbound message in Redis session (before AI call so future lookups include it)
   await updateSession(phone, "user", inboundText);
 
+  // Phase 100 DBNC-01 — record the inbound arrival timestamp BEFORE attempting
+  // the SETNX. This fires for EVERY inbound (both the acquiring caller and any
+  // losing-race callers), so the in-flight handler's poll loop can observe a
+  // newer timestamp and extend its quiet-window deadline. Last-write-wins
+  // semantics — no CAS needed; the loop only consumes the monotonic-increase
+  // test (latest > seen). TTL piggybacks on DEBOUNCE_TTL_SECONDS so cleanup
+  // is implicit.
+  const nowMs = Date.now();
+  await recordInboundAt(phone, nowMs, DEBOUNCE_TTL_SECONDS);
+
   // ── Debounce (Phase 93 Branch 1 — atomic SETNX with token-aware release) ──
   // Atomic acquisition collapses the previous non-atomic get-then-set pair
   // (session.ts isDebounceActive + setDebounce) into a single SET NX PX
   // round-trip. Concurrent webhook invocations for the same phone now
   // serialize on Redis: exactly one acquires the token; all others get
-  // null and bail. The in-flight handler picks up the bailed inbounds when
-  // it re-reads the session after its 3s delay.
+  // null and bail. The losing handlers already wrote their inbound to the
+  // session above; the in-flight handler's poll loop will pick up the new
+  // wa:inbound_at:<phone> timestamp and extend its quiet-window.
   const debounceKey = `wa:debounce:${phone}`;
   const debounceToken = await tryAcquireDebounce(
     debounceKey,
@@ -462,7 +512,51 @@ async function processWithAi(
     return;
   }
   try {
-    await new Promise((resolve) => setTimeout(resolve, DEBOUNCE_DELAY_MS));
+    // ── DBNC-01 trailing-debounce poll-and-extend loop ───────────────────
+    //
+    // Replaces the legacy fixed 3-second `setTimeout` debounce with a poll
+    // loop that:
+    //   1. Sleeps DEBOUNCE_POLL_INTERVAL_MS (500ms) between ticks.
+    //   2. Re-reads `getLatestInboundAt(phone)` each tick.
+    //   3. If a NEWER inbound has arrived since the last observed timestamp,
+    //      the deadline extends naturally (the quiet-window check now
+    //      measures against the newer timestamp).
+    //   4. Exits when:
+    //      - `now - lastObservedInboundAt >= DEBOUNCE_QUIET_WINDOW_MS`
+    //        (quiet-window elapsed, no new inbound) → fire normally.
+    //      - `now - firstSeenAt >= DEBOUNCE_HARD_CAP_MS`
+    //        (cap reached, continuous typer) → fire with `reason: "cap"`.
+    //
+    // The loop runs INSIDE the Phase 93 SETNX-acquired token, so the
+    // serialization invariant (exactly one handler per phone) is preserved.
+    // The DEBOUNCE_TTL_SECONDS=600s safety-net is ~20x the cap, so a runaway
+    // loop is still bounded by the SETNX dead-man-switch.
+    const firstSeenAt = nowMs;
+    let lastObservedInboundAt =
+      (await getLatestInboundAt(phone)) ?? firstSeenAt;
+    let firedReason: "quiet-window" | "cap" = "quiet-window";
+    while (true) {
+      const now = Date.now();
+      if (now - firstSeenAt >= DEBOUNCE_HARD_CAP_MS) {
+        firedReason = "cap";
+        break;
+      }
+      if (now - lastObservedInboundAt >= DEBOUNCE_QUIET_WINDOW_MS) {
+        firedReason = "quiet-window";
+        break;
+      }
+      await new Promise((resolve) =>
+        setTimeout(resolve, DEBOUNCE_POLL_INTERVAL_MS),
+      );
+      const latest = (await getLatestInboundAt(phone)) ?? lastObservedInboundAt;
+      if (latest > lastObservedInboundAt) {
+        lastObservedInboundAt = latest;
+      }
+    }
+    log.info(
+      { phone, firedReason, waited_ms: Date.now() - firstSeenAt },
+      "DBNC-01 debounce fired",
+    );
     await processWithAiInner(
       db,
       log,
