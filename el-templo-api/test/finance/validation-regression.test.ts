@@ -35,6 +35,7 @@ import type { FastifyInstance } from "fastify";
 import { createTestApp, createStaffUser, registerUser } from "../helpers";
 import { TransactionService } from "../../src/modules/finance/transaction-service";
 import { BalanceService } from "../../src/modules/finance/balance-service";
+import { CashRegisterService } from "../../src/modules/finance/cash-register-service";
 import { AdvancedFinanceService } from "../../src/modules/analytics/advanced-finance-service";
 import * as schema from "../../src/db/schema";
 
@@ -140,7 +141,12 @@ async function readSubBalance(): Promise<number | null> {
 beforeAll(async () => {
   app = await createTestApp();
   balanceService = new BalanceService(app.db, app.log);
-  txService = new TransactionService(app.db, app.log, balanceService);
+  txService = new TransactionService(
+    app.db,
+    app.log,
+    balanceService,
+    new CashRegisterService(app.db, app.log),
+  );
   advFinance = new AdvancedFinanceService(app.db, app.log);
 
   const [admin] = await app.db

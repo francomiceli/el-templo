@@ -15,7 +15,7 @@
 import { FastifyPluginAsync } from "fastify";
 import { eq } from "drizzle-orm";
 import { Workbook } from "exceljs";
-import { TransactionService, BalanceService } from ".";
+import { TransactionService, BalanceService, CashRegisterService } from ".";
 import { SubscriptionService } from "../subscriptions/service";
 import { AuraService } from "../aura/service";
 import { EnrollmentService } from "../programs/enrollment-service";
@@ -53,10 +53,12 @@ import type {
 
 export const financeRoutes: FastifyPluginAsync = async (fastify) => {
   const balanceService = new BalanceService(fastify.db, fastify.log);
+  const cashRegisterService = new CashRegisterService(fastify.db, fastify.log);
   const transactionService = new TransactionService(
     fastify.db,
     fastify.log,
     balanceService,
+    cashRegisterService,
   );
 
   // Phase 137 (VAL-06): wire the SubscriptionService back-edge so the void

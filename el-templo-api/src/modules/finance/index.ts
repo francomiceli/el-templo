@@ -1,6 +1,7 @@
 // Module: finance — phase 105
 export { TransactionService } from "./transaction-service";
 export { BalanceService } from "./balance-service";
+export { CashRegisterService } from "./cash-register-service";
 export { financeRoutes } from "./routes";
 export type {
   CreateTransactionInput,

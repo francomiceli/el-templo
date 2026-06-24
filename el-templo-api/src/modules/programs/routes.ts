@@ -13,7 +13,11 @@ import { FastifyPluginAsync } from "fastify";
 import { and, eq, or } from "drizzle-orm";
 import { ProgramsService } from "./service";
 import { EnrollmentService } from "./enrollment-service";
-import { TransactionService, BalanceService } from "../finance";
+import {
+  TransactionService,
+  BalanceService,
+  CashRegisterService,
+} from "../finance";
 import { handleServiceError } from "../shared/error-handler";
 import { auditLog } from "../shared/audit-log";
 import {
@@ -164,10 +168,12 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
   // endpoint and the cancel-with-audit handler. Other handlers in this file
   // pre-date Phase 112 and continue to use the original ProgramsService surface.
   const balanceService = new BalanceService(fastify.db, fastify.log);
+  const cashRegisterService = new CashRegisterService(fastify.db, fastify.log);
   const transactionService = new TransactionService(
     fastify.db,
     fastify.log,
     balanceService,
+    cashRegisterService,
   );
   const enrollmentService = new EnrollmentService(
     fastify.db,

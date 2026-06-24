@@ -32,6 +32,7 @@ import {
 } from "../helpers";
 import { TransactionService } from "../../src/modules/finance/transaction-service";
 import { BalanceService } from "../../src/modules/finance/balance-service";
+import { CashRegisterService } from "../../src/modules/finance/cash-register-service";
 import { SubscriptionService } from "../../src/modules/subscriptions/service";
 import { AuraService } from "../../src/modules/aura/service";
 import { EnrollmentService } from "../../src/modules/programs/enrollment-service";
@@ -132,7 +133,12 @@ async function readSubBalance(): Promise<number | null> {
 beforeAll(async () => {
   app = await createTestApp();
   balanceService = new BalanceService(app.db, app.log);
-  txService = new TransactionService(app.db, app.log, balanceService);
+  txService = new TransactionService(
+    app.db,
+    app.log,
+    balanceService,
+    new CashRegisterService(app.db, app.log),
+  );
 
   const auraService = new AuraService(app.db);
   const enrollmentService = new EnrollmentService(app.db, app.log);

@@ -32,7 +32,11 @@ import {
 import { BookingService } from "../src/modules/scheduling/booking-service";
 import { SubscriptionService } from "../src/modules/subscriptions/service";
 import { AuraService } from "../src/modules/aura";
-import { TransactionService, BalanceService } from "../src/modules/finance";
+import {
+  TransactionService,
+  BalanceService,
+  CashRegisterService,
+} from "../src/modules/finance";
 import { NotificationService } from "../src/modules/notifications/service";
 import { dowInTz, addDays } from "../src/modules/shared/date-utils";
 
@@ -709,7 +713,13 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
       // test/users/user-status-transitions.test.ts.
       const aura = new AuraService(app.db);
       const balances = new BalanceService(app.db, app.log);
-      const txns = new TransactionService(app.db, app.log, balances);
+      const cashRegisters = new CashRegisterService(app.db, app.log);
+      const txns = new TransactionService(
+        app.db,
+        app.log,
+        balances,
+        cashRegisters,
+      );
       const subs = new SubscriptionService(app.db, app.log, aura, txns);
       const notifs = new NotificationService(app.db, app.log);
       bookings = new BookingService(app.db, app.log, subs, notifs);

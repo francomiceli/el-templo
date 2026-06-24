@@ -17,7 +17,11 @@ import type { MySql2Database } from "drizzle-orm/mysql2";
 import type * as schema from "../db/schema";
 import { SubscriptionService } from "../modules/subscriptions/service";
 import { AuraService } from "../modules/aura";
-import { TransactionService, BalanceService } from "../modules/finance";
+import {
+  TransactionService,
+  BalanceService,
+  CashRegisterService,
+} from "../modules/finance";
 import { EnrollmentService } from "../modules/programs/enrollment-service";
 
 const log = pino({ name: "auto-resume-pauses" });
@@ -25,7 +29,13 @@ const log = pino({ name: "auto-resume-pauses" });
 export function startAutoResumePausesJob(db: MySql2Database<typeof schema>) {
   const auraService = new AuraService(db);
   const balanceService = new BalanceService(db, log);
-  const transactionService = new TransactionService(db, log, balanceService);
+  const cashRegisterService = new CashRegisterService(db, log);
+  const transactionService = new TransactionService(
+    db,
+    log,
+    balanceService,
+    cashRegisterService,
+  );
   const enrollmentService = new EnrollmentService(db, log);
   const subscriptionService = new SubscriptionService(
     db,

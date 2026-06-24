@@ -308,13 +308,19 @@ describe("Subscriptions API — Lifecycle", () => {
       const { SubscriptionService } =
         await import("../../src/modules/subscriptions/service");
       const { AuraService } = await import("../../src/modules/aura");
-      const { TransactionService, BalanceService } =
+      const { TransactionService, BalanceService, CashRegisterService } =
         await import("../../src/modules/finance");
       const { EnrollmentService } =
         await import("../../src/modules/programs/enrollment-service");
       const aura = new AuraService(app.db);
       const balances = new BalanceService(app.db, app.log);
-      const txns = new TransactionService(app.db, app.log, balances);
+      const cashRegisters = new CashRegisterService(app.db, app.log);
+      const txns = new TransactionService(
+        app.db,
+        app.log,
+        balances,
+        cashRegisters,
+      );
       const enrollments = new EnrollmentService(app.db, app.log);
       const svc = new SubscriptionService(
         app.db,
@@ -390,11 +396,17 @@ describe("Subscriptions API — Lifecycle", () => {
       const { SubscriptionService } =
         await import("../../src/modules/subscriptions/service");
       const { AuraService } = await import("../../src/modules/aura");
-      const { TransactionService, BalanceService } =
+      const { TransactionService, BalanceService, CashRegisterService } =
         await import("../../src/modules/finance");
       const aura = new AuraService(app.db);
       const balances = new BalanceService(app.db, app.log);
-      const txns = new TransactionService(app.db, app.log, balances);
+      const cashRegisters = new CashRegisterService(app.db, app.log);
+      const txns = new TransactionService(
+        app.db,
+        app.log,
+        balances,
+        cashRegisters,
+      );
       const svc = new SubscriptionService(app.db, app.log, aura, txns);
       const resumed = await svc.autoResumeDuePauses();
       expect(resumed).toBe(1);
