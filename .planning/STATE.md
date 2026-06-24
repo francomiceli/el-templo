@@ -2,15 +2,16 @@
 gsd_state_version: 1.0
 milestone: v5.2
 milestone_name: Módulo Contable — Libro de Caja
-status: planning
-last_updated: "2026-06-23T19:00:00.000Z"
-last_activity: 2026-06-23
+status: executing
+stopped_at: Completed 143-01-PLAN.md
+last_updated: "2026-06-24T01:33:36.012Z"
+last_activity: 2026-06-24
 progress:
-  total_phases: 6
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  total_phases: 12
+  completed_phases: 4
+  total_plans: 32
+  completed_plans: 27
+  percent: 33
 ---
 
 # Project State
@@ -20,15 +21,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-04)
 
 **Core value:** El registro de un pago se carga **una sola vez** en el Administrador (fuente de verdad) y propaga solo: activa la membresía al instante e impacta la caja. Se elimina el triple tipeo (Forms + Contabilium + Admin). El Administrador pasa a ser el **libro de caja** del negocio (efectivo×sucursal + central + banco×moneda), con validación de pagos (PENDIENTE→VALIDADO), movimientos inter-caja y egresos. Se monta sobre el modelo financiero transaccional v4.8 (~60% existe). Backend-heavy, brownfield.
-**Current focus:** Phase 137 — Máquina de estados de validación (cimiento del Módulo Contable; redefine "dinero firme", bloquea 138-142) — roadmap created, awaiting plan-phase
+**Current focus:** Phase 143 — profesor-por-clase-puntuaci-n-post-clase-presencial
 
 ## Current Position
 
-Phase: 137 — Máquina de estados de validación (cimiento) — not started
-Plan: —
-Status: Roadmap created (6 phases, 137-142; 25/25 reqs mapped)
-Last activity: 2026-06-23 — Roadmap for v5.2 Módulo Contable created (phases 137-142, continues from 136)
-Next: /gsd-plan-phase 137
+Phase: 143 (profesor-por-clase-puntuaci-n-post-clase-presencial) — EXECUTING
+Plan: 2 of 5
+Status: Ready to execute
+Last activity: 2026-06-24 -- 143-01 completado (persistencia: class_coach_assignments + coach_ratings, migración 0152 aplicada)
+Next: ejecutar 143-02-PLAN.md
 
 ## Performance Metrics
 
@@ -242,11 +243,13 @@ _Updated after each plan completion_
 | Phase 135 P01 | 5min | 3 tasks | 2 files |
 | Phase 135 P03 | ~8min | 3 tasks | 3 files |
 | Phase 135 P04 | ~12min | 2 tasks | 4 files |
+| Phase 143 P01 | 5min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
 ### Roadmap Evolution
 
+- Phase 143 added (standalone app/admin, numerada después de v5.2 Módulo Contable 137-142, NO depende de ella): Profesor por clase + Puntuación post clase presencial — construir la cadena profe↔clase inexistente (asignación owner profe↔sucursal en Horarios, profe se marca como dictante escaneando el QR de la instancia validado contra su sucursal, app muestra el profe) + rating del profesor estilo Uber vía pop-up al volver a la app tras una clase presencial. Solo presencial; puntúa al profesor (no RPE). Reutiliza role `coach`+`user_branches`. Brief: `BRIEF-PUNTUACION-PROFES.md`. Decisiones abiertas (escala, salteable, co-dictado, fallback sin scan, reporte owner) → discuss-phase.
 - Phase 137 added (nueva milestone v5.2 Módulo Contable): Máquina de estados de validación — CIMIENTO. `validation_status` (pendiente/observado/corregido/validado) ORTOGONAL al soft-void existente (ANULADO); el filtro canónico de "dinero firme" pasa a `validation_status='validado' AND voided_at IS NULL`, sin romper las 6 métricas v5.0 (migración DEFAULT 'validado' + backfill + auditar call sites). Profe→PENDIENTE / admin→VALIDADO; corregir=anular+recrear; membresía se activa al instante. Bloquea 138-142. (VAL-01..07)
 - Phase 138 added: Entidad caja + saldos — tabla `cash_registers` (efectivo×sucursal + central + banco×moneda, `currency` fija) + `cash_register_id` en el ledger (≠ branchId) + saldo firme derivado (solo VALIDADOS, pendientes aparte) + aislamiento de moneda. (CAJA-01..04)
 - Phase 139 added: Movimientos inter-caja y egresos — movimiento=una fila (origen+destino, neto 0) con esperado-vs-contado; egreso=destino NULL + nota libre (sin categoría); ambos void ortogonal; no contaminan `balances`; `cash_transfer`/`expense` en KINDS_ALLOWED_WITHOUT_LINKS. (MOV-01..04)
@@ -601,6 +604,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: [Phase 134]: disponible/bloqueado use D-06 hybrid gating; en_progreso frontier computed in a second per-route pass (D-02)
 - [Phase ?]: 134-03 advance criterion
 - [Phase ?]: [Phase 135]: bootstrap-milestones --apply milestone-only by contract (aborts on pending dimension proposals, exit 2); reuses acceptMilestoneReview as the only milestone_exercise_id writer, hitos before variantes, idempotent (pending-only)
+- [Phase ?]: [Phase 143-01]: class_coach_assignments uniqueIndex natural-key (branch,week,day,slot) impide doble profe por slot/semana a nivel DB (D-A2)
+- [Phase ?]: [Phase 143-01]: coach_ratings append-only sin unique; guard one-shot miembro+clase en service layer (D-P2)
 
 ### Pending Todos
 
@@ -633,8 +638,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-23T00:11:24.640Z
-Stopped at: Phase 136 context gathered
+Last session: 2026-06-24T01:33:35.992Z
+Stopped at: Completed 143-01-PLAN.md
 Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
