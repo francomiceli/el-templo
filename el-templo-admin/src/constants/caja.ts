@@ -1,0 +1,32 @@
+/**
+ * Phase 141 — Caja hub tab constants (D-01).
+ *
+ * The `/caja` page is a q-tabs hub: Pendientes (landing) / Saldos / Movimientos
+ * / Mov. y egresos. These names are the single source of truth for the tab
+ * model + the optional `?tab=` query-param persistence, so Plan 04 (and future
+ * 142) can reference tab names without re-declaring string literals.
+ *
+ * NOTE: the overdue threshold is NOT defined here — it is read from the bandeja
+ * response payload (`thresholdDays`, server-side OVERDUE_DAYS) per UI-SPEC/D-08
+ * so 142 can swap the constant for a finance_settings read without touching UI.
+ */
+
+export const CAJA_TABS = {
+  pendientes: 'pendientes',
+  saldos: 'saldos',
+  movimientos: 'movimientos',
+  movEgresos: 'movEgresos',
+} as const;
+
+export type CajaTab = (typeof CAJA_TABS)[keyof typeof CAJA_TABS];
+
+/** Landing tab (D-01): Pendientes is the daily-control surface. */
+export const CAJA_DEFAULT_TAB: CajaTab = CAJA_TABS.pendientes;
+
+/** Valid tab names, for ?tab= query-param validation. */
+export const CAJA_TAB_NAMES: readonly CajaTab[] = [
+  CAJA_TABS.pendientes,
+  CAJA_TABS.saldos,
+  CAJA_TABS.movimientos,
+  CAJA_TABS.movEgresos,
+];
