@@ -1,10 +1,11 @@
 ---
 phase: 143
 slug: profesor-por-clase-puntuaci-n-post-clase-presencial
-status: draft
+status: approved
 shadcn_initialized: false
 preset: none
 created: 2026-06-23
+reviewed_at: 2026-06-23
 ---
 
 # Phase 143 — UI Design Contract
@@ -18,13 +19,14 @@ created: 2026-06-23
 
 ## Surfaces Covered
 
-| # | Surface | App / File | What it does |
-|---|---------|------------|--------------|
-| 1 | Roster semanal (asignación de profe) | `el-templo-admin` → `src/pages/HorariosPage.vue` | Owner assigns exactly ONE coach per `(sucursal, día de semana, turno mañana/tarde)`, week-by-week |
-| 2 | Pop-up de puntuación | `el-templo-app` → new `RatingPromptDialog.vue` (+ trigger in app shell) | Member rates the CLASS (1–5 stars + optional comment) on return after a completed in-person class |
-| 3 | Vista del owner (ratings simple) | `el-templo-admin` → new section/page (e.g. `PuntuacionesPage.vue` or tab) | Average rating per coach + list of recent ratings/comments |
+| #   | Surface                              | App / File                                                                | What it does                                                                                      |
+| --- | ------------------------------------ | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| 1   | Roster semanal (asignación de profe) | `el-templo-admin` → `src/pages/HorariosPage.vue`                          | Owner assigns exactly ONE coach per `(sucursal, día de semana, turno mañana/tarde)`, week-by-week |
+| 2   | Pop-up de puntuación                 | `el-templo-app` → new `RatingPromptDialog.vue` (+ trigger in app shell)   | Member rates the CLASS (1–5 stars + optional comment) on return after a completed in-person class |
+| 3   | Vista del owner (ratings simple)     | `el-templo-admin` → new section/page (e.g. `PuntuacionesPage.vue` or tab) | Average rating per coach + list of recent ratings/comments                                        |
 
 LOCKED constraints (from CONTEXT, do not deviate):
+
 - One coach per slot; weekly cadence; turno derived by `startTime < 12:00` (same split as `ReservasPage` morning/afternoon).
 - Member NEVER sees anything about the coach (no name, no photo). Pop-up is framed around the CLASS (activity/day).
 - Pop-up: skippable; one-shot (skipped class never re-asked); expires 48h; only the LAST unrated class is asked (no queue); if no coach assigned to that slot/day → NO pop-up.
@@ -34,13 +36,13 @@ LOCKED constraints (from CONTEXT, do not deviate):
 
 ## Design System
 
-| Property | Value |
-|----------|-------|
-| Tool | none (Quasar Framework — not React/Vite/Next, shadcn gate N/A) |
-| Preset | not applicable |
+| Property          | Value                                                                                                                         |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Tool              | none (Quasar Framework — not React/Vite/Next, shadcn gate N/A)                                                                |
+| Preset            | not applicable                                                                                                                |
 | Component library | Quasar (`QPage`, `QCard`, `QDialog`, `QRating`, `QSelect`, `QInput`, `QBtn`, `QTable`, `QList`, `QItem`, `QTab`/`QTabPanels`) |
-| Icon library | Material Icons (Quasar default; `star`/`star_border` used by `QRating`) |
-| Font | Inherited app font; admin/app base `$body-font-size: 14px`, `$body-line-height: 1.5` |
+| Icon library      | Material Icons (Quasar default; `star`/`star_border` used by `QRating`)                                                       |
+| Font              | Inherited app font; admin/app base `$body-font-size: 14px`, `$body-line-height: 1.5`                                          |
 
 Source of truth: `el-templo-admin/src/css/quasar.variables.scss` and `el-templo-app/src/css/quasar.variables.scss` (brand palette, Phase 39). Do NOT invent colors.
 
@@ -52,15 +54,16 @@ New component introduced this phase: `QRating` (not currently used anywhere in e
 
 Quasar spacing tokens map to a 4px base (`xs`=4, `sm`=8, `md`=16, `lg`=24, `xl`=48). Use Quasar utility classes (`q-pa-md`, `q-gutter-sm`, `q-mb-md`) to match existing pages — do not hand-roll pixel margins.
 
-| Token | Value | Quasar class | Usage |
-|-------|-------|--------------|-------|
-| xs | 4px | `q-*-xs` | Icon gaps, inline chip padding, star gutter |
-| sm | 8px | `q-*-sm` | Compact element spacing, button groups |
-| md | 16px | `q-*-md` | Default element / card padding (page is `q-pa-md`) |
-| lg | 24px | `q-*-lg` | Section padding, dialog body breathing room |
-| xl | 48px | `q-*-xl` | Empty-state vertical padding (`q-pa-xl`, matches HorariosPage empty states) |
+| Token | Value | Quasar class | Usage                                                                       |
+| ----- | ----- | ------------ | --------------------------------------------------------------------------- |
+| xs    | 4px   | `q-*-xs`     | Icon gaps, inline chip padding, star gutter                                 |
+| sm    | 8px   | `q-*-sm`     | Compact element spacing, button groups                                      |
+| md    | 16px  | `q-*-md`     | Default element / card padding (page is `q-pa-md`)                          |
+| lg    | 24px  | `q-*-lg`     | Section padding, dialog body breathing room                                 |
+| xl    | 48px  | `q-*-xl`     | Empty-state vertical padding (`q-pa-xl`, matches HorariosPage empty states) |
 
 Exceptions:
+
 - Mobile rating pop-up tap targets ≥ 44px height (`QBtn` default dense=false already satisfies). The `QRating` star `size` = `2.5em` (~40px) so each star is a comfortable touch target on the member app.
 
 ---
@@ -69,12 +72,12 @@ Exceptions:
 
 Reuse Quasar typography classes already used across both apps. No custom font sizes introduced. Exactly 4 declared sizes (the inherited 14px system base is not a declared token; all body text uses `text-body1` / 16px).
 
-| Role | Quasar class | Size | Weight | Line Height | Usage |
-|------|--------------|------|--------|-------------|-------|
-| Display | `text-h5` | 24px | 400 | 1.2 | Admin page headers (matches HorariosPage `text-h5`) |
-| Heading | `text-h6` | 20px | 500 | 1.3 | Dialog title, card section titles, owner-view coach name |
-| Body | `text-body1` | 16px | 400 | 1.5 | Comment text, list rows, dialog body copy |
-| Label | `text-caption` | 12px | 400 | 1.4 | Slot meta, timestamps, helper text, "Turno Mañana/Tarde" labels |
+| Role    | Quasar class   | Size | Weight | Line Height | Usage                                                           |
+| ------- | -------------- | ---- | ------ | ----------- | --------------------------------------------------------------- |
+| Display | `text-h5`      | 24px | 400    | 1.2         | Admin page headers (matches HorariosPage `text-h5`)             |
+| Heading | `text-h6`      | 20px | 500    | 1.3         | Dialog title, card section titles, owner-view coach name        |
+| Body    | `text-body1`   | 16px | 400    | 1.5         | Comment text, list rows, dialog body copy                       |
+| Label   | `text-caption` | 12px | 400    | 1.4         | Slot meta, timestamps, helper text, "Turno Mañana/Tarde" labels |
 
 Weights used: 400 (regular) and 500/`text-weight-medium` (emphasis) — matches existing pages. Do not introduce additional weights.
 
@@ -84,16 +87,17 @@ Weights used: 400 (regular) and 500/`text-weight-medium` (emphasis) — matches 
 
 Brand palette is WARM, NO BLUE (Phase 39). Pull from SCSS variables — never hardcode hex in components; use Quasar `color="primary"` etc.
 
-| Role | Value | Usage |
-|------|-------|-------|
-| Dominant (60%) | `#f2ede5` Marble Cream (`$cream`) | Page background, dialog surface |
-| Secondary (30%) | `#7d5d42` Clay (`$secondary`) | Card/section accents, secondary chips, "Turno" labels |
-| Accent (10%) | `#96593a` Terracotta (`$primary`) | Filled stars, primary CTA buttons, active states |
-| Text | `#3d3732` Deep Charcoal (`$accent`) | Body/heading text |
-| Positive | `#3b7249` Warm green | "Puntuación enviada" success toast |
-| Negative | `#b34a4a` Warm red | Error toast / failed submit |
+| Role            | Value                               | Usage                                                 |
+| --------------- | ----------------------------------- | ----------------------------------------------------- |
+| Dominant (60%)  | `#f2ede5` Marble Cream (`$cream`)   | Page background, dialog surface                       |
+| Secondary (30%) | `#7d5d42` Clay (`$secondary`)       | Card/section accents, secondary chips, "Turno" labels |
+| Accent (10%)    | `#96593a` Terracotta (`$primary`)   | Filled stars, primary CTA buttons, active states      |
+| Text            | `#3d3732` Deep Charcoal (`$accent`) | Body/heading text                                     |
+| Positive        | `#3b7249` Warm green                | "Puntuación enviada" success toast                    |
+| Negative        | `#b34a4a` Warm red                  | Error toast / failed submit                           |
 
 Accent (Terracotta `$primary`) reserved for:
+
 - Filled stars in `QRating` (`color="primary"`, empty stars use the default grey/`color-half`).
 - Primary CTA button "Enviar puntuación" in the rating pop-up.
 - Active tab / selected-coach indicator in admin surfaces.
@@ -145,24 +149,24 @@ No destructive actions in this phase (see Copywriting). `$negative` is used only
 
 All copy in **Spanish** (app UI language). Voice: warm, direct, second person.
 
-| Element | Copy |
-|---------|------|
-| Pop-up title | "¿Cómo estuvo tu clase de {Actividad}?" |
-| Pop-up helper | "Tu opinión es anónima y nos ayuda a mejorar las clases." |
-| Comment field label | "Comentario (opcional)" |
-| Primary CTA | "Enviar puntuación" |
-| Skip / secondary action | "Ahora no" |
-| Submit success toast | "¡Gracias por tu puntuación!" |
-| Submit error state | "No pudimos guardar tu puntuación. Probá de nuevo en un momento." |
-| Roster — unassigned placeholder | "Sin profe asignado" |
-| Roster — assign success toast | "Profe asignado" |
-| Roster — save error | "No se pudo asignar el profe. Reintentá." |
-| Owner view — title | "Puntuaciones de profes" |
-| Owner view — empty state heading | "Todavía no hay puntuaciones" |
-| Owner view — empty state body | "Cuando los miembros puntúen sus clases presenciales, vas a ver acá el promedio por profe y los comentarios recientes." |
-| Owner view — average column label | "Promedio" |
-| Owner view — count label | "Puntuaciones" |
-| Roster — empty (no slots that day) | "Sin horarios en este día" (reuses existing HorariosPage copy) |
+| Element                            | Copy                                                                                                                    |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Pop-up title                       | "¿Cómo estuvo tu clase de {Actividad}?"                                                                                 |
+| Pop-up helper                      | "Tu opinión es anónima y nos ayuda a mejorar las clases."                                                               |
+| Comment field label                | "Comentario (opcional)"                                                                                                 |
+| Primary CTA                        | "Enviar puntuación"                                                                                                     |
+| Skip / secondary action            | "Ahora no"                                                                                                              |
+| Submit success toast               | "¡Gracias por tu puntuación!"                                                                                           |
+| Submit error state                 | "No pudimos guardar tu puntuación. Probá de nuevo en un momento."                                                       |
+| Roster — unassigned placeholder    | "Sin profe asignado"                                                                                                    |
+| Roster — assign success toast      | "Profe asignado"                                                                                                        |
+| Roster — save error                | "No se pudo asignar el profe. Reintentá."                                                                               |
+| Owner view — title                 | "Puntuaciones de profes"                                                                                                |
+| Owner view — empty state heading   | "Todavía no hay puntuaciones"                                                                                           |
+| Owner view — empty state body      | "Cuando los miembros puntúen sus clases presenciales, vas a ver acá el promedio por profe y los comentarios recientes." |
+| Owner view — average column label  | "Promedio"                                                                                                              |
+| Owner view — count label           | "Puntuaciones"                                                                                                          |
+| Roster — empty (no slots that day) | "Sin horarios en este día" (reuses existing HorariosPage copy)                                                          |
 
 Destructive actions: **none** in this phase. No deletes, no irreversible confirmations. (`$negative` used only for error toasts.)
 
@@ -170,18 +174,18 @@ Destructive actions: **none** in this phase. No deletes, no irreversible confirm
 
 ## Empty / Loading / Error States (per surface)
 
-| Surface | Empty | Loading | Error |
-|---------|-------|---------|-------|
-| Roster | No coaches in branch → `QSelect` shows "Sin profe asignado" only, no options | `QSpinner`/`QInnerLoading` consistent with HorariosPage `loadingGrid` | Toast "No se pudo asignar el profe. Reintentá." |
-| Rating pop-up | (N/A — only shown when there's a class to rate) | CTA `loading` while submitting | Keep dialog open + negative toast |
-| Owner view | "Todavía no hay puntuaciones" + body copy | `QInnerLoading` / skeleton matching admin tables | Standard error toast, retry on reload |
+| Surface       | Empty                                                                        | Loading                                                               | Error                                           |
+| ------------- | ---------------------------------------------------------------------------- | --------------------------------------------------------------------- | ----------------------------------------------- |
+| Roster        | No coaches in branch → `QSelect` shows "Sin profe asignado" only, no options | `QSpinner`/`QInnerLoading` consistent with HorariosPage `loadingGrid` | Toast "No se pudo asignar el profe. Reintentá." |
+| Rating pop-up | (N/A — only shown when there's a class to rate)                              | CTA `loading` while submitting                                        | Keep dialog open + negative toast               |
+| Owner view    | "Todavía no hay puntuaciones" + body copy                                    | `QInnerLoading` / skeleton matching admin tables                      | Standard error toast, retry on reload           |
 
 ---
 
 ## Registry Safety
 
-| Registry | Blocks Used | Safety Gate |
-|----------|-------------|-------------|
+| Registry               | Blocks Used                                                                           | Safety Gate                                                   |
+| ---------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
 | n/a (Quasar Framework) | `QRating`, `QDialog`, `QSelect`, `QInput`, `QTable`, `QList` (all first-party Quasar) | not applicable — no shadcn/third-party registry in this stack |
 
 No third-party UI registry declared or required.
