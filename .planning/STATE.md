@@ -4,13 +4,13 @@ milestone: v5.2
 milestone_name: Módulo Contable — Libro de Caja
 status: executing
 stopped_at: Completed 140-01-PLAN.md
-last_updated: "2026-06-24T20:36:19.953Z"
+last_updated: "2026-06-24T20:47:01.943Z"
 last_activity: 2026-06-24
 progress:
   total_phases: 13
   completed_phases: 8
   total_plans: 44
-  completed_plans: 41
+  completed_plans: 42
   percent: 62
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 ## Current Position
 
 Phase: 140 (Carga única que propaga + cobro suelto + rol profe) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-06-24
 Next: Phase 140 (carga única del profe) / 141 (reportes/UI). Phase 141 caja history DEBE LEFT JOIN users (filas NULL-member de movimientos/egresos).
@@ -257,6 +257,7 @@ _Updated after each plan completion_
 | Phase 139 P139-02 | 4min | 2 tasks | 2 files |
 | Phase 139 P139-03 | 7min | 3 tasks | 6 files |
 | Phase 140 P140-01 | ~9min | 3 tasks | 7 files |
+| Phase 140 P02 | 6min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -633,6 +634,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: [Phase 140-01] idempotency_key as nullable UNIQUE column on financial_transactions (not separate table) — D-09; MySQL allows unlimited NULLs so admin/historical rows never collide
 - [Phase ?]: [Phase 140-01] FINANCE_LOAD_ROLES = FINANCE_WRITE_ROLES + coach (load-only); coach stays out of VOID/ADJUSTMENT/READ — D-06/D-08
 - [Phase ?]: [Phase 140-01] ER_DUP_ENTRY return-existing handling deferred to Wave 2 (Pitfall 3: renewal tx rolls back before re-read)
+- [Phase ?]: Phase 140-02: coach load endpoints in a SEPARATE plugin with its own FINANCE_LOAD_ROLES guard (finance module's FINANCE_READ_ROLES hook excludes coach); idempotency dedup at endpoint layer (ER_DUP_ENTRY -> re-read existing on fresh connection, Pitfall 3)
 
 ### Pending Todos
 
@@ -665,7 +667,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-24T20:36:19.926Z
+Last session: 2026-06-24T20:46:43.724Z
 Stopped at: Completed 140-01-PLAN.md
 Resume file: None
 

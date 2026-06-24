@@ -3539,11 +3539,11 @@ Plans:
 3. La misma UI soporta cobros sueltos (pago sin membresía asociada) reusando el modelo existente sin schema nuevo. (CARGA-03)
 4. El rol profe existe en el admin con permisos acotados: puede cargar pagos (entran PENDIENTE), NO puede validar, observar, anular ni ver saldos de caja; un test de autorización confirma el bloqueo. (CARGA-04)
 
-**Plans:** 1/3 plans executed
+**Plans:** 2/3 plans executed
 Plans:
 
 - [x] 140-01-PLAN.md — Backend foundation: migration 0156 idempotency_key, FINANCE_LOAD_ROLES, recorderRole+idempotencyKey threading through renewSubscription, cobro-suelto plumbing
-- [ ] 140-02-PLAN.md — coach-load-routes.ts plugin (renew / cobro-suelto / autocompletar / mis-cargas) + endpoint idempotency dedup + auth/idempotency integration tests
+- [x] 140-02-PLAN.md — coach-load-routes.ts plugin (renew / cobro-suelto / autocompletar / mis-cargas) + endpoint idempotency dedup + auth/idempotency integration tests
 - [ ] 140-03-PLAN.md — CargarPagoPage.vue PoS screen + useFinanceLoadApi composable + route/nav per UI-SPEC (human-verify checkpoint)
       **UI hint:** yes
 
@@ -3581,7 +3581,7 @@ Plans:
 | 137. Máquina de estados de validación       | 3/3            | Complete    | 2026-06-24 |
 | 138. Entidad caja + saldos                  | 2/3            | In Progress |            |
 | 139. Movimientos inter-caja y egresos       | 3/3            | Complete    | 2026-06-24 |
-| 140. Carga única + cobro suelto + rol profe | 1/3            | In Progress |            |
+| 140. Carga única + cobro suelto + rol profe | 2/3            | In Progress |            |
 | 141. Reportes para la admin                 | 0/?            | Not started | -          |
 | 142. Config + transición Contabilium        | 0/?            | Not started | -          |
 

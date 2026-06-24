@@ -52,7 +52,7 @@
 
 - [ ] **CARGA-01**: El profe registra un pago desde una UI **dead-simple** en el admin en pocos toques (socio, monto, medio de pago, caja), sin re-tipear en ningún otro sistema.
 - [x] **CARGA-02**: Un solo registro del pago **propaga atómicamente** en una transacción DB (idempotente): activa/renueva la membresía + impacta el saldo de la caja correspondiente.
-- [ ] **CARGA-03**: El sistema soporta **cobros sueltos** (pago no atado a membresía) desde la misma UI.
+- [x] **CARGA-03**: El sistema soporta **cobros sueltos** (pago no atado a membresía) desde la misma UI.
 - [ ] **CARGA-04**: El rol **profe** existe en el admin con permisos acotados: puede cargar pagos (entran PENDIENTE), no puede validar ni anular.
 
 ### Cajas y saldos (CAJA)
@@ -122,7 +122,7 @@
 | MOV-04      | Phase 139 — Movimientos inter-caja y egresos   | Complete |
 | CARGA-01    | Phase 140 — Carga única + cobro suelto + profe | Pending  |
 | CARGA-02    | Phase 140 — Carga única + cobro suelto + profe | Complete |
-| CARGA-03    | Phase 140 — Carga única + cobro suelto + profe | Pending  |
+| CARGA-03    | Phase 140 — Carga única + cobro suelto + profe | Complete |
 | CARGA-04    | Phase 140 — Carga única + cobro suelto + profe | Pending  |
 | REP-01      | Phase 141 — Reportes para la admin             | Pending  |
 | REP-02      | Phase 141 — Reportes para la admin             | Pending  |
