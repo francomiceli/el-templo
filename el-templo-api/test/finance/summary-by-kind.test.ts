@@ -20,7 +20,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import {
   createTestApp,
@@ -30,6 +30,16 @@ import {
   registerUser,
 } from "../helpers";
 import * as schema from "../../src/db/schema";
+import { TransactionService } from "../../src/modules/finance/transaction-service";
+import { BalanceService } from "../../src/modules/finance/balance-service";
+import { CashRegisterService } from "../../src/modules/finance/cash-register-service";
+
+async function countBalances(app: FastifyInstance): Promise<number> {
+  const [row] = await app.db
+    .select({ c: sql<number>`COUNT(*)` })
+    .from(schema.balances);
+  return Number(row?.c ?? 0);
+}
 
 const FINANCE_URL = "/api/admin/finance";
 const TODAY = "2026-04-28";
@@ -220,15 +230,18 @@ async function seedUsersAndPlan(
 }
 
 interface InsertTxnArgs {
-  branchId: number;
-  memberId: number;
+  // Phase 139 (D-06): null for egresos/movimientos (sin sucursal/socio).
+  branchId: number | null;
+  memberId: number | null;
   recordedBy: number;
   kind:
     | "plan_charge"
     | "debt_settlement"
     | "refund"
     | "adjustment"
-    | "advance_payment";
+    | "advance_payment"
+    | "cash_transfer"
+    | "expense";
   direction: "inflow" | "outflow";
   amount: number;
   transactionDate?: string;
@@ -330,6 +343,9 @@ describe("Finance API — GET /transactions/summary revenueByKind (Phase 109)", 
       refund: 0,
       adjustment: 0,
       advance_payment: 50000,
+      // Phase 139: present + always 0 (excluded by getSummary conds).
+      cash_transfer: 0,
+      expense: 0,
     });
     // monthlyRevenue equals the sum across all inflow kinds.
     expect(body.monthlyRevenue).toBe(80000);
@@ -520,6 +536,9 @@ describe("Finance API — GET /transactions/summary revenueByKind (Phase 109)", 
       refund: 0,
       adjustment: 0,
       advance_payment: 0,
+      // Phase 139: cash_transfer/expense always 0 (excluded by getSummary conds).
+      cash_transfer: 0,
+      expense: 0,
     });
   });
 
@@ -563,7 +582,151 @@ describe("Finance API — GET /transactions/summary revenueByKind (Phase 109)", 
         "debt_settlement",
         "plan_charge",
         "refund",
+        // Phase 139: the 2 new kinds are present (always 0).
+        "cash_transfer",
+        "expense",
       ].sort(),
     );
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// Phase 139 — MUST-FIX A (getSummary) + MUST-FIX B (applyDelta) regressions
+// ───────────────────────────────────────────────────────────────────────────
+
+describe("Finance — Phase 139 movement/expense regressions", () => {
+  let app: FastifyInstance;
+  const ctx = {} as SeededContext;
+  let txService: TransactionService;
+
+  beforeAll(async () => {
+    app = await createTestApp();
+    const seeded = await seedFixtures(app);
+    Object.assign(ctx, seeded);
+    const balanceService = new BalanceService(app.db, app.log);
+    const cashRegisterService = new CashRegisterService(app.db, app.log);
+    txService = new TransactionService(
+      app.db,
+      app.log,
+      balanceService,
+      cashRegisterService,
+    );
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  beforeEach(async () => {
+    await cleanAllTestData(app);
+    const conn = await app.dbPool.getConnection();
+    try {
+      await conn.query("SET FOREIGN_KEY_CHECKS=0");
+      await conn.query("DELETE FROM `transaction_links`");
+      await conn.query("DELETE FROM `financial_transactions`");
+      await conn.query("DELETE FROM `balances`");
+      await conn.query("SET FOREIGN_KEY_CHECKS=1");
+    } finally {
+      conn.release();
+    }
+    await seedUsersAndPlan(app, ctx);
+  });
+
+  // MUST-FIX A + branch_id blast-radius regression: a NULL-branch cash_transfer
+  // INFLOW leg must NOT move monthlyRevenue, must NOT add a revenueByBranch entry,
+  // and must NOT add a 'cash_transfer' key to revenueByKind.
+  it("MOV-A: NULL-branch cash_transfer inflow leaves monthlyRevenue + revenueByBranch + revenueByKind untouched", async () => {
+    // Snapshot baseline: one real plan_charge so the summary isn't all-zero.
+    await insertTxn(app, {
+      branchId: ctx.arBranchId,
+      memberId: ctx.memberArId,
+      recordedBy: ctx.ownerId,
+      kind: "plan_charge",
+      direction: "inflow",
+      amount: 25000,
+    });
+
+    const before = (
+      await app.inject({
+        method: "GET",
+        url: `${FINANCE_URL}/transactions/summary`,
+        headers: { authorization: `Bearer ${ctx.ownerToken}` },
+      })
+    ).json();
+
+    // Insert a cash_transfer INFLOW leg with NULL branch + NULL member (the
+    // destino leg of a movimiento to a branch-less central/banco caja).
+    await insertTxn(app, {
+      branchId: null,
+      memberId: null,
+      recordedBy: ctx.ownerId,
+      kind: "cash_transfer",
+      direction: "inflow",
+      amount: 999999,
+      paymentMethod: "internal",
+    });
+
+    const after = (
+      await app.inject({
+        method: "GET",
+        url: `${FINANCE_URL}/transactions/summary`,
+        headers: { authorization: `Bearer ${ctx.ownerToken}` },
+      })
+    ).json();
+
+    // monthlyRevenue is unchanged — the caja-to-caja move is NOT revenue.
+    expect(after.monthlyRevenue).toBe(before.monthlyRevenue);
+    expect(after.monthlyRevenue).toBe(25000);
+    // revenueByKind gains NO cash_transfer money (key present but 0).
+    expect(after.revenueByKind.cash_transfer).toBe(0);
+    expect(after.revenueByKind.plan_charge).toBe(25000);
+    // revenueByBranch is byte-identical (no NULL-branch entry leaked in).
+    expect(after.revenueByBranch).toEqual(before.revenueByBranch);
+  });
+
+  // MUST-FIX B (D-07): creating a cash_transfer + an expense via create() must
+  // leave the `balances` table untouched (applyDelta no-op for link-less rows).
+  it("MOV-B: cash_transfer + expense via create() do NOT move the balances table", async () => {
+    const balancesBefore = await countBalances(app);
+
+    // cash_transfer outflow leg at a real branch (memberId null, links []).
+    await txService.create(
+      {
+        memberId: null,
+        kind: "cash_transfer",
+        direction: "outflow",
+        amount: 5000,
+        currency: "ARS",
+        paymentMethod: "internal",
+        transactionDate: TODAY,
+        effectiveDate: TODAY,
+        branchId: ctx.arBranchId,
+        cashRegisterId: null,
+        links: [],
+      },
+      ctx.ownerId,
+    );
+
+    // expense, branch-less caja (branchId null), links [].
+    await txService.create(
+      {
+        memberId: null,
+        kind: "expense",
+        direction: "outflow",
+        amount: 3000,
+        currency: "ARS",
+        paymentMethod: "internal",
+        transactionDate: TODAY,
+        effectiveDate: TODAY,
+        branchId: null,
+        cashRegisterId: null,
+        links: [],
+      },
+      ctx.ownerId,
+    );
+
+    const balancesAfter = await countBalances(app);
+    // applyDelta is a no-op for link-less rows — row count unchanged.
+    expect(balancesAfter).toBe(balancesBefore);
   });
 });

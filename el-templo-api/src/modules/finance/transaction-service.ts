@@ -21,6 +21,7 @@ import {
   gte,
   lte,
   inArray,
+  notInArray,
   type SQL,
 } from "drizzle-orm";
 import { alias } from "drizzle-orm/mysql-core";
@@ -1226,6 +1227,16 @@ export class TransactionService {
       // Firm-money axis (not voided AND validated). Phase 137 (VAL-05): a
       // PENDIENTE must NOT count as firm cash. Sourced from the canonical helper.
       ...firmMoneyConditions(),
+      // Phase 139 (MUST-FIX A / T-139-01): a cash_transfer INFLOW leg (destino of
+      // a movimiento) is direction='inflow' + validado + has a branchId, so it
+      // would MATCH and inflate monthlyRevenue + add a 'cash_transfer' key to the
+      // fixed revenueByKind record. Exclude both non-revenue kinds here so all 4
+      // summaries (monthlyRevenue/byMethod/byBranch/byKind) stay member-revenue-
+      // only. (expense is outflow → already excluded by direction; listed for intent.)
+      notInArray(schema.financialTransactions.kind, [
+        "cash_transfer",
+        "expense",
+      ]),
     ];
     if (filters.branchId !== undefined) {
       conds.push(eq(schema.financialTransactions.branchId, filters.branchId));
@@ -1296,11 +1307,21 @@ export class TransactionService {
       .where(and(...conds))
       .groupBy(schema.financialTransactions.branchId, schema.branches.name)
       .orderBy(desc(sql`SUM(${schema.financialTransactions.amount})`));
-    const revenueByBranch = branchRows.map((r) => ({
-      branchId: r.branchId,
-      branchName: r.branchName,
-      revenue: Number(r.total),
-    }));
+    // Phase 139: financial_transactions.branchId is nullable now, but the INNER
+    // JOIN branches above drops NULL-branch rows (a movimiento/egreso branch-less
+    // row never reaches here — also excluded by the kind filter in conds[]).
+    // flatMap-filter the null to keep branchId: number for the response shape.
+    const revenueByBranch = branchRows.flatMap((r) =>
+      r.branchId === null
+        ? []
+        : [
+            {
+              branchId: r.branchId,
+              branchName: r.branchName,
+              revenue: Number(r.total),
+            },
+          ],
+    );
 
     // 4) revenueByKind — GROUP BY kind (5 fixed keys; defaults 0). Same
     //    conds[] as the rest (direction='inflow' + voidedAt IS NULL +
@@ -1324,12 +1345,18 @@ export class TransactionService {
       )
       .where(and(...conds))
       .groupBy(schema.financialTransactions.kind);
+    // Phase 139: cash_transfer + expense are now in TransactionKind, so the
+    // fixed record needs all 7 keys. Both stay 0 by design — the conds[]
+    // exclusion (MUST-FIX A) guarantees no cash_transfer/expense row ever
+    // reaches this aggregation, mirroring how refund is always 0 here.
     const revenueByKind: RevenueByKind = {
       plan_charge: 0,
       debt_settlement: 0,
       refund: 0,
       adjustment: 0,
       advance_payment: 0,
+      cash_transfer: 0,
+      expense: 0,
     };
     for (const r of kindRows) {
       revenueByKind[r.kind] = Number(r.total);

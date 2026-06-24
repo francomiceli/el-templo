@@ -26,6 +26,9 @@ const KIND_ENUM = [
   "refund",
   "adjustment",
   "advance_payment",
+  // Phase 139: movimiento inter-caja + egreso (filterable for the caja history).
+  "cash_transfer",
+  "expense",
 ] as const;
 
 const DIRECTION_ENUM = ["inflow", "outflow"] as const;
@@ -340,6 +343,10 @@ export const transactionsSummarySchema = {
             refund: { type: "integer" },
             adjustment: { type: "integer" },
             advance_payment: { type: "integer" },
+            // Phase 139: the 2 new kinds. Always 0 (getSummary excludes them via
+            // MUST-FIX A) but present so the response shape matches RevenueByKind.
+            cash_transfer: { type: "integer" },
+            expense: { type: "integer" },
           },
         },
       },
