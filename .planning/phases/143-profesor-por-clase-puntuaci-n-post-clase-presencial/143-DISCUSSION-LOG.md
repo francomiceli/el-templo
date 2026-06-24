@@ -57,7 +57,7 @@ Opciones: Un solo profe por clase · Varios profes posibles
 **P: ¿Qué se le muestra al miembro del profe al puntuar?**
 Opciones: Nombre + foto · Solo nombre · (respuesta libre)
 → **Nada:** el alumno solo puntúa la clase de su última asistencia y nunca ve nada del profe. El pop-up se arma alrededor de la CLASE (actividad/día). (D-A3)
-_Nota: revierte el punto del ROADMAP pre-discuss que decía "la app muestra el profe"._
+*Nota: revierte el punto del ROADMAP pre-discuss que decía "la app muestra el profe".*
 
 ---
 
