@@ -16,11 +16,17 @@ import { FastifyPluginAsync } from "fastify";
 import { eq } from "drizzle-orm";
 import { Workbook } from "exceljs";
 import { TransactionService, BalanceService } from ".";
+import { SubscriptionService } from "../subscriptions/service";
+import { AuraService } from "../aura/service";
+import { EnrollmentService } from "../programs/enrollment-service";
 import { handleServiceError } from "../shared/error-handler";
 import {
   createTransactionSchema,
   exportTransactionsSchema,
   listTransactionsSchema,
+  observeTransactionSchema,
+  correctTransactionSchema,
+  validateTransactionSchema,
   transactionsSummarySchema,
   voidTransactionSchema,
 } from "./schemas";
@@ -52,6 +58,22 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
     fastify.log,
     balanceService,
   );
+
+  // Phase 137 (VAL-06): wire the SubscriptionService back-edge so the void
+  // endpoint's keepMembershipActive=false branch can cancel the linked sub
+  // atomically via _cancelSubscription(tx, ...). Mirrors the DI assembled in
+  // subscriptions/routes.ts; the back-edge is set post-construction to break
+  // the circular dependency (SubscriptionService → TransactionService).
+  const auraService = new AuraService(fastify.db);
+  const enrollmentService = new EnrollmentService(fastify.db, fastify.log);
+  const subscriptionService = new SubscriptionService(
+    fastify.db,
+    fastify.log,
+    auraService,
+    transactionService,
+    enrollmentService,
+  );
+  transactionService.setSubscriptionCanceller(subscriptionService);
 
   // -----------------------------------------------------------------
   // Module-level guard: authenticate + most-permissive role + country scope
@@ -141,8 +163,21 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           }
         }
 
+        // VAL-02 (T-137-04): derive validation_status SERVER-SIDE from the
+        // authenticated role — NEVER from the request body. coach → 'pendiente',
+        // everyone else → 'validado'. In phase 137 the create guard above is
+        // still FINANCE_WRITE_ROLES (coach NOT included → in practice always
+        // 'validado' via REST today); the derivation exists and is tested by
+        // simulating the role. Opening create to coach is phase 140 — do NOT
+        // add coach to FINANCE_WRITE_ROLES here.
+        const initialStatus = (["coach"] as readonly string[]).includes(
+          request.user.role,
+        )
+          ? "pendiente"
+          : "validado";
+
         const detail = await transactionService.create(
-          request.body,
+          { ...request.body, validationStatus: initialStatus },
           request.user.userId,
         );
         const affectedBalances = await balanceService.getRowsForTransaction(
@@ -171,7 +206,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
   // ===================================================================
   fastify.post<{
     Params: { id: number };
-    Body: { reason: string };
+    Body: { reason: string; keepMembershipActive?: boolean };
   }>(
     "/transactions/:id/void",
     { schema: voidTransactionSchema },
@@ -220,14 +255,133 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           }
         }
 
+        // VAL-06 / D-10: keepMembershipActive default true (sub untouched).
+        // When false, void() cancels the linked subscription atomically.
         const detail = await transactionService.void(
+          request.params.id,
+          request.user.userId,
+          {
+            reason: request.body.reason,
+            keepMembershipActive: request.body.keepMembershipActive ?? true,
+          },
+        );
+        return { transaction: detail };
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "void finance transaction");
+      }
+    },
+  );
+
+  // ===================================================================
+  // POST /transactions/:id/validate — VAL-03 (pendiente → validado)
+  // RBAC: FINANCE_VOID_ROLES (owner/admin/gestion — coach/recepcion excluded).
+  // ===================================================================
+  fastify.post<{ Params: { id: number } }>(
+    "/transactions/:id/validate",
+    { schema: validateTransactionSchema },
+    async (request, reply) => {
+      try {
+        if (
+          !(FINANCE_VOID_ROLES as readonly string[]).includes(request.user.role)
+        ) {
+          return reply.code(403).send({
+            error: "Acceso denegado",
+            message: "No tienes permiso para validar transacciones",
+          });
+        }
+        const detail = await transactionService.validate(
+          request.params.id,
+          request.user.userId,
+        );
+        return { transaction: detail };
+      } catch (err: unknown) {
+        handleServiceError(
+          err,
+          reply,
+          request.log,
+          "validate finance transaction",
+        );
+      }
+    },
+  );
+
+  // ===================================================================
+  // POST /transactions/:id/observe — VAL-04 / D-04 (pendiente → observado)
+  // RBAC: FINANCE_VOID_ROLES. Body: { reason } (mandatory for the trail).
+  // ===================================================================
+  fastify.post<{
+    Params: { id: number };
+    Body: { reason: string };
+  }>(
+    "/transactions/:id/observe",
+    { schema: observeTransactionSchema },
+    async (request, reply) => {
+      try {
+        if (
+          !(FINANCE_VOID_ROLES as readonly string[]).includes(request.user.role)
+        ) {
+          return reply.code(403).send({
+            error: "Acceso denegado",
+            message: "No tienes permiso para observar transacciones",
+          });
+        }
+        const detail = await transactionService.observe(
           request.params.id,
           request.user.userId,
           { reason: request.body.reason },
         );
         return { transaction: detail };
       } catch (err: unknown) {
-        handleServiceError(err, reply, request.log, "void finance transaction");
+        handleServiceError(
+          err,
+          reply,
+          request.log,
+          "observe finance transaction",
+        );
+      }
+    },
+  );
+
+  // ===================================================================
+  // POST /transactions/:id/correct — VAL-04 / D-05 (void+recreate atomic)
+  // RBAC: FINANCE_VOID_ROLES. Body: { correctedFields } — subset of
+  // amount/memberId/paymentMethod. Returns 201 with the NEW (validado) tx.
+  // ===================================================================
+  fastify.post<{
+    Params: { id: number };
+    Body: {
+      correctedFields: {
+        amount?: number;
+        memberId?: number;
+        paymentMethod?: PaymentMethod;
+      };
+    };
+  }>(
+    "/transactions/:id/correct",
+    { schema: correctTransactionSchema },
+    async (request, reply) => {
+      try {
+        if (
+          !(FINANCE_VOID_ROLES as readonly string[]).includes(request.user.role)
+        ) {
+          return reply.code(403).send({
+            error: "Acceso denegado",
+            message: "No tienes permiso para corregir transacciones",
+          });
+        }
+        const detail = await transactionService.correct(
+          request.params.id,
+          request.body.correctedFields,
+          request.user.userId,
+        );
+        return reply.code(201).send({ transaction: detail });
+      } catch (err: unknown) {
+        handleServiceError(
+          err,
+          reply,
+          request.log,
+          "correct finance transaction",
+        );
       }
     },
   );

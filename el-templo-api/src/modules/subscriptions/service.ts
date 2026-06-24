@@ -56,6 +56,7 @@ import type { PaymentMethod } from "../finance/types";
 import type { GoalPlanType } from "../goal-plans/types";
 import { populateBookings, cancelBookingsInRange } from "./booking-population";
 import { auditLog } from "../shared/audit-log";
+import type { AdminRole } from "../shared/permissions";
 import { EnrollmentService } from "../programs/enrollment-service";
 
 // ─── Charge flow taxonomy (Phase 107) ─────────────────────────────────────────
@@ -260,9 +261,24 @@ export class SubscriptionService {
       effectiveDate: string;
       adminId: number;
       flow: ChargeFlow;
+      /**
+       * Phase 137 (VAL-02 / T-137-14): role of whoever initiated the charge,
+       * used to derive the birth validation_status SERVER-SIDE. OPTIONAL and
+       * defaults to the admin path (→ 'validado'): the 4 internal callers of
+       * recordAssignmentCharge do NOT pass it, so an admin-initiated assignment
+       * NEVER births a PENDIENTE and those callers stay correct without edits.
+       * Only a coach-initiated charge (recorderRole==='coach') births
+       * 'pendiente' (phase 140 opens that path through the API).
+       */
+      recorderRole?: AdminRole;
     },
   ): Promise<void> {
     if (!this.transactionService) return;
+
+    // VAL-02 / T-137-14: derive birth status from the recorder's role. undefined
+    // (the 4 internal admin callers) → 'validado'. Only coach → 'pendiente'.
+    const validationStatus: "pendiente" | "validado" =
+      params.recorderRole === "coach" ? "pendiente" : "validado";
 
     const amountReceived = params.amountReceived ?? params.chargeBase;
 
@@ -289,6 +305,9 @@ export class SubscriptionService {
           effectiveDate: params.effectiveDate,
           branchId: params.branchId,
           notes: `Cobro al ${flowLabel} plan ${params.planName}`,
+          // VAL-02: server-side role→status. Defaults to 'validado' for the 4
+          // internal admin callers (recorderRole undefined).
+          validationStatus,
           links: [
             {
               targetKind: "subscription" as const,
@@ -2077,15 +2096,101 @@ export class SubscriptionService {
         );
       }
     }
+
+    // ── Atomic cancel (Phase 103 D-16, R6) ──
+    // Public entry point: open the db.transaction and delegate the mutations
+    // to _cancelSubscription(tx, ...) so the cancel + scheduled-successor
+    // cascade + phantom-debt collapse + enrollment teardown + status recompute
+    // + audit row are atomic. Phase 137: void(keepMembershipActive=false)
+    // reuses _cancelSubscription against ITS OWN tx (skipActiveChargesGuard).
+    const resolvedSubId = sub.id;
+    await this.db.transaction(async (tx) => {
+      await this._cancelSubscription(
+        tx,
+        userId,
+        actorId,
+        notes,
+        resolvedSubId,
+        {
+          skipActiveChargesGuard: false,
+        },
+      );
+    });
+
+    // Cancel all future bookings for fixed-plan subscriptions (external
+    // helper, not transaction-aware — Rule 4 / WARNING 9 keeps it on this.db).
+    if (this.bookingService) {
+      await this.bookingService.cancelFutureBookings(resolvedSubId);
+    }
+
+    const updated = await this.getSubscriptionById(resolvedSubId);
+    if (!updated) throw new Error("Failed to retrieve updated subscription");
+
+    this.log.info(
+      { userId, subscriptionId: resolvedSubId },
+      "Subscription cancelled",
+    );
+    return updated;
+  }
+
+  /**
+   * Phase 137 (VAL-06 / T-137-13): atomic subscription-cancel PRIMITIVE that
+   * operates against the CALLER's tx handle (mirror of _void(tx,...)). The
+   * public cancelSubscription() wraps it in this.db.transaction; void()
+   * invokes it inside the void's own tx so the charge soft-void + the sub
+   * cancellation commit/roll back together.
+   *
+   * `opts.skipActiveChargesGuard` (set ONLY by void()): bypass the
+   * SUB_HAS_ACTIVE_TRANSACTIONS guard, because the live charge that would
+   * otherwise block the cancel is already soft-voided in this same tx. For
+   * every existing caller it stays false → identical behaviour.
+   *
+   * Resolves the target sub via a tx-scoped select (no this.db reads inside
+   * the caller's tx) and enforces the active/paused/scheduled precondition.
+   *
+   * PUBLIC by necessity (not by intent): TransactionService.void() reaches it
+   * structurally via the SubscriptionCanceller interface, and TS private
+   * members can't satisfy a public interface member. The `_` prefix marks it
+   * INTERNAL — call cancelSubscription() (the public wrapper) from app code;
+   * only void()'s keepMembershipActive=false branch should invoke this directly.
+   */
+  async _cancelSubscription(
+    tx: TxHandle,
+    userId: number,
+    actorId: number,
+    notes: string | null | undefined,
+    subscriptionId: number,
+    opts: { skipActiveChargesGuard?: boolean },
+  ): Promise<void> {
+    // tx-scoped lookup of the target sub (id/userId/status) — avoids reading
+    // this.db inside the caller's transaction (which would be a separate
+    // connection and could deadlock against the in-flight tx).
+    const [subRow] = await tx
+      .select({
+        id: schema.subscriptions.id,
+        userId: schema.subscriptions.userId,
+        status: schema.subscriptions.status,
+      })
+      .from(schema.subscriptions)
+      .where(eq(schema.subscriptions.id, subscriptionId))
+      .limit(1);
+    if (!subRow || subRow.userId !== userId) {
+      throw new NotFoundError(
+        "No se encontro la suscripcion indicada para este alumno",
+      );
+    }
     if (
-      sub.status !== "active" &&
-      sub.status !== "paused" &&
-      sub.status !== "scheduled"
+      subRow.status !== "active" &&
+      subRow.status !== "paused" &&
+      subRow.status !== "scheduled"
     ) {
       throw new BadRequestError(
         "Solo se pueden cancelar suscripciones activas, pausadas o programadas",
       );
     }
+
+    const sub = { id: subRow.id, status: subRow.status };
+    const prevStatus = sub.status;
 
     const updateData: Partial<typeof schema.subscriptions.$inferInsert> = {
       status: "cancelled",
@@ -2095,17 +2200,13 @@ export class SubscriptionService {
       updateData.notes = notes;
     }
 
-    // ── Atomic cancel (Phase 103 D-16, R6) ──
-    // Cancel the active sub + any scheduled successor + recompute user
-    // status in a single transaction. recomputeUserStatus flips user to
-    // 'inactivo' if no other active/paused sub remains (D-04: never back to
-    // freemium/prueba — paying history is preserved).
-    const prevStatus = sub.status;
-    await this.db.transaction(async (tx) => {
-      // REQ-3 (Phase 111 D-09): block cancellation if there are active
-      // (non-voided) charge transactions linked to this sub. Forces the
-      // admin to anular each charge first via Detalle Financiero (which
-      // calls TransactionService.void → soft-void + balance rollback).
+    // REQ-3 (Phase 111 D-09): block cancellation if there are active
+    // (non-voided) charge transactions linked to this sub. Forces the
+    // admin to anular each charge first via Detalle Financiero (which
+    // calls TransactionService.void → soft-void + balance rollback).
+    // Phase 137: void() skips this guard (skipActiveChargesGuard) because the
+    // charge that would match here is already soft-voided in this same tx.
+    if (!opts.skipActiveChargesGuard) {
       const activeLinks = await tx
         .select({
           txId: schema.financialTransactions.id,
@@ -2146,110 +2247,100 @@ export class SubscriptionService {
           }),
         );
       }
-
-      await tx
-        .update(schema.subscriptions)
-        .set(updateData)
-        .where(eq(schema.subscriptions.id, sub.id));
-
-      // Cascade-cancel scheduled successors ONLY when killing the current
-      // membership (active/paused). When the admin cancels a scheduled sub
-      // directly (e.g., reverting a wrong renewal — caso Pomilio), the
-      // current membership must stay intact, so we skip the cascade.
-      let scheduledSuccessors: { id: number }[] = [];
-      if (sub.status !== "scheduled") {
-        scheduledSuccessors = await tx
-          .select({ id: schema.subscriptions.id })
-          .from(schema.subscriptions)
-          .where(
-            and(
-              eq(schema.subscriptions.userId, userId),
-              eq(schema.subscriptions.status, "scheduled"),
-            ),
-          );
-        await tx
-          .update(schema.subscriptions)
-          .set({
-            status: "cancelled",
-            cancelledAt: new Date(),
-            notes: "Cancelado por cancelacion de suscripcion activa",
-          })
-          .where(
-            and(
-              eq(schema.subscriptions.userId, userId),
-              eq(schema.subscriptions.status, "scheduled"),
-            ),
-          );
-      }
-
-      // Forgive phantom debt: when a sub was assigned without a paid charge,
-      // recordAssignmentCharge seeds a positive balance row so the unpaid
-      // amount surfaces in Reporte Deudas. On cancel that obligation is gone,
-      // so any positive balance for this sub (and its scheduled successors)
-      // must collapse to 0 — otherwise Finanzas keeps trying to settle it
-      // forever (caso Jacqueline/Adriana/Lucas/Vita: 1.13M ARS de deuda
-      // fantasma post-cancel). Only positives are zeroed: a negative balance
-      // (saldo a favor) survives so the member can still apply it elsewhere.
-      // Voided-tx deltas already rolled back via BalanceService.applyDelta,
-      // so the balance row reflects the residual ledger state — anything
-      // still > 0 here is the phantom seed.
-      const targetSubIds = [sub.id, ...scheduledSuccessors.map((s) => s.id)];
-      await tx
-        .update(schema.balances)
-        .set({ amount: 0, lastRecomputedAt: new Date() })
-        .where(
-          and(
-            eq(schema.balances.memberId, userId),
-            eq(schema.balances.targetKind, "subscription"),
-            inArray(schema.balances.targetId, targetSubIds),
-            sql`${schema.balances.amount} > 0`,
-          ),
-        );
-
-      // Phase 112-02: enrollment teardown is now driven by subscription_id
-      // via EnrollmentService.tearDownForSubscription, generalized across
-      // all sources (plan_linked, plan_bundle, admin_addon). Replaces the
-      // legacy tearDownBundleEnrollments + tearDownLinkedProgramEnrollment
-      // pair with a single call. Runs inside the same tx so cancellation +
-      // enrollment teardown + pointer cleanup are atomic.
-      await this.requireEnrollmentService().tearDownForSubscription(sub.id, tx);
-
-      await this.recomputeUserStatus(userId, tx);
-
-      // REQ-7 (Phase 111 D-13): subscription_cancelled forensic audit row.
-      // Atomic with the cancel — if any of the writes above rolls back,
-      // this row vanishes too (helper requires tx handle, never opens its
-      // own transaction).
-      await auditLog.write(tx, {
-        actorId,
-        action: "subscription_cancelled",
-        targetKind: "subscription",
-        targetId: sub.id,
-        payload: {
-          subId: sub.id,
-          prevStatus,
-          newStatus: "cancelled",
-          cancelledAt: new Date().toISOString(),
-          notes: notes ?? null,
-          // REQ-3 already blocked when active tx exist, so by definition the
-          // successful cancel path has no live charges against this sub.
-          hasActiveTx: false,
-        },
-        reason: notes ?? null,
-      });
-    });
-
-    // Cancel all future bookings for fixed-plan subscriptions (external
-    // helper, not transaction-aware — Rule 4 / WARNING 9 keeps it on this.db).
-    if (this.bookingService) {
-      await this.bookingService.cancelFutureBookings(sub.id);
     }
 
-    const updated = await this.getSubscriptionById(sub.id);
-    if (!updated) throw new Error("Failed to retrieve updated subscription");
+    await tx
+      .update(schema.subscriptions)
+      .set(updateData)
+      .where(eq(schema.subscriptions.id, sub.id));
 
-    this.log.info({ userId, subscriptionId: sub.id }, "Subscription cancelled");
-    return updated;
+    // Cascade-cancel scheduled successors ONLY when killing the current
+    // membership (active/paused). When the admin cancels a scheduled sub
+    // directly (e.g., reverting a wrong renewal — caso Pomilio), the
+    // current membership must stay intact, so we skip the cascade.
+    let scheduledSuccessors: { id: number }[] = [];
+    if (sub.status !== "scheduled") {
+      scheduledSuccessors = await tx
+        .select({ id: schema.subscriptions.id })
+        .from(schema.subscriptions)
+        .where(
+          and(
+            eq(schema.subscriptions.userId, userId),
+            eq(schema.subscriptions.status, "scheduled"),
+          ),
+        );
+      await tx
+        .update(schema.subscriptions)
+        .set({
+          status: "cancelled",
+          cancelledAt: new Date(),
+          notes: "Cancelado por cancelacion de suscripcion activa",
+        })
+        .where(
+          and(
+            eq(schema.subscriptions.userId, userId),
+            eq(schema.subscriptions.status, "scheduled"),
+          ),
+        );
+    }
+
+    // Forgive phantom debt: when a sub was assigned without a paid charge,
+    // recordAssignmentCharge seeds a positive balance row so the unpaid
+    // amount surfaces in Reporte Deudas. On cancel that obligation is gone,
+    // so any positive balance for this sub (and its scheduled successors)
+    // must collapse to 0 — otherwise Finanzas keeps trying to settle it
+    // forever (caso Jacqueline/Adriana/Lucas/Vita: 1.13M ARS de deuda
+    // fantasma post-cancel). Only positives are zeroed: a negative balance
+    // (saldo a favor) survives so the member can still apply it elsewhere.
+    // Voided-tx deltas already rolled back via BalanceService.applyDelta,
+    // so the balance row reflects the residual ledger state — anything
+    // still > 0 here is the phantom seed.
+    const targetSubIds = [sub.id, ...scheduledSuccessors.map((s) => s.id)];
+    await tx
+      .update(schema.balances)
+      .set({ amount: 0, lastRecomputedAt: new Date() })
+      .where(
+        and(
+          eq(schema.balances.memberId, userId),
+          eq(schema.balances.targetKind, "subscription"),
+          inArray(schema.balances.targetId, targetSubIds),
+          sql`${schema.balances.amount} > 0`,
+        ),
+      );
+
+    // Phase 112-02: enrollment teardown is now driven by subscription_id
+    // via EnrollmentService.tearDownForSubscription, generalized across
+    // all sources (plan_linked, plan_bundle, admin_addon). Replaces the
+    // legacy tearDownBundleEnrollments + tearDownLinkedProgramEnrollment
+    // pair with a single call. Runs inside the same tx so cancellation +
+    // enrollment teardown + pointer cleanup are atomic.
+    await this.requireEnrollmentService().tearDownForSubscription(sub.id, tx);
+
+    await this.recomputeUserStatus(userId, tx);
+
+    // REQ-7 (Phase 111 D-13): subscription_cancelled forensic audit row.
+    // Atomic with the cancel — if any of the writes above rolls back,
+    // this row vanishes too (helper requires tx handle, never opens its
+    // own transaction).
+    await auditLog.write(tx, {
+      actorId,
+      action: "subscription_cancelled",
+      targetKind: "subscription",
+      targetId: sub.id,
+      payload: {
+        subId: sub.id,
+        prevStatus,
+        newStatus: "cancelled",
+        cancelledAt: new Date().toISOString(),
+        notes: notes ?? null,
+        // REQ-3 already blocked when active tx exist (unless skipped by
+        // void()'s soft-void path), so by definition the successful cancel
+        // path has no live charges against this sub.
+        hasActiveTx: false,
+        skipActiveChargesGuard: opts.skipActiveChargesGuard ?? false,
+      },
+      reason: notes ?? null,
+    });
   }
 
   /**

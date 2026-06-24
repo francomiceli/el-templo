@@ -108,7 +108,92 @@ export const voidTransactionSchema = {
   body: {
     type: "object",
     required: ["reason"],
+    properties: {
+      reason: { type: "string", minLength: 1, maxLength: 1000 },
+      // Phase 137 (VAL-06 / D-10): when false, void() cancels the linked
+      // subscription atomically. Default true (sub untouched).
+      keepMembershipActive: { type: "boolean" },
+    },
+    additionalProperties: false,
+  },
+  response: {
+    400: errorSchema,
+    401: errorSchema,
+    403: errorSchema,
+    404: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+// -- POST /transactions/:id/validate — Phase 137 VAL-03 --------------------
+
+export const validateTransactionSchema = {
+  params: {
+    type: "object",
+    required: ["id"],
+    properties: { id: { type: "integer", minimum: 1 } },
+  },
+  response: {
+    400: errorSchema,
+    401: errorSchema,
+    403: errorSchema,
+    404: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+// -- POST /transactions/:id/observe — Phase 137 VAL-04 / D-04 --------------
+
+export const observeTransactionSchema = {
+  params: {
+    type: "object",
+    required: ["id"],
+    properties: { id: { type: "integer", minimum: 1 } },
+  },
+  body: {
+    type: "object",
+    required: ["reason"],
     properties: { reason: { type: "string", minLength: 1, maxLength: 1000 } },
+    additionalProperties: false,
+  },
+  response: {
+    400: errorSchema,
+    401: errorSchema,
+    403: errorSchema,
+    404: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+// -- POST /transactions/:id/correct — Phase 137 VAL-04 / D-05 --------------
+
+/**
+ * D-05: correct() = anular + recrear. `correctedFields` is a subset of
+ * amount/memberId/paymentMethod (the typical mis-load errors); the rest is
+ * copied from the original. At least one field is required so a correction
+ * actually changes something (validated by minProperties: 1).
+ */
+export const correctTransactionSchema = {
+  params: {
+    type: "object",
+    required: ["id"],
+    properties: { id: { type: "integer", minimum: 1 } },
+  },
+  body: {
+    type: "object",
+    required: ["correctedFields"],
+    properties: {
+      correctedFields: {
+        type: "object",
+        minProperties: 1,
+        properties: {
+          amount: { type: "integer", minimum: 0 },
+          memberId: { type: "integer", minimum: 1 },
+          paymentMethod: { type: "string", enum: PAYMENT_METHOD_ENUM },
+        },
+        additionalProperties: false,
+      },
+    },
     additionalProperties: false,
   },
   response: {
