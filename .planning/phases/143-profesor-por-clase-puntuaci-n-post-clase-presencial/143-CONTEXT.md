@@ -71,7 +71,7 @@ El modelo central tiene tres piezas, deliberadamente desacopladas:
 - Forma de persistir la puntuación (p.ej. `coach_ratings` con `coachId`, `memberId`, `scheduleId`/`branchId`+`activityId`, `sessionDate`, `stars`, `comment`, `createdAt`).
 - Cómo se determina "clase presencial completada" para disparar el pop-up (probable: registro en `attendance` con `status` de asistido + `source` qr/manual para esa `sessionDate`).
 - Mapeo de la atribución: cómo se resuelve, en el momento de puntuar, el `coachId` del roster a partir de `(branchId, sessionDate→dayOfWeek, turno derivado de startTime)`.
-</decisions>
+  </decisions>
 
 <canonical_refs>
 
