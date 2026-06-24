@@ -271,6 +271,13 @@ export class SubscriptionService {
        * 'pendiente' (phase 140 opens that path through the API).
        */
       recorderRole?: AdminRole;
+      /**
+       * Phase 140 (CARGA-02 / D-09): client-generated opaque idempotency ticket
+       * key, forwarded into transactionService.create so a coach renewal
+       * double-tap/retry is rejected by the nullable UNIQUE index. OPTIONAL and
+       * undefined for the 4 internal admin callers (NULL persisted → no dedup).
+       */
+      idempotencyKey?: string;
     },
   ): Promise<void> {
     if (!this.transactionService) return;
@@ -308,6 +315,9 @@ export class SubscriptionService {
           // VAL-02: server-side role→status. Defaults to 'validado' for the 4
           // internal admin callers (recorderRole undefined).
           validationStatus,
+          // Phase 140 (D-09): forward the idempotency ticket key (undefined for
+          // the admin callers → NULL persisted, no dedup).
+          idempotencyKey: params.idempotencyKey,
           links: [
             {
               targetKind: "subscription" as const,
@@ -3472,6 +3482,11 @@ export class SubscriptionService {
         effectiveDate: today,
         adminId,
         flow: "renew",
+        // Phase 140 (Pitfall 1): forward recorderRole so a coach renewal is born
+        // PENDIENTE (server-side role→status); undefined on the admin path keeps
+        // 'validado'. idempotencyKey forwarded for double-tap dedup (D-09).
+        recorderRole: input.recorderRole,
+        idempotencyKey: input.idempotencyKey,
       });
 
       return { newSubscriptionId: subId };

@@ -6,6 +6,7 @@
  */
 
 import type { PaymentMethod } from "../finance/types";
+import type { AdminRole } from "../shared/permissions";
 
 // ─── Enum Union Types ────────────────────────────────────────────────────────
 
@@ -272,6 +273,20 @@ export interface RenewSubscriptionInput {
   priceOverrideAmount?: number;
   /** Razón del precio personalizado. Requerida si hay `priceOverrideAmount`. */
   priceOverrideReason?: string;
+  /**
+   * Phase 140 (Pitfall 1 / CARGA-02): role of whoever initiated the renewal,
+   * forwarded into recordAssignmentCharge so the birth validation_status is
+   * derived SERVER-SIDE from the role (coach → 'pendiente', everyone else →
+   * 'validado'). NEVER read from the raw body — Wave 2 routes set it from
+   * `request.user.role`. Omitted on the admin path → 'validado' (unchanged).
+   */
+  recorderRole?: AdminRole;
+  /**
+   * Phase 140 (CARGA-02 / D-09): client-generated opaque ticket key for an
+   * idempotent coach renewal, forwarded into the charge so a double-tap/retry
+   * cannot create two renewal charges (nullable UNIQUE at the DB).
+   */
+  idempotencyKey?: string;
 }
 
 // ─── Plan Change / Proration Types ─────────────────────────────────────────
