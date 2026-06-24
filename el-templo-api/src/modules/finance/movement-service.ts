@@ -23,13 +23,12 @@
 // NO toca los `balances` del socio: cash_transfer/expense/adjustment van con
 // links: [] y applyDelta los ignora (Plan 01 MUST-FIX B / D-07).
 
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { BadRequestError } from "../shared/errors";
 import { auditLog } from "../shared/audit-log";
-import type { TxHandle } from "./balance-service";
 import type { CashRegisterService } from "./cash-register-service";
 import type { TransactionService } from "./transaction-service";
 import type {
@@ -303,6 +302,84 @@ export class MovementService {
     );
 
     return { expenseTxId: expense.id };
+  }
+
+  /**
+   * Void an inter-caja movement (MOV-04 / D-08): anula AMBAS patas (+ el ajuste
+   * de reconciliación si lo hubo) ATÓMICAMENTE vía TransactionService.voidPair,
+   * en una db.transaction. Tras el void: ambas patas con voided_at, y los saldos
+   * de las cajas vuelven a sus valores pre-movimiento (Pitfall 3 — el net-0
+   * nunca se rompe a medias).
+   *
+   * `movementRowId` es CUALQUIERA de las 2 patas (outflow u inflow): se descubre
+   * la pata hermana vía transaction_links (target_kind='transaction') + cualquier
+   * fila kind='adjustment' linkeada a la pata outflow. Se de-dupea el set de ids.
+   *
+   * @throws BadRequestError on empty reason, unknown row, or already-voided row
+   *         (voidPair/_void enforce los guards; validamos reason temprano).
+   */
+  async voidMovement(
+    movementRowId: number,
+    voidedBy: number,
+    reason: string,
+  ): Promise<void> {
+    if (!reason || reason.trim().length === 0) {
+      throw new BadRequestError("Razon de anulacion requerida");
+    }
+
+    // Collect every related row id: the target (movementRowId), its sibling leg,
+    // and any adjustment row linked to it — via transaction_links rows where this
+    // row is EITHER the source (transaction_id) or the target (target_id), so we
+    // catch both the both-ways leg link and the adjustment→outflow link
+    // regardless of which leg the caller passed.
+    const asSource = await this.db
+      .select({ targetId: schema.transactionLinks.targetId })
+      .from(schema.transactionLinks)
+      .where(
+        and(
+          eq(schema.transactionLinks.transactionId, movementRowId),
+          eq(schema.transactionLinks.targetKind, "transaction"),
+        ),
+      );
+    const asTarget = await this.db
+      .select({ transactionId: schema.transactionLinks.transactionId })
+      .from(schema.transactionLinks)
+      .where(
+        and(
+          eq(schema.transactionLinks.targetId, movementRowId),
+          eq(schema.transactionLinks.targetKind, "transaction"),
+        ),
+      );
+
+    const ids = new Set<number>([movementRowId]);
+    for (const r of asSource) ids.add(r.targetId);
+    for (const r of asTarget) ids.add(r.transactionId);
+
+    await this.txnService.voidPair([...ids], voidedBy, { reason });
+
+    this.log.info(
+      { movementRowId, voidedIds: [...ids], voidedBy, reason },
+      "Inter-caja movement voided (pair + adjustment)",
+    );
+  }
+
+  /**
+   * Void an expense (MOV-04 / D-08): un egreso es 1 sola fila, así que el void
+   * es simple (no tiene pata hermana). Reusa voidPair([id]) para un único camino
+   * de anulación. El void revierte su efecto en el saldo de la caja.
+   *
+   * @throws BadRequestError on empty reason / already-voided; NotFoundError if absent.
+   */
+  async voidExpense(
+    expenseRowId: number,
+    voidedBy: number,
+    reason: string,
+  ): Promise<void> {
+    if (!reason || reason.trim().length === 0) {
+      throw new BadRequestError("Razon de anulacion requerida");
+    }
+    await this.txnService.voidPair([expenseRowId], voidedBy, { reason });
+    this.log.info({ expenseRowId, voidedBy, reason }, "Expense voided");
   }
 
   /** YYYY-MM-DD today (local). Movimientos/egresos nacen con fecha de hoy. */

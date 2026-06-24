@@ -521,6 +521,93 @@ export const exportTransactionsSchema = {
   },
 } as const;
 
+// -- Phase 139: movimientos inter-caja + egresos ---------------------------
+
+/**
+ * POST /movements — registrar un movimiento inter-caja (MOV-01/MOV-02).
+ * Body: origenCajaId + destinoCajaId + amount (> 0) + countedAmount opcional
+ * (reconciliación física, D-04) + notes opcional. La moneda se deriva de las
+ * cajas (guard same-currency en el servicio); NUNCA del body. El rol se valida
+ * server-side (FINANCE_VOID_ROLES) — nunca del body (D-03 / T-139-06).
+ */
+export const registerMovementSchema = {
+  body: {
+    type: "object",
+    required: ["origenCajaId", "destinoCajaId", "amount"],
+    properties: {
+      origenCajaId: { type: "integer", minimum: 1 },
+      destinoCajaId: { type: "integer", minimum: 1 },
+      amount: { type: "integer", minimum: 1 },
+      // D-04: conteo físico de la caja origen al momento. Cero es válido (caja
+      // vacía contada). Omitido = sin ajuste de reconciliación.
+      countedAmount: { type: "integer", minimum: 0 },
+      notes: { type: ["string", "null"], maxLength: 2000 },
+    },
+    additionalProperties: false,
+  },
+  response: {
+    400: errorSchema,
+    401: errorSchema,
+    403: errorSchema,
+    404: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+/**
+ * POST /expenses — registrar un egreso (MOV-03 / D-05). Body: cajaId + amount
+ * (> 0) + notes opcional. Sin categoría en v1. RBAC server-side.
+ */
+export const registerExpenseSchema = {
+  body: {
+    type: "object",
+    required: ["cajaId", "amount"],
+    properties: {
+      cajaId: { type: "integer", minimum: 1 },
+      amount: { type: "integer", minimum: 1 },
+      notes: { type: ["string", "null"], maxLength: 2000 },
+    },
+    additionalProperties: false,
+  },
+  response: {
+    400: errorSchema,
+    401: errorSchema,
+    403: errorSchema,
+    404: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+/**
+ * POST /movements/:id/void + POST /expenses/:id/void — anular (MOV-04 / D-08).
+ * Params: id (cualquier pata del movimiento, o la fila del egreso). Body: reason
+ * obligatorio. RBAC server-side (FINANCE_VOID_ROLES). Mirror de
+ * voidTransactionSchema sin keepMembershipActive (movimientos/egresos no tienen
+ * suscripción).
+ */
+export const voidMovementSchema = {
+  params: {
+    type: "object",
+    required: ["id"],
+    properties: { id: { type: "integer", minimum: 1 } },
+  },
+  body: {
+    type: "object",
+    required: ["reason"],
+    properties: {
+      reason: { type: "string", minLength: 1, maxLength: 1000 },
+    },
+    additionalProperties: false,
+  },
+  response: {
+    400: errorSchema,
+    401: errorSchema,
+    403: errorSchema,
+    404: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
 // -- Re-exported helper fragments for Plan 03 (reads) ----------------------
 
 export const SHARED_ERROR_SCHEMA = errorSchema;

@@ -2,6 +2,7 @@
 export { TransactionService } from "./transaction-service";
 export { BalanceService } from "./balance-service";
 export { CashRegisterService } from "./cash-register-service";
+export { MovementService } from "./movement-service";
 export { financeRoutes } from "./routes";
 export type {
   CreateTransactionInput,
@@ -25,4 +26,8 @@ export type {
   // Phase 106 Plan 03 — finance summary (D-16)
   FinanceSummary,
   FinanceSummaryFilters,
+  // Phase 139 — movimientos inter-caja + egresos
+  RegisterMovementInput,
+  RegisterExpenseInput,
+  MovementDetail,
 } from "./types";

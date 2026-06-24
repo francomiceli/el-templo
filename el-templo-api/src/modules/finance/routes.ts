@@ -15,7 +15,12 @@
 import { FastifyPluginAsync } from "fastify";
 import { eq } from "drizzle-orm";
 import { Workbook } from "exceljs";
-import { TransactionService, BalanceService, CashRegisterService } from ".";
+import {
+  TransactionService,
+  BalanceService,
+  CashRegisterService,
+  MovementService,
+} from ".";
 import { SubscriptionService } from "../subscriptions/service";
 import { AuraService } from "../aura/service";
 import { EnrollmentService } from "../programs/enrollment-service";
@@ -29,6 +34,9 @@ import {
   validateTransactionSchema,
   transactionsSummarySchema,
   voidTransactionSchema,
+  registerMovementSchema,
+  registerExpenseSchema,
+  voidMovementSchema,
 } from "./schemas";
 import {
   FINANCE_READ_ROLES,
@@ -49,6 +57,8 @@ import type {
   PaymentMethod,
   TransactionKind,
   TransactionListFilters,
+  RegisterMovementInput,
+  RegisterExpenseInput,
 } from "./types";
 
 export const financeRoutes: FastifyPluginAsync = async (fastify) => {
@@ -76,6 +86,93 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
     enrollmentService,
   );
   transactionService.setSubscriptionCanceller(subscriptionService);
+
+  // Phase 139: MovementService composes the 137/138 primitives (reuses the
+  // already-built transactionService + cashRegisterService instances).
+  const movementService = new MovementService(
+    fastify.db,
+    fastify.log,
+    transactionService,
+    cashRegisterService,
+  );
+
+  // Phase 139: resolve the country a caja belongs to via its branch. Returns
+  // null for a branch-less caja (central efectivo / banco ARS/EUR), which is
+  // country-agnostic → owner-only access. Used by the movement/expense route
+  // country-scope guards (T-139-07). Returns undefined when the caja does not
+  // exist so the caller can 404 without leaking existence.
+  const resolveCajaCountry = async (
+    cajaId: number,
+  ): Promise<{ country: string | null } | undefined> => {
+    const [row] = await fastify.db
+      .select({
+        branchId: schema.cashRegisters.branchId,
+        branchCountry: schema.branches.country,
+      })
+      .from(schema.cashRegisters)
+      .leftJoin(
+        schema.branches,
+        eq(schema.branches.id, schema.cashRegisters.branchId),
+      )
+      .where(eq(schema.cashRegisters.id, cajaId))
+      .limit(1);
+    if (!row) return undefined;
+    // branch-less caja → country-agnostic (null). Otherwise the branch country.
+    return { country: row.branchId === null ? null : row.branchCountry };
+  };
+
+  // Phase 139: enforce non-owner country scope on a caja. Returns an error
+  // tuple { code, message } to send (404 for unknown/cross-country to avoid
+  // existence leak — mirror of routes.ts:253-268), or null when access is OK.
+  // A branch-less caja is owner-only (non-owner gets 404).
+  const enforceCajaScope = async (
+    cajaId: number,
+    isOwner: boolean,
+    scopeCountry: string | null,
+  ): Promise<{ code: number; message: string } | null> => {
+    if (isOwner) return null;
+    const resolved = await resolveCajaCountry(cajaId);
+    if (!resolved) {
+      return { code: 404, message: "Caja no encontrada" };
+    }
+    // branch-less caja or country mismatch → 404 (no existence leak).
+    if (resolved.country === null || resolved.country !== scopeCountry) {
+      return { code: 404, message: "Caja no encontrada" };
+    }
+    return null;
+  };
+
+  // Phase 139: enforce non-owner country scope on a ledger ROW (a movement leg
+  // or an expense), resolved via that row's cash_register_id → caja → branch.
+  // Used by the void routes. 404 for unknown row / branch-less caja /
+  // cross-country (no existence leak — mirror of routes.ts void precedent).
+  const enforceRowScope = async (
+    rowId: number,
+    isOwner: boolean,
+    scopeCountry: string | null,
+  ): Promise<{ code: number; message: string } | null> => {
+    if (isOwner) return null;
+    const [row] = await fastify.db
+      .select({
+        cashRegisterId: schema.financialTransactions.cashRegisterId,
+      })
+      .from(schema.financialTransactions)
+      .where(eq(schema.financialTransactions.id, rowId))
+      .limit(1);
+    if (!row || row.cashRegisterId === null) {
+      return { code: 404, message: "Transaccion no encontrada" };
+    }
+    const scopeErr = await enforceCajaScope(
+      row.cashRegisterId,
+      isOwner,
+      scopeCountry,
+    );
+    // Re-map the caja "not found" message to the transaction wording.
+    if (scopeErr) {
+      return { code: 404, message: "Transaccion no encontrada" };
+    }
+    return null;
+  };
 
   // -----------------------------------------------------------------
   // Module-level guard: authenticate + most-permissive role + country scope
@@ -395,6 +492,187 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           request.log,
           "correct finance transaction",
         );
+      }
+    },
+  );
+
+  // ===================================================================
+  // Phase 139: POST /movements — registrar movimiento inter-caja (MOV-01/02)
+  // RBAC: FINANCE_VOID_ROLES server-side (admin-only, T-139-06). Country scope
+  // via origen + destino cajas (T-139-07). The same-currency guard + 2-row
+  // asiento + reconciliation live in MovementService.registerMovement.
+  // ===================================================================
+  fastify.post<{ Body: RegisterMovementInput }>(
+    "/movements",
+    { schema: registerMovementSchema },
+    async (request, reply) => {
+      try {
+        if (
+          !(FINANCE_VOID_ROLES as readonly string[]).includes(request.user.role)
+        ) {
+          return reply.code(403).send({
+            error: "Acceso denegado",
+            message: "No tienes permiso para registrar movimientos",
+          });
+        }
+
+        // T-139-07: non-owner country scope on BOTH cajas (branch-less = 404).
+        for (const cajaId of [
+          request.body.origenCajaId,
+          request.body.destinoCajaId,
+        ]) {
+          const scopeErr = await enforceCajaScope(
+            cajaId,
+            request.scope.isOwner,
+            request.scope.country ?? null,
+          );
+          if (scopeErr) {
+            return reply
+              .code(scopeErr.code)
+              .send({ error: "No encontrado", message: scopeErr.message });
+          }
+        }
+
+        const detail = await movementService.registerMovement(
+          {
+            origenCajaId: request.body.origenCajaId,
+            destinoCajaId: request.body.destinoCajaId,
+            amount: request.body.amount,
+            countedAmount: request.body.countedAmount,
+            notes: request.body.notes ?? null,
+          },
+          request.user.userId,
+        );
+        return reply.code(201).send({ movement: detail });
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "register movement");
+      }
+    },
+  );
+
+  // ===================================================================
+  // Phase 139: POST /expenses — registrar egreso (MOV-03 / D-05)
+  // RBAC: FINANCE_VOID_ROLES server-side. Country scope via the caja.
+  // ===================================================================
+  fastify.post<{ Body: RegisterExpenseInput }>(
+    "/expenses",
+    { schema: registerExpenseSchema },
+    async (request, reply) => {
+      try {
+        if (
+          !(FINANCE_VOID_ROLES as readonly string[]).includes(request.user.role)
+        ) {
+          return reply.code(403).send({
+            error: "Acceso denegado",
+            message: "No tienes permiso para registrar egresos",
+          });
+        }
+
+        const scopeErr = await enforceCajaScope(
+          request.body.cajaId,
+          request.scope.isOwner,
+          request.scope.country ?? null,
+        );
+        if (scopeErr) {
+          return reply
+            .code(scopeErr.code)
+            .send({ error: "No encontrado", message: scopeErr.message });
+        }
+
+        const detail = await movementService.registerExpense(
+          {
+            cajaId: request.body.cajaId,
+            amount: request.body.amount,
+            notes: request.body.notes ?? null,
+          },
+          request.user.userId,
+        );
+        return reply.code(201).send({ expense: detail });
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "register expense");
+      }
+    },
+  );
+
+  // ===================================================================
+  // Phase 139: POST /movements/:id/void — anular movimiento (MOV-04 / D-08)
+  // Voids BOTH legs + the reconciliation adjustment atomically via voidPair.
+  // RBAC: FINANCE_VOID_ROLES. Country scope via the target row's caja.
+  // ===================================================================
+  fastify.post<{ Params: { id: number }; Body: { reason: string } }>(
+    "/movements/:id/void",
+    { schema: voidMovementSchema },
+    async (request, reply) => {
+      try {
+        if (
+          !(FINANCE_VOID_ROLES as readonly string[]).includes(request.user.role)
+        ) {
+          return reply.code(403).send({
+            error: "Acceso denegado",
+            message: "No tienes permiso para anular movimientos",
+          });
+        }
+
+        const scopeErr = await enforceRowScope(
+          request.params.id,
+          request.scope.isOwner,
+          request.scope.country ?? null,
+        );
+        if (scopeErr) {
+          return reply
+            .code(scopeErr.code)
+            .send({ error: "No encontrado", message: scopeErr.message });
+        }
+
+        await movementService.voidMovement(
+          request.params.id,
+          request.user.userId,
+          request.body.reason,
+        );
+        return { voided: true };
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "void movement");
+      }
+    },
+  );
+
+  // ===================================================================
+  // Phase 139: POST /expenses/:id/void — anular egreso (MOV-04 / D-08)
+  // Single-row void via voidPair([id]). RBAC + country scope as above.
+  // ===================================================================
+  fastify.post<{ Params: { id: number }; Body: { reason: string } }>(
+    "/expenses/:id/void",
+    { schema: voidMovementSchema },
+    async (request, reply) => {
+      try {
+        if (
+          !(FINANCE_VOID_ROLES as readonly string[]).includes(request.user.role)
+        ) {
+          return reply.code(403).send({
+            error: "Acceso denegado",
+            message: "No tienes permiso para anular egresos",
+          });
+        }
+
+        const scopeErr = await enforceRowScope(
+          request.params.id,
+          request.scope.isOwner,
+          request.scope.country ?? null,
+        );
+        if (scopeErr) {
+          return reply
+            .code(scopeErr.code)
+            .send({ error: "No encontrado", message: scopeErr.message });
+        }
+
+        await movementService.voidExpense(
+          request.params.id,
+          request.user.userId,
+          request.body.reason,
+        );
+        return { voided: true };
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "void expense");
       }
     },
   );
