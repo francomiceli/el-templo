@@ -466,6 +466,52 @@ interface PlanRow {
   classes_per_week: number | null;
 }
 
+/**
+ * v5.3.3 Phase 99 (PRICE-03, Piece D): format the active non-trial plans
+ * from `subscription_plans` as a WhatsApp-formatted listing block.
+ *
+ * Shared by BOTH `check_membership` branches:
+ *   - users.length === 0  (lead with no `users` row — VERIFIED-BROKEN
+ *     in planning: previously short-circuited at the "No encontré una
+ *     cuenta..." message before this query could ever run, leaving the
+ *     PB1 disclosure-unlocked addendum's "list the plans" instruction
+ *     unsatisfiable for leads)
+ *   - subs.length === 0   (registered user with no active subscription —
+ *     pre-existing branch; refactored to use the same helper for DRY)
+ *
+ * Returns an empty string when there are zero active non-trial plans in
+ * the DB so callers can graceful-degrade to a bare prefix message (no
+ * dangling whitespace or empty "Planes disponibles:" header).
+ *
+ * HARD GUARD: bot-side only — the query reads `subscription_plans` (the
+ * other dev owns the values); no `el-templo-api/src/**` is touched.
+ * Prices come from `price_regular` DB column exclusively — no hardcoded
+ * amounts.
+ */
+async function formatAvailablePlans(db: DB): Promise<string> {
+  const planResult = await db.execute<PlanRow[]>(
+    sql`SELECT name, price_regular, duration_days, classes_per_week
+        FROM subscription_plans
+        WHERE is_active = true AND is_archived = false AND is_trial = false
+        ORDER BY price_regular ASC`,
+  );
+  const plans = planResult[0] as unknown as PlanRow[];
+
+  if (plans.length === 0) {
+    return "";
+  }
+
+  let listing = "Planes disponibles:\n";
+  for (const plan of plans) {
+    const classesText =
+      plan.classes_per_week !== null
+        ? `${plan.classes_per_week} clases/semana`
+        : "clases ilimitadas";
+    listing += `\n- *${plan.name}*: $${plan.price_regular} — ${plan.duration_days} días — ${classesText}`;
+  }
+  return listing;
+}
+
 async function checkMembership(
   db: DB,
   args: Record<string, unknown>,
@@ -483,7 +529,20 @@ async function checkMembership(
   const users = userResult[0] as unknown as UserRow[];
 
   if (users.length === 0) {
-    return "No encontré una cuenta con ese número. Si sos miembro, puede que estés registrado con otro número.";
+    // v5.3.3 Phase 99 (PRICE-03, Piece D): for a LEAD (no `users` row), the
+    // pre-99 code returned ONLY the "No encontré una cuenta..." message and
+    // never reached the available-plans branch below. That left the PB1
+    // disclosure-unlocked prompt addendum's "call check_membership and list
+    // the plans it returns" instruction unsatisfiable for leads.
+    //
+    // Fix: append the active-plan listing to the preserved "no account"
+    // prefix. The prompt-side addendum (system-prompt.ts) instructs the
+    // model to IGNORE the prefix and use only the listing for prospects.
+    // Graceful degradation: empty listing falls through to the bare prefix.
+    const baseMsg =
+      "No encontré una cuenta con ese número. Si sos miembro, puede que estés registrado con otro número.";
+    const planListing = await formatAvailablePlans(db);
+    return planListing ? `${baseMsg}\n\n${planListing}` : baseMsg;
   }
 
   const user = users[0];
@@ -504,29 +563,11 @@ async function checkMembership(
   const subs = subResult[0] as unknown as SubscriptionRow[];
 
   if (subs.length === 0) {
-    // No active subscription — show available plans
-    const planResult = await db.execute<PlanRow[]>(
-      sql`SELECT name, price_regular, duration_days, classes_per_week
-          FROM subscription_plans
-          WHERE is_active = true AND is_archived = false AND is_trial = false
-          ORDER BY price_regular ASC`,
-    );
-    const plans = planResult[0] as unknown as PlanRow[];
-
-    let response = `${userName} no tiene una suscripción activa.`;
-
-    if (plans.length > 0) {
-      response += "\n\nPlanes disponibles:\n";
-      for (const plan of plans) {
-        const classesText =
-          plan.classes_per_week !== null
-            ? `${plan.classes_per_week} clases/semana`
-            : "clases ilimitadas";
-        response += `\n- *${plan.name}*: $${plan.price_regular} — ${plan.duration_days} días — ${classesText}`;
-      }
-    }
-
-    return response;
+    // No active subscription — show available plans via the shared helper
+    // (Phase 99 Piece D refactor: DRY with the leads branch above).
+    const baseMsg = `${userName} no tiene una suscripción activa.`;
+    const planListing = await formatAvailablePlans(db);
+    return planListing ? `${baseMsg}\n\n${planListing}` : baseMsg;
   }
 
   const sub = subs[0];

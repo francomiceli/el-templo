@@ -657,6 +657,14 @@ async function processWithAiInner(
     ? buildProfileContext(currentProfile)
     : undefined;
 
+  // PRICE-02 (v5.3.3 Phase 99): compute disclosure unlock flag using the
+  // single-source-of-truth helper from playbooks/constants.ts. Defensive
+  // PB1 gate at both layers — handler computes it conditional on
+  // playbookId === "PB1" AND the prompt rebuilds the same check.
+  const disclosureUnlocked =
+    shouldDisclosePrices(newPriceInsistenceCount) &&
+    resolved.playbookId === "PB1";
+
   const renderedSystemPrompt = getSystemPrompt({
     clientState,
     profileContext: profileContext || undefined,
@@ -670,6 +678,8 @@ async function processWithAiInner(
     // OBJN-01 (v5.3.2 Phase 91): conditional WHY/BACK-OFF framing rule.
     // No-op until Task 2 wires the actual injection inside getSystemPrompt.
     softRejectionRule,
+    // PRICE-02 (v5.3.3 Phase 99): disclosure-unlocked addendum trigger.
+    disclosureUnlocked,
   });
 
   // Diagnostic: confirm playbook bytes actually land in the rendered prompt.
@@ -682,6 +692,10 @@ async function processWithAiInner(
       containsPlaybookHeader:
         renderedSystemPrompt.includes("*Playbook activo:"),
       containsReglaFuerte: renderedSystemPrompt.includes("REGLA FUERTE"),
+      // PRICE-02 (Phase 99): observability for the disclosure-unlock injection
+      // (handler-side flag + prompt-side gate; addendum present iff true).
+      disclosureUnlocked,
+      priceInsistenceCount: newPriceInsistenceCount,
     },
     "System prompt rendered for AI call",
   );

@@ -171,6 +171,39 @@ Ejemplos parafraseables (NO copiar literal):
 Sin pregunta. Sin venta. Sin urgencia. Solo cierre cálido + puerta abierta.`;
 
 /**
+ * v5.3.3 Phase 99 (PRICE-02): PB1 price-disclosure-unlocked addendum.
+ *
+ * Trigger contract (handler-side, encoded in `disclosureUnlocked`):
+ *   `shouldDisclosePrices(priceInsistenceCount) && activePlaybook === "PB1"`
+ *   — i.e. the user's price-insistence counter has crossed
+ *   `PB1_PRICE_INSISTENCE_THRESHOLD` (default 2 → unlock on the 3rd request)
+ *   AND we are still inside PB1. Sub-option A discipline (locked per
+ *   CONTEXT.md PRICE-02): the static PB1.E4 REGLA FUERTE in
+ *   playbooks/definitions.ts is UNCHANGED — the unlock is purely additive
+ *   here and overrides the lead-stage no-prices rule at prompt level only
+ *   when injected.
+ *
+ * Wording constraints (locked):
+ *   - Instructs the model to call `check_membership` and list real DB plan
+ *     prices (NEVER fabricated, NEVER deduced — values flow from the tool).
+ *   - Requires a free-trial re-anchor close ("...pero lo mejor es que lo
+ *     pruebes gratis primero") — disclosure does NOT replace the
+ *     close-with-trial rule. T-99-10 mitigation: integration test in plan
+ *     99-03 asserts both the DB prices AND the trial-anchor substring.
+ *   - "Ignore the cuenta-no-encontrada prefix" clause: for a prospect with
+ *     no `users` row, Piece D's check_membership returns the preserved
+ *     "No encontré una cuenta..." prefix followed by the available-plans
+ *     listing (the prefix is correct for registered-user-no-sub but reads
+ *     broken for a prospect). This addendum instructs the model to drop
+ *     the prefix while leaving tool output untouched.
+ *
+ * Conditional injection only — when `disclosureUnlocked` is undefined/false,
+ * baseline render is byte-identical to pre-Phase-99 state (preserves the
+ * KGATE-05 ≥20% rendered-cap invariant at 18910 ≤ 18916 post-99-01 ship).
+ */
+const PB1_PRICE_DISCLOSURE_UNLOCKED_ADDENDUM = `\n\n*Desbloqueo de disclosure de precios (PB1):* el usuario insistió varias veces en saber precios. En este turno, llamá a check_membership y respondé listando los planes que devuelve con sus precios reales. NUNCA inventes precios ni los deduzcas de otros datos — los valores vienen exclusivamente del resultado del tool. Después de listar, cerrá SIEMPRE re-anclando la prueba gratis con una frase natural tipo "...pero lo mejor es que lo pruebes gratis primero". El re-anclaje es obligatorio: la regla de disclosure no reemplaza la regla de cierre con clase de prueba. Si el resultado del tool incluye un mensaje de "cuenta no encontrada" o "no encontré una cuenta", IGNORALO por completo — el usuario es un prospecto, no un miembro registrado. Listá únicamente los planes con sus precios reales y cerrá re-anclando la prueba gratis. Nunca le digas al usuario que no encontraste su cuenta.`;
+
+/**
  * Per-avatar Tone Guides (phase 85, AVAT-01).
  *
  * When an avatar has been detected for the lead, the matching block below
@@ -437,6 +470,24 @@ ${getBusinessKnowledge(options?.clientState)}`;
     sections.push(
       "\n\n*Detección de perfil*\n\nCuando tengas señales claras del avatar del lead (`cero_absoluto` = nunca entrenó; `gym_crossover` = viene de gym/crossfit/pesas; `intermedio` = ya hace calistenia; `retorna` = entrenó antes y vuelve después de un parate), al final de tu mensaje agregá exactamente la etiqueta `<profile>VALOR</profile>` (ejemplo: `<profile>gym_crossover</profile>`). El usuario NO va a ver esa etiqueta — la borra el sistema antes de enviar. Si todavía no estás segura, NO inventes: omití la etiqueta y seguí preguntando naturalmente.",
     );
+  }
+
+  // v5.3.3 Phase 99 (PRICE-02): PB1 price-disclosure-unlocked addendum.
+  //
+  // Appended AFTER the active-playbook section so the addendum overrides
+  // any conflicting tonal instruction from PB1.E4's REGLA FUERTE
+  // (definitions.ts:74) at the prompt level — Sub-option A discipline.
+  // Appended BEFORE the soft-rejection rule so the rejection arc still
+  // takes priority when both fire (defensive — co-occurrence is rare).
+  //
+  // Gate `activePlaybook === "PB1"` is belt-and-suspenders: the handler
+  // only sets disclosureUnlocked=true when the counter crosses threshold
+  // inside PB1, but the prompt-side check guards against a stale flag.
+  //
+  // Conditional injection only — when undefined/false, baseline render is
+  // byte-identical to pre-99 (KGATE-05 ≥20% rendered-cap invariant).
+  if (options?.disclosureUnlocked && options?.activePlaybook === "PB1") {
+    sections.push(PB1_PRICE_DISCLOSURE_UNLOCKED_ADDENDUM);
   }
 
   // v5.3.2 Phase 91 (OBJN-01): conditional soft-rejection framing rule.
