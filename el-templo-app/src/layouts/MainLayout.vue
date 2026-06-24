@@ -133,6 +133,9 @@
 
     <!-- First-login soft pre-prompt for push notifications (native only). -->
     <PushPermissionDialog />
+
+    <!-- Class rating pop-up (auto-triggered on return after a completed in-person class). -->
+    <RatingPromptDialog />
   </q-layout>
 </template>
 
@@ -144,6 +147,7 @@ import { useAuthStore } from 'stores/useAuthStore'
 import { useUserStore } from 'stores/useUserStore'
 import { useProgressionStore } from 'src/modules/progression/stores/progressionStore'
 import PushPermissionDialog from 'src/components/PushPermissionDialog.vue'
+import RatingPromptDialog from 'src/components/RatingPromptDialog.vue'
 import HeaderLevelDropdown from 'src/modules/training/components/HeaderLevelDropdown.vue'
 
 const $q = useQuasar()
