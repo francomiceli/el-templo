@@ -8,6 +8,7 @@ import {
   date,
   mysqlEnum,
   index,
+  uniqueIndex,
 } from "drizzle-orm/mysql-core";
 import { relations } from "drizzle-orm";
 import { users } from "./users";
@@ -81,6 +82,12 @@ export const financialTransactions = mysqlTable(
       .default("validado")
       .notNull(),
     notes: text("notes"),
+    // Phase 140 (CARGA-02 / D-09): client-generated opaque ticket key for
+    // idempotent coach loads. NULLABLE — every historical/admin row stays NULL;
+    // MySQL allows unlimited NULLs under a UNIQUE index, so the uq index below
+    // dedups only non-null keys (a repeated Confirm/double-tap → same key →
+    // duplicate-key error caught endpoint-side in Wave 2). Not a secret.
+    idempotencyKey: varchar("idempotency_key", { length: 64 }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
   },
@@ -103,6 +110,8 @@ export const financialTransactions = mysqlTable(
       table.cashRegisterId,
       table.transactionDate,
     ),
+    // Phase 140 (CARGA-02 / D-09): nullable UNIQUE dedup key for coach loads.
+    uniqueIndex("uq_financial_tx_idempotency_key").on(table.idempotencyKey),
   ],
 );
 
