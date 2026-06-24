@@ -64,10 +64,10 @@
 
 ### Movimientos inter-caja y egresos (MOV)
 
-- [ ] **MOV-01**: El admin registra un **movimiento inter-caja** (ej. efectivo Jujuy → efectivo central) como una sola operación con origen+destino; neto del sistema = 0.
-- [ ] **MOV-02**: El movimiento registra el **saldo esperado vs. contado** en el origen, dejando rastro de diferencias físicas (reconciliación = momento del retiro, sin cierre diario).
-- [ ] **MOV-03**: El admin registra un **egreso** (salida real de dinero) desde una caja, con monto + nota libre (sin categoría); resta del saldo de esa caja.
-- [ ] **MOV-04**: Movimientos y egresos pueden **anularse con rastro** (void ortogonal), igual que los pagos.
+- [x] **MOV-01**: El admin registra un **movimiento inter-caja** (ej. efectivo Jujuy → efectivo central) como una sola operación con origen+destino; neto del sistema = 0.
+- [x] **MOV-02**: El movimiento registra el **saldo esperado vs. contado** en el origen, dejando rastro de diferencias físicas (reconciliación = momento del retiro, sin cierre diario).
+- [x] **MOV-03**: El admin registra un **egreso** (salida real de dinero) desde una caja, con monto + nota libre (sin categoría); resta del saldo de esa caja.
+- [x] **MOV-04**: Movimientos y egresos pueden **anularse con rastro** (void ortogonal), igual que los pagos.
 
 ### Reportes para la admin (REP)
 
@@ -116,10 +116,10 @@
 | CAJA-02     | Phase 138 — Entidad caja + saldos              | Complete |
 | CAJA-03     | Phase 138 — Entidad caja + saldos              | Complete |
 | CAJA-04     | Phase 138 — Entidad caja + saldos              | Complete |
-| MOV-01      | Phase 139 — Movimientos inter-caja y egresos   | Pending  |
-| MOV-02      | Phase 139 — Movimientos inter-caja y egresos   | Pending  |
-| MOV-03      | Phase 139 — Movimientos inter-caja y egresos   | Pending  |
-| MOV-04      | Phase 139 — Movimientos inter-caja y egresos   | Pending  |
+| MOV-01      | Phase 139 — Movimientos inter-caja y egresos   | Complete |
+| MOV-02      | Phase 139 — Movimientos inter-caja y egresos   | Complete |
+| MOV-03      | Phase 139 — Movimientos inter-caja y egresos   | Complete |
+| MOV-04      | Phase 139 — Movimientos inter-caja y egresos   | Complete |
 | CARGA-01    | Phase 140 — Carga única + cobro suelto + profe | Pending  |
 | CARGA-02    | Phase 140 — Carga única + cobro suelto + profe | Pending  |
 | CARGA-03    | Phase 140 — Carga única + cobro suelto + profe | Pending  |

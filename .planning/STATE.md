@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v5.2
 milestone_name: Módulo Contable — Libro de Caja
-status: verifying
+status: executing
 stopped_at: Phase 139 context gathered
-last_updated: "2026-06-24T18:49:16.850Z"
+last_updated: "2026-06-24T19:34:04.977Z"
 last_activity: 2026-06-24
 progress:
   total_phases: 13
   completed_phases: 7
-  total_plans: 38
-  completed_plans: 37
-  percent: 54
+  total_plans: 41
+  completed_plans: 38
+  percent: 56
 ---
 
 # Project State
@@ -21,15 +21,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-04)
 
 **Core value:** El registro de un pago se carga **una sola vez** en el Administrador (fuente de verdad) y propaga solo: activa la membresía al instante e impacta la caja. Se elimina el triple tipeo (Forms + Contabilium + Admin). El Administrador pasa a ser el **libro de caja** del negocio (efectivo×sucursal + central + banco×moneda), con validación de pagos (PENDIENTE→VALIDADO), movimientos inter-caja y egresos. Se monta sobre el modelo financiero transaccional v4.8 (~60% existe). Backend-heavy, brownfield.
-**Current focus:** Phase 138 — Entidad caja + saldos
+**Current focus:** Phase 139 — Movimientos inter-caja y egresos
 
 ## Current Position
 
-Phase: 138 (Entidad caja + saldos) — COMPLETE (3/3 plans)
-Plan: 3 of 3 — done
-Status: Phase complete — ready for /gsd:verify-work
-Last activity: 2026-06-24
-Next: verificar Phase 138 / iniciar Phase 139 (movimientos inter-caja y egresos)
+Phase: 139 (Movimientos inter-caja y egresos) — EXECUTING
+Plan: 2 of 3
+Status: Ready to execute
+Last activity: 2026-06-24 -- 139-01 completado (cimiento ledger: enum +2, member_id/branch_id NULL, voidPair, must-fixes A/B)
+Next: ejecutar 139-02 (getBalance outflow extension) y 139-03 (MovementService 2-row asiento + reconciliación)
 
 ## Performance Metrics
 
@@ -253,6 +253,7 @@ _Updated after each plan completion_
 | Phase 138 P01 | 10min | 3 tasks | 5 files |
 | Phase 138 P138-02 | ~75min | 3 tasks | 13 files |
 | Phase 138 P138-03 | ~30min | 2 tasks | 3 files |
+| Phase 139 P139-01 | 13min | 3 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -623,6 +624,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase 138]: [Phase 138]: cutoff_date is a per-caja column seeded with one global value (no settings-table dependency); cash_registers seed is SELECT-driven off branches (8 on prod baseline, scales with branch count)
 - [Phase 138]: 138-02: resolveCashRegister (single reusable caja resolver, D-01) + currency guard (D-09) live in CashRegisterService; wired at the single create() insert site so all 9 create paths auto-stamp cash_register_id server-side (CAJA-02/04). Reused by phase 140.
 - [Phase 138]: 138-03: CashRegisterService.getBalance = saldo DERIVADO (no materializado, D-08) = opening_balance + Σ validados de la caja DESDE cutoff_date, reusando firmMoneyConditions() (filtro canónico 137, nunca inlineado). PENDIENTES en SUM separada, nunca sumados al firme (CAJA-03). inflow-only en 138 con marker // TODO 139 (egresos firmados). Suite de integración CAJA-01..04 (18 tests). Backend-only (D-10, sin REST/UI). Phase 138 COMPLETE.
+- [Phase ?]: [Phase 139]: branch_id NULLABLE (extends D-06) — movimientos/egresos branch-less almacenan NULL; aggregations branchId INNER JOIN branches
+- [Phase ?]: [Phase 139]: getSummary excluye cash_transfer/expense + applyDelta no-op en links vacíos — movimiento no infla revenue ni toca balances
 
 ### Pending Todos
 
@@ -655,8 +658,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-24T18:49:16.825Z
+Last session: 2026-06-24T19:33:42.891Z
 Stopped at: Phase 139 context gathered
-Resume file: .planning/phases/139-movimientos-inter-caja-y-egresos/139-CONTEXT.md
+Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
