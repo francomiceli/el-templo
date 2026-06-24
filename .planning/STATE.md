@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v5.2
 milestone_name: Módulo Contable — Libro de Caja
-status: verifying
-stopped_at: Phase 138 context gathered
-last_updated: "2026-06-24T16:21:47.621Z"
+status: executing
+stopped_at: Completed 138-01-PLAN.md
+last_updated: "2026-06-24T17:21:47.988Z"
 last_activity: 2026-06-24
 progress:
   total_phases: 13
   completed_phases: 6
-  total_plans: 35
-  completed_plans: 34
+  total_plans: 38
+  completed_plans: 35
   percent: 46
 ---
 
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-04)
 
 **Core value:** El registro de un pago se carga **una sola vez** en el Administrador (fuente de verdad) y propaga solo: activa la membresía al instante e impacta la caja. Se elimina el triple tipeo (Forms + Contabilium + Admin). El Administrador pasa a ser el **libro de caja** del negocio (efectivo×sucursal + central + banco×moneda), con validación de pagos (PENDIENTE→VALIDADO), movimientos inter-caja y egresos. Se monta sobre el modelo financiero transaccional v4.8 (~60% existe). Backend-heavy, brownfield.
-**Current focus:** Phase 137 — Máquina de estados de validación (cimiento)
+**Current focus:** Phase 138 — Entidad caja + saldos
 
 ## Current Position
 
-Phase: 137 (Máquina de estados de validación (cimiento)) — EXECUTING
-Plan: 3 of 3
-Status: Phase complete — ready for verification
+Phase: 138 (Entidad caja + saldos) — EXECUTING
+Plan: 2 of 3
+Status: Ready to execute
 Last activity: 2026-06-24
 Next: ejecutar 143-02-PLAN.md
 
@@ -250,6 +250,7 @@ _Updated after each plan completion_
 | Phase 137 P01 | ~12min | 3 tasks | 6 files |
 | Phase 137 P02 | ~40min | 3 tasks | 6 files |
 | Phase 137 P03 | ~18min | 3 tasks | 9 files |
+| Phase 138 P01 | 10min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -617,6 +618,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase 143-05]: el-templo-app sin script typecheck ni vue-tsc; verificación canónica de frontend = ESLint (plugin vue); tsc reporta errores pre-existentes de resolución .vue fuera de scope
 - [Phase ?]: [Phase 137]: Migration 0153 hand-written (not drizzle-kit generate) — runner reads .sql by name + \_migrations table is source of truth; generate prompted for unrelated sessions.goal_plan_type drift
 - [Phase ?]: 137-03: 13 firm-money call sites centralized through firm-money.ts with validation_status='validado'; subscriptions cancel guard kept as deliberate integrity exception — VAL-05 blast-radius closed; backfill keeps the 6 v5.0 metrics identical
+- [Phase 138]: [Phase 138]: cutoff_date is a per-caja column seeded with one global value (no settings-table dependency); cash_registers seed is SELECT-driven off branches (8 on prod baseline, scales with branch count)
 
 ### Pending Todos
 
@@ -649,8 +651,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-24T16:21:47.587Z
-Stopped at: Phase 138 context gathered
-Resume file: .planning/phases/138-entidad-caja-saldos/138-CONTEXT.md
+Last session: 2026-06-24T17:21:47.970Z
+Stopped at: Completed 138-01-PLAN.md
+Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z

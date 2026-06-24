@@ -3500,9 +3500,9 @@ _v5.2 added: 2026-06-04 — 1 phase (132). Cierra v5.0 del lado de UI: expone en
 3. `CashRegisterService.getBalance` devuelve el saldo firme derivado (Σ VALIDADOS de esa caja) y los PENDIENTES por separado, sin que estos sumen al firme. (CAJA-03)
 4. El sistema rechaza asociar a una caja un monto de moneda distinta a la suya (espejo del guard de `applyDelta`); ningún saldo ni reporte suma monedas distintas. (CAJA-04)
 
-**Plans:** 3 plans
+**Plans:** 1/3 plans executed
 
-- [ ] 138-01-PLAN.md — Schema cash_registers + cash_register_id en el ledger + migración 0154 (tabla/columna/seed 8 cajas/backfill) + scaffold de tests (CAJA-01, CAJA-02)
+- [x] 138-01-PLAN.md — Schema cash_registers + cash_register_id en el ledger + migración 0154 (tabla/columna/seed 8 cajas/backfill) + scaffold de tests (CAJA-01, CAJA-02)
 - [ ] 138-02-PLAN.md — CashRegisterService.resolveCashRegister + guard de moneda, cableado en el único insert de create() + DI en 6 sitios (CAJA-02, CAJA-04)
 - [ ] 138-03-PLAN.md — CashRegisterService.getBalance (saldo firme derivado + pendientes aparte, gateado por cutoff) + suite de integration tests (CAJA-01..04)
       **UI hint:** yes
@@ -3569,7 +3569,7 @@ _v5.2 added: 2026-06-04 — 1 phase (132). Cierra v5.0 del lado de UI: expone en
 | Phase                                       | Plans Complete | Status      | Completed  |
 | ------------------------------------------- | -------------- | ----------- | ---------- |
 | 137. Máquina de estados de validación       | 3/3            | Complete    | 2026-06-24 |
-| 138. Entidad caja + saldos                  | 0/?            | Not started | -          |
+| 138. Entidad caja + saldos                  | 1/3            | In Progress |            |
 | 139. Movimientos inter-caja y egresos       | 0/?            | Not started | -          |
 | 140. Carga única + cobro suelto + rol profe | 0/?            | Not started | -          |
 | 141. Reportes para la admin                 | 0/?            | Not started | -          |

@@ -57,8 +57,8 @@
 
 ### Cajas y saldos (CAJA)
 
-- [ ] **CAJA-01**: Existen cajas como entidad: **efectivo por sucursal**, **efectivo central**, y **banco por moneda** (banco ARS + banco EUR). Cada caja tiene una `currency` fija.
-- [ ] **CAJA-02**: Cada pago se asocia a una **caja** (`cash_register_id`), conceptualmente distinta de `branchId` (dónde se cobró ≠ adónde fue la plata).
+- [x] **CAJA-01**: Existen cajas como entidad: **efectivo por sucursal**, **efectivo central**, y **banco por moneda** (banco ARS + banco EUR). Cada caja tiene una `currency` fija.
+- [x] **CAJA-02**: Cada pago se asocia a una **caja** (`cash_register_id`), conceptualmente distinta de `branchId` (dónde se cobró ≠ adónde fue la plata).
 - [ ] **CAJA-03**: El **saldo firme** de cada caja = suma de operaciones VALIDADAS (derivado en v1); los PENDIENTES se muestran aparte y **no suman** al saldo firme.
 - [ ] **CAJA-04**: Una caja **nunca mezcla monedas**: rechaza montos de una moneda distinta a la suya (hereda el aislamiento del ledger).
 
@@ -112,8 +112,8 @@
 | VAL-05      | Phase 137 — Validación (cimiento)              | Complete |
 | VAL-06      | Phase 137 — Validación (cimiento)              | Complete |
 | VAL-07      | Phase 137 — Validación (cimiento)              | Complete |
-| CAJA-01     | Phase 138 — Entidad caja + saldos              | Pending  |
-| CAJA-02     | Phase 138 — Entidad caja + saldos              | Pending  |
+| CAJA-01     | Phase 138 — Entidad caja + saldos              | Complete |
+| CAJA-02     | Phase 138 — Entidad caja + saldos              | Complete |
 | CAJA-03     | Phase 138 — Entidad caja + saldos              | Pending  |
 | CAJA-04     | Phase 138 — Entidad caja + saldos              | Pending  |
 | MOV-01      | Phase 139 — Movimientos inter-caja y egresos   | Pending  |
