@@ -701,6 +701,54 @@ export const cashBalancesExportSchema = {
   },
 } as const;
 
+/**
+ * GET /movements-history — historial mov/egresos (REP-03). Querystring:
+ * cashRegisterId, owner-override country, dateFrom/dateTo (período),
+ * page/limit. Loose response (passthrough) like listTransactionsSchema — the
+ * service shape (MovEgresoItem) is trusted.
+ */
+export const movementsHistorySchema = {
+  querystring: {
+    type: "object",
+    properties: {
+      cashRegisterId: { type: "integer", minimum: 1 },
+      country: { type: "string", minLength: 2, maxLength: 2 },
+      dateFrom: { type: "string", format: "date" },
+      dateTo: { type: "string", format: "date" },
+      ...paginationQuerystring,
+    },
+    additionalProperties: false,
+  },
+  response: {
+    401: errorSchema,
+    403: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+/**
+ * GET /movements-history/export — same querystring as movementsHistorySchema
+ * MINUS page/limit (server returns ALL matching rows). Binary .xlsx attachment,
+ * so no JSON response schema is registered (mirror exportTransactionsSchema).
+ */
+export const movementsHistoryExportSchema = {
+  querystring: {
+    type: "object",
+    properties: {
+      cashRegisterId: { type: "integer", minimum: 1 },
+      country: { type: "string", minLength: 2, maxLength: 2 },
+      dateFrom: { type: "string", format: "date" },
+      dateTo: { type: "string", format: "date" },
+    },
+    additionalProperties: false,
+  },
+  response: {
+    401: errorSchema,
+    403: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
 // -- Re-exported helper fragments for Plan 03 (reads) ----------------------
 
 export const SHARED_ERROR_SCHEMA = errorSchema;

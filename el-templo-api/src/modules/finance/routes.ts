@@ -41,6 +41,8 @@ import {
   pendingTrayExportSchema,
   cashBalancesSchema,
   cashBalancesExportSchema,
+  movementsHistorySchema,
+  movementsHistoryExportSchema,
 } from "./schemas";
 import {
   FINANCE_READ_ROLES,
@@ -64,6 +66,7 @@ import type {
   RegisterMovementInput,
   RegisterExpenseInput,
   PendingTrayFilters,
+  MovEgresoFilters,
 } from "./types";
 
 export const financeRoutes: FastifyPluginAsync = async (fastify) => {
@@ -1153,6 +1156,147 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
       }
     },
   );
+
+  // ===================================================================
+  // Phase 141 (REP-03): GET /movements-history — historial mov/egresos
+  // kind IN (cash_transfer, expense, adjustment) INCLUDING member_id NULL
+  // rows (the 139 LEFT JOIN fix). Filterable by caja/período. Non-owner is
+  // scoped by the caja's country (no eq(branches.country) NULL-branch trap);
+  // branch-less central/banco rows are owner-only. Coach 403 via module guard.
+  // ===================================================================
+  fastify.get<{
+    Querystring: {
+      cashRegisterId?: number;
+      country?: string;
+      dateFrom?: string;
+      dateTo?: string;
+      page?: number;
+      limit?: number;
+    };
+  }>(
+    "/movements-history",
+    { schema: movementsHistorySchema },
+    async (request, reply) => {
+      try {
+        // Owner-aware country resolution — mirror of GET /transactions.
+        let country: string | undefined;
+        if (request.scope.isOwner) {
+          country = request.query.country
+            ? request.query.country.toUpperCase()
+            : undefined;
+        } else {
+          country = request.scope.country ?? undefined;
+        }
+
+        const filters: MovEgresoFilters = {
+          cashRegisterId: request.query.cashRegisterId,
+          country: country as MovEgresoFilters["country"],
+          isOwner: request.scope.isOwner,
+          dateFrom: request.query.dateFrom,
+          dateTo: request.query.dateTo,
+          page: request.query.page,
+          limit: request.query.limit,
+        };
+        return await transactionService.listMovEgresos(filters);
+      } catch (err: unknown) {
+        handleServiceError(
+          err,
+          reply,
+          request.log,
+          "finance movements history",
+        );
+        return reply;
+      }
+    },
+  );
+
+  // ===================================================================
+  // Phase 141 (REP-04): GET /movements-history/export — historial .xlsx
+  // Same filters minus page/limit (all rows). Reuses the exceljs pattern.
+  // ===================================================================
+  fastify.get<{
+    Querystring: {
+      cashRegisterId?: number;
+      country?: string;
+      dateFrom?: string;
+      dateTo?: string;
+    };
+  }>(
+    "/movements-history/export",
+    { schema: movementsHistoryExportSchema },
+    async (request, reply) => {
+      try {
+        let country: string | undefined;
+        if (request.scope.isOwner) {
+          country = request.query.country
+            ? request.query.country.toUpperCase()
+            : undefined;
+        } else {
+          country = request.scope.country ?? undefined;
+        }
+
+        const filters: MovEgresoFilters = {
+          cashRegisterId: request.query.cashRegisterId,
+          country: country as MovEgresoFilters["country"],
+          isOwner: request.scope.isOwner,
+          dateFrom: request.query.dateFrom,
+          dateTo: request.query.dateTo,
+          // All rows: defense-in-depth max=200 in the service; bump the limit.
+          limit: 200,
+          page: 1,
+        };
+        const result = await transactionService.listMovEgresos(filters);
+
+        const workbook = new Workbook();
+        workbook.creator = "El Templo";
+        workbook.created = new Date();
+        const sheet = workbook.addWorksheet("Mov-Egresos");
+        sheet.columns = [
+          { header: "Fecha", key: "fecha", width: 12 },
+          { header: "Tipo", key: "tipo", width: 22 },
+          { header: "Dirección", key: "direccion", width: 12 },
+          { header: "Concepto/Notas", key: "concepto", width: 32 },
+          { header: "Monto", key: "monto", width: 14 },
+          { header: "Moneda", key: "moneda", width: 10 },
+          { header: "Caja", key: "caja", width: 22 },
+          { header: "Registrado por", key: "registradoPor", width: 24 },
+          { header: "Anulado", key: "anulado", width: 10 },
+          { header: "Razón", key: "razon", width: 24 },
+        ];
+        styleHeaderRow(sheet.getRow(1));
+
+        for (const row of result.rows) {
+          sheet.addRow({
+            fecha: row.transactionDate,
+            tipo: KIND_LABELS_ES[row.kind] ?? row.kind,
+            direccion: DIRECTION_LABELS_ES[row.direction] ?? row.direction,
+            concepto: row.notes ?? "",
+            monto: row.amount,
+            moneda: row.currency,
+            caja: row.cashRegisterName,
+            registradoPor: row.recorderName,
+            anulado: row.voidedAt ? "Sí" : "No",
+            razon: row.voidReason ?? "",
+          });
+        }
+
+        const buffer = await workbook.xlsx.writeBuffer();
+        const today = new Date().toISOString().split("T")[0];
+        reply
+          .header(
+            "Content-Type",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          )
+          .header(
+            "Content-Disposition",
+            `attachment; filename="mov-egresos-${today}.xlsx"`,
+          )
+          .send(Buffer.from(buffer as ArrayBuffer));
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "export movements history");
+      }
+    },
+  );
 };
 
 // =============================================================================
@@ -1183,6 +1327,12 @@ const VALIDATION_STATUS_LABELS_ES: Record<string, string> = {
 const CAJA_TYPE_LABELS_ES: Record<string, string> = {
   efectivo: "Efectivo",
   banco: "Banco",
+};
+
+/** Phase 141: Spanish labels for the historial "Dirección" column. */
+const DIRECTION_LABELS_ES: Record<string, string> = {
+  inflow: "Entrada",
+  outflow: "Salida",
 };
 
 /**

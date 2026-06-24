@@ -44,6 +44,8 @@ import type {
   FinanceSummaryFilters,
   FinancialHistoryFilters,
   FinancialHistoryItem,
+  MovEgresoFilters,
+  MovEgresoItem,
   OutstandingConcept,
   PendingTrayFilters,
   PendingTrayItem,
@@ -1162,6 +1164,175 @@ export class TransactionService {
     });
 
     return { rows, total, page, limit, thresholdDays: OVERDUE_DAYS };
+  }
+
+  /**
+   * Phase 141 (REP-03): historial de movimientos inter-caja y egresos. Its OWN
+   * query — does NOT call or mutate list()/exportRowsForExcel() (those INNER JOIN
+   * users+branches, so they DROP the kind IN ('cash_transfer','expense',
+   * 'adjustment') rows whose member_id is NULL — and often branch_id NULL for
+   * central/banco cajas). listMovEgresos LEFT JOINs users/branches/cash_registers
+   * + the recorder self-join so those rows SURVIVE (the 139 flag). Returns the
+   * trail ordered desc(transactionDate), filterable by caja/período.
+   *
+   * Country-scope trap (Pitfall 2): under the LEFT JOIN a branch-less row has
+   * branches.country = NULL, so eq(branches.country, country) would WRONGLY
+   * exclude central/banco rows. Instead we scope NON-OWNERS to the set of cajas
+   * whose branch.country === scope.country (a sub-select) — which inherently
+   * excludes branch-less central/banco cajas (owner-only, mirror enforceCajaScope).
+   * Owner sees all rows; an optional ?country narrows to that country's cajas.
+   */
+  async listMovEgresos(
+    filters: MovEgresoFilters,
+  ): Promise<PaginatedResult<MovEgresoItem>> {
+    const page = Math.max(1, filters.page ?? 1);
+    const limit = Math.min(200, Math.max(1, filters.limit ?? 50));
+    const offset = (page - 1) * limit;
+
+    const recorder = alias(schema.users, "recorder");
+
+    const conditions: SQL[] = [
+      inArray(schema.financialTransactions.kind, [
+        "cash_transfer",
+        "expense",
+        "adjustment",
+      ]),
+    ];
+
+    if (filters.cashRegisterId !== undefined) {
+      conditions.push(
+        eq(schema.financialTransactions.cashRegisterId, filters.cashRegisterId),
+      );
+    }
+    if (filters.dateFrom !== undefined) {
+      conditions.push(
+        gte(schema.financialTransactions.transactionDate, filters.dateFrom),
+      );
+    }
+    if (filters.dateTo !== undefined) {
+      conditions.push(
+        lte(schema.financialTransactions.transactionDate, filters.dateTo),
+      );
+    }
+
+    // Country scope WITHOUT the eq(branches.country) NULL-branch trap. Restrict
+    // to the cajas whose branch.country matches, via a sub-select on cajas.
+    // - non-owner: ALWAYS scoped to their country's BRANCH-SCOPED cajas; this
+    //   sub-select never matches branch-less cajas (their branch.country is NULL
+    //   under the LEFT JOIN), so central/banco rows are owner-only.
+    // - owner + ?country: optional narrowing to that country's branch cajas.
+    // - owner + no country: no scope condition (sees all rows, incl. branch-less).
+    if (filters.country !== undefined) {
+      const scopedCajas = this.db
+        .select({ id: schema.cashRegisters.id })
+        .from(schema.cashRegisters)
+        .innerJoin(
+          schema.branches,
+          eq(schema.branches.id, schema.cashRegisters.branchId),
+        )
+        .where(eq(schema.branches.country, filters.country));
+      conditions.push(
+        inArray(schema.financialTransactions.cashRegisterId, scopedCajas),
+      );
+    } else if (!filters.isOwner) {
+      // Defense-in-depth: a non-owner MUST be country-scoped. If their country
+      // is somehow unresolved, return zero rows rather than the full ledger.
+      conditions.push(sql`1 = 0`);
+    }
+
+    const [countRow] = await this.db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(schema.financialTransactions)
+      .leftJoin(
+        schema.users,
+        eq(schema.users.id, schema.financialTransactions.memberId),
+      )
+      .leftJoin(
+        schema.branches,
+        eq(schema.branches.id, schema.financialTransactions.branchId),
+      )
+      .leftJoin(
+        schema.cashRegisters,
+        eq(
+          schema.cashRegisters.id,
+          schema.financialTransactions.cashRegisterId,
+        ),
+      )
+      .leftJoin(
+        recorder,
+        eq(recorder.id, schema.financialTransactions.recordedBy),
+      )
+      .where(and(...conditions));
+    const total = Number(countRow?.count ?? 0);
+
+    const raw = await this.db
+      .select({
+        id: schema.financialTransactions.id,
+        transactionDate: schema.financialTransactions.transactionDate,
+        kind: schema.financialTransactions.kind,
+        direction: schema.financialTransactions.direction,
+        amount: schema.financialTransactions.amount,
+        currency: schema.financialTransactions.currency,
+        memberId: schema.financialTransactions.memberId,
+        cashRegisterId: schema.financialTransactions.cashRegisterId,
+        cashRegisterName: schema.cashRegisters.name,
+        branchId: schema.financialTransactions.branchId,
+        branchName: schema.branches.name,
+        recordedBy: schema.financialTransactions.recordedBy,
+        recorderFirstName: recorder.firstName,
+        recorderLastName: recorder.lastName,
+        voidedAt: schema.financialTransactions.voidedAt,
+        voidReason: schema.financialTransactions.voidReason,
+        notes: schema.financialTransactions.notes,
+      })
+      .from(schema.financialTransactions)
+      .leftJoin(
+        schema.users,
+        eq(schema.users.id, schema.financialTransactions.memberId),
+      )
+      .leftJoin(
+        schema.branches,
+        eq(schema.branches.id, schema.financialTransactions.branchId),
+      )
+      .leftJoin(
+        schema.cashRegisters,
+        eq(
+          schema.cashRegisters.id,
+          schema.financialTransactions.cashRegisterId,
+        ),
+      )
+      .leftJoin(
+        recorder,
+        eq(recorder.id, schema.financialTransactions.recordedBy),
+      )
+      .where(and(...conditions))
+      .orderBy(
+        desc(schema.financialTransactions.transactionDate),
+        desc(schema.financialTransactions.createdAt),
+      )
+      .limit(limit)
+      .offset(offset);
+
+    const rows: MovEgresoItem[] = raw.map((r) => ({
+      id: r.id,
+      transactionDate: String(r.transactionDate),
+      kind: r.kind,
+      direction: r.direction,
+      amount: r.amount,
+      currency: r.currency,
+      cashRegisterId: r.cashRegisterId,
+      cashRegisterName: r.cashRegisterName ?? "",
+      branchId: r.branchId,
+      branchName: r.branchName ?? null,
+      recordedBy: r.recordedBy,
+      recorderName:
+        `${r.recorderFirstName ?? ""} ${r.recorderLastName ?? ""}`.trim(),
+      voidedAt: r.voidedAt ? r.voidedAt.toISOString() : null,
+      voidReason: r.voidReason,
+      notes: r.notes,
+    }));
+
+    return { rows, total, page, limit };
   }
 
   private buildListConditions(filters: TransactionListFilters): SQL[] {

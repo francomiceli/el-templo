@@ -406,6 +406,52 @@ export interface CajaSaldoRow {
   pendienteAmount: number;
 }
 
+// -- Phase 141: historial de movimientos inter-caja y egresos (REP-03) -------
+
+/**
+ * Phase 141 (REP-03): una fila del historial de movimientos/egresos. Las filas
+ * kind IN ('cash_transfer','expense','adjustment') tienen member_id NULL (y a
+ * menudo branch_id NULL para cajas central/banco), así que listMovEgresos LEFT
+ * JOIN-ea users/branches/cash_registers para que SOBREVIVAN (el list()/export
+ * compartido hace INNER JOIN y las dropea — el flag de 139). memberName se omite
+ * (siempre NULL); `recorderName` es "cargado por", `cashRegisterName` la caja.
+ */
+export interface MovEgresoItem {
+  id: number;
+  transactionDate: string; // YYYY-MM-DD
+  kind: TransactionKind; // cash_transfer | expense | adjustment
+  direction: TransactionDirection;
+  amount: number;
+  currency: string;
+  cashRegisterId: number | null;
+  cashRegisterName: string;
+  branchId: number | null;
+  branchName: string | null; // null para cajas branch-less (central/banco)
+  recordedBy: number;
+  recorderName: string;
+  voidedAt: string | null;
+  voidReason: string | null;
+  notes: string | null;
+}
+
+/**
+ * Filtros para listMovEgresos (REP-03). `country` se resuelve owner-aware en la
+ * route; para non-owner el scope va por la moneda/país de la CAJA (no por
+ * eq(branches.country) — eso excluiría las filas branch-less central/banco bajo
+ * el LEFT JOIN: la trampa del país de la Pitfall 2). Branch-less central/banco
+ * son owner-only (mirror enforceCajaScope).
+ */
+export interface MovEgresoFilters {
+  cashRegisterId?: number;
+  country?: CountryCode;
+  /** true cuando el caller es owner (ve todo; ?country acota por país de caja). */
+  isOwner?: boolean;
+  dateFrom?: string; // YYYY-MM-DD
+  dateTo?: string; // YYYY-MM-DD
+  page?: number;
+  limit?: number;
+}
+
 // Phase 138 (D-06/D-08/CAJA-03) — saldo DERIVADO de una caja. firmeBalance es
 // opening_balance + Σ validados de la caja desde cutoff_date (reusa
 // firmMoneyConditions). pendienteAmount (validation_status='pendiente') se
