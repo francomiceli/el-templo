@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v5.2
 milestone_name: Módulo Contable — Libro de Caja
 status: executing
-stopped_at: Phase 139 context gathered
-last_updated: "2026-06-24T19:40:39.705Z"
+stopped_at: Completed 139-03-PLAN.md (Phase 139 complete)
+last_updated: "2026-06-24T19:49:54.000Z"
 last_activity: 2026-06-24
 progress:
   total_phases: 13
@@ -25,11 +25,11 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 
 ## Current Position
 
-Phase: 139 (Movimientos inter-caja y egresos) — EXECUTING
+Phase: 139 (Movimientos inter-caja y egresos) — COMPLETE (3/3 planes)
 Plan: 3 of 3
-Status: Ready to execute
+Status: Phase complete — backend-only (D-10). MOV-01..04 entregados end to end.
 Last activity: 2026-06-24
-Next: ejecutar 139-02 (getBalance outflow extension) y 139-03 (MovementService 2-row asiento + reconciliación)
+Next: Phase 140 (carga única del profe) / 141 (reportes/UI). Phase 141 caja history DEBE LEFT JOIN users (filas NULL-member de movimientos/egresos).
 
 ## Performance Metrics
 
@@ -255,6 +255,7 @@ _Updated after each plan completion_
 | Phase 138 P138-03 | ~30min | 2 tasks | 3 files |
 | Phase 139 P139-01 | 13min | 3 tasks | 9 files |
 | Phase 139 P139-02 | 4min | 2 tasks | 2 files |
+| Phase 139 P139-03 | 7min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -627,6 +628,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase 138]: 138-03: CashRegisterService.getBalance = saldo DERIVADO (no materializado, D-08) = opening_balance + Σ validados de la caja DESDE cutoff_date, reusando firmMoneyConditions() (filtro canónico 137, nunca inlineado). PENDIENTES en SUM separada, nunca sumados al firme (CAJA-03). inflow-only en 138 con marker // TODO 139 (egresos firmados). Suite de integración CAJA-01..04 (18 tests). Backend-only (D-10, sin REST/UI). Phase 138 COMPLETE.
 - [Phase ?]: [Phase 139]: branch_id NULLABLE (extends D-06) — movimientos/egresos branch-less almacenan NULL; aggregations branchId INNER JOIN branches
 - [Phase ?]: [Phase 139]: getSummary excluye cash_transfer/expense + applyDelta no-op en links vacíos — movimiento no infla revenue ni toca balances
+- [Phase 139]: 139-03: MovementService facade — movimiento = asiento 2 filas cash_transfer (outflow origen + inflow destino) linkeadas both-ways vía transaction_links, en una db.transaction, neto 0; guard same-currency antes de escribir; reconciliación D-04 = fila kind='adjustment' separada en origen SOLO si counted!=expected (el getBalance firmado auto-corrige el saldo a lo contado) + audit 'reconciliation' SIEMPRE (expected/counted/diff); egreso = 1 fila expense outflow; void-the-pair vía voidPair descubre ambas patas + ajuste desde cualquier leg id (transaction_links en ambas direcciones). 4 rutas admin-only (FINANCE_VOID_ROLES server-side, rol nunca del body) + country scope por caja→branch (branch-less = owner-only, 404 cross-country). 10 tests MOV-01..04 + RBAC verdes. Backend-only. Phase 139 COMPLETE.
 
 ### Pending Todos
 
@@ -659,8 +661,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-24T19:40:39.683Z
-Stopped at: Phase 139 context gathered
+Last session: 2026-06-24T19:49:54.000Z
+Stopped at: Completed 139-03-PLAN.md (Phase 139 complete)
 Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z

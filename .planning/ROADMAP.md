@@ -3461,7 +3461,7 @@ _v5.2 added: 2026-06-04 — 1 phase (132). Cierra v5.0 del lado de UI: expone en
 
 - [x] **Phase 137: Máquina de estados de validación (cimiento)** — `validation_status` ortogonal al soft-void + filtro canónico de "dinero firme" reescrito sin romper las 6 métricas v5.0 + transiciones validar/observar/corregir/anular con rastro de auditoría. (completed 2026-06-24)
 - [x] **Phase 138: Entidad caja + saldos** — tabla `cash_registers` (efectivo×sucursal + central + banco×moneda, `currency` fija) + `cash_register_id` en el ledger + saldo firme derivado (solo VALIDADOS) con pendientes mostrados aparte + aislamiento de moneda.
-- [ ] **Phase 139: Movimientos inter-caja y egresos** — movimiento (asiento de 2 filas linkeadas, neto 0) con reconciliación esperado-vs-contado + egreso (1 fila outflow, nota libre) + void ortogonal del par, sin contaminar `balances`.
+- [x] **Phase 139: Movimientos inter-caja y egresos** — movimiento (asiento de 2 filas linkeadas, neto 0) con reconciliación esperado-vs-contado + egreso (1 fila outflow, nota libre) + void ortogonal del par, sin contaminar `balances`. (completed 2026-06-24)
 - [ ] **Phase 140: Carga única que propaga + cobro suelto + rol profe** — UI dead-simple que registra el pago una vez y propaga atómico (membresía + caja) de forma idempotente + cobro suelto + rol profe acotado (carga PENDIENTE, no valida/anula).
 - [ ] **Phase 141: Reportes para la admin** — bandeja de pendientes por antigüedad (+ observados, + alerta configurable) + saldo firme/pendiente por caja + historial de movimientos/egresos, reusando el export Excel/PDF existente.
 - [ ] **Phase 142: Config + transición Contabilium** — perillas de configuración (política de validación; activación instantánea/diferida) con casa definida y funcional + regla documentada de "qué dato manda" durante la convivencia con Contabilium por etapa.
@@ -3519,12 +3519,12 @@ _v5.2 added: 2026-06-04 — 1 phase (132). Cierra v5.0 del lado de UI: expone en
 3. Un egreso (`kind='expense'`, destino NULL) resta del saldo de su caja con monto + nota libre (sin categoría en v1); `cash_transfer`/`expense` están en `KINDS_ALLOWED_WITHOUT_LINKS` y NO tocan `balances` (verificado por test). (MOV-03)
 4. Movimientos y egresos se anulan con el mismo soft-void ortogonal que los pagos (motivo + autor + fecha), nunca con delete. (MOV-04)
 
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 Plans:
 
 - [x] 139-01-PLAN.md — Cimiento: migración 0155 (enum +cash_transfer/+expense, member_id NULL) + tipos + MUST-FIX A (getSummary) + MUST-FIX B (applyDelta) + voidPair
 - [x] 139-02-PLAN.md — getBalance resta outflows validados desde el corte (// TODO 139) + invariante neto-0 + refund-outflow
-- [ ] 139-03-PLAN.md — MovementService (movimiento 2 filas + reconciliación + guard igual-moneda + egreso + void-the-pair) + rutas admin-only + tests MOV-01..04
+- [x] 139-03-PLAN.md — MovementService (movimiento 2 filas + reconciliación + guard igual-moneda + egreso + void-the-pair) + rutas admin-only + tests MOV-01..04
       **UI hint:** yes
 
 ### Phase 140: Carga única que propaga + cobro suelto + rol profe
@@ -3575,7 +3575,7 @@ Plans:
 | ------------------------------------------- | -------------- | ----------- | ---------- |
 | 137. Máquina de estados de validación       | 3/3            | Complete    | 2026-06-24 |
 | 138. Entidad caja + saldos                  | 2/3            | In Progress |            |
-| 139. Movimientos inter-caja y egresos       | 2/3            | In Progress |            |
+| 139. Movimientos inter-caja y egresos       | 3/3            | Complete    | 2026-06-24 |
 | 140. Carga única + cobro suelto + rol profe | 0/?            | Not started | -          |
 | 141. Reportes para la admin                 | 0/?            | Not started | -          |
 | 142. Config + transición Contabilium        | 0/?            | Not started | -          |
