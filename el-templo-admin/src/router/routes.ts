@@ -155,6 +155,11 @@ const routes: RouteRecordRaw[] = [
         component: () => import('pages/NotificacionesPage.vue'),
         meta: { allowedRoles: ['admin', 'owner'] as AdminRole[] },
       },
+      {
+        path: 'puntuaciones',
+        component: () => import('pages/PuntuacionesPage.vue'),
+        meta: { allowedRoles: ['owner'] as AdminRole[] },
+      },
     ],
   },
   {

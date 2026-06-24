@@ -69,6 +69,12 @@
           </q-item-section>
           <q-item-section>Deudas</q-item-section>
         </q-item>
+        <q-item v-if="isOwnerRole" clickable v-ripple to="/puntuaciones">
+          <q-item-section avatar>
+            <q-icon name="star" />
+          </q-item-section>
+          <q-item-section>Puntuaciones</q-item-section>
+        </q-item>
         <q-item v-if="isCajaRole" clickable v-ripple to="/planes">
           <q-item-section avatar>
             <q-icon name="card_membership" />
