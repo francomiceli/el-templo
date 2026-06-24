@@ -67,14 +67,14 @@ Exceptions:
 
 ## Typography
 
-Reuse Quasar typography classes already used across both apps. No custom font sizes introduced.
+Reuse Quasar typography classes already used across both apps. No custom font sizes introduced. Exactly 4 declared sizes (the inherited 14px system base is not a declared token; all body text uses `text-body1` / 16px).
 
 | Role | Quasar class | Size | Weight | Line Height | Usage |
 |------|--------------|------|--------|-------------|-------|
-| Display / Page title | `text-h5` | 24px | 400 | 1.2 | Admin page headers (matches HorariosPage `text-h5`) |
-| Heading | `text-h6` / `text-subtitle1` | 20px / 16px | 500 | 1.3 | Dialog title, card section titles, owner-view coach name |
-| Body | `text-body1` / base | 16px / 14px | 400 | 1.5 | Comment text, list rows, dialog body copy |
-| Label / caption | `text-caption` | 12px | 400 | 1.4 | Slot meta, timestamps, helper text, "Turno Mañana/Tarde" labels |
+| Display | `text-h5` | 24px | 400 | 1.2 | Admin page headers (matches HorariosPage `text-h5`) |
+| Heading | `text-h6` | 20px | 500 | 1.3 | Dialog title, card section titles, owner-view coach name |
+| Body | `text-body1` | 16px | 400 | 1.5 | Comment text, list rows, dialog body copy |
+| Label | `text-caption` | 12px | 400 | 1.4 | Slot meta, timestamps, helper text, "Turno Mañana/Tarde" labels |
 
 Weights used: 400 (regular) and 500/`text-weight-medium` (emphasis) — matches existing pages. Do not introduce additional weights.
 
@@ -95,7 +95,7 @@ Brand palette is WARM, NO BLUE (Phase 39). Pull from SCSS variables — never ha
 
 Accent (Terracotta `$primary`) reserved for:
 - Filled stars in `QRating` (`color="primary"`, empty stars use the default grey/`color-half`).
-- Primary CTA button "Enviar" in the rating pop-up.
+- Primary CTA button "Enviar puntuación" in the rating pop-up.
 - Active tab / selected-coach indicator in admin surfaces.
 
 Star widget colors: filled = `primary` (Terracotta); unfilled = Quasar default outline (grey). Do NOT use yellow/gold gradient star defaults — that would break the no-blue/warm-palette discipline; Terracotta fill is the contract.
@@ -108,6 +108,7 @@ No destructive actions in this phase (see Copywriting). `$negative` is used only
 
 ### Surface 1 — Roster semanal (admin, HorariosPage.vue)
 
+- **Primary visual anchor = the per-(día,turno) coach QSelect grid for the active week.**
 - Lives INSIDE the existing "Horarios" weekly view, scoped by the page's existing **branch selector** (`QSelect` "Sucursal") and **week navigation** (`prevWeek`/`nextWeek`, `weekRangeLabel`) — do NOT add a second branch/week picker.
 - Granularity = per `(día de semana, turno)`. Turno = Mañana (`startTime < 12:00`) / Tarde (`>= 12:00`), reusing the exact `morningSlots`/`afternoonSlots` split from `ReservasPage`.
 - Assignment control = a labeled `QSelect` of coaches (`role = coach`, filtered to the selected branch via `user_branches`). Display label = coach `firstName lastName`. Placeholder when unassigned: **"Sin profe asignado"**.
@@ -117,6 +118,7 @@ No destructive actions in this phase (see Copywriting). `$negative` is used only
 
 ### Surface 2 — Pop-up de puntuación (member app)
 
+- **Primary visual anchor = QRating star widget (centered, 2.5em, Terracotta fill).**
 - **Form factor:** centered `QDialog` (`persistent="false"` — it IS skippable) with a `QCard`, matching the existing `PushPermissionDialog.vue` pattern (icon → body → actions). NOT a maximized/blocking modal; NOT a bottom-sheet (app has no bottom-sheet precedent). Decision rationale: reuse the one existing dialog pattern in the app for consistency.
 - **Trigger:** on app resume/route-return, if there is an unrated **completed in-person class** within the last 48h AND a coach was assigned to that slot → show the dialog for the LAST such class only. If skipped once, mark that class resolved (never re-ask). If no assigned coach → no dialog.
 - **Content (class-framed, coach NEVER shown):**
@@ -125,12 +127,13 @@ No destructive actions in this phase (see Copywriting). `$negative` is used only
   - Optional `QInput` (`type="textarea"`, `autogrow`, max ~280 chars) labeled **"Comentario (opcional)"** — always available regardless of score.
   - Helper caption: **"Tu opinión es anónima y nos ayuda a mejorar las clases."**
 - **Actions:**
-  - Primary CTA `QBtn color="primary"` **"Enviar"** — disabled until ≥1 star is selected.
+  - Primary CTA `QBtn color="primary"` **"Enviar puntuación"** — disabled until ≥1 star is selected.
   - Secondary `QBtn flat` **"Ahora no"** — closes and marks the class as resolved (one-shot skip).
 - **States:** submitting → button `loading`; success → close + positive toast "¡Gracias por tu puntuación!"; error → keep dialog open + negative toast (copy below).
 
 ### Surface 3 — Vista del owner (admin, simple)
 
+- **Primary visual anchor = per-coach average-rating row with read-only stars.**
 - Keep simple (full report deferred). A single page/tab with:
   - A summary list/`QTable`: per coach → **average stars** (rendered as a read-only `QRating` `readonly` + numeric e.g. "4.6") + count of ratings.
   - Below/expandable: a list (`QList`/`QItem` or `QTable`) of **recent individual ratings**: stars, optional comment, class (activity/day), date. No filters, no date range, no export (deferred).
@@ -147,7 +150,7 @@ All copy in **Spanish** (app UI language). Voice: warm, direct, second person.
 | Pop-up title | "¿Cómo estuvo tu clase de {Actividad}?" |
 | Pop-up helper | "Tu opinión es anónima y nos ayuda a mejorar las clases." |
 | Comment field label | "Comentario (opcional)" |
-| Primary CTA | "Enviar" |
+| Primary CTA | "Enviar puntuación" |
 | Skip / secondary action | "Ahora no" |
 | Submit success toast | "¡Gracias por tu puntuación!" |
 | Submit error state | "No pudimos guardar tu puntuación. Probá de nuevo en un momento." |
