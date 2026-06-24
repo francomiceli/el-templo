@@ -75,7 +75,8 @@ Coverage: **14/14 requirements mapped, 0 unmapped, 0 duplicates.**
 ### Roadmap Evolution
 
 - Phase 97.5 inserted after Phase 96.5: Raw-SQL Column-Drift Prod-Fix — systemic Drizzle column-name drift in el-templo-bot raw SQL (3 sites: tools.ts:495,500 + machine.ts:77). Discovered via Phase 98 STOP-and-reclassify guard 2026-06-17. Same drift class as Phase 95 BUG-03 (vi). TDD-shaped (RED → GREEN → sweep-lint guardrail). Blocks Phase 97 RGUARD-01 and Phase 98 reopen. (URGENT)
-- Phase 99 added 2026-06-23: Bot copy and price disclosure fixes — scope TBD (will be captured via `/gsd-discuss-phase 99` and planned via `/gsd-plan-phase 99`). Added at end of v5.3.3 milestone after Phase 98 ship (HEAD `7cc2ab9d`). Depends on: Phase 98. Local-only (consistent with the bot-scope branch discipline).
+- Phase 99 added 2026-06-23: Bot copy and price disclosure fixes — scope TBD (will be captured via `/gsd-discuss-phase 99` and planned via `/gsd-plan-phase 99`). Added at end of v5.3.3 milestone after Phase 98 ship (HEAD `7cc2ab9d`). Depends on: Phase 98. Local-only (consistent with the bot-scope branch discipline). ✅ shipped 2026-06-24 (verifier PASSED 6/6 at commit `4555f732`).
+- Phase 100 added 2026-06-24: Bot takeover ACK, debounce, and price trigger — TBD. Three live-test follow-ups bundled by title: (a) bot-takeover-ack (likely admin-takeover acknowledgment), (b) debounce (likely Phase 93 follow-up), (c) price-trigger (likely Phase 99 PRICE-01/02 live-finding refinement). Goal/requirements/plans deferred to `/gsd-discuss-phase 100`. Depends on: Phase 99 (just shipped).
 
 ### Decisions
 
