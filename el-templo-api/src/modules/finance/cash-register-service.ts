@@ -125,9 +125,14 @@ export class CashRegisterService {
    * Pre-cutoff rows are labeled for history but excluded by the
    * gte(transactionDate, cutoffDate) gate on every SUM (T-138-08).
    *
-   * INFLOW-ONLY in phase 138 — no cash_transfer/expense outflows exist yet.
-   * // TODO 139: subtract outflows (cash_transfer/expense) from firmeBalance —
-   * // phase 139 extends this body (signed movements) without changing the signature.
+   * SIGNED in phase 139 (D-09): firmeBalance = opening + Σ(inflow validados) −
+   * Σ(outflow validados), both since cutoff. The outflow term subtracts EVERY
+   * validado outflow row of this caja since cutoff with NO kind filter — that
+   * intentionally covers kind='expense', the kind='cash_transfer' outflow leg,
+   * AND any kind='refund' outflow (a cash refund genuinely leaves the caja, so
+   * subtracting it is correct; the cutoff gate excludes historical noise). The
+   * symmetry is direction-generic: an 'adjustment' reconciliation row is summed
+   * with the correct sign by its own `direction`.
    *
    * @throws NotFoundError when no caja exists for `cashRegisterId`.
    */
@@ -161,7 +166,29 @@ export class CashRegisterService {
           gte(schema.financialTransactions.transactionDate, caja.cutoffDate),
         ),
       );
-    const firmeBalance = caja.openingBalance + Number(firmRow?.total ?? 0);
+    // outflowTotal: the symmetric SUM of this caja's validado OUTflow rows since
+    // cutoff. Same firmMoneyConditions() spread + same cutoff gate as the inflow
+    // SUM, but direction='outflow'. NO kind filter (D-09): expense, the
+    // cash_transfer outflow leg, and refund outflows ALL subtract — every kind of
+    // money that genuinely leaves the caja.
+    const [outflowRow] = await this.db
+      .select({
+        total: sql<number>`COALESCE(SUM(${schema.financialTransactions.amount}), 0)`,
+      })
+      .from(schema.financialTransactions)
+      .where(
+        and(
+          eq(schema.financialTransactions.cashRegisterId, cashRegisterId),
+          eq(schema.financialTransactions.direction, "outflow"),
+          ...firmMoneyConditions(),
+          gte(schema.financialTransactions.transactionDate, caja.cutoffDate),
+        ),
+      );
+
+    const firmeBalance =
+      caja.openingBalance +
+      Number(firmRow?.total ?? 0) -
+      Number(outflowRow?.total ?? 0);
 
     // pendienteAmount: a SEPARATE SUM (validation_status='pendiente', not
     // voided, since cutoff). NEVER added to firmeBalance (CAJA-03).
