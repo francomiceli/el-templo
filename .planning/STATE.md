@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v5.2
 milestone_name: Módulo Contable — Libro de Caja
 status: executing
-stopped_at: Phase 137 context gathered
-last_updated: "2026-06-24T14:47:11.707Z"
+stopped_at: Phase 144 context gathered
+last_updated: "2026-06-24T14:52:19.238Z"
 last_activity: 2026-06-24
 progress:
   total_phases: 13
@@ -646,8 +646,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-24T14:47:07.229Z
-Stopped at: Phase 137 context gathered
-Resume file: None
+Last session: 2026-06-24T14:52:19.204Z
+Stopped at: Phase 144 context gathered
+Resume file: .planning/phases/144-notificaciones-y-bloqueo-de-vencimiento-de-membres-a-plan/144-CONTEXT.md
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
