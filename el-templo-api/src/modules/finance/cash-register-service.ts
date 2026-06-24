@@ -16,7 +16,7 @@ import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { BadRequestError, NotFoundError } from "../shared/errors";
 import { firmMoneyConditions } from "./firm-money";
-import type { CashRegisterBalance, PaymentMethod } from "./types";
+import type { CajaSaldoRow, CashRegisterBalance, PaymentMethod } from "./types";
 
 type DbInstance = MySql2Database<typeof schema>;
 
@@ -214,5 +214,61 @@ export class CashRegisterService {
       firmeBalance,
       pendienteAmount,
     };
+  }
+
+  /**
+   * Phase 141 (REP-02): list every ACTIVE caja with its firme + pendiente saldo,
+   * composing the existing getBalance(id) per caja (no new balance SQL). Returns
+   * a flat array; the frontend groups by type (efectivo sucursal/central/banco)
+   * and subtotalizes SOLO por moneda (D-06), never cross-currency.
+   *
+   * Scope (Franco-confirmed 2026-06-24): non-owner sees ONLY their country's
+   * sucursal efectivo cajas. Branch-less central/banco cajas (branch_id NULL)
+   * are country-agnostic → OWNER-ONLY, mirroring enforceCajaScope semantics. A
+   * non-owner is filtered to cajas whose branch.country === scope.country.
+   *
+   * Per-caja getBalance is fine at this scale (a handful of cajas — no N+1
+   * concern; 138 keeps the saldo derived, materialize only with perf evidence).
+   */
+  async listActiveCajasWithBalance(scope?: {
+    isOwner: boolean;
+    country: string | null;
+  }): Promise<CajaSaldoRow[]> {
+    const cajas = await this.db
+      .select({
+        id: schema.cashRegisters.id,
+        name: schema.cashRegisters.name,
+        type: schema.cashRegisters.type,
+        branchId: schema.cashRegisters.branchId,
+        currency: schema.cashRegisters.currency,
+        branchCountry: schema.branches.country,
+      })
+      .from(schema.cashRegisters)
+      .leftJoin(
+        schema.branches,
+        eq(schema.branches.id, schema.cashRegisters.branchId),
+      )
+      .where(eq(schema.cashRegisters.isActive, true));
+
+    const out: CajaSaldoRow[] = [];
+    for (const c of cajas) {
+      // Non-owner scope: branch-less cajas (central/banco) are owner-only, and
+      // a branch-scoped caja is visible only when its country matches.
+      if (scope && !scope.isOwner) {
+        if (c.branchId === null) continue; // central/banco → owner-only
+        if (c.branchCountry !== scope.country) continue; // cross-country → hide
+      }
+      const bal = await this.getBalance(c.id);
+      out.push({
+        cashRegisterId: c.id,
+        name: c.name,
+        type: c.type,
+        branchId: c.branchId,
+        currency: c.currency,
+        firmeBalance: bal.firmeBalance,
+        pendienteAmount: bal.pendienteAmount,
+      });
+    }
+    return out;
   }
 }

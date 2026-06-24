@@ -14,6 +14,7 @@
 
 import {
   eq,
+  asc,
   desc,
   and,
   sql,
@@ -22,6 +23,7 @@ import {
   lte,
   inArray,
   notInArray,
+  isNull,
   type SQL,
 } from "drizzle-orm";
 import { alias } from "drizzle-orm/mysql-core";
@@ -43,6 +45,8 @@ import type {
   FinancialHistoryFilters,
   FinancialHistoryItem,
   OutstandingConcept,
+  PendingTrayFilters,
+  PendingTrayItem,
   RevenueByKind,
   TargetKind,
   TransactionDetail,
@@ -51,6 +55,7 @@ import type {
   TransactionListItem,
   VoidTransactionInput,
 } from "./types";
+import { OVERDUE_DAYS } from "./constants";
 
 type DbInstance = MySql2Database<typeof schema>;
 
@@ -986,6 +991,177 @@ export class TransactionService {
     }));
 
     return { rows, total, page, limit };
+  }
+
+  /**
+   * Phase 141 (REP-01): bandeja de pendientes. Its OWN query — does NOT call or
+   * mutate list()/exportRowsForExcel() (those are the member-keyed INNER-JOIN
+   * paths). Returns pendiente+observado rows OLDEST-FIRST (the opposite of
+   * list()'s desc), each with TS-computed ageInDays (clamp ≥0, mirror of
+   * getOutstandingConcepts) + isOverdue (ageInDays > OVERDUE_DAYS) + the
+   * recorder ("cargado por") and caja name. thresholdDays is echoed back so 142
+   * can swap OVERDUE_DAYS for a finance_settings read without touching the UI.
+   *
+   * LEFT JOINs users/branches/cash_registers + the recorder self-join
+   * (defensive/consistency — a pendiente cobro always has a member today, but
+   * LEFT keeps the row even if a future kind drops member_id). Voided rows are
+   * excluded (isNull(voidedAt)).
+   */
+  async listPendingTray(
+    filters: PendingTrayFilters,
+  ): Promise<PaginatedResult<PendingTrayItem> & { thresholdDays: number }> {
+    const page = Math.max(1, filters.page ?? 1);
+    const limit = Math.min(200, Math.max(1, filters.limit ?? 50));
+    const offset = (page - 1) * limit;
+
+    const recorder = alias(schema.users, "recorder");
+
+    // status → validation_status condition. 'todos'/undefined → IN(both).
+    let statusCond: SQL;
+    if (filters.status === "pendientes") {
+      statusCond = eq(
+        schema.financialTransactions.validationStatus,
+        "pendiente",
+      );
+    } else if (filters.status === "observados") {
+      statusCond = eq(
+        schema.financialTransactions.validationStatus,
+        "observado",
+      );
+    } else {
+      statusCond = inArray(schema.financialTransactions.validationStatus, [
+        "pendiente",
+        "observado",
+      ]);
+    }
+
+    const conditions: SQL[] = [
+      statusCond,
+      isNull(schema.financialTransactions.voidedAt),
+    ];
+    if (filters.branchId !== undefined) {
+      conditions.push(
+        eq(schema.financialTransactions.branchId, filters.branchId),
+      );
+    }
+    if (filters.country !== undefined) {
+      conditions.push(eq(schema.branches.country, filters.country));
+    }
+    if (filters.dateFrom !== undefined) {
+      conditions.push(
+        gte(schema.financialTransactions.transactionDate, filters.dateFrom),
+      );
+    }
+    if (filters.dateTo !== undefined) {
+      conditions.push(
+        lte(schema.financialTransactions.transactionDate, filters.dateTo),
+      );
+    }
+
+    const [countRow] = await this.db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(schema.financialTransactions)
+      .leftJoin(
+        schema.users,
+        eq(schema.users.id, schema.financialTransactions.memberId),
+      )
+      .leftJoin(
+        schema.branches,
+        eq(schema.branches.id, schema.financialTransactions.branchId),
+      )
+      .leftJoin(
+        schema.cashRegisters,
+        eq(
+          schema.cashRegisters.id,
+          schema.financialTransactions.cashRegisterId,
+        ),
+      )
+      .leftJoin(
+        recorder,
+        eq(recorder.id, schema.financialTransactions.recordedBy),
+      )
+      .where(and(...conditions));
+    const total = Number(countRow?.count ?? 0);
+
+    const raw = await this.db
+      .select({
+        id: schema.financialTransactions.id,
+        transactionDate: schema.financialTransactions.transactionDate,
+        memberId: schema.financialTransactions.memberId,
+        memberFirstName: schema.users.firstName,
+        memberLastName: schema.users.lastName,
+        amount: schema.financialTransactions.amount,
+        currency: schema.financialTransactions.currency,
+        paymentMethod: schema.financialTransactions.paymentMethod,
+        cashRegisterId: schema.financialTransactions.cashRegisterId,
+        cashRegisterName: schema.cashRegisters.name,
+        recordedBy: schema.financialTransactions.recordedBy,
+        recorderFirstName: recorder.firstName,
+        recorderLastName: recorder.lastName,
+        validationStatus: schema.financialTransactions.validationStatus,
+      })
+      .from(schema.financialTransactions)
+      .leftJoin(
+        schema.users,
+        eq(schema.users.id, schema.financialTransactions.memberId),
+      )
+      .leftJoin(
+        schema.branches,
+        eq(schema.branches.id, schema.financialTransactions.branchId),
+      )
+      .leftJoin(
+        schema.cashRegisters,
+        eq(
+          schema.cashRegisters.id,
+          schema.financialTransactions.cashRegisterId,
+        ),
+      )
+      .leftJoin(
+        recorder,
+        eq(recorder.id, schema.financialTransactions.recordedBy),
+      )
+      .where(and(...conditions))
+      // REP-01 / D-02: OLDEST-FIRST (opposite of list()'s desc).
+      .orderBy(
+        asc(schema.financialTransactions.transactionDate),
+        asc(schema.financialTransactions.createdAt),
+      )
+      .limit(limit)
+      .offset(offset);
+
+    // ageInDays in TS — clamp ≥0, mirror of getOutstandingConcepts (avoid TZ/SQL
+    // drift). isOverdue = ageInDays > OVERDUE_DAYS (the shared 141 constant).
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const MS_PER_DAY = 1000 * 60 * 60 * 24;
+
+    const rows: PendingTrayItem[] = raw.map((r) => {
+      const txDate = new Date(String(r.transactionDate) + "T00:00:00");
+      const ageInDays = Math.max(
+        0,
+        Math.floor((today.getTime() - txDate.getTime()) / MS_PER_DAY),
+      );
+      return {
+        id: r.id,
+        transactionDate: String(r.transactionDate),
+        memberId: r.memberId,
+        memberName:
+          `${r.memberFirstName ?? ""} ${r.memberLastName ?? ""}`.trim(),
+        amount: r.amount,
+        currency: r.currency,
+        paymentMethod: r.paymentMethod,
+        cashRegisterId: r.cashRegisterId,
+        cashRegisterName: r.cashRegisterName ?? "",
+        recordedBy: r.recordedBy,
+        recorderName:
+          `${r.recorderFirstName ?? ""} ${r.recorderLastName ?? ""}`.trim(),
+        validationStatus: r.validationStatus,
+        ageInDays,
+        isOverdue: ageInDays > OVERDUE_DAYS,
+      };
+    });
+
+    return { rows, total, page, limit, thresholdDays: OVERDUE_DAYS };
   }
 
   private buildListConditions(filters: TransactionListFilters): SQL[] {

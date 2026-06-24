@@ -354,6 +354,58 @@ export interface MovementDetail {
   countedAmount: number | null; // conteo físico, si se proveyó
 }
 
+// -- Phase 141: reportes para la admin (REP-01 / REP-02) --------------------
+
+/**
+ * Phase 141 (REP-01): una fila de la bandeja de pendientes. Es pendiente o
+ * observado, con antigüedad computada server-side (TS, clamp ≥0) y el flag
+ * `isOverdue` derivado de OVERDUE_DAYS (constants.ts). `recorderName` es "cargado
+ * por" (alias users.recordedBy); `cashRegisterName` es el nombre de la caja.
+ */
+export interface PendingTrayItem {
+  id: number;
+  transactionDate: string; // YYYY-MM-DD
+  memberId: number | null;
+  memberName: string;
+  amount: number;
+  currency: string;
+  paymentMethod: PaymentMethod;
+  cashRegisterId: number | null;
+  cashRegisterName: string;
+  recordedBy: number;
+  recorderName: string;
+  validationStatus: string; // 'pendiente' | 'observado'
+  ageInDays: number; // días desde transactionDate (clamp ≥0)
+  isOverdue: boolean; // ageInDays > OVERDUE_DAYS
+}
+
+/** Filtros para listPendingTray (REP-01). */
+export interface PendingTrayFilters {
+  /** Pendientes/Observados/Todos (D-04). undefined === 'todos' (ambos). */
+  status?: "pendientes" | "observados" | "todos";
+  country?: CountryCode;
+  branchId?: number;
+  dateFrom?: string; // YYYY-MM-DD
+  dateTo?: string; // YYYY-MM-DD
+  page?: number;
+  limit?: number;
+}
+
+/**
+ * Phase 141 (REP-02): saldo firme + pendiente de una caja activa, junto a su
+ * tipo/moneda/sucursal para que el front agrupe (efectivo sucursal / central /
+ * banco) y subtotalice SOLO por moneda. firme/pendiente vienen de getBalance.
+ */
+export interface CajaSaldoRow {
+  cashRegisterId: number;
+  name: string;
+  type: "efectivo" | "banco";
+  branchId: number | null;
+  currency: string;
+  firmeBalance: number;
+  pendienteAmount: number;
+}
+
 // Phase 138 (D-06/D-08/CAJA-03) — saldo DERIVADO de una caja. firmeBalance es
 // opening_balance + Σ validados de la caja desde cutoff_date (reusa
 // firmMoneyConditions). pendienteAmount (validation_status='pendiente') se
