@@ -197,6 +197,73 @@ is ~95 JS-chars vs the current ~285. Net savings ≈ 190 chars, which moves NEW_
 - `tsc --noEmit` exits 0 on `el-templo-bot/`.
 - Bot tests are RED on the snap-coupled paths (5 of 59) until the cap question is resolved.
 
+## HALT Resolution — Option A applied with extension
+
+**Decision:** User selected Option A (trim Mica anchor wording, no policy change). Executed inline by orchestrator after the worktree agent returned, since the SendMessage tool wasn't available to resume the same agent. Commits landed directly on `feature/whatsapp-bot-scaffold` after cherry-picking the worktree-agent commits onto the main branch.
+
+**Two-phase trim** (Option A's two listed trims weren't sufficient on their own — saved 212/265 needed):
+
+Phase A.1 — Mica anchor primary trim (commit `ef2d066a`, jointly with A.2 + extras):
+
+- Dropped: `"Si por error te referís a vos misma con otro nombre, corregilo en el siguiente turno."` → −86 chars rendered. (Estimate was ~190; reality 86.)
+
+Phase A.2 — knowledge.ts:548 tail trim (same commit `ef2d066a`):
+
+- Dropped: `Si alguien busca "calistenia alfa", explicar que empieza en nivel Alfa dentro de las clases de calistenia.` tail sentence (search-keyword hint, redundant with the level-vs-class definition above).
+- Replaced: `dentro de las clases de calistenia` → `dentro de ellas` (mid-sentence antecedent is clear).
+- Net for A.2: −126 chars rendered.
+
+**Cumulative after A.1 + A.2:** 19181 → 18969 (212 saved, 53 still over cap).
+
+Phase A.3 — Authorised micro-trims (user-approved in a second AskUserQuestion after A.1/A.2 measurement revealed the original estimates were off; same commit `ef2d066a`):
+
+- Mica anchor: `"escribilo siempre exactamente así, nunca lo deformes ni lo abrevies"` → `"escribilo siempre así, nunca lo deformes"` (~26 chars saved).
+- Mica anchor: dropped `Mics` from variant list (~6 chars).
+- knowledge.ts:548: dropped `, no actividades separadas` (level-vs-class distinction already carried by "son niveles de progresion dentro de ellas") (~25 chars).
+- Net for A.3: −59 chars rendered.
+
+**Final rendered length:** **18910 JS-chars (6 chars under the 18916 cap).**
+
+### Final state of the Mica anchor (system-prompt.ts:338, post-trim)
+
+```
+- *Tu nombre es Mica* — escribilo siempre así, nunca lo deformes. Nunca te llames Micla, Mika ni ninguna otra variante.
+```
+
+Verify-gate substrings both present and grep-passing:
+
+- `"Tu nombre es Mica"` ✓
+- `"Nunca te llames Micla"` ✓
+
+### Final state of knowledge.ts:548 (post-trim)
+
+```
+*Importante:* Todas las clases son *clases de calistenia*. Alfa, Delta, Omega y Spartan son *niveles de progresion* dentro de ellas. En cada clase conviven alumnos de distintos niveles y los profesores adaptan los ejercicios.
+```
+
+(Lost: the trailing `"Si alguien busca 'calistenia alfa'..."` search-keyword hint. If keyword-routing degrades in live use, a future phase can re-add a compact form within the new byte budget.)
+
+### Resolution commits
+
+- `ef2d066a` — `fix(99-01): trim copy to fit KGATE-05 cap (≥20% rendered ≤ 18916)` — applies all of A.1 + A.2 + A.3.
+- `1ba7e49e` — `test(99-01): regen pb1-e1a-lead-rendered snap + bump POST_RLOK_04_BYTES (Task 3)` — atomic regen of the fixture + bump 18884 → 18910 + JSDoc history paragraph documenting the Phase 99 regen and date-kwarg discipline.
+
+### Post-resolution test state
+
+`cd el-templo-bot && pnpm test --run test/v5-3-2-regression.test.ts test/v5-3-3-date-grounding.test.ts test/system-prompt-playbook.test.ts test/ai/rendered-prompt-snapshot.test.ts` reports:
+
+- **Test Files:** 4 passed (4)
+- **Tests:** 59 passed (59)
+
+All snap-consuming tests green. ≥20% rendered-cap holds at 18910 ≤ 18916. ≥35% knowledge-block cap unchanged.
+
+### Orchestrator process notes (audit trail)
+
+- The worktree agent (`agent-a6a4d58520e5670d2`) correctly halted on the cap overage and surfaced 4 options (A/B/C/D) without self-overriding the cap. Per memory `feedback_verifier_unauthorized_overrides`, this was the right behavior.
+- SendMessage tool unavailable → orchestrator cherry-picked the worktree-agent's 3 commits (`2d9f97a5`, `7e0ba612`, `c54284ef`/SUMMARY) onto `feature/whatsapp-bot-scaffold` and completed the resolution inline.
+- Original commits on the worktree branch (`worktree-agent-a6a4d58520e5670d2`) preserved as `2d9f97a5`/`7e0ba612`/`3a3e4f9e`. Cherry-pick replays on main: `53c43e85`/`4d219fb9`/`c54284ef`.
+- Two AskUserQuestion turns were used (A vs B/C/D, then "4 micro-trims" vs escalate) — both explicitly authorised by the user. No silent policy changes.
+
 ## Issues Encountered
 
 - **tsc cross-repo type-resolution noise (pre-existing):** Initial `pnpm exec tsc --noEmit` reported 102 errors, all from `../el-templo-api/src/db/schema/*` (the bot's `tsconfig.json` `include` array references api schema files for shared drizzle types, but api `node_modules` was not installed in this worktree). Resolved by running `pnpm install --prefer-offline` in `el-templo-api/`. Confirmed pre-existing by checking pre-edit baseline (102 errors before, 102 errors after the Task 1 edit). Not a code deviation, just worktree setup.
@@ -219,11 +286,10 @@ Commits claimed exist:
 
 ## Next Phase Readiness
 
-- **Blocked on human decision** between trim (Option A, recommended) or cap relaxation (Option B, explicitly forbidden by the plan as written). Once chosen:
-  - If Option A: a 99-01 follow-up commit replaces the Mica anchor wording and re-runs Task 3 Step 2 (regen + bump POST_RLOK_04_BYTES) in a single commit per the plan's atomic-regen discipline.
-  - If Option B: requires a CONTEXT.md amendment lifting the "≥20% rendered-cap is immutable" guard, then Task 3 regen + bump proceeds.
-- **Plan 99-02 (wave 2)** is independent of this HALT — PRICE work touches `definitions.ts` / `handler.ts` / `tools.ts` / `session.ts` and does not consume the snap fixture byte budget. It can proceed unblocked.
-- **Plan 99-03 (wave 3)** writes the tests for these COPY changes. If Option A is chosen, the eventual Mica anchor will be slightly shorter than the current 285-char version — 99-03 test fixtures should anchor on the surviving substrings (`"Tu nombre es Mica"`, `"Nunca te llames Micla"`), not on the full bullet text.
+- **HALT RESOLVED — plan 99-01 fully shipped.** All 3 tasks complete + cap-trim resolution. 4 commits on `feature/whatsapp-bot-scaffold` (`53c43e85` Task 1 / `4d219fb9` Task 2 / `c54284ef` initial HALT SUMMARY / `ef2d066a` cap-trim resolution / `1ba7e49e` Task 3 regen + bump). One more commit (this SUMMARY amendment) closes the loop.
+- **Plan 99-02 (wave 2)** is unblocked. PRICE work touches `definitions.ts` / `handler.ts` / `tools.ts` / `playbook-state.ts` / `system-prompt.ts` (addendum const, no cap impact at PB1.E1A render) and does not consume the snap fixture byte budget materially. Per CONTEXT.md `<scope_fence>`, 99-02 stays bot-side only; HARD GUARD verifies zero `el-templo-api/src/**` changes.
+- **Plan 99-03 (wave 3)** writes integration tests in `el-templo-api/test/whatsapp/`. The Mica name verify-gate test should grep for `"Tu nombre es Mica"` and `"Nunca te llames Micla"` (both present in the final trimmed anchor — already specified in 99-03 Task 1). The 99-03 source-text test for `"clases de calistenia"` must account for the trimmed knowledge.ts:548 (no `"Si alguien busca"` tail). 99-03 Task 1's count assertion (`>= 1` in knowledge.ts) is unchanged; no test edits needed pre-execution.
+- **KGATE-05 byte budget for future phases:** `POST_RLOK_04_BYTES` now 18910 (was 18884). Remaining headroom under the ≥20% rendered-cap = 18916 − 18910 = **6 chars**. The next phase that adds prompt copy MUST either trim or carry a budget-bumping task — Phase 100/follow-ups should not casually add prompt prose at the lead render.
 
 ---
 
