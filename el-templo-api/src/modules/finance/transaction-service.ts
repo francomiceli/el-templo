@@ -773,6 +773,29 @@ export class TransactionService {
 
   // ─── Read methods ─────────────────────────────────────────────────────────
 
+  /**
+   * Phase 140 (CARGA-02 / D-09 / Pitfall 3): re-read an existing transaction by
+   * its idempotency key on a FRESH connection (this.db, never an aborted tx).
+   * The coach load endpoints call this AFTER catching an ER_DUP_ENTRY so a
+   * double-tap/retry returns the original charge instead of a duplicate or a
+   * 500. Returns null when no row carries the key (the caller then rethrows).
+   */
+  async findByIdempotencyKey(
+    idempotencyKey: string,
+  ): Promise<TransactionDetail | null> {
+    const [row] = await this.db
+      .select()
+      .from(schema.financialTransactions)
+      .where(eq(schema.financialTransactions.idempotencyKey, idempotencyKey))
+      .limit(1);
+    if (!row) return null;
+    const links = await this.db
+      .select()
+      .from(schema.transactionLinks)
+      .where(eq(schema.transactionLinks.transactionId, row.id));
+    return { ...row, links };
+  }
+
   /** Get a single transaction with its links. */
   async getById(id: number): Promise<TransactionDetail | null> {
     const [row] = await this.db
@@ -978,6 +1001,13 @@ export class TransactionService {
     }
     if (filters.memberId !== undefined) {
       conds.push(eq(schema.financialTransactions.memberId, filters.memberId));
+    }
+    // Phase 140 (D-07): own-loads scope for the coach mis-cargas read. The
+    // route forces this to the authenticated coach id (never from the query).
+    if (filters.recordedBy !== undefined) {
+      conds.push(
+        eq(schema.financialTransactions.recordedBy, filters.recordedBy),
+      );
     }
     if (filters.paymentMethod !== undefined) {
       conds.push(

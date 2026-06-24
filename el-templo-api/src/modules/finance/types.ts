@@ -152,6 +152,13 @@ export interface TransactionListFilters {
   dateTo?: string; // YYYY-MM-DD
   memberId?: number;
   paymentMethod?: PaymentMethod;
+  /**
+   * Phase 140 (D-07 / CARGA-04): scope the list to the rows a specific staff
+   * member recorded. The coach "mis-cargas" endpoint FORCES this to the
+   * authenticated coach's id server-side (never from the query) so a coach only
+   * ever sees their own loads — never other coaches' loads or the full ledger.
+   */
+  recordedBy?: number;
   /** Member name search; uses buildMemberNameSearchCondition. */
   search?: string;
   page?: number;
