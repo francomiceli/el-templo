@@ -350,7 +350,7 @@ The 45s `OPENAI_TIMEOUT_MS` is the LEFT-HAND VARIABLE that the right-hand TTL mu
 
 Plans:
 
-- [ ] 99-01-PLAN.md — Copy fixes (COPY-01 Mica name reinforcement + COPY-02 class-name rename) — Wave 1, no dependencies, single-file-surface on `el-templo-bot/src/ai/{system-prompt,knowledge}.ts`
+- [x] 99-01-PLAN.md — Copy fixes (COPY-01 Mica name reinforcement + COPY-02 class-name rename) — Wave 1 ✅ shipped 2026-06-23. KGATE-05 cap overage (rendered 19181 > 18916) caught by Task 3 HALT; resolved via user-authorized Option A 3-phase trim (Mica self-correction sentence + knowledge.ts:548 tail/rephrase + 4 micro-trims). Final rendered 18910 (6 under cap). `POST_RLOK_04_BYTES` bumped 18884 → 18910. 4 snap-consuming test files green (59/59). See [99-01-SUMMARY.md](phases/99-bot-copy-and-price-disclosure-fixes/99-01-SUMMARY.md) §HALT Resolution.
 - [ ] 99-02-PLAN.md — Price-insistence counter + threshold-based disclosure unlock + PB2.E2 placeholder verify-then-fix (PRICE-01 + PRICE-02 + PRICE-03) — Wave 2, depends on 99-01 (shared `system-prompt.ts` surface)
 - [ ] 99-03-PLAN.md — Integration test coverage in `el-templo-api/test/whatsapp/` (PRICE-04 + COPY-01/02 source-text regression locks + no-hardcoded-prices guard) — Wave 3, depends on 99-01 and 99-02
 
