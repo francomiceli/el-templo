@@ -3514,13 +3514,18 @@ _v5.2 added: 2026-06-04 — 1 phase (132). Cierra v5.0 del lado de UI: expone en
 **Requirements:** MOV-01, MOV-02, MOV-03, MOV-04
 **Success Criteria** (what must be TRUE at phase completion):
 
-1. Un movimiento inter-caja se registra como una sola fila (`kind='cash_transfer'`, origen+destino) en una `db.transaction`; la suma de saldos de todas las cajas de la misma moneda no cambia tras el movimiento (invariante testeada). Movimiento solo entre cajas de igual moneda. (MOV-01)
+1. Un movimiento inter-caja se registra como un **asiento de doble entrada — 2 filas `kind='cash_transfer'` linkeadas** (outflow en origen + inflow en destino, vía `transaction_links`) en una sola `db.transaction` (D-02: el ROADMAP decía "una sola fila" — resuelto a 2 filas linkeadas, misma operación atómica neto 0); la suma de saldos de todas las cajas de la misma moneda no cambia tras el movimiento (invariante testeada). Movimiento solo entre cajas de igual moneda. (MOV-01)
 2. El movimiento captura `expected_amount` (saldo derivado al momento) vs. `counted_amount` (físico) y persiste la diferencia con rastro, sin "ajustar" silenciosamente el saldo. (MOV-02)
 3. Un egreso (`kind='expense'`, destino NULL) resta del saldo de su caja con monto + nota libre (sin categoría en v1); `cash_transfer`/`expense` están en `KINDS_ALLOWED_WITHOUT_LINKS` y NO tocan `balances` (verificado por test). (MOV-03)
 4. Movimientos y egresos se anulan con el mismo soft-void ortogonal que los pagos (motivo + autor + fecha), nunca con delete. (MOV-04)
 
-**Plans:** TBD
-**UI hint:** yes
+**Plans:** 3 plans
+Plans:
+
+- [ ] 139-01-PLAN.md — Cimiento: migración 0155 (enum +cash_transfer/+expense, member_id NULL) + tipos + MUST-FIX A (getSummary) + MUST-FIX B (applyDelta) + voidPair
+- [ ] 139-02-PLAN.md — getBalance resta outflows validados desde el corte (// TODO 139) + invariante neto-0 + refund-outflow
+- [ ] 139-03-PLAN.md — MovementService (movimiento 2 filas + reconciliación + guard igual-moneda + egreso + void-the-pair) + rutas admin-only + tests MOV-01..04
+      **UI hint:** yes
 
 ### Phase 140: Carga única que propaga + cobro suelto + rol profe
 
