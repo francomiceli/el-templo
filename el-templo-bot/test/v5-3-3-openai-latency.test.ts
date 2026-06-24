@@ -410,6 +410,26 @@ function makeMockLog(): Record<string, unknown> {
   };
 }
 
+/**
+ * Phase 100 DBNC-01 driver helper.
+ *
+ * Advances fake timers past the trailing-debounce quiet window in stepped
+ * `vi.advanceTimersByTimeAsync(POLL_INTERVAL)` ticks so the Redis-mock
+ * `await getLatestInboundAt(...)` reads inside the poll loop resolve
+ * between ticks. A single `advanceTimersByTime(7000)` jump skips the
+ * microtask flushes those `await`s need to resolve and the loop hangs.
+ *
+ * Matches handler.ts: DEBOUNCE_QUIET_WINDOW_MS=7000, DEBOUNCE_POLL_INTERVAL_MS=500.
+ */
+async function advancePastQuietWindow(): Promise<void> {
+  const QUIET_WINDOW = 7000;
+  const POLL_INTERVAL = 500;
+  const ticks = Math.ceil(QUIET_WINDOW / POLL_INTERVAL) + 2;
+  for (let i = 0; i < ticks; i++) {
+    await vi.advanceTimersByTimeAsync(POLL_INTERVAL);
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // SC#2 — Interim UX on OpenAI.APIError (LAT-02).
 //
@@ -460,9 +480,11 @@ describe("LAT-02 (SC#2) — interim UX 'Dame un segundo' on OpenAI.APIError", ()
     const msg = makeMessage(phone, "Hola, hay clases hoy?", "wamid.lat02.A1");
     const p = handleInboundMessage(db as never, log as never, msg);
 
-    // Advance debounce delay (3s) so processWithAiInner runs and triggers
+    // Phase 100 DBNC-01: advance past the trailing-debounce quiet window
+    // (DEBOUNCE_QUIET_WINDOW_MS=7000) in stepped ticks so the loop's async
+    // Redis-mock reads resolve. processWithAiInner runs and triggers
     // provider.chat → throws OpenAI.APIError → catch path sends interim msg.
-    await vi.advanceTimersByTimeAsync(3500);
+    await advancePastQuietWindow();
     await p;
 
     // SC#2 invariant: interim "Dame un segundo" sent exactly once.
@@ -521,7 +543,8 @@ describe("LAT-03 (SC#3) — graceful fallback 'Tuve un problemita técnico' when
     const msg = makeMessage(phone, "Hola, hay clases hoy?", "wamid.lat03.A1");
     const p = handleInboundMessage(db as never, log as never, msg);
 
-    await vi.advanceTimersByTimeAsync(3500);
+    // Phase 100 DBNC-01: stepped advance past the trailing-debounce quiet window.
+    await advancePastQuietWindow();
 
     // Handler MUST resolve cleanly — no unhandled rejection. Wrap in
     // expect().resolves.toBeUndefined() to make the assertion explicit.

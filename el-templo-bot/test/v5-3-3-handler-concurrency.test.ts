@@ -24,8 +24,17 @@
  *    pipeline; we don't exercise the real schema, only the dedup/debounce
  *    decision path.
  *
- * `vi.useFakeTimers()` is used to advance the 3s `setTimeout` debounce
- * delay deterministically.
+ * `vi.useFakeTimers()` is used to advance the trailing-debounce quiet
+ * window (DEBOUNCE_QUIET_WINDOW_MS=7000ms, polled every
+ * DEBOUNCE_POLL_INTERVAL_MS=500ms) per Phase 100 DBNC-01.
+ *
+ * Phase 100 driver-update (Task 4): the OLD fixed 3s
+ * `vi.advanceTimersByTimeAsync(3500)` is replaced with the
+ * `advancePastQuietWindow()` helper below, which steps the clock in
+ * 500ms ticks. Stepping is essential because the loop's `await
+ * getLatestInboundAt(...)` reads the Redis-mock between every tick —
+ * a single `advanceTimersByTime(7000)` jump skips the microtask
+ * flushes those `await`s need to resolve.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
@@ -314,6 +323,29 @@ function makeMockLog(): Record<string, unknown> {
   };
 }
 
+/**
+ * Phase 100 DBNC-01 driver helper.
+ *
+ * Advances fake timers past the trailing-debounce quiet window in stepped
+ * `vi.advanceTimersByTimeAsync(POLL_INTERVAL)` ticks so the Redis-mock
+ * `await` reads inside the poll loop resolve between ticks. A single
+ * `vi.advanceTimersByTime(7000)` jump skips those microtask flushes and
+ * the loop would hang waiting on `await getLatestInboundAt(...)`.
+ *
+ * Matches handler.ts:
+ *   DEBOUNCE_QUIET_WINDOW_MS = 7000ms
+ *   DEBOUNCE_POLL_INTERVAL_MS = 500ms
+ *   → 14 ticks + 2 slack ticks to push past the boundary.
+ */
+async function advancePastQuietWindow(): Promise<void> {
+  const QUIET_WINDOW = 7000;
+  const POLL_INTERVAL = 500;
+  const ticks = Math.ceil(QUIET_WINDOW / POLL_INTERVAL) + 2;
+  for (let i = 0; i < ticks; i++) {
+    await vi.advanceTimersByTimeAsync(POLL_INTERVAL);
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // CONC-01 — Rapid-fire single-response (Branch 1 SETNX-race fix-in-main).
 // ─────────────────────────────────────────────────────────────────────────────
@@ -360,9 +392,10 @@ describe("CONC-01 — rapid-fire single-response (Branch 1 SETNX-race fix)", () 
       const p1 = handleInboundMessage(db as never, log as never, msg1);
       const p2 = handleInboundMessage(db as never, log as never, msg2);
 
-      // Advance the 3s debounce delay so processWithAiInner runs.
-      // Use multiple ticks since both invocations create their own setTimeout.
-      await vi.advanceTimersByTimeAsync(3500);
+      // Phase 100 DBNC-01: advance past the trailing-debounce quiet window
+      // (DEBOUNCE_QUIET_WINDOW_MS=7000, polled every DEBOUNCE_POLL_INTERVAL_MS
+      // =500). Stepped advance — see helper docstring above.
+      await advancePastQuietWindow();
 
       await Promise.all([p1, p2]);
 
@@ -389,14 +422,17 @@ describe("CONC-01 — rapid-fire single-response (Branch 1 SETNX-race fix)", () 
       const p1 = handleInboundMessage(db as never, log as never, msg1);
       const p2 = handleInboundMessage(db as never, log as never, msg2);
 
-      await vi.advanceTimersByTimeAsync(3500);
+      // Phase 100 DBNC-01: stepped advance past the trailing-debounce
+      // quiet window (was a 3500ms jump; now 16 ticks of 500ms).
+      await advancePastQuietWindow();
 
       await Promise.all([p1, p2]);
 
       // Branch 1 invariant: different-body rapid-fire coalesces — exactly ONE
       // main AI call whose messages[] contains BOTH user texts as the user's
       // combined turn. The surviving handler re-reads the session after its
-      // 3s sleep and sees both messages (both invocations of processWithAi
+      // trailing-debounce quiet-window elapses and sees both messages (both
+      // invocations of processWithAi
       // called updateSession before the debounce check).
       // Filter to main handler calls only — see same-body sub-test for rationale.
       const mainChatCalls = chatCalls.filter((c) => c.tools !== undefined);
@@ -461,14 +497,15 @@ describe("CONC-01 sanity — sequential (non-rapid-fire) inbounds produce 2 AI c
 
     const msg1 = makeMessage(phone, "Hola", "wamid.seq.C1");
     const p1 = handleInboundMessage(db as never, log as never, msg1);
-    await vi.advanceTimersByTimeAsync(3500);
+    // Phase 100 DBNC-01: stepped advance past the trailing-debounce quiet window.
+    await advancePastQuietWindow();
     await p1;
 
     // After the first inbound fully completes, the debounce key has been
     // released by the finally block. A fresh inbound starts a new turn.
     const msg2 = makeMessage(phone, "¿hay clases mañana?", "wamid.seq.C2");
     const p2 = handleInboundMessage(db as never, log as never, msg2);
-    await vi.advanceTimersByTimeAsync(3500);
+    await advancePastQuietWindow();
     await p2;
 
     // Sanity: 2 separate turns → 2 MAIN AI calls. If this test fails, the

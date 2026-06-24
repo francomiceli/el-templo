@@ -395,8 +395,28 @@ const HANDOFF_ESCALATION_PHRASE =
   "Te paso con alguien del equipo, te escriben enseguida 🙌";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Common driver — invoke handleInboundMessage and advance the 3s debounce.
+// Common driver — invoke handleInboundMessage and advance past the
+// Phase 100 DBNC-01 trailing-debounce quiet window.
+//
+// Phase 100 driver-update (Task 4): the OLD fixed 3s
+// `vi.advanceTimersByTimeAsync(3500)` is replaced with stepped 500ms
+// advances totaling 16 ticks (= 8000ms) so the poll loop's async
+// `await getLatestInboundAt(...)` reads against the Map-backed Redis mock
+// resolve between ticks. A single jump skips those microtask flushes.
 // ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Stepped fake-timer advance past `DEBOUNCE_QUIET_WINDOW_MS`. See
+ * handler.ts for the contract (7000ms window, 500ms poll interval).
+ */
+async function advancePastQuietWindow(): Promise<void> {
+  const QUIET_WINDOW = 7000;
+  const POLL_INTERVAL = 500;
+  const ticks = Math.ceil(QUIET_WINDOW / POLL_INTERVAL) + 2;
+  for (let i = 0; i < ticks; i++) {
+    await vi.advanceTimersByTimeAsync(POLL_INTERVAL);
+  }
+}
 
 async function driveHandler(
   phone: string,
@@ -408,7 +428,7 @@ async function driveHandler(
   const log = makeMockLog();
   const msg = makeMessage(phone, text, wamid);
   const p = handleInboundMessage(db as never, log as never, msg);
-  await vi.advanceTimersByTimeAsync(3500);
+  await advancePastQuietWindow();
   await p;
 }
 
