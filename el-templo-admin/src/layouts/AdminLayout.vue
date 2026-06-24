@@ -63,6 +63,12 @@
           </q-item-section>
           <q-item-section>Horarios</q-item-section>
         </q-item>
+        <q-item v-if="isLoadRole" clickable v-ripple to="/cargar">
+          <q-item-section avatar>
+            <q-icon name="point_of_sale" />
+          </q-item-section>
+          <q-item-section>Cargar pago</q-item-section>
+        </q-item>
         <q-item v-if="isCoachDebtsRole" clickable v-ripple to="/deudas">
           <q-item-section avatar>
             <q-icon name="request_quote" />
@@ -231,6 +237,11 @@ const isCoachDebtsRole = computed(() =>
 
 // owner only for content pages, franquicias, usuarios
 const isOwnerRole = computed(() => userRole.value === 'owner');
+
+// Phase 140 (CARGA-04): coach + caja roles can reach the PoS "Cargar pago"
+// screen (/cargar). Mirrors the backend FINANCE_LOAD_ROLES constant — keep in
+// sync. Distinct from isCajaRole: a coach loads payments but cannot see /caja saldos.
+const isLoadRole = computed(() => ['coach', 'gestion', 'admin', 'owner'].includes(userRole.value));
 
 async function handleLogout() {
   await authStore.logout();
