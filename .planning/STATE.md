@@ -4,13 +4,13 @@ milestone: v5.2
 milestone_name: Módulo Contable — Libro de Caja
 status: executing
 stopped_at: Completed 138-01-PLAN.md
-last_updated: "2026-06-24T17:21:47.988Z"
+last_updated: "2026-06-24T18:09:08.532Z"
 last_activity: 2026-06-24
 progress:
   total_phases: 13
   completed_phases: 6
   total_plans: 38
-  completed_plans: 35
+  completed_plans: 36
   percent: 46
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 ## Current Position
 
 Phase: 138 (Entidad caja + saldos) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-06-24
 Next: ejecutar 143-02-PLAN.md
@@ -251,6 +251,7 @@ _Updated after each plan completion_
 | Phase 137 P02 | ~40min | 3 tasks | 6 files |
 | Phase 137 P03 | ~18min | 3 tasks | 9 files |
 | Phase 138 P01 | 10min | 3 tasks | 5 files |
+| Phase 138 P138-02 | ~75min | 3 tasks | 13 files |
 
 ## Accumulated Context
 
@@ -619,6 +620,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: [Phase 137]: Migration 0153 hand-written (not drizzle-kit generate) — runner reads .sql by name + \_migrations table is source of truth; generate prompted for unrelated sessions.goal_plan_type drift
 - [Phase ?]: 137-03: 13 firm-money call sites centralized through firm-money.ts with validation_status='validado'; subscriptions cancel guard kept as deliberate integrity exception — VAL-05 blast-radius closed; backfill keeps the 6 v5.0 metrics identical
 - [Phase 138]: [Phase 138]: cutoff_date is a per-caja column seeded with one global value (no settings-table dependency); cash_registers seed is SELECT-driven off branches (8 on prod baseline, scales with branch count)
+- [Phase 138]: 138-02: resolveCashRegister (single reusable caja resolver, D-01) + currency guard (D-09) live in CashRegisterService; wired at the single create() insert site so all 9 create paths auto-stamp cash_register_id server-side (CAJA-02/04). Reused by phase 140.
 
 ### Pending Todos
 
@@ -651,7 +653,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-24T17:21:47.970Z
+Last session: 2026-06-24T18:09:08.498Z
 Stopped at: Completed 138-01-PLAN.md
 Resume file: None
 
