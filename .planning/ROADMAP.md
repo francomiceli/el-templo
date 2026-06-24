@@ -3463,7 +3463,7 @@ _v5.2 added: 2026-06-04 — 1 phase (132). Cierra v5.0 del lado de UI: expone en
 - [x] **Phase 138: Entidad caja + saldos** — tabla `cash_registers` (efectivo×sucursal + central + banco×moneda, `currency` fija) + `cash_register_id` en el ledger + saldo firme derivado (solo VALIDADOS) con pendientes mostrados aparte + aislamiento de moneda.
 - [x] **Phase 139: Movimientos inter-caja y egresos** — movimiento (asiento de 2 filas linkeadas, neto 0) con reconciliación esperado-vs-contado + egreso (1 fila outflow, nota libre) + void ortogonal del par, sin contaminar `balances`. (completed 2026-06-24)
 - [x] **Phase 140: Carga única que propaga + cobro suelto + rol profe** — UI dead-simple que registra el pago una vez y propaga atómico (membresía + caja) de forma idempotente + cobro suelto + rol profe acotado (carga PENDIENTE, no valida/anula). (completed 2026-06-24)
-- [ ] **Phase 141: Reportes para la admin** — bandeja de pendientes por antigüedad (+ observados, + alerta configurable) + saldo firme/pendiente por caja + historial de movimientos/egresos, reusando el export Excel/PDF existente.
+- [x] **Phase 141: Reportes para la admin** — bandeja de pendientes por antigüedad (+ observados, + alerta configurable) + saldo firme/pendiente por caja + historial de movimientos/egresos, reusando el export Excel/PDF existente. (completed 2026-06-24)
 - [ ] **Phase 142: Config + transición Contabilium** — perillas de configuración (política de validación; activación instantánea/diferida) con casa definida y funcional + regla documentada de "qué dato manda" durante la convivencia con Contabilium por etapa.
 
 ## v5.2 (Módulo Contable) Phase Details
@@ -3559,12 +3559,12 @@ Plans:
 3. La admin ve el historial de movimientos inter-caja y egresos filtrable por caja/período. (REP-03)
 4. Los reportes nuevos se exportan reusando el export Excel/PDF existente (exceljs / pdfmake), sin un mecanismo de export paralelo. (REP-04)
 
-**Plans:** 3/4 plans executed
+**Plans:** 4/4 plans complete
 
 - [x] 141-01-PLAN.md — Backend: GET /pending-tray (bandeja, oldest-first + aging + overdue) + GET /cash-registers/balances (saldos por caja over getBalance) + sibling Excel exports + tests
 - [x] 141-02-PLAN.md — Backend: GET /movements-history (listMovEgresos own LEFT-JOIN query, NULL-member rows, caja/período) + Excel export + LEFT-JOIN test
 - [x] 141-03-PLAN.md — Frontend: useTransactionsApi extension (reads + validate/observe/correct + keepMembershipActive + exports) + CajaPage q-tabs hub shell + Movimientos (verbatim) + Saldos tabs
-- [ ] 141-04-PLAN.md — Frontend: Bandeja tab (Validar one-tap, ⋮ actions, overdue alert, membership popup) + Mov-Egresos tab + human-verify checkpoint
+- [x] 141-04-PLAN.md — Frontend: Bandeja tab (Validar one-tap, ⋮ actions, overdue alert, membership popup) + Mov-Egresos tab + human-verify checkpoint
       **UI hint:** yes
 
 ### Phase 142: Config + transición Contabilium
@@ -3587,7 +3587,7 @@ Plans:
 | 138. Entidad caja + saldos                  | 2/3            | In Progress |            |
 | 139. Movimientos inter-caja y egresos       | 3/3            | Complete    | 2026-06-24 |
 | 140. Carga única + cobro suelto + rol profe | 3/3            | Complete    | 2026-06-24 |
-| 141. Reportes para la admin                 | 3/4            | In Progress |            |
+| 141. Reportes para la admin                 | 4/4            | Complete    | 2026-06-24 |
 | 142. Config + transición Contabilium        | 0/?            | Not started | -          |
 
 _Plan counts populated by `/gsd-plan-phase`._
