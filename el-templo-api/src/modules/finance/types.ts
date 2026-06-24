@@ -55,7 +55,11 @@ export interface CreateTransactionLinkInput {
 export type InitialValidationStatus = "pendiente" | "validado";
 
 export interface CreateTransactionInput {
-  memberId: number;
+  /**
+   * Phase 139 (D-06): `null` for egresos/movimientos (no socio). create() skips
+   * the member-exists probe when null and inserts NULL member_id.
+   */
+  memberId: number | null;
   kind: TransactionKind;
   direction: TransactionDirection;
   amount: number;
@@ -66,7 +70,12 @@ export interface CreateTransactionInput {
   transactionDate: string;
   /** YYYY-MM-DD: which month/period the transaction accrues to. */
   effectiveDate: string;
-  branchId: number;
+  /**
+   * Phase 139 (extends D-06 to branch_id): `null` for movimientos/egresos to
+   * branch-less cajas (central efectivo, banco ARS/EUR). create() skips the
+   * branch-exists probe when null and inserts NULL branch_id.
+   */
+  branchId: number | null;
   notes?: string | null;
   /**
    * Phase 137 (VAL-02): birth validation status. Defaults to 'validado' when

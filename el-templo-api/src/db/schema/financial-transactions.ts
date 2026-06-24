@@ -21,15 +21,22 @@ export const financialTransactions = mysqlTable(
   "financial_transactions",
   {
     id: int("id").primaryKey().autoincrement(),
-    memberId: int("member_id")
-      .references(() => users.id)
-      .notNull(),
+    // Phase 139 (D-06): NULLABLE — egresos/movimientos no tienen socio (modelo
+    // honesto, sin usuario sentinel "Gimnasio" que ensucie listas/conteos). Los
+    // reportes member-keyed los excluyen por INNER JOIN users / kind / direction.
+    memberId: int("member_id").references(() => users.id),
+    // Phase 139: APPEND 'cash_transfer' (movimiento inter-caja) + 'expense'
+    // (egreso) al FINAL — NUNCA reordenar los 5 valores existentes (enum drift =
+    // CI "Unknown column" que tsc no detecta, reference_drizzle_enum_column_name).
+    // Order MUST match migration 0155 byte-for-byte.
     kind: mysqlEnum("kind", [
       "plan_charge",
       "debt_settlement",
       "refund",
       "adjustment",
       "advance_payment",
+      "cash_transfer",
+      "expense",
     ]).notNull(),
     direction: mysqlEnum("direction", ["inflow", "outflow"]).notNull(),
     amount: int("amount").notNull(),
@@ -43,9 +50,11 @@ export const financialTransactions = mysqlTable(
     ]).notNull(),
     transactionDate: date("transaction_date", { mode: "string" }).notNull(),
     effectiveDate: date("effective_date", { mode: "string" }).notNull(),
-    branchId: int("branch_id")
-      .references(() => branches.id)
-      .notNull(),
+    // Phase 139 (extends D-06 to branch_id): NULLABLE — movimientos/egresos a
+    // cajas branch-less (central efectivo, banco ARS/EUR) no tienen una sola
+    // sucursal, el modelo honesto guarda NULL. Las lecturas branch-keyed
+    // (revenueByBranch/getSummary) INNER JOIN branches y descartan las filas NULL.
+    branchId: int("branch_id").references(() => branches.id),
     // Phase 138: caja a la que fue la plata (D-04). NULLABLE — NULL para
     // aura_credit/internal (no es plata firme de caja) e históricos sin
     // backfillear. branchId (dónde se cobró) NO mapea 1:1 con cash_register_id
