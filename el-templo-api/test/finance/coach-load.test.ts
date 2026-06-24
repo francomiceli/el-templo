@@ -79,6 +79,29 @@ async function countMemberTx(): Promise<number> {
   return Number(row?.count ?? 0);
 }
 
+/** Seed a CURRENTLY-active subscription (future endDate) for autocompletar reads. */
+async function seedCurrentSubscription(): Promise<number> {
+  const start = new Date().toISOString().split("T")[0];
+  const future = new Date(Date.now() + 20 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .split("T")[0];
+  const [res] = await app.db
+    .insert(schema.subscriptions)
+    .values({
+      userId: memberId,
+      planId,
+      branchId,
+      status: "active",
+      startDate: start,
+      endDate: future,
+      pricePaid: 100000,
+      currency: "ARS",
+      priceTypeApplied: "regular",
+    })
+    .$returningId();
+  return res.id;
+}
+
 /** Seed an ACTIVE expired-yesterday subscription so renew creates a new active period. */
 async function seedRenewableSubscription(): Promise<number> {
   // endDate in the past → renew births an immediately-active new period (the
@@ -391,7 +414,7 @@ describe("coach-load idempotency", () => {
 // ─── autocompletar (CARGA-01): current plan + amount + currency ──
 describe("coach-load autocompletar", () => {
   it("autocompletar: returns current plan name + amount + currency", async () => {
-    await seedRenewableSubscription();
+    await seedCurrentSubscription();
 
     const res = await app.inject({
       method: "GET",
