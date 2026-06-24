@@ -27,7 +27,9 @@
       dense
       class="text-grey-7"
     >
-      <q-tab :name="CAJA_TABS.pendientes" label="Pendientes" icon="inbox" />
+      <q-tab :name="CAJA_TABS.pendientes" label="Pendientes" icon="inbox">
+        <q-badge v-if="vencidoCount > 0" floating color="negative">{{ vencidoCount }}</q-badge>
+      </q-tab>
       <q-tab :name="CAJA_TABS.saldos" label="Saldos" icon="account_balance_wallet" />
       <q-tab :name="CAJA_TABS.movimientos" label="Movimientos" icon="receipt_long" />
       <q-tab :name="CAJA_TABS.movEgresos" label="Mov. y egresos" icon="swap_horiz" />
@@ -36,11 +38,13 @@
     <q-separator />
 
     <q-tab-panels v-model="activeTab" keep-alive :swipeable="false" class="bg-transparent">
-      <!-- Pendientes — Plan 04 fills this with BandejaPendientesTab -->
+      <!-- Pendientes — bandeja daily-control surface (REP-01) -->
       <q-tab-panel :name="CAJA_TABS.pendientes" class="q-px-none">
-        <div class="text-caption text-grey-5 q-pa-md">
-          Bandeja de pendientes — disponible en breve.
-        </div>
+        <BandejaPendientesTab
+          :selected-country="selectedCountry"
+          :is-owner="isOwner"
+          @update:vencido-count="vencidoCount = $event"
+        />
       </q-tab-panel>
 
       <!-- Saldos por caja (REP-02 / D-06) -->
@@ -68,6 +72,7 @@ import { ref, computed, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from 'src/stores/useAuthStore';
 import { CAJA_TABS, CAJA_DEFAULT_TAB, CAJA_TAB_NAMES, type CajaTab } from 'src/constants/caja';
+import BandejaPendientesTab from 'src/components/caja/BandejaPendientesTab.vue';
 import MovimientosTab from 'src/components/caja/MovimientosTab.vue';
 import SaldosPorCajaTab from 'src/components/caja/SaldosPorCajaTab.vue';
 
@@ -89,6 +94,10 @@ const countryOptions = [
 
 // Default Argentina per D-06 (no Todos mode, no session persistence).
 const selectedCountry = ref<'AR' | 'ES'>('AR');
+
+// Vencido (overdue) pendientes count, emitted up from the bandeja tab so the
+// Pendientes tab floating badge stays visible from any tab (D-08).
+const vencidoCount = ref(0);
 
 // =========================================================================
 // Tab model — landing = Pendientes (D-01), synced to ?tab= for refresh/back
