@@ -44,7 +44,7 @@
 - [x] **VAL-02**: Un pago cargado por un profe entra en estado **PENDIENTE**; un pago cargado por un admin entra **VALIDADO** directamente.
 - [x] **VAL-03**: El admin puede **validar** un pago pendiente, confirmándolo como dinero firme.
 - [x] **VAL-04**: El admin puede marcar un pago como **OBSERVADO** y corregirlo mediante **anular+recrear** (no UPDATE), preservando la inmutabilidad del ledger.
-- [ ] **VAL-05**: El filtro canónico de ingresos/saldo cuenta **solo VALIDADOS**, con migración `DEFAULT 'validado'` + backfill, **sin romper las 6 métricas de gestión de v5.0** (todos los call sites auditados y verdes).
+- [x] **VAL-05**: El filtro canónico de ingresos/saldo cuenta **solo VALIDADOS**, con migración `DEFAULT 'validado'` + backfill, **sin romper las 6 métricas de gestión de v5.0** (todos los call sites auditados y verdes).
 - [x] **VAL-06**: Solo el admin puede **anular** un pago (ANULADO con rastro: motivo + autor + fecha); al anular un pago con membresía asociada, un popup deja decidir 1-a-1 si la membresía sigue activa (default: activa).
 - [x] **VAL-07**: La **membresía se activa al instante** al cargar el pago, independiente del estado de validación del pago.
 
@@ -109,7 +109,7 @@
 | VAL-02      | Phase 137 — Validación (cimiento)              | Complete |
 | VAL-03      | Phase 137 — Validación (cimiento)              | Complete |
 | VAL-04      | Phase 137 — Validación (cimiento)              | Complete |
-| VAL-05      | Phase 137 — Validación (cimiento)              | Pending  |
+| VAL-05      | Phase 137 — Validación (cimiento)              | Complete |
 | VAL-06      | Phase 137 — Validación (cimiento)              | Complete |
 | VAL-07      | Phase 137 — Validación (cimiento)              | Complete |
 | CAJA-01     | Phase 138 — Entidad caja + saldos              | Pending  |

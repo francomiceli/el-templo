@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v5.2
 milestone_name: Módulo Contable — Libro de Caja
-status: executing
-stopped_at: Phase 144 context gathered
-last_updated: "2026-06-24T15:10:18.810Z"
+status: verifying
+stopped_at: Completed 137-02-PLAN.md (validation state machine — validate/observe/correct + void keepMembershipActive + server-side role→status)
+last_updated: "2026-06-24T15:22:44.419Z"
 last_activity: 2026-06-24
 progress:
   total_phases: 13
-  completed_phases: 5
+  completed_phases: 6
   total_plans: 35
-  completed_plans: 33
-  percent: 38
+  completed_plans: 34
+  percent: 46
 ---
 
 # Project State
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 
 Phase: 137 (Máquina de estados de validación (cimiento)) — EXECUTING
 Plan: 3 of 3
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-06-24
 Next: ejecutar 143-02-PLAN.md
 
@@ -249,6 +249,7 @@ _Updated after each plan completion_
 | Phase 143 P05 | ~6min | 2 tasks | 3 files |
 | Phase 137 P01 | ~12min | 3 tasks | 6 files |
 | Phase 137 P02 | ~40min | 3 tasks | 6 files |
+| Phase 137 P03 | ~18min | 3 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -615,6 +616,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase 143-05]: RatingPromptDialog (Surface 2) class-framed estilo Uber: salteable (sin persistent, D-P1) + one-shot por clase vía Capacitor Preferences (D-P2); nunca expone al profe (D-A3); estrellas Terracotta color=primary
 - [Phase 143-05]: el-templo-app sin script typecheck ni vue-tsc; verificación canónica de frontend = ESLint (plugin vue); tsc reporta errores pre-existentes de resolución .vue fuera de scope
 - [Phase ?]: [Phase 137]: Migration 0153 hand-written (not drizzle-kit generate) — runner reads .sql by name + \_migrations table is source of truth; generate prompted for unrelated sessions.goal_plan_type drift
+- [Phase ?]: 137-03: 13 firm-money call sites centralized through firm-money.ts with validation_status='validado'; subscriptions cancel guard kept as deliberate integrity exception — VAL-05 blast-radius closed; backfill keeps the 6 v5.0 metrics identical
 
 ### Pending Todos
 
@@ -647,7 +649,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-24T14:52:19.204Z
+Last session: 2026-06-24T15:22:44.400Z
 Stopped at: Completed 137-02-PLAN.md (validation state machine — validate/observe/correct + void keepMembershipActive + server-side role→status)
 Resume file: None
 

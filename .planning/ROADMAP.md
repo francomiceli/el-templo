@@ -3459,7 +3459,7 @@ _v5.2 added: 2026-06-04 — 1 phase (132). Cierra v5.0 del lado de UI: expone en
 
 ## v5.2 (Módulo Contable) Phases
 
-- [ ] **Phase 137: Máquina de estados de validación (cimiento)** — `validation_status` ortogonal al soft-void + filtro canónico de "dinero firme" reescrito sin romper las 6 métricas v5.0 + transiciones validar/observar/corregir/anular con rastro de auditoría.
+- [x] **Phase 137: Máquina de estados de validación (cimiento)** — `validation_status` ortogonal al soft-void + filtro canónico de "dinero firme" reescrito sin romper las 6 métricas v5.0 + transiciones validar/observar/corregir/anular con rastro de auditoría. (completed 2026-06-24)
 - [ ] **Phase 138: Entidad caja + saldos** — tabla `cash_registers` (efectivo×sucursal + central + banco×moneda, `currency` fija) + `cash_register_id` en el ledger + saldo firme derivado (solo VALIDADOS) con pendientes mostrados aparte + aislamiento de moneda.
 - [ ] **Phase 139: Movimientos inter-caja y egresos** — movimiento (una fila origen+destino, neto 0) con reconciliación esperado-vs-contado + egreso (destino NULL, nota libre) + void ortogonal de ambos, sin contaminar `balances`.
 - [ ] **Phase 140: Carga única que propaga + cobro suelto + rol profe** — UI dead-simple que registra el pago una vez y propaga atómico (membresía + caja) de forma idempotente + cobro suelto + rol profe acotado (carga PENDIENTE, no valida/anula).
@@ -3482,11 +3482,11 @@ _v5.2 added: 2026-06-04 — 1 phase (132). Cierra v5.0 del lado de UI: expone en
 5. Solo el admin puede anular (motivo + autor + fecha); al anular un pago con membresía asociada, un popup decide 1-a-1 si la membresía sigue activa (default: activa). (VAL-06)
 6. La membresía se activa al instante al cargar el pago, independiente del `validation_status` del cobro (un PENDIENTE ya salda la deuda del socio en `balances`, pero NO suma a caja firme). (VAL-07)
 
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 
 - [x] 137-01-PLAN.md — Schema validation_status + migración 0153 + audit action types + helper canónico firm-money.ts + test scaffolds (VAL-01, VAL-05)
 - [x] 137-02-PLAN.md — Máquina de estados: validate/observe/correct + void extendido (\_void atómico) + derivación rol→status server-side + keepMembershipActive (VAL-02, VAL-03, VAL-04, VAL-06, VAL-07)
-- [ ] 137-03-PLAN.md — Refactor 13 call sites al filtro firme + excepción documentada (subscriptions:2127) + test de regresión R1-R4 de las 6 métricas v5.0 (VAL-05, VAL-07)
+- [x] 137-03-PLAN.md — Refactor 13 call sites al filtro firme + excepción documentada (subscriptions:2127) + test de regresión R1-R4 de las 6 métricas v5.0 (VAL-05, VAL-07)
 
 ### Phase 138: Entidad caja + saldos
 
@@ -3562,14 +3562,14 @@ _v5.2 added: 2026-06-04 — 1 phase (132). Cierra v5.0 del lado de UI: expone en
 
 ## v5.2 (Módulo Contable) Progress
 
-| Phase                                       | Plans Complete | Status      | Completed |
-| ------------------------------------------- | -------------- | ----------- | --------- |
-| 137. Máquina de estados de validación       | 2/3            | In Progress |           |
-| 138. Entidad caja + saldos                  | 0/?            | Not started | -         |
-| 139. Movimientos inter-caja y egresos       | 0/?            | Not started | -         |
-| 140. Carga única + cobro suelto + rol profe | 0/?            | Not started | -         |
-| 141. Reportes para la admin                 | 0/?            | Not started | -         |
-| 142. Config + transición Contabilium        | 0/?            | Not started | -         |
+| Phase                                       | Plans Complete | Status      | Completed  |
+| ------------------------------------------- | -------------- | ----------- | ---------- |
+| 137. Máquina de estados de validación       | 3/3            | Complete    | 2026-06-24 |
+| 138. Entidad caja + saldos                  | 0/?            | Not started | -          |
+| 139. Movimientos inter-caja y egresos       | 0/?            | Not started | -          |
+| 140. Carga única + cobro suelto + rol profe | 0/?            | Not started | -          |
+| 141. Reportes para la admin                 | 0/?            | Not started | -          |
+| 142. Config + transición Contabilium        | 0/?            | Not started | -          |
 
 _Plan counts populated by `/gsd-plan-phase`._
 
