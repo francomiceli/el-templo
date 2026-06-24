@@ -17,6 +17,13 @@ import type {
   CreateTransactionResponse,
   OutstandingBalancesFilters,
   OutstandingBalancesResult,
+  PendingTrayResult,
+  PendingTrayParams,
+  CajaSaldoRow,
+  CashBalancesParams,
+  MovEgresoItem,
+  MovEgresoParams,
+  CorrectedFields,
 } from 'src/types/transaction';
 import type { PaginatedResult } from 'src/types/report';
 
@@ -43,7 +50,62 @@ export function useTransactionsApi() {
     }
   }
 
+  /**
+   * Anular (void) — Phase 137 / 141 D-05. `keepMembershipActive` (137 D-10)
+   * threads the 1-a-1 membership decision into the POST body when the void
+   * touches an active membership link (default true, set by the Anular popup).
+   * Omitted → backend defaults to keeping the membership active.
+   */
   async function voidTransaction(
+    transactionId: number,
+    reason: string,
+    keepMembershipActive?: boolean
+  ): Promise<{ transaction: TransactionListItem }> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const body: { reason: string; keepMembershipActive?: boolean } = { reason };
+      if (keepMembershipActive !== undefined) {
+        body.keepMembershipActive = keepMembershipActive;
+      }
+      const { data } = await api.post<{ transaction: TransactionListItem }>(
+        `/admin/finance/transactions/${transactionId}/void`,
+        body
+      );
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error anulando transaccion');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  // =========================================================================
+  // Phase 141 — Validación de pendientes (137 actions) — REP-01
+  // =========================================================================
+
+  /** Validar (137 VAL-03): pendiente → validado. Sin body. */
+  async function validateTransaction(
+    transactionId: number
+  ): Promise<{ transaction: TransactionListItem }> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.post<{ transaction: TransactionListItem }>(
+        `/admin/finance/transactions/${transactionId}/validate`
+      );
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error validando transaccion');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  /** Observar (137 VAL-04 / D-04): pendiente → observado. Motivo obligatorio. */
+  async function observeTransaction(
     transactionId: number,
     reason: string
   ): Promise<{ transaction: TransactionListItem }> {
@@ -51,12 +113,168 @@ export function useTransactionsApi() {
     error.value = null;
     try {
       const { data } = await api.post<{ transaction: TransactionListItem }>(
-        `/admin/finance/transactions/${transactionId}/void`,
+        `/admin/finance/transactions/${transactionId}/observe`,
         { reason }
       );
       return data;
     } catch (err: unknown) {
-      error.value = extractError(err, 'Error anulando transaccion');
+      error.value = extractError(err, 'Error observando transaccion');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  /**
+   * Corregir (137 VAL-04 / D-05): void+recreate atómico. `correctedFields` es
+   * un subset de amount/memberId/paymentMethod. Devuelve la NUEVA transacción.
+   */
+  async function correctTransaction(
+    transactionId: number,
+    correctedFields: CorrectedFields
+  ): Promise<{ transaction: TransactionListItem }> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.post<{ transaction: TransactionListItem }>(
+        `/admin/finance/transactions/${transactionId}/correct`,
+        { correctedFields }
+      );
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error corrigiendo transaccion');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  // =========================================================================
+  // Phase 141 — Reportes para la admin (read endpoints) — REP-01/02/03
+  // =========================================================================
+
+  /**
+   * Bandeja de pendientes (REP-01). Source: GET /admin/finance/pending-tray.
+   * Paginada; ordenada oldest-first (server-enforced). Devuelve thresholdDays
+   * (OVERDUE_DAYS) para la alerta de vencidos (D-08/D-09).
+   */
+  async function getPendingTray(params: PendingTrayParams = {}): Promise<PendingTrayResult> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<PendingTrayResult>('/admin/finance/pending-tray', {
+        params,
+      });
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cargando bandeja');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  /**
+   * Saldos por caja (REP-02). Source: GET /admin/finance/cash-registers/balances.
+   * Devuelve un row por caja activa (firme + pendiente). El front agrupa por
+   * tipo y subtotaliza SOLO por moneda (nunca cross-currency).
+   */
+  async function getCashRegisterBalances(params: CashBalancesParams = {}): Promise<CajaSaldoRow[]> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<CajaSaldoRow[]>('/admin/finance/cash-registers/balances', {
+        params,
+      });
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cargando saldos');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  /**
+   * Historial mov/egresos (REP-03). Source: GET /admin/finance/movements-history.
+   * LEFT JOIN users en backend → las filas NULL-member (cash_transfer/expense/
+   * adjustment) sobreviven (flag 139). Paginado.
+   */
+  async function getMovEgresosHistory(
+    params: MovEgresoParams = {}
+  ): Promise<PaginatedResult<MovEgresoItem>> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<PaginatedResult<MovEgresoItem>>(
+        '/admin/finance/movements-history',
+        { params }
+      );
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cargando movimientos');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  // =========================================================================
+  // Phase 141 — Exports Excel (REP-04) — sibling /export endpoints, blob
+  // =========================================================================
+
+  /** Export bandeja a .xlsx. Source: GET /admin/finance/pending-tray/export. */
+  async function exportPendingTrayToExcel(
+    params: Omit<PendingTrayParams, 'page' | 'limit'> = {}
+  ): Promise<Blob> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get('/admin/finance/pending-tray/export', {
+        params,
+        responseType: 'blob',
+      });
+      return data as Blob;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error exportando bandeja');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  /** Export saldos a .xlsx. Source: GET /admin/finance/cash-registers/balances/export. */
+  async function exportCashBalancesToExcel(params: CashBalancesParams = {}): Promise<Blob> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get('/admin/finance/cash-registers/balances/export', {
+        params,
+        responseType: 'blob',
+      });
+      return data as Blob;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error exportando saldos');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  /** Export historial mov/egresos a .xlsx. Source: GET /admin/finance/movements-history/export. */
+  async function exportMovEgresosToExcel(
+    params: Omit<MovEgresoParams, 'page' | 'limit'> = {}
+  ): Promise<Blob> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get('/admin/finance/movements-history/export', {
+        params,
+        responseType: 'blob',
+      });
+      return data as Blob;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error exportando movimientos');
       throw err;
     } finally {
       loading.value = false;
@@ -244,6 +462,18 @@ export function useTransactionsApi() {
     exportToExcel,
     getOutstandingBalances,
     exportOutstandingBalancesToExcel,
+    // Phase 141 additions — 137 validation actions:
+    validateTransaction,
+    observeTransaction,
+    correctTransaction,
+    // Phase 141 additions — read endpoints (REP-01/02/03):
+    getPendingTray,
+    getCashRegisterBalances,
+    getMovEgresosHistory,
+    // Phase 141 additions — Excel exports (REP-04):
+    exportPendingTrayToExcel,
+    exportCashBalancesToExcel,
+    exportMovEgresosToExcel,
     cleanup,
   };
 }

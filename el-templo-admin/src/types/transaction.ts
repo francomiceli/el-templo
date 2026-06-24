@@ -297,6 +297,112 @@ export interface OutstandingBalancesFilters {
   limit?: number;
 }
 
+// -- Phase 141: Bandeja de pendientes (REP-01) -----------------------------
+// Mirrors el-templo-api/src/modules/finance/types.ts PendingTrayItem.
+// `ageInDays`/`isOverdue` are computed server-side; the bandeja response also
+// carries `thresholdDays` (OVERDUE_DAYS — 142 swaps it for a finance_settings
+// read) so the UI banner/row-tinting is data-driven, not a hardcoded literal.
+
+export interface PendingTrayItem {
+  id: number;
+  transactionDate: string; // YYYY-MM-DD
+  memberId: number | null;
+  memberName: string;
+  amount: number;
+  currency: string;
+  paymentMethod: PaymentMethod;
+  cashRegisterId: number | null;
+  cashRegisterName: string;
+  recordedBy: number;
+  recorderName: string;
+  validationStatus: string; // 'pendiente' | 'observado'
+  ageInDays: number; // días desde transactionDate (clamp ≥0)
+  isOverdue: boolean; // ageInDays > thresholdDays
+}
+
+/** PaginatedResult<PendingTrayItem> + the active overdue threshold (D-08). */
+export interface PendingTrayResult {
+  rows: PendingTrayItem[];
+  total: number;
+  page: number;
+  limit: number;
+  /** OVERDUE_DAYS (default 3); 142 makes this a finance_settings read. */
+  thresholdDays: number;
+}
+
+export interface PendingTrayParams {
+  /** D-04 filter. undefined === 'todos' (pendientes + observados). */
+  status?: 'pendientes' | 'observados' | 'todos';
+  country?: 'AR' | 'ES';
+  branchId?: number;
+  dateFrom?: string; // YYYY-MM-DD
+  dateTo?: string; // YYYY-MM-DD
+  page?: number;
+  limit?: number;
+}
+
+// -- Phase 141: Saldos por caja (REP-02) -----------------------------------
+// Mirrors el-templo-api/src/modules/finance/types.ts CajaSaldoRow.
+// firme = Σ validados; pendiente reported SEPARATELY (never added to firme,
+// 138 derived-balance rule). The enum is only efectivo/banco — the front
+// derives the "Efectivo central" group from type=efectivo && branchId=null.
+
+export interface CajaSaldoRow {
+  cashRegisterId: number;
+  name: string;
+  type: 'efectivo' | 'banco';
+  branchId: number | null;
+  currency: string;
+  firmeBalance: number;
+  pendienteAmount: number;
+}
+
+export interface CashBalancesParams {
+  country?: 'AR' | 'ES';
+}
+
+// -- Phase 141: Historial mov/egresos (REP-03) -----------------------------
+// Mirrors el-templo-api/src/modules/finance/types.ts MovEgresoItem. These rows
+// (kind IN cash_transfer/expense/adjustment) have member_id NULL — the backend
+// LEFT JOINs so they survive (the 139 flag). `memberName` is omitted (NULL).
+
+export interface MovEgresoItem {
+  id: number;
+  transactionDate: string; // YYYY-MM-DD
+  // The FE TransactionKind union (Phase 106) doesn't include cash_transfer /
+  // expense (those kinds never reach the member-keyed Movimientos table), so
+  // this is widened to string — Plan 04's MovEgresosTab maps it to ES labels.
+  kind: string; // cash_transfer | expense | adjustment
+  direction: TransactionDirection;
+  amount: number;
+  currency: string;
+  cashRegisterId: number | null;
+  cashRegisterName: string;
+  branchId: number | null;
+  branchName: string | null; // null para cajas branch-less (central/banco)
+  recordedBy: number;
+  recorderName: string;
+  voidedAt: string | null;
+  voidReason: string | null;
+  notes: string | null;
+}
+
+export interface MovEgresoParams {
+  cashRegisterId?: number;
+  country?: 'AR' | 'ES';
+  dateFrom?: string; // YYYY-MM-DD
+  dateTo?: string; // YYYY-MM-DD
+  page?: number;
+  limit?: number;
+}
+
+/** Corregir (D-05): subset of editable fields — void+recreate atomic. */
+export interface CorrectedFields {
+  amount?: number;
+  memberId?: number;
+  paymentMethod?: PaymentMethod;
+}
+
 // -- Phase 108: POST /transactions response shape (D-22) -------------------
 
 /**
