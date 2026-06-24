@@ -3519,11 +3519,11 @@ _v5.2 added: 2026-06-04 — 1 phase (132). Cierra v5.0 del lado de UI: expone en
 3. Un egreso (`kind='expense'`, destino NULL) resta del saldo de su caja con monto + nota libre (sin categoría en v1); `cash_transfer`/`expense` están en `KINDS_ALLOWED_WITHOUT_LINKS` y NO tocan `balances` (verificado por test). (MOV-03)
 4. Movimientos y egresos se anulan con el mismo soft-void ortogonal que los pagos (motivo + autor + fecha), nunca con delete. (MOV-04)
 
-**Plans:** 1/3 plans executed
+**Plans:** 2/3 plans executed
 Plans:
 
 - [x] 139-01-PLAN.md — Cimiento: migración 0155 (enum +cash_transfer/+expense, member_id NULL) + tipos + MUST-FIX A (getSummary) + MUST-FIX B (applyDelta) + voidPair
-- [ ] 139-02-PLAN.md — getBalance resta outflows validados desde el corte (// TODO 139) + invariante neto-0 + refund-outflow
+- [x] 139-02-PLAN.md — getBalance resta outflows validados desde el corte (// TODO 139) + invariante neto-0 + refund-outflow
 - [ ] 139-03-PLAN.md — MovementService (movimiento 2 filas + reconciliación + guard igual-moneda + egreso + void-the-pair) + rutas admin-only + tests MOV-01..04
       **UI hint:** yes
 
@@ -3575,7 +3575,7 @@ Plans:
 | ------------------------------------------- | -------------- | ----------- | ---------- |
 | 137. Máquina de estados de validación       | 3/3            | Complete    | 2026-06-24 |
 | 138. Entidad caja + saldos                  | 2/3            | In Progress |            |
-| 139. Movimientos inter-caja y egresos       | 1/3            | In Progress |            |
+| 139. Movimientos inter-caja y egresos       | 2/3            | In Progress |            |
 | 140. Carga única + cobro suelto + rol profe | 0/?            | Not started | -          |
 | 141. Reportes para la admin                 | 0/?            | Not started | -          |
 | 142. Config + transición Contabilium        | 0/?            | Not started | -          |

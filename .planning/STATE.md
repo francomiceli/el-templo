@@ -4,14 +4,14 @@ milestone: v5.2
 milestone_name: Módulo Contable — Libro de Caja
 status: executing
 stopped_at: Phase 139 context gathered
-last_updated: "2026-06-24T19:34:04.977Z"
+last_updated: "2026-06-24T19:40:39.705Z"
 last_activity: 2026-06-24
 progress:
   total_phases: 13
   completed_phases: 7
   total_plans: 41
-  completed_plans: 38
-  percent: 56
+  completed_plans: 39
+  percent: 54
 ---
 
 # Project State
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 ## Current Position
 
 Phase: 139 (Movimientos inter-caja y egresos) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
-Last activity: 2026-06-24 -- 139-01 completado (cimiento ledger: enum +2, member_id/branch_id NULL, voidPair, must-fixes A/B)
+Last activity: 2026-06-24
 Next: ejecutar 139-02 (getBalance outflow extension) y 139-03 (MovementService 2-row asiento + reconciliación)
 
 ## Performance Metrics
@@ -254,6 +254,7 @@ _Updated after each plan completion_
 | Phase 138 P138-02 | ~75min | 3 tasks | 13 files |
 | Phase 138 P138-03 | ~30min | 2 tasks | 3 files |
 | Phase 139 P139-01 | 13min | 3 tasks | 9 files |
+| Phase 139 P139-02 | 4min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -658,7 +659,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-24T19:33:42.891Z
+Last session: 2026-06-24T19:40:39.683Z
 Stopped at: Phase 139 context gathered
 Resume file: None
 
