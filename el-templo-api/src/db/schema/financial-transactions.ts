@@ -12,6 +12,7 @@ import {
 import { relations } from "drizzle-orm";
 import { users } from "./users";
 import { branches } from "./branches";
+import { cashRegisters } from "./cash-registers";
 import { transactionLinks } from "./transaction-links";
 
 // D-05: enums declared inline on the column. TS literals are inferred from
@@ -45,6 +46,12 @@ export const financialTransactions = mysqlTable(
     branchId: int("branch_id")
       .references(() => branches.id)
       .notNull(),
+    // Phase 138: caja a la que fue la plata (D-04). NULLABLE — NULL para
+    // aura_credit/internal (no es plata firme de caja) e históricos sin
+    // backfillear. branchId (dónde se cobró) NO mapea 1:1 con cash_register_id
+    // (adónde fue la plata): p.ej. una transferencia cobrada en Jujuy cae en
+    // la caja banco de la moneda, no en la caja de Jujuy.
+    cashRegisterId: int("cash_register_id").references(() => cashRegisters.id),
     recordedBy: int("recorded_by")
       .references(() => users.id)
       .notNull(),
@@ -81,6 +88,12 @@ export const financialTransactions = mysqlTable(
       table.validationStatus,
       table.voidedAt,
     ),
+    // Phase 138: backs the per-caja SUM with the cutoff range in getBalance
+    // (cash_register_id = X AND transaction_date >= cutoff_date).
+    index("idx_financial_tx_cash_register").on(
+      table.cashRegisterId,
+      table.transactionDate,
+    ),
   ],
 );
 
@@ -105,6 +118,10 @@ export const financialTransactionsRelations = relations(
     branch: one(branches, {
       fields: [financialTransactions.branchId],
       references: [branches.id],
+    }),
+    cashRegister: one(cashRegisters, {
+      fields: [financialTransactions.cashRegisterId],
+      references: [cashRegisters.id],
     }),
     links: many(transactionLinks),
   }),

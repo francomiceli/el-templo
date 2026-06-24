@@ -1,4 +1,5 @@
 export * from "./branches";
+export * from "./cash-registers";
 export * from "./users";
 export * from "./user-branches";
 export * from "./routes";
