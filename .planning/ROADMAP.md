@@ -18,6 +18,7 @@
 - **v5.1 Nuevo Sistema de Entrenamiento** - Phases 124-131 (planned)
 - **v5.2 UI de Métricas + Calidad del Árbol + Segmentación (admin)** - Phases 132-136 (complete)
 - **v5.2 Módulo Contable / Libro de Caja** - Phases 137-142 (planned)
+- **Profesor por clase + Puntuación post clase** - Phase 143 (planned, standalone app/admin)
 
 ---
 
@@ -3567,6 +3568,40 @@ _v5.2 added: 2026-06-04 — 1 phase (132). Cierra v5.0 del lado de UI: expone en
 | 142. Config + transición Contabilium        | 0/?            | Not started | -         |
 
 _Plan counts populated by `/gsd-plan-phase`._
+
+### Phase 143: Profesor por clase + Puntuación post clase presencial
+
+**Goal:** Construir la cadena profesor↔clase que hoy NO existe en el sistema y permitir que un miembro puntúe al profesor estilo Uber después de asistir a una clase presencial. End state: los owners asignan profesores a sucursales desde Horarios (admin); el profe se marca como quien dictó una instancia de clase escaneando el QR con su app (validado contra su sucursal asignada); la app del miembro muestra el profe de cada clase y abre un pop-up de puntuación al volver a la app tras una clase presencial completada; las puntuaciones quedan persistidas por profe/instancia.
+
+**Depends on:** none (feature standalone de app/admin; independiente del Módulo Contable v5.2). Reutiliza el role `coach` y `user_branches` existentes.
+**Requirements:** PROF-DATA, PROF-ROSTER, PROF-RATING, PROF-OWNERVIEW, PROF-SELFSCAN (derivados en plan-phase del GOAL + decisiones de CONTEXT)
+
+> **Nota (plan-phase):** la línea del Goal "la app del miembro muestra el profe de cada clase" fue **revertida** por la decisión D-A3 del discuss: el miembro **nunca** ve al profe. El pop-up se arma alrededor de la **clase** (actividad/día). Las plans honran D-A3, no la redacción original del Goal.
+
+**Decisiones ya tomadas (no se re-litigan):**
+
+- Alcance: **solo clases presenciales**. Lo medido es la **puntuación del profesor** (NO el RPE; NO rating de la clase en general). NO reutiliza el RPE online de `completed_sessions`.
+- Profe identificado **por instancia (fecha real)**, no por horario recurrente fijo: el rating va al profe que realmente dictó esa clase ese día.
+- El **propio profe escanea el QR de la clase con su app** (como un alumno) para marcarse como quien la dictó, **validado contra la sucursal asignada** al profe.
+- **Asignación profe↔sucursal = feature nueva para owners en Horarios** (admin).
+- La app del miembro **muestra el profe** de cada clase (dato hoy fuera del sistema).
+- Disparo del feedback: **pop-up estilo Uber** al abrir la app por primera vez tras completar una clase presencial.
+
+**Decisiones abiertas (se resuelven en discuss-phase):** escala de puntuación; pop-up salteable vs. bloqueante y reintentos; comentario opcional; un profe o varios por clase (co-dictado); fallback si nadie escaneó el QR; reporte de puntuaciones agregadas por profe para owners.
+
+**Fuente de verdad del diseño:** `BRIEF-PUNTUACION-PROFES.md` (raíz del repo).
+
+**Estado del código (verificado):** `schedules` sin `coachId`; `attendance` sin profe; `WeeklySlotView`/`ReservasPage` no traen ni muestran profe; role `coach` SÍ existe (sin `bio`); `user_branches` mapea coach↔sucursales pero no a horarios.
+
+**Plans:** 5 plans
+
+Plans:
+
+- [ ] 143-01-PLAN.md — Schema del roster (class_coach_assignments) + coach_ratings + migración 0152 [BLOCKING]
+- [ ] 143-02-PLAN.md — Módulo API ratings: roster CRUD + pending/submit con atribución + vista owner + tests
+- [ ] 143-03-PLAN.md — QR self-scan del profe validado contra user_branches + tests
+- [ ] 143-04-PLAN.md — Admin: grilla de roster en Horarios (Surface 1) + PuntuacionesPage owner-only (Surface 3)
+- [ ] 143-05-PLAN.md — App miembro: RatingPromptDialog class-framed (Surface 2) + useRatingsApi + montaje
 
 ---
 
