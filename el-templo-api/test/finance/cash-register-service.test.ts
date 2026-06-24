@@ -130,6 +130,15 @@ afterAll(async () => {
       .where(eq(schema.financialTransactions.memberId, memberId));
   }
   if (seededCajaIds.length > 0) {
+    // Phase 139: the outflow tests insert NULL-member ledger rows
+    // (egresos/movimientos/refunds) labeled with these cajas. The member-keyed
+    // delete above never reaches them, so drop every row referencing a seeded
+    // caja first — otherwise the cash_registers delete trips the FK constraint.
+    await app.db
+      .delete(schema.financialTransactions)
+      .where(
+        inArray(schema.financialTransactions.cashRegisterId, seededCajaIds),
+      );
     await app.db
       .delete(schema.cashRegisters)
       .where(inArray(schema.cashRegisters.id, seededCajaIds));
@@ -581,6 +590,146 @@ describe("CashRegisterService", () => {
 
     it("throws NotFoundError for an unknown cashRegisterId", async () => {
       await expect(service.getBalance(987654321)).rejects.toThrow();
+    });
+  });
+
+  describe("getBalance subtracts validado outflows since cutoff (139 — D-09)", () => {
+    // Phase 139: the signed getBalance. firmeBalance = opening + Σ(inflow
+    // validados) − Σ(outflow validados), both since cutoff. These cases pin the
+    // outflow term: net-0 invariant (a movement leaves the same-currency total
+    // unchanged), expense subtracts only its caja, and a refund outflow reduces
+    // the caja (D-09 resolved — a cash refund genuinely leaves the caja).
+    const OUT_CUTOFF = "2026-01-01";
+    const POST_OUT = "2026-03-01"; // after cutoff
+
+    // Insert a labeled ledger row directly against a caja (mirrors the helper in
+    // the 138 getBalance suite). Direct insert (not create()) keeps all four
+    // outflow cases deterministic and lets us insert a refund outflow with a
+    // cash_register_id without tripping create()'s link guard.
+    const insertLedgerRow = async (opts: {
+      cajaId: number;
+      kind: "cash_transfer" | "expense" | "refund" | "adjustment";
+      direction: "inflow" | "outflow";
+      amount: number;
+      date?: string;
+    }): Promise<void> => {
+      await app.db.insert(schema.financialTransactions).values({
+        memberId: null,
+        kind: opts.kind,
+        direction: opts.direction,
+        amount: opts.amount,
+        currency: "ARS",
+        paymentMethod: "cash",
+        validationStatus: "validado",
+        transactionDate: opts.date ?? POST_OUT,
+        effectiveDate: opts.date ?? POST_OUT,
+        branchId: null,
+        cashRegisterId: opts.cajaId,
+        recordedBy: adminId,
+      });
+    };
+
+    const newCaja = async (opening: number): Promise<number> => {
+      const [caja] = await app.db.insert(schema.cashRegisters).values({
+        name: `CR-Test outflow ${Date.now()}-${Math.random()}`,
+        type: "efectivo",
+        branchId: arsBranchId,
+        currency: "ARS",
+        openingBalance: opening,
+        cutoffDate: OUT_CUTOFF,
+      });
+      const id = Number(caja.insertId);
+      seededCajaIds.push(id);
+      return id;
+    };
+
+    it("net-0 invariant: a cash_transfer pair leaves the sum of both cajas' firmeBalance unchanged", async () => {
+      const origenId = await newCaja(1000);
+      const destinoId = await newCaja(500);
+
+      const before =
+        (await service.getBalance(origenId)).firmeBalance +
+        (await service.getBalance(destinoId)).firmeBalance;
+
+      // The double-entry asiento: −N outflow leg at origen + +N inflow leg at
+      // destino, same currency, both validado (139 D-01).
+      const N = 250;
+      await insertLedgerRow({
+        cajaId: origenId,
+        kind: "cash_transfer",
+        direction: "outflow",
+        amount: N,
+      });
+      await insertLedgerRow({
+        cajaId: destinoId,
+        kind: "cash_transfer",
+        direction: "inflow",
+        amount: N,
+      });
+
+      const after =
+        (await service.getBalance(origenId)).firmeBalance +
+        (await service.getBalance(destinoId)).firmeBalance;
+
+      // No money created or destroyed: the pair nets to 0 across the two cajas.
+      expect(after).toBe(before);
+      // And it actually moved: origen dropped by N, destino rose by N.
+      expect((await service.getBalance(origenId)).firmeBalance).toBe(1000 - N);
+      expect((await service.getBalance(destinoId)).firmeBalance).toBe(500 + N);
+    });
+
+    it("an expense outflow reduces ONLY its caja by exactly the amount", async () => {
+      const cajaId = await newCaja(1000);
+      const otherId = await newCaja(2000);
+
+      const E = 333;
+      await insertLedgerRow({
+        cajaId,
+        kind: "expense",
+        direction: "outflow",
+        amount: E,
+      });
+
+      // Its caja drops by exactly E; the other caja is untouched.
+      expect((await service.getBalance(cajaId)).firmeBalance).toBe(1000 - E);
+      expect((await service.getBalance(otherId)).firmeBalance).toBe(2000);
+    });
+
+    it("a refund outflow with a cash_register_id reduces the caja saldo (D-09 resolved)", async () => {
+      // PINS the resolved D-09 behavior: a cash refund genuinely leaves the caja,
+      // so a kind='refund' outflow since cutoff IS subtracted (no kind filter on
+      // the outflow SUM). A future change that filters refund out is caught here.
+      const cajaId = await newCaja(1000);
+
+      const R = 150;
+      await insertLedgerRow({
+        cajaId,
+        kind: "refund",
+        direction: "outflow",
+        amount: R,
+      });
+
+      expect((await service.getBalance(cajaId)).firmeBalance).toBe(1000 - R);
+    });
+
+    it("regression: an inflow + an outflow net to a signed firmeBalance (138 inflow math stays green)", async () => {
+      // Confirms the 138 inflow term is unchanged when the outflow term is added:
+      // opening + inflow − outflow.
+      const cajaId = await newCaja(100);
+      await insertLedgerRow({
+        cajaId,
+        kind: "adjustment",
+        direction: "inflow",
+        amount: 400,
+      });
+      await insertLedgerRow({
+        cajaId,
+        kind: "expense",
+        direction: "outflow",
+        amount: 250,
+      });
+      // 100 + 400 − 250 = 250.
+      expect((await service.getBalance(cajaId)).firmeBalance).toBe(250);
     });
   });
 
