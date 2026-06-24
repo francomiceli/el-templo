@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v5.3.3
 milestone_name: Post-v5.3.2 Live Test Fixes
-status: completed
+status: executing
 stopped_at: Phase 98 CONTEXT refreshed post-97.5 (D-12/D-13/D-14 added)
-last_updated: "2026-06-24T04:16:31.971Z"
+last_updated: "2026-06-24T23:41:02.774Z"
 progress:
-  total_phases: 9
+  total_phases: 10
   completed_phases: 7
-  total_plans: 13
-  completed_plans: 10
-  percent: 77
+  total_plans: 17
+  completed_plans: 11
+  percent: 65
 ---
 
 # Project State
@@ -20,13 +20,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-05)
 
 **Core value:** Prospective and current members get instant, accurate answers about El Templo via WhatsApp — and leads are profiled through natural discovery so Mica makes ONE targeted recommendation per conversation, with prices, method, and objections handled per the team's playbook (not improvised).
-**Current focus:** Phase 99 — bot-copy-and-price-disclosure-fixes
+**Current focus:** Phase 100 — bot-takeover-ack-debounce-and-price-trigger
 
 ## Current Position
 
 Milestone: v5.3.3 Post-v5.3.2 Live Test Fixes
-Phase: 99 — COMPLETE
-Plan: 3 of 3
+Phase: 100 (bot-takeover-ack-debounce-and-price-trigger) — EXECUTING
+Plan: 2 of 4
 Blocker: None for Phase 97.5. Phase 98 reopen is the next gate — cherry-pick `phase-98-preserve/task-1-green-baseline` (Task 1, 95d58f98), apply `98-TASK-2-WIP.patch` (Task 2 expansion), then Task 3 (vi.mock AI provider) + Task 4 (human-verify checkpoint).
 
 **Phase 95 Plan 95-01 (BUG-03 audit):** SHIPPED 2026-05-18 — atomic commit `2d7cd171` `audit(95-01): branch verdict for BUG-03 + RED tests`. **Final Branch Verdict: Branch 3-{i, ii, iii, iv, v, vi}** — all six candidates fire as a maximal compound. **Candidate (vi) `bk.status` column mismatch at `tools.ts:282` was NEWLY DISCOVERED during RED-test authoring** and is the proximate SHOWSTOPPER — every `executeTool('check_schedule')` throws `Unknown column 'bk.status'` against the real `eltemplo_test` schema before reaching any other candidate's discriminator. Substantive gates green: sha256 6-pair invariant intact, tsc clean both packages, RED tests fail on master (integration 8/9, unit 1/4 with (iii) FIRES), no production source touched, exactly 3 files in commit. Two PLAN.md `<automated>` verify-block bugs documented in audit §G — see Engineering Learnings under Carry-forward planning constraints.
@@ -98,7 +98,7 @@ Full decision log in PROJECT.md Key Decisions table.
 - **v5.3.3 test-suite flake (94-01 SC#3 graceful fallback):** Pre-existing intermittent failure on `el-templo-bot/test/v5-3-3-openai-latency.test.ts:~515` (`"sends 'Dame un segundo' AND 'Tuve un problemita técnico'; handler returns cleanly"`). Introduced commit `fa65e5b3` (Plan 94-01 RED). ~50% flake rate on full bot suite (`pnpm test`) under parallel load; 0% in suite-isolated runs. Root cause hypothesis: `vi.advanceTimersByTimeAsync` + promise-resolution ordering. NOT introduced by 94-02 and not blocking Phase 94 closure. **MUST be resolved before v5.4.0** — CI must be deterministic for prod deploy. Candidate remediation: Phase 97 (RGUARD scope expansion), or carve out as 97.1 / v5.3.4 if timing allows. See `94-02-SUMMARY.md` "Known Issues / Follow-ups" for full diagnostic notes.
 - **Phase 95 Plan 95-03 DEGR-01 test suite flakiness (deferred to Phase 97 or dedicated pre-v5.4.0 debug session):** `el-templo-bot/test/v5-3-3-degr-01-escalation.test.ts` (shipped via Plan 95-03 commit chain `a6143e45` → `b1d8bd73` → `22a07dc7`) exhibits 1-5 of 9 tests failing intermittently across 10 consecutive runs (~9 of 10 runs show ≥1 failure; occasional 9/9 PASS). **Production impact: NONE.** handler.ts production code at commit `22a07dc7` is correct and implements CONTEXT.md D-05..D-18 + D-09 verbatim per visual review; pre-existing 28 test files show 0 regressions; `pnpm tsc --noEmit` clean both packages; 6-pair canonical-invariant sha256 intact at `67670b1e1099bf7c8a5285414736f16e8a010a010348bf6566790d0db3163344`. Failure mode invariant: `sendCalls.length === 0` (handler bailed before reaching mocked `sendTextMessage`), consistent with cross-test mock state leakage. Failures concentrate in **SC-B, SC-C(ii), SC-C(iv), SC-D**; **SC-A, SC-E, SC-F always pass**. **Hypotheses investigated and refuted during 95-03 execution:** (1) `vi.doMock` vs hoisted `vi.mock` — refuted by structural comparison with `v5-3-3-openai-latency.test.ts` which uses the identical `vi.doMock` pattern and is 5/5 deterministic; (2) microtask flush in `afterEach` via `await new Promise(r => setImmediate(r))` — refuted (9/10 FAIL post-fix, no meaningful improvement); (3) unique phone per SC-C sub-case — refuted (9/10 FAIL post-fix). **Hypotheses NOT yet investigated:** test count scaling vs sibling (9 tests + nested describes vs 8); async cleanup race deeper than microtask boundary; SC-C nested describe interaction with `vi.useFakeTimers` per-describe; Redis-mock state across describe boundaries. **Risk acceptance rationale:** Manual UAT during v5.4.0 staging deploy will validate the feature empirically — force 2 tool failures in one inbound, verify the handoff phrase (`Te paso con alguien del equipo, te escriben enseguida 🙌`) is delivered exactly once and `conversation_status` transitions to `human_takeover` via the synthetic `request_human` dispatch. **Sibling flake context:** This is the SECOND v5.3.3 test-infrastructure flake of the same family — the first being the pre-existing `v5-3-3-openai-latency.test.ts` SC#3 flake documented in the entry above. Both share the `vi.useFakeTimers` + `vi.advanceTimersByTimeAsync` + promise-resolution-ordering root-cause family. **SHOULD be resolved before v5.4.0 (manual UAT during staging deploy provides empirical validation; hard block deferred to project owner's discretion based on CI signal-to-noise tolerance).** Candidate remediation: dedicated test-infrastructure debug session addressing both flakes systematically (preferred — pattern recognition suggests common root cause), or piggyback onto Phase 97 RGUARD-02 if a focused fix proves cheap.
 - **el-templo-api 30 pre-existing test failures — CLASSIFIED 2026-06-16 via `/gsd-debug` session `api-30-test-failures-triage` → verdict (a) pure test-infra / test-staleness.**
-  - **Status:** Phase 99 complete
+  - **Status:** Ready to execute
   - **Evidence:** 30 failing tests across 4 test files in `el-templo-api/test/` — reproduced live 2026-06-16T17:08:45Z at HEAD `4e5d8d75` (post-Phase-96.5): identical 30 failed / 482 passed / 4 files baseline. Per-file root causes:
     - `subscriptions/subscriptions.test.ts` (6 failures) — temporal fixture staleness. Hard-coded `startDate: "2026-03-01"` + `durationDays: 30` → `endDate=2026-03-31`. Today is 2026-06-16 (77 days past). `autoExpireSubscriptions` at `src/modules/subscriptions/service.ts:775-788` correctly flips `active`→`expired` before lookup, so subsequent assign/pause/cancel/GET operations correctly return 201/404 instead of 409/200. Auto-expire is working as designed.
     - `whatsapp/ai-tools.test.ts` (20 failures) — broken cleanup filter (`branches WHERE code LIKE 'TST%'`) does not match seeded `code='alem'`, causing `Duplicate entry 'alem'` cascade across tests 2-20. Test #1 separately asserts `"20 lugares"` — stale assertion against current intentional prod wording `"cupos disponibles"` at `el-templo-bot/src/ai/tools.ts:389` (intentional prod behavior, test stale — origin not attributed; cross-verified by owner 2026-06-16).
