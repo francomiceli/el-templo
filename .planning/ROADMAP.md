@@ -3559,11 +3559,11 @@ Plans:
 3. La admin ve el historial de movimientos inter-caja y egresos filtrable por caja/período. (REP-03)
 4. Los reportes nuevos se exportan reusando el export Excel/PDF existente (exceljs / pdfmake), sin un mecanismo de export paralelo. (REP-04)
 
-**Plans:** 2/4 plans executed
+**Plans:** 3/4 plans executed
 
 - [x] 141-01-PLAN.md — Backend: GET /pending-tray (bandeja, oldest-first + aging + overdue) + GET /cash-registers/balances (saldos por caja over getBalance) + sibling Excel exports + tests
 - [x] 141-02-PLAN.md — Backend: GET /movements-history (listMovEgresos own LEFT-JOIN query, NULL-member rows, caja/período) + Excel export + LEFT-JOIN test
-- [ ] 141-03-PLAN.md — Frontend: useTransactionsApi extension (reads + validate/observe/correct + keepMembershipActive + exports) + CajaPage q-tabs hub shell + Movimientos (verbatim) + Saldos tabs
+- [x] 141-03-PLAN.md — Frontend: useTransactionsApi extension (reads + validate/observe/correct + keepMembershipActive + exports) + CajaPage q-tabs hub shell + Movimientos (verbatim) + Saldos tabs
 - [ ] 141-04-PLAN.md — Frontend: Bandeja tab (Validar one-tap, ⋮ actions, overdue alert, membership popup) + Mov-Egresos tab + human-verify checkpoint
       **UI hint:** yes
 
@@ -3587,7 +3587,7 @@ Plans:
 | 138. Entidad caja + saldos                  | 2/3            | In Progress |            |
 | 139. Movimientos inter-caja y egresos       | 3/3            | Complete    | 2026-06-24 |
 | 140. Carga única + cobro suelto + rol profe | 3/3            | Complete    | 2026-06-24 |
-| 141. Reportes para la admin                 | 2/4            | In Progress |            |
+| 141. Reportes para la admin                 | 3/4            | In Progress |            |
 | 142. Config + transición Contabilium        | 0/?            | Not started | -          |
 
 _Plan counts populated by `/gsd-plan-phase`._
