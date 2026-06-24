@@ -27,6 +27,7 @@ import {
   getPlaybookState,
   setPlaybookState,
 } from "../memory/playbook-state.js";
+import { shouldDisclosePrices } from "../playbooks/constants.js";
 import {
   getSession,
   updateSession,
@@ -575,6 +576,45 @@ async function processWithAiInner(
   // rejection re-opens with a fresh WHY question per CONTEXT.md semantics).
   const newWhyAsked = rejectionHotPre;
 
+  // ── PRICE-01 (v5.3.3 Phase 99): price-insistence counter, computed pre-AI ─
+  //
+  // Reuses the single-source-of-truth `detectPriceObjection` helper (same
+  // regex as computeAdvanceSignals' post-AI `signals.priceObjection`); no
+  // parallel regex. The boolean is per-inbound, so the counter increments
+  // AT MOST ONCE per inbound message even if the user spams multiple price
+  // tokens in a single message (CONTEXT.md threat T-99-05 mitigation).
+  //
+  // Phase 93 concurrency: the SETNX / dead-man-switch handler-entry guard
+  // ensures only one handler runs per phone at a time, so the
+  // read-modify-write of priceInsistenceCount inherits handler concurrency
+  // safety (CONTEXT.md threat T-99-07 mitigation — no new locking needed).
+  //
+  // Gated on `resolved.playbookId === "PB1"` so the counter is scoped
+  // per-conversation per-PB1-session; transitions out of PB1 reset to 0
+  // at the post-AI stage-advance write below.
+  const priceObjectionPre = detectPriceObjection(inboundText.toLowerCase());
+  const priorPriceInsistenceCount = priorPbState?.priceInsistenceCount ?? 0;
+  const newPriceInsistenceCount =
+    priceObjectionPre && resolved.playbookId === "PB1"
+      ? priorPriceInsistenceCount + 1
+      : priorPriceInsistenceCount;
+  if (
+    priceObjectionPre &&
+    resolved.playbookId === "PB1" &&
+    newPriceInsistenceCount !== priorPriceInsistenceCount
+  ) {
+    log.info(
+      {
+        event: "price_insistence_incremented",
+        phone,
+        stageId: resolved.stageId,
+        priorCount: priorPriceInsistenceCount,
+        newCount: newPriceInsistenceCount,
+      },
+      "price_insistence_incremented",
+    );
+  }
+
   // Telemetry — log.info (NOT log.warn). softRejection is expected behavior
   // we want to track statistically (rejection rates per stage, WHY→re-engage
   // conversion). Contrast: Phase 90's "discovery escape fired" uses warn
@@ -605,6 +645,9 @@ async function processWithAiInner(
       // OBJN-01 (Phase 91): persist the arc flag pre-AI so it survives a
       // crash between AI call and post-AI write.
       whyAsked: newWhyAsked,
+      // PRICE-01 (Phase 99): persist the counter pre-AI so it survives a
+      // crash between AI call and post-AI write.
+      priceInsistenceCount: newPriceInsistenceCount,
       updatedAt: Date.now(),
     });
   }
@@ -899,6 +942,11 @@ async function processWithAiInner(
       // since rejection state can't change between pre-AI and post-AI
       // within a single inbound turn.
       whyAsked: newWhyAsked,
+      // PRICE-01 (Phase 99): preserve the counter through avatar-only
+      // writes — avatar detection doesn't change PB1 membership in a
+      // single turn, so we keep the pre-AI value (discoveryTurnCount and
+      // whyAsked precedent).
+      priceInsistenceCount: newPriceInsistenceCount,
       updatedAt: Date.now(),
     });
     log.info(
@@ -999,6 +1047,13 @@ async function processWithAiInner(
         // OBJN-01 (Phase 91): same pre-AI value — rejection state can't
         // change between pre-AI and post-AI within a single inbound turn.
         whyAsked: newWhyAsked,
+        // PRICE-01 (Phase 99): reset counter to 0 when nextStage leaves
+        // PB1 (per CONTEXT.md: "It should reset cleanly when the
+        // conversation transitions to PB2 (post-trial) so the PB2
+        // disclosure flow is not gated by PB1 state"). Preserve within PB1.
+        priceInsistenceCount: nextStage.startsWith("PB1.")
+          ? newPriceInsistenceCount
+          : 0,
         updatedAt: Date.now(),
       });
       log.info(
@@ -1013,11 +1068,13 @@ async function processWithAiInner(
       );
     } else if (
       newTurnCount !== priorTurnCount ||
-      newWhyAsked !== priorWhyAskedPre
+      newWhyAsked !== priorWhyAskedPre ||
+      newPriceInsistenceCount !== priorPriceInsistenceCount
     ) {
       // No stage advance, but the turn counter OR the rejection-arc flag
-      // changed — persist so the next turn sees the up-to-date state for
-      // the AND gate / escape hatch / rejection arc rule selector.
+      // OR the PRICE-01 counter changed — persist so the next turn sees the
+      // up-to-date state for the AND gate / escape hatch / rejection arc
+      // rule selector / disclosure-unlock gate.
       await setPlaybookState(phone, {
         activePlaybook: resolved.playbookId,
         currentStage: resolved.stageId,
@@ -1025,6 +1082,9 @@ async function processWithAiInner(
         discoveryTurnCount: newTurnCount,
         // OBJN-01 (Phase 91): persist arc flag through turn-count-only updates.
         whyAsked: newWhyAsked,
+        // PRICE-01 (Phase 99): persist the unchanged-within-PB1 counter so
+        // a price-insistence-without-stage-advance is durably persisted.
+        priceInsistenceCount: newPriceInsistenceCount,
         updatedAt: Date.now(),
       });
     }
@@ -1319,6 +1379,26 @@ const E1A_E1B_CATEGORIES: Record<string, RegExp> = {
 };
 
 /**
+ * v5.3.3 Phase 99 (PRICE-01): single source of truth for price-objection
+ * detection. Lower-cased input expected (mirrors the original inline
+ * `inbound = inboundText.toLowerCase()` pattern in `computeAdvanceSignals`).
+ *
+ * Single regex literal — referenced by both:
+ *   - `computeAdvanceSignals` (post-AI, sets `signals.priceObjection`)
+ *   - The pre-AI counter-increment site at handler.ts (drives
+ *     `newPriceInsistenceCount` flowing into `setPlaybookState` and the
+ *     `disclosureUnlocked` flag passed to `getSystemPrompt`)
+ *
+ * Keeping the regex co-located here (and NOT inlined in two places)
+ * satisfies the CONTEXT.md "do NOT introduce a parallel regex" constraint.
+ */
+export function detectPriceObjection(inboundLower: string): boolean {
+  return /\b(caro|carisimo|car[ií]simo|precio|no me alcanza|no puedo pagar|muy caro|barato|descuento)\b/i.test(
+    inboundLower,
+  );
+}
+
+/**
  * Stage-aware content gate for `discoveryAnswered`.
  *
  * Returns true if the inbound contains keywords that plausibly answer the
@@ -1435,11 +1515,11 @@ export function computeAdvanceSignals(
     /^s[ií][\s\.\!¡]*$/i.test(inboundText.trim()) ||
     /\bs[ií]\b(?!\s+no\b)/i.test(inbound);
 
-  // User raised a price-shaped objection
-  const priceObjection =
-    /\b(caro|carisimo|car[ií]simo|precio|no me alcanza|no puedo pagar|muy caro|barato|descuento)\b/i.test(
-      inbound,
-    );
+  // User raised a price-shaped objection.
+  // v5.3.3 Phase 99 (PRICE-01): single source of truth lives in
+  // `detectPriceObjection` so the handler's pre-AI counter increment and this
+  // post-AI signal use the same regex (no parallel regex per CONTEXT.md).
+  const priceObjection = detectPriceObjection(inbound);
 
   // [OBJN-01, v5.3.2 Phase 91] Soft-rejection signal — single source of
   // truth lives in `detectSoftRejection` so the handler's pre-AI rule
