@@ -38,6 +38,7 @@ import {
 import { analyticsRoutes } from "./modules/analytics";
 import { reportsRoutes } from "./modules/reports";
 import { coachRoutes } from "./modules/coach";
+import { ratingsAdminRoutes, ratingsMemberRoutes } from "./modules/ratings";
 import { financeRoutes } from "./modules/finance";
 import { userRoutes } from "./modules/users";
 import { onboardingRoutes } from "./modules/onboarding";
@@ -202,6 +203,15 @@ export async function buildApp() {
   // Coach routes (simplified Deudas tab for professors at the door)
   await app.register(coachRoutes, {
     prefix: "/api/admin/coach",
+  });
+
+  // Ratings routes (Phase 143): weekly roster write (coach/owner) + owner-only
+  // ratings view, and member-facing pending + submit.
+  await app.register(ratingsAdminRoutes, {
+    prefix: "/api/admin/ratings",
+  });
+  await app.register(ratingsMemberRoutes, {
+    prefix: "/api/members/ratings",
   });
 
   // Finance routes (transactions create/void/list, financial history) — Phase 106
