@@ -51,6 +51,19 @@ export const financialTransactions = mysqlTable(
     voidedAt: timestamp("voided_at"),
     voidedBy: int("voided_by").references(() => users.id),
     voidReason: text("void_reason"),
+    // Phase 137: validation state machine, ORTHOGONAL to the soft-void axis
+    // above. ANULADO stays as voidedAt IS NOT NULL; this enum is a separate
+    // axis. Order MUST match migration 0153 byte-for-byte (enum drift = CI
+    // "Unknown column" that tsc cannot detect). DEFAULT 'validado' backfills
+    // all existing rows so the 6 v5.0 metrics keep identical numbers (VAL-05).
+    validationStatus: mysqlEnum("validation_status", [
+      "pendiente",
+      "observado",
+      "corregido",
+      "validado",
+    ])
+      .default("validado")
+      .notNull(),
     notes: text("notes"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
@@ -63,6 +76,11 @@ export const financialTransactions = mysqlTable(
       table.transactionDate,
     ),
     index("idx_financial_tx_kind_voided").on(table.kind, table.voidedAt),
+    // Phase 137: firm-money read path (validation_status='validado' AND voided_at IS NULL).
+    index("idx_financial_tx_validation_voided").on(
+      table.validationStatus,
+      table.voidedAt,
+    ),
   ],
 );
 
