@@ -53,8 +53,17 @@ const SNAP_PATH = resolve(here, "fixtures/pb1-e1a-lead-rendered.snap.txt");
  * "Limites" price-deferral bullet in system-prompt.ts was extended to
  * explicitly forbid mis-using the $20,000 trial as a plan reference and
  * to forbid deducing/estimating plan prices. +95 JS-chars.
+ *
+ * Phase 99 (COPY-01 + COPY-02): added Mica name-anchoring directive to the
+ * identity block (compact form — "Tu nombre es Mica… Nunca te llames Micla,
+ * Mika ni ninguna otra variante.") and renamed "Sesion Grupal" → "clases
+ * de calistenia" at knowledge.ts:548, system-prompt.ts:275, system-prompt.ts:327
+ * (with redundant-phrase trims on knowledge.ts:548 to stay under the ≥20%
+ * rendered-cap of floor(BASELINE_CHARS * 0.8) = 18916). Net +26 JS-chars.
+ * Frozen date kwargs unchanged (todayISO='2026-06-10', todayDayName='miércoles').
+ * Regen via `pnpm exec tsx` + getSystemPrompt per Phase 96.5 D-03.
  */
-const POST_RLOK_04_BYTES = 18884;
+const POST_RLOK_04_BYTES = 18910;
 
 // Phase 96.5 (DATE-01): the fixture is regenerated with FROZEN date kwargs
 // (todayISO: '2026-06-10', todayDayName: 'miércoles' per CONTEXT.md D-03) to
