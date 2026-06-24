@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v5.2
 milestone_name: Módulo Contable — Libro de Caja
-status: completed
-stopped_at: Phase 140 context gathered
-last_updated: "2026-06-24T20:14:25.164Z"
+status: executing
+stopped_at: Completed 140-01-PLAN.md
+last_updated: "2026-06-24T20:36:19.953Z"
 last_activity: 2026-06-24
 progress:
   total_phases: 13
   completed_phases: 8
-  total_plans: 41
-  completed_plans: 40
+  total_plans: 44
+  completed_plans: 41
   percent: 62
 ---
 
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-04)
 
 **Core value:** El registro de un pago se carga **una sola vez** en el Administrador (fuente de verdad) y propaga solo: activa la membresía al instante e impacta la caja. Se elimina el triple tipeo (Forms + Contabilium + Admin). El Administrador pasa a ser el **libro de caja** del negocio (efectivo×sucursal + central + banco×moneda), con validación de pagos (PENDIENTE→VALIDADO), movimientos inter-caja y egresos. Se monta sobre el modelo financiero transaccional v4.8 (~60% existe). Backend-heavy, brownfield.
-**Current focus:** Phase 139 — Movimientos inter-caja y egresos
+**Current focus:** Phase 140 — Carga única que propaga + cobro suelto + rol profe
 
 ## Current Position
 
-Phase: 139 (Movimientos inter-caja y egresos) — COMPLETE (3/3 planes)
-Plan: 3 of 3
-Status: Phase complete — backend-only (D-10). MOV-01..04 entregados end to end.
+Phase: 140 (Carga única que propaga + cobro suelto + rol profe) — EXECUTING
+Plan: 2 of 3
+Status: Ready to execute
 Last activity: 2026-06-24
 Next: Phase 140 (carga única del profe) / 141 (reportes/UI). Phase 141 caja history DEBE LEFT JOIN users (filas NULL-member de movimientos/egresos).
 
@@ -256,6 +256,7 @@ _Updated after each plan completion_
 | Phase 139 P139-01 | 13min | 3 tasks | 9 files |
 | Phase 139 P139-02 | 4min | 2 tasks | 2 files |
 | Phase 139 P139-03 | 7min | 3 tasks | 6 files |
+| Phase 140 P140-01 | ~9min | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -629,6 +630,9 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: [Phase 139]: branch_id NULLABLE (extends D-06) — movimientos/egresos branch-less almacenan NULL; aggregations branchId INNER JOIN branches
 - [Phase ?]: [Phase 139]: getSummary excluye cash_transfer/expense + applyDelta no-op en links vacíos — movimiento no infla revenue ni toca balances
 - [Phase 139]: 139-03: MovementService facade — movimiento = asiento 2 filas cash_transfer (outflow origen + inflow destino) linkeadas both-ways vía transaction_links, en una db.transaction, neto 0; guard same-currency antes de escribir; reconciliación D-04 = fila kind='adjustment' separada en origen SOLO si counted!=expected (el getBalance firmado auto-corrige el saldo a lo contado) + audit 'reconciliation' SIEMPRE (expected/counted/diff); egreso = 1 fila expense outflow; void-the-pair vía voidPair descubre ambas patas + ajuste desde cualquier leg id (transaction_links en ambas direcciones). 4 rutas admin-only (FINANCE_VOID_ROLES server-side, rol nunca del body) + country scope por caja→branch (branch-less = owner-only, 404 cross-country). 10 tests MOV-01..04 + RBAC verdes. Backend-only. Phase 139 COMPLETE.
+- [Phase ?]: [Phase 140-01] idempotency_key as nullable UNIQUE column on financial_transactions (not separate table) — D-09; MySQL allows unlimited NULLs so admin/historical rows never collide
+- [Phase ?]: [Phase 140-01] FINANCE_LOAD_ROLES = FINANCE_WRITE_ROLES + coach (load-only); coach stays out of VOID/ADJUSTMENT/READ — D-06/D-08
+- [Phase ?]: [Phase 140-01] ER_DUP_ENTRY return-existing handling deferred to Wave 2 (Pitfall 3: renewal tx rolls back before re-read)
 
 ### Pending Todos
 
@@ -661,8 +665,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-24T20:14:25.140Z
-Stopped at: Phase 140 context gathered
-Resume file: .planning/phases/140-carga-nica-que-propaga-cobro-suelto-rol-profe/140-CONTEXT.md
+Last session: 2026-06-24T20:36:19.926Z
+Stopped at: Completed 140-01-PLAN.md
+Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
