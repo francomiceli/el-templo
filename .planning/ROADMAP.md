@@ -3482,7 +3482,11 @@ _v5.2 added: 2026-06-04 — 1 phase (132). Cierra v5.0 del lado de UI: expone en
 5. Solo el admin puede anular (motivo + autor + fecha); al anular un pago con membresía asociada, un popup decide 1-a-1 si la membresía sigue activa (default: activa). (VAL-06)
 6. La membresía se activa al instante al cargar el pago, independiente del `validation_status` del cobro (un PENDIENTE ya salda la deuda del socio en `balances`, pero NO suma a caja firme). (VAL-07)
 
-**Plans:** TBD
+**Plans:** 3 plans (3 waves — schema/helper foundation → state-machine services → call-site refactor + regression)
+
+- [ ] 137-01-PLAN.md — Schema validation_status + migración 0153 + audit action types + helper canónico firm-money.ts + test scaffolds (VAL-01, VAL-05)
+- [ ] 137-02-PLAN.md — Máquina de estados: validate/observe/correct + void extendido (\_void atómico) + derivación rol→status server-side + keepMembershipActive (VAL-02, VAL-03, VAL-04, VAL-06, VAL-07)
+- [ ] 137-03-PLAN.md — Refactor 13 call sites al filtro firme + excepción documentada (subscriptions:2127) + test de regresión R1-R4 de las 6 métricas v5.0 (VAL-05, VAL-07)
 
 ### Phase 138: Entidad caja + saldos
 
@@ -3560,7 +3564,7 @@ _v5.2 added: 2026-06-04 — 1 phase (132). Cierra v5.0 del lado de UI: expone en
 
 | Phase                                       | Plans Complete | Status      | Completed |
 | ------------------------------------------- | -------------- | ----------- | --------- |
-| 137. Máquina de estados de validación       | 0/?            | Not started | -         |
+| 137. Máquina de estados de validación       | 0/3            | Planned     | -         |
 | 138. Entidad caja + saldos                  | 0/?            | Not started | -         |
 | 139. Movimientos inter-caja y egresos       | 0/?            | Not started | -         |
 | 140. Carga única + cobro suelto + rol profe | 0/?            | Not started | -         |
@@ -3602,6 +3606,29 @@ Plans:
 - [x] 143-03-PLAN.md — QR self-scan del profe validado contra user_branches + tests
 - [x] 143-04-PLAN.md — Admin: grilla de roster en Horarios (Surface 1) + PuntuacionesPage owner-only (Surface 3)
 - [x] 143-05-PLAN.md — App miembro: RatingPromptDialog class-framed (Surface 2) + useRatingsApi + montaje
+
+### Phase 144: Notificaciones y bloqueo de vencimiento de membresía/plan
+
+**Goal:** Avisar al miembro que su membresía/plan está por vencer y empujarlo a renovar por WhatsApp, e impedir que reserve clases cuya fecha cae después del vencimiento. End state: (1) un cron diario encola una notificación push de vencimiento de plan ~7 días antes (réplica del patrón ya existente para programas, pero sobre `subscriptions.end_date`); (2) al abrir la app, el miembro ve un pop-up a los 7 y a los 3 días previos al vencimiento, con un botón que abre WhatsApp para renovar; (3) al intentar reservar una clase cuya fecha es posterior al `end_date` de su suscripción, el backend la rechaza con un error distinguible y la app muestra un pop-up "Necesitás renovar tu membresía para reservar esta clase" con botón a WhatsApp.
+
+**Depends on:** none (feature standalone de app/api/admin; independiente del Módulo Contable v5.2 y de la fase 143). Reutiliza el sistema de notificaciones existente (`pending_notifications` + FCM + `notification-cron`) y el helper `buildWhatsAppUrl`.
+**Requirements:** PLAN-NOTIF, PLAN-POPUP, BOOK-BLOCK (se derivan en plan-phase del GOAL + decisiones de CONTEXT)
+
+**Tres entregables:**
+
+1. **Notificación push de vencimiento de plan.** Replicar el bloque "Program Renewal Warning" de `el-templo-api/src/jobs/notification-cron.ts:346-398`, pero buscando suscripciones activas con `end_date` entre `now+6d` y `now+7d` y encolando una notificación. Nuevo template (ej. `plan_renewal_warning`) en `el-templo-api/src/modules/notifications/types.ts`. Mensaje del tipo "Tu membresía vence en X días. Escribinos por WhatsApp para renovarla."
+2. **Pop-up in-app de aviso de vencimiento (7 y 3 días).** Al abrir la app, detectar los días restantes de la suscripción activa (`subscriptions.end_date`) y mostrar un pop-up cuando falten 7 y 3 días, con botón que abre WhatsApp (`el-templo-app/src/utils/whatsapp.ts` → `buildWhatsAppUrl(country, text)`). Frecuencia/anti-repetición a definir en discuss.
+3. **Bloqueo de reserva post-vencimiento.** Backend: validar en `el-templo-api/src/modules/scheduling/booking-service.ts` `reserve()` que `booking_date <= subscription.end_date` (hoy ese check NO existe — bug latente: se puede reservar para después de que vence el plan). Devolver un error/código distinguible. Frontend (`ReservasPage.vue`): capturar ese error y mostrar un pop-up con botón a WhatsApp.
+
+**Decisiones abiertas (se resuelven en discuss-phase):** categoría de la notificación (`entrenamiento` que pidió Franco vs. `programas` que usa el análogo); ventana exacta del cron y si se encola una sola notificación o se diferencia el copy a 7 vs 3 días; mecánica anti-repetición del pop-up in-app (persistir "visto" por umbral en local/servidor); pop-up salteable vs. bloqueante; manejo de planes sin `end_date` (NULL) y de suscripciones `paused`/`scheduled`; si el bloqueo de reserva aplica también a planes online o solo presencial.
+
+**Notas de contexto (verificado):** WhatsApp centralizado en `el-templo-app/src/utils/whatsapp.ts` (AR `5492235820521`, ES `34680774331`). Categorías de notificación existentes: `entrenamiento | programas | motivacion | anuncios` (`notifications/types.ts:3-18`). Notificaciones persisten en `pending_notifications` y se envían por FCM vía `notification-cron` + `NotificationService`. Incluye cambios de schema (template seed), migración SQL y tests de API para la nueva validación de booking.
+
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 144 to break down)
 
 ---
 
