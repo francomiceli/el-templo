@@ -26,7 +26,13 @@ export type AuditAction =
   | "transaction_voided"
   | "plan_assigned"
   | "reconciliation"
-  | "days_compensated";
+  | "days_compensated"
+  // Phase 137 (D-08): validation state machine transitions reuse audit-log
+  // instead of a dedicated validation_events table. targetKind 'transaction'
+  // already exists below — no change there.
+  | "transaction_validated"
+  | "transaction_observed"
+  | "transaction_corrected";
 
 export type AuditTargetKind = "subscription" | "transaction" | "member";
 
