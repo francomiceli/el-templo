@@ -148,6 +148,42 @@
             </q-btn>
           </div>
 
+          <!-- Roster de profes para el día seleccionado (Surface 1, Phase 143) -->
+          <div v-if="selectedBranchId" class="roster-mobile q-mb-md">
+            <div class="text-subtitle2 text-weight-medium q-mb-sm">Profe a cargo</div>
+            <q-select
+              v-model="rosterMobileMorning"
+              :options="coachSelectOptions"
+              label="Profe — Mañana"
+              dense
+              outlined
+              clearable
+              emit-value
+              map-options
+              :loading="loadingRoster"
+              class="q-mb-sm"
+              :placeholder="'Sin profe asignado'"
+              @update:model-value="
+                (val: number | null) => onAssignCoach(selectedDay, 'morning', val)
+              "
+            />
+            <q-select
+              v-model="rosterMobileAfternoon"
+              :options="coachSelectOptions"
+              label="Profe — Tarde"
+              dense
+              outlined
+              clearable
+              emit-value
+              map-options
+              :loading="loadingRoster"
+              :placeholder="'Sin profe asignado'"
+              @update:model-value="
+                (val: number | null) => onAssignCoach(selectedDay, 'afternoon', val)
+              "
+            />
+          </div>
+
           <!-- Vertical slot list for selected day -->
           <div v-if="selectedDayHoliday" class="text-center q-pa-lg text-grey-5 text-italic">
             FERIADO
@@ -255,6 +291,57 @@
             </template>
           </div>
         </div>
+
+        <!-- ================================================================== -->
+        <!-- Roster de profes por (día, turno) — Surface 1 (Phase 143) -->
+        <!-- Desktop only; mobile uses the per-day selects above the slot list. -->
+        <!-- ================================================================== -->
+        <div
+          v-if="!isMobile && selectedBranchId && timeSlots.length > 0"
+          class="roster-grid-section q-mt-lg"
+        >
+          <div class="text-subtitle1 text-weight-medium q-mb-sm">Profe a cargo</div>
+          <div class="schedule-grid-container">
+            <div class="roster-grid" :style="rosterGridTemplateStyle">
+              <!-- Header corner -->
+              <div class="grid-header grid-corner roster-turno-label">Turno</div>
+              <!-- Day columns -->
+              <div
+                v-for="day in weekDays"
+                :key="`roster-h-${day.dayOfWeek}`"
+                class="grid-header grid-day-header text-center"
+              >
+                <div class="text-weight-bold">{{ day.shortLabel }}</div>
+                <div class="text-caption">{{ day.dateLabel }}</div>
+              </div>
+
+              <!-- Turno rows: Mañana / Tarde -->
+              <template v-for="turno in rosterTurnos" :key="turno.slot">
+                <div class="roster-turno-cell text-caption text-grey-8">{{ turno.label }}</div>
+                <div
+                  v-for="day in weekDays"
+                  :key="`roster-${turno.slot}-${day.dayOfWeek}`"
+                  class="roster-select-cell"
+                >
+                  <q-select
+                    :model-value="rosterValue(day.dayOfWeek, turno.slot)"
+                    :options="coachSelectOptions"
+                    dense
+                    outlined
+                    clearable
+                    emit-value
+                    map-options
+                    :loading="loadingRoster"
+                    placeholder="Sin profe asignado"
+                    @update:model-value="
+                      (val: number | null) => onAssignCoach(day.dayOfWeek, turno.slot, val)
+                    "
+                  />
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
       </q-tab-panel>
 
       <q-tab-panel name="actividades" class="q-pa-none">
@@ -296,6 +383,12 @@ import { useQuasar } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { useSchedulingApi } from 'src/composables/useSchedulingApi';
 import { useMembersApi } from 'src/composables/useMembersApi';
+import {
+  useRatingsApi,
+  type CoachOption,
+  type RosterWeekRow,
+  type ClassSlot,
+} from 'src/composables/useRatingsApi';
 import type {
   WeeklySlotView,
   HolidayRecord,
@@ -318,6 +411,7 @@ const log = createLogger('HorariosPage');
 const $q = useQuasar();
 const membersApi = useMembersApi();
 const schedulingApi = useSchedulingApi();
+const ratingsApi = useRatingsApi();
 
 // ─── State ──────────────────────────────────────────────────────────────────
 
@@ -501,6 +595,129 @@ function onMobileSlotClick(slot: WeeklySlotView) {
   onCellClick(slot.startTime, slot.dayOfWeek, info.date);
 }
 
+// ─── Roster de profes (Surface 1, Phase 143) ────────────────────────────────
+
+/** Coaches assignable to the selected branch (role=coach + user_branches). */
+const coaches = ref<CoachOption[]>([]);
+/** Roster rows for the active (branch, week), keyed by `${dayOfWeek}-${slot}`. */
+const rosterMap = ref<Map<string, RosterWeekRow>>(new Map());
+const loadingRoster = ref(false);
+
+/** The two turnos rendered as roster rows. Slot derives from startTime<'12:00'. */
+const rosterTurnos: Array<{ slot: ClassSlot; label: string }> = [
+  { slot: 'morning', label: 'Mañana' },
+  { slot: 'afternoon', label: 'Tarde' },
+];
+
+/** QSelect options: coach id → "firstName lastName". */
+const coachSelectOptions = computed(() =>
+  coaches.value.map((c) => ({ label: `${c.firstName} ${c.lastName}`, value: c.id }))
+);
+
+/** CSS grid template for the roster grid: 1 turno column + 6 day columns. */
+const rosterGridTemplateStyle = computed(() => ({
+  'grid-template-columns': '80px repeat(6, 1fr)',
+}));
+
+function rosterKey(dayOfWeek: number, slot: ClassSlot): string {
+  return `${dayOfWeek}-${slot}`;
+}
+
+/** Current assigned coachId for a (día, turno), or null when unassigned. */
+function rosterValue(dayOfWeek: number, slot: ClassSlot): number | null {
+  return rosterMap.value.get(rosterKey(dayOfWeek, slot))?.coachId ?? null;
+}
+
+// Mobile per-day select models (kept in sync with the roster map + selectedDay).
+const rosterMobileMorning = computed({
+  get: () => rosterValue(selectedDay.value, 'morning'),
+  set: () => {
+    // Persistence is driven by @update:model-value → onAssignCoach; the getter
+    // re-derives from rosterMap, so no local mutation is needed here.
+  },
+});
+const rosterMobileAfternoon = computed({
+  get: () => rosterValue(selectedDay.value, 'afternoon'),
+  set: () => {
+    /* see rosterMobileMorning */
+  },
+});
+
+async function loadRoster() {
+  if (!selectedBranchId.value) {
+    coaches.value = [];
+    rosterMap.value = new Map();
+    return;
+  }
+  loadingRoster.value = true;
+  try {
+    const [branchCoaches, rosterRows] = await Promise.all([
+      ratingsApi.getCoachesForBranch(selectedBranchId.value),
+      ratingsApi.getRosterWeek(selectedBranchId.value, weekStartDate.value),
+    ]);
+    coaches.value = branchCoaches;
+    const map = new Map<string, RosterWeekRow>();
+    for (const row of rosterRows) {
+      map.set(rosterKey(row.dayOfWeek, row.slot), row);
+    }
+    rosterMap.value = map;
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.error('Error loading roster', { error: message });
+    $q.notify({ type: 'negative', message: 'Error cargando el roster de profes' });
+  } finally {
+    loadingRoster.value = false;
+  }
+}
+
+/**
+ * Assign/replace (or clear) the coach for a (día, turno) and persist
+ * immediately — no Save button (D-A1). On success, refresh the local map so
+ * the select reflects the new attribution; on error, reload to discard the
+ * optimistic selection and show a toast.
+ */
+async function onAssignCoach(dayOfWeek: number, slot: ClassSlot, coachId: number | null) {
+  if (!selectedBranchId.value) return;
+
+  // Clearing the select (no coach) is not a supported write on the roster API
+  // (one coach per slot; clearing would need a DELETE). Re-sync and bail.
+  if (coachId == null) {
+    void loadRoster();
+    return;
+  }
+
+  // Skip a redundant write when the value did not actually change.
+  if (rosterValue(dayOfWeek, slot) === coachId) return;
+
+  try {
+    await ratingsApi.assignCoach({
+      branchId: selectedBranchId.value,
+      weekStartDate: weekStartDate.value,
+      dayOfWeek,
+      slot,
+      coachId,
+    });
+    const coach = coaches.value.find((c) => c.id === coachId);
+    const map = new Map(rosterMap.value);
+    map.set(rosterKey(dayOfWeek, slot), {
+      id: rosterMap.value.get(rosterKey(dayOfWeek, slot))?.id ?? 0,
+      branchId: selectedBranchId.value,
+      weekStartDate: weekStartDate.value,
+      dayOfWeek,
+      slot,
+      coachId,
+      coachName: coach ? `${coach.firstName} ${coach.lastName}` : '',
+    });
+    rosterMap.value = map;
+    $q.notify({ type: 'positive', message: 'Profe asignado' });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.error('Error assigning coach', { error: message });
+    $q.notify({ type: 'negative', message: 'No se pudo asignar el profe. Reintentá.' });
+    void loadRoster();
+  }
+}
+
 // ─── Data Loading ───────────────────────────────────────────────────────────
 
 async function loadBranches() {
@@ -577,6 +794,7 @@ function onBranchChange() {
   gridSlots.value = [];
   gridHolidays.value = [];
   loadWeeklyGrid();
+  void loadRoster();
 }
 
 // ─── Cascade error handler (Phase 113 — Activities deactivation 409) ────────
@@ -646,6 +864,7 @@ function onSlotDeleted() {
 watch(weekStartDate, () => {
   if (selectedBranchId.value) {
     loadWeeklyGrid();
+    void loadRoster();
   }
 });
 
@@ -671,7 +890,10 @@ onMounted(() => {
 
 // Load grid after branches load if auto-selected
 watch(selectedBranchId, (val) => {
-  if (val) loadWeeklyGrid();
+  if (val) {
+    loadWeeklyGrid();
+    void loadRoster();
+  }
 });
 </script>
 
@@ -842,6 +1064,40 @@ watch(selectedBranchId, (val) => {
 .day-picker-btn--active.day-picker-btn--today {
   background: var(--q-primary);
   color: white;
+}
+
+/* Roster de profes (Surface 1) — desktop grid */
+.roster-grid {
+  display: grid;
+  gap: 2px;
+  min-width: 600px;
+  align-items: stretch;
+}
+
+.roster-turno-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.roster-turno-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f5f5f5;
+  font-weight: 500;
+  padding: 4px;
+  border-radius: 2px;
+}
+
+.roster-select-cell {
+  display: flex;
+  align-items: center;
+  padding: 2px;
+}
+
+.roster-select-cell :deep(.q-field) {
+  width: 100%;
 }
 
 /* Mobile: slot row coloring — matches desktop cell palette */
