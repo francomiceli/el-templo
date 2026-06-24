@@ -106,6 +106,21 @@ export interface PlaybookSessionState {
    * `false` (mirrors `discoveryTurnCount` precedent from Phase 90).
    */
   whyAsked?: boolean;
+  /**
+   * v5.3.3 Phase 99 (PRICE-01): per-conversation per-PB1-session
+   * price-insistence counter.
+   *
+   * Increments at most once per inbound when the priceObjection regex at
+   * handler.ts (single source of truth via `detectPriceObjection`) matches
+   * AND `activePlaybook === "PB1"`. Resets to 0 at the post-AI stage-advance
+   * write site when `nextStage` leaves PB1 (so the PB2 disclosure flow is
+   * not gated by stale PB1 state per CONTEXT.md PRICE-01).
+   *
+   * Optional + backward-compatible: absent on pre-99 entries, treated as 0
+   * (mirrors `discoveryTurnCount` precedent from Phase 90 and `whyAsked`
+   * precedent from Phase 91).
+   */
+  priceInsistenceCount?: number;
   updatedAt: number;
 }
 

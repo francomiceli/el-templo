@@ -58,6 +58,21 @@ interface SystemPromptOptions {
    * + the DAY_NAMES lookup.
    */
   todayDayName?: string;
+  /**
+   * v5.3.3 Phase 99 (PRICE-02): when true AND `activePlaybook === "PB1"`,
+   * the rendered prompt includes a disclosure-unlocked addendum that
+   * permits listing real DB plan prices via check_membership while still
+   * requiring a free-trial re-anchor in the response.
+   *
+   * Computed by the handler from `shouldDisclosePrices(priceInsistenceCount)`
+   * (see playbooks/constants.ts). Sub-option A locked per CONTEXT.md
+   * PRICE-02: definitions.ts PB1.E4 promptSection stays static; the unlock
+   * is purely additive in system-prompt.ts (no template syntax introduced).
+   *
+   * Conditional injection only — when undefined/false, baseline render is
+   * byte-identical to pre-Phase-99 state (preserves KGATE-05 invariant).
+   */
+  disclosureUnlocked?: boolean;
 }
 
 /**
