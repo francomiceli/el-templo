@@ -1,4 +1,5 @@
 <template>
+  <!-- Módulo Contable v5.2 (fases 137-142): hub de Caja — saldos, bandeja de pendientes e historial. -->
   <q-page class="q-pa-md">
     <!-- Header: title + owner-only País selector (moved up from Movimientos) -->
     <div class="row items-center q-mb-md">
