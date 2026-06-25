@@ -3649,11 +3649,14 @@ Plans:
 
 **Notas de contexto (verificado):** WhatsApp centralizado en `el-templo-app/src/utils/whatsapp.ts` (AR `5492235820521`, ES `34680774331`). Categorías de notificación existentes: `entrenamiento | programas | motivacion | anuncios` (`notifications/types.ts:3-18`). Notificaciones persisten en `pending_notifications` y se envían por FCM vía `notification-cron` + `NotificationService`. Incluye cambios de schema (template seed), migración SQL y tests de API para la nueva validación de booking.
 
-**Plans:** 0 plans
+**Plans:** 4 plans
 
 Plans:
 
-- [ ] TBD (run /gsd-plan-phase 144 to break down)
+- [ ] 144-01-PLAN.md — Foundation: `planes` category + 3 renewal templates + covered-until helper + migration (wave 1, autonomous:false)
+- [ ] 144-02-PLAN.md — PLAN-NOTIF: daily cron enqueues 7d/3d/expiry push with chain suppression + opt-out (wave 2)
+- [ ] 144-03-PLAN.md — PLAN-POPUP: GET /subscriptions/coverage + PlanExpiryDialog.vue (≤3d, once/day, WhatsApp) + mount (wave 2)
+- [ ] 144-04-PLAN.md — BOOK-BLOCK: reserve() coverage check + COVERAGE_EXPIRED code + ReservasPage renewal dialog (wave 2)
 
 ---
 
