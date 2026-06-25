@@ -168,6 +168,14 @@ const routes: RouteRecordRaw[] = [
         component: () => import('pages/PuntuacionesPage.vue'),
         meta: { allowedRoles: ['owner'] as AdminRole[] },
       },
+      {
+        // Phase 142 (MIG-01, D-06): mini "Configuración de Caja" — owner/admin
+        // only (excludes gestion/recepcion/coach). Sibling of /caja, NOT a Caja
+        // tab. The backend per-handler ADMIN_ROLES check is the real gate.
+        path: 'configuracion-caja',
+        component: () => import('pages/ConfiguracionCajaPage.vue'),
+        meta: { allowedRoles: ['admin', 'owner'] as AdminRole[] },
+      },
     ],
   },
   {

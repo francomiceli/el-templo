@@ -176,6 +176,12 @@
             </q-item-section>
             <q-item-section>Notificaciones</q-item-section>
           </q-item>
+          <q-item clickable v-ripple to="/configuracion-caja">
+            <q-item-section avatar>
+              <q-icon name="settings" />
+            </q-item-section>
+            <q-item-section>Configuración de Caja</q-item-section>
+          </q-item>
         </template>
       </q-list>
     </q-drawer>
