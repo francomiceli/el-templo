@@ -10,8 +10,9 @@
  * attachCountryScope. coach stays ABSENT from FINANCE_VOID/ADJUSTMENT/READ.
  *
  * Endpoints (all thin handlers reusing the 137/138 primitives):
- *   POST /renew              — renovar plan (reuses renewSubscription; coach →
- *                              charge born PENDIENTE; idempotent).
+ *   POST /pay-plan           — cobro del plan: server decides settle-debt (when
+ *                              the current sub has outstanding balance) vs renovar
+ *                              (new period). coach → charge born PENDIENTE; idempotent.
  *   POST /misc               — cobro suelto (advance_payment, empty links,
  *                              concepto→notes; member balance untouched; idempotent).
  *   GET  /autocompletar/:id  — member's current plan + amount + currency.
@@ -39,7 +40,7 @@ import type { TransactionDetail } from "./types";
 
 // ── Body shapes ────────────────────────────────────────────────────────────
 
-interface CoachRenewLoadBody {
+interface CoachPayPlanBody {
   userId: number;
   amountReceived?: number;
   paymentMethod: "cash" | "transfer" | "card" | "aura_credit" | "internal";
@@ -65,7 +66,7 @@ const PAYMENT_METHOD_ENUM = [
   "internal",
 ] as const;
 
-const coachRenewLoadSchema = {
+const coachPayPlanSchema = {
   body: {
     type: "object",
     required: ["userId", "paymentMethod", "idempotencyKey"],
@@ -171,56 +172,133 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
   };
 
   // ===================================================================
-  // POST /renew — renovar plan (CARGA-01/02). Reuses renewSubscription with
-  // recorderRole derived SERVER-SIDE from the authenticated role (coach →
-  // pendiente) + the client idempotencyKey. Idempotent: a duplicate key catches
-  // ER_DUP_ENTRY (the whole renewal tx rolls back) and returns the existing
-  // charge + its already-active subscription as a 200 no-op (Pitfall 3).
+  // POST /pay-plan — cobro del plan (CARGA-01/02). The coach sees ONE "Pago de
+  // plan" action; the server decides what it actually is so the profe never has
+  // to know "renovación" vs "primer plan impago":
+  //   - If the member's current sub carries OUTSTANDING debt (e.g. an admin gave
+  //     the plan de alta con deuda for the profe to collect on-site) → settle it
+  //     with a debt_settlement linked to that sub. NO new period is created.
+  //   - Otherwise → renovación (reuses renewSubscription, creates a new period).
+  // Either way the charge is born PENDIENTE (recorderRole=coach, server-side)
+  // and is idempotent: a duplicate idempotencyKey catches ER_DUP_ENTRY and
+  // returns the existing charge as a 200 no-op (D-09 / Pitfall 3).
   // ===================================================================
-  fastify.post<{ Body: CoachRenewLoadBody }>(
-    "/renew",
-    { schema: coachRenewLoadSchema },
+  fastify.post<{ Body: CoachPayPlanBody }>(
+    "/pay-plan",
+    { schema: coachPayPlanSchema },
     async (request, reply) => {
+      const { userId, amountReceived, paymentMethod, idempotencyKey } =
+        request.body;
       try {
+        // Outstanding debt on the member's CURRENT sub (active/paused/scheduled)
+        // decides settle vs renew. getMemberSubscription excludes expired subs
+        // (those are the renewal case), so a null sub here just means "nothing
+        // to settle" — fall through to renew, which finds the active/expired sub
+        // and 404s itself if there's truly no plan. The balance row already
+        // exists when an admin assigned the plan con deuda (recordAssignmentCharge
+        // seeds it); amount>0 means there is debt. NOTE: debt on an ALREADY-expired
+        // sub is not surfaced here and falls to renovación (rare; in our flow the
+        // alta con deuda is always an active sub).
+        const sub = await subscriptionService.getMemberSubscription(userId);
+        const balanceRow = sub
+          ? await balanceService.getRow(
+              userId,
+              "subscription",
+              sub.id,
+              sub.currency,
+            )
+          : null;
+        const outstanding =
+          balanceRow && balanceRow.amount > 0 ? balanceRow.amount : 0;
+
+        if (sub && outstanding > 0) {
+          // ── SETTLE the existing debt — no new period (the plan is already
+          // assigned/active; the profe is just collecting what's owed). ──
+          const amount = amountReceived ?? outstanding;
+          if (amount <= 0) {
+            return reply.code(400).send({
+              error: "Solicitud invalida",
+              message: "El monto debe ser mayor a cero",
+            });
+          }
+          if (amount > outstanding) {
+            return reply.code(400).send({
+              error: "Solicitud invalida",
+              message: `El monto no puede exceder la deuda ($${outstanding})`,
+            });
+          }
+          const today = new Date().toISOString().split("T")[0];
+          const branchId = await resolveMemberBranchId(userId);
+          // Server-derived role → status (coach → pendiente).
+          const initialStatus = (["coach"] as readonly string[]).includes(
+            request.user.role,
+          )
+            ? "pendiente"
+            : "validado";
+
+          const detail = await transactionService.create(
+            {
+              memberId: userId,
+              kind: "debt_settlement",
+              direction: "inflow",
+              amount,
+              currency: sub.currency,
+              paymentMethod,
+              transactionDate: today,
+              effectiveDate: today,
+              branchId,
+              notes: `Pago de saldo plan ${sub.planName}`,
+              validationStatus: initialStatus,
+              idempotencyKey,
+              links: [
+                {
+                  targetKind: "subscription",
+                  targetId: sub.id,
+                  allocatedAmount: amount,
+                },
+              ],
+            },
+            request.user.userId,
+          );
+          return reply
+            .code(201)
+            .send({ subscription: sub, transaction: detail });
+        }
+
+        // ── RENEW — no debt, so create a new period (existing behaviour). ──
         const subscription = await subscriptionService.renewSubscription(
-          request.body.userId,
+          userId,
           {
-            paymentMethod: request.body.paymentMethod,
-            amountReceived: request.body.amountReceived,
+            paymentMethod,
+            amountReceived,
             // Server-derived role → status (coach → pendiente). Not a literal so
             // a future admin-callable variant stays correct.
             recorderRole: request.user.role as AdminRole,
-            idempotencyKey: request.body.idempotencyKey,
+            idempotencyKey,
           },
           request.user.userId,
         );
-        // Return the charge alongside the subscription so the PoS ticket has it
-        // AND the 201/200 (no-op) response shapes match. The charge carries the
-        // idempotencyKey (renewalPrice>0 → a charge was created); a free renewal
-        // (price 0) produces no charge → transaction null.
-        const transaction = await transactionService.findByIdempotencyKey(
-          request.body.idempotencyKey,
-        );
+        // The charge carries the idempotencyKey (renewalPrice>0 → a charge was
+        // created); a free renewal (price 0) produces no charge → transaction null.
+        const transaction =
+          await transactionService.findByIdempotencyKey(idempotencyKey);
         return reply.code(201).send({ subscription, transaction });
       } catch (err: unknown) {
-        // Pitfall 3 / D-09: a duplicate idempotency key means this exact load
-        // already happened — the renewal tx rolled back wholesale. Re-read the
-        // existing charge (fresh connection) and return it as a 200 no-op.
+        // D-09 / Pitfall 3: a duplicate idempotency key means this exact load
+        // already happened — the settle/renewal tx rolled back wholesale. Re-read
+        // the existing charge (fresh connection) and return it as a 200 no-op.
         if (isDuplicateKeyError(err).isDuplicate) {
-          const existing = await transactionService.findByIdempotencyKey(
-            request.body.idempotencyKey,
-          );
+          const existing =
+            await transactionService.findByIdempotencyKey(idempotencyKey);
           if (existing) {
             const subscription =
-              await subscriptionService.getMemberSubscription(
-                request.body.userId,
-              );
+              await subscriptionService.getMemberSubscription(userId);
             return reply
               .code(200)
               .send({ subscription, transaction: existing });
           }
         }
-        handleServiceError(err, reply, request.log, "coach renew load");
+        handleServiceError(err, reply, request.log, "coach pay-plan load");
       }
     },
   );
@@ -282,6 +360,11 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
   // GET /autocompletar/:userId — the member's current plan + amount + currency
   // for the typeahead pre-fill (CARGA-01). Reuses getMemberSubscription (no new
   // service method). hasRenewable=false when there is no active/paused sub.
+  //
+  // `intent` mirrors POST /pay-plan's server-side decision so the form pre-fills
+  // the right amount WITHOUT the profe choosing renovación vs primer plan:
+  //   - 'settle' → the current sub has outstanding debt; amount = that debt.
+  //   - 'renew'  → no debt; amount = the plan price (a new period would be created).
   // ===================================================================
   fastify.get<{ Params: { userId: number } }>(
     "/autocompletar/:userId",
@@ -297,13 +380,26 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
             planName: null,
             amount: null,
             currency: null,
+            intent: null,
+            outstanding: 0,
           });
         }
+        const balanceRow = await balanceService.getRow(
+          request.params.userId,
+          "subscription",
+          sub.id,
+          sub.currency,
+        );
+        const outstanding =
+          balanceRow && balanceRow.amount > 0 ? balanceRow.amount : 0;
         return reply.send({
           hasRenewable: true,
           planName: sub.planName,
-          amount: sub.pricePaid,
+          // Pre-fill the debt when there is one, else the plan price.
+          amount: outstanding > 0 ? outstanding : sub.pricePaid,
           currency: sub.currency,
+          intent: outstanding > 0 ? "settle" : "renew",
+          outstanding,
         });
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "coach autocompletar");

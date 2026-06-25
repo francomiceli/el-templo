@@ -102,6 +102,21 @@ async function seedCurrentSubscription(): Promise<number> {
   return res.id;
 }
 
+/** Seed an outstanding debt balance row against a subscription (simulates an
+ *  admin giving the plan de alta con deuda for the profe to collect on-site). */
+async function seedSubscriptionDebt(
+  subscriptionId: number,
+  amount: number,
+): Promise<void> {
+  await app.db.insert(schema.balances).values({
+    memberId,
+    targetKind: "subscription",
+    targetId: subscriptionId,
+    currency: "ARS",
+    amount,
+  });
+}
+
 /** Seed an ACTIVE expired-yesterday subscription so renew creates a new active period. */
 async function seedRenewableSubscription(): Promise<number> {
   // endDate in the past → renew births an immediately-active new period (the
@@ -249,7 +264,7 @@ describe("coach-load auth boundary", () => {
     // on schema validation — the point is it is NOT 403 (the guard let it in).
     const res = await app.inject({
       method: "POST",
-      url: `${COACH_LOAD_URL}/renew`,
+      url: `${COACH_LOAD_URL}/pay-plan`,
       headers: { authorization: `Bearer ${coachToken}` },
       payload: {},
     });
@@ -280,7 +295,7 @@ describe("coach-load renew", () => {
 
     const res = await app.inject({
       method: "POST",
-      url: `${COACH_LOAD_URL}/renew`,
+      url: `${COACH_LOAD_URL}/pay-plan`,
       headers: { authorization: `Bearer ${coachToken}` },
       payload: {
         userId: memberId,
@@ -320,7 +335,7 @@ describe("coach-load renew", () => {
   it("renew: 404 when the member has no subscription to renew", async () => {
     const res = await app.inject({
       method: "POST",
-      url: `${COACH_LOAD_URL}/renew`,
+      url: `${COACH_LOAD_URL}/pay-plan`,
       headers: { authorization: `Bearer ${coachToken}` },
       payload: {
         userId: memberId,
@@ -329,6 +344,110 @@ describe("coach-load renew", () => {
       },
     });
     expect(res.statusCode).toBe(404);
+  });
+});
+
+// ─── pay-plan settle: outstanding debt → debt_settlement, NO new period ──
+describe("coach-load pay-plan settle debt", () => {
+  it("settle: outstanding debt → debt_settlement born pendiente, balance cleared, no new period", async () => {
+    const subId = await seedCurrentSubscription();
+    await seedSubscriptionDebt(subId, 100000);
+
+    const res = await app.inject({
+      method: "POST",
+      url: `${COACH_LOAD_URL}/pay-plan`,
+      headers: { authorization: `Bearer ${coachToken}` },
+      payload: {
+        userId: memberId,
+        paymentMethod: "cash",
+        idempotencyKey: `settle-${Date.now()}`,
+      },
+    });
+    expect(res.statusCode).toBe(201);
+    const body = JSON.parse(res.body);
+
+    // The charge is a debt_settlement born PENDIENTE (coach), NOT a plan_charge.
+    const row = await readTx(body.transaction.id);
+    expect(row.kind).toBe("debt_settlement");
+    expect(row.validationStatus).toBe("pendiente");
+    expect(row.amount).toBe(100000);
+
+    // It is linked to the subscription so applyDelta reduced the debt to zero.
+    const links = await app.db
+      .select({
+        targetKind: schema.transactionLinks.targetKind,
+        targetId: schema.transactionLinks.targetId,
+      })
+      .from(schema.transactionLinks)
+      .where(eq(schema.transactionLinks.transactionId, body.transaction.id));
+    expect(links).toEqual([{ targetKind: "subscription", targetId: subId }]);
+
+    const [balance] = await app.db
+      .select({ amount: schema.balances.amount })
+      .from(schema.balances)
+      .where(
+        and(
+          eq(schema.balances.memberId, memberId),
+          eq(schema.balances.targetKind, "subscription"),
+          eq(schema.balances.targetId, subId),
+        ),
+      );
+    expect(balance.amount).toBe(0);
+
+    // No new period was created — still exactly the one seeded subscription.
+    const subs = await app.db
+      .select({ id: schema.subscriptions.id })
+      .from(schema.subscriptions)
+      .where(eq(schema.subscriptions.userId, memberId));
+    expect(subs.length).toBe(1);
+  });
+
+  it("settle: partial payment leaves the remaining debt", async () => {
+    const subId = await seedCurrentSubscription();
+    await seedSubscriptionDebt(subId, 100000);
+
+    const res = await app.inject({
+      method: "POST",
+      url: `${COACH_LOAD_URL}/pay-plan`,
+      headers: { authorization: `Bearer ${coachToken}` },
+      payload: {
+        userId: memberId,
+        amountReceived: 40000,
+        paymentMethod: "cash",
+        idempotencyKey: `settle-partial-${Date.now()}`,
+      },
+    });
+    expect(res.statusCode).toBe(201);
+
+    const [balance] = await app.db
+      .select({ amount: schema.balances.amount })
+      .from(schema.balances)
+      .where(
+        and(
+          eq(schema.balances.memberId, memberId),
+          eq(schema.balances.targetKind, "subscription"),
+          eq(schema.balances.targetId, subId),
+        ),
+      );
+    expect(balance.amount).toBe(60000);
+  });
+
+  it("settle: 400 when amountReceived exceeds the outstanding debt", async () => {
+    const subId = await seedCurrentSubscription();
+    await seedSubscriptionDebt(subId, 50000);
+
+    const res = await app.inject({
+      method: "POST",
+      url: `${COACH_LOAD_URL}/pay-plan`,
+      headers: { authorization: `Bearer ${coachToken}` },
+      payload: {
+        userId: memberId,
+        amountReceived: 80000,
+        paymentMethod: "cash",
+        idempotencyKey: `settle-over-${Date.now()}`,
+      },
+    });
+    expect(res.statusCode).toBe(400);
   });
 });
 
@@ -345,7 +464,7 @@ describe("coach-load idempotency", () => {
 
     const first = await app.inject({
       method: "POST",
-      url: `${COACH_LOAD_URL}/renew`,
+      url: `${COACH_LOAD_URL}/pay-plan`,
       headers: { authorization: `Bearer ${coachToken}` },
       payload,
     });
@@ -354,7 +473,7 @@ describe("coach-load idempotency", () => {
 
     const second = await app.inject({
       method: "POST",
-      url: `${COACH_LOAD_URL}/renew`,
+      url: `${COACH_LOAD_URL}/pay-plan`,
       headers: { authorization: `Bearer ${coachToken}` },
       payload,
     });
@@ -427,6 +546,27 @@ describe("coach-load autocompletar", () => {
     expect(body.planName).toBe("Coach Load Plan");
     expect(body.amount).toBe(100000);
     expect(body.currency).toBe("ARS");
+    // No debt on the seeded sub → intent renovación, amount = plan price.
+    expect(body.intent).toBe("renew");
+    expect(body.outstanding).toBe(0);
+  });
+
+  it("autocompletar: with outstanding debt → intent 'settle', amount = debt", async () => {
+    const subId = await seedCurrentSubscription();
+    await seedSubscriptionDebt(subId, 30000);
+
+    const res = await app.inject({
+      method: "GET",
+      url: `${COACH_LOAD_URL}/autocompletar/${memberId}`,
+      headers: { authorization: `Bearer ${coachToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.hasRenewable).toBe(true);
+    expect(body.intent).toBe("settle");
+    expect(body.outstanding).toBe(30000);
+    // Pre-fills the debt, NOT the full plan price.
+    expect(body.amount).toBe(30000);
   });
 
   it("autocompletar: hasRenewable=false when the member has no active sub", async () => {

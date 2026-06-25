@@ -12,7 +12,7 @@
       toggle-color="primary"
       class="full-width q-mb-md"
       :options="[
-        { label: 'Renovar plan', value: 'renew' },
+        { label: 'Pago de plan', value: 'renew' },
         { label: 'Cobro suelto', value: 'misc' },
       ]"
       @update:model-value="onModeChange"
@@ -67,7 +67,7 @@
                 v-if="autocompletar && !autocompletar.hasRenewable"
                 class="text-caption text-warning q-mt-sm"
               >
-                Este socio no tiene un plan vigente para renovar. Usá
+                Este socio no tiene un plan para cobrar. Usá
                 <strong>Cobro suelto</strong>.
               </div>
 
@@ -391,7 +391,7 @@ async function onConfirm() {
   submitting.value = true;
   try {
     if (mode.value === 'renew') {
-      await financeApi.renewLoad({
+      await financeApi.payPlan({
         userId: selectedMember.value.id,
         amountReceived: amount.value,
         paymentMethod: paymentMethod.value,
@@ -453,7 +453,9 @@ function ticketConcept(ticket: TransactionListItem): string {
   if (ticket.kind === 'advance_payment') {
     return ticket.notes ?? 'Cobro suelto';
   }
-  return 'Renovación de plan';
+  // Both a renovación (plan_charge) and a saldo de deuda (debt_settlement) are
+  // surfaced to the profe under the single "Pago de plan" action.
+  return 'Pago de plan';
 }
 
 function formatTime(dateStr: string): string {

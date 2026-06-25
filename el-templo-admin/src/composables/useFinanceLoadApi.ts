@@ -24,10 +24,10 @@ import type { PaginatedResult } from 'src/types/report';
 
 // -- Request / response shapes (mirror coach-load-routes.ts) -----------------
 
-/** Body for POST /coach-load/renew (renovar plan vigente). */
-export interface CoachRenewLoadInput {
+/** Body for POST /coach-load/pay-plan (cobro del plan: salda deuda o renueva). */
+export interface CoachPayPlanInput {
   userId: number;
-  /** Optional partial/edited amount; omitted = full plan price. */
+  /** Optional partial/edited amount; omitted = full debt (settle) or plan price (renew). */
   amountReceived?: number;
   paymentMethod: PaymentMethod;
   /** Client-generated, one per confirmation attempt (D-09 backstop). */
@@ -52,10 +52,19 @@ export interface AutocompletarResult {
   planName: string | null;
   amount: number | null;
   currency: string | null;
+  /**
+   * Server-side decision the confirm will take: 'settle' when the current sub
+   * has outstanding debt (amount = that debt), 'renew' when it doesn't (amount =
+   * plan price). null when there is no plan. The profe never sees this — it only
+   * drives the pre-filled amount.
+   */
+  intent: 'settle' | 'renew' | null;
+  /** Outstanding debt on the current sub (0 when none). */
+  outstanding: number;
 }
 
-/** POST /coach-load/renew → { subscription, transaction } (transaction null on free renewal). */
-export interface CoachRenewLoadResponse {
+/** POST /coach-load/pay-plan → { subscription, transaction } (transaction null on free renewal). */
+export interface CoachPayPlanResponse {
   transaction: TransactionListItem | null;
 }
 
@@ -90,16 +99,18 @@ export function useFinanceLoadApi() {
   }
 
   /**
-   * POST /coach-load/renew — renovar el plan vigente. The charge is born
-   * `pendiente` (recorderRole=coach server-side). Idempotent: replaying the same
-   * `idempotencyKey` returns the existing transaction (200) instead of charging twice.
+   * POST /coach-load/pay-plan — cobro del plan. The server decides whether this
+   * settles outstanding debt on the current sub or renews into a new period; the
+   * profe just confirms. The charge is born `pendiente` (recorderRole=coach
+   * server-side). Idempotent: replaying the same `idempotencyKey` returns the
+   * existing transaction (200) instead of charging twice.
    */
-  async function renewLoad(body: CoachRenewLoadInput): Promise<CoachRenewLoadResponse> {
+  async function payPlan(body: CoachPayPlanInput): Promise<CoachPayPlanResponse> {
     loading.value = true;
     error.value = null;
     try {
-      const { data } = await api.post<CoachRenewLoadResponse>(
-        '/admin/finance/coach-load/renew',
+      const { data } = await api.post<CoachPayPlanResponse>(
+        '/admin/finance/coach-load/pay-plan',
         body
       );
       return data;
@@ -163,7 +174,7 @@ export function useFinanceLoadApi() {
     loading,
     error,
     getAutocompletar,
-    renewLoad,
+    payPlan,
     miscCharge,
     listMyLoads,
     cleanup,
