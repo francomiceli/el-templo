@@ -4,13 +4,13 @@ milestone: v5.2
 milestone_name: Módulo Contable — Libro de Caja
 status: executing
 stopped_at: Phase 144 UI-SPEC approved
-last_updated: "2026-06-25T22:13:10.518Z"
+last_updated: "2026-06-25T22:20:42.083Z"
 last_activity: 2026-06-25
 progress:
   total_phases: 13
   completed_phases: 11
   total_plans: 55
-  completed_plans: 50
+  completed_plans: 52
   percent: 85
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 ## Current Position
 
 Phase: 144 (notificaciones-y-bloqueo-de-vencimiento-de-membres-a-plan) — EXECUTING
-Plan: 2 of 4
+Plan: 3 of 4
 Status: Ready to execute
 Last activity: 2026-06-25
 Next: Phase 140 (carga única del profe) / 141 (reportes/UI). Phase 141 caja history DEBE LEFT JOIN users (filas NULL-member de movimientos/egresos).
@@ -267,6 +267,7 @@ _Updated after each plan completion_
 | Phase 142 P02 | ~6min | 1 tasks | 2 files |
 | Phase 142 P142-03 | ~12min | 2 tasks | 4 files |
 | Phase 144 P01 | 12min | 3 tasks | 6 files |
+| Phase 144 P02 | 8min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -650,6 +651,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: [144-01]: deriveCoveredUntil standalone (MAX(end_date) sobre cadena active+scheduled, end_date NOT NULL) + getCoveredUntil delega; cron importa la fn, booking/routes usan el método — DRY, 3 call sites
 - [Phase ?]: [144-01]: 3 templates plan_renewal_warning_7d/\_3d/\_expired bajo categoría nueva 'planes' (route /reservas), no uno parametrizado
 - [Phase ?]: [144-01]: migración hand-written 0158 (db:generate roto por drift de sessions.goal_plan_type + journal stale 0059); enum 'planes' appended last en ambas tablas + backfill idempotente NOT EXISTS
+- [Phase ?]: 144-02: exact-date band (end_date = CURDATE()+N) is the plan-renewal cron's per-threshold idempotency (no tracking column); D-05 suppression via deriveCoveredUntil === threshold
 
 ### Pending Todos
 
@@ -682,7 +684,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-25T22:13:02.457Z
+Last session: 2026-06-25T22:20:25.428Z
 Stopped at: Phase 144 UI-SPEC approved
 Resume file: None
 
