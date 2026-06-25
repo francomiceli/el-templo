@@ -1654,9 +1654,20 @@ const E1A_E1B_CATEGORIES: Record<string, RegExp> = {
  *
  * Keeping the regex co-located here (and NOT inlined in two places)
  * satisfies the CONTEXT.md "do NOT introduce a parallel regex" constraint.
+ *
+ * Phase 100 TRIG-01 (2026-06-24): widened from objection-only to also match
+ * price QUESTIONS. New alternation members: `precios?` (singular OR plural),
+ * `cu[aá]nto (sale|cuesta|val[eé])` (with/without accent on cuánto + the
+ * three verbs), `valor(es)?` (singular OR plural), `tarifa`, `cuota`,
+ * `mensualidad`. Single source of truth preserved — do NOT introduce a
+ * parallel regex anywhere in el-templo-bot/src/**. Both consumers (Phase 99
+ * PB1 counter + PB2.E2 objection-handling path) continue to function;
+ * PB2.E2 routing for neutral price questions is acceptable per Phase 100
+ * CONTEXT decisions (mildly-defensive but on-topic response, not a
+ * regression). Pre-existing tokens preserved byte-equal.
  */
 export function detectPriceObjection(inboundLower: string): boolean {
-  return /\b(caro|carisimo|car[ií]simo|precio|no me alcanza|no puedo pagar|muy caro|barato|descuento)\b/i.test(
+  return /\b(caro|carisimo|car[ií]simo|precios?|no me alcanza|no puedo pagar|muy caro|barato|descuento|cu[aá]nto (sale|cuesta|val[eé])|valor(es)?|tarifa|cuota|mensualidad)\b/i.test(
     inboundLower,
   );
 }
