@@ -37,6 +37,7 @@ import {
   listMembersSchema,
   searchMembersSchema,
   getMemberSchema,
+  deleteMemberSchema,
   createMemberSchema,
   createTrialMemberSchema,
   convertToTrialSchema,
@@ -995,6 +996,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
   // rows) as a safety net.
   fastify.delete<{ Params: { userId: number } }>(
     "/:userId",
+    { schema: deleteMemberSchema },
     async (request, reply) => {
       if (
         !(MEMBER_LIFECYCLE_ROLES as readonly string[]).includes(

@@ -262,6 +262,33 @@ export const getMemberSchema = {
 };
 
 /**
+ * DELETE /api/admin/members/:userId schema.
+ *
+ * The `userId` params schema is REQUIRED for coercion: without it Fastify
+ * leaves `request.params.userId` as the raw string, and the soft-delete cascade
+ * forwards that string into SubscriptionService.cancelSubscription. Phase 137's
+ * _cancelSubscription does a strict `subRow.userId !== userId` JS comparison
+ * (number vs string) that fails for a string param — the cancel silently throws
+ * NotFoundError (swallowed by the route) and the subscription is never
+ * cancelled. `type: "integer"` makes Fastify coerce to a number so the
+ * comparison holds. Mirrors every sibling :userId route, which all carry a
+ * params schema.
+ */
+export const deleteMemberSchema = {
+  params: {
+    type: "object",
+    required: ["userId"],
+    properties: {
+      userId: { type: "integer", minimum: 1 },
+    },
+  },
+  // NO response schema: the SUB_HAS_ACTIVE_TRANSACTIONS 400 returns a structured
+  // body { error, message, code, details } and a serializer bound to the plain
+  // errorSchema (error+message only) would strip `code`/`details` that the admin
+  // frontend depends on. Params coercion is the whole point of this schema.
+};
+
+/**
  * Soft-register schema for SP (sesión de prueba) lead capture.
  * Receptionist-friendly 4-field create — full data is filled in on conversion.
  */
