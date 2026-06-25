@@ -147,6 +147,42 @@ export interface ListPromoPlansFilters {
   country?: "AR" | "ES";
 }
 
+/**
+ * Phase 144-01 (D-00, D-13, D-14) — the single DRY "covered-until" derivation.
+ *
+ * Returns the furthest `end_date` across the member's chained active+scheduled
+ * subscriptions (the date until which the member is covered), or `null` when no
+ * such date exists (no subs / only cancelled|expired / all-NULL end_date).
+ *
+ * Standalone (db-only) so the notification cron can reuse it without paying the
+ * heavy `SubscriptionService` DI; `SubscriptionService.getCoveredUntil`
+ * delegates here so booking-service and routes (which hold the service) share
+ * ONE derivation — never re-derive the chain in three places.
+ *
+ * D-14 guard: rows with a NULL `end_date` are excluded, so a covered-until is
+ * never derived from NULL (legacy/manual rows) — the result is NULL, and
+ * downstream consumers treat NULL as "never block / never suppress".
+ */
+export async function deriveCoveredUntil(
+  db: MySql2Database<typeof schema>,
+  userId: number,
+): Promise<string | null> {
+  const rows = await db
+    .select({
+      coveredUntil: sql<string | null>`MAX(${schema.subscriptions.endDate})`,
+    })
+    .from(schema.subscriptions)
+    .where(
+      and(
+        eq(schema.subscriptions.userId, userId),
+        inArray(schema.subscriptions.status, ["active", "scheduled"]),
+        isNotNull(schema.subscriptions.endDate),
+      ),
+    );
+
+  return rows[0]?.coveredUntil ?? null;
+}
+
 export class SubscriptionService {
   private bookingService?: BookingServiceType;
 
@@ -559,6 +595,16 @@ export class SubscriptionService {
   }
 
   // ─── Subscription Queries ────────────────────────────────────────────────
+
+  /**
+   * Phase 144-01 — thin delegation to the standalone {@link deriveCoveredUntil}.
+   * Lets callers holding the service (booking-service, subscriptions/routes)
+   * reuse the one covered-until derivation the cron imports directly. No
+   * duplicated query body.
+   */
+  async getCoveredUntil(userId: number): Promise<string | null> {
+    return deriveCoveredUntil(this.db, userId);
+  }
 
   /**
    * Get the current active/paused subscription for a member.
