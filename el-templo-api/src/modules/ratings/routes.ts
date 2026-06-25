@@ -2,14 +2,14 @@
  * Ratings API Routes (Phase 143)
  *
  * Two route plugins:
- *  - ratingsAdminRoutes (/api/admin/ratings): roster write (coach/owner) +
- *    coaches-for-branch + owner-only ratings view.
+ *  - ratingsAdminRoutes (/api/admin/ratings): roster READ (any staff, surfaced
+ *    in Horarios) + roster WRITE (owner-only) + owner-only ratings view.
  *  - ratingsMemberRoutes (/api/members/ratings): pending + submit for members.
  *
  * Privacy boundary (D-M3, T-143-04): the ratings VIEW is owner-only. The coach
- * never sees ratings or their own average. Roster WRITE is TRAINING_ROLES
- * (coach + owner), but a coach can only assign within their own branches
- * (requireBranchAccess on body.branchId, T-143-05).
+ * never sees ratings or their own average. Roster READ (coaches-for-branch +
+ * weekly roster) is open to ALL_STAFF_ROLES so the roster is visible inside
+ * Horarios; roster WRITE (assign a coach to a slot) is owner-only.
  */
 
 import { FastifyPluginAsync } from "fastify";
@@ -22,7 +22,7 @@ import {
   submitRatingBodySchema,
   pendingRatingSchema,
 } from "./schemas";
-import { TRAINING_ROLES } from "../shared/permissions";
+import { ALL_STAFF_ROLES } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
 import { requireBranchAccess } from "../shared/branch-access";
 import type { ClassSlot, SubmitRatingInput } from "./types";
@@ -34,14 +34,15 @@ import type { ClassSlot, SubmitRatingInput } from "./types";
 export const ratingsAdminRoutes: FastifyPluginAsync = async (fastify) => {
   const ratingsService = new RatingsService(fastify.db);
 
-  // Guard: TRAINING_ROLES (coach + owner) + country scope for branch-access.
-  // The owner-only ratings view adds a second per-handler role check.
+  // Guard: any staff role (roster READ is surfaced in Horarios for all staff) +
+  // country scope for branch-access. WRITE (POST /roster) and the ratings VIEW
+  // (GET /) add their own owner-only per-handler checks below.
   fastify.addHook("onRequest", async (request, reply) => {
     await fastify.authenticate(request, reply);
-    if (!(TRAINING_ROLES as readonly string[]).includes(request.user.role)) {
+    if (!(ALL_STAFF_ROLES as readonly string[]).includes(request.user.role)) {
       return reply.code(403).send({
         error: "Acceso denegado",
-        message: "Acceso de profe/owner requerido",
+        message: "Acceso de staff requerido",
       });
     }
     await attachCountryScope(request, fastify.db);
@@ -77,7 +78,9 @@ export const ratingsAdminRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   // POST /roster — assign/replace a coach in a slot (immediate persistence).
-  // requireBranchAccess: a coach can only write the roster of their branches.
+  // Owner-only WRITE: only the owner assigns coaches; the rest of the staff see
+  // the roster read-only in Horarios. requireBranchAccess still scopes the
+  // branch (defence in depth — the owner has access to every branch).
   fastify.post<{
     Body: {
       branchId: number;
@@ -94,6 +97,12 @@ export const ratingsAdminRoutes: FastifyPluginAsync = async (fastify) => {
     },
     async (request, reply) => {
       try {
+        if (request.user.role !== "owner") {
+          return reply.code(403).send({
+            error: "Acceso denegado",
+            message: "Solo el owner puede asignar profes",
+          });
+        }
         await ratingsService.upsertRosterAssignment(request.body);
         return reply.code(204).send();
       } catch (err: unknown) {

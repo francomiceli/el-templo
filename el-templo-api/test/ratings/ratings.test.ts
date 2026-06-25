@@ -326,6 +326,68 @@ describe("Ratings module (Phase 143)", () => {
     expect(res.statusCode).toBe(403);
   });
 
+  it("roster WRITE is owner-only: a coach cannot assign even within their own branch", async () => {
+    const week = isoMonday(dateDaysAgo(0));
+    const res = await app.inject({
+      method: "POST",
+      url: `${ADMIN_BASE}/roster`,
+      headers: { authorization: `Bearer ${ctx.coachArToken}` },
+      payload: {
+        branchId: ctx.arBranchId, // AR coach, AR slot — branch scope is fine
+        weekStartDate: week,
+        dayOfWeek: 1,
+        slot: "morning",
+        coachId: ctx.coachArId,
+      },
+    });
+    expect(res.statusCode).toBe(403); // owner-only WRITE, not branch scope
+  });
+
+  it("roster READ is open to non-owner staff (Horarios surface): gestion gets 200, but cannot assign (403)", async () => {
+    const week = isoMonday(dateDaysAgo(0));
+    await createStaffUser(app, {
+      email: "gestion-ratings@test.com",
+      password: "gestion-pass-123",
+      firstName: "Gabi",
+      lastName: "Gestion",
+      role: "gestion",
+      branchId: ctx.arBranchId,
+    });
+    const gestionToken = await getAuthToken(
+      app,
+      "gestion-ratings@test.com",
+      "gestion-pass-123",
+    );
+
+    const coachesRes = await app.inject({
+      method: "GET",
+      url: `${ADMIN_BASE}/coaches?branchId=${ctx.arBranchId}`,
+      headers: { authorization: `Bearer ${gestionToken}` },
+    });
+    expect(coachesRes.statusCode).toBe(200);
+
+    const rosterRes = await app.inject({
+      method: "GET",
+      url: `${ADMIN_BASE}/roster?branchId=${ctx.arBranchId}&weekStart=${week}`,
+      headers: { authorization: `Bearer ${gestionToken}` },
+    });
+    expect(rosterRes.statusCode).toBe(200);
+
+    const writeRes = await app.inject({
+      method: "POST",
+      url: `${ADMIN_BASE}/roster`,
+      headers: { authorization: `Bearer ${gestionToken}` },
+      payload: {
+        branchId: ctx.arBranchId,
+        weekStartDate: week,
+        dayOfWeek: 1,
+        slot: "morning",
+        coachId: ctx.coachArId,
+      },
+    });
+    expect(writeRes.statusCode).toBe(403);
+  });
+
   it("attributes the submitted rating to the coach assigned that week (slot derived from startTime)", async () => {
     const sessionDate = dateDaysAgo(0);
     const week = isoMonday(sessionDate);

@@ -148,40 +148,53 @@
             </q-btn>
           </div>
 
-          <!-- Roster de profes para el día seleccionado (Surface 1, Phase 143) -->
+          <!-- Roster de profes para el día seleccionado (Surface 1, Phase 143).
+               Owner assigns via the selects; the rest of the staff see it read-only. -->
           <div v-if="selectedBranchId" class="roster-mobile q-mb-md">
             <div class="text-subtitle2 text-weight-medium q-mb-sm">Profe a cargo</div>
-            <q-select
-              v-model="rosterMobileMorning"
-              :options="coachSelectOptions"
-              label="Profe — Mañana"
-              dense
-              outlined
-              clearable
-              emit-value
-              map-options
-              :loading="loadingRoster"
-              class="q-mb-sm"
-              :placeholder="'Sin profe asignado'"
-              @update:model-value="
-                (val: number | null) => onAssignCoach(selectedDay, 'morning', val)
-              "
-            />
-            <q-select
-              v-model="rosterMobileAfternoon"
-              :options="coachSelectOptions"
-              label="Profe — Tarde"
-              dense
-              outlined
-              clearable
-              emit-value
-              map-options
-              :loading="loadingRoster"
-              :placeholder="'Sin profe asignado'"
-              @update:model-value="
-                (val: number | null) => onAssignCoach(selectedDay, 'afternoon', val)
-              "
-            />
+            <template v-if="isOwner">
+              <q-select
+                v-model="rosterMobileMorning"
+                :options="coachSelectOptions"
+                label="Profe — Mañana"
+                dense
+                outlined
+                clearable
+                emit-value
+                map-options
+                :loading="loadingRoster"
+                class="q-mb-sm"
+                :placeholder="'Sin profe asignado'"
+                @update:model-value="
+                  (val: number | null) => onAssignCoach(selectedDay, 'morning', val)
+                "
+              />
+              <q-select
+                v-model="rosterMobileAfternoon"
+                :options="coachSelectOptions"
+                label="Profe — Tarde"
+                dense
+                outlined
+                clearable
+                emit-value
+                map-options
+                :loading="loadingRoster"
+                :placeholder="'Sin profe asignado'"
+                @update:model-value="
+                  (val: number | null) => onAssignCoach(selectedDay, 'afternoon', val)
+                "
+              />
+            </template>
+            <template v-else>
+              <div class="roster-readonly-row">
+                <span class="text-weight-medium">Mañana:</span>
+                <span>{{ rosterCoachName(selectedDay, 'morning') || 'Sin asignar' }}</span>
+              </div>
+              <div class="roster-readonly-row">
+                <span class="text-weight-medium">Tarde:</span>
+                <span>{{ rosterCoachName(selectedDay, 'afternoon') || 'Sin asignar' }}</span>
+              </div>
+            </template>
           </div>
 
           <!-- Vertical slot list for selected day -->
@@ -249,82 +262,23 @@
               <div class="text-caption">{{ day.dateLabel }}</div>
             </div>
 
-            <!-- Rows: time slots -->
-            <template v-for="time in timeSlots" :key="time">
-              <!-- Time label -->
-              <div class="grid-time-label text-caption text-grey-7">{{ time }}</div>
-
-              <!-- Cells for each day -->
-              <div
-                v-for="day in weekDays"
-                :key="`${time}-${day.dayOfWeek}`"
-                class="grid-cell"
-                :class="cellClass(time, day.dayOfWeek)"
-                @click="onCellClick(time, day.dayOfWeek, day.date)"
-              >
-                <template v-if="getCellSlot(time, day.dayOfWeek)">
-                  <div class="cell-activity text-caption ellipsis">
-                    {{ getCellSlot(time, day.dayOfWeek)!.activityName }}
-                  </div>
-                  <div v-if="isCellHoliday(day.date)" class="cell-holiday text-weight-bold">
-                    FERIADO
-                  </div>
-                  <div
-                    v-else-if="!getCellSlot(time, day.dayOfWeek)!.isActive"
-                    class="cell-inactive text-weight-bold"
-                  >
-                    CANCELADA
-                  </div>
-                  <div v-else class="cell-occupancy text-weight-bold">
-                    {{ getCellSlot(time, day.dayOfWeek)!.bookedCount }}/{{
-                      getCellSlot(time, day.dayOfWeek)!.maxCapacity
-                    }}
-                    <span
-                      v-if="(getCellSlot(time, day.dayOfWeek)!.trialCount ?? 0) > 0"
-                      class="text-warning cell-trial-count"
-                    >
-                      +{{ getCellSlot(time, day.dayOfWeek)!.trialCount }} SP
-                    </span>
-                  </div>
-                </template>
-              </div>
-            </template>
-          </div>
-        </div>
-
-        <!-- ================================================================== -->
-        <!-- Roster de profes por (día, turno) — Surface 1 (Phase 143) -->
-        <!-- Desktop only; mobile uses the per-day selects above the slot list. -->
-        <!-- ================================================================== -->
-        <div
-          v-if="!isMobile && selectedBranchId && timeSlots.length > 0"
-          class="roster-grid-section q-mt-lg"
-        >
-          <div class="text-subtitle1 text-weight-medium q-mb-sm">Profe a cargo</div>
-          <div class="schedule-grid-container">
-            <div class="roster-grid" :style="rosterGridTemplateStyle">
-              <!-- Header corner -->
-              <div class="grid-header grid-corner roster-turno-label">Turno</div>
-              <!-- Day columns -->
-              <div
-                v-for="day in weekDays"
-                :key="`roster-h-${day.dayOfWeek}`"
-                class="grid-header grid-day-header text-center"
-              >
-                <div class="text-weight-bold">{{ day.shortLabel }}</div>
-                <div class="text-caption">{{ day.dateLabel }}</div>
-              </div>
-
-              <!-- Turno rows: Mañana / Tarde -->
-              <template v-for="turno in rosterTurnos" :key="turno.slot">
-                <div class="roster-turno-cell text-caption text-grey-8">{{ turno.label }}</div>
+            <!-- Rows: turno banners (Mañana/Tarde, carrying the roster) woven
+                 before each turno's time-slot rows. -->
+            <template
+              v-for="row in gridRows"
+              :key="row.type === 'turno' ? `turno-${row.slot}` : `time-${row.time}`"
+            >
+              <!-- Turno banner row: label + per-day roster (owner: select / rest: read-only) -->
+              <template v-if="row.type === 'turno'">
+                <div class="grid-turno-label">{{ row.label }}</div>
                 <div
                   v-for="day in weekDays"
-                  :key="`roster-${turno.slot}-${day.dayOfWeek}`"
-                  class="roster-select-cell"
+                  :key="`turno-${row.slot}-${day.dayOfWeek}`"
+                  class="grid-turno-cell"
                 >
                   <q-select
-                    :model-value="rosterValue(day.dayOfWeek, turno.slot)"
+                    v-if="isOwner"
+                    :model-value="rosterValue(day.dayOfWeek, row.slot!)"
                     :options="coachSelectOptions"
                     dense
                     outlined
@@ -332,14 +286,55 @@
                     emit-value
                     map-options
                     :loading="loadingRoster"
-                    placeholder="Sin profe asignado"
+                    placeholder="Sin profe"
                     @update:model-value="
-                      (val: number | null) => onAssignCoach(day.dayOfWeek, turno.slot, val)
+                      (val: number | null) => onAssignCoach(day.dayOfWeek, row.slot!, val)
                     "
                   />
+                  <div v-else class="roster-readonly-cell text-caption">
+                    {{ rosterCoachName(day.dayOfWeek, row.slot!) || '—' }}
+                  </div>
                 </div>
               </template>
-            </div>
+
+              <!-- Time-slot row -->
+              <template v-else>
+                <div class="grid-time-label text-caption text-grey-7">{{ row.time }}</div>
+                <div
+                  v-for="day in weekDays"
+                  :key="`${row.time}-${day.dayOfWeek}`"
+                  class="grid-cell"
+                  :class="cellClass(row.time!, day.dayOfWeek)"
+                  @click="onCellClick(row.time!, day.dayOfWeek, day.date)"
+                >
+                  <template v-if="getCellSlot(row.time!, day.dayOfWeek)">
+                    <div class="cell-activity text-caption ellipsis">
+                      {{ getCellSlot(row.time!, day.dayOfWeek)!.activityName }}
+                    </div>
+                    <div v-if="isCellHoliday(day.date)" class="cell-holiday text-weight-bold">
+                      FERIADO
+                    </div>
+                    <div
+                      v-else-if="!getCellSlot(row.time!, day.dayOfWeek)!.isActive"
+                      class="cell-inactive text-weight-bold"
+                    >
+                      CANCELADA
+                    </div>
+                    <div v-else class="cell-occupancy text-weight-bold">
+                      {{ getCellSlot(row.time!, day.dayOfWeek)!.bookedCount }}/{{
+                        getCellSlot(row.time!, day.dayOfWeek)!.maxCapacity
+                      }}
+                      <span
+                        v-if="(getCellSlot(row.time!, day.dayOfWeek)!.trialCount ?? 0) > 0"
+                        class="text-warning cell-trial-count"
+                      >
+                        +{{ getCellSlot(row.time!, day.dayOfWeek)!.trialCount }} SP
+                      </span>
+                    </div>
+                  </template>
+                </div>
+              </template>
+            </template>
           </div>
         </div>
       </q-tab-panel>
@@ -406,12 +401,18 @@ import DeleteSlotDialog from 'src/components/scheduling/DeleteSlotDialog.vue';
 import HolidaysDialog from 'src/components/scheduling/HolidaysDialog.vue';
 import SesionesDePruebaDialog from 'src/components/scheduling/SesionesDePruebaDialog.vue';
 import { todayInTz, dowInTz, getMondayInTz } from 'src/utils/tz';
+import { useAuthStore } from 'src/stores/useAuthStore';
 
 const log = createLogger('HorariosPage');
 const $q = useQuasar();
 const membersApi = useMembersApi();
 const schedulingApi = useSchedulingApi();
 const ratingsApi = useRatingsApi();
+const authStore = useAuthStore();
+
+// Only the owner assigns coaches to slots (roster WRITE is owner-only); the rest
+// of the staff see the roster read-only inside Horarios.
+const isOwner = computed(() => authStore.user?.role === 'owner');
 
 // ─── State ──────────────────────────────────────────────────────────────────
 
@@ -503,10 +504,43 @@ const weekRangeLabel = computed(() => {
   return `${fmt(start)} - ${fmt(end)} ${end.getUTCFullYear()}`;
 });
 
-/** CSS grid template: 1 time column + 6 day columns */
+/**
+ * Rows woven into the desktop grid: a "Mañana"/"Tarde" turno banner (carrying
+ * the roster selector per day) inserted before the first morning/afternoon time
+ * slot, followed by the time-slot rows of that turno. A turno banner only
+ * appears when that turno has at least one slot. timeSlots is sorted ascending,
+ * and the morning/afternoon split mirrors the roster slot derivation
+ * (startTime < '12:00' → morning).
+ */
+interface GridRow {
+  type: 'turno' | 'time';
+  slot?: ClassSlot; // set when type === 'turno'
+  label?: string; // set when type === 'turno'
+  time?: string; // set when type === 'time'
+}
+
+const gridRows = computed<GridRow[]>(() => {
+  const rows: GridRow[] = [];
+  const morning = timeSlots.value.filter((t) => t < '12:00');
+  const afternoon = timeSlots.value.filter((t) => t >= '12:00');
+  if (morning.length > 0) {
+    rows.push({ type: 'turno', slot: 'morning', label: 'Mañana' });
+    for (const t of morning) rows.push({ type: 'time', time: t });
+  }
+  if (afternoon.length > 0) {
+    rows.push({ type: 'turno', slot: 'afternoon', label: 'Tarde' });
+    for (const t of afternoon) rows.push({ type: 'time', time: t });
+  }
+  return rows;
+});
+
+/** CSS grid template: 1 label column + 6 day columns. Turno banner rows are
+ *  auto-height; time-slot rows share the remaining space (1fr). */
 const gridTemplateStyle = computed(() => ({
   'grid-template-columns': '60px repeat(6, 1fr)',
-  'grid-template-rows': `auto repeat(${timeSlots.value.length}, 1fr)`,
+  'grid-template-rows': `auto ${gridRows.value
+    .map((r) => (r.type === 'turno' ? 'auto' : '1fr'))
+    .join(' ')}`,
 }));
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -603,21 +637,10 @@ const coaches = ref<CoachOption[]>([]);
 const rosterMap = ref<Map<string, RosterWeekRow>>(new Map());
 const loadingRoster = ref(false);
 
-/** The two turnos rendered as roster rows. Slot derives from startTime<'12:00'. */
-const rosterTurnos: Array<{ slot: ClassSlot; label: string }> = [
-  { slot: 'morning', label: 'Mañana' },
-  { slot: 'afternoon', label: 'Tarde' },
-];
-
 /** QSelect options: coach id → "firstName lastName". */
 const coachSelectOptions = computed(() =>
   coaches.value.map((c) => ({ label: `${c.firstName} ${c.lastName}`, value: c.id }))
 );
-
-/** CSS grid template for the roster grid: 1 turno column + 6 day columns. */
-const rosterGridTemplateStyle = computed(() => ({
-  'grid-template-columns': '80px repeat(6, 1fr)',
-}));
 
 function rosterKey(dayOfWeek: number, slot: ClassSlot): string {
   return `${dayOfWeek}-${slot}`;
@@ -626,6 +649,12 @@ function rosterKey(dayOfWeek: number, slot: ClassSlot): string {
 /** Current assigned coachId for a (día, turno), or null when unassigned. */
 function rosterValue(dayOfWeek: number, slot: ClassSlot): number | null {
   return rosterMap.value.get(rosterKey(dayOfWeek, slot))?.coachId ?? null;
+}
+
+/** Assigned coach display name for a (día, turno) — used by the read-only
+ *  (non-owner) roster view. Null when unassigned. */
+function rosterCoachName(dayOfWeek: number, slot: ClassSlot): string | null {
+  return rosterMap.value.get(rosterKey(dayOfWeek, slot))?.coachName ?? null;
 }
 
 // Mobile per-day select models (kept in sync with the roster map + selectedDay).
@@ -651,8 +680,12 @@ async function loadRoster() {
   }
   loadingRoster.value = true;
   try {
+    // Only the owner needs the assignable-coaches list (for the select). The
+    // rest of the staff render the roster read-only from each row's coachName.
     const [branchCoaches, rosterRows] = await Promise.all([
-      ratingsApi.getCoachesForBranch(selectedBranchId.value),
+      isOwner.value
+        ? ratingsApi.getCoachesForBranch(selectedBranchId.value)
+        : Promise.resolve([] as CoachOption[]),
       ratingsApi.getRosterWeek(selectedBranchId.value, weekStartDate.value),
     ]);
     coaches.value = branchCoaches;
@@ -1067,37 +1100,43 @@ watch(selectedBranchId, (val) => {
 }
 
 /* Roster de profes (Surface 1) — desktop grid */
-.roster-grid {
-  display: grid;
-  gap: 2px;
-  min-width: 600px;
-  align-items: stretch;
-}
-
-.roster-turno-label {
+/* Turno banner row woven into the weekly grid (Mañana / Tarde). */
+.grid-turno-label {
   display: flex;
   align-items: center;
   justify-content: center;
-}
-
-.roster-turno-cell {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #f5f5f5;
-  font-weight: 500;
-  padding: 4px;
+  padding: 6px 4px;
+  background: var(--q-primary);
+  color: white;
+  font-weight: 600;
+  font-size: 0.8rem;
   border-radius: 2px;
 }
 
-.roster-select-cell {
+.grid-turno-cell {
   display: flex;
   align-items: center;
-  padding: 2px;
+  justify-content: center;
+  padding: 2px 4px;
+  background: #eef2f6;
+  border-radius: 2px;
 }
 
-.roster-select-cell :deep(.q-field) {
+.grid-turno-cell :deep(.q-field) {
   width: 100%;
+}
+
+/* Read-only roster (non-owner staff): assigned coach name, or "—"/"Sin asignar". */
+.roster-readonly-cell {
+  width: 100%;
+  text-align: center;
+  color: #555;
+}
+
+.roster-readonly-row {
+  display: flex;
+  gap: 6px;
+  padding: 4px 0;
 }
 
 /* Mobile: slot row coloring — matches desktop cell palette */
