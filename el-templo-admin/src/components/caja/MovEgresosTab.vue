@@ -40,6 +40,18 @@
         />
       </div>
       <q-space />
+      <!-- Registrar movimiento / egreso (fase 139, MOV-01..03). Same RBAC as
+           the /caja hub (gestion/admin/owner = FINANCE_VOID_ROLES). -->
+      <div class="col-12 col-sm-auto">
+        <q-btn
+          icon="add"
+          label="Registrar"
+          color="primary"
+          unelevated
+          dense
+          @click="showRegistrar = true"
+        />
+      </div>
       <!-- Excel only — no dead PDF control (REP-04, Excel-only v1). -->
       <div class="col-12 col-sm-auto">
         <q-btn
@@ -204,6 +216,14 @@
         </q-card-actions>
       </q-card>
     </q-dialog>
+
+    <!-- Registrar movimiento / egreso (fase 139) -->
+    <RegistrarMovEgresoDialog
+      v-model="showRegistrar"
+      :selected-country="selectedCountry"
+      :is-owner="isOwner"
+      @registered="onRegistered"
+    />
   </div>
 </template>
 
@@ -215,6 +235,7 @@ import { createLogger } from 'src/utils/logger';
 import { formatDate } from 'src/utils/format-date';
 import { formatPrice } from 'src/utils/format-price';
 import { useTransactionsApi } from 'src/composables/useTransactionsApi';
+import RegistrarMovEgresoDialog from 'src/components/caja/RegistrarMovEgresoDialog.vue';
 import type { MovEgresoItem, MovEgresoParams } from 'src/types/transaction';
 
 // =========================================================================
@@ -418,6 +439,17 @@ const showDetailDialog = ref(false);
 function showDetails(row: MovEgresoItem) {
   detailRow.value = row;
   showDetailDialog.value = true;
+}
+
+// =========================================================================
+// Registrar movimiento / egreso (fase 139). On success the dialog notifies;
+// we just reload the history (and saldos refresh on their own tab).
+// =========================================================================
+
+const showRegistrar = ref(false);
+
+function onRegistered() {
+  loadHistory();
 }
 
 // =========================================================================

@@ -24,6 +24,10 @@ import type {
   MovEgresoItem,
   MovEgresoParams,
   CorrectedFields,
+  RegisterMovementInput,
+  MovementDetail,
+  RegisterExpenseInput,
+  ExpenseDetail,
 } from 'src/types/transaction';
 import type { PaginatedResult } from 'src/types/report';
 
@@ -213,6 +217,53 @@ export function useTransactionsApi() {
       return data;
     } catch (err: unknown) {
       error.value = extractError(err, 'Error cargando movimientos');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  // =========================================================================
+  // Phase 139 — Registrar movimiento inter-caja / egreso (MOV-01..03)
+  // =========================================================================
+
+  /**
+   * Registrar movimiento inter-caja (MOV-01/02). POST /admin/finance/movements.
+   * Doble asiento atómico (outflow origen + inflow destino, IGUAL moneda —
+   * D-02). Si `countedAmount` difiere del saldo esperado de origen, el backend
+   * agrega un ajuste de reconciliación (D-03). Roles: FINANCE_VOID_ROLES.
+   */
+  async function registerMovement(
+    input: RegisterMovementInput
+  ): Promise<{ movement: MovementDetail }> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.post<{ movement: MovementDetail }>(
+        '/admin/finance/movements',
+        input
+      );
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error registrando movimiento');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  /**
+   * Registrar egreso (MOV-03). POST /admin/finance/expenses. Una sola fila
+   * kind='expense' (outflow) en la caja indicada. Roles: FINANCE_VOID_ROLES.
+   */
+  async function registerExpense(input: RegisterExpenseInput): Promise<{ expense: ExpenseDetail }> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.post<{ expense: ExpenseDetail }>('/admin/finance/expenses', input);
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error registrando egreso');
       throw err;
     } finally {
       loading.value = false;
@@ -470,6 +521,9 @@ export function useTransactionsApi() {
     getPendingTray,
     getCashRegisterBalances,
     getMovEgresosHistory,
+    // Phase 139 additions — registrar movimiento / egreso (MOV-01..03):
+    registerMovement,
+    registerExpense,
     // Phase 141 additions — Excel exports (REP-04):
     exportPendingTrayToExcel,
     exportCashBalancesToExcel,

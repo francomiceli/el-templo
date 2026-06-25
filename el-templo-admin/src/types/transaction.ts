@@ -403,6 +403,38 @@ export interface CorrectedFields {
   paymentMethod?: PaymentMethod;
 }
 
+// -- Phase 139 (UI): registrar movimiento inter-caja / egreso --------------
+// Mirrors RegisterMovementInput / RegisterExpenseInput in the API. Movimiento
+// = doble asiento atómico entre cajas de IGUAL moneda (D-02); `countedAmount`
+// (opcional) dispara la reconciliación esperado-vs-contado (D-03). Egreso =
+// una sola fila kind='expense' (D-04). Montos en unidades enteras (sin cents).
+
+export interface RegisterMovementInput {
+  origenCajaId: number;
+  destinoCajaId: number;
+  amount: number;
+  countedAmount?: number;
+  notes?: string | null;
+}
+
+export interface MovementDetail {
+  outflowTxId: number;
+  inflowTxId: number;
+  adjustmentTxId: number | null; // solo si counted != expected (reconciliación)
+  expectedAmount: number;
+  countedAmount: number | null;
+}
+
+export interface RegisterExpenseInput {
+  cajaId: number;
+  amount: number;
+  notes?: string | null;
+}
+
+export interface ExpenseDetail {
+  expenseTxId: number;
+}
+
 // -- Phase 108: POST /transactions response shape (D-22) -------------------
 
 /**
