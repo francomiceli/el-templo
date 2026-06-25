@@ -448,12 +448,18 @@ describe("Finance API — summary cross-aggregation sanity invariants (Phase 109
     expect(body.revenueByKind.refund).toBe(0);
     // Sanity on the actual breakdown: 30k plan_charge (10+8+12),
     // 23k debt_settlement (15+8), 20k advance_payment, 15k adjustment.
+    // Phase 139: cash_transfer + expense are fixed keys in revenueByKind but
+    // stay 0 by design — the conds[] exclusion (MUST-FIX A) guarantees neither
+    // non-revenue kind reaches this aggregation, so they never inflate the sum
+    // invariant above.
     expect(body.revenueByKind).toEqual({
       plan_charge: 30000,
       debt_settlement: 23000,
       refund: 0,
       adjustment: 15000,
       advance_payment: 20000,
+      cash_transfer: 0,
+      expense: 0,
     });
   });
 
