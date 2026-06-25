@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v5.2
 milestone_name: Módulo Contable — Libro de Caja
-status: verifying
+status: executing
 stopped_at: Phase 142 context gathered
-last_updated: "2026-06-25T00:10:00.212Z"
-last_activity: 2026-06-24
+last_updated: "2026-06-25T00:37:26.571Z"
+last_activity: 2026-06-25
 progress:
   total_phases: 13
   completed_phases: 10
-  total_plans: 48
-  completed_plans: 47
+  total_plans: 51
+  completed_plans: 48
   percent: 77
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-04)
 
 **Core value:** El registro de un pago se carga **una sola vez** en el Administrador (fuente de verdad) y propaga solo: activa la membresía al instante e impacta la caja. Se elimina el triple tipeo (Forms + Contabilium + Admin). El Administrador pasa a ser el **libro de caja** del negocio (efectivo×sucursal + central + banco×moneda), con validación de pagos (PENDIENTE→VALIDADO), movimientos inter-caja y egresos. Se monta sobre el modelo financiero transaccional v4.8 (~60% existe). Backend-heavy, brownfield.
-**Current focus:** Phase 141 — Reportes para la admin
+**Current focus:** Phase 142 — Config + transición Contabilium
 
 ## Current Position
 
-Phase: 141 (Reportes para la admin) — EXECUTED (4/4 plans, code complete)
-Plan: 4 of 4 — DONE
-Status: Phase code complete — human-verify checkpoint deferred to Franco (UAT); ready for verification
-Last activity: 2026-06-24
+Phase: 142 (Config + transición Contabilium) — EXECUTING
+Plan: 2 of 3
+Status: Ready to execute
+Last activity: 2026-06-25
 Next: Phase 140 (carga única del profe) / 141 (reportes/UI). Phase 141 caja history DEBE LEFT JOIN users (filas NULL-member de movimientos/egresos).
 
 ## Performance Metrics
@@ -263,6 +263,7 @@ _Updated after each plan completion_
 | Phase 141 P02 | ~7min | 2 tasks | 5 files |
 | Phase 141 P03 | 12min | 3 tasks | 6 files |
 | Phase 141 P04 | ~9min | 2 tasks | 3 files |
+| Phase 142 P01 | ~18min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -640,6 +641,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: [Phase 140-01] FINANCE_LOAD_ROLES = FINANCE_WRITE_ROLES + coach (load-only); coach stays out of VOID/ADJUSTMENT/READ — D-06/D-08
 - [Phase ?]: [Phase 140-01] ER_DUP_ENTRY return-existing handling deferred to Wave 2 (Pitfall 3: renewal tx rolls back before re-read)
 - [Phase ?]: Phase 140-02: coach load endpoints in a SEPARATE plugin with its own FINANCE_LOAD_ROLES guard (finance module's FINANCE_READ_ROLES hook excludes coach); idempotency dedup at endpoint layer (ER_DUP_ENTRY -> re-read existing on fresh connection, Pitfall 3)
+- [Phase ?]: [Phase 142]: finance config reuses system_settings (finance.pending_overdue_days), read-with-fallback to OVERDUE_DAYS; owner/admin-only GET/PUT (per-handler ADMIN_ROLES closes the gestion trap); dynamic threshold in listPendingTray; migration 0157 seeds default 3
 
 ### Pending Todos
 
@@ -672,8 +674,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-25T00:10:00.193Z
+Last session: 2026-06-25T00:37:14.691Z
 Stopped at: Phase 142 context gathered
-Resume file: .planning/phases/142-config-transici-n-contabilium/142-CONTEXT.md
+Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z

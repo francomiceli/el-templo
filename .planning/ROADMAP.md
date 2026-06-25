@@ -3577,11 +3577,11 @@ Plans:
 1. Las perillas de configuración (política de validación: todos vs. dudosos; activación de membresía instantánea vs. diferida) tienen una casa de configuración definida (tabla `finance_settings` o equivalente, scoped) y funcional desde el admin, NO cableadas en código. (MIG-01)
 2. Está documentada la regla de "qué dato manda" durante la convivencia con Contabilium por etapa (registro de ingresos/caja vive solo en el Administrador desde el corte; facturación AFIP queda en Contabilium, fuera de scope), incluyendo el criterio de corte limpio + asientos de apertura por caja. (MIG-02)
 
-**Plans:** 3 plans
+**Plans:** 1/3 plans executed
 
 Plans:
 
-- [ ] 142-01-PLAN.md — backend: migración 0157 seed + FinanceConfigService (read-with-fallback) + GET/PUT config (owner/admin) + wire los 2 seam sites de listPendingTray + tests (wave 1)
+- [x] 142-01-PLAN.md — backend: migración 0157 seed + FinanceConfigService (read-with-fallback) + GET/PUT config (owner/admin) + wire los 2 seam sites de listPendingTray + tests (wave 1)
 - [ ] 142-02-PLAN.md — MIG-02: doc de transición Contabilium + template de migración de saldos de apertura (fuera de src/db/migrations/) (wave 1)
 - [ ] 142-03-PLAN.md — frontend: mini pantalla "Configuración de Caja" (un campo) + composable + ruta/nav owner/admin (wave 2)
 
@@ -3594,7 +3594,7 @@ Plans:
 | 139. Movimientos inter-caja y egresos       | 3/3            | Complete    | 2026-06-24 |
 | 140. Carga única + cobro suelto + rol profe | 3/3            | Complete    | 2026-06-24 |
 | 141. Reportes para la admin                 | 4/4            | Complete    | 2026-06-24 |
-| 142. Config + transición Contabilium        | 0/3            | Not started | -          |
+| 142. Config + transición Contabilium        | 1/3            | In Progress |            |
 
 _Plan counts populated by `/gsd-plan-phase`._
 
