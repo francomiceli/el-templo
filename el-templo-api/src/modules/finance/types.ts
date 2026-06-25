@@ -423,6 +423,7 @@ export interface MovEgresoItem {
   direction: TransactionDirection;
   amount: number;
   currency: string;
+  memberId: number | null; // null para egresos/movimientos sin socio (LEFT JOIN)
   cashRegisterId: number | null;
   cashRegisterName: string;
   branchId: number | null;

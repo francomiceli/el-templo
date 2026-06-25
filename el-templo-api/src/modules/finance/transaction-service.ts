@@ -1342,6 +1342,7 @@ export class TransactionService {
       direction: r.direction,
       amount: r.amount,
       currency: r.currency,
+      memberId: r.memberId ?? null,
       cashRegisterId: r.cashRegisterId,
       cashRegisterName: r.cashRegisterName ?? "",
       branchId: r.branchId,
