@@ -15,6 +15,22 @@ import { EnrollmentService } from "../programs/enrollment-service";
 import { GOAL_PLAN_METADATA } from "../goal-plans/constants";
 import { isOnlinePlan, isGoalPlan, type PlanCategory } from "./types";
 import { attachCountryScope } from "../shared/country-scope";
+import { todayInTz } from "../shared/date-utils";
+
+const AR_TIMEZONE = "America/Argentina/Buenos_Aires";
+
+/**
+ * Whole calendar days from today (AR wall-clock date) to a "YYYY-MM-DD" target.
+ * Both endpoints are anchored at UTC midnight so DST transitions never shift the
+ * integer day count. Returns a negative number when the target is in the past.
+ */
+function wholeDaysUntil(target: string): number {
+  const today = todayInTz(AR_TIMEZONE);
+  const MS_PER_DAY = 24 * 60 * 60 * 1000;
+  const diffMs =
+    Date.parse(`${target}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`);
+  return Math.round(diffMs / MS_PER_DAY);
+}
 
 export const memberSubscriptionRoutes: FastifyPluginAsync = async (fastify) => {
   const auraService = new AuraService(fastify.db);
@@ -91,6 +107,31 @@ export const memberSubscriptionRoutes: FastifyPluginAsync = async (fastify) => {
       multiBranch: plan?.multiBranch ?? false,
       currency: sub.currency,
     };
+  });
+
+  // GET /coverage — Phase 144-03 (D-06/D-10): the authenticated member's
+  // "covered-until" date (the furthest end_date across their active+scheduled
+  // subscription chain) plus the whole days remaining, for the in-app expiry
+  // reminder dialog.
+  //
+  // IDOR mitigation (T-144-08): the member id is server-derived from
+  // request.user — this route NEVER accepts a userId param, so a member can
+  // only ever read their own coverage.
+  //
+  // NOTE (D-08): unlike autoExpireSubscriptions, this read does NOT sweep
+  // lapsed subscriptions, so a lapsed-but-unswept member can return a past
+  // coveredUntil → negative daysRemaining. The dialog gates that out with a
+  // >= 0 lower bound; already-expired members are handled by the day-of push
+  // and the booking block, not this endpoint.
+  fastify.get("/coverage", async (request) => {
+    const coveredUntil = await subscriptionService.getCoveredUntil(
+      request.user.userId,
+    );
+
+    const daysRemaining =
+      coveredUntil === null ? null : wholeDaysUntil(coveredUntil);
+
+    return { coveredUntil, daysRemaining };
   });
 
   // GET /plans — List available plans for member catalog
