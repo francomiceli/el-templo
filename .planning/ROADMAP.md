@@ -3464,7 +3464,7 @@ _v5.2 added: 2026-06-04 — 1 phase (132). Cierra v5.0 del lado de UI: expone en
 - [x] **Phase 139: Movimientos inter-caja y egresos** — movimiento (asiento de 2 filas linkeadas, neto 0) con reconciliación esperado-vs-contado + egreso (1 fila outflow, nota libre) + void ortogonal del par, sin contaminar `balances`. (completed 2026-06-24)
 - [x] **Phase 140: Carga única que propaga + cobro suelto + rol profe** — UI dead-simple que registra el pago una vez y propaga atómico (membresía + caja) de forma idempotente + cobro suelto + rol profe acotado (carga PENDIENTE, no valida/anula). (completed 2026-06-24)
 - [x] **Phase 141: Reportes para la admin** — bandeja de pendientes por antigüedad (+ observados, + alerta configurable) + saldo firme/pendiente por caja + historial de movimientos/egresos, reusando el export Excel/PDF existente. (completed 2026-06-24)
-- [ ] **Phase 142: Config + transición Contabilium** — perillas de configuración (política de validación; activación instantánea/diferida) con casa definida y funcional + regla documentada de "qué dato manda" durante la convivencia con Contabilium por etapa.
+- [x] **Phase 142: Config + transición Contabilium** — perillas de configuración (política de validación; activación instantánea/diferida) con casa definida y funcional + regla documentada de "qué dato manda" durante la convivencia con Contabilium por etapa. (completed 2026-06-25)
 
 ## v5.2 (Módulo Contable) Phase Details
 
@@ -3577,13 +3577,13 @@ Plans:
 1. Las perillas de configuración (política de validación: todos vs. dudosos; activación de membresía instantánea vs. diferida) tienen una casa de configuración definida (tabla `finance_settings` o equivalente, scoped) y funcional desde el admin, NO cableadas en código. (MIG-01)
 2. Está documentada la regla de "qué dato manda" durante la convivencia con Contabilium por etapa (registro de ingresos/caja vive solo en el Administrador desde el corte; facturación AFIP queda en Contabilium, fuera de scope), incluyendo el criterio de corte limpio + asientos de apertura por caja. (MIG-02)
 
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 
 Plans:
 
 - [x] 142-01-PLAN.md — backend: migración 0157 seed + FinanceConfigService (read-with-fallback) + GET/PUT config (owner/admin) + wire los 2 seam sites de listPendingTray + tests (wave 1)
 - [x] 142-02-PLAN.md — MIG-02: doc de transición Contabilium + template de migración de saldos de apertura (fuera de src/db/migrations/) (wave 1)
-- [ ] 142-03-PLAN.md — frontend: mini pantalla "Configuración de Caja" (un campo) + composable + ruta/nav owner/admin (wave 2)
+- [x] 142-03-PLAN.md — frontend: mini pantalla "Configuración de Caja" (un campo) + composable + ruta/nav owner/admin (wave 2)
 
 ## v5.2 (Módulo Contable) Progress
 
@@ -3594,7 +3594,7 @@ Plans:
 | 139. Movimientos inter-caja y egresos       | 3/3            | Complete    | 2026-06-24 |
 | 140. Carga única + cobro suelto + rol profe | 3/3            | Complete    | 2026-06-24 |
 | 141. Reportes para la admin                 | 4/4            | Complete    | 2026-06-24 |
-| 142. Config + transición Contabilium        | 2/3            | In Progress |            |
+| 142. Config + transición Contabilium        | 3/3            | Complete    | 2026-06-25 |
 
 _Plan counts populated by `/gsd-plan-phase`._
 

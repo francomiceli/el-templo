@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v5.2
 milestone_name: Módulo Contable — Libro de Caja
-status: executing
+status: verifying
 stopped_at: Phase 142 context gathered
-last_updated: "2026-06-25T00:41:53.994Z"
+last_updated: "2026-06-25T00:46:22.129Z"
 last_activity: 2026-06-25
 progress:
   total_phases: 13
-  completed_phases: 10
+  completed_phases: 11
   total_plans: 51
-  completed_plans: 49
-  percent: 77
+  completed_plans: 50
+  percent: 85
 ---
 
 # Project State
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-04)
 
 **Core value:** El registro de un pago se carga **una sola vez** en el Administrador (fuente de verdad) y propaga solo: activa la membresía al instante e impacta la caja. Se elimina el triple tipeo (Forms + Contabilium + Admin). El Administrador pasa a ser el **libro de caja** del negocio (efectivo×sucursal + central + banco×moneda), con validación de pagos (PENDIENTE→VALIDADO), movimientos inter-caja y egresos. Se monta sobre el modelo financiero transaccional v4.8 (~60% existe). Backend-heavy, brownfield.
-**Current focus:** Phase 142 — Config + transición Contabilium
+**Current focus:** Phase 142 COMPLETE (3/3) — milestone v5.2 Módulo Contable final plan shipped to staging; pending UAT + push.
 
 ## Current Position
 
 Phase: 142 (Config + transición Contabilium) — EXECUTING
 Plan: 3 of 3
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-06-25
 Next: Phase 140 (carga única del profe) / 141 (reportes/UI). Phase 141 caja history DEBE LEFT JOIN users (filas NULL-member de movimientos/egresos).
 
@@ -265,6 +265,7 @@ _Updated after each plan completion_
 | Phase 141 P04 | ~9min | 2 tasks | 3 files |
 | Phase 142 P01 | ~18min | 2 tasks | 8 files |
 | Phase 142 P02 | ~6min | 1 tasks | 2 files |
+| Phase 142 P142-03 | ~12min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -602,6 +603,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: [Phase 132]: TrialTurno literal moved to types.ts (no circular import); trial-funnel-service re-exports; new-lead exclusion stays planId-unrestricted
 - [Phase ?]: [Phase 132]: frequency coolingDown[] enriched with name+phone reusing the existing users join (D-12, export-ready in one call)
 - [Phase ?]: [Phase 132]: frequency turno filter applied in SQL (join schedules + hour range) not in-memory, since frequency aggregates visit counts in the DB
+- [Phase 142]: 142-03 (FINAL plan, MIG-01 UI — phase 142 COMPLETE 3/3): mini "Configuración de Caja" admin page = ONE numeric field (umbral de pendientes, días, integer min 1, no upper bound in UI). useFinanceConfigApi mirrors useFinanceLoadApi (loading/saving/error + cleanup(), NO onUnmounted inside, no any, createLogger). FULL path /admin/finance/config/overdue-threshold for GET+PUT (admin axios baseURL has /api; finance plugin prefix /admin/finance; bare /finance/... would 404). GET on mount populates field, PUT on save with positive/negative notify. Route /configuracion-caja meta.allowedRoles ['admin','owner'] + nav q-item under Administracion section gated isAdminRole (excludes gestion/recepcion/coach; backend per-handler ADMIN_ROLES is the real gate). Warm palette no blue. Logger error() takes LogData record not raw unknown → wrap as {error: msg}. Pre-existing tsc errors (vitest types in axios-refresh-lock.test.ts, @types/pdfmake mismatch) out of scope. Commits 14b4dedc + 0543d44e. staging, not pushed.
 - [Phase ?]: 132-03: frontend contract layer — 6 mirrored analytics interfaces + MetricShape + 6 typed fetch methods + turno/window filters
 - [Phase ?]: [Phase 132]: .vue verified via eslint (type-aware); vue-tsc not installed, full SFC typecheck in CI
 - [Phase ?]: [Phase 132]: ConversionTab + IngresosTab presentational (props-in); page 132-06 owns fetch
@@ -676,7 +678,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-25T00:41:53.970Z
+Last session: 2026-06-25T00:46:22.102Z
 Stopped at: Phase 142 context gathered
 Resume file: None
 
