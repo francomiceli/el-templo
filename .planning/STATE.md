@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v5.2
 milestone_name: Módulo Contable — Libro de Caja
-status: verifying
-stopped_at: Phase 142 context gathered
-last_updated: "2026-06-25T00:46:22.129Z"
+status: executing
+stopped_at: Phase 144 UI-SPEC approved
+last_updated: "2026-06-25T22:13:10.518Z"
 last_activity: 2026-06-25
 progress:
   total_phases: 13
   completed_phases: 11
-  total_plans: 51
+  total_plans: 55
   completed_plans: 50
   percent: 85
 ---
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-04)
 
 **Core value:** El registro de un pago se carga **una sola vez** en el Administrador (fuente de verdad) y propaga solo: activa la membresía al instante e impacta la caja. Se elimina el triple tipeo (Forms + Contabilium + Admin). El Administrador pasa a ser el **libro de caja** del negocio (efectivo×sucursal + central + banco×moneda), con validación de pagos (PENDIENTE→VALIDADO), movimientos inter-caja y egresos. Se monta sobre el modelo financiero transaccional v4.8 (~60% existe). Backend-heavy, brownfield.
-**Current focus:** Phase 142 COMPLETE (3/3) — milestone v5.2 Módulo Contable final plan shipped to staging; pending UAT + push.
+**Current focus:** Phase 144 — notificaciones-y-bloqueo-de-vencimiento-de-membres-a-plan
 
 ## Current Position
 
-Phase: 142 (Config + transición Contabilium) — EXECUTING
-Plan: 3 of 3
-Status: Phase complete — ready for verification
+Phase: 144 (notificaciones-y-bloqueo-de-vencimiento-de-membres-a-plan) — EXECUTING
+Plan: 2 of 4
+Status: Ready to execute
 Last activity: 2026-06-25
 Next: Phase 140 (carga única del profe) / 141 (reportes/UI). Phase 141 caja history DEBE LEFT JOIN users (filas NULL-member de movimientos/egresos).
 
@@ -266,6 +266,7 @@ _Updated after each plan completion_
 | Phase 142 P01 | ~18min | 2 tasks | 8 files |
 | Phase 142 P02 | ~6min | 1 tasks | 2 files |
 | Phase 142 P142-03 | ~12min | 2 tasks | 4 files |
+| Phase 144 P01 | 12min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -646,6 +647,9 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: Phase 140-02: coach load endpoints in a SEPARATE plugin with its own FINANCE_LOAD_ROLES guard (finance module's FINANCE_READ_ROLES hook excludes coach); idempotency dedup at endpoint layer (ER_DUP_ENTRY -> re-read existing on fresh connection, Pitfall 3)
 - [Phase ?]: [Phase 142]: finance config reuses system_settings (finance.pending_overdue_days), read-with-fallback to OVERDUE_DAYS; owner/admin-only GET/PUT (per-handler ADMIN_ROLES closes the gestion trap); dynamic threshold in listPendingTray; migration 0157 seeds default 3
 - [Phase ?]: [Phase 142-02 / MIG-02]: transition doc tracked under .planning/phases/142-.../ because .docs/ is gitignored (ops-facing copy still on disk at .docs/modulo-contable/); opening-balance migration kept as a TEMPLATE outside src/db/migrations/ so the runner can never execute placeholder/zero values on deploy — copied + filled with real physical counts at go-live; cutoff date deferred to Franco (single clean cutoff recommended); cajas stay at 0 in 142
+- [Phase ?]: [144-01]: deriveCoveredUntil standalone (MAX(end_date) sobre cadena active+scheduled, end_date NOT NULL) + getCoveredUntil delega; cron importa la fn, booking/routes usan el método — DRY, 3 call sites
+- [Phase ?]: [144-01]: 3 templates plan_renewal_warning_7d/\_3d/\_expired bajo categoría nueva 'planes' (route /reservas), no uno parametrizado
+- [Phase ?]: [144-01]: migración hand-written 0158 (db:generate roto por drift de sessions.goal_plan_type + journal stale 0059); enum 'planes' appended last en ambas tablas + backfill idempotente NOT EXISTS
 
 ### Pending Todos
 
@@ -678,8 +682,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-25T00:46:22.102Z
-Stopped at: Phase 142 context gathered
+Last session: 2026-06-25T22:13:02.457Z
+Stopped at: Phase 144 UI-SPEC approved
 Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
