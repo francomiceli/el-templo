@@ -16,14 +16,15 @@ import {
   errorResponseSchema,
 } from "./schemas";
 import { handleServiceError } from "../shared/error-handler";
-import { TRAINING_ROLES } from "../shared/permissions";
+import { canAccessTraining } from "../shared/permissions";
 
 /**
  * tree-editor routes — Phase 128 Plan 02 (TREE-07) + Phase 133 Plan 05 (R1-REV).
  *
  * Admin/coach-scoped editor for the skill tree (D-06). Every route is gated by a
- * plugin-level onRequest hook that authenticates THEN rejects any role not in
- * TRAINING_ROLES (coach/owner) with 403 — a member must NEVER reach these routes
+ * plugin-level onRequest hook that authenticates THEN rejects anyone who cannot
+ * access the Entrenamiento surface (owner or the exclusive training coach — see
+ * canAccessTraining) with 403 — a member must NEVER reach these routes
  * (T-128-03 / T-133-40). Mounted under /api/admin/tree-editor by
  * plugins/tree-editor.ts.
  *
@@ -43,7 +44,7 @@ export const treeEditorRoutes: FastifyPluginAsync = async (fastify) => {
   // Role guard for ALL routes in this plugin (mirrors admin/routes.ts).
   fastify.addHook("onRequest", async (request, reply) => {
     await fastify.authenticate(request, reply);
-    if (!(TRAINING_ROLES as readonly string[]).includes(request.user.role)) {
+    if (!canAccessTraining(request.user)) {
       return reply
         .status(403)
         .send({ error: "Acceso de administrador requerido" });

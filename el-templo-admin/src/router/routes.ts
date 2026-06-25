@@ -15,32 +15,32 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'sessions',
         component: () => import('pages/SessionsPage.vue'),
-        meta: { allowedRoles: ['coach', 'owner'] as AdminRole[] },
+        meta: { allowedRoles: ['coach', 'owner'] as AdminRole[], trainingOnly: true },
       },
       {
         path: 'sessions/edit',
         component: () => import('pages/SessionEditPage.vue'),
-        meta: { allowedRoles: ['coach', 'owner'] as AdminRole[] },
+        meta: { allowedRoles: ['coach', 'owner'] as AdminRole[], trainingOnly: true },
       },
       {
         path: 'sessions/:id',
         component: () => import('pages/SessionEditLegacyRedirect.vue'),
-        meta: { allowedRoles: ['coach', 'owner'] as AdminRole[] },
+        meta: { allowedRoles: ['coach', 'owner'] as AdminRole[], trainingOnly: true },
       },
       {
         path: 'generate',
         component: () => import('pages/GeneratePage.vue'),
-        meta: { allowedRoles: ['coach', 'owner'] as AdminRole[] },
+        meta: { allowedRoles: ['coach', 'owner'] as AdminRole[], trainingOnly: true },
       },
       {
         path: 'exercises',
         component: () => import('pages/ExercisesPage.vue'),
-        meta: { allowedRoles: ['coach', 'owner'] as AdminRole[] },
+        meta: { allowedRoles: ['coach', 'owner'] as AdminRole[], trainingOnly: true },
       },
       {
         path: 'tree-map',
         component: () => import('pages/TreeMapPage.vue'),
-        meta: { allowedRoles: ['coach', 'owner'] as AdminRole[] },
+        meta: { allowedRoles: ['coach', 'owner'] as AdminRole[], trainingOnly: true },
       },
       {
         path: 'alumnos',

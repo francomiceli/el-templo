@@ -53,17 +53,18 @@ import {
 } from "./video-schemas";
 
 import { handleServiceError } from "../shared/error-handler";
-import { TRAINING_ROLES } from "../shared/permissions";
+import { canAccessTraining } from "../shared/permissions";
 
 export const adminRoutes: FastifyPluginAsync = async (fastify) => {
   const adminService = new AdminSessionService(fastify.db);
   const editService = new AdminEditService(fastify.db);
   const proposalService = new ProposalService(fastify.db, fastify.log);
 
-  // Role check hook for all routes
+  // Role check hook for all routes. Entrenamiento surface: owner or the
+  // exclusive training coach only (see canAccessTraining).
   fastify.addHook("onRequest", async (request, reply) => {
     await fastify.authenticate(request, reply);
-    if (!(TRAINING_ROLES as readonly string[]).includes(request.user.role)) {
+    if (!canAccessTraining(request.user)) {
       return reply
         .status(403)
         .send({ error: "Acceso de administrador requerido" });
@@ -1323,7 +1324,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
 
   // -------------------------------------------------------------------------
   // Dimension Proposal Review (Phase 125-02 — TREE-03)
-  // Auth inherited from the plugin-level onRequest hook (TRAINING_ROLES).
+  // Auth inherited from the plugin-level onRequest hook (canAccessTraining).
   // -------------------------------------------------------------------------
 
   // GET /admin/exercises/proposals - List proposals (filter/group by route, default pending)

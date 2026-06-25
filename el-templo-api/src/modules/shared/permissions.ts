@@ -34,6 +34,32 @@ export const COACH_ROLES = [
 /** Roles that can access training features (sesiones, generar, ejercicios, horarios). */
 export const TRAINING_ROLES = ["coach", "owner"] as const;
 
+/**
+ * Email of the single coach allowed into the Entrenamiento admin surface
+ * (sesiones, programador, ejercicios, árbol). Identified by email rather than
+ * user.id because the email is stable across environments — it is seeded
+ * literally by migration 0017, whereas the numeric id depends on row insert
+ * order and differs between local / staging / prod.
+ */
+export const TRAINING_EXCLUSIVE_COACH_EMAIL = "Scaine7@hotmail.com";
+
+/**
+ * Whether a user may access the Entrenamiento admin surface. Owners always
+ * retain full access; among coaches, only the exclusive training coach
+ * (TRAINING_EXCLUSIVE_COACH_EMAIL) is allowed. Stricter than TRAINING_ROLES:
+ * a plain coach who is not the exclusive coach is rejected.
+ */
+export function canAccessTraining(user: {
+  role: string;
+  email: string | null;
+}): boolean {
+  if (user.role === "owner") return true;
+  return (
+    user.email != null &&
+    user.email.toLowerCase() === TRAINING_EXCLUSIVE_COACH_EMAIL.toLowerCase()
+  );
+}
+
 /** Roles that can access caja and reportes (gestion, admin, owner). */
 export const CAJA_ROLES = ["gestion", "admin", "owner"] as const;
 

@@ -10,6 +10,7 @@ import {
 } from "../helpers";
 import * as schema from "../../src/db/schema";
 import { backboneNodeConditions } from "../../src/modules/exercises/backbone-scope";
+import { TRAINING_EXCLUSIVE_COACH_EMAIL } from "../../src/modules/shared/permissions";
 
 /**
  * Integration test for Plan 135-03 (D-11): GET /admin/tree-editor/tree embeds
@@ -185,18 +186,21 @@ describe("tree-editor /tree embeds variants[] per hito (D-11)", () => {
     await cleanAllTestData(app);
     await app.db.delete(schema.exerciseProgressions);
 
-    const email = `tree-variants-coach-${Date.now()}-${Math.random()
-      .toString(36)
-      .slice(2)}@test.com`;
+    // The editor is restricted to the exclusive training coach (see
+    // canAccessTraining) — seed THAT coach so editor calls are authorized.
     await createStaffUser(app, {
-      email,
+      email: TRAINING_EXCLUSIVE_COACH_EMAIL,
       password: "password123",
-      firstName: "Coach",
-      lastName: "Variants",
+      firstName: "Fran",
+      lastName: "Scaine",
       role: "coach",
       branchId: 1,
     });
-    coachToken = await getAuthToken(app, email, "password123");
+    coachToken = await getAuthToken(
+      app,
+      TRAINING_EXCLUSIVE_COACH_EMAIL,
+      "password123",
+    );
   });
 
   it("groups variants[] under their hito, ordered by dl ascending", async () => {
