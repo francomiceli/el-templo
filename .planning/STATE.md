@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v5.2
 milestone_name: Módulo Contable — Libro de Caja
 status: verifying
-stopped_at: Completed 141-04-PLAN.md (Caja hub complete, human-verify deferred to UAT)
-last_updated: "2026-06-24T23:19:23.805Z"
+stopped_at: Phase 142 context gathered
+last_updated: "2026-06-25T00:10:00.212Z"
 last_activity: 2026-06-24
 progress:
   total_phases: 13
@@ -672,8 +672,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-24T23:19:23.765Z
-Stopped at: Phase 141 context gathered
-Resume file: None
+Last session: 2026-06-25T00:10:00.193Z
+Stopped at: Phase 142 context gathered
+Resume file: .planning/phases/142-config-transici-n-contabilium/142-CONTEXT.md
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
