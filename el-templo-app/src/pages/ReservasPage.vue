@@ -604,11 +604,45 @@
         </q-card-actions>
       </q-card>
     </q-dialog>
+
+    <!-- Phase 144-04 (D-15): booking-block renewal dialog (COVERAGE_EXPIRED).
+         NOT persistent — action-scoped, re-shows on every too-late retry. -->
+    <q-dialog v-model="showCoverageDialog">
+      <q-card class="coverage-dialog">
+        <q-card-section class="coverage-dialog__body">
+          <q-icon class="coverage-dialog__icon" name="event_busy" size="2.5em" />
+          <h3 class="coverage-dialog__title">Necesitás renovar tu membresía</h3>
+          <p class="coverage-dialog__text">
+            Esta clase es posterior al vencimiento de tu plan. Renovalo por WhatsApp para poder
+            reservarla.
+          </p>
+        </q-card-section>
+
+        <q-card-actions class="coverage-dialog__actions">
+          <q-btn
+            unelevated
+            no-caps
+            class="coverage-dialog__primary full-width"
+            label="Renovar por WhatsApp"
+            @click="openCoverageWhatsApp"
+          />
+          <q-btn
+            flat
+            no-caps
+            dense
+            class="coverage-dialog__secondary"
+            label="Entendido"
+            v-close-popup
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
+import axios from 'axios'
 import { useQuasar } from 'quasar'
 import TemploLoader from 'src/components/TemploLoader.vue'
 import { useSchedulingApi } from 'src/composables/useSchedulingApi'
@@ -760,6 +794,17 @@ const reserveDialog = ref({
   date: '',
   cancelFirst: null as number | null,
 })
+
+// Phase 144-04 (BOOK-BLOCK, D-15): booking-block renewal dialog, opened only
+// when the API rejects a reserve with code COVERAGE_EXPIRED (plan expired before
+// the class date). Action-scoped — NOT persisted, re-shows on every retry.
+const showCoverageDialog = ref(false)
+
+function openCoverageWhatsApp(): void {
+  const message = 'Hola, quiero renovar mi membresía para reservar una clase 💪'
+  window.open(buildWhatsAppUrl(userStore.profile?.branchCountry, message), '_blank')
+  showCoverageDialog.value = false
+}
 
 const cancelDialog = ref({
   show: false,
@@ -1198,6 +1243,16 @@ async function confirmReserve() {
     }
     await loadGrid()
   } catch (err: unknown) {
+    // Phase 144-04 (D-15): a class dated after the member's covered-until is
+    // rejected with code COVERAGE_EXPIRED — show the renewal dialog instead of
+    // the generic negative notify. All OTHER reserve errors keep the existing
+    // extractError/$q.notify path unchanged.
+    if (axios.isAxiosError(err) && err.response?.data?.code === 'COVERAGE_EXPIRED') {
+      reserveDialog.value.show = false
+      showCoverageDialog.value = true
+      log.info('Reserve blocked: membership coverage expired')
+      return
+    }
     const message = extractError(err, 'Error al reservar')
     $q.notify({ type: 'negative', message })
     log.warn('Reserve failed', { error: message })
@@ -1467,6 +1522,74 @@ onBeforeUnmount(() => cleanup())
 .reservas {
   max-width: 600px;
   margin: 0 auto;
+}
+
+// Phase 144-04 (D-15): booking-block renewal dialog — reuses the charcoal-card
+// visual from RatingPromptDialog/PushPermissionDialog (no new styling per
+// UI-SPEC §143). $primary (#96593a) is the brand terracotta; $dark-page the
+// charcoal card; $cream the marble-cream text.
+.coverage-dialog {
+  width: 100%;
+  max-width: 340px;
+  background: $dark-page;
+  color: $cream;
+  border-radius: 16px;
+  border-top: 2px solid rgba($primary, 0.6);
+  padding: 8px 4px 16px;
+}
+
+.coverage-dialog__body {
+  text-align: center;
+  padding-top: 16px;
+}
+
+.coverage-dialog__icon {
+  color: $primary;
+  margin-bottom: 12px;
+}
+
+.coverage-dialog__title {
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 700;
+  font-size: 1.125rem;
+  letter-spacing: 0.04em;
+  margin: 0 0 12px 0;
+  color: $cream;
+}
+
+.coverage-dialog__text {
+  font-family: 'Geologica', sans-serif;
+  font-weight: 400;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: rgba($cream, 0.75);
+  margin: 0;
+}
+
+.coverage-dialog__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px 20px 4px;
+}
+
+.coverage-dialog__primary {
+  background: linear-gradient(135deg, $primary 0%, #ad6540 100%) !important;
+  color: $cream !important;
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 700;
+  font-size: 0.9375rem;
+  letter-spacing: 0.12em;
+  padding: 12px 0;
+  border-radius: 8px;
+}
+
+.coverage-dialog__secondary {
+  color: rgba($cream, 0.55) !important;
+  font-family: 'Geologica', sans-serif;
+  font-weight: 400;
+  font-size: 0.8125rem;
+  margin-top: 4px;
 }
 
 .bonus-banner {
