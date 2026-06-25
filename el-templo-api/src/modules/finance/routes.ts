@@ -44,12 +44,15 @@ import {
   cashBalancesExportSchema,
   movementsHistorySchema,
   movementsHistoryExportSchema,
+  getOverdueThresholdSchema,
+  putOverdueThresholdSchema,
 } from "./schemas";
 import {
   FINANCE_READ_ROLES,
   FINANCE_WRITE_ROLES,
   FINANCE_VOID_ROLES,
   FINANCE_ADJUSTMENT_ROLES,
+  ADMIN_ROLES,
 } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
 import {
@@ -68,6 +71,7 @@ import type {
   RegisterExpenseInput,
   PendingTrayFilters,
   MovEgresoFilters,
+  OverdueThresholdBody,
 } from "./types";
 
 export const financeRoutes: FastifyPluginAsync = async (fastify) => {
@@ -980,6 +984,60 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
       return reply;
     }
   });
+
+  // ===================================================================
+  // Phase 142 (MIG-01 / D-04/D-06): config de caja — umbral de pendientes.
+  //
+  // RBAC trap: the module guard is FINANCE_READ_ROLES which INCLUDES gestion +
+  // recepcion. Config is owner/admin ONLY, so each handler re-checks ADMIN_ROLES
+  // FIRST — that per-handler gate is what excludes gestion (which passes the
+  // module guard). Coach/recepcion are already 403'd by the module guard
+  // (recepcion IS in FINANCE_READ_ROLES, so its 403 also comes from this
+  // per-handler check). Config is global — no branch/country scoping (D-06).
+  // ===================================================================
+  fastify.get(
+    "/config/overdue-threshold",
+    { schema: getOverdueThresholdSchema },
+    async (request, reply) => {
+      if (!(ADMIN_ROLES as readonly string[]).includes(request.user.role)) {
+        return reply.code(403).send({
+          error: "Acceso denegado",
+          message: "Solo owner/admin",
+        });
+      }
+      try {
+        const thresholdDays = await financeConfigService.getOverdueThreshold();
+        return { thresholdDays };
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "finance config get");
+        return reply;
+      }
+    },
+  );
+
+  fastify.put<{ Body: OverdueThresholdBody }>(
+    "/config/overdue-threshold",
+    { schema: putOverdueThresholdSchema },
+    async (request, reply) => {
+      if (!(ADMIN_ROLES as readonly string[]).includes(request.user.role)) {
+        return reply.code(403).send({
+          error: "Acceso denegado",
+          message: "Solo owner/admin",
+        });
+      }
+      try {
+        // Bounds (integer 1..365) are enforced by putOverdueThresholdSchema →
+        // out-of-range/non-integer yields 400 before this handler runs, so no
+        // invalid value ever reaches setOverdueThreshold.
+        const { thresholdDays } = request.body;
+        await financeConfigService.setOverdueThreshold(thresholdDays);
+        return { thresholdDays };
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "finance config set");
+        return reply;
+      }
+    },
+  );
 
   // ===================================================================
   // Phase 141 (REP-04): GET /pending-tray/export — bandeja .xlsx

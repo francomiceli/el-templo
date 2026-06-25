@@ -749,6 +749,59 @@ export const movementsHistoryExportSchema = {
   },
 } as const;
 
+// -- Phase 142 (MIG-01 / D-06): config de caja (umbral de pendientes) -------
+
+/**
+ * GET /config/overdue-threshold — read the current pending-overdue threshold.
+ * Owner/admin only (enforced per-handler with ADMIN_ROLES; the module guard is
+ * the more permissive FINANCE_READ_ROLES). No body/querystring.
+ */
+export const getOverdueThresholdSchema = {
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        thresholdDays: { type: "integer" },
+      },
+      required: ["thresholdDays"],
+      additionalProperties: false,
+    },
+    401: errorSchema,
+    403: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+/**
+ * PUT /config/overdue-threshold — set the threshold. Body validation enforces a
+ * positive integer in [1, 365] so an absurd/negative value can't poison the
+ * global overdue counter (→ 400 on violation, no write). Owner/admin only.
+ */
+export const putOverdueThresholdSchema = {
+  body: {
+    type: "object",
+    properties: {
+      thresholdDays: { type: "integer", minimum: 1, maximum: 365 },
+    },
+    required: ["thresholdDays"],
+    additionalProperties: false,
+  },
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        thresholdDays: { type: "integer" },
+      },
+      required: ["thresholdDays"],
+      additionalProperties: false,
+    },
+    400: errorSchema,
+    401: errorSchema,
+    403: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
 // -- Re-exported helper fragments for Plan 03 (reads) ----------------------
 
 export const SHARED_ERROR_SCHEMA = errorSchema;

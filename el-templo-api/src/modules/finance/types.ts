@@ -463,3 +463,14 @@ export interface CashRegisterBalance {
   firmeBalance: number; // opening_balance + Σ validados desde cutoff (CAJA-03)
   pendienteAmount: number; // Σ pendientes desde cutoff, SEPARADO (CAJA-03)
 }
+
+// Phase 142 (MIG-01 / D-04/D-06) — finance config de caja (umbral de
+// pendientes). Body de PUT y response de GET/PUT /config/overdue-threshold.
+// Config global (no scoping por sucursal/país — D-06).
+export interface OverdueThresholdBody {
+  thresholdDays: number;
+}
+
+export interface OverdueThresholdResponse {
+  thresholdDays: number;
+}
