@@ -53,6 +53,7 @@ import {
 import * as schema from "../../src/db/schema";
 import { TreeEditorService } from "../../src/modules/tree-editor/service";
 import { ExerciseProgressionService } from "../../src/modules/sessions/progressions/exercise-progression-service";
+import { TRAINING_EXCLUSIVE_COACH_EMAIL } from "../../src/modules/shared/permissions";
 
 describe("tree-editor milestone review (hito/variante, R1-REV)", () => {
   let app: FastifyInstance;
@@ -229,19 +230,21 @@ describe("tree-editor milestone review (hito/variante, R1-REV)", () => {
     await app.db.delete(schema.exerciseMilestoneProposals);
     await app.db.delete(schema.exerciseDimensionProposals);
 
-    // Fresh coach token per test (the user is wiped by cleanAllTestData).
-    const email = `milestone-review-coach-${Date.now()}-${Math.random()
-      .toString(36)
-      .slice(2)}@test.com`;
+    // Fresh token per test (the user is wiped by cleanAllTestData). The editor
+    // is restricted to the exclusive training coach — seed THAT coach.
     await createStaffUser(app, {
-      email,
+      email: TRAINING_EXCLUSIVE_COACH_EMAIL,
       password: "password123",
-      firstName: "Coach",
-      lastName: "Milestone",
+      firstName: "Fran",
+      lastName: "Scaine",
       role: "coach",
       branchId: 1,
     });
-    coachToken = await getAuthToken(app, email, "password123");
+    coachToken = await getAuthToken(
+      app,
+      TRAINING_EXCLUSIVE_COACH_EMAIL,
+      "password123",
+    );
   });
 
   // ── Test 1: accept hito ─────────────────────────────────────────────────────

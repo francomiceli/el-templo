@@ -17,7 +17,7 @@
     <q-drawer v-model="drawer" show-if-above bordered :width="220">
       <q-list>
         <!-- Entrenamiento -->
-        <template v-if="isCoachRole">
+        <template v-if="canSeeTraining">
           <q-item-label header>Entrenamiento</q-item-label>
           <q-item clickable v-ripple to="/sessions">
             <q-item-section avatar>
@@ -49,7 +49,7 @@
         </template>
 
         <!-- Gestion -->
-        <q-separator v-if="isCoachRole" />
+        <q-separator v-if="canSeeTraining" />
         <q-item-label header>Gestion</q-item-label>
         <q-item clickable v-ripple to="/alumnos">
           <q-item-section avatar>
@@ -189,7 +189,7 @@
     <q-page-container>
       <!-- Low sessions alert banner -->
       <q-banner
-        v-if="isCoachRole && adminStore.lowSessionsAlert && $route.path !== '/generate'"
+        v-if="canSeeTraining && adminStore.lowSessionsAlert && $route.path !== '/generate'"
         class="bg-warning text-white"
       >
         <template #avatar>
@@ -211,6 +211,7 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useAuthStore } from 'src/stores/useAuthStore';
 import { useAdminStore } from 'src/stores/useAdminStore';
+import { canAccessTraining } from 'src/utils/trainingAccess';
 
 const drawer = ref(false);
 const router = useRouter();
@@ -226,8 +227,9 @@ const isStaging = computed(() => import.meta.env.VITE_APP_ENVIRONMENT === 'stagi
 // Permission-based sidebar visibility
 const userRole = computed(() => authStore.user?.role ?? '');
 
-// coach, admin, owner can see training pages (sesiones, generar, ejercicios, horarios)
-const isCoachRole = computed(() => ['coach', 'owner'].includes(userRole.value));
+// Entrenamiento surface (sesiones, programador, ejercicios, árbol): owner or
+// the exclusive training coach only — other coaches no longer see it.
+const canSeeTraining = computed(() => canAccessTraining(authStore.user));
 
 // admin, owner can see admin pages (planes, analiticas)
 const isAdminRole = computed(() => ['admin', 'owner'].includes(userRole.value));
@@ -254,19 +256,19 @@ async function handleLogout() {
   router.push('/login');
 }
 
-// Fetch pending count and coverage on mount (only for coach+ roles)
+// Fetch pending count and coverage on mount (only for training viewers)
 onMounted(() => {
-  if (isCoachRole.value) {
+  if (canSeeTraining.value) {
     adminStore.fetchPendingCount();
     adminStore.checkSessionCoverage();
   }
 });
 
-// Refresh pending count on route change (only for coach+ roles)
+// Refresh pending count on route change (only for training viewers)
 watch(
   () => route.path,
   () => {
-    if (isCoachRole.value) {
+    if (canSeeTraining.value) {
       adminStore.fetchPendingCount();
     }
   }

@@ -9,6 +9,7 @@ import {
   cleanAllTestData,
 } from "../helpers";
 import * as schema from "../../src/db/schema";
+import { TRAINING_EXCLUSIVE_COACH_EMAIL } from "../../src/modules/shared/permissions";
 
 /**
  * Integration test for the admin/coach tree editor (TREE-07), reworked for
@@ -179,19 +180,21 @@ describe("tree-editor admin routes (progresión por ruta)", () => {
     // exercise_progressions is not in cleanAllTestData (exercises + routes ARE).
     await app.db.delete(schema.exerciseProgressions);
 
-    // Fresh coach token per test (the user is wiped by cleanAllTestData).
-    const email = `tree-editor-coach-${Date.now()}-${Math.random()
-      .toString(36)
-      .slice(2)}@test.com`;
+    // Fresh token per test (the user is wiped by cleanAllTestData). The editor
+    // is restricted to the exclusive training coach, so seed THAT coach.
     await createStaffUser(app, {
-      email,
+      email: TRAINING_EXCLUSIVE_COACH_EMAIL,
       password: "password123",
-      firstName: "Coach",
-      lastName: "Editor",
+      firstName: "Fran",
+      lastName: "Scaine",
       role: "coach",
       branchId: 1,
     });
-    coachToken = await getAuthToken(app, email, "password123");
+    coachToken = await getAuthToken(
+      app,
+      TRAINING_EXCLUSIVE_COACH_EMAIL,
+      "password123",
+    );
   });
 
   // ── AUTH (T-128-03) ─────────────────────────────────────────────────────────
@@ -256,6 +259,42 @@ describe("tree-editor admin routes (progresión por ruta)", () => {
       });
       expect(res.statusCode).toBe(403);
     }
+  });
+
+  it("rejects a NON-exclusive coach with 403 but allows the owner", async () => {
+    await seedGraph();
+
+    // A coach who is NOT the exclusive training coach must be locked out, even
+    // though their role is in TRAINING_ROLES.
+    const otherEmail = `tree-editor-other-coach-${Date.now()}@test.com`;
+    await createStaffUser(app, {
+      email: otherEmail,
+      password: "password123",
+      firstName: "Other",
+      lastName: "Coach",
+      role: "coach",
+      branchId: 1,
+    });
+    const otherCoachToken = await getAuthToken(app, otherEmail, "password123");
+    const denied = await app.inject({
+      method: "GET",
+      url: "/api/admin/tree-editor/tree",
+      headers: authHeaders(otherCoachToken),
+    });
+    expect(denied.statusCode).toBe(403);
+
+    // The owner retains full access.
+    const ownerToken = await getAuthToken(
+      app,
+      "admin@test.com",
+      "adminpass123",
+    );
+    const allowed = await app.inject({
+      method: "GET",
+      url: "/api/admin/tree-editor/tree",
+      headers: authHeaders(ownerToken),
+    });
+    expect(allowed.statusCode).toBe(200);
   });
 
   // ── READ (D-06) ─────────────────────────────────────────────────────────────

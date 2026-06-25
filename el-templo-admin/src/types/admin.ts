@@ -4,6 +4,9 @@ declare module 'vue-router' {
   interface RouteMeta {
     public?: boolean;
     allowedRoles?: AdminRole[];
+    // Entrenamiento surface: beyond allowedRoles, only owner or the exclusive
+    // training coach may enter (see canAccessTraining / router guard).
+    trainingOnly?: boolean;
   }
 }
 

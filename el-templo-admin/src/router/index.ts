@@ -3,6 +3,7 @@ import { createRouter, createWebHistory } from 'vue-router';
 import routes from './routes';
 import { useAuthStore } from 'stores/useAuthStore';
 import type { AdminRole } from 'src/types/admin';
+import { canAccessTraining } from 'src/utils/trainingAccess';
 
 export default defineRouter(function () {
   const Router = createRouter({
@@ -48,6 +49,15 @@ export default defineRouter(function () {
         recepcion: '/alumnos',
       };
       return defaultPages[role] || '/sessions';
+    }
+
+    // Entrenamiento surface: even when allowedRoles lets a coach through, only
+    // the owner or the exclusive training coach may enter. Non-training staff
+    // (including other coaches) land on /alumnos — a page every staff role can
+    // access — to avoid a redirect loop (a plain coach's default is /sessions,
+    // which is itself trainingOnly).
+    if (to.meta.trainingOnly && !canAccessTraining(authStore.user)) {
+      return '/alumnos';
     }
 
     return true;
