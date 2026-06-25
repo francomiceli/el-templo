@@ -301,14 +301,16 @@ const selectedMonth = ref(new Date().toISOString().slice(0, 7));
 
 const filters = reactive({
   cashRegisterId: null as number | null,
-  // Client-side tipo filter (the endpoint returns all three kinds).
-  tipo: 'todos' as 'movimientos' | 'egresos' | 'todos',
+  // Client-side tipo filter (the endpoint returns all three kinds:
+  // cash_transfer / expense / adjustment).
+  tipo: 'todos' as 'movimientos' | 'egresos' | 'ajustes' | 'todos',
 });
 
 const tipoOptions = [
   { label: 'Todos', value: 'todos' },
   { label: 'Movimientos', value: 'movimientos' },
   { label: 'Egresos', value: 'egresos' },
+  { label: 'Ajustes', value: 'ajustes' },
 ];
 
 const tablePagination = ref({
@@ -341,6 +343,9 @@ const filteredRows = computed<MovEgresoItem[]>(() => {
   }
   if (filters.tipo === 'egresos') {
     return rows.value.filter((r) => r.kind === 'expense');
+  }
+  if (filters.tipo === 'ajustes') {
+    return rows.value.filter((r) => r.kind === 'adjustment');
   }
   return rows.value;
 });

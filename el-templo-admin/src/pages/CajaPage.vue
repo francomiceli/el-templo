@@ -32,8 +32,8 @@
         <q-badge v-if="vencidoCount > 0" floating color="negative">{{ vencidoCount }}</q-badge>
       </q-tab>
       <q-tab :name="CAJA_TABS.saldos" label="Saldos" icon="account_balance_wallet" />
-      <q-tab :name="CAJA_TABS.movimientos" label="Movimientos" icon="receipt_long" />
-      <q-tab :name="CAJA_TABS.movEgresos" label="Mov. y egresos" icon="swap_horiz" />
+      <q-tab :name="CAJA_TABS.transacciones" label="Transacciones" icon="receipt_long" />
+      <q-tab :name="CAJA_TABS.movimientosCaja" label="Movimientos de caja" icon="swap_horiz" />
     </q-tabs>
 
     <q-separator />
@@ -53,13 +53,13 @@
         <SaldosPorCajaTab :selected-country="selectedCountry" :is-owner="isOwner" />
       </q-tab-panel>
 
-      <!-- Movimientos — verbatim migration of the previous CajaPage body -->
-      <q-tab-panel :name="CAJA_TABS.movimientos" class="q-px-none">
+      <!-- Transacciones — member-linked rows, verbatim migration of the previous CajaPage body -->
+      <q-tab-panel :name="CAJA_TABS.transacciones" class="q-px-none">
         <MovimientosTab :selected-country="selectedCountry" :is-owner="isOwner" />
       </q-tab-panel>
 
-      <!-- Mov. y egresos — historial filterable, NULL-member rows (REP-03) -->
-      <q-tab-panel :name="CAJA_TABS.movEgresos" class="q-px-none">
+      <!-- Movimientos de caja — historial filterable, NULL-member rows (REP-03) -->
+      <q-tab-panel :name="CAJA_TABS.movimientosCaja" class="q-px-none">
         <MovEgresosTab :selected-country="selectedCountry" :is-owner="isOwner" />
       </q-tab-panel>
     </q-tab-panels>

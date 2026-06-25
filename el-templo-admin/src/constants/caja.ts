@@ -1,10 +1,15 @@
 /**
  * Phase 141 — Caja hub tab constants (D-01).
  *
- * The `/caja` page is a q-tabs hub: Pendientes (landing) / Saldos / Movimientos
- * / Mov. y egresos. These names are the single source of truth for the tab
- * model + the optional `?tab=` query-param persistence, so Plan 04 (and future
- * 142) can reference tab names without re-declaring string literals.
+ * The `/caja` page is a q-tabs hub: Pendientes (landing) / Saldos /
+ * Transacciones / Movimientos de caja. These names are the single source of
+ * truth for the tab model + the optional `?tab=` query-param persistence, so
+ * Plan 04 (and future 142) can reference tab names without re-declaring string
+ * literals.
+ *
+ * The `transacciones` tab holds member-linked transactions (cobros/pagos/
+ * reembolsos/ajustes/anticipos); `movimientosCaja` holds member-less internal
+ * cash-register rows (traspasos inter-caja, egresos, ajustes).
  *
  * NOTE: the overdue threshold is NOT defined here — it is read from the bandeja
  * response payload (`thresholdDays`, server-side OVERDUE_DAYS) per UI-SPEC/D-08
@@ -14,8 +19,8 @@
 export const CAJA_TABS = {
   pendientes: 'pendientes',
   saldos: 'saldos',
-  movimientos: 'movimientos',
-  movEgresos: 'movEgresos',
+  transacciones: 'transacciones',
+  movimientosCaja: 'movimientosCaja',
 } as const;
 
 export type CajaTab = (typeof CAJA_TABS)[keyof typeof CAJA_TABS];
@@ -27,6 +32,6 @@ export const CAJA_DEFAULT_TAB: CajaTab = CAJA_TABS.pendientes;
 export const CAJA_TAB_NAMES: readonly CajaTab[] = [
   CAJA_TABS.pendientes,
   CAJA_TABS.saldos,
-  CAJA_TABS.movimientos,
-  CAJA_TABS.movEgresos,
+  CAJA_TABS.transacciones,
+  CAJA_TABS.movimientosCaja,
 ];
