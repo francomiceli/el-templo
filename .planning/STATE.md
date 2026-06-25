@@ -4,13 +4,13 @@ milestone: v5.2
 milestone_name: Módulo Contable — Libro de Caja
 status: executing
 stopped_at: Phase 142 context gathered
-last_updated: "2026-06-25T00:37:26.571Z"
+last_updated: "2026-06-25T00:41:53.994Z"
 last_activity: 2026-06-25
 progress:
   total_phases: 13
   completed_phases: 10
   total_plans: 51
-  completed_plans: 48
+  completed_plans: 49
   percent: 77
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 ## Current Position
 
 Phase: 142 (Config + transición Contabilium) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-06-25
 Next: Phase 140 (carga única del profe) / 141 (reportes/UI). Phase 141 caja history DEBE LEFT JOIN users (filas NULL-member de movimientos/egresos).
@@ -264,6 +264,7 @@ _Updated after each plan completion_
 | Phase 141 P03 | 12min | 3 tasks | 6 files |
 | Phase 141 P04 | ~9min | 2 tasks | 3 files |
 | Phase 142 P01 | ~18min | 2 tasks | 8 files |
+| Phase 142 P02 | ~6min | 1 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -642,6 +643,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: [Phase 140-01] ER_DUP_ENTRY return-existing handling deferred to Wave 2 (Pitfall 3: renewal tx rolls back before re-read)
 - [Phase ?]: Phase 140-02: coach load endpoints in a SEPARATE plugin with its own FINANCE_LOAD_ROLES guard (finance module's FINANCE_READ_ROLES hook excludes coach); idempotency dedup at endpoint layer (ER_DUP_ENTRY -> re-read existing on fresh connection, Pitfall 3)
 - [Phase ?]: [Phase 142]: finance config reuses system_settings (finance.pending_overdue_days), read-with-fallback to OVERDUE_DAYS; owner/admin-only GET/PUT (per-handler ADMIN_ROLES closes the gestion trap); dynamic threshold in listPendingTray; migration 0157 seeds default 3
+- [Phase ?]: [Phase 142-02 / MIG-02]: transition doc tracked under .planning/phases/142-.../ because .docs/ is gitignored (ops-facing copy still on disk at .docs/modulo-contable/); opening-balance migration kept as a TEMPLATE outside src/db/migrations/ so the runner can never execute placeholder/zero values on deploy — copied + filled with real physical counts at go-live; cutoff date deferred to Franco (single clean cutoff recommended); cajas stay at 0 in 142
 
 ### Pending Todos
 
@@ -674,7 +676,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-25T00:37:14.691Z
+Last session: 2026-06-25T00:41:53.970Z
 Stopped at: Phase 142 context gathered
 Resume file: None
 

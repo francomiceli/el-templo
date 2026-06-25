@@ -79,7 +79,7 @@
 ### Transición Contabilium y configuración (MIG)
 
 - [x] **MIG-01**: Las **perillas de configuración** (política de validación: todos vs. dudosos; activación de membresía instantánea vs. diferida) tienen una casa de configuración definida y funcional.
-- [ ] **MIG-02**: Está **documentada la regla de "qué dato manda"** durante la convivencia con Contabilium por etapa de reemplazo (registro de ingresos primero; facturación AFIP último, fuera de scope).
+- [x] **MIG-02**: Está **documentada la regla de "qué dato manda"** durante la convivencia con Contabilium por etapa de reemplazo (registro de ingresos primero; facturación AFIP último, fuera de scope).
 
 ---
 
@@ -129,6 +129,6 @@
 | REP-03      | Phase 141 — Reportes para la admin             | Complete |
 | REP-04      | Phase 141 — Reportes para la admin             | Complete |
 | MIG-01      | Phase 142 — Config + transición Contabilium    | Complete |
-| MIG-02      | Phase 142 — Config + transición Contabilium    | Pending  |
+| MIG-02      | Phase 142 — Config + transición Contabilium    | Complete |
 
 **Coverage:** 25/25 v5.2 requirements mapped → exactly one phase each. No orphans, no duplicates.
