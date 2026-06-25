@@ -20,6 +20,7 @@ import {
   BalanceService,
   CashRegisterService,
   MovementService,
+  FinanceConfigService,
 } from ".";
 import { SubscriptionService } from "../subscriptions/service";
 import { AuraService } from "../aura/service";
@@ -72,11 +73,19 @@ import type {
 export const financeRoutes: FastifyPluginAsync = async (fastify) => {
   const balanceService = new BalanceService(fastify.db, fastify.log);
   const cashRegisterService = new CashRegisterService(fastify.db, fastify.log);
+  // Phase 142 (MIG-01 / D-04/D-05): the finance config house. Drives the
+  // dynamic pending-overdue threshold inside listPendingTray and backs the
+  // owner/admin-only GET/PUT /config/overdue-threshold endpoints below.
+  const financeConfigService = new FinanceConfigService(
+    fastify.db,
+    fastify.log,
+  );
   const transactionService = new TransactionService(
     fastify.db,
     fastify.log,
     balanceService,
     cashRegisterService,
+    financeConfigService,
   );
 
   // Phase 137 (VAL-06): wire the SubscriptionService back-edge so the void

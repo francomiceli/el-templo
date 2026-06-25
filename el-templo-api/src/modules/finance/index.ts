@@ -3,6 +3,8 @@ export { TransactionService } from "./transaction-service";
 export { BalanceService } from "./balance-service";
 export { CashRegisterService } from "./cash-register-service";
 export { MovementService } from "./movement-service";
+// Phase 142 (MIG-01 / D-04): finance config house (system_settings reuse).
+export { FinanceConfigService, FINANCE_SETTINGS_KEYS } from "./config-service";
 export { financeRoutes } from "./routes";
 // Phase 140 — dedicated coach PoS load plugin (separate guard, FINANCE_LOAD_ROLES).
 export { coachLoadRoutes } from "./coach-load-routes";

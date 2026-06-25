@@ -36,6 +36,10 @@ import type { PaginatedResult } from "../shared/types";
 import { auditLog } from "../shared/audit-log";
 import { BalanceService, type TxHandle } from "./balance-service";
 import { CashRegisterService } from "./cash-register-service";
+import { FinanceConfigService } from "./config-service";
+// OVERDUE_DAYS (the canonical default) is no longer referenced directly here —
+// the threshold now flows through FinanceConfigService.getOverdueThreshold(),
+// which owns the fallback. Phase 142 (D-05).
 import { firmMoneyConditions } from "./firm-money";
 import type {
   CreateTransactionInput,
@@ -57,7 +61,6 @@ import type {
   TransactionListItem,
   VoidTransactionInput,
 } from "./types";
-import { OVERDUE_DAYS } from "./constants";
 
 type DbInstance = MySql2Database<typeof schema>;
 
@@ -105,12 +108,27 @@ export class TransactionService {
    */
   private subscriptionCanceller?: SubscriptionCanceller;
 
+  /**
+   * Phase 142 (D-05): the finance config house. Reads the pending-overdue
+   * threshold from system_settings (fallback OVERDUE_DAYS) so listPendingTray's
+   * isOverdue/thresholdDays are admin-configurable instead of a hard-coded
+   * literal. Optional 5th DI param: when omitted, a default instance is built
+   * from this.db/this.log — so the many existing TransactionService call sites
+   * (auth/members/subscriptions/programs/jobs + tests) keep compiling and still
+   * get a working config read. The finance plugin passes the shared instance
+   * (the same one backing the GET/PUT config endpoints).
+   */
+  private readonly financeConfig: FinanceConfigService;
+
   constructor(
     private readonly db: DbInstance,
     private readonly log: FastifyBaseLogger,
     private readonly balanceService: BalanceService,
     private readonly cashRegisterService: CashRegisterService,
-  ) {}
+    financeConfig?: FinanceConfigService,
+  ) {
+    this.financeConfig = financeConfig ?? new FinanceConfigService(db, log);
+  }
 
   /**
    * Wire the SubscriptionService back-edge used by
@@ -1132,7 +1150,11 @@ export class TransactionService {
       .offset(offset);
 
     // ageInDays in TS — clamp ≥0, mirror of getOutstandingConcepts (avoid TZ/SQL
-    // drift). isOverdue = ageInDays > OVERDUE_DAYS (the shared 141 constant).
+    // drift). isOverdue = ageInDays > threshold. Phase 142 (D-05): the threshold
+    // is read ONCE here from system_settings (fallback OVERDUE_DAYS) and used in
+    // BOTH seam sites below (isOverdue + the echoed thresholdDays) so the counter
+    // and badge agree.
+    const threshold = await this.financeConfig.getOverdueThreshold();
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const MS_PER_DAY = 1000 * 60 * 60 * 24;
@@ -1159,11 +1181,11 @@ export class TransactionService {
           `${r.recorderFirstName ?? ""} ${r.recorderLastName ?? ""}`.trim(),
         validationStatus: r.validationStatus,
         ageInDays,
-        isOverdue: ageInDays > OVERDUE_DAYS,
+        isOverdue: ageInDays > threshold,
       };
     });
 
-    return { rows, total, page, limit, thresholdDays: OVERDUE_DAYS };
+    return { rows, total, page, limit, thresholdDays: threshold };
   }
 
   /**
