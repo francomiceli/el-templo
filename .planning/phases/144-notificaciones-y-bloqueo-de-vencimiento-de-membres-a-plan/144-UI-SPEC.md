@@ -1,10 +1,11 @@
 ---
 phase: 144
 slug: notificaciones-y-bloqueo-de-vencimiento-de-membres-a-plan
-status: draft
+status: approved
 shadcn_initialized: false
 preset: none
 created: 2026-06-25
+reviewed_at: 2026-06-25
 ---
 
 # Phase 144 — UI Design Contract
