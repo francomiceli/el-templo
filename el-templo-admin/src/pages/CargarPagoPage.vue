@@ -116,7 +116,7 @@
         <!-- Medio de pago -->
         <template v-if="selectedMember && showPaymentMethods">
           <div class="text-subtitle1 q-mt-md q-mb-xs">Medio de pago</div>
-          <div class="q-gutter-md">
+          <div class="q-gutter-sm">
             <q-btn
               v-for="opt in paymentOptions"
               :key="opt.value"
