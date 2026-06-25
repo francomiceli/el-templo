@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v5.3.3
 milestone_name: Post-v5.3.2 Live Test Fixes
 status: executing
-stopped_at: Phase 98 CONTEXT refreshed post-97.5 (D-12/D-13/D-14 added)
-last_updated: "2026-06-25T02:15:00.000Z"
+stopped_at: Plan 100-04 Task 1 shipped (4894f265); HALTED at Task 2 blocking human-verify checkpoint awaiting operator live-bot observations
+last_updated: "2026-06-25T03:05:00.000Z"
 progress:
   total_phases: 10
   completed_phases: 7
@@ -26,8 +26,10 @@ See: .planning/PROJECT.md (updated 2026-05-05)
 
 Milestone: v5.3.3 Post-v5.3.2 Live Test Fixes
 Phase: 100 (bot-takeover-ack-debounce-and-price-trigger) — EXECUTING
-Plan: 3 of 4
-Blocker: None for Phase 97.5. Phase 98 reopen is the next gate — cherry-pick `phase-98-preserve/task-1-green-baseline` (Task 1, 95d58f98), apply `98-TASK-2-WIP.patch` (Task 2 expansion), then Task 3 (vi.mock AI provider) + Task 4 (human-verify checkpoint).
+Plan: 4 of 4 — Task 1 SHIPPED, Task 2 BLOCKED at human-verify checkpoint
+Blocker: **Plan 100-04 Task 2 is a `gate="blocking"` `checkpoint:human-verify`** awaiting operator live-bot observation across 4 items (DBNC-01 timing, TAKE-02 takeover ACK + rate-limit, TAKE-01 context-aware handoff, TRIG-01 price-question disclosure). Operator runs the dev WhatsApp test setup (ngrok + Meta test number) and types `approved` with per-item PASS|PARTIAL|FAIL + verbatim bot reply quote per Plan 100-04 `<resume-signal>`. Continuation agent post-approval will write `100-04-SUMMARY.md` + `100-VERIFICATION.md`. Phase 98 reopen remains the next post-Phase-100 gate — cherry-pick `phase-98-preserve/task-1-green-baseline` (Task 1, 95d58f98), apply `98-TASK-2-WIP.patch` (Task 2 expansion), then Task 3 (vi.mock AI provider) + Task 4 (human-verify checkpoint).
+
+**Phase 100 Plan 04 (Baseline invariant lock + human-verify rollup):** Task 1 SHIPPED 2026-06-25 — `4894f265 test(100-04): add Phase 100 baseline invariant lock`. New test file `el-templo-bot/test/v5-3-3-phase-100-baseline-lock.test.ts` (367 lines, ~128ms wall-time) — 33 it cases (32 passing + 1 skipped) covering Phase 93 (2) + Phase 99 (8) + Phase 100 DBNC-01 (5) + TAKE-01/TAKE-02 (7) + TRIG-01 (5) + HARD GUARDS sha256 tripwire (3). Bot suite vs Wave 3 base `cb622df8`: 731 passed / 6 failed / 1 skipped / 738 total across 36 files — failures concentrated in the documented v5.3.3 fake-timer flake family (`v5-3-3-degr-01-escalation.test.ts`, `v5-3-3-phase-100-debounce.test.ts`, `v5-3-3-openai-latency.test.ts`, `v5-3-3-phase-100-takeover-ack.test.ts`, `v5-3-3-handler-concurrency.test.ts`) per STATE.md Pending Decisions; each file passes 100% in isolation. NOTE: plan reframed gate listed 3 flake files but actual flake family is broader (5 files documented — `v5-3-3-openai-latency.test.ts` was already documented in STATE.md as the 94-01 SC#3 flake; `v5-3-3-phase-100-debounce.test.ts` joined the family observably during Plan 100-04 Task 1 — both share the `vi.useFakeTimers + advanceTimersByTimeAsync + promise-resolution-ordering` root cause). API suite vs Wave 3 base: 542 passed / 4 failed / 1 todo / 547 total (1 deterministic BUG-03 (i) LIKE-search RED + 3 intermittent drift-flake failures per 98-FINDING-01). HARD GUARDS verified vs Wave 3 base: `el-templo-api/src/**` 0 diff, `el-templo-bot/src/ai/knowledge.ts` 0 diff, `el-templo-bot/src/webhook/handler.ts` 0 diff, `el-templo-bot/src/ai/system-prompt.ts` 0 diff, DEBOUNCE_TTL_SECONDS line byte-equal, sha256 67670b1e... documented in STATE.md + ROADMAP.md. tsc clean both packages. Rule-3 fix during Task 1: plan asked for the sha256 tripwire in `93-CONTEXT.md` but at HEAD the hash lives in STATE.md + ROADMAP.md (added to rollup planning docs, not per-phase CONTEXT); `it.skip` for the 93-CONTEXT.md assertion with SOFT-signal comment, HARD asserts on STATE.md + ROADMAP.md instead — same intent preserved. Plan 100-04 Task 2 (operator live-test observation) BLOCKING.
 
 **Phase 100 Plan 03 (TRIG-01 widen detectPriceObjection):** SHIPPED 2026-06-25 — `833f76c9` RED → `8b51bfbb` GREEN → `895d6c03` integration. Widened regex to match price QUESTIONS (`precios?`, `cu[aá]nto (sale|cuesta|val[eé])`, `valor(es)?`, `tarifa`, `cuota`, `mensualidad`); single source of truth preserved (grep = 1); 28 unit tests + 3 integration scenarios; Phase 99 PB1 counter integration test still GREEN (14/14 + 1 todo). KGATE-05 NO-OP (system-prompt.ts unchanged across this plan). `el-templo-api/src/**` byte-equal. Closes the live-test gap where question-shaped price-curious leads ("¿cuánto cuesta?") never incremented the PB1 disclosure counter. Three pre-existing bot-suite flake files (`v5-3-3-degr-01-escalation.test.ts`, `v5-3-3-handler-concurrency.test.ts`, `v5-3-3-phase-100-takeover-ack.test.ts`) surface 4 intermittent failures under full-suite parallel/serial load — all pass in isolation; verified pre-existing via stash-and-rerun; recommended remediation: address all three together in a dedicated pre-v5.4.0 debug session (shared `vi.useFakeTimers + advanceTimersByTimeAsync + promise-resolution-ordering` root-cause family per existing Pending Decisions entries).
 
@@ -209,7 +211,7 @@ None. v5.3.2 shipped clean. v5.3.3 ROADMAP.md complete with full coverage; BUG-0
 
 ## Session Continuity
 
-Last session: 2026-06-17T20:32:08.789Z
-Stopped at: Phase 98 CONTEXT refreshed post-97.5 (D-12/D-13/D-14 added)
-Resume file: .planning/phases/98-test-hygiene-98-a-b-c/98-CONTEXT.md
-Next step: `/clear` then `/gsd-discuss-phase 98` (or directly `/gsd-plan-phase 98` with `--reviews` if absorbing 98-A/B/C into RGUARD-01 scope is preferred per Phase 98 absorption option). Cherry-pick recipe at `.planning/phases/98-test-hygiene-98-a-b-c/98-HALT.md`. After Phase 98 reopen ships GREEN, Phase 97 RGUARD-01 lock can finally execute. KGATE-05 ceiling for Phase 97 directive additions remains **32 chars** post-Phase-96.5 ship.
+Last session: 2026-06-25T03:05:00.000Z
+Stopped at: Plan 100-04 Task 1 shipped (4894f265); HALTED at Task 2 blocking human-verify checkpoint awaiting operator live-bot observations
+Resume file: .planning/phases/100-bot-takeover-ack-debounce-and-price-trigger/100-04-PLAN.md
+Next step: Operator runs live-bot observations per Task 2 `<how-to-verify>` (DBNC-01 timing tests, TAKE-02 takeover ACK + rate-limit, TAKE-01 context-aware handoff observation, TRIG-01 price-question PB1 disclosure). Types `approved` with per-item `PASS|PARTIAL|FAIL` + verbatim bot reply quote per `<resume-signal>`. Continuation agent post-approval writes `.planning/phases/100-bot-takeover-ack-debounce-and-price-trigger/100-04-SUMMARY.md` + `.planning/phases/100-bot-takeover-ack-debounce-and-price-trigger/100-VERIFICATION.md` (phase-level rollup). After Phase 100 ship, Phase 98 reopen remains the v5.4.0-path gate — KGATE-05 ceiling for Phase 97 directive additions still **32 chars** post-Phase-96.5 ship.
