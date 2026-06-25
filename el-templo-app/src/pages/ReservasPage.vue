@@ -167,19 +167,14 @@
                   <q-badge color="accent" label="Feriado" />
                 </template>
                 <template v-else-if="slot.isFull">
-                  <span class="slot-card__occupancy slot-card__occupancy--full">
-                    {{ slot.bookedCount }}/{{ slot.maxCapacity }}
-                  </span>
-                  <span class="slot-card__badge slot-card__badge--full">Completo</span>
+                  <span class="slot-card__avail slot-card__avail--full">Completo</span>
                 </template>
-                <template v-else-if="isSlotPast(slot)">
-                  <span class="slot-card__occupancy"
-                    >{{ slot.bookedCount }}/{{ slot.maxCapacity }}</span
-                  >
-                </template>
+                <template v-else-if="isSlotPast(slot)"></template>
                 <template v-else>
-                  <span class="slot-card__occupancy"
-                    >{{ slot.bookedCount }}/{{ slot.maxCapacity }}</span
+                  <span
+                    class="slot-card__avail"
+                    :class="`slot-card__avail--${availabilityLevel(slot)}`"
+                    >{{ AVAILABILITY_LABELS[availabilityLevel(slot)] }}</span
                   >
                   <q-btn
                     flat
@@ -213,19 +208,14 @@
                   <q-badge color="accent" label="Feriado" />
                 </template>
                 <template v-else-if="slot.isFull">
-                  <span class="slot-card__occupancy slot-card__occupancy--full">
-                    {{ slot.bookedCount }}/{{ slot.maxCapacity }}
-                  </span>
-                  <span class="slot-card__badge slot-card__badge--full">Completo</span>
+                  <span class="slot-card__avail slot-card__avail--full">Completo</span>
                 </template>
-                <template v-else-if="isSlotPast(slot)">
-                  <span class="slot-card__occupancy"
-                    >{{ slot.bookedCount }}/{{ slot.maxCapacity }}</span
-                  >
-                </template>
+                <template v-else-if="isSlotPast(slot)"></template>
                 <template v-else>
-                  <span class="slot-card__occupancy"
-                    >{{ slot.bookedCount }}/{{ slot.maxCapacity }}</span
+                  <span
+                    class="slot-card__avail"
+                    :class="`slot-card__avail--${availabilityLevel(slot)}`"
+                    >{{ AVAILABILITY_LABELS[availabilityLevel(slot)] }}</span
                   >
                   <q-btn
                     flat
@@ -401,19 +391,14 @@
                 </q-btn>
               </template>
               <template v-else-if="slot.isFull">
-                <span class="slot-card__occupancy slot-card__occupancy--full">
-                  {{ slot.bookedCount }}/{{ slot.maxCapacity }}
-                </span>
-                <span class="slot-card__badge slot-card__badge--full">Completo</span>
+                <span class="slot-card__avail slot-card__avail--full">Completo</span>
               </template>
-              <template v-else-if="isSlotPast(slot)">
-                <span class="slot-card__occupancy"
-                  >{{ slot.bookedCount }}/{{ slot.maxCapacity }}</span
-                >
-              </template>
+              <template v-else-if="isSlotPast(slot)"></template>
               <template v-else>
-                <span class="slot-card__occupancy"
-                  >{{ slot.bookedCount }}/{{ slot.maxCapacity }}</span
+                <span
+                  class="slot-card__avail"
+                  :class="`slot-card__avail--${availabilityLevel(slot)}`"
+                  >{{ AVAILABILITY_LABELS[availabilityLevel(slot)] }}</span
                 >
                 <q-btn
                   flat
@@ -467,19 +452,14 @@
                 </q-btn>
               </template>
               <template v-else-if="slot.isFull">
-                <span class="slot-card__occupancy slot-card__occupancy--full">
-                  {{ slot.bookedCount }}/{{ slot.maxCapacity }}
-                </span>
-                <span class="slot-card__badge slot-card__badge--full">Completo</span>
+                <span class="slot-card__avail slot-card__avail--full">Completo</span>
               </template>
-              <template v-else-if="isSlotPast(slot)">
-                <span class="slot-card__occupancy"
-                  >{{ slot.bookedCount }}/{{ slot.maxCapacity }}</span
-                >
-              </template>
+              <template v-else-if="isSlotPast(slot)"></template>
               <template v-else>
-                <span class="slot-card__occupancy"
-                  >{{ slot.bookedCount }}/{{ slot.maxCapacity }}</span
+                <span
+                  class="slot-card__avail"
+                  :class="`slot-card__avail--${availabilityLevel(slot)}`"
+                  >{{ AVAILABILITY_LABELS[availabilityLevel(slot)] }}</span
                 >
                 <q-btn
                   flat
@@ -1039,6 +1019,25 @@ function slotCardClass(slot: WeeklySlotView): Record<string, boolean> {
   }
 }
 
+// ─── Availability tier (D: hide raw count, show qualitative label) ──
+// Mirrors the admin Horarios grid exactly (HorariosPage.vue cellClass):
+// ≥100% → completo, ≥70% → pocos lugares (warning), else disponible. Members
+// never see the raw bookedCount/maxCapacity — only the qualitative label.
+type AvailabilityLevel = 'available' | 'few' | 'full'
+
+const AVAILABILITY_LABELS: Record<AvailabilityLevel, string> = {
+  available: 'Disponible',
+  few: 'Pocos lugares',
+  full: 'Completo',
+}
+
+function availabilityLevel(slot: WeeklySlotView): AvailabilityLevel {
+  const pct = slot.maxCapacity > 0 ? (slot.bookedCount / slot.maxCapacity) * 100 : 0
+  if (slot.isFull || pct >= 100) return 'full'
+  if (pct >= 70) return 'few'
+  return 'available'
+}
+
 // ─── Week events (for collapsible summary) ──────────────────────────
 
 interface WeekEvent {
@@ -1154,7 +1153,7 @@ function onSlotTap(slot: WeeklySlotView) {
     reserveDialog.value = {
       show: true,
       title: 'Horario completo',
-      message: `Este horario está completo (${slot.bookedCount}/${slot.maxCapacity}). Querés anotarte en la lista de espera?`,
+      message: `Este horario está completo. Querés anotarte en la lista de espera?`,
       confirmLabel: 'Lista de espera',
       confirmColor: 'warning',
       loading: false,
@@ -1866,13 +1865,27 @@ onBeforeUnmount(() => cleanup())
     gap: 8px;
   }
 
-  &__occupancy {
-    font-size: 12px;
-    color: $grey-6;
+  &__avail {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 9px;
+    border-radius: 8px;
+    white-space: nowrap;
+    letter-spacing: 0.01em;
+
+    &--available {
+      color: #2e7d32;
+      background: #e8f5e9;
+    }
+
+    &--few {
+      color: #a06a00;
+      background: #fff8e1;
+    }
 
     &--full {
       color: $negative;
-      font-weight: 600;
+      background: #ffebee;
     }
   }
 
@@ -1880,16 +1893,8 @@ onBeforeUnmount(() => cleanup())
     font-size: 12px;
     font-weight: 600;
 
-    &--primary {
-      color: $primary;
-    }
-
     &--positive {
       color: $positive;
-    }
-
-    &--full {
-      color: $negative;
     }
   }
 
