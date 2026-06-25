@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v5.2
 milestone_name: Módulo Contable — Libro de Caja
-status: executing
+status: verifying
 stopped_at: Phase 144 UI-SPEC approved
-last_updated: "2026-06-25T22:28:18.341Z"
+last_updated: "2026-06-25T22:42:35.964Z"
 last_activity: 2026-06-25
 progress:
   total_phases: 13
-  completed_phases: 11
+  completed_phases: 12
   total_plans: 55
-  completed_plans: 53
-  percent: 85
+  completed_plans: 54
+  percent: 92
 ---
 
 # Project State
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 
 Phase: 144 (notificaciones-y-bloqueo-de-vencimiento-de-membres-a-plan) — EXECUTING
 Plan: 4 of 4
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-06-25
 Next: Phase 140 (carga única del profe) / 141 (reportes/UI). Phase 141 caja history DEBE LEFT JOIN users (filas NULL-member de movimientos/egresos).
 
@@ -269,6 +269,7 @@ _Updated after each plan completion_
 | Phase 144 P01 | 12min | 3 tasks | 6 files |
 | Phase 144 P02 | 8min | 2 tasks | 2 files |
 | Phase 144 P03 | ~15min | 3 tasks | 4 files |
+| Phase 144 P04 | 20 | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -655,6 +656,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: 144-02: exact-date band (end_date = CURDATE()+N) is the plan-renewal cron's per-threshold idempotency (no tracking column); D-05 suppression via deriveCoveredUntil === threshold
 - [Phase ?]: 144-03: GET /api/members/subscription/coverage vive en member-routes.ts (auth-only), NO en routes.ts (admin-gated → 403 a todo socio); id server-derived (IDOR T-144-08), retorna {coveredUntil, daysRemaining} con daysRemaining anclado a medianoche UTC sobre fecha AR
 - [Phase ?]: 144-03: PlanExpiryDialog gate daysRemaining >= 0 && <= 3 (fix plan-checker — /coverage no barre autoExpire, negativos los cubren push del día + booking block); once-per-DAY via Preferences plan_expiry_shown_v1 (YYYY-MM-DD); país desde userStore.profile.branchCountry (authStore.country no existe); clon de RatingPromptDialog montado en MainLayout
+- [Phase ?]: Phase 144 BOOK-BLOCK: reserve() blocks classes past the server-derived chained covered-until with a distinguishable COVERAGE_EXPIRED code; ReservasPage shows a renewal dialog only for that code
 
 ### Pending Todos
 
@@ -687,7 +689,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-25T22:20:25.428Z
+Last session: 2026-06-25T22:39:42.705Z
 Stopped at: Phase 144 UI-SPEC approved
 Resume file: None
 
