@@ -4,13 +4,13 @@ milestone: v5.3.3
 milestone_name: Post-v5.3.2 Live Test Fixes
 status: executing
 stopped_at: Phase 98 CONTEXT refreshed post-97.5 (D-12/D-13/D-14 added)
-last_updated: "2026-06-24T23:41:02.774Z"
+last_updated: "2026-06-25T01:08:30.598Z"
 progress:
   total_phases: 10
   completed_phases: 7
   total_plans: 17
-  completed_plans: 11
-  percent: 65
+  completed_plans: 12
+  percent: 70
 ---
 
 # Project State
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-05-05)
 
 Milestone: v5.3.3 Post-v5.3.2 Live Test Fixes
 Phase: 100 (bot-takeover-ack-debounce-and-price-trigger) — EXECUTING
-Plan: 2 of 4
+Plan: 3 of 4
 Blocker: None for Phase 97.5. Phase 98 reopen is the next gate — cherry-pick `phase-98-preserve/task-1-green-baseline` (Task 1, 95d58f98), apply `98-TASK-2-WIP.patch` (Task 2 expansion), then Task 3 (vi.mock AI provider) + Task 4 (human-verify checkpoint).
 
 **Phase 95 Plan 95-01 (BUG-03 audit):** SHIPPED 2026-05-18 — atomic commit `2d7cd171` `audit(95-01): branch verdict for BUG-03 + RED tests`. **Final Branch Verdict: Branch 3-{i, ii, iii, iv, v, vi}** — all six candidates fire as a maximal compound. **Candidate (vi) `bk.status` column mismatch at `tools.ts:282` was NEWLY DISCOVERED during RED-test authoring** and is the proximate SHOWSTOPPER — every `executeTool('check_schedule')` throws `Unknown column 'bk.status'` against the real `eltemplo_test` schema before reaching any other candidate's discriminator. Substantive gates green: sha256 6-pair invariant intact, tsc clean both packages, RED tests fail on master (integration 8/9, unit 1/4 with (iii) FIRES), no production source touched, exactly 3 files in commit. Two PLAN.md `<automated>` verify-block bugs documented in audit §G — see Engineering Learnings under Carry-forward planning constraints.
