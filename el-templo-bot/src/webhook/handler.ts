@@ -36,6 +36,7 @@ import {
   recordInboundAt,
   getLatestInboundAt,
 } from "../memory/session.js";
+import { redis, isRedisAvailable } from "../redis.js";
 import {
   advanceStageIfComplete,
   type AdvanceSignals,
@@ -113,6 +114,72 @@ const MAX_MESSAGE_LENGTH = 800;
  */
 const HANDOFF_ESCALATION_PHRASE =
   "Te paso con alguien del equipo, te escriben enseguida 🙌";
+
+/**
+ * Phase 100 TAKE-02 — rate-limited reassurance sent on the FIRST inbound during
+ * human_takeover (within TAKEOVER_ACK_TTL_SECONDS). Subsequent inbounds in the
+ * same window return silently.
+ *
+ * Byte-exact — referenced verbatim by
+ * `el-templo-bot/test/v5-3-3-phase-100-takeover-ack.test.ts` and locked in
+ * 100-02-PLAN.md must_haves. Argentine tuteo + emoji match Mica's voice
+ * (system-prompt.ts:337 identity-block emoji precedent).
+ */
+const TAKEOVER_REASSURANCE_PHRASE =
+  "Alguien del equipo te va a responder a la brevedad 🙏";
+
+/**
+ * Phase 100 TAKE-02 — Redis TTL for `wa:takeover_ack:<phone>` key. Default
+ * 3600s (1h). Env-overridable for staging/test tuning. Per 100-CONTEXT.md,
+ * if takeover lasts > TTL and the lead messages again, a second reassurance
+ * is acceptable (T-100-06 disposition: accept).
+ */
+// prettier-ignore
+const TAKEOVER_ACK_TTL_SECONDS = Number(process.env.TAKEOVER_ACK_TTL_SECONDS ?? 3600);
+
+/**
+ * Phase 100 TAKE-01 — extract the most recent `request_human` reason from
+ * the session history. Scans assistant messages (newest-first) for the
+ * `[tool_call: request_human(<JSON>)]` summary written at the handler's
+ * message-push site (handler.ts:887). When found, parses the JSON args and
+ * returns the `reason` field; otherwise returns undefined.
+ *
+ * Wiring choice (per 100-02-PLAN.md Task 2 step 3 discretion): the handler's
+ * system prompt is built ONCE per inbound at the top of `processWithAiInner`
+ * — there is no per-iteration getSystemPrompt re-call site. So the TAKE-01
+ * reinforcement lives at handler-entry: when the model previously emitted a
+ * `request_human` call (visible in session history because the handler
+ * stores tool-call summaries as assistant content), the NEXT inbound's
+ * system prompt receives the `handoffReason` and the addendum's contextual-
+ * ack guidance fires reliably for that next turn.
+ *
+ * Free-text scope (matches tools.ts:148-160 `request_human.reason` schema —
+ * arbitrary model-generated strings like "usuario lesionado busca
+ * asesoramiento"). Treated as DATA, NOT instructions, in the addendum body.
+ */
+function extractMostRecentRequestHumanReason(
+  sessionMessages: Array<{ role: string; content: string }>,
+): string | undefined {
+  // Scan newest-first so the MOST RECENT escalation reason wins.
+  for (let i = sessionMessages.length - 1; i >= 0; i--) {
+    const msg = sessionMessages[i];
+    if (msg.role !== "assistant") continue;
+    const match = msg.content.match(
+      /\[tool_call: request_human\((\{[^)]*\})\)\]/,
+    );
+    if (!match) continue;
+    try {
+      const parsed = JSON.parse(match[1]) as { reason?: unknown };
+      if (typeof parsed.reason === "string" && parsed.reason.length > 0) {
+        return parsed.reason;
+      }
+    } catch {
+      // Malformed tool-call JSON — skip and keep scanning earlier messages.
+      continue;
+    }
+  }
+  return undefined;
+}
 
 /**
  * Static byte-exact return strings that count as a tool-call failure per
@@ -419,11 +486,85 @@ export async function handleInboundMessage(
     "Saved inbound message",
   );
 
-  // 3. Human takeover check -- bot stays silent
+  // 3. Human takeover check -- bot stays silent (TAKE-02 rate-limited reassurance)
+  //
+  // Phase 100 TAKE-02: replaces the legacy bare `return` with a 3-branch
+  // Redis fail-mode dispatch. The AI provider is NEVER invoked in this
+  // block — the early `return` at the end of each branch preempts the
+  // processWithAi call below. Verified by the test sentinel that mocks
+  // provider.chat to throw on any invocation.
   if (conversationStatus === "human_takeover") {
+    // Branch 1 — Redis UNAVAILABLE: fail-OPEN. Send the reassurance
+    // unconditionally. User-visible cost is at most one duplicate ack across
+    // an outage; the alternative (silent dead-end) IS the live-test bug we
+    // are fixing — same shape as the legacy bare return.
+    if (!isRedisAvailable()) {
+      try {
+        await sendTextMessage(message.phone, TAKEOVER_REASSURANCE_PHRASE);
+      } catch (sendErr: unknown) {
+        const sendErrorMessage =
+          sendErr instanceof Error ? sendErr.message : String(sendErr);
+        log.error(
+          { err: sendErrorMessage, conversationId, phone: message.phone },
+          "TAKE-02 Redis unavailable AND sendTextMessage failed",
+        );
+      }
+      log.warn(
+        { phone: message.phone, conversationId },
+        "TAKE-02 Redis unavailable, sending unconditional reassurance",
+      );
+      return;
+    }
+
+    // Branches 2/3 — Redis AVAILABLE. SETEX-NX is the rate-limit primitive.
+    // Wrap the call in try/catch so a network blip / OOM / other Redis
+    // exception triggers fail-CLOSED (no send, log + return). With the
+    // client otherwise healthy but the write failing, we cannot trust
+    // whether the key exists; sending under that ambiguity could lead to a
+    // repeat-ack on the next inbound if the second SETEX also fails. Silent
+    // return for one turn is the safer trade.
+    let acked: string | null;
+    try {
+      acked = await redis.set(
+        `wa:takeover_ack:${message.phone}`,
+        "1",
+        "EX",
+        TAKEOVER_ACK_TTL_SECONDS,
+        "NX",
+      );
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      log.error(
+        { err: errorMessage, phone: message.phone, conversationId },
+        "TAKE-02 Redis SET error, fail-closed",
+      );
+      return;
+    }
+
+    // Branch 3 — Redis AVAILABLE and SETEX succeeded.
+    if (acked === "OK") {
+      try {
+        await sendTextMessage(message.phone, TAKEOVER_REASSURANCE_PHRASE);
+      } catch (sendErr: unknown) {
+        const sendErrorMessage =
+          sendErr instanceof Error ? sendErr.message : String(sendErr);
+        log.error(
+          { err: sendErrorMessage, conversationId, phone: message.phone },
+          "TAKE-02 sendTextMessage failed",
+        );
+      }
+      log.info(
+        { phone: message.phone, conversationId },
+        "TAKE-02 reassurance sent",
+      );
+      return;
+    }
+
+    // acked === null — the wa:takeover_ack:<phone> key already exists, so a
+    // prior reassurance was sent within the TTL window. Suppress.
     log.info(
-      { conversationId },
-      "Conversation in human_takeover, bot staying silent",
+      { phone: message.phone, conversationId },
+      "TAKE-02 reassurance suppressed (within TTL)",
     );
     return;
   }
@@ -759,6 +900,16 @@ async function processWithAiInner(
     shouldDisclosePrices(newPriceInsistenceCount) &&
     resolved.playbookId === "PB1";
 
+  // TAKE-01 (v5.3.3 Phase 100): scan session history at handler entry for
+  // the most recent `request_human` tool call's reason. When present, the
+  // system-prompt HANDOFF_CONTEXT_AWARE_ADDENDUM injects with this reason
+  // interpolated as DATA (NOT instructions) and reinforces the contextual-
+  // ack model behavior for the current turn. KGATE-05 NO-OP at PB1.E1A is
+  // enforced inside `getSystemPrompt`.
+  const handoffReason: string | undefined = session?.messages
+    ? extractMostRecentRequestHumanReason(session.messages)
+    : undefined;
+
   const renderedSystemPrompt = getSystemPrompt({
     clientState,
     profileContext: profileContext || undefined,
@@ -774,6 +925,10 @@ async function processWithAiInner(
     softRejectionRule,
     // PRICE-02 (v5.3.3 Phase 99): disclosure-unlocked addendum trigger.
     disclosureUnlocked,
+    // TAKE-01 (v5.3.3 Phase 100): context-aware handoff addendum trigger.
+    // Undefined when no prior request_human in session history; otherwise the
+    // free-text reason from the most recent escalation.
+    handoffReason,
   });
 
   // Diagnostic: confirm playbook bytes actually land in the rendered prompt.
