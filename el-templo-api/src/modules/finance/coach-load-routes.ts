@@ -29,11 +29,14 @@ import { FastifyPluginAsync } from "fastify";
 import { eq } from "drizzle-orm";
 import { TransactionService, BalanceService, CashRegisterService } from ".";
 import { SubscriptionService } from "../subscriptions/service";
+import type { PriceType } from "../subscriptions/types";
+import { MemberService } from "../members/service";
 import { AuraService } from "../aura/service";
 import { EnrollmentService } from "../programs/enrollment-service";
 import { handleServiceError } from "../shared/error-handler";
 import { FINANCE_LOAD_ROLES, type AdminRole } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
+import { requireBranchAccess } from "../shared/branch-access";
 import { isDuplicateKeyError } from "../shared/sql-errors";
 import * as schema from "../../db/schema";
 import type { PaymentMethod, TransactionDetail } from "./types";
@@ -57,6 +60,31 @@ interface CoachMiscLoadBody {
   // Phase 145 (COBRO-01): structured motivo del cobro suelto. REQUIRED (the PoS
   // dropdown is obligatorio); persisted to misc_reason, NOT to notes.
   miscReason: "sin_plan" | "otro";
+}
+
+// Phase 148 (ALTA-01..07): alta de alumno + plan en el cobro. El profe resuelve
+// un alumno existente (`userId`) O crea uno nuevo (`firstName`+`lastName`+`dni`,
+// dedup por DNI antes de crear) y le asigna un plan + turnos + cobro 'pendiente'.
+// `branchId` (sede elegida) es NUEVO en este plugin → gated por requireBranchAccess.
+interface CoachAltaBody {
+  // Rama "alumno existente" (XOR con la rama "alumno nuevo" — validado en el handler).
+  userId?: number;
+  // Rama "alumno nuevo" (los 3 juntos; dedup por DNI antes de crear).
+  firstName?: string;
+  lastName?: string;
+  dni?: string;
+  // Sede elegida del socio (catálogo real). Gated por requireBranchAccess.
+  branchId: number;
+  planId: number;
+  // Toggle "Precio Zero". paymentMethod 'card' override a priceCreditCard en el handler.
+  zero?: boolean;
+  paymentMethod: "cash" | "transfer" | "card" | "aura_credit" | "internal";
+  // Monto recibido (cents). < precio → deja deuda (assignPlan lo soporta).
+  amountReceived?: number;
+  // Solo planes fixed: assignPlan valida length === plan.classesPerWeek.
+  scheduleIds?: number[];
+  notes?: string;
+  idempotencyKey: string;
 }
 
 // ── JSON schemas (reject validationStatus / cashRegisterId) ──────────────────
@@ -113,6 +141,39 @@ const coachMiscLoadSchema = {
   },
 } as const;
 
+// Phase 148 (ALTA-01..07 / T-148-10): mismo contrato server-derived que pay-plan/misc
+// — additionalProperties:false + SIN cashRegisterId/validationStatus (la caja se sugiere
+// server-side desde la sede del profe; el status nace del rol, nunca del body). La XOR
+// userId ↔ {firstName,lastName,dni} se valida en el handler (JSON-Schema no la expresa
+// de forma limpia con additionalProperties:false).
+const coachAltaSchema = {
+  body: {
+    type: "object",
+    required: ["branchId", "planId", "paymentMethod", "idempotencyKey"],
+    additionalProperties: false,
+    properties: {
+      // Rama "alumno existente".
+      userId: { type: "integer", minimum: 1 },
+      // Rama "alumno nuevo" (dedup por DNI antes de crear).
+      firstName: { type: "string", minLength: 1, maxLength: 100 },
+      lastName: { type: "string", minLength: 1, maxLength: 100 },
+      dni: { type: "string", minLength: 1, maxLength: 32 },
+      // Sede elegida (NUEVO en este plugin — gated por requireBranchAccess).
+      branchId: { type: "integer", minimum: 1 },
+      planId: { type: "integer", minimum: 1 },
+      zero: { type: "boolean" },
+      paymentMethod: { type: "string", enum: PAYMENT_METHOD_ENUM },
+      amountReceived: { type: "integer", minimum: 0 },
+      scheduleIds: {
+        type: "array",
+        items: { type: "integer", minimum: 1 },
+      },
+      notes: { type: "string", maxLength: 500 },
+      idempotencyKey: { type: "string", minLength: 1, maxLength: 64 },
+    },
+  },
+} as const;
+
 const autocompletarSchema = {
   params: {
     type: "object",
@@ -140,6 +201,10 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
     enrollmentService,
   );
   transactionService.setSubscriptionCanceller(subscriptionService);
+  // Phase 148: el orquestador /alta resuelve/crea el alumno (dedup por DNI) antes
+  // de assignPlan. memberService NO estaba wireado en este plugin (solo en
+  // members/routes.ts) — se instancia igual que ahí (fastify.db, fastify.log).
+  const memberService = new MemberService(fastify.db, fastify.log);
 
   // ── Module guard: authenticate + FINANCE_LOAD_ROLES (coach ∈) + scope ──
   // SEPARATE from finance/routes.ts so the FINANCE_READ_ROLES module hook there
@@ -462,6 +527,24 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
         }
         handleServiceError(err, reply, request.log, "coach misc load");
       }
+    },
+  );
+
+  // ===================================================================
+  // POST /alta — alta de alumno + plan en el cobro (ALTA-01..07). Handler
+  // implementado en Task 2 (148-02). branchId (sede elegida) gated por
+  // requireBranchAccess — primer endpoint del plugin que acepta branchId.
+  // ===================================================================
+  fastify.post<{ Body: CoachAltaBody }>(
+    "/alta",
+    {
+      schema: coachAltaSchema,
+      preHandler: requireBranchAccess({ from: "body.branchId" }),
+    },
+    async (_request, reply) => {
+      return reply
+        .code(501)
+        .send({ error: "No implementado", message: "Pendiente Task 2" });
     },
   );
 
