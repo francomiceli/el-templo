@@ -73,6 +73,21 @@
             {{ slotProps.row.memberName }}
           </span>
           <span v-else class="text-weight-medium">{{ slotProps.row.memberName }}</span>
+          <!-- COBRO-02: cobro suelto sin plan activo → chip que lleva a la ficha a asignar el plan. -->
+          <div v-if="slotProps.row.miscReason === 'sin_plan' && slotProps.row.memberId">
+            <q-chip
+              clickable
+              dense
+              color="warning"
+              text-color="dark"
+              icon="person_add"
+              size="sm"
+              class="q-mt-xs q-ml-none"
+              @click="goToMember(slotProps.row.memberId)"
+            >
+              Sin plan — asignar
+            </q-chip>
+          </div>
         </q-td>
       </template>
 
