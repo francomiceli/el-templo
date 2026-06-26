@@ -161,6 +161,16 @@ export interface VoidTransactionInput {
 
 export interface TransactionDetail extends FinancialTransactionRow {
   links: TransactionLinkRow[];
+  /**
+   * Phase 148 (ALTA-06): nombre (firstName + lastName) del alumno que ESTA carga
+   * creó vía el alta del PoS profe — resuelto por join a users sobre
+   * `createdMemberId`. `null` cuando la carga no creó alumno (preexistente /
+   * path admin). La bandeja (148-06) lo usa para la copy de advertencia al
+   * anular ("Esta carga creó al alumno {nombre}. Al anular, también se
+   * desactivará su membresía…"). Campo aditivo/opcional — no altera el filtro de
+   * dinero firme ni las métricas.
+   */
+  createdMemberName?: string | null;
 }
 
 // -- Phase 106: list/history shapes ----------------------------------------
@@ -418,6 +428,12 @@ export interface PendingTrayItem {
   // Phase 145 (COBRO-02): motivo del cobro suelto. 'sin_plan' → la fila muestra
   // un chip "Sin plan — asignar" en la bandeja; null para filas no-misc.
   miscReason: "sin_plan" | "otro" | null;
+  // Phase 148 (ALTA-06): si ESTA carga creó un alumno nuevo (PoS profe alta),
+  // su id + nombre para que la bandeja muestre la copy de advertencia al anular
+  // ("Esta carga creó al alumno {nombre}. Al anular, también se desactivará su
+  // membresía…"). Ambos null para cargas de alumno preexistente / path admin.
+  createdMemberId: number | null;
+  createdMemberName: string | null;
 }
 
 /** Filtros para listPendingTray (REP-01). */

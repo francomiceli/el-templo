@@ -978,9 +978,21 @@ export class TransactionService {
 
   /** Get a single transaction with its links. */
   async getById(id: number): Promise<TransactionDetail | null> {
+    // Phase 148 (ALTA-06): leftJoin a users por createdMemberId para surfacar el
+    // nombre del alumno creado (null cuando la carga no creó alumno). Aditivo —
+    // no cambia el conjunto de filas (leftJoin) ni el filtro de dinero firme.
+    const createdMember = alias(schema.users, "created_member");
     const [row] = await this.db
-      .select()
+      .select({
+        tx: schema.financialTransactions,
+        createdMemberFirstName: createdMember.firstName,
+        createdMemberLastName: createdMember.lastName,
+      })
       .from(schema.financialTransactions)
+      .leftJoin(
+        createdMember,
+        eq(createdMember.id, schema.financialTransactions.createdMemberId),
+      )
       .where(eq(schema.financialTransactions.id, id))
       .limit(1);
     if (!row) return null;
@@ -988,7 +1000,13 @@ export class TransactionService {
       .select()
       .from(schema.transactionLinks)
       .where(eq(schema.transactionLinks.transactionId, id));
-    return { ...row, links };
+    const createdMemberName =
+      row.createdMemberFirstName !== null
+        ? `${row.createdMemberFirstName ?? ""} ${
+            row.createdMemberLastName ?? ""
+          }`.trim()
+        : null;
+    return { ...row.tx, links, createdMemberName };
   }
 
   /** List a member's transactions ordered by transaction_date desc. */
@@ -1232,6 +1250,9 @@ export class TransactionService {
     const offset = (page - 1) * limit;
 
     const recorder = alias(schema.users, "recorder");
+    // Phase 148 (ALTA-06): alumno creado por la carga (PoS profe alta) para la
+    // copy de advertencia de la bandeja al anular. leftJoin → null si no aplica.
+    const createdMember = alias(schema.users, "created_member");
 
     // status → validation_status condition. 'todos'/undefined → IN(both).
     let statusCond: SQL;
@@ -1317,6 +1338,9 @@ export class TransactionService {
         recorderLastName: recorder.lastName,
         validationStatus: schema.financialTransactions.validationStatus,
         miscReason: schema.financialTransactions.miscReason,
+        createdMemberId: schema.financialTransactions.createdMemberId,
+        createdMemberFirstName: createdMember.firstName,
+        createdMemberLastName: createdMember.lastName,
       })
       .from(schema.financialTransactions)
       .leftJoin(
@@ -1337,6 +1361,10 @@ export class TransactionService {
       .leftJoin(
         recorder,
         eq(recorder.id, schema.financialTransactions.recordedBy),
+      )
+      .leftJoin(
+        createdMember,
+        eq(createdMember.id, schema.financialTransactions.createdMemberId),
       )
       .where(and(...conditions))
       // REP-01 / D-02: OLDEST-FIRST (opposite of list()'s desc).
@@ -1381,6 +1409,13 @@ export class TransactionService {
         ageInDays,
         isOverdue: ageInDays > threshold,
         miscReason: r.miscReason,
+        createdMemberId: r.createdMemberId,
+        createdMemberName:
+          r.createdMemberFirstName !== null
+            ? `${r.createdMemberFirstName ?? ""} ${
+                r.createdMemberLastName ?? ""
+              }`.trim()
+            : null,
       };
     });
 
