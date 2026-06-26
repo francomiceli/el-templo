@@ -166,7 +166,7 @@
         </template>
 
         <!-- MODE B: Cobro suelto -->
-        <template v-else>
+        <template v-else-if="mode === 'misc'">
           <template v-if="selectedMember">
             <q-input
               v-model.number="amount"
@@ -196,8 +196,84 @@
           </template>
         </template>
 
+        <!-- MODE C: Alta + plan — grilla de planes por tier + Zero + turnos fixed -->
+        <template v-else-if="mode === 'alta' && hasAlumnoContext">
+          <div class="text-subtitle1 text-weight-bold q-mt-md">Plan</div>
+
+          <div v-if="loadingPlans" class="q-gutter-sm">
+            <q-skeleton v-for="n in 3" :key="n" type="rect" height="56px" />
+          </div>
+          <div
+            v-else-if="plansByTier.length === 0"
+            class="text-grey-5 text-italic q-pa-md text-center"
+          >
+            No hay planes activos para esta sede.
+          </div>
+          <template v-else>
+            <div v-for="tier in plansByTier" :key="tier.tier" class="q-mb-sm">
+              <q-badge
+                :color="tierColor(tier.tier)"
+                :label="tierLabel(tier.tier)"
+                class="q-mb-xs"
+              />
+              <q-list bordered separator class="rounded-borders">
+                <q-item
+                  v-for="plan in tier.plans"
+                  :key="plan.id"
+                  clickable
+                  v-ripple
+                  class="q-py-md"
+                  :active="selectedPlan?.id === plan.id"
+                  active-class="bg-primary text-white"
+                  @click="selectPlan(plan)"
+                >
+                  <q-item-section>
+                    <q-item-label>{{ plan.name }}</q-item-label>
+                    <q-item-label caption :class="selectedPlan?.id === plan.id ? 'text-white' : ''">
+                      {{ plan.durationDays }} días
+                      <template v-if="plan.classesPerWeek">
+                        · {{ plan.classesPerWeek }} clases/sem
+                      </template>
+                      <template v-else> · Ilimitado </template>
+                    </q-item-label>
+                  </q-item-section>
+                  <q-item-section side>
+                    <div
+                      class="text-weight-bold"
+                      :class="selectedPlan?.id === plan.id ? 'text-white' : ''"
+                    >
+                      {{ formatPrice(plan.priceRegular, plan.currency) }}
+                    </div>
+                  </q-item-section>
+                </q-item>
+              </q-list>
+            </div>
+
+            <!-- Toggle Precio Zero (regular ↔ zero) -->
+            <q-toggle v-model="zeroPrice" label="Precio Zero" color="positive" class="q-mt-sm" />
+          </template>
+
+          <!-- Turnos: estructurado SOLO para planes fixed; flexible = caption -->
+          <template v-if="selectedPlan">
+            <template v-if="selectedPlan.bookingMode === 'fixed'">
+              <div class="text-subtitle1 text-weight-bold q-mt-md q-mb-xs">Turnos fijos</div>
+              <FixedSchedulePicker
+                v-model="scheduleIds"
+                :branch-id="sucursalId ?? 0"
+                :required-count="selectedPlan.classesPerWeek"
+                :allow-partial="false"
+                :multi-branch="selectedPlan.multiBranch"
+                :available-branches="multiBranchOptions"
+              />
+            </template>
+            <div v-else class="text-caption text-grey-7 q-mt-sm">
+              Este plan reserva semana a semana — no se eligen turnos ahora.
+            </div>
+          </template>
+        </template>
+
         <!-- Medio de pago -->
-        <template v-if="selectedMember && showPaymentMethods">
+        <template v-if="hasAlumnoContext && showPaymentMethods">
           <div class="text-subtitle1 q-mt-md q-mb-xs">Medio de pago</div>
           <div class="q-gutter-sm">
             <q-btn
@@ -214,6 +290,28 @@
               @click="paymentMethod = opt.value"
             />
           </div>
+
+          <!-- ALTA: Monto autocalculado (editable) + banner deuda (parcial) -->
+          <template v-if="mode === 'alta' && selectedPlan && paymentMethod">
+            <q-input
+              v-model.number="amount"
+              type="number"
+              inputmode="numeric"
+              label="Monto"
+              outlined
+              class="q-mt-sm"
+              :suffix="altaCurrencySymbol"
+              hint="Por defecto se cobra el total. Editá si el cobro es parcial."
+            />
+            <q-banner v-if="isAltaPartial" dense rounded class="bg-warning text-dark q-mt-sm">
+              <template #avatar>
+                <q-icon name="warning" color="dark" />
+              </template>
+              El alumno quedará deudor por
+              {{ formatPrice(altaPrice - (amount ?? 0), altaCurrency) }}.
+            </q-banner>
+          </template>
+
           <div class="text-caption text-grey-7 q-mt-sm">
             <q-icon name="schedule" size="xs" class="q-mr-xs" />Queda pendiente de validación.
           </div>
@@ -252,6 +350,7 @@
               :label="methodLabel(ticket.paymentMethod)"
             />
             <q-badge color="warning" label="Pendiente" />
+            <q-badge v-if="createdNewTicketIds.has(ticket.id)" color="primary" label="Nuevo" />
           </div>
         </q-item-section>
         <q-item-section side top>
@@ -282,22 +381,31 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { useQuasar } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { formatPrice } from 'src/utils/format-price';
 import { useMembersApi } from 'src/composables/useMembersApi';
-import { useFinanceLoadApi, type AutocompletarResult } from 'src/composables/useFinanceLoadApi';
+import {
+  useFinanceLoadApi,
+  type AutocompletarResult,
+  type CoachAltaInput,
+} from 'src/composables/useFinanceLoadApi';
+import { useSubscriptionsApi } from 'src/composables/useSubscriptionsApi';
 import { useAuthStore } from 'src/stores/useAuthStore';
 import { PAYMENT_METHOD_LABELS, PAYMENT_METHOD_COLORS } from 'src/types/transaction';
+import { PLAN_TIER_LABELS } from 'src/types/subscription';
 import type { PaymentMethod, TransactionListItem } from 'src/types/transaction';
 import type { BranchOption } from 'src/types/member';
 import type { DuplicateMatch } from 'src/composables/useMembersApi';
+import type { PlanListItem, PlanTier } from 'src/types/subscription';
+import FixedSchedulePicker from 'src/components/scheduling/FixedSchedulePicker.vue';
 
 const log = createLogger('cargar-pago');
 const $q = useQuasar();
 const membersApi = useMembersApi();
 const financeApi = useFinanceLoadApi();
+const subsApi = useSubscriptionsApi();
 const authStore = useAuthStore();
 
 type Mode = 'renew' | 'misc' | 'alta';
@@ -341,6 +449,15 @@ const newStudent = ref<{ firstName: string; lastName: string; dni: string }>({
 const dedupMatch = ref<DuplicateMatch | null>(null);
 const dedupChecking = ref(false);
 
+// Plan grid (por sede) + selección + Zero + turnos fijos (solo planes fixed).
+const plans = ref<PlanListItem[]>([]);
+const loadingPlans = ref(false);
+const selectedPlan = ref<PlanListItem | null>(null);
+const zeroPrice = ref(false);
+const scheduleIds = ref<number[]>([]);
+// IDs de los tickets que ESTA alta creó-nuevo → chip "Nuevo" tras el re-fetch.
+const createdNewTicketIds = ref<Set<number>>(new Set());
+
 // ─── Typeahead state ──────────────────────────────────────────────────────
 const memberSearchResults = ref<MemberSearchOption[]>([]);
 const searchQuery = ref('');
@@ -375,12 +492,29 @@ const showPaymentMethods = computed(() => {
   if (mode.value === 'renew') {
     return !autocompletando.value && autocompletar.value?.hasRenewable === true;
   }
+  if (mode.value === 'alta') {
+    // El medio de pago (y el monto) aparecen una vez elegido el plan.
+    return selectedPlan.value != null;
+  }
   return true;
 });
 
 const canConfirm = computed(() => {
-  if (!selectedMember.value || !paymentMethod.value) return false;
+  if (!paymentMethod.value) return false;
   if (!amount.value || amount.value <= 0) return false;
+
+  if (mode.value === 'alta') {
+    // Alumno existente OR alumno nuevo válido (nombre+apellido+DNI).
+    const hasAlumno = selectedMember.value != null || newStudentValid.value;
+    if (!hasAlumno || sucursalId.value == null || !selectedPlan.value) return false;
+    // Planes fixed exigen exactamente classesPerWeek turnos.
+    if (selectedPlan.value.bookingMode === 'fixed') {
+      return scheduleIds.value.length === (selectedPlan.value.classesPerWeek ?? 0);
+    }
+    return true;
+  }
+
+  if (!selectedMember.value) return false;
   if (mode.value === 'renew') {
     return autocompletar.value?.hasRenewable === true;
   }
@@ -390,7 +524,8 @@ const canConfirm = computed(() => {
 
 const confirmarLabel = computed(() => {
   if (amount.value && amount.value > 0) {
-    const cur = autocompletar.value?.currency ?? 'ARS';
+    const cur =
+      mode.value === 'alta' ? altaCurrency.value : (autocompletar.value?.currency ?? 'ARS');
     return `Confirmar · ${formatPrice(amount.value, cur)}`;
   }
   return 'Confirmar';
@@ -422,6 +557,9 @@ function resetAltaFields() {
   newStudent.value = { firstName: '', lastName: '', dni: '' };
   dedupMatch.value = null;
   dedupChecking.value = false;
+  selectedPlan.value = null;
+  zeroPrice.value = false;
+  scheduleIds.value = [];
 }
 
 function onNuevoAlumno() {
@@ -464,10 +602,109 @@ function onUsarExistente() {
 }
 
 function onSucursalChange() {
-  // Cambiar la sede limpia el plan elegido + turnos (catálogo/picker por sede).
-  // Task 3 cablea la recarga de planes; acá sólo se reinicia la idempotencia.
+  // Cambiar la sede limpia el plan elegido + turnos (catálogo/picker por sede)
+  // y recarga el catálogo de planes de esa sede.
+  selectedPlan.value = null;
+  scheduleIds.value = [];
   currentIdempotencyKey.value = null;
+  void loadAltaPlans();
 }
+
+// ─── Alta: plan grid + precio + turnos ────────────────────────────────────
+const hasAlumnoContext = computed(
+  () => selectedMember.value != null || (mode.value === 'alta' && showNewStudentForm.value)
+);
+
+const newStudentValid = computed(
+  () =>
+    showNewStudentForm.value &&
+    newStudent.value.firstName.trim().length > 0 &&
+    newStudent.value.lastName.trim().length > 0 &&
+    newStudent.value.dni.trim().length >= 7
+);
+
+interface TierGroup {
+  tier: PlanTier;
+  plans: PlanListItem[];
+}
+
+const plansByTier = computed((): TierGroup[] => {
+  const tierOrder: PlanTier[] = ['flex', 'foundation', 'performance', 'other'];
+  const groups: TierGroup[] = [];
+  for (const tier of tierOrder) {
+    const tierPlans = plans.value.filter((p) => p.planTier === tier);
+    if (tierPlans.length > 0) groups.push({ tier, plans: tierPlans });
+  }
+  return groups;
+});
+
+const multiBranchOptions = computed(() =>
+  branchOptions.value.filter((b) => !b.isVirtual).map((b) => ({ id: b.id, name: b.name }))
+);
+
+const altaCurrency = computed(() => selectedPlan.value?.currency ?? 'ARS');
+const altaCurrencySymbol = computed(() => (altaCurrency.value === 'EUR' ? '€' : '$'));
+
+function getBasePriceFor(plan: PlanListItem, method: LoadPaymentMethod, zero: boolean): number {
+  if (method === 'card') return plan.priceCreditCard ?? plan.priceRegular;
+  return zero ? plan.priceZero : plan.priceRegular;
+}
+
+const altaPrice = computed(() => {
+  if (!selectedPlan.value || !paymentMethod.value) return 0;
+  return getBasePriceFor(selectedPlan.value, paymentMethod.value, zeroPrice.value);
+});
+
+const isAltaPartial = computed(
+  () => altaPrice.value > 0 && amount.value != null && amount.value < altaPrice.value
+);
+
+function tierLabel(tier: PlanTier): string {
+  return PLAN_TIER_LABELS[tier] ?? tier;
+}
+
+function tierColor(tier: PlanTier): string {
+  const colors: Record<PlanTier, string> = {
+    flex: 'blue',
+    foundation: 'teal',
+    performance: 'deep-purple',
+    other: 'grey',
+  };
+  return colors[tier] ?? 'grey';
+}
+
+function selectPlan(plan: PlanListItem) {
+  selectedPlan.value = plan;
+  // Turnos dependen del plan: reiniciar la selección al cambiar de plan.
+  scheduleIds.value = [];
+  // El precio se re-deriva del plan × medio × Zero (watcher debajo).
+}
+
+async function loadAltaPlans() {
+  if (sucursalId.value == null) {
+    plans.value = [];
+    return;
+  }
+  loadingPlans.value = true;
+  try {
+    plans.value = await subsApi.getPlans(true, { branchId: sucursalId.value });
+  } catch (err: unknown) {
+    log.error('Error cargando planes', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    plans.value = [];
+  } finally {
+    loadingPlans.value = false;
+  }
+}
+
+// Monto autocalculado: plan × medio de pago × Zero. Editable después a mano.
+watch([selectedPlan, paymentMethod, zeroPrice], () => {
+  if (mode.value !== 'alta') return;
+  if (selectedPlan.value && paymentMethod.value) {
+    amount.value = altaPrice.value;
+  }
+});
 
 // ─── Typeahead ────────────────────────────────────────────────────────────
 function onMemberSearch(val: string, update: (fn: () => void) => void, _abort: () => void) {
@@ -543,9 +780,10 @@ function onModeChange() {
   resetChargeFields();
   // Switching OUT of (or INTO) alta clears the new-student mini-form (UI-SPEC).
   resetAltaFields();
-  // Al entrar a alta, asegurar el catálogo de sedes para el chip Sede.
-  if (mode.value === 'alta' && branchOptions.value.length === 0) {
-    void loadBranches();
+  // Al entrar a alta, asegurar el catálogo de sedes + planes de la sede actual.
+  if (mode.value === 'alta') {
+    if (branchOptions.value.length === 0) void loadBranches();
+    void loadAltaPlans();
   }
   // POS-01: reload autocompletar in BOTH modes so the deuda banner survives the
   // mode switch (in misc it is informativo: no amount pre-fill, no block).
@@ -576,7 +814,11 @@ async function loadAutocompletar(userId: number) {
 
 // ─── Confirmar (idempotent submit) ────────────────────────────────────────
 async function onConfirm() {
-  if (!canConfirm.value || !selectedMember.value || !paymentMethod.value || !amount.value) {
+  if (!canConfirm.value || !paymentMethod.value || !amount.value) {
+    return;
+  }
+  // renew/misc exigen un socio existente; alta puede crear uno nuevo.
+  if (mode.value !== 'alta' && !selectedMember.value) {
     return;
   }
   // In misc mode the motivo is obligatorio (canConfirm guards it); narrow here.
@@ -593,14 +835,14 @@ async function onConfirm() {
   try {
     if (mode.value === 'renew') {
       await financeApi.payPlan({
-        userId: selectedMember.value.id,
+        userId: selectedMember.value!.id,
         amountReceived: amount.value,
         paymentMethod: paymentMethod.value,
         idempotencyKey,
       });
-    } else {
+    } else if (mode.value === 'misc') {
       await financeApi.miscCharge({
-        memberId: selectedMember.value.id,
+        memberId: selectedMember.value!.id,
         amount: amount.value,
         concepto: concepto.value.trim(),
         paymentMethod: paymentMethod.value,
@@ -608,8 +850,37 @@ async function onConfirm() {
         idempotencyKey,
         miscReason: miscReason.value ?? 'sin_plan',
       });
+    } else {
+      // ALTA + plan: alumno existente (userId) XOR alumno nuevo (firstName+...).
+      if (sucursalId.value == null || !selectedPlan.value) return;
+      const alumno = selectedMember.value
+        ? { userId: selectedMember.value.id }
+        : {
+            firstName: newStudent.value.firstName.trim(),
+            lastName: newStudent.value.lastName.trim(),
+            dni: newStudent.value.dni.trim(),
+          };
+      const body: CoachAltaInput = {
+        ...alumno,
+        branchId: sucursalId.value,
+        planId: selectedPlan.value.id,
+        zero: zeroPrice.value,
+        paymentMethod: paymentMethod.value,
+        amountReceived: amount.value,
+        idempotencyKey,
+        ...(selectedPlan.value.bookingMode === 'fixed' ? { scheduleIds: scheduleIds.value } : {}),
+      };
+      const resp = await financeApi.altaConPlan(body);
+      // Marcar el ticket creado-nuevo para el chip "Nuevo" (sobrevive al re-fetch).
+      if (resp.createdNew && resp.transaction) {
+        createdNewTicketIds.value = new Set(createdNewTicketIds.value).add(resp.transaction.id);
+      }
     }
-    $q.notify({ type: 'positive', message: 'Pago cargado — pendiente de validación' });
+    const successMsg =
+      mode.value === 'alta'
+        ? 'Alumno y plan cargados — pendiente de validación'
+        : 'Pago cargado — pendiente de validación';
+    $q.notify({ type: 'positive', message: successMsg });
     // Re-fetch the coach's own loads: the server is the source of truth and an
     // idempotent no-op replay returns the existing ticket, so this de-dupes
     // automatically (no duplicate row from a double-tap that slipped past disable).
@@ -621,7 +892,11 @@ async function onConfirm() {
     log.error('Error cargando pago', {
       error: err instanceof Error ? err.message : String(err),
     });
-    $q.notify({ type: 'negative', message: 'No se pudo cargar el pago. Reintentá.' });
+    const errorMsg =
+      mode.value === 'alta'
+        ? 'No se pudo cargar. Reintentá.'
+        : 'No se pudo cargar el pago. Reintentá.';
+    $q.notify({ type: 'negative', message: errorMsg });
   } finally {
     // Re-enable Confirmar (double-submit guard lifts) so retry is possible.
     submitting.value = false;
