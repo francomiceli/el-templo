@@ -1,8 +1,11 @@
 /**
- * Phase 141 (REP-03) — Historial de movimientos inter-caja y egresos.
+ * Phase 141 (REP-03) → Phase 146 (ARQUEO-01/02/04) — Arqueo por caja.
  *
- * GET /api/admin/finance/movements-history returns the kind IN
- * ('cash_transfer','expense','adjustment') trail filterable by caja/período.
+ * GET /api/admin/finance/movements-history es ahora el **arqueo por caja**:
+ * dada una caja devuelve TODO lo imputado a ella (cobros de socio plan_charge/
+ * debt_settlement/advance_payment/refund + egresos expense + traspasos
+ * cash_transfer + ajustes adjustment), cada fila con su validationStatus.
+ * Ya NO filtra `kind IN ('cash_transfer','expense','adjustment')`.
  *
  * THE LOAD-BEARING ASSERTION (the 139 LEFT JOIN proof): a cash_transfer row
  * AND an expense row — both with member_id = NULL — MUST be RETURNED. The
@@ -15,7 +18,9 @@
  *   - a returned NULL-member row still renders cashRegisterName + recorderName
  *   - filter by ?cashRegisterId returns only that caja's rows
  *   - filter by ?dateFrom/?dateTo (período) bounds the rows
- *   - an adjustment row appears; a member cobro (kind=plan_charge) does NOT
+ *   - ARQUEO-01: un plan_charge + expense + cash_transfer en la misma caja → las 3 filas (antes el cobro se perdía)
+ *   - ARQUEO-02: cada fila trae validationStatus; una pendiente y una validada aparecen ambas
+ *   - ARQUEO-04: list() (pestaña Transacciones, GET /transactions) NO cambia: la NULL-member expense NO aparece allí
  *   - coach → 403 (FINANCE_READ_ROLES module guard)
  *
  * Runs against the per-worker test MySQL DB (eltemplo_test_<POOL_ID>).
@@ -34,6 +39,7 @@ import {
 import * as schema from "../../src/db/schema";
 
 const MOV_EGRESOS_URL = "/api/admin/finance/movements-history";
+const TRANSACTIONS_URL = "/api/admin/finance/transactions";
 
 let app: FastifyInstance;
 let adminId: number;
@@ -65,6 +71,7 @@ interface MovEgresoRow {
   branchName: string | null;
   recordedBy: number;
   recorderName: string;
+  validationStatus: string;
   voidedAt: string | null;
   voidReason: string | null;
   notes: string | null;
@@ -79,6 +86,7 @@ async function seedMovEgreso(opts: {
   transactionDate: string;
   cashRegisterId: number;
   branchId: number | null;
+  validationStatus?: "pendiente" | "observado" | "corregido" | "validado";
   notes?: string | null;
 }): Promise<number> {
   const [res] = await app.db
@@ -95,8 +103,38 @@ async function seedMovEgreso(opts: {
       branchId: opts.branchId,
       cashRegisterId: opts.cashRegisterId,
       recordedBy: adminId,
-      validationStatus: "validado",
+      validationStatus: opts.validationStatus ?? "validado",
       notes: opts.notes ?? null,
+    })
+    .$returningId();
+  return res.id;
+}
+
+/** Insert a member-keyed cobro (e.g. plan_charge) imputed to a caja. ARQUEO-01:
+ *  these now belong to the arqueo por caja (before they were dropped). */
+async function seedMemberCobro(opts: {
+  kind: "plan_charge" | "debt_settlement" | "advance_payment" | "refund";
+  direction: "inflow" | "outflow";
+  transactionDate: string;
+  cashRegisterId: number;
+  branchId: number | null;
+  validationStatus?: "pendiente" | "observado" | "corregido" | "validado";
+}): Promise<number> {
+  const [res] = await app.db
+    .insert(schema.financialTransactions)
+    .values({
+      memberId,
+      kind: opts.kind,
+      direction: opts.direction,
+      amount: 1000,
+      currency: "ARS",
+      paymentMethod: "cash",
+      transactionDate: opts.transactionDate,
+      effectiveDate: opts.transactionDate,
+      branchId: opts.branchId,
+      cashRegisterId: opts.cashRegisterId,
+      recordedBy: adminId,
+      validationStatus: opts.validationStatus ?? "validado",
     })
     .$returningId();
   return res.id;
@@ -267,35 +305,147 @@ describe("REP-03: GET /movements-history (historial mov/egresos)", () => {
     expect(rows[0].id).toBe(recentId);
   });
 
-  it("includes adjustment rows but NOT a member cobro (plan_charge)", async () => {
-    const adjId = await seedMovEgreso({
-      kind: "adjustment",
+  // ─── ARQUEO-01: arqueo por caja — TODOS los kinds imputados a la caja ──────
+  it("ARQUEO-01: plan_charge + expense + cash_transfer en la misma caja → las 3 filas", async () => {
+    // A member cobro (plan_charge) — antes se PERDÍA (kind IN no lo incluía).
+    const cobroId = await seedMemberCobro({
+      kind: "plan_charge",
+      direction: "inflow",
+      transactionDate: daysAgo(3),
+      cashRegisterId: cajaId,
+      branchId,
+    });
+    const expenseId = await seedMovEgreso({
+      kind: "expense",
+      direction: "outflow",
+      transactionDate: daysAgo(2),
+      cashRegisterId: cajaId,
+      branchId,
+    });
+    const transferId = await seedMovEgreso({
+      kind: "cash_transfer",
       direction: "outflow",
       transactionDate: daysAgo(1),
       cashRegisterId: cajaId,
       branchId,
     });
-    // A member cobro (kind=plan_charge, member present) must NOT appear here.
-    await app.db.insert(schema.financialTransactions).values({
-      memberId,
+
+    const { rows } = await fetchHistory(
+      adminToken,
+      `?cashRegisterId=${cajaId}`,
+    );
+    const ids = rows.map((r) => r.id);
+    expect(ids).toContain(cobroId);
+    expect(ids).toContain(expenseId);
+    expect(ids).toContain(transferId);
+    // El cobro de socio trae su memberId (no es NULL como egresos/traspasos).
+    expect(rows.find((r) => r.id === cobroId)?.memberId).toBe(memberId);
+    expect(rows.find((r) => r.id === cobroId)?.kind).toBe("plan_charge");
+  });
+
+  it("ARQUEO-01: también trae debt_settlement, advance_payment y refund imputados a la caja", async () => {
+    const debtId = await seedMemberCobro({
+      kind: "debt_settlement",
+      direction: "inflow",
+      transactionDate: daysAgo(3),
+      cashRegisterId: cajaId,
+      branchId,
+    });
+    const advanceId = await seedMemberCobro({
+      kind: "advance_payment",
+      direction: "inflow",
+      transactionDate: daysAgo(2),
+      cashRegisterId: cajaId,
+      branchId,
+    });
+    const refundId = await seedMemberCobro({
+      kind: "refund",
+      direction: "outflow",
+      transactionDate: daysAgo(1),
+      cashRegisterId: cajaId,
+      branchId,
+    });
+
+    const { rows } = await fetchHistory(
+      adminToken,
+      `?cashRegisterId=${cajaId}`,
+    );
+    const ids = rows.map((r) => r.id);
+    expect(ids).toContain(debtId);
+    expect(ids).toContain(advanceId);
+    expect(ids).toContain(refundId);
+  });
+
+  // ─── ARQUEO-02: cada fila trae su validationStatus; pendientes y validadas ─
+  it("ARQUEO-02: cada fila trae validationStatus; una pendiente y una validada aparecen ambas", async () => {
+    const pendingId = await seedMovEgreso({
+      kind: "expense",
+      direction: "outflow",
+      transactionDate: daysAgo(2),
+      cashRegisterId: cajaId,
+      branchId,
+      validationStatus: "pendiente",
+    });
+    const validatedId = await seedMemberCobro({
       kind: "plan_charge",
       direction: "inflow",
-      amount: 1000,
-      currency: "ARS",
-      paymentMethod: "cash",
       transactionDate: daysAgo(1),
-      effectiveDate: daysAgo(1),
-      branchId,
       cashRegisterId: cajaId,
-      recordedBy: adminId,
+      branchId,
       validationStatus: "validado",
     });
 
-    const { rows } = await fetchHistory(adminToken);
-    expect(rows.some((r) => r.id === adjId && r.kind === "adjustment")).toBe(
-      true,
+    const { rows } = await fetchHistory(
+      adminToken,
+      `?cashRegisterId=${cajaId}`,
     );
-    expect(rows.some((r) => r.kind === "plan_charge")).toBe(false);
+    const pending = rows.find((r) => r.id === pendingId);
+    const validated = rows.find((r) => r.id === validatedId);
+    // No se filtran por estado: ambas aparecen.
+    expect(pending).toBeDefined();
+    expect(validated).toBeDefined();
+    expect(pending?.validationStatus).toBe("pendiente");
+    expect(validated?.validationStatus).toBe("validado");
+  });
+
+  // ─── ARQUEO-04: list() (pestaña Transacciones) NO cambia de criterio ───────
+  it("ARQUEO-04: la NULL-member expense NO aparece en GET /transactions (list intacto)", async () => {
+    // Una expense sin socio imputada a la caja: aparece en el arqueo...
+    const expenseId = await seedMovEgreso({
+      kind: "expense",
+      direction: "outflow",
+      transactionDate: daysAgo(1),
+      cashRegisterId: cajaId,
+      branchId,
+    });
+    // ...y un cobro de socio que SÍ debe seguir en la vista comercial.
+    const cobroId = await seedMemberCobro({
+      kind: "plan_charge",
+      direction: "inflow",
+      transactionDate: daysAgo(1),
+      cashRegisterId: cajaId,
+      branchId,
+    });
+
+    // Arqueo: la expense aparece.
+    const { rows: arqueoRows } = await fetchHistory(
+      adminToken,
+      `?cashRegisterId=${cajaId}`,
+    );
+    expect(arqueoRows.some((r) => r.id === expenseId)).toBe(true);
+
+    // list() (Transacciones, INNER JOIN users): la NULL-member expense NO aparece;
+    // el cobro de socio sí. Criterio inalterado por ARQUEO-04.
+    const res = await app.inject({
+      method: "GET",
+      url: TRANSACTIONS_URL,
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body) as { rows: Array<{ id: number }> };
+    const listIds = body.rows.map((r) => r.id);
+    expect(listIds).not.toContain(expenseId);
+    expect(listIds).toContain(cobroId);
   });
 
   it("coach → 403", async () => {
