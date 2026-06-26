@@ -318,6 +318,24 @@
           <div class="text-h6">Anular pago de {{ actionRow.memberName }}</div>
         </q-card-section>
         <q-card-section class="q-pt-none">
+          <!-- ALTA-06 (Phase 148): cuando ESTA carga creó un alumno nuevo (PoS
+               profe alta), anularla dispara un cascade server-side que desactiva
+               la membresía y deja al alumno inactivo. Se advierte ANTES del
+               confirm rojo. Para cargas de alumno preexistente (createdMemberName
+               null) el bloque no se muestra y la copy queda como hasta hoy. -->
+          <q-banner
+            v-if="actionRow.createdMemberName"
+            dense
+            rounded
+            class="q-mb-md bg-red-1 text-negative"
+          >
+            <template #avatar>
+              <q-icon name="warning" color="negative" />
+            </template>
+            Esta carga creó al alumno <strong>{{ actionRow.createdMemberName }}</strong
+            >. Al anular, también se desactivará su membresía y el alumno quedará
+            <strong>inactivo</strong> (no se elimina). ¿Anular de todos modos?
+          </q-banner>
           <div class="text-body2 q-mb-md">
             Anular el pago de
             {{ formatPrice(actionRow.amount, actionRow.currency) }} de {{ actionRow.memberName }}.

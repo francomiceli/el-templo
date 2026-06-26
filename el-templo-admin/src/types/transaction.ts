@@ -338,6 +338,12 @@ export interface PendingTrayItem {
   // Phase 145 (COBRO-02): motivo del cobro suelto. 'sin_plan' → chip
   // "Sin plan — asignar" en la bandeja; null para filas no-misc.
   miscReason: 'sin_plan' | 'otro' | null;
+  // Phase 148 (ALTA-06): si ESTA carga creó un alumno nuevo (PoS profe alta),
+  // su id + nombre. Cuando createdMemberName no es null, el dialog de Anular
+  // muestra la copy de advertencia del cascade (la membresía se desactiva y el
+  // alumno queda inactivo). Ambos null para cargas de alumno preexistente.
+  createdMemberId: number | null;
+  createdMemberName: string | null;
 }
 
 /** PaginatedResult<PendingTrayItem> + the active overdue threshold (D-08). */
