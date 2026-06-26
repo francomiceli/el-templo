@@ -464,6 +464,20 @@ export interface MovEgresoFilters {
   limit?: number;
 }
 
+// Phase 146 (plan 03 primitive) — un cobro suelto (advance_payment) pendiente,
+// no anulado, de un socio. Lo consume el AssignPlanDialog (plan 03) para imputar
+// el anticipo al asignar un plan, y el endpoint GET /transactions/pending-misc/:id.
+export interface PendingMiscItem {
+  id: number;
+  amount: number;
+  currency: string;
+  paymentMethod: PaymentMethod;
+  cashRegisterId: number | null;
+  miscReason: "sin_plan" | "otro" | null;
+  transactionDate: string; // YYYY-MM-DD
+  notes: string | null;
+}
+
 // Phase 138 (D-06/D-08/CAJA-03) — saldo DERIVADO de una caja. firmeBalance es
 // opening_balance + Σ validados de la caja desde cutoff_date (reusa
 // firmMoneyConditions). pendienteAmount (validation_status='pendiente') se

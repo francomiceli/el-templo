@@ -55,6 +55,11 @@ export class CashRegisterService {
     }
 
     if (paymentMethod === "transfer" || paymentMethod === "card") {
+      // Phase 146 (CAJA-03 / LOW 1): con multiples cajas banco de la misma moneda
+      // (Banco ARS + Galicia + Mercado Pago), el destructuring [banco] sin orden
+      // daria una caja SUGERIDA no-determinista. orderBy(id) la fija a la mas
+      // antigua de forma estable; la caja REAL la elige gestion al validar
+      // (validate(cashRegisterId)), asi que esta sigue siendo solo la sugerencia.
       const [banco] = await this.db
         .select({ id: schema.cashRegisters.id })
         .from(schema.cashRegisters)
@@ -65,6 +70,7 @@ export class CashRegisterService {
             eq(schema.cashRegisters.isActive, true),
           ),
         )
+        .orderBy(schema.cashRegisters.id)
         .limit(1);
       if (!banco) {
         throw new BadRequestError(`No existe caja banco para ${currency}`);

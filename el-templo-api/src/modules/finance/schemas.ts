@@ -136,6 +136,19 @@ export const validateTransactionSchema = {
     required: ["id"],
     properties: { id: { type: "integer", minimum: 1 } },
   },
+  // Phase 146 (CAJA-02/CAJA-03): body opcional. Gestion puede confirmar o CAMBIAR
+  // la caja imputada al validar (incl. elegir entre cuentas banco Galicia/Mercado
+  // Pago). Omitido → conserva la caja sugerida (retrocompatible). El tipo incluye
+  // "null" para que una validacion SIN body (request.body=null) siga pasando
+  // (retrocompat: el endpoint previo no tenia body). La coherencia
+  // (existe/activa/moneda) se valida server-side en transactionService.validate.
+  body: {
+    type: ["object", "null"],
+    properties: {
+      cashRegisterId: { type: "integer", minimum: 1 },
+    },
+    additionalProperties: false,
+  },
   response: {
     400: errorSchema,
     401: errorSchema,
@@ -204,6 +217,37 @@ export const correctTransactionSchema = {
     401: errorSchema,
     403: errorSchema,
     404: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+// -- GET /transactions/pending-misc/:memberId — Phase 146 (plan 03) --------
+
+/**
+ * GET /transactions/pending-misc/:memberId — cobros sueltos (advance_payment)
+ * pendientes no anulados del socio. RBAC: FINANCE_VOID_ROLES per-handler (LOW 2 —
+ * devuelve datos financieros del socio, NO abierto a recepcion/coach). Loose
+ * response (passthrough) — el shape (PendingMiscItem) viene del service y es de
+ * confianza.
+ */
+export const pendingMiscForMemberSchema = {
+  params: {
+    type: "object",
+    required: ["memberId"],
+    properties: { memberId: { type: "integer", minimum: 1 } },
+  },
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        items: {
+          type: "array",
+          items: { type: "object", additionalProperties: true },
+        },
+      },
+    },
+    401: errorSchema,
+    403: errorSchema,
     500: errorSchema,
   },
 } as const;

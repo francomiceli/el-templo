@@ -52,6 +52,7 @@ import type {
   MovEgresoItem,
   OutstandingConcept,
   PaymentMethod,
+  PendingMiscItem,
   PendingTrayFilters,
   PendingTrayItem,
   RevenueByKind,
@@ -429,6 +430,25 @@ export class TransactionService {
   }
 
   /**
+   * Phase 146 (plan 03 primitive): anular una fila DENTRO de la transaccion del
+   * caller (no abre db.transaction propia). Espejo de como correct() usa _void,
+   * pero expuesto para un caller externo — subscriptions.assignPlan (plan 03)
+   * anula el anticipo y crea el cobro del plan en una sola db.transaction, asi
+   * que el void debe correr en ESE mismo tx para que todo commitee/rollee junto.
+   *
+   * Delega en el primitivo privado _void (que mantiene los guards de
+   * not-already-voided + reason-required + el rollback de balance + audit row).
+   */
+  async voidInTx(
+    tx: TxHandle,
+    id: number,
+    voidedBy: number,
+    input: VoidTransactionInput,
+  ): Promise<void> {
+    await this._void(tx, id, voidedBy, input);
+  }
+
+  /**
    * Phase 137 (Pitfall 3): atomic soft-void primitive that operates against
    * the CALLER's tx handle (mirror of create(tx?)). The public void() wraps it
    * in this.db.transaction; correct() calls it inside its own tx so the
@@ -560,10 +580,22 @@ export class TransactionService {
    * becomes firm (the canonical firm-money read filter now counts it). Writes a
    * forensic audit row (transaction_validated) atomic with the status update.
    *
-   * Throws NotFoundError if absent, BadRequestError if already voided or not in
-   * 'pendiente' (validate only advances pendiente → validado).
+   * Phase 146 (CAJA-02/CAJA-03 + COBRO-05): gestion confirma o CAMBIA la caja
+   * imputada al validar. Cuando `cashRegisterId` llega en el body de la route,
+   * la caja debe existir, estar activa y compartir moneda con la transaccion
+   * (espejo del guard del resolver, D-09); luego se persiste en la fila. Sin
+   * `cashRegisterId` la columna NO se toca (retrocompatible: conserva la caja
+   * sugerida). Ademas, un cobro suelto miscReason='sin_plan' NO se valida a mano
+   * (COBRO-05): se imputa al asignar un plan — guard de integridad server-side.
+   *
+   * Throws NotFoundError if absent, BadRequestError if already voided, not in
+   * 'pendiente', miscReason='sin_plan', or the caja elegida es invalida.
    */
-  async validate(id: number, adminId: number): Promise<TransactionDetail> {
+  async validate(
+    id: number,
+    adminId: number,
+    cashRegisterId?: number,
+  ): Promise<TransactionDetail> {
     return await this.db.transaction(async (tx) => {
       const [existing] = await tx
         .select()
@@ -581,10 +613,53 @@ export class TransactionService {
         );
       }
 
+      // COBRO-05 (T-146-06): un cobro suelto "sin plan" no se valida a mano —
+      // se imputa al asignar un plan al socio (plan 03). Guard server-side, no
+      // solo de UI.
+      if (existing.miscReason === "sin_plan") {
+        throw new BadRequestError(
+          "Los cobros sin plan se imputan al asignar un plan, no se validan a mano",
+        );
+      }
+
+      // CAJA-02/CAJA-03 (T-146-05): si gestion eligio una caja, validar
+      // coherencia (existe + activa + misma moneda que la tx) — espejo del guard
+      // del resolver (D-09). Si no llega cashRegisterId, conservar la sugerida.
+      if (cashRegisterId !== undefined) {
+        const [caja] = await tx
+          .select({
+            id: schema.cashRegisters.id,
+            currency: schema.cashRegisters.currency,
+            isActive: schema.cashRegisters.isActive,
+          })
+          .from(schema.cashRegisters)
+          .where(eq(schema.cashRegisters.id, cashRegisterId))
+          .limit(1);
+        if (!caja || !caja.isActive) {
+          throw new BadRequestError(
+            "La caja elegida no existe o esta inactiva",
+          );
+        }
+        if (caja.currency !== existing.currency) {
+          throw new BadRequestError(
+            `Moneda inconsistente: la caja es ${caja.currency}, la transaccion es ${existing.currency}`,
+          );
+        }
+      }
+
       await tx
         .update(schema.financialTransactions)
-        .set({ validationStatus: "validado" })
+        .set({
+          validationStatus: "validado",
+          // Solo tocar la columna cuando gestion confirma/cambia la caja; sin
+          // cashRegisterId la fila conserva su caja sugerida actual.
+          ...(cashRegisterId !== undefined ? { cashRegisterId } : {}),
+        })
         .where(eq(schema.financialTransactions.id, id));
+
+      // Caja final imputada: la elegida por gestion, o la conservada (sugerida).
+      const finalCashRegisterId =
+        cashRegisterId !== undefined ? cashRegisterId : existing.cashRegisterId;
 
       await auditLog.write(tx, {
         actorId: adminId,
@@ -597,11 +672,12 @@ export class TransactionService {
           currency: existing.currency,
           from: "pendiente",
           to: "validado",
+          cashRegisterId: finalCashRegisterId,
         },
       });
 
       this.log.info(
-        { transactionId: id, adminId },
+        { transactionId: id, adminId, cashRegisterId: finalCashRegisterId },
         "Financial transaction validated",
       );
 
@@ -896,6 +972,48 @@ export class TransactionService {
       byTx.set(r.id, links);
     }
     return rows.map((r) => ({ ...r, links: byTx.get(r.id) ?? [] }));
+  }
+
+  /**
+   * Phase 146 (plan 03 primitive): cobros sueltos (advance_payment) PENDIENTES,
+   * no anulados, de un socio — ordenados por fecha asc. Los consume el
+   * AssignPlanDialog (plan 03) para ofrecer imputar un anticipo al asignar un
+   * plan, y el endpoint GET /transactions/pending-misc/:memberId. NO incluye
+   * validados/anulados ni otros kinds.
+   */
+  async listPendingMiscForMember(memberId: number): Promise<PendingMiscItem[]> {
+    const rows = await this.db
+      .select({
+        id: schema.financialTransactions.id,
+        amount: schema.financialTransactions.amount,
+        currency: schema.financialTransactions.currency,
+        paymentMethod: schema.financialTransactions.paymentMethod,
+        cashRegisterId: schema.financialTransactions.cashRegisterId,
+        miscReason: schema.financialTransactions.miscReason,
+        transactionDate: schema.financialTransactions.transactionDate,
+        notes: schema.financialTransactions.notes,
+      })
+      .from(schema.financialTransactions)
+      .where(
+        and(
+          eq(schema.financialTransactions.memberId, memberId),
+          eq(schema.financialTransactions.kind, "advance_payment"),
+          eq(schema.financialTransactions.validationStatus, "pendiente"),
+          isNull(schema.financialTransactions.voidedAt),
+        ),
+      )
+      .orderBy(asc(schema.financialTransactions.transactionDate));
+
+    return rows.map((r) => ({
+      id: r.id,
+      amount: r.amount,
+      currency: r.currency,
+      paymentMethod: r.paymentMethod,
+      cashRegisterId: r.cashRegisterId,
+      miscReason: r.miscReason,
+      transactionDate: String(r.transactionDate),
+      notes: r.notes,
+    }));
   }
 
   // ─── Phase 106: paginated list + financial history ───────────────────────

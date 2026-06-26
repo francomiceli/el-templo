@@ -33,6 +33,7 @@ import {
   observeTransactionSchema,
   correctTransactionSchema,
   validateTransactionSchema,
+  pendingMiscForMemberSchema,
   transactionsSummarySchema,
   voidTransactionSchema,
   registerMovementSchema,
@@ -407,7 +408,10 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
   // POST /transactions/:id/validate — VAL-03 (pendiente → validado)
   // RBAC: FINANCE_VOID_ROLES (owner/admin/gestion — coach/recepcion excluded).
   // ===================================================================
-  fastify.post<{ Params: { id: number } }>(
+  fastify.post<{
+    Params: { id: number };
+    Body: { cashRegisterId?: number };
+  }>(
     "/transactions/:id/validate",
     { schema: validateTransactionSchema },
     async (request, reply) => {
@@ -420,9 +424,12 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
             message: "No tienes permiso para validar transacciones",
           });
         }
+        // CAJA-02/CAJA-03: gestion confirma/cambia la caja imputada (opcional).
+        // El guard de coherencia (existe/activa/moneda) vive en validate().
         const detail = await transactionService.validate(
           request.params.id,
           request.user.userId,
+          request.body?.cashRegisterId,
         );
         return { transaction: detail };
       } catch (err: unknown) {
@@ -432,6 +439,42 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           request.log,
           "validate finance transaction",
         );
+      }
+    },
+  );
+
+  // ===================================================================
+  // Phase 146 (plan 03 primitive): GET /transactions/pending-misc/:memberId
+  // Cobros sueltos (advance_payment) pendientes no anulados del socio. RBAC:
+  // FINANCE_VOID_ROLES per-handler (LOW 2 — datos financieros del socio: NO
+  // abierto a recepcion/coach; recepcion pasa el guard de modulo pero el gate
+  // estricto la 403'a aca; coach ya queda 403 por el guard de modulo).
+  // ===================================================================
+  fastify.get<{ Params: { memberId: number } }>(
+    "/transactions/pending-misc/:memberId",
+    { schema: pendingMiscForMemberSchema },
+    async (request, reply) => {
+      try {
+        if (
+          !(FINANCE_VOID_ROLES as readonly string[]).includes(request.user.role)
+        ) {
+          return reply.code(403).send({
+            error: "Acceso denegado",
+            message: "No tienes permiso para ver los cobros sueltos del socio",
+          });
+        }
+        const items = await transactionService.listPendingMiscForMember(
+          request.params.memberId,
+        );
+        return { items };
+      } catch (err: unknown) {
+        handleServiceError(
+          err,
+          reply,
+          request.log,
+          "list pending misc for member",
+        );
+        return reply;
       }
     },
   );
