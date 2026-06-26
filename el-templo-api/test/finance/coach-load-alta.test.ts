@@ -451,3 +451,206 @@ describe("alta fixed-con-scheduleIds", () => {
     expect(await readChargeByKey(key)).toBeNull();
   });
 });
+
+/** Anular una carga como gestión (admin). keepMembershipActive=false dispara el
+ *  cascade: cancela la sub y (si createdMemberId) desactiva al alumno. */
+async function voidCharge(
+  txId: number,
+  token = adminToken,
+  keepMembershipActive = false,
+) {
+  const res = await app.inject({
+    method: "POST",
+    url: `${FINANCE_URL}/transactions/${txId}/void`,
+    headers: { authorization: `Bearer ${token}` },
+    payload: { reason: "Anulación de prueba", keepMembershipActive },
+  });
+  return { statusCode: res.statusCode, body: JSON.parse(res.body) };
+}
+
+// ─── 5. void→cascade ─────────────────────────────────────────────────────────
+describe("alta void→cascade", () => {
+  it("void: anular carga de alumno-nuevo → tx anulada + sub cancelada + alumno inactivo (no borrado) + history", async () => {
+    const dni = uniqueDni();
+    const key = `alta-void-new-${Date.now()}`;
+    const alta = await postAlta({
+      firstName: "Anular",
+      lastName: "Nuevo",
+      dni,
+      branchId,
+      planId: flexiblePlanId,
+      paymentMethod: "cash",
+      idempotencyKey: key,
+    });
+    expect(alta.statusCode).toBe(201);
+    const createdMemberId = alta.body.createdMemberId as number;
+    const subId = alta.body.subscription.id as number;
+    const charge = await readChargeByKey(key);
+    expect(charge?.createdMemberId).toBe(createdMemberId);
+
+    // Anular como gestión (coach NO puede — ver caso de auth en coach-load.test).
+    const res = await voidCharge(charge!.id);
+    expect(res.statusCode).toBe(200);
+
+    // La transacción quedó anulada (voided_at seteado).
+    const voided = await readChargeByKey(key);
+    expect(voided?.voidedAt).not.toBeNull();
+
+    // La subscription quedó cancelada.
+    const [sub] = await app.db
+      .select({ status: schema.subscriptions.status })
+      .from(schema.subscriptions)
+      .where(eq(schema.subscriptions.id, subId))
+      .limit(1);
+    expect(sub.status).toBe("cancelled");
+
+    // El alumno NO se borró: sigue existiendo, ahora 'inactivo'.
+    expect(await countUsersByDni(dni)).toBe(1);
+    const user = await readUser(createdMemberId);
+    expect(user?.status).toBe("inactivo");
+
+    // Quedó registrada la transición →inactivo en userStatusHistory.
+    const history = await app.db
+      .select({ id: schema.userStatusHistory.id })
+      .from(schema.userStatusHistory)
+      .where(
+        and(
+          eq(schema.userStatusHistory.userId, createdMemberId),
+          eq(schema.userStatusHistory.toStatus, "inactivo"),
+        ),
+      );
+    expect(history.length).toBe(1);
+  });
+
+  it("void: anular carga de alumno PREEXISTENTE → su status NO cambia (cascade no aplica)", async () => {
+    const dni = uniqueDni();
+    const existing = await registerUser(app, {
+      email: `alta-void-pre-${Date.now()}@test.local`,
+      password: "TestPass123!",
+      firstName: "Pre",
+      lastName: "Void",
+      branchId,
+      dni,
+    });
+    const existingId = (existing.user as { id: number }).id;
+    const statusBefore = (await readUser(existingId))?.status;
+
+    const key = `alta-void-pre-${Date.now()}`;
+    const alta = await postAlta({
+      dni, // dedup → carga contra el existente
+      firstName: "Ignorado",
+      lastName: "Ignorado",
+      branchId,
+      planId: flexiblePlanId,
+      paymentMethod: "cash",
+      idempotencyKey: key,
+    });
+    expect(alta.statusCode).toBe(201);
+    expect(alta.body.createdMemberId).toBeNull();
+
+    const charge = await readChargeByKey(key);
+    expect(charge?.createdMemberId).toBeNull();
+
+    const res = await voidCharge(charge!.id);
+    expect(res.statusCode).toBe(200);
+
+    // El alumno preexistente NO fue desactivado por el cascade (createdMemberId
+    // null → no-op). NO terminó 'inactivo' por culpa del void.
+    const user = await readUser(existingId);
+    expect(user?.status).not.toBe("inactivo");
+    // No se escribió una transición →inactivo para el preexistente.
+    const inactiveHistory = await app.db
+      .select({ id: schema.userStatusHistory.id })
+      .from(schema.userStatusHistory)
+      .where(
+        and(
+          eq(schema.userStatusHistory.userId, existingId),
+          eq(schema.userStatusHistory.toStatus, "inactivo"),
+        ),
+      );
+    expect(inactiveHistory.length).toBe(0);
+    // sanity: el status sigue siendo el de antes del alta (assignPlan lo dejó
+    // activo, pero lo central es que el void NO lo tocó).
+    expect(["activo", statusBefore]).toContain(user?.status);
+  });
+});
+
+// ─── 7. retry-tras-fallo-parcial (I-1, W-1) ──────────────────────────────────
+describe("alta retry-tras-fallo-parcial (I-1)", () => {
+  it("retry: replay con misma idempotency_key → createdMemberId SETEADO (no NULL) en la tx; void posterior desactiva", async () => {
+    const dni = uniqueDni();
+    const key = `alta-retry-${Date.now()}`;
+    const payload: AltaBody = {
+      firstName: "Retry",
+      lastName: "Alumno",
+      dni,
+      branchId,
+      planId: flexiblePlanId,
+      paymentMethod: "cash",
+      idempotencyKey: key,
+    };
+
+    // 1er alta: crea el alumno + charge con createdMemberId grabado atómicamente.
+    const first = await postAlta(payload);
+    expect(first.statusCode).toBe(201);
+    const createdMemberId = first.body.createdMemberId as number;
+    expect(createdMemberId).toBeGreaterThan(0);
+
+    const chargeAfterFirst = await readChargeByKey(key);
+    expect(chargeAfterFirst?.createdMemberId).toBe(createdMemberId);
+
+    // Reintento (simula fallo parcial: el alta ya creó al alumno, el profe
+    // reintenta con la MISMA key). Replay no-op → 200 con el charge existente.
+    const retry = await postAlta(payload);
+    expect(retry.statusCode).toBe(200);
+
+    // W-1: el createdMemberId NO se perdió por el replay — sigue SETEADO en la
+    // ÚNICA transacción persistida (viajó atómico con el insert del charge).
+    expect(await countUsersByDni(dni)).toBe(1);
+    const chargeAfterRetry = await readChargeByKey(key);
+    expect(chargeAfterRetry?.id).toBe(chargeAfterFirst?.id);
+    expect(chargeAfterRetry?.createdMemberId).toBe(createdMemberId);
+    expect(chargeAfterRetry?.createdMemberId).not.toBeNull();
+
+    // El cascade encuentra al alumno tras el replay: el void lo desactiva.
+    const res = await voidCharge(chargeAfterRetry!.id);
+    expect(res.statusCode).toBe(200);
+    const user = await readUser(createdMemberId);
+    expect(user?.status).toBe("inactivo");
+  });
+});
+
+// ─── 6. idempotencia (doble-submit) ──────────────────────────────────────────
+describe("alta idempotencia", () => {
+  it("idempotencia: dos POST con la misma key → exactamente 1 user + 1 charge; el 2º devuelve el existente", async () => {
+    const dni = uniqueDni();
+    const key = `alta-idem-${Date.now()}`;
+    const payload: AltaBody = {
+      firstName: "Doble",
+      lastName: "Submit",
+      dni,
+      branchId,
+      planId: flexiblePlanId,
+      paymentMethod: "cash",
+      idempotencyKey: key,
+    };
+
+    const first = await postAlta(payload);
+    expect(first.statusCode).toBe(201);
+
+    const second = await postAlta(payload);
+    // No 500: el duplicado se captura y se devuelve el charge existente.
+    expect(second.statusCode).toBe(200);
+    expect(second.body.transaction?.id).toBe(first.body.transaction.id);
+
+    // Exactamente 1 user con ese DNI…
+    expect(await countUsersByDni(dni)).toBe(1);
+
+    // …y exactamente 1 financial_transaction con esa key.
+    const rows = await app.db
+      .select({ id: schema.financialTransactions.id })
+      .from(schema.financialTransactions)
+      .where(eq(schema.financialTransactions.idempotencyKey, key));
+    expect(rows.length).toBe(1);
+  });
+});
