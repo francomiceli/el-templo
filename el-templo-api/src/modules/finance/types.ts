@@ -420,17 +420,22 @@ export interface CajaSaldoRow {
 // -- Phase 141: historial de movimientos inter-caja y egresos (REP-03) -------
 
 /**
- * Phase 141 (REP-03): una fila del historial de movimientos/egresos. Las filas
- * kind IN ('cash_transfer','expense','adjustment') tienen member_id NULL (y a
- * menudo branch_id NULL para cajas central/banco), así que listMovEgresos LEFT
- * JOIN-ea users/branches/cash_registers para que SOBREVIVAN (el list()/export
- * compartido hace INNER JOIN y las dropea — el flag de 139). memberName se omite
- * (siempre NULL); `recorderName` es "cargado por", `cashRegisterName` la caja.
+ * Phase 141 (REP-03) → Phase 146 (ARQUEO-01/02): una fila del **arqueo por
+ * caja**. listMovEgresos ya NO filtra por kind: dada una caja devuelve TODO lo
+ * imputado a ella — cobros de socio (plan_charge, debt_settlement,
+ * advance_payment, refund) + egresos (expense) + traspasos (cash_transfer) +
+ * ajustes (adjustment). Las filas sin socio (egresos/traspasos) tienen member_id
+ * NULL (y a menudo branch_id NULL para cajas central/banco), así que
+ * listMovEgresos LEFT JOIN-ea users/branches/cash_registers para que SOBREVIVAN
+ * (el list()/export compartido hace INNER JOIN y las dropea — el flag de 139).
+ * Cada fila trae `validationStatus` (pendiente/observado/corregido/validado) para
+ * que la UI marque el estado (ARQUEO-02). `recorderName` es "cargado por",
+ * `cashRegisterName` la caja.
  */
 export interface MovEgresoItem {
   id: number;
   transactionDate: string; // YYYY-MM-DD
-  kind: TransactionKind; // cash_transfer | expense | adjustment
+  kind: TransactionKind; // cualquier kind imputado a la caja (arqueo por caja)
   direction: TransactionDirection;
   amount: number;
   currency: string;
@@ -441,6 +446,7 @@ export interface MovEgresoItem {
   branchName: string | null; // null para cajas branch-less (central/banco)
   recordedBy: number;
   recorderName: string;
+  validationStatus: FinancialTransactionRow["validationStatus"]; // ARQUEO-02
   voidedAt: string | null;
   voidReason: string | null;
   notes: string | null;

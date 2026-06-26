@@ -1333,13 +1333,18 @@ export class TransactionService {
   }
 
   /**
-   * Phase 141 (REP-03): historial de movimientos inter-caja y egresos. Its OWN
+   * Phase 141 (REP-03) → Phase 146 (ARQUEO-01/02): **arqueo por caja**. Its OWN
    * query — does NOT call or mutate list()/exportRowsForExcel() (those INNER JOIN
-   * users+branches, so they DROP the kind IN ('cash_transfer','expense',
-   * 'adjustment') rows whose member_id is NULL — and often branch_id NULL for
-   * central/banco cajas). listMovEgresos LEFT JOINs users/branches/cash_registers
-   * + the recorder self-join so those rows SURVIVE (the 139 flag). Returns the
-   * trail ordered desc(transactionDate), filterable by caja/período.
+   * users+branches, the member-keyed "Transacciones" view — ARQUEO-04 keeps that
+   * criterion untouched). ARQUEO-01: ya NO filtra por kind; dada una caja
+   * devuelve TODO lo imputado a ella (cobros de socio plan_charge/debt_settlement/
+   * advance_payment/refund + egresos expense + traspasos cash_transfer + ajustes
+   * adjustment). Las filas sin socio (egresos/traspasos) tienen member_id NULL — y
+   * a menudo branch_id NULL para central/banco — así que listMovEgresos LEFT JOINs
+   * users/branches/cash_registers + the recorder self-join so those rows SURVIVE
+   * (the 139 flag). ARQUEO-02: cada fila trae validationStatus (pendientes y
+   * validadas, sin filtrar por estado). Returns the trail ordered
+   * desc(transactionDate), filterable by caja/período.
    *
    * Country-scope trap (Pitfall 2): under the LEFT JOIN a branch-less row has
    * branches.country = NULL, so eq(branches.country, country) would WRONGLY
@@ -1357,13 +1362,11 @@ export class TransactionService {
 
     const recorder = alias(schema.users, "recorder");
 
-    const conditions: SQL[] = [
-      inArray(schema.financialTransactions.kind, [
-        "cash_transfer",
-        "expense",
-        "adjustment",
-      ]),
-    ];
+    // Phase 146 (ARQUEO-01): el arqueo es POR CAJA, no por kind. Ya NO se filtra
+    // kind IN ('cash_transfer','expense','adjustment') — eso dropeaba los cobros
+    // de socio (plan_charge/debt_settlement/advance_payment/refund) imputados a
+    // la caja. El filtro primario es cash_register_id (filters.cashRegisterId).
+    const conditions: SQL[] = [];
 
     if (filters.cashRegisterId !== undefined) {
       conditions.push(
@@ -1447,6 +1450,7 @@ export class TransactionService {
         recordedBy: schema.financialTransactions.recordedBy,
         recorderFirstName: recorder.firstName,
         recorderLastName: recorder.lastName,
+        validationStatus: schema.financialTransactions.validationStatus,
         voidedAt: schema.financialTransactions.voidedAt,
         voidReason: schema.financialTransactions.voidReason,
         notes: schema.financialTransactions.notes,
@@ -1494,6 +1498,7 @@ export class TransactionService {
       recordedBy: r.recordedBy,
       recorderName:
         `${r.recorderFirstName ?? ""} ${r.recorderLastName ?? ""}`.trim(),
+      validationStatus: r.validationStatus,
       voidedAt: r.voidedAt ? r.voidedAt.toISOString() : null,
       voidReason: r.voidReason,
       notes: r.notes,
