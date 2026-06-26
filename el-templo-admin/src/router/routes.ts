@@ -72,11 +72,11 @@ const routes: RouteRecordRaw[] = [
         meta: { allowedRoles: ['gestion', 'admin', 'owner'] as AdminRole[] },
       },
       {
-        path: 'cargar',
-        component: () => import('pages/CargarPagoPage.vue'),
-        // Phase 140 (CARGA-04): opens the coach PoS load surface. Mirrors the
-        // backend FINANCE_LOAD_ROLES — coach can LOAD here but never reach
-        // /caja (saldos), which stays gestion/admin/owner.
+        path: 'pagos',
+        component: () => import('pages/PagosPage.vue'),
+        // Phase 140 (CARGA-04): opens the coach PoS load surface (ruta /pagos,
+        // ex /cargar). Mirrors the backend FINANCE_LOAD_ROLES — coach can LOAD
+        // here but never reach /caja (saldos), which stays gestion/admin/owner.
         meta: { allowedRoles: ['coach', 'gestion', 'admin', 'owner'] as AdminRole[] },
       },
       {

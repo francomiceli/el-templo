@@ -1,5 +1,5 @@
 /**
- * Coach PoS "Cargar pago" API composable (Phase 140, Wave 3).
+ * Coach PoS "Pagos" API composable (Phase 140, Wave 3).
  *
  * Thin wrapper over the Wave 2 coach-load plugin
  * (`/api/admin/finance/coach-load`, see 140-02-SUMMARY.md). Mirrors the
