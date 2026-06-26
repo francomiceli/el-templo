@@ -29,6 +29,8 @@ import type {
   RegisterExpenseInput,
   ExpenseDetail,
   PendingMiscItem,
+  CostCenter,
+  CostCenterParams,
 } from 'src/types/transaction';
 import type { PaginatedResult } from 'src/types/report';
 
@@ -277,6 +279,28 @@ export function useTransactionsApi() {
       return data;
     } catch (err: unknown) {
       error.value = extractError(err, 'Error registrando egreso');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  /**
+   * Centros de costo activos por país (EGR-01/02). Source: GET
+   * /admin/finance/cost-centers. Consumido por el selector obligatorio del
+   * dialog de egreso. Owner pasa country = selectedCountry; non-owner lo omite
+   * y el server usa su scope.
+   */
+  async function getCostCenters(params: CostCenterParams = {}): Promise<CostCenter[]> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<CostCenter[]>('/admin/finance/cost-centers', {
+        params,
+      });
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cargando centros de costo');
       throw err;
     } finally {
       loading.value = false;
@@ -557,6 +581,8 @@ export function useTransactionsApi() {
     getPendingTray,
     getCashRegisterBalances,
     getMovEgresosHistory,
+    // Phase 147 addition — centros de costo de egresos (EGR-01/02):
+    getCostCenters,
     // Phase 139 additions — registrar movimiento / egreso (MOV-01..03):
     registerMovement,
     registerExpense,

@@ -411,6 +411,9 @@ export interface MovEgresoItem {
   voidedAt: string | null;
   voidReason: string | null;
   notes: string | null;
+  // Phase 147 (EGR-03): nombre del centro de costo imputado. Solo lo traen las
+  // filas expense; las demás kinds quedan NULL (LEFT JOIN a cost_centers).
+  costCenterName: string | null;
 }
 
 export interface MovEgresoParams {
@@ -454,7 +457,24 @@ export interface MovementDetail {
 export interface RegisterExpenseInput {
   cajaId: number;
   amount: number;
+  // Phase 147 (EGR-02): centro de costo obligatorio a nivel aplicación para
+  // egresos. El backend (Plan 01) revalida exists+active server-side.
+  costCenterId: number;
   notes?: string | null;
+}
+
+// -- Phase 147 (EGR-01/02): centros de costo de egresos --------------------
+// Mirror del backend CostCenterItem (GET /admin/finance/cost-centers). Catálogo
+// por país; el selector del dialog solo ofrece centros activos del país.
+
+export interface CostCenter {
+  id: number;
+  name: string;
+  country: string;
+}
+
+export interface CostCenterParams {
+  country?: 'AR' | 'ES';
 }
 
 export interface ExpenseDetail {
