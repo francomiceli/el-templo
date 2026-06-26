@@ -54,6 +54,9 @@ interface CoachMiscLoadBody {
   paymentMethod: "cash" | "transfer" | "card" | "aura_credit" | "internal";
   currency?: string;
   idempotencyKey: string;
+  // Phase 145 (COBRO-01): structured motivo del cobro suelto. REQUIRED (the PoS
+  // dropdown is obligatorio); persisted to misc_reason, NOT to notes.
+  miscReason: "sin_plan" | "otro";
 }
 
 // ── JSON schemas (reject validationStatus / cashRegisterId) ──────────────────
@@ -89,6 +92,7 @@ const coachMiscLoadSchema = {
       "concepto",
       "paymentMethod",
       "idempotencyKey",
+      "miscReason",
     ],
     additionalProperties: false,
     properties: {
@@ -98,6 +102,9 @@ const coachMiscLoadSchema = {
       paymentMethod: { type: "string", enum: PAYMENT_METHOD_ENUM },
       currency: { type: "string", minLength: 1, maxLength: 8 },
       idempotencyKey: { type: "string", minLength: 1, maxLength: 64 },
+      // Phase 145 (COBRO-01 / T-145-01): closed enum, additionalProperties:false
+      // rejects anything outside ["sin_plan","otro"] with a 400.
+      miscReason: { type: "string", enum: ["sin_plan", "otro"] },
     },
   },
 } as const;
@@ -334,6 +341,8 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
             effectiveDate: today,
             branchId,
             notes: request.body.concepto,
+            // Phase 145 (COBRO-01): structured motivo → own column, not notes.
+            miscReason: request.body.miscReason,
             validationStatus: initialStatus,
             idempotencyKey: request.body.idempotencyKey,
             links: [],

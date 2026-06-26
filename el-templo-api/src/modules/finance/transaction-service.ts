@@ -285,6 +285,10 @@ export class TransactionService {
           cashRegisterId,
           recordedBy,
           notes: input.notes ?? null,
+          // Phase 145 (COBRO-01): structured cobro-suelto reason. NULL for every
+          // path except POST /coach-load/misc (the PoS dropdown Motivo). Stored
+          // as its own column — NEVER folded into `notes`.
+          miscReason: input.miscReason ?? null,
           // Phase 137 (VAL-02): birth validation status. Defaults to 'validado'
           // (matches the column DEFAULT) when undefined — so the 4 internal
           // recordAssignmentCharge callers (admin path) keep producing validado

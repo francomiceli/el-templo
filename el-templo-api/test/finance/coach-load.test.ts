@@ -52,6 +52,7 @@ async function readTx(id: number): Promise<{
   voidedAt: Date | null;
   kind: string;
   notes: string | null;
+  miscReason: string | null;
   idempotencyKey: string | null;
   amount: number;
 }> {
@@ -61,6 +62,7 @@ async function readTx(id: number): Promise<{
       voidedAt: schema.financialTransactions.voidedAt,
       kind: schema.financialTransactions.kind,
       notes: schema.financialTransactions.notes,
+      miscReason: schema.financialTransactions.miscReason,
       idempotencyKey: schema.financialTransactions.idempotencyKey,
       amount: schema.financialTransactions.amount,
     })
@@ -501,6 +503,7 @@ describe("coach-load idempotency", () => {
       paymentMethod: "cash" as const,
       currency: "ARS",
       idempotencyKey: key,
+      miscReason: "otro" as const,
     };
 
     const first = await app.inject({
@@ -595,6 +598,7 @@ describe("coach-load cobro suelto", () => {
         paymentMethod: "cash",
         currency: "ARS",
         idempotencyKey: `misc-${Date.now()}`,
+        miscReason: "otro",
       },
     });
     expect(res.statusCode).toBe(201);
@@ -604,6 +608,7 @@ describe("coach-load cobro suelto", () => {
     expect(row.kind).toBe("advance_payment");
     expect(row.validationStatus).toBe("pendiente");
     expect(row.notes).toBe("Suplemento proteína");
+    expect(row.miscReason).toBe("otro");
 
     // No links → member balance untouched (applyDelta no-ops on empty links).
     const balances = await app.db
@@ -641,6 +646,7 @@ describe("coach-load cobro suelto", () => {
         paymentMethod: "cash",
         currency: "ARS",
         idempotencyKey: `misc-revenue-${Date.now()}`,
+        miscReason: "otro",
       },
     });
     expect(res.statusCode).toBe(201);
@@ -655,6 +661,66 @@ describe("coach-load cobro suelto", () => {
 
     expect(afterRevenue).toBe(beforeRevenue);
     expect(afterByKind.advance_payment).toBe(0);
+  });
+
+  it("cobro suelto: miscReason 'sin_plan' persists in misc_reason column, NOT in notes", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: `${COACH_LOAD_URL}/misc`,
+      headers: { authorization: `Bearer ${coachToken}` },
+      payload: {
+        memberId,
+        amount: 6000,
+        concepto: "Clase suelta",
+        paymentMethod: "cash",
+        currency: "ARS",
+        idempotencyKey: `misc-reason-${Date.now()}`,
+        miscReason: "sin_plan",
+      },
+    });
+    expect(res.statusCode).toBe(201);
+    const body = JSON.parse(res.body);
+    const row = await readTx(body.transaction.id);
+
+    // Structured column carries the motivo…
+    expect(row.miscReason).toBe("sin_plan");
+    // …and notes stays the free-text concepto (motivo NOT folded into notes).
+    expect(row.notes).toBe("Clase suelta");
+  });
+
+  it("cobro suelto: a body WITHOUT miscReason is rejected with 400", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: `${COACH_LOAD_URL}/misc`,
+      headers: { authorization: `Bearer ${coachToken}` },
+      payload: {
+        memberId,
+        amount: 6000,
+        concepto: "Sin motivo",
+        paymentMethod: "cash",
+        currency: "ARS",
+        idempotencyKey: `misc-nomotivo-${Date.now()}`,
+      },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("cobro suelto: a miscReason outside the enum is rejected with 400", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: `${COACH_LOAD_URL}/misc`,
+      headers: { authorization: `Bearer ${coachToken}` },
+      payload: {
+        memberId,
+        amount: 6000,
+        concepto: "Motivo inválido",
+        paymentMethod: "cash",
+        currency: "ARS",
+        idempotencyKey: `misc-badmotivo-${Date.now()}`,
+        miscReason: "foo",
+      },
+    });
+    expect(res.statusCode).toBe(400);
   });
 });
 
@@ -673,6 +739,7 @@ describe("coach-load mis-cargas", () => {
         paymentMethod: "cash",
         currency: "ARS",
         idempotencyKey: `mine-${Date.now()}`,
+        miscReason: "sin_plan",
       },
     });
 

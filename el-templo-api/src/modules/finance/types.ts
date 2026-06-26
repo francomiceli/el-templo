@@ -78,6 +78,14 @@ export interface CreateTransactionInput {
   branchId: number | null;
   notes?: string | null;
   /**
+   * Phase 145 (COBRO-01): structured reason for a cobro suelto. Set ONLY by the
+   * POST /coach-load/misc endpoint (the PoS dropdown Motivo); the other 9 create
+   * paths leave it undefined → NULL, exactly as today. NOT folded into `notes`
+   * (which stays the free-text concepto). Optional/nullable like the other
+   * server-derived slots.
+   */
+  miscReason?: "sin_plan" | "otro" | null;
+  /**
    * Phase 137 (VAL-02): birth validation status. Defaults to 'validado' when
    * undefined (matches the DB column DEFAULT). Set to 'pendiente' ONLY by the
    * server-side role→status derivation (coach loads). NEVER sourced from the
