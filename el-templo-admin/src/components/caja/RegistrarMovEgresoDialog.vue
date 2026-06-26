@@ -91,6 +91,17 @@
               emit-value
               map-options
             />
+            <q-select
+              v-model="egreso.costCenterId"
+              :options="costCenterOptions"
+              label="Centro de costo *"
+              dense
+              outlined
+              emit-value
+              map-options
+              :loading="loadingCostCenters"
+              :disable="loadingCostCenters"
+            />
             <q-input
               v-model.number="egreso.amount"
               type="number"
@@ -146,7 +157,7 @@ import { useQuasar } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { extractError } from 'src/utils/extract-error';
 import { useTransactionsApi } from 'src/composables/useTransactionsApi';
-import type { CajaSaldoRow } from 'src/types/transaction';
+import type { CajaSaldoRow, CostCenter } from 'src/types/transaction';
 
 const props = defineProps<{
   modelValue: boolean;
@@ -201,8 +212,44 @@ async function loadCajas() {
   }
 }
 
+// =========================================================================
+// Centros de costo (EGR-02) — catálogo activo por país, cargado al abrir.
+// Obligatorio para registrar el egreso. "Varios" se preselecciona como escape
+// (cambiable por el usuario) per decisión 4 del CONTEXT.
+// =========================================================================
+
+const costCenters = ref<CostCenter[]>([]);
+const loadingCostCenters = ref(false);
+
+const costCenterOptions = computed(() =>
+  costCenters.value.map((c) => ({ label: c.name, value: c.id }))
+);
+
+async function loadCostCenters() {
+  loadingCostCenters.value = true;
+  try {
+    const data = await transactionsApi.getCostCenters({
+      country: props.isOwner ? props.selectedCountry : undefined,
+    });
+    costCenters.value = data;
+    // Preseleccionar "Varios" (escape) si el usuario aún no eligió; cae al primero
+    // si el catálogo no incluye "Varios". El valor queda visible y es cambiable.
+    if (egreso.costCenterId === null && data.length > 0) {
+      const varios = data.find((c) => c.name === 'Varios');
+      egreso.costCenterId = varios ? varios.id : data[0].id;
+    }
+  } catch (err: unknown) {
+    const message = extractError(err, 'Error cargando centros de costo');
+    log.error('Error loading cost centers', { error: message });
+    $q.notify({ type: 'negative', message });
+  } finally {
+    loadingCostCenters.value = false;
+  }
+}
+
 function onShow() {
   void loadCajas();
+  void loadCostCenters();
 }
 
 // =========================================================================
@@ -222,6 +269,7 @@ const mov = reactive({
 
 const egreso = reactive({
   cajaId: null as number | null,
+  costCenterId: null as number | null,
   amount: null as number | null,
   notes: '',
 });
@@ -265,7 +313,11 @@ const canSubmitMov = computed(
 );
 
 const canSubmitEgreso = computed(
-  () => egreso.cajaId !== null && typeof egreso.amount === 'number' && egreso.amount > 0
+  () =>
+    egreso.cajaId !== null &&
+    egreso.costCenterId !== null &&
+    typeof egreso.amount === 'number' &&
+    egreso.amount > 0
 );
 
 // =========================================================================
@@ -306,6 +358,7 @@ async function submitEgreso() {
   try {
     await transactionsApi.registerExpense({
       cajaId: egreso.cajaId as number,
+      costCenterId: egreso.costCenterId as number,
       amount: egreso.amount as number,
       ...(egreso.notes.trim() ? { notes: egreso.notes.trim() } : {}),
     });
@@ -328,6 +381,7 @@ function resetAll() {
   mov.countedAmount = null;
   mov.notes = '';
   egreso.cajaId = null;
+  egreso.costCenterId = null;
   egreso.amount = null;
   egreso.notes = '';
   tab.value = 'movimiento';
