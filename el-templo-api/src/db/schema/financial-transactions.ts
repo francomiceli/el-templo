@@ -101,6 +101,14 @@ export const financialTransactions = mysqlTable(
     // dedups only non-null keys (a repeated Confirm/double-tap → same key →
     // duplicate-key error caught endpoint-side in Wave 2). Not a secret.
     idempotencyKey: varchar("idempotency_key", { length: 64 }),
+    // Phase 148 (ALTA-06 / W-1): el alumno que ESTA carga creó vía
+    // createMinimalMember (PoS profe). NULLABLE — solo las altas de alumno-nuevo
+    // lo setean; toda carga sobre un socio preexistente y todo histórico queda
+    // NULL. FK a users.id. Se graba DENTRO de la misma tx del charge (no UPDATE
+    // separado) para que el cascade de void (148-03) sepa qué alumno desactivar
+    // sin ventana de crash que deje un alumno activo huérfano. Mismo patrón FK
+    // nullable que memberId.
+    createdMemberId: int("created_member_id").references(() => users.id),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
   },

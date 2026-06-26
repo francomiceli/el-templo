@@ -326,6 +326,11 @@ export class TransactionService {
           // allowed under the UNIQUE index); a duplicate non-null key raises
           // ER_DUP_ENTRY at the DB, caught endpoint-side in Wave 2 (Pitfall 3).
           idempotencyKey: input.idempotencyKey ?? null,
+          // Phase 148 (ALTA-06 / W-1): persist the new-student id IN THE SAME
+          // insert as the charge (within the caller's tx when `tx` is passed),
+          // so void's cascade (148-03) can find the member to inactivate without
+          // a crash window. NULL for every admin/historical path.
+          createdMemberId: input.createdMemberId ?? null,
         });
       const transactionId = Number(inserted[0].insertId);
 

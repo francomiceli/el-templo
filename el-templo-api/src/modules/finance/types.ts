@@ -122,6 +122,16 @@ export interface CreateTransactionInput {
    * for every admin/historical path (multiple NULLs are allowed).
    */
   idempotencyKey?: string | null;
+  /**
+   * Phase 148 (ALTA-06 / W-1): id del alumno que ESTA carga creó vía
+   * createMinimalMember (PoS profe), o null/undefined si el alumno ya existía o
+   * la carga no proviene del alta. SERVER-DERIVED — el orquestador 148-02 lo
+   * pasa tras crear el alumno; NUNCA del body crudo. create() lo persiste en el
+   * MISMO insert del charge (dentro de la tx del caller cuando se pasa `tx`), de
+   * modo que el cascade de void (148-03) sepa qué alumno desactivar sin ventana
+   * de crash. NULL para todo path admin/histórico (FK nullable a users.id).
+   */
+  createdMemberId?: number | null;
   links: CreateTransactionLinkInput[];
 }
 
