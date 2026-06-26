@@ -226,6 +226,21 @@ export interface CreateTrialMemberServiceInput extends CreateTrialMemberInput {
 }
 
 /**
+ * Phase 148 (ALTA-01 / D-31): service-layer payload for createMinimalMember —
+ * el alta de alumno mínima del PoS profe (nombre + apellido + DNI + sucursal).
+ * NO exige email/teléfono (gestión los completa al validar la carga). `createdBy`
+ * se deriva server-side de request.user.userId en la ruta orquestadora (148-02);
+ * NUNCA del body crudo (guard anti-spoof D-31, igual que createTrialMember).
+ */
+export interface CreateMinimalMemberServiceInput {
+  firstName: string;
+  lastName: string;
+  dni: string;
+  branchId: number;
+  createdBy: number;
+}
+
+/**
  * POST /api/admin/members/:userId/convert-to-trial body.
  *
  * Converts a self-registered freemium member into a "sesión de prueba" lead
