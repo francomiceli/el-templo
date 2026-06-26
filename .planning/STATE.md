@@ -1,17 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v5.2
-milestone_name: Módulo Contable — Libro de Caja
-status: verifying
-stopped_at: Phase 144 UI-SPEC approved
-last_updated: "2026-06-25T22:42:35.964Z"
-last_activity: 2026-06-25
+milestone: v5.3
+milestone_name: Mejoras Caja / Módulo Contable (feedback v5.2)
+status: planning
+last_updated: "2026-06-26T03:48:45.807Z"
+last_activity: 2026-06-26
 progress:
-  total_phases: 13
-  completed_phases: 12
-  total_plans: 55
-  completed_plans: 54
-  percent: 92
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -25,11 +24,10 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 
 ## Current Position
 
-Phase: 144 (notificaciones-y-bloqueo-de-vencimiento-de-membres-a-plan) — EXECUTING
-Plan: 4 of 4
-Status: Phase complete — ready for verification
-Last activity: 2026-06-25
-Next: Phase 140 (carga única del profe) / 141 (reportes/UI). Phase 141 caja history DEBE LEFT JOIN users (filas NULL-member de movimientos/egresos).
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-06-26 — Milestone v5.3 started
 
 ## Performance Metrics
 

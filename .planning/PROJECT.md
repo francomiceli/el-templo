@@ -4,7 +4,34 @@
 
 A multi-app platform for El Templo Calistenia, a calisthenics gym chain with 8 locations (7 Mar del Plata, 1 Barcelona). The monorepo contains: a Fastify API (el-templo-api), a member mobile app (el-templo-app), a coach/admin web app (el-templo-admin), and a public-facing marketing site (el-templo-web). v1 delivered the Training module, v2 the Admin app, v3 the landing page and public web presence, v4 begins ecosystem integration — consolidating admin operations, adding attendance/scheduling, and laying the foundation for AURA economy and lifestyle features.
 
-## Current Milestone: v5.2 Módulo Contable en el Administrador — Libro de Caja
+## Current Milestone: v5.3 Mejoras Caja / Módulo Contable (feedback v5.2)
+
+**Goal:** Resolver el feedback operativo de v5.2 sobre la caja y la PoS del profe — imputación correcta de caja, cobro de socios sin plan activo, arqueo por caja y clasificación de egresos.
+
+**Target features:**
+
+- **A) Aviso de deuda en la PoS:** al seleccionar al alumno en "Cargar pago", aviso destacado si tiene deuda (ambos modos). Dato ya disponible (`autocompletar.outstanding`).
+- **B) Imputación de caja en la validación (fundacional):** el profe cobra sin elegir caja; el cobro nace con **caja sugerida** (sede del profe vía `recordedBy` / banco por moneda), **no definitiva**. Gestión **confirma o cambia** la caja al validar (el validar, hoy inmutable, se abre para recibir `cash_register_id`). Incluye **múltiples cuentas banco** (modelar varias cajas tipo `banco`; staging seedea **Galicia** + **Mercado Pago**).
+- **C) Cobro suelto → alta de plan:** dropdown **Motivo** (Sin plan activo / Otro, como campo) + chip "Sin plan — asignar" en Pendientes que lleva a la ficha + al asignar el plan, gestión **usa la plata del cobro suelto** (anular+recrear `plan_charge` vinculado a la sub, atómico) + **bloqueo del "Validar" manual** para los "sin plan".
+- **D) "Movimientos de caja" como arqueo por caja:** la pestaña pasa a mostrar **todo lo imputado a la caja** (cobros + egresos + traspasos + ajustes), filtrando por `cash_register_id`; pendientes y validados **marcados**; **Cobros** en el filtro Tipo. "Transacciones" (vista comercial) se mantiene.
+- **E) Centros de costo para egresos:** tabla `cost_centers` (por país) + columna obligatoria en la transacción + selector en el dialog de egreso + seed (Alquiler Constitución / Librería / Viáticos profes / Varios). Reporte por centro de costo y ABM desde UI **diferidos**.
+
+**Decisiones clave:**
+
+- **B es fundacional para C y D:** la caja sugerida en Pendientes habilita el arqueo (D) y la imputación del anticipo (C).
+- **Cobro suelto→plan:** anular+recrear `plan_charge` (Cabo 1=A, cuenta como ingreso de plan); excedente NO se aplica (Cabo 2); bloquear "Validar" manual de "sin plan" (Cabo 3); al asignar, gestión ve TODOS los cobros sueltos pendientes del socio (robustez).
+- **Múltiples cuentas banco:** se modelan varias cajas tipo `banco`; staging arranca con seeds Galicia + Mercado Pago (de mentira).
+- **Centros de costo:** obligatorios con "Varios" de escape; solo egresos (kind `expense`).
+- **Descartados del feedback** (sin trabajo): cambiar plan en el cobro (es de gestión), sugerir precio (ya existe en `AssignPlanDialog`), cargar turnos fijos (ya existe en gestión), dinero pendiente en caja (ya aparece como "pendiente", no suma firme).
+
+**Out of scope this milestone:**
+
+- **Reporte de egresos por centro de costo** + **ABM de centros de costo desde UI** (diferido a un paso posterior — staging usa los seeds).
+- **ABM de cuentas banco desde UI** (staging usa seeds Galicia/Mercado Pago).
+
+**Reference:** `BRIEF-FEEDBACK-V52-CAJA.md` (raíz, decisiones consolidadas de los 10 puntos de feedback de v5.2).
+
+## Previous Milestone: v5.2 Módulo Contable en el Administrador — Libro de Caja
 
 **Goal:** Convertir al Administrador en el libro de caja único (fuente de verdad), eliminando el triple tipeo del registro de pagos, con validación de pagos (PENDIENTE→VALIDADO) y gestión de cajas (efectivo/banco) con movimientos inter-caja y egresos. Se monta sobre el modelo financiero transaccional existente (v4.8).
 
@@ -35,7 +62,7 @@ A multi-app platform for El Templo Calistenia, a calisthenics gym chain with 8 l
 
 **Reference:** `BRIEF-MODULO-CONTABLE-FRANCO.md` (raíz, brief de diseño consolidado) + `.planning/research/modulo-contable/` (FEATURES/ARCHITECTURE/PITFALLS/STACK con contraste vs. brief).
 
-## Previous Milestone: v5.1 Nuevo Sistema de Entrenamiento
+## Earlier Milestone: v5.1 Nuevo Sistema de Entrenamiento
 
 **Goal:** Reestructurar el sistema de entrenamiento alrededor de un árbol de habilidades (DAG) construido sobre 3 ejes ortogonales (gesto / palanca / contracción), y sobre ese cimiento habilitar el nivel Kairos para principiantes y el ajuste de dificultad in-session.
 
@@ -61,7 +88,7 @@ A multi-app platform for El Templo Calistenia, a calisthenics gym chain with 8 l
 
 **Reference:** `.planning/research/new-training-system-design.md` (doc de diseño, fuente de verdad) + `.docs/new-training-system/BRIEF-PROFES.md` (decisiones de dominio para los profes) + audios en `.docs/new-training-system/`.
 
-## Earlier Milestone: v5.0 Métricas de Gestión
+## Older Milestone: v5.0 Métricas de Gestión
 
 **Phases 120-123.** Backend-first: 6 bloques de métricas de gestión (churn no-renovación person-based, tasa de renovación, funnel de sesiones de prueba, frecuencia de asistencia, LTV con Kaplan-Meier, ticket promedio), con aislamiento de moneda ARS/EUR y breakdowns comparables por sucursal/país/plan. Reemplaza churn/retención viejos y ARPU. 120 en prod; 121-122 CI-verde en `origin/staging`; 123 (asistencia+funnel) local sin pushear (UAT pendiente). UI del admin para exponer los 6 bloques quedó para un milestone de frontend posterior. Refs: `ESPECIFICACION-METRICAS-GESTION.md`, `METRICAS_GESTION_HANDOFF_2026-06-02.md`.
 
@@ -119,7 +146,7 @@ Members know exactly what to train today, complete guided sessions with block st
 
 ### Active
 
-See: .planning/REQUIREMENTS.md (v5.2 scope — Módulo Contable / Libro de Caja)
+See: .planning/REQUIREMENTS.md (v5.3 scope — Mejoras Caja / feedback v5.2)
 
 ### Out of Scope
 
@@ -205,4 +232,4 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
-_Last updated: 2026-06-04 — Milestone v5.1 (Nuevo Sistema de Entrenamiento) initialized. Phases 124+ to come (continues from phase 123). 3 ejes: árbol de habilidades (cimiento) → nivel Kairos → ajuste in-session. v5.0 (Métricas de Gestión, backend-first) queda en `verifying` (fase 123 sin pushear + UAT pendiente), a cerrar formalmente con /gsd-complete-milestone. v4.9 (Refactor Splits) y la UI del admin para las 6 métricas de v5.0 quedan en cola._
+_Last updated: 2026-06-26 — Milestone v5.3 (Mejoras Caja / feedback v5.2) initialized. Phases 145+ (continues from phase 144). 5 áreas: aviso de deuda en PoS (A) · caja en validación + múltiples cuentas banco (B, fundacional) · cobro suelto → alta de plan (C) · arqueo por caja (D) · centros de costo de egresos (E). v5.2 (Módulo Contable) queda en `verifying` (UAT pendientes), a cerrar formalmente con /gsd-complete-milestone. Fuente: BRIEF-FEEDBACK-V52-CAJA.md._
