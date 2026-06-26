@@ -14,6 +14,7 @@ import { relations } from "drizzle-orm";
 import { users } from "./users";
 import { branches } from "./branches";
 import { cashRegisters } from "./cash-registers";
+import { costCenters } from "./cost-centers";
 import { transactionLinks } from "./transaction-links";
 
 // D-05: enums declared inline on the column. TS literals are inferred from
@@ -62,6 +63,11 @@ export const financialTransactions = mysqlTable(
     // (adónde fue la plata): p.ej. una transferencia cobrada en Jujuy cae en
     // la caja banco de la moneda, no en la caja de Jujuy.
     cashRegisterId: int("cash_register_id").references(() => cashRegisters.id),
+    // Phase 147 (EGR-02): centro de costo del egreso. NULLABLE — solo las filas
+    // kind='expense' lo setean (obligatorio a nivel app, validado en
+    // movement-service.registerExpense); las históricas y los no-egresos quedan
+    // NULL. Mismo patrón FK nullable que cash_register_id.
+    costCenterId: int("cost_center_id").references(() => costCenters.id),
     recordedBy: int("recorded_by")
       .references(() => users.id)
       .notNull(),
@@ -147,6 +153,10 @@ export const financialTransactionsRelations = relations(
     cashRegister: one(cashRegisters, {
       fields: [financialTransactions.cashRegisterId],
       references: [cashRegisters.id],
+    }),
+    costCenter: one(costCenters, {
+      fields: [financialTransactions.costCenterId],
+      references: [costCenters.id],
     }),
     links: many(transactionLinks),
   }),

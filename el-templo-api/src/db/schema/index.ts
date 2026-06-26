@@ -1,5 +1,6 @@
 export * from "./branches";
 export * from "./cash-registers";
+export * from "./cost-centers";
 export * from "./users";
 export * from "./user-branches";
 export * from "./routes";
