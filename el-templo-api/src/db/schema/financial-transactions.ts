@@ -82,6 +82,13 @@ export const financialTransactions = mysqlTable(
       .default("validado")
       .notNull(),
     notes: text("notes"),
+    // Phase 145 (COBRO-01): structured reason for a cobro suelto. NULLABLE —
+    // only kind='advance_payment' rows set it ('sin_plan' = socio sin plan
+    // activo, 'otro' = otro motivo); every other row stays NULL. NOT folded
+    // into the free-text `notes`. 1st arg = column name, MUST match migration
+    // 0159 byte-for-byte (enum drift = CI "Unknown column" tsc cannot detect,
+    // reference_drizzle_enum_column_name). No new index.
+    miscReason: mysqlEnum("misc_reason", ["sin_plan", "otro"]),
     // Phase 140 (CARGA-02 / D-09): client-generated opaque ticket key for
     // idempotent coach loads. NULLABLE — every historical/admin row stays NULL;
     // MySQL allows unlimited NULLs under a UNIQUE index, so the uq index below
