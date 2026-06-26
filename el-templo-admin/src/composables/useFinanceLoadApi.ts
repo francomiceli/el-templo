@@ -44,6 +44,12 @@ export interface CoachMiscChargeInput {
   currency: string;
   /** Client-generated, one per confirmation attempt (D-09 backstop). */
   idempotencyKey: string;
+  /**
+   * Phase 145 (COBRO-01): structured motivo del cobro suelto. Required server-
+   * side; persisted to the misc_reason column (NOT notes). The composable only
+   * forwards it in the body.
+   */
+  miscReason: 'sin_plan' | 'otro';
 }
 
 /** GET /coach-load/autocompletar/:userId — current plan + amount + currency. */

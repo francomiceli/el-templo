@@ -55,6 +55,21 @@
           </template>
         </q-select>
 
+        <!-- Deuda del socio: aviso destacado en AMBOS modos (POS-01). Depende de
+             autocompletar.outstanding, no del modo, así que aplica a renew y misc. -->
+        <q-banner
+          v-if="(autocompletar?.outstanding ?? 0) > 0"
+          dense
+          rounded
+          class="bg-warning text-dark q-mt-sm"
+        >
+          <template #avatar>
+            <q-icon name="warning" color="dark" />
+          </template>
+          Debe {{ formatPrice(autocompletar?.outstanding ?? 0, autocompletar?.currency ?? 'ARS') }}
+          <span v-if="autocompletar?.planName"> — Plan {{ autocompletar.planName }}</span>
+        </q-banner>
+
         <!-- MODE A: Renovar plan -->
         <template v-if="mode === 'renew'">
           <template v-if="selectedMember">
@@ -108,6 +123,15 @@
               autogrow
               label="Concepto"
               placeholder="Ej.: clase de recuperación, ajuste, etc."
+              outlined
+            />
+            <!-- Motivo estructurado del cobro suelto (COBRO-01). Obligatorio. -->
+            <q-select
+              v-model="miscReason"
+              :options="miscReasonOptions"
+              emit-value
+              map-options
+              label="Motivo"
               outlined
             />
           </template>
@@ -229,6 +253,14 @@ const selectedMember = ref<MemberSearchOption | null>(null);
 const amount = ref<number | null>(null);
 const concepto = ref('');
 const paymentMethod = ref<LoadPaymentMethod | null>(null);
+// COBRO-01: motivo estructurado del cobro suelto. Default 'sin_plan' (el caso
+// operativo principal). Se persiste como columna misc_reason, no en notes.
+type MiscReason = 'sin_plan' | 'otro';
+const miscReason = ref<MiscReason | null>('sin_plan');
+const miscReasonOptions: Array<{ label: string; value: MiscReason }> = [
+  { label: 'Sin plan activo', value: 'sin_plan' },
+  { label: 'Otro', value: 'otro' },
+];
 
 // ─── Typeahead state ──────────────────────────────────────────────────────
 const memberSearchResults = ref<MemberSearchOption[]>([]);
@@ -273,8 +305,8 @@ const canConfirm = computed(() => {
   if (mode.value === 'renew') {
     return autocompletar.value?.hasRenewable === true;
   }
-  // misc
-  return concepto.value.trim().length > 0;
+  // misc: concepto libre + motivo estructurado obligatorio (COBRO-01).
+  return concepto.value.trim().length > 0 && miscReason.value != null;
 });
 
 const confirmarLabel = computed(() => {
@@ -338,6 +370,7 @@ function onMemberSearch(val: string, update: (fn: () => void) => void, _abort: (
 function resetChargeFields() {
   amount.value = null;
   concepto.value = '';
+  miscReason.value = 'sin_plan';
   autocompletar.value = null;
   // A deliberate change of target = a new charge → new idempotency key.
   currentIdempotencyKey.value = null;
@@ -346,15 +379,17 @@ function resetChargeFields() {
 async function onMemberSelected() {
   resetChargeFields();
   if (!selectedMember.value) return;
-  if (mode.value === 'renew') {
-    await loadAutocompletar(selectedMember.value.id);
-  }
+  // POS-01: load autocompletar in BOTH modes. In renew it pre-fills the amount;
+  // in misc it only feeds the deuda banner (no amount pre-fill).
+  await loadAutocompletar(selectedMember.value.id);
 }
 
 function onModeChange() {
-  // A5 (UI-SPEC): preserve socio + method, clear amount/concept/plan.
+  // A5 (UI-SPEC): preserve socio + method, clear amount/concept/motivo/plan.
   resetChargeFields();
-  if (mode.value === 'renew' && selectedMember.value) {
+  // POS-01: reload autocompletar in BOTH modes so the deuda banner survives the
+  // mode switch (in misc it is informativo: no amount pre-fill, no block).
+  if (selectedMember.value) {
     void loadAutocompletar(selectedMember.value.id);
   }
 }
@@ -364,7 +399,9 @@ async function loadAutocompletar(userId: number) {
   try {
     const res = await financeApi.getAutocompletar(userId);
     autocompletar.value = res;
-    if (res.hasRenewable && res.amount != null) {
+    // Pre-fill the amount ONLY in renew mode; the cobro suelto amount is
+    // independent and the autocompletar load there is purely for the banner.
+    if (mode.value === 'renew' && res.hasRenewable && res.amount != null) {
       amount.value = res.amount;
     }
   } catch (err: unknown) {
@@ -380,6 +417,10 @@ async function loadAutocompletar(userId: number) {
 // ─── Confirmar (idempotent submit) ────────────────────────────────────────
 async function onConfirm() {
   if (!canConfirm.value || !selectedMember.value || !paymentMethod.value || !amount.value) {
+    return;
+  }
+  // In misc mode the motivo is obligatorio (canConfirm guards it); narrow here.
+  if (mode.value === 'misc' && miscReason.value == null) {
     return;
   }
   // Generate the idempotency key once per attempt; reuse on retry.
@@ -405,6 +446,7 @@ async function onConfirm() {
         paymentMethod: paymentMethod.value,
         currency: autocompletar.value?.currency ?? 'ARS',
         idempotencyKey,
+        miscReason: miscReason.value ?? 'sin_plan',
       });
     }
     $q.notify({ type: 'positive', message: 'Pago cargado — pendiente de validación' });
