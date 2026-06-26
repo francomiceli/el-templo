@@ -27,7 +27,7 @@ commiteado; tests de integración para rutas nuevas.
 ### C — Cobro suelto → alta de plan posterior (COBRO)
 
 - [x] **COBRO-01**: El "Cobro suelto" incluye un dropdown **Motivo** con opciones "Sin plan activo" / "Otro", persistido como **campo** (no texto libre).
-- [ ] **COBRO-02**: En Pendientes, un cobro con motivo "Sin plan activo" muestra un chip **"Sin plan — asignar"** que navega a la ficha del alumno.
+- [x] **COBRO-02**: En Pendientes, un cobro con motivo "Sin plan activo" muestra un chip **"Sin plan — asignar"** que navega a la ficha del alumno.
 - [ ] **COBRO-03**: Al asignar un plan, gestión puede **usar la plata de un cobro suelto pendiente** del socio para cubrir el monto: anula el cobro suelto y **recrea un `plan_charge`** vinculado a la sub (misma caja/monto/método), de forma **atómica** dentro de `assignPlan`. Gestión ve **todos** los cobros sueltos pendientes del socio.
 - [ ] **COBRO-04**: Si el cobro suelto **excede** el precio del plan, el **excedente no se aplica** (lo maneja gestión aparte).
 - [ ] **COBRO-05**: El botón **"Validar" manual queda bloqueado** en la bandeja para los cobros marcados "Sin plan activo" (se redirigen a asignar plan, para que no queden como plata suelta validada).
@@ -66,7 +66,7 @@ commiteado; tests de integración para rutas nuevas.
 | --------- | ----- | -------- |
 | POS-01    | 145   | Complete |
 | COBRO-01  | 145   | Complete |
-| COBRO-02  | 145   | pending  |
+| COBRO-02  | 145   | Complete |
 | CAJA-01   | 146   | pending  |
 | CAJA-02   | 146   | pending  |
 | CAJA-03   | 146   | pending  |

@@ -3688,7 +3688,7 @@ _v5.2 (Módulo Contable) added: 2026-06-23 — 6 phases (137-142), 25 requiremen
 
 ## v5.3 (Mejoras Caja) Phases
 
-- [ ] **Phase 145: PoS del profe** — aviso destacado de deuda al seleccionar al socio en "Cargar pago" (ambos modos, reusa `autocompletar.outstanding`) + dropdown Motivo ("Sin plan activo"/"Otro", como campo) en el cobro suelto + chip "Sin plan — asignar" en Pendientes que navega a la ficha del alumno.
+- [x] **Phase 145: PoS del profe** — aviso destacado de deuda al seleccionar al socio en "Cargar pago" (ambos modos, reusa `autocompletar.outstanding`) + dropdown Motivo ("Sin plan activo"/"Otro", como campo) en el cobro suelto + chip "Sin plan — asignar" en Pendientes que navega a la ficha del alumno.
 - [ ] **Phase 146: Caja, validación e imputación (fundacional)** — caja sugerida no-definitiva al cobrar (sede del profe / banco por moneda) + confirmar/cambiar caja al validar (abrir el endpoint inmutable) + múltiples cajas banco (seed staging Galicia + Mercado Pago) + quitar selector de la PoS + imputación del anticipo al asignar plan (anular+recrear `plan_charge` atómico en `assignPlan`, excedente no aplicado) + bloqueo del "Validar" manual de los "sin plan" + "Movimientos de caja" como arqueo por caja (todos los tipos por `cash_register_id`, pendientes/validados marcados, Cobros en el filtro Tipo, "Transacciones" se mantiene).
 - [ ] **Phase 147: Centros de costo de egresos** — tabla `cost_centers` (por país) + seed AR (Alquiler Constitución / Librería / Viáticos profes / Varios) + columna `cost_center_id` obligatoria en el egreso + selector en el dialog de egreso + columna "Centro de costo" en la lista de movimientos de caja.
 
@@ -3709,7 +3709,7 @@ _v5.2 (Módulo Contable) added: 2026-06-23 — 6 phases (137-142), 25 requiremen
 Plans:
 
 - [x] 145-01-PLAN.md — Motivo del cobro suelto (columna misc_reason + endpoint) + aviso de deuda en la PoS (POS-01, COBRO-01)
-- [ ] 145-02-PLAN.md — Chip "Sin plan — asignar" en la bandeja de Pendientes (COBRO-02)
+- [x] 145-02-PLAN.md — Chip "Sin plan — asignar" en la bandeja de Pendientes (COBRO-02)
       **UI hint:** yes
 
 ### Phase 146: Caja, validación e imputación (fundacional)
