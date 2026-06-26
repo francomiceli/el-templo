@@ -10,13 +10,18 @@
 // auto-stamps `cash_register_id`, and is REUSED verbatim by phase 140 (carga
 // única del profe) — do NOT reinvent the resolver there.
 
-import { and, eq, gte, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, gte, isNull, sql } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { BadRequestError, NotFoundError } from "../shared/errors";
 import { firmMoneyConditions } from "./firm-money";
-import type { CajaSaldoRow, CashRegisterBalance, PaymentMethod } from "./types";
+import type {
+  CajaSaldoRow,
+  CashRegisterBalance,
+  CostCenterItem,
+  PaymentMethod,
+} from "./types";
 
 type DbInstance = MySql2Database<typeof schema>;
 
@@ -276,5 +281,31 @@ export class CashRegisterService {
       });
     }
     return out;
+  }
+
+  /**
+   * Phase 147 (EGR-01): centros de costo activos para el selector del dialog de
+   * egreso. cost_centers es un catálogo análogo a cash_registers, así que vive en
+   * este service (el "service de catálogos de caja") en lugar de crear un service
+   * nuevo de un solo método — el ABM está diferido (decisión registrada en
+   * AUTONOMOUS-DECISIONS-v5.3.md). Cuando `country` es null (owner sin filtro)
+   * devuelve los de todos los países; si no, acota a ese país. Ordenado por name.
+   */
+  async listActiveCostCenters(
+    country: string | null,
+  ): Promise<CostCenterItem[]> {
+    const conditions = [eq(schema.costCenters.isActive, true)];
+    if (country !== null) {
+      conditions.push(eq(schema.costCenters.country, country));
+    }
+    return this.db
+      .select({
+        id: schema.costCenters.id,
+        name: schema.costCenters.name,
+        country: schema.costCenters.country,
+      })
+      .from(schema.costCenters)
+      .where(and(...conditions))
+      .orderBy(asc(schema.costCenters.name));
   }
 }

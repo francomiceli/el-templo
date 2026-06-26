@@ -1457,6 +1457,8 @@ export class TransactionService {
         voidedAt: schema.financialTransactions.voidedAt,
         voidReason: schema.financialTransactions.voidReason,
         notes: schema.financialTransactions.notes,
+        // Phase 147 (EGR-03): nombre del centro de costo (solo filas expense).
+        costCenterName: schema.costCenters.name,
       })
       .from(schema.financialTransactions)
       .leftJoin(
@@ -1473,6 +1475,10 @@ export class TransactionService {
           schema.cashRegisters.id,
           schema.financialTransactions.cashRegisterId,
         ),
+      )
+      .leftJoin(
+        schema.costCenters,
+        eq(schema.costCenters.id, schema.financialTransactions.costCenterId),
       )
       .leftJoin(
         recorder,
@@ -1505,6 +1511,7 @@ export class TransactionService {
       voidedAt: r.voidedAt ? r.voidedAt.toISOString() : null,
       voidReason: r.voidReason,
       notes: r.notes,
+      costCenterName: r.costCenterName ?? null,
     }));
 
     return { rows, total, page, limit };

@@ -728,6 +728,26 @@ export const cashBalancesSchema = {
 } as const;
 
 /**
+ * GET /cost-centers — centros de costo activos por país (EGR-01). Querystring:
+ * `country` opcional (owner override; non-owner scope pinned server-side). Loose
+ * response (flat CostCenterItem array).
+ */
+export const costCentersSchema = {
+  querystring: {
+    type: "object",
+    properties: {
+      country: { type: "string", minLength: 2, maxLength: 2 },
+    },
+    additionalProperties: false,
+  },
+  response: {
+    401: errorSchema,
+    403: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+/**
  * GET /cash-registers/balances/export — same querystring as cashBalancesSchema.
  * Binary .xlsx attachment; no JSON response schema.
  */

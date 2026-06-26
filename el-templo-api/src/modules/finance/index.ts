@@ -34,4 +34,6 @@ export type {
   RegisterMovementInput,
   RegisterExpenseInput,
   MovementDetail,
+  // Phase 147 — centros de costo de egresos
+  CostCenterItem,
 } from "./types";

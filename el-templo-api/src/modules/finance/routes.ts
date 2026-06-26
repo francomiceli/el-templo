@@ -42,6 +42,7 @@ import {
   pendingTraySchema,
   pendingTrayExportSchema,
   cashBalancesSchema,
+  costCentersSchema,
   cashBalancesExportSchema,
   movementsHistorySchema,
   movementsHistoryExportSchema,
@@ -1200,6 +1201,43 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
         });
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "finance cash balances");
+        return reply;
+      }
+    },
+  );
+
+  // ===================================================================
+  // Phase 147 (EGR-01): GET /cost-centers — centros de costo activos por país
+  // (consumido por el selector del dialog de egreso). RBAC: FINANCE_VOID_ROLES
+  // en-handler (mismo conjunto que registrar egresos, decisión 3 del CONTEXT;
+  // el module hook ya gatea FINANCE_READ_ROLES). Country scope owner-aware
+  // (copia EXACTA de GET /cash-registers/balances).
+  // ===================================================================
+  fastify.get<{ Querystring: { country?: string } }>(
+    "/cost-centers",
+    { schema: costCentersSchema },
+    async (request, reply) => {
+      try {
+        if (
+          !(FINANCE_VOID_ROLES as readonly string[]).includes(request.user.role)
+        ) {
+          return reply.code(403).send({
+            error: "Acceso denegado",
+            message: "No tienes permiso para ver los centros de costo",
+          });
+        }
+
+        let country: string | undefined;
+        if (request.scope.isOwner) {
+          country = request.query.country
+            ? request.query.country.toUpperCase()
+            : undefined;
+        } else {
+          country = request.scope.country ?? undefined;
+        }
+        return await cashRegisterService.listActiveCostCenters(country ?? null);
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "finance cost centers");
         return reply;
       }
     },

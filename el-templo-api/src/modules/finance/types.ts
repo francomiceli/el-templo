@@ -360,6 +360,16 @@ export interface RegisterExpenseInput {
 }
 
 /**
+ * Phase 147 (EGR-01): una fila del catálogo de centros de costo, para el selector
+ * del dialog de egreso. Solo los activos del país consultado.
+ */
+export interface CostCenterItem {
+  id: number;
+  name: string;
+  country: string;
+}
+
+/**
  * Phase 139 (MOV-01): resultado de registrar un movimiento. Devuelve los ids de
  * ambas patas + el id del ajuste de reconciliación (null cuando no hubo
  * diferencia) + el esperado/contado para que el caller (route) los exponga.
@@ -460,6 +470,9 @@ export interface MovEgresoItem {
   voidedAt: string | null;
   voidReason: string | null;
   notes: string | null;
+  // Phase 147 (EGR-03): nombre del centro de costo (LEFT JOIN cost_centers).
+  // Solo las filas expense lo tienen; el resto de kinds queda null.
+  costCenterName: string | null;
 }
 
 /**
