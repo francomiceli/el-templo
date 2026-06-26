@@ -69,15 +69,17 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'caja',
         component: () => import('pages/CajaPage.vue'),
-        meta: { allowedRoles: ['gestion', 'admin', 'owner'] as AdminRole[] },
+        // Rollout: gestión queda excluida de Caja (saldos) por ahora → admin/owner.
+        meta: { allowedRoles: ['admin', 'owner'] as AdminRole[] },
       },
       {
         path: 'pagos',
         component: () => import('pages/PagosPage.vue'),
         // Phase 140 (CARGA-04): opens the coach PoS load surface (ruta /pagos,
-        // ex /cargar). Mirrors the backend FINANCE_LOAD_ROLES — coach can LOAD
-        // here but never reach /caja (saldos), which stays gestion/admin/owner.
-        meta: { allowedRoles: ['coach', 'gestion', 'admin', 'owner'] as AdminRole[] },
+        // ex /cargar). Rollout 148: los profes (coach) quedan FUERA "por el
+        // momento" → gestion/admin/owner. Para re-habilitar el PoS del profe,
+        // volver a sumar 'coach' acá Y en isPagosVisible del AdminLayout.
+        meta: { allowedRoles: ['gestion', 'admin', 'owner'] as AdminRole[] },
       },
       {
         path: 'horarios',

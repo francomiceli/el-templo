@@ -63,7 +63,7 @@
           </q-item-section>
           <q-item-section>Horarios</q-item-section>
         </q-item>
-        <q-item v-if="isLoadRole" clickable v-ripple to="/pagos">
+        <q-item v-if="isPagosVisible" clickable v-ripple to="/pagos">
           <q-item-section avatar>
             <q-icon name="point_of_sale" />
           </q-item-section>
@@ -93,7 +93,7 @@
           </q-item-section>
           <q-item-section>Programas</q-item-section>
         </q-item>
-        <q-item v-if="isCajaRole" clickable v-ripple to="/caja">
+        <q-item v-if="isCajaSaldosRole" clickable v-ripple to="/caja">
           <q-item-section avatar>
             <q-icon name="point_of_sale" />
           </q-item-section>
@@ -246,10 +246,16 @@ const isCoachDebtsRole = computed(() =>
 // owner only for content pages, franquicias, usuarios
 const isOwnerRole = computed(() => userRole.value === 'owner');
 
-// Phase 140 (CARGA-04): coach + caja roles can reach the PoS "Pagos"
-// screen (/pagos, ex /cargar). Mirrors the backend FINANCE_LOAD_ROLES constant — keep in
-// sync. Distinct from isCajaRole: a coach loads payments but cannot see /caja saldos.
-const isLoadRole = computed(() => ['coach', 'gestion', 'admin', 'owner'].includes(userRole.value));
+// Pagos (PoS): hoy lo ven gestion/admin/owner. Los profes (coach) quedan FUERA
+// "por el momento" (rollout 148) — el backend FINANCE_LOAD_ROLES igual incluye
+// coach, así que esto es solo visibilidad del menú/ruta. Para re-habilitar el
+// PoS del profe, sumar 'coach' acá Y en el meta de la ruta /pagos.
+const isPagosVisible = computed(() => ['gestion', 'admin', 'owner'].includes(userRole.value));
+
+// Caja (saldos/arqueo): solo admin/owner. Gestión queda excluida por ahora
+// (rollout). Distinto de isCajaRole, que sigue habilitando Planes/Programas/Reportes
+// para gestión.
+const isCajaSaldosRole = computed(() => ['admin', 'owner'].includes(userRole.value));
 
 async function handleLogout() {
   await authStore.logout();
