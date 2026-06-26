@@ -256,6 +256,15 @@ export interface AssignPlanInput {
    * Validación: 0 <= amountReceived <= pricePaid (cap-violación = 400).
    */
   amountReceived?: number;
+  /**
+   * Phase 146 (COBRO-03 / COBRO-04): id de un cobro suelto pendiente
+   * (advance_payment) del socio a imputar al alta del plan. Cuando viene,
+   * assignPlan anula ese anticipo y recrea un plan_charge vinculado a la nueva
+   * sub con la MISMA caja/monto/método del anticipo, todo dentro de la
+   * db.transaction (atómico). Si el anticipo excede el precio del plan se
+   * rechaza con 400 (COBRO-04). undefined → cobro normal vía amountReceived.
+   */
+  appliedMiscChargeId?: number;
 }
 
 export interface RenewSubscriptionInput {

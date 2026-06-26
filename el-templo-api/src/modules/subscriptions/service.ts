@@ -1277,25 +1277,112 @@ export class SubscriptionService {
         // Move the financial_transaction + balance write INSIDE the same tx
         // that persists the subscription. If applyDelta fails the entire
         // assignment rollbacks — no orphan subscription without a charge.
-        await this.recordAssignmentCharge(tx, {
-          userId,
-          subscriptionId: newSubscriptionId,
-          planId: plan.id,
-          planName: plan.name,
-          planCurrency: plan.currency,
-          chargeBase: pricePaid,
-          amountReceived: input.amountReceived,
-          paymentMethod: input.paymentMethod,
-          branchId: input.branchId,
-          effectiveDate: input.startDate,
-          adminId,
-          flow: "assign",
-        });
+        //
+        // Phase 146 (COBRO-03 / COBRO-04): cuando viene `appliedMiscChargeId`,
+        // gestión imputa un cobro suelto pendiente del socio al alta. La
+        // mecánica es anular ese advance + recrear un plan_charge con la MISMA
+        // caja/monto/método del anticipo, en lugar del recordAssignmentCharge
+        // default. AMBOS caminos son MUTUAMENTE EXCLUYENTES — ejecutar los dos
+        // crearía un plan_charge duplicado (doble ingreso, crédito fantasma).
+        let effectiveAmountReceived: number;
+        if (input.appliedMiscChargeId !== undefined) {
+          if (!this.transactionService) {
+            throw new Error(
+              "TransactionService no inyectado — imputación de cobro suelto requiere finance DI (phase 146)",
+            );
+          }
+
+          // Leer el anticipo DENTRO de la tx. La lectura + el voidInfo posterior
+          // comparten el handle, así un segundo intento concurrente encuentra
+          // la fila ya anulada y revienta (T-146-09 atomicidad/race).
+          const [advance] = await tx
+            .select({
+              id: schema.financialTransactions.id,
+              memberId: schema.financialTransactions.memberId,
+              amount: schema.financialTransactions.amount,
+              currency: schema.financialTransactions.currency,
+              paymentMethod: schema.financialTransactions.paymentMethod,
+              cashRegisterId: schema.financialTransactions.cashRegisterId,
+              kind: schema.financialTransactions.kind,
+              validationStatus: schema.financialTransactions.validationStatus,
+              voidedAt: schema.financialTransactions.voidedAt,
+            })
+            .from(schema.financialTransactions)
+            .where(
+              eq(schema.financialTransactions.id, input.appliedMiscChargeId),
+            )
+            .limit(1);
+
+          // T-146-08: pertenencia + estado. Un anticipo de otro socio, ya
+          // validado/anulado, o que no es advance_payment → 400 sin tocar nada.
+          if (
+            !advance ||
+            advance.memberId !== userId ||
+            advance.kind !== "advance_payment" ||
+            advance.validationStatus !== "pendiente" ||
+            advance.voidedAt !== null
+          ) {
+            throw new BadRequestError(
+              "El cobro suelto no está disponible para imputar (no pertenece al socio, ya fue usado o no es un anticipo pendiente)",
+            );
+          }
+
+          // COBRO-04 (T-146-10): excedente. Rechazar ANTES de anular nada — el
+          // excedente lo maneja gestión aparte (no recreamos un plan_charge
+          // menor que el anticipo ni perdemos plata).
+          if (advance.amount > pricePaid) {
+            throw new BadRequestError(
+              "El cobro suelto excede el precio del plan; aplicá el excedente por separado",
+            );
+          }
+
+          // (1) Anular el anticipo en ESTA tx. voidInTx re-chequea voidedAt y
+          // revierte su efecto de balance (un cobro suelto no tiene links, así
+          // que el balance del socio queda intacto).
+          await this.transactionService.voidInTx(tx, advance.id, adminId, {
+            reason: "Imputado al alta de plan",
+          });
+
+          // (2) Recrear el plan_charge con la caja/monto/método del anticipo,
+          // vinculado a la nueva sub. Reemplaza al recordAssignmentCharge
+          // default — nunca se ejecutan ambos.
+          await this.recordAssignmentCharge(tx, {
+            userId,
+            subscriptionId: newSubscriptionId,
+            planId: plan.id,
+            planName: plan.name,
+            planCurrency: plan.currency,
+            chargeBase: pricePaid,
+            amountReceived: advance.amount,
+            paymentMethod: advance.paymentMethod,
+            branchId: input.branchId,
+            effectiveDate: input.startDate,
+            adminId,
+            flow: "assign",
+            cashRegisterId: advance.cashRegisterId,
+          });
+          effectiveAmountReceived = advance.amount;
+        } else {
+          await this.recordAssignmentCharge(tx, {
+            userId,
+            subscriptionId: newSubscriptionId,
+            planId: plan.id,
+            planName: plan.name,
+            planCurrency: plan.currency,
+            chargeBase: pricePaid,
+            amountReceived: input.amountReceived,
+            paymentMethod: input.paymentMethod,
+            branchId: input.branchId,
+            effectiveDate: input.startDate,
+            adminId,
+            flow: "assign",
+          });
+          effectiveAmountReceived = input.amountReceived ?? pricePaid;
+        }
 
         // REQ-7 (Phase 111): forensic trail for plan_assigned (D-13 payload).
         // Atomic with the subscription insert + charge — if either fails, the
         // audit row vanishes with the rest of the transaction.
-        const effectiveAmountReceived = input.amountReceived ?? pricePaid;
         await auditLog.write(tx, {
           actorId: adminId,
           action: "plan_assigned",
@@ -1310,6 +1397,10 @@ export class SubscriptionService {
             hasChargeTx: effectiveAmountReceived > 0,
             startDate: input.startDate,
             endDate: endDateStr,
+            // Phase 146 (T-146-11): rastro de la imputación. El void deja su
+            // propio audit (transaction_voided); este flag liga el alta al
+            // anticipo imputado.
+            imputedFromMiscChargeId: input.appliedMiscChargeId ?? null,
           },
         });
 
