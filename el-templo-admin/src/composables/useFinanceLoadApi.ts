@@ -52,6 +52,51 @@ export interface CoachMiscChargeInput {
   miscReason: 'sin_plan' | 'otro';
 }
 
+/**
+ * Body for POST /coach-load/alta (Phase 148, ALTA-01..07): alta de alumno + plan
+ * en el cobro. Mirror of `CoachAltaBody` in coach-load-routes.ts. The member is
+ * resolved either by `userId` (existing) XOR by `{ firstName, lastName, dni }`
+ * (new — the server dedups by DNI before creating). `branchId` is the chosen
+ * sede (gated server-side by requireBranchAccess); price is server-derived from
+ * `zero` + `paymentMethod` (card → priceCreditCard). The composable only forwards.
+ */
+export interface CoachAltaInput {
+  /** Rama "alumno existente" (XOR con firstName+lastName+dni). */
+  userId?: number;
+  /** Rama "alumno nuevo" (los 3 juntos; dedup por DNI server-side antes de crear). */
+  firstName?: string;
+  lastName?: string;
+  dni?: string;
+  /** Sede elegida del socio (catálogo real). Gated por requireBranchAccess. */
+  branchId: number;
+  planId: number;
+  /** Toggle "Precio Zero". paymentMethod 'card' override a priceCreditCard server-side. */
+  zero?: boolean;
+  paymentMethod: PaymentMethod;
+  /** Monto recibido; < precio → deja deuda (assignPlan lo soporta). Omitido = total. */
+  amountReceived?: number;
+  /** Solo planes fixed: el server valida length === plan.classesPerWeek. */
+  scheduleIds?: number[];
+  notes?: string;
+  /** Client-generated, one per confirmation attempt (D-09 backstop). */
+  idempotencyKey: string;
+}
+
+/**
+ * POST /coach-load/alta response. On a 201 the server echoes
+ * `subscription`/`createdMemberId`/`createdNew`; on an idempotent 200 no-op it
+ * returns only `{ transaction }` (the existing charge). `createdNew` drives the
+ * "Nuevo" chip on the ticket. `transaction` is null only for a free alta (price 0).
+ */
+export interface CoachAltaResponse {
+  subscription?: { id: number } | null;
+  transaction: TransactionListItem | null;
+  /** id del alumno SOLO cuando ESTA alta lo creó (null si usó uno existente). */
+  createdMemberId?: number | null;
+  /** true cuando esta alta creó al alumno → ticket con chip "Nuevo". */
+  createdNew?: boolean;
+}
+
 /** GET /coach-load/autocompletar/:userId — current plan + amount + currency. */
 export interface AutocompletarResult {
   hasRenewable: boolean;
@@ -150,6 +195,27 @@ export function useFinanceLoadApi() {
   }
 
   /**
+   * POST /coach-load/alta — alta de alumno + plan en el cobro (ALTA-01..07). The
+   * server resolves/creates the member (dedup by DNI), assigns the plan + turnos
+   * and births the charge `pendiente` (recorderRole=coach server-side). Atomic +
+   * idempotent: replaying the same `idempotencyKey` returns the existing charge
+   * (200) and creates neither a 2nd member nor a 2nd charge.
+   */
+  async function altaConPlan(body: CoachAltaInput): Promise<CoachAltaResponse> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.post<CoachAltaResponse>('/admin/finance/coach-load/alta', body);
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'No se pudo cargar. Reintentá.');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  /**
    * GET /coach-load/mis-cargas — the calling coach's OWN recent loads only
    * (recordedBy forced to self server-side). Used to render the "Mis cargas de
    * hoy" ticket list; re-fetching after a successful submit naturally de-dupes
@@ -182,6 +248,7 @@ export function useFinanceLoadApi() {
     getAutocompletar,
     payPlan,
     miscCharge,
+    altaConPlan,
     listMyLoads,
     cleanup,
   };
