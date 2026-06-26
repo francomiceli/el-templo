@@ -19,10 +19,10 @@ commiteado; tests de integración para rutas nuevas.
 
 ### B — Imputación de caja en la validación (CAJA) — _fundacional para C y D_
 
-- [ ] **CAJA-01**: El cobro del profe nace con una **caja sugerida** (efectivo de la sede del profe vía `recordedBy` / banco por moneda), marcada como no-definitiva.
+- [x] **CAJA-01**: El cobro del profe nace con una **caja sugerida** (efectivo de la sede del profe vía `recordedBy` / banco por moneda), marcada como no-definitiva.
 - [ ] **CAJA-02**: Al validar un pago pendiente, gestión puede **confirmar o cambiar** la caja imputada (`cash_register_id`). El endpoint de validación (hoy inmutable) se abre para recibirla.
 - [ ] **CAJA-03**: El sistema soporta **múltiples cuentas banco** (varias cajas tipo `banco`). Gestión elige la cuenta al validar una transferencia. Staging seedea **Galicia** + **Mercado Pago**.
-- [ ] **CAJA-04**: La PoS del profe **no** ofrece selector de caja/sede — el profe nunca elige caja.
+- [x] **CAJA-04**: La PoS del profe **no** ofrece selector de caja/sede — el profe nunca elige caja.
 
 ### C — Cobro suelto → alta de plan posterior (COBRO)
 
@@ -67,10 +67,10 @@ commiteado; tests de integración para rutas nuevas.
 | POS-01    | 145   | Complete |
 | COBRO-01  | 145   | Complete |
 | COBRO-02  | 145   | Complete |
-| CAJA-01   | 146   | pending  |
+| CAJA-01   | 146   | Complete |
 | CAJA-02   | 146   | pending  |
 | CAJA-03   | 146   | pending  |
-| CAJA-04   | 146   | pending  |
+| CAJA-04   | 146   | Complete |
 | COBRO-03  | 146   | pending  |
 | COBRO-04  | 146   | pending  |
 | COBRO-05  | 146   | pending  |

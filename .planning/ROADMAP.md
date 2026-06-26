@@ -3725,11 +3725,11 @@ Plans:
 4. El botón **"Validar" manual queda bloqueado** en la bandeja para los cobros marcados "Sin plan activo" (se redirigen a asignar plan, para que no queden como plata suelta validada). (COBRO-05)
 5. "Movimientos de caja" se vuelve el **arqueo por caja**: muestra todo lo imputado a una caja por `cash_register_id` (cobros de socio + egresos + traspasos + ajustes), con pendientes y validados **marcados** por su estado, **Cobros** agregado al filtro Tipo, y la pestaña "Transacciones" (vista comercial por socio) **se mantiene** sin cambios de criterio. (ARQUEO-01, ARQUEO-02, ARQUEO-03, ARQUEO-04)
 
-**Plans:** 6 plans
+**Plans:** 1/6 plans executed
 
 Plans:
 
-- [ ] 146-01-PLAN.md — CAJA-01/04: el cobro del profe nace con caja sugerida (sede del profe); la PoS no expone caja/sede
+- [x] 146-01-PLAN.md — CAJA-01/04: el cobro del profe nace con caja sugerida (sede del profe); la PoS no expone caja/sede
 - [ ] 146-02-PLAN.md — CAJA-02/03 + COBRO-05 (backend): abrir validate para confirmar/cambiar caja + multi-banco (seed Galicia/Mercado Pago) + bloqueo validar sin_plan + primitivos para imputación
 - [ ] 146-03-PLAN.md — COBRO-03/04: imputación atómica del anticipo al asignar plan (anular+recrear plan_charge; excedente rechazado) + AssignPlanDialog
 - [ ] 146-04-PLAN.md — CAJA-02/03 + COBRO-05 (frontend): selector de caja al validar en la bandeja + bloqueo del Validar de los sin_plan
@@ -3756,7 +3756,7 @@ Plans:
 | Phase                              | Plans Complete | Status      | Completed |
 | ---------------------------------- | -------------- | ----------- | --------- |
 | 145. PoS del profe                 | 1/2            | In Progress |           |
-| 146. Caja, validación e imputación | 0/6            | Planned     | -         |
+| 146. Caja, validación e imputación | 1/6            | In Progress |           |
 | 147. Centros de costo de egresos   | 0/?            | Not started | -         |
 
 _Plan counts populated by `/gsd-plan-phase`._

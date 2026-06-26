@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v5.3
 milestone_name: Mejoras Caja / Módulo Contable (feedback v5.2)
-status: executing
-stopped_at: Phase 145 complete (145-01 + 145-02)
-last_updated: "2026-06-26T04:30:00.000Z"
-last_activity: 2026-06-26 — 145-02 ejecutado (COBRO-02: miscReason en listPendingTray + chip "Sin plan — asignar" navegable en la bandeja, 6/6 tests pending-tray verde)
+status: completed
+stopped_at: Phase 144 UI-SPEC approved
+last_updated: "2026-06-26T05:00:56.885Z"
+last_activity: "2026-06-26 — 145-02 ejecutado (COBRO-02: miscReason en listPendingTray + chip "Sin plan — asignar" navegable en la bandeja, 6/6 tests pending-tray verde)"
 progress:
   total_phases: 3
   completed_phases: 1
-  total_plans: 2
-  completed_plans: 2
+  total_plans: 8
+  completed_plans: 3
   percent: 33
 ---
 
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 Phase: 145 — PoS del profe (complete: 145-01 + 145-02)
 Plan: 145-02 ejecutado (fase 145 cerrada — 2/2 planes)
 Status: Complete — 145 done (POS-01, COBRO-01, COBRO-02). Next: `/gsd:plan-phase 146`.
-Progress: [██████████] 100%
+Progress: [████░░░░░░] 38%
 Last activity: 2026-06-26 — 145-02 ejecutado (COBRO-02: miscReason en listPendingTray + chip "Sin plan — asignar" navegable en la bandeja, 6/6 tests pending-tray verde)
 
 **Phase order:** 145 (independiente) → 146 (fundacional: caja en validación + imputación + arqueo; depende de 145 + v5.2) → 147 (independiente, centros de costo). Next: `/gsd:plan-phase 145`.
