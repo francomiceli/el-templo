@@ -14,9 +14,31 @@
       :options="[
         { label: 'Pago de plan', value: 'renew' },
         { label: 'Cobro suelto', value: 'misc' },
+        { label: 'Alta + plan', value: 'alta' },
       ]"
       @update:model-value="onModeChange"
     />
+
+    <!-- ALTA + PLAN: chip Sede al tope (default sede del profe, editable). Solo
+         en modo alta; renew/misc usan la sede del socio existente. -->
+    <q-select
+      v-if="mode === 'alta'"
+      v-model="sucursalId"
+      :options="branchOptions"
+      option-value="id"
+      option-label="name"
+      emit-value
+      map-options
+      dense
+      outlined
+      label="Sede"
+      class="q-mb-md"
+      @update:model-value="onSucursalChange"
+    >
+      <template #prepend>
+        <q-icon name="place" color="primary" />
+      </template>
+    </q-select>
 
     <!-- Form card -->
     <q-card bordered flat class="q-mb-lg">
@@ -40,6 +62,15 @@
             <q-item>
               <q-item-section class="text-grey-5 text-italic">
                 {{ searchQuery ? 'Sin resultados' : 'Escribe para buscar' }}
+              </q-item-section>
+            </q-item>
+            <!-- ALTA: dar de alta un alumno nuevo cuando no hay match -->
+            <q-item v-if="mode === 'alta'" clickable v-ripple @click="onNuevoAlumno">
+              <q-item-section avatar>
+                <q-icon name="person_add" color="primary" />
+              </q-item-section>
+              <q-item-section class="text-primary text-weight-bold">
+                + Nuevo alumno
               </q-item-section>
             </q-item>
           </template>
@@ -69,6 +100,34 @@
           Debe {{ formatPrice(autocompletar?.outstanding ?? 0, autocompletar?.currency ?? 'ARS') }}
           <span v-if="autocompletar?.planName"> — Plan {{ autocompletar.planName }}</span>
         </q-banner>
+
+        <!-- ALTA: mini-form de alumno nuevo (Nombre/Apellido/DNI). Sin email/
+             teléfono — gestión los completa al validar. -->
+        <template v-if="mode === 'alta' && showNewStudentForm">
+          <div class="text-subtitle1 text-weight-bold q-mt-sm">Datos del alumno</div>
+          <q-input v-model="newStudent.firstName" label="Nombre" outlined dense />
+          <q-input v-model="newStudent.lastName" label="Apellido" outlined dense />
+          <q-input
+            v-model="newStudent.dni"
+            label="DNI"
+            inputmode="numeric"
+            outlined
+            dense
+            :loading="dedupChecking"
+            @blur="onDniBlur"
+          />
+
+          <!-- Dedup por DNI: si matchea, ofrecer cargar sobre el alumno existente -->
+          <q-banner v-if="dedupMatch" dense rounded class="bg-warning text-dark q-mt-sm">
+            <template #avatar>
+              <q-icon name="warning" color="dark" />
+            </template>
+            Ya existe un alumno con ese DNI: {{ dedupMatchName }}. Se cargará sobre ese alumno.
+            <template #action>
+              <q-btn flat dense no-caps label="Usar ese alumno" @click="onUsarExistente" />
+            </template>
+          </q-banner>
+        </template>
 
         <!-- MODE A: Renovar plan -->
         <template v-if="mode === 'renew'">
@@ -229,15 +288,19 @@ import { createLogger } from 'src/utils/logger';
 import { formatPrice } from 'src/utils/format-price';
 import { useMembersApi } from 'src/composables/useMembersApi';
 import { useFinanceLoadApi, type AutocompletarResult } from 'src/composables/useFinanceLoadApi';
+import { useAuthStore } from 'src/stores/useAuthStore';
 import { PAYMENT_METHOD_LABELS, PAYMENT_METHOD_COLORS } from 'src/types/transaction';
 import type { PaymentMethod, TransactionListItem } from 'src/types/transaction';
+import type { BranchOption } from 'src/types/member';
+import type { DuplicateMatch } from 'src/composables/useMembersApi';
 
 const log = createLogger('cargar-pago');
 const $q = useQuasar();
 const membersApi = useMembersApi();
 const financeApi = useFinanceLoadApi();
+const authStore = useAuthStore();
 
-type Mode = 'renew' | 'misc';
+type Mode = 'renew' | 'misc' | 'alta';
 type LoadPaymentMethod = 'cash' | 'transfer' | 'card';
 
 interface MemberSearchOption {
@@ -261,6 +324,22 @@ const miscReasonOptions: Array<{ label: string; value: MiscReason }> = [
   { label: 'Sin plan activo', value: 'sin_plan' },
   { label: 'Otro', value: 'otro' },
 ];
+
+// ─── Alta + plan (Mode C) ─────────────────────────────────────────────────
+// Sede elegida del socio (default = sede del profe, editable a sus sedes).
+const sucursalId = ref<number | null>(authStore.user?.branchId ?? null);
+const branchOptions = ref<BranchOption[]>([]);
+// Mini-form de alumno nuevo: visible al tocar "+ Nuevo alumno"; se colapsa al
+// elegir un socio existente (typeahead o dedup).
+const showNewStudentForm = ref(false);
+const newStudent = ref<{ firstName: string; lastName: string; dni: string }>({
+  firstName: '',
+  lastName: '',
+  dni: '',
+});
+// Dedup por DNI on-blur (≥7 dígitos). El server es la autoridad en Confirmar.
+const dedupMatch = ref<DuplicateMatch | null>(null);
+const dedupChecking = ref(false);
 
 // ─── Typeahead state ──────────────────────────────────────────────────────
 const memberSearchResults = ref<MemberSearchOption[]>([]);
@@ -316,6 +395,79 @@ const confirmarLabel = computed(() => {
   }
   return 'Confirmar';
 });
+
+// ─── Alta helpers ─────────────────────────────────────────────────────────
+const dedupMatchName = computed(() => {
+  const m = dedupMatch.value;
+  if (!m) return '';
+  return `${m.firstName ?? ''} ${m.lastName ?? ''}`.trim() || `#${m.id}`;
+});
+
+async function loadBranches() {
+  try {
+    branchOptions.value = await membersApi.getBranches();
+    // Default a la sede del profe si está dentro de las accesibles; si no, la 1ª.
+    if (sucursalId.value == null || !branchOptions.value.some((b) => b.id === sucursalId.value)) {
+      sucursalId.value = branchOptions.value[0]?.id ?? sucursalId.value;
+    }
+  } catch (err: unknown) {
+    log.error('Error cargando sucursales', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
+function resetAltaFields() {
+  showNewStudentForm.value = false;
+  newStudent.value = { firstName: '', lastName: '', dni: '' };
+  dedupMatch.value = null;
+  dedupChecking.value = false;
+}
+
+function onNuevoAlumno() {
+  // Revelar el mini-form y limpiar el typeahead (es un alumno nuevo, no existente).
+  selectedMember.value = null;
+  resetChargeFields();
+  showNewStudentForm.value = true;
+  dedupMatch.value = null;
+}
+
+async function onDniBlur() {
+  const dni = newStudent.value.dni.trim();
+  dedupMatch.value = null;
+  if (dni.length < 7) return;
+  dedupChecking.value = true;
+  try {
+    const { matches } = await membersApi.checkDuplicates({ dni });
+    const dniMatch = matches.find((m) => m.matchedField === 'dni' && !m.deletedAt);
+    dedupMatch.value = dniMatch ?? null;
+  } catch (err: unknown) {
+    log.error('Error verificando DNI', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  } finally {
+    dedupChecking.value = false;
+  }
+}
+
+function onUsarExistente() {
+  const m = dedupMatch.value;
+  if (!m) return;
+  // Colapsar el mini-form y seleccionar el alumno existente.
+  selectedMember.value = {
+    id: m.id,
+    displayLabel: dedupMatchName.value,
+    statusLabel: m.status ?? 'Sin plan',
+    statusColor: 'grey',
+  };
+  resetAltaFields();
+}
+
+function onSucursalChange() {
+  // Cambiar la sede limpia el plan elegido + turnos (catálogo/picker por sede).
+  // Task 3 cablea la recarga de planes; acá sólo se reinicia la idempotencia.
+  currentIdempotencyKey.value = null;
+}
 
 // ─── Typeahead ────────────────────────────────────────────────────────────
 function onMemberSearch(val: string, update: (fn: () => void) => void, _abort: () => void) {
@@ -378,6 +530,8 @@ function resetChargeFields() {
 
 async function onMemberSelected() {
   resetChargeFields();
+  // Elegir un socio existente colapsa el mini-form de alumno nuevo (alta).
+  resetAltaFields();
   if (!selectedMember.value) return;
   // POS-01: load autocompletar in BOTH modes. In renew it pre-fills the amount;
   // in misc it only feeds the deuda banner (no amount pre-fill).
@@ -387,6 +541,12 @@ async function onMemberSelected() {
 function onModeChange() {
   // A5 (UI-SPEC): preserve socio + method, clear amount/concept/motivo/plan.
   resetChargeFields();
+  // Switching OUT of (or INTO) alta clears the new-student mini-form (UI-SPEC).
+  resetAltaFields();
+  // Al entrar a alta, asegurar el catálogo de sedes para el chip Sede.
+  if (mode.value === 'alta' && branchOptions.value.length === 0) {
+    void loadBranches();
+  }
   // POS-01: reload autocompletar in BOTH modes so the deuda banner survives the
   // mode switch (in misc it is informativo: no amount pre-fill, no block).
   if (selectedMember.value) {
@@ -471,6 +631,7 @@ async function onConfirm() {
 function resetForm() {
   selectedMember.value = null;
   resetChargeFields();
+  resetAltaFields();
   paymentMethod.value = null;
   memberSearchResults.value = [];
   searchQuery.value = '';
@@ -516,4 +677,6 @@ function methodColor(method: PaymentMethod): string {
 
 // Initial load of today's tickets.
 void refreshMyLoads();
+// Pre-cargar las sedes accesibles para el chip Sede del modo alta.
+void loadBranches();
 </script>
