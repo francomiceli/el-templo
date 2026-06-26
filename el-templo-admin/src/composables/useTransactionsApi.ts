@@ -28,6 +28,7 @@ import type {
   MovementDetail,
   RegisterExpenseInput,
   ExpenseDetail,
+  PendingMiscItem,
 } from 'src/types/transaction';
 import type { PaginatedResult } from 'src/types/report';
 
@@ -354,6 +355,27 @@ export function useTransactionsApi() {
   }
 
   /**
+   * Phase 146 (COBRO-03) — cobros sueltos (advance_payment) pendientes no
+   * anulados del socio, candidatos a imputar al alta de un plan.
+   * Source: GET /admin/finance/transactions/pending-misc/:memberId.
+   */
+  async function getPendingMisc(memberId: number): Promise<PendingMiscItem[]> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<{ items: PendingMiscItem[] }>(
+        `/admin/finance/transactions/pending-misc/${memberId}`
+      );
+      return data.items;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cargando cobros sueltos pendientes');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  /**
    * Phase 108 — Historial financiero paginado del miembro.
    * Source: GET /admin/members/:id/financial-history (Phase 106-04).
    * Reusa el shape canonical PaginatedResult<T> = { rows, total, page, limit }.
@@ -508,6 +530,8 @@ export function useTransactionsApi() {
     // Phase 108 additions:
     getOutstandingConcepts,
     getFinancialHistory,
+    // Phase 146 addition — cobros sueltos pendientes para imputar al alta:
+    getPendingMisc,
     createTransaction,
     // Phase 109 additions:
     exportToExcel,

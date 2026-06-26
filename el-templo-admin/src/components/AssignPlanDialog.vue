@@ -679,7 +679,61 @@
                   </div>
                 </div>
 
-                <!-- Inputs (siempre visibles, deshabilitados si chargeBase = 0) -->
+                <!-- ====================================================== -->
+                <!-- Phase 146 (COBRO-03): imputar un cobro suelto pendiente -->
+                <!-- Sólo en alta (assign), si el socio tiene cobros sueltos -->
+                <!-- ====================================================== -->
+                <div
+                  v-if="props.mode !== 'change' && chargeBase > 0 && pendingMiscItems.length > 0"
+                  class="q-mb-md"
+                >
+                  <q-select
+                    v-model="selectedMiscChargeId"
+                    :options="miscChargeOptions"
+                    label="Aplicar un cobro pendiente (opcional)"
+                    dense
+                    outlined
+                    clearable
+                    emit-value
+                    map-options
+                    :loading="loadingMisc"
+                    hint="Usá la plata de un cobro suelto del socio para cubrir el alta."
+                  />
+                  <q-banner v-if="isMiscApplied" dense rounded class="bg-blue-1 q-mt-sm">
+                    <template #avatar>
+                      <q-icon name="info" color="primary" />
+                    </template>
+                    <div class="text-body2">
+                      Al asignar, ese cobro pendiente quedará cerrado y se imputará al plan con su
+                      misma caja y método. El monto lo aporta el anticipo.
+                    </div>
+                  </q-banner>
+                  <q-banner v-if="miscExceedsPrice" dense rounded class="bg-red-1 q-mt-sm">
+                    <template #avatar>
+                      <q-icon name="error" color="negative" />
+                    </template>
+                    <div class="text-body2">
+                      El cobro seleccionado ({{
+                        formatPrice(selectedMiscItem?.amount ?? 0, displayCurrency)
+                      }}) excede el precio del plan. El alta será rechazada — aplicá el excedente
+                      por separado o elegí otro cobro.
+                    </div>
+                  </q-banner>
+                  <q-banner v-else-if="miscBelowPrice" dense rounded class="bg-yellow-1 q-mt-sm">
+                    <template #avatar>
+                      <q-icon name="warning" color="warning" />
+                    </template>
+                    <div class="text-body2">
+                      El cobro seleccionado ({{
+                        formatPrice(selectedMiscItem?.amount ?? 0, displayCurrency)
+                      }}) es menor al precio del plan. El socio quedará deudor por la diferencia.
+                    </div>
+                  </q-banner>
+                </div>
+
+                <!-- Inputs (siempre visibles, deshabilitados si chargeBase = 0
+                     o si se imputa un cobro suelto: el monto/método los aporta
+                     el anticipo) -->
                 <div class="row q-col-gutter-md">
                   <div class="col-12 col-sm-6">
                     <q-input
@@ -691,8 +745,12 @@
                       prefix="$"
                       :max="chargeBase"
                       :min="0"
-                      :disable="chargeBase === 0"
-                      hint="Por defecto se cobra el total. Modificá si el cobro es parcial."
+                      :disable="chargeBase === 0 || isMiscApplied"
+                      :hint="
+                        isMiscApplied
+                          ? 'El monto lo aporta el cobro suelto imputado.'
+                          : 'Por defecto se cobra el total. Modificá si el cobro es parcial.'
+                      "
                     />
                   </div>
                   <div class="col-12 col-sm-6">
@@ -704,13 +762,17 @@
                       outlined
                       emit-value
                       map-options
-                      :disable="chargeBase === 0"
+                      :disable="chargeBase === 0 || isMiscApplied"
+                      :hint="isMiscApplied ? 'El método lo aporta el cobro suelto imputado.' : ''"
                     />
                   </div>
                 </div>
 
                 <!-- Preview saldo pendiente (CHARGE-02) -->
-                <div v-if="chargeBase > 0 && amountReceived !== null" class="q-mt-md text-body2">
+                <div
+                  v-if="chargeBase > 0 && !isMiscApplied && amountReceived !== null"
+                  class="q-mt-md text-body2"
+                >
                   <span class="text-weight-medium">Saldo pendiente:</span>
                   {{ formatPrice(pendingBalance, displayCurrency) }}
                 </div>
@@ -800,6 +862,7 @@ import { formatDate } from 'src/utils/format-date';
 import { formatPrice, type Currency } from 'src/utils/format-price';
 import { extractError, isExpectedClientError } from 'src/utils/extract-error';
 import { useSubscriptionsApi } from 'src/composables/useSubscriptionsApi';
+import { useTransactionsApi } from 'src/composables/useTransactionsApi';
 import {
   PLAN_TIER_LABELS,
   AURA_DISCOUNT_TIERS,
@@ -811,7 +874,12 @@ import {
   type AssignPlanInput,
   type ChangePlanPreview,
 } from 'src/types/subscription';
-import { PAYMENT_METHOD_OPTIONS, type PaymentMethod } from 'src/types/transaction';
+import {
+  PAYMENT_METHOD_OPTIONS,
+  PAYMENT_METHOD_LABELS,
+  type PaymentMethod,
+  type PendingMiscItem,
+} from 'src/types/transaction';
 import { DAY_SHORT_LABELS, type DayOfWeek } from 'src/types/scheduling';
 import type { MemberProfile, BranchOption } from 'src/types/member';
 import FixedSchedulePicker from 'src/components/scheduling/FixedSchedulePicker.vue';
@@ -823,6 +891,7 @@ import MemberFormDialog from 'src/components/MemberFormDialog.vue';
 const log = createLogger('AssignPlanDialog');
 const $q = useQuasar();
 const subsApi = useSubscriptionsApi();
+const txApi = useTransactionsApi();
 
 // =========================================================================
 // Props & Emits
@@ -942,6 +1011,65 @@ const paymentMethodOptions = PAYMENT_METHOD_OPTIONS;
 // Monto recibido en caja al asignar/cambiar plan. `null` = no inicializado;
 // se pre-llena con `chargeBase` cuando el usuario entra al step Confirmar.
 const amountReceived = ref<number | null>(null);
+
+// =========================================================================
+// Phase 146 (COBRO-03/04): imputar un cobro suelto pendiente al alta
+// =========================================================================
+//
+// Sólo en modo 'assign' (el backend implementa la imputación en assignPlan,
+// NO en changePlan). Al abrir el dialog se piden los cobros sueltos pendientes
+// del socio; si hay, gestión puede elegir uno para cubrir el alta. Al aplicar,
+// el backend anula el anticipo y recrea un plan_charge con su misma caja/monto/
+// método — por eso deshabilitamos el input de monto recibido.
+
+const pendingMiscItems = ref<PendingMiscItem[]>([]);
+const loadingMisc = ref(false);
+const selectedMiscChargeId = ref<number | null>(null);
+
+async function loadPendingMisc() {
+  pendingMiscItems.value = [];
+  selectedMiscChargeId.value = null;
+  // Imputación sólo aplica al alta (assign). En change/renew no hay endpoint.
+  if (props.mode === 'change') return;
+  loadingMisc.value = true;
+  try {
+    pendingMiscItems.value = await txApi.getPendingMisc(props.userId);
+  } catch (err: unknown) {
+    // No bloquea el alta: si falla la lectura, simplemente no se ofrece el
+    // selector y el flujo normal de cobro queda intacto.
+    log.warn({ err }, 'No se pudieron cargar los cobros sueltos pendientes');
+    pendingMiscItems.value = [];
+  } finally {
+    loadingMisc.value = false;
+  }
+}
+
+/** Opciones del selector: motivo + monto + método + fecha. */
+const miscChargeOptions = computed(() =>
+  pendingMiscItems.value.map((m) => {
+    const motivo = m.miscReason === 'sin_plan' ? 'Sin plan' : 'Otro';
+    const metodo = PAYMENT_METHOD_LABELS[m.paymentMethod] ?? m.paymentMethod;
+    return {
+      label: `${motivo} · ${formatPrice(m.amount, m.currency as Currency)} · ${metodo} · ${formatDate(m.transactionDate)}`,
+      value: m.id,
+    };
+  })
+);
+
+const selectedMiscItem = computed<PendingMiscItem | null>(
+  () => pendingMiscItems.value.find((m) => m.id === selectedMiscChargeId.value) ?? null
+);
+
+const isMiscApplied = computed(() => selectedMiscItem.value !== null);
+
+// El anticipo aplicado no coincide con el precio del plan: si excede, el backend
+// rechaza (400) → avisamos; si es menor, el socio queda deudor por la diferencia.
+const miscExceedsPrice = computed(
+  () => isMiscApplied.value && (selectedMiscItem.value?.amount ?? 0) > chargeBase.value
+);
+const miscBelowPrice = computed(
+  () => isMiscApplied.value && (selectedMiscItem.value?.amount ?? 0) < chargeBase.value
+);
 
 // =========================================================================
 // Phase 111 REQ-2: stacked MemberFormDialog state
@@ -1159,6 +1287,10 @@ const pendingBalance = computed<number>(() =>
 // chargeBase === 0 (plan gratuito): el bloque queda deshabilitado y NO bloquea Confirmar.
 const isCobroInvalid = computed<boolean>(() => {
   if (chargeBase.value === 0) return false;
+  // Phase 146: con un cobro suelto imputado, el monto/método los aporta el
+  // anticipo (no se valida amountReceived). Sólo bloqueamos si el anticipo
+  // excede el precio del plan (el backend lo rechazaría con 400).
+  if (isMiscApplied.value) return miscExceedsPrice.value;
   if (amountReceived.value === null) return true;
   if (amountReceived.value < 0) return true;
   if (amountReceived.value > chargeBase.value) return true;
@@ -1495,7 +1627,17 @@ async function executeConfirm() {
       // Phase 107 D-12/D-13: cobro al asignar. Si chargeBase=0 (plan gratuito)
       // se omite el campo para no crear transaction; resto envía amountReceived
       // o undefined (backend defaultea a pricePaid por backward-compat).
-      amountReceived: chargeBase.value === 0 ? undefined : (amountReceived.value ?? undefined),
+      // Phase 146: si se imputa un cobro suelto, el monto lo aporta el anticipo
+      // (el backend usa advance.amount) — se omite amountReceived.
+      amountReceived: isMiscApplied.value
+        ? undefined
+        : chargeBase.value === 0
+          ? undefined
+          : (amountReceived.value ?? undefined),
+      // Phase 146 (COBRO-03/04): cobro suelto pendiente a imputar al alta.
+      appliedMiscChargeId: isMiscApplied.value
+        ? (selectedMiscChargeId.value ?? undefined)
+        : undefined,
     };
 
     if (props.mode === 'change') {
@@ -1563,6 +1705,10 @@ watch(
       // Phase 107 D-02: reset del cobro al reabrir el dialog. Se pre-llena
       // automáticamente al entrar al step Confirmar mediante el watch debajo.
       amountReceived.value = null;
+      // Phase 146: reset + recarga de cobros sueltos pendientes del socio.
+      selectedMiscChargeId.value = null;
+      pendingMiscItems.value = [];
+      void loadPendingMisc();
       loadPlans();
     }
   },

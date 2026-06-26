@@ -178,6 +178,23 @@ export interface OutstandingConcept {
   effectiveDate: string;
 }
 
+/**
+ * Phase 146 (COBRO-03): cobro suelto (advance_payment) pendiente no anulado de
+ * un socio, candidato a imputar al alta de un plan. Source: GET
+ * /admin/finance/transactions/pending-misc/:memberId → { items: PendingMiscItem[] }.
+ */
+export interface PendingMiscItem {
+  id: number;
+  amount: number;
+  currency: string;
+  paymentMethod: PaymentMethod;
+  cashRegisterId: number | null;
+  miscReason: 'sin_plan' | 'otro' | null;
+  /** YYYY-MM-DD */
+  transactionDate: string;
+  notes: string | null;
+}
+
 // -- Phase 108: Financial history item (D-12 / D-14) -----------------------
 
 /**
