@@ -3764,6 +3764,17 @@ Plans:
 
 _Plan counts populated by `/gsd-plan-phase`._
 
+### Phase 148: PoS profe: alta de alumno + plan en el cobro
+
+**Goal:** El profe carga el plan directamente en el cobro (extiende `CargarPagoPage.vue` / Fase 140), creando al alumno si es nuevo, reemplazando el flujo Google Form→Excel→admin. Modelo **crear-en-vivo + validar-después**: alumno + membresía + turnos se crean al instante (entrena ya); el pago nace `validation_status='pendiente'` y va a la bandeja de gestión (Fase 137/141). Refuerzos: **dedup por DNI** (`check-duplicates`) antes de crear; **cascade en void** (anular carga de alumno-nuevo desactiva la membresía y deja al alumno inactivo, NO lo borra). Sucursal default = sede del profe, editable. Precio según medio de pago (tarjeta→`priceCreditCard`, resto→`priceRegular`/`priceZero` con toggle Zero; parcial deja deuda). **Selector de turnos estructurado** solo para planes `fixed` (reusa `FixedSchedulePicker.vue`). Backend: endpoint nuevo en `coach-load-routes.ts`, atómico e idempotente (resolver/crear alumno + `assignPlan(scheduleIds)` + transacción financiera `pendiente`). Fuente de verdad: `BRIEF-POS-PROFE-ALTA-ALUMNO.md` (raíz).
+**Requirements**: ALTA-01 (crear alumno mínimo + dedup DNI), ALTA-02 (sucursal default editable), ALTA-03 (plan + Zero + precio x medio + parcial), ALTA-04 (turnos estructurados fixed), ALTA-05 (endpoint atómico idempotente), ALTA-06 (cascade en void), ALTA-07 (pago pendiente → bandeja), ALTA-08 (tests integración)
+**Depends on:** Fases v5.2 (137 validación, 140 PoS del profe, 141 bandeja Pendientes) + v5.3 (146 caja sugerida). Sobre `staging`, viaja en el tren v5.2/v5.3 → master.
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 148 to break down)
+
 ---
 
 _v5.3 (Mejoras Caja) added: 2026-06-26 — 3 phases (145-147), 17 requirements (POS, CAJA, COBRO, ARQUEO, EGR). Fixes targeted sobre el Módulo Contable v5.2 (137-142) y el modelo v4.8 — NO es un build from-scratch. Agrupación de 3 fases **aprobada explícitamente por el usuario, no se decompone más**. **Phase 146 (caja en validación) es fundacional** para la imputación del anticipo (C) y el arqueo por caja (D): la caja sugerida no-definitiva en Pendientes habilita ambos. 145 (aviso de deuda + Motivo + chip) y 147 (centros de costo) son independientes. Continúa numeración desde fase 144 (NO se resetea). Migraciones nuevas 0159+ (última aplicada 0158). Descartados del feedback: puntos 2/3/7/8. Diferido: reporte por centro de costo, ABM de centros, ABM de cuentas banco. Fuente de verdad: `BRIEF-FEEDBACK-V52-CAJA.md` (raíz)._
