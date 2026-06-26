@@ -60,6 +60,10 @@ interface CoachMiscLoadBody {
 }
 
 // ── JSON schemas (reject validationStatus / cashRegisterId) ──────────────────
+// CAJA-04 (T-146-01): `additionalProperties:false` + properties SIN cashRegisterId
+// hace que el body del profe NUNCA pueda elegir caja ni sede. La caja se deriva
+// 100% server-side desde recordedBy (sede del profe, CAJA-01); la PoS
+// (CargarPagoPage.vue) tampoco expone ningún selector de caja/sede.
 
 const PAYMENT_METHOD_ENUM = [
   "cash",
