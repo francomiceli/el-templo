@@ -36,7 +36,7 @@ import { FINANCE_LOAD_ROLES, type AdminRole } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
 import { isDuplicateKeyError } from "../shared/sql-errors";
 import * as schema from "../../db/schema";
-import type { TransactionDetail } from "./types";
+import type { PaymentMethod, TransactionDetail } from "./types";
 
 // ── Body shapes ────────────────────────────────────────────────────────────
 
@@ -154,17 +154,17 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
     await attachCountryScope(request, fastify.db);
   });
 
-  // ── Resolve a member's branchId server-side (Pitfall 4): mirror of
-  // renewSubscription's renewBranchId resolution incl. the virtual "Templo
-  // Online" fallback. For cash the caja is by-branch, so the member's branch is
-  // the correct one; for transfer/card the caja is by-currency (branch moot).
-  const resolveMemberBranchId = async (memberId: number): Promise<number> => {
-    const [memberBranchRow] = await fastify.db
+  // ── Resolve any user's branchId server-side (Pitfall 4): users.branchId with
+  // the virtual "Templo Online" fallback (mirror of renewSubscription's
+  // renewBranchId resolution). Shared by the member (sede del SOCIO → branch_id
+  // del ledger comercial) and the recorder (sede del PROFE → caja sugerida).
+  const resolveUserBranchId = async (userId: number): Promise<number> => {
+    const [branchRow] = await fastify.db
       .select({ branchId: schema.users.branchId })
       .from(schema.users)
-      .where(eq(schema.users.id, memberId))
+      .where(eq(schema.users.id, userId))
       .limit(1);
-    if (memberBranchRow?.branchId) return memberBranchRow.branchId;
+    if (branchRow?.branchId) return branchRow.branchId;
     const [virtualBranch] = await fastify.db
       .select({ id: schema.branches.id })
       .from(schema.branches)
@@ -172,10 +172,60 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
       .limit(1);
     if (!virtualBranch) {
       throw new Error(
-        "Branch 'Templo Online' no encontrada al resolver branchId del cobro suelto",
+        "Branch 'Templo Online' no encontrada al resolver branchId del cobro",
       );
     }
     return virtualBranch.id;
+  };
+
+  // Sede del SOCIO → branch_id del ledger comercial (sin cambio de comportamiento:
+  // para cash es la caja por defecto del resolver; para transfer/card es moot).
+  const resolveMemberBranchId = (memberId: number): Promise<number> =>
+    resolveUserBranchId(memberId);
+
+  // CAJA-01: sede del PROFE que carga (recordedBy → su branchId). La caja efectivo
+  // del cobro se sugiere desde ESTA sede, NO la del socio. El branch_id de la tx
+  // sigue siendo el del socio (resolveMemberBranchId) — la imputación de caja no
+  // altera el ledger comercial por sede.
+  const resolveRecorderBranchId = (recorderUserId: number): Promise<number> =>
+    resolveUserBranchId(recorderUserId);
+
+  // CAJA-01: pre-resolver la caja SUGERIDA desde la sede del profe. Para cash →
+  // caja efectivo de la sede del profe; transfer/card → banco por moneda (idéntico
+  // al default por moneda, inocuo). Devuelve el override para
+  // transactionService.create's cashRegisterId. Fallback (no romper; loguear): si
+  // la caja del profe no es resolvible (sin caja efectivo en su sede / moneda
+  // inconsistente), devuelve `undefined` → create resuelve por la sede del socio
+  // (comportamiento previo), para que un profe sin caja no bloquee el cobro.
+  const resolveSuggestedCaja = async (
+    paymentMethod: PaymentMethod,
+    recorderUserId: number,
+    currency: string,
+  ): Promise<{
+    override: number | null | undefined;
+    recorderBranchId: number;
+  }> => {
+    const recorderBranchId = await resolveRecorderBranchId(recorderUserId);
+    try {
+      const override = await cashRegisterService.resolveCashRegister(
+        paymentMethod,
+        recorderBranchId,
+        currency,
+      );
+      return { override, recorderBranchId };
+    } catch (err: unknown) {
+      fastify.log.warn(
+        {
+          recorderUserId,
+          recorderBranchId,
+          paymentMethod,
+          currency,
+          err: err instanceof Error ? err.message : String(err),
+        },
+        "Caja sugerida del profe no resolvible; fallback a la sede del socio",
+      );
+      return { override: undefined, recorderBranchId };
+    }
   };
 
   // ===================================================================
@@ -236,6 +286,14 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
           }
           const today = new Date().toISOString().split("T")[0];
           const branchId = await resolveMemberBranchId(userId);
+          // CAJA-01: la caja se sugiere desde la sede del PROFE (recordedBy), no
+          // la del socio. branchId (ledger) sigue siendo el del socio.
+          const { override: suggestedCajaId, recorderBranchId } =
+            await resolveSuggestedCaja(
+              paymentMethod,
+              request.user.userId,
+              sub.currency,
+            );
           // Server-derived role → status (coach → pendiente).
           const initialStatus = (["coach"] as readonly string[]).includes(
             request.user.role,
@@ -254,6 +312,7 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
               transactionDate: today,
               effectiveDate: today,
               branchId,
+              cashRegisterId: suggestedCajaId,
               notes: `Pago de saldo plan ${sub.planName}`,
               validationStatus: initialStatus,
               idempotencyKey,
@@ -266,6 +325,16 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
               ],
             },
             request.user.userId,
+          );
+          request.log.info(
+            {
+              memberId: userId,
+              branchId,
+              recorderBranchId,
+              suggestedCajaId,
+              paymentMethod,
+            },
+            "coach pay-plan settle: caja sugerida por sede del profe",
           );
           return reply
             .code(201)
@@ -322,6 +391,15 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
       const today = new Date().toISOString().split("T")[0];
       try {
         const branchId = await resolveMemberBranchId(request.body.memberId);
+        const currency = request.body.currency ?? "ARS";
+        // CAJA-01: la caja se sugiere desde la sede del PROFE (recordedBy), no la
+        // del socio. branchId (ledger) sigue siendo el del socio.
+        const { override: suggestedCajaId, recorderBranchId } =
+          await resolveSuggestedCaja(
+            request.body.paymentMethod,
+            request.user.userId,
+            currency,
+          );
         // Server-derived role → status (coach → pendiente).
         const initialStatus = (["coach"] as readonly string[]).includes(
           request.user.role,
@@ -335,11 +413,12 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
             kind: "advance_payment",
             direction: "inflow",
             amount: request.body.amount,
-            currency: request.body.currency ?? "ARS",
+            currency,
             paymentMethod: request.body.paymentMethod,
             transactionDate: today,
             effectiveDate: today,
             branchId,
+            cashRegisterId: suggestedCajaId,
             notes: request.body.concepto,
             // Phase 145 (COBRO-01): structured motivo → own column, not notes.
             miscReason: request.body.miscReason,
@@ -348,6 +427,16 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
             links: [],
           },
           request.user.userId,
+        );
+        request.log.info(
+          {
+            memberId: request.body.memberId,
+            branchId,
+            recorderBranchId,
+            suggestedCajaId,
+            paymentMethod: request.body.paymentMethod,
+          },
+          "coach misc load: caja sugerida por sede del profe",
         );
         return reply.code(201).send({ transaction: detail });
       } catch (err: unknown) {
