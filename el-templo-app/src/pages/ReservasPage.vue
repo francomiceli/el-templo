@@ -1066,32 +1066,39 @@ function slotCardClass(slot: WeeklySlotView): Record<string, boolean> {
 
 // ─── Availability tier (D: hide raw count, show qualitative label) ──
 // Mirrors the admin Horarios grid exactly (HorariosPage.vue cellClass):
-// ≥100% → completo, ≥70% → pocos lugares (warning), else disponible.
-// El caso 'disponible' muestra el número concreto de lugares restantes
-// ("Quedan N lugares"); 'few'/'full' siguen siendo cualitativos para no exponer
-// el conteo exacto cuando el cupo está por llenarse.
+// Umbral ABSOLUTO de cupos restantes: quedan <5 → 'few' (pill amarilla + conteo
+// concreto con urgencia); 5 o más → 'available' ("Cupos disponibles", sin número);
+// 0 → 'full'. Se prefirió un umbral fijo (no porcentual) para que el aviso de
+// "pocos cupos" sea consistente sin importar el tamaño de la clase.
 type AvailabilityLevel = 'available' | 'few' | 'full'
 
+const FEW_THRESHOLD = 5
+
 const AVAILABILITY_LABELS: Record<AvailabilityLevel, string> = {
-  available: 'Disponible',
-  few: 'Pocos lugares',
+  available: 'Cupos disponibles',
+  few: 'Pocos cupos',
   full: 'Completo',
 }
 
+function spotsLeft(slot: WeeklySlotView): number {
+  return Math.max(0, slot.maxCapacity - slot.bookedCount)
+}
+
 function availabilityLevel(slot: WeeklySlotView): AvailabilityLevel {
-  const pct = slot.maxCapacity > 0 ? (slot.bookedCount / slot.maxCapacity) * 100 : 0
-  if (slot.isFull || pct >= 100) return 'full'
-  if (pct >= 70) return 'few'
+  const left = spotsLeft(slot)
+  if (slot.isFull || left <= 0) return 'full'
+  if (left < FEW_THRESHOLD) return 'few'
   return 'available'
 }
 
-// Texto mostrado en la etiqueta de disponibilidad. En 'available' muestra los
-// lugares que quedan (singular/plural); en 'few'/'full' usa la etiqueta fija.
+// Texto de la etiqueta. 'available' → "Cupos disponibles" (sin número). 'few' →
+// conteo concreto con urgencia ("Quedan N cupos!" / "Queda 1 cupo!"). 'full' →
+// "Completo". El color sale del CSS por nivel (few = pill amarilla).
 function availabilityText(slot: WeeklySlotView): string {
   const level = availabilityLevel(slot)
-  if (level === 'available') {
-    const left = Math.max(0, slot.maxCapacity - slot.bookedCount)
-    return left === 1 ? 'Queda 1 lugar' : `Quedan ${left} lugares`
+  if (level === 'few') {
+    const left = spotsLeft(slot)
+    return left === 1 ? 'Queda 1 cupo!' : `Quedan ${left} cupos!`
   }
   return AVAILABILITY_LABELS[level]
 }
