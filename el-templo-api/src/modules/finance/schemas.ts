@@ -600,15 +600,16 @@ export const registerMovementSchema = {
 
 /**
  * POST /expenses — registrar un egreso (MOV-03 / D-05). Body: cajaId + amount
- * (> 0) + notes opcional. Sin categoría en v1. RBAC server-side.
+ * (> 0) + costCenterId (EGR-02, obligatorio) + notes opcional. RBAC server-side.
  */
 export const registerExpenseSchema = {
   body: {
     type: "object",
-    required: ["cajaId", "amount"],
+    required: ["cajaId", "amount", "costCenterId"],
     properties: {
       cajaId: { type: "integer", minimum: 1 },
       amount: { type: "integer", minimum: 1 },
+      costCenterId: { type: "integer", minimum: 1 },
       notes: { type: ["string", "null"], maxLength: 2000 },
     },
     additionalProperties: false,

@@ -304,6 +304,9 @@ export class TransactionService {
           effectiveDate: input.effectiveDate,
           branchId: input.branchId,
           cashRegisterId,
+          // Phase 147 (EGR-02): centro de costo. NULL para los 10 create paths;
+          // SOLO registerExpense lo setea (tras validar exists+active).
+          costCenterId: input.costCenterId ?? null,
           recordedBy,
           notes: input.notes ?? null,
           // Phase 145 (COBRO-01): structured cobro-suelto reason. NULL for every

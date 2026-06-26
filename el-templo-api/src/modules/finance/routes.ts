@@ -647,6 +647,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           {
             cajaId: request.body.cajaId,
             amount: request.body.amount,
+            costCenterId: request.body.costCenterId,
             notes: request.body.notes ?? null,
           },
           request.user.userId,

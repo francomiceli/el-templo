@@ -105,6 +105,13 @@ export interface CreateTransactionInput {
    */
   cashRegisterId?: number | null;
   /**
+   * Phase 147 (EGR-02): centro de costo del egreso. SERVER-DERIVED — NUNCA del
+   * body crudo de /transactions. Optional/nullable como `miscReason`: las 10
+   * rutas de create existentes lo dejan undefined → NULL; SOLO registerExpense
+   * lo setea (tras validar exists+active). `null` es válido (no-egreso).
+   */
+  costCenterId?: number | null;
+  /**
    * Phase 140 (CARGA-02 / D-09): client-generated opaque ticket key for
    * idempotent coach loads — a UUID minted on each "Confirmar" tap, NOT a
    * secret. When set, create() persists it on the row; the nullable UNIQUE
@@ -341,11 +348,14 @@ export interface RegisterMovementInput {
 
 /**
  * Phase 139 (MOV-03): input para registrar un egreso — 1 fila outflow que resta
- * del saldo de su caja. Sin categoría en v1 (solo `notes` libre).
+ * del saldo de su caja. Phase 147 (EGR-02): `costCenterId` es OBLIGATORIO — el
+ * egreso se clasifica en un centro de costo (validado exists+active en el
+ * servicio antes de crear la fila).
  */
 export interface RegisterExpenseInput {
   cajaId: number;
   amount: number;
+  costCenterId: number;
   notes?: string | null;
 }
 

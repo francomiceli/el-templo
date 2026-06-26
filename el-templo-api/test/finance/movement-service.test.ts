@@ -27,6 +27,9 @@ let app: FastifyInstance;
 let cashRegisterService: CashRegisterService;
 let movementService: MovementService;
 let adminId: number;
+// Phase 147 (EGR-02): registerExpense now requires a valid cost center. Resolved
+// from the migration-0161 AR seed ("Varios") in beforeAll.
+let costCenterId: number;
 
 // An ARS branch + its cajas. Created in beforeAll, torn down in afterAll.
 let arsBranchId: number;
@@ -85,6 +88,27 @@ beforeAll(async () => {
     );
   }
   adminId = admin.id;
+
+  // Phase 147 (EGR-02): a valid AR cost center for the expense tests (seeded by
+  // migration 0161). Fallback-insert keeps the harness robust if the seed drifts.
+  const [seededCenter] = await app.db
+    .select({ id: schema.costCenters.id })
+    .from(schema.costCenters)
+    .where(
+      and(
+        eq(schema.costCenters.country, "AR"),
+        eq(schema.costCenters.isActive, true),
+      ),
+    )
+    .limit(1);
+  if (seededCenter) {
+    costCenterId = seededCenter.id;
+  } else {
+    const [created] = await app.db
+      .insert(schema.costCenters)
+      .values({ name: "Varios", country: "AR" });
+    costCenterId = Number(created.insertId);
+  }
 });
 
 afterAll(async () => {
@@ -331,7 +355,7 @@ describe("MovementService", () => {
       const cajaId = await newCaja(1000);
 
       const { expenseTxId } = await movementService.registerExpense(
-        { cajaId, amount: 333, notes: "Compra de agua" },
+        { cajaId, amount: 333, costCenterId, notes: "Compra de agua" },
         adminId,
       );
 
@@ -367,7 +391,7 @@ describe("MovementService", () => {
         adminId,
       );
       await movementService.registerExpense(
-        { cajaId: origenId, amount: 50 },
+        { cajaId: origenId, amount: 50, costCenterId },
         adminId,
       );
 
@@ -432,7 +456,7 @@ describe("MovementService", () => {
     it("voidExpense voids the single row and restores the caja saldo", async () => {
       const cajaId = await newCaja(1000);
       const { expenseTxId } = await movementService.registerExpense(
-        { cajaId, amount: 400 },
+        { cajaId, amount: 400, costCenterId },
         adminId,
       );
       expect((await cashRegisterService.getBalance(cajaId)).firmeBalance).toBe(
@@ -491,7 +515,7 @@ describe("MovementService", () => {
         method: "POST",
         url: "/api/admin/finance/expenses",
         headers: { authorization: `Bearer ${coachToken}` },
-        payload: { cajaId: origenId, amount: 50 },
+        payload: { cajaId: origenId, amount: 50, costCenterId },
       });
       expect(expRes.statusCode).toBe(403);
 

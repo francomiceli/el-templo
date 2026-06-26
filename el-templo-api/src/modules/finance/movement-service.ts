@@ -263,20 +263,49 @@ export class MovementService {
 
   /**
    * Register an expense (MOV-03 / D-05). 1 fila kind='expense', outflow, que
-   * resta del saldo de su caja. memberId null, sin categoría, nota libre.
-   * branchId = la sucursal de la caja (null para central/banco).
+   * resta del saldo de su caja. memberId null, nota libre. branchId = la
+   * sucursal de la caja (null para central/banco).
    *
-   * @throws BadRequestError on non-positive amount or unknown caja.
+   * Phase 147 (EGR-02): el egreso EXIGE un centro de costo. Se valida exists+
+   * active server-side antes de crear la fila (NO se valida match de país
+   * centro↔caja — el selector del front ya filtra por país; el server solo
+   * garantiza un centro real y activo).
+   *
+   * @throws BadRequestError on non-positive amount, unknown caja, or missing/
+   *         inexistent/inactive cost center.
    */
   async registerExpense(
     input: RegisterExpenseInput,
     adminId: number,
   ): Promise<{ expenseTxId: number }> {
-    const { cajaId, amount, notes } = input;
+    const { cajaId, amount, costCenterId, notes } = input;
     if (amount <= 0) {
       throw new BadRequestError("El monto del egreso debe ser mayor a 0");
     }
+    if (!costCenterId) {
+      throw new BadRequestError(
+        "Debés elegir un centro de costo válido para el egreso",
+      );
+    }
     const caja = await this.loadCaja(cajaId);
+
+    // Phase 147 (EGR-02 / T-147-01): el centro de costo debe existir y estar
+    // activo. Un solo SELECT — input no confiable (llega del body).
+    const [costCenter] = await this.db
+      .select({ id: schema.costCenters.id })
+      .from(schema.costCenters)
+      .where(
+        and(
+          eq(schema.costCenters.id, costCenterId),
+          eq(schema.costCenters.isActive, true),
+        ),
+      )
+      .limit(1);
+    if (!costCenter) {
+      throw new BadRequestError(
+        "Debés elegir un centro de costo válido para el egreso",
+      );
+    }
 
     const expense = await this.txnService.create(
       {
@@ -290,6 +319,7 @@ export class MovementService {
         effectiveDate: this.today(),
         branchId: caja.branchId,
         cashRegisterId: cajaId,
+        costCenterId,
         notes: notes ?? null,
         links: [],
       },
@@ -297,7 +327,7 @@ export class MovementService {
     );
 
     this.log.info(
-      { expenseTxId: expense.id, cajaId, amount, adminId },
+      { expenseTxId: expense.id, cajaId, amount, costCenterId, adminId },
       "Expense registered",
     );
 
