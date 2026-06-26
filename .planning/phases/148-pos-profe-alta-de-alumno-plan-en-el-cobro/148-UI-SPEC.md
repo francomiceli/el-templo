@@ -58,17 +58,17 @@ Quasar spacing utilities map to a 4px base. Use these utility classes only — n
 
 ## Typography
 
-Uses Quasar's built-in type scale (no custom sizes). Same roles as Fase 140 — no new sizes introduced.
+Uses Quasar's built-in type scale (no custom sizes). Same roles as Fase 140 — no new sizes introduced. **Exactly 2 font weights** are in play.
 
 | Role                     | Quasar class     | Size | Weight | Line Height | Usage                                                         |
 | ------------------------ | ---------------- | ---- | ------ | ----------- | ------------------------------------------------------------- |
-| Display (page title)     | `text-h5`        | 24px | 500    | 1.3         | "Cargar pago" header (unchanged)                              |
-| Heading (section / step) | `text-subtitle1` | 16px | 500    | 1.4         | "Datos del alumno", "Plan", "Medio de pago", "Turnos fijos"   |
+| Display (page title)     | `text-h5`        | 24px | 700    | 1.3         | "Cargar pago" header (unchanged)                              |
+| Heading (section / step) | `text-subtitle1` | 16px | 700    | 1.4         | "Datos del alumno", "Plan", "Medio de pago", "Turnos fijos"   |
 | Body                     | `text-body1`     | 16px | 400    | 1.5         | Form fields, alumno name, plan name                           |
 | Amount (emphasis)        | `text-h6`        | 20px | 700    | 1.4         | Autocalculated monto, plan price, ticket amount               |
 | Label / caption          | `text-caption`   | 12px | 400    | 1.4         | Field hints, dedup notice, "queda pendiente", saldo pendiente |
 
-Constraint honored: 3 functional content sizes (16 / 12 / 20) plus the 24px page title. Two weights dominate: **regular (400)** for content, **medium/bold (500–700)** for amounts and headings.
+Constraint honored: **exactly 2 font weights** — **regular (400)** for body, labels, and captions; **bold (700)** for section headings, the page title, and amounts. The page title and section headings carry `text-weight-bold` to override Quasar's default 500 on `text-h5` / `text-subtitle1`, so no 500/medium weight is used anywhere. 3 functional content sizes in play (16 / 12 / 20) plus the 24px page title.
 
 ---
 
