@@ -3769,14 +3769,14 @@ _Plan counts populated by `/gsd-plan-phase`._
 **Goal:** El profe carga el plan directamente en el cobro (extiende `CargarPagoPage.vue` / Fase 140), creando al alumno si es nuevo, reemplazando el flujo Google Form→Excel→admin. Modelo **crear-en-vivo + validar-después**: alumno + membresía + turnos se crean al instante (entrena ya); el pago nace `validation_status='pendiente'` y va a la bandeja de gestión (Fase 137/141). Refuerzos: **dedup por DNI** (`check-duplicates`) antes de crear; **cascade en void** (anular carga de alumno-nuevo desactiva la membresía y deja al alumno inactivo, NO lo borra). Sucursal default = sede del profe, editable. Precio según medio de pago (tarjeta→`priceCreditCard`, resto→`priceRegular`/`priceZero` con toggle Zero; parcial deja deuda). **Selector de turnos estructurado** solo para planes `fixed` (reusa `FixedSchedulePicker.vue`). Backend: endpoint nuevo en `coach-load-routes.ts`, atómico e idempotente (resolver/crear alumno + `assignPlan(scheduleIds)` + transacción financiera `pendiente`). Fuente de verdad: `BRIEF-POS-PROFE-ALTA-ALUMNO.md` (raíz).
 **Requirements**: ALTA-01 (crear alumno mínimo + dedup DNI), ALTA-02 (sucursal default editable), ALTA-03 (plan + Zero + precio x medio + parcial), ALTA-04 (turnos estructurados fixed), ALTA-05 (endpoint atómico idempotente), ALTA-06 (cascade en void), ALTA-07 (pago pendiente → bandeja), ALTA-08 (tests integración)
 **Depends on:** Fases v5.2 (137 validación, 140 PoS del profe, 141 bandeja Pendientes) + v5.3 (146 caja sugerida). Sobre `staging`, viaja en el tren v5.2/v5.3 → master.
-**Plans:** 3/6 plans executed
+**Plans:** 4/6 plans executed
 
 Plans:
 
 - [x] 148-01-PLAN.md — Fundación backend: columna createdMemberId (mig 0162) + AssignPlanInput recorder fields + createMinimalMember [wave 1]
 - [x] 148-02-PLAN.md — Endpoint POST /alta atómico e idempotente (resolver/crear alumno + assignPlan + cobro pendiente, branch-gated) [wave 2]
 - [x] 148-03-PLAN.md — Cascade en void (alumno-nuevo → membresía cancelada + alumno inactivo) + surface createdMember [wave 2]
-- [ ] 148-04-PLAN.md — Tests de integración (crear-nuevo, dedup, parcial→deuda, fixed, void→cascade, idempotencia) [wave 3]
+- [x] 148-04-PLAN.md — Tests de integración (crear-nuevo, dedup, parcial→deuda, fixed, void→cascade, idempotencia) [wave 3]
 - [ ] 148-05-PLAN.md — Frontend PoS: modo "Alta + plan" (sucursal, alumno+dedup, plan grid+Zero+precio, turnos fixed, Confirmar) [wave 3]
 - [ ] 148-06-PLAN.md — Bandeja Pendientes: copy condicional de cascade en el dialog Anular [wave 3]
 
