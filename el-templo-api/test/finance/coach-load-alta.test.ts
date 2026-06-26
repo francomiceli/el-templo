@@ -49,6 +49,7 @@ let coachToken: string;
 let branchId: number;
 let flexiblePlanId: number;
 let fixedPlanId: number;
+let onlinePlanId: number;
 let dniSeq = 0;
 
 /** Globally-unique DNI per call so alta-created members never collide across
@@ -233,6 +234,27 @@ beforeAll(async () => {
     })
     .$returningId();
   fixedPlanId = fixedRes.id;
+
+  // Plan ONLINE (otro grupo de categoría). Permite que un alumno tenga una sub
+  // online activa EN PARALELO a una presencial — usado por el caso de void
+  // preexistente para aislar el cascade del recompute de status: tras anular la
+  // sub presencial del alta, la online sigue activa ⇒ recomputeUserStatus lo deja
+  // 'activo', así que cualquier 'inactivo' SOLO podría venir del cascade.
+  const [onlineRes] = await app.db
+    .insert(schema.subscriptionPlans)
+    .values({
+      name: "Alta Online Plan",
+      planTier: "flex",
+      bookingMode: "flexible",
+      planCategory: "online_regular",
+      priceRegular: PLAN_PRICE,
+      priceZero: 0,
+      durationDays: 30,
+      classesPerWeek: 3,
+      currency: "ARS",
+    })
+    .$returningId();
+  onlinePlanId = onlineRes.id;
 });
 
 afterAll(async () => {
@@ -522,7 +544,7 @@ describe("alta void→cascade", () => {
     expect(history.length).toBe(1);
   });
 
-  it("void: anular carga de alumno PREEXISTENTE → su status NO cambia (cascade no aplica)", async () => {
+  it("void: anular carga de alumno PREEXISTENTE → el cascade NO lo desactiva (queda activo por su otra sub)", async () => {
     const dni = uniqueDni();
     const existing = await registerUser(app, {
       email: `alta-void-pre-${Date.now()}@test.local`,
@@ -533,7 +555,22 @@ describe("alta void→cascade", () => {
       dni,
     });
     const existingId = (existing.user as { id: number }).id;
-    const statusBefore = (await readUser(existingId))?.status;
+
+    // El preexistente conserva una sub ONLINE activa EN PARALELO a la presencial
+    // del alta. Clave para aislar el cascade del recompute compartido: anular SOLO
+    // la sub presencial deja la online viva ⇒ recomputeUserStatus lo mantiene
+    // 'activo'. Así, si terminara 'inactivo', la ÚNICA causa posible sería el
+    // cascade del void disparando indebidamente sobre un createdMemberId null.
+    const onlineKey = `alta-void-pre-online-${Date.now()}`;
+    const onlineAlta = await postAlta({
+      userId: existingId,
+      branchId,
+      planId: onlinePlanId,
+      paymentMethod: "cash",
+      idempotencyKey: onlineKey,
+    });
+    expect(onlineAlta.statusCode).toBe(201);
+    const onlineSubId = onlineAlta.body.subscription.id as number;
 
     const key = `alta-void-pre-${Date.now()}`;
     const alta = await postAlta({
@@ -541,7 +578,7 @@ describe("alta void→cascade", () => {
       firstName: "Ignorado",
       lastName: "Ignorado",
       branchId,
-      planId: flexiblePlanId,
+      planId: flexiblePlanId, // presencial
       paymentMethod: "cash",
       idempotencyKey: key,
     });
@@ -555,10 +592,17 @@ describe("alta void→cascade", () => {
     expect(res.statusCode).toBe(200);
 
     // El alumno preexistente NO fue desactivado por el cascade (createdMemberId
-    // null → no-op). NO terminó 'inactivo' por culpa del void.
+    // null → no-op). Sigue 'activo' por su sub online, que el void NO tocó.
     const user = await readUser(existingId);
-    expect(user?.status).not.toBe("inactivo");
-    // No se escribió una transición →inactivo para el preexistente.
+    expect(user?.status).toBe("activo");
+    const [onlineSub] = await app.db
+      .select({ status: schema.subscriptions.status })
+      .from(schema.subscriptions)
+      .where(eq(schema.subscriptions.id, onlineSubId))
+      .limit(1);
+    expect(onlineSub.status).toBe("active");
+
+    // El cascade no escribió ninguna transición →inactivo para el preexistente.
     const inactiveHistory = await app.db
       .select({ id: schema.userStatusHistory.id })
       .from(schema.userStatusHistory)
@@ -569,9 +613,6 @@ describe("alta void→cascade", () => {
         ),
       );
     expect(inactiveHistory.length).toBe(0);
-    // sanity: el status sigue siendo el de antes del alta (assignPlan lo dejó
-    // activo, pero lo central es que el void NO lo tocó).
-    expect(["activo", statusBefore]).toContain(user?.status);
   });
 });
 

@@ -33,6 +33,8 @@ import type { PriceType } from "../subscriptions/types";
 import { MemberService } from "../members/service";
 import { AuraService } from "../aura/service";
 import { EnrollmentService } from "../programs/enrollment-service";
+import { BookingService } from "../scheduling/booking-service";
+import { NotificationService } from "../notifications/service";
 import { handleServiceError } from "../shared/error-handler";
 import { FINANCE_LOAD_ROLES, type AdminRole } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
@@ -201,6 +203,19 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
     enrollmentService,
   );
   transactionService.setSubscriptionCanceller(subscriptionService);
+  // Phase 148: assignPlan genera los bookings recurrentes de un plan fixed SOLO si
+  // el SubscriptionService tiene un BookingService inyectado (subscriptions/routes
+  // y members/routes lo wirean igual). Sin esto, los subscription_schedules se
+  // insertan pero NO se generan bookings → el alta de un plan fixed quedaría sin
+  // turnos materializados.
+  const notificationService = new NotificationService(fastify.db, fastify.log);
+  const bookingService = new BookingService(
+    fastify.db,
+    fastify.log,
+    subscriptionService,
+    notificationService,
+  );
+  subscriptionService.setBookingService(bookingService);
   // Phase 148: el orquestador /alta resuelve/crea el alumno (dedup por DNI) antes
   // de assignPlan. memberService NO estaba wireado en este plugin (solo en
   // members/routes.ts) — se instancia igual que ahí (fastify.db, fastify.log).
@@ -561,6 +576,19 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       const body = request.body;
       try {
+        // ── Idempotencia (D-09 / W-1): replay-short-circuit ANTES de assignPlan ──
+        // Un doble-submit con el MISMO idempotencyKey NO puede caer al catch de
+        // abajo: en el replay el alumno ya tiene la sub activa del 1er POST, así
+        // que assignPlan tira ConflictError (NO un duplicate-key) ANTES de intentar
+        // re-insertar el charge. Por eso re-leemos acá el charge ya persistido (el
+        // alumno + charge nacieron atómicos en el 1er POST) y devolvemos 200 no-op.
+        const replay = await transactionService.findByIdempotencyKey(
+          body.idempotencyKey,
+        );
+        if (replay) {
+          return reply.code(200).send({ transaction: replay });
+        }
+
         // ── (a) Resolver/crear alumno ───────────────────────────────────────
         // createdMemberId = id SOLO cuando ESTA carga creó el alumno (para el
         // cascade de void 148-03 y el ticket "Nuevo" del frontend). null si se
