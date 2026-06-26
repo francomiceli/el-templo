@@ -287,6 +287,16 @@ export interface RenewSubscriptionInput {
    * cannot create two renewal charges (nullable UNIQUE at the DB).
    */
   idempotencyKey?: string;
+  /**
+   * Phase 146 (CAJA-01): sede del PROFE que carga (recordedBy → su branchId).
+   * Cuando se provee, la caja del plan_charge se SUGIERE desde esta sede (caja
+   * efectivo del profe para cash; banco por moneda para transfer/card), no la
+   * del socio. El branch_id de la sub/charge sigue derivándose de la sede del
+   * socio. NUNCA del body crudo — la ruta coach-load lo resuelve de
+   * `request.user.userId`. Omitido en el path admin → caja por sede del socio
+   * (comportamiento previo, sin regresión).
+   */
+  recorderBranchId?: number;
 }
 
 // ─── Plan Change / Proration Types ─────────────────────────────────────────

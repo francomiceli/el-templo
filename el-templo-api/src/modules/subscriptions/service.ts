@@ -314,6 +314,15 @@ export class SubscriptionService {
        * undefined for the 4 internal admin callers (NULL persisted → no dedup).
        */
       idempotencyKey?: string;
+      /**
+       * Phase 146 (CAJA-01): override de la caja SUGERIDA, pre-resuelta desde la
+       * sede del PROFE que carga (recordedBy). Se forwardea como override a
+       * transactionService.create. OPTIONAL: `undefined` mantiene la resolución
+       * por `branchId` (sede del socio) — los 4 callers internos admin NO lo
+       * pasan → sin regresión. NUNCA proviene del body del request (D-03). El
+       * plan 03 reutiliza este mismo param para imputar el anticipo.
+       */
+      cashRegisterId?: number | null;
     },
   ): Promise<void> {
     if (!this.transactionService) return;
@@ -354,6 +363,10 @@ export class SubscriptionService {
           // Phase 140 (D-09): forward the idempotency ticket key (undefined for
           // the admin callers → NULL persisted, no dedup).
           idempotencyKey: params.idempotencyKey,
+          // Phase 146 (CAJA-01): override de la caja sugerida desde la sede del
+          // profe. `undefined` → create resuelve por branchId (sede del socio),
+          // comportamiento previo para los 4 callers admin (sin regresión).
+          cashRegisterId: params.cashRegisterId,
           links: [
             {
               targetKind: "subscription" as const,
@@ -3393,6 +3406,42 @@ export class SubscriptionService {
       renewBranchId = currentSub.branchId;
     }
 
+    // ── Phase 146 (CAJA-01): caja SUGERIDA desde la sede del PROFE ──
+    // Cuando la ruta coach-load pasa `recorderBranchId` (sede del profe que
+    // carga), pre-resolvemos la caja sugerida (cash → efectivo de esa sede;
+    // transfer/card → banco por moneda) y la forwardeamos como override a
+    // recordAssignmentCharge. `undefined` (path admin, los 4 callers internos)
+    // mantiene la resolución por la sede del socio (sin regresión). El branch_id
+    // de la sub/charge sigue siendo currentSub.branchId (sede del socio).
+    // Fallback (no romper; loguear): si la caja del profe no es resolvible,
+    // dejamos `undefined` → create resuelve por la sede del socio.
+    let suggestedCajaId: number | null | undefined;
+    if (
+      input.recorderBranchId !== undefined &&
+      renewalPrice > 0 &&
+      this.transactionService
+    ) {
+      try {
+        suggestedCajaId = await this.transactionService.resolveCashRegister(
+          input.paymentMethod,
+          input.recorderBranchId,
+          plan.currency,
+        );
+      } catch (err: unknown) {
+        this.log.warn(
+          {
+            userId,
+            recorderBranchId: input.recorderBranchId,
+            paymentMethod: input.paymentMethod,
+            currency: plan.currency,
+            err: err instanceof Error ? err.message : String(err),
+          },
+          "Caja sugerida del profe no resolvible en renew; fallback a la sede del socio",
+        );
+        suggestedCajaId = undefined;
+      }
+    }
+
     // ── Atomic renewal (Phase 103 D-16) ──
     // Wrap close-old (if expired) + new-sub INSERT + dependent writes in a
     // single transaction so Task 1b's recomputeUserStatus rolls back
@@ -3533,6 +3582,9 @@ export class SubscriptionService {
         // 'validado'. idempotencyKey forwarded for double-tap dedup (D-09).
         recorderRole: input.recorderRole,
         idempotencyKey: input.idempotencyKey,
+        // Phase 146 (CAJA-01): override de la caja sugerida desde la sede del
+        // profe (undefined en el path admin → caja por sede del socio).
+        cashRegisterId: suggestedCajaId,
       });
 
       return { newSubscriptionId: subId };

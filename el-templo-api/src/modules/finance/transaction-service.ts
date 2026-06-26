@@ -51,6 +51,7 @@ import type {
   MovEgresoFilters,
   MovEgresoItem,
   OutstandingConcept,
+  PaymentMethod,
   PendingTrayFilters,
   PendingTrayItem,
   RevenueByKind,
@@ -137,6 +138,25 @@ export class TransactionService {
    */
   setSubscriptionCanceller(canceller: SubscriptionCanceller): void {
     this.subscriptionCanceller = canceller;
+  }
+
+  /**
+   * Phase 146 (CAJA-01): expose the caja resolver (delegates verbatim to
+   * cashRegisterService.resolveCashRegister) so a caller that already holds a
+   * TransactionService — e.g. SubscriptionService.renewSubscription — can
+   * pre-resolver la caja SUGERIDA desde la sede del profe sin DI extra. Same
+   * choke-point used internally by create(); never sourced from a request body.
+   */
+  resolveCashRegister(
+    paymentMethod: PaymentMethod,
+    branchId: number | null,
+    currency: string,
+  ): Promise<number | null> {
+    return this.cashRegisterService.resolveCashRegister(
+      paymentMethod,
+      branchId,
+      currency,
+    );
   }
 
   /**

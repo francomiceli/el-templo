@@ -342,6 +342,11 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
         }
 
         // ── RENEW — no debt, so create a new period (existing behaviour). ──
+        // CAJA-01: la caja del plan_charge se sugiere desde la sede del PROFE
+        // (recordedBy). El branch_id de la sub/charge sigue siendo el del socio.
+        const recorderBranchId = await resolveRecorderBranchId(
+          request.user.userId,
+        );
         const subscription = await subscriptionService.renewSubscription(
           userId,
           {
@@ -351,6 +356,8 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
             // a future admin-callable variant stays correct.
             recorderRole: request.user.role as AdminRole,
             idempotencyKey,
+            // CAJA-01: sede del profe → caja sugerida del cobro.
+            recorderBranchId,
           },
           request.user.userId,
         );
