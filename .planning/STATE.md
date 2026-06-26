@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v5.3
 milestone_name: Mejoras Caja / Módulo Contable (feedback v5.2)
-status: completed
-stopped_at: Phase 147 complete (2/2) — EGR-01/02/03 done · milestone v5.3 COMPLETE (3/3 fases)
-last_updated: "2026-06-26T07:30:00.000Z"
-last_activity: "2026-06-26 — 147-02 ejecutado (EGR-02/03 frontend: selector obligatorio de centro de costo en el dialog de egreso + columna 'Centro de costo' en el arqueo). Fase 147 cerrada 2/2 → milestone v5.3 COMPLETE."
+status: executing
+stopped_at: Phase 148 planned (6 plans, 3 waves) + W-1 fix
+last_updated: "2026-06-26T15:46:18.452Z"
+last_activity: 2026-06-26
 progress:
-  total_phases: 3
-  completed_phases: 3
-  total_plans: 10
+  total_phases: 4
+  completed_phases: 2
+  total_plans: 16
   completed_plans: 10
-  percent: 100
+  percent: 50
 ---
 
 # Project State
@@ -21,15 +21,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-04)
 
 **Core value (v5.3):** Resolver el feedback operativo de v5.2 sobre la caja y la PoS del profe — imputación/confirmación de caja en la **validación** (no en el cobro), cobro de socios sin plan activo (motivo + chip + imputación del anticipo al alta), arqueo por caja, múltiples cuentas banco y centros de costo obligatorios para egresos. Fixes targeted sobre el Módulo Contable v5.2 (137-142) y el modelo v4.8 — NO es un build from-scratch. 3 fases (145-147), 17 requirements (POS/CAJA/COBRO/ARQUEO/EGR). Migraciones nuevas 0159+.
-**Current focus:** Phase 147 — centros de costo de egresos — COMPLETE (2/2). Milestone v5.3 COMPLETE (3/3 fases).
+**Current focus:** Phase 148 — pos-profe-alta-de-alumno-plan-en-el-cobro
 
 ## Current Position
 
-Phase: 147 — Centros de costo de egresos (complete: 147-01..02)
-Plan: 147-02 ejecutado (fase 147 cerrada — 2/2 planes) → milestone v5.3 COMPLETE
-Status: Complete — milestone v5.3 cerrado (145 2/2, 146 6/6, 147 2/2 = 10/10 planes, 17/17 reqs). Pendiente: UAT visual + push de staging (pedir OK a Franco).
-Progress: [██████████] 100%
-Last activity: 2026-06-26 — 147-02 ejecutado (EGR-02/03 frontend: selector obligatorio de centro de costo + columna 'Centro de costo' en el arqueo). Fase 147 cerrada 2/2 → milestone v5.3 COMPLETE.
+Phase: 148 (pos-profe-alta-de-alumno-plan-en-el-cobro) — EXECUTING
+Plan: 2 of 6
+Status: Ready to execute
+Progress: [██████░░░░] 63%
+Last activity: 2026-06-26
 
 **Phase order:** 145 (independiente, done) → 146 (fundacional: caja en validación + imputación + arqueo, done) → 147 (independiente, centros de costo, done). Milestone v5.3 COMPLETE.
 
@@ -275,6 +275,7 @@ _Updated after each plan completion_
 | Phase 145 P01 | ~20min | 3 tasks | 8 files |
 | Phase 145 P02 | ~12min | 2 tasks | 5 files |
 | Phase 147 P02 | ~12min | 3 tasks | 4 files |
+| Phase 148 P01 | 10min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -663,6 +664,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: 144-03: GET /api/members/subscription/coverage vive en member-routes.ts (auth-only), NO en routes.ts (admin-gated → 403 a todo socio); id server-derived (IDOR T-144-08), retorna {coveredUntil, daysRemaining} con daysRemaining anclado a medianoche UTC sobre fecha AR
 - [Phase ?]: 144-03: PlanExpiryDialog gate daysRemaining >= 0 && <= 3 (fix plan-checker — /coverage no barre autoExpire, negativos los cubren push del día + booking block); once-per-DAY via Preferences plan_expiry_shown_v1 (YYYY-MM-DD); país desde userStore.profile.branchCountry (authStore.country no existe); clon de RatingPromptDialog montado en MainLayout
 - [Phase ?]: Phase 144 BOOK-BLOCK: reserve() blocks classes past the server-derived chained covered-until with a distinguishable COVERAGE_EXPIRED code; ReservasPage shows a renewal dialog only for that code
+- [Phase ?]: [148-01] createdMemberId se persiste DENTRO de la tx del charge (W-1), sin UPDATE separado, para no dejar alumno activo huérfano ante crash
 
 ### Pending Todos
 
@@ -695,8 +697,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-25T22:39:42.705Z
-Stopped at: Phase 144 UI-SPEC approved
+Last session: 2026-06-26T15:46:06.619Z
+Stopped at: Phase 148 planned (6 plans, 3 waves) + W-1 fix
 Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
