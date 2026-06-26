@@ -121,6 +121,11 @@
         <q-td :props="slotProps">{{ slotProps.row.cashRegisterName }}</q-td>
       </template>
 
+      <!-- Centro de costo (EGR-03) — solo filas expense traen nombre; resto "—" -->
+      <template #body-cell-centro="slotProps">
+        <q-td :props="slotProps">{{ slotProps.row.costCenterName || '—' }}</q-td>
+      </template>
+
       <!-- Estado de validación (ARQUEO-02) -->
       <template #body-cell-estado="slotProps">
         <q-td :props="slotProps">
@@ -189,6 +194,10 @@
             <q-item>
               <q-item-section>Caja</q-item-section>
               <q-item-section side>{{ detailRow.cashRegisterName }}</q-item-section>
+            </q-item>
+            <q-item v-if="detailRow.costCenterName">
+              <q-item-section>Centro de costo</q-item-section>
+              <q-item-section side>{{ detailRow.costCenterName }}</q-item-section>
             </q-item>
             <q-item>
               <q-item-section>Estado</q-item-section>
@@ -420,6 +429,13 @@ const columns: QTableProps['columns'] = [
   { name: 'concepto', label: 'Concepto', field: 'notes', align: 'left', sortable: false },
   { name: 'monto', label: 'Monto', field: 'amount', align: 'left', sortable: false },
   { name: 'caja', label: 'Caja', field: 'cashRegisterName', align: 'left', sortable: false },
+  {
+    name: 'centro',
+    label: 'Centro de costo',
+    field: 'costCenterName',
+    align: 'left',
+    sortable: false,
+  },
   {
     name: 'estado',
     label: 'Estado',
