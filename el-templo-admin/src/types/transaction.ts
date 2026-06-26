@@ -381,27 +381,33 @@ export interface CashBalancesParams {
   country?: 'AR' | 'ES';
 }
 
-// -- Phase 141: Historial mov/egresos (REP-03) -----------------------------
-// Mirrors el-templo-api/src/modules/finance/types.ts MovEgresoItem. These rows
-// (kind IN cash_transfer/expense/adjustment) have member_id NULL — the backend
-// LEFT JOINs so they survive (the 139 flag). `memberName` is omitted (NULL).
+// -- Phase 141 → 146 (ARQUEO): Arqueo por caja (REP-03 / ARQUEO-01/02) -------
+// Mirrors el-templo-api/src/modules/finance/types.ts MovEgresoItem. Phase 146
+// (plan 05): listMovEgresos ya NO filtra por kind — dada una caja devuelve TODO
+// lo imputado a ella (cobros de socio plan_charge/debt_settlement/advance_payment/
+// refund + egresos + traspasos + ajustes). Las filas sin socio (egresos/traspasos)
+// tienen member_id NULL; el backend LEFT JOIN-ea para que sobrevivan (flag 139).
+// Cada fila trae `validationStatus` para que la UI marque el estado (ARQUEO-02).
 
 export interface MovEgresoItem {
   id: number;
   transactionDate: string; // YYYY-MM-DD
-  // The FE TransactionKind union (Phase 106) doesn't include cash_transfer /
-  // expense (those kinds never reach the member-keyed Movimientos table), so
-  // this is widened to string — Plan 04's MovEgresosTab maps it to ES labels.
-  kind: string; // cash_transfer | expense | adjustment
+  // Widened to string: el arqueo trae cualquier kind imputado a la caja (incl.
+  // cash_transfer / expense que no están en el FE TransactionKind union). El
+  // MovEgresosTab lo mapea a etiquetas ES.
+  kind: string; // plan_charge | debt_settlement | advance_payment | refund | expense | cash_transfer | adjustment
   direction: TransactionDirection;
   amount: number;
   currency: string;
+  memberId: number | null; // null para egresos/movimientos sin socio (LEFT JOIN)
   cashRegisterId: number | null;
   cashRegisterName: string;
   branchId: number | null;
   branchName: string | null; // null para cajas branch-less (central/banco)
   recordedBy: number;
   recorderName: string;
+  // ARQUEO-02: pendiente | observado | corregido | validado (enum del schema).
+  validationStatus: string;
   voidedAt: string | null;
   voidReason: string | null;
   notes: string | null;

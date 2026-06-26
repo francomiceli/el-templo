@@ -121,6 +121,16 @@
         <q-td :props="slotProps">{{ slotProps.row.cashRegisterName }}</q-td>
       </template>
 
+      <!-- Estado de validación (ARQUEO-02) -->
+      <template #body-cell-estado="slotProps">
+        <q-td :props="slotProps">
+          <q-badge
+            :color="validationColor(slotProps.row.validationStatus)"
+            :label="validationLabel(slotProps.row.validationStatus)"
+          />
+        </q-td>
+      </template>
+
       <!-- Registrado por ("—" when absent) -->
       <template #body-cell-registrado="slotProps">
         <q-td :props="slotProps" class="text-caption text-grey-7">
@@ -179,6 +189,15 @@
             <q-item>
               <q-item-section>Caja</q-item-section>
               <q-item-section side>{{ detailRow.cashRegisterName }}</q-item-section>
+            </q-item>
+            <q-item>
+              <q-item-section>Estado</q-item-section>
+              <q-item-section side>
+                <q-badge
+                  :color="validationColor(detailRow.validationStatus)"
+                  :label="validationLabel(detailRow.validationStatus)"
+                />
+              </q-item-section>
             </q-item>
             <q-item v-if="detailRow.branchName">
               <q-item-section>Sucursal</q-item-section>
@@ -252,14 +271,23 @@ const $q = useQuasar();
 const transactionsApi = useTransactionsApi();
 
 // =========================================================================
-// Kind rendering. The endpoint returns cash_transfer / expense / adjustment
-// (NULL-member rows). `kind` is a widened string (FE TransactionKind union
-// doesn't carry these), so map to ES labels here.
+// Kind rendering. Phase 146 (ARQUEO): el endpoint ahora devuelve TODO lo
+// imputado a la caja — cobros de socio (plan_charge / debt_settlement /
+// advance_payment / refund) + egresos (expense) + traspasos (cash_transfer) +
+// ajustes (adjustment). `kind` es un string ensanchado, así que mapeamos a
+// etiquetas ES acá.
 // =========================================================================
 
+// Kinds de cobro de socio — opción "Cobros" del filtro Tipo (ARQUEO-03).
+const COBRO_KINDS = ['plan_charge', 'debt_settlement', 'advance_payment', 'refund'];
+
 const KIND_LABELS: Record<string, string> = {
-  cash_transfer: 'Movimiento',
+  plan_charge: 'Cobro de plan',
+  debt_settlement: 'Pago de saldo',
+  advance_payment: 'Cobro suelto',
+  refund: 'Reintegro',
   expense: 'Egreso',
+  cash_transfer: 'Movimiento',
   adjustment: 'Ajuste',
 };
 
@@ -268,13 +296,40 @@ function kindLabel(kind: string): string {
 }
 
 function kindColor(kind: string): string {
-  if (kind === 'expense') return 'negative';
+  if (kind === 'expense' || kind === 'refund') return 'negative';
   if (kind === 'cash_transfer') return 'grey-7';
+  if (COBRO_KINDS.includes(kind)) return 'positive'; // cobros de socio
   return 'warning'; // adjustment
 }
 
+// =========================================================================
+// Estado de validación (ARQUEO-02). El enum del schema es
+// pendiente | observado | corregido | validado.
+// =========================================================================
+
+const VALIDATION_LABELS: Record<string, string> = {
+  pendiente: 'Pendiente',
+  observado: 'Observado',
+  corregido: 'Corregido',
+  validado: 'Validado',
+};
+
+function validationLabel(status: string): string {
+  return VALIDATION_LABELS[status] ?? status;
+}
+
+function validationColor(status: string): string {
+  if (status === 'validado') return 'positive';
+  if (status === 'pendiente') return 'warning';
+  if (status === 'observado') return 'info';
+  return 'grey-6'; // corregido
+}
+
+// Filas que restan de la caja (se muestran con "−" rojo): egresos y reintegros.
+// No incluye cash_transfer (su leg de origen/destino se narra en Concepto, sin
+// signo, para no romper el display de movimientos ya consolidado).
 function isEgreso(row: MovEgresoItem): boolean {
-  return row.kind === 'expense';
+  return row.kind === 'expense' || row.kind === 'refund';
 }
 
 /**
@@ -301,13 +356,15 @@ const selectedMonth = ref(new Date().toISOString().slice(0, 7));
 
 const filters = reactive({
   cashRegisterId: null as number | null,
-  // Client-side tipo filter (the endpoint returns all three kinds:
-  // cash_transfer / expense / adjustment).
-  tipo: 'todos' as 'movimientos' | 'egresos' | 'ajustes' | 'todos',
+  // Client-side tipo filter. Phase 146: el endpoint devuelve TODO lo imputado a
+  // la caja (cobros de socio + egresos + traspasos + ajustes), así que el filtro
+  // suma "Cobros".
+  tipo: 'todos' as 'movimientos' | 'egresos' | 'ajustes' | 'cobros' | 'todos',
 });
 
 const tipoOptions = [
   { label: 'Todos', value: 'todos' },
+  { label: 'Cobros', value: 'cobros' },
   { label: 'Movimientos', value: 'movimientos' },
   { label: 'Egresos', value: 'egresos' },
   { label: 'Ajustes', value: 'ajustes' },
@@ -338,6 +395,9 @@ const dateRange = computed(() => {
 
 // Tipo is a client-side filter over the page (kind → tipo mapping).
 const filteredRows = computed<MovEgresoItem[]>(() => {
+  if (filters.tipo === 'cobros') {
+    return rows.value.filter((r) => COBRO_KINDS.includes(r.kind));
+  }
   if (filters.tipo === 'movimientos') {
     return rows.value.filter((r) => r.kind === 'cash_transfer');
   }
@@ -360,6 +420,13 @@ const columns: QTableProps['columns'] = [
   { name: 'concepto', label: 'Concepto', field: 'notes', align: 'left', sortable: false },
   { name: 'monto', label: 'Monto', field: 'amount', align: 'left', sortable: false },
   { name: 'caja', label: 'Caja', field: 'cashRegisterName', align: 'left', sortable: false },
+  {
+    name: 'estado',
+    label: 'Estado',
+    field: 'validationStatus',
+    align: 'left',
+    sortable: false,
+  },
   {
     name: 'registrado',
     label: 'Registrado por',
