@@ -90,15 +90,27 @@ export function useTransactionsApi() {
   // Phase 141 — Validación de pendientes (137 actions) — REP-01
   // =========================================================================
 
-  /** Validar (137 VAL-03): pendiente → validado. Sin body. */
+  /**
+   * Validar (137 VAL-03): pendiente → validado.
+   * Phase 146 (CAJA-02/CAJA-03): `cashRegisterId` opcional — gestión confirma o
+   * cambia la caja imputada al validar (incl. elegir cuenta banco). Se omite la
+   * clave del body cuando es undefined (retrocompat con el validar sin caja).
+   * El backend valida coherencia (existe/activa/moneda) y bloquea sin_plan.
+   */
   async function validateTransaction(
-    transactionId: number
+    transactionId: number,
+    cashRegisterId?: number
   ): Promise<{ transaction: TransactionListItem }> {
     loading.value = true;
     error.value = null;
     try {
+      const body: { cashRegisterId?: number } = {};
+      if (cashRegisterId !== undefined) {
+        body.cashRegisterId = cashRegisterId;
+      }
       const { data } = await api.post<{ transaction: TransactionListItem }>(
-        `/admin/finance/transactions/${transactionId}/validate`
+        `/admin/finance/transactions/${transactionId}/validate`,
+        body
       );
       return data;
     } catch (err: unknown) {
