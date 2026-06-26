@@ -55,6 +55,8 @@ async function readTx(id: number): Promise<{
   miscReason: string | null;
   idempotencyKey: string | null;
   amount: number;
+  cashRegisterId: number | null;
+  branchId: number | null;
 }> {
   const [row] = await app.db
     .select({
@@ -65,6 +67,8 @@ async function readTx(id: number): Promise<{
       miscReason: schema.financialTransactions.miscReason,
       idempotencyKey: schema.financialTransactions.idempotencyKey,
       amount: schema.financialTransactions.amount,
+      cashRegisterId: schema.financialTransactions.cashRegisterId,
+      branchId: schema.financialTransactions.branchId,
     })
     .from(schema.financialTransactions)
     .where(eq(schema.financialTransactions.id, id))
@@ -721,6 +725,225 @@ describe("coach-load cobro suelto", () => {
       },
     });
     expect(res.statusCode).toBe(400);
+  });
+});
+
+// ─── caja sugerida (CAJA-01): la caja nace de la sede del PROFE, no del socio ──
+describe("coach-load caja sugerida por sede del profe", () => {
+  let branchB: number; // sede del SOCIO (distinta a la del profe = branchId/sede A)
+  let memberB: number; // socio de sede B
+  let efectivoAId: number; // caja efectivo de la sede del profe (A)
+  let efectivoBId: number; // caja efectivo de la sede del socio (B)
+  let bancoArsId: number; // caja banco ARS (transfer/card)
+
+  /** Read the efectivo caja id of a branch (seeded by ensureEfectivoCaja). */
+  async function efectivoCajaId(branch: number): Promise<number> {
+    const [row] = await app.db
+      .select({ id: schema.cashRegisters.id })
+      .from(schema.cashRegisters)
+      .where(
+        and(
+          eq(schema.cashRegisters.type, "efectivo"),
+          eq(schema.cashRegisters.branchId, branch),
+        ),
+      )
+      .limit(1);
+    return row.id;
+  }
+
+  beforeAll(async () => {
+    // Sede B (la del socio) — distinta a la del profe (sede A = branchId global).
+    const [b] = await app.db
+      .insert(schema.branches)
+      .values({
+        name: "Caja Sugerida B",
+        code: `CSB${Date.now().toString(36).slice(-6)}`,
+        country: "AR",
+        isVirtual: false,
+        isActive: true,
+      })
+      .$returningId();
+    branchB = b.id;
+    await ensureEfectivoCaja(app, branchB, "ARS");
+    efectivoAId = await efectivoCajaId(branchId);
+    efectivoBId = await efectivoCajaId(branchB);
+
+    // Caja banco ARS para los métodos transfer/card (banco por moneda).
+    const existingBanco = await app.db
+      .select({ id: schema.cashRegisters.id })
+      .from(schema.cashRegisters)
+      .where(
+        and(
+          eq(schema.cashRegisters.type, "banco"),
+          eq(schema.cashRegisters.currency, "ARS"),
+        ),
+      )
+      .limit(1);
+    if (existingBanco.length > 0) {
+      bancoArsId = existingBanco[0].id;
+    } else {
+      const [banco] = await app.db
+        .insert(schema.cashRegisters)
+        .values({
+          name: "Banco ARS",
+          type: "banco",
+          branchId: null,
+          currency: "ARS",
+          cutoffDate: "2020-01-01",
+        })
+        .$returningId();
+      bancoArsId = banco.id;
+    }
+  });
+
+  beforeEach(async () => {
+    // Socio de sede B (el beforeEach global ya creó un socio de sede A).
+    const member = await registerUser(app, {
+      email: `caja-sugerida-member-${Date.now()}@test.local`,
+      password: "TestPass123!",
+      firstName: "Caja",
+      lastName: "SocioB",
+      branchId: branchB,
+    });
+    memberB = (member.user as { id: number }).id;
+  });
+
+  it("misc cash: profe de sede A cobra a socio de sede B → caja efectivo de A, branch_id de B", async () => {
+    expect(efectivoAId).not.toBe(efectivoBId); // sanity: distintas cajas
+    const res = await app.inject({
+      method: "POST",
+      url: `${COACH_LOAD_URL}/misc`,
+      headers: { authorization: `Bearer ${coachToken}` },
+      payload: {
+        memberId: memberB,
+        amount: 8000,
+        concepto: "Cobro suelto cross-sede",
+        paymentMethod: "cash",
+        currency: "ARS",
+        idempotencyKey: `caja-misc-cash-${Date.now()}`,
+        miscReason: "otro",
+      },
+    });
+    expect(res.statusCode).toBe(201);
+    const row = await readTx(JSON.parse(res.body).transaction.id);
+    // La caja sugerida es la EFECTIVO de la sede del PROFE (A), no la del socio (B).
+    expect(row.cashRegisterId).toBe(efectivoAId);
+    // El branch_id comercial (ledger) sigue siendo el de la sede del SOCIO (B).
+    expect(row.branchId).toBe(branchB);
+  });
+
+  it("misc transfer: caja banco por moneda (sin regresión, sede del profe es moot)", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: `${COACH_LOAD_URL}/misc`,
+      headers: { authorization: `Bearer ${coachToken}` },
+      payload: {
+        memberId: memberB,
+        amount: 8000,
+        concepto: "Cobro suelto transfer",
+        paymentMethod: "transfer",
+        currency: "ARS",
+        idempotencyKey: `caja-misc-transfer-${Date.now()}`,
+        miscReason: "otro",
+      },
+    });
+    expect(res.statusCode).toBe(201);
+    const row = await readTx(JSON.parse(res.body).transaction.id);
+    expect(row.cashRegisterId).toBe(bancoArsId);
+    expect(row.branchId).toBe(branchB);
+  });
+
+  it("settle cash: deuda saldada por profe de A → caja efectivo de A, branch_id de B", async () => {
+    // Sub vigente con deuda para el socio de sede B.
+    const start = new Date().toISOString().split("T")[0];
+    const future = new Date(Date.now() + 20 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .split("T")[0];
+    const [sub] = await app.db
+      .insert(schema.subscriptions)
+      .values({
+        userId: memberB,
+        planId,
+        branchId: branchB,
+        status: "active",
+        startDate: start,
+        endDate: future,
+        pricePaid: 100000,
+        currency: "ARS",
+        priceTypeApplied: "regular",
+      })
+      .$returningId();
+    await app.db.insert(schema.balances).values({
+      memberId: memberB,
+      targetKind: "subscription",
+      targetId: sub.id,
+      currency: "ARS",
+      amount: 50000,
+    });
+
+    const res = await app.inject({
+      method: "POST",
+      url: `${COACH_LOAD_URL}/pay-plan`,
+      headers: { authorization: `Bearer ${coachToken}` },
+      payload: {
+        userId: memberB,
+        paymentMethod: "cash",
+        idempotencyKey: `caja-settle-${Date.now()}`,
+      },
+    });
+    expect(res.statusCode).toBe(201);
+    const row = await readTx(JSON.parse(res.body).transaction.id);
+    expect(row.kind).toBe("debt_settlement");
+    expect(row.cashRegisterId).toBe(efectivoAId);
+    expect(row.branchId).toBe(branchB);
+  });
+
+  it("renew cash: renovación de socio de sede B por profe de A → plan_charge en caja efectivo de A", async () => {
+    // Sub expirada ayer → renew crea un período activo nuevo + charge real.
+    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000)
+      .toISOString()
+      .split("T")[0];
+    const startOld = new Date(Date.now() - 31 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .split("T")[0];
+    await app.db.insert(schema.subscriptions).values({
+      userId: memberB,
+      planId,
+      branchId: branchB,
+      status: "active",
+      startDate: startOld,
+      endDate: yesterday,
+      pricePaid: 100000,
+      currency: "ARS",
+      priceTypeApplied: "regular",
+    });
+
+    const res = await app.inject({
+      method: "POST",
+      url: `${COACH_LOAD_URL}/pay-plan`,
+      headers: { authorization: `Bearer ${coachToken}` },
+      payload: {
+        userId: memberB,
+        paymentMethod: "cash",
+        idempotencyKey: `caja-renew-${Date.now()}`,
+      },
+    });
+    expect(res.statusCode).toBe(201);
+
+    const [charge] = await app.db
+      .select({
+        cashRegisterId: schema.financialTransactions.cashRegisterId,
+        branchId: schema.financialTransactions.branchId,
+        kind: schema.financialTransactions.kind,
+      })
+      .from(schema.financialTransactions)
+      .where(eq(schema.financialTransactions.memberId, memberB))
+      .limit(1);
+    expect(charge.kind).toBe("plan_charge");
+    // CAJA-01: el plan_charge de la renovación nace en la caja efectivo del PROFE (A).
+    expect(charge.cashRegisterId).toBe(efectivoAId);
+    // El branch_id sigue siendo el del socio (renew lo deriva de currentSub.branchId = B).
+    expect(charge.branchId).toBe(branchB);
   });
 });
 
