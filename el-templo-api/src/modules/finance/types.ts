@@ -385,6 +385,9 @@ export interface PendingTrayItem {
   validationStatus: string; // 'pendiente' | 'observado'
   ageInDays: number; // días desde transactionDate (clamp ≥0)
   isOverdue: boolean; // ageInDays > OVERDUE_DAYS
+  // Phase 145 (COBRO-02): motivo del cobro suelto. 'sin_plan' → la fila muestra
+  // un chip "Sin plan — asignar" en la bandeja; null para filas no-misc.
+  miscReason: "sin_plan" | "otro" | null;
 }
 
 /** Filtros para listPendingTray (REP-01). */

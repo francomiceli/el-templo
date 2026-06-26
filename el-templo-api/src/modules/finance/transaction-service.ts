@@ -1123,6 +1123,7 @@ export class TransactionService {
         recorderFirstName: recorder.firstName,
         recorderLastName: recorder.lastName,
         validationStatus: schema.financialTransactions.validationStatus,
+        miscReason: schema.financialTransactions.miscReason,
       })
       .from(schema.financialTransactions)
       .leftJoin(
@@ -1186,6 +1187,7 @@ export class TransactionService {
         validationStatus: r.validationStatus,
         ageInDays,
         isOverdue: ageInDays > threshold,
+        miscReason: r.miscReason,
       };
     });
 

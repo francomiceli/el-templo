@@ -57,18 +57,21 @@ interface PendingTrayRow {
   cashRegisterName: string;
   validationStatus: string;
   transactionDate: string;
+  miscReason: "sin_plan" | "otro" | null;
 }
 
 /** Insert a pendiente/observado row directly so the test pins its age + caja. */
 async function seedTrayRow(opts: {
   transactionDate: string;
   validationStatus: "pendiente" | "observado";
+  kind?: "plan_charge" | "advance_payment";
+  miscReason?: "sin_plan" | "otro" | null;
 }): Promise<number> {
   const [res] = await app.db
     .insert(schema.financialTransactions)
     .values({
       memberId,
-      kind: "plan_charge",
+      kind: opts.kind ?? "plan_charge",
       direction: "inflow",
       amount: 1000,
       currency: "ARS",
@@ -79,6 +82,7 @@ async function seedTrayRow(opts: {
       cashRegisterId: cajaId,
       recordedBy: adminId,
       validationStatus: opts.validationStatus,
+      miscReason: opts.miscReason ?? null,
     })
     .$returningId();
   return res.id;
@@ -254,6 +258,29 @@ describe("REP-01: GET /pending-tray (bandeja de pendientes)", () => {
     // default (no status) returns both.
     const def = await fetchTray(adminToken);
     expect(def.rows).toHaveLength(2);
+  });
+
+  it("COBRO-02: exposes miscReason — 'sin_plan' for a cobro suelto, null otherwise", async () => {
+    // Cobro suelto (advance_payment) marcado 'sin_plan'.
+    await seedTrayRow({
+      transactionDate: daysAgo(2),
+      validationStatus: "pendiente",
+      kind: "advance_payment",
+      miscReason: "sin_plan",
+    });
+    // Fila no-misc (plan_charge) → miscReason null.
+    await seedTrayRow({
+      transactionDate: daysAgo(1),
+      validationStatus: "pendiente",
+      kind: "plan_charge",
+    });
+
+    const { rows } = await fetchTray(adminToken);
+    expect(rows).toHaveLength(2);
+    const misc = rows.find((r) => r.transactionDate === daysAgo(2));
+    const planCharge = rows.find((r) => r.transactionDate === daysAgo(1));
+    expect(misc?.miscReason).toBe("sin_plan");
+    expect(planCharge?.miscReason).toBeNull();
   });
 
   it("coach → 403", async () => {
