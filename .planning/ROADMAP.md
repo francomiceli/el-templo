@@ -3748,8 +3748,11 @@ Plans:
 2. Registrar un egreso **exige** elegir un centro de costo (obligatorio, con "Varios" como escape), vía columna `cost_center_id` en `financial_transactions` y selector en el dialog de egreso; aplica **solo** a egresos (kind `expense`). (EGR-02)
 3. La lista de "Movimientos de caja" muestra una columna **"Centro de costo"** con el centro de cada egreso. (EGR-03)
 
-**Plans:** TBD
-**UI hint:** yes
+**Plans:** 2 plans
+
+- [ ] 147-01-PLAN.md — Backend: tabla cost_centers + migración 0161 + columna cost_center_id + endpoint GET /cost-centers + egreso exige centro + costCenterName en el arqueo + tests
+- [ ] 147-02-PLAN.md — Frontend: tipos/composable getCostCenters + selector obligatorio en el dialog de egreso + columna "Centro de costo" en la lista
+      **UI hint:** yes
 
 ## v5.3 (Mejoras Caja) Progress
 
@@ -3757,7 +3760,7 @@ Plans:
 | ---------------------------------- | -------------- | ----------- | ---------- |
 | 145. PoS del profe                 | 1/2            | In Progress |            |
 | 146. Caja, validación e imputación | 6/6            | Complete    | 2026-06-26 |
-| 147. Centros de costo de egresos   | 0/?            | Not started | -          |
+| 147. Centros de costo de egresos   | 0/2            | Planned     | -          |
 
 _Plan counts populated by `/gsd-plan-phase`._
 
