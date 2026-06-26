@@ -3705,10 +3705,10 @@ _v5.2 (Módulo Contable) added: 2026-06-23 — 6 phases (137-142), 25 requiremen
 2. El "Cobro suelto" incluye un dropdown **Motivo** con opciones "Sin plan activo" / "Otro", persistido como **campo** estructurado (no texto libre) en la transacción. (COBRO-01)
 3. En la bandeja de Pendientes, un cobro con motivo "Sin plan activo" muestra un chip **"Sin plan — asignar"** que navega a la ficha del alumno. (COBRO-02)
 
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 Plans:
 
-- [ ] 145-01-PLAN.md — Motivo del cobro suelto (columna misc_reason + endpoint) + aviso de deuda en la PoS (POS-01, COBRO-01)
+- [x] 145-01-PLAN.md — Motivo del cobro suelto (columna misc_reason + endpoint) + aviso de deuda en la PoS (POS-01, COBRO-01)
 - [ ] 145-02-PLAN.md — Chip "Sin plan — asignar" en la bandeja de Pendientes (COBRO-02)
       **UI hint:** yes
 
@@ -3746,7 +3746,7 @@ Plans:
 
 | Phase                              | Plans Complete | Status      | Completed |
 | ---------------------------------- | -------------- | ----------- | --------- |
-| 145. PoS del profe                 | 0/?            | Not started | -         |
+| 145. PoS del profe                 | 1/2            | In Progress |           |
 | 146. Caja, validación e imputación | 0/?            | Not started | -         |
 | 147. Centros de costo de egresos   | 0/?            | Not started | -         |
 

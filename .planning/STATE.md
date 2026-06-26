@@ -2,14 +2,15 @@
 gsd_state_version: 1.0
 milestone: v5.3
 milestone_name: Mejoras Caja / Módulo Contable (feedback v5.2)
-status: planning
-last_updated: "2026-06-26T04:00:00.000Z"
-last_activity: 2026-06-26
+status: In progress — Phase 145 Plan 01 ejecutado
+stopped_at: Phase 145 Plan 01 complete (misc_reason + aviso de deuda + dropdown Motivo)
+last_updated: "2026-06-26T01:40:00.000Z"
+last_activity: 2026-06-26 — 145-01 ejecutado (migración 0159, POS-01 + COBRO-01, 23/23 tests coach-load verde)
 progress:
   total_phases: 3
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 2
+  completed_plans: 1
   percent: 0
 ---
 
@@ -24,11 +25,11 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 
 ## Current Position
 
-Phase: 145 — PoS del profe (not started)
-Plan: —
-Status: Roadmap created — awaiting plan-phase
-Progress: [ ] 0/3 phases
-Last activity: 2026-06-26 — Roadmap v5.3 created (3 phases 145-147, 17 reqs, 100% coverage)
+Phase: 145 — PoS del profe (Plan 01 done)
+Plan: 145-01 ejecutado (145-02 pendiente)
+Status: In progress — 145-01 complete (POS-01 + COBRO-01)
+Progress: [█████░░░░░] 50%
+Last activity: 2026-06-26 — 145-01 ejecutado (migración 0159, aviso de deuda + dropdown Motivo, 23/23 tests coach-load verde)
 
 **Phase order:** 145 (independiente) → 146 (fundacional: caja en validación + imputación + arqueo; depende de 145 + v5.2) → 147 (independiente, centros de costo). Next: `/gsd:plan-phase 145`.
 
@@ -271,6 +272,7 @@ _Updated after each plan completion_
 | Phase 144 P02 | 8min | 2 tasks | 2 files |
 | Phase 144 P03 | ~15min | 3 tasks | 4 files |
 | Phase 144 P04 | 20 | 2 tasks | 5 files |
+| Phase 145 P01 | ~20min | 3 tasks | 8 files |
 
 ## Accumulated Context
 

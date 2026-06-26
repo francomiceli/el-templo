@@ -15,7 +15,7 @@ commiteado; tests de integración para rutas nuevas.
 
 ### A — Aviso de deuda en la PoS (POS)
 
-- [ ] **POS-01**: Al seleccionar un socio en "Cargar pago", si tiene deuda, se muestra un aviso destacado (monto + plan) en **ambos modos** (Pago de plan / Cobro suelto). Usa `autocompletar.outstanding` (ya disponible); no se recarga el buscador.
+- [x] **POS-01**: Al seleccionar un socio en "Cargar pago", si tiene deuda, se muestra un aviso destacado (monto + plan) en **ambos modos** (Pago de plan / Cobro suelto). Usa `autocompletar.outstanding` (ya disponible); no se recarga el buscador.
 
 ### B — Imputación de caja en la validación (CAJA) — _fundacional para C y D_
 
@@ -26,7 +26,7 @@ commiteado; tests de integración para rutas nuevas.
 
 ### C — Cobro suelto → alta de plan posterior (COBRO)
 
-- [ ] **COBRO-01**: El "Cobro suelto" incluye un dropdown **Motivo** con opciones "Sin plan activo" / "Otro", persistido como **campo** (no texto libre).
+- [x] **COBRO-01**: El "Cobro suelto" incluye un dropdown **Motivo** con opciones "Sin plan activo" / "Otro", persistido como **campo** (no texto libre).
 - [ ] **COBRO-02**: En Pendientes, un cobro con motivo "Sin plan activo" muestra un chip **"Sin plan — asignar"** que navega a la ficha del alumno.
 - [ ] **COBRO-03**: Al asignar un plan, gestión puede **usar la plata de un cobro suelto pendiente** del socio para cubrir el monto: anula el cobro suelto y **recrea un `plan_charge`** vinculado a la sub (misma caja/monto/método), de forma **atómica** dentro de `assignPlan`. Gestión ve **todos** los cobros sueltos pendientes del socio.
 - [ ] **COBRO-04**: Si el cobro suelto **excede** el precio del plan, el **excedente no se aplica** (lo maneja gestión aparte).
@@ -62,24 +62,24 @@ commiteado; tests de integración para rutas nuevas.
 
 ## Traceability
 
-| REQ-ID    | Phase | Status  |
-| --------- | ----- | ------- |
-| POS-01    | 145   | pending |
-| COBRO-01  | 145   | pending |
-| COBRO-02  | 145   | pending |
-| CAJA-01   | 146   | pending |
-| CAJA-02   | 146   | pending |
-| CAJA-03   | 146   | pending |
-| CAJA-04   | 146   | pending |
-| COBRO-03  | 146   | pending |
-| COBRO-04  | 146   | pending |
-| COBRO-05  | 146   | pending |
-| ARQUEO-01 | 146   | pending |
-| ARQUEO-02 | 146   | pending |
-| ARQUEO-03 | 146   | pending |
-| ARQUEO-04 | 146   | pending |
-| EGR-01    | 147   | pending |
-| EGR-02    | 147   | pending |
-| EGR-03    | 147   | pending |
+| REQ-ID    | Phase | Status   |
+| --------- | ----- | -------- |
+| POS-01    | 145   | Complete |
+| COBRO-01  | 145   | Complete |
+| COBRO-02  | 145   | pending  |
+| CAJA-01   | 146   | pending  |
+| CAJA-02   | 146   | pending  |
+| CAJA-03   | 146   | pending  |
+| CAJA-04   | 146   | pending  |
+| COBRO-03  | 146   | pending  |
+| COBRO-04  | 146   | pending  |
+| COBRO-05  | 146   | pending  |
+| ARQUEO-01 | 146   | pending  |
+| ARQUEO-02 | 146   | pending  |
+| ARQUEO-03 | 146   | pending  |
+| ARQUEO-04 | 146   | pending  |
+| EGR-01    | 147   | pending  |
+| EGR-02    | 147   | pending  |
+| EGR-03    | 147   | pending  |
 
 _17/17 v5.3 requirements mapped — no orphans, no duplicates._
