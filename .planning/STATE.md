@@ -4,13 +4,13 @@ milestone: v5.3
 milestone_name: Mejoras Caja / Módulo Contable (feedback v5.2)
 status: executing
 stopped_at: Phase 148 planned (6 plans, 3 waves) + W-1 fix
-last_updated: "2026-06-26T16:12:34.123Z"
+last_updated: "2026-06-26T16:27:13.311Z"
 last_activity: 2026-06-26
 progress:
   total_phases: 4
   completed_phases: 2
   total_plans: 16
-  completed_plans: 13
+  completed_plans: 14
   percent: 50
 ---
 
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 ## Current Position
 
 Phase: 148 (pos-profe-alta-de-alumno-plan-en-el-cobro) — EXECUTING
-Plan: 5 of 6
+Plan: 6 of 6
 Status: Ready to execute
-Progress: [████████░░] 81%
+Progress: [█████████░] 88%
 Last activity: 2026-06-26
 
 **Phase order:** 145 (independiente, done) → 146 (fundacional: caja en validación + imputación + arqueo, done) → 147 (independiente, centros de costo, done). Milestone v5.3 COMPLETE.
@@ -279,6 +279,7 @@ _Updated after each plan completion_
 | Phase 148 P02 | 12min | 2 tasks | 1 files |
 | Phase 148 P03 | 8min | 2 tasks | 2 files |
 | Phase 148 P04 | 18min | 2 tasks | 1 files |
+| Phase 148 P05 | 22min | 3 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -668,6 +669,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: 144-03: PlanExpiryDialog gate daysRemaining >= 0 && <= 3 (fix plan-checker — /coverage no barre autoExpire, negativos los cubren push del día + booking block); once-per-DAY via Preferences plan_expiry_shown_v1 (YYYY-MM-DD); país desde userStore.profile.branchCountry (authStore.country no existe); clon de RatingPromptDialog montado en MainLayout
 - [Phase ?]: Phase 144 BOOK-BLOCK: reserve() blocks classes past the server-derived chained covered-until with a distinguishable COVERAGE_EXPIRED code; ReservasPage shows a renewal dialog only for that code
 - [Phase ?]: [148-01] createdMemberId se persiste DENTRO de la tx del charge (W-1), sin UPDATE separado, para no dejar alumno activo huérfano ante crash
+- [Phase ?]: 148-05: modo 'Alta + plan' como panel inline (A1) reusando typeahead/payment/sticky/idempotencia; monto autocalc por watcher [plan,medio,Zero] editable; chip 'Nuevo' por id de transaccion (sobrevive al re-fetch de mis-cargas)
 
 ### Pending Todos
 
@@ -700,7 +702,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-26T16:12:34.105Z
+Last session: 2026-06-26T16:26:58.331Z
 Stopped at: Phase 148 planned (6 plans, 3 waves) + W-1 fix
 Resume file: None
 
