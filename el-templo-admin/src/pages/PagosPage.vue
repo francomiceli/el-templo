@@ -3,7 +3,7 @@
     <!-- Page title -->
     <div class="text-h5 q-mb-md">Pagos</div>
 
-    <!-- Mode toggle: Renovar plan / Cobro suelto -->
+    <!-- Mode toggle: Pago de plan / Alta + plan / Cobro suelto -->
     <q-btn-toggle
       v-model="mode"
       spread
@@ -13,8 +13,8 @@
       class="full-width q-mb-md"
       :options="[
         { label: 'Pago de plan', value: 'renew' },
-        { label: 'Cobro suelto', value: 'misc' },
         { label: 'Alta + plan', value: 'alta' },
+        { label: 'Cobro suelto', value: 'misc' },
       ]"
       @update:model-value="onModeChange"
     />
@@ -64,15 +64,6 @@
                 {{ searchQuery ? 'Sin resultados' : 'Escribe para buscar' }}
               </q-item-section>
             </q-item>
-            <!-- ALTA: dar de alta un alumno nuevo cuando no hay match -->
-            <q-item v-if="mode === 'alta'" clickable v-ripple @click="onNuevoAlumno">
-              <q-item-section avatar>
-                <q-icon name="person_add" color="primary" />
-              </q-item-section>
-              <q-item-section class="text-primary text-weight-bold">
-                + Nuevo alumno
-              </q-item-section>
-            </q-item>
           </template>
           <template #option="scope">
             <q-item v-bind="scope.itemProps">
@@ -85,6 +76,21 @@
             </q-item>
           </template>
         </q-select>
+
+        <!-- ALTA: el camino primario es dar de alta un alumno NUEVO. El buscador
+             de arriba queda para asignarle un plan a un socio que YA existe (ej.
+             un socio sin plan derivado desde "Pago de plan"). Antes este botón
+             estaba escondido dentro del dropdown del buscador. -->
+        <q-btn
+          v-if="mode === 'alta' && !showNewStudentForm && !selectedMember"
+          outline
+          no-caps
+          color="primary"
+          icon="person_add"
+          label="Nuevo alumno"
+          class="full-width q-mt-sm"
+          @click="onNuevoAlumno"
+        />
 
         <!-- Deuda del socio: aviso destacado en AMBOS modos (POS-01). Depende de
              autocompletar.outstanding, no del modo, así que aplica a renew y misc. -->
@@ -136,13 +142,23 @@
             <q-skeleton v-if="autocompletando" type="text" />
 
             <template v-else>
-              <!-- No active plan warning -->
-              <div
-                v-if="autocompletar && !autocompletar.hasRenewable"
-                class="text-caption text-warning q-mt-sm"
-              >
-                Este socio no tiene un plan para cobrar. Usá
-                <strong>Cobro suelto</strong>.
+              <!-- Sin plan para cobrar → el lugar correcto es "Alta + plan" (que
+                   asigna un plan), NO "Cobro suelto" (cargo misceláneo sin plan).
+                   El botón cambia de modo conservando el socio ya elegido. -->
+              <div v-if="autocompletar && !autocompletar.hasRenewable" class="q-mt-sm">
+                <div class="text-caption text-warning">
+                  Este socio no tiene un plan activo para cobrar.
+                </div>
+                <q-btn
+                  flat
+                  dense
+                  no-caps
+                  color="primary"
+                  icon="person_add"
+                  label="Asignarle un plan (Alta + plan)"
+                  class="q-mt-xs"
+                  @click="altaParaSocioExistente"
+                />
               </div>
 
               <template v-else-if="autocompletar">
@@ -773,6 +789,15 @@ async function onMemberSelected() {
   // POS-01: load autocompletar in BOTH modes. In renew it pre-fills the amount;
   // in misc it only feeds the deuda banner (no amount pre-fill).
   await loadAutocompletar(selectedMember.value.id);
+}
+
+function altaParaSocioExistente() {
+  // Desde "Pago de plan" cuando el socio NO tiene plan: pasar a "Alta + plan"
+  // conservando el socio elegido para asignarle su primer plan. onModeChange no
+  // toca selectedMember, así que el socio viaja al nuevo modo (y recarga catálogo
+  // de sedes/planes + autocompletar). NO es "Cobro suelto" — ese no asigna plan.
+  mode.value = 'alta';
+  onModeChange();
 }
 
 function onModeChange() {
