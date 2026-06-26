@@ -3690,7 +3690,7 @@ _v5.2 (Módulo Contable) added: 2026-06-23 — 6 phases (137-142), 25 requiremen
 
 - [x] **Phase 145: PoS del profe** — aviso destacado de deuda al seleccionar al socio en "Cargar pago" (ambos modos, reusa `autocompletar.outstanding`) + dropdown Motivo ("Sin plan activo"/"Otro", como campo) en el cobro suelto + chip "Sin plan — asignar" en Pendientes que navega a la ficha del alumno.
 - [x] **Phase 146: Caja, validación e imputación (fundacional)** — caja sugerida no-definitiva al cobrar (sede del profe / banco por moneda) + confirmar/cambiar caja al validar (abrir el endpoint inmutable) + múltiples cajas banco (seed staging Galicia + Mercado Pago) + quitar selector de la PoS + imputación del anticipo al asignar plan (anular+recrear `plan_charge` atómico en `assignPlan`, excedente no aplicado) + bloqueo del "Validar" manual de los "sin plan" + "Movimientos de caja" como arqueo por caja (todos los tipos por `cash_register_id`, pendientes/validados marcados, Cobros en el filtro Tipo, "Transacciones" se mantiene). (completed 2026-06-26)
-- [ ] **Phase 147: Centros de costo de egresos** — tabla `cost_centers` (por país) + seed AR (Alquiler Constitución / Librería / Viáticos profes / Varios) + columna `cost_center_id` obligatoria en el egreso + selector en el dialog de egreso + columna "Centro de costo" en la lista de movimientos de caja.
+- [x] **Phase 147: Centros de costo de egresos** — tabla `cost_centers` (por país) + seed AR (Alquiler Constitución / Librería / Viáticos profes / Varios) + columna `cost_center_id` obligatoria en el egreso + selector en el dialog de egreso + columna "Centro de costo" en la lista de movimientos de caja. (completed 2026-06-26)
 
 ## v5.3 (Mejoras Caja) Phase Details
 
@@ -3750,17 +3750,17 @@ Plans:
 
 **Plans:** 2 plans
 
-- [ ] 147-01-PLAN.md — Backend: tabla cost_centers + migración 0161 + columna cost_center_id + endpoint GET /cost-centers + egreso exige centro + costCenterName en el arqueo + tests
-- [ ] 147-02-PLAN.md — Frontend: tipos/composable getCostCenters + selector obligatorio en el dialog de egreso + columna "Centro de costo" en la lista
+- [x] 147-01-PLAN.md — Backend: tabla cost_centers + migración 0161 + columna cost_center_id + endpoint GET /cost-centers + egreso exige centro + costCenterName en el arqueo + tests
+- [x] 147-02-PLAN.md — Frontend: tipos/composable getCostCenters + selector obligatorio en el dialog de egreso + columna "Centro de costo" en la lista
       **UI hint:** yes
 
 ## v5.3 (Mejoras Caja) Progress
 
-| Phase                              | Plans Complete | Status      | Completed  |
-| ---------------------------------- | -------------- | ----------- | ---------- |
-| 145. PoS del profe                 | 1/2            | In Progress |            |
-| 146. Caja, validación e imputación | 6/6            | Complete    | 2026-06-26 |
-| 147. Centros de costo de egresos   | 0/2            | Planned     | -          |
+| Phase                              | Plans Complete | Status   | Completed  |
+| ---------------------------------- | -------------- | -------- | ---------- |
+| 145. PoS del profe                 | 2/2            | Complete | 2026-06-26 |
+| 146. Caja, validación e imputación | 6/6            | Complete | 2026-06-26 |
+| 147. Centros de costo de egresos   | 2/2            | Complete | 2026-06-26 |
 
 _Plan counts populated by `/gsd-plan-phase`._
 

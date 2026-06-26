@@ -41,9 +41,9 @@ commiteado; tests de integración para rutas nuevas.
 
 ### E — Centros de costo para egresos (EGR)
 
-- [ ] **EGR-01**: Existe un catálogo `cost_centers` (por país), seedeado en AR con **Alquiler Constitución / Librería / Viáticos profes / Varios**.
-- [ ] **EGR-02**: Registrar un egreso **exige** elegir un centro de costo (obligatorio; "Varios" como escape). Solo aplica a egresos (kind `expense`).
-- [ ] **EGR-03**: La lista de "Movimientos de caja" muestra el **centro de costo** de cada egreso.
+- [x] **EGR-01**: Existe un catálogo `cost_centers` (por país), seedeado en AR con **Alquiler Constitución / Librería / Viáticos profes / Varios**.
+- [x] **EGR-02**: Registrar un egreso **exige** elegir un centro de costo (obligatorio; "Varios" como escape). Solo aplica a egresos (kind `expense`).
+- [x] **EGR-03**: La lista de "Movimientos de caja" muestra el **centro de costo** de cada egreso.
 
 ---
 
@@ -78,8 +78,8 @@ commiteado; tests de integración para rutas nuevas.
 | ARQUEO-02 | 146   | Complete |
 | ARQUEO-03 | 146   | Complete |
 | ARQUEO-04 | 146   | pending  |
-| EGR-01    | 147   | pending  |
-| EGR-02    | 147   | pending  |
-| EGR-03    | 147   | pending  |
+| EGR-01    | 147   | Complete |
+| EGR-02    | 147   | Complete |
+| EGR-03    | 147   | Complete |
 
 _17/17 v5.3 requirements mapped — no orphans, no duplicates._

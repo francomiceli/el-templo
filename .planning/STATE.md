@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v5.3
 milestone_name: Mejoras Caja / Módulo Contable (feedback v5.2)
 status: completed
-stopped_at: Phase 146 complete (6/6) — ARQUEO-02/03 done
-last_updated: "2026-06-26T06:10:00.000Z"
-last_activity: "2026-06-26 — 146-06 ejecutado (ARQUEO-02/03: filtro Cobros + badge de estado de validación por fila en Movimientos de caja). Fase 146 cerrada 6/6."
+stopped_at: Phase 147 complete (2/2) — EGR-01/02/03 done · milestone v5.3 COMPLETE (3/3 fases)
+last_updated: "2026-06-26T07:30:00.000Z"
+last_activity: "2026-06-26 — 147-02 ejecutado (EGR-02/03 frontend: selector obligatorio de centro de costo en el dialog de egreso + columna 'Centro de costo' en el arqueo). Fase 147 cerrada 2/2 → milestone v5.3 COMPLETE."
 progress:
   total_phases: 3
-  completed_phases: 2
-  total_plans: 8
-  completed_plans: 8
-  percent: 67
+  completed_phases: 3
+  total_plans: 10
+  completed_plans: 10
+  percent: 100
 ---
 
 # Project State
@@ -21,17 +21,17 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-04)
 
 **Core value (v5.3):** Resolver el feedback operativo de v5.2 sobre la caja y la PoS del profe — imputación/confirmación de caja en la **validación** (no en el cobro), cobro de socios sin plan activo (motivo + chip + imputación del anticipo al alta), arqueo por caja, múltiples cuentas banco y centros de costo obligatorios para egresos. Fixes targeted sobre el Módulo Contable v5.2 (137-142) y el modelo v4.8 — NO es un build from-scratch. 3 fases (145-147), 17 requirements (POS/CAJA/COBRO/ARQUEO/EGR). Migraciones nuevas 0159+.
-**Current focus:** Phase 146 — caja, validación e imputación (fundacional) — COMPLETE (6/6)
+**Current focus:** Phase 147 — centros de costo de egresos — COMPLETE (2/2). Milestone v5.3 COMPLETE (3/3 fases).
 
 ## Current Position
 
-Phase: 146 — Caja, validación e imputación (fundacional) (complete: 146-01..06)
-Plan: 146-06 ejecutado (fase 146 cerrada — 6/6 planes)
-Status: Complete — 146 done (CAJA-01/02/03/04, COBRO-03/04/05, ARQUEO-01/02/03/04). Next: `/gsd:plan-phase 147`.
+Phase: 147 — Centros de costo de egresos (complete: 147-01..02)
+Plan: 147-02 ejecutado (fase 147 cerrada — 2/2 planes) → milestone v5.3 COMPLETE
+Status: Complete — milestone v5.3 cerrado (145 2/2, 146 6/6, 147 2/2 = 10/10 planes, 17/17 reqs). Pendiente: UAT visual + push de staging (pedir OK a Franco).
 Progress: [██████████] 100%
-Last activity: 2026-06-26 — 146-06 ejecutado (ARQUEO-02/03: filtro Cobros + badge de estado de validación por fila en Movimientos de caja). Fase 146 cerrada 6/6.
+Last activity: 2026-06-26 — 147-02 ejecutado (EGR-02/03 frontend: selector obligatorio de centro de costo + columna 'Centro de costo' en el arqueo). Fase 147 cerrada 2/2 → milestone v5.3 COMPLETE.
 
-**Phase order:** 145 (independiente, done) → 146 (fundacional: caja en validación + imputación + arqueo, done) → 147 (independiente, centros de costo). Next: `/gsd:plan-phase 147`.
+**Phase order:** 145 (independiente, done) → 146 (fundacional: caja en validación + imputación + arqueo, done) → 147 (independiente, centros de costo, done). Milestone v5.3 COMPLETE.
 
 ## Performance Metrics
 
@@ -274,6 +274,7 @@ _Updated after each plan completion_
 | Phase 144 P04 | 20 | 2 tasks | 5 files |
 | Phase 145 P01 | ~20min | 3 tasks | 8 files |
 | Phase 145 P02 | ~12min | 2 tasks | 5 files |
+| Phase 147 P02 | ~12min | 3 tasks | 4 files |
 
 ## Accumulated Context
 
