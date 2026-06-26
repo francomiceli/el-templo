@@ -158,15 +158,23 @@
       <template #body-cell-acciones="slotProps">
         <q-td :props="slotProps">
           <div class="row items-center justify-end no-wrap q-gutter-xs">
+            <!-- COBRO-05: bloqueo del Validar para cobros sin plan activo.
+                 El server ya lo rechaza (defensa en profundidad); acá se
+                 deshabilita el botón y se redirige al chip "Sin plan — asignar". -->
             <q-btn
               label="Validar"
               color="primary"
               dense
               unelevated
               size="sm"
+              :disable="slotProps.row.miscReason === 'sin_plan'"
               :loading="actionLoadingId === slotProps.row.id"
               @click="onValidar(slotProps.row)"
-            />
+            >
+              <q-tooltip v-if="slotProps.row.miscReason === 'sin_plan'">
+                Asigná un plan para imputar este cobro
+              </q-tooltip>
+            </q-btn>
             <q-btn flat dense round icon="more_vert" size="sm">
               <q-menu>
                 <q-list style="min-width: 160px">
@@ -189,6 +197,45 @@
         </q-td>
       </template>
     </q-table>
+
+    <!-- ========================================================== -->
+    <!-- Validar dialog — CAJA-02/CAJA-03: confirmar/cambiar la caja -->
+    <!-- imputada (incl. elegir cuenta banco para transferencias).  -->
+    <!-- ========================================================== -->
+    <q-dialog v-model="validarDialog">
+      <q-card v-if="actionRow" style="width: 480px; max-width: 95vw">
+        <q-card-section>
+          <div class="text-h6">Validar pago de {{ actionRow.memberName }}</div>
+        </q-card-section>
+        <q-card-section class="q-pt-none">
+          <div class="text-body2 q-mb-md">
+            Validar el pago de
+            {{ formatPrice(actionRow.amount, actionRow.currency) }} de {{ actionRow.memberName }} e
+            imputarlo a la caja seleccionada.
+          </div>
+          <q-select
+            v-model="selectedCajaId"
+            :options="cajaOptions"
+            :label="cajaSelectLabel"
+            outlined
+            dense
+            emit-value
+            map-options
+            :hint="cajaOptions.length === 0 ? 'No hay cajas activas para esta moneda' : ''"
+          />
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat label="Cancelar" color="grey" v-close-popup />
+          <q-btn
+            label="Validar"
+            color="primary"
+            :disable="selectedCajaId === null"
+            :loading="dialogLoading"
+            @click="submitValidar"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
 
     <!-- ========================================================== -->
     <!-- Observar dialog -->
@@ -314,7 +361,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch, onMounted, onUnmounted } from 'vue';
+import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import type { QTableProps } from 'quasar';
@@ -329,6 +376,8 @@ import {
   type PendingTrayItem,
   type PendingTrayParams,
   type CorrectedFields,
+  type CajaSaldoRow,
+  type CashBalancesParams,
 } from 'src/types/transaction';
 
 // =========================================================================
@@ -360,6 +409,9 @@ const exporting = ref(false);
 const thresholdDays = ref(3);
 const vencidoCount = ref(0);
 const actionLoadingId = ref<number | null>(null);
+// CAJA-02/CAJA-03: cajas activas (firme + pendiente) — fuente de las opciones
+// del selector de caja al validar. Se cargan una vez por país.
+const cashRegisters = ref<CajaSaldoRow[]>([]);
 
 const statusFilter = ref<'pendientes' | 'observados' | 'todos'>('pendientes');
 const statusOptions = [
@@ -456,29 +508,83 @@ function onTableRequest(tableProps: { pagination: { page: number; rowsPerPage: n
 }
 
 // =========================================================================
-// Validar — one-tap confirm → validate → refresh.
+// Cajas activas — opciones del selector de caja al validar.
 // =========================================================================
 
+async function loadCashRegisters() {
+  try {
+    const params: CashBalancesParams = {
+      country: props.isOwner ? props.selectedCountry : undefined,
+    };
+    cashRegisters.value = await transactionsApi.getCashRegisterBalances(params);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.error('Error loading cash registers', { error: message });
+  }
+}
+
+// =========================================================================
+// Validar — dialog con selector de caja → validate(cashRegisterId) → refresh.
+// CAJA-02/CAJA-03: gestión confirma o cambia la caja imputada (incl. cuenta
+// banco para transferencias). COBRO-05: bloqueado para miscReason='sin_plan'.
+// =========================================================================
+
+const validarDialog = ref(false);
+const selectedCajaId = ref<number | null>(null);
+
+// Opciones filtradas por la moneda de la fila y acotadas por el medio de pago:
+// transferencia/tarjeta → cuentas banco (Galicia / Mercado Pago); efectivo →
+// cajas de efectivo; otros medios → todas las cajas de esa moneda. El backend
+// (plan 02) valida coherencia igual (defensa en profundidad).
+const cajaOptions = computed<Array<{ label: string; value: number }>>(() => {
+  const row = actionRow.value;
+  if (!row) return [];
+  return cashRegisters.value
+    .filter((c) => c.currency === row.currency)
+    .filter((c) => {
+      if (row.paymentMethod === 'transfer' || row.paymentMethod === 'card') {
+        return c.type === 'banco';
+      }
+      if (row.paymentMethod === 'cash') return c.type === 'efectivo';
+      return true;
+    })
+    .map((c) => ({ label: c.name, value: c.cashRegisterId }));
+});
+
+const cajaSelectLabel = computed(() =>
+  actionRow.value?.paymentMethod === 'transfer' ? 'Cuenta banco' : 'Caja'
+);
+
 function onValidar(row: PendingTrayItem) {
-  $q.dialog({
-    title: 'Validar pago',
-    message: `¿Validar el pago de ${formatPrice(row.amount, row.currency)} de ${row.memberName}?`,
-    cancel: { flat: true, label: 'Cancelar' },
-    ok: { color: 'primary', label: 'Validar' },
-  }).onOk(async () => {
-    actionLoadingId.value = row.id;
-    try {
-      await transactionsApi.validateTransaction(row.id);
-      $q.notify({ type: 'positive', message: 'Pago validado' });
-      await loadBandeja();
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Error desconocido';
-      log.error('Error validating transaction', { error: message });
-      $q.notify({ type: 'negative', message: 'Error al validar el pago' });
-    } finally {
-      actionLoadingId.value = null;
-    }
-  });
+  // COBRO-05 guard — el botón ya está :disable para sin_plan; esto es la
+  // segunda barrera por si el evento se dispara igual (defensa en profundidad).
+  if (row.miscReason === 'sin_plan') return;
+  actionRow.value = row;
+  // Pre-seleccionar la caja sugerida si está entre las opciones de la moneda.
+  selectedCajaId.value = row.cashRegisterId;
+  validarDialog.value = true;
+}
+
+async function submitValidar() {
+  if (!actionRow.value || selectedCajaId.value === null) return;
+  const row = actionRow.value;
+  actionLoadingId.value = row.id;
+  dialogLoading.value = true;
+  try {
+    await transactionsApi.validateTransaction(row.id, selectedCajaId.value);
+    $q.notify({ type: 'positive', message: 'Pago validado' });
+    validarDialog.value = false;
+    await loadBandeja();
+  } catch (err: unknown) {
+    // Surface the backend 400 message (moneda incoherente / sin_plan) — el
+    // composable ya extrajo el mensaje del server en transactionsApi.error.
+    const message = transactionsApi.error.value ?? 'Error al validar el pago';
+    log.error('Error validating transaction', { error: message });
+    $q.notify({ type: 'negative', message });
+  } finally {
+    actionLoadingId.value = null;
+    dialogLoading.value = false;
+  }
 }
 
 // =========================================================================
@@ -609,7 +715,10 @@ async function submitAnular() {
 // Lifecycle
 // =========================================================================
 
-onMounted(loadBandeja);
+onMounted(() => {
+  loadBandeja();
+  loadCashRegisters();
+});
 
 // Component-level onUnmounted is allowed (the rule forbids onUnmounted INSIDE
 // the composable, not in the SFC). Drives the composable cleanup().
@@ -623,6 +732,7 @@ watch(
   () => {
     tablePagination.value.page = 1;
     loadBandeja();
+    loadCashRegisters();
   }
 );
 </script>
