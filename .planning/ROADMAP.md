@@ -3689,7 +3689,7 @@ _v5.2 (Módulo Contable) added: 2026-06-23 — 6 phases (137-142), 25 requiremen
 ## v5.3 (Mejoras Caja) Phases
 
 - [x] **Phase 145: PoS del profe** — aviso destacado de deuda al seleccionar al socio en "Cargar pago" (ambos modos, reusa `autocompletar.outstanding`) + dropdown Motivo ("Sin plan activo"/"Otro", como campo) en el cobro suelto + chip "Sin plan — asignar" en Pendientes que navega a la ficha del alumno.
-- [ ] **Phase 146: Caja, validación e imputación (fundacional)** — caja sugerida no-definitiva al cobrar (sede del profe / banco por moneda) + confirmar/cambiar caja al validar (abrir el endpoint inmutable) + múltiples cajas banco (seed staging Galicia + Mercado Pago) + quitar selector de la PoS + imputación del anticipo al asignar plan (anular+recrear `plan_charge` atómico en `assignPlan`, excedente no aplicado) + bloqueo del "Validar" manual de los "sin plan" + "Movimientos de caja" como arqueo por caja (todos los tipos por `cash_register_id`, pendientes/validados marcados, Cobros en el filtro Tipo, "Transacciones" se mantiene).
+- [x] **Phase 146: Caja, validación e imputación (fundacional)** — caja sugerida no-definitiva al cobrar (sede del profe / banco por moneda) + confirmar/cambiar caja al validar (abrir el endpoint inmutable) + múltiples cajas banco (seed staging Galicia + Mercado Pago) + quitar selector de la PoS + imputación del anticipo al asignar plan (anular+recrear `plan_charge` atómico en `assignPlan`, excedente no aplicado) + bloqueo del "Validar" manual de los "sin plan" + "Movimientos de caja" como arqueo por caja (todos los tipos por `cash_register_id`, pendientes/validados marcados, Cobros en el filtro Tipo, "Transacciones" se mantiene). (completed 2026-06-26)
 - [ ] **Phase 147: Centros de costo de egresos** — tabla `cost_centers` (por país) + seed AR (Alquiler Constitución / Librería / Viáticos profes / Varios) + columna `cost_center_id` obligatoria en el egreso + selector en el dialog de egreso + columna "Centro de costo" en la lista de movimientos de caja.
 
 ## v5.3 (Mejoras Caja) Phase Details
@@ -3725,16 +3725,16 @@ Plans:
 4. El botón **"Validar" manual queda bloqueado** en la bandeja para los cobros marcados "Sin plan activo" (se redirigen a asignar plan, para que no queden como plata suelta validada). (COBRO-05)
 5. "Movimientos de caja" se vuelve el **arqueo por caja**: muestra todo lo imputado a una caja por `cash_register_id` (cobros de socio + egresos + traspasos + ajustes), con pendientes y validados **marcados** por su estado, **Cobros** agregado al filtro Tipo, y la pestaña "Transacciones" (vista comercial por socio) **se mantiene** sin cambios de criterio. (ARQUEO-01, ARQUEO-02, ARQUEO-03, ARQUEO-04)
 
-**Plans:** 1/6 plans executed
+**Plans:** 6/6 plans complete
 
 Plans:
 
 - [x] 146-01-PLAN.md — CAJA-01/04: el cobro del profe nace con caja sugerida (sede del profe); la PoS no expone caja/sede
-- [ ] 146-02-PLAN.md — CAJA-02/03 + COBRO-05 (backend): abrir validate para confirmar/cambiar caja + multi-banco (seed Galicia/Mercado Pago) + bloqueo validar sin_plan + primitivos para imputación
-- [ ] 146-03-PLAN.md — COBRO-03/04: imputación atómica del anticipo al asignar plan (anular+recrear plan_charge; excedente rechazado) + AssignPlanDialog
-- [ ] 146-04-PLAN.md — CAJA-02/03 + COBRO-05 (frontend): selector de caja al validar en la bandeja + bloqueo del Validar de los sin_plan
-- [ ] 146-05-PLAN.md — ARQUEO-01/02/04 (backend): listMovEgresos por caja, todos los kinds, con validationStatus; list() intacto
-- [ ] 146-06-PLAN.md — ARQUEO-02/03 (frontend): filtro Cobros + estado marcado en Movimientos de caja
+- [x] 146-02-PLAN.md — CAJA-02/03 + COBRO-05 (backend): abrir validate para confirmar/cambiar caja + multi-banco (seed Galicia/Mercado Pago) + bloqueo validar sin_plan + primitivos para imputación
+- [x] 146-03-PLAN.md — COBRO-03/04: imputación atómica del anticipo al asignar plan (anular+recrear plan_charge; excedente rechazado) + AssignPlanDialog
+- [x] 146-04-PLAN.md — CAJA-02/03 + COBRO-05 (frontend): selector de caja al validar en la bandeja + bloqueo del Validar de los sin_plan
+- [x] 146-05-PLAN.md — ARQUEO-01/02/04 (backend): listMovEgresos por caja, todos los kinds, con validationStatus; list() intacto
+- [x] 146-06-PLAN.md — ARQUEO-02/03 (frontend): filtro Cobros + estado marcado en Movimientos de caja
       **UI hint:** yes
 
 ### Phase 147: Centros de costo de egresos
@@ -3753,11 +3753,11 @@ Plans:
 
 ## v5.3 (Mejoras Caja) Progress
 
-| Phase                              | Plans Complete | Status      | Completed |
-| ---------------------------------- | -------------- | ----------- | --------- |
-| 145. PoS del profe                 | 1/2            | In Progress |           |
-| 146. Caja, validación e imputación | 1/6            | In Progress |           |
-| 147. Centros de costo de egresos   | 0/?            | Not started | -         |
+| Phase                              | Plans Complete | Status      | Completed  |
+| ---------------------------------- | -------------- | ----------- | ---------- |
+| 145. PoS del profe                 | 1/2            | In Progress |            |
+| 146. Caja, validación e imputación | 6/6            | Complete    | 2026-06-26 |
+| 147. Centros de costo de egresos   | 0/?            | Not started | -          |
 
 _Plan counts populated by `/gsd-plan-phase`._
 

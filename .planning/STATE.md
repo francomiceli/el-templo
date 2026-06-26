@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v5.3
 milestone_name: Mejoras Caja / Módulo Contable (feedback v5.2)
 status: completed
-stopped_at: Phase 144 UI-SPEC approved
-last_updated: "2026-06-26T05:00:56.885Z"
-last_activity: "2026-06-26 — 145-02 ejecutado (COBRO-02: miscReason en listPendingTray + chip "Sin plan — asignar" navegable en la bandeja, 6/6 tests pending-tray verde)"
+stopped_at: Phase 146 complete (6/6) — ARQUEO-02/03 done
+last_updated: "2026-06-26T06:10:00.000Z"
+last_activity: "2026-06-26 — 146-06 ejecutado (ARQUEO-02/03: filtro Cobros + badge de estado de validación por fila en Movimientos de caja). Fase 146 cerrada 6/6."
 progress:
   total_phases: 3
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 8
-  completed_plans: 3
-  percent: 33
+  completed_plans: 8
+  percent: 67
 ---
 
 # Project State
@@ -21,17 +21,17 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-04)
 
 **Core value (v5.3):** Resolver el feedback operativo de v5.2 sobre la caja y la PoS del profe — imputación/confirmación de caja en la **validación** (no en el cobro), cobro de socios sin plan activo (motivo + chip + imputación del anticipo al alta), arqueo por caja, múltiples cuentas banco y centros de costo obligatorios para egresos. Fixes targeted sobre el Módulo Contable v5.2 (137-142) y el modelo v4.8 — NO es un build from-scratch. 3 fases (145-147), 17 requirements (POS/CAJA/COBRO/ARQUEO/EGR). Migraciones nuevas 0159+.
-**Current focus:** Phase 145 — pos-del-profe (aviso de deuda + Motivo + chip)
+**Current focus:** Phase 146 — caja, validación e imputación (fundacional) — COMPLETE (6/6)
 
 ## Current Position
 
-Phase: 145 — PoS del profe (complete: 145-01 + 145-02)
-Plan: 145-02 ejecutado (fase 145 cerrada — 2/2 planes)
-Status: Complete — 145 done (POS-01, COBRO-01, COBRO-02). Next: `/gsd:plan-phase 146`.
-Progress: [████░░░░░░] 38%
-Last activity: 2026-06-26 — 145-02 ejecutado (COBRO-02: miscReason en listPendingTray + chip "Sin plan — asignar" navegable en la bandeja, 6/6 tests pending-tray verde)
+Phase: 146 — Caja, validación e imputación (fundacional) (complete: 146-01..06)
+Plan: 146-06 ejecutado (fase 146 cerrada — 6/6 planes)
+Status: Complete — 146 done (CAJA-01/02/03/04, COBRO-03/04/05, ARQUEO-01/02/03/04). Next: `/gsd:plan-phase 147`.
+Progress: [██████████] 100%
+Last activity: 2026-06-26 — 146-06 ejecutado (ARQUEO-02/03: filtro Cobros + badge de estado de validación por fila en Movimientos de caja). Fase 146 cerrada 6/6.
 
-**Phase order:** 145 (independiente) → 146 (fundacional: caja en validación + imputación + arqueo; depende de 145 + v5.2) → 147 (independiente, centros de costo). Next: `/gsd:plan-phase 145`.
+**Phase order:** 145 (independiente, done) → 146 (fundacional: caja en validación + imputación + arqueo, done) → 147 (independiente, centros de costo). Next: `/gsd:plan-phase 147`.
 
 ## Performance Metrics
 

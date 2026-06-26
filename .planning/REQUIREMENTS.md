@@ -35,8 +35,8 @@ commiteado; tests de integración para rutas nuevas.
 ### D — "Movimientos de caja" como arqueo por caja (ARQUEO)
 
 - [ ] **ARQUEO-01**: La pestaña "Movimientos de caja" muestra **todo lo imputado a una caja** (cobros de socio + egresos + traspasos + ajustes), filtrando por `cash_register_id` (todos los tipos, no solo los sin-socio).
-- [ ] **ARQUEO-02**: La vista muestra **pendientes y validados**, cada uno **marcado** con su estado.
-- [ ] **ARQUEO-03**: El filtro **Tipo** incluye **Cobros** (además de Movimientos / Egresos / Ajustes).
+- [x] **ARQUEO-02**: La vista muestra **pendientes y validados**, cada uno **marcado** con su estado.
+- [x] **ARQUEO-03**: El filtro **Tipo** incluye **Cobros** (además de Movimientos / Egresos / Ajustes).
 - [ ] **ARQUEO-04**: La pestaña "Transacciones" (vista comercial por socio) **se mantiene** sin cambios de criterio.
 
 ### E — Centros de costo para egresos (EGR)
@@ -75,8 +75,8 @@ commiteado; tests de integración para rutas nuevas.
 | COBRO-04  | 146   | pending  |
 | COBRO-05  | 146   | pending  |
 | ARQUEO-01 | 146   | pending  |
-| ARQUEO-02 | 146   | pending  |
-| ARQUEO-03 | 146   | pending  |
+| ARQUEO-02 | 146   | Complete |
+| ARQUEO-03 | 146   | Complete |
 | ARQUEO-04 | 146   | pending  |
 | EGR-01    | 147   | pending  |
 | EGR-02    | 147   | pending  |
