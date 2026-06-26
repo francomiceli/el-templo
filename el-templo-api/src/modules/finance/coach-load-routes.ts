@@ -531,9 +531,26 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   // ===================================================================
-  // POST /alta — alta de alumno + plan en el cobro (ALTA-01..07). Handler
-  // implementado en Task 2 (148-02). branchId (sede elegida) gated por
-  // requireBranchAccess — primer endpoint del plugin que acepta branchId.
+  // POST /alta — alta de alumno + plan en el cobro (ALTA-01..07). El CORAZÓN de
+  // la Fase 148: reemplaza el Google Form→Excel→admin. Orquesta de forma
+  // idempotente, en DOS transacciones encadenadas (W-1):
+  //   (a) Resolver alumno: `userId` directo → usarlo (createdMemberId=null); si
+  //       no, dedup por DNI (checkDuplicates) → match no-borrado ⇒ usar el
+  //       existente (createdMemberId=null); si no ⇒ createMinimalMember en SU
+  //       PROPIA tx (createdMemberId = id del nuevo alumno).
+  //   (b) assignPlan(memberId, ...) crea sub + charge 'pendiente' (recorderRole=
+  //       'coach', server-derived) + bookings fixed DENTRO de su tx, y —gracias a
+  //       148-01— graba `createdMemberId` en el MISMO insert del charge (sin
+  //       UPDATE suelto ni 3ª tx → sin ventana de crash que deje el id huérfano).
+  //
+  // branchId (sede elegida) gated por requireBranchAccess (preHandler) — primer
+  // endpoint del plugin que acepta branchId. La caja se sigue SUGIRIENDO desde la
+  // sede del PROFE (recorderBranchId, CAJA-01), no la del socio.
+  //
+  // Idempotencia: la orquestación completa es un replay seguro. Un doble-submit
+  // con el mismo idempotencyKey captura isDuplicateKeyError → findByIdempotencyKey
+  // → 200 con el charge existente; createMinimalMember es idempotente por el
+  // UNIQUE de dni (148-01), así que un replay NO crea 2º alumno ni 2º charge.
   // ===================================================================
   fastify.post<{ Body: CoachAltaBody }>(
     "/alta",
@@ -541,10 +558,128 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
       schema: coachAltaSchema,
       preHandler: requireBranchAccess({ from: "body.branchId" }),
     },
-    async (_request, reply) => {
-      return reply
-        .code(501)
-        .send({ error: "No implementado", message: "Pendiente Task 2" });
+    async (request, reply) => {
+      const body = request.body;
+      try {
+        // ── (a) Resolver/crear alumno ───────────────────────────────────────
+        // createdMemberId = id SOLO cuando ESTA carga creó el alumno (para el
+        // cascade de void 148-03 y el ticket "Nuevo" del frontend). null si se
+        // usó un alumno preexistente (userId directo o match por DNI).
+        let memberId: number;
+        let createdMemberId: number | null = null;
+
+        if (body.userId != null) {
+          memberId = body.userId;
+        } else {
+          // Rama "alumno nuevo": los 3 campos son obligatorios (la XOR no la
+          // expresa el JSON-Schema con additionalProperties:false).
+          if (!body.firstName || !body.lastName || !body.dni) {
+            return reply.code(400).send({
+              error: "Solicitud invalida",
+              message:
+                "Falta el alumno: enviá userId, o firstName + lastName + dni",
+            });
+          }
+          // Dedup por DNI ANTES de crear (checkDuplicates ya filtra borrados).
+          const { matches } = await memberService.checkDuplicates({
+            dni: body.dni,
+          });
+          const dniMatch = matches.find((m) => m.matchedField === "dni");
+          if (dniMatch) {
+            // Match no-borrado ⇒ cargar contra el existente, NO duplicar.
+            memberId = dniMatch.id;
+          } else {
+            // Sin match ⇒ crear alumno mínimo en su propia tx. createdBy SIEMPRE
+            // del JWT (request.user.userId), nunca del body (anti-spoof D-31).
+            createdMemberId = await memberService.createMinimalMember({
+              firstName: body.firstName,
+              lastName: body.lastName,
+              dni: body.dni,
+              branchId: body.branchId,
+              createdBy: request.user.userId,
+            });
+            memberId = createdMemberId;
+          }
+        }
+
+        // ── (b) Mapear precio + caja sugerida + assignPlan ──────────────────
+        // Tarjeta → priceCreditCard (recargo); si no, toggle Zero ↔ regular.
+        const priceTypeApplied: PriceType =
+          body.paymentMethod === "card"
+            ? "credit_card"
+            : body.zero
+              ? "zero"
+              : "regular";
+
+        // CAJA-01: caja sugerida = sede del PROFE (recordedBy), NO la sede
+        // elegida del socio. El branch_id del ledger sigue siendo el del socio.
+        const recorderBranchId = await resolveRecorderBranchId(
+          request.user.userId,
+        );
+
+        const today = new Date().toISOString().split("T")[0];
+
+        const subscription = await subscriptionService.assignPlan(
+          memberId,
+          {
+            planId: body.planId,
+            branchId: body.branchId,
+            startDate: today,
+            priceTypeApplied,
+            paymentMethod: body.paymentMethod,
+            scheduleIds: body.scheduleIds,
+            amountReceived: body.amountReceived,
+            notes: body.notes,
+            // Server-derived: charge nace 'pendiente' porque el rol es coach.
+            recorderRole: request.user.role as AdminRole,
+            idempotencyKey: body.idempotencyKey,
+            // CAJA-01: caja sugerida desde la sede del profe.
+            recorderBranchId,
+            // W-1 (148-01): el id viaja por el input → se graba en el MISMO
+            // insert del charge (sin UPDATE suelto ni 3ª tx).
+            createdMemberId,
+          },
+          request.user.userId,
+        );
+
+        // El plan_charge lleva el idempotencyKey (precio>0 → hubo charge). Un
+        // alta gratis (precio 0) no produce charge → transaction null.
+        const transaction = await transactionService.findByIdempotencyKey(
+          body.idempotencyKey,
+        );
+        request.log.info(
+          {
+            memberId,
+            createdMemberId,
+            branchId: body.branchId,
+            recorderBranchId,
+            paymentMethod: body.paymentMethod,
+            priceTypeApplied,
+          },
+          "coach alta-con-plan: alumno resuelto/creado + plan asignado (pendiente)",
+        );
+        return reply.code(201).send({
+          subscription,
+          transaction,
+          // El frontend muestra el ticket "Nuevo" cuando creó alumno.
+          createdMemberId,
+          createdNew: createdMemberId !== null,
+        });
+      } catch (err: unknown) {
+        // D-09 / Pitfall 3: un idempotencyKey duplicado = esta alta exacta ya
+        // ocurrió. La tx del charge rolleó; createMinimalMember es idempotente
+        // por dni UNIQUE → ni 2º alumno ni 2º charge. Re-leer el charge existente
+        // y devolverlo como 200 no-op.
+        if (isDuplicateKeyError(err).isDuplicate) {
+          const existing = await transactionService.findByIdempotencyKey(
+            body.idempotencyKey,
+          );
+          if (existing) {
+            return reply.code(200).send({ transaction: existing });
+          }
+        }
+        handleServiceError(err, reply, request.log, "coach alta-con-plan");
+      }
     },
   );
 
