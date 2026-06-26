@@ -746,10 +746,11 @@ export const cashBalancesExportSchema = {
 } as const;
 
 /**
- * GET /movements-history — historial mov/egresos (REP-03). Querystring:
- * cashRegisterId, owner-override country, dateFrom/dateTo (período),
+ * GET /movements-history — arqueo por caja (REP-03 → Phase 146 ARQUEO-01/02).
+ * Querystring: cashRegisterId, owner-override country, dateFrom/dateTo (período),
  * page/limit. Loose response (passthrough) like listTransactionsSchema — the
- * service shape (MovEgresoItem) is trusted.
+ * service shape (MovEgresoItem, ahora con validationStatus por fila) is trusted
+ * y fluye sin tipar explícito.
  */
 export const movementsHistorySchema = {
   querystring: {

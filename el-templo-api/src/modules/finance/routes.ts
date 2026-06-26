@@ -1268,11 +1268,16 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   // ===================================================================
-  // Phase 141 (REP-03): GET /movements-history — historial mov/egresos
-  // kind IN (cash_transfer, expense, adjustment) INCLUDING member_id NULL
-  // rows (the 139 LEFT JOIN fix). Filterable by caja/período. Non-owner is
-  // scoped by the caja's country (no eq(branches.country) NULL-branch trap);
-  // branch-less central/banco rows are owner-only. Coach 403 via module guard.
+  // Phase 141 (REP-03) → Phase 146 (ARQUEO-01/02): GET /movements-history —
+  // arqueo por caja. Ya NO filtra por kind: dada una caja devuelve TODO lo
+  // imputado a ella (cobros de socio plan_charge/debt_settlement/advance_payment/
+  // refund + egresos expense + traspasos cash_transfer + ajustes adjustment),
+  // INCLUDING member_id NULL rows (the 139 LEFT JOIN fix). Cada fila trae su
+  // validationStatus (pendientes y validadas, sin filtrar por estado) — la
+  // respuesta es passthrough, así que el campo del service fluye sin tipar.
+  // Filterable por caja/período. Non-owner is scoped by the caja's country (no
+  // eq(branches.country) NULL-branch trap); branch-less central/banco rows are
+  // owner-only. Coach 403 via module guard.
   // ===================================================================
   fastify.get<{
     Querystring: {
