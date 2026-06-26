@@ -545,6 +545,53 @@ export class TransactionService {
       }
     }
 
+    // ALTA-06 (Phase 148 / T-148-11..14): cascade for a charge that CREATED a
+    // new member. When this charge was the one that brought the alumno into
+    // existence (createdMemberId set — only the PoS profe alta flow sets it, W-1
+    // in 148-01), voiding it must ALSO deactivate that alumno: flip
+    // status → 'inactivo' and record the transition in userStatusHistory. The
+    // membership itself was already cancelled by the SubscriptionCanceller branch
+    // above (the alta is voided with keepMembershipActive=false). The alumno is
+    // NEVER deleted (FK safety — CONTEXT L48-50); it stays as an inactivo/lead.
+    // For PREEXISTING members (createdMemberId null) this is a no-op — the void
+    // behaves exactly as before. Runs in THIS tx so the flip rolls back together
+    // with the soft-void + sub cancel if anything later throws (T-148-14).
+    if (existing.createdMemberId !== null) {
+      // Read the alumno's status BEFORE the flip so the history row records the
+      // real fromStatus (mirror of members/routes.ts L847-869 read-before /
+      // write-after pattern).
+      const [createdMember] = await tx
+        .select({ status: schema.users.status })
+        .from(schema.users)
+        .where(eq(schema.users.id, existing.createdMemberId));
+      if (createdMember) {
+        await tx
+          .update(schema.users)
+          .set({ status: "inactivo" })
+          .where(eq(schema.users.id, existing.createdMemberId));
+        // Dedupe on from==to (mirror L854): only write history when the status
+        // actually changed, so a re-void / already-inactivo alumno does not
+        // accumulate duplicate transition rows (T-148-12 — traza sin ruido).
+        if (createdMember.status !== "inactivo") {
+          await tx.insert(schema.userStatusHistory).values({
+            userId: existing.createdMemberId,
+            fromStatus: createdMember.status,
+            toStatus: "inactivo",
+            source: "admin",
+          });
+          this.log.info(
+            {
+              userId: existing.createdMemberId,
+              fromStatus: createdMember.status,
+              toStatus: "inactivo",
+              voidedTransactionId: id,
+            },
+            "alta-created member deactivated on charge void (ALTA-06 cascade)",
+          );
+        }
+      }
+    }
+
     // REQ-7 (Phase 111 D-13 / D-15): forensic audit row for transaction
     // voids. Atomic with the soft-void update + balance rollback — if any
     // of the writes above throws after this point, the audit row vanishes
