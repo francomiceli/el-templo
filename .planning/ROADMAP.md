@@ -19,6 +19,8 @@
 - **v5.2 UI de Métricas + Calidad del Árbol + Segmentación (admin)** - Phases 132-136 (complete)
 - **v5.2 Módulo Contable / Libro de Caja** - Phases 137-142 (planned)
 - **Profesor por clase + Puntuación post clase** - Phase 143 (planned, standalone app/admin)
+- **Notificaciones y bloqueo de vencimiento** - Phase 144 (planned, standalone app/api)
+- **v5.3 Mejoras Caja / Módulo Contable (feedback v5.2)** - Phases 145-147 (planned)
 
 ---
 
@@ -3661,3 +3663,91 @@ Plans:
 ---
 
 _v5.2 (Módulo Contable) added: 2026-06-23 — 6 phases (137-142), 25 requirements (VAL, CAJA, MOV, CARGA, REP, MIG). Backend-heavy sobre v4.8 (~60% existe, cero deps nuevas). **VAL (137) es el cimiento y va primero** por su blast radius sobre las 6 métricas v5.0 (redefine "dinero firme"). Orden de construcción del research: VAL → CAJA → MOV → CARGA → REP → MIG. Continúa numeración desde fase 136 (NO se resetea). Decisiones de arquitectura cerradas (ANULADO ortogonal, movimiento=una fila, banco×moneda, saldo derivado, corregir=anular+recrear); decisiones de dominio (idempotencia, casa de perillas, member sentinel, corte Contabilium, umbral de pendiente) diferidas a cada `discuss-phase`. Fuente de verdad: `BRIEF-MODULO-CONTABLE-FRANCO.md` + `.planning/research/modulo-contable/` (ARCHITECTURE/FEATURES/PITFALLS)._
+
+---
+
+## v5.3 (Mejoras Caja) Overview
+
+**Milestone:** v5.3 — Mejoras Caja / Módulo Contable (feedback v5.2)
+**Started:** 2026-06-26
+**Phases:** 3 (145-147)
+**Continues from:** Phase 144 (Notificaciones y bloqueo de vencimiento). Numbering is NOT reset.
+**Granularity:** coarse — fixes acotados sobre un módulo existente (v5.2), agrupación de 3 fases aprobada explícitamente por el usuario. NO se decompone más.
+
+**Scope.** Resolver el feedback operativo de v5.2 sobre la caja y la PoS del profe, montándose **ENCIMA** del Módulo Contable ya construido (fases 137-142) y del modelo financiero v4.8. Cinco áreas (A–E) consolidadas en `BRIEF-FEEDBACK-V52-CAJA.md`, agrupadas en 3 fases targeted: **(145)** aviso de deuda en la PoS + señalización del cobro "sin plan" (motivo + chip); **(146)** la fase fundacional de caja — imputación/confirmación de caja en la **validación** (no en el cobro), múltiples cuentas banco, imputación del anticipo al asignar plan, y "Movimientos de caja" como arqueo por caja; **(147)** centros de costo obligatorios para egresos.
+
+**Pre-condición.** Módulo Contable v5.2 en staging/master: PoS del profe (`CargarPagoPage.vue` + `coach-load-routes.ts`, fase 140), bandeja de pendientes + "Movimientos de caja" (`MovEgresosTab.vue` → `/movements-history` → `listMovEgresos`, fase 141), entidad caja (`cash_registers` + `resolveCashRegister`, fase 138), validación inmutable (schema vacío, fase 137). `autocompletar` ya devuelve `outstanding` + `intent`. Última migración aplicada: **0158** → las nuevas son **0159+**.
+
+**Decisión de dependencia central.** **B (fase 146) es fundacional para C y D:** la caja sugerida no-definitiva en Pendientes es lo que habilita el arqueo por caja y la imputación del anticipo. Por eso 146 absorbe puntos 4, 5/6 y 9 del feedback en una sola fase de caja. **145 (A) y 147 (E) son independientes** y pueden ir en cualquier orden, pero 146 consume el campo Motivo y el chip de 145.
+
+**Descartados / sin trabajo (del feedback v5.2):** punto 2 (cambiar plan en el cobro = trabajo de gestión), punto 3 (sugerir precio = ya existe en `AssignPlanDialog`), punto 7 (cargar turnos fijos = ya existe), punto 8 (dinero pendiente en caja = ya resuelto, aparece como "pendiente").
+
+**Diferido (fuera de este milestone):** reporte de egresos por centro de costo (EGR-F1), ABM de centros de costo desde UI (EGR-F2), ABM de cuentas banco desde UI (CAJA-F1) — staging usa seeds. Facturación electrónica AFIP/ARCA (sigue fuera, como en v5.2).
+
+**Constraint operativo:** staging-first **estricto**. Migraciones con SQL commiteado (0159+); tests de integración para rutas nuevas/modificadas (validación con `cash_registerId`, imputación de anticipo en `assignPlan`, arqueo por `cash_register_id`, egreso con `cost_center_id`).
+
+## v5.3 (Mejoras Caja) Phases
+
+- [ ] **Phase 145: PoS del profe** — aviso destacado de deuda al seleccionar al socio en "Cargar pago" (ambos modos, reusa `autocompletar.outstanding`) + dropdown Motivo ("Sin plan activo"/"Otro", como campo) en el cobro suelto + chip "Sin plan — asignar" en Pendientes que navega a la ficha del alumno.
+- [ ] **Phase 146: Caja, validación e imputación (fundacional)** — caja sugerida no-definitiva al cobrar (sede del profe / banco por moneda) + confirmar/cambiar caja al validar (abrir el endpoint inmutable) + múltiples cajas banco (seed staging Galicia + Mercado Pago) + quitar selector de la PoS + imputación del anticipo al asignar plan (anular+recrear `plan_charge` atómico en `assignPlan`, excedente no aplicado) + bloqueo del "Validar" manual de los "sin plan" + "Movimientos de caja" como arqueo por caja (todos los tipos por `cash_register_id`, pendientes/validados marcados, Cobros en el filtro Tipo, "Transacciones" se mantiene).
+- [ ] **Phase 147: Centros de costo de egresos** — tabla `cost_centers` (por país) + seed AR (Alquiler Constitución / Librería / Viáticos profes / Varios) + columna `cost_center_id` obligatoria en el egreso + selector en el dialog de egreso + columna "Centro de costo" en la lista de movimientos de caja.
+
+## v5.3 (Mejoras Caja) Phase Details
+
+### Phase 145: PoS del profe
+
+**Goal:** El profe ve la deuda del socio al elegirlo en "Cargar pago" y puede señalizar un cobro sin plan activo para que gestión lo asigne después. End state: al seleccionar un socio aparece un aviso destacado de deuda en ambos modos de carga; el cobro suelto registra un Motivo estructurado; y los cobros "sin plan activo" quedan visibles en la bandeja de Pendientes con un chip que lleva directo a la ficha del alumno para asignar el plan.
+**Depends on:** none (independiente; reusa `autocompletar.outstanding` ya existente y la PoS de la fase 140). Su salida (campo Motivo + chip) la consume la fase 146.
+**Requirements:** POS-01, COBRO-01, COBRO-02
+**Success Criteria** (what must be TRUE at phase completion):
+
+1. Al seleccionar un socio en "Cargar pago", si tiene deuda se muestra un aviso destacado (monto + plan) en **ambos modos** (Pago de plan / Cobro suelto), usando `autocompletar.outstanding` ya disponible, sin recargar el buscador. (POS-01)
+2. El "Cobro suelto" incluye un dropdown **Motivo** con opciones "Sin plan activo" / "Otro", persistido como **campo** estructurado (no texto libre) en la transacción. (COBRO-01)
+3. En la bandeja de Pendientes, un cobro con motivo "Sin plan activo" muestra un chip **"Sin plan — asignar"** que navega a la ficha del alumno. (COBRO-02)
+
+**Plans:** TBD
+**UI hint:** yes
+
+### Phase 146: Caja, validación e imputación (fundacional)
+
+**Goal:** La caja se imputa y se confirma en la **validación** (gestión), no en el cobro (profe), con soporte de múltiples cuentas banco; gestión puede usar un cobro suelto pendiente para saldar un alta de plan de forma atómica; y "Movimientos de caja" se vuelve el arqueo por caja (todo lo imputado a una caja, pendientes y validados marcados). End state: el profe cobra sin elegir caja; el cobro nace con una caja sugerida no-definitiva; gestión confirma o cambia la caja (incluida la cuenta banco) al validar; al asignar plan, el anticipo del socio se imputa anulando+recreando el `plan_charge`; los "sin plan" no se pueden validar a mano; y el arqueo por caja cuadra con "Saldos por caja".
+**Depends on:** Phase 145 (consume el campo Motivo y el chip "Sin plan — asignar" del flujo de imputación) + fases v5.2 completas (140 carga del profe, 141 reportes/bandeja, 138 entidad caja, 137 validación). Es la **fase fundacional de caja** del milestone: habilita el arqueo y la imputación del anticipo.
+**Requirements:** CAJA-01, CAJA-02, CAJA-03, CAJA-04, COBRO-03, COBRO-04, COBRO-05, ARQUEO-01, ARQUEO-02, ARQUEO-03, ARQUEO-04
+**Success Criteria** (what must be TRUE at phase completion):
+
+1. El cobro del profe nace con una **caja sugerida no-definitiva** (efectivo de la sede del profe vía `recordedBy` / banco por moneda) y la PoS **no** ofrece selector de caja/sede — el profe nunca elige caja. (CAJA-01, CAJA-04)
+2. Al validar un pendiente, gestión **confirma o cambia** la caja imputada (`cash_register_id`) — el endpoint de validación, hoy inmutable, se abre para recibirla — y elige entre **múltiples cuentas banco** al validar una transferencia (staging seedea Galicia + Mercado Pago). (CAJA-02, CAJA-03)
+3. Al asignar un plan, gestión usa la plata de un **cobro suelto pendiente** del socio: anula el cobro y **recrea un `plan_charge`** vinculado a la sub (misma caja/monto/método) de forma **atómica** dentro de `assignPlan`, viendo todos los cobros sueltos pendientes del socio; si el cobro **excede** el precio del plan, el excedente **no se aplica**. (COBRO-03, COBRO-04)
+4. El botón **"Validar" manual queda bloqueado** en la bandeja para los cobros marcados "Sin plan activo" (se redirigen a asignar plan, para que no queden como plata suelta validada). (COBRO-05)
+5. "Movimientos de caja" se vuelve el **arqueo por caja**: muestra todo lo imputado a una caja por `cash_register_id` (cobros de socio + egresos + traspasos + ajustes), con pendientes y validados **marcados** por su estado, **Cobros** agregado al filtro Tipo, y la pestaña "Transacciones" (vista comercial por socio) **se mantiene** sin cambios de criterio. (ARQUEO-01, ARQUEO-02, ARQUEO-03, ARQUEO-04)
+
+**Plans:** TBD
+**UI hint:** yes
+
+### Phase 147: Centros de costo de egresos
+
+**Goal:** Cada egreso se clasifica obligatoriamente en un centro de costo, para poder reportar gasto por rubro más adelante. End state: existe un catálogo `cost_centers` por país (seedeado en AR); registrar un egreso exige elegir un centro de costo; y la lista de "Movimientos de caja" muestra el centro de costo de cada egreso.
+**Depends on:** none (independiente; toca el dialog de egreso de la fase 139 y la lista de movimientos de la fase 141, pero no depende de 145/146). El reporte agrupado por centro de costo y el ABM desde UI quedan **diferidos**.
+**Requirements:** EGR-01, EGR-02, EGR-03
+**Success Criteria** (what must be TRUE at phase completion):
+
+1. Existe un catálogo `cost_centers` (por país), seedeado en AR con **Alquiler Constitución / Librería / Viáticos profes / Varios**. (EGR-01)
+2. Registrar un egreso **exige** elegir un centro de costo (obligatorio, con "Varios" como escape), vía columna `cost_center_id` en `financial_transactions` y selector en el dialog de egreso; aplica **solo** a egresos (kind `expense`). (EGR-02)
+3. La lista de "Movimientos de caja" muestra una columna **"Centro de costo"** con el centro de cada egreso. (EGR-03)
+
+**Plans:** TBD
+**UI hint:** yes
+
+## v5.3 (Mejoras Caja) Progress
+
+| Phase                              | Plans Complete | Status      | Completed |
+| ---------------------------------- | -------------- | ----------- | --------- |
+| 145. PoS del profe                 | 0/?            | Not started | -         |
+| 146. Caja, validación e imputación | 0/?            | Not started | -         |
+| 147. Centros de costo de egresos   | 0/?            | Not started | -         |
+
+_Plan counts populated by `/gsd-plan-phase`._
+
+---
+
+_v5.3 (Mejoras Caja) added: 2026-06-26 — 3 phases (145-147), 17 requirements (POS, CAJA, COBRO, ARQUEO, EGR). Fixes targeted sobre el Módulo Contable v5.2 (137-142) y el modelo v4.8 — NO es un build from-scratch. Agrupación de 3 fases **aprobada explícitamente por el usuario, no se decompone más**. **Phase 146 (caja en validación) es fundacional** para la imputación del anticipo (C) y el arqueo por caja (D): la caja sugerida no-definitiva en Pendientes habilita ambos. 145 (aviso de deuda + Motivo + chip) y 147 (centros de costo) son independientes. Continúa numeración desde fase 144 (NO se resetea). Migraciones nuevas 0159+ (última aplicada 0158). Descartados del feedback: puntos 2/3/7/8. Diferido: reporte por centro de costo, ABM de centros, ABM de cuentas banco. Fuente de verdad: `BRIEF-FEEDBACK-V52-CAJA.md` (raíz)._

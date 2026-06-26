@@ -3,10 +3,10 @@ gsd_state_version: 1.0
 milestone: v5.3
 milestone_name: Mejoras Caja / Módulo Contable (feedback v5.2)
 status: planning
-last_updated: "2026-06-26T03:48:45.807Z"
+last_updated: "2026-06-26T04:00:00.000Z"
 last_activity: 2026-06-26
 progress:
-  total_phases: 0
+  total_phases: 3
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -19,15 +19,18 @@ progress:
 
 See: .planning/PROJECT.md (updated 2026-06-04)
 
-**Core value:** El registro de un pago se carga **una sola vez** en el Administrador (fuente de verdad) y propaga solo: activa la membresía al instante e impacta la caja. Se elimina el triple tipeo (Forms + Contabilium + Admin). El Administrador pasa a ser el **libro de caja** del negocio (efectivo×sucursal + central + banco×moneda), con validación de pagos (PENDIENTE→VALIDADO), movimientos inter-caja y egresos. Se monta sobre el modelo financiero transaccional v4.8 (~60% existe). Backend-heavy, brownfield.
-**Current focus:** Phase 144 — notificaciones-y-bloqueo-de-vencimiento-de-membres-a-plan
+**Core value (v5.3):** Resolver el feedback operativo de v5.2 sobre la caja y la PoS del profe — imputación/confirmación de caja en la **validación** (no en el cobro), cobro de socios sin plan activo (motivo + chip + imputación del anticipo al alta), arqueo por caja, múltiples cuentas banco y centros de costo obligatorios para egresos. Fixes targeted sobre el Módulo Contable v5.2 (137-142) y el modelo v4.8 — NO es un build from-scratch. 3 fases (145-147), 17 requirements (POS/CAJA/COBRO/ARQUEO/EGR). Migraciones nuevas 0159+.
+**Current focus:** Phase 145 — pos-del-profe (aviso de deuda + Motivo + chip)
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 145 — PoS del profe (not started)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-06-26 — Milestone v5.3 started
+Status: Roadmap created — awaiting plan-phase
+Progress: [ ] 0/3 phases
+Last activity: 2026-06-26 — Roadmap v5.3 created (3 phases 145-147, 17 reqs, 100% coverage)
+
+**Phase order:** 145 (independiente) → 146 (fundacional: caja en validación + imputación + arqueo; depende de 145 + v5.2) → 147 (independiente, centros de costo). Next: `/gsd:plan-phase 145`.
 
 ## Performance Metrics
 

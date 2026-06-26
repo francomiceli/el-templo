@@ -62,12 +62,24 @@ commiteado; tests de integración para rutas nuevas.
 
 ## Traceability
 
-| REQ-ID        | Phase | Status  |
-| ------------- | ----- | ------- |
-| POS-01        | —     | pending |
-| CAJA-01..04   | —     | pending |
-| COBRO-01..05  | —     | pending |
-| ARQUEO-01..04 | —     | pending |
-| EGR-01..03    | —     | pending |
+| REQ-ID    | Phase | Status  |
+| --------- | ----- | ------- |
+| POS-01    | 145   | pending |
+| COBRO-01  | 145   | pending |
+| COBRO-02  | 145   | pending |
+| CAJA-01   | 146   | pending |
+| CAJA-02   | 146   | pending |
+| CAJA-03   | 146   | pending |
+| CAJA-04   | 146   | pending |
+| COBRO-03  | 146   | pending |
+| COBRO-04  | 146   | pending |
+| COBRO-05  | 146   | pending |
+| ARQUEO-01 | 146   | pending |
+| ARQUEO-02 | 146   | pending |
+| ARQUEO-03 | 146   | pending |
+| ARQUEO-04 | 146   | pending |
+| EGR-01    | 147   | pending |
+| EGR-02    | 147   | pending |
+| EGR-03    | 147   | pending |
 
-_(El roadmapper completa la columna Phase.)_
+_17/17 v5.3 requirements mapped — no orphans, no duplicates._
