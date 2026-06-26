@@ -265,6 +265,39 @@ export interface AssignPlanInput {
    * rechaza con 400 (COBRO-04). undefined → cobro normal vía amountReceived.
    */
   appliedMiscChargeId?: number;
+  /**
+   * Phase 140 (Pitfall 1 / CARGA-02): role of whoever initiated the assignment,
+   * forwarded into recordAssignmentCharge so the birth validation_status is
+   * derived SERVER-SIDE from the role (coach → 'pendiente', everyone else →
+   * 'validado'). NEVER read from the raw body — Wave 2 routes set it from
+   * `request.user.role`. Omitido en el path admin → 'validado' (sin cambio).
+   */
+  recorderRole?: AdminRole;
+  /**
+   * Phase 140 (CARGA-02 / D-09): client-generated opaque ticket key for an
+   * idempotent coach assignment, forwarded into the charge so a double-tap/retry
+   * cannot create two charges (nullable UNIQUE at the DB).
+   */
+  idempotencyKey?: string;
+  /**
+   * Phase 146 (CAJA-01): sede del PROFE que carga (recordedBy → su branchId).
+   * Cuando se provee, la caja del plan_charge se SUGIERE desde esta sede (caja
+   * efectivo del profe para cash; banco por moneda para transfer/card), no la
+   * del socio. El branch_id de la sub/charge sigue derivándose de la sede del
+   * socio. NUNCA del body crudo — la ruta coach-load lo resuelve de
+   * `request.user.userId`. Omitido en el path admin → caja por sede del socio
+   * (comportamiento previo, sin regresión).
+   */
+  recorderBranchId?: number;
+  /**
+   * Phase 148 (ALTA-06): id del alumno que ESTA carga creó vía
+   * createMinimalMember (PoS profe), o null/undefined si el alumno ya existía.
+   * Se propaga hasta el insert del charge (createdMemberId) para que el cascade
+   * de void (148-03) sepa qué alumno desactivar. SERVER-DERIVED — el orquestador
+   * 148-02 lo pasa tras crear el alumno; NUNCA del body crudo. Omitido en el
+   * path admin → NULL (sin cambio).
+   */
+  createdMemberId?: number | null;
 }
 
 export interface RenewSubscriptionInput {

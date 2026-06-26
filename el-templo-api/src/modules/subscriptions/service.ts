@@ -323,6 +323,14 @@ export class SubscriptionService {
        * plan 03 reutiliza este mismo param para imputar el anticipo.
        */
       cashRegisterId?: number | null;
+      /**
+       * Phase 148 (ALTA-06): id del alumno que ESTA carga creó vía
+       * createMinimalMember (PoS profe). Se forwardea a transactionService.create
+       * para grabarlo en el MISMO insert del charge (misma tx), de modo que el
+       * cascade de void (148-03) sepa qué alumno desactivar. OPTIONAL: `undefined`
+       * (los 4 callers internos admin) → NULL persistido, sin regresión.
+       */
+      createdMemberId?: number | null;
     },
   ): Promise<void> {
     if (!this.transactionService) return;
@@ -367,6 +375,9 @@ export class SubscriptionService {
           // profe. `undefined` → create resuelve por branchId (sede del socio),
           // comportamiento previo para los 4 callers admin (sin regresión).
           cashRegisterId: params.cashRegisterId,
+          // Phase 148 (ALTA-06): grabar el alumno-nuevo en el MISMO insert del
+          // charge (misma tx) para el cascade de void. undefined → NULL.
+          createdMemberId: params.createdMemberId,
           links: [
             {
               targetKind: "subscription" as const,
@@ -1147,6 +1158,42 @@ export class SubscriptionService {
         ? Math.ceil(plan.durationDays / 7) * plan.classesPerWeek
         : null;
 
+    // ── Phase 146 (CAJA-01): caja SUGERIDA desde la sede del PROFE ──
+    // Análogo a renewSubscription: cuando la ruta coach-load pasa
+    // `recorderBranchId` (sede del profe que carga), pre-resolvemos la caja
+    // sugerida (cash → efectivo de esa sede; transfer/card → banco por moneda) y
+    // la forwardeamos como override al recordAssignmentCharge del path normal.
+    // `undefined` (path admin, los callers internos) mantiene la resolución por
+    // la sede del socio (sin regresión). El branch_id de la sub/charge sigue
+    // siendo input.branchId (sede del socio). Fallback no-rompe + log: si la caja
+    // del profe no es resolvible, `undefined` → create resuelve por sede socio.
+    let suggestedCajaId: number | null | undefined;
+    if (
+      input.recorderBranchId !== undefined &&
+      pricePaid > 0 &&
+      this.transactionService
+    ) {
+      try {
+        suggestedCajaId = await this.transactionService.resolveCashRegister(
+          input.paymentMethod,
+          input.recorderBranchId,
+          plan.currency,
+        );
+      } catch (err: unknown) {
+        this.log.warn(
+          {
+            userId,
+            recorderBranchId: input.recorderBranchId,
+            paymentMethod: input.paymentMethod,
+            currency: plan.currency,
+            err: err instanceof Error ? err.message : String(err),
+          },
+          "Caja sugerida del profe no resolvible en assign; fallback a la sede del socio",
+        );
+        suggestedCajaId = undefined;
+      }
+    }
+
     // ── Atomic subscription mutation (Phase 103 D-16) ──
     // Wrap the core writes (subscriptions INSERT, subscription_schedules,
     // virtual-branch user migration, programEnrollments, status recompute)
@@ -1359,7 +1406,14 @@ export class SubscriptionService {
             effectiveDate: input.startDate,
             adminId,
             flow: "assign",
+            // Branch anticipo: la imputación usa la caja del anticipo
+            // (advance.cashRegisterId), NO la sugerida del profe. Igual
+            // forwardeamos recorderRole/idempotencyKey/createdMemberId para que
+            // un alta de profe nazca PENDIENTE, dedup y grabe el alumno-nuevo.
             cashRegisterId: advance.cashRegisterId,
+            recorderRole: input.recorderRole,
+            idempotencyKey: input.idempotencyKey,
+            createdMemberId: input.createdMemberId,
           });
           effectiveAmountReceived = advance.amount;
         } else {
@@ -1376,6 +1430,14 @@ export class SubscriptionService {
             effectiveDate: input.startDate,
             adminId,
             flow: "assign",
+            // Phase 140/146/148: alta de profe → nace PENDIENTE (recorderRole),
+            // dedup (idempotencyKey), caja sugerida desde la sede del profe
+            // (suggestedCajaId) y alumno-nuevo grabado en el charge
+            // (createdMemberId). undefined en el path admin → sin regresión.
+            recorderRole: input.recorderRole,
+            idempotencyKey: input.idempotencyKey,
+            cashRegisterId: suggestedCajaId,
+            createdMemberId: input.createdMemberId,
           });
           effectiveAmountReceived = input.amountReceived ?? pricePaid;
         }
