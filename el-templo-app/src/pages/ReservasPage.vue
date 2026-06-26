@@ -1066,17 +1066,18 @@ function slotCardClass(slot: WeeklySlotView): Record<string, boolean> {
 
 // ─── Availability tier (D: hide raw count, show qualitative label) ──
 // Mirrors the admin Horarios grid exactly (HorariosPage.vue cellClass):
-// Umbral ABSOLUTO de cupos restantes: quedan <5 → 'few' (pill amarilla + conteo
-// concreto con urgencia); 5 o más → 'available' ("Cupos disponibles", sin número);
-// 0 → 'full'. Se prefirió un umbral fijo (no porcentual) para que el aviso de
-// "pocos cupos" sea consistente sin importar el tamaño de la clase.
-type AvailabilityLevel = 'available' | 'few' | 'full'
+// Umbral ABSOLUTO de cupos restantes: 1 cupo → 'last' (pill NARANJA, máxima
+// urgencia); 2-4 → 'few' (pill amarilla + conteo); 5 o más → 'available'
+// ("Cupos disponibles", sin número); 0 → 'full'. Se prefirió un umbral fijo
+// (no porcentual) para que el aviso sea consistente sin importar el tamaño de la clase.
+type AvailabilityLevel = 'available' | 'few' | 'last' | 'full'
 
 const FEW_THRESHOLD = 5
 
 const AVAILABILITY_LABELS: Record<AvailabilityLevel, string> = {
   available: 'Cupos disponibles',
   few: 'Pocos cupos',
+  last: 'Último cupo',
   full: 'Completo',
 }
 
@@ -1087,19 +1088,18 @@ function spotsLeft(slot: WeeklySlotView): number {
 function availabilityLevel(slot: WeeklySlotView): AvailabilityLevel {
   const left = spotsLeft(slot)
   if (slot.isFull || left <= 0) return 'full'
+  if (left === 1) return 'last'
   if (left < FEW_THRESHOLD) return 'few'
   return 'available'
 }
 
 // Texto de la etiqueta. 'available' → "Cupos disponibles" (sin número). 'few' →
-// conteo concreto con urgencia ("Quedan N cupos!" / "Queda 1 cupo!"). 'full' →
-// "Completo". El color sale del CSS por nivel (few = pill amarilla).
+// "Quedan N cupos!" (amarilla). 'last' → "Queda 1 cupo!" (naranja). 'full' →
+// "Completo". El color sale del CSS por nivel.
 function availabilityText(slot: WeeklySlotView): string {
   const level = availabilityLevel(slot)
-  if (level === 'few') {
-    const left = spotsLeft(slot)
-    return left === 1 ? 'Queda 1 cupo!' : `Quedan ${left} cupos!`
-  }
+  if (level === 'last') return 'Queda 1 cupo!'
+  if (level === 'few') return `Quedan ${spotsLeft(slot)} cupos!`
   return AVAILABILITY_LABELS[level]
 }
 
@@ -2024,6 +2024,11 @@ onBeforeUnmount(() => cleanup())
     &--few {
       color: #a06a00;
       background: #fff8e1;
+    }
+
+    &--last {
+      color: #e65100;
+      background: #fff3e0;
     }
 
     &--full {
