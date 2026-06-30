@@ -73,6 +73,26 @@ function isoDow(dateStr: string): number {
   return day === 0 ? 7 : day;
 }
 
+/**
+ * Nth most recent class-eligible day ("YYYY-MM-DD"), counting back over
+ * Mon-Sat only. The roster has no Sunday slots (dayOfWeek 1..6), so a class
+ * date landing on a Sunday can't get a coach assigned — which made these tests
+ * flaky depending on which weekday CI ran on. classDaysAgo(0) is the most
+ * recent non-Sunday day, classDaysAgo(1) the one before it, etc.
+ */
+function classDaysAgo(n: number): string {
+  let back = 0;
+  let seen = 0;
+  for (;;) {
+    const day = dateDaysAgo(back);
+    if (isoDow(day) !== 7) {
+      if (seen === n) return day;
+      seen++;
+    }
+    back++;
+  }
+}
+
 interface SeededContext {
   arBranchId: number;
   esBranchId: number;
@@ -327,7 +347,7 @@ describe("Ratings module (Phase 143)", () => {
   });
 
   it("attributes the submitted rating to the coach assigned that week (slot derived from startTime)", async () => {
-    const sessionDate = dateDaysAgo(0);
+    const sessionDate = classDaysAgo(0);
     const week = isoMonday(sessionDate);
     const dow = isoDow(sessionDate);
 
@@ -372,7 +392,7 @@ describe("Ratings module (Phase 143)", () => {
   });
 
   it("pending returns the recent in-person class within 48h (no coach exposed) and null past 48h", async () => {
-    const sessionDate = dateDaysAgo(0);
+    const sessionDate = classDaysAgo(0);
     const week = isoMonday(sessionDate);
     const dow = isoDow(sessionDate);
 
@@ -425,8 +445,8 @@ describe("Ratings module (Phase 143)", () => {
   });
 
   it("pending returns only the last unrated class when there are several", async () => {
-    const today = dateDaysAgo(0);
-    const yesterday = dateDaysAgo(1);
+    const today = classDaysAgo(0);
+    const yesterday = classDaysAgo(1);
     const week = isoMonday(today);
 
     // Two confirmed classes within 48h, both with a coach assigned.
@@ -471,7 +491,7 @@ describe("Ratings module (Phase 143)", () => {
   });
 
   it("pending is null when the class already has a rating (one-shot D-P2)", async () => {
-    const sessionDate = dateDaysAgo(0);
+    const sessionDate = classDaysAgo(0);
     const week = isoMonday(sessionDate);
     await seedAttendance(app, {
       memberId: ctx.memberId,
@@ -521,7 +541,7 @@ describe("Ratings module (Phase 143)", () => {
   });
 
   it("pending is null and submit is rejected when no coach is assigned (no-orphan D-Q3)", async () => {
-    const sessionDate = dateDaysAgo(0);
+    const sessionDate = classDaysAgo(0);
     await seedAttendance(app, {
       memberId: ctx.memberId,
       branchId: ctx.arBranchId,
@@ -575,8 +595,8 @@ describe("Ratings module (Phase 143)", () => {
 
   it("owner view returns the correct per-coach average and count (D-O1)", async () => {
     // Three classes for the same coach/slot across different days, rated 5,3,4.
-    const week = isoMonday(dateDaysAgo(0));
-    const days = [dateDaysAgo(0), dateDaysAgo(1), dateDaysAgo(2)];
+    const week = isoMonday(classDaysAgo(0));
+    const days = [classDaysAgo(0), classDaysAgo(1), classDaysAgo(2)];
     const stars = [5, 3, 4];
 
     for (let i = 0; i < days.length; i++) {
