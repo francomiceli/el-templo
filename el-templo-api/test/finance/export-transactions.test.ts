@@ -27,6 +27,7 @@ import {
   createStaffUser,
   getAuthToken,
   registerUser,
+  ensureEfectivoCaja,
 } from "../helpers";
 import * as schema from "../../src/db/schema";
 
@@ -78,6 +79,11 @@ async function seedFixtures(app: FastifyInstance): Promise<SeededContext> {
       isActive: true,
     })
     .$returningId();
+
+  await ensureEfectivoCaja(app, ar.id, "ARS");
+  // ES branch here is a country-scope vehicle; its cash payloads use 'ARS'
+  // (see E4/postTransaction). Seed its efectivo caja as ARS to match.
+  await ensureEfectivoCaja(app, es.id, "ARS");
 
   return {
     arBranchId: ar.id,

@@ -39,7 +39,7 @@ import { analyticsRoutes } from "./modules/analytics";
 import { reportsRoutes } from "./modules/reports";
 import { coachRoutes } from "./modules/coach";
 import { ratingsAdminRoutes, ratingsMemberRoutes } from "./modules/ratings";
-import { financeRoutes } from "./modules/finance";
+import { financeRoutes, coachLoadRoutes } from "./modules/finance";
 import { userRoutes } from "./modules/users";
 import { onboardingRoutes } from "./modules/onboarding";
 import { barChallengeRoutes } from "./modules/bar-challenge/routes";
@@ -217,6 +217,13 @@ export async function buildApp() {
   // Finance routes (transactions create/void/list, financial history) — Phase 106
   await app.register(financeRoutes, {
     prefix: "/api/admin/finance",
+  });
+
+  // Phase 140 — coach PoS load plugin. SEPARATE registration (its own
+  // FINANCE_LOAD_ROLES guard) so the finance module's FINANCE_READ_ROLES hook
+  // (coach excluded) never blocks the coach load endpoints.
+  await app.register(coachLoadRoutes, {
+    prefix: "/api/admin/finance/coach-load",
   });
 
   // User management routes (owner-only staff CRUD)

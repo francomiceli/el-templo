@@ -178,6 +178,23 @@ export interface OutstandingConcept {
   effectiveDate: string;
 }
 
+/**
+ * Phase 146 (COBRO-03): cobro suelto (advance_payment) pendiente no anulado de
+ * un socio, candidato a imputar al alta de un plan. Source: GET
+ * /admin/finance/transactions/pending-misc/:memberId → { items: PendingMiscItem[] }.
+ */
+export interface PendingMiscItem {
+  id: number;
+  amount: number;
+  currency: string;
+  paymentMethod: PaymentMethod;
+  cashRegisterId: number | null;
+  miscReason: 'sin_plan' | 'otro' | null;
+  /** YYYY-MM-DD */
+  transactionDate: string;
+  notes: string | null;
+}
+
 // -- Phase 108: Financial history item (D-12 / D-14) -----------------------
 
 /**
@@ -295,6 +312,179 @@ export interface OutstandingBalancesFilters {
   search?: string;
   page?: number;
   limit?: number;
+}
+
+// -- Phase 141: Bandeja de pendientes (REP-01) -----------------------------
+// Mirrors el-templo-api/src/modules/finance/types.ts PendingTrayItem.
+// `ageInDays`/`isOverdue` are computed server-side; the bandeja response also
+// carries `thresholdDays` (OVERDUE_DAYS — 142 swaps it for a finance_settings
+// read) so the UI banner/row-tinting is data-driven, not a hardcoded literal.
+
+export interface PendingTrayItem {
+  id: number;
+  transactionDate: string; // YYYY-MM-DD
+  memberId: number | null;
+  memberName: string;
+  amount: number;
+  currency: string;
+  paymentMethod: PaymentMethod;
+  cashRegisterId: number | null;
+  cashRegisterName: string;
+  recordedBy: number;
+  recorderName: string;
+  validationStatus: string; // 'pendiente' | 'observado'
+  ageInDays: number; // días desde transactionDate (clamp ≥0)
+  isOverdue: boolean; // ageInDays > thresholdDays
+  // Phase 145 (COBRO-02): motivo del cobro suelto. 'sin_plan' → chip
+  // "Sin plan — asignar" en la bandeja; null para filas no-misc.
+  miscReason: 'sin_plan' | 'otro' | null;
+  // Phase 148 (ALTA-06): si ESTA carga creó un alumno nuevo (PoS profe alta),
+  // su id + nombre. Cuando createdMemberName no es null, el dialog de Anular
+  // muestra la copy de advertencia del cascade (la membresía se desactiva y el
+  // alumno queda inactivo). Ambos null para cargas de alumno preexistente.
+  createdMemberId: number | null;
+  createdMemberName: string | null;
+}
+
+/** PaginatedResult<PendingTrayItem> + the active overdue threshold (D-08). */
+export interface PendingTrayResult {
+  rows: PendingTrayItem[];
+  total: number;
+  page: number;
+  limit: number;
+  /** OVERDUE_DAYS (default 3); 142 makes this a finance_settings read. */
+  thresholdDays: number;
+}
+
+export interface PendingTrayParams {
+  /** D-04 filter. undefined === 'todos' (pendientes + observados). */
+  status?: 'pendientes' | 'observados' | 'todos';
+  country?: 'AR' | 'ES';
+  branchId?: number;
+  dateFrom?: string; // YYYY-MM-DD
+  dateTo?: string; // YYYY-MM-DD
+  page?: number;
+  limit?: number;
+}
+
+// -- Phase 141: Saldos por caja (REP-02) -----------------------------------
+// Mirrors el-templo-api/src/modules/finance/types.ts CajaSaldoRow.
+// firme = Σ validados; pendiente reported SEPARATELY (never added to firme,
+// 138 derived-balance rule). The enum is only efectivo/banco — the front
+// derives the "Efectivo central" group from type=efectivo && branchId=null.
+
+export interface CajaSaldoRow {
+  cashRegisterId: number;
+  name: string;
+  type: 'efectivo' | 'banco';
+  branchId: number | null;
+  currency: string;
+  firmeBalance: number;
+  pendienteAmount: number;
+}
+
+export interface CashBalancesParams {
+  country?: 'AR' | 'ES';
+}
+
+// -- Phase 141 → 146 (ARQUEO): Arqueo por caja (REP-03 / ARQUEO-01/02) -------
+// Mirrors el-templo-api/src/modules/finance/types.ts MovEgresoItem. Phase 146
+// (plan 05): listMovEgresos ya NO filtra por kind — dada una caja devuelve TODO
+// lo imputado a ella (cobros de socio plan_charge/debt_settlement/advance_payment/
+// refund + egresos + traspasos + ajustes). Las filas sin socio (egresos/traspasos)
+// tienen member_id NULL; el backend LEFT JOIN-ea para que sobrevivan (flag 139).
+// Cada fila trae `validationStatus` para que la UI marque el estado (ARQUEO-02).
+
+export interface MovEgresoItem {
+  id: number;
+  transactionDate: string; // YYYY-MM-DD
+  // Widened to string: el arqueo trae cualquier kind imputado a la caja (incl.
+  // cash_transfer / expense que no están en el FE TransactionKind union). El
+  // MovEgresosTab lo mapea a etiquetas ES.
+  kind: string; // plan_charge | debt_settlement | advance_payment | refund | expense | cash_transfer | adjustment
+  direction: TransactionDirection;
+  amount: number;
+  currency: string;
+  memberId: number | null; // null para egresos/movimientos sin socio (LEFT JOIN)
+  cashRegisterId: number | null;
+  cashRegisterName: string;
+  branchId: number | null;
+  branchName: string | null; // null para cajas branch-less (central/banco)
+  recordedBy: number;
+  recorderName: string;
+  // ARQUEO-02: pendiente | observado | corregido | validado (enum del schema).
+  validationStatus: string;
+  voidedAt: string | null;
+  voidReason: string | null;
+  notes: string | null;
+  // Phase 147 (EGR-03): nombre del centro de costo imputado. Solo lo traen las
+  // filas expense; las demás kinds quedan NULL (LEFT JOIN a cost_centers).
+  costCenterName: string | null;
+}
+
+export interface MovEgresoParams {
+  cashRegisterId?: number;
+  country?: 'AR' | 'ES';
+  dateFrom?: string; // YYYY-MM-DD
+  dateTo?: string; // YYYY-MM-DD
+  page?: number;
+  limit?: number;
+}
+
+/** Corregir (D-05): subset of editable fields — void+recreate atomic. */
+export interface CorrectedFields {
+  amount?: number;
+  memberId?: number;
+  paymentMethod?: PaymentMethod;
+}
+
+// -- Phase 139 (UI): registrar movimiento inter-caja / egreso --------------
+// Mirrors RegisterMovementInput / RegisterExpenseInput in the API. Movimiento
+// = doble asiento atómico entre cajas de IGUAL moneda (D-02); `countedAmount`
+// (opcional) dispara la reconciliación esperado-vs-contado (D-03). Egreso =
+// una sola fila kind='expense' (D-04). Montos en unidades enteras (sin cents).
+
+export interface RegisterMovementInput {
+  origenCajaId: number;
+  destinoCajaId: number;
+  amount: number;
+  countedAmount?: number;
+  notes?: string | null;
+}
+
+export interface MovementDetail {
+  outflowTxId: number;
+  inflowTxId: number;
+  adjustmentTxId: number | null; // solo si counted != expected (reconciliación)
+  expectedAmount: number;
+  countedAmount: number | null;
+}
+
+export interface RegisterExpenseInput {
+  cajaId: number;
+  amount: number;
+  // Phase 147 (EGR-02): centro de costo obligatorio a nivel aplicación para
+  // egresos. El backend (Plan 01) revalida exists+active server-side.
+  costCenterId: number;
+  notes?: string | null;
+}
+
+// -- Phase 147 (EGR-01/02): centros de costo de egresos --------------------
+// Mirror del backend CostCenterItem (GET /admin/finance/cost-centers). Catálogo
+// por país; el selector del dialog solo ofrece centros activos del país.
+
+export interface CostCenter {
+  id: number;
+  name: string;
+  country: string;
+}
+
+export interface CostCenterParams {
+  country?: 'AR' | 'ES';
+}
+
+export interface ExpenseDetail {
+  expenseTxId: number;
 }
 
 // -- Phase 108: POST /transactions response shape (D-22) -------------------

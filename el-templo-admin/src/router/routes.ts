@@ -69,7 +69,16 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'caja',
         component: () => import('pages/CajaPage.vue'),
-        meta: { allowedRoles: ['gestion', 'admin', 'owner'] as AdminRole[] },
+        // Rollout: gestión queda excluida de Caja (saldos) por ahora → admin/owner.
+        meta: { allowedRoles: ['admin', 'owner'] as AdminRole[] },
+      },
+      {
+        path: 'pagos',
+        component: () => import('pages/PagosPage.vue'),
+        // Phase 140 (CARGA-04): opens the coach PoS load surface (ruta /pagos,
+        // ex /cargar). El coach (PoS profe, fase 148) entra junto con
+        // gestion/admin/owner. Sincronizado con isPagosVisible en AdminLayout.
+        meta: { allowedRoles: ['coach', 'gestion', 'admin', 'owner'] as AdminRole[] },
       },
       {
         path: 'horarios',
@@ -159,6 +168,14 @@ const routes: RouteRecordRaw[] = [
         path: 'puntuaciones',
         component: () => import('pages/PuntuacionesPage.vue'),
         meta: { allowedRoles: ['owner'] as AdminRole[] },
+      },
+      {
+        // Phase 142 (MIG-01, D-06): mini "Configuración de Caja" — owner/admin
+        // only (excludes gestion/recepcion/coach). Sibling of /caja, NOT a Caja
+        // tab. The backend per-handler ADMIN_ROLES check is the real gate.
+        path: 'configuracion-caja',
+        component: () => import('pages/ConfiguracionCajaPage.vue'),
+        meta: { allowedRoles: ['admin', 'owner'] as AdminRole[] },
       },
     ],
   },

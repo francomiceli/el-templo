@@ -26,7 +26,11 @@ import * as schema from "../../src/db/schema";
 import { createTestApp, cleanAllTestData } from "../helpers";
 import { SubscriptionService } from "../../src/modules/subscriptions/service";
 import { AuraService } from "../../src/modules/aura";
-import { TransactionService, BalanceService } from "../../src/modules/finance";
+import {
+  TransactionService,
+  BalanceService,
+  CashRegisterService,
+} from "../../src/modules/finance";
 import { BookingService } from "../../src/modules/scheduling/booking-service";
 import { NotificationService } from "../../src/modules/notifications/service";
 import { EnrollmentService } from "../../src/modules/programs/enrollment-service";
@@ -46,7 +50,13 @@ describe("Phase 103 — User status auto-transitions", () => {
   function buildService(): SubscriptionService {
     const aura = new AuraService(app.db);
     const balances = new BalanceService(app.db, app.log);
-    const txns = new TransactionService(app.db, app.log, balances);
+    const cashRegisters = new CashRegisterService(app.db, app.log);
+    const txns = new TransactionService(
+      app.db,
+      app.log,
+      balances,
+      cashRegisters,
+    );
     // Phase 112-02: SubscriptionService now requires EnrollmentService for
     // every cancel/pause/resume path that touches program_enrollments.
     const enrollments = new EnrollmentService(app.db, app.log);

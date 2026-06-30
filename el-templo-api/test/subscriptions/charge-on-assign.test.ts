@@ -36,7 +36,11 @@ import {
 import * as schema from "../../src/db/schema";
 import { SubscriptionService } from "../../src/modules/subscriptions/service";
 import { AuraService } from "../../src/modules/aura";
-import { BalanceService, TransactionService } from "../../src/modules/finance";
+import {
+  BalanceService,
+  TransactionService,
+  CashRegisterService,
+} from "../../src/modules/finance";
 import { BookingService } from "../../src/modules/scheduling/booking-service";
 import { NotificationService } from "../../src/modules/notifications/service";
 
@@ -318,7 +322,13 @@ describe("Phase 107 — Charge on assign / change / renew", () => {
       failingBalance.applyDelta = async () => {
         throw new Error("simulated balance failure");
       };
-      const txSvc = new TransactionService(app.db, app.log, failingBalance);
+      const cashRegisterSvc = new CashRegisterService(app.db, app.log);
+      const txSvc = new TransactionService(
+        app.db,
+        app.log,
+        failingBalance,
+        cashRegisterSvc,
+      );
       const auraSvc = new AuraService(app.db);
       const subSvc = new SubscriptionService(app.db, app.log, auraSvc, txSvc);
       const notifSvc = new NotificationService(app.db, app.log);

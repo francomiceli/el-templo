@@ -136,6 +136,9 @@
 
     <!-- Class rating pop-up (auto-triggered on return after a completed in-person class). -->
     <RatingPromptDialog />
+
+    <!-- Plan expiry pop-up (auto-triggered when covered-until ≤3 days, once/day). -->
+    <PlanExpiryDialog />
   </q-layout>
 </template>
 
@@ -148,6 +151,7 @@ import { useUserStore } from 'stores/useUserStore'
 import { useProgressionStore } from 'src/modules/progression/stores/progressionStore'
 import PushPermissionDialog from 'src/components/PushPermissionDialog.vue'
 import RatingPromptDialog from 'src/components/RatingPromptDialog.vue'
+import PlanExpiryDialog from 'src/components/PlanExpiryDialog.vue'
 import HeaderLevelDropdown from 'src/modules/training/components/HeaderLevelDropdown.vue'
 
 const $q = useQuasar()

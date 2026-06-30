@@ -16,11 +16,12 @@
 
 import cron from "node-cron";
 import pino from "pino";
-import { eq, and, sql, isNotNull, gte, lte } from "drizzle-orm";
+import { eq, and, sql, isNotNull, gte, lte, inArray } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type * as schema from "../db/schema";
 import * as s from "../db/schema";
 import { NotificationService } from "../modules/notifications/service";
+import { deriveCoveredUntil } from "../modules/subscriptions/service";
 import { SegmentationService } from "../modules/segmentation/service";
 // segment_transition template keys are defined in SEGMENT_TRANSITION_TEMPLATES
 import { SEGMENT_TRANSITION_TEMPLATES } from "../modules/notifications/types";
@@ -181,6 +182,93 @@ async function runWeeklySummaryForTz(
   }
 
   return { total: members.length, queued };
+}
+
+/**
+ * Plan Renewal Warning thresholds (per D-02). Each threshold maps to a
+ * dedicated template under the `planes` category. The exact-date band
+ * (end_date = today + days) is the per-threshold idempotency mechanism: a daily
+ * 03:00 AR cron fires each threshold exactly once per renewal cycle without any
+ * tracking column.
+ */
+const PLAN_RENEWAL_THRESHOLDS = [
+  { days: 7, key: "plan_renewal_warning_7d" },
+  { days: 3, key: "plan_renewal_warning_3d" },
+  { days: 0, key: "plan_renewal_warning_expired" },
+] as const;
+
+/**
+ * Enqueue a "Planes" renewal push for members whose covered-until lands exactly
+ * 7 days, 3 days, or 0 days (expiry day) from today (per D-02, D-03, D-05).
+ *
+ * Suppression (D-05): a member who already renewed has a `scheduled` successor
+ * extending coverage beyond the threshold date, so `deriveCoveredUntil` returns
+ * the further date (not the threshold) and the member is skipped. The
+ * per-category preference gate inside `queueNotification` honors the member's
+ * "Planes" opt-out (D-02), so the cron never writes `pending_notifications`
+ * directly. Never throws: a bad candidate logs and continues.
+ *
+ * @returns the number of notifications actually enqueued (skips not counted).
+ */
+export async function runPlanRenewalWarnings(
+  db: MySql2Database<typeof schema>,
+  notificationService: NotificationService,
+): Promise<number> {
+  let totalQueued = 0;
+
+  for (const { days, key } of PLAN_RENEWAL_THRESHOLDS) {
+    // Candidate subscriptions whose end_date is exactly CURDATE() + days. Use a
+    // SQL DATE comparison (never JS Date math) so we stay in the AR-local DATE
+    // domain that matches `subscriptions.end_date`.
+    const candidates = await db
+      .selectDistinct({
+        userId: s.subscriptions.userId,
+        target: sql<string>`DATE_FORMAT(DATE_ADD(CURDATE(), INTERVAL ${days} DAY), '%Y-%m-%d')`,
+      })
+      .from(s.subscriptions)
+      .where(
+        and(
+          inArray(s.subscriptions.status, ["active", "scheduled"]),
+          sql`${s.subscriptions.endDate} = DATE_ADD(CURDATE(), INTERVAL ${days} DAY)`,
+        ),
+      );
+
+    for (const candidate of candidates) {
+      try {
+        // D-05 suppression: enqueue ONLY when the chain's covered-until equals
+        // the threshold date. A scheduled successor pushes covered-until past
+        // the threshold → !== target → skip (the member already renewed).
+        const coveredUntil = await deriveCoveredUntil(db, candidate.userId);
+        if (coveredUntil !== candidate.target) {
+          continue;
+        }
+
+        // queueNotification returns -1 when it skips (template disabled, member
+        // silenced the `planes` category, or no device token); only count real
+        // enqueues.
+        const queued = await notificationService.queueNotification({
+          userId: candidate.userId,
+          templateKey: key,
+        });
+        if (queued >= 0) {
+          totalQueued++;
+        }
+      } catch (itemErr: unknown) {
+        const iMsg =
+          itemErr instanceof Error ? itemErr.message : "Unknown error";
+        log.warn(
+          { err: iMsg, userId: candidate.userId, templateKey: key },
+          "Failed to queue plan renewal warning",
+        );
+      }
+    }
+  }
+
+  if (totalQueued > 0) {
+    log.info({ totalQueued }, "Plan renewal warnings queued");
+  }
+
+  return totalQueued;
 }
 
 export async function startNotificationJobs(
@@ -395,6 +483,17 @@ export async function startNotificationJobs(
           const rMsg =
             renewalErr instanceof Error ? renewalErr.message : "Unknown error";
           log.error({ err: rMsg }, "Program renewal warning check failed");
+        }
+
+        // ── Plan Renewal Warning (per D-02, D-03, D-05) ──
+        // Enqueue a "Planes" push at 7d / 3d / expiry-day before the member's
+        // covered-until, suppressing anyone who already renewed (D-05).
+        try {
+          await runPlanRenewalWarnings(db, notificationService);
+        } catch (planErr: unknown) {
+          const pMsg =
+            planErr instanceof Error ? planErr.message : "Unknown error";
+          log.error({ err: pMsg }, "Plan renewal warning check failed");
         }
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : "Unknown error";

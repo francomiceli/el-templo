@@ -9,7 +9,11 @@ import { registerSchema, loginSchema } from "./schemas";
 import { SegmentationService } from "../segmentation/service";
 import { SubscriptionService } from "../subscriptions/service";
 import { AuraService } from "../aura/service";
-import { TransactionService, BalanceService } from "../finance";
+import {
+  TransactionService,
+  BalanceService,
+  CashRegisterService,
+} from "../finance";
 import { EnrollmentService } from "../programs/enrollment-service";
 import { normalizePhone } from "../shared";
 import {
@@ -210,10 +214,15 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
                 fastify.db,
                 fastify.log,
               );
+              const cashRegisterService = new CashRegisterService(
+                fastify.db,
+                fastify.log,
+              );
               const transactionService = new TransactionService(
                 fastify.db,
                 fastify.log,
                 balanceService,
+                cashRegisterService,
               );
               const enrollmentService = new EnrollmentService(
                 fastify.db,

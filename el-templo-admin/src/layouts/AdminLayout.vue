@@ -63,6 +63,12 @@
           </q-item-section>
           <q-item-section>Horarios</q-item-section>
         </q-item>
+        <q-item v-if="isPagosVisible" clickable v-ripple to="/pagos">
+          <q-item-section avatar>
+            <q-icon name="point_of_sale" />
+          </q-item-section>
+          <q-item-section>Pagos</q-item-section>
+        </q-item>
         <q-item v-if="isCoachDebtsRole" clickable v-ripple to="/deudas">
           <q-item-section avatar>
             <q-icon name="request_quote" />
@@ -87,7 +93,7 @@
           </q-item-section>
           <q-item-section>Programas</q-item-section>
         </q-item>
-        <q-item v-if="isCajaRole" clickable v-ripple to="/caja">
+        <q-item v-if="isCajaSaldosRole" clickable v-ripple to="/caja">
           <q-item-section avatar>
             <q-icon name="point_of_sale" />
           </q-item-section>
@@ -170,6 +176,12 @@
             </q-item-section>
             <q-item-section>Notificaciones</q-item-section>
           </q-item>
+          <q-item clickable v-ripple to="/configuracion-caja">
+            <q-item-section avatar>
+              <q-icon name="settings" />
+            </q-item-section>
+            <q-item-section>Configuración de Caja</q-item-section>
+          </q-item>
         </template>
       </q-list>
     </q-drawer>
@@ -233,6 +245,18 @@ const isCoachDebtsRole = computed(() =>
 
 // owner only for content pages, franquicias, usuarios
 const isOwnerRole = computed(() => userRole.value === 'owner');
+
+// Pagos (PoS): lo ven coach (PoS profe, fase 148) + gestion/admin/owner. El
+// backend FINANCE_LOAD_ROLES también incluye coach. Sincronizado con el
+// allowedRoles de la ruta /pagos en routes.ts.
+const isPagosVisible = computed(() =>
+  ['coach', 'gestion', 'admin', 'owner'].includes(userRole.value)
+);
+
+// Caja (saldos/arqueo): solo admin/owner. Gestión queda excluida por ahora
+// (rollout). Distinto de isCajaRole, que sigue habilitando Planes/Programas/Reportes
+// para gestión.
+const isCajaSaldosRole = computed(() => ['admin', 'owner'].includes(userRole.value));
 
 async function handleLogout() {
   await authStore.logout();

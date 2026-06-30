@@ -9,6 +9,7 @@ import { MySql2Database } from "drizzle-orm/mysql2";
 import { eq, and, gt, sql, isNull, isNotNull, type SQL } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
+import { firmMoneySqlFor } from "../finance/firm-money";
 import { buildMemberNameSearchCondition } from "../shared/member-search";
 import type {
   AccessReportFilters,
@@ -386,7 +387,7 @@ export class ReportsService {
       INNER JOIN users r ON r.id = ft.recorded_by
       WHERE ft.kind IN ('plan_charge', 'debt_settlement')
         AND ft.direction = 'inflow'
-        AND ft.voided_at IS NULL
+        AND ${sql.raw(firmMoneySqlFor("ft"))}
         AND ${this.buildChargeConditionsRaw(filters)}
       ORDER BY ft.transaction_date DESC, ft.created_at DESC
       LIMIT ${limit} OFFSET ${offset}
@@ -928,7 +929,7 @@ export class ReportsService {
           SELECT SUM(fx.amount)
           FROM financial_transactions fx
           WHERE fx.member_id = ft.user_id
-            AND fx.voided_at IS NULL
+            AND ${sql.raw(firmMoneySqlFor("fx"))}
             AND fx.direction = 'inflow'
             AND fx.kind IN ('plan_charge', 'debt_settlement')
         ), 0) AS revenue
@@ -1792,6 +1793,8 @@ export class ReportsService {
       sql`${schema.financialTransactions.kind} IN ('plan_charge', 'debt_settlement')`,
       eq(schema.financialTransactions.direction, "inflow"),
       isNull(schema.financialTransactions.voidedAt),
+      // Phase 137 (VAL-05): firm money counts only validated rows.
+      eq(schema.financialTransactions.validationStatus, "validado"),
     ];
 
     if (filters.branchId !== undefined) {

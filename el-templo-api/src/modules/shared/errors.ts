@@ -7,10 +7,18 @@
 
 export class AppError extends Error {
   readonly statusCode: number;
+  /**
+   * Optional machine-readable discriminator for callers that need to branch on
+   * a specific error beyond the HTTP status (e.g. the app shows a tailored
+   * dialog). The default route error handler does NOT serialize this — a route
+   * must surface it explicitly (see scheduling/routes.ts /reserve).
+   */
+  readonly code?: string;
 
-  constructor(message: string, statusCode: number) {
+  constructor(message: string, statusCode: number, code?: string) {
     super(message);
     this.statusCode = statusCode;
+    this.code = code;
   }
 }
 
@@ -29,6 +37,22 @@ export class ValidationError extends AppError {
 export class BadRequestError extends AppError {
   constructor(message = "Solicitud invalida") {
     super(message, 400);
+  }
+}
+
+/**
+ * Phase 144-04 (BOOK-BLOCK, D-12) — a member tried to reserve a presencial
+ * class dated AFTER their plan's covered-until. Carries a distinguishable
+ * `code = "COVERAGE_EXPIRED"` so the /reserve route can surface it and the app
+ * can open the renewal dialog instead of the generic negative notify.
+ */
+export class CoverageExpiredError extends BadRequestError {
+  readonly code = "COVERAGE_EXPIRED";
+
+  constructor(
+    message = "Necesitás renovar tu membresía para reservar esta clase",
+  ) {
+    super(message);
   }
 }
 

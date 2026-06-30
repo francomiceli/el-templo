@@ -37,6 +37,7 @@ import {
   listMembersSchema,
   searchMembersSchema,
   getMemberSchema,
+  deleteMemberSchema,
   createMemberSchema,
   createTrialMemberSchema,
   convertToTrialSchema,
@@ -65,7 +66,11 @@ import {
   requireBranchAccess,
   BRANCH_OUT_OF_SCOPE,
 } from "../shared/branch-access";
-import { TransactionService, BalanceService } from "../finance";
+import {
+  TransactionService,
+  BalanceService,
+  CashRegisterService,
+} from "../finance";
 import { EnrollmentService } from "../programs/enrollment-service";
 import {
   financialHistorySchema,
@@ -77,10 +82,12 @@ import { isDuplicateKeyError } from "../shared/sql-errors";
 export const memberRoutes: FastifyPluginAsync = async (fastify) => {
   const memberService = new MemberService(fastify.db, fastify.log);
   const balanceService = new BalanceService(fastify.db, fastify.log);
+  const cashRegisterService = new CashRegisterService(fastify.db, fastify.log);
   const transactionService = new TransactionService(
     fastify.db,
     fastify.log,
     balanceService,
+    cashRegisterService,
   );
 
   /**
@@ -989,6 +996,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
   // rows) as a safety net.
   fastify.delete<{ Params: { userId: number } }>(
     "/:userId",
+    { schema: deleteMemberSchema },
     async (request, reply) => {
       if (
         !(MEMBER_LIFECYCLE_ROLES as readonly string[]).includes(

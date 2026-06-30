@@ -59,6 +59,57 @@ async function seedTestData(conn: mysql.Connection): Promise<void> {
     "INSERT IGNORE INTO users (email, password_hash, first_name, last_name, role, branch_id, level) VALUES ('admin@test.com', ?, 'Test', 'Admin', 'owner', ?, 'spartan')",
     [hash, testBranchId],
   );
+
+  // Phase 138: cash_registers. The migration 0154 seed is SELECT-driven off
+  // the branches that exist AT MIGRATION TIME, but the test branches (TEST,
+  // ONLINE) are inserted AFTER migrations run, so no efectivo caja exists for
+  // them. Seed cajas here (post-branch-insert) so TransactionService.create()'s
+  // resolver (which throws "No existe caja efectivo ..." when absent) resolves
+  // for every non-virtual branch the suite uses. Mirrors the migration's seed:
+  // 1 efectivo per active non-virtual branch (currency from country) + 1
+  // efectivo central + banco ARS + banco EUR. Idempotent via INSERT IGNORE on
+  // a UNIQUE-free table — guard each insert with a NOT EXISTS probe.
+  // NOTE: unlike the production migration seed (which restricts to active,
+  // non-virtual branches), the test seed covers EVERY branch that exists at
+  // seed time — the suite freely assigns plans/charges against any branch
+  // (including the inactive PARK fixture and the virtual ONLINE branch), and
+  // the resolver hard-throws when a cash payment hits a branch with no efectivo
+  // caja. Seeding all branches keeps existing create()-path tests green.
+  await conn.query(
+    `INSERT INTO cash_registers (name, type, branch_id, currency, opening_balance, cutoff_date, is_active)
+       SELECT CONCAT('Efectivo ', b.name), 'efectivo', b.id,
+              CASE WHEN b.country = 'ES' THEN 'EUR' ELSE 'ARS' END,
+              0, '2020-01-01', true
+         FROM branches b
+        WHERE NOT EXISTS (
+            SELECT 1 FROM cash_registers cr
+             WHERE cr.type = 'efectivo' AND cr.branch_id = b.id
+          )`,
+  );
+  await conn.query(
+    `INSERT INTO cash_registers (name, type, branch_id, currency, opening_balance, cutoff_date, is_active)
+       SELECT 'Efectivo Central', 'efectivo', NULL, 'ARS', 0, '2020-01-01', true
+        WHERE NOT EXISTS (
+          SELECT 1 FROM cash_registers cr
+           WHERE cr.type = 'efectivo' AND cr.branch_id IS NULL AND cr.currency = 'ARS'
+        )`,
+  );
+  await conn.query(
+    `INSERT INTO cash_registers (name, type, branch_id, currency, opening_balance, cutoff_date, is_active)
+       SELECT 'Banco ARS', 'banco', NULL, 'ARS', 0, '2020-01-01', true
+        WHERE NOT EXISTS (
+          SELECT 1 FROM cash_registers cr
+           WHERE cr.type = 'banco' AND cr.currency = 'ARS'
+        )`,
+  );
+  await conn.query(
+    `INSERT INTO cash_registers (name, type, branch_id, currency, opening_balance, cutoff_date, is_active)
+       SELECT 'Banco EUR', 'banco', NULL, 'EUR', 0, '2020-01-01', true
+        WHERE NOT EXISTS (
+          SELECT 1 FROM cash_registers cr
+           WHERE cr.type = 'banco' AND cr.currency = 'EUR'
+        )`,
+  );
 }
 
 async function provisionWorkerDB(): Promise<void> {

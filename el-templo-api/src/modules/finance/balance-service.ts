@@ -84,12 +84,27 @@ export class BalanceService {
     links: TransactionLinkRow[],
     sign: 1 | -1,
   ): Promise<void> {
+    // Phase 139 (D-07 / MUST-FIX B): no links = no balance effect (the documented
+    // contract). cash_transfer/expense carry no subscription/debt links, so this
+    // is their no-op path AND it narrows transaction.memberId (number | null) so
+    // the eq(balances.memberId, ...) sites below stay tsc-safe under the now-
+    // nullable member_id — a link-bearing row always has a real member.
+    if (links.length === 0) return;
     for (const link of links) {
       // target_kind='transaction' has no balances cache effect
       if (link.targetKind === "transaction") continue;
       // Phase 112 D-13: target_kind='enrollment' is trazability-only; no
       // running obligation to maintain in the cache.
       if (link.targetKind === "enrollment") continue;
+
+      // Phase 139: a subscription/debt_balance link implies a real member
+      // (egresos/movimientos carry NO such links). Narrow the now-nullable
+      // memberId explicitly so balances.memberId (NOT NULL) stays satisfied.
+      if (transaction.memberId === null) {
+        throw new BadRequestError(
+          "Una transaccion con link de saldo debe tener socio",
+        );
+      }
 
       const baseDelta =
         transaction.direction === "inflow"

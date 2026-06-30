@@ -1,0 +1,784 @@
+/**
+ * Phase 140 — Coach PoS load routes (CARGA-01..04).
+ *
+ * A DEDICATED Fastify plugin mounted at /api/admin/finance/coach-load, SEPARATE
+ * from finance/routes.ts. The finance module carries a module-level onRequest
+ * guard using FINANCE_READ_ROLES (coach excluded for privacy, Phase 106 D-04);
+ * mounting coach endpoints there would be blocked by that hook before any
+ * per-handler check runs (Open Question Q1). This plugin therefore declares its
+ * OWN onRequest hook: authenticate → FINANCE_LOAD_ROLES gate (coach ∈) →
+ * attachCountryScope. coach stays ABSENT from FINANCE_VOID/ADJUSTMENT/READ.
+ *
+ * Endpoints (all thin handlers reusing the 137/138 primitives):
+ *   POST /pay-plan           — cobro del plan: server decides settle-debt (when
+ *                              the current sub has outstanding balance) vs renovar
+ *                              (new period). coach → charge born PENDIENTE; idempotent.
+ *   POST /misc               — cobro suelto (advance_payment, empty links,
+ *                              concepto→notes; member balance untouched; idempotent).
+ *   GET  /autocompletar/:id  — member's current plan + amount + currency.
+ *   GET  /mis-cargas         — the calling coach's OWN loads only (recordedBy
+ *                              FORCED to self server-side, never from the query).
+ *
+ * Server-derived, NEVER from the body: validation_status (role→status),
+ * cash_register_id (resolveCashRegister), branchId (member's branch + Templo
+ * Online fallback), recordedBy. The route schemas reject validationStatus /
+ * cashRegisterId outright.
+ */
+
+import { FastifyPluginAsync } from "fastify";
+import { eq } from "drizzle-orm";
+import { TransactionService, BalanceService, CashRegisterService } from ".";
+import { SubscriptionService } from "../subscriptions/service";
+import type { PriceType } from "../subscriptions/types";
+import { MemberService } from "../members/service";
+import { AuraService } from "../aura/service";
+import { EnrollmentService } from "../programs/enrollment-service";
+import { BookingService } from "../scheduling/booking-service";
+import { NotificationService } from "../notifications/service";
+import { handleServiceError } from "../shared/error-handler";
+import { FINANCE_LOAD_ROLES, type AdminRole } from "../shared/permissions";
+import { attachCountryScope } from "../shared/country-scope";
+import { requireBranchAccess } from "../shared/branch-access";
+import { isDuplicateKeyError } from "../shared/sql-errors";
+import * as schema from "../../db/schema";
+import type { PaymentMethod, TransactionDetail } from "./types";
+
+// ── Body shapes ────────────────────────────────────────────────────────────
+
+interface CoachPayPlanBody {
+  userId: number;
+  amountReceived?: number;
+  paymentMethod: "cash" | "transfer" | "card" | "aura_credit" | "internal";
+  idempotencyKey: string;
+}
+
+interface CoachMiscLoadBody {
+  memberId: number;
+  amount: number;
+  concepto: string;
+  paymentMethod: "cash" | "transfer" | "card" | "aura_credit" | "internal";
+  currency?: string;
+  idempotencyKey: string;
+  // Phase 145 (COBRO-01): structured motivo del cobro suelto. REQUIRED (the PoS
+  // dropdown is obligatorio); persisted to misc_reason, NOT to notes.
+  miscReason: "sin_plan" | "otro";
+}
+
+// Phase 148 (ALTA-01..07): alta de alumno + plan en el cobro. El profe resuelve
+// un alumno existente (`userId`) O crea uno nuevo (`firstName`+`lastName`+`dni`,
+// dedup por DNI antes de crear) y le asigna un plan + turnos + cobro 'pendiente'.
+// `branchId` (sede elegida) es NUEVO en este plugin → gated por requireBranchAccess.
+interface CoachAltaBody {
+  // Rama "alumno existente" (XOR con la rama "alumno nuevo" — validado en el handler).
+  userId?: number;
+  // Rama "alumno nuevo" (los 3 juntos; dedup por DNI antes de crear).
+  firstName?: string;
+  lastName?: string;
+  dni?: string;
+  // Sede elegida del socio (catálogo real). Gated por requireBranchAccess.
+  branchId: number;
+  planId: number;
+  // Toggle "Precio Zero". paymentMethod 'card' override a priceCreditCard en el handler.
+  zero?: boolean;
+  paymentMethod: "cash" | "transfer" | "card" | "aura_credit" | "internal";
+  // Monto recibido (cents). < precio → deja deuda (assignPlan lo soporta).
+  amountReceived?: number;
+  // Solo planes fixed: assignPlan valida length === plan.classesPerWeek.
+  scheduleIds?: number[];
+  notes?: string;
+  idempotencyKey: string;
+}
+
+// ── JSON schemas (reject validationStatus / cashRegisterId) ──────────────────
+// CAJA-04 (T-146-01): `additionalProperties:false` + properties SIN cashRegisterId
+// hace que el body del profe NUNCA pueda elegir caja ni sede. La caja se deriva
+// 100% server-side desde recordedBy (sede del profe, CAJA-01); la PoS
+// (CargarPagoPage.vue) tampoco expone ningún selector de caja/sede.
+
+const PAYMENT_METHOD_ENUM = [
+  "cash",
+  "transfer",
+  "card",
+  "aura_credit",
+  "internal",
+] as const;
+
+const coachPayPlanSchema = {
+  body: {
+    type: "object",
+    required: ["userId", "paymentMethod", "idempotencyKey"],
+    additionalProperties: false,
+    properties: {
+      userId: { type: "integer", minimum: 1 },
+      amountReceived: { type: "integer", minimum: 0 },
+      paymentMethod: { type: "string", enum: PAYMENT_METHOD_ENUM },
+      idempotencyKey: { type: "string", minLength: 1, maxLength: 64 },
+    },
+  },
+} as const;
+
+const coachMiscLoadSchema = {
+  body: {
+    type: "object",
+    required: [
+      "memberId",
+      "amount",
+      "concepto",
+      "paymentMethod",
+      "idempotencyKey",
+      "miscReason",
+    ],
+    additionalProperties: false,
+    properties: {
+      memberId: { type: "integer", minimum: 1 },
+      amount: { type: "integer", minimum: 0 },
+      concepto: { type: "string", minLength: 1, maxLength: 500 },
+      paymentMethod: { type: "string", enum: PAYMENT_METHOD_ENUM },
+      currency: { type: "string", minLength: 1, maxLength: 8 },
+      idempotencyKey: { type: "string", minLength: 1, maxLength: 64 },
+      // Phase 145 (COBRO-01 / T-145-01): closed enum, additionalProperties:false
+      // rejects anything outside ["sin_plan","otro"] with a 400.
+      miscReason: { type: "string", enum: ["sin_plan", "otro"] },
+    },
+  },
+} as const;
+
+// Phase 148 (ALTA-01..07 / T-148-10): mismo contrato server-derived que pay-plan/misc
+// — additionalProperties:false + SIN cashRegisterId/validationStatus (la caja se sugiere
+// server-side desde la sede del profe; el status nace del rol, nunca del body). La XOR
+// userId ↔ {firstName,lastName,dni} se valida en el handler (JSON-Schema no la expresa
+// de forma limpia con additionalProperties:false).
+const coachAltaSchema = {
+  body: {
+    type: "object",
+    required: ["branchId", "planId", "paymentMethod", "idempotencyKey"],
+    additionalProperties: false,
+    properties: {
+      // Rama "alumno existente".
+      userId: { type: "integer", minimum: 1 },
+      // Rama "alumno nuevo" (dedup por DNI antes de crear).
+      firstName: { type: "string", minLength: 1, maxLength: 100 },
+      lastName: { type: "string", minLength: 1, maxLength: 100 },
+      dni: { type: "string", minLength: 1, maxLength: 32 },
+      // Sede elegida (NUEVO en este plugin — gated por requireBranchAccess).
+      branchId: { type: "integer", minimum: 1 },
+      planId: { type: "integer", minimum: 1 },
+      zero: { type: "boolean" },
+      paymentMethod: { type: "string", enum: PAYMENT_METHOD_ENUM },
+      amountReceived: { type: "integer", minimum: 0 },
+      scheduleIds: {
+        type: "array",
+        items: { type: "integer", minimum: 1 },
+      },
+      notes: { type: "string", maxLength: 500 },
+      idempotencyKey: { type: "string", minLength: 1, maxLength: 64 },
+    },
+  },
+} as const;
+
+const autocompletarSchema = {
+  params: {
+    type: "object",
+    required: ["userId"],
+    properties: { userId: { type: "integer", minimum: 1 } },
+  },
+} as const;
+
+export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
+  const balanceService = new BalanceService(fastify.db, fastify.log);
+  const cashRegisterService = new CashRegisterService(fastify.db, fastify.log);
+  const transactionService = new TransactionService(
+    fastify.db,
+    fastify.log,
+    balanceService,
+    cashRegisterService,
+  );
+  const auraService = new AuraService(fastify.db);
+  const enrollmentService = new EnrollmentService(fastify.db, fastify.log);
+  const subscriptionService = new SubscriptionService(
+    fastify.db,
+    fastify.log,
+    auraService,
+    transactionService,
+    enrollmentService,
+  );
+  transactionService.setSubscriptionCanceller(subscriptionService);
+  // Phase 148: assignPlan genera los bookings recurrentes de un plan fixed SOLO si
+  // el SubscriptionService tiene un BookingService inyectado (subscriptions/routes
+  // y members/routes lo wirean igual). Sin esto, los subscription_schedules se
+  // insertan pero NO se generan bookings → el alta de un plan fixed quedaría sin
+  // turnos materializados.
+  const notificationService = new NotificationService(fastify.db, fastify.log);
+  const bookingService = new BookingService(
+    fastify.db,
+    fastify.log,
+    subscriptionService,
+    notificationService,
+  );
+  subscriptionService.setBookingService(bookingService);
+  // Phase 148: el orquestador /alta resuelve/crea el alumno (dedup por DNI) antes
+  // de assignPlan. memberService NO estaba wireado en este plugin (solo en
+  // members/routes.ts) — se instancia igual que ahí (fastify.db, fastify.log).
+  const memberService = new MemberService(fastify.db, fastify.log);
+
+  // ── Module guard: authenticate + FINANCE_LOAD_ROLES (coach ∈) + scope ──
+  // SEPARATE from finance/routes.ts so the FINANCE_READ_ROLES module hook there
+  // (coach excluded) never blocks these. T-140-04: coach can ONLY reach these
+  // load endpoints — never validate/void/adjustment/full-read.
+  fastify.addHook("onRequest", async (request, reply) => {
+    await fastify.authenticate(request, reply);
+    if (
+      !(FINANCE_LOAD_ROLES as readonly string[]).includes(request.user.role)
+    ) {
+      return reply.code(403).send({
+        error: "Acceso denegado",
+        message: "Sin permiso de carga",
+      });
+    }
+    await attachCountryScope(request, fastify.db);
+  });
+
+  // ── Resolve any user's branchId server-side (Pitfall 4): users.branchId with
+  // the virtual "Templo Online" fallback (mirror of renewSubscription's
+  // renewBranchId resolution). Shared by the member (sede del SOCIO → branch_id
+  // del ledger comercial) and the recorder (sede del PROFE → caja sugerida).
+  const resolveUserBranchId = async (userId: number): Promise<number> => {
+    const [branchRow] = await fastify.db
+      .select({ branchId: schema.users.branchId })
+      .from(schema.users)
+      .where(eq(schema.users.id, userId))
+      .limit(1);
+    if (branchRow?.branchId) return branchRow.branchId;
+    const [virtualBranch] = await fastify.db
+      .select({ id: schema.branches.id })
+      .from(schema.branches)
+      .where(eq(schema.branches.name, "Templo Online"))
+      .limit(1);
+    if (!virtualBranch) {
+      throw new Error(
+        "Branch 'Templo Online' no encontrada al resolver branchId del cobro",
+      );
+    }
+    return virtualBranch.id;
+  };
+
+  // Sede del SOCIO → branch_id del ledger comercial (sin cambio de comportamiento:
+  // para cash es la caja por defecto del resolver; para transfer/card es moot).
+  const resolveMemberBranchId = (memberId: number): Promise<number> =>
+    resolveUserBranchId(memberId);
+
+  // CAJA-01: sede del PROFE que carga (recordedBy → su branchId). La caja efectivo
+  // del cobro se sugiere desde ESTA sede, NO la del socio. El branch_id de la tx
+  // sigue siendo el del socio (resolveMemberBranchId) — la imputación de caja no
+  // altera el ledger comercial por sede.
+  const resolveRecorderBranchId = (recorderUserId: number): Promise<number> =>
+    resolveUserBranchId(recorderUserId);
+
+  // CAJA-01: pre-resolver la caja SUGERIDA desde la sede del profe. Para cash →
+  // caja efectivo de la sede del profe; transfer/card → banco por moneda (idéntico
+  // al default por moneda, inocuo). Devuelve el override para
+  // transactionService.create's cashRegisterId. Fallback (no romper; loguear): si
+  // la caja del profe no es resolvible (sin caja efectivo en su sede / moneda
+  // inconsistente), devuelve `undefined` → create resuelve por la sede del socio
+  // (comportamiento previo), para que un profe sin caja no bloquee el cobro.
+  const resolveSuggestedCaja = async (
+    paymentMethod: PaymentMethod,
+    recorderUserId: number,
+    currency: string,
+  ): Promise<{
+    override: number | null | undefined;
+    recorderBranchId: number;
+  }> => {
+    const recorderBranchId = await resolveRecorderBranchId(recorderUserId);
+    try {
+      const override = await cashRegisterService.resolveCashRegister(
+        paymentMethod,
+        recorderBranchId,
+        currency,
+      );
+      return { override, recorderBranchId };
+    } catch (err: unknown) {
+      fastify.log.warn(
+        {
+          recorderUserId,
+          recorderBranchId,
+          paymentMethod,
+          currency,
+          err: err instanceof Error ? err.message : String(err),
+        },
+        "Caja sugerida del profe no resolvible; fallback a la sede del socio",
+      );
+      return { override: undefined, recorderBranchId };
+    }
+  };
+
+  // ===================================================================
+  // POST /pay-plan — cobro del plan (CARGA-01/02). The coach sees ONE "Pago de
+  // plan" action; the server decides what it actually is so the profe never has
+  // to know "renovación" vs "primer plan impago":
+  //   - If the member's current sub carries OUTSTANDING debt (e.g. an admin gave
+  //     the plan de alta con deuda for the profe to collect on-site) → settle it
+  //     with a debt_settlement linked to that sub. NO new period is created.
+  //   - Otherwise → renovación (reuses renewSubscription, creates a new period).
+  // Either way the charge is born PENDIENTE (recorderRole=coach, server-side)
+  // and is idempotent: a duplicate idempotencyKey catches ER_DUP_ENTRY and
+  // returns the existing charge as a 200 no-op (D-09 / Pitfall 3).
+  // ===================================================================
+  fastify.post<{ Body: CoachPayPlanBody }>(
+    "/pay-plan",
+    { schema: coachPayPlanSchema },
+    async (request, reply) => {
+      const { userId, amountReceived, paymentMethod, idempotencyKey } =
+        request.body;
+      try {
+        // Outstanding debt on the member's CURRENT sub (active/paused/scheduled)
+        // decides settle vs renew. getMemberSubscription excludes expired subs
+        // (those are the renewal case), so a null sub here just means "nothing
+        // to settle" — fall through to renew, which finds the active/expired sub
+        // and 404s itself if there's truly no plan. The balance row already
+        // exists when an admin assigned the plan con deuda (recordAssignmentCharge
+        // seeds it); amount>0 means there is debt. NOTE: debt on an ALREADY-expired
+        // sub is not surfaced here and falls to renovación (rare; in our flow the
+        // alta con deuda is always an active sub).
+        const sub = await subscriptionService.getMemberSubscription(userId);
+        const balanceRow = sub
+          ? await balanceService.getRow(
+              userId,
+              "subscription",
+              sub.id,
+              sub.currency,
+            )
+          : null;
+        const outstanding =
+          balanceRow && balanceRow.amount > 0 ? balanceRow.amount : 0;
+
+        if (sub && outstanding > 0) {
+          // ── SETTLE the existing debt — no new period (the plan is already
+          // assigned/active; the profe is just collecting what's owed). ──
+          const amount = amountReceived ?? outstanding;
+          if (amount <= 0) {
+            return reply.code(400).send({
+              error: "Solicitud invalida",
+              message: "El monto debe ser mayor a cero",
+            });
+          }
+          if (amount > outstanding) {
+            return reply.code(400).send({
+              error: "Solicitud invalida",
+              message: `El monto no puede exceder la deuda ($${outstanding})`,
+            });
+          }
+          const today = new Date().toISOString().split("T")[0];
+          const branchId = await resolveMemberBranchId(userId);
+          // CAJA-01: la caja se sugiere desde la sede del PROFE (recordedBy), no
+          // la del socio. branchId (ledger) sigue siendo el del socio.
+          const { override: suggestedCajaId, recorderBranchId } =
+            await resolveSuggestedCaja(
+              paymentMethod,
+              request.user.userId,
+              sub.currency,
+            );
+          // Server-derived role → status (coach → pendiente).
+          const initialStatus = (["coach"] as readonly string[]).includes(
+            request.user.role,
+          )
+            ? "pendiente"
+            : "validado";
+
+          const detail = await transactionService.create(
+            {
+              memberId: userId,
+              kind: "debt_settlement",
+              direction: "inflow",
+              amount,
+              currency: sub.currency,
+              paymentMethod,
+              transactionDate: today,
+              effectiveDate: today,
+              branchId,
+              cashRegisterId: suggestedCajaId,
+              notes: `Pago de saldo plan ${sub.planName}`,
+              validationStatus: initialStatus,
+              idempotencyKey,
+              links: [
+                {
+                  targetKind: "subscription",
+                  targetId: sub.id,
+                  allocatedAmount: amount,
+                },
+              ],
+            },
+            request.user.userId,
+          );
+          request.log.info(
+            {
+              memberId: userId,
+              branchId,
+              recorderBranchId,
+              suggestedCajaId,
+              paymentMethod,
+            },
+            "coach pay-plan settle: caja sugerida por sede del profe",
+          );
+          return reply
+            .code(201)
+            .send({ subscription: sub, transaction: detail });
+        }
+
+        // ── RENEW — no debt, so create a new period (existing behaviour). ──
+        // CAJA-01: la caja del plan_charge se sugiere desde la sede del PROFE
+        // (recordedBy). El branch_id de la sub/charge sigue siendo el del socio.
+        const recorderBranchId = await resolveRecorderBranchId(
+          request.user.userId,
+        );
+        const subscription = await subscriptionService.renewSubscription(
+          userId,
+          {
+            paymentMethod,
+            amountReceived,
+            // Server-derived role → status (coach → pendiente). Not a literal so
+            // a future admin-callable variant stays correct.
+            recorderRole: request.user.role as AdminRole,
+            idempotencyKey,
+            // CAJA-01: sede del profe → caja sugerida del cobro.
+            recorderBranchId,
+          },
+          request.user.userId,
+        );
+        // The charge carries the idempotencyKey (renewalPrice>0 → a charge was
+        // created); a free renewal (price 0) produces no charge → transaction null.
+        const transaction =
+          await transactionService.findByIdempotencyKey(idempotencyKey);
+        return reply.code(201).send({ subscription, transaction });
+      } catch (err: unknown) {
+        // D-09 / Pitfall 3: a duplicate idempotency key means this exact load
+        // already happened — the settle/renewal tx rolled back wholesale. Re-read
+        // the existing charge (fresh connection) and return it as a 200 no-op.
+        if (isDuplicateKeyError(err).isDuplicate) {
+          const existing =
+            await transactionService.findByIdempotencyKey(idempotencyKey);
+          if (existing) {
+            const subscription =
+              await subscriptionService.getMemberSubscription(userId);
+            return reply
+              .code(200)
+              .send({ subscription, transaction: existing });
+          }
+        }
+        handleServiceError(err, reply, request.log, "coach pay-plan load");
+      }
+    },
+  );
+
+  // ===================================================================
+  // POST /misc — cobro suelto (CARGA-03). advance_payment, empty links (∈
+  // KINDS_ALLOWED_WITHOUT_LINKS → applyDelta no-ops, member balance untouched),
+  // concepto→notes, branchId server-derived. Born PENDIENTE (coach). Idempotent.
+  // ===================================================================
+  fastify.post<{ Body: CoachMiscLoadBody }>(
+    "/misc",
+    { schema: coachMiscLoadSchema },
+    async (request, reply) => {
+      const today = new Date().toISOString().split("T")[0];
+      try {
+        const branchId = await resolveMemberBranchId(request.body.memberId);
+        const currency = request.body.currency ?? "ARS";
+        // CAJA-01: la caja se sugiere desde la sede del PROFE (recordedBy), no la
+        // del socio. branchId (ledger) sigue siendo el del socio.
+        const { override: suggestedCajaId, recorderBranchId } =
+          await resolveSuggestedCaja(
+            request.body.paymentMethod,
+            request.user.userId,
+            currency,
+          );
+        // Server-derived role → status (coach → pendiente).
+        const initialStatus = (["coach"] as readonly string[]).includes(
+          request.user.role,
+        )
+          ? "pendiente"
+          : "validado";
+
+        const detail = await transactionService.create(
+          {
+            memberId: request.body.memberId,
+            kind: "advance_payment",
+            direction: "inflow",
+            amount: request.body.amount,
+            currency,
+            paymentMethod: request.body.paymentMethod,
+            transactionDate: today,
+            effectiveDate: today,
+            branchId,
+            cashRegisterId: suggestedCajaId,
+            notes: request.body.concepto,
+            // Phase 145 (COBRO-01): structured motivo → own column, not notes.
+            miscReason: request.body.miscReason,
+            validationStatus: initialStatus,
+            idempotencyKey: request.body.idempotencyKey,
+            links: [],
+          },
+          request.user.userId,
+        );
+        request.log.info(
+          {
+            memberId: request.body.memberId,
+            branchId,
+            recorderBranchId,
+            suggestedCajaId,
+            paymentMethod: request.body.paymentMethod,
+          },
+          "coach misc load: caja sugerida por sede del profe",
+        );
+        return reply.code(201).send({ transaction: detail });
+      } catch (err: unknown) {
+        // D-09: idempotent no-op on a duplicate key — re-read + return existing.
+        if (isDuplicateKeyError(err).isDuplicate) {
+          const existing = await transactionService.findByIdempotencyKey(
+            request.body.idempotencyKey,
+          );
+          if (existing) {
+            return reply.code(200).send({ transaction: existing });
+          }
+        }
+        handleServiceError(err, reply, request.log, "coach misc load");
+      }
+    },
+  );
+
+  // ===================================================================
+  // POST /alta — alta de alumno + plan en el cobro (ALTA-01..07). El CORAZÓN de
+  // la Fase 148: reemplaza el Google Form→Excel→admin. Orquesta de forma
+  // idempotente, en DOS transacciones encadenadas (W-1):
+  //   (a) Resolver alumno: `userId` directo → usarlo (createdMemberId=null); si
+  //       no, dedup por DNI (checkDuplicates) → match no-borrado ⇒ usar el
+  //       existente (createdMemberId=null); si no ⇒ createMinimalMember en SU
+  //       PROPIA tx (createdMemberId = id del nuevo alumno).
+  //   (b) assignPlan(memberId, ...) crea sub + charge 'pendiente' (recorderRole=
+  //       'coach', server-derived) + bookings fixed DENTRO de su tx, y —gracias a
+  //       148-01— graba `createdMemberId` en el MISMO insert del charge (sin
+  //       UPDATE suelto ni 3ª tx → sin ventana de crash que deje el id huérfano).
+  //
+  // branchId (sede elegida) gated por requireBranchAccess (preHandler) — primer
+  // endpoint del plugin que acepta branchId. La caja se sigue SUGIRIENDO desde la
+  // sede del PROFE (recorderBranchId, CAJA-01), no la del socio.
+  //
+  // Idempotencia: la orquestación completa es un replay seguro. Un doble-submit
+  // con el mismo idempotencyKey captura isDuplicateKeyError → findByIdempotencyKey
+  // → 200 con el charge existente; createMinimalMember es idempotente por el
+  // UNIQUE de dni (148-01), así que un replay NO crea 2º alumno ni 2º charge.
+  // ===================================================================
+  fastify.post<{ Body: CoachAltaBody }>(
+    "/alta",
+    {
+      schema: coachAltaSchema,
+      preHandler: requireBranchAccess({ from: "body.branchId" }),
+    },
+    async (request, reply) => {
+      const body = request.body;
+      try {
+        // ── Idempotencia (D-09 / W-1): replay-short-circuit ANTES de assignPlan ──
+        // Un doble-submit con el MISMO idempotencyKey NO puede caer al catch de
+        // abajo: en el replay el alumno ya tiene la sub activa del 1er POST, así
+        // que assignPlan tira ConflictError (NO un duplicate-key) ANTES de intentar
+        // re-insertar el charge. Por eso re-leemos acá el charge ya persistido (el
+        // alumno + charge nacieron atómicos en el 1er POST) y devolvemos 200 no-op.
+        const replay = await transactionService.findByIdempotencyKey(
+          body.idempotencyKey,
+        );
+        if (replay) {
+          return reply.code(200).send({ transaction: replay });
+        }
+
+        // ── (a) Resolver/crear alumno ───────────────────────────────────────
+        // createdMemberId = id SOLO cuando ESTA carga creó el alumno (para el
+        // cascade de void 148-03 y el ticket "Nuevo" del frontend). null si se
+        // usó un alumno preexistente (userId directo o match por DNI).
+        let memberId: number;
+        let createdMemberId: number | null = null;
+
+        if (body.userId != null) {
+          memberId = body.userId;
+        } else {
+          // Rama "alumno nuevo": los 3 campos son obligatorios (la XOR no la
+          // expresa el JSON-Schema con additionalProperties:false).
+          if (!body.firstName || !body.lastName || !body.dni) {
+            return reply.code(400).send({
+              error: "Solicitud invalida",
+              message:
+                "Falta el alumno: enviá userId, o firstName + lastName + dni",
+            });
+          }
+          // Dedup por DNI ANTES de crear (checkDuplicates ya filtra borrados).
+          const { matches } = await memberService.checkDuplicates({
+            dni: body.dni,
+          });
+          const dniMatch = matches.find((m) => m.matchedField === "dni");
+          if (dniMatch) {
+            // Match no-borrado ⇒ cargar contra el existente, NO duplicar.
+            memberId = dniMatch.id;
+          } else {
+            // Sin match ⇒ crear alumno mínimo en su propia tx. createdBy SIEMPRE
+            // del JWT (request.user.userId), nunca del body (anti-spoof D-31).
+            createdMemberId = await memberService.createMinimalMember({
+              firstName: body.firstName,
+              lastName: body.lastName,
+              dni: body.dni,
+              branchId: body.branchId,
+              createdBy: request.user.userId,
+            });
+            memberId = createdMemberId;
+          }
+        }
+
+        // ── (b) Mapear precio + caja sugerida + assignPlan ──────────────────
+        // Tarjeta → priceCreditCard (recargo); si no, toggle Zero ↔ regular.
+        const priceTypeApplied: PriceType =
+          body.paymentMethod === "card"
+            ? "credit_card"
+            : body.zero
+              ? "zero"
+              : "regular";
+
+        // CAJA-01: caja sugerida = sede del PROFE (recordedBy), NO la sede
+        // elegida del socio. El branch_id del ledger sigue siendo el del socio.
+        const recorderBranchId = await resolveRecorderBranchId(
+          request.user.userId,
+        );
+
+        const today = new Date().toISOString().split("T")[0];
+
+        const subscription = await subscriptionService.assignPlan(
+          memberId,
+          {
+            planId: body.planId,
+            branchId: body.branchId,
+            startDate: today,
+            priceTypeApplied,
+            paymentMethod: body.paymentMethod,
+            scheduleIds: body.scheduleIds,
+            amountReceived: body.amountReceived,
+            notes: body.notes,
+            // Server-derived: charge nace 'pendiente' porque el rol es coach.
+            recorderRole: request.user.role as AdminRole,
+            idempotencyKey: body.idempotencyKey,
+            // CAJA-01: caja sugerida desde la sede del profe.
+            recorderBranchId,
+            // W-1 (148-01): el id viaja por el input → se graba en el MISMO
+            // insert del charge (sin UPDATE suelto ni 3ª tx).
+            createdMemberId,
+          },
+          request.user.userId,
+        );
+
+        // El plan_charge lleva el idempotencyKey (precio>0 → hubo charge). Un
+        // alta gratis (precio 0) no produce charge → transaction null.
+        const transaction = await transactionService.findByIdempotencyKey(
+          body.idempotencyKey,
+        );
+        request.log.info(
+          {
+            memberId,
+            createdMemberId,
+            branchId: body.branchId,
+            recorderBranchId,
+            paymentMethod: body.paymentMethod,
+            priceTypeApplied,
+          },
+          "coach alta-con-plan: alumno resuelto/creado + plan asignado (pendiente)",
+        );
+        return reply.code(201).send({
+          subscription,
+          transaction,
+          // El frontend muestra el ticket "Nuevo" cuando creó alumno.
+          createdMemberId,
+          createdNew: createdMemberId !== null,
+        });
+      } catch (err: unknown) {
+        // D-09 / Pitfall 3: un idempotencyKey duplicado = esta alta exacta ya
+        // ocurrió. La tx del charge rolleó; createMinimalMember es idempotente
+        // por dni UNIQUE → ni 2º alumno ni 2º charge. Re-leer el charge existente
+        // y devolverlo como 200 no-op.
+        if (isDuplicateKeyError(err).isDuplicate) {
+          const existing = await transactionService.findByIdempotencyKey(
+            body.idempotencyKey,
+          );
+          if (existing) {
+            return reply.code(200).send({ transaction: existing });
+          }
+        }
+        handleServiceError(err, reply, request.log, "coach alta-con-plan");
+      }
+    },
+  );
+
+  // ===================================================================
+  // GET /autocompletar/:userId — the member's current plan + amount + currency
+  // for the typeahead pre-fill (CARGA-01). Reuses getMemberSubscription (no new
+  // service method). hasRenewable=false when there is no active/paused sub.
+  //
+  // `intent` mirrors POST /pay-plan's server-side decision so the form pre-fills
+  // the right amount WITHOUT the profe choosing renovación vs primer plan:
+  //   - 'settle' → the current sub has outstanding debt; amount = that debt.
+  //   - 'renew'  → no debt; amount = the plan price (a new period would be created).
+  // ===================================================================
+  fastify.get<{ Params: { userId: number } }>(
+    "/autocompletar/:userId",
+    { schema: autocompletarSchema },
+    async (request, reply) => {
+      try {
+        const sub = await subscriptionService.getMemberSubscription(
+          request.params.userId,
+        );
+        if (!sub) {
+          return reply.send({
+            hasRenewable: false,
+            planName: null,
+            amount: null,
+            currency: null,
+            intent: null,
+            outstanding: 0,
+          });
+        }
+        const balanceRow = await balanceService.getRow(
+          request.params.userId,
+          "subscription",
+          sub.id,
+          sub.currency,
+        );
+        const outstanding =
+          balanceRow && balanceRow.amount > 0 ? balanceRow.amount : 0;
+        return reply.send({
+          hasRenewable: true,
+          planName: sub.planName,
+          // Pre-fill the debt when there is one, else the plan price.
+          amount: outstanding > 0 ? outstanding : sub.pricePaid,
+          currency: sub.currency,
+          intent: outstanding > 0 ? "settle" : "renew",
+          outstanding,
+        });
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "coach autocompletar");
+      }
+    },
+  );
+
+  // ===================================================================
+  // GET /mis-cargas — the calling coach's OWN loads only (D-07). recordedBy is
+  // FORCED to request.user.userId server-side (never from the query) so a coach
+  // never sees other coaches' loads, the full ledger, or caja saldos.
+  // ===================================================================
+  fastify.get("/mis-cargas", async (request, reply) => {
+    try {
+      const result = await transactionService.list({
+        recordedBy: request.user.userId,
+        limit: 50,
+      });
+      return reply.send(result);
+    } catch (err: unknown) {
+      handleServiceError(err, reply, request.log, "coach mis-cargas");
+    }
+  });
+};
+
+// Re-export the detail type so route consumers (tests) can import it from here.
+export type { TransactionDetail };

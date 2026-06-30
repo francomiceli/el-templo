@@ -43,8 +43,23 @@ export interface CreateTransactionLinkInput {
   allocatedAmount: number;
 }
 
+/**
+ * Phase 137 (VAL-02): the validation_status a freshly-created transaction is
+ * born with. Derived SERVER-SIDE from the authenticated user's role
+ * (coach→'pendiente', everyone else→'validado') — NEVER read from the raw
+ * client body. Optional: when omitted the DB column DEFAULT 'validado' applies,
+ * so all 4 internal recordAssignmentCharge callers (admin path) stay correct
+ * without edits. Only 'pendiente'/'validado' are valid at birth; 'observado'
+ * and 'corregido' are reachable only via observe()/correct() transitions.
+ */
+export type InitialValidationStatus = "pendiente" | "validado";
+
 export interface CreateTransactionInput {
-  memberId: number;
+  /**
+   * Phase 139 (D-06): `null` for egresos/movimientos (no socio). create() skips
+   * the member-exists probe when null and inserts NULL member_id.
+   */
+  memberId: number | null;
   kind: TransactionKind;
   direction: TransactionDirection;
   amount: number;
@@ -55,19 +70,107 @@ export interface CreateTransactionInput {
   transactionDate: string;
   /** YYYY-MM-DD: which month/period the transaction accrues to. */
   effectiveDate: string;
-  branchId: number;
+  /**
+   * Phase 139 (extends D-06 to branch_id): `null` for movimientos/egresos to
+   * branch-less cajas (central efectivo, banco ARS/EUR). create() skips the
+   * branch-exists probe when null and inserts NULL branch_id.
+   */
+  branchId: number | null;
   notes?: string | null;
+  /**
+   * Phase 145 (COBRO-01): structured reason for a cobro suelto. Set ONLY by the
+   * POST /coach-load/misc endpoint (the PoS dropdown Motivo); the other 9 create
+   * paths leave it undefined → NULL, exactly as today. NOT folded into `notes`
+   * (which stays the free-text concepto). Optional/nullable like the other
+   * server-derived slots.
+   */
+  miscReason?: "sin_plan" | "otro" | null;
+  /**
+   * Phase 137 (VAL-02): birth validation status. Defaults to 'validado' when
+   * undefined (matches the DB column DEFAULT). Set to 'pendiente' ONLY by the
+   * server-side role→status derivation (coach loads). NEVER sourced from the
+   * raw request body.
+   */
+  validationStatus?: InitialValidationStatus;
+  /**
+   * Phase 138 (CAJA-02 / D-01..D-03): the caja the payment lands in. SERVER-
+   * DERIVED — NEVER read from the raw request body (like validationStatus).
+   * When undefined (the normal case), create() runs
+   * CashRegisterService.resolveCashRegister(paymentMethod, branchId, currency)
+   * itself, so all 9 create paths auto-stamp without per-caller edits. The
+   * optional slot exists ONLY for internal pre-resolution (e.g. a future
+   * phase 139 movimiento that already knows its caja); `null` is a valid value
+   * meaning "no caja" (aura_credit/internal). D-03: no manual override is
+   * exposed through the REST body — the route schema must NOT accept it.
+   */
+  cashRegisterId?: number | null;
+  /**
+   * Phase 147 (EGR-02): centro de costo del egreso. SERVER-DERIVED — NUNCA del
+   * body crudo de /transactions. Optional/nullable como `miscReason`: las 10
+   * rutas de create existentes lo dejan undefined → NULL; SOLO registerExpense
+   * lo setea (tras validar exists+active). `null` es válido (no-egreso).
+   */
+  costCenterId?: number | null;
+  /**
+   * Phase 140 (CARGA-02 / D-09): client-generated opaque ticket key for
+   * idempotent coach loads — a UUID minted on each "Confirmar" tap, NOT a
+   * secret. When set, create() persists it on the row; the nullable UNIQUE
+   * index (uq_financial_tx_idempotency_key) rejects a duplicate non-null key
+   * at the DB layer so a double-tap/retry cannot create two charges. The
+   * ER_DUP_ENTRY → return-existing handling lands endpoint-side in Wave 2
+   * (Pitfall 3: the renewal tx must roll back before re-reading). Omitted/NULL
+   * for every admin/historical path (multiple NULLs are allowed).
+   */
+  idempotencyKey?: string | null;
+  /**
+   * Phase 148 (ALTA-06 / W-1): id del alumno que ESTA carga creó vía
+   * createMinimalMember (PoS profe), o null/undefined si el alumno ya existía o
+   * la carga no proviene del alta. SERVER-DERIVED — el orquestador 148-02 lo
+   * pasa tras crear el alumno; NUNCA del body crudo. create() lo persiste en el
+   * MISMO insert del charge (dentro de la tx del caller cuando se pasa `tx`), de
+   * modo que el cascade de void (148-03) sepa qué alumno desactivar sin ventana
+   * de crash. NULL para todo path admin/histórico (FK nullable a users.id).
+   */
+  createdMemberId?: number | null;
   links: CreateTransactionLinkInput[];
+}
+
+/**
+ * Phase 137 (VAL-04 / D-04): input for observe() — flag a pendiente charge as
+ * 'observado' (a problem spotted, not yet corrected). Reason is mandatory so
+ * the audit trail records WHY it was observed (D-07).
+ */
+export interface ObserveTransactionInput {
+  reason: string;
 }
 
 export interface VoidTransactionInput {
   reason: string;
+  /**
+   * Phase 137 (D-10 / VAL-06): when voiding a charge that activated a
+   * membership, decide whether the linked subscription stays active. Default
+   * true (current behaviour — the sub is untouched). When false, void()
+   * cancels the linked subscription inside the SAME db.transaction via
+   * SubscriptionService._cancelSubscription (skipping the active-charges
+   * guard, since this very charge is soft-voided in that same tx).
+   */
+  keepMembershipActive?: boolean;
 }
 
 // -- Service output shapes ---------------------------------------------------
 
 export interface TransactionDetail extends FinancialTransactionRow {
   links: TransactionLinkRow[];
+  /**
+   * Phase 148 (ALTA-06): nombre (firstName + lastName) del alumno que ESTA carga
+   * creó vía el alta del PoS profe — resuelto por join a users sobre
+   * `createdMemberId`. `null` cuando la carga no creó alumno (preexistente /
+   * path admin). La bandeja (148-06) lo usa para la copy de advertencia al
+   * anular ("Esta carga creó al alumno {nombre}. Al anular, también se
+   * desactivará su membresía…"). Campo aditivo/opcional — no altera el filtro de
+   * dinero firme ni las métricas.
+   */
+  createdMemberName?: string | null;
 }
 
 // -- Phase 106: list/history shapes ----------------------------------------
@@ -84,6 +187,13 @@ export interface TransactionListFilters {
   dateTo?: string; // YYYY-MM-DD
   memberId?: number;
   paymentMethod?: PaymentMethod;
+  /**
+   * Phase 140 (D-07 / CARGA-04): scope the list to the rows a specific staff
+   * member recorded. The coach "mis-cargas" endpoint FORCES this to the
+   * authenticated coach's id server-side (never from the query) so a coach only
+   * ever sees their own loads — never other coaches' loads or the full ledger.
+   */
+  recordedBy?: number;
   /** Member name search; uses buildMemberNameSearchCondition. */
   search?: string;
   page?: number;
@@ -107,14 +217,16 @@ export interface TransactionListItem {
   id: number;
   transactionDate: string; // YYYY-MM-DD
   effectiveDate: string; // YYYY-MM-DD
-  memberId: number;
+  /** Phase 139 (D-06): null for egresos/movimientos (sin socio). */
+  memberId: number | null;
   memberName: string; // CONCAT(first_name, ' ', last_name)
   kind: TransactionKind;
   direction: TransactionDirection;
   amount: number;
   currency: string;
   paymentMethod: PaymentMethod;
-  branchId: number;
+  /** Phase 139: null for movimientos/egresos a cajas branch-less. */
+  branchId: number | null;
   branchName: string;
   recordedBy: number;
   recorderName: string;
@@ -226,4 +338,220 @@ export interface OutstandingConcept {
   balance: number; // saldo pendiente positivo (entero)
   ageInDays: number; // días desde effectiveDate (clamp 0 si futuro)
   effectiveDate: string; // YYYY-MM-DD para auditoría / orden FIFO
+}
+
+// -- Phase 139: MovementService (movimientos inter-caja + egresos) ----------
+
+/**
+ * Phase 139 (MOV-01/MOV-02): input para registrar un movimiento inter-caja —
+ * el asiento de doble entrada (2 filas linkeadas, neto 0). La reconciliación
+ * esperado-vs-contado (D-04) es opcional: cuando `countedAmount` se omite, no
+ * se materializa un ajuste (solo se deja el rastro del esperado en el audit).
+ *
+ * `adminId` es el actor server-side (request.user.userId) — NUNCA del body.
+ * `notes` es texto libre opcional. Las monedas se derivan de las cajas (guard
+ * same-currency en el servicio); el body no las trae.
+ */
+export interface RegisterMovementInput {
+  origenCajaId: number;
+  destinoCajaId: number;
+  amount: number;
+  /**
+   * Conteo físico de la caja origen al momento (D-04). Cuando difiere del
+   * esperado, el servicio inserta una fila kind='adjustment' que corrige el
+   * saldo de origen a lo contado + un audit 'reconciliation'. Omitido = sin
+   * ajuste (solo rastro del esperado).
+   */
+  countedAmount?: number;
+  notes?: string | null;
+}
+
+/**
+ * Phase 139 (MOV-03): input para registrar un egreso — 1 fila outflow que resta
+ * del saldo de su caja. Phase 147 (EGR-02): `costCenterId` es OBLIGATORIO — el
+ * egreso se clasifica en un centro de costo (validado exists+active en el
+ * servicio antes de crear la fila).
+ */
+export interface RegisterExpenseInput {
+  cajaId: number;
+  amount: number;
+  costCenterId: number;
+  notes?: string | null;
+}
+
+/**
+ * Phase 147 (EGR-01): una fila del catálogo de centros de costo, para el selector
+ * del dialog de egreso. Solo los activos del país consultado.
+ */
+export interface CostCenterItem {
+  id: number;
+  name: string;
+  country: string;
+}
+
+/**
+ * Phase 139 (MOV-01): resultado de registrar un movimiento. Devuelve los ids de
+ * ambas patas + el id del ajuste de reconciliación (null cuando no hubo
+ * diferencia) + el esperado/contado para que el caller (route) los exponga.
+ */
+export interface MovementDetail {
+  outflowTxId: number; // pata origen (kind='cash_transfer', outflow)
+  inflowTxId: number; // pata destino (kind='cash_transfer', inflow)
+  adjustmentTxId: number | null; // ajuste de reconciliación (solo si counted != expected)
+  expectedAmount: number; // saldo firme de origen al momento (D-04)
+  countedAmount: number | null; // conteo físico, si se proveyó
+}
+
+// -- Phase 141: reportes para la admin (REP-01 / REP-02) --------------------
+
+/**
+ * Phase 141 (REP-01): una fila de la bandeja de pendientes. Es pendiente o
+ * observado, con antigüedad computada server-side (TS, clamp ≥0) y el flag
+ * `isOverdue` derivado de OVERDUE_DAYS (constants.ts). `recorderName` es "cargado
+ * por" (alias users.recordedBy); `cashRegisterName` es el nombre de la caja.
+ */
+export interface PendingTrayItem {
+  id: number;
+  transactionDate: string; // YYYY-MM-DD
+  memberId: number | null;
+  memberName: string;
+  amount: number;
+  currency: string;
+  paymentMethod: PaymentMethod;
+  cashRegisterId: number | null;
+  cashRegisterName: string;
+  recordedBy: number;
+  recorderName: string;
+  validationStatus: string; // 'pendiente' | 'observado'
+  ageInDays: number; // días desde transactionDate (clamp ≥0)
+  isOverdue: boolean; // ageInDays > OVERDUE_DAYS
+  // Phase 145 (COBRO-02): motivo del cobro suelto. 'sin_plan' → la fila muestra
+  // un chip "Sin plan — asignar" en la bandeja; null para filas no-misc.
+  miscReason: "sin_plan" | "otro" | null;
+  // Phase 148 (ALTA-06): si ESTA carga creó un alumno nuevo (PoS profe alta),
+  // su id + nombre para que la bandeja muestre la copy de advertencia al anular
+  // ("Esta carga creó al alumno {nombre}. Al anular, también se desactivará su
+  // membresía…"). Ambos null para cargas de alumno preexistente / path admin.
+  createdMemberId: number | null;
+  createdMemberName: string | null;
+}
+
+/** Filtros para listPendingTray (REP-01). */
+export interface PendingTrayFilters {
+  /** Pendientes/Observados/Todos (D-04). undefined === 'todos' (ambos). */
+  status?: "pendientes" | "observados" | "todos";
+  country?: CountryCode;
+  branchId?: number;
+  dateFrom?: string; // YYYY-MM-DD
+  dateTo?: string; // YYYY-MM-DD
+  page?: number;
+  limit?: number;
+}
+
+/**
+ * Phase 141 (REP-02): saldo firme + pendiente de una caja activa, junto a su
+ * tipo/moneda/sucursal para que el front agrupe (efectivo sucursal / central /
+ * banco) y subtotalice SOLO por moneda. firme/pendiente vienen de getBalance.
+ */
+export interface CajaSaldoRow {
+  cashRegisterId: number;
+  name: string;
+  type: "efectivo" | "banco";
+  branchId: number | null;
+  currency: string;
+  firmeBalance: number;
+  pendienteAmount: number;
+}
+
+// -- Phase 141: historial de movimientos inter-caja y egresos (REP-03) -------
+
+/**
+ * Phase 141 (REP-03) → Phase 146 (ARQUEO-01/02): una fila del **arqueo por
+ * caja**. listMovEgresos ya NO filtra por kind: dada una caja devuelve TODO lo
+ * imputado a ella — cobros de socio (plan_charge, debt_settlement,
+ * advance_payment, refund) + egresos (expense) + traspasos (cash_transfer) +
+ * ajustes (adjustment). Las filas sin socio (egresos/traspasos) tienen member_id
+ * NULL (y a menudo branch_id NULL para cajas central/banco), así que
+ * listMovEgresos LEFT JOIN-ea users/branches/cash_registers para que SOBREVIVAN
+ * (el list()/export compartido hace INNER JOIN y las dropea — el flag de 139).
+ * Cada fila trae `validationStatus` (pendiente/observado/corregido/validado) para
+ * que la UI marque el estado (ARQUEO-02). `recorderName` es "cargado por",
+ * `cashRegisterName` la caja.
+ */
+export interface MovEgresoItem {
+  id: number;
+  transactionDate: string; // YYYY-MM-DD
+  kind: TransactionKind; // cualquier kind imputado a la caja (arqueo por caja)
+  direction: TransactionDirection;
+  amount: number;
+  currency: string;
+  memberId: number | null; // null para egresos/movimientos sin socio (LEFT JOIN)
+  cashRegisterId: number | null;
+  cashRegisterName: string;
+  branchId: number | null;
+  branchName: string | null; // null para cajas branch-less (central/banco)
+  recordedBy: number;
+  recorderName: string;
+  validationStatus: FinancialTransactionRow["validationStatus"]; // ARQUEO-02
+  voidedAt: string | null;
+  voidReason: string | null;
+  notes: string | null;
+  // Phase 147 (EGR-03): nombre del centro de costo (LEFT JOIN cost_centers).
+  // Solo las filas expense lo tienen; el resto de kinds queda null.
+  costCenterName: string | null;
+}
+
+/**
+ * Filtros para listMovEgresos (REP-03). `country` se resuelve owner-aware en la
+ * route; para non-owner el scope va por la moneda/país de la CAJA (no por
+ * eq(branches.country) — eso excluiría las filas branch-less central/banco bajo
+ * el LEFT JOIN: la trampa del país de la Pitfall 2). Branch-less central/banco
+ * son owner-only (mirror enforceCajaScope).
+ */
+export interface MovEgresoFilters {
+  cashRegisterId?: number;
+  country?: CountryCode;
+  /** true cuando el caller es owner (ve todo; ?country acota por país de caja). */
+  isOwner?: boolean;
+  dateFrom?: string; // YYYY-MM-DD
+  dateTo?: string; // YYYY-MM-DD
+  page?: number;
+  limit?: number;
+}
+
+// Phase 146 (plan 03 primitive) — un cobro suelto (advance_payment) pendiente,
+// no anulado, de un socio. Lo consume el AssignPlanDialog (plan 03) para imputar
+// el anticipo al asignar un plan, y el endpoint GET /transactions/pending-misc/:id.
+export interface PendingMiscItem {
+  id: number;
+  amount: number;
+  currency: string;
+  paymentMethod: PaymentMethod;
+  cashRegisterId: number | null;
+  miscReason: "sin_plan" | "otro" | null;
+  transactionDate: string; // YYYY-MM-DD
+  notes: string | null;
+}
+
+// Phase 138 (D-06/D-08/CAJA-03) — saldo DERIVADO de una caja. firmeBalance es
+// opening_balance + Σ validados de la caja desde cutoff_date (reusa
+// firmMoneyConditions). pendienteAmount (validation_status='pendiente') se
+// reporta SEPARADO y NUNCA se suma al firme. La derivación queda detrás de la
+// firma del método (D-08): los callers no saben si es calculado o cacheado.
+export interface CashRegisterBalance {
+  cashRegisterId: number;
+  currency: string;
+  firmeBalance: number; // opening_balance + Σ validados desde cutoff (CAJA-03)
+  pendienteAmount: number; // Σ pendientes desde cutoff, SEPARADO (CAJA-03)
+}
+
+// Phase 142 (MIG-01 / D-04/D-06) — finance config de caja (umbral de
+// pendientes). Body de PUT y response de GET/PUT /config/overdue-threshold.
+// Config global (no scoping por sucursal/país — D-06).
+export interface OverdueThresholdBody {
+  thresholdDays: number;
+}
+
+export interface OverdueThresholdResponse {
+  thresholdDays: number;
 }

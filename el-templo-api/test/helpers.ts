@@ -7,7 +7,7 @@
  */
 
 import { buildApp } from "../src/app";
-import { sql, getTableName, eq } from "drizzle-orm";
+import { sql, getTableName, eq, and } from "drizzle-orm";
 import argon2 from "argon2";
 import * as schema from "../src/db/schema";
 import type { FastifyInstance } from "fastify";
@@ -260,6 +260,41 @@ export const DEFAULT_TEST_PLAN = {
   durationDays: 30,
   classesPerWeek: 3,
 };
+
+/**
+ * Phase 138: ensure an efectivo caja exists for a branch created inside a test.
+ *
+ * TransactionService.create() now resolves cash_register_id from paymentMethod
+ * and HARD-THROWS ("No existe caja efectivo para la sucursal X") when a `cash`
+ * payment hits a branch with no efectivo caja. Branches seeded by test/setup.ts
+ * get a caja there, but branches a test inserts at runtime do not — call this
+ * right after inserting such a branch when the test routes/creates cash charges
+ * against it. Idempotent (skips if a caja already exists for the branch).
+ */
+export async function ensureEfectivoCaja(
+  app: FastifyInstance,
+  branchId: number,
+  currency = "ARS",
+): Promise<void> {
+  const existing = await app.db
+    .select({ id: schema.cashRegisters.id })
+    .from(schema.cashRegisters)
+    .where(
+      and(
+        eq(schema.cashRegisters.type, "efectivo"),
+        eq(schema.cashRegisters.branchId, branchId),
+      ),
+    )
+    .limit(1);
+  if (existing.length > 0) return;
+  await app.db.insert(schema.cashRegisters).values({
+    name: `Efectivo branch ${branchId}`,
+    type: "efectivo",
+    branchId,
+    currency,
+    cutoffDate: "2020-01-01",
+  });
+}
 
 /**
  * Create a subscription plan via the admin API. Throws on non-201 so tests

@@ -11,6 +11,11 @@ const errorSchema = {
   properties: {
     error: { type: "string" },
     message: { type: "string" },
+    // Phase 144-04 (D-12): distinguishable machine code (e.g. COVERAGE_EXPIRED)
+    // that some 4xx branches attach so the app can branch the UX. fast-json-stringify
+    // strips any property NOT declared here, so it MUST live in the response schema
+    // or the handler-set `code` never reaches the client.
+    code: { type: "string" },
   },
 } as const;
 

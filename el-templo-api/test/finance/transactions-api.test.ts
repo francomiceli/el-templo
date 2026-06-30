@@ -26,6 +26,7 @@ import {
   createStaffUser,
   getAuthToken,
   registerUser,
+  ensureEfectivoCaja,
 } from "../helpers";
 import * as schema from "../../src/db/schema";
 
@@ -91,6 +92,14 @@ async function seedFixtures(app: FastifyInstance): Promise<SeededContext> {
       isActive: true,
     })
     .$returningId();
+
+  await ensureEfectivoCaja(app, ar.id, "ARS");
+  // This fixture's ES branch exists to exercise COUNTRY scoping, not currency:
+  // its cash payloads use currency 'ARS' (basePayload default). Seed its
+  // efectivo caja as ARS so those payloads resolve without tripping the
+  // currency guard. (Cross-currency isolation is covered by the dedicated
+  // cash-register-service + transaction-service EUR tests.)
+  await ensureEfectivoCaja(app, es.id, "ARS");
 
   return {
     arBranchId: ar.id,

@@ -4,7 +4,8 @@ export type NotificationCategory =
   | "entrenamiento"
   | "programas"
   | "motivacion"
-  | "anuncios";
+  | "anuncios"
+  | "planes";
 
 export type NotificationStatus = "pending" | "sent" | "failed";
 
@@ -15,6 +16,7 @@ export const NOTIFICATION_CATEGORIES = [
   "programas",
   "motivacion",
   "anuncios",
+  "planes",
 ] as const;
 
 // ── Service Inputs ──────────────────────────────────────────────────────────
@@ -183,6 +185,36 @@ export const TEMPLATE_SEEDS: TemplateSeed[] = [
     titleFemale: "¡Se liberó tu lugar!",
     bodyFemale:
       "Pasaste de la lista de espera a una reserva confirmada. Te esperamos.",
+    route: "/reservas",
+  },
+  {
+    templateKey: "plan_renewal_warning_7d",
+    category: "planes",
+    title: "Renová tu membresía",
+    body: "Tu membresía vence en 7 días. Escribinos por WhatsApp para renovarla 💪",
+    titleFemale: "Renova tu membresia",
+    bodyFemale:
+      "Tu membresia vence en 7 dias. Escribinos por WhatsApp para renovarla.",
+    route: "/reservas",
+  },
+  {
+    templateKey: "plan_renewal_warning_3d",
+    category: "planes",
+    title: "Renová tu membresía",
+    body: "Tu membresía vence en 3 días. Renovala por WhatsApp y no pierdas tu lugar.",
+    titleFemale: "Renova tu membresia",
+    bodyFemale:
+      "Tu membresia vence en 3 dias. Renovala por WhatsApp y no pierdas tu lugar.",
+    route: "/reservas",
+  },
+  {
+    templateKey: "plan_renewal_warning_expired",
+    category: "planes",
+    title: "Renová tu membresía",
+    body: "Tu membresía venció. Renovala por WhatsApp para seguir entrenando.",
+    titleFemale: "Renova tu membresia",
+    bodyFemale:
+      "Tu membresia vencio. Renovala por WhatsApp para seguir entrenando.",
     route: "/reservas",
   },
 ];

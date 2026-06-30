@@ -315,6 +315,8 @@ export const assignPlanSchema = {
       auraSpend: { type: "integer", minimum: 0 },
       priceOverrideAmount: { type: "integer", minimum: 0 },
       amountReceived: { type: "integer", minimum: 0 },
+      // Phase 146 (COBRO-03): cobro suelto pendiente a imputar al alta.
+      appliedMiscChargeId: { type: "integer", minimum: 1 },
       priceOverrideReason: { type: "string" },
       boardingPass: { type: "boolean" },
       notes: { type: "string" },

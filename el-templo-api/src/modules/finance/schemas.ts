@@ -26,6 +26,9 @@ const KIND_ENUM = [
   "refund",
   "adjustment",
   "advance_payment",
+  // Phase 139: movimiento inter-caja + egreso (filterable for the caja history).
+  "cash_transfer",
+  "expense",
 ] as const;
 
 const DIRECTION_ENUM = ["inflow", "outflow"] as const;
@@ -108,6 +111,64 @@ export const voidTransactionSchema = {
   body: {
     type: "object",
     required: ["reason"],
+    properties: {
+      reason: { type: "string", minLength: 1, maxLength: 1000 },
+      // Phase 137 (VAL-06 / D-10): when false, void() cancels the linked
+      // subscription atomically. Default true (sub untouched).
+      keepMembershipActive: { type: "boolean" },
+    },
+    additionalProperties: false,
+  },
+  response: {
+    400: errorSchema,
+    401: errorSchema,
+    403: errorSchema,
+    404: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+// -- POST /transactions/:id/validate — Phase 137 VAL-03 --------------------
+
+export const validateTransactionSchema = {
+  params: {
+    type: "object",
+    required: ["id"],
+    properties: { id: { type: "integer", minimum: 1 } },
+  },
+  // Phase 146 (CAJA-02/CAJA-03): body opcional. Gestion puede confirmar o CAMBIAR
+  // la caja imputada al validar (incl. elegir entre cuentas banco Galicia/Mercado
+  // Pago). Omitido → conserva la caja sugerida (retrocompatible). El tipo incluye
+  // "null" para que una validacion SIN body (request.body=null) siga pasando
+  // (retrocompat: el endpoint previo no tenia body). La coherencia
+  // (existe/activa/moneda) se valida server-side en transactionService.validate.
+  body: {
+    type: ["object", "null"],
+    properties: {
+      cashRegisterId: { type: "integer", minimum: 1 },
+    },
+    additionalProperties: false,
+  },
+  response: {
+    400: errorSchema,
+    401: errorSchema,
+    403: errorSchema,
+    404: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+// -- POST /transactions/:id/observe — Phase 137 VAL-04 / D-04 --------------
+
+export const observeTransactionSchema = {
+  params: {
+    type: "object",
+    required: ["id"],
+    properties: { id: { type: "integer", minimum: 1 } },
+  },
+  body: {
+    type: "object",
+    required: ["reason"],
     properties: { reason: { type: "string", minLength: 1, maxLength: 1000 } },
     additionalProperties: false,
   },
@@ -116,6 +177,77 @@ export const voidTransactionSchema = {
     401: errorSchema,
     403: errorSchema,
     404: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+// -- POST /transactions/:id/correct — Phase 137 VAL-04 / D-05 --------------
+
+/**
+ * D-05: correct() = anular + recrear. `correctedFields` is a subset of
+ * amount/memberId/paymentMethod (the typical mis-load errors); the rest is
+ * copied from the original. At least one field is required so a correction
+ * actually changes something (validated by minProperties: 1).
+ */
+export const correctTransactionSchema = {
+  params: {
+    type: "object",
+    required: ["id"],
+    properties: { id: { type: "integer", minimum: 1 } },
+  },
+  body: {
+    type: "object",
+    required: ["correctedFields"],
+    properties: {
+      correctedFields: {
+        type: "object",
+        minProperties: 1,
+        properties: {
+          amount: { type: "integer", minimum: 0 },
+          memberId: { type: "integer", minimum: 1 },
+          paymentMethod: { type: "string", enum: PAYMENT_METHOD_ENUM },
+        },
+        additionalProperties: false,
+      },
+    },
+    additionalProperties: false,
+  },
+  response: {
+    400: errorSchema,
+    401: errorSchema,
+    403: errorSchema,
+    404: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+// -- GET /transactions/pending-misc/:memberId — Phase 146 (plan 03) --------
+
+/**
+ * GET /transactions/pending-misc/:memberId — cobros sueltos (advance_payment)
+ * pendientes no anulados del socio. RBAC: FINANCE_VOID_ROLES per-handler (LOW 2 —
+ * devuelve datos financieros del socio, NO abierto a recepcion/coach). Loose
+ * response (passthrough) — el shape (PendingMiscItem) viene del service y es de
+ * confianza.
+ */
+export const pendingMiscForMemberSchema = {
+  params: {
+    type: "object",
+    required: ["memberId"],
+    properties: { memberId: { type: "integer", minimum: 1 } },
+  },
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        items: {
+          type: "array",
+          items: { type: "object", additionalProperties: true },
+        },
+      },
+    },
+    401: errorSchema,
+    403: errorSchema,
     500: errorSchema,
   },
 } as const;
@@ -255,6 +387,10 @@ export const transactionsSummarySchema = {
             refund: { type: "integer" },
             adjustment: { type: "integer" },
             advance_payment: { type: "integer" },
+            // Phase 139: the 2 new kinds. Always 0 (getSummary excludes them via
+            // MUST-FIX A) but present so the response shape matches RevenueByKind.
+            cash_transfer: { type: "integer" },
+            expense: { type: "integer" },
           },
         },
       },
@@ -423,6 +559,309 @@ export const exportTransactionsSchema = {
     additionalProperties: false,
   },
   response: {
+    401: errorSchema,
+    403: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+// -- Phase 139: movimientos inter-caja + egresos ---------------------------
+
+/**
+ * POST /movements — registrar un movimiento inter-caja (MOV-01/MOV-02).
+ * Body: origenCajaId + destinoCajaId + amount (> 0) + countedAmount opcional
+ * (reconciliación física, D-04) + notes opcional. La moneda se deriva de las
+ * cajas (guard same-currency en el servicio); NUNCA del body. El rol se valida
+ * server-side (FINANCE_VOID_ROLES) — nunca del body (D-03 / T-139-06).
+ */
+export const registerMovementSchema = {
+  body: {
+    type: "object",
+    required: ["origenCajaId", "destinoCajaId", "amount"],
+    properties: {
+      origenCajaId: { type: "integer", minimum: 1 },
+      destinoCajaId: { type: "integer", minimum: 1 },
+      amount: { type: "integer", minimum: 1 },
+      // D-04: conteo físico de la caja origen al momento. Cero es válido (caja
+      // vacía contada). Omitido = sin ajuste de reconciliación.
+      countedAmount: { type: "integer", minimum: 0 },
+      notes: { type: ["string", "null"], maxLength: 2000 },
+    },
+    additionalProperties: false,
+  },
+  response: {
+    400: errorSchema,
+    401: errorSchema,
+    403: errorSchema,
+    404: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+/**
+ * POST /expenses — registrar un egreso (MOV-03 / D-05). Body: cajaId + amount
+ * (> 0) + costCenterId (EGR-02, obligatorio) + notes opcional. RBAC server-side.
+ */
+export const registerExpenseSchema = {
+  body: {
+    type: "object",
+    required: ["cajaId", "amount", "costCenterId"],
+    properties: {
+      cajaId: { type: "integer", minimum: 1 },
+      amount: { type: "integer", minimum: 1 },
+      costCenterId: { type: "integer", minimum: 1 },
+      notes: { type: ["string", "null"], maxLength: 2000 },
+    },
+    additionalProperties: false,
+  },
+  response: {
+    400: errorSchema,
+    401: errorSchema,
+    403: errorSchema,
+    404: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+/**
+ * POST /movements/:id/void + POST /expenses/:id/void — anular (MOV-04 / D-08).
+ * Params: id (cualquier pata del movimiento, o la fila del egreso). Body: reason
+ * obligatorio. RBAC server-side (FINANCE_VOID_ROLES). Mirror de
+ * voidTransactionSchema sin keepMembershipActive (movimientos/egresos no tienen
+ * suscripción).
+ */
+export const voidMovementSchema = {
+  params: {
+    type: "object",
+    required: ["id"],
+    properties: { id: { type: "integer", minimum: 1 } },
+  },
+  body: {
+    type: "object",
+    required: ["reason"],
+    properties: {
+      reason: { type: "string", minLength: 1, maxLength: 1000 },
+    },
+    additionalProperties: false,
+  },
+  response: {
+    400: errorSchema,
+    401: errorSchema,
+    403: errorSchema,
+    404: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+// -- Phase 141: reportes para la admin (REP-01 / REP-02 / REP-04) ----------
+
+const PENDING_TRAY_STATUS_ENUM = ["pendientes", "observados", "todos"] as const;
+
+/**
+ * GET /pending-tray — bandeja de pendientes (REP-01). Querystring: status
+ * (Pendientes/Observados/Todos, D-04), owner-override country, branchId,
+ * dateFrom/dateTo, page/limit. Loose response (passthrough) like
+ * listTransactionsSchema — the service shape (PendingTrayItem) is trusted.
+ */
+export const pendingTraySchema = {
+  querystring: {
+    type: "object",
+    properties: {
+      status: { type: "string", enum: PENDING_TRAY_STATUS_ENUM },
+      country: { type: "string", minLength: 2, maxLength: 2 },
+      branchId: { type: "integer", minimum: 1 },
+      dateFrom: { type: "string", format: "date" },
+      dateTo: { type: "string", format: "date" },
+      ...paginationQuerystring,
+    },
+    additionalProperties: false,
+  },
+  response: {
+    401: errorSchema,
+    403: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+/**
+ * GET /pending-tray/export — same querystring as pendingTraySchema MINUS
+ * page/limit (server returns ALL matching rows). Binary .xlsx attachment, so
+ * no JSON response schema is registered (mirror exportTransactionsSchema).
+ */
+export const pendingTrayExportSchema = {
+  querystring: {
+    type: "object",
+    properties: {
+      status: { type: "string", enum: PENDING_TRAY_STATUS_ENUM },
+      country: { type: "string", minLength: 2, maxLength: 2 },
+      branchId: { type: "integer", minimum: 1 },
+      dateFrom: { type: "string", format: "date" },
+      dateTo: { type: "string", format: "date" },
+    },
+    additionalProperties: false,
+  },
+  response: {
+    401: errorSchema,
+    403: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+/**
+ * GET /cash-registers/balances — saldos por caja (REP-02). Querystring: only
+ * `country` (owner override; non-owner scope is pinned server-side). Loose
+ * response (flat CajaSaldoRow array).
+ */
+export const cashBalancesSchema = {
+  querystring: {
+    type: "object",
+    properties: {
+      country: { type: "string", minLength: 2, maxLength: 2 },
+    },
+    additionalProperties: false,
+  },
+  response: {
+    401: errorSchema,
+    403: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+/**
+ * GET /cost-centers — centros de costo activos por país (EGR-01). Querystring:
+ * `country` opcional (owner override; non-owner scope pinned server-side). Loose
+ * response (flat CostCenterItem array).
+ */
+export const costCentersSchema = {
+  querystring: {
+    type: "object",
+    properties: {
+      country: { type: "string", minLength: 2, maxLength: 2 },
+    },
+    additionalProperties: false,
+  },
+  response: {
+    401: errorSchema,
+    403: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+/**
+ * GET /cash-registers/balances/export — same querystring as cashBalancesSchema.
+ * Binary .xlsx attachment; no JSON response schema.
+ */
+export const cashBalancesExportSchema = {
+  querystring: {
+    type: "object",
+    properties: {
+      country: { type: "string", minLength: 2, maxLength: 2 },
+    },
+    additionalProperties: false,
+  },
+  response: {
+    401: errorSchema,
+    403: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+/**
+ * GET /movements-history — arqueo por caja (REP-03 → Phase 146 ARQUEO-01/02).
+ * Querystring: cashRegisterId, owner-override country, dateFrom/dateTo (período),
+ * page/limit. Loose response (passthrough) like listTransactionsSchema — the
+ * service shape (MovEgresoItem, ahora con validationStatus por fila) is trusted
+ * y fluye sin tipar explícito.
+ */
+export const movementsHistorySchema = {
+  querystring: {
+    type: "object",
+    properties: {
+      cashRegisterId: { type: "integer", minimum: 1 },
+      country: { type: "string", minLength: 2, maxLength: 2 },
+      dateFrom: { type: "string", format: "date" },
+      dateTo: { type: "string", format: "date" },
+      ...paginationQuerystring,
+    },
+    additionalProperties: false,
+  },
+  response: {
+    401: errorSchema,
+    403: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+/**
+ * GET /movements-history/export — same querystring as movementsHistorySchema
+ * MINUS page/limit (server returns ALL matching rows). Binary .xlsx attachment,
+ * so no JSON response schema is registered (mirror exportTransactionsSchema).
+ */
+export const movementsHistoryExportSchema = {
+  querystring: {
+    type: "object",
+    properties: {
+      cashRegisterId: { type: "integer", minimum: 1 },
+      country: { type: "string", minLength: 2, maxLength: 2 },
+      dateFrom: { type: "string", format: "date" },
+      dateTo: { type: "string", format: "date" },
+    },
+    additionalProperties: false,
+  },
+  response: {
+    401: errorSchema,
+    403: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+// -- Phase 142 (MIG-01 / D-06): config de caja (umbral de pendientes) -------
+
+/**
+ * GET /config/overdue-threshold — read the current pending-overdue threshold.
+ * Owner/admin only (enforced per-handler with ADMIN_ROLES; the module guard is
+ * the more permissive FINANCE_READ_ROLES). No body/querystring.
+ */
+export const getOverdueThresholdSchema = {
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        thresholdDays: { type: "integer" },
+      },
+      required: ["thresholdDays"],
+      additionalProperties: false,
+    },
+    401: errorSchema,
+    403: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+/**
+ * PUT /config/overdue-threshold — set the threshold. Body validation enforces a
+ * positive integer in [1, 365] so an absurd/negative value can't poison the
+ * global overdue counter (→ 400 on violation, no write). Owner/admin only.
+ */
+export const putOverdueThresholdSchema = {
+  body: {
+    type: "object",
+    properties: {
+      thresholdDays: { type: "integer", minimum: 1, maximum: 365 },
+    },
+    required: ["thresholdDays"],
+    additionalProperties: false,
+  },
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        thresholdDays: { type: "integer" },
+      },
+      required: ["thresholdDays"],
+      additionalProperties: false,
+    },
+    400: errorSchema,
     401: errorSchema,
     403: errorSchema,
     500: errorSchema,

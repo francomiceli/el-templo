@@ -527,9 +527,16 @@ describe("Admin add-on assignment endpoint (Phase 112 Plan 04)", () => {
     expect(subId).toBeGreaterThan(0);
 
     const programId = await seedProgram({ name: "EUR Program p11" });
+    // Phase 138: create() resolves a caja from paymentMethod and enforces the
+    // currency guard. A cash charge would resolve to branch 1's EFECTIVO caja
+    // (ARS in the AR-branch seed) and the EUR≠ARS guard would (correctly) 400 —
+    // there is no EUR efectivo drawer at an AR branch. D-15 is about currency
+    // INHERITANCE, not the cash drawer, so pay by transfer → resolves to the
+    // branch-less Banco EUR caja (seeded), keeping the fixture coherent.
     const res = await postAddon(ownerToken, userId, {
       programId,
       pricePaid: 50,
+      paymentMethod: "transfer",
     });
     expect(res.statusCode).toBe(200);
 

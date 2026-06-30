@@ -1,17 +1,17 @@
 ---
 gsd_state_version: 1.0
-milestone: v5.2
-milestone_name: Módulo Contable — Libro de Caja
+milestone: v5.3
+milestone_name: Mejoras Caja / Módulo Contable (feedback v5.2)
 status: verifying
-stopped_at: Completed 143-01-PLAN.md
-last_updated: "2026-06-24T02:00:11.276Z"
-last_activity: 2026-06-24
+stopped_at: Phase 148 planned (6 plans, 3 waves) + W-1 fix
+last_updated: "2026-06-26T16:30:27.882Z"
+last_activity: 2026-06-26
 progress:
-  total_phases: 12
-  completed_phases: 5
-  total_plans: 32
-  completed_plans: 31
-  percent: 42
+  total_phases: 4
+  completed_phases: 3
+  total_plans: 16
+  completed_plans: 15
+  percent: 75
 ---
 
 # Project State
@@ -20,16 +20,18 @@ progress:
 
 See: .planning/PROJECT.md (updated 2026-06-04)
 
-**Core value:** El registro de un pago se carga **una sola vez** en el Administrador (fuente de verdad) y propaga solo: activa la membresía al instante e impacta la caja. Se elimina el triple tipeo (Forms + Contabilium + Admin). El Administrador pasa a ser el **libro de caja** del negocio (efectivo×sucursal + central + banco×moneda), con validación de pagos (PENDIENTE→VALIDADO), movimientos inter-caja y egresos. Se monta sobre el modelo financiero transaccional v4.8 (~60% existe). Backend-heavy, brownfield.
-**Current focus:** Phase 143 — profesor-por-clase-puntuaci-n-post-clase-presencial
+**Core value (v5.3):** Resolver el feedback operativo de v5.2 sobre la caja y la PoS del profe — imputación/confirmación de caja en la **validación** (no en el cobro), cobro de socios sin plan activo (motivo + chip + imputación del anticipo al alta), arqueo por caja, múltiples cuentas banco y centros de costo obligatorios para egresos. Fixes targeted sobre el Módulo Contable v5.2 (137-142) y el modelo v4.8 — NO es un build from-scratch. 3 fases (145-147), 17 requirements (POS/CAJA/COBRO/ARQUEO/EGR). Migraciones nuevas 0159+.
+**Current focus:** Phase 148 — pos-profe-alta-de-alumno-plan-en-el-cobro
 
 ## Current Position
 
-Phase: 143 (profesor-por-clase-puntuaci-n-post-clase-presencial) — EXECUTING
-Plan: 5 of 5
+Phase: 148 (pos-profe-alta-de-alumno-plan-en-el-cobro) — EXECUTING
+Plan: 6 of 6
 Status: Phase complete — ready for verification
-Last activity: 2026-06-24
-Next: ejecutar 143-02-PLAN.md
+Progress: [█████████░] 94%
+Last activity: 2026-06-26
+
+**Phase order:** 145 (independiente, done) → 146 (fundacional: caja en validación + imputación + arqueo, done) → 147 (independiente, centros de costo, done). Milestone v5.3 COMPLETE.
 
 ## Performance Metrics
 
@@ -247,11 +249,44 @@ _Updated after each plan completion_
 | Phase 143 P02 | ~7min | 2 tasks | 7 files |
 | Phase 143 P03 | ~8min | 2 tasks | 2 files |
 | Phase 143 P05 | ~6min | 2 tasks | 3 files |
+| Phase 137 P01 | ~12min | 3 tasks | 6 files |
+| Phase 137 P02 | ~40min | 3 tasks | 6 files |
+| Phase 137 P03 | ~18min | 3 tasks | 9 files |
+| Phase 138 P01 | 10min | 3 tasks | 5 files |
+| Phase 138 P138-02 | ~75min | 3 tasks | 13 files |
+| Phase 138 P138-03 | ~30min | 2 tasks | 3 files |
+| Phase 139 P139-01 | 13min | 3 tasks | 9 files |
+| Phase 139 P139-02 | 4min | 2 tasks | 2 files |
+| Phase 139 P139-03 | 7min | 3 tasks | 6 files |
+| Phase 140 P140-01 | ~9min | 3 tasks | 7 files |
+| Phase 140 P02 | 6min | 3 tasks | 6 files |
+| Phase 140 P03 | 12 | 2 tasks | 4 files |
+| Phase 141 P01 | 5min | 3 tasks | 8 files |
+| Phase 141 P02 | ~7min | 2 tasks | 5 files |
+| Phase 141 P03 | 12min | 3 tasks | 6 files |
+| Phase 141 P04 | ~9min | 2 tasks | 3 files |
+| Phase 142 P01 | ~18min | 2 tasks | 8 files |
+| Phase 142 P02 | ~6min | 1 tasks | 2 files |
+| Phase 142 P142-03 | ~12min | 2 tasks | 4 files |
+| Phase 144 P01 | 12min | 3 tasks | 6 files |
+| Phase 144 P02 | 8min | 2 tasks | 2 files |
+| Phase 144 P03 | ~15min | 3 tasks | 4 files |
+| Phase 144 P04 | 20 | 2 tasks | 5 files |
+| Phase 145 P01 | ~20min | 3 tasks | 8 files |
+| Phase 145 P02 | ~12min | 2 tasks | 5 files |
+| Phase 147 P02 | ~12min | 3 tasks | 4 files |
+| Phase 148 P01 | 10min | 3 tasks | 8 files |
+| Phase 148 P02 | 12min | 2 tasks | 1 files |
+| Phase 148 P03 | 8min | 2 tasks | 2 files |
+| Phase 148 P04 | 18min | 2 tasks | 1 files |
+| Phase 148 P05 | 22min | 3 tasks | 2 files |
 
 ## Accumulated Context
 
 ### Roadmap Evolution
 
+- Phase 148 added (continúa numeración tras v5.3 145-147; depende de v5.2 137/140/141 + v5.3 146): PoS profe — alta de alumno + plan en el cobro. El profe carga el plan directamente en el cobro (extiende `CargarPagoPage.vue` / Fase 140), creando al alumno si es nuevo, reemplazando el Google Form→Excel→admin. Modelo crear-en-vivo + validar-después (pago nace `pendiente` → bandeja Fase 137/141). Decisiones cerradas con el usuario (BRIEF-POS-PROFE-ALTA-ALUMNO.md): dedup por DNI (`check-duplicates`), cascade en void (desactiva membresía + alumno inactivo, no borra), sucursal default del profe editable, precio según medio de pago (tarjeta=`priceCreditCard`, resto=`priceRegular`/`priceZero` toggle Zero, parcial deja deuda), selector de turnos estructurado solo planes `fixed` (reusa `FixedSchedulePicker.vue`). Backend: endpoint nuevo en `coach-load-routes.ts` atómico e idempotente (resolver/crear alumno + `assignPlan(scheduleIds)` + transacción `pendiente`). Hallazgos: "Zero"=columna de precio no plan aparte; crear alumno mínimo ya existe (`POST /members/trial`, email null). Sobre `staging`, tren v5.2/v5.3. Decisiones cerradas → puede ir directo a /gsd-plan-phase (discuss opcional). (POS-NEW)
+- Phase 144 added (standalone app/api/admin, numerada después de 143, NO depende de ella ni del Módulo Contable v5.2): Notificaciones y bloqueo de vencimiento de membresía/plan — 3 entregables: (1) notificación push de vencimiento de plan ~7d antes, réplica del cron "Program Renewal Warning" pero sobre `subscriptions.end_date` + nuevo template `plan_renewal_warning` en `notifications/types.ts`; (2) pop-up in-app a 7 y 3 días del vencimiento con botón a WhatsApp (`buildWhatsAppUrl`); (3) bloqueo de reserva cuando `booking_date > subscription.end_date` en `booking-service.ts reserve()` (hoy ese check NO existe — bug latente) + pop-up en `ReservasPage.vue` con botón a WhatsApp. Reutiliza `pending_notifications`+FCM+`notification-cron` y `el-templo-app/src/utils/whatsapp.ts`. Decisiones abiertas (categoría entrenamiento vs programas, copy 7 vs 3d, anti-repetición del pop-up, salteable vs bloqueante, planes sin end_date, alcance presencial vs online) → discuss-phase. (PLAN-NOTIF, PLAN-POPUP, BOOK-BLOCK)
 - Phase 143 added (standalone app/admin, numerada después de v5.2 Módulo Contable 137-142, NO depende de ella): Profesor por clase + Puntuación post clase presencial — construir la cadena profe↔clase inexistente (asignación owner profe↔sucursal en Horarios, profe se marca como dictante escaneando el QR de la instancia validado contra su sucursal, app muestra el profe) + rating del profesor estilo Uber vía pop-up al volver a la app tras una clase presencial. Solo presencial; puntúa al profesor (no RPE). Reutiliza role `coach`+`user_branches`. Brief: `BRIEF-PUNTUACION-PROFES.md`. Decisiones abiertas (escala, salteable, co-dictado, fallback sin scan, reporte owner) → discuss-phase.
 - Phase 137 added (nueva milestone v5.2 Módulo Contable): Máquina de estados de validación — CIMIENTO. `validation_status` (pendiente/observado/corregido/validado) ORTOGONAL al soft-void existente (ANULADO); el filtro canónico de "dinero firme" pasa a `validation_status='validado' AND voided_at IS NULL`, sin romper las 6 métricas v5.0 (migración DEFAULT 'validado' + backfill + auditar call sites). Profe→PENDIENTE / admin→VALIDADO; corregir=anular+recrear; membresía se activa al instante. Bloquea 138-142. (VAL-01..07)
 - Phase 138 added: Entidad caja + saldos — tabla `cash_registers` (efectivo×sucursal + central + banco×moneda, `currency` fija) + `cash_register_id` en el ledger (≠ branchId) + saldo firme derivado (solo VALIDADOS, pendientes aparte) + aislamiento de moneda. (CAJA-01..04)
@@ -583,6 +618,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: [Phase 132]: TrialTurno literal moved to types.ts (no circular import); trial-funnel-service re-exports; new-lead exclusion stays planId-unrestricted
 - [Phase ?]: [Phase 132]: frequency coolingDown[] enriched with name+phone reusing the existing users join (D-12, export-ready in one call)
 - [Phase ?]: [Phase 132]: frequency turno filter applied in SQL (join schedules + hour range) not in-memory, since frequency aggregates visit counts in the DB
+- [Phase 142]: 142-03 (FINAL plan, MIG-01 UI — phase 142 COMPLETE 3/3): mini "Configuración de Caja" admin page = ONE numeric field (umbral de pendientes, días, integer min 1, no upper bound in UI). useFinanceConfigApi mirrors useFinanceLoadApi (loading/saving/error + cleanup(), NO onUnmounted inside, no any, createLogger). FULL path /admin/finance/config/overdue-threshold for GET+PUT (admin axios baseURL has /api; finance plugin prefix /admin/finance; bare /finance/... would 404). GET on mount populates field, PUT on save with positive/negative notify. Route /configuracion-caja meta.allowedRoles ['admin','owner'] + nav q-item under Administracion section gated isAdminRole (excludes gestion/recepcion/coach; backend per-handler ADMIN_ROLES is the real gate). Warm palette no blue. Logger error() takes LogData record not raw unknown → wrap as {error: msg}. Pre-existing tsc errors (vitest types in axios-refresh-lock.test.ts, @types/pdfmake mismatch) out of scope. Commits 14b4dedc + 0543d44e. staging, not pushed.
 - [Phase ?]: 132-03: frontend contract layer — 6 mirrored analytics interfaces + MetricShape + 6 typed fetch methods + turno/window filters
 - [Phase ?]: [Phase 132]: .vue verified via eslint (type-aware); vue-tsc not installed, full SFC typecheck in CI
 - [Phase ?]: [Phase 132]: ConversionTab + IngresosTab presentational (props-in); page 132-06 owns fetch
@@ -611,6 +647,29 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: [Phase 143-01]: coach_ratings append-only sin unique; guard one-shot miembro+clase en service layer (D-P2)
 - [Phase 143-05]: RatingPromptDialog (Surface 2) class-framed estilo Uber: salteable (sin persistent, D-P1) + one-shot por clase vía Capacitor Preferences (D-P2); nunca expone al profe (D-A3); estrellas Terracotta color=primary
 - [Phase 143-05]: el-templo-app sin script typecheck ni vue-tsc; verificación canónica de frontend = ESLint (plugin vue); tsc reporta errores pre-existentes de resolución .vue fuera de scope
+- [Phase ?]: [Phase 137]: Migration 0153 hand-written (not drizzle-kit generate) — runner reads .sql by name + \_migrations table is source of truth; generate prompted for unrelated sessions.goal_plan_type drift
+- [Phase ?]: 137-03: 13 firm-money call sites centralized through firm-money.ts with validation_status='validado'; subscriptions cancel guard kept as deliberate integrity exception — VAL-05 blast-radius closed; backfill keeps the 6 v5.0 metrics identical
+- [Phase 138]: [Phase 138]: cutoff_date is a per-caja column seeded with one global value (no settings-table dependency); cash_registers seed is SELECT-driven off branches (8 on prod baseline, scales with branch count)
+- [Phase 138]: 138-02: resolveCashRegister (single reusable caja resolver, D-01) + currency guard (D-09) live in CashRegisterService; wired at the single create() insert site so all 9 create paths auto-stamp cash_register_id server-side (CAJA-02/04). Reused by phase 140.
+- [Phase 138]: 138-03: CashRegisterService.getBalance = saldo DERIVADO (no materializado, D-08) = opening_balance + Σ validados de la caja DESDE cutoff_date, reusando firmMoneyConditions() (filtro canónico 137, nunca inlineado). PENDIENTES en SUM separada, nunca sumados al firme (CAJA-03). inflow-only en 138 con marker // TODO 139 (egresos firmados). Suite de integración CAJA-01..04 (18 tests). Backend-only (D-10, sin REST/UI). Phase 138 COMPLETE.
+- [Phase ?]: [Phase 139]: branch_id NULLABLE (extends D-06) — movimientos/egresos branch-less almacenan NULL; aggregations branchId INNER JOIN branches
+- [Phase ?]: [Phase 139]: getSummary excluye cash_transfer/expense + applyDelta no-op en links vacíos — movimiento no infla revenue ni toca balances
+- [Phase 139]: 139-03: MovementService facade — movimiento = asiento 2 filas cash_transfer (outflow origen + inflow destino) linkeadas both-ways vía transaction_links, en una db.transaction, neto 0; guard same-currency antes de escribir; reconciliación D-04 = fila kind='adjustment' separada en origen SOLO si counted!=expected (el getBalance firmado auto-corrige el saldo a lo contado) + audit 'reconciliation' SIEMPRE (expected/counted/diff); egreso = 1 fila expense outflow; void-the-pair vía voidPair descubre ambas patas + ajuste desde cualquier leg id (transaction_links en ambas direcciones). 4 rutas admin-only (FINANCE_VOID_ROLES server-side, rol nunca del body) + country scope por caja→branch (branch-less = owner-only, 404 cross-country). 10 tests MOV-01..04 + RBAC verdes. Backend-only. Phase 139 COMPLETE.
+- [Phase ?]: [Phase 140-01] idempotency_key as nullable UNIQUE column on financial_transactions (not separate table) — D-09; MySQL allows unlimited NULLs so admin/historical rows never collide
+- [Phase ?]: [Phase 140-01] FINANCE_LOAD_ROLES = FINANCE_WRITE_ROLES + coach (load-only); coach stays out of VOID/ADJUSTMENT/READ — D-06/D-08
+- [Phase ?]: [Phase 140-01] ER_DUP_ENTRY return-existing handling deferred to Wave 2 (Pitfall 3: renewal tx rolls back before re-read)
+- [Phase ?]: Phase 140-02: coach load endpoints in a SEPARATE plugin with its own FINANCE_LOAD_ROLES guard (finance module's FINANCE_READ_ROLES hook excludes coach); idempotency dedup at endpoint layer (ER_DUP_ENTRY -> re-read existing on fresh connection, Pitfall 3)
+- [Phase ?]: [Phase 142]: finance config reuses system_settings (finance.pending_overdue_days), read-with-fallback to OVERDUE_DAYS; owner/admin-only GET/PUT (per-handler ADMIN_ROLES closes the gestion trap); dynamic threshold in listPendingTray; migration 0157 seeds default 3
+- [Phase ?]: [Phase 142-02 / MIG-02]: transition doc tracked under .planning/phases/142-.../ because .docs/ is gitignored (ops-facing copy still on disk at .docs/modulo-contable/); opening-balance migration kept as a TEMPLATE outside src/db/migrations/ so the runner can never execute placeholder/zero values on deploy — copied + filled with real physical counts at go-live; cutoff date deferred to Franco (single clean cutoff recommended); cajas stay at 0 in 142
+- [Phase ?]: [144-01]: deriveCoveredUntil standalone (MAX(end_date) sobre cadena active+scheduled, end_date NOT NULL) + getCoveredUntil delega; cron importa la fn, booking/routes usan el método — DRY, 3 call sites
+- [Phase ?]: [144-01]: 3 templates plan_renewal_warning_7d/\_3d/\_expired bajo categoría nueva 'planes' (route /reservas), no uno parametrizado
+- [Phase ?]: [144-01]: migración hand-written 0158 (db:generate roto por drift de sessions.goal_plan_type + journal stale 0059); enum 'planes' appended last en ambas tablas + backfill idempotente NOT EXISTS
+- [Phase ?]: 144-02: exact-date band (end_date = CURDATE()+N) is the plan-renewal cron's per-threshold idempotency (no tracking column); D-05 suppression via deriveCoveredUntil === threshold
+- [Phase ?]: 144-03: GET /api/members/subscription/coverage vive en member-routes.ts (auth-only), NO en routes.ts (admin-gated → 403 a todo socio); id server-derived (IDOR T-144-08), retorna {coveredUntil, daysRemaining} con daysRemaining anclado a medianoche UTC sobre fecha AR
+- [Phase ?]: 144-03: PlanExpiryDialog gate daysRemaining >= 0 && <= 3 (fix plan-checker — /coverage no barre autoExpire, negativos los cubren push del día + booking block); once-per-DAY via Preferences plan_expiry_shown_v1 (YYYY-MM-DD); país desde userStore.profile.branchCountry (authStore.country no existe); clon de RatingPromptDialog montado en MainLayout
+- [Phase ?]: Phase 144 BOOK-BLOCK: reserve() blocks classes past the server-derived chained covered-until with a distinguishable COVERAGE_EXPIRED code; ReservasPage shows a renewal dialog only for that code
+- [Phase ?]: [148-01] createdMemberId se persiste DENTRO de la tx del charge (W-1), sin UPDATE separado, para no dejar alumno activo huérfano ante crash
+- [Phase ?]: 148-05: modo 'Alta + plan' como panel inline (A1) reusando typeahead/payment/sticky/idempotencia; monto autocalc por watcher [plan,medio,Zero] editable; chip 'Nuevo' por id de transaccion (sobrevive al re-fetch de mis-cargas)
 
 ### Pending Todos
 
@@ -643,8 +702,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-24T01:57:49.639Z
-Stopped at: Completed 143-01-PLAN.md
+Last session: 2026-06-26T16:26:58.331Z
+Stopped at: Phase 148 planned (6 plans, 3 waves) + W-1 fix
 Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z

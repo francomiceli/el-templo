@@ -15,20 +15,46 @@
 import { FastifyPluginAsync } from "fastify";
 import { eq } from "drizzle-orm";
 import { Workbook } from "exceljs";
-import { TransactionService, BalanceService } from ".";
+import {
+  TransactionService,
+  BalanceService,
+  CashRegisterService,
+  MovementService,
+  FinanceConfigService,
+} from ".";
+import { SubscriptionService } from "../subscriptions/service";
+import { AuraService } from "../aura/service";
+import { EnrollmentService } from "../programs/enrollment-service";
 import { handleServiceError } from "../shared/error-handler";
 import {
   createTransactionSchema,
   exportTransactionsSchema,
   listTransactionsSchema,
+  observeTransactionSchema,
+  correctTransactionSchema,
+  validateTransactionSchema,
+  pendingMiscForMemberSchema,
   transactionsSummarySchema,
   voidTransactionSchema,
+  registerMovementSchema,
+  registerExpenseSchema,
+  voidMovementSchema,
+  pendingTraySchema,
+  pendingTrayExportSchema,
+  cashBalancesSchema,
+  costCentersSchema,
+  cashBalancesExportSchema,
+  movementsHistorySchema,
+  movementsHistoryExportSchema,
+  getOverdueThresholdSchema,
+  putOverdueThresholdSchema,
 } from "./schemas";
 import {
   FINANCE_READ_ROLES,
   FINANCE_WRITE_ROLES,
   FINANCE_VOID_ROLES,
   FINANCE_ADJUSTMENT_ROLES,
+  ADMIN_ROLES,
 } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
 import {
@@ -43,15 +69,133 @@ import type {
   PaymentMethod,
   TransactionKind,
   TransactionListFilters,
+  RegisterMovementInput,
+  RegisterExpenseInput,
+  PendingTrayFilters,
+  MovEgresoFilters,
+  OverdueThresholdBody,
 } from "./types";
 
 export const financeRoutes: FastifyPluginAsync = async (fastify) => {
   const balanceService = new BalanceService(fastify.db, fastify.log);
+  const cashRegisterService = new CashRegisterService(fastify.db, fastify.log);
+  // Phase 142 (MIG-01 / D-04/D-05): the finance config house. Drives the
+  // dynamic pending-overdue threshold inside listPendingTray and backs the
+  // owner/admin-only GET/PUT /config/overdue-threshold endpoints below.
+  const financeConfigService = new FinanceConfigService(
+    fastify.db,
+    fastify.log,
+  );
   const transactionService = new TransactionService(
     fastify.db,
     fastify.log,
     balanceService,
+    cashRegisterService,
+    financeConfigService,
   );
+
+  // Phase 137 (VAL-06): wire the SubscriptionService back-edge so the void
+  // endpoint's keepMembershipActive=false branch can cancel the linked sub
+  // atomically via _cancelSubscription(tx, ...). Mirrors the DI assembled in
+  // subscriptions/routes.ts; the back-edge is set post-construction to break
+  // the circular dependency (SubscriptionService → TransactionService).
+  const auraService = new AuraService(fastify.db);
+  const enrollmentService = new EnrollmentService(fastify.db, fastify.log);
+  const subscriptionService = new SubscriptionService(
+    fastify.db,
+    fastify.log,
+    auraService,
+    transactionService,
+    enrollmentService,
+  );
+  transactionService.setSubscriptionCanceller(subscriptionService);
+
+  // Phase 139: MovementService composes the 137/138 primitives (reuses the
+  // already-built transactionService + cashRegisterService instances).
+  const movementService = new MovementService(
+    fastify.db,
+    fastify.log,
+    transactionService,
+    cashRegisterService,
+  );
+
+  // Phase 139: resolve the country a caja belongs to via its branch. Returns
+  // null for a branch-less caja (central efectivo / banco ARS/EUR), which is
+  // country-agnostic → owner-only access. Used by the movement/expense route
+  // country-scope guards (T-139-07). Returns undefined when the caja does not
+  // exist so the caller can 404 without leaking existence.
+  const resolveCajaCountry = async (
+    cajaId: number,
+  ): Promise<{ country: string | null } | undefined> => {
+    const [row] = await fastify.db
+      .select({
+        branchId: schema.cashRegisters.branchId,
+        branchCountry: schema.branches.country,
+      })
+      .from(schema.cashRegisters)
+      .leftJoin(
+        schema.branches,
+        eq(schema.branches.id, schema.cashRegisters.branchId),
+      )
+      .where(eq(schema.cashRegisters.id, cajaId))
+      .limit(1);
+    if (!row) return undefined;
+    // branch-less caja → country-agnostic (null). Otherwise the branch country.
+    return { country: row.branchId === null ? null : row.branchCountry };
+  };
+
+  // Phase 139: enforce non-owner country scope on a caja. Returns an error
+  // tuple { code, message } to send (404 for unknown/cross-country to avoid
+  // existence leak — mirror of routes.ts:253-268), or null when access is OK.
+  // A branch-less caja is owner-only (non-owner gets 404).
+  const enforceCajaScope = async (
+    cajaId: number,
+    isOwner: boolean,
+    scopeCountry: string | null,
+  ): Promise<{ code: number; message: string } | null> => {
+    if (isOwner) return null;
+    const resolved = await resolveCajaCountry(cajaId);
+    if (!resolved) {
+      return { code: 404, message: "Caja no encontrada" };
+    }
+    // branch-less caja or country mismatch → 404 (no existence leak).
+    if (resolved.country === null || resolved.country !== scopeCountry) {
+      return { code: 404, message: "Caja no encontrada" };
+    }
+    return null;
+  };
+
+  // Phase 139: enforce non-owner country scope on a ledger ROW (a movement leg
+  // or an expense), resolved via that row's cash_register_id → caja → branch.
+  // Used by the void routes. 404 for unknown row / branch-less caja /
+  // cross-country (no existence leak — mirror of routes.ts void precedent).
+  const enforceRowScope = async (
+    rowId: number,
+    isOwner: boolean,
+    scopeCountry: string | null,
+  ): Promise<{ code: number; message: string } | null> => {
+    if (isOwner) return null;
+    const [row] = await fastify.db
+      .select({
+        cashRegisterId: schema.financialTransactions.cashRegisterId,
+      })
+      .from(schema.financialTransactions)
+      .where(eq(schema.financialTransactions.id, rowId))
+      .limit(1);
+    if (!row || row.cashRegisterId === null) {
+      return { code: 404, message: "Transaccion no encontrada" };
+    }
+    const scopeErr = await enforceCajaScope(
+      row.cashRegisterId,
+      isOwner,
+      scopeCountry,
+    );
+    // Re-map the caja "not found" message to the transaction wording.
+    if (scopeErr) {
+      return { code: 404, message: "Transaccion no encontrada" };
+    }
+    return null;
+  };
 
   // -----------------------------------------------------------------
   // Module-level guard: authenticate + most-permissive role + country scope
@@ -97,6 +241,17 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           });
         }
 
+        // Phase 139: the REST create path is for member charges (branchId
+        // required). Movimientos/egresos (branchId null) go through their own
+        // Plan 03 routes, never here — reject a null branch on this endpoint.
+        if (request.body.branchId === null) {
+          return reply.code(400).send({
+            error: "Solicitud invalida",
+            message: "branchId es requerido",
+          });
+        }
+        const bodyBranchId = request.body.branchId;
+
         // T-106-03: non-owner cannot post against a branch in another country.
         if (!request.scope.isOwner) {
           const [branchRow] = await fastify.db
@@ -106,7 +261,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
               isVirtual: schema.branches.isVirtual,
             })
             .from(schema.branches)
-            .where(eq(schema.branches.id, request.body.branchId))
+            .where(eq(schema.branches.id, bodyBranchId))
             .limit(1);
           if (!branchRow) {
             return reply.code(404).send({
@@ -141,8 +296,21 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           }
         }
 
+        // VAL-02 (T-137-04): derive validation_status SERVER-SIDE from the
+        // authenticated role — NEVER from the request body. coach → 'pendiente',
+        // everyone else → 'validado'. In phase 137 the create guard above is
+        // still FINANCE_WRITE_ROLES (coach NOT included → in practice always
+        // 'validado' via REST today); the derivation exists and is tested by
+        // simulating the role. Opening create to coach is phase 140 — do NOT
+        // add coach to FINANCE_WRITE_ROLES here.
+        const initialStatus = (["coach"] as readonly string[]).includes(
+          request.user.role,
+        )
+          ? "pendiente"
+          : "validado";
+
         const detail = await transactionService.create(
-          request.body,
+          { ...request.body, validationStatus: initialStatus },
           request.user.userId,
         );
         const affectedBalances = await balanceService.getRowsForTransaction(
@@ -171,7 +339,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
   // ===================================================================
   fastify.post<{
     Params: { id: number };
-    Body: { reason: string };
+    Body: { reason: string; keepMembershipActive?: boolean };
   }>(
     "/transactions/:id/void",
     { schema: voidTransactionSchema },
@@ -220,14 +388,357 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           }
         }
 
+        // VAL-06 / D-10: keepMembershipActive default true (sub untouched).
+        // When false, void() cancels the linked subscription atomically.
         const detail = await transactionService.void(
+          request.params.id,
+          request.user.userId,
+          {
+            reason: request.body.reason,
+            keepMembershipActive: request.body.keepMembershipActive ?? true,
+          },
+        );
+        return { transaction: detail };
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "void finance transaction");
+      }
+    },
+  );
+
+  // ===================================================================
+  // POST /transactions/:id/validate — VAL-03 (pendiente → validado)
+  // RBAC: FINANCE_VOID_ROLES (owner/admin/gestion — coach/recepcion excluded).
+  // ===================================================================
+  fastify.post<{
+    Params: { id: number };
+    Body: { cashRegisterId?: number };
+  }>(
+    "/transactions/:id/validate",
+    { schema: validateTransactionSchema },
+    async (request, reply) => {
+      try {
+        if (
+          !(FINANCE_VOID_ROLES as readonly string[]).includes(request.user.role)
+        ) {
+          return reply.code(403).send({
+            error: "Acceso denegado",
+            message: "No tienes permiso para validar transacciones",
+          });
+        }
+        // CAJA-02/CAJA-03: gestion confirma/cambia la caja imputada (opcional).
+        // El guard de coherencia (existe/activa/moneda) vive en validate().
+        const detail = await transactionService.validate(
+          request.params.id,
+          request.user.userId,
+          request.body?.cashRegisterId,
+        );
+        return { transaction: detail };
+      } catch (err: unknown) {
+        handleServiceError(
+          err,
+          reply,
+          request.log,
+          "validate finance transaction",
+        );
+      }
+    },
+  );
+
+  // ===================================================================
+  // Phase 146 (plan 03 primitive): GET /transactions/pending-misc/:memberId
+  // Cobros sueltos (advance_payment) pendientes no anulados del socio. RBAC:
+  // FINANCE_VOID_ROLES per-handler (LOW 2 — datos financieros del socio: NO
+  // abierto a recepcion/coach; recepcion pasa el guard de modulo pero el gate
+  // estricto la 403'a aca; coach ya queda 403 por el guard de modulo).
+  // ===================================================================
+  fastify.get<{ Params: { memberId: number } }>(
+    "/transactions/pending-misc/:memberId",
+    { schema: pendingMiscForMemberSchema },
+    async (request, reply) => {
+      try {
+        if (
+          !(FINANCE_VOID_ROLES as readonly string[]).includes(request.user.role)
+        ) {
+          return reply.code(403).send({
+            error: "Acceso denegado",
+            message: "No tienes permiso para ver los cobros sueltos del socio",
+          });
+        }
+        const items = await transactionService.listPendingMiscForMember(
+          request.params.memberId,
+        );
+        return { items };
+      } catch (err: unknown) {
+        handleServiceError(
+          err,
+          reply,
+          request.log,
+          "list pending misc for member",
+        );
+        return reply;
+      }
+    },
+  );
+
+  // ===================================================================
+  // POST /transactions/:id/observe — VAL-04 / D-04 (pendiente → observado)
+  // RBAC: FINANCE_VOID_ROLES. Body: { reason } (mandatory for the trail).
+  // ===================================================================
+  fastify.post<{
+    Params: { id: number };
+    Body: { reason: string };
+  }>(
+    "/transactions/:id/observe",
+    { schema: observeTransactionSchema },
+    async (request, reply) => {
+      try {
+        if (
+          !(FINANCE_VOID_ROLES as readonly string[]).includes(request.user.role)
+        ) {
+          return reply.code(403).send({
+            error: "Acceso denegado",
+            message: "No tienes permiso para observar transacciones",
+          });
+        }
+        const detail = await transactionService.observe(
           request.params.id,
           request.user.userId,
           { reason: request.body.reason },
         );
         return { transaction: detail };
       } catch (err: unknown) {
-        handleServiceError(err, reply, request.log, "void finance transaction");
+        handleServiceError(
+          err,
+          reply,
+          request.log,
+          "observe finance transaction",
+        );
+      }
+    },
+  );
+
+  // ===================================================================
+  // POST /transactions/:id/correct — VAL-04 / D-05 (void+recreate atomic)
+  // RBAC: FINANCE_VOID_ROLES. Body: { correctedFields } — subset of
+  // amount/memberId/paymentMethod. Returns 201 with the NEW (validado) tx.
+  // ===================================================================
+  fastify.post<{
+    Params: { id: number };
+    Body: {
+      correctedFields: {
+        amount?: number;
+        memberId?: number;
+        paymentMethod?: PaymentMethod;
+      };
+    };
+  }>(
+    "/transactions/:id/correct",
+    { schema: correctTransactionSchema },
+    async (request, reply) => {
+      try {
+        if (
+          !(FINANCE_VOID_ROLES as readonly string[]).includes(request.user.role)
+        ) {
+          return reply.code(403).send({
+            error: "Acceso denegado",
+            message: "No tienes permiso para corregir transacciones",
+          });
+        }
+        const detail = await transactionService.correct(
+          request.params.id,
+          request.body.correctedFields,
+          request.user.userId,
+        );
+        return reply.code(201).send({ transaction: detail });
+      } catch (err: unknown) {
+        handleServiceError(
+          err,
+          reply,
+          request.log,
+          "correct finance transaction",
+        );
+      }
+    },
+  );
+
+  // ===================================================================
+  // Phase 139: POST /movements — registrar movimiento inter-caja (MOV-01/02)
+  // RBAC: FINANCE_VOID_ROLES server-side (admin-only, T-139-06). Country scope
+  // via origen + destino cajas (T-139-07). The same-currency guard + 2-row
+  // asiento + reconciliation live in MovementService.registerMovement.
+  // ===================================================================
+  fastify.post<{ Body: RegisterMovementInput }>(
+    "/movements",
+    { schema: registerMovementSchema },
+    async (request, reply) => {
+      try {
+        if (
+          !(FINANCE_VOID_ROLES as readonly string[]).includes(request.user.role)
+        ) {
+          return reply.code(403).send({
+            error: "Acceso denegado",
+            message: "No tienes permiso para registrar movimientos",
+          });
+        }
+
+        // T-139-07: non-owner country scope on BOTH cajas (branch-less = 404).
+        for (const cajaId of [
+          request.body.origenCajaId,
+          request.body.destinoCajaId,
+        ]) {
+          const scopeErr = await enforceCajaScope(
+            cajaId,
+            request.scope.isOwner,
+            request.scope.country ?? null,
+          );
+          if (scopeErr) {
+            return reply
+              .code(scopeErr.code)
+              .send({ error: "No encontrado", message: scopeErr.message });
+          }
+        }
+
+        const detail = await movementService.registerMovement(
+          {
+            origenCajaId: request.body.origenCajaId,
+            destinoCajaId: request.body.destinoCajaId,
+            amount: request.body.amount,
+            countedAmount: request.body.countedAmount,
+            notes: request.body.notes ?? null,
+          },
+          request.user.userId,
+        );
+        return reply.code(201).send({ movement: detail });
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "register movement");
+      }
+    },
+  );
+
+  // ===================================================================
+  // Phase 139: POST /expenses — registrar egreso (MOV-03 / D-05)
+  // RBAC: FINANCE_VOID_ROLES server-side. Country scope via the caja.
+  // ===================================================================
+  fastify.post<{ Body: RegisterExpenseInput }>(
+    "/expenses",
+    { schema: registerExpenseSchema },
+    async (request, reply) => {
+      try {
+        if (
+          !(FINANCE_VOID_ROLES as readonly string[]).includes(request.user.role)
+        ) {
+          return reply.code(403).send({
+            error: "Acceso denegado",
+            message: "No tienes permiso para registrar egresos",
+          });
+        }
+
+        const scopeErr = await enforceCajaScope(
+          request.body.cajaId,
+          request.scope.isOwner,
+          request.scope.country ?? null,
+        );
+        if (scopeErr) {
+          return reply
+            .code(scopeErr.code)
+            .send({ error: "No encontrado", message: scopeErr.message });
+        }
+
+        const detail = await movementService.registerExpense(
+          {
+            cajaId: request.body.cajaId,
+            amount: request.body.amount,
+            costCenterId: request.body.costCenterId,
+            notes: request.body.notes ?? null,
+          },
+          request.user.userId,
+        );
+        return reply.code(201).send({ expense: detail });
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "register expense");
+      }
+    },
+  );
+
+  // ===================================================================
+  // Phase 139: POST /movements/:id/void — anular movimiento (MOV-04 / D-08)
+  // Voids BOTH legs + the reconciliation adjustment atomically via voidPair.
+  // RBAC: FINANCE_VOID_ROLES. Country scope via the target row's caja.
+  // ===================================================================
+  fastify.post<{ Params: { id: number }; Body: { reason: string } }>(
+    "/movements/:id/void",
+    { schema: voidMovementSchema },
+    async (request, reply) => {
+      try {
+        if (
+          !(FINANCE_VOID_ROLES as readonly string[]).includes(request.user.role)
+        ) {
+          return reply.code(403).send({
+            error: "Acceso denegado",
+            message: "No tienes permiso para anular movimientos",
+          });
+        }
+
+        const scopeErr = await enforceRowScope(
+          request.params.id,
+          request.scope.isOwner,
+          request.scope.country ?? null,
+        );
+        if (scopeErr) {
+          return reply
+            .code(scopeErr.code)
+            .send({ error: "No encontrado", message: scopeErr.message });
+        }
+
+        await movementService.voidMovement(
+          request.params.id,
+          request.user.userId,
+          request.body.reason,
+        );
+        return { voided: true };
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "void movement");
+      }
+    },
+  );
+
+  // ===================================================================
+  // Phase 139: POST /expenses/:id/void — anular egreso (MOV-04 / D-08)
+  // Single-row void via voidPair([id]). RBAC + country scope as above.
+  // ===================================================================
+  fastify.post<{ Params: { id: number }; Body: { reason: string } }>(
+    "/expenses/:id/void",
+    { schema: voidMovementSchema },
+    async (request, reply) => {
+      try {
+        if (
+          !(FINANCE_VOID_ROLES as readonly string[]).includes(request.user.role)
+        ) {
+          return reply.code(403).send({
+            error: "Acceso denegado",
+            message: "No tienes permiso para anular egresos",
+          });
+        }
+
+        const scopeErr = await enforceRowScope(
+          request.params.id,
+          request.scope.isOwner,
+          request.scope.country ?? null,
+        );
+        if (scopeErr) {
+          return reply
+            .code(scopeErr.code)
+            .send({ error: "No encontrado", message: scopeErr.message });
+        }
+
+        await movementService.voidExpense(
+          request.params.id,
+          request.user.userId,
+          request.body.reason,
+        );
+        return { voided: true };
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "void expense");
       }
     },
   );
@@ -475,20 +986,521 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
       }
     },
   );
+
+  // ===================================================================
+  // Phase 141 (REP-01): GET /pending-tray — bandeja de pendientes
+  // pendiente+observado oldest-first, TS aging + isOverdue (OVERDUE_DAYS),
+  // recorder + caja name, paginated. Coach 403 via the module guard.
+  // ===================================================================
+  fastify.get<{
+    Querystring: {
+      status?: "pendientes" | "observados" | "todos";
+      country?: string;
+      branchId?: number;
+      dateFrom?: string;
+      dateTo?: string;
+      page?: number;
+      limit?: number;
+    };
+  }>("/pending-tray", { schema: pendingTraySchema }, async (request, reply) => {
+    try {
+      // Owner-aware country resolution — mirror of GET /transactions.
+      let country: string | undefined;
+      if (request.scope.isOwner) {
+        country = request.query.country
+          ? request.query.country.toUpperCase()
+          : undefined;
+      } else {
+        country = request.scope.country ?? undefined;
+      }
+
+      const filters: PendingTrayFilters = {
+        status: request.query.status,
+        country: country as PendingTrayFilters["country"],
+        branchId: request.query.branchId,
+        dateFrom: request.query.dateFrom,
+        dateTo: request.query.dateTo,
+        page: request.query.page,
+        limit: request.query.limit,
+      };
+      return await transactionService.listPendingTray(filters);
+    } catch (err: unknown) {
+      handleServiceError(err, reply, request.log, "finance pending tray");
+      return reply;
+    }
+  });
+
+  // ===================================================================
+  // Phase 142 (MIG-01 / D-04/D-06): config de caja — umbral de pendientes.
+  //
+  // RBAC trap: the module guard is FINANCE_READ_ROLES which INCLUDES gestion +
+  // recepcion. Config is owner/admin ONLY, so each handler re-checks ADMIN_ROLES
+  // FIRST — that per-handler gate is what excludes gestion (which passes the
+  // module guard). Coach/recepcion are already 403'd by the module guard
+  // (recepcion IS in FINANCE_READ_ROLES, so its 403 also comes from this
+  // per-handler check). Config is global — no branch/country scoping (D-06).
+  // ===================================================================
+  fastify.get(
+    "/config/overdue-threshold",
+    { schema: getOverdueThresholdSchema },
+    async (request, reply) => {
+      if (!(ADMIN_ROLES as readonly string[]).includes(request.user.role)) {
+        return reply.code(403).send({
+          error: "Acceso denegado",
+          message: "Solo owner/admin",
+        });
+      }
+      try {
+        const thresholdDays = await financeConfigService.getOverdueThreshold();
+        return { thresholdDays };
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "finance config get");
+        return reply;
+      }
+    },
+  );
+
+  fastify.put<{ Body: OverdueThresholdBody }>(
+    "/config/overdue-threshold",
+    { schema: putOverdueThresholdSchema },
+    async (request, reply) => {
+      if (!(ADMIN_ROLES as readonly string[]).includes(request.user.role)) {
+        return reply.code(403).send({
+          error: "Acceso denegado",
+          message: "Solo owner/admin",
+        });
+      }
+      try {
+        // Bounds (integer 1..365) are enforced by putOverdueThresholdSchema →
+        // out-of-range/non-integer yields 400 before this handler runs, so no
+        // invalid value ever reaches setOverdueThreshold.
+        const { thresholdDays } = request.body;
+        await financeConfigService.setOverdueThreshold(thresholdDays);
+        return { thresholdDays };
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "finance config set");
+        return reply;
+      }
+    },
+  );
+
+  // ===================================================================
+  // Phase 141 (REP-04): GET /pending-tray/export — bandeja .xlsx
+  // Same filters minus page/limit (all rows). Reuses the exceljs pattern.
+  // ===================================================================
+  fastify.get<{
+    Querystring: {
+      status?: "pendientes" | "observados" | "todos";
+      country?: string;
+      branchId?: number;
+      dateFrom?: string;
+      dateTo?: string;
+    };
+  }>(
+    "/pending-tray/export",
+    { schema: pendingTrayExportSchema },
+    async (request, reply) => {
+      try {
+        let country: string | undefined;
+        if (request.scope.isOwner) {
+          country = request.query.country
+            ? request.query.country.toUpperCase()
+            : undefined;
+        } else {
+          country = request.scope.country ?? undefined;
+        }
+
+        const filters: PendingTrayFilters = {
+          status: request.query.status,
+          country: country as PendingTrayFilters["country"],
+          branchId: request.query.branchId,
+          dateFrom: request.query.dateFrom,
+          dateTo: request.query.dateTo,
+          // All rows: defense-in-depth max=200 in the service; bump the limit.
+          limit: 200,
+          page: 1,
+        };
+        const result = await transactionService.listPendingTray(filters);
+
+        const workbook = new Workbook();
+        workbook.creator = "El Templo";
+        workbook.created = new Date();
+        const sheet = workbook.addWorksheet("Bandeja");
+        sheet.columns = [
+          { header: "Fecha", key: "fecha", width: 12 },
+          { header: "Socio", key: "socio", width: 28 },
+          { header: "Monto", key: "monto", width: 14 },
+          { header: "Moneda", key: "moneda", width: 10 },
+          { header: "Medio", key: "medio", width: 16 },
+          { header: "Caja", key: "caja", width: 22 },
+          { header: "Cargado por", key: "cargadoPor", width: 24 },
+          { header: "Antigüedad (días)", key: "antiguedad", width: 16 },
+          { header: "Estado", key: "estado", width: 14 },
+          { header: "Vencido", key: "vencido", width: 10 },
+        ];
+        styleHeaderRow(sheet.getRow(1));
+
+        for (const row of result.rows) {
+          sheet.addRow({
+            fecha: row.transactionDate,
+            socio: row.memberName,
+            monto: row.amount,
+            moneda: row.currency,
+            medio:
+              PAYMENT_METHOD_LABELS_ES[row.paymentMethod] ?? row.paymentMethod,
+            caja: row.cashRegisterName,
+            cargadoPor: row.recorderName,
+            antiguedad: row.ageInDays,
+            estado:
+              VALIDATION_STATUS_LABELS_ES[row.validationStatus] ??
+              row.validationStatus,
+            vencido: row.isOverdue ? "Sí" : "No",
+          });
+        }
+
+        const buffer = await workbook.xlsx.writeBuffer();
+        const today = new Date().toISOString().split("T")[0];
+        reply
+          .header(
+            "Content-Type",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          )
+          .header(
+            "Content-Disposition",
+            `attachment; filename="bandeja-${today}.xlsx"`,
+          )
+          .send(Buffer.from(buffer as ArrayBuffer));
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "export pending tray");
+      }
+    },
+  );
+
+  // ===================================================================
+  // Phase 141 (REP-02): GET /cash-registers/balances — saldos por caja
+  // firme+pendiente per active caja (getBalance reuse) + type + currency.
+  // Non-owner sees only their country's sucursal cajas; central/banco
+  // (branch-less) owner-only. Coach 403 via the module guard.
+  // ===================================================================
+  fastify.get<{ Querystring: { country?: string } }>(
+    "/cash-registers/balances",
+    { schema: cashBalancesSchema },
+    async (request, reply) => {
+      try {
+        let country: string | undefined;
+        if (request.scope.isOwner) {
+          country = request.query.country
+            ? request.query.country.toUpperCase()
+            : undefined;
+        } else {
+          country = request.scope.country ?? undefined;
+        }
+        return await cashRegisterService.listActiveCajasWithBalance({
+          isOwner: request.scope.isOwner,
+          country: country ?? null,
+        });
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "finance cash balances");
+        return reply;
+      }
+    },
+  );
+
+  // ===================================================================
+  // Phase 147 (EGR-01): GET /cost-centers — centros de costo activos por país
+  // (consumido por el selector del dialog de egreso). RBAC: FINANCE_VOID_ROLES
+  // en-handler (mismo conjunto que registrar egresos, decisión 3 del CONTEXT;
+  // el module hook ya gatea FINANCE_READ_ROLES). Country scope owner-aware
+  // (copia EXACTA de GET /cash-registers/balances).
+  // ===================================================================
+  fastify.get<{ Querystring: { country?: string } }>(
+    "/cost-centers",
+    { schema: costCentersSchema },
+    async (request, reply) => {
+      try {
+        if (
+          !(FINANCE_VOID_ROLES as readonly string[]).includes(request.user.role)
+        ) {
+          return reply.code(403).send({
+            error: "Acceso denegado",
+            message: "No tienes permiso para ver los centros de costo",
+          });
+        }
+
+        let country: string | undefined;
+        if (request.scope.isOwner) {
+          country = request.query.country
+            ? request.query.country.toUpperCase()
+            : undefined;
+        } else {
+          country = request.scope.country ?? undefined;
+        }
+        return await cashRegisterService.listActiveCostCenters(country ?? null);
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "finance cost centers");
+        return reply;
+      }
+    },
+  );
+
+  // ===================================================================
+  // Phase 141 (REP-04): GET /cash-registers/balances/export — saldos .xlsx
+  // Same scope as the read. Reuses the exceljs pattern.
+  // ===================================================================
+  fastify.get<{ Querystring: { country?: string } }>(
+    "/cash-registers/balances/export",
+    { schema: cashBalancesExportSchema },
+    async (request, reply) => {
+      try {
+        let country: string | undefined;
+        if (request.scope.isOwner) {
+          country = request.query.country
+            ? request.query.country.toUpperCase()
+            : undefined;
+        } else {
+          country = request.scope.country ?? undefined;
+        }
+        const rows = await cashRegisterService.listActiveCajasWithBalance({
+          isOwner: request.scope.isOwner,
+          country: country ?? null,
+        });
+
+        const workbook = new Workbook();
+        workbook.creator = "El Templo";
+        workbook.created = new Date();
+        const sheet = workbook.addWorksheet("Saldos");
+        sheet.columns = [
+          { header: "Caja", key: "caja", width: 24 },
+          { header: "Tipo", key: "tipo", width: 14 },
+          { header: "Moneda", key: "moneda", width: 10 },
+          { header: "Saldo firme", key: "firme", width: 16 },
+          { header: "Pendiente", key: "pendiente", width: 16 },
+        ];
+        styleHeaderRow(sheet.getRow(1));
+
+        for (const row of rows) {
+          sheet.addRow({
+            caja: row.name,
+            tipo: CAJA_TYPE_LABELS_ES[row.type] ?? row.type,
+            moneda: row.currency,
+            firme: row.firmeBalance,
+            pendiente: row.pendienteAmount,
+          });
+        }
+
+        const buffer = await workbook.xlsx.writeBuffer();
+        const today = new Date().toISOString().split("T")[0];
+        reply
+          .header(
+            "Content-Type",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          )
+          .header(
+            "Content-Disposition",
+            `attachment; filename="saldos-${today}.xlsx"`,
+          )
+          .send(Buffer.from(buffer as ArrayBuffer));
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "export cash balances");
+      }
+    },
+  );
+
+  // ===================================================================
+  // Phase 141 (REP-03) → Phase 146 (ARQUEO-01/02): GET /movements-history —
+  // arqueo por caja. Ya NO filtra por kind: dada una caja devuelve TODO lo
+  // imputado a ella (cobros de socio plan_charge/debt_settlement/advance_payment/
+  // refund + egresos expense + traspasos cash_transfer + ajustes adjustment),
+  // INCLUDING member_id NULL rows (the 139 LEFT JOIN fix). Cada fila trae su
+  // validationStatus (pendientes y validadas, sin filtrar por estado) — la
+  // respuesta es passthrough, así que el campo del service fluye sin tipar.
+  // Filterable por caja/período. Non-owner is scoped by the caja's country (no
+  // eq(branches.country) NULL-branch trap); branch-less central/banco rows are
+  // owner-only. Coach 403 via module guard.
+  // ===================================================================
+  fastify.get<{
+    Querystring: {
+      cashRegisterId?: number;
+      country?: string;
+      dateFrom?: string;
+      dateTo?: string;
+      page?: number;
+      limit?: number;
+    };
+  }>(
+    "/movements-history",
+    { schema: movementsHistorySchema },
+    async (request, reply) => {
+      try {
+        // Owner-aware country resolution — mirror of GET /transactions.
+        let country: string | undefined;
+        if (request.scope.isOwner) {
+          country = request.query.country
+            ? request.query.country.toUpperCase()
+            : undefined;
+        } else {
+          country = request.scope.country ?? undefined;
+        }
+
+        const filters: MovEgresoFilters = {
+          cashRegisterId: request.query.cashRegisterId,
+          country: country as MovEgresoFilters["country"],
+          isOwner: request.scope.isOwner,
+          dateFrom: request.query.dateFrom,
+          dateTo: request.query.dateTo,
+          page: request.query.page,
+          limit: request.query.limit,
+        };
+        return await transactionService.listMovEgresos(filters);
+      } catch (err: unknown) {
+        handleServiceError(
+          err,
+          reply,
+          request.log,
+          "finance movements history",
+        );
+        return reply;
+      }
+    },
+  );
+
+  // ===================================================================
+  // Phase 141 (REP-04): GET /movements-history/export — historial .xlsx
+  // Same filters minus page/limit (all rows). Reuses the exceljs pattern.
+  // ===================================================================
+  fastify.get<{
+    Querystring: {
+      cashRegisterId?: number;
+      country?: string;
+      dateFrom?: string;
+      dateTo?: string;
+    };
+  }>(
+    "/movements-history/export",
+    { schema: movementsHistoryExportSchema },
+    async (request, reply) => {
+      try {
+        let country: string | undefined;
+        if (request.scope.isOwner) {
+          country = request.query.country
+            ? request.query.country.toUpperCase()
+            : undefined;
+        } else {
+          country = request.scope.country ?? undefined;
+        }
+
+        const filters: MovEgresoFilters = {
+          cashRegisterId: request.query.cashRegisterId,
+          country: country as MovEgresoFilters["country"],
+          isOwner: request.scope.isOwner,
+          dateFrom: request.query.dateFrom,
+          dateTo: request.query.dateTo,
+          // All rows: defense-in-depth max=200 in the service; bump the limit.
+          limit: 200,
+          page: 1,
+        };
+        const result = await transactionService.listMovEgresos(filters);
+
+        const workbook = new Workbook();
+        workbook.creator = "El Templo";
+        workbook.created = new Date();
+        const sheet = workbook.addWorksheet("Mov-Egresos");
+        sheet.columns = [
+          { header: "Fecha", key: "fecha", width: 12 },
+          { header: "Tipo", key: "tipo", width: 22 },
+          { header: "Dirección", key: "direccion", width: 12 },
+          { header: "Concepto/Notas", key: "concepto", width: 32 },
+          { header: "Monto", key: "monto", width: 14 },
+          { header: "Moneda", key: "moneda", width: 10 },
+          { header: "Caja", key: "caja", width: 22 },
+          { header: "Registrado por", key: "registradoPor", width: 24 },
+          { header: "Anulado", key: "anulado", width: 10 },
+          { header: "Razón", key: "razon", width: 24 },
+        ];
+        styleHeaderRow(sheet.getRow(1));
+
+        for (const row of result.rows) {
+          sheet.addRow({
+            fecha: row.transactionDate,
+            tipo: KIND_LABELS_ES[row.kind] ?? row.kind,
+            direccion: DIRECTION_LABELS_ES[row.direction] ?? row.direction,
+            concepto: row.notes ?? "",
+            monto: row.amount,
+            moneda: row.currency,
+            caja: row.cashRegisterName,
+            registradoPor: row.recorderName,
+            anulado: row.voidedAt ? "Sí" : "No",
+            razon: row.voidReason ?? "",
+          });
+        }
+
+        const buffer = await workbook.xlsx.writeBuffer();
+        const today = new Date().toISOString().split("T")[0];
+        reply
+          .header(
+            "Content-Type",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          )
+          .header(
+            "Content-Disposition",
+            `attachment; filename="mov-egresos-${today}.xlsx"`,
+          )
+          .send(Buffer.from(buffer as ArrayBuffer));
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "export movements history");
+      }
+    },
+  );
 };
 
 // =============================================================================
 // Helpers (Phase 109 D-15)
 // =============================================================================
 
-/** Spanish labels for the 5 transaction kinds. Mirror of admin frontend. */
+/** Spanish labels for the 7 transaction kinds. Mirror of admin frontend. */
 const KIND_LABELS_ES: Record<TransactionKind, string> = {
   plan_charge: "Cobro de plan",
   debt_settlement: "Pago de saldo",
   refund: "Reembolso",
   adjustment: "Ajuste",
   advance_payment: "Pago anticipado",
+  // Phase 139: movimiento inter-caja + egreso.
+  cash_transfer: "Movimiento entre cajas",
+  expense: "Egreso",
 };
+
+/** Phase 141: Spanish labels for the bandeja "Estado" column. */
+const VALIDATION_STATUS_LABELS_ES: Record<string, string> = {
+  pendiente: "Pendiente",
+  observado: "Observado",
+  corregido: "Corregido",
+  validado: "Validado",
+};
+
+/** Phase 141: Spanish labels for the saldos "Tipo" column. */
+const CAJA_TYPE_LABELS_ES: Record<string, string> = {
+  efectivo: "Efectivo",
+  banco: "Banco",
+};
+
+/** Phase 141: Spanish labels for the historial "Dirección" column. */
+const DIRECTION_LABELS_ES: Record<string, string> = {
+  inflow: "Entrada",
+  outflow: "Salida",
+};
+
+/**
+ * Phase 141: style an exceljs header row (bold + light grey fill). Mirror of
+ * the inline styling used by /transactions/export.
+ */
+function styleHeaderRow(headerRow: import("exceljs").Row): void {
+  headerRow.font = { bold: true };
+  headerRow.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "FFE0E0E0" },
+  };
+}
 
 /** Spanish labels for payment methods. Mirror of admin frontend. */
 const PAYMENT_METHOD_LABELS_ES: Record<PaymentMethod, string> = {

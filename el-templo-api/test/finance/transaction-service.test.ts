@@ -18,6 +18,7 @@ import type { FastifyInstance } from "fastify";
 import { createTestApp, registerUser } from "../helpers";
 import { TransactionService } from "../../src/modules/finance/transaction-service";
 import { BalanceService } from "../../src/modules/finance/balance-service";
+import { CashRegisterService } from "../../src/modules/finance/cash-register-service";
 import * as schema from "../../src/db/schema";
 import {
   BadRequestError,
@@ -62,10 +63,45 @@ async function seedSubscription(opts: {
   return res.id;
 }
 
+/**
+ * Phase 138: seed an efectivo caja for a branch so create()'s resolver can
+ * stamp cash_register_id on cash payments against it. Branches created inside a
+ * test (ES/AR secondaries) are inserted AFTER the global seedTestData, so they
+ * have no caja until this runs. Idempotent: skips if one already exists.
+ */
+async function seedEfectivoCaja(
+  branchIdToSeed: number,
+  currency: string,
+): Promise<void> {
+  const existing = await app.db
+    .select({ id: schema.cashRegisters.id })
+    .from(schema.cashRegisters)
+    .where(
+      and(
+        eq(schema.cashRegisters.type, "efectivo"),
+        eq(schema.cashRegisters.branchId, branchIdToSeed),
+      ),
+    )
+    .limit(1);
+  if (existing.length > 0) return;
+  await app.db.insert(schema.cashRegisters).values({
+    name: `Efectivo branch ${branchIdToSeed}`,
+    type: "efectivo",
+    branchId: branchIdToSeed,
+    currency,
+    cutoffDate: "2020-01-01",
+  });
+}
+
 beforeAll(async () => {
   app = await createTestApp();
   balanceService = new BalanceService(app.db, app.log);
-  txService = new TransactionService(app.db, app.log, balanceService);
+  txService = new TransactionService(
+    app.db,
+    app.log,
+    balanceService,
+    new CashRegisterService(app.db, app.log),
+  );
 
   // Use the seeded admin user as recordedBy so we don't have to register one.
   const [admin] = await app.db
@@ -531,6 +567,7 @@ describe("TransactionService.list()", () => {
       })
       .$returningId();
     const esBranchId = esBranchRes.id;
+    await seedEfectivoCaja(esBranchId, "EUR");
 
     const esPlanId = (
       await app.db
@@ -1059,6 +1096,7 @@ describe("TransactionService.getSummary()", () => {
         country: "ES",
       })
       .$returningId();
+    await seedEfectivoCaja(res.id, "EUR");
     return res.id;
   }
 
@@ -1077,6 +1115,7 @@ describe("TransactionService.getSummary()", () => {
         country: "AR",
       })
       .$returningId();
+    await seedEfectivoCaja(res.id, "ARS");
     return res.id;
   }
 

@@ -30,7 +30,7 @@ import { AuraService } from "../aura/service";
 import { EnrollmentService } from "../programs/enrollment-service";
 import { NotificationService } from "../notifications/service";
 import { handleServiceError } from "../shared/error-handler";
-import { ConflictError } from "../shared/errors";
+import { ConflictError, CoverageExpiredError } from "../shared/errors";
 import {
   createActivitySchema,
   listActivitiesSchema,
@@ -727,6 +727,17 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
       );
       return reply.code(201).send(booking);
     } catch (err: unknown) {
+      // Phase 144-04 (D-12): surface the distinguishable COVERAGE_EXPIRED code
+      // so the app opens the renewal dialog instead of a generic error. The
+      // default handleServiceError only emits { error, message }, so the code
+      // MUST be added here (mirrors the ConflictError/affectedSchedules branch).
+      if (err instanceof CoverageExpiredError) {
+        return reply.code(400).send({
+          error: "Solicitud invalida",
+          message: err.message,
+          code: "COVERAGE_EXPIRED",
+        });
+      }
       handleServiceError(err, reply, request.log, "member reserve");
     }
   });

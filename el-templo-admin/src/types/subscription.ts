@@ -262,6 +262,13 @@ export interface AssignPlanInput {
    * deshabilitado si excede). Backend revalida y devuelve 400 en cap-violation.
    */
   amountReceived?: number;
+  /**
+   * Phase 146 (COBRO-03/04): id de un cobro suelto pendiente (advance_payment)
+   * del socio a imputar al alta. Cuando viene, el backend anula ese anticipo y
+   * recrea un plan_charge vinculado a la nueva sub con la misma caja/monto/
+   * método, atómico. Si el anticipo excede el precio → 400 (excedente aparte).
+   */
+  appliedMiscChargeId?: number;
 }
 
 export interface RenewSubscriptionInput {

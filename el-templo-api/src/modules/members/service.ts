@@ -36,6 +36,7 @@ import type {
   MemberExportRow,
   CreateMemberInput,
   CreateTrialMemberServiceInput,
+  CreateMinimalMemberServiceInput,
   ConvertFreemiumToTrialServiceInput,
   UpdateLeadInput,
   LeadSnapshot,
@@ -48,6 +49,7 @@ import type {
   UserStatus,
 } from "./types";
 import { ConflictError, NotFoundError } from "../shared/errors";
+import { isDuplicateKeyError } from "../shared/sql-errors";
 import { alias } from "drizzle-orm/mysql-core";
 import type { MemberSegment } from "../segmentation/types";
 
@@ -801,6 +803,86 @@ export class MemberService {
     }
 
     return { member, tempPassword };
+  }
+
+  /**
+   * Phase 148 (ALTA-01): minimal alta for the PoS profe — nombre + apellido +
+   * DNI + sucursal, sin email/teléfono. The member is born `status='prueba'`
+   * (can check-in immediately, the crear-en-vivo + validar-después model) with
+   * email=null; gestión completes email/phone when validating the charge in the
+   * bandeja. Mirrors createTrialMember's tx structure (user insert +
+   * userStatusHistory in one tx) but keys on DNI instead of phone.
+   *
+   * Returns the new userId. `createdBy` MUST come from the JWT-authenticated
+   * user at the route layer (148-02), never the raw body (D-31 spoof guard).
+   *
+   * DNI uniqueness race (T-148-02): `users.dni` is UNIQUE. The orchestrator
+   * (148-02) already dedups via checkDuplicates before calling, but two
+   * concurrent altas for the same brand-new DNI could both pass that probe and
+   * race to insert. Wrap the insert in an isDuplicateKeyError catch and, on a
+   * dni dup, re-run checkDuplicates to return the now-existing member's id —
+   * never surfacing an uncontrolled 500 nor creating a duplicate.
+   */
+  async createMinimalMember(
+    input: CreateMinimalMemberServiceInput,
+  ): Promise<number> {
+    const dni = input.dni.trim();
+    if (!dni) {
+      throw new ConflictError("El DNI ingresado no es válido");
+    }
+
+    const passwordHash = await argon2.hash(MEMBER_TEMP_PASSWORD);
+
+    try {
+      // user insert + status-history write in one tx so the new alumno's
+      // 'prueba' transition is recorded atomically (fromStatus=null,
+      // source='admin' — staff/profe-initiated PoS alta).
+      const userId = await this.db.transaction(async (tx) => {
+        const result = await tx.insert(schema.users).values({
+          passwordHash,
+          firstName: input.firstName.trim(),
+          lastName: input.lastName.trim(),
+          dni,
+          // email/phone intencionalmente null: el walk-in que paga en mostrador
+          // no los aporta; gestión los completa al validar (CONTEXT L70-74).
+          email: null,
+          branchId: input.branchId,
+          role: "member",
+          // Phase 130 (KAIROS-04, D-01): nuevos miembros nacen kairos.
+          level: "kairos",
+          status: "prueba" as const,
+          // Phase 148 (D-31): created_by es el usuario autenticado por JWT,
+          // resuelto en la ruta orquestadora — nunca del body crudo.
+          createdBy: input.createdBy,
+        });
+
+        const newUserId = Number(result[0].insertId);
+
+        await tx.insert(schema.userStatusHistory).values({
+          userId: newUserId,
+          fromStatus: null,
+          toStatus: "prueba",
+          source: "admin",
+        });
+        this.log.info(
+          { userId: newUserId, fromStatus: null, toStatus: "prueba" },
+          "user status transition recorded",
+        );
+
+        return newUserId;
+      });
+
+      return userId;
+    } catch (err: unknown) {
+      // T-148-02: carrera contra el UNIQUE de dni. Re-dedup y devolver el
+      // existente (backstop del dedup previo del orquestador 148-02).
+      if (isDuplicateKeyError(err).isDuplicate) {
+        const { matches } = await this.checkDuplicates({ dni });
+        const existing = matches.find((m) => m.matchedField === "dni");
+        if (existing) return existing.id;
+      }
+      throw err;
+    }
   }
 
   /**

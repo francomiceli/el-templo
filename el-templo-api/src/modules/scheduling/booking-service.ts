@@ -29,6 +29,7 @@ import {
   BadRequestError,
   NotFoundError,
   ConflictError,
+  CoverageExpiredError,
 } from "../shared/errors";
 
 /**
@@ -84,6 +85,18 @@ export class BookingService {
       await this.subscriptionService.getMemberSubscription(memberId);
     if (!subscription) {
       throw new BadRequestError("No tenes una suscripcion activa");
+    }
+
+    // 5a. Coverage block (Phase 144-04, D-12/D-13/D-14): reject a class dated
+    //     after the member's covered-until — the furthest end_date across the
+    //     chained active+scheduled subscriptions, derived SERVER-side (never
+    //     trust the client). A class within a scheduled successor's window is
+    //     allowed (D-13). A null covered-until (no end_date) never blocks
+    //     (D-14 guard). String compare is safe: both are zero-padded YYYY-MM-DD.
+    const coveredUntil =
+      await this.subscriptionService.getCoveredUntil(memberId);
+    if (coveredUntil !== null && date > coveredUntil) {
+      throw new CoverageExpiredError();
     }
 
     // Phase 110 REQ-8: Load actor role to support the staff multi-branch bypass

@@ -1,134 +1,85 @@
-# Requirements: El Templo v5.2 — Módulo Contable / Libro de Caja
+# Requirements — v5.3 Mejoras Caja / Módulo Contable (feedback v5.2)
 
-**Defined:** 2026-06-23
-**Core Value:** El registro de un pago se carga **una sola vez** en el Administrador (fuente de verdad) y propaga solo: activa la membresía al instante e impacta la caja. Se elimina el triple tipeo (Forms + Contabilium + Admin). El Administrador pasa a ser el **libro de caja** del negocio (cajas de efectivo por sucursal + central + banco por moneda), con validación de pagos, movimientos entre cajas y egresos.
+Scope derivado del feedback operativo de v5.2, consolidado en
+`BRIEF-FEEDBACK-V52-CAJA.md`. Cinco áreas (A–E). Descartados / ya existentes:
+puntos 2 (cambiar plan = gestión), 3 (sugerir precio = ya existe), 7 (turnos
+fijos = ya existe), 8 (dinero pendiente = ya resuelto).
 
-**Reference:** `BRIEF-MODULO-CONTABLE-FRANCO.md` (brief de diseño consolidado) + `.planning/research/modulo-contable/` (FEATURES / ARCHITECTURE / PITFALLS / STACK, con contraste vs. brief).
-
-**Se monta sobre v4.8 (modelo financiero existente) — ~60% ya existe, se construye ENCIMA:** `financial_transactions` (paymentMethod, branchId, soft-void), `transaction_links` (M:N, pago≠membresía), `balances`, `subscriptions`, `recordAssignmentCharge` (activa membresía+cobro+saldo atómicamente), aislamiento de moneda. **Cero dependencias nuevas.**
-
-**Decisiones ya tomadas (no se re-litigan):**
-
-- **Carga única = fuente de verdad.** El profe carga una vez; la admin deja de re-tipear y pasa a **validar**.
-- **Activar membresía ≠ validar pago.** Membresía instantánea; pago entra PENDIENTE (profe) o VALIDADO (admin).
-- **ANULADO es ortogonal**, NO un estado del enum de validación. "Dinero firme" = `status='validado' AND voided_at IS NULL`. No se reescribe `void()`.
-- **"Corregir" un OBSERVADO = anular+recrear**, no UPDATE (preserva inmutabilidad del ledger).
-- **Banco por moneda:** caja banco ARS + caja banco EUR (cada caja tiene `currency` fija). Ninguna caja mezcla monedas.
-- **Movimiento inter-caja = una sola fila** (origen+destino, neto 0); **egreso = misma fila con destino NULL** (salida real). Reusan `financial_transactions` extendiendo `kind`.
-- **Saldo de caja derivado** (suma) en v1; materializar solo con evidencia de performance.
-- **No hay cierre de caja diario;** reconciliación física = el momento del movimiento/retiro (esperado vs. contado).
-- **Contabilium: reemplazo progresivo** (facturación AFIP último, fuera de scope).
-- **Refunds:** ANULADO con rastro, solo admin; popup decide membresía 1-a-1 (default activa).
-- **Egresos sin categoría por ahora** (salida + nota libre).
-
-**Decisiones abiertas (se resuelven en el `discuss-phase` de cada fase, NO ahora):**
-
-- Estrategia de idempotencia de la carga única (clave de deduplicación).
-- `status` como columna en `financial_transactions` (tabla caliente) vs. tabla satélite de eventos.
-- `memberId` para egresos: member-sentinel vs. columna nullable.
-- Casa de las perillas de config tras la eliminación del subsistema de settings (fase 136-07).
-- Umbral de antigüedad del pendiente + destinatario de la alerta.
-- Corte limpio vs. convivencia con Contabilium + asientos de apertura por caja; regla de "qué dato manda" por etapa.
-- Si el rol profe ya existe en el admin con permisos, o hay que crearlo/ajustarlo.
-- Unidad de `amount` (centavos vs. entero) — confirmar contra el schema.
+**Constraint:** staging-first estricto. Backend = Fastify + Drizzle + MySQL
+(`el-templo-api`); admin = Quasar/Vue3 (`el-templo-admin`). Migraciones con SQL
+commiteado; tests de integración para rutas nuevas.
 
 ---
 
-## v5.2 Requirements
+## v5.3 Requirements
 
-25 requirements en 6 categorías. La **validación (VAL) es el cimiento** (blast radius sobre métricas v5.0) y se construye primero; la **carga única (CARGA) es el corazón** del valor.
+### A — Aviso de deuda en la PoS (POS)
 
-### Validación de pagos (VAL) · cimiento
+- [x] **POS-01**: Al seleccionar un socio en "Cargar pago", si tiene deuda, se muestra un aviso destacado (monto + plan) en **ambos modos** (Pago de plan / Cobro suelto). Usa `autocompletar.outstanding` (ya disponible); no se recarga el buscador.
 
-- [ ] **VAL-01**: Una transacción de cobro tiene un `validation_status` (pendiente / observado / corregido / validado) separado y **ortogonal** al soft-void existente (ANULADO); el estado y la anulación coexisten sin reescribir `void()`.
-- [ ] **VAL-02**: Un pago cargado por un profe entra en estado **PENDIENTE**; un pago cargado por un admin entra **VALIDADO** directamente.
-- [ ] **VAL-03**: El admin puede **validar** un pago pendiente, confirmándolo como dinero firme.
-- [ ] **VAL-04**: El admin puede marcar un pago como **OBSERVADO** y corregirlo mediante **anular+recrear** (no UPDATE), preservando la inmutabilidad del ledger.
-- [ ] **VAL-05**: El filtro canónico de ingresos/saldo cuenta **solo VALIDADOS**, con migración `DEFAULT 'validado'` + backfill, **sin romper las 6 métricas de gestión de v5.0** (todos los call sites auditados y verdes).
-- [ ] **VAL-06**: Solo el admin puede **anular** un pago (ANULADO con rastro: motivo + autor + fecha); al anular un pago con membresía asociada, un popup deja decidir 1-a-1 si la membresía sigue activa (default: activa).
-- [ ] **VAL-07**: La **membresía se activa al instante** al cargar el pago, independiente del estado de validación del pago.
+### B — Imputación de caja en la validación (CAJA) — _fundacional para C y D_
 
-### Carga única que propaga (CARGA) · corazón
+- [x] **CAJA-01**: El cobro del profe nace con una **caja sugerida** (efectivo de la sede del profe vía `recordedBy` / banco por moneda), marcada como no-definitiva.
+- [ ] **CAJA-02**: Al validar un pago pendiente, gestión puede **confirmar o cambiar** la caja imputada (`cash_register_id`). El endpoint de validación (hoy inmutable) se abre para recibirla.
+- [ ] **CAJA-03**: El sistema soporta **múltiples cuentas banco** (varias cajas tipo `banco`). Gestión elige la cuenta al validar una transferencia. Staging seedea **Galicia** + **Mercado Pago**.
+- [x] **CAJA-04**: La PoS del profe **no** ofrece selector de caja/sede — el profe nunca elige caja.
 
-- [ ] **CARGA-01**: El profe registra un pago desde una UI **dead-simple** en el admin en pocos toques (socio, monto, medio de pago, caja), sin re-tipear en ningún otro sistema.
-- [ ] **CARGA-02**: Un solo registro del pago **propaga atómicamente** en una transacción DB (idempotente): activa/renueva la membresía + impacta el saldo de la caja correspondiente.
-- [ ] **CARGA-03**: El sistema soporta **cobros sueltos** (pago no atado a membresía) desde la misma UI.
-- [ ] **CARGA-04**: El rol **profe** existe en el admin con permisos acotados: puede cargar pagos (entran PENDIENTE), no puede validar ni anular.
+### C — Cobro suelto → alta de plan posterior (COBRO)
 
-### Cajas y saldos (CAJA)
+- [x] **COBRO-01**: El "Cobro suelto" incluye un dropdown **Motivo** con opciones "Sin plan activo" / "Otro", persistido como **campo** (no texto libre).
+- [x] **COBRO-02**: En Pendientes, un cobro con motivo "Sin plan activo" muestra un chip **"Sin plan — asignar"** que navega a la ficha del alumno.
+- [ ] **COBRO-03**: Al asignar un plan, gestión puede **usar la plata de un cobro suelto pendiente** del socio para cubrir el monto: anula el cobro suelto y **recrea un `plan_charge`** vinculado a la sub (misma caja/monto/método), de forma **atómica** dentro de `assignPlan`. Gestión ve **todos** los cobros sueltos pendientes del socio.
+- [ ] **COBRO-04**: Si el cobro suelto **excede** el precio del plan, el **excedente no se aplica** (lo maneja gestión aparte).
+- [ ] **COBRO-05**: El botón **"Validar" manual queda bloqueado** en la bandeja para los cobros marcados "Sin plan activo" (se redirigen a asignar plan, para que no queden como plata suelta validada).
 
-- [ ] **CAJA-01**: Existen cajas como entidad: **efectivo por sucursal**, **efectivo central**, y **banco por moneda** (banco ARS + banco EUR). Cada caja tiene una `currency` fija.
-- [ ] **CAJA-02**: Cada pago se asocia a una **caja** (`cash_register_id`), conceptualmente distinta de `branchId` (dónde se cobró ≠ adónde fue la plata).
-- [ ] **CAJA-03**: El **saldo firme** de cada caja = suma de operaciones VALIDADAS (derivado en v1); los PENDIENTES se muestran aparte y **no suman** al saldo firme.
-- [ ] **CAJA-04**: Una caja **nunca mezcla monedas**: rechaza montos de una moneda distinta a la suya (hereda el aislamiento del ledger).
+### D — "Movimientos de caja" como arqueo por caja (ARQUEO)
 
-### Movimientos inter-caja y egresos (MOV)
+- [ ] **ARQUEO-01**: La pestaña "Movimientos de caja" muestra **todo lo imputado a una caja** (cobros de socio + egresos + traspasos + ajustes), filtrando por `cash_register_id` (todos los tipos, no solo los sin-socio).
+- [x] **ARQUEO-02**: La vista muestra **pendientes y validados**, cada uno **marcado** con su estado.
+- [x] **ARQUEO-03**: El filtro **Tipo** incluye **Cobros** (además de Movimientos / Egresos / Ajustes).
+- [ ] **ARQUEO-04**: La pestaña "Transacciones" (vista comercial por socio) **se mantiene** sin cambios de criterio.
 
-- [ ] **MOV-01**: El admin registra un **movimiento inter-caja** (ej. efectivo Jujuy → efectivo central) como una sola operación con origen+destino; neto del sistema = 0.
-- [ ] **MOV-02**: El movimiento registra el **saldo esperado vs. contado** en el origen, dejando rastro de diferencias físicas (reconciliación = momento del retiro, sin cierre diario).
-- [ ] **MOV-03**: El admin registra un **egreso** (salida real de dinero) desde una caja, con monto + nota libre (sin categoría); resta del saldo de esa caja.
-- [ ] **MOV-04**: Movimientos y egresos pueden **anularse con rastro** (void ortogonal), igual que los pagos.
+### E — Centros de costo para egresos (EGR)
 
-### Reportes para la admin (REP)
-
-- [ ] **REP-01**: La admin ve una **bandeja de pendientes** ordenada por antigüedad, con alerta configurable cuando un pendiente supera cierto tiempo (junto a los observados).
-- [ ] **REP-02**: La admin ve el **saldo firme y pendiente por caja** (efectivo por sucursal, central, banco por moneda).
-- [ ] **REP-03**: La admin ve el **historial de movimientos inter-caja y egresos** por caja/período.
-- [ ] **REP-04**: Los reportes nuevos se **exportan reusando** el export Excel/PDF existente.
-
-### Transición Contabilium y configuración (MIG)
-
-- [ ] **MIG-01**: Las **perillas de configuración** (política de validación: todos vs. dudosos; activación de membresía instantánea vs. diferida) tienen una casa de configuración definida y funcional.
-- [ ] **MIG-02**: Está **documentada la regla de "qué dato manda"** durante la convivencia con Contabilium por etapa de reemplazo (registro de ingresos primero; facturación AFIP último, fuera de scope).
+- [x] **EGR-01**: Existe un catálogo `cost_centers` (por país), seedeado en AR con **Alquiler Constitución / Librería / Viáticos profes / Varios**.
+- [x] **EGR-02**: Registrar un egreso **exige** elegir un centro de costo (obligatorio; "Varios" como escape). Solo aplica a egresos (kind `expense`).
+- [x] **EGR-03**: La lista de "Movimientos de caja" muestra el **centro de costo** de cada egreso.
 
 ---
 
 ## Future Requirements (deferred)
 
-- Facturación electrónica AFIP/ARCA (último escalón del reemplazo de Contabilium).
-- Categorización de egresos (proveedor / dueño / gasto / depósito).
-- Validación selectiva "solo dudosos" con reglas automáticas (montos fuera de rango, socio nuevo, efectivo alto) — la perilla existe (MIG-01); las reglas son futuras.
-- Conciliación del banco contra extracto bancario.
+- **EGR-F1**: Reporte de egresos agrupado por centro de costo (por período y caja/sede).
+- **EGR-F2**: ABM de centros de costo desde la UI (alta/edición/baja).
+- **CAJA-F1**: ABM de cuentas banco desde la UI (staging usa seeds).
 
-## Out of Scope (con razón)
+## Out of Scope (this milestone)
 
-- **Gateway de pago automático / integración con medio de pago** — todo es carga manual; el medio de pago es un dato, no una integración que crea el pago.
-- **Cierre de turno / caja con float** — anti-feature; el modelo es acumulación + reconciliación al retiro.
-- **Sync bidireccional con Contabilium** — reemplazo progresivo, no integración permanente.
-- **Reestructuración financiera en Google Sheets** (plan de cuentas, márgenes por sucursal, proyección) — otro documento.
-
----
+- Reporte por centro de costo y ABM de centros (diferidos arriba).
+- ABM de cuentas banco desde UI (staging usa seeds Galicia/Mercado Pago).
+- Cambiar plan en el cobro del profe (es trabajo de gestión, descartado).
+- Facturación electrónica AFIP/ARCA (sigue fuera, como en v5.2).
 
 ## Traceability
 
-<!-- Filled by roadmap: REQ-ID → Phase -->
+| REQ-ID    | Phase | Status   |
+| --------- | ----- | -------- |
+| POS-01    | 145   | Complete |
+| COBRO-01  | 145   | Complete |
+| COBRO-02  | 145   | Complete |
+| CAJA-01   | 146   | Complete |
+| CAJA-02   | 146   | pending  |
+| CAJA-03   | 146   | pending  |
+| CAJA-04   | 146   | Complete |
+| COBRO-03  | 146   | pending  |
+| COBRO-04  | 146   | pending  |
+| COBRO-05  | 146   | pending  |
+| ARQUEO-01 | 146   | pending  |
+| ARQUEO-02 | 146   | Complete |
+| ARQUEO-03 | 146   | Complete |
+| ARQUEO-04 | 146   | pending  |
+| EGR-01    | 147   | Complete |
+| EGR-02    | 147   | Complete |
+| EGR-03    | 147   | Complete |
 
-| Requirement | Phase                                          | Status  |
-| ----------- | ---------------------------------------------- | ------- |
-| VAL-01      | Phase 137 — Validación (cimiento)              | Pending |
-| VAL-02      | Phase 137 — Validación (cimiento)              | Pending |
-| VAL-03      | Phase 137 — Validación (cimiento)              | Pending |
-| VAL-04      | Phase 137 — Validación (cimiento)              | Pending |
-| VAL-05      | Phase 137 — Validación (cimiento)              | Pending |
-| VAL-06      | Phase 137 — Validación (cimiento)              | Pending |
-| VAL-07      | Phase 137 — Validación (cimiento)              | Pending |
-| CAJA-01     | Phase 138 — Entidad caja + saldos              | Pending |
-| CAJA-02     | Phase 138 — Entidad caja + saldos              | Pending |
-| CAJA-03     | Phase 138 — Entidad caja + saldos              | Pending |
-| CAJA-04     | Phase 138 — Entidad caja + saldos              | Pending |
-| MOV-01      | Phase 139 — Movimientos inter-caja y egresos   | Pending |
-| MOV-02      | Phase 139 — Movimientos inter-caja y egresos   | Pending |
-| MOV-03      | Phase 139 — Movimientos inter-caja y egresos   | Pending |
-| MOV-04      | Phase 139 — Movimientos inter-caja y egresos   | Pending |
-| CARGA-01    | Phase 140 — Carga única + cobro suelto + profe | Pending |
-| CARGA-02    | Phase 140 — Carga única + cobro suelto + profe | Pending |
-| CARGA-03    | Phase 140 — Carga única + cobro suelto + profe | Pending |
-| CARGA-04    | Phase 140 — Carga única + cobro suelto + profe | Pending |
-| REP-01      | Phase 141 — Reportes para la admin             | Pending |
-| REP-02      | Phase 141 — Reportes para la admin             | Pending |
-| REP-03      | Phase 141 — Reportes para la admin             | Pending |
-| REP-04      | Phase 141 — Reportes para la admin             | Pending |
-| MIG-01      | Phase 142 — Config + transición Contabilium    | Pending |
-| MIG-02      | Phase 142 — Config + transición Contabilium    | Pending |
-
-**Coverage:** 25/25 v5.2 requirements mapped → exactly one phase each. No orphans, no duplicates.
+_17/17 v5.3 requirements mapped — no orphans, no duplicates._

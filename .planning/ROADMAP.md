@@ -19,6 +19,8 @@
 - **v5.2 UI de Métricas + Calidad del Árbol + Segmentación (admin)** - Phases 132-136 (complete)
 - **v5.2 Módulo Contable / Libro de Caja** - Phases 137-142 (planned)
 - **Profesor por clase + Puntuación post clase** - Phase 143 (planned, standalone app/admin)
+- **Notificaciones y bloqueo de vencimiento** - Phase 144 (planned, standalone app/api)
+- **v5.3 Mejoras Caja / Módulo Contable (feedback v5.2)** - Phases 145-147 (planned)
 
 ---
 
@@ -3459,12 +3461,12 @@ _v5.2 added: 2026-06-04 — 1 phase (132). Cierra v5.0 del lado de UI: expone en
 
 ## v5.2 (Módulo Contable) Phases
 
-- [ ] **Phase 137: Máquina de estados de validación (cimiento)** — `validation_status` ortogonal al soft-void + filtro canónico de "dinero firme" reescrito sin romper las 6 métricas v5.0 + transiciones validar/observar/corregir/anular con rastro de auditoría.
-- [ ] **Phase 138: Entidad caja + saldos** — tabla `cash_registers` (efectivo×sucursal + central + banco×moneda, `currency` fija) + `cash_register_id` en el ledger + saldo firme derivado (solo VALIDADOS) con pendientes mostrados aparte + aislamiento de moneda.
-- [ ] **Phase 139: Movimientos inter-caja y egresos** — movimiento (una fila origen+destino, neto 0) con reconciliación esperado-vs-contado + egreso (destino NULL, nota libre) + void ortogonal de ambos, sin contaminar `balances`.
-- [ ] **Phase 140: Carga única que propaga + cobro suelto + rol profe** — UI dead-simple que registra el pago una vez y propaga atómico (membresía + caja) de forma idempotente + cobro suelto + rol profe acotado (carga PENDIENTE, no valida/anula).
-- [ ] **Phase 141: Reportes para la admin** — bandeja de pendientes por antigüedad (+ observados, + alerta configurable) + saldo firme/pendiente por caja + historial de movimientos/egresos, reusando el export Excel/PDF existente.
-- [ ] **Phase 142: Config + transición Contabilium** — perillas de configuración (política de validación; activación instantánea/diferida) con casa definida y funcional + regla documentada de "qué dato manda" durante la convivencia con Contabilium por etapa.
+- [x] **Phase 137: Máquina de estados de validación (cimiento)** — `validation_status` ortogonal al soft-void + filtro canónico de "dinero firme" reescrito sin romper las 6 métricas v5.0 + transiciones validar/observar/corregir/anular con rastro de auditoría. (completed 2026-06-24)
+- [x] **Phase 138: Entidad caja + saldos** — tabla `cash_registers` (efectivo×sucursal + central + banco×moneda, `currency` fija) + `cash_register_id` en el ledger + saldo firme derivado (solo VALIDADOS) con pendientes mostrados aparte + aislamiento de moneda.
+- [x] **Phase 139: Movimientos inter-caja y egresos** — movimiento (asiento de 2 filas linkeadas, neto 0) con reconciliación esperado-vs-contado + egreso (1 fila outflow, nota libre) + void ortogonal del par, sin contaminar `balances`. (completed 2026-06-24)
+- [x] **Phase 140: Carga única que propaga + cobro suelto + rol profe** — UI dead-simple que registra el pago una vez y propaga atómico (membresía + caja) de forma idempotente + cobro suelto + rol profe acotado (carga PENDIENTE, no valida/anula). (completed 2026-06-24)
+- [x] **Phase 141: Reportes para la admin** — bandeja de pendientes por antigüedad (+ observados, + alerta configurable) + saldo firme/pendiente por caja + historial de movimientos/egresos, reusando el export Excel/PDF existente. (completed 2026-06-24)
+- [x] **Phase 142: Config + transición Contabilium** — perillas de configuración (política de validación; activación instantánea/diferida) con casa definida y funcional + regla documentada de "qué dato manda" durante la convivencia con Contabilium por etapa. (completed 2026-06-25)
 
 ## v5.2 (Módulo Contable) Phase Details
 
@@ -3482,7 +3484,11 @@ _v5.2 added: 2026-06-04 — 1 phase (132). Cierra v5.0 del lado de UI: expone en
 5. Solo el admin puede anular (motivo + autor + fecha); al anular un pago con membresía asociada, un popup decide 1-a-1 si la membresía sigue activa (default: activa). (VAL-06)
 6. La membresía se activa al instante al cargar el pago, independiente del `validation_status` del cobro (un PENDIENTE ya salda la deuda del socio en `balances`, pero NO suma a caja firme). (VAL-07)
 
-**Plans:** TBD
+**Plans:** 3/3 plans complete
+
+- [x] 137-01-PLAN.md — Schema validation_status + migración 0153 + audit action types + helper canónico firm-money.ts + test scaffolds (VAL-01, VAL-05)
+- [x] 137-02-PLAN.md — Máquina de estados: validate/observe/correct + void extendido (\_void atómico) + derivación rol→status server-side + keepMembershipActive (VAL-02, VAL-03, VAL-04, VAL-06, VAL-07)
+- [x] 137-03-PLAN.md — Refactor 13 call sites al filtro firme + excepción documentada (subscriptions:2127) + test de regresión R1-R4 de las 6 métricas v5.0 (VAL-05, VAL-07)
 
 ### Phase 138: Entidad caja + saldos
 
@@ -3496,8 +3502,12 @@ _v5.2 added: 2026-06-04 — 1 phase (132). Cierra v5.0 del lado de UI: expone en
 3. `CashRegisterService.getBalance` devuelve el saldo firme derivado (Σ VALIDADOS de esa caja) y los PENDIENTES por separado, sin que estos sumen al firme. (CAJA-03)
 4. El sistema rechaza asociar a una caja un monto de moneda distinta a la suya (espejo del guard de `applyDelta`); ningún saldo ni reporte suma monedas distintas. (CAJA-04)
 
-**Plans:** TBD
-**UI hint:** yes
+**Plans:** 3/3 plans executed
+
+- [x] 138-01-PLAN.md — Schema cash_registers + cash_register_id en el ledger + migración 0154 (tabla/columna/seed 8 cajas/backfill) + scaffold de tests (CAJA-01, CAJA-02)
+- [x] 138-02-PLAN.md — CashRegisterService.resolveCashRegister + guard de moneda, cableado en el único insert de create() + DI en 6 sitios (CAJA-02, CAJA-04)
+- [x] 138-03-PLAN.md — CashRegisterService.getBalance (saldo firme derivado + pendientes aparte, gateado por cutoff) + suite de integration tests (CAJA-01..04)
+      **UI hint:** yes
 
 ### Phase 139: Movimientos inter-caja y egresos
 
@@ -3506,13 +3516,18 @@ _v5.2 added: 2026-06-04 — 1 phase (132). Cierra v5.0 del lado de UI: expone en
 **Requirements:** MOV-01, MOV-02, MOV-03, MOV-04
 **Success Criteria** (what must be TRUE at phase completion):
 
-1. Un movimiento inter-caja se registra como una sola fila (`kind='cash_transfer'`, origen+destino) en una `db.transaction`; la suma de saldos de todas las cajas de la misma moneda no cambia tras el movimiento (invariante testeada). Movimiento solo entre cajas de igual moneda. (MOV-01)
+1. Un movimiento inter-caja se registra como un **asiento de doble entrada — 2 filas `kind='cash_transfer'` linkeadas** (outflow en origen + inflow en destino, vía `transaction_links`) en una sola `db.transaction` (D-02: el ROADMAP decía "una sola fila" — resuelto a 2 filas linkeadas, misma operación atómica neto 0); la suma de saldos de todas las cajas de la misma moneda no cambia tras el movimiento (invariante testeada). Movimiento solo entre cajas de igual moneda. (MOV-01)
 2. El movimiento captura `expected_amount` (saldo derivado al momento) vs. `counted_amount` (físico) y persiste la diferencia con rastro, sin "ajustar" silenciosamente el saldo. (MOV-02)
 3. Un egreso (`kind='expense'`, destino NULL) resta del saldo de su caja con monto + nota libre (sin categoría en v1); `cash_transfer`/`expense` están en `KINDS_ALLOWED_WITHOUT_LINKS` y NO tocan `balances` (verificado por test). (MOV-03)
 4. Movimientos y egresos se anulan con el mismo soft-void ortogonal que los pagos (motivo + autor + fecha), nunca con delete. (MOV-04)
 
-**Plans:** TBD
-**UI hint:** yes
+**Plans:** 3/3 plans complete
+Plans:
+
+- [x] 139-01-PLAN.md — Cimiento: migración 0155 (enum +cash_transfer/+expense, member_id NULL) + tipos + MUST-FIX A (getSummary) + MUST-FIX B (applyDelta) + voidPair
+- [x] 139-02-PLAN.md — getBalance resta outflows validados desde el corte (// TODO 139) + invariante neto-0 + refund-outflow
+- [x] 139-03-PLAN.md — MovementService (movimiento 2 filas + reconciliación + guard igual-moneda + egreso + void-the-pair) + rutas admin-only + tests MOV-01..04
+      **UI hint:** yes
 
 ### Phase 140: Carga única que propaga + cobro suelto + rol profe
 
@@ -3526,8 +3541,13 @@ _v5.2 added: 2026-06-04 — 1 phase (132). Cierra v5.0 del lado de UI: expone en
 3. La misma UI soporta cobros sueltos (pago sin membresía asociada) reusando el modelo existente sin schema nuevo. (CARGA-03)
 4. El rol profe existe en el admin con permisos acotados: puede cargar pagos (entran PENDIENTE), NO puede validar, observar, anular ni ver saldos de caja; un test de autorización confirma el bloqueo. (CARGA-04)
 
-**Plans:** TBD
-**UI hint:** yes
+**Plans:** 3/3 plans complete
+Plans:
+
+- [x] 140-01-PLAN.md — Backend foundation: migration 0156 idempotency_key, FINANCE_LOAD_ROLES, recorderRole+idempotencyKey threading through renewSubscription, cobro-suelto plumbing
+- [x] 140-02-PLAN.md — coach-load-routes.ts plugin (renew / cobro-suelto / autocompletar / mis-cargas) + endpoint idempotency dedup + auth/idempotency integration tests
+- [x] 140-03-PLAN.md — CargarPagoPage.vue PoS screen + useFinanceLoadApi composable + route/nav per UI-SPEC (human-verify checkpoint)
+      **UI hint:** yes
 
 ### Phase 141: Reportes para la admin
 
@@ -3541,8 +3561,13 @@ _v5.2 added: 2026-06-04 — 1 phase (132). Cierra v5.0 del lado de UI: expone en
 3. La admin ve el historial de movimientos inter-caja y egresos filtrable por caja/período. (REP-03)
 4. Los reportes nuevos se exportan reusando el export Excel/PDF existente (exceljs / pdfmake), sin un mecanismo de export paralelo. (REP-04)
 
-**Plans:** TBD
-**UI hint:** yes
+**Plans:** 4/4 plans complete
+
+- [x] 141-01-PLAN.md — Backend: GET /pending-tray (bandeja, oldest-first + aging + overdue) + GET /cash-registers/balances (saldos por caja over getBalance) + sibling Excel exports + tests
+- [x] 141-02-PLAN.md — Backend: GET /movements-history (listMovEgresos own LEFT-JOIN query, NULL-member rows, caja/período) + Excel export + LEFT-JOIN test
+- [x] 141-03-PLAN.md — Frontend: useTransactionsApi extension (reads + validate/observe/correct + keepMembershipActive + exports) + CajaPage q-tabs hub shell + Movimientos (verbatim) + Saldos tabs
+- [x] 141-04-PLAN.md — Frontend: Bandeja tab (Validar one-tap, ⋮ actions, overdue alert, membership popup) + Mov-Egresos tab + human-verify checkpoint
+      **UI hint:** yes
 
 ### Phase 142: Config + transición Contabilium
 
@@ -3554,18 +3579,24 @@ _v5.2 added: 2026-06-04 — 1 phase (132). Cierra v5.0 del lado de UI: expone en
 1. Las perillas de configuración (política de validación: todos vs. dudosos; activación de membresía instantánea vs. diferida) tienen una casa de configuración definida (tabla `finance_settings` o equivalente, scoped) y funcional desde el admin, NO cableadas en código. (MIG-01)
 2. Está documentada la regla de "qué dato manda" durante la convivencia con Contabilium por etapa (registro de ingresos/caja vive solo en el Administrador desde el corte; facturación AFIP queda en Contabilium, fuera de scope), incluyendo el criterio de corte limpio + asientos de apertura por caja. (MIG-02)
 
-**Plans:** TBD
+**Plans:** 3/3 plans complete
+
+Plans:
+
+- [x] 142-01-PLAN.md — backend: migración 0157 seed + FinanceConfigService (read-with-fallback) + GET/PUT config (owner/admin) + wire los 2 seam sites de listPendingTray + tests (wave 1)
+- [x] 142-02-PLAN.md — MIG-02: doc de transición Contabilium + template de migración de saldos de apertura (fuera de src/db/migrations/) (wave 1)
+- [x] 142-03-PLAN.md — frontend: mini pantalla "Configuración de Caja" (un campo) + composable + ruta/nav owner/admin (wave 2)
 
 ## v5.2 (Módulo Contable) Progress
 
-| Phase                                       | Plans Complete | Status      | Completed |
-| ------------------------------------------- | -------------- | ----------- | --------- |
-| 137. Máquina de estados de validación       | 0/?            | Not started | -         |
-| 138. Entidad caja + saldos                  | 0/?            | Not started | -         |
-| 139. Movimientos inter-caja y egresos       | 0/?            | Not started | -         |
-| 140. Carga única + cobro suelto + rol profe | 0/?            | Not started | -         |
-| 141. Reportes para la admin                 | 0/?            | Not started | -         |
-| 142. Config + transición Contabilium        | 0/?            | Not started | -         |
+| Phase                                       | Plans Complete | Status      | Completed  |
+| ------------------------------------------- | -------------- | ----------- | ---------- |
+| 137. Máquina de estados de validación       | 3/3            | Complete    | 2026-06-24 |
+| 138. Entidad caja + saldos                  | 2/3            | In Progress |            |
+| 139. Movimientos inter-caja y egresos       | 3/3            | Complete    | 2026-06-24 |
+| 140. Carga única + cobro suelto + rol profe | 3/3            | Complete    | 2026-06-24 |
+| 141. Reportes para la admin                 | 4/4            | Complete    | 2026-06-24 |
+| 142. Config + transición Contabilium        | 3/3            | Complete    | 2026-06-25 |
 
 _Plan counts populated by `/gsd-plan-phase`._
 
@@ -3603,6 +3634,152 @@ Plans:
 - [x] 143-04-PLAN.md — Admin: grilla de roster en Horarios (Surface 1) + PuntuacionesPage owner-only (Surface 3)
 - [x] 143-05-PLAN.md — App miembro: RatingPromptDialog class-framed (Surface 2) + useRatingsApi + montaje
 
+### Phase 144: Notificaciones y bloqueo de vencimiento de membresía/plan
+
+**Goal:** Avisar al miembro que su membresía/plan está por vencer y empujarlo a renovar por WhatsApp, e impedir que reserve clases cuya fecha cae después del vencimiento. End state: (1) un cron diario encola push de vencimiento a 7 días, 3 días y el día del vencimiento (réplica del patrón ya existente para programas, pero sobre la fecha cubierta de la cadena de `subscriptions`); (2) al abrir la app, si faltan ≤3 días, el miembro ve un pop-up salteable (1 vez por día) con un botón que abre WhatsApp para renovar; (3) al intentar reservar una clase presencial cuya fecha es posterior a la cobertura de su suscripción, el backend la rechaza con un error distinguible y la app muestra un pop-up "Necesitás renovar tu membresía para reservar esta clase" con botón a WhatsApp. Si ya hay una renovación agendada (`scheduled` encadenada) que cubre la fecha, se suprimen los avisos y el bloqueo.
+
+**Depends on:** none (feature standalone de app/api/admin; independiente del Módulo Contable v5.2 y de la fase 143). Reutiliza el sistema de notificaciones existente (`pending_notifications` + FCM + `notification-cron`) y el helper `buildWhatsAppUrl`.
+**Requirements:** PLAN-NOTIF, PLAN-POPUP, BOOK-BLOCK (se derivan en plan-phase del GOAL + decisiones de CONTEXT)
+
+**Tres entregables:**
+
+1. **Notificación push de vencimiento de plan.** Replicar el bloque "Program Renewal Warning" de `el-templo-api/src/jobs/notification-cron.ts:346-398`, pero sobre la fecha cubierta de la cadena de `subscriptions`, encolando 3 disparos (7d / 3d / día del vencimiento). Categoría nueva `planes` ("Planes", toggle propio) + templates en `el-templo-api/src/modules/notifications/types.ts`. Idempotencia por umbral; suprimir si ya hay cobertura (renovación agendada).
+2. **Pop-up in-app de aviso de vencimiento (≤3 días).** Al abrir la app, si faltan ≤3 días de la fecha cubierta, mostrar un pop-up salteable (1 vez por día hasta renovar) con botón que abre WhatsApp (`el-templo-app/src/utils/whatsapp.ts` → `buildWhatsAppUrl(country, text)`).
+3. **Bloqueo de reserva post-vencimiento (solo presencial).** Backend: validar en `el-templo-api/src/modules/scheduling/booking-service.ts` `reserve()` que `booking_date <=` fecha cubierta de la cadena active+scheduled (hoy ese check NO existe — bug latente). Devolver un error/código distinguible. `end_date` NULL = no bloquear. Frontend (`ReservasPage.vue`): capturar ese error y mostrar un pop-up con botón a WhatsApp.
+
+**Decisiones tomadas (ver `144-CONTEXT.md`):** categoría nueva `planes`; 3 disparos de push (7d/3d/vencido) silenciables por categoría; pop-up solo a ≤3d, salteable, 1 vez/día; bloqueo solo presencial, NULL no bloquea; concepto transversal "fecha cubierta" = `end_date` más lejano de la cadena active+scheduled, que gobierna supresión de avisos y bloqueo.
+
+**Notas de contexto (verificado):** WhatsApp centralizado en `el-templo-app/src/utils/whatsapp.ts` (AR `5492235820521`, ES `34680774331`). Categorías de notificación existentes: `entrenamiento | programas | motivacion | anuncios` (`notifications/types.ts:3-18`). Notificaciones persisten en `pending_notifications` y se envían por FCM vía `notification-cron` + `NotificationService`. Incluye cambios de schema (template seed), migración SQL y tests de API para la nueva validación de booking.
+
+**Plans:** 4/4 plans complete
+
+Plans:
+
+- [x] 144-01-PLAN.md — Foundation: `planes` category + 3 renewal templates + covered-until helper + migration (wave 1, autonomous:false)
+- [x] 144-02-PLAN.md — PLAN-NOTIF: daily cron enqueues 7d/3d/expiry push with chain suppression + opt-out (wave 2)
+- [x] 144-03-PLAN.md — PLAN-POPUP: GET /subscriptions/coverage + PlanExpiryDialog.vue (≤3d, once/day, WhatsApp) + mount (wave 2)
+- [x] 144-04-PLAN.md — BOOK-BLOCK: reserve() coverage check + COVERAGE_EXPIRED code + ReservasPage renewal dialog (wave 2)
+
 ---
 
 _v5.2 (Módulo Contable) added: 2026-06-23 — 6 phases (137-142), 25 requirements (VAL, CAJA, MOV, CARGA, REP, MIG). Backend-heavy sobre v4.8 (~60% existe, cero deps nuevas). **VAL (137) es el cimiento y va primero** por su blast radius sobre las 6 métricas v5.0 (redefine "dinero firme"). Orden de construcción del research: VAL → CAJA → MOV → CARGA → REP → MIG. Continúa numeración desde fase 136 (NO se resetea). Decisiones de arquitectura cerradas (ANULADO ortogonal, movimiento=una fila, banco×moneda, saldo derivado, corregir=anular+recrear); decisiones de dominio (idempotencia, casa de perillas, member sentinel, corte Contabilium, umbral de pendiente) diferidas a cada `discuss-phase`. Fuente de verdad: `BRIEF-MODULO-CONTABLE-FRANCO.md` + `.planning/research/modulo-contable/` (ARCHITECTURE/FEATURES/PITFALLS)._
+
+---
+
+## v5.3 (Mejoras Caja) Overview
+
+**Milestone:** v5.3 — Mejoras Caja / Módulo Contable (feedback v5.2)
+**Started:** 2026-06-26
+**Phases:** 3 (145-147)
+**Continues from:** Phase 144 (Notificaciones y bloqueo de vencimiento). Numbering is NOT reset.
+**Granularity:** coarse — fixes acotados sobre un módulo existente (v5.2), agrupación de 3 fases aprobada explícitamente por el usuario. NO se decompone más.
+
+**Scope.** Resolver el feedback operativo de v5.2 sobre la caja y la PoS del profe, montándose **ENCIMA** del Módulo Contable ya construido (fases 137-142) y del modelo financiero v4.8. Cinco áreas (A–E) consolidadas en `BRIEF-FEEDBACK-V52-CAJA.md`, agrupadas en 3 fases targeted: **(145)** aviso de deuda en la PoS + señalización del cobro "sin plan" (motivo + chip); **(146)** la fase fundacional de caja — imputación/confirmación de caja en la **validación** (no en el cobro), múltiples cuentas banco, imputación del anticipo al asignar plan, y "Movimientos de caja" como arqueo por caja; **(147)** centros de costo obligatorios para egresos.
+
+**Pre-condición.** Módulo Contable v5.2 en staging/master: PoS del profe (`CargarPagoPage.vue` + `coach-load-routes.ts`, fase 140), bandeja de pendientes + "Movimientos de caja" (`MovEgresosTab.vue` → `/movements-history` → `listMovEgresos`, fase 141), entidad caja (`cash_registers` + `resolveCashRegister`, fase 138), validación inmutable (schema vacío, fase 137). `autocompletar` ya devuelve `outstanding` + `intent`. Última migración aplicada: **0158** → las nuevas son **0159+**.
+
+**Decisión de dependencia central.** **B (fase 146) es fundacional para C y D:** la caja sugerida no-definitiva en Pendientes es lo que habilita el arqueo por caja y la imputación del anticipo. Por eso 146 absorbe puntos 4, 5/6 y 9 del feedback en una sola fase de caja. **145 (A) y 147 (E) son independientes** y pueden ir en cualquier orden, pero 146 consume el campo Motivo y el chip de 145.
+
+**Descartados / sin trabajo (del feedback v5.2):** punto 2 (cambiar plan en el cobro = trabajo de gestión), punto 3 (sugerir precio = ya existe en `AssignPlanDialog`), punto 7 (cargar turnos fijos = ya existe), punto 8 (dinero pendiente en caja = ya resuelto, aparece como "pendiente").
+
+**Diferido (fuera de este milestone):** reporte de egresos por centro de costo (EGR-F1), ABM de centros de costo desde UI (EGR-F2), ABM de cuentas banco desde UI (CAJA-F1) — staging usa seeds. Facturación electrónica AFIP/ARCA (sigue fuera, como en v5.2).
+
+**Constraint operativo:** staging-first **estricto**. Migraciones con SQL commiteado (0159+); tests de integración para rutas nuevas/modificadas (validación con `cash_registerId`, imputación de anticipo en `assignPlan`, arqueo por `cash_register_id`, egreso con `cost_center_id`).
+
+## v5.3 (Mejoras Caja) Phases
+
+- [x] **Phase 145: PoS del profe** — aviso destacado de deuda al seleccionar al socio en "Cargar pago" (ambos modos, reusa `autocompletar.outstanding`) + dropdown Motivo ("Sin plan activo"/"Otro", como campo) en el cobro suelto + chip "Sin plan — asignar" en Pendientes que navega a la ficha del alumno.
+- [x] **Phase 146: Caja, validación e imputación (fundacional)** — caja sugerida no-definitiva al cobrar (sede del profe / banco por moneda) + confirmar/cambiar caja al validar (abrir el endpoint inmutable) + múltiples cajas banco (seed staging Galicia + Mercado Pago) + quitar selector de la PoS + imputación del anticipo al asignar plan (anular+recrear `plan_charge` atómico en `assignPlan`, excedente no aplicado) + bloqueo del "Validar" manual de los "sin plan" + "Movimientos de caja" como arqueo por caja (todos los tipos por `cash_register_id`, pendientes/validados marcados, Cobros en el filtro Tipo, "Transacciones" se mantiene). (completed 2026-06-26)
+- [x] **Phase 147: Centros de costo de egresos** — tabla `cost_centers` (por país) + seed AR (Alquiler Constitución / Librería / Viáticos profes / Varios) + columna `cost_center_id` obligatoria en el egreso + selector en el dialog de egreso + columna "Centro de costo" en la lista de movimientos de caja. (completed 2026-06-26)
+
+## v5.3 (Mejoras Caja) Phase Details
+
+### Phase 145: PoS del profe
+
+**Goal:** El profe ve la deuda del socio al elegirlo en "Cargar pago" y puede señalizar un cobro sin plan activo para que gestión lo asigne después. End state: al seleccionar un socio aparece un aviso destacado de deuda en ambos modos de carga; el cobro suelto registra un Motivo estructurado; y los cobros "sin plan activo" quedan visibles en la bandeja de Pendientes con un chip que lleva directo a la ficha del alumno para asignar el plan.
+**Depends on:** none (independiente; reusa `autocompletar.outstanding` ya existente y la PoS de la fase 140). Su salida (campo Motivo + chip) la consume la fase 146.
+**Requirements:** POS-01, COBRO-01, COBRO-02
+**Success Criteria** (what must be TRUE at phase completion):
+
+1. Al seleccionar un socio en "Cargar pago", si tiene deuda se muestra un aviso destacado (monto + plan) en **ambos modos** (Pago de plan / Cobro suelto), usando `autocompletar.outstanding` ya disponible, sin recargar el buscador. (POS-01)
+2. El "Cobro suelto" incluye un dropdown **Motivo** con opciones "Sin plan activo" / "Otro", persistido como **campo** estructurado (no texto libre) en la transacción. (COBRO-01)
+3. En la bandeja de Pendientes, un cobro con motivo "Sin plan activo" muestra un chip **"Sin plan — asignar"** que navega a la ficha del alumno. (COBRO-02)
+
+**Plans:** 1/2 plans executed
+Plans:
+
+- [x] 145-01-PLAN.md — Motivo del cobro suelto (columna misc_reason + endpoint) + aviso de deuda en la PoS (POS-01, COBRO-01)
+- [x] 145-02-PLAN.md — Chip "Sin plan — asignar" en la bandeja de Pendientes (COBRO-02)
+      **UI hint:** yes
+
+### Phase 146: Caja, validación e imputación (fundacional)
+
+**Goal:** La caja se imputa y se confirma en la **validación** (gestión), no en el cobro (profe), con soporte de múltiples cuentas banco; gestión puede usar un cobro suelto pendiente para saldar un alta de plan de forma atómica; y "Movimientos de caja" se vuelve el arqueo por caja (todo lo imputado a una caja, pendientes y validados marcados). End state: el profe cobra sin elegir caja; el cobro nace con una caja sugerida no-definitiva; gestión confirma o cambia la caja (incluida la cuenta banco) al validar; al asignar plan, el anticipo del socio se imputa anulando+recreando el `plan_charge`; los "sin plan" no se pueden validar a mano; y el arqueo por caja cuadra con "Saldos por caja".
+**Depends on:** Phase 145 (consume el campo Motivo y el chip "Sin plan — asignar" del flujo de imputación) + fases v5.2 completas (140 carga del profe, 141 reportes/bandeja, 138 entidad caja, 137 validación). Es la **fase fundacional de caja** del milestone: habilita el arqueo y la imputación del anticipo.
+**Requirements:** CAJA-01, CAJA-02, CAJA-03, CAJA-04, COBRO-03, COBRO-04, COBRO-05, ARQUEO-01, ARQUEO-02, ARQUEO-03, ARQUEO-04
+**Success Criteria** (what must be TRUE at phase completion):
+
+1. El cobro del profe nace con una **caja sugerida no-definitiva** (efectivo de la sede del profe vía `recordedBy` / banco por moneda) y la PoS **no** ofrece selector de caja/sede — el profe nunca elige caja. (CAJA-01, CAJA-04)
+2. Al validar un pendiente, gestión **confirma o cambia** la caja imputada (`cash_register_id`) — el endpoint de validación, hoy inmutable, se abre para recibirla — y elige entre **múltiples cuentas banco** al validar una transferencia (staging seedea Galicia + Mercado Pago). (CAJA-02, CAJA-03)
+3. Al asignar un plan, gestión usa la plata de un **cobro suelto pendiente** del socio: anula el cobro y **recrea un `plan_charge`** vinculado a la sub (misma caja/monto/método) de forma **atómica** dentro de `assignPlan`, viendo todos los cobros sueltos pendientes del socio; si el cobro **excede** el precio del plan, el excedente **no se aplica**. (COBRO-03, COBRO-04)
+4. El botón **"Validar" manual queda bloqueado** en la bandeja para los cobros marcados "Sin plan activo" (se redirigen a asignar plan, para que no queden como plata suelta validada). (COBRO-05)
+5. "Movimientos de caja" se vuelve el **arqueo por caja**: muestra todo lo imputado a una caja por `cash_register_id` (cobros de socio + egresos + traspasos + ajustes), con pendientes y validados **marcados** por su estado, **Cobros** agregado al filtro Tipo, y la pestaña "Transacciones" (vista comercial por socio) **se mantiene** sin cambios de criterio. (ARQUEO-01, ARQUEO-02, ARQUEO-03, ARQUEO-04)
+
+**Plans:** 6/6 plans complete
+
+Plans:
+
+- [x] 146-01-PLAN.md — CAJA-01/04: el cobro del profe nace con caja sugerida (sede del profe); la PoS no expone caja/sede
+- [x] 146-02-PLAN.md — CAJA-02/03 + COBRO-05 (backend): abrir validate para confirmar/cambiar caja + multi-banco (seed Galicia/Mercado Pago) + bloqueo validar sin_plan + primitivos para imputación
+- [x] 146-03-PLAN.md — COBRO-03/04: imputación atómica del anticipo al asignar plan (anular+recrear plan_charge; excedente rechazado) + AssignPlanDialog
+- [x] 146-04-PLAN.md — CAJA-02/03 + COBRO-05 (frontend): selector de caja al validar en la bandeja + bloqueo del Validar de los sin_plan
+- [x] 146-05-PLAN.md — ARQUEO-01/02/04 (backend): listMovEgresos por caja, todos los kinds, con validationStatus; list() intacto
+- [x] 146-06-PLAN.md — ARQUEO-02/03 (frontend): filtro Cobros + estado marcado en Movimientos de caja
+      **UI hint:** yes
+
+### Phase 147: Centros de costo de egresos
+
+**Goal:** Cada egreso se clasifica obligatoriamente en un centro de costo, para poder reportar gasto por rubro más adelante. End state: existe un catálogo `cost_centers` por país (seedeado en AR); registrar un egreso exige elegir un centro de costo; y la lista de "Movimientos de caja" muestra el centro de costo de cada egreso.
+**Depends on:** none (independiente; toca el dialog de egreso de la fase 139 y la lista de movimientos de la fase 141, pero no depende de 145/146). El reporte agrupado por centro de costo y el ABM desde UI quedan **diferidos**.
+**Requirements:** EGR-01, EGR-02, EGR-03
+**Success Criteria** (what must be TRUE at phase completion):
+
+1. Existe un catálogo `cost_centers` (por país), seedeado en AR con **Alquiler Constitución / Librería / Viáticos profes / Varios**. (EGR-01)
+2. Registrar un egreso **exige** elegir un centro de costo (obligatorio, con "Varios" como escape), vía columna `cost_center_id` en `financial_transactions` y selector en el dialog de egreso; aplica **solo** a egresos (kind `expense`). (EGR-02)
+3. La lista de "Movimientos de caja" muestra una columna **"Centro de costo"** con el centro de cada egreso. (EGR-03)
+
+**Plans:** 2 plans
+
+- [x] 147-01-PLAN.md — Backend: tabla cost_centers + migración 0161 + columna cost_center_id + endpoint GET /cost-centers + egreso exige centro + costCenterName en el arqueo + tests
+- [x] 147-02-PLAN.md — Frontend: tipos/composable getCostCenters + selector obligatorio en el dialog de egreso + columna "Centro de costo" en la lista
+      **UI hint:** yes
+
+## v5.3 (Mejoras Caja) Progress
+
+| Phase                              | Plans Complete | Status   | Completed  |
+| ---------------------------------- | -------------- | -------- | ---------- |
+| 145. PoS del profe                 | 2/2            | Complete | 2026-06-26 |
+| 146. Caja, validación e imputación | 6/6            | Complete | 2026-06-26 |
+| 147. Centros de costo de egresos   | 2/2            | Complete | 2026-06-26 |
+
+_Plan counts populated by `/gsd-plan-phase`._
+
+### Phase 148: PoS profe: alta de alumno + plan en el cobro
+
+**Goal:** El profe carga el plan directamente en el cobro (extiende `CargarPagoPage.vue` / Fase 140), creando al alumno si es nuevo, reemplazando el flujo Google Form→Excel→admin. Modelo **crear-en-vivo + validar-después**: alumno + membresía + turnos se crean al instante (entrena ya); el pago nace `validation_status='pendiente'` y va a la bandeja de gestión (Fase 137/141). Refuerzos: **dedup por DNI** (`check-duplicates`) antes de crear; **cascade en void** (anular carga de alumno-nuevo desactiva la membresía y deja al alumno inactivo, NO lo borra). Sucursal default = sede del profe, editable. Precio según medio de pago (tarjeta→`priceCreditCard`, resto→`priceRegular`/`priceZero` con toggle Zero; parcial deja deuda). **Selector de turnos estructurado** solo para planes `fixed` (reusa `FixedSchedulePicker.vue`). Backend: endpoint nuevo en `coach-load-routes.ts`, atómico e idempotente (resolver/crear alumno + `assignPlan(scheduleIds)` + transacción financiera `pendiente`). Fuente de verdad: `BRIEF-POS-PROFE-ALTA-ALUMNO.md` (raíz).
+**Requirements**: ALTA-01 (crear alumno mínimo + dedup DNI), ALTA-02 (sucursal default editable), ALTA-03 (plan + Zero + precio x medio + parcial), ALTA-04 (turnos estructurados fixed), ALTA-05 (endpoint atómico idempotente), ALTA-06 (cascade en void), ALTA-07 (pago pendiente → bandeja), ALTA-08 (tests integración)
+**Depends on:** Fases v5.2 (137 validación, 140 PoS del profe, 141 bandeja Pendientes) + v5.3 (146 caja sugerida). Sobre `staging`, viaja en el tren v5.2/v5.3 → master.
+**Plans:** 6/6 plans complete
+
+Plans:
+
+- [x] 148-01-PLAN.md — Fundación backend: columna createdMemberId (mig 0162) + AssignPlanInput recorder fields + createMinimalMember [wave 1]
+- [x] 148-02-PLAN.md — Endpoint POST /alta atómico e idempotente (resolver/crear alumno + assignPlan + cobro pendiente, branch-gated) [wave 2]
+- [x] 148-03-PLAN.md — Cascade en void (alumno-nuevo → membresía cancelada + alumno inactivo) + surface createdMember [wave 2]
+- [x] 148-04-PLAN.md — Tests de integración (crear-nuevo, dedup, parcial→deuda, fixed, void→cascade, idempotencia) [wave 3]
+- [x] 148-05-PLAN.md — Frontend PoS: modo "Alta + plan" (sucursal, alumno+dedup, plan grid+Zero+precio, turnos fixed, Confirmar) [wave 3]
+- [x] 148-06-PLAN.md — Bandeja Pendientes: copy condicional de cascade en el dialog Anular [wave 3]
+
+---
+
+_v5.3 (Mejoras Caja) added: 2026-06-26 — 3 phases (145-147), 17 requirements (POS, CAJA, COBRO, ARQUEO, EGR). Fixes targeted sobre el Módulo Contable v5.2 (137-142) y el modelo v4.8 — NO es un build from-scratch. Agrupación de 3 fases **aprobada explícitamente por el usuario, no se decompone más**. **Phase 146 (caja en validación) es fundacional** para la imputación del anticipo (C) y el arqueo por caja (D): la caja sugerida no-definitiva en Pendientes habilita ambos. 145 (aviso de deuda + Motivo + chip) y 147 (centros de costo) son independientes. Continúa numeración desde fase 144 (NO se resetea). Migraciones nuevas 0159+ (última aplicada 0158). Descartados del feedback: puntos 2/3/7/8. Diferido: reporte por centro de costo, ABM de centros, ABM de cuentas banco. Fuente de verdad: `BRIEF-FEEDBACK-V52-CAJA.md` (raíz)._

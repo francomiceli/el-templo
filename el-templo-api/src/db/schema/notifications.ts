@@ -18,6 +18,7 @@ export const notificationCategoryEnum = mysqlEnum("notification_category", [
   "programas",
   "motivacion",
   "anuncios",
+  "planes",
 ]);
 
 export const notificationStatusEnum = mysqlEnum("notification_status", [
@@ -115,9 +116,7 @@ export const pendingNotifications = mysqlTable(
     userId: int("user_id")
       .references(() => users.id)
       .notNull(),
-    templateId: int("template_id").references(
-      () => notificationTemplates.id,
-    ),
+    templateId: int("template_id").references(() => notificationTemplates.id),
     title: varchar("title", { length: 200 }).notNull(),
     body: text("body").notNull(),
     route: varchar("route", { length: 200 }).default("/mi-templo"),
@@ -128,7 +127,10 @@ export const pendingNotifications = mysqlTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => [
-    index("idx_pending_notifications_queue").on(table.status, table.scheduledAt),
+    index("idx_pending_notifications_queue").on(
+      table.status,
+      table.scheduledAt,
+    ),
     index("idx_pending_notifications_user_id").on(table.userId),
   ],
 );

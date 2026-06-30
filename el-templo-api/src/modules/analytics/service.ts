@@ -12,6 +12,7 @@ import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { resolveMonthRange, computePriorPeriod } from "../shared/date-utils";
 import { activeMemberExists } from "../shared/active-member";
+import { firmMoneySqlFor } from "../finance/firm-money";
 import { applyScope } from "./scope";
 import type {
   KpiStats,
@@ -541,7 +542,7 @@ export class AnalyticsService {
       WHERE ft.member_id = ${schema.subscriptions.userId}
         AND ft.kind = 'plan_charge'
         AND ft.direction = 'inflow'
-        AND ft.voided_at IS NULL
+        AND ${sql.raw(firmMoneySqlFor("ft"))}
         AND ft.transaction_date >= DATE_SUB(CURDATE(), INTERVAL ${sql.raw(
           String(AnalyticsService.YA_PAGO_WINDOW_DAYS),
         )} DAY)
@@ -1046,6 +1047,11 @@ export class AnalyticsService {
     // getOutstandingByCurrency currency-split pattern.
     const conditions: SQL[] = [
       isNull(schema.financialTransactions.voidedAt),
+      // Phase 137 (VAL-05): firm money counts only validated rows.
+      eq(
+        schema.financialTransactions.validationStatus,
+        "validado",
+      ) as unknown as SQL,
       inArray(schema.financialTransactions.kind, [
         "plan_charge",
         "debt_settlement",
@@ -1116,6 +1122,11 @@ export class AnalyticsService {
     // filter's exclusion of aura_credit/internal is reinforced.
     const conditions: SQL[] = [
       isNull(schema.financialTransactions.voidedAt),
+      // Phase 137 (VAL-05): firm money counts only validated rows.
+      eq(
+        schema.financialTransactions.validationStatus,
+        "validado",
+      ) as unknown as SQL,
       inArray(schema.financialTransactions.kind, [
         "plan_charge",
         "debt_settlement",
@@ -1179,6 +1190,11 @@ export class AnalyticsService {
     // a single branch could (in theory) record both; never sum them.
     const conditions: SQL[] = [
       isNull(schema.financialTransactions.voidedAt),
+      // Phase 137 (VAL-05): firm money counts only validated rows.
+      eq(
+        schema.financialTransactions.validationStatus,
+        "validado",
+      ) as unknown as SQL,
       inArray(schema.financialTransactions.kind, [
         "plan_charge",
         "debt_settlement",
@@ -1221,6 +1237,10 @@ export class AnalyticsService {
       { branchName: string; ARS: number; EUR: number }
     >();
     for (const r of rows) {
+      // Phase 139: financial_transactions.branchId is now nullable (movimientos/
+      // egresos branch-less). The INNER JOIN branches already drops NULL-branch
+      // rows; this guard makes the narrowing explicit for tsc and the Map key.
+      if (r.branchId === null) continue;
       const entry = byBranch.get(r.branchId) ?? {
         branchName: r.branchName,
         ARS: 0,
@@ -1305,6 +1325,11 @@ export class AnalyticsService {
     // Phase 117 D-05 / D-17: total revenue split per currency, never summed.
     const conditions: SQL[] = [
       isNull(schema.financialTransactions.voidedAt),
+      // Phase 137 (VAL-05): firm money counts only validated rows.
+      eq(
+        schema.financialTransactions.validationStatus,
+        "validado",
+      ) as unknown as SQL,
       inArray(schema.financialTransactions.kind, [
         "plan_charge",
         "debt_settlement",
