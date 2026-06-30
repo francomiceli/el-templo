@@ -246,11 +246,12 @@ const isCoachDebtsRole = computed(() =>
 // owner only for content pages, franquicias, usuarios
 const isOwnerRole = computed(() => userRole.value === 'owner');
 
-// Pagos (PoS): hoy lo ven gestion/admin/owner. Los profes (coach) quedan FUERA
-// "por el momento" (rollout 148) — el backend FINANCE_LOAD_ROLES igual incluye
-// coach, así que esto es solo visibilidad del menú/ruta. Para re-habilitar el
-// PoS del profe, sumar 'coach' acá Y en el meta de la ruta /pagos.
-const isPagosVisible = computed(() => ['gestion', 'admin', 'owner'].includes(userRole.value));
+// Pagos (PoS): lo ven coach (PoS profe, fase 148) + gestion/admin/owner. El
+// backend FINANCE_LOAD_ROLES también incluye coach. Sincronizado con el
+// allowedRoles de la ruta /pagos en routes.ts.
+const isPagosVisible = computed(() =>
+  ['coach', 'gestion', 'admin', 'owner'].includes(userRole.value)
+);
 
 // Caja (saldos/arqueo): solo admin/owner. Gestión queda excluida por ahora
 // (rollout). Distinto de isCajaRole, que sigue habilitando Planes/Programas/Reportes

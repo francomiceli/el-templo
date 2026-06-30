@@ -76,10 +76,9 @@ const routes: RouteRecordRaw[] = [
         path: 'pagos',
         component: () => import('pages/PagosPage.vue'),
         // Phase 140 (CARGA-04): opens the coach PoS load surface (ruta /pagos,
-        // ex /cargar). Rollout 148: los profes (coach) quedan FUERA "por el
-        // momento" → gestion/admin/owner. Para re-habilitar el PoS del profe,
-        // volver a sumar 'coach' acá Y en isPagosVisible del AdminLayout.
-        meta: { allowedRoles: ['gestion', 'admin', 'owner'] as AdminRole[] },
+        // ex /cargar). El coach (PoS profe, fase 148) entra junto con
+        // gestion/admin/owner. Sincronizado con isPagosVisible en AdminLayout.
+        meta: { allowedRoles: ['coach', 'gestion', 'admin', 'owner'] as AdminRole[] },
       },
       {
         path: 'horarios',
