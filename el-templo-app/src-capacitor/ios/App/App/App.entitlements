@@ -4,9 +4,16 @@
 <dict>
 	<key>aps-environment</key>
 	<string>production</string>
-	<key>com.apple.developer.associated-domains</key>
-	<array>
-		<string>applinks:app.eltemplo.org</string>
-	</array>
+	<!--
+	  Associated Domains (Universal Links iOS) REMOVIDO temporalmente para
+	  desbloquear el build de App Store: el provisioning profile "El Templo App
+	  Store Distribution" no incluía la capability y el archive fallaba.
+	  Reponer al retomar campañas de mail/freemium (deep links app.eltemplo.org).
+	  Ver: memoria reminder_ios_deeplinks_associated_domains.
+	  <key>com.apple.developer.associated-domains</key>
+	  <array>
+	    <string>applinks:app.eltemplo.org</string>
+	  </array>
+	-->
 </dict>
 </plist>
