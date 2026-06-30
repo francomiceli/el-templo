@@ -1,7 +1,7 @@
 <template>
   <q-page padding>
     <div class="row items-center justify-between q-mb-md">
-      <div class="text-h5">Puntuaciones de profes</div>
+      <div class="text-h5">Profes</div>
       <q-btn flat round dense icon="refresh" :loading="loading" @click="reload" />
     </div>
 
