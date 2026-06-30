@@ -1222,6 +1222,7 @@ export class TransactionService {
         `${r.recorderFirstName ?? ""} ${r.recorderLastName ?? ""}`.trim(),
       voidedAt: r.voidedAt ? r.voidedAt.toISOString() : null,
       notes: r.notes,
+      createdAt: r.createdAt.toISOString(),
       linkSummary: linksByTx.get(r.id) ?? [],
     }));
 

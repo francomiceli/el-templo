@@ -994,5 +994,13 @@ describe("coach-load mis-cargas", () => {
       expect(row.recordedBy).not.toBe(adminId);
     }
     expect(body.rows.length).toBe(1);
+
+    // Regression (hora de carga): mis-cargas debe exponer createdAt como
+    // timestamp ISO completo. La UI mostraba transactionDate (date-only), que
+    // al formatearse como hora caía fijo en "09:00 p.m." (medianoche UTC → AR).
+    const row = body.rows[0];
+    expect(typeof row.createdAt).toBe("string");
+    expect(row.createdAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/);
+    expect(row.createdAt).not.toBe(row.transactionDate);
   });
 });

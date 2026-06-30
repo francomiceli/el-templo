@@ -354,10 +354,8 @@
       <q-item v-for="ticket in myLoads" :key="ticket.id">
         <q-item-section>
           <q-item-label>
-            <q-icon name="schedule" size="xs" class="q-mr-xs" />{{
-              formatTime(ticket.transactionDate)
-            }}
-            · {{ ticket.memberName }}
+            <q-icon name="schedule" size="xs" class="q-mr-xs" />{{ formatTime(ticket.createdAt) }} ·
+            {{ ticket.memberName }}
           </q-item-label>
           <q-item-label caption>{{ ticketConcept(ticket) }}</q-item-label>
           <div class="q-mt-xs q-gutter-xs">

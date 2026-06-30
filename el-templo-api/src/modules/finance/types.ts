@@ -232,6 +232,8 @@ export interface TransactionListItem {
   recorderName: string;
   voidedAt: string | null;
   notes: string | null;
+  /** ISO timestamp del alta del movimiento (hora real de carga, no la fecha contable). */
+  createdAt: string;
   linkSummary: Array<{
     targetKind: TargetKind;
     targetId: number;
