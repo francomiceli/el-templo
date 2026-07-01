@@ -184,6 +184,21 @@ export const useUserStore = defineStore('user', () => {
     return sub.planCategory === 'presencial'
   })
 
+  // Acceso a reservas — igual que hasPresencialPlan pero además cuenta las
+  // membresías con inicio futuro (status 'scheduled'), para que un alumno cuya
+  // membresía arranca mañana pueda reservar hoy dentro de la ventana de +48h.
+  // El backend valida que la fecha de la clase caiga dentro del período de la
+  // membresía. NO usar para acceso a contenido de entrenamiento (eso sigue
+  // gateado por hasPresencialPlan / suscripción vigente).
+  const hasPresencialReservationAccess = computed(() => {
+    const sub = subscription.value
+    if (!sub) return false
+    if (sub.status !== 'active' && sub.status !== 'paused' && sub.status !== 'scheduled') {
+      return false
+    }
+    return sub.planCategory === 'presencial'
+  })
+
   // Phase 104 (R9): selector visibility — only show UI when there is more than
   // one possible view. N enrollments + 1 if presencial.
   const viewOptionsCount = computed(() => {
@@ -415,6 +430,7 @@ export const useUserStore = defineStore('user', () => {
     activeLevel,
     // Phase 104: presencial / selector capability flags
     hasPresencialPlan,
+    hasPresencialReservationAccess,
     viewOptionsCount,
     showProgramSelector,
     // Actions

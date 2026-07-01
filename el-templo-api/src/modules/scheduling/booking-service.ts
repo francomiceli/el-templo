@@ -99,6 +99,20 @@ export class BookingService {
       throw new CoverageExpiredError();
     }
 
+    // 5a-bis. Coverage-from block: a scheduled (future-start) membership does
+    //     NOT cover classes dated before it begins. getMemberSubscription
+    //     returns the sub covering today when one exists (past startDate → this
+    //     never fires for a normal active member); for a scheduled-only member
+    //     it returns the future sub, so a class before its start is rejected.
+    //     Lets a member whose plan starts tomorrow reserve tomorrow's class
+    //     today (within the +2d window) while blocking classes before coverage.
+    //     String compare is safe (both zero-padded YYYY-MM-DD).
+    if (date < subscription.startDate) {
+      throw new BadRequestError(
+        "Tu membresia todavia no esta vigente para esa fecha",
+      );
+    }
+
     // Phase 110 REQ-8: Load actor role to support the staff multi-branch bypass
     // at the bonus check below. Single SELECT, indexed on users.id (PK).
     // (Existing SELECT at booking-service.ts:86-89 was NOT reusable — it queries

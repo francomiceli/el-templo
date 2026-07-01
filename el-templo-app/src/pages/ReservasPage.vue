@@ -52,7 +52,7 @@
     </div>
 
     <!-- Blocked state — user has no presencial plan and is NOT a trial-eligible freemium -->
-    <div v-else-if="!hasPresencialPlan && !trialEligible" class="reservas__empty">
+    <div v-else-if="!canReservePresencial && !trialEligible" class="reservas__empty">
       <q-icon name="event_available" size="64px" color="grey-5" />
       <h2 class="reservas__empty-title">{{ emptyTitle }}</h2>
       <p class="reservas__empty-text">{{ emptyText }}</p>
@@ -698,11 +698,13 @@ const selectedDay = ref<DayOfWeek>(getTodayDow(branchTimezone.value))
 // ─── Multi-branch ───────────────────────────────────────────────────
 const branches = ref<{ id: number; name: string }[]>([])
 const selectedBranchId = ref<number | null>(null)
-// Phase 104 (R11): single-capability gate. `hasPresencialPlan` is exposed by
-// useUserStore (Plan 05) and returns true only for active/paused subs whose
-// planCategory === 'presencial'. Replaces the previous proxy check that relied
-// on a virtual-branch heuristic and missed bundle plans (online_regular).
-const hasPresencialPlan = computed(() => userStore.hasPresencialPlan)
+// Phase 104 (R11): single-capability gate para reservas. Usa
+// `hasPresencialReservationAccess` (useUserStore) que — a diferencia de
+// hasPresencialPlan — también cuenta las membresías con inicio futuro
+// ('scheduled'), para que un alumno cuya membresía arranca mañana pueda reservar
+// hoy dentro de la ventana de +48h (el backend valida que la fecha de la clase
+// caiga dentro del período de la membresía).
+const canReservePresencial = computed(() => userStore.hasPresencialReservationAccess)
 const hasActiveButNotPresencial = computed(
   () => userStore.hasActiveSubscription && !userStore.hasPresencialPlan,
 )
@@ -1064,22 +1066,19 @@ function slotCardClass(slot: WeeklySlotView): Record<string, boolean> {
   }
 }
 
-// ─── Availability tier (D: hide raw count, show qualitative label) ──
-// Mirrors the admin Horarios grid exactly (HorariosPage.vue cellClass):
-// Umbral ABSOLUTO de cupos restantes: 1 cupo → 'last' (pill NARANJA, máxima
-// urgencia); 2-4 → 'few' (pill amarilla + conteo); 5 o más → 'available'
-// ("Cupos disponibles", sin número); 0 → 'full'. Se prefirió un umbral fijo
-// (no porcentual) para que el aviso sea consistente sin importar el tamaño de la clase.
+// ─── Availability tier ──────────────────────────────────────────────
+// Mirrors the admin Horarios grid thresholds (HorariosPage.vue cellClass):
+// 1 lugar → 'last' (pill NARANJA), 2-4 → 'few' (pill amarilla), 5+ →
+// 'available' (verde), 0 → 'full'. Umbral ABSOLUTO (no porcentual) para que el
+// aviso sea consistente sin importar el tamaño de la clase.
+//
+// Copy (pedido de negocio): cuando hay lugar de sobra la etiqueta muestra
+// cuánta gente YA reservó ("N personas anotadas" = prueba social); cuando queda
+// poco lugar pasa a mostrar los lugares RESTANTES ("Quedan N lugares" =
+// urgencia). El color sale del CSS por nivel.
 type AvailabilityLevel = 'available' | 'few' | 'last' | 'full'
 
 const FEW_THRESHOLD = 5
-
-const AVAILABILITY_LABELS: Record<AvailabilityLevel, string> = {
-  available: 'Cupos disponibles',
-  few: 'Pocos cupos',
-  last: 'Último cupo',
-  full: 'Completo',
-}
 
 function spotsLeft(slot: WeeklySlotView): number {
   return Math.max(0, slot.maxCapacity - slot.bookedCount)
@@ -1093,14 +1092,15 @@ function availabilityLevel(slot: WeeklySlotView): AvailabilityLevel {
   return 'available'
 }
 
-// Texto de la etiqueta. 'available' → "Cupos disponibles" (sin número). 'few' →
-// "Quedan N cupos!" (amarilla). 'last' → "Queda 1 cupo!" (naranja). 'full' →
-// "Completo". El color sale del CSS por nivel.
 function availabilityText(slot: WeeklySlotView): string {
   const level = availabilityLevel(slot)
-  if (level === 'last') return 'Queda 1 cupo!'
-  if (level === 'few') return `Quedan ${spotsLeft(slot)} cupos!`
-  return AVAILABILITY_LABELS[level]
+  if (level === 'full') return 'Completo'
+  if (level === 'last') return 'Queda 1 lugar'
+  if (level === 'few') return `Quedan ${spotsLeft(slot)} lugares`
+  // 'available': prueba social — cuántos ya se anotaron.
+  const booked = Math.max(0, slot.bookedCount)
+  if (booked === 1) return '1 persona anotada'
+  return `${booked} personas anotadas`
 }
 
 // ─── Week events (for collapsible summary) ──────────────────────────

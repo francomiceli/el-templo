@@ -378,6 +378,32 @@ export class TrialService {
       .where(eq(schema.users.id, userId))
       .limit(1);
 
+    if (!user || user.deletedAt) {
+      return { eligible: false, alreadyBooked: false };
+    }
+
+    // A member (or soon-to-be member: a scheduled/future sub) NEVER sees the
+    // trial UI — even if a legacy is_trial booking from their freemium days
+    // still exists. This gate runs BEFORE the booking-precedence lookup below,
+    // so an active alumno who once did a trial isn't stuck on the "prueba
+    // reservada" card and can reserve normally (reported bug: active member
+    // seeing "tu sesión de prueba está reservada").
+    const [blockingSub] = await this.db
+      .select({ id: schema.subscriptions.id })
+      .from(schema.subscriptions)
+      .where(
+        and(
+          eq(schema.subscriptions.userId, userId),
+          inArray(schema.subscriptions.status, [
+            ...BLOCKING_SUBSCRIPTION_STATUSES,
+          ]),
+        ),
+      )
+      .limit(1);
+    if (blockingSub) {
+      return { eligible: false, alreadyBooked: false };
+    }
+
     // Existing trial booking (any non-cancelled is_trial) takes precedence so
     // the app shows the confirmation card even after promotion to 'prueba'.
     const [booking] = await this.db
@@ -429,23 +455,9 @@ export class TrialService {
       };
     }
 
-    if (!user || user.deletedAt || user.status !== "freemium") {
-      return { eligible: false, alreadyBooked: false };
-    }
-
-    const [activeSub] = await this.db
-      .select({ id: schema.subscriptions.id })
-      .from(schema.subscriptions)
-      .where(
-        and(
-          eq(schema.subscriptions.userId, userId),
-          inArray(schema.subscriptions.status, [
-            ...BLOCKING_SUBSCRIPTION_STATUSES,
-          ]),
-        ),
-      )
-      .limit(1);
-    if (activeSub) {
+    // Only a still-freemium lead (no blocking sub, no trial booking yet) can
+    // book a new trial. 'prueba' users already have a booking (caught above).
+    if (user.status !== "freemium") {
       return { eligible: false, alreadyBooked: false };
     }
 
