@@ -24,7 +24,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import {
   createTestApp,
@@ -196,14 +196,27 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
-  // Clean finance + subscription state between tests. FK checks off via the
-  // raw connection so order is moot (mirrors cleanAllTestData semantics).
-  await app.db.execute(sql`DELETE FROM transaction_links`);
-  await app.db.execute(sql`DELETE FROM financial_transactions`);
-  await app.db.execute(sql`DELETE FROM balances`);
-  await app.db.execute(sql`DELETE FROM audit_log`);
-  await app.db.execute(sql`DELETE FROM bookings`);
-  await app.db.execute(sql`DELETE FROM subscriptions`);
+  // Clean finance + subscription state between tests on a SINGLE pooled
+  // connection with FK checks disabled. FOREIGN_KEY_CHECKS is a per-connection
+  // session variable, so the previous app.db.execute() version could route the
+  // DELETEs across different pool connections — one with FK checks still ON —
+  // and fail `DELETE FROM subscriptions` with ER_ROW_IS_REFERENCED_2 from
+  // program_enrollments left behind by another test file sharing this
+  // per-worker DB (isolate=false). Mirrors cleanAllTestData semantics.
+  const conn = await app.dbPool.getConnection();
+  try {
+    await conn.query("SET FOREIGN_KEY_CHECKS=0");
+    await conn.query("DELETE FROM `transaction_links`");
+    await conn.query("DELETE FROM `financial_transactions`");
+    await conn.query("DELETE FROM `balances`");
+    await conn.query("DELETE FROM `audit_log`");
+    await conn.query("DELETE FROM `bookings`");
+    await conn.query("DELETE FROM `program_enrollments`");
+    await conn.query("DELETE FROM `subscriptions`");
+    await conn.query("SET FOREIGN_KEY_CHECKS=1");
+  } finally {
+    conn.release();
+  }
 
   const member = await registerUser(app, {
     email: `coach-load-member-${Date.now()}@test.local`,
