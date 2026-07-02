@@ -24,7 +24,7 @@ con el "Motivo" que v5.3 ya agregó — verificar en plan-phase antes de duplica
 - [x] **NAV-01**: El nav del admin se agrupa en categorías **Finanzas / Alumnos / Horarios / Planes**; Pagos, Caja, Analíticas, Reportes y Deudas viven dentro de Finanzas.
 - [x] **NAV-02**: **Finanzas** (completa) y **Planes** (edición) son visibles solo para admin/owner del gimnasio.
 - [x] **NAV-03**: El profe/administrativo ve **solo Pagos** (registrar cobro) dentro de Finanzas, y **Planes en modo lectura** (qué incluye + precios, sin editar).
-- [ ] **NAV-04**: Campañas, Profes/Puntuaciones y las páginas de landing/marketing quedan **fuera del nav MVP** (gateadas por rol/flag, no borradas — siguen accesibles para El Templo).
+- [x] **NAV-04**: Campañas, Profes/Puntuaciones y las páginas de landing/marketing quedan **fuera del nav MVP** (gateadas por rol/flag, no borradas — siguen accesibles para El Templo).
 
 ### COBRO — Registrar cobro (Pagos → Cobros)
 
@@ -101,7 +101,7 @@ Every v5.4 requirement maps to exactly one phase. Coverage: 33/33.
 | NAV-01      | Phase 149 | Complete |
 | NAV-02      | Phase 149 | Complete |
 | NAV-03      | Phase 149 | Complete |
-| NAV-04      | Phase 149 | Pending  |
+| NAV-04      | Phase 149 | Complete |
 | CTA-01      | Phase 150 | Pending  |
 | CTA-02      | Phase 150 | Pending  |
 | CTA-03      | Phase 150 | Pending  |

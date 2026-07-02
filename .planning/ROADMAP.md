@@ -3833,11 +3833,11 @@ _v5.3 (Mejoras Caja) added: 2026-06-26 — 3 phases (145-147), 17 requirements (
 3. El profe/administrativo ve dentro de Finanzas **solo "Pagos"** (registrar cobro) y **Planes en modo lectura** (qué incluye + precios, sin editar). (NAV-03)
 4. Campañas, Profes/Puntuaciones y las páginas de landing/marketing quedan **fuera del nav MVP**, gateadas por rol/flag y **no borradas** (siguen accesibles para El Templo). (NAV-04)
 
-**Plans:** 2/4 plans executed
+**Plans:** 3/4 plans executed
 
 - [x] 149-01-PLAN.md — API: sets RBAC core+overrides Templo + guards de escritura dueño-only en plans/promo-plans (D-11)
 - [x] 149-02-PLAN.md — API: eliminar la perilla de Configuración de Caja (endpoints/servicio/schemas) + umbral hardcodeado OVERDUE_DAYS (D-13)
-- [ ] 149-03-PLAN.md — Admin: nav-model declarativo (templo-config.ts) + drawer por categorías Finanzas/Alumnos/Horarios/Planes + Configuración + Templo
+- [x] 149-03-PLAN.md — Admin: nav-model declarativo (templo-config.ts) + drawer por categorías Finanzas/Alumnos/Horarios/Planes + Configuración + Templo
 - [ ] 149-04-PLAN.md — Admin: landing por rol + Planes read-only para empleado + borrar página/ruta de config-caja (D-14/D-09/D-13)
       **UI hint:** yes
 
@@ -3950,7 +3950,7 @@ _v5.3 (Mejoras Caja) added: 2026-06-26 — 3 phases (145-147), 17 requirements (
 
 | Phase                                           | Plans Complete | Status      | Completed |
 | ----------------------------------------------- | -------------- | ----------- | --------- |
-| 149. Nav por categorías + RBAC                  | 2/4            | In Progress |           |
+| 149. Nav por categorías + RBAC                  | 3/4            | In Progress |           |
 | 150. Cuentas bancarias flexibles                | 0/TBD          | Not started | -         |
 | 151. Registrar cobro (Pagos → Cobros)           | 0/TBD          | Not started | -         |
 | 152. Reorganización de Caja + egresos config.   | 0/TBD          | Not started | -         |
