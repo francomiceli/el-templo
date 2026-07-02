@@ -58,7 +58,7 @@ import {
   deactivatePromoSchema,
 } from "./schemas";
 
-import { SUBSCRIPTION_ROLES } from "../shared/permissions";
+import { SUBSCRIPTION_ROLES, PLANES_WRITE_ROLES } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
 
 export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
@@ -154,6 +154,16 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
     "/plans",
     { schema: createPlanSchema },
     async (request, reply) => {
+      // D-11: Planes writes son Dueño-only (owner/admin). El guard module-wide
+      // usa SUBSCRIPTION_ROLES (incluye coach para el PoS), así que sin este
+      // check per-handler un coach podría crear planes por API.
+      if (
+        !(PLANES_WRITE_ROLES as readonly string[]).includes(request.user.role)
+      ) {
+        return reply
+          .code(403)
+          .send({ error: "Acceso denegado", message: "Solo owner/admin" });
+      }
       const plan = await subscriptionService.createPlan(request.body);
       return reply.code(201).send(plan);
     },
@@ -164,6 +174,14 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
     "/plans/:planId",
     { schema: updatePlanSchema },
     async (request, reply) => {
+      // D-11: Planes writes son Dueño-only (owner/admin).
+      if (
+        !(PLANES_WRITE_ROLES as readonly string[]).includes(request.user.role)
+      ) {
+        return reply
+          .code(403)
+          .send({ error: "Acceso denegado", message: "Solo owner/admin" });
+      }
       const plan = await subscriptionService.updatePlan(
         request.params.planId,
         request.body,
@@ -182,6 +200,14 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
     "/plans/:planId/deactivate",
     { schema: deactivatePlanSchema },
     async (request, reply) => {
+      // D-11: Planes writes son Dueño-only (owner/admin).
+      if (
+        !(PLANES_WRITE_ROLES as readonly string[]).includes(request.user.role)
+      ) {
+        return reply
+          .code(403)
+          .send({ error: "Acceso denegado", message: "Solo owner/admin" });
+      }
       const plan = await subscriptionService.deactivatePlan(
         request.params.planId,
       );
@@ -199,6 +225,14 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
     "/bulk-migrate",
     { schema: bulkMigratePlanSchema },
     async (request, reply) => {
+      // D-11: Planes writes son Dueño-only (owner/admin).
+      if (
+        !(PLANES_WRITE_ROLES as readonly string[]).includes(request.user.role)
+      ) {
+        return reply
+          .code(403)
+          .send({ error: "Acceso denegado", message: "Solo owner/admin" });
+      }
       try {
         const result = await subscriptionService.bulkMigratePlan(
           request.body,
@@ -584,6 +618,14 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
     "/promo-plans",
     { schema: createPromoSchema },
     async (request, reply) => {
+      // D-11: Promo writes son Dueño-only (owner/admin).
+      if (
+        !(PLANES_WRITE_ROLES as readonly string[]).includes(request.user.role)
+      ) {
+        return reply
+          .code(403)
+          .send({ error: "Acceso denegado", message: "Solo owner/admin" });
+      }
       try {
         const promo = await subscriptionService.createPromo(request.body);
         return reply.code(201).send(promo);
@@ -598,6 +640,14 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
     "/promo-plans/:promoId",
     { schema: updatePromoSchema },
     async (request, reply) => {
+      // D-11: Promo writes son Dueño-only (owner/admin).
+      if (
+        !(PLANES_WRITE_ROLES as readonly string[]).includes(request.user.role)
+      ) {
+        return reply
+          .code(403)
+          .send({ error: "Acceso denegado", message: "Solo owner/admin" });
+      }
       try {
         const promo = await subscriptionService.updatePromo(
           request.params.promoId,
@@ -615,6 +665,14 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
     "/promo-plans/:promoId/deactivate",
     { schema: deactivatePromoSchema },
     async (request, reply) => {
+      // D-11: Promo writes son Dueño-only (owner/admin).
+      if (
+        !(PLANES_WRITE_ROLES as readonly string[]).includes(request.user.role)
+      ) {
+        return reply
+          .code(403)
+          .send({ error: "Acceso denegado", message: "Solo owner/admin" });
+      }
       try {
         await subscriptionService.deactivatePromo(request.params.promoId);
         return { message: "Promo desactivada" };
