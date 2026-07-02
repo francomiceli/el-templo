@@ -28,6 +28,18 @@ A multi-app platform for El Templo Calistenia, a calisthenics gym chain with 8 l
 
 **Reference:** `.docs/saas-multitenancy/Correcciones El Templo.md` (doc crudo de Nacho) + `01-analisis-correcciones-admin.md` (análisis bajo lente SaaS, mapa imagen→código) + `README.md` §0 (decisión de secuencia).
 
+## Next Milestone (planned, not active): v5.5 Sistema de Referidos
+
+**Ejecuta DESPUÉS de v5.4** (decisión de Franco, 2026-07-02: reforma del admin primero; referidos se monta sobre el alta de alumno y los cobros ya reformados). v5.4 sigue siendo el milestone activo — v5.5 está roadmapped y a la espera.
+
+**Goal:** Sistema de referidos double-sided AURA-native: cada vínculo, una vez que el referido paga su primer plan (`qualified`), otorga a **ambas** partes un % de descuento en su cuota **mientras las dos sigan activas**, evaluado en cada cobro, acumulable por múltiples vínculos hasta un tope. No-discrecional (se auto-aplica); AURA queda como anotación interna.
+
+**Fases:** 157 (núcleo transaccional: schema+migración, atribución doble canal, cualificación en `assignPlan`, cómputo del descuento simétrico, registro AURA) y 158 (visibilidad: pantalla "Mis referidos", notificaciones, panel admin opcional). 12 requirements (REF/DESC/AURA/VIS) — inline en el ROADMAP hasta activar el milestone.
+
+**Solapamiento con v5.4:** fase 157 cruza fase 154 (alta de alumno) y fase 151 (`assignPlan`) — verificar en plan-phase, montar sobre lo reformado.
+
+**Fuente de verdad:** `BRIEF-SISTEMA-REFERIDOS.md` (raíz). Infra AURA ya reserva `sourceType:"referral"` sin cablear.
+
 ## Previous Milestone: v5.3 Mejoras Caja / Módulo Contable (feedback v5.2)
 
 **Goal:** Resolver el feedback operativo de v5.2 sobre la caja y la PoS del profe — imputación correcta de caja, cobro de socios sin plan activo, arqueo por caja y clasificación de egresos.

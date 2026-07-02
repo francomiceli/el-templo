@@ -3959,3 +3959,97 @@ _Plan counts populated by `/gsd-plan-phase`._
 ---
 
 _v5.4 (Reforma del Admin) added: 2026-07-02 — 8 phases (149-156), 33 requirements (NAV, COBRO, CTA, CAJA, DEUDA, ALUM, HOR, PLAN). Primera etapa del camino SaaS: reforma PRIMERO, tenancy DESPUÉS (decisión de Nacho, secuencial). Deriva de `.docs/saas-multitenancy/Correcciones El Templo.md` + `01-analisis-correcciones-admin.md` (mapa imagen→código). Continúa numeración desde fase 148 (NO se resetea). **149 (Nav+RBAC) es foundational** (define categorías + gating). **150 (Cuentas bancarias) precede a 151 (Cobros)** por COBRO-04. **152 (Caja)** levanta EGR-F2 de v5.3 sobre `cost_centers` (fase 147); **150** levanta CAJA-F1 (ABM cuentas banco). **153 (Deudas)** reutiliza el "Motivo" (`misc_reason`) de v5.3 (fase 145) — verificar, no duplicar. Constraint dura: todo cambio de API adopta los patrones del diseño SaaS validado (motor vs plantilla, imports módulo→core, sin nuevos Templo-ismos en core). SIN tenants este milestone. Out of scope: tabla tenants/tenant_id/mecanismo de módulos, analíticas finas (ANLT-F1), QR desde app del alumno (HOR-F1), borrar features Templo (se gatean). Fuente de verdad: `.docs/saas-multitenancy/`._
+
+---
+
+## v5.5 (Sistema de Referidos) Overview
+
+**Milestone:** v5.5 — Sistema de Referidos — descuento recurrente double-sided AURA-native
+
+**Status:** PRÓXIMO (no activo). El milestone activo sigue siendo v5.4; v5.5 se ejecuta **DESPUÉS** de v5.4 (decisión de Franco, 2026-07-02: reforma del admin primero, referidos se monta sobre el alta de alumno y los cobros ya reformados). Los REQ-IDs viven **inline en las Phase Details** de abajo; `REQUIREMENTS.md` se formaliza cuando v5.5 pase a activo (tras `complete-milestone` de v5.4).
+
+**Continues from:** Phase 156 (v5.4). Numbering is NOT reset.
+
+**Goal:** Sistema de referidos double-sided AURA-native: cada vínculo de referido, una vez que el referido paga su primer plan (`qualified`), otorga a **ambas** partes (referidor y referido) un % de descuento en su cuota **mientras las dos sigan activas**, evaluado en cada cobro, acumulable por múltiples vínculos hasta un tope. El descuento es **no-discrecional** (se auto-aplica, el socio no administra AURA); AURA queda como anotación de registro interno.
+
+**Solapamiento con v5.4 (verificar en plan-phase):**
+
+- **Fase 157 (atribución en alta)** cruza con **v5.4 fase 154 (Alumnos — reforma del alta)**: el campo "¿Quién lo trajo?" debe montarse sobre el flujo de alta ya reformado, no reconstruirlo.
+- **Fase 157 (descuento en `assignPlan`)** cruza con **v5.4 fase 151 (Cobros/`assignPlan`)**: verificar integración del cómputo del descuento con el registro de cobro reformado.
+- Reusa el canal asistido de **fase 148 (PoS profe: alta de alumno + plan en el cobro)**.
+
+**Secuencia (dependencias):** **157 (núcleo) es foundational** — schema, atribución doble canal, cualificación y cómputo del descuento. **158 (visibilidad) depende de 157** — solo lee y comunica lo que 157 produce.
+
+**Fuente de verdad:** `BRIEF-SISTEMA-REFERIDOS.md` (raíz), con las 8 decisiones de diseño cerradas por Franco. Infra AURA ya reserva `sourceType:"referral"` sin cablear (`aura-transactions.ts:17`, `aura-config.ts:16`).
+
+## v5.5 (Sistema de Referidos) Phases
+
+- [ ] **Phase 157: Núcleo transaccional de referidos** — schema+migración (`users.referralCode`/`referredBy`, tabla `referrals`, seed `aura_config` para `referral`), atribución doble canal (self-service `?ref=CODE` en registro + asistido "¿Quién lo trajo?" en el alta admin), cualificación en `assignPlan` al primer pago del referido, cómputo del descuento simétrico recurrente y condicional a ambos-activos con acumulación topeada, y registro AURA interno sin inflar saldo gastable.
+- [ ] **Phase 158: Visibilidad y comunicación** — pantalla "Mis referidos" en la app (estado por vínculo + descuento vigente), notificaciones (vínculo activado / descuento por caerse) y panel de referidos en el admin (opcional).
+
+## v5.5 (Sistema de Referidos) Phase Details
+
+### Phase 157: Núcleo transaccional de referidos
+
+**Goal:** El sistema de referidos funciona end-to-end del lado de la plata: se atribuye quién trajo a quién (por ambos canales), el primer pago del referido activa el vínculo, y el descuento simétrico condicional se aplica solo en cada cobro. End state: un socio con vínculos qualified y contraparte activa paga menos su cuota automáticamente, con anotación interna en AURA y sin poder administrar ese crédito.
+
+**Depends on:** Fase 148 (canal asistido de alta) + (si v5.4 va primero) Fase 154 (alta de alumno reformado) y Fase 151 (registro de cobro reformado sobre `assignPlan`). Toca `el-templo-api` (schema/migración, `auth/routes.ts` registro, `subscriptions/service.ts` `assignPlan`), `el-templo-app` (RegisterPage `?ref`) y `el-templo-admin` (campo en alta).
+
+**Requirements (inline — se formalizan en REQUIREMENTS.md al activar v5.5):**
+
+- **REF-01**: Cada socio tiene un **código de referido único** y puede compartir un link `?ref=CODE`.
+- **REF-02**: Un miembro que se registra **self-service** con `?ref=CODE` queda **atribuido** a su referidor.
+- **REF-03**: Recepción/gestión/profe puede **atribuir el referidor al dar de alta** un alumno (campo "¿Quién lo trajo?"), enganchando con el flujo de alta (fases 148/154).
+- **REF-04**: El sistema impide **auto-referido** y garantiza que **cada nuevo miembro tenga a lo sumo un referidor** (no puede ser reclamado por dos personas), respetando el **dedup por DNI**. Un referidor **sí puede traer múltiples referidos** (la acumulación del descuento se rige por DESC-04).
+- **DESC-01**: Cuando el referido **paga su primera suscripción**, el vínculo pasa a `qualified` y habilita el descuento.
+- **DESC-02**: Un vínculo `qualified` otorga un **% de descuento a ambas partes** (referidor y referido) en su cuota, **simétrico**, mientras ambos sigan activos.
+- **DESC-03**: El descuento se **evalúa en cada cobro** (`assignPlan`); si una parte está inactiva se **suspende** ese ciclo y se **reactiva** si vuelve (no se revoca salvo fraude/manual).
+- **DESC-04**: Múltiples vínculos activos **acumulan** descuento hasta un **tope configurable** (% por vínculo + máximo).
+- **DESC-05**: El descuento es **no-discrecional**: se auto-aplica en el cobro, el socio no lo administra.
+- **AURA-01**: Cada descuento aplicado se registra como anotación `sourceType:"referral"` para **trazabilidad interna**, **sin inflar** el saldo AURA gastable.
+- **AURA-02**: La **magnitud** del descuento se parametriza en `aura_config` (fila `referral`).
+
+**Success criteria:**
+
+1. Un socio nuevo con `?ref=CODE` queda vinculado a su referidor; y recepción puede atribuir el referidor al dar el alta (ambos canales escriben `users.referredBy`).
+2. El sistema rechaza auto-referido y doble-referidor, y respeta el dedup por DNI.
+3. El primer pago del referido marca el vínculo `qualified`.
+4. Al cobrar la cuota de cualquiera de las dos partes, el descuento simétrico se calcula y aplica automáticamente solo si ambos están activos, acumulando por vínculo hasta el tope.
+5. Cada descuento aplicado deja una anotación `sourceType:"referral"` sin alterar el saldo AURA gastable del socio.
+
+**Plans:** TBD
+**UI hint:** yes (RegisterPage `?ref` + campo "¿Quién lo trajo?" en alta admin)
+
+### Phase 158: Visibilidad y comunicación
+
+**Goal:** El socio entiende y siente el beneficio: ve el estado de sus referidos y el descuento vigente, y es avisado cuando un vínculo se activa. End state: pantalla "Mis referidos" operativa en la app, notificación al activarse un vínculo, y (opcional) listado de referidos para gestión.
+
+**Depends on:** Phase 157 (lee y comunica el modelo que 157 produce; no altera la mecánica).
+
+**Requirements (inline):**
+
+- **VIS-01**: El socio ve una pantalla **"Mis referidos"** con el estado de cada vínculo (pendiente/activo/caído) y el **descuento vigente**.
+- **VIS-02**: El socio recibe **notificación** cuando su vínculo se **activa** (referido pagó), y opcionalmente cuando el descuento **está por caerse**.
+- **VIS-03** _(opcional)_: Gestión ve un **panel/listado de referidos** en el admin.
+
+**Success criteria:**
+
+1. "Mis referidos" muestra cada vínculo con su estado y el descuento vigente del socio.
+2. Al activarse un vínculo (referido paga), el referidor recibe una notificación.
+3. (Opcional) Gestión puede ver el listado de referidos y sus estados en el admin.
+
+**Plans:** TBD
+**UI hint:** yes (pantalla app "Mis referidos" + notificaciones + panel admin opcional)
+
+## v5.5 (Sistema de Referidos) Progress
+
+| Phase                                  | Plans Complete | Status      | Completed |
+| -------------------------------------- | -------------- | ----------- | --------- |
+| 157. Núcleo transaccional de referidos | 0/TBD          | Not started | -         |
+| 158. Visibilidad y comunicación        | 0/TBD          | Not started | -         |
+
+_Plan counts populated by `/gsd-plan-phase`._
+
+---
+
+_v5.5 (Sistema de Referidos) added: 2026-07-02 — 2 phases (157-158), 12 requirements (REF, DESC, AURA, VIS). **PRÓXIMO milestone, NO activo** — se ejecuta DESPUÉS de v5.4 (decisión de Franco: reforma admin primero). Continúa numeración desde fase 156 (NO se resetea). **157 (núcleo) es foundational**; 158 (visibilidad) depende de 157. Feature AURA-native: la infra ya reserva `sourceType:"referral"` sin cablear. Descuento recurrente SIMÉTRICO condicionado a ambos-activos, no-discrecional, acumulable con tope; AURA = anotación interna. Solapa con v5.4: fase 157 cruza fase 154 (alta de alumno) y fase 151 (`assignPlan`) — montar sobre lo reformado, verificar en plan-phase. REQ-IDs inline en Phase Details; `REQUIREMENTS.md` se formaliza al activar v5.5. Preguntas abiertas §7 (ventana registro→pago, calibración de %, backfill de códigos, suspende-vs-revoca) → discuss-phase. Fuente de verdad: `BRIEF-SISTEMA-REFERIDOS.md` (raíz)._
