@@ -4,6 +4,7 @@ import {
   createTestApp,
   getAuthToken,
   registerUser,
+  createStaffUser,
   cleanAllTestData,
 } from "../helpers";
 import { SUBSCRIPTIONS_URL, basePlan, createPlan } from "./_helpers";
@@ -255,5 +256,115 @@ describe("Subscriptions API — Plans CRUD", () => {
         `Expected 403 for ${ep.method} ${ep.url}, got ${res.statusCode}`,
       ).toBe(403);
     }
+  });
+
+  // =========================================================================
+  // D-11 — Per-handler Dueño-only guard on plan/promo writes.
+  //
+  // The subscriptions plugin gates the module with SUBSCRIPTION_ROLES (which
+  // INCLUDES coach, needed for the PoS assign/renew/pause flows). Without a
+  // per-handler guard a coach could create/edit/archive plans and promos by
+  // API. These tests assert coach → 403 on the 7 writes and coach → 200 on the
+  // read (GET /plans), while admin keeps writing normally.
+  // =========================================================================
+  describe("RBAC per-handler Dueño-only writes (D-11)", () => {
+    let coachToken: string;
+
+    beforeEach(async () => {
+      await createStaffUser(app, {
+        email: "coach-planes@test.com",
+        password: "coachpass123",
+        firstName: "Coach",
+        lastName: "Planes",
+        role: "coach",
+        branchId: 1,
+      });
+      coachToken = await getAuthToken(
+        app,
+        "coach-planes@test.com",
+        "coachpass123",
+      );
+    });
+
+    it("coach gets 403 on the 7 plan/promo write endpoints (valid payloads)", async () => {
+      const validPromo = {
+        name: "Promo Coach",
+        promoCode: `COACH-${Date.now()}`,
+        planDurationDays: 30,
+        startDate: "2026-01-01",
+        expiryDate: "2026-12-31",
+        promoType: "auto" as const,
+        subscriptionPlanId: 1,
+      };
+
+      const writes = [
+        {
+          method: "POST" as const,
+          url: `${SUBSCRIPTIONS_URL}/plans`,
+          payload: basePlan,
+        },
+        {
+          method: "PUT" as const,
+          url: `${SUBSCRIPTIONS_URL}/plans/1`,
+          payload: { name: "Hack", priceRegular: 20000 },
+        },
+        {
+          method: "PATCH" as const,
+          url: `${SUBSCRIPTIONS_URL}/plans/1/deactivate`,
+        },
+        {
+          method: "POST" as const,
+          url: `${SUBSCRIPTIONS_URL}/bulk-migrate`,
+          payload: { userIds: [1], targetPlanId: 1, targetBranchId: 1 },
+        },
+        {
+          method: "POST" as const,
+          url: `${SUBSCRIPTIONS_URL}/promo-plans`,
+          payload: validPromo,
+        },
+        {
+          method: "PATCH" as const,
+          url: `${SUBSCRIPTIONS_URL}/promo-plans/1`,
+          payload: { name: "Hack Promo" },
+        },
+        {
+          method: "PATCH" as const,
+          url: `${SUBSCRIPTIONS_URL}/promo-plans/1/deactivate`,
+        },
+      ];
+
+      for (const w of writes) {
+        const res = await app.inject({
+          method: w.method,
+          url: w.url,
+          headers: { authorization: `Bearer ${coachToken}` },
+          payload: "payload" in w ? w.payload : undefined,
+        });
+        expect(
+          res.statusCode,
+          `Expected 403 for ${w.method} ${w.url}, got ${res.statusCode}`,
+        ).toBe(403);
+      }
+    });
+
+    it("coach keeps reading GET /plans (200 — Planes read-only for staff)", async () => {
+      const res = await app.inject({
+        method: "GET",
+        url: `${SUBSCRIPTIONS_URL}/plans`,
+        headers: { authorization: `Bearer ${coachToken}` },
+      });
+      expect(res.statusCode).toBe(200);
+      expect(JSON.parse(res.body)).toHaveProperty("plans");
+    });
+
+    it("admin still creates plans (no regression)", async () => {
+      const res = await app.inject({
+        method: "POST",
+        url: `${SUBSCRIPTIONS_URL}/plans`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { ...basePlan, name: "Admin sigue creando" },
+      });
+      expect(res.statusCode).toBe(201);
+    });
   });
 });
