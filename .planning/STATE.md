@@ -2,9 +2,10 @@
 gsd_state_version: 1.0
 milestone: v5.4
 milestone_name: Reforma del Admin — Correcciones white-label (pre-tenants)
-status: roadmapped
-last_updated: "2026-07-02T18:30:00.000Z"
-last_activity: 2026-07-02
+status: Roadmapped (8 phases, 33/33 requirements mapped)
+stopped_at: Phase 149 context gathered
+last_updated: "2026-07-02T18:12:04.939Z"
+last_activity: 2026-07-02 — Milestone v5.4 roadmap created (phases 149-156)
 progress:
   total_phases: 8
   completed_phases: 0
@@ -699,8 +700,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-06-26T16:26:58.331Z
-Stopped at: Phase 148 planned (6 plans, 3 waves) + W-1 fix
-Resume file: None
+Last session: 2026-07-02T18:12:04.919Z
+Stopped at: Phase 149 context gathered
+Resume file: .planning/phases/149-nav-por-categor-as-rbac/149-CONTEXT.md
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
