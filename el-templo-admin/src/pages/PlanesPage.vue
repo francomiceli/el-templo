@@ -414,6 +414,19 @@ const isOwner = computed(() => authStore.user?.role === 'owner');
 
 const canEditPlans = computed(() => ['owner', 'admin'].includes(authStore.user?.role ?? ''));
 
+// =========================================================================
+// Program-catalog read gate (D-10): la columna "Programa" se puebla con el
+// catálogo de programas. Coach queda EXCLUIDO — Programas es una superficie de
+// entrenamiento que no se le muestra al profe; para coach la columna degrada a
+// "—" sin request. Espeja PROGRAMAS_LIST_ROLES de la API (owner/admin/gestion/
+// recepcion). NO reusar `canEditPlans` (excluye a gestion/recepcion, que sí
+// leen el catálogo).
+// =========================================================================
+
+const canViewPrograms = computed(() =>
+  ['owner', 'admin', 'gestion', 'recepcion'].includes(authStore.user?.role ?? '')
+);
+
 const countryOptions = [
   { label: 'Argentina', value: 'AR' as const },
   { label: 'España', value: 'ES' as const },
@@ -637,11 +650,18 @@ async function loadPlans() {
 }
 
 async function loadPrograms() {
+  // D-10: coach no ve Programas — no dispara el fetch (evita el 403 y el evento
+  // de Sentry). La columna "Programa" degrada naturalmente a "—" con programs=[].
+  if (!canViewPrograms.value) {
+    return;
+  }
   try {
     programs.value = await programsApi.getPrograms();
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido';
-    log.error('Error loading programs', { error: message });
+    // Decoración no crítica: un fallo de red degrada la columna a "—" sin
+    // generar un evento de Sentry (warn no reporta; error sí).
+    log.warn('Error loading programs', { error: message });
   }
 }
 
