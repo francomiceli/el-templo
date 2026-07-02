@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v5.4
 milestone_name: Reforma del Admin — Correcciones white-label (pre-tenants)
 status: executing
-stopped_at: Phase 149 context gathered
-last_updated: "2026-07-02T19:01:25.495Z"
-last_activity: 2026-07-02 -- Phase 149 planning complete
+stopped_at: Completed 149-01-PLAN.md
+last_updated: "2026-07-02T19:32:23.136Z"
+last_activity: 2026-07-02
 progress:
   total_phases: 8
   completed_phases: 0
   total_plans: 4
-  completed_plans: 0
+  completed_plans: 1
   percent: 0
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-04)
 
 **Core value (v5.4):** Reorganizar el admin según `Correcciones El Templo.md` para dejarlo listo como MVP white-label — nav por categorías + RBAC dueño-vs-empleado, pantallas simplificadas y de-Templo-ficación de la superficie MVP (Finanzas, Alumnos, Horarios, Planes) — SIN introducir tenants todavía. Primera etapa del camino SaaS (reforma PRIMERO, tenancy DESPUÉS, secuencial). 8 fases (149-156), 33 requirements (NAV/COBRO/CTA/CAJA/DEUDA/ALUM/HOR/PLAN). Constraint dura: todo cambio de API adopta los patrones del diseño SaaS validado (motor vs plantilla, imports módulo→core, sin nuevos Templo-ismos en core).
-**Current focus:** Phase 149 — Nav por categorías + RBAC (foundational)
+**Current focus:** Phase 149 — nav-por-categor-as-rbac
 
 ## Current Position
 
-Phase: 149 (not started — roadmapped, awaiting /gsd-plan-phase)
-Plan: —
+Phase: 149 (nav-por-categor-as-rbac) — EXECUTING
+Plan: 2 of 4
 Status: Ready to execute
-Last activity: 2026-07-02 -- Phase 149 planning complete
+Last activity: 2026-07-02
 
 ## Performance Metrics
 
@@ -277,6 +277,7 @@ _Updated after each plan completion_
 | Phase 148 P03 | 8min | 2 tasks | 2 files |
 | Phase 148 P04 | 18min | 2 tasks | 1 files |
 | Phase 148 P05 | 22min | 3 tasks | 2 files |
+| Phase 149 P01 | 18min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -668,6 +669,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: Phase 144 BOOK-BLOCK: reserve() blocks classes past the server-derived chained covered-until with a distinguishable COVERAGE_EXPIRED code; ReservasPage shows a renewal dialog only for that code
 - [Phase ?]: [148-01] createdMemberId se persiste DENTRO de la tx del charge (W-1), sin UPDATE separado, para no dejar alumno activo huérfano ante crash
 - [Phase ?]: 148-05: modo 'Alta + plan' como panel inline (A1) reusando typeahead/payment/sticky/idempotencia; monto autocalc por watcher [plan,medio,Zero] editable; chip 'Nuevo' por id de transaccion (sobrevive al re-fetch de mis-cargas)
+- [Phase 149]: RBAC re-expresado como core white-label + override Templo (TEMPLO_RBAC_OVERRIDES, dirección override→core D-06); guard per-handler PLANES_WRITE_ROLES cierra D-11; PROGRAMAS_ROLES cierra la puerta trasera de gestion en el CRUD admin de programs (D-15)
 
 ### Pending Todos
 
@@ -700,8 +702,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-02T18:12:04.919Z
-Stopped at: Phase 149 context gathered
-Resume file: .planning/phases/149-nav-por-categor-as-rbac/149-CONTEXT.md
+Last session: 2026-07-02T19:32:23.119Z
+Stopped at: Completed 149-01-PLAN.md
+Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z

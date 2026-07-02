@@ -22,8 +22,8 @@ con el "Motivo" que v5.3 ya agregó — verificar en plan-phase antes de duplica
 ### NAV — Re-estructuración de navegación + RBAC
 
 - [ ] **NAV-01**: El nav del admin se agrupa en categorías **Finanzas / Alumnos / Horarios / Planes**; Pagos, Caja, Analíticas, Reportes y Deudas viven dentro de Finanzas.
-- [ ] **NAV-02**: **Finanzas** (completa) y **Planes** (edición) son visibles solo para admin/owner del gimnasio.
-- [ ] **NAV-03**: El profe/administrativo ve **solo Pagos** (registrar cobro) dentro de Finanzas, y **Planes en modo lectura** (qué incluye + precios, sin editar).
+- [x] **NAV-02**: **Finanzas** (completa) y **Planes** (edición) son visibles solo para admin/owner del gimnasio.
+- [x] **NAV-03**: El profe/administrativo ve **solo Pagos** (registrar cobro) dentro de Finanzas, y **Planes en modo lectura** (qué incluye + precios, sin editar).
 - [ ] **NAV-04**: Campañas, Profes/Puntuaciones y las páginas de landing/marketing quedan **fuera del nav MVP** (gateadas por rol/flag, no borradas — siguen accesibles para El Templo).
 
 ### COBRO — Registrar cobro (Pagos → Cobros)
@@ -96,38 +96,38 @@ con el "Motivo" que v5.3 ya agregó — verificar en plan-phase antes de duplica
 
 Every v5.4 requirement maps to exactly one phase. Coverage: 33/33.
 
-| Requirement | Phase     | Status  |
-| ----------- | --------- | ------- |
-| NAV-01      | Phase 149 | Pending |
-| NAV-02      | Phase 149 | Pending |
-| NAV-03      | Phase 149 | Pending |
-| NAV-04      | Phase 149 | Pending |
-| CTA-01      | Phase 150 | Pending |
-| CTA-02      | Phase 150 | Pending |
-| CTA-03      | Phase 150 | Pending |
-| COBRO-01    | Phase 151 | Pending |
-| COBRO-02    | Phase 151 | Pending |
-| COBRO-03    | Phase 151 | Pending |
-| COBRO-04    | Phase 151 | Pending |
-| CAJA-01     | Phase 152 | Pending |
-| CAJA-02     | Phase 152 | Pending |
-| CAJA-03     | Phase 152 | Pending |
-| CAJA-04     | Phase 152 | Pending |
-| CAJA-05     | Phase 152 | Pending |
-| CAJA-06     | Phase 152 | Pending |
-| DEUDA-01    | Phase 153 | Pending |
-| DEUDA-02    | Phase 153 | Pending |
-| DEUDA-03    | Phase 153 | Pending |
-| DEUDA-04    | Phase 153 | Pending |
-| ALUM-01     | Phase 154 | Pending |
-| ALUM-02     | Phase 154 | Pending |
-| ALUM-03     | Phase 154 | Pending |
-| ALUM-04     | Phase 154 | Pending |
-| ALUM-05     | Phase 154 | Pending |
-| HOR-01      | Phase 155 | Pending |
-| HOR-02      | Phase 155 | Pending |
-| HOR-03      | Phase 155 | Pending |
-| PLAN-01     | Phase 156 | Pending |
-| PLAN-02     | Phase 156 | Pending |
-| PLAN-03     | Phase 156 | Pending |
-| PLAN-04     | Phase 156 | Pending |
+| Requirement | Phase     | Status   |
+| ----------- | --------- | -------- |
+| NAV-01      | Phase 149 | Pending  |
+| NAV-02      | Phase 149 | Complete |
+| NAV-03      | Phase 149 | Complete |
+| NAV-04      | Phase 149 | Pending  |
+| CTA-01      | Phase 150 | Pending  |
+| CTA-02      | Phase 150 | Pending  |
+| CTA-03      | Phase 150 | Pending  |
+| COBRO-01    | Phase 151 | Pending  |
+| COBRO-02    | Phase 151 | Pending  |
+| COBRO-03    | Phase 151 | Pending  |
+| COBRO-04    | Phase 151 | Pending  |
+| CAJA-01     | Phase 152 | Pending  |
+| CAJA-02     | Phase 152 | Pending  |
+| CAJA-03     | Phase 152 | Pending  |
+| CAJA-04     | Phase 152 | Pending  |
+| CAJA-05     | Phase 152 | Pending  |
+| CAJA-06     | Phase 152 | Pending  |
+| DEUDA-01    | Phase 153 | Pending  |
+| DEUDA-02    | Phase 153 | Pending  |
+| DEUDA-03    | Phase 153 | Pending  |
+| DEUDA-04    | Phase 153 | Pending  |
+| ALUM-01     | Phase 154 | Pending  |
+| ALUM-02     | Phase 154 | Pending  |
+| ALUM-03     | Phase 154 | Pending  |
+| ALUM-04     | Phase 154 | Pending  |
+| ALUM-05     | Phase 154 | Pending  |
+| HOR-01      | Phase 155 | Pending  |
+| HOR-02      | Phase 155 | Pending  |
+| HOR-03      | Phase 155 | Pending  |
+| PLAN-01     | Phase 156 | Pending  |
+| PLAN-02     | Phase 156 | Pending  |
+| PLAN-03     | Phase 156 | Pending  |
+| PLAN-04     | Phase 156 | Pending  |
