@@ -79,19 +79,19 @@ import type {
 export const financeRoutes: FastifyPluginAsync = async (fastify) => {
   const balanceService = new BalanceService(fastify.db, fastify.log);
   const cashRegisterService = new CashRegisterService(fastify.db, fastify.log);
-  // Phase 142 (MIG-01 / D-04/D-05): the finance config house. Drives the
-  // dynamic pending-overdue threshold inside listPendingTray and backs the
-  // owner/admin-only GET/PUT /config/overdue-threshold endpoints below.
-  const financeConfigService = new FinanceConfigService(
-    fastify.db,
-    fastify.log,
-  );
   const transactionService = new TransactionService(
     fastify.db,
     fastify.log,
     balanceService,
     cashRegisterService,
-    financeConfigService,
+  );
+  // Phase 149 (D-13): la config de caja se elimina por completo en Task 2 (junto
+  // con los endpoints GET/PUT /config/overdue-threshold). listPendingTray ya no
+  // depende de este servicio — lee OVERDUE_DAYS directo. Esta instancia queda
+  // sólo para los endpoints, que se borran a continuación.
+  const financeConfigService = new FinanceConfigService(
+    fastify.db,
+    fastify.log,
   );
 
   // Phase 137 (VAL-06): wire the SubscriptionService back-edge so the void
