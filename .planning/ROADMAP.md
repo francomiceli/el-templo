@@ -3833,13 +3833,15 @@ _v5.3 (Mejoras Caja) added: 2026-06-26 — 3 phases (145-147), 17 requirements (
 3. El profe/administrativo ve dentro de Finanzas **solo "Pagos"** (registrar cobro) y **Planes en modo lectura** (qué incluye + precios, sin editar). (NAV-03)
 4. Campañas, Profes/Puntuaciones y las páginas de landing/marketing quedan **fuera del nav MVP**, gateadas por rol/flag y **no borradas** (siguen accesibles para El Templo). (NAV-04)
 
-**Plans:** 4/4 plans complete
+**Plans:** 6 plans (4/4 base complete; +2 gap-closure de verificación)
 
 - [x] 149-01-PLAN.md — API: sets RBAC core+overrides Templo + guards de escritura dueño-only en plans/promo-plans (D-11)
 - [x] 149-02-PLAN.md — API: eliminar la perilla de Configuración de Caja (endpoints/servicio/schemas) + umbral hardcodeado OVERDUE_DAYS (D-13)
 - [x] 149-03-PLAN.md — Admin: nav-model declarativo (templo-config.ts) + drawer por categorías Finanzas/Alumnos/Horarios/Planes + Configuración + Templo
 - [x] 149-04-PLAN.md — Admin: landing por rol + Planes read-only para empleado + borrar página/ruta de config-caja (D-14/D-09/D-13)
-      **UI hint:** yes
+- [ ] 149-05-PLAN.md — Gap NAV-03 (CR-01): separar lectura/escritura en programs (PROGRAMAS_LIST_ROLES = staff administrativo, sin coach per D-10) + loadPrograms gateado por rol y sin spam a Sentry
+- [ ] 149-06-PLAN.md — Gap D-14 (CR-02): landing por rol wired al login real (LoginPage → '/') + evaluado en beforeEach post-checkAuth (WR-01)
+-       **UI hint:** yes
 
 ### Phase 150: Cuentas bancarias flexibles
 
