@@ -60,8 +60,38 @@ export function canAccessTraining(user: {
   );
 }
 
-/** Roles that can access caja and reportes (gestion, admin, owner). */
-export const CAJA_ROLES = ["gestion", "admin", "owner"] as const;
+/**
+ * Templo-specific RBAC overrides layered ON TOP OF the white-label core.
+ *
+ * Direction-of-composition rule (D-06 + `.docs/saas-multitenancy/04-mecanismo-modulos.md`):
+ * the SaaS core defines the generic 2-level surface (owner/admin = "Dueño" via
+ * ADMIN_ROLES; employees via the module role sets). Tenant customizations are
+ * expressed as an override object that WIDENS a core set for El Templo, and the
+ * composition always flows override → core (`[...override, ...ADMIN_ROLES]`),
+ * NEVER core → Templo. This keeps the core free of Templo-isms: a fresh tenant
+ * gets the core sets unchanged; El Templo layers `reportes`/`deudas` on top.
+ *
+ * - `reportes`: extra roles (beyond Dueño) that see Reportes/Caja → gestion.
+ * - `deudas`: extra roles (beyond Dueño) that see the simplified Deudas tab →
+ *   coach + gestion (coach so profes can look up what to collect at the door).
+ */
+export const TEMPLO_RBAC_OVERRIDES = {
+  reportes: ["gestion"],
+  deudas: ["coach", "gestion"],
+} as const;
+
+/**
+ * Roles that can access caja and reportes (gestion, admin, owner).
+ *
+ * Composed core + Templo override (D-01/D-02/D-03/D-06): the Dueño core
+ * (ADMIN_ROLES) plus the Templo `reportes` override. Order preserved so the
+ * effective value stays byte-identical to the historical
+ * `["gestion", "admin", "owner"]` — consumers (reports, leads) are untouched.
+ */
+export const CAJA_ROLES = [
+  ...TEMPLO_RBAC_OVERRIDES.reportes,
+  ...ADMIN_ROLES,
+] as const;
 
 /** Roles that can read the operational analytics endpoints surfaced inside
  *  Reportes — attendance, unique members, check-in adoption, and engagement
@@ -74,14 +104,17 @@ export const ANALYTICS_OPERATIONAL_ROLES = [
 ] as const;
 
 /** Roles that can view the simplified Deudas tab for coaches. Coach included
- *  on top of CAJA_ROLES so professors can look up how much to collect from a
- *  member at the door without exposing the full financial detail surface
- *  (see FINANCE_READ_ROLES, which excludes coach for privacy). */
+ *  on top of the Dueño core so professors can look up how much to collect from
+ *  a member at the door without exposing the full financial detail surface
+ *  (see FINANCE_READ_ROLES, which excludes coach for privacy).
+ *
+ *  Composed core + Templo override (D-06): the Dueño core (ADMIN_ROLES) plus
+ *  the Templo `deudas` override. Order preserved so the effective value stays
+ *  byte-identical to the historical `["coach", "gestion", "admin", "owner"]` —
+ *  consumers (coach routes) are untouched. */
 export const COACH_DEBTS_ROLES = [
-  "coach",
-  "gestion",
-  "admin",
-  "owner",
+  ...TEMPLO_RBAC_OVERRIDES.deudas,
+  ...ADMIN_ROLES,
 ] as const;
 
 /** Roles that can access attendance features (coach, admin, owner, gestion, recepcion). */
@@ -119,6 +152,38 @@ export const SUBSCRIPTION_ROLES = [
   "gestion",
   "recepcion",
 ] as const;
+
+/**
+ * Roles that can WRITE subscription plans / promo plans (create, update,
+ * deactivate, bulk-migrate) — the Dueño core only (owner + admin).
+ *
+ * Closes the D-11 privilege-escalation bug: the subscriptions plugin gates the
+ * whole module with SUBSCRIPTION_ROLES (which includes coach, needed for the
+ * PoS assign/renew/pause flows), so without a per-handler guard a coach could
+ * create/edit/archive plans and promos by API. This set is applied per-handler
+ * on the 7 write endpoints. NOT owner-only: admin is also "Dueño" (D-01).
+ */
+export const PLANES_WRITE_ROLES = ADMIN_ROLES;
+
+/**
+ * Roles that can READ subscription plans (GET /plans) — all staff. Planes is
+ * read-only for the employee surface: a coach sees the plan catalog (to quote
+ * prices) but cannot mutate it (D-11). = SUBSCRIPTION_ROLES.
+ */
+export const PLANES_READ_ROLES = SUBSCRIPTION_ROLES;
+
+/**
+ * Roles that can operate the admin CRUD of micro-programs (Programas) — the
+ * Dueño core only (owner + admin).
+ *
+ * Closes the D-15/D-04 backdoor: the programs admin CRUD historically gated on
+ * CAJA_ROLES (which includes gestion), but Programas is a Dueño-only training
+ * surface — gestion must not create/edit/list/deactivate programs by API. This
+ * set REPLACES the CAJA_ROLES check on the 7 admin CRUD handlers of the
+ * programs module. Programas is a training surface that phase 156 will move to
+ * the Templo layer; today it is owner + admin.
+ */
+export const PROGRAMAS_ROLES = ADMIN_ROLES;
 
 export type AdminRole = (typeof ALL_STAFF_ROLES)[number];
 
