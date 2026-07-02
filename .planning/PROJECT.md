@@ -4,7 +4,31 @@
 
 A multi-app platform for El Templo Calistenia, a calisthenics gym chain with 8 locations (7 Mar del Plata, 1 Barcelona). The monorepo contains: a Fastify API (el-templo-api), a member mobile app (el-templo-app), a coach/admin web app (el-templo-admin), and a public-facing marketing site (el-templo-web). v1 delivered the Training module, v2 the Admin app, v3 the landing page and public web presence, v4 begins ecosystem integration — consolidating admin operations, adding attendance/scheduling, and laying the foundation for AURA economy and lifestyle features.
 
-## Current Milestone: v5.3 Mejoras Caja / Módulo Contable (feedback v5.2)
+## Current Milestone: v5.4 Reforma del Admin — Correcciones white-label (pre-tenants)
+
+**Goal:** Reorganizar el admin según `Correcciones El Templo.md` para dejarlo listo como MVP white-label — nav por categorías, RBAC dueño-vs-empleado, pantallas simplificadas y de-Templo-ficación de la superficie MVP (Finanzas, Alumnos, Horarios, Planes) — SIN introducir tenants todavía. Primera etapa del camino SaaS (decisión: reforma PRIMERO, tenancy DESPUÉS, secuencial).
+
+**Target features:**
+
+- **Nav + RBAC:** categorías Finanzas / Alumnos / Horarios / Planes; Finanzas y Planes solo admin/owner; profe ve solo Pagos + Planes read-only; Alumnos y Horarios libres. Campañas/Profes/Puntuaciones/landing fuera del MVP (gateadas, no borradas).
+- **Finanzas:** Pagos→"Cobros" simplificado (pantallas separadas); cuentas bancarias flexibles (crear/cerrar; Banco, N°, Titular, CUIT, CBU/CVU, Alias; 3 obligatorios); transferencia/tarjeta obligadas a asociar cuenta; Caja reordenada (Movimientos portada, Pendientes 2°, Transacciones→"Cobros" con etiqueta validada/pendiente + filtro por día + detalle con validador); categorías de egreso configurables ("Pago a proveedores", "Retiros"); retiros del dueño.
+- **Deudas:** fecha de registro, motivo, pago asociado + vencidos de plan (cruza con lo que v5.3 ya agregó — verificar en plan-phase).
+- **Alumnos:** crear alumno prominente; cobro como acción directa en la fila; precio por medio de pago configurable (hoy regla Templo hardcodeada); avatar → "segmento" (nombre neutro, mismo mecanismo); niveles griegos gateados como Templo.
+- **Horarios:** clases simultáneas en la misma sucursal; crear clase desde el slot (generalizar "test de profe"); capacidad por actividad.
+- **Planes:** separar "Planes de pago" de "Rutinas de entrenamiento"; precio "Zero" → config; selección múltiple de programas por plan; verificar que actualizar precio por inflación no rompa históricos.
+
+**Regla dura transversal:** todo cambio de API adopta los patrones del diseño SaaS validado (`.docs/saas-multitenancy/`): motor vs plantilla, regla de dirección de imports (doc 04), sin nuevos Templo-ismos en core.
+
+**Out of scope this milestone:**
+
+- Tabla `tenants`, `tenant_id`, mecanismo de módulos (fase de tenancy posterior, diseño ya validado en `.docs/saas-multitenancy/04-mecanismo-modulos.md`).
+- Correcciones finas de Analíticas (cobrado vs devengado, no-renovaciones, LTV, retención) — diferidas a milestone posterior; solo se mueve Analíticas/Reportes dentro de Finanzas en el nav.
+- Asistencia por QR desde la app del alumno (cruza a la app de miembros, post-MVP).
+- App de miembros multi-tenant (diferida, funda el repo SaaS).
+
+**Reference:** `.docs/saas-multitenancy/Correcciones El Templo.md` (doc crudo de Nacho) + `01-analisis-correcciones-admin.md` (análisis bajo lente SaaS, mapa imagen→código) + `README.md` §0 (decisión de secuencia).
+
+## Previous Milestone: v5.3 Mejoras Caja / Módulo Contable (feedback v5.2)
 
 **Goal:** Resolver el feedback operativo de v5.2 sobre la caja y la PoS del profe — imputación correcta de caja, cobro de socios sin plan activo, arqueo por caja y clasificación de egresos.
 
@@ -31,7 +55,7 @@ A multi-app platform for El Templo Calistenia, a calisthenics gym chain with 8 l
 
 **Reference:** `BRIEF-FEEDBACK-V52-CAJA.md` (raíz, decisiones consolidadas de los 10 puntos de feedback de v5.2).
 
-## Previous Milestone: v5.2 Módulo Contable en el Administrador — Libro de Caja
+## Earlier Milestone: v5.2 Módulo Contable en el Administrador — Libro de Caja
 
 **Goal:** Convertir al Administrador en el libro de caja único (fuente de verdad), eliminando el triple tipeo del registro de pagos, con validación de pagos (PENDIENTE→VALIDADO) y gestión de cajas (efectivo/banco) con movimientos inter-caja y egresos. Se monta sobre el modelo financiero transaccional existente (v4.8).
 
@@ -146,7 +170,7 @@ Members know exactly what to train today, complete guided sessions with block st
 
 ### Active
 
-See: .planning/REQUIREMENTS.md (v5.3 scope — Mejoras Caja / feedback v5.2)
+See: .planning/REQUIREMENTS.md (v5.4 scope — Reforma del Admin white-label)
 
 ### Out of Scope
 
@@ -232,4 +256,4 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
-_Last updated: 2026-06-26 — Milestone v5.3 (Mejoras Caja / feedback v5.2) initialized. Phases 145+ (continues from phase 144). 5 áreas: aviso de deuda en PoS (A) · caja en validación + múltiples cuentas banco (B, fundacional) · cobro suelto → alta de plan (C) · arqueo por caja (D) · centros de costo de egresos (E). v5.2 (Módulo Contable) queda en `verifying` (UAT pendientes), a cerrar formalmente con /gsd-complete-milestone. Fuente: BRIEF-FEEDBACK-V52-CAJA.md._
+_Last updated: 2026-07-02 — Milestone v5.4 (Reforma del Admin — Correcciones white-label) initialized. Phases 149+ (continues from phase 148). Primera etapa del camino SaaS: reforma PRIMERO, tenancy DESPUÉS (secuencial, decisión de Nacho). v5.3 queda en `verifying` (UAT pendientes, ya en prod vía tren 0e8b928c), a cerrar formalmente con /gsd-complete-milestone — mismo precedente que v5.2. Fuente: .docs/saas-multitenancy/Correcciones El Templo.md + 01-analisis-correcciones-admin.md._

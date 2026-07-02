@@ -1,17 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v5.3
-milestone_name: Mejoras Caja / Módulo Contable (feedback v5.2)
-status: verifying
-stopped_at: Phase 148 planned (6 plans, 3 waves) + W-1 fix
-last_updated: "2026-06-26T16:30:27.882Z"
-last_activity: 2026-06-26
+milestone: v5.4
+milestone_name: Reforma del Admin — Correcciones white-label (pre-tenants)
+status: planning
+last_updated: "2026-07-02T17:03:16.133Z"
+last_activity: 2026-07-02
 progress:
-  total_phases: 4
-  completed_phases: 3
-  total_plans: 16
-  completed_plans: 15
-  percent: 75
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -25,13 +24,10 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 
 ## Current Position
 
-Phase: 148 (pos-profe-alta-de-alumno-plan-en-el-cobro) — EXECUTING
-Plan: 6 of 6
-Status: Phase complete — ready for verification
-Progress: [█████████░] 94%
-Last activity: 2026-06-26
-
-**Phase order:** 145 (independiente, done) → 146 (fundacional: caja en validación + imputación + arqueo, done) → 147 (independiente, centros de costo, done). Milestone v5.3 COMPLETE.
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-07-02 — Milestone v5.4 started
 
 ## Performance Metrics
 
