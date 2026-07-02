@@ -4,14 +4,14 @@ milestone: v5.4
 milestone_name: Reforma del Admin — Correcciones white-label (pre-tenants)
 status: executing
 stopped_at: Completed 149-04-PLAN.md
-last_updated: "2026-07-02T21:29:36.365Z"
+last_updated: "2026-07-02T21:32:08.105Z"
 last_activity: 2026-07-02
 progress:
   total_phases: 8
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 6
-  completed_plans: 5
-  percent: 0
+  completed_plans: 6
+  percent: 13
 ---
 
 # Project State
@@ -25,9 +25,9 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 
 ## Current Position
 
-Phase: 149 (nav-por-categor-as-rbac) — EXECUTING
-Plan: 2 of 6
-Status: Ready to execute
+Phase: 149 (nav-por-categor-as-rbac) — COMPLETE (6/6 planes)
+Plan: 6 of 6
+Status: Phase complete
 Last activity: 2026-07-02
 
 ## Performance Metrics
@@ -282,6 +282,7 @@ _Updated after each plan completion_
 | Phase 149 P03 | 4min | 2 tasks | 2 files |
 | Phase 149 P04 | ~8min | 2 tasks | 5 files |
 | Phase 149 P05 | 7min | 2 tasks | 5 files |
+| Phase 149 P06 | 6min | 1 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -679,6 +680,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase 149]: Landing por rol en '/' (D-14): función redirect resuelve Fran (coach+canAccessTraining) antes que dueño; empleado→/pagos, dueño→/alumnos, Fran→/sessions
 - [Phase 149]: /programas dueño-only en el router guard (DUENO_ROLES, D-15) consistente con nav (Plan 03) y API (Plan 01); canEditPlans oculta edición de Planes al empleado (D-09/D-10)
 - [Phase ?]: PROGRAMAS_LIST_ROLES (sin coach, D-10) reabre GET /admin/programs al staff administrativo; coach no fetchea el catálogo en PlanesPage (sin 403/Sentry)
+- [Phase ?]: 149-06: landing por rol en beforeEach post-checkAuth; indice / con fallback estatico /pagos
 
 ### Pending Todos
 
@@ -711,7 +713,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-02T21:28:58.063Z
+Last session: 2026-07-02T21:32:01.595Z
 Stopped at: Completed 149-04-PLAN.md
 Resume file: None
 
