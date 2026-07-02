@@ -44,7 +44,13 @@
         <!-- Header with single create button -->
         <div class="row items-center q-mb-md">
           <div class="col" />
-          <q-btn icon="add" label="Nuevo Plan" color="primary" @click="openCreateDialog" />
+          <q-btn
+            v-if="canEditPlans"
+            icon="add"
+            label="Nuevo Plan"
+            color="primary"
+            @click="openCreateDialog"
+          />
         </div>
 
         <!-- Presenciales Table -->
@@ -132,6 +138,7 @@
           <template #body-cell-acciones="props">
             <q-td :props="props">
               <q-btn
+                v-if="canEditPlans"
                 flat
                 dense
                 round
@@ -142,7 +149,7 @@
                 <q-tooltip>Editar</q-tooltip>
               </q-btn>
               <q-btn
-                v-if="props.row.isActive"
+                v-if="canEditPlans && props.row.isActive"
                 flat
                 dense
                 round
@@ -152,6 +159,7 @@
               >
                 <q-tooltip>Desactivar</q-tooltip>
               </q-btn>
+              <span v-if="!canEditPlans" class="text-grey-5">—</span>
             </q-td>
           </template>
         </q-table>
@@ -232,6 +240,7 @@
           <template #body-cell-acciones="props">
             <q-td :props="props">
               <q-btn
+                v-if="canEditPlans"
                 flat
                 dense
                 round
@@ -242,7 +251,7 @@
                 <q-tooltip>Editar</q-tooltip>
               </q-btn>
               <q-btn
-                v-if="props.row.isActive"
+                v-if="canEditPlans && props.row.isActive"
                 flat
                 dense
                 round
@@ -252,6 +261,7 @@
               >
                 <q-tooltip>Desactivar</q-tooltip>
               </q-btn>
+              <span v-if="!canEditPlans" class="text-grey-5">—</span>
             </q-td>
           </template>
         </q-table>
@@ -273,7 +283,13 @@
         <!-- Header -->
         <div class="row items-center q-mb-md">
           <div class="text-h6 col">Promos</div>
-          <q-btn icon="add" label="Nueva Promo" color="primary" @click="openCreatePromoDialog" />
+          <q-btn
+            v-if="canEditPlans"
+            icon="add"
+            label="Nueva Promo"
+            color="primary"
+            @click="openCreatePromoDialog"
+          />
         </div>
 
         <!-- Promos QTable -->
@@ -334,7 +350,7 @@
                 <q-tooltip>Ver link</q-tooltip>
               </q-btn>
               <q-btn
-                v-if="props.row.isActive"
+                v-if="canEditPlans && props.row.isActive"
                 flat
                 dense
                 round
@@ -387,6 +403,16 @@ const authStore = useAuthStore();
 // =========================================================================
 
 const isOwner = computed(() => authStore.user?.role === 'owner');
+
+// =========================================================================
+// Write-access gate (D-09/D-10): el empleado (coach/gestion/recepcion) ve
+// Planes/Promos en modo lectura; sólo el dueño (admin + owner) edita. NO
+// reusar `isOwner` — excluiría a admin, que es dueño (D-01). `isOwner` se
+// conserva sólo para el selector de país. La API bloquea los writes igual
+// (Plan 01, PLANES_WRITE_ROLES); esto sólo oculta los controles.
+// =========================================================================
+
+const canEditPlans = computed(() => ['owner', 'admin'].includes(authStore.user?.role ?? ''));
 
 const countryOptions = [
   { label: 'Argentina', value: 'AR' as const },
