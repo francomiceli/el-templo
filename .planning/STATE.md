@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v5.4
 milestone_name: Reforma del Admin — Correcciones white-label (pre-tenants)
-status: executing
-stopped_at: Completed 149-03-PLAN.md
-last_updated: "2026-07-02T19:57:54.088Z"
+status: verifying
+stopped_at: Completed 149-04-PLAN.md
+last_updated: "2026-07-02T20:08:21.967Z"
 last_activity: 2026-07-02
 progress:
   total_phases: 8
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 4
-  completed_plans: 3
-  percent: 0
+  completed_plans: 4
+  percent: 13
 ---
 
 # Project State
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 
 Phase: 149 (nav-por-categor-as-rbac) — EXECUTING
 Plan: 4 of 4
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-07-02
 
 ## Performance Metrics
@@ -280,6 +280,7 @@ _Updated after each plan completion_
 | Phase 149 P01 | 18min | 3 tasks | 6 files |
 | Phase 149 P02 | 12min | 2 tasks | 7 files |
 | Phase 149 P03 | 4min | 2 tasks | 2 files |
+| Phase 149 P04 | ~8min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -674,6 +675,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase 149]: RBAC re-expresado como core white-label + override Templo (TEMPLO_RBAC_OVERRIDES, dirección override→core D-06); guard per-handler PLANES_WRITE_ROLES cierra D-11; PROGRAMAS_ROLES cierra la puerta trasera de gestion en el CRUD admin de programs (D-15)
 - [Phase ?]: 149-02: umbral de pendientes hardcodeado en OVERDUE_DAYS=3 (Opción A, D-13); perilla de Configuración de Caja eliminada de la API sin migración
 - [Phase ?]: [Phase 149-03] Nav-model declarativo único (templo-config.ts) como fuente de verdad del drawer; elimina los 7 computed ad-hoc (DRY resuelta). Programas dueño-only en nav (D-15). Flag TEMPLO_ENABLED semilla de config por-tenant (D-06).
+- [Phase 149]: Landing por rol en '/' (D-14): función redirect resuelve Fran (coach+canAccessTraining) antes que dueño; empleado→/pagos, dueño→/alumnos, Fran→/sessions
+- [Phase 149]: /programas dueño-only en el router guard (DUENO_ROLES, D-15) consistente con nav (Plan 03) y API (Plan 01); canEditPlans oculta edición de Planes al empleado (D-09/D-10)
 
 ### Pending Todos
 
@@ -706,8 +709,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-02T19:57:54.071Z
-Stopped at: Completed 149-03-PLAN.md
+Last session: 2026-07-02T20:08:21.929Z
+Stopped at: Completed 149-04-PLAN.md
 Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z

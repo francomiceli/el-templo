@@ -3810,7 +3810,7 @@ _v5.3 (Mejoras Caja) added: 2026-06-26 — 3 phases (145-147), 17 requirements (
 
 ## v5.4 (Reforma del Admin) Phases
 
-- [ ] **Phase 149: Nav por categorías + RBAC** — agrupar el nav plano del admin en Finanzas / Alumnos / Horarios / Planes (Pagos, Caja, Analíticas, Reportes, Deudas dentro de Finanzas), con visibilidad por rol (dueño ve todo; profe/administrativo ve solo Pagos + Planes read-only; Alumnos y Horarios libres) y gateo de Campañas/Profes/Puntuaciones/landing fuera del MVP (no se borran).
+- [x] **Phase 149: Nav por categorías + RBAC** — agrupar el nav plano del admin en Finanzas / Alumnos / Horarios / Planes (Pagos, Caja, Analíticas, Reportes, Deudas dentro de Finanzas), con visibilidad por rol (dueño ve todo; profe/administrativo ve solo Pagos + Planes read-only; Alumnos y Horarios libres) y gateo de Campañas/Profes/Puntuaciones/landing fuera del MVP (no se borran). (completed 2026-07-02)
 - [ ] **Phase 150: Cuentas bancarias flexibles** — crear/cerrar cuentas bancarias (Banco, N°, Titular, CUIT, CBU/CVU, Alias; solo 3 obligatorios) con baja lógica que conserva historial + registrar retiros del dueño (egreso tipo "Retiro"). Levanta CAJA-F1 de v5.3 (ABM desde UI).
 - [ ] **Phase 151: Registrar cobro (Pagos → Cobros)** — renombrar "Pagos"→"Cobros" + rediseño en pantallas/pasos separados (una cosa por paso, desktop+mobile) + fecha/hora en el listado y botón "Continuar" arriba + transferencia/tarjeta obligadas a asociar una cuenta bancaria (crear rápida inline si no hay).
 - [ ] **Phase 152: Reorganización de Caja + egresos configurables** — reordenar los tabs (Movimientos portada / Pendientes 2° / "Cobros" 3°) + etiqueta validada/pendiente por fila + detalle con validador + filtro por día + categorías de egreso configurables desde UI (ABM de centros de costo, levanta EGR-F2 de v5.3, defaults "Pago a proveedores"/"Retiros") + nota explicativa en Saldos.
@@ -3833,12 +3833,12 @@ _v5.3 (Mejoras Caja) added: 2026-06-26 — 3 phases (145-147), 17 requirements (
 3. El profe/administrativo ve dentro de Finanzas **solo "Pagos"** (registrar cobro) y **Planes en modo lectura** (qué incluye + precios, sin editar). (NAV-03)
 4. Campañas, Profes/Puntuaciones y las páginas de landing/marketing quedan **fuera del nav MVP**, gateadas por rol/flag y **no borradas** (siguen accesibles para El Templo). (NAV-04)
 
-**Plans:** 3/4 plans executed
+**Plans:** 4/4 plans complete
 
 - [x] 149-01-PLAN.md — API: sets RBAC core+overrides Templo + guards de escritura dueño-only en plans/promo-plans (D-11)
 - [x] 149-02-PLAN.md — API: eliminar la perilla de Configuración de Caja (endpoints/servicio/schemas) + umbral hardcodeado OVERDUE_DAYS (D-13)
 - [x] 149-03-PLAN.md — Admin: nav-model declarativo (templo-config.ts) + drawer por categorías Finanzas/Alumnos/Horarios/Planes + Configuración + Templo
-- [ ] 149-04-PLAN.md — Admin: landing por rol + Planes read-only para empleado + borrar página/ruta de config-caja (D-14/D-09/D-13)
+- [x] 149-04-PLAN.md — Admin: landing por rol + Planes read-only para empleado + borrar página/ruta de config-caja (D-14/D-09/D-13)
       **UI hint:** yes
 
 ### Phase 150: Cuentas bancarias flexibles
@@ -3948,16 +3948,16 @@ _v5.3 (Mejoras Caja) added: 2026-06-26 — 3 phases (145-147), 17 requirements (
 
 ## v5.4 (Reforma del Admin) Progress
 
-| Phase                                           | Plans Complete | Status      | Completed |
-| ----------------------------------------------- | -------------- | ----------- | --------- |
-| 149. Nav por categorías + RBAC                  | 3/4            | In Progress |           |
-| 150. Cuentas bancarias flexibles                | 0/TBD          | Not started | -         |
-| 151. Registrar cobro (Pagos → Cobros)           | 0/TBD          | Not started | -         |
-| 152. Reorganización de Caja + egresos config.   | 0/TBD          | Not started | -         |
-| 153. Mejoras de Deudas                          | 0/TBD          | Not started | -         |
-| 154. Alumnos (de-Templo-ficación + accesos)     | 0/TBD          | Not started | -         |
-| 155. Horarios                                   | 0/TBD          | Not started | -         |
-| 156. Planes de pago vs Rutinas de entrenamiento | 0/TBD          | Not started | -         |
+| Phase                                           | Plans Complete | Status      | Completed  |
+| ----------------------------------------------- | -------------- | ----------- | ---------- |
+| 149. Nav por categorías + RBAC                  | 4/4            | Complete    | 2026-07-02 |
+| 150. Cuentas bancarias flexibles                | 0/TBD          | Not started | -          |
+| 151. Registrar cobro (Pagos → Cobros)           | 0/TBD          | Not started | -          |
+| 152. Reorganización de Caja + egresos config.   | 0/TBD          | Not started | -          |
+| 153. Mejoras de Deudas                          | 0/TBD          | Not started | -          |
+| 154. Alumnos (de-Templo-ficación + accesos)     | 0/TBD          | Not started | -          |
+| 155. Horarios                                   | 0/TBD          | Not started | -          |
+| 156. Planes de pago vs Rutinas de entrenamiento | 0/TBD          | Not started | -          |
 
 _Plan counts populated by `/gsd-plan-phase`._
 
