@@ -1,6 +1,6 @@
 import { defineRouter } from '#q-app/wrappers';
 import { createRouter, createWebHistory } from 'vue-router';
-import routes from './routes';
+import routes, { landingForRole } from './routes';
 import { useAuthStore } from 'stores/useAuthStore';
 import type { AdminRole } from 'src/types/admin';
 import { canAccessTraining } from 'src/utils/trainingAccess';
@@ -34,6 +34,19 @@ export default defineRouter(function () {
     const isValid = await authStore.checkAuth();
     if (!isValid) {
       return '/login';
+    }
+
+    // D-14 landing por rol: cuando la navegación nace en la raíz (login →
+    // router.push('/') o carga fría/refresh de '/'), resolver el destino AHORA
+    // que checkAuth ya cargó authStore.user. Esto corrige CR-02 (login) y WR-01
+    // (carga fría, donde el redirect estático del índice caía en /pagos para
+    // todos). El guard `dest !== to.path` evita el loop infinito cuando el
+    // destino ya coincide con la ubicación actual.
+    if (to.path === '/' || to.redirectedFrom?.path === '/') {
+      const dest = landingForRole();
+      if (dest !== to.path) {
+        return dest;
+      }
     }
 
     // Role-based access: if route specifies allowedRoles, check user's role

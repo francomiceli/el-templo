@@ -13,7 +13,7 @@ import { PLANES_READ_ROLES, PAGOS_ROLES, DUENO_ROLES } from 'src/config/templo-c
  *   2. owner/admin               → /alumnos  (dueño)
  *   3. resto (coach no-Fran/gestion/recepcion) → /pagos (empleado)
  */
-function landingForRole(): string {
+export function landingForRole(): string {
   const authStore = useAuthStore();
   const user = authStore.user;
   if (user?.role === 'coach' && canAccessTraining(user)) {
@@ -35,7 +35,12 @@ const routes: RouteRecordRaw[] = [
     path: '/',
     component: () => import('layouts/AdminLayout.vue'),
     children: [
-      { path: '', redirect: () => landingForRole() },
+      // Fallback estático pre-auth: el redirect de route-record se resuelve
+      // durante el matching, ANTES de checkAuth (user aún null → landing
+      // incorrecto, WR-01). Con un destino estático accesible a todo el staff
+      // (/pagos) el guard toma el control y re-resuelve por rol vía
+      // landingForRole() en el beforeEach post-checkAuth (index.ts).
+      { path: '', redirect: '/pagos' },
       {
         path: 'sessions',
         component: () => import('pages/SessionsPage.vue'),

@@ -65,7 +65,10 @@ const authStore = useAuthStore();
 async function handleLogin() {
   try {
     await authStore.login(email.value, password.value);
-    router.push('/sessions');
+    // Navegar a la raíz: el destino real lo resuelve landingForRole() en el
+    // guard beforeEach DESPUÉS de checkAuth (owner/admin→/alumnos, empleado→
+    // /pagos, Fran→/sessions). Delegar acá evita hardcodear un destino por rol.
+    router.push('/');
   } catch {
     // Error already displayed via authStore.error
   }
