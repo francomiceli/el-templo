@@ -4,7 +4,7 @@
  * Admin endpoints for micro-program CRUD, enrollment lifecycle management.
  * Member endpoints for program catalog and enrollment progress.
  *
- * Admin CRUD: CAJA_ROLES (gestion, admin, owner)
+ * Admin CRUD: PROGRAMAS_ROLES (admin, owner) — dueño-only, D-15
  * Enrollment management: COACH_ROLES (coach, admin, owner) per D-35
  * Member: authenticated members
  */
@@ -21,7 +21,7 @@ import {
 import { handleServiceError } from "../shared/error-handler";
 import { auditLog } from "../shared/audit-log";
 import {
-  CAJA_ROLES,
+  PROGRAMAS_ROLES,
   COACH_ROLES,
   FINANCE_WRITE_ROLES,
 } from "../shared/permissions";
@@ -182,7 +182,7 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   // =========================================================================
-  // Admin Routes — Program CRUD (CAJA_ROLES)
+  // Admin Routes — Program CRUD (PROGRAMAS_ROLES — dueño-only, D-15)
   // =========================================================================
 
   /**
@@ -193,7 +193,7 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
     { onRequest: [fastify.authenticate], schema: createProgramSchema },
     async (request, reply) => {
       const { role } = request.user;
-      if (!(CAJA_ROLES as readonly string[]).includes(role)) {
+      if (!(PROGRAMAS_ROLES as readonly string[]).includes(role)) {
         return reply.code(403).send({ error: "Acceso denegado" });
       }
 
@@ -214,7 +214,7 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
     { onRequest: [fastify.authenticate] },
     async (request, reply) => {
       const { role } = request.user;
-      if (!(CAJA_ROLES as readonly string[]).includes(role)) {
+      if (!(PROGRAMAS_ROLES as readonly string[]).includes(role)) {
         return reply.code(403).send({ error: "Acceso denegado" });
       }
 
@@ -237,7 +237,7 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
     { onRequest: [fastify.authenticate] },
     async (request, reply) => {
       const { role } = request.user;
-      if (!(CAJA_ROLES as readonly string[]).includes(role)) {
+      if (!(PROGRAMAS_ROLES as readonly string[]).includes(role)) {
         return reply.code(403).send({ error: "Acceso denegado" });
       }
 
@@ -282,7 +282,7 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
     { onRequest: [fastify.authenticate], schema: programIdParamsSchema },
     async (request, reply) => {
       const { role } = request.user;
-      if (!(CAJA_ROLES as readonly string[]).includes(role)) {
+      if (!(PROGRAMAS_ROLES as readonly string[]).includes(role)) {
         return reply.code(403).send({ error: "Acceso denegado" });
       }
 
@@ -312,7 +312,7 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
     },
     async (request, reply) => {
       const { role } = request.user;
-      if (!(CAJA_ROLES as readonly string[]).includes(role)) {
+      if (!(PROGRAMAS_ROLES as readonly string[]).includes(role)) {
         return reply.code(403).send({ error: "Acceso denegado" });
       }
 
@@ -339,7 +339,7 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
     },
     async (request, reply) => {
       const { role } = request.user;
-      if (!(CAJA_ROLES as readonly string[]).includes(role)) {
+      if (!(PROGRAMAS_ROLES as readonly string[]).includes(role)) {
         return reply.code(403).send({ error: "Acceso denegado" });
       }
 
@@ -363,7 +363,7 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
     { onRequest: [fastify.authenticate], schema: programIdParamsSchema },
     async (request, reply) => {
       const { role } = request.user;
-      if (!(CAJA_ROLES as readonly string[]).includes(role)) {
+      if (!(PROGRAMAS_ROLES as readonly string[]).includes(role)) {
         return reply.code(403).send({ error: "Acceso denegado" });
       }
 
