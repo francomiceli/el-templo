@@ -472,19 +472,24 @@ No aplica librerías externas — refactor sobre stack existente (Quasar 2 / Vue
 | A4  | Opción A (constante directa) es la interpretación correcta de "default hardcodeado" (D-13)                   | ConfiguracionCajaPage     | Medio — confirmar con usuario si prefiere migración de limpieza         |
 | A5  | El write-guard de D-11 debe ser owner+admin (dueño), no solo owner                                           | Guards API / Pitfall 3    | Medio — D-01 define dueño=owner+admin; confirmar que admin edita planes |
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+> Las 3 preguntas quedaron resueltas en el planning de la fase (planes 149-02/03/04). Resolución anotada inline.
 
 1. **¿Opción A o B para el read-path del umbral (D-13)?**
+   - **RESOLVED (Plan 02):** Opción A. El read-path lee la constante `OVERDUE_DAYS=3` directo y se elimina `FinanceConfigService`; sin migración. La fila `finance.pending_overdue_days` en prod queda irrelevante.
    - What we know: `listPendingTray` (transaction-service:1384) lee el umbral vía `getOverdueThreshold()`, que cae a `OVERDUE_DAYS=3` si la fila está ausente.
    - What's unclear: si prod tiene una fila con valor ≠ 3.
    - Recommendation: Opción A (leer la constante directo, eliminar FinanceConfigService) — garantiza "hardcodeado" sin depender del estado de la DB, no requiere migración. Confirmar en discuss/plan.
 
 2. **¿Grado de derivación del nav-model?**
+   - **RESOLVED (Plan 03/04):** Opción intermedia. `templo-config.ts` (Plan 03) exporta el `NAV_MODEL` + los sets de rol espejo; el drawer deriva del modelo. `routes.ts` (Plan 04) NO se deriva del modelo completo: sólo comparte los sets de rol (`PLANES_READ_ROLES`, `PAGOS_ROLES`, `DUENO_ROLES`) para el `meta.allowedRoles`. Se resuelve la deuda DRY (7 computed eliminados) sin acoplar el router al modelo del drawer.
    - What we know: los 7 computed deben desaparecer; el drawer debe derivar de una tabla.
    - What's unclear: si `routes.ts` también se deriva del modelo o solo comparte los sets de roles.
    - Recommendation: mínimo, compartir los sets; ideal, derivar el drawer del modelo. Discrecional (D).
 
 3. **¿El empleado ve el header "Finanzas" con solo Pagos, o Pagos va suelto?**
+   - **RESOLVED (Plan 03):** Header "Finanzas" visible con sólo Pagos para el empleado. Deriva de `isNavCategoryVisible` ("≥1 item visible") en `templo-config.ts`.
    - What we know: doc §1 dice "el profe solo podrá ver Pagos (de los de finanzas)".
    - Recommendation: header "Finanzas" visible con un solo item (Pagos) para el empleado; deriva de "≥1 item visible". UX-detail, confirmar en UAT.
 
