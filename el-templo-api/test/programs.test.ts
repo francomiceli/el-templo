@@ -432,6 +432,86 @@ describe("Programs Module", () => {
   });
 
   // =========================================================================
+  // 4b. RBAC Dueño-only del CRUD admin de programs (D-15/D-04)
+  //
+  // Programas es una superficie de entrenamiento Dueño-only. El CRUD admin
+  // gateaba históricamente con CAJA_ROLES (incluye gestion), abriendo una
+  // puerta trasera por API. Estos tests aseguran gestion → 403 en el CRUD
+  // admin; el dueño (admin) sigue operando (cubierto en "Program CRUD (admin)").
+  // =========================================================================
+  describe("RBAC Dueño-only (D-15)", () => {
+    let gestionToken: string;
+
+    beforeEach(async () => {
+      await createStaffUser(app, {
+        email: `prog-gestion-${timestamp}@test.com`,
+        password: "gestion-pass-123",
+        firstName: "Gestion",
+        lastName: "Test",
+        role: "gestion",
+        branchId: 1,
+      });
+      gestionToken = await getAuthToken(
+        app,
+        `prog-gestion-${timestamp}@test.com`,
+        "gestion-pass-123",
+      );
+    });
+
+    it("gestion gets 403 across the admin CRUD of programs", async () => {
+      const endpoints = [
+        {
+          method: "POST" as const,
+          url: "/api/admin/programs",
+          payload: testProgram,
+        },
+        { method: "GET" as const, url: "/api/admin/programs" },
+        { method: "GET" as const, url: "/api/admin/programs/analytics" },
+        {
+          method: "GET" as const,
+          url: "/api/admin/programs/1",
+        },
+        {
+          method: "PUT" as const,
+          url: "/api/admin/programs/1",
+          payload: { name: "Hack" },
+        },
+        {
+          method: "POST" as const,
+          url: "/api/admin/programs/1/content",
+          payload: {
+            blocks: [
+              {
+                weekNumber: 1,
+                sortOrder: 0,
+                blockType: "text" as const,
+                title: "x",
+              },
+            ],
+          },
+        },
+        {
+          method: "POST" as const,
+          url: "/api/admin/programs/1/deactivate",
+        },
+      ];
+
+      for (const ep of endpoints) {
+        const res = await app.inject({
+          method: ep.method,
+          url: ep.url,
+          headers: { authorization: `Bearer ${gestionToken}` },
+          payload: "payload" in ep ? ep.payload : undefined,
+        });
+        expect(
+          res.statusCode,
+          `Expected 403 for ${ep.method} ${ep.url}, got ${res.statusCode}`,
+        ).toBe(403);
+      }
+    });
+  });
+
+  // =========================================================================
   // 5. Analytics
   // =========================================================================
   describe("Analytics", () => {
