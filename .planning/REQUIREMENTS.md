@@ -1,85 +1,97 @@
-# Requirements — v5.3 Mejoras Caja / Módulo Contable (feedback v5.2)
+# Requirements — v5.4 Reforma del Admin — Correcciones white-label (pre-tenants)
 
-Scope derivado del feedback operativo de v5.2, consolidado en
-`BRIEF-FEEDBACK-V52-CAJA.md`. Cinco áreas (A–E). Descartados / ya existentes:
-puntos 2 (cambiar plan = gestión), 3 (sugerir precio = ya existe), 7 (turnos
-fijos = ya existe), 8 (dinero pendiente = ya resuelto).
+Scope derivado de `.docs/saas-multitenancy/Correcciones El Templo.md` (doc crudo de
+Nacho) + `01-analisis-correcciones-admin.md` (análisis bajo lente SaaS con mapa
+imagen→código). Primera etapa del camino SaaS: reforma PRIMERO, tenancy DESPUÉS
+(secuencial). **SIN tenants**: nada de tabla `tenants`, `tenant_id` ni mecanismo de
+módulos en este milestone.
 
-**Constraint:** staging-first estricto. Backend = Fastify + Drizzle + MySQL
-(`el-templo-api`); admin = Quasar/Vue3 (`el-templo-admin`). Migraciones con SQL
-commiteado; tests de integración para rutas nuevas.
+**Constraint transversal:** todo cambio de API adopta los patrones del diseño SaaS
+validado (motor vs plantilla; imports módulo→core solamente; sin nuevos Templo-ismos
+en core — `.docs/saas-multitenancy/04-mecanismo-modulos.md`). Staging-first estricto.
+Migraciones con SQL commiteado; tests de integración para rutas nuevas.
+
+**Nota de solapamiento con v5.3:** este milestone levanta los diferidos EGR-F2 (ABM
+centros de costo) y CAJA-F1 (ABM cuentas banco) de v5.3. Las mejoras de Deudas cruzan
+con el "Motivo" que v5.3 ya agregó — verificar en plan-phase antes de duplicar.
 
 ---
 
-## v5.3 Requirements
+## v5.4 Requirements
 
-### A — Aviso de deuda en la PoS (POS)
+### NAV — Re-estructuración de navegación + RBAC
 
-- [x] **POS-01**: Al seleccionar un socio en "Cargar pago", si tiene deuda, se muestra un aviso destacado (monto + plan) en **ambos modos** (Pago de plan / Cobro suelto). Usa `autocompletar.outstanding` (ya disponible); no se recarga el buscador.
+- [ ] **NAV-01**: El nav del admin se agrupa en categorías **Finanzas / Alumnos / Horarios / Planes**; Pagos, Caja, Analíticas, Reportes y Deudas viven dentro de Finanzas.
+- [ ] **NAV-02**: **Finanzas** (completa) y **Planes** (edición) son visibles solo para admin/owner del gimnasio.
+- [ ] **NAV-03**: El profe/administrativo ve **solo Pagos** (registrar cobro) dentro de Finanzas, y **Planes en modo lectura** (qué incluye + precios, sin editar).
+- [ ] **NAV-04**: Campañas, Profes/Puntuaciones y las páginas de landing/marketing quedan **fuera del nav MVP** (gateadas por rol/flag, no borradas — siguen accesibles para El Templo).
 
-### B — Imputación de caja en la validación (CAJA) — _fundacional para C y D_
+### COBRO — Registrar cobro (Pagos → Cobros)
 
-- [x] **CAJA-01**: El cobro del profe nace con una **caja sugerida** (efectivo de la sede del profe vía `recordedBy` / banco por moneda), marcada como no-definitiva.
-- [ ] **CAJA-02**: Al validar un pago pendiente, gestión puede **confirmar o cambiar** la caja imputada (`cash_register_id`). El endpoint de validación (hoy inmutable) se abre para recibirla.
-- [ ] **CAJA-03**: El sistema soporta **múltiples cuentas banco** (varias cajas tipo `banco`). Gestión elige la cuenta al validar una transferencia. Staging seedea **Galicia** + **Mercado Pago**.
-- [x] **CAJA-04**: La PoS del profe **no** ofrece selector de caja/sede — el profe nunca elige caja.
+- [ ] **COBRO-01**: "Pagos" se renombra **"Cobros"** en nav, página y textos ("Mis cargas de hoy" → "Cobros").
+- [ ] **COBRO-02**: El registro del cobro se reorganiza como **pantallas/pasos separados** (una sola cosa que hacer por paso) en vez de la sucesión de expansiones anidadas; funciona bien en desktop y mobile.
+- [ ] **COBRO-03**: El listado de cargas del profe muestra **fecha + hora** de cada registro (hoy muestra históricos sin fecha), y el botón "Continuar" queda arriba del listado.
+- [ ] **COBRO-04**: Un cobro por **transferencia o tarjeta** exige **seleccionar una cuenta bancaria** existente; si no hay cuentas cargadas, ofrece **crear cuenta rápida** inline y no permite finalizar sin asociarla.
 
-### C — Cobro suelto → alta de plan posterior (COBRO)
+### CTA — Cuentas bancarias flexibles
 
-- [x] **COBRO-01**: El "Cobro suelto" incluye un dropdown **Motivo** con opciones "Sin plan activo" / "Otro", persistido como **campo** (no texto libre).
-- [x] **COBRO-02**: En Pendientes, un cobro con motivo "Sin plan activo" muestra un chip **"Sin plan — asignar"** que navega a la ficha del alumno.
-- [ ] **COBRO-03**: Al asignar un plan, gestión puede **usar la plata de un cobro suelto pendiente** del socio para cubrir el monto: anula el cobro suelto y **recrea un `plan_charge`** vinculado a la sub (misma caja/monto/método), de forma **atómica** dentro de `assignPlan`. Gestión ve **todos** los cobros sueltos pendientes del socio.
-- [ ] **COBRO-04**: Si el cobro suelto **excede** el precio del plan, el **excedente no se aplica** (lo maneja gestión aparte).
-- [ ] **COBRO-05**: El botón **"Validar" manual queda bloqueado** en la bandeja para los cobros marcados "Sin plan activo" (se redirigen a asignar plan, para que no queden como plata suelta validada).
+- [ ] **CTA-01**: El admin puede **crear cuentas bancarias** con campos Banco, N° de cuenta, Titular, CUIT, CBU/CVU, Alias — solo 3 obligatorios (flexible para monotributos/empresas/varias cuentas).
+- [ ] **CTA-02**: El admin puede **cerrar/desactivar** una cuenta bancaria (baja lógica, conserva historial de movimientos).
+- [ ] **CTA-03**: El admin puede registrar **retiros del dueño** desde una cuenta bancaria o caja (egreso tipo "Retiro"), para que los saldos reflejen la realidad.
 
-### D — "Movimientos de caja" como arqueo por caja (ARQUEO)
+### CAJA — Reorganización de la vista de Caja
 
-- [ ] **ARQUEO-01**: La pestaña "Movimientos de caja" muestra **todo lo imputado a una caja** (cobros de socio + egresos + traspasos + ajustes), filtrando por `cash_register_id` (todos los tipos, no solo los sin-socio).
-- [x] **ARQUEO-02**: La vista muestra **pendientes y validados**, cada uno **marcado** con su estado.
-- [x] **ARQUEO-03**: El filtro **Tipo** incluye **Cobros** (además de Movimientos / Egresos / Ajustes).
-- [ ] **ARQUEO-04**: La pestaña "Transacciones" (vista comercial por socio) **se mantiene** sin cambios de criterio.
+- [ ] **CAJA-01**: **"Movimientos de caja" es la portada** de Caja (primer tab); "Pendientes" pasa a segundo; "Transacciones" (renombrada **"Cobros"**) tercero.
+- [ ] **CAJA-02**: El listado de cobros muestra **etiqueta validada/pendiente** en cada fila.
+- [ ] **CAJA-03**: Los filtros de fecha (Cobros y Movimientos) vienen por mes pero permiten **elegir por días** para revisar dudas puntuales.
+- [ ] **CAJA-04**: El detalle de un cobro incluye **fecha de validación y usuario validador** (como ya muestra Movimientos).
+- [ ] **CAJA-05**: Las **categorías de egreso son configurables** desde la UI (ABM de centros de costo — levanta EGR-F2 de v5.3), con defaults genéricos que incluyen **"Pago a proveedores"** y **"Retiros"** en vez de los Templo-céntricos como única opción.
+- [ ] **CAJA-06**: La vista Saldos muestra una **nota explicativa**: "si no se registran egresos y retiros, los saldos no reflejarán la realidad".
 
-### E — Centros de costo para egresos (EGR)
+### DEUDA — Mejoras de Deudas
 
-- [x] **EGR-01**: Existe un catálogo `cost_centers` (por país), seedeado en AR con **Alquiler Constitución / Librería / Viáticos profes / Varios**.
-- [x] **EGR-02**: Registrar un egreso **exige** elegir un centro de costo (obligatorio; "Varios" como escape). Solo aplica a egresos (kind `expense`).
-- [x] **EGR-03**: La lista de "Movimientos de caja" muestra el **centro de costo** de cada egreso.
+- [ ] **DEUDA-01**: Cada deuda muestra **fecha desde que se registró**.
+- [ ] **DEUDA-02**: Cada deuda muestra su **motivo** (verificar contra el "Motivo" agregado en v5.3 antes de duplicar).
+- [ ] **DEUDA-03**: Cada deuda muestra **a qué pago/plan está asociada** (plan y período).
+- [ ] **DEUDA-04**: La vista de Deudas incluye también a los socios con **plan vencido sin renovar** (no-renovaciones), para ocuparse del negocio desde una sola pantalla.
+
+### ALUM — Alumnos (de-Templo-ficación + accesos)
+
+- [ ] **ALUM-01**: "Crear nuevo alumno" es la **acción prominente** de la página de Alumnos.
+- [ ] **ALUM-02**: **Registrar cobro** es una **acción directa en la fila** del alumno (junto al lápiz), no anidada dentro de la ficha.
+- [ ] **ALUM-03**: Las **reglas de precio por medio de pago** (recargo tarjeta, etc.) dejan de estar hardcodeadas: pasan a **configuración** (default estándar sin recargo; El Templo activa la suya).
+- [ ] **ALUM-04**: "Avatar" se renombra a un concepto neutro (**"segmento" / categoría de socio**) en toda la UI del admin; el mecanismo subyacente se conserva.
+- [ ] **ALUM-05**: Los **niveles griegos** (kairos→spartan) quedan **gateados como superficie Templo** (fuera del default white-label del admin), consistente con el gating de Entrenamiento existente.
+
+### HOR — Horarios
+
+- [ ] **HOR-01**: El sistema permite **dos clases simultáneas en la misma sucursal** (musculación conviviendo con actividades).
+- [ ] **HOR-02**: Se puede **crear una clase/actividad directamente desde el slot** del horario (generaliza el "test de profe" Templo-específico).
+- [ ] **HOR-03**: Cada **actividad define su capacidad** (cupo), en lugar de heredar únicamente la capacidad de la sucursal.
+
+### PLAN — Planes de pago vs Rutinas de entrenamiento
+
+- [ ] **PLAN-01**: "Planes" y "Programas" se separan con nombres claros: **"Planes de pago"** (categoría Planes) y **"Rutinas de entrenamiento"** (subcategoría, gateada como Templo/entrenamiento).
+- [ ] **PLAN-02**: El **precio "Zero"** deja de ser parte del default: pasa a configuración (El Templo lo conserva activo).
+- [ ] **PLAN-03**: Un plan puede dar acceso a **varios programas seleccionados** (además del "todos los programas" existente).
+- [ ] **PLAN-04**: **Actualizar el precio** de un plan (inflación) no requiere crear un plan nuevo **ni altera los montos históricos** ya cobrados (verificar el comportamiento actual y garantizarlo con test).
 
 ---
 
 ## Future Requirements (deferred)
 
-- **EGR-F1**: Reporte de egresos agrupado por centro de costo (por período y caja/sede).
-- **EGR-F2**: ABM de centros de costo desde la UI (alta/edición/baja).
-- **CAJA-F1**: ABM de cuentas banco desde la UI (staging usa seeds).
+- **ANLT-F1**: Correcciones finas de Analíticas — cobrado vs devengado, no-renovaciones con total propio, LTV (activar o dar de baja), asistencia explicada, retención unificada, conversión al final. Nacho: "voy a dejar sus correcciones para el final; seguro hay muchas cosas que salgan en la práctica".
+- **HOR-F1**: Asistencia real marcada por QR desde la app del alumno (histórico de tránsito por horario). Cruza a la app de miembros.
+- **COBRO-F1**: Datos del frente de la tarjeta en pagos con tarjeta (antifraude / pagos al exterior).
+- **PLAN-F1**: Rutinas por objetivo/grupo muscular/nivel/días + IA que dialoga con las máquinas del gimnasio (motor de entrenamiento genérico — post-MVP, territorio del diseño SaaS doc 02 §2).
 
 ## Out of Scope (this milestone)
 
-- Reporte por centro de costo y ABM de centros (diferidos arriba).
-- ABM de cuentas banco desde UI (staging usa seeds Galicia/Mercado Pago).
-- Cambiar plan en el cobro del profe (es trabajo de gestión, descartado).
-- Facturación electrónica AFIP/ARCA (sigue fuera, como en v5.2).
+- **Tenancy completa**: tabla `tenants`, `tenant_id`, mecanismo de módulos, tests de aislamiento — fase posterior, diseño ya validado en `.docs/saas-multitenancy/`.
+- **App de miembros multi-tenant** — diferida, funda el repo SaaS.
+- **Analíticas finas** (ANLT-F1) — solo se mueven Analíticas/Reportes dentro de Finanzas en el nav.
+- **Borrar features Templo** (Campañas, Puntuaciones, landing, SPOM) — se gatean, no se borran.
 
 ## Traceability
 
-| REQ-ID    | Phase | Status   |
-| --------- | ----- | -------- |
-| POS-01    | 145   | Complete |
-| COBRO-01  | 145   | Complete |
-| COBRO-02  | 145   | Complete |
-| CAJA-01   | 146   | Complete |
-| CAJA-02   | 146   | pending  |
-| CAJA-03   | 146   | pending  |
-| CAJA-04   | 146   | Complete |
-| COBRO-03  | 146   | pending  |
-| COBRO-04  | 146   | pending  |
-| COBRO-05  | 146   | pending  |
-| ARQUEO-01 | 146   | pending  |
-| ARQUEO-02 | 146   | Complete |
-| ARQUEO-03 | 146   | Complete |
-| ARQUEO-04 | 146   | pending  |
-| EGR-01    | 147   | Complete |
-| EGR-02    | 147   | Complete |
-| EGR-03    | 147   | Complete |
-
-_17/17 v5.3 requirements mapped — no orphans, no duplicates._
+_Filled by roadmap creation._
