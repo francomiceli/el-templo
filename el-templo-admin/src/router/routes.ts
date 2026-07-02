@@ -1,5 +1,29 @@
 import type { RouteRecordRaw } from 'vue-router';
 import type { AdminRole } from 'src/types/admin';
+import { useAuthStore } from 'stores/useAuthStore';
+import { canAccessTraining } from 'src/utils/trainingAccess';
+import { PLANES_READ_ROLES, PAGOS_ROLES, DUENO_ROLES } from 'src/config/templo-config';
+
+/**
+ * Landing por rol al entrar en '/' (D-14). Orden CRÍTICO (Pitfall 2):
+ * canAccessTraining devuelve true para CUALQUIER owner, por eso el coach
+ * exclusivo (Fran) se resuelve ANTES del bloque dueño — así el owner NO cae
+ * en /sessions sino en /alumnos.
+ *   1. coach + canAccessTraining → /sessions (sólo Fran, no el owner)
+ *   2. owner/admin               → /alumnos  (dueño)
+ *   3. resto (coach no-Fran/gestion/recepcion) → /pagos (empleado)
+ */
+function landingForRole(): string {
+  const authStore = useAuthStore();
+  const user = authStore.user;
+  if (user?.role === 'coach' && canAccessTraining(user)) {
+    return '/sessions';
+  }
+  if (user && DUENO_ROLES.includes(user.role)) {
+    return '/alumnos';
+  }
+  return '/pagos';
+}
 
 const routes: RouteRecordRaw[] = [
   {
@@ -11,7 +35,7 @@ const routes: RouteRecordRaw[] = [
     path: '/',
     component: () => import('layouts/AdminLayout.vue'),
     children: [
-      { path: '', redirect: '/sessions' },
+      { path: '', redirect: () => landingForRole() },
       {
         path: 'sessions',
         component: () => import('pages/SessionsPage.vue'),
@@ -59,12 +83,19 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'planes',
         component: () => import('pages/PlanesPage.vue'),
-        meta: { allowedRoles: ['gestion', 'admin', 'owner'] as AdminRole[] },
+        // Widening D-10: todo el staff entra a Planes en modo lectura (ve qué
+        // incluye + precios). La edición se oculta en PlanesPage (canEditPlans)
+        // y la API bloquea los writes (Plan 01, PLANES_WRITE_ROLES).
+        meta: { allowedRoles: PLANES_READ_ROLES },
       },
       {
         path: 'programas',
         component: () => import('pages/ProgramasPage.vue'),
-        meta: { allowedRoles: ['gestion', 'admin', 'owner'] as AdminRole[] },
+        // Dueño-only (D-15): angostado de gestion/admin/owner a admin/owner para
+        // cerrar el lado router de la puerta trasera de Programas. Consistente
+        // con el nav (Plan 03) y la API (Plan 01, PROGRAMAS_ROLES). Un gestion
+        // que navega a /programas por URL directa es rebotado por el guard.
+        meta: { allowedRoles: DUENO_ROLES },
       },
       {
         path: 'caja',
@@ -77,8 +108,9 @@ const routes: RouteRecordRaw[] = [
         component: () => import('pages/PagosPage.vue'),
         // Phase 140 (CARGA-04): opens the coach PoS load surface (ruta /pagos,
         // ex /cargar). El coach (PoS profe, fase 148) entra junto con
-        // gestion/admin/owner. Sincronizado con isPagosVisible en AdminLayout.
-        meta: { allowedRoles: ['coach', 'gestion', 'admin', 'owner'] as AdminRole[] },
+        // gestion/admin/owner. Widening D-14: recepcion incluida vía PAGOS_ROLES
+        // (espeja FINANCE_LOAD_ROLES de la API). Sincronizado con el nav (Plan 03).
+        meta: { allowedRoles: PAGOS_ROLES },
       },
       {
         path: 'horarios',
@@ -168,14 +200,6 @@ const routes: RouteRecordRaw[] = [
         path: 'puntuaciones',
         component: () => import('pages/PuntuacionesPage.vue'),
         meta: { allowedRoles: ['owner'] as AdminRole[] },
-      },
-      {
-        // Phase 142 (MIG-01, D-06): mini "Configuración de Caja" — owner/admin
-        // only (excludes gestion/recepcion/coach). Sibling of /caja, NOT a Caja
-        // tab. The backend per-handler ADMIN_ROLES check is the real gate.
-        path: 'configuracion-caja',
-        component: () => import('pages/ConfiguracionCajaPage.vue'),
-        meta: { allowedRoles: ['admin', 'owner'] as AdminRole[] },
       },
     ],
   },

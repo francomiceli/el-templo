@@ -41,14 +41,17 @@ export default defineRouter(function () {
     if (allowedRoles && !allowedRoles.includes(authStore.user?.role as AdminRole)) {
       // Redirect to role's default landing page
       const role = authStore.user?.role as AdminRole;
+      // D-14 landing por rol: dueño (owner/admin) → /alumnos; empleado
+      // (coach/gestion/recepcion) → /pagos. El bounce trainingOnly (abajo)
+      // se conserva para el coach exclusivo que sí entra a Entrenamiento.
       const defaultPages: Record<string, string> = {
-        owner: '/sessions',
+        owner: '/alumnos',
         admin: '/alumnos',
-        coach: '/sessions',
-        gestion: '/alumnos',
-        recepcion: '/alumnos',
+        coach: '/pagos',
+        gestion: '/pagos',
+        recepcion: '/pagos',
       };
-      return defaultPages[role] || '/sessions';
+      return defaultPages[role] || '/pagos';
     }
 
     // Entrenamiento surface: even when allowedRoles lets a coach through, only
