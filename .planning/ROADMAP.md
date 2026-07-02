@@ -21,6 +21,8 @@
 - **Profesor por clase + Puntuación post clase** - Phase 143 (planned, standalone app/admin)
 - **Notificaciones y bloqueo de vencimiento** - Phase 144 (planned, standalone app/api)
 - **v5.3 Mejoras Caja / Módulo Contable (feedback v5.2)** - Phases 145-147 (planned)
+- **Phase 148 PoS profe: alta de alumno + plan en el cobro** - Phase 148 (planned, standalone)
+- **v5.4 Reforma del Admin — Correcciones white-label (pre-tenants)** - Phases 149-156 (planned)
 
 ---
 
@@ -3783,3 +3785,177 @@ Plans:
 ---
 
 _v5.3 (Mejoras Caja) added: 2026-06-26 — 3 phases (145-147), 17 requirements (POS, CAJA, COBRO, ARQUEO, EGR). Fixes targeted sobre el Módulo Contable v5.2 (137-142) y el modelo v4.8 — NO es un build from-scratch. Agrupación de 3 fases **aprobada explícitamente por el usuario, no se decompone más**. **Phase 146 (caja en validación) es fundacional** para la imputación del anticipo (C) y el arqueo por caja (D): la caja sugerida no-definitiva en Pendientes habilita ambos. 145 (aviso de deuda + Motivo + chip) y 147 (centros de costo) son independientes. Continúa numeración desde fase 144 (NO se resetea). Migraciones nuevas 0159+ (última aplicada 0158). Descartados del feedback: puntos 2/3/7/8. Diferido: reporte por centro de costo, ABM de centros, ABM de cuentas banco. Fuente de verdad: `BRIEF-FEEDBACK-V52-CAJA.md` (raíz)._
+
+## v5.4 (Reforma del Admin) Overview
+
+**Milestone:** v5.4 — Reforma del Admin — Correcciones white-label (pre-tenants)
+**Started:** 2026-07-02
+**Phases:** 8 (149-156)
+**Continues from:** Phase 148 (PoS profe: alta de alumno + plan en el cobro). Numbering is NOT reset.
+**Granularity:** fine — una fase por superficie/categoría del admin (Nav+RBAC, Cuentas bancarias, Cobros, Caja, Deudas, Alumnos, Horarios, Planes). Boundaries naturales del documento de correcciones; no se paddea ni se comprime.
+
+**Scope.** Reorganizar el admin según `.docs/saas-multitenancy/Correcciones El Templo.md` para dejarlo listo como MVP white-label — nav por categorías, RBAC dueño-vs-empleado, pantallas simplificadas y de-Templo-ficación de la superficie MVP (Finanzas, Alumnos, Horarios, Planes) — **SIN introducir tenants todavía**. Primera etapa del camino SaaS (decisión de Nacho: reforma PRIMERO, tenancy DESPUÉS, secuencial). 8 fases, 33 requirements (NAV, COBRO, CTA, CAJA, DEUDA, ALUM, HOR, PLAN).
+
+**Principio rector (Nacho, 2026-07-01):** El Templo se asienta sobre el terreno común general lo más posible; lo propio del Templo se "dibuja" después, encima. Traducción: estandarizar primero (núcleo genérico white-label), y tratar lo específico del Templo como capa posterior. Donde el documento dice "sacar", casi siempre significa **estandarizar/hacer configurable o gatear**, no borrar.
+
+**Constraint transversal (regla dura):** todo cambio de API adopta los patrones del diseño SaaS validado (`.docs/saas-multitenancy/`): motor vs plantilla, regla de dirección de imports módulo→core (doc 04), sin nuevos Templo-ismos en core. Staging-first estricto. Migraciones con SQL commiteado; tests de integración para rutas nuevas/modificadas.
+
+**Solapamiento con v5.3 (verificar en plan-phase):** este milestone levanta los diferidos de v5.3 — **CAJA-05** levanta EGR-F2 (ABM de centros de costo desde UI, sobre la tabla `cost_centers` de la fase 147) y **CTA-01/02** levantan CAJA-F1 (ABM de cuentas banco desde UI, hoy seeds Galicia/Mercado Pago). Las mejoras de **DEUDA-02** cruzan con el campo "Motivo" que v5.3 ya agregó (`misc_reason`, fase 145) — **verificar antes de duplicar**.
+
+**Secuencia (dependencias).** **149 (Nav+RBAC) es foundational:** define las categorías donde aterrizan todas las pantallas visuales y el gating por rol. **150 (Cuentas bancarias) precede a 151 (Cobros)** porque COBRO-04 obliga a asociar una cuenta bancaria existente. **152 (Caja)** se monta sobre `cost_centers` de v5.3 (fase 147, brownfield). **153 (Deudas)** cruza con el "Motivo" de v5.3. **154/155/156 (Alumnos/Horarios/Planes)** son mayormente independientes entre sí; PLAN-04 es trabajo de verificación + test.
+
+**Out of scope (este milestone):** tabla `tenants`, `tenant_id`, mecanismo de módulos (fase de tenancy posterior, diseño ya validado en `.docs/saas-multitenancy/04-mecanismo-modulos.md`); app de miembros multi-tenant; correcciones finas de Analíticas (ANLT-F1 — solo se mueven Analíticas/Reportes dentro de Finanzas en el nav); asistencia por QR desde la app del alumno (HOR-F1); borrar features Templo (Campañas, Puntuaciones, landing, SPOM) — se gatean, no se borran.
+
+**Reference:** `.docs/saas-multitenancy/Correcciones El Templo.md` (doc crudo de Nacho) + `01-analisis-correcciones-admin.md` (análisis bajo lente SaaS, mapa imagen→código) + `README.md` §0 (decisión de secuencia).
+
+## v5.4 (Reforma del Admin) Phases
+
+- [ ] **Phase 149: Nav por categorías + RBAC** — agrupar el nav plano del admin en Finanzas / Alumnos / Horarios / Planes (Pagos, Caja, Analíticas, Reportes, Deudas dentro de Finanzas), con visibilidad por rol (dueño ve todo; profe/administrativo ve solo Pagos + Planes read-only; Alumnos y Horarios libres) y gateo de Campañas/Profes/Puntuaciones/landing fuera del MVP (no se borran).
+- [ ] **Phase 150: Cuentas bancarias flexibles** — crear/cerrar cuentas bancarias (Banco, N°, Titular, CUIT, CBU/CVU, Alias; solo 3 obligatorios) con baja lógica que conserva historial + registrar retiros del dueño (egreso tipo "Retiro"). Levanta CAJA-F1 de v5.3 (ABM desde UI).
+- [ ] **Phase 151: Registrar cobro (Pagos → Cobros)** — renombrar "Pagos"→"Cobros" + rediseño en pantallas/pasos separados (una cosa por paso, desktop+mobile) + fecha/hora en el listado y botón "Continuar" arriba + transferencia/tarjeta obligadas a asociar una cuenta bancaria (crear rápida inline si no hay).
+- [ ] **Phase 152: Reorganización de Caja + egresos configurables** — reordenar los tabs (Movimientos portada / Pendientes 2° / "Cobros" 3°) + etiqueta validada/pendiente por fila + detalle con validador + filtro por día + categorías de egreso configurables desde UI (ABM de centros de costo, levanta EGR-F2 de v5.3, defaults "Pago a proveedores"/"Retiros") + nota explicativa en Saldos.
+- [ ] **Phase 153: Mejoras de Deudas** — fecha de registro + motivo (reusar `misc_reason` de v5.3, no duplicar) + pago/plan asociado (plan + período) por deuda + incluir a los socios con plan vencido sin renovar (no-renovaciones) en la misma pantalla.
+- [ ] **Phase 154: Alumnos (de-Templo-ficación + accesos)** — "Crear alumno" prominente + "Registrar cobro" como acción directa en la fila + reglas de precio por medio de pago configurables (default sin recargo) + "Avatar"→"segmento"/categoría de socio (mismo mecanismo) + niveles griegos gateados como superficie Templo.
+- [ ] **Phase 155: Horarios** — clases simultáneas en la misma sucursal + crear clase/actividad desde el slot (generaliza el "test de profe") + capacidad por actividad (cupo propio, no solo el de la sucursal).
+- [ ] **Phase 156: Planes de pago vs Rutinas de entrenamiento** — separar "Planes de pago" (categoría Planes) de "Rutinas de entrenamiento" (subcategoría gateada Templo) + precio "Zero" a config + selección múltiple de programas por plan + actualizar precio por inflación sin crear plan nuevo ni alterar históricos (garantizado con test).
+
+## v5.4 (Reforma del Admin) Phase Details
+
+### Phase 149: Nav por categorías + RBAC
+
+**Goal:** El admin se navega por categorías Finanzas / Alumnos / Horarios / Planes con visibilidad por rol (dueño del gimnasio vs empleado/profe), dejando las features Templo/marketing fuera del nav MVP sin borrarlas. End state: la nav plana actual (`router/routes.ts` + `AdminLayout.vue`) queda agrupada en 4 categorías; el dueño ve todo, el profe/administrativo ve solo "Pagos" dentro de Finanzas y Planes en modo lectura; Alumnos y Horarios quedan libres; Campañas/Profes/Puntuaciones/landing quedan gateadas.
+**Depends on:** none (foundational — define dónde aterrizan las pantallas de las fases 150-156 y el gating por rol).
+**Requirements:** NAV-01, NAV-02, NAV-03, NAV-04
+**Success Criteria** (what must be TRUE at phase completion):
+
+1. El nav del admin se agrupa en **Finanzas / Alumnos / Horarios / Planes**; Pagos, Caja, Analíticas, Reportes y Deudas viven dentro de Finanzas. (NAV-01)
+2. **Finanzas** (completa) y la **edición de Planes** solo son visibles para admin/owner; el profe/administrativo no las ve. (NAV-02)
+3. El profe/administrativo ve dentro de Finanzas **solo "Pagos"** (registrar cobro) y **Planes en modo lectura** (qué incluye + precios, sin editar). (NAV-03)
+4. Campañas, Profes/Puntuaciones y las páginas de landing/marketing quedan **fuera del nav MVP**, gateadas por rol/flag y **no borradas** (siguen accesibles para El Templo). (NAV-04)
+
+**Plans:** TBD
+**UI hint:** yes
+
+### Phase 150: Cuentas bancarias flexibles
+
+**Goal:** El admin gestiona cuentas bancarias flexibles (crear/cerrar) y registra retiros del dueño, para que los cobros bancarios puedan asociarse a una cuenta y los saldos reflejen la realidad. End state: existe ABM de cuentas bancarias desde la UI (levanta el diferido CAJA-F1 de v5.3, hoy seeds) con campos flexibles y baja lógica; y se pueden registrar retiros del dueño como egreso.
+**Depends on:** Phase 149 (la superficie aterriza en Finanzas, admin-only). Precede a Phase 151 (COBRO-04 asocia una cuenta bancaria existente).
+**Requirements:** CTA-01, CTA-02, CTA-03
+**Success Criteria** (what must be TRUE at phase completion):
+
+1. El admin puede **crear una cuenta bancaria** con Banco, N° de cuenta, Titular, CUIT, CBU/CVU, Alias, exigiendo **solo 3 campos obligatorios** (flexible para monotributos/empresas/varias cuentas). (CTA-01)
+2. El admin puede **cerrar/desactivar** una cuenta bancaria (baja lógica) **conservando** su historial de movimientos. (CTA-02)
+3. El admin puede registrar un **retiro del dueño** desde una cuenta bancaria o caja (egreso tipo "Retiro"), impactando el saldo para que refleje la realidad. (CTA-03)
+
+**Plans:** TBD
+**UI hint:** yes
+
+### Phase 151: Registrar cobro (Pagos → Cobros)
+
+**Goal:** El registro de cobro se renombra a "Cobros" y se rediseña en pasos separados (una cosa por paso), con fecha/hora en el listado y asociación obligatoria de cuenta bancaria para transferencia/tarjeta. End state: "Pagos" es "Cobros" en toda la superficie; el flujo de carga ya no es una sucesión de expansiones anidadas sino pantallas/pasos separados que funcionan bien en desktop y mobile; el listado muestra fecha+hora con "Continuar" arriba; y un cobro bancario no se puede finalizar sin una cuenta asociada.
+**Depends on:** Phase 149 (nav "Pagos"→"Cobros") + Phase 150 (cuentas bancarias existentes para COBRO-04).
+**Requirements:** COBRO-01, COBRO-02, COBRO-03, COBRO-04
+**Success Criteria** (what must be TRUE at phase completion):
+
+1. "Pagos" se renombra **"Cobros"** en nav, página y textos ("Mis cargas de hoy" → "Cobros"). (COBRO-01)
+2. El registro del cobro se organiza como **pantallas/pasos separados** (una sola cosa por paso), funcionando bien en desktop y mobile, en vez de la sucesión de expansiones anidadas. (COBRO-02)
+3. El listado de cargas del profe muestra **fecha + hora** de cada registro, y el botón **"Continuar"** queda arriba del listado. (COBRO-03)
+4. Un cobro por **transferencia o tarjeta** exige seleccionar una **cuenta bancaria existente**; si no hay cuentas cargadas ofrece **crear cuenta rápida inline** y **no permite finalizar** sin asociarla. (COBRO-04)
+
+**Plans:** TBD
+**UI hint:** yes
+
+### Phase 152: Reorganización de Caja + egresos configurables
+
+**Goal:** La vista de Caja se reordena y clarifica (Movimientos portada, Pendientes 2°, "Cobros" 3°), con etiquetas de estado por fila, filtro por día, detalle con validador, categorías de egreso configurables desde la UI y una nota de saldos. End state: los tabs quedan en el orden nuevo; cada cobro muestra su estado validada/pendiente y el detalle incluye validador+fecha; los filtros de fecha permiten bajar a días; los centros de costo se administran desde la UI con defaults genéricos; y Saldos advierte sobre registrar egresos/retiros.
+**Depends on:** Phase 149 (Caja dentro de Finanzas). Se monta sobre `cost_centers` de v5.3 (fase 147, brownfield) para el ABM — **verificar el schema existente antes de extender**.
+**Requirements:** CAJA-01, CAJA-02, CAJA-03, CAJA-04, CAJA-05, CAJA-06
+**Success Criteria** (what must be TRUE at phase completion):
+
+1. En Caja, **"Movimientos de caja" es la portada** (primer tab), **"Pendientes"** pasa a segundo y **"Transacciones" (renombrada "Cobros")** a tercero. (CAJA-01)
+2. El listado de cobros muestra **etiqueta validada/pendiente** en cada fila, y el **detalle** de un cobro incluye **fecha de validación + usuario validador** (como ya muestra Movimientos). (CAJA-02, CAJA-04)
+3. Los filtros de fecha (Cobros y Movimientos) vienen por mes pero permiten **elegir por días** para revisar dudas puntuales. (CAJA-03)
+4. Las **categorías de egreso son configurables desde la UI** (ABM de centros de costo, levanta EGR-F2 de v5.3), con defaults genéricos que incluyen **"Pago a proveedores"** y **"Retiros"** en vez de los Templo-céntricos como única opción. (CAJA-05)
+5. La vista **Saldos** muestra una **nota explicativa**: "si no se registran egresos y retiros, los saldos no reflejarán la realidad". (CAJA-06)
+
+**Plans:** TBD
+**UI hint:** yes
+
+### Phase 153: Mejoras de Deudas
+
+**Goal:** Cada deuda muestra fecha de registro, motivo y pago/plan asociado, y la vista de Deudas incluye también a los socios con plan vencido sin renovar, para gestionar el negocio desde una sola pantalla. End state: la lista de Deudas gana fecha de registro, motivo (reutilizando el campo de v5.3), y la asociación a plan+período; y suma la cohorte de no-renovaciones.
+**Depends on:** Phase 149 (Deudas dentro de Finanzas). **Cruza con el campo "Motivo" (`misc_reason`) que v5.3 ya agregó (fase 145) — verificar y reutilizar, no duplicar.**
+**Requirements:** DEUDA-01, DEUDA-02, DEUDA-03, DEUDA-04
+**Success Criteria** (what must be TRUE at phase completion):
+
+1. Cada deuda muestra la **fecha desde que se registró**. (DEUDA-01)
+2. Cada deuda muestra su **motivo**, reutilizando el campo "Motivo" agregado en v5.3 (verificado, sin duplicar). (DEUDA-02)
+3. Cada deuda muestra **a qué pago/plan está asociada** (plan y período). (DEUDA-03)
+4. La vista de Deudas incluye también a los socios con **plan vencido sin renovar** (no-renovaciones), para ocuparse del negocio desde una sola pantalla. (DEUDA-04)
+
+**Plans:** TBD
+**UI hint:** yes
+
+### Phase 154: Alumnos (de-Templo-ficación + accesos)
+
+**Goal:** La página de Alumnos prioriza crear alumno y cobrar desde la fila, con precios por medio de pago configurables, "avatar" renombrado a un concepto neutro y niveles griegos gateados como superficie Templo. End state: "Crear alumno" es la acción prominente; "Registrar cobro" es una acción directa en la fila; el recargo por medio de pago deja de estar hardcodeado y pasa a config; "Avatar" se llama "segmento" en toda la UI conservando el mecanismo; y los niveles griegos quedan gateados como Templo, consistente con el gating de Entrenamiento.
+**Depends on:** Phase 149 (categoría Alumnos, libre para profe).
+**Requirements:** ALUM-01, ALUM-02, ALUM-03, ALUM-04, ALUM-05
+**Success Criteria** (what must be TRUE at phase completion):
+
+1. **"Crear nuevo alumno"** es la **acción prominente** de la página de Alumnos. (ALUM-01)
+2. **"Registrar cobro"** es una **acción directa en la fila** del alumno (junto al lápiz), no anidada dentro de la ficha. (ALUM-02)
+3. Las **reglas de precio por medio de pago** (recargo tarjeta, etc.) dejan de estar hardcodeadas y pasan a **configuración** (default estándar sin recargo; El Templo activa la suya). (ALUM-03)
+4. **"Avatar"** se renombra a un concepto neutro (**"segmento" / categoría de socio**) en toda la UI del admin, conservando el mecanismo subyacente. (ALUM-04)
+5. Los **niveles griegos** (kairos→spartan) quedan **gateados como superficie Templo** (fuera del default white-label), consistente con el gating de Entrenamiento existente. (ALUM-05)
+
+**Plans:** TBD
+**UI hint:** yes
+
+### Phase 155: Horarios
+
+**Goal:** El sistema de horarios soporta clases simultáneas en la misma sucursal, crear una clase/actividad directamente desde el slot y capacidad por actividad. End state: musculación puede convivir con otras actividades en la misma sucursal a la misma hora; el "test de profe" Templo-específico se generaliza a "crear clase/actividad" desde el slot; y cada actividad define su propio cupo en vez de heredar solo el de la sucursal.
+**Depends on:** Phase 149 (categoría Horarios, libre para profe).
+**Requirements:** HOR-01, HOR-02, HOR-03
+**Success Criteria** (what must be TRUE at phase completion):
+
+1. El sistema permite **dos clases simultáneas en la misma sucursal** (musculación conviviendo con actividades). (HOR-01)
+2. Se puede **crear una clase/actividad directamente desde el slot** del horario (generaliza el "test de profe" Templo-específico). (HOR-02)
+3. Cada **actividad define su capacidad** (cupo), en lugar de heredar únicamente la capacidad de la sucursal. (HOR-03)
+
+**Plans:** TBD
+**UI hint:** yes
+
+### Phase 156: Planes de pago vs Rutinas de entrenamiento
+
+**Goal:** Se separan "Planes de pago" de "Rutinas de entrenamiento", el precio "Zero" pasa a configuración, un plan puede dar acceso a varios programas seleccionados, y actualizar el precio por inflación no crea un plan nuevo ni altera históricos. End state: los dos conceptos quedan con nombres claros y la subcategoría de rutinas gateada como Templo; "Zero" sale del default y queda como config; un plan puede seleccionar múltiples programas (además del "todos los programas"); y una suba de precio queda garantizada por test como no-destructiva de los montos históricos.
+**Depends on:** Phase 149 (categoría Planes, edición admin-only). Independiente de 154/155.
+**Requirements:** PLAN-01, PLAN-02, PLAN-03, PLAN-04
+**Success Criteria** (what must be TRUE at phase completion):
+
+1. "Planes" y "Programas" se separan con nombres claros: **"Planes de pago"** (categoría Planes) y **"Rutinas de entrenamiento"** (subcategoría, gateada como Templo/entrenamiento). (PLAN-01)
+2. El **precio "Zero"** deja de ser parte del default: pasa a **configuración** (El Templo lo conserva activo). (PLAN-02)
+3. Un plan puede dar acceso a **varios programas seleccionados** (además del "todos los programas" existente). (PLAN-03)
+4. **Actualizar el precio** de un plan (inflación) **no requiere crear un plan nuevo ni altera los montos históricos** ya cobrados, comportamiento **garantizado con test**. (PLAN-04)
+
+**Plans:** TBD
+**UI hint:** yes
+
+## v5.4 (Reforma del Admin) Progress
+
+| Phase                                           | Plans Complete | Status      | Completed |
+| ----------------------------------------------- | -------------- | ----------- | --------- |
+| 149. Nav por categorías + RBAC                  | 0/TBD          | Not started | -         |
+| 150. Cuentas bancarias flexibles                | 0/TBD          | Not started | -         |
+| 151. Registrar cobro (Pagos → Cobros)           | 0/TBD          | Not started | -         |
+| 152. Reorganización de Caja + egresos config.   | 0/TBD          | Not started | -         |
+| 153. Mejoras de Deudas                          | 0/TBD          | Not started | -         |
+| 154. Alumnos (de-Templo-ficación + accesos)     | 0/TBD          | Not started | -         |
+| 155. Horarios                                   | 0/TBD          | Not started | -         |
+| 156. Planes de pago vs Rutinas de entrenamiento | 0/TBD          | Not started | -         |
+
+_Plan counts populated by `/gsd-plan-phase`._
+
+---
+
+_v5.4 (Reforma del Admin) added: 2026-07-02 — 8 phases (149-156), 33 requirements (NAV, COBRO, CTA, CAJA, DEUDA, ALUM, HOR, PLAN). Primera etapa del camino SaaS: reforma PRIMERO, tenancy DESPUÉS (decisión de Nacho, secuencial). Deriva de `.docs/saas-multitenancy/Correcciones El Templo.md` + `01-analisis-correcciones-admin.md` (mapa imagen→código). Continúa numeración desde fase 148 (NO se resetea). **149 (Nav+RBAC) es foundational** (define categorías + gating). **150 (Cuentas bancarias) precede a 151 (Cobros)** por COBRO-04. **152 (Caja)** levanta EGR-F2 de v5.3 sobre `cost_centers` (fase 147); **150** levanta CAJA-F1 (ABM cuentas banco). **153 (Deudas)** reutiliza el "Motivo" (`misc_reason`) de v5.3 (fase 145) — verificar, no duplicar. Constraint dura: todo cambio de API adopta los patrones del diseño SaaS validado (motor vs plantilla, imports módulo→core, sin nuevos Templo-ismos en core). SIN tenants este milestone. Out of scope: tabla tenants/tenant_id/mecanismo de módulos, analíticas finas (ANLT-F1), QR desde app del alumno (HOR-F1), borrar features Templo (se gatean). Fuente de verdad: `.docs/saas-multitenancy/`._

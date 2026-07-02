@@ -2,11 +2,11 @@
 gsd_state_version: 1.0
 milestone: v5.4
 milestone_name: Reforma del Admin — Correcciones white-label (pre-tenants)
-status: planning
-last_updated: "2026-07-02T17:03:16.133Z"
+status: roadmapped
+last_updated: "2026-07-02T18:30:00.000Z"
 last_activity: 2026-07-02
 progress:
-  total_phases: 0
+  total_phases: 8
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -19,15 +19,15 @@ progress:
 
 See: .planning/PROJECT.md (updated 2026-06-04)
 
-**Core value (v5.3):** Resolver el feedback operativo de v5.2 sobre la caja y la PoS del profe — imputación/confirmación de caja en la **validación** (no en el cobro), cobro de socios sin plan activo (motivo + chip + imputación del anticipo al alta), arqueo por caja, múltiples cuentas banco y centros de costo obligatorios para egresos. Fixes targeted sobre el Módulo Contable v5.2 (137-142) y el modelo v4.8 — NO es un build from-scratch. 3 fases (145-147), 17 requirements (POS/CAJA/COBRO/ARQUEO/EGR). Migraciones nuevas 0159+.
-**Current focus:** Phase 148 — pos-profe-alta-de-alumno-plan-en-el-cobro
+**Core value (v5.4):** Reorganizar el admin según `Correcciones El Templo.md` para dejarlo listo como MVP white-label — nav por categorías + RBAC dueño-vs-empleado, pantallas simplificadas y de-Templo-ficación de la superficie MVP (Finanzas, Alumnos, Horarios, Planes) — SIN introducir tenants todavía. Primera etapa del camino SaaS (reforma PRIMERO, tenancy DESPUÉS, secuencial). 8 fases (149-156), 33 requirements (NAV/COBRO/CTA/CAJA/DEUDA/ALUM/HOR/PLAN). Constraint dura: todo cambio de API adopta los patrones del diseño SaaS validado (motor vs plantilla, imports módulo→core, sin nuevos Templo-ismos en core).
+**Current focus:** Phase 149 — Nav por categorías + RBAC (foundational)
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 149 (not started — roadmapped, awaiting /gsd-plan-phase)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-07-02 — Milestone v5.4 started
+Status: Roadmapped (8 phases, 33/33 requirements mapped)
+Last activity: 2026-07-02 — Milestone v5.4 roadmap created (phases 149-156)
 
 ## Performance Metrics
 
@@ -281,6 +281,7 @@ _Updated after each plan completion_
 
 ### Roadmap Evolution
 
+- v5.4 milestone roadmapped (phases 149-156, 33 reqs, granularity fine): Reforma del Admin — Correcciones white-label (pre-tenants). Deriva de `.docs/saas-multitenancy/Correcciones El Templo.md` + `01-analisis-correcciones-admin.md`. Continúa numeración desde 148 (NO reset). **149 Nav+RBAC foundational** (categorías Finanzas/Alumnos/Horarios/Planes + gating dueño-vs-empleado + gateo de features Templo fuera del MVP, no borradas). **150 Cuentas bancarias** (ABM flexible 3-obligatorios + baja lógica + retiros del dueño; levanta CAJA-F1 de v5.3) precede a **151 Cobros** (Pagos→Cobros, pasos separados, fecha/hora, COBRO-04 asocia cuenta). **152 Caja** (reorden tabs + estado por fila + filtro por día + validador + ABM centros de costo sobre `cost_centers` de v5.3 fase 147 + nota Saldos). **153 Deudas** (fecha+motivo+plan asociado+no-renovaciones; reutiliza `misc_reason` de v5.3 fase 145 — verificar, no duplicar). **154 Alumnos** (crear prominente + cobro en la fila + precio x medio config + avatar→segmento + niveles griegos gateados Templo). **155 Horarios** (clases simultáneas + crear clase desde slot + capacidad por actividad). **156 Planes** (Planes de pago vs Rutinas de entrenamiento + Zero a config + multi-programa por plan + suba de precio sin romper históricos con test). SIN tenants este milestone. (v5.4-ROADMAP)
 - Phase 148 added (continúa numeración tras v5.3 145-147; depende de v5.2 137/140/141 + v5.3 146): PoS profe — alta de alumno + plan en el cobro. El profe carga el plan directamente en el cobro (extiende `CargarPagoPage.vue` / Fase 140), creando al alumno si es nuevo, reemplazando el Google Form→Excel→admin. Modelo crear-en-vivo + validar-después (pago nace `pendiente` → bandeja Fase 137/141). Decisiones cerradas con el usuario (BRIEF-POS-PROFE-ALTA-ALUMNO.md): dedup por DNI (`check-duplicates`), cascade en void (desactiva membresía + alumno inactivo, no borra), sucursal default del profe editable, precio según medio de pago (tarjeta=`priceCreditCard`, resto=`priceRegular`/`priceZero` toggle Zero, parcial deja deuda), selector de turnos estructurado solo planes `fixed` (reusa `FixedSchedulePicker.vue`). Backend: endpoint nuevo en `coach-load-routes.ts` atómico e idempotente (resolver/crear alumno + `assignPlan(scheduleIds)` + transacción `pendiente`). Hallazgos: "Zero"=columna de precio no plan aparte; crear alumno mínimo ya existe (`POST /members/trial`, email null). Sobre `staging`, tren v5.2/v5.3. Decisiones cerradas → puede ir directo a /gsd-plan-phase (discuss opcional). (POS-NEW)
 - Phase 144 added (standalone app/api/admin, numerada después de 143, NO depende de ella ni del Módulo Contable v5.2): Notificaciones y bloqueo de vencimiento de membresía/plan — 3 entregables: (1) notificación push de vencimiento de plan ~7d antes, réplica del cron "Program Renewal Warning" pero sobre `subscriptions.end_date` + nuevo template `plan_renewal_warning` en `notifications/types.ts`; (2) pop-up in-app a 7 y 3 días del vencimiento con botón a WhatsApp (`buildWhatsAppUrl`); (3) bloqueo de reserva cuando `booking_date > subscription.end_date` en `booking-service.ts reserve()` (hoy ese check NO existe — bug latente) + pop-up en `ReservasPage.vue` con botón a WhatsApp. Reutiliza `pending_notifications`+FCM+`notification-cron` y `el-templo-app/src/utils/whatsapp.ts`. Decisiones abiertas (categoría entrenamiento vs programas, copy 7 vs 3d, anti-repetición del pop-up, salteable vs bloqueante, planes sin end_date, alcance presencial vs online) → discuss-phase. (PLAN-NOTIF, PLAN-POPUP, BOOK-BLOCK)
 - Phase 143 added (standalone app/admin, numerada después de v5.2 Módulo Contable 137-142, NO depende de ella): Profesor por clase + Puntuación post clase presencial — construir la cadena profe↔clase inexistente (asignación owner profe↔sucursal en Horarios, profe se marca como dictante escaneando el QR de la instancia validado contra su sucursal, app muestra el profe) + rating del profesor estilo Uber vía pop-up al volver a la app tras una clase presencial. Solo presencial; puntúa al profesor (no RPE). Reutiliza role `coach`+`user_branches`. Brief: `BRIEF-PUNTUACION-PROFES.md`. Decisiones abiertas (escala, salteable, co-dictado, fallback sin scan, reporte owner) → discuss-phase.
