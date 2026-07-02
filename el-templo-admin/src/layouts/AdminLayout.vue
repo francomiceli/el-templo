@@ -16,171 +16,25 @@
 
     <q-drawer v-model="drawer" show-if-above bordered :width="220">
       <q-list>
-        <!-- Entrenamiento -->
-        <template v-if="canSeeTraining">
-          <q-item-label header>Entrenamiento</q-item-label>
-          <q-item clickable v-ripple to="/sessions">
+        <!-- Drawer derivado de NAV_MODEL (templo-config.ts): un header por
+             categoría visible (≥1 item visible para el rol) + sus items. -->
+        <template v-for="(cat, catIdx) in visibleCategories" :key="cat.header">
+          <q-separator v-if="catIdx > 0" />
+          <q-item-label header>{{ cat.header }}</q-item-label>
+          <q-item
+            v-for="item in visibleItems(cat)"
+            :key="item.path"
+            clickable
+            v-ripple
+            :to="item.path"
+          >
             <q-item-section avatar>
-              <q-icon name="fitness_center" />
+              <q-icon :name="item.icon" />
             </q-item-section>
-            <q-item-section>Sesiones</q-item-section>
-            <q-item-section side v-if="adminStore.pendingCount > 0">
+            <q-item-section>{{ item.label }}</q-item-section>
+            <q-item-section side v-if="item.badge === 'pending' && adminStore.pendingCount > 0">
               <q-badge color="negative" :label="adminStore.pendingCount" />
             </q-item-section>
-          </q-item>
-          <q-item clickable v-ripple to="/generate">
-            <q-item-section avatar>
-              <q-icon name="auto_awesome" />
-            </q-item-section>
-            <q-item-section>Programador</q-item-section>
-          </q-item>
-          <q-item clickable v-ripple to="/exercises">
-            <q-item-section avatar>
-              <q-icon name="sports_gymnastics" />
-            </q-item-section>
-            <q-item-section>Ejercicios</q-item-section>
-          </q-item>
-          <q-item clickable v-ripple to="/tree-map">
-            <q-item-section avatar>
-              <q-icon name="hub" />
-            </q-item-section>
-            <q-item-section>Árbol</q-item-section>
-          </q-item>
-        </template>
-
-        <!-- Gestion -->
-        <q-separator v-if="canSeeTraining" />
-        <q-item-label header>Gestion</q-item-label>
-        <q-item clickable v-ripple to="/alumnos">
-          <q-item-section avatar>
-            <q-icon name="people" />
-          </q-item-section>
-          <q-item-section>Alumnos</q-item-section>
-        </q-item>
-        <q-item clickable v-ripple to="/horarios">
-          <q-item-section avatar>
-            <q-icon name="calendar_month" />
-          </q-item-section>
-          <q-item-section>Horarios</q-item-section>
-        </q-item>
-        <q-item v-if="isPagosVisible" clickable v-ripple to="/pagos">
-          <q-item-section avatar>
-            <q-icon name="point_of_sale" />
-          </q-item-section>
-          <q-item-section>Pagos</q-item-section>
-        </q-item>
-        <q-item v-if="isCoachDebtsRole" clickable v-ripple to="/deudas">
-          <q-item-section avatar>
-            <q-icon name="request_quote" />
-          </q-item-section>
-          <q-item-section>Deudas</q-item-section>
-        </q-item>
-        <q-item v-if="isOwnerRole" clickable v-ripple to="/puntuaciones">
-          <q-item-section avatar>
-            <q-icon name="groups" />
-          </q-item-section>
-          <q-item-section>Profes</q-item-section>
-        </q-item>
-        <q-item v-if="isCajaRole" clickable v-ripple to="/planes">
-          <q-item-section avatar>
-            <q-icon name="card_membership" />
-          </q-item-section>
-          <q-item-section>Planes</q-item-section>
-        </q-item>
-        <q-item v-if="isCajaRole" clickable v-ripple to="/programas">
-          <q-item-section avatar>
-            <q-icon name="school" />
-          </q-item-section>
-          <q-item-section>Programas</q-item-section>
-        </q-item>
-        <q-item v-if="isCajaSaldosRole" clickable v-ripple to="/caja">
-          <q-item-section avatar>
-            <q-icon name="point_of_sale" />
-          </q-item-section>
-          <q-item-section>Caja</q-item-section>
-        </q-item>
-        <q-item v-if="isAdminRole" clickable v-ripple to="/analiticas">
-          <q-item-section avatar>
-            <q-icon name="analytics" />
-          </q-item-section>
-          <q-item-section>Analiticas</q-item-section>
-        </q-item>
-        <q-item v-if="isCajaRole" clickable v-ripple to="/reportes">
-          <q-item-section avatar>
-            <q-icon name="summarize" />
-          </q-item-section>
-          <q-item-section>Reportes</q-item-section>
-        </q-item>
-        <q-item v-if="isAdminRole" clickable v-ripple to="/campanias">
-          <q-item-section avatar>
-            <q-icon name="campaign" />
-          </q-item-section>
-          <q-item-section>Campañas</q-item-section>
-        </q-item>
-
-        <!-- Landing (owner only) -->
-        <template v-if="isOwnerRole">
-          <q-separator />
-          <q-item-label header>Landing</q-item-label>
-          <q-item clickable v-ripple to="/blog">
-            <q-item-section avatar>
-              <q-icon name="article" />
-            </q-item-section>
-            <q-item-section>Blog</q-item-section>
-          </q-item>
-          <q-item clickable v-ripple to="/gladius">
-            <q-item-section avatar>
-              <q-icon name="fitness_center" />
-            </q-item-section>
-            <q-item-section>Gladius</q-item-section>
-          </q-item>
-          <q-item clickable v-ripple to="/academy">
-            <q-item-section avatar>
-              <q-icon name="school" />
-            </q-item-section>
-            <q-item-section>Academy</q-item-section>
-          </q-item>
-          <q-item clickable v-ripple to="/app-waitlist">
-            <q-item-section avatar>
-              <q-icon name="notifications_active" />
-            </q-item-section>
-            <q-item-section>App Waitlist</q-item-section>
-          </q-item>
-          <q-item clickable v-ripple to="/labs-inquiries">
-            <q-item-section avatar>
-              <q-icon name="business" />
-            </q-item-section>
-            <q-item-section>Labs Inquiries</q-item-section>
-          </q-item>
-          <q-item clickable v-ripple to="/franquicias">
-            <q-item-section avatar>
-              <q-icon name="store" />
-            </q-item-section>
-            <q-item-section>Franquicias</q-item-section>
-          </q-item>
-        </template>
-
-        <!-- Administracion (admin/owner) -->
-        <template v-if="isAdminRole">
-          <q-separator />
-          <q-item-label header>Administracion</q-item-label>
-          <q-item v-if="isOwnerRole" clickable v-ripple to="/usuarios">
-            <q-item-section avatar>
-              <q-icon name="manage_accounts" />
-            </q-item-section>
-            <q-item-section>Usuarios</q-item-section>
-          </q-item>
-          <q-item clickable v-ripple to="/notificaciones">
-            <q-item-section avatar>
-              <q-icon name="notifications" />
-            </q-item-section>
-            <q-item-section>Notificaciones</q-item-section>
-          </q-item>
-          <q-item clickable v-ripple to="/configuracion-caja">
-            <q-item-section avatar>
-              <q-icon name="settings" />
-            </q-item-section>
-            <q-item-section>Configuración de Caja</q-item-section>
           </q-item>
         </template>
       </q-list>
@@ -212,6 +66,12 @@ import { useRouter, useRoute } from 'vue-router';
 import { useAuthStore } from 'src/stores/useAuthStore';
 import { useAdminStore } from 'src/stores/useAdminStore';
 import { canAccessTraining } from 'src/utils/trainingAccess';
+import {
+  NAV_MODEL,
+  isNavCategoryVisible,
+  isNavItemVisible,
+  type NavCategory,
+} from 'src/config/templo-config';
 
 const drawer = ref(false);
 const router = useRouter();
@@ -224,39 +84,21 @@ const adminStore = useAdminStore();
 // it's obvious at a glance which environment you're operating on.
 const isStaging = computed(() => import.meta.env.VITE_APP_ENVIRONMENT === 'staging');
 
-// Permission-based sidebar visibility
-const userRole = computed(() => authStore.user?.role ?? '');
+// Drawer visibility derives entirely from NAV_MODEL (templo-config.ts) — the
+// single source of truth. No inline role sets here (the 7 ad-hoc computed that
+// duplicated allowedRoles were removed; visibility lives in the config now).
+const visibleCategories = computed(() =>
+  NAV_MODEL.filter((cat) => isNavCategoryVisible(cat, authStore.user))
+);
+function visibleItems(cat: NavCategory) {
+  return cat.items.filter((item) => isNavItemVisible(item, authStore.user));
+}
 
 // Entrenamiento surface (sesiones, programador, ejercicios, árbol): owner or
-// the exclusive training coach only — other coaches no longer see it.
+// the exclusive training coach only. Still needed to gate the mount/watch
+// fetches and the low-sessions banner below (nav item visibility itself now
+// comes from isNavItemVisible on the trainingOnly items).
 const canSeeTraining = computed(() => canAccessTraining(authStore.user));
-
-// admin, owner can see admin pages (planes, analiticas)
-const isAdminRole = computed(() => ['admin', 'owner'].includes(userRole.value));
-
-// gestion, admin, owner can see caja and reportes
-const isCajaRole = computed(() => ['gestion', 'admin', 'owner'].includes(userRole.value));
-
-// coach + caja roles can see the simplified Deudas tab (server-side guard
-// uses COACH_DEBTS_ROLES; keep this in sync)
-const isCoachDebtsRole = computed(() =>
-  ['coach', 'gestion', 'admin', 'owner'].includes(userRole.value)
-);
-
-// owner only for content pages, franquicias, usuarios
-const isOwnerRole = computed(() => userRole.value === 'owner');
-
-// Pagos (PoS): lo ven coach (PoS profe, fase 148) + gestion/admin/owner. El
-// backend FINANCE_LOAD_ROLES también incluye coach. Sincronizado con el
-// allowedRoles de la ruta /pagos en routes.ts.
-const isPagosVisible = computed(() =>
-  ['coach', 'gestion', 'admin', 'owner'].includes(userRole.value)
-);
-
-// Caja (saldos/arqueo): solo admin/owner. Gestión queda excluida por ahora
-// (rollout). Distinto de isCajaRole, que sigue habilitando Planes/Programas/Reportes
-// para gestión.
-const isCajaSaldosRole = computed(() => ['admin', 'owner'].includes(userRole.value));
 
 async function handleLogout() {
   await authStore.logout();
