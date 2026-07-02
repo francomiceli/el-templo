@@ -185,6 +185,39 @@ export const PLANES_READ_ROLES = SUBSCRIPTION_ROLES;
  */
 export const PROGRAMAS_ROLES = ADMIN_ROLES;
 
+/**
+ * Roles that can READ the program catalog — GET /admin/programs (list) only —
+ * = the administrative staff (owner + admin + gestion + recepcion), WITHOUT coach.
+ *
+ * Espeja en FORMA el par PLANES_WRITE_ROLES / PLANES_READ_ROLES (separar lectura
+ * de escritura en el módulo) y en VALOR a FINANCE_WRITE_ROLES
+ * (["owner","admin","gestion","recepcion"]). Se declara con literal (no la
+ * referencia FINANCE_WRITE_ROLES) porque esa constante se declara MÁS ABAJO en
+ * este archivo — usarla acá caería en la temporal dead zone; la equivalencia de
+ * valor queda fijada por rbac-sets.test.ts.
+ *
+ * Por qué existe: angostar GET /admin/programs a dueño-only (Plan 01) rompió dos
+ * consumidores frontend vivos que corren para staff no-dueño — la columna
+ * "Programa" de `PlanesPage.vue` (Planes en modo lectura, abierto a todo el
+ * staff en esta fase) y el diálogo `AssignProgramAddonDialog.vue`, cuyo POST de
+ * asignación ya está permitido a gestion/recepcion vía FINANCE_WRITE_ROLES
+ * (D-22). Reabrir el listado a ese mismo set deja el flujo consistente.
+ *
+ * Coach queda EXCLUIDO per D-10: Programas es una superficie de entrenamiento
+ * que NO se le muestra al empleado-profe (la opción "todo incluido programas"
+ * fue rechazada en la discusión de fase); coach tampoco puede asignar add-ons,
+ * así que no tiene uso funcional del catálogo.
+ *
+ * La escritura/detalle/analytics/deactivate sigue dueño-only vía PROGRAMAS_ROLES
+ * (D-15) — este set gatea ÚNICAMENTE el GET de listado.
+ */
+export const PROGRAMAS_LIST_ROLES = [
+  "owner",
+  "admin",
+  "gestion",
+  "recepcion",
+] as const;
+
 export type AdminRole = (typeof ALL_STAFF_ROLES)[number];
 
 /** Roles that can create finance transactions of operational kinds

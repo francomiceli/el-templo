@@ -465,7 +465,6 @@ describe("Programs Module", () => {
           url: "/api/admin/programs",
           payload: testProgram,
         },
-        { method: "GET" as const, url: "/api/admin/programs" },
         { method: "GET" as const, url: "/api/admin/programs/analytics" },
         {
           method: "GET" as const,
@@ -508,6 +507,42 @@ describe("Programs Module", () => {
           `Expected 403 for ${ep.method} ${ep.url}, got ${res.statusCode}`,
         ).toBe(403);
       }
+    });
+
+    it("gestion puede LISTAR programas — GET /admin/programs → 200 (CR-01)", async () => {
+      // El listado del catálogo se reabrió al staff administrativo
+      // (PROGRAMAS_LIST_ROLES) para que la columna "Programa" de /planes y el
+      // diálogo "Asignar programa adicional" funcionen. La escritura/detalle
+      // sigue dueño-only (cubierto en el loop de 403 de arriba).
+      const res = await app.inject({
+        method: "GET",
+        url: "/api/admin/programs",
+        headers: { authorization: `Bearer ${gestionToken}` },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(Array.isArray(body.programs)).toBe(true);
+    });
+
+    it("coach NO puede listar programas — GET /admin/programs → 403 (D-10)", async () => {
+      // Programas es superficie de entrenamiento que NO se le muestra al profe
+      // (D-10). Coach queda excluido de PROGRAMAS_LIST_ROLES.
+      const coachEmail = `prog-coach-${timestamp}@test.com`;
+      await createStaffUser(app, {
+        email: coachEmail,
+        password: "coach-pass-123",
+        firstName: "Coach",
+        lastName: "Test",
+        role: "coach",
+        branchId: 1,
+      });
+      const coachToken = await getAuthToken(app, coachEmail, "coach-pass-123");
+      const res = await app.inject({
+        method: "GET",
+        url: "/api/admin/programs",
+        headers: { authorization: `Bearer ${coachToken}` },
+      });
+      expect(res.statusCode).toBe(403);
     });
   });
 

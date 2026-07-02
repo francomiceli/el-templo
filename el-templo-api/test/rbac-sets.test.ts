@@ -5,6 +5,7 @@ import {
   PLANES_WRITE_ROLES,
   PLANES_READ_ROLES,
   PROGRAMAS_ROLES,
+  PROGRAMAS_LIST_ROLES,
   TEMPLO_RBAC_OVERRIDES,
 } from "../src/modules/shared/permissions";
 
@@ -49,6 +50,20 @@ describe("RBAC sets — core white-label + Templo overrides", () => {
 
   it("PROGRAMAS_ROLES is Dueño-only (owner + admin) — closes D-15", () => {
     expect([...PROGRAMAS_ROLES]).toEqual(["admin", "owner"]);
+  });
+
+  it("PROGRAMAS_LIST_ROLES is admin staff without coach (list-only) — D-10/CR-01", () => {
+    // GET /admin/programs (list) is readable by the administrative staff so the
+    // Planes "Programa" column and the add-on assign dialog work; coach is
+    // EXCLUDED per D-10 (Programas is not a coach surface). Mirrors
+    // FINANCE_WRITE_ROLES in value.
+    expect([...PROGRAMAS_LIST_ROLES]).toEqual([
+      "owner",
+      "admin",
+      "gestion",
+      "recepcion",
+    ]);
+    expect([...PROGRAMAS_LIST_ROLES]).not.toContain("coach");
   });
 
   it("TEMPLO_RBAC_OVERRIDES holds only the extra roles layered over the core", () => {

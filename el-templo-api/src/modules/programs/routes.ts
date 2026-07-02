@@ -4,7 +4,9 @@
  * Admin endpoints for micro-program CRUD, enrollment lifecycle management.
  * Member endpoints for program catalog and enrollment progress.
  *
- * Admin CRUD: PROGRAMAS_ROLES (admin, owner) — dueño-only, D-15
+ * Admin CRUD write/detail/analytics: PROGRAMAS_ROLES (admin, owner) — dueño-only, D-15
+ * Admin list (GET /admin/programs): PROGRAMAS_LIST_ROLES (staff administrativo,
+ *   sin coach — D-10) para poblar la columna Programa de Planes y el diálogo de add-ons
  * Enrollment management: COACH_ROLES (coach, admin, owner) per D-35
  * Member: authenticated members
  */
@@ -22,6 +24,7 @@ import { handleServiceError } from "../shared/error-handler";
 import { auditLog } from "../shared/audit-log";
 import {
   PROGRAMAS_ROLES,
+  PROGRAMAS_LIST_ROLES,
   COACH_ROLES,
   FINANCE_WRITE_ROLES,
 } from "../shared/permissions";
@@ -182,7 +185,11 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   // =========================================================================
-  // Admin Routes — Program CRUD (PROGRAMAS_ROLES — dueño-only, D-15)
+  // Admin Routes — Program CRUD
+  //   list (GET /admin/programs) = PROGRAMAS_LIST_ROLES (staff administrativo,
+  //     sin coach — D-10)
+  //   resto (create/analytics/detail/put/content/deactivate) = PROGRAMAS_ROLES
+  //     (dueño-only, D-15)
   // =========================================================================
 
   /**
@@ -214,7 +221,7 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
     { onRequest: [fastify.authenticate] },
     async (request, reply) => {
       const { role } = request.user;
-      if (!(PROGRAMAS_ROLES as readonly string[]).includes(role)) {
+      if (!(PROGRAMAS_LIST_ROLES as readonly string[]).includes(role)) {
         return reply.code(403).send({ error: "Acceso denegado" });
       }
 
