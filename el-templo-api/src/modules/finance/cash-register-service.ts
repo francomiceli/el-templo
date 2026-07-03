@@ -17,10 +17,13 @@ import * as schema from "../../db/schema";
 import { BadRequestError, NotFoundError } from "../shared/errors";
 import { firmMoneyConditions } from "./firm-money";
 import type {
+  BankAccountRow,
   CajaSaldoRow,
   CashRegisterBalance,
   CostCenterItem,
+  CreateBankAccountInput,
   PaymentMethod,
+  UpdateBankAccountInput,
 } from "./types";
 
 type DbInstance = MySql2Database<typeof schema>;
@@ -307,5 +310,265 @@ export class CashRegisterService {
       .from(schema.costCenters)
       .where(and(...conditions))
       .orderBy(asc(schema.costCenters.name));
+  }
+
+  // -- Phase 150: ABM de cuentas bancarias (CTA-01 / CTA-02) -----------------
+
+  /** YYYY-MM-DD de hoy — cutoff_date de una cuenta banco nueva (D-05). */
+  private today(): string {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  /**
+   * Deriva el `name` visible de la cuenta (D-03). Con alias: "Banco · alias".
+   * Sin alias pero con CBU/CVU o número: "Banco ····NNNN" (últimos 4 dígitos).
+   * Sin ningún identificador con dígitos: solo el nombre del banco.
+   */
+  private deriveBankAccountName(
+    bankName: string,
+    accountAlias?: string | null,
+    cbuCvu?: string | null,
+    accountNumber?: string | null,
+  ): string {
+    const alias = accountAlias?.trim();
+    if (alias) {
+      return `${bankName} · ${alias}`;
+    }
+    const digits = (cbuCvu ?? accountNumber ?? "").replace(/\D/g, "");
+    if (digits.length >= 4) {
+      return `${bankName} ····${digits.slice(-4)}`;
+    }
+    return bankName;
+  }
+
+  /**
+   * Regla "uno de dos" (D-02): una cuenta banco necesita al menos CBU/CVU O
+   * Alias. Se valida en el SERVICE (no en el schema) sobre el estado resultante,
+   * espejo del patrón de registerExpense. Validación de formato liviana
+   * (Claude's Discretion): NO se rechaza por dígito verificador ni se bloquean
+   * cuentas del exterior — solo se exige la presencia de un identificador.
+   */
+  private assertTransferIdentifier(
+    cbuCvu?: string | null,
+    accountAlias?: string | null,
+  ): void {
+    const hasCbu = !!cbuCvu?.trim();
+    const hasAlias = !!accountAlias?.trim();
+    if (!hasCbu && !hasAlias) {
+      throw new BadRequestError("Se requiere CBU/CVU o Alias");
+    }
+  }
+
+  /**
+   * Lee una cuenta banco por id + su saldo firme, mapeada a BankAccountRow.
+   * Guard NotFound + verificación type='banco' (T-150-04): no expone ni permite
+   * mutar cajas efectivo por este camino. `balance` = firmeBalance de getBalance,
+   * NUNCA sumado con pendienteAmount (CAJA-03).
+   *
+   * @throws NotFoundError cuando no existe o no es una caja type='banco'.
+   */
+  private async getBankAccountRow(id: number): Promise<BankAccountRow> {
+    const [caja] = await this.db
+      .select({
+        id: schema.cashRegisters.id,
+        name: schema.cashRegisters.name,
+        type: schema.cashRegisters.type,
+        currency: schema.cashRegisters.currency,
+        isActive: schema.cashRegisters.isActive,
+        bankName: schema.cashRegisters.bankName,
+        accountHolder: schema.cashRegisters.accountHolder,
+        taxId: schema.cashRegisters.taxId,
+        cbuCvu: schema.cashRegisters.cbuCvu,
+        accountAlias: schema.cashRegisters.accountAlias,
+        accountNumber: schema.cashRegisters.accountNumber,
+      })
+      .from(schema.cashRegisters)
+      .where(eq(schema.cashRegisters.id, id))
+      .limit(1);
+    if (!caja || caja.type !== "banco") {
+      throw new NotFoundError(`No existe la cuenta banco ${id}`);
+    }
+    const bal = await this.getBalance(id);
+    return {
+      id: caja.id,
+      name: caja.name,
+      currency: caja.currency,
+      isActive: caja.isActive,
+      bankName: caja.bankName,
+      accountHolder: caja.accountHolder,
+      taxId: caja.taxId,
+      cbuCvu: caja.cbuCvu,
+      accountAlias: caja.accountAlias,
+      accountNumber: caja.accountNumber,
+      balance: bal.firmeBalance,
+    };
+  }
+
+  /**
+   * Crea una cuenta banco (CTA-01). INSERT con type='banco', branchId=null,
+   * openingBalance=0, cutoffDate=hoy y `name` derivado del banco (D-05). Valida
+   * la regla uno-de-dos ANTES de escribir (D-02). La moneda se fija acá y no se
+   * puede cambiar después (D-04). Devuelve la fila con balance = saldo firme.
+   *
+   * @throws BadRequestError cuando faltan CBU/CVU y Alias (regla uno-de-dos).
+   */
+  async createBankAccount(
+    input: CreateBankAccountInput,
+  ): Promise<BankAccountRow> {
+    const bankName = input.bankName.trim();
+    const accountHolder = input.accountHolder.trim();
+    const cbuCvu = input.cbuCvu?.trim() || null;
+    const accountAlias = input.accountAlias?.trim() || null;
+    const taxId = input.taxId?.trim() || null;
+    const accountNumber = input.accountNumber?.trim() || null;
+
+    this.assertTransferIdentifier(cbuCvu, accountAlias);
+
+    const name = this.deriveBankAccountName(
+      bankName,
+      accountAlias,
+      cbuCvu,
+      accountNumber,
+    );
+
+    const inserted = await this.db.insert(schema.cashRegisters).values({
+      name,
+      type: "banco",
+      branchId: null,
+      currency: input.currency,
+      bankName,
+      accountHolder,
+      taxId,
+      cbuCvu,
+      accountAlias,
+      accountNumber,
+      openingBalance: 0,
+      cutoffDate: this.today(),
+    });
+    const id = Number(inserted[0].insertId);
+    this.log.info(
+      { cashRegisterId: id, currency: input.currency },
+      "Cuenta banco creada",
+    );
+    return this.getBankAccountRow(id);
+  }
+
+  /**
+   * Edita una cuenta banco (CTA-01). Mergea SOLO los campos bancarios provistos
+   * sobre el estado actual, recalcula el `name` (D-03) y revalida la regla
+   * uno-de-dos sobre el resultado (D-02). La moneda NUNCA entra al SET —
+   * defensa en profundidad además del schema (moneda fija post-creación, D-04 /
+   * T-150-17). Guard NotFound + type='banco' (T-150-04).
+   *
+   * @throws NotFoundError cuando no existe o no es type='banco'.
+   * @throws BadRequestError cuando el estado resultante no tiene CBU/CVU ni Alias.
+   */
+  async updateBankAccount(
+    id: number,
+    input: UpdateBankAccountInput,
+  ): Promise<BankAccountRow> {
+    const current = await this.getBankAccountRow(id);
+
+    const bankName =
+      input.bankName !== undefined
+        ? input.bankName.trim()
+        : (current.bankName ?? "");
+    const accountHolder =
+      input.accountHolder !== undefined
+        ? input.accountHolder.trim()
+        : (current.accountHolder ?? "");
+    const cbuCvu =
+      input.cbuCvu !== undefined
+        ? input.cbuCvu?.trim() || null
+        : current.cbuCvu;
+    const accountAlias =
+      input.accountAlias !== undefined
+        ? input.accountAlias?.trim() || null
+        : current.accountAlias;
+    const taxId =
+      input.taxId !== undefined ? input.taxId?.trim() || null : current.taxId;
+    const accountNumber =
+      input.accountNumber !== undefined
+        ? input.accountNumber?.trim() || null
+        : current.accountNumber;
+
+    this.assertTransferIdentifier(cbuCvu, accountAlias);
+
+    const name = this.deriveBankAccountName(
+      bankName,
+      accountAlias,
+      cbuCvu,
+      accountNumber,
+    );
+
+    // NOTA: `currency` NO figura en este SET a propósito (D-04 / T-150-17).
+    await this.db
+      .update(schema.cashRegisters)
+      .set({
+        name,
+        bankName,
+        accountHolder,
+        taxId,
+        cbuCvu,
+        accountAlias,
+        accountNumber,
+      })
+      .where(eq(schema.cashRegisters.id, id));
+
+    this.log.info({ cashRegisterId: id }, "Cuenta banco actualizada");
+    return this.getBankAccountRow(id);
+  }
+
+  /**
+   * Baja lógica de una cuenta banco (CTA-02 / D-06): set is_active=false, sin
+   * DELETE — conserva el historial. El service NO bloquea el cierre con saldo≠0;
+   * devuelve el saldo FIRME actual (firmeBalance, NUNCA sumado con pendiente —
+   * CAJA-03) para que el front arme la advertencia. Guard NotFound + type='banco'.
+   *
+   * @throws NotFoundError cuando no existe o no es type='banco'.
+   */
+  async closeBankAccount(id: number): Promise<{ balance: number }> {
+    const row = await this.getBankAccountRow(id);
+    await this.db
+      .update(schema.cashRegisters)
+      .set({ isActive: false })
+      .where(eq(schema.cashRegisters.id, id));
+    this.log.info({ cashRegisterId: id }, "Cuenta banco cerrada (baja lógica)");
+    return { balance: row.balance };
+  }
+
+  /**
+   * Reactiva una cuenta banco cerrada (CTA-02 / D-07): set is_active=true. Guard
+   * NotFound + type='banco'. Devuelve la fila con su saldo firme.
+   *
+   * @throws NotFoundError cuando no existe o no es type='banco'.
+   */
+  async reactivateBankAccount(id: number): Promise<BankAccountRow> {
+    await this.getBankAccountRow(id);
+    await this.db
+      .update(schema.cashRegisters)
+      .set({ isActive: true })
+      .where(eq(schema.cashRegisters.id, id));
+    this.log.info({ cashRegisterId: id }, "Cuenta banco reactivada");
+    return this.getBankAccountRow(id);
+  }
+
+  /**
+   * Lista TODAS las cuentas banco (CTA-01 / D-07): activas Y cerradas (NO filtra
+   * por is_active), cada una con su saldo firme (balance = firmeBalance, NUNCA
+   * sumado con pendiente — CAJA-03). Compone getBalance por caja (patrón de
+   * listActiveCajasWithBalance; a escala de un puñado de cuentas, sin N+1 real).
+   */
+  async listBankAccounts(): Promise<BankAccountRow[]> {
+    const cajas = await this.db
+      .select({ id: schema.cashRegisters.id })
+      .from(schema.cashRegisters)
+      .where(eq(schema.cashRegisters.type, "banco"))
+      .orderBy(asc(schema.cashRegisters.id));
+    const out: BankAccountRow[] = [];
+    for (const c of cajas) {
+      out.push(await this.getBankAccountRow(c.id));
+    }
+    return out;
   }
 }
