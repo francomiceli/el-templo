@@ -494,6 +494,31 @@
                       label="Cuenta banco"
                       outlined
                       class="q-mt-md"
+                    >
+                      <!-- Atajo "+ Nueva cuenta" en el dropdown (admin/owner). -->
+                      <template v-if="canCreateBankAccount" #after>
+                        <q-btn
+                          flat
+                          dense
+                          round
+                          icon="add"
+                          color="primary"
+                          aria-label="Nueva cuenta"
+                          @click="openCuentaDialog"
+                        />
+                      </template>
+                    </q-select>
+                    <!-- Botón de texto inline (admin/owner). -->
+                    <q-btn
+                      v-if="canCreateBankAccount"
+                      flat
+                      dense
+                      no-caps
+                      color="primary"
+                      icon="add"
+                      label="Nueva cuenta"
+                      class="q-mt-xs"
+                      @click="openCuentaDialog"
                     />
                     <div
                       v-if="selectedBankAccountId == null"
@@ -504,9 +529,20 @@
                   </template>
 
                   <!-- Sin cuentas de la moneda, admin/owner -->
-                  <div v-else-if="canCreateBankAccount" class="text-body1 text-warning q-mt-md">
-                    No hay cuentas de esta moneda. Creá una para continuar.
-                  </div>
+                  <template v-else-if="canCreateBankAccount">
+                    <div class="text-body1 text-warning q-mt-md">
+                      No hay cuentas de esta moneda. Creá una para continuar.
+                    </div>
+                    <q-btn
+                      unelevated
+                      no-caps
+                      color="primary"
+                      icon="add"
+                      label="Crear cuenta"
+                      class="q-mt-sm"
+                      @click="openCuentaDialog"
+                    />
+                  </template>
 
                   <!-- Sin cuentas, profe/recepción: efectivo sigue disponible -->
                   <q-banner v-else dense rounded class="bg-warning text-dark q-mt-md">
@@ -598,6 +634,16 @@
         </q-card-actions>
       </q-card>
     </q-dialog>
+
+    <!-- Alta rápida de cuenta banco (D-08) — sólo montado si admin/owner. -->
+    <CuentaBancariaFormDialog
+      v-if="canCreateBankAccount"
+      v-model="showCuentaDialog"
+      :selected-country="chargeCountry"
+      :is-owner="isOwnerUser"
+      :default-currency="chargeCurrency"
+      @saved="onBankAccountSaved"
+    />
   </q-page>
 </template>
 
@@ -623,6 +669,7 @@ import type { DuplicateMatch } from 'src/composables/useMembersApi';
 import type { PlanListItem, PlanTier } from 'src/types/subscription';
 import FixedSchedulePicker from 'src/components/scheduling/FixedSchedulePicker.vue';
 import CobroResumen from 'src/components/caja/CobroResumen.vue';
+import CuentaBancariaFormDialog from 'src/components/caja/CuentaBancariaFormDialog.vue';
 
 const log = createLogger('cobros');
 const $q = useQuasar();
@@ -853,6 +900,31 @@ watch(resumenCurrency, () => {
   selectedBankAccountId.value = null;
   if (needsBankAccount.value) void loadBankAccounts();
 });
+
+// ─── Alta rápida de cuenta banco (D-08) — sólo admin/owner ──────────────────
+// Reusa CuentaBancariaFormDialog (fase 150). El gate visual es admin/owner; la
+// autoridad real es ADMIN_ROLES en la ruta de creación (149 D-04).
+const showCuentaDialog = ref(false);
+const isOwnerUser = computed(() => authStore.user?.role === 'owner');
+// El diálogo pide país (AR/ES); mapeamos desde la moneda del cobro.
+const chargeCountry = computed<'AR' | 'ES'>(() => (resumenCurrency.value === 'EUR' ? 'ES' : 'AR'));
+const chargeCurrency = computed<'ARS' | 'EUR'>(() =>
+  resumenCurrency.value === 'EUR' ? 'EUR' : 'ARS'
+);
+
+function openCuentaDialog() {
+  showCuentaDialog.value = true;
+}
+
+// Al crear la cuenta: cerrar, refetch de la moneda del cobro y auto-seleccionar
+// la nueva (la que no estaba antes del refetch).
+async function onBankAccountSaved() {
+  showCuentaDialog.value = false;
+  const beforeIds = new Set(bankAccounts.value.map((a) => a.id));
+  await loadBankAccounts();
+  const created = bankAccounts.value.find((a) => !beforeIds.has(a.id));
+  if (created) selectedBankAccountId.value = created.id;
+}
 
 // Payment buttons only render once the per-mode required fields are present, so
 // the coach picks a method right before confirming.

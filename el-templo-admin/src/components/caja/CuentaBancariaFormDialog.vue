@@ -106,6 +106,12 @@ const props = defineProps<{
   isOwner: boolean;
   /** Presente = modo edición; ausente/null = alta. */
   account?: BankAccount | null;
+  /**
+   * Moneda preseleccionada al abrir en modo alta (Phase 151 COBRO-04: el PoS
+   * abre el diálogo con la moneda del cobro ya elegida). Ignorada en edición
+   * (la moneda no se puede cambiar post-creación, D-04).
+   */
+  defaultCurrency?: 'ARS' | 'EUR';
 }>();
 
 const emit = defineEmits<{
@@ -187,6 +193,9 @@ function onShow() {
     form.accountAlias = acc.accountAlias ?? '';
     form.taxId = acc.taxId ?? '';
     form.accountNumber = acc.accountNumber ?? '';
+  } else if (props.defaultCurrency) {
+    // Alta desde el PoS: preseleccionar la moneda del cobro (COBRO-04).
+    form.currency = props.defaultCurrency;
   }
 }
 
