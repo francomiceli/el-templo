@@ -30,6 +30,12 @@ export interface CoachPayPlanInput {
   /** Optional partial/edited amount; omitted = full debt (settle) or plan price (renew). */
   amountReceived?: number;
   paymentMethod: PaymentMethod;
+  /**
+   * Phase 151 (COBRO-04): chosen cash/bank account when the payment method is
+   * transfer/card (server-side `assertChosenBankAccount` is the authority; the
+   * composable only forwards it). Omitted for cash.
+   */
+  bankAccountId?: number;
   /** Client-generated, one per confirmation attempt (D-09 backstop). */
   idempotencyKey: string;
 }
@@ -42,6 +48,11 @@ export interface CoachMiscChargeInput {
   concepto: string;
   paymentMethod: PaymentMethod;
   currency: string;
+  /**
+   * Phase 151 (COBRO-04): chosen cash/bank account when the payment method is
+   * transfer/card. Forwarded only; validated server-side. Omitted for cash.
+   */
+  bankAccountId?: number;
   /** Client-generated, one per confirmation attempt (D-09 backstop). */
   idempotencyKey: string;
   /**
@@ -78,6 +89,11 @@ export interface CoachAltaInput {
   /** Solo planes fixed: el server valida length === plan.classesPerWeek. */
   scheduleIds?: number[];
   notes?: string;
+  /**
+   * Phase 151 (COBRO-04): chosen cash/bank account when the payment method is
+   * transfer/card. Forwarded only; validated server-side. Omitted for cash.
+   */
+  bankAccountId?: number;
   /** Client-generated, one per confirmation attempt (D-09 backstop). */
   idempotencyKey: string;
 }
@@ -237,6 +253,33 @@ export function useFinanceLoadApi() {
     }
   }
 
+  /**
+   * GET /coach-load/bank-accounts — cash/bank accounts a coach/recepción can
+   * reach (FINANCE_LOAD_ROLES server-side). Optional `currency` narrows the
+   * catalog to a single-currency subset. Returns only `{ id, name, currency }`
+   * (no balances). Do NOT swap this for `useTransactionsApi.listBankAccounts`,
+   * which hits the admin-only `/cash-registers` route a coach cannot reach.
+   */
+  async function listBankAccounts(
+    currency?: string
+  ): Promise<{ accounts: Array<{ id: number; name: string; currency: string }> }> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<{
+        accounts: Array<{ id: number; name: string; currency: string }>;
+      }>('/admin/finance/coach-load/bank-accounts', {
+        params: currency ? { currency } : {},
+      });
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cargando las cuentas bancarias');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   function cleanup() {
     loading.value = false;
     error.value = null;
@@ -250,6 +293,7 @@ export function useFinanceLoadApi() {
     miscCharge,
     altaConPlan,
     listMyLoads,
+    listBankAccounts,
     cleanup,
   };
 }
