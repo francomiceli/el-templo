@@ -4,7 +4,7 @@ milestone: v5.4
 milestone_name: Reforma del Admin — Correcciones white-label (pre-tenants)
 status: executing
 stopped_at: Phase 151 UI-SPEC approved
-last_updated: "2026-07-03T15:47:00.566Z"
+last_updated: "2026-07-03T16:02:51.504Z"
 last_activity: 2026-07-03
 progress:
   total_phases: 8
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 ## Current Position
 
 Phase: 151 (registrar-cobro-pagos-cobros) — EXECUTING
-Plan: 3 of 4
+Plan: 4 of 4
 Status: Ready to execute
 Last activity: 2026-07-03
 
@@ -726,7 +726,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-03T15:47:00.546Z
+Last session: 2026-07-03T16:02:51.486Z
 Stopped at: Phase 151 UI-SPEC approved
 Resume file: None
 
