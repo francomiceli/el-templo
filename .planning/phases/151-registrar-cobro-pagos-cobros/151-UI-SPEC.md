@@ -55,18 +55,18 @@ Exceptions:
 
 ## Typography
 
-Geologica. Declared roles (weights limited to 2: **400 regular**, **600 semibold**):
+Geologica. Exactly **4 sizes** (24 / 20 / 16 / 14) and **2 weights** (**400 regular**, **600 semibold**):
 
-| Role    | Size | Weight | Line Height | Quasar mapping                   | Usage                                                                                         |
-| ------- | ---- | ------ | ----------- | -------------------------------- | --------------------------------------------------------------------------------------------- |
-| Display | 24px | 600    | 1.2         | `text-h5`                        | Step heading ("Socio", "¿Qué se cobra?", "¿Cómo se paga?", "Resumen"), portada title "Cobros" |
-| Heading | 20px | 600    | 1.3         | `text-h6`                        | Amount totals (`Confirmar · $monto`, summary total), section subheads inside a step           |
-| Body    | 16px | 400    | 1.5         | `text-body1`                     | Field labels, list item primary text, banner copy, socio name                                 |
-| Label   | 14px | 400    | 1.4         | `text-subtitle2` / caption-large | Field hints, secondary list text, medium-emphasis labels                                      |
+| Role    | Size | Weight | Line Height | Quasar mapping                       | Usage                                                                                                                                                   |
+| ------- | ---- | ------ | ----------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Display | 24px | 600    | 1.2         | `text-h5`                            | Step heading ("Socio", "¿Qué se cobra?", "¿Cómo se paga?", "Resumen"), portada title "Cobros"                                                           |
+| Heading | 20px | 600    | 1.3         | `text-h6`                            | Amount totals (`Confirmar · $monto`, summary total), section subheads inside a step                                                                     |
+| Body    | 16px | 400    | 1.5         | `text-body1`                         | Field labels, list item primary text, banner copy, socio name                                                                                           |
+| Label   | 14px | 400    | 1.4         | `text-subtitle2` (weight forced 400) | Field hints, secondary list text, medium-emphasis labels, **timestamps (`HH:mm`)**, plan metadata (`días · clases/sem`), "Pendiente de validación" hint |
 
-Caption exception: 12px / 400 (`text-caption`) for timestamps, "Pendiente de validación" hint, and plan metadata (`días · clases/sem`). Documented as a fourth micro-size, not a fifth type role.
+**No 12px anywhere in this phase.** Quasar's default `text-caption` (12px) must NOT be used — all micro-copy (timestamps, hints, plan metadata) uses **Label 14px** with a muted color (`text-grey-7`) for de-emphasis instead of a smaller size. Where an existing snippet uses `text-caption`, replace it with the 14px Label style when it moves into the new step layout or the listado.
 
-Weight 500 (Medium) is imported and available but the contract standardizes on 400/600. Use 500 only if an existing shared component already uses it; do not introduce new 500 usage in this phase.
+Weight 500 (Medium) is imported and available but the contract standardizes on 400/600. Use 500 only if an existing shared component already uses it; do not introduce new 500 usage in this phase. `text-subtitle2` defaults to weight 500 in Quasar — force 400 for Label usage.
 
 ---
 
@@ -109,7 +109,7 @@ All copy in Spanish (voseo). Rename surface: everything user-facing "Pagos"→"C
 | Primary CTA (portada)                             | `Registrar cobro`                                                                                                                                                                                                                         |
 | Step-advance button                               | `Continuar` (steps 1–3)                                                                                                                                                                                                                   |
 | Final confirm button                              | `Confirmar · {monto formateado}` (fallback `Confirmar` when no amount)                                                                                                                                                                    |
-| Back button                                       | Icon `arrow_back` + on desktop label `Volver`; step 1 back returns to portada                                                                                                                                                             |
+| Back button                                       | Icon `arrow_back` + on desktop label `Volver`; on mobile the button is icon-only and MUST carry `aria-label="Volver"`; step 1 back returns to portada                                                                                     |
 | Empty state heading (listado)                     | `Todavía no registraste cobros`                                                                                                                                                                                                           |
 | Empty state body (listado)                        | `Cuando registres un cobro, va a aparecer acá con su fecha y hora.`                                                                                                                                                                       |
 | Error state (submit)                              | `No se pudo registrar el cobro. Reintentá.` (idempotency key reused on retry — do NOT regenerate)                                                                                                                                         |
@@ -139,7 +139,7 @@ Listado day-group labels: `Hoy`, `Ayer`, else `{ddd d MMM}` (e.g. `mar 1 jul`, `
 
 - **Numbered steps with labels**: `1 Socio · 2 ¿Qué se cobra? · 3 ¿Cómo se paga? · 4 Resumen`, linear connector; current step number filled accent, completed steps show a check, future steps muted (`text-grey-6`). Header sits on the secondary band (`#e9e2d6`).
 - **Mobile**: collapse to `Paso {n} de 4` + a thin `q-linear-progress` (accent, `size="4px"`) + the current step label. Back arrow at left.
-- Back button (`arrow_back`) always at the header's left edge; advances via the `Continuar`/`Confirmar` action at the bottom of the step body (sticky on mobile, inline-bottom on desktop).
+- Back button (`arrow_back`) always at the header's left edge; icon-only on mobile with **`aria-label="Volver"`** (accessible name required since the visible `Volver` text is desktop-only). Advances via the `Continuar`/`Confirmar` action at the bottom of the step body (sticky on mobile, inline-bottom on desktop).
 
 ### Step transitions (locked)
 
@@ -169,7 +169,7 @@ Listado day-group labels: `Hoy`, `Ayer`, else `{ddd d MMM}` (e.g. `mar 1 jul`, `
 ### Listado (COBRO-03, D-10 — locked)
 
 - Title `Cobros` (was "Mis cargas de hoy", which lied — endpoint returns last 50 historical, not today).
-- **Grouped by day** with sticky day-group labels (`Hoy` / `Ayer` / `{ddd d MMM}`); each row shows **time `HH:mm`** + socio + concept + method badge + `Pendiente` badge + amount. Endpoint unchanged (`GET /coach-load/mis-cargas`); this is a frontend-only label+format fix.
+- **Grouped by day** with sticky day-group labels (`Hoy` / `Ayer` / `{ddd d MMM}`); each row shows **time `HH:mm`** (Label 14px, muted) + socio + concept + method badge + `Pendiente` badge + amount. Endpoint unchanged (`GET /coach-load/mis-cargas`); this is a frontend-only label+format fix.
 
 ---
 
