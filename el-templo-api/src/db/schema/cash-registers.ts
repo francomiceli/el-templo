@@ -36,6 +36,17 @@ export const cashRegisters = mysqlTable(
     // sólo para las cajas efectivo de sucursal.
     branchId: int("branch_id").references(() => branches.id),
     currency: varchar("currency", { length: 3 }).notNull(),
+    // Phase 150 (CTA-01 / D-01) — datos bancarios flexibles del ABM de cuentas.
+    // Todas NULLABLE: solo aplican a las cajas tipo 'banco' y el ABM impone en
+    // el service qué 3 son obligatorias (D-03); las cajas efectivo las dejan
+    // NULL. `name` (arriba, NOT NULL) NO cambia: se autogenera en el service
+    // (D-03). Nombres SQL byte-for-byte con la migración 0163.
+    bankName: varchar("bank_name", { length: 100 }),
+    accountHolder: varchar("account_holder", { length: 120 }),
+    taxId: varchar("tax_id", { length: 20 }), // CUIT
+    cbuCvu: varchar("cbu_cvu", { length: 34 }),
+    accountAlias: varchar("account_alias", { length: 60 }),
+    accountNumber: varchar("account_number", { length: 50 }),
     // Conteo físico inicial por caja (D-06/D-07). Arranca en 0 en 138; los
     // valores reales se cargan por migración cuando Franco haga el conteo.
     openingBalance: int("opening_balance").default(0).notNull(),

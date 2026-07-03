@@ -535,6 +535,63 @@ export interface PendingMiscItem {
   notes: string | null;
 }
 
+// -- Phase 150: ABM de cuentas bancarias (CTA-01 / CTA-03) ------------------
+
+/**
+ * Phase 150 (CTA-01 / D-01): input para crear una cuenta banco desde el ABM.
+ * `bankName` + `accountHolder` + `currency` son los 3 campos obligatorios
+ * (D-03: `name` se autogenera en el service a partir del banco); el resto de
+ * los datos bancarios son opcionales/nullable. La moneda se fija en la
+ * creación y NO se puede cambiar después (D-04, invariante existente de
+ * `cash_registers.currency`).
+ */
+export interface CreateBankAccountInput {
+  bankName: string;
+  accountHolder: string;
+  currency: string;
+  cbuCvu?: string | null;
+  accountAlias?: string | null;
+  taxId?: string | null;
+  accountNumber?: string | null;
+}
+
+/**
+ * Phase 150 (CTA-01 / D-04): input para editar una cuenta banco existente.
+ * Mismos campos que Create pero todos opcionales, EXCEPTO `currency`, que se
+ * OMITE por completo: la moneda de una caja es FIJA post-creación (invariante
+ * existente de `cash_registers.currency`, guard espejo de applyDelta). El ABM
+ * NO expone edición de moneda.
+ */
+export interface UpdateBankAccountInput {
+  bankName?: string;
+  accountHolder?: string;
+  cbuCvu?: string | null;
+  accountAlias?: string | null;
+  taxId?: string | null;
+  accountNumber?: string | null;
+}
+
+/**
+ * Phase 150 (CTA-01): forma de lectura de una cuenta banco para el ABM.
+ * `balance` = saldo FIRME (`firmeBalance` de getBalance / CashRegisterBalance),
+ * NUNCA la suma con `pendienteAmount` (invariante CAJA-03: el pendiente se
+ * reporta SEPARADO y jamás se suma al firme).
+ */
+export interface BankAccountRow {
+  id: number;
+  name: string;
+  currency: string;
+  isActive: boolean;
+  bankName: string | null;
+  accountHolder: string | null;
+  taxId: string | null;
+  cbuCvu: string | null;
+  accountAlias: string | null;
+  accountNumber: string | null;
+  /** Saldo FIRME (firmeBalance), NUNCA sumado con pendienteAmount — CAJA-03. */
+  balance: number;
+}
+
 // Phase 138 (D-06/D-08/CAJA-03) — saldo DERIVADO de una caja. firmeBalance es
 // opening_balance + Σ validados de la caja desde cutoff_date (reusa
 // firmMoneyConditions). pendienteAmount (validation_status='pendiente') se
