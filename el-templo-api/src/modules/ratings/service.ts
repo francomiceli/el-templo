@@ -280,10 +280,17 @@ export class RatingsService {
     memberId: number,
     input: SubmitRatingInput,
   ): Promise<void> {
-    const { sessionDate, scheduleId, stars, comment } = input;
+    const { sessionDate, scheduleId, stars, classStars, comment } = input;
 
     if (!Number.isInteger(stars) || stars < 1 || stars > 5) {
-      throw new BadRequestError("La puntuación debe ser un entero de 1 a 5");
+      throw new BadRequestError(
+        "La puntuación del profe debe ser un entero de 1 a 5",
+      );
+    }
+    if (!Number.isInteger(classStars) || classStars < 1 || classStars > 5) {
+      throw new BadRequestError(
+        "La puntuación de la clase debe ser un entero de 1 a 5",
+      );
     }
     if (comment !== undefined && comment.length > 500) {
       throw new BadRequestError("El comentario supera los 500 caracteres");
@@ -360,6 +367,7 @@ export class RatingsService {
       scheduleId,
       sessionDate,
       stars,
+      classStars,
       comment: comment ?? null,
     });
   }

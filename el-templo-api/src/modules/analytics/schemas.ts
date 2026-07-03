@@ -1100,3 +1100,73 @@ export const financialAnalyticsSchema = {
     500: errorSchema,
   },
 } as const;
+
+// GET /class-ratings — the "Clases" analytics tab: global class-rating average +
+// count, weekly trend, per-branch and per-turno (mañana/tarde split at 12:00)
+// averages. Reads coach_ratings.class_stars (non-null only). ADMIN_ROLES-only
+// (requireAdminAnalytics). No planId/turno INPUT filters (turno is a breakdown
+// axis here, not a filter). errorSchema covers 401/403/500. EVERY field declared
+// (fast-json-stringify STRIPS undeclared).
+const classRatingsQuerystring = {
+  type: "object",
+  properties: {
+    branchId: { type: "integer" },
+    dateFrom: { type: "string", format: "date" },
+    dateTo: { type: "string", format: "date" },
+  },
+} as const;
+
+export const classRatingsSchema = {
+  querystring: classRatingsQuerystring,
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        overall: {
+          type: "object",
+          properties: {
+            avgStars: { type: ["number", "null"] },
+            count: { type: "integer" },
+          },
+        },
+        trend: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              period: { type: "string" },
+              avgStars: { type: "number" },
+              count: { type: "integer" },
+            },
+          },
+        },
+        byBranch: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              branchId: { type: "integer" },
+              branchName: { type: "string" },
+              avgStars: { type: "number" },
+              count: { type: "integer" },
+            },
+          },
+        },
+        byTurno: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              turno: { type: "string", enum: ["manana", "tarde"] },
+              avgStars: { type: "number" },
+              count: { type: "integer" },
+            },
+          },
+        },
+      },
+    },
+    401: errorSchema,
+    403: errorSchema,
+    500: errorSchema,
+  },
+} as const;

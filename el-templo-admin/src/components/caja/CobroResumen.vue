@@ -22,6 +22,15 @@
       </q-item-section>
     </q-item>
 
+    <!-- Sede (alta only): branch that will be written on the subscription +
+         charge. Hidden when null (renew/misc — branch is server-derived). -->
+    <q-item v-if="sede">
+      <q-item-section>
+        <div class="text-subtitle2 text-weight-regular text-grey-7">Sede</div>
+        <div class="text-body1">{{ sede }}</div>
+      </q-item-section>
+    </q-item>
+
     <!-- Qué se cobra -->
     <q-item>
       <q-item-section>
@@ -80,6 +89,8 @@ import { formatPrice } from 'src/utils/format-price';
 withDefaults(
   defineProps<{
     socio?: string | null;
+    /** Resolved branch name for alta charges (CR-01). Null → row hidden. */
+    sede?: string | null;
     queSecobra?: string | null;
     comoPaga?: string | null;
     total?: number | null;
@@ -89,6 +100,7 @@ withDefaults(
   }>(),
   {
     socio: null,
+    sede: null,
     queSecobra: null,
     comoPaga: null,
     total: null,

@@ -123,6 +123,7 @@
       >
         <CobroResumen
           :socio="resumenSocio"
+          :sede="resumenSede"
           :que-secobra="resumenQueSecobra"
           :como-paga="resumenComoPaga"
           :total="amount"
@@ -189,26 +190,10 @@
                   @click="onNuevoAlumno"
                 />
 
-                <!-- Mini-form alumno nuevo (Nombre/Apellido/DNI + Sede + dedup) -->
+                <!-- Mini-form alumno nuevo (Nombre/Apellido/DNI + dedup). La Sede
+                     se elige en el paso 2 (alta), reachable para TODA alta. -->
                 <template v-if="showNewStudentForm">
                   <div class="text-body1 text-weight-bold q-mt-md">Datos del alumno</div>
-                  <q-select
-                    v-model="sucursalId"
-                    :options="branchOptions"
-                    option-value="id"
-                    option-label="name"
-                    emit-value
-                    map-options
-                    dense
-                    outlined
-                    label="Sede"
-                    class="q-mt-sm"
-                    @update:model-value="onSucursalChange"
-                  >
-                    <template #prepend>
-                      <q-icon name="place" color="primary" />
-                    </template>
-                  </q-select>
                   <q-input
                     v-model="newStudent.firstName"
                     label="Nombre"
@@ -279,6 +264,7 @@
                     class="q-py-md"
                     :active="mode === opt.value"
                     active-class="bg-primary text-white"
+                    :disable="isAssociationDisabled(opt.value)"
                     @click="onSelectAssociation(opt.value)"
                   >
                     <q-item-section avatar>
@@ -290,7 +276,11 @@
                         class="text-subtitle2 text-weight-regular"
                         :class="mode === opt.value ? 'text-white' : 'text-grey-7'"
                       >
-                        {{ opt.hint }}
+                        {{
+                          isAssociationDisabled(opt.value)
+                            ? 'Solo para socios existentes'
+                            : opt.hint
+                        }}
                       </div>
                     </q-item-section>
                   </q-item>
@@ -328,6 +318,26 @@
 
                 <!-- (b) Asignar plan nuevo: grilla por tier + Zero + turnos fixed -->
                 <template v-else-if="mode === 'alta'">
+                  <!-- Sede del alta (CR-01): editable para TODA alta (socio
+                       existente Y alumno nuevo). Es el branchId que se persiste
+                       en la suscripción y en el cargo del plan. -->
+                  <q-select
+                    v-model="sucursalId"
+                    :options="branchOptions"
+                    option-value="id"
+                    option-label="name"
+                    emit-value
+                    map-options
+                    outlined
+                    label="Sede"
+                    class="q-mb-md"
+                    @update:model-value="onSucursalChange"
+                  >
+                    <template #prepend>
+                      <q-icon name="place" color="primary" />
+                    </template>
+                  </q-select>
+
                   <div v-if="loadingPlans" class="q-gutter-sm">
                     <q-skeleton v-for="n in 3" :key="n" type="rect" height="56px" />
                   </div>
@@ -563,6 +573,7 @@
                 <div class="text-h5 q-mb-md">Resumen</div>
                 <CobroResumen
                   :socio="resumenSocio"
+                  :sede="resumenSede"
                   :que-secobra="resumenQueSecobra"
                   :como-paga="resumenComoPaga"
                   :total="amount"
@@ -593,6 +604,7 @@
             <div class="text-subtitle2 text-weight-regular text-grey-7 q-mb-sm">Resumen</div>
             <CobroResumen
               :socio="resumenSocio"
+              :sede="resumenSede"
               :que-secobra="resumenQueSecobra"
               :como-paga="resumenComoPaga"
               :total="amount"
@@ -799,10 +811,22 @@ const montoSymbol = computed(() =>
   mode.value === 'alta' ? altaCurrencySymbol.value : currencySymbol.value
 );
 
+// Contexto de alumno nuevo: mini-form abierto sin socio existente adoptado. Un
+// alumno nuevo no tiene member id, así que sólo `alta` es válido (WR-01).
+const isNewStudentContext = computed(() => showNewStudentForm.value && !selectedMember.value);
+
+// Renovar/Cobro suelto requieren un socio existente. Deshabilitarlos para un
+// alumno nuevo evita el callejón sin salida (Confirmar permanentemente
+// deshabilitado en misc / paso 2 vacío en renew).
+function isAssociationDisabled(value: Mode): boolean {
+  return isNewStudentContext.value && (value === 'renew' || value === 'misc');
+}
+
 // Selecting a step-2 association: set the mode and (re)load its dependencies.
 // Preserves the socio + debt (autocompletar), clears the per-charge fields and
 // the idempotency key (deliberate target change → new attempt).
 function onSelectAssociation(m: Mode) {
+  if (isAssociationDisabled(m)) return;
   if (mode.value === m) return;
   mode.value = m;
   amount.value = null;
@@ -849,6 +873,13 @@ const resumenDebtWarning = computed<string | null>(() => {
   const out = autocompletar.value?.outstanding ?? 0;
   if (out <= 0) return null;
   return `Debe ${formatPrice(out, autocompletar.value?.currency ?? 'ARS')}`;
+});
+// Sede resuelta (nombre) — sólo para alta, donde el operador elige el branchId
+// que se persiste. Para renew/misc el branch lo deriva el server → null (fila
+// oculta en CobroResumen).
+const resumenSede = computed<string | null>(() => {
+  if (mode.value !== 'alta') return null;
+  return branchOptions.value.find((b) => b.id === sucursalId.value)?.name ?? null;
 });
 
 // ─── Cuenta banco (COBRO-04) ────────────────────────────────────────────────
@@ -987,7 +1018,11 @@ const canContinueStep = computed(() => {
         return true;
       }
       if (mode.value === 'misc') {
-        return concepto.value.trim().length > 0 && miscReason.value != null;
+        return (
+          selectedMember.value != null &&
+          concepto.value.trim().length > 0 &&
+          miscReason.value != null
+        );
       }
       return false;
     case 3:

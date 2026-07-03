@@ -5,16 +5,31 @@
       <q-card-section class="rating-dialog__body">
         <h3 class="rating-dialog__title">{{ title }}</h3>
 
-        <q-rating
-          v-model="stars"
-          class="rating-dialog__stars"
-          size="2.5em"
-          color="primary"
-          icon="star_border"
-          icon-selected="star"
-          :max="5"
-          no-reset
-        />
+        <div class="rating-dialog__row">
+          <span class="rating-dialog__label">La clase</span>
+          <q-rating
+            v-model="classStars"
+            size="2.2em"
+            color="primary"
+            icon="star_border"
+            icon-selected="star"
+            :max="5"
+            no-reset
+          />
+        </div>
+
+        <div class="rating-dialog__row">
+          <span class="rating-dialog__label">El profe</span>
+          <q-rating
+            v-model="stars"
+            size="2.2em"
+            color="primary"
+            icon="star_border"
+            icon-selected="star"
+            :max="5"
+            no-reset
+          />
+        </div>
 
         <q-input
           v-model="comment"
@@ -36,7 +51,7 @@
           unelevated
           no-caps
           class="rating-dialog__primary full-width"
-          :disable="stars < 1"
+          :disable="stars < 1 || classStars < 1"
           :loading="submitting"
           label="Enviar puntuación"
           @click="onSubmit"
@@ -71,6 +86,7 @@ const { getPendingRating, submitRating } = useRatingsApi()
 const show = ref(false)
 const submitting = ref(false)
 const stars = ref(0)
+const classStars = ref(0)
 const comment = ref('')
 const pending = ref<PendingRating | null>(null)
 
@@ -107,6 +123,7 @@ async function evaluate(): Promise<void> {
   try {
     if (await shouldShow()) {
       stars.value = 0
+      classStars.value = 0
       comment.value = ''
       show.value = true
     }
@@ -124,7 +141,7 @@ async function onSkip(): Promise<void> {
 }
 
 async function onSubmit(): Promise<void> {
-  if (!pending.value || stars.value < 1) return
+  if (!pending.value || stars.value < 1 || classStars.value < 1) return
   submitting.value = true
   try {
     const trimmed = comment.value.trim()
@@ -132,6 +149,7 @@ async function onSubmit(): Promise<void> {
       sessionDate: pending.value.sessionDate,
       scheduleId: pending.value.scheduleId,
       stars: stars.value,
+      classStars: classStars.value,
       ...(trimmed ? { comment: trimmed } : {}),
     })
     await markResolved(pending.value)
@@ -191,8 +209,19 @@ $charcoal: #2e2a26;
   color: $cream;
 }
 
-.rating-dialog__stars {
-  margin-bottom: 16px;
+.rating-dialog__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 4px 12px;
+}
+
+.rating-dialog__label {
+  font-family: 'Geologica', sans-serif;
+  font-weight: 500;
+  font-size: 0.9375rem;
+  color: rgba($cream, 0.85);
 }
 
 .rating-dialog__comment {

@@ -6,9 +6,14 @@
 // service layer via the one-shot check, not at the DB level, D-P2).
 //
 // `coachId` is the attributed coach resolved from the weekly roster
-// (class_coach_assignments) at submit time. `stars` is 1–5 (D-M1); `comment`
-// is optional free text (D-M2). Indexes back the owner per-coach average (D-O1)
-// and the member+session one-shot guard (D-P2).
+// (class_coach_assignments) at submit time. `stars` is the PROFE rating 1–5
+// (D-M1) and backs the owner per-coach average (/puntuaciones). `classStars`
+// is the CLASS rating 1–5, added later to split the single rating into two
+// explicit dimensions — it is nullable because historical rows predate the
+// split (their `stars` is kept as the profe history; classStars stays null).
+// The class rating backs the "Clases" analytics tab. `comment` is optional
+// free text (D-M2), surfaced only in /puntuaciones. Indexes back the owner
+// per-coach average (D-O1) and the member+session one-shot guard (D-P2).
 import {
   mysqlTable,
   int,
@@ -38,7 +43,8 @@ export const coachRatings = mysqlTable(
       .notNull(),
     scheduleId: int("schedule_id").references(() => schedules.id), // nullable: resolves activity/day
     sessionDate: date("session_date", { mode: "string" }).notNull(),
-    stars: tinyint("stars").notNull(), // 1–5 (D-M1)
+    stars: tinyint("stars").notNull(), // profe rating 1–5 (D-M1)
+    classStars: tinyint("class_stars"), // class rating 1–5; nullable for pre-split rows
     comment: varchar("comment", { length: 500 }), // optional free text (D-M2)
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },

@@ -25,6 +25,7 @@ import type {
   LtvAnalytics,
   FrequencyAnalytics,
   TrialFunnelAnalytics,
+  ClassRatingsAnalytics,
 } from 'src/types/analytics';
 
 function buildParams(filters: AnalyticsFilters): Record<string, unknown> {
@@ -315,6 +316,22 @@ export function useAnalyticsApi() {
     }
   }
 
+  async function getClassRatings(filters: AnalyticsFilters = {}): Promise<ClassRatingsAnalytics> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<ClassRatingsAnalytics>('/admin/analytics/class-ratings', {
+        params: buildParams(filters),
+      });
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cargando puntuaciones de clase');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   function cleanup() {
     loading.value = false;
     error.value = null;
@@ -339,6 +356,7 @@ export function useAnalyticsApi() {
     getLtv,
     getFrequency,
     getTrialFunnel,
+    getClassRatings,
     cleanup,
   };
 }

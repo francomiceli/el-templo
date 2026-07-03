@@ -19,6 +19,7 @@ import { RenewalService } from "./renewal-service";
 import { LtvService } from "./ltv-service";
 import { FrequencyService } from "./frequency-service";
 import { TrialFunnelService } from "./trial-funnel-service";
+import { ClassRatingsService } from "./class-ratings-service";
 import { handleServiceError } from "../shared/error-handler";
 import type { AnalyticsFilters } from "./types";
 import {
@@ -38,6 +39,7 @@ import {
   ltvSchema,
   frequencySchema,
   trialFunnelSchema,
+  classRatingsSchema,
 } from "./schemas";
 import type { FunnelEntryOrigin } from "./types";
 
@@ -86,6 +88,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
   const ltvService = new LtvService(fastify.db, fastify.log);
   const frequencyService = new FrequencyService(fastify.db, fastify.log);
   const trialFunnelService = new TrialFunnelService(fastify.db, fastify.log);
+  const classRatingsService = new ClassRatingsService(fastify.db, fastify.log);
 
   /**
    * Guard: authenticate + gate to the operational analytics set (gestion +
@@ -608,6 +611,42 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
         return result;
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "get frequency");
+      }
+    },
+  );
+
+  // GET /class-ratings — pestaña "Clases": promedio global + count de la nota de
+  // CLASE (coach_ratings.class_stars, no-null solamente), tendencia semanal,
+  // promedio por sucursal y por turno (mañana/tarde, corte a las 12:00 — el mismo
+  // slot con que se atribuyó la nota). NO toma filtros planId/turno (turno acá es
+  // eje de breakdown, no filtro). SENSIBLE → ADMIN_ROLES-only vía
+  // requireAdminAnalytics. Scoped por sede/país (coachRatings.branchId).
+  fastify.get<{
+    Querystring: {
+      branchId?: number;
+      dateFrom?: string;
+      dateTo?: string;
+    };
+  }>(
+    "/class-ratings",
+    {
+      schema: classRatingsSchema,
+      preHandler: [
+        requireAdminAnalytics,
+        requireBranchAccess({ from: "query.branchId", optional: true }),
+      ],
+    },
+    async (request, reply) => {
+      try {
+        const filters: AnalyticsFilters = {
+          branchId: request.query.branchId,
+          country: request.scope.country ?? undefined,
+          dateFrom: request.query.dateFrom,
+          dateTo: request.query.dateTo,
+        };
+        return await classRatingsService.getClassRatings(filters);
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "get class ratings");
       }
     },
   );

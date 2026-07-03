@@ -175,6 +175,7 @@
       <q-tab name="miembros" label="Miembros" icon="people" />
       <q-tab name="finanzas" label="Finanzas" icon="payments" />
       <q-tab name="programas" label="Programas" icon="school" />
+      <q-tab name="clases" label="Clases" icon="star" />
       <q-tab name="retencion" label="Retención (ciclos)" icon="timeline" />
     </q-tabs>
 
@@ -271,6 +272,11 @@
         </div>
       </q-tab-panel>
 
+      <!-- Clases Tab — puntuación de clase (tendencia + sucursal + turno) -->
+      <q-tab-panel name="clases">
+        <ClasesTab :data="classRatingsData" :loading="loadingClassRatings" />
+      </q-tab-panel>
+
       <!-- Retención Tab (Phase 118) -->
       <q-tab-panel name="retencion">
         <RetencionTab
@@ -300,6 +306,7 @@ import ConversionTab from 'src/components/analytics/ConversionTab.vue';
 import RetencionGestionTab from 'src/components/analytics/RetencionGestionTab.vue';
 import FrecuenciaTab from 'src/components/analytics/FrecuenciaTab.vue';
 import IngresosTab from 'src/components/analytics/IngresosTab.vue';
+import ClasesTab from 'src/components/analytics/ClasesTab.vue';
 import type {
   KpiStats,
   MemberAnalytics,
@@ -314,6 +321,7 @@ import type {
   FrequencyAnalytics,
   TicketAnalytics,
   LtvAnalytics,
+  ClassRatingsAnalytics,
 } from 'src/types/analytics';
 import type { BranchOption } from 'src/types/member';
 import type { ProgramAnalytics } from 'src/types/program';
@@ -546,6 +554,10 @@ const loadingRetencionGestion = ref(false);
 const loadingFrecuencia = ref(false);
 const loadingIngresos = ref(false);
 
+// Clases — puntuación de clase (tab)
+const classRatingsData = ref<ClassRatingsAnalytics | null>(null);
+const loadingClassRatings = ref(false);
+
 // Local plan filter for the Retención tab (follow-up). `null` = todos los planes.
 // Re-fetches the cohort curve server-side. Options built from availablePlans.
 const retentionPlanId = ref<number | null>(null);
@@ -756,6 +768,19 @@ async function fetchIngresos() {
   }
 }
 
+async function fetchClassRatings() {
+  loadingClassRatings.value = true;
+  try {
+    classRatingsData.value = await analyticsApi.getClassRatings(currentFilters.value);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.error('Error fetching class ratings analytics', { error: message });
+    classRatingsData.value = null;
+  } finally {
+    loadingClassRatings.value = false;
+  }
+}
+
 // Re-fetch the retention curve when the local plan filter changes.
 function onRetentionFilterChange() {
   void fetchRetentionData();
@@ -784,6 +809,9 @@ async function fetchTabData() {
       break;
     case 'programas':
       await fetchProgramAnalytics();
+      break;
+    case 'clases':
+      await fetchClassRatings();
       break;
     case 'retencion':
       await fetchRetentionData();
