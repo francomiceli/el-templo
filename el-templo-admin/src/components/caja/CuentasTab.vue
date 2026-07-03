@@ -42,6 +42,7 @@
                 <q-tooltip>Editar</q-tooltip>
               </q-btn>
               <q-btn
+                v-if="isOwner"
                 flat
                 dense
                 round

@@ -263,7 +263,15 @@ async function onShow() {
   await Promise.all([loadCajas(), loadCostCenters()]);
   if (props.prefillCajaId !== undefined) {
     const caja = cajas.value.find((c) => c.cashRegisterId === props.prefillCajaId);
-    if (caja) egreso.cajaId = caja.cashRegisterId;
+    if (caja) {
+      egreso.cajaId = caja.cashRegisterId;
+    } else {
+      $q.notify({
+        type: 'warning',
+        message:
+          'La caja indicada no está disponible en tu vista; seleccioná una caja manualmente.',
+      });
+    }
   }
   if (props.prefillCostCenterName) {
     const center = costCenters.value.find((c) => c.name === props.prefillCostCenterName);
