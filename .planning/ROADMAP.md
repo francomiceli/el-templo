@@ -3812,7 +3812,7 @@ _v5.3 (Mejoras Caja) added: 2026-06-26 — 3 phases (145-147), 17 requirements (
 
 - [x] **Phase 149: Nav por categorías + RBAC** — agrupar el nav plano del admin en Finanzas / Alumnos / Horarios / Planes (Pagos, Caja, Analíticas, Reportes, Deudas dentro de Finanzas), con visibilidad por rol (dueño ve todo; profe/administrativo ve solo Pagos + Planes read-only; Alumnos y Horarios libres) y gateo de Campañas/Profes/Puntuaciones/landing fuera del MVP (no se borran). (completed 2026-07-02)
 - [x] **Phase 150: Cuentas bancarias flexibles** — crear/cerrar cuentas bancarias (Banco, N°, Titular, CUIT, CBU/CVU, Alias; solo 3 obligatorios) con baja lógica que conserva historial + registrar retiros del dueño (egreso tipo "Retiro"). Levanta CAJA-F1 de v5.3 (ABM desde UI).
-- [ ] **Phase 151: Registrar cobro (Pagos → Cobros)** — renombrar "Pagos"→"Cobros" + rediseño en pantallas/pasos separados (una cosa por paso, desktop+mobile) + fecha/hora en el listado y botón "Continuar" arriba + transferencia/tarjeta obligadas a asociar una cuenta bancaria (crear rápida inline si no hay).
+- [x] **Phase 151: Registrar cobro (Pagos → Cobros)** — renombrar "Pagos"→"Cobros" + rediseño en pantallas/pasos separados (una cosa por paso, desktop+mobile) + fecha/hora en el listado y botón "Continuar" arriba + transferencia/tarjeta obligadas a asociar una cuenta bancaria (crear rápida inline si no hay). (completed 2026-07-03)
 - [ ] **Phase 152: Reorganización de Caja + egresos configurables** — reordenar los tabs (Movimientos portada / Pendientes 2° / "Cobros" 3°) + etiqueta validada/pendiente por fila + detalle con validador + filtro por día + categorías de egreso configurables desde UI (ABM de centros de costo, levanta EGR-F2 de v5.3, defaults "Pago a proveedores"/"Retiros") + nota explicativa en Saldos.
 - [ ] **Phase 153: Mejoras de Deudas** — fecha de registro + motivo (reusar `misc_reason` de v5.3, no duplicar) + pago/plan asociado (plan + período) por deuda + incluir a los socios con plan vencido sin renovar (no-renovaciones) en la misma pantalla.
 - [ ] **Phase 154: Alumnos (de-Templo-ficación + accesos)** — "Crear alumno" prominente + "Registrar cobro" como acción directa en la fila + reglas de precio por medio de pago configurables (default sin recargo) + "Avatar"→"segmento"/categoría de socio (mismo mecanismo) + niveles griegos gateados como superficie Templo.
@@ -3895,12 +3895,12 @@ Plans:
 3. El listado de cargas del profe muestra **fecha + hora** de cada registro, y el botón **"Continuar"** queda arriba del listado. (COBRO-03)
 4. Un cobro por **transferencia o tarjeta** exige seleccionar una **cuenta bancaria existente**; si no hay cuentas cargadas ofrece **crear cuenta rápida inline** y **no permite finalizar** sin asociarla. (COBRO-04)
 
-**Plans:** 2/4 plans executed
+**Plans:** 4/4 plans complete
 
 - [x] 151-01-PLAN.md — API COBRO-04: bankAccountId contract + validation + GET /coach-load/bank-accounts + tests
 - [x] 151-02-PLAN.md — Composable field/list method + shared CobroResumen.vue summary component
-- [ ] 151-03-PLAN.md — Rename Pagos→Cobros (route/redirect/nav) + 4-step wizard + day-grouped listado
-- [ ] 151-04-PLAN.md — Bank-account selector in step 3 + admin/owner inline quick-create
+- [x] 151-03-PLAN.md — Rename Pagos→Cobros (route/redirect/nav) + 4-step wizard + day-grouped listado
+- [x] 151-04-PLAN.md — Bank-account selector in step 3 + admin/owner inline quick-create
       **UI hint:** yes
 
 ### Phase 152: Reorganización de Caja + egresos configurables
@@ -3985,7 +3985,7 @@ Plans:
 | ----------------------------------------------- | -------------- | ----------- | ---------- |
 | 149. Nav por categorías + RBAC                  | 6/6            | Complete    | 2026-07-02 |
 | 150. Cuentas bancarias flexibles                | 6/6            | Complete    | 2026-07-03 |
-| 151. Registrar cobro (Pagos → Cobros)           | 2/4            | In Progress |            |
+| 151. Registrar cobro (Pagos → Cobros)           | 4/4            | Complete    | 2026-07-03 |
 | 152. Reorganización de Caja + egresos config.   | 0/TBD          | Not started | -          |
 | 153. Mejoras de Deudas                          | 0/TBD          | Not started | -          |
 | 154. Alumnos (de-Templo-ficación + accesos)     | 0/TBD          | Not started | -          |

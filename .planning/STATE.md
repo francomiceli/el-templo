@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v5.4
 milestone_name: Reforma del Admin — Correcciones white-label (pre-tenants)
-status: executing
+status: verifying
 stopped_at: Phase 151 UI-SPEC approved
-last_updated: "2026-07-03T16:02:51.504Z"
+last_updated: "2026-07-03T16:15:02.025Z"
 last_activity: 2026-07-03
 progress:
   total_phases: 8
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 16
-  completed_plans: 14
-  percent: 25
+  completed_plans: 16
+  percent: 38
 ---
 
 # Project State
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 
 Phase: 151 (registrar-cobro-pagos-cobros) — EXECUTING
 Plan: 4 of 4
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-07-03
 
 ## Performance Metrics
@@ -291,6 +291,7 @@ _Updated after each plan completion_
 | Phase 150 P06 | 13min | 3 tasks | 6 files |
 | Phase 151 P01 | 30min | 3 tasks | 5 files |
 | Phase 151 P02 | 4min | 2 tasks | 2 files |
+| Phase 151 P04 | ~12min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -694,6 +695,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase 150]: Plan 150-03: close re-fetchea vía listBankAccounts para devolver { account, balance } y honrar el contrato del plan
 - [Phase ?]: Frontend ABM cuentas bancarias (150-04): UpdateBankAccountInput sin currency (moneda fija D-04), form sin campo Nombre (derivado D-03), validación de formato CBU/CUIT liviana no bloqueante para cuentas del exterior
 - [Phase ?]: Phase 151-01 (COBRO-04): PoS bank-account imputation — bankAccountId validated server-side (assertChosenBankAccount: banco+active+currency-match → 400) then threaded as trusted-internal cashRegisterIdOverride into subscriptions service; body never sets cashRegisterId so the v5.3 server-derived invariant holds. Applied on all 4 charge paths (settle/misc direct override, renew/alta delegated) + new coach-reachable GET /coach-load/bank-accounts.
+- [Phase 151]: COBRO-04 bank-account selector renders only for transfer/card; Efectivo never sends bankAccountId
+- [Phase 151]: Added optional defaultCurrency prop to CuentaBancariaFormDialog to preselect the charge currency (additive, backward-compatible)
 
 ### Pending Todos
 
@@ -726,7 +729,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-03T16:02:51.486Z
+Last session: 2026-07-03T16:14:50.504Z
 Stopped at: Phase 151 UI-SPEC approved
 Resume file: None
 
