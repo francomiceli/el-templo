@@ -3854,8 +3854,16 @@ _v5.3 (Mejoras Caja) added: 2026-06-26 — 3 phases (145-147), 17 requirements (
 2. El admin puede **cerrar/desactivar** una cuenta bancaria (baja lógica) **conservando** su historial de movimientos. (CTA-02)
 3. El admin puede registrar un **retiro del dueño** desde una cuenta bancaria o caja (egreso tipo "Retiro"), impactando el saldo para que refleje la realidad. (CTA-03)
 
-**Plans:** TBD
-**UI hint:** yes
+**Plans:** 5 plans
+
+Plans:
+
+- [ ] 150-01-PLAN.md — Backend: schema cash_registers + tipos + migración 0163 (columnas bancarias + seed 'Retiros')
+- [ ] 150-02-PLAN.md — Backend: JSON Schemas + service CRUD (nombre derivado, uno-de-dos, ciclo de vida)
+- [ ] 150-03-PLAN.md — Backend: 5 endpoints ABM (guard admin/owner) + tests de integración
+- [ ] 150-04-PLAN.md — Frontend: tipos + API + CuentaBancariaFormDialog reutilizable
+- [ ] 150-05-PLAN.md — Frontend: tab 'Cuentas' en Caja + prefill de retiro + checkpoint UAT
+      **UI hint:** yes
 
 ### Phase 151: Registrar cobro (Pagos → Cobros)
 
