@@ -489,6 +489,57 @@ export interface ExpenseDetail {
   expenseTxId: number;
 }
 
+// -- Phase 150 (CTA-01): ABM de cuentas bancarias --------------------------
+// Mirror del backend BankAccountRow/CreateBankAccountInput/UpdateBankAccountInput
+// (el-templo-api/src/modules/finance/types.ts). Cuenta banco = cash_registers
+// con type='banco', branchId=null, currency FIJA post-creación (D-04). `name`
+// se DERIVA en el backend (D-03) — el form no pide "Nombre". `balance` = saldo
+// firme únicamente (nunca suma pendiente, CAJA-03).
+
+export interface BankAccount {
+  id: number;
+  name: string;
+  currency: 'ARS' | 'EUR';
+  isActive: boolean;
+  bankName: string;
+  accountHolder: string;
+  taxId: string | null;
+  cbuCvu: string | null;
+  accountAlias: string | null;
+  accountNumber: string | null;
+  /** Saldo firme (Σ validados). Nunca sumado con pendiente (CAJA-03). */
+  balance: number;
+}
+
+/**
+ * Alta de cuenta bancaria. 3 obligatorios (bankName/accountHolder/currency) +
+ * al menos uno de (cbuCvu | accountAlias) — regla uno-de-dos revalidada en el
+ * backend (D-02). Sin campo `name` (derivado en el service, D-03).
+ */
+export interface CreateBankAccountInput {
+  bankName: string;
+  accountHolder: string;
+  currency: 'ARS' | 'EUR';
+  cbuCvu?: string | null;
+  accountAlias?: string | null;
+  taxId?: string | null;
+  accountNumber?: string | null;
+}
+
+/**
+ * Edición de cuenta bancaria. Mismos campos que Create pero todos opcionales y
+ * SIN `currency` — la moneda es FIJA post-creación (D-04); el PATCH nunca la
+ * envía y el backend la rechaza a nivel schema.
+ */
+export interface UpdateBankAccountInput {
+  bankName?: string;
+  accountHolder?: string;
+  cbuCvu?: string | null;
+  accountAlias?: string | null;
+  taxId?: string | null;
+  accountNumber?: string | null;
+}
+
 // -- Phase 108: POST /transactions response shape (D-22) -------------------
 
 /**

@@ -31,6 +31,9 @@ import type {
   PendingMiscItem,
   CostCenter,
   CostCenterParams,
+  BankAccount,
+  CreateBankAccountInput,
+  UpdateBankAccountInput,
 } from 'src/types/transaction';
 import type { PaginatedResult } from 'src/types/report';
 
@@ -552,6 +555,119 @@ export function useTransactionsApi() {
     }
   }
 
+  // =========================================================================
+  // Phase 150 — ABM de cuentas bancarias (CTA-01). Endpoints admin/owner-only
+  // bajo /admin/finance/cash-registers (guard stricter en el backend, plan 03).
+  // Cuenta banco = cash_registers type='banco', branchId=null, moneda FIJA.
+  // =========================================================================
+
+  /**
+   * Lista cuentas bancarias (activas Y cerradas — el ABM muestra ambas, D-07).
+   * Source: GET /admin/finance/cash-registers → { accounts }.
+   */
+  async function listBankAccounts(): Promise<{ accounts: BankAccount[] }> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<{ accounts: BankAccount[] }>('/admin/finance/cash-registers');
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cargando cuentas bancarias');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  /**
+   * Alta de cuenta bancaria. Source: POST /admin/finance/cash-registers.
+   * `input` incluye currency (D-04 — fijada solo al crear). El backend deriva
+   * `name` (D-03) y revalida la regla uno-de-dos (D-02).
+   */
+  async function createBankAccount(
+    input: CreateBankAccountInput
+  ): Promise<{ account: BankAccount }> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.post<{ account: BankAccount }>(
+        '/admin/finance/cash-registers',
+        input
+      );
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error creando cuenta bancaria');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  /**
+   * Edición de cuenta bancaria. Source: PATCH /admin/finance/cash-registers/:id.
+   * `input` NO incluye currency (moneda fija post-creación, D-04).
+   */
+  async function updateBankAccount(
+    id: number,
+    input: UpdateBankAccountInput
+  ): Promise<{ account: BankAccount }> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.patch<{ account: BankAccount }>(
+        `/admin/finance/cash-registers/${id}`,
+        input
+      );
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error editando cuenta bancaria');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  /**
+   * Baja lógica (is_active=false, sin DELETE — D-06). Devuelve el saldo firme
+   * actual para que el front arme la advertencia si ≠ 0.
+   * Source: POST /admin/finance/cash-registers/:id/close.
+   */
+  async function closeBankAccount(id: number): Promise<{ account: BankAccount; balance: number }> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.post<{ account: BankAccount; balance: number }>(
+        `/admin/finance/cash-registers/${id}/close`
+      );
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cerrando cuenta bancaria');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  /**
+   * Reactivación de una cuenta cerrada (is_active=true, D-07).
+   * Source: POST /admin/finance/cash-registers/:id/reactivate.
+   */
+  async function reactivateBankAccount(id: number): Promise<{ account: BankAccount }> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.post<{ account: BankAccount }>(
+        `/admin/finance/cash-registers/${id}/reactivate`
+      );
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error reactivando cuenta bancaria');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   function cleanup() {
     loading.value = false;
     error.value = null;
@@ -590,6 +706,12 @@ export function useTransactionsApi() {
     exportPendingTrayToExcel,
     exportCashBalancesToExcel,
     exportMovEgresosToExcel,
+    // Phase 150 additions — ABM de cuentas bancarias (CTA-01):
+    listBankAccounts,
+    createBankAccount,
+    updateBankAccount,
+    closeBankAccount,
+    reactivateBankAccount,
     cleanup,
   };
 }
