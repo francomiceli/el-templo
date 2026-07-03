@@ -127,5 +127,11 @@ No new threat surface introduced beyond the planned `bankAccountId` body field.
 
 ---
 
+## Self-Check: PASSED
+
+All 5 modified source/test files and the SUMMARY exist on disk; all 4 commits (`a0b05291`, `d3b95833`, `906357ef`, `402f6be5`) are present in git history.
+
+---
+
 _Phase: 151-registrar-cobro-pagos-cobros_
 _Completed: 2026-07-03_
