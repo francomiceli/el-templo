@@ -4,7 +4,7 @@ milestone: v5.4
 milestone_name: Reforma del Admin — Correcciones white-label (pre-tenants)
 status: executing
 stopped_at: Phase 150 context gathered
-last_updated: "2026-07-03T02:15:09.427Z"
+last_updated: "2026-07-03T02:19:57.562Z"
 last_activity: 2026-07-03
 progress:
   total_phases: 8
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 ## Current Position
 
 Phase: 150 (cuentas-bancarias-flexibles) — EXECUTING
-Plan: 2 of 5
+Plan: 3 of 5
 Status: Ready to execute
 Last activity: 2026-07-03
 
@@ -283,6 +283,7 @@ _Updated after each plan completion_
 | Phase 149 P04 | ~8min | 2 tasks | 5 files |
 | Phase 149 P05 | 7min | 2 tasks | 5 files |
 | Phase 149 P06 | 6min | 1 tasks | 3 files |
+| Phase 150 P02 | 3min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -681,6 +682,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase 149]: /programas dueño-only en el router guard (DUENO_ROLES, D-15) consistente con nav (Plan 03) y API (Plan 01); canEditPlans oculta edición de Planes al empleado (D-09/D-10)
 - [Phase ?]: PROGRAMAS_LIST_ROLES (sin coach, D-10) reabre GET /admin/programs al staff administrativo; coach no fetchea el catálogo en PlanesPage (sin 403/Sentry)
 - [Phase ?]: 149-06: landing por rol en beforeEach post-checkAuth; indice / con fallback estatico /pagos
+- [Phase ?]: Nombre de cuenta banco derivado en el service (D-03); validacion uno-de-dos en el service no en el schema (D-02)
 
 ### Pending Todos
 
@@ -713,7 +715,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-03T02:15:09.401Z
+Last session: 2026-07-03T02:19:51.240Z
 Stopped at: Phase 150 context gathered
 Resume file: None
 
