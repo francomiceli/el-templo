@@ -294,6 +294,92 @@ describe("Phase 150: ABM de cuentas bancarias", () => {
     });
   });
 
+  // ─── D-12: guard admin/owner en lectura y ciclo de vida (WR-06) ──────────
+  describe("D-12: guard admin/owner en lectura y ciclo de vida", () => {
+    it("GET /cash-registers con gestion → 403 (habría detectado CR-02)", async () => {
+      const res = await app.inject({
+        method: "GET",
+        url: "/api/admin/finance/cash-registers",
+        headers: { authorization: `Bearer ${gestionToken}` },
+      });
+      expect(res.statusCode).toBe(403);
+    });
+
+    it("GET /cash-registers con coach → 403", async () => {
+      const res = await app.inject({
+        method: "GET",
+        url: "/api/admin/finance/cash-registers",
+        headers: { authorization: `Bearer ${coachToken}` },
+      });
+      expect(res.statusCode).toBe(403);
+    });
+
+    it("GET /cash-registers con owner → 200 y array accounts presente", async () => {
+      const res = await app.inject({
+        method: "GET",
+        url: "/api/admin/finance/cash-registers",
+        headers: { authorization: `Bearer ${ownerToken}` },
+      });
+      expect(res.statusCode).toBe(200);
+      const { accounts } = JSON.parse(res.body) as {
+        accounts: BankAccountBody["account"][];
+      };
+      expect(Array.isArray(accounts)).toBe(true);
+    });
+
+    it("PATCH /:id con gestion → 403", async () => {
+      const created = await createAccount(ownerToken, {
+        bankName: "Banco Supervielle",
+        accountHolder: "El Templo SA",
+        currency: "ARS",
+        accountAlias: "supervielle.alias",
+      });
+      const id = (JSON.parse(created.body) as BankAccountBody).account.id;
+
+      const res = await app.inject({
+        method: "PATCH",
+        url: `/api/admin/finance/cash-registers/${id}`,
+        headers: { authorization: `Bearer ${gestionToken}` },
+        payload: { taxId: "30-11111111-1" },
+      });
+      expect(res.statusCode).toBe(403);
+    });
+
+    it("POST /:id/close con gestion → 403", async () => {
+      const created = await createAccount(ownerToken, {
+        bankName: "Banco Itaú",
+        accountHolder: "El Templo SA",
+        currency: "ARS",
+        accountAlias: "itau.alias",
+      });
+      const id = (JSON.parse(created.body) as BankAccountBody).account.id;
+
+      const res = await app.inject({
+        method: "POST",
+        url: `/api/admin/finance/cash-registers/${id}/close`,
+        headers: { authorization: `Bearer ${gestionToken}` },
+      });
+      expect(res.statusCode).toBe(403);
+    });
+
+    it("POST /:id/reactivate con gestion → 403", async () => {
+      const created = await createAccount(ownerToken, {
+        bankName: "Banco Credicoop",
+        accountHolder: "El Templo SA",
+        currency: "ARS",
+        accountAlias: "credicoop.alias",
+      });
+      const id = (JSON.parse(created.body) as BankAccountBody).account.id;
+
+      const res = await app.inject({
+        method: "POST",
+        url: `/api/admin/finance/cash-registers/${id}/reactivate`,
+        headers: { authorization: `Bearer ${gestionToken}` },
+      });
+      expect(res.statusCode).toBe(403);
+    });
+  });
+
   // ─── Seed 'Retiros' (migración 0163) ─────────────────────────────────────
   describe("Seed 'Retiros'", () => {
     it("el centro de costo 'Retiros' (AR) existe tras la migración 0163", async () => {

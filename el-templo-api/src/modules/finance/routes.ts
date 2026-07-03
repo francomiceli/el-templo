@@ -1288,6 +1288,12 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
   // GET /cash-registers — listar cuentas banco activas Y cerradas (CTA-01, D-07)
   fastify.get("/cash-registers", async (request, reply) => {
     try {
+      if (!(ADMIN_ROLES as readonly string[]).includes(request.user.role)) {
+        return reply.code(403).send({
+          error: "Acceso denegado",
+          message: "No tienes permiso para administrar cuentas bancarias",
+        });
+      }
       const accounts = await cashRegisterService.listBankAccounts();
       return reply.code(200).send({ accounts });
     } catch (err: unknown) {
