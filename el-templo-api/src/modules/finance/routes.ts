@@ -45,12 +45,17 @@ import {
   cashBalancesExportSchema,
   movementsHistorySchema,
   movementsHistoryExportSchema,
+  createBankAccountSchema,
+  updateBankAccountSchema,
+  closeBankAccountSchema,
+  reactivateBankAccountSchema,
 } from "./schemas";
 import {
   FINANCE_READ_ROLES,
   FINANCE_WRITE_ROLES,
   FINANCE_VOID_ROLES,
   FINANCE_ADJUSTMENT_ROLES,
+  ADMIN_ROLES,
 } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
 import {
@@ -69,6 +74,8 @@ import type {
   RegisterExpenseInput,
   PendingTrayFilters,
   MovEgresoFilters,
+  CreateBankAccountInput,
+  UpdateBankAccountInput,
 } from "./types";
 
 export const financeRoutes: FastifyPluginAsync = async (fastify) => {
@@ -1174,6 +1181,120 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
       }
     },
   );
+
+  // ===================================================================
+  // Phase 150 (CTA-01 / CTA-02): ABM de cuentas bancarias.
+  //
+  // Cuentas banco = cajas type='banco', branchId=null (country-agnostic): NO se
+  // aplica el filtro de country scope (a diferencia de egresos / cost-centers).
+  // La autorización es admin/owner-only (D-12): guard en-handler stricter con
+  // ADMIN_ROLES en cada escritura (create/update/close/reactivate), NO
+  // FINANCE_VOID_ROLES (que incluye gestion). El module hook ya autenticó y gateó
+  // FINANCE_READ_ROLES (líneas ~190). Moneda fija post-creación (D-04): el
+  // updateBankAccountSchema no acepta `currency` y el service nunca la muta.
+  // ===================================================================
+
+  // POST /cash-registers — crear cuenta banco (CTA-01)
+  fastify.post<{ Body: CreateBankAccountInput }>(
+    "/cash-registers",
+    { schema: createBankAccountSchema },
+    async (request, reply) => {
+      try {
+        if (!(ADMIN_ROLES as readonly string[]).includes(request.user.role)) {
+          return reply.code(403).send({
+            error: "Acceso denegado",
+            message: "No tienes permiso para administrar cuentas bancarias",
+          });
+        }
+        const account = await cashRegisterService.createBankAccount(
+          request.body,
+        );
+        return reply.code(201).send({ account });
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "create bank account");
+      }
+    },
+  );
+
+  // PATCH /cash-registers/:id — editar cuenta banco (CTA-01, D-04 moneda fija)
+  fastify.patch<{ Params: { id: number }; Body: UpdateBankAccountInput }>(
+    "/cash-registers/:id",
+    { schema: updateBankAccountSchema },
+    async (request, reply) => {
+      try {
+        if (!(ADMIN_ROLES as readonly string[]).includes(request.user.role)) {
+          return reply.code(403).send({
+            error: "Acceso denegado",
+            message: "No tienes permiso para administrar cuentas bancarias",
+          });
+        }
+        const account = await cashRegisterService.updateBankAccount(
+          request.params.id,
+          request.body,
+        );
+        return reply.code(200).send({ account });
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "update bank account");
+      }
+    },
+  );
+
+  // POST /cash-registers/:id/close — baja lógica (CTA-02, D-06)
+  fastify.post<{ Params: { id: number } }>(
+    "/cash-registers/:id/close",
+    { schema: closeBankAccountSchema },
+    async (request, reply) => {
+      try {
+        if (!(ADMIN_ROLES as readonly string[]).includes(request.user.role)) {
+          return reply.code(403).send({
+            error: "Acceso denegado",
+            message: "No tienes permiso para administrar cuentas bancarias",
+          });
+        }
+        const { balance } = await cashRegisterService.closeBankAccount(
+          request.params.id,
+        );
+        const accounts = await cashRegisterService.listBankAccounts();
+        const account = accounts.find((a) => a.id === request.params.id);
+        return reply.code(200).send({ account, balance });
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "close bank account");
+      }
+    },
+  );
+
+  // POST /cash-registers/:id/reactivate — reactivar cuenta cerrada (CTA-02, D-07)
+  fastify.post<{ Params: { id: number } }>(
+    "/cash-registers/:id/reactivate",
+    { schema: reactivateBankAccountSchema },
+    async (request, reply) => {
+      try {
+        if (!(ADMIN_ROLES as readonly string[]).includes(request.user.role)) {
+          return reply.code(403).send({
+            error: "Acceso denegado",
+            message: "No tienes permiso para administrar cuentas bancarias",
+          });
+        }
+        const account = await cashRegisterService.reactivateBankAccount(
+          request.params.id,
+        );
+        return reply.code(200).send({ account });
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "reactivate bank account");
+      }
+    },
+  );
+
+  // GET /cash-registers — listar cuentas banco activas Y cerradas (CTA-01, D-07)
+  fastify.get("/cash-registers", async (request, reply) => {
+    try {
+      const accounts = await cashRegisterService.listBankAccounts();
+      return reply.code(200).send({ accounts });
+    } catch (err: unknown) {
+      handleServiceError(err, reply, request.log, "list bank accounts");
+      return reply;
+    }
+  });
 
   // ===================================================================
   // Phase 141 (REP-04): GET /cash-registers/balances/export — saldos .xlsx
