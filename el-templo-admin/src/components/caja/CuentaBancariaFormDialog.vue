@@ -180,8 +180,8 @@ function taxIdRule(v: string | null): true | string {
 function onShow() {
   const acc = props.account;
   if (acc) {
-    form.bankName = acc.bankName;
-    form.accountHolder = acc.accountHolder;
+    form.bankName = acc.bankName ?? '';
+    form.accountHolder = acc.accountHolder ?? '';
     form.currency = acc.currency;
     form.cbuCvu = acc.cbuCvu ?? '';
     form.accountAlias = acc.accountAlias ?? '';

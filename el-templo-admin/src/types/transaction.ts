@@ -501,8 +501,8 @@ export interface BankAccount {
   name: string;
   currency: 'ARS' | 'EUR';
   isActive: boolean;
-  bankName: string;
-  accountHolder: string;
+  bankName: string | null;
+  accountHolder: string | null;
   taxId: string | null;
   cbuCvu: string | null;
   accountAlias: string | null;
