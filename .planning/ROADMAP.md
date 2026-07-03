@@ -3854,13 +3854,13 @@ _v5.3 (Mejoras Caja) added: 2026-06-26 — 3 phases (145-147), 17 requirements (
 2. El admin puede **cerrar/desactivar** una cuenta bancaria (baja lógica) **conservando** su historial de movimientos. (CTA-02)
 3. El admin puede registrar un **retiro del dueño** desde una cuenta bancaria o caja (egreso tipo "Retiro"), impactando el saldo para que refleje la realidad. (CTA-03)
 
-**Plans:** 5 plans
+**Plans:** 1/5 plans executed
 
 Plans:
 
 **Wave 1**
 
-- [ ] 150-01-PLAN.md — Backend: schema cash_registers + tipos + migración 0163 (columnas bancarias + seed 'Retiros')
+- [x] 150-01-PLAN.md — Backend: schema cash_registers + tipos + migración 0163 (columnas bancarias + seed 'Retiros')
 
 **Wave 2** _(blocked on Wave 1 completion)_
 
@@ -3975,7 +3975,7 @@ Plans:
 | Phase                                           | Plans Complete | Status      | Completed  |
 | ----------------------------------------------- | -------------- | ----------- | ---------- |
 | 149. Nav por categorías + RBAC                  | 6/6            | Complete    | 2026-07-02 |
-| 150. Cuentas bancarias flexibles                | 0/TBD          | Not started | -          |
+| 150. Cuentas bancarias flexibles                | 1/5            | In Progress |            |
 | 151. Registrar cobro (Pagos → Cobros)           | 0/TBD          | Not started | -          |
 | 152. Reorganización de Caja + egresos config.   | 0/TBD          | Not started | -          |
 | 153. Mejoras de Deudas                          | 0/TBD          | Not started | -          |

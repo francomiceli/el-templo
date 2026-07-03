@@ -4,13 +4,13 @@ milestone: v5.4
 milestone_name: Reforma del Admin — Correcciones white-label (pre-tenants)
 status: executing
 stopped_at: Phase 150 context gathered
-last_updated: "2026-07-03T02:07:47.050Z"
-last_activity: 2026-07-03 -- Phase 150 planning complete
+last_updated: "2026-07-03T02:15:09.427Z"
+last_activity: 2026-07-03
 progress:
   total_phases: 8
   completed_phases: 1
   total_plans: 11
-  completed_plans: 6
+  completed_plans: 7
   percent: 13
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-04)
 
 **Core value (v5.4):** Reorganizar el admin según `Correcciones El Templo.md` para dejarlo listo como MVP white-label — nav por categorías + RBAC dueño-vs-empleado, pantallas simplificadas y de-Templo-ficación de la superficie MVP (Finanzas, Alumnos, Horarios, Planes) — SIN introducir tenants todavía. Primera etapa del camino SaaS (reforma PRIMERO, tenancy DESPUÉS, secuencial). 8 fases (149-156), 33 requirements (NAV/COBRO/CTA/CAJA/DEUDA/ALUM/HOR/PLAN). Constraint dura: todo cambio de API adopta los patrones del diseño SaaS validado (motor vs plantilla, imports módulo→core, sin nuevos Templo-ismos en core).
-**Current focus:** Phase 149 — nav-por-categor-as-rbac
+**Current focus:** Phase 150 — cuentas-bancarias-flexibles
 
 ## Current Position
 
-Phase: 149 (nav-por-categor-as-rbac) — COMPLETE (6/6 planes)
-Plan: 6 of 6
+Phase: 150 (cuentas-bancarias-flexibles) — EXECUTING
+Plan: 2 of 5
 Status: Ready to execute
-Last activity: 2026-07-03 -- Phase 150 planning complete
+Last activity: 2026-07-03
 
 ## Performance Metrics
 
@@ -713,8 +713,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-03T01:26:37.941Z
+Last session: 2026-07-03T02:15:09.401Z
 Stopped at: Phase 150 context gathered
-Resume file: .planning/phases/150-cuentas-bancarias-flexibles/150-CONTEXT.md
+Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z

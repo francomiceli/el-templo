@@ -35,9 +35,9 @@ con el "Motivo" que v5.3 ya agregó — verificar en plan-phase antes de duplica
 
 ### CTA — Cuentas bancarias flexibles
 
-- [ ] **CTA-01**: El admin puede **crear cuentas bancarias** con campos Banco, N° de cuenta, Titular, CUIT, CBU/CVU, Alias — solo 3 obligatorios (flexible para monotributos/empresas/varias cuentas).
+- [x] **CTA-01**: El admin puede **crear cuentas bancarias** con campos Banco, N° de cuenta, Titular, CUIT, CBU/CVU, Alias — solo 3 obligatorios (flexible para monotributos/empresas/varias cuentas).
 - [ ] **CTA-02**: El admin puede **cerrar/desactivar** una cuenta bancaria (baja lógica, conserva historial de movimientos).
-- [ ] **CTA-03**: El admin puede registrar **retiros del dueño** desde una cuenta bancaria o caja (egreso tipo "Retiro"), para que los saldos reflejen la realidad.
+- [x] **CTA-03**: El admin puede registrar **retiros del dueño** desde una cuenta bancaria o caja (egreso tipo "Retiro"), para que los saldos reflejen la realidad.
 
 ### CAJA — Reorganización de la vista de Caja
 
@@ -102,9 +102,9 @@ Every v5.4 requirement maps to exactly one phase. Coverage: 33/33.
 | NAV-02      | Phase 149 | Complete |
 | NAV-03      | Phase 149 | Complete |
 | NAV-04      | Phase 149 | Complete |
-| CTA-01      | Phase 150 | Pending  |
+| CTA-01      | Phase 150 | Complete |
 | CTA-02      | Phase 150 | Pending  |
-| CTA-03      | Phase 150 | Pending  |
+| CTA-03      | Phase 150 | Complete |
 | COBRO-01    | Phase 151 | Pending  |
 | COBRO-02    | Phase 151 | Pending  |
 | COBRO-03    | Phase 151 | Pending  |
