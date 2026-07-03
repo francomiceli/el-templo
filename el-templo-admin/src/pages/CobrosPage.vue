@@ -478,6 +478,46 @@
                   {{ formatPrice(altaPrice - (amount ?? 0), altaCurrency) }}.
                 </q-banner>
 
+                <!-- Cuenta banco (COBRO-04) — sólo transferencia/tarjeta. -->
+                <template v-if="needsBankAccount">
+                  <div v-if="loadingBankAccounts" class="q-mt-md">
+                    <q-skeleton type="QInput" />
+                  </div>
+
+                  <!-- Hay cuentas de la moneda -->
+                  <template v-else-if="bankAccounts.length > 0">
+                    <q-select
+                      v-model="selectedBankAccountId"
+                      :options="bankAccountOptions"
+                      emit-value
+                      map-options
+                      label="Cuenta banco"
+                      outlined
+                      class="q-mt-md"
+                    />
+                    <div
+                      v-if="selectedBankAccountId == null"
+                      class="text-subtitle2 text-weight-regular text-warning q-mt-xs"
+                    >
+                      Elegí una cuenta bancaria para cobrar por transferencia o tarjeta.
+                    </div>
+                  </template>
+
+                  <!-- Sin cuentas de la moneda, admin/owner -->
+                  <div v-else-if="canCreateBankAccount" class="text-body1 text-warning q-mt-md">
+                    No hay cuentas de esta moneda. Creá una para continuar.
+                  </div>
+
+                  <!-- Sin cuentas, profe/recepción: efectivo sigue disponible -->
+                  <q-banner v-else dense rounded class="bg-warning text-dark q-mt-md">
+                    <template #avatar>
+                      <q-icon name="warning" color="dark" />
+                    </template>
+                    Todavía no hay cuentas bancarias cargadas. Pedile al dueño que cargue una para
+                    cobrar por transferencia o tarjeta. Podés cobrar en efectivo.
+                  </q-banner>
+                </template>
+
                 <div class="text-subtitle2 text-weight-regular text-grey-7 q-mt-sm">
                   <q-icon name="schedule" size="xs" class="q-mr-xs" />Queda pendiente de validación.
                 </div>
@@ -764,6 +804,56 @@ const resumenDebtWarning = computed<string | null>(() => {
   return `Debe ${formatPrice(out, autocompletar.value?.currency ?? 'ARS')}`;
 });
 
+// ─── Cuenta banco (COBRO-04) ────────────────────────────────────────────────
+// Sólo para transferencia/tarjeta: se elige la cuenta banco (type=banco, activa)
+// de la MONEDA del cobro. El server (assertChosenBankAccount, Plan 01) es la
+// autoridad; acá sólo guiamos y filtramos. Efectivo nunca muestra el selector.
+const bankAccounts = ref<Array<{ id: number; name: string; currency: string }>>([]);
+const loadingBankAccounts = ref(false);
+const selectedBankAccountId = ref<number | null>(null);
+
+const needsBankAccount = computed(
+  () => paymentMethod.value === 'transfer' || paymentMethod.value === 'card'
+);
+
+const bankAccountOptions = computed(() =>
+  bankAccounts.value.map((a) => ({ label: a.name, value: a.id }))
+);
+
+// admin/owner ven el atajo "+ Nueva cuenta"; el gate real es ADMIN_ROLES en la
+// ruta de creación (150 D-12 / 149 D-04) — acá sólo se oculta el botón.
+const canCreateBankAccount = computed(() => {
+  const role = authStore.user?.role;
+  return role === 'owner' || role === 'admin';
+});
+
+async function loadBankAccounts() {
+  loadingBankAccounts.value = true;
+  try {
+    const { accounts } = await financeApi.listBankAccounts(resumenCurrency.value);
+    bankAccounts.value = accounts;
+  } catch (err: unknown) {
+    log.error('Error cargando cuentas bancarias', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    bankAccounts.value = [];
+  } finally {
+    loadingBankAccounts.value = false;
+  }
+}
+
+// Cargar cuentas al elegir transferencia/tarjeta.
+watch(paymentMethod, (m) => {
+  if (m === 'transfer' || m === 'card') void loadBankAccounts();
+});
+
+// Si cambia la moneda del cobro, la cuenta elegida podría quedar de otra moneda:
+// se limpia (no debe filtrarse) y se recargan las cuentas de la nueva moneda.
+watch(resumenCurrency, () => {
+  selectedBankAccountId.value = null;
+  if (needsBankAccount.value) void loadBankAccounts();
+});
+
 // Payment buttons only render once the per-mode required fields are present, so
 // the coach picks a method right before confirming.
 const showPaymentMethods = computed(() => {
@@ -779,6 +869,8 @@ const showPaymentMethods = computed(() => {
 const canConfirm = computed(() => {
   if (!paymentMethod.value) return false;
   if (!amount.value || amount.value <= 0) return false;
+  // Transferencia/tarjeta requieren cuenta banco (el server igual la valida).
+  if (needsBankAccount.value && selectedBankAccountId.value == null) return false;
 
   if (mode.value === 'alta') {
     const hasAlumno = selectedMember.value != null || newStudentValid.value;
@@ -827,7 +919,9 @@ const canContinueStep = computed(() => {
       }
       return false;
     case 3:
-      return paymentMethod.value != null && !!amount.value && amount.value > 0;
+      if (paymentMethod.value == null || !amount.value || amount.value <= 0) return false;
+      if (needsBankAccount.value && selectedBankAccountId.value == null) return false;
+      return true;
     default:
       return false;
   }
@@ -1203,6 +1297,12 @@ async function onConfirm() {
   }
   const idempotencyKey = currentIdempotencyKey.value;
 
+  // COBRO-04: sólo transferencia/tarjeta llevan cuenta banco; efectivo nunca.
+  const chosenBankAccountId =
+    needsBankAccount.value && selectedBankAccountId.value != null
+      ? selectedBankAccountId.value
+      : undefined;
+
   submitting.value = true;
   try {
     if (mode.value === 'renew') {
@@ -1211,6 +1311,7 @@ async function onConfirm() {
         amountReceived: amount.value,
         paymentMethod: paymentMethod.value,
         idempotencyKey,
+        ...(chosenBankAccountId != null ? { bankAccountId: chosenBankAccountId } : {}),
       });
     } else if (mode.value === 'misc') {
       await financeApi.miscCharge({
@@ -1221,6 +1322,7 @@ async function onConfirm() {
         currency: autocompletar.value?.currency ?? 'ARS',
         idempotencyKey,
         miscReason: miscReason.value ?? 'sin_plan',
+        ...(chosenBankAccountId != null ? { bankAccountId: chosenBankAccountId } : {}),
       });
     } else {
       // ALTA + plan: alumno existente (userId) XOR alumno nuevo (firstName+...).
@@ -1241,6 +1343,7 @@ async function onConfirm() {
         amountReceived: amount.value,
         idempotencyKey,
         ...(selectedPlan.value.bookingMode === 'fixed' ? { scheduleIds: scheduleIds.value } : {}),
+        ...(chosenBankAccountId != null ? { bankAccountId: chosenBankAccountId } : {}),
       };
       const resp = await financeApi.altaConPlan(body);
       if (resp.createdNew && resp.transaction) {
@@ -1272,6 +1375,8 @@ function resetForm() {
   resetChargeFields();
   resetAltaFields();
   paymentMethod.value = null;
+  bankAccounts.value = [];
+  selectedBankAccountId.value = null;
   memberSearchResults.value = [];
   searchQuery.value = '';
 }
