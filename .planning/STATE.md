@@ -4,13 +4,13 @@ milestone: v5.4
 milestone_name: Reforma del Admin — Correcciones white-label (pre-tenants)
 status: executing
 stopped_at: Phase 151 UI-SPEC approved
-last_updated: "2026-07-03T15:27:05.805Z"
-last_activity: 2026-07-03 -- Phase 151 planning complete
+last_updated: "2026-07-03T15:42:03.052Z"
+last_activity: 2026-07-03
 progress:
   total_phases: 8
   completed_phases: 2
   total_plans: 16
-  completed_plans: 12
+  completed_plans: 13
   percent: 25
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-04)
 
 **Core value (v5.4):** Reorganizar el admin según `Correcciones El Templo.md` para dejarlo listo como MVP white-label — nav por categorías + RBAC dueño-vs-empleado, pantallas simplificadas y de-Templo-ficación de la superficie MVP (Finanzas, Alumnos, Horarios, Planes) — SIN introducir tenants todavía. Primera etapa del camino SaaS (reforma PRIMERO, tenancy DESPUÉS, secuencial). 8 fases (149-156), 33 requirements (NAV/COBRO/CTA/CAJA/DEUDA/ALUM/HOR/PLAN). Constraint dura: todo cambio de API adopta los patrones del diseño SaaS validado (motor vs plantilla, imports módulo→core, sin nuevos Templo-ismos en core).
-**Current focus:** Phase 151 — registrar cobro (pagos → cobros)
+**Current focus:** Phase 151 — registrar-cobro-pagos-cobros
 
 ## Current Position
 
-Phase: 151
-Plan: Not started
+Phase: 151 (registrar-cobro-pagos-cobros) — EXECUTING
+Plan: 2 of 4
 Status: Ready to execute
-Last activity: 2026-07-03 -- Phase 151 planning complete
+Last activity: 2026-07-03
 
 ## Performance Metrics
 
@@ -289,6 +289,7 @@ _Updated after each plan completion_
 | Phase 150 P04 | ~8min | 2 tasks | 3 files |
 | Phase 150 P05 | ~10min | 2 tasks | 4 files |
 | Phase 150 P06 | 13min | 3 tasks | 6 files |
+| Phase 151 P01 | 30min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -691,6 +692,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase 150]: Plan 150-03: GET /cash-registers sin guard stricter; solo escrituras exigen ADMIN_ROLES (D-12)
 - [Phase 150]: Plan 150-03: close re-fetchea vía listBankAccounts para devolver { account, balance } y honrar el contrato del plan
 - [Phase ?]: Frontend ABM cuentas bancarias (150-04): UpdateBankAccountInput sin currency (moneda fija D-04), form sin campo Nombre (derivado D-03), validación de formato CBU/CUIT liviana no bloqueante para cuentas del exterior
+- [Phase ?]: Phase 151-01 (COBRO-04): PoS bank-account imputation — bankAccountId validated server-side (assertChosenBankAccount: banco+active+currency-match → 400) then threaded as trusted-internal cashRegisterIdOverride into subscriptions service; body never sets cashRegisterId so the v5.3 server-derived invariant holds. Applied on all 4 charge paths (settle/misc direct override, renew/alta delegated) + new coach-reachable GET /coach-load/bank-accounts.
 
 ### Pending Todos
 
@@ -723,8 +725,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-03T15:00:30.049Z
+Last session: 2026-07-03T15:41:47.543Z
 Stopped at: Phase 151 UI-SPEC approved
-Resume file: .planning/phases/151-registrar-cobro-pagos-cobros/151-UI-SPEC.md
+Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z

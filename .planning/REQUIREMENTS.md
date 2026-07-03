@@ -31,7 +31,7 @@ con el "Motivo" que v5.3 ya agregó — verificar en plan-phase antes de duplica
 - [ ] **COBRO-01**: "Pagos" se renombra **"Cobros"** en nav, página y textos ("Mis cargas de hoy" → "Cobros").
 - [ ] **COBRO-02**: El registro del cobro se reorganiza como **pantallas/pasos separados** (una sola cosa que hacer por paso) en vez de la sucesión de expansiones anidadas; funciona bien en desktop y mobile.
 - [ ] **COBRO-03**: El listado de cargas del profe muestra **fecha + hora** de cada registro (hoy muestra históricos sin fecha), y el botón "Continuar" queda arriba del listado.
-- [ ] **COBRO-04**: Un cobro por **transferencia o tarjeta** exige **seleccionar una cuenta bancaria** existente; si no hay cuentas cargadas, ofrece **crear cuenta rápida** inline y no permite finalizar sin asociarla.
+- [x] **COBRO-04**: Un cobro por **transferencia o tarjeta** exige **seleccionar una cuenta bancaria** existente; si no hay cuentas cargadas, ofrece **crear cuenta rápida** inline y no permite finalizar sin asociarla.
 
 ### CTA — Cuentas bancarias flexibles
 
@@ -108,7 +108,7 @@ Every v5.4 requirement maps to exactly one phase. Coverage: 33/33.
 | COBRO-01    | Phase 151 | Pending  |
 | COBRO-02    | Phase 151 | Pending  |
 | COBRO-03    | Phase 151 | Pending  |
-| COBRO-04    | Phase 151 | Pending  |
+| COBRO-04    | Phase 151 | Complete |
 | CAJA-01     | Phase 152 | Pending  |
 | CAJA-02     | Phase 152 | Pending  |
 | CAJA-03     | Phase 152 | Pending  |
