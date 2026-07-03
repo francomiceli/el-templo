@@ -1017,3 +1017,326 @@ describe("coach-load mis-cargas", () => {
     expect(row.createdAt).not.toBe(row.transactionDate);
   });
 });
+
+// ─── bankAccountId (COBRO-04): la cuenta banco elegida en la PoS se valida ─────
+// server-side (banco + activa + moneda-match) y se imputa como cash_register del
+// charge en las CUATRO rutas de cobro (settle, renew, misc, alta). El invariante
+// v5.3 (additionalProperties:false, sin cashRegisterId en el body) se conserva.
+describe("coach-load bankAccountId (COBRO-04)", () => {
+  let bankArsId: number; // banco ARS activa (válida para un cobro ARS)
+  let bankEurId: number; // banco EUR activa (mismatch de moneda para cobro ARS)
+  let bankInactiveId: number; // banco ARS inactiva (rechazada)
+  let efectivoId: number; // caja efectivo de la sede (type efectivo → rechazada)
+
+  beforeAll(async () => {
+    const stamp = Date.now().toString(36).slice(-6);
+    const [ars] = await app.db
+      .insert(schema.cashRegisters)
+      .values({
+        name: `COBRO04 Banco ARS ${stamp}`,
+        type: "banco",
+        branchId: null,
+        currency: "ARS",
+        cutoffDate: "2020-01-01",
+      })
+      .$returningId();
+    bankArsId = ars.id;
+
+    const [eur] = await app.db
+      .insert(schema.cashRegisters)
+      .values({
+        name: `COBRO04 Banco EUR ${stamp}`,
+        type: "banco",
+        branchId: null,
+        currency: "EUR",
+        cutoffDate: "2020-01-01",
+      })
+      .$returningId();
+    bankEurId = eur.id;
+
+    const [inactive] = await app.db
+      .insert(schema.cashRegisters)
+      .values({
+        name: `COBRO04 Banco ARS inactiva ${stamp}`,
+        type: "banco",
+        branchId: null,
+        currency: "ARS",
+        isActive: false,
+        cutoffDate: "2020-01-01",
+      })
+      .$returningId();
+    bankInactiveId = inactive.id;
+
+    const [efectivo] = await app.db
+      .select({ id: schema.cashRegisters.id })
+      .from(schema.cashRegisters)
+      .where(
+        and(
+          eq(schema.cashRegisters.type, "efectivo"),
+          eq(schema.cashRegisters.branchId, branchId),
+        ),
+      )
+      .limit(1);
+    efectivoId = efectivo.id;
+  });
+
+  // ── Matriz de rechazo (400) sobre /misc como representante ───────────────────
+  it("reject: transfer WITHOUT a bankAccountId → 400", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: `${COACH_LOAD_URL}/misc`,
+      headers: { authorization: `Bearer ${coachToken}` },
+      payload: {
+        memberId,
+        amount: 8000,
+        concepto: "Transfer sin cuenta",
+        paymentMethod: "transfer",
+        currency: "ARS",
+        idempotencyKey: `bank-no-acct-${Date.now()}`,
+        miscReason: "otro",
+      },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("reject: an INACTIVE bank account → 400", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: `${COACH_LOAD_URL}/misc`,
+      headers: { authorization: `Bearer ${coachToken}` },
+      payload: {
+        memberId,
+        amount: 8000,
+        concepto: "Cuenta inactiva",
+        paymentMethod: "transfer",
+        currency: "ARS",
+        bankAccountId: bankInactiveId,
+        idempotencyKey: `bank-inactive-${Date.now()}`,
+        miscReason: "otro",
+      },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("reject: an EFECTIVO-type account id → 400", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: `${COACH_LOAD_URL}/misc`,
+      headers: { authorization: `Bearer ${coachToken}` },
+      payload: {
+        memberId,
+        amount: 8000,
+        concepto: "Caja efectivo no es banco",
+        paymentMethod: "transfer",
+        currency: "ARS",
+        bankAccountId: efectivoId,
+        idempotencyKey: `bank-efectivo-${Date.now()}`,
+        miscReason: "otro",
+      },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("reject: an EUR account for an ARS charge (currency mismatch) → 400", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: `${COACH_LOAD_URL}/misc`,
+      headers: { authorization: `Bearer ${coachToken}` },
+      payload: {
+        memberId,
+        amount: 8000,
+        concepto: "Moneda inconsistente",
+        paymentMethod: "transfer",
+        currency: "ARS",
+        bankAccountId: bankEurId,
+        idempotencyKey: `bank-eur-${Date.now()}`,
+        miscReason: "otro",
+      },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("reject: cash WITH a bankAccountId → 400", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: `${COACH_LOAD_URL}/misc`,
+      headers: { authorization: `Bearer ${coachToken}` },
+      payload: {
+        memberId,
+        amount: 8000,
+        concepto: "Cash no lleva cuenta",
+        paymentMethod: "cash",
+        currency: "ARS",
+        bankAccountId: bankArsId,
+        idempotencyKey: `bank-cash-acct-${Date.now()}`,
+        miscReason: "otro",
+      },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  // ── Imputación persistida en las CUATRO rutas (una aserción explícita por ruta) ─
+  it("persist /misc: a valid account is imputed as the charge cashRegisterId", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: `${COACH_LOAD_URL}/misc`,
+      headers: { authorization: `Bearer ${coachToken}` },
+      payload: {
+        memberId,
+        amount: 8000,
+        concepto: "Transfer con cuenta",
+        paymentMethod: "transfer",
+        currency: "ARS",
+        bankAccountId: bankArsId,
+        idempotencyKey: `bank-misc-ok-${Date.now()}`,
+        miscReason: "otro",
+      },
+    });
+    expect(res.statusCode).toBe(201);
+    const row = await readTx(JSON.parse(res.body).transaction.id);
+    expect(row.cashRegisterId).toBe(bankArsId);
+  });
+
+  it("persist /pay-plan settle: a valid account is imputed as the settlement cashRegisterId", async () => {
+    const subId = await seedCurrentSubscription();
+    await seedSubscriptionDebt(subId, 100000);
+
+    const res = await app.inject({
+      method: "POST",
+      url: `${COACH_LOAD_URL}/pay-plan`,
+      headers: { authorization: `Bearer ${coachToken}` },
+      payload: {
+        userId: memberId,
+        paymentMethod: "transfer",
+        bankAccountId: bankArsId,
+        idempotencyKey: `bank-settle-ok-${Date.now()}`,
+      },
+    });
+    expect(res.statusCode).toBe(201);
+    const row = await readTx(JSON.parse(res.body).transaction.id);
+    expect(row.kind).toBe("debt_settlement");
+    expect(row.cashRegisterId).toBe(bankArsId);
+  });
+
+  it("persist /pay-plan renew: a valid account is imputed as the renewal charge cashRegisterId", async () => {
+    // Sub activa NON-indebted expirada ayer → el handler toma la rama RENEW.
+    await seedRenewableSubscription();
+
+    const res = await app.inject({
+      method: "POST",
+      url: `${COACH_LOAD_URL}/pay-plan`,
+      headers: { authorization: `Bearer ${coachToken}` },
+      payload: {
+        userId: memberId,
+        paymentMethod: "transfer",
+        bankAccountId: bankArsId,
+        idempotencyKey: `bank-renew-ok-${Date.now()}`,
+      },
+    });
+    expect(res.statusCode).toBe(201);
+
+    const [charge] = await app.db
+      .select({
+        cashRegisterId: schema.financialTransactions.cashRegisterId,
+        kind: schema.financialTransactions.kind,
+      })
+      .from(schema.financialTransactions)
+      .where(eq(schema.financialTransactions.memberId, memberId))
+      .limit(1);
+    expect(charge.kind).toBe("plan_charge");
+    expect(charge.cashRegisterId).toBe(bankArsId);
+  });
+
+  it("persist /alta: a valid account is imputed as the plan charge cashRegisterId", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: `${COACH_LOAD_URL}/alta`,
+      headers: { authorization: `Bearer ${coachToken}` },
+      payload: {
+        userId: memberId,
+        branchId,
+        planId,
+        paymentMethod: "transfer",
+        amountReceived: 100000,
+        bankAccountId: bankArsId,
+        idempotencyKey: `bank-alta-ok-${Date.now()}`,
+      },
+    });
+    expect(res.statusCode).toBe(201);
+
+    const [charge] = await app.db
+      .select({
+        cashRegisterId: schema.financialTransactions.cashRegisterId,
+        kind: schema.financialTransactions.kind,
+      })
+      .from(schema.financialTransactions)
+      .where(eq(schema.financialTransactions.memberId, memberId))
+      .limit(1);
+    expect(charge.kind).toBe("plan_charge");
+    expect(charge.cashRegisterId).toBe(bankArsId);
+  });
+
+  // ── El guard cubre también las rutas delegadas (renew + alta) ────────────────
+  it("reject /pay-plan renew: transfer WITHOUT a bankAccountId → 400", async () => {
+    await seedRenewableSubscription();
+    const res = await app.inject({
+      method: "POST",
+      url: `${COACH_LOAD_URL}/pay-plan`,
+      headers: { authorization: `Bearer ${coachToken}` },
+      payload: {
+        userId: memberId,
+        paymentMethod: "transfer",
+        idempotencyKey: `bank-renew-no-acct-${Date.now()}`,
+      },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("reject /alta: transfer WITHOUT a bankAccountId → 400", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: `${COACH_LOAD_URL}/alta`,
+      headers: { authorization: `Bearer ${coachToken}` },
+      payload: {
+        userId: memberId,
+        branchId,
+        planId,
+        paymentMethod: "transfer",
+        amountReceived: 100000,
+        idempotencyKey: `bank-alta-no-acct-${Date.now()}`,
+      },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  // ── GET /bank-accounts coach-reachable + admin /cash-registers 403 ───────────
+  it("GET /bank-accounts?currency=ARS (coach) → 200, includes the ARS account, excludes EUR + inactive", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: `${COACH_LOAD_URL}/bank-accounts?currency=ARS`,
+      headers: { authorization: `Bearer ${coachToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body) as {
+      accounts: Array<{ id: number; name: string; currency: string }>;
+    };
+    const ids = body.accounts.map((a) => a.id);
+    expect(ids).toContain(bankArsId);
+    expect(ids).not.toContain(bankEurId);
+    expect(ids).not.toContain(bankInactiveId);
+    // Solo se exponen campos lean (sin saldos) y todas de la moneda pedida.
+    for (const a of body.accounts) {
+      expect(a.currency).toBe("ARS");
+      expect(Object.keys(a).sort()).toEqual(["currency", "id", "name"]);
+    }
+  });
+
+  it("auth: a coach hitting the admin-only GET /cash-registers → 403 (why the new endpoint exists)", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: `${FINANCE_URL}/cash-registers`,
+      headers: { authorization: `Bearer ${coachToken}` },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+});
