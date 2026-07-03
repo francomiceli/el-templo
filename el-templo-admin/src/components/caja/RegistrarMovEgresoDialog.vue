@@ -163,6 +163,12 @@ const props = defineProps<{
   modelValue: boolean;
   selectedCountry: 'AR' | 'ES';
   isOwner: boolean;
+  /** Abre el dialog directamente en la pestaña de egreso (D-10 — retiro del dueño). */
+  prefillTab?: 'egreso';
+  /** Preselecciona la caja del egreso por id (D-10). */
+  prefillCajaId?: number;
+  /** Preselecciona el centro de costo por nombre (ej.: 'Retiros', D-10). */
+  prefillCostCenterName?: string;
 }>();
 
 const emit = defineEmits<{
@@ -247,9 +253,22 @@ async function loadCostCenters() {
   }
 }
 
-function onShow() {
-  void loadCajas();
-  void loadCostCenters();
+async function onShow() {
+  // Abrir en la pestaña indicada por prefill (retiro del dueño → egreso, D-10).
+  if (props.prefillTab === 'egreso') {
+    tab.value = 'egreso';
+  }
+  // Esperar la carga de cajas y centros antes de aplicar el prefill, para que la
+  // preselección sobreescriba el default ('Varios') recién cargado.
+  await Promise.all([loadCajas(), loadCostCenters()]);
+  if (props.prefillCajaId !== undefined) {
+    const caja = cajas.value.find((c) => c.cashRegisterId === props.prefillCajaId);
+    if (caja) egreso.cajaId = caja.cashRegisterId;
+  }
+  if (props.prefillCostCenterName) {
+    const center = costCenters.value.find((c) => c.name === props.prefillCostCenterName);
+    if (center) egreso.costCenterId = center.id;
+  }
 }
 
 // =========================================================================
