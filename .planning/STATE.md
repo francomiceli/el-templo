@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v5.4
 milestone_name: Reforma del Admin — Correcciones white-label (pre-tenants)
-status: planning
-stopped_at: Phase 151 context gathered
-last_updated: "2026-07-03T14:34:53.389Z"
-last_activity: 2026-07-03
+status: executing
+stopped_at: Phase 151 UI-SPEC approved
+last_updated: "2026-07-03T15:27:05.805Z"
+last_activity: 2026-07-03 -- Phase 151 planning complete
 progress:
   total_phases: 8
   completed_phases: 2
-  total_plans: 12
+  total_plans: 16
   completed_plans: 12
   percent: 25
 ---
@@ -27,8 +27,8 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 
 Phase: 151
 Plan: Not started
-Status: Ready to plan
-Last activity: 2026-07-03
+Status: Ready to execute
+Last activity: 2026-07-03 -- Phase 151 planning complete
 
 ## Performance Metrics
 
@@ -723,8 +723,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-03T14:34:53.366Z
-Stopped at: Phase 151 context gathered
-Resume file: .planning/phases/151-registrar-cobro-pagos-cobros/151-CONTEXT.md
+Last session: 2026-07-03T15:00:30.049Z
+Stopped at: Phase 151 UI-SPEC approved
+Resume file: .planning/phases/151-registrar-cobro-pagos-cobros/151-UI-SPEC.md
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
