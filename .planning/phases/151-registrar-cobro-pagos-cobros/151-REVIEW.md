@@ -1,169 +1,116 @@
 ---
 phase: 151-registrar-cobro-pagos-cobros
-reviewed: 2026-07-03T16:25:36Z
+reviewed: 2026-07-03T17:48:10Z
 depth: standard
-files_reviewed: 12
+files_reviewed: 3
 files_reviewed_list:
-  - el-templo-admin/src/components/caja/CobroResumen.vue
-  - el-templo-admin/src/components/caja/CuentaBancariaFormDialog.vue
-  - el-templo-admin/src/composables/useFinanceLoadApi.ts
-  - el-templo-admin/src/config/templo-config.ts
-  - el-templo-admin/src/css/app.scss
   - el-templo-admin/src/pages/CobrosPage.vue
-  - el-templo-admin/src/router/routes.ts
-  - el-templo-api/src/modules/finance/cash-register-service.ts
-  - el-templo-api/src/modules/finance/coach-load-routes.ts
-  - el-templo-api/src/modules/subscriptions/service.ts
-  - el-templo-api/src/modules/subscriptions/types.ts
-  - el-templo-api/test/finance/coach-load.test.ts
+  - el-templo-admin/src/components/caja/CobroResumen.vue
+  - el-templo-admin/src/router/index.ts
 findings:
-  critical: 1
-  warning: 5
-  info: 7
-  total: 13
+  critical: 0
+  warning: 1
+  info: 9
+  total: 10
 status: issues_found
 ---
 
-# Phase 151: Code Review Report
+# Phase 151: Code Review Report — Re-review post gap-closure 151-05
 
-**Reviewed:** 2026-07-03T16:25:36Z
+**Reviewed:** 2026-07-03T17:48:10Z
 **Depth:** standard
-**Files Reviewed:** 12
+**Files Reviewed:** 3
 **Status:** issues_found
 
 ## Summary
 
-Phase 151 renamed the Pagos PoS to a 4-step Cobros wizard (CobrosPage.vue replaces PagosPage.vue), added a shared CobroResumen summary component, and threaded `bankAccountId` through the 4 PoS charge paths (settle / renew / misc / alta) with server-side validation (`assertChosenBankAccount`) plus a coach-reachable `GET /bank-accounts` catalog endpoint.
+Re-review tras el plan de cierre 151-05 (commits `6a295363`, `706dba6a`). Los **6 hallazgos que 151-05 declaró cerrados están efectivamente cerrados** (verificados línea por línea contra el diff y trazando los flujos): CR-01, WR-01 (con un residual, ver WR-06), WR-02, WR-03, WR-04 y WR-05. La verificación de WR-05 incluyó trazar loop-safety del nuevo fallback `landingForRole()` para los 5 roles contra los `allowedRoles` de cada destino de aterrizaje — sin loops posibles (coach-training→`/sessions` pasa `allowedRoles`+`trainingOnly`; owner/admin→`/alumnos` incluido en `allowedRoles`; coach/gestion/recepcion→`/cobros` vía `PAGOS_ROLES`).
 
-The **API side is solid**: the bank-account guard (`validateBankAccountForCharge`) correctly enforces transfer/card-requires-account, cash-rejects-account, and type/active/currency invariants before any side effect; `cashRegisterIdOverride` threading into `assignPlan`/`renewSubscription` preserves the v5.3 invariant (body can never choose `cashRegisterId`); the `/alta` path validates the account _before_ creating the member; `resolveRenewCurrency` exactly mirrors `renewSubscription`'s active-wins-over-expired ordering; and the new integration tests cover the rejection matrix plus persisted imputation on all 4 paths.
+Queda **1 warning nuevo**: el fix de WR-01 cerró el camino hacia adelante (opciones deshabilitadas + gating), pero el estado "paso 2 vacío/confuso" sigue siendo alcanzable por navegación hacia atrás — un `mode` previo (`renew`/`misc`) sobrevive al entrar en contexto de alumno nuevo y queda resaltado-activo-pero-deshabilitado con su cuerpo huérfano. Además, 2 info nuevos (degradación silenciosa de la Sede si `loadBranches()` falla; asimetría de `onUsarExistente` respecto de la convención de idempotency key). Los IN-01..IN-07 previos siguen abiertos y aceptados (se llevan adelante sin re-litigar); la distinción Validado-vs-Pendiente sigue diferida por diseño (necesita `validationStatus` en el endpoint de listado — documentado en 151-05-SUMMARY.md Known Stubs).
 
-The problems concentrate in the **frontend wizard rewrite** (COBRO-02): the step redistribution dropped the Sede selector for existing-member altas (silent wrong-branch attribution — Critical), left reachable dead-end states in the step gating, kept a hardcoded "Pendiente" badge on a historical list that includes validated and voided rows, and left an idempotency-key gap on plan changes. The rename also left a stale duplicate landing map pointing at `/pagos`.
+## Resolución de hallazgos previos
 
-## Critical Issues
+### CR-01: Selector de Sede caído para alta de socio existente — RESUELTO
 
-### CR-01: Sede selector dropped for existing-member alta — charge/sub silently attributed to the operator's branch
+**Verificado:** `CobrosPage.vue:326-344` — un único `q-select` con `v-model="sucursalId"` ahora vive en el bloque alta del paso 2 (`v-else-if="mode === 'alta'"`), alcanzable para TODA alta (socio existente y alumno nuevo). El duplicado del mini-form de alumno nuevo fue eliminado (líneas 200-238 ya no contienen Sede). La sede resuelta se muestra además en `CobroResumen` vía la nueva prop `sede` (`resumenSede`, líneas 885-888; `CobroResumen.vue:27-32`), sólo en modo alta (renew/misc derivan branch server-side → fila oculta, correcto). `canConfirm` sigue exigiendo `sucursalId != null` (línea 985). Cerrado.
 
-**File:** `el-templo-admin/src/pages/CobrosPage.vue:193-211` (Sede `q-select` gated inside `v-if="showNewStudentForm"`), `1401-1419` (submit uses `sucursalId`)
-**Issue:** In the old `PagosPage.vue` the Sede selector rendered for **every** alta (`v-if="mode === 'alta'"` — "chip Sede al tope (default sede del profe, editable)"; renew/misc use the socio's own sede server-side). In the new wizard the selector only renders inside the new-student mini-form. For an **existing member** alta, `sucursalId` silently stays at its default (`authStore.user?.branchId`, or `branchOptions[0]` via the `loadBranches()` fallback at line 1112-1114) and is never shown to the operator. That value drives both the plan catalog (`loadAltaPlans` filters by `branchId`), the fixed-schedule picker (`:branch-id="sucursalId ?? 0"`), and the persisted `branchId` of the subscription **and** the plan charge (`body.branchId` → `assignPlan` → sub + ledger `branch_id`). A gestión/admin/owner or multi-sede coach assigning a plan to a socio of another sede writes the wrong branch on membership and financial records with no UI indication and no way to correct it in the flow. Phase 148 explicitly designed `branchId` as "sede ELEGIDA del socio"; this is a functional regression introduced by the step redistribution (commit `e59e0130`).
-**Fix:** Render the Sede selector for alta mode regardless of member origin (restore the old gating), e.g. in step 2 when `mode === 'alta'`:
+### WR-01: Dead-ends alumno nuevo + misc/renew — RESUELTO (con residual, ver WR-06)
 
-```html
-<!-- Step 2, mode === 'alta', BEFORE the plan grid -->
-<q-select
-  v-model="sucursalId"
-  :options="branchOptions"
-  option-value="id"
-  option-label="name"
-  emit-value
-  map-options
-  dense
-  outlined
-  label="Sede"
-  @update:model-value="onSucursalChange"
-/>
-```
+**Verificado:** `isNewStudentContext` (línea 821) + `isAssociationDisabled` (líneas 826-828) deshabilitan `renew`/`misc` con hint "Solo para socios existentes" (template 272, 284-289); `onSelectAssociation` tiene guard de entrada (línea 834); `canContinueStep` caso 2 misc ahora exige `selectedMember != null` (líneas 1026-1030). Los dos dead-ends del hallazgo original (avance hacia adelante) son inalcanzables. Residual por navegación hacia atrás → WR-06.
 
-and remove the duplicated Sede select from the new-student mini-form (or keep one instance shared by both branches). At minimum, surface the resolved sede in `CobroResumen` so the operator sees what will be written.
+### WR-02: `onUsarExistente` no cargaba autocompletar — RESUELTO
+
+**Verificado:** `CobrosPage.vue:1210` — `void loadAutocompletar(m.id)` tras adoptar el socio del dedup, espejando `onMemberSelected`. El race con el pre-fill de renovación está cubierto: si el coach elige `renew` antes de que resuelva, `loadAutocompletar` re-chequea `mode === 'renew'` al resolver (línea 1388) y setea `amount`. Cerrado (asimetría menor de idempotency key → IN-09).
+
+### WR-03: Badge "Pendiente" hardcodeado en filas anuladas — RESUELTO
+
+**Verificado:** `CobrosPage.vue:63-64` — `voidedAt != null` → badge `Anulado` (negative), else `Pendiente`. `voidedAt: string | null` existe en el tipo `TransactionListItem` del admin (transaction.ts:103). La distinción Validado-vs-Pendiente queda diferida por diseño (backend, Known Stubs) — NO se re-reporta.
+
+### WR-04: Idempotency key no regenerada al cambiar de plan — RESUELTO
+
+**Verificado:** `CobrosPage.vue:1283-1289` — `selectPlan` limpia `currentIdempotencyKey`, cerrando el retry-tras-éxito-perdido contra el plan viejo. Consistente con `resetChargeFields`, `onSelectAssociation` y `onSucursalChange`.
+
+### WR-05: Mapa duplicado de landing apuntando a `/pagos` — RESUELTO
+
+**Verificado:** `router/index.ts:54-60` — el mapa `defaultPages` fue reemplazado por `return landingForRole()` (única fuente de verdad, DRY). Loop-safety trazada para los 5 valores de `AdminRole`: coach con training → `/sessions` (`allowedRoles: ['coach','owner']` + `trainingOnly` con `canAccessTraining` true → pasa); owner/admin → `/alumnos` (`allowedRoles` los incluye, routes.ts:78); coach sin training / gestion / recepcion → `/cobros` (`PAGOS_ROLES` = los 5 roles, templo-config.ts:45). Cambio de comportamiento benigno: un coach-training rebotado ahora aterriza en `/sessions` en vez de `/pagos→/cobros` — es su landing correcta por D-14.
 
 ## Warnings
 
-### WR-01: Wizard step gating allows dead-end states (new student + misc/renew)
+### WR-06: Un `mode` previo (`renew`/`misc`) sobrevive al contexto de alumno nuevo — el "paso 2 vacío" de WR-01 sigue alcanzable por navegación hacia atrás
 
-**File:** `el-templo-admin/src/pages/CobrosPage.vue:976-999` (`canContinueStep`), `941-964` (`canConfirm`), `299-327` (renew step-2 body)
-**Issue:** Step-1 gating accepts `newStudentValid` (a brand-new student), but the step-2 association list still offers "Renovar plan vigente" and "Cobro suelto", which both require `selectedMember` at confirm time. Two broken paths:
+**File:** `el-templo-admin/src/pages/CobrosPage.vue:1172-1177` (`onNuevoAlumno`), `295-322` (cuerpo renew del paso 2), `426-444` (cuerpo misc), `271-272` (`:active` vs `:disable`)
+**Issue:** Nada resetea `mode` cuando el contexto pasa a alumno nuevo. Camino reproducible: elegir socio existente → paso 2 → tocar "Renovar plan vigente" (o "Cobro suelto") → Volver al paso 1 → limpiar el socio con la X del `q-select` (`onMemberSelected(null)` limpia autocompletar/campos pero NO `mode`) → tocar "Nuevo alumno" → completar datos válidos → Continuar. En el paso 2 la opción `renew`/`misc` queda **deshabilitada pero resaltada como activa** (`:active="mode === opt.value"` con `active-class="bg-primary text-white"` convive con `:disable`), y debajo:
 
-1. **New student + misc:** `canContinueStep` case 2 (misc) only checks `concepto` + `miscReason`, case 3 only checks payment fields — the coach walks all the way to step 4 where `canConfirm` returns `false` (`if (!selectedMember.value) return false;` line 956) and the Confirmar button is permanently disabled with no explanation.
-2. **New student + renew:** `autocompletar` is `null`, so all three step-2 template branches (`autocompletando` / `autocompletar && !hasRenewable` / `autocompletar`) are falsy — the step renders **nothing** below the association list, a silent empty state.
-   **Fix:** Disable (or hide with a hint) the `renew` and `misc` options in `associationOptions` when the socio context is a new student (`showNewStudentForm && !selectedMember`), and add the member-consistency check to `canContinueStep` cases 2/3 so a dead-end state is unreachable.
+- `mode === 'renew'`: cuerpo vacío (autocompletar es `null` → las tres ramas del template son falsy) — exactamente el "silent empty state" que WR-01 punto 2 describía; Continuar deshabilitado sin explicación.
+- `mode === 'misc'`: el form Concepto/Motivo se renderiza y es editable bajo una opción deshabilitada-resaltada, con Continuar deshabilitado por el nuevo check de `selectedMember` — el coach puede tipear un concepto que nunca va a poder confirmar.
 
-### WR-02: `onUsarExistente` skips `loadAutocompletar` — debt banner, renew pre-fill and currency stay empty for dedup-adopted members
-
-**File:** `el-templo-admin/src/pages/CobrosPage.vue:1157-1167`
-**Issue:** When the coach adopts an existing member via the DNI-dedup banner ("Usar ese alumno"), `selectedMember` is set but `loadAutocompletar(m.id)` is never called (contrast `onMemberSelected` at 1329-1334, which always loads it). Consequences: the POS-01 debt banner (line 251-265) never shows for that member even if they owe money; `mode === 'renew'` is un-continuable (`autocompletar?.hasRenewable` never true) with the silent-empty step-2 body; and `resumenCurrency`/misc `currency` fall back to `'ARS'` regardless of the member's real plan currency, which also filters the bank-account list to ARS.
-**Fix:**
+No es un dead-end duro (puede tocar "Asignar plan nuevo"), pero es el mismo síntoma que motivó WR-01: estado confuso alcanzable sin señal de por qué no se puede continuar, agravado por el contradictorio activo+deshabilitado.
+**Fix:** Limpiar el mode huérfano al entrar en contexto de alumno nuevo:
 
 ```ts
-function onUsarExistente() {
-  const m = dedupMatch.value;
-  if (!m) return;
-  selectedMember.value = { ... };
-  resetAltaFields();
-  void loadAutocompletar(m.id); // mirror onMemberSelected
+function onNuevoAlumno() {
+  selectedMember.value = null;
+  resetChargeFields();
+  showNewStudentForm.value = true;
+  dedupMatch.value = null;
+  // Un alumno nuevo invalida renew/misc: si el mode previo quedó huérfano, resetearlo.
+  if (mode.value !== null && isAssociationDisabled(mode.value))
+    mode.value = null;
 }
 ```
 
-### WR-03: Portada badges every historical load "Pendiente" — including validated and voided charges
-
-**File:** `el-templo-admin/src/pages/CobrosPage.vue:59` (`<q-badge color="warning" label="Pendiente" />`)
-**Issue:** COBRO-03 reworked the portada into a day-grouped "Historial de cobros" fed by `GET /mis-cargas` (last 50 loads, historical). `TransactionService.list()` applies **no** `voidedAt`/`validationStatus` filter (`buildListConditions`, transaction-service.ts:1593-1634), so the list contains charges that gestión already validated **and** charges that were anulados — yet every row is badged "Pendiente" unconditionally. On a finance surface this is actively misleading (a voided charge looks like it's still awaiting validation; a validated one looks unprocessed). `voidedAt` is already in the `TransactionListItem` payload and is unused; `validationStatus` is not exposed in the list item.
-**Fix:** Add `validationStatus` to the list select/`TransactionListItem` (API + admin type) and badge by real state (`Pendiente`/`Validado`), and badge `voidedAt != null` rows as `Anulado` (data already available client-side today). Alternatively filter `/mis-cargas` to non-voided rows server-side.
-
-### WR-04: Idempotency key not regenerated when the selected plan changes
-
-**File:** `el-templo-admin/src/pages/CobrosPage.vue:1239-1242` (`selectPlan`), `783-788` (key lifecycle comment), `1320-1327` (`resetChargeFields`)
-**Issue:** The page's own convention is "a deliberate change of target = a new charge → new idempotency key": `resetChargeFields`, `onSelectAssociation` and `onSucursalChange` all clear `currentIdempotencyKey`, but `selectPlan` does not. Failure mode: the coach taps Confirmar (key K generated), the request **succeeds server-side but the response is lost** (timeout → error toast), the coach goes back to step 2, picks a **different plan**, and confirms — the same key K is sent, the server's D-09 dedup returns the OLD charge as a 200 no-op, and the UI shows a success toast for the NEW plan that was never charged. Amount/payment-method edits after a lost-success retry have the same wrong-feedback shape.
-**Fix:** Clear the key on any deliberate target change within alta:
-
-```ts
-function selectPlan(plan: PlanListItem) {
-  selectedPlan.value = plan;
-  scheduleIds.value = [];
-  currentIdempotencyKey.value = null; // new target → new attempt
-}
-```
-
-### WR-05: Stale duplicate landing map still points denied roles at `/pagos`
-
-**File:** `el-templo-admin/src/router/index.ts:57-67` (integration point of the rename reviewed in `routes.ts`)
-**Issue:** COBRO-01 (commit `da7a6eda`, "rename … route, redirect, landing, nav") updated `landingForRole()` and the static index redirect in `routes.ts` to `/cobros`, but the role-denied fallback in the router guard keeps its own `defaultPages` map with `coach/gestion/recepcion → '/pagos'` and fallback `'/pagos'`. It only works today because of the compat redirect record `{ path: 'pagos', redirect: '/cobros' }` — an extra hop and a trap: if that redirect is ever removed (it's documented as bookmark-compat, not as a dependency of the guard), role-denied bounces 404. It also duplicates the landing-by-role logic that `landingForRole()` already owns (DRY).
-**Fix:** Replace the `defaultPages` map + fallback with `return landingForRole();` (or at minimum update the three entries and the fallback to `/cobros`).
+(o un `watch(isNewStudentContext)` equivalente). Con `mode = null` el paso 2 vuelve al estado neutro "elegí una asociación".
 
 ## Info
 
-### IN-01: Dead code copied over from PagosPage
+### IN-08: Si `loadBranches()` falla, el alta persiste un `branchId` que el operador nunca vio (degradación silenciosa del fix CR-01)
 
-**File:** `el-templo-admin/src/pages/CobrosPage.vue:931-939, 1177-1179, 1431-1432`
-**Issue:** `showPaymentMethods` and `hasAlumnoContext` are computed but never referenced in the new template (the wizard renders payment buttons unconditionally in step 3). Also `onConfirm` calls `resetForm()` immediately followed by `resetToPortada()`, which calls `resetForm()` again.
-**Fix:** Delete both computeds; drop the redundant `resetForm()` call.
+**File:** `el-templo-admin/src/pages/CobrosPage.vue:1149-1160` (`loadBranches` catch), `885-888` (`resumenSede`), `329-344` (Sede select)
+**Issue:** Si `getBranches()` falla (el catch sólo loguea), `branchOptions` queda `[]` pero `sucursalId` conserva `authStore.user?.branchId`. El alta sigue siendo completable (`canConfirm` sólo exige `sucursalId != null`, y `loadAltaPlans` funciona con ese id): el `q-select` de Sede no puede resolver el nombre (muestra el valor crudo con `map-options` sin opciones), `resumenSede` devuelve `null` y la fila Sede se **oculta** en el resumen — se persiste un `branchId` que el operador nunca vio ni pudo cambiar, el escenario que CR-01 quería eliminar. Mitigado: `onSelectAssociation('alta')` reintenta `loadBranches()` si la lista está vacía; requiere que branches falle mientras plans funciona (baja probabilidad).
+**Fix:** En modo alta, si `branchOptions.length === 0`, bloquear Continuar del paso 2 (o mostrar estado de error con botón Reintentar) en vez de permitir avanzar con una sede invisible.
 
-### IN-02: Bank-account rejection message mentions "efectivo" for non-cash methods
+### IN-09: `onUsarExistente` no limpia `currentIdempotencyKey` ni `amount` al cambiar el target de socio
 
-**File:** `el-templo-api/src/modules/finance/coach-load-routes.ts:353-359`
-**Issue:** `validateBankAccountForCharge` throws "No corresponde cuenta bancaria para pagos en efectivo." for **any** non-bank method — including `aura_credit`/`internal`, which the schema enum accepts. The PoS UI only offers cash/transfer/card, but an API consumer sending `aura_credit` + `bankAccountId` gets a misleading message.
-**Fix:** Generalize the message ("No corresponde cuenta bancaria para este medio de pago.").
+**File:** `el-templo-admin/src/pages/CobrosPage.vue:1197-1211`
+**Issue:** La convención de la página es "cambio deliberado de target → nueva key" (`resetChargeFields`, `onSelectAssociation`, `onSucursalChange`, `selectPlan`). `onUsarExistente` cambia el target (alumno-nuevo → socio existente) pero sólo llama `resetAltaFields()`, que no toca la key ni `amount` — a diferencia de `onMemberSelected`, que pasa por `resetChargeFields`. Trazando los caminos alcanzables hoy no hay exposición real (para re-confirmar un alta hay que re-elegir plan → `selectPlan` limpia la key; renew/misc están deshabilitados en el contexto donde aparece el banner de dedup), pero la invariante depende de limpiezas aguas abajo en lugar del punto del cambio — frágil ante refactors.
+**Fix:** Llamar `resetChargeFields()` (además de `resetAltaFields()`) en `onUsarExistente`, con re-set del pre-fill vía el `loadAutocompletar` que ya se dispara.
 
-### IN-03: Renew-path bank validation uses `subscriptions.currency`, the charge uses `plan.currency`
+### Carried forward — IN-01..IN-07 (aceptados en la ronda previa, siguen abiertos, NO bloquean)
 
-**File:** `el-templo-api/src/modules/finance/coach-load-routes.ts:374-396`; `el-templo-api/src/modules/subscriptions/service.ts` (`renewSubscription` charge in `plan.currency`)
-**Issue:** `resolveRenewCurrency` validates the chosen account against the sub row's `currency`, but the renewal charge is created in `plan.currency` (of `currentSub.planId`). These are equal at assignment time, but if a plan's currency ever drifts post-assignment, the account is validated against the stale sub currency while the charge (and caja imputation) lands in the plan currency — reopening the currency-mixed-caja hole the guard exists to close.
-**Fix:** Resolve the validation currency from the plan of the renewable sub (same source `recordAssignmentCharge` uses), or assert sub.currency === plan.currency in the renew path.
+- **IN-01** — Código muerto en `CobrosPage.vue`: `showPaymentMethods` (967-975) y `hasAlumnoContext` (1221-1223) siguen computados y sin referencias en el template; `onConfirm` sigue llamando `resetForm()` + `resetToPortada()` (doble reset, 1478-1479).
+- **IN-02** — Mensaje de rechazo de cuenta banco menciona "efectivo" para cualquier medio no bancario (`coach-load-routes.ts`). Fuera del scope de archivos de esta ronda.
+- **IN-03** — Validación renew usa `subscriptions.currency` vs cargo en `plan.currency`. Fuera del scope de esta ronda.
+- **IN-04** — Falta test de rechazo transfer-sin-cuenta en el path settle. Fuera del scope de esta ronda.
+- **IN-05** — Helper de test muerto `countMemberTx` con `sql` sin importar. Fuera del scope de esta ronda.
+- **IN-06** — `cashRegisterIdOverride` confiado sin re-validación en el service. Fuera del scope de esta ronda.
+- **IN-07** — Input Monto acepta decimales que la API rechaza con error genérico (`CobrosPage.vue:467-480`, sin cambios en 151-05).
 
-### IN-04: Settle path missing the "transfer without bankAccountId → 400" rejection test
+### Diferido por diseño (NO re-reportado)
 
-**File:** `el-templo-api/test/finance/coach-load.test.ts:1082-1097, 1230-1263`
-**Issue:** The rejection matrix uses `/misc` as representative and adds explicit no-account rejects for renew and alta, but the **settle** path only has the happy-path imputation test. The shared `validateBankAccountForCharge` mitigates, yet the claim "validated across 4 PoS paths" isn't fully pinned — a future refactor that inlines or reorders the settle branch could drop the guard unnoticed.
-**Fix:** Add one test: seed sub + debt, POST `/pay-plan` with `paymentMethod: "transfer"` and no `bankAccountId`, expect 400.
-
-### IN-05: Dead test helper `countMemberTx` uses unimported `sql` (latent ReferenceError)
-
-**File:** `el-templo-api/test/finance/coach-load.test.ts:80-87`
-**Issue:** `countMemberTx` is never called and references `sql` which is not imported (imports are `{ eq, and }` only). Vitest/esbuild won't catch it (no type-check; tests are excluded from `tsconfig.json` include), so the first future caller gets a runtime ReferenceError. Pre-existing (phase 140), flagged because the phase-151 suite extends this file.
-**Fix:** Delete the helper, or import `sql` from `drizzle-orm` if it's meant to be used.
-
-### IN-06: `cashRegisterIdOverride` is trusted blindly inside the service
-
-**File:** `el-templo-api/src/modules/subscriptions/service.ts` (assignPlan ~line 1171, renewSubscription ~line 3578); `el-templo-api/src/modules/subscriptions/types.ts` (`cashRegisterIdOverride` docs)
-**Issue:** Both branches set `suggestedCajaId = input.cashRegisterIdOverride` with no re-validation — correctness depends entirely on the caller having run `assertChosenBankAccount` first (documented, and true for the only current caller). Any future caller passing an unvalidated id bypasses the type/active/currency invariants and can imputate a charge to an efectivo caja or a mismatched-currency account.
-**Fix:** Cheap defense-in-depth: have the service re-run `assertChosenBankAccount` (or a lighter type+active+currency check) when the override is present, or rename/type the field to make the pre-validated contract structurally harder to misuse.
-
-### IN-07: Monto input accepts decimals the API rejects with a generic error
-
-**File:** `el-templo-admin/src/pages/CobrosPage.vue:452-465`
-**Issue:** The Monto `q-input type="number"` + `v-model.number` accepts decimal input, but all three API schemas require `type: "integer"` for `amount`/`amountReceived` — a decimal submits, fails schema validation, and surfaces only as the generic "No se pudo registrar el cobro. Reintentá." toast.
-**Fix:** Add `step="1"` / round on input (`Math.round`) or validate integer-ness in `canConfirm`/`canContinueStep` with an inline hint.
+- Badge **Validado-vs-Pendiente** en el historial: requiere exponer `validationStatus` en el endpoint de listado (backend). Documentado en 151-05-SUMMARY.md Known Stubs. La fila anulada ya se distingue (WR-03 cerrado).
 
 ---
 
-_Reviewed: 2026-07-03T16:25:36Z_
+_Reviewed: 2026-07-03T17:48:10Z_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
