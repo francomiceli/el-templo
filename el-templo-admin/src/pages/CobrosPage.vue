@@ -1,7 +1,7 @@
 <template>
   <q-page class="q-pa-md" style="max-width: 480px; margin: 0 auto">
     <!-- Page title -->
-    <div class="text-h5 q-mb-md">Pagos</div>
+    <div class="text-h5 q-mb-md">Cobros</div>
 
     <!-- Mode toggle: Pago de plan / Alta + plan / Cobro suelto -->
     <q-btn-toggle
@@ -415,7 +415,7 @@ import type { DuplicateMatch } from 'src/composables/useMembersApi';
 import type { PlanListItem, PlanTier } from 'src/types/subscription';
 import FixedSchedulePicker from 'src/components/scheduling/FixedSchedulePicker.vue';
 
-const log = createLogger('pagos');
+const log = createLogger('cobros');
 const $q = useQuasar();
 const membersApi = useMembersApi();
 const financeApi = useFinanceLoadApi();

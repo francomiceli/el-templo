@@ -11,7 +11,7 @@ import { PLANES_READ_ROLES, PAGOS_ROLES, DUENO_ROLES } from 'src/config/templo-c
  * en /sessions sino en /alumnos.
  *   1. coach + canAccessTraining → /sessions (sólo Fran, no el owner)
  *   2. owner/admin               → /alumnos  (dueño)
- *   3. resto (coach no-Fran/gestion/recepcion) → /pagos (empleado)
+ *   3. resto (coach no-Fran/gestion/recepcion) → /cobros (empleado)
  */
 export function landingForRole(): string {
   const authStore = useAuthStore();
@@ -22,7 +22,7 @@ export function landingForRole(): string {
   if (user && DUENO_ROLES.includes(user.role)) {
     return '/alumnos';
   }
-  return '/pagos';
+  return '/cobros';
 }
 
 const routes: RouteRecordRaw[] = [
@@ -38,9 +38,9 @@ const routes: RouteRecordRaw[] = [
       // Fallback estático pre-auth: el redirect de route-record se resuelve
       // durante el matching, ANTES de checkAuth (user aún null → landing
       // incorrecto, WR-01). Con un destino estático accesible a todo el staff
-      // (/pagos) el guard toma el control y re-resuelve por rol vía
+      // (/cobros) el guard toma el control y re-resuelve por rol vía
       // landingForRole() en el beforeEach post-checkAuth (index.ts).
-      { path: '', redirect: '/pagos' },
+      { path: '', redirect: '/cobros' },
       {
         path: 'sessions',
         component: () => import('pages/SessionsPage.vue'),
@@ -109,14 +109,17 @@ const routes: RouteRecordRaw[] = [
         meta: { allowedRoles: ['admin', 'owner'] as AdminRole[] },
       },
       {
-        path: 'pagos',
-        component: () => import('pages/PagosPage.vue'),
-        // Phase 140 (CARGA-04): opens the coach PoS load surface (ruta /pagos,
-        // ex /cargar). El coach (PoS profe, fase 148) entra junto con
+        path: 'cobros',
+        component: () => import('pages/CobrosPage.vue'),
+        // Phase 140 (CARGA-04): opens the coach PoS load surface (ruta /cobros,
+        // ex /pagos, ex /cargar). El coach (PoS profe, fase 148) entra junto con
         // gestion/admin/owner. Widening D-14: recepcion incluida vía PAGOS_ROLES
         // (espeja FINANCE_LOAD_ROLES de la API). Sincronizado con el nav (Plan 03).
         meta: { allowedRoles: PAGOS_ROLES },
       },
+      // Phase 151 (COBRO-01): /pagos renombrado a /cobros. Redirect para que los
+      // enlaces viejos (bookmarks, landing pre-151) sigan resolviendo.
+      { path: 'pagos', redirect: '/cobros' },
       {
         path: 'horarios',
         component: () => import('pages/HorariosPage.vue'),

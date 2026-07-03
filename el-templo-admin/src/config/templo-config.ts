@@ -104,7 +104,7 @@ export const NAV_MODEL: NavCategory[] = [
   {
     header: 'Finanzas',
     items: [
-      { path: '/pagos', label: 'Pagos', icon: 'point_of_sale', roles: PAGOS_ROLES },
+      { path: '/cobros', label: 'Cobros', icon: 'point_of_sale', roles: PAGOS_ROLES },
       { path: '/deudas', label: 'Deudas', icon: 'request_quote', roles: DEUDAS_ROLES },
       { path: '/reportes', label: 'Reportes', icon: 'summarize', roles: REPORTES_ROLES },
       { path: '/caja', label: 'Caja', icon: 'point_of_sale', roles: CAJA_SALDOS_ROLES },
