@@ -3858,10 +3858,24 @@ _v5.3 (Mejoras Caja) added: 2026-06-26 — 3 phases (145-147), 17 requirements (
 
 Plans:
 
+**Wave 1**
+
 - [ ] 150-01-PLAN.md — Backend: schema cash_registers + tipos + migración 0163 (columnas bancarias + seed 'Retiros')
+
+**Wave 2** _(blocked on Wave 1 completion)_
+
 - [ ] 150-02-PLAN.md — Backend: JSON Schemas + service CRUD (nombre derivado, uno-de-dos, ciclo de vida)
+
+**Wave 3** _(blocked on Wave 2 completion)_
+
 - [ ] 150-03-PLAN.md — Backend: 5 endpoints ABM (guard admin/owner) + tests de integración
+
+**Wave 4** _(blocked on Wave 3 completion)_
+
 - [ ] 150-04-PLAN.md — Frontend: tipos + API + CuentaBancariaFormDialog reutilizable
+
+**Wave 5** _(blocked on Wave 4 completion)_
+
 - [ ] 150-05-PLAN.md — Frontend: tab 'Cuentas' en Caja + prefill de retiro + checkpoint UAT
       **UI hint:** yes
 
