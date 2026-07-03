@@ -3854,7 +3854,7 @@ _v5.3 (Mejoras Caja) added: 2026-06-26 — 3 phases (145-147), 17 requirements (
 2. El admin puede **cerrar/desactivar** una cuenta bancaria (baja lógica) **conservando** su historial de movimientos. (CTA-02)
 3. El admin puede registrar un **retiro del dueño** desde una cuenta bancaria o caja (egreso tipo "Retiro"), impactando el saldo para que refleje la realidad. (CTA-03)
 
-**Plans:** 4/5 plans executed
+**Plans:** 5/6 plans executed (150-06 = gap closure de CR-01/CR-02/CR-03)
 
 Plans:
 
@@ -3878,6 +3878,10 @@ Plans:
 
 - [x] 150-05-PLAN.md — Frontend: tab 'Cuentas' en Caja + prefill de retiro + checkpoint UAT
       **UI hint:** yes
+
+**Wave 6** _(gap closure — cierra los 3 Critical de 150-VERIFICATION.md)_
+
+- [ ] 150-06-PLAN.md — Fixes CR-01 (editar cuenta legacy no crashea) + CR-02 (guard ADMIN_ROLES en GET + tests RBAC) + CR-03 (botón retiro owner-only + notify)
 
 ### Phase 151: Registrar cobro (Pagos → Cobros)
 
