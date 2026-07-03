@@ -3854,7 +3854,7 @@ _v5.3 (Mejoras Caja) added: 2026-06-26 — 3 phases (145-147), 17 requirements (
 2. El admin puede **cerrar/desactivar** una cuenta bancaria (baja lógica) **conservando** su historial de movimientos. (CTA-02)
 3. El admin puede registrar un **retiro del dueño** desde una cuenta bancaria o caja (egreso tipo "Retiro"), impactando el saldo para que refleje la realidad. (CTA-03)
 
-**Plans:** 5/6 plans executed (150-06 = gap closure de CR-01/CR-02/CR-03)
+**Plans:** 6/6 plans complete
 
 Plans:
 
@@ -3881,7 +3881,7 @@ Plans:
 
 **Wave 6** _(gap closure — cierra los 3 Critical de 150-VERIFICATION.md)_
 
-- [ ] 150-06-PLAN.md — Fixes CR-01 (editar cuenta legacy no crashea) + CR-02 (guard ADMIN_ROLES en GET + tests RBAC) + CR-03 (botón retiro owner-only + notify)
+- [x] 150-06-PLAN.md — Fixes CR-01 (editar cuenta legacy no crashea) + CR-02 (guard ADMIN_ROLES en GET + tests RBAC) + CR-03 (botón retiro owner-only + notify)
 
 ### Phase 151: Registrar cobro (Pagos → Cobros)
 
@@ -3979,7 +3979,7 @@ Plans:
 | Phase                                           | Plans Complete | Status      | Completed  |
 | ----------------------------------------------- | -------------- | ----------- | ---------- |
 | 149. Nav por categorías + RBAC                  | 6/6            | Complete    | 2026-07-02 |
-| 150. Cuentas bancarias flexibles                | 5/5            | Complete    |            |
+| 150. Cuentas bancarias flexibles                | 6/6            | Complete    | 2026-07-03 |
 | 151. Registrar cobro (Pagos → Cobros)           | 0/TBD          | Not started | -          |
 | 152. Reorganización de Caja + egresos config.   | 0/TBD          | Not started | -          |
 | 153. Mejoras de Deudas                          | 0/TBD          | Not started | -          |
