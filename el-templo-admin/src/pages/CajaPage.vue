@@ -34,6 +34,7 @@
       <q-tab :name="CAJA_TABS.saldos" label="Saldos" icon="account_balance_wallet" />
       <q-tab :name="CAJA_TABS.transacciones" label="Transacciones" icon="receipt_long" />
       <q-tab :name="CAJA_TABS.movimientosCaja" label="Movimientos de caja" icon="swap_horiz" />
+      <q-tab :name="CAJA_TABS.cuentas" label="Cuentas" icon="account_balance" />
     </q-tabs>
 
     <q-separator />
@@ -62,6 +63,11 @@
       <q-tab-panel :name="CAJA_TABS.movimientosCaja" class="q-px-none">
         <MovEgresosTab :selected-country="selectedCountry" :is-owner="isOwner" />
       </q-tab-panel>
+
+      <!-- Cuentas — ABM de cuentas bancarias flexibles (CTA-01/02/03, fase 150) -->
+      <q-tab-panel :name="CAJA_TABS.cuentas" class="q-px-none">
+        <CuentasTab :selected-country="selectedCountry" :is-owner="isOwner" />
+      </q-tab-panel>
     </q-tab-panels>
   </q-page>
 </template>
@@ -75,6 +81,7 @@ import BandejaPendientesTab from 'src/components/caja/BandejaPendientesTab.vue';
 import MovEgresosTab from 'src/components/caja/MovEgresosTab.vue';
 import MovimientosTab from 'src/components/caja/MovimientosTab.vue';
 import SaldosPorCajaTab from 'src/components/caja/SaldosPorCajaTab.vue';
+import CuentasTab from 'src/components/caja/CuentasTab.vue';
 
 const route = useRoute();
 const router = useRouter();

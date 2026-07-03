@@ -21,6 +21,7 @@ export const CAJA_TABS = {
   saldos: 'saldos',
   transacciones: 'transacciones',
   movimientosCaja: 'movimientosCaja',
+  cuentas: 'cuentas',
 } as const;
 
 export type CajaTab = (typeof CAJA_TABS)[keyof typeof CAJA_TABS];
@@ -34,4 +35,5 @@ export const CAJA_TAB_NAMES: readonly CajaTab[] = [
   CAJA_TABS.saldos,
   CAJA_TABS.transacciones,
   CAJA_TABS.movimientosCaja,
+  CAJA_TABS.cuentas,
 ];
