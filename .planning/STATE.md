@@ -4,14 +4,14 @@ milestone: v5.4
 milestone_name: Reforma del Admin — Correcciones white-label (pre-tenants)
 status: executing
 stopped_at: Phase 151 UI-SPEC approved
-last_updated: "2026-07-03T16:48:39.663Z"
-last_activity: 2026-07-03 -- Phase 151 planning complete
+last_updated: "2026-07-03T17:43:07.147Z"
+last_activity: 2026-07-03
 progress:
   total_phases: 8
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 17
-  completed_plans: 16
-  percent: 25
+  completed_plans: 17
+  percent: 38
 ---
 
 # Project State
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 ## Current Position
 
 Phase: 151 (registrar-cobro-pagos-cobros) — EXECUTING
-Plan: 4 of 4
+Plan: 2 of 5
 Status: Ready to execute
-Last activity: 2026-07-03 -- Phase 151 planning complete
+Last activity: 2026-07-03
 
 ## Performance Metrics
 
@@ -292,6 +292,7 @@ _Updated after each plan completion_
 | Phase 151 P01 | 30min | 3 tasks | 5 files |
 | Phase 151 P02 | 4min | 2 tasks | 2 files |
 | Phase 151 P04 | ~12min | 2 tasks | 2 files |
+| Phase 151 P05 | ~10min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -697,6 +698,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: Phase 151-01 (COBRO-04): PoS bank-account imputation — bankAccountId validated server-side (assertChosenBankAccount: banco+active+currency-match → 400) then threaded as trusted-internal cashRegisterIdOverride into subscriptions service; body never sets cashRegisterId so the v5.3 server-derived invariant holds. Applied on all 4 charge paths (settle/misc direct override, renew/alta delegated) + new coach-reachable GET /coach-load/bank-accounts.
 - [Phase 151]: COBRO-04 bank-account selector renders only for transfer/card; Efectivo never sends bankAccountId
 - [Phase 151]: Added optional defaultCurrency prop to CuentaBancariaFormDialog to preselect the charge currency (additive, backward-compatible)
+- [Phase ?]: 151-05: Sede selector restored to step-2 alta (reachable for every alta); operator-visible branchId attribution recovered while server keeps deriving the rest of the payload
 
 ### Pending Todos
 
@@ -729,7 +731,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-03T16:14:50.504Z
+Last session: 2026-07-03T17:42:51.979Z
 Stopped at: Phase 151 UI-SPEC approved
 Resume file: None
 
