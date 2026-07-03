@@ -3811,7 +3811,7 @@ _v5.3 (Mejoras Caja) added: 2026-06-26 — 3 phases (145-147), 17 requirements (
 ## v5.4 (Reforma del Admin) Phases
 
 - [x] **Phase 149: Nav por categorías + RBAC** — agrupar el nav plano del admin en Finanzas / Alumnos / Horarios / Planes (Pagos, Caja, Analíticas, Reportes, Deudas dentro de Finanzas), con visibilidad por rol (dueño ve todo; profe/administrativo ve solo Pagos + Planes read-only; Alumnos y Horarios libres) y gateo de Campañas/Profes/Puntuaciones/landing fuera del MVP (no se borran). (completed 2026-07-02)
-- [ ] **Phase 150: Cuentas bancarias flexibles** — crear/cerrar cuentas bancarias (Banco, N°, Titular, CUIT, CBU/CVU, Alias; solo 3 obligatorios) con baja lógica que conserva historial + registrar retiros del dueño (egreso tipo "Retiro"). Levanta CAJA-F1 de v5.3 (ABM desde UI).
+- [x] **Phase 150: Cuentas bancarias flexibles** — crear/cerrar cuentas bancarias (Banco, N°, Titular, CUIT, CBU/CVU, Alias; solo 3 obligatorios) con baja lógica que conserva historial + registrar retiros del dueño (egreso tipo "Retiro"). Levanta CAJA-F1 de v5.3 (ABM desde UI).
 - [ ] **Phase 151: Registrar cobro (Pagos → Cobros)** — renombrar "Pagos"→"Cobros" + rediseño en pantallas/pasos separados (una cosa por paso, desktop+mobile) + fecha/hora en el listado y botón "Continuar" arriba + transferencia/tarjeta obligadas a asociar una cuenta bancaria (crear rápida inline si no hay).
 - [ ] **Phase 152: Reorganización de Caja + egresos configurables** — reordenar los tabs (Movimientos portada / Pendientes 2° / "Cobros" 3°) + etiqueta validada/pendiente por fila + detalle con validador + filtro por día + categorías de egreso configurables desde UI (ABM de centros de costo, levanta EGR-F2 de v5.3, defaults "Pago a proveedores"/"Retiros") + nota explicativa en Saldos.
 - [ ] **Phase 153: Mejoras de Deudas** — fecha de registro + motivo (reusar `misc_reason` de v5.3, no duplicar) + pago/plan asociado (plan + período) por deuda + incluir a los socios con plan vencido sin renovar (no-renovaciones) en la misma pantalla.
@@ -3876,7 +3876,7 @@ Plans:
 
 **Wave 5** _(blocked on Wave 4 completion)_
 
-- [ ] 150-05-PLAN.md — Frontend: tab 'Cuentas' en Caja + prefill de retiro + checkpoint UAT
+- [x] 150-05-PLAN.md — Frontend: tab 'Cuentas' en Caja + prefill de retiro + checkpoint UAT
       **UI hint:** yes
 
 ### Phase 151: Registrar cobro (Pagos → Cobros)
@@ -3975,7 +3975,7 @@ Plans:
 | Phase                                           | Plans Complete | Status      | Completed  |
 | ----------------------------------------------- | -------------- | ----------- | ---------- |
 | 149. Nav por categorías + RBAC                  | 6/6            | Complete    | 2026-07-02 |
-| 150. Cuentas bancarias flexibles                | 4/5            | In Progress |            |
+| 150. Cuentas bancarias flexibles                | 5/5            | Complete    |            |
 | 151. Registrar cobro (Pagos → Cobros)           | 0/TBD          | Not started | -          |
 | 152. Reorganización de Caja + egresos config.   | 0/TBD          | Not started | -          |
 | 153. Mejoras de Deudas                          | 0/TBD          | Not started | -          |
