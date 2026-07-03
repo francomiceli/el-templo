@@ -22,6 +22,7 @@ import {
   ATTENDANCE_OPTIMA_PCT,
   ATTENDANCE_REGULAR_PCT,
   ATTENDANCE_WINDOW_DAYS,
+  ATTENDANCE_TARGET_MAX_PER_WEEK,
 } from "./types";
 import { computeSeniority } from "../shared/date-utils";
 
@@ -40,8 +41,14 @@ export class SegmentationService {
    * Returns NULL when no label applies:
    *  - tenure < 1 month (D-07): not enough history, must not fall unfairly into
    *    Alerta/Ausente during the first month;
-   *  - no active/paused subscription or plan without classesPerWeek (D-08): no
-   *    denominator for the percentage.
+   *  - no active/paused subscription: no plan to measure against;
+   *  - non-presencial (online) plan: the label measures physical gym usage,
+   *    which is meaningless for digital plans.
+   *
+   * The denominator is a realistic weekly attendance target
+   * (ATTENDANCE_TARGET_MAX_PER_WEEK), capping the plan's booking allowance.
+   * Open-ended presencial plans without a classesPerWeek (programs/memberships)
+   * fall back to that same default target so their members still get a label.
    *
    * Otherwise classifies by attendance percentage over the 28-day window:
    *  - pct >= 75            → optima (D-04: >100% stays optima)
@@ -70,11 +77,12 @@ export class SegmentationService {
       return null;
     }
 
-    // Step 2: active plan budget (D-08). Without an active/paused subscription
-    // that carries classesPerWeek there is no denominator → NULL.
+    // Step 2: active plan (D-08). Need an active/paused subscription; the label
+    // only applies to presencial plans (physical attendance).
     const [activeSub] = await this.db
       .select({
         classesPerWeek: schema.subscriptionPlans.classesPerWeek,
+        planCategory: schema.subscriptionPlans.planCategory,
       })
       .from(schema.subscriptions)
       .innerJoin(
@@ -90,13 +98,19 @@ export class SegmentationService {
       .orderBy(desc(schema.subscriptions.createdAt))
       .limit(1);
 
-    if (!activeSub || !activeSub.classesPerWeek) {
+    if (!activeSub || activeSub.planCategory !== "presencial") {
       return null;
     }
 
-    // Step 3: expected classes in the rolling window.
-    const expectedClasses =
-      activeSub.classesPerWeek * (ATTENDANCE_WINDOW_DAYS / 7);
+    // Step 3: expected classes in the rolling window. classesPerWeek is a
+    // booking cap, not an attendance target — cap it at a realistic weekly
+    // target so flexible plans (cap 6) aren't scored against an unreachable
+    // ideal. Open-ended presencial plans without a cap (programs/memberships)
+    // fall back to the same default target (see ATTENDANCE_TARGET_MAX_PER_WEEK).
+    const targetPerWeek = activeSub.classesPerWeek
+      ? Math.min(activeSub.classesPerWeek, ATTENDANCE_TARGET_MAX_PER_WEEK)
+      : ATTENDANCE_TARGET_MAX_PER_WEEK;
+    const expectedClasses = targetPerWeek * (ATTENDANCE_WINDOW_DAYS / 7);
 
     if (expectedClasses <= 0) {
       return null;

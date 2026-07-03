@@ -30,6 +30,20 @@ export const ATTENDANCE_ALERTA_PCT = 1;
 /** Rolling window in days for the attendance percentage (D-02). */
 export const ATTENDANCE_WINDOW_DAYS = 28;
 
+/**
+ * Realistic weekly attendance target used as the 100%-usage denominator.
+ *
+ * A plan's `classesPerWeek` is a *booking cap*, not an attendance expectation.
+ * In prod every presencial plan is flexible-mode and the premium tiers
+ * (Flex+/Foundation+/Performance) carry a cap of 6, which nobody sustains:
+ * measuring usage against 6/week left 63% of those members in "Alerta" and
+ * only 6% in "Óptima" (calibrated 2026-07-03 against the live cohort, whose
+ * median is 2.19 classes/week). We cap the target at this value so the
+ * percentage reflects realistic engagement. Entry plans (cap ≤ 2) are
+ * unaffected — min(cap, N) leaves their genuine target intact.
+ */
+export const ATTENDANCE_TARGET_MAX_PER_WEEK = 3;
+
 // ─── Display Metadata (for admin UI) ──────────────────────────────────────
 
 export const SEGMENT_LABELS: Record<MemberSegment, string> = {

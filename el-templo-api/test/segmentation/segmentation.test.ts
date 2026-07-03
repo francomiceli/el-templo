@@ -74,6 +74,7 @@ describe("Segmentation", () => {
         name: `Plan-${classesPerWeek}x`,
         planTier: "foundation",
         bookingMode: "flexible",
+        planCategory: "presencial",
         priceRegular: 10000,
         priceZero: 8000,
         durationDays: 30,
@@ -220,8 +221,8 @@ describe("Segmentation", () => {
         new Date(Date.now() - 60 * 24 * 60 * 60 * 1000),
       );
 
-      await assignPlan(userId, 5); // 5x/week = 20 expected in 28 days
-      await insertAttendance(userId, 10, 28); // 10/20 = 50% → regular
+      await assignPlan(userId, 3); // 3x/week = 12 expected in 28 days
+      await insertAttendance(userId, 7, 28); // 7/12 = 58% → regular
 
       const service = new SegmentationService(app.db, app.log);
       const segment = await service.calculateSegment(userId);
@@ -235,8 +236,8 @@ describe("Segmentation", () => {
         new Date(Date.now() - 60 * 24 * 60 * 60 * 1000),
       );
 
-      await assignPlan(userId, 5); // 5x/week = 20 expected
-      await insertAttendance(userId, 3, 28); // 3/20 = 15% → alerta
+      await assignPlan(userId, 3); // 3x/week = 12 expected
+      await insertAttendance(userId, 3, 28); // 3/12 = 25% → alerta
 
       const service = new SegmentationService(app.db, app.log);
       const segment = await service.calculateSegment(userId);
@@ -271,6 +272,7 @@ describe("Segmentation", () => {
           name: "Paused Plan",
           planTier: "foundation",
           bookingMode: "flexible",
+          planCategory: "presencial",
           priceRegular: 10000,
           priceZero: 8000,
           durationDays: 30,
@@ -330,25 +332,167 @@ describe("Segmentation", () => {
       await assignPlan(userA, 2); // 8 expected
       await insertAttendance(userA, 6, 28); // 6/8 = 75% → optima
 
-      // Member B: 5x/week plan, 6 visits in 28 days = 30% = alerta.
+      // Member B: 6x/week plan (target capped at 3 → 12 expected), 6 visits
+      // in 28 days = 50% = regular.
       const userB = await createMemberWithDate(
         "planB@test.com",
         new Date(Date.now() - 60 * 24 * 60 * 60 * 1000),
       );
-      await assignPlan(userB, 5); // 20 expected
-      await insertAttendance(userB, 6, 28); // 6/20 = 30% → alerta
+      await assignPlan(userB, 6); // capped to 3/week → 12 expected
+      await insertAttendance(userB, 6, 28); // 6/12 = 50% → regular
 
       const service = new SegmentationService(app.db, app.log);
       const segmentA = await service.calculateSegment(userA);
       const segmentB = await service.calculateSegment(userB);
 
       expect(segmentA).toBe("optima");
-      expect(segmentB).toBe("alerta");
+      expect(segmentB).toBe("regular");
     });
   });
 
   // =========================================================================
-  // Group 3: /auth/me Integration
+  // Group 3: Realistic Target Cap (ATTENDANCE_TARGET_MAX_PER_WEEK)
+  // =========================================================================
+
+  describe("Realistic Target Cap", () => {
+    it("6x/week plan attending 3x/week is optima (cap makes 12 visits = 100%)", async () => {
+      // Pre-cap this was 12/24 = 50% = regular. The booking cap of 6 is not a
+      // realistic attendance target, so it is capped at 3/week (denom 12).
+      const userId = await createMemberWithDate(
+        "cap-optima@test.com",
+        new Date(Date.now() - 60 * 24 * 60 * 60 * 1000),
+      );
+
+      await assignPlan(userId, 6); // capped to 3/week → 12 expected
+      await insertAttendance(userId, 12, 28); // 12/12 = 100% → optima
+
+      const service = new SegmentationService(app.db, app.log);
+      const segment = await service.calculateSegment(userId);
+
+      expect(segment).toBe("optima");
+    });
+
+    it("6x/week plan attending 2x/week is regular, not alerta", async () => {
+      // Pre-cap this was 8/24 = 33% = alerta — the "too strict" case the fix
+      // targets. With the cap it is 8/12 = 67% = regular.
+      const userId = await createMemberWithDate(
+        "cap-regular@test.com",
+        new Date(Date.now() - 60 * 24 * 60 * 60 * 1000),
+      );
+
+      await assignPlan(userId, 6); // capped to 3/week → 12 expected
+      await insertAttendance(userId, 8, 28); // 8/12 = 67% → regular
+
+      const service = new SegmentationService(app.db, app.log);
+      const segment = await service.calculateSegment(userId);
+
+      expect(segment).toBe("regular");
+    });
+
+    it("entry plan (cap 2) is unaffected by the target cap", async () => {
+      // min(2, 3) = 2 → denom 8, identical to pre-cap behavior.
+      const userId = await createMemberWithDate(
+        "cap-entry@test.com",
+        new Date(Date.now() - 60 * 24 * 60 * 60 * 1000),
+      );
+
+      await assignPlan(userId, 2); // stays 2/week → 8 expected
+      await insertAttendance(userId, 8, 28); // 8/8 = 100% → optima
+
+      const service = new SegmentationService(app.db, app.log);
+      const segment = await service.calculateSegment(userId);
+
+      expect(segment).toBe("optima");
+    });
+  });
+
+  // =========================================================================
+  // Group 4: Plan Category Gate (presencial vs online)
+  // =========================================================================
+
+  describe("Plan Category Gate", () => {
+    async function assignCategoryPlan(
+      userId: number,
+      planCategory: "presencial" | "online_regular",
+      classesPerWeek: number | null,
+    ): Promise<void> {
+      const [plan] = await app.db
+        .insert(schema.subscriptionPlans)
+        .values({
+          name: `Cat-${planCategory}`,
+          planTier: "other",
+          bookingMode: "flexible",
+          planCategory,
+          priceRegular: 10000,
+          priceZero: 8000,
+          durationDays: 180,
+          classesPerWeek,
+        })
+        .$returningId();
+
+      const today = new Date().toISOString().split("T")[0];
+      await app.db.insert(schema.subscriptions).values({
+        userId,
+        planId: plan.id,
+        branchId: 1,
+        status: "active",
+        startDate: today,
+        pricePaid: 10000,
+        priceTypeApplied: "regular",
+        classesBudget: 0,
+      });
+    }
+
+    it("presencial plan without classesPerWeek uses the default target (open-ended program)", async () => {
+      // PROGRAMA 6 MESES et al.: presencial, no booking cap. Falls back to the
+      // default target (3/week → 12 expected). 12 visits = 100% → optima.
+      const userId = await createMemberWithDate(
+        "prog-optima@test.com",
+        new Date(Date.now() - 60 * 24 * 60 * 60 * 1000),
+      );
+
+      await assignCategoryPlan(userId, "presencial", null);
+      await insertAttendance(userId, 12, 28); // 12/12 = 100% → optima
+
+      const service = new SegmentationService(app.db, app.log);
+      const segment = await service.calculateSegment(userId);
+
+      expect(segment).toBe("optima");
+    });
+
+    it("presencial plan without classesPerWeek classifies low attendance as alerta", async () => {
+      const userId = await createMemberWithDate(
+        "prog-alerta@test.com",
+        new Date(Date.now() - 60 * 24 * 60 * 60 * 1000),
+      );
+
+      await assignCategoryPlan(userId, "presencial", null);
+      await insertAttendance(userId, 4, 28); // 4/12 = 33% → alerta
+
+      const service = new SegmentationService(app.db, app.log);
+      const segment = await service.calculateSegment(userId);
+
+      expect(segment).toBe("alerta");
+    });
+
+    it("online plan gets no label regardless of attendance", async () => {
+      const userId = await createMemberWithDate(
+        "online-null@test.com",
+        new Date(Date.now() - 60 * 24 * 60 * 60 * 1000),
+      );
+
+      await assignCategoryPlan(userId, "online_regular", null);
+      await insertAttendance(userId, 12, 28); // high usage, but online → NULL
+
+      const service = new SegmentationService(app.db, app.log);
+      const segment = await service.calculateSegment(userId);
+
+      expect(segment).toBeNull();
+    });
+  });
+
+  // =========================================================================
+  // Group 5: /auth/me Integration
   // =========================================================================
 
   describe("/auth/me Integration", () => {
