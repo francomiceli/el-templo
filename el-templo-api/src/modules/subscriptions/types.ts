@@ -290,6 +290,15 @@ export interface AssignPlanInput {
    */
   recorderBranchId?: number;
   /**
+   * Phase 151 (COBRO-04): caja banco pre-validada elegida en la PoS de Cobros. El
+   * caller (ruta coach-load) YA corrió assertChosenBankAccount (type='banco' +
+   * activa + moneda-match) — el service confía en el id y lo usa como
+   * `suggestedCajaId`, salteando resolveCashRegister. NUNCA del body crudo. Solo
+   * lo setea la ruta coach-load tras validar; los paths admin/internos lo omiten →
+   * caja sugerida por sede (sin regresión).
+   */
+  cashRegisterIdOverride?: number;
+  /**
    * Phase 148 (ALTA-06): id del alumno que ESTA carga creó vía
    * createMinimalMember (PoS profe), o null/undefined si el alumno ya existía.
    * Se propaga hasta el insert del charge (createdMemberId) para que el cascade
@@ -339,6 +348,15 @@ export interface RenewSubscriptionInput {
    * (comportamiento previo, sin regresión).
    */
   recorderBranchId?: number;
+  /**
+   * Phase 151 (COBRO-04): caja banco pre-validada elegida en la PoS de Cobros. El
+   * caller (ruta coach-load) YA corrió assertChosenBankAccount (type='banco' +
+   * activa + moneda-match) — el service confía en el id y lo usa como
+   * `suggestedCajaId`, salteando resolveCashRegister. NUNCA del body crudo. Solo
+   * lo setea la ruta coach-load tras validar; los paths admin/internos lo omiten →
+   * caja sugerida por sede (sin regresión).
+   */
+  cashRegisterIdOverride?: number;
 }
 
 // ─── Plan Change / Proration Types ─────────────────────────────────────────

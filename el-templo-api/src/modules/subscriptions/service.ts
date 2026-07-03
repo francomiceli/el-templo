@@ -1168,7 +1168,14 @@ export class SubscriptionService {
     // siendo input.branchId (sede del socio). Fallback no-rompe + log: si la caja
     // del profe no es resolvible, `undefined` → create resuelve por sede socio.
     let suggestedCajaId: number | null | undefined;
-    if (
+    if (input.cashRegisterIdOverride !== undefined) {
+      // ── Phase 151 (COBRO-04): caja banco pre-validada elegida en la PoS ──
+      // La ruta coach-load YA corrió assertChosenBankAccount (type='banco' +
+      // activa + moneda-match). El service confía en el id y saltea la sugerencia
+      // por sede — no llama resolveCashRegister. Precede al fallback por sede del
+      // profe (recorderBranchId) porque la elección explícita del PoS manda.
+      suggestedCajaId = input.cashRegisterIdOverride;
+    } else if (
       input.recorderBranchId !== undefined &&
       pricePaid > 0 &&
       this.transactionService
@@ -3569,7 +3576,14 @@ export class SubscriptionService {
     // Fallback (no romper; loguear): si la caja del profe no es resolvible,
     // dejamos `undefined` → create resuelve por la sede del socio.
     let suggestedCajaId: number | null | undefined;
-    if (
+    if (input.cashRegisterIdOverride !== undefined) {
+      // ── Phase 151 (COBRO-04): caja banco pre-validada elegida en la PoS ──
+      // La ruta coach-load YA corrió assertChosenBankAccount (type='banco' +
+      // activa + moneda-match). El service confía en el id y saltea la sugerencia
+      // por sede — no llama resolveCashRegister. Precede al fallback por sede del
+      // profe (recorderBranchId) porque la elección explícita del PoS manda.
+      suggestedCajaId = input.cashRegisterIdOverride;
+    } else if (
       input.recorderBranchId !== undefined &&
       renewalPrice > 0 &&
       this.transactionService

@@ -124,6 +124,69 @@ export class CashRegisterService {
   }
 
   /**
+   * Phase 151 (COBRO-04): cuentas banco seleccionables en la PoS de Cobros. Solo
+   * activas (type='banco' AND is_active=true), ordenadas por id asc, shape lean
+   * `{ id, name, currency }` (sin saldos — el profe NO ve saldos, T-151-02).
+   * Con `currency` acota a esa moneda (para ofrecer solo cuentas de la moneda del
+   * cobro); sin `currency` devuelve todas las cuentas banco activas.
+   */
+  async listActiveBankAccounts(
+    currency?: string,
+  ): Promise<Array<{ id: number; name: string; currency: string }>> {
+    const conditions = [
+      eq(schema.cashRegisters.type, "banco"),
+      eq(schema.cashRegisters.isActive, true),
+    ];
+    if (currency !== undefined) {
+      conditions.push(eq(schema.cashRegisters.currency, currency));
+    }
+    return this.db
+      .select({
+        id: schema.cashRegisters.id,
+        name: schema.cashRegisters.name,
+        currency: schema.cashRegisters.currency,
+      })
+      .from(schema.cashRegisters)
+      .where(and(...conditions))
+      .orderBy(asc(schema.cashRegisters.id));
+  }
+
+  /**
+   * Phase 151 (COBRO-04 / T-151-01): valida la cuenta banco ELEGIDA en la PoS
+   * contra el cobro. A diferencia de getBankAccountById (que solo guarda NotFound
+   * + type='banco'), este assert RECHAZA como BadRequest (400) toda cuenta que no
+   * sea type='banco' + activa + con la MISMA moneda del cobro — es el choke-point
+   * de confianza antes de que la ruta coach-load impute el id como caja del charge
+   * (mismo mensaje de moneda que resolveCashRegister/balance-service para el guard
+   * de moneda). Devuelve la fila validada.
+   *
+   * @throws BadRequestError cuando no existe / no es banco / está inactiva, o
+   *         cuando la moneda de la cuenta no coincide con la del cobro.
+   */
+  async assertChosenBankAccount(id: number, currency: string) {
+    const [caja] = await this.db
+      .select({
+        id: schema.cashRegisters.id,
+        name: schema.cashRegisters.name,
+        currency: schema.cashRegisters.currency,
+        isActive: schema.cashRegisters.isActive,
+        type: schema.cashRegisters.type,
+      })
+      .from(schema.cashRegisters)
+      .where(eq(schema.cashRegisters.id, id))
+      .limit(1);
+    if (!caja || caja.type !== "banco" || !caja.isActive) {
+      throw new BadRequestError("La cuenta elegida no existe o está inactiva");
+    }
+    if (caja.currency !== currency) {
+      throw new BadRequestError(
+        `Moneda inconsistente: la cuenta es ${caja.currency}, el cobro es ${currency}`,
+      );
+    }
+    return caja;
+  }
+
+  /**
    * Derived firm balance of a caja (D-06/D-08/CAJA-03). NOT materialized — the
    * saldo is always computed on read, and the derivation is hidden behind this
    * signature so phase 139 can extend the body (outflows) without changing the
