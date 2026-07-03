@@ -815,6 +815,112 @@ export const movementsHistoryExportSchema = {
   },
 } as const;
 
+// -- Phase 150: ABM de cuentas bancarias (CTA-01 / CTA-02) ------------------
+
+// Propiedades bancarias opcionales compartidas por create y update. maxLength
+// coherente con las columnas de cash_registers (plan 01): bank_name(100),
+// account_holder(120), tax_id(20), cbu_cvu(34), account_alias(60),
+// account_number(50). La regla "uno de dos" (CBU/CVU O Alias, D-02) NO se
+// expresa aquí — se valida en el service (assertTransferIdentifier).
+const BANK_ACCOUNT_OPTIONAL_PROPS = {
+  cbuCvu: { type: ["string", "null"], maxLength: 34 },
+  accountAlias: { type: ["string", "null"], maxLength: 60 },
+  taxId: { type: ["string", "null"], maxLength: 20 },
+  accountNumber: { type: ["string", "null"], maxLength: 50 },
+} as const;
+
+const BANK_ACCOUNT_ID_PARAMS = {
+  type: "object",
+  required: ["id"],
+  properties: { id: { type: "integer", minimum: 1 } },
+} as const;
+
+/**
+ * POST /bank-accounts — crear cuenta banco (CTA-01 / D-02). Solo 3 obligatorios
+ * a nivel schema (bankName/accountHolder/currency); `name` se autogenera en el
+ * service (D-03). currency restringido a ARS/EUR y FIJA post-creación (D-04).
+ * La regla uno-de-dos (CBU/CVU o Alias) vive en el service. RBAC server-side.
+ */
+export const createBankAccountSchema = {
+  body: {
+    type: "object",
+    required: ["bankName", "accountHolder", "currency"],
+    properties: {
+      bankName: { type: "string", minLength: 1, maxLength: 100 },
+      accountHolder: { type: "string", minLength: 1, maxLength: 120 },
+      currency: { type: "string", enum: ["ARS", "EUR"] },
+      ...BANK_ACCOUNT_OPTIONAL_PROPS,
+    },
+    additionalProperties: false,
+  },
+  response: {
+    400: errorSchema,
+    401: errorSchema,
+    403: errorSchema,
+    404: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+/**
+ * PATCH /bank-accounts/:id — editar cuenta banco (CTA-01 / D-04). Mismo body que
+ * create pero SIN `required` y OMITIENDO por completo `currency`: la moneda es
+ * FIJA post-creación (con additionalProperties:false un PATCH que traiga
+ * `currency` es rechazado a nivel schema — doble barrera con el guard del
+ * service). La regla uno-de-dos se revalida en el service sobre el estado
+ * resultante. RBAC server-side.
+ */
+export const updateBankAccountSchema = {
+  params: BANK_ACCOUNT_ID_PARAMS,
+  body: {
+    type: "object",
+    properties: {
+      bankName: { type: "string", minLength: 1, maxLength: 100 },
+      accountHolder: { type: "string", minLength: 1, maxLength: 120 },
+      ...BANK_ACCOUNT_OPTIONAL_PROPS,
+    },
+    additionalProperties: false,
+  },
+  response: {
+    400: errorSchema,
+    401: errorSchema,
+    403: errorSchema,
+    404: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+/**
+ * POST /bank-accounts/:id/close — baja lógica (CTA-02 / D-06). Solo alterna
+ * is_active (conserva historial, no DELETE). Devuelve el saldo firme actual para
+ * el warning del front. Params: id. RBAC server-side.
+ */
+export const closeBankAccountSchema = {
+  params: BANK_ACCOUNT_ID_PARAMS,
+  response: {
+    400: errorSchema,
+    401: errorSchema,
+    403: errorSchema,
+    404: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+/**
+ * POST /bank-accounts/:id/reactivate — reactivar una cuenta cerrada (CTA-02 /
+ * D-07). Alterna is_active=true. Params: id. RBAC server-side.
+ */
+export const reactivateBankAccountSchema = {
+  params: BANK_ACCOUNT_ID_PARAMS,
+  response: {
+    400: errorSchema,
+    401: errorSchema,
+    403: errorSchema,
+    404: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
 // -- Re-exported helper fragments for Plan 03 (reads) ----------------------
 
 export const SHARED_ERROR_SCHEMA = errorSchema;
