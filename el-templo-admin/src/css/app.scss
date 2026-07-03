@@ -26,6 +26,14 @@ body {
   background-color: transparent;
 }
 
+// Secondary raised surface (deeper cream) — Phase 151 UI-SPEC. Used by the
+// cobro wizard's progress band, desktop summary panel, and mobile compact
+// summary header. Kept as a class (not inline hex) so components stay hex-free
+// (the staging marker only recolors --q-primary; this warm cream is static).
+.bg-summary-surface {
+  background-color: #e9e2d6;
+}
+
 // Staging environment marker: recolor the brand primary to blue-9 so every
 // bg-primary surface (header, toolbars, primary buttons, badges) is obviously
 // a non-production environment. Scoped to body.staging-env, which the

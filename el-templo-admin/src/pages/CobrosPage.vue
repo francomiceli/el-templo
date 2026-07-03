@@ -1,402 +1,228 @@
 <template>
-  <q-page class="q-pa-md" style="max-width: 480px; margin: 0 auto">
-    <!-- Page title -->
-    <div class="text-h5 q-mb-md">Cobros</div>
+  <q-page class="cobros-page q-pa-md">
+    <!-- ════════════ PORTADA (step 0) ════════════ -->
+    <div v-if="currentStep === 0" class="cobros-portada">
+      <!-- Page title -->
+      <div class="text-h5 q-mb-md">Cobros</div>
 
-    <!-- Mode toggle: Pago de plan / Alta + plan / Cobro suelto -->
-    <q-btn-toggle
-      v-model="mode"
-      spread
-      unelevated
-      no-caps
-      toggle-color="primary"
-      class="full-width q-mb-md"
-      :options="[
-        { label: 'Pago de plan', value: 'renew' },
-        { label: 'Alta + plan', value: 'alta' },
-        { label: 'Cobro suelto', value: 'misc' },
-      ]"
-      @update:model-value="onModeChange"
-    />
+      <!-- Primary CTA: enter the 4-step flow -->
+      <q-btn
+        color="primary"
+        size="lg"
+        no-caps
+        unelevated
+        icon="add"
+        label="Registrar cobro"
+        class="cobros-cta q-mb-lg"
+        @click="startCobro"
+      />
 
-    <!-- ALTA + PLAN: chip Sede al tope (default sede del profe, editable). Solo
-         en modo alta; renew/misc usan la sede del socio existente. -->
-    <q-select
-      v-if="mode === 'alta'"
-      v-model="sucursalId"
-      :options="branchOptions"
-      option-value="id"
-      option-label="name"
-      emit-value
-      map-options
-      dense
-      outlined
-      label="Sede"
-      class="q-mb-md"
-      @update:model-value="onSucursalChange"
-    >
-      <template #prepend>
-        <q-icon name="place" color="primary" />
-      </template>
-    </q-select>
+      <!-- Mis cargas de hoy (Task 4 rebuilds this into a day-grouped listado) -->
+      <div class="text-subtitle1 q-mb-sm">Mis cargas de hoy</div>
 
-    <!-- Form card -->
-    <q-card bordered flat class="q-mb-lg">
-      <q-card-section class="q-gutter-sm">
-        <!-- Socio typeahead -->
-        <q-select
-          v-model="selectedMember"
-          :options="memberSearchResults"
-          option-value="id"
-          option-label="displayLabel"
-          label="Buscar socio (nombre o DNI)"
-          outlined
-          use-input
-          clearable
-          input-debounce="300"
-          :loading="searchingMembers"
-          @filter="onMemberSearch"
-          @update:model-value="onMemberSelected"
-        >
-          <template #no-option>
-            <q-item>
-              <q-item-section class="text-grey-5 text-italic">
-                {{ searchQuery ? 'Sin resultados' : 'Escribe para buscar' }}
-              </q-item-section>
-            </q-item>
-          </template>
-          <template #option="scope">
-            <q-item v-bind="scope.itemProps">
-              <q-item-section>
-                <q-item-label>{{ scope.opt.displayLabel }}</q-item-label>
-              </q-item-section>
-              <q-item-section side>
-                <q-badge :color="scope.opt.statusColor" :label="scope.opt.statusLabel" />
-              </q-item-section>
-            </q-item>
-          </template>
-        </q-select>
+      <div v-if="loadingMyLoads" class="q-gutter-sm">
+        <q-skeleton v-for="n in 3" :key="n" type="rect" height="56px" />
+      </div>
 
-        <!-- ALTA: el camino primario es dar de alta un alumno NUEVO. El buscador
-             de arriba queda para asignarle un plan a un socio que YA existe (ej.
-             un socio sin plan derivado desde "Pago de plan"). Antes este botón
-             estaba escondido dentro del dropdown del buscador. -->
-        <q-btn
-          v-if="mode === 'alta' && !showNewStudentForm && !selectedMember"
-          outline
-          no-caps
-          color="primary"
-          icon="person_add"
-          label="Nuevo alumno"
-          class="full-width q-mt-sm"
-          @click="onNuevoAlumno"
-        />
-
-        <!-- Deuda del socio: aviso destacado en AMBOS modos (POS-01). Depende de
-             autocompletar.outstanding, no del modo, así que aplica a renew y misc. -->
-        <q-banner
-          v-if="(autocompletar?.outstanding ?? 0) > 0"
-          dense
-          rounded
-          class="bg-warning text-dark q-mt-sm"
-        >
-          <template #avatar>
-            <q-icon name="warning" color="dark" />
-          </template>
-          Debe {{ formatPrice(autocompletar?.outstanding ?? 0, autocompletar?.currency ?? 'ARS') }}
-          <span v-if="autocompletar?.planName"> — Plan {{ autocompletar.planName }}</span>
-        </q-banner>
-
-        <!-- ALTA: mini-form de alumno nuevo (Nombre/Apellido/DNI). Sin email/
-             teléfono — gestión los completa al validar. -->
-        <template v-if="mode === 'alta' && showNewStudentForm">
-          <div class="text-subtitle1 text-weight-bold q-mt-sm">Datos del alumno</div>
-          <q-input v-model="newStudent.firstName" label="Nombre" outlined dense />
-          <q-input v-model="newStudent.lastName" label="Apellido" outlined dense />
-          <q-input
-            v-model="newStudent.dni"
-            label="DNI"
-            inputmode="numeric"
-            outlined
-            dense
-            :loading="dedupChecking"
-            @blur="onDniBlur"
-          />
-
-          <!-- Dedup por DNI: si matchea, ofrecer cargar sobre el alumno existente -->
-          <q-banner v-if="dedupMatch" dense rounded class="bg-warning text-dark q-mt-sm">
-            <template #avatar>
-              <q-icon name="warning" color="dark" />
-            </template>
-            Ya existe un alumno con ese DNI: {{ dedupMatchName }}. Se cargará sobre ese alumno.
-            <template #action>
-              <q-btn flat dense no-caps label="Usar ese alumno" @click="onUsarExistente" />
-            </template>
-          </q-banner>
-        </template>
-
-        <!-- MODE A: Renovar plan -->
-        <template v-if="mode === 'renew'">
-          <template v-if="selectedMember">
-            <q-skeleton v-if="autocompletando" type="text" class="q-mt-sm" />
-            <q-skeleton v-if="autocompletando" type="text" />
-
-            <template v-else>
-              <!-- Sin plan para cobrar → el lugar correcto es "Alta + plan" (que
-                   asigna un plan), NO "Cobro suelto" (cargo misceláneo sin plan).
-                   El botón cambia de modo conservando el socio ya elegido. -->
-              <div v-if="autocompletar && !autocompletar.hasRenewable" class="q-mt-sm">
-                <div class="text-caption text-warning">
-                  Este socio no tiene un plan activo para cobrar.
-                </div>
-                <q-btn
-                  flat
-                  dense
-                  no-caps
-                  color="primary"
-                  icon="person_add"
-                  label="Asignarle un plan (Alta + plan)"
-                  class="q-mt-xs"
-                  @click="altaParaSocioExistente"
-                />
-              </div>
-
-              <template v-else-if="autocompletar">
-                <q-input
-                  :model-value="autocompletar.planName ?? ''"
-                  label="Plan vigente"
-                  outlined
-                  readonly
-                />
-                <q-input
-                  v-model.number="amount"
-                  type="number"
-                  inputmode="numeric"
-                  label="Monto"
-                  outlined
-                  :suffix="currencySymbol"
-                />
-              </template>
-            </template>
-          </template>
-        </template>
-
-        <!-- MODE B: Cobro suelto -->
-        <template v-else-if="mode === 'misc'">
-          <template v-if="selectedMember">
-            <q-input
-              v-model.number="amount"
-              type="number"
-              inputmode="numeric"
-              label="Monto"
-              outlined
-              :suffix="currencySymbol"
-            />
-            <q-input
-              v-model="concepto"
-              type="textarea"
-              autogrow
-              label="Concepto"
-              placeholder="Ej.: clase de recuperación, ajuste, etc."
-              outlined
-            />
-            <!-- Motivo estructurado del cobro suelto (COBRO-01). Obligatorio. -->
-            <q-select
-              v-model="miscReason"
-              :options="miscReasonOptions"
-              emit-value
-              map-options
-              label="Motivo"
-              outlined
-            />
-          </template>
-        </template>
-
-        <!-- MODE C: Alta + plan — grilla de planes por tier + Zero + turnos fixed -->
-        <template v-else-if="mode === 'alta' && hasAlumnoContext">
-          <div class="text-subtitle1 text-weight-bold q-mt-md">Plan</div>
-
-          <div v-if="loadingPlans" class="q-gutter-sm">
-            <q-skeleton v-for="n in 3" :key="n" type="rect" height="56px" />
+      <q-card v-else-if="myLoads.length === 0" bordered flat>
+        <q-card-section class="text-center text-grey-6 q-py-lg">
+          <q-icon name="receipt_long" size="md" class="q-mb-sm" />
+          <div class="text-body1">Todavía no registraste cobros</div>
+          <div class="text-subtitle2 text-weight-regular text-grey-7">
+            Cuando registres un cobro, va a aparecer acá con su fecha y hora.
           </div>
-          <div
-            v-else-if="plansByTier.length === 0"
-            class="text-grey-5 text-italic q-pa-md text-center"
-          >
-            No hay planes activos para esta sede.
-          </div>
-          <template v-else>
-            <div v-for="tier in plansByTier" :key="tier.tier" class="q-mb-sm">
+        </q-card-section>
+      </q-card>
+
+      <q-list v-else bordered separator class="rounded-borders">
+        <q-item v-for="ticket in myLoads" :key="ticket.id">
+          <q-item-section>
+            <q-item-label>
+              <q-icon name="schedule" size="xs" class="q-mr-xs" />{{
+                formatTime(ticket.createdAt)
+              }}
+              · {{ ticket.memberName }}
+            </q-item-label>
+            <q-item-label class="text-subtitle2 text-weight-regular text-grey-7">{{
+              ticketConcept(ticket)
+            }}</q-item-label>
+            <div class="q-mt-xs q-gutter-xs">
               <q-badge
-                :color="tierColor(tier.tier)"
-                :label="tierLabel(tier.tier)"
-                class="q-mb-xs"
+                :color="methodColor(ticket.paymentMethod)"
+                :label="methodLabel(ticket.paymentMethod)"
               />
-              <q-list bordered separator class="rounded-borders">
-                <q-item
-                  v-for="plan in tier.plans"
-                  :key="plan.id"
-                  clickable
-                  v-ripple
-                  class="q-py-md"
-                  :active="selectedPlan?.id === plan.id"
-                  active-class="bg-primary text-white"
-                  @click="selectPlan(plan)"
-                >
-                  <q-item-section>
-                    <q-item-label>{{ plan.name }}</q-item-label>
-                    <q-item-label caption :class="selectedPlan?.id === plan.id ? 'text-white' : ''">
-                      {{ plan.durationDays }} días
-                      <template v-if="plan.classesPerWeek">
-                        · {{ plan.classesPerWeek }} clases/sem
-                      </template>
-                      <template v-else> · Ilimitado </template>
-                    </q-item-label>
-                  </q-item-section>
-                  <q-item-section side>
-                    <div
-                      class="text-weight-bold"
-                      :class="selectedPlan?.id === plan.id ? 'text-white' : ''"
-                    >
-                      {{ formatPrice(plan.priceRegular, plan.currency) }}
-                    </div>
-                  </q-item-section>
-                </q-item>
-              </q-list>
+              <q-badge color="warning" label="Pendiente" />
+              <q-badge v-if="createdNewTicketIds.has(ticket.id)" color="primary" label="Nuevo" />
             </div>
-
-            <!-- Toggle Precio Zero (regular ↔ zero) -->
-            <q-toggle v-model="zeroPrice" label="Precio Zero" color="positive" class="q-mt-sm" />
-          </template>
-
-          <!-- Turnos: estructurado SOLO para planes fixed; flexible = caption -->
-          <template v-if="selectedPlan">
-            <template v-if="selectedPlan.bookingMode === 'fixed'">
-              <div class="text-subtitle1 text-weight-bold q-mt-md q-mb-xs">Turnos fijos</div>
-              <FixedSchedulePicker
-                v-model="scheduleIds"
-                :branch-id="sucursalId ?? 0"
-                :required-count="selectedPlan.classesPerWeek"
-                :allow-partial="false"
-                :multi-branch="selectedPlan.multiBranch"
-                :available-branches="multiBranchOptions"
-              />
-            </template>
-            <div v-else class="text-caption text-grey-7 q-mt-sm">
-              Este plan reserva semana a semana — no se eligen turnos ahora.
-            </div>
-          </template>
-        </template>
-
-        <!-- Medio de pago -->
-        <template v-if="hasAlumnoContext && showPaymentMethods">
-          <div class="text-subtitle1 q-mt-md q-mb-xs">Medio de pago</div>
-          <div class="q-gutter-sm">
-            <q-btn
-              v-for="opt in paymentOptions"
-              :key="opt.value"
-              :label="opt.label"
-              :icon="opt.icon"
-              size="lg"
-              class="full-width"
-              no-caps
-              :color="paymentMethod === opt.value ? 'primary' : undefined"
-              :outline="paymentMethod !== opt.value"
-              :unelevated="paymentMethod === opt.value"
-              @click="paymentMethod = opt.value"
-            />
-          </div>
-
-          <!-- ALTA: Monto autocalculado (editable) + banner deuda (parcial) -->
-          <template v-if="mode === 'alta' && selectedPlan && paymentMethod">
-            <q-input
-              v-model.number="amount"
-              type="number"
-              inputmode="numeric"
-              label="Monto"
-              outlined
-              class="q-mt-sm"
-              :suffix="altaCurrencySymbol"
-              hint="Por defecto se cobra el total. Editá si el cobro es parcial."
-            />
-            <q-banner v-if="isAltaPartial" dense rounded class="bg-warning text-dark q-mt-sm">
-              <template #avatar>
-                <q-icon name="warning" color="dark" />
-              </template>
-              El alumno quedará deudor por
-              {{ formatPrice(altaPrice - (amount ?? 0), altaCurrency) }}.
-            </q-banner>
-          </template>
-
-          <div class="text-caption text-grey-7 q-mt-sm">
-            <q-icon name="schedule" size="xs" class="q-mr-xs" />Queda pendiente de validación.
-          </div>
-        </template>
-      </q-card-section>
-    </q-card>
-
-    <!-- Mis cargas de hoy -->
-    <div class="text-subtitle1 q-mb-sm">Mis cargas de hoy</div>
-
-    <div v-if="loadingMyLoads" class="q-gutter-sm">
-      <q-skeleton v-for="n in 3" :key="n" type="rect" height="56px" />
+          </q-item-section>
+          <q-item-section side top>
+            <div class="text-h6">{{ formatPrice(ticket.amount, ticket.currency) }}</div>
+          </q-item-section>
+        </q-item>
+      </q-list>
     </div>
 
-    <q-card v-else-if="myLoads.length === 0" bordered flat>
-      <q-card-section class="text-center text-grey-6 q-py-lg">
-        <q-icon name="receipt_long" size="md" class="q-mb-sm" />
-        <div class="text-body1">Todavía no cargaste pagos hoy</div>
-        <div class="text-caption">Cuando registres un cobro, aparecerá acá como ticket.</div>
-      </q-card-section>
-    </q-card>
+    <!-- ════════════ WIZARD (steps 1..4) ════════════ -->
+    <div v-else class="cobros-wizard">
+      <!-- Progress header on the secondary band -->
+      <div class="cobros-progress bg-summary-surface q-px-md q-py-sm">
+        <div class="row items-center no-wrap">
+          <q-btn flat round dense icon="arrow_back" aria-label="Volver" @click="goBack">
+            <span v-if="$q.screen.gt.sm" class="q-ml-xs text-body1">Volver</span>
+          </q-btn>
 
-    <q-list v-else bordered separator class="rounded-borders">
-      <q-item v-for="ticket in myLoads" :key="ticket.id">
-        <q-item-section>
-          <q-item-label>
-            <q-icon name="schedule" size="xs" class="q-mr-xs" />{{ formatTime(ticket.createdAt) }} ·
-            {{ ticket.memberName }}
-          </q-item-label>
-          <q-item-label caption>{{ ticketConcept(ticket) }}</q-item-label>
-          <div class="q-mt-xs q-gutter-xs">
-            <q-badge
-              :color="methodColor(ticket.paymentMethod)"
-              :label="methodLabel(ticket.paymentMethod)"
-            />
-            <q-badge color="warning" label="Pendiente" />
-            <q-badge v-if="createdNewTicketIds.has(ticket.id)" color="primary" label="Nuevo" />
+          <!-- Desktop: numbered steps -->
+          <div v-if="$q.screen.gt.sm" class="row items-center q-gutter-md q-ml-md">
+            <div v-for="(label, i) in STEP_LABELS" :key="i" class="row items-center no-wrap">
+              <q-icon v-if="currentStep > i + 1" name="check_circle" color="primary" size="24px" />
+              <span
+                v-else
+                class="cobros-step-num"
+                :class="currentStep === i + 1 ? 'is-current' : 'is-future'"
+                >{{ i + 1 }}</span
+              >
+              <span class="q-ml-xs text-body1" :class="stepLabelClass(i + 1)">{{ label }}</span>
+            </div>
           </div>
-        </q-item-section>
-        <q-item-section side top>
-          <div class="text-h6">{{ formatPrice(ticket.amount, ticket.currency) }}</div>
-        </q-item-section>
-      </q-item>
-    </q-list>
 
-    <!-- Bottom safe-area padding above the sticky bar -->
-    <div class="q-pb-xl" style="height: 80px"></div>
+          <!-- Mobile: Paso n de 4 + current label -->
+          <div v-else class="col q-ml-sm">
+            <div class="text-body1 text-weight-regular">
+              Paso {{ currentStep }} de 4 · {{ STEP_LABELS[currentStep - 1] }}
+            </div>
+          </div>
+        </div>
 
-    <!-- Sticky Confirmar bar -->
-    <q-page-sticky position="bottom" :offset="[0, 16]" expand>
-      <div style="width: 100%; max-width: 480px; padding: 0 16px">
-        <q-btn
+        <q-linear-progress
+          v-if="!$q.screen.gt.sm"
+          :value="currentStep / 4"
+          size="4px"
           color="primary"
-          size="lg"
-          class="full-width"
-          no-caps
-          :label="confirmarLabel"
-          :loading="submitting"
-          :disable="!canConfirm || submitting"
-          @click="onConfirm"
+          class="q-mt-sm"
         />
       </div>
-    </q-page-sticky>
+
+      <!-- Mobile: compact summary header (socio + running total), tap to expand -->
+      <q-expansion-item
+        v-if="!$q.screen.gt.sm"
+        dense
+        class="bg-summary-surface"
+        :label="resumenSocio || '—'"
+        :caption="formatPrice(amount ?? 0, resumenCurrency)"
+      >
+        <CobroResumen
+          :socio="resumenSocio"
+          :que-secobra="resumenQueSecobra"
+          :como-paga="resumenComoPaga"
+          :total="amount"
+          :currency="resumenCurrency"
+          :debt-warning="resumenDebtWarning"
+        />
+      </q-expansion-item>
+
+      <!-- Body -->
+      <div
+        class="cobros-body q-mt-md"
+        :class="$q.screen.gt.sm ? 'row no-wrap cobros-body--desktop' : ''"
+      >
+        <!-- LEFT: active step body -->
+        <div class="cobros-step-col">
+          <transition :name="reducedMotion ? 'cobro-fade' : transitionName" mode="out-in">
+            <div :key="currentStep" class="cobros-step-body">
+              <template v-if="currentStep === 1">
+                <div class="text-h5 q-mb-md">Socio</div>
+              </template>
+
+              <template v-else-if="currentStep === 2">
+                <div class="text-h5 q-mb-md">¿Qué se cobra?</div>
+              </template>
+
+              <template v-else-if="currentStep === 3">
+                <div class="text-h5 q-mb-md">¿Cómo se paga?</div>
+              </template>
+
+              <template v-else-if="currentStep === 4">
+                <div class="text-h5 q-mb-md">Resumen</div>
+                <CobroResumen
+                  :socio="resumenSocio"
+                  :que-secobra="resumenQueSecobra"
+                  :como-paga="resumenComoPaga"
+                  :total="amount"
+                  :currency="resumenCurrency"
+                  :debt-warning="resumenDebtWarning"
+                />
+              </template>
+            </div>
+          </transition>
+
+          <!-- Desktop: inline-bottom action -->
+          <div v-if="$q.screen.gt.sm" class="q-mt-lg">
+            <q-btn
+              color="primary"
+              size="lg"
+              no-caps
+              :label="primaryActionLabel"
+              :loading="submitting"
+              :disable="primaryActionDisabled"
+              @click="onPrimaryAction"
+            />
+          </div>
+        </div>
+
+        <!-- RIGHT: sticky accumulated summary panel (desktop) -->
+        <div v-if="$q.screen.gt.sm" class="cobros-summary-col">
+          <div class="cobros-summary-panel bg-summary-surface q-pa-lg">
+            <div class="text-subtitle2 text-weight-regular text-grey-7 q-mb-sm">Resumen</div>
+            <CobroResumen
+              :socio="resumenSocio"
+              :que-secobra="resumenQueSecobra"
+              :como-paga="resumenComoPaga"
+              :total="amount"
+              :currency="resumenCurrency"
+              :debt-warning="resumenDebtWarning"
+            />
+          </div>
+        </div>
+      </div>
+
+      <!-- Mobile: sticky action bar -->
+      <q-page-sticky v-if="!$q.screen.gt.sm" position="bottom" :offset="[0, 16]" expand>
+        <div class="cobros-sticky-action">
+          <q-btn
+            color="primary"
+            size="lg"
+            class="full-width"
+            no-caps
+            :label="primaryActionLabel"
+            :loading="submitting"
+            :disable="primaryActionDisabled"
+            @click="onPrimaryAction"
+          />
+        </div>
+      </q-page-sticky>
+
+      <div v-if="!$q.screen.gt.sm" style="height: 80px"></div>
+    </div>
+
+    <!-- Abandon-flow confirmation -->
+    <q-dialog v-model="abandonDialog">
+      <q-card>
+        <q-card-section class="text-body1">
+          Si salís ahora, se pierden los datos cargados.
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat no-caps color="primary" label="Seguir cargando" @click="cancelAbandon" />
+          <q-btn unelevated no-caps color="negative" label="Salir" @click="confirmAbandon" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
 import { useQuasar } from 'quasar';
+import { onBeforeRouteLeave } from 'vue-router';
 import { createLogger } from 'src/utils/logger';
 import { formatPrice } from 'src/utils/format-price';
 import { useMembersApi } from 'src/composables/useMembersApi';
@@ -414,6 +240,7 @@ import type { BranchOption } from 'src/types/member';
 import type { DuplicateMatch } from 'src/composables/useMembersApi';
 import type { PlanListItem, PlanTier } from 'src/types/subscription';
 import FixedSchedulePicker from 'src/components/scheduling/FixedSchedulePicker.vue';
+import CobroResumen from 'src/components/caja/CobroResumen.vue';
 
 const log = createLogger('cobros');
 const $q = useQuasar();
@@ -422,6 +249,8 @@ const financeApi = useFinanceLoadApi();
 const subsApi = useSubscriptionsApi();
 const authStore = useAuthStore();
 
+// El "modo" antiguo pasa a ser la ASOCIACIÓN elegida en el paso 2 (D-01, sin
+// toggle de modo). Arranca en null: nada preseleccionado hasta el paso 2.
 type Mode = 'renew' | 'misc' | 'alta';
 type LoadPaymentMethod = 'cash' | 'transfer' | 'card';
 
@@ -432,8 +261,24 @@ interface MemberSearchOption {
   statusColor: string;
 }
 
+// ─── Wizard step state ──────────────────────────────────────────────────────
+// 0 = portada, 1 = Socio, 2 = ¿Qué se cobra?, 3 = ¿Cómo se paga?, 4 = Resumen.
+const currentStep = ref(0);
+const slideDir = ref<'forward' | 'back'>('forward');
+const STEP_LABELS = ['Socio', '¿Qué se cobra?', '¿Cómo se paga?', 'Resumen'];
+
+const transitionName = computed(() =>
+  slideDir.value === 'forward' ? 'cobro-slide-forward' : 'cobro-slide-back'
+);
+// prefers-reduced-motion → plain fade instead of the horizontal slide.
+const reducedMotion = ref(
+  typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+);
+
 // ─── Form state ───────────────────────────────────────────────────────────
-const mode = ref<Mode>('renew');
+const mode = ref<Mode | null>(null);
 const selectedMember = ref<MemberSearchOption | null>(null);
 const amount = ref<number | null>(null);
 const concepto = ref('');
@@ -446,6 +291,9 @@ const miscReasonOptions: Array<{ label: string; value: MiscReason }> = [
   { label: 'Sin plan activo', value: 'sin_plan' },
   { label: 'Otro', value: 'otro' },
 ];
+function miscReasonLabel(value: MiscReason): string {
+  return miscReasonOptions.find((o) => o.value === value)?.label ?? value;
+}
 
 // ─── Alta + plan (Mode C) ─────────────────────────────────────────────────
 // Sede elegida del socio (default = sede del profe, editable a sus sedes).
@@ -500,6 +348,36 @@ const paymentOptions: Array<{ label: string; value: LoadPaymentMethod; icon: str
 
 const currencySymbol = computed(() => (autocompletar.value?.currency === 'EUR' ? '€' : '$'));
 
+// ─── Accumulated summary (shared CobroResumen: desktop panel + step 4) ──────
+const resumenSocio = computed<string | null>(() => {
+  if (selectedMember.value) return selectedMember.value.displayLabel;
+  if (showNewStudentForm.value) {
+    const name = `${newStudent.value.firstName} ${newStudent.value.lastName}`.trim();
+    return name || null;
+  }
+  return null;
+});
+const resumenQueSecobra = computed<string | null>(() => {
+  if (mode.value === 'renew') return autocompletar.value?.planName ?? null;
+  if (mode.value === 'alta') return selectedPlan.value?.name ?? null;
+  if (mode.value === 'misc') {
+    return concepto.value.trim() || (miscReason.value ? miscReasonLabel(miscReason.value) : null);
+  }
+  return null;
+});
+const resumenComoPaga = computed<string | null>(() => {
+  if (!paymentMethod.value) return null;
+  return paymentOptions.find((o) => o.value === paymentMethod.value)?.label ?? null;
+});
+const resumenCurrency = computed(() =>
+  mode.value === 'alta' ? altaCurrency.value : (autocompletar.value?.currency ?? 'ARS')
+);
+const resumenDebtWarning = computed<string | null>(() => {
+  const out = autocompletar.value?.outstanding ?? 0;
+  if (out <= 0) return null;
+  return `Debe ${formatPrice(out, autocompletar.value?.currency ?? 'ARS')}`;
+});
+
 // Payment buttons only render once the per-mode required fields are present, so
 // the coach picks a method right before confirming.
 const showPaymentMethods = computed(() => {
@@ -507,7 +385,6 @@ const showPaymentMethods = computed(() => {
     return !autocompletando.value && autocompletar.value?.hasRenewable === true;
   }
   if (mode.value === 'alta') {
-    // El medio de pago (y el monto) aparecen una vez elegido el plan.
     return selectedPlan.value != null;
   }
   return true;
@@ -518,10 +395,8 @@ const canConfirm = computed(() => {
   if (!amount.value || amount.value <= 0) return false;
 
   if (mode.value === 'alta') {
-    // Alumno existente OR alumno nuevo válido (nombre+apellido+DNI).
     const hasAlumno = selectedMember.value != null || newStudentValid.value;
     if (!hasAlumno || sucursalId.value == null || !selectedPlan.value) return false;
-    // Planes fixed exigen exactamente classesPerWeek turnos.
     if (selectedPlan.value.bookingMode === 'fixed') {
       return scheduleIds.value.length === (selectedPlan.value.classesPerWeek ?? 0);
     }
@@ -532,8 +407,10 @@ const canConfirm = computed(() => {
   if (mode.value === 'renew') {
     return autocompletar.value?.hasRenewable === true;
   }
-  // misc: concepto libre + motivo estructurado obligatorio (COBRO-01).
-  return concepto.value.trim().length > 0 && miscReason.value != null;
+  if (mode.value === 'misc') {
+    return concepto.value.trim().length > 0 && miscReason.value != null;
+  }
+  return false;
 });
 
 const confirmarLabel = computed(() => {
@@ -545,6 +422,131 @@ const confirmarLabel = computed(() => {
   return 'Confirmar';
 });
 
+// ─── Per-step gating + primary action ──────────────────────────────────────
+const canContinueStep = computed(() => {
+  switch (currentStep.value) {
+    case 1:
+      return selectedMember.value != null || newStudentValid.value;
+    case 2:
+      if (mode.value === 'renew') return autocompletar.value?.hasRenewable === true;
+      if (mode.value === 'alta') {
+        if (!selectedPlan.value) return false;
+        if (selectedPlan.value.bookingMode === 'fixed') {
+          return scheduleIds.value.length === (selectedPlan.value.classesPerWeek ?? 0);
+        }
+        return true;
+      }
+      if (mode.value === 'misc') {
+        return concepto.value.trim().length > 0 && miscReason.value != null;
+      }
+      return false;
+    case 3:
+      return paymentMethod.value != null && !!amount.value && amount.value > 0;
+    default:
+      return false;
+  }
+});
+
+const primaryActionLabel = computed(() =>
+  currentStep.value >= 4 ? confirmarLabel.value : 'Continuar'
+);
+const primaryActionDisabled = computed(() =>
+  currentStep.value >= 4 ? !canConfirm.value || submitting.value : !canContinueStep.value
+);
+function onPrimaryAction() {
+  if (currentStep.value >= 4) {
+    void onConfirm();
+  } else {
+    goNext();
+  }
+}
+
+// ─── Wizard navigation + abandon guard ──────────────────────────────────────
+const formHasData = computed(
+  () =>
+    selectedMember.value != null ||
+    showNewStudentForm.value ||
+    !!amount.value ||
+    concepto.value.trim().length > 0 ||
+    selectedPlan.value != null ||
+    paymentMethod.value != null ||
+    mode.value != null
+);
+
+const abandonDialog = ref(false);
+let onAbandonConfirm: (() => void) | null = null;
+let onAbandonCancel: (() => void) | null = null;
+
+function openAbandon(confirmFn: () => void, cancelFn: () => void) {
+  onAbandonConfirm = confirmFn;
+  onAbandonCancel = cancelFn;
+  abandonDialog.value = true;
+}
+function confirmAbandon() {
+  abandonDialog.value = false;
+  const fn = onAbandonConfirm;
+  onAbandonConfirm = null;
+  onAbandonCancel = null;
+  fn?.();
+}
+function cancelAbandon() {
+  abandonDialog.value = false;
+  const fn = onAbandonCancel;
+  onAbandonConfirm = null;
+  onAbandonCancel = null;
+  fn?.();
+}
+
+function startCobro() {
+  slideDir.value = 'forward';
+  currentStep.value = 1;
+}
+function goNext() {
+  if (currentStep.value >= 4) return;
+  slideDir.value = 'forward';
+  currentStep.value += 1;
+}
+function goBack() {
+  if (currentStep.value <= 1) {
+    if (formHasData.value) {
+      openAbandon(
+        () => resetToPortada(),
+        () => {}
+      );
+    } else {
+      resetToPortada();
+    }
+    return;
+  }
+  slideDir.value = 'back';
+  currentStep.value -= 1;
+}
+function resetToPortada() {
+  resetForm();
+  mode.value = null;
+  slideDir.value = 'back';
+  currentStep.value = 0;
+}
+
+// Guard browser/route navigation away from a wizard mid-flow with data.
+onBeforeRouteLeave((_to, _from, next) => {
+  if (currentStep.value >= 1 && formHasData.value) {
+    openAbandon(
+      () => next(),
+      () => next(false)
+    );
+  } else {
+    next();
+  }
+});
+
+// ─── Progress-header helpers ────────────────────────────────────────────────
+function stepLabelClass(n: number): string {
+  if (currentStep.value === n) return 'text-primary';
+  if (currentStep.value > n) return 'text-grey-8';
+  return 'text-grey-6';
+}
+
 // ─── Alta helpers ─────────────────────────────────────────────────────────
 const dedupMatchName = computed(() => {
   const m = dedupMatch.value;
@@ -555,7 +557,6 @@ const dedupMatchName = computed(() => {
 async function loadBranches() {
   try {
     branchOptions.value = await membersApi.getBranches();
-    // Default a la sede del profe si está dentro de las accesibles; si no, la 1ª.
     if (sucursalId.value == null || !branchOptions.value.some((b) => b.id === sucursalId.value)) {
       sucursalId.value = branchOptions.value[0]?.id ?? sucursalId.value;
     }
@@ -577,7 +578,6 @@ function resetAltaFields() {
 }
 
 function onNuevoAlumno() {
-  // Revelar el mini-form y limpiar el typeahead (es un alumno nuevo, no existente).
   selectedMember.value = null;
   resetChargeFields();
   showNewStudentForm.value = true;
@@ -605,7 +605,6 @@ async function onDniBlur() {
 function onUsarExistente() {
   const m = dedupMatch.value;
   if (!m) return;
-  // Colapsar el mini-form y seleccionar el alumno existente.
   selectedMember.value = {
     id: m.id,
     displayLabel: dedupMatchName.value,
@@ -616,8 +615,6 @@ function onUsarExistente() {
 }
 
 function onSucursalChange() {
-  // Cambiar la sede limpia el plan elegido + turnos (catálogo/picker por sede)
-  // y recarga el catálogo de planes de esa sede.
   selectedPlan.value = null;
   scheduleIds.value = [];
   currentIdempotencyKey.value = null;
@@ -689,9 +686,7 @@ function tierColor(tier: PlanTier): string {
 
 function selectPlan(plan: PlanListItem) {
   selectedPlan.value = plan;
-  // Turnos dependen del plan: reiniciar la selección al cambiar de plan.
   scheduleIds.value = [];
-  // El precio se re-deriva del plan × medio × Zero (watcher debajo).
 }
 
 async function loadAltaPlans() {
@@ -781,38 +776,9 @@ function resetChargeFields() {
 
 async function onMemberSelected() {
   resetChargeFields();
-  // Elegir un socio existente colapsa el mini-form de alumno nuevo (alta).
   resetAltaFields();
   if (!selectedMember.value) return;
-  // POS-01: load autocompletar in BOTH modes. In renew it pre-fills the amount;
-  // in misc it only feeds the deuda banner (no amount pre-fill).
   await loadAutocompletar(selectedMember.value.id);
-}
-
-function altaParaSocioExistente() {
-  // Desde "Pago de plan" cuando el socio NO tiene plan: pasar a "Alta + plan"
-  // conservando el socio elegido para asignarle su primer plan. onModeChange no
-  // toca selectedMember, así que el socio viaja al nuevo modo (y recarga catálogo
-  // de sedes/planes + autocompletar). NO es "Cobro suelto" — ese no asigna plan.
-  mode.value = 'alta';
-  onModeChange();
-}
-
-function onModeChange() {
-  // A5 (UI-SPEC): preserve socio + method, clear amount/concept/motivo/plan.
-  resetChargeFields();
-  // Switching OUT of (or INTO) alta clears the new-student mini-form (UI-SPEC).
-  resetAltaFields();
-  // Al entrar a alta, asegurar el catálogo de sedes + planes de la sede actual.
-  if (mode.value === 'alta') {
-    if (branchOptions.value.length === 0) void loadBranches();
-    void loadAltaPlans();
-  }
-  // POS-01: reload autocompletar in BOTH modes so the deuda banner survives the
-  // mode switch (in misc it is informativo: no amount pre-fill, no block).
-  if (selectedMember.value) {
-    void loadAutocompletar(selectedMember.value.id);
-  }
 }
 
 async function loadAutocompletar(userId: number) {
@@ -820,8 +786,6 @@ async function loadAutocompletar(userId: number) {
   try {
     const res = await financeApi.getAutocompletar(userId);
     autocompletar.value = res;
-    // Pre-fill the amount ONLY in renew mode; the cobro suelto amount is
-    // independent and the autocompletar load there is purely for the banner.
     if (mode.value === 'renew' && res.hasRenewable && res.amount != null) {
       amount.value = res.amount;
     }
@@ -837,14 +801,13 @@ async function loadAutocompletar(userId: number) {
 
 // ─── Confirmar (idempotent submit) ────────────────────────────────────────
 async function onConfirm() {
+  if (!mode.value) return;
   if (!canConfirm.value || !paymentMethod.value || !amount.value) {
     return;
   }
-  // renew/misc exigen un socio existente; alta puede crear uno nuevo.
   if (mode.value !== 'alta' && !selectedMember.value) {
     return;
   }
-  // In misc mode the motivo is obligatorio (canConfirm guards it); narrow here.
   if (mode.value === 'misc' && miscReason.value == null) {
     return;
   }
@@ -894,7 +857,6 @@ async function onConfirm() {
         ...(selectedPlan.value.bookingMode === 'fixed' ? { scheduleIds: scheduleIds.value } : {}),
       };
       const resp = await financeApi.altaConPlan(body);
-      // Marcar el ticket creado-nuevo para el chip "Nuevo" (sobrevive al re-fetch).
       if (resp.createdNew && resp.transaction) {
         createdNewTicketIds.value = new Set(createdNewTicketIds.value).add(resp.transaction.id);
       }
@@ -902,26 +864,19 @@ async function onConfirm() {
     const successMsg =
       mode.value === 'alta'
         ? 'Alumno y plan cargados — pendiente de validación'
-        : 'Pago cargado — pendiente de validación';
+        : 'Cobro registrado — pendiente de validación';
     $q.notify({ type: 'positive', message: successMsg });
-    // Re-fetch the coach's own loads: the server is the source of truth and an
-    // idempotent no-op replay returns the existing ticket, so this de-dupes
-    // automatically (no duplicate row from a double-tap that slipped past disable).
     await refreshMyLoads();
     resetForm();
+    resetToPortada();
   } catch (err: unknown) {
     // Retry re-uses the SAME key, so a load that actually succeeded server-side
     // before a timeout is a safe idempotent no-op on the next tap.
-    log.error('Error cargando pago', {
+    log.error('Error registrando cobro', {
       error: err instanceof Error ? err.message : String(err),
     });
-    const errorMsg =
-      mode.value === 'alta'
-        ? 'No se pudo cargar. Reintentá.'
-        : 'No se pudo cargar el pago. Reintentá.';
-    $q.notify({ type: 'negative', message: errorMsg });
+    $q.notify({ type: 'negative', message: 'No se pudo registrar el cobro. Reintentá.' });
   } finally {
-    // Re-enable Confirmar (double-submit guard lifts) so retry is possible.
     submitting.value = false;
   }
 }
@@ -954,8 +909,6 @@ function ticketConcept(ticket: TransactionListItem): string {
   if (ticket.kind === 'advance_payment') {
     return ticket.notes ?? 'Cobro suelto';
   }
-  // Both a renovación (plan_charge) and a saldo de deuda (debt_settlement) are
-  // surfaced to the profe under the single "Pago de plan" action.
   return 'Pago de plan';
 }
 
@@ -973,8 +926,120 @@ function methodColor(method: PaymentMethod): string {
   return PAYMENT_METHOD_COLORS[method] ?? 'grey';
 }
 
-// Initial load of today's tickets.
+// Initial load of the coach's recent loads for the portada listado.
 void refreshMyLoads();
-// Pre-cargar las sedes accesibles para el chip Sede del modo alta.
+// Pre-cargar las sedes accesibles para el selector de Sede del alta.
 void loadBranches();
 </script>
+
+<style scoped lang="scss">
+.cobros-cta {
+  display: block;
+  width: 100%;
+  max-width: 560px;
+}
+
+.cobros-body--desktop {
+  gap: 32px; // xl column gap
+  align-items: flex-start;
+}
+
+.cobros-step-col {
+  flex: 1 1 auto;
+  width: 100%;
+  max-width: 560px;
+}
+
+.cobros-summary-col {
+  flex: 0 0 320px;
+  width: 320px;
+}
+
+.cobros-summary-panel {
+  position: sticky;
+  top: 88px;
+  border-radius: 8px;
+}
+
+.cobros-progress {
+  border-radius: 8px;
+}
+
+.cobros-sticky-action {
+  width: 100%;
+  max-width: 560px;
+  padding: 0 16px;
+}
+
+.cobros-step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  font-size: 14px;
+
+  &.is-current {
+    background: var(--q-primary);
+    color: white;
+  }
+
+  &.is-future {
+    color: inherit;
+    opacity: 0.55;
+    border: 1px solid currentColor;
+  }
+}
+
+// Step transitions — 200ms ease-out horizontal slide.
+.cobro-slide-forward-enter-active,
+.cobro-slide-forward-leave-active,
+.cobro-slide-back-enter-active,
+.cobro-slide-back-leave-active {
+  transition:
+    transform 200ms ease-out,
+    opacity 200ms ease-out;
+}
+.cobro-slide-forward-enter-from {
+  transform: translateX(24px);
+  opacity: 0;
+}
+.cobro-slide-forward-leave-to {
+  transform: translateX(-24px);
+  opacity: 0;
+}
+.cobro-slide-back-enter-from {
+  transform: translateX(-24px);
+  opacity: 0;
+}
+.cobro-slide-back-leave-to {
+  transform: translateX(24px);
+  opacity: 0;
+}
+
+.cobro-fade-enter-active,
+.cobro-fade-leave-active {
+  transition: opacity 150ms ease-out;
+}
+.cobro-fade-enter-from,
+.cobro-fade-leave-to {
+  opacity: 0;
+}
+
+// Respect reduced-motion: no horizontal travel, plain fade.
+@media (prefers-reduced-motion: reduce) {
+  .cobro-slide-forward-enter-active,
+  .cobro-slide-forward-leave-active,
+  .cobro-slide-back-enter-active,
+  .cobro-slide-back-leave-active {
+    transition: opacity 120ms ease-out;
+  }
+  .cobro-slide-forward-enter-from,
+  .cobro-slide-forward-leave-to,
+  .cobro-slide-back-enter-from,
+  .cobro-slide-back-leave-to {
+    transform: none;
+  }
+}
+</style>
