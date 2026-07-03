@@ -17,9 +17,8 @@
         @click="startCobro"
       />
 
-      <!-- Mis cargas de hoy (Task 4 rebuilds this into a day-grouped listado) -->
-      <div class="text-subtitle1 q-mb-sm">Mis cargas de hoy</div>
-
+      <!-- Historial de cobros — agrupado por día (fecha en el header, hora por fila).
+           El endpoint devuelve los últimos 50 cobros (histórico), no "de hoy". -->
       <div v-if="loadingMyLoads" class="q-gutter-sm">
         <q-skeleton v-for="n in 3" :key="n" type="rect" height="56px" />
       </div>
@@ -34,32 +33,44 @@
         </q-card-section>
       </q-card>
 
-      <q-list v-else bordered separator class="rounded-borders">
-        <q-item v-for="ticket in myLoads" :key="ticket.id">
-          <q-item-section>
-            <q-item-label>
-              <q-icon name="schedule" size="xs" class="q-mr-xs" />{{
-                formatTime(ticket.createdAt)
-              }}
-              · {{ ticket.memberName }}
-            </q-item-label>
-            <q-item-label class="text-subtitle2 text-weight-regular text-grey-7">{{
-              ticketConcept(ticket)
-            }}</q-item-label>
-            <div class="q-mt-xs q-gutter-xs">
-              <q-badge
-                :color="methodColor(ticket.paymentMethod)"
-                :label="methodLabel(ticket.paymentMethod)"
-              />
-              <q-badge color="warning" label="Pendiente" />
-              <q-badge v-if="createdNewTicketIds.has(ticket.id)" color="primary" label="Nuevo" />
-            </div>
-          </q-item-section>
-          <q-item-section side top>
-            <div class="text-h6">{{ formatPrice(ticket.amount, ticket.currency) }}</div>
-          </q-item-section>
-        </q-item>
-      </q-list>
+      <template v-else>
+        <div v-for="group in groupedLoads" :key="group.key" class="q-mb-md">
+          <q-item-label
+            header
+            class="cobros-day-header bg-summary-surface text-body1 text-weight-bold q-py-sm"
+          >
+            {{ group.label }}
+          </q-item-label>
+          <q-list bordered separator class="rounded-borders">
+            <q-item v-for="ticket in group.rows" :key="ticket.id">
+              <q-item-section>
+                <q-item-label>{{ ticket.memberName }}</q-item-label>
+                <div class="text-subtitle2 text-weight-regular text-grey-7">
+                  <q-icon name="schedule" size="xs" class="q-mr-xs" />{{
+                    formatTime(ticket.createdAt)
+                  }}
+                  · {{ ticketConcept(ticket) }}
+                </div>
+                <div class="q-mt-xs q-gutter-xs">
+                  <q-badge
+                    :color="methodColor(ticket.paymentMethod)"
+                    :label="methodLabel(ticket.paymentMethod)"
+                  />
+                  <q-badge color="warning" label="Pendiente" />
+                  <q-badge
+                    v-if="createdNewTicketIds.has(ticket.id)"
+                    color="primary"
+                    label="Nuevo"
+                  />
+                </div>
+              </q-item-section>
+              <q-item-section side top>
+                <div class="text-h6">{{ formatPrice(ticket.amount, ticket.currency) }}</div>
+              </q-item-section>
+            </q-item>
+          </q-list>
+        </div>
+      </template>
     </div>
 
     <!-- ════════════ WIZARD (steps 1..4) ════════════ -->
@@ -1293,6 +1304,57 @@ function formatTime(dateStr: string): string {
   return d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
 }
 
+// ─── Listado agrupado por día (COBRO-03) ────────────────────────────────────
+interface LoadDayGroup {
+  key: string;
+  label: string;
+  rows: TransactionListItem[];
+}
+
+function sameDay(a: Date, b: Date): boolean {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+
+function dayKey(d: Date): string {
+  if (Number.isNaN(d.getTime())) return 'invalid';
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+
+function dayLabel(d: Date): string {
+  if (Number.isNaN(d.getTime())) return '—';
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+  if (sameDay(d, today)) return 'Hoy';
+  if (sameDay(d, yesterday)) return 'Ayer';
+  // p.ej. "mar 1 jul" (es-AR). Se limpian los puntos de las abreviaturas.
+  return d
+    .toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' })
+    .replace(/\./g, '');
+}
+
+// myLoads ya viene ordenado por recencia; el grouping preserva ese orden.
+const groupedLoads = computed<LoadDayGroup[]>(() => {
+  const groups: LoadDayGroup[] = [];
+  const byKey = new Map<string, LoadDayGroup>();
+  for (const t of myLoads.value) {
+    const d = new Date(t.createdAt);
+    const key = dayKey(d);
+    let g = byKey.get(key);
+    if (!g) {
+      g = { key, label: dayLabel(d), rows: [] };
+      byKey.set(key, g);
+      groups.push(g);
+    }
+    g.rows.push(t);
+  }
+  return groups;
+});
+
 function methodLabel(method: PaymentMethod): string {
   return PAYMENT_METHOD_LABELS[method] ?? method;
 }
@@ -1337,6 +1399,13 @@ void loadBranches();
 }
 
 .cobros-progress {
+  border-radius: 8px;
+}
+
+.cobros-day-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
   border-radius: 8px;
 }
 
