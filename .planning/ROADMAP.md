@@ -3895,10 +3895,10 @@ Plans:
 3. El listado de cargas del profe muestra **fecha + hora** de cada registro, y el botón **"Continuar"** queda arriba del listado. (COBRO-03)
 4. Un cobro por **transferencia o tarjeta** exige seleccionar una **cuenta bancaria existente**; si no hay cuentas cargadas ofrece **crear cuenta rápida inline** y **no permite finalizar** sin asociarla. (COBRO-04)
 
-**Plans:** 1/4 plans executed
+**Plans:** 2/4 plans executed
 
 - [x] 151-01-PLAN.md — API COBRO-04: bankAccountId contract + validation + GET /coach-load/bank-accounts + tests
-- [ ] 151-02-PLAN.md — Composable field/list method + shared CobroResumen.vue summary component
+- [x] 151-02-PLAN.md — Composable field/list method + shared CobroResumen.vue summary component
 - [ ] 151-03-PLAN.md — Rename Pagos→Cobros (route/redirect/nav) + 4-step wizard + day-grouped listado
 - [ ] 151-04-PLAN.md — Bank-account selector in step 3 + admin/owner inline quick-create
       **UI hint:** yes
@@ -3985,7 +3985,7 @@ Plans:
 | ----------------------------------------------- | -------------- | ----------- | ---------- |
 | 149. Nav por categorías + RBAC                  | 6/6            | Complete    | 2026-07-02 |
 | 150. Cuentas bancarias flexibles                | 6/6            | Complete    | 2026-07-03 |
-| 151. Registrar cobro (Pagos → Cobros)           | 1/4            | In Progress |            |
+| 151. Registrar cobro (Pagos → Cobros)           | 2/4            | In Progress |            |
 | 152. Reorganización de Caja + egresos config.   | 0/TBD          | Not started | -          |
 | 153. Mejoras de Deudas                          | 0/TBD          | Not started | -          |
 | 154. Alumnos (de-Templo-ficación + accesos)     | 0/TBD          | Not started | -          |
