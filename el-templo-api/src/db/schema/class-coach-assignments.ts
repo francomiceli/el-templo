@@ -1,12 +1,20 @@
 // Module: class-coach-assignments
 //
-// Phase 143 (PROF-DATA): weekly roster that assigns ONE coach per
-// (branch, ISO week, day, slot). This is the SINGLE source of attribution for
-// post-class ratings (D-A1, D-Q1). The composite uniqueIndex enforces, at the
-// DB engine level, that there is at most one coach per slot/week (D-A2).
+// Phase 143 (PROF-DATA): roster that assigns ONE coach per (branch, day, slot).
+// This is the SINGLE source of attribution for post-class ratings (D-A1, D-Q1).
+// The composite uniqueIndex enforces, at the DB engine level, at most one
+// change-point per slot per week (D-A2).
 //
-// `weekStartDate` is the Monday of the ISO week and rows are kept per-week so
-// past ratings stay attributable — never mutate a single "current" row (D-A1).
+// EFFECTIVE-DATED (Phase roster-effective-dated): a row is a CHANGE-POINT, not a
+// per-week snapshot. `weekStartDate` is the Monday of the ISO week from which
+// that coach takes effect, and each (branch, day, slot) inherits the coach of
+// the most recent change-point whose week is <= the week being read. So a slot
+// keeps its coach forward in time until a later change-point supersedes it, and
+// a single row represents "this coach from here on". Invariant maintained by the
+// write path: no two consecutive change-points (by week, per slot) share a
+// coach. Change-points are only ever added from the current week onward — past
+// rows are immutable so historical attribution stays frozen (rating rows also
+// snapshot coachId at submit time, so history is doubly safe).
 // `slot` is the turn derived from a schedule's startTime (< "12:00" = morning).
 import {
   mysqlTable,

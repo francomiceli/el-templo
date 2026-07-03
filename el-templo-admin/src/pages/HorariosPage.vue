@@ -154,6 +154,7 @@
             <div class="text-subtitle2 text-weight-medium q-mb-sm">Profe a cargo</div>
             <template v-if="isOwner">
               <q-select
+                :key="`rm-morning-${selectedDay}-${rosterVersion}`"
                 v-model="rosterMobileMorning"
                 :options="coachSelectOptions"
                 label="Profe — Mañana"
@@ -166,10 +167,11 @@
                 class="q-mb-sm"
                 :placeholder="'Sin profe asignado'"
                 @update:model-value="
-                  (val: number | null) => onAssignCoach(selectedDay, 'morning', val)
+                  (val: number | null) => requestAssignCoach(selectedDay, 'morning', val)
                 "
               />
               <q-select
+                :key="`rm-afternoon-${selectedDay}-${rosterVersion}`"
                 v-model="rosterMobileAfternoon"
                 :options="coachSelectOptions"
                 label="Profe — Tarde"
@@ -181,7 +183,7 @@
                 :loading="loadingRoster"
                 :placeholder="'Sin profe asignado'"
                 @update:model-value="
-                  (val: number | null) => onAssignCoach(selectedDay, 'afternoon', val)
+                  (val: number | null) => requestAssignCoach(selectedDay, 'afternoon', val)
                 "
               />
             </template>
@@ -278,6 +280,7 @@
                 >
                   <q-select
                     v-if="isOwner"
+                    :key="`rd-${row.slot}-${day.dayOfWeek}-${rosterVersion}`"
                     :model-value="rosterValue(day.dayOfWeek, row.slot!)"
                     :options="coachSelectOptions"
                     dense
@@ -288,7 +291,7 @@
                     :loading="loadingRoster"
                     placeholder="Sin profe"
                     @update:model-value="
-                      (val: number | null) => onAssignCoach(day.dayOfWeek, row.slot!, val)
+                      (val: number | null) => requestAssignCoach(day.dayOfWeek, row.slot!, val)
                     "
                   />
                   <div v-else class="roster-readonly-cell text-caption">
@@ -368,6 +371,32 @@
     />
     <HolidaysDialog v-model:show="showHolidaysDialog" @holidays-changed="loadWeeklyGrid" />
     <SesionesDePruebaDialog v-model:show="showTrialsDialog" :initial-date="trialsInitialDate" />
+
+    <!-- Confirm a roster coach change. Roster edits are effective-dated, so this
+         spells out that the change rules from the viewed week onward. -->
+    <q-dialog v-model="confirmChangeOpen" @hide="onConfirmDialogHide">
+      <q-card style="min-width: 320px; max-width: 420px">
+        <q-card-section class="row items-center q-pb-none">
+          <q-icon name="event_repeat" color="primary" size="sm" class="q-mr-sm" />
+          <div class="text-h6">Confirmar cambio de profe</div>
+        </q-card-section>
+        <q-card-section v-if="pendingChange">
+          <p class="q-mb-sm">
+            <b>{{ pendingChange.coachName }}</b> quedará a cargo de los
+            <b>{{ pendingChange.dayLabel }}</b> a la <b>{{ pendingChange.slotLabel }}</b
+            >.
+          </p>
+          <p class="q-mb-none text-body2 text-grey-8">
+            Rige desde la semana del <b>{{ weekRangeLabel }}</b> en adelante, hasta que lo vuelvas a
+            cambiar.
+          </p>
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat label="Cancelar" color="grey-8" @click="cancelAssignChange" />
+          <q-btn unelevated label="Confirmar" color="primary" @click="confirmAssignChange" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
@@ -637,6 +666,30 @@ const coaches = ref<CoachOption[]>([]);
 const rosterMap = ref<Map<string, RosterWeekRow>>(new Map());
 const loadingRoster = ref(false);
 
+// Roster edits are effective-dated: a change rules from the viewed week onward
+// until the next change. Every coach change goes through a confirm dialog that
+// spells that out. `rosterVersion` is bumped on confirm/cancel and mixed into
+// each select's :key so the select re-mounts and snaps back to the persisted
+// coach when the user cancels (the selects are otherwise uncontrolled locally).
+const rosterVersion = ref(0);
+const confirmChangeOpen = ref(false);
+const DAY_FULL_LABELS: Record<number, string> = {
+  1: 'lunes',
+  2: 'martes',
+  3: 'miércoles',
+  4: 'jueves',
+  5: 'viernes',
+  6: 'sábados',
+};
+const pendingChange = ref<{
+  dayOfWeek: number;
+  slot: ClassSlot;
+  coachId: number;
+  coachName: string;
+  dayLabel: string;
+  slotLabel: string;
+} | null>(null);
+
 /** QSelect options: coach id → "firstName lastName". */
 const coachSelectOptions = computed(() =>
   coaches.value.map((c) => ({ label: `${c.firstName} ${c.lastName}`, value: c.id }))
@@ -700,6 +753,63 @@ async function loadRoster() {
     $q.notify({ type: 'negative', message: 'Error cargando el roster de profes' });
   } finally {
     loadingRoster.value = false;
+  }
+}
+
+/**
+ * Entry point for a coach change from a select. Clearing re-syncs silently; a
+ * no-op is ignored; a real change opens the confirm dialog explaining that it
+ * takes effect from the viewed week onward. The write only happens on confirm.
+ */
+function requestAssignCoach(dayOfWeek: number, slot: ClassSlot, coachId: number | null) {
+  if (!selectedBranchId.value) return;
+  // Clearing the select (no coach) isn't a reassignment — let onAssignCoach
+  // re-sync the select back to the persisted value (clearing is unsupported).
+  if (coachId == null) {
+    void onAssignCoach(dayOfWeek, slot, null);
+    return;
+  }
+  // Selecting the coach that's already assigned: nothing to confirm.
+  if (rosterValue(dayOfWeek, slot) === coachId) return;
+
+  const coach = coaches.value.find((c) => c.id === coachId);
+  pendingChange.value = {
+    dayOfWeek,
+    slot,
+    coachId,
+    coachName: coach ? `${coach.firstName} ${coach.lastName}` : 'este profe',
+    dayLabel: DAY_FULL_LABELS[dayOfWeek] ?? '',
+    slotLabel: slot === 'morning' ? 'mañana' : 'tarde',
+  };
+  confirmChangeOpen.value = true;
+}
+
+/** Confirm the pending coach change: persist it, then re-render the selects. */
+async function confirmAssignChange() {
+  const change = pendingChange.value;
+  if (!change) return;
+  // Clear the pending marker BEFORE closing so @hide (onConfirmDialogHide) knows
+  // this was a confirm, not a dismissal, and does not revert the select.
+  pendingChange.value = null;
+  confirmChangeOpen.value = false;
+  await onAssignCoach(change.dayOfWeek, change.slot, change.coachId);
+  rosterVersion.value += 1;
+}
+
+/** Cancel button: just close — the revert happens in onConfirmDialogHide. */
+function cancelAssignChange() {
+  confirmChangeOpen.value = false;
+}
+
+/**
+ * Fires whenever the dialog closes (Cancel, ESC, or backdrop click). If a change
+ * is still pending, it was dismissed without confirming → re-mount the selects
+ * so they snap back to the persisted coach.
+ */
+function onConfirmDialogHide() {
+  if (pendingChange.value) {
+    pendingChange.value = null;
+    rosterVersion.value += 1;
   }
 }
 

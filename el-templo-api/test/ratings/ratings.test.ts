@@ -99,6 +99,7 @@ interface SeededContext {
   ownerToken: string;
   coachArToken: string;
   coachArId: number;
+  coachAr2Id: number;
   coachEsId: number;
   scheduleMorningId: number;
   scheduleAfternoonId: number;
@@ -188,6 +189,16 @@ async function seedFixtures(app: FastifyInstance): Promise<SeededContext> {
     "coach-pass-123",
   );
 
+  // A second AR coach, for effective-dated tests that swap coaches within AR.
+  const coachAr2Id = await createStaffUser(app, {
+    email: "coach-ar2b-ratings@test.com",
+    password: "coach-pass-123",
+    firstName: "Diego",
+    lastName: "Profe",
+    role: "coach",
+    branchId: ar.id,
+  });
+
   const coachEsId = await createStaffUser(app, {
     email: "coach-es-ratings@test.com",
     password: "coach-pass-123",
@@ -213,6 +224,7 @@ async function seedFixtures(app: FastifyInstance): Promise<SeededContext> {
     ownerToken,
     coachArToken,
     coachArId,
+    coachAr2Id,
     coachEsId,
     scheduleMorningId: schedMorning.id,
     scheduleAfternoonId: schedAfternoon.id,
@@ -262,6 +274,25 @@ async function assignRoster(
     payload: body,
   });
   return res.statusCode;
+}
+
+/**
+ * Seed a roster change-point directly in the DB, bypassing the API's
+ * "no editing the past" guard. Used to set up historical change-points (the way
+ * production accumulates them over time / via the collapse migration) so
+ * attribution/inheritance can be exercised for past classes.
+ */
+async function seedRoster(
+  app: FastifyInstance,
+  row: {
+    branchId: number;
+    weekStartDate: string;
+    dayOfWeek: number;
+    slot: "morning" | "afternoon";
+    coachId: number;
+  },
+): Promise<void> {
+  await app.db.insert(schema.classCoachAssignments).values(row);
 }
 
 describe("Ratings module (Phase 143)", () => {
@@ -408,7 +439,7 @@ describe("Ratings module (Phase 143)", () => {
     expect(writeRes.statusCode).toBe(403);
   });
 
-  it("attributes the submitted rating to the coach assigned that week (slot derived from startTime)", async () => {
+  it("attributes the submitted rating to the coach effective that week; a LATER change-point does not affect it", async () => {
     const sessionDate = classDaysAgo(0);
     const week = isoMonday(sessionDate);
     const dow = isoDow(sessionDate);
@@ -427,13 +458,14 @@ describe("Ratings module (Phase 143)", () => {
       slot: "morning",
       coachId: ctx.coachArId,
     });
-    // A DIFFERENT week's roster must not affect this past class's attribution.
+    // A change-point in a FUTURE week must not affect this week's attribution
+    // (its week is > the class week, excluded by the "<=" resolution).
     await assignRoster(app, ctx.ownerToken, {
       branchId: ctx.arBranchId,
-      weekStartDate: isoMonday(dateDaysAgo(14)),
+      weekStartDate: isoMonday(dateDaysAgo(-14)), // two weeks ahead
       dayOfWeek: dow,
       slot: "morning",
-      coachId: ctx.coachEsId,
+      coachId: ctx.coachAr2Id,
     });
 
     const res = await app.inject({
@@ -451,6 +483,211 @@ describe("Ratings module (Phase 143)", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0].coachId).toBe(ctx.coachArId);
     expect(rows[0].stars).toBe(5);
+  });
+
+  it("attribution inherits the last change-point when the class's week has none (effective-dated)", async () => {
+    const sessionDate = classDaysAgo(0);
+    const dow = isoDow(sessionDate);
+
+    await seedAttendance(app, {
+      memberId: ctx.memberId,
+      branchId: ctx.arBranchId,
+      scheduleId: ctx.scheduleMorningId,
+      sessionDate,
+      checkedInAt: new Date(),
+    });
+    // Only a PAST change-point exists (seeded directly — the API guards past
+    // weeks). The class's week has no row of its own, so it inherits coachAr.
+    await seedRoster(app, {
+      branchId: ctx.arBranchId,
+      weekStartDate: isoMonday(dateDaysAgo(21)),
+      dayOfWeek: dow,
+      slot: "morning",
+      coachId: ctx.coachArId,
+    });
+
+    const res = await app.inject({
+      method: "POST",
+      url: MEMBER_BASE,
+      headers: { authorization: `Bearer ${ctx.memberToken}` },
+      payload: { sessionDate, scheduleId: ctx.scheduleMorningId, stars: 4 },
+    });
+    expect(res.statusCode).toBe(201);
+
+    const rows = await app.db
+      .select()
+      .from(schema.coachRatings)
+      .where(eq(schema.coachRatings.memberId, ctx.memberId));
+    expect(rows).toHaveLength(1);
+    expect(rows[0].coachId).toBe(ctx.coachArId);
+  });
+
+  it("rejects editing the roster of a past week (history is frozen)", async () => {
+    const status = await assignRoster(app, ctx.ownerToken, {
+      branchId: ctx.arBranchId,
+      weekStartDate: isoMonday(dateDaysAgo(14)),
+      dayOfWeek: 1,
+      slot: "morning",
+      coachId: ctx.coachArId,
+    });
+    expect(status).toBe(400);
+  });
+
+  it("a change propagates forward: a future week reflects the current-week coach", async () => {
+    const week = isoMonday(dateDaysAgo(0));
+    await assignRoster(app, ctx.ownerToken, {
+      branchId: ctx.arBranchId,
+      weekStartDate: week,
+      dayOfWeek: 1,
+      slot: "morning",
+      coachId: ctx.coachArId,
+    });
+
+    const futureWeek = isoMonday(dateDaysAgo(-28)); // 4 weeks ahead
+    const res = await app.inject({
+      method: "GET",
+      url: `${ADMIN_BASE}/roster?branchId=${ctx.arBranchId}&weekStart=${futureWeek}`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const cells = JSON.parse(res.body) as Array<{
+      dayOfWeek: number;
+      slot: string;
+      coachId: number;
+    }>;
+    const cell = cells.find((c) => c.dayOfWeek === 1 && c.slot === "morning");
+    expect(cell?.coachId).toBe(ctx.coachArId);
+  });
+
+  it("a forward change does not wipe a planned later change (two change-points)", async () => {
+    const week = isoMonday(dateDaysAgo(0));
+    const midWeek = isoMonday(dateDaysAgo(-14)); // 2 weeks ahead
+    // coachAr from now, coachAr2 planned from 2 weeks ahead.
+    await assignRoster(app, ctx.ownerToken, {
+      branchId: ctx.arBranchId,
+      weekStartDate: week,
+      dayOfWeek: 1,
+      slot: "morning",
+      coachId: ctx.coachArId,
+    });
+    await assignRoster(app, ctx.ownerToken, {
+      branchId: ctx.arBranchId,
+      weekStartDate: midWeek,
+      dayOfWeek: 1,
+      slot: "morning",
+      coachId: ctx.coachAr2Id,
+    });
+
+    const coachAt = async (weekStart: string): Promise<number | undefined> => {
+      const res = await app.inject({
+        method: "GET",
+        url: `${ADMIN_BASE}/roster?branchId=${ctx.arBranchId}&weekStart=${weekStart}`,
+        headers: { authorization: `Bearer ${ctx.ownerToken}` },
+      });
+      const cells = JSON.parse(res.body) as Array<{
+        dayOfWeek: number;
+        slot: string;
+        coachId: number;
+      }>;
+      return cells.find((c) => c.dayOfWeek === 1 && c.slot === "morning")
+        ?.coachId;
+    };
+
+    expect(await coachAt(week)).toBe(ctx.coachArId);
+    expect(await coachAt(isoMonday(dateDaysAgo(-7)))).toBe(ctx.coachArId); // 1w
+    expect(await coachAt(midWeek)).toBe(ctx.coachAr2Id); // 2w onward
+    expect(await coachAt(isoMonday(dateDaysAgo(-28)))).toBe(ctx.coachAr2Id); // 4w
+  });
+
+  it("setting a coach already inherited creates no redundant change-point", async () => {
+    const week = isoMonday(dateDaysAgo(0));
+    await assignRoster(app, ctx.ownerToken, {
+      branchId: ctx.arBranchId,
+      weekStartDate: week,
+      dayOfWeek: 1,
+      slot: "morning",
+      coachId: ctx.coachArId,
+    });
+    // Re-set the SAME coach two weeks ahead: it is already inherited → no row.
+    await assignRoster(app, ctx.ownerToken, {
+      branchId: ctx.arBranchId,
+      weekStartDate: isoMonday(dateDaysAgo(-14)),
+      dayOfWeek: 1,
+      slot: "morning",
+      coachId: ctx.coachArId,
+    });
+
+    const rows = await app.db
+      .select()
+      .from(schema.classCoachAssignments)
+      .where(
+        and(
+          eq(schema.classCoachAssignments.branchId, ctx.arBranchId),
+          eq(schema.classCoachAssignments.dayOfWeek, 1),
+          eq(schema.classCoachAssignments.slot, "morning"),
+        ),
+      );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].weekStartDate).toBe(week);
+  });
+
+  it("one-week exception works via two changes (substitute then back)", async () => {
+    const week = isoMonday(dateDaysAgo(0));
+    const nextWeek = isoMonday(dateDaysAgo(-7));
+    const backWeek = isoMonday(dateDaysAgo(-14));
+    await assignRoster(app, ctx.ownerToken, {
+      branchId: ctx.arBranchId,
+      weekStartDate: week,
+      dayOfWeek: 1,
+      slot: "morning",
+      coachId: ctx.coachArId,
+    });
+    // Substitute for exactly one week, then back to the original.
+    await assignRoster(app, ctx.ownerToken, {
+      branchId: ctx.arBranchId,
+      weekStartDate: nextWeek,
+      dayOfWeek: 1,
+      slot: "morning",
+      coachId: ctx.coachAr2Id,
+    });
+    await assignRoster(app, ctx.ownerToken, {
+      branchId: ctx.arBranchId,
+      weekStartDate: backWeek,
+      dayOfWeek: 1,
+      slot: "morning",
+      coachId: ctx.coachArId,
+    });
+
+    const coachAt = async (weekStart: string): Promise<number | undefined> => {
+      const res = await app.inject({
+        method: "GET",
+        url: `${ADMIN_BASE}/roster?branchId=${ctx.arBranchId}&weekStart=${weekStart}`,
+        headers: { authorization: `Bearer ${ctx.ownerToken}` },
+      });
+      const cells = JSON.parse(res.body) as Array<{
+        dayOfWeek: number;
+        slot: string;
+        coachId: number;
+      }>;
+      return cells.find((c) => c.dayOfWeek === 1 && c.slot === "morning")
+        ?.coachId;
+    };
+
+    expect(await coachAt(week)).toBe(ctx.coachArId);
+    expect(await coachAt(nextWeek)).toBe(ctx.coachAr2Id);
+    expect(await coachAt(backWeek)).toBe(ctx.coachArId);
+    // Three distinct change-points remain.
+    const rows = await app.db
+      .select()
+      .from(schema.classCoachAssignments)
+      .where(
+        and(
+          eq(schema.classCoachAssignments.branchId, ctx.arBranchId),
+          eq(schema.classCoachAssignments.dayOfWeek, 1),
+          eq(schema.classCoachAssignments.slot, "morning"),
+        ),
+      );
+    expect(rows).toHaveLength(3);
   });
 
   it("pending returns the recent in-person class within 48h (no coach exposed) and null past 48h", async () => {
@@ -526,14 +763,16 @@ describe("Ratings module (Phase 143)", () => {
       sessionDate: today,
       checkedInAt: new Date(),
     });
-    await assignRoster(app, ctx.ownerToken, {
+    // Seed directly: yesterday may fall in a prior ISO week (Mondays), which the
+    // API guards as "past". Attribution/inheritance is what we exercise here.
+    await seedRoster(app, {
       branchId: ctx.arBranchId,
       weekStartDate: week,
       dayOfWeek: isoDow(today),
       slot: "morning",
       coachId: ctx.coachArId,
     });
-    await assignRoster(app, ctx.ownerToken, {
+    await seedRoster(app, {
       branchId: ctx.arBranchId,
       weekStartDate: isoMonday(yesterday),
       dayOfWeek: isoDow(yesterday),
@@ -669,7 +908,9 @@ describe("Ratings module (Phase 143)", () => {
         sessionDate: days[i],
         checkedInAt: new Date(Date.now() - i * 60 * 1000),
       });
-      await assignRoster(app, ctx.ownerToken, {
+      // Seed directly: earlier class days may fall in prior ISO weeks that the
+      // API guards as "past".
+      await seedRoster(app, {
         branchId: ctx.arBranchId,
         weekStartDate: isoMonday(days[i]),
         dayOfWeek: isoDow(days[i]),
