@@ -56,7 +56,12 @@
                     :color="methodColor(ticket.paymentMethod)"
                     :label="methodLabel(ticket.paymentMethod)"
                   />
-                  <q-badge color="warning" label="Pendiente" />
+                  <!-- WR-03: una fila anulada ya no se muestra "Pendiente".
+                       (La distinción Validado-vs-Pendiente necesita exponer
+                       validationStatus en el endpoint del listado — backend,
+                       fuera de este gap-closure frontend-only.) -->
+                  <q-badge v-if="ticket.voidedAt != null" color="negative" label="Anulado" />
+                  <q-badge v-else color="warning" label="Pendiente" />
                   <q-badge
                     v-if="createdNewTicketIds.has(ticket.id)"
                     color="primary"
@@ -1199,6 +1204,10 @@ function onUsarExistente() {
     statusColor: 'grey',
   };
   resetAltaFields();
+  // WR-02: adoptar un socio existente vía dedup debe cargar su autocompletar
+  // (deuda POS-01, pre-fill de renovación, moneda del cobro) igual que el
+  // typeahead (onMemberSelected).
+  void loadAutocompletar(m.id);
 }
 
 function onSucursalChange() {
@@ -1274,6 +1283,9 @@ function tierColor(tier: PlanTier): string {
 function selectPlan(plan: PlanListItem) {
   selectedPlan.value = plan;
   scheduleIds.value = [];
+  // WR-04: cambiar de plan es un nuevo target → nueva idempotency key, para que
+  // un reintento tras un éxito perdido no sea no-op contra el plan anterior.
+  currentIdempotencyKey.value = null;
 }
 
 async function loadAltaPlans() {
