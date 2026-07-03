@@ -16,7 +16,10 @@ export interface PendingRating {
 export interface SubmitRatingInput {
   sessionDate: string
   scheduleId: number
+  /** Nota del profe 1–5 (alimenta /puntuaciones). */
   stars: number
+  /** Nota de la clase 1–5 (alimenta la pestaña "Clases" de Analíticas). */
+  classStars: number
   comment?: string
 }
 

@@ -472,7 +472,12 @@ describe("Ratings module (Phase 143)", () => {
       method: "POST",
       url: MEMBER_BASE,
       headers: { authorization: `Bearer ${ctx.memberToken}` },
-      payload: { sessionDate, scheduleId: ctx.scheduleMorningId, stars: 5 },
+      payload: {
+        sessionDate,
+        scheduleId: ctx.scheduleMorningId,
+        stars: 5,
+        classStars: 5,
+      },
     });
     expect(res.statusCode).toBe(201);
 
@@ -510,7 +515,12 @@ describe("Ratings module (Phase 143)", () => {
       method: "POST",
       url: MEMBER_BASE,
       headers: { authorization: `Bearer ${ctx.memberToken}` },
-      payload: { sessionDate, scheduleId: ctx.scheduleMorningId, stars: 4 },
+      payload: {
+        sessionDate,
+        scheduleId: ctx.scheduleMorningId,
+        stars: 4,
+        classStars: 4,
+      },
     });
     expect(res.statusCode).toBe(201);
 
@@ -813,7 +823,12 @@ describe("Ratings module (Phase 143)", () => {
       method: "POST",
       url: MEMBER_BASE,
       headers: { authorization: `Bearer ${ctx.memberToken}` },
-      payload: { sessionDate, scheduleId: ctx.scheduleMorningId, stars: 4 },
+      payload: {
+        sessionDate,
+        scheduleId: ctx.scheduleMorningId,
+        stars: 4,
+        classStars: 4,
+      },
     });
     expect(submit1.statusCode).toBe(201);
 
@@ -829,7 +844,12 @@ describe("Ratings module (Phase 143)", () => {
       method: "POST",
       url: MEMBER_BASE,
       headers: { authorization: `Bearer ${ctx.memberToken}` },
-      payload: { sessionDate, scheduleId: ctx.scheduleMorningId, stars: 1 },
+      payload: {
+        sessionDate,
+        scheduleId: ctx.scheduleMorningId,
+        stars: 1,
+        classStars: 1,
+      },
     });
     expect(submit2.statusCode).toBe(400);
 
@@ -863,7 +883,12 @@ describe("Ratings module (Phase 143)", () => {
       method: "POST",
       url: MEMBER_BASE,
       headers: { authorization: `Bearer ${ctx.memberToken}` },
-      payload: { sessionDate, scheduleId: ctx.scheduleMorningId, stars: 5 },
+      payload: {
+        sessionDate,
+        scheduleId: ctx.scheduleMorningId,
+        stars: 5,
+        classStars: 5,
+      },
     });
     expect(submit.statusCode).toBe(400);
 
@@ -899,6 +924,8 @@ describe("Ratings module (Phase 143)", () => {
     const week = isoMonday(classDaysAgo(0));
     const days = [classDaysAgo(0), classDaysAgo(1), classDaysAgo(2)];
     const stars = [5, 3, 4];
+    // Class ratings differ from profe ratings — the two dimensions are decoupled.
+    const classStarsSeed = [4, 4, 2];
 
     for (let i = 0; i < days.length; i++) {
       await seedAttendance(app, {
@@ -925,6 +952,7 @@ describe("Ratings module (Phase 143)", () => {
           sessionDate: days[i],
           scheduleId: ctx.scheduleMorningId,
           stars: stars[i],
+          classStars: classStarsSeed[i],
         },
       });
       expect(submit.statusCode).toBe(201);
@@ -966,5 +994,127 @@ describe("Ratings module (Phase 143)", () => {
     expect(ids).toContain(ctx.coachArId);
     // The ES coach is not in the AR branch.
     expect(ids).not.toContain(ctx.coachEsId);
+  });
+
+  it("rejects a submit missing classStars (both dimensions are required)", async () => {
+    const sessionDate = classDaysAgo(0);
+    await seedAttendance(app, {
+      memberId: ctx.memberId,
+      branchId: ctx.arBranchId,
+      scheduleId: ctx.scheduleMorningId,
+      sessionDate,
+      checkedInAt: new Date(),
+    });
+    await seedRoster(app, {
+      branchId: ctx.arBranchId,
+      weekStartDate: isoMonday(sessionDate),
+      dayOfWeek: isoDow(sessionDate),
+      slot: "morning",
+      coachId: ctx.coachArId,
+    });
+
+    const res = await app.inject({
+      method: "POST",
+      url: MEMBER_BASE,
+      headers: { authorization: `Bearer ${ctx.memberToken}` },
+      // No classStars → schema validation must reject before insert.
+      payload: { sessionDate, scheduleId: ctx.scheduleMorningId, stars: 5 },
+    });
+    expect(res.statusCode).toBe(400);
+
+    const rows = await app.db.select().from(schema.coachRatings);
+    expect(rows).toHaveLength(0);
+  });
+
+  it("class-ratings analytics: overall avg + byBranch + byTurno (mañana/tarde split at 12:00)", async () => {
+    // Mañana class (09:00 → morning) rated classStars=4.
+    const morningDay = classDaysAgo(0);
+    await seedAttendance(app, {
+      memberId: ctx.memberId,
+      branchId: ctx.arBranchId,
+      scheduleId: ctx.scheduleMorningId,
+      sessionDate: morningDay,
+      checkedInAt: new Date(),
+    });
+    await seedRoster(app, {
+      branchId: ctx.arBranchId,
+      weekStartDate: isoMonday(morningDay),
+      dayOfWeek: isoDow(morningDay),
+      slot: "morning",
+      coachId: ctx.coachArId,
+    });
+    const s1 = await app.inject({
+      method: "POST",
+      url: MEMBER_BASE,
+      headers: { authorization: `Bearer ${ctx.memberToken}` },
+      payload: {
+        sessionDate: morningDay,
+        scheduleId: ctx.scheduleMorningId,
+        stars: 5,
+        classStars: 4,
+      },
+    });
+    expect(s1.statusCode).toBe(201);
+
+    // Tarde class (afternoon schedule → ≥12:00) rated classStars=2.
+    const afternoonDay = classDaysAgo(1);
+    await seedAttendance(app, {
+      memberId: ctx.memberId,
+      branchId: ctx.arBranchId,
+      scheduleId: ctx.scheduleAfternoonId,
+      sessionDate: afternoonDay,
+      checkedInAt: new Date(),
+    });
+    await seedRoster(app, {
+      branchId: ctx.arBranchId,
+      weekStartDate: isoMonday(afternoonDay),
+      dayOfWeek: isoDow(afternoonDay),
+      slot: "afternoon",
+      coachId: ctx.coachArId,
+    });
+    const s2 = await app.inject({
+      method: "POST",
+      url: MEMBER_BASE,
+      headers: { authorization: `Bearer ${ctx.memberToken}` },
+      payload: {
+        sessionDate: afternoonDay,
+        scheduleId: ctx.scheduleAfternoonId,
+        stars: 3,
+        classStars: 2,
+      },
+    });
+    expect(s2.statusCode).toBe(201);
+
+    const from = classDaysAgo(5);
+    const to = dateDaysAgo(-1); // exclusive upper bound → include today
+    const res = await app.inject({
+      method: "GET",
+      url: `/api/admin/analytics/class-ratings?branchId=${ctx.arBranchId}&dateFrom=${from}&dateTo=${to}`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body) as {
+      overall: { avgStars: number | null; count: number };
+      byBranch: Array<{ branchId: number; avgStars: number; count: number }>;
+      byTurno: Array<{
+        turno: "manana" | "tarde";
+        avgStars: number;
+        count: number;
+      }>;
+    };
+
+    // AVG(4, 2) = 3 over the two rated classes.
+    expect(body.overall.count).toBe(2);
+    expect(body.overall.avgStars).toBeCloseTo(3, 5);
+
+    const ar = body.byBranch.find((b) => b.branchId === ctx.arBranchId);
+    expect(ar).toBeDefined();
+    expect(ar!.count).toBe(2);
+    expect(ar!.avgStars).toBeCloseTo(3, 5);
+
+    const manana = body.byTurno.find((t) => t.turno === "manana");
+    const tarde = body.byTurno.find((t) => t.turno === "tarde");
+    expect(manana?.avgStars).toBeCloseTo(4, 5);
+    expect(tarde?.avgStars).toBeCloseTo(2, 5);
   });
 });

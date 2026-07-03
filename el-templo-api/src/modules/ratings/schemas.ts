@@ -43,11 +43,12 @@ export const assignCoachBodySchema = {
 export const submitRatingBodySchema = {
   body: {
     type: "object",
-    required: ["sessionDate", "scheduleId", "stars"],
+    required: ["sessionDate", "scheduleId", "stars", "classStars"],
     properties: {
       sessionDate: { type: "string" },
       scheduleId: { type: "integer" },
-      stars: { type: "integer", minimum: 1, maximum: 5 },
+      stars: { type: "integer", minimum: 1, maximum: 5 }, // profe
+      classStars: { type: "integer", minimum: 1, maximum: 5 }, // clase
       comment: { type: "string", maxLength: 500 },
     },
   },

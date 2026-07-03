@@ -1022,3 +1022,35 @@ export interface AnalyticsFilters {
    */
   turno?: TrialTurno;
 }
+
+// ── Class ratings ("Clases" tab) ───────────────────────────────────────────
+
+/** One weekly point of the class-rating trend. `period` is an ISO year-week. */
+export interface ClassRatingTrendPoint {
+  period: string; // e.g. "2026-W23"
+  avgStars: number;
+  count: number;
+}
+
+/** Per-branch class-rating average. */
+export interface ClassRatingBranchRow {
+  branchId: number;
+  branchName: string;
+  avgStars: number;
+  count: number;
+}
+
+/** Per-turno (mañana/tarde, split at 12:00) class-rating average. */
+export interface ClassRatingTurnoRow {
+  turno: "manana" | "tarde";
+  avgStars: number;
+  count: number;
+}
+
+/** Full payload for the "Clases" analytics tab. */
+export interface ClassRatingsAnalytics {
+  overall: { avgStars: number | null; count: number };
+  trend: ClassRatingTrendPoint[];
+  byBranch: ClassRatingBranchRow[];
+  byTurno: ClassRatingTurnoRow[];
+}
