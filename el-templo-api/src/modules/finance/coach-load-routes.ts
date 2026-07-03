@@ -26,7 +26,7 @@
  */
 
 import { FastifyPluginAsync } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, desc, eq, or, sql } from "drizzle-orm";
 import { TransactionService, BalanceService, CashRegisterService } from ".";
 import { SubscriptionService } from "../subscriptions/service";
 import type { PriceType } from "../subscriptions/types";
@@ -36,6 +36,7 @@ import { EnrollmentService } from "../programs/enrollment-service";
 import { BookingService } from "../scheduling/booking-service";
 import { NotificationService } from "../notifications/service";
 import { handleServiceError } from "../shared/error-handler";
+import { BadRequestError, NotFoundError } from "../shared/errors";
 import { FINANCE_LOAD_ROLES, type AdminRole } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
 import { requireBranchAccess } from "../shared/branch-access";
@@ -50,6 +51,9 @@ interface CoachPayPlanBody {
   amountReceived?: number;
   paymentMethod: "cash" | "transfer" | "card" | "aura_credit" | "internal";
   idempotencyKey: string;
+  // Phase 151 (COBRO-04): cuenta banco elegida en la PoS. Obligatoria para
+  // transfer/card, prohibida para cash — validada server-side en el handler.
+  bankAccountId?: number;
 }
 
 interface CoachMiscLoadBody {
@@ -62,6 +66,9 @@ interface CoachMiscLoadBody {
   // Phase 145 (COBRO-01): structured motivo del cobro suelto. REQUIRED (the PoS
   // dropdown is obligatorio); persisted to misc_reason, NOT to notes.
   miscReason: "sin_plan" | "otro";
+  // Phase 151 (COBRO-04): cuenta banco elegida en la PoS. Obligatoria para
+  // transfer/card, prohibida para cash — validada server-side en el handler.
+  bankAccountId?: number;
 }
 
 // Phase 148 (ALTA-01..07): alta de alumno + plan en el cobro. El profe resuelve
@@ -87,6 +94,9 @@ interface CoachAltaBody {
   scheduleIds?: number[];
   notes?: string;
   idempotencyKey: string;
+  // Phase 151 (COBRO-04): cuenta banco elegida en la PoS. Obligatoria para
+  // transfer/card, prohibida para cash — validada server-side en el handler.
+  bankAccountId?: number;
 }
 
 // ── JSON schemas (reject validationStatus / cashRegisterId) ──────────────────
@@ -113,6 +123,9 @@ const coachPayPlanSchema = {
       amountReceived: { type: "integer", minimum: 0 },
       paymentMethod: { type: "string", enum: PAYMENT_METHOD_ENUM },
       idempotencyKey: { type: "string", minLength: 1, maxLength: 64 },
+      // Phase 151 (COBRO-04): opcional en el schema; el requisito transfer/card
+      // (payment-method-dependent) se enforce en el handler, no en JSON-Schema.
+      bankAccountId: { type: "integer", minimum: 1 },
     },
   },
 } as const;
@@ -139,6 +152,9 @@ const coachMiscLoadSchema = {
       // Phase 145 (COBRO-01 / T-145-01): closed enum, additionalProperties:false
       // rejects anything outside ["sin_plan","otro"] with a 400.
       miscReason: { type: "string", enum: ["sin_plan", "otro"] },
+      // Phase 151 (COBRO-04): opcional en el schema; el requisito transfer/card
+      // (payment-method-dependent) se enforce en el handler, no en JSON-Schema.
+      bankAccountId: { type: "integer", minimum: 1 },
     },
   },
 } as const;
@@ -172,6 +188,9 @@ const coachAltaSchema = {
       },
       notes: { type: "string", maxLength: 500 },
       idempotencyKey: { type: "string", minLength: 1, maxLength: 64 },
+      // Phase 151 (COBRO-04): opcional en el schema; el requisito transfer/card
+      // (payment-method-dependent) se enforce en el handler, no en JSON-Schema.
+      bankAccountId: { type: "integer", minimum: 1 },
     },
   },
 } as const;
@@ -312,6 +331,85 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
     }
   };
 
+  // ── Phase 151 (COBRO-04 / T-151-01): guard compartido de cuenta banco ──
+  // Mueve la imputación al punto de venta sin romper el invariante v5.3: el body
+  // NO puede elegir `cashRegisterId` (additionalProperties:false), solo un
+  // `bankAccountId` que se valida server-side. Reglas dependientes del medio de
+  // pago (no expresables en JSON-Schema):
+  //   - transfer/card SIN bankAccountId → 400 (obligatorio).
+  //   - transfer/card CON bankAccountId → assertChosenBankAccount (banco + activa
+  //     + moneda-match); id inválido → BadRequestError → handleServiceError → 400.
+  //   - cash CON bankAccountId → 400 (no corresponde).
+  // `getCurrency` es un thunk: la moneda del cobro solo se resuelve cuando de
+  // verdad hace falta (transfer/card con id), evitando queries/errores en el
+  // camino cash. Devuelve el id validado (o undefined) para imputarlo al charge.
+  const validateBankAccountForCharge = async (
+    paymentMethod: PaymentMethod,
+    bankAccountId: number | undefined,
+    getCurrency: () => Promise<string>,
+  ): Promise<number | undefined> => {
+    const isBankMethod =
+      paymentMethod === "transfer" || paymentMethod === "card";
+    if (!isBankMethod) {
+      if (bankAccountId !== undefined) {
+        throw new BadRequestError(
+          "No corresponde cuenta bancaria para pagos en efectivo.",
+        );
+      }
+      return undefined;
+    }
+    if (bankAccountId === undefined) {
+      throw new BadRequestError(
+        "Elegí una cuenta bancaria para cobrar por transferencia o tarjeta.",
+      );
+    }
+    const currency = await getCurrency();
+    await cashRegisterService.assertChosenBankAccount(bankAccountId, currency);
+    return bankAccountId;
+  };
+
+  // COBRO-04: moneda del cobro de renovación = la de la sub renovable (active gana
+  // sobre expired, igual que renewSubscription's currentSub). Se resuelve en la
+  // ruta para validar la cuenta banco elegida ANTES de delegar en renewSubscription.
+  const resolveRenewCurrency = async (userId: number): Promise<string> => {
+    const [row] = await fastify.db
+      .select({ currency: schema.subscriptions.currency })
+      .from(schema.subscriptions)
+      .where(
+        and(
+          eq(schema.subscriptions.userId, userId),
+          or(
+            eq(schema.subscriptions.status, "active"),
+            eq(schema.subscriptions.status, "expired"),
+          ),
+        ),
+      )
+      .orderBy(
+        sql`CASE ${schema.subscriptions.status} WHEN 'active' THEN 0 ELSE 1 END`,
+        desc(schema.subscriptions.createdAt),
+      )
+      .limit(1);
+    if (!row) {
+      throw new NotFoundError("No se encontro suscripcion para renovar");
+    }
+    return row.currency;
+  };
+
+  // COBRO-04: moneda del cobro del alta = la del plan elegido (assignPlan usa
+  // plan.currency). Se resuelve en la ruta para validar la cuenta banco antes de
+  // delegar en assignPlan.
+  const resolvePlanCurrency = async (planId: number): Promise<string> => {
+    const [row] = await fastify.db
+      .select({ currency: schema.subscriptionPlans.currency })
+      .from(schema.subscriptionPlans)
+      .where(eq(schema.subscriptionPlans.id, planId))
+      .limit(1);
+    if (!row) {
+      throw new NotFoundError("Plan no encontrado");
+    }
+    return row.currency;
+  };
+
   // ===================================================================
   // POST /pay-plan — cobro del plan (CARGA-01/02). The coach sees ONE "Pago de
   // plan" action; the server decides what it actually is so the profe never has
@@ -328,8 +426,13 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
     "/pay-plan",
     { schema: coachPayPlanSchema },
     async (request, reply) => {
-      const { userId, amountReceived, paymentMethod, idempotencyKey } =
-        request.body;
+      const {
+        userId,
+        amountReceived,
+        paymentMethod,
+        idempotencyKey,
+        bankAccountId,
+      } = request.body;
       try {
         // Outstanding debt on the member's CURRENT sub (active/paused/scheduled)
         // decides settle vs renew. getMemberSubscription excludes expired subs
@@ -378,6 +481,13 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
               request.user.userId,
               sub.currency,
             );
+          // COBRO-04: cuenta banco elegida en la PoS (transfer/card) → imputación
+          // directa del charge. Para cash se conserva la caja sugerida por sede.
+          const chosenBankAccountId = await validateBankAccountForCharge(
+            paymentMethod,
+            bankAccountId,
+            async () => sub.currency,
+          );
           // Server-derived role → status (coach → pendiente).
           const initialStatus = (["coach"] as readonly string[]).includes(
             request.user.role,
@@ -396,7 +506,7 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
               transactionDate: today,
               effectiveDate: today,
               branchId,
-              cashRegisterId: suggestedCajaId,
+              cashRegisterId: chosenBankAccountId ?? suggestedCajaId,
               notes: `Pago de saldo plan ${sub.planName}`,
               validationStatus: initialStatus,
               idempotencyKey,
@@ -431,6 +541,14 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
         const recorderBranchId = await resolveRecorderBranchId(
           request.user.userId,
         );
+        // COBRO-04: cuenta banco elegida en la PoS (transfer/card) → override de
+        // caja del charge de renovación. La moneda del cobro = la de la sub
+        // renovable. Para cash queda undefined → la caja se sugiere por sede.
+        const chosenBankAccountId = await validateBankAccountForCharge(
+          paymentMethod,
+          bankAccountId,
+          () => resolveRenewCurrency(userId),
+        );
         const subscription = await subscriptionService.renewSubscription(
           userId,
           {
@@ -442,6 +560,9 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
             idempotencyKey,
             // CAJA-01: sede del profe → caja sugerida del cobro.
             recorderBranchId,
+            // COBRO-04: cuenta banco pre-validada → bypassa la sugerencia por
+            // sede en el service. undefined (cash) → sin cambio.
+            cashRegisterIdOverride: chosenBankAccountId,
           },
           request.user.userId,
         );
@@ -491,6 +612,13 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
             request.user.userId,
             currency,
           );
+        // COBRO-04: cuenta banco elegida en la PoS (transfer/card) → imputación
+        // directa del charge. Para cash se conserva la caja sugerida por sede.
+        const chosenBankAccountId = await validateBankAccountForCharge(
+          request.body.paymentMethod,
+          request.body.bankAccountId,
+          async () => currency,
+        );
         // Server-derived role → status (coach → pendiente).
         const initialStatus = (["coach"] as readonly string[]).includes(
           request.user.role,
@@ -509,7 +637,7 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
             transactionDate: today,
             effectiveDate: today,
             branchId,
-            cashRegisterId: suggestedCajaId,
+            cashRegisterId: chosenBankAccountId ?? suggestedCajaId,
             notes: request.body.concepto,
             // Phase 145 (COBRO-01): structured motivo → own column, not notes.
             miscReason: request.body.miscReason,
@@ -589,6 +717,16 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
           return reply.code(200).send({ transaction: replay });
         }
 
+        // ── COBRO-04: validar la cuenta banco ANTES de crear el alumno/plan ──
+        // Un id inválido (o transfer/card sin cuenta, o cash con cuenta) rechaza
+        // acá con 400 sin efectos colaterales (no se crea alumno ni sub). La
+        // moneda del cobro es la del plan elegido.
+        const chosenBankAccountId = await validateBankAccountForCharge(
+          body.paymentMethod,
+          body.bankAccountId,
+          () => resolvePlanCurrency(body.planId),
+        );
+
         // ── (a) Resolver/crear alumno ───────────────────────────────────────
         // createdMemberId = id SOLO cuando ESTA carga creó el alumno (para el
         // cascade de void 148-03 y el ticket "Nuevo" del frontend). null si se
@@ -663,6 +801,9 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
             idempotencyKey: body.idempotencyKey,
             // CAJA-01: caja sugerida desde la sede del profe.
             recorderBranchId,
+            // COBRO-04: cuenta banco pre-validada → bypassa la sugerencia por
+            // sede en el service. undefined (cash) → sin cambio.
+            cashRegisterIdOverride: chosenBankAccountId,
             // W-1 (148-01): el id viaja por el input → se graba en el MISMO
             // insert del charge (sin UPDATE suelto ni 3ª tx).
             createdMemberId,
@@ -758,6 +899,38 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
         });
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "coach autocompletar");
+      }
+    },
+  );
+
+  // ===================================================================
+  // GET /bank-accounts — cuentas banco seleccionables en la PoS de Cobros
+  // (COBRO-04 / T-151-02). Coach-reachable: hereda el onRequest del plugin
+  // (FINANCE_LOAD_ROLES, coach ∈) porque la ruta admin /cash-registers NO lo es.
+  // Devuelve solo lean `{id,name,currency}` (sin saldos). `currency` opcional
+  // acota a las cuentas de esa moneda (la del cobro en curso).
+  // ===================================================================
+  fastify.get<{ Querystring: { currency?: string } }>(
+    "/bank-accounts",
+    {
+      schema: {
+        querystring: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            currency: { type: "string", minLength: 1, maxLength: 8 },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      try {
+        const accounts = await cashRegisterService.listActiveBankAccounts(
+          request.query.currency,
+        );
+        return reply.send({ accounts });
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "coach bank-accounts");
       }
     },
   );
