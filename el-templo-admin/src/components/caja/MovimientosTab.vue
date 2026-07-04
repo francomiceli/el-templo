@@ -379,6 +379,28 @@
               <q-item-section>Registrado por</q-item-section>
               <q-item-section side>{{ detailTransaction.recorderName }}</q-item-section>
             </q-item>
+            <!-- Validador (Phase 152 CAJA-04). Solo si el cobro está validado:
+                 rama D-05 (validado por la bandeja → validador + fecha) vs D-06
+                 (nacido validado, sin validador → literal de alta). -->
+            <q-item v-if="detailTransaction.validatorName">
+              <q-item-section>Validado por</q-item-section>
+              <q-item-section side>
+                {{ detailTransaction.validatorName }}
+                <span v-if="detailTransaction.validatedAt" class="text-grey-7">
+                  · {{ formatDate(detailTransaction.validatedAt) }}
+                </span>
+              </q-item-section>
+            </q-item>
+            <q-item v-else-if="detailTransaction.validationStatus === 'validado'">
+              <q-item-section>Validación</q-item-section>
+              <q-item-section side class="text-grey-7">
+                Validado al registrar
+                <span class="text-grey-6">
+                  · {{ detailTransaction.recorderName }} ·
+                  {{ formatDate(detailTransaction.createdAt) }}
+                </span>
+              </q-item-section>
+            </q-item>
             <q-item v-if="detailTransaction.notes">
               <q-item-section>Notas</q-item-section>
               <q-item-section side class="text-italic">
