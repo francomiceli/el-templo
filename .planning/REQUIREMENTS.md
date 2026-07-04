@@ -44,8 +44,8 @@ con el "Motivo" que v5.3 ya agregó — verificar en plan-phase antes de duplica
 - [ ] **CAJA-01**: **"Movimientos de caja" es la portada** de Caja (primer tab); "Pendientes" pasa a segundo; "Transacciones" (renombrada **"Cobros"**) tercero.
 - [ ] **CAJA-02**: El listado de cobros muestra **etiqueta validada/pendiente** en cada fila.
 - [ ] **CAJA-03**: Los filtros de fecha (Cobros y Movimientos) vienen por mes pero permiten **elegir por días** para revisar dudas puntuales.
-- [ ] **CAJA-04**: El detalle de un cobro incluye **fecha de validación y usuario validador** (como ya muestra Movimientos).
-- [ ] **CAJA-05**: Las **categorías de egreso son configurables** desde la UI (ABM de centros de costo — levanta EGR-F2 de v5.3), con defaults genéricos que incluyen **"Pago a proveedores"** y **"Retiros"** en vez de los Templo-céntricos como única opción.
+- [x] **CAJA-04**: El detalle de un cobro incluye **fecha de validación y usuario validador** (como ya muestra Movimientos).
+- [x] **CAJA-05**: Las **categorías de egreso son configurables** desde la UI (ABM de centros de costo — levanta EGR-F2 de v5.3), con defaults genéricos que incluyen **"Pago a proveedores"** y **"Retiros"** en vez de los Templo-céntricos como única opción.
 - [ ] **CAJA-06**: La vista Saldos muestra una **nota explicativa**: "si no se registran egresos y retiros, los saldos no reflejarán la realidad".
 
 ### DEUDA — Mejoras de Deudas
@@ -112,8 +112,8 @@ Every v5.4 requirement maps to exactly one phase. Coverage: 33/33.
 | CAJA-01     | Phase 152 | Pending  |
 | CAJA-02     | Phase 152 | Pending  |
 | CAJA-03     | Phase 152 | Pending  |
-| CAJA-04     | Phase 152 | Pending  |
-| CAJA-05     | Phase 152 | Pending  |
+| CAJA-04     | Phase 152 | Complete |
+| CAJA-05     | Phase 152 | Complete |
 | CAJA-06     | Phase 152 | Pending  |
 | DEUDA-01    | Phase 153 | Pending  |
 | DEUDA-02    | Phase 153 | Pending  |

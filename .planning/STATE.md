@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v5.4
 milestone_name: Reforma del Admin — Correcciones white-label (pre-tenants)
-status: planning
-stopped_at: Phase 152 context gathered
-last_updated: "2026-07-03T18:48:44.475Z"
-last_activity: 2026-07-03
+status: executing
+stopped_at: Completed 152-01-PLAN.md
+last_updated: "2026-07-04T14:15:42.791Z"
+last_activity: 2026-07-04
 progress:
   total_phases: 8
   completed_phases: 3
-  total_plans: 17
-  completed_plans: 17
+  total_plans: 23
+  completed_plans: 18
   percent: 38
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-04)
 
 **Core value (v5.4):** Reorganizar el admin según `Correcciones El Templo.md` para dejarlo listo como MVP white-label — nav por categorías + RBAC dueño-vs-empleado, pantallas simplificadas y de-Templo-ficación de la superficie MVP (Finanzas, Alumnos, Horarios, Planes) — SIN introducir tenants todavía. Primera etapa del camino SaaS (reforma PRIMERO, tenancy DESPUÉS, secuencial). 8 fases (149-156), 33 requirements (NAV/COBRO/CTA/CAJA/DEUDA/ALUM/HOR/PLAN). Constraint dura: todo cambio de API adopta los patrones del diseño SaaS validado (motor vs plantilla, imports módulo→core, sin nuevos Templo-ismos en core).
-**Current focus:** Phase 152 — reorganización de caja + egresos configurables
+**Current focus:** Phase 152 — reorganizaci-n-de-caja-egresos-configurables
 
 ## Current Position
 
-Phase: 152
-Plan: Not started
-Status: Ready to plan
-Last activity: 2026-07-03
+Phase: 152 (reorganizaci-n-de-caja-egresos-configurables) — EXECUTING
+Plan: 2 of 6
+Status: Ready to execute
+Last activity: 2026-07-04
 
 ## Performance Metrics
 
@@ -294,6 +294,7 @@ _Updated after each plan completion_
 | Phase 151 P02 | 4min | 2 tasks | 2 files |
 | Phase 151 P04 | ~12min | 2 tasks | 2 files |
 | Phase 151 P05 | ~10min | 2 tasks | 3 files |
+| Phase 152 P01 | 10min | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -700,6 +701,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase 151]: COBRO-04 bank-account selector renders only for transfer/card; Efectivo never sends bankAccountId
 - [Phase 151]: Added optional defaultCurrency prop to CuentaBancariaFormDialog to preselect the charge currency (additive, backward-compatible)
 - [Phase ?]: 151-05: Sede selector restored to step-2 alta (reachable for every alta); operator-visible branchId attribution recovered while server keeps deriving the rest of the payload
+- [Phase ?]: cost_centers unique index (name, country) tras los renames de seeds para no colisionar (152 D-08)
+- [Phase 152]: validated_by/at NULLABLE en financial_transactions: solo pendiente→validado las setea, nacidos-validados e históricos quedan NULL (152 D-06)
 
 ### Pending Todos
 
@@ -732,8 +735,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-03T18:48:44.449Z
-Stopped at: Phase 152 context gathered
-Resume file: .planning/phases/152-reorganizaci-n-de-caja-egresos-configurables/152-CONTEXT.md
+Last session: 2026-07-04T14:15:42.773Z
+Stopped at: Completed 152-01-PLAN.md
+Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
