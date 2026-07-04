@@ -490,9 +490,10 @@ export interface RegisterExpenseInput {
 
 // -- Phase 147 (EGR-01/02): centros de costo de egresos --------------------
 // Mirror del backend CostCenterItem (GET /admin/finance/cost-centers). Catálogo
-// por país; el selector del dialog solo ofrece centros activos del país.
+// por país; el selector del dialog solo ofrece centros activos del país (sin
+// `isActive` — todos vienen activos).
 
-export interface CostCenter {
+export interface CostCenterItem {
   id: number;
   name: string;
   country: string;
@@ -500,6 +501,30 @@ export interface CostCenter {
 
 export interface CostCenterParams {
   country?: 'AR' | 'ES';
+}
+
+// -- Phase 152 (CAJA-05): ABM de centros de costo --------------------------
+// Mirror del backend `CostCenter` (fila completa del catálogo, GET
+// /admin/finance/cost-centers/all + escrituras POST/PATCH/deactivate/reactivate).
+// Incluye `isActive` para exponer las categorías dadas de baja (D-08: baja
+// lógica, sin borrado físico — las cerradas se muestran atenuadas, no se borran).
+
+export interface CostCenter {
+  id: number;
+  name: string;
+  country: string;
+  isActive: boolean;
+}
+
+/** Alta de categoría de egreso (POST /cost-centers). Nombre único por país (D-08). */
+export interface CreateCostCenterInput {
+  name: string;
+  country: 'AR' | 'ES';
+}
+
+/** Renombre de categoría de egreso (PATCH /cost-centers/:id). Solo `name`. */
+export interface RenameCostCenterInput {
+  name: string;
 }
 
 export interface ExpenseDetail {

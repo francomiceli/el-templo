@@ -30,7 +30,10 @@ import type {
   ExpenseDetail,
   PendingMiscItem,
   CostCenter,
+  CostCenterItem,
   CostCenterParams,
+  CreateCostCenterInput,
+  RenameCostCenterInput,
   BankAccount,
   CreateBankAccountInput,
   UpdateBankAccountInput,
@@ -300,16 +303,126 @@ export function useTransactionsApi() {
    * dialog de egreso. Owner pasa country = selectedCountry; non-owner lo omite
    * y el server usa su scope.
    */
-  async function getCostCenters(params: CostCenterParams = {}): Promise<CostCenter[]> {
+  async function getCostCenters(params: CostCenterParams = {}): Promise<CostCenterItem[]> {
     loading.value = true;
     error.value = null;
     try {
-      const { data } = await api.get<CostCenter[]>('/admin/finance/cost-centers', {
+      const { data } = await api.get<CostCenterItem[]>('/admin/finance/cost-centers', {
         params,
       });
       return data;
     } catch (err: unknown) {
       error.value = extractError(err, 'Error cargando centros de costo');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  // =========================================================================
+  // Phase 152 — ABM de categorías de egreso / centros de costo (CAJA-05).
+  // Endpoints admin/owner-only bajo /admin/finance/cost-centers (guard
+  // ADMIN_ROLES en el backend, 152-04). País-scoped (D-08, nombre único por
+  // país): las escrituras/listado pasan el país del selector de CajaPage.
+  // Sin borrado físico — deactivate/reactivate = baja/alta lógica.
+  // =========================================================================
+
+  /**
+   * Lista TODAS las categorías del país (activas Y dadas de baja — el ABM
+   * muestra ambas, D-08). Source: GET /admin/finance/cost-centers/all → { centers }.
+   */
+  async function listAllCostCenters(country: 'AR' | 'ES'): Promise<CostCenter[]> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<{ centers: CostCenter[] }>('/admin/finance/cost-centers/all', {
+        params: { country },
+      });
+      return data.centers;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cargando categorías de egreso');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  /**
+   * Alta de categoría de egreso. Source: POST /admin/finance/cost-centers.
+   * El backend rechaza con 409 si el nombre ya existe en el país (D-08).
+   */
+  async function createCostCenter(input: CreateCostCenterInput): Promise<{ center: CostCenter }> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.post<{ center: CostCenter }>('/admin/finance/cost-centers', input);
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error creando categoría de egreso');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  /**
+   * Renombre de categoría. Source: PATCH /admin/finance/cost-centers/:id.
+   * El backend rechaza con 409 si el nuevo nombre colisiona en el país (D-08).
+   */
+  async function renameCostCenter(
+    id: number,
+    input: RenameCostCenterInput
+  ): Promise<{ center: CostCenter }> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.patch<{ center: CostCenter }>(
+        `/admin/finance/cost-centers/${id}`,
+        input
+      );
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error renombrando categoría de egreso');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  /**
+   * Baja lógica (is_active=false, sin DELETE — D-08). La categoría sale del
+   * selector de egresos pero se conserva. Source: POST /cost-centers/:id/deactivate.
+   */
+  async function deactivateCostCenter(id: number): Promise<{ center: CostCenter }> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.post<{ center: CostCenter }>(
+        `/admin/finance/cost-centers/${id}/deactivate`
+      );
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error desactivando categoría de egreso');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  /**
+   * Reactivación de una categoría dada de baja (is_active=true).
+   * Source: POST /admin/finance/cost-centers/:id/reactivate.
+   */
+  async function reactivateCostCenter(id: number): Promise<{ center: CostCenter }> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.post<{ center: CostCenter }>(
+        `/admin/finance/cost-centers/${id}/reactivate`
+      );
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error reactivando categoría de egreso');
       throw err;
     } finally {
       loading.value = false;
@@ -705,6 +818,12 @@ export function useTransactionsApi() {
     getMovEgresosHistory,
     // Phase 147 addition — centros de costo de egresos (EGR-01/02):
     getCostCenters,
+    // Phase 152 additions — ABM de categorías de egreso (CAJA-05):
+    listAllCostCenters,
+    createCostCenter,
+    renameCostCenter,
+    deactivateCostCenter,
+    reactivateCostCenter,
     // Phase 139 additions — registrar movimiento / egreso (MOV-01..03):
     registerMovement,
     registerExpense,

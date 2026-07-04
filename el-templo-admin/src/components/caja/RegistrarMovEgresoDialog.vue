@@ -157,7 +157,7 @@ import { useQuasar } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { extractError } from 'src/utils/extract-error';
 import { useTransactionsApi } from 'src/composables/useTransactionsApi';
-import type { CajaSaldoRow, CostCenter } from 'src/types/transaction';
+import type { CajaSaldoRow, CostCenterItem } from 'src/types/transaction';
 
 const props = defineProps<{
   modelValue: boolean;
@@ -224,7 +224,7 @@ async function loadCajas() {
 // (cambiable por el usuario) per decisión 4 del CONTEXT.
 // =========================================================================
 
-const costCenters = ref<CostCenter[]>([]);
+const costCenters = ref<CostCenterItem[]>([]);
 const loadingCostCenters = ref(false);
 
 const costCenterOptions = computed(() =>
