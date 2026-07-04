@@ -10,7 +10,7 @@
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { eq, and, sql, inArray, gte, lte, lt, gt } from "drizzle-orm";
+import { eq, and, sql, inArray, gte, lte, lt, gt, ne } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { addDays, computeSeniority } from "../shared/date-utils";
@@ -71,7 +71,7 @@ export class SchedulingService {
 
     // Validate activity
     const [activity] = await this.db
-      .select({ id: schema.activities.id })
+      .select({ id: schema.activities.id, name: schema.activities.name })
       .from(schema.activities)
       .where(eq(schema.activities.id, activityId));
 
@@ -90,28 +90,21 @@ export class SchedulingService {
       throw new BadRequestError("La hora de fin debe ser posterior al inicio");
     }
 
-    const overlapping = await this.db
-      .select({
-        id: schema.schedules.id,
-        startTime: schema.schedules.startTime,
-        endTime: schema.schedules.endTime,
-      })
-      .from(schema.schedules)
-      .where(
-        and(
-          eq(schema.schedules.branchId, branchId),
-          eq(schema.schedules.dayOfWeek, dayOfWeek),
-          eq(schema.schedules.isActive, true),
-          lt(schema.schedules.startTime, endTime),
-          gt(schema.schedules.endTime, startTime),
-        ),
-      )
-      .limit(1);
+    // Phase 155-01 (D-01, HOR-01): the overlap is re-scoped by activity — two
+    // slots of DIFFERENT activities can coexist in the same branch/day/hour
+    // (musculacion convive con actividades especiales); only two slots of the
+    // SAME activity overlapping remain a conflict.
+    const overlapping = await this.findOverlappingSchedule({
+      branchId,
+      dayOfWeek,
+      activityId,
+      startTime,
+      endTime,
+    });
 
-    if (overlapping.length > 0) {
-      const ex = overlapping[0];
+    if (overlapping) {
       throw new ConflictError(
-        `Ya existe un horario activo ${ex.startTime}-${ex.endTime} que se solapa en esta sede y dia`,
+        `Ya existe un horario de ${activity.name} ${overlapping.startTime}-${overlapping.endTime} que se solapa en esta sede y dia`,
       );
     }
 
@@ -520,6 +513,7 @@ export class SchedulingService {
     const [activity] = await this.db
       .select({
         id: schema.activities.id,
+        name: schema.activities.name,
         isActive: schema.activities.isActive,
       })
       .from(schema.activities)
@@ -527,6 +521,26 @@ export class SchedulingService {
     if (!activity) throw new NotFoundError("Actividad no encontrada");
     if (!activity.isActive) {
       throw new BadRequestError("La actividad esta desactivada");
+    }
+
+    // Phase 155-01 (D-01, hallazgo 5): with the activity-scoped overlap check,
+    // re-pointing a slot at another activity could silently create a same-activity
+    // overlap (this path historically had NO overlap check). Re-run the same
+    // re-scoped check against the DESTINATION activity, excluding this very slot,
+    // reusing the slot's own time window.
+    const overlapping = await this.findOverlappingSchedule({
+      branchId: existing.branchId,
+      dayOfWeek: existing.dayOfWeek,
+      activityId,
+      startTime: existing.startTime,
+      endTime: existing.endTime,
+      excludeScheduleId: scheduleId,
+    });
+
+    if (overlapping) {
+      throw new ConflictError(
+        `Ya existe un horario de ${activity.name} ${overlapping.startTime}-${overlapping.endTime} que se solapa en esta sede y dia`,
+      );
     }
 
     await this.db
@@ -719,6 +733,46 @@ export class SchedulingService {
   /**
    * Get a schedule slot with joins (for public response).
    */
+  /**
+   * Phase 155-01 (D-01): shared activity-scoped interval-overlap probe. Returns
+   * the first active slot of the SAME activity that intersects [startTime,
+   * endTime) in the given branch/day, or null. Back-to-back windows do NOT
+   * overlap (strict `lt`/`gt`). `excludeScheduleId` skips a slot when re-checking
+   * an existing one (updateScheduleActivity).
+   */
+  private async findOverlappingSchedule(params: {
+    branchId: number;
+    dayOfWeek: number;
+    activityId: number;
+    startTime: string;
+    endTime: string;
+    excludeScheduleId?: number;
+  }): Promise<{ id: number; startTime: string; endTime: string } | null> {
+    const conditions = [
+      eq(schema.schedules.branchId, params.branchId),
+      eq(schema.schedules.dayOfWeek, params.dayOfWeek),
+      eq(schema.schedules.activityId, params.activityId),
+      eq(schema.schedules.isActive, true),
+      lt(schema.schedules.startTime, params.endTime),
+      gt(schema.schedules.endTime, params.startTime),
+    ];
+    if (params.excludeScheduleId !== undefined) {
+      conditions.push(ne(schema.schedules.id, params.excludeScheduleId));
+    }
+
+    const [overlap] = await this.db
+      .select({
+        id: schema.schedules.id,
+        startTime: schema.schedules.startTime,
+        endTime: schema.schedules.endTime,
+      })
+      .from(schema.schedules)
+      .where(and(...conditions))
+      .limit(1);
+
+    return overlap ?? null;
+  }
+
   private async getScheduleSlot(
     scheduleId: number,
   ): Promise<ScheduleSlot | null> {
