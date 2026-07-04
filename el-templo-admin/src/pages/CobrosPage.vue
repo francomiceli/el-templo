@@ -665,12 +665,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import { useQuasar } from 'quasar';
-import { onBeforeRouteLeave } from 'vue-router';
+import { onBeforeRouteLeave, useRoute } from 'vue-router';
 import { createLogger } from 'src/utils/logger';
 import { formatPrice } from 'src/utils/format-price';
 import { useMembersApi } from 'src/composables/useMembersApi';
+import { usePricingSettingsApi } from 'src/composables/usePricingSettingsApi';
 import {
   useFinanceLoadApi,
   type AutocompletarResult,
@@ -681,7 +682,7 @@ import { useAuthStore } from 'src/stores/useAuthStore';
 import { PAYMENT_METHOD_LABELS, PAYMENT_METHOD_COLORS } from 'src/types/transaction';
 import { PLAN_TIER_LABELS } from 'src/types/subscription';
 import type { PaymentMethod, TransactionListItem } from 'src/types/transaction';
-import type { BranchOption } from 'src/types/member';
+import type { BranchOption, UserStatus } from 'src/types/member';
 import type { DuplicateMatch } from 'src/composables/useMembersApi';
 import type { PlanListItem, PlanTier } from 'src/types/subscription';
 import FixedSchedulePicker from 'src/components/scheduling/FixedSchedulePicker.vue';
@@ -690,9 +691,11 @@ import CuentaBancariaFormDialog from 'src/components/caja/CuentaBancariaFormDial
 
 const log = createLogger('cobros');
 const $q = useQuasar();
+const route = useRoute();
 const membersApi = useMembersApi();
 const financeApi = useFinanceLoadApi();
 const subsApi = useSubscriptionsApi();
+const pricingApi = usePricingSettingsApi();
 const authStore = useAuthStore();
 
 // El "modo" antiguo pasa a ser la ASOCIACIÓN elegida en el paso 2 (D-01, sin
@@ -1252,8 +1255,16 @@ const multiBranchOptions = computed(() =>
 const altaCurrency = computed(() => selectedPlan.value?.currency ?? 'ARS');
 const altaCurrencySymbol = computed(() => (altaCurrency.value === 'EUR' ? '€' : '$'));
 
+// ALUM-03 / D-04: la regla de recargo por tarjeta. Default conservador OFF: si
+// no se pudo confirmar que está activa, NO aplicamos el precio de tarjeta (para
+// no cobrar de más). La defensa real es server-side (plan 02); acá la UI se
+// mantiene consistente con el server. Se inicializa en onMounted.
+const cardSurchargeEnabled = ref(false);
+
 function getBasePriceFor(plan: PlanListItem, method: LoadPaymentMethod, zero: boolean): number {
-  if (method === 'card') return plan.priceCreditCard ?? plan.priceRegular;
+  if (method === 'card' && cardSurchargeEnabled.value) {
+    return plan.priceCreditCard ?? plan.priceRegular;
+  }
   return zero ? plan.priceZero : plan.priceRegular;
 }
 
@@ -1315,6 +1326,36 @@ watch([selectedPlan, paymentMethod, zeroPrice], () => {
 });
 
 // ─── Typeahead ────────────────────────────────────────────────────────────
+// Mapea un socio (resultado de búsqueda o perfil por id) al shape del selector.
+// Compartido por el typeahead y el prefill del deep-link `?memberId=` (ALUM-02).
+function buildMemberOption(m: {
+  id: number;
+  firstName: string | null;
+  lastName: string | null;
+  dni: string | null;
+  planName: string | null;
+  status: UserStatus | null;
+}): MemberSearchOption {
+  let statusLabel = 'Sin plan';
+  let statusColor = 'grey';
+  if (m.planName) {
+    if (m.status === 'activo') {
+      statusLabel = 'Activa';
+      statusColor = 'positive';
+    } else {
+      statusLabel = 'Inactiva';
+      statusColor = 'negative';
+    }
+  }
+  return {
+    id: m.id,
+    displayLabel:
+      `${m.firstName ?? ''} ${m.lastName ?? ''}${m.dni ? ` (${m.dni})` : ''}`.trim() || `#${m.id}`,
+    statusLabel,
+    statusColor,
+  };
+}
+
 function onMemberSearch(val: string, update: (fn: () => void) => void, _abort: () => void) {
   searchQuery.value = val;
   if (!val || val.length < 2) {
@@ -1328,26 +1369,7 @@ function onMemberSearch(val: string, update: (fn: () => void) => void, _abort: (
     .searchMembers(val, 15)
     .then((members) => {
       update(() => {
-        memberSearchResults.value = members.map((m) => {
-          let statusLabel = 'Sin plan';
-          let statusColor = 'grey';
-          if (m.planName) {
-            if (m.status === 'activo') {
-              statusLabel = 'Activa';
-              statusColor = 'positive';
-            } else {
-              statusLabel = 'Inactiva';
-              statusColor = 'negative';
-            }
-          }
-          return {
-            id: m.id,
-            displayLabel:
-              `${m.firstName ?? ''} ${m.lastName ?? ''}${m.dni ? ` (${m.dni})` : ''}`.trim(),
-            statusLabel,
-            statusColor,
-          };
-        });
+        memberSearchResults.value = members.map((m) => buildMemberOption(m));
       });
     })
     .catch((err: unknown) => {
@@ -1586,6 +1608,52 @@ function methodLabel(method: PaymentMethod): string {
 function methodColor(method: PaymentMethod): string {
   return PAYMENT_METHOD_COLORS[method] ?? 'grey';
 }
+
+// ALUM-03 / D-04: cargar la regla de recargo por tarjeta (default OFF si falla).
+async function loadCardSurchargeRule() {
+  try {
+    cardSurchargeEnabled.value = await pricingApi.getCardSurchargeEnabled();
+  } catch (err: unknown) {
+    // Conservador: OFF ante error → no aplicar un recargo que no pudimos confirmar.
+    cardSurchargeEnabled.value = false;
+    log.error('Error cargando la regla de recargo por tarjeta', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
+// ALUM-02 / D-02: deep-link `/cobros?memberId={id}`. Preselecciona el socio y
+// entra al paso Socio del wizard. Un id inexistente/ajeno → toast + flujo normal
+// (no rompe la página; searchMembers/getMember ya están scoped server-side).
+async function applyMemberDeepLink() {
+  const raw = route.query.memberId;
+  const memberIdStr = typeof raw === 'string' ? raw.trim() : '';
+  if (!memberIdStr) return;
+  const memberId = Number(memberIdStr);
+  if (!Number.isInteger(memberId) || memberId <= 0) return;
+  try {
+    const m = await membersApi.getMember(memberId);
+    selectedMember.value = buildMemberOption(m);
+    resetAltaFields();
+    await loadAutocompletar(m.id);
+    // Entrar al paso Socio (no dejar el wizard en la portada 0).
+    slideDir.value = 'forward';
+    currentStep.value = 1;
+  } catch (err: unknown) {
+    log.error('Error preseleccionando socio del deep-link', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    $q.notify({
+      type: 'negative',
+      message: 'No se encontró el socio indicado. Podés buscarlo manualmente.',
+    });
+  }
+}
+
+onMounted(() => {
+  void loadCardSurchargeRule();
+  void applyMemberDeepLink();
+});
 
 // Initial load of the coach's recent loads for the portada listado.
 void refreshMyLoads();
