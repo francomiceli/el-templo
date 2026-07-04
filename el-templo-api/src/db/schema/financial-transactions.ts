@@ -87,6 +87,13 @@ export const financialTransactions = mysqlTable(
     ])
       .default("validado")
       .notNull(),
+    // Phase 152 (D-05): quién/cuándo validó. NULLABLE — solo la transición
+    // pendiente→validado (transaction-service.validate) las setea; los cobros
+    // nacidos validados (correct/admin-load) y todo histórico NO backfilleado
+    // quedan NULL (el dato ya está en recordedBy/createdAt, D-06). Column name
+    // byte-for-byte con la migración 0165. Mismo patrón que voidedBy/voidedAt.
+    validatedBy: int("validated_by").references(() => users.id),
+    validatedAt: timestamp("validated_at"),
     notes: text("notes"),
     // Phase 145 (COBRO-01): structured reason for a cobro suelto. NULLABLE —
     // only kind='advance_payment' rows set it ('sin_plan' = socio sin plan
@@ -153,6 +160,11 @@ export const financialTransactionsRelations = relations(
       fields: [financialTransactions.voidedBy],
       references: [users.id],
       relationName: "financialTxVoider",
+    }),
+    validator: one(users, {
+      fields: [financialTransactions.validatedBy],
+      references: [users.id],
+      relationName: "financialTxValidator",
     }),
     branch: one(branches, {
       fields: [financialTransactions.branchId],

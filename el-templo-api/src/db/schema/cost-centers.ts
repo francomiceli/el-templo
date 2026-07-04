@@ -6,6 +6,7 @@ import {
   boolean,
   timestamp,
   index,
+  uniqueIndex,
 } from "drizzle-orm/mysql-core";
 
 // Phase 147 (EGR-01) — catálogo de centros de costo por país. Cada egreso
@@ -29,5 +30,8 @@ export const costCenters = mysqlTable(
   },
   (table) => [
     index("idx_cost_centers_country_active").on(table.country, table.isActive),
+    // Phase 152 (D-08): unicidad del ABM — un nombre de centro de costo no se
+    // repite dentro del mismo país. Índice byte-for-byte con la migración 0165.
+    uniqueIndex("uq_cost_centers_name_country").on(table.name, table.country),
   ],
 );
