@@ -691,6 +691,13 @@ export class TransactionService {
         .update(schema.financialTransactions)
         .set({
           validationStatus: "validado",
+          // Phase 152 (D-05): read path denormalizado del validador. Solo la
+          // transicion pendiente→validado los setea; correct()/admin-load nacen
+          // validados con estas columnas en NULL (D-06, se distinguen como
+          // "Validado al registrar"). El write a audit_log (abajo) SE MANTIENE
+          // como fuente forense.
+          validatedBy: adminId,
+          validatedAt: new Date(),
           // Solo tocar la columna cuando gestion confirma/cambia la caja; sin
           // cashRegisterId la fila conserva su caja sugerida actual.
           ...(cashRegisterId !== undefined ? { cashRegisterId } : {}),
