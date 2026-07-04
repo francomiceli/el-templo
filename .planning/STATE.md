@@ -4,13 +4,13 @@ milestone: v5.4
 milestone_name: Reforma del Admin — Correcciones white-label (pre-tenants)
 status: executing
 stopped_at: Phase 153 context gathered
-last_updated: "2026-07-04T17:35:34.521Z"
-last_activity: 2026-07-04 -- Phase 153 planning complete
+last_updated: "2026-07-04T17:51:21.546Z"
+last_activity: 2026-07-04
 progress:
   total_phases: 8
   completed_phases: 4
   total_plans: 27
-  completed_plans: 23
+  completed_plans: 24
   percent: 50
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-04)
 
 **Core value (v5.4):** Reorganizar el admin según `Correcciones El Templo.md` para dejarlo listo como MVP white-label — nav por categorías + RBAC dueño-vs-empleado, pantallas simplificadas y de-Templo-ficación de la superficie MVP (Finanzas, Alumnos, Horarios, Planes) — SIN introducir tenants todavía. Primera etapa del camino SaaS (reforma PRIMERO, tenancy DESPUÉS, secuencial). 8 fases (149-156), 33 requirements (NAV/COBRO/CTA/CAJA/DEUDA/ALUM/HOR/PLAN). Constraint dura: todo cambio de API adopta los patrones del diseño SaaS validado (motor vs plantilla, imports módulo→core, sin nuevos Templo-ismos en core).
-**Current focus:** Phase 153 — mejoras de deudas
+**Current focus:** Phase 153 — Mejoras de Deudas
 
 ## Current Position
 
-Phase: 153
-Plan: Not started
+Phase: 153 (Mejoras de Deudas) — EXECUTING
+Plan: 2 of 4
 Status: Ready to execute
-Last activity: 2026-07-04 -- Phase 153 planning complete
+Last activity: 2026-07-04
 
 ## Performance Metrics
 
@@ -301,6 +301,7 @@ _Updated after each plan completion_
 | Phase 152 P04 | ~15min | 3 tasks | 5 files |
 | Phase 152 P05 | 12min | 3 tasks | 7 files |
 | Phase 152 P06 | ~12min | 3 tasks | 5 files |
+| Phase 153 P01 | 12min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -747,8 +748,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-04T17:12:57.431Z
+Last session: 2026-07-04T17:46:42.080Z
 Stopped at: Phase 153 context gathered
-Resume file: .planning/phases/153-mejoras-de-deudas/153-CONTEXT.md
+Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z

@@ -3939,13 +3939,13 @@ Plans:
 3. Cada deuda muestra **a qué pago/plan está asociada** (plan y período). (DEUDA-03)
 4. La vista de Deudas incluye también a los socios con **plan vencido sin renovar** (no-renovaciones), para ocuparse del negocio desde una sola pantalla. (DEUDA-04)
 
-**Plans:** 4 plans
+**Plans:** 1/4 plans executed
 
 Plans:
 
 **Wave 1**
 
-- [ ] 153-01-PLAN.md — API: enriquecer "Por deuda" (motivo derivado + plan/período + fecha de registro) + tests
+- [x] 153-01-PLAN.md — API: enriquecer "Por deuda" (motivo derivado + plan/período + fecha de registro) + tests
 
 **Wave 2** _(blocked on Wave 1 completion)_
 
@@ -4011,7 +4011,7 @@ Plans:
 | 150. Cuentas bancarias flexibles                | 6/6            | Complete    | 2026-07-03 |
 | 151. Registrar cobro (Pagos → Cobros)           | 5/5            | Complete    | 2026-07-03 |
 | 152. Reorganización de Caja + egresos config.   | 6/6            | Complete    | 2026-07-04 |
-| 153. Mejoras de Deudas                          | 0/TBD          | Not started | -          |
+| 153. Mejoras de Deudas                          | 1/4            | In Progress |            |
 | 154. Alumnos (de-Templo-ficación + accesos)     | 0/TBD          | Not started | -          |
 | 155. Horarios                                   | 0/TBD          | Not started | -          |
 | 156. Planes de pago vs Rutinas de entrenamiento | 0/TBD          | Not started | -          |
