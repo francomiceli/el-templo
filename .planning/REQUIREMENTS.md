@@ -53,7 +53,7 @@ con el "Motivo" que v5.3 ya agregó — verificar en plan-phase antes de duplica
 - [x] **DEUDA-01**: Cada deuda muestra **fecha desde que se registró**.
 - [x] **DEUDA-02**: Cada deuda muestra su **motivo** (verificar contra el "Motivo" agregado en v5.3 antes de duplicar).
 - [x] **DEUDA-03**: Cada deuda muestra **a qué pago/plan está asociada** (plan y período).
-- [ ] **DEUDA-04**: La vista de Deudas incluye también a los socios con **plan vencido sin renovar** (no-renovaciones), para ocuparse del negocio desde una sola pantalla.
+- [x] **DEUDA-04**: La vista de Deudas incluye también a los socios con **plan vencido sin renovar** (no-renovaciones), para ocuparse del negocio desde una sola pantalla.
 
 ### ALUM — Alumnos (de-Templo-ficación + accesos)
 
@@ -118,7 +118,7 @@ Every v5.4 requirement maps to exactly one phase. Coverage: 33/33.
 | DEUDA-01    | Phase 153 | Complete |
 | DEUDA-02    | Phase 153 | Complete |
 | DEUDA-03    | Phase 153 | Complete |
-| DEUDA-04    | Phase 153 | Pending  |
+| DEUDA-04    | Phase 153 | Complete |
 | ALUM-01     | Phase 154 | Pending  |
 | ALUM-02     | Phase 154 | Pending  |
 | ALUM-03     | Phase 154 | Pending  |
