@@ -1565,6 +1565,46 @@ describe("Members Management Routes", () => {
       expect(dataRow.getCell(1).value).toBe("Activo Member");
       expect(dataRow.getCell(8).value).toBe("Activo");
     });
+
+    // Phase 154 (ALUM-05): the caller gates the greek-level column server-side.
+    // Reads the header row of the parsed workbook and asserts on "Nivel".
+    async function exportHeaders(query = ""): Promise<string[]> {
+      const res = await app.inject({
+        method: "GET",
+        url: `/api/admin/members/export${query}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(res.statusCode).toBe(200);
+      const { Workbook } = await import("exceljs");
+      const workbook = new Workbook();
+      await workbook.xlsx.load(res.rawPayload);
+      const sheet = workbook.getWorksheet("Alumnos");
+      expect(sheet).toBeDefined();
+      // getRow(1).values is 1-indexed (index 0 is empty) — coerce to strings.
+      const raw = sheet!.getRow(1).values as unknown[];
+      return raw.filter((v): v is string => typeof v === "string");
+    }
+
+    it("ALUM-05: includeGreekLevel=false omits the Nivel column", async () => {
+      await createMember({ firstName: "Juan", lastName: "Perez" });
+      const headers = await exportHeaders("?includeGreekLevel=false");
+      expect(headers).not.toContain("Nivel");
+      // Sanity: other columns still present.
+      expect(headers).toContain("Nombre");
+      expect(headers).toContain("Plan");
+    });
+
+    it("ALUM-05: includeGreekLevel=true includes the Nivel column", async () => {
+      await createMember({ firstName: "Juan", lastName: "Perez" });
+      const headers = await exportHeaders("?includeGreekLevel=true");
+      expect(headers).toContain("Nivel");
+    });
+
+    it("ALUM-05: no param (default) includes the Nivel column (backwards-compatible)", async () => {
+      await createMember({ firstName: "Juan", lastName: "Perez" });
+      const headers = await exportHeaders();
+      expect(headers).toContain("Nivel");
+    });
   });
 
   // =========================================================================

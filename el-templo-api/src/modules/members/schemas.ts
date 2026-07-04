@@ -634,6 +634,11 @@ export const exportMembersSchema = {
       planId: { type: "integer" },
       avatarType: { type: "string" },
       country: { type: "string", enum: ["AR", "ES"] },
+      // Phase 154 (ALUM-05): the caller (admin AlumnosPage) gates the "Nivel"
+      // column server-side via this param. Absent = true (default preserves the
+      // El Templo behavior). The Templo-surface flag lives front-only in
+      // templo-config.ts; the API only respects the param (no Templo-ism here).
+      includeGreekLevel: { type: "boolean" },
     },
   },
   // No response schema -- binary file response

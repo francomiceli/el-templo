@@ -216,6 +216,9 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       status?: "todos" | "freemium" | "prueba" | "activo" | "inactivo";
       planId?: number;
       avatarType?: string;
+      // Phase 154 (ALUM-05): gate the "Nivel" column. Absent = true (default
+      // includes the column, preserving the current behavior for any caller).
+      includeGreekLevel?: boolean;
     };
   }>(
     "/export",
@@ -246,13 +249,21 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       workbook.created = new Date();
       const sheet = workbook.addWorksheet("Alumnos");
 
+      // Phase 154 (ALUM-05): gate the greek-level column. undefined = true
+      // (default includes it, backwards-compatible for any caller not passing
+      // the param). exceljs ignores the row `nivel` key when no column declares
+      // it, so the addRow loop below needs no change.
+      const includeGreekLevel = request.query.includeGreekLevel !== false;
+
       sheet.columns = [
         { header: "Nombre", key: "nombre", width: 30 },
         { header: "Email", key: "email", width: 30 },
         { header: "DNI", key: "dni", width: 15 },
         { header: "Telefono", key: "telefono", width: 18 },
         { header: "Sucursal", key: "sucursal", width: 20 },
-        { header: "Nivel", key: "nivel", width: 12 },
+        ...(includeGreekLevel
+          ? [{ header: "Nivel", key: "nivel", width: 12 }]
+          : []),
         { header: "Plan", key: "plan", width: 25 },
         { header: "Estado", key: "estado", width: 12 },
         { header: "Vencimiento", key: "vencimientoSuscripcion", width: 15 },
