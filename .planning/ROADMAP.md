@@ -3943,9 +3943,17 @@ Plans:
 
 Plans:
 
+**Wave 1**
+
 - [ ] 153-01-PLAN.md — API: enriquecer "Por deuda" (motivo derivado + plan/período + fecha de registro) + tests
+
+**Wave 2** _(blocked on Wave 1 completion)_
+
 - [ ] 153-02-PLAN.md — API: endpoint /expired-members (no-renovaciones 60d sin renovar) + tests
 - [ ] 153-03-PLAN.md — Admin: hub Deudas 3 tabs (Por socio + Por deuda mudado de Reportes) + gating por rol
+
+**Wave 3** _(blocked on Wave 2 completion)_
+
 - [ ] 153-04-PLAN.md — Admin: tab Vencidos (leads de renovación, sin monto) + fetch composable
 
 **UI hint:** yes
