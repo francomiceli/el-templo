@@ -24,6 +24,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { eq } from "drizzle-orm";
+import { Workbook } from "exceljs";
 import type { FastifyInstance } from "fastify";
 import {
   createTestApp,
@@ -301,7 +302,15 @@ async function seedDebtBalanceWithOrigin(opts: {
   currency?: "ARS" | "EUR";
   memberFirstName?: string;
   memberLastName?: string;
-}): Promise<{ memberId: number; balanceId: number; targetId: number }> {
+  // WR-04: when true the origin advance_payment is inserted already voided
+  // (voided_at set), simulating the "anulada" leg of a void+recreate.
+  voided?: boolean;
+}): Promise<{
+  memberId: number;
+  balanceId: number;
+  targetId: number;
+  txId: number;
+}> {
   const memberRes = await registerUser(opts.app, {
     email: `member-suelto-${nextSuffix("S")}@test.local`,
     password: "pass123456",
@@ -328,6 +337,7 @@ async function seedDebtBalanceWithOrigin(opts: {
       recordedBy: opts.recordedBy,
       miscReason: opts.miscReason,
       notes: opts.notes,
+      voidedAt: opts.voided ? new Date() : null,
     })
     .$returningId();
 
@@ -349,7 +359,54 @@ async function seedDebtBalanceWithOrigin(opts: {
     allocatedAmount: opts.amount,
   });
 
-  return { memberId, balanceId: balance.id, targetId };
+  return { memberId, balanceId: balance.id, targetId, txId: tx.id };
+}
+
+/**
+ * Link an ADDITIONAL advance_payment transaction to an existing debt_balance
+ * targetId (same member). Used to build the multiple-origin / void+recreate
+ * scenarios: the recreated (higher-id) leg links to the same debt_balance.
+ */
+async function addAdvancePaymentToDebt(opts: {
+  app: FastifyInstance;
+  memberId: number;
+  branchId: number;
+  recordedBy: number;
+  targetId: number;
+  amount: number;
+  miscReason: "sin_plan" | "otro";
+  notes: string | null;
+  currency?: "ARS" | "EUR";
+  voided?: boolean;
+}): Promise<number> {
+  const currency = opts.currency ?? "ARS";
+  const [tx] = await opts.app.db
+    .insert(schema.financialTransactions)
+    .values({
+      memberId: opts.memberId,
+      kind: "advance_payment",
+      direction: "inflow",
+      amount: opts.amount,
+      currency,
+      paymentMethod: "cash",
+      transactionDate: dateOffset(-2),
+      effectiveDate: dateOffset(-2),
+      branchId: opts.branchId,
+      recordedBy: opts.recordedBy,
+      miscReason: opts.miscReason,
+      notes: opts.notes,
+      voidedAt: opts.voided ? new Date() : null,
+    })
+    .$returningId();
+
+  await opts.app.db.insert(schema.transactionLinks).values({
+    transactionId: tx.id,
+    targetKind: "debt_balance",
+    targetId: opts.targetId,
+    allocatedAmount: opts.amount,
+  });
+
+  return tx.id;
 }
 
 async function seedDebtBalance(opts: {
@@ -1070,5 +1127,124 @@ describe("Reports API — GET /outstanding-balances (Phase 109-02)", () => {
     expect(r.registeredAt).not.toBe(r.effectiveDate);
     expect(r.registeredAt >= dateOffset(-1)).toBe(true);
     expect(r.registeredAt <= dateOffset(1)).toBe(true);
+  });
+
+  // ─── WR-04 / multiple origins — MIN(id) determinism over LIVE txs ─────────
+
+  it("MULTI-ORIGIN: debt_balance with two LIVE linked advance_payments yields one row from the earliest (MIN id)", async () => {
+    const { memberId, targetId } = await seedDebtBalanceWithOrigin({
+      app,
+      branchId: ctx.arBranchId,
+      recordedBy: ctx.ownerId,
+      amount: 3000,
+      miscReason: "sin_plan",
+      notes: "primera (id menor)",
+      currency: "ARS",
+    });
+    // A second live advance_payment linked to the SAME debt_balance (higher id).
+    await addAdvancePaymentToDebt({
+      app,
+      memberId,
+      branchId: ctx.arBranchId,
+      recordedBy: ctx.ownerId,
+      targetId,
+      amount: 3000,
+      miscReason: "otro",
+      notes: "segunda (id mayor)",
+      currency: "ARS",
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: `${REPORTS_URL}/outstanding-balances`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    // GROUP BY guarantees a single row (no multiplication) …
+    expect(body.rows).toHaveLength(1);
+    // … and MIN(id) selects the earliest LIVE tx (the 'sin_plan' one).
+    expect(body.rows[0].reasonLabel).toBe("Sin plan");
+    expect(body.rows[0].notes).toBe("primera (id menor)");
+  });
+
+  it("VOIDED-ORIGIN: the anulada (lower id) is skipped; motivo/nota come from the recreated LIVE tx (WR-04)", async () => {
+    // Void+recreate: the anulada leg has the LOWER id, the recreated the higher.
+    const { memberId, targetId } = await seedDebtBalanceWithOrigin({
+      app,
+      branchId: ctx.arBranchId,
+      recordedBy: ctx.ownerId,
+      amount: 3000,
+      miscReason: "sin_plan",
+      notes: "ANULADA vieja",
+      currency: "ARS",
+      voided: true,
+    });
+    await addAdvancePaymentToDebt({
+      app,
+      memberId,
+      branchId: ctx.arBranchId,
+      recordedBy: ctx.ownerId,
+      targetId,
+      amount: 3000,
+      miscReason: "otro",
+      notes: "VIGENTE recreada",
+      currency: "ARS",
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: `${REPORTS_URL}/outstanding-balances`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.rows).toHaveLength(1);
+    // Without the voided_at filter MIN(id) would pick the anulada ('Sin plan');
+    // WR-04 makes it resolve to the live recreated tx instead.
+    expect(body.rows[0].reasonLabel).toBe("Otro");
+    expect(body.rows[0].notes).toBe("VIGENTE recreada");
+  });
+
+  // ─── Export columns (Phase 153 DEUDA-01/02/03) ───────────────────────────
+
+  it("EXPORT-COLUMNS: xlsx export includes Motivo / Período / Fecha de registro with values", async () => {
+    await seedSubscriptionWithBalance({
+      app,
+      branchId: ctx.arBranchId,
+      planId: ctx.planArId,
+      planCurrency: "ARS",
+      startDateOffsetDays: -10,
+      endDateOffsetDays: 20,
+      amount: 1000,
+      memberFirstName: "Export",
+      memberLastName: "Cuota",
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: `${REPORTS_URL}/outstanding-balances/export`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+
+    const wb = new Workbook();
+    // res.rawPayload is a Node Buffer; exceljs's bundled Buffer type is the
+    // non-generic one, so bridge through unknown (no `any`, per CLAUDE.md).
+    await wb.xlsx.load(
+      res.rawPayload as unknown as Parameters<typeof wb.xlsx.load>[0],
+    );
+    const sheet = wb.getWorksheet("Deudas");
+    expect(sheet).toBeDefined();
+
+    // exceljs row.values is 1-indexed with a leading hole at index 0.
+    const headerValues = sheet!.getRow(1).values as unknown[];
+    expect(headerValues).toContain("Motivo");
+    expect(headerValues).toContain("Período");
+    expect(headerValues).toContain("Fecha de registro");
+
+    // The first data row carries the derived motivo for the subscription debt.
+    const dataRow = sheet!.getRow(2).values as unknown[];
+    expect(dataRow).toContain("Cuota Plan AR Mensual");
   });
 });

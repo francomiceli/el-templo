@@ -202,7 +202,7 @@ async function seedRolesAndPlans(
   ctx.planEsId = planEs.id;
 }
 
-type SubStatus = "active" | "expired" | "cancelled" | "paused";
+type SubStatus = "active" | "expired" | "cancelled" | "paused" | "scheduled";
 
 /**
  * Register a fresh member and insert one subscription with explicit
@@ -672,5 +672,235 @@ describe("Reports API — GET /expired-members (Phase 153-02, DEUDA-04)", () => 
     expect(
       debtBody.rows.some((r: { memberId: number }) => r.memberId === memberId),
     ).toBe(true);
+  });
+
+  // ─── WR-01: future coverage via a scheduled subscription ───────────────
+
+  it("RENEWED-SCHEDULED: expired in-window BUT a future scheduled sub excludes the member (WR-01)", async () => {
+    const { memberId } = await seedMemberWithSubscription({
+      app,
+      branchId: ctx.arBranchId,
+      planId: ctx.planArId,
+      planCurrency: "ARS",
+      startDateOffsetDays: -60,
+      endDateOffsetDays: -20,
+      status: "expired",
+      firstName: "Renovo",
+      lastName: "Scheduled",
+    });
+    // Already renewed with a FUTURE-dated subscription (starts tomorrow):
+    // activeMemberExists is false (start > today) but coverage exists ahead,
+    // so the member must NOT surface as a renewal lead.
+    await addSubscriptionForMember({
+      app,
+      memberId,
+      branchId: ctx.arBranchId,
+      planId: ctx.planArId,
+      planCurrency: "ARS",
+      startDateOffsetDays: 1,
+      endDateOffsetDays: 31,
+      status: "scheduled",
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: `${REPORTS_URL}/expired-members`,
+      headers: { authorization: `Bearer ${ctx.gestionArToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.total).toBe(0);
+    expect(body.rows).toEqual([]);
+  });
+
+  // ─── WR-02: soft-deleted members must not leak PII ─────────────────────
+
+  it("SOFT-DELETED: a soft-deleted member with an in-window expiry is excluded (WR-02)", async () => {
+    const { memberId } = await seedMemberWithSubscription({
+      app,
+      branchId: ctx.arBranchId,
+      planId: ctx.planArId,
+      planCurrency: "ARS",
+      startDateOffsetDays: -40,
+      endDateOffsetDays: -15,
+      status: "expired",
+      firstName: "Baja",
+      lastName: "Logica",
+    });
+    // Soft-delete the member (users.deleted_at set).
+    await app.db
+      .update(schema.users)
+      .set({ deletedAt: new Date() })
+      .where(eq(schema.users.id, memberId));
+
+    const res = await app.inject({
+      method: "GET",
+      url: `${REPORTS_URL}/expired-members`,
+      headers: { authorization: `Bearer ${ctx.gestionArToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.total).toBe(0);
+    expect(body.rows).toEqual([]);
+  });
+
+  // ─── Window boundary: 60 days is inclusive ─────────────────────────────
+
+  it("BOUNDARY-60: expired exactly 60 days ago is included (daysOverdue=60)", async () => {
+    await seedMemberWithSubscription({
+      app,
+      branchId: ctx.arBranchId,
+      planId: ctx.planArId,
+      planCurrency: "ARS",
+      startDateOffsetDays: -90,
+      endDateOffsetDays: -60,
+      status: "expired",
+      firstName: "Borde",
+      lastName: "Sesenta",
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: `${REPORTS_URL}/expired-members`,
+      headers: { authorization: `Bearer ${ctx.gestionArToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.total).toBe(1);
+    expect(body.rows).toHaveLength(1);
+    expect(body.rows[0].memberName).toBe("Borde Sesenta");
+    expect(body.rows[0].daysOverdue).toBe(60);
+  });
+
+  // ─── branchId filter ───────────────────────────────────────────────────
+
+  it("BRANCH-FILTER: owner with ?branchId= sees only that branch's expired members", async () => {
+    const [arBranch2] = await app.db
+      .insert(schema.branches)
+      .values({
+        name: "AR-MDP-EM3",
+        code: nextSuffix("EM"),
+        country: "AR",
+        isVirtual: false,
+        isActive: true,
+      })
+      .$returningId();
+
+    await seedMemberWithSubscription({
+      app,
+      branchId: ctx.arBranchId,
+      planId: ctx.planArId,
+      planCurrency: "ARS",
+      startDateOffsetDays: -40,
+      endDateOffsetDays: -15,
+      status: "expired",
+      firstName: "Branch1",
+      lastName: "Vencido",
+    });
+    await seedMemberWithSubscription({
+      app,
+      branchId: arBranch2.id,
+      planId: ctx.planArId,
+      planCurrency: "ARS",
+      startDateOffsetDays: -40,
+      endDateOffsetDays: -12,
+      status: "expired",
+      firstName: "Branch2",
+      lastName: "Vencido",
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: `${REPORTS_URL}/expired-members?branchId=${arBranch2.id}`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.total).toBe(1);
+    expect(body.rows).toHaveLength(1);
+    expect(body.rows[0].memberName).toBe("Branch2 Vencido");
+  });
+
+  // ─── owner explicit ?country= ──────────────────────────────────────────
+
+  it("OWNER-COUNTRY: owner with ?country=ES sees only the ES expired member", async () => {
+    await seedMemberWithSubscription({
+      app,
+      branchId: ctx.arBranchId,
+      planId: ctx.planArId,
+      planCurrency: "ARS",
+      startDateOffsetDays: -40,
+      endDateOffsetDays: -15,
+      status: "expired",
+      firstName: "AR",
+      lastName: "Vencido",
+    });
+    await seedMemberWithSubscription({
+      app,
+      branchId: ctx.esBranchId,
+      planId: ctx.planEsId,
+      planCurrency: "EUR",
+      startDateOffsetDays: -40,
+      endDateOffsetDays: -10,
+      status: "expired",
+      firstName: "ES",
+      lastName: "Vencido",
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: `${REPORTS_URL}/expired-members?country=ES`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.total).toBe(1);
+    expect(body.rows).toHaveLength(1);
+    expect(body.rows[0].memberName).toBe("ES Vencido");
+  });
+
+  // ─── Pagination (JS slice + tiebreaker, WR-03) ─────────────────────────
+
+  it("PAGINATION: limit/offset returns disjoint pages with no overlap (WR-03)", async () => {
+    // Three members expiring on distinct days → deterministic daysOverdue order.
+    for (const [i, endOffset] of [-15, -16, -17].entries()) {
+      await seedMemberWithSubscription({
+        app,
+        branchId: ctx.arBranchId,
+        planId: ctx.planArId,
+        planCurrency: "ARS",
+        startDateOffsetDays: -45,
+        endDateOffsetDays: endOffset,
+        status: "expired",
+        firstName: `Pag${i}`,
+        lastName: "Vencido",
+      });
+    }
+
+    const page1 = await app.inject({
+      method: "GET",
+      url: `${REPORTS_URL}/expired-members?page=1&limit=2`,
+      headers: { authorization: `Bearer ${ctx.gestionArToken}` },
+    });
+    expect(page1.statusCode).toBe(200);
+    const b1 = page1.json();
+    expect(b1.total).toBe(3);
+    expect(b1.rows).toHaveLength(2);
+
+    const page2 = await app.inject({
+      method: "GET",
+      url: `${REPORTS_URL}/expired-members?page=2&limit=2`,
+      headers: { authorization: `Bearer ${ctx.gestionArToken}` },
+    });
+    expect(page2.statusCode).toBe(200);
+    const b2 = page2.json();
+    expect(b2.total).toBe(3);
+    expect(b2.rows).toHaveLength(1);
+
+    const ids1 = b1.rows.map((r: { userId: number }) => r.userId);
+    const ids2 = b2.rows.map((r: { userId: number }) => r.userId);
+    // No overlap between pages, and the union covers all 3 members exactly once.
+    expect(ids1.filter((id: number) => ids2.includes(id))).toEqual([]);
+    expect(new Set([...ids1, ...ids2]).size).toBe(3);
   });
 });
