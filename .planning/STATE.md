@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v5.4
 milestone_name: Reforma del Admin — Correcciones white-label (pre-tenants)
-status: executing
+status: verifying
 stopped_at: Phase 155 context gathered (auto)
-last_updated: "2026-07-04T21:10:23.262Z"
+last_updated: "2026-07-04T21:17:26.694Z"
 last_activity: 2026-07-04
 progress:
   total_phases: 8
-  completed_phases: 6
+  completed_phases: 7
   total_plans: 36
-  completed_plans: 35
-  percent: 75
+  completed_plans: 36
+  percent: 88
 ---
 
 # Project State
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 
 Phase: 155 (Horarios) — EXECUTING
 Plan: 4 of 4
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-07-04
 
 ## Performance Metrics
@@ -315,6 +315,7 @@ _Updated after each plan completion_
 | Phase 155 P01 | 5min | 3 tasks | 4 files |
 | Phase 155 P02 | 4min | 2 tasks | 5 files |
 | Phase 155 P03 | 3min | 2 tasks | 4 files |
+| Phase 155 P04 | 7min | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -737,6 +738,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: 155-02: validacion server-side del cupo en body schema (integer|null, 1-500); maxCapacity declarado en response schema o fast-json-stringify lo strippea
 - [Phase ?]: 155-03: cupo por actividad en la UI del admin (input Cupo con hint de herencia, validación client-side entero positivo/vacío, autoridad en el API 155-02)
 - [Phase ?]: 155-03: CreateSlotDialog gana prop initial (prefill editable para 155-04) + creación de actividad inline reusando createActivity (opción sentinel en el q-select, cero backend nuevo)
+- [Phase ?]: 155-04: grilla admin multi-slot por celda (slotMap Map<string,WeeklySlotView[]>) con render apilado; click de detalle/borrado por slot puntual desktop+mobile sin round-trip por (hora,día); click en celda vacía abre CreateSlotDialog prefilleado
 
 ### Pending Todos
 
@@ -769,7 +771,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-04T21:10:07.453Z
+Last session: 2026-07-04T21:17:21.937Z
 Stopped at: Phase 155 context gathered (auto)
 Resume file: None
 

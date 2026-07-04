@@ -3816,7 +3816,7 @@ _v5.3 (Mejoras Caja) added: 2026-06-26 — 3 phases (145-147), 17 requirements (
 - [x] **Phase 152: Reorganización de Caja + egresos configurables** — reordenar los tabs (Movimientos portada / Pendientes 2° / "Cobros" 3°) + etiqueta validada/pendiente por fila + detalle con validador + filtro por día + categorías de egreso configurables desde UI (ABM de centros de costo, levanta EGR-F2 de v5.3, defaults "Pago a proveedores"/"Retiros") + nota explicativa en Saldos. (completed 2026-07-04)
 - [x] **Phase 153: Mejoras de Deudas** — fecha de registro + motivo (reusar `misc_reason` de v5.3, no duplicar) + pago/plan asociado (plan + período) por deuda + incluir a los socios con plan vencido sin renovar (no-renovaciones) en la misma pantalla. (completed 2026-07-04)
 - [x] **Phase 154: Alumnos (de-Templo-ficación + accesos)** — "Crear alumno" prominente + "Registrar cobro" como acción directa en la fila + reglas de precio por medio de pago configurables (default sin recargo) + "Avatar"→"segmento"/categoría de socio (mismo mecanismo) + niveles griegos gateados como superficie Templo. (completed 2026-07-04)
-- [ ] **Phase 155: Horarios** — clases simultáneas en la misma sucursal + crear clase/actividad desde el slot (generaliza el "test de profe") + capacidad por actividad (cupo propio, no solo el de la sucursal).
+- [x] **Phase 155: Horarios** — clases simultáneas en la misma sucursal + crear clase/actividad desde el slot (generaliza el "test de profe") + capacidad por actividad (cupo propio, no solo el de la sucursal). (completed 2026-07-04)
 - [ ] **Phase 156: Planes de pago vs Rutinas de entrenamiento** — separar "Planes de pago" (categoría Planes) de "Rutinas de entrenamiento" (subcategoría gateada Templo) + precio "Zero" a config + selección múltiple de programas por plan + actualizar precio por inflación sin crear plan nuevo ni alterar históricos (garantizado con test).
 
 ## v5.4 (Reforma del Admin) Phase Details
@@ -4001,12 +4001,12 @@ Plans:
 2. Se puede **crear una clase/actividad directamente desde el slot** del horario (generaliza el "test de profe" Templo-específico). (HOR-02)
 3. Cada **actividad define su capacidad** (cupo), en lugar de heredar únicamente la capacidad de la sucursal. (HOR-03)
 
-**Plans:** 3/4 plans executed
+**Plans:** 4/4 plans complete
 
 - [x] 155-01-PLAN.md — Backend: schema max_capacity + migración 0167, overlap re-scopeado por actividad, cupo efectivo (HOR-01/HOR-03)
 - [x] 155-02-PLAN.md — Backend: ABM cupo de actividad + suite de integración (HOR-01/HOR-03)
 - [x] 155-03-PLAN.md — Admin: campo Cupo en el ABM + prefill del dialog + actividad inline (HOR-02/HOR-03)
-- [ ] 155-04-PLAN.md — Admin: grilla con clases simultáneas + click-para-crear + verify member app (HOR-01/HOR-02)
+- [x] 155-04-PLAN.md — Admin: grilla con clases simultáneas + click-para-crear + verify member app (HOR-01/HOR-02)
       **UI hint:** yes
 
 ### Phase 156: Planes de pago vs Rutinas de entrenamiento
@@ -4034,7 +4034,7 @@ Plans:
 | 152. Reorganización de Caja + egresos config.   | 6/6            | Complete    | 2026-07-04 |
 | 153. Mejoras de Deudas                          | 4/4            | Complete    | 2026-07-04 |
 | 154. Alumnos (de-Templo-ficación + accesos)     | 5/5            | Complete    | 2026-07-04 |
-| 155. Horarios                                   | 3/4            | In Progress |            |
+| 155. Horarios                                   | 4/4            | Complete    | 2026-07-04 |
 | 156. Planes de pago vs Rutinas de entrenamiento | 0/TBD          | Not started | -          |
 
 _Plan counts populated by `/gsd-plan-phase`._
