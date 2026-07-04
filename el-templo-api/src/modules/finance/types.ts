@@ -54,6 +54,18 @@ export interface CreateTransactionLinkInput {
  */
 export type InitialValidationStatus = "pendiente" | "validado";
 
+/**
+ * Phase 152 (D-05): the full validation state machine (VAL / fase 137). Mirrors
+ * the mysqlEnum in db/schema/financial-transactions.ts byte-for-byte. Used by
+ * the read surface (TransactionListItem.validationStatus) — distinct from
+ * InitialValidationStatus (only the two birth states).
+ */
+export type ValidationStatus =
+  | "pendiente"
+  | "observado"
+  | "corregido"
+  | "validado";
+
 export interface CreateTransactionInput {
   /**
    * Phase 139 (D-06): `null` for egresos/movimientos (no socio). create() skips
@@ -196,6 +208,12 @@ export interface TransactionListFilters {
   recordedBy?: number;
   /** Member name search; uses buildMemberNameSearchCondition. */
   search?: string;
+  /**
+   * Phase 152 (D-04): server-side filter por estado de validacion para el
+   * Historial de cobros. Solo validado/pendiente se exponen en la UI (el chip
+   * es validada/pendiente); observado/corregido no son filtrables desde aca.
+   */
+  validationStatus?: "validado" | "pendiente";
   page?: number;
   limit?: number;
 }
@@ -234,6 +252,15 @@ export interface TransactionListItem {
   notes: string | null;
   /** ISO timestamp del alta del movimiento (hora real de carga, no la fecha contable). */
   createdAt: string;
+  /** Phase 152 (D-04): estado de validacion para el chip validada/pendiente. */
+  validationStatus: ValidationStatus;
+  /**
+   * Phase 152 (D-05): ISO timestamp de la validacion. NULL cuando la fila nacio
+   * validada (correct/admin-load) o es un historico sin backfillear (D-06).
+   */
+  validatedAt: string | null;
+  /** Phase 152 (D-05): nombre del validador. NULL en filas nacidas validadas. */
+  validatorName: string | null;
   linkSummary: Array<{
     targetKind: TargetKind;
     targetId: number;

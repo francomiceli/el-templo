@@ -751,6 +751,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
       dateTo?: string;
       memberId?: number;
       paymentMethod?: PaymentMethod;
+      validationStatus?: "validado" | "pendiente";
       search?: string;
       page?: number;
       limit?: number;
@@ -788,6 +789,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           dateTo: request.query.dateTo,
           memberId: request.query.memberId,
           paymentMethod: request.query.paymentMethod,
+          validationStatus: request.query.validationStatus,
           search: request.query.search,
           page: request.query.page,
           limit: request.query.limit,

@@ -1097,6 +1097,10 @@ export class TransactionService {
     const offset = (page - 1) * limit;
 
     const recorder = alias(schema.users, "recorder");
+    // Phase 152 (D-05): quien valido, para el chip/detalle del Historial de
+    // cobros. LEFT JOIN (validatedBy es nullable, a diferencia del recorder
+    // INNER). Solo lo usa la query de filas, no el COUNT.
+    const validator = alias(schema.users, "validator");
     const conditions = this.buildListConditions(filters);
 
     // 1) COUNT — same join chain as the row query so country/search filters
@@ -1141,6 +1145,12 @@ export class TransactionService {
         voidedAt: schema.financialTransactions.voidedAt,
         notes: schema.financialTransactions.notes,
         createdAt: schema.financialTransactions.createdAt,
+        // Phase 152 (D-05): estado + validador denormalizados para el chip y el
+        // detalle. validatedAt/validator* son NULL en filas nacidas validadas.
+        validationStatus: schema.financialTransactions.validationStatus,
+        validatedAt: schema.financialTransactions.validatedAt,
+        validatorFirstName: validator.firstName,
+        validatorLastName: validator.lastName,
       })
       .from(schema.financialTransactions)
       .innerJoin(
@@ -1154,6 +1164,10 @@ export class TransactionService {
       .innerJoin(
         recorder,
         eq(recorder.id, schema.financialTransactions.recordedBy),
+      )
+      .leftJoin(
+        validator,
+        eq(validator.id, schema.financialTransactions.validatedBy),
       )
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(
@@ -1215,6 +1229,15 @@ export class TransactionService {
       voidedAt: r.voidedAt ? r.voidedAt.toISOString() : null,
       notes: r.notes,
       createdAt: r.createdAt.toISOString(),
+      // Phase 152 (D-05/D-06): estado + validador. validatorName es null cuando
+      // la fila nacio validada (correct/admin-load) o es un historico sin
+      // backfillear — la UI la muestra como "Validado al registrar".
+      validationStatus: r.validationStatus,
+      validatedAt: r.validatedAt ? r.validatedAt.toISOString() : null,
+      validatorName:
+        r.validatorFirstName !== null
+          ? `${r.validatorFirstName ?? ""} ${r.validatorLastName ?? ""}`.trim()
+          : null,
       linkSummary: linksByTx.get(r.id) ?? [],
     }));
 
@@ -1621,6 +1644,16 @@ export class TransactionService {
     if (filters.paymentMethod !== undefined) {
       conds.push(
         eq(schema.financialTransactions.paymentMethod, filters.paymentMethod),
+      );
+    }
+    // Phase 152 (D-04): filtro server-side por estado de validacion (la lista es
+    // server-paginada, un filtro client-side solo cubriria la pagina actual).
+    if (filters.validationStatus !== undefined) {
+      conds.push(
+        eq(
+          schema.financialTransactions.validationStatus,
+          filters.validationStatus,
+        ),
       );
     }
     if (filters.dateFrom !== undefined) {

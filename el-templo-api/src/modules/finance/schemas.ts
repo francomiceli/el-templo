@@ -271,6 +271,14 @@ const transactionListItemProperties = {
   recorderName: { type: "string" },
   voidedAt: { type: ["string", "null"] },
   notes: { type: ["string", "null"] },
+  // Phase 152 (D-04/D-05): estado + validador denormalizados para el chip y el
+  // detalle. validatedAt/validatorName son null en filas nacidas validadas.
+  validationStatus: {
+    type: "string",
+    enum: ["pendiente", "observado", "corregido", "validado"],
+  },
+  validatedAt: { type: ["string", "null"] },
+  validatorName: { type: ["string", "null"] },
   linkSummary: {
     type: "array",
     items: {
@@ -298,6 +306,9 @@ export const listTransactionsSchema = {
       dateTo: { type: "string", format: "date" },
       memberId: { type: "integer", minimum: 1 },
       paymentMethod: { type: "string", enum: PAYMENT_METHOD_ENUM },
+      // Phase 152 (D-04 / T-152-05): filtro server-side por estado. enum acota
+      // a validado/pendiente (additionalProperties:false → fuera de enum = 400).
+      validationStatus: { type: "string", enum: ["validado", "pendiente"] },
       search: { type: "string", maxLength: 200 },
       ...paginationQuerystring,
     },
