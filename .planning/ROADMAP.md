@@ -3971,7 +3971,7 @@ Plans:
 4. **"Avatar"** se renombra a un concepto neutro (**"segmento" / categoría de socio**) en toda la UI del admin, conservando el mecanismo subyacente. (ALUM-04)
 5. Los **niveles griegos** (kairos→spartan) quedan **gateados como superficie Templo** (fuera del default white-label), consistente con el gating de Entrenamiento existente. (ALUM-05)
 
-**Plans:** 1/5 plans executed
+**Plans:** 2/5 plans executed
 
 Plans:
 **Wave 1**
@@ -3980,7 +3980,7 @@ Plans:
 
 **Wave 2** _(blocked on Wave 1 completion)_
 
-- [ ] 154-02-PLAN.md — Backend: gate server-side del precio en getBasePrice/assignPlan + gate columna Nivel del export (ALUM-03, ALUM-05)
+- [x] 154-02-PLAN.md — Backend: gate server-side del precio en getBasePrice/assignPlan + gate columna Nivel del export (ALUM-03, ALUM-05)
 - [ ] 154-03-PLAN.md — Frontend: flag TEMPLO_GREEK_LEVELS + página config de precios owner-only + composable (ALUM-03, ALUM-05)
 
 **Wave 3** _(blocked on Wave 2 completion)_
@@ -4028,7 +4028,7 @@ Plans:
 | 151. Registrar cobro (Pagos → Cobros)           | 5/5            | Complete    | 2026-07-03 |
 | 152. Reorganización de Caja + egresos config.   | 6/6            | Complete    | 2026-07-04 |
 | 153. Mejoras de Deudas                          | 4/4            | Complete    | 2026-07-04 |
-| 154. Alumnos (de-Templo-ficación + accesos)     | 1/5            | In Progress |            |
+| 154. Alumnos (de-Templo-ficación + accesos)     | 2/5            | In Progress |            |
 | 155. Horarios                                   | 0/TBD          | Not started | -          |
 | 156. Planes de pago vs Rutinas de entrenamiento | 0/TBD          | Not started | -          |
 
