@@ -49,6 +49,10 @@ import {
   updateBankAccountSchema,
   closeBankAccountSchema,
   reactivateBankAccountSchema,
+  createCostCenterSchema,
+  renameCostCenterSchema,
+  toggleCostCenterSchema,
+  costCentersAllSchema,
 } from "./schemas";
 import {
   FINANCE_READ_ROLES,
@@ -1179,6 +1183,139 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
         return await cashRegisterService.listActiveCostCenters(country ?? null);
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "finance cost centers");
+        return reply;
+      }
+    },
+  );
+
+  // ===================================================================
+  // Phase 152 (CAJA-05): ABM de centros de costo (levanta EGR-F2 de v5.3).
+  //
+  // Escrituras admin/owner-only (149 D-04 / 150 D-12): guard en-handler con
+  // ADMIN_ROLES (NO FINANCE_VOID_ROLES, que incluye gestion). La seguridad vive
+  // en la API; la UI (152-06) solo esconde. Sin borrado físico (D-08): la baja
+  // es lógica (deactivate). El `GET /cost-centers` de arriba sigue active-only
+  // para el selector de egresos; el `GET /cost-centers/all` de acá incluye las
+  // dadas de baja, para el ABM. Country scope owner-aware (copia de GET
+  // /cost-centers). handleServiceError en cada handler (ConflictError → 409).
+  // ===================================================================
+
+  // POST /cost-centers — crear centro de costo (CAJA-05)
+  fastify.post<{ Body: { name: string; country: string } }>(
+    "/cost-centers",
+    { schema: createCostCenterSchema },
+    async (request, reply) => {
+      try {
+        if (!(ADMIN_ROLES as readonly string[]).includes(request.user.role)) {
+          return reply.code(403).send({
+            error: "Acceso denegado",
+            message: "No tienes permiso para administrar los centros de costo",
+          });
+        }
+        const center = await cashRegisterService.createCostCenter(
+          request.body.name,
+          request.body.country,
+        );
+        return reply.code(201).send({ center });
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "create cost center");
+      }
+    },
+  );
+
+  // PATCH /cost-centers/:id — renombrar centro de costo (CAJA-05)
+  fastify.patch<{ Params: { id: number }; Body: { name: string } }>(
+    "/cost-centers/:id",
+    { schema: renameCostCenterSchema },
+    async (request, reply) => {
+      try {
+        if (!(ADMIN_ROLES as readonly string[]).includes(request.user.role)) {
+          return reply.code(403).send({
+            error: "Acceso denegado",
+            message: "No tienes permiso para administrar los centros de costo",
+          });
+        }
+        const center = await cashRegisterService.renameCostCenter(
+          request.params.id,
+          request.body.name,
+        );
+        return reply.code(200).send({ center });
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "rename cost center");
+      }
+    },
+  );
+
+  // POST /cost-centers/:id/deactivate — baja lógica (CAJA-05 / D-08)
+  fastify.post<{ Params: { id: number } }>(
+    "/cost-centers/:id/deactivate",
+    { schema: toggleCostCenterSchema },
+    async (request, reply) => {
+      try {
+        if (!(ADMIN_ROLES as readonly string[]).includes(request.user.role)) {
+          return reply.code(403).send({
+            error: "Acceso denegado",
+            message: "No tienes permiso para administrar los centros de costo",
+          });
+        }
+        const center = await cashRegisterService.deactivateCostCenter(
+          request.params.id,
+        );
+        return reply.code(200).send({ center });
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "deactivate cost center");
+      }
+    },
+  );
+
+  // POST /cost-centers/:id/reactivate — alta lógica (CAJA-05)
+  fastify.post<{ Params: { id: number } }>(
+    "/cost-centers/:id/reactivate",
+    { schema: toggleCostCenterSchema },
+    async (request, reply) => {
+      try {
+        if (!(ADMIN_ROLES as readonly string[]).includes(request.user.role)) {
+          return reply.code(403).send({
+            error: "Acceso denegado",
+            message: "No tienes permiso para administrar los centros de costo",
+          });
+        }
+        const center = await cashRegisterService.reactivateCostCenter(
+          request.params.id,
+        );
+        return reply.code(200).send({ center });
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "reactivate cost center");
+      }
+    },
+  );
+
+  // GET /cost-centers/all — lista del ABM (incluye inactivos), country owner-aware
+  fastify.get<{ Querystring: { country?: string } }>(
+    "/cost-centers/all",
+    { schema: costCentersAllSchema },
+    async (request, reply) => {
+      try {
+        if (!(ADMIN_ROLES as readonly string[]).includes(request.user.role)) {
+          return reply.code(403).send({
+            error: "Acceso denegado",
+            message: "No tienes permiso para administrar los centros de costo",
+          });
+        }
+        let country: string | undefined;
+        if (request.scope.isOwner) {
+          country = request.query.country
+            ? request.query.country.toUpperCase()
+            : undefined;
+        } else {
+          country = request.scope.country ?? undefined;
+        }
+        const centers = await cashRegisterService.listAllCostCenters(
+          country ?? null,
+        );
+        return reply.code(200).send({ centers });
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "list all cost centers");
         return reply;
       }
     },

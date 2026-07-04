@@ -932,6 +932,100 @@ export const reactivateBankAccountSchema = {
   },
 } as const;
 
+// -- Phase 152: ABM de centros de costo (CAJA-05) --------------------------
+
+const COST_CENTER_ID_PARAMS = {
+  type: "object",
+  required: ["id"],
+  properties: { id: { type: "integer", minimum: 1 } },
+} as const;
+
+/**
+ * POST /cost-centers — crear centro de costo (CAJA-05 / D-08). name obligatorio
+ * (1..100, coherente con la columna varchar(100)); country restringido a AR/ES.
+ * La unicidad por país se valida en el service (assertUniqueName) + uniqueIndex
+ * DB. RBAC admin/owner server-side (guard en-handler).
+ */
+export const createCostCenterSchema = {
+  body: {
+    type: "object",
+    required: ["name", "country"],
+    properties: {
+      name: { type: "string", minLength: 1, maxLength: 100 },
+      country: { type: "string", enum: ["AR", "ES"] },
+    },
+    additionalProperties: false,
+  },
+  response: {
+    400: errorSchema,
+    401: errorSchema,
+    403: errorSchema,
+    404: errorSchema,
+    409: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+/**
+ * PATCH /cost-centers/:id — renombrar (CAJA-05). Solo `name`: el país NO se
+ * edita (con additionalProperties:false un PATCH que traiga `country` es
+ * rechazado a nivel schema). Unicidad revalidada en el service.
+ */
+export const renameCostCenterSchema = {
+  params: COST_CENTER_ID_PARAMS,
+  body: {
+    type: "object",
+    required: ["name"],
+    properties: {
+      name: { type: "string", minLength: 1, maxLength: 100 },
+    },
+    additionalProperties: false,
+  },
+  response: {
+    400: errorSchema,
+    401: errorSchema,
+    403: errorSchema,
+    404: errorSchema,
+    409: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+/**
+ * POST /cost-centers/:id/deactivate | /reactivate — baja/alta lógica (CAJA-05 /
+ * D-08). Solo alterna is_active (sin DELETE). Params: id. RBAC server-side.
+ */
+export const toggleCostCenterSchema = {
+  params: COST_CENTER_ID_PARAMS,
+  response: {
+    400: errorSchema,
+    401: errorSchema,
+    403: errorSchema,
+    404: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+/**
+ * GET /cost-centers/all — lista del ABM: activos E inactivos por país
+ * (owner-aware). El selector de egresos usa el GET /cost-centers (active-only),
+ * este NO. RBAC admin/owner server-side.
+ */
+export const costCentersAllSchema = {
+  querystring: {
+    type: "object",
+    properties: {
+      country: { type: "string", minLength: 2, maxLength: 2 },
+    },
+    additionalProperties: false,
+  },
+  response: {
+    401: errorSchema,
+    403: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
 // -- Re-exported helper fragments for Plan 03 (reads) ----------------------
 
 export const SHARED_ERROR_SCHEMA = errorSchema;
