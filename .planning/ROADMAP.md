@@ -4001,8 +4001,13 @@ Plans:
 2. Se puede **crear una clase/actividad directamente desde el slot** del horario (generaliza el "test de profe" Templo-específico). (HOR-02)
 3. Cada **actividad define su capacidad** (cupo), en lugar de heredar únicamente la capacidad de la sucursal. (HOR-03)
 
-**Plans:** TBD
-**UI hint:** yes
+**Plans:** 4 plans
+
+- [ ] 155-01-PLAN.md — Backend: schema max_capacity + migración 0167, overlap re-scopeado por actividad, cupo efectivo (HOR-01/HOR-03)
+- [ ] 155-02-PLAN.md — Backend: ABM cupo de actividad + suite de integración (HOR-01/HOR-03)
+- [ ] 155-03-PLAN.md — Admin: campo Cupo en el ABM + prefill del dialog + actividad inline (HOR-02/HOR-03)
+- [ ] 155-04-PLAN.md — Admin: grilla con clases simultáneas + click-para-crear + verify member app (HOR-01/HOR-02)
+      **UI hint:** yes
 
 ### Phase 156: Planes de pago vs Rutinas de entrenamiento
 
@@ -4029,7 +4034,7 @@ Plans:
 | 152. Reorganización de Caja + egresos config.   | 6/6            | Complete    | 2026-07-04 |
 | 153. Mejoras de Deudas                          | 4/4            | Complete    | 2026-07-04 |
 | 154. Alumnos (de-Templo-ficación + accesos)     | 5/5            | Complete    | 2026-07-04 |
-| 155. Horarios                                   | 0/TBD          | Not started | -          |
+| 155. Horarios                                   | 0/4            | Planned     | -          |
 | 156. Planes de pago vs Rutinas de entrenamiento | 0/TBD          | Not started | -          |
 
 _Plan counts populated by `/gsd-plan-phase`._
