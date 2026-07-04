@@ -29,7 +29,9 @@
                 :currentPhotoUrl="memberProfile.photoUrl"
                 @uploaded="onPhotoUploaded"
               />
+              <!-- ALUM-05 (D-07): badge de nivel griego gateado por superficie Templo -->
               <q-badge
+                v-if="greekLevelsEnabled"
                 rounded
                 floating
                 :color="levelColor(memberProfile.level)"
@@ -43,7 +45,10 @@
             <div class="col">
               <div class="text-h5">{{ memberName }}</div>
               <div class="text-caption text-grey-7">
-                {{ levelDisplayName(memberProfile.level) }} ·
+                <!-- ALUM-05 (D-07): subtítulo de nivel griego gateado por superficie Templo -->
+                <template v-if="greekLevelsEnabled"
+                  >{{ levelDisplayName(memberProfile.level) }} ·
+                </template>
                 {{ memberProfile.branchName }}
               </div>
               <!-- Phase 103 R10: 4-state badge from users.status (was binary
@@ -81,7 +86,7 @@
                   outline
                   class="text-body2"
                 >
-                  <q-tooltip>Avatar: {{ memberProfile.avatarType }}</q-tooltip>
+                  <q-tooltip>Categoría: {{ memberProfile.avatarType }}</q-tooltip>
                 </q-badge>
               </div>
             </div>
@@ -786,6 +791,7 @@ import WhatsappIcon from 'src/components/icons/WhatsappIcon.vue';
 import type { MemberProfile, MemberSegment, BranchOption } from 'src/types/member';
 import { SEGMENT_LABELS, SEGMENT_COLORS, AVATAR_LABELS } from 'src/types/member';
 import { levelColor } from 'src/constants/levels';
+import { TEMPLO_GREEK_LEVELS } from 'src/config/templo-config';
 import {
   GOAL_PLAN_TYPE_LABELS,
   GOAL_PLAN_TIER_MAP,
@@ -797,6 +803,9 @@ import {
 } from 'src/types/goal-plan';
 
 const log = createLogger('AlumnoDetailPage');
+// ALUM-05 (D-07/D-08): superficie Templo por instalación — gatea el badge y el
+// subtítulo de nivel griego de la ficha (no es un gate por-usuario).
+const greekLevelsEnabled = TEMPLO_GREEK_LEVELS;
 const route = useRoute();
 const router = useRouter();
 const $q = useQuasar();
