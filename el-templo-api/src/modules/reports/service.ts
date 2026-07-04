@@ -694,9 +694,16 @@ export class ReportsService {
    * Phase 153 (DEUDA-02/D-11) — derived table resolving the origin
    * advance_payment transaction of each debt_balance. One row per debt_balance
    * targetId (GROUP BY) with txId = MIN(financial_transactions.id) = the
-   * earliest (autoincrement) advance_payment linked to it. Grouping guarantees
-   * a single row per targetId so the outer LEFT JOIN never multiplies balance
-   * rows even when a debt_balance has multiple linked advance_payments.
+   * earliest (autoincrement) LIVE advance_payment linked to it. Grouping
+   * guarantees a single row per targetId so the outer LEFT JOIN never
+   * multiplies balance rows even when a debt_balance has multiple linked
+   * advance_payments.
+   *
+   * WR-04: voided transactions are excluded (voided_at IS NULL). The "Corregir"
+   * flow (phase 137/141) is void+recreate, so a corrected loose charge leaves
+   * the debt_balance linked to BOTH the anulada (lower id) and the recreada
+   * (higher id). Without this filter MIN(id) would always pick the anulada,
+   * surfacing the stale motivo/nota (D-11 tooltip) instead of the live one.
    *
    * Shared by getOutstandingBalances + exportOutstandingBalances so the JSON
    * listing and the Excel export derive the same motivo/nota.
@@ -716,6 +723,7 @@ export class ReportsService {
             schema.transactionLinks.transactionId,
           ),
           eq(schema.financialTransactions.kind, "advance_payment"),
+          isNull(schema.financialTransactions.voidedAt),
         ),
       )
       .where(eq(schema.transactionLinks.targetKind, "debt_balance"))
