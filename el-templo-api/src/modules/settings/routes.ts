@@ -12,18 +12,28 @@
 
 import { FastifyPluginAsync } from "fastify";
 import { SettingsService } from "./service";
-import { OWNER_ROLES } from "../shared/permissions";
+import { ALL_STAFF_ROLES, OWNER_ROLES } from "../shared/permissions";
 import { handleServiceError } from "../shared/error-handler";
 
 export const settingsRoutes: FastifyPluginAsync = async (fastify) => {
   const settingsService = new SettingsService(fastify.db, fastify.log);
 
   /**
-   * Guard: authenticate every request in this plugin (any staff can read).
-   * Owner-only enforcement for writes is applied per-route below.
+   * Guard: authenticate every request in this plugin and require a staff role
+   * (any staff can read; member tokens are rejected with 403). The white-label
+   * core keeps `/api/admin/*` plugins staff-gated at the hook level (mirrors
+   * users/routes.ts) — the card-surcharge value is a staff-facing pricing input,
+   * never member-readable. Owner-only enforcement for writes is applied
+   * per-route below.
    */
   fastify.addHook("onRequest", async (request, reply) => {
     await fastify.authenticate(request, reply);
+    if (!(ALL_STAFF_ROLES as readonly string[]).includes(request.user.role)) {
+      return reply.code(403).send({
+        error: "Acceso denegado",
+        message: "Solo staff puede consultar la configuración",
+      });
+    }
   });
 
   // GET /pricing/card-surcharge — readable by any authenticated staff.

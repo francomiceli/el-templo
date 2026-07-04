@@ -13,6 +13,8 @@
  *                           ⇒ 200 y GET ⇒ { enabled: false } (upsert, no duplica).
  *   d. write-guard-403    — PUT con token NO-owner (coach) ⇒ 403 (T-154-01).
  *   e. read-any-staff      — GET con token NO-owner (coach) ⇒ 200 (staff-readable).
+ *   f. read-member-403     — GET con token de SOCIO (role member) ⇒ 403 (WR-01):
+ *                           la setting es staff-only, nunca member-readable.
  *
  * Gotcha (test/helpers.ts:208): `cleanAllTestData` limpia `system_settings`, así
  * que cada test parte SIN la setting (default OFF) — no se asume el seed 0166.
@@ -23,7 +25,12 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
-import { createTestApp, createStaffUser, getAuthToken } from "../helpers";
+import {
+  createTestApp,
+  createStaffUser,
+  createTestMember,
+  getAuthToken,
+} from "../helpers";
 import * as schema from "../../src/db/schema";
 
 const SETTING_URL = "/api/admin/settings/pricing/card-surcharge";
@@ -31,6 +38,7 @@ const SETTING_URL = "/api/admin/settings/pricing/card-surcharge";
 let app: FastifyInstance;
 let ownerToken: string;
 let coachToken: string;
+let memberToken: string;
 
 /** GET the setting with the given token. */
 async function getSetting(token: string) {
@@ -78,6 +86,10 @@ beforeAll(async () => {
     "coach-settings@test.local",
     "pass123456",
   );
+
+  // Socio (role member) — su JWT NO debe poder leer la setting (WR-01).
+  const member = await createTestMember(app, { branchId });
+  memberToken = member.token;
 });
 
 afterAll(async () => {
@@ -148,5 +160,10 @@ describe("pricing card-surcharge setting", () => {
     const get = await getSetting(coachToken);
     expect(get.statusCode).toBe(200);
     expect(get.body).toEqual({ enabled: false });
+  });
+
+  it("f. GET con token de socio (member) devuelve 403", async () => {
+    const get = await getSetting(memberToken);
+    expect(get.statusCode).toBe(403);
   });
 });
