@@ -35,6 +35,8 @@
         label="Por deuda"
         icon="request_quote"
       />
+      <!-- Vencidos gated igual que "Por deuda" (D-12) — coach NO lo ve. -->
+      <q-tab v-if="canSeeDetail" :name="DEUDAS_TABS.vencidos" label="Vencidos" icon="event_busy" />
     </q-tabs>
 
     <q-separator />
@@ -54,6 +56,11 @@
           :is-owner="isOwner"
         />
       </q-tab-panel>
+
+      <!-- Vencidos — leads de renovación (plan vencido sin renovar, DEUDA-04). -->
+      <q-tab-panel v-if="canSeeDetail" :name="DEUDAS_TABS.vencidos" class="q-px-none">
+        <VencidosTab :branch-options="branchOptions" :country-scope="countryScope" />
+      </q-tab-panel>
     </q-tab-panels>
   </q-page>
 </template>
@@ -69,6 +76,7 @@ import { createLogger } from 'src/utils/logger';
 import type { BranchOption } from 'src/types/member';
 import PorSocioTab from 'src/components/deudas/PorSocioTab.vue';
 import PorDeudaTab from 'src/components/deudas/PorDeudaTab.vue';
+import VencidosTab from 'src/components/deudas/VencidosTab.vue';
 
 const log = createLogger('DeudasPage');
 const route = useRoute();
@@ -88,9 +96,14 @@ const canSeeDetail = computed(() => {
   return role !== undefined && DEUDAS_DETAIL_ROLES.includes(role);
 });
 
-// Tabs currently rendered for this user (vencidos wired by plan 153-04).
+// Tabs currently rendered for this user. Both detail tabs (Por deuda /
+// Vencidos) share the DEUDAS_DETAIL_ROLES gate — coach only sees Por socio.
+// This computed is the single source of truth for rendering AND for
+// tabFromQuery validation (coach forcing ?tab=vencidos falls back to default).
 const visibleTabs = computed<DeudasTab[]>(() =>
-  canSeeDetail.value ? [DEUDAS_TABS.porSocio, DEUDAS_TABS.porDeuda] : [DEUDAS_TABS.porSocio]
+  canSeeDetail.value
+    ? [DEUDAS_TABS.porSocio, DEUDAS_TABS.porDeuda, DEUDAS_TABS.vencidos]
+    : [DEUDAS_TABS.porSocio]
 );
 
 // =========================================================================
