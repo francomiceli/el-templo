@@ -4,13 +4,13 @@ milestone: v5.4
 milestone_name: Reforma del Admin — Correcciones white-label (pre-tenants)
 status: executing
 stopped_at: Phase 155 context gathered (auto)
-last_updated: "2026-07-04T20:51:12.295Z"
-last_activity: 2026-07-04 -- Phase 155 planning complete
+last_updated: "2026-07-04T20:58:42.037Z"
+last_activity: 2026-07-04
 progress:
   total_phases: 8
   completed_phases: 6
   total_plans: 36
-  completed_plans: 32
+  completed_plans: 33
   percent: 75
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-04)
 
 **Core value (v5.4):** Reorganizar el admin según `Correcciones El Templo.md` para dejarlo listo como MVP white-label — nav por categorías + RBAC dueño-vs-empleado, pantallas simplificadas y de-Templo-ficación de la superficie MVP (Finanzas, Alumnos, Horarios, Planes) — SIN introducir tenants todavía. Primera etapa del camino SaaS (reforma PRIMERO, tenancy DESPUÉS, secuencial). 8 fases (149-156), 33 requirements (NAV/COBRO/CTA/CAJA/DEUDA/ALUM/HOR/PLAN). Constraint dura: todo cambio de API adopta los patrones del diseño SaaS validado (motor vs plantilla, imports módulo→core, sin nuevos Templo-ismos en core).
-**Current focus:** Phase 155 — horarios
+**Current focus:** Phase 155 — Horarios
 
 ## Current Position
 
-Phase: 155
-Plan: Not started
+Phase: 155 (Horarios) — EXECUTING
+Plan: 2 of 4
 Status: Ready to execute
-Last activity: 2026-07-04 -- Phase 155 planning complete
+Last activity: 2026-07-04
 
 ## Performance Metrics
 
@@ -312,6 +312,7 @@ _Updated after each plan completion_
 | Phase 154 P03 | 12min | 2 tasks | 4 files |
 | Phase 154 P04 | ~10min | 2 tasks | 3 files |
 | Phase 154 P05 | 9min | 2 tasks | 3 files |
+| Phase 155 P01 | 5min | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -762,8 +763,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-04T20:30:12.830Z
+Last session: 2026-07-04T20:58:42.016Z
 Stopped at: Phase 155 context gathered (auto)
-Resume file: .planning/phases/155-horarios/155-CONTEXT.md
+Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
