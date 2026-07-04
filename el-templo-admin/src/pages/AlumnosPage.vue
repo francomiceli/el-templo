@@ -18,6 +18,7 @@
       </div>
       <q-space />
       <div class="row no-wrap q-gutter-x-sm justify-end items-center">
+        <!-- ALUM-01 (D-01): acciones secundarias degradadas (flat/outline, dense) -->
         <q-btn icon="download" color="grey-7" flat round :loading="exporting" @click="onExport">
           <q-tooltip>Exportar a Excel</q-tooltip>
         </q-btn>
@@ -25,6 +26,7 @@
           label="Nuevo en Prueba"
           icon="fact_check"
           color="warning"
+          outline
           dense
           no-caps
           class="q-px-md"
@@ -32,13 +34,14 @@
         >
           <q-tooltip>Soft register para sesión de prueba (4 campos)</q-tooltip>
         </q-btn>
+        <!-- ALUM-01 (D-01): "Crear alumno" es la acción primaria prominente (no-dense) -->
         <q-btn
-          label="Nuevo"
+          label="Crear alumno"
           icon="person_add"
           color="primary"
-          dense
+          unelevated
           no-caps
-          class="q-px-md"
+          class="q-px-lg"
           @click="showCreateDialog = true"
         />
       </div>
@@ -107,7 +110,8 @@
           @update:model-value="onFilterChange"
         />
       </div>
-      <div class="col-6 col-sm-3 col-md-2">
+      <!-- ALUM-05 (D-07): filtro de Nivel gateado por la superficie Templo -->
+      <div v-if="greekLevelsEnabled" class="col-6 col-sm-3 col-md-2">
         <q-select
           v-model="filters.level"
           :options="levelFilterOptions"
@@ -147,7 +151,7 @@
         <q-select
           v-model="filters.avatarType"
           :options="avatarFilterOptions"
-          label="Avatar"
+          label="Categoría"
           dense
           outlined
           emit-value
@@ -280,6 +284,17 @@
       <!-- Actions column -->
       <template #body-cell-acciones="props">
         <q-td :props="props">
+          <!-- ALUM-02 (D-02): acceso directo a registrar cobro, junto al lápiz -->
+          <q-btn
+            flat
+            dense
+            round
+            icon="payments"
+            color="positive"
+            @click="registerPayment(props.row)"
+          >
+            <q-tooltip>Registrar cobro</q-tooltip>
+          </q-btn>
           <q-btn flat dense round icon="edit" color="primary" @click="viewMember(props.row)">
             <q-tooltip>Editar alumno</q-tooltip>
           </q-btn>
@@ -338,6 +353,11 @@ import { levelColor } from 'src/constants/levels';
 import MemberFormDialog from 'src/components/MemberFormDialog.vue';
 import TrialMemberFormDialog from 'src/components/TrialMemberFormDialog.vue';
 import AssignPlanDialog from 'src/components/AssignPlanDialog.vue';
+import { TEMPLO_GREEK_LEVELS } from 'src/config/templo-config';
+
+// ALUM-05 (D-07/D-08): superficie Templo por instalación — gatea columna, filtro
+// y export de los niveles griegos (no es un gate por-usuario).
+const greekLevelsEnabled = TEMPLO_GREEK_LEVELS;
 
 const log = createLogger('AlumnosPage');
 const $q = useQuasar();
@@ -477,7 +497,7 @@ const avatarFilterOptions: Array<{ label: string; value: string | null }> = [
   { label: 'I - Cuerpo-mente', value: 'I' },
   { label: 'J - Cuerpo firme', value: 'J' },
   { label: 'K - Mujer joven', value: 'K' },
-  { label: 'Sin avatar', value: 'none' },
+  { label: 'Sin categoría', value: 'none' },
 ];
 
 // =========================================================================
@@ -552,7 +572,7 @@ const columns: QTableProps['columns'] = [
   },
   {
     name: 'avatar',
-    label: 'Avatar',
+    label: 'Categoría',
     field: 'avatarType',
     align: 'center',
     sortable: false,
@@ -580,7 +600,7 @@ const columns: QTableProps['columns'] = [
     field: 'id',
     align: 'center',
     sortable: false,
-    style: 'width: 80px',
+    style: 'width: 96px',
   },
 ];
 
@@ -589,7 +609,11 @@ const columns: QTableProps['columns'] = [
 // table still surfaces outstanding balance by currency. Per-member saldo
 // detail will return as a dedicated AlumnoDetailPage section once Phase 108
 // adds the financial-history endpoint.
-const visibleColumns = computed<QTableProps['columns']>(() => columns);
+// ALUM-05 (D-07): con la superficie Templo de niveles apagada, se oculta la
+// columna "Nivel" (el mecanismo users.level y greekLevel() quedan intactos, NAV-04).
+const visibleColumns = computed<QTableProps['columns']>(() =>
+  greekLevelsEnabled ? columns : columns?.filter((c) => c.name !== 'nivel')
+);
 
 // =========================================================================
 // Greek level display
@@ -762,6 +786,9 @@ async function onExport() {
       planId: filters.planId ?? undefined,
       avatarType: filters.avatarType ?? undefined,
       country: isOwner.value ? selectedCountry.value : undefined,
+      // ALUM-05 (D-08): la columna Nivel del Excel sigue el flag de superficie
+      // (consistencia pantalla↔export; el backend omite la columna si va false).
+      includeGreekLevel: greekLevelsEnabled,
     });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -790,6 +817,12 @@ function onTableRequest(props: { pagination: { page: number; rowsPerPage: number
 
 function viewMember(member: MemberListItem) {
   router.push(`/alumnos/${member.id}`);
+}
+
+// ALUM-02 (D-02): acceso directo al PoS de Cobros preseleccionando al socio.
+// CobrosPage consume ?memberId= (plan 04) → no se duplica el flujo de cobro.
+function registerPayment(member: MemberListItem) {
+  router.push({ path: '/cobros', query: { memberId: String(member.id) } });
 }
 
 // Track when AssignPlanDialog was opened from the post-create flow so we can
