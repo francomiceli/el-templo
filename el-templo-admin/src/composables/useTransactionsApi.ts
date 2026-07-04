@@ -41,6 +41,12 @@ export function useTransactionsApi() {
   const loading = ref(false);
   const error = ref<string | null>(null);
 
+  /**
+   * Lista transacciones (Historial de cobros). Phase 152 (CAJA-03): `params`
+   * acepta `validationStatus` ('validado' | 'pendiente') como filtro server-side
+   * por estado — axios lo serializa al querystring; el backend (152-03) valida el
+   * enum. `todas` === omitir la clave.
+   */
   async function listTransactions(
     params: TransactionListParams
   ): Promise<PaginatedResult<TransactionListItem>> {

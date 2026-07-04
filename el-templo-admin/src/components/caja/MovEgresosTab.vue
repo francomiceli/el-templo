@@ -16,16 +16,8 @@
           @update:model-value="onFilterChange"
         />
       </div>
-      <div class="col-6 col-sm-3">
-        <!-- @vue-ignore: "month" is valid HTML5 but not in Quasar's type union -->
-        <q-input
-          v-model="selectedMonth"
-          label="Período"
-          type="month"
-          dense
-          outlined
-          @update:model-value="onFilterChange"
-        />
+      <div class="col-12 col-sm-4">
+        <DateRangeFilter :model-value="dateRange" @update:model-value="onDateRangeChange" />
       </div>
       <div class="col-6 col-sm-3">
         <q-select
@@ -264,6 +256,8 @@ import { formatDate } from 'src/utils/format-date';
 import { formatPrice } from 'src/utils/format-price';
 import { useTransactionsApi } from 'src/composables/useTransactionsApi';
 import RegistrarMovEgresoDialog from 'src/components/caja/RegistrarMovEgresoDialog.vue';
+import DateRangeFilter from 'src/components/caja/DateRangeFilter.vue';
+import { currentMonthRange, type DateRangeValue } from 'src/utils/date-range';
 import type { MovEgresoItem, MovEgresoParams } from 'src/types/transaction';
 
 // =========================================================================
@@ -361,7 +355,10 @@ const rows = ref<MovEgresoItem[]>([]);
 const loadingTable = ref(false);
 const exporting = ref(false);
 
-const selectedMonth = ref(new Date().toISOString().slice(0, 7));
+// Rango de fecha manejado por <DateRangeFilter> (mes default con toggle a días,
+// D-03). Arranca en el mes corriente para que el load inicial sea idéntico al
+// comportamiento previo; el control emite { dateFrom, dateTo } en ambos modos.
+const dateRange = ref<DateRangeValue>(currentMonthRange());
 
 const filters = reactive({
   cashRegisterId: null as number | null,
@@ -392,15 +389,6 @@ const tablePagination = ref({
 const cashRegisterOptions = ref<Array<{ label: string; value: number | null }>>([
   { label: 'Todas', value: null },
 ]);
-
-const dateRange = computed(() => {
-  if (!selectedMonth.value) return { dateFrom: undefined, dateTo: undefined };
-  const [year, month] = selectedMonth.value.split('-').map(Number);
-  const dateFrom = `${year}-${String(month).padStart(2, '0')}-01`;
-  const lastDay = new Date(year, month, 0).getDate();
-  const dateTo = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-  return { dateFrom, dateTo };
-});
 
 // Tipo is a client-side filter over the page (kind → tipo mapping).
 const filteredRows = computed<MovEgresoItem[]>(() => {
@@ -507,6 +495,14 @@ async function loadHistory() {
 }
 
 function onFilterChange() {
+  tablePagination.value.page = 1;
+  loadHistory();
+}
+
+// Emitido por <DateRangeFilter> al cambiar mes/día. Resetea a la primera página
+// y recarga (mismo contrato { dateFrom, dateTo } que consumía el mes anterior).
+function onDateRangeChange(value: DateRangeValue) {
+  dateRange.value = value;
   tablePagination.value.page = 1;
   loadHistory();
 }

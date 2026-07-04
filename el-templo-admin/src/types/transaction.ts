@@ -16,6 +16,13 @@ export type TransactionKind =
 export type TransactionDirection = 'inflow' | 'outflow';
 
 /**
+ * Estado de validación (Phase 152 — espejo del enum del schema y del
+ * `ValidationStatus` del backend). El Historial de cobros solo filtra por
+ * validado/pendiente, pero una fila puede venir en cualquiera de los 4 estados.
+ */
+export type ValidationStatus = 'pendiente' | 'observado' | 'corregido' | 'validado';
+
+/**
  * Widened from legacy 3-key shape to match Phase 105 schema (5 keys).
  * UI dropdowns in Phase 106 still expose 3 options (cash/transfer/card)
  * per PATTERNS.md decision 4 — full UI widening is Phase 109.
@@ -104,6 +111,12 @@ export interface TransactionListItem {
   notes: string | null;
   /** ISO timestamp del alta del movimiento (hora real de carga, no la fecha contable). */
   createdAt: string;
+  // Phase 152 (CAJA-02/CAJA-04) — read path del validador (152-03). `validatedAt`
+  // y `validatorName` son NULL en cobros nacidos validados (admin-load/corregido):
+  // la UI muestra "Validado al registrar" en ese caso (D-06).
+  validationStatus: ValidationStatus;
+  validatedAt: string | null;
+  validatorName: string | null;
   linkSummary: TransactionLinkSummary[];
 }
 
@@ -116,6 +129,10 @@ export interface TransactionListParams {
   dateTo?: string;
   search?: string;
   memberId?: number;
+  // Phase 152 (CAJA-03 / D-04) — filtro server-side por estado del Historial de
+  // cobros. El backend (152-03) valida el enum en el querystring; la UI solo
+  // ofrece validado/pendiente (todas === omitir el param).
+  validationStatus?: 'validado' | 'pendiente';
   page: number;
   limit: number;
 }
