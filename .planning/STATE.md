@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v5.4
 milestone_name: Reforma del Admin — Correcciones white-label (pre-tenants)
-status: executing
+status: verifying
 stopped_at: Completed 152-01-PLAN.md
-last_updated: "2026-07-04T14:56:09.429Z"
+last_updated: "2026-07-04T15:07:23.236Z"
 last_activity: 2026-07-04
 progress:
   total_phases: 8
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 23
-  completed_plans: 22
-  percent: 38
+  completed_plans: 23
+  percent: 50
 ---
 
 # Project State
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 
 Phase: 152 (reorganizaci-n-de-caja-egresos-configurables) — EXECUTING
 Plan: 6 of 6
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-07-04
 
 ## Performance Metrics
@@ -299,6 +299,7 @@ _Updated after each plan completion_
 | Phase 152 P03 | ~15min | 3 tasks | 5 files |
 | Phase 152 P04 | ~15min | 3 tasks | 5 files |
 | Phase 152 P05 | 12min | 3 tasks | 7 files |
+| Phase 152 P06 | ~12min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -712,6 +713,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase 152]: 152-03: validate() denormaliza validated_by/at (read path del validador); correct()/admin-load quedan NULL — la UI los distingue como 'Validado al registrar' (D-06)
 - [Phase 152]: 152-05: DateRangeFilter compartido (mes↔días, contrato { dateFrom, dateTo }) + utils date-range.ts/validation-status.ts extraídos (DRY), usados por Movimientos e Historial de cobros
 - [Phase 152]: 152-05: filtro por estado del Historial de cobros server-side (query param validationStatus), no client-side, por lista paginada (D-04)
+- [Phase 152]: 152-06: rename FE CostCenter → CostCenterItem (selector active-only) reservando CostCenter al ABM full-row con isActive; mirror del backend, evita type lie
 
 ### Pending Todos
 
@@ -744,7 +746,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-04T14:53:23.399Z
+Last session: 2026-07-04T15:04:40.415Z
 Stopped at: Completed 152-01-PLAN.md
 Resume file: None
 

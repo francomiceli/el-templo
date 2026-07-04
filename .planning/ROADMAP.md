@@ -3813,7 +3813,7 @@ _v5.3 (Mejoras Caja) added: 2026-06-26 — 3 phases (145-147), 17 requirements (
 - [x] **Phase 149: Nav por categorías + RBAC** — agrupar el nav plano del admin en Finanzas / Alumnos / Horarios / Planes (Pagos, Caja, Analíticas, Reportes, Deudas dentro de Finanzas), con visibilidad por rol (dueño ve todo; profe/administrativo ve solo Pagos + Planes read-only; Alumnos y Horarios libres) y gateo de Campañas/Profes/Puntuaciones/landing fuera del MVP (no se borran). (completed 2026-07-02)
 - [x] **Phase 150: Cuentas bancarias flexibles** — crear/cerrar cuentas bancarias (Banco, N°, Titular, CUIT, CBU/CVU, Alias; solo 3 obligatorios) con baja lógica que conserva historial + registrar retiros del dueño (egreso tipo "Retiro"). Levanta CAJA-F1 de v5.3 (ABM desde UI).
 - [x] **Phase 151: Registrar cobro (Pagos → Cobros)** — renombrar "Pagos"→"Cobros" + rediseño en pantallas/pasos separados (una cosa por paso, desktop+mobile) + fecha/hora en el listado y botón "Continuar" arriba + transferencia/tarjeta obligadas a asociar una cuenta bancaria (crear rápida inline si no hay). (completed 2026-07-03)
-- [ ] **Phase 152: Reorganización de Caja + egresos configurables** — reordenar los tabs (Movimientos portada / Pendientes 2° / "Cobros" 3°) + etiqueta validada/pendiente por fila + detalle con validador + filtro por día + categorías de egreso configurables desde UI (ABM de centros de costo, levanta EGR-F2 de v5.3, defaults "Pago a proveedores"/"Retiros") + nota explicativa en Saldos.
+- [x] **Phase 152: Reorganización de Caja + egresos configurables** — reordenar los tabs (Movimientos portada / Pendientes 2° / "Cobros" 3°) + etiqueta validada/pendiente por fila + detalle con validador + filtro por día + categorías de egreso configurables desde UI (ABM de centros de costo, levanta EGR-F2 de v5.3, defaults "Pago a proveedores"/"Retiros") + nota explicativa en Saldos. (completed 2026-07-04)
 - [ ] **Phase 153: Mejoras de Deudas** — fecha de registro + motivo (reusar `misc_reason` de v5.3, no duplicar) + pago/plan asociado (plan + período) por deuda + incluir a los socios con plan vencido sin renovar (no-renovaciones) en la misma pantalla.
 - [ ] **Phase 154: Alumnos (de-Templo-ficación + accesos)** — "Crear alumno" prominente + "Registrar cobro" como acción directa en la fila + reglas de precio por medio de pago configurables (default sin recargo) + "Avatar"→"segmento"/categoría de socio (mismo mecanismo) + niveles griegos gateados como superficie Templo.
 - [ ] **Phase 155: Horarios** — clases simultáneas en la misma sucursal + crear clase/actividad desde el slot (generaliza el "test de profe") + capacidad por actividad (cupo propio, no solo el de la sucursal).
@@ -3917,14 +3917,14 @@ Plans:
 4. Las **categorías de egreso son configurables desde la UI** (ABM de centros de costo, levanta EGR-F2 de v5.3), con defaults genéricos que incluyen **"Pago a proveedores"** y **"Retiros"** en vez de los Templo-céntricos como única opción. (CAJA-05)
 5. La vista **Saldos** muestra una **nota explicativa**: "si no se registran egresos y retiros, los saldos no reflejarán la realidad". (CAJA-06)
 
-**Plans:** 5/6 plans executed
+**Plans:** 6/6 plans complete
 
 - [x] 152-01-PLAN.md — Schema + migración 0165 (validated_by/at + unique cost_centers + renames de seeds) [BLOCKING]
 - [x] 152-02-PLAN.md — Reorden de tabs (portada Movimientos) + rename Historial de cobros + nota de Saldos
 - [x] 152-03-PLAN.md — Backend validador: validate() setea columnas + listTransactions expone estado/validador + filtro por estado
 - [x] 152-04-PLAN.md — Backend ABM de centros de costo (CRUD + unicidad por país + guard admin/owner)
 - [x] 152-05-PLAN.md — Historial de cobros: chip de estado + filtro + drill-down por día (DateRangeFilter) + validador en detalle
-- [ ] 152-06-PLAN.md — UI ABM de categorías de egreso en el tab Cuentas (baja lógica + país scope)
+- [x] 152-06-PLAN.md — UI ABM de categorías de egreso en el tab Cuentas (baja lógica + país scope)
       **UI hint:** yes
 
 ### Phase 153: Mejoras de Deudas
@@ -3994,7 +3994,7 @@ Plans:
 | 149. Nav por categorías + RBAC                  | 6/6            | Complete    | 2026-07-02 |
 | 150. Cuentas bancarias flexibles                | 6/6            | Complete    | 2026-07-03 |
 | 151. Registrar cobro (Pagos → Cobros)           | 5/5            | Complete    | 2026-07-03 |
-| 152. Reorganización de Caja + egresos config.   | 5/6            | In Progress |            |
+| 152. Reorganización de Caja + egresos config.   | 6/6            | Complete    | 2026-07-04 |
 | 153. Mejoras de Deudas                          | 0/TBD          | Not started | -          |
 | 154. Alumnos (de-Templo-ficación + accesos)     | 0/TBD          | Not started | -          |
 | 155. Horarios                                   | 0/TBD          | Not started | -          |
