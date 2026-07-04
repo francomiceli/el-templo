@@ -58,6 +58,8 @@ import { populateBookings, cancelBookingsInRange } from "./booking-population";
 import { auditLog } from "../shared/audit-log";
 import type { AdminRole } from "../shared/permissions";
 import { EnrollmentService } from "../programs/enrollment-service";
+import { SettingsService } from "../settings/service";
+import { PRICING_SETTINGS_KEYS } from "../settings/keys";
 
 // ─── Charge flow taxonomy (Phase 107) ─────────────────────────────────────────
 
@@ -1044,7 +1046,10 @@ export class SubscriptionService {
 
     // Determine price
     let pricePaid: number;
-    let priceTypeApplied = input.priceTypeApplied;
+    // D-04/ALUM-03: normalize credit_card→regular when the surcharge rule is
+    // OFF, at the single point of truth, so the amount AND the persisted
+    // priceTypeApplied stay consistent (covers admin assign + coach PoS 148).
+    let priceTypeApplied = await this.resolvePriceType(input.priceTypeApplied);
     let auraDiscount: number | null = null;
     let auraDiscountPercent: number | null = null;
     let boardingPassUsed = false;
@@ -2804,7 +2809,10 @@ export class SubscriptionService {
     // to priceRegular. Without this, the UI's price-type and override
     // selectors silently no-op for "Cambiar ahora".
     let netAmount: number;
-    let resolvedPriceType: PriceType = input.priceTypeApplied;
+    // D-04/ALUM-03: gate the card surcharge server-side (see resolvePriceType).
+    let resolvedPriceType: PriceType = await this.resolvePriceType(
+      input.priceTypeApplied,
+    );
     let resolvedOverrideAmount: number | null = null;
     let resolvedOverrideReason: string | null = null;
 
@@ -3226,7 +3234,8 @@ export class SubscriptionService {
 
     // Pricing: override → boarding → AURA → plan price by type
     let pricePaid: number;
-    let priceTypeApplied = input.priceTypeApplied;
+    // D-04/ALUM-03: gate the card surcharge server-side (see resolvePriceType).
+    let priceTypeApplied = await this.resolvePriceType(input.priceTypeApplied);
     let auraDiscount: number | null = null;
     let auraDiscountPercent: number | null = null;
     let boardingPassUsed = false;
@@ -4222,6 +4231,38 @@ export class SubscriptionService {
       .limit(1);
 
     return row ?? null;
+  }
+
+  /**
+   * Normalize the applied price type against the card-surcharge rule (D-04,
+   * ALUM-03). The credit-card surcharge is a per-installation toggle stored in
+   * `system_settings`; when it is OFF, a `credit_card` price type must resolve
+   * to `regular` BEFORE the amount is computed (getBasePrice) AND before it is
+   * persisted on the subscription, so the record never keeps `credit_card` with
+   * a regular amount (the persisted-drift PATTERNS warns about).
+   *
+   * This is the single server-side point of truth for the gate: it covers both
+   * the admin AssignPlanDialog (which sends `priceTypeApplied` straight from the
+   * client — untrusted, PATTERNS finding 2) and the coach PoS (phase 148
+   * coach-load-routes, which maps card→credit_card then calls assignPlan). The
+   * UI may hide the card option, but the security lives here (149 D-04).
+   *
+   * Reuses SettingsService from plan 154-01 (the single reader of the canonical
+   * key) — no inline select. `zero` / `regular` are returned unchanged and the
+   * rule never touches them.
+   */
+  private async resolvePriceType(priceType: PriceType): Promise<PriceType> {
+    if (priceType !== "credit_card") return priceType;
+
+    const settingsService = new SettingsService(this.db, this.log);
+    const surchargeEnabled = await settingsService.getCardSurchargeEnabled();
+    if (surchargeEnabled) return priceType;
+
+    this.log.info(
+      { rule: PRICING_SETTINGS_KEYS.cardSurcharge },
+      "card-surcharge rule OFF — normalizing credit_card price type to regular",
+    );
+    return "regular";
   }
 
   /**
