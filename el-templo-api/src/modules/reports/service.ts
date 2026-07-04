@@ -1062,6 +1062,9 @@ export class ReportsService {
           AND s2.subscription_status IN ('active', 'paused', 'scheduled')
           AND (s2.end_date IS NULL OR s2.end_date >= CURDATE())
       )`,
+      // WR-02: never surface PII (name/phone) of soft-deleted members in a
+      // contact worklist. Mirror of pendingLeads in the conversion report.
+      isNull(schema.users.deletedAt),
     ];
 
     if (filters.branchId !== undefined) {
