@@ -70,7 +70,7 @@
               {{ BUCKET_LABELS_ES[bucket] }}
             </div>
             <div class="text-h6">
-              {{ formatPrice(bucketTotalsFlat[bucket], displayCurrency) }}
+              {{ formatPrice(bucketTotalsFlat[bucket], flatCurrency) }}
             </div>
           </q-card-section>
         </q-card>
@@ -208,6 +208,13 @@ const bucketTotalsFlat = ref<BucketTotals>({
 });
 const bucketTotalsByCurrency = ref<Record<string, BucketTotals>>({});
 const currencyKeys = computed(() => Object.keys(bucketTotalsByCurrency.value).sort());
+
+// WR-06: for non-owner the country selector is hidden and displayCurrency is
+// hardcoded to 'ARS', but the backend returns the flat bucketTotals in THAT
+// user's country currency (EUR for gestión ES). Derive the display currency
+// from the data (all non-owner rows share one currency) so España no ve euros
+// formateados como pesos. Falls back to displayCurrency when there are no rows.
+const flatCurrency = computed<string>(() => items.value[0]?.currency ?? props.displayCurrency);
 
 const hasMore = computed(() => items.value.length < total.value);
 
