@@ -17,6 +17,8 @@ import type {
   CreateTransactionResponse,
   OutstandingBalancesFilters,
   OutstandingBalancesResult,
+  ExpiredMembersFilters,
+  ExpiredMembersResult,
   PendingTrayResult,
   PendingTrayParams,
   CajaSaldoRow,
@@ -658,6 +660,30 @@ export function useTransactionsApi() {
     }
   }
 
+  /**
+   * Phase 153 (DEUDA-04) — Vencidos: cohorte de socios con plan vencido sin
+   * renovar en los últimos 60 días (leads de renovación, sin monto — D-06).
+   * Source: GET /admin/reports/expired-members (Plan 153-02). Hereda el guard
+   * plugin-level de reports (coach → 403). Filtros undefined los omite axios.
+   */
+  async function getExpiredMembers(
+    filters: ExpiredMembersFilters = {}
+  ): Promise<ExpiredMembersResult> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<ExpiredMembersResult>('/admin/reports/expired-members', {
+        params: filters,
+      });
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cargando vencidos');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   async function getSummary(params: FinanceSummaryParams = {}): Promise<FinanceSummary> {
     loading.value = true;
     error.value = null;
@@ -808,6 +834,8 @@ export function useTransactionsApi() {
     exportToExcel,
     getOutstandingBalances,
     exportOutstandingBalancesToExcel,
+    // Phase 153 addition — Vencidos (DEUDA-04):
+    getExpiredMembers,
     // Phase 141 additions — 137 validation actions:
     validateTransaction,
     observeTransaction,

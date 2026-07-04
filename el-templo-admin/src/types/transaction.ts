@@ -345,6 +345,38 @@ export interface OutstandingBalancesFilters {
   limit?: number;
 }
 
+// -- Phase 153 (DEUDA-04): Vencidos — expired-without-renewal leads ---------
+// Mirrors el-templo-api/src/modules/reports/types.ts (Plan 153-02).
+// Cohorte de socios cuyo plan venció en los últimos 60 días (D-05) sin renovar,
+// como leads de renovación: NO llevan monto/moneda (D-06 — es un lead, no una
+// deuda). Result paginado como OutstandingBalancesResult pero SIN bucketTotals.
+
+export interface ExpiredMemberRow {
+  userId: number;
+  memberName: string;
+  memberPhone: string | null;
+  planName: string;
+  /** Fecha de vencimiento del plan (subscriptions.end_date, YYYY-MM-DD). */
+  expiryDate: string;
+  /** Días transcurridos desde el vencimiento. */
+  daysOverdue: number;
+}
+
+export interface ExpiredMembersFilters {
+  branchId?: number;
+  country?: 'AR' | 'ES';
+  search?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface ExpiredMembersResult {
+  rows: ExpiredMemberRow[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
 // -- Phase 141: Bandeja de pendientes (REP-01) -----------------------------
 // Mirrors el-templo-api/src/modules/finance/types.ts PendingTrayItem.
 // `ageInDays`/`isOverdue` are computed server-side; the bandeja response also
