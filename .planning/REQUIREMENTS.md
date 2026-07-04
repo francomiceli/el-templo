@@ -66,7 +66,7 @@ con el "Motivo" que v5.3 ya agregó — verificar en plan-phase antes de duplica
 ### HOR — Horarios
 
 - [x] **HOR-01**: El sistema permite **dos clases simultáneas en la misma sucursal** (musculación conviviendo con actividades).
-- [ ] **HOR-02**: Se puede **crear una clase/actividad directamente desde el slot** del horario (generaliza el "test de profe" Templo-específico).
+- [x] **HOR-02**: Se puede **crear una clase/actividad directamente desde el slot** del horario (generaliza el "test de profe" Templo-específico).
 - [x] **HOR-03**: Cada **actividad define su capacidad** (cupo), en lugar de heredar únicamente la capacidad de la sucursal.
 
 ### PLAN — Planes de pago vs Rutinas de entrenamiento
@@ -125,7 +125,7 @@ Every v5.4 requirement maps to exactly one phase. Coverage: 33/33.
 | ALUM-04     | Phase 154 | Complete |
 | ALUM-05     | Phase 154 | Complete |
 | HOR-01      | Phase 155 | Complete |
-| HOR-02      | Phase 155 | Pending  |
+| HOR-02      | Phase 155 | Complete |
 | HOR-03      | Phase 155 | Complete |
 | PLAN-01     | Phase 156 | Pending  |
 | PLAN-02     | Phase 156 | Pending  |

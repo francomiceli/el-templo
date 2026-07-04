@@ -4,13 +4,13 @@ milestone: v5.4
 milestone_name: Reforma del Admin — Correcciones white-label (pre-tenants)
 status: executing
 stopped_at: Phase 155 context gathered (auto)
-last_updated: "2026-07-04T21:04:45.287Z"
+last_updated: "2026-07-04T21:10:23.262Z"
 last_activity: 2026-07-04
 progress:
   total_phases: 8
   completed_phases: 6
   total_plans: 36
-  completed_plans: 34
+  completed_plans: 35
   percent: 75
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 ## Current Position
 
 Phase: 155 (Horarios) — EXECUTING
-Plan: 3 of 4
+Plan: 4 of 4
 Status: Ready to execute
 Last activity: 2026-07-04
 
@@ -314,6 +314,7 @@ _Updated after each plan completion_
 | Phase 154 P05 | 9min | 2 tasks | 3 files |
 | Phase 155 P01 | 5min | 3 tasks | 4 files |
 | Phase 155 P02 | 4min | 2 tasks | 5 files |
+| Phase 155 P03 | 3min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -734,6 +735,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: 154-03: TEMPLO_GREEK_LEVELS = flag de superficie por instalacion (D-08), hermano de TEMPLO_ENABLED, NO canAccessTraining
 - [Phase ?]: 155-02: maxCapacity con null explicito limpia el cupo de actividad (patron !== undefined); ausencia deja el valor intacto
 - [Phase ?]: 155-02: validacion server-side del cupo en body schema (integer|null, 1-500); maxCapacity declarado en response schema o fast-json-stringify lo strippea
+- [Phase ?]: 155-03: cupo por actividad en la UI del admin (input Cupo con hint de herencia, validación client-side entero positivo/vacío, autoridad en el API 155-02)
+- [Phase ?]: 155-03: CreateSlotDialog gana prop initial (prefill editable para 155-04) + creación de actividad inline reusando createActivity (opción sentinel en el q-select, cero backend nuevo)
 
 ### Pending Todos
 
@@ -766,7 +769,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-04T21:04:33.438Z
+Last session: 2026-07-04T21:10:07.453Z
 Stopped at: Phase 155 context gathered (auto)
 Resume file: None
 
