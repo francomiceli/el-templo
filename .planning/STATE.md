@@ -4,13 +4,13 @@ milestone: v5.4
 milestone_name: Reforma del Admin — Correcciones white-label (pre-tenants)
 status: executing
 stopped_at: Phase 153 context gathered
-last_updated: "2026-07-04T18:01:27.509Z"
+last_updated: "2026-07-04T18:12:52.171Z"
 last_activity: 2026-07-04
 progress:
   total_phases: 8
   completed_phases: 4
   total_plans: 27
-  completed_plans: 25
+  completed_plans: 26
   percent: 50
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 ## Current Position
 
 Phase: 153 (Mejoras de Deudas) — EXECUTING
-Plan: 3 of 4
+Plan: 4 of 4
 Status: Ready to execute
 Last activity: 2026-07-04
 
@@ -303,6 +303,7 @@ _Updated after each plan completion_
 | Phase 152 P06 | ~12min | 3 tasks | 5 files |
 | Phase 153 P01 | 12min | 3 tasks | 5 files |
 | Phase 153 P02 | 7min | 3 tasks | 5 files |
+| Phase 153 P03 | ~5min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -718,6 +719,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase 152]: 152-05: filtro por estado del Historial de cobros server-side (query param validationStatus), no client-side, por lista paginada (D-04)
 - [Phase 152]: 152-06: rename FE CostCenter → CostCenterItem (selector active-only) reservando CostCenter al ABM full-row con isActive; mirror del backend, evita type lie
 - [Phase 153]: 153-02: cohorte de vencidos en modules/reports/ hereda el guard CAJA_ROLES (coach 403, D-12) sin tocar el endpoint coach; exclusion de dato sucio via end_date >= start_date; dedup + paginacion en JS para que total cuente miembros distintos
+- [Phase ?]: Plan 153-03: DeudasPage pasa a hub de tabs (Por socio verbatim / Por deuda con motivo/fecha-registro/periodo/nota); coach solo ve Por socio via DEUDAS_DETAIL_ROLES; el reporte de deudas sale de Reportes
 
 ### Pending Todos
 
@@ -750,7 +752,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-04T18:00:33.936Z
+Last session: 2026-07-04T18:12:31.363Z
 Stopped at: Phase 153 context gathered
 Resume file: None
 

@@ -3939,7 +3939,7 @@ Plans:
 3. Cada deuda muestra **a qué pago/plan está asociada** (plan y período). (DEUDA-03)
 4. La vista de Deudas incluye también a los socios con **plan vencido sin renovar** (no-renovaciones), para ocuparse del negocio desde una sola pantalla. (DEUDA-04)
 
-**Plans:** 2/4 plans executed
+**Plans:** 3/4 plans executed
 
 Plans:
 
@@ -3950,7 +3950,7 @@ Plans:
 **Wave 2** _(blocked on Wave 1 completion)_
 
 - [x] 153-02-PLAN.md — API: endpoint /expired-members (no-renovaciones 60d sin renovar) + tests
-- [ ] 153-03-PLAN.md — Admin: hub Deudas 3 tabs (Por socio + Por deuda mudado de Reportes) + gating por rol
+- [x] 153-03-PLAN.md — Admin: hub Deudas 3 tabs (Por socio + Por deuda mudado de Reportes) + gating por rol
 
 **Wave 3** _(blocked on Wave 2 completion)_
 
@@ -4011,7 +4011,7 @@ Plans:
 | 150. Cuentas bancarias flexibles                | 6/6            | Complete    | 2026-07-03 |
 | 151. Registrar cobro (Pagos → Cobros)           | 5/5            | Complete    | 2026-07-03 |
 | 152. Reorganización de Caja + egresos config.   | 6/6            | Complete    | 2026-07-04 |
-| 153. Mejoras de Deudas                          | 2/4            | In Progress |            |
+| 153. Mejoras de Deudas                          | 3/4            | In Progress |            |
 | 154. Alumnos (de-Templo-ficación + accesos)     | 0/TBD          | Not started | -          |
 | 155. Horarios                                   | 0/TBD          | Not started | -          |
 | 156. Planes de pago vs Rutinas de entrenamiento | 0/TBD          | Not started | -          |
