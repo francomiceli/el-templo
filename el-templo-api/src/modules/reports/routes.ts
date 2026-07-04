@@ -588,17 +588,20 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
         workbook.created = new Date();
         const sheet = workbook.addWorksheet("Deudas");
 
-        // 9 columns per D-16 — order is load-bearing.
+        // Phase 153 (DEUDA-01/02/03) adds Motivo / Período / Fecha de registro.
         sheet.columns = [
           { header: "Miembro", key: "miembro", width: 28 },
           { header: "Teléfono", key: "telefono", width: 18 },
           { header: "Plan/Concepto", key: "concepto", width: 32 },
+          { header: "Motivo", key: "motivo", width: 22 },
+          { header: "Período", key: "periodo", width: 20 },
           { header: "Sucursal", key: "sucursal", width: 22 },
           { header: "Monto", key: "monto", width: 14 },
           { header: "Moneda", key: "moneda", width: 10 },
           { header: "Antigüedad (días)", key: "antiguedad", width: 18 },
           { header: "Bucket", key: "bucket", width: 16 },
           { header: "Fecha devengo", key: "fechaDevengo", width: 16 },
+          { header: "Fecha de registro", key: "fechaRegistro", width: 18 },
           { header: "Tipo", key: "tipo", width: 18 },
         ];
 
@@ -609,12 +612,15 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
             miembro: row.memberName,
             telefono: row.memberPhone ?? "",
             concepto: row.conceptLabel,
+            motivo: row.reasonLabel,
+            periodo: formatPeriodDDMM(row.periodStart, row.periodEnd),
             sucursal: row.branchName ?? "",
             monto: row.amount,
             moneda: row.currency,
             antiguedad: row.ageInDays,
             bucket: BUCKET_LABEL_ES[row.bucket],
             fechaDevengo: row.effectiveDate,
+            fechaRegistro: row.registeredAt,
             tipo: TARGET_KIND_LABEL_ES[row.targetKind] ?? row.targetKind,
           });
         }
@@ -738,6 +744,25 @@ const TARGET_KIND_LABEL_ES: Record<string, string> = {
   subscription: "Plan",
   debt_balance: "Saldo a regularizar",
 };
+
+/**
+ * Phase 153 (DEUDA-03) — format a plan cycle period as "dd/mm–dd/mm" for the
+ * Excel export. Returns "—" when there is no period (debt_balance rows). When
+ * only a start date is present (subscription with null end_date) it renders
+ * just the start "dd/mm".
+ */
+function formatPeriodDDMM(
+  periodStart: string | null,
+  periodEnd: string | null,
+): string {
+  if (periodStart === null) return "—";
+  const ddmm = (iso: string): string => {
+    const [, m, d] = iso.split("-");
+    return `${d}/${m}`;
+  };
+  if (periodEnd === null) return ddmm(periodStart);
+  return `${ddmm(periodStart)}–${ddmm(periodEnd)}`;
+}
 
 // =============================================================================
 // Helpers

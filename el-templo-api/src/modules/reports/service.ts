@@ -175,14 +175,37 @@ function leadStatusLabelES(
   return "Perdido";
 }
 
+/** Date portion (ISO YYYY-MM-DD) of a Date | string timestamp column value. */
+function isoDatePortionOB(value: Date | string): string {
+  const d = value instanceof Date ? value : new Date(value);
+  return d.toISOString().slice(0, 10);
+}
+
 /**
- * D-05/D-06: derive (effectiveDate, conceptLabel) for an outstanding row.
+ * D-05/D-06 + Phase 153 (DEUDA-01/02/03): derive every computed field of an
+ * outstanding-balances row from existing data (no migration). Single source of
+ * truth shared by getOutstandingBalances, its bucketTotals scan and
+ * exportOutstandingBalances so the JSON listing and the Excel export never
+ * drift.
  *
- * - subscription rows: effectiveDate = subscriptions.startDate.
- *   conceptLabel = "Mensualidad <Mes> <Año> — <PlanName>".
- * - debt_balance rows (or subscription rows where the LEFT JOIN didn't
- *   resolve, e.g. orphaned data): fallback effectiveDate = balances.createdAt
- *   (date portion). conceptLabel = "Saldo a regularizar" (D-04 wording).
+ * Returned superset (the historical `{ effectiveDate, conceptLabel }` is kept
+ * so pre-153 call sites — the bucketTotals scans — keep working unchanged):
+ * - effectiveDate: subscription rows → subscriptions.startDate; debt_balance /
+ *   orphaned rows → balances.createdAt (date portion). Drives aging.
+ * - conceptLabel: legacy "Mensualidad <Mes> <Año> — <PlanName>" /
+ *   "Saldo a regularizar" wording (unchanged; still rendered by old consumers).
+ * - reasonLabel (DEUDA-02): "Cuota <PlanName>" for subscription debts;
+ *   "Sin plan"/"Otro" derived from the origin advance_payment miscReason for
+ *   cobros sueltos; "Saldo a regularizar" for orphaned debt_balance rows.
+ * - periodStart/periodEnd (DEUDA-03): subscription cycle range; null for
+ *   debt_balance rows.
+ * - registeredAt (DEUDA-01): balances.createdAt date portion, for EVERY row.
+ * - notes (D-11): free-text note of the origin transaction (debt_balance with
+ *   origin only); null otherwise.
+ *
+ * `subscriptionEndDate`, `miscReason` and `transactionNotes` are optional so
+ * the bucketTotals scans (which only need effectiveDate) can call this without
+ * projecting the extra columns.
  */
 function deriveEffectiveDateAndLabelOB(input: {
   targetKind: "subscription" | "debt_balance";
@@ -190,7 +213,21 @@ function deriveEffectiveDateAndLabelOB(input: {
   subscriptionStartDate: string | null;
   planName: string | null;
   balanceCreatedAt: Date | string;
-}): { effectiveDate: string; conceptLabel: string } {
+  subscriptionEndDate?: string | null;
+  miscReason?: string | null;
+  transactionNotes?: string | null;
+}): {
+  effectiveDate: string;
+  conceptLabel: string;
+  reasonLabel: string;
+  periodStart: string | null;
+  periodEnd: string | null;
+  registeredAt: string;
+  notes: string | null;
+} {
+  // DEUDA-01: registration date = balances.createdAt, independent of origin.
+  const registeredAt = isoDatePortionOB(input.balanceCreatedAt);
+
   if (
     input.targetKind === "subscription" &&
     input.subscriptionStartDate !== null
@@ -199,17 +236,47 @@ function deriveEffectiveDateAndLabelOB(input: {
     const d = new Date(effectiveDate + "T00:00:00");
     const month = MONTHS_ES_OB[d.getMonth()] ?? "";
     const year = d.getFullYear();
-    const planName = input.planName ?? "Plan";
-    const conceptLabel = `Mensualidad ${month} ${year} — ${planName}`;
-    return { effectiveDate, conceptLabel };
+    const conceptLabel = `Mensualidad ${month} ${year} — ${input.planName ?? "Plan"}`;
+    // DEUDA-02: "Cuota <PlanName>" (fallback "Cuota" when the plan name is
+    // missing). DEUDA-03: cycle range = subscription start/end (end may be null).
+    const reasonLabel = input.planName ? `Cuota ${input.planName}` : "Cuota";
+    return {
+      effectiveDate,
+      conceptLabel,
+      reasonLabel,
+      periodStart: input.subscriptionStartDate,
+      periodEnd: input.subscriptionEndDate ?? null,
+      registeredAt,
+      notes: null,
+    };
   }
 
-  const created =
-    input.balanceCreatedAt instanceof Date
-      ? input.balanceCreatedAt
-      : new Date(input.balanceCreatedAt);
-  const effectiveDate = created.toISOString().slice(0, 10);
-  return { effectiveDate, conceptLabel: "Saldo a regularizar" };
+  // debt_balance (cobro suelto) or orphaned subscription row.
+  const effectiveDate = registeredAt;
+  const miscReason = input.miscReason ?? null;
+  // DEUDA-02: derive the motivo from the origin advance_payment miscReason.
+  let reasonLabel: string;
+  let notes: string | null;
+  if (miscReason === "sin_plan") {
+    reasonLabel = "Sin plan";
+    notes = input.transactionNotes ?? null;
+  } else if (miscReason === "otro") {
+    reasonLabel = "Otro";
+    notes = input.transactionNotes ?? null;
+  } else {
+    // No resolvable origin transaction (orphaned data): keep the legacy wording.
+    reasonLabel = "Saldo a regularizar";
+    notes = null;
+  }
+  return {
+    effectiveDate,
+    conceptLabel: "Saldo a regularizar",
+    reasonLabel,
+    periodStart: null,
+    periodEnd: null,
+    registeredAt,
+    notes,
+  };
 }
 
 export class ReportsService {
@@ -620,6 +687,39 @@ export class ReportsService {
   // ─── Outstanding Balances / Deudas (CAJA-03 — Phase 109-02) ──────────────
 
   /**
+   * Phase 153 (DEUDA-02/D-11) — derived table resolving the origin
+   * advance_payment transaction of each debt_balance. One row per debt_balance
+   * targetId (GROUP BY) with txId = MIN(financial_transactions.id) = the
+   * earliest (autoincrement) advance_payment linked to it. Grouping guarantees
+   * a single row per targetId so the outer LEFT JOIN never multiplies balance
+   * rows even when a debt_balance has multiple linked advance_payments.
+   *
+   * Shared by getOutstandingBalances + exportOutstandingBalances so the JSON
+   * listing and the Excel export derive the same motivo/nota.
+   */
+  private buildDebtOriginTxSubquery() {
+    return this.db
+      .select({
+        targetId: schema.transactionLinks.targetId,
+        txId: sql<number>`MIN(${schema.financialTransactions.id})`.as("tx_id"),
+      })
+      .from(schema.transactionLinks)
+      .innerJoin(
+        schema.financialTransactions,
+        and(
+          eq(
+            schema.financialTransactions.id,
+            schema.transactionLinks.transactionId,
+          ),
+          eq(schema.financialTransactions.kind, "advance_payment"),
+        ),
+      )
+      .where(eq(schema.transactionLinks.targetKind, "debt_balance"))
+      .groupBy(schema.transactionLinks.targetId)
+      .as("debt_origin_tx");
+  }
+
+  /**
    * Aging report data feed for the "Deudas" tab in ReportesPage (D-08).
    *
    * Source: balances WHERE amount > 0 LEFT JOIN subscriptions
@@ -718,6 +818,13 @@ export class ReportsService {
     // to balances.createdAt — emulated in SQL via COALESCE so the DB-side sort
     // is roughly stable. Final sort in JS by ageInDays DESC guards against any
     // edge case (future effective_date clamps to 0).
+    // Phase 153 (DEUDA-02/D-11): resolve the origin advance_payment of each
+    // debt_balance to derive the motivo (miscReason) + free-text note. A
+    // debt_balance could in theory be linked to more than one advance_payment;
+    // we pick the deterministic origin = MIN(id) (earliest, autoincrement) via
+    // a grouped derived table so the LEFT JOIN never multiplies balance rows.
+    const debtOriginTx = this.buildDebtOriginTxSubquery();
+
     const rawRows = await this.db
       .select({
         memberId: schema.balances.memberId,
@@ -731,8 +838,11 @@ export class ReportsService {
         amount: schema.balances.amount,
         currency: schema.balances.currency,
         subscriptionStartDate: schema.subscriptions.startDate,
+        subscriptionEndDate: schema.subscriptions.endDate,
         planName: schema.subscriptionPlans.name,
         balanceCreatedAt: schema.balances.createdAt,
+        originMiscReason: schema.financialTransactions.miscReason,
+        originNotes: schema.financialTransactions.notes,
       })
       .from(schema.balances)
       .leftJoin(
@@ -751,6 +861,17 @@ export class ReportsService {
         eq(schema.branches.id, schema.subscriptions.branchId),
       )
       .leftJoin(schema.users, eq(schema.users.id, schema.balances.memberId))
+      .leftJoin(
+        debtOriginTx,
+        and(
+          eq(schema.balances.targetKind, "debt_balance"),
+          eq(debtOriginTx.targetId, schema.balances.targetId),
+        ),
+      )
+      .leftJoin(
+        schema.financialTransactions,
+        eq(schema.financialTransactions.id, debtOriginTx.txId),
+      )
       .where(whereClause)
       .orderBy(
         sql`COALESCE(${schema.subscriptions.startDate}, DATE(${schema.balances.createdAt})) ASC`,
@@ -759,12 +880,23 @@ export class ReportsService {
       .offset(offset);
 
     const mapped: OutstandingBalanceRow[] = rawRows.map((r) => {
-      const { effectiveDate, conceptLabel } = deriveEffectiveDateAndLabelOB({
+      const {
+        effectiveDate,
+        conceptLabel,
+        reasonLabel,
+        periodStart,
+        periodEnd,
+        registeredAt,
+        notes,
+      } = deriveEffectiveDateAndLabelOB({
         targetKind: r.targetKind,
         targetId: r.targetId,
         subscriptionStartDate: r.subscriptionStartDate,
+        subscriptionEndDate: r.subscriptionEndDate,
         planName: r.planName,
         balanceCreatedAt: r.balanceCreatedAt,
+        miscReason: r.originMiscReason,
+        transactionNotes: r.originNotes,
       });
       const ageInDays = computeAgeInDaysOB(effectiveDate);
       const bucket = computeBucketOB(ageInDays);
@@ -779,6 +911,11 @@ export class ReportsService {
         targetKind: r.targetKind,
         targetId: r.targetId,
         conceptLabel,
+        reasonLabel,
+        periodStart,
+        periodEnd,
+        registeredAt,
+        notes,
         amount: Number(r.amount),
         currency: r.currency,
         effectiveDate,
@@ -1665,6 +1802,9 @@ export class ReportsService {
 
     const whereClause = and(...conds);
 
+    // Phase 153 — same origin-tx resolution as getOutstandingBalances (DRY).
+    const debtOriginTx = this.buildDebtOriginTxSubquery();
+
     const rawRows = await this.db
       .select({
         memberId: schema.balances.memberId,
@@ -1678,8 +1818,11 @@ export class ReportsService {
         amount: schema.balances.amount,
         currency: schema.balances.currency,
         subscriptionStartDate: schema.subscriptions.startDate,
+        subscriptionEndDate: schema.subscriptions.endDate,
         planName: schema.subscriptionPlans.name,
         balanceCreatedAt: schema.balances.createdAt,
+        originMiscReason: schema.financialTransactions.miscReason,
+        originNotes: schema.financialTransactions.notes,
       })
       .from(schema.balances)
       .leftJoin(
@@ -1698,18 +1841,40 @@ export class ReportsService {
         eq(schema.branches.id, schema.subscriptions.branchId),
       )
       .leftJoin(schema.users, eq(schema.users.id, schema.balances.memberId))
+      .leftJoin(
+        debtOriginTx,
+        and(
+          eq(schema.balances.targetKind, "debt_balance"),
+          eq(debtOriginTx.targetId, schema.balances.targetId),
+        ),
+      )
+      .leftJoin(
+        schema.financialTransactions,
+        eq(schema.financialTransactions.id, debtOriginTx.txId),
+      )
       .where(whereClause)
       .orderBy(
         sql`COALESCE(${schema.subscriptions.startDate}, DATE(${schema.balances.createdAt})) ASC`,
       );
 
     const mapped: OutstandingBalanceRow[] = rawRows.map((r) => {
-      const { effectiveDate, conceptLabel } = deriveEffectiveDateAndLabelOB({
+      const {
+        effectiveDate,
+        conceptLabel,
+        reasonLabel,
+        periodStart,
+        periodEnd,
+        registeredAt,
+        notes,
+      } = deriveEffectiveDateAndLabelOB({
         targetKind: r.targetKind,
         targetId: r.targetId,
         subscriptionStartDate: r.subscriptionStartDate,
+        subscriptionEndDate: r.subscriptionEndDate,
         planName: r.planName,
         balanceCreatedAt: r.balanceCreatedAt,
+        miscReason: r.originMiscReason,
+        transactionNotes: r.originNotes,
       });
       const ageInDays = computeAgeInDaysOB(effectiveDate);
       const bucket = computeBucketOB(ageInDays);
@@ -1724,6 +1889,11 @@ export class ReportsService {
         targetKind: r.targetKind,
         targetId: r.targetId,
         conceptLabel,
+        reasonLabel,
+        periodStart,
+        periodEnd,
+        registeredAt,
+        notes,
         amount: Number(r.amount),
         currency: r.currency,
         effectiveDate,
