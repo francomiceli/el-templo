@@ -258,6 +258,7 @@ import { useTransactionsApi } from 'src/composables/useTransactionsApi';
 import RegistrarMovEgresoDialog from 'src/components/caja/RegistrarMovEgresoDialog.vue';
 import DateRangeFilter from 'src/components/caja/DateRangeFilter.vue';
 import { currentMonthRange, type DateRangeValue } from 'src/utils/date-range';
+import { validationLabel, validationColor } from 'src/utils/validation-status';
 import type { MovEgresoItem, MovEgresoParams } from 'src/types/transaction';
 
 // =========================================================================
@@ -305,28 +306,8 @@ function kindColor(kind: string): string {
   return 'warning'; // adjustment
 }
 
-// =========================================================================
-// Estado de validación (ARQUEO-02). El enum del schema es
-// pendiente | observado | corregido | validado.
-// =========================================================================
-
-const VALIDATION_LABELS: Record<string, string> = {
-  pendiente: 'Pendiente',
-  observado: 'Observado',
-  corregido: 'Corregido',
-  validado: 'Validado',
-};
-
-function validationLabel(status: string): string {
-  return VALIDATION_LABELS[status] ?? status;
-}
-
-function validationColor(status: string): string {
-  if (status === 'validado') return 'positive';
-  if (status === 'pendiente') return 'warning';
-  if (status === 'observado') return 'info';
-  return 'grey-6'; // corregido
-}
+// Estado de validación (ARQUEO-02): validationLabel/validationColor viven en
+// src/utils/validation-status.ts (compartido con el Historial de cobros, 152-05).
 
 // Filas que restan de la caja (se muestran con "−" rojo): egresos y reintegros.
 // No incluye cash_transfer (su leg de origen/destino se narra en Concepto, sin

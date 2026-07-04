@@ -154,15 +154,27 @@
           @update:model-value="onFilterChange"
         />
       </div>
+      <!-- Phase 152 D-04 — filtro por estado de validación (server-side) -->
       <div class="col-6 col-sm-2">
-        <!-- @vue-ignore: "month" is valid HTML5 but not in Quasar's type union -->
-        <q-input
-          v-model="selectedMonth"
-          label="Mes"
-          type="month"
+        <q-select
+          v-model="filters.estado"
+          :options="ESTADO_OPTIONS"
+          label="Estado"
           dense
           outlined
+          emit-value
+          map-options
+          option-value="value"
+          option-label="label"
           @update:model-value="onFilterChange"
+        />
+      </div>
+      <!-- Phase 152 D-03 — rango de fecha mes↔días (control compartido) -->
+      <div class="col-12 col-sm-4">
+        <DateRangeFilter
+          :model-value="dateRange"
+          month-label="Mes"
+          @update:model-value="onDateRangeChange"
         />
       </div>
       <!-- Phase 109 D-15 — Excel export (server-side, exceljs) -->
@@ -240,6 +252,16 @@
           <q-badge
             :color="isVoided(slotProps.row) ? 'grey' : methodColor(slotProps.row.paymentMethod)"
             :label="methodLabel(slotProps.row.paymentMethod)"
+          />
+        </q-td>
+      </template>
+
+      <!-- Estado de validación column (Phase 152 CAJA-02) -->
+      <template #body-cell-estado="slotProps">
+        <q-td :props="slotProps">
+          <q-badge
+            :color="validationColor(slotProps.row.validationStatus)"
+            :label="validationLabel(slotProps.row.validationStatus)"
           />
         </q-td>
       </template>
@@ -397,6 +419,9 @@ import { formatDate } from 'src/utils/format-date';
 import { formatPrice } from 'src/utils/format-price';
 import { useTransactionsApi } from 'src/composables/useTransactionsApi';
 import { useMembersApi } from 'src/composables/useMembersApi';
+import DateRangeFilter from 'src/components/caja/DateRangeFilter.vue';
+import { currentMonthRange, type DateRangeValue } from 'src/utils/date-range';
+import { validationLabel, validationColor } from 'src/utils/validation-status';
 import {
   PAYMENT_METHOD_LABELS,
   PAYMENT_METHOD_COLORS,
@@ -474,6 +499,14 @@ const KIND_OPTIONS: Array<{ label: string; value: TransactionKind | null }> = [
   { label: KIND_LABELS_ES.advance_payment, value: 'advance_payment' },
 ];
 
+// Phase 152 D-04 — filtro por estado de validación. `null` === "Todas" (omite el
+// query param); el backend (152-03) solo valida validado/pendiente.
+const ESTADO_OPTIONS: Array<{ label: string; value: 'validado' | 'pendiente' | null }> = [
+  { label: 'Todas', value: null },
+  { label: 'Validadas', value: 'validado' },
+  { label: 'Pendientes', value: 'pendiente' },
+];
+
 // =========================================================================
 // State
 // =========================================================================
@@ -497,16 +530,10 @@ const summary = reactive<FinanceSummary>({
   },
 });
 
-const selectedMonth = ref(new Date().toISOString().slice(0, 7));
-
-const dateRange = computed(() => {
-  if (!selectedMonth.value) return { dateFrom: undefined, dateTo: undefined };
-  const [year, month] = selectedMonth.value.split('-').map(Number);
-  const dateFrom = `${year}-${String(month).padStart(2, '0')}-01`;
-  const lastDay = new Date(year, month, 0).getDate();
-  const dateTo = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-  return { dateFrom, dateTo };
-});
+// Rango de fecha manejado por <DateRangeFilter> (mes default + toggle a días,
+// D-03). Arranca en el mes corriente para que el load inicial sea idéntico al
+// comportamiento previo.
+const dateRange = ref<DateRangeValue>(currentMonthRange());
 
 const filters = reactive({
   search: '',
@@ -514,6 +541,8 @@ const filters = reactive({
   paymentMethod: null as PaymentMethod | null,
   // Phase 109 D-12 — single-select kind filter, null = "Todos".
   kind: null as TransactionKind | null,
+  // Phase 152 D-04 — filtro por estado de validación, null = "Todas".
+  estado: null as 'validado' | 'pendiente' | null,
 });
 
 const tablePagination = ref({
@@ -544,6 +573,13 @@ const columns: QTableProps['columns'] = [
   { name: 'alumno', label: 'Alumno', field: 'memberName', align: 'left', sortable: false },
   { name: 'monto', label: 'Monto', field: 'amount', align: 'left', sortable: false },
   { name: 'metodo', label: 'Metodo', field: 'paymentMethod', align: 'left', sortable: false },
+  {
+    name: 'estado',
+    label: 'Estado',
+    field: 'validationStatus',
+    align: 'left',
+    sortable: false,
+  },
   {
     name: 'plan',
     label: 'Concepto',
@@ -647,6 +683,7 @@ async function loadTransactions() {
       country: props.isOwner ? props.selectedCountry : undefined,
       paymentMethod: filters.paymentMethod ?? undefined,
       kind: filters.kind ?? undefined,
+      validationStatus: filters.estado ?? undefined,
       dateFrom: dateRange.value.dateFrom,
       dateTo: dateRange.value.dateTo,
       page: tablePagination.value.page,
@@ -710,6 +747,15 @@ function confirmVoid(transaction: TransactionListItem) {
 // =========================================================================
 
 function onFilterChange() {
+  tablePagination.value.page = 1;
+  loadTransactions();
+  loadSummary();
+}
+
+// Emitido por <DateRangeFilter> al cambiar mes/día. Resetea a la primera página
+// y recarga listado + resumen (mismo contrato { dateFrom, dateTo } que el mes).
+function onDateRangeChange(value: DateRangeValue) {
+  dateRange.value = value;
   tablePagination.value.page = 1;
   loadTransactions();
   loadSummary();
