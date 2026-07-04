@@ -1,5 +1,18 @@
 <template>
   <div class="q-pa-md">
+    <!-- Nota explicativa fija (Phase 152 / D-10 / CAJA-06). No dismissible: la -->
+    <!-- confusión sobre qué muestra Saldos es recurrente. Combina qué es el     -->
+    <!-- saldo firme + el aviso de registrar egresos/retiros.                    -->
+    <q-banner rounded class="bg-blue-1 text-grey-9 q-mb-md">
+      <template #avatar>
+        <q-icon name="info" color="primary" />
+      </template>
+      Muestra el <strong>saldo firme por caja</strong>: solo los movimientos validados desde el
+      corte. Los cobros pendientes se muestran aparte y nunca se suman al saldo firme. Si no se
+      registran los <strong>egresos</strong> y <strong>retiros</strong>, los saldos no reflejarán la
+      realidad.
+    </q-banner>
+
     <!-- Export (top-right). Excel only — no dead PDF control (REP-04, Excel-only v1). -->
     <div class="row justify-end q-mb-md">
       <q-btn
