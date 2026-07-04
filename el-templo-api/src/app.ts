@@ -41,6 +41,7 @@ import { coachRoutes } from "./modules/coach";
 import { ratingsAdminRoutes, ratingsMemberRoutes } from "./modules/ratings";
 import { financeRoutes, coachLoadRoutes } from "./modules/finance";
 import { userRoutes } from "./modules/users";
+import { settingsRoutes } from "./modules/settings";
 import { onboardingRoutes } from "./modules/onboarding";
 import { barChallengeRoutes } from "./modules/bar-challenge/routes";
 import { checkInRoutes } from "./modules/check-ins";
@@ -229,6 +230,12 @@ export async function buildApp() {
   // User management routes (owner-only staff CRUD)
   await app.register(userRoutes, {
     prefix: "/api/admin/users",
+  });
+
+  // Settings routes (Phase 154 ALUM-03): pricing rules — GET readable by any
+  // staff (PoS needs the value), PUT owner-only.
+  await app.register(settingsRoutes, {
+    prefix: "/api/admin/settings",
   });
 
   // Onboarding routes (member quiz completion + profile retrieval + analytics)
