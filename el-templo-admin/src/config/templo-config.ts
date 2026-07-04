@@ -22,6 +22,17 @@ import { canAccessTraining } from 'src/utils/trainingAccess';
  */
 export const TEMPLO_ENABLED = true;
 
+/**
+ * Surface gate for the Greek-level system (Alfa..Omega ranks shown in AlumnosPage
+ * / AlumnoDetailPage). Like TEMPLO_ENABLED this is a per-INSTALLATION surface flag
+ * (D-08) — NOT a per-user gate, so do NOT reuse canAccessTraining here. El Templo
+ * keeps the Greek levels visible (`true`); a fresh white-label tenant would set
+ * this to `false` to hide the level column/filter/badges. Consumed by Plan 05
+ * (AlumnosPage / AlumnoDetailPage). Defaults to TEMPLO_ENABLED so the whole Templo
+ * surface flips together, while staying an independent knob for future tenants.
+ */
+export const TEMPLO_GREEK_LEVELS = TEMPLO_ENABLED;
+
 // ---------------------------------------------------------------------------
 // Role sets — mirror the backend permission sets in
 // `el-templo-api/src/modules/shared/permissions.ts` (D-01/D-02/D-03/D-15).
@@ -144,6 +155,12 @@ export const NAV_MODEL: NavCategory[] = [
     header: 'Configuración',
     items: [
       { path: '/usuarios', label: 'Usuarios', icon: 'manage_accounts', roles: ['owner'] },
+      {
+        path: '/configuracion/precios',
+        label: 'Reglas de precio',
+        icon: 'sell',
+        roles: ['owner'],
+      },
       {
         path: '/notificaciones',
         label: 'Notificaciones',
