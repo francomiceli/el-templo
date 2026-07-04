@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v5.4
 milestone_name: Reforma del Admin — Correcciones white-label (pre-tenants)
 status: executing
-stopped_at: Phase 154 context gathered (auto)
-last_updated: "2026-07-04T19:37:39.059Z"
+stopped_at: Completed 154-03-PLAN.md
+last_updated: "2026-07-04T19:42:02.261Z"
 last_activity: 2026-07-04
 progress:
   total_phases: 8
   completed_phases: 5
   total_plans: 32
-  completed_plans: 29
+  completed_plans: 30
   percent: 63
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 ## Current Position
 
 Phase: 154 (Alumnos (de-Templo-ficación + accesos)) — EXECUTING
-Plan: 3 of 5
+Plan: 4 of 5
 Status: Ready to execute
 Last activity: 2026-07-04
 
@@ -308,6 +308,7 @@ _Updated after each plan completion_
 | Phase 153 P04 | 3min | 3 tasks | 4 files |
 | Phase 154 P1 | 18min | 2 tasks | 7 files |
 | Phase 154 P02 | ~20min | 2 tasks | 5 files |
+| Phase 154 P03 | 12min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -725,6 +726,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase 153]: 153-02: cohorte de vencidos en modules/reports/ hereda el guard CAJA_ROLES (coach 403, D-12) sin tocar el endpoint coach; exclusion de dato sucio via end_date >= start_date; dedup + paginacion en JS para que total cuente miembros distintos
 - [Phase ?]: Plan 153-03: DeudasPage pasa a hub de tabs (Por socio verbatim / Por deuda con motivo/fecha-registro/periodo/nota); coach solo ve Por socio via DEUDAS_DETAIL_ROLES; el reporte de deudas sale de Reportes
 - [Phase ?]: 153-04: tab Vencidos (DeudasPage) consume /admin/reports/expired-members; orden por vencimiento más reciente delegado al backend (daysOverdue ASC), gated como Por deuda (coach fuera, D-12)
+- [Phase ?]: 154-03: TEMPLO_GREEK_LEVELS = flag de superficie por instalacion (D-08), hermano de TEMPLO_ENABLED, NO canAccessTraining
 
 ### Pending Todos
 
@@ -757,8 +759,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-04T19:37:31.462Z
-Stopped at: Phase 154 context gathered (auto)
+Last session: 2026-07-04T19:42:02.240Z
+Stopped at: Completed 154-03-PLAN.md
 Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
