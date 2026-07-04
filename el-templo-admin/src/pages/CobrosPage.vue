@@ -1318,7 +1318,11 @@ async function loadAltaPlans() {
 }
 
 // Monto autocalculado: plan × medio de pago × Zero. Editable después a mano.
-watch([selectedPlan, paymentMethod, zeroPrice], () => {
+// `cardSurchargeEnabled` es dependencia (WR-03): arranca en false y se resuelve
+// async en onMounted; sin ella, si la regla llega DESPUÉS de elegir plan+tarjeta
+// el monto queda con precio regular y no se recalcula → cobro parcial / deuda
+// fantasma por el recargo.
+watch([selectedPlan, paymentMethod, zeroPrice, cardSurchargeEnabled], () => {
   if (mode.value !== 'alta') return;
   if (selectedPlan.value && paymentMethod.value) {
     amount.value = altaPrice.value;
