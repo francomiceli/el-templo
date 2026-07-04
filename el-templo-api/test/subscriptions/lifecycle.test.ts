@@ -4,6 +4,7 @@ import { sql, eq, and, desc } from "drizzle-orm";
 import { createTestApp, getAuthToken, cleanAllTestData } from "../helpers";
 import { subscriptions } from "../../src/db/schema/subscriptions";
 import * as schema from "../../src/db/schema";
+import { PRICING_SETTINGS_KEYS } from "../../src/modules/settings/keys";
 import {
   SUBSCRIPTIONS_URL,
   basePlan,
@@ -979,6 +980,54 @@ describe("Subscriptions API — Lifecycle", () => {
       expect(body.discountAmount).toBe(3000);
       expect(body.finalPrice).toBe(12000);
       expect(body.availableTiers).toHaveLength(3);
+    });
+
+    // WR-02: el preview debe pasar por resolvePriceType (punto único D-04), así
+    // no muestra el precio de tarjeta cuando la regla está OFF y el cobro real
+    // caería en priceRegular. cleanAllTestData deja la key ausente = OFF.
+    it("con la regla OFF, priceType=credit_card cae a priceRegular", async () => {
+      const plan = await createPlan(app, adminToken, {
+        priceRegular: 15000,
+        priceCreditCard: 20000,
+      });
+      const member = await createMember(app);
+
+      const res = await app.inject({
+        method: "GET",
+        url: `${SUBSCRIPTIONS_URL}/members/${member.id}/subscription/pricing-preview?planId=${plan.id}&priceType=credit_card`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      // NO priceCreditCard (20000) — la regla OFF normaliza a regular.
+      expect(body.basePrice).toBe(15000);
+      expect(body.finalPrice).toBe(15000);
+    });
+
+    it("con la regla ON, priceType=credit_card usa priceCreditCard", async () => {
+      // Sembrar la regla en ON para este caso (beforeEach limpia settings).
+      await app.db.insert(schema.systemSettings).values({
+        settingKey: PRICING_SETTINGS_KEYS.cardSurcharge,
+        settingValue: "on",
+      });
+
+      const plan = await createPlan(app, adminToken, {
+        priceRegular: 15000,
+        priceCreditCard: 20000,
+      });
+      const member = await createMember(app);
+
+      const res = await app.inject({
+        method: "GET",
+        url: `${SUBSCRIPTIONS_URL}/members/${member.id}/subscription/pricing-preview?planId=${plan.id}&priceType=credit_card`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.basePrice).toBe(20000);
+      expect(body.finalPrice).toBe(20000);
     });
   });
 

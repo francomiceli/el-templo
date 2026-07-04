@@ -3921,7 +3921,13 @@ export class SubscriptionService {
     const plan = await this.getPlanById(planId);
     if (!plan) throw new NotFoundError("Plan no encontrado");
 
-    const basePrice = this.getBasePrice(plan, priceType);
+    // Route the preview through the single server-side gate (WR-01, D-04): with
+    // the card-surcharge rule OFF, a `credit_card` request must resolve to
+    // `regular` so the preview matches what assignPlan will actually charge.
+    // Otherwise the preview shows priceCreditCard while the charge lands at
+    // priceRegular (stale/cached UI, direct call, or the toggle-off race).
+    const resolvedPriceType = await this.resolvePriceType(priceType);
+    const basePrice = this.getBasePrice(plan, resolvedPriceType);
     const auraBalance = await this.auraService.getBalance(userId);
     const boardingPassEligible = !member.boardingPassUsed;
 
