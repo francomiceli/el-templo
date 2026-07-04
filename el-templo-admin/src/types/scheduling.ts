@@ -17,6 +17,11 @@ export interface ActivityRecord {
   name: string;
   description: string | null;
   isActive: boolean;
+  /**
+   * Per-activity capacity cap. `null` = inherits the branch's maxCapacity.
+   * Mirrors the API (phase 155-02).
+   */
+  maxCapacity: number | null;
   createdAt: string;
   updatedAt: string;
 }

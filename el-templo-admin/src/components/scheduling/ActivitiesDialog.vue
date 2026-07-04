@@ -73,7 +73,7 @@
         <div class="text-subtitle2 q-mb-sm">
           {{ editingActivity ? 'Editar actividad' : 'Nueva actividad' }}
         </div>
-        <div class="row q-gutter-sm">
+        <div class="row q-gutter-sm items-start">
           <q-input v-model="activityForm.name" label="Nombre" dense outlined class="col" />
           <q-input
             v-model="activityForm.description"
@@ -81,6 +81,17 @@
             dense
             outlined
             class="col"
+          />
+          <q-input
+            v-model="activityForm.maxCapacity"
+            label="Cupo"
+            type="number"
+            dense
+            outlined
+            class="col"
+            min="1"
+            hint="vacío = hereda el cupo de la sucursal"
+            :rules="[validateCapacity]"
           />
           <q-btn
             :icon="editingActivity ? 'save' : 'add'"
@@ -129,8 +140,32 @@ const emit = defineEmits<{
 
 const activities = ref<ActivityRecord[]>([]);
 const loadingActivities = ref(false);
-const activityForm = ref({ name: '', description: '' });
+// maxCapacity is bound to a number-type q-input, so Quasar may hand back a
+// string, a number, or an empty string; it is normalized to `number | null`
+// on save (empty → null = inherit the branch cap).
+const activityForm = ref<{
+  name: string;
+  description: string;
+  maxCapacity: number | string | null;
+}>({ name: '', description: '', maxCapacity: null });
 const editingActivity = ref<ActivityRecord | null>(null);
+
+/**
+ * Validates the Cupo field: empty (inherit) or a positive integer.
+ * Server-side validation (155-02) remains authoritative (1-500).
+ */
+function validateCapacity(v: number | string | null): true | string {
+  if (v === null || v === undefined || v === '') return true;
+  const n = Number(v);
+  return (Number.isInteger(n) && n > 0) || 'El cupo debe ser un entero positivo';
+}
+
+/** Normalizes the Cupo input to `number | null` (empty/invalid → null). */
+function normalizeCapacity(v: number | string | null): number | null {
+  if (v === null || v === undefined || v === '') return null;
+  const n = Number(v);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
 
 // ─── Data Loading ───────────────────────────────────────────────────────────
 
@@ -150,31 +185,39 @@ async function loadActivities() {
 
 function startEditActivity(act: ActivityRecord) {
   editingActivity.value = act;
-  activityForm.value = { name: act.name, description: act.description ?? '' };
+  activityForm.value = {
+    name: act.name,
+    description: act.description ?? '',
+    maxCapacity: act.maxCapacity ?? null,
+  };
 }
 
 function cancelEditActivity() {
   editingActivity.value = null;
-  activityForm.value = { name: '', description: '' };
+  activityForm.value = { name: '', description: '', maxCapacity: null };
 }
 
 async function onSaveActivity() {
   if (!activityForm.value.name.trim()) return;
+  if (validateCapacity(activityForm.value.maxCapacity) !== true) return;
+  const maxCapacity = normalizeCapacity(activityForm.value.maxCapacity);
   try {
     if (editingActivity.value) {
       await schedulingApi.updateActivity(editingActivity.value.id, {
         name: activityForm.value.name,
         description: activityForm.value.description || undefined,
+        maxCapacity,
       });
       $q.notify({ type: 'positive', message: 'Actividad actualizada' });
     } else {
       await schedulingApi.createActivity({
         name: activityForm.value.name,
         description: activityForm.value.description || undefined,
+        maxCapacity,
       });
       $q.notify({ type: 'positive', message: 'Actividad creada' });
     }
-    activityForm.value = { name: '', description: '' };
+    activityForm.value = { name: '', description: '', maxCapacity: null };
     editingActivity.value = null;
     await loadActivities();
   } catch (err: unknown) {

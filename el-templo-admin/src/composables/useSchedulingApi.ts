@@ -26,6 +26,7 @@ export function useSchedulingApi() {
   async function createActivity(data: {
     name: string;
     description?: string;
+    maxCapacity?: number | null;
   }): Promise<ActivityRecord> {
     loading.value = true;
     error.value = null;
@@ -58,7 +59,7 @@ export function useSchedulingApi() {
 
   async function updateActivity(
     activityId: number,
-    data: { name?: string; description?: string; isActive?: boolean }
+    data: { name?: string; description?: string; isActive?: boolean; maxCapacity?: number | null }
   ): Promise<ActivityRecord> {
     loading.value = true;
     error.value = null;
