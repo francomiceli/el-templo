@@ -305,6 +305,18 @@ export interface OutstandingBalanceRow {
   targetKind: 'subscription' | 'debt_balance';
   targetId: number;
   conceptLabel: string;
+  /**
+   * Phase 153 (DEUDA-02): short structured motivo derived from the debt origin
+   * ("Cuota <plan>" / "Sin plan" / "Otro" / "Saldo a regularizar").
+   */
+  reasonLabel: string;
+  /** Phase 153 (DEUDA-03): cycle period of the plan (YYYY-MM-DD); null for cobros sueltos. */
+  periodStart: string | null;
+  periodEnd: string | null;
+  /** Phase 153 (DEUDA-01): date the debt was registered = balances.createdAt (YYYY-MM-DD). */
+  registeredAt: string;
+  /** Phase 153 (D-11): free-text note of the origin transaction, shown in a tooltip. */
+  notes: string | null;
   amount: number;
   currency: string;
   effectiveDate: string; // YYYY-MM-DD

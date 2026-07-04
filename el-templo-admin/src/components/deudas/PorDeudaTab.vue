@@ -88,6 +88,27 @@
       :pagination="{ rowsPerPage: 0 }"
       hide-pagination
     >
+      <!-- Motivo (DEUDA-02): short structured reason; período subtitle (DEUDA-03) -->
+      <!-- and free-text nota in a tooltip (D-11), never as its own column. -->
+      <template #body-cell-motivo="props">
+        <q-td :props="props">
+          <div class="row items-center no-wrap">
+            <span>{{ props.row.reasonLabel }}</span>
+            <q-icon
+              v-if="props.row.notes"
+              name="sticky_note_2"
+              size="16px"
+              class="q-ml-xs text-grey-6"
+            />
+          </div>
+          <div v-if="props.row.periodStart && props.row.periodEnd" class="text-caption text-grey-6">
+            {{ formatPeriod(props.row.periodStart, props.row.periodEnd) }}
+          </div>
+          <q-tooltip v-if="props.row.notes" anchor="top middle" self="bottom middle">
+            {{ props.row.notes }}
+          </q-tooltip>
+        </q-td>
+      </template>
       <template #body-cell-monto="props">
         <q-td :props="props">
           {{ formatPrice(props.row.amount, props.row.currency) }}
@@ -98,6 +119,11 @@
           <q-badge :color="bucketColor(props.row.bucket)">
             {{ BUCKET_LABELS_ES[props.row.bucket as DebtBucket] }}
           </q-badge>
+        </q-td>
+      </template>
+      <template #body-cell-fechaRegistro="props">
+        <q-td :props="props">
+          {{ formatDate(props.row.registeredAt) }}
         </q-td>
       </template>
       <template #body-cell-fechaDevengo="props">
@@ -148,7 +174,7 @@ interface Props {
 const props = defineProps<Props>();
 
 const $q = useQuasar();
-const log = createLogger('DeudasReport');
+const log = createLogger('PorDeudaTab');
 const api = useTransactionsApi();
 
 // Internal naming (D-01): aging / outstanding-balances. UI labels always
@@ -201,6 +227,13 @@ const columns = [
     sortable: false,
   },
   {
+    name: 'motivo',
+    label: 'Motivo',
+    field: 'reasonLabel',
+    align: 'left' as const,
+    sortable: false,
+  },
+  {
     name: 'concepto',
     label: 'Plan/Concepto',
     field: 'conceptLabel',
@@ -236,6 +269,13 @@ const columns = [
     sortable: false,
   },
   {
+    name: 'fechaRegistro',
+    label: 'Fecha de registro',
+    field: 'registeredAt',
+    align: 'center' as const,
+    sortable: false,
+  },
+  {
     name: 'fechaDevengo',
     label: 'Fecha devengo',
     field: 'effectiveDate',
@@ -260,6 +300,17 @@ function bucketColor(b: DebtBucket): string {
 
 function emptyBucketTotals(): BucketTotals {
   return { '0-5': 0, '6-10': 0, '11-15': 0, '15+': 0 };
+}
+
+// Period (DEUDA-03) as a dd/mm–dd/mm range under the motivo. Inputs are ISO
+// YYYY-MM-DD; render locale-free short day/month to keep the cell compact.
+function formatPeriod(start: string, end: string): string {
+  return `${toDDMM(start)}–${toDDMM(end)}`;
+}
+
+function toDDMM(iso: string): string {
+  const [, month, day] = iso.split('-');
+  return day !== undefined && month !== undefined ? `${day}/${month}` : iso;
 }
 
 function rowKey(r: OutstandingBalanceRow): string {
