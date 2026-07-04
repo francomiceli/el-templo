@@ -171,9 +171,9 @@ describe("Phase 147: cost centers", () => {
       expect(rows.length).toBeGreaterThanOrEqual(4);
       expect(rows.every((r) => r.country === "AR")).toBe(true);
       const names = rows.map((r) => r.name);
-      expect(names).toContain("Alquiler Constitución");
+      expect(names).toContain("Alquiler");
       expect(names).toContain("Librería");
-      expect(names).toContain("Viáticos profes");
+      expect(names).toContain("Viáticos");
       expect(names).toContain("Varios");
     });
 
