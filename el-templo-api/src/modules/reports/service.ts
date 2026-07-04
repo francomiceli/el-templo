@@ -1049,6 +1049,19 @@ export class ReportsService {
       // who renewed (has an in-effect sub) drops out of the renewal worklist.
       // NEVER read users.status directly.
       sql`NOT ${activeMemberExists(schema.subscriptions.userId)}`,
+      // WR-01: also exclude members who already renewed with a FUTURE-dated
+      // subscription (subscription_status='scheduled'). activeMemberExists only
+      // matches active|paused with start_date <= CURDATE(), so a scheduled sub
+      // starting tomorrow would slip through and this member would wrongly
+      // appear as a renewal lead for something already paid. Mirror of the
+      // coverageExists / getExpiringMemberships semantics in this same service
+      // (phase 144 defines coverage as the active+paused+scheduled chain).
+      sql`NOT EXISTS (
+        SELECT 1 FROM ${schema.subscriptions} s2
+        WHERE s2.user_id = ${schema.subscriptions.userId}
+          AND s2.subscription_status IN ('active', 'paused', 'scheduled')
+          AND (s2.end_date IS NULL OR s2.end_date >= CURDATE())
+      )`,
     ];
 
     if (filters.branchId !== undefined) {
