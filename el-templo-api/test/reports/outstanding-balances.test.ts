@@ -231,11 +231,19 @@ interface SeedSubscriptionWithBalanceOpts {
   amount: number; // balances.amount (>0 = member owes)
   memberFirstName?: string;
   memberLastName?: string;
+  // Phase 153 (DEUDA-03): optional cycle end date so tests can assert the
+  // periodEnd. When omitted the subscription end_date stays null.
+  endDateOffsetDays?: number;
 }
 
 async function seedSubscriptionWithBalance(
   opts: SeedSubscriptionWithBalanceOpts,
-): Promise<{ memberId: number; subscriptionId: number }> {
+): Promise<{
+  memberId: number;
+  subscriptionId: number;
+  startDate: string;
+  endDate: string | null;
+}> {
   const memberRes = await registerUser(opts.app, {
     email: `member-ob-${nextSuffix("M")}@test.local`,
     password: "pass123456",
@@ -246,6 +254,10 @@ async function seedSubscriptionWithBalance(
   const memberId = (memberRes.user as { id: number }).id;
 
   const startDate = dateOffset(opts.startDateOffsetDays);
+  const endDate =
+    opts.endDateOffsetDays !== undefined
+      ? dateOffset(opts.endDateOffsetDays)
+      : null;
   const [sub] = await opts.app.db
     .insert(schema.subscriptions)
     .values({
@@ -254,6 +266,7 @@ async function seedSubscriptionWithBalance(
       branchId: opts.branchId,
       status: "active",
       startDate,
+      endDate,
       pricePaid: opts.amount,
       currency: opts.planCurrency,
       priceTypeApplied: "regular",
@@ -269,7 +282,74 @@ async function seedSubscriptionWithBalance(
     amount: opts.amount,
   });
 
-  return { memberId, subscriptionId };
+  return { memberId, subscriptionId, startDate, endDate };
+}
+
+/**
+ * Phase 153 (DEUDA-02/D-11) — seed a debt_balance (cobro suelto) together with
+ * the advance_payment origin transaction that carries the miscReason + notes,
+ * linked via transaction_links (target_kind='debt_balance'). Mirrors the real
+ * cobro-suelto chain used to derive the motivo.
+ */
+async function seedDebtBalanceWithOrigin(opts: {
+  app: FastifyInstance;
+  branchId: number;
+  recordedBy: number;
+  amount: number;
+  miscReason: "sin_plan" | "otro";
+  notes: string | null;
+  currency?: "ARS" | "EUR";
+  memberFirstName?: string;
+  memberLastName?: string;
+}): Promise<{ memberId: number; balanceId: number; targetId: number }> {
+  const memberRes = await registerUser(opts.app, {
+    email: `member-suelto-${nextSuffix("S")}@test.local`,
+    password: "pass123456",
+    firstName: opts.memberFirstName ?? "Suelto",
+    lastName: opts.memberLastName ?? "Member",
+    branchId: opts.branchId,
+  });
+  const memberId = (memberRes.user as { id: number }).id;
+  const currency = opts.currency ?? "ARS";
+  const targetId = Math.floor(Math.random() * 1_000_000) + 1;
+
+  const [tx] = await opts.app.db
+    .insert(schema.financialTransactions)
+    .values({
+      memberId,
+      kind: "advance_payment",
+      direction: "inflow",
+      amount: opts.amount,
+      currency,
+      paymentMethod: "cash",
+      transactionDate: dateOffset(-3),
+      effectiveDate: dateOffset(-3),
+      branchId: opts.branchId,
+      recordedBy: opts.recordedBy,
+      miscReason: opts.miscReason,
+      notes: opts.notes,
+    })
+    .$returningId();
+
+  const [balance] = await opts.app.db
+    .insert(schema.balances)
+    .values({
+      memberId,
+      targetKind: "debt_balance",
+      targetId,
+      currency,
+      amount: opts.amount,
+    })
+    .$returningId();
+
+  await opts.app.db.insert(schema.transactionLinks).values({
+    transactionId: tx.id,
+    targetKind: "debt_balance",
+    targetId,
+    allocatedAmount: opts.amount,
+  });
+
+  return { memberId, balanceId: balance.id, targetId };
 }
 
 async function seedDebtBalance(opts: {
@@ -850,5 +930,145 @@ describe("Reports API — GET /outstanding-balances (Phase 109-02)", () => {
     const body = res.json();
     expect(body.rows).toHaveLength(1);
     expect(body.rows[0].amount).toBe(1000);
+  });
+
+  // ─── Phase 153 — motivo / período / fecha de registro (DEUDA-01/02/03) ────
+
+  it("REASON-CUOTA: subscription debt exposes reasonLabel 'Cuota <plan>' + period + registeredAt", async () => {
+    const seeded = await seedSubscriptionWithBalance({
+      app,
+      branchId: ctx.arBranchId,
+      planId: ctx.planArId,
+      planCurrency: "ARS",
+      startDateOffsetDays: -10,
+      endDateOffsetDays: 20,
+      amount: 1000,
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: `${REPORTS_URL}/outstanding-balances`,
+      headers: { authorization: `Bearer ${ctx.gestionArToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.rows).toHaveLength(1);
+    const r = body.rows[0];
+    // DEUDA-02: motivo starts with "Cuota " and carries the plan name.
+    expect(r.reasonLabel).toMatch(/^Cuota /);
+    expect(r.reasonLabel).toBe("Cuota Plan AR Mensual");
+    // DEUDA-03: period = subscription start/end range.
+    expect(r.periodStart).toBe(seeded.startDate);
+    expect(r.periodEnd).toBe(seeded.endDate);
+    // DEUDA-01: registeredAt present in ISO YYYY-MM-DD.
+    expect(r.registeredAt).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    // notes is only populated for cobros sueltos.
+    expect(r.notes).toBeNull();
+  });
+
+  it("REASON-SIN-PLAN: cobro suelto origin 'sin_plan' → reasonLabel 'Sin plan' + notes, null period", async () => {
+    const noteText = "Cobró un día suelto en la puerta";
+    await seedDebtBalanceWithOrigin({
+      app,
+      branchId: ctx.arBranchId,
+      recordedBy: ctx.ownerId,
+      amount: 3000,
+      miscReason: "sin_plan",
+      notes: noteText,
+      currency: "ARS",
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: `${REPORTS_URL}/outstanding-balances`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.rows).toHaveLength(1);
+    const r = body.rows[0];
+    expect(r.targetKind).toBe("debt_balance");
+    expect(r.reasonLabel).toBe("Sin plan");
+    expect(r.notes).toBe(noteText);
+    expect(r.periodStart).toBeNull();
+    expect(r.periodEnd).toBeNull();
+    expect(r.registeredAt).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it("REASON-OTRO: cobro suelto origin 'otro' → reasonLabel 'Otro'", async () => {
+    await seedDebtBalanceWithOrigin({
+      app,
+      branchId: ctx.arBranchId,
+      recordedBy: ctx.ownerId,
+      amount: 4200,
+      miscReason: "otro",
+      notes: "Venta de indumentaria",
+      currency: "ARS",
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: `${REPORTS_URL}/outstanding-balances`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.rows).toHaveLength(1);
+    const r = body.rows[0];
+    expect(r.reasonLabel).toBe("Otro");
+    expect(r.notes).toBe("Venta de indumentaria");
+    expect(r.periodStart).toBeNull();
+  });
+
+  it("REASON-ORPHAN: debt_balance without origin transaction falls back to 'Saldo a regularizar'", async () => {
+    await seedDebtBalance({
+      app,
+      branchId: ctx.arBranchId,
+      amount: 999,
+      currency: "ARS",
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: `${REPORTS_URL}/outstanding-balances`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.rows).toHaveLength(1);
+    const r = body.rows[0];
+    expect(r.reasonLabel).toBe("Saldo a regularizar");
+    expect(r.notes).toBeNull();
+    expect(r.periodStart).toBeNull();
+  });
+
+  it("REGISTERED-AT: registeredAt = balance creation date, not the cycle effectiveDate", async () => {
+    // Subscription cycle started 40 days ago (old effectiveDate) but the
+    // balance row is created now (registeredAt ≈ today).
+    await seedSubscriptionWithBalance({
+      app,
+      branchId: ctx.arBranchId,
+      planId: ctx.planArId,
+      planCurrency: "ARS",
+      startDateOffsetDays: -40,
+      amount: 1000,
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: `${REPORTS_URL}/outstanding-balances`,
+      headers: { authorization: `Bearer ${ctx.gestionArToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.rows).toHaveLength(1);
+    const r = body.rows[0];
+    expect(r.registeredAt).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    // registeredAt is the balance createdAt (≈ today), distinct from the cycle
+    // effectiveDate 40 days ago. Range check (not strict === today) so the
+    // assertion is robust across the UTC/local day boundary.
+    expect(r.registeredAt).not.toBe(r.effectiveDate);
+    expect(r.registeredAt >= dateOffset(-1)).toBe(true);
+    expect(r.registeredAt <= dateOffset(1)).toBe(true);
   });
 });
