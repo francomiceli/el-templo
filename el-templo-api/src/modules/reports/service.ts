@@ -886,7 +886,9 @@ export class ReportsService {
       )
       .where(whereClause)
       .orderBy(
-        sql`COALESCE(${schema.subscriptions.startDate}, DATE(${schema.balances.createdAt})) ASC`,
+        // WR-03: unique tiebreaker (balances.id) so LIMIT/OFFSET pagination is
+        // deterministic when multiple debts share the same effective date.
+        sql`COALESCE(${schema.subscriptions.startDate}, DATE(${schema.balances.createdAt})) ASC, ${schema.balances.id} ASC`,
       )
       .limit(limit)
       .offset(offset);
@@ -1128,9 +1130,12 @@ export class ReportsService {
       });
     }
 
-    // Most recent expiry first (daysOverdue ASC).
+    // Most recent expiry first (daysOverdue ASC). WR-03: userId tiebreaker so
+    // ties (several members expiring the same day — common with monthly cycles)
+    // keep a stable, deterministic order across the page-1 and page-2 requests.
+    // Without it the JS slice could duplicate or drop a row on "Cargar más".
     const allRows = [...expiredByUser.values()].sort(
-      (a, b) => a.daysOverdue - b.daysOverdue,
+      (a, b) => a.daysOverdue - b.daysOverdue || a.userId - b.userId,
     );
 
     const total = allRows.length;
