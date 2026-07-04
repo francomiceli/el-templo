@@ -43,7 +43,7 @@ con el "Motivo" que v5.3 ya agregó — verificar en plan-phase antes de duplica
 
 - [x] **CAJA-01**: **"Movimientos de caja" es la portada** de Caja (primer tab); "Pendientes" pasa a segundo; "Transacciones" (renombrada **"Cobros"**) tercero.
 - [x] **CAJA-02**: El listado de cobros muestra **etiqueta validada/pendiente** en cada fila.
-- [ ] **CAJA-03**: Los filtros de fecha (Cobros y Movimientos) vienen por mes pero permiten **elegir por días** para revisar dudas puntuales.
+- [x] **CAJA-03**: Los filtros de fecha (Cobros y Movimientos) vienen por mes pero permiten **elegir por días** para revisar dudas puntuales.
 - [x] **CAJA-04**: El detalle de un cobro incluye **fecha de validación y usuario validador** (como ya muestra Movimientos).
 - [x] **CAJA-05**: Las **categorías de egreso son configurables** desde la UI (ABM de centros de costo — levanta EGR-F2 de v5.3), con defaults genéricos que incluyen **"Pago a proveedores"** y **"Retiros"** en vez de los Templo-céntricos como única opción.
 - [x] **CAJA-06**: La vista Saldos muestra una **nota explicativa**: "si no se registran egresos y retiros, los saldos no reflejarán la realidad".
@@ -111,7 +111,7 @@ Every v5.4 requirement maps to exactly one phase. Coverage: 33/33.
 | COBRO-04    | Phase 151 | Complete |
 | CAJA-01     | Phase 152 | Complete |
 | CAJA-02     | Phase 152 | Complete |
-| CAJA-03     | Phase 152 | Pending  |
+| CAJA-03     | Phase 152 | Complete |
 | CAJA-04     | Phase 152 | Complete |
 | CAJA-05     | Phase 152 | Complete |
 | CAJA-06     | Phase 152 | Complete |
