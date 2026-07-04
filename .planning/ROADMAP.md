@@ -3815,7 +3815,7 @@ _v5.3 (Mejoras Caja) added: 2026-06-26 — 3 phases (145-147), 17 requirements (
 - [x] **Phase 151: Registrar cobro (Pagos → Cobros)** — renombrar "Pagos"→"Cobros" + rediseño en pantallas/pasos separados (una cosa por paso, desktop+mobile) + fecha/hora en el listado y botón "Continuar" arriba + transferencia/tarjeta obligadas a asociar una cuenta bancaria (crear rápida inline si no hay). (completed 2026-07-03)
 - [x] **Phase 152: Reorganización de Caja + egresos configurables** — reordenar los tabs (Movimientos portada / Pendientes 2° / "Cobros" 3°) + etiqueta validada/pendiente por fila + detalle con validador + filtro por día + categorías de egreso configurables desde UI (ABM de centros de costo, levanta EGR-F2 de v5.3, defaults "Pago a proveedores"/"Retiros") + nota explicativa en Saldos. (completed 2026-07-04)
 - [x] **Phase 153: Mejoras de Deudas** — fecha de registro + motivo (reusar `misc_reason` de v5.3, no duplicar) + pago/plan asociado (plan + período) por deuda + incluir a los socios con plan vencido sin renovar (no-renovaciones) en la misma pantalla. (completed 2026-07-04)
-- [ ] **Phase 154: Alumnos (de-Templo-ficación + accesos)** — "Crear alumno" prominente + "Registrar cobro" como acción directa en la fila + reglas de precio por medio de pago configurables (default sin recargo) + "Avatar"→"segmento"/categoría de socio (mismo mecanismo) + niveles griegos gateados como superficie Templo.
+- [x] **Phase 154: Alumnos (de-Templo-ficación + accesos)** — "Crear alumno" prominente + "Registrar cobro" como acción directa en la fila + reglas de precio por medio de pago configurables (default sin recargo) + "Avatar"→"segmento"/categoría de socio (mismo mecanismo) + niveles griegos gateados como superficie Templo. (completed 2026-07-04)
 - [ ] **Phase 155: Horarios** — clases simultáneas en la misma sucursal + crear clase/actividad desde el slot (generaliza el "test de profe") + capacidad por actividad (cupo propio, no solo el de la sucursal).
 - [ ] **Phase 156: Planes de pago vs Rutinas de entrenamiento** — separar "Planes de pago" (categoría Planes) de "Rutinas de entrenamiento" (subcategoría gateada Templo) + precio "Zero" a config + selección múltiple de programas por plan + actualizar precio por inflación sin crear plan nuevo ni alterar históricos (garantizado con test).
 
@@ -3971,7 +3971,7 @@ Plans:
 4. **"Avatar"** se renombra a un concepto neutro (**"segmento" / categoría de socio**) en toda la UI del admin, conservando el mecanismo subyacente. (ALUM-04)
 5. Los **niveles griegos** (kairos→spartan) quedan **gateados como superficie Templo** (fuera del default white-label), consistente con el gating de Entrenamiento existente. (ALUM-05)
 
-**Plans:** 4/5 plans executed
+**Plans:** 5/5 plans complete
 
 Plans:
 **Wave 1**
@@ -3986,7 +3986,7 @@ Plans:
 **Wave 3** _(blocked on Wave 2 completion)_
 
 - [x] 154-04-PLAN.md — Frontend: CobrosPage ?memberId= + gates de UI (CobrosPage/AssignPlanDialog/PlanFormDialog) (ALUM-02, ALUM-03)
-- [ ] 154-05-PLAN.md — Frontend: AlumnosPage/AlumnoDetailPage — Crear alumno prominente + cobro en fila + Avatar→Categoría + gating niveles (ALUM-01, ALUM-02, ALUM-04, ALUM-05)
+- [x] 154-05-PLAN.md — Frontend: AlumnosPage/AlumnoDetailPage — Crear alumno prominente + cobro en fila + Avatar→Categoría + gating niveles (ALUM-01, ALUM-02, ALUM-04, ALUM-05)
 
 **UI hint:** yes
 
@@ -4028,7 +4028,7 @@ Plans:
 | 151. Registrar cobro (Pagos → Cobros)           | 5/5            | Complete    | 2026-07-03 |
 | 152. Reorganización de Caja + egresos config.   | 6/6            | Complete    | 2026-07-04 |
 | 153. Mejoras de Deudas                          | 4/4            | Complete    | 2026-07-04 |
-| 154. Alumnos (de-Templo-ficación + accesos)     | 4/5            | In Progress |            |
+| 154. Alumnos (de-Templo-ficación + accesos)     | 5/5            | Complete    | 2026-07-04 |
 | 155. Horarios                                   | 0/TBD          | Not started | -          |
 | 156. Planes de pago vs Rutinas de entrenamiento | 0/TBD          | Not started | -          |
 
