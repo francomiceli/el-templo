@@ -24,6 +24,7 @@ export class ActivityService {
   async createActivity(
     name: string,
     description?: string,
+    maxCapacity?: number | null,
   ): Promise<ActivityRecord> {
     // Phase 113 (D-16): reject duplicate name across ACTIVE activities.
     // Inactive activities don't block reuse — admins can recreate by name
@@ -47,6 +48,8 @@ export class ActivityService {
     const result = await this.db.insert(schema.activities).values({
       name,
       description: description ?? null,
+      // D-08 (HOR-03): NULL cuando no se envía → hereda el cupo de la sucursal.
+      maxCapacity: maxCapacity ?? null,
     });
 
     const id = Number(result[0].insertId);
@@ -74,7 +77,12 @@ export class ActivityService {
    */
   async updateActivity(
     id: number,
-    data: { name?: string; description?: string; isActive?: boolean },
+    data: {
+      name?: string;
+      description?: string;
+      isActive?: boolean;
+      maxCapacity?: number | null;
+    },
   ): Promise<ActivityRecord> {
     const existing = await this.getActivity(id);
     if (!existing) throw new NotFoundError("Actividad no encontrada");
@@ -146,6 +154,10 @@ export class ActivityService {
     if (data.description !== undefined)
       updateData.description = data.description;
     if (data.isActive !== undefined) updateData.isActive = data.isActive;
+    // D-08 (HOR-03): `null` explícito limpia el cupo (vuelve a heredar la
+    // sucursal); ausencia de la key deja el valor existente intacto.
+    if (data.maxCapacity !== undefined)
+      updateData.maxCapacity = data.maxCapacity;
 
     if (Object.keys(updateData).length > 0) {
       await this.db
@@ -183,6 +195,7 @@ export class ActivityService {
       name: row.name,
       description: row.description,
       isActive: row.isActive,
+      maxCapacity: row.maxCapacity,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     };

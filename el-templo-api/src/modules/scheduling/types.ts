@@ -22,6 +22,8 @@ export interface ActivityRecord {
   name: string;
   description: string | null;
   isActive: boolean;
+  // D-08 (HOR-03): cupo por actividad. NULL = hereda branch.max_capacity.
+  maxCapacity: number | null;
   createdAt: string;
   updatedAt: string;
 }

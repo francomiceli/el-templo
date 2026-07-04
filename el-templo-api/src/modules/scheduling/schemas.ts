@@ -26,6 +26,9 @@ const activityRecordSchema = {
     name: { type: "string" },
     description: { type: ["string", "null"] },
     isActive: { type: "boolean" },
+    // D-08 (HOR-03): cupo por actividad (NULL = hereda la sucursal). Se
+    // declara aquí o fast-json-stringify lo strippea y no llega al cliente.
+    maxCapacity: { type: ["integer", "null"] },
     createdAt: { type: "string" },
     updatedAt: { type: "string" },
   },
@@ -134,6 +137,9 @@ export const createActivitySchema = {
     properties: {
       name: { type: "string", minLength: 1 },
       description: { type: "string" },
+      // T-155-04: validación server-side del cupo (entero positivo, techo
+      // razonable). NULL permitido → hereda la sucursal.
+      maxCapacity: { type: ["integer", "null"], minimum: 1, maximum: 500 },
     },
   },
   response: {
@@ -169,6 +175,8 @@ export const updateActivitySchema = {
       name: { type: "string", minLength: 1 },
       description: { type: "string" },
       isActive: { type: "boolean" },
+      // T-155-04: `null` explícito limpia el cupo; entero positivo con techo.
+      maxCapacity: { type: ["integer", "null"], minimum: 1, maximum: 500 },
     },
   },
   response: {

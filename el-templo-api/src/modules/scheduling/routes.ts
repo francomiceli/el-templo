@@ -121,7 +121,9 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
   // ─── Activities ─────────────────────────────────────────────────────────
 
   // POST /activities — create activity
-  fastify.post<{ Body: { name: string; description?: string } }>(
+  fastify.post<{
+    Body: { name: string; description?: string; maxCapacity?: number | null };
+  }>(
     "/activities",
     { schema: createActivitySchema },
     async (request, reply) => {
@@ -129,6 +131,7 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
         const activity = await activityService.createActivity(
           request.body.name,
           request.body.description,
+          request.body.maxCapacity,
         );
         return reply.code(201).send(activity);
       } catch (err: unknown) {
@@ -146,7 +149,12 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
   // PUT /activities/:activityId — update activity
   fastify.put<{
     Params: { activityId: number };
-    Body: { name?: string; description?: string; isActive?: boolean };
+    Body: {
+      name?: string;
+      description?: string;
+      isActive?: boolean;
+      maxCapacity?: number | null;
+    };
   }>(
     "/activities/:activityId",
     { schema: updateActivitySchema },
