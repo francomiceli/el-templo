@@ -4,13 +4,13 @@ milestone: v5.4
 milestone_name: Reforma del Admin — Correcciones white-label (pre-tenants)
 status: executing
 stopped_at: Phase 155 context gathered (auto)
-last_updated: "2026-07-04T20:58:42.037Z"
+last_updated: "2026-07-04T21:04:45.287Z"
 last_activity: 2026-07-04
 progress:
   total_phases: 8
   completed_phases: 6
   total_plans: 36
-  completed_plans: 33
+  completed_plans: 34
   percent: 75
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 ## Current Position
 
 Phase: 155 (Horarios) — EXECUTING
-Plan: 2 of 4
+Plan: 3 of 4
 Status: Ready to execute
 Last activity: 2026-07-04
 
@@ -313,6 +313,7 @@ _Updated after each plan completion_
 | Phase 154 P04 | ~10min | 2 tasks | 3 files |
 | Phase 154 P05 | 9min | 2 tasks | 3 files |
 | Phase 155 P01 | 5min | 3 tasks | 4 files |
+| Phase 155 P02 | 4min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -731,6 +732,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: Plan 153-03: DeudasPage pasa a hub de tabs (Por socio verbatim / Por deuda con motivo/fecha-registro/periodo/nota); coach solo ve Por socio via DEUDAS_DETAIL_ROLES; el reporte de deudas sale de Reportes
 - [Phase ?]: 153-04: tab Vencidos (DeudasPage) consume /admin/reports/expired-members; orden por vencimiento más reciente delegado al backend (daysOverdue ASC), gated como Por deuda (coach fuera, D-12)
 - [Phase ?]: 154-03: TEMPLO_GREEK_LEVELS = flag de superficie por instalacion (D-08), hermano de TEMPLO_ENABLED, NO canAccessTraining
+- [Phase ?]: 155-02: maxCapacity con null explicito limpia el cupo de actividad (patron !== undefined); ausencia deja el valor intacto
+- [Phase ?]: 155-02: validacion server-side del cupo en body schema (integer|null, 1-500); maxCapacity declarado en response schema o fast-json-stringify lo strippea
 
 ### Pending Todos
 
@@ -763,7 +766,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-04T20:58:42.016Z
+Last session: 2026-07-04T21:04:33.438Z
 Stopped at: Phase 155 context gathered (auto)
 Resume file: None
 
