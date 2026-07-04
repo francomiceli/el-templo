@@ -265,6 +265,19 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
     },
     async (request, reply) => {
       try {
+        // WR-05: fail-closed. attachCountryScope sets country=null for admin/
+        // gestion when users.country is corrupt, relying on canAccessBranch to
+        // deny afterwards. But these listings don't always go through
+        // canAccessBranch (no branchId), so the `?? undefined` below would turn
+        // the null into "no country filter" = see every country's debts/PII.
+        // Deny explicitly for a non-owner with an unresolved scope.
+        if (!request.scope.isOwner && request.scope.country === null) {
+          return reply.code(403).send({
+            error: "Acceso denegado",
+            message: "Scope de país no resuelto",
+          });
+        }
+
         let country: "AR" | "ES" | undefined;
         if (request.scope.isOwner) {
           country = request.query.country;
@@ -316,6 +329,19 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       try {
         // Owner-aware country resolution (mirrors GET /outstanding-balances).
+        // WR-05: fail-closed. attachCountryScope sets country=null for admin/
+        // gestion when users.country is corrupt, relying on canAccessBranch to
+        // deny afterwards. But these listings don't always go through
+        // canAccessBranch (no branchId), so the `?? undefined` below would turn
+        // the null into "no country filter" = see every country's debts/PII.
+        // Deny explicitly for a non-owner with an unresolved scope.
+        if (!request.scope.isOwner && request.scope.country === null) {
+          return reply.code(403).send({
+            error: "Acceso denegado",
+            message: "Scope de país no resuelto",
+          });
+        }
+
         let country: "AR" | "ES" | undefined;
         if (request.scope.isOwner) {
           country = request.query.country;
@@ -619,6 +645,19 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
     },
     async (request, reply) => {
       try {
+        // WR-05: fail-closed. attachCountryScope sets country=null for admin/
+        // gestion when users.country is corrupt, relying on canAccessBranch to
+        // deny afterwards. But these listings don't always go through
+        // canAccessBranch (no branchId), so the `?? undefined` below would turn
+        // the null into "no country filter" = see every country's debts/PII.
+        // Deny explicitly for a non-owner with an unresolved scope.
+        if (!request.scope.isOwner && request.scope.country === null) {
+          return reply.code(403).send({
+            error: "Acceso denegado",
+            message: "Scope de país no resuelto",
+          });
+        }
+
         let country: "AR" | "ES" | undefined;
         if (request.scope.isOwner) {
           country = request.query.country;
