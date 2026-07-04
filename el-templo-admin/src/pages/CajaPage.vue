@@ -19,8 +19,9 @@
 
     <!-- ================================================================= -->
     <!-- Tab hub (Phase 152 / D-01) — Movimientos de caja is the portada:  -->
-    <!-- Movimientos de caja → Pendientes → Historial de cobros → Saldos → -->
-    <!-- Cuentas. The `transacciones` key is unchanged (the ?tab= contract) -->
+    <!-- movimientosCaja → pendientes → transacciones → saldos → cuentas.  -->
+    <!-- The `transacciones` key is unchanged (the ?tab= contract); only   -->
+    <!-- its label changes (D-02).                                         -->
     <!-- ================================================================= -->
     <q-tabs
       v-model="activeTab"
