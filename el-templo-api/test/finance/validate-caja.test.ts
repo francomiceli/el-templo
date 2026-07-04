@@ -42,6 +42,7 @@ let subscriptionId: number;
 
 let adminToken: string;
 let recepcionToken: string;
+let adminName: string;
 
 // Caja ids resolved from the seed (migration 0160 + 0154 + test setup).
 let galiciaCajaId: number;
@@ -113,17 +114,42 @@ async function readTx(id: number): Promise<{
   validationStatus: string;
   cashRegisterId: number | null;
   voidedAt: Date | null;
+  validatedBy: number | null;
+  validatedAt: Date | null;
 }> {
   const [row] = await app.db
     .select({
       validationStatus: schema.financialTransactions.validationStatus,
       cashRegisterId: schema.financialTransactions.cashRegisterId,
       voidedAt: schema.financialTransactions.voidedAt,
+      validatedBy: schema.financialTransactions.validatedBy,
+      validatedAt: schema.financialTransactions.validatedAt,
     })
     .from(schema.financialTransactions)
     .where(eq(schema.financialTransactions.id, id))
     .limit(1);
   return row;
+}
+
+/** Fetch a single row from GET /transactions by id (Historial de cobros). */
+async function listRowById(id: number): Promise<{
+  id: number;
+  validationStatus: string;
+  validatedAt: string | null;
+  validatorName: string | null;
+} | null> {
+  const res = await app.inject({
+    method: "GET",
+    url: `${FINANCE_URL}/transactions?memberId=${memberId}&limit=200`,
+    headers: { authorization: `Bearer ${adminToken}` },
+  });
+  const rows = res.json().rows as Array<{
+    id: number;
+    validationStatus: string;
+    validatedAt: string | null;
+    validatorName: string | null;
+  }>;
+  return rows.find((r) => r.id === id) ?? null;
 }
 
 beforeAll(async () => {
@@ -147,12 +173,18 @@ beforeAll(async () => {
   txService.setSubscriptionCanceller(subService);
 
   const [admin] = await app.db
-    .select({ id: schema.users.id, branchId: schema.users.branchId })
+    .select({
+      id: schema.users.id,
+      branchId: schema.users.branchId,
+      firstName: schema.users.firstName,
+      lastName: schema.users.lastName,
+    })
     .from(schema.users)
     .where(eq(schema.users.email, "admin@test.com"))
     .limit(1);
   adminId = admin.id;
   branchId = admin.branchId ?? 1;
+  adminName = `${admin.firstName ?? ""} ${admin.lastName ?? ""}`.trim();
   adminToken = await getAuthToken(app, "admin@test.com", "adminpass123");
 
   // recepcion passes the module-level FINANCE_READ guard but must be 403'd by the
@@ -321,6 +353,124 @@ describe("validate() con caja + guards (CAJA-02/CAJA-03 + COBRO-05)", () => {
     expect(res.statusCode).toBe(200);
     expect(res.json().transaction.validationStatus).toBe("validado");
     expect(res.json().transaction.cashRegisterId).toBe(galiciaCajaId);
+  });
+});
+
+describe("validador denormalizado + filtro por estado (152-03: CAJA-02/D-05/D-06)", () => {
+  it("validate() setea validated_by=admin y validated_at no-null (D-05)", async () => {
+    const tx = await txService.create(transferInput(), adminId);
+    // Antes de validar: columnas del validador en NULL.
+    const before = await readTx(tx.id);
+    expect(before.validatedBy).toBeNull();
+    expect(before.validatedAt).toBeNull();
+
+    await txService.validate(tx.id, adminId, galiciaCajaId);
+
+    const after = await readTx(tx.id);
+    expect(after.validationStatus).toBe("validado");
+    expect(after.validatedBy).toBe(adminId);
+    expect(after.validatedAt).not.toBeNull();
+  });
+
+  it("el listado expone validatorName con el nombre del validador tras validar", async () => {
+    const tx = await txService.create(transferInput(), adminId);
+    await txService.validate(tx.id, adminId, galiciaCajaId);
+
+    const row = await listRowById(tx.id);
+    expect(row).not.toBeNull();
+    expect(row?.validationStatus).toBe("validado");
+    expect(row?.validatedAt).not.toBeNull();
+    expect(row?.validatorName).toBe(adminName);
+  });
+
+  it("D-06: un cobro nacido validado (admin-load) queda con validated_by/at NULL y sin validatorName", async () => {
+    // Carga admin: nace validationStatus='validado' sin pasar por validate().
+    const tx = await txService.create(
+      transferInput({ validationStatus: "validado" }),
+      adminId,
+    );
+    const row = await readTx(tx.id);
+    expect(row.validationStatus).toBe("validado");
+    expect(row.validatedBy).toBeNull();
+    expect(row.validatedAt).toBeNull();
+
+    const listed = await listRowById(tx.id);
+    expect(listed?.validationStatus).toBe("validado");
+    expect(listed?.validatedAt).toBeNull();
+    expect(listed?.validatorName).toBeNull();
+  });
+
+  it("D-06: un cobro corregido (anular+recrear) nace validado con columnas del validador NULL", async () => {
+    // Original nacido validado; correct() lo anula (corregido) y recrea uno nuevo.
+    const original = await txService.create(
+      transferInput({ validationStatus: "validado" }),
+      adminId,
+    );
+    const corrected = await txService.correct(
+      original.id,
+      { amount: 1500 },
+      adminId,
+    );
+
+    // El original quedo 'corregido' + anulado, columnas del validador intactas (NULL).
+    const originalRow = await readTx(original.id);
+    expect(originalRow.validationStatus).toBe("corregido");
+    expect(originalRow.voidedAt).not.toBeNull();
+    expect(originalRow.validatedBy).toBeNull();
+
+    // La fila NUEVA nace validada pero SIN validador (D-06).
+    const newRow = await readTx(corrected.id);
+    expect(newRow.validationStatus).toBe("validado");
+    expect(newRow.validatedBy).toBeNull();
+    expect(newRow.validatedAt).toBeNull();
+  });
+
+  it("GET /transactions?validationStatus=pendiente|validado filtra server-side por estado", async () => {
+    // Un pendiente (transfer sin validar) + uno validado (admin-load).
+    const pendiente = await txService.create(transferInput(), adminId);
+    const validado = await txService.create(
+      transferInput({ validationStatus: "validado" }),
+      adminId,
+    );
+
+    const pendRes = await app.inject({
+      method: "GET",
+      url: `${FINANCE_URL}/transactions?memberId=${memberId}&validationStatus=pendiente&limit=200`,
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    expect(pendRes.statusCode).toBe(200);
+    const pendRows = pendRes.json().rows as Array<{
+      id: number;
+      validationStatus: string;
+    }>;
+    expect(pendRows.every((r) => r.validationStatus === "pendiente")).toBe(
+      true,
+    );
+    expect(pendRows.some((r) => r.id === pendiente.id)).toBe(true);
+    expect(pendRows.some((r) => r.id === validado.id)).toBe(false);
+
+    const valRes = await app.inject({
+      method: "GET",
+      url: `${FINANCE_URL}/transactions?memberId=${memberId}&validationStatus=validado&limit=200`,
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    expect(valRes.statusCode).toBe(200);
+    const valRows = valRes.json().rows as Array<{
+      id: number;
+      validationStatus: string;
+    }>;
+    expect(valRows.every((r) => r.validationStatus === "validado")).toBe(true);
+    expect(valRows.some((r) => r.id === validado.id)).toBe(true);
+    expect(valRows.some((r) => r.id === pendiente.id)).toBe(false);
+  });
+
+  it("un validationStatus fuera del enum → 400 (T-152-05)", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: `${FINANCE_URL}/transactions?validationStatus=corregido`,
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    expect(res.statusCode).toBe(400);
   });
 });
 
