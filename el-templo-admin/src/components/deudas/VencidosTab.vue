@@ -149,7 +149,14 @@ function currentFilters(): ExpiredMembersFilters {
   };
 }
 
+// WR-07: request token guards against out-of-order responses (same pattern as
+// PorDeudaTab). A filter change fires load(true) while a "Cargar más"
+// load(false) may still be in flight; only the latest request may mutate state,
+// otherwise the append could mix pages or duplicate rows (row-key collision).
+let requestSeq = 0;
+
 async function load(reset = true): Promise<void> {
+  const seq = ++requestSeq;
   loading.value = true;
   try {
     const page = reset ? 1 : currentPage.value + 1;
@@ -158,6 +165,7 @@ async function load(reset = true): Promise<void> {
       page,
       limit: PAGE_SIZE,
     });
+    if (seq !== requestSeq) return; // stale response — a newer load() superseded it
     if (reset) {
       items.value = res.rows;
     } else {
@@ -166,11 +174,12 @@ async function load(reset = true): Promise<void> {
     currentPage.value = res.page;
     total.value = res.total;
   } catch (err: unknown) {
+    if (seq !== requestSeq) return; // stale error — a newer load() superseded it
     const message = err instanceof Error ? err.message : 'Error desconocido';
     log.error('Failed to load Vencidos', { error: message });
     $q.notify({ type: 'negative', message });
   } finally {
-    loading.value = false;
+    if (seq === requestSeq) loading.value = false;
   }
 }
 

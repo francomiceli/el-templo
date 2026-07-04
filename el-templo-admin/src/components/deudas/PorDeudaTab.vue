@@ -333,7 +333,15 @@ function currentFilters(): OutstandingBalancesFilters {
   };
 }
 
+// WR-07: request token guards against out-of-order responses. A filter change
+// fires load(true) while a "Cargar más" load(false) may still be in flight; if
+// the older response resolves last, items.value.push(...) would mix pages from
+// different filters or duplicate rows (row-key collision). Only the latest
+// request is allowed to mutate state.
+let requestSeq = 0;
+
 async function load(reset = true): Promise<void> {
+  const seq = ++requestSeq;
   loading.value = true;
   try {
     const page = reset ? 1 : currentPage.value + 1;
@@ -342,6 +350,7 @@ async function load(reset = true): Promise<void> {
       page,
       limit: PAGE_SIZE,
     });
+    if (seq !== requestSeq) return; // stale response — a newer load() superseded it
     if (reset) {
       items.value = res.rows;
     } else {
@@ -362,11 +371,12 @@ async function load(reset = true): Promise<void> {
       bucketTotalsFlat.value = emptyBucketTotals();
     }
   } catch (err: unknown) {
+    if (seq !== requestSeq) return; // stale error — a newer load() superseded it
     const message = err instanceof Error ? err.message : 'Error desconocido';
     log.error('Failed to load Deudas report', { error: message });
     $q.notify({ type: 'negative', message });
   } finally {
-    loading.value = false;
+    if (seq === requestSeq) loading.value = false;
   }
 }
 
