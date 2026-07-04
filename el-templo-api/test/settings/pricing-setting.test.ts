@@ -23,12 +23,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
-import {
-  createTestApp,
-  createStaffUser,
-  getAuthToken,
-  cleanAllTestData,
-} from "../helpers";
+import { createTestApp, createStaffUser, getAuthToken } from "../helpers";
 import * as schema from "../../src/db/schema";
 
 const SETTING_URL = "/api/admin/settings/pricing/card-surcharge";
