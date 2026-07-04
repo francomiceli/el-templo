@@ -10,16 +10,21 @@
 // auto-stamps `cash_register_id`, and is REUSED verbatim by phase 140 (carga
 // única del profe) — do NOT reinvent the resolver there.
 
-import { and, asc, eq, gte, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, gte, isNull, ne, sql } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
-import { BadRequestError, NotFoundError } from "../shared/errors";
+import {
+  BadRequestError,
+  ConflictError,
+  NotFoundError,
+} from "../shared/errors";
 import { firmMoneyConditions } from "./firm-money";
 import type {
   BankAccountRow,
   CajaSaldoRow,
   CashRegisterBalance,
+  CostCenter,
   CostCenterItem,
   CreateBankAccountInput,
   PaymentMethod,
@@ -373,6 +378,176 @@ export class CashRegisterService {
       .from(schema.costCenters)
       .where(and(...conditions))
       .orderBy(asc(schema.costCenters.name));
+  }
+
+  // -- Phase 152: ABM de centros de costo (CAJA-05, levanta EGR-F2 de v5.3) --
+  //
+  // CRUD análogo al ABM de cuentas bancarias (fase 150): crear / renombrar /
+  // desactivar / reactivar / listAll (incl. inactivos). Sin borrado físico
+  // (D-08): baja = is_active=false, para conservar los egresos históricos ya
+  // imputados a la categoría. La seguridad real vive en las rutas (149 D-04):
+  // este service confía en que el caller ya pasó el guard ADMIN_ROLES.
+
+  /**
+   * Lee un centro de costo por id, mapeado a CostCenter (incl. isActive).
+   *
+   * @throws NotFoundError cuando no existe.
+   */
+  private async getCostCenterRow(id: number): Promise<CostCenter> {
+    const [row] = await this.db
+      .select({
+        id: schema.costCenters.id,
+        name: schema.costCenters.name,
+        country: schema.costCenters.country,
+        isActive: schema.costCenters.isActive,
+      })
+      .from(schema.costCenters)
+      .where(eq(schema.costCenters.id, id))
+      .limit(1);
+    if (!row) {
+      throw new NotFoundError(`No existe el centro de costo ${id}`);
+    }
+    return row;
+  }
+
+  /**
+   * Guard de unicidad de nombre por país (D-08). Belt-and-suspenders con el
+   * uniqueIndex `uq_cost_centers_name_country` de la migración 0165: lanza
+   * ConflictError ANTES del write con un mensaje claro (el índice DB solo daría
+   * un error genérico de duplicado). La comparación se apoya en la collation
+   * MySQL default (case-insensitive), así que `eq(name)` matchea igual que el
+   * índice único — no se distingue "Alquiler" de "alquiler". `excludeId` permite
+   * renombrar una fila a un nombre que ella misma ya tenía sin auto-colisionar.
+   *
+   * @throws ConflictError cuando ya existe otro centro con ese (name, country).
+   */
+  private async assertUniqueName(
+    name: string,
+    country: string,
+    excludeId?: number,
+  ): Promise<void> {
+    const conditions = [
+      eq(schema.costCenters.name, name),
+      eq(schema.costCenters.country, country),
+    ];
+    if (excludeId !== undefined) {
+      conditions.push(ne(schema.costCenters.id, excludeId));
+    }
+    const [existing] = await this.db
+      .select({ id: schema.costCenters.id })
+      .from(schema.costCenters)
+      .where(and(...conditions))
+      .limit(1);
+    if (existing) {
+      throw new ConflictError(
+        `Ya existe un centro de costo "${name}" en este país`,
+      );
+    }
+  }
+
+  /**
+   * Crea un centro de costo (CAJA-05). Trimea el nombre, valida unicidad por
+   * país ANTES de escribir y devuelve la fila completa. `is_active` arranca en
+   * true (default del schema).
+   *
+   * @throws BadRequestError cuando el nombre queda vacío tras el trim.
+   * @throws ConflictError cuando ya existe ese nombre en el país.
+   */
+  async createCostCenter(name: string, country: string): Promise<CostCenter> {
+    const trimmed = name.trim();
+    if (!trimmed) {
+      throw new BadRequestError("El nombre del centro de costo es obligatorio");
+    }
+    await this.assertUniqueName(trimmed, country);
+    const inserted = await this.db
+      .insert(schema.costCenters)
+      .values({ name: trimmed, country });
+    const id = Number(inserted[0].insertId);
+    this.log.info({ costCenterId: id, country }, "Centro de costo creado");
+    return this.getCostCenterRow(id);
+  }
+
+  /**
+   * Renombra un centro de costo (CAJA-05). Revalida unicidad por país
+   * excluyéndose a sí mismo (D-08). El país NO se cambia — el ABM edita solo el
+   * nombre. Guard NotFound.
+   *
+   * @throws NotFoundError cuando no existe.
+   * @throws BadRequestError cuando el nombre queda vacío tras el trim.
+   * @throws ConflictError cuando el nuevo nombre ya existe en el país.
+   */
+  async renameCostCenter(id: number, name: string): Promise<CostCenter> {
+    const current = await this.getCostCenterRow(id);
+    const trimmed = name.trim();
+    if (!trimmed) {
+      throw new BadRequestError("El nombre del centro de costo es obligatorio");
+    }
+    await this.assertUniqueName(trimmed, current.country, id);
+    await this.db
+      .update(schema.costCenters)
+      .set({ name: trimmed })
+      .where(eq(schema.costCenters.id, id));
+    this.log.info({ costCenterId: id }, "Centro de costo renombrado");
+    return this.getCostCenterRow(id);
+  }
+
+  /**
+   * Baja lógica de un centro de costo (CAJA-05 / D-08): set is_active=false, sin
+   * DELETE — conserva los egresos históricos imputados. registerExpense ya
+   * filtra is_active=true, así que desactivar lo saca del selector de egresos sin
+   * cambios adicionales. Guard NotFound.
+   *
+   * @throws NotFoundError cuando no existe.
+   */
+  async deactivateCostCenter(id: number): Promise<CostCenter> {
+    await this.getCostCenterRow(id);
+    await this.db
+      .update(schema.costCenters)
+      .set({ isActive: false })
+      .where(eq(schema.costCenters.id, id));
+    this.log.info(
+      { costCenterId: id },
+      "Centro de costo desactivado (baja lógica)",
+    );
+    return this.getCostCenterRow(id);
+  }
+
+  /**
+   * Reactiva un centro de costo dado de baja (CAJA-05): set is_active=true. Guard
+   * NotFound.
+   *
+   * @throws NotFoundError cuando no existe.
+   */
+  async reactivateCostCenter(id: number): Promise<CostCenter> {
+    await this.getCostCenterRow(id);
+    await this.db
+      .update(schema.costCenters)
+      .set({ isActive: true })
+      .where(eq(schema.costCenters.id, id));
+    this.log.info({ costCenterId: id }, "Centro de costo reactivado");
+    return this.getCostCenterRow(id);
+  }
+
+  /**
+   * Lista TODOS los centros de costo (CAJA-05): activos Y dados de baja (NO
+   * filtra por is_active), para el ABM — espeja `listBankAccounts` que dropea el
+   * filtro isActive. Cuando `country` es null (owner sin filtro) devuelve los de
+   * todos los países; si no, acota. Ordenado por name.
+   */
+  async listAllCostCenters(country: string | null): Promise<CostCenter[]> {
+    const base = this.db
+      .select({
+        id: schema.costCenters.id,
+        name: schema.costCenters.name,
+        country: schema.costCenters.country,
+        isActive: schema.costCenters.isActive,
+      })
+      .from(schema.costCenters);
+    return country !== null
+      ? base
+          .where(eq(schema.costCenters.country, country))
+          .orderBy(asc(schema.costCenters.name))
+      : base.orderBy(asc(schema.costCenters.name));
   }
 
   // -- Phase 150: ABM de cuentas bancarias (CTA-01 / CTA-02) -----------------

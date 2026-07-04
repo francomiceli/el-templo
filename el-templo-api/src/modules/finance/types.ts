@@ -419,6 +419,19 @@ export interface CostCenterItem {
 }
 
 /**
+ * Phase 152 (CAJA-05): una fila completa del catálogo de centros de costo para el
+ * ABM (crear/renombrar/desactivar/reactivar/listAll). A diferencia de
+ * CostCenterItem (solo activos del selector), incluye `isActive` para exponer las
+ * categorías dadas de baja (D-08: baja lógica, sin borrado físico).
+ */
+export interface CostCenter {
+  id: number;
+  name: string;
+  country: string;
+  isActive: boolean;
+}
+
+/**
  * Phase 139 (MOV-01): resultado de registrar un movimiento. Devuelve los ids de
  * ambas patas + el id del ajuste de reconciliación (null cuando no hubo
  * diferencia) + el esperado/contado para que el caller (route) los exponga.
