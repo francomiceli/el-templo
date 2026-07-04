@@ -281,6 +281,33 @@ export interface OutstandingBalanceRow {
    * Frontend renders this verbatim — never translates "aging" to UI.
    */
   conceptLabel: string;
+  /**
+   * Phase 153 (DEUDA-02): short structured motivo derived from the debt origin.
+   * - subscription rows: "Cuota <PlanName>" (fallback "Cuota" when planName null).
+   * - debt_balance (cobro suelto) with an advance_payment origin: "Sin plan"
+   *   (miscReason 'sin_plan') / "Otro" (miscReason 'otro').
+   * - orphaned debt_balance (no resolvable origin): "Saldo a regularizar".
+   * Derived from existing data (no migration) — see deriveOutstandingRowFields.
+   */
+  reasonLabel: string;
+  /**
+   * Phase 153 (DEUDA-03): cycle period of the plan for subscription debts,
+   * ISO YYYY-MM-DD. null for debt_balance rows (no subscription cycle).
+   */
+  periodStart: string | null;
+  periodEnd: string | null;
+  /**
+   * Phase 153 (DEUDA-01): date the debt was registered in the system =
+   * balances.createdAt (date portion, ISO YYYY-MM-DD). Distinct from
+   * effectiveDate (the cycle/devengo date used for aging).
+   */
+  registeredAt: string;
+  /**
+   * Phase 153 (D-11): free-text note of the origin transaction, shown in a
+   * tooltip on the "Por deuda" tab. Only populated for debt_balance rows with
+   * an advance_payment origin; null otherwise.
+   */
+  notes: string | null;
   /** Per balances.currency (varchar(3) — 'ARS' | 'EUR'). Signed int upstream
    * but always > 0 here (WHERE amount > 0). */
   amount: number;

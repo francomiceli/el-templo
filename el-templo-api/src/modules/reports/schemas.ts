@@ -340,6 +340,12 @@ export const outstandingBalancesSchema = {
               },
               targetId: { type: "integer" },
               conceptLabel: { type: "string" },
+              // Phase 153 (DEUDA-01/02/03) — enriched fields for "Por deuda".
+              reasonLabel: { type: "string" },
+              periodStart: { type: ["string", "null"] },
+              periodEnd: { type: ["string", "null"] },
+              registeredAt: { type: "string" },
+              notes: { type: ["string", "null"] },
               amount: { type: "integer" },
               currency: { type: "string" },
               effectiveDate: { type: "string" },
