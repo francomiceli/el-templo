@@ -394,6 +394,57 @@ export const outstandingBalancesExportSchema = {
 } as const;
 
 // =============================================================================
+// Expired Members Schema (DEUDA-04 — "Vencidos" tab, Phase 153-02)
+// =============================================================================
+//
+// Members whose plan expired within the last 60 days without renewing (D-05).
+// Renewal leads, NOT debts — the row carries NO amount/currency (D-06). Mirrors
+// outstandingBalancesSchema's querystring (minus currency) and paginated shape.
+
+export const expiredMembersSchema = {
+  querystring: {
+    type: "object",
+    properties: {
+      branchId: { type: "integer", minimum: 1 },
+      // Owner-only override consumed by attachCountryScope; non-owners' value
+      // is ignored by the hook (defense in depth per country-scope.ts).
+      country: { type: "string", enum: ["AR", "ES"] },
+      search: { type: "string", maxLength: 100 },
+      page: { type: "integer", minimum: 1 },
+      limit: { type: "integer", minimum: 1, maximum: 200 },
+    },
+    additionalProperties: false,
+  },
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        rows: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              userId: { type: "integer" },
+              memberName: { type: "string" },
+              memberPhone: { type: ["string", "null"] },
+              planName: { type: "string" },
+              expiryDate: { type: "string" },
+              daysOverdue: { type: "integer" },
+            },
+          },
+        },
+        total: { type: "integer" },
+        page: { type: "integer" },
+        limit: { type: "integer" },
+      },
+    },
+    401: errorSchema,
+    403: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+// =============================================================================
 // Trial Sessions Report Schema (Phase 114-05)
 // =============================================================================
 //

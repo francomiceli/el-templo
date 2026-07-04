@@ -355,3 +355,56 @@ export interface OutstandingBalancesResult {
   limit: number;
   bucketTotals: BucketTotals | Record<string, BucketTotals>;
 }
+
+// -- DEUDA-04 — Expired members (renewal leads, NO amount) ------------------
+// Phase 153-02. The "Vencidos" tab: members whose plan expired within the last
+// 60 days (D-05) and who did NOT renew (no in-effect subscription today). These
+// are renewal leads, NOT debts — the row intentionally carries NO amount (D-06).
+//
+// Reuses the analytics fase-121 "vencido sin renovar" predicate adapted to a
+// 60-day window, with per-member dedup (most recent expiry) and exclusion of
+// the historical dirty data (~4260 cancelled subs with end_date < start_date).
+
+/**
+ * One row of the "Vencidos" cohort.
+ *
+ * D-06: NO amount/currency — a renewal lead is not a debt. Columns are name,
+ * phone, expired plan, expiry date and days elapsed.
+ */
+export interface ExpiredMemberRow {
+  userId: number;
+  memberName: string;
+  memberPhone: string | null;
+  /** Name of the expired plan (subscription_plans.name). */
+  planName: string;
+  /** ISO YYYY-MM-DD — the expiry date = subscriptions.endDate. */
+  expiryDate: string;
+  /** DATEDIFF(today, endDate) — days elapsed since the plan expired. */
+  daysOverdue: number;
+}
+
+/**
+ * Filter inputs for getExpiredMembers. Same shape as OutstandingBalancesFilters
+ * minus currency (there is no amount to filter by).
+ *
+ * Country resolution mirrors OB:
+ *  - Non-owner: country forced to request.scope.country.
+ *  - Owner without ?country: country = undefined (sees all countries).
+ *  - Owner with ?country: country = that value (filters).
+ */
+export interface ExpiredMembersFilters {
+  branchId?: number;
+  country?: "AR" | "ES";
+  /** Case-insensitive partial match on member firstName/lastName. */
+  search?: string;
+  page?: number;
+  limit?: number;
+}
+
+/** Paginated response shape for the expired-members cohort (no bucketTotals). */
+export interface ExpiredMembersResult {
+  rows: ExpiredMemberRow[];
+  total: number;
+  page: number;
+  limit: number;
+}
