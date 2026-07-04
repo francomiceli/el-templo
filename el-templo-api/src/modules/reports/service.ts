@@ -11,6 +11,7 @@ import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { firmMoneySqlFor } from "../finance/firm-money";
 import { buildMemberNameSearchCondition } from "../shared/member-search";
+import { activeMemberExists } from "../shared/active-member";
 import type {
   AccessReportFilters,
   AccessReportRow,
@@ -18,6 +19,9 @@ import type {
   ChargeReportFilters,
   ChargeReportRow,
   DebtBucket,
+  ExpiredMemberRow,
+  ExpiredMembersFilters,
+  ExpiredMembersResult,
   ExpiringReportFilters,
   ExpiringReportRow,
   InactiveReportFilters,
@@ -995,6 +999,120 @@ export class ReportsService {
     }
 
     return { rows: mapped, total, page, limit, bucketTotals };
+  }
+
+  // ─── Expired members / "Vencidos" (DEUDA-04, Phase 153-02) ───────────────
+
+  /**
+   * Members whose plan expired in the last 60 days without renewing (DEUDA-04).
+   *
+   * These are renewal LEADS, not debts — the row carries NO amount (D-06). The
+   * cohort reuses the analytics fase-121 "vencido sin renovar" predicate adapted
+   * to a 60-day window (D-05, not 30):
+   *   - end_date < CURDATE()              (already expired)
+   *   - end_date >= today-60d             (recent enough to still be a lead)
+   *   - end_date >= start_date            (discard the ~4260 cancelled subs with
+   *                                        an inverted window — historical dirty
+   *                                        data that must never surface)
+   *   - NOT activeMemberExists(user_id)   (dropped out = did not renew; the
+   *                                        canonical predicate, never users.status)
+   *
+   * A member may have several expired subs in the window; we dedup per user and
+   * keep the most recent expiry (smallest daysOverdue). Scoping mirrors OB:
+   * gestion/admin → their country, owner without ?country → all countries.
+   * Dedup + pagination happen in JS (the 60-day cohort is small) so the total
+   * counts distinct members, not sub rows.
+   */
+  async getExpiredMembers(
+    filters: ExpiredMembersFilters,
+    scope: { isOwner: boolean },
+  ): Promise<ExpiredMembersResult> {
+    const page = filters.page ?? 1;
+    const limit = filters.limit ?? 50;
+    const offset = (page - 1) * limit;
+
+    const conds: SQL[] = [
+      sql`${schema.subscriptions.endDate} < CURDATE()`,
+      sql`${schema.subscriptions.endDate} >= DATE_SUB(CURDATE(), INTERVAL 60 DAY)`,
+      // Discard the historical inverted-window dirty data (end < start, all
+      // cancelled) so a bogus end_date inside the window never leaks a lead.
+      sql`${schema.subscriptions.endDate} >= ${schema.subscriptions.startDate}`,
+      // "vencido sin renovar": negate the canonical active predicate so a member
+      // who renewed (has an in-effect sub) drops out of the renewal worklist.
+      // NEVER read users.status directly.
+      sql`NOT ${activeMemberExists(schema.subscriptions.userId)}`,
+    ];
+
+    if (filters.branchId !== undefined) {
+      conds.push(eq(schema.subscriptions.branchId, filters.branchId));
+    }
+
+    if (filters.country !== undefined) {
+      conds.push(eq(schema.branches.country, filters.country));
+    }
+
+    if (filters.search !== undefined && filters.search.trim().length > 0) {
+      const searchCond = buildMemberNameSearchCondition(filters.search, {
+        includeDni: false,
+      });
+      if (searchCond !== null) {
+        conds.push(searchCond);
+      }
+    }
+
+    const whereClause = and(...conds);
+
+    const rawRows = await this.db
+      .select({
+        userId: schema.subscriptions.userId,
+        firstName: schema.users.firstName,
+        lastName: schema.users.lastName,
+        phone: schema.users.phone,
+        planName: schema.subscriptionPlans.name,
+        expiryDate: schema.subscriptions.endDate,
+        daysOverdue: sql<number>`DATEDIFF(CURDATE(), ${schema.subscriptions.endDate})`,
+      })
+      .from(schema.subscriptions)
+      .innerJoin(schema.users, eq(schema.users.id, schema.subscriptions.userId))
+      .innerJoin(
+        schema.branches,
+        eq(schema.branches.id, schema.subscriptions.branchId),
+      )
+      .innerJoin(
+        schema.subscriptionPlans,
+        eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
+      )
+      .where(whereClause);
+
+    // Dedup per member, keeping the most recent expiry (smallest daysOverdue).
+    const expiredByUser = new Map<number, ExpiredMemberRow>();
+    for (const r of rawRows) {
+      const daysOverdue = Number(r.daysOverdue);
+      const existing = expiredByUser.get(r.userId);
+      if (existing && existing.daysOverdue <= daysOverdue) {
+        continue;
+      }
+      const memberName = `${r.firstName ?? ""} ${r.lastName ?? ""}`.trim();
+      expiredByUser.set(r.userId, {
+        userId: r.userId,
+        memberName,
+        memberPhone: r.phone ?? null,
+        planName: r.planName,
+        // The WHERE clause guarantees end_date is non-null (end_date < CURDATE()).
+        expiryDate: r.expiryDate as string,
+        daysOverdue,
+      });
+    }
+
+    // Most recent expiry first (daysOverdue ASC).
+    const allRows = [...expiredByUser.values()].sort(
+      (a, b) => a.daysOverdue - b.daysOverdue,
+    );
+
+    const total = allRows.length;
+    const rows = allRows.slice(offset, offset + limit);
+
+    return { rows, total, page, limit };
   }
 
   // ─── Trial Conversion (Phase 102-07) ─────────────────────────────────────

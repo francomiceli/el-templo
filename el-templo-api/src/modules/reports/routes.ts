@@ -16,6 +16,7 @@ import type {
   AccessReportFilters,
   AttendedFilter,
   ChargeReportFilters,
+  ExpiredMembersFilters,
   ExpiringReportFilters,
   InactiveReportFilters,
   LeadStatusValue,
@@ -28,6 +29,7 @@ import {
   accessReportSchema,
   chargeReportSchema,
   expiringReportSchema,
+  expiredMembersSchema,
   inactiveReportSchema,
   outstandingBalancesSchema,
   outstandingBalancesExportSchema,
@@ -287,6 +289,56 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
           reply,
           request.log,
           "get outstanding balances report",
+        );
+      }
+    },
+  );
+
+  // GET /expired-members — "Vencidos" cohort (DEUDA-04). Renewal leads whose
+  // plan expired in the last 60 days without renewing. NO role guard here: the
+  // plugin-level onRequest hook already enforces CAJA_ROLES (coach → 403, D-12).
+  fastify.get<{
+    Querystring: {
+      branchId?: number;
+      country?: "AR" | "ES";
+      search?: string;
+      page?: number;
+      limit?: number;
+    };
+  }>(
+    "/expired-members",
+    {
+      schema: expiredMembersSchema,
+      preHandler: [
+        requireBranchAccess({ from: "query.branchId", optional: true }),
+      ],
+    },
+    async (request, reply) => {
+      try {
+        // Owner-aware country resolution (mirrors GET /outstanding-balances).
+        let country: "AR" | "ES" | undefined;
+        if (request.scope.isOwner) {
+          country = request.query.country;
+        } else {
+          country = request.scope.country ?? undefined;
+        }
+
+        const filters: ExpiredMembersFilters = {
+          branchId: request.query.branchId,
+          country,
+          search: request.query.search,
+          page: request.query.page,
+          limit: request.query.limit,
+        };
+        return await reportsService.getExpiredMembers(filters, {
+          isOwner: request.scope.isOwner,
+        });
+      } catch (err: unknown) {
+        handleServiceError(
+          err,
+          reply,
+          request.log,
+          "get expired members report",
         );
       }
     },
