@@ -59,7 +59,7 @@ con el "Motivo" que v5.3 ya agregó — verificar en plan-phase antes de duplica
 
 - [ ] **ALUM-01**: "Crear nuevo alumno" es la **acción prominente** de la página de Alumnos.
 - [ ] **ALUM-02**: **Registrar cobro** es una **acción directa en la fila** del alumno (junto al lápiz), no anidada dentro de la ficha.
-- [ ] **ALUM-03**: Las **reglas de precio por medio de pago** (recargo tarjeta, etc.) dejan de estar hardcodeadas: pasan a **configuración** (default estándar sin recargo; El Templo activa la suya).
+- [x] **ALUM-03**: Las **reglas de precio por medio de pago** (recargo tarjeta, etc.) dejan de estar hardcodeadas: pasan a **configuración** (default estándar sin recargo; El Templo activa la suya).
 - [ ] **ALUM-04**: "Avatar" se renombra a un concepto neutro (**"segmento" / categoría de socio**) en toda la UI del admin; el mecanismo subyacente se conserva.
 - [ ] **ALUM-05**: Los **niveles griegos** (kairos→spartan) quedan **gateados como superficie Templo** (fuera del default white-label del admin), consistente con el gating de Entrenamiento existente.
 
@@ -121,7 +121,7 @@ Every v5.4 requirement maps to exactly one phase. Coverage: 33/33.
 | DEUDA-04    | Phase 153 | Complete |
 | ALUM-01     | Phase 154 | Pending  |
 | ALUM-02     | Phase 154 | Pending  |
-| ALUM-03     | Phase 154 | Pending  |
+| ALUM-03     | Phase 154 | Complete |
 | ALUM-04     | Phase 154 | Pending  |
 | ALUM-05     | Phase 154 | Pending  |
 | HOR-01      | Phase 155 | Pending  |

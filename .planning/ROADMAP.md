@@ -3971,12 +3971,12 @@ Plans:
 4. **"Avatar"** se renombra a un concepto neutro (**"segmento" / categoría de socio**) en toda la UI del admin, conservando el mecanismo subyacente. (ALUM-04)
 5. Los **niveles griegos** (kairos→spartan) quedan **gateados como superficie Templo** (fuera del default white-label), consistente con el gating de Entrenamiento existente. (ALUM-05)
 
-**Plans:** 5 plans
+**Plans:** 1/5 plans executed
 
 Plans:
 **Wave 1**
 
-- [ ] 154-01-PLAN.md — Backend: módulo settings (regla recargo tarjeta) + endpoints owner/staff + migración 0166 (ALUM-03)
+- [x] 154-01-PLAN.md — Backend: módulo settings (regla recargo tarjeta) + endpoints owner/staff + migración 0166 (ALUM-03)
 
 **Wave 2** _(blocked on Wave 1 completion)_
 
@@ -4028,7 +4028,7 @@ Plans:
 | 151. Registrar cobro (Pagos → Cobros)           | 5/5            | Complete    | 2026-07-03 |
 | 152. Reorganización de Caja + egresos config.   | 6/6            | Complete    | 2026-07-04 |
 | 153. Mejoras de Deudas                          | 4/4            | Complete    | 2026-07-04 |
-| 154. Alumnos (de-Templo-ficación + accesos)     | 0/5            | Not started | -          |
+| 154. Alumnos (de-Templo-ficación + accesos)     | 1/5            | In Progress |            |
 | 155. Horarios                                   | 0/TBD          | Not started | -          |
 | 156. Planes de pago vs Rutinas de entrenamiento | 0/TBD          | Not started | -          |
 

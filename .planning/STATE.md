@@ -4,13 +4,13 @@ milestone: v5.4
 milestone_name: Reforma del Admin — Correcciones white-label (pre-tenants)
 status: executing
 stopped_at: Phase 154 context gathered (auto)
-last_updated: "2026-07-04T19:24:11.536Z"
-last_activity: 2026-07-04 -- Phase 154 planning complete
+last_updated: "2026-07-04T19:30:29.721Z"
+last_activity: 2026-07-04
 progress:
   total_phases: 8
   completed_phases: 5
   total_plans: 32
-  completed_plans: 27
+  completed_plans: 28
   percent: 63
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-04)
 
 **Core value (v5.4):** Reorganizar el admin según `Correcciones El Templo.md` para dejarlo listo como MVP white-label — nav por categorías + RBAC dueño-vs-empleado, pantallas simplificadas y de-Templo-ficación de la superficie MVP (Finanzas, Alumnos, Horarios, Planes) — SIN introducir tenants todavía. Primera etapa del camino SaaS (reforma PRIMERO, tenancy DESPUÉS, secuencial). 8 fases (149-156), 33 requirements (NAV/COBRO/CTA/CAJA/DEUDA/ALUM/HOR/PLAN). Constraint dura: todo cambio de API adopta los patrones del diseño SaaS validado (motor vs plantilla, imports módulo→core, sin nuevos Templo-ismos en core).
-**Current focus:** Phase 154 — alumnos (de templo ficación + accesos)
+**Current focus:** Phase 154 — Alumnos (de-Templo-ficación + accesos)
 
 ## Current Position
 
-Phase: 154
-Plan: Not started
+Phase: 154 (Alumnos (de-Templo-ficación + accesos)) — EXECUTING
+Plan: 2 of 5
 Status: Ready to execute
-Last activity: 2026-07-04 -- Phase 154 planning complete
+Last activity: 2026-07-04
 
 ## Performance Metrics
 
@@ -306,6 +306,7 @@ _Updated after each plan completion_
 | Phase 153 P02 | 7min | 3 tasks | 5 files |
 | Phase 153 P03 | ~5min | 3 tasks | 8 files |
 | Phase 153 P04 | 3min | 3 tasks | 4 files |
+| Phase 154 P1 | 18min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -755,8 +756,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-04T18:56:56.373Z
+Last session: 2026-07-04T19:30:21.082Z
 Stopped at: Phase 154 context gathered (auto)
-Resume file: .planning/phases/154-alumnos-de-templo-ficaci-n-accesos/154-CONTEXT.md
+Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
