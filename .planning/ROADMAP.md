@@ -3939,7 +3939,15 @@ Plans:
 3. Cada deuda muestra **a qué pago/plan está asociada** (plan y período). (DEUDA-03)
 4. La vista de Deudas incluye también a los socios con **plan vencido sin renovar** (no-renovaciones), para ocuparse del negocio desde una sola pantalla. (DEUDA-04)
 
-**Plans:** TBD
+**Plans:** 4 plans
+
+Plans:
+
+- [ ] 153-01-PLAN.md — API: enriquecer "Por deuda" (motivo derivado + plan/período + fecha de registro) + tests
+- [ ] 153-02-PLAN.md — API: endpoint /expired-members (no-renovaciones 60d sin renovar) + tests
+- [ ] 153-03-PLAN.md — Admin: hub Deudas 3 tabs (Por socio + Por deuda mudado de Reportes) + gating por rol
+- [ ] 153-04-PLAN.md — Admin: tab Vencidos (leads de renovación, sin monto) + fetch composable
+
 **UI hint:** yes
 
 ### Phase 154: Alumnos (de-Templo-ficación + accesos)
