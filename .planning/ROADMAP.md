@@ -3917,10 +3917,10 @@ Plans:
 4. Las **categorías de egreso son configurables desde la UI** (ABM de centros de costo, levanta EGR-F2 de v5.3), con defaults genéricos que incluyen **"Pago a proveedores"** y **"Retiros"** en vez de los Templo-céntricos como única opción. (CAJA-05)
 5. La vista **Saldos** muestra una **nota explicativa**: "si no se registran egresos y retiros, los saldos no reflejarán la realidad". (CAJA-06)
 
-**Plans:** 1/6 plans executed
+**Plans:** 2/6 plans executed
 
 - [x] 152-01-PLAN.md — Schema + migración 0165 (validated_by/at + unique cost_centers + renames de seeds) [BLOCKING]
-- [ ] 152-02-PLAN.md — Reorden de tabs (portada Movimientos) + rename Historial de cobros + nota de Saldos
+- [x] 152-02-PLAN.md — Reorden de tabs (portada Movimientos) + rename Historial de cobros + nota de Saldos
 - [ ] 152-03-PLAN.md — Backend validador: validate() setea columnas + listTransactions expone estado/validador + filtro por estado
 - [ ] 152-04-PLAN.md — Backend ABM de centros de costo (CRUD + unicidad por país + guard admin/owner)
 - [ ] 152-05-PLAN.md — Historial de cobros: chip de estado + filtro + drill-down por día (DateRangeFilter) + validador en detalle
@@ -3994,7 +3994,7 @@ Plans:
 | 149. Nav por categorías + RBAC                  | 6/6            | Complete    | 2026-07-02 |
 | 150. Cuentas bancarias flexibles                | 6/6            | Complete    | 2026-07-03 |
 | 151. Registrar cobro (Pagos → Cobros)           | 5/5            | Complete    | 2026-07-03 |
-| 152. Reorganización de Caja + egresos config.   | 1/6            | In Progress |            |
+| 152. Reorganización de Caja + egresos config.   | 2/6            | In Progress |            |
 | 153. Mejoras de Deudas                          | 0/TBD          | Not started | -          |
 | 154. Alumnos (de-Templo-ficación + accesos)     | 0/TBD          | Not started | -          |
 | 155. Horarios                                   | 0/TBD          | Not started | -          |

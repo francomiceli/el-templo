@@ -4,13 +4,13 @@ milestone: v5.4
 milestone_name: Reforma del Admin — Correcciones white-label (pre-tenants)
 status: executing
 stopped_at: Completed 152-01-PLAN.md
-last_updated: "2026-07-04T14:15:42.791Z"
+last_updated: "2026-07-04T14:24:35.641Z"
 last_activity: 2026-07-04
 progress:
   total_phases: 8
   completed_phases: 3
   total_plans: 23
-  completed_plans: 18
+  completed_plans: 19
   percent: 38
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 ## Current Position
 
 Phase: 152 (reorganizaci-n-de-caja-egresos-configurables) — EXECUTING
-Plan: 2 of 6
+Plan: 3 of 6
 Status: Ready to execute
 Last activity: 2026-07-04
 
@@ -295,6 +295,7 @@ _Updated after each plan completion_
 | Phase 151 P04 | ~12min | 2 tasks | 2 files |
 | Phase 151 P05 | ~10min | 2 tasks | 3 files |
 | Phase 152 P01 | 10min | 3 tasks | 3 files |
+| Phase 152 P02 | 2min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -703,6 +704,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: 151-05: Sede selector restored to step-2 alta (reachable for every alta); operator-visible branchId attribution recovered while server keeps deriving the rest of the payload
 - [Phase ?]: cost_centers unique index (name, country) tras los renames de seeds para no colisionar (152 D-08)
 - [Phase 152]: validated_by/at NULLABLE en financial_transactions: solo pendiente→validado las setea, nacidos-validados e históricos quedan NULL (152 D-06)
+- [Phase ?]: 152-02: Reorden de tabs de Caja y relabel Transacciones->Historial de cobros sin tocar las keys de CAJA_TABS (contrato ?tab= intacto)
+- [Phase ?]: 152-02: Nota de Saldos como q-banner fijo no dismissible (D-10) combinando saldo firme + aviso egresos/retiros
 
 ### Pending Todos
 
@@ -735,7 +738,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-04T14:15:42.773Z
+Last session: 2026-07-04T14:24:31.119Z
 Stopped at: Completed 152-01-PLAN.md
 Resume file: None
 
