@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v5.4
 milestone_name: Reforma del Admin — Correcciones white-label (pre-tenants)
-status: ready_to_plan
-stopped_at: Phase 154 complete (5/5) — ready to discuss Phase 155
-last_updated: 2026-07-04T20:26:44.931Z
+status: planning
+stopped_at: Phase 155 context gathered (auto)
+last_updated: "2026-07-04T20:30:12.853Z"
 last_activity: 2026-07-04
 progress:
   total_phases: 8
   completed_phases: 6
   total_plans: 32
-  completed_plans: 575
+  completed_plans: 32
   percent: 75
 ---
 
@@ -762,8 +762,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-04T19:54:47.350Z
-Stopped at: Completed 154-03-PLAN.md
-Resume file: None
+Last session: 2026-07-04T20:30:12.830Z
+Stopped at: Phase 155 context gathered (auto)
+Resume file: .planning/phases/155-horarios/155-CONTEXT.md
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
