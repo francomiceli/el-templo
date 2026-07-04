@@ -271,6 +271,7 @@ const transactionListItemProperties = {
   recorderName: { type: "string" },
   voidedAt: { type: ["string", "null"] },
   notes: { type: ["string", "null"] },
+  createdAt: { type: "string" },
   // Phase 152 (D-04/D-05): estado + validador denormalizados para el chip y el
   // detalle. validatedAt/validatorName son null en filas nacidas validadas.
   validationStatus: {
