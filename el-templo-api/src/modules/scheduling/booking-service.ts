@@ -275,7 +275,10 @@ export class BookingService {
     // 9. Check capacity + insert in transaction to prevent overbooking
     const bookingId = await this.db.transaction(async (tx) => {
       const activeCount = await this.countActiveBookings(scheduleId, date, tx);
-      const maxCapacity = await this.getBranchCapacity(scheduleRow.branchId);
+      const maxCapacity = await this.getEffectiveCapacity(
+        scheduleRow.branchId,
+        scheduleRow.activityId,
+      );
 
       let status: "reservado" | "lista_espera" = "reservado";
       let waitlistPosition: number | null = null;
@@ -597,7 +600,10 @@ export class BookingService {
 
     // Check capacity
     const activeCount = await this.countActiveBookings(scheduleId, date);
-    const maxCapacity = await this.getBranchCapacity(scheduleRow.branchId);
+    const maxCapacity = await this.getEffectiveCapacity(
+      scheduleRow.branchId,
+      scheduleRow.activityId,
+    );
 
     let status: "reservado" | "lista_espera" = "reservado";
     let waitlistPosition: number | null = null;
@@ -1085,7 +1091,10 @@ export class BookingService {
     if (!scheduleRow.isActive) return null;
 
     const start = fromDate ?? todayInTz(scheduleRow.branchTimezone);
-    const maxCapacity = await this.getBranchCapacity(scheduleRow.branchId);
+    const maxCapacity = await this.getEffectiveCapacity(
+      scheduleRow.branchId,
+      scheduleRow.activityId,
+    );
 
     // Branch country for holiday lookup
     const [branch] = await this.db
@@ -1155,6 +1164,8 @@ export class BookingService {
         id: schema.schedules.id,
         dayOfWeek: schema.schedules.dayOfWeek,
         branchId: schema.schedules.branchId,
+        // Phase 155-01 (D-06): needed to resolve the slot's effective capacity.
+        activityId: schema.schedules.activityId,
       })
       .from(schema.schedules)
       .where(inArray(schema.schedules.id, scheduleIds));
@@ -1252,7 +1263,10 @@ export class BookingService {
               sched.id,
               dateStr,
             );
-            const maxCapacity = await this.getBranchCapacity(sched.branchId);
+            const maxCapacity = await this.getEffectiveCapacity(
+              sched.branchId,
+              sched.activityId,
+            );
 
             let status: "reservado" | "lista_espera" = "reservado";
             let waitlistPosition: number | null = null;
@@ -1752,15 +1766,26 @@ export class BookingService {
   }
 
   /**
-   * Get a branch's maxCapacity.
+   * Phase 155-01 (D-06/D-07, HOR-03): effective per-slot capacity =
+   * `activity.maxCapacity ?? branch.maxCapacity ?? 22`. NULL on the activity
+   * inherits the branch cap. The check stays PER SLOT (each simultaneous class
+   * has its own cap) — the branch cap is a per-class default, not a building
+   * ceiling.
    */
-  private async getBranchCapacity(branchId: number): Promise<number> {
-    const [branch] = await this.db
-      .select({ maxCapacity: schema.branches.maxCapacity })
+  private async getEffectiveCapacity(
+    branchId: number,
+    activityId: number,
+  ): Promise<number> {
+    const [row] = await this.db
+      .select({
+        branchCapacity: schema.branches.maxCapacity,
+        activityCapacity: schema.activities.maxCapacity,
+      })
       .from(schema.branches)
+      .leftJoin(schema.activities, eq(schema.activities.id, activityId))
       .where(eq(schema.branches.id, branchId));
 
-    return branch?.maxCapacity ?? 22;
+    return row?.activityCapacity ?? row?.branchCapacity ?? 22;
   }
 
   /**
