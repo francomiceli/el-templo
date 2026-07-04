@@ -94,7 +94,7 @@
             label="Crear horario"
             color="primary"
             :disable="!selectedBranchId || deleteSelectionMode"
-            @click="showCreateSlotDialog = true"
+            @click="openBlankCreateDialog"
           />
           <q-btn
             :outline="!deleteSelectionMode"
@@ -304,34 +304,43 @@
                   v-for="day in weekDays"
                   :key="`${row.time}-${day.dayOfWeek}`"
                   class="grid-cell"
-                  :class="cellClass(row.time!, day.dayOfWeek)"
-                  @click="onCellClick(row.time!, day.dayOfWeek, day.date)"
+                  :class="cellContainerClass(row.time!, day.dayOfWeek)"
+                  @click="onEmptyCellClick(row.time!, day.dayOfWeek)"
                 >
-                  <template v-if="getCellSlot(row.time!, day.dayOfWeek)">
-                    <div class="cell-activity text-caption ellipsis">
-                      {{ getCellSlot(row.time!, day.dayOfWeek)!.activityName }}
-                    </div>
-                    <div v-if="isCellHoliday(day.date)" class="cell-holiday text-weight-bold">
-                      FERIADO
-                    </div>
+                  <!-- N clases simultáneas apiladas: cada chip es su propio slot,
+                       con su color/ocupación y su click de detalle/borrado (D-02). -->
+                  <template v-if="getCellSlots(row.time!, day.dayOfWeek).length > 0">
                     <div
-                      v-else-if="!getCellSlot(row.time!, day.dayOfWeek)!.isActive"
-                      class="cell-inactive text-weight-bold"
+                      v-for="slot in getCellSlots(row.time!, day.dayOfWeek)"
+                      :key="slot.id"
+                      class="cell-slot"
+                      :class="slotChipClass(slot, day.date)"
+                      @click.stop="onSlotClick(slot, day.date)"
                     >
-                      CANCELADA
-                    </div>
-                    <div v-else class="cell-occupancy text-weight-bold">
-                      {{ getCellSlot(row.time!, day.dayOfWeek)!.bookedCount }}/{{
-                        getCellSlot(row.time!, day.dayOfWeek)!.maxCapacity
-                      }}
-                      <span
-                        v-if="(getCellSlot(row.time!, day.dayOfWeek)!.trialCount ?? 0) > 0"
-                        class="text-warning cell-trial-count"
-                      >
-                        +{{ getCellSlot(row.time!, day.dayOfWeek)!.trialCount }} SP
-                      </span>
+                      <div class="cell-activity text-caption ellipsis">
+                        {{ slot.activityName }}
+                      </div>
+                      <div v-if="isCellHoliday(day.date)" class="cell-holiday text-weight-bold">
+                        FERIADO
+                      </div>
+                      <div v-else-if="!slot.isActive" class="cell-inactive text-weight-bold">
+                        CANCELADA
+                      </div>
+                      <div v-else class="cell-occupancy text-weight-bold">
+                        {{ slot.bookedCount }}/{{ slot.maxCapacity }}
+                        <span
+                          v-if="(slot.trialCount ?? 0) > 0"
+                          class="text-warning cell-trial-count"
+                        >
+                          +{{ slot.trialCount }} SP
+                        </span>
+                      </div>
                     </div>
                   </template>
+                  <!-- Celda vacía: affordance de "click para crear" (D-03). -->
+                  <div v-else class="cell-empty-affordance">
+                    <q-icon name="add" size="18px" />
+                  </div>
                 </div>
               </template>
             </template>
@@ -358,6 +367,7 @@
       v-model:show="showCreateSlotDialog"
       :branches="branchesRaw"
       :default-branch-id="selectedBranchId"
+      :initial="createSlotInitial"
       @created="loadWeeklyGrid"
     />
     <DeleteSlotDialog
@@ -422,6 +432,11 @@ const branchesRaw = ref<BranchOption[]>([]);
 const loadingBranches = ref(false);
 const activeTab = ref<'horarios' | 'actividades'>('horarios');
 const showCreateSlotDialog = ref(false);
+// Prefill del dialog de crear horario cuando se abre desde una celda vacía
+// (D-03). undefined = sin prefill (botón global "Crear horario").
+const createSlotInitial = ref<
+  { branchId: number | null; dayOfWeek: DayOfWeek; startTime: string } | undefined
+>(undefined);
 // Default to AR until the weekly grid response returns the viewing branch's tz.
 // Admin changes branch → grid reloads → branchTimezone refreshes.
 const branchTimezone = ref<string>('America/Argentina/Buenos_Aires');
@@ -553,11 +568,18 @@ function slotKey(startTime: string, dayOfWeek: number): string {
   return `${startTime}-${dayOfWeek}`;
 }
 
-/** Build lookup map for quick cell rendering */
+/**
+ * Build lookup map for quick cell rendering. D-02: una franja
+ * (startTime, dayOfWeek) puede tener N clases simultáneas de actividades
+ * distintas — se acumulan en un array en vez de pisarse con `map.set`.
+ */
 const slotMap = computed(() => {
-  const map = new Map<string, WeeklySlotView>();
+  const map = new Map<string, WeeklySlotView[]>();
   for (const s of gridSlots.value) {
-    map.set(slotKey(s.startTime, s.dayOfWeek), s);
+    const key = slotKey(s.startTime, s.dayOfWeek);
+    const existing = map.get(key);
+    if (existing) existing.push(s);
+    else map.set(key, [s]);
   }
   return map;
 });
@@ -571,27 +593,28 @@ const holidayDates = computed(() => {
   return set;
 });
 
-function getCellSlot(time: string, dayOfWeek: DayOfWeek): WeeklySlotView | undefined {
-  return slotMap.value.get(slotKey(time, dayOfWeek));
+/** Todas las clases de una celda (franja + día); array vacío = celda libre. */
+function getCellSlots(time: string, dayOfWeek: DayOfWeek): WeeklySlotView[] {
+  return slotMap.value.get(slotKey(time, dayOfWeek)) ?? [];
 }
 
 function isCellHoliday(date: string): boolean {
   return holidayDates.value.has(date);
 }
 
-function cellClass(time: string, dayOfWeek: DayOfWeek): string {
-  const slot = getCellSlot(time, dayOfWeek);
-  if (!slot) return 'grid-cell--empty';
-  if (!slot.isActive) return 'grid-cell--inactive';
+/** Clase del contenedor de celda: vacía (affordance de crear) vs con clases. */
+function cellContainerClass(time: string, dayOfWeek: DayOfWeek): string {
+  return getCellSlots(time, dayOfWeek).length === 0 ? 'grid-cell--empty' : 'grid-cell--filled';
+}
 
-  // Find the date for this dayOfWeek
-  const day = weekDays.value.find((d) => d.dayOfWeek === dayOfWeek);
-  if (day && isCellHoliday(day.date)) return 'grid-cell--holiday';
-
+/** Color de un chip de clase apilado, por ocupación/estado (antes en cellClass). */
+function slotChipClass(slot: WeeklySlotView, date: string): string {
+  if (isCellHoliday(date)) return 'slot-chip--holiday';
+  if (!slot.isActive) return 'slot-chip--inactive';
   const pct = slot.maxCapacity > 0 ? (slot.bookedCount / slot.maxCapacity) * 100 : 0;
-  if (pct >= 100) return 'grid-cell--full';
-  if (pct >= 70) return 'grid-cell--warning';
-  return 'grid-cell--available';
+  if (pct >= 100) return 'slot-chip--full';
+  if (pct >= 70) return 'slot-chip--warning';
+  return 'slot-chip--available';
 }
 
 // ─── Mobile helpers: selected-day slot list ────────────────────────────────
@@ -626,7 +649,10 @@ function rowClass(slot: WeeklySlotView): string {
 function onMobileSlotClick(slot: WeeklySlotView) {
   const info = selectedDayInfo.value;
   if (!info) return;
-  onCellClick(slot.startTime, slot.dayOfWeek, info.date);
+  // Ya tenemos el slot concreto (del v-for con :key="slot.id"); se pasa directo
+  // al entry point slot-aware, sin round-trip por (hora, día) que confundiría
+  // dos clases simultáneas.
+  onSlotClick(slot, info.date);
 }
 
 // ─── Roster de profes (Surface 1, Phase 143) ────────────────────────────────
@@ -852,10 +878,12 @@ function onCascadeError(payload: { message: string; affectedSchedules: AffectedS
 
 // ─── Cell Click -> Open Slot Detail or Attendance Panel ──────────────────────
 
-function onCellClick(time: string, dayOfWeek: DayOfWeek, date: string) {
-  const slot = getCellSlot(time, dayOfWeek);
-  if (!slot) return;
-
+/**
+ * Click sobre un slot puntual (chip apilado en desktop o item en mobile). Con N
+ * clases simultáneas, el detalle/borrado opera sobre ESTE slot concreto sin
+ * re-derivar por (hora, día) — así dos clases a la misma hora nunca se confunden.
+ */
+function onSlotClick(slot: WeeklySlotView, date: string) {
   // Delete-selection mode short-circuits the normal slot-detail flow.
   // Holiday cells are still selectable here because the deletion targets
   // the recurring schedule, not the individual day.
@@ -880,6 +908,36 @@ function onCellClick(time: string, dayOfWeek: DayOfWeek, date: string) {
   selectedSlotScheduleId.value = slot.id;
   selectedSlotDate.value = date;
   showSlotDialog.value = true;
+}
+
+/**
+ * Click en el área de una celda VACÍA (D-03): abre "Crear horario" prefilleado
+ * con sucursal seleccionada, día y hora de la celda. Las celdas con clases
+ * delegan el click en cada chip (onSlotClick con @click.stop), así que este
+ * handler solo hace algo cuando la celda no tiene slots.
+ */
+function onEmptyCellClick(time: string, dayOfWeek: DayOfWeek) {
+  if (getCellSlots(time, dayOfWeek).length > 0) return;
+  // En modo borrado no hay nada que eliminar en una celda vacía.
+  if (deleteSelectionMode.value) return;
+  if (!selectedBranchId.value) return;
+  openCreateDialog(dayOfWeek, time);
+}
+
+/** Abre el dialog de crear horario prefilleado desde una celda (D-03). */
+function openCreateDialog(dayOfWeek: DayOfWeek, startTime: string) {
+  createSlotInitial.value = {
+    branchId: selectedBranchId.value,
+    dayOfWeek,
+    startTime,
+  };
+  showCreateSlotDialog.value = true;
+}
+
+/** Botón global "Crear horario": abre el dialog sin prefill de día/hora. */
+function openBlankCreateDialog() {
+  createSlotInitial.value = undefined;
+  showCreateSlotDialog.value = true;
 }
 
 function toggleDeleteSelectionMode() {
@@ -939,12 +997,15 @@ watch(selectedBranchId, (val) => {
   cursor: crosshair;
 }
 
-.schedule-grid-container--delete-mode .grid-cell:not(.grid-cell--empty) {
+/* En modo borrado se resalta cada chip de clase (no la celda entera), para
+   que con clases simultáneas se elija exactamente la que se toca. */
+.schedule-grid-container--delete-mode .cell-slot {
   outline: 2px dashed var(--q-negative);
   outline-offset: -2px;
+  cursor: pointer;
 }
 
-.schedule-grid-container--delete-mode .grid-cell:not(.grid-cell--empty):hover {
+.schedule-grid-container--delete-mode .cell-slot:hover {
   background: #ffcdd2;
 }
 
@@ -984,54 +1045,78 @@ watch(selectedBranchId, (val) => {
 }
 
 .grid-cell {
-  padding: 6px;
+  padding: 2px;
   min-height: 60px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border: 1px solid #e0e0e0;
+  cursor: pointer;
+  border-radius: 2px;
+}
+
+/* Celda vacía: affordance sutil de "click para crear" (D-03). */
+.grid-cell--empty {
+  background: #fafafa;
+  align-items: center;
+  justify-content: center;
+  color: #bdbdbd;
+}
+
+.grid-cell--empty:hover {
+  background: #eef7ee;
+  color: var(--q-primary);
+}
+
+.cell-empty-affordance {
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.grid-cell--empty:hover .cell-empty-affordance {
+  opacity: 1;
+}
+
+/* Celda con clases: pila de 1..N chips que llenan la altura de la celda (D-02). */
+.grid-cell--filled {
+  justify-content: stretch;
+}
+
+.cell-slot {
+  flex: 1 1 auto;
+  min-height: 52px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  border: 1px solid #e0e0e0;
-  cursor: pointer;
-  transition: background 0.15s;
+  padding: 4px 2px;
   border-radius: 2px;
+  transition: filter 0.15s;
 }
 
-.grid-cell:hover {
+.cell-slot:hover {
   filter: brightness(0.95);
 }
 
-.grid-cell--empty {
-  background: #fafafa;
-  cursor: default;
-}
-
-.grid-cell--empty:hover {
-  filter: none;
-}
-
-.grid-cell--available {
+/* Color de chip por ocupación/estado — espeja la paleta de slot-row del mobile. */
+.slot-chip--available {
   background: #e8f5e9;
 }
 
-.grid-cell--warning {
+.slot-chip--warning {
   background: #fff8e1;
 }
 
-.grid-cell--full {
+.slot-chip--full {
   background: #ffebee;
 }
 
-.grid-cell--holiday {
+.slot-chip--holiday {
   background: #eeeeee;
-  cursor: default;
   color: #9e9e9e;
 }
 
-.grid-cell--holiday:hover {
-  filter: none;
-}
-
-.grid-cell--inactive {
+.slot-chip--inactive {
   background: repeating-linear-gradient(45deg, #fce4ec, #fce4ec 6px, #f8bbd0 6px, #f8bbd0 12px);
   color: #b71c1c;
 }
