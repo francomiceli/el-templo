@@ -25,6 +25,20 @@ findings:
   info: 6
   total: 14
 status: issues_found
+resolution:
+  fixed_at: 2026-07-04
+  warnings_fixed: 8
+  warnings_skipped: 0
+  info_deferred: 6
+  commits:
+    WR-01: 4dea399e
+    WR-02: 4a82abce
+    WR-03: ea4d23a4
+    WR-04: e3b8d4b1
+    WR-05: 6405f280
+    WR-06: 0b659d83
+    WR-07: 66d11ade
+    WR-08: d3977ca4
 ---
 
 # Phase 153: Code Review Report
@@ -53,6 +67,7 @@ No encontré Criticals. Sí encontré 8 Warnings: el más relevante es el falso 
 
 ### WR-01: Vencidos incluye como "sin renovar" a socios que YA renovaron con una suscripción `scheduled`
 
+**Resolución:** ✅ fixed (commit `4dea399e`) — NOT EXISTS de cobertura futura (active/paused/scheduled con end_date null o >= CURDATE()) agregado a `getExpiredMembers`; test `RENEWED-SCHEDULED`.
 **File:** `el-templo-api/src/modules/reports/service.ts:1040-1043`
 **Issue:** El predicado de exclusión es `NOT activeMemberExists(...)`, y `activeMemberExists` (shared/active-member.ts) solo considera subs `active|paused` con `start_date <= CURDATE()`. Un socio cuyo plan venció hace N días pero que ya compró la renovación con inicio futuro (`subscription_status='scheduled'`, patrón real del dominio: la fase 144 define cobertura como cadena active+**scheduled**, y `getExpiringMemberships` en este mismo archivo trata `scheduled` como "ya renovó" en `coverageExists`, service.ts:517-527) aparece igual en el tab Vencidos como lead de renovación. Gestión lo contactaría para renovar algo que ya pagó. Es fiel al predicado fase-121 que D-04 manda reusar, pero contradice la semántica de renovación del resto del módulo y el propósito del tab ("sin renovar").
 **Fix:** Agregar a las conds una exclusión de cobertura futura, espejo de la que ya existe en el archivo:
@@ -70,6 +85,7 @@ sql`NOT EXISTS (
 
 ### WR-02: Vencidos expone nombre y teléfono de socios soft-deleted
 
+**Resolución:** ✅ fixed (commit `4a82abce`) — `isNull(users.deletedAt)` agregado a las conds de `getExpiredMembers`; test `SOFT-DELETED`.
 **File:** `el-templo-api/src/modules/reports/service.ts:1076`
 **Issue:** El query hace `INNER JOIN users` sin filtrar `users.deleted_at IS NULL` (la columna existe: `db/schema/users.ts:127`). Un socio dado de baja lógicamente cuyo plan venció dentro de la ventana de 60 días aparece como lead de renovación con su PII (nombre + teléfono) en una lista cuyo propósito explícito es contactar gente. El mismo archivo ya filtra `u.deleted_at IS NULL` en pendingLeads del reporte de conversión (service.ts:1369), así que la omisión es una inconsistencia, no una convención.
 **Fix:**
@@ -82,6 +98,7 @@ conds.push(isNull(schema.users.deletedAt));
 
 ### WR-03: Paginación no determinística en expired-members — "Cargar más" puede duplicar u omitir filas
 
+**Resolución:** ✅ fixed (commit `ea4d23a4`) — tiebreaker `|| a.userId - b.userId` en el sort JS de expired-members y `balances.id ASC` como segunda clave del ORDER BY SQL de outstanding-balances; test `PAGINATION`.
 **File:** `el-templo-api/src/modules/reports/service.ts:1065-1113` (y `el-templo-admin/src/components/deudas/VencidosTab.vue:152-167`)
 **Issue:** El SELECT no tiene `ORDER BY`; el orden de `rawRows` (y por lo tanto el orden de inserción en el Map de dedup) queda a criterio del planner de MySQL y puede variar entre requests. El sort JS por `daysOverdue ASC` es estable pero no tiene tiebreaker, así que los empates (varios socios vencidos el mismo día — caso común con ciclos mensuales) pueden cambiar de posición entre la request de página 1 y la de página 2. El slice `allRows.slice(offset, offset + limit)` entonces puede devolver un userId ya entregado (duplicado de `row-key` en q-table) u omitir otro. El mismo defecto (pre-existente, fase 109) aplica a `getOutstandingBalances`: `ORDER BY COALESCE(startDate, DATE(createdAt)) ASC` sin tiebreaker único + LIMIT/OFFSET (service.ts:880-884).
 **Fix:** Tiebreaker determinístico en el sort JS:
@@ -96,6 +113,7 @@ Para outstanding-balances, agregar `balances.id` (o `targetKind, targetId`) como
 
 ### WR-04: El motivo derivado puede salir de un advance_payment ANULADO (flujo "Corregir")
 
+**Resolución:** ✅ fixed (commit `e3b8d4b1`) — `isNull(financialTransactions.voidedAt)` agregado al innerJoin de `buildDebtOriginTxSubquery`; tests `MULTI-ORIGIN` y `VOIDED-ORIGIN`.
 **File:** `el-templo-api/src/modules/reports/service.ts:704-724`
 **Issue:** `buildDebtOriginTxSubquery` resuelve el origen como `MIN(financial_transactions.id)` de los advance_payment linkeados al debt_balance, sin filtrar `voided_at IS NULL`. El flujo Corregir de la fase 137/141 es void+recreate: si un cobro suelto pendiente se corrige, el debt_balance queda linkeado tanto a la transacción anulada (id menor) como a la recreada (id mayor). `MIN(id)` elige siempre la ANULADA, así que el motivo (`miscReason`) y sobre todo la nota libre (D-11, tooltip) mostrados serían los de la transacción vieja, no los de la vigente.
 **Fix:** Excluir anuladas en el join del derived table:
@@ -115,6 +133,7 @@ Agregar test: debt_balance con origen anulado + origen recreado → motivo/nota 
 
 ### WR-05: `scope.country === null` (corrupción de datos) degrada a "ver todos los países" en el endpoint nuevo
 
+**Resolución:** ✅ fixed (commit `6405f280`) — guard fail-closed (403 "Scope de país no resuelto") para non-owner con `scope.country === null` en los 3 handlers: outstanding-balances, su export y expired-members.
 **File:** `el-templo-api/src/modules/reports/routes.ts:319-324` (patrón replicado de :268-273)
 **Issue:** Para non-owner, `country = request.scope.country ?? undefined`. `attachCountryScope` documenta explícitamente que `country: null` para admin/gestion es el camino **fail-closed** ante corrupción de `users.country` (country-scope.ts:10-17), confiando en que `canAccessBranch` deniegue después. Pero estos listados no pasan por `canAccessBranch` cuando no viene `branchId`: el `?? undefined` convierte el null fail-closed en "sin filtro de país" → una gestión con `users.country` corrupto vería deudas y leads (PII) de TODOS los países. Pre-existente en outstanding-balances (109); la fase 153 lo replica en código nuevo en vez de cerrarlo.
 **Fix:** Fail-closed explícito para non-owner:
@@ -131,12 +150,14 @@ if (!request.scope.isOwner && request.scope.country === null) {
 
 ### WR-06: Gestión/admin de España ve los totales por antigüedad formateados como ARS
 
+**Resolución:** ✅ fixed (commit `0b659d83`) — `flatCurrency` derivado de `rows[0].currency` (fallback `displayCurrency`) usado en las cards de totales flat de `PorDeudaTab.vue`.
 **File:** `el-templo-admin/src/pages/DeudasPage.vue:119-127` + `el-templo-admin/src/components/deudas/PorDeudaTab.vue:73`
 **Issue:** Para non-owner el selector de país está oculto y `selectedCountry` queda fijo en `'AR'`, así que `displayCurrency` es siempre `'ARS'`. El backend para non-owner devuelve `bucketTotals` flat en la moneda de SU país (EUR para gestión ES), pero el frontend los renderiza con `formatPrice(x, 'ARS')` → montos en euros mostrados con `$` y locale es-AR. Comportamiento heredado de la vista en ReportesPage, pero sigue siendo dinero mostrado con la moneda equivocada para todo el staff de ES.
 **Fix:** Derivar la moneda de los datos, no del selector: el backend ya devuelve `currency` por fila; alternativamente exponer la moneda del scope en la respuesta, o inferirla de `rows[0]?.currency ?? displayCurrency` en `PorDeudaTab.load()`.
 
 ### WR-07: Race de respuestas fuera de orden entre `load(true)` y `load(false)` en los tabs nuevos
 
+**Resolución:** ✅ fixed (commit `66d11ade`) — token de request (`requestSeq`) en `load()` de `PorDeudaTab.vue` y `VencidosTab.vue`; solo la request más reciente muta estado.
 **File:** `el-templo-admin/src/components/deudas/PorDeudaTab.vue:329-364`, `el-templo-admin/src/components/deudas/VencidosTab.vue:152-175`
 **Issue:** `load()` no guarda contra reentrada ni descarta respuestas obsoletas. Los watchers de filtros disparan `load(true)` aunque haya un `load(false)` ("Cargar más") en vuelo: si la respuesta del reset llega antes que la del append (o viceversa con un cambio de filtro), `items.value.push(...res.rows)` mezcla páginas de filtros distintos o duplica filas (colisión de row-key). El botón se deshabilita con `:loading`, pero los inputs de filtro no, y el debounce no serializa contra requests en vuelo.
 **Fix:** Token de request (patrón estándar):
@@ -153,6 +174,7 @@ async function load(reset = true) {
 
 ### WR-08: Gaps de cobertura en los tests de integración
 
+**Resolución:** ✅ fixed (commit `d3977ca4`) — agregados: expired-members `RENEWED-SCHEDULED`/`SOFT-DELETED`/`BOUNDARY-60`/`BRANCH-FILTER`/`OWNER-COUNTRY`/`PAGINATION`; outstanding-balances `MULTI-ORIGIN`/`VOIDED-ORIGIN`/`EXPORT-COLUMNS`.
 **File:** `el-templo-api/test/reports/expired-members.test.ts`, `el-templo-api/test/reports/outstanding-balances.test.ts`
 **Issue:** Faltan casos que el propio código promete o que cubren los Warnings de arriba:
 
