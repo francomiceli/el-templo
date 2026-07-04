@@ -3531,6 +3531,25 @@ export class SubscriptionService {
       renewalOverrideReason = input.priceOverrideReason;
     }
 
+    // WR-04 (ALUM-03/D-03): normalizar el priceTypeApplied heredado contra la
+    // regla de recargo por tarjeta. Sin esto, un socio dado de alta con
+    // `credit_card` seguía renovando con el precio CON recargo indefinidamente
+    // aunque el owner apagara la regla — el estado que resolvePriceType promete
+    // impedir para altas/cambios. Solo aplica cuando NO hay override explícito
+    // de esta renovación (el override manda). Con la regla ON (El Templo) la
+    // resolución es identidad y nada cambia; con la regla OFF, `credit_card`
+    // normaliza a `regular` y se recobra el precio base regular del plan vigente.
+    const inheritedPriceType = currentSub.priceTypeApplied as PriceType;
+    let renewalPriceType = inheritedPriceType;
+    if (renewalOverrideAmount === null) {
+      renewalPriceType = await this.resolvePriceType(inheritedPriceType);
+      if (renewalPriceType !== inheritedPriceType) {
+        // credit_card → regular con la regla OFF: cobrar el precio regular
+        // vigente del plan (no perpetuar el recargo heredado en pricePaid).
+        renewalPrice = this.getBasePrice(plan, renewalPriceType);
+      }
+    }
+
     // If old sub is already expired, close it now.
     // If still active (early renewal), leave it active — auto-expire will
     // transition it to "completed" and activate the scheduled sub.
@@ -3640,10 +3659,7 @@ export class SubscriptionService {
         startDate: newStartDate,
         endDate: newEndDate,
         pricePaid: renewalPrice,
-        priceTypeApplied: currentSub.priceTypeApplied as
-          | "regular"
-          | "zero"
-          | "credit_card",
+        priceTypeApplied: renewalPriceType,
         priceOverrideAmount: renewalOverrideAmount,
         priceOverrideReason: renewalOverrideReason,
         classesRemaining: periodBudget,

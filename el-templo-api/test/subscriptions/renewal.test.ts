@@ -5,6 +5,8 @@ import { createTestApp, getAuthToken, cleanAllTestData } from "../helpers";
 import { subscriptions } from "../../src/db/schema/subscriptions";
 import { financialTransactions } from "../../src/db/schema/financial-transactions";
 import { transactionLinks } from "../../src/db/schema/transaction-links";
+import { systemSettings } from "../../src/db/schema/system-settings";
+import { PRICING_SETTINGS_KEYS } from "../../src/modules/settings/keys";
 import {
   SUBSCRIPTIONS_URL,
   createPlan,
@@ -411,5 +413,101 @@ describe("Subscriptions API — Renewal", () => {
     const actives = allSubs.filter((s) => s.status === "active");
     expect(actives).toHaveLength(1);
     expect(actives[0].id).toBe(activeSubId);
+  });
+
+  // WR-04 (ALUM-03/D-03): la regla de recargo OFF debe alcanzar las
+  // renovaciones. Un socio con una sub 'credit_card' heredada (dada de alta
+  // cuando la regla estaba ON) NO debe seguir renovando con el precio con
+  // recargo indefinidamente: al renovar con la regla OFF, la nueva sub nace
+  // 'regular' al precio regular vigente del plan.
+  it("renewal con la regla OFF normaliza credit_card heredado a regular", async () => {
+    const plan = await createPlan(app, adminToken, {
+      name: "Renew Card OFF Plan",
+      classesPerWeek: 2,
+      durationDays: 30,
+      priceRegular: 10000,
+      priceCreditCard: 12000,
+      priceZero: 0,
+    });
+    const member = await createMember(app);
+
+    // Sub previa 'active' con tarjeta (estado heredado de cuando la regla
+    // estaba ON). cleanAllTestData dejó system_settings vacío ⇒ regla OFF.
+    await app.db.insert(subscriptions).values({
+      userId: member.id,
+      planId: plan.id,
+      branchId: 1,
+      status: "active",
+      startDate: todayStr(),
+      endDate: dateOffsetStr(30),
+      pricePaid: 12000,
+      priceTypeApplied: "credit_card",
+      currency: "ARS",
+    });
+
+    const res = await app.inject({
+      method: "POST",
+      url: `${SUBSCRIPTIONS_URL}/members/${member.id}/subscription/renew`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: { paymentMethod: "cash" },
+    });
+    expect(res.statusCode).toBe(201);
+    const newSub = JSON.parse(res.body);
+
+    // Normalizado: NO perpetúa 12000 (priceCreditCard); cobra 10000 (regular).
+    expect(newSub.pricePaid).toBe(10000);
+    const rows = await app.db
+      .select()
+      .from(subscriptions)
+      .where(eq(subscriptions.id, newSub.id as number));
+    expect(rows[0].priceTypeApplied).toBe("regular");
+  });
+
+  // El Templo intacto: con la regla ON, la herencia de credit_card + su precio
+  // se conserva tal cual (el gate es identidad).
+  it("renewal con la regla ON conserva credit_card y su precio", async () => {
+    await app.db.insert(systemSettings).values({
+      settingKey: PRICING_SETTINGS_KEYS.cardSurcharge,
+      settingValue: "on",
+    });
+
+    const plan = await createPlan(app, adminToken, {
+      name: "Renew Card ON Plan",
+      classesPerWeek: 2,
+      durationDays: 30,
+      priceRegular: 10000,
+      priceCreditCard: 12000,
+      priceZero: 0,
+    });
+    const member = await createMember(app);
+
+    await app.db.insert(subscriptions).values({
+      userId: member.id,
+      planId: plan.id,
+      branchId: 1,
+      status: "active",
+      startDate: todayStr(),
+      endDate: dateOffsetStr(30),
+      pricePaid: 12000,
+      priceTypeApplied: "credit_card",
+      currency: "ARS",
+    });
+
+    const res = await app.inject({
+      method: "POST",
+      url: `${SUBSCRIPTIONS_URL}/members/${member.id}/subscription/renew`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: { paymentMethod: "card" },
+    });
+    expect(res.statusCode).toBe(201);
+    const newSub = JSON.parse(res.body);
+
+    // Sin cambios: hereda 12000 y el tipo credit_card.
+    expect(newSub.pricePaid).toBe(12000);
+    const rows = await app.db
+      .select()
+      .from(subscriptions)
+      .where(eq(subscriptions.id, newSub.id as number));
+    expect(rows[0].priceTypeApplied).toBe("credit_card");
   });
 });
