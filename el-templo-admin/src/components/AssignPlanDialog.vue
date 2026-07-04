@@ -863,6 +863,7 @@ import { formatPrice, type Currency } from 'src/utils/format-price';
 import { extractError, isExpectedClientError } from 'src/utils/extract-error';
 import { useSubscriptionsApi } from 'src/composables/useSubscriptionsApi';
 import { useTransactionsApi } from 'src/composables/useTransactionsApi';
+import { usePricingSettingsApi } from 'src/composables/usePricingSettingsApi';
 import {
   PLAN_TIER_LABELS,
   AURA_DISCOUNT_TIERS,
@@ -892,6 +893,24 @@ const log = createLogger('AssignPlanDialog');
 const $q = useQuasar();
 const subsApi = useSubscriptionsApi();
 const txApi = useTransactionsApi();
+const pricingApi = usePricingSettingsApi();
+
+// ALUM-03 / D-04: regla de recargo por tarjeta. Default conservador OFF: con la
+// regla apagada no se ofrece ni aplica el precio "Tarjeta" (consistente con el
+// server, que ya lo normaliza — plan 02). Se carga al abrir el dialog.
+const cardSurchargeEnabled = ref(false);
+
+async function loadCardSurchargeRule() {
+  try {
+    cardSurchargeEnabled.value = await pricingApi.getCardSurchargeEnabled();
+  } catch (err: unknown) {
+    // Conservador: OFF ante error → no ofrecer un recargo que no pudimos confirmar.
+    cardSurchargeEnabled.value = false;
+    log.error('Error cargando la regla de recargo por tarjeta', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
 
 // =========================================================================
 // Props & Emits
@@ -1209,6 +1228,7 @@ const priceTypeOptions = computed(() => {
     { label: PRICE_TYPE_LABELS.zero, value: 'zero' as PriceType },
   ];
   if (
+    cardSurchargeEnabled.value &&
     selectedPlan.value?.priceCreditCard !== null &&
     selectedPlan.value?.priceCreditCard !== undefined
   ) {
@@ -1433,7 +1453,11 @@ function getBasePrice(): number {
     case 'zero':
       return selectedPlan.value.priceZero;
     case 'credit_card':
-      return selectedPlan.value.priceCreditCard ?? selectedPlan.value.priceRegular;
+      // Con la regla OFF, degradar a regular por consistencia con la UI (el
+      // server también normaliza — plan 02).
+      return cardSurchargeEnabled.value
+        ? (selectedPlan.value.priceCreditCard ?? selectedPlan.value.priceRegular)
+        : selectedPlan.value.priceRegular;
   }
 }
 
@@ -1709,6 +1733,7 @@ watch(
       selectedMiscChargeId.value = null;
       pendingMiscItems.value = [];
       void loadPendingMisc();
+      void loadCardSurchargeRule();
       loadPlans();
     }
   },

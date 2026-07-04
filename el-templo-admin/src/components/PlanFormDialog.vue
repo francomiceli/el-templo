@@ -95,7 +95,7 @@
                 :rules="[requiredNumberRule('Precio zero')]"
               />
             </div>
-            <div class="col-12 col-sm-4">
+            <div v-if="cardSurchargeEnabled" class="col-12 col-sm-4">
               <q-input
                 v-model.number="form.priceCreditCard"
                 label="Tarjeta"
@@ -253,6 +253,7 @@ import type { QForm } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { useSubscriptionsApi } from 'src/composables/useSubscriptionsApi';
 import { useProgramsApi } from 'src/composables/useProgramsApi';
+import { usePricingSettingsApi } from 'src/composables/usePricingSettingsApi';
 import { formatPrice, type Currency } from 'src/utils/format-price';
 import {
   PLAN_TIER_LABELS,
@@ -298,7 +299,25 @@ const emit = defineEmits<{
 
 const subscriptionsApi = useSubscriptionsApi();
 const programsApi = useProgramsApi();
+const pricingApi = usePricingSettingsApi();
 const formRef = ref<InstanceType<typeof QForm> | null>(null);
+
+// ALUM-03 / D-05: regla de recargo por tarjeta. Con la regla OFF se esconde el
+// campo de precio "Tarjeta" (el valor persistido en form.priceCreditCard NO se
+// toca — D-04: las columnas se conservan). Se carga al abrir el dialog.
+const cardSurchargeEnabled = ref(false);
+
+async function loadCardSurchargeRule() {
+  try {
+    cardSurchargeEnabled.value = await pricingApi.getCardSurchargeEnabled();
+  } catch (err: unknown) {
+    // Conservador: OFF ante error → esconder el campo que no pudimos confirmar.
+    cardSurchargeEnabled.value = false;
+    log.error('Error cargando la regla de recargo por tarjeta', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
 const submitting = ref(false);
 const programs = ref<Program[]>([]);
 const loadingPrograms = ref(false);
@@ -454,6 +473,8 @@ watch(
 
     // Load programs for the linked program dropdown
     loadPrograms();
+    // ALUM-03 / D-05: leer la regla para decidir si mostrar el campo Tarjeta.
+    void loadCardSurchargeRule();
 
     if (props.plan) {
       form.value = {
