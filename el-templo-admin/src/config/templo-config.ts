@@ -47,8 +47,19 @@ export const PAGOS_ROLES: AdminRole[] = ['coach', 'gestion', 'recepcion', 'admin
 /**
  * Deudas: Dueño + Templo override (coach + gestion). Mirrors COACH_DEBTS_ROLES
  * of the API (coach so profes can look up what to collect at the door).
+ * Governs access to the whole /deudas page (coach included).
  */
 export const DEUDAS_ROLES: AdminRole[] = ['coach', 'gestion', 'admin', 'owner'];
+
+/**
+ * Deudas detail tabs ("Por deuda" / "Vencidos"): Dueño + gestion, coach EXCLUDED
+ * (D-12). Mirrors CAJA_ROLES of the API (the reports plugin guard). The coach
+ * only sees "Por socio" (the minimal projection the coach endpoint exposes);
+ * the detail tabs are business management → gestion/admin/owner. This only HIDES
+ * the tabs — the real gate is the API (reports/outstanding-balances returns 403
+ * to coach, plan 153-01 + plugin guard). Do NOT rely on this for security (D-04).
+ */
+export const DEUDAS_DETAIL_ROLES: AdminRole[] = ['gestion', 'admin', 'owner'];
 
 /**
  * Reportes: Dueño + Templo override (gestion). Mirrors CAJA_ROLES of the API.
