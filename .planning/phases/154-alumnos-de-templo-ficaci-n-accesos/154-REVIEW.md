@@ -32,6 +32,12 @@ findings:
   info: 3
   total: 7
 status: issues_found
+warnings_resolved: 2026-07-04
+warnings_resolution:
+  WR-01: "resolved — 2a90cb2c"
+  WR-02: "resolved — c9423a18"
+  WR-03: "resolved — a1357207"
+  WR-04: "resolved — 6cb6860b (requiere verificación humana: cambio de lógica de negocio en renovaciones)"
 ---
 
 # Phase 154: Code Review Report
@@ -58,6 +64,8 @@ Los hallazgos son 4 warnings (una brecha de autorización en el GET de la settin
 
 ### WR-01: El GET de la setting de precios es legible por tokens de SOCIO (rol `member`), no solo staff
 
+**✅ Resuelto (commit `2a90cb2c`):** el hook `onRequest` del plugin ahora exige rol staff (`ALL_STAFF_ROLES`) → tokens de member reciben 403; PUT sigue owner-only. Test `f` agregado (GET con token de socio ⇒ 403).
+
 **File:** `el-templo-api/src/modules/settings/routes.ts:25-27`
 **Issue:** El hook del plugin solo hace `fastify.authenticate` (verifica JWT — `plugins/auth.ts:50-64` no chequea rol). Los JWT de la app de socios llevan `role: "member"` (`modules/auth/routes.ts:287`), así que cualquier socio logueado puede leer `GET /api/admin/settings/pricing/card-surcharge`. Esto contradice el modelo de acceso documentado en el propio archivo ("readable by ANY authenticated staff") y el patrón del repo: los plugins hermanos bajo `/api/admin/*` gatean por rol en el hook (p.ej. `users/routes.ts:26-34`, coach-load con `FINANCE_LOAD_ROLES`). Hoy el dato filtrado es un boolean inocuo, pero cualquier setting futura agregada a este plugin hereda la lectura member-accessible — el riesgo es el patrón, no el dato actual. Además, el test de settings prueba GET con coach (caso e) pero no con token de member, así que el gap no está blindado.
 **Fix:**
@@ -80,6 +88,8 @@ Y agregar un caso de test: GET con token de member ⇒ 403.
 
 ### WR-02: `getPricingPreview` bypasea `resolvePriceType` — el preview puede mostrar el precio de tarjeta con la regla OFF
 
+**✅ Resuelto (commit `c9423a18`):** el preview ahora resuelve `priceType` vía `resolvePriceType` antes de `getBasePrice`, alineándolo con el cobro real. Tests agregados (regla OFF ⇒ credit_card cae a regular; regla ON ⇒ usa priceCreditCard).
+
 **File:** `el-templo-api/src/modules/subscriptions/service.ts:3903-3924`
 **Issue:** El docstring de `resolvePriceType` lo declara "the single server-side point of truth", pero `getPricingPreview` llama `this.getBasePrice(plan, priceType)` con el `priceType` crudo del cliente (línea 3924, expuesto vía `GET /members/:userId/subscription/pricing-preview`, consumido por AssignPlanDialog). Con la regla OFF, un request con `priceType=credit_card` devuelve `basePrice = priceCreditCard`, mientras el `assignPlan` posterior cobrará `priceRegular` — el preview y el cobro real divergen. Hoy la UI esconde la opción tarjeta con la regla OFF, así que el path normal no lo dispara; pero queda alcanzable por llamada directa, por una UI con la regla cacheada stale, o por el race de fetch (el owner apaga la regla mientras un admin tiene el dialog abierto con tarjeta seleccionada). En El Templo (regla ON por 0166) no hay impacto, pero para white-label el "punto único" queda con un agujero declarado inexistente.
 **Fix:**
@@ -98,6 +108,8 @@ async getPricingPreview(
 
 ### WR-03: El watch que autocalcula `amount` en CobrosPage no depende de `cardSurchargeEnabled` — monto stale si la regla llega después de elegir plan+tarjeta
 
+**✅ Resuelto (commit `a1357207`):** `cardSurchargeEnabled` agregado a las dependencias del watch → el monto se recalcula cuando la regla resuelve async.
+
 **File:** `el-templo-admin/src/pages/CobrosPage.vue:1321-1326` (watch), `1262` (ref), `1452/1484` (submit `amountReceived: amount.value`)
 **Issue:** `amount` se setea solo dentro de `watch([selectedPlan, paymentMethod, zeroPrice], ...)` leyendo `altaPrice` (que sí depende de `cardSurchargeEnabled` vía `getBasePriceFor`). `cardSurchargeEnabled` arranca en `false` y se resuelve async en `onMounted`. Si el fetch de la regla resuelve DESPUÉS de que el profe eligió plan + método `card` (red lenta, retry), `amount` queda calculado con precio regular y NO se recalcula cuando la regla llega en ON. Ese `amount` viaja como `amountReceived` al alta: el server (gate ON) fija `chargeBase = priceCreditCard` y el cobro queda PARCIAL — el socio nace con deuda fantasma por la diferencia del recargo. La UI incluso mostraría la diferencia como deuda (línea 493 usa `altaPrice` reactivo contra el `amount` congelado), lo que confirma la inconsistencia interna. Ventana chica (el fetch corre al montar), pero el fix es de una línea.
 **Fix:**
@@ -112,6 +124,8 @@ watch([selectedPlan, paymentMethod, zeroPrice, cardSurchargeEnabled], () => {
 ```
 
 ### WR-04: La regla OFF no alcanza a las renovaciones — el precio con recargo heredado se perpetúa vía `renewSubscription`
+
+**✅ Resuelto (commit `6cb6860b`) — requiere verificación humana:** `renewSubscription` ahora normaliza el `priceTypeApplied` heredado vía `resolvePriceType` (solo cuando no hay override explícito de la renovación). Con la regla OFF, un `credit_card` heredado renueva como `regular` al precio regular vigente del plan; con la regla ON (El Templo) el comportamiento es idéntico (identidad). Tests agregados (renovación OFF normaliza; ON conserva). **Cambio de lógica de negocio — confirmar la decisión de negocio (fijada aquí como "la regla OFF también normaliza renovaciones") antes de la fase de verificación.**
 
 **File:** `el-templo-api/src/modules/subscriptions/service.ts:3508-3517`
 **Issue:** `renewSubscription` hereda `renewalPrice = currentSub.pricePaid` y el `priceTypeApplied` de la sub anterior (diseño intencional post-caso Pomilio, para arrastrar overrides). Consecuencia no contemplada por ALUM-03: en una instalación que tuvo la regla ON y la apaga, todo socio asignado con `credit_card` sigue pagando el precio CON recargo en cada renovación, indefinidamente, y su `priceTypeApplied` persiste como `credit_card` — exactamente el estado que `resolvePriceType` promete impedir para altas/cambios. "Tarjeta deja de usar priceCreditCard" (D-03) se cumple solo para subs nuevas. Sin impacto en El Templo (regla ON), pero es una brecha real del requirement para el caso white-label que motiva la fase, y no hay test ni documentación que fije la decisión.
