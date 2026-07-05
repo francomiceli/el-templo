@@ -4021,14 +4021,14 @@ Plans:
 3. Un plan puede dar acceso a **varios programas seleccionados** (además del "todos los programas" existente). (PLAN-03)
 4. **Actualizar el precio** de un plan (inflación) **no requiere crear un plan nuevo ni altera los montos históricos** ya cobrados, comportamiento **garantizado con test**. (PLAN-04)
 
-**Plans:** 1/5 plans executed
+**Plans:** 2/5 plans executed
 
 Plans:
 
 **Wave 1**
 
 - [x] 156-01-PLAN.md — Backend: precio Zero a config (settings key + gate en resolvePriceType + boarding pass + migración 0168 + tests) [PLAN-02]
-- [ ] 156-04-PLAN.md — Admin: renames (Planes de pago / Rutinas de entrenamiento) + flag de superficie de rutinas [PLAN-01]
+- [x] 156-04-PLAN.md — Admin: renames (Planes de pago / Rutinas de entrenamiento) + flag de superficie de rutinas [PLAN-01]
 
 **Wave 2** _(blocked on Wave 1 completion)_
 
@@ -4051,7 +4051,7 @@ Plans:
 | 153. Mejoras de Deudas                          | 4/4            | Complete    | 2026-07-04 |
 | 154. Alumnos (de-Templo-ficación + accesos)     | 5/5            | Complete    | 2026-07-04 |
 | 155. Horarios                                   | 4/4            | Complete    | 2026-07-05 |
-| 156. Planes de pago vs Rutinas de entrenamiento | 1/5            | In Progress |            |
+| 156. Planes de pago vs Rutinas de entrenamiento | 2/5            | In Progress |            |
 
 _Plan counts populated by `/gsd-plan-phase`._
 
