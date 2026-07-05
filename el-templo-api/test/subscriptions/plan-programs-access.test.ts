@@ -423,4 +423,86 @@ describe("Multi-program access via list (Phase 156-03 PLAN-03 / D-07)", () => {
       .where(eq(subscriptions.id, targetSubId));
     expect(targetSub.status).toBe("expired");
   });
+
+  // ─── Test 8: WR-01 — renewal re-grants the LIST even with linked in-flight ──
+
+  it("renewal grants the plan's LIST even when the linked enrollment is in-flight, without resetting the linked progress (WR-01)", async () => {
+    const linked = await createTestProgram({
+      name: "Programa Vinculado",
+      goalPlanType: "tren_superior",
+    });
+    const listProg = await createTestProgram({
+      name: "Programa de la Lista",
+      goalPlanType: "piernas_gluteos",
+    });
+
+    // Plan con linkedProgramId + lista: al asignar, ambos quedan activos.
+    const plan = await createPlan(app, adminToken, {
+      name: "Plan linked + lista (WR-01)",
+      planCategory: "online_regular",
+      linkedProgramId: linked,
+      programIds: [listProg],
+    });
+    const member = await createMember(app);
+
+    const assignRes = await assignPlan(app, adminToken, member.id as number, {
+      planId: plan.id,
+    });
+    expect(assignRes.statusCode).toBe(201);
+    expect(await activeProgramIds(member.id as number)).toEqual(
+      [linked, listProg].sort((a, b) => a - b),
+    );
+
+    // Simular progreso en curso del linked (currentWeek=3) — debe preservarse.
+    await app.db
+      .update(programEnrollments)
+      .set({ currentWeek: 3, sessionsCompletedThisWeek: 2 })
+      .where(
+        and(
+          eq(programEnrollments.userId, member.id as number),
+          eq(programEnrollments.programId, linked),
+        ),
+      );
+
+    // Simular que la inscripción de la LISTA se completó/canceló (ya no activa):
+    // antes del fix, la renovación con linked activo saltaba enrollFromPlan por
+    // completo y NUNCA re-otorgaba la lista.
+    await app.db
+      .update(programEnrollments)
+      .set({ status: "completed" })
+      .where(
+        and(
+          eq(programEnrollments.userId, member.id as number),
+          eq(programEnrollments.programId, listProg),
+        ),
+      );
+    expect(await activeProgramIds(member.id as number)).toEqual([linked]);
+
+    // Renovar: el linked sigue in-flight → shouldEnrollLinked=false, pero la
+    // lista debe otorgarse igual (enrollFromPlan corre con linkedProgramId=null).
+    const renewRes = await app.inject({
+      method: "POST",
+      url: `${SUBSCRIPTIONS_URL}/members/${member.id}/subscription/renew`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: { paymentMethod: "cash", amountReceived: 0 },
+    });
+    expect(renewRes.statusCode).toBe(201);
+
+    // La lista se re-otorgó Y el linked conserva su progreso (no se reseteó).
+    expect(await activeProgramIds(member.id as number)).toEqual(
+      [linked, listProg].sort((a, b) => a - b),
+    );
+    const [linkedEnrollment] = await app.db
+      .select()
+      .from(programEnrollments)
+      .where(
+        and(
+          eq(programEnrollments.userId, member.id as number),
+          eq(programEnrollments.programId, linked),
+          eq(programEnrollments.status, "active"),
+        ),
+      );
+    expect(linkedEnrollment.currentWeek).toBe(3);
+    expect(linkedEnrollment.sessionsCompletedThisWeek).toBe(2);
+  });
 });

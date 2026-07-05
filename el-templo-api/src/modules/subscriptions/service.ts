@@ -3863,7 +3863,7 @@ export class SubscriptionService {
         plan.grantsAllPrograms ||
         renewPlanProgramIds.length > 0
       ) {
-        let shouldEnroll = true;
+        let shouldEnrollLinked = true;
         if (plan.linkedProgramId) {
           const existingEnrollment = await tx
             .select({ id: schema.programEnrollments.id })
@@ -3875,21 +3875,26 @@ export class SubscriptionService {
                 eq(schema.programEnrollments.status, "active"),
               ),
             );
-          shouldEnroll = existingEnrollment.length === 0;
+          shouldEnrollLinked = existingEnrollment.length === 0;
         }
-        if (shouldEnroll) {
-          await this.requireEnrollmentService().enrollFromPlan(
-            userId,
-            {
-              id: plan.id,
-              linkedProgramId: plan.linkedProgramId,
-              grantsAllPrograms: plan.grantsAllPrograms,
-              programIds: renewPlanProgramIds,
-            },
-            subId,
-            tx,
-          );
-        }
+        // WR-01 (156): separar la protección del linked de la ejecución del
+        // resto. Antes, cuando shouldEnrollLinked=false (inscripción linked en
+        // curso), NO se llamaba a enrollFromPlan en absoluto → los programas de
+        // la LISTA (grantsAll / programIds) nunca se otorgaban. Ahora llamamos
+        // siempre, anulando SOLO el linked cuando ya hay una inscripción activa
+        // (su branch es cancel-then-insert; con null se saltea y preserva
+        // currentWeek). La lista dedupea dentro de enrollFromPlan → no-op seguro.
+        await this.requireEnrollmentService().enrollFromPlan(
+          userId,
+          {
+            id: plan.id,
+            linkedProgramId: shouldEnrollLinked ? plan.linkedProgramId : null,
+            grantsAllPrograms: plan.grantsAllPrograms,
+            programIds: renewPlanProgramIds,
+          },
+          subId,
+          tx,
+        );
       }
 
       // ── Recompute user.status (R5/D-01) ──
@@ -4316,7 +4321,7 @@ export class SubscriptionService {
       newPlan.grantsAllPrograms ||
       newPlanProgramIds.length > 0
     ) {
-      let shouldEnroll = true;
+      let shouldEnrollLinked = true;
       if (newPlan.linkedProgramId) {
         const existing = await this.db
           .select({ id: schema.programEnrollments.id })
@@ -4329,20 +4334,22 @@ export class SubscriptionService {
             ),
           )
           .limit(1);
-        shouldEnroll = existing.length === 0;
+        shouldEnrollLinked = existing.length === 0;
       }
-      if (shouldEnroll) {
-        await this.requireEnrollmentService().enrollFromPlan(
-          scheduled.userId,
-          {
-            id: newPlan.id,
-            linkedProgramId: newPlan.linkedProgramId,
-            grantsAllPrograms: newPlan.grantsAllPrograms,
-            programIds: newPlanProgramIds,
-          },
-          scheduled.id,
-        );
-      }
+      // WR-01 (156): llamar siempre a enrollFromPlan para que el grant por LISTA
+      // (grantsAll / programIds) corra aunque haya una inscripción linked en
+      // curso; anular SOLO el linked en ese caso (branch cancel-then-insert →
+      // con null preserva currentWeek). La lista dedupea → no-op seguro.
+      await this.requireEnrollmentService().enrollFromPlan(
+        scheduled.userId,
+        {
+          id: newPlan.id,
+          linkedProgramId: shouldEnrollLinked ? newPlan.linkedProgramId : null,
+          grantsAllPrograms: newPlan.grantsAllPrograms,
+          programIds: newPlanProgramIds,
+        },
+        scheduled.id,
+      );
     }
 
     // Migrate member branch if currently on virtual branch
