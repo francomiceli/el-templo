@@ -268,7 +268,9 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
 import type { QForm } from 'quasar';
+import { useQuasar } from 'quasar';
 import { createLogger } from 'src/utils/logger';
+import { extractError, isExpectedClientError } from 'src/utils/extract-error';
 import { useSubscriptionsApi } from 'src/composables/useSubscriptionsApi';
 import { useProgramsApi } from 'src/composables/useProgramsApi';
 import { usePricingSettingsApi } from 'src/composables/usePricingSettingsApi';
@@ -286,6 +288,7 @@ import type { Program } from 'src/types/program';
 import { TEMPLO_TRAINING_ROUTINES } from 'src/config/templo-config';
 
 const log = createLogger('PlanFormDialog');
+const $q = useQuasar();
 
 // D-08: la superficie de rutinas gatea el multi-select de programas — un
 // white-label sin rutinas no ve el selector (per-instalación, 156-04).
@@ -638,8 +641,14 @@ async function onSubmit() {
     emit('saved');
     emit('update:modelValue', false);
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Error desconocido';
-    log.error('Error saving plan', { error: message });
+    // WR-03 (156): notificar el error del server en vez de tragarlo. Esta fase
+    // agregó rechazos 400 nuevos (programIds inválidos/no otorgables, invariante
+    // online) que ahora son probables en uso normal; el dialog quedaba abierto
+    // sin señal. Mismo patrón que AssignPlanDialog.
+    const message = extractError(err, 'Error guardando el plan');
+    if (isExpectedClientError(err)) log.warn('Plan save rejected', { error: message });
+    else log.error('Error saving plan', { error: message });
+    $q.notify({ type: 'negative', message, timeout: 5000 });
   } finally {
     submitting.value = false;
   }
