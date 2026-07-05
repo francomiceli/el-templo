@@ -396,6 +396,7 @@
                     </div>
 
                     <q-toggle
+                      v-if="zeroPriceEnabled"
                       v-model="zeroPrice"
                       label="Precio Zero"
                       color="positive"
@@ -1261,6 +1262,11 @@ const altaCurrencySymbol = computed(() => (altaCurrency.value === 'EUR' ? '€' 
 // mantiene consistente con el server. Se inicializa en onMounted.
 const cardSurchargeEnabled = ref(false);
 
+// D-05: regla de Precio Zero. Default conservador OFF: con la regla apagada se
+// esconde el toggle Zero (el server ya normaliza zero→regular — 156-01). Con el
+// toggle oculto, `zeroPrice` queda en false y el payload viaja `zero:false`.
+const zeroPriceEnabled = ref(false);
+
 function getBasePriceFor(plan: PlanListItem, method: LoadPaymentMethod, zero: boolean): number {
   if (method === 'card' && cardSurchargeEnabled.value) {
     return plan.priceCreditCard ?? plan.priceRegular;
@@ -1626,6 +1632,19 @@ async function loadCardSurchargeRule() {
   }
 }
 
+// D-05: cargar la regla de Precio Zero (default OFF si falla → esconde el toggle).
+async function loadZeroPriceRule() {
+  try {
+    zeroPriceEnabled.value = await pricingApi.getZeroPriceEnabled();
+  } catch (err: unknown) {
+    // Conservador: OFF ante error → no ofrecer una opción que no pudimos confirmar.
+    zeroPriceEnabled.value = false;
+    log.error('Error cargando la regla de Precio Zero', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
 // ALUM-02 / D-02: deep-link `/cobros?memberId={id}`. Preselecciona el socio y
 // entra al paso Socio del wizard. Un id inexistente/ajeno → toast + flujo normal
 // (no rompe la página; searchMembers/getMember ya están scoped server-side).
@@ -1656,6 +1675,7 @@ async function applyMemberDeepLink() {
 
 onMounted(() => {
   void loadCardSurchargeRule();
+  void loadZeroPriceRule();
   void applyMemberDeepLink();
 });
 

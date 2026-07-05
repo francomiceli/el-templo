@@ -912,6 +912,23 @@ async function loadCardSurchargeRule() {
   }
 }
 
+// D-05: regla de Precio Zero. Default conservador OFF: con la regla apagada no
+// se ofrece la opción "Zero" (consistente con el server, que ya normaliza
+// zero→regular — plan 156-01). Se carga al abrir el dialog.
+const zeroPriceEnabled = ref(false);
+
+async function loadZeroPriceRule() {
+  try {
+    zeroPriceEnabled.value = await pricingApi.getZeroPriceEnabled();
+  } catch (err: unknown) {
+    // Conservador: OFF ante error → no ofrecer una opción que no pudimos confirmar.
+    zeroPriceEnabled.value = false;
+    log.error('Error cargando la regla de Precio Zero', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
 // =========================================================================
 // Props & Emits
 // =========================================================================
@@ -1223,10 +1240,12 @@ const plansByTier = computed((): TierGroup[] => {
 });
 
 const priceTypeOptions = computed(() => {
-  const opts = [
-    { label: PRICE_TYPE_LABELS.regular, value: 'regular' as PriceType },
-    { label: PRICE_TYPE_LABELS.zero, value: 'zero' as PriceType },
-  ];
+  const opts = [{ label: PRICE_TYPE_LABELS.regular, value: 'regular' as PriceType }];
+  // D-05: la opción Zero solo se ofrece con la regla prendida (simétrico a la de
+  // tarjeta). El server ya normaliza zero→regular con la regla OFF (156-01).
+  if (zeroPriceEnabled.value) {
+    opts.push({ label: PRICE_TYPE_LABELS.zero, value: 'zero' as PriceType });
+  }
   if (
     cardSurchargeEnabled.value &&
     selectedPlan.value?.priceCreditCard !== null &&
@@ -1734,6 +1753,7 @@ watch(
       pendingMiscItems.value = [];
       void loadPendingMisc();
       void loadCardSurchargeRule();
+      void loadZeroPriceRule();
       loadPlans();
     }
   },
