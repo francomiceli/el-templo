@@ -13,6 +13,7 @@ import * as schema from "../../db/schema";
 import { resolveMonthRange, computePriorPeriod } from "../shared/date-utils";
 import { activeMemberExists } from "../shared/active-member";
 import { firmMoneySqlFor } from "../finance/firm-money";
+import { resolveEffectiveCapacity } from "../scheduling/capacity";
 import { applyScope } from "./scope";
 import type {
   KpiStats,
@@ -837,7 +838,14 @@ export class AnalyticsService {
     );
     const weeksInPeriod = Math.max(1, totalDays / 7);
 
-    // Get branch capacity for normalization
+    // Get branch capacity for normalization.
+    // Phase 155 (WR-03, deferred): the heatmap is an AGGREGATE per (dayOfWeek,
+    // hour) over walk-in attendance, not per-slot — with simultaneous classes a
+    // single hour can span several slots each with its own effective cap. A
+    // faithful denominator would sum the effective caps of the slots active in
+    // that franja; that's a heatmap-shaped change out of scope here. The
+    // per-slot fix (WR-03) lands in getSlotOccupancy below; this stays
+    // normalized by the branch cap until a follow-up phase revisits it.
     let maxCapacity = 22; // default
     if (branchId !== undefined) {
       const [branch] = await this.db
@@ -937,6 +945,10 @@ export class AnalyticsService {
       .select({
         scheduleId: schema.schedules.id,
         activityName: schema.activities.name,
+        // Phase 155 (WR-03): per-slot effective cap = activity ?? branch. Since
+        // HOR-03 an activity can carry its own cap; normalizing by the branch
+        // cap alone under-reports occupancy for those slots (8/8 read as 8/22).
+        activityMaxCapacity: schema.activities.maxCapacity,
         dayOfWeek: schema.schedules.dayOfWeek,
         startTime: schema.schedules.startTime,
         totalBookings: sql<number>`COUNT(${schema.bookings.id})`,
@@ -958,15 +970,22 @@ export class AnalyticsService {
       .groupBy(
         schema.schedules.id,
         schema.activities.name,
+        schema.activities.maxCapacity,
         schema.schedules.dayOfWeek,
         schema.schedules.startTime,
       );
 
     return rows.map((r) => {
       const avgPerWeek = Number(r.totalBookings) / weeksInPeriod;
+      // Denominator = effective cap of THIS slot (activity ?? branch), shared
+      // with the booking/grid resolution helper to avoid metric drift (WR-03).
+      const slotCapacity = resolveEffectiveCapacity(
+        r.activityMaxCapacity,
+        maxCapacity,
+      );
       const occupancy = Math.min(
         100,
-        Math.round((avgPerWeek / maxCapacity) * 100),
+        Math.round((avgPerWeek / slotCapacity) * 100),
       );
 
       return {
