@@ -159,6 +159,19 @@ describe("Phase 155: horarios — simultaneidad + cupo efectivo + ABM cupo", () 
     return { statusCode: res.statusCode, body: JSON.parse(res.body) };
   }
 
+  async function toggleSchedule(
+    scheduleId: number,
+    isActive: boolean,
+  ): Promise<{ statusCode: number; body: unknown }> {
+    const res = await app.inject({
+      method: "PUT",
+      url: `${ADMIN_URL}/schedules/${scheduleId}/toggle`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: { isActive },
+    });
+    return { statusCode: res.statusCode, body: JSON.parse(res.body) };
+  }
+
   async function createPlan(): Promise<{ id: number }> {
     const res = await app.inject({
       method: "POST",
@@ -325,6 +338,39 @@ describe("Phase 155: horarios — simultaneidad + cupo efectivo + ABM cupo", () 
       // a la misma hora (gap cerrado en 155-01).
       const patch = await patchSlotActivity(slotMuscId, yoga.id);
       expect(patch.statusCode).toBe(409);
+    });
+
+    it("rechaza reactivar un slot cuya ventana fue tomada por otro de la misma actividad (409)", async () => {
+      const activity = await createActivity("Musculacion");
+
+      // (1) Slot A activo. (2) Se desactiva → libera la ventana.
+      const slotA = await postSchedule(activity.id, 1, "10:00", "11:00");
+      expect(slotA.statusCode).toBe(201);
+      const slotAId = (slotA.body as { id: number }).id;
+
+      const off = await toggleSchedule(slotAId, false);
+      expect(off.statusCode).toBe(200);
+
+      // (3) Slot B misma actividad/hora — pasa porque A está inactivo.
+      const slotB = await postSchedule(activity.id, 1, "10:00", "11:00");
+      expect(slotB.statusCode).toBe(201);
+
+      // (4) Reactivar A ahora colisionaría con B → 409 (gap WR-01).
+      const on = await toggleSchedule(slotAId, true);
+      expect(on.statusCode).toBe(409);
+    });
+
+    it("permite reactivar un slot cuando la ventana sigue libre (200)", async () => {
+      const activity = await createActivity("Musculacion");
+      const slotA = await postSchedule(activity.id, 1, "10:00", "11:00");
+      expect(slotA.statusCode).toBe(201);
+      const slotAId = (slotA.body as { id: number }).id;
+
+      const off = await toggleSchedule(slotAId, false);
+      expect(off.statusCode).toBe(200);
+      // Sin slot que ocupe la ventana → la reactivación no colisiona.
+      const on = await toggleSchedule(slotAId, true);
+      expect(on.statusCode).toBe(200);
     });
   });
 

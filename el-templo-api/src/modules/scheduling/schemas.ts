@@ -313,6 +313,9 @@ export const toggleScheduleSchema = {
       },
     },
     404: errorSchema,
+    // Phase 155 (WR-01): reactivation re-runs the activity-scoped overlap check
+    // and can reject with 409 if the freed window was taken by another slot.
+    409: errorSchema,
   },
 };
 

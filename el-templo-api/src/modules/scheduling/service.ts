@@ -474,6 +474,29 @@ export class SchedulingService {
     const existing = await this.getScheduleSlot(scheduleId);
     if (!existing) throw new NotFoundError("Horario no encontrado");
 
+    // Phase 155 (WR-01, D-01): reactivation must re-run the activity-scoped
+    // overlap probe. findOverlappingSchedule excludes inactive slots, so a
+    // window freed by deactivating A can be taken by a new same-activity slot B
+    // (createSchedule allows it while A is inactive); blindly reactivating A
+    // would then leave two ACTIVE overlapping slots of the same activity,
+    // violating the invariant createSchedule/updateScheduleActivity enforce.
+    // Deactivation needs no check.
+    if (isActive && !existing.isActive) {
+      const overlapping = await this.findOverlappingSchedule({
+        branchId: existing.branchId,
+        dayOfWeek: existing.dayOfWeek,
+        activityId: existing.activityId,
+        startTime: existing.startTime,
+        endTime: existing.endTime,
+        excludeScheduleId: scheduleId,
+      });
+      if (overlapping) {
+        throw new ConflictError(
+          `No se puede reactivar: se solapa con un horario de la misma actividad ${overlapping.startTime}-${overlapping.endTime}`,
+        );
+      }
+    }
+
     const reasonValue: string | null = isActive
       ? null
       : inactiveReason?.trim() || null;
