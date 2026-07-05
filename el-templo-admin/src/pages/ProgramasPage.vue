@@ -4,8 +4,8 @@
     <!-- Page Header -->
     <!-- ================================================================== -->
     <div class="row items-center q-mb-lg">
-      <div class="text-h5 col">Programas</div>
-      <q-btn icon="add" label="Nuevo Programa" color="primary" @click="openCreateDialog" />
+      <div class="text-h5 col">Rutinas de entrenamiento</div>
+      <q-btn icon="add" label="Nueva rutina" color="primary" @click="openCreateDialog" />
     </div>
 
     <!-- ================================================================== -->
