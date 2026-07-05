@@ -4025,10 +4025,18 @@ Plans:
 
 Plans:
 
+**Wave 1**
+
 - [ ] 156-01-PLAN.md — Backend: precio Zero a config (settings key + gate en resolvePriceType + boarding pass + migración 0168 + tests) [PLAN-02]
-- [ ] 156-02-PLAN.md — Backend: tabla join plan_programs + CRUD programIds + migración 0169 + test regresión de precios [PLAN-03, PLAN-04]
-- [ ] 156-03-PLAN.md — Backend: resolución de acceso all→lista→nada + filtro Foundation + teardown + tests [PLAN-03]
 - [ ] 156-04-PLAN.md — Admin: renames (Planes de pago / Rutinas de entrenamiento) + flag de superficie de rutinas [PLAN-01]
+
+**Wave 2** _(blocked on Wave 1 completion)_
+
+- [ ] 156-02-PLAN.md — Backend: tabla join plan_programs + CRUD programIds + migración 0169 + test regresión de precios [PLAN-03, PLAN-04]
+
+**Wave 3** _(blocked on Wave 2 completion)_
+
+- [ ] 156-03-PLAN.md — Backend: resolución de acceso all→lista→nada + filtro Foundation + teardown + tests [PLAN-03]
 - [ ] 156-05-PLAN.md — Admin: toggle Zero en /configuracion/precios + gates Zero + multi-select de programas [PLAN-02, PLAN-03]
       **UI hint:** yes
 
