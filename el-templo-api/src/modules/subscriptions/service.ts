@@ -1070,13 +1070,18 @@ export class SubscriptionService {
       priceOverrideAmount = input.priceOverrideAmount;
       priceOverrideReason = input.priceOverrideReason;
     }
-    // Boarding pass
+    // Boarding pass — un regalo one-shot que aplica el precio Zero. Con la regla
+    // Zero OFF (white-label / 156 D-04) el tipo se rutea por resolvePriceType
+    // (segundo pase) y normaliza a 'regular'; pricePaid se recalcula con
+    // getBasePrice para no persistir un tipo con un monto inconsistente (el drift
+    // que PATTERNS previene). Con la regla ON el resultado sigue siendo 'zero' +
+    // priceZero, idéntico al comportamiento actual de prod (T-156-03).
     else if (input.boardingPass) {
       if (member.boardingPassUsed) {
         throw new ConflictError("El boarding pass ya fue utilizado");
       }
-      pricePaid = plan.priceZero;
-      priceTypeApplied = "zero";
+      priceTypeApplied = await this.resolvePriceType("zero");
+      pricePaid = this.getBasePrice(plan, priceTypeApplied);
       boardingPassUsed = true;
 
       // Mark boarding pass as used on the user
@@ -4270,21 +4275,46 @@ export class SubscriptionService {
    * UI may hide the card option, but the security lives here (149 D-04).
    *
    * Reuses SettingsService from plan 154-01 (the single reader of the canonical
-   * key) — no inline select. `zero` / `regular` are returned unchanged and the
-   * rule never touches them.
+   * keys) — no inline select.
+   *
+   * Phase 156 (PLAN-02 / D-04) adds the symmetric `zero` branch: when the Zero
+   * price rule (`pricing.zero_price_enabled`) is OFF, `zero` normalizes to
+   * `regular` here too, so a white-label install without the Zero price never
+   * persists `zero` (covers assign/change/renew/preview/PoS and the boarding
+   * pass — routed through this method — at the single point of truth). With the
+   * rule ON (El Templo seed) the resolution is identity and nothing changes.
+   * `regular` is always returned unchanged.
    */
   private async resolvePriceType(priceType: PriceType): Promise<PriceType> {
-    if (priceType !== "credit_card") return priceType;
-
     const settingsService = new SettingsService(this.db, this.log);
-    const surchargeEnabled = await settingsService.getCardSurchargeEnabled();
-    if (surchargeEnabled) return priceType;
 
-    this.log.info(
-      { rule: PRICING_SETTINGS_KEYS.cardSurcharge },
-      "card-surcharge rule OFF — normalizing credit_card price type to regular",
-    );
-    return "regular";
+    // credit_card → regular when the surcharge rule is OFF (154 D-04).
+    if (priceType === "credit_card") {
+      const surchargeEnabled = await settingsService.getCardSurchargeEnabled();
+      if (surchargeEnabled) return priceType;
+
+      this.log.info(
+        { rule: PRICING_SETTINGS_KEYS.cardSurcharge },
+        "card-surcharge rule OFF — normalizing credit_card price type to regular",
+      );
+      return "regular";
+    }
+
+    // zero → regular when the Zero price rule is OFF (156 D-04). Symmetric to the
+    // card-surcharge gate: the persisted value stays 'regular' so the amount
+    // (getBasePrice) matches — no drift.
+    if (priceType === "zero") {
+      const zeroEnabled = await settingsService.getZeroPriceEnabled();
+      if (zeroEnabled) return priceType;
+
+      this.log.info(
+        { rule: PRICING_SETTINGS_KEYS.zeroPrice },
+        "zero-price rule OFF — normalizing zero price type to regular",
+      );
+      return "regular";
+    }
+
+    return priceType;
   }
 
   /**
