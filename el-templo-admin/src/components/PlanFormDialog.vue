@@ -84,7 +84,7 @@
                 :rules="[requiredNumberRule('Precio regular')]"
               />
             </div>
-            <div class="col-12 col-sm-4">
+            <div v-if="zeroPriceEnabled" class="col-12 col-sm-4">
               <q-input
                 v-model.number="form.priceZero"
                 label="Zero *"
@@ -208,6 +208,24 @@
                 vigencia del plan
               </div>
             </div>
+
+            <!-- Multi-select de programas (PLAN-03, D-08): visible solo cuando el -->
+            <!-- plan NO da acceso a todos Y la superficie de rutinas está ON. -->
+            <div v-if="trainingRoutinesEnabled && !form.grantsAllPrograms" class="q-mt-md">
+              <q-select
+                v-model="form.programIds"
+                :options="multiProgramOptions"
+                label="Programas incluidos"
+                dense
+                outlined
+                multiple
+                use-chips
+                emit-value
+                map-options
+                :loading="loadingPrograms"
+                hint="Da acceso solo a los programas seleccionados (además del vinculado)"
+              />
+            </div>
           </div>
 
           <!-- Opciones -->
@@ -265,8 +283,13 @@ import {
   type PlanCategory,
 } from 'src/types/subscription';
 import type { Program } from 'src/types/program';
+import { TEMPLO_TRAINING_ROUTINES } from 'src/config/templo-config';
 
 const log = createLogger('PlanFormDialog');
+
+// D-08: la superficie de rutinas gatea el multi-select de programas — un
+// white-label sin rutinas no ve el selector (per-instalación, 156-04).
+const trainingRoutinesEnabled = TEMPLO_TRAINING_ROUTINES;
 
 // =========================================================================
 // Country / Currency options (D-06, D-08)
@@ -318,6 +341,23 @@ async function loadCardSurchargeRule() {
     });
   }
 }
+
+// D-05: regla de Precio Zero. Con la regla OFF se esconde el campo `priceZero`
+// (el valor persistido NO se toca — D-04: las columnas se conservan). Con el
+// campo oculto, onSubmit defaultea priceZero para satisfacer el POST del API.
+const zeroPriceEnabled = ref(false);
+
+async function loadZeroPriceRule() {
+  try {
+    zeroPriceEnabled.value = await pricingApi.getZeroPriceEnabled();
+  } catch (err: unknown) {
+    // Conservador: OFF ante error → esconder el campo que no pudimos confirmar.
+    zeroPriceEnabled.value = false;
+    log.error('Error cargando la regla de Precio Zero', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
 const submitting = ref(false);
 const programs = ref<Program[]>([]);
 const loadingPrograms = ref(false);
@@ -338,6 +378,7 @@ const form = ref({
   classesPerWeek: null as number | null,
   linkedProgramId: null as number | null,
   grantsAllPrograms: false,
+  programIds: [] as number[],
   multiBranch: false,
   isTrial: false,
   isGroup: false,
@@ -359,6 +400,18 @@ const weeklyPrice = computed(() =>
 const programOptions = computed(() =>
   programs.value
     .filter((p) => p.isActive)
+    .map((p) => ({
+      label: `${p.name} (${p.durationWeeks} sem)`,
+      value: p.id,
+    }))
+);
+
+// Multi-select de programas (PLAN-03, D-08): mismas opciones que el vinculado
+// pero excluye Foundation — la exclusión anti-piratería del bundle (fase 104)
+// se replica acá para coherencia con el filtro server-side (156-03).
+const multiProgramOptions = computed(() =>
+  programs.value
+    .filter((p) => p.isActive && p.name !== FOUNDATION_PROGRAM_NAME)
     .map((p) => ({
       label: `${p.name} (${p.durationWeeks} sem)`,
       value: p.id,
@@ -458,6 +511,8 @@ watch(
   (next) => {
     if (next) {
       form.value.linkedProgramId = null;
+      // La lista se ignora con all=true (D-06) — limpiarla al prender 'todos'.
+      form.value.programIds = [];
     }
   }
 );
@@ -473,8 +528,9 @@ watch(
 
     // Load programs for the linked program dropdown
     loadPrograms();
-    // ALUM-03 / D-05: leer la regla para decidir si mostrar el campo Tarjeta.
+    // ALUM-03 / D-05: leer las reglas para decidir si mostrar Tarjeta / Zero.
     void loadCardSurchargeRule();
+    void loadZeroPriceRule();
 
     if (props.plan) {
       form.value = {
@@ -490,6 +546,7 @@ watch(
         classesPerWeek: props.plan.classesPerWeek,
         linkedProgramId: props.plan.linkedProgramId,
         grantsAllPrograms: props.plan.grantsAllPrograms ?? false,
+        programIds: props.plan.programIds ?? [],
         multiBranch: props.plan.multiBranch,
         isTrial: props.plan.isTrial,
         isGroup: props.plan.isGroup,
@@ -511,6 +568,7 @@ watch(
         classesPerWeek: null,
         linkedProgramId: null,
         grantsAllPrograms: false,
+        programIds: [],
         multiBranch: false,
         isTrial: false,
         isGroup: false,
@@ -543,7 +601,12 @@ async function onSubmit() {
           ? form.value.bookingMode
           : ('flexible' as BookingMode),
       priceRegular: form.value.priceRegular!,
-      priceZero: form.value.priceZero!,
+      // D-05: con la regla Zero OFF el campo está oculto y no se valida — el POST
+      // del API igual exige priceZero, así que defaulteamos al valor persistido
+      // (edit) o al precio regular (create) para no romper el schema.
+      priceZero: zeroPriceEnabled.value
+        ? form.value.priceZero!
+        : (form.value.priceZero ?? form.value.priceRegular ?? 0),
       priceCreditCard: form.value.priceCreditCard ?? undefined,
       durationDays: form.value.durationDays!,
       classesPerWeek:
@@ -555,6 +618,9 @@ async function onSubmit() {
         : (form.value.linkedProgramId ?? undefined),
       grantsAllPrograms:
         form.value.planCategory !== 'presencial' ? form.value.grantsAllPrograms : false,
+      // PLAN-03 (D-08): la lista viaja solo si NO da acceso a todos; con all=true
+      // el server la ignora, pero enviamos [] para reconciliar (delete+insert).
+      programIds: form.value.grantsAllPrograms ? [] : form.value.programIds,
       multiBranch: form.value.multiBranch,
       isTrial: form.value.isTrial,
       isGroup: form.value.isGroup,

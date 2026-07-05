@@ -115,6 +115,11 @@ export interface PlanListItem {
   planCategory: PlanCategory;
   linkedProgramId: number | null;
   grantsAllPrograms: boolean;
+  /**
+   * Multi-program access list (PLAN-03, D-08). Ignored when grantsAllPrograms is
+   * true; otherwise the plan grants access to exactly these program ids.
+   */
+  programIds?: number[];
   groupMaxMembers: number | null;
   isActive: boolean;
   isArchived: boolean;
@@ -148,6 +153,8 @@ export interface CreatePlanInput {
   groupMaxMembers?: number;
   country?: 'AR' | 'ES';
   grantsAllPrograms?: boolean;
+  /** Multi-program access list (PLAN-03, D-08). */
+  programIds?: number[];
 }
 
 export interface UpdatePlanInput {
@@ -167,6 +174,8 @@ export interface UpdatePlanInput {
   linkedProgramId?: number | null;
   groupMaxMembers?: number | null;
   grantsAllPrograms?: boolean;
+  /** Multi-program access list (PLAN-03, D-08). */
+  programIds?: number[];
 }
 
 import type { PaymentMethod } from './transaction';
