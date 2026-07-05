@@ -24,6 +24,11 @@ interface CardSurchargeResponse {
   enabled: boolean;
 }
 
+/** Response shape of GET/PUT /admin/settings/pricing/zero-price. */
+interface ZeroPriceResponse {
+  enabled: boolean;
+}
+
 export function usePricingSettingsApi() {
   const loading = ref(false);
   const error = ref<string | null>(null);
@@ -67,6 +72,43 @@ export function usePricingSettingsApi() {
     }
   }
 
+  /**
+   * GET /admin/settings/pricing/zero-price — read whether the Zero price rule is
+   * on. Staff-readable (D-05, mirrors the card-surcharge access model). Defaults
+   * to OFF server-side when the key does not exist.
+   */
+  async function getZeroPriceEnabled(): Promise<boolean> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<ZeroPriceResponse>('/admin/settings/pricing/zero-price');
+      return data.enabled;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cargando la regla de Precio Zero');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  /**
+   * PUT /admin/settings/pricing/zero-price — turn the Zero price rule on/off.
+   * Owner-only server-side (403 for non-owners); the UI hides the page from
+   * non-owners but the server is the real gate.
+   */
+  async function setZeroPriceEnabled(enabled: boolean): Promise<void> {
+    loading.value = true;
+    error.value = null;
+    try {
+      await api.put<ZeroPriceResponse>('/admin/settings/pricing/zero-price', { enabled });
+    } catch (err: unknown) {
+      error.value = extractError(err, 'No se pudo guardar la regla de Precio Zero');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   function cleanup() {
     loading.value = false;
     error.value = null;
@@ -77,6 +119,8 @@ export function usePricingSettingsApi() {
     error,
     getCardSurchargeEnabled,
     setCardSurchargeEnabled,
+    getZeroPriceEnabled,
+    setZeroPriceEnabled,
     cleanup,
   };
 }

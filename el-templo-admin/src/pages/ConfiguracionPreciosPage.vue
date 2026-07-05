@@ -31,6 +31,33 @@
           Cargando…
         </div>
       </q-card-section>
+
+      <q-separator />
+
+      <q-card-section>
+        <div class="text-subtitle1 q-mb-xs">Precio Zero</div>
+
+        <q-banner dense rounded class="bg-grey-2 text-grey-9 q-mb-md">
+          <template #avatar>
+            <q-icon name="info" color="primary" />
+          </template>
+          Con la regla apagada, la opción de Precio Zero no se ofrece al cobrar ni al armar planes.
+          Con la regla prendida, se puede aplicar el precio Zero configurado en cada plan.
+        </q-banner>
+
+        <q-toggle
+          v-model="zeroPriceEnabled"
+          label="Ofrecer Precio Zero"
+          color="primary"
+          :disable="loading || savingZero"
+          @update:model-value="onToggleZero"
+        />
+
+        <div v-if="loading" class="row items-center text-grey-7 q-mt-sm">
+          <q-spinner size="18px" class="q-mr-sm" />
+          Cargando…
+        </div>
+      </q-card-section>
     </q-card>
   </q-page>
 </template>
@@ -46,16 +73,23 @@ const $q = useQuasar();
 const pricingApi = usePricingSettingsApi();
 
 const cardSurchargeEnabled = ref(false);
+const zeroPriceEnabled = ref(false);
 const loading = ref(false);
 const saving = ref(false);
+const savingZero = ref(false);
 
 async function loadSetting() {
   loading.value = true;
   try {
-    cardSurchargeEnabled.value = await pricingApi.getCardSurchargeEnabled();
+    const [card, zero] = await Promise.all([
+      pricingApi.getCardSurchargeEnabled(),
+      pricingApi.getZeroPriceEnabled(),
+    ]);
+    cardSurchargeEnabled.value = card;
+    zeroPriceEnabled.value = zero;
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido';
-    log.error('Error loading card surcharge setting', { error: message });
+    log.error('Error loading pricing settings', { error: message });
     $q.notify({ type: 'negative', message: 'No se pudo cargar la configuración' });
   } finally {
     loading.value = false;
@@ -75,6 +109,22 @@ async function onToggle(value: boolean) {
     cardSurchargeEnabled.value = !value;
   } finally {
     saving.value = false;
+  }
+}
+
+async function onToggleZero(value: boolean) {
+  savingZero.value = true;
+  try {
+    await pricingApi.setZeroPriceEnabled(value);
+    $q.notify({ type: 'positive', message: 'Regla actualizada' });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.error('Error saving zero price setting', { error: message });
+    $q.notify({ type: 'negative', message: 'No se pudo guardar la regla' });
+    // Revert the optimistic toggle to the last known-good state.
+    zeroPriceEnabled.value = !value;
+  } finally {
+    savingZero.value = false;
   }
 }
 
