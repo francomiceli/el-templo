@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v5.4
 milestone_name: Reforma del Admin — Correcciones white-label (pre-tenants)
 status: executing
-stopped_at: Phase 156 context gathered (auto)
-last_updated: "2026-07-05T00:40:44.978Z"
-last_activity: 2026-07-05 -- Phase 156 planning complete
+stopped_at: Completed 156-01-PLAN.md
+last_updated: "2026-07-05T00:48:53.636Z"
+last_activity: 2026-07-05
 progress:
   total_phases: 8
   completed_phases: 7
   total_plans: 41
-  completed_plans: 36
+  completed_plans: 37
   percent: 88
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-04)
 
 **Core value (v5.4):** Reorganizar el admin según `Correcciones El Templo.md` para dejarlo listo como MVP white-label — nav por categorías + RBAC dueño-vs-empleado, pantallas simplificadas y de-Templo-ficación de la superficie MVP (Finanzas, Alumnos, Horarios, Planes) — SIN introducir tenants todavía. Primera etapa del camino SaaS (reforma PRIMERO, tenancy DESPUÉS, secuencial). 8 fases (149-156), 33 requirements (NAV/COBRO/CTA/CAJA/DEUDA/ALUM/HOR/PLAN). Constraint dura: todo cambio de API adopta los patrones del diseño SaaS validado (motor vs plantilla, imports módulo→core, sin nuevos Templo-ismos en core).
-**Current focus:** Phase 156 — planes de pago vs rutinas de entrenamiento
+**Current focus:** Phase 156 — Planes de pago vs Rutinas de entrenamiento
 
 ## Current Position
 
-Phase: 156
-Plan: Not started
+Phase: 156 (Planes de pago vs Rutinas de entrenamiento) — EXECUTING
+Plan: 2 of 5
 Status: Ready to execute
-Last activity: 2026-07-05 -- Phase 156 planning complete
+Last activity: 2026-07-05
 
 ## Performance Metrics
 
@@ -317,6 +317,7 @@ _Updated after each plan completion_
 | Phase 155 P02 | 4min | 2 tasks | 5 files |
 | Phase 155 P03 | 3min | 2 tasks | 4 files |
 | Phase 155 P04 | 7min | 1 tasks | 1 files |
+| Phase 156 P01 | 5min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -740,6 +741,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: 155-03: cupo por actividad en la UI del admin (input Cupo con hint de herencia, validación client-side entero positivo/vacío, autoridad en el API 155-02)
 - [Phase ?]: 155-03: CreateSlotDialog gana prop initial (prefill editable para 155-04) + creación de actividad inline reusando createActivity (opción sentinel en el q-select, cero backend nuevo)
 - [Phase ?]: 155-04: grilla admin multi-slot por celda (slotMap Map<string,WeeklySlotView[]>) con render apilado; click de detalle/borrado por slot puntual desktop+mobile sin round-trip por (hora,día); click en celda vacía abre CreateSlotDialog prefilleado
+- [Phase ?]: Precio Zero a config: key pricing.zero_price_enabled (GET staff/PUT owner), default OFF, seed 0168 ON El Templo; gate en resolvePriceType + boarding pass
 
 ### Pending Todos
 
@@ -772,8 +774,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-05T00:18:19.530Z
-Stopped at: Phase 156 context gathered (auto)
-Resume file: .planning/phases/156-planes-de-pago-vs-rutinas-de-entrenamiento/156-CONTEXT.md
+Last session: 2026-07-05T00:48:53.618Z
+Stopped at: Completed 156-01-PLAN.md
+Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z

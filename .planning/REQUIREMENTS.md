@@ -72,7 +72,7 @@ con el "Motivo" que v5.3 ya agregó — verificar en plan-phase antes de duplica
 ### PLAN — Planes de pago vs Rutinas de entrenamiento
 
 - [ ] **PLAN-01**: "Planes" y "Programas" se separan con nombres claros: **"Planes de pago"** (categoría Planes) y **"Rutinas de entrenamiento"** (subcategoría, gateada como Templo/entrenamiento).
-- [ ] **PLAN-02**: El **precio "Zero"** deja de ser parte del default: pasa a configuración (El Templo lo conserva activo).
+- [x] **PLAN-02**: El **precio "Zero"** deja de ser parte del default: pasa a configuración (El Templo lo conserva activo).
 - [ ] **PLAN-03**: Un plan puede dar acceso a **varios programas seleccionados** (además del "todos los programas" existente).
 - [ ] **PLAN-04**: **Actualizar el precio** de un plan (inflación) no requiere crear un plan nuevo **ni altera los montos históricos** ya cobrados (verificar el comportamiento actual y garantizarlo con test).
 
@@ -128,6 +128,6 @@ Every v5.4 requirement maps to exactly one phase. Coverage: 33/33.
 | HOR-02      | Phase 155 | Complete |
 | HOR-03      | Phase 155 | Complete |
 | PLAN-01     | Phase 156 | Pending  |
-| PLAN-02     | Phase 156 | Pending  |
+| PLAN-02     | Phase 156 | Complete |
 | PLAN-03     | Phase 156 | Pending  |
 | PLAN-04     | Phase 156 | Pending  |
