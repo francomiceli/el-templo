@@ -31,6 +31,7 @@ import {
   ConflictError,
   CoverageExpiredError,
 } from "../shared/errors";
+import { getEffectiveCapacity as resolveSlotCapacity } from "./capacity";
 
 /**
  * Member self-booking window: today .. today + N days (branch-local).
@@ -1776,16 +1777,9 @@ export class BookingService {
     branchId: number,
     activityId: number,
   ): Promise<number> {
-    const [row] = await this.db
-      .select({
-        branchCapacity: schema.branches.maxCapacity,
-        activityCapacity: schema.activities.maxCapacity,
-      })
-      .from(schema.branches)
-      .leftJoin(schema.activities, eq(schema.activities.id, activityId))
-      .where(eq(schema.branches.id, branchId));
-
-    return row?.activityCapacity ?? row?.branchCapacity ?? 22;
+    // WR-02: single source of truth for the effective-cap rule lives in
+    // ./capacity so booking checks, slot detail and the weekly grid can't drift.
+    return resolveSlotCapacity(this.db, branchId, activityId);
   }
 
   /**

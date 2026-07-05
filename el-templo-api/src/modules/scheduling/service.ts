@@ -31,6 +31,7 @@ import {
   ConflictError,
 } from "../shared/errors";
 import { HolidayService } from "./holiday-service";
+import { getEffectiveCapacity, resolveEffectiveCapacity } from "./capacity";
 
 export class SchedulingService {
   constructor(
@@ -252,8 +253,12 @@ export class SchedulingService {
         trialCount: 0,
       };
 
-      // Phase 155-01 (D-06/D-07): effective per-slot cap = activity ?? branch.
-      const slotCapacity = row.activityMaxCapacity ?? maxCapacity;
+      // Phase 155 (D-06/D-07, WR-02): effective per-slot cap resolved via the
+      // shared pure helper (batched coalesce kept — one query per week).
+      const slotCapacity = resolveEffectiveCapacity(
+        row.activityMaxCapacity,
+        maxCapacity,
+      );
 
       slots.push({
         id: row.id,
@@ -293,18 +298,13 @@ export class SchedulingService {
     const slot = await this.getScheduleSlot(scheduleId);
     if (!slot) throw new NotFoundError("Horario no encontrado");
 
-    // Phase 155-01 (D-06/D-07): effective per-slot capacity = the slot's
-    // activity cap, falling back to the branch cap (?? 22 as final default).
-    const [caps] = await this.db
-      .select({
-        branchCapacity: schema.branches.maxCapacity,
-        activityCapacity: schema.activities.maxCapacity,
-      })
-      .from(schema.branches)
-      .leftJoin(schema.activities, eq(schema.activities.id, slot.activityId))
-      .where(eq(schema.branches.id, slot.branchId));
-
-    const maxCapacity = caps?.activityCapacity ?? caps?.branchCapacity ?? 22;
+    // Phase 155 (D-06/D-07, WR-02): effective per-slot capacity resolved via
+    // the shared ./capacity helper — same rule as booking checks and the grid.
+    const maxCapacity = await getEffectiveCapacity(
+      this.db,
+      slot.branchId,
+      slot.activityId,
+    );
 
     // Get all bookings (not cancelled) for this slot + date.
     // Phase 102: trials are returned alongside regular bookings — the admin
