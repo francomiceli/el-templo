@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v5.4
 milestone_name: Reforma del Admin — Correcciones white-label (pre-tenants)
-status: executing
+status: verifying
 stopped_at: Completed 156-01-PLAN.md
-last_updated: "2026-07-05T01:19:54.265Z"
+last_updated: "2026-07-05T01:31:01.230Z"
 last_activity: 2026-07-05
 progress:
   total_phases: 8
-  completed_phases: 7
+  completed_phases: 8
   total_plans: 41
-  completed_plans: 40
-  percent: 88
+  completed_plans: 41
+  percent: 100
 ---
 
 # Project State
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 
 Phase: 156 (Planes de pago vs Rutinas de entrenamiento) — EXECUTING
 Plan: 5 of 5
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-07-05
 
 ## Performance Metrics
@@ -321,6 +321,7 @@ _Updated after each plan completion_
 | Phase 156 P04 | ~2min | 2 tasks | 3 files |
 | Phase 156 P02 | 12min | 2 tasks | 7 files |
 | Phase 156 P03 | 18min | 3 tasks | 3 files |
+| Phase 156 P05 | ~4min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -745,6 +746,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: 155-03: CreateSlotDialog gana prop initial (prefill editable para 155-04) + creación de actividad inline reusando createActivity (opción sentinel en el q-select, cero backend nuevo)
 - [Phase ?]: 155-04: grilla admin multi-slot por celda (slotMap Map<string,WeeklySlotView[]>) con render apilado; click de detalle/borrado por slot puntual desktop+mobile sin round-trip por (hora,día); click en celda vacía abre CreateSlotDialog prefilleado
 - [Phase ?]: Precio Zero a config: key pricing.zero_price_enabled (GET staff/PUT owner), default OFF, seed 0168 ON El Templo; gate en resolvePriceType + boarding pass
+- [Phase 156]: 156-05: UI admin de Zero (toggle en /configuracion/precios + gates en PlanForm/AssignPlan/Cobros) y multi-select de programas cableado a programIds; la UI solo esconde, el gate real es server-side (156-01/156-02)
 
 ### Pending Todos
 
@@ -777,7 +779,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-05T01:19:54.228Z
+Last session: 2026-07-05T01:30:50.452Z
 Stopped at: Completed 156-01-PLAN.md
 Resume file: None
 

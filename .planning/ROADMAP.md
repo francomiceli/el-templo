@@ -3817,7 +3817,7 @@ _v5.3 (Mejoras Caja) added: 2026-06-26 — 3 phases (145-147), 17 requirements (
 - [x] **Phase 153: Mejoras de Deudas** — fecha de registro + motivo (reusar `misc_reason` de v5.3, no duplicar) + pago/plan asociado (plan + período) por deuda + incluir a los socios con plan vencido sin renovar (no-renovaciones) en la misma pantalla. (completed 2026-07-04)
 - [x] **Phase 154: Alumnos (de-Templo-ficación + accesos)** — "Crear alumno" prominente + "Registrar cobro" como acción directa en la fila + reglas de precio por medio de pago configurables (default sin recargo) + "Avatar"→"segmento"/categoría de socio (mismo mecanismo) + niveles griegos gateados como superficie Templo. (completed 2026-07-04)
 - [x] **Phase 155: Horarios** — clases simultáneas en la misma sucursal + crear clase/actividad desde el slot (generaliza el "test de profe") + capacidad por actividad (cupo propio, no solo el de la sucursal). (completed 2026-07-04)
-- [ ] **Phase 156: Planes de pago vs Rutinas de entrenamiento** — separar "Planes de pago" (categoría Planes) de "Rutinas de entrenamiento" (subcategoría gateada Templo) + precio "Zero" a config + selección múltiple de programas por plan + actualizar precio por inflación sin crear plan nuevo ni alterar históricos (garantizado con test).
+- [x] **Phase 156: Planes de pago vs Rutinas de entrenamiento** — separar "Planes de pago" (categoría Planes) de "Rutinas de entrenamiento" (subcategoría gateada Templo) + precio "Zero" a config + selección múltiple de programas por plan + actualizar precio por inflación sin crear plan nuevo ni alterar históricos (garantizado con test). (completed 2026-07-05)
 
 ## v5.4 (Reforma del Admin) Phase Details
 
@@ -4021,7 +4021,7 @@ Plans:
 3. Un plan puede dar acceso a **varios programas seleccionados** (además del "todos los programas" existente). (PLAN-03)
 4. **Actualizar el precio** de un plan (inflación) **no requiere crear un plan nuevo ni altera los montos históricos** ya cobrados, comportamiento **garantizado con test**. (PLAN-04)
 
-**Plans:** 4/5 plans executed
+**Plans:** 5/5 plans complete
 
 Plans:
 
@@ -4037,21 +4037,21 @@ Plans:
 **Wave 3** _(blocked on Wave 2 completion)_
 
 - [x] 156-03-PLAN.md — Backend: resolución de acceso all→lista→nada + filtro Foundation + teardown + tests [PLAN-03]
-- [ ] 156-05-PLAN.md — Admin: toggle Zero en /configuracion/precios + gates Zero + multi-select de programas [PLAN-02, PLAN-03]
+- [x] 156-05-PLAN.md — Admin: toggle Zero en /configuracion/precios + gates Zero + multi-select de programas [PLAN-02, PLAN-03]
       **UI hint:** yes
 
 ## v5.4 (Reforma del Admin) Progress
 
-| Phase                                           | Plans Complete | Status      | Completed  |
-| ----------------------------------------------- | -------------- | ----------- | ---------- |
-| 149. Nav por categorías + RBAC                  | 6/6            | Complete    | 2026-07-02 |
-| 150. Cuentas bancarias flexibles                | 6/6            | Complete    | 2026-07-03 |
-| 151. Registrar cobro (Pagos → Cobros)           | 5/5            | Complete    | 2026-07-03 |
-| 152. Reorganización de Caja + egresos config.   | 6/6            | Complete    | 2026-07-04 |
-| 153. Mejoras de Deudas                          | 4/4            | Complete    | 2026-07-04 |
-| 154. Alumnos (de-Templo-ficación + accesos)     | 5/5            | Complete    | 2026-07-04 |
-| 155. Horarios                                   | 4/4            | Complete    | 2026-07-05 |
-| 156. Planes de pago vs Rutinas de entrenamiento | 4/5            | In Progress |            |
+| Phase                                           | Plans Complete | Status   | Completed  |
+| ----------------------------------------------- | -------------- | -------- | ---------- |
+| 149. Nav por categorías + RBAC                  | 6/6            | Complete | 2026-07-02 |
+| 150. Cuentas bancarias flexibles                | 6/6            | Complete | 2026-07-03 |
+| 151. Registrar cobro (Pagos → Cobros)           | 5/5            | Complete | 2026-07-03 |
+| 152. Reorganización de Caja + egresos config.   | 6/6            | Complete | 2026-07-04 |
+| 153. Mejoras de Deudas                          | 4/4            | Complete | 2026-07-04 |
+| 154. Alumnos (de-Templo-ficación + accesos)     | 5/5            | Complete | 2026-07-04 |
+| 155. Horarios                                   | 4/4            | Complete | 2026-07-05 |
+| 156. Planes de pago vs Rutinas de entrenamiento | 5/5            | Complete | 2026-07-05 |
 
 _Plan counts populated by `/gsd-plan-phase`._
 
