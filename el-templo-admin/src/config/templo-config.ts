@@ -33,6 +33,19 @@ export const TEMPLO_ENABLED = true;
  */
 export const TEMPLO_GREEK_LEVELS = TEMPLO_ENABLED;
 
+/**
+ * Surface gate for the "Rutinas de entrenamiento" (`/programas`) nav item. Like
+ * TEMPLO_GREEK_LEVELS this is a per-INSTALLATION surface flag (D-02/D-07/D-08) —
+ * NOT a per-user gate, so do NOT reuse canAccessTraining here (that is the
+ * owner-vs-Fran per-user knob of 149 D-15, which still applies on top via the
+ * item's `roles`). El Templo keeps the routines surface visible (`true`); a fresh
+ * white-label tenant would set this to `false` to hide the /programas item. The
+ * nav only HIDES the item — the real gate stays the API (dueño-only by role, 149
+ * D-15). Defaults to TEMPLO_ENABLED so the whole Templo surface flips together,
+ * while staying an independent knob for future tenants.
+ */
+export const TEMPLO_TRAINING_ROUTINES = TEMPLO_ENABLED;
+
 // ---------------------------------------------------------------------------
 // Role sets — mirror the backend permission sets in
 // `el-templo-api/src/modules/shared/permissions.ts` (D-01/D-02/D-03/D-15).
@@ -106,6 +119,8 @@ export interface NavItem {
   trainingOnly?: boolean;
   /** Belongs to the Templo layer — additionally gated by TEMPLO_ENABLED. */
   templo?: boolean;
+  /** Routines surface (D-02) — additionally gated by TEMPLO_TRAINING_ROUTINES (per-installation). */
+  routines?: boolean;
   /** Badge slot; 'pending' renders adminStore.pendingCount on Sesiones. */
   badge?: 'pending';
 }
@@ -146,9 +161,22 @@ export const NAV_MODEL: NavCategory[] = [
   {
     header: 'Planes',
     items: [
-      { path: '/planes', label: 'Planes', icon: 'card_membership', roles: PLANES_READ_ROLES },
-      // Programas: Dueño-only (D-15). Router guard (Plan 04) and API (Plan 01) also close it.
-      { path: '/programas', label: 'Programas', icon: 'school', roles: DUENO_ROLES },
+      {
+        path: '/planes',
+        label: 'Planes de pago',
+        icon: 'card_membership',
+        roles: PLANES_READ_ROLES,
+      },
+      // Rutinas de entrenamiento (D-01 rename): Dueño-only (149 D-15) AND gated as a
+      // routines surface (D-02) via `routines: true` → TEMPLO_TRAINING_ROUTINES.
+      // Router guard (Plan 04) and API (Plan 01) also close it. Path/id intact.
+      {
+        path: '/programas',
+        label: 'Rutinas de entrenamiento',
+        icon: 'school',
+        roles: DUENO_ROLES,
+        routines: true,
+      },
     ],
   },
   {
@@ -213,6 +241,7 @@ export const NAV_MODEL: NavCategory[] = [
  */
 export function isNavItemVisible(item: NavItem, user: AdminUser | null): boolean {
   if (item.templo && !TEMPLO_ENABLED) return false;
+  if (item.routines && !TEMPLO_TRAINING_ROUTINES) return false;
   if (item.trainingOnly) {
     return canAccessTraining(user);
   }
