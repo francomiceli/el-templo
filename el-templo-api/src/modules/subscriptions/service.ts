@@ -235,14 +235,81 @@ export class SubscriptionService {
     planCategory: PlanCategory;
     linkedProgramId: number | null;
     grantsAllPrograms: boolean;
+    hasProgramList: boolean;
   }): void {
     if (
       isOnlinePlan(plan.planCategory) &&
       !plan.linkedProgramId &&
-      !plan.grantsAllPrograms
+      !plan.grantsAllPrograms &&
+      !plan.hasProgramList
     ) {
       throw new BadRequestError(
         "Planes online deben vincular un programa (linkedProgramId) o dar acceso a todos los programas (grantsAllPrograms)",
+      );
+    }
+  }
+
+  /**
+   * Read the explicit program list for a plan (D-06). Empty when the plan uses
+   * grantsAllPrograms or grants no online program.
+   */
+  private async getPlanProgramIds(planId: number): Promise<number[]> {
+    const rows = await this.db
+      .select({ programId: schema.planPrograms.programId })
+      .from(schema.planPrograms)
+      .where(eq(schema.planPrograms.subscriptionPlanId, planId));
+    return rows.map((r) => r.programId);
+  }
+
+  /**
+   * Validate that every id in the list is an existing, active program
+   * (T-156-04 — do NOT trust the payload). Rejects invalid/inactive ids with
+   * 400 before any write. No-op for an empty list.
+   */
+  private async assertProgramsExist(
+    tx: TxHandle,
+    programIds: number[],
+  ): Promise<void> {
+    if (programIds.length === 0) return;
+    const uniqueIds = [...new Set(programIds)];
+    const found = await tx
+      .select({ id: schema.programs.id })
+      .from(schema.programs)
+      .where(
+        and(
+          inArray(schema.programs.id, uniqueIds),
+          eq(schema.programs.isActive, true),
+        ),
+      );
+    const foundIds = new Set(found.map((r) => r.id));
+    const invalid = uniqueIds.filter((id) => !foundIds.has(id));
+    if (invalid.length > 0) {
+      throw new BadRequestError(
+        `Programa(s) inexistente(s) o inactivo(s): ${invalid.join(", ")}`,
+      );
+    }
+  }
+
+  /**
+   * Reconcile a plan's program list (D-06): delete every existing row for the
+   * plan and insert the (deduped) new set. Must run inside the same
+   * transaction as the plan write so the list and the plan stay atomic.
+   */
+  private async persistPlanPrograms(
+    tx: TxHandle,
+    planId: number,
+    programIds: number[],
+  ): Promise<void> {
+    await tx
+      .delete(schema.planPrograms)
+      .where(eq(schema.planPrograms.subscriptionPlanId, planId));
+    const uniqueIds = [...new Set(programIds)];
+    if (uniqueIds.length > 0) {
+      await tx.insert(schema.planPrograms).values(
+        uniqueIds.map((programId) => ({
+          subscriptionPlanId: planId,
+          programId,
+        })),
       );
     }
   }
@@ -502,38 +569,49 @@ export class SubscriptionService {
     const planCategory = input.planCategory ?? "presencial";
     const linkedProgramId = input.linkedProgramId ?? null;
     const grantsAllPrograms = input.grantsAllPrograms ?? false;
+    const programIds = input.programIds ?? [];
 
     this.assertPlanInvariants({
       planCategory,
       linkedProgramId,
       grantsAllPrograms,
+      hasProgramList: programIds.length > 0,
     });
 
     const country = input.country ?? "AR";
     const currency = country === "ES" ? "EUR" : "ARS";
 
-    const result = await this.db.insert(schema.subscriptionPlans).values({
-      name: input.name,
-      description: input.description ?? null,
-      planTier: input.planTier,
-      bookingMode: input.bookingMode,
-      priceRegular: input.priceRegular,
-      priceZero: input.priceZero,
-      priceCreditCard: input.priceCreditCard ?? null,
-      durationDays: input.durationDays,
-      classesPerWeek: input.classesPerWeek ?? null,
-      multiBranch: input.multiBranch ?? false,
-      isTrial: input.isTrial ?? false,
-      isGroup: input.isGroup ?? false,
-      planCategory,
-      linkedProgramId,
-      groupMaxMembers: input.groupMaxMembers ?? null,
-      grantsAllPrograms,
-      country,
-      currency,
+    // Plan row + program list must be atomic: validate the list against
+    // existing programs (T-156-04) and persist both inside one transaction.
+    const planId = await this.db.transaction(async (tx) => {
+      await this.assertProgramsExist(tx, programIds);
+
+      const result = await tx.insert(schema.subscriptionPlans).values({
+        name: input.name,
+        description: input.description ?? null,
+        planTier: input.planTier,
+        bookingMode: input.bookingMode,
+        priceRegular: input.priceRegular,
+        priceZero: input.priceZero,
+        priceCreditCard: input.priceCreditCard ?? null,
+        durationDays: input.durationDays,
+        classesPerWeek: input.classesPerWeek ?? null,
+        multiBranch: input.multiBranch ?? false,
+        isTrial: input.isTrial ?? false,
+        isGroup: input.isGroup ?? false,
+        planCategory,
+        linkedProgramId,
+        groupMaxMembers: input.groupMaxMembers ?? null,
+        grantsAllPrograms,
+        country,
+        currency,
+      });
+
+      const newId = Number(result[0].insertId);
+      await this.persistPlanPrograms(tx, newId, programIds);
+      return newId;
     });
 
-    const planId = Number(result[0].insertId);
     const plan = await this.getPlanById(planId);
     if (!plan) throw new Error("Failed to retrieve newly created plan");
     return plan;
@@ -580,6 +658,13 @@ export class SubscriptionService {
     if (input.grantsAllPrograms !== undefined)
       updateData.grantsAllPrograms = input.grantsAllPrograms;
 
+    // Effective program list for the invariant: the incoming list when
+    // provided, otherwise the plan's current persisted list (D-06).
+    const effectiveProgramIds =
+      input.programIds !== undefined
+        ? input.programIds
+        : await this.getPlanProgramIds(planId);
+
     this.assertPlanInvariants({
       planCategory:
         input.planCategory !== undefined
@@ -593,14 +678,28 @@ export class SubscriptionService {
         input.grantsAllPrograms !== undefined
           ? input.grantsAllPrograms
           : existing.grantsAllPrograms,
+      hasProgramList: effectiveProgramIds.length > 0,
     });
 
-    if (Object.keys(updateData).length > 0) {
-      await this.db
-        .update(schema.subscriptionPlans)
-        .set(updateData)
-        .where(eq(schema.subscriptionPlans.id, planId));
-    }
+    // updatePlan ONLY touches subscription_plans and (optionally) plan_programs
+    // — never subscriptions or financial_transactions (PLAN-04 guarantee). The
+    // list replacement + plan patch run atomically.
+    await this.db.transaction(async (tx) => {
+      if (input.programIds !== undefined) {
+        await this.assertProgramsExist(tx, input.programIds);
+      }
+
+      if (Object.keys(updateData).length > 0) {
+        await tx
+          .update(schema.subscriptionPlans)
+          .set(updateData)
+          .where(eq(schema.subscriptionPlans.id, planId));
+      }
+
+      if (input.programIds !== undefined) {
+        await this.persistPlanPrograms(tx, planId, input.programIds);
+      }
+    });
 
     return this.getPlanById(planId);
   }
@@ -4356,6 +4455,7 @@ export class SubscriptionService {
     const goalPlanType = await this.resolveGoalPlanType(
       row.linkedProgramId ?? null,
     );
+    const programIds = await this.getPlanProgramIds(row.id);
     return {
       id: row.id,
       name: row.name,
@@ -4379,6 +4479,7 @@ export class SubscriptionService {
       country: row.country as "AR" | "ES",
       currency: row.currency as "ARS" | "EUR",
       grantsAllPrograms: row.grantsAllPrograms ?? false,
+      programIds,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     };

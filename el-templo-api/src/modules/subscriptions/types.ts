@@ -77,6 +77,12 @@ export interface PlanListItem {
   country: "AR" | "ES";
   currency: "ARS" | "EUR";
   grantsAllPrograms: boolean;
+  /**
+   * Explicit list of programs this plan grants (D-06). Empty when the plan
+   * uses grantsAllPrograms or grants no online program. Ignored when
+   * grantsAllPrograms is true (all takes priority).
+   */
+  programIds: number[];
   createdAt: string;
   updatedAt: string;
 }
@@ -114,6 +120,8 @@ export interface CreatePlanInput {
   linkedProgramId?: number;
   groupMaxMembers?: number;
   grantsAllPrograms?: boolean;
+  /** Explicit multi-program access list (D-06); persisted in plan_programs. */
+  programIds?: number[];
   country?: "AR" | "ES";
 }
 
@@ -134,6 +142,11 @@ export interface UpdatePlanInput {
   linkedProgramId?: number | null;
   groupMaxMembers?: number | null;
   grantsAllPrograms?: boolean;
+  /**
+   * When provided, replaces the plan's program list (delete+insert). Omit to
+   * leave the current list untouched (D-06).
+   */
+  programIds?: number[];
 }
 
 // ─── Subscription Types ─────────────────────────────────────────────────────

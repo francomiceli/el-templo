@@ -42,6 +42,7 @@ const planSchema = {
     country: { type: "string" },
     currency: { type: "string" },
     grantsAllPrograms: { type: "boolean" },
+    programIds: { type: "array", items: { type: "integer" } },
     createdAt: { type: "string" },
     updatedAt: { type: "string" },
   },
@@ -178,6 +179,7 @@ export const createPlanSchema = {
       linkedProgramId: { type: "integer" },
       groupMaxMembers: { type: "integer", minimum: 1 },
       grantsAllPrograms: { type: "boolean" },
+      programIds: { type: "array", items: { type: "integer" } },
       country: { type: "string", enum: ["AR", "ES"] },
     },
   },
@@ -219,6 +221,7 @@ export const updatePlanSchema = {
       linkedProgramId: { type: ["integer", "null"] },
       groupMaxMembers: { type: ["integer", "null"] },
       grantsAllPrograms: { type: "boolean" },
+      programIds: { type: "array", items: { type: "integer" } },
     },
   },
   response: {
