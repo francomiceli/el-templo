@@ -231,8 +231,12 @@
                  Hidden in 'mantener vencimiento': there the charge is the
                  manual difference, not a discounted plan price. -->
             <template v-if="!isKeepMode">
-              <!-- Boarding pass -->
-              <div class="q-mb-md">
+              <!-- Boarding pass — WR-05 (156): gateado por zeroPriceEnabled,
+                   simétrico a la opción Zero del selector (D-05). Con la regla
+                   Zero OFF el server normaliza a 'regular' + priceRegular pero
+                   igual marca boardingPassUsed=true: ofrecer el toggle solo
+                   quemaría el regalo one-shot cobrando precio completo. -->
+              <div v-if="zeroPriceEnabled" class="q-mb-md">
                 <q-toggle
                   v-model="assignForm.boardingPass"
                   label="Usar Boarding Pass"
