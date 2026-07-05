@@ -107,4 +107,76 @@ export const settingsRoutes: FastifyPluginAsync = async (fastify) => {
       }
     },
   );
+
+  // GET /pricing/zero-price — readable by any authenticated staff (156 D-03).
+  fastify.get(
+    "/pricing/zero-price",
+    {
+      schema: {
+        response: {
+          200: {
+            type: "object",
+            required: ["enabled"],
+            properties: { enabled: { type: "boolean" } },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      try {
+        const enabled = await settingsService.getZeroPriceEnabled();
+        return { enabled };
+      } catch (err: unknown) {
+        return handleServiceError(
+          err,
+          reply,
+          request.log,
+          "get zero-price setting",
+        );
+      }
+    },
+  );
+
+  // PUT /pricing/zero-price — owner-only write (T-156-01 mitigation).
+  fastify.put<{ Body: { enabled: boolean } }>(
+    "/pricing/zero-price",
+    {
+      preHandler: async (request, reply) => {
+        if (!(OWNER_ROLES as readonly string[]).includes(request.user.role)) {
+          return reply.code(403).send({
+            error: "Acceso denegado",
+            message: "Solo el propietario puede cambiar reglas de precio",
+          });
+        }
+      },
+      schema: {
+        body: {
+          type: "object",
+          required: ["enabled"],
+          properties: { enabled: { type: "boolean" } },
+        },
+        response: {
+          200: {
+            type: "object",
+            required: ["enabled"],
+            properties: { enabled: { type: "boolean" } },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      try {
+        const { enabled } = request.body;
+        await settingsService.setZeroPriceEnabled(enabled);
+        return { enabled };
+      } catch (err: unknown) {
+        return handleServiceError(
+          err,
+          reply,
+          request.log,
+          "set zero-price setting",
+        );
+      }
+    },
+  );
 };

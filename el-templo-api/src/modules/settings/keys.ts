@@ -9,4 +9,6 @@
 export const PRICING_SETTINGS_KEYS = {
   /** system_settings key gating the credit-card surcharge (`'on'` / `'off'`). */
   cardSurcharge: "pricing.card_surcharge_enabled",
+  /** system_settings key gating the "Zero" price type (`'on'` / `'off'`). */
+  zeroPrice: "pricing.zero_price_enabled",
 } as const;
