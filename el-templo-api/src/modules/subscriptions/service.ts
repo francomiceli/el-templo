@@ -253,8 +253,12 @@ export class SubscriptionService {
    * Read the explicit program list for a plan (D-06). Empty when the plan uses
    * grantsAllPrograms or grants no online program.
    */
-  private async getPlanProgramIds(planId: number): Promise<number[]> {
-    const rows = await this.db
+  private async getPlanProgramIds(
+    planId: number,
+    tx?: TxHandle,
+  ): Promise<number[]> {
+    const runner = tx ?? this.db;
+    const rows = await runner
       .select({ programId: schema.planPrograms.programId })
       .from(schema.planPrograms)
       .where(eq(schema.planPrograms.subscriptionPlanId, planId));
@@ -1418,13 +1422,22 @@ export class SubscriptionService {
         // enrollment chokepoint entirely — keeps test instantiations that
         // omit EnrollmentService working, and avoids spurious DI errors on
         // flows that have nothing to enroll.
-        if (plan.linkedProgramId || plan.grantsAllPrograms) {
+        // Phase 156-03 (PLAN-03/D-07): project the plan's explicit program
+        // list so enrollFromPlan can resolve all → list → nothing. The guard
+        // gains `programIds.length > 0` so a list-only plan still enrolls.
+        const planProgramIds = await this.getPlanProgramIds(plan.id, tx);
+        if (
+          plan.linkedProgramId ||
+          plan.grantsAllPrograms ||
+          planProgramIds.length > 0
+        ) {
           await this.requireEnrollmentService().enrollFromPlan(
             userId,
             {
               id: plan.id,
               linkedProgramId: plan.linkedProgramId,
               grantsAllPrograms: plan.grantsAllPrograms,
+              programIds: planProgramIds,
             },
             newSubscriptionId,
             tx,
@@ -3103,13 +3116,24 @@ export class SubscriptionService {
         // {excludeSources:['admin_addon']}), so no inline cancel block is
         // needed here. Guarded by plan flags so plans with neither binding
         // skip the chokepoint cleanly (matches assignPlan precedent).
-        if (targetPlan.linkedProgramId || targetPlan.grantsAllPrograms) {
+        // Phase 156-03 (PLAN-03/D-07): project the target plan's program list
+        // so enrollFromPlan resolves all → list → nothing; widen the guard.
+        const targetPlanProgramIds = await this.getPlanProgramIds(
+          targetPlan.id,
+          tx,
+        );
+        if (
+          targetPlan.linkedProgramId ||
+          targetPlan.grantsAllPrograms ||
+          targetPlanProgramIds.length > 0
+        ) {
           await this.requireEnrollmentService().enrollFromPlan(
             userId,
             {
               id: targetPlan.id,
               linkedProgramId: targetPlan.linkedProgramId,
               grantsAllPrograms: targetPlan.grantsAllPrograms,
+              programIds: targetPlanProgramIds,
             },
             subId,
             tx,
@@ -3823,7 +3847,17 @@ export class SubscriptionService {
       // is cancel-then-insert by contract (assignPlan / changePlan need
       // that), so we keep the legacy guard at this callsite to avoid
       // resetting currentWeek=1 on a still-running enrollment.
-      if (plan.linkedProgramId || plan.grantsAllPrograms) {
+      // Phase 156-03 (PLAN-03/D-07): project the plan's program list so
+      // enrollFromPlan resolves all → list → nothing; widen the guard. The
+      // legacy shouldEnroll guard still protects an in-flight linked-program
+      // enrollment (currentWeek progress); list/bundle grants dedupe inside
+      // enrollFromPlan so re-enrolling is a safe no-op.
+      const renewPlanProgramIds = await this.getPlanProgramIds(plan.id, tx);
+      if (
+        plan.linkedProgramId ||
+        plan.grantsAllPrograms ||
+        renewPlanProgramIds.length > 0
+      ) {
         let shouldEnroll = true;
         if (plan.linkedProgramId) {
           const existingEnrollment = await tx
@@ -3845,6 +3879,7 @@ export class SubscriptionService {
               id: plan.id,
               linkedProgramId: plan.linkedProgramId,
               grantsAllPrograms: plan.grantsAllPrograms,
+              programIds: renewPlanProgramIds,
             },
             subId,
             tx,
@@ -4265,10 +4300,16 @@ export class SubscriptionService {
     // (idempotency / progress-preservation). enrollFromPlan covers both
     // linkedProgramId and grantsAllPrograms branches; we wrap it in the
     // legacy guard so currentWeek=1 doesn't replace an in-flight enrollment.
+    // Phase 156-03 (PLAN-03/D-07): project the new plan's program list so
+    // enrollFromPlan resolves all → list → nothing; widen the guard. Runs on
+    // this.db (no tx — preserves the legacy best-effort semantics of this
+    // activation path). Dedupe inside enrollFromPlan keeps it idempotent.
+    const newPlanProgramIds = await this.getPlanProgramIds(newPlan.id);
     if (
       (newPlan.linkedProgramId &&
         newPlan.linkedProgramId !== prevPlan.linkedProgramId) ||
-      newPlan.grantsAllPrograms
+      newPlan.grantsAllPrograms ||
+      newPlanProgramIds.length > 0
     ) {
       let shouldEnroll = true;
       if (newPlan.linkedProgramId) {
@@ -4292,6 +4333,7 @@ export class SubscriptionService {
             id: newPlan.id,
             linkedProgramId: newPlan.linkedProgramId,
             grantsAllPrograms: newPlan.grantsAllPrograms,
+            programIds: newPlanProgramIds,
           },
           scheduled.id,
         );

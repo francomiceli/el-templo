@@ -45,6 +45,15 @@ export interface EnrollFromPlanInput {
   id: number;
   linkedProgramId: number | null;
   grantsAllPrograms: boolean;
+  /**
+   * Explicit list of programs granted by the plan (D-06/D-07, phase 156-02
+   * join table `plan_programs`). Resolution is all → list → nothing:
+   * `grantsAllPrograms` keeps priority (list ignored when true); when false a
+   * non-empty list IS the access set; empty list grants no online program.
+   * The list INHERITS the bundle's anti-piracy filter (goalPlanType IS NOT
+   * NULL) — it can NEVER grant Foundation (phase 104 R7).
+   */
+  programIds: number[];
 }
 
 export interface EnrollAddonInput {
@@ -147,12 +156,20 @@ export class EnrollmentService {
    *   - plan.linkedProgramId  → cancel any existing active enrollment for
    *                             (userId, linkedProgramId), then insert one
    *                             new row with source='plan_linked'.
-   *   - plan.grantsAllPrograms→ bulk-enroll the user in every active program
-   *                             with goalPlanType IS NOT NULL (Foundation
-   *                             excluded, phase 104 R3+R7) that they are
-   *                             not already actively enrolled in.
+   *   - multi-program access  → resolve all → list → nothing (D-07):
+   *                             grantsAllPrograms=true bulk-enrolls every
+   *                             active program with goalPlanType IS NOT NULL
+   *                             (Foundation excluded, phase 104 R3+R7);
+   *                             grantsAllPrograms=false + non-empty programIds
+   *                             enrolls exactly those programs, keeping the
+   *                             SAME Foundation filter (the list can NOT grant
+   *                             Foundation); empty list enrolls nothing. Only
+   *                             programs the user is not already actively
+   *                             enrolled in are inserted (source='plan_bundle',
+   *                             reused to avoid migrating the enum).
    *
-   * Both branches are independent; if both flags are set, both run.
+   * Both branches are independent; if the plan has a linkedProgramId AND a
+   * multi-program grant, both run.
    */
   async enrollFromPlan(
     userId: number,
@@ -194,13 +211,16 @@ export class EnrollmentService {
       );
     }
 
+    // Multi-program access resolution (D-07): all → list → nothing.
+    // Phase 104 R3 + Foundation exclusion: only programs with goalPlanType IS
+    // NOT NULL are auto-enrolled. Foundation (goalPlanType=null) re-uses W*
+    // templo session content, so granting Foundation enrollments would let a
+    // user hit /sessions/* without a presencial sub (R7's anti-piracy intent).
+    // The explicit list (grantsAllPrograms=false + non-empty programIds)
+    // INHERITS the same filter — a plan can NEVER grant Foundation by list.
+    let programsToConsider: Array<{ id: number }> = [];
     if (plan.grantsAllPrograms) {
-      // Phase 104 R3 + Foundation exclusion: only programs with
-      // goalPlanType IS NOT NULL are auto-enrolled by the bundle. Foundation
-      // (goalPlanType=null) re-uses W* templo session content, so granting
-      // bundle users Foundation enrollments would let them hit /sessions/*
-      // without a presencial sub (R7's anti-piracy intent).
-      const activePrograms = await runner
+      programsToConsider = await runner
         .select({ id: schema.programs.id })
         .from(schema.programs)
         .where(
@@ -209,7 +229,20 @@ export class EnrollmentService {
             isNotNull(schema.programs.goalPlanType),
           ),
         );
+    } else if (plan.programIds.length > 0) {
+      programsToConsider = await runner
+        .select({ id: schema.programs.id })
+        .from(schema.programs)
+        .where(
+          and(
+            eq(schema.programs.isActive, true),
+            isNotNull(schema.programs.goalPlanType),
+            inArray(schema.programs.id, plan.programIds),
+          ),
+        );
+    }
 
+    if (programsToConsider.length > 0) {
       const existingActiveEnrollments = await runner
         .select({ programId: schema.programEnrollments.programId })
         .from(schema.programEnrollments)
@@ -223,7 +256,7 @@ export class EnrollmentService {
         existingActiveEnrollments.map((r) => r.programId),
       );
 
-      const toCreate = activePrograms.filter(
+      const toCreate = programsToConsider.filter(
         (p) => !alreadyEnrolledIds.has(p.id),
       );
 
@@ -246,10 +279,12 @@ export class EnrollmentService {
         {
           userId,
           planId: plan.id,
+          grantsAllPrograms: plan.grantsAllPrograms,
+          listSize: plan.programIds.length,
           enrolledCount: toCreate.length,
           alreadyEnrolledCount: alreadyEnrolledIds.size,
         },
-        "Bundle (Todos los Programas) auto-enroll completed (Foundation excluded)",
+        "Multi-program auto-enroll completed (all -> list -> nothing, Foundation excluded)",
       );
     }
   }
@@ -523,6 +558,7 @@ export class EnrollmentService {
     // Step 2 — compute protected set from OTHER active|paused subs.
     const protectorRows = await runner
       .select({
+        planId: schema.subscriptionPlans.id,
         linkedProgramId: schema.subscriptionPlans.linkedProgramId,
         grantsAllPrograms: schema.subscriptionPlans.grantsAllPrograms,
       })
@@ -550,6 +586,20 @@ export class EnrollmentService {
         .map((r) => r.linkedProgramId)
         .filter((id): id is number => id !== null),
     );
+
+    // A protector with an explicit program list (D-07) also protects every
+    // program in its list — mirror the linked/bundle coverage so a teardown
+    // never revokes access still granted by ANOTHER active|paused sub's list.
+    const protectorPlanIds = protectorRows.map((r) => r.planId);
+    if (protectorPlanIds.length > 0) {
+      const protectorListRows = await runner
+        .select({ programId: schema.planPrograms.programId })
+        .from(schema.planPrograms)
+        .where(
+          inArray(schema.planPrograms.subscriptionPlanId, protectorPlanIds),
+        );
+      for (const r of protectorListRows) protectedProgramIds.add(r.programId);
+    }
 
     // Step 3a — owned enrollments via subscription_id (the post-Phase-112
     // canonical wiring). `source` projected so the excludeSources filter
