@@ -4021,7 +4021,7 @@ Plans:
 3. Un plan puede dar acceso a **varios programas seleccionados** (además del "todos los programas" existente). (PLAN-03)
 4. **Actualizar el precio** de un plan (inflación) **no requiere crear un plan nuevo ni altera los montos históricos** ya cobrados, comportamiento **garantizado con test**. (PLAN-04)
 
-**Plans:** 2/5 plans executed
+**Plans:** 3/5 plans executed
 
 Plans:
 
@@ -4032,7 +4032,7 @@ Plans:
 
 **Wave 2** _(blocked on Wave 1 completion)_
 
-- [ ] 156-02-PLAN.md — Backend: tabla join plan_programs + CRUD programIds + migración 0169 + test regresión de precios [PLAN-03, PLAN-04]
+- [x] 156-02-PLAN.md — Backend: tabla join plan_programs + CRUD programIds + migración 0169 + test regresión de precios [PLAN-03, PLAN-04]
 
 **Wave 3** _(blocked on Wave 2 completion)_
 
@@ -4051,7 +4051,7 @@ Plans:
 | 153. Mejoras de Deudas                          | 4/4            | Complete    | 2026-07-04 |
 | 154. Alumnos (de-Templo-ficación + accesos)     | 5/5            | Complete    | 2026-07-04 |
 | 155. Horarios                                   | 4/4            | Complete    | 2026-07-05 |
-| 156. Planes de pago vs Rutinas de entrenamiento | 2/5            | In Progress |            |
+| 156. Planes de pago vs Rutinas de entrenamiento | 3/5            | In Progress |            |
 
 _Plan counts populated by `/gsd-plan-phase`._
 
