@@ -509,10 +509,15 @@ function prefillFoundationProgram() {
 
 // Bundle plans don't bind to a single program — clear the linked id when
 // the toggle flips ON so we never POST both fields populated.
+// WR-04 (156): solo limpiar en planes NO presenciales. En presencial el toggle
+// se coacciona a false en el payload (su valor es el acceso físico), así que
+// prenderlo NO debe destruir la lista persistida localmente — apagarlo la
+// recupera intacta. Sin este guard, el watcher vaciaba form.value.programIds y
+// el save borraba la lista del server.
 watch(
   () => form.value.grantsAllPrograms,
   (next) => {
-    if (next) {
+    if (next && form.value.planCategory !== 'presencial') {
       form.value.linkedProgramId = null;
       // La lista se ignora con all=true (D-06) — limpiarla al prender 'todos'.
       form.value.programIds = [];
@@ -593,6 +598,11 @@ async function onSubmit() {
 
   submitting.value = true;
   try {
+    // WR-04 (156): 'da acceso a TODOS' solo tiene sentido en planes NO
+    // presenciales; coaccionar la categoría en un único lugar mantiene toggle
+    // y lista coherentes (presencial nunca envía la lista como []).
+    const effectiveGrantsAll =
+      form.value.planCategory !== 'presencial' && form.value.grantsAllPrograms;
     const payload = {
       name: form.value.name,
       description: form.value.description || undefined,
@@ -619,11 +629,13 @@ async function onSubmit() {
       linkedProgramId: form.value.grantsAllPrograms
         ? undefined
         : (form.value.linkedProgramId ?? undefined),
-      grantsAllPrograms:
-        form.value.planCategory !== 'presencial' ? form.value.grantsAllPrograms : false,
+      // WR-04 (156): 'todos los programas' solo aplica a planes NO presenciales.
+      grantsAllPrograms: effectiveGrantsAll,
       // PLAN-03 (D-08): la lista viaja solo si NO da acceso a todos; con all=true
-      // el server la ignora, pero enviamos [] para reconciliar (delete+insert).
-      programIds: form.value.grantsAllPrograms ? [] : form.value.programIds,
+      // el server la ignora y enviamos [] para reconciliar (delete+insert). Para
+      // presencial effectiveGrantsAll siempre es false → se envía la lista actual
+      // sin cambios, nunca [] (WR-04: no borrar la lista persistida).
+      programIds: effectiveGrantsAll ? [] : form.value.programIds,
       multiBranch: form.value.multiBranch,
       isTrial: form.value.isTrial,
       isGroup: form.value.isGroup,
