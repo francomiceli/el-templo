@@ -190,6 +190,46 @@ describe("zero-price gate — regla OFF", () => {
     expect(sub?.pricePaid).toBe(PRICE_REGULAR);
   });
 
+  it("OFF + changePlan after_current + boardingPass → 'regular' + priceRegular (CR-01)", async () => {
+    // El cambio de plan programado ("Cuando termine el plan actual") con boarding
+    // pass ruteaba por changePlanAfterCurrent, que hardcodeaba 'zero' + priceZero
+    // bypaseando el gate. Debe normalizar a 'regular' + priceRegular con la regla OFF.
+    const currentPlan = await createGatePlan("Zero Gate ChangeAfter Current");
+    const targetPlan = await createGatePlan("Zero Gate ChangeAfter Target");
+    const member = await createMember(app);
+
+    // Alta de un plan corriente (regla ON o irrelevante para el alta 'regular').
+    await setZeroPriceRule(false);
+    const assignRes = await assignPlan(app, adminToken, member.id, {
+      planId: currentPlan.id,
+      startDate: todayStr(),
+      priceTypeApplied: "regular",
+    });
+    expect(assignRes.statusCode).toBe(201);
+
+    // Cambio de plan programado con boarding pass, regla Zero OFF.
+    const changeRes = await app.inject({
+      method: "POST",
+      url: `${SUBSCRIPTIONS_URL}/members/${member.id}/subscription/change-plan`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: {
+        planId: targetPlan.id,
+        branchId: 1,
+        startDate: todayStr(),
+        priceTypeApplied: "zero",
+        paymentMethod: "cash",
+        startMode: "after_current",
+        boardingPass: true,
+      },
+    });
+    expect(changeRes.statusCode).toBe(201);
+    const scheduledSub = JSON.parse(changeRes.body);
+
+    const persisted = await readSub(scheduledSub.id as number);
+    expect(persisted?.priceTypeApplied).toBe("regular");
+    expect(persisted?.pricePaid).toBe(PRICE_REGULAR);
+  });
+
   it("ON + boardingPass → sigue siendo 'zero' + priceZero (idéntico a hoy)", async () => {
     await setZeroPriceRule(true);
     const plan = await createGatePlan("Zero Gate Boarding ON Plan");

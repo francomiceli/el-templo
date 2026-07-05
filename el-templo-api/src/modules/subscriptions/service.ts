@@ -3383,11 +3383,16 @@ export class SubscriptionService {
       priceOverrideAmount = input.priceOverrideAmount;
       priceOverrideReason = input.priceOverrideReason;
     } else if (input.boardingPass) {
+      // Boarding pass — regalo one-shot que aplica el precio Zero. Con la regla
+      // Zero OFF (white-label / 156 D-04) el tipo se rutea por resolvePriceType
+      // y normaliza a 'regular'; pricePaid se recalcula con getBasePrice para no
+      // persistir un tipo con un monto inconsistente. Simétrico a assignPlan
+      // (CR-01): antes hardcodeaba 'zero' + priceZero bypaseando el gate.
       if (member.boardingPassUsed) {
         throw new ConflictError("El boarding pass ya fue utilizado");
       }
-      pricePaid = targetPlan.priceZero;
-      priceTypeApplied = "zero";
+      priceTypeApplied = await this.resolvePriceType("zero");
+      pricePaid = this.getBasePrice(targetPlan, priceTypeApplied);
       boardingPassUsed = true;
 
       await this.db
