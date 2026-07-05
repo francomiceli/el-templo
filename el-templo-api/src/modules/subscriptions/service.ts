@@ -266,9 +266,16 @@ export class SubscriptionService {
   }
 
   /**
-   * Validate that every id in the list is an existing, active program
-   * (T-156-04 — do NOT trust the payload). Rejects invalid/inactive ids with
-   * 400 before any write. No-op for an empty list.
+   * Validate that every id in the list is an existing, active, OTORGABLE
+   * program (T-156-04 — do NOT trust the payload). Rejects invalid/inactive
+   * ids with 400 before any write. No-op for an empty list.
+   *
+   * WR-02 (156): valida contra el MISMO universo que otorga enrollFromPlan —
+   * programas activos con `goalPlanType IS NOT NULL`. enrollFromPlan filtra
+   * silenciosamente los programas con goalPlanType NULL (Foundation, por diseño
+   * anti-piratería 104 R7); si no espejáramos ese filtro acá, una lista compuesta
+   * solo por Foundation pasaría el invariante de plan online (hasProgramList=true)
+   * pero el socio quedaría inscripto en CERO programas. Rechazamos explícito.
    */
   private async assertProgramsExist(
     tx: TxHandle,
@@ -283,13 +290,14 @@ export class SubscriptionService {
         and(
           inArray(schema.programs.id, uniqueIds),
           eq(schema.programs.isActive, true),
+          isNotNull(schema.programs.goalPlanType),
         ),
       );
     const foundIds = new Set(found.map((r) => r.id));
     const invalid = uniqueIds.filter((id) => !foundIds.has(id));
     if (invalid.length > 0) {
       throw new BadRequestError(
-        `Programa(s) inexistente(s) o inactivo(s): ${invalid.join(", ")}`,
+        `Programa(s) inexistente(s), inactivo(s) o no otorgable(s) por lista: ${invalid.join(", ")}`,
       );
     }
   }

@@ -18,17 +18,23 @@ import {
 import { programs } from "../../src/db/schema/micro-programs";
 import * as schema from "../../src/db/schema";
 
-/** Insert an active program directly via DB. Returns its id. */
+/**
+ * Insert an active, OTORGABLE program directly via DB. Returns its id.
+ * WR-02 (156): assertProgramsExist ahora exige goalPlanType IS NOT NULL (el
+ * mismo universo que otorga enrollFromPlan), así que la lista de un plan debe
+ * usar programas grantables. Foundation (goalPlanType null) se cubre aparte.
+ */
 async function createProgram(
   app: FastifyInstance,
   name: string,
+  goalPlanType: string | null = "tren_superior",
 ): Promise<number> {
   const inserted = await app.db.insert(programs).values({
     name,
     description: `Programa ${name}`,
     durationWeeks: 4,
     sessionsPerWeekToAdvance: 3,
-    goalPlanType: null,
+    goalPlanType,
     isActive: true,
   });
   return Number(inserted[0].insertId);
@@ -441,6 +447,38 @@ describe("Subscriptions API — Plans CRUD", () => {
         },
       });
       expect(res.statusCode).toBe(201);
+    });
+
+    it("a list composed only of Foundation (goalPlanType NULL) is rejected with 400 (WR-02)", async () => {
+      // enrollFromPlan filtra Foundation silenciosamente (104 R7); si el invariante
+      // online se satisficiera con una lista no otorgable, el socio quedaría con
+      // acceso a CERO programas. assertProgramsExist lo rechaza explícito.
+      const foundation = await createProgram(app, "Foundation", null);
+      const res = await app.inject({
+        method: "POST",
+        url: `${SUBSCRIPTIONS_URL}/plans`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          ...basePlan,
+          name: "Online solo Foundation",
+          planCategory: "online_regular",
+          programIds: [foundation],
+        },
+      });
+      expect(res.statusCode).toBe(400);
+      const body = JSON.parse(res.body);
+      expect(body.message).toMatch(/no otorgable/);
+
+      // Nada persistido: no existe el plan con ese nombre.
+      const plans = await app.inject({
+        method: "GET",
+        url: `${SUBSCRIPTIONS_URL}/plans`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      const names = JSON.parse(plans.body).plans.map(
+        (p: { name: string }) => p.name,
+      );
+      expect(names).not.toContain("Online solo Foundation");
     });
 
     it("PUT /plans replaces the programIds list (delete+insert)", async () => {
