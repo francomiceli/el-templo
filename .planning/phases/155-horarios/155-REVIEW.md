@@ -23,7 +23,16 @@ findings:
   warning: 4
   info: 6
   total: 10
-status: issues_found
+status: warnings_resolved
+resolution:
+  fixed_at: 2026-07-04
+  warnings_fixed: 4
+  info_deferred: 6
+  commits:
+    WR-01: 418e0fe9
+    WR-02: 7cb569ed
+    WR-03: ed114a78
+    WR-04: 398c2501
 ---
 
 # Phase 155: Code Review Report
@@ -73,17 +82,23 @@ if (isActive && !existing.isActive) {
 
 (`getScheduleSlot` ya trae `activityId/startTime/endTime`, no requiere query extra.)
 
+**Resolution:** fixed (`418e0fe9`). `toggleSchedule` re-corre `findOverlappingSchedule` (con `excludeScheduleId`) al reactivar; rechaza con 409 nombrando la actividad. Se agregó 409 al response schema del toggle y tests de integración (reactivación colisiona → 409, ventana libre → 200).
+
 ### WR-02: La resolución del cupo efectivo vive en 3 lugares — D-06 pedía "helper único (no triplicar la resolución)"
 
 **File:** `el-templo-api/src/modules/scheduling/booking-service.ts:1775-1789`, `el-templo-api/src/modules/scheduling/service.ts:296-307`, `el-templo-api/src/modules/scheduling/service.ts:255-256`
 **Issue:** `getEffectiveCapacity` es `private` de `BookingService`; `SchedulingService.getSlotDetail` duplica EXACTAMENTE la misma query (branches leftJoin activities + `activityCapacity ?? branchCapacity ?? 22`) inline, y `getWeeklyGrid` re-implementa el coalesce (`row.activityMaxCapacity ?? maxCapacity` — justificable por el batching de la grilla, un query por semana en vez de N). El detalle NO tiene esa justificación: es una copia 1:1 de la lógica del helper en otra clase. Riesgo concreto de drift: si mañana cambia la regla (p.ej. `min(activity, branch)` o techo agregado — el CONTEXT lo lista como fase futura), hay que acordarse de tocar 3 lugares; el que quede atrás produce cupos inconsistentes entre reservar (booking-service) y lo que el admin ve (detalle/grilla).
 **Fix:** extraer `getEffectiveCapacity(db, branchId, activityId)` a un helper compartido del módulo (p.ej. `scheduling/capacity.ts` o función exportada usada por ambos services) y hacer que `getSlotDetail` lo consuma. Para la grilla, dejar el coalesce batched pero con un comentario que lo ancle al helper (o un `resolveEffectiveCapacity(activityCap, branchCap)` puro compartido que ambos paths llamen, eliminando el drift del coalesce).
 
+**Resolution:** fixed (`7cb569ed`). Nuevo módulo `scheduling/capacity.ts` con `getEffectiveCapacity(db, branchId, activityId)` (query+resolve) y `resolveEffectiveCapacity(activityCap, branchCap)` (puro). `BookingService.getEffectiveCapacity` delega al helper; `getSlotDetail` lo consume; `getWeeklyGrid` usa el resolver puro sobre su coalesce batched. Sin cambio de semántica.
+
 ### WR-03: Analytics de ocupación sigue normalizando por `branches.maxCapacity` — denominador incorrecto para actividades con cupo propio
 
 **File:** `el-templo-api/src/modules/analytics/service.ts:841-848,925-933` (fuera del diff, afectado por el cambio de invariante)
 **Issue:** `getSlotOccupancy` y el heatmap usan un único `maxCapacity` por sucursal como denominador de `averageOccupancy`. Hasta esta fase eso era exacto; a partir de HOR-03, un slot de una actividad con `maxCapacity = 8` que llena sus 8 lugares reporta 36% de ocupación (8/22) en vez de 100%. La métrica se degrada silenciosamente apenas alguien configure un cupo por actividad — que es exactamente lo que la fase habilita. No rompe reservas (D-06 se limitó a los checks de booking), pero el reporte de gestión miente.
 **Fix:** en `getSlotOccupancy`, joinear `activities.maxCapacity` (la query ya joinea `activities` para el nombre) y usar `COALESCE(activities.max_capacity, branches.max_capacity)` como denominador por slot. El heatmap por hora es agregado multi-slot y puede quedar como está con un comentario, o sumar capacidades efectivas por franja. Si se decide diferirlo, dejar constancia explícita (ROADMAP/fase futura), no silencio.
+
+**Resolution:** fixed (`ed114a78`). `getSlotOccupancy` joinea `activities.maxCapacity` y normaliza por el cupo efectivo del slot vía `resolveEffectiveCapacity` (mismo helper de WR-02). El heatmap por hora (`getPeakHoursHeatmap`) queda normalizado por cupo de sucursal con un comentario explícito que documenta el diferimiento (métrica agregada multi-slot, denominador fiel = suma de cupos efectivos por franja, fase futura).
 
 ### WR-04: Gaps de cobertura en el test de integración — el path feliz del PATCH y el techo del cupo quedan sin red
 
@@ -94,6 +109,8 @@ if (isActive && !existing.isActive) {
 2. **Validación de bordes del cupo en el API:** `maxCapacity: 0`, negativo y `> 500` deben dar 400 (el schema lo declara, nadie lo verifica; el cliente NO valida el techo de 500 — ver IN-03 — así que el server es la única defensa).
 3. **Grilla semanal con dos clases simultáneas:** que `GET /schedules/weekly` devuelva ambos slots en la misma franja con `maxCapacity`/`isFull` per-slot (el contrato que consume D-02 en admin y member app).
    **Fix:** agregar los 3 casos al describe existente (todos son inject + assert, sin infraestructura nueva). El proyecto declara "well-tested code is non-negotiable; err on the side of too many tests".
+
+**Resolution:** fixed (`398c2501`). Agregados: PATCH sin colisión → 200 (+ PATCH a la misma actividad → 200, guarda de `excludeScheduleId`); `maxCapacity` 0/negativo/501 → 400 (`it.each`); grilla semanal con dos clases simultáneas devuelve ambos slots en la misma franja con `maxCapacity`/`isFull` per-slot. Tests escritos, no ejecutados (CI).
 
 ## Info
 
