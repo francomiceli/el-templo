@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v5.4
 milestone_name: Reforma del Admin — Correcciones white-label (pre-tenants)
-status: verifying
-stopped_at: Phase 155 context gathered (auto)
-last_updated: "2026-07-04T21:17:26.694Z"
+status: ready_to_plan
+stopped_at: Phase 155 complete (4/4) — ready to discuss Phase 156
+last_updated: 2026-07-05T00:14:59.319Z
 last_activity: 2026-07-04
 progress:
   total_phases: 8
   completed_phases: 7
   total_plans: 36
-  completed_plans: 36
+  completed_plans: 579
   percent: 88
 ---
 
@@ -21,20 +21,20 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-04)
 
 **Core value (v5.4):** Reorganizar el admin según `Correcciones El Templo.md` para dejarlo listo como MVP white-label — nav por categorías + RBAC dueño-vs-empleado, pantallas simplificadas y de-Templo-ficación de la superficie MVP (Finanzas, Alumnos, Horarios, Planes) — SIN introducir tenants todavía. Primera etapa del camino SaaS (reforma PRIMERO, tenancy DESPUÉS, secuencial). 8 fases (149-156), 33 requirements (NAV/COBRO/CTA/CAJA/DEUDA/ALUM/HOR/PLAN). Constraint dura: todo cambio de API adopta los patrones del diseño SaaS validado (motor vs plantilla, imports módulo→core, sin nuevos Templo-ismos en core).
-**Current focus:** Phase 155 — Horarios
+**Current focus:** Phase 156 — planes de pago vs rutinas de entrenamiento
 
 ## Current Position
 
-Phase: 155 (Horarios) — EXECUTING
-Plan: 4 of 4
-Status: Phase complete — ready for verification
-Last activity: 2026-07-04
+Phase: 156
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-07-05
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 54 (v4.1)
+- Total plans completed: 58 (v4.1)
 - Average duration: ~11min
 - Total execution time: ~122min
 
@@ -56,6 +56,7 @@ Last activity: 2026-07-04
 | 152   | 6     | -      | -        |
 | 153   | 4     | -      | -        |
 | 154   | 5     | -      | -        |
+| 155   | 4     | -      | -        |
 
 **Recent Trend (from v4.0):**
 

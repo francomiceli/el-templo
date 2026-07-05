@@ -4034,7 +4034,7 @@ Plans:
 | 152. Reorganización de Caja + egresos config.   | 6/6            | Complete    | 2026-07-04 |
 | 153. Mejoras de Deudas                          | 4/4            | Complete    | 2026-07-04 |
 | 154. Alumnos (de-Templo-ficación + accesos)     | 5/5            | Complete    | 2026-07-04 |
-| 155. Horarios                                   | 4/4            | Complete    | 2026-07-04 |
+| 155. Horarios                                   | 4/4            | Complete    | 2026-07-05 |
 | 156. Planes de pago vs Rutinas de entrenamiento | 0/TBD          | Not started | -          |
 
 _Plan counts populated by `/gsd-plan-phase`._
