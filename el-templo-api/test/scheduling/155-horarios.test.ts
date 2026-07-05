@@ -59,6 +59,17 @@ interface ActivityResponse {
   updatedAt: string;
 }
 
+interface WeeklySlot {
+  id: number;
+  activityId: number;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  maxCapacity: number;
+  isFull: boolean;
+  isActive: boolean;
+}
+
 describe("Phase 155: horarios — simultaneidad + cupo efectivo + ABM cupo", () => {
   let app: FastifyInstance;
   let adminToken: string;
@@ -170,6 +181,20 @@ describe("Phase 155: horarios — simultaneidad + cupo efectivo + ABM cupo", () 
       payload: { isActive },
     });
     return { statusCode: res.statusCode, body: JSON.parse(res.body) };
+  }
+
+  async function getWeeklyGrid(
+    weekStart: string,
+  ): Promise<{ statusCode: number; body: { slots: WeeklySlot[] } }> {
+    const res = await app.inject({
+      method: "GET",
+      url: `${ADMIN_URL}/schedules/weekly?branchId=${testBranchId}&weekStart=${weekStart}`,
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    return {
+      statusCode: res.statusCode,
+      body: JSON.parse(res.body) as { slots: WeeklySlot[] },
+    };
   }
 
   async function createPlan(): Promise<{ id: number }> {
@@ -371,6 +396,78 @@ describe("Phase 155: horarios — simultaneidad + cupo efectivo + ABM cupo", () 
       // Sin slot que ocupe la ventana → la reactivación no colisiona.
       const on = await toggleSchedule(slotAId, true);
       expect(on.statusCode).toBe(200);
+    });
+
+    it("permite PATCH de actividad SIN colisión (200)", async () => {
+      const musculacion = await createActivity("Musculacion");
+      const yoga = await createActivity("Yoga");
+      const slot = await postSchedule(musculacion.id, 1, "10:00", "11:00");
+      expect(slot.statusCode).toBe(201);
+      const slotId = (slot.body as { id: number }).id;
+
+      // No hay ningún slot de Yoga en esa franja → el cambio no colisiona.
+      const patch = await patchSlotActivity(slotId, yoga.id);
+      expect(patch.statusCode).toBe(200);
+      expect((patch.body as { activityId: number }).activityId).toBe(yoga.id);
+    });
+
+    it("PATCH a la MISMA actividad no da falso 409 (excludeScheduleId)", async () => {
+      // Regresión simétrica del 409: si la exclusión del propio slot se
+      // rompiera, el slot colisionaría con su propia ventana y TODO PATCH daría
+      // 409. Re-asignar a la misma actividad debe devolver 200.
+      const activity = await createActivity("Musculacion");
+      const slot = await postSchedule(activity.id, 1, "10:00", "11:00");
+      expect(slot.statusCode).toBe(201);
+      const slotId = (slot.body as { id: number }).id;
+
+      const patch = await patchSlotActivity(slotId, activity.id);
+      expect(patch.statusCode).toBe(200);
+    });
+  });
+
+  // ─── Validación del cupo en el API (D-08 / techo server-side) ────────────────
+
+  describe("Validación del cupo (API)", () => {
+    it.each([0, -5, 501])(
+      "rechaza maxCapacity=%i con 400 (el server es la única defensa del techo)",
+      async (bad) => {
+        const res = await app.inject({
+          method: "POST",
+          url: `${ADMIN_URL}/activities`,
+          headers: { authorization: `Bearer ${adminToken}` },
+          payload: { name: `Cupo ${bad}`, maxCapacity: bad },
+        });
+        expect(res.statusCode).toBe(400);
+      },
+    );
+  });
+
+  // ─── Grilla semanal: contrato de clases simultáneas (D-02) ───────────────────
+
+  describe("Grilla semanal (D-02)", () => {
+    it("devuelve dos clases simultáneas en la misma franja con cupo per-slot", async () => {
+      const musculacion = await createActivity("Musculacion", 10);
+      const yoga = await createActivity("Yoga", 8);
+      const a = await postSchedule(musculacion.id, 1, "10:00", "11:00");
+      expect(a.statusCode).toBe(201);
+      const b = await postSchedule(yoga.id, 1, "10:00", "11:00");
+      expect(b.statusCode).toBe(201);
+
+      const monday = getDateForDayOfWeek(1);
+      const grid = await getWeeklyGrid(monday);
+      expect(grid.statusCode).toBe(200);
+
+      const franja = grid.body.slots.filter(
+        (s) => s.dayOfWeek === 1 && s.startTime === "10:00",
+      );
+      expect(franja).toHaveLength(2);
+
+      const byActivity = new Map(franja.map((s) => [s.activityId, s]));
+      // Cada slot expone SU propio cupo efectivo (D-02/HOR-03), no uno agregado.
+      expect(byActivity.get(musculacion.id)?.maxCapacity).toBe(10);
+      expect(byActivity.get(yoga.id)?.maxCapacity).toBe(8);
+      // Sin reservas → ninguno lleno.
+      expect(franja.every((s) => s.isFull === false)).toBe(true);
     });
   });
 
