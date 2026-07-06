@@ -3473,12 +3473,38 @@ export class SubscriptionService {
       throw new NotFoundError("Plan no encontrado");
     }
 
-    // Calculate new period dates: start from current endDate (or today if expired)
+    // Calculate new period dates. Por defecto la renovación arranca en el
+    // vencimiento actual (renovación anticipada) o en hoy (ya vencida). El admin
+    // puede pasar una fecha de inicio custom (hotfix 2026-07-06, pedido del
+    // staff): la renovación arranca en esa fecha y el nuevo vencimiento se
+    // recalcula como startDate + plan.durationDays.
     const today = new Date().toISOString().split("T")[0];
-    const newStartDate =
+    const oldSubExpired = !currentSub.endDate || currentSub.endDate < today;
+    const autoStartDate =
       currentSub.endDate && currentSub.endDate >= today
         ? currentSub.endDate
         : today;
+
+    let newStartDate: string;
+    if (input.startDate !== undefined) {
+      assertStartDateWithinLimits(input.startDate);
+      // No se puede solapar con la suscripción vigente: una renovación del mismo
+      // plan que arranque ANTES de que venza la actual crearía dos subs activas
+      // para el mismo socio (caso Lorenzino/Pandolfo). Cuando la sub sigue
+      // vigente, exigimos que la fecha custom sea >= al vencimiento actual.
+      if (
+        !oldSubExpired &&
+        currentSub.endDate &&
+        input.startDate < currentSub.endDate
+      ) {
+        throw new BadRequestError(
+          `La fecha de inicio de la renovación no puede ser anterior al vencimiento actual (${currentSub.endDate}).`,
+        );
+      }
+      newStartDate = input.startDate;
+    } else {
+      newStartDate = autoStartDate;
+    }
     const newEnd = new Date(newStartDate);
     newEnd.setDate(newEnd.getDate() + plan.durationDays);
     const newEndDate = newEnd.toISOString().split("T")[0];
@@ -3515,14 +3541,23 @@ export class SubscriptionService {
       renewalOverrideReason = input.priceOverrideReason;
     }
 
-    // If old sub is already expired, close it now.
+    // If old sub is already expired, close it now (below).
     // If still active (early renewal), leave it active — auto-expire will
-    // transition it to "completed" and activate the scheduled sub.
-    const oldSubExpired = !currentSub.endDate || currentSub.endDate < today;
-
-    // Early renewal → new sub is "scheduled" (paid, queued, not yet usable).
-    // Expired renewal → new sub is "active" immediately.
-    const newStatus = oldSubExpired ? "active" : "scheduled";
+    // transition it to "completed" and activate the scheduled sub on its
+    // startDate.
+    //
+    // Estado del nuevo período:
+    //   - Sub vigente (no vencida) → SIEMPRE "scheduled": la actual ocupa el
+    //     slot activo; el nuevo período se encola (comportamiento previo, y con
+    //     la guardia de arriba una fecha custom nunca solapa).
+    //   - Sub vencida + inicio hoy/pasado → "active" (arranca ya).
+    //   - Sub vencida + inicio futuro (fecha custom) → "scheduled": se activa
+    //     cuando llegue su startDate vía activateDueScheduledSubs (cron).
+    const newStatus = !oldSubExpired
+      ? "scheduled"
+      : newStartDate > today
+        ? "scheduled"
+        : "active";
 
     // ── Resolve renewBranchId BEFORE opening the tx (Phase 107 — PATTERNS) ──
     // RenewSubscriptionInput has no branchId — resolve via users.branchId
@@ -3961,7 +3996,15 @@ export class SubscriptionService {
 
     const expiredIds = expiredSubs.map((s) => s.id);
 
-    // Find scheduled successors that should be activated
+    // Find scheduled successors that should be activated. El guard
+    // `startDate <= today` respeta una renovación con fecha de inicio POSTERIOR
+    // al vencimiento de la actual (gap; hotfix 2026-07-06). Sin él, el successor
+    // encadenado se activaba apenas vencía la predecesora, ignorando su startDate
+    // futuro. Con gap, el successor queda "scheduled" (la predecesora pasa a
+    // "expired", el socio queda inactivo durante el hueco) y se activa cuando
+    // llega su startDate vía activateDueScheduledSubs (cron diario). Renovaciones
+    // normales (startDate = endDate de la anterior) no cambian: al vencer,
+    // endDate < today ⇒ startDate <= today, así que el successor se activa igual.
     const scheduledSuccessors = await this.db
       .select({
         id: schema.subscriptions.id,
@@ -3973,6 +4016,7 @@ export class SubscriptionService {
           eq(schema.subscriptions.userId, userId),
           eq(schema.subscriptions.status, "scheduled"),
           inArray(schema.subscriptions.previousSubscriptionId, expiredIds),
+          sql`${schema.subscriptions.startDate} <= ${today}`,
         ),
       );
 

@@ -316,6 +316,17 @@ export interface RenewSubscriptionInput {
   /** Razón del precio personalizado. Requerida si hay `priceOverrideAmount`. */
   priceOverrideReason?: string;
   /**
+   * Fecha de inicio personalizada para la renovación (hotfix 2026-07-06, pedido
+   * del staff). Formato YYYY-MM-DD. undefined → derivación automática (vencimiento
+   * actual si la sub sigue vigente, si no hoy). Cuando se provee, la renovación
+   * arranca en esa fecha y el nuevo vencimiento se recalcula como
+   * `startDate + plan.durationDays`; el estado (scheduled vs active) se deriva de
+   * `startDate` vs hoy. Se valida contra los mismos límites que
+   * assignPlan/editSubscriptionStartDate (±90/60 días) y contra el solapamiento
+   * con la suscripción vigente.
+   */
+  startDate?: string;
+  /**
    * Phase 140 (Pitfall 1 / CARGA-02): role of whoever initiated the renewal,
    * forwarded into recordAssignmentCharge so the birth validation_status is
    * derived SERVER-SIDE from the role (coach → 'pendiente', everyone else →

@@ -269,6 +269,29 @@
             </q-item>
           </q-list>
 
+          <!-- Fecha de inicio personalizada -->
+          <div class="q-mt-md">
+            <q-toggle v-model="renewalUseCustomStartDate" label="Modificar fecha de inicio" />
+            <template v-if="renewalUseCustomStartDate">
+              <q-input
+                v-model="renewalStartDate"
+                label="Fecha de inicio"
+                type="date"
+                dense
+                outlined
+                class="q-mt-xs"
+                :min="renewalStartDateMin"
+                :max="renewalStartDateMax"
+                :error="!!renewalStartDateError"
+                :error-message="renewalStartDateError ?? undefined"
+              />
+              <div class="text-caption text-grey-7 q-mt-xs">
+                Permitido entre {{ formatDate(renewalStartDateMin) }} y
+                {{ formatDate(renewalStartDateMax) }}.
+              </div>
+            </template>
+          </div>
+
           <!-- Precio personalizado -->
           <div class="q-mt-md">
             <q-toggle v-model="renewalUseOverride" label="Precio personalizado" />
@@ -356,6 +379,7 @@
             :loading="renewalLoading"
             :disable="
               renewalOverrideInvalid ||
+              !!renewalStartDateError ||
               renewalAmountReceived === null ||
               renewalAmountReceived < 0 ||
               renewalAmountReceived > renewalChargeBase
@@ -584,6 +608,8 @@ const renewalAmountReceived = ref<number | null>(null);
 const renewalUseOverride = ref(false);
 const renewalOverrideAmount = ref<number | null>(null);
 const renewalOverrideReason = ref('');
+const renewalUseCustomStartDate = ref(false);
+const renewalStartDate = ref('');
 const showEditStartDateDialog = ref(false);
 const editStartDateTarget = ref<SubscriptionDetail | null>(null);
 
@@ -655,25 +681,67 @@ const programaSub = computed(
     allSubscriptions.value.find((s) => s.planCategory && s.planCategory !== 'presencial') ?? null
 );
 
-const renewalEndDate = computed(() => {
-  if (!renewTarget.value?.endDate) return '—';
+// Duración del plan en días (derivada del período de la sub actual). Fallback
+// defensivo de 30 días si la sub no tiene un endDate coherente.
+const renewalDurationDays = computed(() => {
+  if (!renewTarget.value?.endDate) return 30;
   const startMs = new Date(renewTarget.value.startDate).getTime();
   const endMs = new Date(renewTarget.value.endDate).getTime();
-  const durationMs = endMs - startMs;
-  const durationDays = Math.round(durationMs / (1000 * 60 * 60 * 24));
+  const days = Math.round((endMs - startMs) / (1000 * 60 * 60 * 24));
+  return days > 0 ? days : 30;
+});
+
+// Fecha de inicio automática: vencimiento actual si la sub sigue vigente, si no hoy.
+const renewalAutoStartDate = computed(() => {
   const today = new Date().toISOString().split('T')[0];
-  const renewStart = renewTarget.value.endDate >= today ? renewTarget.value.endDate : today;
-  const end = new Date(renewStart);
-  end.setDate(end.getDate() + (durationDays > 0 ? durationDays : 30));
+  if (!renewTarget.value?.endDate) return today;
+  return renewTarget.value.endDate >= today ? renewTarget.value.endDate : today;
+});
+
+// Fecha efectiva para el resumen: la custom si el toggle está activo y hay valor,
+// si no la automática.
+const renewalEffectiveStartDate = computed(() =>
+  renewalUseCustomStartDate.value && renewalStartDate.value
+    ? renewalStartDate.value
+    : renewalAutoStartDate.value
+);
+
+// Límites de la fecha custom: no antes del piso automático (evita solapar con la
+// sub vigente y el backdating) y hasta 60 días en el futuro (igual que el backend).
+const renewalStartDateMin = computed(() => renewalAutoStartDate.value);
+const renewalStartDateMax = computed(() => {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + 60);
+  return d.toISOString().split('T')[0];
+});
+
+const renewalStartDateError = computed<string | null>(() => {
+  if (!renewalUseCustomStartDate.value) return null;
+  if (!renewalStartDate.value) return 'Ingresá una fecha de inicio';
+  if (renewalStartDate.value < renewalStartDateMin.value) {
+    return `No puede ser anterior a ${formatDate(renewalStartDateMin.value)}`;
+  }
+  if (renewalStartDate.value > renewalStartDateMax.value) {
+    return `No puede ser posterior a ${formatDate(renewalStartDateMax.value)}`;
+  }
+  return null;
+});
+
+const renewalEndDate = computed(() => {
+  if (!renewTarget.value?.endDate) return '—';
+  const end = new Date(renewalEffectiveStartDate.value);
+  end.setDate(end.getDate() + renewalDurationDays.value);
   return formatDate(end.toISOString().split('T')[0]);
 });
 
-// When the current sub hasn't expired yet, the renewal is queued — show its activation date.
+// Cuando la renovación arranca en el futuro (sub vigente o fecha custom futura),
+// queda encolada — mostramos la fecha en que se activará.
 const renewalActivationDate = computed(() => {
   if (!renewTarget.value?.endDate) return null;
   const today = new Date().toISOString().split('T')[0];
-  if (renewTarget.value.endDate < today) return null;
-  return formatDate(renewTarget.value.endDate);
+  if (renewalEffectiveStartDate.value <= today) return null;
+  return formatDate(renewalEffectiveStartDate.value);
 });
 
 const renewalChargeBase = computed(() => {
@@ -800,6 +868,10 @@ function openRenewal(sub: SubscriptionDetail) {
   renewalUseOverride.value = false;
   renewalOverrideAmount.value = null;
   renewalOverrideReason.value = '';
+  renewalUseCustomStartDate.value = false;
+  // Pre-cargamos la fecha automática para que, al activar el toggle, el picker
+  // arranque en el valor que el sistema usaría por defecto.
+  renewalStartDate.value = renewalAutoStartDate.value;
   showRenewalDialog.value = true;
 }
 
@@ -834,6 +906,11 @@ async function executeRenewal() {
             priceOverrideReason: renewalOverrideReason.value.trim(),
           }
         : {}),
+      // Solo enviamos startDate si el admin lo modificó explícitamente; si no,
+      // el backend deriva la fecha automáticamente (comportamiento previo).
+      ...(renewalUseCustomStartDate.value && renewalStartDate.value
+        ? { startDate: renewalStartDate.value }
+        : {}),
     });
     $q.notify({ type: 'positive', message: 'Suscripcion renovada correctamente' });
     showRenewalDialog.value = false;
@@ -843,6 +920,8 @@ async function executeRenewal() {
     renewalUseOverride.value = false;
     renewalOverrideAmount.value = null;
     renewalOverrideReason.value = '';
+    renewalUseCustomStartDate.value = false;
+    renewalStartDate.value = '';
     refreshAll();
     emit('subscription-changed');
   } catch (err: unknown) {
