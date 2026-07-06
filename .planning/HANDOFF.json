@@ -66,6 +66,12 @@
       "description": "Migraciones 0168/0169 NO aplicadas en la DB local (0166/0167 sí) — correr `pnpm db:migrate` en el-templo-api antes de probar visualmente Zero/multi-programa en local",
       "type": "technical",
       "workaround": "cd el-templo-api && pnpm db:migrate"
+    },
+    {
+      "description": "ORDEN DE MIGRACIONES vs master (detectado 2026-07-06): master ya tiene 0164 (PR ratings/roster) que este branch NO tiene; el branch trae 0163 + 0165-0169 y quedó 6 commits atrás de master (hotfix 1708312a, ratings a70a5296/fbb110e3, bump 8fd67005, segmentation 9f20efe7, merge 44905fbd). En prod/staging el 0164 ya está aplicado, así que 0163 se aplicaría DESPUÉS de 0164; en DB fresca (CI) el orden es 0163->0164. Si 0163 y 0164 no son independientes, el comportamiento diverge entre CI y prod. run-migrations.ts NO tiene guard de orden.",
+      "type": "technical",
+      "blocking": true,
+      "workaround": "ANTES de pushear a staging/master: (1) git merge origin/master en el branch; (2) verificar independencia de 0163 vs 0164 y aceptar el orden divergente, O renumerar 0163->0170 por encima del máx de master; (3) re-chequear 0165-0169. No se agregó guard de CI (decisión: solo esta nota)."
     }
   ],
   "human_actions_pending": [
