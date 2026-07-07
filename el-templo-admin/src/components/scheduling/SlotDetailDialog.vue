@@ -1265,14 +1265,10 @@ watch(
 }
 
 /* Nombres de alumnos clickeables → perfil del alumno */
+/* Color de texto original (negro heredado), solo se distingue por el subrayado. */
 .member-name-link {
   cursor: pointer;
-  color: var(--q-primary);
   text-decoration: underline;
-  text-decoration-style: dotted;
   text-underline-offset: 2px;
-}
-.member-name-link:hover {
-  text-decoration-style: solid;
 }
 </style>
