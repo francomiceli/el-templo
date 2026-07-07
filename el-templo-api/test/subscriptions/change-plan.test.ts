@@ -673,11 +673,19 @@ describe("Subscriptions API — Change plan", () => {
       expect(schedRes.statusCode).toBe(201);
       const scheduledSub = JSON.parse(schedRes.body);
 
-      // Force old sub to expire
+      // Force old sub to expire. after_current fija el startDate del cambio
+      // programado = endDate de la sub actual, así que al vencer la anterior su
+      // fecha de inicio también llegó — backdateamos AMBOS para simular el paso
+      // del tiempo de forma realista. Sin mover el startDate del successor, el
+      // guard de activación (startDate <= hoy) lo mantendría encolado.
       await app.db
         .update(subscriptions)
         .set({ endDate: dateOffsetStr(-1) })
         .where(eq(subscriptions.id, oldSubId));
+      await app.db
+        .update(subscriptions)
+        .set({ startDate: dateOffsetStr(-1) })
+        .where(eq(subscriptions.id, scheduledSub.id));
 
       // Trigger auto-expire
       await app.inject({
