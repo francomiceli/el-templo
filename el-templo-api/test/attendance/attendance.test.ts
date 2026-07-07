@@ -553,6 +553,44 @@ describe("Attendance API", () => {
       expect(body.records.length).toBeGreaterThanOrEqual(1);
       expect(body.records[0].memberId).toBe(member.id);
     });
+
+    it("GET /slot endDate refleja la cobertura encadenada (sub programada), no solo la activa", async () => {
+      // Bug Joaquim Mas (2026-07-07): el pill "Venc" mostraba "vence mañana"
+      // mirando solo la sub activa e ignorando la renovación/cambio ya
+      // programado que continúa la cobertura. El endDate del slot debe ser el
+      // MÁXIMO entre active + scheduled.
+      const { member, subscription } = await setupMemberWithSubscription();
+      const activeEndDate = subscription.endDate as string;
+
+      // Renovación anticipada → successor 'scheduled' encadenado al vencimiento
+      // actual, extiende la cobertura.
+      const renewRes = await app.inject({
+        method: "POST",
+        url: `${SUBSCRIPTIONS_URL}/members/${member.id}/subscription/renew`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { paymentMethod: "cash" },
+      });
+      expect(renewRes.statusCode).toBe(201);
+      const scheduled = JSON.parse(renewRes.body);
+      expect(scheduled.status).toBe("scheduled");
+      expect(scheduled.endDate > activeEndDate).toBe(true);
+
+      const { scheduleId } = await createBookingForNow(member.id, testBranchId);
+
+      const res = await app.inject({
+        method: "GET",
+        url: `${ADMIN_ATTENDANCE_URL}/slot/${scheduleId}/2026-03-11`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      const row = body.members.find(
+        (m: { memberId: number }) => m.memberId === member.id,
+      );
+      expect(row).toBeTruthy();
+      // La cobertura más lejana (la programada), no el vencimiento de la activa.
+      expect(row.endDate).toBe(scheduled.endDate);
+    });
   });
 
   // =========================================================================
