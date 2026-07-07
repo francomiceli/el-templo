@@ -3276,8 +3276,22 @@ export class SubscriptionService {
       }
     }
 
-    // New period: starts on current.endDate, runs plan.durationDays
-    const newStartDate = currentSub.endDate;
+    // New period: por defecto arranca en current.endDate (encadenado, sin gap).
+    // El admin puede empujar el inicio MÁS ADELANTE (hotfix 2026-07-07, pedido
+    // del staff: promos para socios que viajan y quieren arrancar después). La
+    // fecha custom se valida contra la ventana ±90/60 y, al exigir que sea
+    // ESTRICTAMENTE posterior al vencimiento actual, nunca solapa con la sub
+    // vigente. Con gap, el successor queda "scheduled" (la actual expira, el
+    // socio queda inactivo durante el hueco) y lo activa activateDueScheduledSubs
+    // (cron) en su startDate — el guard `startDate <= today` de autoExpire
+    // (hotfix renew 2026-07-06) respeta ese hueco. Cuando la fecha ≤ vencimiento
+    // (incluye el default de "al vencer"), se ignora y encadena como siempre:
+    // comportamiento idéntico al previo, sin tocar los tests existentes.
+    let newStartDate = currentSub.endDate;
+    if (input.startDate > currentSub.endDate) {
+      assertStartDateWithinLimits(input.startDate);
+      newStartDate = input.startDate;
+    }
     const newEnd = new Date(newStartDate);
     newEnd.setDate(newEnd.getDate() + targetPlan.durationDays);
     const newEndDate = newEnd.toISOString().split("T")[0];
