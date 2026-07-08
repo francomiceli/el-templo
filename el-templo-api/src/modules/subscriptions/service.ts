@@ -26,6 +26,7 @@ import {
   NotFoundError,
   BadRequestError,
 } from "../shared/errors";
+import { isDuplicateKeyError } from "../shared/sql-errors";
 import type {
   PlanListItem,
   PlanDetail,
@@ -85,6 +86,13 @@ const flowLabelMap: Record<ChargeFlow, string> = {
   "change-after-current": "cambio programado a",
   renew: "renovar",
 };
+
+// Mensaje del 409 al chocar con UNIQUE ux_subscription_plans_name_country.
+// Aclara el caso archivado porque el plan homónimo puede no verse en la lista.
+const DUPLICATE_PLAN_NAME_MESSAGE =
+  "Ya existe un plan con ese nombre en este país. " +
+  "Puede tratarse de un plan archivado: renombralo o desarchivalo, " +
+  "o elegí otro nombre.";
 
 // Lazy import type to avoid circular dependency at module load time
 type BookingServiceType =
@@ -510,26 +518,37 @@ export class SubscriptionService {
     const country = input.country ?? "AR";
     const currency = country === "ES" ? "EUR" : "ARS";
 
-    const result = await this.db.insert(schema.subscriptionPlans).values({
-      name: input.name,
-      description: input.description ?? null,
-      planTier: input.planTier,
-      bookingMode: input.bookingMode,
-      priceRegular: input.priceRegular,
-      priceZero: input.priceZero,
-      priceCreditCard: input.priceCreditCard ?? null,
-      durationDays: input.durationDays,
-      classesPerWeek: input.classesPerWeek ?? null,
-      multiBranch: input.multiBranch ?? false,
-      isTrial: input.isTrial ?? false,
-      isGroup: input.isGroup ?? false,
-      planCategory,
-      linkedProgramId,
-      groupMaxMembers: input.groupMaxMembers ?? null,
-      grantsAllPrograms,
-      country,
-      currency,
-    });
+    let result;
+    try {
+      result = await this.db.insert(schema.subscriptionPlans).values({
+        name: input.name,
+        description: input.description ?? null,
+        planTier: input.planTier,
+        bookingMode: input.bookingMode,
+        priceRegular: input.priceRegular,
+        priceZero: input.priceZero,
+        priceCreditCard: input.priceCreditCard ?? null,
+        durationDays: input.durationDays,
+        classesPerWeek: input.classesPerWeek ?? null,
+        multiBranch: input.multiBranch ?? false,
+        isTrial: input.isTrial ?? false,
+        isGroup: input.isGroup ?? false,
+        planCategory,
+        linkedProgramId,
+        groupMaxMembers: input.groupMaxMembers ?? null,
+        grantsAllPrograms,
+        country,
+        currency,
+      });
+    } catch (err: unknown) {
+      // UNIQUE ux_subscription_plans_name_country (name, country). El nombre
+      // puede estar tomado por un plan ARCHIVADO (invisible en la lista), así
+      // que el mensaje lo aclara para evitar el 500 crudo + reintentos.
+      if (isDuplicateKeyError(err).isDuplicate) {
+        throw new ConflictError(DUPLICATE_PLAN_NAME_MESSAGE);
+      }
+      throw err;
+    }
 
     const planId = Number(result[0].insertId);
     const plan = await this.getPlanById(planId);
@@ -594,10 +613,18 @@ export class SubscriptionService {
     });
 
     if (Object.keys(updateData).length > 0) {
-      await this.db
-        .update(schema.subscriptionPlans)
-        .set(updateData)
-        .where(eq(schema.subscriptionPlans.id, planId));
+      try {
+        await this.db
+          .update(schema.subscriptionPlans)
+          .set(updateData)
+          .where(eq(schema.subscriptionPlans.id, planId));
+      } catch (err: unknown) {
+        // Renombrar a un nombre ya tomado (activo o archivado) → 409 claro.
+        if (isDuplicateKeyError(err).isDuplicate) {
+          throw new ConflictError(DUPLICATE_PLAN_NAME_MESSAGE);
+        }
+        throw err;
+      }
     }
 
     return this.getPlanById(planId);
