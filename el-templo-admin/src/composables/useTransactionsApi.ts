@@ -17,6 +17,8 @@ import type {
   CreateTransactionResponse,
   OutstandingBalancesFilters,
   OutstandingBalancesResult,
+  ScheduledIncomeFilters,
+  ScheduledIncomeResult,
   PendingTrayResult,
   PendingTrayParams,
   CajaSaldoRow,
@@ -512,6 +514,27 @@ export function useTransactionsApi() {
   }
 
   /**
+   * Cobros esperados — planes programados a futuro (complemento de Deudas).
+   */
+  async function getScheduledIncome(
+    filters: ScheduledIncomeFilters = {}
+  ): Promise<ScheduledIncomeResult> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<ScheduledIncomeResult>('/admin/reports/scheduled-income', {
+        params: filters,
+      });
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cargando cobros esperados');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  /**
    * Phase 109 CAJA-04 — Server-side Excel export of outstanding balances.
    * Source: GET /admin/reports/outstanding-balances/export (Plan 109-04).
    * Mirrors exportToExcel pattern (Plan 109-03) — server returns the full
@@ -572,6 +595,7 @@ export function useTransactionsApi() {
     // Phase 109 additions:
     exportToExcel,
     getOutstandingBalances,
+    getScheduledIncome,
     exportOutstandingBalancesToExcel,
     // Phase 141 additions — 137 validation actions:
     validateTransaction,

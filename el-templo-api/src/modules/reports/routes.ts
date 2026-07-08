@@ -20,6 +20,7 @@ import type {
   InactiveReportFilters,
   LeadStatusValue,
   OutstandingBalancesFilters,
+  ScheduledIncomeFilters,
   ShiftFilter,
   TrialConversionFilters,
   TrialSessionsFilters,
@@ -30,6 +31,7 @@ import {
   expiringReportSchema,
   inactiveReportSchema,
   outstandingBalancesSchema,
+  scheduledIncomeSchema,
   outstandingBalancesExportSchema,
   trialConversionReportSchema,
   trialSessionsReportSchema,
@@ -287,6 +289,56 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
           reply,
           request.log,
           "get outstanding balances report",
+        );
+      }
+    },
+  );
+
+  // GET /scheduled-income — Cobros esperados (planes programados a futuro).
+  // Complemento del Reporte Deudas. Mismo scope/país que outstanding-balances.
+  fastify.get<{
+    Querystring: {
+      branchId?: number;
+      country?: "AR" | "ES";
+      currency?: string;
+      search?: string;
+      page?: number;
+      limit?: number;
+    };
+  }>(
+    "/scheduled-income",
+    {
+      schema: scheduledIncomeSchema,
+      preHandler: [
+        requireBranchAccess({ from: "query.branchId", optional: true }),
+      ],
+    },
+    async (request, reply) => {
+      try {
+        let country: "AR" | "ES" | undefined;
+        if (request.scope.isOwner) {
+          country = request.query.country;
+        } else {
+          country = request.scope.country ?? undefined;
+        }
+
+        const filters: ScheduledIncomeFilters = {
+          branchId: request.query.branchId,
+          country,
+          currency: request.query.currency,
+          search: request.query.search,
+          page: request.query.page,
+          limit: request.query.limit,
+        };
+        return await reportsService.getScheduledIncome(filters, {
+          isOwner: request.scope.isOwner,
+        });
+      } catch (err: unknown) {
+        handleServiceError(
+          err,
+          reply,
+          request.log,
+          "get scheduled income report",
         );
       }
     },

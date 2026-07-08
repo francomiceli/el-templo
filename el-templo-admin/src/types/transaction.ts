@@ -316,6 +316,41 @@ export interface OutstandingBalancesFilters {
   limit?: number;
 }
 
+// -- Cobros esperados — planes programados a futuro ------------------------
+// Complemento del Reporte Deudas: saldos de plan (amount > 0) cuya sub aún
+// no arrancó (start_date > hoy). Plata que se espera cobrar cuando empiece.
+
+export interface ScheduledIncomeRow {
+  memberId: number;
+  memberName: string;
+  memberPhone: string | null;
+  branchId: number | null;
+  branchName: string | null;
+  subscriptionId: number;
+  planName: string;
+  amount: number;
+  currency: string;
+  startDate: string; // YYYY-MM-DD (fecha de inicio del plan)
+  startMonth: string; // YYYY-MM
+}
+
+export interface MonthlyIncomeTotal {
+  month: string; // YYYY-MM
+  label: string; // "Julio 2026"
+  amount: number;
+}
+
+export interface ScheduledIncomeResult {
+  rows: ScheduledIncomeRow[];
+  total: number;
+  page: number;
+  limit: number;
+  /** Owner: keyed por moneda. Non-owner: array plano. Ordenado por mes ASC. */
+  monthlyTotals: MonthlyIncomeTotal[] | Record<string, MonthlyIncomeTotal[]>;
+}
+
+export type ScheduledIncomeFilters = OutstandingBalancesFilters;
+
 // -- Phase 141: Bandeja de pendientes (REP-01) -----------------------------
 // Mirrors el-templo-api/src/modules/finance/types.ts PendingTrayItem.
 // `ageInDays`/`isOverdue` are computed server-side; the bandeja response also
