@@ -161,8 +161,11 @@ export interface MemberProfile extends MemberListItem {
   // on that. `createdBy` is denormalized via a self-JOIN server-side so
   // the UI can render "Gestiona: <name>" without a second round-trip; NULL
   // for users created before Plan 01 / via legacy paths (renders "—").
-  leadStatus: 'en_seguimiento' | 'cerrado' | 'perdido' | null;
+  leadStatus: 'en_seguimiento' | 'ganado' | 'perdido' | null;
   leadNotes: string | null;
+  // Hotfix 2026-07: "Plan comprado" — plan que compró el lead al convertir.
+  purchasedPlanId: number | null;
+  purchasedPlanName: string | null;
   createdBy: { userId: number; name: string } | null;
   /**
    * Latest non-cancelled trial booking for this alumno. Surfaced on the

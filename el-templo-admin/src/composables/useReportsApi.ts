@@ -25,7 +25,8 @@ import type {
 
 export type TrialAttendedFilter = 'true' | 'false' | 'pending';
 export type TrialShiftFilter = 'TM' | 'TT';
-export type TrialLeadStatusValue = 'en_seguimiento' | 'cerrado' | 'perdido';
+// Hotfix 2026-07: 'cerrado' → 'ganado'.
+export type TrialLeadStatusValue = 'en_seguimiento' | 'ganado' | 'perdido';
 
 export interface TrialSessionsFiltersClient {
   branchId?: number;
@@ -58,6 +59,8 @@ export interface TrialSessionsRowClient {
   leadStatusEffective: TrialLeadStatusValue;
   createdBy: { userId: number; name: string } | null;
   leadNotes: string | null;
+  purchasedPlanId: number | null;
+  purchasedPlanName: string | null;
   shift: TrialShiftFilter;
   period: string;
   weekRange: string;
