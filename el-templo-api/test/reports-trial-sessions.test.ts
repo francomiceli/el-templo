@@ -160,7 +160,7 @@ interface SeedLeadOpts {
   lastName?: string;
   branchId: number;
   status?: "prueba" | "activo";
-  leadStatus?: "en_seguimiento" | "cerrado" | "perdido" | null;
+  leadStatus?: "en_seguimiento" | "ganado" | "perdido" | null;
   leadNotes?: string | null;
   createdBy?: number | null;
   convertedAtOffsetDays?: number; // if set, sets convertedAt and status='activo'
@@ -554,9 +554,9 @@ describe("Reports API — Trial Sessions (Phase 114-05)", () => {
   // 8. leadStatus multi-value.
   it("leadStatus multi-value filter accepts array", async () => {
     const a = await seedLead({
-      firstName: "Cerr",
+      firstName: "Gan",
       branchId: ctx.arBranchId,
-      leadStatus: "cerrado",
+      leadStatus: "ganado",
     });
     await seedBooking({
       userId: a,
@@ -586,7 +586,7 @@ describe("Reports API — Trial Sessions (Phase 114-05)", () => {
 
     const res = await ctx.app.inject({
       method: "GET",
-      url: `${REPORTS_URL}/trial-sessions?leadStatus=cerrado&leadStatus=perdido`,
+      url: `${REPORTS_URL}/trial-sessions?leadStatus=ganado&leadStatus=perdido`,
       headers: { authorization: `Bearer ${ctx.ownerToken}` },
     });
     expect(res.statusCode).toBe(200);
@@ -897,7 +897,7 @@ describe("Reports API — Trial Sessions (Phase 114-05)", () => {
 
     // Header line — Spanish with literal accented "Asistió".
     const expectedHeader =
-      "Lead,Fecha,Creación,Hora,Sucursal,Asistió,Estado del Lead,Gestiona,Comentarios,Turno,Periodo,Semana";
+      "Lead,Fecha,Creación,Hora,Sucursal,Asistió,Estado del Lead,Plan comprado,Gestiona,Comentarios,Turno,Periodo,Semana";
     const afterBom = decoded.slice(1);
     const firstLine = afterBom.split("\r\n")[0];
     expect(firstLine).toBe(expectedHeader);

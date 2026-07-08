@@ -2,7 +2,8 @@
  * Phase 114 — PATCH /api/admin/leads/:userId integration tests.
  *
  * Covers D-27 (happy path), D-28 (validation), D-29 (branch scope), D-34
- * (manual lead_status='cerrado' does NOT modify lead_notes).
+ * (manual lead_status edits do NOT modify lead_notes), and the hotfix
+ * 2026-07 invariant: lead_status='ganado' ⇔ purchased_plan_id cargado.
  *
  * Test patterns mirror branch-access.test.ts: seed users directly via Drizzle
  * to bypass cardinality validation and the trial-creation flow, since this
@@ -100,8 +101,9 @@ describe("PATCH /api/admin/leads/:userId (Phase 114 D-27..D-34)", () => {
    */
   async function seedLead(opts: {
     branchId: number;
-    leadStatus?: "en_seguimiento" | "cerrado" | "perdido" | null;
+    leadStatus?: "en_seguimiento" | "ganado" | "perdido" | null;
     leadNotes?: string | null;
+    purchasedPlanId?: number | null;
     createdBy?: number | null;
   }): Promise<number> {
     const passwordHash = await argon2.hash("eltemplo2026");
@@ -118,7 +120,25 @@ describe("PATCH /api/admin/leads/:userId (Phase 114 D-27..D-34)", () => {
         branchId: opts.branchId,
         leadStatus: opts.leadStatus ?? "en_seguimiento",
         leadNotes: opts.leadNotes ?? null,
+        purchasedPlanId: opts.purchasedPlanId ?? null,
         createdBy: opts.createdBy ?? null,
+      })
+      .$returningId();
+    return row.id;
+  }
+
+  /** Seed a subscription plan for the purchased-plan invariant tests. */
+  async function seedPlan(name: string): Promise<number> {
+    const [row] = await app.db
+      .insert(schema.subscriptionPlans)
+      .values({
+        name,
+        planTier: "flex",
+        bookingMode: "flexible",
+        planCategory: "presencial",
+        priceRegular: 10000,
+        priceZero: 0,
+        durationDays: 30,
       })
       .$returningId();
     return row.id;
@@ -347,11 +367,12 @@ describe("PATCH /api/admin/leads/:userId (Phase 114 D-27..D-34)", () => {
   });
 
   // ────────────────────────────────────────────────────────────────────
-  // Test 8: D-34 regression — manual lead_status='cerrado' does NOT modify
-  // lead_notes. Only the subscription create hook (Plan 03) prefixes the
-  // plan name into lead_notes on conversion.
+  // Test 8: D-34 regression — marking 'ganado' (with plan) does NOT modify
+  // lead_notes. Hotfix 2026-07: notes are free-text only, the plan lives
+  // in purchased_plan_id.
   // ────────────────────────────────────────────────────────────────────
-  it("does NOT modify lead_notes on manual leadStatus='cerrado' edit (D-34)", async () => {
+  it("does NOT modify lead_notes on leadStatus='ganado' + plan edit (D-34)", async () => {
+    const planId = await seedPlan("Flex Test");
     const userId = await seedLead({
       branchId: arBranchId,
       leadStatus: "en_seguimiento",
@@ -362,23 +383,126 @@ describe("PATCH /api/admin/leads/:userId (Phase 114 D-27..D-34)", () => {
       method: "PATCH",
       url: `/api/admin/leads/${userId}`,
       headers: { authorization: `Bearer ${ownerToken}` },
-      payload: { leadStatus: "cerrado" },
+      payload: { leadStatus: "ganado", purchasedPlanId: planId },
     });
 
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.body);
-    expect(body.leadStatus).toBe("cerrado");
+    expect(body.leadStatus).toBe("ganado");
+    expect(body.purchasedPlanId).toBe(planId);
+    expect(body.purchasedPlanName).toBe("Flex Test");
     expect(body.leadNotes).toBe("manual note");
 
     const [dbRow] = await app.db
       .select({
         leadStatus: schema.users.leadStatus,
         leadNotes: schema.users.leadNotes,
+        purchasedPlanId: schema.users.purchasedPlanId,
       })
       .from(schema.users)
       .where(eq(schema.users.id, userId));
-    expect(dbRow?.leadStatus).toBe("cerrado");
+    expect(dbRow?.leadStatus).toBe("ganado");
+    expect(dbRow?.purchasedPlanId).toBe(planId);
     expect(dbRow?.leadNotes).toBe("manual note");
+  });
+
+  // ────────────────────────────────────────────────────────────────────
+  // Hotfix 2026-07 — invariante 'ganado' ⇔ plan comprado cargado
+  // ────────────────────────────────────────────────────────────────────
+  it("returns 409 when leadStatus='ganado' is sent without a plan", async () => {
+    const userId = await seedLead({ branchId: arBranchId });
+
+    const res = await app.inject({
+      method: "PATCH",
+      url: `/api/admin/leads/${userId}`,
+      headers: { authorization: `Bearer ${ownerToken}` },
+      payload: { leadStatus: "ganado" },
+    });
+
+    expect(res.statusCode).toBe(409);
+    expect(JSON.parse(res.body).message).toContain("plan");
+
+    // DB unchanged.
+    const [dbRow] = await app.db
+      .select({ leadStatus: schema.users.leadStatus })
+      .from(schema.users)
+      .where(eq(schema.users.id, userId));
+    expect(dbRow?.leadStatus).toBe("en_seguimiento");
+  });
+
+  it("auto-promotes to 'ganado' when a plan is set without explicit leadStatus", async () => {
+    const planId = await seedPlan("Foundation Test");
+    const userId = await seedLead({ branchId: arBranchId });
+
+    const res = await app.inject({
+      method: "PATCH",
+      url: `/api/admin/leads/${userId}`,
+      headers: { authorization: `Bearer ${ownerToken}` },
+      payload: { purchasedPlanId: planId },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.leadStatus).toBe("ganado");
+    expect(body.purchasedPlanId).toBe(planId);
+  });
+
+  it("returns 409 when a plan is set together with a non-'ganado' status", async () => {
+    const planId = await seedPlan("Flex+ Test");
+    const userId = await seedLead({ branchId: arBranchId });
+
+    const res = await app.inject({
+      method: "PATCH",
+      url: `/api/admin/leads/${userId}`,
+      headers: { authorization: `Bearer ${ownerToken}` },
+      payload: { leadStatus: "perdido", purchasedPlanId: planId },
+    });
+
+    expect(res.statusCode).toBe(409);
+  });
+
+  it("returns 409 when clearing the plan while the row stays 'ganado'", async () => {
+    const planId = await seedPlan("Performance Test");
+    const userId = await seedLead({
+      branchId: arBranchId,
+      leadStatus: "ganado",
+      purchasedPlanId: planId,
+    });
+
+    const res = await app.inject({
+      method: "PATCH",
+      url: `/api/admin/leads/${userId}`,
+      headers: { authorization: `Bearer ${ownerToken}` },
+      payload: { purchasedPlanId: null },
+    });
+
+    expect(res.statusCode).toBe(409);
+
+    // Clearing plan + downgrading status in the same PATCH is the valid path.
+    const res2 = await app.inject({
+      method: "PATCH",
+      url: `/api/admin/leads/${userId}`,
+      headers: { authorization: `Bearer ${ownerToken}` },
+      payload: { leadStatus: "en_seguimiento", purchasedPlanId: null },
+    });
+    expect(res2.statusCode).toBe(200);
+    const body = JSON.parse(res2.body);
+    expect(body.leadStatus).toBe("en_seguimiento");
+    expect(body.purchasedPlanId).toBeNull();
+    expect(body.purchasedPlanName).toBeNull();
+  });
+
+  it("returns 400 when purchasedPlanId does not exist", async () => {
+    const userId = await seedLead({ branchId: arBranchId });
+
+    const res = await app.inject({
+      method: "PATCH",
+      url: `/api/admin/leads/${userId}`,
+      headers: { authorization: `Bearer ${ownerToken}` },
+      payload: { purchasedPlanId: 999999 },
+    });
+
+    expect(res.statusCode).toBe(400);
   });
 
   // ────────────────────────────────────────────────────────────────────
