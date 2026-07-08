@@ -365,62 +365,6 @@ export const outstandingBalancesSchema = {
 } as const;
 
 /**
- * Cobros esperados — planes programados a futuro (complemento de Deudas).
- * Mismo querystring que outstanding-balances.
- */
-export const scheduledIncomeSchema = {
-  querystring: {
-    type: "object",
-    properties: {
-      branchId: { type: "integer", minimum: 1 },
-      country: { type: "string", enum: ["AR", "ES"] },
-      currency: { type: "string", minLength: 2, maxLength: 4 },
-      search: { type: "string", maxLength: 100 },
-      page: { type: "integer", minimum: 1 },
-      limit: { type: "integer", minimum: 1, maximum: 200 },
-    },
-    additionalProperties: false,
-  },
-  response: {
-    200: {
-      type: "object",
-      properties: {
-        rows: {
-          type: "array",
-          items: {
-            type: "object",
-            properties: {
-              memberId: { type: "integer" },
-              memberName: { type: "string" },
-              memberPhone: { type: ["string", "null"] },
-              branchId: { type: ["integer", "null"] },
-              branchName: { type: ["string", "null"] },
-              subscriptionId: { type: "integer" },
-              planName: { type: "string" },
-              amount: { type: "integer" },
-              currency: { type: "string" },
-              startDate: { type: "string" },
-              startMonth: { type: "string" },
-            },
-          },
-        },
-        total: { type: "integer" },
-        page: { type: "integer" },
-        limit: { type: "integer" },
-        // Owner: keyed por moneda → array. Non-owner: array plano. Allow both.
-        monthlyTotals: {
-          type: ["array", "object"],
-          additionalProperties: true,
-        },
-      },
-    },
-    401: errorSchema,
-    403: errorSchema,
-    500: errorSchema,
-  },
-} as const;
-
-/**
  * Phase 109-04 — Export schema for outstanding-balances. Mirrors the
  * listing querystring minus pagination (server returns full filtered
  * set in one .xlsx). Response is binary, so no `response: 200` schema.

@@ -61,7 +61,6 @@
       <q-tab name="vencimientos" label="Vencimientos" icon="event_busy" />
       <q-tab name="inactivos" label="Inactivos" icon="person_off" />
       <q-tab name="deudas" label="Deudas" icon="warning" />
-      <q-tab name="cobros-esperados" label="Cobros esperados" icon="event_upcoming" />
       <q-tab name="conversion" label="Conversión" icon="trending_up" />
       <q-tab name="sesiones-de-prueba" label="Sesiones de Prueba" icon="how_to_reg" />
     </q-tabs>
@@ -531,18 +530,6 @@
       </q-tab-panel>
 
       <!-- ================================================================ -->
-      <!-- Cobros esperados Tab (planes programados a futuro) -->
-      <!-- ================================================================ -->
-      <q-tab-panel name="cobros-esperados">
-        <CobrosEsperadosReport
-          :branch-options="deudasBranchOptions"
-          :display-currency="displayCurrency"
-          :country-scope="countryScope"
-          :is-owner="isOwner"
-        />
-      </q-tab-panel>
-
-      <!-- ================================================================ -->
       <!-- Conversión de Trials Tab (Phase 102-07) -->
       <!-- ================================================================ -->
       <q-tab-panel name="conversion">
@@ -766,7 +753,6 @@ import type {
   AnalyticsFilters,
 } from 'src/types/analytics';
 import DeudasReport from 'src/components/DeudasReport.vue';
-import CobrosEsperadosReport from 'src/components/CobrosEsperadosReport.vue';
 import TrialSessionsReport from 'src/components/reports/TrialSessionsReport.vue';
 import AsistenciaTab from 'src/components/analytics/AsistenciaTab.vue';
 
@@ -938,7 +924,6 @@ const VALID_TABS = [
   'vencimientos',
   'inactivos',
   'deudas',
-  'cobros-esperados',
   'conversion',
   'sesiones-de-prueba',
 ];
