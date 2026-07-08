@@ -60,6 +60,7 @@
       <q-tab name="cobros" label="Cobros" icon="payments" />
       <q-tab name="vencimientos" label="Vencimientos" icon="event_busy" />
       <q-tab name="inactivos" label="Inactivos" icon="person_off" />
+      <q-tab name="deudas" label="Deudas" icon="request_quote" />
       <q-tab name="conversion" label="Conversión" icon="trending_up" />
       <q-tab name="sesiones-de-prueba" label="Sesiones de Prueba" icon="how_to_reg" />
     </q-tabs>
@@ -517,6 +518,20 @@
       </q-tab-panel>
 
       <!-- ================================================================ -->
+      <!-- Deudas Tab (revisión v5.4): morosidad para gestion/admin/owner. -->
+      <!-- El coach no llega a Reportes → ve /deudas por fuera. Reusa el -->
+      <!-- mismo componente que el tab "Por deuda" del hub Deudas. -->
+      <!-- ================================================================ -->
+      <q-tab-panel name="deudas">
+        <PorDeudaTab
+          :branch-options="branchOptions"
+          :display-currency="displayCurrency"
+          :country-scope="countryScope"
+          :is-owner="isOwner"
+        />
+      </q-tab-panel>
+
+      <!-- ================================================================ -->
       <!-- Conversión de Trials Tab (Phase 102-07) -->
       <!-- ================================================================ -->
       <q-tab-panel name="conversion">
@@ -741,6 +756,7 @@ import type {
 } from 'src/types/analytics';
 import TrialSessionsReport from 'src/components/reports/TrialSessionsReport.vue';
 import AsistenciaTab from 'src/components/analytics/AsistenciaTab.vue';
+import PorDeudaTab from 'src/components/deudas/PorDeudaTab.vue';
 
 // -- Setup -------------------------------------------------------------------
 
@@ -904,6 +920,7 @@ const VALID_TABS = [
   'cobros',
   'vencimientos',
   'inactivos',
+  'deudas',
   'conversion',
   'sesiones-de-prueba',
 ];
