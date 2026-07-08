@@ -584,6 +584,13 @@ const renewalAmountReceived = ref<number | null>(null);
 const renewalUseOverride = ref(false);
 const renewalOverrideAmount = ref<number | null>(null);
 const renewalOverrideReason = ref('');
+// Precio normalizado por el server al renovar (revisión v5.4 WR-04). Cuando el socio
+// venía con priceType 'credit_card' y la regla de recargo está OFF, el server normaliza
+// a 'regular' → el precio a cobrar (Y) es menor que el pricePaid heredado (X). Guardamos
+// Y acá para (a) mostrar la base de cobro correcta en el diálogo (evita el 400 de
+// recordAssignmentCharge por amountReceived > chargeBase) y (b) avisar con un alert antes
+// de renovar. null = sin normalización (renovación normal).
+const renewalNormalizedPrice = ref<number | null>(null);
 const showEditStartDateDialog = ref(false);
 const editStartDateTarget = ref<SubscriptionDetail | null>(null);
 
@@ -684,7 +691,9 @@ const renewalChargeBase = computed(() => {
   ) {
     return renewalOverrideAmount.value;
   }
-  return renewTarget.value?.pricePaid ?? 0;
+  // Si el server va a normalizar el precio (credit_card→regular con la regla de recargo
+  // OFF), la base de cobro es el precio normalizado (Y), no el pricePaid heredado (X).
+  return renewalNormalizedPrice.value ?? renewTarget.value?.pricePaid ?? 0;
 });
 
 // El override es válido si está activo, tiene monto >= 0 y una razón no vacía.
@@ -800,7 +809,35 @@ function openRenewal(sub: SubscriptionDetail) {
   renewalUseOverride.value = false;
   renewalOverrideAmount.value = null;
   renewalOverrideReason.value = '';
+  renewalNormalizedPrice.value = null;
   showRenewalDialog.value = true;
+  // Detectar normalización de recargo de tarjeta (revisión v5.4 WR-04): si el socio
+  // venía con 'credit_card', le preguntamos al server el precio real que cobraría la
+  // renovación. Si difiere del pricePaid heredado, guardamos Y para reflejarlo en la
+  // base de cobro y avisar antes de confirmar. Fire-and-forget: no bloquea el diálogo.
+  if (sub.priceTypeApplied === 'credit_card') {
+    void detectRenewalNormalization(sub);
+  }
+}
+
+// Pregunta al server (única autoridad de precio vía resolvePriceType) qué cobraría la
+// renovación con priceType 'credit_card'. Con la regla de recargo OFF el server devuelve
+// el precio regular normalizado (Y) < pricePaid heredado (X); lo guardamos para el alert
+// y la base de cobro. Con la regla ON (El Templo) Y === X → no dispara nada.
+async function detectRenewalNormalization(sub: SubscriptionDetail) {
+  try {
+    const preview = await subsApi.getPricingPreview(props.userId, sub.planId, 'credit_card');
+    // Guard anti-race: el diálogo podría haberse cerrado o cambiado de target.
+    if (renewTarget.value?.id !== sub.id) return;
+    if (preview.finalPrice !== (sub.pricePaid ?? 0)) {
+      renewalNormalizedPrice.value = preview.finalPrice;
+    }
+  } catch (err: unknown) {
+    // Si el preview falla no bloqueamos la renovación; el server sigue siendo la autoridad.
+    log.warn('No se pudo previsualizar la normalización de precio en renovación', {
+      error: extractError(err, 'preview failed'),
+    });
+  }
 }
 
 // Al cambiar el precio a cobrar (override on/off o monto), por defecto se
@@ -820,6 +857,30 @@ function onStartDateEdited() {
 }
 
 async function executeRenewal() {
+  // Aviso de normalización (revisión v5.4 WR-04): si el precio se normaliza por el
+  // recargo de tarjeta, confirmamos con el usuario antes de renovar, mostrando X→Y.
+  // El override manual salta la normalización en el server, así que no avisamos ahí.
+  if (renewalNormalizedPrice.value !== null && !renewalUseOverride.value && renewTarget.value) {
+    const currency = renewTarget.value.currency ?? 'ARS';
+    const from = formatPrice(renewTarget.value.pricePaid ?? 0, currency);
+    const to = formatPrice(renewalNormalizedPrice.value, currency);
+    $q.dialog({
+      title: 'El precio cambia al renovar',
+      message:
+        'Este socio venía con recargo de tarjeta. Con la regla de recargo apagada, al ' +
+        `renovar se normaliza a precio regular: de ${from} a ${to}. ¿Renovar de todos modos?`,
+      cancel: { label: 'Cancelar', flat: true },
+      ok: { label: 'Renovar', color: 'primary' },
+      persistent: true,
+    }).onOk(() => {
+      void performRenewal();
+    });
+    return;
+  }
+  await performRenewal();
+}
+
+async function performRenewal() {
   renewalLoading.value = true;
   try {
     // Si el cobro es 0, omitimos el campo amountReceived; sino enviamos el valor.
@@ -843,6 +904,7 @@ async function executeRenewal() {
     renewalUseOverride.value = false;
     renewalOverrideAmount.value = null;
     renewalOverrideReason.value = '';
+    renewalNormalizedPrice.value = null;
     refreshAll();
     emit('subscription-changed');
   } catch (err: unknown) {
