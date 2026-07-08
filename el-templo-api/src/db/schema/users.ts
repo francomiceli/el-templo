@@ -12,6 +12,7 @@ import {
 } from "drizzle-orm/mysql-core";
 import { relations } from "drizzle-orm";
 import { branches } from "./branches";
+import { subscriptionPlans } from "./subscription-plans";
 
 export const roleEnum = mysqlEnum("role", [
   "member",
@@ -65,12 +66,15 @@ export const USER_STATUS_VALUES = [
 export const userStatusEnum = mysqlEnum("status", USER_STATUS_VALUES);
 // Phase 114 (D-15): lead lifecycle status for users with status='prueba'.
 // NULL for staff/freemium/activo/inactivo. Set to 'en_seguimiento' on
-// POST /admin/members/trial (Plan 02). Overridden to 'cerrado' by the
+// POST /admin/members/trial (Plan 02). Overridden to 'ganado' by the
 // subscription create hook (Plan 03). Editable by admin via PATCH
 // /api/admin/leads/:userId (Plan 04).
+// Hotfix 2026-07: 'cerrado' renamed to 'ganado' (migration 0170) — the old
+// value conflated "compró" with "cerrado sin compra". Invariant enforced in
+// MemberService.updateLead: lead_status='ganado' ⇔ purchased_plan_id IS NOT NULL.
 export const leadStatusEnum = mysqlEnum("lead_status", [
   "en_seguimiento",
-  "cerrado",
+  "ganado",
   "perdido",
 ]);
 
@@ -130,14 +134,26 @@ export const users = mysqlTable(
     // subscription creation if the user has any is_trial=1 booking.
     convertedAt: timestamp("converted_at"),
     // Phase 114 (D-15): lead lifecycle status; NULL for non-leads. Set to
-    // 'en_seguimiento' on POST /admin/members/trial. Overridden to 'cerrado'
+    // 'en_seguimiento' on POST /admin/members/trial. Overridden to 'ganado'
     // by the subscription create hook when a lead converts (Plan 03).
     // Admin-editable via PATCH /api/admin/leads/:userId (Plan 04). No DB
     // default — explicit setter at insert time only (D-15, D-20).
     leadStatus: leadStatusEnum,
     // Phase 114 (D-16): free-text comments on the lead. Editable by admin.
-    // Prefilled with the plan name on first conversion if NULL/empty (D-11).
+    // Hotfix 2026-07 (migration 0170): notes are free-text ONLY — the plan
+    // the lead bought lives in purchasedPlanId, never here. The old
+    // "prefill plan name on conversion" behavior moved to purchasedPlanId.
     leadNotes: text("lead_notes"),
+    // Hotfix 2026-07 (migration 0170): plan the lead bought when they
+    // converted ("Plan comprado" in the trial sessions report). Set by the
+    // conversion hook (recomputeUserStatus) from the first subscription, or
+    // manually via PATCH /api/admin/leads/:userId. NULL until the lead buys.
+    // ON DELETE SET NULL — plans are soft-archived in practice, but the FK
+    // must hold if one is ever hard-deleted.
+    purchasedPlanId: int("purchased_plan_id").references(
+      () => subscriptionPlans.id,
+      { onDelete: "set null" },
+    ),
     // Phase 114 (D-17): admin (users.id) who created the lead via POST
     // /admin/members/trial. NULL for self-registered freemium, staff, and
     // historical trials (no backfill — D-20). ON DELETE SET NULL guards
