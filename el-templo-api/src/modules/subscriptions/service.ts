@@ -4848,7 +4848,7 @@ export class SubscriptionService {
    * Phase 114 (D-32 / D-33): the SAME conversion predicate also gates two
    * additional lead-lifecycle writes folded into this UPDATE so they share
    * the parent subscription transaction (atomic rollback):
-   *  - lead_status = 'cerrado' on first conversion of a trial user (override
+   *  - lead_status = 'ganado' on first conversion of a trial user (override
    *    of the 'en_seguimiento' default seeded by POST /admin/members/trial).
    *  - lead_notes = '<plan.name>' on first conversion ONLY IF lead_notes IS
    *    NULL OR empty string. Pre-existing manual notes are NEVER overwritten.
@@ -4879,7 +4879,7 @@ export class SubscriptionService {
     // MySQL evaluates SET assignments LEFT-TO-RIGHT and later expressions
     // see already-assigned values for earlier columns in the same row
     // (https://dev.mysql.com/doc/refman/8.0/en/update.html). The Phase 114
-    // lead_status / lead_notes branches all gate on `u.converted_at IS NULL`
+    // lead_status / purchased_plan_id branches all gate on `u.converted_at IS NULL`
     // (D-32: "first conversion"), so they MUST be assigned BEFORE the
     // converted_at column itself is written — otherwise they'd see the
     // freshly-set CURRENT_TIMESTAMP and the conversion gate would always
@@ -4911,12 +4911,12 @@ export class SubscriptionService {
               SELECT 1 FROM bookings b
               WHERE b.member_id = u.id AND b.is_trial = 1
             )
-          THEN 'cerrado'
+          THEN 'ganado'
           ELSE u.lead_status
         END,
-        u.lead_notes = CASE
+        u.purchased_plan_id = CASE
           WHEN u.converted_at IS NULL
-            AND (u.lead_notes IS NULL OR u.lead_notes = '')
+            AND u.purchased_plan_id IS NULL
             AND EXISTS (
               SELECT 1 FROM subscriptions s
               WHERE s.user_id = u.id
@@ -4929,9 +4929,8 @@ export class SubscriptionService {
               WHERE b.member_id = u.id AND b.is_trial = 1
             )
           THEN (
-            SELECT sp.name
+            SELECT s2.plan_id
             FROM subscriptions s2
-            INNER JOIN subscription_plans sp ON sp.id = s2.plan_id
             WHERE s2.user_id = u.id
               AND s2.subscription_status IN ('active','paused')
               AND s2.start_date <= CURDATE()
@@ -4939,7 +4938,7 @@ export class SubscriptionService {
             ORDER BY s2.created_at DESC
             LIMIT 1
           )
-          ELSE u.lead_notes
+          ELSE u.purchased_plan_id
         END,
         u.converted_at = CASE
           WHEN u.converted_at IS NULL

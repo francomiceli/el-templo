@@ -173,7 +173,8 @@ export { type PaginatedResult } from "../shared/types";
 
 export type AttendedFilter = "true" | "false" | "pending";
 export type ShiftFilter = "TM" | "TT";
-export type LeadStatusValue = "en_seguimiento" | "cerrado" | "perdido";
+// Hotfix 2026-07 (migration 0170): 'cerrado' renamed to 'ganado'.
+export type LeadStatusValue = "en_seguimiento" | "ganado" | "perdido";
 
 export interface TrialSessionsFilters {
   branchId?: number;
@@ -181,7 +182,7 @@ export interface TrialSessionsFilters {
   /** ISO YYYY-MM-DD on bookings.booking_date of the latest non-cancelled trial. */
   dateFrom?: string;
   dateTo?: string;
-  /** Multi-value: ?leadStatus=cerrado&leadStatus=perdido. */
+  /** Multi-value: ?leadStatus=ganado&leadStatus=perdido. */
   leadStatus?: LeadStatusValue[];
   attended?: AttendedFilter;
   shift?: ShiftFilter;
@@ -224,11 +225,15 @@ export interface TrialSessionsRow {
    */
   attended: "si" | "no" | null;
   leadStatus: LeadStatusValue | null;
-  /** D-09: leadStatus ?? (convertedAt ? 'cerrado' : 'en_seguimiento'). */
+  /** D-09: leadStatus ?? (convertedAt ? 'ganado' : 'en_seguimiento'). */
   leadStatusEffective: LeadStatusValue;
   /** Null when the lead was self-registered or pre-dates Plan 02 (D-10/D-20). */
   createdBy: { userId: number; name: string } | null;
   leadNotes: string | null;
+  /** Hotfix 2026-07: "Plan comprado" — users.purchased_plan_id. */
+  purchasedPlanId: number | null;
+  /** Denormalized subscription_plans.name for display / CSV. */
+  purchasedPlanName: string | null;
   /** D-12: 'TM' when startTime < '12:00', else 'TT'. */
   shift: ShiftFilter;
   /** D-13: bookingDate.slice(0,7) — 'YYYY-MM'. */

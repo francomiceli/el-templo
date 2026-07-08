@@ -48,7 +48,11 @@ import type {
   TotalDebtRow,
   UserStatus,
 } from "./types";
-import { ConflictError, NotFoundError } from "../shared/errors";
+import {
+  BadRequestError,
+  ConflictError,
+  NotFoundError,
+} from "../shared/errors";
 import { isDuplicateKeyError } from "../shared/sql-errors";
 import { alias } from "drizzle-orm/mysql-core";
 import type { MemberSegment } from "../segmentation/types";
@@ -518,6 +522,8 @@ export class MemberService {
         hasUsedTrial: hasUsedTrialSubquery,
         leadStatus: schema.users.leadStatus,
         leadNotes: schema.users.leadNotes,
+        purchasedPlanId: schema.users.purchasedPlanId,
+        purchasedPlanName: schema.subscriptionPlans.name,
         creatorId: creator.id,
         creatorFirstName: creator.firstName,
         creatorLastName: creator.lastName,
@@ -525,6 +531,10 @@ export class MemberService {
       .from(schema.users)
       .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
       .leftJoin(creator, eq(creator.id, schema.users.createdBy))
+      .leftJoin(
+        schema.subscriptionPlans,
+        eq(schema.subscriptionPlans.id, schema.users.purchasedPlanId),
+      )
       .where(and(eq(schema.users.id, id), isNull(schema.users.deletedAt)));
 
     if (!row) return null;
@@ -612,6 +622,8 @@ export class MemberService {
       hasUsedTrial: Boolean(row.hasUsedTrial),
       leadStatus: row.leadStatus,
       leadNotes: row.leadNotes,
+      purchasedPlanId: row.purchasedPlanId,
+      purchasedPlanName: row.purchasedPlanName,
       createdBy: row.creatorId
         ? {
             userId: row.creatorId,
@@ -999,9 +1011,12 @@ export class MemberService {
    *
    * - D-28: rejects non-leads (status !== 'prueba') with ConflictError (409).
    * - D-28: empty-string lead_notes is normalized to NULL.
-   * - D-34: manual lead_status='cerrado' edits do NOT auto-modify lead_notes.
-   *   Only the subscription-create hook (Plan 03 / recomputeUserStatus)
-   *   prefixes the plan name into lead_notes on conversion.
+   * - Hotfix 2026-07: "Plan comprado" (purchased_plan_id) editable acá, con
+   *   invariante 'ganado' ⇔ plan cargado:
+   *     - setear un plan sin mandar leadStatus auto-setea 'ganado'
+   *     - 'ganado' sin plan (ni en el input ni ya en la fila) → 409
+   *     - borrar el plan dejando el estado en 'ganado' → 409
+   *   lead_notes queda como texto libre puro — nunca se toca automáticamente.
    */
   async updateLead(
     userId: number,
@@ -1012,6 +1027,8 @@ export class MemberService {
         id: schema.users.id,
         status: schema.users.status,
         deletedAt: schema.users.deletedAt,
+        leadStatus: schema.users.leadStatus,
+        purchasedPlanId: schema.users.purchasedPlanId,
       })
       .from(schema.users)
       .where(eq(schema.users.id, userId))
@@ -1026,6 +1043,17 @@ export class MemberService {
       );
     }
 
+    if (input.purchasedPlanId !== undefined && input.purchasedPlanId !== null) {
+      const [plan] = await this.db
+        .select({ id: schema.subscriptionPlans.id })
+        .from(schema.subscriptionPlans)
+        .where(eq(schema.subscriptionPlans.id, input.purchasedPlanId))
+        .limit(1);
+      if (!plan) {
+        throw new BadRequestError("El plan indicado no existe");
+      }
+    }
+
     const updateData: Partial<typeof schema.users.$inferInsert> = {};
     if (input.leadStatus !== undefined) {
       updateData.leadStatus = input.leadStatus;
@@ -1035,6 +1063,33 @@ export class MemberService {
         input.leadNotes === "" || input.leadNotes === null
           ? null
           : input.leadNotes;
+    }
+    if (input.purchasedPlanId !== undefined) {
+      updateData.purchasedPlanId = input.purchasedPlanId;
+    }
+
+    // Invariante 'ganado' ⇔ plan comprado, evaluado sobre el estado RESULTANTE
+    // (input pisa fila). Setear plan sin estado explícito promociona a 'ganado'
+    // en el mismo UPDATE — nunca queda una fila plan-sin-ganado a mitad de camino.
+    const nextStatus =
+      input.leadStatus !== undefined ? input.leadStatus : user.leadStatus;
+    const nextPlanId =
+      input.purchasedPlanId !== undefined
+        ? input.purchasedPlanId
+        : user.purchasedPlanId;
+    if (nextStatus === "ganado" && nextPlanId === null) {
+      throw new ConflictError(
+        "Un lead 'Ganado' requiere un plan comprado cargado",
+      );
+    }
+    if (nextPlanId !== null && nextStatus !== "ganado") {
+      if (input.leadStatus !== undefined) {
+        // El caller pidió explícitamente un estado ≠ ganado con plan cargado.
+        throw new ConflictError(
+          "Un lead con plan comprado debe estar en estado 'Ganado' (quitá el plan o cambiá el estado)",
+        );
+      }
+      updateData.leadStatus = "ganado";
     }
 
     if (Object.keys(updateData).length > 0) {
@@ -1052,6 +1107,8 @@ export class MemberService {
         userId: schema.users.id,
         leadStatus: schema.users.leadStatus,
         leadNotes: schema.users.leadNotes,
+        purchasedPlanId: schema.users.purchasedPlanId,
+        purchasedPlanName: schema.subscriptionPlans.name,
         status: schema.users.status,
         creatorId: creator.id,
         creatorFirstName: creator.firstName,
@@ -1059,6 +1116,10 @@ export class MemberService {
       })
       .from(schema.users)
       .leftJoin(creator, eq(creator.id, schema.users.createdBy))
+      .leftJoin(
+        schema.subscriptionPlans,
+        eq(schema.subscriptionPlans.id, schema.users.purchasedPlanId),
+      )
       .where(eq(schema.users.id, userId))
       .limit(1);
 
@@ -1066,6 +1127,8 @@ export class MemberService {
       userId: snapshot.userId,
       leadStatus: snapshot.leadStatus,
       leadNotes: snapshot.leadNotes,
+      purchasedPlanId: snapshot.purchasedPlanId,
+      purchasedPlanName: snapshot.purchasedPlanName,
       status: snapshot.status,
       createdBy: snapshot.creatorId
         ? {

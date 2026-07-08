@@ -167,11 +167,9 @@ function isoToDDMMYYYY(iso: string): string {
 }
 
 /** Spanish display label for the D-09 effective lead status. */
-function leadStatusLabelES(
-  s: "en_seguimiento" | "cerrado" | "perdido",
-): string {
+function leadStatusLabelES(s: "en_seguimiento" | "ganado" | "perdido"): string {
   if (s === "en_seguimiento") return "En seguimiento";
-  if (s === "cerrado") return "Cerrado";
+  if (s === "ganado") return "Ganado";
   return "Perdido";
 }
 
@@ -1234,8 +1232,10 @@ export class ReportsService {
       branch_id: number;
       branch_name: string;
       attendance_id: number | null;
-      lead_status: "en_seguimiento" | "cerrado" | "perdido" | null;
+      lead_status: "en_seguimiento" | "ganado" | "perdido" | null;
       lead_notes: string | null;
+      purchased_plan_id: number | null;
+      purchased_plan_name: string | null;
       converted_at: string | Date | null;
       creator_id: number | null;
       creator_first_name: string | null;
@@ -1254,6 +1254,8 @@ export class ReportsService {
         a.id              AS attendance_id,
         u.lead_status     AS lead_status,
         u.lead_notes      AS lead_notes,
+        u.purchased_plan_id AS purchased_plan_id,
+        pp.name           AS purchased_plan_name,
         u.converted_at    AS converted_at,
         creator.id        AS creator_id,
         creator.first_name AS creator_first_name,
@@ -1274,6 +1276,7 @@ export class ReportsService {
        AND a.session_date = b.booking_date
        AND a.attendance_status = 'confirmado'
       LEFT JOIN ${schema.users} AS creator ON creator.id = u.created_by
+      LEFT JOIN ${schema.subscriptionPlans} AS pp ON pp.id = u.purchased_plan_id
       WHERE u.deleted_at IS NULL
         ${conds}
       ORDER BY b.booking_date DESC, b.id DESC
@@ -1291,8 +1294,10 @@ export class ReportsService {
       branch_id: number;
       branch_name: string;
       attendance_id: number | null;
-      lead_status: "en_seguimiento" | "cerrado" | "perdido" | null;
+      lead_status: "en_seguimiento" | "ganado" | "perdido" | null;
       lead_notes: string | null;
+      purchased_plan_id: number | null;
+      purchased_plan_name: string | null;
       converted_at: string | Date | null;
       creator_id: number | null;
       creator_first_name: string | null;
@@ -1317,7 +1322,7 @@ export class ReportsService {
    *
    * Spanish headers (literal accented chars; the file is UTF-8):
    *   Lead, Fecha, Creación, Hora, Sucursal, Asistió, Estado del Lead,
-   *   Gestiona, Comentarios, Turno, Periodo, Semana
+   *   Plan comprado, Gestiona, Comentarios, Turno, Periodo, Semana
    *
    * Date format: DD/MM/YYYY (D-05). Hora: HH:MM (D-06). Asistió: "Sí" / "No"
    * / "" (D-08).
@@ -1339,6 +1344,7 @@ export class ReportsService {
       "Sucursal",
       "Asistió",
       "Estado del Lead",
+      "Plan comprado",
       "Gestiona",
       "Comentarios",
       "Turno",
@@ -1363,6 +1369,7 @@ export class ReportsService {
         row.branchName,
         asistidoLabel,
         estadoLabel,
+        row.purchasedPlanName ?? "",
         gestionaName,
         row.leadNotes ?? "",
         turnoLabel,
@@ -1407,9 +1414,9 @@ export class ReportsService {
 
     if (filters.leadStatus !== undefined && filters.leadStatus.length > 0) {
       // The UI shows `leadStatusEffective` which is derived (see
-      // mapTrialSessionRow): `lead_status ?? (converted ? 'cerrado' : 'en_seguimiento')`.
+      // mapTrialSessionRow): `lead_status ?? (converted ? 'ganado' : 'en_seguimiento')`.
       // Filtering must match the same derivation, otherwise rows with
-      // `lead_status IS NULL` (which display as 'en_seguimiento' or 'cerrado'
+      // `lead_status IS NULL` (which display as 'en_seguimiento' or 'ganado'
       // depending on converted_at) get excluded from their own filter.
       // Each enum value is bound as a parameter; SQL injection-safe.
       const placeholders = sql.join(
@@ -1420,7 +1427,7 @@ export class ReportsService {
       if (filters.leadStatus.includes("en_seguimiento")) {
         orParts.push(sql`(u.lead_status IS NULL AND u.converted_at IS NULL)`);
       }
-      if (filters.leadStatus.includes("cerrado")) {
+      if (filters.leadStatus.includes("ganado")) {
         orParts.push(
           sql`(u.lead_status IS NULL AND u.converted_at IS NOT NULL)`,
         );
@@ -1520,8 +1527,10 @@ export class ReportsService {
     branch_id: number;
     branch_name: string;
     attendance_id: number | null;
-    lead_status: "en_seguimiento" | "cerrado" | "perdido" | null;
+    lead_status: "en_seguimiento" | "ganado" | "perdido" | null;
     lead_notes: string | null;
+    purchased_plan_id: number | null;
+    purchased_plan_name: string | null;
     converted_at: string | Date | null;
     creator_id: number | null;
     creator_first_name: string | null;
@@ -1546,8 +1555,8 @@ export class ReportsService {
     }
 
     // D-09 effective lead status.
-    const leadStatusEffective: "en_seguimiento" | "cerrado" | "perdido" =
-      r.lead_status ?? (converted ? "cerrado" : "en_seguimiento");
+    const leadStatusEffective: "en_seguimiento" | "ganado" | "perdido" =
+      r.lead_status ?? (converted ? "ganado" : "en_seguimiento");
 
     // D-12 shift.
     const shift: "TM" | "TT" = startTime < "12:00" ? "TM" : "TT";
@@ -1583,6 +1592,8 @@ export class ReportsService {
       leadStatusEffective,
       createdBy,
       leadNotes: r.lead_notes,
+      purchasedPlanId: r.purchased_plan_id,
+      purchasedPlanName: r.purchased_plan_name,
       shift,
       period,
       weekRange,
