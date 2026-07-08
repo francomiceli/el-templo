@@ -231,6 +231,12 @@ interface SeedSubscriptionWithBalanceOpts {
   amount: number; // balances.amount (>0 = member owes)
   memberFirstName?: string;
   memberLastName?: string;
+  subscriptionStatus?: "active" | "scheduled";
+  // balances.createdAt offset. La antigüedad (ageInDays) se mide desde la
+  // creación de la deuda, no desde el devengo (start_date). Default = mismo
+  // offset que el start_date, para preservar los asserts de antigüedad de los
+  // tests que seedean deuda "coetánea" al inicio del plan.
+  balanceCreatedOffsetDays?: number;
 }
 
 async function seedSubscriptionWithBalance(
@@ -252,7 +258,7 @@ async function seedSubscriptionWithBalance(
       userId: memberId,
       planId: opts.planId,
       branchId: opts.branchId,
-      status: "active",
+      status: opts.subscriptionStatus ?? "active",
       startDate,
       pricePaid: opts.amount,
       currency: opts.planCurrency,
@@ -261,12 +267,15 @@ async function seedSubscriptionWithBalance(
     .$returningId();
   const subscriptionId = sub.id;
 
+  const createdOffset =
+    opts.balanceCreatedOffsetDays ?? opts.startDateOffsetDays;
   await opts.app.db.insert(schema.balances).values({
     memberId,
     targetKind: "subscription",
     targetId: subscriptionId,
     currency: opts.planCurrency,
     amount: opts.amount,
+    createdAt: new Date(dateOffset(createdOffset) + "T00:00:00Z"),
   });
 
   return { memberId, subscriptionId };
@@ -453,15 +462,62 @@ describe("Reports API — GET /outstanding-balances (Phase 109-02)", () => {
     expect(byAge.get(16)?.bucket).toBe("15+");
   });
 
-  it("BUCKETS-FUTURE: future effective_date clamps ageInDays to 0 (bucket '0-5')", async () => {
+  // ─── Bug 1: plan a futuro no es deuda cobrable ──────────────────────────
+  // Un plan cuyo start_date es futuro (`scheduled` o cargado por adelantado)
+  // NO debe contar como deuda: recordAssignmentCharge siembra el precio en
+  // `balances` al programarlo, meses antes de que arranque.
+
+  it("FUTURE-PLAN-EXCLUDED: una deuda de plan con start_date futuro no aparece ni suma en totales", async () => {
+    // Único balance del set: un plan programado a futuro (scheduled, +30d).
     await seedSubscriptionWithBalance({
       app,
       branchId: ctx.arBranchId,
       planId: ctx.planArId,
       planCurrency: "ARS",
-      startDateOffsetDays: 5, // future
-      amount: 1000,
+      startDateOffsetDays: 30,
+      subscriptionStatus: "scheduled",
+      amount: 560000,
     });
+
+    const res = await app.inject({
+      method: "GET",
+      url: `${REPORTS_URL}/outstanding-balances`,
+      headers: { authorization: `Bearer ${ctx.gestionArToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.rows).toEqual([]);
+    expect(body.total).toBe(0);
+    expect(body.bucketTotals).toEqual({
+      "0-5": 0,
+      "6-10": 0,
+      "11-15": 0,
+      "15+": 0,
+    });
+  });
+
+  it("FUTURE-PLAN-EXCLUDED-MIXED: convive con deudas reales — solo excluye la futura", async () => {
+    // Plan ya iniciado (deuda real) + plan programado a futuro (no cobrable).
+    await seedSubscriptionWithBalance({
+      app,
+      branchId: ctx.arBranchId,
+      planId: ctx.planArId,
+      planCurrency: "ARS",
+      startDateOffsetDays: -10,
+      amount: 1000,
+      memberFirstName: "DeudaReal",
+    });
+    await seedSubscriptionWithBalance({
+      app,
+      branchId: ctx.arBranchId,
+      planId: ctx.planArId,
+      planCurrency: "ARS",
+      startDateOffsetDays: 20,
+      subscriptionStatus: "scheduled",
+      amount: 999999,
+      memberFirstName: "PlanFuturo",
+    });
+
     const res = await app.inject({
       method: "GET",
       url: `${REPORTS_URL}/outstanding-balances`,
@@ -470,8 +526,63 @@ describe("Reports API — GET /outstanding-balances (Phase 109-02)", () => {
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body.rows).toHaveLength(1);
-    expect(body.rows[0].ageInDays).toBe(0);
+    expect(body.rows[0].memberName).toContain("DeudaReal");
+    expect(body.rows[0].amount).toBe(1000);
+    // El monto del plan futuro no infla ningún bucket.
+    expect(body.bucketTotals).toEqual({
+      "0-5": 0,
+      "6-10": 1000,
+      "11-15": 0,
+      "15+": 0,
+    });
+  });
+
+  it("PLAN-STARTS-TODAY-INCLUDED: un plan cuyo start_date es hoy sí cuenta", async () => {
+    await seedSubscriptionWithBalance({
+      app,
+      branchId: ctx.arBranchId,
+      planId: ctx.planArId,
+      planCurrency: "ARS",
+      startDateOffsetDays: 0, // arranca hoy → cobrable
+      amount: 1000,
+    });
+    const res = await app.inject({
+      method: "GET",
+      url: `${REPORTS_URL}/outstanding-balances`,
+      headers: { authorization: `Bearer ${ctx.gestionArToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().rows).toHaveLength(1);
+  });
+
+  // ─── Bug 2: antigüedad desde la creación de la deuda, no el devengo ──────
+
+  it("AGE-FROM-CREATION: ageInDays se mide desde balances.createdAt, no desde start_date (devengo)", async () => {
+    // Devengo 60 días atrás, pero la deuda se creó hace 3 días (carga tardía /
+    // back-dated). La antigüedad debe ser ~3, no ~60; el devengo se conserva
+    // en effectiveDate.
+    await seedSubscriptionWithBalance({
+      app,
+      branchId: ctx.arBranchId,
+      planId: ctx.planArId,
+      planCurrency: "ARS",
+      startDateOffsetDays: -60,
+      balanceCreatedOffsetDays: -3,
+      amount: 1000,
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: `${REPORTS_URL}/outstanding-balances`,
+      headers: { authorization: `Bearer ${ctx.gestionArToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.rows).toHaveLength(1);
+    expect(body.rows[0].ageInDays).toBe(3);
     expect(body.rows[0].bucket).toBe("0-5");
+    // El devengo (columna "fecha de devengo") sigue siendo el start_date.
+    expect(body.rows[0].effectiveDate).toBe(dateOffset(-60));
   });
 
   // ─── Sorting ─────────────────────────────────────────────────────────────

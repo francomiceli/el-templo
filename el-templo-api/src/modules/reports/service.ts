@@ -10,6 +10,7 @@ import { eq, and, gt, sql, isNull, isNotNull, type SQL } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { firmMoneySqlFor } from "../finance/firm-money";
+import { collectibleDebtCondition } from "../finance/debt-conditions";
 import { buildMemberNameSearchCondition } from "../shared/member-search";
 import type {
   AccessReportFilters,
@@ -77,18 +78,33 @@ const MONTHS_ES_OB = [
 ];
 
 /**
- * D-05: ageInDays clamped at 0 when effective_date is in the future
- * (consistent with Phase 108 D-04 / getOutstandingConcepts).
+ * ageInDays = días transcurridos desde una fecha `YYYY-MM-DD`, clamp en 0 si es
+ * futura. Computado en JS — no vía SQL DATEDIFF — para que el clamp sea portable
+ * y no derive con el timezone de la sesión de DB.
  *
- * Computed in JS — not via SQL DATEDIFF — so the clamp at 0 is portable
- * and doesn't drift with the DB session timezone.
+ * La fecha de referencia es la de CREACIÓN de la deuda (`balances.createdAt`),
+ * no el devengo del plan (`subscriptions.startDate`): un plan `scheduled` a
+ * futuro tiene devengo por delante y clampearía a 0, ocultando una deuda que ya
+ * lleva días viva. Ver {@link debtCreationDateOB}.
  */
-function computeAgeInDaysOB(effectiveDate: string): number {
+function computeAgeInDaysOB(referenceDate: string): number {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const eff = new Date(effectiveDate + "T00:00:00");
+  const eff = new Date(referenceDate + "T00:00:00");
   const diffMs = today.getTime() - eff.getTime();
   return Math.max(0, Math.floor(diffMs / MS_PER_DAY_OB));
+}
+
+/**
+ * Porción fecha (`YYYY-MM-DD`) de `balances.createdAt` — la fecha de creación
+ * real de la deuda, base de la antigüedad del Reporte Deudas.
+ */
+function debtCreationDateOB(balanceCreatedAt: Date | string): string {
+  const created =
+    balanceCreatedAt instanceof Date
+      ? balanceCreatedAt
+      : new Date(balanceCreatedAt);
+  return created.toISOString().slice(0, 10);
 }
 
 /** D-05 bucket boundaries (closed intervals). */
@@ -657,7 +673,10 @@ export class ReportsService {
     const offset = (page - 1) * limit;
 
     // ── Build WHERE conditions ──────────────────────────────────────────────
-    const conds: SQL[] = [gt(schema.balances.amount, 0)];
+    const conds: SQL[] = [
+      gt(schema.balances.amount, 0),
+      collectibleDebtCondition(),
+    ];
 
     if (filters.branchId !== undefined) {
       // Filter on subscriptions.branchId (LEFT JOIN). debt_balance rows have
@@ -750,9 +769,10 @@ export class ReportsService {
       )
       .leftJoin(schema.users, eq(schema.users.id, schema.balances.memberId))
       .where(whereClause)
-      .orderBy(
-        sql`COALESCE(${schema.subscriptions.startDate}, DATE(${schema.balances.createdAt})) ASC`,
-      )
+      // Pre-sort por fecha de creación ASC (deuda más vieja primero) para que
+      // el corte de paginación coincida con el orden final por ageInDays DESC
+      // (antigüedad = hoy − createdAt). El sort final en JS reordena la página.
+      .orderBy(sql`${schema.balances.createdAt} ASC`)
       .limit(limit)
       .offset(offset);
 
@@ -764,7 +784,9 @@ export class ReportsService {
         planName: r.planName,
         balanceCreatedAt: r.balanceCreatedAt,
       });
-      const ageInDays = computeAgeInDaysOB(effectiveDate);
+      const ageInDays = computeAgeInDaysOB(
+        debtCreationDateOB(r.balanceCreatedAt),
+      );
       const bucket = computeBucketOB(ageInDays);
       const memberName =
         `${r.memberFirstName ?? ""} ${r.memberLastName ?? ""}`.trim();
@@ -826,14 +848,9 @@ export class ReportsService {
     if (scope.isOwner) {
       const map: Record<string, BucketTotals> = {};
       for (const r of totalsRows) {
-        const { effectiveDate } = deriveEffectiveDateAndLabelOB({
-          targetKind: r.targetKind,
-          targetId: r.targetId,
-          subscriptionStartDate: r.subscriptionStartDate,
-          planName: r.planName,
-          balanceCreatedAt: r.balanceCreatedAt,
-        });
-        const bucket = computeBucketOB(computeAgeInDaysOB(effectiveDate));
+        const bucket = computeBucketOB(
+          computeAgeInDaysOB(debtCreationDateOB(r.balanceCreatedAt)),
+        );
         const key = r.currency;
         if (!map[key]) map[key] = emptyBucketTotals();
         map[key][bucket] += Number(r.amount);
@@ -842,14 +859,9 @@ export class ReportsService {
     } else {
       const flat: BucketTotals = emptyBucketTotals();
       for (const r of totalsRows) {
-        const { effectiveDate } = deriveEffectiveDateAndLabelOB({
-          targetKind: r.targetKind,
-          targetId: r.targetId,
-          subscriptionStartDate: r.subscriptionStartDate,
-          planName: r.planName,
-          balanceCreatedAt: r.balanceCreatedAt,
-        });
-        const bucket = computeBucketOB(computeAgeInDaysOB(effectiveDate));
+        const bucket = computeBucketOB(
+          computeAgeInDaysOB(debtCreationDateOB(r.balanceCreatedAt)),
+        );
         flat[bucket] += Number(r.amount);
       }
       bucketTotals = flat;
@@ -1654,7 +1666,10 @@ export class ReportsService {
     filters: OutstandingBalancesFilters,
   ): Promise<OutstandingBalanceRow[]> {
     // ── Build WHERE conditions ──────────────────────────────────────────────
-    const conds: SQL[] = [gt(schema.balances.amount, 0)];
+    const conds: SQL[] = [
+      gt(schema.balances.amount, 0),
+      collectibleDebtCondition(),
+    ];
 
     if (filters.branchId !== undefined) {
       conds.push(eq(schema.subscriptions.branchId, filters.branchId));
@@ -1710,9 +1725,10 @@ export class ReportsService {
       )
       .leftJoin(schema.users, eq(schema.users.id, schema.balances.memberId))
       .where(whereClause)
-      .orderBy(
-        sql`COALESCE(${schema.subscriptions.startDate}, DATE(${schema.balances.createdAt})) ASC`,
-      );
+      // Pre-sort por fecha de creación ASC (deuda más vieja primero) para que
+      // el corte de paginación coincida con el orden final por ageInDays DESC
+      // (antigüedad = hoy − createdAt). El sort final en JS reordena la página.
+      .orderBy(sql`${schema.balances.createdAt} ASC`);
 
     const mapped: OutstandingBalanceRow[] = rawRows.map((r) => {
       const { effectiveDate, conceptLabel } = deriveEffectiveDateAndLabelOB({
@@ -1722,7 +1738,9 @@ export class ReportsService {
         planName: r.planName,
         balanceCreatedAt: r.balanceCreatedAt,
       });
-      const ageInDays = computeAgeInDaysOB(effectiveDate);
+      const ageInDays = computeAgeInDaysOB(
+        debtCreationDateOB(r.balanceCreatedAt),
+      );
       const bucket = computeBucketOB(ageInDays);
       const memberName =
         `${r.memberFirstName ?? ""} ${r.memberLastName ?? ""}`.trim();

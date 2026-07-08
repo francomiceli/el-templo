@@ -54,6 +54,10 @@ import {
   NotFoundError,
 } from "../shared/errors";
 import { isDuplicateKeyError } from "../shared/sql-errors";
+import {
+  collectibleDebtCondition,
+  collectibleDebtConditionForAlias,
+} from "../finance/debt-conditions";
 import { alias } from "drizzle-orm/mysql-core";
 import type { MemberSegment } from "../segmentation/types";
 
@@ -204,6 +208,7 @@ export class MemberService {
         sql`EXISTS (
           SELECT 1 FROM balances b
           WHERE b.member_id = users.id AND b.amount > 0
+            AND ${collectibleDebtConditionForAlias("b")}
         )`,
       );
     }
@@ -355,7 +360,13 @@ export class MemberService {
             schema.branches,
             eq(schema.branches.id, schema.users.branchId),
           )
-          .where(and(sql`${schema.balances.amount} > 0`, whereClause))
+          .where(
+            and(
+              sql`${schema.balances.amount} > 0`,
+              collectibleDebtCondition(),
+              whereClause,
+            ),
+          )
           .groupBy(schema.balances.currency)
       : Promise.resolve<TotalDebtRow[]>([]);
 

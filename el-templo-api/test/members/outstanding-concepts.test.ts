@@ -16,14 +16,7 @@
  * Runs against the per-worker test MySQL DB (eltemplo_test_<POOL_ID>).
  */
 
-import {
-  describe,
-  it,
-  expect,
-  beforeAll,
-  afterAll,
-  beforeEach,
-} from "vitest";
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import {
@@ -274,14 +267,27 @@ async function insertBalance(
     targetId: number;
     currency: string;
     amount: number;
+    // Offset en días para balances.createdAt (fecha de creación de la deuda,
+    // base de la antigüedad). undefined → default de la DB (ahora).
+    createdOffsetDays?: number;
   },
 ): Promise<void> {
+  const createdAt =
+    data.createdOffsetDays === undefined
+      ? undefined
+      : (() => {
+          const d = new Date();
+          d.setUTCHours(0, 0, 0, 0);
+          d.setUTCDate(d.getUTCDate() + data.createdOffsetDays!);
+          return d;
+        })();
   await app.db.insert(schema.balances).values({
     memberId: data.memberId,
     targetKind: data.targetKind,
     targetId: data.targetId,
     currency: data.currency,
     amount: data.amount,
+    ...(createdAt ? { createdAt } : {}),
   });
 }
 
@@ -455,8 +461,8 @@ describe("GET /admin/members/:userId/outstanding-concepts (Phase 108)", () => {
     expect(body.concepts[0].effectiveDate).toBe("2026-01-15");
   });
 
-  it("OC5: clamps ageInDays to 0 when effectiveDate is in the future (D-04)", async () => {
-    // Crear subscription con startDate = +30 días (futuro).
+  it("OC5: un plan con start_date futuro NO se surface como deuda (Bug 1)", async () => {
+    // Crear subscription con startDate = +30 días (futuro) — plan programado.
     const future = new Date();
     future.setDate(future.getDate() + 30);
     const futureStr = future.toISOString().slice(0, 10);
@@ -467,7 +473,7 @@ describe("GET /admin/members/:userId/outstanding-concepts (Phase 108)", () => {
         userId: ctx.memberArId,
         planId: ctx.planId,
         branchId: ctx.arBranchId,
-        status: "active",
+        status: "scheduled",
         startDate: futureStr,
         pricePaid: 50000,
         currency: "ARS",
@@ -490,9 +496,33 @@ describe("GET /admin/members/:userId/outstanding-concepts (Phase 108)", () => {
     });
     expect(res.statusCode).toBe(200);
     const body = res.json();
+    // La deuda del plan futuro no es cobrable todavía → concepts vacío.
+    expect(body.concepts).toEqual([]);
+  });
+
+  it("OC6: ageInDays se mide desde la creación de la deuda, no desde el devengo (Bug 2)", async () => {
+    // subArId tiene startDate '2026-03-01' (devengo pasado). La deuda se crea
+    // hace 4 días. Antigüedad debe ser 4 (creación), no ~129 (devengo); el
+    // devengo se conserva en effectiveDate.
+    await insertBalance(app, {
+      memberId: ctx.memberArId,
+      targetKind: "subscription",
+      targetId: ctx.subArId,
+      currency: "ARS",
+      amount: 20000,
+      createdOffsetDays: -4,
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: ocUrl(ctx.memberArId),
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
     expect(body.concepts).toHaveLength(1);
-    expect(body.concepts[0].ageInDays).toBe(0);
-    expect(body.concepts[0].effectiveDate).toBe(futureStr);
+    expect(body.concepts[0].ageInDays).toBe(4);
+    expect(body.concepts[0].effectiveDate).toBe("2026-03-01");
   });
 
   // ─── RBAC (D-04 / FINANCE_READ_ROLES) ──────────────────────────────────

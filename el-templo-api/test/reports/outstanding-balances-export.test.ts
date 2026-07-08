@@ -185,6 +185,8 @@ interface SeedSubscriptionWithBalanceOpts {
   amount: number;
   memberFirstName?: string;
   memberLastName?: string;
+  subscriptionStatus?: "active" | "scheduled";
+  balanceCreatedOffsetDays?: number;
 }
 
 async function seedSubscriptionWithBalance(
@@ -206,7 +208,7 @@ async function seedSubscriptionWithBalance(
       userId: memberId,
       planId: opts.planId,
       branchId: opts.branchId,
-      status: "active",
+      status: opts.subscriptionStatus ?? "active",
       startDate,
       pricePaid: opts.amount,
       currency: opts.planCurrency,
@@ -215,12 +217,17 @@ async function seedSubscriptionWithBalance(
     .$returningId();
   const subscriptionId = sub.id;
 
+  // ageInDays se mide desde balances.createdAt (creación de la deuda), no
+  // desde el devengo (start_date). Default = mismo offset que start_date.
+  const createdOffset =
+    opts.balanceCreatedOffsetDays ?? opts.startDateOffsetDays;
   await opts.app.db.insert(schema.balances).values({
     memberId,
     targetKind: "subscription",
     targetId: subscriptionId,
     currency: opts.planCurrency,
     amount: opts.amount,
+    createdAt: new Date(dateOffset(createdOffset) + "T00:00:00Z"),
   });
 
   return { memberId, subscriptionId };
@@ -328,6 +335,30 @@ describe("Reports API — GET /outstanding-balances/export (Phase 109-04)", () =
     // 45d → bucket "15+ días"
     expect(firstRow.getCell(8).value).toBe("15+ días");
     expect(firstRow.getCell(10).value).toBe("Plan");
+  });
+
+  it("X1b: un plan programado a futuro no se exporta como deuda (Bug 1)", async () => {
+    await seedSubscriptionWithBalance({
+      app,
+      branchId: ctx.arBranchId,
+      planId: ctx.planArId,
+      planCurrency: "ARS",
+      startDateOffsetDays: 30,
+      subscriptionStatus: "scheduled",
+      amount: 560000,
+      memberFirstName: "Futuro",
+    });
+    const res = await app.inject({
+      method: "GET",
+      url: `${REPORTS_URL}/outstanding-balances/export`,
+      headers: { authorization: `Bearer ${ctx.adminArToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const wb = new Workbook();
+    await wb.xlsx.load(res.rawPayload);
+    const sheet = wb.getWorksheet("Deudas");
+    // Solo el header — la deuda futura no se lista.
+    expect(sheet?.rowCount).toBe(1);
   });
 
   it("X2: coach gets 403 (CAJA_ROLES excludes coach)", async () => {
