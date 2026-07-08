@@ -462,13 +462,14 @@ describe("Reports API — GET /outstanding-balances (Phase 109-02)", () => {
     expect(byAge.get(16)?.bucket).toBe("15+");
   });
 
-  // ─── Bug 1: plan a futuro no es deuda cobrable ──────────────────────────
-  // Un plan cuyo start_date es futuro (`scheduled` o cargado por adelantado)
-  // NO debe contar como deuda: recordAssignmentCharge siembra el precio en
-  // `balances` al programarlo, meses antes de que arranque.
+  // ─── Plan programado a futuro = deuda cobrable HOY ──────────────────────
+  // Un plan programado a futuro (`scheduled`) se carga con la condición de
+  // pagar AHORA (membresía futura a precio menor atada al pago inmediato). Su
+  // saldo ES deuda cobrable hoy → DEBE aparecer en Deudas, con antigüedad
+  // contada desde que se creó la deuda (no desde el devengo/start_date).
 
-  it("FUTURE-PLAN-EXCLUDED: una deuda de plan con start_date futuro no aparece ni suma en totales", async () => {
-    // Único balance del set: un plan programado a futuro (scheduled, +30d).
+  it("FUTURE-PLAN-INCLUDED: un plan programado a futuro con saldo aparece como deuda hoy", async () => {
+    // Plan scheduled que arranca en +30d; la deuda se creó hace 7 días.
     await seedSubscriptionWithBalance({
       app,
       branchId: ctx.arBranchId,
@@ -476,46 +477,9 @@ describe("Reports API — GET /outstanding-balances (Phase 109-02)", () => {
       planCurrency: "ARS",
       startDateOffsetDays: 30,
       subscriptionStatus: "scheduled",
+      balanceCreatedOffsetDays: -7,
       amount: 560000,
-    });
-
-    const res = await app.inject({
-      method: "GET",
-      url: `${REPORTS_URL}/outstanding-balances`,
-      headers: { authorization: `Bearer ${ctx.gestionArToken}` },
-    });
-    expect(res.statusCode).toBe(200);
-    const body = res.json();
-    expect(body.rows).toEqual([]);
-    expect(body.total).toBe(0);
-    expect(body.bucketTotals).toEqual({
-      "0-5": 0,
-      "6-10": 0,
-      "11-15": 0,
-      "15+": 0,
-    });
-  });
-
-  it("FUTURE-PLAN-EXCLUDED-MIXED: convive con deudas reales — solo excluye la futura", async () => {
-    // Plan ya iniciado (deuda real) + plan programado a futuro (no cobrable).
-    await seedSubscriptionWithBalance({
-      app,
-      branchId: ctx.arBranchId,
-      planId: ctx.planArId,
-      planCurrency: "ARS",
-      startDateOffsetDays: -10,
-      amount: 1000,
-      memberFirstName: "DeudaReal",
-    });
-    await seedSubscriptionWithBalance({
-      app,
-      branchId: ctx.arBranchId,
-      planId: ctx.planArId,
-      planCurrency: "ARS",
-      startDateOffsetDays: 20,
-      subscriptionStatus: "scheduled",
-      amount: 999999,
-      memberFirstName: "PlanFuturo",
+      memberFirstName: "Zurita",
     });
 
     const res = await app.inject({
@@ -526,33 +490,57 @@ describe("Reports API — GET /outstanding-balances (Phase 109-02)", () => {
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body.rows).toHaveLength(1);
-    expect(body.rows[0].memberName).toContain("DeudaReal");
-    expect(body.rows[0].amount).toBe(1000);
-    // El monto del plan futuro no infla ningún bucket.
+    expect(body.rows[0].amount).toBe(560000);
+    // Antigüedad desde la creación (7d), no clampeada a 0 por el devengo futuro.
+    expect(body.rows[0].ageInDays).toBe(7);
+    expect(body.rows[0].bucket).toBe("6-10");
+    // El devengo (start_date futuro) se conserva en effectiveDate.
+    expect(body.rows[0].effectiveDate).toBe(dateOffset(30));
     expect(body.bucketTotals).toEqual({
       "0-5": 0,
-      "6-10": 1000,
+      "6-10": 560000,
       "11-15": 0,
       "15+": 0,
     });
   });
 
-  it("PLAN-STARTS-TODAY-INCLUDED: un plan cuyo start_date es hoy sí cuenta", async () => {
+  it("FUTURE-PLAN-MIXED: planes futuros y ya iniciados conviven en Deudas", async () => {
     await seedSubscriptionWithBalance({
       app,
       branchId: ctx.arBranchId,
       planId: ctx.planArId,
       planCurrency: "ARS",
-      startDateOffsetDays: 0, // arranca hoy → cobrable
+      startDateOffsetDays: -10,
       amount: 1000,
+      memberFirstName: "YaIniciado",
     });
+    await seedSubscriptionWithBalance({
+      app,
+      branchId: ctx.arBranchId,
+      planId: ctx.planArId,
+      planCurrency: "ARS",
+      startDateOffsetDays: 20,
+      subscriptionStatus: "scheduled",
+      balanceCreatedOffsetDays: -3,
+      amount: 500000,
+      memberFirstName: "PlanFuturo",
+    });
+
     const res = await app.inject({
       method: "GET",
       url: `${REPORTS_URL}/outstanding-balances`,
       headers: { authorization: `Bearer ${ctx.gestionArToken}` },
     });
     expect(res.statusCode).toBe(200);
-    expect(res.json().rows).toHaveLength(1);
+    const body = res.json();
+    expect(body.rows).toHaveLength(2);
+    // Ambos suman en sus buckets (por antigüedad de creación): 10d y 3d.
+    expect(body.bucketTotals).toEqual({
+      "0-5": 500000,
+      "6-10": 1000,
+      "11-15": 0,
+      "15+": 0,
+    });
   });
 
   // ─── Bug 2: antigüedad desde la creación de la deuda, no el devengo ──────

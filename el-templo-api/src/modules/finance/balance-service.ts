@@ -23,7 +23,6 @@ import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { BadRequestError } from "../shared/errors";
-import { collectibleDebtCondition } from "./debt-conditions";
 import type {
   BalanceRow,
   FinancialTransactionRow,
@@ -209,10 +208,7 @@ export class BalanceService {
   async getOutstandingTotalsByCurrency(
     branchIds?: number[],
   ): Promise<Array<{ currency: string; amount: number }>> {
-    const conditions = [
-      sql`${schema.balances.amount} > 0`,
-      collectibleDebtCondition(),
-    ];
+    const conditions = [sql`${schema.balances.amount} > 0`];
     if (branchIds !== undefined && branchIds.length > 0) {
       conditions.push(sql`${schema.users.branchId} IN ${branchIds}`);
     }
@@ -244,7 +240,6 @@ export class BalanceService {
         and(
           eq(schema.balances.memberId, memberId),
           sql`${schema.balances.amount} > 0`,
-          collectibleDebtCondition(),
         ),
       )
       .limit(1);

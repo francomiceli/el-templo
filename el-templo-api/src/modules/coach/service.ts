@@ -20,7 +20,6 @@ import { MySql2Database } from "drizzle-orm/mysql2";
 import { eq, and, gt, inArray, sql, type SQL } from "drizzle-orm";
 import * as schema from "../../db/schema";
 import { buildMemberNameSearchCondition } from "../shared/member-search";
-import { collectibleDebtCondition } from "../finance/debt-conditions";
 import type {
   CoachOutstandingBalanceRow,
   CoachOutstandingBalancesFilters,
@@ -45,10 +44,7 @@ export class CoachService {
       return { rows: [] };
     }
 
-    const conds: SQL[] = [
-      gt(schema.balances.amount, 0),
-      collectibleDebtCondition(),
-    ];
+    const conds: SQL[] = [gt(schema.balances.amount, 0)];
 
     if (scope.role === "coach") {
       conds.push(inArray(schema.users.branchId, scope.branchIds));

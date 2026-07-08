@@ -41,7 +41,6 @@ import { FinanceConfigService } from "./config-service";
 // the threshold now flows through FinanceConfigService.getOverdueThreshold(),
 // which owns the fallback. Phase 142 (D-05).
 import { firmMoneyConditions } from "./firm-money";
-import { collectibleDebtCondition } from "./debt-conditions";
 import type {
   CreateTransactionInput,
   ObserveTransactionInput,
@@ -1793,7 +1792,6 @@ export class TransactionService {
         and(
           eq(schema.balances.memberId, memberId),
           gt(schema.balances.amount, 0),
-          collectibleDebtCondition(),
         ),
       );
 

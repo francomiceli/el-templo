@@ -10,7 +10,6 @@ import { eq, and, gt, sql, isNull, isNotNull, type SQL } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { firmMoneySqlFor } from "../finance/firm-money";
-import { collectibleDebtCondition } from "../finance/debt-conditions";
 import { buildMemberNameSearchCondition } from "../shared/member-search";
 import type {
   AccessReportFilters,
@@ -673,10 +672,7 @@ export class ReportsService {
     const offset = (page - 1) * limit;
 
     // ── Build WHERE conditions ──────────────────────────────────────────────
-    const conds: SQL[] = [
-      gt(schema.balances.amount, 0),
-      collectibleDebtCondition(),
-    ];
+    const conds: SQL[] = [gt(schema.balances.amount, 0)];
 
     if (filters.branchId !== undefined) {
       // Filter on subscriptions.branchId (LEFT JOIN). debt_balance rows have
@@ -1666,10 +1662,7 @@ export class ReportsService {
     filters: OutstandingBalancesFilters,
   ): Promise<OutstandingBalanceRow[]> {
     // ── Build WHERE conditions ──────────────────────────────────────────────
-    const conds: SQL[] = [
-      gt(schema.balances.amount, 0),
-      collectibleDebtCondition(),
-    ];
+    const conds: SQL[] = [gt(schema.balances.amount, 0)];
 
     if (filters.branchId !== undefined) {
       conds.push(eq(schema.subscriptions.branchId, filters.branchId));

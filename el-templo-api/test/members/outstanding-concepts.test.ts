@@ -461,8 +461,10 @@ describe("GET /admin/members/:userId/outstanding-concepts (Phase 108)", () => {
     expect(body.concepts[0].effectiveDate).toBe("2026-01-15");
   });
 
-  it("OC5: un plan con start_date futuro NO se surface como deuda (Bug 1)", async () => {
-    // Crear subscription con startDate = +30 días (futuro) — plan programado.
+  it("OC5: un plan programado a futuro SÍ es deuda hoy; ageInDays desde la creación", async () => {
+    // Un plan scheduled a futuro se carga con la condición de pagar ahora → su
+    // saldo es deuda cobrable hoy. La antigüedad se cuenta desde la creación de
+    // la deuda; el devengo (start_date futuro) se conserva en effectiveDate.
     const future = new Date();
     future.setDate(future.getDate() + 30);
     const futureStr = future.toISOString().slice(0, 10);
@@ -487,6 +489,7 @@ describe("GET /admin/members/:userId/outstanding-concepts (Phase 108)", () => {
       targetId: subFuture.id,
       currency: "ARS",
       amount: 10000,
+      createdOffsetDays: -5, // deuda creada hace 5 días
     });
 
     const res = await app.inject({
@@ -496,8 +499,13 @@ describe("GET /admin/members/:userId/outstanding-concepts (Phase 108)", () => {
     });
     expect(res.statusCode).toBe(200);
     const body = res.json();
-    // La deuda del plan futuro no es cobrable todavía → concepts vacío.
-    expect(body.concepts).toEqual([]);
+    // El plan futuro SÍ es deuda cobrable hoy → aparece.
+    expect(body.concepts).toHaveLength(1);
+    expect(body.concepts[0].balance).toBe(10000);
+    // Antigüedad desde la creación (5d), no clampeada por el devengo futuro.
+    expect(body.concepts[0].ageInDays).toBe(5);
+    // El devengo (start_date futuro) se conserva en effectiveDate.
+    expect(body.concepts[0].effectiveDate).toBe(futureStr);
   });
 
   it("OC6: ageInDays se mide desde la creación de la deuda, no desde el devengo (Bug 2)", async () => {

@@ -13,7 +13,6 @@ import * as schema from "../../db/schema";
 import { resolveMonthRange, computePriorPeriod } from "../shared/date-utils";
 import { activeMemberExists } from "../shared/active-member";
 import { firmMoneySqlFor } from "../finance/firm-money";
-import { collectibleDebtCondition } from "../finance/debt-conditions";
 import { applyScope } from "./scope";
 import type {
   KpiStats,
@@ -1275,10 +1274,7 @@ export class AnalyticsService {
     branchId: number | undefined,
     country: "AR" | "ES" | undefined,
   ): Promise<OutstandingByCurrency> {
-    const conditions: SQL[] = [
-      gt(schema.balances.amount, 0),
-      collectibleDebtCondition(),
-    ];
+    const conditions: ReturnType<typeof eq>[] = [gt(schema.balances.amount, 0)];
 
     if (branchId !== undefined) {
       conditions.push(eq(schema.subscriptions.branchId, branchId));

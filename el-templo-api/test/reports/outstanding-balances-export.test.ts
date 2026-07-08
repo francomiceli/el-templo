@@ -337,7 +337,7 @@ describe("Reports API — GET /outstanding-balances/export (Phase 109-04)", () =
     expect(firstRow.getCell(10).value).toBe("Plan");
   });
 
-  it("X1b: un plan programado a futuro no se exporta como deuda (Bug 1)", async () => {
+  it("X1b: un plan programado a futuro SÍ se exporta como deuda (cobrable hoy)", async () => {
     await seedSubscriptionWithBalance({
       app,
       branchId: ctx.arBranchId,
@@ -345,6 +345,7 @@ describe("Reports API — GET /outstanding-balances/export (Phase 109-04)", () =
       planCurrency: "ARS",
       startDateOffsetDays: 30,
       subscriptionStatus: "scheduled",
+      balanceCreatedOffsetDays: -7,
       amount: 560000,
       memberFirstName: "Futuro",
     });
@@ -357,8 +358,8 @@ describe("Reports API — GET /outstanding-balances/export (Phase 109-04)", () =
     const wb = new Workbook();
     await wb.xlsx.load(res.rawPayload);
     const sheet = wb.getWorksheet("Deudas");
-    // Solo el header — la deuda futura no se lista.
-    expect(sheet?.rowCount).toBe(1);
+    // Header + la fila del plan futuro (es deuda cobrable hoy).
+    expect(sheet?.rowCount).toBe(2);
   });
 
   it("X2: coach gets 403 (CAJA_ROLES excludes coach)", async () => {
