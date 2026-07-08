@@ -53,19 +53,32 @@ async function setZeroPriceRule(enabled: boolean): Promise<void> {
     .onDuplicateKeyUpdate({ set: { settingValue: value } });
 }
 
-/** Read persisted priceTypeApplied + pricePaid of a subscription. */
-async function readSub(
-  subId: number,
-): Promise<{ priceTypeApplied: string | null; pricePaid: number } | null> {
+/** Read persisted priceTypeApplied + pricePaid + boardingPassUsed of a subscription. */
+async function readSub(subId: number): Promise<{
+  priceTypeApplied: string | null;
+  pricePaid: number;
+  boardingPassUsed: boolean;
+} | null> {
   const [row] = await app.db
     .select({
       priceTypeApplied: schema.subscriptions.priceTypeApplied,
       pricePaid: schema.subscriptions.pricePaid,
+      boardingPassUsed: schema.subscriptions.boardingPassUsed,
     })
     .from(schema.subscriptions)
     .where(eq(schema.subscriptions.id, subId))
     .limit(1);
   return row ?? null;
+}
+
+/** Whether the member's one-shot boarding pass has been consumed (users table). */
+async function readUserBoardingPass(userId: number): Promise<boolean> {
+  const [row] = await app.db
+    .select({ used: schema.users.boardingPassUsed })
+    .from(schema.users)
+    .where(eq(schema.users.id, userId))
+    .limit(1);
+  return row?.used ?? false;
 }
 
 async function createGatePlan(name: string): Promise<{ id: number }> {
@@ -228,6 +241,67 @@ describe("zero-price gate — regla OFF", () => {
     const persisted = await readSub(scheduledSub.id as number);
     expect(persisted?.priceTypeApplied).toBe("regular");
     expect(persisted?.pricePaid).toBe(PRICE_REGULAR);
+  });
+
+  it("OFF + changePlan now + boardingPass → 'regular', consume el pase y no es reutilizable (WR-06)", async () => {
+    // El cambio inmediato ("Ahora, reiniciando") con boarding pass NO consumía el pase:
+    // changePlanNow no tenía branch de boarding → quedaba reutilizable indefinidamente
+    // (agujero vivo con la regla Zero ON). Debe normalizar a 'regular' con la regla OFF,
+    // marcar el pase usado y rechazar un segundo intento con 409. Simétrico a CR-01.
+    await setZeroPriceRule(false);
+    const currentPlan = await createGatePlan("Zero Gate ChangeNow Current");
+    const targetPlan = await createGatePlan("Zero Gate ChangeNow Target");
+    const targetPlan2 = await createGatePlan("Zero Gate ChangeNow Target 2");
+    const member = await createMember(app);
+
+    const assignRes = await assignPlan(app, adminToken, member.id, {
+      planId: currentPlan.id,
+      startDate: todayStr(),
+      priceTypeApplied: "regular",
+    });
+    expect(assignRes.statusCode).toBe(201);
+
+    // Cambio inmediato con boarding pass, regla Zero OFF.
+    const changeRes = await app.inject({
+      method: "POST",
+      url: `${SUBSCRIPTIONS_URL}/members/${member.id}/subscription/change-plan`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: {
+        planId: targetPlan.id,
+        branchId: 1,
+        startDate: todayStr(),
+        priceTypeApplied: "zero",
+        paymentMethod: "cash",
+        startMode: "now",
+        boardingPass: true,
+      },
+    });
+    expect(changeRes.statusCode).toBe(201);
+    const newSub = JSON.parse(changeRes.body);
+
+    // Tipo normalizado a 'regular' (no persiste 'zero' con la regla OFF).
+    const persisted = await readSub(newSub.id as number);
+    expect(persisted?.priceTypeApplied).toBe("regular");
+    // El pase quedó consumido: en la sub y en el user (one-shot). Este es el core WR-06.
+    expect(persisted?.boardingPassUsed).toBe(true);
+    expect(await readUserBoardingPass(member.id)).toBe(true);
+
+    // Segundo intento con boarding pass → 409, ya no es reutilizable.
+    const reuseRes = await app.inject({
+      method: "POST",
+      url: `${SUBSCRIPTIONS_URL}/members/${member.id}/subscription/change-plan`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: {
+        planId: targetPlan2.id,
+        branchId: 1,
+        startDate: todayStr(),
+        priceTypeApplied: "zero",
+        paymentMethod: "cash",
+        startMode: "now",
+        boardingPass: true,
+      },
+    });
+    expect(reuseRes.statusCode).toBe(409);
   });
 
   it("ON + boardingPass → sigue siendo 'zero' + priceZero (idéntico a hoy)", async () => {

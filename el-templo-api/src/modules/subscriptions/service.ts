@@ -2890,6 +2890,9 @@ export class SubscriptionService {
     const [memberForCountry] = await this.db
       .select({
         branchCountry: schema.branches.country,
+        // WR-06: boarding pass es un one-shot; lo necesitamos para validar/consumir
+        // en el branch de boarding más abajo (simétrico a changePlanAfterCurrent).
+        boardingPassUsed: schema.users.boardingPassUsed,
       })
       .from(schema.users)
       .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
@@ -2940,6 +2943,10 @@ export class SubscriptionService {
     );
     let resolvedOverrideAmount: number | null = null;
     let resolvedOverrideReason: string | null = null;
+    // WR-06: consumo del boarding pass en el cambio inmediato. Antes changePlanNow
+    // no tenía branch de boarding → el pase quedaba sin marcar y era reutilizable
+    // (agujero vivo con la regla Zero ON). Simétrico a assignPlan/changePlanAfterCurrent.
+    let boardingPassUsed = false;
 
     if (
       input.priceOverrideAmount !== undefined &&
@@ -2953,6 +2960,26 @@ export class SubscriptionService {
       netAmount = input.priceOverrideAmount;
       resolvedOverrideAmount = input.priceOverrideAmount;
       resolvedOverrideReason = input.priceOverrideReason;
+    } else if (input.boardingPass) {
+      // Boarding pass — regalo one-shot que aplica el precio Zero. Con la regla Zero
+      // OFF (156 D-04) el tipo se rutea por resolvePriceType y normaliza a 'regular'.
+      // A diferencia de assignPlan/changePlanAfterCurrent (sin prorrateo), acá el
+      // cambio es inmediato → se descuenta el crédito remanente de la sub actual,
+      // igual que el else de abajo. Validamos y marcamos el pase ANTES de mutar la sub.
+      if (memberForCountry.boardingPassUsed) {
+        throw new ConflictError("El boarding pass ya fue utilizado");
+      }
+      resolvedPriceType = await this.resolvePriceType("zero");
+      const basePrice = this.getBasePrice(targetPlan, resolvedPriceType);
+      netAmount = Math.max(0, basePrice - proration.remainingValue);
+      resolvedOverrideAmount = netAmount;
+      resolvedOverrideReason = `Cambio de plan (boarding pass): credito $${proration.remainingValue} (${proration.remainingDetail})`;
+      boardingPassUsed = true;
+
+      await this.db
+        .update(schema.users)
+        .set({ boardingPassUsed: true })
+        .where(eq(schema.users.id, userId));
     } else {
       const basePrice = this.getBasePrice(targetPlan, resolvedPriceType);
       netAmount = Math.max(0, basePrice - proration.remainingValue);
@@ -3069,6 +3096,7 @@ export class SubscriptionService {
           priceTypeApplied: resolvedPriceType,
           priceOverrideAmount: resolvedOverrideAmount,
           priceOverrideReason: resolvedOverrideReason,
+          boardingPassUsed,
           classesRemaining,
           classesBudget: classesRemaining,
           previousSubscriptionId: existingSub.id,
