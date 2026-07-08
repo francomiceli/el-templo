@@ -62,8 +62,12 @@ function formatNameWithParams(
     case 'amrap':
     case 'time_cap':
     case 'for_tech':
-    case 'open_style':
       return p.minutes ? `${name} ${p.minutes}'` : name;
+
+    // Open Style: el tiempo lo decide el profe sobre la marcha — nunca se
+    // imprime, aunque bloques viejos tengan minutes guardado en formatParams.
+    case 'open_style':
+      return name;
 
     case 'amrap_series': {
       const parts = [name];
