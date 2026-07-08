@@ -398,7 +398,7 @@
                     <q-toggle
                       v-if="zeroPriceEnabled"
                       v-model="zeroPrice"
-                      label="Precio Zero"
+                      :label="ZERO_PRICE_LABEL"
                       color="positive"
                       class="q-mt-sm"
                     />
@@ -671,6 +671,7 @@ import { useQuasar } from 'quasar';
 import { onBeforeRouteLeave, useRoute } from 'vue-router';
 import { createLogger } from 'src/utils/logger';
 import { formatPrice } from 'src/utils/format-price';
+import { ZERO_PRICE_LABEL } from 'src/config/templo-config';
 import { useMembersApi } from 'src/composables/useMembersApi';
 import { usePricingSettingsApi } from 'src/composables/usePricingSettingsApi';
 import {

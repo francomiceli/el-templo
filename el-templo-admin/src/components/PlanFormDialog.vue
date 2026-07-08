@@ -87,12 +87,12 @@
             <div v-if="zeroPriceEnabled" class="col-12 col-sm-4">
               <q-input
                 v-model.number="form.priceZero"
-                label="Zero *"
+                :label="`${ZERO_PRICE_LABEL_SHORT} *`"
                 type="number"
                 dense
                 outlined
                 prefix="$"
-                :rules="[requiredNumberRule('Precio zero')]"
+                :rules="[requiredNumberRule(ZERO_PRICE_LABEL)]"
               />
             </div>
             <div v-if="cardSurchargeEnabled" class="col-12 col-sm-4">
@@ -285,7 +285,11 @@ import {
   type PlanCategory,
 } from 'src/types/subscription';
 import type { Program } from 'src/types/program';
-import { TEMPLO_TRAINING_ROUTINES } from 'src/config/templo-config';
+import {
+  TEMPLO_TRAINING_ROUTINES,
+  ZERO_PRICE_LABEL,
+  ZERO_PRICE_LABEL_SHORT,
+} from 'src/config/templo-config';
 
 const log = createLogger('PlanFormDialog');
 const $q = useQuasar();
