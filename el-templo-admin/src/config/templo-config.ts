@@ -46,6 +46,16 @@ export const TEMPLO_GREEK_LEVELS = TEMPLO_ENABLED;
  */
 export const TEMPLO_TRAINING_ROUTINES = TEMPLO_ENABLED;
 
+/**
+ * Copy del precio de $0 (precio "Zero"). En El Templo se llama "Precio Zero"; en un
+ * white-label SaaS el mismo mecanismo se ofrece como "Precio promocional" (revisión
+ * v5.4). Deriva de TEMPLO_ENABLED para que el copy cambie con el mismo flag que el
+ * resto de la superficie Templo. `SHORT` es la variante sin la palabra "Precio"
+ * (labels de campos/toggles donde el contexto ya dice "precio").
+ */
+export const ZERO_PRICE_LABEL = TEMPLO_ENABLED ? 'Precio Zero' : 'Precio promocional';
+export const ZERO_PRICE_LABEL_SHORT = TEMPLO_ENABLED ? 'Zero' : 'Promocional';
+
 // ---------------------------------------------------------------------------
 // Role sets — mirror the backend permission sets in
 // `el-templo-api/src/modules/shared/permissions.ts` (D-01/D-02/D-03/D-15).
@@ -67,13 +77,6 @@ export const ALL_STAFF_ROLES: AdminRole[] = ['coach', 'gestion', 'recepcion', 'a
  * (= FINANCE_WRITE_ROLES + coach) of the API.
  */
 export const PAGOS_ROLES: AdminRole[] = ['coach', 'gestion', 'recepcion', 'admin', 'owner'];
-
-/**
- * Deudas: Dueño + Templo override (coach + gestion). Mirrors COACH_DEBTS_ROLES
- * of the API (coach so profes can look up what to collect at the door).
- * Governs access to the whole /deudas page (coach included).
- */
-export const DEUDAS_ROLES: AdminRole[] = ['coach', 'gestion', 'admin', 'owner'];
 
 /**
  * Deudas detail tabs ("Por deuda" / "Vencidos"): Dueño + gestion, coach EXCLUDED
@@ -142,20 +145,33 @@ export const NAV_MODEL: NavCategory[] = [
     header: 'Finanzas',
     items: [
       { path: '/cobros', label: 'Cobros', icon: 'point_of_sale', roles: PAGOS_ROLES },
-      { path: '/deudas', label: 'Deudas', icon: 'request_quote', roles: DEUDAS_ROLES },
+      // Deudas (revisión v5.4): herramienta operativa del profe. Owner/admin/gestion
+      // ven la morosidad DENTRO de Reportes; el coach NO tiene acceso a Reportes, así
+      // que ve "Deudas" por fuera. La entrada queda coach-only + Templo (sin recepción
+      // en las sucursales, el profe la necesita para cobrar en la puerta). El nav solo
+      // HIDE — el gate real sigue en el API/route guard (D-04): COACH_DEBTS_ROLES.
+      { path: '/deudas', label: 'Deudas', icon: 'request_quote', roles: ['coach'], templo: true },
       { path: '/reportes', label: 'Reportes', icon: 'summarize', roles: REPORTES_ROLES },
       { path: '/caja', label: 'Caja', icon: 'point_of_sale', roles: CAJA_SALDOS_ROLES },
       { path: '/analiticas', label: 'Analíticas', icon: 'analytics', roles: ANALITICAS_ROLES },
     ],
   },
   {
-    header: 'Alumnos',
-    items: [{ path: '/alumnos', label: 'Alumnos', icon: 'people', roles: ALL_STAFF_ROLES }],
-  },
-  {
-    header: 'Horarios',
+    // Gestión (revisión v5.4): reemplaza las mini-categorías Alumnos/Horarios y
+    // recibe Profes + Campañas del antiguo blob "Templo". Alumnos/Horarios son
+    // universales; Profes/Campañas quedan Templo-only vía `templo: true` a nivel ítem.
+    header: 'Gestión',
     items: [
+      { path: '/alumnos', label: 'Alumnos', icon: 'people', roles: ALL_STAFF_ROLES },
       { path: '/horarios', label: 'Horarios', icon: 'calendar_month', roles: ALL_STAFF_ROLES },
+      { path: '/puntuaciones', label: 'Profes', icon: 'groups', roles: ['owner'], templo: true },
+      {
+        path: '/campanias',
+        label: 'Campañas',
+        icon: 'campaign',
+        roles: DUENO_ROLES,
+        templo: true,
+      },
     ],
   },
   {
@@ -167,9 +183,29 @@ export const NAV_MODEL: NavCategory[] = [
         icon: 'card_membership',
         roles: PLANES_READ_ROLES,
       },
-      // Rutinas de entrenamiento (D-01 rename): Dueño-only (149 D-15) AND gated as a
-      // routines surface (D-02) via `routines: true` → TEMPLO_TRAINING_ROUTINES.
-      // Router guard (Plan 04) and API (Plan 01) also close it. Path/id intact.
+    ],
+  },
+  {
+    // Entrenamiento (revisión v5.4): la capa de entrenamiento del Templo, "como antes".
+    // Toda la categoría es Templo (`templo: true`) → un white-label sin Templo no la ve.
+    // Sesiones/Programador/Ejercicios/Árbol son trainingOnly (canAccessTraining);
+    // Rutinas se mudó acá desde Planes, sigue Dueño-only + gated por TEMPLO_TRAINING_ROUTINES.
+    header: 'Entrenamiento',
+    templo: true,
+    items: [
+      {
+        path: '/sessions',
+        label: 'Sesiones',
+        icon: 'fitness_center',
+        trainingOnly: true,
+        badge: 'pending',
+      },
+      { path: '/generate', label: 'Programador', icon: 'auto_awesome', trainingOnly: true },
+      { path: '/exercises', label: 'Ejercicios', icon: 'sports_gymnastics', trainingOnly: true },
+      { path: '/tree-map', label: 'Árbol', icon: 'hub', trainingOnly: true },
+      // Rutinas de entrenamiento (D-01 rename): Dueño-only (149 D-15) AND gated como
+      // superficie de rutinas (D-02) vía `routines: true` → TEMPLO_TRAINING_ROUTINES.
+      // Router guard (Plan 04) y API (Plan 01) también la cierran. Path/id intactos.
       {
         path: '/programas',
         label: 'Rutinas de entrenamiento',
@@ -177,6 +213,24 @@ export const NAV_MODEL: NavCategory[] = [
         roles: DUENO_ROLES,
         routines: true,
       },
+    ],
+  },
+  {
+    // Landing (revisión v5.4): gestión del sitio público, solo Templo (las "6 de landing").
+    header: 'Landing',
+    templo: true,
+    items: [
+      { path: '/blog', label: 'Blog', icon: 'article', roles: ['owner'] },
+      { path: '/gladius', label: 'Gladius', icon: 'fitness_center', roles: ['owner'] },
+      { path: '/academy', label: 'Academy', icon: 'school', roles: ['owner'] },
+      {
+        path: '/app-waitlist',
+        label: 'App Waitlist',
+        icon: 'notifications_active',
+        roles: ['owner'],
+      },
+      { path: '/labs-inquiries', label: 'Labs Inquiries', icon: 'business', roles: ['owner'] },
+      { path: '/franquicias', label: 'Franquicias', icon: 'store', roles: ['owner'] },
     ],
   },
   {
@@ -195,35 +249,6 @@ export const NAV_MODEL: NavCategory[] = [
         icon: 'notifications',
         roles: DUENO_ROLES,
       },
-    ],
-  },
-  {
-    header: 'Templo',
-    templo: true,
-    items: [
-      {
-        path: '/sessions',
-        label: 'Sesiones',
-        icon: 'fitness_center',
-        trainingOnly: true,
-        badge: 'pending',
-      },
-      { path: '/generate', label: 'Programador', icon: 'auto_awesome', trainingOnly: true },
-      { path: '/exercises', label: 'Ejercicios', icon: 'sports_gymnastics', trainingOnly: true },
-      { path: '/tree-map', label: 'Árbol', icon: 'hub', trainingOnly: true },
-      { path: '/campanias', label: 'Campañas', icon: 'campaign', roles: DUENO_ROLES },
-      { path: '/puntuaciones', label: 'Profes', icon: 'groups', roles: ['owner'] },
-      { path: '/blog', label: 'Blog', icon: 'article', roles: ['owner'] },
-      { path: '/gladius', label: 'Gladius', icon: 'fitness_center', roles: ['owner'] },
-      { path: '/academy', label: 'Academy', icon: 'school', roles: ['owner'] },
-      {
-        path: '/app-waitlist',
-        label: 'App Waitlist',
-        icon: 'notifications_active',
-        roles: ['owner'],
-      },
-      { path: '/labs-inquiries', label: 'Labs Inquiries', icon: 'business', roles: ['owner'] },
-      { path: '/franquicias', label: 'Franquicias', icon: 'store', roles: ['owner'] },
     ],
   },
 ];
