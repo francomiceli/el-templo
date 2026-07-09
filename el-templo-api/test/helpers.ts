@@ -159,6 +159,7 @@ const TABLES_TO_CLEAN = [
   schema.checkInResponses,
   schema.onboardingAnalytics,
   schema.memberProfiles,
+  schema.userSepaDetails,
   // Junction + leaf tables
   schema.userBranches,
   schema.blogPostTags,

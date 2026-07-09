@@ -34,6 +34,7 @@ import type {
   MemberSearchItem,
   MemberProfile,
   MemberExportRow,
+  SepaExportRow,
   CreateMemberInput,
   CreateTrialMemberServiceInput,
   CreateMinimalMemberServiceInput,
@@ -54,6 +55,8 @@ import {
   NotFoundError,
 } from "../shared/errors";
 import { isDuplicateKeyError } from "../shared/sql-errors";
+import { isValidIban, normalizeIban } from "../shared/iban";
+import { activeMemberExists } from "../shared/active-member";
 import { alias } from "drizzle-orm/mysql-core";
 import type { MemberSegment } from "../segmentation/types";
 
@@ -516,6 +519,7 @@ export class MemberService {
         level: schema.users.level,
         branchId: schema.users.branchId,
         branchName: schema.branches.name,
+        branchCountry: schema.branches.country,
         status: schema.users.status,
         createdAt: schema.users.createdAt,
         updatedAt: schema.users.updatedAt,
@@ -579,6 +583,23 @@ export class MemberService {
       .orderBy(desc(schema.bookings.bookingDate))
       .limit(1);
 
+    // Domiciliación bancaria (SEPA): fila 1:1 opcional. Se devuelve siempre
+    // que exista (aunque el socio se haya mudado a una sede no-ES) — el
+    // gating de UI es por branchCountry, los datos no se pierden al mudarse.
+    const [sepaRow] = await this.db
+      .select({
+        debtorName: schema.userSepaDetails.debtorName,
+        address: schema.userSepaDetails.address,
+        postalCode: schema.userSepaDetails.postalCode,
+        city: schema.userSepaDetails.city,
+        country: schema.userSepaDetails.country,
+        nif: schema.userSepaDetails.nif,
+        iban: schema.userSepaDetails.iban,
+      })
+      .from(schema.userSepaDetails)
+      .where(eq(schema.userSepaDetails.userId, id))
+      .limit(1);
+
     let latestTrial: MemberProfile["latestTrial"] = null;
     if (trialRow) {
       const today = new Date().toISOString().slice(0, 10);
@@ -616,6 +637,7 @@ export class MemberService {
       level: row.level,
       branchId: row.branchId,
       branchName: row.branchName,
+      branchCountry: row.branchCountry,
       status: row.status,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
@@ -635,6 +657,7 @@ export class MemberService {
           }
         : null,
       latestTrial,
+      sepaDetails: sepaRow ?? null,
     };
   }
 
@@ -1175,6 +1198,17 @@ export class MemberService {
     const existing = await this.getMemberById(id);
     if (!existing) return null;
 
+    // Domiciliación (SEPA): validar el IBAN ANTES de tocar users, así un 400
+    // no deja la edición aplicada a medias. Vacío/null es válido (carga
+    // progresiva de la ficha) — solo se valida un IBAN presente.
+    if (input.sepaDetails?.iban) {
+      if (!isValidIban(input.sepaDetails.iban)) {
+        throw new BadRequestError(
+          "El IBAN ingresado no es válido (verificá los dígitos de control)",
+        );
+      }
+    }
+
     // Build update object, only including provided fields
     const updateData: Partial<typeof schema.users.$inferInsert> = {};
 
@@ -1355,6 +1389,30 @@ export class MemberService {
           }
         }
       });
+    }
+
+    // Upsert de la fila SEPA 1:1 (después de la tx de users: su única falla
+    // esperable —IBAN inválido— ya se rechazó arriba). Enviar sepaDetails
+    // con todos los campos en null limpia los datos pero conserva la fila.
+    if (input.sepaDetails !== undefined) {
+      const sepa = input.sepaDetails;
+      const normalize = (v: string | null | undefined): string | null => {
+        const trimmed = v?.trim();
+        return trimmed ? trimmed : null;
+      };
+      const sepaData = {
+        debtorName: normalize(sepa.debtorName),
+        address: normalize(sepa.address),
+        postalCode: normalize(sepa.postalCode),
+        city: normalize(sepa.city),
+        country: normalize(sepa.country)?.toUpperCase() ?? "ES",
+        nif: normalize(sepa.nif)?.toUpperCase() ?? null,
+        iban: sepa.iban ? normalizeIban(sepa.iban) : null,
+      };
+      await this.db
+        .insert(schema.userSepaDetails)
+        .values({ userId: id, ...sepaData })
+        .onDuplicateKeyUpdate({ set: sepaData });
     }
 
     return this.getMemberById(id);
@@ -1758,6 +1816,81 @@ export class MemberService {
       vencimientoSuscripcion: r.endDate ?? "",
       fechaNacimiento: r.dateOfBirth ?? "",
       direccion: r.address ?? "",
+    }));
+  }
+
+  /**
+   * Filas del export mensual de domiciliación bancaria (España): socios de
+   * sedes ES con sus datos SEPA, para el archivo que se le pasa al banco.
+   *
+   * "Activo" se computa con activeMemberExists (EXISTS vivo sobre
+   * subscriptions), NO con users.status — la columna driftea (fantasmas
+   * 2026-05-26) y un socio dado de baja no puede colarse en el débito
+   * bancario del mes.
+   */
+  async exportSepaMembers(params: {
+    branchId?: number;
+    status?: "activo" | "todos";
+  }): Promise<SepaExportRow[]> {
+    const conditions: SQL[] = [
+      eq(schema.users.role, "member"),
+      isNull(schema.users.deletedAt),
+      eq(schema.branches.country, "ES"),
+    ];
+
+    if (params.branchId !== undefined) {
+      conditions.push(eq(schema.users.branchId, params.branchId));
+    }
+
+    // Default 'activo': el archivo del banco es solo de socios con cuota
+    // vigente. 'todos' queda para control/auditoría de datos cargados.
+    if (params.status !== "todos") {
+      conditions.push(activeMemberExists(schema.users.id));
+    }
+
+    const planNameSubquery = sql<string | null>`(
+      SELECT sp.name FROM subscriptions s
+      JOIN subscription_plans sp ON sp.id = s.plan_id
+      WHERE s.user_id = users.id AND s.subscription_status IN ('active','paused')
+      ORDER BY s.created_at DESC LIMIT 1
+    )`;
+
+    const rows = await this.db
+      .select({
+        firstName: schema.users.firstName,
+        lastName: schema.users.lastName,
+        email: schema.users.email,
+        branchName: schema.branches.name,
+        planName: planNameSubquery,
+        debtorName: schema.userSepaDetails.debtorName,
+        nif: schema.userSepaDetails.nif,
+        iban: schema.userSepaDetails.iban,
+        address: schema.userSepaDetails.address,
+        postalCode: schema.userSepaDetails.postalCode,
+        city: schema.userSepaDetails.city,
+        country: schema.userSepaDetails.country,
+      })
+      .from(schema.users)
+      .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
+      .leftJoin(
+        schema.userSepaDetails,
+        eq(schema.userSepaDetails.userId, schema.users.id),
+      )
+      .where(and(...conditions))
+      .orderBy(schema.users.lastName, schema.users.firstName);
+
+    return rows.map((r) => ({
+      socio: `${r.firstName ?? ""} ${r.lastName ?? ""}`.trim(),
+      email: r.email ?? "",
+      plan: r.planName ?? "Sin plan",
+      sucursal: r.branchName,
+      deudor: r.debtorName ?? "",
+      nif: r.nif ?? "",
+      iban: r.iban ?? "",
+      direccion: r.address ?? "",
+      codigoPostal: r.postalCode ?? "",
+      poblacion: r.city ?? "",
+      pais: r.country ?? "",
     }));
   }
 

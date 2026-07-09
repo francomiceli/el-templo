@@ -75,6 +75,9 @@ const memberProfileSchema = {
     level: { type: "string" },
     branchId: { type: "integer" },
     branchName: { type: "string" },
+    // Domiciliación (España): país de la sede — el admin gatea la sección
+    // SEPA de la ficha con branchCountry === 'ES'.
+    branchCountry: { type: "string" },
     // Phase 103 (R10): see memberListItemSchema.status.
     status: {
       type: ["string", "null"],
@@ -123,6 +126,21 @@ const memberProfileSchema = {
           type: ["string", "null"],
           enum: ["si", "no", null],
         },
+      },
+    },
+    // Domiciliación bancaria (SEPA) — fila 1:1 de user_sepa_details, NULL si
+    // nunca se cargó. Mismo gotcha del serializer: hay que declararla.
+    sepaDetails: {
+      type: ["object", "null"],
+      additionalProperties: true,
+      properties: {
+        debtorName: { type: ["string", "null"] },
+        address: { type: ["string", "null"] },
+        postalCode: { type: ["string", "null"] },
+        city: { type: ["string", "null"] },
+        country: { type: "string" },
+        nif: { type: ["string", "null"] },
+        iban: { type: ["string", "null"] },
       },
     },
   },
@@ -524,6 +542,24 @@ export const updateMemberSchema = {
         type: "string",
         enum: ["kairos", "alfa", "delta", "sigma", "omega", "spartan"],
       },
+      // Domiciliación bancaria (SEPA) — solo la envía el admin cuando la
+      // sucursal del socio es de España. Cerrado (additionalProperties:false)
+      // como el resto del body. El service normaliza y valida el IBAN.
+      sepaDetails: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          debtorName: { type: ["string", "null"], maxLength: 150 },
+          address: { type: ["string", "null"], maxLength: 255 },
+          postalCode: { type: ["string", "null"], maxLength: 10 },
+          city: { type: ["string", "null"], maxLength: 100 },
+          country: { type: ["string", "null"], maxLength: 2 },
+          nif: { type: ["string", "null"], maxLength: 20 },
+          // 34 es el máximo ISO; el límite alto (42) tolera espacios de
+          // formato que el service quita al normalizar.
+          iban: { type: ["string", "null"], maxLength: 42 },
+        },
+      },
     },
   },
   response: {
@@ -652,6 +688,22 @@ export const exportMembersSchema = {
       // El Templo behavior). The Templo-surface flag lives front-only in
       // templo-config.ts; the API only respects the param (no Templo-ism here).
       includeGreekLevel: { type: "boolean" },
+    },
+  },
+  // No response schema -- binary file response
+};
+
+/**
+ * GET /api/admin/members/export-sepa — export mensual de domiciliación
+ * bancaria (España). Siempre acotado a sedes con country='ES'; el default de
+ * estado es 'activo' (solo socios con cuota vigente van al banco).
+ */
+export const exportSepaMembersSchema = {
+  querystring: {
+    type: "object",
+    properties: {
+      branchId: { type: "integer" },
+      status: { type: "string", enum: ["activo", "todos"] },
     },
   },
   // No response schema -- binary file response

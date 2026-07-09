@@ -24,7 +24,11 @@ import { SubscriptionService } from "../subscriptions/service";
 import { AuraService } from "../aura/service";
 import { BookingService } from "../scheduling/booking-service";
 import { NotificationService } from "../notifications/service";
-import { ConflictError, NotFoundError } from "../shared/errors";
+import {
+  BadRequestError,
+  ConflictError,
+  NotFoundError,
+} from "../shared/errors";
 import { EmailService } from "../email";
 import type {
   CreateMemberInput,
@@ -46,6 +50,7 @@ import {
   checkDniSchema,
   checkDuplicatesSchema,
   exportMembersSchema,
+  exportSepaMembersSchema,
   uploadPhotoUrlSchema,
   listNotesSchema,
   createNoteSchema,
@@ -155,10 +160,13 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
     // in practice — kept as defensive default.
 
     return {
-      branches: filtered.map(({ id, name, isVirtual }) => ({
+      // country expuesto para que el admin gatee la UI de domiciliación
+      // bancaria (sección SEPA + export) por sucursal de España.
+      branches: filtered.map(({ id, name, isVirtual, country }) => ({
         id,
         name,
         isVirtual: !!isVirtual,
+        country,
       })),
     };
   });
@@ -288,6 +296,107 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
 
       const today = new Date().toISOString().split("T")[0];
       const filename = `alumnos-${today}.xlsx`;
+
+      return reply
+        .header(
+          "Content-Type",
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        .header("Content-Disposition", `attachment; filename="${filename}"`)
+        .send(Buffer.from(buffer as ArrayBuffer));
+    },
+  );
+
+  // GET /admin/members/export-sepa — Export mensual de domiciliación bancaria
+  // (España) como .xlsx: socios de sedes ES con sus datos SEPA (deudor,
+  // NIF/CIF, IBAN, dirección), para el archivo que se le pasa al banco.
+  //
+  // - Siempre acotado a branches.country='ES' (server-side, no bypasseable).
+  // - Default status='activo' computado en vivo con activeMemberExists —
+  //   nunca users.status (drift de fantasmas): al banco solo van cuotas vigentes.
+  // - MEMBER_LIFECYCLE_ROLES (owner/admin/gestion): el IBAN es dato bancario
+  //   sensible — coach/recepción no exportan. Además, admin/gestion deben
+  //   tener scope de país España (un admin AR no ve cuentas bancarias ES).
+  fastify.get<{
+    Querystring: {
+      branchId?: number;
+      status?: "activo" | "todos";
+    };
+  }>(
+    "/export-sepa",
+    {
+      schema: exportSepaMembersSchema,
+      preHandler: [
+        requireBranchAccess({ from: "query.branchId", optional: true }),
+      ],
+    },
+    async (request, reply) => {
+      if (
+        !(MEMBER_LIFECYCLE_ROLES as readonly string[]).includes(
+          request.user.role,
+        )
+      ) {
+        return reply.code(403).send({
+          error: "Acceso denegado",
+          message: "Solo owner, admin o gestión puede exportar domiciliación",
+        });
+      }
+      if (!request.scope.isOwner && request.scope.country !== "ES") {
+        return reply.code(403).send({
+          error: "Acceso denegado",
+          message: "La domiciliación bancaria es solo del ámbito España",
+        });
+      }
+
+      const rows = await memberService.exportSepaMembers({
+        branchId: request.query.branchId,
+        status: request.query.status,
+      });
+
+      const workbook = new Workbook();
+      workbook.creator = "El Templo";
+      workbook.created = new Date();
+      const sheet = workbook.addWorksheet("Domiciliación");
+
+      sheet.columns = [
+        { header: "Socio", key: "socio", width: 30 },
+        { header: "Email", key: "email", width: 30 },
+        { header: "Plan", key: "plan", width: 25 },
+        { header: "Sucursal", key: "sucursal", width: 20 },
+        { header: "Nombre del deudor", key: "deudor", width: 30 },
+        { header: "NIF / CIF", key: "nif", width: 15 },
+        { header: "IBAN", key: "iban", width: 30 },
+        { header: "Direccion", key: "direccion", width: 35 },
+        { header: "Codigo Postal", key: "codigoPostal", width: 14 },
+        { header: "Poblacion", key: "poblacion", width: 20 },
+        { header: "Pais", key: "pais", width: 8 },
+      ];
+
+      const headerRow = sheet.getRow(1);
+      headerRow.font = { bold: true };
+      headerRow.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FFE0E0E0" },
+      };
+
+      for (const row of rows) {
+        const added = sheet.addRow(row);
+        // Marca visual: sin IBAN o sin deudor el banco rechaza la fila —
+        // resaltarla evita que un socio activo quede sin debitar en el mes.
+        if (!row.iban || !row.deudor) {
+          added.fill = {
+            type: "pattern",
+            pattern: "solid",
+            fgColor: { argb: "FFFFE0E0" },
+          };
+        }
+      }
+
+      const buffer = await workbook.xlsx.writeBuffer();
+
+      const today = new Date().toISOString().split("T")[0];
+      const filename = `domiciliacion-espana-${today}.xlsx`;
 
       return reply
         .header(
@@ -972,6 +1081,14 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
           return reply
             .code(409)
             .send({ error: "Conflicto", message: err.message });
+        }
+
+        // IBAN inválido (domiciliación SEPA) — el service valida mod-97 antes
+        // de tocar users, por eso llega como BadRequestError limpio.
+        if (err instanceof BadRequestError) {
+          return reply
+            .code(400)
+            .send({ error: "Solicitud invalida", message: err.message });
         }
 
         const { isDuplicate, detail } = isDuplicateKeyError(err);

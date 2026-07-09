@@ -121,6 +121,22 @@ export interface MemberListItem {
   hasUsedTrial: boolean;
 }
 
+/**
+ * Domiciliación bancaria (SEPA) — datos del deudor para el archivo mensual
+ * que la sucursal de España le pasa al banco. 1:1 con users vía
+ * user_sepa_details; NULL cuando el socio nunca cargó datos. El deudor
+ * (titular de la cuenta) puede no ser el socio, por eso nombre/NIF propios.
+ */
+export interface SepaDetails {
+  debtorName: string | null;
+  address: string | null;
+  postalCode: string | null;
+  city: string | null;
+  country: string;
+  nif: string | null;
+  iban: string | null;
+}
+
 export interface MemberProfile {
   id: number;
   email: string | null;
@@ -140,6 +156,11 @@ export interface MemberProfile {
   level: string;
   branchId: number;
   branchName: string;
+  /**
+   * País de la sucursal del socio (branches.country, ISO alfa-2). El admin
+   * gatea la UI de domiciliación (sección SEPA) con branchCountry === 'ES'.
+   */
+  branchCountry: string;
   /** Phase 103 (R10): see MemberListItem.status. */
   status: UserStatus | null;
   createdAt: string;
@@ -185,6 +206,8 @@ export interface MemberProfile {
     branchName: string;
     attended: "si" | "no" | null;
   } | null;
+  /** Domiciliación bancaria (SEPA). NULL si nunca se cargaron datos. */
+  sepaDetails: SepaDetails | null;
 }
 
 export interface CreateMemberInput {
@@ -312,6 +335,20 @@ export interface UpdateMemberInput {
   emergencyContactRelationship?: string | null;
   branchId?: number;
   level?: string;
+  /**
+   * Domiciliación bancaria (SEPA). El admin solo lo envía cuando la sucursal
+   * del socio es de España; el service upsertea la fila 1:1 y valida el IBAN
+   * (mod-97) antes de persistir. Ausente = no tocar los datos existentes.
+   */
+  sepaDetails?: {
+    debtorName?: string | null;
+    address?: string | null;
+    postalCode?: string | null;
+    city?: string | null;
+    country?: string | null;
+    nif?: string | null;
+    iban?: string | null;
+  };
 }
 
 export interface MemberNote {
@@ -350,6 +387,24 @@ export interface MemberExportRow {
   vencimientoSuscripcion: string;
   fechaNacimiento: string;
   direccion: string;
+}
+
+/**
+ * Fila del export mensual de domiciliación bancaria (España). Las keys
+ * matchean las columns del sheet en GET /admin/members/export-sepa.
+ */
+export interface SepaExportRow {
+  socio: string;
+  email: string;
+  plan: string;
+  sucursal: string;
+  deudor: string;
+  nif: string;
+  iban: string;
+  direccion: string;
+  codigoPostal: string;
+  poblacion: string;
+  pais: string;
 }
 
 // ─── Phase 105: Outstanding-balance aggregates ────────────────────────
