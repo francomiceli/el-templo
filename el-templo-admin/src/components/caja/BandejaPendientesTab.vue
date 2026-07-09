@@ -593,7 +593,7 @@ async function submitValidar() {
     $q.notify({ type: 'positive', message: 'Pago validado' });
     validarDialog.value = false;
     await loadBandeja();
-  } catch (err: unknown) {
+  } catch {
     // Surface the backend 400 message (moneda incoherente / sin_plan) — el
     // composable ya extrajo el mensaje del server en transactionsApi.error.
     const message = transactionsApi.error.value ?? 'Error al validar el pago';
