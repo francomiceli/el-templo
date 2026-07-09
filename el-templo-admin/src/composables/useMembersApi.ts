@@ -522,6 +522,31 @@ export function useMembersApi() {
     }
   }
 
+  /**
+   * GET /admin/members/export-sepa — export mensual de domiciliación
+   * bancaria (España). El backend acota siempre a sedes ES; default solo
+   * socios activos (computado en vivo desde subscriptions).
+   */
+  async function exportSepaMembers(params?: {
+    branchId?: number;
+    status?: 'activo' | 'todos';
+  }): Promise<Blob> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get('/admin/members/export-sepa', {
+        params,
+        responseType: 'blob',
+      });
+      return data as Blob;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error exportando domiciliación');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   // ─── Cleanup ──────────────────────────────────────────────────────────
 
   function cleanup() {
@@ -553,6 +578,7 @@ export function useMembersApi() {
     getBranches,
     uploadMemberPhoto,
     exportMembers,
+    exportSepaMembers,
     getSessionLevels,
     cleanup,
   };

@@ -437,6 +437,98 @@
               </div>
             </div>
 
+            <!-- Domiciliación bancaria — solo sedes de España. Aparece/desaparece
+                 en vivo al cambiar la sucursal del select de arriba. -->
+            <template v-if="isSpainBranchSelected">
+              <div class="text-subtitle2 text-weight-bold q-mt-md">
+                Domiciliación bancaria (España)
+              </div>
+              <div class="text-caption text-grey-7">
+                Datos del titular de la cuenta para el débito mensual del banco.
+              </div>
+              <div class="row q-col-gutter-sm">
+                <div class="col-12 col-sm-6">
+                  <q-input
+                    v-model="form.sepaDebtorName"
+                    label="Nombre del deudor"
+                    dense
+                    outlined
+                    clearable
+                    maxlength="150"
+                    hint="Titular de la cuenta bancaria"
+                  />
+                </div>
+                <div class="col-12 col-sm-6">
+                  <q-input
+                    v-model="form.sepaNif"
+                    label="NIF / CIF"
+                    dense
+                    outlined
+                    clearable
+                    maxlength="20"
+                  />
+                </div>
+              </div>
+              <div class="row q-col-gutter-sm">
+                <div class="col-12">
+                  <q-input
+                    v-model="form.sepaIban"
+                    label="IBAN"
+                    dense
+                    outlined
+                    clearable
+                    maxlength="42"
+                    :rules="[ibanRule]"
+                    hint="Ej: ES91 2100 0418 4502 0005 1332"
+                  />
+                </div>
+              </div>
+              <div class="row q-col-gutter-sm">
+                <div class="col-12">
+                  <q-input
+                    v-model="form.sepaAddress"
+                    label="Dirección del deudor"
+                    dense
+                    outlined
+                    clearable
+                    maxlength="255"
+                  />
+                </div>
+              </div>
+              <div class="row q-col-gutter-sm">
+                <div class="col-6 col-sm-4">
+                  <q-input
+                    v-model="form.sepaPostalCode"
+                    label="Código postal"
+                    dense
+                    outlined
+                    clearable
+                    maxlength="10"
+                  />
+                </div>
+                <div class="col-6 col-sm-4">
+                  <q-input
+                    v-model="form.sepaCity"
+                    label="Población"
+                    dense
+                    outlined
+                    clearable
+                    maxlength="100"
+                  />
+                </div>
+                <div class="col-12 col-sm-4">
+                  <q-input
+                    v-model="form.sepaCountry"
+                    label="País"
+                    dense
+                    outlined
+                    maxlength="2"
+                    hint="Código ISO, ej: ES"
+                  />
+                </div>
+              </div>
+            </template>
+
             <!-- Contacto de Emergencia -->
             <div class="text-subtitle2 text-weight-bold q-mt-md">Contacto de Emergencia</div>
             <div class="row q-col-gutter-sm">
@@ -493,6 +585,7 @@ import { useMembersApi, type DuplicateMatch } from 'src/composables/useMembersAp
 import { useAuthStore } from 'src/stores/useAuthStore';
 import { extractError, isExpectedClientError } from 'src/utils/extract-error';
 import { normalizePhone } from 'src/utils/phone';
+import { isValidIban } from 'src/utils/iban';
 import type { MemberProfile, BranchOption, UpdateMemberInput } from 'src/types/member';
 
 const log = createLogger('MemberFormDialog');
@@ -606,6 +699,22 @@ const form = ref({
   emergencyContactName: '',
   emergencyContactPhone: '',
   emergencyContactRelationship: '',
+  // Domiciliación bancaria (SEPA) — solo visible/enviado con sucursal de España.
+  sepaDebtorName: '',
+  sepaNif: '',
+  sepaIban: '',
+  sepaAddress: '',
+  sepaPostalCode: '',
+  sepaCity: '',
+  sepaCountry: 'ES',
+});
+
+// Sección SEPA: gateada por el país de la sucursal seleccionada EN el form
+// (no la guardada) — al mover un socio a una sede ES los campos aparecen en
+// el mismo save, sin tener que guardar dos veces.
+const isSpainBranchSelected = computed(() => {
+  const branch = props.branches.find((b) => b.id === form.value.branchId);
+  return branch?.country === 'ES';
 });
 
 // =========================================================================
@@ -650,6 +759,13 @@ function emailRule(val: string) {
   if (!val) return true;
   const pattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return pattern.test(val) || 'Email invalido';
+}
+
+// IBAN opcional (carga progresiva de la ficha) — pero si hay valor tiene que
+// pasar el checksum mod-97. El backend re-valida igual.
+function ibanRule(val: string | null | undefined) {
+  if (!val || !val.trim()) return true;
+  return isValidIban(val) || 'IBAN inválido (verificá los dígitos de control)';
 }
 
 // =========================================================================
@@ -770,6 +886,7 @@ watch(
     }
 
     if (props.member) {
+      const sepa = props.member.sepaDetails;
       form.value = {
         firstName: props.member.firstName ?? '',
         lastName: props.member.lastName ?? '',
@@ -785,6 +902,13 @@ watch(
         emergencyContactName: props.member.emergencyContactName ?? '',
         emergencyContactPhone: props.member.emergencyContactPhone ?? '',
         emergencyContactRelationship: props.member.emergencyContactRelationship ?? '',
+        sepaDebtorName: sepa?.debtorName ?? '',
+        sepaNif: sepa?.nif ?? '',
+        sepaIban: sepa?.iban ?? '',
+        sepaAddress: sepa?.address ?? '',
+        sepaPostalCode: sepa?.postalCode ?? '',
+        sepaCity: sepa?.city ?? '',
+        sepaCountry: sepa?.country ?? 'ES',
       };
     } else {
       // Create mode: reset everything
@@ -804,6 +928,13 @@ watch(
         emergencyContactName: '',
         emergencyContactPhone: '',
         emergencyContactRelationship: '',
+        sepaDebtorName: '',
+        sepaNif: '',
+        sepaIban: '',
+        sepaAddress: '',
+        sepaPostalCode: '',
+        sepaCity: '',
+        sepaCountry: 'ES',
       };
     }
   }
@@ -926,6 +1057,19 @@ async function onSubmit() {
         emergencyContactPhone: form.value.emergencyContactPhone || null,
         emergencyContactRelationship: form.value.emergencyContactRelationship || null,
       };
+      // Domiciliación (SEPA): solo se manda con sucursal de España — para
+      // sedes AR el campo va ausente y el backend no toca datos existentes.
+      if (isSpainBranchSelected.value) {
+        updatePayload.sepaDetails = {
+          debtorName: form.value.sepaDebtorName || null,
+          nif: form.value.sepaNif || null,
+          iban: form.value.sepaIban || null,
+          address: form.value.sepaAddress || null,
+          postalCode: form.value.sepaPostalCode || null,
+          city: form.value.sepaCity || null,
+          country: form.value.sepaCountry || null,
+        };
+      }
       const wasPrueba = props.member.status === 'prueba';
       const updated = await membersApi.updateMember(props.member.id, updatePayload);
       // SP → legajo conversion: surface the updated member so the parent

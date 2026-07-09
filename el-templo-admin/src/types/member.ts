@@ -145,6 +145,21 @@ export interface OnboardingProfileSummary {
   completedAt: string | null;
 }
 
+/**
+ * Domiciliación bancaria (SEPA) — datos del deudor para el archivo mensual
+ * que la sucursal de España le pasa al banco. NULL cuando nunca se cargaron.
+ * El deudor (titular de la cuenta) puede no ser el socio.
+ */
+export interface SepaDetails {
+  debtorName: string | null;
+  address: string | null;
+  postalCode: string | null;
+  city: string | null;
+  country: string;
+  nif: string | null;
+  iban: string | null;
+}
+
 export interface MemberProfile extends MemberListItem {
   address: string | null;
   dateOfBirth: string | null;
@@ -184,6 +199,13 @@ export interface MemberProfile extends MemberListItem {
     branchName: string;
     attended: 'si' | 'no' | null;
   } | null;
+  /**
+   * País de la sucursal del socio (ISO alfa-2). Gatea la sección de
+   * domiciliación bancaria: solo se muestra cuando es 'ES'.
+   */
+  branchCountry: string;
+  /** Domiciliación bancaria (SEPA). NULL si nunca se cargaron datos. */
+  sepaDetails: SepaDetails | null;
 }
 
 export interface CreateMemberInput {
@@ -229,6 +251,19 @@ export interface UpdateMemberInput {
   emergencyContactName?: string | null;
   emergencyContactPhone?: string | null;
   emergencyContactRelationship?: string | null;
+  /**
+   * Domiciliación bancaria (SEPA) — solo se envía cuando la sucursal del
+   * socio es de España. Ausente = el backend no toca los datos existentes.
+   */
+  sepaDetails?: {
+    debtorName?: string | null;
+    address?: string | null;
+    postalCode?: string | null;
+    city?: string | null;
+    country?: string | null;
+    nif?: string | null;
+    iban?: string | null;
+  };
 }
 
 export interface MemberListParams {
@@ -296,4 +331,6 @@ export interface BranchOption {
   id: number;
   name: string;
   isVirtual?: boolean;
+  /** ISO alfa-2 (AR/ES) — gatea la UI de domiciliación bancaria (SEPA). */
+  country?: string;
 }

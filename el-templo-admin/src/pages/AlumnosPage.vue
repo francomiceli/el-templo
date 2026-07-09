@@ -22,6 +22,19 @@
         <q-btn icon="download" color="grey-7" flat round :loading="exporting" @click="onExport">
           <q-tooltip>Exportar a Excel</q-tooltip>
         </q-btn>
+        <!-- Domiciliación bancaria (España): archivo mensual para el banco.
+             Visible solo con sedes ES en scope y rol owner/admin/gestion. -->
+        <q-btn
+          v-if="canExportSepa"
+          icon="account_balance"
+          color="grey-7"
+          flat
+          round
+          :loading="exportingSepa"
+          @click="onExportSepa"
+        >
+          <q-tooltip>Exportar domiciliación España (socios activos)</q-tooltip>
+        </q-btn>
         <q-btn
           label="Nuevo en Prueba"
           icon="fact_check"
@@ -399,6 +412,15 @@ const members = ref<MemberListItem[]>([]);
 const branches = ref<BranchOption[]>([]);
 const loading = ref(false);
 const exporting = ref(false);
+const exportingSepa = ref(false);
+
+// Export de domiciliación (España): espejo del gate del backend — solo
+// owner/admin/gestion, y solo si hay sedes ES dentro del scope del usuario.
+const canExportSepa = computed(() => {
+  const role = authStore.user?.role;
+  const roleOk = role === 'owner' || role === 'admin' || role === 'gestion';
+  return roleOk && branches.value.some((b) => b.country === 'ES');
+});
 const showCreateDialog = ref(false);
 const showCreateTrialDialog = ref(false);
 
@@ -806,6 +828,39 @@ async function onExport() {
     $q.notify({ type: 'negative', message: 'Error al exportar' });
   } finally {
     exporting.value = false;
+  }
+}
+
+// Domiciliación bancaria (España): descarga el xlsx mensual para el banco.
+// Siempre socios activos (es el caso de uso del débito); respeta el filtro
+// de sucursal solo si la seleccionada es de España.
+async function onExportSepa() {
+  exportingSepa.value = true;
+  try {
+    const selectedBranch =
+      typeof filters.branchId === 'number'
+        ? branches.value.find((b) => b.id === filters.branchId)
+        : undefined;
+    const blob = await membersApi.exportSepaMembers({
+      branchId: selectedBranch?.country === 'ES' ? selectedBranch.id : undefined,
+      status: 'activo',
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const today = new Date().toISOString().split('T')[0];
+    a.download = `domiciliacion-espana-${today}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    $q.notify({ type: 'positive', message: 'Exportación de domiciliación completada' });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.error('Error exporting SEPA members', { error: message });
+    $q.notify({ type: 'negative', message: 'Error al exportar la domiciliación' });
+  } finally {
+    exportingSepa.value = false;
   }
 }
 

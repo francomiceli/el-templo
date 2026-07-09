@@ -58,6 +58,40 @@
       </q-card-section>
     </q-card>
 
+    <!-- Domiciliación bancaria — solo sedes de España -->
+    <q-card v-if="isSpainBranch" flat bordered>
+      <q-card-section>
+        <div class="text-subtitle1 text-weight-bold q-mb-md">Domiciliación bancaria</div>
+        <template v-if="hasSepaDetails">
+          <div class="row q-col-gutter-md">
+            <div class="col-12 col-sm-6">
+              <div class="text-caption text-grey-7">Nombre del deudor</div>
+              <div class="text-body1">{{ member.sepaDetails?.debtorName ?? dashPlaceholder }}</div>
+            </div>
+            <div class="col-12 col-sm-6">
+              <div class="text-caption text-grey-7">NIF / CIF</div>
+              <div class="text-body1">{{ member.sepaDetails?.nif ?? dashPlaceholder }}</div>
+            </div>
+            <div class="col-12 col-sm-6">
+              <div class="text-caption text-grey-7">IBAN</div>
+              <div class="text-body1">{{ member.sepaDetails?.iban ?? dashPlaceholder }}</div>
+            </div>
+            <div class="col-12 col-sm-6">
+              <div class="text-caption text-grey-7">Dirección</div>
+              <div class="text-body1">{{ member.sepaDetails?.address ?? dashPlaceholder }}</div>
+            </div>
+            <div class="col-12 col-sm-6">
+              <div class="text-caption text-grey-7">Código Postal — Población — País</div>
+              <div class="text-body1">{{ sepaLocationLine }}</div>
+            </div>
+          </div>
+        </template>
+        <div v-else class="text-grey-5 text-italic">
+          Sin datos de domiciliación registrados — se cargan editando al alumno
+        </div>
+      </q-card-section>
+    </q-card>
+
     <!-- Contacto de Emergencia -->
     <q-card flat bordered>
       <q-card-section>
@@ -147,6 +181,23 @@ const hasEmergencyContact = computed(() => {
     props.member.emergencyContactPhone !== null ||
     props.member.emergencyContactRelationship !== null
   );
+});
+
+// Domiciliación bancaria: la card solo aplica a sedes de España.
+const isSpainBranch = computed(() => props.member.branchCountry === 'ES');
+
+const hasSepaDetails = computed(() => {
+  const sepa = props.member.sepaDetails;
+  if (!sepa) return false;
+  return Boolean(
+    sepa.debtorName ?? sepa.nif ?? sepa.iban ?? sepa.address ?? sepa.postalCode ?? sepa.city
+  );
+});
+
+const sepaLocationLine = computed(() => {
+  const sepa = props.member.sepaDetails;
+  const parts = [sepa?.postalCode, sepa?.city, sepa?.country].filter(Boolean);
+  return parts.length > 0 ? parts.join(' — ') : dashPlaceholder;
 });
 
 // =========================================================================
