@@ -2,6 +2,10 @@ import type { SessionDetail, SessionBlock, SessionExercise } from 'src/types/ses
 import type { PdfDaySession, PdfBlockPage, PdfLevelBlock, PdfExercise } from './pdf-types';
 import { isFormatDictatedByName } from 'src/constants/formats';
 import { getRouteLabel } from 'src/constants/route-labels';
+// Orden canónico de niveles (kairos-first, Phase 129). El editor de sesiones
+// muestra/edita la movilidad del PRIMER nivel presente en este orden
+// (levelBlocks[0]); el PDF debe leer del mismo nivel para no divergir.
+import { LEVEL_ORDER as CANONICAL_LEVEL_ORDER } from 'src/constants/levels';
 
 const DAY_LABELS: Record<string, string> = {
   lunes: 'LUNES',
@@ -280,6 +284,44 @@ function findBlock(blocks: SessionBlock[], role: string): SessionBlock | undefin
   return blocks.find((b) => b.role === role);
 }
 
+/** Format a mobility exercise as "NAME 20\"" / "NAME 10" / "NAME". */
+function mobilityToText(mob: SessionExercise): string {
+  const mobName = mob.weighted ? `${mob.exerciseName} (W)` : mob.exerciseName;
+  const prescription =
+    mob.seconds && mob.seconds > 0
+      ? `${mob.seconds}"`
+      : mob.reps && mob.reps > 0
+        ? `${mob.reps}`
+        : '';
+  return `${mobName} ${prescription}`.trim();
+}
+
+/**
+ * Mobility shown on a grid page must match what the coach sees/edits in the
+ * session editor: the mobility of the block for the FIRST level present in the
+ * canonical (shared) level order — i.e. the editor's levelBlocks[0].
+ *
+ * The grid COLUMN order (local LEVEL_ORDER, alfa-first) is intentionally kept
+ * separate: only the mobility source is aligned. Before this fix the PDF read
+ * mobility from alfa (first in the local order) while the editor read from
+ * kairos (first in the shared order) — since mobility is selected independently
+ * per level, they diverged in every case (Phase 129 KAIROS-01 regression).
+ */
+function findCanonicalMobilityText(
+  role: string,
+  sessionsByLevel: Map<string, SessionDetail>
+): string | undefined {
+  for (const level of CANONICAL_LEVEL_ORDER) {
+    const session = sessionsByLevel.get(level);
+    if (!session) continue;
+    const block = findBlock(session.blocks, role);
+    if (!block) continue;
+    // First present block is canonical (mirrors editor's levelBlocks[0]).
+    return block.mobilityExercise ? mobilityToText(block.mobilityExercise) : undefined;
+  }
+  return undefined;
+}
+
 /**
  * Build a grid block page (NUCLEUS/DEUTEROS/EPIKOS) from all sessions.
  * Collects matching blocks across levels and sorts by LEVEL_ORDER.
@@ -291,7 +333,10 @@ function buildGridPage(
 ): PdfBlockPage | null {
   const levelBlocks: PdfLevelBlock[] = [];
   let formatName = '';
-  let mobilityText: string | undefined;
+
+  // Mobility source = canonical level (matches the editor); column order below
+  // stays alfa-first via the local LEVEL_ORDER.
+  const mobilityText = findCanonicalMobilityText(role, sessionsByLevel);
 
   for (const level of LEVEL_ORDER) {
     const session = sessionsByLevel.get(level);
@@ -299,19 +344,6 @@ function buildGridPage(
     const block = findBlock(session.blocks, role);
     if (!block) continue;
     if (!formatName) formatName = formatNameWithParams(block.formatName, block.formatParams);
-
-    // Extract mobility from the block (same exercise for all levels)
-    if (!mobilityText && block.mobilityExercise) {
-      const mob = block.mobilityExercise;
-      const mobName = mob.weighted ? `${mob.exerciseName} (W)` : mob.exerciseName;
-      const prescription =
-        mob.seconds && mob.seconds > 0
-          ? `${mob.seconds}"`
-          : mob.reps && mob.reps > 0
-            ? `${mob.reps}`
-            : '';
-      mobilityText = `${mobName} ${prescription}`.trim();
-    }
 
     levelBlocks.push(blockToLevelBlock(block, level));
   }

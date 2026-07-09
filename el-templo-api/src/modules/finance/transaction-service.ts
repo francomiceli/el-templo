@@ -1865,9 +1865,20 @@ export class TransactionService {
         description = `Saldo libre #${r.targetId}`;
       }
 
-      // D-04: ageInDays = max(0, dayDiff(today, effectiveDate)).
-      const effDate = new Date(effectiveDate + "T00:00:00");
-      const diffMs = today.getTime() - effDate.getTime();
+      // ageInDays mide hace cuánto EXISTE la deuda, no el devengo del plan:
+      // se computa desde balances.createdAt (fecha de creación real de la
+      // deuda), no desde effectiveDate (= start_date del plan / devengo). Un
+      // plan `scheduled` a futuro tiene devengo por delante y clampearía a 0,
+      // ocultando una deuda que ya lleva días viva. effectiveDate se mantiene
+      // solo para el label y la columna "fecha de devengo".
+      const createdForAge =
+        r.balanceCreatedAt instanceof Date
+          ? r.balanceCreatedAt
+          : new Date(r.balanceCreatedAt);
+      const createdDate = new Date(
+        createdForAge.toISOString().slice(0, 10) + "T00:00:00",
+      );
+      const diffMs = today.getTime() - createdDate.getTime();
       const ageInDays = Math.max(0, Math.floor(diffMs / MS_PER_DAY));
 
       return {

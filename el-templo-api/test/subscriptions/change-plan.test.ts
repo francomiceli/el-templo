@@ -673,11 +673,19 @@ describe("Subscriptions API — Change plan", () => {
       expect(schedRes.statusCode).toBe(201);
       const scheduledSub = JSON.parse(schedRes.body);
 
-      // Force old sub to expire
+      // Force old sub to expire. after_current fija el startDate del cambio
+      // programado = endDate de la sub actual, así que al vencer la anterior su
+      // fecha de inicio también llegó — backdateamos AMBOS para simular el paso
+      // del tiempo de forma realista. Sin mover el startDate del successor, el
+      // guard de activación (startDate <= hoy) lo mantendría encolado.
       await app.db
         .update(subscriptions)
         .set({ endDate: dateOffsetStr(-1) })
         .where(eq(subscriptions.id, oldSubId));
+      await app.db
+        .update(subscriptions)
+        .set({ startDate: dateOffsetStr(-1) })
+        .where(eq(subscriptions.id, scheduledSub.id));
 
       // Trigger auto-expire
       await app.inject({
@@ -705,6 +713,154 @@ describe("Subscriptions API — Change plan", () => {
         .where(eq(programEnrollments.programId, progB.id));
       const memberEnrB = enrollmentsB.find((e) => e.userId === member.id);
       expect(memberEnrB?.status).toBe("active");
+    });
+  });
+
+  // ── Fecha de inicio custom en el cambio programado (hotfix 2026-07-07) ──────
+  // El staff pidió poder cobrar una promo ahora pero arrancar el nuevo plan más
+  // adelante (socios que viajan). El modo 'después' permite empujar el inicio
+  // por encima del vencimiento actual; el backend crea la sub 'scheduled' en esa
+  // fecha y el cron la activa. Espeja al feature de renovar.
+  describe("startMode=after_current con fecha de inicio custom", () => {
+    async function setupActiveMember(durationDays = 30) {
+      const planA = await createPlan(app, adminToken, {
+        name: `Custom Start A ${durationDays}`,
+        classesPerWeek: undefined,
+        durationDays,
+        priceRegular: 8000,
+        priceZero: 4000,
+      });
+      const planB = await createPlan(app, adminToken, {
+        name: `Custom Start B ${durationDays}`,
+        classesPerWeek: undefined,
+        durationDays,
+        priceRegular: 12000,
+        priceZero: 8000,
+      });
+      const member = await createMember(app);
+      const assignResult = await assignPlan(app, adminToken, member.id, {
+        planId: planA.id,
+        startDate: todayStr(),
+      });
+      return { planB, member, oldSubId: assignResult.body.id as number };
+    }
+
+    it("fecha custom posterior al vencimiento programa el cambio en esa fecha (gap)", async () => {
+      const { planB, member, oldSubId } = await setupActiveMember(30);
+
+      // Vencimiento actual = +30; el admin pide arrancar en +45 (gap de 15 días).
+      const res = await app.inject({
+        method: "POST",
+        url: `${SUBSCRIPTIONS_URL}/members/${member.id}/subscription/change-plan`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          planId: planB.id,
+          branchId: 1,
+          startDate: dateOffsetStr(45),
+          priceTypeApplied: "regular",
+          paymentMethod: "cash",
+          startMode: "after_current",
+        },
+      });
+
+      expect(res.statusCode).toBe(201);
+      const body = JSON.parse(res.body);
+      expect(body.status).toBe("scheduled");
+      expect(body.startDate).toBe(dateOffsetStr(45));
+      expect(body.endDate).toBe(dateOffsetStr(75));
+      expect(body.previousSubscriptionId).toBe(oldSubId);
+
+      // La sub actual sigue activa hasta su vencimiento natural (no se toca).
+      const [oldSub] = await app.db
+        .select()
+        .from(subscriptions)
+        .where(eq(subscriptions.id, oldSubId));
+      expect(oldSub.status).toBe("active");
+    });
+
+    it("fecha custom = vencimiento actual encadena sin gap (comportamiento default)", async () => {
+      const { planB, member } = await setupActiveMember(30);
+
+      // +30 = vencimiento actual: no hay gap, arranca justo al vencer.
+      const res = await app.inject({
+        method: "POST",
+        url: `${SUBSCRIPTIONS_URL}/members/${member.id}/subscription/change-plan`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          planId: planB.id,
+          branchId: 1,
+          startDate: dateOffsetStr(30),
+          priceTypeApplied: "regular",
+          paymentMethod: "cash",
+          startMode: "after_current",
+        },
+      });
+
+      expect(res.statusCode).toBe(201);
+      const body = JSON.parse(res.body);
+      expect(body.status).toBe("scheduled");
+      expect(body.startDate).toBe(dateOffsetStr(30));
+      expect(body.endDate).toBe(dateOffsetStr(60));
+    });
+
+    it("fecha custom más allá de +60 días devuelve 400", async () => {
+      const { planB, member } = await setupActiveMember(30);
+
+      const res = await app.inject({
+        method: "POST",
+        url: `${SUBSCRIPTIONS_URL}/members/${member.id}/subscription/change-plan`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          planId: planB.id,
+          branchId: 1,
+          startDate: dateOffsetStr(70),
+          priceTypeApplied: "regular",
+          paymentMethod: "cash",
+          startMode: "after_current",
+        },
+      });
+
+      expect(res.statusCode).toBe(400);
+    });
+
+    it("successor con fecha custom futura NO se activa al vencer la anterior (respeta el gap)", async () => {
+      const { planB, member, oldSubId } = await setupActiveMember(30);
+
+      const schedRes = await app.inject({
+        method: "POST",
+        url: `${SUBSCRIPTIONS_URL}/members/${member.id}/subscription/change-plan`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          planId: planB.id,
+          branchId: 1,
+          startDate: dateOffsetStr(45),
+          priceTypeApplied: "regular",
+          paymentMethod: "cash",
+          startMode: "after_current",
+        },
+      });
+      const successorId = JSON.parse(schedRes.body).id as number;
+
+      // La anterior vence (endDate en el pasado) pero el successor conserva su
+      // startDate futuro (+45): el guard `startDate <= today` debe mantenerlo
+      // encolado en vez de activarlo apenas expira la predecesora.
+      await app.db
+        .update(subscriptions)
+        .set({ endDate: dateOffsetStr(-1) })
+        .where(eq(subscriptions.id, oldSubId));
+
+      await app.inject({
+        method: "GET",
+        url: `${SUBSCRIPTIONS_URL}/members/${member.id}/subscription`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      const [successor] = await app.db
+        .select()
+        .from(subscriptions)
+        .where(eq(subscriptions.id, successorId));
+      expect(successor.status).toBe("scheduled");
+      expect(successor.startDate).toBe(dateOffsetStr(45));
     });
   });
 });

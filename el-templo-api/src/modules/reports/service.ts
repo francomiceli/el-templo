@@ -81,18 +81,33 @@ const MONTHS_ES_OB = [
 ];
 
 /**
- * D-05: ageInDays clamped at 0 when effective_date is in the future
- * (consistent with Phase 108 D-04 / getOutstandingConcepts).
+ * ageInDays = días transcurridos desde una fecha `YYYY-MM-DD`, clamp en 0 si es
+ * futura. Computado en JS — no vía SQL DATEDIFF — para que el clamp sea portable
+ * y no derive con el timezone de la sesión de DB.
  *
- * Computed in JS — not via SQL DATEDIFF — so the clamp at 0 is portable
- * and doesn't drift with the DB session timezone.
+ * La fecha de referencia es la de CREACIÓN de la deuda (`balances.createdAt`),
+ * no el devengo del plan (`subscriptions.startDate`): un plan `scheduled` a
+ * futuro tiene devengo por delante y clampearía a 0, ocultando una deuda que ya
+ * lleva días viva. Ver {@link debtCreationDateOB}.
  */
-function computeAgeInDaysOB(effectiveDate: string): number {
+function computeAgeInDaysOB(referenceDate: string): number {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const eff = new Date(effectiveDate + "T00:00:00");
+  const eff = new Date(referenceDate + "T00:00:00");
   const diffMs = today.getTime() - eff.getTime();
   return Math.max(0, Math.floor(diffMs / MS_PER_DAY_OB));
+}
+
+/**
+ * Porción fecha (`YYYY-MM-DD`) de `balances.createdAt` — la fecha de creación
+ * real de la deuda, base de la antigüedad del Reporte Deudas.
+ */
+function debtCreationDateOB(balanceCreatedAt: Date | string): string {
+  const created =
+    balanceCreatedAt instanceof Date
+      ? balanceCreatedAt
+      : new Date(balanceCreatedAt);
+  return created.toISOString().slice(0, 10);
 }
 
 /** D-05 bucket boundaries (closed intervals). */
@@ -171,11 +186,9 @@ function isoToDDMMYYYY(iso: string): string {
 }
 
 /** Spanish display label for the D-09 effective lead status. */
-function leadStatusLabelES(
-  s: "en_seguimiento" | "cerrado" | "perdido",
-): string {
+function leadStatusLabelES(s: "en_seguimiento" | "ganado" | "perdido"): string {
   if (s === "en_seguimiento") return "En seguimiento";
-  if (s === "cerrado") return "Cerrado";
+  if (s === "ganado") return "Ganado";
   return "Perdido";
 }
 
@@ -886,9 +899,12 @@ export class ReportsService {
       )
       .where(whereClause)
       .orderBy(
-        // WR-03: unique tiebreaker (balances.id) so LIMIT/OFFSET pagination is
-        // deterministic when multiple debts share the same effective date.
-        sql`COALESCE(${schema.subscriptions.startDate}, DATE(${schema.balances.createdAt})) ASC, ${schema.balances.id} ASC`,
+        // Antigüedad = hoy − balances.createdAt (fecha de CREACIÓN de la deuda, NO
+        // el devengado del plan): pre-sort por createdAt ASC (más vieja primero) para
+        // que el corte de paginación coincida con el orden final por ageInDays DESC.
+        // WR-03: tiebreaker único (balances.id) → paginación LIMIT/OFFSET determinista
+        // cuando varias deudas comparten fecha. El sort final en JS reordena la página.
+        sql`${schema.balances.createdAt} ASC, ${schema.balances.id} ASC`,
       )
       .limit(limit)
       .offset(offset);
@@ -912,7 +928,9 @@ export class ReportsService {
         miscReason: r.originMiscReason,
         transactionNotes: r.originNotes,
       });
-      const ageInDays = computeAgeInDaysOB(effectiveDate);
+      const ageInDays = computeAgeInDaysOB(
+        debtCreationDateOB(r.balanceCreatedAt),
+      );
       const bucket = computeBucketOB(ageInDays);
       const memberName =
         `${r.memberFirstName ?? ""} ${r.memberLastName ?? ""}`.trim();
@@ -979,14 +997,9 @@ export class ReportsService {
     if (scope.isOwner) {
       const map: Record<string, BucketTotals> = {};
       for (const r of totalsRows) {
-        const { effectiveDate } = deriveEffectiveDateAndLabelOB({
-          targetKind: r.targetKind,
-          targetId: r.targetId,
-          subscriptionStartDate: r.subscriptionStartDate,
-          planName: r.planName,
-          balanceCreatedAt: r.balanceCreatedAt,
-        });
-        const bucket = computeBucketOB(computeAgeInDaysOB(effectiveDate));
+        const bucket = computeBucketOB(
+          computeAgeInDaysOB(debtCreationDateOB(r.balanceCreatedAt)),
+        );
         const key = r.currency;
         if (!map[key]) map[key] = emptyBucketTotals();
         map[key][bucket] += Number(r.amount);
@@ -995,14 +1008,9 @@ export class ReportsService {
     } else {
       const flat: BucketTotals = emptyBucketTotals();
       for (const r of totalsRows) {
-        const { effectiveDate } = deriveEffectiveDateAndLabelOB({
-          targetKind: r.targetKind,
-          targetId: r.targetId,
-          subscriptionStartDate: r.subscriptionStartDate,
-          planName: r.planName,
-          balanceCreatedAt: r.balanceCreatedAt,
-        });
-        const bucket = computeBucketOB(computeAgeInDaysOB(effectiveDate));
+        const bucket = computeBucketOB(
+          computeAgeInDaysOB(debtCreationDateOB(r.balanceCreatedAt)),
+        );
         flat[bucket] += Number(r.amount);
       }
       bucketTotals = flat;
@@ -1518,8 +1526,10 @@ export class ReportsService {
       branch_id: number;
       branch_name: string;
       attendance_id: number | null;
-      lead_status: "en_seguimiento" | "cerrado" | "perdido" | null;
+      lead_status: "en_seguimiento" | "ganado" | "perdido" | null;
       lead_notes: string | null;
+      purchased_plan_id: number | null;
+      purchased_plan_name: string | null;
       converted_at: string | Date | null;
       creator_id: number | null;
       creator_first_name: string | null;
@@ -1538,6 +1548,8 @@ export class ReportsService {
         a.id              AS attendance_id,
         u.lead_status     AS lead_status,
         u.lead_notes      AS lead_notes,
+        u.purchased_plan_id AS purchased_plan_id,
+        pp.name           AS purchased_plan_name,
         u.converted_at    AS converted_at,
         creator.id        AS creator_id,
         creator.first_name AS creator_first_name,
@@ -1558,6 +1570,7 @@ export class ReportsService {
        AND a.session_date = b.booking_date
        AND a.attendance_status = 'confirmado'
       LEFT JOIN ${schema.users} AS creator ON creator.id = u.created_by
+      LEFT JOIN ${schema.subscriptionPlans} AS pp ON pp.id = u.purchased_plan_id
       WHERE u.deleted_at IS NULL
         ${conds}
       ORDER BY b.booking_date DESC, b.id DESC
@@ -1575,8 +1588,10 @@ export class ReportsService {
       branch_id: number;
       branch_name: string;
       attendance_id: number | null;
-      lead_status: "en_seguimiento" | "cerrado" | "perdido" | null;
+      lead_status: "en_seguimiento" | "ganado" | "perdido" | null;
       lead_notes: string | null;
+      purchased_plan_id: number | null;
+      purchased_plan_name: string | null;
       converted_at: string | Date | null;
       creator_id: number | null;
       creator_first_name: string | null;
@@ -1601,7 +1616,7 @@ export class ReportsService {
    *
    * Spanish headers (literal accented chars; the file is UTF-8):
    *   Lead, Fecha, Creación, Hora, Sucursal, Asistió, Estado del Lead,
-   *   Gestiona, Comentarios, Turno, Periodo, Semana
+   *   Plan comprado, Gestiona, Comentarios, Turno, Periodo, Semana
    *
    * Date format: DD/MM/YYYY (D-05). Hora: HH:MM (D-06). Asistió: "Sí" / "No"
    * / "" (D-08).
@@ -1623,6 +1638,7 @@ export class ReportsService {
       "Sucursal",
       "Asistió",
       "Estado del Lead",
+      "Plan comprado",
       "Gestiona",
       "Comentarios",
       "Turno",
@@ -1647,6 +1663,7 @@ export class ReportsService {
         row.branchName,
         asistidoLabel,
         estadoLabel,
+        row.purchasedPlanName ?? "",
         gestionaName,
         row.leadNotes ?? "",
         turnoLabel,
@@ -1691,9 +1708,9 @@ export class ReportsService {
 
     if (filters.leadStatus !== undefined && filters.leadStatus.length > 0) {
       // The UI shows `leadStatusEffective` which is derived (see
-      // mapTrialSessionRow): `lead_status ?? (converted ? 'cerrado' : 'en_seguimiento')`.
+      // mapTrialSessionRow): `lead_status ?? (converted ? 'ganado' : 'en_seguimiento')`.
       // Filtering must match the same derivation, otherwise rows with
-      // `lead_status IS NULL` (which display as 'en_seguimiento' or 'cerrado'
+      // `lead_status IS NULL` (which display as 'en_seguimiento' or 'ganado'
       // depending on converted_at) get excluded from their own filter.
       // Each enum value is bound as a parameter; SQL injection-safe.
       const placeholders = sql.join(
@@ -1704,7 +1721,7 @@ export class ReportsService {
       if (filters.leadStatus.includes("en_seguimiento")) {
         orParts.push(sql`(u.lead_status IS NULL AND u.converted_at IS NULL)`);
       }
-      if (filters.leadStatus.includes("cerrado")) {
+      if (filters.leadStatus.includes("ganado")) {
         orParts.push(
           sql`(u.lead_status IS NULL AND u.converted_at IS NOT NULL)`,
         );
@@ -1804,8 +1821,10 @@ export class ReportsService {
     branch_id: number;
     branch_name: string;
     attendance_id: number | null;
-    lead_status: "en_seguimiento" | "cerrado" | "perdido" | null;
+    lead_status: "en_seguimiento" | "ganado" | "perdido" | null;
     lead_notes: string | null;
+    purchased_plan_id: number | null;
+    purchased_plan_name: string | null;
     converted_at: string | Date | null;
     creator_id: number | null;
     creator_first_name: string | null;
@@ -1830,8 +1849,8 @@ export class ReportsService {
     }
 
     // D-09 effective lead status.
-    const leadStatusEffective: "en_seguimiento" | "cerrado" | "perdido" =
-      r.lead_status ?? (converted ? "cerrado" : "en_seguimiento");
+    const leadStatusEffective: "en_seguimiento" | "ganado" | "perdido" =
+      r.lead_status ?? (converted ? "ganado" : "en_seguimiento");
 
     // D-12 shift.
     const shift: "TM" | "TT" = startTime < "12:00" ? "TM" : "TT";
@@ -1867,6 +1886,8 @@ export class ReportsService {
       leadStatusEffective,
       createdBy,
       leadNotes: r.lead_notes,
+      purchasedPlanId: r.purchased_plan_id,
+      purchasedPlanName: r.purchased_plan_name,
       shift,
       period,
       weekRange,
@@ -2000,9 +2021,10 @@ export class ReportsService {
         eq(schema.financialTransactions.id, debtOriginTx.txId),
       )
       .where(whereClause)
-      .orderBy(
-        sql`COALESCE(${schema.subscriptions.startDate}, DATE(${schema.balances.createdAt})) ASC`,
-      );
+      // Pre-sort por fecha de creación ASC (deuda más vieja primero) para que
+      // el corte de paginación coincida con el orden final por ageInDays DESC
+      // (antigüedad = hoy − createdAt). El sort final en JS reordena la página.
+      .orderBy(sql`${schema.balances.createdAt} ASC`);
 
     const mapped: OutstandingBalanceRow[] = rawRows.map((r) => {
       const {
@@ -2023,7 +2045,9 @@ export class ReportsService {
         miscReason: r.originMiscReason,
         transactionNotes: r.originNotes,
       });
-      const ageInDays = computeAgeInDaysOB(effectiveDate);
+      const ageInDays = computeAgeInDaysOB(
+        debtCreationDateOB(r.balanceCreatedAt),
+      );
       const bucket = computeBucketOB(ageInDays);
       const memberName =
         `${r.memberFirstName ?? ""} ${r.memberLastName ?? ""}`.trim();

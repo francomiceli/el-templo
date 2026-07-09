@@ -26,6 +26,7 @@ import {
   NotFoundError,
   BadRequestError,
 } from "../shared/errors";
+import { isDuplicateKeyError } from "../shared/sql-errors";
 import type {
   PlanListItem,
   PlanDetail,
@@ -87,6 +88,13 @@ const flowLabelMap: Record<ChargeFlow, string> = {
   "change-after-current": "cambio programado a",
   renew: "renovar",
 };
+
+// Mensaje del 409 al chocar con UNIQUE ux_subscription_plans_name_country.
+// Aclara el caso archivado porque el plan homónimo puede no verse en la lista.
+const DUPLICATE_PLAN_NAME_MESSAGE =
+  "Ya existe un plan con ese nombre en este país. " +
+  "Puede tratarse de un plan archivado: renombralo o desarchivalo, " +
+  "o elegí otro nombre.";
 
 // Lazy import type to avoid circular dependency at module load time
 type BookingServiceType =
@@ -595,29 +603,42 @@ export class SubscriptionService {
 
     // Plan row + program list must be atomic: validate the list against
     // existing programs (T-156-04) and persist both inside one transaction.
+    // Duplicate plan name (UNIQUE name+country, incluye archivados) → 409 claro
+    // en vez del 500 crudo (merge v5.4: preserva multi-programa + hotfix eb2b18de).
     const planId = await this.db.transaction(async (tx) => {
       await this.assertProgramsExist(tx, programIds);
 
-      const result = await tx.insert(schema.subscriptionPlans).values({
-        name: input.name,
-        description: input.description ?? null,
-        planTier: input.planTier,
-        bookingMode: input.bookingMode,
-        priceRegular: input.priceRegular,
-        priceZero: input.priceZero,
-        priceCreditCard: input.priceCreditCard ?? null,
-        durationDays: input.durationDays,
-        classesPerWeek: input.classesPerWeek ?? null,
-        multiBranch: input.multiBranch ?? false,
-        isTrial: input.isTrial ?? false,
-        isGroup: input.isGroup ?? false,
-        planCategory,
-        linkedProgramId,
-        groupMaxMembers: input.groupMaxMembers ?? null,
-        grantsAllPrograms,
-        country,
-        currency,
-      });
+      let result;
+      try {
+        result = await tx.insert(schema.subscriptionPlans).values({
+          name: input.name,
+          description: input.description ?? null,
+          planTier: input.planTier,
+          bookingMode: input.bookingMode,
+          priceRegular: input.priceRegular,
+          priceZero: input.priceZero,
+          priceCreditCard: input.priceCreditCard ?? null,
+          durationDays: input.durationDays,
+          classesPerWeek: input.classesPerWeek ?? null,
+          multiBranch: input.multiBranch ?? false,
+          isTrial: input.isTrial ?? false,
+          isGroup: input.isGroup ?? false,
+          planCategory,
+          linkedProgramId,
+          groupMaxMembers: input.groupMaxMembers ?? null,
+          grantsAllPrograms,
+          country,
+          currency,
+        });
+      } catch (err: unknown) {
+        // UNIQUE ux_subscription_plans_name_country (name, country). El nombre
+        // puede estar tomado por un plan ARCHIVADO (invisible en la lista), así
+        // que el mensaje lo aclara para evitar el 500 crudo + reintentos.
+        if (isDuplicateKeyError(err).isDuplicate) {
+          throw new ConflictError(DUPLICATE_PLAN_NAME_MESSAGE);
+        }
+        throw err;
+      }
 
       const newId = Number(result[0].insertId);
       await this.persistPlanPrograms(tx, newId, programIds);
@@ -695,17 +716,25 @@ export class SubscriptionService {
 
     // updatePlan ONLY touches subscription_plans and (optionally) plan_programs
     // — never subscriptions or financial_transactions (PLAN-04 guarantee). The
-    // list replacement + plan patch run atomically.
+    // list replacement + plan patch run atomically. Renombrar a un nombre tomado
+    // (activo o archivado) → 409 claro (merge v5.4: multi-programa + hotfix eb2b18de).
     await this.db.transaction(async (tx) => {
       if (input.programIds !== undefined) {
         await this.assertProgramsExist(tx, input.programIds);
       }
 
       if (Object.keys(updateData).length > 0) {
-        await tx
-          .update(schema.subscriptionPlans)
-          .set(updateData)
-          .where(eq(schema.subscriptionPlans.id, planId));
+        try {
+          await tx
+            .update(schema.subscriptionPlans)
+            .set(updateData)
+            .where(eq(schema.subscriptionPlans.id, planId));
+        } catch (err: unknown) {
+          if (isDuplicateKeyError(err).isDuplicate) {
+            throw new ConflictError(DUPLICATE_PLAN_NAME_MESSAGE);
+          }
+          throw err;
+        }
       }
 
       if (input.programIds !== undefined) {
@@ -3461,8 +3490,22 @@ export class SubscriptionService {
       }
     }
 
-    // New period: starts on current.endDate, runs plan.durationDays
-    const newStartDate = currentSub.endDate;
+    // New period: por defecto arranca en current.endDate (encadenado, sin gap).
+    // El admin puede empujar el inicio MÁS ADELANTE (hotfix 2026-07-07, pedido
+    // del staff: promos para socios que viajan y quieren arrancar después). La
+    // fecha custom se valida contra la ventana ±90/60 y, al exigir que sea
+    // ESTRICTAMENTE posterior al vencimiento actual, nunca solapa con la sub
+    // vigente. Con gap, el successor queda "scheduled" (la actual expira, el
+    // socio queda inactivo durante el hueco) y lo activa activateDueScheduledSubs
+    // (cron) en su startDate — el guard `startDate <= today` de autoExpire
+    // (hotfix renew 2026-07-06) respeta ese hueco. Cuando la fecha ≤ vencimiento
+    // (incluye el default de "al vencer"), se ignora y encadena como siempre:
+    // comportamiento idéntico al previo, sin tocar los tests existentes.
+    let newStartDate = currentSub.endDate;
+    if (input.startDate > currentSub.endDate) {
+      assertStartDateWithinLimits(input.startDate);
+      newStartDate = input.startDate;
+    }
     const newEnd = new Date(newStartDate);
     newEnd.setDate(newEnd.getDate() + targetPlan.durationDays);
     const newEndDate = newEnd.toISOString().split("T")[0];
@@ -3658,12 +3701,38 @@ export class SubscriptionService {
       throw new NotFoundError("Plan no encontrado");
     }
 
-    // Calculate new period dates: start from current endDate (or today if expired)
+    // Calculate new period dates. Por defecto la renovación arranca en el
+    // vencimiento actual (renovación anticipada) o en hoy (ya vencida). El admin
+    // puede pasar una fecha de inicio custom (hotfix 2026-07-06, pedido del
+    // staff): la renovación arranca en esa fecha y el nuevo vencimiento se
+    // recalcula como startDate + plan.durationDays.
     const today = new Date().toISOString().split("T")[0];
-    const newStartDate =
+    const oldSubExpired = !currentSub.endDate || currentSub.endDate < today;
+    const autoStartDate =
       currentSub.endDate && currentSub.endDate >= today
         ? currentSub.endDate
         : today;
+
+    let newStartDate: string;
+    if (input.startDate !== undefined) {
+      assertStartDateWithinLimits(input.startDate);
+      // No se puede solapar con la suscripción vigente: una renovación del mismo
+      // plan que arranque ANTES de que venza la actual crearía dos subs activas
+      // para el mismo socio (caso Lorenzino/Pandolfo). Cuando la sub sigue
+      // vigente, exigimos que la fecha custom sea >= al vencimiento actual.
+      if (
+        !oldSubExpired &&
+        currentSub.endDate &&
+        input.startDate < currentSub.endDate
+      ) {
+        throw new BadRequestError(
+          `La fecha de inicio de la renovación no puede ser anterior al vencimiento actual (${currentSub.endDate}).`,
+        );
+      }
+      newStartDate = input.startDate;
+    } else {
+      newStartDate = autoStartDate;
+    }
     const newEnd = new Date(newStartDate);
     newEnd.setDate(newEnd.getDate() + plan.durationDays);
     const newEndDate = newEnd.toISOString().split("T")[0];
@@ -3719,14 +3788,23 @@ export class SubscriptionService {
       }
     }
 
-    // If old sub is already expired, close it now.
+    // If old sub is already expired, close it now (below).
     // If still active (early renewal), leave it active — auto-expire will
-    // transition it to "completed" and activate the scheduled sub.
-    const oldSubExpired = !currentSub.endDate || currentSub.endDate < today;
-
-    // Early renewal → new sub is "scheduled" (paid, queued, not yet usable).
-    // Expired renewal → new sub is "active" immediately.
-    const newStatus = oldSubExpired ? "active" : "scheduled";
+    // transition it to "completed" and activate the scheduled sub on its
+    // startDate.
+    //
+    // Estado del nuevo período:
+    //   - Sub vigente (no vencida) → SIEMPRE "scheduled": la actual ocupa el
+    //     slot activo; el nuevo período se encola (comportamiento previo, y con
+    //     la guardia de arriba una fecha custom nunca solapa).
+    //   - Sub vencida + inicio hoy/pasado → "active" (arranca ya).
+    //   - Sub vencida + inicio futuro (fecha custom) → "scheduled": se activa
+    //     cuando llegue su startDate vía activateDueScheduledSubs (cron).
+    const newStatus = !oldSubExpired
+      ? "scheduled"
+      : newStartDate > today
+        ? "scheduled"
+        : "active";
 
     // ── Resolve renewBranchId BEFORE opening the tx (Phase 107 — PATTERNS) ──
     // RenewSubscriptionInput has no branchId — resolve via users.branchId
@@ -4191,7 +4269,15 @@ export class SubscriptionService {
 
     const expiredIds = expiredSubs.map((s) => s.id);
 
-    // Find scheduled successors that should be activated
+    // Find scheduled successors that should be activated. El guard
+    // `startDate <= today` respeta una renovación con fecha de inicio POSTERIOR
+    // al vencimiento de la actual (gap; hotfix 2026-07-06). Sin él, el successor
+    // encadenado se activaba apenas vencía la predecesora, ignorando su startDate
+    // futuro. Con gap, el successor queda "scheduled" (la predecesora pasa a
+    // "expired", el socio queda inactivo durante el hueco) y se activa cuando
+    // llega su startDate vía activateDueScheduledSubs (cron diario). Renovaciones
+    // normales (startDate = endDate de la anterior) no cambian: al vencer,
+    // endDate < today ⇒ startDate <= today, así que el successor se activa igual.
     const scheduledSuccessors = await this.db
       .select({
         id: schema.subscriptions.id,
@@ -4203,6 +4289,7 @@ export class SubscriptionService {
           eq(schema.subscriptions.userId, userId),
           eq(schema.subscriptions.status, "scheduled"),
           inArray(schema.subscriptions.previousSubscriptionId, expiredIds),
+          sql`${schema.subscriptions.startDate} <= ${today}`,
         ),
       );
 
@@ -5088,7 +5175,7 @@ export class SubscriptionService {
    * Phase 114 (D-32 / D-33): the SAME conversion predicate also gates two
    * additional lead-lifecycle writes folded into this UPDATE so they share
    * the parent subscription transaction (atomic rollback):
-   *  - lead_status = 'cerrado' on first conversion of a trial user (override
+   *  - lead_status = 'ganado' on first conversion of a trial user (override
    *    of the 'en_seguimiento' default seeded by POST /admin/members/trial).
    *  - lead_notes = '<plan.name>' on first conversion ONLY IF lead_notes IS
    *    NULL OR empty string. Pre-existing manual notes are NEVER overwritten.
@@ -5119,7 +5206,7 @@ export class SubscriptionService {
     // MySQL evaluates SET assignments LEFT-TO-RIGHT and later expressions
     // see already-assigned values for earlier columns in the same row
     // (https://dev.mysql.com/doc/refman/8.0/en/update.html). The Phase 114
-    // lead_status / lead_notes branches all gate on `u.converted_at IS NULL`
+    // lead_status / purchased_plan_id branches all gate on `u.converted_at IS NULL`
     // (D-32: "first conversion"), so they MUST be assigned BEFORE the
     // converted_at column itself is written — otherwise they'd see the
     // freshly-set CURRENT_TIMESTAMP and the conversion gate would always
@@ -5151,12 +5238,12 @@ export class SubscriptionService {
               SELECT 1 FROM bookings b
               WHERE b.member_id = u.id AND b.is_trial = 1
             )
-          THEN 'cerrado'
+          THEN 'ganado'
           ELSE u.lead_status
         END,
-        u.lead_notes = CASE
+        u.purchased_plan_id = CASE
           WHEN u.converted_at IS NULL
-            AND (u.lead_notes IS NULL OR u.lead_notes = '')
+            AND u.purchased_plan_id IS NULL
             AND EXISTS (
               SELECT 1 FROM subscriptions s
               WHERE s.user_id = u.id
@@ -5169,9 +5256,8 @@ export class SubscriptionService {
               WHERE b.member_id = u.id AND b.is_trial = 1
             )
           THEN (
-            SELECT sp.name
+            SELECT s2.plan_id
             FROM subscriptions s2
-            INNER JOIN subscription_plans sp ON sp.id = s2.plan_id
             WHERE s2.user_id = u.id
               AND s2.subscription_status IN ('active','paused')
               AND s2.start_date <= CURDATE()
@@ -5179,7 +5265,7 @@ export class SubscriptionService {
             ORDER BY s2.created_at DESC
             LIMIT 1
           )
-          ELSE u.lead_notes
+          ELSE u.purchased_plan_id
         END,
         u.converted_at = CASE
           WHEN u.converted_at IS NULL

@@ -111,6 +111,98 @@ describe("Subscriptions API — Plans CRUD", () => {
     expect(arPlan.currency).toBe("ARS");
   });
 
+  it("POST /plans con nombre duplicado (mismo país) → 409, no 500", async () => {
+    const first = await app.inject({
+      method: "POST",
+      url: `${SUBSCRIPTIONS_URL}/plans`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: { ...basePlan, name: "Membresía Anual" },
+    });
+    expect(first.statusCode).toBe(201);
+
+    // Segundo con el mismo nombre + país → conflicto manejado (UNIQUE
+    // ux_subscription_plans_name_country), NO un 500 crudo.
+    const dup = await app.inject({
+      method: "POST",
+      url: `${SUBSCRIPTIONS_URL}/plans`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: { ...basePlan, name: "Membresía Anual", priceRegular: 99999 },
+    });
+    expect(dup.statusCode).toBe(409);
+    expect(JSON.parse(dup.body).message).toMatch(/ya existe un plan/i);
+  });
+
+  it("POST /plans con nombre duplicado pero desactivado (archivable) → 409", async () => {
+    const first = await app.inject({
+      method: "POST",
+      url: `${SUBSCRIPTIONS_URL}/plans`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: { ...basePlan, name: "Plan Repetido" },
+    });
+    expect(first.statusCode).toBe(201);
+    const created = JSON.parse(first.body);
+
+    // Desactivar no libera el nombre (el UNIQUE ignora is_active/is_archived).
+    const deact = await app.inject({
+      method: "PATCH",
+      url: `${SUBSCRIPTIONS_URL}/plans/${created.id}/deactivate`,
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    expect(deact.statusCode).toBe(200);
+
+    const dup = await app.inject({
+      method: "POST",
+      url: `${SUBSCRIPTIONS_URL}/plans`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: { ...basePlan, name: "Plan Repetido" },
+    });
+    expect(dup.statusCode).toBe(409);
+  });
+
+  it("POST /plans mismo nombre en distinto país → permitido (201)", async () => {
+    const ar = await app.inject({
+      method: "POST",
+      url: `${SUBSCRIPTIONS_URL}/plans`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: { ...basePlan, name: "Membresía Global", country: "AR" },
+    });
+    expect(ar.statusCode).toBe(201);
+
+    const es = await app.inject({
+      method: "POST",
+      url: `${SUBSCRIPTIONS_URL}/plans`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: { ...basePlan, name: "Membresía Global", country: "ES" },
+    });
+    expect(es.statusCode).toBe(201);
+  });
+
+  it("PUT /plans/:id renombrando a un nombre ya existente → 409, no 500", async () => {
+    const a = await app.inject({
+      method: "POST",
+      url: `${SUBSCRIPTIONS_URL}/plans`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: { ...basePlan, name: "Plan A" },
+    });
+    expect(a.statusCode).toBe(201);
+    const b = await app.inject({
+      method: "POST",
+      url: `${SUBSCRIPTIONS_URL}/plans`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: { ...basePlan, name: "Plan B" },
+    });
+    expect(b.statusCode).toBe(201);
+    const planB = JSON.parse(b.body);
+
+    const rename = await app.inject({
+      method: "PUT",
+      url: `${SUBSCRIPTIONS_URL}/plans/${planB.id}`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: { name: "Plan A" },
+    });
+    expect(rename.statusCode).toBe(409);
+  });
+
   it("POST /plans validates required fields", async () => {
     const res = await app.inject({
       method: "POST",

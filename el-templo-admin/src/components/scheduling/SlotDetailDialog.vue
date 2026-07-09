@@ -103,7 +103,9 @@
               </q-item-label>
               <q-item v-for="booking in pendingRestorationBookings" :key="booking.id">
                 <q-item-section>
-                  <q-item-label>{{ booking.memberName }}</q-item-label>
+                  <q-item-label class="member-name-link" @click="goToMember(booking.memberId)">{{
+                    booking.memberName
+                  }}</q-item-label>
                 </q-item-section>
                 <q-item-section side>
                   <q-badge color="grey-6" label="Cancelada" />
@@ -130,7 +132,9 @@
             </template>
             <q-item v-for="booking in activeRegularBookings" :key="booking.id">
               <q-item-section>
-                <q-item-label>{{ booking.memberName }}</q-item-label>
+                <q-item-label class="member-name-link" @click="goToMember(booking.memberId)">{{
+                  booking.memberName
+                }}</q-item-label>
                 <q-item-label caption>
                   <MemberTags
                     :segment="booking.segment"
@@ -168,7 +172,9 @@
               </q-item-label>
               <q-item v-for="booking in activeTrialBookings" :key="booking.id">
                 <q-item-section>
-                  <q-item-label>{{ booking.memberName }}</q-item-label>
+                  <q-item-label class="member-name-link" @click="goToMember(booking.memberId)">{{
+                    booking.memberName
+                  }}</q-item-label>
                   <q-item-label caption>
                     <MemberTags
                       :segment="booking.segment"
@@ -206,7 +212,9 @@
               <q-item-label header> Lista de Espera ({{ waitlistBookings.length }}) </q-item-label>
               <q-item v-for="booking in waitlistBookings" :key="booking.id">
                 <q-item-section>
-                  <q-item-label>{{ booking.memberName }}</q-item-label>
+                  <q-item-label class="member-name-link" @click="goToMember(booking.memberId)">{{
+                    booking.memberName
+                  }}</q-item-label>
                   <q-item-label v-if="booking.waitlistPosition" caption>
                     Posición {{ booking.waitlistPosition }}
                   </q-item-label>
@@ -263,7 +271,9 @@
               </q-item-section>
               <q-item-section>
                 <q-item-label>
-                  {{ member.memberName }}
+                  <span class="member-name-link" @click="goToMember(member.memberId)">{{
+                    member.memberName
+                  }}</span>
                   <q-badge
                     v-if="isTrialMember(member)"
                     color="warning"
@@ -563,6 +573,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
+import { useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { useSchedulingApi } from 'src/composables/useSchedulingApi';
@@ -584,6 +595,7 @@ import { todayInTz } from 'src/utils/tz';
 
 const log = createLogger('SlotDetailDialog');
 const $q = useQuasar();
+const router = useRouter();
 const schedulingApi = useSchedulingApi();
 const attendanceApi = useAttendanceApi();
 const membersApi = useMembersApi();
@@ -764,6 +776,13 @@ function getBookingStatusLabel(status: BookingStatus): string {
 
 function getBookingStatusColor(status: BookingStatus): string {
   return BOOKING_STATUS_COLORS[status];
+}
+
+// Navega al perfil del alumno. Cierra el dialog antes de empujar la ruta para
+// que HorariosPage no quede con el modal montado al volver.
+function goToMember(memberId: number): void {
+  emit('update:show', false);
+  void router.push(`/alumnos/${memberId}`);
 }
 
 function formatTime(dateStr: string): string {
@@ -1243,5 +1262,13 @@ watch(
   align-items: center;
   gap: 4px;
   flex-wrap: wrap;
+}
+
+/* Nombres de alumnos clickeables → perfil del alumno */
+/* Color de texto original (negro heredado), solo se distingue por el subrayado. */
+.member-name-link {
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 </style>

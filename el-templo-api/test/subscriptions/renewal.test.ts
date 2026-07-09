@@ -510,4 +510,229 @@ describe("Subscriptions API — Renewal", () => {
       .where(eq(subscriptions.id, newSub.id as number));
     expect(rows[0].priceTypeApplied).toBe("credit_card");
   });
+
+  // ── Fecha de inicio personalizada (hotfix 2026-07-06) ─────────────────────
+
+  it("renew con startDate custom futuro programa la renovación en esa fecha (gap)", async () => {
+    const plan = await createPlan(app, adminToken, {
+      name: "Renew Custom Start Gap",
+      classesPerWeek: undefined,
+      durationDays: 30,
+      priceRegular: 10000,
+      priceZero: 5000,
+    });
+    const member = await createMember(app);
+    const assignResult = await assignPlan(app, adminToken, member.id, {
+      planId: plan.id,
+      startDate: todayStr(),
+    });
+    const oldSubId = assignResult.body.id as number;
+
+    // Vencimiento actual = +30; el admin pide arrancar en +45 (gap de 15 días).
+    const res = await app.inject({
+      method: "POST",
+      url: `${SUBSCRIPTIONS_URL}/members/${member.id}/subscription/renew`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: { paymentMethod: "cash", startDate: dateOffsetStr(45) },
+    });
+
+    expect(res.statusCode).toBe(201);
+    const newSub = JSON.parse(res.body);
+    expect(newSub.status).toBe("scheduled");
+    expect(newSub.startDate).toBe(dateOffsetStr(45));
+    expect(newSub.endDate).toBe(dateOffsetStr(75));
+    expect(newSub.previousSubscriptionId).toBe(oldSubId);
+  });
+
+  it("renew con startDate anterior al vencimiento actual devuelve 400 (sub vigente)", async () => {
+    const plan = await createPlan(app, adminToken, {
+      name: "Renew Custom Start Overlap",
+      classesPerWeek: undefined,
+      durationDays: 30,
+      priceRegular: 10000,
+      priceZero: 5000,
+    });
+    const member = await createMember(app);
+    await assignPlan(app, adminToken, member.id, {
+      planId: plan.id,
+      startDate: todayStr(),
+    });
+
+    // Vencimiento actual = +30; pedir +10 solaparía con la sub vigente.
+    const res = await app.inject({
+      method: "POST",
+      url: `${SUBSCRIPTIONS_URL}/members/${member.id}/subscription/renew`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: { paymentMethod: "cash", startDate: dateOffsetStr(10) },
+    });
+
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("renew de sub vencida con startDate custom futuro queda programada", async () => {
+    const plan = await createPlan(app, adminToken, {
+      name: "Renew Expired Custom Future",
+      classesPerWeek: undefined,
+      durationDays: 30,
+      priceRegular: 10000,
+      priceZero: 5000,
+    });
+    const member = await createMember(app);
+    // Período pasado (inicio -40, fin -10): al leer, la sub auto-expira.
+    await assignPlan(app, adminToken, member.id, {
+      planId: plan.id,
+      startDate: dateOffsetStr(-40),
+    });
+    await app.inject({
+      method: "GET",
+      url: `${SUBSCRIPTIONS_URL}/members/${member.id}/subscription`,
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+
+    const res = await app.inject({
+      method: "POST",
+      url: `${SUBSCRIPTIONS_URL}/members/${member.id}/subscription/renew`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: { paymentMethod: "cash", startDate: dateOffsetStr(20) },
+    });
+
+    expect(res.statusCode).toBe(201);
+    const newSub = JSON.parse(res.body);
+    expect(newSub.status).toBe("scheduled");
+    expect(newSub.startDate).toBe(dateOffsetStr(20));
+    expect(newSub.endDate).toBe(dateOffsetStr(50));
+  });
+
+  it("renew de sub vencida con startDate custom = hoy queda activa", async () => {
+    const plan = await createPlan(app, adminToken, {
+      name: "Renew Expired Custom Today",
+      classesPerWeek: undefined,
+      durationDays: 30,
+      priceRegular: 10000,
+      priceZero: 5000,
+    });
+    const member = await createMember(app);
+    await assignPlan(app, adminToken, member.id, {
+      planId: plan.id,
+      startDate: dateOffsetStr(-40),
+    });
+    await app.inject({
+      method: "GET",
+      url: `${SUBSCRIPTIONS_URL}/members/${member.id}/subscription`,
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+
+    const res = await app.inject({
+      method: "POST",
+      url: `${SUBSCRIPTIONS_URL}/members/${member.id}/subscription/renew`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: { paymentMethod: "cash", startDate: todayStr() },
+    });
+
+    expect(res.statusCode).toBe(201);
+    const newSub = JSON.parse(res.body);
+    expect(newSub.status).toBe("active");
+    expect(newSub.startDate).toBe(todayStr());
+    expect(newSub.endDate).toBe(dateOffsetStr(30));
+  });
+
+  it("successor con startDate futuro NO se activa al vencer la anterior (respeta el gap)", async () => {
+    const plan = await createPlan(app, adminToken, {
+      name: "Gap Deferral Plan",
+      classesPerWeek: undefined,
+      durationDays: 30,
+      priceRegular: 10000,
+      priceZero: 5000,
+    });
+    const member = await createMember(app);
+    const assignResult = await assignPlan(app, adminToken, member.id, {
+      planId: plan.id,
+      startDate: todayStr(),
+    });
+    const oldSubId = assignResult.body.id as number;
+
+    const renewRes = await app.inject({
+      method: "POST",
+      url: `${SUBSCRIPTIONS_URL}/members/${member.id}/subscription/renew`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: { paymentMethod: "cash", startDate: dateOffsetStr(45) },
+    });
+    const successorId = JSON.parse(renewRes.body).id as number;
+
+    // Simula que la anterior venció (endDate en el pasado) mientras el successor
+    // conserva su startDate futuro (+45).
+    await app.db
+      .update(subscriptions)
+      .set({ endDate: dateOffsetStr(-1) })
+      .where(eq(subscriptions.id, oldSubId));
+
+    // Un read dispara autoExpireSubscriptions.
+    await app.inject({
+      method: "GET",
+      url: `${SUBSCRIPTIONS_URL}/members/${member.id}/subscription/history`,
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+
+    const rows = await app.db
+      .select()
+      .from(subscriptions)
+      .where(eq(subscriptions.userId, member.id));
+    const oldRow = rows.find((r) => r.id === oldSubId);
+    const succRow = rows.find((r) => r.id === successorId);
+    // Sin successor elegible (startDate futuro), la anterior expira (no se
+    // "completa") y el successor sigue encolado hasta que llegue su fecha.
+    expect(oldRow!.status).toBe("expired");
+    expect(succRow!.status).toBe("scheduled");
+  });
+
+  it("successor sin gap se activa al vencer la anterior (no regresión del guard)", async () => {
+    const plan = await createPlan(app, adminToken, {
+      name: "No Gap Activation Plan",
+      classesPerWeek: undefined,
+      durationDays: 30,
+      priceRegular: 10000,
+      priceZero: 5000,
+    });
+    const member = await createMember(app);
+    const assignResult = await assignPlan(app, adminToken, member.id, {
+      planId: plan.id,
+      startDate: todayStr(),
+    });
+    const oldSubId = assignResult.body.id as number;
+
+    // Renovación normal (sin fecha custom): successor programado desde +30.
+    const renewRes = await app.inject({
+      method: "POST",
+      url: `${SUBSCRIPTIONS_URL}/members/${member.id}/subscription/renew`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: { paymentMethod: "cash" },
+    });
+    const successorId = JSON.parse(renewRes.body).id as number;
+
+    // Simula el paso del tiempo: la anterior venció y el successor ya alcanzó su
+    // fecha de inicio (ambos en el pasado).
+    await app.db
+      .update(subscriptions)
+      .set({ endDate: dateOffsetStr(-1) })
+      .where(eq(subscriptions.id, oldSubId));
+    await app.db
+      .update(subscriptions)
+      .set({ startDate: dateOffsetStr(-1) })
+      .where(eq(subscriptions.id, successorId));
+
+    await app.inject({
+      method: "GET",
+      url: `${SUBSCRIPTIONS_URL}/members/${member.id}/subscription/history`,
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+
+    const rows = await app.db
+      .select()
+      .from(subscriptions)
+      .where(eq(subscriptions.userId, member.id));
+    const oldRow = rows.find((r) => r.id === oldSubId);
+    const succRow = rows.find((r) => r.id === successorId);
+    expect(oldRow!.status).toBe("completed");
+    expect(succRow!.status).toBe("active");
+  });
 });

@@ -96,9 +96,11 @@ const memberProfileSchema = {
     // optional denormalized JOIN payloads.
     leadStatus: {
       type: ["string", "null"],
-      enum: ["en_seguimiento", "cerrado", "perdido", null],
+      enum: ["en_seguimiento", "ganado", "perdido", null],
     },
     leadNotes: { type: ["string", "null"] },
+    purchasedPlanId: { type: ["integer", "null"] },
+    purchasedPlanName: { type: ["string", "null"] },
     createdBy: {
       type: ["object", "null"],
       additionalProperties: true,
@@ -346,6 +348,8 @@ export const convertToTrialSchema = {
  *
  * - leadStatus must be one of the 3 enum values.
  * - leadNotes is string|null (max 2000); the service normalizes '' → null.
+ * - purchasedPlanId is int|null ("Plan comprado"); coherencia con leadStatus
+ *   ('ganado' ⇔ plan cargado) se valida en MemberService.updateLead — 409.
  * - additionalProperties:false closes the body — unknown keys are stripped
  *   silently by Fastify's default AJV (removeAdditional=true), mirroring the
  *   spoof guard pattern on createTrialMemberSchema (Plan 02 / SUMMARY 114-02).
@@ -364,10 +368,13 @@ export const updateLeadSchema = {
     properties: {
       leadStatus: {
         type: "string",
-        enum: ["en_seguimiento", "cerrado", "perdido"],
+        enum: ["en_seguimiento", "ganado", "perdido"],
       },
       leadNotes: {
         anyOf: [{ type: "string", maxLength: 2000 }, { type: "null" }],
+      },
+      purchasedPlanId: {
+        anyOf: [{ type: "integer", minimum: 1 }, { type: "null" }],
       },
     },
   },
@@ -380,12 +387,18 @@ export const updateLeadSchema = {
           anyOf: [
             {
               type: "string",
-              enum: ["en_seguimiento", "cerrado", "perdido"],
+              enum: ["en_seguimiento", "ganado", "perdido"],
             },
             { type: "null" },
           ],
         },
         leadNotes: {
+          anyOf: [{ type: "string" }, { type: "null" }],
+        },
+        purchasedPlanId: {
+          anyOf: [{ type: "integer" }, { type: "null" }],
+        },
+        purchasedPlanName: {
           anyOf: [{ type: "string" }, { type: "null" }],
         },
         status: {

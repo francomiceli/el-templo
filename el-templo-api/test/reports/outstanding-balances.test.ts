@@ -235,6 +235,12 @@ interface SeedSubscriptionWithBalanceOpts {
   // Phase 153 (DEUDA-03): optional cycle end date so tests can assert the
   // periodEnd. When omitted the subscription end_date stays null.
   endDateOffsetDays?: number;
+  subscriptionStatus?: "active" | "scheduled";
+  // balances.createdAt offset. La antigüedad (ageInDays) se mide desde la
+  // creación de la deuda, no desde el devengo (start_date). Default = mismo
+  // offset que el start_date, para preservar los asserts de antigüedad de los
+  // tests que seedean deuda "coetánea" al inicio del plan.
+  balanceCreatedOffsetDays?: number;
 }
 
 async function seedSubscriptionWithBalance(
@@ -265,7 +271,7 @@ async function seedSubscriptionWithBalance(
       userId: memberId,
       planId: opts.planId,
       branchId: opts.branchId,
-      status: "active",
+      status: opts.subscriptionStatus ?? "active",
       startDate,
       endDate,
       pricePaid: opts.amount,
@@ -275,12 +281,15 @@ async function seedSubscriptionWithBalance(
     .$returningId();
   const subscriptionId = sub.id;
 
+  const createdOffset =
+    opts.balanceCreatedOffsetDays ?? opts.startDateOffsetDays;
   await opts.app.db.insert(schema.balances).values({
     memberId,
     targetKind: "subscription",
     targetId: subscriptionId,
     currency: opts.planCurrency,
     amount: opts.amount,
+    createdAt: new Date(dateOffset(createdOffset) + "T00:00:00Z"),
   });
 
   return { memberId, subscriptionId, startDate, endDate };
@@ -590,15 +599,26 @@ describe("Reports API — GET /outstanding-balances (Phase 109-02)", () => {
     expect(byAge.get(16)?.bucket).toBe("15+");
   });
 
-  it("BUCKETS-FUTURE: future effective_date clamps ageInDays to 0 (bucket '0-5')", async () => {
+  // ─── Plan programado a futuro = deuda cobrable HOY ──────────────────────
+  // Un plan programado a futuro (`scheduled`) se carga con la condición de
+  // pagar AHORA (membresía futura a precio menor atada al pago inmediato). Su
+  // saldo ES deuda cobrable hoy → DEBE aparecer en Deudas, con antigüedad
+  // contada desde que se creó la deuda (no desde el devengo/start_date).
+
+  it("FUTURE-PLAN-INCLUDED: un plan programado a futuro con saldo aparece como deuda hoy", async () => {
+    // Plan scheduled que arranca en +30d; la deuda se creó hace 7 días.
     await seedSubscriptionWithBalance({
       app,
       branchId: ctx.arBranchId,
       planId: ctx.planArId,
       planCurrency: "ARS",
-      startDateOffsetDays: 5, // future
-      amount: 1000,
+      startDateOffsetDays: 30,
+      subscriptionStatus: "scheduled",
+      balanceCreatedOffsetDays: -7,
+      amount: 560000,
+      memberFirstName: "Zurita",
     });
+
     const res = await app.inject({
       method: "GET",
       url: `${REPORTS_URL}/outstanding-balances`,
@@ -607,8 +627,87 @@ describe("Reports API — GET /outstanding-balances (Phase 109-02)", () => {
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body.rows).toHaveLength(1);
-    expect(body.rows[0].ageInDays).toBe(0);
+    expect(body.rows[0].amount).toBe(560000);
+    // Antigüedad desde la creación (7d), no clampeada a 0 por el devengo futuro.
+    expect(body.rows[0].ageInDays).toBe(7);
+    expect(body.rows[0].bucket).toBe("6-10");
+    // El devengo (start_date futuro) se conserva en effectiveDate.
+    expect(body.rows[0].effectiveDate).toBe(dateOffset(30));
+    expect(body.bucketTotals).toEqual({
+      "0-5": 0,
+      "6-10": 560000,
+      "11-15": 0,
+      "15+": 0,
+    });
+  });
+
+  it("FUTURE-PLAN-MIXED: planes futuros y ya iniciados conviven en Deudas", async () => {
+    await seedSubscriptionWithBalance({
+      app,
+      branchId: ctx.arBranchId,
+      planId: ctx.planArId,
+      planCurrency: "ARS",
+      startDateOffsetDays: -10,
+      amount: 1000,
+      memberFirstName: "YaIniciado",
+    });
+    await seedSubscriptionWithBalance({
+      app,
+      branchId: ctx.arBranchId,
+      planId: ctx.planArId,
+      planCurrency: "ARS",
+      startDateOffsetDays: 20,
+      subscriptionStatus: "scheduled",
+      balanceCreatedOffsetDays: -3,
+      amount: 500000,
+      memberFirstName: "PlanFuturo",
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: `${REPORTS_URL}/outstanding-balances`,
+      headers: { authorization: `Bearer ${ctx.gestionArToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.rows).toHaveLength(2);
+    // Ambos suman en sus buckets (por antigüedad de creación): 10d y 3d.
+    expect(body.bucketTotals).toEqual({
+      "0-5": 500000,
+      "6-10": 1000,
+      "11-15": 0,
+      "15+": 0,
+    });
+  });
+
+  // ─── Bug 2: antigüedad desde la creación de la deuda, no el devengo ──────
+
+  it("AGE-FROM-CREATION: ageInDays se mide desde balances.createdAt, no desde start_date (devengo)", async () => {
+    // Devengo 60 días atrás, pero la deuda se creó hace 3 días (carga tardía /
+    // back-dated). La antigüedad debe ser ~3, no ~60; el devengo se conserva
+    // en effectiveDate.
+    await seedSubscriptionWithBalance({
+      app,
+      branchId: ctx.arBranchId,
+      planId: ctx.planArId,
+      planCurrency: "ARS",
+      startDateOffsetDays: -60,
+      balanceCreatedOffsetDays: -3,
+      amount: 1000,
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: `${REPORTS_URL}/outstanding-balances`,
+      headers: { authorization: `Bearer ${ctx.gestionArToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.rows).toHaveLength(1);
+    expect(body.rows[0].ageInDays).toBe(3);
     expect(body.rows[0].bucket).toBe("0-5");
+    // El devengo (columna "fecha de devengo") sigue siendo el start_date.
+    expect(body.rows[0].effectiveDate).toBe(dateOffset(-60));
   });
 
   // ─── Sorting ─────────────────────────────────────────────────────────────

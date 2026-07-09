@@ -178,6 +178,23 @@
         </q-td>
       </template>
 
+      <!-- Plan comprado slot (hotfix 2026-07): click abre el diálogo de plan.
+           El server garantiza la coherencia plan ⇔ estado Ganado. -->
+      <template #body-cell-purchasedPlan="props">
+        <q-td :props="props">
+          <div class="cursor-pointer" @click="openPlanDialog(props.row)">
+            <q-chip
+              v-if="props.row.purchasedPlanName"
+              color="positive"
+              outline
+              dense
+              :label="props.row.purchasedPlanName"
+            />
+            <span v-else class="text-grey-5">—</span>
+          </div>
+        </q-td>
+      </template>
+
       <!-- Gestiona slot (— for null per D-39) -->
       <template #body-cell-gestiona="props">
         <q-td :props="props">
@@ -222,6 +239,51 @@
         </div>
       </template>
     </q-table>
+
+    <!-- Diálogo "Plan comprado" (hotfix 2026-07). Entra desde la celda de plan
+         o al elegir "Ganado" sin plan cargado — Ganado requiere plan (server 409). -->
+    <q-dialog v-model="showPlanDialog">
+      <q-card style="min-width: 320px">
+        <q-card-section>
+          <div class="text-h6">Plan comprado</div>
+          <div v-if="planDialogRow" class="text-caption text-grey-7">
+            {{ planDialogRow.lead }} — al confirmar, el estado del lead pasa a "Ganado"
+          </div>
+        </q-card-section>
+        <q-card-section class="q-pt-none">
+          <q-select
+            v-model="planDialogPlanId"
+            :options="planOptions"
+            option-value="id"
+            option-label="label"
+            emit-value
+            map-options
+            label="Plan"
+            dense
+            outlined
+            :loading="loadingPlans"
+          />
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn
+            v-if="planDialogRow?.purchasedPlanId"
+            flat
+            color="negative"
+            label="Quitar plan"
+            :loading="savingUserId === planDialogRow?.userId"
+            @click="onRemovePlan"
+          />
+          <q-btn flat label="Cancelar" v-close-popup />
+          <q-btn
+            color="primary"
+            label="Guardar"
+            :disable="planDialogPlanId === null"
+            :loading="savingUserId === planDialogRow?.userId"
+            @click="onConfirmPlanDialog"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </div>
 </template>
 
@@ -229,7 +291,7 @@
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useQuasar, type QTableColumn, type QTableProps } from 'quasar';
 import { useReportsApi, type TrialSessionsRowClient } from 'src/composables/useReportsApi';
-import { useMembersApi } from 'src/composables/useMembersApi';
+import { useMembersApi, type LeadSnapshot } from 'src/composables/useMembersApi';
 import { useUsersApi, type StaffUser } from 'src/composables/useUsersApi';
 import { useAuthStore } from 'src/stores/useAuthStore';
 import { createLogger } from 'src/utils/logger';
@@ -254,19 +316,21 @@ const isOwner = computed(() => authStore.user?.role === 'owner');
 
 // ─── Constants (D-37, D-39, chip colors locked in CONTEXT D-35) ─────────
 
-type LeadStatusValue = 'en_seguimiento' | 'cerrado' | 'perdido';
+// Hotfix 2026-07: 'cerrado' → 'ganado' (compró). Invariante server-side:
+// 'ganado' ⇔ plan comprado cargado — marcar Ganado pasa por el diálogo de plan.
+type LeadStatusValue = 'en_seguimiento' | 'ganado' | 'perdido';
 type AttendedFilter = 'true' | 'false' | 'pending';
 type ShiftFilter = 'TM' | 'TT';
 
 const LEAD_STATUS_LABELS_ES: Record<LeadStatusValue, string> = {
   en_seguimiento: 'En seguimiento',
-  cerrado: 'Cerrado',
+  ganado: 'Ganado',
   perdido: 'Perdido',
 };
 
 const LEAD_STATUS_COLORS: Record<LeadStatusValue, string> = {
   en_seguimiento: 'blue-grey',
-  cerrado: 'positive',
+  ganado: 'positive',
   perdido: 'negative',
 };
 
@@ -282,7 +346,7 @@ const ATTENDED_LABELS_ES = {
 
 const LEAD_STATUS_OPTIONS: Array<{ value: LeadStatusValue; label: string }> = [
   { value: 'en_seguimiento', label: 'En seguimiento' },
-  { value: 'cerrado', label: 'Cerrado' },
+  { value: 'ganado', label: 'Ganado' },
   { value: 'perdido', label: 'Perdido' },
 ];
 
@@ -337,6 +401,104 @@ const pagination = ref({
 const editingNotesUserId = ref<number | null>(null);
 const editingNotesDraft = ref<string>('');
 const savingUserId = ref<number | null>(null);
+
+// ─── Plan comprado (hotfix 2026-07) ─────────────────────────────────────
+// Opciones desde /admin/subscriptions/plans (activos). Si un nombre se
+// repite entre países, se desambigua con el país en el label.
+
+interface PlanSelectOption {
+  id: number;
+  label: string;
+}
+
+const planOptions = ref<PlanSelectOption[]>([]);
+const loadingPlans = ref(false);
+
+const showPlanDialog = ref(false);
+const planDialogRow = ref<TrialSessionsRowClient | null>(null);
+const planDialogPlanId = ref<number | null>(null);
+
+async function loadPlanOptions(): Promise<void> {
+  loadingPlans.value = true;
+  try {
+    const plans = await membersApi.getPlans();
+    const nameCounts = new Map<string, number>();
+    for (const p of plans) {
+      nameCounts.set(p.name, (nameCounts.get(p.name) ?? 0) + 1);
+    }
+    planOptions.value = plans.map((p) => ({
+      id: p.id,
+      label: (nameCounts.get(p.name) ?? 0) > 1 ? `${p.name} (${p.country})` : p.name,
+    }));
+  } catch (err: unknown) {
+    log.error('Failed to load plan options', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  } finally {
+    loadingPlans.value = false;
+  }
+}
+
+function openPlanDialog(row: TrialSessionsRowClient): void {
+  planDialogRow.value = row;
+  planDialogPlanId.value = row.purchasedPlanId;
+  showPlanDialog.value = true;
+}
+
+/** Vuelca los campos de lead del snapshot del PATCH sobre la fila visible. */
+function applyLeadSnapshot(row: TrialSessionsRowClient, snapshot: LeadSnapshot): void {
+  row.leadStatus = snapshot.leadStatus;
+  row.leadStatusEffective = snapshot.leadStatus ?? row.leadStatusEffective;
+  row.purchasedPlanId = snapshot.purchasedPlanId;
+  row.purchasedPlanName = snapshot.purchasedPlanName;
+  row.leadNotes = snapshot.leadNotes;
+}
+
+async function onConfirmPlanDialog(): Promise<void> {
+  const row = planDialogRow.value;
+  if (!row || planDialogPlanId.value === null) return;
+  savingUserId.value = row.userId;
+  try {
+    // El server auto-setea leadStatus='ganado' al cargar un plan; lo mandamos
+    // explícito igual para que el intent quede claro en el payload.
+    const snapshot = await membersApi.updateLead(row.userId, {
+      leadStatus: 'ganado',
+      purchasedPlanId: planDialogPlanId.value,
+    });
+    applyLeadSnapshot(row, snapshot);
+    showPlanDialog.value = false;
+    $q.notify({ type: 'positive', message: 'Plan comprado guardado', timeout: 1500 });
+  } catch (err: unknown) {
+    const message = extractError(err, 'Error al guardar el plan');
+    log.error('Failed to update purchased plan', { error: message, userId: row.userId });
+    $q.notify({ type: 'negative', message });
+  } finally {
+    savingUserId.value = null;
+  }
+}
+
+async function onRemovePlan(): Promise<void> {
+  const row = planDialogRow.value;
+  if (!row) return;
+  savingUserId.value = row.userId;
+  try {
+    // Quitar el plan deja el estado en 'en_seguimiento' (un Ganado sin plan
+    // viola el invariante server-side); desde ahí se puede marcar Perdido.
+    const snapshot = await membersApi.updateLead(row.userId, {
+      leadStatus: 'en_seguimiento',
+      purchasedPlanId: null,
+    });
+    applyLeadSnapshot(row, snapshot);
+    showPlanDialog.value = false;
+    $q.notify({ type: 'positive', message: 'Plan quitado', timeout: 1500 });
+  } catch (err: unknown) {
+    const message = extractError(err, 'Error al quitar el plan');
+    log.error('Failed to remove purchased plan', { error: message, userId: row.userId });
+    $q.notify({ type: 'negative', message });
+  } finally {
+    savingUserId.value = null;
+  }
+}
 
 // ─── Gestiona options (owner-only — D-44) ───────────────────────────────
 
@@ -430,6 +592,13 @@ const columns: QTableColumn<TrialSessionsRowClient>[] = [
     label: 'Estado del Lead',
     field: 'leadStatusEffective',
     align: 'center',
+    sortable: false,
+  },
+  {
+    name: 'purchasedPlan',
+    label: 'Plan comprado',
+    field: 'purchasedPlanName',
+    align: 'left',
     sortable: false,
   },
   {
@@ -543,13 +712,42 @@ async function onChangeStatus(
   newStatus: LeadStatusValue
 ): Promise<void> {
   if (row.leadStatusEffective === newStatus && row.leadStatus === newStatus) return;
+
+  // Ganado requiere plan comprado (invariante server-side): sin plan cargado,
+  // el cambio de estado pasa por el diálogo de plan.
+  if (newStatus === 'ganado' && row.purchasedPlanId === null) {
+    openPlanDialog(row);
+    return;
+  }
+
+  // Bajar de Ganado con plan cargado implica quitar el plan — confirmación
+  // explícita antes de mandar ambos campos.
+  if (newStatus !== 'ganado' && row.purchasedPlanId !== null) {
+    $q.dialog({
+      title: 'Quitar plan comprado',
+      message: `El lead tiene cargado el plan "${row.purchasedPlanName ?? ''}". Cambiar el estado a "${LEAD_STATUS_LABELS_ES[newStatus]}" también quita el plan. ¿Continuar?`,
+      cancel: true,
+      persistent: true,
+    }).onOk(() => {
+      void patchStatus(row, { leadStatus: newStatus, purchasedPlanId: null });
+    });
+    return;
+  }
+
+  await patchStatus(row, { leadStatus: newStatus });
+}
+
+async function patchStatus(
+  row: TrialSessionsRowClient,
+  payload: { leadStatus: LeadStatusValue; purchasedPlanId?: number | null }
+): Promise<void> {
   savingUserId.value = row.userId;
   const prevLeadStatus = row.leadStatus;
   const prevLeadStatusEffective = row.leadStatusEffective;
   try {
-    const snapshot = await membersApi.updateLead(row.userId, { leadStatus: newStatus });
-    row.leadStatus = snapshot.leadStatus;
-    row.leadStatusEffective = snapshot.leadStatus ?? newStatus;
+    const snapshot = await membersApi.updateLead(row.userId, payload);
+    applyLeadSnapshot(row, snapshot);
+    row.leadStatusEffective = snapshot.leadStatus ?? payload.leadStatus;
     $q.notify({ type: 'positive', message: 'Estado actualizado', timeout: 1500 });
   } catch (err: unknown) {
     // Revert optimistic UI state
@@ -559,7 +757,7 @@ async function onChangeStatus(
     log.error('Failed to update lead status', {
       error: message,
       userId: row.userId,
-      newStatus,
+      newStatus: payload.leadStatus,
     });
     $q.notify({ type: 'negative', message });
   } finally {
@@ -656,6 +854,7 @@ watch(
 
 onMounted(async () => {
   await loadGestionaOptionsIfOwner();
+  void loadPlanOptions();
   await load();
 });
 

@@ -36,17 +36,22 @@ export interface SessionLevelCount {
 
 // Phase 114-04: PATCH /admin/leads/:userId payload + response. Mirrors
 // el-templo-api/src/modules/members/types.ts (UpdateLeadInput / LeadSnapshot).
-export type LeadStatusValue = 'en_seguimiento' | 'cerrado' | 'perdido';
+// Hotfix 2026-07: 'cerrado' → 'ganado' + "Plan comprado" (purchasedPlanId).
+// Invariante server-side: 'ganado' ⇔ plan cargado (409 si no cierra).
+export type LeadStatusValue = 'en_seguimiento' | 'ganado' | 'perdido';
 
 export interface UpdateLeadPayload {
   leadStatus?: LeadStatusValue;
   leadNotes?: string | null;
+  purchasedPlanId?: number | null;
 }
 
 export interface LeadSnapshot {
   userId: number;
   leadStatus: LeadStatusValue | null;
   leadNotes: string | null;
+  purchasedPlanId: number | null;
+  purchasedPlanName: string | null;
   status: 'freemium' | 'prueba' | 'activo' | 'inactivo' | null;
   createdBy: { userId: number; name: string } | null;
 }

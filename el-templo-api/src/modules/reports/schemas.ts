@@ -472,12 +472,12 @@ const trialSessionsQuerystringProps = {
   dateTo: { type: "string", format: "date" },
   leadStatus: {
     anyOf: [
-      { type: "string", enum: ["en_seguimiento", "cerrado", "perdido"] },
+      { type: "string", enum: ["en_seguimiento", "ganado", "perdido"] },
       {
         type: "array",
         items: {
           type: "string",
-          enum: ["en_seguimiento", "cerrado", "perdido"],
+          enum: ["en_seguimiento", "ganado", "perdido"],
         },
       },
     ],
@@ -507,14 +507,14 @@ const trialSessionsRowSchema = {
       anyOf: [
         {
           type: "string",
-          enum: ["en_seguimiento", "cerrado", "perdido"],
+          enum: ["en_seguimiento", "ganado", "perdido"],
         },
         { type: "null" },
       ],
     },
     leadStatusEffective: {
       type: "string",
-      enum: ["en_seguimiento", "cerrado", "perdido"],
+      enum: ["en_seguimiento", "ganado", "perdido"],
     },
     createdBy: {
       anyOf: [
@@ -530,6 +530,8 @@ const trialSessionsRowSchema = {
       ],
     },
     leadNotes: { type: ["string", "null"] },
+    purchasedPlanId: { type: ["integer", "null"] },
+    purchasedPlanName: { type: ["string", "null"] },
     shift: { type: "string", enum: ["TM", "TT"] },
     period: { type: "string" },
     weekRange: { type: "string" },

@@ -102,7 +102,9 @@ describe("Migration 0121 — users lead fields", () => {
     expect(col?.COLUMN_DEFAULT).toBeNull();
     const ct = col?.COLUMN_TYPE.toLowerCase() ?? "";
     expect(ct).toContain("en_seguimiento");
-    expect(ct).toContain("cerrado");
+    // Hotfix 2026-07 (migration 0170): 'cerrado' renamed to 'ganado' — the
+    // schema under test is the POST-0170 shape.
+    expect(ct).toContain("ganado");
     expect(ct).toContain("perdido");
   });
 

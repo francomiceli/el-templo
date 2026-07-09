@@ -200,6 +200,33 @@
                   Se cobra la diferencia entre planes. No se prorratea por los días sin usar.
                 </div>
               </div>
+
+              <!-- 'después': fecha de inicio editable. Default = vencimiento
+                   actual (arranca sin gap); el admin puede empujarla más
+                   adelante para promos de socios que arrancan después. -->
+              <div v-if="isAfterCurrentMode" class="q-mb-md q-pl-md">
+                <q-input
+                  v-model="afterCurrentStartDate"
+                  label="Fecha de inicio"
+                  type="date"
+                  dense
+                  outlined
+                  :min="afterCurrentStartDateMin"
+                  :max="afterCurrentStartDateMax"
+                />
+                <div class="text-caption text-grey-7 q-mt-xs">
+                  Vencimiento estimado:
+                  {{ afterCurrentEndDate ? formatDate(afterCurrentEndDate) : '—' }}
+                </div>
+                <q-banner v-if="afterCurrentHasGap" dense rounded class="bg-orange-1 q-mt-sm">
+                  <template #avatar>
+                    <q-icon name="info" color="warning" />
+                  </template>
+                  El plan actual vence el {{ formatDate(afterCurrentStartDateMin) }} y el nuevo
+                  arranca el {{ formatDate(afterCurrentStartDate) }}: el alumno queda inactivo en el
+                  medio.
+                </q-banner>
+              </div>
             </template>
 
             <!-- Assign mode: free start-date picker -->
@@ -580,7 +607,7 @@
                   <q-item>
                     <q-item-section>Activo hasta</q-item-section>
                     <q-item-section side>
-                      {{ formatDate(afterCurrentStartDate) }}
+                      {{ props.currentSubEndDate ? formatDate(props.currentSubEndDate) : '—' }}
                     </q-item-section>
                   </q-item>
                   <q-separator spaced />
@@ -824,7 +851,9 @@
           color="primary"
           label="Continuar"
           :disable="
-            (assignForm.useOverride && !assignForm.priceOverrideReason?.trim()) || keepFieldsInvalid
+            (assignForm.useOverride && !assignForm.priceOverrideReason?.trim()) ||
+            keepFieldsInvalid ||
+            afterCurrentDateInvalid
           "
           @click="step = showScheduleStep ? 3 : confirmStep"
         />
@@ -1379,8 +1408,51 @@ const isFutureStart = computed(() => {
   return assignForm.value.startDate > offsetIso(0);
 });
 
-// Change mode: the "after current" start date (= current sub's endDate).
-const afterCurrentStartDate = computed(() => props.currentSubEndDate ?? '');
+// Change mode 'después': la fecha de inicio del nuevo plan. Por defecto es el
+// vencimiento actual (arranca justo al terminar el plan vigente, sin gap), pero
+// el admin puede empujarla MÁS ADELANTE (hotfix 2026-07-07, pedido del staff:
+// promos para socios que viajan y quieren arrancar después). El backend
+// (changePlanAfterCurrent) honra la fecha si es posterior al vencimiento y crea
+// una sub 'scheduled' que el cron activa en esa fecha. Seedeada al seleccionar
+// plan / cambiar de modo; editable sólo hacia adelante (min = vencimiento).
+const afterCurrentStartDate = ref('');
+
+// Piso del date-picker: no puede arrancar antes de que venza el plan actual (el
+// backend rechazaría el solapamiento).
+const afterCurrentStartDateMin = computed(() => props.currentSubEndDate ?? '');
+
+// Techo del date-picker. El backend sólo aplica el límite +60 días a una fecha
+// EMPUJADA (posterior al vencimiento); el default (= vencimiento) siempre es
+// válido aunque el plan actual sea largo y venza más allá de +60. Por eso el
+// techo es el mayor entre el vencimiento y hoy+60: en planes largos la fecha
+// queda anclada al vencimiento (min = max), sin romper el flujo previo.
+const afterCurrentStartDateMax = computed(() => {
+  const floor = props.currentSubEndDate ?? '';
+  return floor > startDateMax.value ? floor : startDateMax.value;
+});
+
+const isAfterCurrentMode = computed(
+  () => props.mode === 'change' && changeMode.value === 'after_current'
+);
+
+// Hay gap si el admin empujó el inicio más allá del vencimiento actual: el socio
+// queda inactivo entre el fin del plan vigente y el arranque del nuevo.
+const afterCurrentHasGap = computed(
+  () =>
+    isAfterCurrentMode.value &&
+    !!props.currentSubEndDate &&
+    afterCurrentStartDate.value > props.currentSubEndDate
+);
+
+// Bloquea "Continuar" si la fecha 'después' es inválida (vacía, anterior al
+// vencimiento actual, o fuera del límite +60).
+const afterCurrentDateInvalid = computed<boolean>(() => {
+  if (!isAfterCurrentMode.value) return false;
+  if (!afterCurrentStartDate.value) return true;
+  if (afterCurrentStartDate.value < afterCurrentStartDateMin.value) return true;
+  if (afterCurrentStartDate.value > afterCurrentStartDateMax.value) return true;
+  return false;
+});
 
 const afterCurrentEndDate = computed(() => {
   if (!selectedPlan.value || !afterCurrentStartDate.value) return '';
@@ -1422,7 +1494,7 @@ const changeModeOptions = computed(() => {
       value: 'now_keep',
     });
     opts.push({
-      label: `Cuando termine el plan actual (vence ${afterCurrentEndDate.value ? formatDate(afterCurrentEndDate.value) : '—'})`,
+      label: 'Más adelante (por defecto, al vencer el plan actual)',
       value: 'after_current',
     });
   }
@@ -1547,6 +1619,8 @@ async function selectPlan(plan: PlanListItem) {
     // 'mantener vencimiento' or 'after_current' in step 2.
     assignForm.value.startDate = new Date().toISOString().split('T')[0];
     changeMode.value = 'now_reset';
+    // Seed la fecha 'después' con el vencimiento actual (default sin gap).
+    afterCurrentStartDate.value = props.currentSubEndDate ?? '';
 
     // Fetch change plan preview
     loadingPreview.value = true;
@@ -1580,6 +1654,11 @@ function onChangeMode(mode: 'now_reset' | 'now_keep' | 'after_current') {
     keepExpiryDate.value = changePlanPreviewData.value?.expiryDate ?? keepExpiryDate.value;
     recomputeKeepDiff();
   }
+  if (mode === 'after_current') {
+    // Re-seed al default (vencimiento actual) cada vez que se entra al modo,
+    // para no arrastrar una fecha empujada de una selección de plan anterior.
+    afterCurrentStartDate.value = props.currentSubEndDate ?? '';
+  }
   // Reset the per-confirm cobro pre-fill so it re-seeds from the new chargeBase.
   amountReceived.value = null;
 }
@@ -1611,7 +1690,7 @@ function onConfirm() {
   if (props.mode === 'change') {
     const message =
       startMode.value === 'after_current'
-        ? `El plan actual continua hasta ${formatDate(afterCurrentStartDate.value)}. El nuevo plan queda programado y el pago se registra ahora. Podes cancelarlo antes de esa fecha cambiando el plan nuevamente.`
+        ? `El plan actual continua hasta ${props.currentSubEndDate ? formatDate(props.currentSubEndDate) : '—'} y el nuevo arranca el ${formatDate(afterCurrentStartDate.value)}. El nuevo plan queda programado y el pago se registra ahora. Podes cancelarlo antes de esa fecha cambiando el plan nuevamente.`
         : 'Esta accion no se puede deshacer. La suscripcion actual sera cancelada y se creara una nueva. Si queres volver al plan anterior, tendras que cambiarlo de nuevo.';
     $q.dialog({
       title: startMode.value === 'after_current' ? 'Programar cambio de plan' : 'Cambiar plan',

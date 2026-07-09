@@ -162,8 +162,11 @@ export interface MemberProfile {
    * NULL for users created before Plan 01 / via legacy paths (D-39 — UI
    * renders "—").
    */
-  leadStatus: "en_seguimiento" | "cerrado" | "perdido" | null;
+  leadStatus: "en_seguimiento" | "ganado" | "perdido" | null;
   leadNotes: string | null;
+  /** Hotfix 2026-07: "Plan comprado" — plan que compró el lead al convertir. */
+  purchasedPlanId: number | null;
+  purchasedPlanName: string | null;
   createdBy: { userId: number; name: string } | null;
   /**
    * Latest trial booking for the alumno, surfaced so AlumnoDetailPage's
@@ -264,8 +267,15 @@ export interface ConvertFreemiumToTrialServiceInput extends ConvertFreemiumToTri
  * MemberService.updateLead (D-28).
  */
 export interface UpdateLeadInput {
-  leadStatus?: "en_seguimiento" | "cerrado" | "perdido";
+  leadStatus?: "en_seguimiento" | "ganado" | "perdido";
   leadNotes?: string | null;
+  /**
+   * "Plan comprado": plan que compró el lead. Setear un plan implica
+   * lead_status='ganado' (el service lo auto-setea); 'ganado' sin plan se
+   * rechaza con 409. null lo borra — solo junto con un leadStatus que no
+   * sea 'ganado'.
+   */
+  purchasedPlanId?: number | null;
 }
 
 /**
@@ -277,8 +287,11 @@ export interface UpdateLeadInput {
  */
 export interface LeadSnapshot {
   userId: number;
-  leadStatus: "en_seguimiento" | "cerrado" | "perdido" | null;
+  leadStatus: "en_seguimiento" | "ganado" | "perdido" | null;
   leadNotes: string | null;
+  purchasedPlanId: number | null;
+  /** Denormalized subscription_plans.name — para render sin round-trip extra. */
+  purchasedPlanName: string | null;
   createdBy: { userId: number; name: string } | null;
   status: UserStatus | null;
 }

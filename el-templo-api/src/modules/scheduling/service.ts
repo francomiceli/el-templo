@@ -309,12 +309,19 @@ export class SchedulingService {
     // Get all bookings (not cancelled) for this slot + date.
     // Phase 102: trials are returned alongside regular bookings — the admin
     // UI splits them visually using `isTrial`. This is NOT a capacity query.
-    // Active/paused subscription end date for the Vencimiento countdown pill.
-    // Correlated subquery (most recent active/paused sub); null when none.
+    // Fecha de cobertura para el pill "Venc". Toma el MÁXIMO end_date entre las
+    // subs active/paused/scheduled: al incluir 'scheduled' encadena el successor
+    // programado (renovación / cambio de plan "más adelante") para que un socio
+    // cubierto por continuidad NO figure "vence mañana" (bug Joaquim Mas
+    // 2026-07-07: activa vence 07-08 y la programada arranca 07-08 → cubierto
+    // hasta 08-07). Espeja deriveCoveredUntil (que usa active+scheduled); se
+    // mantiene 'paused' para no perder el pill de socios pausados. null si no
+    // hay ninguna sub con fecha.
     const endDateExpr = sql<string | null>`(
-      SELECT DATE_FORMAT(s.end_date, '%Y-%m-%d') FROM subscriptions s
-      WHERE s.user_id = ${schema.users.id} AND s.subscription_status IN ('active','paused')
-      ORDER BY s.created_at DESC LIMIT 1
+      SELECT DATE_FORMAT(MAX(s.end_date), '%Y-%m-%d') FROM subscriptions s
+      WHERE s.user_id = ${schema.users.id}
+        AND s.subscription_status IN ('active','paused','scheduled')
+        AND s.end_date IS NOT NULL
     )`;
 
     const bookingRows = await this.db

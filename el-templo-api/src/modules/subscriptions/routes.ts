@@ -164,8 +164,14 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
           .code(403)
           .send({ error: "Acceso denegado", message: "Solo owner/admin" });
       }
-      const plan = await subscriptionService.createPlan(request.body);
-      return reply.code(201).send(plan);
+      try {
+        const plan = await subscriptionService.createPlan(request.body);
+        return reply.code(201).send(plan);
+      } catch (err: unknown) {
+        // Sin este catch, un ConflictError (nombre duplicado) caería al handler
+        // default de Fastify → 500. handleServiceError mapea AppError→status.
+        return handleServiceError(err, reply, request.log, "create plan");
+      }
     },
   );
 
@@ -182,16 +188,20 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
           .code(403)
           .send({ error: "Acceso denegado", message: "Solo owner/admin" });
       }
-      const plan = await subscriptionService.updatePlan(
-        request.params.planId,
-        request.body,
-      );
-      if (!plan) {
-        return reply
-          .code(404)
-          .send({ error: "No encontrado", message: "Plan no encontrado" });
+      try {
+        const plan = await subscriptionService.updatePlan(
+          request.params.planId,
+          request.body,
+        );
+        if (!plan) {
+          return reply
+            .code(404)
+            .send({ error: "No encontrado", message: "Plan no encontrado" });
+        }
+        return plan;
+      } catch (err: unknown) {
+        return handleServiceError(err, reply, request.log, "update plan");
       }
-      return plan;
     },
   );
 

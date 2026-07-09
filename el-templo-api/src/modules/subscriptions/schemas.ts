@@ -400,6 +400,7 @@ export const renewSubscriptionSchema = {
       amountReceived: { type: "integer", minimum: 0 },
       priceOverrideAmount: { type: "integer", minimum: 0 },
       priceOverrideReason: { type: "string" },
+      startDate: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
     },
   },
   response: {

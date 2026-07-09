@@ -288,6 +288,11 @@ export interface RenewSubscriptionInput {
   priceOverrideAmount?: number;
   /** Razón del precio personalizado. Requerida si hay priceOverrideAmount. */
   priceOverrideReason?: string;
+  /**
+   * Fecha de inicio personalizada (YYYY-MM-DD). undefined → el backend deriva la
+   * fecha automáticamente (vencimiento actual si sigue vigente, si no hoy).
+   */
+  startDate?: string;
 }
 
 // ─── Plan Change / Proration Types ─────────────────────────────────────────

@@ -11,7 +11,7 @@
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { eq, and, sql, desc, inArray } from "drizzle-orm";
+import { eq, and, sql, desc, asc, lt, lte, gt, inArray } from "drizzle-orm";
 import * as schema from "../../db/schema";
 import { BadRequestError } from "../shared/errors";
 import { getWeekRange } from "../shared/date-utils";
@@ -87,39 +87,54 @@ export class RatingsService {
   }
 
   /**
-   * Roster cells for a branch+week, with the assigned coach's name (admin grid).
+   * Effective roster for a branch as of a given week (admin grid).
+   *
+   * Rows are effective-dated: `week_start_date` is the week a change takes
+   * effect and each (day, slot) inherits the coach from the most recent change
+   * whose week is <= the viewed week. So for each cell we pick the latest
+   * change-point <= `weekStartDate` (window ROW_NUMBER, rn=1). A cell with no
+   * change-point on or before the week is simply absent (no coach yet).
    */
   async getRosterWeek(
     branchId: number,
     weekStartDate: string,
   ): Promise<RosterWeekRow[]> {
-    const rows = await this.db
-      .select({
-        id: schema.classCoachAssignments.id,
-        branchId: schema.classCoachAssignments.branchId,
-        weekStartDate: schema.classCoachAssignments.weekStartDate,
-        dayOfWeek: schema.classCoachAssignments.dayOfWeek,
-        slot: schema.classCoachAssignments.slot,
-        coachId: schema.classCoachAssignments.coachId,
-        firstName: schema.users.firstName,
-        lastName: schema.users.lastName,
-      })
-      .from(schema.classCoachAssignments)
-      .innerJoin(
-        schema.users,
-        eq(schema.users.id, schema.classCoachAssignments.coachId),
-      )
-      .where(
-        and(
-          eq(schema.classCoachAssignments.branchId, branchId),
-          eq(schema.classCoachAssignments.weekStartDate, weekStartDate),
-        ),
-      );
+    const result = await this.db.execute(sql`
+      SELECT t.id AS id,
+             t.day_of_week AS dayOfWeek,
+             t.slot AS slot,
+             t.coach_id AS coachId,
+             u.first_name AS firstName,
+             u.last_name AS lastName
+      FROM (
+        SELECT id, day_of_week, slot, coach_id,
+               ROW_NUMBER() OVER (
+                 PARTITION BY day_of_week, slot
+                 ORDER BY week_start_date DESC
+               ) AS rn
+        FROM class_coach_assignments
+        WHERE branch_id = ${branchId}
+          AND week_start_date <= ${weekStartDate}
+      ) t
+      JOIN users u ON u.id = t.coach_id
+      WHERE t.rn = 1
+    `);
+
+    const rows = result[0] as unknown as Array<{
+      id: number;
+      dayOfWeek: number;
+      slot: string;
+      coachId: number;
+      firstName: string | null;
+      lastName: string | null;
+    }>;
 
     return rows.map((r) => ({
       id: r.id,
-      branchId: r.branchId,
-      weekStartDate: r.weekStartDate,
+      branchId,
+      // The cell belongs to the viewed week, not the (possibly earlier) week the
+      // change-point was created — the grid renders "who teaches this week".
+      weekStartDate,
       dayOfWeek: r.dayOfWeek,
       slot: r.slot as ClassSlot,
       coachId: r.coachId,
@@ -128,12 +143,24 @@ export class RatingsService {
   }
 
   /**
-   * Assign (or replace) a coach in a single roster slot — persists immediately,
-   * the UI has no Save button. Uses ON DUPLICATE KEY UPDATE over the composite
-   * natural key (branch, week, day, slot) so re-assigning replaces atomically.
+   * Set the coach for a (day, slot) effective from `weekStartDate` onward
+   * (effective-dated model). The change rules from that week until the next
+   * change-point supersedes it — persists immediately, the UI has no Save
+   * button.
    *
-   * Guards (Rule 2 / T-143-05): coach must belong to the branch (user_branches),
-   * dayOfWeek in 1..6, slot valid — otherwise BadRequestError (no orphan rows).
+   * A change-point is only stored when it actually changes the effective coach,
+   * keeping the invariant "no two consecutive change-points share a coach":
+   *  - If the coach inherited from the previous change-point is already this
+   *    coach, no row is created (or an existing redundant row at this week is
+   *    removed) — the week keeps inheriting.
+   *  - Any immediately following change-point that now repeats this coach is
+   *    collapsed, so a change never leaves a redundant duplicate downstream.
+   * This is what makes "changing a slot propagates forward" hold with a single
+   * row per real change, without wiping legitimately planned future changes.
+   *
+   * Guards: coach must belong to the branch (user_branches, T-143-05), dayOfWeek
+   * in 1..6, slot valid, and the target week must not be in the past — history
+   * stays frozen so past attribution is never rewritten.
    */
   async upsertRosterAssignment(input: RosterAssignmentInput): Promise<void> {
     const { branchId, weekStartDate, dayOfWeek, slot, coachId } = input;
@@ -143,6 +170,15 @@ export class RatingsService {
     }
     if (slot !== "morning" && slot !== "afternoon") {
       throw new BadRequestError("Turno inválido");
+    }
+
+    // History is read-only: a change can only take effect from the current ISO
+    // week onward, so already-taught classes keep their attribution.
+    const currentWeek = isoWeekStart(new Date().toISOString().split("T")[0]);
+    if (weekStartDate < currentWeek) {
+      throw new BadRequestError(
+        "No se puede editar el roster de una semana pasada",
+      );
     }
 
     // The coach must be a coach assigned to this branch.
@@ -166,10 +202,68 @@ export class RatingsService {
       throw new BadRequestError("El profe no pertenece a esta sucursal");
     }
 
-    await this.db
-      .insert(schema.classCoachAssignments)
-      .values({ branchId, weekStartDate, dayOfWeek, slot, coachId })
-      .onDuplicateKeyUpdate({ set: { coachId } });
+    const slotFilter = and(
+      eq(schema.classCoachAssignments.branchId, branchId),
+      eq(schema.classCoachAssignments.dayOfWeek, dayOfWeek),
+      eq(schema.classCoachAssignments.slot, slot),
+    );
+
+    await this.db.transaction(async (tx) => {
+      // Coach inherited from the most recent change-point strictly before W.
+      const [prev] = await tx
+        .select({ coachId: schema.classCoachAssignments.coachId })
+        .from(schema.classCoachAssignments)
+        .where(
+          and(
+            slotFilter,
+            lt(schema.classCoachAssignments.weekStartDate, weekStartDate),
+          ),
+        )
+        .orderBy(desc(schema.classCoachAssignments.weekStartDate))
+        .limit(1);
+
+      // Write the change-point at W (replace if this week already had one).
+      await tx
+        .insert(schema.classCoachAssignments)
+        .values({ branchId, weekStartDate, dayOfWeek, slot, coachId })
+        .onDuplicateKeyUpdate({ set: { coachId } });
+
+      if (prev && prev.coachId === coachId) {
+        // The week already inherited this coach — no change-point needed.
+        await tx
+          .delete(schema.classCoachAssignments)
+          .where(
+            and(
+              slotFilter,
+              eq(schema.classCoachAssignments.weekStartDate, weekStartDate),
+            ),
+          );
+        return;
+      }
+
+      // Collapse a following change-point that now merely repeats this coach
+      // (the invariant guarantees at most one such contiguous row).
+      const following = await tx
+        .select({
+          id: schema.classCoachAssignments.id,
+          coachId: schema.classCoachAssignments.coachId,
+        })
+        .from(schema.classCoachAssignments)
+        .where(
+          and(
+            slotFilter,
+            gt(schema.classCoachAssignments.weekStartDate, weekStartDate),
+          ),
+        )
+        .orderBy(asc(schema.classCoachAssignments.weekStartDate));
+
+      for (const row of following) {
+        if (row.coachId !== coachId) break;
+        await tx
+          .delete(schema.classCoachAssignments)
+          .where(eq(schema.classCoachAssignments.id, row.id));
+      }
+    });
   }
 
   // ─── Member pending + submit ─────────────────────────────────────────────
@@ -373,9 +467,13 @@ export class RatingsService {
   }
 
   /**
-   * Resolve the attributed coachId from the weekly roster for a class
-   * identified by (branchId, sessionDate, schedule startTime). Returns null
-   * when no coach is assigned (no-orphan, D-Q3).
+   * Resolve the attributed coachId for a class identified by (branchId,
+   * sessionDate, schedule startTime). Effective-dated: picks the coach from the
+   * most recent change-point whose week is <= the class's ISO week. Returns null
+   * when no change-point applies on or before that week (no-orphan, D-Q3).
+   *
+   * A LATER change-point (a future roster edit) never affects a past class,
+   * because its week is > the class's week and is excluded by the <= filter.
    */
   private async resolveRosterCoachId(
     branchId: number,
@@ -392,11 +490,12 @@ export class RatingsService {
       .where(
         and(
           eq(schema.classCoachAssignments.branchId, branchId),
-          eq(schema.classCoachAssignments.weekStartDate, weekStartDate),
+          lte(schema.classCoachAssignments.weekStartDate, weekStartDate),
           eq(schema.classCoachAssignments.dayOfWeek, dayOfWeek),
           eq(schema.classCoachAssignments.slot, slot),
         ),
       )
+      .orderBy(desc(schema.classCoachAssignments.weekStartDate))
       .limit(1);
 
     return row ? row.coachId : null;

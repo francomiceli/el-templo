@@ -920,9 +920,9 @@ function buildTrialSessionsFilters(
       dateTo?: string;
       leadStatus?:
         | "en_seguimiento"
-        | "cerrado"
+        | "ganado"
         | "perdido"
-        | Array<"en_seguimiento" | "cerrado" | "perdido">;
+        | Array<"en_seguimiento" | "ganado" | "perdido">;
       attended?: "true" | "false" | "pending";
       shift?: "TM" | "TT";
       gestionaUserId?: number;
@@ -952,7 +952,7 @@ function buildTrialSessionsFilters(
 
   // Normalize leadStatus: AJV `anyOf` allows either a single string or an
   // array. The service expects an array (or undefined).
-  let leadStatus: Array<"en_seguimiento" | "cerrado" | "perdido"> | undefined;
+  let leadStatus: Array<"en_seguimiento" | "ganado" | "perdido"> | undefined;
   if (q.leadStatus !== undefined) {
     leadStatus = Array.isArray(q.leadStatus) ? q.leadStatus : [q.leadStatus];
     if (leadStatus.length === 0) leadStatus = undefined;

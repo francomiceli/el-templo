@@ -195,6 +195,22 @@
               @update:model-value="onSaveLeadStatus"
             />
 
+            <q-select
+              v-model="leadDraft.purchasedPlanId"
+              :options="leadPlanOptions"
+              option-value="id"
+              option-label="label"
+              emit-value
+              map-options
+              label="Plan comprado"
+              outlined
+              dense
+              clearable
+              class="q-mt-sm"
+              :loading="savingLeadPlan || loadingLeadPlans"
+              @update:model-value="onSaveLeadPlan"
+            />
+
             <q-input
               v-model="leadDraft.leadNotes"
               type="textarea"
@@ -857,21 +873,52 @@ const memberHasDebt = computed(() => outstandingConcepts.value.some((c) => c.bal
 // same composable method wired in Plan 114-06 for the inline-edit cells
 // in the Sesiones de Prueba report.
 
+// Hotfix 2026-07: 'cerrado' → 'ganado'. Ganado exige plan comprado cargado
+// (invariante server-side, 409): elegir "Ganado" acá pide primero el plan.
 const LEAD_STATUS_OPTIONS: ReadonlyArray<{ value: LeadStatusValue; label: string }> = [
   { value: 'en_seguimiento', label: 'En seguimiento' },
-  { value: 'cerrado', label: 'Cerrado' },
+  { value: 'ganado', label: 'Ganado' },
   { value: 'perdido', label: 'Perdido' },
 ] as const;
 
 const leadDraft = ref<{
   leadStatus: LeadStatusValue | null;
   leadNotes: string | null;
+  purchasedPlanId: number | null;
 }>({
   leadStatus: null,
   leadNotes: null,
+  purchasedPlanId: null,
 });
 const savingLeadStatus = ref(false);
 const savingLeadNotes = ref(false);
+const savingLeadPlan = ref(false);
+
+// Opciones del selector "Plan comprado" — /admin/subscriptions/plans activos.
+const leadPlanOptions = ref<Array<{ id: number; label: string }>>([]);
+const loadingLeadPlans = ref(false);
+
+async function loadLeadPlanOptions(): Promise<void> {
+  if (leadPlanOptions.value.length > 0) return;
+  loadingLeadPlans.value = true;
+  try {
+    const plans = await membersApi.getPlans();
+    const nameCounts = new Map<string, number>();
+    for (const p of plans) {
+      nameCounts.set(p.name, (nameCounts.get(p.name) ?? 0) + 1);
+    }
+    leadPlanOptions.value = plans.map((p) => ({
+      id: p.id,
+      label: (nameCounts.get(p.name) ?? 0) > 1 ? `${p.name} (${p.country})` : p.name,
+    }));
+  } catch (err: unknown) {
+    log.error('Failed to load plan options', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  } finally {
+    loadingLeadPlans.value = false;
+  }
+}
 
 // Sync draft with memberProfile whenever it (re)loads. The watcher fires
 // `immediate: true` so the very first load also seeds the draft.
@@ -881,6 +928,8 @@ watch(
     if (profile?.status === 'prueba') {
       leadDraft.value.leadStatus = profile.leadStatus ?? null;
       leadDraft.value.leadNotes = profile.leadNotes ?? null;
+      leadDraft.value.purchasedPlanId = profile.purchasedPlanId ?? null;
+      void loadLeadPlanOptions();
     }
   },
   { immediate: true }
@@ -889,12 +938,30 @@ watch(
 async function onSaveLeadStatus(newValue: LeadStatusValue): Promise<void> {
   if (!memberProfile.value) return;
   const previous = memberProfile.value.leadStatus;
+
+  // Ganado sin plan cargado: el server lo rechaza (409). Pedimos el plan
+  // primero — el PATCH del plan ya promociona el estado a 'ganado'.
+  if (newValue === 'ganado' && !memberProfile.value.purchasedPlanId) {
+    leadDraft.value.leadStatus = previous;
+    $q.notify({
+      type: 'warning',
+      message: 'Para marcar "Ganado", cargá primero el plan comprado',
+    });
+    return;
+  }
+
   savingLeadStatus.value = true;
   try {
-    const snapshot = await membersApi.updateLead(memberProfile.value.id, {
-      leadStatus: newValue,
-    });
+    // Bajar de Ganado implica quitar el plan (invariante plan ⇔ ganado).
+    const payload =
+      newValue !== 'ganado' && memberProfile.value.purchasedPlanId
+        ? { leadStatus: newValue, purchasedPlanId: null }
+        : { leadStatus: newValue };
+    const snapshot = await membersApi.updateLead(memberProfile.value.id, payload);
     memberProfile.value.leadStatus = snapshot.leadStatus;
+    memberProfile.value.purchasedPlanId = snapshot.purchasedPlanId;
+    memberProfile.value.purchasedPlanName = snapshot.purchasedPlanName;
+    leadDraft.value.purchasedPlanId = snapshot.purchasedPlanId;
     // D-34 invariant: leadNotes is NOT touched by lead_status edits
     // server-side. memberProfile.leadNotes stays as-is.
     $q.notify({ type: 'positive', message: 'Estado actualizado' });
@@ -908,6 +975,38 @@ async function onSaveLeadStatus(newValue: LeadStatusValue): Promise<void> {
     $q.notify({ type: 'negative', message });
   } finally {
     savingLeadStatus.value = false;
+  }
+}
+
+async function onSaveLeadPlan(newPlanId: number | null): Promise<void> {
+  if (!memberProfile.value) return;
+  const previous = memberProfile.value.purchasedPlanId;
+  if (newPlanId === previous) return;
+  savingLeadPlan.value = true;
+  try {
+    // Setear plan promociona a 'ganado'; quitarlo baja a 'en_seguimiento'
+    // (el server exige que un Ganado tenga plan).
+    const payload =
+      newPlanId === null
+        ? { leadStatus: 'en_seguimiento' as const, purchasedPlanId: null }
+        : { purchasedPlanId: newPlanId };
+    const snapshot = await membersApi.updateLead(memberProfile.value.id, payload);
+    memberProfile.value.leadStatus = snapshot.leadStatus;
+    memberProfile.value.purchasedPlanId = snapshot.purchasedPlanId;
+    memberProfile.value.purchasedPlanName = snapshot.purchasedPlanName;
+    leadDraft.value.leadStatus = snapshot.leadStatus;
+    leadDraft.value.purchasedPlanId = snapshot.purchasedPlanId;
+    $q.notify({ type: 'positive', message: 'Plan comprado actualizado' });
+  } catch (err: unknown) {
+    leadDraft.value.purchasedPlanId = previous;
+    const message = err instanceof Error ? err.message : 'Error al actualizar el plan';
+    log.error('Failed to update purchased plan', {
+      error: message,
+      userId: memberProfile.value.id,
+    });
+    $q.notify({ type: 'negative', message });
+  } finally {
+    savingLeadPlan.value = false;
   }
 }
 
