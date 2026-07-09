@@ -18,8 +18,8 @@
     </div>
 
     <!-- ================================================================= -->
-    <!-- Tab hub (Phase 152 / D-01) — Movimientos de caja is the portada:  -->
-    <!-- movimientosCaja → pendientes → transacciones → saldos → cuentas.  -->
+    <!-- Tab hub (revisión v5.4) — Pendientes is the portada:              -->
+    <!-- pendientes → movimientosCaja → transacciones → saldos → cuentas.  -->
     <!-- The `transacciones` key is unchanged (the ?tab= contract); only   -->
     <!-- its label changes (D-02).                                         -->
     <!-- ================================================================= -->
@@ -31,10 +31,10 @@
       dense
       class="text-grey-7"
     >
-      <q-tab :name="CAJA_TABS.movimientosCaja" label="Movimientos de caja" icon="swap_horiz" />
       <q-tab :name="CAJA_TABS.pendientes" label="Pendientes" icon="inbox">
         <q-badge v-if="vencidoCount > 0" floating color="negative">{{ vencidoCount }}</q-badge>
       </q-tab>
+      <q-tab :name="CAJA_TABS.movimientosCaja" label="Movimientos de caja" icon="swap_horiz" />
       <q-tab :name="CAJA_TABS.transacciones" label="Historial de cobros" icon="receipt_long" />
       <q-tab :name="CAJA_TABS.saldos" label="Saldos" icon="account_balance_wallet" />
       <q-tab :name="CAJA_TABS.cuentas" label="Cuentas" icon="account_balance" />

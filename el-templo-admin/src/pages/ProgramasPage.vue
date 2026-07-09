@@ -4,7 +4,7 @@
     <!-- Page Header -->
     <!-- ================================================================== -->
     <div class="row items-center q-mb-lg">
-      <div class="text-h5 col">Rutinas de entrenamiento</div>
+      <div class="text-h5 col">Rutinas</div>
       <q-btn icon="add" label="Nueva rutina" color="primary" @click="openCreateDialog" />
     </div>
 

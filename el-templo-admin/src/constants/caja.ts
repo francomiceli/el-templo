@@ -1,9 +1,10 @@
 /**
  * Phase 141 — Caja hub tab constants (D-01).
- * Phase 152 — reorden: Movimientos de caja (portada) → Pendientes →
+ * Phase 152 — reorden: Movimientos de caja (portada) → Pendientes → …
+ * Revisión v5.4 — reorden: Pendientes (portada) → Movimientos de caja →
  * Historial de cobros (key `transacciones`) → Saldos → Cuentas.
  *
- * The `/caja` page is a q-tabs hub: Movimientos de caja (landing) / Pendientes /
+ * The `/caja` page is a q-tabs hub: Pendientes (landing) / Movimientos de caja /
  * Historial de cobros / Saldos / Cuentas. These names are the single source of
  * truth for the tab model + the optional `?tab=` query-param persistence, so
  * Plan 04 (and future 142) can reference tab names without re-declaring string
@@ -28,17 +29,17 @@ export const CAJA_TABS = {
 
 export type CajaTab = (typeof CAJA_TABS)[keyof typeof CAJA_TABS];
 
-/** Landing tab (Phase 152 / D-01): Movimientos de caja is the portada. */
-export const CAJA_DEFAULT_TAB: CajaTab = CAJA_TABS.movimientosCaja;
+/** Landing tab (revisión v5.4): Pendientes is the portada. */
+export const CAJA_DEFAULT_TAB: CajaTab = CAJA_TABS.pendientes;
 
 /**
- * Valid tab names, for ?tab= query-param validation. Order (Phase 152 / D-01):
- * Movimientos de caja → Pendientes → Historial de cobros (`transacciones`) →
+ * Valid tab names, for ?tab= query-param validation. Order (revisión v5.4):
+ * Pendientes → Movimientos de caja → Historial de cobros (`transacciones`) →
  * Saldos → Cuentas. The object keys stay immutable — the ?tab= contract.
  */
 export const CAJA_TAB_NAMES: readonly CajaTab[] = [
-  CAJA_TABS.movimientosCaja,
   CAJA_TABS.pendientes,
+  CAJA_TABS.movimientosCaja,
   CAJA_TABS.transacciones,
   CAJA_TABS.saldos,
   CAJA_TABS.cuentas,

@@ -140,30 +140,34 @@ export interface NavCategory {
 }
 
 /**
- * The 6 MVP categories (D-07/D-08/D-12): Finanzas / Alumnos / Horarios / Planes
- * + Configuración + Templo. Paths mirror the current router routes; the retired
- * Caja-config item is intentionally absent (D-13).
+ * Categorías del drawer, en orden de arriba hacia abajo (revisión v5.4):
+ * Entrenamiento / Gestión / Planes / Finanzas / Configuración / Landing.
+ * Los paths reflejan las rutas del router. Un header solo se muestra si ≥1 de sus
+ * ítems es visible para el usuario (isNavCategoryVisible — Pitfall 4: sin headers vacíos).
  */
 export const NAV_MODEL: NavCategory[] = [
   {
-    header: 'Finanzas',
+    // Entrenamiento (revisión v5.4): la capa de entrenamiento del Templo, arriba de todo.
+    // Toda la categoría es Templo (`templo: true`) → un white-label sin Templo no la ve.
+    // Sesiones/Programador/Ejercicios/Árbol son trainingOnly (canAccessTraining).
+    header: 'Entrenamiento',
+    templo: true,
     items: [
-      { path: '/cobros', label: 'Cobros', icon: 'point_of_sale', roles: PAGOS_ROLES },
-      // Deudas (revisión v5.4): herramienta operativa del profe. Owner/admin/gestion
-      // ven la morosidad DENTRO de Reportes; el coach NO tiene acceso a Reportes, así
-      // que ve "Deudas" por fuera. La entrada queda coach-only + Templo (sin recepción
-      // en las sucursales, el profe la necesita para cobrar en la puerta). El nav solo
-      // HIDE — el gate real sigue en el API/route guard (D-04): COACH_DEBTS_ROLES.
-      { path: '/deudas', label: 'Deudas', icon: 'request_quote', roles: ['coach'], templo: true },
-      { path: '/reportes', label: 'Reportes', icon: 'summarize', roles: REPORTES_ROLES },
-      { path: '/caja', label: 'Caja', icon: 'point_of_sale', roles: CAJA_SALDOS_ROLES },
-      { path: '/analiticas', label: 'Analíticas', icon: 'analytics', roles: ANALITICAS_ROLES },
+      {
+        path: '/sessions',
+        label: 'Sesiones',
+        icon: 'fitness_center',
+        trainingOnly: true,
+        badge: 'pending',
+      },
+      { path: '/generate', label: 'Programador', icon: 'auto_awesome', trainingOnly: true },
+      { path: '/exercises', label: 'Ejercicios', icon: 'sports_gymnastics', trainingOnly: true },
+      { path: '/tree-map', label: 'Árbol', icon: 'hub', trainingOnly: true },
     ],
   },
   {
-    // Gestión (revisión v5.4): reemplaza las mini-categorías Alumnos/Horarios y
-    // recibe Profes + Campañas del antiguo blob "Templo". Alumnos/Horarios son
-    // universales; Profes/Campañas quedan Templo-only vía `templo: true` a nivel ítem.
+    // Gestión (revisión v5.4): Alumnos/Horarios universales; Profes/Campañas quedan
+    // Templo-only vía `templo: true` a nivel ítem.
     header: 'Gestión',
     items: [
       { path: '/alumnos', label: 'Alumnos', icon: 'people', roles: ALL_STAFF_ROLES },
@@ -179,43 +183,44 @@ export const NAV_MODEL: NavCategory[] = [
     ],
   },
   {
+    // Planes: planes de pago + Rutinas de entrenamiento (mudada acá desde Entrenamiento,
+    // revisión v5.4). Rutinas sigue Dueño-only (149 D-15) AND gated como superficie de
+    // rutinas (D-02) vía `routines: true` → TEMPLO_TRAINING_ROUTINES. Router/API la cierran.
     header: 'Planes',
     items: [
-      {
-        path: '/planes',
-        label: 'Planes de pago',
-        icon: 'card_membership',
-        roles: PLANES_READ_ROLES,
-      },
+      { path: '/planes', label: 'Planes', icon: 'card_membership', roles: PLANES_READ_ROLES },
+      { path: '/programas', label: 'Rutinas', icon: 'school', roles: DUENO_ROLES, routines: true },
     ],
   },
   {
-    // Entrenamiento (revisión v5.4): la capa de entrenamiento del Templo, "como antes".
-    // Toda la categoría es Templo (`templo: true`) → un white-label sin Templo no la ve.
-    // Sesiones/Programador/Ejercicios/Árbol son trainingOnly (canAccessTraining);
-    // Rutinas se mudó acá desde Planes, sigue Dueño-only + gated por TEMPLO_TRAINING_ROUTINES.
-    header: 'Entrenamiento',
-    templo: true,
+    // Finanzas. Orden: Caja, Cobros, Reportes, Analíticas (revisión v5.4). Deudas es la
+    // herramienta operativa del profe (coach-only + Templo): owner/admin/gestion ven la
+    // morosidad DENTRO de Reportes; el coach NO tiene acceso a Reportes, así que ve
+    // "Deudas" por fuera. El nav solo HIDE — el gate real sigue en el API/route guard (D-04).
+    header: 'Finanzas',
     items: [
+      { path: '/caja', label: 'Caja', icon: 'point_of_sale', roles: CAJA_SALDOS_ROLES },
+      { path: '/cobros', label: 'Cobros', icon: 'payments', roles: PAGOS_ROLES },
+      { path: '/deudas', label: 'Deudas', icon: 'request_quote', roles: ['coach'], templo: true },
+      { path: '/reportes', label: 'Reportes', icon: 'summarize', roles: REPORTES_ROLES },
+      { path: '/analiticas', label: 'Analíticas', icon: 'analytics', roles: ANALITICAS_ROLES },
+    ],
+  },
+  {
+    header: 'Configuración',
+    items: [
+      { path: '/usuarios', label: 'Usuarios', icon: 'manage_accounts', roles: ['owner'] },
       {
-        path: '/sessions',
-        label: 'Sesiones',
-        icon: 'fitness_center',
-        trainingOnly: true,
-        badge: 'pending',
+        path: '/configuracion/precios',
+        label: 'Reglas de precio',
+        icon: 'sell',
+        roles: ['owner'],
       },
-      { path: '/generate', label: 'Programador', icon: 'auto_awesome', trainingOnly: true },
-      { path: '/exercises', label: 'Ejercicios', icon: 'sports_gymnastics', trainingOnly: true },
-      { path: '/tree-map', label: 'Árbol', icon: 'hub', trainingOnly: true },
-      // Rutinas de entrenamiento (D-01 rename): Dueño-only (149 D-15) AND gated como
-      // superficie de rutinas (D-02) vía `routines: true` → TEMPLO_TRAINING_ROUTINES.
-      // Router guard (Plan 04) y API (Plan 01) también la cierran. Path/id intactos.
       {
-        path: '/programas',
-        label: 'Rutinas de entrenamiento',
-        icon: 'school',
+        path: '/notificaciones',
+        label: 'Notificaciones',
+        icon: 'notifications',
         roles: DUENO_ROLES,
-        routines: true,
       },
     ],
   },
@@ -235,24 +240,6 @@ export const NAV_MODEL: NavCategory[] = [
       },
       { path: '/labs-inquiries', label: 'Labs Inquiries', icon: 'business', roles: ['owner'] },
       { path: '/franquicias', label: 'Franquicias', icon: 'store', roles: ['owner'] },
-    ],
-  },
-  {
-    header: 'Configuración',
-    items: [
-      { path: '/usuarios', label: 'Usuarios', icon: 'manage_accounts', roles: ['owner'] },
-      {
-        path: '/configuracion/precios',
-        label: 'Reglas de precio',
-        icon: 'sell',
-        roles: ['owner'],
-      },
-      {
-        path: '/notificaciones',
-        label: 'Notificaciones',
-        icon: 'notifications',
-        roles: DUENO_ROLES,
-      },
     ],
   },
 ];
