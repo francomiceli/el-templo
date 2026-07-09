@@ -11,6 +11,10 @@ import { canAccessTraining } from 'src/utils/trainingAccess';
  *
  * The nav only HIDES items — it is NOT security (D-04). The real gate is the API
  * (Plan 01 + existing router/route guards). A hidden item still returns 403 by API.
+ *
+ * v5.4 (Reforma del Admin): la categoría monolítica "Templo" se disolvió y sus
+ * entradas se redistribuyeron en Gestión / Entrenamiento / Landing; Deudas quedó
+ * como herramienta coach-only del Templo (owner/admin la ven dentro de Reportes).
  */
 
 /**
