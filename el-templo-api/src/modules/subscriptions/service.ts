@@ -291,21 +291,34 @@ export class SubscriptionService {
   ): Promise<void> {
     if (programIds.length === 0) return;
     const uniqueIds = [...new Set(programIds)];
-    const found = await tx
-      .select({ id: schema.programs.id })
+    // Existencia + activo sobre TODOS los ids (sin filtrar por otorgabilidad).
+    const existing = await tx
+      .select({
+        id: schema.programs.id,
+        goalPlanType: schema.programs.goalPlanType,
+      })
       .from(schema.programs)
       .where(
         and(
           inArray(schema.programs.id, uniqueIds),
           eq(schema.programs.isActive, true),
-          isNotNull(schema.programs.goalPlanType),
         ),
       );
-    const foundIds = new Set(found.map((r) => r.id));
-    const invalid = uniqueIds.filter((id) => !foundIds.has(id));
-    if (invalid.length > 0) {
+    const existingIds = new Set(existing.map((r) => r.id));
+    const missing = uniqueIds.filter((id) => !existingIds.has(id));
+    if (missing.length > 0) {
       throw new BadRequestError(
-        `Programa(s) inexistente(s), inactivo(s) o no otorgable(s) por lista: ${invalid.join(", ")}`,
+        `Programa(s) inexistente(s) o inactivo(s): ${missing.join(", ")}`,
+      );
+    }
+    // Anti-piratería 104 R7 / WR-02: el enrollment dropea silenciosamente los
+    // Foundation (goalPlanType NULL). Una lista compuesta SOLO por Foundation dejaría
+    // al socio con CERO programas pese a hasProgramList=true → la rechazamos. Una lista
+    // MIXTA (>=1 otorgable + Foundation) es válida: el Foundation se dropea al enrolar
+    // (PLAN-03), el resto se otorga.
+    if (existing.every((r) => r.goalPlanType == null)) {
+      throw new BadRequestError(
+        "La lista no otorga ningún programa (solo Foundation/no otorgable)",
       );
     }
   }

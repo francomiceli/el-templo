@@ -1207,6 +1207,10 @@ describe("Reports API — GET /outstanding-balances (Phase 109-02)", () => {
       planId: ctx.planArId,
       planCurrency: "ARS",
       startDateOffsetDays: -40,
+      // La deuda se crea HOY (registeredAt ≈ hoy), distinta del inicio de ciclo
+      // (-40). El helper por defecto usa el offset del start para createdAt, así que
+      // lo forzamos a 0 para ejercitar registeredAt (createdAt) != effectiveDate (start).
+      balanceCreatedOffsetDays: 0,
       amount: 1000,
     });
 

@@ -268,7 +268,7 @@ describe("Reports API — GET /outstanding-balances/export (Phase 109-04)", () =
     await seedRolesAndPlans(app, ctx);
   });
 
-  it("X1: returns .xlsx with 9 column headers (D-16) and one row per concepto", async () => {
+  it("X1: returns .xlsx with 13 column headers (D-16 + Phase 153) and one row per concepto", async () => {
     // Seed 2 outstanding balances on AR.
     await seedSubscriptionWithBalance({
       app,
@@ -314,27 +314,30 @@ describe("Reports API — GET /outstanding-balances/export (Phase 109-04)", () =
     // Header row + 2 data rows = 3.
     expect(sheet.rowCount).toBe(3);
 
-    // 10 columns — order is load-bearing.
+    // 13 columns (Phase 153 sumó Motivo / Período / Fecha de registro) — orden load-bearing.
     const header = sheet.getRow(1);
     expect(header.getCell(1).value).toBe("Miembro");
     expect(header.getCell(2).value).toBe("Teléfono");
     expect(header.getCell(3).value).toBe("Plan/Concepto");
-    expect(header.getCell(4).value).toBe("Sucursal");
-    expect(header.getCell(5).value).toBe("Monto");
-    expect(header.getCell(6).value).toBe("Moneda");
-    expect(header.getCell(7).value).toBe("Antigüedad (días)");
-    expect(header.getCell(8).value).toBe("Bucket");
-    expect(header.getCell(9).value).toBe("Fecha devengo");
-    expect(header.getCell(10).value).toBe("Tipo");
+    expect(header.getCell(4).value).toBe("Motivo");
+    expect(header.getCell(5).value).toBe("Período");
+    expect(header.getCell(6).value).toBe("Sucursal");
+    expect(header.getCell(7).value).toBe("Monto");
+    expect(header.getCell(8).value).toBe("Moneda");
+    expect(header.getCell(9).value).toBe("Antigüedad (días)");
+    expect(header.getCell(10).value).toBe("Bucket");
+    expect(header.getCell(11).value).toBe("Fecha devengo");
+    expect(header.getCell(12).value).toBe("Fecha de registro");
+    expect(header.getCell(13).value).toBe("Tipo");
 
     // Sort: ageInDays DESC. Oldest balance (45d, Juan) is first data row.
     const firstRow = sheet.getRow(2);
     expect(firstRow.getCell(1).value).toBe("Juan Pérez");
-    expect(firstRow.getCell(6).value).toBe("ARS");
-    expect(firstRow.getCell(7).value).toBe(45);
+    expect(firstRow.getCell(8).value).toBe("ARS");
+    expect(firstRow.getCell(9).value).toBe(45);
     // 45d → bucket "15+ días"
-    expect(firstRow.getCell(8).value).toBe("15+ días");
-    expect(firstRow.getCell(10).value).toBe("Plan");
+    expect(firstRow.getCell(10).value).toBe("15+ días");
+    expect(firstRow.getCell(13).value).toBe("Plan");
   });
 
   it("X1b: un plan programado a futuro SÍ se exporta como deuda (cobrable hoy)", async () => {

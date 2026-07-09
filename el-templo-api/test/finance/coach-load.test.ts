@@ -856,6 +856,7 @@ describe("coach-load caja sugerida por sede del profe", () => {
         concepto: "Cobro suelto transfer",
         paymentMethod: "transfer",
         currency: "ARS",
+        bankAccountId: bancoArsId,
         idempotencyKey: `caja-misc-transfer-${Date.now()}`,
         miscReason: "otro",
       },

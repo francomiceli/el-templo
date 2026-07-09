@@ -21,7 +21,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, and } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import {
   createTestApp,
@@ -40,6 +40,7 @@ let app: FastifyInstance;
 let coachToken: string;
 let branchId: number;
 let planId: number;
+let bancoArsId: number;
 let dniSeq = 0;
 
 /** Globally-unique DNI per call so alta-created members never collide. */
@@ -55,6 +56,7 @@ interface AltaBody {
   branchId: number;
   planId: number;
   paymentMethod: "cash" | "transfer" | "card";
+  bankAccountId?: number;
   idempotencyKey: string;
 }
 
@@ -111,6 +113,34 @@ beforeAll(async () => {
     .limit(1);
   branchId = admin.branchId ?? 1;
   await ensureEfectivoCaja(app, branchId, "ARS");
+
+  // Caja banco ARS: fase 151 (validateBankAccountForCharge) exige bankAccountId
+  // explícito para cobros por tarjeta/transferencia.
+  const existingBanco = await app.db
+    .select({ id: schema.cashRegisters.id })
+    .from(schema.cashRegisters)
+    .where(
+      and(
+        eq(schema.cashRegisters.type, "banco"),
+        eq(schema.cashRegisters.currency, "ARS"),
+      ),
+    )
+    .limit(1);
+  if (existingBanco.length > 0) {
+    bancoArsId = existingBanco[0].id;
+  } else {
+    const [banco] = await app.db
+      .insert(schema.cashRegisters)
+      .values({
+        name: "Banco ARS",
+        type: "banco",
+        branchId: null,
+        currency: "ARS",
+        cutoffDate: "2020-01-01",
+      })
+      .$returningId();
+    bancoArsId = banco.id;
+  }
 
   await createStaffUser(app, {
     email: "coach-pricing@test.local",
@@ -171,6 +201,7 @@ describe("card-surcharge gate — regla ON", () => {
       branchId,
       planId,
       paymentMethod: "card",
+      bankAccountId: bancoArsId,
       idempotencyKey: key,
     });
 
@@ -193,6 +224,7 @@ describe("card-surcharge gate — regla OFF", () => {
       branchId,
       planId,
       paymentMethod: "card",
+      bankAccountId: bancoArsId,
       idempotencyKey: key,
     });
 
@@ -211,6 +243,7 @@ describe("card-surcharge gate — regla OFF", () => {
       branchId,
       planId,
       paymentMethod: "card",
+      bankAccountId: bancoArsId,
       idempotencyKey: key,
     });
 
@@ -229,6 +262,7 @@ describe("card-surcharge gate — regla OFF", () => {
       branchId,
       planId,
       paymentMethod: "card",
+      bankAccountId: bancoArsId,
       idempotencyKey: key,
     });
 

@@ -476,7 +476,7 @@ describe("Ratings module (Phase 143)", () => {
         sessionDate,
         scheduleId: ctx.scheduleMorningId,
         stars: 5,
-        classStars: 5,
+        classStars: 4,
       },
     });
     expect(res.statusCode).toBe(201);

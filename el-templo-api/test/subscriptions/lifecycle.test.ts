@@ -62,6 +62,17 @@ describe("Subscriptions API — Lifecycle", () => {
     });
 
     it("uses priceZero when boardingPass=true", async () => {
+      // Fase 156: el boarding pass rutea por resolvePriceType('zero'), que con la
+      // regla zero_price_enabled OFF (default en tests) normaliza a 'regular'. Para
+      // ejercitar el precio Zero hay que prender la regla (ver zero-price-gate.test.ts).
+      await app.db
+        .insert(schema.systemSettings)
+        .values({
+          settingKey: PRICING_SETTINGS_KEYS.zeroPrice,
+          settingValue: "on",
+        })
+        .onDuplicateKeyUpdate({ set: { settingValue: "on" } });
+
       const plan = await createPlan(app, adminToken);
       const member = await createMember(app);
 
