@@ -164,6 +164,7 @@ const TABLES_TO_CLEAN = [
   schema.userBranches,
   schema.blogPostTags,
   schema.bookings,
+  schema.scheduleExceptions,
   schema.subscriptionScheduleChanges,
   schema.subscriptionSchedules,
   schema.completedSessions,

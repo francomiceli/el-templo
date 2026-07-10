@@ -47,6 +47,7 @@ export * from "./balances";
 export * from "./attendance";
 export * from "./activities";
 export * from "./schedules";
+export * from "./schedule-exceptions";
 export * from "./bookings";
 export * from "./holidays";
 export * from "./system-settings";

@@ -39,6 +39,8 @@ import {
   weeklyGridSchema,
   slotDetailSchema,
   toggleScheduleSchema,
+  cancelScheduleDateSchema,
+  restoreScheduleDateSchema,
   previewScheduleDeletionSchema,
   deleteScheduleFromDateSchema,
   updateScheduleActivitySchema,
@@ -315,6 +317,80 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
         return { ...slot, cancelledBookings, restoredBookings };
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "toggle schedule");
+      }
+    },
+  );
+
+  // POST /schedules/:scheduleId/cancel-date — cancel ONE occurrence (a single
+  // date) of a recurring slot. Unlike toggle (all weeks) and delete-from-date
+  // (this date onward), only this date stops running: the exception hides the
+  // slot-date from members, blocks new reservations, and this handler cancels
+  // that date's active bookings granting replacement credits to fixed-plan
+  // members. The exception is created FIRST so its createdAt lower-bounds the
+  // bookings' cancelledAt (the restore cutoff).
+  fastify.post<{
+    Params: { scheduleId: number };
+    Body: { date: string; reason?: string | null };
+  }>(
+    "/schedules/:scheduleId/cancel-date",
+    { schema: cancelScheduleDateSchema },
+    async (request, reply) => {
+      try {
+        const { scheduleId } = request.params;
+        const { date, reason } = request.body;
+
+        const exception = await schedulingService.cancelScheduleDate(
+          scheduleId,
+          date,
+          reason ?? null,
+        );
+
+        const cancelResult =
+          await bookingService.cancelBookingsFromDateAndGrantCredits(
+            scheduleId,
+            date,
+            date,
+          );
+
+        return {
+          exceptionDate: exception.exceptionDate,
+          cancelledBookings: cancelResult.cancelledBookings,
+          affectedFixedMembers: cancelResult.affectedFixedMembers,
+          creditsGranted: cancelResult.creditsGranted,
+        };
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "cancel schedule date");
+      }
+    },
+  );
+
+  // DELETE /schedules/:scheduleId/cancel-date/:date — undo a per-date
+  // cancellation: removes the exception and restores the bookings it
+  // auto-cancelled (cancelledAt >= exception.createdAt, that date only).
+  fastify.delete<{
+    Params: { scheduleId: number; date: string };
+  }>(
+    "/schedules/:scheduleId/cancel-date/:date",
+    { schema: restoreScheduleDateSchema },
+    async (request, reply) => {
+      try {
+        const { scheduleId, date } = request.params;
+
+        const exception = await schedulingService.restoreScheduleDate(
+          scheduleId,
+          date,
+        );
+
+        const restoredBookings =
+          await bookingService.restoreCancelledBookingsForDate(
+            scheduleId,
+            date,
+            exception.createdAt,
+          );
+
+        return { restored: true, restoredBookings };
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "restore schedule date");
       }
     },
   );

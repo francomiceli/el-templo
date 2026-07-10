@@ -60,6 +60,10 @@ const weeklySlotViewSchema = {
     maxCapacity: { type: "integer" },
     isFull: { type: "boolean" },
     isHoliday: { type: "boolean" },
+    // Per-date cancellation (schedule_exceptions). Declared here or
+    // fast-json-stringify strips them and the admin grid can't flag the cell.
+    cancelledForDate: { type: "boolean" },
+    exceptionReason: { type: ["string", "null"] },
   },
 } as const;
 
@@ -273,6 +277,11 @@ export const slotDetailSchema = {
         date: { type: "string" },
         bookings: { type: "array", items: bookingRecordSchema },
         maxCapacity: { type: "integer" },
+        // Per-date cancellation state for this exact date. exceptionCreatedAt
+        // is the restore cutoff the dialog uses to list "se restaurarán".
+        cancelledForDate: { type: "boolean" },
+        exceptionReason: { type: ["string", "null"] },
+        exceptionCreatedAt: { type: ["string", "null"] },
       },
     },
     404: errorSchema,
@@ -316,6 +325,71 @@ export const toggleScheduleSchema = {
     // Phase 155 (WR-01): reactivation re-runs the activity-scoped overlap check
     // and can reject with 409 if the freed window was taken by another slot.
     409: errorSchema,
+  },
+};
+
+/**
+ * POST /schedules/:scheduleId/cancel-date — cancel ONE occurrence (a single
+ * date) of a recurring slot, leaving the template and every other week
+ * untouched. Cancels that date's active bookings and grants replacement
+ * credits to affected fixed-plan members (same policy as delete-from-date).
+ */
+export const cancelScheduleDateSchema = {
+  params: {
+    type: "object",
+    required: ["scheduleId"],
+    properties: {
+      scheduleId: { type: "integer" },
+    },
+  },
+  body: {
+    type: "object",
+    required: ["date"],
+    properties: {
+      date: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+      // Optional: shown to members that try to reserve this slot-date.
+      reason: { type: ["string", "null"], maxLength: 255 },
+    },
+  },
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        exceptionDate: { type: "string" },
+        cancelledBookings: { type: "integer" },
+        affectedFixedMembers: { type: "integer" },
+        creditsGranted: { type: "integer" },
+      },
+    },
+    400: errorSchema,
+    404: errorSchema,
+    // Date already cancelled.
+    409: errorSchema,
+  },
+};
+
+/**
+ * DELETE /schedules/:scheduleId/cancel-date/:date — undo a per-date
+ * cancellation. Restores the bookings auto-cancelled by it.
+ */
+export const restoreScheduleDateSchema = {
+  params: {
+    type: "object",
+    required: ["scheduleId", "date"],
+    properties: {
+      scheduleId: { type: "integer" },
+      date: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+    },
+  },
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        restored: { type: "boolean" },
+        restoredBookings: { type: "integer" },
+      },
+    },
+    404: errorSchema,
   },
 };
 

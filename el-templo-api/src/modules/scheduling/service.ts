@@ -13,7 +13,7 @@ import { MySql2Database } from "drizzle-orm/mysql2";
 import { eq, and, sql, inArray, gte, lte, lt, gt, ne } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
-import { addDays, computeSeniority } from "../shared/date-utils";
+import { addDays, computeSeniority, todayInTz } from "../shared/date-utils";
 import type {
   ScheduleSlot,
   WeeklySlotView,
@@ -32,6 +32,10 @@ import {
 } from "../shared/errors";
 import { HolidayService } from "./holiday-service";
 import { getEffectiveCapacity, resolveEffectiveCapacity } from "./capacity";
+import {
+  getScheduleException,
+  type ScheduleExceptionRow,
+} from "./schedule-exceptions";
 
 export class SchedulingService {
   constructor(
@@ -214,6 +218,32 @@ export class SchedulingService {
       { bookedCount: number; trialCount: number }
     >();
 
+    // Per-date cancellations for the week (schedule_exceptions). Members
+    // must not see (nor book) a slot on a cancelled date; admins see it
+    // flagged so they can restore it from the same cell.
+    const exceptionMap = new Map<string, { reason: string | null }>();
+    if (scheduleIds.length > 0) {
+      const exceptionRows = await this.db
+        .select({
+          scheduleId: schema.scheduleExceptions.scheduleId,
+          exceptionDate: schema.scheduleExceptions.exceptionDate,
+          reason: schema.scheduleExceptions.reason,
+        })
+        .from(schema.scheduleExceptions)
+        .where(
+          and(
+            inArray(schema.scheduleExceptions.scheduleId, scheduleIds),
+            gte(schema.scheduleExceptions.exceptionDate, weekStartDate),
+            lte(schema.scheduleExceptions.exceptionDate, weekRangeEnd),
+          ),
+        );
+      for (const row of exceptionRows) {
+        exceptionMap.set(`${row.scheduleId}-${row.exceptionDate}`, {
+          reason: row.reason,
+        });
+      }
+    }
+
     if (scheduleIds.length > 0) {
       const bookingCounts = await this.db
         .select({
@@ -248,6 +278,12 @@ export class SchedulingService {
       // Calculate the actual date for this slot in the given week
       // weekStartDate is Monday (day 1), so offset = dayOfWeek - 1
       const slotDate = addDays(weekStartDate, row.dayOfWeek - 1);
+
+      // Per-date cancellation: hidden entirely from members (same rationale
+      // as the isActive filter — no booking is possible), flagged for admins.
+      const exception = exceptionMap.get(`${row.id}-${slotDate}`);
+      if (exception && !includeInactive) continue;
+
       const counts = bookingCountMap.get(`${row.id}-${slotDate}`) ?? {
         bookedCount: 0,
         trialCount: 0,
@@ -277,6 +313,8 @@ export class SchedulingService {
         maxCapacity: slotCapacity,
         isFull: counts.bookedCount >= slotCapacity,
         isHoliday: holidayDates.has(slotDate),
+        cancelledForDate: exception !== undefined,
+        exceptionReason: exception?.reason ?? null,
         unconfirmedAttendance: 0,
       });
     }
@@ -305,6 +343,12 @@ export class SchedulingService {
       slot.branchId,
       slot.activityId,
     );
+
+    // Per-date cancellation for exactly this date. createdAt is surfaced so
+    // the admin dialog can list the bookings that a restore would bring back
+    // (cancelledAt >= exceptionCreatedAt), mirroring pendingRestoration for
+    // whole-slot deactivations.
+    const exception = await getScheduleException(this.db, scheduleId, date);
 
     // Get all bookings (not cancelled) for this slot + date.
     // Phase 102: trials are returned alongside regular bookings — the admin
@@ -459,7 +503,103 @@ export class SchedulingService {
       bookings,
       members,
       maxCapacity,
+      cancelledForDate: exception !== null,
+      exceptionReason: exception?.reason ?? null,
+      exceptionCreatedAt: exception?.createdAt.toISOString() ?? null,
     };
+  }
+
+  /**
+   * Cancel ONE occurrence of a recurring slot (a single date), leaving every
+   * other week untouched. Inserts a schedule_exceptions row; the route
+   * handler then cancels that date's bookings via
+   * BookingService.cancelBookingsFromDateAndGrantCredits(scheduleId, date, date).
+   *
+   * The exception is created BEFORE bookings are cancelled so its createdAt
+   * lower-bounds their cancelledAt — restoreScheduleDate uses it as cutoff.
+   */
+  async cancelScheduleDate(
+    scheduleId: number,
+    date: string,
+    reason?: string | null,
+  ): Promise<ScheduleExceptionRow> {
+    const slot = await this.getScheduleSlot(scheduleId);
+    if (!slot) throw new NotFoundError("Horario no encontrado");
+    if (!slot.isActive) {
+      throw new BadRequestError(
+        "El horario ya esta desactivado para todas las semanas",
+      );
+    }
+
+    // The date must be an actual occurrence of this slot (noon UTC avoids
+    // timezone day-shifts — same technique as assertDateWithinWindow).
+    const dateDay = new Date(date + "T12:00:00Z").getUTCDay();
+    const isoDayOfWeek = dateDay === 0 ? 7 : dateDay;
+    if (isoDayOfWeek !== slot.dayOfWeek) {
+      throw new BadRequestError("La fecha no corresponde al dia del horario");
+    }
+
+    // No cancelling the past — "today" in the branch's timezone so a BCN
+    // admin working late doesn't get blocked by the server's UTC midnight.
+    const [branch] = await this.db
+      .select({ timezone: schema.branches.timezone })
+      .from(schema.branches)
+      .where(eq(schema.branches.id, slot.branchId));
+    const today = todayInTz(
+      branch?.timezone ?? "America/Argentina/Buenos_Aires",
+    );
+    if (date < today) {
+      throw new BadRequestError("No se puede cancelar una fecha pasada");
+    }
+
+    const existing = await getScheduleException(this.db, scheduleId, date);
+    if (existing) {
+      throw new ConflictError("Esta fecha ya esta cancelada");
+    }
+
+    // createdAt is stamped app-side (not left to the DB default) so it and
+    // the bookings' cancelledAt come from the SAME clock — the restore
+    // cutoff (cancelledAt >= createdAt) must never straddle two clocks.
+    await this.db.insert(schema.scheduleExceptions).values({
+      scheduleId,
+      exceptionDate: date,
+      reason: reason?.trim() || null,
+      createdAt: new Date(),
+    });
+
+    const created = await getScheduleException(this.db, scheduleId, date);
+    if (!created) throw new Error("Failed to retrieve created exception");
+
+    this.log.info(
+      { scheduleId, date, reason: created.reason },
+      "Schedule occurrence cancelled (single date)",
+    );
+    return created;
+  }
+
+  /**
+   * Undo a per-date cancellation. Deletes the exception and returns it so
+   * the route handler can restore the bookings it auto-cancelled
+   * (cancelledAt >= createdAt, same window logic as slot reactivation).
+   */
+  async restoreScheduleDate(
+    scheduleId: number,
+    date: string,
+  ): Promise<ScheduleExceptionRow> {
+    const exception = await getScheduleException(this.db, scheduleId, date);
+    if (!exception) {
+      throw new NotFoundError("Esta fecha no esta cancelada");
+    }
+
+    await this.db
+      .delete(schema.scheduleExceptions)
+      .where(eq(schema.scheduleExceptions.id, exception.id));
+
+    this.log.info(
+      { scheduleId, date },
+      "Schedule occurrence restored (single date)",
+    );
+    return exception;
   }
 
   /**

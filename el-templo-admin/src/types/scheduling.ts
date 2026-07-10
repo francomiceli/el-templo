@@ -64,6 +64,13 @@ export interface WeeklySlotView extends ScheduleSlot {
   maxCapacity: number;
   isFull: boolean;
   isHoliday: boolean;
+  /**
+   * Per-date cancellation: the recurring slot was cancelled for THIS week's
+   * date only (schedule_exceptions). The cell renders "cancelada" without
+   * marking the template inactive.
+   */
+  cancelledForDate: boolean;
+  exceptionReason: string | null;
 }
 
 /** Phase 102-06: coach-facing trial list response, grouped by branch. */
@@ -140,6 +147,11 @@ export interface SlotDetailView {
   date: string;
   bookings: BookingRecord[];
   maxCapacity: number;
+  /** Per-date cancellation state for exactly this date. */
+  cancelledForDate: boolean;
+  exceptionReason: string | null;
+  /** Restore cutoff: bookings with cancelledAt >= this will be restored. */
+  exceptionCreatedAt: string | null;
 }
 
 export const DAY_LABELS: Record<DayOfWeek, string> = {

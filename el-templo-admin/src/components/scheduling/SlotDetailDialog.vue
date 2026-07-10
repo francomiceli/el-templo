@@ -73,13 +73,30 @@
           <template #avatar>
             <q-icon name="block" color="negative" />
           </template>
-          <div class="text-weight-medium">Clase cancelada</div>
+          <div class="text-weight-medium">Clase cancelada (todas las semanas)</div>
           <div v-if="slotInactiveReason" class="text-caption">
             Motivo (lo verán los alumnos al intentar reservar): "{{ slotInactiveReason }}"
           </div>
           <div v-else class="text-caption">
             Sin motivo registrado — los alumnos verán el mensaje genérico.
           </div>
+        </q-banner>
+        <q-banner
+          v-else-if="isCancelledForDate"
+          class="bg-orange-1 text-orange-10 q-mt-sm"
+          rounded
+          dense
+        >
+          <template #avatar>
+            <q-icon name="event_busy" color="warning" />
+          </template>
+          <div class="text-weight-medium">
+            Clase cancelada solo para esta fecha ({{ headerDayLabel }} {{ headerDateLabel }})
+          </div>
+          <div v-if="exceptionReason" class="text-caption">
+            Motivo (lo verán los alumnos al intentar reservar): "{{ exceptionReason }}"
+          </div>
+          <div class="text-caption">Las demás semanas del horario siguen activas.</div>
         </q-banner>
       </q-card-section>
 
@@ -97,7 +114,9 @@
             <!-- Inactive slot: list bookings cancelled by the deactivation
                  so the admin sees who will get their reservation back when
                  they click "Reactivar clase". -->
-            <template v-if="isSlotInactive && pendingRestorationBookings.length > 0">
+            <template
+              v-if="(isSlotInactive || isCancelledForDate) && pendingRestorationBookings.length > 0"
+            >
               <q-item-label header class="text-negative">
                 Se restaurarán al reactivar ({{ pendingRestorationBookings.length }})
               </q-item-label>
@@ -114,13 +133,22 @@
             </template>
 
             <q-item
-              v-if="!isSlotInactive && activeBookings.length === 0 && waitlistBookings.length === 0"
+              v-if="
+                !isSlotInactive &&
+                !isCancelledForDate &&
+                activeBookings.length === 0 &&
+                waitlistBookings.length === 0
+              "
             >
               <q-item-section class="text-grey-5 text-italic text-center">
                 Sin reservas para este horario
               </q-item-section>
             </q-item>
-            <q-item v-if="isSlotInactive && pendingRestorationBookings.length === 0">
+            <q-item
+              v-if="
+                (isSlotInactive || isCancelledForDate) && pendingRestorationBookings.length === 0
+              "
+            >
               <q-item-section class="text-grey-5 text-italic text-center">
                 No hay reservas que restaurar.
               </q-item-section>
@@ -506,7 +534,7 @@
 
       <q-card-actions align="right">
         <q-btn
-          v-if="slotDetail && !isSlotInactive"
+          v-if="slotDetail && !isSlotInactive && !isCancelledForDate"
           flat
           label="Cancelar clase"
           color="negative"
@@ -523,6 +551,15 @@
           :loading="togglingSlot"
           @click="applyReactivate"
         />
+        <q-btn
+          v-if="!isSlotInactive && isCancelledForDate"
+          flat
+          label="Restaurar esta fecha"
+          color="positive"
+          icon="event_available"
+          :loading="togglingSlot"
+          @click="applyRestoreDate"
+        />
         <q-btn flat label="Cerrar" color="grey-7" @click="$emit('update:show', false)" />
       </q-card-actions>
     </q-card>
@@ -533,11 +570,25 @@
         <q-card-section>
           <div class="text-h6">Cancelar clase</div>
           <div class="text-caption text-grey-7 q-mt-xs">
-            Las reservas futuras de esta clase serán canceladas automáticamente y los alumnos verán
-            el motivo al intentar reservar.
+            {{
+              deactivateScope === 'date'
+                ? `Se cancela únicamente la clase del ${headerDayLabel.toLowerCase()} ${headerDateLabel}. Las demás semanas siguen activas.`
+                : 'Se desactiva el horario completo: la clase deja de dictarse TODAS las semanas hasta que se reactive.'
+            }}
+            Las reservas afectadas se cancelan automáticamente y los alumnos verán el motivo al
+            intentar reservar.
           </div>
         </q-card-section>
         <q-card-section class="q-pt-none">
+          <q-option-group
+            v-model="deactivateScope"
+            :options="[
+              { label: `Solo esta fecha (${headerDayLabel} ${headerDateLabel})`, value: 'date' },
+              { label: 'Todas las semanas (desactiva el horario)', value: 'all' },
+            ]"
+            type="radio"
+            class="q-mb-sm"
+          />
           <q-input
             v-model="deactivateReason"
             label="Motivo (lo verán los alumnos al intentar reservar)"
@@ -662,9 +713,11 @@ const selectedActivityId = ref<number | null>(null);
 const availableActivities = ref<ActivityRecord[]>([]);
 const savingActivity = ref(false);
 
-// Slot deactivation (closure)
+// Slot deactivation (closure). Scope 'date' cancels only this occurrence
+// (schedule_exceptions); 'all' deactivates the recurring template.
 const deactivateDialogOpen = ref(false);
 const deactivateReason = ref('');
+const deactivateScope = ref<'date' | 'all'>('date');
 const togglingSlot = ref(false);
 
 // ─── Computed ───────────────────────────────────────────────────────────────
@@ -699,10 +752,15 @@ const waitlistBookings = computed(() => {
  */
 const pendingRestorationBookings = computed(() => {
   if (!slotDetail.value) return [];
-  const deactivatedAt = slotDetail.value.schedule.deactivatedAt;
-  if (!deactivatedAt) return [];
+  // Per-date cancellation: cutoff = exception createdAt (mirrors the backend
+  // filter in BookingService.restoreCancelledBookingsForDate). Whole-slot
+  // deactivation: cutoff = deactivatedAt (restoreCancelledBookingsForSchedule).
+  const cutoff = slotDetail.value.cancelledForDate
+    ? slotDetail.value.exceptionCreatedAt
+    : slotDetail.value.schedule.deactivatedAt;
+  if (!cutoff) return [];
   return slotDetail.value.bookings.filter(
-    (b) => b.status === 'cancelado' && b.cancelledAt !== null && b.cancelledAt >= deactivatedAt
+    (b) => b.status === 'cancelado' && b.cancelledAt !== null && b.cancelledAt >= cutoff
   );
 });
 
@@ -750,6 +808,10 @@ const isSlotInactive = computed(
   () => slotDetail.value !== null && !slotDetail.value.schedule.isActive
 );
 const slotInactiveReason = computed(() => slotDetail.value?.schedule.inactiveReason ?? null);
+
+// Per-date cancellation state (this exact date only).
+const isCancelledForDate = computed(() => slotDetail.value?.cancelledForDate ?? false);
+const exceptionReason = computed(() => slotDetail.value?.exceptionReason ?? null);
 
 // Effective mode (past=checkin, future=reserve, today=user choice)
 const effectiveMode = computed<'checkin' | 'reserve'>(() => {
@@ -839,6 +901,9 @@ async function refreshAll() {
 
 function openDeactivateDialog() {
   deactivateReason.value = '';
+  // Past dates can't take a per-date exception (the class already ran), so
+  // the whole-template scope is the only meaningful option there.
+  deactivateScope.value = isPastOrToday.value && !isToday.value ? 'all' : 'date';
   deactivateDialogOpen.value = true;
 }
 
@@ -846,25 +911,61 @@ async function applyDeactivate() {
   if (!props.scheduleId) return;
   togglingSlot.value = true;
   try {
-    const result = await schedulingApi.toggleSchedule(
-      props.scheduleId,
-      false,
-      deactivateReason.value.trim() || null
-    );
+    let cancelledBookings = 0;
+    if (deactivateScope.value === 'date') {
+      const result = await schedulingApi.cancelScheduleDate(
+        props.scheduleId,
+        props.date,
+        deactivateReason.value.trim() || null
+      );
+      cancelledBookings = result.cancelledBookings;
+    } else {
+      const result = await schedulingApi.toggleSchedule(
+        props.scheduleId,
+        false,
+        deactivateReason.value.trim() || null
+      );
+      cancelledBookings = result.cancelledBookings;
+    }
     deactivateDialogOpen.value = false;
+    const scopeLabel =
+      deactivateScope.value === 'date' ? 'Clase cancelada para esta fecha.' : 'Clase cancelada.';
     const msg =
-      result.cancelledBookings > 0
-        ? `Clase cancelada. ${result.cancelledBookings} reserva${
-            result.cancelledBookings === 1 ? '' : 's'
-          } cancelada${result.cancelledBookings === 1 ? '' : 's'}.`
-        : 'Clase cancelada.';
+      cancelledBookings > 0
+        ? `${scopeLabel} ${cancelledBookings} reserva${
+            cancelledBookings === 1 ? '' : 's'
+          } cancelada${cancelledBookings === 1 ? '' : 's'}.`
+        : scopeLabel;
     $q.notify({ type: 'positive', message: msg });
     await refreshAll();
     emit('bookings-changed');
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Error desconocido';
-    log.error('Error deactivating slot', { error: message });
-    $q.notify({ type: 'negative', message: 'Error cancelando la clase' });
+    const message = extractError(err, 'Error cancelando la clase');
+    log.warn('Deactivate slot rejected', { error: message });
+    $q.notify({ type: 'negative', message });
+  } finally {
+    togglingSlot.value = false;
+  }
+}
+
+async function applyRestoreDate() {
+  if (!props.scheduleId) return;
+  togglingSlot.value = true;
+  try {
+    const result = await schedulingApi.restoreScheduleDate(props.scheduleId, props.date);
+    const msg =
+      result.restoredBookings > 0
+        ? `Fecha restaurada. ${result.restoredBookings} reserva${
+            result.restoredBookings === 1 ? '' : 's'
+          } restaurada${result.restoredBookings === 1 ? '' : 's'}.`
+        : 'Fecha restaurada.';
+    $q.notify({ type: 'positive', message: msg });
+    await refreshAll();
+    emit('bookings-changed');
+  } catch (err: unknown) {
+    const message = extractError(err, 'Error restaurando la fecha');
+    log.warn('Restore date rejected', { error: message });
+    $q.notify({ type: 'negative', message });
   } finally {
     togglingSlot.value = false;
   }

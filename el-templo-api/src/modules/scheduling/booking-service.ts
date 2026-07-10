@@ -8,7 +8,7 @@
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { eq, and, sql, asc, gte, inArray } from "drizzle-orm";
+import { eq, and, sql, asc, gte, lte, inArray } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { SubscriptionService } from "../subscriptions/service";
@@ -32,6 +32,7 @@ import {
   CoverageExpiredError,
 } from "../shared/errors";
 import { getEffectiveCapacity as resolveSlotCapacity } from "./capacity";
+import { getScheduleException } from "./schedule-exceptions";
 
 /**
  * Member self-booking window: today .. today + N days (branch-local).
@@ -535,6 +536,15 @@ export class BookingService {
     const scheduleRow = await this.getScheduleSlotRaw(scheduleId);
     if (!scheduleRow) throw new NotFoundError("Horario no encontrado");
 
+    // Per-date cancellation blocks admin adds too — the class won't run that
+    // day, so seating someone into it would only create a phantom booking.
+    const exception = await getScheduleException(this.db, scheduleId, date);
+    if (exception) {
+      throw new ConflictError(
+        "La clase de este dia esta cancelada. Restaurala primero para agregar reservas.",
+      );
+    }
+
     // Check subscription status for warnings (don't block)
     const subscription =
       await this.subscriptionService.getMemberSubscription(memberId);
@@ -888,10 +898,15 @@ export class BookingService {
    * `replacementCredits`. Flexible-plan bookings aren't credited because
    * `classesRemaining` is decremented at check-in (not at booking) and these
    * bookings never reached check-in.
+   *
+   * `toDate` (inclusive) bounds the range for per-date cancellations: the
+   * cancel-single-occurrence flow passes fromDate === toDate so only that
+   * day's bookings are touched. Omitted = open-ended (delete-from-date flow).
    */
   async cancelBookingsFromDateAndGrantCredits(
     scheduleId: number,
     fromDate: string,
+    toDate?: string,
   ): Promise<{
     cancelledBookings: number;
     affectedFixedMembers: number;
@@ -911,6 +926,9 @@ export class BookingService {
         and(
           eq(schema.bookings.scheduleId, scheduleId),
           gte(schema.bookings.bookingDate, fromDate),
+          toDate !== undefined
+            ? lte(schema.bookings.bookingDate, toDate)
+            : undefined,
           inArray(schema.bookings.status, ["reservado", "lista_espera"]),
         ),
       );
@@ -1070,6 +1088,47 @@ export class BookingService {
   }
 
   /**
+   * Restore bookings auto-cancelled by a per-date cancellation, when the
+   * admin undoes it. Same cutoff logic as restoreCancelledBookingsForSchedule
+   * (cancelledAt >= exception createdAt excludes member-initiated
+   * cancellations from before), but scoped to exactly one bookingDate.
+   *
+   * Note: replacement credits granted at cancel time are NOT clawed back —
+   * they may already be spent, and over-crediting an affected member is the
+   * lesser evil versus driving their balance negative.
+   */
+  async restoreCancelledBookingsForDate(
+    scheduleId: number,
+    date: string,
+    cancelledAtCutoff: Date,
+  ): Promise<number> {
+    const result = await this.db
+      .update(schema.bookings)
+      .set({
+        status: "reservado",
+        cancelledAt: null,
+        waitlistPosition: null,
+      })
+      .where(
+        and(
+          eq(schema.bookings.scheduleId, scheduleId),
+          eq(schema.bookings.bookingDate, date),
+          eq(schema.bookings.status, "cancelado"),
+          gte(schema.bookings.cancelledAt, cancelledAtCutoff),
+        ),
+      );
+
+    const affected = Number(result[0].affectedRows ?? 0);
+    if (affected > 0) {
+      this.log.info(
+        { scheduleId, date, affected },
+        "Restored bookings cancelled by per-date cancellation",
+      );
+    }
+    return affected;
+  }
+
+  /**
    * Find the next date (from `fromDate` or today) where this schedule has
    * available capacity (active bookings < branch.maxCapacity), respecting
    * holidays and the slot's dayOfWeek. Searches up to `maxWeeksAhead` weeks
@@ -1125,8 +1184,21 @@ export class BookingService {
       );
     const holidaySet = new Set(hols.map((h) => h.date));
 
+    // Per-date cancellations in the window are not bookable either.
+    const exceptionRows = await this.db
+      .select({ date: schema.scheduleExceptions.exceptionDate })
+      .from(schema.scheduleExceptions)
+      .where(
+        and(
+          eq(schema.scheduleExceptions.scheduleId, scheduleId),
+          gte(schema.scheduleExceptions.exceptionDate, cursor),
+          lte(schema.scheduleExceptions.exceptionDate, windowEnd),
+        ),
+      );
+    const exceptionSet = new Set(exceptionRows.map((e) => e.date));
+
     for (let i = 0; i < maxWeeksAhead; i++) {
-      if (!holidaySet.has(cursor)) {
+      if (!holidaySet.has(cursor) && !exceptionSet.has(cursor)) {
         const count = await this.countActiveBookings(scheduleId, cursor);
         if (count < maxCapacity) return cursor;
       }
@@ -1195,6 +1267,25 @@ export class BookingService {
       );
     const holidayDates = new Set(holidayRows.map((h) => h.date));
 
+    // Per-date cancellations behave like holidays for generation: no booking
+    // is created on a date the class won't run (counted as skipped below).
+    const exceptionRows = await this.db
+      .select({
+        scheduleId: schema.scheduleExceptions.scheduleId,
+        date: schema.scheduleExceptions.exceptionDate,
+      })
+      .from(schema.scheduleExceptions)
+      .where(
+        and(
+          inArray(schema.scheduleExceptions.scheduleId, scheduleIds),
+          gte(schema.scheduleExceptions.exceptionDate, startDate),
+          lte(schema.scheduleExceptions.exceptionDate, endDate),
+        ),
+      );
+    const exceptionKeys = new Set(
+      exceptionRows.map((e) => `${e.scheduleId}-${e.date}`),
+    );
+
     let totalGenerated = 0;
     let holidaysSkipped = 0;
 
@@ -1219,7 +1310,10 @@ export class BookingService {
       while (current <= end) {
         const dateStr = toDateString(current);
 
-        if (holidayDates.has(dateStr)) {
+        if (
+          holidayDates.has(dateStr) ||
+          exceptionKeys.has(`${sched.id}-${dateStr}`)
+        ) {
           holidaysSkipped++;
         } else {
           // Check if booking already exists. Pull the status too so we can
@@ -1413,6 +1507,7 @@ export class BookingService {
    */
   private async assertDateWithinWindow(
     scheduleRow: {
+      id: number;
       branchId: number;
       branchTimezone: string;
       startTime: string;
@@ -1465,6 +1560,16 @@ export class BookingService {
       if (holiday) {
         throw new BadRequestError("Este dia esta cancelado por feriado");
       }
+    }
+
+    // Per-date cancellation (schedule_exceptions): the slot runs every other
+    // week but NOT on this date. Mirrors the inactiveReason UX — the admin's
+    // reason (when present) is the message the member sees.
+    const exception = await getScheduleException(this.db, scheduleRow.id, date);
+    if (exception) {
+      throw new BadRequestError(
+        exception.reason ?? "La clase de este dia fue cancelada",
+      );
     }
   }
 

@@ -230,6 +230,13 @@
                 >
                   Cancelada
                 </q-item-label>
+                <q-item-label
+                  v-else-if="slot.cancelledForDate"
+                  caption
+                  class="text-negative text-weight-medium"
+                >
+                  Cancelada esta fecha
+                </q-item-label>
                 <q-item-label v-else caption>
                   {{ slot.bookedCount }}/{{ slot.maxCapacity }} reservados
                   <span v-if="slot.trialCount > 0" class="text-warning text-weight-medium q-ml-xs">
@@ -328,6 +335,9 @@
                       </div>
                       <div v-else-if="!slot.isActive" class="cell-inactive text-weight-bold">
                         CANCELADA
+                      </div>
+                      <div v-else-if="slot.cancelledForDate" class="cell-inactive text-weight-bold">
+                        CANCELADA (FECHA)
                       </div>
                       <div v-else class="cell-occupancy text-weight-bold">
                         {{ slot.bookedCount }}/{{ slot.maxCapacity }}
@@ -639,7 +649,7 @@ function cellContainerClass(time: string, dayOfWeek: DayOfWeek): string {
 /** Color de un chip de clase apilado, por ocupación/estado (antes en cellClass). */
 function slotChipClass(slot: WeeklySlotView, date: string): string {
   if (isCellHoliday(date)) return 'slot-chip--holiday';
-  if (!slot.isActive) return 'slot-chip--inactive';
+  if (!slot.isActive || slot.cancelledForDate) return 'slot-chip--inactive';
   const pct = slot.maxCapacity > 0 ? (slot.bookedCount / slot.maxCapacity) * 100 : 0;
   if (pct >= 100) return 'slot-chip--full';
   if (pct >= 70) return 'slot-chip--warning';
@@ -668,7 +678,7 @@ const selectedDaySlots = computed(() => {
 function rowClass(slot: WeeklySlotView): string {
   const info = selectedDayInfo.value;
   if (info && isCellHoliday(info.date)) return 'slot-row--holiday';
-  if (!slot.isActive) return 'slot-row--inactive';
+  if (!slot.isActive || slot.cancelledForDate) return 'slot-row--inactive';
   const pct = slot.maxCapacity > 0 ? (slot.bookedCount / slot.maxCapacity) * 100 : 0;
   if (pct >= 100) return 'slot-row--full';
   if (pct >= 70) return 'slot-row--warning';

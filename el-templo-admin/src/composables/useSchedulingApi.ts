@@ -218,6 +218,62 @@ export function useSchedulingApi() {
     }
   }
 
+  /**
+   * Cancel ONE occurrence (a single date) of a recurring slot. The template
+   * and every other week stay active. Cancels that date's bookings and
+   * grants replacement credits to affected fixed-plan members.
+   */
+  async function cancelScheduleDate(
+    scheduleId: number,
+    date: string,
+    reason?: string | null
+  ): Promise<{
+    exceptionDate: string;
+    cancelledBookings: number;
+    affectedFixedMembers: number;
+    creditsGranted: number;
+  }> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.post<{
+        exceptionDate: string;
+        cancelledBookings: number;
+        affectedFixedMembers: number;
+        creditsGranted: number;
+      }>(`/admin/scheduling/schedules/${scheduleId}/cancel-date`, {
+        date,
+        reason: reason ?? null,
+      });
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cancelando la clase de esta fecha');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  /** Undo a per-date cancellation, restoring the bookings it auto-cancelled. */
+  async function restoreScheduleDate(
+    scheduleId: number,
+    date: string
+  ): Promise<{ restored: boolean; restoredBookings: number }> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.delete<{ restored: boolean; restoredBookings: number }>(
+        `/admin/scheduling/schedules/${scheduleId}/cancel-date/${date}`
+      );
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error restaurando la clase de esta fecha');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   async function updateScheduleActivity(
     scheduleId: number,
     activityId: number
@@ -456,6 +512,8 @@ export function useSchedulingApi() {
     getWeeklyGrid,
     getSlotDetail,
     toggleSchedule,
+    cancelScheduleDate,
+    restoreScheduleDate,
     previewScheduleDeletion,
     deleteScheduleFromDate,
     updateScheduleActivity,

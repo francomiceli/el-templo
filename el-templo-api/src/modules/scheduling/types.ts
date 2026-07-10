@@ -55,6 +55,14 @@ export interface WeeklySlotView extends ScheduleSlot {
   maxCapacity: number;
   isFull: boolean;
   isHoliday: boolean;
+  /**
+   * Per-date cancellation (schedule_exceptions): the slot exists every week
+   * but was cancelled for THIS week's date. Member grids never carry it
+   * (the slot-date is filtered out server-side); admin grids flag it so the
+   * cell can render "cancelada" and offer restore.
+   */
+  cancelledForDate: boolean;
+  exceptionReason: string | null;
   unconfirmedAttendance: number;
 }
 
@@ -109,6 +117,14 @@ export interface SlotDetailView {
   bookings: BookingRecord[];
   members: SlotMemberView[];
   maxCapacity: number;
+  /** Per-date cancellation state for exactly this date. */
+  cancelledForDate: boolean;
+  exceptionReason: string | null;
+  /**
+   * ISO timestamp of the exception creation — restore cutoff. The admin UI
+   * lists bookings with cancelledAt >= this value as "se restaurarán".
+   */
+  exceptionCreatedAt: string | null;
 }
 
 export type SlotMemberStatus = "reservado" | "qr_escaneado" | "confirmado";
