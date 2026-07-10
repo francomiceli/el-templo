@@ -367,36 +367,45 @@ async function computeReferralDiscountPercent(
 | A6  | El tope de % vive en `system_settings`; el %-por-vínculo en `aura_config.defaultAmount` | OQ#1             | Si AURA-02 exige literalmente ambos en `aura_config`, hace falta ALTER de `aura_config`.                         |
 | A7  | `referral_credits` se indexa por subscriptionId para idempotencia por-cobro             | AURA-01          | Idempotencia rota si se usa referralId (colisión mensual).                                                       |
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+_Las 7 preguntas fueron resueltas con Franco el 2026-07-10 → decisiones D-19..D-25 en 157-CONTEXT.md. Ninguna queda abierta._
 
 1. **`aura_config` no puede sostener las dos perillas (%-por-vínculo + tope).**
    - Qué sabemos: `aura_config` tiene UN solo escalar (`defaultAmount int`, `aura-config.ts:29`). AURA-02/D-12 piden 10% por vínculo + tope 40%.
    - Qué falta: dónde vive el tope.
    - Recomendación: `aura_config.referral.defaultAmount = 10` (%-por-vínculo, satisface AURA-02 literal) + `system_settings['referral.max_percent_cap'] = '40'` (precedente `finance.pending_overdue_days`, mig 0157). Ambos ajustables sin deploy. Alternativa: `ALTER TABLE aura_config ADD max_percent int NULL` (más invasivo, cambia shape de una tabla compartida con el motor AURA).
+   - RESOLVED: D-22 (2026-07-10)
 
 2. **Colisión de columnas de descuento en `subscriptions`.**
    - Qué sabemos: `auraDiscount`/`auraDiscountPercent` (`:60-61`) ya las escribe el flujo `input.auraSpend` (gasto AURA discrecional, `:1270`). El brief §5.2 sugiere reusarlas.
    - Qué falta: cómo componen si un socio gasta AURA Y tiene descuento de referido en el mismo cobro.
    - Recomendación: columnas **nuevas** `referralDiscountPercent`/`referralDiscountAmount` — mantienen los dos mecanismos independientes y componibles, evitan pisar el gasto explícito del socio. (D-07 dice "reusa `auraDiscountPercent`" — flag: reusar el CONCEPTO de %, no necesariamente la misma columna.)
+   - RESOLVED: D-23 (2026-07-10)
 
 3. **Modelo de aplicación del descuento: reducir `pricePaid` vs split contable.**
    - Qué sabemos: el flujo `auraSpend` existente solo reduce `pricePaid` (sin línea `aura_credit`). El brief §5.5 menciona `paymentMethod:"aura_credit"` para "la porción descontada".
    - Qué falta: si el descuento debe aparecer en revenue reporting como línea separada.
    - Recomendación: **reducir `pricePaid`** (simple, consistente con `auraSpend`) + anotar en `referral_credits`. El split cash+aura_credit es más complejo y solo aporta si quieren ver el "regalo" en el reporte de ingresos. Decidir con Franco.
+   - RESOLVED: D-19 (2026-07-10)
 
 4. **Umbral de "pago" para cualificar: `pricePaid > 0` vs `amountReceived > 0`.**
    - Qué sabemos: D-01 = "paga su primera suscripción"; D-11 = el trigger de pago es la barrera antifraude. El alta de profe puede dejar deuda (`amountReceived < pricePaid`).
    - Recomendación: `pricePaid > 0` (compró un plan pago real, aunque quede deuda) — mata el mes-gratis fantasma (Pitfall 5) sin castigar altas con deuda parcial. Alternativa estricta: `amountReceived > 0`.
+   - RESOLVED: D-20 (2026-07-10)
 
 5. **¿El pago que cualifica ya recibe el descuento?**
    - Recomendación: sí — flip `qualified` ANTES de computar en el mismo cobro (más generoso, simétrico, ambos empiezan a descontar de una). Decidir con Franco.
+   - RESOLVED: D-21 (2026-07-10)
 
 6. **¿Importa la cobertura del propio pagador o solo la de la contraparte?**
    - Recomendación: solo la contraparte — al pagar, X se vuelve activo por definición (D-09 dice "se evalúa la cobertura vigente de la contraparte"). Confirmar para el caso "socio vencido que renueva".
+   - RESOLVED: D-24 (2026-07-10)
 
 7. **Generación del código: ¿en `createMember`/`/register` (eager para nuevos) o 100% lazy?**
    - Qué sabemos: D-17 = lazy + backfill script. Pero un socio nuevo necesita código para compartir.
    - Recomendación: generar el código en el momento del alta/registro para socios NUEVOS (barato, 1 por alta) y dejar el backfill script solo para los ~2000 existentes. Aclarar el borde con el planner.
+   - RESOLVED: D-25 (2026-07-10)
 
 ## Environment Availability
 
