@@ -15,6 +15,10 @@ export const registerSchema = {
         enum: ["male", "female", "other", "unspecified"],
       },
       promoCode: { type: "string", maxLength: 50 },
+      // Phase 157-03 (REF-02, D-08): self-service referral code. The referrer
+      // is resolved server-side from this code — never taken raw from the body
+      // (Security V4/T-157-08). Unknown/invalid codes are ignored gracefully.
+      ref: { type: "string", maxLength: 32 },
     },
   },
 };

@@ -5,6 +5,8 @@ import { users } from "../../db/schema/users";
 import { branches } from "../../db/schema/branches";
 import { memberProfiles } from "../../db/schema/member-profiles";
 import { promoPlans } from "../../db/schema/promo-plans";
+import { referrals } from "../../db/schema/referrals";
+import { ReferralService } from "../referrals/service";
 import { registerSchema, loginSchema } from "./schemas";
 import { SegmentationService } from "../segmentation/service";
 import { SubscriptionService } from "../subscriptions/service";
@@ -31,6 +33,8 @@ interface RegisterBody {
   phone?: string;
   gender: "male" | "female" | "other" | "unspecified";
   promoCode?: string;
+  // Phase 157-03 (REF-02, D-08): self-service referral code from ?ref=CODE.
+  ref?: string;
 }
 
 interface LoginBody {
@@ -54,6 +58,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         phone,
         gender,
         promoCode,
+        ref,
       } = request.body;
 
       // Reject if email already exists
@@ -270,6 +275,56 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
             "Promo code assignment failed (graceful degradation)",
           );
         }
+      }
+
+      // Phase 157-03 (milestone v5.5): referral attribution + eager code.
+      // Two independent best-effort blocks — neither can block the signup
+      // (graceful degradation, T-157-11 / UI-SPEC hard rule).
+      const referralService = new ReferralService(fastify.db, request.log);
+
+      // (1) Self-service attribution (REF-02, D-08). The referrer is resolved
+      // server-side from the code — never taken raw from the body (Security
+      // V4/T-157-08). Auto-referral (referrerId===userId, D-13) and a second
+      // claim on an already-referred user (UNIQUE referred_id, D-14) are both
+      // silently skipped/swallowed: the registration still succeeds.
+      if (ref) {
+        try {
+          const referrerId = await referralService.resolveReferralCode(ref);
+          if (referrerId !== null && referrerId !== userId) {
+            await fastify.db
+              .update(users)
+              .set({ referredBy: referrerId })
+              .where(eq(users.id, userId));
+            await fastify.db.insert(referrals).values({
+              referrerId,
+              referredId: userId,
+              status: "pending",
+              attributionChannel: "self_service",
+            });
+          }
+        } catch (err: unknown) {
+          request.log.warn(
+            {
+              err: err instanceof Error ? err.message : String(err),
+              ref,
+              userId,
+            },
+            "Referral attribution failed (graceful degradation)",
+          );
+        }
+      }
+
+      // (2) Eager generation of the new member's OWN referral code (REF-01,
+      // D-25) so they can share from minute zero — independent of ?ref. An
+      // irrecoverable UNIQUE collision after retries leaves referral_code NULL
+      // (the backfill covers it) and NEVER blocks the signup.
+      try {
+        await referralService.generateReferralCode(userId);
+      } catch (err: unknown) {
+        request.log.warn(
+          { err: err instanceof Error ? err.message : String(err), userId },
+          "Eager referral code generation failed (graceful degradation)",
+        );
       }
 
       // Get branch info for response
