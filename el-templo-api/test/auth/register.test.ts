@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { createTestApp, cleanAllTestData } from "../helpers";
 import { users } from "../../src/db/schema/users";
 import { branches } from "../../src/db/schema/branches";
+import { referrals } from "../../src/db/schema/referrals";
 
 /**
  * Phase 111 Plan 04 — REQ-5 (phone duplicate block) + REQ-9 (firstName /
@@ -222,5 +223,163 @@ describe("POST /api/auth/register — phone duplicate block + trim", () => {
       .limit(1);
     expect(row.firstName).toBe("Soledad");
     expect(row.lastName).toBe("Mailland");
+  });
+});
+
+/**
+ * Phase 157 Plan 03 — Task 1: self-service referral attribution (?ref=CODE)
+ * + eager generation of the new member's OWN referral code (D-25).
+ *
+ * Behaviors covered:
+ *  - Valid ?ref → referrals(pending, self_service) + users.referred_by (REF-02)
+ *  - No ?ref    → no link, but the new user still gets a referral_code (D-25)
+ *  - Unknown / self-referral code → no link, registration still 2xx (graceful)
+ *  - Every successful registration leaves referral_code populated (PREFIJO-XXXX)
+ */
+describe("POST /api/auth/register — referral attribution + eager code (157-03)", () => {
+  let app: FastifyInstance;
+  let branchId: number;
+
+  beforeAll(async () => {
+    app = await createTestApp();
+    const all = await app.db
+      .select({ id: branches.id, isVirtual: branches.isVirtual })
+      .from(branches);
+    branchId = all.find((b) => !b.isVirtual)?.id ?? all[0].id;
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  beforeEach(async () => {
+    await cleanAllTestData(app);
+  });
+
+  /** Seed a referrer user with a fixed referral_code (bypass /register). */
+  async function seedReferrer(code: string): Promise<number> {
+    const [row] = await app.db
+      .insert(users)
+      .values({
+        email: `referrer-${code}@test.com`,
+        passwordHash: "x",
+        firstName: "Refer",
+        lastName: "Rer",
+        branchId,
+        role: "member",
+        level: "alfa",
+        status: "freemium" as const,
+        referralCode: code,
+      })
+      .$returningId();
+    return row.id;
+  }
+
+  const CODE_RE = /^[A-Z]+-[A-Z0-9]+$/;
+
+  it("un ?ref válido crea un vínculo pending self_service + escribe referred_by (REF-02)", async () => {
+    const referrerId = await seedReferrer("FRAN-A3B2");
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/auth/register",
+      payload: {
+        email: "ref-ok@test.com",
+        password: "password123",
+        firstName: "New",
+        lastName: "Ref",
+        phone: "5551110001",
+        gender: "male",
+        branchId,
+        ref: "FRAN-A3B2",
+      },
+    });
+
+    expect([200, 201]).toContain(res.statusCode);
+    const newUserId = JSON.parse(res.body).user.id as number;
+
+    const [u] = await app.db
+      .select({ referredBy: users.referredBy, code: users.referralCode })
+      .from(users)
+      .where(eq(users.id, newUserId))
+      .limit(1);
+    expect(u.referredBy).toBe(referrerId);
+    // Eager code is populated even in the ?ref path (D-25).
+    expect(u.code).toMatch(CODE_RE);
+
+    const links = await app.db
+      .select()
+      .from(referrals)
+      .where(eq(referrals.referredId, newUserId));
+    expect(links).toHaveLength(1);
+    expect(links[0].referrerId).toBe(referrerId);
+    expect(links[0].status).toBe("pending");
+    expect(links[0].attributionChannel).toBe("self_service");
+  });
+
+  it("sin ?ref no crea vínculo pero el nuevo socio SÍ obtiene su referral_code eager (D-25)", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/auth/register",
+      payload: {
+        email: "ref-none@test.com",
+        password: "password123",
+        firstName: "Solo",
+        lastName: "Member",
+        phone: "5551110002",
+        gender: "female",
+        branchId,
+      },
+    });
+
+    expect([200, 201]).toContain(res.statusCode);
+    const newUserId = JSON.parse(res.body).user.id as number;
+
+    const links = await app.db
+      .select()
+      .from(referrals)
+      .where(eq(referrals.referredId, newUserId));
+    expect(links).toHaveLength(0);
+
+    const [u] = await app.db
+      .select({ code: users.referralCode })
+      .from(users)
+      .where(eq(users.id, newUserId))
+      .limit(1);
+    expect(u.code).toMatch(CODE_RE);
+  });
+
+  it("un ?ref inexistente no crea vínculo pero el registro tiene éxito y con código (graceful, D-13)", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/auth/register",
+      payload: {
+        email: "ref-bad@test.com",
+        password: "password123",
+        firstName: "Bad",
+        lastName: "Code",
+        phone: "5551110003",
+        gender: "male",
+        branchId,
+        ref: "NOPE-0000",
+      },
+    });
+
+    expect([200, 201]).toContain(res.statusCode);
+    const newUserId = JSON.parse(res.body).user.id as number;
+
+    const links = await app.db
+      .select()
+      .from(referrals)
+      .where(eq(referrals.referredId, newUserId));
+    expect(links).toHaveLength(0);
+
+    const [u] = await app.db
+      .select({ referredBy: users.referredBy, code: users.referralCode })
+      .from(users)
+      .where(eq(users.id, newUserId))
+      .limit(1);
+    expect(u.referredBy).toBeNull();
+    expect(u.code).toMatch(CODE_RE);
   });
 });
