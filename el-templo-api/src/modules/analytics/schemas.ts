@@ -670,6 +670,92 @@ export const churnSchema = {
 } as const;
 
 // =============================================================================
+// Member flows (altas vs bajas) + detalle de bajas — pedido staff 2026-07-10
+// =============================================================================
+
+// Shared querystring: same shape as churn minus planId (flows are not
+// plan-filtered — the tab shows the whole gym's movement).
+const memberFlowsQuerystring = {
+  type: "object",
+  properties: {
+    branchId: { type: "integer" },
+    dateFrom: { type: "string", format: "date" },
+    dateTo: { type: "string", format: "date" },
+    window: { type: "integer", minimum: 1, maximum: 365 },
+  },
+} as const;
+
+export const memberFlowsSchema = {
+  querystring: memberFlowsQuerystring,
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        windowDays: { type: "integer" },
+        series: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              bucket: { type: "string" },
+              altas: { type: "integer" },
+              bajas: { type: "integer" },
+              bajasProvisional: { type: "boolean" },
+            },
+          },
+        },
+      },
+    },
+    400: errorSchema,
+    401: errorSchema,
+    403: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+// One churned member row (ficha context). Declared in full — fast-json-stringify
+// strips undeclared fields.
+const churnedMemberRowSchema = {
+  type: "object",
+  properties: {
+    userId: { type: "integer" },
+    firstName: { type: "string" },
+    lastName: { type: "string" },
+    phone: { type: ["string", "null"] },
+    branchName: { type: "string" },
+    planName: { type: "string" },
+    pricePaid: { type: "integer" },
+    currency: { type: "string" },
+    memberSince: { type: "string" },
+    tenureMonths: { type: "integer" },
+    membershipsPaid: { type: "integer" },
+    lastEndDate: { type: "string" },
+  },
+} as const;
+
+export const churnedMembersSchema = {
+  querystring: memberFlowsQuerystring,
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        members: { type: "array", items: churnedMemberRowSchema },
+      },
+    },
+    400: errorSchema,
+    401: errorSchema,
+    403: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+// Export variant: binary XLSX response — no response schema (the reply is a
+// buffer, mirrors the reports module's export endpoints).
+export const churnedMembersExportSchema = {
+  querystring: memberFlowsQuerystring,
+} as const;
+
+// =============================================================================
 // Frecuencia de asistencia Schema (Phase 123 Block 4 — FREQ-01..04)
 // =============================================================================
 

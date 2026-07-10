@@ -588,6 +588,57 @@ export interface ChurnAnalytics {
 }
 
 /**
+ * One point of the monthly member-flows series (altas vs bajas, person counts).
+ * Bajas share the churn engine's expiry cohort — the same people the Retención
+ * tab counts. `bajasProvisional` marks a month whose cohort has not fully
+ * matured yet (recent expiries still in their renewal grace window).
+ */
+export interface MemberFlowsPoint {
+  /** The monthly bucket key (`YYYY-MM`). */
+  bucket: string;
+  /** Distinct persons whose coverage streak STARTED this month. */
+  altas: number;
+  /** Distinct persons whose last expiry this month did not renew (matured only). */
+  bajas: number;
+  /** `true` while part of the month's expiry cohort is still in grace. */
+  bajasProvisional: boolean;
+}
+
+/** Monthly altas vs bajas series (member flows, tab Miembros). */
+export interface MemberFlowsResult {
+  /** The renovación window (days) both definitions share. */
+  windowDays: number;
+  /** Ascending monthly series over the requested range. */
+  series: MemberFlowsPoint[];
+}
+
+/**
+ * One churned member with the ficha context the staff digs patterns from
+ * (pedido 2026-07-10): tenure, how many membership periods they paid, what
+ * price they were paying. Cohort semantics identical to the churn engine —
+ * matured non-renewers only (in-grace people can still come back).
+ */
+export interface ChurnedMemberRow {
+  userId: number;
+  firstName: string;
+  lastName: string;
+  phone: string | null;
+  branchName: string;
+  planName: string;
+  /** Price of the subscription that expired (what they were paying). */
+  pricePaid: number;
+  currency: string;
+  /** Registration date (`YYYY-MM-DD`) — tenure start. */
+  memberSince: string;
+  /** Whole months from registration to the churn date (not to today). */
+  tenureMonths: number;
+  /** Membership periods the person got to have (proxy for "cuántas pagó"). */
+  membershipsPaid: number;
+  /** The expiry date that became the baja (`YYYY-MM-DD`). */
+  lastEndDate: string;
+}
+
+/**
  * One renovación segment (RENOV-04): the renewal `{ nominal, percentage, n }` for
  * one value of one breakdown `axis`. `nominal` = renovados, `n` = matured cohort
  * size (vencidos) for the segment. Sortable / comparable.

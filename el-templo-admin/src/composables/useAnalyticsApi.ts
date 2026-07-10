@@ -21,6 +21,8 @@ import type {
   AdvancedFinanceAnalytics,
   TicketAnalytics,
   ChurnAnalytics,
+  MemberFlowsResult,
+  ChurnedMemberRow,
   RenewalAnalytics,
   LtvAnalytics,
   FrequencyAnalytics,
@@ -252,6 +254,58 @@ export function useAnalyticsApi() {
     }
   }
 
+  async function getMemberFlows(filters: AnalyticsFilters = {}): Promise<MemberFlowsResult> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<MemberFlowsResult>('/admin/analytics/member-flows', {
+        params: buildParams(filters),
+      });
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cargando altas y bajas');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function getChurnedMembers(
+    filters: AnalyticsFilters = {}
+  ): Promise<{ members: ChurnedMemberRow[] }> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<{ members: ChurnedMemberRow[] }>(
+        '/admin/analytics/churned-members',
+        { params: buildParams(filters) }
+      );
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cargando bajas');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function exportChurnedMembers(filters: AnalyticsFilters = {}): Promise<Blob> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get('/admin/analytics/churned-members/export', {
+        params: buildParams(filters),
+        responseType: 'blob',
+      });
+      return data as Blob;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error exportando bajas');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   async function getRenewal(filters: AnalyticsFilters = {}): Promise<RenewalAnalytics> {
     loading.value = true;
     error.value = null;
@@ -352,6 +406,9 @@ export function useAnalyticsApi() {
     getAdvancedFinance,
     getTicket,
     getChurn,
+    getMemberFlows,
+    getChurnedMembers,
+    exportChurnedMembers,
     getRenewal,
     getLtv,
     getFrequency,

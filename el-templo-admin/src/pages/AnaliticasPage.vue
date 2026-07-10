@@ -205,7 +205,13 @@
       </q-tab-panel>
 
       <q-tab-panel name="miembros">
-        <MiembrosTab :data="memberData" :loading="loadingMembers" />
+        <MiembrosTab
+          :data="memberData"
+          :loading="loadingMembers"
+          :branch-id="selectedBranchId"
+          :date-from="dateFrom"
+          :date-to="dateTo"
+        />
       </q-tab-panel>
       <q-tab-panel name="finanzas">
         <FinanzasTab

@@ -15,12 +15,15 @@ import { AdvancedFinanceService } from "./advanced-finance-service";
 import { FunnelService } from "./funnel-service";
 import { TicketService } from "./ticket-service";
 import { ChurnService } from "./churn-service";
+import { MemberFlowsService } from "./member-flows-service";
 import { RenewalService } from "./renewal-service";
 import { LtvService } from "./ltv-service";
 import { FrequencyService } from "./frequency-service";
 import { TrialFunnelService } from "./trial-funnel-service";
 import { ClassRatingsService } from "./class-ratings-service";
 import { handleServiceError } from "../shared/error-handler";
+import { Workbook } from "exceljs";
+import { styleHeaderRow, sendExcelReply } from "../shared/excel";
 import type { AnalyticsFilters } from "./types";
 import {
   kpiSchema,
@@ -35,6 +38,9 @@ import {
   funnelSchema,
   ticketSchema,
   churnSchema,
+  memberFlowsSchema,
+  churnedMembersSchema,
+  churnedMembersExportSchema,
   renewalSchema,
   ltvSchema,
   frequencySchema,
@@ -84,6 +90,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
   const funnelService = new FunnelService(fastify.db, fastify.log);
   const ticketService = new TicketService(fastify.db, fastify.log);
   const churnService = new ChurnService(fastify.db, fastify.log);
+  const memberFlowsService = new MemberFlowsService(fastify.db, fastify.log);
   const renewalService = new RenewalService(fastify.db, fastify.log);
   const ltvService = new LtvService(fastify.db, fastify.log);
   const frequencyService = new FrequencyService(fastify.db, fastify.log);
@@ -448,6 +455,152 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
         return result;
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "get churn");
+      }
+    },
+  );
+
+  // GET /member-flows — altas vs bajas mensuales en CONTEOS de personas
+  // (pedido staff 2026-07-10, tab Miembros). Las bajas reutilizan la cohorte
+  // de vencimiento del churn (fase 121) — mismo número que Retención; las
+  // altas son inicios de racha de cobertura (excluyen renovaciones
+  // encadenadas). SENSIBLE → ADMIN_ROLES-only, scoped por sede/país.
+  fastify.get<{
+    Querystring: {
+      branchId?: number;
+      dateFrom?: string;
+      dateTo?: string;
+      window?: number;
+    };
+  }>(
+    "/member-flows",
+    {
+      schema: memberFlowsSchema,
+      preHandler: [
+        requireAdminAnalytics,
+        requireBranchAccess({ from: "query.branchId", optional: true }),
+      ],
+    },
+    async (request, reply) => {
+      try {
+        const filters: AnalyticsFilters = {
+          branchId: request.query.branchId,
+          country: request.scope.country ?? undefined,
+          dateFrom: request.query.dateFrom,
+          dateTo: request.query.dateTo,
+          window: request.query.window,
+        };
+        const result = await memberFlowsService.getMonthlyFlows(filters);
+        return result;
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "get member flows");
+      }
+    },
+  );
+
+  // GET /churned-members — detalle de las bajas del rango con contexto de
+  // ficha (antigüedad, membresías pagadas, precio). Misma cohorte que
+  // /member-flows y /churn: maduras y no renovadas — las en-gracia no
+  // aparecen. SENSIBLE → ADMIN_ROLES-only, scoped por sede/país.
+  fastify.get<{
+    Querystring: {
+      branchId?: number;
+      dateFrom?: string;
+      dateTo?: string;
+      window?: number;
+    };
+  }>(
+    "/churned-members",
+    {
+      schema: churnedMembersSchema,
+      preHandler: [
+        requireAdminAnalytics,
+        requireBranchAccess({ from: "query.branchId", optional: true }),
+      ],
+    },
+    async (request, reply) => {
+      try {
+        const filters: AnalyticsFilters = {
+          branchId: request.query.branchId,
+          country: request.scope.country ?? undefined,
+          dateFrom: request.query.dateFrom,
+          dateTo: request.query.dateTo,
+          window: request.query.window,
+        };
+        const members = await memberFlowsService.getChurnedMembers(filters);
+        return { members };
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "get churned members");
+      }
+    },
+  );
+
+  // GET /churned-members/export — la misma lista como XLSX (patrón del módulo
+  // reports). Filename: bajas-<YYYY-MM-DD>.xlsx.
+  fastify.get<{
+    Querystring: {
+      branchId?: number;
+      dateFrom?: string;
+      dateTo?: string;
+      window?: number;
+    };
+  }>(
+    "/churned-members/export",
+    {
+      schema: churnedMembersExportSchema,
+      preHandler: [
+        requireAdminAnalytics,
+        requireBranchAccess({ from: "query.branchId", optional: true }),
+      ],
+    },
+    async (request, reply) => {
+      try {
+        const filters: AnalyticsFilters = {
+          branchId: request.query.branchId,
+          country: request.scope.country ?? undefined,
+          dateFrom: request.query.dateFrom,
+          dateTo: request.query.dateTo,
+          window: request.query.window,
+        };
+        const members = await memberFlowsService.getChurnedMembers(filters);
+
+        const workbook = new Workbook();
+        workbook.creator = "El Templo";
+        workbook.created = new Date();
+        const sheet = workbook.addWorksheet("Bajas");
+
+        sheet.columns = [
+          { header: "Miembro", key: "memberName", width: 30 },
+          { header: "Telefono", key: "phone", width: 18 },
+          { header: "Sede", key: "branchName", width: 20 },
+          { header: "Plan", key: "planName", width: 25 },
+          { header: "Precio", key: "pricePaid", width: 12 },
+          { header: "Moneda", key: "currency", width: 10 },
+          { header: "Antiguedad (meses)", key: "tenureMonths", width: 18 },
+          { header: "Membresias pagadas", key: "membershipsPaid", width: 18 },
+          { header: "Socio desde", key: "memberSince", width: 14 },
+          { header: "Fecha de baja", key: "lastEndDate", width: 14 },
+        ];
+
+        styleHeaderRow(sheet);
+
+        for (const m of members) {
+          sheet.addRow({
+            memberName: [m.firstName, m.lastName].filter(Boolean).join(" "),
+            phone: m.phone ?? "",
+            branchName: m.branchName,
+            planName: m.planName,
+            pricePaid: m.pricePaid,
+            currency: m.currency,
+            tenureMonths: m.tenureMonths,
+            membershipsPaid: m.membershipsPaid,
+            memberSince: m.memberSince,
+            lastEndDate: m.lastEndDate,
+          });
+        }
+
+        return sendExcelReply(workbook, reply, "bajas");
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "export churned members");
       }
     },
   );

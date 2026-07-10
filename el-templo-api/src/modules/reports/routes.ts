@@ -12,6 +12,7 @@ import { FastifyPluginAsync } from "fastify";
 import { Workbook } from "exceljs";
 import { ReportsService } from "./service";
 import { handleServiceError } from "../shared/error-handler";
+import { styleHeaderRow, sendExcelReply } from "../shared/excel";
 import type {
   AccessReportFilters,
   AttendedFilter,
@@ -858,40 +859,6 @@ function formatPeriodDDMM(
 // =============================================================================
 // Helpers
 // =============================================================================
-
-/**
- * Style the header row with bold font and gray fill.
- */
-function styleHeaderRow(sheet: ReturnType<Workbook["addWorksheet"]>): void {
-  const headerRow = sheet.getRow(1);
-  headerRow.font = { bold: true };
-  headerRow.fill = {
-    type: "pattern",
-    pattern: "solid",
-    fgColor: { argb: "FFE0E0E0" },
-  };
-}
-
-/**
- * Send an Excel workbook as a binary download response.
- */
-async function sendExcelReply(
-  workbook: Workbook,
-  reply: import("fastify").FastifyReply,
-  filenamePrefix: string,
-): Promise<void> {
-  const buffer = await workbook.xlsx.writeBuffer();
-  const today = new Date().toISOString().split("T")[0];
-  const filename = `${filenamePrefix}-${today}.xlsx`;
-
-  reply
-    .header(
-      "Content-Type",
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    )
-    .header("Content-Disposition", `attachment; filename="${filename}"`)
-    .send(Buffer.from(buffer as ArrayBuffer));
-}
 
 /**
  * Phase 114-05 — build TrialSessionsFilters from the request, applying the

@@ -696,6 +696,41 @@ export interface TrialFunnelAnalytics {
   attributionWindowDays: number;
 }
 
+// -- Member flows (altas vs bajas) — pedido staff 2026-07-10 --------------
+
+/**
+ * One point of the monthly altas-vs-bajas series (person counts). Bajas share
+ * the churn engine's expiry cohort (same number Retención shows);
+ * `bajasProvisional` marks months whose cohort is still in grace.
+ */
+export interface MemberFlowsPoint {
+  bucket: string; // YYYY-MM
+  altas: number;
+  bajas: number;
+  bajasProvisional: boolean;
+}
+
+export interface MemberFlowsResult {
+  windowDays: number;
+  series: MemberFlowsPoint[];
+}
+
+/** One churned member with ficha context (antigüedad, membresías, precio). */
+export interface ChurnedMemberRow {
+  userId: number;
+  firstName: string;
+  lastName: string;
+  phone: string | null;
+  branchName: string;
+  planName: string;
+  pricePaid: number;
+  currency: string;
+  memberSince: string; // YYYY-MM-DD
+  tenureMonths: number;
+  membershipsPaid: number;
+  lastEndDate: string; // YYYY-MM-DD
+}
+
 // -- Filter params -------------------------------------------------------
 
 export interface AnalyticsFilters {
