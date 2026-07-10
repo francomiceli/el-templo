@@ -26,12 +26,15 @@
       <div class="col-12 col-sm-6">
         <q-card flat bordered>
           <q-card-section class="text-center">
-            <div class="text-caption text-grey-7">Bajas (período)</div>
+            <div class="text-caption text-grey-7">Bajas confirmadas (período)</div>
             <div class="text-h4 text-negative">
               <q-spinner-dots v-if="loadingFlows" size="28px" />
               <template v-else>
                 {{ periodBajas }}<span v-if="periodBajasProvisional">*</span>
               </template>
+            </div>
+            <div v-if="!loadingFlows && periodBajasEnGracia > 0" class="text-caption text-grey-6">
+              +{{ periodBajasEnGracia }} en gracia (aún pueden renovar)
             </div>
           </q-card-section>
         </q-card>
@@ -48,8 +51,8 @@
               <Bar :data="flowsChartData" :options="barChartOptions" />
             </div>
             <div v-if="hasProvisionalMonths" class="text-caption text-grey-6 q-mt-xs">
-              * mes provisional: parte de sus vencimientos todavía está dentro de la ventana de
-              renovación y puede volver.
+              * mes provisional: el tramo translúcido son vencidos todavía en gracia (ventana de
+              renovación) — aún pueden renovar.
             </div>
           </q-card-section>
         </q-card>
@@ -370,6 +373,9 @@ async function loadFlows() {
 
 const periodAltas = computed(() => periodFlows.value.reduce((a, p) => a + p.altas, 0));
 const periodBajas = computed(() => periodFlows.value.reduce((a, p) => a + p.bajas, 0));
+const periodBajasEnGracia = computed(() =>
+  periodFlows.value.reduce((a, p) => a + p.bajasEnGracia, 0)
+);
 const periodBajasProvisional = computed(() => periodFlows.value.some((p) => p.bajasProvisional));
 const hasProvisionalMonths = computed(() => flowsSeries12m.value.some((p) => p.bajasProvisional));
 
@@ -402,11 +408,22 @@ const flowsChartData = computed(() => ({
       label: 'Altas',
       data: flowsSeries12m.value.map((p) => p.altas),
       backgroundColor: COLORS.positive,
+      stack: 'altas',
     },
+    // Bajas apiladas: confirmadas (sólido) + en gracia (translúcido, pueden
+    // volver) comparten stack para que la barra total sea "vencidos sin
+    // renovar" del mes.
     {
-      label: 'Bajas',
+      label: 'Bajas confirmadas',
       data: flowsSeries12m.value.map((p) => p.bajas),
       backgroundColor: COLORS.negative,
+      stack: 'bajas',
+    },
+    {
+      label: 'En gracia',
+      data: flowsSeries12m.value.map((p) => p.bajasEnGracia),
+      backgroundColor: `${COLORS.negative}59`, // ~35% alpha
+      stack: 'bajas',
     },
   ],
 }));
@@ -588,8 +605,12 @@ const barChartOptions = {
   plugins: {
     legend: { position: 'top' as const },
   },
+  // stacked por eje + `stack` por dataset: altas queda como barra propia y
+  // bajas confirmadas + en gracia se apilan en la misma barra.
   scales: {
+    x: { stacked: true },
     y: {
+      stacked: true,
       beginAtZero: true,
       ticks: { stepSize: 1 },
     },

@@ -700,6 +700,7 @@ export const memberFlowsSchema = {
               bucket: { type: "string" },
               altas: { type: "integer" },
               bajas: { type: "integer" },
+              bajasEnGracia: { type: "integer" },
               bajasProvisional: { type: "boolean" },
             },
           },

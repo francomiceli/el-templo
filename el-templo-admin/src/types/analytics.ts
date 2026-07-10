@@ -706,7 +706,10 @@ export interface TrialFunnelAnalytics {
 export interface MemberFlowsPoint {
   bucket: string; // YYYY-MM
   altas: number;
+  /** Bajas confirmadas: cohorte madura que no renovó. */
   bajas: number;
+  /** Vencidos del mes aún dentro de la ventana de gracia, sin renovar todavía. */
+  bajasEnGracia: number;
   bajasProvisional: boolean;
 }
 

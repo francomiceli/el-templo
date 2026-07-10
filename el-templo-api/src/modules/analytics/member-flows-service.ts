@@ -15,15 +15,31 @@
  * fuente de Nuevos/Bajas del tab Miembros.
  *
  * Definiciones:
- *   - BAJA (mes M): persona cuyo ÚLTIMO vencimiento cayó en M (D-04) y que NO
- *     renovó dentro de la ventana (D-05), contada solo si su ventana de gracia
- *     ya venció (D-08). Un mes con personas aún en gracia se marca provisional.
- *   - ALTA (mes M): persona con una suscripción que INICIA una racha de
- *     cobertura en M — su `startDate` cae en M y NO existe otra sub previa de
- *     la persona cuyo `endDate` llegue hasta `startDate - ventana` días. Así
- *     una renovación encadenada (o dentro de la ventana) NUNCA cuenta como
- *     alta, pero un reingreso post-churn SÍ — simétrico con la definición de
- *     baja, para que altas y bajas cierren entre sí.
+ *   - BAJA CONFIRMADA (mes M): persona cuyo ÚLTIMO vencimiento cayó en M
+ *     (D-04) y que NO renovó dentro de la ventana (D-05), contada solo si su
+ *     ventana de gracia ya venció (D-08).
+ *   - BAJA EN GRACIA (mes M): último vencimiento en M, todavía dentro de la
+ *     ventana y sin renovar — puede volver. Va aparte (`bajasEnGracia`, no
+ *     suma a `bajas`) y el mes queda marcado provisional.
+ *   - ALTA (mes M): unión person-based de dos fuentes:
+ *       (a) inicio de racha de cobertura en M — `startDate` cae en M y NO
+ *           existe otra sub previa de la persona cuyo `endDate` llegue hasta
+ *           `startDate - ventana` días. Una renovación encadenada NUNCA cuenta
+ *           como alta; un reingreso post-churn SÍ. Solo considera subs creadas
+ *           DESPUÉS de la importación legacy (ver LEGACY_IMPORT_CUTOFF).
+ *       (b) personas importadas del sistema anterior: alta en el mes de su
+ *           registro (`users.createdAt`), la única fecha de inicio real que
+ *           sobrevivió a la importación.
+ *
+ * LEGACY_IMPORT_CUTOFF: la base nace con la importación del 2026-03-16 (~5.2k
+ * subs, verificado en prod 2026-07-10 — la primera sub de la base es de ese
+ * día). Esa importación trajo UNA sub por persona (su último período) y a los
+ * ya-inactivos les puso `startDate` = día de importación (4.214 subs con
+ * `endDate < startDate`). Por eso los `startDate` importados NO sirven como
+ * altas: sobrecuentan renovadores (la racha previa no existe en la base) y
+ * concentran un pico falso en 2026-03. Los `endDate` importados sí son reales
+ * → las bajas usan toda la historia sin filtro. Si algún día se re-importa la
+ * historia completa de períodos, la fuente (b) se elimina.
  *
  * NO usa `user_status_history`: `users.status` queda stale hasta que una
  * acción toca la sub (no hay cron de recompute), así que las transiciones no
@@ -57,6 +73,14 @@ import type {
   ChurnedMemberRow,
 } from "./types";
 
+/**
+ * Primer instante posterior a la importación legacy del 2026-03-16. Subs con
+ * `createdAt` anterior son filas importadas (startDate no confiable, ver doc
+ * del módulo). Cortar por día calendario es seguro: un alta real cargada el
+ * mismo 16 quedaría igualmente contada en 2026-03 vía su mes de registro.
+ */
+export const LEGACY_IMPORT_CUTOFF = "2026-03-17";
+
 export class MemberFlowsService {
   constructor(
     private db: MySql2Database<typeof schema>,
@@ -88,6 +112,7 @@ export class MemberFlowsService {
         bucket,
         altas: altasByBucket.get(bucket) ?? 0,
         bajas: bajasByBucket.get(bucket)?.bajas ?? 0,
+        bajasEnGracia: bajasByBucket.get(bucket)?.enGracia ?? 0,
         bajasProvisional: bajasByBucket.get(bucket)?.provisional ?? false,
       }));
 
@@ -95,16 +120,49 @@ export class MemberFlowsService {
   }
 
   /**
-   * Altas por mes: personas distintas con un inicio de racha de cobertura en
-   * el bucket. El NOT EXISTS excluye subs encadenadas a una cobertura previa
-   * (renovaciones, cambios de plan) — solo sobrevive la PRIMERA sub de cada
-   * racha. Sin filtro de status: una sub luego cancelada/expirada igualmente
-   * fue un alta cuando arrancó.
+   * Altas por mes: personas distintas por bucket, unión de las dos fuentes de
+   * la definición (rachas post-importación + registros de importados). El
+   * dedupe persona-mes entre fuentes lo hace el Set por bucket.
    */
   private async altasSeries(
     filters: AnalyticsFilters,
     window: number,
   ): Promise<Map<string, number>> {
+    const [streakRows, legacyRows] = await Promise.all([
+      this.streakAltasRows(filters, window),
+      this.legacyAltasRows(filters),
+    ]);
+
+    // Distinct persons per bucket (una persona con dos rachas en el mismo mes
+    // cuenta una vez — espeja el conteo person-based de bajas).
+    const seenByBucket = new Map<string, Set<number>>();
+    for (const r of [...streakRows, ...legacyRows]) {
+      const key = String(r.bucket ?? "");
+      let seen = seenByBucket.get(key);
+      if (seen === undefined) {
+        seen = new Set<number>();
+        seenByBucket.set(key, seen);
+      }
+      seen.add(r.userId);
+    }
+    const out = new Map<string, number>();
+    for (const [key, seen] of seenByBucket) out.set(key, seen.size);
+    return out;
+  }
+
+  /**
+   * Fuente (a): inicios de racha de cobertura. El NOT EXISTS excluye subs
+   * encadenadas a una cobertura previa (renovaciones, cambios de plan) — solo
+   * sobrevive la PRIMERA sub de cada racha. Sin filtro de status: una sub
+   * luego cancelada/expirada igualmente fue un alta cuando arrancó. Las subs
+   * importadas quedan fuera como CANDIDATAS (startDate no confiable) pero el
+   * NOT EXISTS sí las ve: la renovación post-importación de un importado
+   * activo encadena con su sub importada y no cuenta como alta.
+   */
+  private async streakAltasRows(
+    filters: AnalyticsFilters,
+    window: number,
+  ): Promise<Array<{ bucket: string; userId: number }>> {
     const { conditions: scopeConditions, needsBranchJoin } = applyScope({
       branchId: filters.branchId,
       country: filters.country,
@@ -138,44 +196,84 @@ export class MemberFlowsService {
         eq(schema.branches.id, schema.subscriptions.branchId),
       );
     }
-    const rows = await query.where(
+    return query.where(
       and(
         ...rangeConditions(
           schema.subscriptions.startDate,
           filters.dateFrom,
           filters.dateTo,
         ),
+        sql`${schema.subscriptions.createdAt} >= ${LEGACY_IMPORT_CUTOFF}`,
         streakStartExpr,
         ...scopeConditions,
       ),
     );
+  }
 
-    // Distinct persons per bucket (una persona con dos rachas en el mismo mes
-    // cuenta una vez — espeja el conteo person-based de bajas).
-    const seenByBucket = new Map<string, Set<number>>();
-    for (const r of rows) {
-      const key = String(r.bucket ?? "");
-      let seen = seenByBucket.get(key);
-      if (seen === undefined) {
-        seen = new Set<number>();
-        seenByBucket.set(key, seen);
-      }
-      seen.add(r.userId);
+  /**
+   * Fuente (b): personas importadas (tienen al menos una sub pre-cutoff) →
+   * alta en el mes de registro (`users.createdAt`), la única fecha de inicio
+   * real que la importación preservó. El límite conocido: reingresos DENTRO
+   * del sistema viejo no son reconstruibles — cada importado cuenta una sola
+   * alta, la de su primer registro. El scope de sede/país se aplica por la
+   * branch de la sub importada (consistente con el resto del motor).
+   */
+  private async legacyAltasRows(
+    filters: AnalyticsFilters,
+  ): Promise<Array<{ bucket: string; userId: number }>> {
+    const { conditions: scopeConditions, needsBranchJoin } = applyScope({
+      branchId: filters.branchId,
+      country: filters.country,
+      branchColumn: schema.subscriptions.branchId,
+    });
+
+    const bucket = bucketExpr(schema.users.createdAt, "monthly");
+
+    let query = this.db
+      .select({
+        bucket,
+        userId: schema.users.id,
+      })
+      .from(schema.users)
+      .innerJoin(
+        schema.subscriptions,
+        and(
+          eq(schema.subscriptions.userId, schema.users.id),
+          sql`${schema.subscriptions.createdAt} < ${LEGACY_IMPORT_CUTOFF}`,
+        ),
+      )
+      .$dynamic();
+    if (needsBranchJoin) {
+      query = query.innerJoin(
+        schema.branches,
+        eq(schema.branches.id, schema.subscriptions.branchId),
+      );
     }
-    const out = new Map<string, number>();
-    for (const [key, seen] of seenByBucket) out.set(key, seen.size);
-    return out;
+    return query.where(
+      and(
+        ...rangeConditions(
+          schema.users.createdAt,
+          filters.dateFrom,
+          filters.dateTo,
+        ),
+        ...scopeConditions,
+      ),
+    );
   }
 
   /**
    * Bajas por mes: la misma agregación que ChurnService.monthlySeries pero
-   * devolviendo el CONTEO de churneados (nominal) por bucket, con el flag
-   * provisional cuando la cohorte del mes aún tiene personas en gracia.
+   * devolviendo el CONTEO de churneados (nominal) por bucket, dividido en
+   * confirmadas (`bajas`, cohorte madura sin renovar) y en gracia
+   * (`enGracia`, vencidos hace menos de `window` días que aún no renovaron),
+   * con el flag provisional cuando la cohorte del mes todavía no maduró.
    */
   private async bajasSeries(
     filters: AnalyticsFilters,
     window: number,
-  ): Promise<Map<string, { bajas: number; provisional: boolean }>> {
+  ): Promise<
+    Map<string, { bajas: number; enGracia: number; provisional: boolean }>
+  > {
     const { conditions: scopeConditions, needsBranchJoin } = applyScope({
       branchId: filters.branchId,
       country: filters.country,
@@ -206,18 +304,24 @@ export class MemberFlowsService {
       ),
     );
 
-    const out = new Map<string, { bajas: number; provisional: boolean }>();
+    const out = new Map<
+      string,
+      { bajas: number; enGracia: number; provisional: boolean }
+    >();
     for (const r of rows) {
       const key = String(r.bucket ?? "");
       let entry = out.get(key);
       if (entry === undefined) {
-        entry = { bajas: 0, provisional: false };
+        entry = { bajas: 0, enGracia: 0, provisional: false };
         out.set(key, entry);
       }
       const matured = Number(r.matured) === 1;
       const retained = Number(r.retained) === 1;
       if (!matured) {
         entry.provisional = true;
+        // En gracia: venció hace menos de `window` días y todavía no renovó.
+        // Si ya renovó (retained) no es baja de ningún tipo.
+        if (!retained) entry.enGracia += 1;
         continue;
       }
       if (!retained) entry.bajas += 1;

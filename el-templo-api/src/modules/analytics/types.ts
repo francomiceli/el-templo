@@ -600,6 +600,8 @@ export interface MemberFlowsPoint {
   altas: number;
   /** Distinct persons whose last expiry this month did not renew (matured only). */
   bajas: number;
+  /** Distinct persons expired this month, still inside the grace window and not renewed. */
+  bajasEnGracia: number;
   /** `true` while part of the month's expiry cohort is still in grace. */
   bajasProvisional: boolean;
 }
