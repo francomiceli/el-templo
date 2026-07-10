@@ -61,6 +61,7 @@ import type { AdminRole } from "../shared/permissions";
 import { EnrollmentService } from "../programs/enrollment-service";
 import { SettingsService } from "../settings/service";
 import { PRICING_SETTINGS_KEYS } from "../settings/keys";
+import { ReferralService } from "../referrals/service";
 
 // ─── Charge flow taxonomy (Phase 107) ─────────────────────────────────────────
 
@@ -384,6 +385,74 @@ export class SubscriptionService {
    * `this.db.transaction(async (tx) => { ... })` para que la atomicidad
    * subscription + transaction + balance funcione como CHARGE-03 exige.
    */
+  // ── Referidos (fase 157) ──────────────────────────────────────────────
+  // El "hook de la plata": las 4 charge-paths (assignPlan, changePlanNow,
+  // changePlanAfterCurrent, renewSubscription) + getPricingPreview comparten
+  // estos helpers para (1) cualificar el vínculo del referido en su 1er pago
+  // ANTES de computar el descuento (D-20/D-21) y (2) reducir pricePaid según
+  // los vínculos qualified con contraparte activa (DESC-02/03), materializando
+  // en las columnas NUEVAS referralDiscount* (D-23). Todo server-computed, sin
+  // input del cliente (DESC-05). El descuento compone sobre auraSpend (Pitfall 4).
+
+  /**
+   * Flip pending→qualified del vínculo del que el payer es referido, SOLO
+   * cuando el cargo efectivamente cobra (pricePaid>0 — D-20 mata el fantasma
+   * del mes 100% bonificado). Se invoca ANTES de
+   * computePriceWithReferralDiscount (D-21) para que el referido recién
+   * cualificado ya descuente en ESTE mismo cargo si su referidor está activo.
+   */
+  private async qualifyReferralOnCharge(
+    payerUserId: number,
+    pricePaid: number,
+  ): Promise<void> {
+    if (pricePaid <= 0) return;
+    await new ReferralService(this.db, this.log).qualifyFirstPayment(
+      payerUserId,
+    );
+  }
+
+  /**
+   * Descuento de referido sobre un precio YA resuelto (compone sobre auraSpend).
+   * Copia la price-math del bloque auraSpend (`Math.floor(base*pct/100)`,
+   * `pricePaid = base - amount`) pero NO usa `auraService.spend` — escribe en
+   * las columnas nuevas referralDiscount* (D-23), nunca en auraDiscount*.
+   * pct<=0 → devuelve el precio sin descuento.
+   */
+  private async computePriceWithReferralDiscount(
+    userId: number,
+    basePrice: number,
+  ): Promise<{ percent: number; amount: number; pricePaid: number }> {
+    const percent = await new ReferralService(
+      this.db,
+      this.log,
+    ).computeReferralDiscountPercent(userId);
+    if (percent <= 0) {
+      return { percent: 0, amount: 0, pricePaid: basePrice };
+    }
+    const amount = Math.floor(basePrice * (percent / 100));
+    return { percent, amount, pricePaid: basePrice - amount };
+  }
+
+  /**
+   * Registro auditable del descuento tras el cargo (AURA-01): fila en
+   * referral_credits + anotación aura_transactions amount=0. No-op si amount<=0.
+   * Se llama tras recordAssignmentCharge con el subscriptionId ya conocido.
+   */
+  private async recordReferralCreditOnCharge(
+    userId: number,
+    subscriptionId: number,
+    percent: number,
+    amount: number,
+  ): Promise<void> {
+    if (amount <= 0) return;
+    await new ReferralService(this.db, this.log).recordReferralCredit(
+      userId,
+      subscriptionId,
+      percent,
+      amount,
+    );
+  }
+
   private async recordAssignmentCharge(
     tx: TxHandle,
     params: {
@@ -1205,6 +1274,8 @@ export class SubscriptionService {
     let priceTypeApplied = await this.resolvePriceType(input.priceTypeApplied);
     let auraDiscount: number | null = null;
     let auraDiscountPercent: number | null = null;
+    let referralDiscountPercent: number | null = null;
+    let referralDiscountAmount: number | null = null;
     let boardingPassUsed = false;
     let priceOverrideAmount: number | null = null;
     let priceOverrideReason: string | null = null;
@@ -1273,6 +1344,21 @@ export class SubscriptionService {
         pricePaid = basePrice - discountAmount;
       }
     }
+
+    // ── Referidos (fase 157, D-20/D-21) ──
+    // Orden canónico: (1) el precio ya está resuelto (incl. auraSpend); (2) si
+    // el cargo cobra, flippear el vínculo pending del payer a qualified ANTES
+    // del cómputo, así el referido recién cualificado ya cuenta; (3) computar el
+    // descuento de referido sobre el precio corriente. El registro auditable
+    // (recordReferralCredit) va tras el cargo, con el subscriptionId conocido.
+    await this.qualifyReferralOnCharge(userId, pricePaid);
+    const referral = await this.computePriceWithReferralDiscount(
+      userId,
+      pricePaid,
+    );
+    pricePaid = referral.pricePaid;
+    referralDiscountPercent = referral.percent > 0 ? referral.percent : null;
+    referralDiscountAmount = referral.amount > 0 ? referral.amount : null;
 
     // ── Schedule slot validation ──
     // Fixed plans require an exact set. Flexible presencial plans may opt in
@@ -1357,6 +1443,8 @@ export class SubscriptionService {
           priceTypeApplied,
           auraDiscount,
           auraDiscountPercent,
+          referralDiscountPercent,
+          referralDiscountAmount,
           boardingPassUsed,
           priceOverrideAmount,
           priceOverrideReason,
@@ -1625,6 +1713,15 @@ export class SubscriptionService {
     if (!subscription) {
       throw new Error("Failed to retrieve newly created subscription");
     }
+
+    // Referidos (AURA-01): registro auditable del descuento aplicado, tras el
+    // cargo y con el subscriptionId ya conocido. No-op si no hubo descuento.
+    await this.recordReferralCreditOnCharge(
+      userId,
+      subscriptionId,
+      referral.percent,
+      referral.amount,
+    );
 
     this.log.info(
       {
@@ -3413,6 +3510,8 @@ export class SubscriptionService {
     let priceTypeApplied = await this.resolvePriceType(input.priceTypeApplied);
     let auraDiscount: number | null = null;
     let auraDiscountPercent: number | null = null;
+    let referralDiscountPercent: number | null = null;
+    let referralDiscountAmount: number | null = null;
     let boardingPassUsed = false;
     let priceOverrideAmount: number | null = null;
     let priceOverrideReason: string | null = null;
