@@ -4116,8 +4116,16 @@ _v5.4 (Reforma del Admin) added: 2026-07-02 — 8 phases (149-156), 33 requireme
 4. Al cobrar la cuota de cualquiera de las dos partes, el descuento simétrico se calcula y aplica automáticamente solo si ambos están activos, acumulando por vínculo hasta el tope.
 5. Cada descuento aplicado deja una anotación `sourceType:"referral"` sin alterar el saldo AURA gastable del socio.
 
-**Plans:** TBD
-**UI hint:** yes (RegisterPage `?ref` + campo "¿Quién lo trajo?" en alta admin)
+**Plans:** 5 plans
+
+Plans:
+
+- [ ] 157-01-PLAN.md — Schema + migración 0176 (referrals, referral_credits, users.referralCode/referredBy, subscriptions.referralDiscount\*, seed 10%/40%)
+- [ ] 157-02-PLAN.md — ReferralService (código único, cómputo del descuento simétrico condicional topeado, registro AURA sin saldo)
+- [ ] 157-03-PLAN.md — Atribución doble canal (?ref self-service + '¿Quién lo trajo?' asistido) + antifraude
+- [ ] 157-04-PLAN.md — Hook de cobro: cualificación al 1er pago + descuento en las 4 charge-paths + preview parity
+- [ ] 157-05-PLAN.md — Frontend: RegisterPage ?ref + badge, MemberFormDialog '¿Quién lo trajo?'
+      **UI hint:** yes (RegisterPage `?ref` + campo "¿Quién lo trajo?" en alta admin)
 
 ### Phase 158: Visibilidad y comunicación
 
