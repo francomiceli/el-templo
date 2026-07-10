@@ -4410,6 +4410,23 @@ export class SubscriptionService {
       }
     }
 
+    // ── Referidos (fase 157, Pitfall 4): preview parity ──
+    // computeReferralDiscountPercent es SOLO LECTURA: NO flippea cualificación
+    // (qualifyFirstPayment) ni escribe referral_credits (es preview, no cobra).
+    // Compone sobre el precio ya reducido por auraSpend, exactamente como la
+    // charge-path, para que el PoS muestre el precio que efectivamente se cobra.
+    let referralDiscountPercent = 0;
+    let referralDiscountAmount = 0;
+    const referralPct = await new ReferralService(
+      this.db,
+      this.log,
+    ).computeReferralDiscountPercent(userId);
+    if (referralPct > 0) {
+      referralDiscountPercent = referralPct;
+      referralDiscountAmount = Math.floor(finalPrice * (referralPct / 100));
+      finalPrice = finalPrice - referralDiscountAmount;
+    }
+
     return {
       basePrice,
       discountType,
@@ -4419,6 +4436,8 @@ export class SubscriptionService {
       auraBalance,
       boardingPassEligible,
       availableTiers,
+      referralDiscountPercent,
+      referralDiscountAmount,
     };
   }
 

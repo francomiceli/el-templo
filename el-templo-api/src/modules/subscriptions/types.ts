@@ -435,6 +435,11 @@ export interface PricingPreview {
   auraBalance: number;
   boardingPassEligible: boolean;
   availableTiers: AuraDiscountTier[];
+  // Referidos (fase 157): desglose del descuento de referido ya aplicado en
+  // finalPrice, para que el PoS muestre el mismo precio que se cobrará (Pitfall 4).
+  // Compone sobre el descuento auraSpend. 0 cuando no hay vínculos activos.
+  referralDiscountPercent: number;
+  referralDiscountAmount: number;
 }
 
 // ─── Promo Plan Types ────────────────────────────────────────────────────────
