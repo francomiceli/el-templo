@@ -3055,6 +3055,9 @@ export class SubscriptionService {
     // no tenía branch de boarding → el pase quedaba sin marcar y era reutilizable
     // (agujero vivo con la regla Zero ON). Simétrico a assignPlan/changePlanAfterCurrent.
     let boardingPassUsed = false;
+    // Referidos (fase 157): materialización del descuento en columnas nuevas.
+    let referralDiscountPercent: number | null = null;
+    let referralDiscountAmount: number | null = null;
 
     if (
       input.priceOverrideAmount !== undefined &&
@@ -3094,6 +3097,19 @@ export class SubscriptionService {
       resolvedOverrideAmount = netAmount;
       resolvedOverrideReason = `Cambio de plan: credito $${proration.remainingValue} (${proration.remainingDetail})`;
     }
+
+    // ── Referidos (fase 157, D-20/D-21) ──
+    // Flip antes del cómputo (si el cargo cobra) + descuento simétrico sobre el
+    // neto post-prorrateo. resolvedOverrideAmount conserva el neto de prorrateo;
+    // el descuento de referido reduce el pricePaid efectivo (columnas nuevas).
+    await this.qualifyReferralOnCharge(userId, netAmount);
+    const referral = await this.computePriceWithReferralDiscount(
+      userId,
+      netAmount,
+    );
+    netAmount = referral.pricePaid;
+    referralDiscountPercent = referral.percent > 0 ? referral.percent : null;
+    referralDiscountAmount = referral.amount > 0 ? referral.amount : null;
 
     // Phase 112-02 + 03: tear down the outgoing sub's plan-bound enrollments
     // BEFORE closing it. Runs on this.db (not in the new-sub tx) by design
@@ -3204,6 +3220,8 @@ export class SubscriptionService {
           priceTypeApplied: resolvedPriceType,
           priceOverrideAmount: resolvedOverrideAmount,
           priceOverrideReason: resolvedOverrideReason,
+          referralDiscountPercent,
+          referralDiscountAmount,
           boardingPassUsed,
           classesRemaining,
           classesBudget: classesRemaining,
@@ -3321,6 +3339,14 @@ export class SubscriptionService {
 
         return { newSubscriptionId: subId };
       });
+
+      // Referidos (AURA-01): registro auditable tras el cargo. No-op si amount<=0.
+      await this.recordReferralCreditOnCharge(
+        userId,
+        newSubscriptionId,
+        referral.percent,
+        referral.amount,
+      );
 
       // Auto-migrate member from virtual branch to subscription's physical branch
       const [memberForMigration] = await this.db
@@ -3571,6 +3597,18 @@ export class SubscriptionService {
       }
     }
 
+    // ── Referidos (fase 157, D-20/D-21) ──
+    // Flip antes del cómputo (si el cargo cobra) + descuento simétrico sobre el
+    // precio ya resuelto (incl. auraSpend). Columnas nuevas referralDiscount*.
+    await this.qualifyReferralOnCharge(userId, pricePaid);
+    const referral = await this.computePriceWithReferralDiscount(
+      userId,
+      pricePaid,
+    );
+    pricePaid = referral.pricePaid;
+    referralDiscountPercent = referral.percent > 0 ? referral.percent : null;
+    referralDiscountAmount = referral.amount > 0 ? referral.amount : null;
+
     // New period: por defecto arranca en current.endDate (encadenado, sin gap).
     // El admin puede empujar el inicio MÁS ADELANTE (hotfix 2026-07-07, pedido
     // del staff: promos para socios que viajan y quieren arrancar después). La
@@ -3613,6 +3651,8 @@ export class SubscriptionService {
         priceTypeApplied,
         auraDiscount,
         auraDiscountPercent,
+        referralDiscountPercent,
+        referralDiscountAmount,
         boardingPassUsed,
         priceOverrideAmount,
         priceOverrideReason,
@@ -3686,6 +3726,14 @@ export class SubscriptionService {
 
       return { newSubscriptionId: subId };
     });
+
+    // Referidos (AURA-01): registro auditable tras el cargo. No-op si amount<=0.
+    await this.recordReferralCreditOnCharge(
+      userId,
+      newSubscriptionId,
+      referral.percent,
+      referral.amount,
+    );
 
     const newSub = await this.getSubscriptionById(newSubscriptionId);
     if (!newSub) {
@@ -3852,6 +3900,9 @@ export class SubscriptionService {
     let renewalPrice = currentSub.pricePaid;
     let renewalOverrideAmount: number | null = null;
     let renewalOverrideReason: string | null = null;
+    // Referidos (fase 157): materialización del descuento en columnas nuevas.
+    let referralDiscountPercent: number | null = null;
+    let referralDiscountAmount: number | null = null;
     if (
       input.priceOverrideAmount !== undefined &&
       input.priceOverrideAmount >= 0
@@ -3884,6 +3935,19 @@ export class SubscriptionService {
         renewalPrice = this.getBasePrice(plan, renewalPriceType);
       }
     }
+
+    // ── Referidos (fase 157, D-20/D-21) ──
+    // Flip antes del cómputo (si el cargo cobra) + descuento simétrico sobre el
+    // precio de renovación ya resuelto. Se aplica ANTES de resolver
+    // renewBranchId/caja (que gatean por renewalPrice>0) para que vean el neto.
+    await this.qualifyReferralOnCharge(userId, renewalPrice);
+    const referral = await this.computePriceWithReferralDiscount(
+      userId,
+      renewalPrice,
+    );
+    renewalPrice = referral.pricePaid;
+    referralDiscountPercent = referral.percent > 0 ? referral.percent : null;
+    referralDiscountAmount = referral.amount > 0 ? referral.amount : null;
 
     // If old sub is already expired, close it now (below).
     // If still active (early renewal), leave it active — auto-expire will
@@ -4006,6 +4070,8 @@ export class SubscriptionService {
         priceTypeApplied: renewalPriceType,
         priceOverrideAmount: renewalOverrideAmount,
         priceOverrideReason: renewalOverrideReason,
+        referralDiscountPercent,
+        referralDiscountAmount,
         classesRemaining: periodBudget,
         classesBudget: periodBudget,
         previousSubscriptionId: currentSub.id,
@@ -4150,6 +4216,14 @@ export class SubscriptionService {
 
       return { newSubscriptionId: subId };
     });
+
+    // Referidos (AURA-01): registro auditable tras el cargo. No-op si amount<=0.
+    await this.recordReferralCreditOnCharge(
+      userId,
+      newSubscriptionId,
+      referral.percent,
+      referral.amount,
+    );
 
     const newSub = await this.getSubscriptionById(newSubscriptionId);
     if (!newSub) {
