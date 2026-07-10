@@ -381,6 +381,24 @@ export interface RenewSubscriptionInput {
    * caja sugerida por sede (sin regresión).
    */
   cashRegisterIdOverride?: number;
+  /**
+   * Turnos fijos para el NUEVO período (pedido del staff 2026-07-10: renovar
+   * mismo plan sin poder cargar turnos obligaba a renovar sin anclas y
+   * cargarlas después a mano). Semántica:
+   * - undefined → comportamiento previo: se COPIAN los turnos del período
+   *   anterior (subscription_schedules de la sub renovada).
+   * - provisto → reemplaza la herencia: la sub nueva nace con exactamente
+   *   estos turnos ([] = sin anclas, solo válido en planes flexibles).
+   * Mismas reglas de validación que assignPlan (fixed exige el set exacto,
+   * flexible presencial 0..classesPerWeek, online nunca).
+   */
+  scheduleIds?: number[];
+  /**
+   * Inicio diferido por turno (mismo contrato que assignPlan): cuando el
+   * picker detecta un slot lleno esta semana y el admin acepta arrancar ese
+   * turno en una fecha futura. Solo tiene efecto si `scheduleIds` viene.
+   */
+  scheduleStartDates?: Record<string, string>;
 }
 
 // ─── Plan Change / Proration Types ─────────────────────────────────────────

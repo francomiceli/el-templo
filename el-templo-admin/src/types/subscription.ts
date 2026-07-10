@@ -293,6 +293,14 @@ export interface RenewSubscriptionInput {
    * fecha automáticamente (vencimiento actual si sigue vigente, si no hoy).
    */
   startDate?: string;
+  /**
+   * Turnos fijos del NUEVO período. undefined → el backend copia los del
+   * período anterior; provisto → reemplaza la herencia ([] = sin anclas,
+   * solo planes flexibles). Mismas reglas que la asignación.
+   */
+  scheduleIds?: number[];
+  /** Inicio diferido por turno (slot lleno esta semana), como en asignación. */
+  scheduleStartDates?: Record<string, string>;
 }
 
 // ─── Plan Change / Proration Types ─────────────────────────────────────────

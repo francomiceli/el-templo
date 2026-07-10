@@ -230,7 +230,11 @@
 
     <!-- Renewal Dialog -->
     <q-dialog v-model="showRenewalDialog">
-      <q-card style="width: 450px; max-width: 95vw">
+      <q-card
+        :style="
+          renewalEditTurnos ? 'width: 700px; max-width: 95vw' : 'width: 450px; max-width: 95vw'
+        "
+      >
         <q-card-section>
           <div class="text-h6">Renovar Suscripcion</div>
         </q-card-section>
@@ -288,6 +292,35 @@
               <div class="text-caption text-grey-7 q-mt-xs">
                 Permitido entre {{ formatDate(renewalStartDateMin) }} y
                 {{ formatDate(renewalStartDateMax) }}.
+              </div>
+            </template>
+          </div>
+
+          <!-- Turnos fijos del nuevo período -->
+          <div v-if="renewalSupportsTurnos && classUsage" class="q-mt-md">
+            <q-toggle v-model="renewalEditTurnos" label="Modificar turnos" />
+            <div v-if="!renewalEditTurnos" class="text-caption text-grey-7 q-mt-xs">
+              {{ renewalInheritedTurnosLabel }}
+            </div>
+            <template v-else>
+              <FixedSchedulePicker
+                ref="renewalPickerRef"
+                v-model="renewalScheduleIds"
+                :branch-id="renewTarget.branchId"
+                :required-count="classUsage.weeklyLimit"
+                :allow-partial="classUsage.bookingMode === 'flexible'"
+                :title="
+                  classUsage.bookingMode === 'flexible'
+                    ? 'Turnos fijos del nuevo período (opcional)'
+                    : 'Turnos fijos del nuevo período'
+                "
+                :branch-name="renewTarget.branchName"
+                :multi-branch="classUsage.multiBranch"
+                :available-branches="multiBranchOptions"
+                class="q-mt-xs"
+              />
+              <div v-if="renewalTurnosError" class="text-caption text-negative q-mt-xs">
+                {{ renewalTurnosError }}
               </div>
             </template>
           </div>
@@ -380,6 +413,7 @@
             :disable="
               renewalOverrideInvalid ||
               !!renewalStartDateError ||
+              !!renewalTurnosError ||
               renewalAmountReceived === null ||
               renewalAmountReceived < 0 ||
               renewalAmountReceived > renewalChargeBase
@@ -549,6 +583,8 @@ import {
 import type { MemberProfile, BranchOption } from 'src/types/member';
 import AssignPlanDialog from 'src/components/AssignPlanDialog.vue';
 import ChangeFixedSchedulesDialog from 'src/components/ChangeFixedSchedulesDialog.vue';
+import FixedSchedulePicker from 'src/components/scheduling/FixedSchedulePicker.vue';
+import { DAY_SHORT_LABELS, type DayOfWeek } from 'src/types/scheduling';
 import EditSubscriptionStartDateDialog from 'src/components/EditSubscriptionStartDateDialog.vue';
 import SubscriptionCard from 'src/components/SubscriptionCard.vue';
 import type { SubscriptionScheduleChangeEntry } from 'src/types/subscription';
@@ -618,6 +654,12 @@ const renewalNormalizedPrice = ref<number | null>(null);
 // Fecha de inicio custom al renovar (hotfix 1708312a). El toggle habilita el date-picker.
 const renewalUseCustomStartDate = ref(false);
 const renewalStartDate = ref('');
+// Turnos del nuevo período (pedido del staff 2026-07-10). Toggle OFF (default)
+// = herencia del backend (copia los turnos del período anterior); ON = el
+// admin elige el set en el picker y viaja como scheduleIds en el renew.
+const renewalEditTurnos = ref(false);
+const renewalScheduleIds = ref<number[]>([]);
+const renewalPickerRef = ref<InstanceType<typeof FixedSchedulePicker> | null>(null);
 const showEditStartDateDialog = ref(false);
 const editStartDateTarget = ref<SubscriptionDetail | null>(null);
 
@@ -688,6 +730,46 @@ const programaSub = computed(
   () =>
     allSubscriptions.value.find((s) => s.planCategory && s.planCategory !== 'presencial') ?? null
 );
+
+// Turnos al renovar: solo para subs presenciales con classUsage cargado (la
+// renovación es del mismo plan, así que los límites del plan actual —
+// weeklyLimit/bookingMode/multiBranch — aplican tal cual al nuevo período).
+// Sin classUsage (p. ej. socio sin sub activa) se cae al comportamiento
+// previo: renovar hereda y los turnos se ajustan después con "Cambiar turnos".
+const renewalSupportsTurnos = computed(
+  () =>
+    renewTarget.value !== null &&
+    (!renewTarget.value.planCategory || renewTarget.value.planCategory === 'presencial') &&
+    classUsage.value !== null
+);
+
+// Resumen de lo que hereda la renovación cuando el toggle está apagado.
+const renewalInheritedTurnosLabel = computed(() => {
+  const slots = classUsage.value?.scheduleSlots ?? [];
+  if (slots.length === 0) {
+    return 'El período actual no tiene turnos fijos: la renovación arranca sin turnos. Activá "Modificar turnos" para cargarlos ahora.';
+  }
+  const list = slots
+    .map((s) => `${DAY_SHORT_LABELS[s.dayOfWeek as DayOfWeek] ?? s.dayOfWeek} ${s.startTime}`)
+    .join(', ');
+  return `Se mantienen los turnos actuales: ${list}.`;
+});
+
+// Validación del set elegido (espejo de las reglas del backend, para feedback
+// inmediato): plan fijo = exactamente weeklyLimit; flexible = hasta weeklyLimit.
+const renewalTurnosError = computed(() => {
+  if (!renewalEditTurnos.value || !renewalSupportsTurnos.value || !classUsage.value) return null;
+  const limit = classUsage.value.weeklyLimit;
+  const count = renewalScheduleIds.value.length;
+  if (classUsage.value.bookingMode === 'fixed') {
+    if (limit !== null && count !== limit) {
+      return `Seleccioná exactamente ${limit} turno${limit === 1 ? '' : 's'} (elegiste ${count}).`;
+    }
+  } else if (limit !== null && count > limit) {
+    return `Podés elegir hasta ${limit} turno${limit === 1 ? '' : 's'} (elegiste ${count}).`;
+  }
+  return null;
+});
 
 // Duración del plan en días (derivada del período de la sub actual). Fallback
 // defensivo de 30 días si la sub no tiene un endDate coherente.
@@ -883,6 +965,10 @@ function openRenewal(sub: SubscriptionDetail) {
   // Pre-cargamos la fecha automática para que, al activar el toggle, el picker
   // arranque en el valor que el sistema usaría por defecto.
   renewalStartDate.value = renewalAutoStartDate.value;
+  // Turnos: el picker arranca prellenado con los del período actual (lo que
+  // la renovación heredaría), así "modificar" es ajustar, no rearmar de cero.
+  renewalEditTurnos.value = false;
+  renewalScheduleIds.value = [...(classUsage.value?.scheduleIds ?? [])];
   showRenewalDialog.value = true;
   // Detectar normalización de recargo de tarjeta (revisión v5.4 WR-04): si el socio
   // venía con 'credit_card', le preguntamos al server el precio real que cobraría la
@@ -973,6 +1059,17 @@ async function performRenewal() {
       ...(renewalUseCustomStartDate.value && renewalStartDate.value
         ? { startDate: renewalStartDate.value }
         : {}),
+      // Turnos: solo si el admin activó "Modificar turnos". Omitido → el
+      // backend copia los turnos del período anterior (comportamiento previo).
+      ...(renewalEditTurnos.value && renewalSupportsTurnos.value
+        ? {
+            scheduleIds: renewalScheduleIds.value,
+            ...(() => {
+              const startDates = renewalPickerRef.value?.getStartDates() ?? {};
+              return Object.keys(startDates).length > 0 ? { scheduleStartDates: startDates } : {};
+            })(),
+          }
+        : {}),
     });
     $q.notify({ type: 'positive', message: 'Suscripcion renovada correctamente' });
     showRenewalDialog.value = false;
@@ -985,6 +1082,8 @@ async function performRenewal() {
     renewalNormalizedPrice.value = null;
     renewalUseCustomStartDate.value = false;
     renewalStartDate.value = '';
+    renewalEditTurnos.value = false;
+    renewalScheduleIds.value = [];
     refreshAll();
     emit('subscription-changed');
   } catch (err: unknown) {

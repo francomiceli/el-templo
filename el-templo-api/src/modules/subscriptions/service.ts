@@ -1277,39 +1277,8 @@ export class SubscriptionService {
     // ── Schedule slot validation ──
     // Fixed plans require an exact set. Flexible presencial plans may opt in
     // to partial fixed anchors (0..classesPerWeek). Online plans never use
-    // schedules.
-    if (plan.bookingMode === "fixed") {
-      if (!input.scheduleIds || input.scheduleIds.length === 0) {
-        throw new BadRequestError(
-          "Para planes fijos se requiere scheduleIds con los horarios seleccionados",
-        );
-      }
-      if (
-        plan.classesPerWeek !== null &&
-        input.scheduleIds.length !== plan.classesPerWeek
-      ) {
-        throw new BadRequestError(
-          `Debes seleccionar exactamente ${plan.classesPerWeek} horarios (classesPerWeek). Seleccionaste ${input.scheduleIds.length}.`,
-        );
-      }
-    } else if (
-      input.scheduleIds &&
-      input.scheduleIds.length > 0 &&
-      plan.planCategory !== "presencial"
-    ) {
-      throw new BadRequestError(
-        "Los planes online no pueden tener turnos fijos",
-      );
-    } else if (
-      input.scheduleIds &&
-      input.scheduleIds.length > 0 &&
-      plan.classesPerWeek !== null &&
-      input.scheduleIds.length > plan.classesPerWeek
-    ) {
-      throw new BadRequestError(
-        `Podes elegir hasta ${plan.classesPerWeek} turnos fijos. Seleccionaste ${input.scheduleIds.length}.`,
-      );
-    }
+    // schedules. (Shared with renewSubscription's scheduleIds override.)
+    this.assertScheduleSelectionForPlan(plan, input.scheduleIds ?? []);
 
     if (input.scheduleIds && input.scheduleIds.length > 0) {
       await this.validateAnchorSet(input.scheduleIds, input.branchId, plan);
@@ -3714,6 +3683,22 @@ export class SubscriptionService {
       throw new NotFoundError("Plan no encontrado");
     }
 
+    // ── Turnos del nuevo período (opcional) ──
+    // undefined → se heredan copiando los del período anterior (comportamiento
+    // histórico). Provisto → reemplaza la herencia, con las mismas reglas que
+    // assignPlan. Cubre el caso Flex+ (flexible sin anclas previas): antes la
+    // renovación nacía sin turnos y había que cargarlos a mano después.
+    if (input.scheduleIds !== undefined) {
+      this.assertScheduleSelectionForPlan(plan, input.scheduleIds);
+      if (input.scheduleIds.length > 0) {
+        await this.validateAnchorSet(
+          input.scheduleIds,
+          currentSub.branchId,
+          plan,
+        );
+      }
+    }
+
     // Calculate new period dates. Por defecto la renovación arranca en el
     // vencimiento actual (renovación anticipada) o en hoy (ya vencida). El admin
     // puede pasar una fecha de inicio custom (hotfix 2026-07-06, pedido del
@@ -3931,16 +3916,24 @@ export class SubscriptionService {
 
       const subId = Number(insResult[0].insertId);
 
-      // Copy schedule assignments (fixed plans always, flexible presencial
-      // plans if the member had partial fixed anchors). Replacement credits
-      // only accrue for fixed plans.
+      // Schedule assignments for the new period. When the admin sent an
+      // explicit selection it wins; otherwise copy the previous period's
+      // anchors (fixed plans always, flexible presencial plans if the member
+      // had partial fixed anchors). Replacement credits only accrue for
+      // fixed plans.
       let credits = 0;
-      const scheduleRows = await tx
-        .select({ scheduleId: schema.subscriptionSchedules.scheduleId })
-        .from(schema.subscriptionSchedules)
-        .where(eq(schema.subscriptionSchedules.subscriptionId, currentSub.id));
-
-      const scheduleIds = scheduleRows.map((r) => r.scheduleId);
+      let scheduleIds: number[];
+      if (input.scheduleIds !== undefined) {
+        scheduleIds = input.scheduleIds;
+      } else {
+        const scheduleRows = await tx
+          .select({ scheduleId: schema.subscriptionSchedules.scheduleId })
+          .from(schema.subscriptionSchedules)
+          .where(
+            eq(schema.subscriptionSchedules.subscriptionId, currentSub.id),
+          );
+        scheduleIds = scheduleRows.map((r) => r.scheduleId);
+      }
       if (scheduleIds.length > 0) {
         await tx.insert(schema.subscriptionSchedules).values(
           scheduleIds.map((scheduleId) => ({
@@ -3957,6 +3950,7 @@ export class SubscriptionService {
             newStartDate,
             newEndDate,
             currentSub.branchId,
+            input.scheduleStartDates,
           );
           if (plan.bookingMode === "fixed") {
             credits = bookingResult.holidaysSkipped;
@@ -5050,6 +5044,53 @@ export class SubscriptionService {
       .update(schema.promoPlans)
       .set({ isActive: false })
       .where(eq(schema.promoPlans.id, promoId));
+  }
+
+  /**
+   * Count/category rules for a fixed-anchor selection, shared by assignPlan
+   * and renewSubscription: fixed plans require exactly classesPerWeek slots,
+   * flexible presencial plans accept 0..classesPerWeek partial anchors, and
+   * online plans never carry schedules. Callers still run validateAnchorSet
+   * for existence/branch/day checks when the selection is non-empty.
+   */
+  private assertScheduleSelectionForPlan(
+    plan: {
+      bookingMode: string;
+      planCategory: string;
+      classesPerWeek: number | null;
+    },
+    scheduleIds: number[],
+  ): void {
+    if (plan.bookingMode === "fixed") {
+      if (scheduleIds.length === 0) {
+        throw new BadRequestError(
+          "Para planes fijos se requiere scheduleIds con los horarios seleccionados",
+        );
+      }
+      if (
+        plan.classesPerWeek !== null &&
+        scheduleIds.length !== plan.classesPerWeek
+      ) {
+        throw new BadRequestError(
+          `Debes seleccionar exactamente ${plan.classesPerWeek} horarios (classesPerWeek). Seleccionaste ${scheduleIds.length}.`,
+        );
+      }
+      return;
+    }
+    if (scheduleIds.length === 0) return;
+    if (plan.planCategory !== "presencial") {
+      throw new BadRequestError(
+        "Los planes online no pueden tener turnos fijos",
+      );
+    }
+    if (
+      plan.classesPerWeek !== null &&
+      scheduleIds.length > plan.classesPerWeek
+    ) {
+      throw new BadRequestError(
+        `Podes elegir hasta ${plan.classesPerWeek} turnos fijos. Seleccionaste ${scheduleIds.length}.`,
+      );
+    }
   }
 
   /**
