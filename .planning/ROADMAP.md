@@ -4120,10 +4120,21 @@ _v5.4 (Reforma del Admin) added: 2026-07-02 — 8 phases (149-156), 33 requireme
 
 Plans:
 
+**Wave 1**
+
 - [ ] 157-01-PLAN.md — Schema + migración 0176 (referrals, referral_credits, users.referralCode/referredBy, subscriptions.referralDiscount\*, seed 10%/40%)
+
+**Wave 2** _(blocked on Wave 1 completion)_
+
 - [ ] 157-02-PLAN.md — ReferralService (código único, cómputo del descuento simétrico condicional topeado, registro AURA sin saldo)
+
+**Wave 3** _(blocked on Wave 2 completion)_
+
 - [ ] 157-03-PLAN.md — Atribución doble canal (?ref self-service + '¿Quién lo trajo?' asistido) + antifraude
 - [ ] 157-04-PLAN.md — Hook de cobro: cualificación al 1er pago + descuento en las 4 charge-paths + preview parity
+
+**Wave 4** _(blocked on Wave 3 completion)_
+
 - [ ] 157-05-PLAN.md — Frontend: RegisterPage ?ref + badge, MemberFormDialog '¿Quién lo trajo?'
       **UI hint:** yes (RegisterPage `?ref` + campo "¿Quién lo trajo?" en alta admin)
 
