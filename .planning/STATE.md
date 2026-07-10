@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v5.4
 milestone_name: Reforma del Admin — Correcciones white-label (pre-tenants)
 status: executing
-stopped_at: Completed 156-01-PLAN.md
-last_updated: "2026-07-10T20:18:37.168Z"
-last_activity: 2026-07-10 -- Phase 157 planning complete
+stopped_at: Phase 157 executed and verified (5/5)
+last_updated: "2026-07-10T22:29:58.887Z"
+last_activity: 2026-07-10 -- Phase 157 execution started
 progress:
   total_phases: 8
   completed_phases: 8
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-04)
 
 **Core value (v5.4):** Reorganizar el admin según `Correcciones El Templo.md` para dejarlo listo como MVP white-label — nav por categorías + RBAC dueño-vs-empleado, pantallas simplificadas y de-Templo-ficación de la superficie MVP (Finanzas, Alumnos, Horarios, Planes) — SIN introducir tenants todavía. Primera etapa del camino SaaS (reforma PRIMERO, tenancy DESPUÉS, secuencial). 8 fases (149-156), 33 requirements (NAV/COBRO/CTA/CAJA/DEUDA/ALUM/HOR/PLAN). Constraint dura: todo cambio de API adopta los patrones del diseño SaaS validado (motor vs plantilla, imports módulo→core, sin nuevos Templo-ismos en core).
-**Current focus:** Milestone complete
+**Current focus:** Phase 157 — n-cleo-transaccional-de-referidos
 
 ## Current Position
 
-Phase: 156
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-07-10 -- Phase 157 planning complete
+Phase: 157 (n-cleo-transaccional-de-referidos) — EXECUTING
+Plan: 1 of 5
+Status: Executing Phase 157
+Last activity: 2026-07-10 -- Phase 157 execution started
 
 ## Performance Metrics
 
@@ -780,8 +780,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-05T01:30:50.452Z
-Stopped at: Completed 156-01-PLAN.md
-Resume file: None
+Last session: 2026-07-10T22:29:58.864Z
+Stopped at: Phase 157 executed and verified (5/5)
+Resume file: .planning/phases/157-n-cleo-transaccional-de-referidos/157-VERIFICATION.md
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
