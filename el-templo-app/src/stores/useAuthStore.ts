@@ -78,6 +78,7 @@ export const useAuthStore = defineStore('auth', () => {
     gender: string
     branchId?: number
     promoCode?: string
+    ref?: string
   }): Promise<{ promoApplied?: boolean } | undefined> {
     loading.value = true
     error.value = null

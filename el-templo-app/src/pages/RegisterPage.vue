@@ -38,6 +38,16 @@
             </div>
           </div>
 
+          <!-- Referral badge (optimista — reusa .promo-badge, plan 157-05) -->
+          <div v-if="refCode" class="promo-badge">
+            <q-icon name="group_add" size="20px" />
+            <div class="promo-badge__text">
+              <span class="promo-badge__code">CÓDIGO DE REFERIDO</span>
+              <span class="promo-badge__offer">{{ refCode }}</span>
+              <span class="promo-badge__subtext">Te invitó un miembro del Templo</span>
+            </div>
+          </div>
+
           <!-- Register Card -->
           <div class="register-card">
             <q-form @submit="onSubmit" class="q-gutter-y-md">
@@ -215,6 +225,11 @@ const promoCode = computed(() => {
   return typeof code === 'string' ? code : null
 })
 
+const refCode = computed(() => {
+  const code = route.query.ref
+  return typeof code === 'string' ? code : null
+})
+
 const requiredRule = (val: string) => !!val || 'Este campo es requerido'
 
 // DNI and phone are optional per App Store guideline 5.1.1(v)
@@ -256,6 +271,7 @@ async function onSubmit() {
       gender: gender.value as string,
       branchId: branchIdParam,
       promoCode: promoCode.value ?? undefined,
+      ref: refCode.value ?? undefined,
     })
     $q.notify({
       type: 'positive',
@@ -989,6 +1005,13 @@ $charcoal-mid: #3d3732;
     font-size: 1rem;
     font-weight: 700;
     color: $amber;
+  }
+
+  &__subtext {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 0.75rem;
+    font-weight: 400;
+    color: rgba($cream, 0.6);
   }
 }
 </style>
