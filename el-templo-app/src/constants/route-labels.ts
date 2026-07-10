@@ -50,7 +50,7 @@ export const ROUTE_LABELS: Record<string, string> = {
   games: 'Juegos',
 
   // v5.6: ruta que acepta todos los ejercicios
-  FULLBODY: 'Full Body',
+  FB: 'Full Body',
 }
 
 /**

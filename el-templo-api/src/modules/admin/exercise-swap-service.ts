@@ -26,8 +26,9 @@ import type {
 /**
  * Route code that accepts every exercise (no route filter on the block pool).
  * Real row in `routes` (excluded_from_tree=1), but special-cased here like INITIUM.
+ * Display name: "Full Body" (routes.display_name + route-labels in both frontends).
  */
-export const FULL_BODY_ROUTE = "FULLBODY";
+export const FULL_BODY_ROUTE = "FB";
 
 export class ExerciseSwapService {
   private prescribeService: PrescribeService;
