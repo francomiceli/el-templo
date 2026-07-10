@@ -213,9 +213,11 @@
       />
     </div>
 
-    <!-- Complex / For Quality (rounds only) -->
+    <!-- Complex / Combos / For Quality (rounds only) -->
     <div
-      v-else-if="localParams && ['complex', 'for_quality'].includes(String(localParams.type))"
+      v-else-if="
+        localParams && ['complex', 'combos', 'for_quality'].includes(String(localParams.type))
+      "
       class="row items-center q-gutter-sm"
     >
       <q-input
@@ -790,11 +792,13 @@ const defaultsMap: Record<string, FormatParamsLocal> = {
 
   // Technical
   complex: { type: 'complex', rounds: 3 },
+  combos: { type: 'combos', rounds: 3 },
   rom: { type: 'rom', rounds: 3, restSeconds: 30 },
   for_quality: { type: 'for_quality', rounds: 3 },
   for_tech: { type: 'for_tech', minutes: 12 },
   tempo_sets: { type: 'tempo_sets', tempo: '3-1-1-0' },
   flow_guiado: { type: 'flow_guiado' },
+  stretching: { type: 'stretching' },
   cluster: { type: 'cluster', clusterSize: 3, restBetweenClusters: 90 },
 
   // Structure-based

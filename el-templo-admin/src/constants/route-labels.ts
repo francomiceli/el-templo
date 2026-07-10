@@ -48,6 +48,9 @@ export const ROUTE_LABELS: Record<string, string> = {
 
   // Phase 100 addition
   games: 'Juegos',
+
+  // v5.6: ruta que acepta todos los ejercicios
+  FULLBODY: 'Full Body',
 };
 
 /**

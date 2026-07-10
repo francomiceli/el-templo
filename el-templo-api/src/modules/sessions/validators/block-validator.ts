@@ -39,6 +39,7 @@ const FORMAT_COMPATIBILITY: Record<BlockRole, readonly string[]> = {
     "For Time",
     "Chipper",
     "Complex",
+    "Combos",
     "I Go You Go",
   ],
   // ROM blocks use fixed For Quality format

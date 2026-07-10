@@ -128,17 +128,20 @@ function prescribeBuyInCashOut(
 }
 
 /**
- * Complex: All exercises done back-to-back, equal reps
+ * Complex / Combos: All exercises done back-to-back, equal reps
  * Structure: A + B + C (no rest between, same load)
  * Budget split: Equal across all exercises
  */
-function prescribeComplex(ctx: PrescriptionContext): ExercisePrescription[] {
+function prescribeBackToBack(
+  ctx: PrescriptionContext,
+  firstExerciseNote: string,
+): ExercisePrescription[] {
   const { exercises, repsBudget, restTime } = ctx;
 
-  // Complex is 3 rounds — budget represents total volume, so divide by rounds
-  // to get per-round reps (which is what's displayed to the athlete)
-  const COMPLEX_ROUNDS = 3;
-  const budgetPerRound = repsBudget / COMPLEX_ROUNDS;
+  // Both formats default to 3 rounds — budget represents total volume, so
+  // divide by rounds to get per-round reps (which is what's displayed to the athlete)
+  const BACK_TO_BACK_ROUNDS = 3;
+  const budgetPerRound = repsBudget / BACK_TO_BACK_ROUNDS;
   const repsPerExercise = roundToNearest5(budgetPerRound / exercises.length);
 
   return exercises.map((ex, i) =>
@@ -146,9 +149,17 @@ function prescribeComplex(ctx: PrescriptionContext): ExercisePrescription[] {
       ex,
       repsPerExercise,
       i === exercises.length - 1 ? restTime : 0, // Only rest after last exercise
-      i === 0 ? "Complex - sin descanso entre ejercicios" : undefined,
+      i === 0 ? firstExerciseNote : undefined,
     ),
   );
+}
+
+function prescribeComplex(ctx: PrescriptionContext): ExercisePrescription[] {
+  return prescribeBackToBack(ctx, "Complex - sin descanso entre ejercicios");
+}
+
+function prescribeCombos(ctx: PrescriptionContext): ExercisePrescription[] {
+  return prescribeBackToBack(ctx, "Combo - sin descanso entre ejercicios");
 }
 
 /**
@@ -635,6 +646,7 @@ const PRESCRIBER_REGISTRY: Record<string, Prescriber> = {
   "buy-in / cash-out": prescribeBuyInCashOut,
   "buy-in/cash-out": prescribeBuyInCashOut,
   complex: prescribeComplex,
+  combos: prescribeCombos,
   amrap: prescribeAMRAP,
   "amrap series": prescribeAMRAPSeries,
   emom: prescribeEMOM,

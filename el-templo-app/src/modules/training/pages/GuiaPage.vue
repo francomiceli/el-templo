@@ -220,6 +220,16 @@ const FORMATS = [
     description: 'Ejercicios encadenados sin soltar la barra. Se ejecutan de forma consecutiva.',
   },
   {
+    name: 'Combos',
+    description:
+      'Combo de ejercicios encadenados sin descanso entre ellos. Repetí el combo la cantidad de rondas indicada.',
+  },
+  {
+    name: 'Stretching',
+    description:
+      'Bloque de estiramiento y movilidad guiado por el profe. Sin repeticiones prescritas.',
+  },
+  {
     name: 'Chipper',
     description: 'Lista larga de ejercicios. Se completan uno tras otro sin repetir.',
   },

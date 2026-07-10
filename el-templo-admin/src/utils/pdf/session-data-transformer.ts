@@ -106,6 +106,7 @@ function formatNameWithParams(
 
     // Rounds-only formats
     case 'complex':
+    case 'combos':
     case 'for_quality':
       return p.rounds ? `${name} X${p.rounds}` : name;
 

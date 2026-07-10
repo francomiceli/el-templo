@@ -23,6 +23,12 @@ import type {
   SwapExerciseParams,
 } from "./edit-types";
 
+/**
+ * Route code that accepts every exercise (no route filter on the block pool).
+ * Real row in `routes` (excluded_from_tree=1), but special-cased here like INITIUM.
+ */
+export const FULL_BODY_ROUTE = "FULLBODY";
+
 export class ExerciseSwapService {
   private prescribeService: PrescribeService;
 
@@ -64,6 +70,10 @@ export class ExerciseSwapService {
     // (route='INITIUM' is a marker, not a real route in the exercises table)
     const isInitium = blockRole === "INITIUM";
 
+    // FULLBODY route accepts every exercise: no route filter on the pool
+    // (contraction/difficulty filters still apply)
+    const isFullBody = route === FULL_BODY_ROUTE;
+
     const primaryConditions = isInitium
       ? [
           or(
@@ -71,7 +81,9 @@ export class ExerciseSwapService {
             eq(schema.exercises.category, "Movilidad"),
           )!,
         ]
-      : [eq(schema.exercises.route, route)];
+      : isFullBody
+        ? []
+        : [eq(schema.exercises.route, route)];
 
     if (contraction) {
       primaryConditions.push(
@@ -108,8 +120,9 @@ export class ExerciseSwapService {
     }));
 
     // Cross-route logic for non-INITIUM blocks:
-    // Include pattern_2 exercises from a different route (per 13-08)
-    if (!isInitium && pattern2) {
+    // Include pattern_2 exercises from a different route (per 13-08).
+    // FULLBODY already includes every route, so cross-route adds nothing.
+    if (!isInitium && !isFullBody && pattern2) {
       const crossConditions = [eq(schema.exercises.pattern, pattern2)];
       if (contraction) {
         crossConditions.push(
@@ -256,9 +269,7 @@ export class ExerciseSwapService {
 
     // Apply max difficulty filter
     if (params.maxDifficulty !== undefined) {
-      pool = pool.filter(
-        (ex) => ex.dificultadLineal <= params.maxDifficulty!,
-      );
+      pool = pool.filter((ex) => ex.dificultadLineal <= params.maxDifficulty!);
     }
 
     // Exclude exercises already in the block

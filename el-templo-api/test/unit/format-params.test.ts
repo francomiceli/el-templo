@@ -26,6 +26,7 @@ const DB_FORMAT_NAMES = [
   "Chipper",
   "Circuito cooperativo",
   "Cluster",
+  "Combos",
   "Complex",
   "Couplet",
   "Death By",
@@ -54,6 +55,7 @@ const DB_FORMAT_NAMES = [
   "Rest-Pause",
   "Rounds for Time",
   "Singlet",
+  "Stretching",
   "Tabata",
   "Task Priority",
   "Task Priority vs Time Priority",
@@ -145,6 +147,12 @@ describe("getDefaultFormatParams", () => {
   it("returns correct types for technical formats", () => {
     expect(getDefaultFormatParams("Complex", DEFAULT_CONTEXT).type).toBe(
       "complex",
+    );
+    expect(getDefaultFormatParams("Combos", DEFAULT_CONTEXT).type).toBe(
+      "combos",
+    );
+    expect(getDefaultFormatParams("Stretching", DEFAULT_CONTEXT).type).toBe(
+      "stretching",
     );
     expect(getDefaultFormatParams("For Quality", DEFAULT_CONTEXT).type).toBe(
       "for_quality",
@@ -259,6 +267,15 @@ describe("getDefaultFormatParams", () => {
     ).toBe("standard");
   });
 
+  it("gives Combos editable rounds with a default of 3", () => {
+    const combos = getDefaultFormatParams("Combos", DEFAULT_CONTEXT) as {
+      type: string;
+      rounds: number;
+    };
+    expect(combos.type).toBe("combos");
+    expect(combos.rounds).toBe(3);
+  });
+
   it("provides default values for configurable params", () => {
     const amrap = getDefaultFormatParams("AMRAP", DEFAULT_CONTEXT) as {
       minutes: number;
@@ -353,5 +370,9 @@ describe("formatParamsLabel", () => {
         restBetweenClusters: 15,
       }),
     ).toContain("5");
+    expect(formatParamsLabel({ type: "combos", rounds: 4 })).toBe(
+      "Combos - 4 rondas",
+    );
+    expect(formatParamsLabel({ type: "stretching" })).toBe("Stretching");
   });
 });

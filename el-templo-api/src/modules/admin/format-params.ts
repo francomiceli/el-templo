@@ -79,10 +79,12 @@ export type FormatParams =
 
   // ── Technical / Skill-focused ───────────────────────────────────────────
   | { type: "complex"; rounds: number }
+  | { type: "combos"; rounds: number }
   | { type: "for_quality"; rounds: number }
   | { type: "for_tech"; minutes: number }
   | { type: "tempo_sets"; tempo: string }
   | { type: "flow_guiado" }
+  | { type: "stretching" }
   | { type: "cluster"; clusterSize: number; restBetweenClusters: number }
 
   // ── Structure-based ─────────────────────────────────────────────────────
@@ -129,6 +131,7 @@ const DEFAULTS = {
   AMRAP_SERIES_ROUNDS: 3,
   EMOM_INTERVAL_SECONDS: 60,
   COMPLEX_ROUNDS: 3,
+  COMBOS_ROUNDS: 3,
   TABATA_WORK_SECONDS: 20,
   TABATA_REST_SECONDS: 10,
   TABATA_ROUNDS: 8,
@@ -322,6 +325,7 @@ function buildExactMap(
 
     // Technical
     complex: () => ({ type: "complex", rounds: DEFAULTS.COMPLEX_ROUNDS }),
+    combos: () => ({ type: "combos", rounds: DEFAULTS.COMBOS_ROUNDS }),
     for_quality: () => ({
       type: "for_quality",
       rounds: DEFAULTS.FOR_QUALITY_ROUNDS,
@@ -335,6 +339,7 @@ function buildExactMap(
       tempo: DEFAULTS.TEMPO_DEFAULT,
     }),
     flow_guiado: () => ({ type: "flow_guiado" }),
+    stretching: () => ({ type: "stretching" }),
     cluster: () => ({
       type: "cluster",
       clusterSize: DEFAULTS.CLUSTER_SIZE,
@@ -462,6 +467,12 @@ export function getDefaultFormatParams(
   }
   if (normalized.includes("complex")) {
     return map["complex"]();
+  }
+  if (normalized.includes("combo")) {
+    return map["combos"]();
+  }
+  if (normalized.includes("stretch")) {
+    return map["stretching"]();
   }
   if (normalized.includes("tempo")) {
     return map["tempo_sets"]();
@@ -630,6 +641,8 @@ export function formatParamsLabel(params: FormatParams): string {
     // Technical
     case "complex":
       return `Complex - ${params.rounds} rondas`;
+    case "combos":
+      return `Combos - ${params.rounds} rondas`;
     case "for_quality":
       return `For Quality - ${params.rounds} rondas`;
     case "for_tech":
@@ -638,6 +651,8 @@ export function formatParamsLabel(params: FormatParams): string {
       return `Tempo Sets - ${params.tempo}`;
     case "flow_guiado":
       return "Flow Guiado";
+    case "stretching":
+      return "Stretching";
     case "cluster":
       return `Cluster - ${params.clusterSize} reps, ${params.restBetweenClusters}s rest`;
 
