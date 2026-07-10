@@ -181,6 +181,10 @@ const TABLES_TO_CLEAN = [
   // Tables referencing layer-3 parents
   schema.attendance,
   schema.auraTransactions,
+  // Fase 157: vínculo de referido + registro auditable. FK a users/subscriptions
+  // (FK checks off durante el DELETE), se limpian para no filtrar vínculos entre tests.
+  schema.referralCredits,
+  schema.referrals,
   schema.memberNotes,
   schema.holidays,
   // Phase 117: finance tables were missing here, leaking financial_transactions
