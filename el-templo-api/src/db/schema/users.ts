@@ -163,6 +163,17 @@ export const users = mysqlTable(
     createdBy: int("created_by").references((): AnyMySqlColumn => users.id, {
       onDelete: "set null",
     }),
+    // Phase 157 (REF-01): código de referido compartible tipo FRAN-A3B2 (D-16),
+    // único por socio. Nullable: se genera eager para socios nuevos (D-25) y por
+    // backfill idempotente para los ~2000 existentes (no en la migración).
+    referralCode: varchar("referral_code", { length: 16 }).unique(),
+    // Phase 157 (REF-01/D-08): quién lo refirió (self-FK a users). Lo escriben
+    // ambos canales de atribución. Clona el patrón de createdBy (AnyMySqlColumn +
+    // ON DELETE SET NULL). El vínculo canónico vive en la tabla referrals; esto
+    // es el puntero denormalizado en users.
+    referredBy: int("referred_by").references((): AnyMySqlColumn => users.id, {
+      onDelete: "set null",
+    }),
     // Phase 104 R5: pointer to the program_enrollment the member is currently
     // viewing. NULL means "Templo view" (only valid if user has presencial
     // plan). Set/cleared by PUT /api/members/me/current-program (Plan 04).
@@ -189,6 +200,8 @@ export const users = mysqlTable(
     // Phase 114 (D-18): filter performance for the trial sessions report.
     index("idx_users_lead_status").on(table.leadStatus),
     index("idx_users_created_by").on(table.createdBy),
+    // Phase 157 (REF-01): lookup de referidos por referidor.
+    index("idx_users_referred_by").on(table.referredBy),
   ],
 );
 
