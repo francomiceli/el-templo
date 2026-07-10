@@ -38,6 +38,18 @@ El corazón "de la plata" del sistema de referidos (milestone v5.5), tres cosas 
 - **D-11 (Ventana de cualificación = sin límite):** el referido cuenta cuando pague su 1er plan, **sin importar cuánto tarde** desde el registro. El trigger de pago (D-01) ya es la barrera antifraude; no hace falta ventana temporal.
 - **D-12 (Calibración = config ajustable):** sembrar en `aura_config` (fila `referral`): **10% por vínculo activo, tope 40%**. Valores **ajustables sin deploy** para calibrar con números reales. El % por vínculo y el tope son las dos perillas de erosión de ingreso.
 
+### Zonas grises resueltas post-research (2026-07-10, con Franco)
+
+Resuelven las 7 Open Questions de 157-RESEARCH.md — el planner NO debe re-abrirlas:
+
+- **D-19 (Aplicación contable = reducir precio directo):** el cobro nace con `pricePaid` ya descontado (mismo modelo que el gasto AURA discrecional existente), con anotación en `referral_credits` para auditoría. NO split contable con línea `aura_credit` separada. _(OQ #3)_
+- **D-20 (Umbral de cualificación = plan pago):** el vínculo pasa a `qualified` cuando el referido recibe su primera suscripción con `pricePaid > 0` — cualifica aunque quede deuda parcial; un plan 100% bonificado (precio 0) NO cualifica. _(OQ #4)_
+- **D-21 (El cobro que cualifica ya descuenta):** el flip a `qualified` ocurre ANTES de computar el descuento del mismo cobro — el referido ya paga menos su primera cuota y el referidor descuenta desde su próximo cobro. _(OQ #5)_
+- **D-22 (Config en dos lugares):** `aura_config` fila `referral` con `defaultAmount = 10` (% por vínculo, satisface AURA-02 literal) + `system_settings['referral.max_percent_cap'] = '40'` (tope, precedente `finance.pending_overdue_days` mig 0157). Ambos ajustables sin deploy. NO alterar el shape de `aura_config`. _(OQ #1)_
+- **D-23 (Columnas nuevas, refina D-07):** `referralDiscountPercent`/`referralDiscountAmount` en `subscriptions` — D-07 reusa el CONCEPTO de % del plan, no la columna `auraDiscountPercent` (esa la escribe el gasto AURA discrecional y colisionaría). Los dos mecanismos componen de forma independiente. _(OQ #2)_
+- **D-24 (Solo la contraparte, refina D-09):** al cobrar la cuota de X se evalúa únicamente la cobertura vigente de la contraparte de cada vínculo `qualified` — el pagador se vuelve activo por definición al pagar (cubre el caso "vencido que renueva"). _(OQ #6)_
+- **D-25 (Código eager para nuevos, refina D-17):** el `referralCode` se genera en el momento del alta/registro para socios NUEVOS; el script de backfill idempotente queda disponible a demanda solo para los ~2000 existentes (correrlo antes de lanzar la fase 158). NO en la migración. _(OQ #7)_
+
 ### Antifraude (del brief, aplican a esta fase)
 
 - **D-13:** impedir **auto-referido** (`referrerId != referredId`).
