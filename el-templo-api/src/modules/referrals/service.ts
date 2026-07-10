@@ -9,8 +9,8 @@
 //   3. getReferralConfig — % por vínculo (aura_config) + tope (system_settings)
 //      con fallback 10/40 (D-12/AURA-02).
 //   4. computeReferralDiscountPercent — descuento simétrico condicional topeado.
-//      "Activo" = deriveCoveredUntil de la contraparte, NUNCA users.status
-//      (D-09/D-24).
+//      "Activo" = deriveCoveredUntil de la contraparte, NUNCA el estado
+//      derivado por cron del usuario (D-09/D-24).
 //   5. qualifyFirstPayment / recordReferralCredit — flip idempotente del vínculo
 //      y anotación auditable en referral_credits + aura_transactions amount=0 SIN
 //      inflar el saldo gastable (AURA-01/D-06/D-18).
@@ -151,7 +151,7 @@ export class ReferralService {
    * Descuento simétrico condicional topeado (DESC-02/03/04). Suma percentPerLink
    * por cada vínculo `qualified` (en cualquiera de las dos direcciones) cuya
    * CONTRAPARTE esté cubierta hoy — "activo" se determina SOLO con
-   * deriveCoveredUntil (D-09/D-24), nunca con users.status. Topeado a
+   * deriveCoveredUntil (D-09/D-24), nunca con el estado del socio. Topeado a
    * maxPercentCap. Cero vínculos activos → 0.
    */
   async computeReferralDiscountPercent(userId: number): Promise<number> {
