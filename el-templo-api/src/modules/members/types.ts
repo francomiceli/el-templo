@@ -226,6 +226,21 @@ export interface CreateMemberInput {
   emergencyContactName?: string;
   emergencyContactPhone?: string;
   emergencyContactRelationship?: string;
+  /**
+   * Phase 157-03 (REF-03, D-08): canal asistido "¿Quién lo trajo?". userId del
+   * referidor elegido por el admin. Validado server-side en el route (socio
+   * real, nunca crudo — Security V4). Opcional: nunca bloquea el alta.
+   */
+  referredBy?: number;
+}
+
+/**
+ * Phase 157-03 (REF-03): service-layer payload for createMember. `createdBy`
+ * (admin del JWT) y `referredBy` (validado en el route) se derivan server-side
+ * — NUNCA se leen crudos del body (guard anti-spoof, igual que createTrialMember).
+ */
+export interface CreateMemberServiceInput extends CreateMemberInput {
+  createdBy?: number;
 }
 
 /**

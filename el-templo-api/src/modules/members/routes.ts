@@ -8,7 +8,7 @@
  */
 
 import { FastifyPluginAsync } from "fastify";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import * as schema from "../../db/schema";
@@ -610,9 +610,39 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
     },
     async (request, reply) => {
       try {
-        const { member, tempPassword } = await memberService.createMember(
-          request.body,
-        );
+        // Phase 157-03 (REF-03, D-08): validate the assisted-channel referrer
+        // server-side — never trust the raw body id (Security V4/T-157-08). A
+        // missing/invalid referrer is dropped gracefully (undefined) so the
+        // alta still proceeds without attribution (UI-SPEC hard rule). The
+        // brand-new member's id doesn't exist yet, so auto-referral (D-13) is
+        // structurally impossible here; createMember guards it defensively.
+        let referredBy: number | undefined = request.body.referredBy;
+        if (referredBy !== undefined) {
+          const [ref] = await fastify.db
+            .select({ id: schema.users.id })
+            .from(schema.users)
+            .where(
+              and(
+                eq(schema.users.id, referredBy),
+                isNull(schema.users.deletedAt),
+              ),
+            )
+            .limit(1);
+          if (!ref) {
+            request.log.warn(
+              { referredBy },
+              "referral: referrer inexistente en alta asistida, atribución omitida",
+            );
+            referredBy = undefined;
+          }
+        }
+
+        const { member, tempPassword } = await memberService.createMember({
+          ...request.body,
+          // createdBy from the JWT admin; referredBy is the validated value.
+          createdBy: request.user.userId,
+          referredBy,
+        });
 
         // Auto-create subscription at base regular price when a plan was
         // selected. Plan is optional at creation: admin can assign it later

@@ -36,6 +36,7 @@ import type {
   MemberExportRow,
   SepaExportRow,
   CreateMemberInput,
+  CreateMemberServiceInput,
   CreateTrialMemberServiceInput,
   CreateMinimalMemberServiceInput,
   ConvertFreemiumToTrialServiceInput,
@@ -55,6 +56,7 @@ import {
   NotFoundError,
 } from "../shared/errors";
 import { isDuplicateKeyError } from "../shared/sql-errors";
+import { ReferralService } from "../referrals/service";
 import { isValidIban, normalizeIban } from "../shared/iban";
 import { activeMemberExists } from "../shared/active-member";
 import { alias } from "drizzle-orm/mysql-core";
@@ -667,7 +669,7 @@ export class MemberService {
    * Throws on duplicate email or DNI.
    */
   async createMember(
-    input: CreateMemberInput,
+    input: CreateMemberServiceInput,
   ): Promise<{ member: MemberProfile; tempPassword: string }> {
     const tempPassword = MEMBER_TEMP_PASSWORD;
     const passwordHash = await argon2.hash(tempPassword);
@@ -703,6 +705,10 @@ export class MemberService {
         emergencyContactRelationship:
           input.emergencyContactRelationship || null,
         role: "member",
+        // Phase 157-03 (REF-03, D-08): canal asistido. referredBy ya viene
+        // validado del route (socio real o undefined). Se persiste en el mismo
+        // insert; el vínculo referrals(pending, assisted) se crea abajo.
+        referredBy: input.referredBy ?? null,
         // Phase 103-04 (R7, D-12, BLOCKER 3): admin enrolling someone who walked
         // into a sede starts as 'prueba'. If planId is also provided, the
         // route handler calls subscriptionService.assignPlan which triggers
@@ -729,6 +735,50 @@ export class MemberService {
 
       return newUserId;
     });
+
+    // Phase 157-03 (milestone v5.5): referral attribution + eager code. Both
+    // are best-effort and run OUTSIDE the user tx so a referral failure can
+    // never roll back the alta (graceful degradation, T-157-11 / UI-SPEC hard
+    // rule). The assisted link is written HERE — inside createMember, before
+    // the route calls assignPlan — so plan 04's qualification flip finds the
+    // pending link in the same request.
+    const referralService = new ReferralService(this.db, this.log);
+
+    // (1) Assisted attribution (REF-03, D-08). referredBy is the route-validated
+    // referrer id; guard auto-referral (D-13) defensively. A second claim on the
+    // same referred_id (UNIQUE, D-14) throws and is swallowed here.
+    if (input.referredBy != null && input.referredBy !== userId) {
+      try {
+        await this.db.insert(schema.referrals).values({
+          referrerId: input.referredBy,
+          referredId: userId,
+          status: "pending",
+          attributionChannel: "assisted",
+          createdBy: input.createdBy ?? null,
+        });
+      } catch (err: unknown) {
+        this.log.warn(
+          {
+            err: err instanceof Error ? err.message : String(err),
+            referredBy: input.referredBy,
+            userId,
+          },
+          "Assisted referral attribution failed (graceful degradation)",
+        );
+      }
+    }
+
+    // (2) Eager generation of the new member's OWN referral code (REF-01, D-25),
+    // independent of referredBy. An irrecoverable UNIQUE collision leaves
+    // referral_code NULL (the backfill covers it) and NEVER blocks the alta.
+    try {
+      await referralService.generateReferralCode(userId);
+    } catch (err: unknown) {
+      this.log.warn(
+        { err: err instanceof Error ? err.message : String(err), userId },
+        "Eager referral code generation failed (graceful degradation)",
+      );
+    }
 
     const member = await this.getMemberById(userId);
 
