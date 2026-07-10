@@ -1,10 +1,11 @@
 ---
 phase: 157
 slug: n-cleo-transaccional-de-referidos
-status: draft
+status: approved
 shadcn_initialized: false
 preset: none
 created: 2026-07-10
+reviewed_at: 2026-07-10
 ---
 
 # Phase 157 — UI Design Contract
@@ -81,7 +82,11 @@ Exceptions (pre-existing in the analog files — MATCH, do not re-specify or "fi
 | Field label / hint | Quasar `dense outlined` default (~13px label, `text-caption` ~12px hint) | 400                       | 1.4         | reuse existing field styling exactly                 |
 | Body               | `text-body2` (~14px)                                                     | 400                       | 1.5         | unchanged                                            |
 
-Weights in play: 400 (regular) + 700/`text-weight-bold` (section headers, badge). App badge/CTAs also use Montserrat 600.
+**Weights in play (this phase's typography budget — ≤2 new/in-scope weights):** 400 (regular, body/inputs/labels) + 700/`text-weight-bold` (S2 section headers, S1 badge subtext). These are the only two weights this phase introduces or touches.
+
+**Inherited exception — EXEMPT from this phase's budget:** the S1 badge eyebrow renders at Montserrat 600 because it reuses the pre-existing, already-shipped `.promo-badge__code` style verbatim. This phase's scope note forbids touching that style, so its 600 weight is inherited unmodified and is NOT a new typographic decision — it does not count against the 2-weight max.
+
+**Secondary size note (intentional, not drift):** the 13px `dense outlined` field label vs the 14px `text-subtitle2`/`text-body2` sizing is an intentional consequence of Quasar framework defaults (dense inputs render labels smaller than section headers/body). This distinction is inherited from the surrounding form, not a new sizing choice.
 
 ---
 
@@ -99,6 +104,8 @@ Two surfaces, two themes. Accent stays reserved and minimal per 60/30/10.
 | Destructive     | `#b34a4a` Warm red                              | (none used this phase)                                              |
 
 **Accent reserved for:** the referral confirmation badge (icon `group_add` + subtext + `1px` amber border/gradient wash), mirroring the promo badge's amber treatment. Nothing else on the register page changes color. Do NOT introduce blue.
+
+**Semantic split of the two S1 accents:** amber `#d4a843` is the referral-badge-specific accent introduced by this phase (the only new decorative color decision); terracotta `#96593a`/`$brand-terracotta` is the pre-existing register-CTA accent, unchanged by this phase and NOT a new decorative choice — it is listed only because the badge/CTA share the same reserved 10% band.
 
 ### S2 — Admin / MemberFormDialog (light)
 
