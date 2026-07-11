@@ -5,7 +5,8 @@ export type NotificationCategory =
   | "programas"
   | "motivacion"
   | "anuncios"
-  | "planes";
+  | "planes"
+  | "referidos";
 
 export type NotificationStatus = "pending" | "sent" | "failed";
 
@@ -17,6 +18,7 @@ export const NOTIFICATION_CATEGORIES = [
   "motivacion",
   "anuncios",
   "planes",
+  "referidos",
 ] as const;
 
 // ── Service Inputs ──────────────────────────────────────────────────────────
@@ -216,5 +218,14 @@ export const TEMPLATE_SEEDS: TemplateSeed[] = [
     bodyFemale:
       "Tu membresia vencio. Renovala por WhatsApp para seguir entrenando.",
     route: "/reservas",
+  },
+  {
+    templateKey: "referral_link_activated",
+    category: "referidos",
+    title: "¡Tu referido pagó!",
+    body: "{Nombre} pagó su primer plan. Ya tenés tu descuento activo.",
+    titleFemale: "¡Tu referida pagó!",
+    bodyFemale: "{Nombre} pagó su primer plan. Ya tenés tu descuento activo.",
+    route: "/mis-referidos",
   },
 ];
