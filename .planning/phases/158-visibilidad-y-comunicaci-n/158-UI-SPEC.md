@@ -69,13 +69,15 @@ Exceptions (pre-existing in the analog files — MATCH, do not re-specify or "fi
 
 ### S1/S2 — App (dark surface)
 
-| Role                              | Size            | Weight | Line Height | Notes                                                                                       |
-| --------------------------------- | --------------- | ------ | ----------- | ------------------------------------------------------------------------------------------- |
-| Discount headline ("X% menos")    | 1.5rem (24px)   | 700    | 1.2         | Montserrat — the one prominent element on the page                                          |
-| Section title ("Trajiste a" etc.) | 1rem (16px)     | 600    | 1.2         | Montserrat — reuse `.section-title` from `ProfilePage.vue` verbatim                         |
-| Body / vínculo names / breakdown  | 0.875rem (14px) | 400    | 1.5         | Geologica (`$body-font-size: 14px`, `$body-line-height: 1.5`)                               |
-| Caption ("se reactiva si vuelve") | 0.75rem (12px)  | 400    | 1.4         | Geologica, muted (`text-grey-6` on dark → `rgba($cream,0.6)`), reuse `q-item-label caption` |
-| Code value (monospace-ish)        | 1.25rem (20px)  | 700    | 1.2         | Montserrat, `letter-spacing: 0.1em` — the shareable code, prominent                         |
+| Role                              | Size            | Weight | Line Height | Notes                                                                                         |
+| --------------------------------- | --------------- | ------ | ----------- | --------------------------------------------------------------------------------------------- |
+| Discount headline ("X% menos")    | 1.5rem (24px)   | 700    | 1.2         | Montserrat — display size, shared with the code value                                         |
+| Code value                        | 1.5rem (24px)   | 700    | 1.2         | Montserrat, `letter-spacing: 0.1em` — SAME display size as the headline (single display step) |
+| Section title ("Trajiste a" etc.) | 1rem (16px)     | 600    | 1.2         | Montserrat — reuse `.section-title` from `ProfilePage.vue` verbatim                           |
+| Body / vínculo names / breakdown  | 0.875rem (14px) | 400    | 1.5         | Geologica (`$body-font-size: 14px`, `$body-line-height: 1.5`)                                 |
+| Caption ("se reactiva si vuelve") | 0.75rem (12px)  | 400    | 1.4         | Geologica, muted (`text-grey-6` on dark → `rgba($cream,0.6)`), reuse `q-item-label caption`   |
+
+**Sizes in play (typography budget — 4 sizes):** 12 (caption) / 14 (body) / 16 (section title) / 24 (display — discount headline AND code value share this single step). Do NOT introduce a fifth size.
 
 **Weights in play (typography budget — 2 weights):** 400 (regular — body/names/breakdown/captions) + 700 (bold — discount headline + code). **Inherited exception — EXEMPT from budget:** the 600 weight on `.section-title` is reused verbatim from the already-shipped `ProfilePage.vue` style; this phase does not introduce it and its scope forbids editing that rule, so it does not count as a new typographic decision.
 
@@ -137,7 +139,7 @@ Two surfaces, two themes. Accent stays reserved and minimal per 60/30/10. No blu
 
 **Block 1 — Code + Share (always visible, even with zero vínculos — this screen IS the diffusion tool):**
 
-- Card (secondary surface) with `card_giftcard` icon (terracotta), eyebrow "TU CÓDIGO", the code value prominent (700 / 20px / `letter-spacing 0.1em`), and a primary `q-btn` "Compartir mi código".
+- Card (secondary surface) with `card_giftcard` icon (terracotta), eyebrow "TU CÓDIGO", the code value prominent (700 / 24px display size / `letter-spacing 0.1em`), and a primary `q-btn` "Compartir mi código".
 - Share = native Capacitor share, dynamic-imported exactly like `bar-challenge/Resultado.vue:217-219`: `Share.share({ title, text, url })` where `url` = public registration URL + `?ref={referralCode}` (URL base owned by planning). Fallback on share rejection: copy the link to clipboard + `$q.notify` warning (mirror the Resultado fallback pattern).
 
 **Block 2 — Current discount (pedagogical, D-27.2 + Specifics):**
@@ -263,3 +265,5 @@ No shadcn, no third-party registries, no external UI blocks. Registry vetting ga
 2. Derived-state chips map to warm semantics olive/green/gold (Pendiente/Activo/Suspendido); Suspendido is gold (paused), never red.
 3. Admin surface is a new "Referidos" tab in `AlumnoDetailPage`; planner may fold it into the "Perfil" tab instead — visual contract holds either way.
 4. Share URL = public registration URL + `?ref={code}` (the same param `RegisterPage.vue` already reads, per 157); the exact base host is a planning decision.
+
+**Revision (2026-07-11, checker Dimension 4):** the app font-size scale was reduced from 5 to 4 steps — the code value (formerly 20px) now shares the 24px display size with the discount headline. No other contract value changed.
