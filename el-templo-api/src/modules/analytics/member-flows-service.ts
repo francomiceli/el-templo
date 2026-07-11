@@ -18,9 +18,11 @@
  *   - BAJA CONFIRMADA (mes M): persona cuyo ÚLTIMO vencimiento cayó en M
  *     (D-04) y que NO renovó dentro de la ventana (D-05), contada solo si su
  *     ventana de gracia ya venció (D-08).
- *   - BAJA EN GRACIA (mes M): último vencimiento en M, todavía dentro de la
- *     ventana y sin renovar — puede volver. Va aparte (`bajasEnGracia`, no
- *     suma a `bajas`) y el mes queda marcado provisional.
+ *   - BAJA EN GRACIA (mes M): último vencimiento en M que YA OCURRIÓ
+ *     (`endDate < hoy`), hace menos de `ventana` días y sin renovar — puede
+ *     volver. Va aparte (`bajasEnGracia`, no suma a `bajas`) y el mes queda
+ *     marcado provisional. Una sub que vence a futuro dentro del rango NO es
+ *     baja de ningún tipo (todavía no venció): solo marca el mes provisional.
  *   - ALTA (mes M): unión person-based de dos fuentes:
  *       (a) inicio de racha de cobertura en M — `startDate` cae en M y NO
  *           existe otra sub previa de la persona cuyo `endDate` llegue hasta
@@ -287,6 +289,9 @@ export class MemberFlowsService {
         bucket,
         matured: maturedExpr(window),
         retained: retainedExpr(window),
+        // Literal qualifier (misma convención que maturedExpr): un end_date en
+        // el futuro dentro del rango pedido es una sub VIGENTE, no una baja.
+        expired: sql<number>`(subscriptions.end_date < CURDATE())`,
       })
       .from(schema.subscriptions)
       .$dynamic();
@@ -317,11 +322,13 @@ export class MemberFlowsService {
       }
       const matured = Number(r.matured) === 1;
       const retained = Number(r.retained) === 1;
+      const expired = Number(r.expired) === 1;
       if (!matured) {
         entry.provisional = true;
-        // En gracia: venció hace menos de `window` días y todavía no renovó.
-        // Si ya renovó (retained) no es baja de ningún tipo.
-        if (!retained) entry.enGracia += 1;
+        // En gracia: YA venció (no un vencimiento futuro del rango), hace
+        // menos de `window` días, y todavía no renovó. Si ya renovó
+        // (retained) no es baja de ningún tipo.
+        if (expired && !retained) entry.enGracia += 1;
         continue;
       }
       if (!retained) entry.bajas += 1;
