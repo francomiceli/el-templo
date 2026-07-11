@@ -38,6 +38,18 @@ async function clearReferralConfig(): Promise<void> {
   );
 }
 
+/**
+ * El registro asigna referral_code EAGER (157-03, auth/routes.ts), así que los
+ * fixtures de createMember nacen con código y generateReferralCode devuelve el
+ * existente sin consultar el suffixFn inyectado. Los tests que necesitan
+ * ejercitar la GENERACIÓN (colisión, prefijo estable) anulan el código primero.
+ */
+async function clearCode(userId: number): Promise<void> {
+  await app.db.execute(
+    sql`UPDATE users SET referral_code = NULL WHERE id = ${userId}`,
+  );
+}
+
 /** Fija la calibración de referidos a valores conocidos. */
 async function setReferralConfig(percent: number, cap: number): Promise<void> {
   await app.db.execute(
@@ -88,6 +100,8 @@ describe("ReferralService.generateReferralCode", () => {
       email: "collide-b@test.com",
       firstName: "Franco",
     });
+    await clearCode(a.id);
+    await clearCode(b.id);
 
     // A ocupa FRAN-AAAA (sufijo fijo).
     const serviceA = new ReferralService(app.db, app.log, () => "AAAA");
@@ -110,6 +124,7 @@ describe("ReferralService.generateReferralCode", () => {
       email: "noletters@test.com",
       firstName: "123",
     });
+    await clearCode(member.id);
     const service = new ReferralService(app.db, app.log, () => "ZZZZ");
 
     const code = await service.generateReferralCode(member.id);

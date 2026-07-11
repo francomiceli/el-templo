@@ -34,6 +34,17 @@ async function readCode(userId: number): Promise<string | null> {
   return (rows as Array<{ referral_code: string | null }>)[0]?.referral_code;
 }
 
+/**
+ * El registro asigna referral_code EAGER (157-03, auth/routes.ts), así que
+ * todo fixture de createMember nace con código. El backfill existe para los
+ * socios legacy pre-157: estos tests simulan ese estado anulando el código.
+ */
+async function clearCode(userId: number): Promise<void> {
+  await app.db.execute(
+    sql`UPDATE users SET referral_code = NULL WHERE id = ${userId}`,
+  );
+}
+
 describe("backfillReferralCodes", () => {
   it("asigna un código válido a los socios sin referral_code", async () => {
     const a = await createMember(app, {
@@ -44,6 +55,8 @@ describe("backfillReferralCodes", () => {
       email: "bf-b@test.com",
       firstName: "Ludmila",
     });
+    await clearCode(a.id);
+    await clearCode(b.id);
 
     const result = await backfillReferralCodes(app.db, { apply: true });
 
@@ -58,6 +71,7 @@ describe("backfillReferralCodes", () => {
       email: "bf-idem@test.com",
       firstName: "Nadia",
     });
+    await clearCode(m.id);
 
     await backfillReferralCodes(app.db, { apply: true });
     const codeAfterFirst = await readCode(m.id);
@@ -82,6 +96,7 @@ describe("backfillReferralCodes", () => {
       email: "bf-null@test.com",
       firstName: "Sofia",
     });
+    await clearCode(without.id);
 
     await backfillReferralCodes(app.db, { apply: true });
 
@@ -94,6 +109,7 @@ describe("backfillReferralCodes", () => {
       email: "bf-dry@test.com",
       firstName: "Ivan",
     });
+    await clearCode(m.id);
 
     const result = await backfillReferralCodes(app.db, { apply: false });
 
