@@ -75,7 +75,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { createLogger } from 'src/utils/logger';
@@ -149,6 +149,17 @@ async function load() {
 onMounted(() => {
   void load();
 });
+
+// Los cross-links "Lo trajo"/"Trajo a" navegan a otra ficha reutilizando la
+// misma instancia de página (solo cambia el route param), así que este tab
+// recibe un userId nuevo sin remontarse.
+watch(
+  () => props.userId,
+  () => {
+    overview.value = null;
+    void load();
+  }
+);
 </script>
 
 <style scoped>

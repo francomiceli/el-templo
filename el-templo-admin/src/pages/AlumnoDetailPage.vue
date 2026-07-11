@@ -1409,4 +1409,14 @@ function openWhatsapp(phone: string): void {
 onMounted(() => {
   loadAll();
 });
+
+// Los cross-links del tab Referidos navegan /alumnos/:a → /alumnos/:b
+// reutilizando esta misma instancia (solo cambia el route param): recargar
+// toda la ficha para no seguir mostrando los datos del alumno anterior.
+// El guard de Number.isInteger evita disparar al salir de la ruta (param undefined).
+watch(userId, (newId, oldId) => {
+  if (newId !== oldId && Number.isInteger(newId)) {
+    void loadAll();
+  }
+});
 </script>
