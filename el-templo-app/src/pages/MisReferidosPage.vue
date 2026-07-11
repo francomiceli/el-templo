@@ -104,10 +104,10 @@
       <!-- Estado vacío (cero vínculos): Bloque 1 + Bloque 2 quedan arriba, esto reemplaza el Bloque 3 -->
       <div v-else class="referidos-empty">
         <q-icon name="group_add" size="48px" color="primary" />
-        <p class="referidos-empty__heading">Todavía no trajiste a nadie</p>
+        <p class="referidos-empty__heading">Todavía no referiste a nadie</p>
         <p class="referidos-empty__body">
-          Compartí tu código con quien quieras entrenar. Cuando pague su primer plan, los dos
-          empiezan a pagar menos su cuota.
+          Compartí tu código con quien quieras entrenar. Mientras vos y tu referido sean activos,
+          obtienen un descuento en su cuota.
         </p>
       </div>
     </template>
