@@ -338,6 +338,7 @@
           indicator-color="primary"
         >
           <q-tab name="perfil" label="Perfil" />
+          <q-tab name="referidos" label="Referidos" />
           <q-tab name="entrenamiento" label="Entrenamiento" />
           <q-tab name="notas" label="Notas" />
           <q-tab name="suscripcion">
@@ -383,6 +384,11 @@
                 </div>
               </q-card-section>
             </q-card>
+          </q-tab-panel>
+
+          <!-- Referidos Tab (Phase 158-04, VIS-03) -->
+          <q-tab-panel name="referidos">
+            <MemberReferralsTab :user-id="userId" />
           </q-tab-panel>
 
           <!-- Entrenamiento Tab -->
@@ -795,6 +801,7 @@ import {
 import type { OutstandingConcept } from 'src/types/transaction';
 import { useStatusBadge } from 'src/composables/useStatusBadge';
 import MemberProfileTab from 'src/components/MemberProfileTab.vue';
+import MemberReferralsTab from 'src/components/MemberReferralsTab.vue';
 import MemberNotesTab from 'src/components/MemberNotesTab.vue';
 import MemberSubscriptionTab from 'src/components/MemberSubscriptionTab.vue';
 import MemberProgramsTab from 'src/components/MemberProgramsTab.vue';
