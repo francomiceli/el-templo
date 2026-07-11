@@ -297,8 +297,33 @@ export class ReferralService {
    * UPDATE guardado `WHERE referred_id=? AND status='pending'`: idempotente y
    * race-safe (no-op si no hay pending o ya está qualified). El gate de "primer
    * pago con pricePaid>0" lo aplica el llamador (plan 04, D-20); acá solo el flip.
+   *
+   * Devuelve el vínculo que EFECTIVAMENTE flippeó (`referrerId` + nombre del
+   * referido para interpolar la notificación al referidor, VIS-02/D-31), o `null`
+   * si no hubo pending que flippear (re-cobro o sin vínculo) — así el hook de
+   * notificación dispara UNA sola vez, en el flip real. El SELECT previo NO altera
+   * la mecánica del UPDATE (157 congelada): la cláusula del UPDATE es idéntica.
    */
-  async qualifyFirstPayment(payerUserId: number): Promise<void> {
+  async qualifyFirstPayment(
+    payerUserId: number,
+  ): Promise<{ referrerId: number; referredFirstName: string } | null> {
+    // SELECT previo del vínculo pending (con el firstName del payer/referido)
+    // ANTES del UPDATE: si no hay pending, no hubo flip → no notificar.
+    const [pending] = await this.db
+      .select({
+        referrerId: referrals.referrerId,
+        referredFirstName: users.firstName,
+      })
+      .from(referrals)
+      .innerJoin(users, eq(users.id, referrals.referredId))
+      .where(
+        and(
+          eq(referrals.referredId, payerUserId),
+          eq(referrals.status, "pending"),
+        ),
+      )
+      .limit(1);
+
     await this.db
       .update(referrals)
       .set({ status: "qualified", qualifiedAt: new Date() })
@@ -308,6 +333,14 @@ export class ReferralService {
           eq(referrals.status, "pending"),
         ),
       );
+
+    if (!pending) {
+      return null;
+    }
+    return {
+      referrerId: pending.referrerId,
+      referredFirstName: pending.referredFirstName ?? "",
+    };
   }
 
   /**

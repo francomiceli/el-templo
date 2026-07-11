@@ -160,8 +160,6 @@ describe("ReferralService.qualifyFirstPayment", () => {
   it("no-op si el payer no tiene vínculo pending", async () => {
     const other = await createMember(app, { email: "q2@test.com" });
     const service = new ReferralService(app.db, app.log);
-    await expect(
-      service.qualifyFirstPayment(other.id),
-    ).resolves.toBeUndefined();
+    await expect(service.qualifyFirstPayment(other.id)).resolves.toBeNull();
   });
 });

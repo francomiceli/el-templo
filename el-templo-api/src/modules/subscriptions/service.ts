@@ -62,6 +62,7 @@ import { EnrollmentService } from "../programs/enrollment-service";
 import { SettingsService } from "../settings/service";
 import { PRICING_SETTINGS_KEYS } from "../settings/keys";
 import { ReferralService } from "../referrals/service";
+import { NotificationService } from "../notifications/service";
 
 // ─── Charge flow taxonomy (Phase 107) ─────────────────────────────────────────
 
@@ -406,9 +407,31 @@ export class SubscriptionService {
     pricePaid: number,
   ): Promise<void> {
     if (pricePaid <= 0) return;
-    await new ReferralService(this.db, this.log).qualifyFirstPayment(
-      payerUserId,
-    );
+    const flipped = await new ReferralService(
+      this.db,
+      this.log,
+    ).qualifyFirstPayment(payerUserId);
+
+    // Solo el flip REAL (pending→qualified) notifica; un re-cobro devuelve null
+    // y no re-notifica (VIS-02/D-31). La notificación va SIEMPRE al referidor,
+    // nunca al referido. Best-effort (D-33): un fallo de la cola JAMÁS relanza ni
+    // rompe el cobro — try/catch envolvente + log.warn.
+    if (!flipped) return;
+    try {
+      await new NotificationService(this.db, this.log).queueNotification({
+        userId: flipped.referrerId,
+        templateKey: "referral_link_activated",
+        bodyOverride: `${flipped.referredFirstName} pagó su primer plan. Ya tenés tu descuento activo.`,
+      });
+    } catch (err: unknown) {
+      this.log.warn(
+        {
+          err: err instanceof Error ? err.message : String(err),
+          referrerId: flipped.referrerId,
+        },
+        "referral activation notification failed (best-effort)",
+      );
+    }
   }
 
   /**
