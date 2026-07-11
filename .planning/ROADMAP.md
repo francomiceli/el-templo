@@ -4156,12 +4156,12 @@ Plans:
 2. Al activarse un vínculo (referido paga), el referidor recibe una notificación.
 3. (Opcional) Gestión puede ver el listado de referidos y sus estados en el admin.
 
-**Plans:** 0/4 plans executed
+**Plans:** 2/4 plans executed
 
 Plans:
 
 - [x] 158-01-PLAN.md — API: getReferralOverview + GET /members/referrals + ruta admin de la ficha (VIS-01/VIS-03 backend)
-- [ ] 158-02-PLAN.md — API: categoria de notificacion `referidos` (migracion 0177) + push de vinculo activado al referidor (VIS-02)
+- [x] 158-02-PLAN.md — API: categoria de notificacion `referidos` (migracion 0177) + push de vinculo activado al referidor (VIS-02)
 - [ ] 158-03-PLAN.md — App: pantalla "Mis referidos" (codigo+share, descuento, vinculos) + entrada en ProfilePage (VIS-01)
 - [ ] 158-04-PLAN.md — Admin: seccion "Referidos" en la ficha del alumno (VIS-03)
       **UI hint:** yes (pantalla app "Mis referidos" + notificaciones + panel admin opcional)
@@ -4171,7 +4171,7 @@ Plans:
 | Phase                                  | Plans Complete | Status      | Completed |
 | -------------------------------------- | -------------- | ----------- | --------- |
 | 157. Núcleo transaccional de referidos | 0/TBD          | Not started | -         |
-| 158. Visibilidad y comunicación        | 1/4            | In progress |           |
+| 158. Visibilidad y comunicación        | 2/4            | In Progress |           |
 
 _Plan counts populated by `/gsd-plan-phase`._
 

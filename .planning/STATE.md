@@ -4,7 +4,7 @@ milestone: v5.4
 milestone_name: Reforma del Admin — Correcciones white-label (pre-tenants)
 status: executing
 stopped_at: Phase 158 planned (4 plans, checker-approved)
-last_updated: "2026-07-11T06:15:31.012Z"
+last_updated: "2026-07-11T06:33:42.440Z"
 last_activity: 2026-07-11
 progress:
   total_phases: 8
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 ## Current Position
 
 Phase: 158 (Visibilidad y comunicación) — EXECUTING
-Plan: 2 of 4
+Plan: 3 of 4
 Status: Ready to execute
-Last activity: 2026-07-11 -- Completed 158-01 (backend de lectura de referidos)
+Last activity: 2026-07-11
 
 ## Performance Metrics
 
@@ -324,6 +324,7 @@ _Updated after each plan completion_
 | Phase 156 P03 | 18min | 3 tasks | 3 files |
 | Phase 156 P05 | ~4min | 3 tasks | 6 files |
 | Phase 158 P01 | ~20min | 3 tasks | 7 files |
+| Phase 158 P02 | 9min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -749,6 +750,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: 155-04: grilla admin multi-slot por celda (slotMap Map<string,WeeklySlotView[]>) con render apilado; click de detalle/borrado por slot puntual desktop+mobile sin round-trip por (hora,día); click en celda vacía abre CreateSlotDialog prefilleado
 - [Phase ?]: Precio Zero a config: key pricing.zero_price_enabled (GET staff/PUT owner), default OFF, seed 0168 ON El Templo; gate en resolvePriceType + boarding pass
 - [Phase 156]: 156-05: UI admin de Zero (toggle en /configuracion/precios + gates en PlanForm/AssignPlan/Cobros) y multi-select de programas cableado a programIds; la UI solo esconde, el gate real es server-side (156-01/156-02)
+- [Phase ?]: 158-02: notificacion de vinculo activado best-effort dentro de qualifyReferralOnCharge (try/catch + log.warn, nunca rompe el cobro D-33); categoria 'referidos' apendada ultima en el enum (mig 0177); qualifyFirstPayment devuelve el flip para notificar una sola vez
 
 ### Pending Todos
 
@@ -781,7 +783,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-11T06:15:30.993Z
+Last session: 2026-07-11T06:33:16.504Z
 Stopped at: Phase 158 planned (4 plans, checker-approved)
 Resume file: None
 
