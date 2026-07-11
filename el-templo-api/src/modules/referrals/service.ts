@@ -17,7 +17,7 @@
 //
 // Constructor DI (db, log) clonado de settings/service.ts:26-30.
 
-import { and, eq, or } from "drizzle-orm";
+import { and, eq, ne, or } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import type * as schema from "../../db/schema";
@@ -30,7 +30,11 @@ import {
   systemSettings,
 } from "../../db/schema";
 import { deriveCoveredUntil } from "../subscriptions/service";
-import type { ReferralConfig } from "./types";
+import type {
+  ReferralConfig,
+  ReferralLinkView,
+  ReferralOverview,
+} from "./types";
 
 type DbInstance = MySql2Database<typeof schema>;
 
@@ -185,6 +189,107 @@ export class ReferralService {
     }
 
     return Math.min(activeLinks * percentPerLink, maxPercentCap);
+  }
+
+  /**
+   * Fuente de datos de las pantallas de visibilidad (fase 158, VIS-01/VIS-03):
+   * compone en un shape único el código (lazy), el descuento vigente con
+   * desglose y ambos lados del vínculo con estado derivado. LEE, no altera la
+   * mecánica de 157.
+   *
+   * Reuso obligatorio (D-30): `discount.percent` se obtiene LLAMANDO a
+   * `computeReferralDiscountPercent` — cero drift posible con el cómputo del
+   * cobro. El loop propio existe SOLO para derivar el `state` por vínculo
+   * (`ReferralLinkView`), con el MISMO criterio que ese cómputo
+   * (`deriveCoveredUntil` de la contraparte vs today, D-09/D-24/D-28), NUNCA
+   * `users.status`. Los vínculos `revoked` se excluyen.
+   */
+  async getReferralOverview(userId: number): Promise<ReferralOverview> {
+    const referralCode = await this.generateReferralCode(userId);
+
+    // Vínculos no-revoked en cualquiera de las dos direcciones.
+    const links = await this.db
+      .select({
+        referrerId: referrals.referrerId,
+        referredId: referrals.referredId,
+        status: referrals.status,
+      })
+      .from(referrals)
+      .where(
+        and(
+          ne(referrals.status, "revoked"),
+          or(
+            eq(referrals.referrerId, userId),
+            eq(referrals.referredId, userId),
+          ),
+        ),
+      );
+
+    const { percentPerLink, maxPercentCap } = await this.getReferralConfig();
+    const today = new Date().toISOString().split("T")[0];
+
+    const referred: ReferralLinkView[] = [];
+    let referredBy: ReferralLinkView | null = null;
+    let activeCount = 0;
+
+    for (const link of links) {
+      const isReferrer = link.referrerId === userId;
+      const counterpartyId = isReferrer ? link.referredId : link.referrerId;
+
+      let state: ReferralLinkView["state"];
+      if (link.status === "pending") {
+        state = "pending";
+      } else {
+        // qualified: activo si la contraparte está cubierta hoy (mismo criterio
+        // que computeReferralDiscountPercent) — sino suspendido (se reactiva si
+        // la contraparte vuelve, D-10).
+        const coveredUntil = await deriveCoveredUntil(this.db, counterpartyId);
+        state =
+          coveredUntil !== null && coveredUntil >= today
+            ? "active"
+            : "suspended";
+      }
+      if (state === "active") {
+        activeCount++;
+      }
+
+      const [cp] = await this.db
+        .select({ firstName: users.firstName, lastName: users.lastName })
+        .from(users)
+        .where(eq(users.id, counterpartyId))
+        .limit(1);
+      const fullName = [cp?.firstName, cp?.lastName]
+        .filter(Boolean)
+        .join(" ")
+        .trim();
+
+      const view: ReferralLinkView = {
+        userId: counterpartyId,
+        fullName,
+        state,
+      };
+      if (isReferrer) {
+        referred.push(view);
+      } else {
+        // referredId es UNIQUE (D-14): a lo sumo un vínculo "me trajo".
+        referredBy = view;
+      }
+    }
+
+    // Reuso D-30: el % vigente es EXACTAMENTE el del cobro, no una reimplementación.
+    const percent = await this.computeReferralDiscountPercent(userId);
+
+    return {
+      referralCode,
+      discount: {
+        percent,
+        activeCount,
+        perLinkPercent: percentPerLink,
+        capPercent: maxPercentCap,
+      },
+      referred,
+      referredBy,
+    };
   }
 
   /**
