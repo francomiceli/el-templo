@@ -4,8 +4,8 @@ milestone: v5.4
 milestone_name: Reforma del Admin — Correcciones white-label (pre-tenants)
 status: executing
 stopped_at: Phase 158 planned (4 plans, checker-approved)
-last_updated: "2026-07-11T05:50:00.392Z"
-last_activity: 2026-07-10 -- Phase 157 execution started
+last_updated: "2026-07-11T06:15:31.012Z"
+last_activity: 2026-07-11
 progress:
   total_phases: 8
   completed_phases: 8
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-04)
 
 **Core value (v5.4):** Reorganizar el admin según `Correcciones El Templo.md` para dejarlo listo como MVP white-label — nav por categorías + RBAC dueño-vs-empleado, pantallas simplificadas y de-Templo-ficación de la superficie MVP (Finanzas, Alumnos, Horarios, Planes) — SIN introducir tenants todavía. Primera etapa del camino SaaS (reforma PRIMERO, tenancy DESPUÉS, secuencial). 8 fases (149-156), 33 requirements (NAV/COBRO/CTA/CAJA/DEUDA/ALUM/HOR/PLAN). Constraint dura: todo cambio de API adopta los patrones del diseño SaaS validado (motor vs plantilla, imports módulo→core, sin nuevos Templo-ismos en core).
-**Current focus:** Phase 157 — n-cleo-transaccional-de-referidos
+**Current focus:** Phase 158 — Visibilidad y comunicación
 
 ## Current Position
 
-Phase: 157 (n-cleo-transaccional-de-referidos) — EXECUTING
-Plan: 1 of 5
-Status: Executing Phase 157
-Last activity: 2026-07-10 -- Phase 157 execution started
+Phase: 158 (Visibilidad y comunicación) — EXECUTING
+Plan: 2 of 4
+Status: Ready to execute
+Last activity: 2026-07-11 -- Completed 158-01 (backend de lectura de referidos)
 
 ## Performance Metrics
 
@@ -323,6 +323,7 @@ _Updated after each plan completion_
 | Phase 156 P02 | 12min | 2 tasks | 7 files |
 | Phase 156 P03 | 18min | 3 tasks | 3 files |
 | Phase 156 P05 | ~4min | 3 tasks | 6 files |
+| Phase 158 P01 | ~20min | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -780,8 +781,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-11T05:50:00.368Z
+Last session: 2026-07-11T06:15:30.993Z
 Stopped at: Phase 158 planned (4 plans, checker-approved)
-Resume file: .planning/phases/158-visibilidad-y-comunicaci-n/158-01-PLAN.md
+Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
