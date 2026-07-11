@@ -1656,16 +1656,64 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get<{ Params: { userId: number } }>(
     "/:userId/referrals",
     async (request, reply) => {
-      const { role } = request.user;
-      if (!(ADMIN_ROLES as readonly string[]).includes(role)) {
-        return reply.code(403).send({ error: "Acceso denegado" });
+      try {
+        const { role } = request.user;
+        if (!(ADMIN_ROLES as readonly string[]).includes(role)) {
+          return reply.code(403).send({
+            error: "Acceso denegado",
+            message: "No tienes permiso para ver los referidos",
+          });
+        }
+        const targetId = Number(request.params.userId);
+        if (!Number.isInteger(targetId)) {
+          return reply.code(400).send({
+            error: "Solicitud inválida",
+            message: "id inválido",
+          });
+        }
+
+        // T-106-02 — verify target member exists and (for non-owners) lives
+        // in a branch that matches the request's country scope. 404 (no 403)
+        // para cross-country, mirror DELETE /:userId pattern (info-leak avoid).
+        const [target] = await fastify.db
+          .select({
+            id: schema.users.id,
+            deletedAt: schema.users.deletedAt,
+            branchCountry: schema.branches.country,
+            branchIsVirtual: schema.branches.isVirtual,
+          })
+          .from(schema.users)
+          .innerJoin(
+            schema.branches,
+            eq(schema.branches.id, schema.users.branchId),
+          )
+          .where(eq(schema.users.id, targetId))
+          .limit(1);
+
+        if (!target || target.deletedAt) {
+          return reply.code(404).send({
+            error: "No encontrado",
+            message: "Miembro no encontrado",
+          });
+        }
+
+        if (
+          !request.scope.isOwner &&
+          !target.branchIsVirtual &&
+          target.branchCountry !== request.scope.country
+        ) {
+          // 404 (not 403) to mirror DELETE /:userId pattern (info-leak avoid).
+          return reply.code(404).send({
+            error: "No encontrado",
+            message: "Miembro no encontrado",
+          });
+        }
+
+        const referralService = new ReferralService(fastify.db, fastify.log);
+        return await referralService.getReferralOverview(targetId);
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "get member referrals");
       }
-      const targetId = Number(request.params.userId);
-      if (!Number.isInteger(targetId)) {
-        return reply.code(400).send({ error: "id inválido" });
-      }
-      const referralService = new ReferralService(fastify.db, fastify.log);
-      return referralService.getReferralOverview(targetId);
     },
   );
 

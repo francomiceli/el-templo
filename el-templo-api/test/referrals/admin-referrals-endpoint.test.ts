@@ -12,10 +12,12 @@ import {
   createTestApp,
   getAuthToken,
   cleanAllTestData,
+  createStaffUser,
   todayStr,
   dateOffsetStr,
 } from "../helpers";
 import { createPlan, createMember } from "../subscriptions/_helpers";
+import * as schema from "../../src/db/schema";
 
 const MEMBER_PASSWORD = "pass123456";
 
@@ -37,10 +39,32 @@ function url(userId: number): string {
 
 let app: FastifyInstance;
 let adminToken: string;
+let esBranchId: number;
+
+// Branches are NOT in TABLES_TO_CLEAN — código único por corrida para evitar
+// colisiones UNIQUE entre archivos del mismo worker (patrón outstanding-concepts).
+function nextSuffix(prefix: string): string {
+  const t = Date.now().toString(36).slice(-5);
+  const r = Math.floor(Math.random() * 1000)
+    .toString(36)
+    .padStart(2, "0");
+  return `${prefix}${t}${r}`;
+}
 
 beforeAll(async () => {
   app = await createTestApp();
   adminToken = await getAuthToken(app, "admin@test.com", "adminpass123");
+  const [es] = await app.db
+    .insert(schema.branches)
+    .values({
+      name: "ES-Referrals-Test",
+      code: nextSuffix("ESRF"),
+      country: "ES",
+      isVirtual: false,
+      isActive: true,
+    })
+    .$returningId();
+  esBranchId = es.id;
 });
 
 afterAll(async () => {
@@ -136,5 +160,64 @@ describe("GET /api/admin/members/:id/referrals — ficha admin", () => {
     const target = await createMember(app, { email: "a-t3@test.com" });
     const res = await app.inject({ method: "GET", url: url(target.id) });
     expect(res.statusCode).toBe(401);
+  });
+
+  // T-106-02 — guard per-member (mismo patrón que financial-history y
+  // outstanding-concepts): existencia, soft-delete y country-scope con 404
+  // anti info-leak.
+  it("404 para un miembro inexistente (no 500)", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: url(99999999),
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    expect(res.statusCode).toBe(404);
+  });
+
+  it("404 para un miembro soft-deleted", async () => {
+    const target = await createMember(app, { email: "a-deleted@test.com" });
+    await app.db.execute(
+      sql`UPDATE users SET deleted_at = NOW() WHERE id = ${target.id}`,
+    );
+    const res = await app.inject({
+      method: "GET",
+      url: url(target.id),
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    expect(res.statusCode).toBe(404);
+  });
+
+  it("cross-country: admin ES (no-owner) recibe 404 para un alumno AR", async () => {
+    const target = await createMember(app, { email: "a-ar-target@test.com" });
+    await createStaffUser(app, {
+      email: "ref-admin-es@test.local",
+      password: "pass123456",
+      firstName: "Admin",
+      lastName: "ES",
+      role: "admin",
+      branchId: esBranchId,
+    });
+    const adminEsToken = await getAuthToken(
+      app,
+      "ref-admin-es@test.local",
+      "pass123456",
+    );
+    const res = await app.inject({
+      method: "GET",
+      url: url(target.id),
+      headers: { authorization: `Bearer ${adminEsToken}` },
+    });
+    expect(res.statusCode).toBe(404);
+  });
+
+  it("owner sí lee cross-country (200)", async () => {
+    // admin@test.com es owner: el scope de país no lo restringe (T-106-02).
+    const target = await createMember(app, { email: "a-any@test.com" });
+    const res = await app.inject({
+      method: "GET",
+      url: url(target.id),
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    expect(res.statusCode).toBe(200);
   });
 });
