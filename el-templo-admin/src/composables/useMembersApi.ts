@@ -82,6 +82,23 @@ export interface MemberSearchResult {
   status: 'freemium' | 'prueba' | 'activo' | 'inactivo' | null;
 }
 
+// Phase 158-04 (VIS-03): shape de GET /admin/members/:id/referrals. Espeja
+// ReferralOverview / ReferralLinkView de el-templo-api/src/modules/referrals/types.ts
+// (contrato del plan 158-01). La ficha S3 usa solo referred + referredBy; el
+// state deriva del server (deriveCoveredUntil, D-28), nunca de users.status.
+export interface MemberReferralLink {
+  userId: number;
+  fullName: string;
+  state: 'pending' | 'active' | 'suspended';
+}
+
+export interface MemberReferralsResponse {
+  referralCode: string;
+  discount: { percent: number; activeCount: number; perLinkPercent: number; capPercent: number };
+  referred: MemberReferralLink[];
+  referredBy: MemberReferralLink | null;
+}
+
 export function useMembersApi() {
   const loading = ref(false);
   const error = ref<string | null>(null);
@@ -384,6 +401,26 @@ export function useMembersApi() {
     }
   }
 
+  // ─── Referrals (Phase 158-04, VIS-03) ─────────────────────────────────
+  //
+  // GET /admin/members/:id/referrals → ReferralOverview del plan 158-01.
+  // Alimenta la sección "Referidos" de la ficha (MemberReferralsTab). El guard
+  // de rol (ADMIN_ROLES) vive en el backend; el front solo consume.
+
+  async function getReferrals(userId: number): Promise<MemberReferralsResponse> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<MemberReferralsResponse>(`/admin/members/${userId}/referrals`);
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cargando referidos');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   // ─── Plans (lightweight for member creation dialog) ──────────────────
 
   interface PlanOption {
@@ -572,6 +609,7 @@ export function useMembersApi() {
     getPlans,
     bulkMigratePlan,
     getNotes,
+    getReferrals,
     createNote,
     updateNote,
     deleteNote,
