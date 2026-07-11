@@ -150,6 +150,35 @@
                   </div>
                 </div>
 
+                <!-- Referido por (opcional) — atribución de referido, create-only (157-05) -->
+                <div class="row q-col-gutter-sm">
+                  <div class="col-12">
+                    <q-select
+                      v-model="referrer"
+                      :options="referrerSearchResults"
+                      option-value="id"
+                      option-label="displayLabel"
+                      label="Referido por (opcional)"
+                      hint="Buscá por nombre o DNI al socio que lo refirió"
+                      dense
+                      outlined
+                      clearable
+                      use-input
+                      input-debounce="300"
+                      :loading="searchingReferrer"
+                      @filter="onReferrerSearch"
+                    >
+                      <template #no-option>
+                        <q-item>
+                          <q-item-section class="text-grey">
+                            No se encontró ningún socio
+                          </q-item-section>
+                        </q-item>
+                      </template>
+                    </q-select>
+                  </div>
+                </div>
+
                 <div class="row q-col-gutter-sm">
                   <div class="col-12 col-sm-6">
                     <q-select
@@ -228,35 +257,6 @@
                       dense
                       outlined
                     />
-                  </div>
-                </div>
-
-                <!-- ¿Quién lo trajo? (opcional) — atribución de referido, create-only (157-05) -->
-                <div class="row q-col-gutter-sm">
-                  <div class="col-12">
-                    <q-select
-                      v-model="referrer"
-                      :options="referrerSearchResults"
-                      option-value="id"
-                      option-label="displayLabel"
-                      label="¿Quién lo trajo? (opcional)"
-                      hint="Buscá por nombre o DNI al socio que lo refirió"
-                      dense
-                      outlined
-                      clearable
-                      use-input
-                      input-debounce="300"
-                      :loading="searchingReferrer"
-                      @filter="onReferrerSearch"
-                    >
-                      <template #no-option>
-                        <q-item>
-                          <q-item-section class="text-grey">
-                            No se encontró ningún socio
-                          </q-item-section>
-                        </q-item>
-                      </template>
-                    </q-select>
                   </div>
                 </div>
               </div>

@@ -338,7 +338,6 @@
           indicator-color="primary"
         >
           <q-tab name="perfil" label="Perfil" />
-          <q-tab name="referidos" label="Referidos" />
           <q-tab name="entrenamiento" label="Entrenamiento" />
           <q-tab name="notas" label="Notas" />
           <q-tab name="suscripcion">
@@ -357,6 +356,7 @@
           <q-tab name="programas" label="Programas" />
           <q-tab name="asistencia" label="Asistencia" />
           <q-tab name="finanzas" label="Finanzas" />
+          <q-tab name="referidos" label="Referidos" />
         </q-tabs>
         <q-separator />
 
