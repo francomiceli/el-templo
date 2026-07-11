@@ -1,3 +1,4 @@
+<!-- Tab "Referidos" de la ficha del alumno (fase 158, VIS-03) — UI-SPEC S3. -->
 <template>
   <div>
     <!-- Loading -->

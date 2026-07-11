@@ -1,3 +1,4 @@
+<!-- Pantalla "Mis referidos" (fase 158, VIS-01) — UI-SPEC S1/S2. -->
 <template>
   <q-page class="referidos-page" padding>
     <p class="page-title">Mis referidos</p>
