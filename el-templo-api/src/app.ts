@@ -47,6 +47,7 @@ import { barChallengeRoutes } from "./modules/bar-challenge/routes";
 import { checkInRoutes } from "./modules/check-ins";
 import { programRoutes } from "./modules/programs";
 import { notificationRoutes } from "./modules/notifications";
+import { referralMemberRoutes } from "./modules/referrals/routes";
 import { campaignRoutes } from "./modules/campaigns/routes";
 
 export async function buildApp() {
@@ -179,6 +180,11 @@ export async function buildApp() {
   // Member-facing subscription route (read-only, no admin role required)
   await app.register(memberSubscriptionRoutes, {
     prefix: "/api/members/subscription",
+  });
+
+  // Member-facing referrals route (fase 158, read-only, self-scoped by token)
+  await app.register(referralMemberRoutes, {
+    prefix: "/api/members/referrals",
   });
 
   // Scheduling management routes (activities, schedules, bookings, holidays)

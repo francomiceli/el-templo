@@ -21,6 +21,7 @@ import {
 } from "../onboarding/types";
 import { MemberService } from "./service";
 import { SubscriptionService } from "../subscriptions/service";
+import { ReferralService } from "../referrals/service";
 import { AuraService } from "../aura/service";
 import { BookingService } from "../scheduling/booking-service";
 import { NotificationService } from "../notifications/service";
@@ -1643,6 +1644,28 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
     async (request) => {
       const notes = await memberService.getNotes(request.params.userId);
       return { notes };
+    },
+  );
+
+  // GET /admin/members/:userId/referrals — Referral overview de la ficha del
+  // alumno (fase 158, D-34). Gestión consulta quién lo trajo y a quiénes trajo
+  // con el MISMO estado derivado (deriveCoveredUntil) que la app.
+  //
+  // Guard extra (T-158-02): además del MEMBER_ROLES del plugin, esta ruta exige
+  // ADMIN_ROLES — leer datos de referidos de otro alumno es admin/owner-only.
+  fastify.get<{ Params: { userId: number } }>(
+    "/:userId/referrals",
+    async (request, reply) => {
+      const { role } = request.user;
+      if (!(ADMIN_ROLES as readonly string[]).includes(role)) {
+        return reply.code(403).send({ error: "Acceso denegado" });
+      }
+      const targetId = Number(request.params.userId);
+      if (!Number.isInteger(targetId)) {
+        return reply.code(400).send({ error: "id inválido" });
+      }
+      const referralService = new ReferralService(fastify.db, fastify.log);
+      return referralService.getReferralOverview(targetId);
     },
   );
 
