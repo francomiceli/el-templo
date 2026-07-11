@@ -239,6 +239,27 @@ describe("MemberFlowsService (altas vs bajas + detalle)", () => {
     expect(res.series.some((p) => p.bajasProvisional)).toBe(true);
   });
 
+  it("un vencimiento FUTURO dentro del rango no cuenta en bajasEnGracia (sub vigente)", async () => {
+    const current = await insertMember();
+    await insertSub({
+      userId: current,
+      startDate: await dateOffset(-20),
+      endDate: await dateOffset(10), // vence en 10 días — sub vigente
+      status: "active",
+    });
+
+    // Rango que se extiende al futuro, como cuando el admin pide el mes entero.
+    const res = await svc.getMonthlyFlows({
+      dateFrom: await dateOffset(-120),
+      dateTo: await dateOffset(40),
+    });
+    const t = totals(res.series);
+    expect(t.bajas).toBe(0);
+    expect(res.series.reduce((a, p) => a + p.bajasEnGracia, 0)).toBe(0);
+    // El mes del vencimiento futuro igual queda provisional (aún no cerró).
+    expect(res.series.some((p) => p.bajasProvisional)).toBe(true);
+  });
+
   it("un vencido en gracia que YA renovó no cuenta ni como baja ni en gracia", async () => {
     const earlyRenewer = await insertMember();
     await insertSub({
