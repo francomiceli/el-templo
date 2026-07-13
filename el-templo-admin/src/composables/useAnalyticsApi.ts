@@ -28,6 +28,7 @@ import type {
   FrequencyAnalytics,
   TrialFunnelAnalytics,
   ClassRatingsAnalytics,
+  ReferralAbResults,
 } from 'src/types/analytics';
 
 function buildParams(filters: AnalyticsFilters): Record<string, unknown> {
@@ -386,6 +387,22 @@ export function useAnalyticsApi() {
     }
   }
 
+  // A/B copy test de referidos (v5.5 follow-up). Endpoint global sin filtros —
+  // los conteos por variante son gym-wide (no dependen de sede/fecha/plan).
+  async function getReferralAbResults(): Promise<ReferralAbResults> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<ReferralAbResults>('/admin/referrals/ab-results');
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cargando resultados del A/B test');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   function cleanup() {
     loading.value = false;
     error.value = null;
@@ -414,6 +431,7 @@ export function useAnalyticsApi() {
     getFrequency,
     getTrialFunnel,
     getClassRatings,
+    getReferralAbResults,
     cleanup,
   };
 }

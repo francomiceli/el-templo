@@ -177,6 +177,7 @@
       <q-tab name="programas" label="Programas" icon="school" />
       <q-tab name="clases" label="Clases" icon="star" />
       <q-tab name="retencion" label="Retención (ciclos)" icon="timeline" />
+      <q-tab name="referidos-ab" label="Referidos A/B" icon="science" />
     </q-tabs>
 
     <q-tab-panels v-model="activeTab" animated>
@@ -292,6 +293,12 @@
           @update:plan-id="onRetentionFilterChange"
         />
       </q-tab-panel>
+
+      <!-- Referidos A/B — copy test de la card de referidos (v5.5 follow-up).
+           Métricas gym-wide, no dependen de los filtros globales. -->
+      <q-tab-panel name="referidos-ab">
+        <ReferidosAbTab :data="referralAbData" :loading="loadingReferralAb" />
+      </q-tab-panel>
     </q-tab-panels>
   </q-page>
 </template>
@@ -313,6 +320,7 @@ import RetencionGestionTab from 'src/components/analytics/RetencionGestionTab.vu
 import FrecuenciaTab from 'src/components/analytics/FrecuenciaTab.vue';
 import IngresosTab from 'src/components/analytics/IngresosTab.vue';
 import ClasesTab from 'src/components/analytics/ClasesTab.vue';
+import ReferidosAbTab from 'src/components/analytics/ReferidosAbTab.vue';
 import type {
   KpiStats,
   MemberAnalytics,
@@ -328,6 +336,7 @@ import type {
   TicketAnalytics,
   LtvAnalytics,
   ClassRatingsAnalytics,
+  ReferralAbResults,
 } from 'src/types/analytics';
 import type { BranchOption } from 'src/types/member';
 import type { ProgramAnalytics } from 'src/types/program';
@@ -564,6 +573,10 @@ const loadingIngresos = ref(false);
 const classRatingsData = ref<ClassRatingsAnalytics | null>(null);
 const loadingClassRatings = ref(false);
 
+// Referidos A/B — copy test (v5.5 follow-up). Métricas gym-wide, sin filtros.
+const referralAbData = ref<ReferralAbResults | null>(null);
+const loadingReferralAb = ref(false);
+
 // Local plan filter for the Retención tab (follow-up). `null` = todos los planes.
 // Re-fetches the cohort curve server-side. Options built from availablePlans.
 const retentionPlanId = ref<number | null>(null);
@@ -787,6 +800,19 @@ async function fetchClassRatings() {
   }
 }
 
+async function fetchReferralAb() {
+  loadingReferralAb.value = true;
+  try {
+    referralAbData.value = await analyticsApi.getReferralAbResults();
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.error('Error fetching referral A/B results', { error: message });
+    referralAbData.value = null;
+  } finally {
+    loadingReferralAb.value = false;
+  }
+}
+
 // Re-fetch the retention curve when the local plan filter changes.
 function onRetentionFilterChange() {
   void fetchRetentionData();
@@ -821,6 +847,9 @@ async function fetchTabData() {
       break;
     case 'retencion':
       await fetchRetentionData();
+      break;
+    case 'referidos-ab':
+      await fetchReferralAb();
       break;
   }
 }

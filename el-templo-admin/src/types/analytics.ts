@@ -798,3 +798,24 @@ export interface ClassRatingsAnalytics {
   byBranch: ClassRatingBranchRow[];
   byTurno: ClassRatingTurnoRow[];
 }
+
+/**
+ * A/B copy test de la card de referidos (v5.5 follow-up). Espeja
+ * ReferralAbVariantResult / ReferralAbResults de
+ * el-templo-api/src/modules/referrals/types.ts. `ctr` y `qualifiedRate` son
+ * fracciones [0,1] sobre `exposedMembers`.
+ */
+export interface ReferralAbVariantResult {
+  variant: 'A' | 'B';
+  exposedMembers: number;
+  uniqueClickers: number;
+  totalClicks: number;
+  referralsCreated: number;
+  referralsQualified: number;
+  ctr: number;
+  qualifiedRate: number;
+}
+
+export interface ReferralAbResults {
+  variants: ReferralAbVariantResult[];
+}
