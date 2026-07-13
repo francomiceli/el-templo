@@ -29,6 +29,12 @@ export const referralAttributionChannelEnum = mysqlEnum("attribution_channel", [
   "assisted",
 ]);
 
+// A/B test del copy de la card de referidos (v5.5 follow-up). Estampa qué
+// variante de copy vio el REFERIDOR cuando se creó el vínculo (par='A'/impar='B',
+// derivado de referrer_id). NULL para vínculos pre-experimento — el reporte solo
+// agrega las variantes no-NULL. mysqlEnum 1er-arg = nombre físico de la columna.
+export const referralCopyVariantEnum = mysqlEnum("copy_variant", ["A", "B"]);
+
 export const referrals = mysqlTable("referrals", {
   id: int("id").primaryKey().autoincrement(),
   // Quién refirió. Un referidor puede traer muchos referidos (sin UNIQUE).
@@ -46,6 +52,9 @@ export const referrals = mysqlTable("referrals", {
   attributionChannel: referralAttributionChannelEnum.notNull(),
   // Timestamp del flip a qualified (D-20). NULL mientras pending.
   qualifiedAt: timestamp("qualified_at"),
+  // A/B copy test: variante que vio el referidor al crearse el vínculo. Nullable
+  // (los vínculos previos al experimento quedan NULL). Se computa desde referrer_id.
+  copyVariant: referralCopyVariantEnum,
   // Admin (users.id) que creó el vínculo asistido. NULL en self-service.
   // Self-ref conceptual a users → AnyMySqlColumn callback para evitar el error
   // de circular-init de TypeScript. ON DELETE SET NULL como createdBy en users.

@@ -7,6 +7,7 @@ import { memberProfiles } from "../../db/schema/member-profiles";
 import { promoPlans } from "../../db/schema/promo-plans";
 import { referrals } from "../../db/schema/referrals";
 import { ReferralService } from "../referrals/service";
+import { referralCopyVariant } from "../referrals/ab-variant";
 import { registerSchema, loginSchema } from "./schemas";
 import { SegmentationService } from "../segmentation/service";
 import { SubscriptionService } from "../subscriptions/service";
@@ -300,6 +301,10 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
               referredId: userId,
               status: "pending",
               attributionChannel: "self_service",
+              // A/B copy test: estampa la variante que vio el referidor (derivada
+              // de su id) para atribuir la conversión al copy sin depender del
+              // cliente ni de recomputar el bucketing a posteriori.
+              copyVariant: referralCopyVariant(referrerId),
             });
           }
         } catch (err: unknown) {

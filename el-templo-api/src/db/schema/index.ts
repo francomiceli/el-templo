@@ -55,6 +55,7 @@ export * from "./member-profiles";
 export * from "./user-sepa-details";
 export * from "./referrals";
 export * from "./referral-credits";
+export * from "./referral-cta-clicks";
 export * from "./onboarding-analytics";
 export * from "./member-logins";
 export * from "./check-in-responses";

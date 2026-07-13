@@ -57,6 +57,7 @@ import {
 } from "../shared/errors";
 import { isDuplicateKeyError } from "../shared/sql-errors";
 import { ReferralService } from "../referrals/service";
+import { referralCopyVariant } from "../referrals/ab-variant";
 import { isValidIban, normalizeIban } from "../shared/iban";
 import { activeMemberExists } from "../shared/active-member";
 import { alias } from "drizzle-orm/mysql-core";
@@ -755,6 +756,10 @@ export class MemberService {
           status: "pending",
           attributionChannel: "assisted",
           createdBy: input.createdBy ?? null,
+          // A/B copy test: variante del referidor (derivada de su id). Aunque el
+          // alta asistida no pasa por la card, se estampa igual para no perder la
+          // conversión en el denominador del reporte por variante.
+          copyVariant: referralCopyVariant(input.referredBy),
         });
       } catch (err: unknown) {
         this.log.warn(

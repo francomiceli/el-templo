@@ -17,7 +17,7 @@
 //
 // Constructor DI (db, log) clonado de settings/service.ts:26-30.
 
-import { and, eq, ne, or } from "drizzle-orm";
+import { and, eq, isNotNull, ne, or, sql } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import type * as schema from "../../db/schema";
@@ -25,15 +25,19 @@ import {
   users,
   referrals,
   referralCredits,
+  referralCtaClicks,
   auraConfig,
   auraTransactions,
   systemSettings,
 } from "../../db/schema";
 import { deriveCoveredUntil } from "../subscriptions/service";
+import { referralCopyVariant } from "./ab-variant";
 import type {
   ReferralConfig,
   ReferralLinkView,
   ReferralOverview,
+  ReferralAbResults,
+  ReferralAbVariantResult,
 } from "./types";
 
 type DbInstance = MySql2Database<typeof schema>;
@@ -375,6 +379,90 @@ export class ReferralService {
       })
       // UNIQUE (userId, sourceType, referenceType, referenceId) → no-op idempotente.
       .onDuplicateKeyUpdate({ set: { amount: 0 } });
+  }
+
+  /**
+   * A/B copy test — registra un tap en el CTA "Compartir código" de la card.
+   * La variante se RECOMPUTA server-side desde el userId (nunca se confía en el
+   * cliente, mismo criterio IDOR que el resto del módulo). Es best-effort desde
+   * la vista del socio: la card no debe bloquear la navegación si esto falla, así
+   * que la ruta swallowea el error — pero acá dejamos el insert crudo.
+   */
+  async recordCtaClick(userId: number): Promise<void> {
+    await this.db.insert(referralCtaClicks).values({
+      userId,
+      variant: referralCopyVariant(userId),
+    });
+  }
+
+  /**
+   * A/B copy test — resultados agregados por variante para el tab de Analíticas.
+   * Tres señales, ninguna requiere event-tracking nuevo salvo el clic:
+   *   - expuestos: socios ACTIVOS (status='activo', role='member') por paridad de
+   *     id. Es un proxy del denominador (no todos abren la app), pero como el
+   *     bucketing es par/impar, ambos grupos tienen la misma tasa de apertura →
+   *     la comparación RELATIVA entre variantes es justa.
+   *   - clickers únicos / clics totales: de referral_cta_clicks.
+   *   - referidos creados / cualificados: de referrals con copy_variant estampado
+   *     (los previos al experimento son NULL y quedan fuera).
+   * Las tasas (CTR, conversión) se calculan sobre "expuestos".
+   */
+  async getAbTestResults(): Promise<ReferralAbResults> {
+    // Expuestos por variante: paridad del id del socio activo.
+    const exposedRows = await this.db
+      .select({
+        variant: sql<string>`CASE WHEN ${users.id} % 2 = 0 THEN 'A' ELSE 'B' END`,
+        count: sql<number>`COUNT(*)`,
+      })
+      .from(users)
+      .where(and(eq(users.role, "member"), eq(users.status, "activo")))
+      .groupBy(sql`CASE WHEN ${users.id} % 2 = 0 THEN 'A' ELSE 'B' END`);
+
+    // Clics: clickers únicos + clics totales por variante.
+    const clickRows = await this.db
+      .select({
+        variant: referralCtaClicks.variant,
+        uniqueClickers: sql<number>`COUNT(DISTINCT ${referralCtaClicks.userId})`,
+        totalClicks: sql<number>`COUNT(*)`,
+      })
+      .from(referralCtaClicks)
+      .groupBy(referralCtaClicks.variant);
+
+    // Referidos: creados + cualificados por variante (solo los estampados).
+    const referralRows = await this.db
+      .select({
+        variant: referrals.copyVariant,
+        created: sql<number>`COUNT(*)`,
+        qualified: sql<number>`SUM(CASE WHEN ${referrals.status} = 'qualified' THEN 1 ELSE 0 END)`,
+      })
+      .from(referrals)
+      .where(isNotNull(referrals.copyVariant))
+      .groupBy(referrals.copyVariant);
+
+    const buildVariant = (v: "A" | "B"): ReferralAbVariantResult => {
+      const exposed = Number(
+        exposedRows.find((r) => r.variant === v)?.count ?? 0,
+      );
+      const click = clickRows.find((r) => r.variant === v);
+      const ref = referralRows.find((r) => r.variant === v);
+      const uniqueClickers = Number(click?.uniqueClickers ?? 0);
+      const totalClicks = Number(click?.totalClicks ?? 0);
+      const referralsCreated = Number(ref?.created ?? 0);
+      const referralsQualified = Number(ref?.qualified ?? 0);
+      return {
+        variant: v,
+        exposedMembers: exposed,
+        uniqueClickers,
+        totalClicks,
+        referralsCreated,
+        referralsQualified,
+        // Tasas sobre expuestos (0 si no hay denominador, para no dividir por 0).
+        ctr: exposed > 0 ? uniqueClickers / exposed : 0,
+        qualifiedRate: exposed > 0 ? referralsQualified / exposed : 0,
+      };
+    };
+
+    return { variants: [buildVariant("A"), buildVariant("B")] };
   }
 }
 

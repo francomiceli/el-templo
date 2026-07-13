@@ -21,4 +21,25 @@ export const referralMemberRoutes: FastifyPluginAsync = async (fastify) => {
     const { userId } = request.user;
     return service.getReferralOverview(userId);
   });
+
+  // POST /api/members/referrals/cta-click — A/B copy test: registra el tap en el
+  // CTA "Compartir código" de la card. La variante se recomputa server-side desde
+  // el token (IDOR, igual que arriba). Best-effort: un fallo del insert NO debe
+  // romper la UX del socio, así que se swallowea y se responde 204 igual.
+  fastify.post(
+    "/cta-click",
+    { onRequest: [fastify.authenticate] },
+    async (request, reply) => {
+      const { userId } = request.user;
+      try {
+        await service.recordCtaClick(userId);
+      } catch (err: unknown) {
+        request.log.warn(
+          { err: err instanceof Error ? err.message : String(err), userId },
+          "Referral CTA click tracking failed (graceful degradation)",
+        );
+      }
+      return reply.code(204).send();
+    },
+  );
 };

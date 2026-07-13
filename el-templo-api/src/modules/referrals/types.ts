@@ -66,3 +66,31 @@ export interface ReferralOverview {
   /** El único vínculo donde el socio es referido ("Te trajo"), o null. */
   referredBy: ReferralLinkView | null;
 }
+
+/**
+ * A/B copy test de la card de referidos (v5.5 follow-up) — números por variante
+ * para el tab de Analíticas. `exposedMembers` es el denominador (socios activos
+ * por paridad de id, proxy justo entre variantes). `ctr` y `qualifiedRate` son
+ * fracciones [0,1] calculadas sobre `exposedMembers`.
+ */
+export interface ReferralAbVariantResult {
+  variant: "A" | "B";
+  /** Socios activos (status='activo', role='member') en el bucket de la variante. */
+  exposedMembers: number;
+  /** Socios distintos que tocaron "Compartir código" con esta variante. */
+  uniqueClickers: number;
+  /** Taps totales (incluye repetidos del mismo socio). */
+  totalClicks: number;
+  /** Vínculos de referido creados con esta variante estampada. */
+  referralsCreated: number;
+  /** De los creados, los que llegaron a `qualified` (conversión real). */
+  referralsQualified: number;
+  /** uniqueClickers / exposedMembers. */
+  ctr: number;
+  /** referralsQualified / exposedMembers. */
+  qualifiedRate: number;
+}
+
+export interface ReferralAbResults {
+  variants: ReferralAbVariantResult[];
+}
