@@ -25,15 +25,12 @@
         </div>
       </div>
 
-      <!-- Title -->
-      <h3 class="exp-title">Entrená acompañado, pagá menos</h3>
+      <!-- Title (A/B copy test — variante por paridad del user.id) -->
+      <h3 class="exp-title">{{ copy.title }}</h3>
 
       <!-- Subtitle + CTA row -->
       <div class="exp-footer">
-        <p class="exp-subtitle">
-          Invitá a alguien a entrenar. Mientras los dos sean activos, ambos obtienen descuento en su
-          cuota.
-        </p>
+        <p class="exp-subtitle">{{ copy.subtitle }}</p>
         <a href="#" class="exp-cta" @click.prevent="goToReferidos">
           <span class="exp-cta-text">Compartir código</span>
         </a>
@@ -43,11 +40,50 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { api } from 'src/boot/axios'
+import { useAuthStore } from 'src/stores/useAuthStore'
+import { referralCopyVariant } from 'src/utils/ab-variant'
+import { createLogger } from 'src/utils/logger'
 
+const log = createLogger('ReferralCtaCard')
 const router = useRouter()
+const authStore = useAuthStore()
+
+interface ReferralCopy {
+  title: string
+  subtitle: string
+}
+
+// A/B copy test (v5.5 follow-up): dos versiones del copy de la card. La variante
+// se deriva de la paridad del user.id (par='A' / impar='B'). Ambas comparten el
+// subtítulo y difieren SOLO en el título (foco del test). El backend recomputa la
+// misma variante al registrar el clic y al medir la conversión.
+const SUBTITLE =
+  'Invitá a entrenar. Cada persona que traigas suma descuento a tu cuota. Se mantiene mientras ambos sigan activos.'
+const COPIES: Record<'A' | 'B', ReferralCopy> = {
+  A: {
+    title: 'Vos decidís cuánto bajás tu cuota',
+    subtitle: SUBTITLE,
+  },
+  B: {
+    title: 'Compartí la experiencia y ganá un descuento',
+    subtitle: SUBTITLE,
+  },
+}
+
+const variant = computed<'A' | 'B'>(() => referralCopyVariant(authStore.user?.id ?? 0))
+const copy = computed<ReferralCopy>(() => COPIES[variant.value])
 
 function goToReferidos(): void {
+  // A/B copy test: registra el clic en el CTA (best-effort, no bloquea la
+  // navegación). La variante la resuelve el backend desde el token.
+  void api.post('/members/referrals/cta-click').catch((err: unknown) => {
+    log.warn('Referral CTA click tracking failed', {
+      error: err instanceof Error ? err.message : String(err),
+    })
+  })
   void router.push('/mis-referidos')
 }
 </script>
