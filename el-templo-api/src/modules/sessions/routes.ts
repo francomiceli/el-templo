@@ -80,6 +80,50 @@ function dateToWeekNumber(date: string): number {
 }
 
 /**
+ * Build the ordered list of candidate dayIds to try for a member on a given
+ * week/day, most-specific first. The caller resolves the first candidate that
+ * has an approved session.
+ *
+ * Fallback chain for a goal-plan member (Phase 83 GP-{type} views):
+ *   1. GP-{type}-W{week}-{day}-{level}   curated goal-plan session
+ *   2. GP-{type}-W{week}-{day}-alfa      (only when level is kairos)
+ *   3. W{week}-{day}-{level}             Foundation (templo) session
+ *   4. W{week}-{day}-alfa               (only when level is kairos)
+ *
+ * Goal-plan libraries are authored up to a fixed week while /daily and /weekly
+ * index by calendar week, so once the calendar passes the last authored week a
+ * goal-plan member has no curated session. Rather than 404, they fall back to
+ * the Foundation session for the same week/day/level — the same content that
+ * presencial/Foundation members receive. This mirrors the kairos→alfa fallback.
+ *
+ * Foundation/templo members (buildAsTemplo, or a program with no goalPlanType)
+ * only ever resolve to the templo W* dayId.
+ */
+function buildDayIdCandidates(
+  buildAsTemplo: boolean,
+  goalPlanType: string | null,
+  week: number,
+  dayName: string,
+  effectiveLevel: string,
+): string[] {
+  const templo = (lvl: string): string => `W${week}-${dayName}-${lvl}`;
+  const candidates: string[] = [];
+  if (!buildAsTemplo && goalPlanType) {
+    const gp = (lvl: string): string =>
+      `GP-${goalPlanType}-W${week}-${dayName}-${lvl}`;
+    candidates.push(gp(effectiveLevel));
+    if (effectiveLevel === "kairos") candidates.push(gp("alfa"));
+    // Foundation fallback (see docblock).
+    candidates.push(templo(effectiveLevel));
+    if (effectiveLevel === "kairos") candidates.push(templo("alfa"));
+  } else {
+    candidates.push(templo(effectiveLevel));
+    if (effectiveLevel === "kairos") candidates.push(templo("alfa"));
+  }
+  return candidates;
+}
+
+/**
  * Convert DaySession to API response format
  */
 function sessionToResponse(
@@ -440,27 +484,21 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
         }
       }
 
-      // 7. Build dayId per resolved view (Phase 104 R7).
-      // - templo OR program-with-no-goalPlanType (Foundation): W{week}-...
-      // - program with goalPlanType: GP-{type}-W{week}-...
-      const dayId =
-        !buildAsTemplo && goalPlanType
-          ? `GP-${goalPlanType}-W${week}-${dayName}-${effectiveLevel}`
-          : `W${week}-${dayName}-${effectiveLevel}`;
+      // 7. Build the ordered dayId candidates for this view (Phase 104 R7 +
+      // Foundation fallback + KAIROS→alfa fallback). See buildDayIdCandidates.
+      const candidates = buildDayIdCandidates(
+        buildAsTemplo,
+        goalPlanType,
+        week,
+        dayName,
+        effectiveLevel,
+      );
 
-      // 8. Check DB for approved session only (no auto-generation for members)
-      let session = await sessionService.getSessionByDayId(dayId, true); // requireApproved=true
-      // v5.1 transition (KAIROS): a kairos member with no approved kairos session
-      // for this day reads the alfa session instead of a 404, until coaches build
-      // the kairos library. ROM days already resolved to alfa above, so this only
-      // fires on normal days where effectiveLevel stayed 'kairos'.
-      if (!session && effectiveLevel === "kairos") {
-        const alfaDayId =
-          !buildAsTemplo && goalPlanType
-            ? `GP-${goalPlanType}-W${week}-${dayName}-alfa`
-            : `W${week}-${dayName}-alfa`;
-        session = await sessionService.getSessionByDayId(alfaDayId, true);
-      }
+      // 8. Check DB for approved sessions only (no auto-generation for members).
+      // Batch-fetch all candidates in one query and take the first that exists,
+      // honoring candidate order (curated goal-plan > Foundation fallback).
+      const found = await sessionService.getSessionsByDayIds(candidates, true);
+      const session = candidates.map((id) => found.get(id)).find(Boolean);
       if (!session) {
         return reply.status(404).send({
           error: "Sesion no disponible",
@@ -548,39 +586,33 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
           .map((r) => r.dayOfWeek),
       );
 
-      // 7. Build dayIds based on resolved view (Phase 104 R7).
-      // - templo OR program-with-no-goalPlanType (Foundation): W{week}-{day}-{level}
-      // - program with goalPlanType: GP-{type}-W{week}-{day}-{level}
-      // ROM days map non-alfa levels to delta (per D-29).
-      const dateToDay = new Map<string, string>();
+      // 7. Build dayId candidates per training day (Phase 104 R7 + Foundation
+      // fallback + KAIROS→alfa fallback). See buildDayIdCandidates. ROM days
+      // map non-alfa levels to delta (per D-29). Candidates are stored per date
+      // so the assembly step can pick the first approved session without
+      // recomputing the level/dayId logic.
+      const candidatesByDate = new Map<string, string[]>();
       const dayIds: string[] = [];
       for (const date of weekDates) {
         const dayName = dateToDayName(date);
-        dateToDay.set(date, dayName);
-        if (dayName !== "domingo") {
-          const dayNum = DAY_NAME_TO_NUMBER[dayName];
-          const isRomDay = dayNum ? romDayNumbers.has(dayNum) : false;
-          // WR-04 / D-03: kairos inherits Alfa → alfa ROM variant on ROM days.
-          const effectiveLevel = isRomDay
-            ? memberLevel === "alfa" || isKairos(memberLevel)
-              ? "alfa"
-              : "delta"
-            : memberLevel;
-          const dayId =
-            !buildAsTemplo && goalPlanType
-              ? `GP-${goalPlanType}-W${week}-${dayName}-${effectiveLevel}`
-              : `W${week}-${dayName}-${effectiveLevel}`;
-          dayIds.push(dayId);
-          // v5.1 transition (KAIROS): also fetch the alfa fallback so a kairos
-          // member sees the alfa session on days with no approved kairos session.
-          if (effectiveLevel === "kairos") {
-            dayIds.push(
-              !buildAsTemplo && goalPlanType
-                ? `GP-${goalPlanType}-W${week}-${dayName}-alfa`
-                : `W${week}-${dayName}-alfa`,
-            );
-          }
-        }
+        if (dayName === "domingo") continue;
+        const dayNum = DAY_NAME_TO_NUMBER[dayName];
+        const isRomDay = dayNum ? romDayNumbers.has(dayNum) : false;
+        // WR-04 / D-03: kairos inherits Alfa → alfa ROM variant on ROM days.
+        const effectiveLevel = isRomDay
+          ? memberLevel === "alfa" || isKairos(memberLevel)
+            ? "alfa"
+            : "delta"
+          : memberLevel;
+        const candidates = buildDayIdCandidates(
+          buildAsTemplo,
+          goalPlanType,
+          week,
+          dayName,
+          effectiveLevel,
+        );
+        candidatesByDate.set(date, candidates);
+        dayIds.push(...candidates);
       }
 
       // Batch fetch all approved sessions (single query instead of N+1)
@@ -591,33 +623,17 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
 
       const sessionsMap: Record<string, unknown> = {};
       for (const date of weekDates) {
-        const dayName = dateToDay.get(date)!;
-        if (dayName === "domingo") {
+        // No candidates → domingo / non-training day.
+        const candidates = candidatesByDate.get(date);
+        if (!candidates) {
           sessionsMap[date] = null;
           continue;
         }
-        const dayNum = DAY_NAME_TO_NUMBER[dayName];
-        const isRomDay = dayNum ? romDayNumbers.has(dayNum) : false;
-        // WR-04 / D-03: kairos inherits Alfa → alfa ROM variant on ROM days.
-        const effectiveLevel = isRomDay
-          ? memberLevel === "alfa" || isKairos(memberLevel)
-            ? "alfa"
-            : "delta"
-          : memberLevel;
-        const dayId =
-          !buildAsTemplo && goalPlanType
-            ? `GP-${goalPlanType}-W${week}-${dayName}-${effectiveLevel}`
-            : `W${week}-${dayName}-${effectiveLevel}`;
-        let session = batchSessions.get(dayId);
-        // v5.1 transition (KAIROS): fall back to the alfa session when no kairos
-        // session is approved for this day.
-        if (!session && effectiveLevel === "kairos") {
-          const alfaDayId =
-            !buildAsTemplo && goalPlanType
-              ? `GP-${goalPlanType}-W${week}-${dayName}-alfa`
-              : `W${week}-${dayName}-alfa`;
-          session = batchSessions.get(alfaDayId);
-        }
+        // First candidate with an approved session wins (curated goal-plan >
+        // Foundation fallback > kairos→alfa fallback, per buildDayIdCandidates).
+        const session = candidates
+          .map((id) => batchSessions.get(id))
+          .find(Boolean);
         sessionsMap[date] = session
           ? sessionToResponse(session, formatDescriptions)
           : null;
