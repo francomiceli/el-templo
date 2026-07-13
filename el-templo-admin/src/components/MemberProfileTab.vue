@@ -74,7 +74,30 @@
             </div>
             <div class="col-12 col-sm-6">
               <div class="text-caption text-grey-7">IBAN</div>
-              <div class="text-body1">{{ member.sepaDetails?.iban ?? dashPlaceholder }}</div>
+              <div class="text-body1 row items-center no-wrap">
+                <span>
+                  {{
+                    member.sepaDetails?.iban
+                      ? showIban
+                        ? member.sepaDetails.iban
+                        : maskedIban
+                      : dashPlaceholder
+                  }}
+                </span>
+                <q-btn
+                  v-if="member.sepaDetails?.iban"
+                  :icon="showIban ? 'visibility_off' : 'visibility'"
+                  flat
+                  round
+                  dense
+                  size="sm"
+                  color="grey-7"
+                  class="q-ml-xs"
+                  @click="showIban = !showIban"
+                >
+                  <q-tooltip>{{ showIban ? 'Ocultar IBAN' : 'Mostrar IBAN' }}</q-tooltip>
+                </q-btn>
+              </div>
             </div>
             <div class="col-12 col-sm-6">
               <div class="text-caption text-grey-7">Dirección</div>
@@ -121,7 +144,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import type { MemberProfile } from 'src/types/member';
 
 // =========================================================================
@@ -156,6 +179,15 @@ const LEVEL_NAMES: Record<string, string> = {
 // =========================================================================
 // Computed
 // =========================================================================
+
+// IBAN oculto por defecto (dato sensible); se revela con el ojito.
+const showIban = ref(false);
+const maskedIban = computed(() => {
+  const iban = props.member.sepaDetails?.iban;
+  if (!iban) return dashPlaceholder;
+  const visible = iban.slice(-4);
+  return `${'•'.repeat(Math.max(iban.length - 4, 0))}${visible}`;
+});
 
 const formattedDateOfBirth = computed(() => {
   if (!props.member.dateOfBirth) return dashPlaceholder;
