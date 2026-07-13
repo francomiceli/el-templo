@@ -670,6 +670,7 @@ import { ref, computed, watch, onMounted } from 'vue';
 import { useQuasar } from 'quasar';
 import { onBeforeRouteLeave, useRoute } from 'vue-router';
 import { createLogger } from 'src/utils/logger';
+import { extractError, isExpectedClientError } from 'src/utils/extract-error';
 import { formatPrice } from 'src/utils/format-price';
 import { ZERO_PRICE_LABEL } from 'src/config/templo-config';
 import { useMembersApi } from 'src/composables/useMembersApi';
@@ -1513,10 +1514,18 @@ async function onConfirm() {
   } catch (err: unknown) {
     // Retry re-uses the SAME key, so a load that actually succeeded server-side
     // before a timeout is a safe idempotent no-op on the next tap.
-    log.error('Error registrando cobro', {
-      error: err instanceof Error ? err.message : String(err),
-    });
-    $q.notify({ type: 'negative', message: 'No se pudo registrar el cobro. Reintentá.' });
+    const message = extractError(err, 'No se pudo registrar el cobro. Reintentá.');
+    if (isExpectedClientError(err)) {
+      // Business rejection (400/409), e.g. "Ya existe una renovación
+      // programada." — show the backend's actionable message and log as warn
+      // (console only, not Sentry). "Reintentá" would be misleading here.
+      log.warn('Cobro rechazado', { error: message });
+    } else {
+      log.error('Error registrando cobro', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+    $q.notify({ type: 'negative', message });
   } finally {
     submitting.value = false;
   }
