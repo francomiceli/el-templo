@@ -33,7 +33,7 @@
           :loading="exportingSepa"
           @click="onExportSepa"
         >
-          <q-tooltip>Exportar domiciliación España (socios activos)</q-tooltip>
+          <q-tooltip>Exportar domiciliación (socios activos)</q-tooltip>
         </q-btn>
         <q-btn
           label="Nuevo en Prueba"
@@ -419,7 +419,12 @@ const exportingSepa = ref(false);
 const canExportSepa = computed(() => {
   const role = authStore.user?.role;
   const roleOk = role === 'owner' || role === 'admin' || role === 'gestion';
-  return roleOk && branches.value.some((b) => b.country === 'ES');
+  if (!roleOk) return false;
+  // Owner: su scope incluye todas las sedes, así que respetamos el selector de
+  // país — no mostrar el export si está viendo Argentina.
+  if (isOwner.value) return selectedCountry.value === 'ES';
+  // Admin/gestion: mostrar solo si hay sedes ES dentro de su scope.
+  return branches.value.some((b) => b.country === 'ES');
 });
 const showCreateDialog = ref(false);
 const showCreateTrialDialog = ref(false);
