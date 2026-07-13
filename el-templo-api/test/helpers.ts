@@ -185,6 +185,8 @@ const TABLES_TO_CLEAN = [
   // (FK checks off durante el DELETE), se limpian para no filtrar vínculos entre tests.
   schema.referralCredits,
   schema.referrals,
+  // v5.5 follow-up: clics del CTA del A/B test — sin limpiar se acumularían entre tests.
+  schema.referralCtaClicks,
   schema.memberNotes,
   schema.holidays,
   // Phase 117: finance tables were missing here, leaking financial_transactions
