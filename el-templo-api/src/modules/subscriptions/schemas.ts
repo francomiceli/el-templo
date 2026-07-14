@@ -32,7 +32,13 @@ const planSchema = {
     isGroup: { type: "boolean" },
     planCategory: {
       type: "string",
-      enum: ["presencial", "online_regular", "online_goal", "online_coach"],
+      enum: [
+        "presencial",
+        "online_regular",
+        "online_goal",
+        "online_coach",
+        "especial",
+      ],
     },
     goalPlanType: { type: ["string", "null"] },
     linkedProgramId: { type: ["integer", "null"] },
@@ -178,7 +184,13 @@ export const createPlanSchema = {
       isGroup: { type: "boolean" },
       planCategory: {
         type: "string",
-        enum: ["presencial", "online_regular", "online_goal", "online_coach"],
+        enum: [
+          "presencial",
+          "online_regular",
+          "online_goal",
+          "online_coach",
+          "especial",
+        ],
       },
       linkedProgramId: { type: "integer" },
       groupMaxMembers: { type: "integer", minimum: 1 },
@@ -220,7 +232,13 @@ export const updatePlanSchema = {
       isGroup: { type: "boolean" },
       planCategory: {
         type: "string",
-        enum: ["presencial", "online_regular", "online_goal", "online_coach"],
+        enum: [
+          "presencial",
+          "online_regular",
+          "online_goal",
+          "online_coach",
+          "especial",
+        ],
       },
       linkedProgramId: { type: ["integer", "null"] },
       groupMaxMembers: { type: ["integer", "null"] },

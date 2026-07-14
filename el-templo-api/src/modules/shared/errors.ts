@@ -56,6 +56,23 @@ export class CoverageExpiredError extends BadRequestError {
   }
 }
 
+/**
+ * Fase 161 (PASE-01, GATE-01) — un member intentó reservar una actividad especial
+ * (Verticales, Acrobacias, Open Gym) sin un pase "Actividades con Aura" activo.
+ * Carga un `code = "PASS_REQUIRED"` distinguible para que la ruta /reserve lo
+ * surface y la app abra el diálogo de compra del pase en vez del notify genérico.
+ * Espejo exacto de CoverageExpiredError.
+ */
+export class PassRequiredError extends BadRequestError {
+  readonly code = "PASS_REQUIRED";
+
+  constructor(
+    message = "Necesitás el pase de actividades para reservar esta clase",
+  ) {
+    super(message);
+  }
+}
+
 export class ConflictError extends AppError {
   constructor(message = "Conflicto") {
     super(message, 409);

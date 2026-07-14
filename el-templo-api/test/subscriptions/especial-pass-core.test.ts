@@ -68,10 +68,15 @@ describe("Phase 161-01 — contratos del pase especial", () => {
         name: "Presencial Ruteo",
         planCategory: "presencial",
       });
+      // Los planes especiales reales se seedean por migración (0179), no por esta
+      // ruta. `grantsAllPrograms:true` satisface assertPlanInvariants — que hoy trata
+      // especial como online (isOnlinePlan callsite diferido al Plan 02, service.ts:251)
+      // y exigiría un programa vinculado. classesPerWeek queda en el default de basePlan
+      // (el schema exige integer>=1). Para el test de RUTEO por categoría es irrelevante.
       const especialPlan = await createPlan(app, adminToken, {
         name: "Pase Especial Ruteo",
         planCategory: "especial",
-        classesPerWeek: null,
+        grantsAllPrograms: true,
       });
       const member = await createMember(app);
 

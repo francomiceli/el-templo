@@ -50,7 +50,7 @@ import type {
   CreatePromoInput,
   UpdatePromoInput,
 } from "./types";
-import { AURA_DISCOUNT_TIERS, isOnlinePlan } from "./types";
+import { AURA_DISCOUNT_TIERS, isOnlinePlan, categoryGroup } from "./types";
 import type { TransactionService } from "../finance";
 import type { TxHandle } from "../finance/balance-service";
 import type { PaymentMethod } from "../finance/types";
@@ -1025,6 +1025,57 @@ export class SubscriptionService {
 
     const mapped = rows.map((r) => this.mapSubscriptionRow(r));
     return this.enrichManyWithScheduleIds(mapped);
+  }
+
+  /**
+   * Fase 161 (PASE-01, GATE-02): elige LA suscripción a usar para una actividad
+   * según si ésta es especial o no. Base en `getMemberSubscriptions` (plural, ya
+   * incluye status active/paused/**scheduled**), filtra por grupo de categoría:
+   * cuando `isSpecialActivity` devuelve la sub de grupo 'especial'; si no, la sub
+   * NO-especial (presencial u online).
+   *
+   * Criterio de selección idéntico al singular `getMemberSubscription`
+   * (:947-951): primero las subs que cubren hoy (startDate <= hoy), dentro de
+   * esas active > paused > scheduled, y luego por startDate ascendente. Devuelve
+   * la primera o null.
+   *
+   * CRÍTICO: NO excluye `scheduled`. El bloque coverage-from de `reserve()`
+   * (booking-service.ts) permite reservar con una sub `scheduled` que arranca
+   * mañana, y el singular la incluye; excluirla acá sería una regresión de
+   * reserva dentro de ventana. NUNCA usar `getMemberSubscription` singular para
+   * decidir de qué sub descontar por actividad (Pitfall 1: ordena por fecha SIN
+   * criterio de actividad).
+   */
+  async pickSubscriptionForActivity(
+    userId: number,
+    isSpecialActivity: boolean,
+  ): Promise<SubscriptionDetail | null> {
+    const subs = await this.getMemberSubscriptions(userId);
+
+    const candidates = subs.filter((s) => {
+      const isEspecial = categoryGroup(s.planCategory) === "especial";
+      return isSpecialActivity ? isEspecial : !isEspecial;
+    });
+    if (candidates.length === 0) return null;
+
+    const today = new Date().toISOString().slice(0, 10);
+    const coversToday = (s: SubscriptionDetail): number =>
+      s.startDate <= today ? 0 : 1;
+    const statusRank = (s: SubscriptionDetail): number => {
+      if (s.status === "active") return 0;
+      if (s.status === "paused") return 1;
+      return 2; // scheduled
+    };
+
+    const sorted = [...candidates].sort((a, b) => {
+      const byCover = coversToday(a) - coversToday(b);
+      if (byCover !== 0) return byCover;
+      const byStatus = statusRank(a) - statusRank(b);
+      if (byStatus !== 0) return byStatus;
+      return a.startDate.localeCompare(b.startDate);
+    });
+
+    return sorted[0];
   }
 
   /**

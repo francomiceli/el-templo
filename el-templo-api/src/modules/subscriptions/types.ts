@@ -26,8 +26,30 @@ export type PlanCategory =
   | "presencial"
   | "online_regular"
   | "online_goal"
-  | "online_coach";
+  | "online_coach"
+  | "especial"; // Fase 161 (PASE-01): pase "Actividades con Aura".
 
+/**
+ * Fase 161: grupo de categoría de 3 valores. El binario `isOnlinePlan` colapsa
+ * especial con online (especial !== "presencial" → true), lo que dispararía el
+ * conflicto "ya tiene online" en assignPlan. Usar `categoryGroup` para rutear
+ * por grupo (presencial / online / especial) — el pase es una categoría paralela.
+ */
+export type CategoryGroup = "presencial" | "online" | "especial";
+export function categoryGroup(c: PlanCategory): CategoryGroup {
+  if (c === "presencial") return "presencial";
+  if (c === "especial") return "especial";
+  return "online";
+}
+
+/**
+ * NOTA PARA EL PLAN 02: `isOnlinePlan` NO se refina acá a propósito. Callsites a
+ * migrar al criterio `categoryGroup` cuando el Plan 02 reescriba el conflicto de
+ * assign: member-routes.ts:194-195, service.ts:251 y service.ts:1249. Hoy
+ * `isOnlinePlan('especial') === true` (especial lumpeado con online) — aceptable
+ * como estado transitorio porque no hay planes especiales asignables por el flujo
+ * de conflicto hasta que el Plan 02 lo separe.
+ */
 export function isOnlinePlan(category: PlanCategory): boolean {
   return category !== "presencial";
 }
