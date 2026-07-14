@@ -4232,7 +4232,18 @@ _v5.5 (Sistema de Referidos) added: 2026-07-02 — 2 phases (157-158), 12 requir
 4. El externo con pase solo puede reservar actividades especiales, no clases regulares. (GATE-04)
 5. Cada asistencia a una actividad especial consume 1 clase del pase (2/mes), no del presupuesto del plan presencial. (GATE-02)
 
-**Plans:** TBD
+**Plans:** 7 plans en 3 waves
+
+Plans:
+
+- [ ] 161-01-PLAN.md — Foundation: schema + migración 0179 (enum `especial`, budget explícito, flag `is_special`, `requires_presencial`, seed 2 planes AR), `PassRequiredError`, `categoryGroup`, `pickSubscriptionForActivity`
+- [ ] 161-02-PLAN.md — Suscripciones: assign/renew/changePlan del pase (conflicto por grupo, budget, presencial-activo D-01, referidos excluidos D-09, discriminador de renovación)
+- [ ] 161-03-PLAN.md — Consumo: routing del decremento por actividad en los 4 puntos de attendance + no-shows (GATE-02)
+- [ ] 161-04-PLAN.md — Analytics: exclusión de `especial` de las métricas de membresía (D-11)
+- [ ] 161-05-PLAN.md — Actividades: CRUD del flag `is_special` + `getScheduleSlotRaw` expone `isSpecial` (ACT-01/02)
+- [ ] 161-06-PLAN.md — Gating: enforcement en `reserve()` + booking admin (GATE-01/03/04, ventana D-06, saldo D-04, bypass staff D-07)
+- [ ] 161-07-PLAN.md — Admin: toggle del ABM, venta/renovación del pase, advertencia D-07 + checkpoint de verificación humana
+
 **UI hint:** yes (flag de "especial" en el ABM de actividades + venta del pase en el admin)
 
 ### Phase 162: Superficie — member app y reporte de reparto
