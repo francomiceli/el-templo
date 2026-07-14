@@ -53,6 +53,7 @@ Entries marked _"per project notes, unverified in code"_ come from working notes
 | FA-15 | Domain audit | Attendance hardening backlog: overdue check not implemented, no transactions on reserve/check-in, coach check-in lacks one-per-day guard   | open/known-weak                      |
 | FA-16 | Mobile/iOS   | Associated Domains entitlement commented out to unblock build 1.5.5 → Universal Links OFF on iOS                                           | open (restore before mail campaigns) |
 | FA-17 | CI/deps      | Tracking `pnpm-workspace.yaml` broke `cap sync`; `minimumReleaseAge` is useless under `--frozen-lockfile`                                  | fixed (reverted)                     |
+| FA-18 | CI/tests     | Staging red ×3 pushes: 157-03's eager referral code broke 157-02's lazy-assumption tests; annotations API beats 403'd logs                 | fixed                                |
 
 ---
 
@@ -305,6 +306,33 @@ interpolation — and if `applyScope()` says it needs a branch join, join it.
 - **Status**: fixed (reverted). Do not re-track these files.
 - **Lesson**: supply-chain knobs that act at resolve-time do nothing under frozen
   lockfiles; verify where a safeguard actually executes before paying its cost.
+
+### FA-18 — Staging CI/deploy red for 3 pushes: 157's eager code generation broke 157's own earlier tests
+
+- **Symptom**: `Deploy Staging` and `CI` failed on three consecutive staging pushes
+  (`985dfa5e` 157, `c8842b45` analytics fix, `0736273d` 158, 2026-07-10/11) — staging
+  never deployed 157 despite memory/notes saying "157 en staging". Master stayed
+  green (the failing tests only exist on the referidos branch). 4 failing tests, all
+  in `test/referrals/`: `code-generation.test.ts` (expected injected suffixes
+  `FRAN-AAAA`/`REF-ZZZZ`, got random ones) and `backfill-codes.test.ts` (0 backfill
+  candidates where ≥1 expected).
+- **Root cause**: intra-phase plan drift. Plan 157-02 wrote tests assuming members
+  start WITHOUT `referral_code` (lazy generation); plan 157-03 later made
+  registration generate the code **eagerly** (`auth/routes.ts` calls
+  `generateReferralCode` on register). Every `createMember` fixture then bears a
+  random code: `generateReferralCode`'s idempotent early-return skips the injected
+  `suffixFn`, and the backfill script finds no candidates. 157-03's executor never
+  re-ran 157-02's test files, so the break surfaced only in CI's full suite.
+- **Evidence**: fix commit `dbb24b45` (2026-07-11) — tests now NULL the eager code
+  (`clearCode()` helper) to simulate legacy pre-157 members. Diagnosed WITHOUT log
+  access via the public check-run annotations API
+  (`/repos/.../check-runs/{id}/annotations` — job logs 403 for non-admin, but
+  annotations carry the assertion diffs).
+- **Status**: fixed.
+- **Lesson**: two lessons. (1) When a later plan changes an invariant an earlier
+  plan's tests encode (lazy → eager), re-run the earlier plan's test files before
+  calling the phase done. (2) When Actions job logs are 403, the check-run
+  annotations endpoint is public and usually contains the failing asserts.
 
 ---
 

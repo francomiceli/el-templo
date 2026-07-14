@@ -223,6 +223,8 @@ export interface CreateMemberInput {
   emergencyContactName?: string | null;
   emergencyContactPhone?: string | null;
   emergencyContactRelationship?: string | null;
+  /** Atribución de referido (opcional): id del socio que lo trajo. El server valida. */
+  referredBy?: number | null;
 }
 
 /**

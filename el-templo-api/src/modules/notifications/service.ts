@@ -166,6 +166,7 @@ export class NotificationService {
       motivacion: true,
       anuncios: true,
       planes: true,
+      referidos: true,
     };
 
     for (const row of rows) {

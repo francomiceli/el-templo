@@ -490,6 +490,9 @@ export const createMemberSchema = {
       emergencyContactName: { type: "string" },
       emergencyContactPhone: { type: "string" },
       emergencyContactRelationship: { type: "string" },
+      // Phase 157-03 (REF-03, D-08): referidor del canal asistido. Se valida
+      // server-side en el handler (socio real); opcional, nunca bloquea el alta.
+      referredBy: { type: "integer" },
     },
   },
   response: {

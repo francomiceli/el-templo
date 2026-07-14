@@ -8,7 +8,7 @@
  */
 
 import { FastifyPluginAsync } from "fastify";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import * as schema from "../../db/schema";
@@ -21,6 +21,7 @@ import {
 } from "../onboarding/types";
 import { MemberService } from "./service";
 import { SubscriptionService } from "../subscriptions/service";
+import { ReferralService } from "../referrals/service";
 import { AuraService } from "../aura/service";
 import { BookingService } from "../scheduling/booking-service";
 import { NotificationService } from "../notifications/service";
@@ -610,9 +611,39 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
     },
     async (request, reply) => {
       try {
-        const { member, tempPassword } = await memberService.createMember(
-          request.body,
-        );
+        // Phase 157-03 (REF-03, D-08): validate the assisted-channel referrer
+        // server-side — never trust the raw body id (Security V4/T-157-08). A
+        // missing/invalid referrer is dropped gracefully (undefined) so the
+        // alta still proceeds without attribution (UI-SPEC hard rule). The
+        // brand-new member's id doesn't exist yet, so auto-referral (D-13) is
+        // structurally impossible here; createMember guards it defensively.
+        let referredBy: number | undefined = request.body.referredBy;
+        if (referredBy !== undefined) {
+          const [ref] = await fastify.db
+            .select({ id: schema.users.id })
+            .from(schema.users)
+            .where(
+              and(
+                eq(schema.users.id, referredBy),
+                isNull(schema.users.deletedAt),
+              ),
+            )
+            .limit(1);
+          if (!ref) {
+            request.log.warn(
+              { referredBy },
+              "referral: referrer inexistente en alta asistida, atribución omitida",
+            );
+            referredBy = undefined;
+          }
+        }
+
+        const { member, tempPassword } = await memberService.createMember({
+          ...request.body,
+          // createdBy from the JWT admin; referredBy is the validated value.
+          createdBy: request.user.userId,
+          referredBy,
+        });
 
         // Auto-create subscription at base regular price when a plan was
         // selected. Plan is optional at creation: admin can assign it later
@@ -1613,6 +1644,77 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
     async (request) => {
       const notes = await memberService.getNotes(request.params.userId);
       return { notes };
+    },
+  );
+
+  // GET /admin/members/:userId/referrals — Referral overview de la ficha del
+  // alumno (fase 158, D-34). Gestión consulta quién lo trajo y a quiénes trajo
+  // con el MISMO estado derivado (deriveCoveredUntil) que la app.
+  //
+  // Guard extra (T-158-02, WR-05): además del MEMBER_ROLES del plugin, esta
+  // ruta exige MEMBER_LIFECYCLE_ROLES — coach y recepción no leen referidos de
+  // otro alumno. El admin oculta el tab a esos dos roles (AlumnoDetailPage).
+  fastify.get<{ Params: { userId: number } }>(
+    "/:userId/referrals",
+    async (request, reply) => {
+      try {
+        const { role } = request.user;
+        if (!(MEMBER_LIFECYCLE_ROLES as readonly string[]).includes(role)) {
+          return reply.code(403).send({
+            error: "Acceso denegado",
+            message: "No tienes permiso para ver los referidos",
+          });
+        }
+        const targetId = Number(request.params.userId);
+        if (!Number.isInteger(targetId)) {
+          return reply.code(400).send({
+            error: "Solicitud inválida",
+            message: "id inválido",
+          });
+        }
+
+        // T-106-02 — verify target member exists and (for non-owners) lives
+        // in a branch that matches the request's country scope. 404 (no 403)
+        // para cross-country, mirror DELETE /:userId pattern (info-leak avoid).
+        const [target] = await fastify.db
+          .select({
+            id: schema.users.id,
+            deletedAt: schema.users.deletedAt,
+            branchCountry: schema.branches.country,
+            branchIsVirtual: schema.branches.isVirtual,
+          })
+          .from(schema.users)
+          .innerJoin(
+            schema.branches,
+            eq(schema.branches.id, schema.users.branchId),
+          )
+          .where(eq(schema.users.id, targetId))
+          .limit(1);
+
+        if (!target || target.deletedAt) {
+          return reply.code(404).send({
+            error: "No encontrado",
+            message: "Miembro no encontrado",
+          });
+        }
+
+        if (
+          !request.scope.isOwner &&
+          !target.branchIsVirtual &&
+          target.branchCountry !== request.scope.country
+        ) {
+          // 404 (not 403) to mirror DELETE /:userId pattern (info-leak avoid).
+          return reply.code(404).send({
+            error: "No encontrado",
+            message: "Miembro no encontrado",
+          });
+        }
+
+        const referralService = new ReferralService(fastify.db, fastify.log);
+        return await referralService.getReferralOverview(targetId);
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "get member referrals");
+      }
     },
   );
 

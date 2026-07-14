@@ -18,6 +18,9 @@
       <!-- Notification Permission Banner (per D-24) -->
       <PermissionBanner />
 
+      <!-- Referidos (fase 158): primera card visible — misma estética premium -->
+      <ReferralCtaCard />
+
       <!-- Program/Premium card — non-linked program, OR linked-program member
            with at least one extra enrollment (admin add-on, bundle, etc) so
            the dropdown can surface those alternatives. Phase 112: without the
@@ -166,6 +169,7 @@ import ProgramProgressCard from 'src/modules/programs/components/ProgramProgress
 import { useProgramsApi } from 'src/modules/programs/composables/useProgramsApi'
 import type { MemberEnrollmentProgress } from 'src/modules/programs/types'
 import PermissionBanner from '../components/PermissionBanner.vue'
+import ReferralCtaCard from '../components/ReferralCtaCard.vue'
 import UpsellBadge from '../components/UpsellBadge.vue'
 import { useNotificationStore } from 'src/stores/useNotificationStore'
 import { useRouter } from 'vue-router'

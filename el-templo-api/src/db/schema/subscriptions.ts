@@ -59,6 +59,12 @@ export const subscriptions = mysqlTable(
     priceTypeApplied: priceTypeAppliedEnum.notNull(),
     auraDiscount: int("aura_discount"),
     auraDiscountPercent: int("aura_discount_percent"),
+    // Phase 157 (D-23): descuento por referido, materializado en columnas NUEVAS
+    // separadas de auraDiscount* — el gasto AURA discrecional escribe aquellas y
+    // colisionaría. Los dos mecanismos componen de forma independiente sobre pricePaid.
+    // Nullable: NULL en cobros sin descuento por referido.
+    referralDiscountPercent: int("referral_discount_percent"),
+    referralDiscountAmount: int("referral_discount_amount"),
     boardingPassUsed: boolean("boarding_pass_used").default(false).notNull(),
     priceOverrideAmount: int("price_override_amount"),
     priceOverrideReason: text("price_override_reason"),

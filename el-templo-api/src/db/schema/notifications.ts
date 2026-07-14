@@ -19,6 +19,7 @@ export const notificationCategoryEnum = mysqlEnum("notification_category", [
   "motivacion",
   "anuncios",
   "planes",
+  "referidos",
 ]);
 
 export const notificationStatusEnum = mysqlEnum("notification_status", [

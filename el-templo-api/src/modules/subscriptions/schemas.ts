@@ -104,6 +104,10 @@ const pricingPreviewResponseSchema = {
         },
       },
     },
+    // Referidos (fase 157): desglose del descuento de referido ya aplicado en
+    // finalPrice (preview parity con la charge-path, Pitfall 4).
+    referralDiscountPercent: { type: "integer" },
+    referralDiscountAmount: { type: "integer" },
   },
 } as const;
 

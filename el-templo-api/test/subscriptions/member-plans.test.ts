@@ -1,11 +1,15 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
+import { sql } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import {
   createTestApp,
   getAuthToken,
   registerUser,
   cleanAllTestData,
+  todayStr,
+  dateOffsetStr,
 } from "../helpers";
+import { createPlan, createMember, assignPlan } from "./_helpers";
 
 const ADMIN_BASE_URL = "/api/admin/subscriptions";
 const MEMBER_URL = "/api/members/subscription/plans";
@@ -226,5 +230,107 @@ describe("Member Plan Listing API", () => {
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.body);
     expect(body.plans[0].goalPlanZones).toBeNull();
+  });
+});
+
+// ── Fase 157 Plan 04 — Task 3: preview parity del descuento de referido ──
+// getPricingPreview debe devolver el mismo finalPrice que el pricePaid que la
+// charge-path cobraría (Pitfall 4). Es read-only: NO cualifica ni escribe credits.
+describe("Pricing preview — referral discount parity", () => {
+  const PLANS_URL = "/api/admin/subscriptions";
+  let app: FastifyInstance;
+  let adminToken: string;
+
+  beforeAll(async () => {
+    app = await createTestApp();
+    adminToken = await getAuthToken(app, "admin@test.com", "adminpass123");
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  beforeEach(async () => {
+    await cleanAllTestData(app);
+    await app.db.execute(
+      sql`INSERT INTO aura_config (aura_config_source_type, default_amount)
+          VALUES ('referral', 10)
+          ON DUPLICATE KEY UPDATE default_amount = 10`,
+    );
+    await app.db.execute(
+      sql`INSERT INTO system_settings (setting_key, setting_value)
+          VALUES ('referral.max_percent_cap', '40')
+          ON DUPLICATE KEY UPDATE setting_value = '40'`,
+    );
+  });
+
+  async function preview(
+    userId: number,
+    planId: number,
+  ): Promise<Record<string, unknown>> {
+    const res = await app.inject({
+      method: "GET",
+      url: `${PLANS_URL}/members/${userId}/subscription/pricing-preview?planId=${planId}&priceType=regular`,
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    return JSON.parse(res.body);
+  }
+
+  it("finalPrice del preview === pricePaid del cobro real (socio con vínculo activo)", async () => {
+    const plan = await createPlan(app, adminToken, { priceRegular: 10000 });
+    const referrer = await createMember(app, { email: "pv-r@test.com" });
+    const referred = await createMember(app, { email: "pv-d@test.com" });
+    await app.db.execute(
+      sql`INSERT INTO referrals (referrer_id, referred_id, status, attribution_channel, qualified_at)
+          VALUES (${referrer.id}, ${referred.id}, 'qualified', 'assisted', NOW())`,
+    );
+    await app.db.execute(
+      sql`INSERT INTO subscriptions (user_id, plan_id, branch_id, subscription_status, start_date, end_date, price_paid, currency, price_type_applied)
+          VALUES (${referred.id}, ${plan.id}, 1, 'active', ${todayStr()}, ${dateOffsetStr(30)}, 10000, 'ARS', 'regular')`,
+    );
+
+    const pv = await preview(referrer.id, plan.id as number);
+    expect(pv.referralDiscountPercent).toBe(10);
+    expect(pv.referralDiscountAmount).toBe(1000);
+    expect(pv.finalPrice).toBe(9000);
+
+    // El cobro real al mismo socio/vínculo debe coincidir con el preview.
+    const assigned = await assignPlan(app, adminToken, referrer.id, {
+      planId: plan.id,
+      startDate: todayStr(),
+    });
+    expect(assigned.statusCode).toBe(201);
+    expect(assigned.body.pricePaid).toBe(pv.finalPrice);
+  });
+
+  it("sin vínculos activos el preview devuelve el precio de lista", async () => {
+    const plan = await createPlan(app, adminToken, { priceRegular: 10000 });
+    const member = await createMember(app, { email: "pv-none@test.com" });
+
+    const pv = await preview(member.id, plan.id as number);
+    expect(pv.referralDiscountPercent).toBe(0);
+    expect(pv.referralDiscountAmount).toBe(0);
+    expect(pv.finalPrice).toBe(10000);
+  });
+
+  it("el preview es read-only: no cualifica el vínculo pending del socio", async () => {
+    const plan = await createPlan(app, adminToken, { priceRegular: 10000 });
+    const referrer = await createMember(app, { email: "pv-ro-r@test.com" });
+    const referred = await createMember(app, { email: "pv-ro-d@test.com" });
+    await app.db.execute(
+      sql`INSERT INTO referrals (referrer_id, referred_id, status, attribution_channel)
+          VALUES (${referrer.id}, ${referred.id}, 'pending', 'assisted')`,
+    );
+
+    await preview(referred.id, plan.id as number);
+
+    const rows = await app.db.execute(
+      sql`SELECT status FROM referrals WHERE referred_id = ${referred.id}`,
+    );
+    const statuses = (rows[0] as Array<{ status: string }>).map(
+      (r) => r.status,
+    );
+    expect(statuses).toEqual(["pending"]); // el preview NO flippeó
   });
 });

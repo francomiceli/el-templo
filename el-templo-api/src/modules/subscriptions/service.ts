@@ -61,6 +61,8 @@ import type { AdminRole } from "../shared/permissions";
 import { EnrollmentService } from "../programs/enrollment-service";
 import { SettingsService } from "../settings/service";
 import { PRICING_SETTINGS_KEYS } from "../settings/keys";
+import { ReferralService } from "../referrals/service";
+import { NotificationService } from "../notifications/service";
 
 // ─── Charge flow taxonomy (Phase 107) ─────────────────────────────────────────
 
@@ -384,6 +386,96 @@ export class SubscriptionService {
    * `this.db.transaction(async (tx) => { ... })` para que la atomicidad
    * subscription + transaction + balance funcione como CHARGE-03 exige.
    */
+  // ── Referidos (fase 157) ──────────────────────────────────────────────
+  // El "hook de la plata": las 4 charge-paths (assignPlan, changePlanNow,
+  // changePlanAfterCurrent, renewSubscription) + getPricingPreview comparten
+  // estos helpers para (1) cualificar el vínculo del referido en su 1er pago
+  // ANTES de computar el descuento (D-20/D-21) y (2) reducir pricePaid según
+  // los vínculos qualified con contraparte activa (DESC-02/03), materializando
+  // en las columnas NUEVAS referralDiscount* (D-23). Todo server-computed, sin
+  // input del cliente (DESC-05). El descuento compone sobre auraSpend (Pitfall 4).
+
+  /**
+   * Flip pending→qualified del vínculo del que el payer es referido, SOLO
+   * cuando el cargo efectivamente cobra (pricePaid>0 — D-20 mata el fantasma
+   * del mes 100% bonificado). Se invoca ANTES de
+   * computePriceWithReferralDiscount (D-21) para que el referido recién
+   * cualificado ya descuente en ESTE mismo cargo si su referidor está activo.
+   */
+  private async qualifyReferralOnCharge(
+    payerUserId: number,
+    pricePaid: number,
+  ): Promise<void> {
+    if (pricePaid <= 0) return;
+    const flipped = await new ReferralService(
+      this.db,
+      this.log,
+    ).qualifyFirstPayment(payerUserId);
+
+    // Solo el flip REAL (pending→qualified) notifica; un re-cobro devuelve null
+    // y no re-notifica (VIS-02/D-31). La notificación va SIEMPRE al referidor,
+    // nunca al referido. Best-effort (D-33): un fallo de la cola JAMÁS relanza ni
+    // rompe el cobro — try/catch envolvente + log.warn.
+    if (!flipped) return;
+    try {
+      await new NotificationService(this.db, this.log).queueNotification({
+        userId: flipped.referrerId,
+        templateKey: "referral_link_activated",
+        bodyOverride: `${flipped.referredFirstName} pagó su primer plan. Ya tenés tu descuento activo.`,
+      });
+    } catch (err: unknown) {
+      this.log.warn(
+        {
+          err: err instanceof Error ? err.message : String(err),
+          referrerId: flipped.referrerId,
+        },
+        "referral activation notification failed (best-effort)",
+      );
+    }
+  }
+
+  /**
+   * Descuento de referido sobre un precio YA resuelto (compone sobre auraSpend).
+   * Copia la price-math del bloque auraSpend (`Math.floor(base*pct/100)`,
+   * `pricePaid = base - amount`) pero NO usa `auraService.spend` — escribe en
+   * las columnas nuevas referralDiscount* (D-23), nunca en auraDiscount*.
+   * pct<=0 → devuelve el precio sin descuento.
+   */
+  private async computePriceWithReferralDiscount(
+    userId: number,
+    basePrice: number,
+  ): Promise<{ percent: number; amount: number; pricePaid: number }> {
+    const percent = await new ReferralService(
+      this.db,
+      this.log,
+    ).computeReferralDiscountPercent(userId);
+    if (percent <= 0) {
+      return { percent: 0, amount: 0, pricePaid: basePrice };
+    }
+    const amount = Math.floor(basePrice * (percent / 100));
+    return { percent, amount, pricePaid: basePrice - amount };
+  }
+
+  /**
+   * Registro auditable del descuento tras el cargo (AURA-01): fila en
+   * referral_credits + anotación aura_transactions amount=0. No-op si amount<=0.
+   * Se llama tras recordAssignmentCharge con el subscriptionId ya conocido.
+   */
+  private async recordReferralCreditOnCharge(
+    userId: number,
+    subscriptionId: number,
+    percent: number,
+    amount: number,
+  ): Promise<void> {
+    if (amount <= 0) return;
+    await new ReferralService(this.db, this.log).recordReferralCredit(
+      userId,
+      subscriptionId,
+      percent,
+      amount,
+    );
+  }
+
   private async recordAssignmentCharge(
     tx: TxHandle,
     params: {
@@ -1205,6 +1297,8 @@ export class SubscriptionService {
     let priceTypeApplied = await this.resolvePriceType(input.priceTypeApplied);
     let auraDiscount: number | null = null;
     let auraDiscountPercent: number | null = null;
+    let referralDiscountPercent: number | null = null;
+    let referralDiscountAmount: number | null = null;
     let boardingPassUsed = false;
     let priceOverrideAmount: number | null = null;
     let priceOverrideReason: string | null = null;
@@ -1273,6 +1367,21 @@ export class SubscriptionService {
         pricePaid = basePrice - discountAmount;
       }
     }
+
+    // ── Referidos (fase 157, D-20/D-21) ──
+    // Orden canónico: (1) el precio ya está resuelto (incl. auraSpend); (2) si
+    // el cargo cobra, flippear el vínculo pending del payer a qualified ANTES
+    // del cómputo, así el referido recién cualificado ya cuenta; (3) computar el
+    // descuento de referido sobre el precio corriente. El registro auditable
+    // (recordReferralCredit) va tras el cargo, con el subscriptionId conocido.
+    await this.qualifyReferralOnCharge(userId, pricePaid);
+    const referral = await this.computePriceWithReferralDiscount(
+      userId,
+      pricePaid,
+    );
+    pricePaid = referral.pricePaid;
+    referralDiscountPercent = referral.percent > 0 ? referral.percent : null;
+    referralDiscountAmount = referral.amount > 0 ? referral.amount : null;
 
     // ── Schedule slot validation ──
     // Fixed plans require an exact set. Flexible presencial plans may opt in
@@ -1357,6 +1466,8 @@ export class SubscriptionService {
           priceTypeApplied,
           auraDiscount,
           auraDiscountPercent,
+          referralDiscountPercent,
+          referralDiscountAmount,
           boardingPassUsed,
           priceOverrideAmount,
           priceOverrideReason,
@@ -1625,6 +1736,15 @@ export class SubscriptionService {
     if (!subscription) {
       throw new Error("Failed to retrieve newly created subscription");
     }
+
+    // Referidos (AURA-01): registro auditable del descuento aplicado, tras el
+    // cargo y con el subscriptionId ya conocido. No-op si no hubo descuento.
+    await this.recordReferralCreditOnCharge(
+      userId,
+      subscriptionId,
+      referral.percent,
+      referral.amount,
+    );
 
     this.log.info(
       {
@@ -2958,6 +3078,9 @@ export class SubscriptionService {
     // no tenía branch de boarding → el pase quedaba sin marcar y era reutilizable
     // (agujero vivo con la regla Zero ON). Simétrico a assignPlan/changePlanAfterCurrent.
     let boardingPassUsed = false;
+    // Referidos (fase 157): materialización del descuento en columnas nuevas.
+    let referralDiscountPercent: number | null = null;
+    let referralDiscountAmount: number | null = null;
 
     if (
       input.priceOverrideAmount !== undefined &&
@@ -2997,6 +3120,19 @@ export class SubscriptionService {
       resolvedOverrideAmount = netAmount;
       resolvedOverrideReason = `Cambio de plan: credito $${proration.remainingValue} (${proration.remainingDetail})`;
     }
+
+    // ── Referidos (fase 157, D-20/D-21) ──
+    // Flip antes del cómputo (si el cargo cobra) + descuento simétrico sobre el
+    // neto post-prorrateo. resolvedOverrideAmount conserva el neto de prorrateo;
+    // el descuento de referido reduce el pricePaid efectivo (columnas nuevas).
+    await this.qualifyReferralOnCharge(userId, netAmount);
+    const referral = await this.computePriceWithReferralDiscount(
+      userId,
+      netAmount,
+    );
+    netAmount = referral.pricePaid;
+    referralDiscountPercent = referral.percent > 0 ? referral.percent : null;
+    referralDiscountAmount = referral.amount > 0 ? referral.amount : null;
 
     // Phase 112-02 + 03: tear down the outgoing sub's plan-bound enrollments
     // BEFORE closing it. Runs on this.db (not in the new-sub tx) by design
@@ -3107,6 +3243,8 @@ export class SubscriptionService {
           priceTypeApplied: resolvedPriceType,
           priceOverrideAmount: resolvedOverrideAmount,
           priceOverrideReason: resolvedOverrideReason,
+          referralDiscountPercent,
+          referralDiscountAmount,
           boardingPassUsed,
           classesRemaining,
           classesBudget: classesRemaining,
@@ -3224,6 +3362,14 @@ export class SubscriptionService {
 
         return { newSubscriptionId: subId };
       });
+
+      // Referidos (AURA-01): registro auditable tras el cargo. No-op si amount<=0.
+      await this.recordReferralCreditOnCharge(
+        userId,
+        newSubscriptionId,
+        referral.percent,
+        referral.amount,
+      );
 
       // Auto-migrate member from virtual branch to subscription's physical branch
       const [memberForMigration] = await this.db
@@ -3413,6 +3559,8 @@ export class SubscriptionService {
     let priceTypeApplied = await this.resolvePriceType(input.priceTypeApplied);
     let auraDiscount: number | null = null;
     let auraDiscountPercent: number | null = null;
+    let referralDiscountPercent: number | null = null;
+    let referralDiscountAmount: number | null = null;
     let boardingPassUsed = false;
     let priceOverrideAmount: number | null = null;
     let priceOverrideReason: string | null = null;
@@ -3472,6 +3620,18 @@ export class SubscriptionService {
       }
     }
 
+    // ── Referidos (fase 157, D-20/D-21) ──
+    // Flip antes del cómputo (si el cargo cobra) + descuento simétrico sobre el
+    // precio ya resuelto (incl. auraSpend). Columnas nuevas referralDiscount*.
+    await this.qualifyReferralOnCharge(userId, pricePaid);
+    const referral = await this.computePriceWithReferralDiscount(
+      userId,
+      pricePaid,
+    );
+    pricePaid = referral.pricePaid;
+    referralDiscountPercent = referral.percent > 0 ? referral.percent : null;
+    referralDiscountAmount = referral.amount > 0 ? referral.amount : null;
+
     // New period: por defecto arranca en current.endDate (encadenado, sin gap).
     // El admin puede empujar el inicio MÁS ADELANTE (hotfix 2026-07-07, pedido
     // del staff: promos para socios que viajan y quieren arrancar después). La
@@ -3514,6 +3674,8 @@ export class SubscriptionService {
         priceTypeApplied,
         auraDiscount,
         auraDiscountPercent,
+        referralDiscountPercent,
+        referralDiscountAmount,
         boardingPassUsed,
         priceOverrideAmount,
         priceOverrideReason,
@@ -3587,6 +3749,14 @@ export class SubscriptionService {
 
       return { newSubscriptionId: subId };
     });
+
+    // Referidos (AURA-01): registro auditable tras el cargo. No-op si amount<=0.
+    await this.recordReferralCreditOnCharge(
+      userId,
+      newSubscriptionId,
+      referral.percent,
+      referral.amount,
+    );
 
     const newSub = await this.getSubscriptionById(newSubscriptionId);
     if (!newSub) {
@@ -3753,6 +3923,9 @@ export class SubscriptionService {
     let renewalPrice = currentSub.pricePaid;
     let renewalOverrideAmount: number | null = null;
     let renewalOverrideReason: string | null = null;
+    // Referidos (fase 157): materialización del descuento en columnas nuevas.
+    let referralDiscountPercent: number | null = null;
+    let referralDiscountAmount: number | null = null;
     if (
       input.priceOverrideAmount !== undefined &&
       input.priceOverrideAmount >= 0
@@ -3785,6 +3958,19 @@ export class SubscriptionService {
         renewalPrice = this.getBasePrice(plan, renewalPriceType);
       }
     }
+
+    // ── Referidos (fase 157, D-20/D-21) ──
+    // Flip antes del cómputo (si el cargo cobra) + descuento simétrico sobre el
+    // precio de renovación ya resuelto. Se aplica ANTES de resolver
+    // renewBranchId/caja (que gatean por renewalPrice>0) para que vean el neto.
+    await this.qualifyReferralOnCharge(userId, renewalPrice);
+    const referral = await this.computePriceWithReferralDiscount(
+      userId,
+      renewalPrice,
+    );
+    renewalPrice = referral.pricePaid;
+    referralDiscountPercent = referral.percent > 0 ? referral.percent : null;
+    referralDiscountAmount = referral.amount > 0 ? referral.amount : null;
 
     // If old sub is already expired, close it now (below).
     // If still active (early renewal), leave it active — auto-expire will
@@ -3907,6 +4093,8 @@ export class SubscriptionService {
         priceTypeApplied: renewalPriceType,
         priceOverrideAmount: renewalOverrideAmount,
         priceOverrideReason: renewalOverrideReason,
+        referralDiscountPercent,
+        referralDiscountAmount,
         classesRemaining: periodBudget,
         classesBudget: periodBudget,
         previousSubscriptionId: currentSub.id,
@@ -4051,6 +4239,14 @@ export class SubscriptionService {
 
       return { newSubscriptionId: subId };
     });
+
+    // Referidos (AURA-01): registro auditable tras el cargo. No-op si amount<=0.
+    await this.recordReferralCreditOnCharge(
+      userId,
+      newSubscriptionId,
+      referral.percent,
+      referral.amount,
+    );
 
     const newSub = await this.getSubscriptionById(newSubscriptionId);
     if (!newSub) {
@@ -4237,6 +4433,23 @@ export class SubscriptionService {
       }
     }
 
+    // ── Referidos (fase 157, Pitfall 4): preview parity ──
+    // computeReferralDiscountPercent es SOLO LECTURA: NO flippea cualificación
+    // (qualifyFirstPayment) ni escribe referral_credits (es preview, no cobra).
+    // Compone sobre el precio ya reducido por auraSpend, exactamente como la
+    // charge-path, para que el PoS muestre el precio que efectivamente se cobra.
+    let referralDiscountPercent = 0;
+    let referralDiscountAmount = 0;
+    const referralPct = await new ReferralService(
+      this.db,
+      this.log,
+    ).computeReferralDiscountPercent(userId);
+    if (referralPct > 0) {
+      referralDiscountPercent = referralPct;
+      referralDiscountAmount = Math.floor(finalPrice * (referralPct / 100));
+      finalPrice = finalPrice - referralDiscountAmount;
+    }
+
     return {
       basePrice,
       discountType,
@@ -4246,6 +4459,8 @@ export class SubscriptionService {
       auraBalance,
       boardingPassEligible,
       availableTiers,
+      referralDiscountPercent,
+      referralDiscountAmount,
     };
   }
 

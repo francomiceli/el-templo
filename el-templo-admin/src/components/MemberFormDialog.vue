@@ -150,6 +150,35 @@
                   </div>
                 </div>
 
+                <!-- Referido por (opcional) — atribución de referido, create-only (157-05) -->
+                <div class="row q-col-gutter-sm">
+                  <div class="col-12">
+                    <q-select
+                      v-model="referrer"
+                      :options="referrerSearchResults"
+                      option-value="id"
+                      option-label="displayLabel"
+                      label="Referido por (opcional)"
+                      hint="Buscá por nombre o DNI al socio que lo refirió"
+                      dense
+                      outlined
+                      clearable
+                      use-input
+                      input-debounce="300"
+                      :loading="searchingReferrer"
+                      @filter="onReferrerSearch"
+                    >
+                      <template #no-option>
+                        <q-item>
+                          <q-item-section class="text-grey">
+                            No se encontró ningún socio
+                          </q-item-section>
+                        </q-item>
+                      </template>
+                    </q-select>
+                  </div>
+                </div>
+
                 <div class="row q-col-gutter-sm">
                   <div class="col-12 col-sm-6">
                     <q-select
@@ -709,6 +738,42 @@ const form = ref({
   sepaCountry: 'ES',
 });
 
+// ¿Quién lo trajo? (opcional) — atribución de referido, create-only (157-05).
+// El id elegido viaja como referredBy en el create; el server valida.
+const referrer = ref<{ id: number; displayLabel: string } | null>(null);
+const referrerSearchResults = ref<Array<{ id: number; displayLabel: string }>>([]);
+const searchingReferrer = ref(false);
+
+function onReferrerSearch(val: string, update: (fn: () => void) => void, _abort: () => void) {
+  if (!val || val.length < 2) {
+    update(() => {
+      referrerSearchResults.value = [];
+    });
+    return;
+  }
+  searchingReferrer.value = true;
+  membersApi
+    .searchMembers(val, 10)
+    .then((members) => {
+      update(() => {
+        referrerSearchResults.value = members.map((m) => ({
+          id: m.id,
+          displayLabel: `${m.firstName} ${m.lastName}${m.dni ? ` (${m.dni})` : ''}`,
+        }));
+      });
+    })
+    .catch((err: unknown) => {
+      const message = err instanceof Error ? err.message : 'Error desconocido';
+      log.error('Error searching referrer', { error: message });
+      update(() => {
+        referrerSearchResults.value = [];
+      });
+    })
+    .finally(() => {
+      searchingReferrer.value = false;
+    });
+}
+
 // Sección SEPA: gateada por el país de la sucursal seleccionada EN el form
 // (no la guardada) — al mover un socio a una sede ES los campos aparecen en
 // el mismo save, sin tener que guardar dos veces.
@@ -936,6 +1001,9 @@ watch(
         sepaCity: '',
         sepaCountry: 'ES',
       };
+      // Reset la atribución de referido en cada apertura del alta.
+      referrer.value = null;
+      referrerSearchResults.value = [];
     }
   }
 );
@@ -1093,6 +1161,7 @@ async function onSubmit() {
         emergencyContactName: form.value.emergencyContactName || null,
         emergencyContactPhone: form.value.emergencyContactPhone || null,
         emergencyContactRelationship: form.value.emergencyContactRelationship || null,
+        referredBy: referrer.value?.id ?? null,
       });
       // Pass the new member up so the parent can offer to load a membership
       // right after creation (skipping the "go find user → edit → subs"

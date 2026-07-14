@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v5.4
 milestone_name: Reforma del Admin — Correcciones white-label (pre-tenants)
-status: milestone_complete
-stopped_at: Milestone complete (Phase 156 was final phase)
-last_updated: 2026-07-05T02:04:03.550Z
-last_activity: 2026-07-05
+status: verifying
+stopped_at: Phase 158 planned (4 plans, checker-approved)
+last_updated: "2026-07-11T14:05:47.733Z"
+last_activity: 2026-07-11
 progress:
   total_phases: 8
   completed_phases: 8
   total_plans: 41
-  completed_plans: 584
+  completed_plans: 41
   percent: 100
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-04)
 
 **Core value (v5.4):** Reorganizar el admin según `Correcciones El Templo.md` para dejarlo listo como MVP white-label — nav por categorías + RBAC dueño-vs-empleado, pantallas simplificadas y de-Templo-ficación de la superficie MVP (Finanzas, Alumnos, Horarios, Planes) — SIN introducir tenants todavía. Primera etapa del camino SaaS (reforma PRIMERO, tenancy DESPUÉS, secuencial). 8 fases (149-156), 33 requirements (NAV/COBRO/CTA/CAJA/DEUDA/ALUM/HOR/PLAN). Constraint dura: todo cambio de API adopta los patrones del diseño SaaS validado (motor vs plantilla, imports módulo→core, sin nuevos Templo-ismos en core).
-**Current focus:** Milestone complete
+**Current focus:** Phase 158 — Visibilidad y comunicación
 
 ## Current Position
 
-Phase: 156
-Plan: Not started
-Status: Milestone complete
-Last activity: 2026-07-05
+Phase: 158 (Visibilidad y comunicación) — EXECUTING
+Plan: 4 of 4
+Status: Phase complete — ready for verification
+Last activity: 2026-07-11
 
 ## Performance Metrics
 
@@ -323,6 +323,10 @@ _Updated after each plan completion_
 | Phase 156 P02 | 12min | 2 tasks | 7 files |
 | Phase 156 P03 | 18min | 3 tasks | 3 files |
 | Phase 156 P05 | ~4min | 3 tasks | 6 files |
+| Phase 158 P01 | ~20min | 3 tasks | 7 files |
+| Phase 158 P02 | 9min | 3 tasks | 8 files |
+| Phase 158 P03 | ~10min | 2 tasks | 3 files |
+| Phase 158 P04 | 15 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -748,6 +752,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: 155-04: grilla admin multi-slot por celda (slotMap Map<string,WeeklySlotView[]>) con render apilado; click de detalle/borrado por slot puntual desktop+mobile sin round-trip por (hora,día); click en celda vacía abre CreateSlotDialog prefilleado
 - [Phase ?]: Precio Zero a config: key pricing.zero_price_enabled (GET staff/PUT owner), default OFF, seed 0168 ON El Templo; gate en resolvePriceType + boarding pass
 - [Phase 156]: 156-05: UI admin de Zero (toggle en /configuracion/precios + gates en PlanForm/AssignPlan/Cobros) y multi-select de programas cableado a programIds; la UI solo esconde, el gate real es server-side (156-01/156-02)
+- [Phase ?]: 158-02: notificacion de vinculo activado best-effort dentro de qualifyReferralOnCharge (try/catch + log.warn, nunca rompe el cobro D-33); categoria 'referidos' apendada ultima en el enum (mig 0177); qualifyFirstPayment devuelve el flip para notificar una sola vez
 
 ### Pending Todos
 
@@ -780,8 +785,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-05T01:30:50.452Z
-Stopped at: Completed 156-01-PLAN.md
+Last session: 2026-07-11T14:05:35.946Z
+Stopped at: Phase 158 planned (4 plans, checker-approved)
 Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z

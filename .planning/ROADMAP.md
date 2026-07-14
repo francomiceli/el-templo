@@ -4084,7 +4084,7 @@ _v5.4 (Reforma del Admin) added: 2026-07-02 — 8 phases (149-156), 33 requireme
 ## v5.5 (Sistema de Referidos) Phases
 
 - [ ] **Phase 157: Núcleo transaccional de referidos** — schema+migración (`users.referralCode`/`referredBy`, tabla `referrals`, seed `aura_config` para `referral`), atribución doble canal (self-service `?ref=CODE` en registro + asistido "¿Quién lo trajo?" en el alta admin), cualificación en `assignPlan` al primer pago del referido, cómputo del descuento simétrico recurrente y condicional a ambos-activos con acumulación topeada, y registro AURA interno sin inflar saldo gastable.
-- [ ] **Phase 158: Visibilidad y comunicación** — pantalla "Mis referidos" en la app (estado por vínculo + descuento vigente), notificaciones (vínculo activado / descuento por caerse) y panel de referidos en el admin (opcional).
+- [x] **Phase 158: Visibilidad y comunicación** — pantalla "Mis referidos" en la app (estado por vínculo + descuento vigente), notificaciones (vínculo activado / descuento por caerse) y panel de referidos en el admin (opcional). (completed 2026-07-11)
 
 ## v5.5 (Sistema de Referidos) Phase Details
 
@@ -4116,8 +4116,27 @@ _v5.4 (Reforma del Admin) added: 2026-07-02 — 8 phases (149-156), 33 requireme
 4. Al cobrar la cuota de cualquiera de las dos partes, el descuento simétrico se calcula y aplica automáticamente solo si ambos están activos, acumulando por vínculo hasta el tope.
 5. Cada descuento aplicado deja una anotación `sourceType:"referral"` sin alterar el saldo AURA gastable del socio.
 
-**Plans:** TBD
-**UI hint:** yes (RegisterPage `?ref` + campo "¿Quién lo trajo?" en alta admin)
+**Plans:** 5 plans
+
+Plans:
+
+**Wave 1**
+
+- [ ] 157-01-PLAN.md — Schema + migración 0176 (referrals, referral_credits, users.referralCode/referredBy, subscriptions.referralDiscount\*, seed 10%/40%)
+
+**Wave 2** _(blocked on Wave 1 completion)_
+
+- [ ] 157-02-PLAN.md — ReferralService (código único, cómputo del descuento simétrico condicional topeado, registro AURA sin saldo)
+
+**Wave 3** _(blocked on Wave 2 completion)_
+
+- [ ] 157-03-PLAN.md — Atribución doble canal (?ref self-service + '¿Quién lo trajo?' asistido) + antifraude
+- [ ] 157-04-PLAN.md — Hook de cobro: cualificación al 1er pago + descuento en las 4 charge-paths + preview parity
+
+**Wave 4** _(blocked on Wave 3 completion)_
+
+- [ ] 157-05-PLAN.md — Frontend: RegisterPage ?ref + badge, MemberFormDialog '¿Quién lo trajo?'
+      **UI hint:** yes (RegisterPage `?ref` + campo "¿Quién lo trajo?" en alta admin)
 
 ### Phase 158: Visibilidad y comunicación
 
@@ -4137,15 +4156,22 @@ _v5.4 (Reforma del Admin) added: 2026-07-02 — 8 phases (149-156), 33 requireme
 2. Al activarse un vínculo (referido paga), el referidor recibe una notificación.
 3. (Opcional) Gestión puede ver el listado de referidos y sus estados en el admin.
 
-**Plans:** TBD
-**UI hint:** yes (pantalla app "Mis referidos" + notificaciones + panel admin opcional)
+**Plans:** 4/4 plans complete
+
+Plans:
+
+- [x] 158-01-PLAN.md — API: getReferralOverview + GET /members/referrals + ruta admin de la ficha (VIS-01/VIS-03 backend)
+- [x] 158-02-PLAN.md — API: categoria de notificacion `referidos` (migracion 0177) + push de vinculo activado al referidor (VIS-02)
+- [x] 158-03-PLAN.md — App: pantalla "Mis referidos" (codigo+share, descuento, vinculos) + entrada en ProfilePage (VIS-01)
+- [x] 158-04-PLAN.md — Admin: seccion "Referidos" en la ficha del alumno (VIS-03)
+      **UI hint:** yes (pantalla app "Mis referidos" + notificaciones + panel admin opcional)
 
 ## v5.5 (Sistema de Referidos) Progress
 
-| Phase                                  | Plans Complete | Status      | Completed |
-| -------------------------------------- | -------------- | ----------- | --------- |
-| 157. Núcleo transaccional de referidos | 0/TBD          | Not started | -         |
-| 158. Visibilidad y comunicación        | 0/TBD          | Not started | -         |
+| Phase                                  | Plans Complete | Status      | Completed  |
+| -------------------------------------- | -------------- | ----------- | ---------- |
+| 157. Núcleo transaccional de referidos | 0/TBD          | Not started | -          |
+| 158. Visibilidad y comunicación        | 4/4            | Complete    | 2026-07-11 |
 
 _Plan counts populated by `/gsd-plan-phase`._
 
