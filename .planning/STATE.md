@@ -1,17 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v5.4
-milestone_name: Reforma del Admin — Correcciones white-label (pre-tenants)
-status: verifying
-stopped_at: Phase 158 planned (4 plans, checker-approved)
-last_updated: "2026-07-11T14:05:47.733Z"
-last_activity: 2026-07-11
+milestone: v5.7
+milestone_name: Actividades con Aura
+status: planning
+last_updated: "2026-07-14T22:01:21.434Z"
+last_activity: 2026-07-14
 progress:
-  total_phases: 8
-  completed_phases: 8
-  total_plans: 41
-  completed_plans: 41
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -25,10 +24,10 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 
 ## Current Position
 
-Phase: 158 (Visibilidad y comunicación) — EXECUTING
-Plan: 4 of 4
-Status: Phase complete — ready for verification
-Last activity: 2026-07-11
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-07-14 — Milestone v5.7 started
 
 ## Performance Metrics
 
