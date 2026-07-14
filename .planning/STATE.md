@@ -2,9 +2,10 @@
 gsd_state_version: 1.0
 milestone: v5.7
 milestone_name: Actividades con Aura
-status: planning
-last_updated: "2026-07-14T22:30:00.000Z"
-last_activity: 2026-07-14
+status: completed
+stopped_at: Phase 161 context gathered
+last_updated: "2026-07-14T22:26:58.617Z"
+last_activity: 2026-07-14 — Milestone v5.7 roadmapped (2 phases, 161-162; 14 requirements mapped, 100% coverage)
 progress:
   total_phases: 2
   completed_phases: 0
@@ -784,8 +785,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-11T14:05:35.946Z
-Stopped at: Phase 158 planned (4 plans, checker-approved)
-Resume file: None
+Last session: 2026-07-14T22:26:58.599Z
+Stopped at: Phase 161 context gathered
+Resume file: .planning/phases/161-n-cleo-actividades-gateadas-pase-mensual-y-enforcement/161-CONTEXT.md
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
