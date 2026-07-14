@@ -4232,11 +4232,11 @@ _v5.5 (Sistema de Referidos) added: 2026-07-02 — 2 phases (157-158), 12 requir
 4. El externo con pase solo puede reservar actividades especiales, no clases regulares. (GATE-04)
 5. Cada asistencia a una actividad especial consume 1 clase del pase (2/mes), no del presupuesto del plan presencial. (GATE-02)
 
-**Plans:** 7 plans en 3 waves
+**Plans:** 1/7 plans executed
 
 Plans:
 
-- [ ] 161-01-PLAN.md — Foundation: schema + migración 0179 (enum `especial`, budget explícito, flag `is_special`, `requires_presencial`, seed 2 planes AR), `PassRequiredError`, `categoryGroup`, `pickSubscriptionForActivity`
+- [x] 161-01-PLAN.md — Foundation: schema + migración 0179 (enum `especial`, budget explícito, flag `is_special`, `requires_presencial`, seed 2 planes AR), `PassRequiredError`, `categoryGroup`, `pickSubscriptionForActivity`
 - [ ] 161-02-PLAN.md — Suscripciones: assign/renew/changePlan del pase (conflicto por grupo, budget, presencial-activo D-01, referidos excluidos D-09, discriminador de renovación)
 - [ ] 161-03-PLAN.md — Consumo: routing del decremento por actividad en los 4 puntos de attendance + no-shows (GATE-02)
 - [ ] 161-04-PLAN.md — Analytics: exclusión de `especial` de las métricas de membresía (D-11)
@@ -4268,7 +4268,7 @@ Plans:
 
 | Phase                                                         | Plans Complete | Status      | Completed |
 | ------------------------------------------------------------- | -------------- | ----------- | --------- |
-| 161. Núcleo — actividades gateadas, pase mensual, enforcement | 0/TBD          | Not started | -         |
+| 161. Núcleo — actividades gateadas, pase mensual, enforcement | 1/7            | In Progress |           |
 | 162. Superficie — member app y reporte de reparto             | 0/TBD          | Not started | -         |
 
 _Plan counts populated by `/gsd-plan-phase`._

@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v5.7
 milestone_name: Actividades con Aura
-status: completed
+status: executing
 stopped_at: Phase 161 context gathered
-last_updated: "2026-07-14T22:26:58.617Z"
-last_activity: 2026-07-14 — Milestone v5.7 roadmapped (2 phases, 161-162; 14 requirements mapped, 100% coverage)
+last_updated: "2026-07-14T23:36:42.101Z"
+last_activity: 2026-07-14
 progress:
   total_phases: 2
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 7
+  completed_plans: 1
   percent: 0
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-04)
 
 **Core value (v5.7):** Clases especiales de sábado (Verticales con Pato, Acrobacias con Nico, 3ª a definir) gateadas por un pase mensual de 2 asistencias mezclables — socio activo +$10.000 ARS, externo $20.000 ARS — con reserva, cupo y asistencia sobre la infra existente (`activities`/`schedules`/`bookings`/`attendance`), y visibilidad de asistencias por actividad para el reparto manual a los profes. 2 fases (161-162), 14 requirements (ACT/PASE/GATE/APP/REP). Modelado: pase = 2 planes `planCategory:'especial'` con budget mensual explícito de 2 + gating por flag en `activities` + enforcement en `BookingService.reserve()` + consumo vía `classesRemaining`. Numeración arranca en 161 (159-160 reservadas por v5.6). Staging-first estricto; migraciones a verificar en plan-phase (0176-0178 tomadas por v5.5).
-**Current focus:** Phase 161 — Núcleo (actividades gateadas, pase mensual y enforcement)
+**Current focus:** Phase 161 — Núcleo — actividades gateadas, pase mensual y enforcement
 
 ## Current Position
 
-Phase: 161 — Núcleo (actividades gateadas, pase mensual y enforcement)
-Plan: —
-Status: Roadmap complete — ready for /gsd:plan-phase 161
-Last activity: 2026-07-14 — Milestone v5.7 roadmapped (2 phases, 161-162; 14 requirements mapped, 100% coverage)
+Phase: 161 (Núcleo — actividades gateadas, pase mensual y enforcement) — EXECUTING
+Plan: 2 of 7
+Status: Ready to execute
+Last activity: 2026-07-14
 
 ## Performance Metrics
 
@@ -327,6 +327,7 @@ _Updated after each plan completion_
 | Phase 158 P02 | 9min | 3 tasks | 8 files |
 | Phase 158 P03 | ~10min | 2 tasks | 3 files |
 | Phase 158 P04 | 15 | 2 tasks | 3 files |
+| Phase 161 P01 | 18min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -785,8 +786,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-14T22:26:58.599Z
+Last session: 2026-07-14T23:36:29.515Z
 Stopped at: Phase 161 context gathered
-Resume file: .planning/phases/161-n-cleo-actividades-gateadas-pase-mensual-y-enforcement/161-CONTEXT.md
+Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
