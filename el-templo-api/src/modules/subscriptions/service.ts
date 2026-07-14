@@ -1292,12 +1292,25 @@ export class SubscriptionService {
     // Bound startDate to a sane window (typo guardrail).
     assertStartDateWithinLimits(input.startDate);
 
-    // Check no existing active/paused/scheduled subscription in the same category group (D-35)
-    // A member CAN have one presencial + one online simultaneously
-    // A member CANNOT have two presencial or two online simultaneously
-    // Scheduled subs (future startDate) count too — otherwise an admin could
-    // queue a duplicate for next week without the system noticing.
-    const planIsOnline = isOnlinePlan(plan.planCategory);
+    // Check no existing active/paused/scheduled subscription in the same
+    // category GROUP (D-35, extendido en fase 161 a 3 grupos vía categoryGroup).
+    // Un miembro PUEDE tener en paralelo una sub por grupo: presencial + online
+    // + especial (el pase "Actividades con Aura" es una categoría más). Lo que NO
+    // puede es tener dos del MISMO grupo (2 presenciales, 2 online, 2 especiales).
+    // El binario `isOnlinePlan` colapsaba especial con online — se reemplaza por
+    // `categoryGroup` para que especial no choque con presencial ni con online.
+    // Scheduled subs (future startDate) cuentan too — si no un admin podría encolar
+    // un duplicado para la semana que viene sin que el sistema lo note.
+    const planGroup = categoryGroup(plan.planCategory);
+    const sameGroupCategoryCondition =
+      planGroup === "presencial"
+        ? eq(schema.subscriptionPlans.planCategory, "presencial")
+        : planGroup === "especial"
+          ? eq(schema.subscriptionPlans.planCategory, "especial")
+          : and(
+              ne(schema.subscriptionPlans.planCategory, "presencial"),
+              ne(schema.subscriptionPlans.planCategory, "especial"),
+            );
     const existingInSameGroup = await this.db
       .select({ id: schema.subscriptions.id })
       .from(schema.subscriptions)
@@ -1313,18 +1326,37 @@ export class SubscriptionService {
             eq(schema.subscriptions.status, "paused"),
             eq(schema.subscriptions.status, "scheduled"),
           ),
-          planIsOnline
-            ? ne(schema.subscriptionPlans.planCategory, "presencial")
-            : eq(schema.subscriptionPlans.planCategory, "presencial"),
+          sameGroupCategoryCondition,
         ),
       );
 
     if (existingInSameGroup.length > 0) {
       throw new ConflictError(
-        planIsOnline
-          ? "El miembro ya tiene una suscripcion online activa"
-          : "El miembro ya tiene una suscripcion presencial activa",
+        planGroup === "presencial"
+          ? "El miembro ya tiene una suscripcion presencial activa"
+          : planGroup === "especial"
+            ? "El miembro ya tiene un pase de actividades activo"
+            : "El miembro ya tiene una suscripcion online activa",
       );
+    }
+
+    // D-01: el pase Socio (requiresPresencial=true) sólo se vende a socios con un
+    // plan presencial vigente. El pase Externo (requiresPresencial=false) no lo
+    // exige. La validación es SERVER-SIDE por la columna del plan (no un flag del
+    // cliente — T-161-03). Corre tras el conflicto de grupo para que un doble-pase
+    // dispare el 409 primero.
+    if (plan.requiresPresencial) {
+      const memberSubs = await this.getMemberSubscriptions(userId);
+      const hasPresencial = memberSubs.some(
+        (s) =>
+          s.planCategory === "presencial" &&
+          (s.status === "active" || s.status === "paused"),
+      );
+      if (!hasPresencial) {
+        throw new BadRequestError(
+          "El pase Socio requiere un plan presencial activo. Ofrecé el pase Externo.",
+        );
+      }
     }
 
     // Calculate end date
@@ -1425,14 +1457,19 @@ export class SubscriptionService {
     // del cómputo, así el referido recién cualificado ya cuenta; (3) computar el
     // descuento de referido sobre el precio corriente. El registro auditable
     // (recordReferralCredit) va tras el cargo, con el subscriptionId conocido.
-    await this.qualifyReferralOnCharge(userId, pricePaid);
-    const referral = await this.computePriceWithReferralDiscount(
-      userId,
-      pricePaid,
-    );
-    pricePaid = referral.pricePaid;
-    referralDiscountPercent = referral.percent > 0 ? referral.percent : null;
-    referralDiscountAmount = referral.amount > 0 ? referral.amount : null;
+    // D-09: los pases especiales quedan FUERA del sistema de referidos — no
+    // cualifican vínculos ni reciben el descuento simétrico (el descuento es de
+    // cuotas de membresía, no del pase). Guard por categoría (T-161-05).
+    if (plan.planCategory !== "especial") {
+      await this.qualifyReferralOnCharge(userId, pricePaid);
+      const referral = await this.computePriceWithReferralDiscount(
+        userId,
+        pricePaid,
+      );
+      pricePaid = referral.pricePaid;
+      referralDiscountPercent = referral.percent > 0 ? referral.percent : null;
+      referralDiscountAmount = referral.amount > 0 ? referral.amount : null;
+    }
 
     // ── Schedule slot validation ──
     // Fixed plans require an exact set. Flexible presencial plans may opt in
@@ -1444,11 +1481,15 @@ export class SubscriptionService {
       await this.validateAnchorSet(input.scheduleIds, input.branchId, plan);
     }
 
-    // Calculate monthly class budget from plan configuration
+    // Calculate monthly class budget from plan configuration. Los planes con
+    // classesPerWeek derivan el budget (ceil(durationDays/7)*classesPerWeek); el
+    // pase especial (classesPerWeek=NULL) usa el budget EXPLÍCITO de la columna
+    // monthlyClassBudget (PASE-01, D-04). Los planes online quedan NULL (ni
+    // classesPerWeek ni monthlyClassBudget).
     const classesRemaining =
       plan.classesPerWeek !== null
         ? Math.ceil(plan.durationDays / 7) * plan.classesPerWeek
-        : null;
+        : (plan.monthlyClassBudget ?? null);
 
     // ── Phase 146 (CAJA-01): caja SUGERIDA desde la sede del PROFE ──
     // Análogo a renewSubscription: cuando la ruta coach-load pasa
@@ -1793,8 +1834,8 @@ export class SubscriptionService {
     await this.recordReferralCreditOnCharge(
       userId,
       subscriptionId,
-      referral.percent,
-      referral.amount,
+      referralDiscountPercent ?? 0,
+      referralDiscountAmount ?? 0,
     );
 
     this.log.info(
@@ -4917,6 +4958,8 @@ export class SubscriptionService {
       priceCreditCard: row.priceCreditCard,
       durationDays: row.durationDays,
       classesPerWeek: row.classesPerWeek,
+      monthlyClassBudget: row.monthlyClassBudget ?? null,
+      requiresPresencial: row.requiresPresencial,
       multiBranch: row.multiBranch,
       isTrial: row.isTrial,
       isGroup: row.isGroup,

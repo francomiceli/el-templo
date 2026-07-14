@@ -87,6 +87,18 @@ export interface PlanListItem {
   priceCreditCard: number | null;
   durationDays: number;
   classesPerWeek: number | null;
+  /**
+   * Fase 161 (PASE-01, D-03/D-04): budget mensual EXPLÍCITO del pase especial.
+   * NULL para planes no-especiales (su budget deriva de classesPerWeek). El
+   * assign/renew usa esta columna cuando classesPerWeek es NULL.
+   */
+  monthlyClassBudget: number | null;
+  /**
+   * Fase 161 (D-01): discriminador Socio↔Externo del pase especial. true = pase
+   * Socio (exige presencial activo al asignar/renovar), false = Externo. Los
+   * planes no-especiales lo tienen en false y no lo consultan.
+   */
+  requiresPresencial: boolean;
   multiBranch: boolean;
   isTrial: boolean;
   isGroup: boolean;
