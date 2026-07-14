@@ -3,10 +3,10 @@ gsd_state_version: 1.0
 milestone: v5.7
 milestone_name: Actividades con Aura
 status: planning
-last_updated: "2026-07-14T22:01:21.434Z"
+last_updated: "2026-07-14T22:30:00.000Z"
 last_activity: 2026-07-14
 progress:
-  total_phases: 0
+  total_phases: 2
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -19,15 +19,15 @@ progress:
 
 See: .planning/PROJECT.md (updated 2026-06-04)
 
-**Core value (v5.4):** Reorganizar el admin según `Correcciones El Templo.md` para dejarlo listo como MVP white-label — nav por categorías + RBAC dueño-vs-empleado, pantallas simplificadas y de-Templo-ficación de la superficie MVP (Finanzas, Alumnos, Horarios, Planes) — SIN introducir tenants todavía. Primera etapa del camino SaaS (reforma PRIMERO, tenancy DESPUÉS, secuencial). 8 fases (149-156), 33 requirements (NAV/COBRO/CTA/CAJA/DEUDA/ALUM/HOR/PLAN). Constraint dura: todo cambio de API adopta los patrones del diseño SaaS validado (motor vs plantilla, imports módulo→core, sin nuevos Templo-ismos en core).
-**Current focus:** Phase 158 — Visibilidad y comunicación
+**Core value (v5.7):** Clases especiales de sábado (Verticales con Pato, Acrobacias con Nico, 3ª a definir) gateadas por un pase mensual de 2 asistencias mezclables — socio activo +$10.000 ARS, externo $20.000 ARS — con reserva, cupo y asistencia sobre la infra existente (`activities`/`schedules`/`bookings`/`attendance`), y visibilidad de asistencias por actividad para el reparto manual a los profes. 2 fases (161-162), 14 requirements (ACT/PASE/GATE/APP/REP). Modelado: pase = 2 planes `planCategory:'especial'` con budget mensual explícito de 2 + gating por flag en `activities` + enforcement en `BookingService.reserve()` + consumo vía `classesRemaining`. Numeración arranca en 161 (159-160 reservadas por v5.6). Staging-first estricto; migraciones a verificar en plan-phase (0176-0178 tomadas por v5.5).
+**Current focus:** Phase 161 — Núcleo (actividades gateadas, pase mensual y enforcement)
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 161 — Núcleo (actividades gateadas, pase mensual y enforcement)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-07-14 — Milestone v5.7 started
+Status: Roadmap complete — ready for /gsd:plan-phase 161
+Last activity: 2026-07-14 — Milestone v5.7 roadmapped (2 phases, 161-162; 14 requirements mapped, 100% coverage)
 
 ## Performance Metrics
 

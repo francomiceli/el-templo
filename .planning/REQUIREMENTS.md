@@ -75,5 +75,19 @@ tercera actividad ("OpenShin" en el audio); (d) si el staff puede pisar el gatin
 
 <!-- Filled by roadmap -->
 
-| Requirement | Phase | Status |
-| ----------- | ----- | ------ |
+| Requirement | Phase     | Status  |
+| ----------- | --------- | ------- |
+| ACT-01      | Phase 161 | Pending |
+| ACT-02      | Phase 161 | Pending |
+| PASE-01     | Phase 161 | Pending |
+| PASE-02     | Phase 161 | Pending |
+| PASE-03     | Phase 161 | Pending |
+| PASE-04     | Phase 161 | Pending |
+| GATE-01     | Phase 161 | Pending |
+| GATE-02     | Phase 161 | Pending |
+| GATE-03     | Phase 161 | Pending |
+| GATE-04     | Phase 161 | Pending |
+| APP-01      | Phase 162 | Pending |
+| APP-02      | Phase 162 | Pending |
+| APP-03      | Phase 162 | Pending |
+| REP-01      | Phase 162 | Pending |

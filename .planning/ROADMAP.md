@@ -4178,3 +4178,90 @@ _Plan counts populated by `/gsd-plan-phase`._
 ---
 
 _v5.5 (Sistema de Referidos) added: 2026-07-02 — 2 phases (157-158), 12 requirements (REF, DESC, AURA, VIS). **PRÓXIMO milestone, NO activo** — se ejecuta DESPUÉS de v5.4 (decisión de Franco: reforma admin primero). Continúa numeración desde fase 156 (NO se resetea). **157 (núcleo) es foundational**; 158 (visibilidad) depende de 157. Feature AURA-native: la infra ya reserva `sourceType:"referral"` sin cablear. Descuento recurrente SIMÉTRICO condicionado a ambos-activos, no-discrecional, acumulable con tope; AURA = anotación interna. Solapa con v5.4: fase 157 cruza fase 154 (alta de alumno) y fase 151 (`assignPlan`) — montar sobre lo reformado, verificar en plan-phase. REQ-IDs inline en Phase Details; `REQUIREMENTS.md` se formaliza al activar v5.5. Preguntas abiertas §7 (ventana registro→pago, calibración de %, backfill de códigos, suspende-vs-revoca) → discuss-phase. Fuente de verdad: `BRIEF-SISTEMA-REFERIDOS.md` (raíz)._
+
+## v5.7 (Actividades con Aura) Overview
+
+**Milestone:** v5.7 — Actividades con Aura — pase mensual de 2 clases especiales de sábado gateadas por actividad
+
+**Status:** ACTIVO (planning). v5.5 Referidos EN PROD 2026-07-14. Entre v5.5 y este milestone quedó planificado v5.6 (combos+técnica, fases 159-160, rama `feat/dias-combos-tecnica`), aún no ejecutado.
+
+**Numeración — LEER:** este milestone arranca en **Phase 161**, NO en 159. Las fases **159-160 están reservadas** por el milestone v5.6 "Semana nueva combos+técnica" (rama `feat/dias-combos-tecnica`, aún sin ejecutar). Arrancar en 161 evita colisión con esas fases reservadas. El último número visible arriba en el índice/ROADMAP es 158 (v5.5); NO se continúa desde ahí.
+
+**Goal:** Clases especiales de sábado (Verticales con Pato, Acrobacias con Nico, tercera actividad a definir — "OpenShin" en el audio) gateadas por un pase mensual de **2 asistencias mezclables** — socio activo **+$10.000 ARS**, externo **$20.000 ARS** — con reserva, cupo y asistencia sobre la infraestructura existente (`activities`/`schedules`/`bookings`/`attendance`), y visibilidad de asistencias por actividad para el reparto manual a los profes.
+
+**Modelado decidido (pre-discuss):**
+
+- **Pase = planes nuevos, NO entidad `class_pass` separada:** 2 planes con `planCategory: 'especial'` — "Actividades con Aura — Socio" ($10.000) y "— Externo" ($20.000), 30 días. El plan reutiliza renovación, cobros, deuda, país/moneda y multi-sub por categoría (presencial + especial en paralelo, como presencial + online hoy).
+- **Budget mensual explícito de 2 clases:** requiere soportar budget explícito además del derivado `ceil(durationDays/7) × classesPerWeek`. El de socio se compra en paralelo al presencial y exige presencial activo; el externo es única suscripción.
+- **Gating por flag en `activities`:** hoy NO existe gating por tipo de actividad (cualquier socio presencial reserva cualquier clase). Se agrega un flag de "especial" (gateada por pase).
+- **Enforcement en `BookingService.reserve()`** (+ booking de admin); **consumo del budget en check-in vía `classesRemaining`** existente (a confirmar reserva-vs-check-in en discuss-phase).
+- **Programas descartados** como vehículo (contenido online por semanas, sin horario/cupo/asistencia; precio por programa removido a propósito en mig. 0071).
+
+**Constraint operativo (repo):**
+
+- **Migraciones:** numeración **a verificar en plan-phase**. **0176-0178 aplicadas por v5.5**; **v5.6 puede reservar las siguientes** — no asumir número; verificar el máximo aplicado antes de generar SQL. SQL commiteado junto al schema; nunca `;` en comentarios SQL.
+- **Staging-first estricto:** ningún merge de feature a master; ship a staging primero.
+- **Tests de integración** obligatorios para las rutas nuevas/modificadas (gating en reserve, venta del pase, reporte de asistencias).
+
+**Secuencia (dependencias):** **161 (núcleo/modelo) es foundational** — schema del budget explícito + flag de gating, planes `especial`, enforcement/consumo, ABM y venta admin, actividades con slots. **162 (superficie) depende de 161** — la member app y el reporte solo leen y comunican lo que 161 produce.
+
+**Abierto para discuss-phase:** (a) el externo con pase contaría como `activo` en `recomputeUserStatus` — impacto en analytics/referidos; (b) consumo a la reserva vs al check-in (patrón actual: check-in); (c) horarios exactos, sedes y nombre real de la tercera actividad; (d) si el staff puede pisar el gating (bypass existente admin/coach en bonus/multi-branch).
+
+**Fuente de verdad:** `.docs/actividades-aura/` (audios de Nacho transcriptos, 2026-07-13) + research de codebase de esta sesión (3 informes: clases/formatos, planes/cobros, programas).
+
+## v5.7 (Actividades con Aura) Phases
+
+- [ ] **Phase 161: Núcleo — actividades gateadas, pase mensual y enforcement** — schema (budget mensual explícito en planes + flag de gating en `activities`), las 3 actividades especiales como `activities` + slots de sábado con cupo propio, 2 planes `especial` (Socio $10k / Externo $20k) vendidos vía `assignPlan` con validación de presencial activo, enforcement en `BookingService.reserve()` (+ booking admin) con error tipado, consumo de 1 clase del pase por asistencia vía `classesRemaining`, y flag de "especial" en el ABM de actividades.
+- [ ] **Phase 162: Superficie — member app y reporte de reparto** — grilla de reservas con distintivo/estado según acceso (con/sin pase), contador de clases especiales restantes en el mes (x/2), mensaje informativo del pase para el usuario sin pase (sin pago in-app), y reporte admin de asistencias por actividad especial por mes separando origen socio/externo (insumo del reparto manual a profes, sin montos).
+
+## v5.7 (Actividades con Aura) Phase Details
+
+### Phase 161: Núcleo — actividades gateadas, pase mensual y enforcement
+
+**Goal:** El pase mensual de actividades especiales funciona end-to-end del lado del modelo: las 3 actividades existen gateadas con cupo de sábado, los 2 planes `especial` con budget explícito de 2 clases se venden/renuevan/cobran por los canales existentes sin regresiones, y `BookingService.reserve()` acepta o rechaza la reserva según el pase y consume el budget correcto. End state: gestión vende un pase, un socio con pase reserva una actividad especial y su asistencia descuenta 1 de 2 del pase (no del presencial), mientras un socio sin pase es rechazado con error tipado.
+
+**Depends on:** Nada nuevo (foundational del milestone). Se monta sobre `activities`/`schedules`/`bookings`/`attendance`, el modelo de planes/`planCategory` (multi-sub por categoría de v4.5), `assignPlan`/renovación/cobros (v5.3/v5.4) y `classesRemaining`. Toca `el-templo-api` (schema/migración del budget explícito + flag de gating, `BookingService.reserve()`, booking admin, consumo en check-in, `assignPlan`) y `el-templo-admin` (flag en ABM de actividades, venta del pase).
+
+**Requirements:** ACT-01, ACT-02, PASE-01, PASE-02, PASE-03, PASE-04, GATE-01, GATE-02, GATE-03, GATE-04
+
+**Success Criteria** (what must be TRUE):
+
+1. El admin puede marcar una actividad como "especial" (gateada por pase) al crearla o editarla, y las 3 actividades especiales existen como `activities` con slots de sábado por sede/horario, cada una con su cupo propio. (ACT-01, ACT-02)
+2. Gestión vende el pase Socio ($10.000) a un socio con presencial activo (la asignación valida el presencial) y el pase Externo ($20.000) a un externo como única suscripción, ambos vía `assignPlan`, con budget mensual explícito de 2 clases independiente de `classesPerWeek`, y entran al ciclo normal de renovación/cobro/deuda sin regresiones en los planes existentes. (PASE-01, PASE-02, PASE-03, PASE-04)
+3. El backend rechaza con código de error tipado la reserva de una actividad especial sin pase con saldo; el socio presencial sin pase no puede reservar actividades especiales y su acceso a clases regulares no cambia en nada. (GATE-01, GATE-03)
+4. El externo con pase solo puede reservar actividades especiales, no clases regulares. (GATE-04)
+5. Cada asistencia a una actividad especial consume 1 clase del pase (2/mes), no del presupuesto del plan presencial. (GATE-02)
+
+**Plans:** TBD
+**UI hint:** yes (flag de "especial" en el ABM de actividades + venta del pase en el admin)
+
+### Phase 162: Superficie — member app y reporte de reparto
+
+**Goal:** El socio/externo ve y entiende las actividades especiales en la app (distintivo, estado según acceso, clases restantes, mensaje informativo del pase), y gestión obtiene el reporte de asistencias por actividad especial por mes como insumo del reparto manual a los profes. End state: un usuario abre la grilla, distingue las actividades especiales, ve cuántas clases del pase le quedan (o el mensaje de cómo conseguirlo), y el admin exporta/consulta las asistencias del mes separadas por origen socio/externo.
+
+**Depends on:** Phase 161 (lee y comunica el modelo que 161 produce: gating por actividad, budget del pase, asistencias). Toca `el-templo-app` (grilla de reservas, contador de clases restantes, mensaje del pase) y `el-templo-admin` (reporte de asistencias por actividad especial).
+
+**Requirements:** APP-01, APP-02, APP-03, REP-01
+
+**Success Criteria** (what must be TRUE):
+
+1. La grilla de reservas muestra las actividades especiales con distintivo y estado según el acceso del usuario (con pase / sin pase). (APP-01)
+2. El usuario con pase ve cuántas clases especiales le quedan en el mes (2/2, 1/2, 0/2). (APP-02)
+3. El usuario sin pase que intenta reservar una actividad especial recibe un mensaje claro de qué es el pase y cómo conseguirlo (informativo, sin pago in-app). (APP-03)
+4. El admin ve las asistencias por actividad especial por mes, separando origen socio/externo, como insumo del reparto manual a los profes (sin montos calculados). (REP-01)
+
+**Plans:** TBD
+**UI hint:** yes (grilla de reservas en la member app + contador + mensaje del pase + reporte en el admin)
+
+## v5.7 (Actividades con Aura) Progress
+
+| Phase                                                         | Plans Complete | Status      | Completed |
+| ------------------------------------------------------------- | -------------- | ----------- | --------- |
+| 161. Núcleo — actividades gateadas, pase mensual, enforcement | 0/TBD          | Not started | -         |
+| 162. Superficie — member app y reporte de reparto             | 0/TBD          | Not started | -         |
+
+_Plan counts populated by `/gsd-plan-phase`._
+
+---
+
+_v5.7 (Actividades con Aura) added: 2026-07-14 — 2 phases (161-162), 14 requirements (ACT, PASE, GATE, APP, REP). **Arranca en fase 161** (NO 159): las fases 159-160 están reservadas por v5.6 combos+técnica (rama `feat/dias-combos-tecnica`, sin ejecutar) — arrancar en 161 evita colisión. **161 (núcleo/modelo) es foundational**; 162 (superficie) depende de 161. Modelado decidido: pase = 2 planes `planCategory:'especial'` (Socio $10k / Externo $20k) con budget mensual explícito de 2 (además del derivado `ceil(durationDays/7)×classesPerWeek`); gating por flag en `activities`; enforcement en `BookingService.reserve()`; consumo vía `classesRemaining`. Programas descartados como vehículo (mig. 0071). Migraciones: numeración a verificar en plan-phase (0176-0178 aplicadas por v5.5; v5.6 puede reservar las siguientes). Staging-first estricto; tests de integración para rutas nuevas. Abierto para discuss-phase: externo `activo` en `recomputeUserStatus`, consumo reserva-vs-check-in, horarios/sedes/nombre de la 3ª actividad, bypass de staff. Fuente: `.docs/actividades-aura/` (audios de Nacho 2026-07-13) + 3 informes de research de codebase._
