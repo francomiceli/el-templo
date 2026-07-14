@@ -24,6 +24,7 @@ export const planCategoryEnum = mysqlEnum("plan_category", [
   "online_regular",
   "online_goal",
   "online_coach",
+  "especial", // Fase 161 (PASE-01, D-12): pase "Actividades con Aura". Append-last, byte-for-byte con 0179.
 ]);
 
 export const subscriptionPlans = mysqlTable("subscription_plans", {
@@ -39,6 +40,14 @@ export const subscriptionPlans = mysqlTable("subscription_plans", {
   priceCreditCard: int("price_credit_card"),
   durationDays: int("duration_days").notNull(),
   classesPerWeek: int("classes_per_week"),
+  // Fase 161 (PASE-01, D-03/D-04): budget mensual EXPLÍCITO del pase especial.
+  // NULL para planes no-especiales -- su budget deriva de ceil(durationDays/7)*classesPerWeek.
+  // Sin default ni notNull → filas existentes quedan NULL (cero cambio de comportamiento).
+  monthlyClassBudget: int("monthly_class_budget"),
+  // Fase 161 (D-01): discriminador Socio↔Externo del pase especial. true = pase Socio
+  // (exige presencial activo al asignar/renovar), false = Externo. Default false → planes
+  // no-especiales no lo usan (cero cambio de comportamiento).
+  requiresPresencial: boolean("requires_presencial").default(false).notNull(),
   multiBranch: boolean("multi_branch").default(false).notNull(),
   isTrial: boolean("is_trial").default(false).notNull(),
   isGroup: boolean("is_group").default(false).notNull(),
