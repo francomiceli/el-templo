@@ -334,20 +334,23 @@ if (plan.planCategory === "especial" && plan.name.includes("Socio")) {
 | A5  | La ventana extendida D-06 se implementa condicionando `windowDays` por `isSpecialActivity`         | Code Examples           | Bajo — `assertDateWithinWindow` ya parametriza windowDays                          |
 | A6  | Los consumidores de métricas a excluir son member-flows/churn/renewal/ltv/ticket                   | Métricas mapping        | Puede faltar alguno (engagement, cohorts) — auditar (medio)                        |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **¿Cómo distinguir el pase Socio del Externo a nivel de datos?** (para D-01)
    - Qué sabemos: son 2 planes `especial` distintos (precio 10k vs 20k). El Socio exige presencial activo; el Externo no.
    - Qué falta: un discriminador confiable. Nombre es frágil (Nacho renombra).
    - Recomendación: agregar una columna booleana al plan (p.ej. `requires_presencial`) seteada en la migración solo para el plan Socio. Cero ambigüedad, sobrevive renames. **El planner decide.**
+   - **RESOLVED (Plan 01):** columna `requires_presencial` (boolean NOT NULL default 0) agregada en la migración 0179 y seteada =1 solo para el plan Socio; el pase Socio la valida en assign+renew (Plan 02, D-01).
 
 2. **¿Cómo sabe `renewSubscription` qué sub renovar cuando el socio tiene presencial + pase?** (Pitfall 2)
    - Qué sabemos: la ruta actual toma solo `userId` y elige `.limit(1)` sin categoría.
    - Qué falta: un parámetro (`subscriptionId` en la URL, o `planCategory`/`planId` en el body).
    - Recomendación: pasar `subscriptionId` explícito a renew (cambio de ruta/input), o al menos permitir discriminar por categoría. Ver cómo el admin dispara la renovación (`MemberSubscriptionTab.vue`) — probablemente ya tiene el sub en mano y puede pasar su id. **El planner decide y confirma con el flujo admin.**
+   - **RESOLVED (Plan 02):** `subscriptionId` opcional agregado al body de `renewSubscriptionSchema`; `renewSubscription` selecciona esa sub validando `subscription.userId === userId` (backward compat: sin id mantiene `.limit(1)`).
 
 3. **¿La ventana extendida D-06 desactiva la lista de espera o solo la anticipación?**
    - CONTEXT D-06 dice "lista de espera aplica igual". Confirmado: solo se extiende `windowDays`, el resto de `assertDateWithinWindow` (feriado, día, excepción) y la capacidad/lista de espera quedan iguales.
+   - **RESOLVED (Plan 06):** cuando `isSpecialActivity`, `assertDateWithinWindow` recibe un `windowDays` extendido = días hasta el fin del período del pase; capacidad y lista de espera quedan iguales.
 
 ## Environment Availability
 
