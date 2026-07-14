@@ -3217,14 +3217,18 @@ export class SubscriptionService {
     // Flip antes del cómputo (si el cargo cobra) + descuento simétrico sobre el
     // neto post-prorrateo. resolvedOverrideAmount conserva el neto de prorrateo;
     // el descuento de referido reduce el pricePaid efectivo (columnas nuevas).
-    await this.qualifyReferralOnCharge(userId, netAmount);
-    const referral = await this.computePriceWithReferralDiscount(
-      userId,
-      netAmount,
-    );
-    netAmount = referral.pricePaid;
-    referralDiscountPercent = referral.percent > 0 ? referral.percent : null;
-    referralDiscountAmount = referral.amount > 0 ? referral.amount : null;
+    // D-09: cambiar HACIA un plan especial no cualifica ni descuenta referidos
+    // (T-161-05). Guard por la categoría del plan destino.
+    if (targetPlan.planCategory !== "especial") {
+      await this.qualifyReferralOnCharge(userId, netAmount);
+      const referral = await this.computePriceWithReferralDiscount(
+        userId,
+        netAmount,
+      );
+      netAmount = referral.pricePaid;
+      referralDiscountPercent = referral.percent > 0 ? referral.percent : null;
+      referralDiscountAmount = referral.amount > 0 ? referral.amount : null;
+    }
 
     // Phase 112-02 + 03: tear down the outgoing sub's plan-bound enrollments
     // BEFORE closing it. Runs on this.db (not in the new-sub tx) by design
@@ -3459,8 +3463,8 @@ export class SubscriptionService {
       await this.recordReferralCreditOnCharge(
         userId,
         newSubscriptionId,
-        referral.percent,
-        referral.amount,
+        referralDiscountPercent ?? 0,
+        referralDiscountAmount ?? 0,
       );
 
       // Auto-migrate member from virtual branch to subscription's physical branch
@@ -3715,14 +3719,18 @@ export class SubscriptionService {
     // ── Referidos (fase 157, D-20/D-21) ──
     // Flip antes del cómputo (si el cargo cobra) + descuento simétrico sobre el
     // precio ya resuelto (incl. auraSpend). Columnas nuevas referralDiscount*.
-    await this.qualifyReferralOnCharge(userId, pricePaid);
-    const referral = await this.computePriceWithReferralDiscount(
-      userId,
-      pricePaid,
-    );
-    pricePaid = referral.pricePaid;
-    referralDiscountPercent = referral.percent > 0 ? referral.percent : null;
-    referralDiscountAmount = referral.amount > 0 ? referral.amount : null;
+    // D-09: cambiar HACIA un plan especial (after_current) tampoco toca referidos
+    // (T-161-05). Guard por la categoría del plan destino.
+    if (targetPlan.planCategory !== "especial") {
+      await this.qualifyReferralOnCharge(userId, pricePaid);
+      const referral = await this.computePriceWithReferralDiscount(
+        userId,
+        pricePaid,
+      );
+      pricePaid = referral.pricePaid;
+      referralDiscountPercent = referral.percent > 0 ? referral.percent : null;
+      referralDiscountAmount = referral.amount > 0 ? referral.amount : null;
+    }
 
     // New period: por defecto arranca en current.endDate (encadenado, sin gap).
     // El admin puede empujar el inicio MÁS ADELANTE (hotfix 2026-07-07, pedido
@@ -3846,8 +3854,8 @@ export class SubscriptionService {
     await this.recordReferralCreditOnCharge(
       userId,
       newSubscriptionId,
-      referral.percent,
-      referral.amount,
+      referralDiscountPercent ?? 0,
+      referralDiscountAmount ?? 0,
     );
 
     const newSub = await this.getSubscriptionById(newSubscriptionId);
@@ -3903,46 +3911,88 @@ export class SubscriptionService {
       );
     }
 
-    // Find current subscription (active or expired). An active sub ALWAYS
-    // wins over an expired one regardless of createdAt: the legacy data
-    // import (2026-04-01) wrote historical expired subs with createdAt newer
-    // than the member's real active sub, and ordering by createdAt alone made
-    // renew pick the imported expired row — creating a second active sub
-    // starting today instead of a scheduled one (caso Lorenzino/Pandolfo).
-    const [currentSub] = await this.db
-      .select({
-        id: schema.subscriptions.id,
-        planId: schema.subscriptions.planId,
-        branchId: schema.subscriptions.branchId,
-        status: schema.subscriptions.status,
-        endDate: schema.subscriptions.endDate,
-        pricePaid: schema.subscriptions.pricePaid,
-        priceTypeApplied: schema.subscriptions.priceTypeApplied,
-      })
-      .from(schema.subscriptions)
-      .where(
-        and(
-          eq(schema.subscriptions.userId, userId),
-          or(
-            eq(schema.subscriptions.status, "active"),
-            eq(schema.subscriptions.status, "expired"),
+    // Find current subscription. Dos caminos:
+    //  - subscriptionId explícito (fase 161, PASE-04): renueva ESA sub tras
+    //    validar que pertenece al userId (T-161-04 — evita renovar sub ajena).
+    //    Resuelve la ambigüedad de un socio con presencial + pase especial
+    //    activos: la selección active-first no sabría cuál renovar.
+    //  - sin subscriptionId (backward-compat): active|expired, active-first. Un
+    //    active SIEMPRE gana a un expired sin importar createdAt: el import legacy
+    //    (2026-04-01) escribió subs expired con createdAt más nuevo que la sub
+    //    real activa, y ordenar sólo por createdAt hacía que renew tomara la fila
+    //    importada expired — creando una 2da sub activa hoy en vez de una
+    //    scheduled (caso Lorenzino/Pandolfo).
+    const subFields = {
+      id: schema.subscriptions.id,
+      planId: schema.subscriptions.planId,
+      branchId: schema.subscriptions.branchId,
+      status: schema.subscriptions.status,
+      endDate: schema.subscriptions.endDate,
+      pricePaid: schema.subscriptions.pricePaid,
+      priceTypeApplied: schema.subscriptions.priceTypeApplied,
+    };
+    let currentSub;
+    if (input.subscriptionId !== undefined) {
+      [currentSub] = await this.db
+        .select(subFields)
+        .from(schema.subscriptions)
+        .where(
+          and(
+            eq(schema.subscriptions.id, input.subscriptionId),
+            eq(schema.subscriptions.userId, userId),
           ),
-        ),
-      )
-      .orderBy(
-        sql`CASE ${schema.subscriptions.status} WHEN 'active' THEN 0 ELSE 1 END`,
-        desc(schema.subscriptions.createdAt),
-      )
-      .limit(1);
+        )
+        .limit(1);
+      if (!currentSub) {
+        throw new NotFoundError("Suscripción no encontrada para este usuario");
+      }
+    } else {
+      [currentSub] = await this.db
+        .select(subFields)
+        .from(schema.subscriptions)
+        .where(
+          and(
+            eq(schema.subscriptions.userId, userId),
+            or(
+              eq(schema.subscriptions.status, "active"),
+              eq(schema.subscriptions.status, "expired"),
+            ),
+          ),
+        )
+        .orderBy(
+          sql`CASE ${schema.subscriptions.status} WHEN 'active' THEN 0 ELSE 1 END`,
+          desc(schema.subscriptions.createdAt),
+        )
+        .limit(1);
 
-    if (!currentSub) {
-      throw new NotFoundError("No se encontro suscripcion para renovar");
+      if (!currentSub) {
+        throw new NotFoundError("No se encontro suscripcion para renovar");
+      }
     }
 
     // Get the plan to know durationDays
     const plan = await this.getPlanById(currentSub.planId);
     if (!plan) {
       throw new NotFoundError("Plan no encontrado");
+    }
+
+    // D-01: la condición "socio activo" del pase Socio se re-evalúa EN CADA
+    // renovación (D-02: si dejó de ser socio no se le renueva el Socio — gestión
+    // le ofrece el Externo). Sólo aplica a la sub especial con requiresPresencial;
+    // el Externo y los planes normales no la consultan. Server-side por la columna
+    // del plan (T-161-03), misma regla que assignPlan.
+    if (plan.requiresPresencial) {
+      const memberSubs = await this.getMemberSubscriptions(userId);
+      const hasPresencial = memberSubs.some(
+        (s) =>
+          s.planCategory === "presencial" &&
+          (s.status === "active" || s.status === "paused"),
+      );
+      if (!hasPresencial) {
+        throw new BadRequestError(
+          "El pase Socio requiere un plan presencial activo. Ofrecé el pase Externo.",
+        );
+      }
     }
 
     // ── Turnos del nuevo período (opcional) ──
@@ -3997,11 +4047,13 @@ export class SubscriptionService {
     newEnd.setDate(newEnd.getDate() + plan.durationDays);
     const newEndDate = newEnd.toISOString().split("T")[0];
 
-    // Fresh class budget for the new period
+    // Fresh class budget for the new period. Mismo criterio que assignPlan: los
+    // planes con classesPerWeek derivan; el pase especial (classesPerWeek=NULL)
+    // usa el budget explícito de monthlyClassBudget (PASE-01/PASE-04); online NULL.
     const periodBudget =
       plan.classesPerWeek !== null
         ? Math.ceil(plan.durationDays / 7) * plan.classesPerWeek
-        : null;
+        : (plan.monthlyClassBudget ?? null);
 
     // Precio de la renovación. Por defecto se hereda lo que el miembro venía
     // pagando, para que cualquier override negociado se arrastre. Caso Pomilio
@@ -4055,14 +4107,19 @@ export class SubscriptionService {
     // Flip antes del cómputo (si el cargo cobra) + descuento simétrico sobre el
     // precio de renovación ya resuelto. Se aplica ANTES de resolver
     // renewBranchId/caja (que gatean por renewalPrice>0) para que vean el neto.
-    await this.qualifyReferralOnCharge(userId, renewalPrice);
-    const referral = await this.computePriceWithReferralDiscount(
-      userId,
-      renewalPrice,
-    );
-    renewalPrice = referral.pricePaid;
-    referralDiscountPercent = referral.percent > 0 ? referral.percent : null;
-    referralDiscountAmount = referral.amount > 0 ? referral.amount : null;
+    // D-09: los pases especiales quedan FUERA de referidos también en la
+    // renovación — no cualifican vínculos ni descuentan (T-161-05). Guard por
+    // categoría del plan de la sub renovada.
+    if (plan.planCategory !== "especial") {
+      await this.qualifyReferralOnCharge(userId, renewalPrice);
+      const referral = await this.computePriceWithReferralDiscount(
+        userId,
+        renewalPrice,
+      );
+      renewalPrice = referral.pricePaid;
+      referralDiscountPercent = referral.percent > 0 ? referral.percent : null;
+      referralDiscountAmount = referral.amount > 0 ? referral.amount : null;
+    }
 
     // If old sub is already expired, close it now (below).
     // If still active (early renewal), leave it active — auto-expire will
@@ -4332,12 +4389,13 @@ export class SubscriptionService {
       return { newSubscriptionId: subId };
     });
 
-    // Referidos (AURA-01): registro auditable tras el cargo. No-op si amount<=0.
+    // Referidos (AURA-01): registro auditable tras el cargo. No-op si amount<=0
+    // (los pases especiales quedan en 0/0 por el guard D-09 de arriba).
     await this.recordReferralCreditOnCharge(
       userId,
       newSubscriptionId,
-      referral.percent,
-      referral.amount,
+      referralDiscountPercent ?? 0,
+      referralDiscountAmount ?? 0,
     );
 
     const newSub = await this.getSubscriptionById(newSubscriptionId);

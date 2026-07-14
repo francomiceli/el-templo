@@ -359,6 +359,14 @@ export interface AssignPlanInput {
 export interface RenewSubscriptionInput {
   paymentMethod: PaymentMethod;
   /**
+   * Fase 161 (PASE-04): id explícito de la suscripción a renovar. Opcional
+   * (backward-compat): undefined → selección active-first histórica (`.limit(1)`).
+   * Provisto → renueva ESA sub tras validar `subscription.userId === userId`
+   * (NotFoundError si no coincide — T-161-04). Resuelve la ambigüedad de un socio
+   * con presencial + pase especial activos a la vez (Open Q 2).
+   */
+  subscriptionId?: number;
+  /**
    * Monto efectivamente recibido al renovar (D-12, D-13).
    * Backward-compat: undefined → defaults to renewalPrice en service layer.
    */

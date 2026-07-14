@@ -422,6 +422,11 @@ export const renewSubscriptionSchema = {
       amountReceived: { type: "integer", minimum: 0 },
       priceOverrideAmount: { type: "integer", minimum: 0 },
       priceOverrideReason: { type: "string" },
+      // Fase 161 (PASE-04): discriminador explícito de QUÉ sub renovar. Opcional
+      // (backward-compat): omitido → selección active-first histórica. Provisto →
+      // renueva ESA sub tras validar que pertenece al userId (T-161-04). Resuelve
+      // la ambigüedad presencial+pase, ambos activos.
+      subscriptionId: { type: "integer" },
       startDate: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
       // Turnos del nuevo período. Omitido → se heredan los del período
       // anterior; provisto → reemplaza la herencia (minItems 0 permite
