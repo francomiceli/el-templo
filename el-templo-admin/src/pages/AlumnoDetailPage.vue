@@ -356,7 +356,7 @@
           <q-tab name="programas" label="Programas" />
           <q-tab name="asistencia" label="Asistencia" />
           <q-tab name="finanzas" label="Finanzas" />
-          <q-tab name="referidos" label="Referidos" />
+          <q-tab v-if="canSeeReferrals" name="referidos" label="Referidos" />
         </q-tabs>
         <q-separator />
 
@@ -387,7 +387,7 @@
           </q-tab-panel>
 
           <!-- Referidos Tab (Phase 158-04, VIS-03) -->
-          <q-tab-panel name="referidos">
+          <q-tab-panel v-if="canSeeReferrals" name="referidos">
             <MemberReferralsTab :user-id="userId" />
           </q-tab-panel>
 
@@ -1045,10 +1045,17 @@ const userId = computed(() => Number(route.params.userId));
 
 const currentUser = computed(() => authStore.user);
 
-const canDeleteMember = computed(() => {
+// Espejo de MEMBER_LIFECYCLE_ROLES en la API: coach y recepción quedan afuera.
+const isLifecycleRole = computed(() => {
   const role = currentUser.value?.role;
   return role === 'admin' || role === 'owner' || role === 'gestion';
 });
+
+const canDeleteMember = computed(() => isLifecycleRole.value);
+
+// El endpoint de referidos responde 403 fuera de MEMBER_LIFECYCLE_ROLES (WR-05),
+// así que el tab no se muestra a quien no lo puede leer.
+const canSeeReferrals = computed(() => isLifecycleRole.value);
 
 // Only physical branches are valid trial-session locations (the API rejects
 // virtual sedes). Excludes the "Templo Online" virtual branch.
@@ -1260,7 +1267,7 @@ async function loadOutstandingConcepts() {
     // 403 for coach role is expected (FINANCE_READ_ROLES excludes coach).
     if (!isExpectedClientError(err)) {
       log.warn('Error loading outstanding concepts', {
-        error: extractError(err),
+        error: extractError(err, 'Error cargando los conceptos pendientes'),
         userId: userId.value,
       });
     }
@@ -1277,7 +1284,7 @@ async function loadMemberAdjustments() {
     memberAdjustments.value = [];
     if (!isExpectedClientError(err)) {
       log.warn('Error loading member adjustments', {
-        error: extractError(err),
+        error: extractError(err, 'Error cargando los ajustes del alumno'),
         userId: userId.value,
       });
     }

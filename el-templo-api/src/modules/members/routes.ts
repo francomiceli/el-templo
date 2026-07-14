@@ -1651,14 +1651,15 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
   // alumno (fase 158, D-34). Gestión consulta quién lo trajo y a quiénes trajo
   // con el MISMO estado derivado (deriveCoveredUntil) que la app.
   //
-  // Guard extra (T-158-02): además del MEMBER_ROLES del plugin, esta ruta exige
-  // ADMIN_ROLES — leer datos de referidos de otro alumno es admin/owner-only.
+  // Guard extra (T-158-02, WR-05): además del MEMBER_ROLES del plugin, esta
+  // ruta exige MEMBER_LIFECYCLE_ROLES — coach y recepción no leen referidos de
+  // otro alumno. El admin oculta el tab a esos dos roles (AlumnoDetailPage).
   fastify.get<{ Params: { userId: number } }>(
     "/:userId/referrals",
     async (request, reply) => {
       try {
         const { role } = request.user;
-        if (!(ADMIN_ROLES as readonly string[]).includes(role)) {
+        if (!(MEMBER_LIFECYCLE_ROLES as readonly string[]).includes(role)) {
           return reply.code(403).send({
             error: "Acceso denegado",
             message: "No tienes permiso para ver los referidos",
