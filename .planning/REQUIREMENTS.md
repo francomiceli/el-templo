@@ -37,9 +37,9 @@ tercera actividad ("OpenShin" en el audio); (d) si el staff puede pisar el gatin
 ### PASE — Pase mensual "Actividades con Aura"
 
 - [x] **PASE-01**: Existen planes de categoría `especial` con budget mensual explícito de 2 clases, independiente del tope semanal (`classesPerWeek`).
-- [ ] **PASE-02**: Un socio activo puede tener el pase Socio ($10.000 ARS) como suscripción en paralelo a su plan presencial; la asignación valida que tenga presencial activo.
-- [ ] **PASE-03**: Un externo (sin plan presencial) puede tener el pase Externo ($20.000 ARS) como única suscripción.
-- [ ] **PASE-04**: El pase entra al ciclo normal de renovación, cobro y deuda sin regresiones en los planes existentes.
+- [x] **PASE-02**: Un socio activo puede tener el pase Socio ($10.000 ARS) como suscripción en paralelo a su plan presencial; la asignación valida que tenga presencial activo.
+- [x] **PASE-03**: Un externo (sin plan presencial) puede tener el pase Externo ($20.000 ARS) como única suscripción.
+- [x] **PASE-04**: El pase entra al ciclo normal de renovación, cobro y deuda sin regresiones en los planes existentes.
 
 ### GATE — Gating y consumo
 
@@ -80,9 +80,9 @@ tercera actividad ("OpenShin" en el audio); (d) si el staff puede pisar el gatin
 | ACT-01      | Phase 161 | Pending  |
 | ACT-02      | Phase 161 | Pending  |
 | PASE-01     | Phase 161 | Complete |
-| PASE-02     | Phase 161 | Pending  |
-| PASE-03     | Phase 161 | Pending  |
-| PASE-04     | Phase 161 | Pending  |
+| PASE-02     | Phase 161 | Complete |
+| PASE-03     | Phase 161 | Complete |
+| PASE-04     | Phase 161 | Complete |
 | GATE-01     | Phase 161 | Pending  |
 | GATE-02     | Phase 161 | Pending  |
 | GATE-03     | Phase 161 | Pending  |

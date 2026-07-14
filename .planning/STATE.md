@@ -4,13 +4,13 @@ milestone: v5.7
 milestone_name: Actividades con Aura
 status: executing
 stopped_at: Phase 161 context gathered
-last_updated: "2026-07-14T23:36:42.101Z"
+last_updated: "2026-07-14T23:54:51.857Z"
 last_activity: 2026-07-14
 progress:
   total_phases: 2
   completed_phases: 0
   total_plans: 7
-  completed_plans: 1
+  completed_plans: 2
   percent: 0
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 ## Current Position
 
 Phase: 161 (Núcleo — actividades gateadas, pase mensual y enforcement) — EXECUTING
-Plan: 2 of 7
+Plan: 3 of 7
 Status: Ready to execute
 Last activity: 2026-07-14
 
@@ -328,6 +328,7 @@ _Updated after each plan completion_
 | Phase 158 P03 | ~10min | 2 tasks | 3 files |
 | Phase 158 P04 | 15 | 2 tasks | 3 files |
 | Phase 161 P01 | 18min | 3 tasks | 8 files |
+| Phase 161 P02 | ~28min | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -754,6 +755,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: Precio Zero a config: key pricing.zero_price_enabled (GET staff/PUT owner), default OFF, seed 0168 ON El Templo; gate en resolvePriceType + boarding pass
 - [Phase 156]: 156-05: UI admin de Zero (toggle en /configuracion/precios + gates en PlanForm/AssignPlan/Cobros) y multi-select de programas cableado a programIds; la UI solo esconde, el gate real es server-side (156-01/156-02)
 - [Phase ?]: 158-02: notificacion de vinculo activado best-effort dentro de qualifyReferralOnCharge (try/catch + log.warn, nunca rompe el cobro D-33); categoria 'referidos' apendada ultima en el enum (mig 0177); qualifyFirstPayment devuelve el flip para notificar una sola vez
+- [Phase ?]: 161-02: conflicto de assign por categoryGroup (3 grupos) — el pase especial no choca con presencial ni online
+- [Phase ?]: 161-02: renew discrimina la sub por subscriptionId (valida ownership); guard D-09 en los 4 callsites de referral
 
 ### Pending Todos
 
@@ -786,7 +789,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-14T23:36:29.515Z
+Last session: 2026-07-14T23:54:41.522Z
 Stopped at: Phase 161 context gathered
 Resume file: None
 
