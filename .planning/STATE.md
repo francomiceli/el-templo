@@ -1,16 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: v5.7
-milestone_name: Actividades con Aura
-status: executing
-stopped_at: Phase 161 context gathered
-last_updated: "2026-07-15T02:44:36.316Z"
+milestone: v5.8
+milestone_name: Sesiones de Prueba — automatización y self-service
+status: planning
+last_updated: "2026-07-15T16:49:26.746Z"
 last_activity: 2026-07-15
 progress:
-  total_phases: 2
+  total_phases: 0
   completed_phases: 0
-  total_plans: 13
-  completed_plans: 11
+  total_plans: 0
+  completed_plans: 0
   percent: 0
 ---
 
@@ -25,10 +24,10 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 
 ## Current Position
 
-Phase: 162 (Superficie — member app y reporte de reparto) — EXECUTING
-Plan: 6 of 6
-Status: Ready to execute
-Last activity: 2026-07-15
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-07-15 — Milestone v5.8 started
 
 ## Performance Metrics
 
