@@ -296,6 +296,19 @@ export interface RegisterPaymentInput {
 
 export type DebtBucket = '0-5' | '6-10' | '11-15' | '15+';
 
+/**
+ * Estado de gestión de una deuda (brief-fran-reporte-deudas §2.4). 'cobrada'
+ * se auto-setea en el backend cuando el saldo llega a 0; 'incobrable' es la
+ * baja manual (fantasmas) — el registro nunca se borra.
+ */
+export type DebtManagementStatus = 'activa' | 'cobrada' | 'incobrable';
+
+/** Filtro de promesa de pago (brief §4.3). 'vencida' = fecha < hoy y estado ≠ cobrada. */
+export type DebtPromiseFilter = 'con' | 'sin' | 'vencida';
+
+/** Orden del listado (brief §4). Default backend: age DESC (más vieja primero). */
+export type DebtSortBy = 'age' | 'amount' | 'lastAttendance';
+
 export interface OutstandingBalanceRow {
   memberId: number;
   memberName: string;
@@ -322,6 +335,13 @@ export interface OutstandingBalanceRow {
   effectiveDate: string; // YYYY-MM-DD
   ageInDays: number;
   bucket: DebtBucket;
+  /** Gestión de deudas (brief §2): identidad de la deuda para el PATCH. */
+  balanceId: number;
+  status: DebtManagementStatus;
+  promisedPaymentDate: string | null; // YYYY-MM-DD
+  managementNotes: string | null;
+  /** Última asistencia del miembro (YYYY-MM-DD); null = nunca asistió. */
+  lastAttendanceAt: string | null;
 }
 
 export type BucketTotals = Record<DebtBucket, number>;
@@ -333,6 +353,14 @@ export interface OutstandingBalancesResult {
   limit: number;
   /** Owner: keyed by currency. Non-owner: flat. */
   bucketTotals: BucketTotals | Record<string, BucketTotals>;
+  /**
+   * Cobrable (activas) vs dada de baja (incobrables), por moneda (brief §2.4).
+   * Respeta los filtros aplicados menos el de estado.
+   */
+  statusTotals: {
+    cobrable: Record<string, number>;
+    incobrable: Record<string, number>;
+  };
 }
 
 export interface OutstandingBalancesFilters {
@@ -341,8 +369,34 @@ export interface OutstandingBalancesFilters {
   /** balances.currency — 'ARS' | 'EUR'. Owner-only filter. */
   currency?: string;
   search?: string;
+  /** Estado de gestión (brief §4.5). Default backend: 'activa'. */
+  status?: DebtManagementStatus;
+  promise?: DebtPromiseFilter;
+  registeredFrom?: string; // YYYY-MM-DD
+  registeredTo?: string;
+  accruedFrom?: string;
+  accruedTo?: string;
+  /** "Sin asistir hace más de X días" — incluye a quienes nunca asistieron. */
+  minDaysSinceAttendance?: number;
+  sortBy?: DebtSortBy;
+  sortDir?: 'asc' | 'desc';
   page?: number;
   limit?: number;
+}
+
+/** Body del PATCH de gestión — parcial; null borra promesa/observaciones. */
+export interface DebtManagementUpdateInput {
+  status?: DebtManagementStatus;
+  promisedPaymentDate?: string | null;
+  notes?: string | null;
+}
+
+/** Respuesta del PATCH de gestión. */
+export interface DebtManagementView {
+  balanceId: number;
+  status: DebtManagementStatus;
+  promisedPaymentDate: string | null;
+  notes: string | null;
 }
 
 // -- Phase 153 (DEUDA-04): Vencidos — expired-without-renewal leads ---------

@@ -1,7 +1,7 @@
 <template>
   <div>
-    <!-- Filters row -->
-    <div class="row q-gutter-sm q-mb-md items-center">
+    <!-- Filters row 1: scope + búsqueda + export -->
+    <div class="row q-gutter-sm q-mb-sm items-center">
       <q-select
         v-model="filters.branchId"
         :options="branchOptions"
@@ -41,6 +41,106 @@
         :disable="loading"
         @click="onExport"
       />
+    </div>
+
+    <!-- Filters row 2: gestión (brief §4) — estado, promesa, fechas, fantasmas, orden -->
+    <div class="row q-gutter-sm q-mb-md items-center">
+      <q-select
+        v-model="filters.status"
+        :options="STATUS_FILTER_OPTIONS"
+        emit-value
+        map-options
+        label="Estado"
+        outlined
+        dense
+        class="col-12 col-sm-2"
+      />
+      <q-select
+        v-model="filters.promise"
+        :options="PROMISE_FILTER_OPTIONS"
+        emit-value
+        map-options
+        label="Promesa de pago"
+        outlined
+        dense
+        clearable
+        class="col-12 col-sm-2"
+      />
+      <q-select
+        v-model="filters.dateField"
+        :options="DATE_FIELD_OPTIONS"
+        emit-value
+        map-options
+        label="Campo fecha"
+        outlined
+        dense
+        class="col-6 col-sm-2"
+        style="min-width: 110px"
+      />
+      <q-input
+        v-model="filters.dateFrom"
+        type="date"
+        label="Desde"
+        outlined
+        dense
+        clearable
+        class="col-6 col-sm-2"
+      />
+      <q-input
+        v-model="filters.dateTo"
+        type="date"
+        label="Hasta"
+        outlined
+        dense
+        clearable
+        class="col-6 col-sm-2"
+      />
+      <q-input
+        v-model.number="filters.minDaysSinceAttendance"
+        type="number"
+        min="1"
+        label="Sin asistir > días"
+        outlined
+        dense
+        clearable
+        debounce="400"
+        class="col-6 col-sm-2"
+        style="max-width: 140px"
+      />
+      <q-select
+        v-model="filters.sortBy"
+        :options="SORT_OPTIONS"
+        emit-value
+        map-options
+        label="Ordenar por"
+        outlined
+        dense
+        class="col-6 col-sm-2"
+        style="min-width: 150px"
+      />
+      <q-btn
+        flat
+        dense
+        :icon="filters.sortDir === 'desc' ? 'arrow_downward' : 'arrow_upward'"
+        @click="filters.sortDir = filters.sortDir === 'desc' ? 'asc' : 'desc'"
+      >
+        <q-tooltip>{{ sortDirTooltip }}</q-tooltip>
+      </q-btn>
+    </div>
+
+    <!-- Los dos números honestos (brief §2.4): cobrable vs dada de baja -->
+    <div v-if="statusTotalsCurrencies.length > 0" class="row q-gutter-sm q-mb-md">
+      <q-card v-for="cur in statusTotalsCurrencies" :key="cur" flat bordered class="col-auto">
+        <q-card-section class="q-py-sm">
+          <div class="text-caption text-grey-7">Deuda cobrable ({{ cur }})</div>
+          <div class="text-h6 text-positive">
+            {{ formatPrice(statusTotals.cobrable[cur] ?? 0, cur) }}
+          </div>
+          <div class="text-caption text-grey-7">
+            Incobrable: {{ formatPrice(statusTotals.incobrable[cur] ?? 0, cur) }}
+          </div>
+        </q-card-section>
+      </q-card>
     </div>
 
     <!-- Cards: bucket totals (D-05 / D-06) -->
@@ -88,6 +188,18 @@
       :pagination="{ rowsPerPage: 0 }"
       hide-pagination
     >
+      <!-- Nombre clickeable → perfil del alumno (brief §3). -->
+      <template #body-cell-miembro="props">
+        <q-td :props="props">
+          <router-link
+            :to="`/alumnos/${props.row.memberId}`"
+            class="text-primary"
+            style="text-decoration: none"
+          >
+            {{ props.row.memberName }}
+          </router-link>
+        </q-td>
+      </template>
       <!-- Motivo (DEUDA-02): short structured reason; período subtitle (DEUDA-03) -->
       <!-- and free-text nota in a tooltip (D-11), never as its own column. -->
       <template #body-cell-motivo="props">
@@ -119,6 +231,108 @@
           <q-badge :color="bucketColor(props.row.bucket)">
             {{ BUCKET_LABELS_ES[props.row.bucket as DebtBucket] }}
           </q-badge>
+        </q-td>
+      </template>
+      <!-- Última asistencia (brief §2.3): fecha + "hace N días"; null = fantasma. -->
+      <template #body-cell-ultimaAsistencia="props">
+        <q-td :props="props">
+          <template v-if="props.row.lastAttendanceAt">
+            <div>{{ formatDate(props.row.lastAttendanceAt) }}</div>
+            <div class="text-caption" :class="attendanceAgeClass(props.row.lastAttendanceAt)">
+              hace {{ daysSince(props.row.lastAttendanceAt) }} días
+            </div>
+          </template>
+          <span v-else class="text-negative">Nunca</span>
+        </q-td>
+      </template>
+      <!-- Promesa de pago (brief §2.1): editable inline; vencida en rojo. -->
+      <template #body-cell-promesa="props">
+        <q-td :props="props" class="cursor-pointer">
+          <span
+            v-if="props.row.promisedPaymentDate"
+            :class="isPromiseOverdue(props.row) ? 'text-negative text-weight-medium' : ''"
+          >
+            {{ formatDate(props.row.promisedPaymentDate) }}
+            <q-icon v-if="isPromiseOverdue(props.row)" name="warning" size="14px" />
+          </span>
+          <span v-else class="text-grey-5">—</span>
+          <q-popup-proxy cover transition-show="scale" transition-hide="scale">
+            <q-date
+              :model-value="props.row.promisedPaymentDate"
+              mask="YYYY-MM-DD"
+              minimal
+              @update:model-value="(v: string | null) => onPromiseChange(props.row, v)"
+            >
+              <div class="row items-center justify-end q-gutter-sm">
+                <q-btn
+                  v-if="props.row.promisedPaymentDate"
+                  v-close-popup
+                  label="Borrar promesa"
+                  color="negative"
+                  flat
+                  dense
+                  @click="onPromiseChange(props.row, null)"
+                />
+                <q-btn v-close-popup label="Cerrar" color="primary" flat dense />
+              </div>
+            </q-date>
+          </q-popup-proxy>
+        </q-td>
+      </template>
+      <!-- Estado (brief §2.4/§3): badge + cambio rápido desde la fila. -->
+      <template #body-cell-estado="props">
+        <q-td :props="props" class="cursor-pointer">
+          <q-badge :color="statusColor(props.row.status)">
+            {{ STATUS_LABELS_ES[props.row.status as DebtManagementStatus] }}
+            <q-icon name="arrow_drop_down" size="14px" />
+          </q-badge>
+          <q-menu auto-close>
+            <q-list dense style="min-width: 180px">
+              <q-item
+                v-for="opt in statusChangeOptions(props.row.status)"
+                :key="opt.value"
+                clickable
+                @click="onStatusChange(props.row, opt.value)"
+              >
+                <q-item-section>{{ opt.label }}</q-item-section>
+              </q-item>
+            </q-list>
+          </q-menu>
+        </q-td>
+      </template>
+      <!-- Observaciones (brief §2.2): campo único, editable inline. -->
+      <template #body-cell-observaciones="props">
+        <q-td :props="props" class="cursor-pointer" style="max-width: 220px">
+          <div class="ellipsis" style="max-width: 200px">
+            <span v-if="props.row.managementNotes">{{ props.row.managementNotes }}</span>
+            <span v-else class="text-grey-5">
+              <q-icon name="edit_note" size="16px" /> Agregar
+            </span>
+          </div>
+          <q-tooltip v-if="props.row.managementNotes" anchor="top middle" self="bottom middle">
+            <div style="white-space: pre-line; max-width: 320px">
+              {{ props.row.managementNotes }}
+            </div>
+          </q-tooltip>
+          <q-popup-edit
+            :model-value="props.row.managementNotes ?? ''"
+            buttons
+            label-set="Guardar"
+            label-cancel="Cancelar"
+            @save="(v: string) => onNotesSave(props.row, v)"
+          >
+            <template #default="scope">
+              <q-input
+                v-model="scope.value"
+                type="textarea"
+                autofocus
+                dense
+                autogrow
+                :maxlength="2000"
+                hint="Una línea por gestión (fecha + qué pasó)"
+              />
+            </template>
+          </q-popup-edit>
         </q-td>
       </template>
       <template #body-cell-fechaRegistro="props">
@@ -153,6 +367,9 @@ import { formatDate } from 'src/utils/format-date';
 import { createLogger } from 'src/utils/logger';
 import type {
   DebtBucket,
+  DebtManagementStatus,
+  DebtPromiseFilter,
+  DebtSortBy,
   OutstandingBalanceRow,
   BucketTotals,
   OutstandingBalancesFilters,
@@ -186,14 +403,60 @@ const BUCKET_LABELS_ES: Record<DebtBucket, string> = {
   '11-15': '11-15 días',
   '15+': '15+ días',
 };
+const STATUS_LABELS_ES: Record<DebtManagementStatus, string> = {
+  activa: 'Activa',
+  cobrada: 'Cobrada',
+  incobrable: 'Incobrable',
+};
 const CURRENCY_OPTIONS = ['ARS', 'EUR'];
 const PAGE_SIZE = 50;
+
+const STATUS_FILTER_OPTIONS = [
+  { label: 'Activas', value: 'activa' },
+  { label: 'Cobradas', value: 'cobrada' },
+  { label: 'Incobrables', value: 'incobrable' },
+];
+const PROMISE_FILTER_OPTIONS = [
+  { label: 'Con promesa', value: 'con' },
+  { label: 'Sin promesa', value: 'sin' },
+  { label: 'Promesa vencida', value: 'vencida' },
+];
+const DATE_FIELD_OPTIONS = [
+  { label: 'Registro', value: 'registered' },
+  { label: 'Devengo', value: 'accrued' },
+];
+const SORT_OPTIONS = [
+  { label: 'Antigüedad', value: 'age' },
+  { label: 'Monto', value: 'amount' },
+  { label: 'Última asistencia', value: 'lastAttendance' },
+];
 
 const filters = reactive<{
   branchId: number | null;
   currency: string | null;
   search: string | null;
-}>({ branchId: null, currency: null, search: '' });
+  status: DebtManagementStatus;
+  promise: DebtPromiseFilter | null;
+  dateField: 'registered' | 'accrued';
+  dateFrom: string | null;
+  dateTo: string | null;
+  minDaysSinceAttendance: number | null;
+  sortBy: DebtSortBy;
+  sortDir: 'asc' | 'desc';
+}>({
+  branchId: null,
+  currency: null,
+  search: '',
+  // Default de la vista = Activas (brief §4.5): la cola de trabajo diaria.
+  status: 'activa',
+  promise: null,
+  dateField: 'registered',
+  dateFrom: null,
+  dateTo: null,
+  minDaysSinceAttendance: null,
+  sortBy: 'age',
+  sortDir: 'desc',
+});
 
 const items = ref<OutstandingBalanceRow[]>([]);
 const total = ref(0);
@@ -208,6 +471,18 @@ const bucketTotalsFlat = ref<BucketTotals>({
 });
 const bucketTotalsByCurrency = ref<Record<string, BucketTotals>>({});
 const currencyKeys = computed(() => Object.keys(bucketTotalsByCurrency.value).sort());
+const statusTotals = ref<OutstandingBalancesResult['statusTotals']>({
+  cobrable: {},
+  incobrable: {},
+});
+const statusTotalsCurrencies = computed(() =>
+  [
+    ...new Set([
+      ...Object.keys(statusTotals.value.cobrable),
+      ...Object.keys(statusTotals.value.incobrable),
+    ]),
+  ].sort()
+);
 
 // WR-06: for non-owner the country selector is hidden and displayCurrency is
 // hardcoded to 'ARS', but the backend returns the flat bucketTotals in THAT
@@ -217,6 +492,16 @@ const currencyKeys = computed(() => Object.keys(bucketTotalsByCurrency.value).so
 const flatCurrency = computed<string>(() => items.value[0]?.currency ?? props.displayCurrency);
 
 const hasMore = computed(() => items.value.length < total.value);
+
+const sortDirTooltip = computed(() => {
+  if (filters.sortBy === 'age') {
+    return filters.sortDir === 'desc' ? 'Más vieja primero' : 'Más reciente primero';
+  }
+  if (filters.sortBy === 'amount') {
+    return filters.sortDir === 'desc' ? 'Mayor monto primero' : 'Menor monto primero';
+  }
+  return filters.sortDir === 'asc' ? 'Más abandonado primero' : 'Asistencia más reciente primero';
+});
 
 const columns = [
   {
@@ -276,6 +561,34 @@ const columns = [
     sortable: false,
   },
   {
+    name: 'ultimaAsistencia',
+    label: 'Última asistencia',
+    field: 'lastAttendanceAt',
+    align: 'left' as const,
+    sortable: false,
+  },
+  {
+    name: 'promesa',
+    label: 'Promesa de pago',
+    field: 'promisedPaymentDate',
+    align: 'left' as const,
+    sortable: false,
+  },
+  {
+    name: 'estado',
+    label: 'Estado',
+    field: 'status',
+    align: 'center' as const,
+    sortable: false,
+  },
+  {
+    name: 'observaciones',
+    label: 'Observaciones',
+    field: 'managementNotes',
+    align: 'left' as const,
+    sortable: false,
+  },
+  {
     name: 'fechaRegistro',
     label: 'Fecha de registro',
     field: 'registeredAt',
@@ -305,6 +618,12 @@ function bucketColor(b: DebtBucket): string {
   return 'negative';
 }
 
+function statusColor(s: DebtManagementStatus): string {
+  if (s === 'activa') return 'primary';
+  if (s === 'cobrada') return 'positive';
+  return 'grey-7';
+}
+
 function emptyBucketTotals(): BucketTotals {
   return { '0-5': 0, '6-10': 0, '11-15': 0, '15+': 0 };
 }
@@ -324,12 +643,67 @@ function rowKey(r: OutstandingBalanceRow): string {
   return `${r.targetKind}:${r.targetId}`;
 }
 
+function todayISO(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function daysSince(iso: string): number {
+  const then = new Date(iso + 'T00:00:00');
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  return Math.max(0, Math.floor((now.getTime() - then.getTime()) / (1000 * 60 * 60 * 24)));
+}
+
+function attendanceAgeClass(iso: string): string {
+  const d = daysSince(iso);
+  if (d > 30) return 'text-negative';
+  if (d > 14) return 'text-warning';
+  return 'text-grey-6';
+}
+
+// Promesa vencida (brief §2.1): fecha anterior a hoy y estado ≠ cobrada.
+function isPromiseOverdue(row: OutstandingBalanceRow): boolean {
+  return (
+    row.promisedPaymentDate !== null &&
+    row.promisedPaymentDate < todayISO() &&
+    row.status !== 'cobrada'
+  );
+}
+
+function statusChangeOptions(
+  current: DebtManagementStatus
+): Array<{ label: string; value: DebtManagementStatus }> {
+  const all: Array<{ label: string; value: DebtManagementStatus }> = [
+    { label: 'Marcar activa', value: 'activa' },
+    { label: 'Marcar cobrada', value: 'cobrada' },
+    { label: 'Marcar incobrable', value: 'incobrable' },
+  ];
+  return all.filter((o) => o.value !== current);
+}
+
 function currentFilters(): OutstandingBalancesFilters {
   return {
     branchId: filters.branchId ?? undefined,
     country: props.countryScope,
     currency: filters.currency ?? undefined,
     search: filters.search?.trim() ? filters.search.trim() : undefined,
+    status: filters.status,
+    promise: filters.promise ?? undefined,
+    ...(filters.dateField === 'registered'
+      ? {
+          registeredFrom: filters.dateFrom ?? undefined,
+          registeredTo: filters.dateTo ?? undefined,
+        }
+      : {
+          accruedFrom: filters.dateFrom ?? undefined,
+          accruedTo: filters.dateTo ?? undefined,
+        }),
+    minDaysSinceAttendance:
+      filters.minDaysSinceAttendance !== null && filters.minDaysSinceAttendance > 0
+        ? filters.minDaysSinceAttendance
+        : undefined,
+    sortBy: filters.sortBy,
+    sortDir: filters.sortDir,
   };
 }
 
@@ -358,6 +732,7 @@ async function load(reset = true): Promise<void> {
     }
     currentPage.value = res.page;
     total.value = res.total;
+    statusTotals.value = res.statusTotals;
 
     const bt = res.bucketTotals;
     // Discriminator: the flat shape is keyed by bucket strings ('0-5' …);
@@ -384,8 +759,71 @@ function loadMore(): Promise<void> {
   return load(false);
 }
 
+// ─── Gestión inline (brief §3) ──────────────────────────────────────────────
+
+async function onStatusChange(
+  row: OutstandingBalanceRow,
+  status: DebtManagementStatus
+): Promise<void> {
+  try {
+    await api.updateDebtManagement(row.balanceId, { status });
+    $q.notify({
+      type: 'positive',
+      message: `Deuda de ${row.memberName} marcada como ${STATUS_LABELS_ES[status].toLowerCase()}`,
+    });
+    // El cambio de estado saca a la fila del filtro actual (default Activas) y
+    // mueve los totales cobrable/incobrable → recargar el listado completo.
+    void load(true);
+  } catch {
+    // updateDebtManagement ya seteó api.error; notificar y no tocar la fila.
+    $q.notify({ type: 'negative', message: api.error.value ?? 'Error actualizando el estado' });
+  }
+}
+
+async function onPromiseChange(
+  row: OutstandingBalanceRow,
+  promisedPaymentDate: string | null
+): Promise<void> {
+  try {
+    const view = await api.updateDebtManagement(row.balanceId, { promisedPaymentDate });
+    row.promisedPaymentDate = view.promisedPaymentDate;
+    $q.notify({
+      type: 'positive',
+      message: promisedPaymentDate === null ? 'Promesa borrada' : 'Promesa de pago guardada',
+    });
+  } catch {
+    $q.notify({ type: 'negative', message: api.error.value ?? 'Error guardando la promesa' });
+  }
+}
+
+async function onNotesSave(row: OutstandingBalanceRow, value: string): Promise<void> {
+  const notes = value.trim().length > 0 ? value.trim() : null;
+  try {
+    const view = await api.updateDebtManagement(row.balanceId, { notes });
+    row.managementNotes = view.notes;
+    $q.notify({ type: 'positive', message: 'Observaciones guardadas' });
+  } catch {
+    $q.notify({
+      type: 'negative',
+      message: api.error.value ?? 'Error guardando las observaciones',
+    });
+  }
+}
+
 watch(
-  () => [filters.branchId, filters.currency, filters.search],
+  () => [
+    filters.branchId,
+    filters.currency,
+    filters.search,
+    filters.status,
+    filters.promise,
+    filters.dateField,
+    filters.dateFrom,
+    filters.dateTo,
+    filters.minDaysSinceAttendance,
+    filters.sortBy,
+    filters.sortDir,
+  ],
   () => {
     void load(true);
   }
