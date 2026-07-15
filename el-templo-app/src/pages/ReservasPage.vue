@@ -51,8 +51,10 @@
       </q-btn>
     </div>
 
-    <!-- Blocked state — user has no presencial plan and is NOT a trial-eligible freemium -->
-    <div v-else-if="!canReservePresencial && !trialEligible" class="reservas__empty">
+    <!-- Blocked state — user has no presencial plan and is NOT a trial-eligible freemium.
+         Phase 162 (D-06): el externo-solo-pase (hasEspecialPass) pasa el gate y entra a
+         la grilla filtrada a especiales (E5); usar canAccessGrid, no canReservePresencial. -->
+    <div v-else-if="!canAccessGrid && !trialEligible" class="reservas__empty">
       <q-icon name="event_available" size="64px" color="grey-5" />
       <h2 class="reservas__empty-title">{{ emptyTitle }}</h2>
       <p class="reservas__empty-text">{{ emptyText }}</p>
@@ -273,6 +275,19 @@
         {{ userStore.branchDisplayName }}
       </p>
 
+      <!-- Phase 162 (APP-02): contador x/2 del plan especial — chip único dorado,
+           visible sólo si el usuario tiene el plan especial. En 0/2 pasa a tono apagado. -->
+      <div v-if="userStore.hasEspecialPass" class="especial-chip-row q-mb-md">
+        <q-chip
+          dense
+          class="especial-chip"
+          :class="{ 'especial-chip--exhausted': userStore.especialClassesRemaining <= 0 }"
+        >
+          <q-icon name="auto_awesome" size="14px" class="q-mr-xs" />
+          {{ especialChipLabel }}
+        </q-chip>
+      </div>
+
       <!-- Bonus usage banner (fixed plans only) -->
       <div v-if="bonusUsage.applicable" class="bonus-banner q-mb-md">
         <q-icon name="card_giftcard" size="18px" />
@@ -366,6 +381,10 @@
             <div class="slot-card__time">
               <span class="slot-card__hour">{{ formatTime(slot.startTime) }}</span>
               <span class="slot-card__activity">{{ slot.activityName }}</span>
+              <!-- Phase 162 (APP-01): distintivo dorado en actividades especiales (todos los estados) -->
+              <q-badge v-if="slot.isSpecial" class="slot-card__badge--special">
+                <q-icon name="auto_awesome" size="12px" class="q-mr-xs" />Especial
+              </q-badge>
             </div>
             <div class="slot-card__right">
               <template v-if="isSlotHoliday(slot)">
@@ -390,10 +409,45 @@
                   <q-tooltip>Cancelar</q-tooltip>
                 </q-btn>
               </template>
-              <template v-else-if="slot.isFull">
+              <template v-else-if="slot.isFull && !slot.isSpecial">
                 <span class="slot-card__avail slot-card__avail--full">Completo</span>
               </template>
               <template v-else-if="isSlotPast(slot)"></template>
+              <!-- Phase 162 (APP-01): estados de la actividad especial. Se evalúan
+                   DESPUÉS de holiday/attended/booked/full/past (que conservan prioridad).
+                   Bloqueo en olive/grey, nunca rojo (no es error, es condición de acceso). -->
+              <template v-else-if="slot.isSpecial && especialReservable">
+                <!-- E1/E4: plan especial con saldo → flujo de reserva normal -->
+                <span v-if="slot.isFull" class="slot-card__avail slot-card__avail--full"
+                  >Completo</span
+                >
+                <template v-else>
+                  <span
+                    class="slot-card__avail"
+                    :class="`slot-card__avail--${availabilityLevel(slot)}`"
+                    >{{ availabilityText(slot) }}</span
+                  >
+                  <q-btn
+                    flat
+                    dense
+                    no-caps
+                    color="primary"
+                    label="Reservar"
+                    class="slot-card__action"
+                    @click.stop="onSlotTap(slot)"
+                  />
+                </template>
+              </template>
+              <template v-else-if="slot.isSpecial && userStore.hasEspecialPass">
+                <!-- E2: plan especial sin saldo (0/2) — pill apagada, sin botón -->
+                <span class="slot-card__pill slot-card__pill--muted">Usaste tus 2 clases</span>
+              </template>
+              <template v-else-if="slot.isSpecial">
+                <!-- E3: socio sin plan especial — afordancia informativa, abre el dialog al tocar -->
+                <span class="slot-card__pill slot-card__pill--locked">
+                  <q-icon name="lock" size="13px" class="q-mr-xs" />Requiere plan especial
+                </span>
+              </template>
               <template v-else>
                 <span
                   class="slot-card__avail"
@@ -427,6 +481,10 @@
             <div class="slot-card__time">
               <span class="slot-card__hour">{{ formatTime(slot.startTime) }}</span>
               <span class="slot-card__activity">{{ slot.activityName }}</span>
+              <!-- Phase 162 (APP-01): distintivo dorado en actividades especiales (todos los estados) -->
+              <q-badge v-if="slot.isSpecial" class="slot-card__badge--special">
+                <q-icon name="auto_awesome" size="12px" class="q-mr-xs" />Especial
+              </q-badge>
             </div>
             <div class="slot-card__right">
               <template v-if="isSlotHoliday(slot)">
@@ -451,10 +509,45 @@
                   <q-tooltip>Cancelar</q-tooltip>
                 </q-btn>
               </template>
-              <template v-else-if="slot.isFull">
+              <template v-else-if="slot.isFull && !slot.isSpecial">
                 <span class="slot-card__avail slot-card__avail--full">Completo</span>
               </template>
               <template v-else-if="isSlotPast(slot)"></template>
+              <!-- Phase 162 (APP-01): estados de la actividad especial. Se evalúan
+                   DESPUÉS de holiday/attended/booked/full/past (que conservan prioridad).
+                   Bloqueo en olive/grey, nunca rojo (no es error, es condición de acceso). -->
+              <template v-else-if="slot.isSpecial && especialReservable">
+                <!-- E1/E4: plan especial con saldo → flujo de reserva normal -->
+                <span v-if="slot.isFull" class="slot-card__avail slot-card__avail--full"
+                  >Completo</span
+                >
+                <template v-else>
+                  <span
+                    class="slot-card__avail"
+                    :class="`slot-card__avail--${availabilityLevel(slot)}`"
+                    >{{ availabilityText(slot) }}</span
+                  >
+                  <q-btn
+                    flat
+                    dense
+                    no-caps
+                    color="primary"
+                    label="Reservar"
+                    class="slot-card__action"
+                    @click.stop="onSlotTap(slot)"
+                  />
+                </template>
+              </template>
+              <template v-else-if="slot.isSpecial && userStore.hasEspecialPass">
+                <!-- E2: plan especial sin saldo (0/2) — pill apagada, sin botón -->
+                <span class="slot-card__pill slot-card__pill--muted">Usaste tus 2 clases</span>
+              </template>
+              <template v-else-if="slot.isSpecial">
+                <!-- E3: socio sin plan especial — afordancia informativa, abre el dialog al tocar -->
+                <span class="slot-card__pill slot-card__pill--locked">
+                  <q-icon name="lock" size="13px" class="q-mr-xs" />Requiere plan especial
+                </span>
+              </template>
               <template v-else>
                 <span
                   class="slot-card__avail"
@@ -637,6 +730,35 @@
         </q-card-actions>
       </q-card>
     </q-dialog>
+
+    <!-- Phase 162-05 (APP-03/D-02): dialog informativo de "Actividades con Aura".
+         Se dispara desde E3 (tap en especial sin plan especial) y desde el backend
+         (code PASS_REQUIRED). SIN pago in-app ni CTA de compra — la venta es por
+         gestión/PoS. Un único botón "Entendido". Acento dorado (Aura). NOT persistent. -->
+    <q-dialog v-model="showAuraInfoDialog">
+      <q-card class="aura-dialog">
+        <q-card-section class="aura-dialog__body">
+          <q-icon class="aura-dialog__icon" name="auto_awesome" size="2.5em" />
+          <h3 class="aura-dialog__title">Actividades con Aura</h3>
+          <p class="aura-dialog__text">
+            Son clases especiales de nuestros profes, además de tu plan. Con el plan especial
+            reservás <strong>2 clases por mes</strong>.
+          </p>
+          <p class="aura-dialog__price">Socios: $10.000 · No socios: $20.000 por mes.</p>
+          <p class="aura-dialog__text">Consultá en recepción o con tu profe para sumarte.</p>
+        </q-card-section>
+
+        <q-card-actions class="aura-dialog__actions">
+          <q-btn
+            unelevated
+            no-caps
+            class="aura-dialog__primary full-width"
+            label="Entendido"
+            v-close-popup
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
@@ -707,6 +829,25 @@ const selectedBranchId = ref<number | null>(null)
 const canReservePresencial = computed(() => userStore.hasPresencialReservationAccess)
 const hasActiveButNotPresencial = computed(
   () => userStore.hasActiveSubscription && !userStore.hasPresencialPlan,
+)
+
+// Phase 162 (D-06): gate de página refinado. El externo-solo-pase (hasEspecialPass sin
+// presencial) también pasa — entra a la grilla filtrada a especiales (E5). El socio con
+// presencial mantiene su acceso completo. Corrige el gate todo-o-nada (Pitfall 1).
+const canAccessGrid = computed(
+  () => userStore.hasPresencialReservationAccess || userStore.hasEspecialPass,
+)
+
+// E1/E4: hay saldo del plan especial para reservar (user-level, no depende del slot).
+const especialReservable = computed(
+  () => userStore.hasEspecialPass && userStore.especialClassesRemaining > 0,
+)
+
+// Chip contador x/2. En 0/2 cambia el copy a tono apagado (se renuevan el próximo mes).
+const especialChipLabel = computed(() =>
+  userStore.especialClassesRemaining <= 0
+    ? `Especiales · 0/${userStore.especialClassesBudget} · se renuevan el próximo mes`
+    : `Especiales · ${userStore.especialClassesRemaining}/${userStore.especialClassesBudget}`,
 )
 
 // Differentiated empty-state copy: "no plan at all" vs "wrong plan type".
@@ -801,6 +942,11 @@ const reserveDialog = ref({
 // when the API rejects a reserve with code COVERAGE_EXPIRED (plan expired before
 // the class date). Action-scoped — NOT persisted, re-shows on every retry.
 const showCoverageDialog = ref(false)
+
+// Phase 162-05 (APP-03/D-02): dialog informativo del plan especial. Se abre desde E3
+// (tap en una especial sin plan) y desde el catch de confirmReserve ante code
+// PASS_REQUIRED (espejo de COVERAGE_EXPIRED). Informativo, SIN pago in-app.
+const showAuraInfoDialog = ref(false)
 
 function openCoverageWhatsApp(): void {
   const message = 'Hola, quiero renovar mi membresía para reservar una clase 💪'
@@ -963,12 +1109,17 @@ const attendedSlotKeys = computed(() => {
   return keys
 })
 
-/** Slots for selected day, sorted by time */
-const selectedDaySlots = computed(() =>
-  slots.value
+/** Slots for selected day, sorted by time.
+ *  Phase 162 (E5, D-06): el externo-solo-pase ve la grilla LIMITADA a especiales — las
+ *  regulares se ocultan client-side (el backend igual las rechaza — GATE-04). El socio
+ *  presencial ve todo (hasOnlyEspecialPass=false) y no pierde nada de su vista actual. */
+const selectedDaySlots = computed(() => {
+  const onlyEspecial = userStore.hasOnlyEspecialPass
+  return slots.value
     .filter((s) => s.dayOfWeek === selectedDay.value)
-    .sort((a, b) => a.startTime.localeCompare(b.startTime)),
-)
+    .filter((s) => !onlyEspecial || s.isSpecial)
+    .sort((a, b) => a.startTime.localeCompare(b.startTime))
+})
 
 const morningSlots = computed(() => selectedDaySlots.value.filter((s) => s.startTime < '12:00:00'))
 const afternoonSlots = computed(() =>
@@ -1189,6 +1340,23 @@ function onSlotTap(slot: WeeklySlotView) {
   if (isSlotAttended(slot)) return
   if (isSlotPast(slot)) return
 
+  // Phase 162 (APP-01): estados del plan especial. E3 (sin plan) → dialog informativo;
+  // E2 (0/2) → toast; E1 (con saldo) cae al flujo de reserva normal de abajo.
+  if (slot.isSpecial) {
+    if (!userStore.hasEspecialPass) {
+      showAuraInfoDialog.value = true
+      return
+    }
+    if (userStore.especialClassesRemaining <= 0) {
+      $q.notify({
+        type: 'info',
+        message: 'Ya usaste tus 2 clases especiales del mes. Se renuevan con tu próximo período.',
+        timeout: 3000,
+      })
+      return
+    }
+  }
+
   const date = dateForDay(slot.dayOfWeek as DayOfWeek)
   const dayLabel = DAY_LABELS_FULL[slot.dayOfWeek as DayOfWeek]
   const d = new Date(date + 'T00:00:00')
@@ -1262,6 +1430,9 @@ async function confirmReserve() {
       })
     }
     await loadGrid()
+    // Phase 162 (Pitfall 3): recargar el pase para que el contador x/2 no mienta
+    // tras consumir una clase especial.
+    await userStore.loadEspecialPass()
   } catch (err: unknown) {
     // Phase 144-04 (D-15): a class dated after the member's covered-until is
     // rejected with code COVERAGE_EXPIRED — show the renewal dialog instead of
@@ -1271,6 +1442,14 @@ async function confirmReserve() {
       reserveDialog.value.show = false
       showCoverageDialog.value = true
       log.info('Reserve blocked: membership coverage expired')
+      return
+    }
+    // Phase 162-05 (APP-03): reserva de especial sin plan → code PASS_REQUIRED
+    // (161-06). Espeja COVERAGE_EXPIRED: abre el dialog informativo, sin pago (D-02).
+    if (axios.isAxiosError(err) && err.response?.data?.code === 'PASS_REQUIRED') {
+      reserveDialog.value.show = false
+      showAuraInfoDialog.value = true
+      log.info('Reserve blocked: especial pass required')
       return
     }
     const message = extractError(err, 'Error al reservar')
@@ -1401,6 +1580,8 @@ async function confirmCancel() {
     cancelDialog.value.show = false
     $q.notify({ type: 'positive', message: 'Reserva cancelada' })
     await loadGrid()
+    // Phase 162 (Pitfall 3): cancelar una especial devuelve el crédito — recargar el pase.
+    await userStore.loadEspecialPass()
   } catch (err: unknown) {
     const message = extractError(err, 'Error al cancelar')
     $q.notify({ type: 'negative', message })
@@ -1499,6 +1680,11 @@ onMounted(async () => {
   if (!userStore.subscription && !userStore.subscriptionLoading) {
     await userStore.loadSubscription()
   }
+
+  // Phase 162 (APP-02/D-06): cargar el plan especial antes de decidir el empty-state.
+  // Debe resolver ANTES para que el externo-solo-pase (canAccessGrid) no vea un flash
+  // del muro y para que el chip x/2 tenga el saldo correcto al primer render.
+  await userStore.loadEspecialPass()
 
   // Resolve trial eligibility first — it gates the 3 ReservasPage states (D-22).
   await loadTrialEligibility()
@@ -1610,6 +1796,95 @@ onBeforeUnmount(() => cleanup())
   font-weight: 400;
   font-size: 0.8125rem;
   margin-top: 4px;
+}
+
+// ─── Phase 162 (APP-02): chip contador x/2 del plan especial ─────────
+// Acento dorado "Aura" (RESERVADO). En 0/2 pasa a olive apagado.
+.especial-chip-row {
+  display: flex;
+  justify-content: center;
+}
+
+.especial-chip {
+  color: $warning !important;
+  background: #f5ecd9 !important;
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.01em;
+
+  &--exhausted {
+    color: $info !important;
+    background: rgba($info, 0.1) !important;
+  }
+}
+
+// ─── Phase 162 (APP-03): dialog informativo "Actividades con Aura" ───
+// Clona coverage-dialog (charcoal card) con acento dorado en vez de terracotta.
+// El botón "Entendido" es neutro (cream) — el dorado queda reservado al ícono.
+.aura-dialog {
+  width: 100%;
+  max-width: 340px;
+  background: $dark-page;
+  color: $cream;
+  border-radius: 16px;
+  border-top: 2px solid rgba($warning, 0.7);
+  padding: 8px 4px 16px;
+}
+
+.aura-dialog__body {
+  text-align: center;
+  padding-top: 16px;
+}
+
+.aura-dialog__icon {
+  color: #d4b896; // bronze-light — legible sobre charcoal (el $warning puro es muy oscuro)
+  margin-bottom: 12px;
+}
+
+.aura-dialog__title {
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 700;
+  font-size: 1.125rem;
+  letter-spacing: 0.04em;
+  color: $cream;
+  margin: 0 0 8px;
+}
+
+.aura-dialog__text {
+  font-family: 'Geologica', sans-serif;
+  font-weight: 400;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: rgba($cream, 0.75);
+  margin: 0 0 8px;
+}
+
+.aura-dialog__price {
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 700;
+  font-size: 0.9375rem;
+  color: #d4b896;
+  margin: 8px 0;
+}
+
+.aura-dialog__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px 20px 4px;
+}
+
+.aura-dialog__primary {
+  background: $cream !important;
+  color: $dark !important;
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 700;
+  font-size: 0.9375rem;
+  letter-spacing: 0.12em;
+  padding: 12px 0;
+  min-height: 44px;
+  border-radius: 8px;
 }
 
 .bonus-banner {
@@ -2043,6 +2318,40 @@ onBeforeUnmount(() => cleanup())
 
     &--positive {
       color: $positive;
+    }
+  }
+
+  // Phase 162 (APP-01): distintivo dorado "Aura" — RESERVADO a la actividad especial.
+  // Espeja el patrón de .slot-card__avail. Aged Gold ($warning #7d6520) sobre tinte #f5ecd9.
+  &__badge--special {
+    margin-top: 4px;
+    align-self: flex-start;
+    color: $warning;
+    background: #f5ecd9;
+    padding: 2px 9px;
+    border-radius: 8px;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.2;
+  }
+
+  // Phase 162 (E2/E3): estados de bloqueo del plan especial. Olive/grey apagado, NUNCA
+  // rojo — no es un error, es una condición de acceso (UI-SPEC §Color).
+  &__pill {
+    display: inline-flex;
+    align-items: center;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 9px;
+    border-radius: 8px;
+    white-space: nowrap;
+    letter-spacing: 0.01em;
+
+    &--muted,
+    &--locked {
+      color: $info; // Olive Stone
+      background: rgba($info, 0.1);
     }
   }
 
