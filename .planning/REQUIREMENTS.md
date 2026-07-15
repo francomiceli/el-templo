@@ -56,7 +56,7 @@ tercera actividad ("OpenShin" en el audio); (d) si el staff puede pisar el gatin
 
 ### REP — Reporte para reparto
 
-- [ ] **REP-01**: El admin ve las asistencias por actividad especial por mes, separando origen socio/externo, como insumo del reparto manual a los profes (sin montos calculados).
+- [x] **REP-01**: El admin ve las asistencias por actividad especial por mes, separando origen socio/externo, como insumo del reparto manual a los profes (sin montos calculados).
 
 ## Future Requirements (deferred)
 
@@ -90,4 +90,4 @@ tercera actividad ("OpenShin" en el audio); (d) si el staff puede pisar el gatin
 | APP-01      | Phase 162 | Complete |
 | APP-02      | Phase 162 | Complete |
 | APP-03      | Phase 162 | Pending  |
-| REP-01      | Phase 162 | Pending  |
+| REP-01      | Phase 162 | Complete |
