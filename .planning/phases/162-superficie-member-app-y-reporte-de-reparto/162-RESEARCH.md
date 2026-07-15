@@ -394,22 +394,24 @@ return sendExcelReply(workbook, reply, "especiales");
 | A5  | El reporte va como tab en Analíticas (no en Reportes), consistente con "Referidos A/B" y "Clases"        | Pattern 7         | Bajo — decisión de ubicación; el patrón es idéntico en ambos módulos                 |
 | A6  | `getPlanById` expone `requiresPresencial` (161-02 lo agregó a PlanListItem/mapPlanRow)                   | Pattern 2         | Bajo — verificado en 161-02-SUMMARY (getPlanById devuelve requiresPresencial)        |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **¿Endpoint del pase nuevo o extender `/me/subscription`?**
-   - Qué sabemos: el store depende del `subscription` singular en toda la app; `getMemberSubscriptions` plural ya existe y trae todo.
-   - Recomendación: endpoint aditivo `GET /me/especial-pass` (aislado, testeable, cero regresión). **El planner decide.**
+> Las 4 preguntas quedaron resueltas durante la planificacion de la fase. Marcador inline por pregunta citando donde se resolvio.
 
-2. **Externo-solo-pase: ¿grilla completa con regulares bloqueadas, o grilla filtrada a sólo especiales?**
-   - Qué sabemos: el backend ya rechaza regulares para especial-only (GATE-04). La grilla es semanal Lun–Sáb; las especiales son sábado.
-   - Recomendación: grilla completa + gating por slot (espeja backend, menos ramas). **El planner decide (D-06 lo deja a discreción).**
+1. **Endpoint del pase nuevo o extender `/me/subscription`?** - **(RESOLVED -> 162-02)**: se creo el endpoint aditivo `GET /me/especial-pass` (aislado, testeable, cero regresion sobre el `subscription` singular). Ver 162-02-PLAN.md.
+   - Que sabemos: el store depende del `subscription` singular en toda la app; `getMemberSubscriptions` plural ya existe y trae todo.
+   - Recomendacion: endpoint aditivo `GET /me/especial-pass` (aislado, testeable, cero regresion). **El planner decide.**
 
-3. **REP-01: regla de fallback para asistencias sin sub especial que cubra la fecha.**
-   - Qué sabemos: `attendance` no guarda subscription_id; la mayoría de asistencias caerán dentro de un período de pase.
-   - Recomendación: clasificar por la sub especial más reciente del member; si no tiene ninguna, "sin clasificar" (raro — implicaría asistencia a especial sin pase, sólo posible por bypass staff D-07). **El planner define la regla y el test la fija.**
+2. **Externo-solo-pase: grilla completa con regulares bloqueadas, o grilla filtrada a solo especiales?** - **(RESOLVED -> UI-SPEC E5)**: la matriz de estados del UI-SPEC define E5 = las regulares se OCULTAN client-side para el externo-solo-pase (grilla filtrada por `isSpecial`), implementado en 162-05. Ver 162-UI-SPEC.md (matriz E1-E5) y 162-05-PLAN.md Task 1.
+   - Que sabemos: el backend ya rechaza regulares para especial-only (GATE-04). La grilla es semanal Lun-Sab; las especiales son sabado.
+   - Recomendacion: grilla completa + gating por slot (espeja backend, menos ramas). **El planner decide (D-06 lo deja a discrecion).**
 
-4. **Contador x/2: ¿chip en grilla, card en Mi Templo, o ambos? (D-03 discreción)**
-   - Recomendación: chip en los slots especiales (contexto donde se usa) + opcionalmente card en Mi Templo (visibilidad pasiva, análogo `ReferralCtaCard`). **El planner/UI-spec decide.**
+3. **REP-01: regla de fallback para asistencias sin sub especial que cubra la fecha.** - **(RESOLVED -> 162-03)**: 162-03 fija la regla: asistencia a especial sin sub especial que cubra la `session_date` -> clasificar 'socio' si el member tenia una sub presencial active/paused cubriendo esa fecha, si no 'externo' (mejor evidencia disponible; caso raro, solo por bypass staff D-07). Documentada en codigo y fijada por test. Ver 162-03-PLAN.md Task 1 y Task 3.
+   - Que sabemos: `attendance` no guarda subscription_id; la mayoria de asistencias caeran dentro de un periodo de pase.
+   - Recomendacion: clasificar por la sub especial mas reciente del member; si no tiene ninguna, "sin clasificar" (raro - implicaria asistencia a especial sin pase, solo posible por bypass staff D-07). **El planner define la regla y el test la fija.**
+
+4. **Contador x/2: chip en grilla, card en Mi Templo, o ambos? (D-03 discrecion)** - **(RESOLVED -> UI-SPEC, ambos)**: se implementan AMBOS - chip "Especiales - x/2" en el header de la grilla + card en Mi Templo. Definido en el UI-SPEC e implementado en 162-05. Ver 162-UI-SPEC.md y 162-05-PLAN.md Task 1/Task 2.
+   - Recomendacion: chip en los slots especiales (contexto donde se usa) + opcionalmente card en Mi Templo (visibilidad pasiva, analogo `ReferralCtaCard`). **El planner/UI-spec decide.**
 
 ## Environment Availability
 
