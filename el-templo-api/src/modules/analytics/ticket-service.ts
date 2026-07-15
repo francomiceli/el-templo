@@ -58,7 +58,7 @@
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { and, eq, sql, isNull, type SQL } from "drizzle-orm";
+import { and, eq, ne, sql, isNull, type SQL } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { applyScope } from "./scope";
@@ -448,6 +448,11 @@ export class TicketService {
         filters.dateFrom,
         filters.dateTo,
       ),
+      // D-11: el pase especial no distorsiona el ticket promedio de membresía.
+      // La plata del pase igual cuenta en caja/cobros/advanced-finance (intactos):
+      // esto excluye solo la MÉTRICA de ticket, no el ingreso. El join a
+      // subscriptionPlans existe abajo, así que el filtro es directo.
+      ne(schema.subscriptionPlans.planCategory, "especial") as unknown as SQL,
     ];
     // D-10 plan INPUT filter: restrict to the linked subscription's plan,
     // AND-ed AFTER scope (T-132-01 — never a scope bypass). The subscriptions
@@ -532,6 +537,16 @@ export class TicketService {
       ) as unknown as SQL,
       eq(schema.financialTransactions.kind, "plan_charge") as unknown as SQL,
       eq(schema.financialTransactions.direction, "inflow") as unknown as SQL,
+      // D-11: excluir del UNIVERSO los cargos ligados a un pase especial, para que
+      // el conteo case con `linkedCharges` (que ya excluye especial) y no inflen
+      // `excludedNoLink`. Esta query no joinea planes → NOT EXISTS por link.
+      sql`NOT EXISTS (
+        SELECT 1 FROM transaction_links tl
+        JOIN subscriptions s ON s.id = tl.target_id AND tl.target_kind = 'subscription'
+        JOIN subscription_plans sp ON sp.id = s.plan_id
+        WHERE tl.transaction_id = financial_transactions.id
+          AND sp.plan_category = 'especial'
+      )`,
       ...scopeConditions,
       ...rangeConditions(
         schema.financialTransactions.transactionDate,

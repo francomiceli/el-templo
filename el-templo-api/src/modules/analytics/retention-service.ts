@@ -32,11 +32,12 @@
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { and, eq, sql, type SQL } from "drizzle-orm";
+import { and, eq, ne, sql, type SQL } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { applyScope } from "./scope";
 import { activeMemberExists } from "../shared/active-member";
+import { excludeEspecialSubs } from "./especial-exclusion";
 import type {
   AnalyticsFilters,
   RetentionAnalytics,
@@ -97,7 +98,8 @@ export class RetentionService {
       branchColumn: schema.subscriptions.branchId,
     });
 
-    const conditions: SQL[] = [...scopeConditions];
+    // D-11: el pase especial no forma cohortes/ciclos de retención de membresía.
+    const conditions: SQL[] = [excludeEspecialSubs(), ...scopeConditions];
 
     // Plan filter (follow-up): exact match on subscriptions.plan_id. No plan join
     // needed — plan_id lives on the subscription row. Undefined → no restriction.
@@ -243,7 +245,11 @@ export class RetentionService {
     }
 
     const rows = await query.where(
-      scopeConditions.length > 0 ? and(...scopeConditions) : undefined,
+      // D-11: el pase especial no aparece como opción de plan en retención.
+      and(
+        ne(schema.subscriptionPlans.planCategory, "especial"),
+        ...scopeConditions,
+      ),
     );
 
     return rows.sort((a, b) => {
@@ -299,6 +305,9 @@ export class RetentionService {
     const conditions: SQL[] = [
       // Only subscriptions of members who are active RIGHT NOW (canonical).
       activeMemberExists(schema.subscriptions.userId),
+      // D-11: no contar los ciclos del pase especial (el externo-solo-pase queda
+      // con 0 filas → fuera de la distribución de ciclos de membresía).
+      excludeEspecialSubs(),
       ...scopeConditions,
     ];
 

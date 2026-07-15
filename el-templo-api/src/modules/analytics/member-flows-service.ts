@@ -56,10 +56,11 @@
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, ne, sql } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { applyScope } from "./scope";
+import { excludeEspecialSubs } from "./especial-exclusion";
 import { bucketExpr, rangeConditions } from "./cohorts";
 import {
   expiryCohortConditions,
@@ -207,6 +208,8 @@ export class MemberFlowsService {
         ),
         sql`${schema.subscriptions.createdAt} >= ${LEGACY_IMPORT_CUTOFF}`,
         streakStartExpr,
+        // D-11: el pase especial no cuenta como alta de membresía.
+        excludeEspecialSubs(),
         ...scopeConditions,
       ),
     );
@@ -258,6 +261,8 @@ export class MemberFlowsService {
           filters.dateFrom,
           filters.dateTo,
         ),
+        // D-11: un importado cuya única sub es el pase no es alta de membresía.
+        excludeEspecialSubs(),
         ...scopeConditions,
       ),
     );
@@ -305,6 +310,8 @@ export class MemberFlowsService {
       and(
         ...expiryCohortConditions(filters.dateFrom, filters.dateTo),
         lastExpiryPerPersonExpr(filters.dateFrom, filters.dateTo),
+        // D-11: el vencimiento de un pase especial no es una baja de membresía.
+        excludeEspecialSubs(),
         ...scopeConditions,
       ),
     );
@@ -392,6 +399,8 @@ export class MemberFlowsService {
           lastExpiryPerPersonExpr(filters.dateFrom, filters.dateTo),
           sql`(${maturedExpr(window)})`,
           sql`NOT (${retainedExpr(window)})`,
+          // D-11: excluir el pase especial del detalle de bajas de membresía.
+          ne(schema.subscriptionPlans.planCategory, "especial"),
           ...scopeConditions,
         ),
       )

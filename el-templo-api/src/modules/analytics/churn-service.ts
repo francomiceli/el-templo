@@ -47,7 +47,7 @@
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { and, eq, sql, type SQL } from "drizzle-orm";
+import { and, eq, ne, sql, type SQL } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { applyScope } from "./scope";
@@ -64,6 +64,7 @@ import {
   RENOVATION_WINDOW_DEFAULT_DAYS,
   CHURN_COMPARISON_WINDOWS,
 } from "./expiry-cohort";
+import { excludeEspecialSubs } from "./especial-exclusion";
 import type {
   AnalyticsFilters,
   ChurnAnalytics,
@@ -192,6 +193,8 @@ export class ChurnService {
       and(
         ...expiryCohortConditions(filters.dateFrom, filters.dateTo),
         lastExpiryPerPersonExpr(filters.dateFrom, filters.dateTo),
+        // D-11: el pase especial no cuenta en el churn/no-renovación de membresía.
+        excludeEspecialSubs(),
         ...scopeConditions,
         ...subscriptionPlanFilter(filters.planId),
       ),
@@ -260,6 +263,8 @@ export class ChurnService {
       and(
         ...expiryCohortConditions(filters.dateFrom, filters.dateTo),
         lastExpiryPerPersonExpr(filters.dateFrom, filters.dateTo),
+        // D-11: el pase especial no cuenta en el churn/no-renovación de membresía.
+        excludeEspecialSubs(),
         ...scopeConditions,
         ...subscriptionPlanFilter(filters.planId),
       ),
@@ -315,6 +320,8 @@ export class ChurnService {
       and(
         ...expiryCohortConditions(filters.dateFrom, filters.dateTo),
         lastExpiryPerPersonExpr(filters.dateFrom, filters.dateTo),
+        // D-11: el pase especial no cuenta en el churn/no-renovación de membresía.
+        excludeEspecialSubs(),
         ...scopeConditions,
         ...subscriptionPlanFilter(filters.planId),
       ),
@@ -402,6 +409,8 @@ export class ChurnService {
         and(
           ...expiryCohortConditions(filters.dateFrom, filters.dateTo),
           lastExpiryPerPersonExpr(filters.dateFrom, filters.dateTo),
+          // D-11: excluir el pase especial de los breakdowns de churn de membresía.
+          ne(schema.subscriptionPlans.planCategory, "especial"),
           ...scopeConditions,
           ...subscriptionPlanFilter(filters.planId),
         ),

@@ -43,7 +43,7 @@
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { and, eq, sql, isNull, inArray, type SQL } from "drizzle-orm";
+import { and, eq, ne, sql, isNull, inArray, type SQL } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { applyScope } from "./scope";
@@ -222,7 +222,7 @@ export class LtvService {
         currency: schema.subscriptions.currency,
         firstStart: sql<
           string | null
-        >`(SELECT MIN(s_life.start_date) FROM subscriptions s_life WHERE s_life.user_id = ${schema.subscriptions.userId} AND s_life.branch_id = ${schema.subscriptions.branchId} AND s_life.subscription_status <> 'paused')`,
+        >`(SELECT MIN(s_life.start_date) FROM subscriptions s_life WHERE s_life.user_id = ${schema.subscriptions.userId} AND s_life.branch_id = ${schema.subscriptions.branchId} AND s_life.subscription_status <> 'paused' AND s_life.plan_id NOT IN (SELECT id FROM subscription_plans WHERE plan_category = 'especial'))`,
         lastEnd: schema.subscriptions.endDate,
         today: sql<string>`DATE_FORMAT(CURDATE(), '%Y-%m-%d')`,
         matured: maturedExpr(window),
@@ -245,6 +245,9 @@ export class LtvService {
         and(
           ...expiryCohortConditions(filters.dateFrom, filters.dateTo),
           lastExpiryPerPersonExpr(filters.dateFrom, filters.dateTo),
+          // D-11: el pase especial no cuenta en el LTV de membresía (la plata
+          // igual cuenta en caja/cobros/advanced-finance, que no se tocan).
+          ne(schema.subscriptionPlans.planCategory, "especial"),
           ...scopeConditions,
           ...subscriptionPlanFilter(filters.planId),
         ),

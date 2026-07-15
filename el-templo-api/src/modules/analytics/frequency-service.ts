@@ -39,7 +39,7 @@
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { and, eq, inArray, sql, type SQL } from "drizzle-orm";
+import { and, eq, ne, inArray, sql, type SQL } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { applyScope } from "./scope";
@@ -281,6 +281,10 @@ export class FrequencyService {
     // single plan's subscribers. Appended AFTER scope (never relaxes it).
     const populationConditions: SQL[] = [
       inArray(schema.subscriptions.status, ["active", "paused"]),
+      // D-11: la población activa para frecuencia excluye al externo-solo-pase.
+      // Un socio con presencial + pase queda por su sub presencial. La query
+      // joinea subscriptionPlans abajo, así que el filtro es directo.
+      ne(schema.subscriptionPlans.planCategory, "especial"),
       ...scopeConditions,
     ];
     if (filters.planId !== undefined) {

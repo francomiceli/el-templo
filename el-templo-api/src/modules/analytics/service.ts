@@ -7,11 +7,14 @@
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { eq, and, sql, isNull, inArray, gt, type SQL } from "drizzle-orm";
+import { eq, ne, and, sql, isNull, inArray, gt, type SQL } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { resolveMonthRange, computePriorPeriod } from "../shared/date-utils";
-import { activeMemberExists } from "../shared/active-member";
+import {
+  activeMemberExists,
+  activeNonEspecialMemberExists,
+} from "../shared/active-member";
 import { firmMoneySqlFor } from "../finance/firm-money";
 import { resolveEffectiveCapacity } from "../scheduling/capacity";
 import { applyScope } from "./scope";
@@ -218,7 +221,11 @@ export class AnalyticsService {
     // activeMemberExists predicate. Real count is 692, not the inflated 749.
     const conditions: SQL[] = [
       eq(schema.users.role, "member") as unknown as SQL,
-      activeMemberExists(schema.users.id),
+      // D-11: miembros activos / altas de membresía NO cuentan al que tiene solo
+      // el pase especial (externo-solo-pase). Un socio con presencial + pase SÍ
+      // cuenta (su presencial satisface el EXISTS). La plata del pase igual entra
+      // por caja/cobros/advanced-finance, que NO se tocan.
+      activeNonEspecialMemberExists(schema.users.id),
     ];
     if (branchId !== undefined) {
       conditions.push(eq(schema.users.branchId, branchId) as unknown as SQL);
@@ -307,7 +314,11 @@ export class AnalyticsService {
     // the createdAt index is usable (no DATE() wrapper).
     const conditions: SQL[] = [
       eq(schema.users.role, "member") as unknown as SQL,
-      activeMemberExists(schema.users.id),
+      // D-11: miembros activos / altas de membresía NO cuentan al que tiene solo
+      // el pase especial (externo-solo-pase). Un socio con presencial + pase SÍ
+      // cuenta (su presencial satisface el EXISTS). La plata del pase igual entra
+      // por caja/cobros/advanced-finance, que NO se tocan.
+      activeNonEspecialMemberExists(schema.users.id),
       sql`${schema.users.createdAt} >= ${dateFrom}`,
       sql`${schema.users.createdAt} < ${nextDay(dateTo)}`,
     ];
@@ -459,6 +470,9 @@ export class AnalyticsService {
     const conditions: SQL[] = [
       sql`${schema.subscriptions.status} IN ('active', 'paused')`,
       eq(schema.subscriptionPlans.isArchived, false) as unknown as SQL,
+      // D-11: el pase especial tiene su propia línea en analíticas ("Especiales");
+      // no se mezcla en la distribución de planes de membresía.
+      ne(schema.subscriptionPlans.planCategory, "especial") as unknown as SQL,
     ];
 
     if (branchId !== undefined) {

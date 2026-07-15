@@ -33,3 +33,28 @@ export function activeMemberExists(userIdColumn: AnyColumn): SQL {
       AND (s.end_date IS NULL OR s.end_date >= CURDATE())
   )`;
 }
+
+/**
+ * D-11 (fase 161 — Actividades con Aura): variante de `activeMemberExists` que
+ * EXCLUYE los planes `plan_category='especial'` (el "pase"). Un externo cuya
+ * ÚNICA sub vigente es el pase NO es "miembro activo" a los fines de las
+ * MÉTRICAS DE MEMBRESÍA (miembros activos, altas). La plata del pase igual
+ * cuenta en caja/cobros/advanced-finance — este predicado es SOLO para analytics
+ * de membresía y NO reemplaza a `activeMemberExists` en members/reports/
+ * advanced-finance (que siguen contando cualquier sub vigente, sin tocar).
+ *
+ * Un socio con presencial + pase SÍ cuenta: su sub presencial satisface el
+ * EXISTS. Solo cae quien tiene ÚNICAMENTE subs especiales vigentes.
+ */
+export function activeNonEspecialMemberExists(userIdColumn: AnyColumn): SQL {
+  return sql`EXISTS (
+    SELECT 1 FROM subscriptions s
+    WHERE s.user_id = ${userIdColumn}
+      AND s.subscription_status IN ('active','paused')
+      AND s.start_date <= CURDATE()
+      AND (s.end_date IS NULL OR s.end_date >= CURDATE())
+      AND s.plan_id NOT IN (
+        SELECT id FROM subscription_plans WHERE plan_category = 'especial'
+      )
+  )`;
+}

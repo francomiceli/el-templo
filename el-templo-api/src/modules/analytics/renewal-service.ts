@@ -41,7 +41,7 @@
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, ne, sql } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { applyScope } from "./scope";
@@ -56,6 +56,7 @@ import {
   subscriptionPlanFilter,
   RENOVATION_WINDOW_DEFAULT_DAYS,
 } from "./expiry-cohort";
+import { excludeEspecialSubs } from "./especial-exclusion";
 import type {
   AnalyticsFilters,
   RenewalAnalytics,
@@ -165,6 +166,8 @@ export class RenewalService {
       and(
         ...expiryCohortConditions(filters.dateFrom, filters.dateTo),
         lastExpiryPerPersonExpr(filters.dateFrom, filters.dateTo),
+        // D-11: el pase especial no cuenta en la renovación de membresía.
+        excludeEspecialSubs(),
         ...scopeConditions,
         ...subscriptionPlanFilter(filters.planId),
       ),
@@ -241,6 +244,8 @@ export class RenewalService {
         and(
           ...expiryCohortConditions(filters.dateFrom, filters.dateTo),
           lastExpiryPerPersonExpr(filters.dateFrom, filters.dateTo),
+          // D-11: excluir el pase especial de los breakdowns de renovación.
+          ne(schema.subscriptionPlans.planCategory, "especial"),
           ...scopeConditions,
           ...subscriptionPlanFilter(filters.planId),
         ),
