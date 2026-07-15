@@ -84,9 +84,88 @@ export class AttendanceService {
       return this.coachSelfScan(memberId, branchId, tz);
     }
 
-    // Check subscription (auto-expire catches expired subs, returns null = hard block)
+    // One check-in per day (fast-path guard; authoritative check inside transaction)
+    const now = new Date();
+    const todayStr = todayInTz(tz, now);
+
+    const [alreadyCheckedIn] = await this.db
+      .select({ id: schema.attendance.id })
+      .from(schema.attendance)
+      .where(
+        and(
+          eq(schema.attendance.memberId, memberId),
+          sql`DATE(${schema.attendance.checkedInAt}) = ${todayStr}`,
+        ),
+      )
+      .limit(1);
+
+    if (alreadyCheckedIn) {
+      throw new BadRequestError("Ya registraste asistencia hoy");
+    }
+
+    // Find today's bookings before the transaction (read-only, no race concern).
+    // Resolve `isSpecial` per activity here (schedules → activities) so the
+    // subscription routing below (Fase 161, GATE-02) can pick the right sub
+    // (pase vs presencial/online) to validate the budget AND decrement.
+    const windowMs = 20 * 60 * 1000;
+
+    const bookingsInRange = await this.db
+      .select({
+        id: schema.bookings.id,
+        scheduleId: schema.bookings.scheduleId,
+        startTime: schema.schedules.startTime,
+        activityName: schema.activities.name,
+        isSpecial: schema.activities.isSpecial,
+      })
+      .from(schema.bookings)
+      .innerJoin(
+        schema.schedules,
+        eq(schema.schedules.id, schema.bookings.scheduleId),
+      )
+      .innerJoin(
+        schema.activities,
+        eq(schema.activities.id, schema.schedules.activityId),
+      )
+      .where(
+        and(
+          eq(schema.bookings.memberId, memberId),
+          eq(schema.bookings.bookingDate, todayStr),
+          eq(schema.bookings.status, "reservado"),
+          eq(schema.schedules.branchId, branchId),
+        ),
+      );
+
+    const matchingBooking = bookingsInRange.find((b) => {
+      const classTime = buildClassDateTime(todayStr, b.startTime, tz);
+      return Math.abs(now.getTime() - classTime.getTime()) <= windowMs;
+    });
+
+    if (!matchingBooking) {
+      if (bookingsInRange.length > 0) {
+        const times = bookingsInRange
+          .map((b) => b.startTime)
+          .sort()
+          .join(", ");
+        throw new BadRequestError(
+          `Tus clases de hoy son a las ${times}. Solo podes registrar asistencia entre 20 minutos antes y despues del inicio.`,
+        );
+      }
+      throw new BadRequestError(
+        "No tenes una clase reservada para hoy en esta sede",
+      );
+    }
+
+    // Fase 161 (GATE-02): rutear el consumo a la sub correcta según si la
+    // actividad reservada es especial (pase) o regular (presencial/online).
+    const isSpecialActivity = matchingBooking.isSpecial;
+
+    // Check subscription for this activity's category (auto-expire catches
+    // expired subs, returns null = hard block).
     const subscription =
-      await this.subscriptionService.getMemberSubscription(memberId);
+      await this.subscriptionService.pickSubscriptionForActivity(
+        memberId,
+        isSpecialActivity,
+      );
     if (!subscription) {
       throw new BadRequestError("No tenes una suscripcion activa");
     }
@@ -132,73 +211,6 @@ export class AttendanceService {
       subscription.classesRemaining <= 0
     ) {
       throw new BadRequestError("Agotaste tus clases del periodo");
-    }
-
-    // One check-in per day (fast-path guard; authoritative check inside transaction)
-    const now = new Date();
-    const todayStr = todayInTz(tz, now);
-
-    const [alreadyCheckedIn] = await this.db
-      .select({ id: schema.attendance.id })
-      .from(schema.attendance)
-      .where(
-        and(
-          eq(schema.attendance.memberId, memberId),
-          sql`DATE(${schema.attendance.checkedInAt}) = ${todayStr}`,
-        ),
-      )
-      .limit(1);
-
-    if (alreadyCheckedIn) {
-      throw new BadRequestError("Ya registraste asistencia hoy");
-    }
-
-    // Find today's bookings before the transaction (read-only, no race concern)
-    const windowMs = 20 * 60 * 1000;
-
-    const bookingsInRange = await this.db
-      .select({
-        id: schema.bookings.id,
-        scheduleId: schema.bookings.scheduleId,
-        startTime: schema.schedules.startTime,
-        activityName: schema.activities.name,
-      })
-      .from(schema.bookings)
-      .innerJoin(
-        schema.schedules,
-        eq(schema.schedules.id, schema.bookings.scheduleId),
-      )
-      .innerJoin(
-        schema.activities,
-        eq(schema.activities.id, schema.schedules.activityId),
-      )
-      .where(
-        and(
-          eq(schema.bookings.memberId, memberId),
-          eq(schema.bookings.bookingDate, todayStr),
-          eq(schema.bookings.status, "reservado"),
-          eq(schema.schedules.branchId, branchId),
-        ),
-      );
-
-    const matchingBooking = bookingsInRange.find((b) => {
-      const classTime = buildClassDateTime(todayStr, b.startTime, tz);
-      return Math.abs(now.getTime() - classTime.getTime()) <= windowMs;
-    });
-
-    if (!matchingBooking) {
-      if (bookingsInRange.length > 0) {
-        const times = bookingsInRange
-          .map((b) => b.startTime)
-          .sort()
-          .join(", ");
-        throw new BadRequestError(
-          `Tus clases de hoy son a las ${times}. Solo podes registrar asistencia entre 20 minutos antes y despues del inicio.`,
-        );
-      }
-      throw new BadRequestError(
-        "No tenes una clase reservada para hoy en esta sede",
-      );
     }
 
     // Wrap duplicate check + insert + decrement in transaction
@@ -407,9 +419,16 @@ export class AttendanceService {
       description: "Asistencia confirmada (manual)",
     });
 
-    // Still decrement classesRemaining if applicable
+    // Still decrement classesRemaining if applicable.
+    // Fase 161 (GATE-02): forceCheckIn no tiene contexto de actividad
+    // (scheduleId null), así que rutea a la sub NO-especial (presencial/online),
+    // preservando el comportamiento previo (pick(false) ≡ el singular para
+    // socios sin pase).
     const subscription =
-      await this.subscriptionService.getMemberSubscription(memberId);
+      await this.subscriptionService.pickSubscriptionForActivity(
+        memberId,
+        false,
+      );
     if (
       subscription &&
       subscription.classesRemaining !== null &&
@@ -621,10 +640,18 @@ export class AttendanceService {
   }> {
     const warnings: string[] = [];
 
-    // Get schedule to find branchId
+    // Get schedule to find branchId + resolve whether the activity is special
+    // (Fase 161, GATE-02: rutea el consumo al pase vs presencial/online).
     const [schedule] = await this.db
-      .select({ branchId: schema.schedules.branchId })
+      .select({
+        branchId: schema.schedules.branchId,
+        isSpecial: schema.activities.isSpecial,
+      })
       .from(schema.schedules)
+      .innerJoin(
+        schema.activities,
+        eq(schema.activities.id, schema.schedules.activityId),
+      )
       .where(eq(schema.schedules.id, scheduleId));
 
     if (!schedule) {
@@ -654,9 +681,13 @@ export class AttendanceService {
       );
     }
 
-    // Check subscription status for warnings (don't block)
+    // Check subscription status for warnings (don't block).
+    // Fase 161 (GATE-02): rutea a la sub del pase si la actividad es especial.
     const subscription =
-      await this.subscriptionService.getMemberSubscription(memberId);
+      await this.subscriptionService.pickSubscriptionForActivity(
+        memberId,
+        schedule.isSpecial,
+      );
     if (!subscription) {
       warnings.push("Sin suscripcion activa");
     } else {
@@ -768,10 +799,17 @@ export class AttendanceService {
       .delete(schema.attendance)
       .where(eq(schema.attendance.id, attendanceId));
 
-    // Restore classesRemaining +1
-    const subscription = await this.subscriptionService.getMemberSubscription(
-      attRecord.memberId,
+    // Restore classesRemaining +1.
+    // Fase 161 (GATE-02): restaurar la clase a la sub correcta según si la
+    // actividad era especial. scheduleId null (force check-in) → regular.
+    const isSpecialActivity = await this.isSpecialSchedule(
+      attRecord.scheduleId,
     );
+    const subscription =
+      await this.subscriptionService.pickSubscriptionForActivity(
+        attRecord.memberId,
+        isSpecialActivity,
+      );
     if (subscription && subscription.classesRemaining !== null) {
       await this.db
         .update(schema.subscriptions)
@@ -836,6 +874,25 @@ export class AttendanceService {
     );
 
     return { removed: true };
+  }
+
+  /**
+   * Fase 161 (GATE-02): resuelve si la actividad de un scheduleId es especial
+   * (activities.is_special) para rutear el consumo a la sub correcta. Devuelve
+   * false si scheduleId es null o el horario no existe (defensivo: regular).
+   */
+  private async isSpecialSchedule(scheduleId: number | null): Promise<boolean> {
+    if (scheduleId === null) return false;
+    const [row] = await this.db
+      .select({ isSpecial: schema.activities.isSpecial })
+      .from(schema.schedules)
+      .innerJoin(
+        schema.activities,
+        eq(schema.activities.id, schema.schedules.activityId),
+      )
+      .where(eq(schema.schedules.id, scheduleId))
+      .limit(1);
+    return row?.isSpecial ?? false;
   }
 
   /**
