@@ -618,11 +618,23 @@ export class BookingService {
       );
     }
 
-    // Check subscription status for warnings (don't block)
+    // Fase 161 (D-07): gating de pase resuelto server-side por actividad. STAFF
+    // BYPASS — la reserva manual PROCEDE aunque falte el pase; sólo se agrega un
+    // aviso confirmable (la confirmación es UI del Plan 07). El gating duro (throw
+    // PassRequiredError / GATE-04) es exclusivo del self-booking de members en
+    // reserve(). La sub se rutea por actividad igual que en reserve().
+    const isSpecialActivity = scheduleRow.isSpecial;
     const subscription =
-      await this.subscriptionService.getMemberSubscription(memberId);
+      await this.subscriptionService.pickSubscriptionForActivity(
+        memberId,
+        isSpecialActivity,
+      );
     if (!subscription) {
-      warnings.push("Sin suscripcion activa");
+      warnings.push(
+        isSpecialActivity
+          ? "El alumno no tiene un pase de actividades activo"
+          : "Sin suscripcion activa",
+      );
     } else {
       if (
         subscription.classesRemaining !== null &&

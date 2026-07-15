@@ -30,7 +30,11 @@ import { AuraService } from "../aura/service";
 import { EnrollmentService } from "../programs/enrollment-service";
 import { NotificationService } from "../notifications/service";
 import { handleServiceError } from "../shared/error-handler";
-import { ConflictError, CoverageExpiredError } from "../shared/errors";
+import {
+  ConflictError,
+  CoverageExpiredError,
+  PassRequiredError,
+} from "../shared/errors";
 import {
   createActivitySchema,
   listActivitiesSchema,
@@ -827,6 +831,18 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
           error: "Solicitud invalida",
           message: err.message,
           code: "COVERAGE_EXPIRED",
+        });
+      }
+      // Fase 161 (GATE-01/03): surface del code PASS_REQUIRED (espejo exacto de
+      // COVERAGE_EXPIRED) para que la app abra el diálogo de compra del pase.
+      // handleServiceError sólo emite { error, message }, así que el code debe
+      // agregarse acá. El booking admin (POST /bookings) NO necesita este surface:
+      // adminAddBooking sólo agrega warnings (staff bypass), nunca lanza el error.
+      if (err instanceof PassRequiredError) {
+        return reply.code(400).send({
+          error: "Solicitud invalida",
+          message: err.message,
+          code: "PASS_REQUIRED",
         });
       }
       handleServiceError(err, reply, request.log, "member reserve");
