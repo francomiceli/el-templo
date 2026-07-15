@@ -84,29 +84,16 @@ export class AttendanceService {
       return this.coachSelfScan(memberId, branchId, tz);
     }
 
-    // One check-in per day (fast-path guard; authoritative check inside transaction)
+    // Compute tz-aware "today" for the booking lookup + one-per-day math.
     const now = new Date();
     const todayStr = todayInTz(tz, now);
 
-    const [alreadyCheckedIn] = await this.db
-      .select({ id: schema.attendance.id })
-      .from(schema.attendance)
-      .where(
-        and(
-          eq(schema.attendance.memberId, memberId),
-          sql`DATE(${schema.attendance.checkedInAt}) = ${todayStr}`,
-        ),
-      )
-      .limit(1);
-
-    if (alreadyCheckedIn) {
-      throw new BadRequestError("Ya registraste asistencia hoy");
-    }
-
-    // Find today's bookings before the transaction (read-only, no race concern).
-    // Resolve `isSpecial` per activity here (schedules → activities) so the
-    // subscription routing below (Fase 161, GATE-02) can pick the right sub
-    // (pase vs presencial/online) to validate the budget AND decrement.
+    // Find today's bookings up-front (read-only, no race concern) to resolve
+    // `isSpecial` for the activity (schedules → activities), so the subscription
+    // routing below (Fase 161, GATE-02) can pick the right sub (pase vs
+    // presencial/online) to validate the budget AND decrement. The "no matching
+    // booking" error is thrown at its ORIGINAL position (after the
+    // subscription/budget/one-per-day checks) so error ordering is preserved.
     const windowMs = 20 * 60 * 1000;
 
     const bookingsInRange = await this.db
@@ -140,24 +127,10 @@ export class AttendanceService {
       return Math.abs(now.getTime() - classTime.getTime()) <= windowMs;
     });
 
-    if (!matchingBooking) {
-      if (bookingsInRange.length > 0) {
-        const times = bookingsInRange
-          .map((b) => b.startTime)
-          .sort()
-          .join(", ");
-        throw new BadRequestError(
-          `Tus clases de hoy son a las ${times}. Solo podes registrar asistencia entre 20 minutos antes y despues del inicio.`,
-        );
-      }
-      throw new BadRequestError(
-        "No tenes una clase reservada para hoy en esta sede",
-      );
-    }
-
-    // Fase 161 (GATE-02): rutear el consumo a la sub correcta según si la
-    // actividad reservada es especial (pase) o regular (presencial/online).
-    const isSpecialActivity = matchingBooking.isSpecial;
+    // Route consumption to the sub matching the activity's category. When there
+    // is no matching booking (yet), default to a regular (non-especial) activity;
+    // the hard "no booking" block below still rejects the check-in.
+    const isSpecialActivity = matchingBooking?.isSpecial ?? false;
 
     // Check subscription for this activity's category (auto-expire catches
     // expired subs, returns null = hard block).
@@ -211,6 +184,38 @@ export class AttendanceService {
       subscription.classesRemaining <= 0
     ) {
       throw new BadRequestError("Agotaste tus clases del periodo");
+    }
+
+    // One check-in per day (fast-path guard; authoritative check inside transaction)
+    const [alreadyCheckedIn] = await this.db
+      .select({ id: schema.attendance.id })
+      .from(schema.attendance)
+      .where(
+        and(
+          eq(schema.attendance.memberId, memberId),
+          sql`DATE(${schema.attendance.checkedInAt}) = ${todayStr}`,
+        ),
+      )
+      .limit(1);
+
+    if (alreadyCheckedIn) {
+      throw new BadRequestError("Ya registraste asistencia hoy");
+    }
+
+    // Require a matching booking for today at this branch (original error position).
+    if (!matchingBooking) {
+      if (bookingsInRange.length > 0) {
+        const times = bookingsInRange
+          .map((b) => b.startTime)
+          .sort()
+          .join(", ");
+        throw new BadRequestError(
+          `Tus clases de hoy son a las ${times}. Solo podes registrar asistencia entre 20 minutos antes y despues del inicio.`,
+        );
+      }
+      throw new BadRequestError(
+        "No tenes una clase reservada para hoy en esta sede",
+      );
     }
 
     // Wrap duplicate check + insert + decrement in transaction
