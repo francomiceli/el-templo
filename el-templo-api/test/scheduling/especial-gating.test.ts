@@ -47,7 +47,11 @@ import * as schema from "../../src/db/schema";
 const ADMIN_URL = "/api/admin/scheduling";
 const RESERVE_URL = "/api/members/scheduling/reserve";
 const MEMBER_CANCEL_URL = "/api/members/scheduling/bookings";
+const MEMBER_WEEKLY_URL = "/api/members/scheduling/weekly";
 const ADMIN_BOOK_URL = `${ADMIN_URL}/bookings`;
+
+// Monday of the pinned week (contains REGULAR_DATE Thu + SAT_1 Sat).
+const WEEK_START = "2026-03-09"; // Monday
 
 // Pinned "now" = Wednesday 2026-03-11. Regular slot lands on the next-day
 // Thursday (+1d, within the +2 member window). Special slots are Saturdays,
@@ -426,5 +430,38 @@ describe("Fase 161-06 — gating del pase de actividades especiales", () => {
     expect(rVert.statusCode).toBe(201);
     const rAcro = await reserve(token, acrobaciasScheduleId, SAT_2);
     expect(rAcro.statusCode).toBe(201);
+  });
+
+  // ── (9) Fase 162-01 (APP-01): el grid member expone isSpecial por slot ───
+  it("(9) APP-01: el grid semanal del member trae isSpecial:true en especiales y false en regulares", async () => {
+    const { token } = await createMemberToken("grid-especial-9@test.com");
+
+    const res = await app.inject({
+      method: "GET",
+      url: `${MEMBER_WEEKLY_URL}?weekStart=${WEEK_START}&branchId=${testBranchId}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(200);
+
+    const body = JSON.parse(res.body) as {
+      slots: Array<{ id: number; isSpecial: boolean }>;
+    };
+
+    const regularSlot = body.slots.find((s) => s.id === regularScheduleId);
+    const verticalesSlot = body.slots.find(
+      (s) => s.id === verticalesScheduleId,
+    );
+    const acrobaciasSlot = body.slots.find(
+      (s) => s.id === acrobaciasScheduleId,
+    );
+
+    // El flag debe viajar (no strippeado por fast-json-stringify) y resolverse
+    // server-side desde activities.is_special.
+    expect(regularSlot).toBeDefined();
+    expect(regularSlot?.isSpecial).toBe(false);
+    expect(verticalesSlot).toBeDefined();
+    expect(verticalesSlot?.isSpecial).toBe(true);
+    expect(acrobaciasSlot).toBeDefined();
+    expect(acrobaciasSlot?.isSpecial).toBe(true);
   });
 });
