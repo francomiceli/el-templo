@@ -21,6 +21,22 @@
       <!-- Referidos (fase 158): primera card visible — misma estética premium -->
       <ReferralCtaCard />
 
+      <!-- Phase 162 (APP-02): plan especial "Actividades con Aura" — saldo x/2 del mes.
+           Visible sólo si el usuario tiene el plan especial. Informativa, sin CTA (D-02).
+           Ícono dorado (acento Aura, RESERVADO); espeja la estética de mi-arbol-card. -->
+      <div v-if="userStore.hasEspecialPass" class="especial-card">
+        <q-icon name="auto_awesome" class="especial-card__icon" />
+        <span class="especial-card__text">
+          <span class="especial-card__title">Actividades con Aura</span>
+          <span class="especial-card__value"
+            >{{ userStore.especialClassesRemaining }} de 2 clases este mes</span
+          >
+          <span v-if="especialPeriodEnd" class="especial-card__meta"
+            >Se renuevan el {{ especialPeriodEnd }}</span
+          >
+        </span>
+      </div>
+
       <!-- Program/Premium card — non-linked program, OR linked-program member
            with at least one extra enrollment (admin add-on, bundle, etc) so
            the dropdown can surface those alternatives. Phase 112: without the
@@ -193,6 +209,15 @@ function goToMiArbol() {
   void router.push('/mi-arbol')
 }
 
+// Phase 162 (APP-02): vencimiento del período del plan especial (D/M), si el
+// backend lo expone en especialPass.endDate.
+const especialPeriodEnd = computed(() => {
+  const end = userStore.especialPass?.endDate
+  if (!end) return null
+  const d = new Date(end + 'T12:00:00')
+  return `${d.getDate()}/${d.getMonth() + 1}`
+})
+
 function scrollCheckIns(direction: 'left' | 'right') {
   const el = checkInsRowRef.value
   if (!el) return
@@ -350,7 +375,14 @@ onMounted(async () => {
   // appears on first load. loadSubscription is only called from /training,
   // /reservas, /profile, /planes — without this, the dropdown would only
   // light up after visiting one of those pages.
-  await Promise.all([loadProgramProgress(), userStore.fetchCurrentProgram()])
+  // Phase 162 (APP-02): hidratar el plan especial para que la card del saldo x/2
+  // aparezca al aterrizar directo en Mi Templo (loadEspecialPass sólo se llama
+  // desde /reservas si no).
+  await Promise.all([
+    loadProgramProgress(),
+    userStore.fetchCurrentProgram(),
+    userStore.loadEspecialPass(),
+  ])
 
   fetchWeekSessions(currentWeekDates())
 
@@ -508,6 +540,52 @@ onMounted(async () => {
     font-size: 22px;
     color: rgba($secondary, 0.6);
     flex-shrink: 0;
+  }
+}
+
+// Phase 162 (APP-02): card informativa del plan especial. Espeja mi-arbol-card
+// pero con ícono dorado (acento Aura, RESERVADO). No es clickeable (sin CTA, D-02).
+.especial-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 16px;
+  margin-bottom: 12px;
+  border: 1px solid rgba($warning, 0.25);
+  border-radius: 12px;
+  background-color: white;
+  text-align: left;
+
+  &__icon {
+    font-size: 28px;
+    color: $warning; // Aged Gold #7d6520
+    flex-shrink: 0;
+  }
+
+  &__text {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+  }
+
+  &__title {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    color: $primary;
+  }
+
+  &__value {
+    font-size: 13px;
+    color: rgba($accent, 0.7);
+  }
+
+  &__meta {
+    font-size: 12px;
+    color: $grey-6;
+    margin-top: 2px;
   }
 }
 
