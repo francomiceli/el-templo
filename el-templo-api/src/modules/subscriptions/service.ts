@@ -5627,7 +5627,8 @@ export class SubscriptionService {
     // MySQL evaluates SET assignments LEFT-TO-RIGHT and later expressions
     // see already-assigned values for earlier columns in the same row
     // (https://dev.mysql.com/doc/refman/8.0/en/update.html). The Phase 114
-    // lead_status / purchased_plan_id branches all gate on `u.converted_at IS NULL`
+    // lead_status / purchased_plan_id branches (and the Phase 163
+    // lead_status_source branch) all gate on `u.converted_at IS NULL`
     // (D-32: "first conversion"), so they MUST be assigned BEFORE the
     // converted_at column itself is written — otherwise they'd see the
     // freshly-set CURRENT_TIMESTAMP and the conversion gate would always
@@ -5661,6 +5662,22 @@ export class SubscriptionService {
             )
           THEN 'ganado'
           ELSE u.lead_status
+        END,
+        u.lead_status_source = CASE
+          WHEN u.converted_at IS NULL
+            AND EXISTS (
+              SELECT 1 FROM subscriptions s
+              WHERE s.user_id = u.id
+                AND s.subscription_status IN ('active','paused')
+                AND s.start_date <= CURDATE()
+                AND (s.end_date IS NULL OR s.end_date >= CURDATE())
+            )
+            AND EXISTS (
+              SELECT 1 FROM bookings b
+              WHERE b.member_id = u.id AND b.is_trial = 1
+            )
+          THEN 'auto'
+          ELSE u.lead_status_source
         END,
         u.purchased_plan_id = CASE
           WHEN u.converted_at IS NULL

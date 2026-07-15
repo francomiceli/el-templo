@@ -867,6 +867,7 @@ export class MemberService {
         // is the only valid initial value for an admin-created trial. created_by
         // is the JWT-authenticated admin from the route layer.
         leadStatus: "en_seguimiento" as const,
+        leadStatusSource: "auto" as const, // Phase 163 (D-07): alta = automatismo
         createdBy: input.createdBy,
       });
 
@@ -1059,6 +1060,7 @@ export class MemberService {
         .set({
           status: "prueba" as const,
           leadStatus: "en_seguimiento" as const,
+          leadStatusSource: "auto" as const, // Phase 163 (D-07): alta = automatismo
           createdBy: input.createdBy,
           branchId: input.branchId,
         })
@@ -1135,6 +1137,7 @@ export class MemberService {
     const updateData: Partial<typeof schema.users.$inferInsert> = {};
     if (input.leadStatus !== undefined) {
       updateData.leadStatus = input.leadStatus;
+      updateData.leadStatusSource = "manual"; // Phase 163 (D-04): edición manual del estado
     }
     if (input.leadNotes !== undefined) {
       updateData.leadNotes =
@@ -1168,6 +1171,7 @@ export class MemberService {
         );
       }
       updateData.leadStatus = "ganado";
+      updateData.leadStatusSource = "manual"; // Phase 163 (D-04): promoción originada por el PATCH manual
     }
 
     if (Object.keys(updateData).length > 0) {
