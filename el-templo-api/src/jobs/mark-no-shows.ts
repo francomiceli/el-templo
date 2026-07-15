@@ -14,8 +14,44 @@ import type { MySql2Database } from "drizzle-orm/mysql2";
 import * as schema from "../db/schema";
 import { bookings } from "../db/schema/bookings";
 import { todayInTz } from "../modules/shared/date-utils";
+import { SubscriptionService } from "../modules/subscriptions/service";
+import { AuraService } from "../modules/aura";
+import {
+  TransactionService,
+  BalanceService,
+  CashRegisterService,
+} from "../modules/finance";
+import { EnrollmentService } from "../modules/programs/enrollment-service";
 
 const log = pino({ name: "mark-no-shows" });
+
+/**
+ * Fase 161 (GATE-02): construye un `SubscriptionService` completo (mismo patrón
+ * que `auto-resume-pauses.ts`) para poder rutear el decremento del no-show a la
+ * sub correcta por actividad vía `pickSubscriptionForActivity`, en lugar de
+ * elegir la primera sub activa con una query cruda (que cruzaría pase↔presencial).
+ */
+function buildSubscriptionService(
+  db: MySql2Database<typeof schema>,
+): SubscriptionService {
+  const auraService = new AuraService(db);
+  const balanceService = new BalanceService(db, log);
+  const cashRegisterService = new CashRegisterService(db, log);
+  const transactionService = new TransactionService(
+    db,
+    log,
+    balanceService,
+    cashRegisterService,
+  );
+  const enrollmentService = new EnrollmentService(db, log);
+  return new SubscriptionService(
+    db,
+    log,
+    auraService,
+    transactionService,
+    enrollmentService,
+  );
+}
 
 /**
  * Return the distinct timezones of active, non-virtual branches.
@@ -47,10 +83,21 @@ async function runMarkNoShowsForTz(
 ): Promise<{ updated: number; decremented: number }> {
   const today = todayInTz(tz);
 
+  // Resolve `is_special` per booking (schedules → activities) so the decrement
+  // below (Fase 161, GATE-02) routes to the right sub — pase for a special
+  // activity, presencial/online for a regular one.
   const toMark = await db
-    .select({ id: bookings.id, memberId: bookings.memberId })
+    .select({
+      id: bookings.id,
+      memberId: bookings.memberId,
+      isSpecial: schema.activities.isSpecial,
+    })
     .from(bookings)
     .innerJoin(schema.schedules, eq(schema.schedules.id, bookings.scheduleId))
+    .innerJoin(
+      schema.activities,
+      eq(schema.activities.id, schema.schedules.activityId),
+    )
     .innerJoin(
       schema.branches,
       eq(schema.branches.id, schema.schedules.branchId),
@@ -73,26 +120,33 @@ async function runMarkNoShowsForTz(
     .set({ status: "no_show" })
     .where(inArray(bookings.id, ids));
 
-  const memberCounts = new Map<number, number>();
+  // Group no-shows by (member, is-special) so each bucket decrements the right
+  // subscription. A member with a regular AND a special no-show on the same
+  // sweep gets both subs decremented independently.
+  const memberCounts = new Map<
+    string,
+    { memberId: number; isSpecial: boolean; count: number }
+  >();
   for (const b of toMark) {
-    memberCounts.set(b.memberId, (memberCounts.get(b.memberId) ?? 0) + 1);
+    const isSpecial = !!b.isSpecial;
+    const key = `${b.memberId}:${isSpecial ? 1 : 0}`;
+    const entry = memberCounts.get(key) ?? {
+      memberId: b.memberId,
+      isSpecial,
+      count: 0,
+    };
+    entry.count += 1;
+    memberCounts.set(key, entry);
   }
 
+  const subscriptionService = buildSubscriptionService(db);
+
   let decremented = 0;
-  for (const [memberId, count] of memberCounts) {
-    const [sub] = await db
-      .select({
-        id: schema.subscriptions.id,
-        classesRemaining: schema.subscriptions.classesRemaining,
-      })
-      .from(schema.subscriptions)
-      .where(
-        and(
-          eq(schema.subscriptions.userId, memberId),
-          sql`${schema.subscriptions.status} IN ('active', 'paused')`,
-        ),
-      )
-      .limit(1);
+  for (const { memberId, isSpecial, count } of memberCounts.values()) {
+    const sub = await subscriptionService.pickSubscriptionForActivity(
+      memberId,
+      isSpecial,
+    );
 
     if (!sub || sub.classesRemaining === null || sub.classesRemaining <= 0) {
       continue;
@@ -104,7 +158,12 @@ async function runMarkNoShowsForTz(
       .set({
         classesRemaining: sql`${schema.subscriptions.classesRemaining} - ${deduct}`,
       })
-      .where(eq(schema.subscriptions.id, sub.id));
+      .where(
+        and(
+          eq(schema.subscriptions.id, sub.id),
+          sql`${schema.subscriptions.classesRemaining} > 0`,
+        ),
+      );
     decremented += deduct;
   }
 
