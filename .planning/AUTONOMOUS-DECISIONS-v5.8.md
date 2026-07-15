@@ -43,3 +43,11 @@ instalar dependencias, sin tocar prod**; todo local en la rama
 - Decidir push a staging (nunca lo hago solo).
 - Correr/validar dry-run del backfill contra prod y el p90 real sembrado.
 - UAT humana de las 3 fases + fricciones reales de gestión para SELF-04 con Nacho.
+
+## Ajustes en vivo (Franco, 2026-07-15)
+
+8. **Franco pidió no frenar antes de ejecutar 163** y encadenar plan+ejecución hasta
+   finalizar v5.8. El plan-checker de la fase 163 quedó salteado (interrumpido por
+   Franco al pedir velocidad); mitigación: el planner ya corrió su propio source
+   coverage audit (5/5 REQ-IDs, D-01..D-08 cubiertos) y la verificación post-ejecución
+   (gsd-verifier) sigue activa por fase.
