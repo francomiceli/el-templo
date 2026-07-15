@@ -1,93 +1,107 @@
-# Requirements — v5.7 Actividades con Aura
+# Requirements — v5.8 Sesiones de Prueba — automatización y self-service
 
-Scope derivado de `.docs/actividades-aura/` (audios de Nacho, 2026-07-13) + research de
-codebase (2026-07-14, 3 informes: clases/formatos, planes/cobros, programas). Clases
-especiales de sábado (Verticales con Pato, Acrobacias con Nico, tercera a definir)
-gateadas por un pase mensual de 2 asistencias mezclables: socio activo +$10.000 ARS,
-externo $20.000 ARS.
+Scope derivado de `.docs/sp-auto/brief-fran-automatizacion-sesiones-prueba.md` (brief de
+Nacho, 2026-07-15) + repaso punto por punto con Franco (2026-07-15) + 3 mapeos de
+codebase de la misma sesión (sesiones de prueba, freemium/reservas, compras).
 
-**Modelado decidido (pre-discuss):** planes nuevos con `planCategory: 'especial'` +
-budget mensual explícito de 2 clases; gating por flag en `activities`; enforcement en
-`BookingService.reserve()`; consumo vía `classesRemaining` existente. Programas
-descartados como vehículo (contenido online, sin horario/cupo/asistencia; precio por
-programa removido a propósito en mig. 0071). Se descartó también una entidad
-`class_passes` separada: el plan reutiliza renovación, cobros, deuda, país/moneda y
-multi-sub por categoría (presencial + especial en paralelo, como presencial + online
-hoy).
+**Hallazgos que acotan el scope (no se construye lo que ya existe):**
 
-**Constraint operativo:** staging-first estricto; migraciones con SQL commiteado
-(numeración a verificar en plan-phase — 0176-0178 aplicadas por v5.5, ojo con lo que
-reserve v5.6); tests de integración para rutas nuevas/modificadas.
+- El matching lead↔compra del punto 4 del brief **ya está resuelto por diseño**: lead =
+  `users` con status `prueba` (con FK a sede, email/teléfono/DNI), sesión de prueba =
+  `bookings` con `is_trial=1`, y el hook `recomputeUserStatus`
+  (`subscriptions/service.ts`) ya marca Ganado + Plan comprado + `convertedAt` al
+  comprar cualquier plan, desde los 4 flujos de cobro (assign/change/renew/POS profe).
+- Guardrails del punto 6 casi todos existentes: invariante Ganado⇔Plan validada en API
+  (409) y UI; "Plan comprado" ya es FK a `subscription_plans`; `lead_notes` ya es texto
+  libre sin lógica.
+- "Quitar turno" en el admin ya hace soft-cancel (`status='cancelado'`) — el historial
+  de reprogramaciones existe en datos, solo falta exponerlo.
+- El flujo self-service freemium→prueba **ya existe end-to-end** (Phase 119, en prod
+  sin UAT): elegibilidad (`GET /members/scheduling/trial-eligibility`), reserva con
+  promoción atómica freemium→prueba, una prueba por vida, grilla en `ReservasPage.vue`.
 
-**Abierto para discuss-phase:** (a) el externo con pase contaría como `activo` en
-`recomputeUserStatus` — impacto en analytics/referidos; (b) consumo a la reserva vs al
-check-in (patrón actual: check-in); (c) horarios exactos, sedes y nombre real de la
-tercera actividad ("OpenShin" en el audio); (d) si el staff puede pisar el gating
-(bypass existente para admin/coach en bonus/multi-branch).
+**Decisiones cerradas (repaso con Franco):** Ganado SIN ventana (cualquier compra marca
+Ganado, incluso desde Perdido); X = p90 histórico de días sesión→primera suscripción,
+configurable en `system_settings`; teléfono obligatorio en toda reserva de SP; contador
+de reprogramaciones derivado (sin schema nuevo); audit de override con columna
+`lead_status_source` (no historial completo); backfill con tabla backup (precedente
+migración 0170) + dry-run validado contra conteos del brief (211 Perdido / 136 En
+seguimiento / 105 Ganado sobre 452).
+
+**Constraint operativo:** staging-first estricto; migraciones con SQL commiteado y
+numeración a verificar en plan-phase (última aplicada 0180; ojo con la reserva de
+v5.6 aún no ejecutado); tests de integración para rutas nuevas/modificadas.
 
 ---
 
-## v5.7 Requirements
+## v5.8 Requirements
 
-### ACT — Actividades especiales
+### AUTO — Máquina de estados automática del lead
 
-- [x] **ACT-01**: El admin puede marcar una actividad como "especial" (gateada por pase) al crearla o editarla.
-- [x] **ACT-02**: Las 3 actividades especiales (Verticales, Acrobacias, tercera a definir) existen como actividades con slots de sábado por sede/horario, cada una con su cupo propio.
+- [ ] **AUTO-01**: Un cron diario (infra `src/jobs/` existente) pasa a Perdido todo lead
+      En seguimiento cuya última sesión de prueba no cancelada quedó a más de X días
+      sin compra registrada (aplica a asistió y no-asistió por igual).
+- [ ] **AUTO-02**: X vive en `system_settings` como parámetro configurable; el cron lo
+      lee en cada corrida. El valor inicial se siembra desde el p90 del histórico de
+      días entre sesión de prueba y primera suscripción de los leads Ganados (con
+      default de resguardo si el histórico es insuficiente).
+- [ ] **AUTO-03**: Al agendarle una nueva sesión de prueba a un lead Perdido (admin o
+      self-service), su estado vuelve a En seguimiento y la ventana X corre desde la
+      nueva sesión.
+- [ ] **AUTO-04**: El sistema distingue estado automático de manual: columna
+      `lead_status_source` (`auto`/`manual`) seteada en `auto` por hook/cron/alta y en
+      `manual` por el PATCH de edición del lead.
+- [ ] **AUTO-05**: Migración de backfill aplica la regla retroactivamente a los leads
+      En seguimiento con sesión vencida (≈112), con tabla de backup previa (precedente
+      `users_lead_backup_0170`) y dry-run de conteos validado antes de aplicar.
 
-### PASE — Pase mensual "Actividades con Aura"
+### REPRO — Reprogramación y reporte
 
-- [x] **PASE-01**: Existen planes de categoría `especial` con budget mensual explícito de 2 clases, independiente del tope semanal (`classesPerWeek`).
-- [x] **PASE-02**: Un socio activo puede tener el pase Socio ($10.000 ARS) como suscripción en paralelo a su plan presencial; la asignación valida que tenga presencial activo.
-- [x] **PASE-03**: Un externo (sin plan presencial) puede tener el pase Externo ($20.000 ARS) como única suscripción.
-- [x] **PASE-04**: El pase entra al ciclo normal de renovación, cobro y deuda sin regresiones en los planes existentes.
+- [ ] **REPRO-01**: Gestión puede reprogramar una sesión de prueba en un solo paso
+      desde el admin (cancela el turno viejo y crea el nuevo en la misma transacción),
+      en lugar de quitar + volver a cargar.
+- [ ] **REPRO-02**: El reporte de Sesiones de Prueba muestra cuántas veces reprogramó
+      cada lead (derivado de sus bookings de prueba canceladas — retroactivo, sin
+      schema nuevo).
+- [ ] **REPRO-03**: El reporte de Sesiones de Prueba indica y permite filtrar si el
+      estado del lead salió del automatismo o fue pisado a mano
+      (`lead_status_source`).
 
-### GATE — Gating y consumo
+### SELF — Self-service freemium y UX de gestión
 
-- [x] **GATE-01**: El backend rechaza la reserva de una actividad especial sin pase con saldo, con código de error tipado (hoy no existe gating por actividad).
-- [x] **GATE-02**: Cada asistencia a una actividad especial consume 1 clase del pase, no del presupuesto del plan presencial.
-- [x] **GATE-03**: El socio presencial sin pase no puede reservar actividades especiales; su acceso a clases regulares no cambia en nada.
-- [x] **GATE-04**: El externo con pase solo puede reservar actividades especiales, no clases regulares.
-
-### APP — Member app
-
-- [x] **APP-01**: La grilla de reservas muestra las actividades especiales con distintivo y estado según el acceso del usuario (con pase / sin pase).
-- [x] **APP-02**: El usuario con pase ve cuántas clases especiales le quedan en el mes (2/2, 1/2, 0/2).
-- [ ] **APP-03**: El usuario sin pase que intenta reservar una actividad especial recibe un mensaje claro de qué es el pase y cómo conseguirlo (informativo — sin pago in-app).
-
-### REP — Reporte para reparto
-
-- [x] **REP-01**: El admin ve las asistencias por actividad especial por mes, separando origen socio/externo, como insumo del reparto manual a los profes (sin montos calculados).
+- [ ] **SELF-01**: El flujo self-service existente queda verificado end-to-end
+      (registro → elegibilidad → reserva de prueba → lead visible en el reporte admin)
+      y corregido donde falle.
+- [ ] **SELF-02**: Toda alta de sesión de prueba desde el admin exige teléfono del
+      lead.
+- [ ] **SELF-03**: La reserva self-service de sesión de prueba exige teléfono: si el
+      perfil no lo tiene, la app lo pide en el diálogo de confirmación de la reserva.
+- [ ] **SELF-04**: Gestión tiene un flujo más directo para programar sesiones de
+      prueba y convertir leads en alumnos (fricciones concretas a relevar; mejoras
+      acotadas a lo que el propio flujo actual ya evidencia).
 
 ## Future Requirements (deferred)
 
-- **REP-F1**: Reparto con montos calculados por profe (requiere fijar la regla exacta de reparto — Nacho aún duda entre tercios y proporcional — y ligar cobros a asistencias).
-- **APP-F1**: Compra del pase in-app con gateway de pago (depende del milestone de payment gateway, v6.0+).
-- **PASE-F1**: Precios del pase configurables por país/sede más allá del mecanismo estándar de planes.
+- **AUTO-F1**: Exponer X (`lead_perdido_window_days`) en la UI de configuración del
+  admin (por ahora se edita en DB vía `system_settings`).
+- **AUTO-F2**: Campaña de recupero de Perdidos (mensajería segmentada por "asistió" —
+  el brief la menciona como consumidora de estos datos, no como parte del milestone).
+- **AUTO-F3**: Historial completo de transiciones de `lead_status` (descartado por
+  sobre-ingeniería para las métricas pedidas; la columna source cubre el brief).
 
 ## Out of Scope (this milestone)
 
-- **Pago in-app / gateway**: la venta del pase es carga manual vía admin/PoS, como todo cobro hoy.
-- **Reparto automático / liquidaciones a profes**: no existe infra de liquidaciones; REP-01 entrega el insumo y el reparto es manual.
-- **Notificaciones push / campaña de lanzamiento** de las actividades — anuncio ad-hoc fuera de este milestone.
-- **Programas** como vehículo del pase — descartado tras research (ver encabezado).
+- **Matching por nombre/teléfono contra compras** — innecesario: la identidad
+  lead↔compra ya es por `userId` (hallazgo del repaso; punto 4 del brief obsoleto).
+- **Ventana X como condición del Ganado** — decisión explícita: cualquier compra marca
+  Ganado; X solo gobierna el vencimiento a Perdido.
+- **Vínculo explícito turno viejo→nuevo (`rescheduled_from_id`)** — la cadena se
+  reconstruye por lead + fechas; schema extra sin consumidor.
+- **Envío real de campañas / notificaciones a Perdidos** — fuera del milestone.
 
 ## Traceability
 
 <!-- Filled by roadmap -->
 
-| Requirement | Phase     | Status   |
-| ----------- | --------- | -------- |
-| ACT-01      | Phase 161 | Complete |
-| ACT-02      | Phase 161 | Complete |
-| PASE-01     | Phase 161 | Complete |
-| PASE-02     | Phase 161 | Complete |
-| PASE-03     | Phase 161 | Complete |
-| PASE-04     | Phase 161 | Complete |
-| GATE-01     | Phase 161 | Complete |
-| GATE-02     | Phase 161 | Complete |
-| GATE-03     | Phase 161 | Complete |
-| GATE-04     | Phase 161 | Complete |
-| APP-01      | Phase 162 | Complete |
-| APP-02      | Phase 162 | Complete |
-| APP-03      | Phase 162 | Pending  |
-| REP-01      | Phase 162 | Complete |
+| Requirement | Phase | Status |
+| ----------- | ----- | ------ |
