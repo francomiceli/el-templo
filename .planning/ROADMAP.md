@@ -23,6 +23,7 @@
 - **v5.3 Mejoras Caja / Módulo Contable (feedback v5.2)** - Phases 145-147 (planned)
 - **Phase 148 PoS profe: alta de alumno + plan en el cobro** - Phase 148 (planned, standalone)
 - **v5.4 Reforma del Admin — Correcciones white-label (pre-tenants)** - Phases 149-156 (planned)
+- **v5.8 Sesiones de Prueba — automatización y self-service** - Phases 163-165 (planned)
 
 ---
 
@@ -4286,3 +4287,110 @@ _Plan counts populated by `/gsd-plan-phase`._
 ---
 
 _v5.7 (Actividades con Aura) added: 2026-07-14 — 2 phases (161-162), 14 requirements (ACT, PASE, GATE, APP, REP). **Arranca en fase 161** (NO 159): las fases 159-160 están reservadas por v5.6 combos+técnica (rama `feat/dias-combos-tecnica`, sin ejecutar) — arrancar en 161 evita colisión. **161 (núcleo/modelo) es foundational**; 162 (superficie) depende de 161. Modelado decidido: pase = 2 planes `planCategory:'especial'` (Socio $10k / Externo $20k) con budget mensual explícito de 2 (además del derivado `ceil(durationDays/7)×classesPerWeek`); gating por flag en `activities`; enforcement en `BookingService.reserve()`; consumo vía `classesRemaining`. Programas descartados como vehículo (mig. 0071). Migraciones: numeración a verificar en plan-phase (0176-0178 aplicadas por v5.5; v5.6 puede reservar las siguientes). Staging-first estricto; tests de integración para rutas nuevas. Abierto para discuss-phase: externo `activo` en `recomputeUserStatus`, consumo reserva-vs-check-in, horarios/sedes/nombre de la 3ª actividad, bypass de staff. Fuente: `.docs/actividades-aura/` (audios de Nacho 2026-07-13) + 3 informes de research de codebase._
+
+## v5.8 (Sesiones de Prueba — automatización y self-service) Overview
+
+**Milestone:** v5.8 — Sesiones de Prueba — automatización del estado del lead + reprogramación de primera clase + validación/completado del self-service freemium
+
+**Status:** ACTIVO (planning). v5.7 Actividades con Aura EN PROD 2026-07-15 (tren `29816bf9`, migs 0179-0180, app 1.6.0) con deuda GSD abierta (SUMMARYs/verifier de 161-162). v5.6 (combos+técnica, fases 159-160, rama `feat/dias-combos-tecnica`) sigue sin ejecutar.
+
+**Numeración — LEER:** este milestone son las fases **163, 164, 165**, NO 159. Las fases **159-160 están reservadas** por v5.6 "Semana nueva combos+técnica" (rama `feat/dias-combos-tecnica`, sin ejecutar); **161-162** las usó v5.7. Arrancar en 163 evita colisión. NO resetear la numeración.
+
+**Goal:** Que el estado del lead de sesión de prueba se mantenga solo — Ganado ya es automático (cualquier compra lo marca vía el hook `recomputeUserStatus`); falta **vencer a Perdido** por una ventana calculada del histórico y **resetear a En seguimiento** al reprogramar —, que la **reprogramación** de la primera clase sea una acción de primera clase con historial visible, y que el **flujo self-service freemium→prueba** ya existente (Phase 119, en prod sin UAT) quede validado end-to-end y completado con teléfono obligatorio y mejoras de UX de gestión.
+
+**Se monta SOBRE infraestructura existente (no se rediseña):**
+
+- **Matching lead↔compra YA resuelto por diseño:** lead = `users` con status `prueba`; sesión de prueba = `bookings` con `is_trial=1`; el hook `recomputeUserStatus` (`subscriptions/service.ts`) ya marca Ganado + Plan comprado + `convertedAt` desde los 4 flujos de cobro. El punto 4 del brief (identificador común) NO se construye.
+- **Vencimiento automático:** cron diario **nuevo** en `src/jobs/` (junto a `mark-no-shows.ts`, `auto-approve.ts`, `notification-cron.ts`), montado sobre node-cron existente.
+- **Parámetro X:** vive en la tabla `system_settings` (schema `system-settings.ts` ya existe); sembrado desde el p90 del histórico de días sesión→primera suscripción de los Ganados, con default de resguardo.
+- **Trial/reserva:** `TrialService` (`scheduling/trials-service.ts`), `booking-service.ts` y el endpoint `GET /members/scheduling/trial-eligibility` ya existen (Phase 119/102). El reset (AUTO-03) y el teléfono obligatorio (SELF-02/03) se enganchan ahí.
+- **"Quitar turno"** ya hace soft-cancel (`status='cancelado'`) — el historial de reprogramaciones existe en datos; REPRO solo lo expone y agrega el reprogramar-en-un-paso.
+
+**Constraint operativo (repo):**
+
+- **Migraciones:** numeración **a verificar en plan-phase**. **Última aplicada 0180.** El árbol ya contiene un `0181` de una rama no ejecutada (v5.6 / debt) — **no asumir número**: verificar el máximo realmente aplicado antes de generar SQL; la rama v5.6 no ejecutada **renumera después** de que v5.8 tome los siguientes números libres. Backfill con **tabla de backup** (precedente `users_lead_backup_0170`) + **dry-run de conteos validado** (esperado 211 Perdido / 136 En seguimiento / 105 Ganado sobre 452) antes de aplicar. SQL commiteado junto al schema; nunca `;` en comentarios SQL.
+- **Staging-first estricto:** ningún merge de feature a master; ship a staging primero.
+- **Tests de integración** obligatorios para rutas/jobs nuevos o modificados (cron de vencimiento, reset al reprogramar, reprogramar transaccional, teléfono obligatorio, reporte).
+
+**Secuencia (dependencias):** **163 (máquina de estados) es foundational** — introduce `lead_status_source`, el cron de vencimiento, X en `system_settings`, el reset y el backfill. **164 (reprogramación y reporte) depende de 163** para exponer `lead_status_source` en el reporte (REPRO-03). **165 (self-service y UX)** es mayormente independiente de 164; su reset self-service (SELF) interactúa con el reset de 163 (AUTO-03), por lo que va después de 163.
+
+**Decisiones cerradas (repaso con Franco, 2026-07-15):** Ganado SIN ventana (cualquier compra marca Ganado, incluso recuperado desde Perdido); X = p90 histórico configurable en `system_settings`; teléfono obligatorio en toda reserva de SP; contador de reprogramaciones derivado de bookings canceladas (sin schema nuevo); audit de override con columna `lead_status_source` (auto/manual), NO historial completo de transiciones.
+
+**Fuente de verdad:** `.docs/sp-auto/brief-fran-automatizacion-sesiones-prueba.md` (brief de Nacho, 2026-07-15) + repaso punto por punto con Franco + 3 mapeos de codebase de la sesión (sesiones de prueba, freemium/reservas, compras).
+
+## v5.8 (Sesiones de Prueba — automatización y self-service) Phases
+
+- [ ] **Phase 163: Máquina de estados automática del lead** — cron diario nuevo en `src/jobs/` que vence En seguimiento → Perdido cuando la última sesión de prueba no cancelada quedó a más de X días sin compra; X en `system_settings` sembrado del p90 histórico con default de resguardo; reset Perdido → En seguimiento al agendar nueva SP (admin o self-service) con la ventana corriendo desde la nueva sesión; columna `lead_status_source` (auto/manual) para auditar overrides; y migración de backfill retroactivo de los ≈112 vencidos con tabla de backup + dry-run de conteos validado.
+- [ ] **Phase 164: Reprogramación y reporte** — acción "Reprogramar" en el admin que cancela el turno viejo y crea el nuevo en una sola transacción; contador de reprogramaciones por lead derivado de sus bookings de prueba canceladas (retroactivo, sin schema nuevo); e indicador/filtro en el reporte de Sesiones de Prueba de si el estado salió del automatismo o fue pisado a mano (`lead_status_source`).
+- [ ] **Phase 165: Self-service y UX de gestión** — verificación end-to-end + fixes del flujo freemium→prueba existente (registro → elegibilidad → reserva → lead en el reporte admin); teléfono obligatorio en toda alta de SP (admin) y en la reserva self-service (diálogo si el perfil no lo tiene); y un flujo más directo para que gestión programe SP y convierta leads en alumnos (fricciones concretas a relevar en discuss-phase).
+
+## v5.8 (Sesiones de Prueba — automatización y self-service) Phase Details
+
+### Phase 163: Máquina de estados automática del lead
+
+**Goal:** El estado del lead se mantiene solo sin tocar nada a mano: un lead En seguimiento cuya última sesión de prueba no cancelada quedó a más de X días sin compra pasa a Perdido por sí mismo, un lead Perdido al que se le agenda otra SP vuelve a En seguimiento con la ventana reiniciada, y el sistema deja rastro de cuándo el estado lo puso el automatismo vs una edición manual. End state: corre el cron una vez, los ≈112 En seguimiento vencidos quedan en Perdido, X es un valor leído de `system_settings` sembrado del p90 del histórico, y una edición manual del estado queda marcada como `manual` para que no la pise el cron.
+
+**Depends on:** Nada nuevo (foundational del milestone). Se monta sobre `users` (status `prueba`/lifecycle), `bookings` (`is_trial`, `status='cancelado'`), el hook `recomputeUserStatus` (`subscriptions/service.ts`, ya marca Ganado), la infra node-cron de `src/jobs/` (`mark-no-shows.ts`, `auto-approve.ts`) y la tabla `system_settings`. Toca `el-templo-api` (migración de `lead_status_source` + backfill con backup, cron nuevo, siembra de X, reset de estado en el agendado admin/self-service, PATCH de edición de lead marcando `manual`).
+
+**Requirements:** AUTO-01, AUTO-02, AUTO-03, AUTO-04, AUTO-05
+
+**Success Criteria** (what must be TRUE):
+
+1. Un cron diario pasa a Perdido todo lead En seguimiento cuya última sesión de prueba no cancelada quedó a más de X días sin compra registrada, aplicando igual a asistió y no-asistió. (AUTO-01)
+2. X vive en `system_settings`, se lee en cada corrida del cron, y su valor inicial se sembró desde el p90 del histórico de días sesión→primera suscripción de los Ganados, con un default de resguardo si el histórico es insuficiente. (AUTO-02)
+3. Al agendarle una nueva sesión de prueba a un lead Perdido (por admin o por el self-service), su estado vuelve a En seguimiento y la ventana X corre desde la nueva sesión. (AUTO-03)
+4. El sistema distingue estado automático de manual vía la columna `lead_status_source` (`auto`/`manual`): hook/cron/alta la dejan en `auto`, el PATCH de edición del lead la deja en `manual`, y el cron no pisa un estado marcado a mano. (AUTO-04)
+5. Una migración aplica la regla retroactivamente a los ≈112 leads En seguimiento con sesión vencida, precedida por una tabla de backup (patrón `users_lead_backup_0170`) y con un dry-run de conteos validado (211 Perdido / 136 En seguimiento / 105 Ganado sobre 452) antes de aplicar. (AUTO-05)
+
+**Plans:** TBD
+
+### Phase 164: Reprogramación y reporte
+
+**Goal:** Reprogramar la primera clase deja de ser "quitar turno + volver a cargar" y pasa a ser una acción de un solo paso con historial visible: gestión reprograma en una transacción, el reporte de Sesiones de Prueba muestra cuántas veces reprogramó cada lead, y distingue/filtra si el estado del lead lo puso el automatismo o fue pisado a mano. End state: gestión aprieta "Reprogramar" en un lead, elige el nuevo turno, el viejo queda cancelado y el nuevo creado atómicamente, y el reporte muestra el contador de reprogramaciones y el filtro auto/manual.
+
+**Depends on:** Phase 163 (lee `lead_status_source` que 163 produce para REPRO-03; el reset al reprogramar de AUTO-03 aplica a la nueva acción). Se monta sobre `bookings` (soft-cancel existente), el reporte de Sesiones de Prueba y la cancelación/creación de turno del admin. Toca `el-templo-api` (endpoint transaccional de reprogramación, derivación del contador y del `lead_status_source` en el reporte) y `el-templo-admin` (acción "Reprogramar", columna de reprogramaciones, indicador/filtro auto-vs-manual en el reporte).
+
+**Requirements:** REPRO-01, REPRO-02, REPRO-03
+
+**Success Criteria** (what must be TRUE):
+
+1. Gestión reprograma una sesión de prueba en un solo paso desde el admin: el turno viejo se cancela y el nuevo se crea en la misma transacción, en lugar de quitar + volver a cargar. (REPRO-01)
+2. El reporte de Sesiones de Prueba muestra cuántas veces reprogramó cada lead, derivado de sus bookings de prueba canceladas — retroactivo y sin schema nuevo. (REPRO-02)
+3. El reporte de Sesiones de Prueba indica y permite filtrar si el estado del lead salió del automatismo o fue pisado a mano, leyendo `lead_status_source`. (REPRO-03)
+
+**Plans:** TBD
+
+**UI hint:** yes (acción "Reprogramar" + columna de reprogramaciones + filtro auto/manual en el reporte de Sesiones de Prueba del admin)
+
+### Phase 165: Self-service y UX de gestión
+
+**Goal:** El flujo freemium→prueba ya en prod (Phase 119, sin UAT) queda validado punta a punta y corregido donde falle, ningún alta de SP puede quedar sin teléfono del lead, y gestión tiene un camino más directo para programar sesiones de prueba y convertir leads en alumnos. End state: un freemium se registra, ve su elegibilidad, reserva su prueba (dando teléfono si no lo tenía) y aparece como lead en el reporte admin; y toda alta de SP desde el admin exige teléfono.
+
+**Depends on:** Phase 163 para el reset self-service (AUTO-03: la reserva self-service de un Perdido lo devuelve a En seguimiento); mayormente independiente de Phase 164. Se monta sobre el flujo self-service existente (`GET /members/scheduling/trial-eligibility`, promoción atómica freemium→prueba en `TrialService`/`booking-service.ts`, `ReservasPage.vue`) y el alta de SP del admin. Toca `el-templo-api` (validación de teléfono en reserva self-service y alta admin), `el-templo-app` (diálogo de teléfono en la confirmación de reserva) y `el-templo-admin` (teléfono obligatorio en el alta de SP + flujo de programar/convertir).
+
+**Requirements:** SELF-01, SELF-02, SELF-03, SELF-04
+
+**Success Criteria** (what must be TRUE):
+
+1. El flujo self-service queda verificado end-to-end (registro → elegibilidad → reserva de prueba → lead visible en el reporte admin) y corregido donde falle. (SELF-01)
+2. Toda alta de sesión de prueba desde el admin exige el teléfono del lead. (SELF-02)
+3. La reserva self-service de sesión de prueba exige teléfono: si el perfil no lo tiene, la app lo pide en el diálogo de confirmación de la reserva. (SELF-03)
+4. Gestión tiene un flujo más directo para programar sesiones de prueba y convertir leads en alumnos, con mejoras acotadas a las fricciones que el propio flujo actual evidencia (a relevar en discuss-phase). (SELF-04)
+
+**Plans:** TBD
+
+**UI hint:** yes (diálogo de teléfono en la reserva self-service de la member app + teléfono obligatorio y flujo de programar/convertir en el admin)
+
+## v5.8 (Sesiones de Prueba — automatización y self-service) Progress
+
+| Phase                                       | Plans Complete | Status      | Completed |
+| ------------------------------------------- | -------------- | ----------- | --------- |
+| 163. Máquina de estados automática del lead | 0/?            | Not started |           |
+| 164. Reprogramación y reporte               | 0/?            | Not started |           |
+| 165. Self-service y UX de gestión           | 0/?            | Not started |           |
+
+_Plan counts populated by `/gsd-plan-phase`._
+
+---
+
+_v5.8 (Sesiones de Prueba — automatización y self-service) added: 2026-07-15 — 3 phases (163-165), 12 requirements (AUTO, REPRO, SELF). **Arranca en fase 163** (NO 159): 159-160 reservadas por v5.6 combos+técnica (sin ejecutar); 161-162 usadas por v5.7. NO resetear la numeración. **163 (máquina de estados) es foundational** — `lead_status_source`, cron de vencimiento a Perdido, X (p90) en `system_settings`, reset al reprogramar, backfill de ≈112 con backup + dry-run. **164 (reprogramación y reporte) depende de 163** (expone `lead_status_source`). **165 (self-service y UX)** independiente de 164, después de 163 por el reset self-service. Se monta SOBRE infra existente: hook `recomputeUserStatus` (Ganado ya automático), `TrialService`/`booking-service.ts`, node-cron en `src/jobs/`, tabla `system_settings` — matching lead↔compra ya resuelto por diseño (punto 4 del brief obsoleto). Ganado SIN ventana; X solo gobierna el vencimiento a Perdido. Migraciones: verificar en plan-phase — última aplicada 0180; el árbol tiene un 0181 de rama no ejecutada; v5.6 no ejecutado renumera después de que v5.8 tome los siguientes libres. Staging-first estricto; tests de integración para jobs/rutas nuevas. Fuente: `.docs/sp-auto/brief-fran-automatizacion-sesiones-prueba.md` + repaso con Franco 2026-07-15 + 3 mapeos de codebase._

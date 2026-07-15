@@ -103,5 +103,17 @@ v5.6 aún no ejecutado); tests de integración para rutas nuevas/modificadas.
 
 <!-- Filled by roadmap -->
 
-| Requirement | Phase | Status |
-| ----------- | ----- | ------ |
+| Requirement | Phase     | Status  |
+| ----------- | --------- | ------- |
+| AUTO-01     | Phase 163 | Pending |
+| AUTO-02     | Phase 163 | Pending |
+| AUTO-03     | Phase 163 | Pending |
+| AUTO-04     | Phase 163 | Pending |
+| AUTO-05     | Phase 163 | Pending |
+| REPRO-01    | Phase 164 | Pending |
+| REPRO-02    | Phase 164 | Pending |
+| REPRO-03    | Phase 164 | Pending |
+| SELF-01     | Phase 165 | Pending |
+| SELF-02     | Phase 165 | Pending |
+| SELF-03     | Phase 165 | Pending |
+| SELF-04     | Phase 165 | Pending |
