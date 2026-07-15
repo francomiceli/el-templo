@@ -26,6 +26,8 @@ export interface WeeklySlotView {
   maxCapacity: number
   isFull: boolean
   isHoliday: boolean
+  // mirror de scheduling/types.ts (162 APP-01): clase especial "Actividades con Aura"
+  isSpecial: boolean
 }
 
 export interface BookingRecord {
