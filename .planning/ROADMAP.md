@@ -4261,11 +4261,11 @@ Plans:
 3. El usuario sin pase que intenta reservar una actividad especial recibe un mensaje claro de qué es el pase y cómo conseguirlo (informativo, sin pago in-app). (APP-03)
 4. El admin ve las asistencias por actividad especial por mes, separando origen socio/externo, como insumo del reparto manual a los profes (sin montos calculados). (REP-01)
 
-**Plans:** 6 plans (3 waves)
+**Plans:** 1/6 plans executed
 
 Plans:
 
-- [ ] 162-01-PLAN.md — API: isSpecial por slot en getWeeklyGrid (grilla member+admin) [wave 1]
+- [x] 162-01-PLAN.md — API: isSpecial por slot en getWeeklyGrid (grilla member+admin) [wave 1]
 - [ ] 162-02-PLAN.md — API: endpoint GET /me/especial-pass (saldo del pase + isSocio) [wave 1]
 - [ ] 162-03-PLAN.md — API: reporte REP-01 socio/externo + KPIs D-05 + export XLSX [wave 1]
 - [ ] 162-04-PLAN.md — Member app: capabilities del pase en useUserStore + type mirror isSpecial [wave 2]
@@ -4279,7 +4279,7 @@ Plans:
 | Phase                                                         | Plans Complete | Status      | Completed |
 | ------------------------------------------------------------- | -------------- | ----------- | --------- |
 | 161. Núcleo — actividades gateadas, pase mensual, enforcement | 6/7            | In Progress |           |
-| 162. Superficie — member app y reporte de reparto             | 0/6            | Not started | -         |
+| 162. Superficie — member app y reporte de reparto             | 1/6            | In Progress |           |
 
 _Plan counts populated by `/gsd-plan-phase`._
 
