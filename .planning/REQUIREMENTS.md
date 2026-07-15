@@ -31,8 +31,8 @@ tercera actividad ("OpenShin" en el audio); (d) si el staff puede pisar el gatin
 
 ### ACT — Actividades especiales
 
-- [ ] **ACT-01**: El admin puede marcar una actividad como "especial" (gateada por pase) al crearla o editarla.
-- [ ] **ACT-02**: Las 3 actividades especiales (Verticales, Acrobacias, tercera a definir) existen como actividades con slots de sábado por sede/horario, cada una con su cupo propio.
+- [x] **ACT-01**: El admin puede marcar una actividad como "especial" (gateada por pase) al crearla o editarla.
+- [x] **ACT-02**: Las 3 actividades especiales (Verticales, Acrobacias, tercera a definir) existen como actividades con slots de sábado por sede/horario, cada una con su cupo propio.
 
 ### PASE — Pase mensual "Actividades con Aura"
 
@@ -77,8 +77,8 @@ tercera actividad ("OpenShin" en el audio); (d) si el staff puede pisar el gatin
 
 | Requirement | Phase     | Status   |
 | ----------- | --------- | -------- |
-| ACT-01      | Phase 161 | Pending  |
-| ACT-02      | Phase 161 | Pending  |
+| ACT-01      | Phase 161 | Complete |
+| ACT-02      | Phase 161 | Complete |
 | PASE-01     | Phase 161 | Complete |
 | PASE-02     | Phase 161 | Complete |
 | PASE-03     | Phase 161 | Complete |
