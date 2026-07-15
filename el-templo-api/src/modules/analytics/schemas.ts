@@ -757,6 +757,62 @@ export const churnedMembersExportSchema = {
 } as const;
 
 // =============================================================================
+// Especiales Schema (Phase 162-03 — REP-01 / D-04 / D-05)
+// =============================================================================
+
+// `month` (YYYY-MM) es obligatorio y validado por pattern ANTES del service
+// (T-162-03-04: no llega string arbitrario al armado del rango). branchId
+// opcional para acotar por sede.
+const especialesQuerystring = {
+  type: "object",
+  required: ["month"],
+  properties: {
+    month: { type: "string", pattern: "^\\d{4}-\\d{2}$" }, // YYYY-MM
+    branchId: { type: "integer" },
+  },
+} as const;
+
+const especialActivityRowSchema = {
+  type: "object",
+  properties: {
+    activityId: { type: "integer" },
+    activityName: { type: "string" },
+    socioCount: { type: "integer" },
+    externoCount: { type: "integer" },
+    total: { type: "integer" },
+  },
+} as const;
+
+export const especialesSchema = {
+  querystring: especialesQuerystring,
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        month: { type: "string" },
+        kpis: {
+          type: "object",
+          properties: {
+            sociosActivos: { type: "integer" },
+            externosActivos: { type: "integer" },
+          },
+        },
+        rows: { type: "array", items: especialActivityRowSchema },
+      },
+    },
+    400: errorSchema,
+    401: errorSchema,
+    403: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+// Export variant: binary XLSX response — no response schema (buffer reply).
+export const especialesExportSchema = {
+  querystring: especialesQuerystring,
+} as const;
+
+// =============================================================================
 // Frecuencia de asistencia Schema (Phase 123 Block 4 — FREQ-01..04)
 // =============================================================================
 

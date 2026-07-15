@@ -21,6 +21,7 @@ import { LtvService } from "./ltv-service";
 import { FrequencyService } from "./frequency-service";
 import { TrialFunnelService } from "./trial-funnel-service";
 import { ClassRatingsService } from "./class-ratings-service";
+import { EspecialReportService } from "./especial-report-service";
 import { handleServiceError } from "../shared/error-handler";
 import { Workbook } from "exceljs";
 import { styleHeaderRow, sendExcelReply } from "../shared/excel";
@@ -46,6 +47,8 @@ import {
   frequencySchema,
   trialFunnelSchema,
   classRatingsSchema,
+  especialesSchema,
+  especialesExportSchema,
 } from "./schemas";
 import type { FunnelEntryOrigin } from "./types";
 
@@ -96,6 +99,10 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
   const frequencyService = new FrequencyService(fastify.db, fastify.log);
   const trialFunnelService = new TrialFunnelService(fastify.db, fastify.log);
   const classRatingsService = new ClassRatingsService(fastify.db, fastify.log);
+  const especialReportService = new EspecialReportService(
+    fastify.db,
+    fastify.log,
+  );
 
   /**
    * Guard: authenticate + gate to the operational analytics set (gestion +
@@ -601,6 +608,95 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
         return sendExcelReply(workbook, reply, "bajas");
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "export churned members");
+      }
+    },
+  );
+
+  // GET /especiales — reporte REP-01 (Phase 162-03): asistencias a actividades
+  // especiales del mes separadas socio/externo + KPIs D-05, SIN montos (D-04).
+  // SENSIBLE → ADMIN_ROLES-only vía requireAdminAnalytics; gestion recibe 403.
+  // Scoped por sede (attendance.branchId / subscriptions.branchId). `month`
+  // (YYYY-MM) validado por especialesSchema antes del service (T-162-03-04).
+  fastify.get<{
+    Querystring: { month: string; branchId?: number };
+  }>(
+    "/especiales",
+    {
+      schema: especialesSchema,
+      preHandler: [
+        requireAdminAnalytics,
+        requireBranchAccess({ from: "query.branchId", optional: true }),
+      ],
+    },
+    async (request, reply) => {
+      try {
+        const filters: AnalyticsFilters = {
+          branchId: request.query.branchId,
+          country: request.scope.country ?? undefined,
+        };
+        const result = await especialReportService.getReport(
+          request.query.month,
+          filters,
+        );
+        return result;
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "get especial report");
+      }
+    },
+  );
+
+  // GET /especiales/export — el mismo reporte como XLSX (patrón churned-members).
+  // Filename: especiales-<YYYY-MM-DD>.xlsx. Filas actividad×origen, SIN montos.
+  fastify.get<{
+    Querystring: { month: string; branchId?: number };
+  }>(
+    "/especiales/export",
+    {
+      schema: especialesExportSchema,
+      preHandler: [
+        requireAdminAnalytics,
+        requireBranchAccess({ from: "query.branchId", optional: true }),
+      ],
+    },
+    async (request, reply) => {
+      try {
+        const filters: AnalyticsFilters = {
+          branchId: request.query.branchId,
+          country: request.scope.country ?? undefined,
+        };
+        const report = await especialReportService.getReport(
+          request.query.month,
+          filters,
+        );
+
+        const workbook = new Workbook();
+        workbook.creator = "El Templo";
+        workbook.created = new Date();
+        const sheet = workbook.addWorksheet("Especiales");
+
+        sheet.columns = [
+          { header: "Actividad", key: "activityName", width: 28 },
+          { header: "Asistencias socio", key: "socioCount", width: 18 },
+          { header: "Asistencias externo", key: "externoCount", width: 18 },
+          { header: "Total", key: "total", width: 12 },
+          { header: "Mes", key: "month", width: 12 },
+        ];
+
+        styleHeaderRow(sheet);
+
+        for (const r of report.rows) {
+          sheet.addRow({
+            activityName: r.activityName,
+            socioCount: r.socioCount,
+            externoCount: r.externoCount,
+            total: r.total,
+            month: report.month,
+          });
+        }
+
+        return sendExcelReply(workbook, reply, "especiales");
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "export especial report");
       }
     },
   );
