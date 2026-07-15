@@ -109,6 +109,39 @@
       />
 
       <!-- ========================================== -->
+      <!-- Pase de Actividades Especiales (Plan 161) -->
+      <!-- ========================================== -->
+      <SubscriptionCard
+        v-if="especialSub"
+        :subscription="especialSub"
+        label="Pase de Actividades"
+        show-category-badge
+        @renew="openRenewal(especialSub!)"
+        @edit-start-date="openEditStartDate(especialSub!)"
+        @cancel="confirmCancelEspecial"
+      />
+
+      <!-- Vender pase de actividades (cuando no hay uno activo) -->
+      <q-card v-else flat bordered class="q-mb-md">
+        <q-card-section class="row items-center justify-between q-py-sm">
+          <div>
+            <div class="text-body2 text-weight-medium">Pase de Actividades Especiales</div>
+            <div class="text-caption text-grey-7">
+              Socio (requiere presencial activo) o Externo — 2 asistencias por mes.
+            </div>
+          </div>
+          <q-btn
+            icon="local_activity"
+            label="Vender pase"
+            color="pink-8"
+            outline
+            dense
+            @click="showAssignEspecialDialog = true"
+          />
+        </q-card-section>
+      </q-card>
+
+      <!-- ========================================== -->
       <!-- Subscription History -->
       <!-- ========================================== -->
       <q-card flat bordered class="q-mb-md">
@@ -225,6 +258,17 @@
       :memberBranchName="memberBranchName"
       :boardingPassUsed="memberBoardingPassUsed"
       category-filter="online"
+      @assigned="onAssigned"
+    />
+
+    <!-- Assign Especial Pass Dialog (pase de actividades, Plan 161) -->
+    <AssignPlanDialog
+      v-model="showAssignEspecialDialog"
+      :userId="userId"
+      :memberBranchId="memberBranchId"
+      :memberBranchName="memberBranchName"
+      :boardingPassUsed="memberBoardingPassUsed"
+      category-filter="especial"
       @assigned="onAssigned"
     />
 
@@ -728,8 +772,24 @@ const multiBranchOptions = computed(() =>
 
 const programaSub = computed(
   () =>
-    allSubscriptions.value.find((s) => s.planCategory && s.planCategory !== 'presencial') ?? null
+    allSubscriptions.value.find(
+      (s) => s.planCategory && s.planCategory !== 'presencial' && s.planCategory !== 'especial'
+    ) ?? null
 );
+
+// Pase de actividades especiales (Plan 161). Corre en paralelo a la presencial
+// y a los programas online; se muestra en su propio card y se renueva por
+// subscriptionId. Preferimos active/paused; si no hay, la scheduled.
+const especialSub = computed(
+  () =>
+    allSubscriptions.value.find(
+      (s) => s.planCategory === 'especial' && (s.status === 'active' || s.status === 'paused')
+    ) ??
+    allSubscriptions.value.find((s) => s.planCategory === 'especial' && s.status === 'scheduled') ??
+    null
+);
+
+const showAssignEspecialDialog = ref(false);
 
 // Turnos al renovar: solo para subs presenciales con classUsage cargado (la
 // renovación es del mismo plan, así que los límites del plan actual —
@@ -1046,6 +1106,10 @@ async function performRenewal() {
     // Backend hace `amountReceived ?? chargeBase` (default = full).
     await subsApi.renewSubscription(props.userId, {
       paymentMethod: renewalMethod.value,
+      // Discriminador explícito (Plan 161-02): renovamos exactamente la sub que
+      // el admin abrió. Inequívoco cuando coexisten presencial + pase especial;
+      // el backend valida ownership y, sin él, caería a la selección active-first.
+      ...(renewTarget.value ? { subscriptionId: renewTarget.value.id } : {}),
       amountReceived:
         renewalChargeBase.value === 0 ? undefined : (renewalAmountReceived.value ?? undefined),
       ...(renewalUseOverride.value && renewalOverrideAmount.value !== null
@@ -1371,6 +1435,57 @@ function confirmCancelPrograma() {
         log.warn('Cancel program rejected', { error: message });
       } else {
         log.error('Error cancelling program subscription', { error: message });
+      }
+      $q.notify({ type: 'negative', message });
+    } finally {
+      actionLoading.value = false;
+    }
+  });
+}
+
+function confirmCancelEspecial() {
+  const sub = especialSub.value;
+  if (!sub) return;
+  $q.dialog({
+    title: 'Cancelar pase de actividades',
+    message: 'Cancelar el pase? Esta accion no se puede deshacer.',
+    prompt: {
+      model: '',
+      type: 'textarea',
+      label: 'Notas (opcional)',
+    },
+    cancel: { flat: true, label: 'Volver' },
+    ok: { color: 'negative', label: 'Cancelar pase' },
+  }).onOk(async (notes: string) => {
+    actionLoading.value = true;
+    try {
+      // subscriptionId explícito: el pase corre en paralelo a la presencial, así
+      // que sin él la cancelación caería a la selección active-first equivocada.
+      await subsApi.cancelSubscription(props.userId, notes.trim() || undefined, sub.id);
+      $q.notify({ type: 'positive', message: 'Pase cancelado' });
+      emit('subscription-changed');
+      refreshAll();
+    } catch (err: unknown) {
+      const block = parseActiveTransactionsBlock(err, 'cancelar');
+      if (block) {
+        log.warn('Cancel especial blocked: active transactions', {
+          userId: props.userId,
+          count: block.count,
+        });
+        $q.notify({
+          type: 'warning',
+          message: block.message,
+          timeout: 8000,
+          multiLine: true,
+          actions: [{ label: 'Entendido', color: 'white' }],
+        });
+        return;
+      }
+      const message = extractError(err, 'Error cancelando pase');
+      if (isExpectedClientError(err)) {
+        log.warn('Cancel especial rejected', { error: message });
+      } else {
+        log.error('Error cancelling especial subscription', { error: message });
       }
       $q.notify({ type: 'negative', message });
     } finally {

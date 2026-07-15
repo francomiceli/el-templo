@@ -974,8 +974,12 @@ const props = withDefaults(
     memberBranchName: string;
     boardingPassUsed: boolean;
     mode?: 'assign' | 'change';
-    /** Filter plans by category group: 'presencial' shows only presencial, 'online' shows only online_* categories */
-    categoryFilter?: 'presencial' | 'online';
+    /**
+     * Filter plans by category group: 'presencial' shows only presencial,
+     * 'online' shows only online_* categories (excluye especial), 'especial'
+     * muestra sólo los planes especiales (el pase de actividades, Plan 161-02).
+     */
+    categoryFilter?: 'presencial' | 'online' | 'especial';
     /** End date of the member's current subscription. Required for change mode to offer the "start after current ends" option. */
     currentSubEndDate?: string | null;
     /** Plan ID of the member's current subscription. In change mode it's filtered out of the list (no point changing to the same plan). */
@@ -1164,6 +1168,7 @@ interface TierGroup {
 const dialogTitle = computed(() => {
   if (props.mode === 'change') return 'Cambiar Plan';
   if (props.categoryFilter === 'online') return 'Agregar Programa';
+  if (props.categoryFilter === 'especial') return 'Vender Pase de Actividades';
   return 'Gestionar Plan';
 });
 
@@ -1254,8 +1259,13 @@ const filteredPlans = computed(() => {
   if (props.categoryFilter === 'presencial') {
     return list.filter((p) => p.planCategory === 'presencial');
   }
-  // 'online' filter: show all non-presencial categories
-  return list.filter((p) => p.planCategory !== 'presencial');
+  if (props.categoryFilter === 'especial') {
+    // Sólo los pases de actividades (Plan 161-02).
+    return list.filter((p) => p.planCategory === 'especial');
+  }
+  // 'online' filter: show all non-presencial categories EXCEPT especial (el pase
+  // se vende por su propio filtro, no mezclado con los programas online).
+  return list.filter((p) => p.planCategory !== 'presencial' && p.planCategory !== 'especial');
 });
 
 const plansByTier = computed((): TierGroup[] => {

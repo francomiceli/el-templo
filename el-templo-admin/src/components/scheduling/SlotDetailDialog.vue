@@ -830,6 +830,26 @@ const activityOptions = computed(() =>
   availableActivities.value.filter((a) => a.isActive).map((a) => ({ id: a.id, name: a.name }))
 );
 
+// D-07 (Plan 161): ¿la actividad del slot es especial (requiere pase)? Se
+// resuelve matcheando el activityId del schedule contra la lista de actividades
+// (cargada al abrir el diálogo). Habilita la advertencia confirmable del staff.
+const isSpecialSlot = computed(() => {
+  const id = slotDetail.value?.schedule.activityId;
+  if (id == null) return false;
+  return availableActivities.value.some((a) => a.id === id && a.isSpecial);
+});
+
+/** Carga la lista de actividades una vez (para conocer isSpecial del slot). */
+async function ensureActivitiesLoaded(): Promise<void> {
+  if (availableActivities.value.length > 0) return;
+  try {
+    availableActivities.value = await schedulingApi.listActivities();
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.error('Error loading activities for special check', { error: message });
+  }
+}
+
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 function getBookingStatusLabel(status: BookingStatus): string {
@@ -1030,6 +1050,26 @@ function onMemberSearch(val: string, update: (fn: () => void) => void, _abort: (
 // ─── Submit ────────────────────────────────────────────────────────────────
 
 async function onSubmitAdd() {
+  if (!slotAddMember.value || !props.scheduleId) return;
+  // D-07 (Plan 161): reserva manual de una actividad especial → advertencia
+  // confirmable (bypass de staff del gating de pase). El backend valida y avisa
+  // con detalle si el alumno no tiene un pase activo.
+  if (effectiveMode.value === 'reserve' && isSpecialSlot.value) {
+    $q.dialog({
+      title: 'Actividad especial (requiere pase)',
+      message:
+        'Estás reservando manualmente una actividad especial. Si el alumno no tiene un pase de actividades activo, la reserva se registrará igual como excepción del staff. ¿Confirmás?',
+      cancel: { flat: true, label: 'Volver' },
+      ok: { color: 'primary', label: 'Confirmar reserva' },
+    }).onOk(() => {
+      void doSubmitAdd();
+    });
+    return;
+  }
+  await doSubmitAdd();
+}
+
+async function doSubmitAdd() {
   if (!slotAddMember.value || !props.scheduleId) return;
   submitting.value = true;
   try {
@@ -1352,6 +1392,7 @@ watch(
       eligibleTrials.value = [];
       addMode.value = isToday.value ? 'checkin' : isPastOrToday.value ? 'checkin' : 'reserve';
       refreshAll();
+      void ensureActivitiesLoaded();
     }
   }
 );

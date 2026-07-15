@@ -169,6 +169,7 @@ import { useAttendanceApi } from 'src/composables/useAttendanceApi';
 import { useSchedulingApi } from 'src/composables/useSchedulingApi';
 import { useMembersApi } from 'src/composables/useMembersApi';
 import type { SlotAttendanceItem } from 'src/types/attendance';
+import type { ActivityRecord } from 'src/types/scheduling';
 
 const log = createLogger('SlotAttendancePanel');
 const $q = useQuasar();
@@ -218,6 +219,21 @@ const checkingIn = ref(false);
 // Auto-refresh
 let refreshInterval: ReturnType<typeof setInterval> | null = null;
 
+// D-07 (Plan 161): actividades cargadas para saber si el slot es especial.
+// El panel sólo tiene activityName, así que matcheamos por nombre (los nombres
+// de actividades activas son únicos en el backend).
+const activities = ref<ActivityRecord[]>([]);
+
+async function ensureActivitiesLoaded(): Promise<void> {
+  if (activities.value.length > 0) return;
+  try {
+    activities.value = await schedulingApi.listActivities();
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.error('Error loading activities for special check', { error: message });
+  }
+}
+
 // =========================================================================
 // Computed
 // =========================================================================
@@ -230,6 +246,11 @@ const formattedDate = computed(() => {
     return props.date;
   }
 });
+
+// D-07: ¿la actividad del slot es especial (requiere pase)?
+const isSpecialSlot = computed(() =>
+  activities.value.some((a) => a.name === props.activityName && a.isSpecial)
+);
 
 const canCheckIn = computed(() => {
   // Only allow manual check-in for today or past dates
@@ -364,6 +385,26 @@ async function onSubmit() {
 }
 
 async function onReserve() {
+  if (!selectedMember.value) return;
+  // D-07 (Plan 161): reserva manual de una actividad especial → advertencia
+  // confirmable (bypass de staff del gating de pase). El backend valida y avisa
+  // con detalle si el alumno no tiene un pase activo.
+  if (isSpecialSlot.value) {
+    $q.dialog({
+      title: 'Actividad especial (requiere pase)',
+      message:
+        'Estás reservando manualmente una actividad especial. Si el alumno no tiene un pase de actividades activo, la reserva se registrará igual como excepción del staff. ¿Confirmás?',
+      cancel: { flat: true, label: 'Volver' },
+      ok: { color: 'primary', label: 'Confirmar reserva' },
+    }).onOk(() => {
+      void doReserve();
+    });
+    return;
+  }
+  await doReserve();
+}
+
+async function doReserve() {
   if (!selectedMember.value) return;
   const memberName = selectedMember.value.displayLabel;
   const memberId = selectedMember.value.id;
@@ -533,6 +574,7 @@ watch(
       memberSearchResults.value = [];
       loadAttendance();
       startAutoRefresh();
+      void ensureActivitiesLoaded();
     } else {
       stopAutoRefresh();
     }

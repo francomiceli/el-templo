@@ -73,13 +73,19 @@ export const AURA_DISCOUNT_TIERS: readonly AuraDiscountTier[] = [
 
 // ─── Plan Category ──────────────────────────────────────────────────────────
 
-export type PlanCategory = 'presencial' | 'online_regular' | 'online_goal' | 'online_coach';
+export type PlanCategory =
+  | 'presencial'
+  | 'online_regular'
+  | 'online_goal'
+  | 'online_coach'
+  | 'especial';
 
 export const PLAN_CATEGORY_LABELS: Record<PlanCategory, string> = {
   presencial: 'Presencial',
   online_regular: 'Regular',
   online_goal: 'Por Objetivos',
   online_coach: 'Personalizado',
+  especial: 'Especial',
 };
 
 export const PLAN_CATEGORY_COLORS: Record<PlanCategory, string> = {
@@ -87,6 +93,7 @@ export const PLAN_CATEGORY_COLORS: Record<PlanCategory, string> = {
   online_regular: 'blue',
   online_goal: 'amber-8',
   online_coach: 'deep-purple',
+  especial: 'pink-8',
 };
 
 export const PLAN_CATEGORY_OPTIONS = [
@@ -94,6 +101,7 @@ export const PLAN_CATEGORY_OPTIONS = [
   { label: 'Online Regular', value: 'online_regular' },
   { label: 'Online Por Objetivos', value: 'online_goal' },
   { label: 'Online Personalizado', value: 'online_coach' },
+  { label: 'Especial', value: 'especial' },
 ];
 
 // ─── Plan Types ─────────────────────────────────────────────────────────────
@@ -282,6 +290,13 @@ export interface AssignPlanInput {
 
 export interface RenewSubscriptionInput {
   paymentMethod: PaymentMethod;
+  /**
+   * Discriminador de renovación (Plan 161-02, PASE-04): id de la sub a renovar.
+   * Cuando viene, el backend renueva exactamente esa sub (validando ownership);
+   * sin él, cae a la selección active-first histórica. Necesario para renovar
+   * el pase especial de forma inequívoca cuando coexiste con la presencial.
+   */
+  subscriptionId?: number;
   /** Cobro al renovar (Phase 107). Backward-compat: undefined → renewalPrice. */
   amountReceived?: number;
   /** Precio personalizado para esta renovación. Requiere priceOverrideReason. */
