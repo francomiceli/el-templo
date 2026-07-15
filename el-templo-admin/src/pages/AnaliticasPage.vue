@@ -178,6 +178,7 @@
       <q-tab name="clases" label="Clases" icon="star" />
       <q-tab name="retencion" label="Retención (ciclos)" icon="timeline" />
       <q-tab name="referidos-ab" label="Referidos A/B" icon="science" />
+      <q-tab name="especiales" label="Especiales" icon="auto_awesome" />
     </q-tabs>
 
     <q-tab-panels v-model="activeTab" animated>
@@ -299,6 +300,18 @@
       <q-tab-panel name="referidos-ab">
         <ReferidosAbTab :data="referralAbData" :loading="loadingReferralAb" />
       </q-tab-panel>
+
+      <!-- Especiales — reporte de reparto "Actividades con Aura" (REP-01, Phase 162-06).
+           Asistencias del mes por actividad especial separadas socio/externo + KPIs
+           D-05, con selector de mes y export XLSX. Sin montos (D-04). -->
+      <q-tab-panel name="especiales">
+        <EspecialesTab
+          :data="especialesData"
+          :loading="loadingEspeciales"
+          v-model:month="especialesMonth"
+          @change="fetchEspeciales"
+        />
+      </q-tab-panel>
     </q-tab-panels>
   </q-page>
 </template>
@@ -321,6 +334,7 @@ import FrecuenciaTab from 'src/components/analytics/FrecuenciaTab.vue';
 import IngresosTab from 'src/components/analytics/IngresosTab.vue';
 import ClasesTab from 'src/components/analytics/ClasesTab.vue';
 import ReferidosAbTab from 'src/components/analytics/ReferidosAbTab.vue';
+import EspecialesTab from 'src/components/analytics/EspecialesTab.vue';
 import type {
   KpiStats,
   MemberAnalytics,
@@ -337,6 +351,7 @@ import type {
   LtvAnalytics,
   ClassRatingsAnalytics,
   ReferralAbResults,
+  EspecialesReport,
 } from 'src/types/analytics';
 import type { BranchOption } from 'src/types/member';
 import type { ProgramAnalytics } from 'src/types/program';
@@ -577,6 +592,12 @@ const loadingClassRatings = ref(false);
 const referralAbData = ref<ReferralAbResults | null>(null);
 const loadingReferralAb = ref(false);
 
+// Especiales — reporte de reparto REP-01 (Phase 162-06). Fetch por mes (default
+// mes en curso, YYYY-MM); el tab emite `change` al cambiar el mes → re-fetch.
+const especialesData = ref<EspecialesReport | null>(null);
+const loadingEspeciales = ref(false);
+const especialesMonth = ref(new Date().toISOString().slice(0, 7));
+
 // Local plan filter for the Retención tab (follow-up). `null` = todos los planes.
 // Re-fetches the cohort curve server-side. Options built from availablePlans.
 const retentionPlanId = ref<number | null>(null);
@@ -813,6 +834,19 @@ async function fetchReferralAb() {
   }
 }
 
+async function fetchEspeciales() {
+  loadingEspeciales.value = true;
+  try {
+    especialesData.value = await analyticsApi.getEspecialesReport(especialesMonth.value);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.error('Error fetching especiales report', { error: message });
+    especialesData.value = null;
+  } finally {
+    loadingEspeciales.value = false;
+  }
+}
+
 // Re-fetch the retention curve when the local plan filter changes.
 function onRetentionFilterChange() {
   void fetchRetentionData();
@@ -850,6 +884,9 @@ async function fetchTabData() {
       break;
     case 'referidos-ab':
       await fetchReferralAb();
+      break;
+    case 'especiales':
+      await fetchEspeciales();
       break;
   }
 }
