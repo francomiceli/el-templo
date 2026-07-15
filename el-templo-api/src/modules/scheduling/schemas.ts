@@ -29,6 +29,9 @@ const activityRecordSchema = {
     // D-08 (HOR-03): cupo por actividad (NULL = hereda la sucursal). Se
     // declara aquí o fast-json-stringify lo strippea y no llega al cliente.
     maxCapacity: { type: ["integer", "null"] },
+    // ACT-01 (fase 161): flag de gating del pase. Declarado aquí o
+    // fast-json-stringify lo strippea y no llega al cliente/admin.
+    isSpecial: { type: "boolean" },
     createdAt: { type: "string" },
     updatedAt: { type: "string" },
   },
@@ -144,6 +147,8 @@ export const createActivitySchema = {
       // T-155-04: validación server-side del cupo (entero positivo, techo
       // razonable). NULL permitido → hereda la sucursal.
       maxCapacity: { type: ["integer", "null"], minimum: 1, maximum: 500 },
+      // ACT-01 (fase 161): marcar la actividad como especial (requiere pase).
+      isSpecial: { type: "boolean" },
     },
   },
   response: {
@@ -181,6 +186,8 @@ export const updateActivitySchema = {
       isActive: { type: "boolean" },
       // T-155-04: `null` explícito limpia el cupo; entero positivo con techo.
       maxCapacity: { type: ["integer", "null"], minimum: 1, maximum: 500 },
+      // ACT-01 (fase 161): editar el flag de gating del pase.
+      isSpecial: { type: "boolean" },
     },
   },
   response: {

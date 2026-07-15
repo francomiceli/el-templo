@@ -24,6 +24,8 @@ export interface ActivityRecord {
   isActive: boolean;
   // D-08 (HOR-03): cupo por actividad. NULL = hereda branch.max_capacity.
   maxCapacity: number | null;
+  // ACT-01 (fase 161): flag de gating del pase "Actividades con Aura".
+  isSpecial: boolean;
   createdAt: string;
   updatedAt: string;
 }

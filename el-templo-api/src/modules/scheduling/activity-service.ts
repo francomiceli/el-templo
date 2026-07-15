@@ -25,6 +25,7 @@ export class ActivityService {
     name: string,
     description?: string,
     maxCapacity?: number | null,
+    isSpecial?: boolean,
   ): Promise<ActivityRecord> {
     // Phase 113 (D-16): reject duplicate name across ACTIVE activities.
     // Inactive activities don't block reuse — admins can recreate by name
@@ -50,6 +51,9 @@ export class ActivityService {
       description: description ?? null,
       // D-08 (HOR-03): NULL cuando no se envía → hereda el cupo de la sucursal.
       maxCapacity: maxCapacity ?? null,
+      // ACT-01 (fase 161): flag de gating del pase "Actividades con Aura".
+      // Default false → cero cambio de comportamiento para actividades regulares.
+      isSpecial: isSpecial ?? false,
     });
 
     const id = Number(result[0].insertId);
@@ -82,6 +86,7 @@ export class ActivityService {
       description?: string;
       isActive?: boolean;
       maxCapacity?: number | null;
+      isSpecial?: boolean;
     },
   ): Promise<ActivityRecord> {
     const existing = await this.getActivity(id);
@@ -158,6 +163,9 @@ export class ActivityService {
     // sucursal); ausencia de la key deja el valor existente intacto.
     if (data.maxCapacity !== undefined)
       updateData.maxCapacity = data.maxCapacity;
+    // ACT-01 (fase 161): editar el flag de gating; ausencia de la key deja el
+    // valor existente intacto (mismo patrón que maxCapacity).
+    if (data.isSpecial !== undefined) updateData.isSpecial = data.isSpecial;
 
     if (Object.keys(updateData).length > 0) {
       await this.db
@@ -196,6 +204,7 @@ export class ActivityService {
       description: row.description,
       isActive: row.isActive,
       maxCapacity: row.maxCapacity,
+      isSpecial: row.isSpecial,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     };
