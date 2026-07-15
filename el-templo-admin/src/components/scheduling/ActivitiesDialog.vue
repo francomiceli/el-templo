@@ -31,6 +31,12 @@
                   label="Inactiva"
                   class="q-ml-sm"
                 />
+                <q-badge
+                  v-if="act.isSpecial"
+                  color="deep-purple"
+                  label="Especial"
+                  class="q-ml-sm"
+                />
               </q-item-label>
               <q-item-label caption>{{ act.description || 'Sin descripcion' }}</q-item-label>
             </q-item-section>
@@ -102,6 +108,19 @@
           />
           <q-btn v-if="editingActivity" icon="close" flat dense @click="cancelEditActivity" />
         </div>
+        <div class="row items-center q-mt-sm">
+          <q-toggle
+            v-model="activityForm.isSpecial"
+            label="Actividad especial (requiere pase)"
+            color="deep-purple"
+          />
+          <q-icon name="info" size="18px" color="grey-6" class="q-ml-xs">
+            <q-tooltip max-width="280px">
+              Las actividades especiales solo pueden reservarse desde la app con un pase de
+              actividades activo. El staff puede reservar manualmente con una advertencia.
+            </q-tooltip>
+          </q-icon>
+        </div>
       </q-card-section>
     </q-card>
   </div>
@@ -147,7 +166,8 @@ const activityForm = ref<{
   name: string;
   description: string;
   maxCapacity: number | string | null;
-}>({ name: '', description: '', maxCapacity: null });
+  isSpecial: boolean;
+}>({ name: '', description: '', maxCapacity: null, isSpecial: false });
 const editingActivity = ref<ActivityRecord | null>(null);
 
 /**
@@ -189,12 +209,13 @@ function startEditActivity(act: ActivityRecord) {
     name: act.name,
     description: act.description ?? '',
     maxCapacity: act.maxCapacity ?? null,
+    isSpecial: act.isSpecial,
   };
 }
 
 function cancelEditActivity() {
   editingActivity.value = null;
-  activityForm.value = { name: '', description: '', maxCapacity: null };
+  activityForm.value = { name: '', description: '', maxCapacity: null, isSpecial: false };
 }
 
 async function onSaveActivity() {
@@ -207,6 +228,7 @@ async function onSaveActivity() {
         name: activityForm.value.name,
         description: activityForm.value.description || undefined,
         maxCapacity,
+        isSpecial: activityForm.value.isSpecial,
       });
       $q.notify({ type: 'positive', message: 'Actividad actualizada' });
     } else {
@@ -214,10 +236,11 @@ async function onSaveActivity() {
         name: activityForm.value.name,
         description: activityForm.value.description || undefined,
         maxCapacity,
+        isSpecial: activityForm.value.isSpecial,
       });
       $q.notify({ type: 'positive', message: 'Actividad creada' });
     }
-    activityForm.value = { name: '', description: '', maxCapacity: null };
+    activityForm.value = { name: '', description: '', maxCapacity: null, isSpecial: false };
     editingActivity.value = null;
     await loadActivities();
   } catch (err: unknown) {

@@ -22,6 +22,12 @@ export interface ActivityRecord {
    * Mirrors the API (phase 155-02).
    */
   maxCapacity: number | null;
+  /**
+   * Actividad especial (requiere pase). Cuando es `true`, la reserva desde la
+   * member app queda gateada por una suscripción `planCategory='especial'`
+   * (enforcement server-side, fase 161). Mirrors the API (phase 161-05).
+   */
+  isSpecial: boolean;
   createdAt: string;
   updatedAt: string;
 }
