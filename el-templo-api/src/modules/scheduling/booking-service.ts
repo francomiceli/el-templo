@@ -30,7 +30,9 @@ import {
   NotFoundError,
   ConflictError,
   CoverageExpiredError,
+  PassRequiredError,
 } from "../shared/errors";
+import { categoryGroup } from "../subscriptions/types";
 import { getEffectiveCapacity as resolveSlotCapacity } from "./capacity";
 import { getScheduleException } from "./schedule-exceptions";
 
@@ -73,20 +75,83 @@ export class BookingService {
       );
     }
 
+    // Fase 161 (ACT-02): flag de gating resuelto SERVER-side (JOIN a activities
+    // en getScheduleSlotRaw), nunca del request (T-161-12).
+    const isSpecialActivity = scheduleRow.isSpecial;
+
+    // "Hoy" en la zona horaria de la sede — reutilizado por la ventana extendida
+    // (D-06) y el conteo de reservas futuras del pase (D-04).
+    const today = todayInTz(scheduleRow.branchTimezone);
+
+    // Rol del actor resuelto SERVER-side (users.role), nunca del body. Se carga
+    // temprano porque el gating de especiales (GATE-01/03/04) depende de él, igual
+    // que el bypass staff cross-country/bonus más abajo. (T-161-12/15)
+    // Fallback seguro: fila de usuario ausente se trata como member (sin bypass
+    // silencioso de staff ante un hueco de datos).
+    const [actor] = await this.db
+      .select({ role: schema.users.role })
+      .from(schema.users)
+      .where(eq(schema.users.id, memberId))
+      .limit(1);
+    const actorRole: string = actor?.role ?? "member";
+
     // 2-4. Validate the booking date against the +2 day member window plus the
     //      not-past, dayOfWeek and holiday checks. Trials use the same checks
     //      with a 30-day window (see validateTrialBookingDate / D-05).
-    await this.assertDateWithinWindow(
-      scheduleRow,
-      date,
-      MEMBER_BOOKING_WINDOW_DAYS,
-    );
+    //      Fase 161 (D-06): las actividades ESPECIALES usan una ventana extendida
+    //      hasta el fin del período del pase; se valida más abajo (tras cargar la
+    //      sub del pase). Las regulares conservan el orden y la ventana de siempre.
+    if (!isSpecialActivity) {
+      await this.assertDateWithinWindow(
+        scheduleRow,
+        date,
+        MEMBER_BOOKING_WINDOW_DAYS,
+      );
+    }
 
-    // 5. Check active subscription
+    // 5. Check active subscription — Fase 161 (PASE-01, GATE-02): ruteada por
+    //    actividad vía pickSubscriptionForActivity (incluye status scheduled, no
+    //    rompe el bloque coverage-from). Para regulares devuelve la sub NO-especial
+    //    (presencial/online); para especiales, la sub del pase.
     const subscription =
-      await this.subscriptionService.getMemberSubscription(memberId);
+      await this.subscriptionService.pickSubscriptionForActivity(
+        memberId,
+        isSpecialActivity,
+      );
     if (!subscription) {
+      // GATE-01/03: member sin pase reservando una especial → pedir el pase.
+      if (isSpecialActivity && actorRole === "member") {
+        throw new PassRequiredError();
+      }
+      // GATE-04: member con SOLO pase (especial) reservando una regular → aviso
+      //          específico de que el pase no habilita las actividades regulares.
+      if (!isSpecialActivity && actorRole === "member") {
+        const allSubs =
+          await this.subscriptionService.getMemberSubscriptions(memberId);
+        const hasEspecial = allSubs.some(
+          (s) => categoryGroup(s.planCategory) === "especial",
+        );
+        const hasNonEspecial = allSubs.some(
+          (s) => categoryGroup(s.planCategory) !== "especial",
+        );
+        if (hasEspecial && !hasNonEspecial) {
+          throw new BadRequestError(
+            "Tu pase solo habilita las actividades especiales",
+          );
+        }
+      }
       throw new BadRequestError("No tenes una suscripcion activa");
+    }
+
+    // Fase 161 (D-06): ventana extendida para especiales — reservable dentro del
+    // período del pase (no los +2 días estándar) para planificar los sábados del
+    // mes. Se deriva de sub.endDate y nunca es más corta que la ventana estándar.
+    if (isSpecialActivity) {
+      const windowDays = this.computeSpecialWindowDays(
+        subscription.endDate,
+        today,
+      );
+      await this.assertDateWithinWindow(scheduleRow, date, windowDays);
     }
 
     // 5a. Coverage block (Phase 144-04, D-12/D-13/D-14): reject a class dated
@@ -115,19 +180,9 @@ export class BookingService {
       );
     }
 
-    // Phase 110 REQ-8: Load actor role to support the staff multi-branch bypass
-    // at the bonus check below. Single SELECT, indexed on users.id (PK).
-    // (Existing SELECT at booking-service.ts:86-89 was NOT reusable — it queries
-    // schema.branches keyed by scheduleRow.branchId, not schema.users keyed by
-    // memberId. Different table + different key → projection cannot be merged.)
-    const [actor] = await this.db
-      .select({ role: schema.users.role })
-      .from(schema.users)
-      .where(eq(schema.users.id, memberId))
-      .limit(1);
-    // Safe fallback: missing user row treated as member so the existing 400
-    // still triggers downstream (defense — no silent staff bypass on data gap).
-    const actorRole: string = actor?.role ?? "member";
+    // Phase 110 REQ-8: `actorRole` (server-derived from users.role) ya fue cargado
+    // arriba, antes del gating de especiales (Fase 161). Se reutiliza acá para el
+    // bypass staff cross-country y de bonus.
 
     // Cross-country guard: a member's subscription is bound to one country
     // (AR or ES today). Reservations on a sede in a different country are
@@ -157,6 +212,24 @@ export class BookingService {
       throw new BadRequestError(
         "Agotaste tus clases del periodo. No podes reservar mas clases.",
       );
+    }
+
+    // 5c. Fase 161 (D-04): para especiales, ADEMÁS del saldo agotado, contar las
+    //     reservas futuras PENDIENTES del pase (reservado/lista_espera sobre
+    //     actividades especiales, fecha >= hoy). El descuento real ocurre al
+    //     check-in; contar las pendientes evita comprometer más clases que el
+    //     budget. Cancelar una reserva baja el conteo y libera el cupo
+    //     automáticamente (flujo de cancel existente).
+    if (isSpecialActivity && subscription.classesRemaining !== null) {
+      const committed = await this.countFuturePendingSpecialBookings(
+        memberId,
+        today,
+      );
+      if (committed >= subscription.classesRemaining) {
+        throw new BadRequestError(
+          "Ya tenés comprometidas todas las clases de tu pase. Cancelá una reserva para liberar cupo.",
+        );
+      }
     }
 
     // 6. Classify booking (fixed plans only): fixed re-book vs bonus.
@@ -1810,6 +1883,56 @@ export class BookingService {
    * Count active bonus bookings (scheduleId not in fixed schedules) for a
    * member's subscription within [periodStart, periodEnd).
    */
+  /**
+   * Fase 161 (D-06): días de ventana de anticipación para una actividad especial
+   * = días desde hoy (zona de la sede) hasta el fin del período del pase. Nunca
+   * más corta que la ventana estándar del member (Math.max). Sin endDate (pase
+   * sin vencimiento) cae al fallback de 30 días. `today`/`endDate` son cadenas
+   * zero-padded YYYY-MM-DD, así que el diff en UTC es estable.
+   */
+  private computeSpecialWindowDays(
+    endDate: string | null,
+    today: string,
+  ): number {
+    if (!endDate) return TRIAL_BOOKING_WINDOW_DAYS;
+    const todayMs = Date.parse(today + "T00:00:00Z");
+    const endMs = Date.parse(endDate + "T00:00:00Z");
+    const diffDays = Math.floor((endMs - todayMs) / 86_400_000);
+    return Math.max(diffDays, MEMBER_BOOKING_WINDOW_DAYS);
+  }
+
+  /**
+   * Fase 161 (D-04): cuenta las reservas futuras PENDIENTES del member sobre
+   * actividades especiales (status reservado/lista_espera, fecha >= fromDate,
+   * JOIN a activities.is_special). qr_escaneado/confirmado ya descontaron
+   * classesRemaining en el check-in, así que se excluyen para no doble-contar.
+   */
+  private async countFuturePendingSpecialBookings(
+    memberId: number,
+    fromDate: string,
+  ): Promise<number> {
+    const [result] = await this.db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(schema.bookings)
+      .innerJoin(
+        schema.schedules,
+        eq(schema.schedules.id, schema.bookings.scheduleId),
+      )
+      .innerJoin(
+        schema.activities,
+        eq(schema.activities.id, schema.schedules.activityId),
+      )
+      .where(
+        and(
+          eq(schema.bookings.memberId, memberId),
+          sql`${schema.bookings.status} IN ('reservado', 'lista_espera')`,
+          gte(schema.bookings.bookingDate, fromDate),
+          eq(schema.activities.isSpecial, true),
+        ),
+      );
+    return Number(result?.count ?? 0);
+  }
+
   private async countBonusBookings(
     memberId: number,
     subscriptionId: number,
