@@ -51,7 +51,7 @@ tercera actividad ("OpenShin" en el audio); (d) si el staff puede pisar el gatin
 ### APP — Member app
 
 - [x] **APP-01**: La grilla de reservas muestra las actividades especiales con distintivo y estado según el acceso del usuario (con pase / sin pase).
-- [ ] **APP-02**: El usuario con pase ve cuántas clases especiales le quedan en el mes (2/2, 1/2, 0/2).
+- [x] **APP-02**: El usuario con pase ve cuántas clases especiales le quedan en el mes (2/2, 1/2, 0/2).
 - [ ] **APP-03**: El usuario sin pase que intenta reservar una actividad especial recibe un mensaje claro de qué es el pase y cómo conseguirlo (informativo — sin pago in-app).
 
 ### REP — Reporte para reparto
@@ -88,6 +88,6 @@ tercera actividad ("OpenShin" en el audio); (d) si el staff puede pisar el gatin
 | GATE-03     | Phase 161 | Complete |
 | GATE-04     | Phase 161 | Complete |
 | APP-01      | Phase 162 | Complete |
-| APP-02      | Phase 162 | Pending  |
+| APP-02      | Phase 162 | Complete |
 | APP-03      | Phase 162 | Pending  |
 | REP-01      | Phase 162 | Pending  |
