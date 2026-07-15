@@ -17,6 +17,7 @@ import { buildApp } from "./app";
 import { startAutoApproveJob } from "./jobs/auto-approve";
 import { startAutoResumePausesJob } from "./jobs/auto-resume-pauses";
 import { startMarkNoShowsJob } from "./jobs/mark-no-shows";
+import { startExpireLostLeadsJob } from "./jobs/expire-lost-leads";
 import { startNotificationJobs } from "./jobs/notification-cron";
 
 async function start() {
@@ -35,6 +36,7 @@ async function start() {
     // discover branch timezones at boot, so they're async.
     startAutoApproveJob(app.db);
     startAutoResumePausesJob(app.db);
+    startExpireLostLeadsJob(app.db);
     await startMarkNoShowsJob(app.db);
     await startNotificationJobs(app.db);
   } catch (err: unknown) {
