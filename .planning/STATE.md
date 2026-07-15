@@ -4,13 +4,13 @@ milestone: v5.7
 milestone_name: Actividades con Aura
 status: executing
 stopped_at: Phase 161 context gathered
-last_updated: "2026-07-15T00:45:38.176Z"
+last_updated: "2026-07-15T01:00:55.977Z"
 last_activity: 2026-07-15
 progress:
   total_phases: 2
   completed_phases: 0
   total_plans: 7
-  completed_plans: 4
+  completed_plans: 6
   percent: 0
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 ## Current Position
 
 Phase: 161 (Núcleo — actividades gateadas, pase mensual y enforcement) — EXECUTING
-Plan: 6 of 7
+Plan: 7 of 7
 Status: Ready to execute
 Last activity: 2026-07-15
 
@@ -332,6 +332,7 @@ _Updated after each plan completion_
 | Phase 161 P03 | 30min | 3 tasks | 3 files |
 | Phase 161 P04 | 13min | 2 tasks | 11 files |
 | Phase 161 P05 | 10min | 2 tasks | 5 files |
+| Phase 161 P06 | ~9min | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -760,6 +761,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: 158-02: notificacion de vinculo activado best-effort dentro de qualifyReferralOnCharge (try/catch + log.warn, nunca rompe el cobro D-33); categoria 'referidos' apendada ultima en el enum (mig 0177); qualifyFirstPayment devuelve el flip para notificar una sola vez
 - [Phase ?]: 161-02: conflicto de assign por categoryGroup (3 grupos) — el pase especial no choca con presencial ni online
 - [Phase ?]: 161-02: renew discrimina la sub por subscriptionId (valida ownership); guard D-09 en los 4 callsites de referral
+- [Phase ?]: 161-06: gating duro de especiales server-side; PassRequiredError→code PASS_REQUIRED en /reserve; D-04 cuenta reservas futuras pendientes; staff bypass con aviso en adminAddBooking
 
 ### Pending Todos
 
@@ -792,7 +794,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-15T00:38:56.858Z
+Last session: 2026-07-15T01:00:49.980Z
 Stopped at: Phase 161 context gathered
 Resume file: None
 

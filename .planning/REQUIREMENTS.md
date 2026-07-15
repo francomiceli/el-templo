@@ -43,10 +43,10 @@ tercera actividad ("OpenShin" en el audio); (d) si el staff puede pisar el gatin
 
 ### GATE — Gating y consumo
 
-- [ ] **GATE-01**: El backend rechaza la reserva de una actividad especial sin pase con saldo, con código de error tipado (hoy no existe gating por actividad).
+- [x] **GATE-01**: El backend rechaza la reserva de una actividad especial sin pase con saldo, con código de error tipado (hoy no existe gating por actividad).
 - [x] **GATE-02**: Cada asistencia a una actividad especial consume 1 clase del pase, no del presupuesto del plan presencial.
-- [ ] **GATE-03**: El socio presencial sin pase no puede reservar actividades especiales; su acceso a clases regulares no cambia en nada.
-- [ ] **GATE-04**: El externo con pase solo puede reservar actividades especiales, no clases regulares.
+- [x] **GATE-03**: El socio presencial sin pase no puede reservar actividades especiales; su acceso a clases regulares no cambia en nada.
+- [x] **GATE-04**: El externo con pase solo puede reservar actividades especiales, no clases regulares.
 
 ### APP — Member app
 
@@ -83,10 +83,10 @@ tercera actividad ("OpenShin" en el audio); (d) si el staff puede pisar el gatin
 | PASE-02     | Phase 161 | Complete |
 | PASE-03     | Phase 161 | Complete |
 | PASE-04     | Phase 161 | Complete |
-| GATE-01     | Phase 161 | Pending  |
+| GATE-01     | Phase 161 | Complete |
 | GATE-02     | Phase 161 | Complete |
-| GATE-03     | Phase 161 | Pending  |
-| GATE-04     | Phase 161 | Pending  |
+| GATE-03     | Phase 161 | Complete |
+| GATE-04     | Phase 161 | Complete |
 | APP-01      | Phase 162 | Pending  |
 | APP-02      | Phase 162 | Pending  |
 | APP-03      | Phase 162 | Pending  |
