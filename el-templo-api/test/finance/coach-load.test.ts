@@ -961,7 +961,7 @@ describe("coach-load caja sugerida por sede del profe", () => {
   });
 });
 
-// ─── mis-cargas (D-07): only the calling coach's own loads ──
+// ─── mis-cargas (D-07): coach sees own loads only; other roles see all ──
 describe("coach-load mis-cargas", () => {
   it("mis-cargas: returns only the calling coach's own loads (recordedBy forced to self)", async () => {
     // Coach load.
@@ -1016,6 +1016,68 @@ describe("coach-load mis-cargas", () => {
     expect(typeof row.createdAt).toBe("string");
     expect(row.createdAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/);
     expect(row.createdAt).not.toBe(row.transactionDate);
+  });
+
+  it("mis-cargas: non-coach roles (recepcion) see ALL loads, not just their own", async () => {
+    await createStaffUser(app, {
+      email: "recep-miscargas@test.local",
+      password: "pass123456",
+      firstName: "Recep",
+      lastName: "MisCargas",
+      role: "recepcion",
+      branchId,
+    });
+    const recepToken = await getAuthToken(
+      app,
+      "recep-miscargas@test.local",
+      "pass123456",
+    );
+
+    // A coach-recorded load...
+    await app.inject({
+      method: "POST",
+      url: `${COACH_LOAD_URL}/misc`,
+      headers: { authorization: `Bearer ${coachToken}` },
+      payload: {
+        memberId,
+        amount: 3000,
+        concepto: "Carga del coach",
+        paymentMethod: "cash",
+        currency: "ARS",
+        idempotencyKey: `theirs-${Date.now()}`,
+        miscReason: "sin_plan",
+      },
+    });
+
+    // ...plus an admin-recorded charge against the same member.
+    await app.db.insert(schema.financialTransactions).values({
+      memberId,
+      kind: "advance_payment",
+      direction: "inflow",
+      amount: 4000,
+      currency: "ARS",
+      paymentMethod: "cash",
+      transactionDate: new Date().toISOString().split("T")[0],
+      effectiveDate: new Date().toISOString().split("T")[0],
+      branchId,
+      recordedBy: adminId,
+      validationStatus: "validado",
+    });
+
+    // Recepción (never recorded anything) still sees BOTH loads.
+    const res = await app.inject({
+      method: "GET",
+      url: `${COACH_LOAD_URL}/mis-cargas`,
+      headers: { authorization: `Bearer ${recepToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.rows.length).toBe(2);
+    const recorders = body.rows.map(
+      (r: { recordedBy: number }) => r.recordedBy,
+    );
+    expect(recorders).toContain(adminId);
+    expect(recorders.some((id: number) => id !== adminId)).toBe(true);
   });
 });
 

@@ -26,9 +26,13 @@
       <q-card v-else-if="myLoads.length === 0" bordered flat>
         <q-card-section class="text-center text-grey-6 q-py-lg">
           <q-icon name="receipt_long" size="md" class="q-mb-sm" />
-          <div class="text-body1">Todavía no registraste cobros</div>
+          <div class="text-body1">
+            {{
+              isCoachUser ? 'Todavía no registraste cobros' : 'Todavía no hay cobros registrados'
+            }}
+          </div>
           <div class="text-subtitle2 text-weight-regular text-grey-7">
-            Cuando registres un cobro, va a aparecer acá con su fecha y hora.
+            Cuando se registre un cobro, va a aparecer acá con su fecha y hora.
           </div>
         </q-card-section>
       </q-card>
@@ -50,6 +54,8 @@
                     formatTime(ticket.createdAt)
                   }}
                   · {{ ticketConcept(ticket) }}
+                  <!-- Roles no-coach ven el listado completo → mostrar quién cargó. -->
+                  <template v-if="!isCoachUser"> · {{ ticket.recorderName }}</template>
                 </div>
                 <div class="q-mt-xs q-gutter-xs">
                   <q-badge
@@ -948,6 +954,9 @@ watch(resumenCurrency, () => {
 // autoridad real es ADMIN_ROLES en la ruta de creación (149 D-04).
 const showCuentaDialog = ref(false);
 const isOwnerUser = computed(() => authStore.user?.role === 'owner');
+// El backend fuerza recordedBy=self SOLO para coach (D-07); el resto de los
+// roles recibe el listado completo → la UI muestra quién cargó cada cobro.
+const isCoachUser = computed(() => authStore.user?.role === 'coach');
 // El diálogo pide país (AR/ES); mapeamos desde la moneda del cobro.
 const chargeCountry = computed<'AR' | 'ES'>(() => (resumenCurrency.value === 'EUR' ? 'ES' : 'AR'));
 const chargeCurrency = computed<'ARS' | 'EUR'>(() =>

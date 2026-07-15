@@ -16,8 +16,9 @@
  *   POST /misc               — cobro suelto (advance_payment, empty links,
  *                              concepto→notes; member balance untouched; idempotent).
  *   GET  /autocompletar/:id  — member's current plan + amount + currency.
- *   GET  /mis-cargas         — the calling coach's OWN loads only (recordedBy
- *                              FORCED to self server-side, never from the query).
+ *   GET  /mis-cargas         — for coach: OWN loads only (recordedBy FORCED to
+ *                              self server-side, never from the query). Other
+ *                              roles (owner/admin/gestion/recepcion): ALL loads.
  *
  * Server-derived, NEVER from the body: validation_status (role→status),
  * cash_register_id (resolveCashRegister), branchId (member's branch + Templo
@@ -936,14 +937,19 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   // ===================================================================
-  // GET /mis-cargas — the calling coach's OWN loads only (D-07). recordedBy is
-  // FORCED to request.user.userId server-side (never from the query) so a coach
-  // never sees other coaches' loads, the full ledger, or caja saldos.
+  // GET /mis-cargas — for role=coach, OWN loads only (D-07): recordedBy is
+  // FORCED to request.user.userId server-side (never from the query) so a
+  // coach never sees other coaches' loads, the full ledger, or caja saldos.
+  // Every other FINANCE_LOAD_ROLES role (owner/admin/gestion/recepcion) is
+  // already in FINANCE_READ_ROLES, so they see ALL loads — the shared view
+  // recepción/gestión need to know what the other person cargó.
   // ===================================================================
   fastify.get("/mis-cargas", async (request, reply) => {
     try {
       const result = await transactionService.list({
-        recordedBy: request.user.userId,
+        ...(request.user.role === "coach"
+          ? { recordedBy: request.user.userId }
+          : {}),
         limit: 50,
       });
       return reply.send(result);

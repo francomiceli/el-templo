@@ -232,10 +232,11 @@ export function useFinanceLoadApi() {
   }
 
   /**
-   * GET /coach-load/mis-cargas — the calling coach's OWN recent loads only
-   * (recordedBy forced to self server-side). Used to render the "Mis cargas de
-   * hoy" ticket list; re-fetching after a successful submit naturally de-dupes
-   * an idempotent no-op (no duplicate row).
+   * GET /coach-load/mis-cargas — for role=coach, the caller's OWN recent loads
+   * only (recordedBy forced to self server-side); every other role receives
+   * ALL recent loads. Used to render the portada ticket list; re-fetching
+   * after a successful submit naturally de-dupes an idempotent no-op (no
+   * duplicate row).
    */
   async function listMyLoads(): Promise<PaginatedResult<TransactionListItem>> {
     loading.value = true;
