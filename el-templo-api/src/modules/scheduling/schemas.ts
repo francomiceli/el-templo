@@ -67,6 +67,9 @@ const weeklySlotViewSchema = {
     // fast-json-stringify strips them and the admin grid can't flag the cell.
     cancelledForDate: { type: "boolean" },
     exceptionReason: { type: ["string", "null"] },
+    // Phase 162-01 (APP-01): declared here or fast-json-stringify strips it
+    // and the member badge never reaches the client.
+    isSpecial: { type: "boolean" },
   },
 } as const;
 

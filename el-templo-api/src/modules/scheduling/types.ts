@@ -66,6 +66,8 @@ export interface WeeklySlotView extends ScheduleSlot {
   cancelledForDate: boolean;
   exceptionReason: string | null;
   unconfirmedAttendance: number;
+  /** Phase 162 (APP-01): actividad especial (activities.is_special) — el app pinta el badge. */
+  isSpecial: boolean;
 }
 
 export interface BookingRecord {

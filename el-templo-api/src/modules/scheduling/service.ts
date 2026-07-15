@@ -174,6 +174,8 @@ export class SchedulingService {
         activityName: schema.activities.name,
         // Phase 155-01 (D-06/D-07): per-slot effective capacity source.
         activityMaxCapacity: schema.activities.maxCapacity,
+        // Phase 162-01 (APP-01): special-activity flag for the member badge.
+        isSpecial: schema.activities.isSpecial,
         dayOfWeek: schema.schedules.dayOfWeek,
         startTime: schema.schedules.startTime,
         endTime: schema.schedules.endTime,
@@ -316,6 +318,7 @@ export class SchedulingService {
         cancelledForDate: exception !== undefined,
         exceptionReason: exception?.reason ?? null,
         unconfirmedAttendance: 0,
+        isSpecial: row.isSpecial,
       });
     }
 
