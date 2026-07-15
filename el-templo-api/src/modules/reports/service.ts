@@ -12,6 +12,7 @@ import * as schema from "../../db/schema";
 import { firmMoneySqlFor } from "../finance/firm-money";
 import { buildMemberNameSearchCondition } from "../shared/member-search";
 import { activeMemberExists } from "../shared/active-member";
+import { ForbiddenError, NotFoundError } from "../shared/errors";
 import type {
   AccessReportFilters,
   AccessReportRow,
@@ -19,6 +20,8 @@ import type {
   ChargeReportFilters,
   ChargeReportRow,
   DebtBucket,
+  DebtManagementUpdateInput,
+  DebtManagementView,
   ExpiredMemberRow,
   ExpiredMembersFilters,
   ExpiredMembersResult,
@@ -745,63 +748,55 @@ export class ReportsService {
   }
 
   /**
-   * Aging report data feed for the "Deudas" tab in ReportesPage (D-08).
-   *
-   * Source: balances WHERE amount > 0 LEFT JOIN subscriptions
-   *   LEFT JOIN subscription_plans LEFT JOIN branches LEFT JOIN users.
-   *
-   * Why LEFT JOIN: target_kind='debt_balance' rows have no subscription, so
-   * an INNER JOIN would silently drop them. Same for branches — debt_balance
-   * rows have no branch.
-   *
-   * Bucket math is in JS (computeAgeInDaysOB / computeBucketOB) — not SQL —
-   * so the clamp at 0 for future effective_dates is portable and timezone-
-   * independent (matches Phase 108 getOutstandingConcepts).
-   *
-   * Filtering nuance:
-   *  - branchId filter implicitly excludes debt_balance rows (no branch).
-   *    Documented; acceptable per D-04 (debt_balance is rare).
-   *  - country filter applied through branches.country. Same exclusion of
-   *    debt_balance applies — semantically correct because debt_balance is
-   *    a virtual concept without geography.
-   *
-   * D-22 — pagination via LIMIT/OFFSET (no cursor). Default page=1, limit=50.
-   * Schema caps limit at 200 (T-109-05 DoS mitigation).
-   *
-   * D-06 — bucketTotals shape varies by isOwner:
-   *   - non-owner: flat BucketTotals (always single currency by country scope).
-   *   - owner: keyed by currency, e.g. { ARS: {...}, EUR: {...} }.
-   *   We NEVER sum amounts across currencies.
-   *
-   * Sort order: ageInDays DESC (oldest debts first).
+   * Última asistencia por miembro (brief §2.3): MAX(attendance.checkedInAt)
+   * agrupado por member_id, LEFT JOINed a cada fila de deuda. Backed por
+   * idx_attendance_member_checked_in. La MISMA instancia debe usarse en el
+   * join y en las conditions/orderBy que la referencian (alias compartido).
    */
-  async getOutstandingBalances(
-    filters: OutstandingBalancesFilters,
-    scope: { isOwner: boolean },
-  ): Promise<OutstandingBalancesResult> {
-    const page = filters.page ?? 1;
-    const limit = filters.limit ?? 50;
-    const offset = (page - 1) * limit;
+  private buildLastAttendanceSubquery() {
+    return this.db
+      .select({
+        memberId: schema.attendance.memberId,
+        lastCheckinAt: sql<
+          Date | string | null
+        >`MAX(${schema.attendance.checkedInAt})`.as("last_checkin_at"),
+      })
+      .from(schema.attendance)
+      .groupBy(schema.attendance.memberId)
+      .as("last_attendance");
+  }
 
-    // ── Build WHERE conditions ──────────────────────────────────────────────
-    const conds: SQL[] = [gt(schema.balances.amount, 0)];
+  /**
+   * Estado efectivo de gestión: una deuda sin fila en debt_management es
+   * 'activa'. Compartido por conditions, statusTotals y projection.
+   */
+  private effectiveDebtStatusSQL(): SQL {
+    return sql`COALESCE(${schema.debtManagement.status}, 'activa')`;
+  }
+
+  /**
+   * Conditions del reporte Deudas SIN el corte por estado (brief §4): sucursal,
+   * país, moneda, búsqueda, promesa de pago, rangos de fecha y asistencia.
+   * El corte por estado se agrega aparte porque statusTotals (cobrable vs
+   * incobrable) necesita el universo filtrado con TODOS los estados.
+   */
+  private buildOutstandingBaseConds(
+    filters: OutstandingBalancesFilters,
+    lastAtt: ReturnType<ReportsService["buildLastAttendanceSubquery"]>,
+  ): SQL[] {
+    const conds: SQL[] = [];
 
     if (filters.branchId !== undefined) {
       // Filter on subscriptions.branchId (LEFT JOIN). debt_balance rows have
-      // no subscription, so they're implicitly excluded — documented above.
+      // no subscription, so they're implicitly excluded — documented (D-04).
       conds.push(eq(schema.subscriptions.branchId, filters.branchId));
     }
-
     if (filters.country !== undefined) {
-      // branches is LEFT JOINed via subscriptions; debt_balance rows have no
-      // branch and are excluded when country filter is active.
       conds.push(eq(schema.branches.country, filters.country));
     }
-
     if (filters.currency !== undefined) {
       conds.push(eq(schema.balances.currency, filters.currency));
     }
-
     if (filters.search !== undefined && filters.search.trim().length > 0) {
       const searchCond = buildMemberNameSearchCondition(filters.search, {
         includeDni: false,
@@ -811,47 +806,123 @@ export class ReportsService {
       }
     }
 
-    const whereClause = and(...conds);
+    // Promesa de pago (brief §4.3). 'sin' también matchea deudas nunca
+    // gestionadas (LEFT JOIN → columna NULL). 'vencida' es la cola de trabajo
+    // de cobranzas: prometió una fecha ya pasada y la deuda no se cobró.
+    if (filters.promise === "con") {
+      conds.push(isNotNull(schema.debtManagement.promisedPaymentDate));
+    } else if (filters.promise === "sin") {
+      conds.push(isNull(schema.debtManagement.promisedPaymentDate));
+    } else if (filters.promise === "vencida") {
+      conds.push(sql`${schema.debtManagement.promisedPaymentDate} < CURDATE()`);
+      conds.push(sql`${this.effectiveDebtStatusSQL()} <> 'cobrada'`);
+    }
 
-    // ── Count (no LIMIT) ────────────────────────────────────────────────────
-    const [countRow] = await this.db
-      .select({ count: sql<number>`COUNT(*)` })
-      .from(schema.balances)
-      .leftJoin(
-        schema.subscriptions,
-        and(
-          eq(schema.balances.targetKind, "subscription"),
-          eq(schema.subscriptions.id, schema.balances.targetId),
-        ),
-      )
-      .leftJoin(
-        schema.subscriptionPlans,
-        eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
-      )
-      .leftJoin(
-        schema.branches,
-        eq(schema.branches.id, schema.subscriptions.branchId),
-      )
-      .leftJoin(schema.users, eq(schema.users.id, schema.balances.memberId))
-      .where(whereClause);
+    // Rangos de fecha (brief §4.2): registro = DATE(balances.createdAt);
+    // devengo = COALESCE(subscriptions.startDate, registro) — el mismo
+    // fallback que deriveEffectiveDateAndLabelOB usa para effectiveDate.
+    if (filters.registeredFrom !== undefined) {
+      conds.push(
+        sql`DATE(${schema.balances.createdAt}) >= ${filters.registeredFrom}`,
+      );
+    }
+    if (filters.registeredTo !== undefined) {
+      conds.push(
+        sql`DATE(${schema.balances.createdAt}) <= ${filters.registeredTo}`,
+      );
+    }
+    if (filters.accruedFrom !== undefined) {
+      conds.push(
+        sql`COALESCE(${schema.subscriptions.startDate}, DATE(${schema.balances.createdAt})) >= ${filters.accruedFrom}`,
+      );
+    }
+    if (filters.accruedTo !== undefined) {
+      conds.push(
+        sql`COALESCE(${schema.subscriptions.startDate}, DATE(${schema.balances.createdAt})) <= ${filters.accruedTo}`,
+      );
+    }
 
-    const total = Number(countRow?.count ?? 0);
+    // "Sin asistir hace más de X días" (brief §4.4): detector de fantasmas.
+    // NULL (nunca asistió) cuenta como fantasma — sin registro de asistencia
+    // no hay evidencia de que siga viniendo.
+    if (filters.minDaysSinceAttendance !== undefined) {
+      conds.push(
+        sql`(${lastAtt.lastCheckinAt} IS NULL OR ${lastAtt.lastCheckinAt} < DATE_SUB(CURDATE(), INTERVAL ${filters.minDaysSinceAttendance} DAY))`,
+      );
+    }
 
-    // ── Paginated rows query ────────────────────────────────────────────────
-    // ORDER BY effective_date ASC (older subscriptions first) before JS clamp.
-    // For debt_balance rows where subscriptions.startDate is null we fall back
-    // to balances.createdAt — emulated in SQL via COALESCE so the DB-side sort
-    // is roughly stable. Final sort in JS by ageInDays DESC guards against any
-    // edge case (future effective_date clamps to 0).
+    return conds;
+  }
+
+  /**
+   * Corte por estado (brief §4.5). Default 'activa' = la vista de trabajo:
+   * deuda vigente (amount > 0) sin baja. 'cobrada'/'incobrable' relajan el
+   * `amount > 0` histórico — una cobrada quedó saldada en 0 y debe seguir
+   * visible en su filtro (brief §2.4: "sale del reporte de pendientes o queda
+   * visible en un filtro aparte").
+   */
+  private buildOutstandingStatusConds(
+    status: OutstandingBalancesFilters["status"],
+  ): SQL[] {
+    const effStatus = this.effectiveDebtStatusSQL();
+    const effective = status ?? "activa";
+    if (effective === "activa") {
+      return [gt(schema.balances.amount, 0), sql`${effStatus} = 'activa'`];
+    }
+    if (effective === "incobrable") {
+      return [sql`${effStatus} = 'incobrable'`];
+    }
+    return [sql`${effStatus} = 'cobrada'`];
+  }
+
+  /**
+   * ORDER BY del listado (brief §4.1/4.4/4.7), determinista vía tiebreaker
+   * balances.id (WR-03). La antigüedad se ordena por balances.createdAt
+   * invertido (antigüedad = hoy − createdAt, así que "más vieja primero" =
+   * createdAt ASC). Última asistencia ASC deja los NULL (nunca asistió)
+   * primero — los "más abandonados" arriba (default de MySQL para ASC).
+   */
+  private buildOutstandingOrderBy(
+    filters: OutstandingBalancesFilters,
+    lastAtt: ReturnType<ReportsService["buildLastAttendanceSubquery"]>,
+  ): SQL {
+    const sortBy = filters.sortBy ?? "age";
+    const dir = filters.sortDir ?? "desc";
+    if (sortBy === "amount") {
+      return dir === "asc"
+        ? sql`${schema.balances.amount} ASC, ${schema.balances.id} ASC`
+        : sql`${schema.balances.amount} DESC, ${schema.balances.id} ASC`;
+    }
+    if (sortBy === "lastAttendance") {
+      return dir === "asc"
+        ? sql`${lastAtt.lastCheckinAt} ASC, ${schema.balances.id} ASC`
+        : sql`${lastAtt.lastCheckinAt} DESC, ${schema.balances.id} ASC`;
+    }
+    // age (default): DESC = más vieja primero = createdAt ASC.
+    return dir === "asc"
+      ? sql`${schema.balances.createdAt} DESC, ${schema.balances.id} DESC`
+      : sql`${schema.balances.createdAt} ASC, ${schema.balances.id} ASC`;
+  }
+
+  /**
+   * SELECT + joins + mapping de filas del reporte Deudas — la única fuente de
+   * verdad compartida por el listado paginado y el export Excel para que
+   * nunca deriven (mismo contrato que ya cumplían por copia, ahora por DRY).
+   */
+  private async selectOutstandingRows(opts: {
+    lastAtt: ReturnType<ReportsService["buildLastAttendanceSubquery"]>;
+    whereClause: SQL | undefined;
+    orderBy: SQL;
+    limit?: number;
+    offset?: number;
+  }): Promise<OutstandingBalanceRow[]> {
     // Phase 153 (DEUDA-02/D-11): resolve the origin advance_payment of each
-    // debt_balance to derive the motivo (miscReason) + free-text note. A
-    // debt_balance could in theory be linked to more than one advance_payment;
-    // we pick the deterministic origin = MIN(id) (earliest, autoincrement) via
-    // a grouped derived table so the LEFT JOIN never multiplies balance rows.
+    // debt_balance to derive the motivo (miscReason) + free-text note.
     const debtOriginTx = this.buildDebtOriginTxSubquery();
 
-    const rawRows = await this.db
+    let query = this.db
       .select({
+        balanceId: schema.balances.id,
         memberId: schema.balances.memberId,
         memberFirstName: schema.users.firstName,
         memberLastName: schema.users.lastName,
@@ -868,6 +939,10 @@ export class ReportsService {
         balanceCreatedAt: schema.balances.createdAt,
         originMiscReason: schema.financialTransactions.miscReason,
         originNotes: schema.financialTransactions.notes,
+        dmStatus: schema.debtManagement.status,
+        dmPromisedPaymentDate: schema.debtManagement.promisedPaymentDate,
+        dmNotes: schema.debtManagement.notes,
+        lastCheckinAt: opts.lastAtt.lastCheckinAt,
       })
       .from(schema.balances)
       .leftJoin(
@@ -887,6 +962,14 @@ export class ReportsService {
       )
       .leftJoin(schema.users, eq(schema.users.id, schema.balances.memberId))
       .leftJoin(
+        schema.debtManagement,
+        eq(schema.debtManagement.balanceId, schema.balances.id),
+      )
+      .leftJoin(
+        opts.lastAtt,
+        eq(opts.lastAtt.memberId, schema.balances.memberId),
+      )
+      .leftJoin(
         debtOriginTx,
         and(
           eq(schema.balances.targetKind, "debt_balance"),
@@ -897,19 +980,20 @@ export class ReportsService {
         schema.financialTransactions,
         eq(schema.financialTransactions.id, debtOriginTx.txId),
       )
-      .where(whereClause)
-      .orderBy(
-        // Antigüedad = hoy − balances.createdAt (fecha de CREACIÓN de la deuda, NO
-        // el devengado del plan): pre-sort por createdAt ASC (más vieja primero) para
-        // que el corte de paginación coincida con el orden final por ageInDays DESC.
-        // WR-03: tiebreaker único (balances.id) → paginación LIMIT/OFFSET determinista
-        // cuando varias deudas comparten fecha. El sort final en JS reordena la página.
-        sql`${schema.balances.createdAt} ASC, ${schema.balances.id} ASC`,
-      )
-      .limit(limit)
-      .offset(offset);
+      .where(opts.whereClause)
+      .orderBy(opts.orderBy)
+      .$dynamic();
 
-    const mapped: OutstandingBalanceRow[] = rawRows.map((r) => {
+    if (opts.limit !== undefined) {
+      query = query.limit(opts.limit);
+    }
+    if (opts.offset !== undefined) {
+      query = query.offset(opts.offset);
+    }
+
+    const rawRows = await query;
+
+    return rawRows.map((r) => {
       const {
         effectiveDate,
         conceptLabel,
@@ -953,13 +1037,110 @@ export class ReportsService {
         effectiveDate,
         ageInDays,
         bucket,
+        balanceId: r.balanceId,
+        status: r.dmStatus ?? "activa",
+        promisedPaymentDate: r.dmPromisedPaymentDate ?? null,
+        managementNotes: r.dmNotes ?? null,
+        lastAttendanceAt:
+          r.lastCheckinAt !== null && r.lastCheckinAt !== undefined
+            ? isoDatePortionOB(r.lastCheckinAt)
+            : null,
       };
     });
+  }
 
-    // Final sort: ageInDays DESC (oldest first). SQL ORDER BY effective_date
-    // ASC produces equivalent ordering in the common case, but explicit JS
-    // sort guards against COALESCE quirks and the future-date clamp at 0.
-    mapped.sort((a, b) => b.ageInDays - a.ageInDays);
+  /**
+   * Aging report data feed for the "Deudas" tab in ReportesPage (D-08).
+   *
+   * Source: balances WHERE amount > 0 LEFT JOIN subscriptions
+   *   LEFT JOIN subscription_plans LEFT JOIN branches LEFT JOIN users.
+   *
+   * Why LEFT JOIN: target_kind='debt_balance' rows have no subscription, so
+   * an INNER JOIN would silently drop them. Same for branches — debt_balance
+   * rows have no branch.
+   *
+   * Bucket math is in JS (computeAgeInDaysOB / computeBucketOB) — not SQL —
+   * so the clamp at 0 for future effective_dates is portable and timezone-
+   * independent (matches Phase 108 getOutstandingConcepts).
+   *
+   * Filtering nuance:
+   *  - branchId filter implicitly excludes debt_balance rows (no branch).
+   *    Documented; acceptable per D-04 (debt_balance is rare).
+   *  - country filter applied through branches.country. Same exclusion of
+   *    debt_balance applies — semantically correct because debt_balance is
+   *    a virtual concept without geography.
+   *
+   * D-22 — pagination via LIMIT/OFFSET (no cursor). Default page=1, limit=50.
+   * Schema caps limit at 200 (T-109-05 DoS mitigation).
+   *
+   * D-06 — bucketTotals shape varies by isOwner:
+   *   - non-owner: flat BucketTotals (always single currency by country scope).
+   *   - owner: keyed by currency, e.g. { ARS: {...}, EUR: {...} }.
+   *   We NEVER sum amounts across currencies.
+   *
+   * Sort order: ageInDays DESC (oldest debts first).
+   */
+  async getOutstandingBalances(
+    filters: OutstandingBalancesFilters,
+    scope: { isOwner: boolean },
+  ): Promise<OutstandingBalancesResult> {
+    const page = filters.page ?? 1;
+    const limit = filters.limit ?? 50;
+    const offset = (page - 1) * limit;
+
+    // ── Build WHERE conditions ──────────────────────────────────────────────
+    // Base (sucursal/país/moneda/búsqueda/promesa/fechas/asistencia) + corte
+    // por estado (default 'activa'). La MISMA instancia de lastAtt se usa en
+    // conditions, joins y orderBy (alias compartido del derived table).
+    const lastAtt = this.buildLastAttendanceSubquery();
+    const baseConds = this.buildOutstandingBaseConds(filters, lastAtt);
+    const whereClause = and(
+      ...this.buildOutstandingStatusConds(filters.status),
+      ...baseConds,
+    );
+
+    // ── Count (no LIMIT) ────────────────────────────────────────────────────
+    // debt_management + last_attendance joined porque el WHERE puede
+    // referenciar estado/promesa/asistencia.
+    const [countRow] = await this.db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(schema.balances)
+      .leftJoin(
+        schema.subscriptions,
+        and(
+          eq(schema.balances.targetKind, "subscription"),
+          eq(schema.subscriptions.id, schema.balances.targetId),
+        ),
+      )
+      .leftJoin(
+        schema.subscriptionPlans,
+        eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
+      )
+      .leftJoin(
+        schema.branches,
+        eq(schema.branches.id, schema.subscriptions.branchId),
+      )
+      .leftJoin(schema.users, eq(schema.users.id, schema.balances.memberId))
+      .leftJoin(
+        schema.debtManagement,
+        eq(schema.debtManagement.balanceId, schema.balances.id),
+      )
+      .leftJoin(lastAtt, eq(lastAtt.memberId, schema.balances.memberId))
+      .where(whereClause);
+
+    const total = Number(countRow?.count ?? 0);
+
+    // ── Paginated rows query ────────────────────────────────────────────────
+    // Proyección + joins + mapping compartidos con el export (DRY) vía
+    // selectOutstandingRows. El orden es determinista (tiebreaker balances.id)
+    // así que la paginación LIMIT/OFFSET no duplica ni pierde filas.
+    const mapped = await this.selectOutstandingRows({
+      lastAtt,
+      whereClause,
+      orderBy: this.buildOutstandingOrderBy(filters, lastAtt),
+      limit,
+      offset,
+    });
 
     // ── bucketTotals (full filtered set, no LIMIT) ──────────────────────────
     // Single query over the same JOINs and WHERE. We project just what's
@@ -991,6 +1172,11 @@ export class ReportsService {
         eq(schema.branches.id, schema.subscriptions.branchId),
       )
       .leftJoin(schema.users, eq(schema.users.id, schema.balances.memberId))
+      .leftJoin(
+        schema.debtManagement,
+        eq(schema.debtManagement.balanceId, schema.balances.id),
+      )
+      .leftJoin(lastAtt, eq(lastAtt.memberId, schema.balances.memberId))
       .where(whereClause);
 
     let bucketTotals: BucketTotals | Record<string, BucketTotals>;
@@ -1016,7 +1202,53 @@ export class ReportsService {
       bucketTotals = flat;
     }
 
-    return { rows: mapped, total, page, limit, bucketTotals };
+    // ── statusTotals — cobrable vs incobrable (brief §2.4) ──────────────────
+    // Universo filtrado SIN el corte por estado (deuda viva, amount > 0),
+    // agrupado por moneda y estado efectivo. Las 'cobrada' quedan afuera por
+    // definición (saldadas en 0 — y una cobrada manual con saldo > 0 no es ni
+    // cobrable ni baja, se ignora del resumen).
+    const statusTotalsRows = await this.db
+      .select({
+        currency: schema.balances.currency,
+        effStatus: sql<string>`${this.effectiveDebtStatusSQL()}`.as(
+          "eff_status",
+        ),
+        totalAmount: sql<number>`CAST(SUM(${schema.balances.amount}) AS SIGNED)`,
+      })
+      .from(schema.balances)
+      .leftJoin(
+        schema.subscriptions,
+        and(
+          eq(schema.balances.targetKind, "subscription"),
+          eq(schema.subscriptions.id, schema.balances.targetId),
+        ),
+      )
+      .leftJoin(
+        schema.branches,
+        eq(schema.branches.id, schema.subscriptions.branchId),
+      )
+      .leftJoin(schema.users, eq(schema.users.id, schema.balances.memberId))
+      .leftJoin(
+        schema.debtManagement,
+        eq(schema.debtManagement.balanceId, schema.balances.id),
+      )
+      .leftJoin(lastAtt, eq(lastAtt.memberId, schema.balances.memberId))
+      .where(and(gt(schema.balances.amount, 0), ...baseConds))
+      .groupBy(schema.balances.currency, sql`eff_status`);
+
+    const statusTotals: OutstandingBalancesResult["statusTotals"] = {
+      cobrable: {},
+      incobrable: {},
+    };
+    for (const r of statusTotalsRows) {
+      if (r.effStatus === "activa") {
+        statusTotals.cobrable[r.currency] = Number(r.totalAmount);
+      } else if (r.effStatus === "incobrable") {
+        statusTotals.incobrable[r.currency] = Number(r.totalAmount);
+      }
+    }
+
+    return { rows: mapped, total, page, limit, bucketTotals, statusTotals };
   }
 
   // ─── Expired members / "Vencidos" (DEUDA-04, Phase 153-02) ───────────────
@@ -1935,11 +2167,11 @@ export class ReportsService {
   /**
    * Phase 109-04 — Export rows for the Deudas (outstanding balances) report.
    *
-   * Returns the full filtered set in one shot (no pagination), sorted
-   * ageInDays DESC. Mirrors `getOutstandingBalances` filter semantics
-   * exactly so the export contains byte-identical rows to what the
-   * paginated listing would produce. We skip the bucketTotals scan
-   * because the export only needs row-level data.
+   * Returns the full filtered set in one shot (no pagination). Shares
+   * conditions, joins, projection and sort with `getOutstandingBalances`
+   * (selectOutstandingRows) so the export contains byte-identical rows to
+   * what the paginated listing would produce. We skip the bucketTotals /
+   * statusTotals scans because the export only needs row-level data.
    *
    * Like the listing endpoint, branchId/country filters implicitly
    * exclude debt_balance rows (no branch/no geography).
@@ -1947,50 +2179,38 @@ export class ReportsService {
   async exportOutstandingBalances(
     filters: OutstandingBalancesFilters,
   ): Promise<OutstandingBalanceRow[]> {
-    // ── Build WHERE conditions ──────────────────────────────────────────────
-    const conds: SQL[] = [gt(schema.balances.amount, 0)];
+    const lastAtt = this.buildLastAttendanceSubquery();
+    const whereClause = and(
+      ...this.buildOutstandingStatusConds(filters.status),
+      ...this.buildOutstandingBaseConds(filters, lastAtt),
+    );
+    return this.selectOutstandingRows({
+      lastAtt,
+      whereClause,
+      orderBy: this.buildOutstandingOrderBy(filters, lastAtt),
+    });
+  }
 
-    if (filters.branchId !== undefined) {
-      conds.push(eq(schema.subscriptions.branchId, filters.branchId));
-    }
-    if (filters.country !== undefined) {
-      conds.push(eq(schema.branches.country, filters.country));
-    }
-    if (filters.currency !== undefined) {
-      conds.push(eq(schema.balances.currency, filters.currency));
-    }
-    if (filters.search !== undefined && filters.search.trim().length > 0) {
-      const searchCond = buildMemberNameSearchCondition(filters.search, {
-        includeDni: false,
-      });
-      if (searchCond !== null) {
-        conds.push(searchCond);
-      }
-    }
-
-    const whereClause = and(...conds);
-
-    // Phase 153 — same origin-tx resolution as getOutstandingBalances (DRY).
-    const debtOriginTx = this.buildDebtOriginTxSubquery();
-
-    const rawRows = await this.db
+  /**
+   * Gestión de una deuda (brief §2/§3): upsert de promesa de pago,
+   * observaciones y estado sobre debt_management, keyed por balanceId (la
+   * identidad única de la deuda en el reporte). Campos no provistos quedan
+   * como están — el PATCH es parcial. `null` explícito borra promesa/notas.
+   *
+   * Scope del non-owner: espeja la visibilidad del listado — su listado
+   * SIEMPRE filtra por su país (lo que excluye deudas sin sucursal, las
+   * debt_balance), así que solo puede gestionar deudas de sucursales de su
+   * país. Fail-closed si el scope de país no resolvió.
+   */
+  async updateDebtManagement(
+    balanceId: number,
+    input: DebtManagementUpdateInput,
+    actor: { userId: number; isOwner: boolean; country: "AR" | "ES" | null },
+  ): Promise<DebtManagementView> {
+    const [bal] = await this.db
       .select({
-        memberId: schema.balances.memberId,
-        memberFirstName: schema.users.firstName,
-        memberLastName: schema.users.lastName,
-        memberPhone: schema.users.phone,
-        branchId: schema.subscriptions.branchId,
-        branchName: schema.branches.name,
-        targetKind: schema.balances.targetKind,
-        targetId: schema.balances.targetId,
-        amount: schema.balances.amount,
-        currency: schema.balances.currency,
-        subscriptionStartDate: schema.subscriptions.startDate,
-        subscriptionEndDate: schema.subscriptions.endDate,
-        planName: schema.subscriptionPlans.name,
-        balanceCreatedAt: schema.balances.createdAt,
-        originMiscReason: schema.financialTransactions.miscReason,
-        originNotes: schema.financialTransactions.notes,
+        id: schema.balances.id,
+        branchCountry: schema.branches.country,
       })
       .from(schema.balances)
       .leftJoin(
@@ -2001,82 +2221,59 @@ export class ReportsService {
         ),
       )
       .leftJoin(
-        schema.subscriptionPlans,
-        eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
-      )
-      .leftJoin(
         schema.branches,
         eq(schema.branches.id, schema.subscriptions.branchId),
       )
-      .leftJoin(schema.users, eq(schema.users.id, schema.balances.memberId))
-      .leftJoin(
-        debtOriginTx,
-        and(
-          eq(schema.balances.targetKind, "debt_balance"),
-          eq(debtOriginTx.targetId, schema.balances.targetId),
-        ),
-      )
-      .leftJoin(
-        schema.financialTransactions,
-        eq(schema.financialTransactions.id, debtOriginTx.txId),
-      )
-      .where(whereClause)
-      // Pre-sort por fecha de creación ASC (deuda más vieja primero) para que
-      // el corte de paginación coincida con el orden final por ageInDays DESC
-      // (antigüedad = hoy − createdAt). El sort final en JS reordena la página.
-      .orderBy(sql`${schema.balances.createdAt} ASC`);
+      .where(eq(schema.balances.id, balanceId))
+      .limit(1);
 
-    const mapped: OutstandingBalanceRow[] = rawRows.map((r) => {
-      const {
-        effectiveDate,
-        conceptLabel,
-        reasonLabel,
-        periodStart,
-        periodEnd,
-        registeredAt,
-        notes,
-      } = deriveEffectiveDateAndLabelOB({
-        targetKind: r.targetKind,
-        targetId: r.targetId,
-        subscriptionStartDate: r.subscriptionStartDate,
-        subscriptionEndDate: r.subscriptionEndDate,
-        planName: r.planName,
-        balanceCreatedAt: r.balanceCreatedAt,
-        miscReason: r.originMiscReason,
-        transactionNotes: r.originNotes,
+    if (!bal) {
+      throw new NotFoundError("Deuda no encontrada");
+    }
+    if (!actor.isOwner) {
+      if (actor.country === null || bal.branchCountry !== actor.country) {
+        throw new ForbiddenError("La deuda no pertenece a tu país");
+      }
+    }
+
+    // Upsert atómico vía UNIQUE(balance_id): el INSERT siembra defaults y el
+    // ON DUPLICATE KEY UPDATE pisa SOLO los campos provistos (PATCH parcial).
+    await this.db
+      .insert(schema.debtManagement)
+      .values({
+        balanceId,
+        status: input.status ?? "activa",
+        promisedPaymentDate: input.promisedPaymentDate ?? null,
+        notes: input.notes ?? null,
+        updatedBy: actor.userId,
+      })
+      .onDuplicateKeyUpdate({
+        set: {
+          updatedBy: actor.userId,
+          ...(input.status !== undefined ? { status: input.status } : {}),
+          ...(input.promisedPaymentDate !== undefined
+            ? { promisedPaymentDate: input.promisedPaymentDate }
+            : {}),
+          ...(input.notes !== undefined ? { notes: input.notes } : {}),
+        },
       });
-      const ageInDays = computeAgeInDaysOB(
-        debtCreationDateOB(r.balanceCreatedAt),
-      );
-      const bucket = computeBucketOB(ageInDays);
-      const memberName =
-        `${r.memberFirstName ?? ""} ${r.memberLastName ?? ""}`.trim();
-      return {
-        memberId: r.memberId,
-        memberName,
-        memberPhone: r.memberPhone ?? null,
-        branchId: r.branchId ?? null,
-        branchName: r.branchName ?? null,
-        targetKind: r.targetKind,
-        targetId: r.targetId,
-        conceptLabel,
-        reasonLabel,
-        periodStart,
-        periodEnd,
-        registeredAt,
-        notes,
-        amount: Number(r.amount),
-        currency: r.currency,
-        effectiveDate,
-        ageInDays,
-        bucket,
-      };
-    });
 
-    // Final sort: ageInDays DESC (oldest first).
-    mapped.sort((a, b) => b.ageInDays - a.ageInDays);
+    const [row] = await this.db
+      .select({
+        status: schema.debtManagement.status,
+        promisedPaymentDate: schema.debtManagement.promisedPaymentDate,
+        notes: schema.debtManagement.notes,
+      })
+      .from(schema.debtManagement)
+      .where(eq(schema.debtManagement.balanceId, balanceId))
+      .limit(1);
 
-    return mapped;
+    return {
+      balanceId,
+      status: row?.status ?? "activa",
+      promisedPaymentDate: row?.promisedPaymentDate ?? null,
+      notes: row?.notes ?? null,
+    };
   }
 
   // ═══════════════════════════════════════════════════════════════════════════

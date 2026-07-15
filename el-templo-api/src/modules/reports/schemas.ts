@@ -315,6 +315,17 @@ export const outstandingBalancesSchema = {
       // here.
       currency: { type: "string", minLength: 2, maxLength: 4 },
       search: { type: "string", maxLength: 100 },
+      // Gestión de deudas (brief §4): estado (default 'activa' en el service),
+      // promesa de pago, rangos de fecha (registro/devengo), fantasmas y orden.
+      status: { type: "string", enum: ["activa", "cobrada", "incobrable"] },
+      promise: { type: "string", enum: ["con", "sin", "vencida"] },
+      registeredFrom: { type: "string", format: "date" },
+      registeredTo: { type: "string", format: "date" },
+      accruedFrom: { type: "string", format: "date" },
+      accruedTo: { type: "string", format: "date" },
+      minDaysSinceAttendance: { type: "integer", minimum: 1, maximum: 3650 },
+      sortBy: { type: "string", enum: ["age", "amount", "lastAttendance"] },
+      sortDir: { type: "string", enum: ["asc", "desc"] },
       page: { type: "integer", minimum: 1 },
       limit: { type: "integer", minimum: 1, maximum: 200 },
     },
@@ -354,6 +365,16 @@ export const outstandingBalancesSchema = {
                 type: "string",
                 enum: ["0-5", "6-10", "11-15", "15+"],
               },
+              // Gestión de deudas (brief §2) — sin estos campos acá,
+              // fast-json-stringify los strippearía de la respuesta.
+              balanceId: { type: "integer" },
+              status: {
+                type: "string",
+                enum: ["activa", "cobrada", "incobrable"],
+              },
+              promisedPaymentDate: { type: ["string", "null"] },
+              managementNotes: { type: ["string", "null"] },
+              lastAttendanceAt: { type: ["string", "null"] },
             },
           },
         },
@@ -362,10 +383,62 @@ export const outstandingBalancesSchema = {
         limit: { type: "integer" },
         // Owner: keyed by currency. Non-owner: flat per-bucket. Allow both.
         bucketTotals: { type: "object", additionalProperties: true },
+        // Cobrable vs incobrable por moneda (brief §2.4).
+        statusTotals: {
+          type: "object",
+          properties: {
+            cobrable: { type: "object", additionalProperties: true },
+            incobrable: { type: "object", additionalProperties: true },
+          },
+        },
       },
     },
     401: errorSchema,
     403: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+/**
+ * PATCH /outstanding-balances/:balanceId/management — upsert de la capa de
+ * gestión de una deuda (brief §2/§3). Body parcial: solo lo provisto se
+ * actualiza; null explícito borra promesa/observaciones.
+ */
+export const debtManagementPatchSchema = {
+  params: {
+    type: "object",
+    properties: {
+      balanceId: { type: "integer", minimum: 1 },
+    },
+    required: ["balanceId"],
+    additionalProperties: false,
+  },
+  body: {
+    type: "object",
+    properties: {
+      status: { type: "string", enum: ["activa", "cobrada", "incobrable"] },
+      promisedPaymentDate: { type: ["string", "null"], format: "date" },
+      notes: { type: ["string", "null"], maxLength: 2000 },
+    },
+    additionalProperties: false,
+  },
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        balanceId: { type: "integer" },
+        status: {
+          type: "string",
+          enum: ["activa", "cobrada", "incobrable"],
+        },
+        promisedPaymentDate: { type: ["string", "null"] },
+        notes: { type: ["string", "null"] },
+      },
+    },
+    400: errorSchema,
+    401: errorSchema,
+    403: errorSchema,
+    404: errorSchema,
     500: errorSchema,
   },
 } as const;
@@ -383,6 +456,16 @@ export const outstandingBalancesExportSchema = {
       country: { type: "string", enum: ["AR", "ES"] },
       currency: { type: "string", minLength: 2, maxLength: 4 },
       search: { type: "string", maxLength: 100 },
+      // Gestión de deudas (brief §4) — espeja el listado, sin paginación.
+      status: { type: "string", enum: ["activa", "cobrada", "incobrable"] },
+      promise: { type: "string", enum: ["con", "sin", "vencida"] },
+      registeredFrom: { type: "string", format: "date" },
+      registeredTo: { type: "string", format: "date" },
+      accruedFrom: { type: "string", format: "date" },
+      accruedTo: { type: "string", format: "date" },
+      minDaysSinceAttendance: { type: "integer", minimum: 1, maximum: 3650 },
+      sortBy: { type: "string", enum: ["age", "amount", "lastAttendance"] },
+      sortDir: { type: "string", enum: ["asc", "desc"] },
     },
     additionalProperties: false,
   },

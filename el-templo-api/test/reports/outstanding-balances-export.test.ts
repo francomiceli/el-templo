@@ -314,7 +314,9 @@ describe("Reports API — GET /outstanding-balances/export (Phase 109-04)", () =
     // Header row + 2 data rows = 3.
     expect(sheet.rowCount).toBe(3);
 
-    // 13 columns (Phase 153 sumó Motivo / Período / Fecha de registro) — orden load-bearing.
+    // 17 columns (Phase 153 sumó Motivo / Período / Fecha de registro; la
+    // gestión de deudas sumó Última asistencia / Promesa / Estado /
+    // Observaciones) — orden load-bearing.
     const header = sheet.getRow(1);
     expect(header.getCell(1).value).toBe("Miembro");
     expect(header.getCell(2).value).toBe("Teléfono");
@@ -328,7 +330,11 @@ describe("Reports API — GET /outstanding-balances/export (Phase 109-04)", () =
     expect(header.getCell(10).value).toBe("Bucket");
     expect(header.getCell(11).value).toBe("Fecha devengo");
     expect(header.getCell(12).value).toBe("Fecha de registro");
-    expect(header.getCell(13).value).toBe("Tipo");
+    expect(header.getCell(13).value).toBe("Última asistencia");
+    expect(header.getCell(14).value).toBe("Promesa de pago");
+    expect(header.getCell(15).value).toBe("Estado");
+    expect(header.getCell(16).value).toBe("Observaciones");
+    expect(header.getCell(17).value).toBe("Tipo");
 
     // Sort: ageInDays DESC. Oldest balance (45d, Juan) is first data row.
     const firstRow = sheet.getRow(2);
@@ -337,7 +343,10 @@ describe("Reports API — GET /outstanding-balances/export (Phase 109-04)", () =
     expect(firstRow.getCell(9).value).toBe(45);
     // 45d → bucket "15+ días"
     expect(firstRow.getCell(10).value).toBe("15+ días");
-    expect(firstRow.getCell(13).value).toBe("Plan");
+    // Sin asistencias ni gestión seedeadas: defaults honestos.
+    expect(firstRow.getCell(13).value).toBe("Nunca");
+    expect(firstRow.getCell(15).value).toBe("Activa");
+    expect(firstRow.getCell(17).value).toBe("Plan");
   });
 
   it("X1b: un plan programado a futuro SÍ se exporta como deuda (cobrable hoy)", async () => {
