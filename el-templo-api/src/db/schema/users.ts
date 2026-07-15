@@ -77,6 +77,19 @@ export const leadStatusEnum = mysqlEnum("lead_status", [
   "ganado",
   "perdido",
 ]);
+// Phase 163 (D-07): audit del origen del lead_status. 'auto' = puesto por el
+// automatismo (hook de compra recomputeUserStatus, cron de vencimiento
+// expire-lost-leads, reset al re-agendar, alta de lead); 'manual' = puesto a
+// mano por gestión vía PATCH /api/admin/leads/:userId. NULL = histórico/
+// desconocido, tratado como 'auto' por el cron (que NUNCA pisa un 'manual').
+// First arg "lead_status_source" es el nombre físico de la columna — la lista
+// de valores DEBE quedar byte-idéntica al ALTER del migration 0182 para evitar
+// enum drift (lesson 125/126). Sin índice nuevo (D-05): idx_users_lead_status
+// ya existe y el cron filtra por lead_status primero.
+export const leadStatusSourceEnum = mysqlEnum("lead_status_source", [
+  "auto",
+  "manual",
+]);
 
 export const users = mysqlTable(
   "users",
@@ -139,6 +152,9 @@ export const users = mysqlTable(
     // Admin-editable via PATCH /api/admin/leads/:userId (Plan 04). No DB
     // default — explicit setter at insert time only (D-15, D-20).
     leadStatus: leadStatusEnum,
+    // Phase 163 (D-07): origen del lead_status (auto|manual). NULL = histórico/
+    // desconocido, tratado como 'auto' por el cron. Ver leadStatusSourceEnum.
+    leadStatusSource: leadStatusSourceEnum,
     // Phase 114 (D-16): free-text comments on the lead. Editable by admin.
     // Hotfix 2026-07 (migration 0170): notes are free-text ONLY — the plan
     // the lead bought lives in purchasedPlanId, never here. The old
