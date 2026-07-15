@@ -21,6 +21,7 @@ import {
   assignCoachBodySchema,
   submitRatingBodySchema,
   pendingRatingSchema,
+  ownerRatingsQuerySchema,
 } from "./schemas";
 import { ALL_STAFF_ROLES } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
@@ -111,8 +112,17 @@ export const ratingsAdminRoutes: FastifyPluginAsync = async (fastify) => {
     },
   );
 
-  // GET / — owner-only ratings view (per-coach average + recent, D-O1/D-M3).
-  fastify.get("/", async (request, reply) => {
+  // GET / — owner-only ratings view (D-O1/D-M3): promedios per-coach (profe +
+  // clase) filtrables por fecha/sucursal, y listado individual paginado.
+  fastify.get<{
+    Querystring: {
+      dateFrom?: string;
+      dateTo?: string;
+      branchId?: number;
+      page?: number;
+      limit?: number;
+    };
+  }>("/", { schema: ownerRatingsQuerySchema }, async (request, reply) => {
     try {
       if (request.user.role !== "owner") {
         return reply.code(403).send({
@@ -120,12 +130,21 @@ export const ratingsAdminRoutes: FastifyPluginAsync = async (fastify) => {
           message: "Solo el owner puede ver las puntuaciones",
         });
       }
-      return await ratingsService.getOwnerRatings({
-        role: request.scope.role,
-        isOwner: request.scope.isOwner,
-        country: request.scope.country,
-        branchIds: request.scope.branchIds,
-      });
+      return await ratingsService.getOwnerRatings(
+        {
+          role: request.scope.role,
+          isOwner: request.scope.isOwner,
+          country: request.scope.country,
+          branchIds: request.scope.branchIds,
+        },
+        {
+          dateFrom: request.query.dateFrom,
+          dateTo: request.query.dateTo,
+          branchId: request.query.branchId,
+          page: request.query.page,
+          limit: request.query.limit,
+        },
+      );
     } catch (err: unknown) {
       handleServiceError(err, reply, request.log, "get owner ratings");
     }

@@ -54,22 +54,42 @@ export interface OwnerCoachRatingSummary {
   coachName: string;
   averageStars: number;
   ratingCount: number;
+  /** Promedio de la nota de CLASE; null si el profe no tiene filas post-split. */
+  classAverageStars: number | null;
+  classRatingCount: number;
 }
 
-/** A single recent rating row for the owner view. */
+/** A single rating row for the owner view. */
 export interface OwnerRecentRating {
   id: number;
   coachId: number;
   coachName: string;
   stars: number;
+  /** Nota de clase 1–5; null en filas pre-split. */
+  classStars: number | null;
   comment: string | null;
   sessionDate: string;
   activityName: string | null;
+  branchName: string | null;
+}
+
+/** Filtros del owner view: fechas sobre sessionDate + sucursal + paginación. */
+export interface OwnerRatingsFilters {
+  dateFrom?: string; // YYYY-MM-DD
+  dateTo?: string;
+  branchId?: number;
+  page?: number;
+  limit?: number;
 }
 
 export interface OwnerRatings {
   perCoach: OwnerCoachRatingSummary[];
-  recent: OwnerRecentRating[];
+  ratings: {
+    rows: OwnerRecentRating[];
+    total: number;
+    page: number;
+    limit: number;
+  };
 }
 
 export function useRatingsApi() {
@@ -121,11 +141,11 @@ export function useRatingsApi() {
     }
   }
 
-  async function getOwnerRatings(): Promise<OwnerRatings> {
+  async function getOwnerRatings(filters: OwnerRatingsFilters = {}): Promise<OwnerRatings> {
     loading.value = true;
     error.value = null;
     try {
-      const { data } = await api.get<OwnerRatings>('/admin/ratings');
+      const { data } = await api.get<OwnerRatings>('/admin/ratings', { params: filters });
       return data;
     } catch (err: unknown) {
       error.value = extractError(err, 'Error cargando las puntuaciones');
