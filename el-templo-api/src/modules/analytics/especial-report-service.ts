@@ -129,7 +129,7 @@ export class EspecialReportService {
       JOIN subscription_plans sp ON sp.id = s.plan_id
       WHERE s.user_id = ${schema.attendance.memberId}
         AND sp.plan_category = 'especial'
-        AND s.status <> 'cancelled'
+        AND s.subscription_status <> 'cancelled'
         AND s.start_date <= ${schema.attendance.sessionDate}
         AND (s.end_date IS NULL OR s.end_date >= ${schema.attendance.sessionDate})
       ORDER BY s.start_date DESC, s.id DESC
@@ -143,7 +143,7 @@ export class EspecialReportService {
         JOIN subscription_plans sp ON sp.id = s.plan_id
         WHERE s.user_id = ${schema.attendance.memberId}
           AND sp.plan_category = 'presencial'
-          AND s.status IN ('active', 'paused')
+          AND s.subscription_status IN ('active', 'paused')
           AND s.start_date <= ${schema.attendance.sessionDate}
           AND (s.end_date IS NULL OR s.end_date >= ${schema.attendance.sessionDate})
       )
