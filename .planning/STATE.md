@@ -4,13 +4,13 @@ milestone: v5.8
 milestone_name: Sesiones de Prueba — automatización y self-service
 status: executing
 stopped_at: Phase 161 context gathered
-last_updated: "2026-07-15T17:20:47.694Z"
-last_activity: 2026-07-15 -- Phase 163 execution started
+last_updated: "2026-07-15T17:46:44.501Z"
+last_activity: 2026-07-15
 progress:
   total_phases: 3
   completed_phases: 0
   total_plans: 4
-  completed_plans: 0
+  completed_plans: 1
   percent: 0
 ---
 
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 ## Current Position
 
 Phase: 163 (Máquina de estados automática del lead) — EXECUTING
-Plan: 1 of 4
-Status: Executing Phase 163
-Last activity: 2026-07-15 -- Phase 163 execution started
+Plan: 2 of 4
+Status: Ready to execute
+Last activity: 2026-07-15
 
 ## Performance Metrics
 
@@ -338,6 +338,7 @@ _Updated after each plan completion_
 | Phase 162 P03 | ~14min | 3 tasks | 4 files |
 | Phase 162 P04 | ~5min | 3 tasks | 3 files |
 | Phase 162 P06 | ~13min | 2 tasks | 4 files |
+| Phase 163 P01 | 13min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -768,6 +769,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: 161-02: renew discrimina la sub por subscriptionId (valida ownership); guard D-09 en los 4 callsites de referral
 - [Phase ?]: 161-06: gating duro de especiales server-side; PassRequiredError→code PASS_REQUIRED en /reserve; D-04 cuenta reservas futuras pendientes; staff bypass con aviso en adminAddBooking
 - [Phase ?]: 162-03: reporte REP-01 socio/externo por sub que cubre session_date + fallback; sin montos; anti JOIN-fanout
+- [Phase 163]: Phase 163: lead_status_source ENUM(auto,manual) + leads.perdido_window_days seeded via dynamic p90 (fallback 14); getPerdidoWindowDays reader on SettingsService
 
 ### Pending Todos
 
@@ -800,7 +802,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-15T02:44:36.298Z
+Last session: 2026-07-15T17:41:26.254Z
 Stopped at: Phase 161 context gathered
 Resume file: None
 

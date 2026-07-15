@@ -41,14 +41,14 @@ v5.6 aún no ejecutado); tests de integración para rutas nuevas/modificadas.
 - [ ] **AUTO-01**: Un cron diario (infra `src/jobs/` existente) pasa a Perdido todo lead
       En seguimiento cuya última sesión de prueba no cancelada quedó a más de X días
       sin compra registrada (aplica a asistió y no-asistió por igual).
-- [ ] **AUTO-02**: X vive en `system_settings` como parámetro configurable; el cron lo
+- [x] **AUTO-02**: X vive en `system_settings` como parámetro configurable; el cron lo
       lee en cada corrida. El valor inicial se siembra desde el p90 del histórico de
       días entre sesión de prueba y primera suscripción de los leads Ganados (con
       default de resguardo si el histórico es insuficiente).
 - [ ] **AUTO-03**: Al agendarle una nueva sesión de prueba a un lead Perdido (admin o
       self-service), su estado vuelve a En seguimiento y la ventana X corre desde la
       nueva sesión.
-- [ ] **AUTO-04**: El sistema distingue estado automático de manual: columna
+- [x] **AUTO-04**: El sistema distingue estado automático de manual: columna
       `lead_status_source` (`auto`/`manual`) seteada en `auto` por hook/cron/alta y en
       `manual` por el PATCH de edición del lead.
 - [ ] **AUTO-05**: Migración de backfill aplica la regla retroactivamente a los leads
@@ -106,9 +106,9 @@ v5.6 aún no ejecutado); tests de integración para rutas nuevas/modificadas.
 | Requirement | Phase     | Status  |
 | ----------- | --------- | ------- |
 | AUTO-01     | Phase 163 | Pending |
-| AUTO-02     | Phase 163 | Pending |
+| AUTO-02     | Phase 163 | Complete |
 | AUTO-03     | Phase 163 | Pending |
-| AUTO-04     | Phase 163 | Pending |
+| AUTO-04     | Phase 163 | Complete |
 | AUTO-05     | Phase 163 | Pending |
 | REPRO-01    | Phase 164 | Pending |
 | REPRO-02    | Phase 164 | Pending |
