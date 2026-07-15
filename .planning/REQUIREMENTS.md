@@ -38,7 +38,7 @@ v5.6 aún no ejecutado); tests de integración para rutas nuevas/modificadas.
 
 ### AUTO — Máquina de estados automática del lead
 
-- [ ] **AUTO-01**: Un cron diario (infra `src/jobs/` existente) pasa a Perdido todo lead
+- [x] **AUTO-01**: Un cron diario (infra `src/jobs/` existente) pasa a Perdido todo lead
       En seguimiento cuya última sesión de prueba no cancelada quedó a más de X días
       sin compra registrada (aplica a asistió y no-asistió por igual).
 - [x] **AUTO-02**: X vive en `system_settings` como parámetro configurable; el cron lo
@@ -105,7 +105,7 @@ v5.6 aún no ejecutado); tests de integración para rutas nuevas/modificadas.
 
 | Requirement | Phase     | Status  |
 | ----------- | --------- | ------- |
-| AUTO-01     | Phase 163 | Pending |
+| AUTO-01     | Phase 163 | Complete |
 | AUTO-02     | Phase 163 | Complete |
 | AUTO-03     | Phase 163 | Pending |
 | AUTO-04     | Phase 163 | Complete |
