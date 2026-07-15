@@ -4320,7 +4320,7 @@ _v5.7 (Actividades con Aura) added: 2026-07-14 — 2 phases (161-162), 14 requir
 
 ## v5.8 (Sesiones de Prueba — automatización y self-service) Phases
 
-- [ ] **Phase 163: Máquina de estados automática del lead** — cron diario nuevo en `src/jobs/` que vence En seguimiento → Perdido cuando la última sesión de prueba no cancelada quedó a más de X días sin compra; X en `system_settings` sembrado del p90 histórico con default de resguardo; reset Perdido → En seguimiento al agendar nueva SP (admin o self-service) con la ventana corriendo desde la nueva sesión; columna `lead_status_source` (auto/manual) para auditar overrides; y migración de backfill retroactivo de los ≈112 vencidos con tabla de backup + dry-run de conteos validado.
+- [x] **Phase 163: Máquina de estados automática del lead** — cron diario nuevo en `src/jobs/` que vence En seguimiento → Perdido cuando la última sesión de prueba no cancelada quedó a más de X días sin compra; X en `system_settings` sembrado del p90 histórico con default de resguardo; reset Perdido → En seguimiento al agendar nueva SP (admin o self-service) con la ventana corriendo desde la nueva sesión; columna `lead_status_source` (auto/manual) para auditar overrides; y migración de backfill retroactivo de los ≈112 vencidos con tabla de backup + dry-run de conteos validado. (completed 2026-07-15)
 - [ ] **Phase 164: Reprogramación y reporte** — acción "Reprogramar" en el admin que cancela el turno viejo y crea el nuevo en una sola transacción; contador de reprogramaciones por lead derivado de sus bookings de prueba canceladas (retroactivo, sin schema nuevo); e indicador/filtro en el reporte de Sesiones de Prueba de si el estado salió del automatismo o fue pisado a mano (`lead_status_source`).
 - [ ] **Phase 165: Self-service y UX de gestión** — verificación end-to-end + fixes del flujo freemium→prueba existente (registro → elegibilidad → reserva → lead en el reporte admin); teléfono obligatorio en toda alta de SP (admin) y en la reserva self-service (diálogo si el perfil no lo tiene); y un flujo más directo para que gestión programe SP y convierta leads en alumnos (fricciones concretas a relevar en discuss-phase).
 
@@ -4342,12 +4342,12 @@ _v5.7 (Actividades con Aura) added: 2026-07-14 — 2 phases (161-162), 14 requir
 4. El sistema distingue estado automático de manual vía la columna `lead_status_source` (`auto`/`manual`): hook/cron/alta la dejan en `auto`, el PATCH de edición del lead la deja en `manual`, y el cron no pisa un estado marcado a mano. (AUTO-04)
 5. Una migración aplica la regla retroactivamente a los ≈112 leads En seguimiento con sesión vencida, precedida por una tabla de backup (patrón `users_lead_backup_0170`) y con un dry-run de conteos validado (211 Perdido / 136 En seguimiento / 105 Ganado sobre 452) antes de aplicar. (AUTO-05)
 
-**Plans:** 3/4 plans executed
+**Plans:** 4/4 plans complete
 
 - [x] 163-01-PLAN.md — Foundation: lead_status_source column + migration 0182 (p90 seed) + getPerdidoWindowDays reader
 - [x] 163-02-PLAN.md — Cron expire-lost-leads (En seguimiento → Perdido tras X días) + wiring + tests
 - [x] 163-03-PLAN.md — Source writes: reset al re-agendar (auto), hook de compra (auto), PATCH manual, alta (auto)
-- [ ] 163-04-PLAN.md — Backfill migración 0183 (backup + reclasificación retroactiva) + dry-run script
+- [x] 163-04-PLAN.md — Backfill migración 0183 (backup + reclasificación retroactiva) + dry-run script
 
 ### Phase 164: Reprogramación y reporte
 
@@ -4390,7 +4390,7 @@ _v5.7 (Actividades con Aura) added: 2026-07-14 — 2 phases (161-162), 14 requir
 
 | Phase                                       | Plans Complete | Status      | Completed |
 | ------------------------------------------- | -------------- | ----------- | --------- |
-| 163. Máquina de estados automática del lead | 3/4 | In Progress|  |
+| 163. Máquina de estados automática del lead | 4/4 | Complete   | 2026-07-15 |
 | 164. Reprogramación y reporte               | 0/?            | Not started |           |
 | 165. Self-service y UX de gestión           | 0/?            | Not started |           |
 

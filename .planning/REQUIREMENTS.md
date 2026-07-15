@@ -51,7 +51,7 @@ v5.6 aún no ejecutado); tests de integración para rutas nuevas/modificadas.
 - [x] **AUTO-04**: El sistema distingue estado automático de manual: columna
       `lead_status_source` (`auto`/`manual`) seteada en `auto` por hook/cron/alta y en
       `manual` por el PATCH de edición del lead.
-- [ ] **AUTO-05**: Migración de backfill aplica la regla retroactivamente a los leads
+- [x] **AUTO-05**: Migración de backfill aplica la regla retroactivamente a los leads
       En seguimiento con sesión vencida (≈112), con tabla de backup previa (precedente
       `users_lead_backup_0170`) y dry-run de conteos validado antes de aplicar.
 
@@ -109,7 +109,7 @@ v5.6 aún no ejecutado); tests de integración para rutas nuevas/modificadas.
 | AUTO-02     | Phase 163 | Complete |
 | AUTO-03     | Phase 163 | Complete |
 | AUTO-04     | Phase 163 | Complete |
-| AUTO-05     | Phase 163 | Pending |
+| AUTO-05     | Phase 163 | Complete |
 | REPRO-01    | Phase 164 | Pending |
 | REPRO-02    | Phase 164 | Pending |
 | REPRO-03    | Phase 164 | Pending |
