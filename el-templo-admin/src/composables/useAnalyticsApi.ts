@@ -29,6 +29,7 @@ import type {
   TrialFunnelAnalytics,
   ClassRatingsAnalytics,
   ReferralAbResults,
+  EspecialesReport,
 } from 'src/types/analytics';
 
 function buildParams(filters: AnalyticsFilters): Record<string, unknown> {
@@ -403,6 +404,41 @@ export function useAnalyticsApi() {
     }
   }
 
+  // Reporte de reparto "Actividades con Aura" (REP-01, Phase 162-06). Asistencias
+  // del mes por actividad especial separadas socio/externo + KPIs D-05, SIN montos.
+  async function getEspecialesReport(month: string): Promise<EspecialesReport> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<EspecialesReport>('/admin/analytics/especiales', {
+        params: { month },
+      });
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cargando reporte de Especiales');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function exportEspeciales(month: string): Promise<Blob> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get('/admin/analytics/especiales/export', {
+        params: { month },
+        responseType: 'blob',
+      });
+      return data as Blob;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error exportando Especiales');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   function cleanup() {
     loading.value = false;
     error.value = null;
@@ -432,6 +468,8 @@ export function useAnalyticsApi() {
     getTrialFunnel,
     getClassRatings,
     getReferralAbResults,
+    getEspecialesReport,
+    exportEspeciales,
     cleanup,
   };
 }

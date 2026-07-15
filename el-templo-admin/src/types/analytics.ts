@@ -819,3 +819,30 @@ export interface ReferralAbVariantResult {
 export interface ReferralAbResults {
   variants: ReferralAbVariantResult[];
 }
+
+/**
+ * Reporte de asistencias a "Actividades con Aura" (REP-01, Phase 162-06).
+ * Espeja EspecialActivityRow / EspecialReportKpis / EspecialReportResult de
+ * el-templo-api/src/modules/analytics/especial-report-service.ts. Asistencias
+ * del mes por actividad especial separadas socio/externo, SIN montos (D-04).
+ * `kpis` = subs especiales activas por origen (D-05).
+ */
+export interface EspecialActivityRow {
+  activityId: number;
+  activityName: string;
+  socioCount: number;
+  externoCount: number;
+  total: number;
+}
+
+export interface EspecialReportKpis {
+  sociosActivos: number;
+  externosActivos: number;
+}
+
+export interface EspecialesReport {
+  /** Mes reportado, formato YYYY-MM. */
+  month: string;
+  kpis: EspecialReportKpis;
+  rows: EspecialActivityRow[];
+}
