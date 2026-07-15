@@ -13,9 +13,15 @@ import { SubscriptionService } from "./service";
 import { AuraService } from "../aura/service";
 import { EnrollmentService } from "../programs/enrollment-service";
 import { GOAL_PLAN_METADATA } from "../goal-plans/constants";
-import { isOnlinePlan, isGoalPlan, type PlanCategory } from "./types";
+import {
+  isOnlinePlan,
+  isGoalPlan,
+  categoryGroup,
+  type PlanCategory,
+} from "./types";
 import { attachCountryScope } from "../shared/country-scope";
 import { todayInTz } from "../shared/date-utils";
+import { especialPassSchema } from "./schemas";
 
 const AR_TIMEZONE = "America/Argentina/Buenos_Aires";
 
@@ -133,6 +139,49 @@ export const memberSubscriptionRoutes: FastifyPluginAsync = async (fastify) => {
 
     return { coveredUntil, daysRemaining };
   });
+
+  // GET /me/especial-pass — Phase 162-02 (APP-02): the authenticated member's
+  // "Actividades con Aura" pass with its monthly balance (classesRemaining /
+  // classesBudget / endDate) plus the Socio↔Externo discriminator. Feeds the
+  // in-app x/2 counter WITHOUT touching the singular /me/subscription surface
+  // that the rest of the app consumes.
+  //
+  // IDOR mitigation (T-162-02-01): the member id is server-derived from
+  // request.user — this route NEVER accepts a userId param, mirroring
+  // /coverage. A member can only ever read their own pass.
+  //
+  // Category routing uses categoryGroup (NOT isOnlinePlan, which still lumps
+  // 'especial' with online — types.ts:44-51). isSocio comes from the pass
+  // plan's requiresPresencial flag (161-02).
+  fastify.get(
+    "/me/especial-pass",
+    { schema: especialPassSchema },
+    async (request) => {
+      const subs = await subscriptionService.getMemberSubscriptions(
+        request.user.userId,
+      );
+
+      const pass = subs.find(
+        (s) =>
+          categoryGroup(s.planCategory) === "especial" &&
+          (s.status === "active" || s.status === "paused"),
+      );
+
+      if (!pass) {
+        return { hasPass: false };
+      }
+
+      const plan = await subscriptionService.getPlanById(pass.planId);
+
+      return {
+        hasPass: true,
+        classesRemaining: pass.classesRemaining ?? 0,
+        classesBudget: pass.classesBudget ?? 0,
+        endDate: pass.endDate,
+        isSocio: plan?.requiresPresencial ?? false,
+      };
+    },
+  );
 
   // GET /plans — List available plans for member catalog
   // Includes active non-trial plans + the member's current plan if it's legacy (archived/inactive).

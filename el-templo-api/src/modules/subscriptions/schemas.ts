@@ -270,6 +270,28 @@ export const deactivatePlanSchema = {
 // Subscription Endpoints
 // =============================================================================
 
+/**
+ * Phase 162-02 (APP-02): response schema for GET /me/especial-pass.
+ * fast-json-stringify strips any property not declared here, so all 5 fields
+ * must be whitelisted or the member's x/2 counter (classesRemaining/isSocio)
+ * silently disappears from the payload. The `hasPass:false` case only emits
+ * `hasPass` — the other props are simply absent (optional in the schema).
+ */
+export const especialPassSchema = {
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        hasPass: { type: "boolean" },
+        classesRemaining: { type: "integer" },
+        classesBudget: { type: "integer" },
+        endDate: { type: ["string", "null"] },
+        isSocio: { type: "boolean" },
+      },
+    },
+  },
+} as const;
+
 export const getMemberSubscriptionSchema = {
   params: {
     type: "object",
