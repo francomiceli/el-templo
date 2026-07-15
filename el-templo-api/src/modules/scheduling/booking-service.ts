@@ -1902,6 +1902,10 @@ export class BookingService {
     endTime: string;
     isActive: boolean;
     inactiveReason: string | null;
+    // ACT-02 (fase 161): flag de gating resuelto server-side vía JOIN a
+    // activities. Contrato que consume el gating de reserva (Plan 06) — se
+    // deriva de la actividad, nunca del request (T-161-11).
+    isSpecial: boolean;
   } | null> {
     const [row] = await this.db
       .select({
@@ -1914,11 +1918,16 @@ export class BookingService {
         endTime: schema.schedules.endTime,
         isActive: schema.schedules.isActive,
         inactiveReason: schema.schedules.inactiveReason,
+        isSpecial: schema.activities.isSpecial,
       })
       .from(schema.schedules)
       .innerJoin(
         schema.branches,
         eq(schema.branches.id, schema.schedules.branchId),
+      )
+      .innerJoin(
+        schema.activities,
+        eq(schema.activities.id, schema.schedules.activityId),
       )
       .where(eq(schema.schedules.id, scheduleId));
 

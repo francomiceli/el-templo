@@ -38,6 +38,8 @@ interface ActivityResponse {
   name: string;
   description: string | null;
   isActive: boolean;
+  maxCapacity?: number | null;
+  isSpecial?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -302,5 +304,94 @@ describe("Phase 113: schedule + activity CRUD hardening", () => {
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.body) as ActivityResponse;
     expect(body.isActive).toBe(false);
+  });
+
+  // ─── Fase 161 (ACT-01): persistencia del flag is_special ──────────────────
+  // El CRUD acepta, persiste y devuelve isSpecial ida-y-vuelta (POST true →
+  // GET → PUT false). Es el contrato que consume el gating del pase
+  // "Actividades con Aura" (Plan 06) y el ABM del admin (fase 162).
+
+  it("POST /activities con isSpecial=true persiste el flag", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: `${ADMIN_URL}/activities`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: { name: "Verticales", isSpecial: true },
+    });
+    expect(res.statusCode).toBe(201);
+    const body = JSON.parse(res.body) as ActivityResponse;
+    expect(body.isSpecial).toBe(true);
+
+    // Persistido en DB, no sólo en el response.
+    const [row] = await app.db
+      .select({ isSpecial: activities.isSpecial })
+      .from(activities)
+      .where(eq(activities.id, body.id));
+    expect(row.isSpecial).toBe(true);
+  });
+
+  it("POST /activities sin isSpecial default false (actividad regular)", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: `${ADMIN_URL}/activities`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: { name: "Calistenia" },
+    });
+    expect(res.statusCode).toBe(201);
+    const body = JSON.parse(res.body) as ActivityResponse;
+    expect(body.isSpecial).toBe(false);
+  });
+
+  it("GET /activities devuelve isSpecial por actividad", async () => {
+    const special = await app.inject({
+      method: "POST",
+      url: `${ADMIN_URL}/activities`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: { name: "Acrobacias", isSpecial: true },
+    });
+    expect(special.statusCode).toBe(201);
+    const specialId = (JSON.parse(special.body) as ActivityResponse).id;
+    await createActivity("Regular");
+
+    const list = await app.inject({
+      method: "GET",
+      url: `${ADMIN_URL}/activities`,
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    expect(list.statusCode).toBe(200);
+    const { activities: rows } = JSON.parse(list.body) as {
+      activities: ActivityResponse[];
+    };
+    const acro = rows.find((a) => a.id === specialId);
+    const regular = rows.find((a) => a.name === "Regular");
+    expect(acro?.isSpecial).toBe(true);
+    expect(regular?.isSpecial).toBe(false);
+  });
+
+  it("PUT /activities/:id con isSpecial=false actualiza el flag", async () => {
+    const created = await app.inject({
+      method: "POST",
+      url: `${ADMIN_URL}/activities`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: { name: "Open Gym", isSpecial: true },
+    });
+    expect(created.statusCode).toBe(201);
+    const id = (JSON.parse(created.body) as ActivityResponse).id;
+
+    const update = await app.inject({
+      method: "PUT",
+      url: `${ADMIN_URL}/activities/${id}`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: { isSpecial: false },
+    });
+    expect(update.statusCode).toBe(200);
+    expect((JSON.parse(update.body) as ActivityResponse).isSpecial).toBe(false);
+
+    // Round-trip: GET confirma el nuevo valor persistido.
+    const [row] = await app.db
+      .select({ isSpecial: activities.isSpecial })
+      .from(activities)
+      .where(eq(activities.id, id));
+    expect(row.isSpecial).toBe(false);
   });
 });
