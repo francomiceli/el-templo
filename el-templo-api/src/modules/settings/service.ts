@@ -15,7 +15,7 @@ import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import type * as schema from "../../db/schema";
 import { systemSettings } from "../../db/schema";
-import { PRICING_SETTINGS_KEYS } from "./keys";
+import { PRICING_SETTINGS_KEYS, LEADS_SETTINGS_KEYS } from "./keys";
 
 type DbInstance = MySql2Database<typeof schema>;
 
@@ -85,5 +85,23 @@ export class SettingsService {
   /** Upsert the "Zero" price rule. */
   async setZeroPriceEnabled(enabled: boolean): Promise<void> {
     await this.setFlag(PRICING_SETTINGS_KEYS.zeroPrice, enabled);
+  }
+
+  /**
+   * Phase 163 (AUTO-02 / D-05, D-06): read the "En seguimiento → Perdido"
+   * window in days from the single `leads.perdido_window_days` row. Coerces the
+   * stored value to an integer and falls back to 14 when the key is absent or
+   * the value is non-numeric / non-positive. No persistent cache (D-05): the
+   * daily cron reads it each run so an operator PUT takes effect next corrida.
+   */
+  async getPerdidoWindowDays(): Promise<number> {
+    const [row] = await this.db
+      .select({ settingValue: systemSettings.settingValue })
+      .from(systemSettings)
+      .where(eq(systemSettings.settingKey, LEADS_SETTINGS_KEYS.perdidoWindowDays))
+      .limit(1);
+
+    const n = Number(row?.settingValue);
+    return Number.isFinite(n) && n > 0 ? Math.trunc(n) : 14;
   }
 }
