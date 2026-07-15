@@ -3,7 +3,8 @@
  *
  * Datos de la sección "Referidos" de la ficha del alumno (VIS-03/D-34). Gestión
  * lee el overview de CUALQUIER alumno; el mismo estado derivado que la app. El
- * guard es ADMIN_ROLES → un token de socio no-admin recibe 403 (T-158-02).
+ * guard es MEMBER_LIFECYCLE_ROLES (WR-05) → coach, recepción y los tokens de
+ * socio reciben 403.
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { sql } from "drizzle-orm";
@@ -208,6 +209,56 @@ describe("GET /api/admin/members/:id/referrals — ficha admin", () => {
       headers: { authorization: `Bearer ${adminEsToken}` },
     });
     expect(res.statusCode).toBe(404);
+  });
+
+  // WR-05: el guard es MEMBER_LIFECYCLE_ROLES, no ADMIN_ROLES — gestión entra,
+  // coach y recepción no (el admin les oculta el tab).
+  it("gestión lee el overview de un alumno (200)", async () => {
+    const target = await createMember(app, { email: "a-gestion-t@test.com" });
+    await createStaffUser(app, {
+      email: "ref-gestion@test.local",
+      password: MEMBER_PASSWORD,
+      firstName: "Gestión",
+      lastName: "AR",
+      role: "gestion",
+      branchId: 1,
+    });
+    const gestionToken = await getAuthToken(
+      app,
+      "ref-gestion@test.local",
+      MEMBER_PASSWORD,
+    );
+
+    const res = await app.inject({
+      method: "GET",
+      url: url(target.id),
+      headers: { authorization: `Bearer ${gestionToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+  });
+
+  it.each(["coach", "recepcion"])("%s recibe 403", async (role) => {
+    const target = await createMember(app, { email: `a-${role}-t@test.com` });
+    await createStaffUser(app, {
+      email: `ref-${role}@test.local`,
+      password: MEMBER_PASSWORD,
+      firstName: "Staff",
+      lastName: role,
+      role,
+      branchId: 1,
+    });
+    const staffToken = await getAuthToken(
+      app,
+      `ref-${role}@test.local`,
+      MEMBER_PASSWORD,
+    );
+
+    const res = await app.inject({
+      method: "GET",
+      url: url(target.id),
+      headers: { authorization: `Bearer ${staffToken}` },
+    });
+    expect(res.statusCode).toBe(403);
   });
 
   it("owner sí lee cross-country (200)", async () => {
