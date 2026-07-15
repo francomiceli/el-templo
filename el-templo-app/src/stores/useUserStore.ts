@@ -59,6 +59,19 @@ export interface MemberSubscription {
   multiBranch: boolean
 }
 
+// Phase 162 (APP-02): pase especial "Actividades con Aura" del member.
+// Contrato del endpoint GET /me/especial-pass (162-02): sin pase → { hasPass:false };
+// con pase → hasPass:true + saldo x/budget + discriminador socio/externo.
+// AISLADO del `subscription` singular a propósito (D-06: capabilities aditivas):
+// un socio con presencial+pase NO debe perder acceso a la grilla presencial.
+export interface EspecialPass {
+  hasPass: boolean
+  classesRemaining: number
+  classesBudget: number
+  endDate: string | null
+  isSocio: boolean
+}
+
 // Phase 104: Current-program pointer + active-enrollments listing.
 // Source endpoints: GET/PUT /members/me/current-program (Plan 04),
 // GET /members/me/enrollments (Plan 04). Plan 05 only consumes them.
@@ -110,6 +123,10 @@ export const useUserStore = defineStore('user', () => {
   const loading = ref(false)
   const subscription = ref<MemberSubscription | null>(null)
   const subscriptionLoading = ref(false)
+  // Phase 162 (APP-02): pase especial. AISLADO del singular `subscription`
+  // (D-06): sus capabilities son aditivas y NO alteran hasPresencialPlan /
+  // hasPresencialReservationAccess. null = sin pase (o error/204).
+  const especialPass = ref<EspecialPass | null>(null)
   const hasActiveProgramEnrollment = ref(false)
   const enrolledGoalPlanType = ref<string | null>(null)
 
@@ -199,6 +216,22 @@ export const useUserStore = defineStore('user', () => {
     return sub.planCategory === 'presencial'
   })
 
+  // ─── Phase 162 (APP-02): capabilities del pase especial ─────────────────
+  // Derivan SOLO de `especialPass` — nunca del `subscription` singular
+  // (D-06 capabilities aditivas). No mutan hasPresencialReservationAccess.
+  const hasEspecialPass = computed(() => especialPass.value?.hasPass === true)
+
+  const especialClassesRemaining = computed(() => especialPass.value?.classesRemaining ?? 0)
+
+  const especialClassesBudget = computed(() => especialPass.value?.classesBudget ?? 2)
+
+  // Externo-solo-pase: tiene pase pero NO acceso presencial. Distingue al
+  // socio-con-pase (que conserva la grilla presencial) del externo cuyo único
+  // acceso es a las clases especiales.
+  const hasOnlyEspecialPass = computed(
+    () => hasEspecialPass.value && !hasPresencialReservationAccess.value,
+  )
+
   // Phase 104 (R9): selector visibility — only show UI when there is more than
   // one possible view. N enrollments + 1 if presencial.
   const viewOptionsCount = computed(() => {
@@ -234,6 +267,8 @@ export const useUserStore = defineStore('user', () => {
   function clearProfile() {
     profile.value = null
     subscription.value = null
+    // Phase 162: limpiar el pase especial junto al singular en logout / reset.
+    especialPass.value = null
     // Phase 104: also clear current-program state on logout / profile reset
     // so a fresh login does not see stale enrollments from a prior session.
     currentProgram.value = { enrollmentId: null, program: null }
@@ -267,6 +302,36 @@ export const useUserStore = defineStore('user', () => {
     // Phase 104: hydrate current-program pointer + active enrollments listing.
     // Drives the WeeklyView selector and the relaxed TrainingIndex block.
     await fetchCurrentProgram()
+  }
+
+  /**
+   * Phase 162 (APP-02): carga el pase especial del member desde el endpoint
+   * aislado GET /me/especial-pass (162-02). Mismo patrón try/catch que
+   * loadSubscription: ante 204 / error / red → especialPass = null. NO toca
+   * el `subscription` singular ni hasPresencialReservationAccess (D-06).
+   */
+  async function loadEspecialPass(): Promise<void> {
+    try {
+      const response = await api.get<Partial<EspecialPass> & { hasPass: boolean }>(
+        '/members/subscription/me/especial-pass',
+      )
+      const data = response.data
+      // 204 No Content, sin data, o { hasPass:false } → sin pase.
+      if (response.status === 204 || !data || data.hasPass !== true) {
+        especialPass.value = null
+      } else {
+        especialPass.value = {
+          hasPass: true,
+          classesRemaining: data.classesRemaining ?? 0,
+          classesBudget: data.classesBudget ?? 2,
+          endDate: data.endDate ?? null,
+          isSocio: data.isSocio ?? false,
+        }
+      }
+    } catch {
+      // 204/404 o error de red — sin pase.
+      especialPass.value = null
+    }
   }
 
   async function fetchProgramEnrollmentStatus(): Promise<void> {
@@ -412,6 +477,7 @@ export const useUserStore = defineStore('user', () => {
     loading,
     subscription,
     subscriptionLoading,
+    especialPass,
     selectedLevel,
     // Phase 104: current-program state
     currentProgram,
@@ -431,6 +497,11 @@ export const useUserStore = defineStore('user', () => {
     // Phase 104: presencial / selector capability flags
     hasPresencialPlan,
     hasPresencialReservationAccess,
+    // Phase 162: capabilities del pase especial (aditivas)
+    hasEspecialPass,
+    especialClassesRemaining,
+    especialClassesBudget,
+    hasOnlyEspecialPass,
     viewOptionsCount,
     showProgramSelector,
     // Actions
@@ -439,6 +510,7 @@ export const useUserStore = defineStore('user', () => {
     clearProfile,
     setLoading,
     loadSubscription,
+    loadEspecialPass,
     fetchProgramEnrollmentStatus,
     // Phase 104: current-program actions
     fetchCurrentProgram,
