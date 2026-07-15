@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v5.8
 milestone_name: Sesiones de Prueba — automatización y self-service
 status: executing
-stopped_at: Phase 161 context gathered
-last_updated: "2026-07-15T17:55:31.342Z"
+stopped_at: Completed 163-03-PLAN.md
+last_updated: "2026-07-15T18:08:33.161Z"
 last_activity: 2026-07-15
 progress:
   total_phases: 3
   completed_phases: 0
   total_plans: 4
-  completed_plans: 2
+  completed_plans: 3
   percent: 0
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 ## Current Position
 
 Phase: 163 (Máquina de estados automática del lead) — EXECUTING
-Plan: 3 of 4
+Plan: 4 of 4
 Status: Ready to execute
 Last activity: 2026-07-15
 
@@ -339,6 +339,7 @@ _Updated after each plan completion_
 | Phase 162 P04 | ~5min | 3 tasks | 3 files |
 | Phase 162 P06 | ~13min | 2 tasks | 4 files |
 | Phase 163 P01 | 13min | 3 tasks | 5 files |
+| Phase 163 P03 | ~30min | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -770,6 +771,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: 161-06: gating duro de especiales server-side; PassRequiredError→code PASS_REQUIRED en /reserve; D-04 cuenta reservas futuras pendientes; staff bypass con aviso en adminAddBooking
 - [Phase ?]: 162-03: reporte REP-01 socio/externo por sub que cubre session_date + fallback; sin montos; anti JOIN-fanout
 - [Phase 163]: Phase 163: lead_status_source ENUM(auto,manual) + leads.perdido_window_days seeded via dynamic p90 (fallback 14); getPerdidoWindowDays reader on SettingsService
+- [Phase 163]: 163-03: auto (compra/reset/alta) puede pisar Perdido; manual solo via PATCH humano, intocable por el cron
 
 ### Pending Todos
 
@@ -802,8 +804,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-15T17:41:26.254Z
-Stopped at: Phase 161 context gathered
+Last session: 2026-07-15T18:08:33.137Z
+Stopped at: Completed 163-03-PLAN.md
 Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z

@@ -45,7 +45,7 @@ v5.6 aún no ejecutado); tests de integración para rutas nuevas/modificadas.
       lee en cada corrida. El valor inicial se siembra desde el p90 del histórico de
       días entre sesión de prueba y primera suscripción de los leads Ganados (con
       default de resguardo si el histórico es insuficiente).
-- [ ] **AUTO-03**: Al agendarle una nueva sesión de prueba a un lead Perdido (admin o
+- [x] **AUTO-03**: Al agendarle una nueva sesión de prueba a un lead Perdido (admin o
       self-service), su estado vuelve a En seguimiento y la ventana X corre desde la
       nueva sesión.
 - [x] **AUTO-04**: El sistema distingue estado automático de manual: columna
@@ -107,7 +107,7 @@ v5.6 aún no ejecutado); tests de integración para rutas nuevas/modificadas.
 | ----------- | --------- | ------- |
 | AUTO-01     | Phase 163 | Complete |
 | AUTO-02     | Phase 163 | Complete |
-| AUTO-03     | Phase 163 | Pending |
+| AUTO-03     | Phase 163 | Complete |
 | AUTO-04     | Phase 163 | Complete |
 | AUTO-05     | Phase 163 | Pending |
 | REPRO-01    | Phase 164 | Pending |
