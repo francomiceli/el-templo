@@ -296,6 +296,7 @@ export class TrialService {
         .set({
           status: "prueba" as const,
           leadStatus: "en_seguimiento" as const,
+          leadStatusSource: "auto" as const, // Phase 163 (D-03/D-07): re-entry is an automatism
           createdBy: null, // D-02: self-service has no admin author
           branchId: input.branchId, // D-06: chosen physical branch
         })
@@ -667,6 +668,18 @@ export class TrialService {
             sql`${schema.bookings.bookingDate} < ${today}`,
           ),
         );
+
+      // Phase 163 (D-03/D-07): re-booking a trial resets a Perdido lead back to
+      // en_seguimiento with source 'auto'. The expire-lost-leads cron measures
+      // the window from the last non-cancelled trial booking, so it restarts
+      // from this new session. The one-trial-per-life guard above is untouched.
+      await tx
+        .update(schema.users)
+        .set({
+          leadStatus: "en_seguimiento" as const,
+          leadStatusSource: "auto" as const,
+        })
+        .where(eq(schema.users.id, input.userId));
 
       const [existing] = await tx
         .select({ id: schema.bookings.id })
