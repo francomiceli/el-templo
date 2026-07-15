@@ -51,3 +51,22 @@ instalar dependencias, sin tocar prod**; todo local en la rama
    Franco al pedir velocidad); mitigación: el planner ya corrió su propio source
    coverage audit (5/5 REQ-IDs, D-01..D-08 cubiertos) y la verificación post-ejecución
    (gsd-verifier) sigue activa por fase.
+
+9. **Colisión con agente concurrente (deudas/puntuaciones) en el checkout principal.**
+   Otro agente de Franco venía commiteando en `/home/franco/projects/el-templo`
+   (commits `020e7b37`, `c26412d7`, `b28e3ef3`, `2a41194a` + ratings sin commitear), y
+   mi `checkout -b feat/sesiones-prueba-v58` entrelazó ambas historias. Resolución:
+   el checkout principal quedó DEVUELTO a `feat/sesiones-prueba-v58` (el mundo del
+   otro agente, con sus commits y su working tree intactos); el trabajo v5.8 se movió
+   a la rama limpia **`feat/sp-automatizacion-v58`** (cherry-pick de los 8 commits de
+   planning sobre `b9bedf6e` = tip de master) en el worktree
+   **`/home/franco/projects/el-templo-v58`**, donde corre toda la ejecución.
+   OJO al mergear: `feat/sesiones-prueba-v58` contiene planning docs duplicados +
+   trabajo de deudas/puntuaciones — la rama canónica de v5.8 es
+   `feat/sp-automatizacion-v58`. Migraciones: deudas tomó **0181** (rama sin mergear);
+   v5.8 usa **0182/0183** — si shippean por separado, coordinar numeración.
+   Borradores prematuros del planner (users.ts + 0182.sql) preservados en el
+   scratchpad de la sesión y limpiados del checkout principal.
+10. **`pnpm install --frozen-lockfile`** en el worktree nuevo (sin agregar ni
+   actualizar dependencias — solo materializa el lockfile existente para poder
+   typechequear/testear).
