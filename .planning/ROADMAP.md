@@ -4405,7 +4405,7 @@ Plans:
 | ------------------------------------------- | -------------- | ----------- | --------- |
 | 163. Máquina de estados automática del lead | 4/4 | Complete    | 2026-07-16 |
 | 164. Reprogramación y reporte               | 4/4 | Complete    | 2026-07-16 |
-| 165. Self-service y UX de gestión           | 5/5 | Complete   | 2026-07-16 |
+| 165. Self-service y UX de gestión           | 5/5 | Complete    | 2026-07-16 |
 
 _Plan counts populated by `/gsd-plan-phase`._
 
