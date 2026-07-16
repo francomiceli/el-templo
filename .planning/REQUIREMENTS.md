@@ -69,7 +69,7 @@ v5.6 aún no ejecutado); tests de integración para rutas nuevas/modificadas.
 
 ### SELF — Self-service freemium y UX de gestión
 
-- [ ] **SELF-01**: El flujo self-service existente queda verificado end-to-end
+- [x] **SELF-01**: El flujo self-service existente queda verificado end-to-end
       (registro → elegibilidad → reserva de prueba → lead visible en el reporte admin)
       y corregido donde falle.
 - [x] **SELF-02**: Toda alta de sesión de prueba desde el admin exige teléfono del
@@ -113,7 +113,7 @@ v5.6 aún no ejecutado); tests de integración para rutas nuevas/modificadas.
 | REPRO-01    | Phase 164 | Complete |
 | REPRO-02    | Phase 164 | Complete |
 | REPRO-03    | Phase 164 | Complete |
-| SELF-01     | Phase 165 | Pending |
+| SELF-01     | Phase 165 | Complete |
 | SELF-02     | Phase 165 | Complete |
 | SELF-03     | Phase 165 | Complete |
 | SELF-04     | Phase 165 | Complete |

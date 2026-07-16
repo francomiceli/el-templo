@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v5.8
 milestone_name: Sesiones de Prueba — automatización y self-service
-status: executing
+status: verifying
 stopped_at: Completed 163-03-PLAN.md
-last_updated: "2026-07-16T03:51:02.833Z"
+last_updated: "2026-07-16T04:05:56.925Z"
 last_activity: 2026-07-16
 progress:
   total_phases: 3
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 13
-  completed_plans: 12
-  percent: 67
+  completed_plans: 13
+  percent: 100
 ---
 
 # Project State
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 
 Phase: 165 (Self-service y UX de gestión) — EXECUTING
 Plan: 5 of 5
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-07-16
 
 ## Performance Metrics
@@ -348,6 +348,7 @@ _Updated after each plan completion_
 | Phase 164 P164-02 | 15min | 2 tasks | 3 files |
 | Phase 165 P03 | 15min | 2 tasks | 6 files |
 | Phase 165 P04 | ~8min | 2 tasks | 2 files |
+| Phase 165 P165-05 | 25min | 2 tasks | 1 files |
 
 ## Accumulated Context
 

@@ -4322,7 +4322,7 @@ _v5.7 (Actividades con Aura) added: 2026-07-14 — 2 phases (161-162), 14 requir
 
 - [x] **Phase 163: Máquina de estados automática del lead** — cron diario nuevo en `src/jobs/` que vence En seguimiento → Perdido cuando la última sesión de prueba no cancelada quedó a más de X días sin compra; X en `system_settings` sembrado del p90 histórico con default de resguardo; reset Perdido → En seguimiento al agendar nueva SP (admin o self-service) con la ventana corriendo desde la nueva sesión; columna `lead_status_source` (auto/manual) para auditar overrides; y migración de backfill retroactivo de los ≈112 vencidos con tabla de backup + dry-run de conteos validado. (completed 2026-07-15)
 - [x] **Phase 164: Reprogramación y reporte** — acción "Reprogramar" en el admin que cancela el turno viejo y crea el nuevo en una sola transacción; contador de reprogramaciones por lead derivado de sus bookings de prueba canceladas (retroactivo, sin schema nuevo); e indicador/filtro en el reporte de Sesiones de Prueba de si el estado salió del automatismo o fue pisado a mano (`lead_status_source`). (completed 2026-07-16)
-- [ ] **Phase 165: Self-service y UX de gestión** — verificación end-to-end + fixes del flujo freemium→prueba existente (registro → elegibilidad → reserva → lead en el reporte admin); teléfono obligatorio en toda alta de SP (admin) y en la reserva self-service (diálogo si el perfil no lo tiene); y un flujo más directo para que gestión programe SP y convierta leads en alumnos (fricciones concretas a relevar en discuss-phase).
+- [x] **Phase 165: Self-service y UX de gestión** — verificación end-to-end + fixes del flujo freemium→prueba existente (registro → elegibilidad → reserva → lead en el reporte admin); teléfono obligatorio en toda alta de SP (admin) y en la reserva self-service (diálogo si el perfil no lo tiene); y un flujo más directo para que gestión programe SP y convierta leads en alumnos (fricciones concretas a relevar en discuss-phase). (completed 2026-07-16)
 
 ## v5.8 (Sesiones de Prueba — automatización y self-service) Phase Details
 
@@ -4388,14 +4388,14 @@ Plans:
 3. La reserva self-service de sesión de prueba exige teléfono: si el perfil no lo tiene, la app lo pide en el diálogo de confirmación de la reserva. (SELF-03)
 4. Gestión tiene un flujo más directo para programar sesiones de prueba y convertir leads en alumnos, con mejoras acotadas a las fricciones que el propio flujo actual evidencia (a relevar en discuss-phase). (SELF-04)
 
-**Plans:** 4/5 plans executed
+**Plans:** 5/5 plans complete
 
 Plans:
 - [x] 165-01-PLAN.md — Backend scheduling: PHONE_REQUIRED self-service + bookTrial 409 + eligibility.phoneRequired (SELF-02/03)
 - [x] 165-02-PLAN.md — Admin alta de SP: teléfono obligatorio en convert-to-trial + verify alta directa (SELF-02)
 - [x] 165-03-PLAN.md — Reporte de Sesiones de Prueba: teléfono (wa.me) + CSV + acción Ver ficha (SELF-04)
 - [x] 165-04-PLAN.md — App member: diálogo de teléfono en la reserva self-service (SELF-03)
-- [ ] 165-05-PLAN.md — E2E del funnel self-service + fixes (SELF-01, corazón de la fase)
+- [x] 165-05-PLAN.md — E2E del funnel self-service + fixes (SELF-01, corazón de la fase)
 
 **UI hint:** yes (diálogo de teléfono en la reserva self-service de la member app + teléfono obligatorio y flujo de programar/convertir en el admin)
 
@@ -4405,7 +4405,7 @@ Plans:
 | ------------------------------------------- | -------------- | ----------- | --------- |
 | 163. Máquina de estados automática del lead | 4/4 | Complete    | 2026-07-16 |
 | 164. Reprogramación y reporte               | 4/4 | Complete    | 2026-07-16 |
-| 165. Self-service y UX de gestión           | 4/5 | In Progress|  |
+| 165. Self-service y UX de gestión           | 5/5 | Complete   | 2026-07-16 |
 
 _Plan counts populated by `/gsd-plan-phase`._
 
