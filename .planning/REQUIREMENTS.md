@@ -72,9 +72,9 @@ v5.6 aún no ejecutado); tests de integración para rutas nuevas/modificadas.
 - [ ] **SELF-01**: El flujo self-service existente queda verificado end-to-end
       (registro → elegibilidad → reserva de prueba → lead visible en el reporte admin)
       y corregido donde falle.
-- [ ] **SELF-02**: Toda alta de sesión de prueba desde el admin exige teléfono del
+- [x] **SELF-02**: Toda alta de sesión de prueba desde el admin exige teléfono del
       lead.
-- [ ] **SELF-03**: La reserva self-service de sesión de prueba exige teléfono: si el
+- [x] **SELF-03**: La reserva self-service de sesión de prueba exige teléfono: si el
       perfil no lo tiene, la app lo pide en el diálogo de confirmación de la reserva.
 - [ ] **SELF-04**: Gestión tiene un flujo más directo para programar sesiones de
       prueba y convertir leads en alumnos (fricciones concretas a relevar; mejoras
@@ -114,6 +114,6 @@ v5.6 aún no ejecutado); tests de integración para rutas nuevas/modificadas.
 | REPRO-02    | Phase 164 | Complete |
 | REPRO-03    | Phase 164 | Complete |
 | SELF-01     | Phase 165 | Pending |
-| SELF-02     | Phase 165 | Pending |
-| SELF-03     | Phase 165 | Pending |
+| SELF-02     | Phase 165 | Complete |
+| SELF-03     | Phase 165 | Complete |
 | SELF-04     | Phase 165 | Pending |
