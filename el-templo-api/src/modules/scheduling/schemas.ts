@@ -902,10 +902,13 @@ export const trialEligibilitySchema = {
   response: {
     200: {
       type: "object",
-      required: ["eligible", "alreadyBooked"],
+      required: ["eligible", "alreadyBooked", "phoneRequired"],
       properties: {
         eligible: { type: "boolean" },
         alreadyBooked: { type: "boolean" },
+        // Fase 165 (D-04): true si el perfil no tiene teléfono → la app lo pide
+        // en el diálogo de confirmación de la reserva de prueba.
+        phoneRequired: { type: "boolean" },
         booking: {
           type: "object",
           properties: {

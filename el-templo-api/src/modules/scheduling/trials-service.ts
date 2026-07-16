@@ -85,6 +85,9 @@ export interface ReserveTrialSelfServiceResult {
 export interface TrialEligibility {
   eligible: boolean;
   alreadyBooked: boolean;
+  // Fase 165 (D-04): true si el perfil no tiene teléfono, para que la app lo
+  // pida de antemano en el diálogo de confirmación de la reserva.
+  phoneRequired: boolean;
   booking?: {
     bookingId: number;
     date: string;
@@ -407,14 +410,19 @@ export class TrialService {
       .select({
         status: schema.users.status,
         deletedAt: schema.users.deletedAt,
+        phone: schema.users.phone,
       })
       .from(schema.users)
       .where(eq(schema.users.id, userId))
       .limit(1);
 
     if (!user || user.deletedAt) {
-      return { eligible: false, alreadyBooked: false };
+      return { eligible: false, alreadyBooked: false, phoneRequired: false };
     }
+
+    // Fase 165 (D-04): la app pide el teléfono en el diálogo de reserva cuando
+    // el perfil no lo tiene. Se computa una vez y viaja en todos los retornos.
+    const phoneRequired = !user.phone;
 
     // A member (or soon-to-be member: a scheduled/future sub) NEVER sees the
     // trial UI — even if a legacy is_trial booking from their freemium days
@@ -435,7 +443,7 @@ export class TrialService {
       )
       .limit(1);
     if (blockingSub) {
-      return { eligible: false, alreadyBooked: false };
+      return { eligible: false, alreadyBooked: false, phoneRequired };
     }
 
     // Existing trial booking (any non-cancelled is_trial) takes precedence so
@@ -473,6 +481,7 @@ export class TrialService {
       return {
         eligible: false,
         alreadyBooked: true,
+        phoneRequired,
         booking: {
           bookingId: booking.bookingId,
           date: booking.date,
@@ -492,10 +501,10 @@ export class TrialService {
     // Only a still-freemium lead (no blocking sub, no trial booking yet) can
     // book a new trial. 'prueba' users already have a booking (caught above).
     if (user.status !== "freemium") {
-      return { eligible: false, alreadyBooked: false };
+      return { eligible: false, alreadyBooked: false, phoneRequired };
     }
 
-    return { eligible: true, alreadyBooked: false };
+    return { eligible: true, alreadyBooked: false, phoneRequired };
   }
 
   /**
@@ -640,6 +649,7 @@ export class TrialService {
         id: schema.users.id,
         status: schema.users.status,
         branchId: schema.users.branchId,
+        phone: schema.users.phone,
       })
       .from(schema.users)
       .where(eq(schema.users.id, input.userId));
@@ -654,6 +664,16 @@ export class TrialService {
     if (userRow.branchId !== scheduleRow.branchId) {
       throw new ConflictError(
         "El alumno pertenece a otra sede — solo puede reservar pruebas en su sede",
+      );
+    }
+
+    // Fase 165 (D-03): toda SP nueva exige teléfono del lead. Se usa ConflictError
+    // (409), NO PhoneRequiredError — el admin trata 409 como error de cliente
+    // esperado (extract-error, sin ruido Sentry). El mensaje dice QUÉ hacer. La
+    // reprogramación (164) queda exenta: la booking ya existía, no pasa por acá.
+    if (!userRow.phone) {
+      throw new ConflictError(
+        "Cargale el teléfono al lead en su ficha antes de agendar la sesión de prueba",
       );
     }
 
