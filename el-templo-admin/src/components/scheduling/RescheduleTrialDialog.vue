@@ -194,6 +194,12 @@ const canSubmit = computed(
     props.trial !== null
 );
 
+/** Parse "YYYY-MM-DD" to a local Date at noon (avoids tz day-drift in getMonday). */
+function parseLocalDate(iso: string): Date {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d, 12);
+}
+
 function onDatePicked(val: string | null): void {
   showDatePicker.value = false;
   if (val) {
@@ -201,13 +207,20 @@ function onDatePicked(val: string | null): void {
     selectedDate.value = val.replaceAll('/', '-');
     // La fecha cambió → el turno anterior puede no aplicar a ese día.
     selectedScheduleId.value = null;
+    // WR-04: recargar la grilla de la SEMANA de la fecha elegida (no la actual)
+    // para reflejar isActive/feriados/cancelaciones específicos de esa semana.
+    if (props.branchId !== null) void loadSlots(props.branchId, selectedDate.value);
   }
 }
 
-async function loadSlots(branchId: number): Promise<void> {
+async function loadSlots(branchId: number, referenceDate?: string): Promise<void> {
   loadingSlots.value = true;
   try {
-    const monday = getMonday(new Date());
+    // WR-04: grilla del lunes de la fecha de referencia (la elegida) o, al abrir
+    // sin fecha aún, la semana actual. El estado isActive/feriado es por-semana.
+    const monday = getMonday(
+      referenceDate ? parseLocalDate(referenceDate) : new Date(),
+    );
     const result = await schedulingApi.getWeeklyGrid(branchId, monday);
     weeklySlots.value = result.slots;
   } catch (err: unknown) {
