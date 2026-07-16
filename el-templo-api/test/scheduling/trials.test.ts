@@ -585,6 +585,46 @@ describe("Scheduling Trials API (Phase 102 + 103)", () => {
     expect(JSON.parse(res.body).message).toContain("prueba");
   });
 
+  // ─── 165 D-03: phone guard ────────────────────────────────────────────
+
+  it("POST /trials returns 409 (actionable) if the prueba lead has no phone", async () => {
+    const activity = await createActivity();
+    const futureSlot = getFutureSlot();
+    const slot = await createScheduleSlot(
+      activity.id,
+      futureSlot.dayOfWeek,
+      futureSlot.startTime,
+      futureSlot.endTime,
+    );
+
+    // A legacy prueba lead with no phone on file (D-03: bookTrial must reject).
+    const userId = await createPruebaUser();
+    await app.db
+      .update(users)
+      .set({ phone: null })
+      .where(eq(users.id, userId));
+
+    const res = await app.inject({
+      method: "POST",
+      url: TRIALS_URL,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: {
+        userId,
+        scheduleId: slot.id,
+        bookingDate: futureSlot.date,
+      },
+    });
+    expect(res.statusCode).toBe(409);
+    expect(JSON.parse(res.body).message).toContain("teléfono");
+
+    // No booking was created (guard runs before the tx).
+    const rows = await app.db
+      .select({ id: bookings.id })
+      .from(bookings)
+      .where(eq(bookings.memberId, userId));
+    expect(rows).toHaveLength(0);
+  });
+
   // ─── 103: branch guard ────────────────────────────────────────────────
 
   it("POST /trials returns 409 if user belongs to another branch", async () => {

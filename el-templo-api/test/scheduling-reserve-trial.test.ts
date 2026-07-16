@@ -117,7 +117,13 @@ describe("POST /api/members/scheduling/reserve-trial (Phase 119)", () => {
   async function freemiumToken(
     overrides: Parameters<typeof createEligibleFreemium>[1] = {},
   ): Promise<{ id: number; email: string; token: string }> {
-    const { id, email } = await createEligibleFreemium(app, overrides);
+    // Fase 165 (D-04): reserve-trial now requires a phone. Seed one by default so
+    // the pre-existing self-service cases keep exercising the happy path; the
+    // phone-required negative test opts out with `phone: null`.
+    const { id, email } = await createEligibleFreemium(app, {
+      phone: "1122334455",
+      ...overrides,
+    });
     const token = await getAuthToken(app, email, "pass123456");
     return { id, email, token };
   }
@@ -354,5 +360,52 @@ describe("POST /api/members/scheduling/reserve-trial (Phase 119)", () => {
       branchId: physicalBranchId,
     });
     expect(statusCode).toBe(409);
+  });
+
+  it("165 D-04: a freemium with no phone reserving without phone → 400 PHONE_REQUIRED", async () => {
+    const { id, token } = await freemiumToken({ phone: null });
+    const { statusCode, body } = await reserve(token, {
+      scheduleId,
+      date: thursdayOffset(),
+      branchId: physicalBranchId,
+    });
+    expect(statusCode).toBe(400);
+    expect(body.code).toBe("PHONE_REQUIRED");
+
+    // No promotion and no booking were written (guard runs before the tx).
+    const [user] = await app.db
+      .select({ status: schema.users.status, phone: schema.users.phone })
+      .from(schema.users)
+      .where(eq(schema.users.id, id))
+      .limit(1);
+    expect(user.status).toBe("freemium");
+    expect(user.phone).toBeNull();
+    const bookings = await app.db
+      .select({ id: schema.bookings.id })
+      .from(schema.bookings)
+      .where(eq(schema.bookings.memberId, id));
+    expect(bookings).toHaveLength(0);
+  });
+
+  it("165 D-04: a phone-less freemium sending phone in the body → 201 + phone persisted (normalized)", async () => {
+    const { id, token } = await freemiumToken({ phone: null });
+    const { statusCode, body } = await reserve(token, {
+      scheduleId,
+      date: thursdayOffset(),
+      branchId: physicalBranchId,
+      // Loosely formatted — normalizePhone keeps the trailing 10 digits.
+      phone: "+54 9 11 2233-4455",
+    });
+    expect(statusCode).toBe(201);
+    expect(typeof body.bookingId).toBe("number");
+
+    const [user] = await app.db
+      .select({ status: schema.users.status, phone: schema.users.phone })
+      .from(schema.users)
+      .where(eq(schema.users.id, id))
+      .limit(1);
+    expect(user.status).toBe("prueba");
+    // last 10 digits of "5491122334455" → "1122334455"
+    expect(user.phone).toBe("1122334455");
   });
 });

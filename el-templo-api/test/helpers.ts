@@ -499,7 +499,14 @@ export async function createStaffUser(
  */
 export async function createEligibleFreemium(
   app: FastifyInstance,
-  overrides: { email?: string; createdAt?: Date; branchId?: number } = {},
+  overrides: {
+    email?: string;
+    createdAt?: Date;
+    branchId?: number;
+    // Fase 165 (D-04): seed a phone when the test needs an already-phoned lead.
+    // Default undefined → phone stays null (leads with no phone still exist).
+    phone?: string | null;
+  } = {},
 ): Promise<{ id: number; email: string }> {
   const uniqueSuffix = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
   const email = overrides.email ?? `freemium-${uniqueSuffix}@test.com`;
@@ -519,6 +526,7 @@ export async function createEligibleFreemium(
       branchId: overrides.branchId ?? 1,
       status: "freemium",
       createdAt,
+      phone: overrides.phone ?? null,
     })
     .$returningId();
 

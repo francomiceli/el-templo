@@ -87,8 +87,16 @@ describe("GET /api/members/scheduling/trial-eligibility (Phase 119)", () => {
     return base.toISOString().split("T")[0];
   }
 
-  async function freemiumToken(): Promise<{ id: number; token: string }> {
-    const { id, email } = await createEligibleFreemium(app);
+  async function freemiumToken(
+    overrides: Parameters<typeof createEligibleFreemium>[1] = {},
+  ): Promise<{ id: number; token: string }> {
+    // Fase 165 (D-04): seed a phone by default so the reserve-trial happy paths
+    // in this file keep passing (reserve now requires a phone). Tests that need a
+    // phone-less lead opt out with `phone: null`.
+    const { id, email } = await createEligibleFreemium(app, {
+      phone: "1122334455",
+      ...overrides,
+    });
     const token = await getAuthToken(app, email, "pass123456");
     return { id, token };
   }
@@ -111,6 +119,29 @@ describe("GET /api/members/scheduling/trial-eligibility (Phase 119)", () => {
     expect(body.eligible).toBe(true);
     expect(body.alreadyBooked).toBe(false);
     expect(body.booking).toBeUndefined();
+    // Fase 165 (D-04): this freemium already has a phone → phoneRequired false.
+    expect(body.phoneRequired).toBe(false);
+  });
+
+  it("165 D-04: phoneRequired=true for an eligible freemium with no phone", async () => {
+    const { token } = await freemiumToken({ phone: null });
+    const { statusCode, body } = await getEligibility(token);
+    expect(statusCode).toBe(200);
+    expect(body.eligible).toBe(true);
+    expect(body.phoneRequired).toBe(true);
+  });
+
+  it("165 D-04: phoneRequired=false after the lead has a phone (non-freemium path too)", async () => {
+    const { id, token } = await freemiumToken({ phone: null });
+    // Give the lead a phone and flip status → the field is present on every path.
+    await app.db
+      .update(schema.users)
+      .set({ phone: "1199887766", status: "activo" })
+      .where(eq(schema.users.id, id));
+
+    const { body } = await getEligibility(token);
+    expect(body.eligible).toBe(false);
+    expect(body.phoneRequired).toBe(false);
   });
 
   it("D-20: eligible=false for a user with an active subscription", async () => {
