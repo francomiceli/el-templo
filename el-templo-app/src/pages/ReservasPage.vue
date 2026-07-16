@@ -649,7 +649,9 @@
             label="Teléfono"
             outlined
             dense
-            :rules="[(v) => !!v?.trim() || 'Ingresá tu teléfono']"
+            :rules="[
+              (v) => (v ?? '').replace(/\D/g, '').length >= 6 || 'Ingresá un teléfono válido',
+            ]"
             hint="Lo necesitamos para coordinar tu sesión de prueba"
           />
         </q-card-section>
@@ -660,7 +662,7 @@
             label="Confirmar prueba"
             color="primary"
             :loading="trialDialog.loading"
-            :disable="trialPhoneRequired && !trialDialog.phone.trim()"
+            :disable="trialPhoneRequired && trialDialog.phone.replace(/\D/g, '').length < 6"
             @click="confirmTrialReserve"
           />
         </q-card-actions>
@@ -1513,10 +1515,11 @@ function onTrialSlotTap(slot: WeeklySlotView) {
 
 async function confirmTrialReserve() {
   if (!trialBranchId.value) return
-  // Si el perfil no tiene teléfono, es condición para reservar (D-05). El backend
-  // igual rechaza con PHONE_REQUIRED, pero evitamos el round-trip inútil.
-  if (trialPhoneRequired.value && !trialDialog.value.phone.trim()) {
-    $q.notify({ type: 'warning', message: 'Ingresá tu teléfono para reservar la prueba' })
+  // Si el perfil no tiene teléfono, es condición para reservar (D-05). WR-04:
+  // exigimos al menos 6 dígitos (no solo no-vacío) para no alimentar el bypass
+  // del backend. El backend igual rechaza, pero evitamos el round-trip inútil.
+  if (trialPhoneRequired.value && trialDialog.value.phone.replace(/\D/g, '').length < 6) {
+    $q.notify({ type: 'warning', message: 'Ingresá un teléfono válido para reservar la prueba' })
     return
   }
   trialDialog.value.loading = true
