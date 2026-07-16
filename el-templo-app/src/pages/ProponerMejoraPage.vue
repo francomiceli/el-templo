@@ -4,14 +4,14 @@
      entrada al mismo endpoint. -->
 <template>
   <q-page class="mejoras-page" padding>
-    <p class="page-title">Proponé una mejora</p>
+    <p class="page-title">Envianos tu sugerencia</p>
 
     <!-- Enviado: confirmación con opción de mandar otra -->
     <div v-if="sent" class="sent-card">
       <q-icon name="check_circle" size="48px" color="positive" />
-      <p class="sent-card__title">¡Gracias! Tu propuesta fue enviada al equipo.</p>
-      <p class="sent-card__subtitle">El equipo está escuchando: leemos cada propuesta.</p>
-      <q-btn color="primary" outline no-caps label="Enviar otra propuesta" @click="resetForm" />
+      <p class="sent-card__title">¡Gracias! Tu sugerencia fue enviada al equipo.</p>
+      <p class="sent-card__subtitle">El equipo está escuchando: leemos cada sugerencia.</p>
+      <q-btn color="primary" outline no-caps label="Enviar otra sugerencia" @click="resetForm" />
     </div>
 
     <!-- Formulario -->
@@ -33,7 +33,7 @@
         autogrow
         counter
         maxlength="1000"
-        label="Tu propuesta"
+        label="Tu sugerencia"
         :input-style="{ minHeight: '120px' }"
       />
 
@@ -42,7 +42,7 @@
         color="primary"
         unelevated
         no-caps
-        label="Enviar propuesta"
+        label="Enviar sugerencia"
         :disable="proposal.trim().length === 0"
         :loading="submitting"
         @click="onSubmit"
@@ -79,7 +79,7 @@ async function onSubmit(): Promise<void> {
     await submitProposal(trimmed)
     sent.value = true
   } catch (err: unknown) {
-    const message = extractError(err, 'No pudimos enviar tu propuesta. Probá de nuevo en un rato.')
+    const message = extractError(err, 'No pudimos enviar tu sugerencia. Probá de nuevo en un rato.')
     if (isExpectedClientError(err)) {
       log.warn('Proposal submit rejected', { message })
     } else {

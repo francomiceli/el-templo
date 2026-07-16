@@ -17,11 +17,11 @@
           outlined
           counter
           maxlength="1000"
-          label="Tu propuesta"
+          label="Tu sugerencia"
         />
 
         <p class="proposal-dialog__helper">
-          Leemos cada propuesta.
+          Leemos cada sugerencia.
         </p>
       </q-card-section>
 
@@ -32,7 +32,7 @@
           class="proposal-dialog__primary full-width"
           :disable="proposal.trim().length === 0"
           :loading="submitting"
-          label="Enviar propuesta"
+          label="Enviar sugerencia"
           @click="onSubmit"
         />
         <q-btn
@@ -101,9 +101,9 @@ async function onSubmit(): Promise<void> {
   try {
     await submitProposal(trimmed)
     show.value = false
-    $q.notify({ type: 'positive', message: '¡Gracias! Tu propuesta fue enviada al equipo.' })
+    $q.notify({ type: 'positive', message: '¡Gracias! Tu sugerencia fue enviada al equipo.' })
   } catch (err: unknown) {
-    const message = extractError(err, 'No pudimos enviar tu propuesta. Probá de nuevo en un rato.')
+    const message = extractError(err, 'No pudimos enviar tu sugerencia. Probá de nuevo en un rato.')
     if (isExpectedClientError(err)) {
       log.warn('Proposal submit rejected', { message })
     } else {

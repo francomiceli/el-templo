@@ -14,7 +14,7 @@
       <div class="exp-header">
         <div class="exp-badge">
           <q-icon name="emoji_objects" size="12px" class="exp-badge-icon" />
-          <span class="exp-badge-text">Mejoras</span>
+          <span class="exp-badge-text">Sugerencias</span>
         </div>
       </div>
 
@@ -27,7 +27,7 @@
           El equipo está escuchando: contanos qué te gustaría para darte la mejor experiencia.
         </p>
         <a href="#" class="exp-cta" @click.prevent="goToMejoras">
-          <span class="exp-cta-text">Proponer mejora</span>
+          <span class="exp-cta-text">Enviar sugerencia</span>
         </a>
       </div>
     </div>
