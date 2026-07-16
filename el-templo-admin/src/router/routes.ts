@@ -211,11 +211,11 @@ const routes: RouteRecordRaw[] = [
       },
       {
         // Feedback del alumno: Clases / Profes / Sugerencias en tabs.
-        // La unión de roles pasa acá; qué tab ve cada rol se decide en la
-        // página (el gate real sigue siendo el API por endpoint).
+        // Dueño-only (decisión 2026-07-16); qué tab ve cada rol se decide
+        // en la página (el gate real sigue siendo el API por endpoint).
         path: 'feedback',
         component: () => import('pages/FeedbackPage.vue'),
-        meta: { allowedRoles: ['gestion', 'admin', 'owner'] as AdminRole[] },
+        meta: { allowedRoles: ['admin', 'owner'] as AdminRole[] },
       },
       // Rutas viejas de puntuaciones/propuestas → tabs de Feedback.
       { path: 'puntuaciones', redirect: { path: '/feedback', query: { tab: 'profes' } } },

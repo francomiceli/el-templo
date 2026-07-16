@@ -1,7 +1,7 @@
-<!-- Feedback: la voz del alumno en un solo lugar. Tres tabs por rol:
+<!-- Feedback: la voz del alumno en un solo lugar (Dueño-only). Tres tabs:
      Clases (puntuaciones de clase, ex tab de Analíticas — Dueño),
      Profes (puntuaciones de profes, ex /puntuaciones — owner) y
-     Sugerencias (ex /propuestas — espejo de MEMBER_LIFECYCLE_ROLES).
+     Sugerencias (ex /propuestas — Dueño).
      Los filtros fecha/sucursal son compartidos entre tabs; cada tab
      agrega los suyos. El tab activo viaja en ?tab= para deep links
      (las rutas viejas redirigen acá). -->
@@ -88,20 +88,14 @@ const authStore = useAuthStore();
 const membersApi = useMembersApi();
 
 /**
- * Roles por tab — espejo de los guards del API que cada tab consume:
- * class-ratings es analítica de Dueño, owner-ratings es owner-only y
- * proposals sigue MEMBER_LIFECYCLE_ROLES. El router deja pasar la unión;
- * acá se decide qué tabs ve cada rol (el API sigue siendo el gate real).
+ * Roles por tab. La página entera es Dueño-only (router + nav, decisión
+ * 2026-07-16); adentro, Profes queda owner-only como su ex página
+ * /puntuaciones. El API sigue siendo el gate real de cada endpoint.
  */
 const TABS: Array<{ name: string; label: string; icon: string; roles: AdminRole[] }> = [
   { name: 'clases', label: 'Clases', icon: 'star', roles: DUENO_ROLES },
   { name: 'profes', label: 'Profes', icon: 'groups', roles: ['owner'] },
-  {
-    name: 'sugerencias',
-    label: 'Sugerencias',
-    icon: 'emoji_objects',
-    roles: ['gestion', 'admin', 'owner'],
-  },
+  { name: 'sugerencias', label: 'Sugerencias', icon: 'emoji_objects', roles: DUENO_ROLES },
 ];
 
 const role = computed(() => authStore.user?.role);
