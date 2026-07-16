@@ -48,20 +48,24 @@ const CANCEL_TRIAL_URL = "/api/members/scheduling/cancel-trial";
 const TRIAL_REPORT_URL = "/api/admin/reports/trial-sessions";
 
 /**
- * Fecha (YYYY-MM-DD) + dayOfWeek ISO (Lun=1..Dom=7) para hoy + `days`, calculado
- * en la fecha LOCAL del proceso. MySQL evalúa CURDATE()/NOW() en la tz del server
- * (ART); calcular en UTC corre un día tras las 21:00 ART y desalinea el slot con
- * la validación server-side (mismo bug latente que 163/164 documentan).
+ * Fecha (YYYY-MM-DD) + dayOfWeek para hoy + `days`, calculado en la fecha LOCAL
+ * del proceso. MySQL evalúa CURDATE()/NOW() en la tz del server (ART); calcular
+ * en UTC corre un día tras las 21:00 ART y desalinea el slot con la validación
+ * server-side (mismo bug latente que 163/164 documentan).
+ *
+ * La API de schedules acepta dayOfWeek 1..6 (Lun=1..Sáb=6, sin domingos — el
+ * gym no abre domingo). JS getDay() ya devuelve Lun=1..Sáb=6, así que basta con
+ * saltear el domingo (getDay()===0) y usar getDay() directo; es la misma
+ * convención que valida reserve-trial contra el schedule.
  */
-function localTrialDate(days: number): { date: string; dayOfWeek: number } {
+function localTrialDate(minDays: number): { date: string; dayOfWeek: number } {
   const d = new Date();
-  d.setDate(d.getDate() + days);
+  d.setDate(d.getDate() + minDays);
+  if (d.getDay() === 0) d.setDate(d.getDate() + 1); // saltear domingo (cerrado)
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   const dd = String(d.getDate()).padStart(2, "0");
   const date = `${d.getFullYear()}-${mm}-${dd}`;
-  const js = d.getDay(); // 0=Dom..6=Sáb
-  const dayOfWeek = js === 0 ? 7 : js; // ISO: Lun=1..Dom=7
-  return { date, dayOfWeek };
+  return { date, dayOfWeek: d.getDay() }; // Lun=1..Sáb=6
 }
 
 describe("E2E self-service trial funnel (Fase 165-05, SELF-01)", () => {
