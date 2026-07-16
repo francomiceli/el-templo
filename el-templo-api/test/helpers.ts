@@ -189,6 +189,9 @@ const TABLES_TO_CLEAN = [
   schema.referralCtaClicks,
   schema.memberNotes,
   schema.holidays,
+  // Propuestas de mejora: FK a users -- sin limpiar, las filas huérfanas de un
+  // test anterior rompen los counts y el prompt-status del siguiente.
+  schema.improvementProposals,
   // Phase 117: finance tables were missing here, leaking financial_transactions
   // across tests and polluting exact-total assertions (revenue per currency).
   // FK checks are disabled below, so order vs subscriptions/balances is moot.

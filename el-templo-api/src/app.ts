@@ -39,6 +39,10 @@ import { analyticsRoutes } from "./modules/analytics";
 import { reportsRoutes } from "./modules/reports";
 import { coachRoutes } from "./modules/coach";
 import { ratingsAdminRoutes, ratingsMemberRoutes } from "./modules/ratings";
+import {
+  improvementProposalsAdminRoutes,
+  improvementProposalsMemberRoutes,
+} from "./modules/improvement-proposals";
 import { financeRoutes, coachLoadRoutes } from "./modules/finance";
 import { userRoutes } from "./modules/users";
 import { settingsRoutes } from "./modules/settings";
@@ -225,6 +229,15 @@ export async function buildApp() {
   });
   await app.register(ratingsMemberRoutes, {
     prefix: "/api/members/ratings",
+  });
+
+  // Propuestas de mejora por sucursal: member prompt-status + submit, y
+  // listado/export admin (MEMBER_LIFECYCLE_ROLES).
+  await app.register(improvementProposalsAdminRoutes, {
+    prefix: "/api/admin/improvement-proposals",
+  });
+  await app.register(improvementProposalsMemberRoutes, {
+    prefix: "/api/members/improvement-proposals",
   });
 
   // Finance routes (transactions create/void/list, financial history) — Phase 106
