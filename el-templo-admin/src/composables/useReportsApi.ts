@@ -36,6 +36,9 @@ export interface TrialSessionsFiltersClient {
   leadStatus?: TrialLeadStatusValue[];
   attended?: TrialAttendedFilter;
   shift?: TrialShiftFilter;
+  // Phase 164-04 (D-06): origen del estado del lead. 'auto' incluye históricos
+  // (lead_status_source NULL); 'manual' matchea el valor exacto. Server-side.
+  leadStatusSource?: 'auto' | 'manual';
   // Owner-only (D-44). Frontend MUST gate sending this; server silently
   // strips it for non-owners but we belt-and-suspenders here.
   gestionaUserId?: number;
@@ -66,6 +69,11 @@ export interface TrialSessionsRowClient {
   weekRange: string;
   daysSinceTrial: number;
   converted: boolean;
+  // Phase 164-04: contador retroactivo de pruebas canceladas del lead
+  // (incl. self-service) — proxy de "ruido" de reprogramaciones.
+  reschedules: number;
+  // Phase 164-04: origen del estado del lead. null = automático/histórico.
+  leadStatusSource: 'auto' | 'manual' | null;
 }
 
 export interface TrialSessionsResult {

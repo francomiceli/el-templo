@@ -54,6 +54,20 @@
         />
       </div>
 
+      <!-- Origen del estado (D-06): filtra auto (incl. históricos) vs manual -->
+      <div class="col-6 col-sm-2 col-md-1">
+        <q-select
+          v-model="filters.leadStatusSource"
+          :options="LEAD_STATUS_SOURCE_OPTIONS"
+          emit-value
+          map-options
+          label="Origen"
+          dense
+          outlined
+          clearable
+        />
+      </div>
+
       <!-- D-44: Gestiona filter is OWNER-ONLY. For admin/gestion the SELECT
            is not rendered at all. There is NO fallback element (no numeric
            input, no free-form text). -->
@@ -175,6 +189,16 @@
               </q-list>
             </q-menu>
           </q-chip>
+          <!-- Indicador auto/manual (D-05): sólo 'manual' muestra ícono discreto.
+               null/'auto' = automático/histórico → nada. Sin colores nuevos. -->
+          <q-icon
+            v-if="props.row.leadStatusSource === 'manual'"
+            name="edit"
+            size="14px"
+            class="q-ml-xs text-grey-6"
+          >
+            <q-tooltip>Estado puesto a mano</q-tooltip>
+          </q-icon>
         </q-td>
       </template>
 
@@ -230,6 +254,18 @@
             <span v-else class="text-grey-5">—</span>
           </div>
         </q-td>
+      </template>
+
+      <!-- Reprogramaciones header (D-04): tooltip documentando el conteo total -->
+      <template #header-cell-reschedules="props">
+        <q-th :props="props">
+          {{ props.col.label }}
+          <q-icon name="info" size="16px" class="q-ml-xs text-grey-6" />
+          <q-tooltip max-width="260px">
+            Cuenta TODAS las pruebas canceladas del lead (incluye reprogramaciones
+            self-service), no sólo las hechas por gestión.
+          </q-tooltip>
+        </q-th>
       </template>
 
       <!-- Asistió header keeps the accented Spanish label -->
@@ -361,12 +397,22 @@ const SHIFT_OPTIONS: Array<{ value: ShiftFilter; label: string }> = [
   { value: 'TT', label: 'Tarde' },
 ];
 
+// Phase 164-04 (D-06): origen del estado del lead. 'auto' incluye históricos
+// (server trata NULL como automático).
+type LeadStatusSourceFilter = 'auto' | 'manual';
+
+const LEAD_STATUS_SOURCE_OPTIONS: Array<{ value: LeadStatusSourceFilter; label: string }> = [
+  { value: 'auto', label: 'Automático' },
+  { value: 'manual', label: 'Manual' },
+];
+
 // ─── Filter state ───────────────────────────────────────────────────────
 
 interface Filters {
   leadStatus: LeadStatusValue[];
   attended: AttendedFilter | null;
   shift: ShiftFilter | null;
+  leadStatusSource: LeadStatusSourceFilter | null;
   gestionaUserId: number | null;
   daysWithoutConvertingMin: number | null;
   search: string;
@@ -376,6 +422,7 @@ const filters = reactive<Filters>({
   leadStatus: [],
   attended: null,
   shift: null,
+  leadStatusSource: null,
   gestionaUserId: null,
   daysWithoutConvertingMin: null,
   search: '',
@@ -636,6 +683,15 @@ const columns: QTableColumn<TrialSessionsRowClient>[] = [
     align: 'left',
     sortable: false,
   },
+  // Phase 164-04 (D-04): contador de reprogramaciones por lead. El header
+  // documenta (tooltip) que cuenta TODAS las pruebas canceladas del lead.
+  {
+    name: 'reschedules',
+    label: 'Reprogramaciones',
+    field: 'reschedules',
+    align: 'center',
+    sortable: false,
+  },
 ];
 
 // ─── Build server-side filter payload ───────────────────────────────────
@@ -646,6 +702,7 @@ function buildServerFilters() {
     leadStatus: filters.leadStatus.length > 0 ? filters.leadStatus : undefined,
     attended: filters.attended ?? undefined,
     shift: filters.shift ?? undefined,
+    leadStatusSource: filters.leadStatusSource ?? undefined,
     // D-44: only ship gestionaUserId when current user is owner. The server
     // also silently strips it for non-owners (Plan 05 T3) as defense in depth.
     gestionaUserId:
