@@ -23,7 +23,15 @@ findings:
   warning: 4
   info: 1
   total: 6
-status: issues_found
+status: resolved
+resolved: 2026-07-16
+resolution:
+  CR-01: fixed (00378351)
+  WR-01: fixed (e260afde)
+  WR-02: fixed (39e1b153)
+  WR-03: fixed (10bc4520)
+  WR-04: fixed (b4220d30)
+  IN-01: fixed (daf071da)
 ---
 
 # Phase 164: Code Review Report
@@ -100,6 +108,9 @@ if (userRow.status !== "prueba") {
 Also scope the reactivate lookup to trials (`and(..., eq(schema.bookings.isTrial, true))`) so a
 regular booking can never be reactivated as a trial.
 
+**✅ FIXED (00378351):** Added the `status !== 'prueba'` guard (409 accionable en español) before
+the transaction and scoped the reactivate lookup to `isTrial=1`. Covered by the new WR-02 test.
+
 ## Warnings
 
 ### WR-01: Reschedule route does not enforce branch/country scope (no `requireBranchAccess`)
@@ -118,6 +129,10 @@ same gap — but the inconsistency with the other trial-mutation routes should b
 **Fix:** Add `preHandler: [requireBranchAccess({ from: "body.branchId" })]` to the route (and,
 ideally, do the same for `POST /trials` to remove the pre-existing gap).
 
+**✅ FIXED (e260afde):** Added `preHandler: [requireBranchAccess({ from: "body.branchId" })]` to
+the reschedule route. **Nota:** el gap de `POST /trials` (bookTrial) es **preexistente** a esta
+fase — se deja como está (fuera del scope de 164) y queda documentado aquí para un follow-up.
+
 ### WR-02: No test for the `ganado`/converted-member reset case (CR-01)
 
 **File:** `el-templo-api/test/scheduling/reschedule-trial.test.ts`
@@ -128,6 +143,10 @@ clobber a won conversion. Given CLAUDE.md's "well-tested code is non-negotiable"
 reachable, this coverage gap let the bug through.
 **Fix:** After fixing CR-01, add a case: seed `status='activo'`/`leadStatus='ganado'`, attempt a
 reschedule, assert `409` and that `leadStatus` stays `ganado`.
+
+**✅ FIXED (39e1b153):** Added "rechaza (409) reprogramar la prueba de un convertido y deja
+'ganado' intacto" — siembra `status='activo'`/`leadStatus='ganado'`/`source='manual'`, afirma 409,
+lead intacto y booking vieja sin cancelar. Suite `reschedule-trial.test.ts` 6/6 verde.
 
 ### WR-03: Backend accepts past dates and weekday-mismatched schedules
 
@@ -142,6 +161,10 @@ cases" preference this should be validated server-side.
 **Fix:** Validate `input.date >= todayInTz(branchTz)` and that the schedule's `dayOfWeek` matches the
 date's weekday before opening the transaction.
 
+**✅ FIXED (10bc4520):** Se agregó validación not-past (`input.date >= todayInTz(branchTz)`) +
+coincidencia de `dayOfWeek` (patrón de `assertDateWithinWindow`), con 400 accionable en español,
+antes de abrir la transacción. `bookTrial` mantiene la misma laxitud (paridad, fuera de scope).
+
 ### WR-04: RescheduleTrialDialog loads only the current week's grid but allows any future date
 
 **File:** `el-templo-admin/src/components/scheduling/RescheduleTrialDialog.vue:203-216` (`loadSlots`)
@@ -154,6 +177,10 @@ but the `isActive`/holiday state is week-specific.
 **Fix:** Load the weekly grid for the Monday of the **selected** date (refetch when the date changes),
 so `isActive`/holiday state matches the target week.
 
+**✅ FIXED (b4220d30):** `loadSlots` ahora toma una fecha de referencia y usa el lunes de esa
+semana; `onDatePicked` refetchea la grilla al cambiar la fecha, reflejando isActive/feriados de la
+semana destino. ESLint limpio sobre el archivo (vue-tsc no instalado, no se corrió).
+
 ## Info
 
 ### IN-01: `TrialSessionsQuery` route generic type omits `leadStatusSource`
@@ -165,6 +192,9 @@ was not updated with `leadStatusSource`, even though the AJV schema, `buildTrial
 validated field and `buildTrialSessionsFilters` re-types the query) and compiles (the field is
 optional), but the route-level type is now inaccurate.
 **Fix:** Add `leadStatusSource?: "auto" | "manual";` to `TrialSessionsQuery` for accuracy.
+
+**✅ FIXED (daf071da):** Se agregó `leadStatusSource?: "auto" | "manual";` al type
+`TrialSessionsQuery` usado en los generics de `/trial-sessions` y `/export`.
 
 ---
 
