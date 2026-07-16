@@ -6,7 +6,7 @@
  * configurable (system_settings `leads.perdido_window_days`, leída en cada
  * corrida vía SettingsService.getPerdidoWindowDays — sin cache, D-05).
  *
- * Regla (D-02): lead con `status IN ('prueba','freemium')`, `lead_status`
+ * Regla (D-02): lead con `status = 'prueba'`, `lead_status`
  * En seguimiento (o NULL efectivo), `converted_at IS NULL`, `purchased_plan_id
  * IS NULL`, `deleted_at IS NULL`, cuya última booking `is_trial=1` no cancelada
  * (misma derivación MAX(id) que el reporte y la migración 0170) tiene
@@ -60,7 +60,7 @@ function candidateBaseConditions(windowDays: number) {
     AND u.converted_at IS NULL
     AND u.purchased_plan_id IS NULL
     AND u.deleted_at IS NULL
-    AND u.status IN ('prueba', 'freemium')
+    AND u.status = 'prueba'
     AND DATE_ADD(b.booking_date, INTERVAL ${windowDays} DAY) < CURDATE()
   `;
 }

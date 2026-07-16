@@ -25,7 +25,13 @@
 --      via subquery, para usar EXACTAMENTE el mismo valor que el cron. Sin guard
 --      de asistencia (D-02: el campo Asistio NO toca el estado). NUNCA pisa un
 --      estado manual (lead_status_source='manual'), ni convertidos, ni con plan,
---      ni borrados, ni activos/staff (status IN prueba/freemium).
+--      ni borrados, ni nada que no sea un lead real (solo status='prueba', D-02).
+--
+-- Post-review WR-01/WR-02 (2026-07-15): este archivo se re-edito DESPUES de
+-- aplicarse en la DB local de dev (el runner trackea por nombre de archivo y no
+-- re-aplica). El predicado que corrio en dev inclui­a 'freemium' y coercion
+-- GREATEST(...,1) -- staging/prod van a correr ESTA version (solo 'prueba',
+-- coercion unificada con el cron: ausente/invalido/<=0/fraccional -> 14).
 --
 -- Referencia del brief (15/07): ~112 En seguimiento vencidos deberian mover a
 -- Perdido. El dry-run contra prod (src/db/scripts/0183_backfill_lost_leads_dryrun.sql)
@@ -51,14 +57,20 @@ WHERE (u.lead_status = 'en_seguimiento' OR u.lead_status IS NULL)
   AND u.converted_at IS NULL
   AND u.purchased_plan_id IS NULL
   AND u.deleted_at IS NULL
-  AND u.status IN ('prueba', 'freemium')
+  AND u.status = 'prueba'
   AND (u.lead_status_source <> 'manual' OR u.lead_status_source IS NULL)
   AND DATE_ADD(
         b.booking_date,
         INTERVAL (
-          SELECT GREATEST(CAST(ss.setting_value AS SIGNED), 1)
-          FROM system_settings ss
-          WHERE ss.setting_key = 'leads.perdido_window_days'
-          LIMIT 1
+          SELECT COALESCE(
+            (SELECT CASE
+                      WHEN FLOOR(ss.setting_value) > 0 THEN FLOOR(ss.setting_value)
+                      ELSE 14
+                    END
+             FROM system_settings ss
+             WHERE ss.setting_key = 'leads.perdido_window_days'
+             LIMIT 1),
+            14
+          )
         ) DAY
       ) < CURDATE();

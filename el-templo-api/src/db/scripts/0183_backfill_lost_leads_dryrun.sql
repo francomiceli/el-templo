@@ -28,14 +28,20 @@ WHERE (u.lead_status = 'en_seguimiento' OR u.lead_status IS NULL)
   AND u.converted_at IS NULL
   AND u.purchased_plan_id IS NULL
   AND u.deleted_at IS NULL
-  AND u.status IN ('prueba', 'freemium')
+  AND u.status = 'prueba'
   AND (u.lead_status_source <> 'manual' OR u.lead_status_source IS NULL)
   AND DATE_ADD(
         b.booking_date,
         INTERVAL (
-          SELECT GREATEST(CAST(ss.setting_value AS SIGNED), 1)
-          FROM system_settings ss
-          WHERE ss.setting_key = 'leads.perdido_window_days'
-          LIMIT 1
+          SELECT COALESCE(
+            (SELECT CASE
+                      WHEN FLOOR(ss.setting_value) > 0 THEN FLOOR(ss.setting_value)
+                      ELSE 14
+                    END
+             FROM system_settings ss
+             WHERE ss.setting_key = 'leads.perdido_window_days'
+             LIMIT 1),
+            14
+          )
         ) DAY
       ) < CURDATE();
