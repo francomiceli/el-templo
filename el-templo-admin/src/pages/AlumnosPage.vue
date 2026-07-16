@@ -338,6 +338,7 @@
       :member="postCreateAssignTarget"
       :branches="branches"
       @assigned="onPostCreateAssigned"
+      @member-edited="onPostCreateMemberEdited"
       @update:modelValue="onPostCreateAssignDialog"
     />
   </q-page>
@@ -941,6 +942,22 @@ function onMemberSaved(created: MemberProfile | null) {
 function onPostCreateAssigned() {
   postCreateAssignmentDone.value = true;
   loadMembers();
+}
+
+// El alumno recién creado se editó desde el CTA del banner de sede virtual
+// DENTRO del diálogo de asignación: re-fetchear el perfil y re-apuntar el
+// target (es un snapshot) para que la sede nueva llegue por props y el banner
+// desaparezca sin refresh de la página.
+async function onPostCreateMemberEdited() {
+  if (!postCreateAssignTarget.value) return;
+  try {
+    postCreateAssignTarget.value = await membersApi.getMember(postCreateAssignTarget.value.id);
+    loadMembers();
+  } catch (err: unknown) {
+    log.warn('No se pudo recargar el alumno editado desde el diálogo de asignación', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
 }
 
 function onTrialMemberCreated(_member: MemberProfile) {
