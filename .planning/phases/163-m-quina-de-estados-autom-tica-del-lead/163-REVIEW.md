@@ -21,7 +21,7 @@ findings:
   warning: 2
   info: 4
   total: 6
-status: issues
+status: resolved
 ---
 
 # Phase 163: Code Review Report
@@ -203,3 +203,11 @@ comment.
 _Reviewed: 2026-07-15T18:23:46Z_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: deep_
+
+## Resolución post-review (2026-07-15)
+
+- **WR-01 — CORREGIDO** (`26211449`): candidato restringido a `status='prueba'` en cron, migración 0183 y dry-run (predicados consistentes). Test nuevo: freemium vencido queda intacto (cron caso 6, backfill caso e).
+- **WR-02 — CORREGIDO** (`26211449`): coerción unificada — ausente/inválido/≤0/fraccional → default 14 en ambos dominios (SQL ahora usa COALESCE + CASE/FLOOR espejando getPerdidoWindowDays). Test nuevo: setting '0' → ventana efectiva 14 (cron caso 7, backfill caso f).
+- **Extra** (`13b04f08`): bug latente de timezone en `dateDaysAgo` de los tests (calculaba en UTC; CURDATE() del server es ART) — corregido a fecha local. Los 13 tests de los 2 archivos verdes.
+- IN-01..IN-04 quedan como info (sin acción, documentados).
+- Nota: 0183 se re-editó después de aplicada en dev local (runner trackea por archivo); staging/prod correrán la versión corregida — anotado en el header de la migración.
