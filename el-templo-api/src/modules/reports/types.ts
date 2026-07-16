@@ -260,6 +260,11 @@ export interface TrialSessionsRow {
    * histórico/desconocido, tratado como automático.
    */
   leadStatusSource: "auto" | "manual" | null;
+  /**
+   * D-06: teléfono del lead (users.phone). null para leads legacy sin
+   * teléfono. Se muestra como link wa.me en la UI y en la columna CSV.
+   */
+  phone: string | null;
 }
 
 export interface TrialSessionsReport {

@@ -165,14 +165,20 @@ interface SeedLeadOpts {
   createdBy?: number | null;
   convertedAtOffsetDays?: number; // if set, sets convertedAt and status='activo'
   leadStatusSource?: "auto" | "manual" | null;
+  // D-06: override the phone. Pass null to seed a legacy lead with no phone;
+  // leave undefined to auto-generate a unique one.
+  phone?: string | null;
 }
 
 async function seedLead(opts: SeedLeadOpts): Promise<number> {
-  const phone = `+549114${Date.now().toString().slice(-8)}${Math.floor(
-    Math.random() * 1000,
-  )
-    .toString()
-    .padStart(3, "0")}`;
+  const phone =
+    opts.phone !== undefined
+      ? opts.phone
+      : `+549114${Date.now().toString().slice(-8)}${Math.floor(
+          Math.random() * 1000,
+        )
+          .toString()
+          .padStart(3, "0")}`;
   const dni = `TS${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
   const passwordHash = "$argon2id$dummy"; // never used to log in
   const status =
@@ -900,7 +906,7 @@ describe("Reports API — Trial Sessions (Phase 114-05)", () => {
 
     // Header line — Spanish with literal accented "Asistió".
     const expectedHeader =
-      "Lead,Fecha,Creación,Hora,Sucursal,Asistió,Estado del Lead,Plan comprado,Gestiona,Comentarios,Turno,Periodo,Semana,Reprogramaciones,Origen estado";
+      "Lead,Teléfono,Fecha,Creación,Hora,Sucursal,Asistió,Estado del Lead,Plan comprado,Gestiona,Comentarios,Turno,Periodo,Semana,Reprogramaciones,Origen estado";
     const afterBom = decoded.slice(1);
     const firstLine = afterBom.split("\r\n")[0];
     expect(firstLine).toBe(expectedHeader);
@@ -982,6 +988,50 @@ describe("Reports API — Trial Sessions (Phase 114-05)", () => {
     );
     expect(ruido.reschedules).toBe(3);
     expect(tranquilo.reschedules).toBe(0);
+  });
+
+  // 18. phone — el reporte trae users.phone por fila; null para legacy (D-06).
+  it("includes the lead phone in the report row (null for legacy leads)", async () => {
+    const withPhone = await seedLead({
+      firstName: "Con",
+      lastName: "Telefono",
+      branchId: ctx.arBranchId,
+      phone: "+5491155667788",
+    });
+    await seedBooking({
+      userId: withPhone,
+      scheduleId: ctx.scheduleArMorning,
+      bookingDateOffsetDays: -4,
+    });
+
+    const noPhone = await seedLead({
+      firstName: "Sin",
+      lastName: "Telefono",
+      branchId: ctx.arBranchId,
+      phone: null,
+    });
+    await seedBooking({
+      userId: noPhone,
+      scheduleId: ctx.scheduleArAfternoon,
+      bookingDateOffsetDays: -4,
+    });
+
+    const res = await ctx.app.inject({
+      method: "GET",
+      url: `${REPORTS_URL}/trial-sessions`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+
+    const con = body.rows.find(
+      (r: { userId: number }) => r.userId === withPhone,
+    );
+    const sin = body.rows.find(
+      (r: { userId: number }) => r.userId === noPhone,
+    );
+    expect(con.phone).toBe("+5491155667788");
+    expect(sin.phone).toBeNull();
   });
 
   // 18. leadStatusSource surfaced per row; null preserved (D-05).

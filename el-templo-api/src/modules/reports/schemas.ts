@@ -542,6 +542,7 @@ const trialSessionsRowSchema = {
     leadStatusSource: {
       anyOf: [{ type: "string", enum: ["auto", "manual"] }, { type: "null" }],
     },
+    phone: { type: ["string", "null"] },
   },
 } as const;
 

@@ -1536,12 +1536,14 @@ export class ReportsService {
       creator_last_name: string | null;
       lead_status_source: "auto" | "manual" | null;
       reschedules: number | string;
+      phone: string | null;
     }>(sql`
       SELECT
         b.id              AS booking_id,
         u.id              AS user_id,
         u.first_name      AS first_name,
         u.last_name       AS last_name,
+        u.phone           AS phone,
         b.booking_date    AS booking_date,
         b.booked_at       AS booked_at,
         s.start_time      AS start_time,
@@ -1605,6 +1607,7 @@ export class ReportsService {
       creator_last_name: string | null;
       lead_status_source: "auto" | "manual" | null;
       reschedules: number | string;
+      phone: string | null;
     }>;
 
     const rows: TrialSessionsRow[] = dbRows.map((r) =>
@@ -1641,6 +1644,7 @@ export class ReportsService {
 
     const headers = [
       "Lead",
+      "Teléfono",
       "Fecha",
       "Creación",
       "Hora",
@@ -1670,6 +1674,7 @@ export class ReportsService {
         row.leadStatusSource === "manual" ? "Manual" : "Automático";
       const cells = [
         row.lead,
+        row.phone ?? "",
         fechaDDMMYYYY,
         creacionDDMMYYYY,
         row.startTime,
@@ -1860,6 +1865,7 @@ export class ReportsService {
     creator_last_name: string | null;
     lead_status_source: "auto" | "manual" | null;
     reschedules: number | string;
+    phone: string | null;
   }): TrialSessionsRow {
     const bookingDate = normalizeISODate(r.booking_date);
     // Fecha de creación de la SP (sesión de prueba) = cuándo se registró el booking.
@@ -1926,6 +1932,7 @@ export class ReportsService {
       converted,
       reschedules: Number(r.reschedules),
       leadStatusSource: r.lead_status_source ?? null,
+      phone: r.phone ?? null,
     };
   }
 
