@@ -210,17 +210,16 @@ const routes: RouteRecordRaw[] = [
         meta: { allowedRoles: ['admin', 'owner'] as AdminRole[] },
       },
       {
-        path: 'puntuaciones',
-        component: () => import('pages/PuntuacionesPage.vue'),
-        meta: { allowedRoles: ['owner'] as AdminRole[] },
-      },
-      {
-        // Propuestas de mejora de los socios. Espejo del guard del API
-        // (MEMBER_LIFECYCLE_ROLES): gestión lee, coach/recepción no.
-        path: 'propuestas',
-        component: () => import('pages/PropuestasPage.vue'),
+        // Feedback del alumno: Clases / Profes / Sugerencias en tabs.
+        // La unión de roles pasa acá; qué tab ve cada rol se decide en la
+        // página (el gate real sigue siendo el API por endpoint).
+        path: 'feedback',
+        component: () => import('pages/FeedbackPage.vue'),
         meta: { allowedRoles: ['gestion', 'admin', 'owner'] as AdminRole[] },
       },
+      // Rutas viejas de puntuaciones/propuestas → tabs de Feedback.
+      { path: 'puntuaciones', redirect: { path: '/feedback', query: { tab: 'profes' } } },
+      { path: 'propuestas', redirect: { path: '/feedback', query: { tab: 'sugerencias' } } },
     ],
   },
   {

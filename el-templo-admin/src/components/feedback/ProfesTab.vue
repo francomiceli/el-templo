@@ -1,46 +1,16 @@
+<!-- Tab "Profes" de Feedback: puntuaciones de profes (ex PuntuacionesPage).
+     Los filtros fecha/sucursal son compartidos y llegan por prop desde
+     FeedbackPage; acá queda solo el toggle "Solo con comentarios". -->
 <template>
-  <q-page padding>
-    <div class="row items-center justify-between q-mb-md">
-      <div class="text-h5">Profes</div>
-      <q-btn flat round dense icon="refresh" :loading="loading" @click="reload" />
-    </div>
-
-    <!-- Filtros: rango de fechas (sobre la fecha de la clase) + sucursal.
-         "Solo con comentarios" filtra unicamente el listado de abajo: los
-         promedios por profe siguen siendo sobre todas las puntuaciones. -->
-    <div class="row q-gutter-sm q-mb-md items-center">
-      <q-input
-        v-model="filters.dateFrom"
-        type="date"
-        label="Desde"
-        outlined
-        dense
-        clearable
-        class="col-6 col-sm-2"
-      />
-      <q-input
-        v-model="filters.dateTo"
-        type="date"
-        label="Hasta"
-        outlined
-        dense
-        clearable
-        class="col-6 col-sm-2"
-      />
-      <q-select
-        v-model="filters.branchId"
-        :options="branchOptions"
-        emit-value
-        map-options
-        label="Sucursal"
-        outlined
-        dense
-        clearable
-        class="col-12 col-sm-3"
-      />
-      <q-toggle v-model="filters.withComments" label="Solo con comentarios" class="col-auto">
+  <div>
+    <div class="row items-center q-mb-md">
+      <!-- "Solo con comentarios" filtra unicamente el listado de abajo: los
+           promedios por profe siguen siendo sobre todas las puntuaciones. -->
+      <q-toggle v-model="withComments" label="Solo con comentarios" class="col-auto">
         <q-tooltip>Filtra el listado. Los promedios por profe no cambian.</q-tooltip>
       </q-toggle>
+      <q-space />
+      <q-btn flat round dense icon="refresh" :loading="loading" @click="reload" />
     </div>
 
     <q-banner v-if="error" class="bg-red-1 text-red-9 q-mb-md" dense>
@@ -156,39 +126,33 @@
     <q-inner-loading :showing="loading && perCoach.length === 0 && ratings.length === 0">
       <q-spinner-dots size="40px" color="primary" />
     </q-inner-loading>
-  </q-page>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import {
   useRatingsApi,
   type OwnerCoachRatingSummary,
   type OwnerRatingsFilters,
   type OwnerRecentRating,
 } from 'src/composables/useRatingsApi';
-import { useMembersApi } from 'src/composables/useMembersApi';
 import { createLogger } from 'src/utils/logger';
-import type { BranchOption } from 'src/types/member';
+import type { FeedbackFilters } from 'src/components/feedback/feedback-filters';
 
-const log = createLogger('PuntuacionesPage');
+const props = defineProps<{ filters: FeedbackFilters }>();
+
+const log = createLogger('FeedbackProfesTab');
 const { loading, error, getOwnerRatings } = useRatingsApi();
-const membersApi = useMembersApi();
 
 const PAGE_SIZE = 50;
 
-const filters = reactive<{
-  dateFrom: string | null;
-  dateTo: string | null;
-  branchId: number | null;
-  withComments: boolean;
-}>({ dateFrom: null, dateTo: null, branchId: null, withComments: false });
+const withComments = ref(false);
 
 const perCoach = ref<OwnerCoachRatingSummary[]>([]);
 const ratings = ref<OwnerRecentRating[]>([]);
 const ratingsTotal = ref(0);
 const currentPage = ref(1);
-const branchOptions = ref<Array<{ label: string; value: number }>>([]);
 
 const hasMore = computed(() => ratings.value.length < ratingsTotal.value);
 
@@ -233,10 +197,10 @@ function formatClassLabel(r: OwnerRecentRating): string {
 
 function currentFilters(): OwnerRatingsFilters {
   return {
-    dateFrom: filters.dateFrom ?? undefined,
-    dateTo: filters.dateTo ?? undefined,
-    branchId: filters.branchId ?? undefined,
-    withComments: filters.withComments || undefined,
+    dateFrom: props.filters.dateFrom ?? undefined,
+    dateTo: props.filters.dateTo ?? undefined,
+    branchId: props.filters.branchId ?? undefined,
+    withComments: withComments.value || undefined,
   };
 }
 
@@ -262,9 +226,11 @@ async function load(reset = true): Promise<void> {
     }
     currentPage.value = result.ratings.page;
     ratingsTotal.value = result.ratings.total;
-  } catch (err) {
+  } catch (err: unknown) {
     if (seq !== requestSeq) return;
-    log.error('Failed to load owner ratings', err);
+    log.error('Failed to load owner ratings', {
+      error: err instanceof Error ? err.message : String(err),
+    });
   }
 }
 
@@ -276,25 +242,14 @@ function loadMore(): Promise<void> {
   return load(false);
 }
 
-async function fetchBranches(): Promise<void> {
-  try {
-    const branches = await membersApi.getBranches();
-    branchOptions.value = branches.map((b: BranchOption) => ({ label: b.name, value: b.id }));
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Error desconocido';
-    log.error('Error fetching branches', { error: message });
-  }
-}
-
 watch(
-  () => [filters.dateFrom, filters.dateTo, filters.branchId, filters.withComments],
+  () => [props.filters.dateFrom, props.filters.dateTo, props.filters.branchId, withComments.value],
   () => {
     void load(true);
   }
 );
 
 onMounted(() => {
-  void fetchBranches();
   void load(true);
 });
 </script>

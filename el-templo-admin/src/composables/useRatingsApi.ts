@@ -4,7 +4,7 @@
  * Powers two admin surfaces of Phase 143:
  *  - Surface 1 (HorariosPage): weekly roster — assign ONE coach per
  *    (sucursal, día, turno), with immediate persistence (no Save button).
- *  - Surface 3 (PuntuacionesPage): owner-only view — per-coach average +
+ *  - Surface 3 (tab Profes de FeedbackPage): owner-only view — per-coach average +
  *    recent individual ratings.
  *
  * Mirrors the shape of useCoachApi.ts (loading/error refs, extractError,

@@ -1,59 +1,13 @@
-<!-- Propuestas de mejora (brief 2026-07-15): cada fila es una propuesta de
-     texto libre enviada por un socio desde la app. Filtros fecha/sucursal/
-     palabra clave + export xlsx con los filtros aplicados (el export se baja
-     periódicamente y se procesa con IA para detectar temas repetidos). -->
+<!-- Tab "Sugerencias" de Feedback (ex PropuestasPage, brief 2026-07-15): cada
+     fila es una sugerencia de texto libre enviada por un socio desde la app.
+     Los filtros fecha/sucursal llegan por prop desde FeedbackPage; acá quedan
+     la palabra clave y el export xlsx con los filtros aplicados (el export se
+     baja periódicamente y se procesa con IA para detectar temas repetidos). -->
 <template>
-  <q-page padding>
-    <div class="row items-center justify-between q-mb-md">
-      <div class="text-h5">Propuestas de mejora</div>
-      <div class="row q-gutter-sm">
-        <q-btn
-          outline
-          color="primary"
-          icon="download"
-          label="Exportar"
-          no-caps
-          :loading="exporting"
-          :disable="loading"
-          @click="onExport"
-        />
-        <q-btn flat round dense icon="refresh" :loading="loading" @click="reload" />
-      </div>
-    </div>
-
-    <!-- Filtros: rango de fechas (sobre la fecha de envío) + sucursal +
-         palabra clave (busca dentro del texto de la propuesta, p. ej.
-         "paralelas" para agrupar pedidos del mismo tema). -->
+  <div>
+    <!-- Palabra clave (busca dentro del texto de la sugerencia, p. ej.
+         "paralelas" para agrupar pedidos del mismo tema) + export. -->
     <div class="row q-gutter-sm q-mb-md items-center">
-      <q-input
-        v-model="filters.dateFrom"
-        type="date"
-        label="Desde"
-        outlined
-        dense
-        clearable
-        class="col-6 col-sm-2"
-      />
-      <q-input
-        v-model="filters.dateTo"
-        type="date"
-        label="Hasta"
-        outlined
-        dense
-        clearable
-        class="col-6 col-sm-2"
-      />
-      <q-select
-        v-model="filters.branchId"
-        :options="branchOptions"
-        emit-value
-        map-options
-        label="Sucursal"
-        outlined
-        dense
-        clearable
-        class="col-12 col-sm-3"
-      />
       <q-input
         v-model="keywordInput"
         label="Palabra clave"
@@ -61,12 +15,24 @@
         dense
         clearable
         debounce="400"
-        class="col-12 col-sm-3"
+        class="col-12 col-sm-4"
       >
         <template #prepend>
           <q-icon name="search" />
         </template>
       </q-input>
+      <q-space />
+      <q-btn
+        outline
+        color="primary"
+        icon="download"
+        label="Exportar"
+        no-caps
+        :loading="exporting"
+        :disable="loading"
+        @click="onExport"
+      />
+      <q-btn flat round dense icon="refresh" :loading="loading" @click="reload" />
     </div>
 
     <q-banner v-if="error" class="bg-red-1 text-red-9 q-mb-md" dense>
@@ -77,20 +43,20 @@
     <div v-if="!loading && rows.length === 0" class="text-center q-pa-xl text-grey-7">
       <q-icon name="emoji_objects" size="48px" color="grey-5" class="q-mb-md" />
       <div class="text-h6 text-weight-medium">
-        {{ hasActiveFilters ? 'Sin resultados para estos filtros' : 'Todavía no hay propuestas' }}
+        {{ hasActiveFilters ? 'Sin resultados para estos filtros' : 'Todavía no hay sugerencias' }}
       </div>
       <div class="text-body2 q-mt-sm" style="max-width: 480px; margin: 0 auto">
         {{
           hasActiveFilters
             ? 'Probá ampliar el rango de fechas o cambiar la palabra clave.'
-            : 'Cuando los socios envíen propuestas de mejora desde la app, van a aparecer acá.'
+            : 'Cuando los socios envíen sugerencias desde la app, van a aparecer acá.'
         }}
       </div>
     </div>
 
     <template v-else>
       <div class="row items-center q-mb-sm">
-        <div class="text-subtitle1 text-weight-medium col">Propuestas</div>
+        <div class="text-subtitle1 text-weight-medium col">Sugerencias</div>
         <div class="text-caption text-grey-7 col-auto">{{ rows.length }} de {{ total }}</div>
       </div>
 
@@ -104,7 +70,7 @@
         wrap-cells
         :rows-per-page-options="[0]"
         hide-pagination
-        no-data-label="Sin propuestas"
+        no-data-label="Sin sugerencias"
       >
         <template #body-cell-proposal="props">
           <q-td :props="props" style="max-width: 520px; white-space: pre-line">
@@ -121,33 +87,27 @@
     <q-inner-loading :showing="loading && rows.length === 0">
       <q-spinner-dots size="40px" color="primary" />
     </q-inner-loading>
-  </q-page>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useQuasar } from 'quasar';
 import {
   useImprovementProposalsApi,
   type AdminProposalRow,
   type AdminProposalsFilters,
 } from 'src/composables/useImprovementProposalsApi';
-import { useMembersApi } from 'src/composables/useMembersApi';
 import { createLogger } from 'src/utils/logger';
-import type { BranchOption } from 'src/types/member';
+import type { FeedbackFilters } from 'src/components/feedback/feedback-filters';
 
-const log = createLogger('PropuestasPage');
+const props = defineProps<{ filters: FeedbackFilters }>();
+
+const log = createLogger('FeedbackSugerenciasTab');
 const $q = useQuasar();
 const { loading, error, getProposals, exportProposals } = useImprovementProposalsApi();
-const membersApi = useMembersApi();
 
 const PAGE_SIZE = 50;
-
-const filters = reactive<{
-  dateFrom: string | null;
-  dateTo: string | null;
-  branchId: number | null;
-}>({ dateFrom: null, dateTo: null, branchId: null });
 
 // La keyword va aparte con debounce: evita un request por tecla.
 const keywordInput = ref<string | null>(null);
@@ -156,14 +116,13 @@ const rows = ref<AdminProposalRow[]>([]);
 const total = ref(0);
 const currentPage = ref(1);
 const exporting = ref(false);
-const branchOptions = ref<Array<{ label: string; value: number }>>([]);
 
 const hasMore = computed(() => rows.value.length < total.value);
 const hasActiveFilters = computed(
   () =>
-    filters.dateFrom !== null ||
-    filters.dateTo !== null ||
-    filters.branchId !== null ||
+    props.filters.dateFrom !== null ||
+    props.filters.dateTo !== null ||
+    props.filters.branchId !== null ||
     Boolean(keywordInput.value?.trim())
 );
 
@@ -192,7 +151,7 @@ const columns = [
   },
   {
     name: 'proposal',
-    label: 'Propuesta',
+    label: 'Sugerencia',
     field: 'proposal',
     align: 'left' as const,
   },
@@ -213,9 +172,9 @@ function formatDateTime(iso: string): string {
 function currentFilters(): Omit<AdminProposalsFilters, 'page' | 'limit'> {
   const keyword = keywordInput.value?.trim();
   return {
-    dateFrom: filters.dateFrom ?? undefined,
-    dateTo: filters.dateTo ?? undefined,
-    branchId: filters.branchId ?? undefined,
+    dateFrom: props.filters.dateFrom ?? undefined,
+    dateTo: props.filters.dateTo ?? undefined,
+    branchId: props.filters.branchId ?? undefined,
     q: keyword || undefined,
   };
 }
@@ -265,7 +224,7 @@ async function onExport(): Promise<void> {
     const a = document.createElement('a');
     a.href = url;
     const today = new Date().toISOString().split('T')[0];
-    a.download = `propuestas-mejora-${today}.xlsx`;
+    a.download = `sugerencias-${today}.xlsx`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -280,25 +239,14 @@ async function onExport(): Promise<void> {
   }
 }
 
-async function fetchBranches(): Promise<void> {
-  try {
-    const branches = await membersApi.getBranches();
-    branchOptions.value = branches.map((b: BranchOption) => ({ label: b.name, value: b.id }));
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Error desconocido';
-    log.error('Error fetching branches', { error: message });
-  }
-}
-
 watch(
-  () => [filters.dateFrom, filters.dateTo, filters.branchId, keywordInput.value],
+  () => [props.filters.dateFrom, props.filters.dateTo, props.filters.branchId, keywordInput.value],
   () => {
     void load(true);
   }
 );
 
 onMounted(() => {
-  void fetchBranches();
   void load(true);
 });
 </script>

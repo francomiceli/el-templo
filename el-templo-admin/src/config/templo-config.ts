@@ -172,20 +172,28 @@ export const NAV_MODEL: NavCategory[] = [
     items: [
       { path: '/alumnos', label: 'Alumnos', icon: 'people', roles: ALL_STAFF_ROLES },
       { path: '/horarios', label: 'Horarios', icon: 'calendar_month', roles: ALL_STAFF_ROLES },
-      { path: '/puntuaciones', label: 'Profes', icon: 'groups', roles: ['owner'], templo: true },
-      {
-        // Propuestas de mejora de los socios (espejo de MEMBER_LIFECYCLE_ROLES).
-        path: '/propuestas',
-        label: 'Propuestas',
-        icon: 'emoji_objects',
-        roles: ['gestion', 'admin', 'owner'],
-        templo: true,
-      },
       {
         path: '/campanias',
         label: 'Campañas',
         icon: 'campaign',
         roles: DUENO_ROLES,
+        templo: true,
+      },
+    ],
+  },
+  {
+    // Feedback: la voz del alumno (puntuaciones de clases/profes + sugerencias),
+    // unificada en una página con tabs. Los ex ítems Profes (/puntuaciones) y
+    // Propuestas (/propuestas) de Gestión viven acá como tabs; roles = unión
+    // (qué tab ve cada rol lo decide FeedbackPage; el gate real es el API).
+    header: 'Feedback',
+    templo: true,
+    items: [
+      {
+        path: '/feedback',
+        label: 'Feedback',
+        icon: 'forum',
+        roles: ['gestion', 'admin', 'owner'],
         templo: true,
       },
     ],

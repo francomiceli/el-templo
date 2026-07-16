@@ -1,7 +1,7 @@
 /**
  * Improvement Proposals API composable (admin).
  *
- * Powers PropuestasPage: listado paginado de propuestas de mejora enviadas por
+ * Powers el tab Sugerencias de FeedbackPage: listado paginado de sugerencias enviadas por
  * los socios (filtros fecha/sucursal/keyword) + export xlsx con los mismos
  * filtros. Mirrors the shape of useRatingsApi (loading/error refs,
  * extractError, `throw err` in catch, `finally`). El enforcement de roles
