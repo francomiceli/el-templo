@@ -783,11 +783,14 @@ export class TrialService {
     }
     const userId = oldBooking.memberId;
 
-    // 2. Validate the NEW schedule exists (same as bookTrial step 1).
+    // 2. Validate the NEW schedule exists (same as bookTrial step 1). Pull the
+    //    branch timezone + dayOfWeek so we can validate the target date (WR-03).
     const [scheduleRow] = await this.db
       .select({
         id: schema.schedules.id,
         branchId: schema.schedules.branchId,
+        branchTz: schema.branches.timezone,
+        dayOfWeek: schema.schedules.dayOfWeek,
       })
       .from(schema.schedules)
       .innerJoin(
@@ -832,6 +835,26 @@ export class TrialService {
     if (userRow.branchId !== scheduleRow.branchId) {
       throw new ConflictError(
         "El alumno pertenece a otra sede — solo puede reservar pruebas en su sede",
+      );
+    }
+
+    // 4b. WR-03: server-side date validation. The API is authoritative — the
+    //     dialog filters past dates and weekday-mismatched slots client-side, but
+    //     a direct call must not create an orphan trial (a booking on a past date
+    //     or on a weekday the slot doesn't run, which check-in/attendance can't
+    //     reconcile). Mirrors assertDateWithinWindow's not-past + dayOfWeek checks
+    //     (booking-service.ts), evaluated in the sede's timezone.
+    const today = todayInTz(scheduleRow.branchTz);
+    if (input.date < today) {
+      throw new BadRequestError(
+        "La fecha elegida ya pasó — elegí una fecha de hoy en adelante",
+      );
+    }
+    const dateDay = new Date(input.date + "T12:00:00Z").getUTCDay(); // 0=Sun..6=Sat
+    const isoDayOfWeek = dateDay === 0 ? 7 : dateDay; // ISO 1=Mon..7=Sun
+    if (isoDayOfWeek !== scheduleRow.dayOfWeek) {
+      throw new BadRequestError(
+        "La fecha no corresponde al día del horario elegido",
       );
     }
 
