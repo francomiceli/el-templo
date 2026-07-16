@@ -161,9 +161,30 @@ export class ReferralService {
    * CONTRAPARTE esté cubierta hoy — "activo" se determina SOLO con
    * deriveCoveredUntil (D-09/D-24), nunca con el estado del socio. Topeado a
    * maxPercentCap. Cero vínculos activos → 0.
+   *
+   * `simulatePendingQualification`: cuenta también el vínculo `pending` del que
+   * userId es el REFERIDO (a lo sumo uno, referredId UNIQUE — D-14), como si su
+   * primer pago ya lo hubiera cualificado. Es el mismo vínculo que
+   * qualifyFirstPayment flippea dentro del cobro real, así el preview muestra el
+   * precio que efectivamente se va a cobrar. Solo para previews — las
+   * charge-paths NUNCA pasan esta opción (el flip real sigue siendo del cobro).
    */
-  async computeReferralDiscountPercent(userId: number): Promise<number> {
+  async computeReferralDiscountPercent(
+    userId: number,
+    opts?: { simulatePendingQualification?: boolean },
+  ): Promise<number> {
     const { percentPerLink, maxPercentCap } = await this.getReferralConfig();
+
+    const qualifiedFilter = eq(referrals.status, "qualified");
+    const statusFilter = opts?.simulatePendingQualification
+      ? or(
+          qualifiedFilter,
+          and(
+            eq(referrals.status, "pending"),
+            eq(referrals.referredId, userId),
+          ),
+        )
+      : qualifiedFilter;
 
     const links = await this.db
       .select({
@@ -173,7 +194,7 @@ export class ReferralService {
       .from(referrals)
       .where(
         and(
-          eq(referrals.status, "qualified"),
+          statusFilter,
           or(
             eq(referrals.referrerId, userId),
             eq(referrals.referredId, userId),

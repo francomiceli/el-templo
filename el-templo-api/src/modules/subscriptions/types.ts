@@ -201,6 +201,11 @@ export interface SubscriptionDetail {
   priceTypeApplied: PriceType;
   auraDiscount: number | null;
   auraDiscountPercent: number | null;
+  // Descuento de referido aplicado en el cobro de ESTE período (null si no
+  // hubo). pricePaid ya lo tiene restado; la renovación lo re-suma (add-back)
+  // antes de aplicar el % vigente del ciclo nuevo.
+  referralDiscountPercent: number | null;
+  referralDiscountAmount: number | null;
   boardingPassUsed: boolean;
   priceOverrideAmount: number | null;
   priceOverrideReason: string | null;
@@ -462,7 +467,9 @@ export interface ChangePlanPreview {
   };
   targetPlan: { id: number; name: string; priceRegular: number };
   proration: ProrationResult | null; // null if not allowed
-  netAmount: number | null; // null if not allowed; new plan priceRegular minus proration credit
+  netAmount: number | null; // null if not allowed; new plan priceRegular minus proration credit, minus referral discount (parity with changePlanNow)
+  referralDiscountPercent: number; // 0 if none — % de referido que el cobro real va a aplicar
+  referralDiscountAmount: number; // 0 if none — monto ya restado de netAmount
   expiryDate?: string; // current subscription endDate (always set; used to pre-fill "mantener vencimiento")
 }
 

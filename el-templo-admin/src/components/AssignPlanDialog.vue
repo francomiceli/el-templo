@@ -336,6 +336,14 @@
                         -{{ formatPrice(pricingDisplay.discountAmount, displayCurrency) }}
                       </div>
                     </div>
+                    <div v-if="pricingDisplay.referralAmount > 0">
+                      <div class="text-caption text-grey-7">
+                        Descuento referido ({{ pricingDisplay.referralPercent }}%)
+                      </div>
+                      <div class="text-positive">
+                        -{{ formatPrice(pricingDisplay.referralAmount, displayCurrency) }}
+                      </div>
+                    </div>
                     <div>
                       <div class="text-caption text-grey-7">Precio final</div>
                       <div class="text-h6 text-weight-bold">
@@ -512,6 +520,16 @@
                       }}
                     </q-item-section>
                   </q-item>
+                  <q-item v-if="changePlanPreviewData.referralDiscountAmount > 0">
+                    <q-item-section>
+                      Descuento referido ({{ changePlanPreviewData.referralDiscountPercent }}%)
+                    </q-item-section>
+                    <q-item-section side class="text-positive">
+                      -{{
+                        formatPrice(changePlanPreviewData.referralDiscountAmount, displayCurrency)
+                      }}
+                    </q-item-section>
+                  </q-item>
                   <q-item>
                     <q-item-section>Inicio</q-item-section>
                     <q-item-section side>{{ formatDate(assignForm.startDate) }}</q-item-section>
@@ -575,6 +593,14 @@
                       {{ formatSelectedSchedules() }}
                     </q-item-section>
                   </q-item>
+                  <q-item v-if="keepDiffReferralAmount > 0">
+                    <q-item-section>
+                      Descuento referido ({{ pricingDisplay.referralPercent }}%) sobre la diferencia
+                    </q-item-section>
+                    <q-item-section side class="text-positive">
+                      -{{ formatPrice(keepDiffReferralAmount, displayCurrency) }}
+                    </q-item-section>
+                  </q-item>
                   <q-separator spaced />
                   <q-item class="bg-blue-1 rounded-borders q-pa-sm">
                     <q-item-section class="text-weight-bold text-h6">
@@ -635,6 +661,14 @@
                       {{ formatSelectedSchedules() }}
                     </q-item-section>
                   </q-item>
+                  <q-item v-if="pricingDisplay.referralAmount > 0">
+                    <q-item-section>
+                      Descuento referido ({{ pricingDisplay.referralPercent }}%)
+                    </q-item-section>
+                    <q-item-section side class="text-positive">
+                      -{{ formatPrice(pricingDisplay.referralAmount, displayCurrency) }}
+                    </q-item-section>
+                  </q-item>
                   <q-separator spaced />
                   <q-item class="bg-blue-1 rounded-borders q-pa-sm">
                     <q-item-section class="text-weight-bold text-h6"
@@ -677,6 +711,14 @@
                     <q-item-section>Descuento</q-item-section>
                     <q-item-section side class="text-positive">
                       -{{ formatPrice(pricingDisplay.discountAmount, displayCurrency) }}
+                    </q-item-section>
+                  </q-item>
+                  <q-item v-if="pricingDisplay.referralAmount > 0">
+                    <q-item-section>
+                      Descuento referido ({{ pricingDisplay.referralPercent }}%)
+                    </q-item-section>
+                    <q-item-section side class="text-positive">
+                      -{{ formatPrice(pricingDisplay.referralAmount, displayCurrency) }}
                     </q-item-section>
                   </q-item>
                   <q-item v-if="showScheduleStep && selectedScheduleIds.length > 0">
@@ -1019,6 +1061,11 @@ const props = withDefaults(
 const emit = defineEmits<{
   'update:modelValue': [value: boolean];
   assigned: [];
+  // El alumno fue editado desde el CTA "Editar alumno" del banner de sede
+  // virtual (Phase 111 REQ-2). El padre DEBE recargar el perfil para
+  // re-vincular memberBranchId/memberBranchIsVirtual — sin esto el banner
+  // queda pegado a la sede vieja hasta un F5 de la página.
+  'member-edited': [];
 }>();
 
 // =========================================================================
@@ -1110,7 +1157,9 @@ async function loadPendingMisc() {
   } catch (err: unknown) {
     // No bloquea el alta: si falla la lectura, simplemente no se ofrece el
     // selector y el flujo normal de cobro queda intacto.
-    log.warn({ err }, 'No se pudieron cargar los cobros sueltos pendientes');
+    log.warn('No se pudieron cargar los cobros sueltos pendientes', {
+      error: err instanceof Error ? err.message : String(err),
+    });
     pendingMiscItems.value = [];
   } finally {
     loadingMisc.value = false;
@@ -1312,37 +1361,63 @@ const auraOptions = computed(() => {
 });
 
 const pricingDisplay = computed(() => {
+  // % de referido server-computed (incluye la simulación del vínculo pendiente
+  // que el primer cobro activa). El backend descuenta referidos también sobre
+  // precios personalizados, así que el override lo refleja igual — si no, el
+  // "monto recibido" precargado excede el cobro real y el backend lo rechaza.
+  const referralPercent = pricingPreview.value?.referralDiscountPercent ?? 0;
   if (assignForm.value.useOverride && assignForm.value.priceOverrideAmount !== null) {
     const base = getBasePrice();
+    const override = assignForm.value.priceOverrideAmount;
+    // Misma price-math del backend: floor(base*pct/100).
+    const referralAmount = Math.floor(override * (referralPercent / 100));
     return {
       basePrice: base,
-      discountAmount: base - assignForm.value.priceOverrideAmount,
-      finalPrice: assignForm.value.priceOverrideAmount,
+      discountAmount: base - override,
+      referralPercent,
+      referralAmount,
+      finalPrice: override - referralAmount,
     };
   }
   if (pricingPreview.value) {
     return {
       basePrice: pricingPreview.value.basePrice,
       discountAmount: pricingPreview.value.discountAmount,
+      referralPercent,
+      referralAmount: pricingPreview.value.referralDiscountAmount,
       finalPrice: pricingPreview.value.finalPrice,
     };
   }
   const base = getBasePrice();
-  return { basePrice: base, discountAmount: 0, finalPrice: base };
+  return {
+    basePrice: base,
+    discountAmount: 0,
+    referralPercent: 0,
+    referralAmount: 0,
+    finalPrice: base,
+  };
 });
 
 // Monto base a cobrar — Phase 107 D-02/D-07.
 // - override: cobra exactamente lo digitado, sin prorata.
 // - mode='change' + startMode='now' (proration activa) → netAmount del preview.
 // - resto (assign / change-after_current) → finalPrice del pricingDisplay.
+// Descuento de referido sobre la diferencia del modo 'mantener vencimiento' —
+// el backend la recibe como precio personalizado y también le aplica el
+// descuento, así que el prefill/resumen deben restarlo (misma price-math).
+const keepDiffReferralAmount = computed<number>(() =>
+  Math.floor(Math.max(0, keepDiffAmount.value ?? 0) * (pricingDisplay.value.referralPercent / 100))
+);
+
 const chargeBase = computed<number>(() => {
   // 'mantener vencimiento': cobramos la diferencia manual, no el prorrateo.
   // Debe evaluarse ANTES de la rama de prorrateo (es también startMode 'now').
   if (isKeepMode.value) {
-    return Math.max(0, keepDiffAmount.value ?? 0);
+    return Math.max(0, keepDiffAmount.value ?? 0) - keepDiffReferralAmount.value;
   }
+  // Override: pricingDisplay ya restó el descuento de referido del monto digitado.
   if (assignForm.value.useOverride && assignForm.value.priceOverrideAmount !== null) {
-    return assignForm.value.priceOverrideAmount;
+    return pricingDisplay.value.finalPrice;
   }
   if (
     props.mode === 'change' &&
@@ -1886,9 +1961,13 @@ watch(
 async function onMemberEdited() {
   // MemberFormDialog emit('saved') runs AFTER the API update, but the parent
   // still needs to refetch the member profile to surface new branch info via
-  // props. The watcher above kicks in once the parent re-binds; this handler
+  // props — se lo pedimos explícitamente ('member-edited'): sin esto el padre
+  // nunca se entera del cambio de sede hecho DESDE este diálogo y
+  // memberBranchIsVirtual queda desactualizado hasta un refresh de la página.
+  // The watcher above kicks in once the parent re-binds; this handler
   // is a defensive secondary trigger in case the parent doesn't re-fetch
   // synchronously.
+  emit('member-edited');
   await loadPlans();
 }
 </script>
