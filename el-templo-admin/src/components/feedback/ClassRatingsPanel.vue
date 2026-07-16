@@ -48,10 +48,10 @@
       </div>
     </div>
 
-    <!-- Tendencia semanal -->
+    <!-- Tendencia diaria -->
     <q-card flat bordered class="q-mb-md">
       <q-card-section>
-        <div class="text-subtitle2 q-mb-sm">Tendencia (promedio por semana)</div>
+        <div class="text-subtitle2 q-mb-sm">Tendencia (promedio por día)</div>
         <div v-if="props.data.trend.length > 0" style="height: 300px; position: relative">
           <Line :data="trendChartData" :options="lineChartOptions" />
         </div>

@@ -8,7 +8,7 @@
  * non-null `class_stars` are counted — pre-split historical rows (class_stars
  * IS NULL) are excluded so the trend starts cleanly at the feature launch.
  *
- * Surfaces (user-confirmed): a weekly TREND, a per-BRANCH average, and a
+ * Surfaces (user-confirmed): a daily TREND, a per-BRANCH average, and a
  * per-TURNO average (mañana/tarde). No per-activity breakdown and no comments
  * here — the comment stays on /puntuaciones only.
  *
@@ -114,12 +114,12 @@ export class ClassRatingsService {
     };
   }
 
-  /** Weekly trend of the class average (ISO year-week buckets). */
+  /** Daily trend of the class average (YYYY-MM-DD buckets). */
   private async getTrend(
     filters: AnalyticsFilters,
   ): Promise<ClassRatingTrendPoint[]> {
     const { conditions, needsBranchJoin } = this.baseConditions(filters);
-    const bucket = bucketExpr(schema.coachRatings.sessionDate, "weekly");
+    const bucket = bucketExpr(schema.coachRatings.sessionDate, "daily");
 
     let query = this.db
       .select({

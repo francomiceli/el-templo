@@ -31,7 +31,7 @@
 import { sql, type SQL, type AnyColumn } from "drizzle-orm";
 
 /** The selectable cohort bucketing granularity. */
-export type CohortBucket = "weekly" | "monthly";
+export type CohortBucket = "daily" | "weekly" | "monthly";
 
 const MS_PER_DAY = 86_400_000;
 
@@ -136,6 +136,9 @@ export function bucketExpr(
 ): SQL<string> {
   if (bucket === "monthly") {
     return sql<string>`DATE_FORMAT(${dateColumn}, '%Y-%m')`;
+  }
+  if (bucket === "daily") {
+    return sql<string>`DATE_FORMAT(${dateColumn}, '%Y-%m-%d')`;
   }
   // weekly: ISO year-week, week starting Monday (%x year-of-week + %v week number).
   return sql<string>`DATE_FORMAT(${dateColumn}, '%x-W%v')`;

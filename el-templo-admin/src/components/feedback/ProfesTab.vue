@@ -3,13 +3,7 @@
      FeedbackPage; acá queda solo el toggle "Solo con comentarios". -->
 <template>
   <div>
-    <div class="row items-center q-mb-md">
-      <!-- "Solo con comentarios" filtra unicamente el listado de abajo: los
-           promedios por profe siguen siendo sobre todas las puntuaciones. -->
-      <q-toggle v-model="withComments" label="Solo con comentarios" class="col-auto">
-        <q-tooltip>Filtra el listado. Los promedios por profe no cambian.</q-tooltip>
-      </q-toggle>
-      <q-space />
+    <div class="row justify-end q-mb-sm">
       <q-btn flat round dense icon="refresh" :loading="loading" @click="reload" />
     </div>
 
@@ -84,7 +78,18 @@
 
       <!-- Individual ratings (full paginated list) -->
       <div class="row items-center q-mb-sm">
-        <div class="text-subtitle1 text-weight-medium col">Puntuaciones</div>
+        <div class="text-subtitle1 text-weight-medium col-auto">Puntuaciones</div>
+        <!-- "Solo con comentarios" filtra unicamente este listado: los
+             promedios por profe siguen siendo sobre todas las puntuaciones. -->
+        <q-toggle
+          v-model="withComments"
+          label="Solo con comentarios"
+          dense
+          class="q-ml-md col-auto"
+        >
+          <q-tooltip>Filtra el listado. Los promedios por profe no cambian.</q-tooltip>
+        </q-toggle>
+        <q-space />
         <div class="text-caption text-grey-7 col-auto">
           {{ ratings.length }} de {{ ratingsTotal }}
         </div>
