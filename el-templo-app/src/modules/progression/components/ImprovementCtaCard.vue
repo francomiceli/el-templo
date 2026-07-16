@@ -19,12 +19,12 @@
       </div>
 
       <!-- Title -->
-      <h3 class="exp-title">Ayudanos a mejorar tu sede</h3>
+      <h3 class="exp-title">¿Qué mejorarías de El Templo?</h3>
 
       <!-- Subtitle + CTA row -->
       <div class="exp-footer">
         <p class="exp-subtitle">
-          Contanos qué cambiarías o sumarías en tu sucursal. Leemos todas las propuestas.
+          El equipo está escuchando: contanos qué te gustaría para darte la mejor experiencia.
         </p>
         <a href="#" class="exp-cta" @click.prevent="goToMejoras">
           <span class="exp-cta-text">Proponer mejora</span>

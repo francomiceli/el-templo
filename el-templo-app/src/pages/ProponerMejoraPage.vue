@@ -10,7 +10,7 @@
     <div v-if="sent" class="sent-card">
       <q-icon name="check_circle" size="48px" color="positive" />
       <p class="sent-card__title">¡Gracias! Tu propuesta fue enviada al equipo.</p>
-      <p class="sent-card__subtitle">Leemos todas las propuestas y priorizamos las que más se repiten.</p>
+      <p class="sent-card__subtitle">El equipo está escuchando: leemos cada propuesta.</p>
       <q-btn color="primary" outline no-caps label="Enviar otra propuesta" @click="resetForm" />
     </div>
 
@@ -19,11 +19,9 @@
       <div class="info-card q-mb-md">
         <q-icon name="emoji_objects" size="24px" color="primary" class="info-card__icon" />
         <div class="info-card__content">
-          <span class="info-card__question">
-            ¿Qué mejora querés proponer en la sucursal a la que asistís?
-          </span>
+          <span class="info-card__question"> ¿Qué mejorarías de El Templo? </span>
           <span class="info-card__hint">
-            Equipamiento, horarios, clases, espacios… lo que haga mejor tu experiencia.
+            El equipo está escuchando: contanos qué te gustaría para darte la mejor experiencia.
           </span>
         </div>
       </div>

@@ -3,9 +3,9 @@
   <q-dialog v-model="show">
     <q-card class="proposal-dialog">
       <q-card-section class="proposal-dialog__body">
-        <h3 class="proposal-dialog__title">Queremos escucharte</h3>
+        <h3 class="proposal-dialog__title">¿Qué mejorarías de El Templo?</h3>
         <p class="proposal-dialog__question">
-          ¿Qué mejora querés proponer en la sucursal a la que asistís?
+          El equipo está escuchando: contanos qué te gustaría para darte la mejor experiencia.
         </p>
 
         <q-input
@@ -21,7 +21,7 @@
         />
 
         <p class="proposal-dialog__helper">
-          El equipo lee todas las propuestas. Las que más se repiten se priorizan.
+          Leemos cada propuesta.
         </p>
       </q-card-section>
 
