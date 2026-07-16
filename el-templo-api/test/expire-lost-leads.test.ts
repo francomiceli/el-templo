@@ -13,6 +13,11 @@
  *   4. Lee X de settings — con ventana custom (7) el borde X+1/X-1 se corre.
  *   5. Guard convertido — convertedAt / purchasedPlanId seteados → nunca se pisa.
  *
+ * Post-review (WR-01/WR-02):
+ *   6. Guard freemium — status='freemium' NUNCA se vence (candidato = solo
+ *      'prueba', D-02).
+ *   7. Coerción — setting_value='0' (degenerado) cae al default 14, no a 1.
+ *
  * cleanAllTestData limpia systemSettings, bookings, schedules, activities y
  * subscription_plans entre tests (NO users), así que sembramos la ventana, el
  * horario y el lead frescos por test, con emails/dni únicos.
@@ -39,12 +44,18 @@ function nextCode(prefix: string): string {
   return `${prefix}${t}${r}`;
 }
 
-/** DATE string (YYYY-MM-DD) para hoy − `days` días, alineado a la ventana SQL. */
+/**
+ * DATE string (YYYY-MM-DD) para hoy − `days` días, en la fecha LOCAL del
+ * proceso. MySQL evalúa CURDATE() en la tz del server (SYSTEM = ART), así que
+ * calcular esto en UTC corre un día después de las 21:00 ART y los casos
+ * "vencido" caen justo dentro de la ventana (bug latente detectado 2026-07-15).
+ */
 function dateDaysAgo(days: number): string {
   const d = new Date();
-  d.setUTCHours(0, 0, 0, 0);
-  d.setUTCDate(d.getUTCDate() - days);
-  return d.toISOString().slice(0, 10);
+  d.setDate(d.getDate() - days);
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${mm}-${dd}`;
 }
 
 async function seedWindow(days: number): Promise<void> {
@@ -245,5 +256,33 @@ describe("runExpireLostLeads (Fase 163-02)", () => {
     expect(expired).toBe(0);
     expect((await leadStatusOf(convertedId)).leadStatus).toBe("en_seguimiento");
     expect((await leadStatusOf(purchasedId)).leadStatus).toBe("en_seguimiento");
+  });
+
+  it("Caso 6 (WR-01): un freemium con booking de prueba vencida NUNCA se vence", async () => {
+    await seedWindow(14);
+    // Estado teóricamente imposible (prueba→freemium cancela la booking), pero
+    // el guard debe ser explícito y no depender de ese acople (D-02).
+    const freemiumId = await seedLead({ status: "freemium", leadStatus: null });
+    await seedTrialBooking(freemiumId, 30);
+
+    const { expired } = await runExpireLostLeads(app.db);
+
+    expect(expired).toBe(0);
+    const s = await leadStatusOf(freemiumId);
+    expect(s.leadStatus).toBeNull();
+  });
+
+  it("Caso 7 (WR-02): setting_value='0' degenera al default 14, no a 1", async () => {
+    await seedWindow(0);
+    const dentroId = await seedLead();
+    await seedTrialBooking(dentroId, 13); // dentro de la ventana efectiva (14)
+    const fueraId = await seedLead();
+    await seedTrialBooking(fueraId, 15); // fuera de la ventana efectiva (14)
+
+    const { expired } = await runExpireLostLeads(app.db);
+
+    expect(expired).toBe(1);
+    expect((await leadStatusOf(dentroId)).leadStatus).toBe("en_seguimiento");
+    expect((await leadStatusOf(fueraId)).leadStatus).toBe("perdido");
   });
 });

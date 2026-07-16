@@ -14,6 +14,8 @@
  *   (b) En seguimiento dentro de la ventana         -> queda en_seguimiento.
  *   (c) lead_status_source='manual' vencido          -> queda intacto (guard D-04).
  *   (d) lead convertido (convertedAt) vencido         -> queda intacto (guard).
+ *   (e) WR-01: freemium vencido                       -> queda intacto (solo 'prueba').
+ *   (f) WR-02: setting '0' degenera al default 14, no a 1.
  *
  * cleanAllTestData limpia systemSettings/bookings/schedules/activities entre
  * tests (NO users), asi que sembramos la ventana, el horario y el lead frescos
@@ -53,12 +55,18 @@ function nextCode(prefix: string): string {
   return `${prefix}${t}${r}`;
 }
 
-/** DATE string (YYYY-MM-DD) para hoy − `days` dias, alineado a la ventana SQL. */
+/**
+ * DATE string (YYYY-MM-DD) para hoy − `days` dias, en la fecha LOCAL del
+ * proceso. MySQL evalua CURDATE() en la tz del server (SYSTEM = ART) -- en UTC
+ * esto corre un dia despues de las 21:00 ART y los casos "vencido" caen dentro
+ * de la ventana (bug latente detectado 2026-07-15).
+ */
 function dateDaysAgo(days: number): string {
   const d = new Date();
-  d.setUTCHours(0, 0, 0, 0);
-  d.setUTCDate(d.getUTCDate() - days);
-  return d.toISOString().slice(0, 10);
+  d.setDate(d.getDate() - days);
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${mm}-${dd}`;
 }
 
 async function seedWindow(days: number): Promise<void> {
@@ -214,5 +222,31 @@ describe("backfill 0183 lost leads (Fase 163-04)", () => {
 
     const s = await leadStatusOf(userId);
     expect(s.leadStatus).toBe("en_seguimiento");
+  });
+
+  it("(e) WR-01: freemium con booking vencida queda intacto (candidato = solo 'prueba')", async () => {
+    await seedWindow(14);
+    const freemiumId = await seedLead({ status: "freemium", leadStatus: null });
+    await seedTrialBooking(freemiumId, 30);
+
+    const affected = await runBackfillReclassify();
+
+    expect(affected).toBe(0);
+    const s = await leadStatusOf(freemiumId);
+    expect(s.leadStatus).toBeNull();
+  });
+
+  it("(f) WR-02: setting '0' degenera al default 14 (igual que el cron), no a 1", async () => {
+    await seedWindow(0);
+    const dentroId = await seedLead();
+    await seedTrialBooking(dentroId, 13); // dentro de la ventana efectiva (14)
+    const fueraId = await seedLead();
+    await seedTrialBooking(fueraId, 15); // fuera de la ventana efectiva (14)
+
+    const affected = await runBackfillReclassify();
+
+    expect(affected).toBe(1);
+    expect((await leadStatusOf(dentroId)).leadStatus).toBe("en_seguimiento");
+    expect((await leadStatusOf(fueraId)).leadStatus).toBe("perdido");
   });
 });
