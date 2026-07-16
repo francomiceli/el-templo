@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v5.8
 milestone_name: Sesiones de Prueba — automatización y self-service
 status: executing
-stopped_at: Completed 163-03-PLAN.md
-last_updated: "2026-07-16T02:16:28.228Z"
-last_activity: 2026-07-16 -- Phase 164 execution started
+stopped_at: Completed 164-01-PLAN.md
+last_updated: "2026-07-16T02:24:52.579Z"
+last_activity: 2026-07-16 -- Completed 164-01 (rescheduleTrial backend)
 progress:
   total_phases: 3
   completed_phases: 1
   total_plans: 8
-  completed_plans: 4
+  completed_plans: 5
   percent: 33
 ---
 
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 ## Current Position
 
 Phase: 164 (Reprogramación y reporte) — EXECUTING
-Plan: 1 of 4
-Status: Executing Phase 164
-Last activity: 2026-07-16 -- Phase 164 execution started
+Plan: 2 of 4
+Status: Ready to execute
+Last activity: 2026-07-16
 
 ## Performance Metrics
 
@@ -342,6 +342,7 @@ _Updated after each plan completion_
 | Phase 163 P01 | 13min | 3 tasks | 5 files |
 | Phase 163 P03 | ~30min | 3 tasks | 4 files |
 | Phase 163 P163-04 | 18 | 2 tasks | 3 files |
+| Phase 164 P01 | ~15min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -774,6 +775,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: 162-03: reporte REP-01 socio/externo por sub que cubre session_date + fallback; sin montos; anti JOIN-fanout
 - [Phase 163]: Phase 163: lead_status_source ENUM(auto,manual) + leads.perdido_window_days seeded via dynamic p90 (fallback 14); getPerdidoWindowDays reader on SettingsService
 - [Phase 163]: 163-03: auto (compra/reset/alta) puede pisar Perdido; manual solo via PATCH humano, intocable por el cron
+- [Phase ?]: 164-01: rescheduleTrial transaccional (cancel-old + reset-lead source auto + create-new en UNA db.transaction); guard ALL_STAFF_ROLES heredado del hook
 
 ### Pending Todos
 
@@ -806,7 +808,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-15T18:15:25.440Z
+Last session: 2026-07-16T02:24:45.914Z
 Stopped at: Completed 163-03-PLAN.md
 Resume file: None
 

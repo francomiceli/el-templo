@@ -57,7 +57,7 @@ v5.6 aún no ejecutado); tests de integración para rutas nuevas/modificadas.
 
 ### REPRO — Reprogramación y reporte
 
-- [ ] **REPRO-01**: Gestión puede reprogramar una sesión de prueba en un solo paso
+- [x] **REPRO-01**: Gestión puede reprogramar una sesión de prueba en un solo paso
       desde el admin (cancela el turno viejo y crea el nuevo en la misma transacción),
       en lugar de quitar + volver a cargar.
 - [ ] **REPRO-02**: El reporte de Sesiones de Prueba muestra cuántas veces reprogramó
@@ -110,7 +110,7 @@ v5.6 aún no ejecutado); tests de integración para rutas nuevas/modificadas.
 | AUTO-03     | Phase 163 | Complete |
 | AUTO-04     | Phase 163 | Complete |
 | AUTO-05     | Phase 163 | Complete |
-| REPRO-01    | Phase 164 | Pending |
+| REPRO-01    | Phase 164 | Complete |
 | REPRO-02    | Phase 164 | Pending |
 | REPRO-03    | Phase 164 | Pending |
 | SELF-01     | Phase 165 | Pending |
