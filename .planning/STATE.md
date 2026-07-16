@@ -4,13 +4,13 @@ milestone: v5.8
 milestone_name: Sesiones de Prueba — automatización y self-service
 status: executing
 stopped_at: Completed 163-03-PLAN.md
-last_updated: "2026-07-16T03:47:12.999Z"
+last_updated: "2026-07-16T03:51:02.833Z"
 last_activity: 2026-07-16
 progress:
   total_phases: 3
   completed_phases: 2
   total_plans: 13
-  completed_plans: 11
+  completed_plans: 12
   percent: 67
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 ## Current Position
 
 Phase: 165 (Self-service y UX de gestión) — EXECUTING
-Plan: 4 of 5
+Plan: 5 of 5
 Status: Ready to execute
 Last activity: 2026-07-16
 
@@ -347,6 +347,7 @@ _Updated after each plan completion_
 | Phase 164 P03 | 12min | 2 tasks | 5 files |
 | Phase 164 P164-02 | 15min | 2 tasks | 3 files |
 | Phase 165 P03 | 15min | 2 tasks | 6 files |
+| Phase 165 P04 | ~8min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -781,6 +782,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase 163]: 163-03: auto (compra/reset/alta) puede pisar Perdido; manual solo via PATCH humano, intocable por el cron
 - [Phase ?]: 164-01: rescheduleTrial transaccional (cancel-old + reset-lead source auto + create-new en UNA db.transaction); guard ALL_STAFF_ROLES heredado del hook
 - [Phase ?]: 164-02: UI Reprogramar sesion de prueba (dialogo fecha+slot) sobre endpoint 164-01; gate frontend por eslint (vue-tsc ausente del toolchain)
+- [Phase 165]: El teléfono del lead se pide recién en el diálogo de reserva de prueba (no en signup) cuando phoneRequired — cero fricción extra en el registro (D-05)
 
 ### Pending Todos
 
@@ -813,7 +815,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-16T03:47:08.034Z
+Last session: 2026-07-16T03:50:52.424Z
 Stopped at: Completed 163-03-PLAN.md
 Resume file: None
 
