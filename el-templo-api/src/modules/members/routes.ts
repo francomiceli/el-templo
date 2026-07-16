@@ -166,11 +166,17 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
     return {
       // country expuesto para que el admin gatee la UI de domiciliación
       // bancaria (sección SEPA + export) por sucursal de España.
-      branches: filtered.map(({ id, name, isVirtual, country }) => ({
+      // timezone: el admin resuelve "hoy" por fila con la TZ de la sede en la
+      // pill de Vencimiento. Es el ÚNICO lugar que lo expone — omitirlo acá no
+      // rompe tipos (BranchOption lo tiene opcional) ni falla en runtime: el
+      // mapa de TZ del admin queda vacío y toda fila cae al default argentino,
+      // en silencio. Solo lo agarra el test de branch-access.
+      branches: filtered.map(({ id, name, isVirtual, country, timezone }) => ({
         id,
         name,
         isVirtual: !!isVirtual,
         country,
+        timezone,
       })),
     };
   });
