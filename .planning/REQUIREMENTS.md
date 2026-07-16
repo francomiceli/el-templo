@@ -60,10 +60,10 @@ v5.6 aún no ejecutado); tests de integración para rutas nuevas/modificadas.
 - [x] **REPRO-01**: Gestión puede reprogramar una sesión de prueba en un solo paso
       desde el admin (cancela el turno viejo y crea el nuevo en la misma transacción),
       en lugar de quitar + volver a cargar.
-- [ ] **REPRO-02**: El reporte de Sesiones de Prueba muestra cuántas veces reprogramó
+- [x] **REPRO-02**: El reporte de Sesiones de Prueba muestra cuántas veces reprogramó
       cada lead (derivado de sus bookings de prueba canceladas — retroactivo, sin
       schema nuevo).
-- [ ] **REPRO-03**: El reporte de Sesiones de Prueba indica y permite filtrar si el
+- [x] **REPRO-03**: El reporte de Sesiones de Prueba indica y permite filtrar si el
       estado del lead salió del automatismo o fue pisado a mano
       (`lead_status_source`).
 
@@ -111,8 +111,8 @@ v5.6 aún no ejecutado); tests de integración para rutas nuevas/modificadas.
 | AUTO-04     | Phase 163 | Complete |
 | AUTO-05     | Phase 163 | Complete |
 | REPRO-01    | Phase 164 | Complete |
-| REPRO-02    | Phase 164 | Pending |
-| REPRO-03    | Phase 164 | Pending |
+| REPRO-02    | Phase 164 | Complete |
+| REPRO-03    | Phase 164 | Complete |
 | SELF-01     | Phase 165 | Pending |
 | SELF-02     | Phase 165 | Pending |
 | SELF-03     | Phase 165 | Pending |

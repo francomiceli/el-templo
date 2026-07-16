@@ -4363,12 +4363,12 @@ _v5.7 (Actividades con Aura) added: 2026-07-14 — 2 phases (161-162), 14 requir
 2. El reporte de Sesiones de Prueba muestra cuántas veces reprogramó cada lead, derivado de sus bookings de prueba canceladas — retroactivo y sin schema nuevo. (REPRO-02)
 3. El reporte de Sesiones de Prueba indica y permite filtrar si el estado del lead salió del automatismo o fue pisado a mano, leyendo `lead_status_source`. (REPRO-03)
 
-**Plans:** 1/4 plans executed
+**Plans:** 2/4 plans executed
 
 Plans:
 - [x] 164-01-PLAN.md — Backend transaccional de reprogramación (rescheduleTrial + endpoint + tests) (REPRO-01)
 - [ ] 164-02-PLAN.md — Admin UI de reprogramación (acción + picker + cliente) (REPRO-01)
-- [ ] 164-03-PLAN.md — Backend del reporte: contador de reprogramaciones + origen auto/manual + filtro (REPRO-02, REPRO-03)
+- [x] 164-03-PLAN.md — Backend del reporte: contador de reprogramaciones + origen auto/manual + filtro (REPRO-02, REPRO-03)
 - [ ] 164-04-PLAN.md — Admin UI del reporte: columna + indicador + filtro (REPRO-02, REPRO-03)
 
 **UI hint:** yes (acción "Reprogramar" + columna de reprogramaciones + filtro auto/manual en el reporte de Sesiones de Prueba del admin)
@@ -4397,7 +4397,7 @@ Plans:
 | Phase                                       | Plans Complete | Status      | Completed |
 | ------------------------------------------- | -------------- | ----------- | --------- |
 | 163. Máquina de estados automática del lead | 4/4 | Complete    | 2026-07-16 |
-| 164. Reprogramación y reporte               | 1/4 | In Progress|  |
+| 164. Reprogramación y reporte               | 2/4 | In Progress|  |
 | 165. Self-service y UX de gestión           | 0/?            | Not started |           |
 
 _Plan counts populated by `/gsd-plan-phase`._
