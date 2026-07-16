@@ -174,6 +174,14 @@ export const NAV_MODEL: NavCategory[] = [
       { path: '/horarios', label: 'Horarios', icon: 'calendar_month', roles: ALL_STAFF_ROLES },
       { path: '/puntuaciones', label: 'Profes', icon: 'groups', roles: ['owner'], templo: true },
       {
+        // Propuestas de mejora de los socios (espejo de MEMBER_LIFECYCLE_ROLES).
+        path: '/propuestas',
+        label: 'Propuestas',
+        icon: 'emoji_objects',
+        roles: ['gestion', 'admin', 'owner'],
+        templo: true,
+      },
+      {
         path: '/campanias',
         label: 'Campañas',
         icon: 'campaign',

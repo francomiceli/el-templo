@@ -214,6 +214,13 @@ const routes: RouteRecordRaw[] = [
         component: () => import('pages/PuntuacionesPage.vue'),
         meta: { allowedRoles: ['owner'] as AdminRole[] },
       },
+      {
+        // Propuestas de mejora de los socios. Espejo del guard del API
+        // (MEMBER_LIFECYCLE_ROLES): gestión lee, coach/recepción no.
+        path: 'propuestas',
+        component: () => import('pages/PropuestasPage.vue'),
+        meta: { allowedRoles: ['gestion', 'admin', 'owner'] as AdminRole[] },
+      },
     ],
   },
   {
