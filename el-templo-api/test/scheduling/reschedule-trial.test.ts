@@ -366,4 +366,45 @@ describe("Reschedule Trial API (Fase 164-01, REPRO-01)", () => {
     expect(finalRow.status).toBe("reservado");
     expect(finalRow.scheduleId).toBe(slotC.id);
   });
+
+  // ─── Case 5 (WR-02/CR-01): un member convertido NO se pisa a 'en_seguimiento' ─
+
+  it("rechaza (409) reprogramar la prueba de un convertido y deja 'ganado' intacto", async () => {
+    const activity = await createActivity();
+    const slotA = await createScheduleSlot(activity.id, 4, "10:00", "11:00");
+    const slotB = await createScheduleSlot(activity.id, 4, "12:00", "13:00");
+    const date = futureDate();
+
+    const userId = await createPruebaUser();
+    const oldBookingId = await seedTrialBooking(userId, slotA.id, date);
+    // El lead ya convirtió: status='activo' + leadStatus='ganado'. Un convertido
+    // sigue apareciendo en el diálogo de trials (listTrials no filtra por status
+    // del user), así que reprogramarlo por UI llegaría al reset y pisaría su
+    // 'ganado'. El guard de CR-01 debe rechazar ANTES de mutar nada.
+    await app.db
+      .update(users)
+      .set({
+        status: "activo",
+        leadStatus: "ganado",
+        leadStatusSource: "manual",
+      })
+      .where(eq(users.id, userId));
+
+    const res = await app.inject({
+      method: "POST",
+      url: rescheduleUrl(oldBookingId),
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: { scheduleId: slotB.id, date, branchId: testBranchId },
+    });
+    expect(res.statusCode).toBe(409);
+    expect(JSON.parse(res.body).message).toContain("prueba");
+
+    // El lead sigue 'ganado' (no lo pisó a 'en_seguimiento'/'auto') y la booking
+    // vieja NO se canceló (el guard corta antes de la transacción).
+    const lead = await leadStatusOf(userId);
+    expect(lead.leadStatus).toBe("ganado");
+    expect(lead.leadStatusSource).toBe("manual");
+    const oldRow = await bookingById(oldBookingId);
+    expect(oldRow.status).toBe("reservado");
+  });
 });
