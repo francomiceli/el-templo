@@ -227,6 +227,11 @@ function openWhatsApp(): void {
   font-weight: 600;
   color: #f0e6d6;
   letter-spacing: 0.3px;
+  /* line-height explícito: sin él, el h3 hereda el interlineado de la
+     tipografía global de Quasar (~3.1rem) y el título queda "aireado".
+     Valores calcados de ProgramCtaCard (la referencia visual del carrusel). */
+  line-height: 2.25rem;
+  padding: 10px 0;
   margin: 0;
   animation: fadeUp 0.6s ease-out 0.15s both;
 }

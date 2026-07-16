@@ -224,6 +224,11 @@ function goToMejoras(): void {
   font-weight: 600;
   color: #f0e6d6;
   letter-spacing: 0.3px;
+  /* line-height explícito: sin él, el h3 hereda el interlineado de la
+     tipografía global de Quasar (~3.1rem) y el título queda "aireado".
+     Valores calcados de ProgramCtaCard (la referencia visual del carrusel). */
+  line-height: 2.25rem;
+  padding: 10px 0;
   margin: 0;
   animation: fadeUp 0.6s ease-out 0.15s both;
 }
@@ -248,6 +253,10 @@ function goToMejoras(): void {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  /* Label más largo que el "Mi Plan" de la referencia: sin esto el botón se
+     encoge en la fila del footer y el texto se quiebra en dos líneas. */
+  flex-shrink: 0;
+  white-space: nowrap;
   background: linear-gradient(135deg, #c4956a, #a07850);
   border: none;
   border-radius: 10px;

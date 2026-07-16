@@ -60,8 +60,10 @@ interface ReferralCopy {
 // se deriva de la paridad del user.id (par='A' / impar='B'). Ambas comparten el
 // subtítulo y difieren SOLO en el título (foco del test). El backend recomputa la
 // misma variante al registrar el clic y al medir la conversión.
-const SUBTITLE =
-  'Invitá a entrenar. Cada persona que traigas suma descuento a tu cuota. Se mantiene mientras ambos sigan activos.'
+// Largo calibrado a la referencia visual (ProgramCtaCard): un subtítulo más
+// largo desbalancea la fila subtítulo+CTA del footer. El detalle completo del
+// beneficio vive en /mis-referidos.
+const SUBTITLE = 'Invitá a entrenar: cada persona que traigas suma descuento a tu cuota.'
 const COPIES: Record<'A' | 'B', ReferralCopy> = {
   A: {
     title: 'Vos decidís cuánto bajás tu cuota',
@@ -267,6 +269,11 @@ function goToReferidos(): void {
   font-weight: 600;
   color: #f0e6d6;
   letter-spacing: 0.3px;
+  /* line-height explícito: sin él, el h3 hereda el interlineado de la
+     tipografía global de Quasar (~3.1rem) y el título queda "aireado".
+     Valores calcados de ProgramCtaCard (la referencia visual del carrusel). */
+  line-height: 2.25rem;
+  padding: 10px 0;
   margin: 0;
   animation: fadeUp 0.6s ease-out 0.15s both;
 }
@@ -291,6 +298,11 @@ function goToReferidos(): void {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  /* El label es más largo que el "Mi Plan" de la referencia: sin esto el
+     botón se encoge en la fila del footer y el texto se quiebra en dos
+     líneas (botón "columna entera"). */
+  flex-shrink: 0;
+  white-space: nowrap;
   background: linear-gradient(135deg, #c4956a, #a07850);
   border: none;
   border-radius: 10px;
