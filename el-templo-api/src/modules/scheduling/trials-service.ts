@@ -797,15 +797,29 @@ export class TrialService {
       .where(eq(schema.schedules.id, input.scheduleId));
     if (!scheduleRow) throw new NotFoundError("Horario no encontrado");
 
-    // 3. Validate the alumno still exists and pull its home branch.
+    // 3. Validate the alumno still exists, is in 'prueba' state, and pull its
+    //    home branch. CR-01: step (b) below unconditionally resets the lead to
+    //    en_seguimiento/source 'auto'. bookTrial only ever reaches that reset for
+    //    status='prueba' users (its guard, trials-service.ts:627-631). Reschedule
+    //    must mirror that guard: a member who converted before attending
+    //    (status='activo', leadStatus='ganado', purchased_plan_id NOT NULL) still
+    //    shows in the trials dialog, and rescheduling them would clobber 'ganado'
+    //    back to 'en_seguimiento' — breaking the ganado ⇔ purchased_plan_id
+    //    invariant and later mislabelling a paying member as 'perdido'.
     const [userRow] = await this.db
       .select({
         id: schema.users.id,
+        status: schema.users.status,
         branchId: schema.users.branchId,
       })
       .from(schema.users)
       .where(eq(schema.users.id, userId));
     if (!userRow) throw new NotFoundError("Alumno no encontrado");
+    if (userRow.status !== "prueba") {
+      throw new ConflictError(
+        "El alumno ya no está en estado 'prueba' — no se puede reprogramar su sesión de prueba",
+      );
+    }
 
     // 4. Branch coherence (bookTrial + reserveTrialSelfService CR-01): the
     //    passed branchId must match the slot's branch, and the slot's branch
@@ -844,7 +858,10 @@ export class TrialService {
 
       // (c) Create the new booking. Reactivate an existing exact slot+date row
       //     if present to avoid a UNIQUE (member_id, schedule_id, booking_date)
-      //     500 — mirrors bookTrial's reactivate-or-insert branch.
+      //     500 — mirrors bookTrial's reactivate-or-insert branch. CR-01: scope
+      //     the lookup to is_trial=1 so a legitimate REGULAR booking on the same
+      //     slot+date is never flipped into a trial (status='reservado',
+      //     isTrial=true) and corrupted.
       const [existing] = await tx
         .select({ id: schema.bookings.id })
         .from(schema.bookings)
@@ -853,6 +870,7 @@ export class TrialService {
             eq(schema.bookings.memberId, userId),
             eq(schema.bookings.scheduleId, input.scheduleId),
             eq(schema.bookings.bookingDate, input.date),
+            eq(schema.bookings.isTrial, true),
           ),
         )
         .limit(1);
