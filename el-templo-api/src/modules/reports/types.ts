@@ -200,6 +200,11 @@ export interface TrialSessionsFilters {
   daysWithoutConvertingMin?: number;
   /** Token-based name search; reuses buildMemberNameSearchCondition pattern. */
   search?: string;
+  /**
+   * D-06: origen del estado del lead. 'auto' incluye las filas con
+   * lead_status_source NULL (histórico/desconocido). Sin filtro = todos.
+   */
+  leadStatusSource?: "auto" | "manual";
   page?: number;
   limit?: number;
 }
@@ -244,6 +249,17 @@ export interface TrialSessionsRow {
   daysSinceTrial: number;
   /** users.converted_at IS NOT NULL. */
   converted: boolean;
+  /**
+   * D-04: COUNT retroactivo de bookings de prueba canceladas del lead
+   * (is_trial=1 AND booking_status='cancelado'). Proxy de "ruido del lead":
+   * incluye cancelaciones self-service, no sólo reprogramaciones de admin.
+   */
+  reschedules: number;
+  /**
+   * D-05: origen del estado del lead (users.lead_status_source). null =
+   * histórico/desconocido, tratado como automático.
+   */
+  leadStatusSource: "auto" | "manual" | null;
 }
 
 export interface TrialSessionsReport {

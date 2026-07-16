@@ -895,6 +895,7 @@ function buildTrialSessionsFilters(
       gestionaUserId?: number;
       daysWithoutConvertingMin?: number;
       search?: string;
+      leadStatusSource?: "auto" | "manual";
       page?: number;
       limit?: number;
     };
@@ -936,6 +937,7 @@ function buildTrialSessionsFilters(
     gestionaUserId,
     daysWithoutConvertingMin: q.daysWithoutConvertingMin,
     search: q.search,
+    leadStatusSource: q.leadStatusSource,
     page: q.page,
     limit: q.limit,
   };

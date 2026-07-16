@@ -1534,6 +1534,8 @@ export class ReportsService {
       creator_id: number | null;
       creator_first_name: string | null;
       creator_last_name: string | null;
+      lead_status_source: "auto" | "manual" | null;
+      reschedules: number | string;
     }>(sql`
       SELECT
         b.id              AS booking_id,
@@ -1553,7 +1555,12 @@ export class ReportsService {
         u.converted_at    AS converted_at,
         creator.id        AS creator_id,
         creator.first_name AS creator_first_name,
-        creator.last_name  AS creator_last_name
+        creator.last_name  AS creator_last_name,
+        u.lead_status_source AS lead_status_source,
+        (SELECT COUNT(*) FROM ${schema.bookings} AS rc
+          WHERE rc.member_id = u.id
+            AND rc.is_trial = 1
+            AND rc.booking_status = 'cancelado') AS reschedules
       FROM (
         SELECT b2.member_id, MAX(b2.id) AS booking_id
         FROM ${schema.bookings} AS b2
@@ -1596,6 +1603,8 @@ export class ReportsService {
       creator_id: number | null;
       creator_first_name: string | null;
       creator_last_name: string | null;
+      lead_status_source: "auto" | "manual" | null;
+      reschedules: number | string;
     }>;
 
     const rows: TrialSessionsRow[] = dbRows.map((r) =>
@@ -1644,6 +1653,8 @@ export class ReportsService {
       "Turno",
       "Periodo",
       "Semana",
+      "Reprogramaciones",
+      "Origen estado",
     ];
 
     const lines: string[] = [headers.map(csvEscape).join(",")];
@@ -1655,6 +1666,8 @@ export class ReportsService {
       const estadoLabel = leadStatusLabelES(row.leadStatusEffective);
       const gestionaName = row.createdBy?.name ?? "";
       const turnoLabel = row.shift === "TM" ? "Mañana" : "Tarde";
+      const origenLabel =
+        row.leadStatusSource === "manual" ? "Manual" : "Automático";
       const cells = [
         row.lead,
         fechaDDMMYYYY,
@@ -1669,6 +1682,8 @@ export class ReportsService {
         turnoLabel,
         row.period,
         row.weekRange,
+        String(row.reschedules),
+        origenLabel,
       ];
       lines.push(cells.map(csvEscape).join(","));
     }
@@ -1758,6 +1773,20 @@ export class ReportsService {
       preds.push(sql`u.created_by = ${filters.gestionaUserId}`);
     }
 
+    if (filters.leadStatusSource !== undefined) {
+      // D-05/D-06: filtro por origen del estado del lead. `auto` incluye las
+      // filas con `lead_status_source IS NULL` (histórico/desconocido, que el
+      // cron trata como automático). `manual` matchea sólo el valor exacto.
+      // Bound con `${...}` (T-164-05) — nunca sql.raw/concat.
+      if (filters.leadStatusSource === "auto") {
+        preds.push(
+          sql`(u.lead_status_source = 'auto' OR u.lead_status_source IS NULL)`,
+        );
+      } else {
+        preds.push(sql`u.lead_status_source = ${filters.leadStatusSource}`);
+      }
+    }
+
     if (filters.daysWithoutConvertingMin !== undefined) {
       // D-40: only applies to non-converted leads. `b.booking_date` IS the
       // user's representative trial (latest non-cancelado) by construction
@@ -1829,6 +1858,8 @@ export class ReportsService {
     creator_id: number | null;
     creator_first_name: string | null;
     creator_last_name: string | null;
+    lead_status_source: "auto" | "manual" | null;
+    reschedules: number | string;
   }): TrialSessionsRow {
     const bookingDate = normalizeISODate(r.booking_date);
     // Fecha de creación de la SP (sesión de prueba) = cuándo se registró el booking.
@@ -1893,6 +1924,8 @@ export class ReportsService {
       weekRange,
       daysSinceTrial,
       converted,
+      reschedules: Number(r.reschedules),
+      leadStatusSource: r.lead_status_source ?? null,
     };
   }
 

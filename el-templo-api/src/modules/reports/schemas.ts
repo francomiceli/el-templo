@@ -487,6 +487,7 @@ const trialSessionsQuerystringProps = {
   gestionaUserId: { type: "integer", minimum: 1 },
   daysWithoutConvertingMin: { type: "integer", minimum: 0 },
   search: { type: "string", maxLength: 100 },
+  leadStatusSource: { type: "string", enum: ["auto", "manual"] },
 } as const;
 
 const trialSessionsRowSchema = {
@@ -537,6 +538,10 @@ const trialSessionsRowSchema = {
     weekRange: { type: "string" },
     daysSinceTrial: { type: "integer" },
     converted: { type: "boolean" },
+    reschedules: { type: "integer" },
+    leadStatusSource: {
+      anyOf: [{ type: "string", enum: ["auto", "manual"] }, { type: "null" }],
+    },
   },
 } as const;
 
