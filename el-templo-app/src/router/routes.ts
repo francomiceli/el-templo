@@ -50,6 +50,11 @@ const routes: RouteRecordRaw[] = [
         component: () => import('pages/MisReferidosPage.vue'),
       },
       {
+        path: 'proponer-mejora',
+        name: 'proponer-mejora',
+        component: () => import('pages/ProponerMejoraPage.vue'),
+      },
+      {
         path: 'desafio-barra',
         name: 'desafio-barra-explicacion',
         component: () => import('src/modules/bar-challenge/pages/Explicacion.vue'),

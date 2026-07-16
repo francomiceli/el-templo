@@ -18,8 +18,33 @@
       <!-- Notification Permission Banner (per D-24) -->
       <PermissionBanner />
 
-      <!-- Referidos (fase 158): primera card visible — misma estética premium -->
-      <ReferralCtaCard />
+      <!-- Carrusel premium — siempre visible: Mejoras y Referidos van para
+           todos; UpsellBadge solo a virtuales y Planes Personalizados cuando
+           no corresponde ProgramProgressCard. Los dots son dinámicos. -->
+      <div class="premium-carousel">
+        <div class="premium-carousel__dots">
+          <span
+            v-for="i in premiumSlideCount"
+            :key="i"
+            class="premium-carousel__dot"
+            :class="{ 'premium-carousel__dot--active': premiumSlide === i - 1 }"
+          />
+        </div>
+        <div ref="premiumScroller" class="premium-carousel__scroller" @scroll="onPremiumScroll">
+          <div class="premium-carousel__slide">
+            <ImprovementCtaCard />
+          </div>
+          <div class="premium-carousel__slide">
+            <ReferralCtaCard />
+          </div>
+          <div v-if="showUpsellBadge" class="premium-carousel__slide">
+            <UpsellBadge />
+          </div>
+          <div v-if="showProgramCta" class="premium-carousel__slide">
+            <ProgramCtaCard :segment="userStore.segment" />
+          </div>
+        </div>
+      </div>
 
       <!-- Phase 162 (APP-02): plan especial "Actividades con Aura" — saldo x/2 del mes.
            Visible sólo si el usuario tiene el plan especial. Informativa, sin CTA (D-02).
@@ -43,39 +68,10 @@
            multi-enrollment branch, presencial+linked members would have no
            UI surface to reach an admin-assigned addon. -->
       <ProgramProgressCard
-        v-if="
-          programProgress &&
-          (!programProgress.isLinkedToSubscription || userStore.allActiveEnrollments.length > 1)
-        "
-        :progress="programProgress"
+        v-if="programProgressCard"
+        :progress="programProgressCard"
         @program-changed="onProgramChanged"
       />
-
-      <!-- Upsell: virtual users get carousel, presencial with linked program get CTA -->
-      <template v-else-if="showUpsellBadge">
-        <div class="premium-carousel">
-          <div class="premium-carousel__dots">
-            <span
-              class="premium-carousel__dot"
-              :class="{ 'premium-carousel__dot--active': premiumSlide === 0 }"
-            />
-            <span
-              class="premium-carousel__dot"
-              :class="{ 'premium-carousel__dot--active': premiumSlide === 1 }"
-            />
-          </div>
-          <div ref="premiumScroller" class="premium-carousel__scroller" @scroll="onPremiumScroll">
-            <div class="premium-carousel__slide">
-              <UpsellBadge />
-            </div>
-            <div class="premium-carousel__slide">
-              <ProgramCtaCard :segment="userStore.segment" />
-            </div>
-          </div>
-        </div>
-      </template>
-
-      <ProgramCtaCard v-else :segment="userStore.segment" />
 
       <!-- Check-in Cards — horizontal swipeable row (Phase 82) -->
       <template v-if="orderedCheckIns.length > 0">
@@ -185,6 +181,7 @@ import ProgramProgressCard from 'src/modules/programs/components/ProgramProgress
 import { useProgramsApi } from 'src/modules/programs/composables/useProgramsApi'
 import type { MemberEnrollmentProgress } from 'src/modules/programs/types'
 import PermissionBanner from '../components/PermissionBanner.vue'
+import ImprovementCtaCard from '../components/ImprovementCtaCard.vue'
 import ReferralCtaCard from '../components/ReferralCtaCard.vue'
 import UpsellBadge from '../components/UpsellBadge.vue'
 import { useNotificationStore } from 'src/stores/useNotificationStore'
@@ -224,11 +221,34 @@ function scrollCheckIns(direction: 'left' | 'right') {
   el.scrollBy({ left: direction === 'left' ? -280 : 280, behavior: 'smooth' })
 }
 
+// ProgramProgressCard: non-linked program, OR linked-program member with at
+// least one extra enrollment (admin add-on, bundle) — misma condición que el
+// v-if histórico de la card (Phase 112).
+const showProgramProgress = computed(() => {
+  return (
+    programProgress.value !== null &&
+    (!programProgress.value.isLinkedToSubscription || userStore.allActiveEnrollments.length > 1)
+  )
+})
+
+// Valor no-nulo para la card (narrowing que el template no puede hacer solo).
+const programProgressCard = computed(() =>
+  showProgramProgress.value ? programProgress.value : null,
+)
+
+// Planes Personalizados vive en el carrusel siempre que no corresponda la
+// card de progreso (mismo criterio que el viejo v-else).
+const showProgramCta = computed(() => !showProgramProgress.value)
+
+const premiumSlideCount = computed(() => {
+  return 2 + (showUpsellBadge.value ? 1 : 0) + (showProgramCta.value ? 1 : 0)
+})
+
 function onPremiumScroll() {
   const el = premiumScroller.value
   if (!el) return
-  const scrollRatio = el.scrollLeft / (el.scrollWidth - el.clientWidth)
-  premiumSlide.value = scrollRatio > 0.5 ? 1 : 0
+  const index = Math.round(el.scrollLeft / el.clientWidth)
+  premiumSlide.value = Math.min(Math.max(index, 0), premiumSlideCount.value - 1)
 }
 
 const todayStr = computed(() => {

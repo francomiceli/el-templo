@@ -76,6 +76,7 @@ import { useQuasar } from 'quasar'
 import { Preferences } from '@capacitor/preferences'
 import { useAuthStore } from 'stores/useAuthStore'
 import { useRatingsApi, type PendingRating } from 'src/composables/useRatingsApi'
+import { proposalPromptWillShow } from 'src/composables/useImprovementProposalsApi'
 import { createLogger } from 'src/utils/logger'
 
 const log = createLogger('RatingPromptDialog')
@@ -107,6 +108,11 @@ async function markResolved(p: PendingRating): Promise<void> {
 
 async function shouldShow(): Promise<boolean> {
   if (!authStore.isAuthenticated) return false
+
+  // Un solo popup automático por apertura: si el de propuestas de mejora va a
+  // mostrarse, la puntuación le cede el turno (la clase pendiente sigue
+  // vigente dentro de su ventana de 48h para la próxima apertura).
+  if (await proposalPromptWillShow()) return false
 
   const result = await getPendingRating()
   if (!result) return false

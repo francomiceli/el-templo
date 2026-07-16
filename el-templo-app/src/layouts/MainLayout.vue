@@ -134,6 +134,10 @@
     <!-- First-login soft pre-prompt for push notifications (native only). -->
     <PushPermissionDialog />
 
+    <!-- Improvement proposal pop-up (once per campaign; wins the app-open slot
+         over the rating pop-up, weekly re-prompt until the first submit). -->
+    <ImprovementPromptDialog />
+
     <!-- Class rating pop-up (auto-triggered on return after a completed in-person class). -->
     <RatingPromptDialog />
 
@@ -150,6 +154,7 @@ import { useAuthStore } from 'stores/useAuthStore'
 import { useUserStore } from 'stores/useUserStore'
 import { useProgressionStore } from 'src/modules/progression/stores/progressionStore'
 import PushPermissionDialog from 'src/components/PushPermissionDialog.vue'
+import ImprovementPromptDialog from 'src/components/ImprovementPromptDialog.vue'
 import RatingPromptDialog from 'src/components/RatingPromptDialog.vue'
 import PlanExpiryDialog from 'src/components/PlanExpiryDialog.vue'
 import HeaderLevelDropdown from 'src/modules/training/components/HeaderLevelDropdown.vue'
