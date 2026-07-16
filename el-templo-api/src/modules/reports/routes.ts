@@ -750,6 +750,7 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
     dateFrom?: string;
     dateTo?: string;
     leadStatus?: LeadStatusValue | LeadStatusValue[];
+    leadStatusSource?: "auto" | "manual";
     attended?: AttendedFilter;
     shift?: ShiftFilter;
     gestionaUserId?: number;
