@@ -95,7 +95,11 @@ describe("POST /api/members/scheduling/cancel-trial (Phase 119)", () => {
   const TODAY = "2026-03-11";
 
   async function freemiumToken(): Promise<{ id: number; token: string }> {
-    const { id, email } = await createEligibleFreemium(app);
+    // Con teléfono: desde 165 la reserva de prueba exige phone (PHONE_REQUIRED);
+    // acá el foco es el flujo de cancelación, no ese guard.
+    const { id, email } = await createEligibleFreemium(app, {
+      phone: "1122334455",
+    });
     const token = await getAuthToken(app, email, "pass123456");
     return { id, token };
   }
