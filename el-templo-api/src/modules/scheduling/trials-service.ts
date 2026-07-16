@@ -102,6 +102,19 @@ export interface BookTrialResult {
   bookingId: number;
 }
 
+/**
+ * Phase 164 (REPRO-01, D-01): input for the admin "Reprogramar" action. The old
+ * trial booking is identified by `bookingId`; the new session is `{scheduleId,
+ * date, branchId}` (same shape as ReserveTrialSelfServiceInput — field `date`,
+ * NOT `bookingDate`).
+ */
+export interface RescheduleTrialInput {
+  bookingId: number;
+  scheduleId: number;
+  date: string; // YYYY-MM-DD
+  branchId: number;
+}
+
 export interface EligibleTrialUser {
   id: number;
   firstName: string;
@@ -724,6 +737,158 @@ export class TrialService {
         bookingDate: input.bookingDate,
       },
       "Trial booked",
+    );
+
+    return { bookingId };
+  }
+
+  /**
+   * Phase 164 (REPRO-01, D-01/D-02): reschedule an existing trial booking.
+   *
+   * Turns "quitar turno + volver a cargar" into a single atomic operation: in
+   * ONE db.transaction we (1) soft-cancel the old trial booking (same effect as
+   * adminRemoveBooking — status='cancelado', cancelledAt, waitlistPosition null),
+   * (2) reset the lead Perdido→en_seguimiento with source 'auto' (the SAME
+   * Phase 163 snippet as bookTrial, D-02 — not duplicated logic), and (3) create
+   * the new booking with the reactivate-or-insert branch that respects the
+   * UNIQUE (member_id, schedule_id, booking_date).
+   *
+   * The one-trial-per-lifetime guard does NOT block a reschedule: the old
+   * booking is cancelled inside the same tx, and we run no pending-check here
+   * (D-01). Validations mirror bookTrial: the new schedule must exist (404) and
+   * branch coherence must hold — the passed branchId must match the schedule's
+   * branch, and the schedule's branch must match the alumno's home branch (409).
+   *
+   * Waitlist promotion is intentionally omitted: trials bypass capacity
+   * (is_trial=1, see header) so a cancelled trial never occupied a slot, making
+   * promotion a no-op — this keeps the whole operation in a single tx (PATTERNS
+   * §trials-service option (a)).
+   */
+  async rescheduleTrial(
+    input: RescheduleTrialInput,
+  ): Promise<{ bookingId: number }> {
+    // 1. Load the old trial booking → member. 404 if it doesn't exist; 409 if
+    //    it isn't a trial booking (reschedule is a trial-only action).
+    const [oldBooking] = await this.db
+      .select({
+        id: schema.bookings.id,
+        memberId: schema.bookings.memberId,
+        isTrial: schema.bookings.isTrial,
+      })
+      .from(schema.bookings)
+      .where(eq(schema.bookings.id, input.bookingId));
+    if (!oldBooking) throw new NotFoundError("Reserva no encontrada");
+    if (!oldBooking.isTrial) {
+      throw new ConflictError("La reserva no es una sesión de prueba");
+    }
+    const userId = oldBooking.memberId;
+
+    // 2. Validate the NEW schedule exists (same as bookTrial step 1).
+    const [scheduleRow] = await this.db
+      .select({
+        id: schema.schedules.id,
+        branchId: schema.schedules.branchId,
+      })
+      .from(schema.schedules)
+      .innerJoin(
+        schema.branches,
+        eq(schema.branches.id, schema.schedules.branchId),
+      )
+      .where(eq(schema.schedules.id, input.scheduleId));
+    if (!scheduleRow) throw new NotFoundError("Horario no encontrado");
+
+    // 3. Validate the alumno still exists and pull its home branch.
+    const [userRow] = await this.db
+      .select({
+        id: schema.users.id,
+        branchId: schema.users.branchId,
+      })
+      .from(schema.users)
+      .where(eq(schema.users.id, userId));
+    if (!userRow) throw new NotFoundError("Alumno no encontrado");
+
+    // 4. Branch coherence (bookTrial + reserveTrialSelfService CR-01): the
+    //    passed branchId must match the slot's branch, and the slot's branch
+    //    must match the alumno's home branch.
+    if (scheduleRow.branchId !== input.branchId) {
+      throw new ConflictError(
+        "El horario elegido no pertenece a la sede seleccionada",
+      );
+    }
+    if (userRow.branchId !== scheduleRow.branchId) {
+      throw new ConflictError(
+        "El alumno pertenece a otra sede — solo puede reservar pruebas en su sede",
+      );
+    }
+
+    // 5. Cancel-old + reset-lead + create-new, all in ONE tx (D-01/D-04).
+    const bookingId = await this.db.transaction(async (tx) => {
+      // (a) Soft-cancel the old trial booking (adminRemoveBooking semantics).
+      await tx
+        .update(schema.bookings)
+        .set({
+          status: "cancelado",
+          cancelledAt: new Date(),
+          waitlistPosition: null,
+        })
+        .where(eq(schema.bookings.id, input.bookingId));
+
+      // (b) Phase 163 (D-03/D-07) reset — reused verbatim from bookTrial (D-02).
+      await tx
+        .update(schema.users)
+        .set({
+          leadStatus: "en_seguimiento" as const,
+          leadStatusSource: "auto" as const,
+        })
+        .where(eq(schema.users.id, userId));
+
+      // (c) Create the new booking. Reactivate an existing exact slot+date row
+      //     if present to avoid a UNIQUE (member_id, schedule_id, booking_date)
+      //     500 — mirrors bookTrial's reactivate-or-insert branch.
+      const [existing] = await tx
+        .select({ id: schema.bookings.id })
+        .from(schema.bookings)
+        .where(
+          and(
+            eq(schema.bookings.memberId, userId),
+            eq(schema.bookings.scheduleId, input.scheduleId),
+            eq(schema.bookings.bookingDate, input.date),
+          ),
+        )
+        .limit(1);
+
+      if (existing) {
+        await tx
+          .update(schema.bookings)
+          .set({
+            status: "reservado",
+            isTrial: true,
+            cancelledAt: null,
+            waitlistPosition: null,
+          })
+          .where(eq(schema.bookings.id, existing.id));
+        return existing.id;
+      }
+
+      const inserted = await tx.insert(schema.bookings).values({
+        memberId: userId,
+        scheduleId: input.scheduleId,
+        bookingDate: input.date,
+        status: "reservado",
+        isTrial: true,
+      });
+      return Number(inserted[0].insertId);
+    });
+
+    this.log.info(
+      {
+        userId,
+        oldBookingId: input.bookingId,
+        bookingId,
+        scheduleId: input.scheduleId,
+        date: input.date,
+      },
+      "Trial rescheduled",
     );
 
     return { bookingId };

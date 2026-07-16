@@ -571,6 +571,47 @@ export const bookTrialSchema = {
 } as const;
 
 /**
+ * Phase 164 (REPRO-01, D-01): rescheduleTrialSchema
+ *
+ * POST /api/admin/scheduling/trials/:bookingId/reschedule
+ * Cancels the old trial booking and creates a new one in a single transaction.
+ * Body mirrors reserveTrialSelfService's `{scheduleId, date, branchId}` shape
+ * (field is `date`, NOT `bookingDate`). Response is 200 (mutating an existing
+ * lead's trial, not creating a fresh resource).
+ */
+export const rescheduleTrialSchema = {
+  params: {
+    type: "object",
+    required: ["bookingId"],
+    properties: {
+      bookingId: { type: "integer" },
+    },
+  },
+  body: {
+    type: "object",
+    required: ["scheduleId", "date", "branchId"],
+    properties: {
+      scheduleId: { type: "integer", minimum: 1 },
+      date: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+      branchId: { type: "integer", minimum: 1 },
+    },
+    additionalProperties: false,
+  },
+  response: {
+    200: {
+      type: "object",
+      required: ["bookingId"],
+      properties: {
+        bookingId: { type: "integer" },
+      },
+    },
+    400: errorSchema,
+    404: errorSchema,
+    409: errorSchema,
+  },
+} as const;
+
+/**
  * Phase 103: listEligibleTrialsSchema
  *
  * GET /api/admin/scheduling/trials/eligible?branchId=X

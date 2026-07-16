@@ -52,6 +52,7 @@ import {
   adminAddBookingSchema,
   adminRemoveBookingSchema,
   bookTrialSchema,
+  rescheduleTrialSchema,
   listEligibleTrialsSchema,
   listTrialsSchema,
   addHolidaySchema,
@@ -608,6 +609,30 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
       handleServiceError(err, reply, request.log, "book trial");
     }
   });
+
+  // POST /trials/:bookingId/reschedule — reprogramar una sesión de prueba
+  // (Phase 164, REPRO-01). In one tx: cancel the old trial booking + create the
+  // new one + reset the lead (source 'auto'). Guard/country-scope inherited from
+  // the module-level onRequest hook (ALL_STAFF_ROLES). Returns 200 (mutation of
+  // an existing lead's trial, not a fresh resource).
+  fastify.post<{
+    Params: { bookingId: number };
+    Body: { scheduleId: number; date: string; branchId: number };
+  }>(
+    "/trials/:bookingId/reschedule",
+    { schema: rescheduleTrialSchema },
+    async (request, reply) => {
+      try {
+        const result = await trialService.rescheduleTrial({
+          bookingId: request.params.bookingId,
+          ...request.body,
+        });
+        return reply.code(200).send(result);
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "reschedule trial");
+      }
+    },
+  );
 
   // GET /trials/eligible?branchId=X — list prueba users without a trial
   // booking yet for the given branch (Phase 103). Powers the inline trial
