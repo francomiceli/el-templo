@@ -641,6 +641,18 @@
         <q-card-section class="q-pt-none">
           {{ trialDialog.message }}
         </q-card-section>
+        <q-card-section v-if="trialPhoneRequired" class="q-pt-none">
+          <q-input
+            v-model="trialDialog.phone"
+            type="tel"
+            inputmode="tel"
+            label="Teléfono"
+            outlined
+            dense
+            :rules="[(v) => !!v?.trim() || 'Ingresá tu teléfono']"
+            hint="Lo necesitamos para coordinar tu sesión de prueba"
+          />
+        </q-card-section>
         <q-card-actions align="right">
           <q-btn flat label="Cancelar" color="grey" v-close-popup />
           <q-btn
@@ -648,6 +660,7 @@
             label="Confirmar prueba"
             color="primary"
             :loading="trialDialog.loading"
+            :disable="trialPhoneRequired && !trialDialog.phone.trim()"
             @click="confirmTrialReserve"
           />
         </q-card-actions>
@@ -918,7 +931,12 @@ const trialDialog = ref({
   loading: false,
   scheduleId: 0,
   date: '',
+  // Teléfono capturado en el diálogo cuando eligibility.phoneRequired (D-05).
+  phone: '',
 })
+
+// True cuando el perfil del lead no tiene teléfono: el diálogo debe pedirlo (D-05).
+const trialPhoneRequired = computed(() => trialEligibility.value?.phoneRequired === true)
 
 function openTrialWhatsApp(): void {
   const message = 'Hola, necesito cambiar mi sesión de prueba'
@@ -1489,14 +1507,26 @@ function onTrialSlotTap(slot: WeeklySlotView) {
     loading: false,
     scheduleId: slot.id,
     date,
+    phone: '',
   }
 }
 
 async function confirmTrialReserve() {
   if (!trialBranchId.value) return
+  // Si el perfil no tiene teléfono, es condición para reservar (D-05). El backend
+  // igual rechaza con PHONE_REQUIRED, pero evitamos el round-trip inútil.
+  if (trialPhoneRequired.value && !trialDialog.value.phone.trim()) {
+    $q.notify({ type: 'warning', message: 'Ingresá tu teléfono para reservar la prueba' })
+    return
+  }
   trialDialog.value.loading = true
   try {
-    await reserveTrial(trialDialog.value.scheduleId, trialDialog.value.date, trialBranchId.value)
+    await reserveTrial(
+      trialDialog.value.scheduleId,
+      trialDialog.value.date,
+      trialBranchId.value,
+      trialDialog.value.phone.trim() || undefined,
+    )
     trialDialog.value.show = false
     $q.notify({ type: 'positive', message: 'Tu sesión de prueba está reservada' })
     // Re-fetch eligibility so the page flips to the confirmation card (state 3).
