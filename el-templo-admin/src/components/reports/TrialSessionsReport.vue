@@ -279,8 +279,8 @@
           {{ props.col.label }}
           <q-icon name="info" size="16px" class="q-ml-xs text-grey-6" />
           <q-tooltip max-width="260px">
-            Cuenta TODAS las pruebas canceladas del lead (incluye reprogramaciones
-            self-service), no sólo las hechas por gestión.
+            Cuenta TODAS las pruebas canceladas del lead (incluye reprogramaciones self-service), no
+            sólo las hechas por gestión.
           </q-tooltip>
         </q-th>
       </template>
@@ -621,11 +621,17 @@ function formatDateDdMmYyyy(iso: string): string {
   return `${parts[2]}/${parts[1]}/${parts[0]}`;
 }
 
-// Phase 165-03 (D-06): link wa.me a partir del teléfono del lead. Limpia
-// todo lo que no sea dígito (mismo patrón que SesionesDePruebaDialog).
+// Phase 165-03 (D-06) + WR-01: link wa.me a partir del teléfono del lead.
+// Espeja SesionesDePruebaDialog.openWhatsapp (digits-only) pero agrega el
+// prefijo internacional que wa.me necesita para resolver. Los teléfonos de 165
+// se persisten preservando el país (WR-02): un número con más de 10 dígitos ya
+// trae código de país (ej. "5491122334455", "34612345678") y se usa tal cual;
+// uno de 10 dígitos exactos es un móvil AR legacy sin país y se le antepone
+// "549" (AR + 9 de móvil). Menos de 10: se usa lo que haya (no adivinamos país).
 function whatsappUrl(phone: string): string {
-  const cleaned = phone.replace(/[^0-9]/g, '');
-  return `https://wa.me/${cleaned}`;
+  const digits = phone.replace(/[^0-9]/g, '');
+  const intl = digits.length === 10 ? `549${digits}` : digits;
+  return `https://wa.me/${intl}`;
 }
 
 const columns: QTableColumn<TrialSessionsRowClient>[] = [
