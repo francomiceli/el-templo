@@ -354,8 +354,16 @@ export const convertToTrialSchema = {
     properties: {
       branchId: { type: "integer" },
       // Fase 165 (D-02): teléfono opcional del lead. AJV lo acota (T-165-04);
-      // el service exige uno (perfil o body) antes de convertir.
-      phone: { type: "string", minLength: 1, maxLength: 30 },
+      // el service exige uno (perfil o body) antes de convertir. WR-03: el
+      // pattern exige al menos 6 dígitos, así "formato laxo" (D-04) igual
+      // significa "un teléfono con dígitos" — cierra el bypass de CR-01 en el
+      // borde ("." / "-" / "x" ya no pasan el transporte).
+      phone: {
+        type: "string",
+        minLength: 1,
+        maxLength: 30,
+        pattern: "(\\D*\\d){6,}",
+      },
     },
   },
   response: {

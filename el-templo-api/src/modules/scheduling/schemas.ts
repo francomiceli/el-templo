@@ -871,8 +871,15 @@ export const reserveTrialSchema = {
       branchId: { type: "integer", minimum: 1 },
       // Fase 165 (D-04): teléfono OPCIONAL. Requerido solo si el perfil no tiene
       // uno (guard en el service → 400 PHONE_REQUIRED). maxLength:30 espeja
-      // createTrialMemberSchema.phone. Formato laxo (normalizePhone al persistir).
-      phone: { type: "string", minLength: 1, maxLength: 30 },
+      // createTrialMemberSchema.phone. WR-03: el pattern exige al menos 6 dígitos
+      // para que "formato laxo" no admita basura sin dígitos (cierra CR-01 en el
+      // borde). Se sanea preservando país al persistir (WR-02).
+      phone: {
+        type: "string",
+        minLength: 1,
+        maxLength: 30,
+        pattern: "(\\D*\\d){6,}",
+      },
     },
     additionalProperties: false,
   },
