@@ -34,6 +34,7 @@ import {
   ConflictError,
   CoverageExpiredError,
   PassRequiredError,
+  PhoneRequiredError,
 } from "../shared/errors";
 import {
   createActivitySchema,
@@ -887,7 +888,7 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
   // revalidated server-side from user state; the email token never authorizes
   // (D-21).
   fastify.post<{
-    Body: { scheduleId: number; date: string; branchId: number };
+    Body: { scheduleId: number; date: string; branchId: number; phone?: string };
   }>(
     "/reserve-trial",
     { schema: reserveTrialSchema },
@@ -899,6 +900,16 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
         );
         return reply.code(201).send(result);
       } catch (err: unknown) {
+        // Fase 165 (D-04): surface del code PHONE_REQUIRED (espejo de PASS_REQUIRED)
+        // para que la app abra el input de teléfono en el diálogo de confirmación.
+        // handleServiceError sólo emite { error, message }, así que el code va acá.
+        if (err instanceof PhoneRequiredError) {
+          return reply.code(400).send({
+            error: "Solicitud invalida",
+            message: err.message,
+            code: "PHONE_REQUIRED",
+          });
+        }
         handleServiceError(err, reply, request.log, "member reserve trial");
       }
     },

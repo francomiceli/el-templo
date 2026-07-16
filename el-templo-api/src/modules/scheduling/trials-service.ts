@@ -30,7 +30,9 @@ import {
   BadRequestError,
   ConflictError,
   NotFoundError,
+  PhoneRequiredError,
 } from "../shared/errors";
+import { normalizePhone } from "../shared/phone";
 import type { CountryCode } from "../shared/country-scope";
 import { buildClassDateTime, todayInTz } from "../shared/date-utils";
 import type { BookingService } from "./booking-service";
@@ -71,6 +73,9 @@ export interface ReserveTrialSelfServiceInput {
   scheduleId: number;
   date: string; // YYYY-MM-DD
   branchId: number;
+  // Fase 165 (D-04): teléfono opcional en el body. Requerido solo si el perfil
+  // no tiene uno; se persiste normalizado (últimos 10 dígitos) en la misma tx.
+  phone?: string;
 }
 
 export interface ReserveTrialSelfServiceResult {
@@ -216,6 +221,7 @@ export class TrialService {
         id: schema.users.id,
         status: schema.users.status,
         deletedAt: schema.users.deletedAt,
+        phone: schema.users.phone,
       })
       .from(schema.users)
       .where(eq(schema.users.id, userId))
@@ -227,6 +233,19 @@ export class TrialService {
         "Solo un alumno freemium puede reservar una sesión de prueba",
       );
     }
+
+    // Fase 165 (D-04): toda reserva de prueba exige teléfono del lead (insumo
+    // del recupero segmentado). Si el perfil no tiene uno y el body no lo trae,
+    // rechazamos con PHONE_REQUIRED para que la app abra el input. Si viene, lo
+    // persistimos normalizado dentro de la MISMA tx que flipea status→'prueba'
+    // (atomic write, sin round-trip extra). Formato laxo: sin validador estricto.
+    if (!user.phone && !input.phone?.trim()) {
+      throw new PhoneRequiredError();
+    }
+    const phoneToPersist =
+      !user.phone && input.phone?.trim()
+        ? normalizePhone(input.phone)
+        : null;
 
     // 2. Validate the chosen branch exists and is physical (D-06).
     const [branch] = await this.db
@@ -312,6 +331,7 @@ export class TrialService {
           leadStatusSource: "auto" as const, // Phase 163 (D-03/D-07): re-entry is an automatism
           createdBy: null, // D-02: self-service has no admin author
           branchId: input.branchId, // D-06: chosen physical branch
+          ...(phoneToPersist ? { phone: phoneToPersist } : {}), // Fase 165 (D-04)
         })
         .where(eq(schema.users.id, userId));
 

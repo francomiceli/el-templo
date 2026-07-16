@@ -869,6 +869,10 @@ export const reserveTrialSchema = {
       scheduleId: { type: "integer", minimum: 1 },
       date: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
       branchId: { type: "integer", minimum: 1 },
+      // Fase 165 (D-04): teléfono OPCIONAL. Requerido solo si el perfil no tiene
+      // uno (guard en el service → 400 PHONE_REQUIRED). maxLength:30 espeja
+      // createTrialMemberSchema.phone. Formato laxo (normalizePhone al persistir).
+      phone: { type: "string", minLength: 1, maxLength: 30 },
     },
     additionalProperties: false,
   },

@@ -73,6 +73,23 @@ export class PassRequiredError extends BadRequestError {
   }
 }
 
+/**
+ * Fase 165 (SELF-02, D-04) — un freemium intentó reservar su sesión de prueba
+ * self-service sin teléfono (ni en el perfil ni en el body). Carga un
+ * `code = "PHONE_REQUIRED"` distinguible para que la app abra el input de
+ * teléfono en el diálogo de confirmación en vez del notify genérico.
+ * Espejo exacto de PassRequiredError.
+ */
+export class PhoneRequiredError extends BadRequestError {
+  readonly code = "PHONE_REQUIRED";
+
+  constructor(
+    message = "Necesitamos tu teléfono para reservar la sesión de prueba",
+  ) {
+    super(message);
+  }
+}
+
 export class ConflictError extends AppError {
   constructor(message = "Conflicto") {
     super(message, 409);
