@@ -118,6 +118,22 @@
                     <q-tooltip>Abrir WhatsApp</q-tooltip>
                   </q-btn>
                 </q-item-section>
+                <!-- Reprogramar: mueve la prueba a otra fecha+turno en un
+                     paso (endpoint transaccional). Coexiste con "quitar". -->
+                <q-item-section side>
+                  <q-btn
+                    flat
+                    dense
+                    round
+                    icon="event_repeat"
+                    color="primary"
+                    size="sm"
+                    :disable="reschedulingBookingId === trial.bookingId"
+                    @click="openReschedule(trial, group.branchId)"
+                  >
+                    <q-tooltip>Reprogramar sesión de prueba</q-tooltip>
+                  </q-btn>
+                </q-item-section>
                 <!-- Quitar la sesión de prueba. Cancelar el booking
                      deja al alumno disponible para una nueva (el guard
                      de one-trial-per-lifetime excluye cancelled). -->
@@ -143,6 +159,13 @@
       </q-card-section>
     </q-card>
   </q-dialog>
+
+  <RescheduleTrialDialog
+    v-model:show="showRescheduleDialog"
+    :trial="rescheduleTarget"
+    :branch-id="rescheduleBranchId"
+    @rescheduled="onRescheduled"
+  />
 </template>
 
 <script setup lang="ts">
@@ -153,6 +176,7 @@ import { useSchedulingApi } from 'src/composables/useSchedulingApi';
 import type { TrialListBranchGroup, TrialListItem } from 'src/types/scheduling';
 import { extractError } from 'src/utils/extract-error';
 import WhatsappIcon from 'src/components/icons/WhatsappIcon.vue';
+import RescheduleTrialDialog from 'src/components/scheduling/RescheduleTrialDialog.vue';
 
 const log = createLogger('SesionesDePruebaDialog');
 const $q = useQuasar();
@@ -277,6 +301,31 @@ function confirmRemoveTrial(trial: TrialListItem): void {
     void removeTrial(trial);
   });
 }
+
+// Reprogramar sesión de prueba (D-03): abre RescheduleTrialDialog sembrado
+// con la fila + su sede. El flujo "quitar" de arriba queda intacto; ambos
+// coexisten. Al éxito del diálogo, refrescamos la lista (igual que removeTrial).
+const showRescheduleDialog = ref(false);
+const rescheduleTarget = ref<TrialListItem | null>(null);
+const rescheduleBranchId = ref<number | null>(null);
+const reschedulingBookingId = ref<number | null>(null);
+
+function openReschedule(trial: TrialListItem, branchId: number): void {
+  rescheduleTarget.value = trial;
+  rescheduleBranchId.value = branchId;
+  reschedulingBookingId.value = trial.bookingId;
+  showRescheduleDialog.value = true;
+}
+
+function onRescheduled(): void {
+  reschedulingBookingId.value = null;
+  void load();
+}
+
+// Al cerrar el diálogo sin reprogramar, liberar el estado "en curso" de la fila.
+watch(showRescheduleDialog, (open) => {
+  if (!open) reschedulingBookingId.value = null;
+});
 
 async function removeTrial(trial: TrialListItem): Promise<void> {
   removingBookingId.value = trial.bookingId;
