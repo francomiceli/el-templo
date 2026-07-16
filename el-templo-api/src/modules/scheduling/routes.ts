@@ -620,7 +620,15 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
     Body: { scheduleId: number; date: string; branchId: number };
   }>(
     "/trials/:bookingId/reschedule",
-    { schema: rescheduleTrialSchema },
+    {
+      schema: rescheduleTrialSchema,
+      // WR-01: enforce branch/country scope like the sibling trial-mutation
+      // routes (adminAddBooking, schedules/seed). The service checks
+      // branchId↔schedule↔user coherence but not that body.branchId is inside
+      // the caller's country scope; this closes that defense-in-depth gap.
+      // (POST /trials / bookTrial shares the same gap — pre-existing, left as-is.)
+      preHandler: [requireBranchAccess({ from: "body.branchId" })],
+    },
     async (request, reply) => {
       try {
         const result = await trialService.rescheduleTrial({
