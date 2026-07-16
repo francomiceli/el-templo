@@ -76,9 +76,9 @@ async function evaluate(): Promise<void> {
     const status = await evaluateProposalPrompt()
     if (!status) return
 
-    // "Mostrado ahora" se marca al abrir: enviar o saltear, el re-prompt
-    // recién vuelve a los 7 días — y deja de aparecer al primer envío
-    // (el server corta shouldPrompt).
+    // "Mostrado ahora" se marca al abrir: tras un "Ahora no" el re-prompt
+    // recién vuelve a los 14 días; tras un envío el server silencia
+    // shouldPrompt por 30 días (recurrencia mensual).
     await markProposalPromptShown(status.campaign)
     proposal.value = ''
     show.value = true

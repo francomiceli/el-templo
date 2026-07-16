@@ -11,15 +11,16 @@
 /** Estado del popup de propuestas para el socio autenticado. */
 export interface ProposalPromptStatus {
   /**
-   * true cuando el socio todavía no envió ninguna propuesta en la campaña
-   * vigente. La cadencia de re-prompt (7 días) es responsabilidad del
-   * cliente; este flag solo dice "ya participó o no".
+   * true cuando el socio no envió ninguna propuesta en los últimos 30 días
+   * (recurrencia mensual del popup). La cadencia de re-prompt tras "Ahora
+   * no" (14 días) es responsabilidad del cliente; este flag solo dice si
+   * está dentro del silencio post-envío.
    */
   shouldPrompt: boolean;
   /**
-   * Versión de campaña vigente. Subirla (constante en el service, sale con
-   * un deploy de API, sin release del app) relanza el popup a todos los que
-   * no participaron de la nueva campaña.
+   * Versión de campaña vigente: versiona la key de storage local del app.
+   * Subirla (constante en el service, sale con un deploy de API, sin
+   * release del app) fuerza un re-show inmediato.
    */
   campaign: number;
 }

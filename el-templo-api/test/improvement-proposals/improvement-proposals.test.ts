@@ -234,7 +234,23 @@ describe("improvement-proposals", () => {
   });
 
   describe("prompt-status", () => {
-    it("prompts until the member submits, then stops", async () => {
+    it("prompts again when the last proposal is older than 30 days", async () => {
+      await app.db.insert(schema.improvementProposals).values({
+        memberId: ctx.memberArId,
+        branchId: ctx.arBranchId,
+        proposal: "Propuesta vieja",
+        createdAt: new Date(Date.now() - 31 * 24 * 60 * 60 * 1000),
+      });
+
+      const res = await app.inject({
+        method: "GET",
+        url: `${MEMBER_BASE}/prompt-status`,
+        headers: { authorization: `Bearer ${ctx.memberArToken}` },
+      });
+      expect(JSON.parse(res.body).shouldPrompt).toBe(true);
+    });
+
+    it("prompts until the member submits, then goes quiet for the month", async () => {
       const before = await app.inject({
         method: "GET",
         url: `${MEMBER_BASE}/prompt-status`,

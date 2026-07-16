@@ -134,8 +134,9 @@
     <!-- First-login soft pre-prompt for push notifications (native only). -->
     <PushPermissionDialog />
 
-    <!-- Improvement proposal pop-up (once per campaign; wins the app-open slot
-         over the rating pop-up, weekly re-prompt until the first submit). -->
+    <!-- Improvement proposal pop-up (monthly recurrence: quiet 30 days after a
+         submit, 14-day re-prompt after "Ahora no"; wins the app-open slot over
+         the rating pop-up). -->
     <ImprovementPromptDialog />
 
     <!-- Class rating pop-up (auto-triggered on return after a completed in-person class). -->

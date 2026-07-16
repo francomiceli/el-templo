@@ -30,11 +30,19 @@ const MAX_PROPOSALS_PER_WINDOW = 3;
 const WINDOW_MS = 24 * 60 * 60 * 1000;
 
 /**
- * Campaña vigente del popup. `since` delimita qué envíos cuentan como
- * "ya participó de esta campaña": para relanzar el popup a toda la base,
- * subir `version` y mover `since` a la fecha del relanzamiento.
+ * Silencio del popup después de un envío: recurrencia mensual. Un socio que
+ * mandó una propuesta no vuelve a ver el popup hasta pasados 30 días del
+ * último envío (cuenta cualquier envío: popup o página). El re-prompt tras
+ * "Ahora no" (14 días) es cadencia del cliente, no de acá.
  */
-const PROMPT_CAMPAIGN = { version: 1, since: "2026-07-01" };
+const PROMPT_QUIET_AFTER_SUBMIT_MS = 30 * 24 * 60 * 60 * 1000;
+
+/**
+ * Versión de campaña del popup: versiona la key de storage local del app.
+ * Subirla fuerza un re-show inmediato para quienes están dentro de la
+ * ventana de 14 días del "Ahora no" (deploy de API, sin release del app).
+ */
+const PROMPT_CAMPAIGN_VERSION = 1;
 
 /** Escapa los metacaracteres de LIKE para que la búsqueda sea literal. */
 function escapeLike(term: string): string {
@@ -48,27 +56,26 @@ export class ImprovementProposalsService {
 
   /**
    * Estado del popup para el socio: shouldPrompt mientras no haya enviado
-   * ninguna propuesta dentro de la campaña vigente. La cadencia de re-prompt
-   * (7 días entre apariciones) la maneja el cliente con storage local.
+   * ninguna propuesta en los últimos 30 días (recurrencia mensual). La
+   * cadencia de re-prompt tras "Ahora no" (14 días entre apariciones) la
+   * maneja el cliente con storage local.
    */
   async getPromptStatus(memberId: number): Promise<ProposalPromptStatus> {
+    const quietStart = new Date(Date.now() - PROMPT_QUIET_AFTER_SUBMIT_MS);
     const [row] = await this.db
       .select({ id: schema.improvementProposals.id })
       .from(schema.improvementProposals)
       .where(
         and(
           eq(schema.improvementProposals.memberId, memberId),
-          gte(
-            schema.improvementProposals.createdAt,
-            new Date(PROMPT_CAMPAIGN.since + "T00:00:00Z"),
-          ),
+          gte(schema.improvementProposals.createdAt, quietStart),
         ),
       )
       .limit(1);
 
     return {
       shouldPrompt: !row,
-      campaign: PROMPT_CAMPAIGN.version,
+      campaign: PROMPT_CAMPAIGN_VERSION,
     };
   }
 

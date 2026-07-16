@@ -5,10 +5,12 @@ import { createLogger } from 'src/utils/logger'
 const log = createLogger('useImprovementProposalsApi')
 
 /**
- * Cadencia de re-prompt del popup de propuestas: si el socio no envió nada,
- * el popup vuelve a aparecer recién pasados 7 días de la última vez.
+ * Cadencia de re-prompt del popup de propuestas tras un "Ahora no": vuelve a
+ * aparecer recién pasados 14 días de la última vez que se mostró. El silencio
+ * post-envío (30 días, recurrencia mensual) lo maneja el server vía
+ * prompt-status.
  */
-const REPROMPT_MS = 7 * 24 * 60 * 60 * 1000
+const REPROMPT_MS = 14 * 24 * 60 * 60 * 1000
 
 export interface ProposalPromptStatus {
   shouldPrompt: boolean
