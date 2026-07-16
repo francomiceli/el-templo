@@ -353,6 +353,9 @@ export const convertToTrialSchema = {
     required: ["branchId"],
     properties: {
       branchId: { type: "integer" },
+      // Fase 165 (D-02): teléfono opcional del lead. AJV lo acota (T-165-04);
+      // el service exige uno (perfil o body) antes de convertir.
+      phone: { type: "string", minLength: 1, maxLength: 30 },
     },
   },
   response: {

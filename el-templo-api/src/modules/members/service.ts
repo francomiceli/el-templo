@@ -1016,6 +1016,7 @@ export class MemberService {
         id: schema.users.id,
         status: schema.users.status,
         deletedAt: schema.users.deletedAt,
+        phone: schema.users.phone,
       })
       .from(schema.users)
       .where(eq(schema.users.id, userId))
@@ -1029,6 +1030,20 @@ export class MemberService {
         "Solo se puede convertir a sesión de prueba un alumno freemium",
       );
     }
+
+    // Fase 165 (D-02): ninguna alta de SP desde el admin puede quedar sin
+    // teléfono del lead. Si el freemium no tiene phone en su perfil y ninguno
+    // viene en el body, se rechaza con 409 accionable (espeja el gate de
+    // createTrialMember). Si vino phone, se normaliza (últimos 10 dígitos) y se
+    // escribe en la MISMA tx que flipea el status — sin round-trip extra.
+    if (!user.phone && !input.phone?.trim()) {
+      throw new ConflictError(
+        "Cargale el teléfono al lead antes de convertirlo a sesión de prueba",
+      );
+    }
+    const phone = input.phone?.trim()
+      ? normalizePhone(input.phone)
+      : undefined;
 
     const [branch] = await this.db
       .select({
@@ -1063,6 +1078,7 @@ export class MemberService {
           leadStatusSource: "auto" as const, // Phase 163 (D-07): alta = automatismo
           createdBy: input.createdBy,
           branchId: input.branchId,
+          ...(phone ? { phone } : {}),
         })
         .where(eq(schema.users.id, userId));
 

@@ -291,6 +291,10 @@ export interface CreateMinimalMemberServiceInput {
  */
 export interface ConvertFreemiumToTrialInput {
   branchId: number;
+  // Fase 165 (D-02): teléfono opcional del lead. Si el freemium no tiene phone
+  // en su perfil y no viene acá, la conversión se rechaza con 409 accionable;
+  // si viene, se normaliza y persiste en users.phone dentro de la misma tx.
+  phone?: string;
 }
 
 export interface ConvertFreemiumToTrialServiceInput extends ConvertFreemiumToTrialInput {

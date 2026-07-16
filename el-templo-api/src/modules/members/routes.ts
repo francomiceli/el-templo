@@ -799,6 +799,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
           {
             branchId: request.body.branchId,
             createdBy: request.user.userId,
+            phone: request.body.phone,
           },
         );
         return reply.code(200).send(member);
