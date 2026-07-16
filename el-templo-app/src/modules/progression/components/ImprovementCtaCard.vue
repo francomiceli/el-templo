@@ -233,10 +233,11 @@ function goToMejoras(): void {
   animation: fadeUp 0.6s ease-out 0.15s both;
 }
 
+/* CTA en su propia fila: el subtítulo llega de punta a punta de la card. */
 .exp-footer {
   display: flex;
+  flex-direction: column;
   align-items: flex-end;
-  justify-content: space-between;
   gap: 12px;
 }
 
@@ -244,7 +245,7 @@ function goToMejoras(): void {
   font-size: 12px;
   color: rgba(240, 230, 214, 0.45);
   line-height: 1.855;
-  flex: 1;
+  align-self: stretch;
   margin: 0;
   animation: fadeUp 0.6s ease-out 0.25s both;
 }
@@ -253,8 +254,6 @@ function goToMejoras(): void {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  /* Label más largo que el "Mi Plan" de la referencia: sin esto el botón se
-     encoge en la fila del footer y el texto se quiebra en dos líneas. */
   flex-shrink: 0;
   white-space: nowrap;
   background: linear-gradient(135deg, #c4956a, #a07850);
