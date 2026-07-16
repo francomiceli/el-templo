@@ -137,6 +137,23 @@
         </q-td>
       </template>
 
+      <!-- Teléfono slot (D-06): link wa.me cuando hay teléfono; — para legacy -->
+      <template #body-cell-phone="props">
+        <q-td :props="props">
+          <a
+            v-if="props.row.phone"
+            :href="whatsappUrl(props.row.phone)"
+            target="_blank"
+            rel="noopener"
+            class="text-primary no-underline"
+          >
+            <q-icon name="chat" size="16px" class="q-mr-xs" />
+            {{ props.row.phone }}
+          </a>
+          <span v-else class="text-grey-5">—</span>
+        </q-td>
+      </template>
+
       <!-- Asistió slot -->
       <template #body-cell-attended="props">
         <q-td :props="props">
@@ -266,6 +283,21 @@
             self-service), no sólo las hechas por gestión.
           </q-tooltip>
         </q-th>
+      </template>
+
+      <!-- Acciones slot (D-07): salto directo a la ficha del lead -->
+      <template #body-cell-acciones="props">
+        <q-td :props="props">
+          <q-btn
+            flat
+            dense
+            no-caps
+            color="primary"
+            icon="person"
+            label="Ver ficha"
+            :to="`/alumnos/${props.row.userId}`"
+          />
+        </q-td>
       </template>
 
       <!-- Asistió header keeps the accented Spanish label -->
@@ -589,11 +621,26 @@ function formatDateDdMmYyyy(iso: string): string {
   return `${parts[2]}/${parts[1]}/${parts[0]}`;
 }
 
+// Phase 165-03 (D-06): link wa.me a partir del teléfono del lead. Limpia
+// todo lo que no sea dígito (mismo patrón que SesionesDePruebaDialog).
+function whatsappUrl(phone: string): string {
+  const cleaned = phone.replace(/[^0-9]/g, '');
+  return `https://wa.me/${cleaned}`;
+}
+
 const columns: QTableColumn<TrialSessionsRowClient>[] = [
   {
     name: 'lead',
     label: 'Lead',
     field: 'lead',
+    align: 'left',
+    sortable: false,
+  },
+  // Phase 165-03 (D-06): teléfono del lead con link wa.me. null = legacy → celda vacía.
+  {
+    name: 'phone',
+    label: 'Teléfono',
+    field: 'phone',
     align: 'left',
     sortable: false,
   },
@@ -689,6 +736,15 @@ const columns: QTableColumn<TrialSessionsRowClient>[] = [
     name: 'reschedules',
     label: 'Reprogramaciones',
     field: 'reschedules',
+    align: 'center',
+    sortable: false,
+  },
+  // Phase 165-03 (D-07): acción "Ver ficha" → /alumnos/:userId (edición de
+  // estado + asignación de plan ya viven ahí; sin pantallas nuevas).
+  {
+    name: 'acciones',
+    label: 'Acciones',
+    field: 'userId',
     align: 'center',
     sortable: false,
   },

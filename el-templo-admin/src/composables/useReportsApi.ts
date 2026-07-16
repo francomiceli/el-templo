@@ -74,6 +74,8 @@ export interface TrialSessionsRowClient {
   reschedules: number;
   // Phase 164-04: origen del estado del lead. null = automático/histórico.
   leadStatusSource: 'auto' | 'manual' | null;
+  // Phase 165-03 (D-06): teléfono del lead. null para leads legacy sin teléfono.
+  phone: string | null;
 }
 
 export interface TrialSessionsResult {
