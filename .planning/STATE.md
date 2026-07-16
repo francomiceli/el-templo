@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v5.8
 milestone_name: Sesiones de Prueba — automatización y self-service
-status: milestone_complete
-stopped_at: Milestone complete (Phase 165 was final phase)
-last_updated: 2026-07-16T17:11:27.431Z
-last_activity: 2026-07-16
+status: Awaiting next milestone
+stopped_at: Milestone v5.8 complete and archived
+last_updated: "2026-07-16T17:17:48.587Z"
+last_activity: 2026-07-16 — Milestone v5.8 completed and archived
 progress:
   total_phases: 3
   completed_phases: 3
   total_plans: 13
-  completed_plans: 617
+  completed_plans: 13
   percent: 100
 ---
 
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 
 ## Current Position
 
-Phase: 165
-Plan: Not started
-Status: Milestone complete
-Last activity: 2026-07-16
+Phase: Milestone v5.8 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-07-16 — Milestone v5.8 completed and archived
 
 ## Performance Metrics
 
@@ -815,10 +815,29 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - Plan 130-02: graduation is event-driven (NO cron), wired as a guarded try/catch side effect into all 3 completed-session insert paths — sessions/routes.ts + goal-plans/routes.ts (after AURA award), attendance/service.ts (inline inside recordPresencialSession after the presencial mirror insert). 5 tests in test/kairos/kairos-graduation.test.ts (CI). API tsc green. staging, not pushed
 - Plan 130-04 (KAIROS-07 app half, D-04): decision pre-resolved include-kairos (overnight). Prepended `{ value: 'kairos', label: 'α Kairos' }` FIRST in LEVEL_SELECTOR_QUESTION.options (onboarding/types.ts) → self-pick now kairos→alfa→delta→sigma→omega (5 boxes; spartan still excluded — earned, not claimed). 5 boxes is below OnboardingQuestion's `>5` scrollable threshold → no layout break. HeaderLevelDropdown.vue already v-for's TRAINING_LEVELS (kairos first since 129) → VERIFIED, no change. Gate = app lint (0 errs) + quasar build (succeeded; vue-tsc not a runnable script here, build covers full tsc). human-verify (visual UAT) DEFERRED. KAIROS-07 now complete app+admin. staging, not pushed. Phase 130 ready_for_verification.
 
+## Deferred Items
+
+Items acknowledged and deferred at v5.8 milestone close on 2026-07-16 (audit-open: 72 open items, mayoría deuda histórica pre-v5.8):
+
+| Category | Item | Status |
+|----------|------|--------|
+| uat | 163-HUMAN-UAT.md — p90 real que siembre 0182 + dry-run 0183 contra prod (≈112 flips esperados) | pending |
+| uat | 164-HUMAN-UAT.md — reprogramar E2E + reporte con columnas nuevas | pending |
+| uat | 165-HUMAN-UAT.md — wa.me en dispositivo real, diálogo teléfono app, Ver ficha + aviso CSV (IN-02), variedad de formatos | pending |
+| verification | 165-VERIFICATION.md status `human_needed` (0 gaps de implementación) | pending UAT |
+| deferred | Flake UTC preexistente en `reports-trial-sessions.test.ts` (deferred-items.md de 164) | open |
+| histórico | 27 UAT gaps + 42 verification gaps acumulados de fases pre-v5.8 (v5.0/v5.1/116/134/136, tren v5.2/v5.3, v5.7 sin SUMMARYs 161-162) — ver memoria `archive/INDEX.md` | acknowledged |
+| quick_task | 001-remove-timers-add-saberes-info / 2-create-coach-user-guide (artefactos missing, stale) | acknowledged |
+| todo | v51-milestone-data-rollout (poblar `milestone_exercise_id`) | open |
+
 ## Session Continuity
 
-Last session: 2026-07-16T03:50:52.424Z
-Stopped at: Completed 163-03-PLAN.md
+Last session: 2026-07-16T17:20:00.000Z
+Stopped at: Milestone v5.8 complete and archived
 Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
+
+## Operator Next Steps
+
+- Start the next milestone with /gsd-new-milestone
