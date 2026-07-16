@@ -206,6 +206,9 @@ export interface SubscriptionDetail {
   priceTypeApplied: PriceType;
   auraDiscount: number | null;
   auraDiscountPercent: number | null;
+  // Descuento de referido del período actual: pricePaid ya lo tiene restado.
+  referralDiscountPercent: number | null;
+  referralDiscountAmount: number | null;
   boardingPassUsed: boolean;
   priceOverrideAmount: number | null;
   priceOverrideReason: string | null;
@@ -332,7 +335,10 @@ export interface ChangePlanPreview {
   currentPlan: { id: number; name: string; priceRegular: number; pricePaid: number };
   targetPlan: { id: number; name: string; priceRegular: number };
   proration: ProrationResult | null;
+  // Neto post-prorrateo Y post-descuento de referido (paridad con el cobro real).
   netAmount: number | null;
+  referralDiscountPercent: number;
+  referralDiscountAmount: number;
   expiryDate?: string;
 }
 
@@ -342,11 +348,15 @@ export interface PricingPreview {
   basePrice: number;
   discountType: 'none' | 'boarding_pass' | 'aura' | 'override';
   discountAmount: number;
+  // finalPrice ya viene con el descuento de referido restado (incluye la
+  // simulación del vínculo pendiente que el primer cobro activa).
   finalPrice: number;
   auraToSpend: number;
   auraBalance: number;
   boardingPassEligible: boolean;
   availableTiers: AuraDiscountTier[];
+  referralDiscountPercent: number;
+  referralDiscountAmount: number;
 }
 
 // ─── Class Usage Types ─────────────────────────────────────────────────────

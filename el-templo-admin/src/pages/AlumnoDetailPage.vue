@@ -652,6 +652,7 @@
               :branches="branches"
               :outstanding-concepts="outstandingConcepts"
               @subscription-changed="onSubscriptionChanged"
+              @member-edited="loadMemberProfile"
             />
           </q-tab-panel>
 
@@ -696,6 +697,7 @@
         :member="postConvertAssignTarget"
         :branches="branches"
         @assigned="onPostConvertAssigned"
+        @member-edited="onPostConvertMemberEdited"
         @update:modelValue="onPostConvertAssignDialog"
       />
 
@@ -1370,6 +1372,16 @@ const postConvertBranchIsVirtual = computed(() => {
 async function onPostConvertAssigned() {
   postConvertAssignmentDone.value = true;
   await loadMemberProfile();
+}
+
+// El alumno se editó desde el CTA del banner de sede virtual DENTRO del diálogo
+// de asignación post-conversión: recargar el perfil y re-apuntar el target (es
+// un snapshot, no una ref al perfil) para que la sede nueva llegue por props.
+async function onPostConvertMemberEdited() {
+  await loadMemberProfile();
+  if (memberProfile.value) {
+    postConvertAssignTarget.value = memberProfile.value;
+  }
 }
 
 function onPostConvertAssignDialog(open: boolean) {

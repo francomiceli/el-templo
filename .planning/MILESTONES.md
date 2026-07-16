@@ -1,5 +1,30 @@
 # Milestones
 
+## v5.8 Sesiones de Prueba — automatización y self-service (Shipped: 2026-07-16)
+
+**Phases completed:** 3 phases, 13 plans, 28 tasks
+**Migraciones:** 0182 (lead_status_source + seed p90) + 0183 (backfill con backup `users_lead_backup_0183`)
+**Estado al cierre:** código-completo y verificado (163: 9/9, 164: 12/12, 165: 10/10); en staging `e2da7a7e`; tren a prod + UAT pendientes.
+Known deferred items at close: 72 vía audit-open — mayoría deuda histórica pre-v5.8; los de v5.8 son los HUMAN-UAT de 163/164/165 + flake UTC de reports-trial-sessions (see STATE.md Deferred Items)
+
+**Key accomplishments:**
+
+- users.lead_status_source audit column + migration 0182 (idempotent p90 seed of leads.perdido_window_days, fallback 14) + SettingsService.getPerdidoWindowDays() int reader, TDD-covered
+- Nuevo `src/jobs/expire-lost-leads.ts` (runExpireLostLeads invocable + startExpireLostLeadsJob a las 04:00 AR) que lee la ventana X de settings cada corrida y vence leads no-manuales cuya última sesión de prueba no cancelada quedó fuera de la ventana, wired en index.ts, con 5 tests de integración verdes
+- Los writes source-of-truth de `lead_status_source` cableados en los 3 módulos que mutan estado del lead: reset Perdido → En seguimiento (source auto) al re-agendar prueba (bookTrial + self-service), 'auto' en el hook de compra `recomputeUserStatus` y en el alta de lead, 'manual' en el PATCH `updateLead` — todo cubierto por 4 tests de integración verdes
+- Migración 0183 que snapshotea las columnas de lead en `users_lead_backup_0183` y luego aplica una vez la regla del cron a los ~112 leads En seguimiento vencidos → Perdido (source auto), respetando manual/convertido/plan/borrado/activo, con un script dry-run COUNT-only para validación humana pre-deploy y 4 tests de integración verdes
+- `rescheduleTrial` cablea la acción admin "Reprogramar" de una sesión de prueba como operación atómica: en UNA `db.transaction` cancela la booking vieja, resetea el lead a En seguimiento (source `auto`, reusando el snippet de 163) y crea la nueva con la rama reactivate-or-insert de `bookTrial` — expuesto en `POST /trials/:bookingId/reschedule` con guard `ALL_STAFF_ROLES` heredado, y cubierto por 5 tests de integración verdes.
+- Gestión reprograma una sesión de prueba en un solo paso desde `SesionesDePruebaDialog.vue`: un botón "Reprogramar" por fila abre `RescheduleTrialDialog.vue` (picker de fecha + select de turnos del día) que POSTea al endpoint transaccional de 164-01 y refresca la lista, con el flujo "quitar" intacto.
+- COUNT correlacionado de bookings de prueba canceladas por lead + `lead_status_source` en cada fila del reporte, con filtro `leadStatusSource=auto|manual` (auto incluye NULL) y columnas CSV, todo derivado sin schema nuevo.
+- Columna 'Reprogramaciones' con tooltip aclaratorio, indicador discreto auto/manual junto al estado del lead, y select de filtro por origen — todo consumiendo el contrato del backend 164-03, compilando/lint limpio.
+- Toda reserva o alta de sesión de prueba exige ahora el teléfono del lead: la reserva self-service lo captura y persiste atómicamente (o rechaza con `PHONE_REQUIRED`), la eligibility informa `phoneRequired` de antemano, y el alta admin (`bookTrial`) rechaza con 409 accionable si falta.
+- `convertFreemiumToTrial` (promover un self-registered freemium a `status='prueba'` desde el admin) ahora rechaza con 409 accionable si el lead no tiene teléfono y ninguno viene en el body; si viene, lo normaliza y persiste en `users.phone` dentro de la misma tx. El alta directa (`TrialMemberFormDialog` + `createTrialMember`) se verificó como ya satisfecha sin tocar código.
+- `users.phone` threaded a cada fila del reporte de SP (JSON + CSV columna 'Teléfono') siguiendo la forma de extensión de 164, más UI de admin con link wa.me y acción 'Ver ficha' → /alumnos/:userId — acorta el camino de recupero/conversión (SELF-04, D-06/D-07).
+- Cuando la eligibility devuelve `phoneRequired`, el diálogo de confirmación de reserva de sesión de prueba en la member app muestra un input de teléfono requerido (teclado tel, validación no-vacío) que viaja en el body del reserve-trial; el registro no cambia.
+- Un único test de integración recorre el funnel self-service completo — `POST /register` (freemium) → `GET trial-eligibility` (elegible, `phoneRequired` según perfil) → `POST reserve-trial` (promueve freemium→prueba, booking `is_trial` source `self_service`, lead `en_seguimiento` source `auto`) → el lead aparece con su teléfono en `GET /api/admin/reports/trial-sessions` — más los 5 negativos clave. El recorrido NO reveló bugs de producto: el funnel 119 + los writes de 163 + el teléfono de 165 conviven; el único ajuste fue de fecha del test.
+
+---
+
 ## v1.0 — Training Module (Member App)
 
 **Completed:** 2026-02-03

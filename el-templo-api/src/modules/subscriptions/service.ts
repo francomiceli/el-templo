@@ -912,6 +912,8 @@ export class SubscriptionService {
         priceTypeApplied: schema.subscriptions.priceTypeApplied,
         auraDiscount: schema.subscriptions.auraDiscount,
         auraDiscountPercent: schema.subscriptions.auraDiscountPercent,
+        referralDiscountPercent: schema.subscriptions.referralDiscountPercent,
+        referralDiscountAmount: schema.subscriptions.referralDiscountAmount,
         boardingPassUsed: schema.subscriptions.boardingPassUsed,
         priceOverrideAmount: schema.subscriptions.priceOverrideAmount,
         priceOverrideReason: schema.subscriptions.priceOverrideReason,
@@ -987,6 +989,8 @@ export class SubscriptionService {
         priceTypeApplied: schema.subscriptions.priceTypeApplied,
         auraDiscount: schema.subscriptions.auraDiscount,
         auraDiscountPercent: schema.subscriptions.auraDiscountPercent,
+        referralDiscountPercent: schema.subscriptions.referralDiscountPercent,
+        referralDiscountAmount: schema.subscriptions.referralDiscountAmount,
         boardingPassUsed: schema.subscriptions.boardingPassUsed,
         priceOverrideAmount: schema.subscriptions.priceOverrideAmount,
         priceOverrideReason: schema.subscriptions.priceOverrideReason,
@@ -1111,6 +1115,8 @@ export class SubscriptionService {
         priceTypeApplied: schema.subscriptions.priceTypeApplied,
         auraDiscount: schema.subscriptions.auraDiscount,
         auraDiscountPercent: schema.subscriptions.auraDiscountPercent,
+        referralDiscountPercent: schema.subscriptions.referralDiscountPercent,
+        referralDiscountAmount: schema.subscriptions.referralDiscountAmount,
         boardingPassUsed: schema.subscriptions.boardingPassUsed,
         priceOverrideAmount: schema.subscriptions.priceOverrideAmount,
         priceOverrideReason: schema.subscriptions.priceOverrideReason,
@@ -1166,6 +1172,8 @@ export class SubscriptionService {
         priceTypeApplied: schema.subscriptions.priceTypeApplied,
         auraDiscount: schema.subscriptions.auraDiscount,
         auraDiscountPercent: schema.subscriptions.auraDiscountPercent,
+        referralDiscountPercent: schema.subscriptions.referralDiscountPercent,
+        referralDiscountAmount: schema.subscriptions.referralDiscountAmount,
         boardingPassUsed: schema.subscriptions.boardingPassUsed,
         priceOverrideAmount: schema.subscriptions.priceOverrideAmount,
         priceOverrideReason: schema.subscriptions.priceOverrideReason,
@@ -3035,16 +3043,40 @@ export class SubscriptionService {
         targetPlan: targetPlanInfo,
         proration: null,
         netAmount: null,
+        referralDiscountPercent: 0,
+        referralDiscountAmount: 0,
         expiryDate: sub.endDate ?? undefined,
       };
     }
 
     // Upgrade or same price: calculate proration
     const proration = this.calculateProration(sub, currentPlan);
-    const netAmount = Math.max(
+    let netAmount = Math.max(
       0,
       targetPlan.priceRegular - proration.remainingValue,
     );
+
+    // ── Referidos: preview parity con changePlanNow ──
+    // El cobro real descuenta referidos sobre el neto post-prorrateo (D-20/D-21,
+    // guard de categoría D-09/T-161-05) — el preview debe mostrar y precargar
+    // ese mismo neto, si no el admin manda un amountReceived que el backend
+    // rechaza por exceder el monto real. simulatePendingQualification refleja
+    // el flip que qualifyReferralOnCharge hará dentro del cobro.
+    let referralDiscountPercent = 0;
+    let referralDiscountAmount = 0;
+    if (targetPlan.planCategory !== "especial" && netAmount > 0) {
+      const referralPct = await new ReferralService(
+        this.db,
+        this.log,
+      ).computeReferralDiscountPercent(userId, {
+        simulatePendingQualification: true,
+      });
+      if (referralPct > 0) {
+        referralDiscountPercent = referralPct;
+        referralDiscountAmount = Math.floor(netAmount * (referralPct / 100));
+        netAmount = netAmount - referralDiscountAmount;
+      }
+    }
 
     return {
       allowed: true,
@@ -3052,6 +3084,8 @@ export class SubscriptionService {
       targetPlan: targetPlanInfo,
       proration,
       netAmount,
+      referralDiscountPercent,
+      referralDiscountAmount,
       // Surfaced so the admin UI can pre-fill the "mantener vencimiento" option
       // (new plan inherits this expiry) without a second round-trip.
       expiryDate: sub.endDate ?? undefined,
@@ -3937,6 +3971,7 @@ export class SubscriptionService {
       endDate: schema.subscriptions.endDate,
       pricePaid: schema.subscriptions.pricePaid,
       priceTypeApplied: schema.subscriptions.priceTypeApplied,
+      referralDiscountAmount: schema.subscriptions.referralDiscountAmount,
     };
     let currentSub;
     if (input.subscriptionId !== undefined) {
@@ -4071,7 +4106,16 @@ export class SubscriptionService {
     //
     // Si el admin ingresa un precio personalizado para ESTA renovación, tiene
     // prioridad sobre el heredado (mismo patrón que assignPlan/changePlan).
-    let renewalPrice = currentSub.pricePaid;
+    //
+    // El heredado se reconstruye SIN el descuento de referido del período
+    // anterior (add-back de referralDiscountAmount): pricePaid quedó grabado ya
+    // descontado, y el descuento de referido es condicional POR CICLO (DESC-03
+    // — depende de que la contraparte siga activa hoy). Sin el add-back el
+    // descuento componía renovación tras renovación (72000 → 64800 → 58320…) y
+    // además quedaba perpetuado aunque el vínculo se suspendiera. El bloque de
+    // referidos de abajo re-aplica el % vigente sobre esta base limpia.
+    let renewalPrice =
+      currentSub.pricePaid + (currentSub.referralDiscountAmount ?? 0);
     let renewalOverrideAmount: number | null = null;
     let renewalOverrideReason: string | null = null;
     // Referidos (fase 157): materialización del descuento en columnas nuevas.
@@ -4595,16 +4639,29 @@ export class SubscriptionService {
     // (qualifyFirstPayment) ni escribe referral_credits (es preview, no cobra).
     // Compone sobre el precio ya reducido por auraSpend, exactamente como la
     // charge-path, para que el PoS muestre el precio que efectivamente se cobra.
+    // Paridad completa con la charge-path:
+    //   - Guard de categoría (D-09/T-161-05): los pases especiales quedan FUERA
+    //     del sistema de referidos — sin el guard el preview mostraba un
+    //     descuento que el cobro jamás aplicaba.
+    //   - simulatePendingQualification: el cobro real flippea el vínculo
+    //     pending del payer ANTES de computar (D-21), así que el preview del
+    //     primer pago debe contarlo también — si no, el admin ve el precio
+    //     lleno, el campo "monto recibido" se precarga de más y el backend
+    //     rechaza el cobro por exceder el monto real.
     let referralDiscountPercent = 0;
     let referralDiscountAmount = 0;
-    const referralPct = await new ReferralService(
-      this.db,
-      this.log,
-    ).computeReferralDiscountPercent(userId);
-    if (referralPct > 0) {
-      referralDiscountPercent = referralPct;
-      referralDiscountAmount = Math.floor(finalPrice * (referralPct / 100));
-      finalPrice = finalPrice - referralDiscountAmount;
+    if (plan.planCategory !== "especial" && finalPrice > 0) {
+      const referralPct = await new ReferralService(
+        this.db,
+        this.log,
+      ).computeReferralDiscountPercent(userId, {
+        simulatePendingQualification: true,
+      });
+      if (referralPct > 0) {
+        referralDiscountPercent = referralPct;
+        referralDiscountAmount = Math.floor(finalPrice * (referralPct / 100));
+        finalPrice = finalPrice - referralDiscountAmount;
+      }
     }
 
     return {
@@ -5224,6 +5281,8 @@ export class SubscriptionService {
     priceTypeApplied: string;
     auraDiscount: number | null;
     auraDiscountPercent: number | null;
+    referralDiscountPercent: number | null;
+    referralDiscountAmount: number | null;
     boardingPassUsed: boolean;
     priceOverrideAmount: number | null;
     priceOverrideReason: string | null;
@@ -5256,6 +5315,8 @@ export class SubscriptionService {
       priceTypeApplied: row.priceTypeApplied as PriceType,
       auraDiscount: row.auraDiscount,
       auraDiscountPercent: row.auraDiscountPercent,
+      referralDiscountPercent: row.referralDiscountPercent,
+      referralDiscountAmount: row.referralDiscountAmount,
       boardingPassUsed: row.boardingPassUsed,
       priceOverrideAmount: row.priceOverrideAmount,
       priceOverrideReason: row.priceOverrideReason,

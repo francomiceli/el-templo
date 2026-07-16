@@ -209,6 +209,7 @@
       :member="member ?? null"
       :branches="branches ?? []"
       @assigned="onAssigned"
+      @member-edited="emit('member-edited')"
     />
 
     <!-- Change Plan Dialog (presencial — reuses AssignPlanDialog in change mode) -->
@@ -226,6 +227,7 @@
       :branches="branches ?? []"
       mode="change"
       @assigned="onAssigned"
+      @member-edited="emit('member-edited')"
     />
 
     <!-- Edit Start Date Dialog -->
@@ -308,6 +310,14 @@
               <q-item-section side class="text-weight-bold text-positive">{{
                 renewalEndDate
               }}</q-item-section>
+            </q-item>
+            <q-item v-if="renewalReferralAmount > 0">
+              <q-item-section>Descuento referido ({{ renewalReferralPct }}%)</q-item-section>
+              <q-item-section side class="text-positive"
+                >-{{
+                  formatPrice(renewalReferralAmount, renewTarget.currency ?? 'ARS')
+                }}</q-item-section
+              >
             </q-item>
             <q-item>
               <q-item-section>Precio</q-item-section>
@@ -662,6 +672,10 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'subscription-changed': [];
+  // Re-emisión del 'member-edited' de AssignPlanDialog: el alumno se editó
+  // desde el CTA del banner de sede virtual y la página debe recargar el
+  // perfil para que los props de sede se re-vinculen.
+  'member-edited': [];
 }>();
 
 // =========================================================================
@@ -695,6 +709,10 @@ const renewalOverrideReason = ref('');
 // recordAssignmentCharge por amountReceived > chargeBase) y (b) avisar con un alert antes
 // de renovar. null = sin normalización (renovación normal).
 const renewalNormalizedPrice = ref<number | null>(null);
+// % de descuento de referido que el server va a aplicar a ESTA renovación
+// (server-computed vía pricing-preview, incluye la simulación del vínculo
+// pendiente que el cobro activa). 0 = sin descuento o preview aún cargando.
+const renewalReferralPct = ref(0);
 // Fecha de inicio custom al renovar (hotfix 1708312a). El toggle habilita el date-picker.
 const renewalUseCustomStartDate = ref(false);
 const renewalStartDate = ref('');
@@ -894,7 +912,12 @@ const renewalActivationDate = computed(() => {
   return formatDate(renewalEffectiveStartDate.value);
 });
 
-const renewalChargeBase = computed(() => {
+// Base de renovación PRE-descuento de referido, espejo del server:
+// override > precio normalizado (credit_card→regular con la regla OFF) >
+// heredado con add-back del descuento de referido del período anterior
+// (el descuento es por ciclo — el server re-aplica el % vigente sobre la
+// base limpia, no sobre el pricePaid ya descontado).
+const renewalBasePreReferral = computed(() => {
   if (
     renewalUseOverride.value &&
     renewalOverrideAmount.value !== null &&
@@ -904,8 +927,21 @@ const renewalChargeBase = computed(() => {
   }
   // Si el server va a normalizar el precio (credit_card→regular con la regla de recargo
   // OFF), la base de cobro es el precio normalizado (Y), no el pricePaid heredado (X).
-  return renewalNormalizedPrice.value ?? renewTarget.value?.pricePaid ?? 0;
+  if (renewalNormalizedPrice.value !== null) {
+    return renewalNormalizedPrice.value;
+  }
+  return (renewTarget.value?.pricePaid ?? 0) + (renewTarget.value?.referralDiscountAmount ?? 0);
 });
+
+// Misma price-math del server (floor(base*pct/100)). El server también
+// descuenta referidos sobre el precio personalizado, así que aplica al override.
+const renewalReferralAmount = computed(() =>
+  Math.floor(renewalBasePreReferral.value * (renewalReferralPct.value / 100))
+);
+
+const renewalChargeBase = computed(
+  () => renewalBasePreReferral.value - renewalReferralAmount.value
+);
 
 // El override es válido si está activo, tiene monto >= 0 y una razón no vacía.
 const renewalOverrideInvalid = computed(
@@ -1021,6 +1057,7 @@ function openRenewal(sub: SubscriptionDetail) {
   renewalOverrideAmount.value = null;
   renewalOverrideReason.value = '';
   renewalNormalizedPrice.value = null;
+  renewalReferralPct.value = 0;
   renewalUseCustomStartDate.value = false;
   // Pre-cargamos la fecha automática para que, al activar el toggle, el picker
   // arranque en el valor que el sistema usaría por defecto.
@@ -1037,6 +1074,25 @@ function openRenewal(sub: SubscriptionDetail) {
   if (sub.priceTypeApplied === 'credit_card') {
     void detectRenewalNormalization(sub);
   }
+  // % de referido de esta renovación (fire-and-forget: si falla, la base queda
+  // sin descuento y el server sigue siendo la autoridad al cobrar).
+  void loadRenewalReferralPct(sub);
+}
+
+// Pregunta al server el % de descuento de referido vigente para el socio (vía
+// pricing-preview, que ya simula la activación del vínculo pendiente). Solo se
+// usa el %, no el precio: la base de la renovación es la heredada, no la del plan.
+async function loadRenewalReferralPct(sub: SubscriptionDetail) {
+  try {
+    const preview = await subsApi.getPricingPreview(props.userId, sub.planId, 'regular');
+    // Guard anti-race: el diálogo podría haberse cerrado o cambiado de target.
+    if (renewTarget.value?.id !== sub.id) return;
+    renewalReferralPct.value = preview.referralDiscountPercent ?? 0;
+  } catch (err: unknown) {
+    log.warn('No se pudo previsualizar el descuento de referido en renovación', {
+      error: extractError(err, 'preview failed'),
+    });
+  }
 }
 
 // Pregunta al server (única autoridad de precio vía resolvePriceType) qué cobraría la
@@ -1048,8 +1104,14 @@ async function detectRenewalNormalization(sub: SubscriptionDetail) {
     const preview = await subsApi.getPricingPreview(props.userId, sub.planId, 'credit_card');
     // Guard anti-race: el diálogo podría haberse cerrado o cambiado de target.
     if (renewTarget.value?.id !== sub.id) return;
-    if (preview.finalPrice !== (sub.pricePaid ?? 0)) {
-      renewalNormalizedPrice.value = preview.finalPrice;
+    // Comparación PRE-descuento de referido en ambos lados: finalPrice ya viene
+    // con el descuento restado, y el pricePaid heredado también puede traer el
+    // del período anterior. La normalización es un cambio de BASE; el descuento
+    // de referido se aplica después, vía renewalReferralAmount.
+    const previewPreReferral = preview.finalPrice + (preview.referralDiscountAmount ?? 0);
+    const inheritedPreReferral = (sub.pricePaid ?? 0) + (sub.referralDiscountAmount ?? 0);
+    if (previewPreReferral !== inheritedPreReferral) {
+      renewalNormalizedPrice.value = previewPreReferral;
     }
   } catch (err: unknown) {
     // Si el preview falla no bloqueamos la renovación; el server sigue siendo la autoridad.
