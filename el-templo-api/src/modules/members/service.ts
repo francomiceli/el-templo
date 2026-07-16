@@ -25,7 +25,11 @@ import * as schema from "../../db/schema";
 
 /** Temporary password assigned by admin-driven member creation and password reset. */
 export const MEMBER_TEMP_PASSWORD = "eltemplo2026";
-import { buildMemberNameSearchCondition, normalizePhone } from "../shared";
+import {
+  buildMemberNameSearchCondition,
+  normalizePhone,
+  sanitizePhoneForStorage,
+} from "../shared";
 import type { TrainingLevel } from "../shared/training-constants";
 import type {
   MemberListParams,
@@ -1032,18 +1036,22 @@ export class MemberService {
     }
 
     // Fase 165 (D-02): ninguna alta de SP desde el admin puede quedar sin
-    // teléfono del lead. Si el freemium no tiene phone en su perfil y ninguno
-    // viene en el body, se rechaza con 409 accionable (espeja el gate de
-    // createTrialMember). Si vino phone, se normaliza (últimos 10 dígitos) y se
-    // escribe en la MISMA tx que flipea el status — sin round-trip extra.
-    if (!user.phone && !input.phone?.trim()) {
+    // teléfono del lead. CR-01: saneamos PRIMERO y rechazamos si el resultado no
+    // tiene dígitos ("abc", "()", "n/a" pasaban el no-vacío y luego se dropeaban
+    // silenciosamente → lead a 'prueba' sin teléfono, lo que D-02 prohíbe).
+    // Espeja el gate de createTrialMember. Si el freemium no tiene phone en su
+    // perfil y ninguno válido viene en el body, se rechaza con 409 accionable.
+    // WR-02: sanitizePhoneForStorage preserva el prefijo país (no trunca a 10).
+    // Si vino phone válido, se escribe en la MISMA tx que flipea el status.
+    const phoneFromBody = input.phone?.trim()
+      ? sanitizePhoneForStorage(input.phone)
+      : "";
+    if (!user.phone && !phoneFromBody) {
       throw new ConflictError(
         "Cargale el teléfono al lead antes de convertirlo a sesión de prueba",
       );
     }
-    const phone = input.phone?.trim()
-      ? normalizePhone(input.phone)
-      : undefined;
+    const phone = !user.phone ? phoneFromBody : undefined;
 
     const [branch] = await this.db
       .select({

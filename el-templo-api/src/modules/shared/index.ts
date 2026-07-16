@@ -29,7 +29,7 @@ export { assembleVideoUrl, assembleThumbnailUrl } from "./video-url";
 export { generateQrToken, validateQrToken } from "./qr-token";
 export type { QrPayload } from "./qr-token";
 export { buildMemberNameSearchCondition } from "./member-search";
-export { normalizePhone } from "./phone";
+export { normalizePhone, sanitizePhoneForStorage } from "./phone";
 export { auditLog } from "./audit-log";
 export type {
   AuditAction,

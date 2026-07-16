@@ -32,7 +32,7 @@ import {
   NotFoundError,
   PhoneRequiredError,
 } from "../shared/errors";
-import { normalizePhone } from "../shared/phone";
+import { sanitizePhoneForStorage } from "../shared/phone";
 import type { CountryCode } from "../shared/country-scope";
 import { buildClassDateTime, todayInTz } from "../shared/date-utils";
 import type { BookingService } from "./booking-service";
@@ -74,7 +74,8 @@ export interface ReserveTrialSelfServiceInput {
   date: string; // YYYY-MM-DD
   branchId: number;
   // Fase 165 (D-04): teléfono opcional en el body. Requerido solo si el perfil
-  // no tiene uno; se persiste normalizado (últimos 10 dígitos) en la misma tx.
+  // no tiene uno; se persiste saneado preservando el prefijo país (WR-02) en la
+  // misma tx. Debe contener dígitos: si no, se rechaza (CR-01).
   phone?: string;
 }
 
@@ -238,17 +239,22 @@ export class TrialService {
     }
 
     // Fase 165 (D-04): toda reserva de prueba exige teléfono del lead (insumo
-    // del recupero segmentado). Si el perfil no tiene uno y el body no lo trae,
-    // rechazamos con PHONE_REQUIRED para que la app abra el input. Si viene, lo
-    // persistimos normalizado dentro de la MISMA tx que flipea status→'prueba'
-    // (atomic write, sin round-trip extra). Formato laxo: sin validador estricto.
-    if (!user.phone && !input.phone?.trim()) {
+    // del recupero segmentado). CR-01: sanitizamos PRIMERO y rechazamos si el
+    // resultado no tiene dígitos ("abc", "()", "n/a" pasaban el chequeo de
+    // no-vacío y luego se dropeaban silenciosamente → lead promovido a 'prueba'
+    // sin teléfono, el estado exacto que D-02/D-04 prohíben). Espeja
+    // createTrialMember: normalizar y luego throw si queda vacío. El teléfono
+    // NUNCA se dropea: o se persiste válido o se rechaza con PHONE_REQUIRED.
+    // WR-02: sanitizePhoneForStorage preserva el prefijo país (no trunca a 10),
+    // así ES/AR quedan intactos y wa.me-resolvables. Se escribe en la MISMA tx
+    // que flipea status→'prueba'. Formato laxo: sin validador estricto.
+    const phoneFromBody = input.phone?.trim()
+      ? sanitizePhoneForStorage(input.phone)
+      : "";
+    if (!user.phone && !phoneFromBody) {
       throw new PhoneRequiredError();
     }
-    const phoneToPersist =
-      !user.phone && input.phone?.trim()
-        ? normalizePhone(input.phone)
-        : null;
+    const phoneToPersist = !user.phone ? phoneFromBody : null;
 
     // 2. Validate the chosen branch exists and is physical (D-06).
     const [branch] = await this.db
