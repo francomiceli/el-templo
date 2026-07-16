@@ -76,7 +76,7 @@ v5.6 aún no ejecutado); tests de integración para rutas nuevas/modificadas.
       lead.
 - [x] **SELF-03**: La reserva self-service de sesión de prueba exige teléfono: si el
       perfil no lo tiene, la app lo pide en el diálogo de confirmación de la reserva.
-- [ ] **SELF-04**: Gestión tiene un flujo más directo para programar sesiones de
+- [x] **SELF-04**: Gestión tiene un flujo más directo para programar sesiones de
       prueba y convertir leads en alumnos (fricciones concretas a relevar; mejoras
       acotadas a lo que el propio flujo actual ya evidencia).
 
@@ -116,4 +116,4 @@ v5.6 aún no ejecutado); tests de integración para rutas nuevas/modificadas.
 | SELF-01     | Phase 165 | Pending |
 | SELF-02     | Phase 165 | Complete |
 | SELF-03     | Phase 165 | Complete |
-| SELF-04     | Phase 165 | Pending |
+| SELF-04     | Phase 165 | Complete |
