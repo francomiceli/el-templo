@@ -164,6 +164,7 @@ interface SeedLeadOpts {
   leadNotes?: string | null;
   createdBy?: number | null;
   convertedAtOffsetDays?: number; // if set, sets convertedAt and status='activo'
+  leadStatusSource?: "auto" | "manual" | null;
 }
 
 async function seedLead(opts: SeedLeadOpts): Promise<number> {
@@ -201,6 +202,8 @@ async function seedLead(opts: SeedLeadOpts): Promise<number> {
       leadNotes: opts.leadNotes ?? null,
       createdBy: opts.createdBy ?? null,
       convertedAt,
+      leadStatusSource:
+        opts.leadStatusSource === undefined ? null : opts.leadStatusSource,
     })
     .$returningId();
   return u.id;
@@ -897,7 +900,7 @@ describe("Reports API — Trial Sessions (Phase 114-05)", () => {
 
     // Header line — Spanish with literal accented "Asistió".
     const expectedHeader =
-      "Lead,Fecha,Creación,Hora,Sucursal,Asistió,Estado del Lead,Plan comprado,Gestiona,Comentarios,Turno,Periodo,Semana";
+      "Lead,Fecha,Creación,Hora,Sucursal,Asistió,Estado del Lead,Plan comprado,Gestiona,Comentarios,Turno,Periodo,Semana,Reprogramaciones,Origen estado";
     const afterBom = decoded.slice(1);
     const firstLine = afterBom.split("\r\n")[0];
     expect(firstLine).toBe(expectedHeader);
@@ -912,5 +915,178 @@ describe("Reports API — Trial Sessions (Phase 114-05)", () => {
     expect(antoninoLine).toMatch(/,No,/); // attended=no -> "No"
     expect(antoninoLine).toMatch(/Mañana/); // shift=TM -> "Mañana"
     expect(antoninoLine).toMatch(/\d{2}\/\d{2}\/\d{4}/); // fecha DD/MM/YYYY
+  });
+
+  // 17. reschedules — COUNT of cancelled trial bookings for the lead (D-04).
+  it("reschedules counts cancelled trial bookings of the lead (retroactive)", async () => {
+    const u1 = await seedLead({
+      firstName: "Ruido",
+      lastName: "Alto",
+      branchId: ctx.arBranchId,
+    });
+    // 3 cancelled trials + 1 active (the representative row).
+    await seedBooking({
+      userId: u1,
+      scheduleId: ctx.scheduleArMorning,
+      bookingDateOffsetDays: -30,
+      status: "cancelado",
+      isTrial: true,
+    });
+    await seedBooking({
+      userId: u1,
+      scheduleId: ctx.scheduleArMorning,
+      bookingDateOffsetDays: -20,
+      status: "cancelado",
+      isTrial: true,
+    });
+    await seedBooking({
+      userId: u1,
+      scheduleId: ctx.scheduleArMorning,
+      bookingDateOffsetDays: -10,
+      status: "cancelado",
+      isTrial: true,
+    });
+    await seedBooking({
+      userId: u1,
+      scheduleId: ctx.scheduleArMorning,
+      bookingDateOffsetDays: -3,
+      status: "reservado",
+      isTrial: true,
+    });
+
+    // A second lead with zero cancellations — sanity that the count is per-lead.
+    const u2 = await seedLead({
+      firstName: "Tranquilo",
+      lastName: "Cero",
+      branchId: ctx.arBranchId,
+    });
+    await seedBooking({
+      userId: u2,
+      scheduleId: ctx.scheduleArAfternoon,
+      bookingDateOffsetDays: -5,
+      status: "reservado",
+      isTrial: true,
+    });
+
+    const res = await ctx.app.inject({
+      method: "GET",
+      url: `${REPORTS_URL}/trial-sessions`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+
+    const ruido = body.rows.find((r: { userId: number }) => r.userId === u1);
+    const tranquilo = body.rows.find(
+      (r: { userId: number }) => r.userId === u2,
+    );
+    expect(ruido.reschedules).toBe(3);
+    expect(tranquilo.reschedules).toBe(0);
+  });
+
+  // 18. leadStatusSource surfaced per row; null preserved (D-05).
+  it("exposes leadStatusSource per row (manual + null preserved)", async () => {
+    const uManual = await seedLead({
+      firstName: "Manu",
+      lastName: "AlManual",
+      branchId: ctx.arBranchId,
+      leadStatusSource: "manual",
+    });
+    await seedBooking({
+      userId: uManual,
+      scheduleId: ctx.scheduleArMorning,
+      bookingDateOffsetDays: -4,
+    });
+
+    const uNull = await seedLead({
+      firstName: "Histo",
+      lastName: "Rico",
+      branchId: ctx.arBranchId,
+      leadStatusSource: null,
+    });
+    await seedBooking({
+      userId: uNull,
+      scheduleId: ctx.scheduleArAfternoon,
+      bookingDateOffsetDays: -6,
+    });
+
+    const res = await ctx.app.inject({
+      method: "GET",
+      url: `${REPORTS_URL}/trial-sessions`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+
+    const manual = body.rows.find(
+      (r: { userId: number }) => r.userId === uManual,
+    );
+    const histo = body.rows.find(
+      (r: { userId: number }) => r.userId === uNull,
+    );
+    expect(manual.leadStatusSource).toBe("manual");
+    expect(histo.leadStatusSource).toBe(null);
+  });
+
+  // 19. leadStatusSource filter — auto includes NULL rows (D-06).
+  it("filters by leadStatusSource; auto includes NULL rows", async () => {
+    const uManual = await seedLead({
+      firstName: "FilterManual",
+      branchId: ctx.arBranchId,
+      leadStatusSource: "manual",
+    });
+    await seedBooking({
+      userId: uManual,
+      scheduleId: ctx.scheduleArMorning,
+      bookingDateOffsetDays: -4,
+    });
+
+    const uAuto = await seedLead({
+      firstName: "FilterAuto",
+      branchId: ctx.arBranchId,
+      leadStatusSource: "auto",
+    });
+    await seedBooking({
+      userId: uAuto,
+      scheduleId: ctx.scheduleArAfternoon,
+      bookingDateOffsetDays: -5,
+    });
+
+    const uNull = await seedLead({
+      firstName: "FilterNull",
+      branchId: ctx.arBranchId,
+      leadStatusSource: null,
+    });
+    await seedBooking({
+      userId: uNull,
+      scheduleId: ctx.scheduleArMorning,
+      bookingDateOffsetDays: -6,
+    });
+
+    // manual → only the manual lead.
+    const manualRes = await ctx.app.inject({
+      method: "GET",
+      url: `${REPORTS_URL}/trial-sessions?leadStatusSource=manual`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+    });
+    expect(manualRes.statusCode).toBe(200);
+    const manualBody = JSON.parse(manualRes.body);
+    const manualIds = manualBody.rows.map((r: { userId: number }) => r.userId);
+    expect(manualIds).toContain(uManual);
+    expect(manualIds).not.toContain(uAuto);
+    expect(manualIds).not.toContain(uNull);
+
+    // auto → the auto lead AND the NULL (histórico) lead, never the manual one.
+    const autoRes = await ctx.app.inject({
+      method: "GET",
+      url: `${REPORTS_URL}/trial-sessions?leadStatusSource=auto`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+    });
+    expect(autoRes.statusCode).toBe(200);
+    const autoBody = JSON.parse(autoRes.body);
+    const autoIds = autoBody.rows.map((r: { userId: number }) => r.userId);
+    expect(autoIds).toContain(uAuto);
+    expect(autoIds).toContain(uNull);
+    expect(autoIds).not.toContain(uManual);
   });
 });
