@@ -121,8 +121,10 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
   //   - admin/gestion: only sedes whose country matches scope.country (+ virtual).
   //   - coach/recepcion: only sedes in scope.branchIds (+ virtual).
   // Virtual sedes (e.g. Templo Online) are always included so members assigned to
-  // them stay reachable. Response shape preserved as { branches: [{ id, name }] } —
-  // frontend selectors auto-receive the filtered list (REQ-12).
+  // them stay reachable. Response shape { branches: [{ id, name, country,
+  // isVirtual, timezone }] } — frontend selectors auto-receive the filtered list
+  // (REQ-12). `timezone` backs the per-row "today" of the Vencimiento pill in the
+  // all-branches Alumnos list.
   fastify.get("/branches", async (request) => {
     const allRows = await fastify.db
       .select({
@@ -130,6 +132,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         name: schema.branches.name,
         country: schema.branches.country,
         isVirtual: schema.branches.isVirtual,
+        timezone: schema.branches.timezone,
       })
       .from(schema.branches)
       .where(eq(schema.branches.isActive, true))
