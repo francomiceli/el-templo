@@ -410,7 +410,17 @@ async function onCountryChange() {
 
 const members = ref<MemberListItem[]>([]);
 const branches = ref<BranchOption[]>([]);
-/** branchId → IANA tz, para resolver "hoy" por sede en la pill de Vencimiento. */
+/**
+ * branchId → IANA tz, para resolver "hoy" por sede en la pill de Vencimiento.
+ *
+ * La única fuente es `timezone` de GET /admin/members/branches. Si el handler
+ * deja de devolverlo, esto NO falla: el filter descarta todo, el Map queda
+ * vacío y cada fila cae al fallback argentino — el mismo hardcodeo que el fix
+ * de la TZ vino a sacar, pero en silencio. Ya pasó (155bdb8a agregó el campo al
+ * SELECT y no al .map() del handler; arreglado en 5ad20a9a) y no lo agarró ni
+ * vue-tsc, porque BranchOption.timezone es opcional. Lo cubre el test de
+ * integración del API (test/branch-access.test.ts).
+ */
 const branchTimezones = computed(
   () => new Map(branches.value.filter((b) => b.timezone).map((b) => [b.id, b.timezone as string]))
 );
