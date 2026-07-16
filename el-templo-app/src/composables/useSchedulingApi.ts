@@ -39,6 +39,9 @@ interface BranchOption {
 export interface TrialEligibility {
   eligible: boolean
   alreadyBooked: boolean
+  // True cuando el perfil del lead no tiene teléfono cargado: la app debe pedirlo
+  // en el diálogo de confirmación de la reserva de prueba (D-05, backend Plan 01).
+  phoneRequired: boolean
   booking?: {
     bookingId: number
     date: string
@@ -111,10 +114,11 @@ export function useSchedulingApi() {
     scheduleId: number,
     date: string,
     branchId: number,
+    phone?: string,
   ): Promise<BookingRecord> {
     const response = await api.post<BookingRecord>(
       '/members/scheduling/reserve-trial',
-      { scheduleId, date, branchId },
+      { scheduleId, date, branchId, ...(phone ? { phone } : {}) },
       { signal: getSignal() },
     )
     return response.data
