@@ -7,7 +7,9 @@
  * Contracts under test (ADJUST-04, D-05, T-131-05):
  *   1. coach gets 200 with the member's records, newest first, with origin +
  *      served-neighbor names resolved.
- *   2. owner also gets 200 (TRAINING_ROLES = coach + owner).
+ *   2. owner also gets 200.
+ *   2b. admin/gestion/recepcion also get 200 — the gate is ALL_STAFF_ROLES
+ *       because the consumer is the member profile, which all staff open.
  *   3. a MEMBER token gets 403 (elevation-of-privilege guard, T-131-05).
  *   4. no token → 401.
  *
@@ -183,7 +185,7 @@ describe("GET /api/admin/exercise-adjustments/:memberId (Phase 131 Plan 02)", ()
     expect(body[0].toExerciseName).toBe(`${MARK}_neighbor`);
   });
 
-  it("2 — an owner also gets 200 (TRAINING_ROLES = coach + owner)", async () => {
+  it("2 — an owner also gets 200", async () => {
     const member = await seedMember();
     const origin = await seedExercise("o2");
     await seedAdjustment({
@@ -204,6 +206,35 @@ describe("GET /api/admin/exercise-adjustments/:memberId (Phase 131 Plan 02)", ()
     expect(res.statusCode).toBe(200);
     expect(JSON.parse(res.body)).toHaveLength(1);
   });
+
+  // El bug de prod: la ficha del alumno (AlumnoDetailPage) la abre TODO el
+  // staff, pero el gate era TRAINING_ROLES (coach/owner) → admin, gestion y
+  // recepcion comían 403 en la sección de ajustes (~12/día). Mismo patrón que
+  // el roster de Horarios (FA-12, hotfix 65efec0d).
+  it.each(["admin", "gestion", "recepcion"])(
+    "2b — %s también obtiene 200: la ficha del alumno la abre todo el staff",
+    async (role) => {
+      const member = await seedMember();
+      const origin = await seedExercise(`o2b_${role}`);
+      await seedAdjustment({
+        memberId: member,
+        exerciseId: origin,
+        toExerciseId: null,
+        status: "dominado",
+        createdAt: new Date("2026-06-05T10:00:00Z"),
+      });
+
+      const token = await seedStaffToken(role);
+      const res = await app.inject({
+        method: "GET",
+        url: `/api/admin/exercise-adjustments/${member}`,
+        headers: { authorization: `Bearer ${token}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(JSON.parse(res.body)).toHaveLength(1);
+    },
+  );
 
   it("3 — a member token is rejected with 403 (T-131-05)", async () => {
     const target = await seedMember();

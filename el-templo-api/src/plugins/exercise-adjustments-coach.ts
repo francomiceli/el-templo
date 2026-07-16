@@ -4,11 +4,11 @@ import { exerciseAdjustmentCoachRoutes } from "../modules/exercise-adjustments/c
 /**
  * exercise-adjustments-coach plugin — Phase 131 Plan 02 (ADJUST-04, D-05).
  *
- * Registers the coach/owner-scoped read of a member's dominado/bajado log under
+ * Registers the staff-scoped read of a member's dominado/bajado log under
  * /api/admin/exercise-adjustments. Mirrors plugins/tree-editor.ts: depends on
- * database + auth, and the routes' own onRequest hook applies the TRAINING_ROLES
+ * database + auth, and the routes' own onRequest hook applies the ALL_STAFF_ROLES
  * gate (403 for members). Kept separate from plugins/exercise-adjustments.ts so
- * the member-scoped POST is never affected by the coach role gate.
+ * the member-scoped POST is never affected by the staff role gate.
  */
 export default fp(
   async (fastify) => {
