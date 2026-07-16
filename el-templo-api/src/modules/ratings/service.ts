@@ -13,6 +13,7 @@
 import { MySql2Database } from "drizzle-orm/mysql2";
 import {
   eq,
+  ne,
   and,
   sql,
   desc,
@@ -22,6 +23,7 @@ import {
   gt,
   gte,
   inArray,
+  isNotNull,
   type SQL,
 } from "drizzle-orm";
 import * as schema from "../../db/schema";
@@ -521,8 +523,8 @@ export class RatingsService {
    * individual ratings list (D-O1). Scope mirrors CoachService — owner is
    * unrestricted; admin/gestion restricted to their country via the rating's
    * branch. Filters: rango de fechas sobre sessionDate (la clase puntuada) y
-   * sucursal; ambos aplican a promedios Y listado. La paginación solo al
-   * listado.
+   * sucursal; ambos aplican a promedios Y listado. La paginación y
+   * withComments, solo al listado.
    */
   async getOwnerRatings(
     scope: RatingsScope,
@@ -567,6 +569,21 @@ export class RatingsService {
     }
     const whereClause = conds.length > 0 ? and(...conds) : undefined;
 
+    // withComments es un filtro de lectura del listado: se aplica al COUNT y a
+    // las filas, NUNCA a los promedios de arriba (ver OwnerRatingsFilters).
+    // El != '' acompaña al IS NOT NULL porque el submit no normaliza el string
+    // vacío, y el listado ya esconde esas filas con un chequeo de falsy — sin
+    // esto el contador prometería filas que no se ven.
+    const listConds = [...conds];
+    if (filters.withComments === true) {
+      listConds.push(
+        isNotNull(schema.coachRatings.comment),
+        ne(schema.coachRatings.comment, ""),
+      );
+    }
+    const listWhereClause =
+      listConds.length > 0 ? and(...listConds) : undefined;
+
     const perCoachRows = await this.db
       .select({
         coachId: schema.coachRatings.coachId,
@@ -593,7 +610,7 @@ export class RatingsService {
     const [countRow] = await this.db
       .select({ count: sql<number>`COUNT(*)` })
       .from(schema.coachRatings)
-      .where(whereClause);
+      .where(listWhereClause);
     const total = Number(countRow?.count ?? 0);
 
     const ratingRows = await this.db
@@ -623,7 +640,7 @@ export class RatingsService {
         schema.activities,
         eq(schema.activities.id, schema.schedules.activityId),
       )
-      .where(whereClause)
+      .where(listWhereClause)
       // Tiebreaker id DESC: varias puntuaciones con el mismo createdAt
       // mantienen orden estable entre páginas del listado.
       .orderBy(

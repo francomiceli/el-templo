@@ -119,6 +119,7 @@ export const ratingsAdminRoutes: FastifyPluginAsync = async (fastify) => {
       dateFrom?: string;
       dateTo?: string;
       branchId?: number;
+      withComments?: boolean;
       page?: number;
       limit?: number;
     };
@@ -141,6 +142,7 @@ export const ratingsAdminRoutes: FastifyPluginAsync = async (fastify) => {
           dateFrom: request.query.dateFrom,
           dateTo: request.query.dateTo,
           branchId: request.query.branchId,
+          withComments: request.query.withComments,
           page: request.query.page,
           limit: request.query.limit,
         },

@@ -100,11 +100,17 @@ export interface OwnerRecentRating {
  * clase puntuada, no la del submit) + sucursal + paginación del listado.
  * Los promedios per-coach respetan fecha/sucursal; la paginación solo aplica
  * al listado de puntuaciones individuales.
+ *
+ * withComments es un filtro de LECTURA del listado y NO toca los promedios: el
+ * "Promedio profe" es sobre todas las clases puntuadas, y dejarlo caer solo
+ * sobre las que además dejaron comentario lo convertiría en otra métrica
+ * (sesgada al que se toma el trabajo de escribir) sin que se note en la UI.
  */
 export interface OwnerRatingsFilters {
   dateFrom?: string; // YYYY-MM-DD
   dateTo?: string;
   branchId?: number;
+  withComments?: boolean;
   page?: number;
   limit?: number;
 }

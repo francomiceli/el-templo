@@ -5,7 +5,9 @@
       <q-btn flat round dense icon="refresh" :loading="loading" @click="reload" />
     </div>
 
-    <!-- Filtros: rango de fechas (sobre la fecha de la clase) + sucursal -->
+    <!-- Filtros: rango de fechas (sobre la fecha de la clase) + sucursal.
+         "Solo con comentarios" filtra unicamente el listado de abajo: los
+         promedios por profe siguen siendo sobre todas las puntuaciones. -->
     <div class="row q-gutter-sm q-mb-md items-center">
       <q-input
         v-model="filters.dateFrom"
@@ -36,6 +38,9 @@
         clearable
         class="col-12 col-sm-3"
       />
+      <q-toggle v-model="filters.withComments" label="Solo con comentarios" class="col-auto">
+        <q-tooltip>Filtra el listado. Los promedios por profe no cambian.</q-tooltip>
+      </q-toggle>
     </div>
 
     <q-banner v-if="error" class="bg-red-1 text-red-9 q-mb-md" dense>
@@ -176,7 +181,8 @@ const filters = reactive<{
   dateFrom: string | null;
   dateTo: string | null;
   branchId: number | null;
-}>({ dateFrom: null, dateTo: null, branchId: null });
+  withComments: boolean;
+}>({ dateFrom: null, dateTo: null, branchId: null, withComments: false });
 
 const perCoach = ref<OwnerCoachRatingSummary[]>([]);
 const ratings = ref<OwnerRecentRating[]>([]);
@@ -230,6 +236,7 @@ function currentFilters(): OwnerRatingsFilters {
     dateFrom: filters.dateFrom ?? undefined,
     dateTo: filters.dateTo ?? undefined,
     branchId: filters.branchId ?? undefined,
+    withComments: filters.withComments || undefined,
   };
 }
 
@@ -280,7 +287,7 @@ async function fetchBranches(): Promise<void> {
 }
 
 watch(
-  () => [filters.dateFrom, filters.dateTo, filters.branchId],
+  () => [filters.dateFrom, filters.dateTo, filters.branchId, filters.withComments],
   () => {
     void load(true);
   }

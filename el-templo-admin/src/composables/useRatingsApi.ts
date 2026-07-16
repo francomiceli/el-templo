@@ -73,11 +73,16 @@ export interface OwnerRecentRating {
   branchName: string | null;
 }
 
-/** Filtros del owner view: fechas sobre sessionDate + sucursal + paginación. */
+/**
+ * Filtros del owner view: fechas sobre sessionDate + sucursal + paginación.
+ * withComments filtra solo el listado — los promedios por profe siguen siendo
+ * sobre todas las puntuaciones.
+ */
 export interface OwnerRatingsFilters {
   dateFrom?: string; // YYYY-MM-DD
   dateTo?: string;
   branchId?: number;
+  withComments?: boolean;
   page?: number;
   limit?: number;
 }
