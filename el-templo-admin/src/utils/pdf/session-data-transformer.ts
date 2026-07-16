@@ -42,7 +42,7 @@ function findInitiumBlock(sessions: SessionDetail[]): SessionBlock | undefined {
 
 /**
  * Build a display string for format + params.
- * Examples: "AMRAP 10' X3", "TIME CAP 12'", "COMPLEX X3", "TABATA 20"/10" X8"
+ * Examples: "AMRAP 10' X3", "TIME CAP 12'", "COMPLEX X3", "TABATA 20"/10""
  */
 /** Display-name overrides for PDF output */
 function displayFormatName(name: string): string {
@@ -110,8 +110,14 @@ function formatNameWithParams(
     case 'for_quality':
       return p.rounds ? `${name} X${p.rounds}` : name;
 
-    // Work/rest/rounds formats
+    // Tabata: las rondas son fijas (8 = 4 min) y el coach no las elige — el
+    // editor ni siquiera las muestra (ver FormatParamsEditor). Imprimir "X8" en
+    // una hoja de papel es ruido: siempre dice lo mismo. Los params siguen
+    // guardados porque el timer de la app sí los usa.
     case 'tabata':
+      return p.workSeconds && p.restSeconds ? `${name} ${p.workSeconds}"/${p.restSeconds}"` : name;
+
+    // Work/rest/rounds formats — acá las rondas SÍ las configura el coach
     case 'interval':
     case 'hiit': {
       const parts = [name];
@@ -298,27 +304,32 @@ function mobilityToText(mob: SessionExercise): string {
 }
 
 /**
- * Mobility shown on a grid page must match what the coach sees/edits in the
- * session editor: the mobility of the block for the FIRST level present in the
- * canonical (shared) level order — i.e. the editor's levelBlocks[0].
+ * El bloque canónico de un rol: el del PRIMER nivel presente en el orden
+ * compartido — o sea el levelBlocks[0] del editor. Todo lo que la grilla imprime
+ * UNA sola vez para todos los niveles (movilidad, formato) tiene que salir de
+ * acá, o el PDF contradice lo que el coach ve en el editor.
  *
- * The grid COLUMN order (local LEVEL_ORDER, alfa-first) is intentionally kept
- * separate: only the mobility source is aligned. Before this fix the PDF read
- * mobility from alfa (first in the local order) while the editor read from
- * kairos (first in the shared order) — since mobility is selected independently
- * per level, they diverged in every case (Phase 129 KAIROS-01 regression).
+ * El orden de las COLUMNAS de la grilla (LEVEL_ORDER local, alfa-first) se
+ * mantiene aparte a propósito: solo se alinea la FUENTE.
+ *
+ * Movilidad: antes de la fase 129 el PDF la leía de alfa (primero en el orden
+ * local) y el editor de kairos (primero en el compartido) — como se elige por
+ * nivel, divergían siempre (regresión KAIROS-01).
+ *
+ * Formato: mismo pozo. Se guarda por nivel, y aunque se edita en cascada a todos
+ * los niveles, un intercambio de bloque toca uno solo — con lo cual los niveles
+ * quedaban con formatos distintos y el PDF (alfa) imprimía otro formato del que
+ * mostraba el editor (kairos).
  */
-function findCanonicalMobilityText(
+function findCanonicalBlock(
   role: string,
   sessionsByLevel: Map<string, SessionDetail>
-): string | undefined {
+): SessionBlock | undefined {
   for (const level of CANONICAL_LEVEL_ORDER) {
     const session = sessionsByLevel.get(level);
     if (!session) continue;
     const block = findBlock(session.blocks, role);
-    if (!block) continue;
-    // First present block is canonical (mirrors editor's levelBlocks[0]).
-    return block.mobilityExercise ? mobilityToText(block.mobilityExercise) : undefined;
+    if (block) return block;
   }
   return undefined;
 }
@@ -333,18 +344,22 @@ function buildGridPage(
   sessionsByLevel: Map<string, SessionDetail>
 ): PdfBlockPage | null {
   const levelBlocks: PdfLevelBlock[] = [];
-  let formatName = '';
 
-  // Mobility source = canonical level (matches the editor); column order below
-  // stays alfa-first via the local LEVEL_ORDER.
-  const mobilityText = findCanonicalMobilityText(role, sessionsByLevel);
+  // Movilidad y formato salen del nivel canónico (el que muestra el editor); el
+  // orden de las columnas de abajo sigue siendo alfa-first via LEVEL_ORDER local.
+  const canonical = findCanonicalBlock(role, sessionsByLevel);
+  const mobilityText = canonical?.mobilityExercise
+    ? mobilityToText(canonical.mobilityExercise)
+    : undefined;
+  const formatName = canonical
+    ? formatNameWithParams(canonical.formatName, canonical.formatParams)
+    : '';
 
   for (const level of LEVEL_ORDER) {
     const session = sessionsByLevel.get(level);
     if (!session) continue;
     const block = findBlock(session.blocks, role);
     if (!block) continue;
-    if (!formatName) formatName = formatNameWithParams(block.formatName, block.formatParams);
 
     levelBlocks.push(blockToLevelBlock(block, level));
   }
