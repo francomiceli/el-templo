@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v5.8
 milestone_name: Sesiones de Prueba — automatización y self-service
-status: verifying
-stopped_at: Completed 163-03-PLAN.md
-last_updated: "2026-07-16T02:44:14.443Z"
+status: ready_to_plan
+stopped_at: Phase 164 complete (4/4) — ready to discuss Phase 165
+last_updated: 2026-07-16T03:07:51.669Z
 last_activity: 2026-07-16
 progress:
   total_phases: 3
   completed_phases: 2
   total_plans: 8
-  completed_plans: 8
+  completed_plans: 612
   percent: 67
 ---
 
@@ -21,20 +21,20 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-04)
 
 **Core value (v5.8):** Que el estado del lead de sesión de prueba se mantenga solo — Ganado ya es automático (hook `recomputeUserStatus`); falta vencer a Perdido por una ventana X (p90 histórico, configurable en `system_settings`) vía un cron diario nuevo en `src/jobs/`, y resetear a En seguimiento al reprogramar —, que la reprogramación de la primera clase sea acción de primera clase con historial visible, y que el self-service freemium→prueba existente (Phase 119, en prod sin UAT) quede validado end-to-end + teléfono obligatorio + UX de gestión. 3 fases (163-165), 12 requirements (AUTO/REPRO/SELF). 163 (máquina de estados) foundational; 164 depende de 163 (`lead_status_source`); 165 después de 163 (reset self-service). Se monta sobre infra existente (matching lead↔compra ya resuelto por diseño). Numeración arranca en 163 (159-160 reservadas v5.6, 161-162 v5.7). Staging-first estricto; migraciones a verificar en plan-phase (última aplicada 0180; 0181 es de rama no ejecutada).
-**Current focus:** Phase 164 — Reprogramación y reporte
+**Current focus:** Phase 165 — self service y ux de gestión
 
 ## Current Position
 
-Phase: 164 (Reprogramación y reporte) — EXECUTING
-Plan: 4 of 4
-Status: Phase complete — ready for verification
+Phase: 165
+Plan: Not started
+Status: Ready to plan
 Last activity: 2026-07-16
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 67 (v4.1)
+- Total plans completed: 71 (v4.1)
 - Average duration: ~11min
 - Total execution time: ~122min
 
@@ -59,6 +59,7 @@ Last activity: 2026-07-16
 | 155   | 4     | -      | -        |
 | 156   | 5     | -      | -        |
 | 163 | 4 | - | - |
+| 164 | 4 | - | - |
 
 **Recent Trend (from v4.0):**
 
