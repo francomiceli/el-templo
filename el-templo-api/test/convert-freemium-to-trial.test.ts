@@ -206,7 +206,7 @@ describe("POST /api/admin/members/:userId/convert-to-trial", () => {
     expect(after.status).toBe("freemium");
   });
 
-  it("converts a phone-less freemium when phone comes in the body, persisting it normalized", async () => {
+  it("converts a phone-less freemium when phone comes in the body, persisting it country-preserving", async () => {
     const member = await createTestMember(app, { branchId: virtualBranchId });
     await app.db
       .update(schema.users)
@@ -227,7 +227,54 @@ describe("POST /api/admin/members/:userId/convert-to-trial", () => {
       .where(eq(schema.users.id, member.id))
       .limit(1);
     expect(after.status).toBe("prueba");
-    // normalizePhone → últimos 10 dígitos.
-    expect(after.phone).toBe("1122223333");
+    // WR-02: número completo con país (ya no truncado a "1122223333").
+    expect(after.phone).toBe("+5491122223333");
+  });
+
+  it("persists a Spanish number (+34 …) without corrupting the country digit (WR-02)", async () => {
+    const member = await createTestMember(app, { branchId: virtualBranchId });
+    await app.db
+      .update(schema.users)
+      .set({ phone: null })
+      .where(eq(schema.users.id, member.id));
+
+    const { statusCode } = await convert(member.id, {
+      branchId: physicalBranchId,
+      phone: "+34 612 345 678",
+    });
+    expect(statusCode).toBe(200);
+
+    const [after] = await app.db
+      .select({ phone: schema.users.phone })
+      .from(schema.users)
+      .where(eq(schema.users.id, member.id))
+      .limit(1);
+    // normalizePhone truncaba a "4612345678" (perdía el 3 del 34). Ahora intacto.
+    expect(after.phone).toBe("+34612345678");
+  });
+
+  it("rejects a non-digit phone ('abc') without promoting the lead (CR-01/WR-03)", async () => {
+    const member = await createTestMember(app, { branchId: virtualBranchId });
+    await app.db
+      .update(schema.users)
+      .set({ phone: null })
+      .where(eq(schema.users.id, member.id));
+
+    // "abc" no tiene dígitos: WR-03 (pattern ≥6 dígitos) lo rechaza en el borde;
+    // el guard del service (CR-01) es el respaldo. El teléfono NUNCA se dropea:
+    // el lead sigue freemium en vez de quedar en 'prueba' sin teléfono.
+    const { statusCode } = await convert(member.id, {
+      branchId: physicalBranchId,
+      phone: "abc",
+    });
+    expect(statusCode).toBe(400);
+
+    const [after] = await app.db
+      .select({ status: schema.users.status, phone: schema.users.phone })
+      .from(schema.users)
+      .where(eq(schema.users.id, member.id))
+      .limit(1);
+    expect(after.status).toBe("freemium");
+    expect(after.phone).toBeNull();
   });
 });

@@ -387,13 +387,13 @@ describe("POST /api/members/scheduling/reserve-trial (Phase 119)", () => {
     expect(bookings).toHaveLength(0);
   });
 
-  it("165 D-04: a phone-less freemium sending phone in the body → 201 + phone persisted (normalized)", async () => {
+  it("165 D-04: a phone-less freemium sending phone in the body → 201 + phone persisted (country-preserving)", async () => {
     const { id, token } = await freemiumToken({ phone: null });
     const { statusCode, body } = await reserve(token, {
       scheduleId,
       date: thursdayOffset(),
       branchId: physicalBranchId,
-      // Loosely formatted — normalizePhone keeps the trailing 10 digits.
+      // WR-02: sanitized preserving the country prefix (not truncated to 10).
       phone: "+54 9 11 2233-4455",
     });
     expect(statusCode).toBe(201);
@@ -405,7 +405,34 @@ describe("POST /api/members/scheduling/reserve-trial (Phase 119)", () => {
       .where(eq(schema.users.id, id))
       .limit(1);
     expect(user.status).toBe("prueba");
-    // last 10 digits of "5491122334455" → "1122334455"
-    expect(user.phone).toBe("1122334455");
+    // WR-02: full number with country code → wa.me-resolvable (was "1122334455").
+    expect(user.phone).toBe("+5491122334455");
+  });
+
+  it("165 WR-03/CR-01: a non-digit phone ('abc') does NOT promote the lead", async () => {
+    const { id, token } = await freemiumToken({ phone: null });
+    // "abc" has no digits: WR-03's schema pattern (≥6 digits) rejects it at the
+    // boundary and the service guard (CR-01) is the backstop. Critical invariant:
+    // the phone is NEVER silently dropped — the lead stays freemium, no booking.
+    const { statusCode } = await reserve(token, {
+      scheduleId,
+      date: thursdayOffset(),
+      branchId: physicalBranchId,
+      phone: "abc",
+    });
+    expect(statusCode).toBe(400);
+
+    const [user] = await app.db
+      .select({ status: schema.users.status, phone: schema.users.phone })
+      .from(schema.users)
+      .where(eq(schema.users.id, id))
+      .limit(1);
+    expect(user.status).toBe("freemium");
+    expect(user.phone).toBeNull();
+    const bookings = await app.db
+      .select({ id: schema.bookings.id })
+      .from(schema.bookings)
+      .where(eq(schema.bookings.memberId, id));
+    expect(bookings).toHaveLength(0);
   });
 });

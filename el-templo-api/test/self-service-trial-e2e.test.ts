@@ -22,14 +22,7 @@
  * días LOCALES sobre un schedule cuyo dayOfWeek coincide; NO se usan offsets UTC
  * ni fake timers (evita el split-brain entre el Date de JS y CURDATE de MySQL).
  */
-import {
-  describe,
-  it,
-  expect,
-  beforeAll,
-  afterAll,
-  beforeEach,
-} from "vitest";
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { eq } from "drizzle-orm";
 import {
@@ -188,22 +181,25 @@ describe("E2E self-service trial funnel (Fase 165-05, SELF-01)", () => {
       .from(schema.users)
       .where(eq(schema.users.id, id))
       .limit(1);
-    expect(afterRegister.status, "el register debe dejar al user en freemium").toBe(
-      "freemium",
-    );
+    expect(
+      afterRegister.status,
+      "el register debe dejar al user en freemium",
+    ).toBe("freemium");
     // El registro captura teléfono (D-05: no cambia) → phoneRequired será false.
     expect(afterRegister.phone).toBeTruthy();
 
     // (2) eligibility → elegible, no reservó, phoneRequired false (tiene teléfono)
     const elig = await getEligibility(token);
     expect(elig.statusCode).toBe(200);
-    expect(elig.body.eligible, "freemium sin sub ni prueba debe ser elegible").toBe(
-      true,
-    );
+    expect(
+      elig.body.eligible,
+      "freemium sin sub ni prueba debe ser elegible",
+    ).toBe(true);
     expect(elig.body.alreadyBooked).toBe(false);
-    expect(elig.body.phoneRequired, "con teléfono en el perfil no se pide").toBe(
-      false,
-    );
+    expect(
+      elig.body.phoneRequired,
+      "con teléfono en el perfil no se pide",
+    ).toBe(false);
 
     // (3) reserve-trial → 201 + promoción atómica multi-tabla
     const reserved = await reserve(token, {
@@ -226,7 +222,9 @@ describe("E2E self-service trial funnel (Fase 165-05, SELF-01)", () => {
       .where(eq(schema.users.id, id))
       .limit(1);
     expect(user.status, "reserve promueve a prueba").toBe("prueba");
-    expect(user.leadStatus, "el lead entra en seguimiento").toBe("en_seguimiento");
+    expect(user.leadStatus, "el lead entra en seguimiento").toBe(
+      "en_seguimiento",
+    );
     expect(
       user.leadStatusSource,
       "el reset/alta del lead es automatismo legítimo (163 D-07)",
@@ -274,7 +272,10 @@ describe("E2E self-service trial funnel (Fase 165-05, SELF-01)", () => {
     expect(reportRes.statusCode).toBe(200);
     const report = JSON.parse(reportRes.body);
     const row = report.rows.find((r: { userId: number }) => r.userId === id);
-    expect(row, "el lead recién promovido aparece en el reporte de SP").toBeDefined();
+    expect(
+      row,
+      "el lead recién promovido aparece en el reporte de SP",
+    ).toBeDefined();
     expect(row.phone, "el reporte trae el teléfono del lead (recupero)").toBe(
       afterRegister.phone,
     );
@@ -394,13 +395,15 @@ describe("E2E self-service trial funnel (Fase 165-05, SELF-01)", () => {
     // eligibility debe pedir teléfono de antemano.
     const elig = await getEligibility(token);
     expect(elig.body.eligible).toBe(true);
-    expect(elig.body.phoneRequired, "sin teléfono en el perfil se pide").toBe(true);
+    expect(elig.body.phoneRequired, "sin teléfono en el perfil se pide").toBe(
+      true,
+    );
 
     const { statusCode, body } = await reserve(token, {
       scheduleId,
       date: trial.date,
       branchId: physicalBranchId,
-      // Formato laxo — normalizePhone se queda con los últimos 10 dígitos.
+      // WR-02: se sanea preservando el prefijo país (no se trunca a 10).
       phone: "+54 9 11 2233-4455",
     });
     expect(statusCode, JSON.stringify(body)).toBe(201);
@@ -412,7 +415,54 @@ describe("E2E self-service trial funnel (Fase 165-05, SELF-01)", () => {
       .where(eq(schema.users.id, id))
       .limit(1);
     expect(user.status).toBe("prueba");
-    // últimos 10 de "5491122334455" → "1122334455"
-    expect(user.phone).toBe("1122334455");
+    // WR-02: número completo con país → wa.me-resolvable (ya no "1122334455").
+    expect(user.phone).toBe("+5491122334455");
+  });
+
+  it("positivo phone ES: '+34 612 345 678' persiste completo (WR-02, no truncado)", async () => {
+    const { id, token } = await phonelessFreemiumToken();
+    const { statusCode, body } = await reserve(token, {
+      scheduleId,
+      date: trial.date,
+      branchId: physicalBranchId,
+      phone: "+34 612 345 678",
+    });
+    expect(statusCode, JSON.stringify(body)).toBe(201);
+
+    const [user] = await app.db
+      .select({ status: schema.users.status, phone: schema.users.phone })
+      .from(schema.users)
+      .where(eq(schema.users.id, id))
+      .limit(1);
+    expect(user.status).toBe("prueba");
+    // normalizePhone truncaba a "4612345678" (dígito de país perdido). Ahora intacto.
+    expect(user.phone).toBe("+34612345678");
+  });
+
+  it("negativo phone no-numérico: 'abc' NO promueve el lead (CR-01/WR-03)", async () => {
+    const { id, token } = await phonelessFreemiumToken();
+    // "abc" no tiene dígitos: WR-03 (pattern ≥6 dígitos) lo rechaza en el borde,
+    // y el guard del service (CR-01) es el respaldo. El invariante crítico: el
+    // teléfono NUNCA se dropea silenciosamente → el lead sigue freemium sin SP.
+    const { statusCode } = await reserve(token, {
+      scheduleId,
+      date: trial.date,
+      branchId: physicalBranchId,
+      phone: "abc",
+    });
+    expect(statusCode).toBe(400);
+
+    const [user] = await app.db
+      .select({ status: schema.users.status, phone: schema.users.phone })
+      .from(schema.users)
+      .where(eq(schema.users.id, id))
+      .limit(1);
+    expect(user.status).toBe("freemium");
+    expect(user.phone).toBeNull();
+    const bookings = await app.db
+      .select({ id: schema.bookings.id })
+      .from(schema.bookings)
+      .where(eq(schema.bookings.memberId, id));
+    expect(bookings).toHaveLength(0);
   });
 });
