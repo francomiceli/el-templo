@@ -31,7 +31,16 @@ findings:
   warning: 4
   info: 2
   total: 7
-status: issues_found
+status: resolved
+resolved_at: 2026-07-16
+resolution:
+  CR-01: 4eef8eed
+  WR-01: e00194cd
+  WR-02: 4eef8eed
+  WR-03: 5fa80880
+  WR-04: f0769735
+  IN-01: 86761f39
+  IN-02: sin_cambios_de_codigo
 ---
 
 # Phase 165: Code Review Report
@@ -66,6 +75,12 @@ digits and strips the country/mobile prefix that wa.me requires.
 ## Critical Issues
 
 ### CR-01: Non-digit phone silently bypasses the mandatory-phone rule → lead promoted to `prueba` with NULL phone
+
+**✅ FIXED (`4eef8eed`):** Both guards now sanitize first and reject on empty
+result (mirroring `createTrialMember`): `PhoneRequiredError` in self-service,
+`ConflictError` 409 in admin convert. The phone is never silently dropped.
+Negative tests (`phone: "abc"` → no promotion, freemium, no booking) added in
+`86761f39`.
 
 **File:** `el-templo-api/src/modules/scheduling/trials-service.ts:245-251` (self-service) and `el-templo-api/src/modules/members/service.ts:1037-1045` (admin convert)
 
@@ -110,6 +125,11 @@ Add a negative test (`phone: "abc"` → `PHONE_REQUIRED` / 409, status stays fre
 
 ### WR-01: wa.me link built from `normalizePhone`-stored numbers will not resolve (AR mobiles lose the `549` prefix)
 
+**✅ FIXED (`e00194cd`):** `whatsappUrl` now mirrors the pre-existing dialog
+helper but prepends the country prefix — a number with >10 digits already
+carries its country code (now that WR-02 preserves it) and is used as-is; a
+bare 10-digit AR mobile gets `549` prepended.
+
 **File:** `el-templo-admin/src/components/reports/TrialSessionsReport.vue:626-628` (link) fed by phone persisted via `normalizePhone` (`trials-service.ts:250`, `members/service.ts:1044`)
 
 **Issue:** `normalizePhone` keeps only the **last 10 digits**. AR mobiles need
@@ -130,6 +150,12 @@ country-aware helper (cf. `buildWhatsAppUrl(userStore.profile?.branchCountry, �
 already used in the app's `ReservasPage.vue`) instead of the raw-digits pattern.
 
 ### WR-02: `normalizePhone` truncation corrupts Spanish (Barcelona / ES) phone numbers on a new write path
+
+**✅ FIXED (`4eef8eed`):** New `sanitizePhoneForStorage` helper preserves the
+full number (digits + leading `+`, capped at 30) on the two new 165 write paths
+instead of truncating to the last 10. `+34 612 345 678` → `+34612345678`,
+`+54 9 11 2233-4455` → `+5491122334455`. `normalizePhone` and its other callers
+are untouched. Format assertions updated + ES case covered in `86761f39`.
 
 **File:** `el-templo-api/src/modules/scheduling/trials-service.ts:250` and `el-templo-api/src/modules/members/service.ts:1044`
 
@@ -153,6 +179,13 @@ leave ES leads silently corrupted.
 
 ### WR-03: `convertToTrial` `phone` and self-service `phone` accept any non-empty string ≤30 chars — no minimal format floor
 
+**✅ FIXED (`5fa80880`):** Both AJV schemas now carry `pattern: "(\\D*\\d){6,}"`,
+requiring at least 6 digits so zero-digit garbage is rejected at the transport
+boundary. Note: with this floor active, zero-digit input (e.g. `"abc"`) is now
+caught by AJV (400) before reaching the service guard, which remains as
+defense-in-depth — so the route-level negative tests assert `400` + no state
+change rather than the service's `PHONE_REQUIRED` code.
+
 **File:** `el-templo-api/src/modules/members/schemas.ts:356` and `el-templo-api/src/modules/scheduling/schemas.ts:875`
 
 **Issue:** Both AJV schemas use `{ type: "string", minLength: 1, maxLength: 30 }`.
@@ -167,6 +200,10 @@ service, per CR-01) so a phone with zero digits is rejected at the boundary in
 both self-service and admin schemas.
 
 ### WR-04: Member-app phone input has no digit validation, only non-empty
+
+**✅ FIXED (`f0769735`):** The `q-input` rule, the `:disable` and the
+`confirmTrialReserve` guard now all require at least 6 digits
+(`(v).replace(/\D/g,'').length >= 6`), with a Spanish message.
 
 **File:** `el-templo-app/src/pages/ReservasPage.vue:650` (rule) and `:663` (disable) and `:1511-1514` (guard)
 
@@ -183,6 +220,11 @@ the `confirmTrialReserve` early-return guard and the `:disable` expression.
 
 ### IN-01: Coverage gap — no test asserts the phone must contain digits
 
+**✅ FIXED (`86761f39`):** Negative `phone: "abc"` cases added to both
+`self-service-trial-e2e.test.ts`, `scheduling-reserve-trial.test.ts` and
+`convert-freemium-to-trial.test.ts` (400, status unchanged, no booking, phone
+still NULL). All 31 tests in the touched suites pass.
+
 **File:** `el-templo-api/test/self-service-trial-e2e.test.ts`, `el-templo-api/test/convert-freemium-to-trial.test.ts`
 
 **Issue:** The happy-path and missing-phone negatives are covered, but the
@@ -195,6 +237,9 @@ rejected path).
 asserting `PHONE_REQUIRED`/409, status unchanged, no booking, phone still NULL.
 
 ### IN-02: CSV column insertion is correct but downstream consumers of fixed-position parsing should be re-checked
+
+**➡️ SIN CAMBIOS DE CÓDIGO:** heads-up only. To be flagged in HUMAN-UAT so any
+manual CSV consumer is told the SP column layout shifted right by one.
 
 **File:** `el-templo-api/src/modules/reports/service.ts:1644-1680`
 
