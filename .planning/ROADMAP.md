@@ -4388,7 +4388,14 @@ Plans:
 3. La reserva self-service de sesión de prueba exige teléfono: si el perfil no lo tiene, la app lo pide en el diálogo de confirmación de la reserva. (SELF-03)
 4. Gestión tiene un flujo más directo para programar sesiones de prueba y convertir leads en alumnos, con mejoras acotadas a las fricciones que el propio flujo actual evidencia (a relevar en discuss-phase). (SELF-04)
 
-**Plans:** TBD
+**Plans:** 5 plans
+
+Plans:
+- [ ] 165-01-PLAN.md — Backend scheduling: PHONE_REQUIRED self-service + bookTrial 409 + eligibility.phoneRequired (SELF-02/03)
+- [ ] 165-02-PLAN.md — Admin alta de SP: teléfono obligatorio en convert-to-trial + verify alta directa (SELF-02)
+- [ ] 165-03-PLAN.md — Reporte de Sesiones de Prueba: teléfono (wa.me) + CSV + acción Ver ficha (SELF-04)
+- [ ] 165-04-PLAN.md — App member: diálogo de teléfono en la reserva self-service (SELF-03)
+- [ ] 165-05-PLAN.md — E2E del funnel self-service + fixes (SELF-01, corazón de la fase)
 
 **UI hint:** yes (diálogo de teléfono en la reserva self-service de la member app + teléfono obligatorio y flujo de programar/convertir en el admin)
 
@@ -4398,7 +4405,7 @@ Plans:
 | ------------------------------------------- | -------------- | ----------- | --------- |
 | 163. Máquina de estados automática del lead | 4/4 | Complete    | 2026-07-16 |
 | 164. Reprogramación y reporte               | 4/4 | Complete    | 2026-07-16 |
-| 165. Self-service y UX de gestión           | 0/?            | Not started |           |
+| 165. Self-service y UX de gestión           | 0/5            | Planned     |           |
 
 _Plan counts populated by `/gsd-plan-phase`._
 
