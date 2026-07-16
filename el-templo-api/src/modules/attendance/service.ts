@@ -19,6 +19,7 @@ import {
   type MemberSeniority,
 } from "../shared/date-utils";
 import { validateQrToken } from "../shared/qr-token";
+import { memberCoveredUntilSql } from "../shared/covered-until";
 import { SubscriptionService } from "../subscriptions/service";
 import { AuraService } from "../aura/service";
 import type {
@@ -496,18 +497,9 @@ export class AttendanceService {
       endDate: string | null;
     }>;
   }> {
-    // Fecha de cobertura para el pill "Venc". Toma el MÁXIMO end_date entre las
-    // subs active/paused/scheduled: al incluir 'scheduled' encadena el successor
-    // programado (renovación / cambio de plan "más adelante") para que un socio
-    // cubierto por continuidad NO figure "vence mañana" (bug Joaquim Mas
-    // 2026-07-07). Espeja deriveCoveredUntil; se mantiene 'paused' para no perder
-    // el pill de socios pausados. null si no hay ninguna sub con fecha.
-    const endDateExpr = sql<string | null>`(
-      SELECT DATE_FORMAT(MAX(s.end_date), '%Y-%m-%d') FROM subscriptions s
-      WHERE s.user_id = ${schema.users.id}
-        AND s.subscription_status IN ('active','paused','scheduled')
-        AND s.end_date IS NOT NULL
-    )`;
+    // Fecha de cobertura para el pill "Venc" (bug Joaquim Mas 2026-07-07).
+    // Implementación única compartida — ver shared/covered-until.ts.
+    const endDateExpr = memberCoveredUntilSql();
 
     // Get all bookings for this slot+date
     const bookingRows = await this.db

@@ -252,9 +252,49 @@ describe("Members Management Routes", () => {
       expect(body.members.length).toBeGreaterThanOrEqual(1);
       // Member was created with planId => auto-subscription => planName should be set
       expect(body.members[0]).toHaveProperty("planName", "Test Plan");
-      // Vencimiento source: active subscription end date (YYYY-MM-DD) for the
-      // countdown pill. Derived from the same active/paused subscription.
+      // Vencimiento source: la fecha de cobertura del socio (YYYY-MM-DD) para
+      // el pill del countdown. Ver shared/covered-until.ts.
       expect(body.members[0].endDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    });
+
+    // Caso Patricia Fortina (6627) en prod: sub activa que vencía el 17/07 +
+    // sub scheduled 17/07→16/08 ya paga. El listado tomaba la sub más reciente
+    // por created_at entre active/paused (ignorando 'scheduled') → le mostraba
+    // "Venc" en rojo estando cubierta hasta agosto. Medido: 9 de 136 socios con
+    // chip (6,6%) eran falsos positivos. endDate debe ser la cobertura REAL.
+    it("endDate refleja la renovación programada, no la sub activa que vence (falso positivo del pill Venc)", async () => {
+      const member = await createMember();
+
+      const activeEnd = "2026-07-17";
+      const scheduledEnd = "2026-08-16";
+
+      // La sub activa creada por createMember vence el 17/07.
+      await app.db
+        .update(subscriptions)
+        .set({ endDate: activeEnd })
+        .where(eq(subscriptions.userId, member.id));
+
+      // Y ya renovó: sub 'scheduled' que arranca cuando termina la activa.
+      await app.db.insert(subscriptions).values({
+        userId: member.id,
+        planId: testPlanId,
+        branchId: 1,
+        status: "scheduled",
+        startDate: activeEnd,
+        endDate: scheduledEnd,
+        pricePaid: 10000,
+        priceTypeApplied: "regular",
+      });
+
+      const res = await app.inject({
+        method: "GET",
+        url: `/api/admin/members?search=${member.email}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      const body = JSON.parse(res.body);
+      expect(body.members).toHaveLength(1);
+      expect(body.members[0].endDate).toBe(scheduledEnd);
     });
 
     it("filters by planId returns only members with that plan", async () => {
