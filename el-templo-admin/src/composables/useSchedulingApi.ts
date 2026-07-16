@@ -400,6 +400,32 @@ export function useSchedulingApi() {
     }
   }
 
+  /**
+   * Reprogramar una sesión de prueba en un solo paso (Plan 164-01): cancela
+   * el turno viejo + crea el nuevo en UNA transacción del backend. El guard
+   * ALL_STAFF_ROLES + country-scope lo aplica el endpoint — el cliente sólo
+   * POSTea.
+   */
+  async function rescheduleTrial(
+    bookingId: number,
+    data: { scheduleId: number; date: string; branchId: number }
+  ): Promise<{ bookingId: number }> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data: result } = await api.post<{ bookingId: number }>(
+        `/admin/scheduling/trials/${bookingId}/reschedule`,
+        data
+      );
+      return result;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error reprogramando sesión de prueba');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   async function listEligibleTrials(branchId: number): Promise<{
     users: Array<{
       id: number;
@@ -529,6 +555,7 @@ export function useSchedulingApi() {
     adminAddBooking,
     adminRemoveBooking,
     bookTrial,
+    rescheduleTrial,
     listEligibleTrials,
     listTrials,
     addHoliday,
