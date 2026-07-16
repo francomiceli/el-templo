@@ -397,6 +397,24 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
       expect(ids).toContain(virtualBranchId);
     });
 
+    it("exposes each sede's timezone (backs the per-row Vencimiento pill)", async () => {
+      const res = await app.inject({
+        method: "GET",
+        url: "/api/admin/members/branches",
+        headers: { authorization: `Bearer ${ownerToken}` },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body) as {
+        branches: { id: number; timezone: string | null }[];
+      };
+      // The admin resolves "today" per row from this field; an ES sede falling
+      // back to the AR default skews the day count and shifts the pill a band.
+      const es = body.branches.find((b) => b.id === esBranchId);
+      expect(es?.timezone).toBe("Europe/Madrid");
+      const ar = body.branches.find((b) => b.id === arBranchId);
+      expect(ar?.timezone).toBe("America/Argentina/Buenos_Aires");
+    });
+
     it("owner with ?country=AR → AR + virtual only", async () => {
       const res = await app.inject({
         method: "GET",

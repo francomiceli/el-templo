@@ -1,10 +1,10 @@
 /**
  * ExerciseAdjustmentCoachService — Phase 131 Plan 02 (ADJUST-04, D-05).
  *
- * Coach/owner-facing read of a member's in-session difficulty adjustment log.
+ * Staff-facing read of a member's in-session difficulty adjustment log.
  * This is the privileged counterpart to Plan 01's strictly member-scoped POST:
- * a coach LOOKS UP a given member (memberId is a route param, NOT the token
- * user). Access is gated at the route level by TRAINING_ROLES — a member can
+ * the staff LOOKS UP a given member (memberId is a route param, NOT the token
+ * user). Access is gated at the route level by ALL_STAFF_ROLES — a member can
  * NEVER reach it (T-131-05). This service performs NO authorization itself; the
  * route owns the role gate (mirrors the tree-editor module split).
  *
@@ -38,7 +38,7 @@ export class ExerciseAdjustmentCoachService {
 
   /**
    * List a member's dominado/bajado records, newest first. `memberId` is a
-   * coach lookup target (route param) — the route's TRAINING_ROLES gate is what
+   * staff lookup target (route param) — the route's ALL_STAFF_ROLES gate is what
    * makes this legitimate (Plan 01's member-scope does NOT apply here, D-05).
    *
    * The origin exercise (`exercise_id`) and the served neighbor

@@ -174,6 +174,13 @@ export interface ListPromoPlansFilters {
  * D-14 guard: rows with a NULL `end_date` are excluded, so a covered-until is
  * never derived from NULL (legacy/manual rows) — the result is NULL, and
  * downstream consumers treat NULL as "never block / never suppress".
+ *
+ * Par con `shared/covered-until.ts` (FA-10): esta función responde "¿le mando el
+ * push?" para UN socio; el helper de allá es la expresión SQL correlacionada que
+ * pinta el pill "Venc" sobre un listado sin caer en N+1. La diferencia de set es
+ * deliberada: el pill incluye 'paused' (un socio pausado igual muestra su
+ * vencimiento), el push no (una sub pausada no debe suprimir el aviso). Si
+ * cambiás la semántica de cobertura, tocá los dos.
  */
 export async function deriveCoveredUntil(
   db: MySql2Database<typeof schema>,

@@ -44,6 +44,7 @@ export * from "./subscription-schedule-changes";
 export * from "./financial-transactions";
 export * from "./transaction-links";
 export * from "./balances";
+export * from "./debt-management";
 export * from "./attendance";
 export * from "./activities";
 export * from "./schedules";

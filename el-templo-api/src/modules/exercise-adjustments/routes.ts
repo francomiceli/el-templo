@@ -20,9 +20,9 @@ import {
  * `memberId`/`userId` field is rejected by validation, but even if it weren't,
  * the handler ignores it.
  *
- * The COACH read of a member's log lives in a SEPARATE plugin/routes module
+ * The STAFF read of a member's log lives in a SEPARATE plugin/routes module
  * (coach-routes.ts, mounted under /api/admin/exercise-adjustments) so its
- * TRAINING_ROLES gate never touches this member-scoped POST (Plan 02, D-05).
+ * ALL_STAFF_ROLES gate never touches this member-scoped POST (Plan 02, D-05).
  */
 interface AdjustmentBody {
   exerciseId: number;

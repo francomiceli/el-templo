@@ -71,22 +71,58 @@ export interface OwnerCoachRatingSummary {
   coachName: string;
   averageStars: number;
   ratingCount: number;
+  /**
+   * Promedio de la nota de CLASE (class_stars). null cuando el profe no tiene
+   * ninguna fila con class_stars (todas sus puntuaciones son pre-split).
+   * AVG de MySQL ignora los NULL, así que el promedio es sobre las filas que
+   * SÍ tienen nota de clase (classRatingCount).
+   */
+  classAverageStars: number | null;
+  classRatingCount: number;
 }
 
-/** A single recent rating row for the owner view (D-O1). */
+/** A single rating row for the owner view (D-O1). */
 export interface OwnerRecentRating {
   id: number;
   coachId: number;
   coachName: string;
   stars: number;
+  /** Nota de clase 1–5; null en filas pre-split (solo existía la del profe). */
+  classStars: number | null;
   comment: string | null;
   sessionDate: string;
   activityName: string | null;
+  branchName: string | null;
+}
+
+/**
+ * Filtros del owner view: rango de fechas sobre sessionDate (la fecha de la
+ * clase puntuada, no la del submit) + sucursal + paginación del listado.
+ * Los promedios per-coach respetan fecha/sucursal; la paginación solo aplica
+ * al listado de puntuaciones individuales.
+ *
+ * withComments es un filtro de LECTURA del listado y NO toca los promedios: el
+ * "Promedio profe" es sobre todas las clases puntuadas, y dejarlo caer solo
+ * sobre las que además dejaron comentario lo convertiría en otra métrica
+ * (sesgada al que se toma el trabajo de escribir) sin que se note en la UI.
+ */
+export interface OwnerRatingsFilters {
+  dateFrom?: string; // YYYY-MM-DD
+  dateTo?: string;
+  branchId?: number;
+  withComments?: boolean;
+  page?: number;
+  limit?: number;
 }
 
 export interface OwnerRatingsResult {
   perCoach: OwnerCoachRatingSummary[];
-  recent: OwnerRecentRating[];
+  ratings: {
+    rows: OwnerRecentRating[];
+    total: number;
+    page: number;
+    limit: number;
+  };
 }
 
 /** Scope passed from the route guard (mirrors CoachService scope shape). */

@@ -19,6 +19,8 @@ import type {
   OutstandingBalancesResult,
   ExpiredMembersFilters,
   ExpiredMembersResult,
+  DebtManagementUpdateInput,
+  DebtManagementView,
   PendingTrayResult,
   PendingTrayParams,
   CajaSaldoRow,
@@ -661,6 +663,32 @@ export function useTransactionsApi() {
   }
 
   /**
+   * Gestión de una deuda (brief §2/§3): PATCH parcial de estado, promesa de
+   * pago y observaciones. Source: PATCH
+   * /admin/reports/outstanding-balances/:balanceId/management. `null` en
+   * promesa/observaciones las borra; campos omitidos quedan como están.
+   */
+  async function updateDebtManagement(
+    balanceId: number,
+    input: DebtManagementUpdateInput
+  ): Promise<DebtManagementView> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.patch<DebtManagementView>(
+        `/admin/reports/outstanding-balances/${balanceId}/management`,
+        input
+      );
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error actualizando la gestión de la deuda');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  /**
    * Phase 153 (DEUDA-04) — Vencidos: cohorte de socios con plan vencido sin
    * renovar en los últimos 60 días (leads de renovación, sin monto — D-06).
    * Source: GET /admin/reports/expired-members (Plan 153-02). Hereda el guard
@@ -836,6 +864,7 @@ export function useTransactionsApi() {
     exportOutstandingBalancesToExcel,
     // Phase 153 addition — Vencidos (DEUDA-04):
     getExpiredMembers,
+    updateDebtManagement,
     // Phase 141 additions — 137 validation actions:
     validateTransaction,
     observeTransaction,

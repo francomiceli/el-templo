@@ -17,6 +17,10 @@ import type {
   AccessReportFilters,
   AttendedFilter,
   ChargeReportFilters,
+  DebtManagementStatus,
+  DebtManagementUpdateInput,
+  DebtPromiseFilter,
+  DebtSortBy,
   ExpiredMembersFilters,
   ExpiringReportFilters,
   InactiveReportFilters,
@@ -29,6 +33,7 @@ import type {
 import {
   accessReportSchema,
   chargeReportSchema,
+  debtManagementPatchSchema,
   expiringReportSchema,
   expiredMembersSchema,
   inactiveReportSchema,
@@ -253,6 +258,15 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
       country?: "AR" | "ES";
       currency?: string;
       search?: string;
+      status?: DebtManagementStatus;
+      promise?: DebtPromiseFilter;
+      registeredFrom?: string;
+      registeredTo?: string;
+      accruedFrom?: string;
+      accruedTo?: string;
+      minDaysSinceAttendance?: number;
+      sortBy?: DebtSortBy;
+      sortDir?: "asc" | "desc";
       page?: number;
       limit?: number;
     };
@@ -291,6 +305,15 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
           country,
           currency: request.query.currency,
           search: request.query.search,
+          status: request.query.status,
+          promise: request.query.promise,
+          registeredFrom: request.query.registeredFrom,
+          registeredTo: request.query.registeredTo,
+          accruedFrom: request.query.accruedFrom,
+          accruedTo: request.query.accruedTo,
+          minDaysSinceAttendance: request.query.minDaysSinceAttendance,
+          sortBy: request.query.sortBy,
+          sortDir: request.query.sortDir,
           page: request.query.page,
           limit: request.query.limit,
         };
@@ -635,6 +658,15 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
       country?: "AR" | "ES";
       currency?: string;
       search?: string;
+      status?: DebtManagementStatus;
+      promise?: DebtPromiseFilter;
+      registeredFrom?: string;
+      registeredTo?: string;
+      accruedFrom?: string;
+      accruedTo?: string;
+      minDaysSinceAttendance?: number;
+      sortBy?: DebtSortBy;
+      sortDir?: "asc" | "desc";
     };
   }>(
     "/outstanding-balances/export",
@@ -671,6 +703,15 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
           country,
           currency: request.query.currency,
           search: request.query.search,
+          status: request.query.status,
+          promise: request.query.promise,
+          registeredFrom: request.query.registeredFrom,
+          registeredTo: request.query.registeredTo,
+          accruedFrom: request.query.accruedFrom,
+          accruedTo: request.query.accruedTo,
+          minDaysSinceAttendance: request.query.minDaysSinceAttendance,
+          sortBy: request.query.sortBy,
+          sortDir: request.query.sortDir,
         };
 
         const rows = await reportsService.exportOutstandingBalances(filters);
@@ -681,6 +722,8 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
         const sheet = workbook.addWorksheet("Deudas");
 
         // Phase 153 (DEUDA-01/02/03) adds Motivo / Período / Fecha de registro.
+        // Gestión de deudas (brief §2) adds Última asistencia / Promesa /
+        // Observaciones / Estado.
         sheet.columns = [
           { header: "Miembro", key: "miembro", width: 28 },
           { header: "Teléfono", key: "telefono", width: 18 },
@@ -694,6 +737,10 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
           { header: "Bucket", key: "bucket", width: 16 },
           { header: "Fecha devengo", key: "fechaDevengo", width: 16 },
           { header: "Fecha de registro", key: "fechaRegistro", width: 18 },
+          { header: "Última asistencia", key: "ultimaAsistencia", width: 18 },
+          { header: "Promesa de pago", key: "promesa", width: 16 },
+          { header: "Estado", key: "estado", width: 14 },
+          { header: "Observaciones", key: "observaciones", width: 40 },
           { header: "Tipo", key: "tipo", width: 18 },
         ];
 
@@ -713,6 +760,10 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
             bucket: BUCKET_LABEL_ES[row.bucket],
             fechaDevengo: row.effectiveDate,
             fechaRegistro: row.registeredAt,
+            ultimaAsistencia: row.lastAttendanceAt ?? "Nunca",
+            promesa: row.promisedPaymentDate ?? "",
+            estado: DEBT_STATUS_LABEL_ES[row.status],
+            observaciones: row.managementNotes ?? "",
             tipo: TARGET_KIND_LABEL_ES[row.targetKind] ?? row.targetKind,
           });
         }
@@ -725,6 +776,34 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
           request.log,
           "export outstanding balances report",
         );
+      }
+    },
+  );
+
+  // PATCH /outstanding-balances/:balanceId/management — gestión de una deuda
+  // (brief §2/§3): promesa de pago, observaciones y estado. Upsert parcial
+  // sobre debt_management. El guard del plugin (CAJA_ROLES) deja afuera al
+  // coach; el service espeja la visibilidad del listado para el non-owner
+  // (solo deudas de sucursales de su país, fail-closed sin scope).
+  fastify.patch<{
+    Params: { balanceId: number };
+    Body: DebtManagementUpdateInput;
+  }>(
+    "/outstanding-balances/:balanceId/management",
+    { schema: debtManagementPatchSchema },
+    async (request, reply) => {
+      try {
+        return await reportsService.updateDebtManagement(
+          request.params.balanceId,
+          request.body,
+          {
+            userId: request.user.userId,
+            isOwner: request.scope.isOwner,
+            country: request.scope.country,
+          },
+        );
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "update debt management");
       }
     },
   );
@@ -836,6 +915,12 @@ const BUCKET_LABEL_ES: Record<"0-5" | "6-10" | "11-15" | "15+", string> = {
 const TARGET_KIND_LABEL_ES: Record<string, string> = {
   subscription: "Plan",
   debt_balance: "Saldo a regularizar",
+};
+
+const DEBT_STATUS_LABEL_ES: Record<DebtManagementStatus, string> = {
+  activa: "Activa",
+  cobrada: "Cobrada",
+  incobrable: "Incobrable",
 };
 
 /**

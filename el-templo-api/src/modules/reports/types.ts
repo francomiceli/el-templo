@@ -287,6 +287,21 @@ export interface TrialSessionsReport {
 export type DebtBucket = "0-5" | "6-10" | "11-15" | "15+";
 
 /**
+ * Estado operativo de gestión de una deuda (brief-fran-reporte-deudas §2.4).
+ * Persistido en debt_management.status; una deuda sin fila de gestión es
+ * 'activa' (COALESCE en el reporte). 'cobrada' se auto-setea al saldarse el
+ * balance (BalanceService.applyDelta); 'incobrable' es baja manual del total
+ * cobrable — el registro nunca se borra.
+ */
+export type DebtManagementStatus = "activa" | "cobrada" | "incobrable";
+
+/** Filtro de promesa de pago (brief §4.3). 'vencida' = fecha < hoy y estado ≠ cobrada. */
+export type DebtPromiseFilter = "con" | "sin" | "vencida";
+
+/** Orden del listado (brief §4.1/4.4/4.7). Default: antigüedad DESC (más vieja primero). */
+export type DebtSortBy = "age" | "amount" | "lastAttendance";
+
+/**
  * One row of the Deudas report.
  *
  * D-04: target_kind ∈ {'subscription','debt_balance'} (matches balances enum).
@@ -341,6 +356,21 @@ export interface OutstandingBalanceRow {
   effectiveDate: string; // YYYY-MM-DD
   ageInDays: number;
   bucket: DebtBucket;
+  /**
+   * Gestión de deudas (brief §2). balanceId identifica la deuda para el PATCH
+   * de gestión. status/promesa/notas vienen del LEFT JOIN debt_management
+   * (defaults: 'activa' / null / null si nunca se gestionó).
+   */
+  balanceId: number;
+  status: DebtManagementStatus;
+  promisedPaymentDate: string | null; // YYYY-MM-DD
+  managementNotes: string | null;
+  /**
+   * Última asistencia del miembro (brief §2.3): MAX(attendance.checkedInAt),
+   * porción fecha YYYY-MM-DD. null = nunca asistió. Separa deudores activos
+   * (siguen viniendo) de fantasmas (deuda ficción contable).
+   */
+  lastAttendanceAt: string | null;
 }
 
 /**
@@ -358,6 +388,28 @@ export interface OutstandingBalancesFilters {
   currency?: string;
   /** Case-insensitive partial match on member firstName/lastName. */
   search?: string;
+  /**
+   * Estado de gestión (brief §4.5). Default 'activa' — la vista de trabajo
+   * diaria. 'cobrada'/'incobrable' abren los universos dados de baja (esos
+   * relajan el WHERE amount > 0 base: una cobrada quedó en 0).
+   */
+  status?: DebtManagementStatus;
+  /** Promesa de pago (brief §4.3): con / sin / vencida. */
+  promise?: DebtPromiseFilter;
+  /** Rango sobre la fecha de registro = DATE(balances.createdAt) (brief §4.2). */
+  registeredFrom?: string; // YYYY-MM-DD
+  registeredTo?: string;
+  /** Rango sobre el devengo = COALESCE(subscriptions.startDate, registro) (brief §4.2). */
+  accruedFrom?: string;
+  accruedTo?: string;
+  /**
+   * "Sin asistir hace más de X días" (brief §4.4) — detector de fantasmas.
+   * Incluye a quienes nunca asistieron (last attendance NULL).
+   */
+  minDaysSinceAttendance?: number;
+  /** Orden (brief §4.1/4.4/4.7). Default: age DESC (deuda más vieja primero). */
+  sortBy?: DebtSortBy;
+  sortDir?: "asc" | "desc";
   page?: number;
   limit?: number;
 }
@@ -380,6 +432,33 @@ export interface OutstandingBalancesResult {
   page: number;
   limit: number;
   bucketTotals: BucketTotals | Record<string, BucketTotals>;
+  /**
+   * Los "dos números honestos" del brief (§2.4): deuda cobrable (estado
+   * activa) vs dada de baja (incobrable), SIEMPRE keyed por moneda (nunca
+   * sumar entre monedas, D-06). Respetan todos los filtros aplicados MENOS
+   * el de estado — son el resumen del universo filtrado, no de la pestaña.
+   */
+  statusTotals: {
+    cobrable: Record<string, number>;
+    incobrable: Record<string, number>;
+  };
+}
+
+/** Resultado del PATCH de gestión de una deuda (upsert sobre debt_management). */
+export interface DebtManagementView {
+  balanceId: number;
+  status: DebtManagementStatus;
+  promisedPaymentDate: string | null;
+  notes: string | null;
+}
+
+/** Input del PATCH de gestión — todos opcionales, se actualiza lo provisto. */
+export interface DebtManagementUpdateInput {
+  status?: DebtManagementStatus;
+  /** null borra la promesa. */
+  promisedPaymentDate?: string | null;
+  /** null borra las observaciones. */
+  notes?: string | null;
 }
 
 // -- DEUDA-04 — Expired members (renewal leads, NO amount) ------------------

@@ -137,6 +137,35 @@ export class BalanceService {
             lastRecomputedAt: sql`NOW()`,
           })
           .where(eq(schema.balances.id, row.id));
+
+        // Gestión de deudas (brief §2.4/§5.4): si la deuda tiene gestión
+        // (fila en debt_management), sincronizar su estado con el saldo —
+        // saldada (<= 0) pasa a 'cobrada' automáticamente cuando entra el
+        // pago, y un void que la re-abre (> 0) la devuelve a 'activa'.
+        // 'incobrable' con saldo > 0 no se toca. Same-tx: atómico con el
+        // update del cache. Sin fila de gestión no hay nada que sincronizar.
+        const newAmount = Number(row.amount) + delta;
+        if (newAmount <= 0) {
+          await tx
+            .update(schema.debtManagement)
+            .set({ status: "cobrada" })
+            .where(
+              and(
+                eq(schema.debtManagement.balanceId, row.id),
+                ne(schema.debtManagement.status, "cobrada"),
+              ),
+            );
+        } else {
+          await tx
+            .update(schema.debtManagement)
+            .set({ status: "activa" })
+            .where(
+              and(
+                eq(schema.debtManagement.balanceId, row.id),
+                eq(schema.debtManagement.status, "cobrada"),
+              ),
+            );
+        }
         this.log.info(
           {
             balanceId: row.id,

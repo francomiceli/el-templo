@@ -53,12 +53,22 @@ export const SENIORITY_LABELS: Record<MemberSeniority, string> = {
 
 // ─── Etiqueta de Vencimiento (cuenta regresiva) ─────────────────────────────
 // Cuenta regresiva al vencimiento de la suscripción activa/paused, derivada
-// on-the-fly de `endDate` (subscriptions.end_date). Hitos DISCRETOS (no rangos):
-// la pill solo se activa en los días exactos de aviso, salvo "Vencida" que
-// persiste a partir del día siguiente al vencimiento.
-//   10 días → "10 Venc" (aviso temprano)   5 días → "5 Venc"
-//    7 días → "7 Venc"                      1 día  → "1 Venc" (día anterior)
-//    0 días → "Hoy" (mismo día)            < 0     → "Vencida" (si no renovó)
+// on-the-fly de `endDate` (subscriptions.end_date). BANDAS CONTINUAS: la pill
+// está visible todos los días desde los 10 días restantes y escala de color al
+// acercarse. Los cortes espejan PLAN_RENEWAL_THRESHOLDS del cron de push
+// (api/src/jobs/notification-cron.ts) para que el chip que ve el staff cambie
+// el mismo día en que al alumno le entra el aviso.
+//   8-10 días → "10 Venc"   1-3 días → "3 Venc" (push a los 3)
+//   4-7 días  → "7 Venc"    0 días   → "Hoy"    (push el día de vencimiento)
+//   (push a los 7)          < 0      → "Vencida" (si no renovó)
+
+/** Bandas de la pill, de la más urgente a la más lejana. `maxDays` inclusive. */
+const EXPIRY_BANDS: ReadonlyArray<{ maxDays: number } & ExpiryBadge> = [
+  { maxDays: 0, label: 'Hoy', color: 'red' },
+  { maxDays: 3, label: '3 Venc', color: 'red' },
+  { maxDays: 7, label: '7 Venc', color: 'deep-orange' },
+  { maxDays: 10, label: '10 Venc', color: 'amber' },
+];
 
 export interface ExpiryBadge {
   label: string;
@@ -66,9 +76,10 @@ export interface ExpiryBadge {
 }
 
 /**
- * Map an active subscription end date to its Vencimiento pill, or null when no
- * milestone applies for `todayIso`. Both args are 'YYYY-MM-DD'. Day count is a
- * pure calendar-day diff (caller supplies "today" in the branch timezone).
+ * Map an active subscription end date to its Vencimiento pill, or null when the
+ * expiry is still further out than the widest band. Both args are 'YYYY-MM-DD'.
+ * Day count is a pure calendar-day diff (caller supplies "today" in the branch
+ * timezone — an all-branches list must resolve it per row, not per page).
  */
 export function expiryBadge(
   endDate: string | null | undefined,
@@ -81,12 +92,8 @@ export function expiryBadge(
   const days = Math.round((end - today) / 86_400_000);
 
   if (days < 0) return { label: 'Vencida', color: 'red-10' };
-  if (days === 0) return { label: 'Hoy', color: 'red' };
-  if (days === 1) return { label: '1 Venc', color: 'red' };
-  if (days === 5) return { label: '5 Venc', color: 'deep-orange' };
-  if (days === 7) return { label: '7 Venc', color: 'orange' };
-  if (days === 10) return { label: '10 Venc', color: 'amber' };
-  return null;
+  const band = EXPIRY_BANDS.find((b) => days <= b.maxDays);
+  return band ? { label: band.label, color: band.color } : null;
 }
 
 // Phase 103 (R10): user lifecycle status. NULL only for staff rows
@@ -335,4 +342,6 @@ export interface BranchOption {
   isVirtual?: boolean;
   /** ISO alfa-2 (AR/ES) — gatea la UI de domiciliación bancaria (SEPA). */
   country?: string;
+  /** IANA tz de la sede — "hoy" de la pill de Vencimiento en listas multi-sede. */
+  timezone?: string;
 }

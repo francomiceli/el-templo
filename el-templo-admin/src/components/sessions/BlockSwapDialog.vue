@@ -13,8 +13,10 @@
 
       <q-card-section class="q-pt-none">
         <div class="text-caption text-grey q-mb-md">
-          Reemplazar bloque {{ block.role }} ({{ block.route }}) con uno del pool de sesiones
-          aprobadas
+          Reemplazar los ejercicios del bloque {{ block.role }} ({{ block.route }}) con los de uno
+          del pool de sesiones aprobadas. El formato se mantiene en
+          <strong>{{ block.formatName }}</strong> — el badge de cada opcion indica con que formato
+          se armo ese bloque, no el que va a quedar.
         </div>
 
         <div v-if="poolLoading" class="flex flex-center q-pa-lg">
@@ -143,7 +145,7 @@ watch(
 async function handleSwap(sourceBlockId: number) {
   $q.dialog({
     title: 'Confirmar Intercambio',
-    message: 'Se reemplazara el contenido del bloque actual con el bloque seleccionado. Continuar?',
+    message: `Se reemplazaran los ejercicios del bloque actual con los del bloque seleccionado. El formato sigue siendo ${props.block.formatName}. Continuar?`,
     cancel: true,
   }).onOk(async () => {
     try {

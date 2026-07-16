@@ -64,6 +64,7 @@ import { ReferralService } from "../referrals/service";
 import { referralCopyVariant } from "../referrals/ab-variant";
 import { isValidIban, normalizeIban } from "../shared/iban";
 import { activeMemberExists } from "../shared/active-member";
+import { memberCoveredUntilSql } from "../shared/covered-until";
 import { alias } from "drizzle-orm/mysql-core";
 import type { MemberSegment } from "../segmentation/types";
 
@@ -276,13 +277,11 @@ export class MemberService {
       WHERE mp.user_id = users.id LIMIT 1
     )`;
 
-    // Subquery: active/paused subscription end date for the Vencimiento
-    // countdown pill (YYYY-MM-DD); null when no active/paused subscription.
-    const endDateSubquery = sql<string | null>`(
-      SELECT DATE_FORMAT(s.end_date, '%Y-%m-%d') FROM subscriptions s
-      WHERE s.user_id = users.id AND s.subscription_status IN ('active','paused')
-      ORDER BY s.created_at DESC LIMIT 1
-    )`;
+    // Fecha de cobertura para el pill "Venc" (YYYY-MM-DD); null si el socio no
+    // tiene ninguna sub con fecha. Implementación única compartida — ver
+    // shared/covered-until.ts (incluye 'scheduled', así el ya renovado no
+    // figura venciendo).
+    const endDateSubquery = memberCoveredUntilSql();
 
     // Phase 102 (R7): EXISTS projection for the trial-history boolean.
     // Returns 1/0 from MySQL; coerced to boolean in the mapper below.
@@ -1848,12 +1847,10 @@ export class MemberService {
       ORDER BY s.created_at DESC LIMIT 1
     )`;
 
-    // Subquery: subscription end date
-    const endDateSubquery = sql<string | null>`(
-      SELECT DATE_FORMAT(s.end_date, '%Y-%m-%d') FROM subscriptions s
-      WHERE s.user_id = users.id AND s.subscription_status IN ('active','paused')
-      ORDER BY s.created_at DESC LIMIT 1
-    )`;
+    // Fecha de cobertura para la columna 'Vencimiento suscripción' del export.
+    // Misma implementación que el pill del listado (shared/covered-until.ts):
+    // el export de un socio ya renovado mostraba la fecha vieja.
+    const endDateSubquery = memberCoveredUntilSql();
 
     const rows = await this.db
       .select({

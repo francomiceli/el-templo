@@ -68,3 +68,23 @@ export const pendingRatingSchema = {
     },
   },
 };
+
+/**
+ * Owner view querystring: rango de fechas sobre sessionDate + sucursal +
+ * paginación del listado individual (los promedios per-coach no paginan).
+ * withComments filtra SOLO el listado — ver getOwnerRatings.
+ */
+export const ownerRatingsQuerySchema = {
+  querystring: {
+    type: "object",
+    properties: {
+      dateFrom: { type: "string", format: "date" },
+      dateTo: { type: "string", format: "date" },
+      branchId: { type: "integer", minimum: 1 },
+      withComments: { type: "boolean" },
+      page: { type: "integer", minimum: 1 },
+      limit: { type: "integer", minimum: 1, maximum: 200 },
+    },
+    additionalProperties: false,
+  },
+};

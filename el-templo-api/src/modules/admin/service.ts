@@ -949,7 +949,17 @@ export class AdminSessionService {
   }
 
   /**
-   * Swap a block in a session with a block from the pool (approved session)
+   * Swap a block in a session with a block from the pool (approved session).
+   *
+   * Trae ejercicios + ruta/intensidad/reps, y CONSERVA el formato del destino
+   * (formatId/formatName/formatParams). El coach intercambia cuando encuentra un
+   * bloque con la misma intensidad y ruta de trabajo: el formato es una decisión
+   * suya previa y el swap no la pisa (si no le cuadra, lo cambia aparte).
+   *
+   * Además el formato es POR NIVEL pero se edita en cascada a todos los niveles
+   * + el deuteros hermano, mientras que el swap toca un solo bloque: adoptar acá
+   * el formato del origen desincronizaba los niveles entre sí, y el editor (que
+   * muestra el formato de UN nivel) dejaba de coincidir con el PDF y la app.
    */
   async swapBlock(
     sessionId: number,
@@ -978,8 +988,6 @@ export class AdminSessionService {
         pattern: schema.sessionBlocks.pattern,
         intensity: schema.sessionBlocks.intensity,
         repsBudget: schema.sessionBlocks.repsBudget,
-        formatId: schema.sessionBlocks.formatId,
-        formatName: schema.sessionBlocks.formatName,
         exerciseCount: schema.sessionBlocks.exerciseCount,
         sessionStatus: schema.sessions.status,
       })
@@ -1006,7 +1014,8 @@ export class AdminSessionService {
 
     // Wrap UPDATE + DELETE + INSERT in a transaction to prevent corrupt state
     await this.db.transaction(async (tx) => {
-      // Update target block with source block data (preserve sessionId, role, sortOrder)
+      // Update target block with source block data (preserve sessionId, role,
+      // sortOrder y el formato — ver el comentario del método)
       await tx
         .update(schema.sessionBlocks)
         .set({
@@ -1014,8 +1023,6 @@ export class AdminSessionService {
           pattern: sourceBlock.pattern,
           intensity: sourceBlock.intensity,
           repsBudget: sourceBlock.repsBudget,
-          formatId: sourceBlock.formatId,
-          formatName: sourceBlock.formatName,
           exerciseCount: sourceBlock.exerciseCount,
         })
         .where(eq(schema.sessionBlocks.id, targetBlockId));
@@ -1034,11 +1041,16 @@ export class AdminSessionService {
             exerciseName: p.exerciseName,
             contraction: p.contraction,
             reps: p.reps,
+            repsMax: p.repsMax,
             seconds: p.seconds,
+            secondsMax: p.secondsMax,
+            increment: p.increment,
             rest: p.rest,
             notes: p.notes,
             difficulty: p.difficulty,
             sortOrder: p.sortOrder,
+            exerciseType: p.exerciseType,
+            weighted: p.weighted,
           })),
         );
       }

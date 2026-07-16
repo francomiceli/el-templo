@@ -971,8 +971,20 @@ describe("Ratings module (Phase 143)", () => {
         coachId: number;
         averageStars: number;
         ratingCount: number;
+        classAverageStars: number | null;
+        classRatingCount: number;
       }>;
-      recent: Array<{ stars: number }>;
+      ratings: {
+        rows: Array<{
+          stars: number;
+          classStars: number | null;
+          branchName: string | null;
+          sessionDate: string;
+        }>;
+        total: number;
+        page: number;
+        limit: number;
+      };
     };
 
     const coachSummary = body.perCoach.find((c) => c.coachId === ctx.coachArId);
@@ -980,7 +992,168 @@ describe("Ratings module (Phase 143)", () => {
     expect(coachSummary!.ratingCount).toBe(3);
     // AVG(5,3,4) = 4.
     expect(coachSummary!.averageStars).toBeCloseTo(4, 5);
-    expect(body.recent.length).toBeGreaterThanOrEqual(3);
+    // Nota de clase: AVG(4,4,2) = 3.33 sobre 3 filas con class_stars.
+    expect(coachSummary!.classRatingCount).toBe(3);
+    expect(coachSummary!.classAverageStars).toBeCloseTo(3.33, 2);
+    // Listado paginado: las 3 puntuaciones, con ambas dimensiones por fila.
+    expect(body.ratings.total).toBe(3);
+    expect(body.ratings.rows.length).toBe(3);
+    expect(body.ratings.rows.every((r) => r.classStars !== null)).toBe(true);
+  });
+
+  it("owner view: filtros por fecha (sessionDate) y sucursal + paginación del listado", async () => {
+    // 3 clases en días distintos, mismo profe (AR).
+    const days = [classDaysAgo(0), classDaysAgo(1), classDaysAgo(2)];
+    for (let i = 0; i < days.length; i++) {
+      await seedAttendance(app, {
+        memberId: ctx.memberId,
+        branchId: ctx.arBranchId,
+        scheduleId: ctx.scheduleMorningId,
+        sessionDate: days[i],
+        checkedInAt: new Date(Date.now() - i * 60 * 1000),
+      });
+      await seedRoster(app, {
+        branchId: ctx.arBranchId,
+        weekStartDate: isoMonday(days[i]),
+        dayOfWeek: isoDow(days[i]),
+        slot: "morning",
+        coachId: ctx.coachArId,
+      });
+      const submit = await app.inject({
+        method: "POST",
+        url: MEMBER_BASE,
+        headers: { authorization: `Bearer ${ctx.memberToken}` },
+        payload: {
+          sessionDate: days[i],
+          scheduleId: ctx.scheduleMorningId,
+          stars: 5,
+          classStars: 3,
+        },
+      });
+      expect(submit.statusCode).toBe(201);
+    }
+
+    // Filtro por fecha: solo la clase más reciente.
+    const dateFiltered = await app.inject({
+      method: "GET",
+      url: `${ADMIN_BASE}?dateFrom=${days[0]}&dateTo=${days[0]}`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+    });
+    expect(dateFiltered.statusCode).toBe(200);
+    const dateBody = JSON.parse(dateFiltered.body) as {
+      perCoach: Array<{ ratingCount: number }>;
+      ratings: { total: number };
+    };
+    expect(dateBody.ratings.total).toBe(1);
+    // Los promedios per-coach respetan el mismo filtro.
+    expect(dateBody.perCoach[0]?.ratingCount).toBe(1);
+
+    // Filtro por sucursal: la ES no tiene puntuaciones.
+    const branchFiltered = await app.inject({
+      method: "GET",
+      url: `${ADMIN_BASE}?branchId=${ctx.esBranchId}`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+    });
+    expect(branchFiltered.statusCode).toBe(200);
+    const branchBody = JSON.parse(branchFiltered.body) as {
+      perCoach: unknown[];
+      ratings: { total: number };
+    };
+    expect(branchBody.ratings.total).toBe(0);
+    expect(branchBody.perCoach).toHaveLength(0);
+
+    // Paginación: page=2 con limit=2 devuelve la fila restante.
+    const page2 = await app.inject({
+      method: "GET",
+      url: `${ADMIN_BASE}?page=2&limit=2`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+    });
+    expect(page2.statusCode).toBe(200);
+    const page2Body = JSON.parse(page2.body) as {
+      ratings: { rows: unknown[]; total: number; page: number };
+    };
+    expect(page2Body.ratings.total).toBe(3);
+    expect(page2Body.ratings.page).toBe(2);
+    expect(page2Body.ratings.rows).toHaveLength(1);
+  });
+
+  it("owner view: 'solo con comentarios' filtra el listado pero NO los promedios", async () => {
+    // 3 clases del mismo profe (AR): con comentario, sin comentario (NULL) y
+    // con comentario vacío — el submit no normaliza el string vacío, así que
+    // esa fila existe y el filtro tiene que excluirla igual.
+    const days = [classDaysAgo(0), classDaysAgo(1), classDaysAgo(2)];
+    const comments: Array<string | undefined> = [
+      "Muy buena clase",
+      undefined,
+      "",
+    ];
+
+    for (let i = 0; i < days.length; i++) {
+      await seedAttendance(app, {
+        memberId: ctx.memberId,
+        branchId: ctx.arBranchId,
+        scheduleId: ctx.scheduleMorningId,
+        sessionDate: days[i],
+        checkedInAt: new Date(Date.now() - i * 60 * 1000),
+      });
+      await seedRoster(app, {
+        branchId: ctx.arBranchId,
+        weekStartDate: isoMonday(days[i]),
+        dayOfWeek: isoDow(days[i]),
+        slot: "morning",
+        coachId: ctx.coachArId,
+      });
+      const submit = await app.inject({
+        method: "POST",
+        url: MEMBER_BASE,
+        headers: { authorization: `Bearer ${ctx.memberToken}` },
+        payload: {
+          sessionDate: days[i],
+          scheduleId: ctx.scheduleMorningId,
+          stars: 5,
+          classStars: 3,
+          ...(comments[i] !== undefined ? { comment: comments[i] } : {}),
+        },
+      });
+      expect(submit.statusCode).toBe(201);
+    }
+
+    // Sin el toggle: las 3 puntuaciones.
+    const all = await app.inject({
+      method: "GET",
+      url: ADMIN_BASE,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+    });
+    expect(all.statusCode).toBe(200);
+    const allBody = JSON.parse(all.body) as {
+      perCoach: Array<{ ratingCount: number }>;
+      ratings: { total: number };
+    };
+    expect(allBody.ratings.total).toBe(3);
+    expect(allBody.perCoach[0]?.ratingCount).toBe(3);
+
+    const filtered = await app.inject({
+      method: "GET",
+      url: `${ADMIN_BASE}?withComments=true`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+    });
+    expect(filtered.statusCode).toBe(200);
+    const body = JSON.parse(filtered.body) as {
+      perCoach: Array<{ ratingCount: number }>;
+      ratings: { rows: Array<{ comment: string | null }>; total: number };
+    };
+
+    // Solo la fila con comentario real: el NULL y el "" quedan afuera. El
+    // listado esconde el "" con un chequeo de falsy, así que contarlo haría que
+    // el "N de M" prometa una fila que no se ve.
+    expect(body.ratings.total).toBe(1);
+    expect(body.ratings.rows).toHaveLength(1);
+    expect(body.ratings.rows[0]?.comment).toBe("Muy buena clase");
+
+    // El promedio por profe NO se filtra: sigue contando las 3. Es un filtro de
+    // lectura del listado; si moviera los promedios, "Promedio profe" pasaría a
+    // medir solo a los que escriben comentario sin avisarlo.
+    expect(body.perCoach[0]?.ratingCount).toBe(3);
   });
 
   it("lists coaches assignable to a branch", async () => {

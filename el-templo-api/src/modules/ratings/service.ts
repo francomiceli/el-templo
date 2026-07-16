@@ -11,7 +11,21 @@
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { eq, and, sql, desc, asc, lt, lte, gt, inArray } from "drizzle-orm";
+import {
+  eq,
+  ne,
+  and,
+  sql,
+  desc,
+  asc,
+  lt,
+  lte,
+  gt,
+  gte,
+  inArray,
+  isNotNull,
+  type SQL,
+} from "drizzle-orm";
 import * as schema from "../../db/schema";
 import { BadRequestError } from "../shared/errors";
 import { getWeekRange } from "../shared/date-utils";
@@ -21,6 +35,7 @@ import type {
   CoachOption,
   PendingRating,
   SubmitRatingInput,
+  OwnerRatingsFilters,
   OwnerRatingsResult,
   RatingsScope,
   ClassSlot,
@@ -504,16 +519,30 @@ export class RatingsService {
   // ─── Owner view (owner-only, D-M3) ────────────────────────────────────────
 
   /**
-   * Owner view: per-coach average + count, plus recent individual ratings
-   * (D-O1). Scope mirrors CoachService — owner is unrestricted; admin/gestion
-   * restricted to their country via the rating's branch.
+   * Owner view: per-coach average + count (profe Y clase), plus the paginated
+   * individual ratings list (D-O1). Scope mirrors CoachService — owner is
+   * unrestricted; admin/gestion restricted to their country via the rating's
+   * branch. Filters: rango de fechas sobre sessionDate (la clase puntuada) y
+   * sucursal; ambos aplican a promedios Y listado. La paginación y
+   * withComments, solo al listado.
    */
-  async getOwnerRatings(scope: RatingsScope): Promise<OwnerRatingsResult> {
+  async getOwnerRatings(
+    scope: RatingsScope,
+    filters: OwnerRatingsFilters = {},
+  ): Promise<OwnerRatingsResult> {
+    const page = filters.page ?? 1;
+    const limit = filters.limit ?? 50;
+    const offset = (page - 1) * limit;
+    const emptyResult: OwnerRatingsResult = {
+      perCoach: [],
+      ratings: { rows: [], total: 0, page, limit },
+    };
+
     // Restrict by country (via branch) for non-owner staff. Owner sees all.
     let branchIds: number[] | null = null;
     if (!scope.isOwner) {
       if (scope.country === null) {
-        return { perCoach: [], recent: [] };
+        return emptyResult;
       }
       const branchRows = await this.db
         .select({ id: schema.branches.id })
@@ -521,14 +550,39 @@ export class RatingsService {
         .where(eq(schema.branches.country, scope.country));
       branchIds = branchRows.map((b) => b.id);
       if (branchIds.length === 0) {
-        return { perCoach: [], recent: [] };
+        return emptyResult;
       }
     }
 
-    const branchFilter =
-      branchIds !== null
-        ? inArray(schema.coachRatings.branchId, branchIds)
-        : undefined;
+    const conds: SQL[] = [];
+    if (branchIds !== null) {
+      conds.push(inArray(schema.coachRatings.branchId, branchIds));
+    }
+    if (filters.branchId !== undefined) {
+      conds.push(eq(schema.coachRatings.branchId, filters.branchId));
+    }
+    if (filters.dateFrom !== undefined) {
+      conds.push(gte(schema.coachRatings.sessionDate, filters.dateFrom));
+    }
+    if (filters.dateTo !== undefined) {
+      conds.push(lte(schema.coachRatings.sessionDate, filters.dateTo));
+    }
+    const whereClause = conds.length > 0 ? and(...conds) : undefined;
+
+    // withComments es un filtro de lectura del listado: se aplica al COUNT y a
+    // las filas, NUNCA a los promedios de arriba (ver OwnerRatingsFilters).
+    // El != '' acompaña al IS NOT NULL porque el submit no normaliza el string
+    // vacío, y el listado ya esconde esas filas con un chequeo de falsy — sin
+    // esto el contador prometería filas que no se ven.
+    const listConds = [...conds];
+    if (filters.withComments === true) {
+      listConds.push(
+        isNotNull(schema.coachRatings.comment),
+        ne(schema.coachRatings.comment, ""),
+      );
+    }
+    const listWhereClause =
+      listConds.length > 0 ? and(...listConds) : undefined;
 
     const perCoachRows = await this.db
       .select({
@@ -537,10 +591,15 @@ export class RatingsService {
         lastName: schema.users.lastName,
         averageStars: sql<string>`AVG(${schema.coachRatings.stars})`,
         ratingCount: sql<number>`COUNT(*)`,
+        // AVG/COUNT ignoran NULL: promedio de clase solo sobre filas post-split.
+        classAverageStars: sql<
+          string | null
+        >`AVG(${schema.coachRatings.classStars})`,
+        classRatingCount: sql<number>`COUNT(${schema.coachRatings.classStars})`,
       })
       .from(schema.coachRatings)
       .innerJoin(schema.users, eq(schema.users.id, schema.coachRatings.coachId))
-      .where(branchFilter)
+      .where(whereClause)
       .groupBy(
         schema.coachRatings.coachId,
         schema.users.firstName,
@@ -548,19 +607,31 @@ export class RatingsService {
       )
       .orderBy(schema.users.firstName, schema.users.lastName);
 
-    const recentRows = await this.db
+    const [countRow] = await this.db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(schema.coachRatings)
+      .where(listWhereClause);
+    const total = Number(countRow?.count ?? 0);
+
+    const ratingRows = await this.db
       .select({
         id: schema.coachRatings.id,
         coachId: schema.coachRatings.coachId,
         firstName: schema.users.firstName,
         lastName: schema.users.lastName,
         stars: schema.coachRatings.stars,
+        classStars: schema.coachRatings.classStars,
         comment: schema.coachRatings.comment,
         sessionDate: schema.coachRatings.sessionDate,
         activityName: schema.activities.name,
+        branchName: schema.branches.name,
       })
       .from(schema.coachRatings)
       .innerJoin(schema.users, eq(schema.users.id, schema.coachRatings.coachId))
+      .leftJoin(
+        schema.branches,
+        eq(schema.branches.id, schema.coachRatings.branchId),
+      )
       .leftJoin(
         schema.schedules,
         eq(schema.schedules.id, schema.coachRatings.scheduleId),
@@ -569,9 +640,15 @@ export class RatingsService {
         schema.activities,
         eq(schema.activities.id, schema.schedules.activityId),
       )
-      .where(branchFilter)
-      .orderBy(desc(schema.coachRatings.createdAt))
-      .limit(50);
+      .where(listWhereClause)
+      // Tiebreaker id DESC: varias puntuaciones con el mismo createdAt
+      // mantienen orden estable entre páginas del listado.
+      .orderBy(
+        desc(schema.coachRatings.createdAt),
+        desc(schema.coachRatings.id),
+      )
+      .limit(limit)
+      .offset(offset);
 
     return {
       perCoach: perCoachRows.map((r) => ({
@@ -579,16 +656,28 @@ export class RatingsService {
         coachName: [r.firstName, r.lastName].filter(Boolean).join(" "),
         averageStars: Math.round(Number(r.averageStars) * 100) / 100,
         ratingCount: Number(r.ratingCount),
+        classAverageStars:
+          r.classAverageStars !== null
+            ? Math.round(Number(r.classAverageStars) * 100) / 100
+            : null,
+        classRatingCount: Number(r.classRatingCount),
       })),
-      recent: recentRows.map((r) => ({
-        id: r.id,
-        coachId: r.coachId,
-        coachName: [r.firstName, r.lastName].filter(Boolean).join(" "),
-        stars: r.stars,
-        comment: r.comment ?? null,
-        sessionDate: r.sessionDate,
-        activityName: r.activityName ?? null,
-      })),
+      ratings: {
+        rows: ratingRows.map((r) => ({
+          id: r.id,
+          coachId: r.coachId,
+          coachName: [r.firstName, r.lastName].filter(Boolean).join(" "),
+          stars: r.stars,
+          classStars: r.classStars ?? null,
+          comment: r.comment ?? null,
+          sessionDate: r.sessionDate,
+          activityName: r.activityName ?? null,
+          branchName: r.branchName ?? null,
+        })),
+        total,
+        page,
+        limit,
+      },
     };
   }
 }

@@ -243,13 +243,13 @@
         </q-td>
       </template>
 
-      <!-- Vencimiento (cuenta regresiva): pill solo en hitos 10/7/5/1/hoy/vencida -->
+      <!-- Vencimiento (cuenta regresiva): pill continua desde los 10 días -->
       <template #body-cell-vencimiento="props">
         <q-td :props="props">
           <q-badge
-            v-if="vencBadge(props.row.endDate)"
-            :color="vencBadge(props.row.endDate)!.color"
-            :label="vencBadge(props.row.endDate)!.label"
+            v-if="vencBadge(props.row)"
+            :color="vencBadge(props.row)!.color"
+            :label="vencBadge(props.row)!.label"
           />
           <span v-else class="text-grey-5 text-italic">&mdash;</span>
         </q-td>
@@ -410,6 +410,10 @@ async function onCountryChange() {
 
 const members = ref<MemberListItem[]>([]);
 const branches = ref<BranchOption[]>([]);
+/** branchId → IANA tz, para resolver "hoy" por sede en la pill de Vencimiento. */
+const branchTimezones = computed(
+  () => new Map(branches.value.filter((b) => b.timezone).map((b) => [b.id, b.timezone as string]))
+);
 const loading = ref(false);
 const exporting = ref(false);
 const exportingSepa = ref(false);
@@ -696,10 +700,14 @@ function segmentColor(segment: string): string {
   return SEGMENT_COLORS[segment as MemberSegment] ?? 'grey';
 }
 
-// Vencimiento countdown pill (10/7/5/1/hoy/vencida) from the active sub end
-// date. Day count uses AR "today" — the list spans all branches.
-function vencBadge(endDate: string | null) {
-  return expiryBadge(endDate, todayInTz('America/Argentina/Buenos_Aires'));
+// Vencimiento countdown pill from the active sub end date. The list spans all
+// branches, so "today" is resolved per row in the member's own branch tz: a
+// fixed AR tz skews the day count for ES sedes (UTC+2 vs UTC-3) and, before
+// 05:00 local, shifts the pill a full band. Falls back to AR for rows whose
+// branch is missing from the scoped /branches list.
+function vencBadge(row: MemberListItem) {
+  const tz = branchTimezones.value.get(row.branchId) ?? 'America/Argentina/Buenos_Aires';
+  return expiryBadge(row.endDate, todayInTz(tz));
 }
 
 // =========================================================================
