@@ -179,4 +179,55 @@ describe("POST /api/admin/members/:userId/convert-to-trial", () => {
     const { statusCode } = await convert(member.id, {});
     expect(statusCode).toBe(400);
   });
+
+  // Fase 165 (D-02): ninguna alta de SP desde el admin puede quedar sin
+  // teléfono del lead. El freemium sin phone se rechaza hasta que se lo cargue.
+  it("rejects a phone-less freemium with 409 when no phone is provided", async () => {
+    const member = await createTestMember(app, { branchId: virtualBranchId });
+    // Simula el lead viejo sin teléfono (los freemium legacy existen sin phone).
+    await app.db
+      .update(schema.users)
+      .set({ phone: null })
+      .where(eq(schema.users.id, member.id));
+
+    const { statusCode, body } = await convert(member.id, {
+      branchId: physicalBranchId,
+    });
+
+    expect(statusCode).toBe(409);
+    expect(body.message).toContain("teléfono");
+
+    // No muta estado: sigue freemium.
+    const [after] = await app.db
+      .select({ status: schema.users.status })
+      .from(schema.users)
+      .where(eq(schema.users.id, member.id))
+      .limit(1);
+    expect(after.status).toBe("freemium");
+  });
+
+  it("converts a phone-less freemium when phone comes in the body, persisting it normalized", async () => {
+    const member = await createTestMember(app, { branchId: virtualBranchId });
+    await app.db
+      .update(schema.users)
+      .set({ phone: null })
+      .where(eq(schema.users.id, member.id));
+
+    const { statusCode, body } = await convert(member.id, {
+      branchId: physicalBranchId,
+      phone: "+54 9 11 2222-3333",
+    });
+
+    expect(statusCode).toBe(200);
+    expect(body.status).toBe("prueba");
+
+    const [after] = await app.db
+      .select({ status: schema.users.status, phone: schema.users.phone })
+      .from(schema.users)
+      .where(eq(schema.users.id, member.id))
+      .limit(1);
+    expect(after.status).toBe("prueba");
+    // normalizePhone → últimos 10 dígitos.
+    expect(after.phone).toBe("1122223333");
+  });
 });
