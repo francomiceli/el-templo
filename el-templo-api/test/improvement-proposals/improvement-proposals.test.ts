@@ -320,7 +320,8 @@ describe("improvement-proposals", () => {
       const gestionBody = JSON.parse(gestionRes.body);
       expect(gestionBody.total).toBe(1);
       expect(gestionBody.rows[0].proposal).toBe("Propuesta argentina");
-      expect(gestionBody.rows[0].memberName).toBe("Mati Alumno");
+      // Canal anónimo: el listado admin NO expone el nombre del socio.
+      expect(gestionBody.rows[0].memberName).toBeUndefined();
       expect(gestionBody.rows[0].branchName).toBe("AR-Proposals-Test");
     });
   });

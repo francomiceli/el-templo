@@ -128,13 +128,6 @@ const hasActiveFilters = computed(
 
 const columns = [
   {
-    name: 'memberName',
-    label: 'Socio',
-    field: 'memberName',
-    align: 'left' as const,
-    sortable: true,
-  },
-  {
     name: 'branchName',
     label: 'Sucursal',
     field: 'branchName',

@@ -14,7 +14,6 @@ import { extractError } from 'src/utils/extract-error';
 
 export interface AdminProposalRow {
   id: number;
-  memberName: string;
   branchName: string;
   proposal: string;
   /** ISO timestamp del envío. */

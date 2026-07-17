@@ -85,14 +85,12 @@ export const improvementProposalsAdminRoutes: FastifyPluginAsync = async (
         const workbook = new Workbook();
         const sheet = workbook.addWorksheet("Propuestas");
         sheet.columns = [
-          { header: "Socio", key: "memberName", width: 30 },
           { header: "Sucursal", key: "branchName", width: 20 },
           { header: "Fecha", key: "createdAt", width: 20 },
           { header: "Propuesta", key: "proposal", width: 100 },
         ];
         for (const row of rows) {
           sheet.addRow({
-            memberName: row.memberName,
             branchName: row.branchName,
             createdAt: row.createdAt.replace("T", " ").slice(0, 16),
             proposal: row.proposal,

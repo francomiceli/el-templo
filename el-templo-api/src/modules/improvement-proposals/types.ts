@@ -41,7 +41,6 @@ export interface AdminProposalsFilters {
 
 export interface AdminProposalRow {
   id: number;
-  memberName: string;
   branchName: string;
   proposal: string;
   createdAt: string;

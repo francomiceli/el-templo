@@ -21,7 +21,7 @@
         />
 
         <p class="proposal-dialog__helper">
-          Leemos cada sugerencia.
+          Tu sugerencia es anónima. Leemos cada una.
         </p>
       </q-card-section>
 

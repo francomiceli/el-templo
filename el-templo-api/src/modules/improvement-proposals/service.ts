@@ -238,17 +238,14 @@ export class ImprovementProposalsService {
     let query = this.db
       .select({
         id: schema.improvementProposals.id,
-        firstName: schema.users.firstName,
-        lastName: schema.users.lastName,
         branchName: schema.branches.name,
         proposal: schema.improvementProposals.proposal,
         createdAt: schema.improvementProposals.createdAt,
       })
       .from(schema.improvementProposals)
-      .innerJoin(
-        schema.users,
-        eq(schema.users.id, schema.improvementProposals.memberId),
-      )
+      // Canal anónimo (2026-07-17): NO se joinea users ni se expone el nombre
+      // del socio. member_id queda en la tabla solo para el anti-spam; de cara
+      // al staff la sugerencia es anónima (el copy de la app lo promete).
       .innerJoin(
         schema.branches,
         eq(schema.branches.id, schema.improvementProposals.branchId),
@@ -269,7 +266,6 @@ export class ImprovementProposalsService {
     const rows = await query;
     return rows.map((r) => ({
       id: r.id,
-      memberName: [r.firstName, r.lastName].filter(Boolean).join(" "),
       branchName: r.branchName,
       proposal: r.proposal,
       createdAt:

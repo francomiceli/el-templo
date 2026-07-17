@@ -10,7 +10,7 @@
     <div v-if="sent" class="sent-card">
       <q-icon name="check_circle" size="48px" color="positive" />
       <p class="sent-card__title">¡Gracias! Tu sugerencia fue enviada al equipo.</p>
-      <p class="sent-card__subtitle">El equipo está escuchando: leemos cada sugerencia.</p>
+      <p class="sent-card__subtitle">Es anónima y el equipo lee cada sugerencia.</p>
       <q-btn color="primary" outline no-caps label="Enviar otra sugerencia" @click="resetForm" />
     </div>
 
@@ -21,7 +21,7 @@
         <div class="info-card__content">
           <span class="info-card__question"> ¿Qué mejorarías de El Templo? </span>
           <span class="info-card__hint">
-            El equipo está escuchando: contanos qué te gustaría para darte la mejor experiencia.
+            El equipo está escuchando y tu sugerencia es anónima: contanos qué mejorarías para darte la mejor experiencia.
           </span>
         </div>
       </div>
