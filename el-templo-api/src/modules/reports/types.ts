@@ -513,3 +513,19 @@ export interface ExpiredMembersResult {
   page: number;
   limit: number;
 }
+
+/**
+ * Preview del cron de recategorización multisucursal para el banner de Reportes:
+ * cuándo corre el próximo, en cuántos días, y cuántos alumnos se reasignarían si
+ * el cálculo se hiciera HOY (simulado, sin escribir).
+ */
+export interface MultibranchReassignmentPreview {
+  /** ISO del próximo run (1° del mes que viene, 04:00 AR). */
+  nextRunAt: string;
+  /** Días desde hoy hasta ese run (redondeado hacia arriba). */
+  daysUntil: number;
+  /** Members multisucursal activos evaluados. */
+  candidates: number;
+  /** Cuántos se reasignarían si el cambio fuese hoy. */
+  wouldReassign: number;
+}

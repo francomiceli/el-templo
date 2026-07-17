@@ -394,6 +394,23 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
     },
   );
 
+  // GET /multibranch-reassignment-preview — banner de recategorización.
+  // Solo lectura: corre el dry-run del cron (NO escribe) y calcula el próximo
+  // run. Hereda el gate CAJA_ROLES del onRequest del plugin; sin params ni
+  // scope de sucursal (el preview es global).
+  fastify.get("/multibranch-reassignment-preview", async (request, reply) => {
+    try {
+      return await reportsService.getMultibranchReassignmentPreview();
+    } catch (err: unknown) {
+      handleServiceError(
+        err,
+        reply,
+        request.log,
+        "get multibranch reassignment preview",
+      );
+    }
+  });
+
   // =========================================================================
   // Export Endpoints
   // =========================================================================

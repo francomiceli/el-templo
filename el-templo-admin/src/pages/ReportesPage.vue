@@ -63,6 +63,7 @@
       <q-tab name="deudas" label="Deudas" icon="request_quote" />
       <q-tab name="conversion" label="Conversión" icon="trending_up" />
       <q-tab name="sesiones-de-prueba" label="Sesiones de Prueba" icon="how_to_reg" />
+      <q-tab name="recategorizacion" label="Recategorización" icon="sync_alt" />
     </q-tabs>
 
     <q-tab-panels v-model="activeTab" animated>
@@ -720,6 +721,13 @@
       <q-tab-panel name="sesiones-de-prueba">
         <TrialSessionsReport :branch-id="selectedBranchId" />
       </q-tab-panel>
+
+      <!-- ================================================================ -->
+      <!-- Recategorización multisucursal (banner) -->
+      <!-- ================================================================ -->
+      <q-tab-panel name="recategorizacion">
+        <RecategorizacionReport />
+      </q-tab-panel>
     </q-tab-panels>
   </q-page>
 </template>
@@ -755,6 +763,7 @@ import type {
   AnalyticsFilters,
 } from 'src/types/analytics';
 import TrialSessionsReport from 'src/components/reports/TrialSessionsReport.vue';
+import RecategorizacionReport from 'src/components/reports/RecategorizacionReport.vue';
 import AsistenciaTab from 'src/components/analytics/AsistenciaTab.vue';
 import PorDeudaTab from 'src/components/deudas/PorDeudaTab.vue';
 
@@ -923,6 +932,7 @@ const VALID_TABS = [
   'deudas',
   'conversion',
   'sesiones-de-prueba',
+  'recategorizacion',
 ];
 const initialTab = (() => {
   const q = route.query.tab;

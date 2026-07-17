@@ -28,6 +28,14 @@ export type TrialShiftFilter = 'TM' | 'TT';
 // Hotfix 2026-07: 'cerrado' → 'ganado'.
 export type TrialLeadStatusValue = 'en_seguimiento' | 'ganado' | 'perdido';
 
+/** Preview del cron de recategorización multisucursal (banner de Reportes). */
+export interface MultibranchReassignmentPreview {
+  nextRunAt: string;
+  daysUntil: number;
+  candidates: number;
+  wouldReassign: number;
+}
+
 export interface TrialSessionsFiltersClient {
   branchId?: number;
   country?: 'AR' | 'ES';
@@ -171,6 +179,22 @@ export function useReportsApi() {
       return data;
     } catch (err: unknown) {
       error.value = extractError(err, 'Error cargando conversión de trials');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function getMultibranchReassignmentPreview(): Promise<MultibranchReassignmentPreview> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<MultibranchReassignmentPreview>(
+        '/admin/reports/multibranch-reassignment-preview'
+      );
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cargando la recategorización');
       throw err;
     } finally {
       loading.value = false;
@@ -330,6 +354,7 @@ export function useReportsApi() {
     getExpiringMemberships,
     getInactiveMembers,
     getTrialConversion,
+    getMultibranchReassignmentPreview,
     exportAccessLog,
     exportChargeHistory,
     exportExpiringMemberships,

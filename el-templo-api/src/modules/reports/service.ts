@@ -13,6 +13,7 @@ import { firmMoneySqlFor } from "../finance/firm-money";
 import { buildMemberNameSearchCondition } from "../shared/member-search";
 import { activeMemberExists } from "../shared/active-member";
 import { ForbiddenError, NotFoundError } from "../shared/errors";
+import { runReassignMultibranch } from "../../jobs/reassign-multibranch";
 import type {
   AccessReportFilters,
   AccessReportRow,
@@ -29,6 +30,7 @@ import type {
   ExpiringReportRow,
   InactiveReportFilters,
   InactiveReportRow,
+  MultibranchReassignmentPreview,
   OutstandingBalanceRow,
   OutstandingBalancesFilters,
   OutstandingBalancesResult,
@@ -304,6 +306,32 @@ export class ReportsService {
     private db: MySql2Database<typeof schema>,
     private log: FastifyBaseLogger,
   ) {}
+
+  // ─── Recategorización multisucursal (preview del cron) ─────────────────────
+
+  /**
+   * Simula el cron de recategorización multisucursal en modo dry-run (NO
+   * escribe) y calcula cuándo corre el próximo. Alimenta el banner de Reportes.
+   * El cron corre el 1° de cada mes a las 04:00 AR (UTC-3, sin DST) → 07:00 UTC.
+   */
+  async getMultibranchReassignmentPreview(): Promise<MultibranchReassignmentPreview> {
+    const res = await runReassignMultibranch(this.db, { dryRun: true });
+
+    const now = new Date();
+    const nextRun = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1, 7, 0, 0),
+    );
+    const daysUntil = Math.ceil(
+      (nextRun.getTime() - now.getTime()) / (24 * 60 * 60 * 1000),
+    );
+
+    return {
+      nextRunAt: nextRun.toISOString(),
+      daysUntil,
+      candidates: res.candidates,
+      wouldReassign: res.changes.length,
+    };
+  }
 
   // ─── Access Log ───────────────────────────────────────────────────────────
 
