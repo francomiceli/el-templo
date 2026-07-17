@@ -174,6 +174,9 @@ export class UserService {
             lastName: input.lastName,
             role: input.role,
             branchId: input.branchId,
+            // Recategorización (0185): promoción a staff fija la sede → 'manual'.
+            branchUpdatedAt: new Date(),
+            branchSource: "manual" as const,
             country,
           })
           .where(eq(schema.users.id, existing.id));
@@ -192,6 +195,9 @@ export class UserService {
             lastName: input.lastName,
             role: input.role,
             branchId: input.branchId,
+            // Recategorización (0185): alta de staff fija la sede → 'manual'.
+            branchUpdatedAt: new Date(),
+            branchSource: "manual" as const,
             country,
             // Phase 103-06 (BLOCKER 1): staff inserts explicitly status=null.
             status: null,

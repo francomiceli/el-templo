@@ -108,6 +108,14 @@ export const users = mysqlTable(
     branchId: int("branch_id")
       .references(() => branches.id)
       .notNull(),
+    // Recategorización multisucursal (2026-07, migración 0185): tracking de la
+    // última vez que cambió branch_id y quién lo hizo. El cron mensual reasigna
+    // la sede de un miembro multisucursal a la que más asistió, pero NO pisa una
+    // reasignación 'manual' reciente (ventana de 45 días). 'auto' = el propio
+    // cron. NULL/NULL en filas previas a la 0185 (no protegidas hasta su próximo
+    // cambio). Se escriben SIEMPRE juntos con branchId — ver setMemberBranch().
+    branchUpdatedAt: timestamp("branch_updated_at"),
+    branchSource: mysqlEnum("branch_source", ["manual", "auto"]),
     // Phase 110: Country of management for staff with country-wide scope (admin/gestion).
     // NULL for owner (global access by role), member, coach, recepción.
     // Authoritative source for `attachCountryScope` for admin/gestion (replaces

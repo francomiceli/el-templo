@@ -19,6 +19,7 @@ import { startAutoResumePausesJob } from "./jobs/auto-resume-pauses";
 import { startMarkNoShowsJob } from "./jobs/mark-no-shows";
 import { startExpireLostLeadsJob } from "./jobs/expire-lost-leads";
 import { startNotificationJobs } from "./jobs/notification-cron";
+import { startReassignMultibranchJob } from "./jobs/reassign-multibranch";
 
 async function start() {
   const app = await buildApp();
@@ -37,6 +38,7 @@ async function start() {
     startAutoApproveJob(app.db);
     startAutoResumePausesJob(app.db);
     startExpireLostLeadsJob(app.db);
+    startReassignMultibranchJob(app.db);
     await startMarkNoShowsJob(app.db);
     await startNotificationJobs(app.db);
   } catch (err: unknown) {

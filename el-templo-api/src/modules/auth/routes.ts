@@ -178,6 +178,10 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         email,
         passwordHash,
         branchId,
+        // Recategorización (0185): el registro fija la sede elegida → 'manual'
+        // para que el cron mensual respete la ventana de protección.
+        branchUpdatedAt: new Date(),
+        branchSource: "manual" as const,
         firstName: firstNameTrimmed,
         lastName: lastNameTrimmed,
         dni,

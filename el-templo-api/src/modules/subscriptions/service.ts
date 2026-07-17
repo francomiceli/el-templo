@@ -1635,7 +1635,13 @@ export class SubscriptionService {
           if (currentBranch?.isVirtual) {
             await tx
               .update(schema.users)
-              .set({ branchId: input.branchId })
+              // Recategorización (0185): mover de sede virtual a física es un
+              // cambio deliberado → 'manual' para la ventana del cron.
+              .set({
+                branchId: input.branchId,
+                branchUpdatedAt: new Date(),
+                branchSource: "manual",
+              })
               .where(eq(schema.users.id, userId));
 
             this.log.info(
@@ -3526,7 +3532,13 @@ export class SubscriptionService {
         if (currentBranch?.isVirtual) {
           await this.db
             .update(schema.users)
-            .set({ branchId: input.branchId })
+            // Recategorización (0185): mover de sede virtual a física es un
+            // cambio deliberado → 'manual' para la ventana del cron.
+            .set({
+              branchId: input.branchId,
+              branchUpdatedAt: new Date(),
+              branchSource: "manual",
+            })
             .where(eq(schema.users.id, userId));
 
           this.log.info(
@@ -4926,7 +4938,13 @@ export class SubscriptionService {
       if (currentBranch?.isVirtual) {
         await this.db
           .update(schema.users)
-          .set({ branchId: scheduled.branchId })
+          // Recategorización (0185): mover de sede virtual a física es un
+          // cambio deliberado → 'manual' para la ventana del cron.
+          .set({
+            branchId: scheduled.branchId,
+            branchUpdatedAt: new Date(),
+            branchSource: "manual",
+          })
           .where(eq(schema.users.id, scheduled.userId));
 
         this.log.info(

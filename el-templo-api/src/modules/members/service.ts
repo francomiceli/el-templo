@@ -698,6 +698,10 @@ export class MemberService {
         documentType: (input.documentType as DocType) || null,
         address: input.address || null,
         branchId: input.branchId,
+        // Recategorización (0185): el alta fija la sede elegida → 'manual' para
+        // que el cron mensual respete la ventana de protección.
+        branchUpdatedAt: new Date(),
+        branchSource: "manual" as const,
         // Phase 130 (KAIROS-04, D-01): new members default to kairos when no
         // explicit level is supplied. An explicit input.level (e.g. 'delta') is
         // still honored — the default only applies when the field is omitted.
@@ -861,6 +865,9 @@ export class MemberService {
         lastName: input.lastName.trim(),
         phone: normalizedPhone,
         branchId: input.branchId,
+        // Recategorización (0185): el alta fija la sede elegida → 'manual'.
+        branchUpdatedAt: new Date(),
+        branchSource: "manual" as const,
         role: "member",
         // Phase 130 (KAIROS-04, D-01): admin-created trial/lead members are
         // born kairos like every other new member.
@@ -941,6 +948,9 @@ export class MemberService {
           // no los aporta; gestión los completa al validar (CONTEXT L70-74).
           email: null,
           branchId: input.branchId,
+          // Recategorización (0185): el alta fija la sede elegida → 'manual'.
+          branchUpdatedAt: new Date(),
+          branchSource: "manual" as const,
           role: "member",
           // Phase 130 (KAIROS-04, D-01): nuevos miembros nacen kairos.
           level: "kairos",
@@ -1393,6 +1403,14 @@ export class MemberService {
       // (step 1) and leave bookings + schedules alone.
       const branchChanged =
         input.branchId !== undefined && input.branchId !== existing.branchId;
+      if (branchChanged) {
+        // Recategorización multisucursal (migración 0185): marcar el cambio de
+        // sede como MANUAL para que el cron mensual respete la ventana de
+        // protección de 45 días y no lo pise. Solo cuando la sede realmente
+        // cambia (editar otro campo no debe proteger la sede del cron).
+        updateData.branchUpdatedAt = new Date();
+        updateData.branchSource = "manual";
+      }
       await this.db.transaction(async (tx) => {
         await tx
           .update(schema.users)
