@@ -285,7 +285,12 @@ export class BookingService {
     // 7. Check weekly booking count — applies to flexible plans and to fixed-slot
     //    re-bookings. Bonus bookings on fixed plans bypass this limit (they are
     //    explicitly extra, over the fixed schedule).
-    if (!isBonus) {
+    //    Fase 161: las actividades ESPECIALES quedan fuera del límite semanal del
+    //    plan regular — su cupo lo gobierna el budget del pase (pasos 5b/5c). Sin
+    //    esta exención un socio con plan presencial (classesPerWeek) + pase Aura
+    //    veía su reserva especial rechazada con "Alcanzaste tu limite semanal"
+    //    aunque el pase tuviera clases disponibles.
+    if (!isBonus && !isSpecialActivity) {
       const classesPerWeek = await this.getMemberClassesPerWeek(memberId);
       if (classesPerWeek !== null) {
         const { monday, saturday } = getWeekRange(
@@ -1799,6 +1804,9 @@ export class BookingService {
 
   /**
    * Count a member's active bookings in a Mon-Sat range.
+   * Fase 161: las reservas sobre actividades ESPECIALES se excluyen — no cuentan
+   * contra el límite semanal del plan regular (su cupo lo lleva el pase). Así una
+   * reserva especial anterior en la semana no le come el cupo a las regulares.
    */
   private async countWeeklyBookings(
     memberId: number,
@@ -1808,12 +1816,21 @@ export class BookingService {
     const [result] = await this.db
       .select({ count: sql<number>`COUNT(*)` })
       .from(schema.bookings)
+      .innerJoin(
+        schema.schedules,
+        eq(schema.schedules.id, schema.bookings.scheduleId),
+      )
+      .innerJoin(
+        schema.activities,
+        eq(schema.activities.id, schema.schedules.activityId),
+      )
       .where(
         and(
           eq(schema.bookings.memberId, memberId),
           sql`${schema.bookings.status} IN ('reservado', 'qr_escaneado', 'confirmado')`,
           sql`${schema.bookings.bookingDate} >= ${monday}`,
           sql`${schema.bookings.bookingDate} <= ${saturday}`,
+          eq(schema.activities.isSpecial, false),
         ),
       );
 

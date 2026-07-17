@@ -16,6 +16,11 @@
  *                  el bloque coverage-from tras el reemplazo por pickSubscriptionForActivity).
  *  (8) D-05 mezclable: pase (budget 2) reserva Verticales Y Acrobacias (2 especiales
  *                  DISTINTAS) → ambas OK, ambas contra el mismo budget sin fricción.
+ * (10) Regresión límite semanal: socio con presencial (cupo semanal LLENO) + pase
+ *                  reserva una especial → 201. Las especiales quedan fuera del
+ *                  límite semanal del plan regular (lo gobierna el budget del pase).
+ * (11) Cruce inverso: reservar una especial NO consume el cupo semanal del presencial
+ *                  — una regular posterior en la misma semana sigue entrando.
  *
  * Análogo estructural directo: test/scheduling-reserve-coverage.test.ts (pin del
  * reloj a un miércoles, actividades/horarios por la API admin, subs por inserción
@@ -430,6 +435,62 @@ describe("Fase 161-06 — gating del pase de actividades especiales", () => {
     expect(rVert.statusCode).toBe(201);
     const rAcro = await reserve(token, acrobaciasScheduleId, SAT_2);
     expect(rAcro.statusCode).toBe(201);
+  });
+
+  /**
+   * Inserta un plan presencial con un `classesPerWeek` a medida (el fixture usa 3;
+   * acá se necesita un cupo chico para llenarlo con un único horario regular/día).
+   */
+  async function insertPresencialPlan(classesPerWeek: number): Promise<number> {
+    const res = await app.db.insert(schema.subscriptionPlans).values({
+      name: `Presencial CPW ${classesPerWeek}`,
+      planTier: "flex",
+      bookingMode: "flexible",
+      planCategory: "presencial",
+      priceRegular: 15000,
+      priceZero: 10000,
+      durationDays: 30,
+      classesPerWeek,
+    });
+    return Number(res[0].insertId);
+  }
+
+  // ── (10) Regresión: especial NO cuenta contra el límite semanal del presencial ─
+  it("(10) socio con cupo semanal LLENO + pase reserva una especial → 201", async () => {
+    // Caso real (Néstor Troncoso): Foundation con cupo semanal ya agotado + pase
+    // Aura con clases disponibles. Antes del fix la especial se rechazaba con
+    // "Alcanzaste tu limite semanal" porque compartía el contador del presencial.
+    const presencialCpw1 = await insertPresencialPlan(1);
+    const { id, token } = await createMemberToken("weekly-especial-10@test.com");
+    // Socio: presencial (cupo 1/sem) + pase especial (budget 2), ambos activos.
+    await insertSub(id, presencialCpw1, "active", "2026-02-14", "2026-04-15", 10);
+    await insertSub(id, especialPlanId, "active", "2026-02-14", "2026-04-15", 2);
+
+    // Llena el cupo semanal del presencial con la clase regular del jueves.
+    const rReg = await reserve(token, regularScheduleId, REGULAR_DATE);
+    expect(rReg.statusCode).toBe(201);
+
+    // La especial del sábado (misma semana) ya NO se bloquea por límite semanal.
+    const rEsp = await reserve(token, verticalesScheduleId, SAT_1);
+    expect(rEsp.statusCode).toBe(201);
+    expect(rEsp.body.status).toBe("reservado");
+  });
+
+  // ── (11) Cruce inverso: la especial no consume el cupo semanal del presencial ──
+  it("(11) reservar una especial NO reduce el cupo semanal → la regular posterior entra", async () => {
+    const presencialCpw1 = await insertPresencialPlan(1);
+    const { id, token } = await createMemberToken("weekly-especial-11@test.com");
+    await insertSub(id, presencialCpw1, "active", "2026-02-14", "2026-04-15", 10);
+    await insertSub(id, especialPlanId, "active", "2026-02-14", "2026-04-15", 2);
+
+    // Reserva primero la especial del sábado (misma semana calendario).
+    const rEsp = await reserve(token, verticalesScheduleId, SAT_1);
+    expect(rEsp.statusCode).toBe(201);
+
+    // La regular del jueves debe entrar: la especial no descontó el cupo 1/sem.
+    const rReg = await reserve(token, regularScheduleId, REGULAR_DATE);
+    expect(rReg.statusCode).toBe(201);
+    expect(rReg.body.status).toBe("reservado");
   });
 
   // ── (9) Fase 162-01 (APP-01): el grid member expone isSpecial por slot ───
