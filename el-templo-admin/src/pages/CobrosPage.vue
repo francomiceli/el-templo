@@ -860,6 +860,12 @@ const autocompletando = ref(false);
 // sigue vigente, renovar NO pisa el período en curso — la renovación nace
 // 'scheduled' y arranca el día del vencimiento. Decirlo explícitamente evita que
 // el staff crea que tiene que esperar al vencimiento para cobrar el mes que viene.
+//
+// `stillCovered` exige vencimiento ESTRICTAMENTE futuro. Con el plan ya vencido
+// (o venciendo hoy) la copy vuelve a "Renovar plan vigente", que es lo correcto:
+// en ese caso renewSubscription arranca el nuevo período HOY, no a futuro, así
+// que anunciar una fecha de inicio sería mentira. Mismo borde que el service
+// (`oldSubExpired` / `autoStartDate` en subscriptions/service.ts).
 const associationOptions = computed<
   Array<{ value: Mode; label: string; hint: string; icon: string }>
 >(() => {
