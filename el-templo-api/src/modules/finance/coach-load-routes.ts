@@ -862,6 +862,9 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
   // the right amount WITHOUT the profe choosing renovación vs primer plan:
   //   - 'settle' → the current sub has outstanding debt; amount = that debt.
   //   - 'renew'  → no debt; amount = the plan price (a new period would be created).
+  //
+  // `currentEndDate` = vencimiento de la sub vigente (null si no tiene). La PoS
+  // lo muestra para que el operador vea que la renovación anticipada arranca ahí.
   // ===================================================================
   fastify.get<{ Params: { userId: number } }>(
     "/autocompletar/:userId",
@@ -879,6 +882,7 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
             currency: null,
             intent: null,
             outstanding: 0,
+            currentEndDate: null,
           });
         }
         const balanceRow = await balanceService.getRow(
@@ -897,6 +901,10 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
           currency: sub.currency,
           intent: outstanding > 0 ? "settle" : "renew",
           outstanding,
+          // Vencimiento de la sub vigente (UAT caja/cobros 2026-07-21). La PoS lo
+          // usa para explicitar que renovar ANTES del vencimiento no pisa el
+          // período en curso: la renovación nace 'scheduled' y arranca este día.
+          currentEndDate: sub.endDate ?? null,
         });
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "coach autocompletar");

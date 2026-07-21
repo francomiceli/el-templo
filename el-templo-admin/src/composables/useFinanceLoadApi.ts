@@ -128,6 +128,12 @@ export interface AutocompletarResult {
   intent: 'settle' | 'renew' | null;
   /** Outstanding debt on the current sub (0 when none). */
   outstanding: number;
+  /**
+   * Vencimiento (YYYY-MM-DD) de la sub vigente, null si no tiene. La PoS lo usa
+   * para explicitar que renovar antes del vencimiento NO pisa el período en
+   * curso: la renovación nace 'scheduled' y arranca ese día.
+   */
+  currentEndDate: string | null;
 }
 
 /** POST /coach-load/pay-plan → { subscription, transaction } (transaction null on free renewal). */
