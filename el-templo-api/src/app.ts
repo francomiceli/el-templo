@@ -54,6 +54,7 @@ import { notificationRoutes } from "./modules/notifications";
 import { referralMemberRoutes } from "./modules/referrals/routes";
 import { referralAdminRoutes } from "./modules/referrals/admin-routes";
 import { campaignRoutes } from "./modules/campaigns/routes";
+import { wellhubWebhookRoutes } from "./modules/wellhub/routes";
 
 export async function buildApp() {
   const app = Fastify({
@@ -158,6 +159,10 @@ export async function buildApp() {
 
   // App landing routes (waitlist + Labs inquiry forms)
   await app.register(appLandingRoutes, { prefix: "/api/app" });
+
+  // Wellhub webhook (público, autenticado por firma HMAC — una sola URL para
+  // todos los eventos de check-in y reservas de la plataforma Wellhub)
+  await app.register(wellhubWebhookRoutes, { prefix: "/api/webhooks/wellhub" });
 
   // Member management routes (admin CRUD + notes)
   await app.register(memberRoutes, { prefix: "/api/admin/members" });
