@@ -57,11 +57,18 @@ export const documentTypeEnum = mysqlEnum("document_type", [
 // from_status / to_status columns sharing the exact same enum values without
 // reusing the column-bound userStatusEnum (which hardcodes the column name
 // "status").
+// Integración Wellhub (2026-07, migración 0186): 'wellhub' identifica al
+// visitante que entra por la plataforma Wellhub/Gympass. NO participa del
+// pipeline de leads (lead_status queda NULL) ni de recomputeUserStatus (no
+// tiene suscripciones). Append-last y byte-idéntico al ALTER de la 0186 en
+// users.status, user_status_history.from_status y .to_status (los tres
+// comparten esta lista) para evitar enum drift (lesson 125/126).
 export const USER_STATUS_VALUES = [
   "freemium",
   "prueba",
   "activo",
   "inactivo",
+  "wellhub",
 ] as const;
 export const userStatusEnum = mysqlEnum("status", USER_STATUS_VALUES);
 // Phase 114 (D-15): lead lifecycle status for users with status='prueba'.
@@ -198,6 +205,12 @@ export const users = mysqlTable(
     referredBy: int("referred_by").references((): AnyMySqlColumn => users.id, {
       onDelete: "set null",
     }),
+    // Integración Wellhub (2026-07, migración 0186): gympass_id de 13 dígitos
+    // que identifica al usuario en Wellhub (llega como `unique_token` en los
+    // webhooks). Único y nullable — solo lo tienen los visitantes Wellhub (o
+    // un socio existente al que se le vincula la visita por match de email).
+    // Se auto-crea el usuario en el primer webhook con status='wellhub'.
+    gympassId: varchar("gympass_id", { length: 16 }).unique(),
     // Phase 104 R5: pointer to the program_enrollment the member is currently
     // viewing. NULL means "Templo view" (only valid if user has presencial
     // plan). Set/cleared by PUT /api/members/me/current-program (Plan 04).

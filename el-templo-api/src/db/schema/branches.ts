@@ -2,6 +2,7 @@
 import {
   mysqlTable,
   int,
+  bigint,
   varchar,
   boolean,
   timestamp,
@@ -22,6 +23,11 @@ export const branches = mysqlTable("branches", {
   // sede addresses in el-templo-web/data/sedes.ts.
   address: varchar("address", { length: 255 }),
   maxCapacity: int("max_capacity").default(22).notNull(),
+  // Integración Wellhub (2026-07, migración 0186): id del gimnasio en la
+  // plataforma Wellhub/Gympass. NULL = sede sin Wellhub (integración apagada).
+  // El webhook entrante resuelve la sede por este id (event_data.gym.id) y la
+  // sincronización de clases/slots solo publica sedes con valor no-NULL.
+  wellhubGymId: bigint("wellhub_gym_id", { mode: "number" }).unique(),
   romEnabled: boolean("rom_enabled").default(false).notNull(),
   isActive: boolean("is_active").default(true).notNull(),
   isVirtual: boolean("is_virtual").default(false).notNull(),
