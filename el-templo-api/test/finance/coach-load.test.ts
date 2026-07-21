@@ -1402,4 +1402,52 @@ describe("coach-load bankAccountId (COBRO-04)", () => {
     });
     expect(res.statusCode).toBe(403);
   });
+
+  // ── GET /caja-efectivo (UAT caja/cobros 2026-07-21) ─────────────────────────
+  // Informativo: para cash la caja es server-derived y el operador no la elige,
+  // pero tiene que poder VERLA antes de confirmar.
+  describe("GET /caja-efectivo", () => {
+    it("coach → 200 con la caja de efectivo de su sede", async () => {
+      const res = await app.inject({
+        method: "GET",
+        url: `${COACH_LOAD_URL}/caja-efectivo?currency=ARS`,
+        headers: { authorization: `Bearer ${coachToken}` },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body) as {
+        caja: { id: number; name: string } | null;
+      };
+      expect(body.caja).not.toBeNull();
+      // Sólo campos lean — nunca saldos por esta ruta (coach ∉ FINANCE_READ).
+      expect(Object.keys(body.caja as object).sort()).toEqual(["id", "name"]);
+      expect(typeof body.caja?.name).toBe("string");
+    });
+
+    it("moneda sin caja de efectivo → 200 con caja:null (no rompe el cobro)", async () => {
+      const res = await app.inject({
+        method: "GET",
+        url: `${COACH_LOAD_URL}/caja-efectivo?currency=EUR`,
+        headers: { authorization: `Bearer ${coachToken}` },
+      });
+      expect(res.statusCode).toBe(200);
+      expect((JSON.parse(res.body) as { caja: unknown }).caja).toBeNull();
+    });
+
+    it("sin currency → 400", async () => {
+      const res = await app.inject({
+        method: "GET",
+        url: `${COACH_LOAD_URL}/caja-efectivo`,
+        headers: { authorization: `Bearer ${coachToken}` },
+      });
+      expect(res.statusCode).toBe(400);
+    });
+
+    it("sin token → 401", async () => {
+      const res = await app.inject({
+        method: "GET",
+        url: `${COACH_LOAD_URL}/caja-efectivo?currency=ARS`,
+      });
+      expect(res.statusCode).toBe(401);
+    });
+  });
 });

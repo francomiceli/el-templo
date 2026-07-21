@@ -618,6 +618,19 @@
                   </q-banner>
                 </template>
 
+                <!-- Efectivo: la caja la decide el server por la sede de quien
+                     carga, así que no se pregunta — pero se MUESTRA (UAT
+                     caja/cobros 2026-07-21: "lo cobré en efectivo, ¿a qué caja
+                     lo manda?"). Si no es resolvible, no se muestra nada: el
+                     server cae a la sede del socio y el cobro igual entra. -->
+                <div
+                  v-else-if="cajaEfectivo"
+                  class="text-subtitle2 text-weight-regular text-grey-7 q-mt-md"
+                >
+                  <q-icon name="savings" size="xs" class="q-mr-xs" />Entra a
+                  <span class="text-weight-medium">{{ cajaEfectivo.name }}</span>
+                </div>
+
                 <div class="text-subtitle2 text-weight-regular text-grey-7 q-mt-sm">
                   <q-icon name="schedule" size="xs" class="q-mr-xs" />Queda pendiente de validación.
                 </div>
@@ -1008,9 +1021,30 @@ async function loadBankAccounts() {
   }
 }
 
-// Cargar cuentas al elegir transferencia/tarjeta.
+// ─── Caja destino en efectivo (informativa) ─────────────────────────────────
+// Para cash la caja la resuelve el server desde la sede de quien carga (CAJA-01)
+// y el body no puede elegirla, así que no hay nada que preguntar — pero el
+// operador necesita ver a dónde va la plata (UAT caja/cobros 2026-07-21). null
+// cuando no es resolvible: el server cae a la sede del socio y el cobro entra
+// igual, así que se omite el cartel en vez de mostrar un error.
+const cajaEfectivo = ref<{ id: number; name: string } | null>(null);
+
+async function loadCajaEfectivo() {
+  try {
+    const { caja } = await financeApi.getCajaEfectivo(resumenCurrency.value);
+    cajaEfectivo.value = caja;
+  } catch (err: unknown) {
+    log.warn('No se pudo resolver la caja de efectivo destino', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    cajaEfectivo.value = null;
+  }
+}
+
+// Cargar cuentas al elegir transferencia/tarjeta; la caja al elegir efectivo.
 watch(paymentMethod, (m) => {
   if (m === 'transfer' || m === 'card') void loadBankAccounts();
+  if (m === 'cash') void loadCajaEfectivo();
 });
 
 // Si cambia la moneda del cobro, la cuenta elegida podría quedar de otra moneda:
@@ -1018,6 +1052,7 @@ watch(paymentMethod, (m) => {
 watch(resumenCurrency, () => {
   selectedBankAccountId.value = null;
   if (needsBankAccount.value) void loadBankAccounts();
+  if (paymentMethod.value === 'cash') void loadCajaEfectivo();
 });
 
 // ─── Alta rápida de cuenta banco (D-08) — sólo admin/owner ──────────────────
