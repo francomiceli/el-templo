@@ -16,6 +16,11 @@
  */
 
 import { FastifyPluginAsync } from "fastify";
+import { AuraService } from "../aura/service";
+import { EnrollmentService } from "../programs/enrollment-service";
+import { NotificationService } from "../notifications/service";
+import { SubscriptionService } from "../subscriptions/service";
+import { BookingService } from "../scheduling/booking-service";
 import { getWellhubConfig } from "./config";
 import { verifyWellhubSignature } from "./signature";
 import { WellhubClient } from "./client";
@@ -23,6 +28,24 @@ import { WellhubService } from "./service";
 import type { WellhubWebhookEvent } from "./types";
 
 export const wellhubWebhookRoutes: FastifyPluginAsync = async (fastify) => {
+  // Cadena mínima para BookingService (promoteWaitlist/countActiveBookings),
+  // mismo wiring que scheduling/routes.ts.
+  const auraService = new AuraService(fastify.db);
+  const enrollmentService = new EnrollmentService(fastify.db, fastify.log);
+  const subscriptionService = new SubscriptionService(
+    fastify.db,
+    fastify.log,
+    auraService,
+    undefined,
+    enrollmentService,
+  );
+  const notificationService = new NotificationService(fastify.db, fastify.log);
+  const bookingService = new BookingService(
+    fastify.db,
+    fastify.log,
+    subscriptionService,
+    notificationService,
+  );
   // Body crudo para verificar la firma HMAC (Fastify no preserva el raw body
   // con el parser JSON default).
   fastify.addContentTypeParser(
@@ -73,7 +96,12 @@ export const wellhubWebhookRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     const client = new WellhubClient(config, request.log);
-    const service = new WellhubService(fastify.db, request.log, client);
+    const service = new WellhubService(
+      fastify.db,
+      request.log,
+      client,
+      bookingService,
+    );
     const result = await service.handleEvent(event, rawBody.toString("utf8"));
 
     return reply

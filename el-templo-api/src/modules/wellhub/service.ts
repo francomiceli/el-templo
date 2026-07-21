@@ -21,11 +21,13 @@
 
 import argon2 from "argon2";
 import { randomBytes } from "crypto";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { todayInTz } from "../shared/date-utils";
+import { emitOccupancyChange } from "../shared/occupancy-events";
+import type { BookingService } from "../scheduling/booking-service";
 import type { WellhubClient } from "./client";
 import { WellhubApiError } from "./client";
 import type {
@@ -52,6 +54,7 @@ export class WellhubService {
     private db: MySql2Database<typeof schema>,
     private log: FastifyBaseLogger,
     private client: WellhubClient,
+    private bookingService: BookingService,
   ) {}
 
   // ─── Entrada única de webhooks ─────────────────────────────────────────────
@@ -270,21 +273,335 @@ export class WellhubService {
 
   private async handleBookingEvent(
     eventType: string,
-    _data: WellhubBookingEventData,
+    data: WellhubBookingEventData,
   ): Promise<WebhookHandleResult> {
-    // Se implementa con la publicación de slots (siguiente etapa de la
-    // integración). Mientras tanto los eventos quedan logueados en
-    // wellhub_events como 'skipped' — Wellhub auto-rechaza la solicitud a los
-    // 15 minutos, que es el comportamiento seguro.
-    this.log.warn(
-      { eventType },
-      "Webhook de reservas Wellhub recibido pero aún no soportado",
+    if (eventType === "booking-requested") {
+      return this.handleBookingRequested(data);
+    }
+    return this.handleBookingCanceled(eventType, data);
+  }
+
+  /**
+   * Solicitud de reserva de un usuario Wellhub sobre un slot publicado.
+   * Nosotros somos la fuente de verdad del cupo (pool compartido): el cupo se
+   * revalida en transacción y se responde RESERVED o REJECTED vía PATCH
+   * (ventana dura de 15 minutos — pasada, Wellhub auto-rechaza).
+   */
+  private async handleBookingRequested(
+    data: WellhubBookingEventData,
+  ): Promise<WebhookHandleResult> {
+    const bookingNumber = data.slot?.booking_number;
+    const wellhubSlotId = data.slot?.id;
+    if (!bookingNumber || !wellhubSlotId || !data.user?.unique_token) {
+      return {
+        httpStatus: 200,
+        outcome: "skipped",
+        detail: "payload_incompleto",
+      };
+    }
+
+    const slot = await this.findPublishedSlot(wellhubSlotId);
+    if (!slot) {
+      // Slot que no publicamos nosotros: rechazamos para no dejar la
+      // solicitud colgada hasta el auto-rechazo de los 15 minutos.
+      this.log.warn(
+        { wellhubSlotId, bookingNumber },
+        "booking-requested sobre un slot no publicado",
+      );
+      await this.client.validateBooking({
+        gymId: data.slot.gym_id,
+        bookingNumber,
+        classId: data.slot.class_id,
+        decision: "REJECTED",
+        reason: "Clase no encontrada",
+        reasonCategory: "CLASS_NOT_FOUND",
+      });
+      return {
+        httpStatus: 200,
+        outcome: "skipped",
+        detail: "slot_desconocido",
+      };
+    }
+
+    // Reintento de una solicitud ya vista (por otro event_id): si quedó
+    // 'pending' la confirmación no llegó a Wellhub — se reintenta el PATCH;
+    // cualquier otro estado es un duplicado ya resuelto.
+    const [existing] = await this.db
+      .select({
+        id: schema.wellhubBookings.id,
+        status: schema.wellhubBookings.status,
+      })
+      .from(schema.wellhubBookings)
+      .where(eq(schema.wellhubBookings.bookingNumber, bookingNumber))
+      .limit(1);
+
+    if (existing) {
+      if (existing.status !== "pending") {
+        return { httpStatus: 200, outcome: "duplicate" };
+      }
+      await this.client.validateBooking({
+        gymId: slot.gymId,
+        bookingNumber,
+        classId: slot.wellhubClassId,
+        decision: "RESERVED",
+      });
+      await this.db
+        .update(schema.wellhubBookings)
+        .set({ status: "confirmed" })
+        .where(eq(schema.wellhubBookings.id, existing.id));
+      return {
+        httpStatus: 200,
+        outcome: "processed",
+        detail: "confirm_reintentado",
+      };
+    }
+
+    const visitorId = await this.findOrCreateVisitor(data.user, slot.branchId);
+
+    // Cupo + duplicados en transacción (mismas reglas que reserve() de
+    // socios; los bookings Wellhub son filas normales así que el conteo los
+    // incluye solo).
+    interface RequestOutcome {
+      decision: "RESERVED" | "REJECTED";
+      rejectionCategory: "CLASS_IS_FULL" | "USER_ALREADY_BOOKED" | null;
+      bookingId: number | null;
+    }
+
+    const outcome: RequestOutcome = await this.db.transaction(
+      async (tx): Promise<RequestOutcome> => {
+        const [duplicate] = await tx
+          .select({ id: schema.bookings.id, status: schema.bookings.status })
+          .from(schema.bookings)
+          .where(
+            and(
+              eq(schema.bookings.memberId, visitorId),
+              eq(schema.bookings.scheduleId, slot.scheduleId),
+              eq(schema.bookings.bookingDate, slot.sessionDate),
+            ),
+          )
+          .limit(1);
+
+        if (
+          duplicate &&
+          ["reservado", "qr_escaneado", "confirmado", "lista_espera"].includes(
+            duplicate.status,
+          )
+        ) {
+          return {
+            decision: "REJECTED",
+            rejectionCategory: "USER_ALREADY_BOOKED",
+            bookingId: null,
+          };
+        }
+
+        const activeCount = await this.bookingService.countActiveBookings(
+          slot.scheduleId,
+          slot.sessionDate,
+          tx,
+        );
+        if (activeCount >= slot.totalCapacity) {
+          return {
+            decision: "REJECTED",
+            rejectionCategory: "CLASS_IS_FULL",
+            bookingId: null,
+          };
+        }
+
+        // Igual que reserve(): una reserva cancelada/no_show previa se borra
+        // para no chocar con el unique (member, schedule, fecha).
+        if (duplicate && ["cancelado", "no_show"].includes(duplicate.status)) {
+          await tx
+            .delete(schema.bookings)
+            .where(eq(schema.bookings.id, duplicate.id));
+        }
+
+        const inserted = await tx.insert(schema.bookings).values({
+          memberId: visitorId,
+          scheduleId: slot.scheduleId,
+          bookingDate: slot.sessionDate,
+          status: "reservado",
+          source: "wellhub",
+        });
+        return {
+          decision: "RESERVED",
+          rejectionCategory: null,
+          bookingId: Number(inserted[0].insertId),
+        };
+      },
+    );
+    const { decision, rejectionCategory, bookingId } = outcome;
+
+    await this.db.insert(schema.wellhubBookings).values({
+      bookingNumber,
+      bookingId,
+      userId: visitorId,
+      wellhubSlotRowId: slot.rowId,
+      // 'pending' hasta que el PATCH de confirmación salga bien; el rechazo
+      // se registra final (si el PATCH de rechazo falla, Wellhub auto-rechaza
+      // a los 15 minutos igual).
+      status: decision === "RESERVED" ? "pending" : "rejected",
+    });
+
+    await this.client.validateBooking({
+      gymId: slot.gymId,
+      bookingNumber,
+      classId: slot.wellhubClassId,
+      decision,
+      ...(decision === "REJECTED" && rejectionCategory === "CLASS_IS_FULL"
+        ? { reason: "Clase completa", reasonCategory: rejectionCategory }
+        : {}),
+      ...(decision === "REJECTED" && rejectionCategory === "USER_ALREADY_BOOKED"
+        ? {
+            reason: "Ya tenés una reserva en esta clase",
+            reasonCategory: rejectionCategory,
+          }
+        : {}),
+    });
+
+    if (decision === "RESERVED") {
+      await this.db
+        .update(schema.wellhubBookings)
+        .set({ status: "confirmed" })
+        .where(eq(schema.wellhubBookings.bookingNumber, bookingNumber));
+      emitOccupancyChange({
+        scheduleId: slot.scheduleId,
+        date: slot.sessionDate,
+      });
+      this.log.info(
+        { bookingNumber, bookingId, visitorId, scheduleId: slot.scheduleId },
+        "Reserva Wellhub confirmada",
+      );
+      return { httpStatus: 200, outcome: "processed" };
+    }
+
+    this.log.info(
+      { bookingNumber, visitorId, rejectionCategory },
+      "Reserva Wellhub rechazada",
     );
     return {
       httpStatus: 200,
-      outcome: "skipped",
-      detail: "booking_no_soportado",
+      outcome: "processed",
+      detail: `rechazada_${rejectionCategory ?? "otro"}`,
     };
+  }
+
+  /** Cancelación (normal o tardía) originada en Wellhub. */
+  private async handleBookingCanceled(
+    eventType: string,
+    data: WellhubBookingEventData,
+  ): Promise<WebhookHandleResult> {
+    const bookingNumber = data.slot?.booking_number;
+    if (!bookingNumber) {
+      return {
+        httpStatus: 200,
+        outcome: "skipped",
+        detail: "payload_incompleto",
+      };
+    }
+
+    const newStatus =
+      eventType === "booking-late-canceled" ? "late_canceled" : "canceled";
+
+    const [wb] = await this.db
+      .select({
+        id: schema.wellhubBookings.id,
+        status: schema.wellhubBookings.status,
+        bookingId: schema.wellhubBookings.bookingId,
+      })
+      .from(schema.wellhubBookings)
+      .where(eq(schema.wellhubBookings.bookingNumber, bookingNumber))
+      .limit(1);
+
+    if (!wb) {
+      this.log.warn(
+        { bookingNumber, eventType },
+        "Cancelación Wellhub de una reserva desconocida",
+      );
+      return {
+        httpStatus: 200,
+        outcome: "skipped",
+        detail: "reserva_desconocida",
+      };
+    }
+
+    if (wb.status === newStatus) {
+      return { httpStatus: 200, outcome: "duplicate" };
+    }
+
+    if (wb.bookingId !== null) {
+      const [booking] = await this.db
+        .select({
+          id: schema.bookings.id,
+          status: schema.bookings.status,
+          scheduleId: schema.bookings.scheduleId,
+          bookingDate: schema.bookings.bookingDate,
+        })
+        .from(schema.bookings)
+        .where(eq(schema.bookings.id, wb.bookingId))
+        .limit(1);
+
+      if (booking && booking.status !== "cancelado") {
+        await this.db
+          .update(schema.bookings)
+          .set({ status: "cancelado", cancelledAt: new Date() })
+          .where(eq(schema.bookings.id, booking.id));
+        await this.bookingService.promoteWaitlist(
+          booking.scheduleId,
+          booking.bookingDate,
+        );
+        emitOccupancyChange({
+          scheduleId: booking.scheduleId,
+          date: booking.bookingDate,
+        });
+      }
+    }
+
+    await this.db
+      .update(schema.wellhubBookings)
+      .set({ status: newStatus })
+      .where(eq(schema.wellhubBookings.id, wb.id));
+
+    this.log.info(
+      { bookingNumber, eventType },
+      "Cancelación Wellhub procesada",
+    );
+    return { httpStatus: 200, outcome: "processed" };
+  }
+
+  /** Slot publicado por nosotros, con todo lo necesario para operar la API. */
+  private async findPublishedSlot(wellhubSlotId: number): Promise<{
+    rowId: number;
+    scheduleId: number;
+    sessionDate: string;
+    totalCapacity: number;
+    wellhubClassId: number;
+    branchId: number;
+    gymId: number;
+  } | null> {
+    const [slot] = await this.db
+      .select({
+        rowId: schema.wellhubSlots.id,
+        scheduleId: schema.wellhubSlots.scheduleId,
+        sessionDate: schema.wellhubSlots.sessionDate,
+        totalCapacity: schema.wellhubSlots.totalCapacity,
+        wellhubClassId: schema.wellhubClasses.wellhubClassId,
+        branchId: schema.wellhubClasses.branchId,
+        gymId: schema.branches.wellhubGymId,
+      })
+      .from(schema.wellhubSlots)
+      .innerJoin(
+        schema.wellhubClasses,
+        eq(schema.wellhubSlots.wellhubClassRowId, schema.wellhubClasses.id),
+      )
+      .innerJoin(
+        schema.branches,
+        eq(schema.wellhubClasses.branchId, schema.branches.id),
+      )
+      .where(eq(schema.wellhubSlots.wellhubSlotId, wellhubSlotId))
+      .limit(1);
+
+    if (!slot || slot.gymId === null) return null;
+    return { ...slot, gymId: slot.gymId };
   }
 
   // ─── Visitantes ────────────────────────────────────────────────────────────

@@ -13,6 +13,7 @@ import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { SubscriptionService } from "../subscriptions/service";
 import { NotificationService } from "../notifications/service";
+import { emitOccupancyChange } from "../shared/occupancy-events";
 import {
   addDays,
   getWeekRange,
@@ -408,6 +409,9 @@ export class BookingService {
       "Booking created",
     );
 
+    // Wellhub: la ocupación del slot cambió (post-commit).
+    emitOccupancyChange({ scheduleId, date });
+
     return booking;
   }
 
@@ -495,6 +499,13 @@ export class BookingService {
       { memberId, bookingId, scheduleId: bookingRow.scheduleId },
       "Booking cancelled",
     );
+
+    // Wellhub: la ocupación del slot cambió (post-commit; si hubo promoción
+    // de lista de espera el neto es 0 y el push lo resuelve recontando).
+    emitOccupancyChange({
+      scheduleId: bookingRow.scheduleId,
+      date: bookingRow.bookingDate,
+    });
 
     return updated;
   }
@@ -743,6 +754,9 @@ export class BookingService {
       "Admin booking created",
     );
 
+    // Wellhub: la ocupación del slot cambió.
+    emitOccupancyChange({ scheduleId, date });
+
     return { booking, warnings };
   }
 
@@ -794,6 +808,12 @@ export class BookingService {
           bookingRow.bookingDate,
         );
       }
+
+      // Wellhub: la ocupación del slot cambió.
+      emitOccupancyChange({
+        scheduleId: bookingRow.scheduleId,
+        date: bookingRow.bookingDate,
+      });
     }
 
     this.log.info({ bookingId }, "Admin removed booking");
@@ -1695,8 +1715,12 @@ export class BookingService {
 
   /**
    * Promote first waitlisted booking to confirmed and reorder positions.
+   *
+   * Público desde la integración Wellhub: la cancelación de una reserva
+   * Wellhub libera cupo y debe promover la lista de espera igual que una
+   * cancelación de socio.
    */
-  private async promoteWaitlist(
+  async promoteWaitlist(
     scheduleId: number,
     bookingDate: string,
   ): Promise<void> {
@@ -1779,8 +1803,11 @@ export class BookingService {
   /**
    * Count active (slot-occupying) bookings for a schedule+date.
    * Includes reservado, qr_escaneado, and confirmado.
+   *
+   * Público desde la integración Wellhub: es la fuente única del
+   * total_booked que se publica en los slots de Wellhub.
    */
-  private async countActiveBookings(
+  async countActiveBookings(
     scheduleId: number,
     date: string,
     db?: MySql2Database<typeof schema>,
