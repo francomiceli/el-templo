@@ -545,6 +545,77 @@ describe("Wellhub — reservas y sincronización", () => {
     expect(wb.status).toBe("late_canceled");
   });
 
+  // ─── Check-in con reserva del día ────────────────────────────────────────
+
+  it("checkin de un visitante con reserva de HOY la confirma y liga la asistencia", async () => {
+    stubWellhubApi();
+
+    // Horario de HOY en la sede (hora irrelevante para la asistencia).
+    const todayAr = new Date().toLocaleDateString("en-CA", {
+      timeZone: "America/Argentina/Buenos_Aires",
+    });
+    const utcDow = new Date(`${todayAr}T12:00:00Z`).getUTCDay();
+    const insertedSchedule = await app.db.insert(schema.schedules).values({
+      branchId,
+      activityId,
+      dayOfWeek: utcDow === 0 ? 7 : utcDow,
+      startTime: "08:00",
+      endTime: "09:00",
+      isActive: true,
+    });
+    const todayScheduleId = Number(insertedSchedule[0].insertId);
+
+    const token = uniqueToken();
+    const visitorId = await app.db
+      .insert(schema.users)
+      .values({
+        passwordHash: "x",
+        firstName: "Visitor",
+        lastName: "ConReserva",
+        role: "member",
+        branchId,
+        status: "wellhub",
+        gympassId: token,
+      })
+      .then((r) => Number(r[0].insertId));
+
+    const insertedBooking = await app.db.insert(schema.bookings).values({
+      memberId: visitorId,
+      scheduleId: todayScheduleId,
+      bookingDate: todayAr,
+      status: "reservado",
+      source: "wellhub",
+    });
+    const bookingId = Number(insertedBooking[0].insertId);
+
+    const raw = JSON.stringify({
+      event_type: "checkin-booking-occurred",
+      event_data: {
+        user: { unique_token: token, first_name: "Visitor" },
+        booking: { booking_number: "BK_TODAY1" },
+        gym: { id: gymId },
+        timestamp: Date.now(),
+      },
+    });
+    const res = await postWebhook(app, raw);
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.body).outcome).toBe("processed");
+
+    const [booking] = await app.db
+      .select({ status: schema.bookings.status })
+      .from(schema.bookings)
+      .where(eq(schema.bookings.id, bookingId));
+    expect(booking.status).toBe("confirmado");
+
+    const [att] = await app.db
+      .select()
+      .from(schema.attendance)
+      .where(eq(schema.attendance.memberId, visitorId));
+    expect(att.source).toBe("wellhub");
+    expect(att.scheduleId).toBe(todayScheduleId);
+    expect(att.sessionDate).toBe(todayAr);
+  });
+
   // ─── Push de ocupación ante reservas de socios ───────────────────────────
 
   it("una reserva de socio empuja el total_booked al slot publicado", async () => {

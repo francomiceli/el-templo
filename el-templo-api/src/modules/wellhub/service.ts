@@ -21,7 +21,7 @@
 
 import argon2 from "argon2";
 import { randomBytes } from "crypto";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
@@ -236,8 +236,32 @@ export class WellhubService {
       throw err;
     }
 
-    // Visita Wellhub: solo la fila de attendance. Nada de classesRemaining /
-    // AURA / completed_sessions / bookings (no es socio).
+    // Reserva del día en esta sede (flujo checkin-booking-occurred, o un
+    // checkin suelto de alguien que había reservado): se confirma con la
+    // asistencia para que el cron de no-shows no la marque como ausente.
+    const [todayBooking] = await this.db
+      .select({
+        id: schema.bookings.id,
+        scheduleId: schema.bookings.scheduleId,
+      })
+      .from(schema.bookings)
+      .innerJoin(
+        schema.schedules,
+        eq(schema.schedules.id, schema.bookings.scheduleId),
+      )
+      .where(
+        and(
+          eq(schema.bookings.memberId, userId),
+          eq(schema.bookings.bookingDate, todayStr),
+          eq(schema.schedules.branchId, branch.id),
+          inArray(schema.bookings.status, ["reservado", "qr_escaneado"]),
+        ),
+      )
+      .limit(1);
+
+    // Visita Wellhub: la fila de attendance (ligada a la reserva si existe) y
+    // la confirmación de esa reserva. Nada de classesRemaining / AURA /
+    // completed_sessions (no es socio).
     const now = new Date();
     await this.db.transaction(async (tx) => {
       const [recheck] = await tx
@@ -255,11 +279,19 @@ export class WellhubService {
       await tx.insert(schema.attendance).values({
         memberId: userId,
         branchId: branch.id,
+        scheduleId: todayBooking?.scheduleId ?? null,
         sessionDate: todayStr,
         status: "confirmado",
         source: "wellhub",
         checkedInAt: now,
       });
+
+      if (todayBooking) {
+        await tx
+          .update(schema.bookings)
+          .set({ status: "confirmado" })
+          .where(eq(schema.bookings.id, todayBooking.id));
+      }
     });
 
     this.log.info(
