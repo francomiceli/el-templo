@@ -16,7 +16,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { eq, sql, inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import {
   createTestApp,
@@ -182,16 +182,34 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await app.db.execute(sql`DELETE FROM financial_transactions`);
-  await app.db
-    .delete(schema.cashRegisters)
-    .where(
-      inArray(schema.cashRegisters.id, [
-        efectivoCajaId,
-        bancoCajaId,
-        periodoCajaId,
-      ]),
-    );
+  // Limpieza ACOTADA a las cajas de este suite. Antes era un
+  // `DELETE FROM financial_transactions` global, que además de borrar filas de
+  // otros suites que comparten la DB del worker fallaba con ER_ROW_IS_REFERENCED_2
+  // en cuanto alguna de esas filas tenía transaction_links colgando (el FK
+  // fk_tx_links_transaction no es ON DELETE CASCADE).
+  const cajaIds = [efectivoCajaId, bancoCajaId, periodoCajaId].filter(
+    (id): id is number => typeof id === "number",
+  );
+  if (cajaIds.length > 0) {
+    const txIds = (
+      await app.db
+        .select({ id: schema.financialTransactions.id })
+        .from(schema.financialTransactions)
+        .where(inArray(schema.financialTransactions.cashRegisterId, cajaIds))
+    ).map((r) => r.id);
+    // Los links primero: son los hijos del FK.
+    if (txIds.length > 0) {
+      await app.db
+        .delete(schema.transactionLinks)
+        .where(inArray(schema.transactionLinks.transactionId, txIds));
+      await app.db
+        .delete(schema.financialTransactions)
+        .where(inArray(schema.financialTransactions.id, txIds));
+    }
+    await app.db
+      .delete(schema.cashRegisters)
+      .where(inArray(schema.cashRegisters.id, cajaIds));
+  }
   await app.close();
 });
 
