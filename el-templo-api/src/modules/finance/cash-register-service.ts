@@ -10,7 +10,7 @@
 // auto-stamps `cash_register_id`, and is REUSED verbatim by phase 140 (carga
 // única del profe) — do NOT reinvent the resolver there.
 
-import { and, asc, eq, gte, isNull, ne, sql } from "drizzle-orm";
+import { and, asc, eq, gte, isNull, lte, ne, sql } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
@@ -22,6 +22,7 @@ import {
 import { firmMoneyConditions } from "./firm-money";
 import type {
   BankAccountRow,
+  CajaPeriodMovement,
   CajaSaldoRow,
   CashRegisterBalance,
   CostCenter,
@@ -299,6 +300,63 @@ export class CashRegisterService {
   }
 
   /**
+   * Movimiento FIRME de una caja en un rango de fechas (inclusive), separado en
+   * entradas y salidas (UAT caja/cobros 2026-07-21).
+   *
+   * Por qué esto y no un "saldo a fecha": el firme es acumulado desde el
+   * cutoff_date de la caja y representa la plata que HAY hoy; recalcularlo a una
+   * fecha pasada daría un número que ya no coincide con la caja física. Lo que
+   * el staff necesita es el delta del período ("la caja tenía 100, cargué 100,
+   * ¿por qué el KPI dice 200?"), que es exactamente esto.
+   *
+   * Mismos filtros que getBalance: sólo plata firme (firmMoneyConditions) y
+   * nunca antes del cutoff — un rango que empiece antes se recorta al cutoff,
+   * porque esas filas no forman parte del saldo de esta caja. Sin filtro de
+   * kind: todo lo que entra suma y todo lo que sale resta (D-09).
+   */
+  async getPeriodMovement(
+    cashRegisterId: number,
+    dateFrom: string,
+    dateTo: string,
+  ): Promise<CajaPeriodMovement> {
+    const [caja] = await this.db
+      .select({ cutoffDate: schema.cashRegisters.cutoffDate })
+      .from(schema.cashRegisters)
+      .where(eq(schema.cashRegisters.id, cashRegisterId))
+      .limit(1);
+    if (!caja) {
+      throw new NotFoundError(`No existe la caja ${cashRegisterId}`);
+    }
+    // El cutoff gana sobre un dateFrom anterior: antes de esa fecha la caja no
+    // acumula (los históricos quedaron fuera a propósito en 0154).
+    const from = dateFrom < caja.cutoffDate ? caja.cutoffDate : dateFrom;
+
+    const sumFor = async (direction: "inflow" | "outflow"): Promise<number> => {
+      const [row] = await this.db
+        .select({
+          total: sql<number>`COALESCE(SUM(${schema.financialTransactions.amount}), 0)`,
+        })
+        .from(schema.financialTransactions)
+        .where(
+          and(
+            eq(schema.financialTransactions.cashRegisterId, cashRegisterId),
+            eq(schema.financialTransactions.direction, direction),
+            ...firmMoneyConditions(),
+            gte(schema.financialTransactions.transactionDate, from),
+            lte(schema.financialTransactions.transactionDate, dateTo),
+          ),
+        );
+      return Number(row?.total ?? 0);
+    };
+
+    const [inflow, outflow] = await Promise.all([
+      sumFor("inflow"),
+      sumFor("outflow"),
+    ]);
+    return { dateFrom: from, dateTo, inflow, outflow, net: inflow - outflow };
+  }
+
+  /**
    * Phase 141 (REP-02): list every ACTIVE caja with its firme + pendiente saldo,
    * composing the existing getBalance(id) per caja (no new balance SQL). Returns
    * a flat array; the frontend groups by type (efectivo sucursal/central/banco)
@@ -312,10 +370,14 @@ export class CashRegisterService {
    * Per-caja getBalance is fine at this scale (a handful of cajas — no N+1
    * concern; 138 keeps the saldo derived, materialize only with perf evidence).
    */
-  async listActiveCajasWithBalance(scope?: {
-    isOwner: boolean;
-    country: string | null;
-  }): Promise<CajaSaldoRow[]> {
+  async listActiveCajasWithBalance(
+    scope?: {
+      isOwner: boolean;
+      country: string | null;
+    },
+    /** Rango opcional: agrega el movimiento firme del período por caja. */
+    period?: { dateFrom: string; dateTo: string },
+  ): Promise<CajaSaldoRow[]> {
     const cajas = await this.db
       .select({
         id: schema.cashRegisters.id,
@@ -349,6 +411,9 @@ export class CashRegisterService {
         currency: c.currency,
         firmeBalance: bal.firmeBalance,
         pendienteAmount: bal.pendienteAmount,
+        period: period
+          ? await this.getPeriodMovement(c.id, period.dateFrom, period.dateTo)
+          : null,
       });
     }
     return out;

@@ -503,6 +503,23 @@ export interface CajaSaldoRow {
   currency: string;
   firmeBalance: number;
   pendienteAmount: number;
+  /**
+   * Movimiento firme del período pedido (UAT caja/cobros 2026-07-21). null
+   * cuando la consulta no pidió rango — el saldo sigue siendo el acumulado
+   * desde cutoff_date, NO un saldo "a fecha". Esto responde "¿cuánto entró y
+   * salió de esta caja en julio?" sin cambiar la semántica de firmeBalance.
+   */
+  period: CajaPeriodMovement | null;
+}
+
+/** Entradas/salidas firmes de una caja en un rango de fechas (inclusive). */
+export interface CajaPeriodMovement {
+  dateFrom: string;
+  dateTo: string;
+  inflow: number;
+  outflow: number;
+  /** inflow - outflow. Puede ser negativo (mes con más egresos que cobros). */
+  net: number;
 }
 
 // -- Phase 141: historial de movimientos inter-caja y egresos (REP-03) -------

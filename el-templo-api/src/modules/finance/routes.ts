@@ -1127,7 +1127,9 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
   // Non-owner sees only their country's sucursal cajas; central/banco
   // (branch-less) owner-only. Coach 403 via the module guard.
   // ===================================================================
-  fastify.get<{ Querystring: { country?: string } }>(
+  fastify.get<{
+    Querystring: { country?: string; dateFrom?: string; dateTo?: string };
+  }>(
     "/cash-registers/balances",
     { schema: cashBalancesSchema },
     async (request, reply) => {
@@ -1140,10 +1142,34 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
         } else {
           country = request.scope.country ?? undefined;
         }
-        return await cashRegisterService.listActiveCajasWithBalance({
-          isOwner: request.scope.isOwner,
-          country: country ?? null,
-        });
+        // El rango va completo o no va: con uno solo el neto sería engañoso
+        // (mitad del período), así que se rechaza en vez de asumir un borde.
+        const { dateFrom, dateTo } = request.query;
+        if ((dateFrom === undefined) !== (dateTo === undefined)) {
+          return reply.code(400).send({
+            error: "Solicitud invalida",
+            message: "Enviá dateFrom y dateTo juntos, o ninguno de los dos.",
+          });
+        }
+        if (
+          dateFrom !== undefined &&
+          dateTo !== undefined &&
+          dateFrom > dateTo
+        ) {
+          return reply.code(400).send({
+            error: "Solicitud invalida",
+            message: "dateFrom no puede ser posterior a dateTo.",
+          });
+        }
+        return await cashRegisterService.listActiveCajasWithBalance(
+          {
+            isOwner: request.scope.isOwner,
+            country: country ?? null,
+          },
+          dateFrom !== undefined && dateTo !== undefined
+            ? { dateFrom, dateTo }
+            : undefined,
+        );
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "finance cash balances");
         return reply;

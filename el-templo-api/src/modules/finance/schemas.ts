@@ -729,6 +729,11 @@ export const cashBalancesSchema = {
     type: "object",
     properties: {
       country: { type: "string", minLength: 2, maxLength: 2 },
+      // Rango opcional (UAT caja/cobros 2026-07-21): agrega el movimiento firme
+      // del período por caja. Los dos o ninguno — un rango a medias se rechaza
+      // en el handler, no acá (JSON-Schema no expresa la dependencia).
+      dateFrom: { type: "string", format: "date" },
+      dateTo: { type: "string", format: "date" },
     },
     additionalProperties: false,
   },
