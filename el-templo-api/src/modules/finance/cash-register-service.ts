@@ -757,6 +757,107 @@ export class CashRegisterService {
   }
 
   /**
+   * Crea una caja de EFECTIVO de sucursal (UAT caja/cobros 2026-07-21: "te deja
+   * crear nuevas cuentas bancarias, pero no nuevas cajas"). Hasta ahora las
+   * cajas efectivo solo nacían por migración (0154), así que abrir una sucursal
+   * requería un deploy.
+   *
+   * INVARIANTE (D-01): una sola caja efectivo ACTIVA por (sucursal, moneda). Es
+   * lo que mantiene determinista a `resolveCashRegister`, que resuelve la caja
+   * de TODO cobro en efectivo con un `.limit(1)` sin ORDER BY: con dos cajas
+   * activas de la misma sede la elección sería arbitraria y la plata caería en
+   * una caja u otra según el plan de ejecución de MySQL. Por eso el conflicto se
+   * rechaza acá y el resolver queda intacto. Una caja CERRADA (is_active=false)
+   * no bloquea: reabrir una sede tras cerrarla es legítimo.
+   *
+   * `cutoffDate` = hoy y `openingBalance` = el arqueo inicial declarado: el saldo
+   * es `openingBalance + Σ validados desde el cutoff`, así que arrancar en la
+   * fecha de creación evita arrastrar históricos de otra caja.
+   *
+   * @throws NotFoundError cuando la sucursal no existe.
+   * @throws BadRequestError cuando la sucursal está inactiva o el saldo es negativo.
+   * @throws ConflictError cuando esa sucursal ya tiene caja efectivo activa en esa moneda.
+   */
+  async createEfectivoCaja(input: {
+    branchId: number;
+    currency: string;
+    openingBalance?: number;
+  }): Promise<CajaSaldoRow> {
+    const [branch] = await this.db
+      .select({
+        id: schema.branches.id,
+        name: schema.branches.name,
+        isActive: schema.branches.isActive,
+      })
+      .from(schema.branches)
+      .where(eq(schema.branches.id, input.branchId))
+      .limit(1);
+    if (!branch) {
+      throw new NotFoundError(`No existe la sucursal ${input.branchId}`);
+    }
+    if (!branch.isActive) {
+      throw new BadRequestError(
+        `La sucursal ${branch.name} está inactiva: no se le puede abrir una caja`,
+      );
+    }
+
+    const openingBalance = input.openingBalance ?? 0;
+    if (openingBalance < 0) {
+      throw new BadRequestError("El saldo inicial no puede ser negativo");
+    }
+
+    const [existing] = await this.db
+      .select({ id: schema.cashRegisters.id })
+      .from(schema.cashRegisters)
+      .where(
+        and(
+          eq(schema.cashRegisters.type, "efectivo"),
+          eq(schema.cashRegisters.branchId, input.branchId),
+          eq(schema.cashRegisters.currency, input.currency),
+          eq(schema.cashRegisters.isActive, true),
+        ),
+      )
+      .limit(1);
+    if (existing) {
+      throw new ConflictError(
+        `${branch.name} ya tiene una caja de efectivo en ${input.currency}`,
+      );
+    }
+
+    const name = `Efectivo ${branch.name}`;
+    const inserted = await this.db.insert(schema.cashRegisters).values({
+      name,
+      type: "efectivo",
+      branchId: input.branchId,
+      currency: input.currency,
+      openingBalance,
+      cutoffDate: this.today(),
+    });
+    const id = Number(inserted[0].insertId);
+    this.log.info(
+      {
+        cashRegisterId: id,
+        branchId: input.branchId,
+        currency: input.currency,
+        openingBalance,
+      },
+      "Caja efectivo creada",
+    );
+
+    const bal = await this.getBalance(id);
+    return {
+      cashRegisterId: id,
+      name,
+      type: "efectivo",
+      branchId: input.branchId,
+      currency: input.currency,
+      firmeBalance: bal.firmeBalance,
+      pendienteAmount: bal.pendienteAmount,
+      period: null,
+    };
+  }
+
+  /**
    * Edita una cuenta banco (CTA-01). Mergea SOLO los campos bancarios provistos
    * sobre el estado actual, recalcula el `name` (D-03) y revalida la regla
    * uno-de-dos sobre el resultado (D-02). La moneda NUNCA entra al SET —

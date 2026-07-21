@@ -41,6 +41,7 @@ import {
   pendingTraySchema,
   pendingTrayExportSchema,
   cashBalancesSchema,
+  createEfectivoCajaSchema,
   costCentersSchema,
   cashBalancesExportSchema,
   movementsHistorySchema,
@@ -1377,6 +1378,32 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.code(201).send({ account });
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "create bank account");
+      }
+    },
+  );
+
+  // POST /cash-registers/efectivo — abrir la caja de efectivo de una sucursal
+  // (UAT caja/cobros 2026-07-21). Mismo gate ADMIN_ROLES que las cuentas banco:
+  // el openingBalance entra directo al saldo firme, así que no es una escritura
+  // de gestión/recepción. El invariante "una activa por sucursal+moneda" lo
+  // sostiene el service (mantiene determinista a resolveCashRegister).
+  fastify.post<{
+    Body: { branchId: number; currency: string; openingBalance?: number };
+  }>(
+    "/cash-registers/efectivo",
+    { schema: createEfectivoCajaSchema },
+    async (request, reply) => {
+      try {
+        if (!(ADMIN_ROLES as readonly string[]).includes(request.user.role)) {
+          return reply.code(403).send({
+            error: "Acceso denegado",
+            message: "No tienes permiso para administrar cajas",
+          });
+        }
+        const caja = await cashRegisterService.createEfectivoCaja(request.body);
+        return reply.code(201).send({ caja });
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "create efectivo caja");
       }
     },
   );
