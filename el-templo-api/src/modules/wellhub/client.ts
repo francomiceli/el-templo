@@ -152,16 +152,45 @@ export class WellhubClient {
 
   // ─── Booking API: slots ────────────────────────────────────────────────────
 
+  /**
+   * Slots publicados de una class (envelope {metadata, results}).
+   * OJO (verificado 2026-07-22): sin from/to el API devuelve SOLO los slots
+   * del día; para otros días el rango es obligatorio (datetime ISO completo).
+   */
+  async listSlots(
+    gymId: number,
+    classId: number,
+    range?: { from: Date; to: Date },
+  ): Promise<WellhubSlot[]> {
+    const query = range
+      ? `?from=${encodeURIComponent(range.from.toISOString())}&to=${encodeURIComponent(range.to.toISOString())}`
+      : "";
+    const result = await this.request<{ results?: WellhubSlot[] }>(
+      "GET",
+      `/booking/v1/gyms/${gymId}/classes/${classId}/slots${query}`,
+    );
+    return result?.results ?? [];
+  }
+
+  /**
+   * El sandbox real envuelve el slot creado en {metadata, results: [slot]}
+   * (verificado 2026-07-22); se tolera también el slot pelado por si otra
+   * versión de la API responde plano.
+   */
   async createSlot(
     gymId: number,
     classId: number,
     payload: WellhubSlotPayload,
   ): Promise<WellhubSlot> {
-    return await this.request<WellhubSlot>(
-      "POST",
-      `/booking/v1/gyms/${gymId}/classes/${classId}/slots`,
-      { body: payload },
-    );
+    const result = await this.request<
+      { results?: WellhubSlot[] } | WellhubSlot
+    >("POST", `/booking/v1/gyms/${gymId}/classes/${classId}/slots`, {
+      body: payload,
+    });
+    if (result && "results" in result && Array.isArray(result.results)) {
+      return result.results[0];
+    }
+    return result as WellhubSlot;
   }
 
   async patchSlot(

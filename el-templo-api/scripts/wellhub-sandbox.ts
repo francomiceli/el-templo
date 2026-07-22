@@ -152,7 +152,8 @@ async function main(): Promise<void> {
         "POST",
         `/helper/v1/gyms/${GYM_ID}/simulate/bookings`,
         {
-          gympass_user_id: userId,
+          // El simulador exige gympass_user_id numérico (500 si va string).
+          gympass_user_id: Number(userId),
           slot_id: Number(slotId),
           class_id: Number(classId),
         },

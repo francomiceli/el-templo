@@ -82,7 +82,11 @@ function stubWellhubApi(): ApiCall[] {
         return json({ classes: [{ id: nextWellhubId++ }] });
       }
       if (method === "POST" && /\/slots$/.test(u)) {
-        return json({ id: nextWellhubId++ });
+        // Formato real del sandbox (verificado 2026-07-22): envelope con results.
+        return json({
+          metadata: { total: 1, errors: 0 },
+          results: [{ id: nextWellhubId++ }],
+        });
       }
       if (u.includes("/access/v1/validate")) {
         return json({ results: { validated_at: "2026-07-21T12:00:00Z" } });
@@ -735,6 +739,83 @@ describe("Wellhub — reservas y sincronización", () => {
     expect(remaining).toHaveLength(0);
     const deleteCall = calls.find((c) => c.method === "DELETE");
     expect(deleteCall?.url).toContain(`/slots/${tomorrowSlot?.wellhubSlotId}`);
+  });
+
+  it("adopta un slot huérfano ante 409 y alinea su capacidad remota", async () => {
+    // Escenario real (visto contra el sandbox 2026-07-22): un sync anterior
+    // creó el slot en Wellhub pero falló antes de registrarlo local → el
+    // create siguiente rebota 409 slot.not.created.already.exists.
+    const ORPHAN_ID = 999_888;
+    const calls: ApiCall[] = [];
+    let lastSlotPayload: { occur_date?: string } = {};
+    vi.stubGlobal(
+      "fetch",
+      async (url: string | URL, init?: RequestInit): Promise<Response> => {
+        const u = String(url);
+        const method = init?.method ?? "GET";
+        const body = init?.body
+          ? (JSON.parse(String(init.body)) as unknown)
+          : undefined;
+        calls.push({ method, url: u, body });
+
+        const json = (payload: unknown, status = 200) =>
+          new Response(JSON.stringify(payload), {
+            status,
+            headers: { "Content-Type": "application/json" },
+          });
+
+        if (u.includes("/setup/v1/")) {
+          return json({ products: [{ product_id: PRODUCT_ID, name: "Test" }] });
+        }
+        if (method === "POST" && /\/classes$/.test(u)) {
+          return json({ classes: [{ id: nextWellhubId++ }] });
+        }
+        if (method === "POST" && /\/slots$/.test(u)) {
+          lastSlotPayload = body as { occur_date?: string };
+          return json(
+            {
+              key: "slot.not.created.already.exists",
+              message: "Slot not created. Already exists",
+            },
+            409,
+          );
+        }
+        if (method === "GET" && u.includes("/slots?")) {
+          // Formato real: envelope results + fechas Java con sufijo [UTC];
+          // capacidad remota vieja (99) que el sync debe alinear.
+          return json({
+            metadata: { total: 1, errors: 0 },
+            results: [
+              {
+                id: ORPHAN_ID,
+                occur_date: `${lastSlotPayload.occur_date ?? ""}[UTC]`,
+                total_capacity: 99,
+                total_booked: 0,
+              },
+            ],
+          });
+        }
+        return new Response(null, { status: 204 });
+      },
+    );
+
+    const summary = await runWellhubSync(app.db);
+    expect(summary?.slotsCreated).toBeGreaterThanOrEqual(1);
+
+    const slots = await app.db
+      .select()
+      .from(schema.wellhubSlots)
+      .where(eq(schema.wellhubSlots.scheduleId, scheduleId));
+    expect(slots).toHaveLength(1);
+    expect(slots[0].wellhubSlotId).toBe(ORPHAN_ID);
+    expect(slots[0].totalCapacity).toBe(2);
+
+    // La capacidad remota difería (99 ≠ 2) → PATCH de alineación al huérfano.
+    const patch = calls.find(
+      (c) => c.method === "PATCH" && c.url.includes(`/slots/${ORPHAN_ID}`),
+    );
+    expect(patch).toBeDefined();
+    expect((patch?.body as { total_capacity: number }).total_capacity).toBe(2);
   });
 
   it("runWellhubSync expira solicitudes pending muertas y libera el cupo", async () => {

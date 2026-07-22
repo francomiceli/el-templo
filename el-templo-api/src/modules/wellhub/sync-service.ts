@@ -35,7 +35,9 @@ import * as schema from "../../db/schema";
 import { addDays, buildClassDateTime, todayInTz } from "../shared/date-utils";
 import { resolveEffectiveCapacity } from "../scheduling/capacity";
 import type { BookingService } from "../scheduling/booking-service";
+import { WellhubApiError } from "./client";
 import type { WellhubClient } from "./client";
+import type { WellhubSlot, WellhubSlotPayload } from "./types";
 
 /** Días de anticipación con que se publican slots (espejo del member window). */
 const BOOKING_OPEN_DAYS = 2;
@@ -45,6 +47,11 @@ const CANCEL_MARGIN_MINUTES = 20;
 const PENDING_EXPIRY_MINUTES = 20;
 
 const DEFAULT_HORIZON_DAYS = 7;
+
+/** Wellhub devuelve fechas estilo Java ("2026-07-22T20:00:00Z[UTC]"). */
+function parseWellhubDate(value: string): Date {
+  return new Date(value.replace(/\[[^\]]+\]$/, ""));
+}
 
 export interface WellhubSyncSummary {
   branches: number;
@@ -394,9 +401,10 @@ export class WellhubSyncService {
 
         const existing = publishedByKey.get(`${sched.id}:${date}`);
         if (!existing) {
-          const created = await this.client.createSlot(
+          const created = await this.createOrAdoptSlot(
             branch.gymId,
             wellhubClass.wellhubClassId,
+            startsAt,
             {
               occur_date: startsAt.toISOString(),
               status: 1,
@@ -482,6 +490,53 @@ export class WellhubSyncService {
     }
 
     return { slotsCreated, slotsPatched, slotsDeleted };
+  }
+
+  /**
+   * Crea el slot en Wellhub. Un 409 (slot.not.created.already.exists)
+   * significa slot huérfano: un sync anterior lo creó en Wellhub pero falló
+   * antes de registrarlo en wellhub_slots (crash o error post-create). En
+   * vez de fallar en cada sync, se adopta el slot remoto que coincida en
+   * occur_date y se lo alinea a nuestra capacidad/ocupación si difiere.
+   */
+  private async createOrAdoptSlot(
+    gymId: number,
+    classId: number,
+    startsAt: Date,
+    payload: WellhubSlotPayload,
+  ): Promise<WellhubSlot> {
+    try {
+      return await this.client.createSlot(gymId, classId, payload);
+    } catch (err: unknown) {
+      if (!(err instanceof WellhubApiError) || err.status !== 409) throw err;
+
+      // Sin rango el GET solo devuelve los slots de HOY; se pide la ventana
+      // exacta del slot conflictivo.
+      const remote = await this.client.listSlots(gymId, classId, {
+        from: new Date(startsAt.getTime() - 60 * 1000),
+        to: new Date(startsAt.getTime() + 60 * 1000),
+      });
+      const adopted = remote.find(
+        (slot) =>
+          parseWellhubDate(slot.occur_date).getTime() === startsAt.getTime(),
+      );
+      if (!adopted) throw err;
+
+      this.log.warn(
+        { gymId, classId, wellhubSlotId: adopted.id },
+        "Slot ya existía en Wellhub (huérfano de un sync fallido): adoptado",
+      );
+      if (
+        adopted.total_capacity !== payload.total_capacity ||
+        adopted.total_booked !== payload.total_booked
+      ) {
+        await this.client.patchSlot(gymId, classId, adopted.id, {
+          total_capacity: payload.total_capacity,
+          total_booked: payload.total_booked,
+        });
+      }
+      return adopted;
+    }
   }
 
   // ─── Push puntual de ocupación ─────────────────────────────────────────────
