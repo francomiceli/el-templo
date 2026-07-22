@@ -387,6 +387,8 @@ jobs:
           R2_PUBLIC_URL=${{ secrets.R2_PUBLIC_URL }}
           RESEND_API_KEY=${{ secrets.STAGING_RESEND_API_KEY }}
           CAMPAIGN_EMAIL_FROM=${{ secrets.STAGING_CAMPAIGN_EMAIL_FROM }}
+          WELLHUB_API_KEY=${{ secrets.STAGING_WELLHUB_API_KEY }}
+          WELLHUB_WEBHOOK_SECRET=${{ secrets.STAGING_WELLHUB_WEBHOOK_SECRET }}
           EOF
 
       # --- Deploy via rsync (only projects that were built) ---

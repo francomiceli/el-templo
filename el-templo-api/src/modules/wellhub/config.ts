@@ -27,7 +27,9 @@ export function getWellhubConfig(): WellhubConfig | null {
   if (!apiKey || !webhookSecret) return null;
 
   return {
-    baseUrl: process.env.WELLHUB_BASE_URL ?? SANDBOX_BASE_URL,
+    // || y no ??: el deploy genera el .env desde GitHub secrets y un secret
+    // sin definir llega como string vacío, que también debe caer al default.
+    baseUrl: process.env.WELLHUB_BASE_URL || SANDBOX_BASE_URL,
     apiKey,
     webhookSecret,
   };
