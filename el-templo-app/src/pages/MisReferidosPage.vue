@@ -206,6 +206,44 @@ async function fetchReferrals() {
   }
 }
 
+// Android/iOS rechazan la promesa del share sheet cuando el usuario lo cierra.
+// No es un fallo: no hay que caer al fallback ni avisar nada.
+function isShareCanceled(err: unknown): boolean {
+  const msg = (err instanceof Error ? err.message : String(err)).toLowerCase()
+  return msg.includes('cancel') || msg.includes('abort')
+}
+
+// El WebView de Android niega `navigator.clipboard.writeText` (Write permission
+// denied) y copyToClipboard de Quasar no tiene fallback propio en ese caso.
+async function copyWithFallback(text: string): Promise<boolean> {
+  try {
+    await copyToClipboard(text)
+    return true
+  } catch (copyErr: unknown) {
+    log.warn('clipboard API failed → fallback execCommand', {
+      err: copyErr instanceof Error ? copyErr.message : String(copyErr),
+    })
+  }
+  try {
+    const textarea = document.createElement('textarea')
+    textarea.value = text
+    textarea.setAttribute('readonly', '')
+    textarea.style.position = 'fixed'
+    textarea.style.opacity = '0'
+    document.body.appendChild(textarea)
+    textarea.select()
+    textarea.setSelectionRange(0, text.length)
+    const ok = document.execCommand('copy')
+    document.body.removeChild(textarea)
+    return ok
+  } catch (execErr: unknown) {
+    log.error('clipboard fallback failed', {
+      err: execErr instanceof Error ? execErr.message : String(execErr),
+    })
+    return false
+  }
+}
+
 async function shareCode() {
   if (!overview.value) return
   sharing.value = true
@@ -219,22 +257,29 @@ async function shareCode() {
       url,
     })
   } catch (shareErr: unknown) {
+    if (isShareCanceled(shareErr)) {
+      sharing.value = false
+      return
+    }
     log.warn('share failed → fallback clipboard', {
       err: shareErr instanceof Error ? shareErr.message : String(shareErr),
     })
-    try {
-      await copyToClipboard(url)
-      $q.notify({
-        message:
-          'No pudimos abrir el menú de compartir. Copiamos el link para que lo pegues donde quieras.',
-        color: 'warning',
-        timeout: 4000,
-      })
-    } catch (copyErr: unknown) {
-      log.error('clipboard fallback failed', {
-        err: copyErr instanceof Error ? copyErr.message : String(copyErr),
-      })
-    }
+    const copied = await copyWithFallback(url)
+    $q.notify(
+      copied
+        ? {
+            message:
+              'No pudimos abrir el menú de compartir. Copiamos el link para que lo pegues donde quieras.',
+            color: 'warning',
+            timeout: 4000,
+          }
+        : {
+            message: `No pudimos compartir ni copiar el link. Tu código es ${overview.value.referralCode}.`,
+            color: 'negative',
+            timeout: 8000,
+            actions: [{ label: 'Cerrar', color: 'white' }],
+          },
+    )
   } finally {
     sharing.value = false
   }
