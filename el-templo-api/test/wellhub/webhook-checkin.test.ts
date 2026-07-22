@@ -205,6 +205,35 @@ describe("Wellhub webhook — check-in", () => {
     ).toBe(200);
   });
 
+  it("acepta la firma también en X-Api-Signature (nombre del mail de Wellhub)", async () => {
+    stubValidateFetch();
+
+    const raw = checkinPayload({ token: uniqueToken(), gymId });
+    const res = await app.inject({
+      method: "POST",
+      url: WEBHOOK_URL,
+      headers: {
+        "content-type": "application/json",
+        "x-api-signature": sign(raw),
+      },
+      payload: raw,
+    });
+    expect(res.statusCode).toBe(200);
+
+    // Firma inválida en ese header también rechaza.
+    const raw2 = checkinPayload({ token: uniqueToken(), gymId });
+    const bad = await app.inject({
+      method: "POST",
+      url: WEBHOOK_URL,
+      headers: {
+        "content-type": "application/json",
+        "x-api-signature": "0".repeat(64),
+      },
+      payload: raw2,
+    });
+    expect(bad.statusCode).toBe(401);
+  });
+
   it("responde 400 ante JSON roto o payload sin event_type", async () => {
     const rawBroken = "{no es json";
     expect(

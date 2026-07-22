@@ -73,7 +73,9 @@ async function forwardToLocalWebhook(payload: unknown): Promise<void> {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-Gympass-Signature": signature,
+      // Nombre del header según el mail de onboarding de Wellhub (el webhook
+      // también acepta X-Gympass-Signature, el nombre de los docs Postman).
+      "X-Api-Signature": signature,
     },
     body: raw,
   });

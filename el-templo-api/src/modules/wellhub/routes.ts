@@ -3,8 +3,11 @@
  * sugiere Wellhub: checkin, booking-requested, booking-canceled,
  * booking-late-canceled).
  *
- * Sin JWT: el request se autentica por la firma HMAC X-Gympass-Signature
- * calculada sobre el body CRUDO con el secreto compartido. Por eso este
+ * Sin JWT: el request se autentica por la firma HMAC calculada sobre el body
+ * CRUDO con el secreto compartido. El header se acepta como X-Api-Signature
+ * (nombre que usa el mail de onboarding de Wellhub) o X-Gympass-Signature
+ * (nombre de la documentación Postman del sandbox) hasta confirmar cuál es
+ * el definitivo. Por eso este
  * plugin registra su propio parser de application/json con parseAs "buffer"
  * (encapsulado a este plugin — no afecta el resto de la app, que sigue
  * parseando JSON normal).
@@ -69,7 +72,9 @@ export const wellhubWebhookRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.code(400).send({ error: "Body inválido" });
     }
 
-    const signatureHeader = request.headers["x-gympass-signature"];
+    const signatureHeader =
+      request.headers["x-api-signature"] ??
+      request.headers["x-gympass-signature"];
     const signature = Array.isArray(signatureHeader)
       ? signatureHeader[0]
       : signatureHeader;
