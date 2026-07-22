@@ -6,10 +6,12 @@
  */
 
 import type { MemberSegment } from "../segmentation/types";
+import type { USER_STATUS_VALUES } from "../../db/schema/users";
 
 export type DocumentType = "DNI" | "Pasaporte" | "NIE" | "NIF" | "Otro";
 
-export type UserStatus = "freemium" | "prueba" | "activo" | "inactivo";
+// Derivado de USER_STATUS_VALUES (fuente única) — incluye 'wellhub' (0186).
+export type UserStatus = (typeof USER_STATUS_VALUES)[number];
 
 export interface MemberListParams {
   search?: string;
