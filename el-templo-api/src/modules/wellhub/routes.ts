@@ -79,10 +79,21 @@ export const wellhubWebhookRoutes: FastifyPluginAsync = async (fastify) => {
       ? signatureHeader[0]
       : signatureHeader;
 
-    if (!verifyWellhubSignature(rawBody, signature, config.webhookSecret)) {
+    const signatureFormat = verifyWellhubSignature(
+      rawBody,
+      signature,
+      config.webhookSecret,
+    );
+    if (!signatureFormat) {
       request.log.warn("Webhook Wellhub con firma inválida rechazado");
       return reply.code(401).send({ error: "Firma inválida" });
     }
+    // Con el primer webhook real de Wellhub este log identifica la receta
+    // definitiva de la firma; ahí la verificación tolerante se fija a una.
+    request.log.info(
+      { signatureFormat },
+      "Webhook Wellhub con firma verificada",
+    );
 
     let event: WellhubWebhookEvent;
     try {
