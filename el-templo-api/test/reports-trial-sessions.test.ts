@@ -67,6 +67,18 @@ function nextCode(prefix: string): string {
   return `${prefix}${t}${r}`;
 }
 
+/**
+ * Borra los change-points de roster de la sede de test. Necesario porque
+ * `class_coach_assignments` no está en TABLES_TO_CLEAN y la sede 'TEST' es
+ * preexistente (tampoco se borra), así que las asignaciones de un test se
+ * arrastran al siguiente y cambian la atribución del profe.
+ */
+async function clearRosterForTestBranch(): Promise<void> {
+  await ctx.app.db
+    .delete(schema.classCoachAssignments)
+    .where(eq(schema.classCoachAssignments.branchId, ctx.arBranchId));
+}
+
 function dateOffset(days: number): string {
   const d = new Date();
   d.setUTCHours(0, 0, 0, 0);
@@ -906,7 +918,7 @@ describe("Reports API — Trial Sessions (Phase 114-05)", () => {
 
     // Header line — Spanish with literal accented "Asistió".
     const expectedHeader =
-      "Lead,Teléfono,Fecha,Creación,Hora,Sucursal,Asistió,Estado del Lead,Plan comprado,Gestiona,Comentarios,Turno,Periodo,Semana,Reprogramaciones,Origen estado";
+      "Lead,Teléfono,Fecha,Creación,Hora,Sucursal,Profe,Asistió,Estado del Lead,Plan comprado,Gestiona,Comentarios,Turno,Periodo,Semana,Reprogramaciones,Origen estado";
     const afterBom = decoded.slice(1);
     const firstLine = afterBom.split("\r\n")[0];
     expect(firstLine).toBe(expectedHeader);
@@ -921,6 +933,167 @@ describe("Reports API — Trial Sessions (Phase 114-05)", () => {
     expect(antoninoLine).toMatch(/,No,/); // attended=no -> "No"
     expect(antoninoLine).toMatch(/Mañana/); // shift=TM -> "Mañana"
     expect(antoninoLine).toMatch(/\d{2}\/\d{2}\/\d{4}/); // fecha DD/MM/YYYY
+  });
+
+  // 16-bis. Columna "Profe": el profe atribuido por el roster effective-dated,
+  // el mismo que recibe las puntuaciones de esa clase.
+  it("export: la columna Profe sale del roster vigente esa semana", async () => {
+    // class_coach_assignments NO está en TABLES_TO_CLEAN, así que el roster
+    // sobrevive al beforeEach: se limpia acá para que la atribución dependa
+    // solo de lo que siembra este test.
+    await clearRosterForTestBranch();
+
+    const coachId = await createStaffUser(ctx.app, {
+      email: `coach-export-${Date.now()}@test.com`,
+      password: "coach-pass-123",
+      firstName: "Pedro",
+      lastName: "Profe",
+      role: "coach",
+      branchId: ctx.arBranchId,
+    });
+
+    // Clase de hace 7 días, turno mañana (scheduleArMorning = 08:00).
+    const sessionDate = dateOffset(-7);
+    const d = new Date(sessionDate + "T12:00:00Z");
+    const dow = d.getUTCDay() === 0 ? 7 : d.getUTCDay(); // ISO 1..7
+    const monday = new Date(d);
+    monday.setUTCDate(d.getUTCDate() - (dow - 1));
+    const weekStartDate = monday.toISOString().slice(0, 10);
+
+    // Change-point que arranca DOS semanas antes de la clase: por
+    // effective-dating sigue vigente esa semana aunque no haya fila propia.
+    const priorMonday = new Date(monday);
+    priorMonday.setUTCDate(monday.getUTCDate() - 14);
+    await ctx.app.db.insert(schema.classCoachAssignments).values({
+      branchId: ctx.arBranchId,
+      weekStartDate: priorMonday.toISOString().slice(0, 10),
+      dayOfWeek: dow,
+      slot: "morning",
+      coachId,
+    });
+
+    const leadConProfe = await seedLead({
+      firstName: "Conprofe",
+      lastName: "Lead",
+      branchId: ctx.arBranchId,
+    });
+    await seedBooking({
+      userId: leadConProfe,
+      scheduleId: ctx.scheduleArMorning,
+      bookingDateOffsetDays: -7,
+    });
+
+    // Segundo lead a la tarde: ese turno no tiene roster → columna vacía.
+    const leadSinProfe = await seedLead({
+      firstName: "Sinprofe",
+      lastName: "Lead",
+      branchId: ctx.arBranchId,
+    });
+    await seedBooking({
+      userId: leadSinProfe,
+      scheduleId: ctx.scheduleArAfternoon,
+      bookingDateOffsetDays: -7,
+    });
+
+    const res = await ctx.app.inject({
+      method: "GET",
+      url: `${REPORTS_URL}/trial-sessions/export`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+
+    const rawPayload = res.rawPayload ?? Buffer.from(res.body, "binary");
+    const decoded = (
+      Buffer.isBuffer(rawPayload)
+        ? rawPayload.toString("utf-8")
+        : String(rawPayload)
+    ).slice(1);
+    const lines = decoded.split("\r\n").filter((l) => l.length > 0);
+
+    // Profe es la 7ma columna (índice 6), justo después de Sucursal.
+    const header = lines[0].split(",");
+    expect(header[6]).toBe("Profe");
+
+    const conProfe = lines.find((l) => l.startsWith("Conprofe Lead"));
+    expect(conProfe).toBeDefined();
+    expect(conProfe?.split(",")[6]).toBe("Pedro Profe");
+
+    const sinProfe = lines.find((l) => l.startsWith("Sinprofe Lead"));
+    expect(sinProfe).toBeDefined();
+    expect(sinProfe?.split(",")[6]).toBe("");
+  });
+
+  it("export: un cambio de roster POSTERIOR no reescribe el profe de una clase pasada", async () => {
+    await clearRosterForTestBranch();
+
+    const viejoId = await createStaffUser(ctx.app, {
+      email: `coach-viejo-${Date.now()}@test.com`,
+      password: "coach-pass-123",
+      firstName: "Vieja",
+      lastName: "Guardia",
+      role: "coach",
+      branchId: ctx.arBranchId,
+    });
+    const nuevoId = await createStaffUser(ctx.app, {
+      email: `coach-nuevo-${Date.now()}@test.com`,
+      password: "coach-pass-123",
+      firstName: "Nueva",
+      lastName: "Camada",
+      role: "coach",
+      branchId: ctx.arBranchId,
+    });
+
+    const sessionDate = dateOffset(-14);
+    const d = new Date(sessionDate + "T12:00:00Z");
+    const dow = d.getUTCDay() === 0 ? 7 : d.getUTCDay();
+    const monday = new Date(d);
+    monday.setUTCDate(d.getUTCDate() - (dow - 1));
+
+    // Vigente desde la semana de la clase.
+    await ctx.app.db.insert(schema.classCoachAssignments).values({
+      branchId: ctx.arBranchId,
+      weekStartDate: monday.toISOString().slice(0, 10),
+      dayOfWeek: dow,
+      slot: "morning",
+      coachId: viejoId,
+    });
+    // Cambio una semana DESPUÉS: no debe tocar la atribución de la clase vieja.
+    const laterMonday = new Date(monday);
+    laterMonday.setUTCDate(monday.getUTCDate() + 7);
+    await ctx.app.db.insert(schema.classCoachAssignments).values({
+      branchId: ctx.arBranchId,
+      weekStartDate: laterMonday.toISOString().slice(0, 10),
+      dayOfWeek: dow,
+      slot: "morning",
+      coachId: nuevoId,
+    });
+
+    const lead = await seedLead({
+      firstName: "Historico",
+      lastName: "Lead",
+      branchId: ctx.arBranchId,
+    });
+    await seedBooking({
+      userId: lead,
+      scheduleId: ctx.scheduleArMorning,
+      bookingDateOffsetDays: -14,
+    });
+
+    const res = await ctx.app.inject({
+      method: "GET",
+      url: `${REPORTS_URL}/trial-sessions/export`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+    });
+    const rawPayload = res.rawPayload ?? Buffer.from(res.body, "binary");
+    const decoded = (
+      Buffer.isBuffer(rawPayload)
+        ? rawPayload.toString("utf-8")
+        : String(rawPayload)
+    ).slice(1);
+    const line = decoded
+      .split("\r\n")
+      .find((l) => l.startsWith("Historico Lead"));
+    expect(line?.split(",")[6]).toBe("Vieja Guardia");
   });
 
   // 17. reschedules — COUNT of cancelled trial bookings for the lead (D-04).
@@ -1027,9 +1200,7 @@ describe("Reports API — Trial Sessions (Phase 114-05)", () => {
     const con = body.rows.find(
       (r: { userId: number }) => r.userId === withPhone,
     );
-    const sin = body.rows.find(
-      (r: { userId: number }) => r.userId === noPhone,
-    );
+    const sin = body.rows.find((r: { userId: number }) => r.userId === noPhone);
     expect(con.phone).toBe("+5491155667788");
     expect(sin.phone).toBeNull();
   });
@@ -1071,9 +1242,7 @@ describe("Reports API — Trial Sessions (Phase 114-05)", () => {
     const manual = body.rows.find(
       (r: { userId: number }) => r.userId === uManual,
     );
-    const histo = body.rows.find(
-      (r: { userId: number }) => r.userId === uNull,
-    );
+    const histo = body.rows.find((r: { userId: number }) => r.userId === uNull);
     expect(manual.leadStatusSource).toBe("manual");
     expect(histo.leadStatusSource).toBe(null);
   });
