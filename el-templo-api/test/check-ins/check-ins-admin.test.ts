@@ -578,7 +578,6 @@ describe("Admin check-ins view", () => {
       "dateFrom=ayer",
       "branchId=0",
       "limit=500",
-      "foo=bar",
     ];
     for (const qs of bad) {
       const res = await app.inject({
@@ -588,5 +587,29 @@ describe("Admin check-ins view", () => {
       });
       expect(res.statusCode, `${qs} debería ser 400`).toBe(400);
     }
+  });
+
+  it("ignora un parámetro desconocido en vez de rechazarlo", async () => {
+    // additionalProperties:false NO devuelve 400 acá: Fastify compila ajv con
+    // removeAdditional:true (default de @fastify/ajv-compiler), así que el
+    // parámetro de más se descarta y la request sigue. Se fija el
+    // comportamiento real para que no vuelva a escribirse un test que espere
+    // 400 -- y para notar el día que alguien cambie esa opción global.
+    await seedCheckIn(app, {
+      userId: ctx.memberArId,
+      questionType: "energy",
+      value: "normal",
+      date: dateDaysAgo(0),
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: `${ADMIN_BASE}?foo=bar`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    // Y el parámetro colado no filtró nada: devuelve lo mismo que sin él.
+    const body = JSON.parse(res.body) as AdminCheckInsBody;
+    expect(body.total).toBe(1);
   });
 });
