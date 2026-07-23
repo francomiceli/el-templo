@@ -367,6 +367,12 @@ import { extractError } from 'src/utils/extract-error';
 
 const props = defineProps<{
   branchId?: number | undefined;
+  /**
+   * País del selector de ReportesPage (owner). Sin esto el server resuelve el
+   * scope desde la sede del propio owner —- que es AR -— y las sesiones de
+   * prueba de España quedan invisibles con cualquier filtro.
+   */
+  country?: 'AR' | 'ES' | undefined;
 }>();
 
 // ─── Setup ──────────────────────────────────────────────────────────────
@@ -761,6 +767,7 @@ const columns: QTableColumn<TrialSessionsRowClient>[] = [
 function buildServerFilters() {
   return {
     branchId: props.branchId,
+    country: props.country,
     leadStatus: filters.leadStatus.length > 0 ? filters.leadStatus : undefined,
     attended: filters.attended ?? undefined,
     shift: filters.shift ?? undefined,
@@ -964,7 +971,7 @@ async function onExport(): Promise<void> {
 // ─── Lifecycle ──────────────────────────────────────────────────────────
 
 watch(
-  () => props.branchId,
+  () => [props.branchId, props.country],
   () => {
     pagination.value.page = 1;
     void load();
