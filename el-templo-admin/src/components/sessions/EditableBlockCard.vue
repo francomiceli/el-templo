@@ -74,7 +74,7 @@
         dense
         outlined
         label="Título del juego (opcional)"
-        hint="Reemplaza el subtítulo PDF por este texto (dejar vacío para mantener 'INITIUM · {formato}')"
+        hint="Titula el juego en el PDF; el formato y sus parámetros pasan a una segunda línea (vacío = 'INITIUM · {formato}')"
         maxlength="100"
         clearable
         @blur="onCustomTitleBlur"

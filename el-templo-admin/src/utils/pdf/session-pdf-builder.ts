@@ -304,6 +304,7 @@ function buildClosingPage(quoteIndex: number): Content[] {
  */
 function buildInitiumPage(block: PdfBlockPage): Content[] {
   const exerciseGap = 32;
+  const hasCustomTitle = Boolean(block.customTitle && block.customTitle.length > 0);
 
   return [
     { text: '', pageBreak: 'before' as const },
@@ -319,13 +320,13 @@ function buildInitiumPage(block: PdfBlockPage): Content[] {
       font: 'Cinzel',
     },
     // INITIUM · FORMAT (or custom title if set) — bolder
-    // Phase 100 D-05: when customTitle is set, subtitle is the title alone (no "INITIUM · " prefix);
-    // when null/empty, subtitle remains byte-identical to pre-phase output.
+    // Phase 100 D-05: when customTitle is set, this line is the title alone (no
+    // "INITIUM · " prefix) y el formato pasa a la línea de abajo; when
+    // null/empty, subtitle remains byte-identical to pre-phase output.
     {
-      text:
-        block.customTitle && block.customTitle.length > 0
-          ? block.customTitle
-          : `${block.role}  ·  ${block.formatName}`,
+      text: hasCustomTitle
+        ? (block.customTitle as string)
+        : `${block.role}  ·  ${block.formatName}`,
       fontSize: 130,
       bold: true,
       color: GOLD,
@@ -333,7 +334,27 @@ function buildInitiumPage(block: PdfBlockPage): Content[] {
       characterSpacing: 6,
       font: 'NunitoSans',
     },
-    { text: '', margin: [0, 112, 0, 0] },
+    // Fix 2026-07-23: el "Título del juego" pisaba el formato Y sus parámetros
+    // (AMRAP 12', EMOM 10' (60")), así que el PDF dejaba de decir cuánto dura
+    // el juego. Ahora el formato baja a una segunda línea más chica en vez de
+    // desaparecer. `formatName` YA viene con los params resueltos desde
+    // formatNameWithParams() en el transformer.
+    ...(hasCustomTitle
+      ? [
+          {
+            text: block.formatName,
+            fontSize: 85,
+            bold: true,
+            color: GOLD,
+            margin: [260, 8, 0, 0] as [number, number, number, number],
+            characterSpacing: 4,
+            font: 'NunitoSans',
+          },
+        ]
+      : []),
+    // El alto de página es fijo (2160): la segunda línea del subtítulo se paga
+    // acortando este separador, no empujando la lista de ejercicios hacia abajo.
+    { text: '', margin: [0, hasCustomTitle ? 30 : 112, 0, 0] },
     // NIVEL α Δ Σ ☉ — alfa/delta/sigma y kairos (☉ vector) AL FINAL. El ☉ se
     // dibuja vectorial (Roboto no lo tiene), así que esto es un columns en vez de text.
     {
