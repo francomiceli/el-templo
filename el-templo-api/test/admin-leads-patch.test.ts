@@ -217,9 +217,9 @@ describe("PATCH /api/admin/leads/:userId (Phase 114 D-27..D-34)", () => {
   });
 
   // ────────────────────────────────────────────────────────────────────
-  // Test 3: non-lead user → 409 (D-28)
+  // Test 3: usuario que NUNCA fue lead → 409 (D-28, relajado 2026-07-23)
   // ────────────────────────────────────────────────────────────────────
-  it("returns 409 when user status is not 'prueba' (D-28)", async () => {
+  it("returns 409 for a user that was never a lead (D-28)", async () => {
     const passwordHash = await argon2.hash("eltemplo2026");
     const [activeRow] = await app.db
       .insert(schema.users)
@@ -256,6 +256,119 @@ describe("PATCH /api/admin/leads/:userId (Phase 114 D-27..D-34)", () => {
       .where(eq(schema.users.id, activeRow.id));
     expect(dbRow?.leadStatus).toBeNull();
     expect(dbRow?.status).toBe("activo");
+  });
+
+  // ────────────────────────────────────────────────────────────────────
+  // Test 3b/3c/3d — Fix 2026-07-23: los ex-leads (ya convertidos, status
+  // 'activo'/'inactivo') SIGUEN siendo editables desde el reporte histórico
+  // de Sesiones de Prueba. El 409 quedó reservado para "nunca fue lead".
+  // ────────────────────────────────────────────────────────────────────
+  it("allows editing an ex-lead that already converted (converted_at set)", async () => {
+    const userId = await seedLead({ branchId: arBranchId });
+    await app.db
+      .update(schema.users)
+      .set({
+        status: "activo",
+        leadStatus: null,
+        convertedAt: new Date(),
+      })
+      .where(eq(schema.users.id, userId));
+
+    const res = await app.inject({
+      method: "PATCH",
+      url: `/api/admin/leads/${userId}`,
+      headers: { authorization: `Bearer ${ownerToken}` },
+      payload: { leadNotes: "Se dio de alta, seguimiento post-venta" },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const [dbRow] = await app.db
+      .select({ leadNotes: schema.users.leadNotes })
+      .from(schema.users)
+      .where(eq(schema.users.id, userId));
+    expect(dbRow?.leadNotes).toBe("Se dio de alta, seguimiento post-venta");
+  });
+
+  it("allows marking an inactive ex-lead as 'perdido' while clearing the plan", async () => {
+    // Caso real de prod (Sentry NODE-4M, user 6999): convertido con plan y
+    // luego dado de baja → status 'inactivo'. Marcar Perdido daba 409.
+    const planId = await seedPlan(`Plan ExLead ${uniq}`);
+    const userId = await seedLead({
+      branchId: arBranchId,
+      leadStatus: "ganado",
+      purchasedPlanId: planId,
+    });
+    await app.db
+      .update(schema.users)
+      .set({ status: "inactivo", convertedAt: new Date() })
+      .where(eq(schema.users.id, userId));
+
+    const res = await app.inject({
+      method: "PATCH",
+      url: `/api/admin/leads/${userId}`,
+      headers: { authorization: `Bearer ${ownerToken}` },
+      payload: { leadStatus: "perdido", purchasedPlanId: null },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const [dbRow] = await app.db
+      .select({
+        leadStatus: schema.users.leadStatus,
+        purchasedPlanId: schema.users.purchasedPlanId,
+        status: schema.users.status,
+      })
+      .from(schema.users)
+      .where(eq(schema.users.id, userId));
+    expect(dbRow?.leadStatus).toBe("perdido");
+    expect(dbRow?.purchasedPlanId).toBeNull();
+    // El PATCH de lead NO toca el status del usuario.
+    expect(dbRow?.status).toBe("inactivo");
+  });
+
+  it("allows editing an active user whose only lead trace is an is_trial booking", async () => {
+    // Sin converted_at ni lead_status: el gate cae al booking is_trial, la
+    // misma fuente de filas que usa el reporte de Sesiones de Prueba.
+    const userId = await seedLead({ branchId: arBranchId, leadStatus: null });
+    await app.db
+      .update(schema.users)
+      .set({ status: "activo", leadStatus: null, convertedAt: null })
+      .where(eq(schema.users.id, userId));
+
+    const [act] = await app.db
+      .insert(schema.activities)
+      .values({ name: `Calistenia ExLead ${uniq}`, description: "trial gate" })
+      .$returningId();
+    const [sched] = await app.db
+      .insert(schema.schedules)
+      .values({
+        branchId: arBranchId,
+        activityId: act.id,
+        dayOfWeek: 1,
+        startTime: "08:00",
+        endTime: "09:00",
+      })
+      .$returningId();
+    await app.db.insert(schema.bookings).values({
+      memberId: userId,
+      scheduleId: sched.id,
+      bookingDate: "2026-07-15",
+      status: "reservado",
+      isTrial: true,
+    });
+
+    const res = await app.inject({
+      method: "PATCH",
+      url: `/api/admin/leads/${userId}`,
+      headers: { authorization: `Bearer ${ownerToken}` },
+      payload: { leadStatus: "perdido" },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const [dbRow] = await app.db
+      .select({ leadStatus: schema.users.leadStatus })
+      .from(schema.users)
+      .where(eq(schema.users.id, userId));
+    expect(dbRow?.leadStatus).toBe("perdido");
   });
 
   // ────────────────────────────────────────────────────────────────────
