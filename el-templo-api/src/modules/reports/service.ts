@@ -6,7 +6,17 @@
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { eq, and, gt, sql, isNull, isNotNull, type SQL } from "drizzle-orm";
+import {
+  eq,
+  and,
+  gt,
+  lte,
+  sql,
+  isNull,
+  isNotNull,
+  inArray,
+  type SQL,
+} from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { firmMoneySqlFor } from "../finance/firm-money";
@@ -14,6 +24,11 @@ import { buildMemberNameSearchCondition } from "../shared/member-search";
 import { activeMemberExists } from "../shared/active-member";
 import { ForbiddenError, NotFoundError } from "../shared/errors";
 import { runReassignMultibranch } from "../../jobs/reassign-multibranch";
+// Atribución de profe por roster: misma regla que usan las puntuaciones.
+import {
+  RosterAttributionIndex,
+  isoWeekStart,
+} from "../ratings/roster-attribution";
 import type {
   AccessReportFilters,
   AccessReportRow,
@@ -1887,11 +1902,17 @@ export class ReportsService {
    * are wrapped in double quotes; any literal double quote is doubled.
    *
    * Spanish headers (literal accented chars; the file is UTF-8):
-   *   Lead, Fecha, Creación, Hora, Sucursal, Asistió, Estado del Lead,
+   *   Lead, Fecha, Creación, Hora, Sucursal, Profe, Asistió, Estado del Lead,
    *   Plan comprado, Gestiona, Comentarios, Turno, Periodo, Semana
    *
    * Date format: DD/MM/YYYY (D-05). Hora: HH:MM (D-06). Asistió: "Sí" / "No"
    * / "" (D-08).
+   *
+   * "Profe" es el profe atribuido a esa clase por el roster effective-dated —
+   * el MISMO que recibe las puntuaciones de esa sesión (ver
+   * roster-attribution.ts). Queda vacío cuando la sucursal no tenía roster
+   * cargado para ese día/turno en esa semana. Es una columna del export
+   * únicamente: el listado JSON del reporte no lo devuelve.
    */
   async exportTrialSessions(filters: TrialSessionsFilters): Promise<string> {
     // D-26 / T-114-05-03 — hard cap. Override pagination, fetch the full set.
@@ -1902,6 +1923,8 @@ export class ReportsService {
       limit: HARD_CAP,
     });
 
+    const rosterIndex = await this.loadRosterAttribution(data.rows);
+
     const headers = [
       "Lead",
       "Teléfono",
@@ -1909,6 +1932,7 @@ export class ReportsService {
       "Creación",
       "Hora",
       "Sucursal",
+      "Profe",
       "Asistió",
       "Estado del Lead",
       "Plan comprado",
@@ -1932,6 +1956,12 @@ export class ReportsService {
       const turnoLabel = row.shift === "TM" ? "Mañana" : "Tarde";
       const origenLabel =
         row.leadStatusSource === "manual" ? "Manual" : "Automático";
+      const profeName =
+        rosterIndex.resolve({
+          branchId: row.branchId,
+          sessionDate: row.bookingDate,
+          startTime: row.startTime,
+        })?.coachName ?? "";
       const cells = [
         row.lead,
         row.phone ?? "",
@@ -1939,6 +1969,7 @@ export class ReportsService {
         creacionDDMMYYYY,
         row.startTime,
         row.branchName,
+        profeName,
         asistidoLabel,
         estadoLabel,
         row.purchasedPlanName ?? "",
@@ -1955,6 +1986,62 @@ export class ReportsService {
 
     // CRLF per RFC 4180 (Excel-friendly).
     return lines.join("\r\n") + "\r\n";
+  }
+
+  /**
+   * Change-points del roster necesarios para atribuir el profe de las filas
+   * dadas, en UNA query. Resolver clase por clase sería un N+1 de hasta 10000
+   * queries (el cap del export).
+   *
+   * Se traen TODOS los change-points de las sucursales involucradas cuya semana
+   * sea <= la semana más nueva del export: los posteriores no pueden aplicar a
+   * ninguna de estas clases, y los anteriores sí (una clase vieja hereda un
+   * change-point viejo, así que no se puede acotar por abajo).
+   */
+  private async loadRosterAttribution(
+    rows: TrialSessionsRow[],
+  ): Promise<RosterAttributionIndex> {
+    if (rows.length === 0) {
+      return new RosterAttributionIndex([]);
+    }
+
+    const branchIds = [...new Set(rows.map((r) => r.branchId))];
+    const maxWeekStart = rows
+      .map((r) => isoWeekStart(r.bookingDate))
+      .reduce((max, w) => (w > max ? w : max));
+
+    const changePoints = await this.db
+      .select({
+        branchId: schema.classCoachAssignments.branchId,
+        weekStartDate: schema.classCoachAssignments.weekStartDate,
+        dayOfWeek: schema.classCoachAssignments.dayOfWeek,
+        slot: schema.classCoachAssignments.slot,
+        coachId: schema.classCoachAssignments.coachId,
+        firstName: schema.users.firstName,
+        lastName: schema.users.lastName,
+      })
+      .from(schema.classCoachAssignments)
+      .innerJoin(
+        schema.users,
+        eq(schema.users.id, schema.classCoachAssignments.coachId),
+      )
+      .where(
+        and(
+          inArray(schema.classCoachAssignments.branchId, branchIds),
+          lte(schema.classCoachAssignments.weekStartDate, maxWeekStart),
+        ),
+      );
+
+    return new RosterAttributionIndex(
+      changePoints.map((cp) => ({
+        branchId: cp.branchId,
+        weekStartDate: cp.weekStartDate,
+        dayOfWeek: cp.dayOfWeek,
+        slot: cp.slot,
+        coachId: cp.coachId,
+        coachName: [cp.firstName, cp.lastName].filter(Boolean).join(" ").trim(),
+      })),
+    );
   }
 
   /**
