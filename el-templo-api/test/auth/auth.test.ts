@@ -400,6 +400,31 @@ describe("Auth Routes", () => {
       const body = JSON.parse(res.body);
       expect(body.dateOfBirth).toBe("1990-06-15");
     });
+
+    it("exposes memberSince as the user's createdAt in ISO format", async () => {
+      const { user, token } = await registerUser(app, {
+        email: "me-member-since@test.com",
+        password: "password123",
+        branchId: 1,
+        dni: "AUTH-ME-SINCE",
+      });
+
+      const alta = new Date("2024-07-01T12:00:00.000Z");
+      await app.db
+        .update(schema.users)
+        .set({ createdAt: alta })
+        .where(eq(schema.users.id, user.id as number));
+
+      const res = await app.inject({
+        method: "GET",
+        url: "/api/auth/me",
+        headers: { authorization: `Bearer ${token}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.memberSince).toBe(alta.toISOString());
+    });
   });
 
   // ---------------------------------------------------------------

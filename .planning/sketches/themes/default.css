@@ -1,0 +1,45 @@
+/* El Templo — theme de sketches
+   Fuente de verdad: el-templo-app/src/css/quasar.variables.scss
+   Paleta cálida, SIN azul. Dorado RESERVADO para Aura (no usar en badges). */
+:root {
+  /* Colores de marca */
+  --color-bg: #f2ede5; /* Marble Cream */
+  --color-surface: #ffffff;
+  --color-border: #d9cfc1; /* Warm Stone */
+  --color-text: #3d3732; /* Deep Charcoal */
+  --color-text-muted: #6b6459; /* Olive Stone */
+  --color-primary: #96593a; /* Terracotta */
+  --color-primary-hover: #7d4a30;
+  --color-secondary: #7d5d42; /* Clay */
+  --color-bronze: #d4b896; /* Bronze light — acento de antigüedad */
+  --color-danger: #b34a4a;
+  --color-success: #3b7249;
+  --color-aura-gold: #c9a227; /* RESERVADO Aura — solo referencia, no badges */
+
+  /* Tipografía (app usa sans de sistema, base 14px) */
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+
+  /* Espaciado */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  /* Formas */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-full: 9999px;
+
+  /* Sombras cálidas */
+  --shadow-sm: 0 1px 2px rgba(61, 55, 50, 0.08);
+  --shadow-md: 0 4px 10px rgba(61, 55, 50, 0.1);
+}

@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sketch 001 — Sello verificado del Templo (oro)</title>
+<link rel="stylesheet" href="../themes/default.css">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: var(--font-sans);
+    background: #e8e2d8;
+    color: var(--color-text);
+    padding-top: 96px;
+    padding-bottom: 48px;
+    min-height: 100vh;
+  }
+
+  /* ── Tabs de variantes ─────────────────────────────── */
+  #variant-nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 9998;
+    background: var(--color-surface);
+    border-bottom: 1px solid var(--color-border);
+    padding: 10px 16px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+  }
+  .variant-tab {
+    border: 1px solid var(--color-border); background: transparent;
+    color: var(--color-text-muted); font: inherit; font-size: var(--text-sm);
+    padding: 6px 14px; border-radius: var(--radius-full); cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .variant-tab:hover { border-color: var(--color-primary); color: var(--color-primary); }
+  .variant-tab.active {
+    background: var(--color-primary); border-color: var(--color-primary); color: #fff;
+  }
+  .controls {
+    margin-left: auto; display: flex; gap: 6px; align-items: center;
+    font-size: var(--text-xs); color: var(--color-text-muted);
+  }
+  .controls button {
+    border: 1px solid var(--color-border); background: transparent; color: var(--color-text-muted);
+    font: inherit; font-size: var(--text-xs); padding: 4px 10px;
+    border-radius: var(--radius-sm); cursor: pointer; transition: all 0.15s ease;
+  }
+  .controls button:hover { border-color: var(--color-secondary); color: var(--color-secondary); }
+  .controls button.on { background: var(--color-secondary); border-color: var(--color-secondary); color: #fff; }
+
+  /* ── Frame de teléfono ─────────────────────────────── */
+  #phone {
+    max-width: 375px; margin: 0 auto; background: var(--color-bg);
+    border-radius: 28px; box-shadow: var(--shadow-md), 0 0 0 8px #3d3732;
+    overflow: hidden; min-height: 560px; transition: max-width 0.3s ease;
+  }
+  #phone.desktop { max-width: 900px; border-radius: var(--radius-lg); }
+  .statusbar {
+    display: flex; justify-content: space-between; padding: 10px 20px 0;
+    font-size: 11px; color: var(--color-text-muted);
+  }
+  .page { padding: var(--space-4) var(--space-4) var(--space-6); }
+
+  /* ── Saludo base (espeja MainLayout header-greeting) ── */
+  .greeting { margin-bottom: var(--space-4); }
+  .greeting__name {
+    font-size: var(--text-2xl); font-weight: 700; letter-spacing: -0.01em;
+    display: flex; align-items: center; gap: 7px;
+  }
+  .greeting__date { font-size: var(--text-sm); color: var(--color-text-muted); margin-top: 2px; }
+
+  /* ── Sello verificado (inline, a la derecha del !) ─── */
+  .seal {
+    display: inline-grid; place-items: center; cursor: pointer; border: none;
+    background: none; padding: 0; line-height: 0; position: relative;
+    transition: transform 0.15s ease;
+    filter: drop-shadow(0 1px 1.5px rgba(138, 109, 26, 0.45));
+  }
+  .seal:hover { transform: scale(1.12); }
+  .seal.pop { animation: pop 0.45s cubic-bezier(0.3, 1.6, 0.5, 1); }
+  @keyframes pop {
+    0% { transform: scale(1); }
+    40% { transform: scale(1.35) rotate(-6deg); }
+    100% { transform: scale(1); }
+  }
+  .seal-tip {
+    font-size: var(--text-xs); color: #8a6d1a; font-weight: 600; margin-top: 5px;
+    opacity: 0; transition: opacity 0.25s ease; height: 1.1em; letter-spacing: 0.02em;
+  }
+  .seal-tip.show { opacity: 1; }
+
+  /* Card fake para juzgar la competencia visual */
+  .fake-card {
+    background: var(--color-surface); border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg); padding: var(--space-4);
+    display: flex; gap: var(--space-3); align-items: center; box-shadow: var(--shadow-sm);
+    margin-top: var(--space-4);
+  }
+  .fake-card__icon {
+    width: 40px; height: 40px; border-radius: var(--radius-md);
+    background: rgba(150, 89, 58, 0.12); color: var(--color-primary);
+    display: grid; place-items: center; font-size: 20px; flex-shrink: 0;
+  }
+  .fake-card__title { font-weight: 600; font-size: var(--text-sm); }
+  .fake-card__sub { font-size: var(--text-xs); color: var(--color-text-muted); margin-top: 2px; }
+
+  .variant { display: none; }
+  .variant.active { display: block; }
+
+  /* Zoom de inspección del sello */
+  .zoom {
+    margin-top: var(--space-6); padding: var(--space-4);
+    background: var(--color-surface); border: 1px dashed var(--color-border);
+    border-radius: var(--radius-md); text-align: center;
+  }
+  .zoom__label { font-size: var(--text-xs); color: var(--color-text-muted); margin-bottom: var(--space-2); }
+  .zoom svg { width: 96px; height: 96px; }
+
+  /* ── Toolbar ────────────────────────────────────────── */
+  #sketch-tools {
+    position: fixed; bottom: 12px; right: 12px; z-index: 9999;
+    font-family: system-ui; font-size: 12px; background: rgba(0, 0, 0, 0.75); color: #fff;
+    padding: 8px 12px; border-radius: 8px; opacity: 0.4; transition: opacity 0.2s;
+    display: flex; gap: 8px; align-items: center;
+  }
+  #sketch-tools:hover { opacity: 1; }
+  #sketch-tools button, #sketch-tools select {
+    font-size: 11px; background: rgba(255, 255, 255, 0.15); color: #fff;
+    border: none; border-radius: 4px; padding: 3px 8px; cursor: pointer;
+  }
+</style>
+</head>
+<body>
+
+<div id="variant-nav">
+  <button class="variant-tab active" onclick="showVariant('a', event)">A: Roseta verificado ★</button>
+  <button class="variant-tab" onclick="showVariant('b', event)">B: Medalla laureada</button>
+  <button class="variant-tab" onclick="showVariant('c', event)">C: Templo de oro</button>
+  <div class="controls">
+    <span>Antigüedad:</span>
+    <button class="on" onclick="setYears(1, event)">1 año</button>
+    <button onclick="setYears(2, event)">2 años</button>
+    <button onclick="setYears(5, event)">5 años</button>
+    <span style="margin-left:8px">Tamaño:</span>
+    <button onclick="setSize(18, event)">18px</button>
+    <button class="on sz" onclick="setSize(21, event)">21px</button>
+    <button onclick="setSize(24, event)">24px</button>
+  </div>
+</div>
+
+<div id="phone">
+  <div class="statusbar"><span>9:41</span><span>martes 22 jul</span></div>
+  <div class="page">
+
+    <!-- ══ Variante A: roseta estilo "verificado" IG/Twitter, festoneada ══ -->
+    <div id="variant-a" class="variant active">
+      <div class="greeting">
+        <h1 class="greeting__name">Hola, Nacho!
+          <button class="seal" onclick="sealTap(this)" aria-label="Miembro verificado del Templo">
+            <svg class="seal-svg" width="21" height="21" viewBox="0 0 24 24">
+              <defs>
+                <linearGradient id="goldA" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0" stop-color="#e8c95a"/>
+                  <stop offset="0.55" stop-color="#c9a227"/>
+                  <stop offset="1" stop-color="#8a6d1a"/>
+                </linearGradient>
+              </defs>
+              <polygon
+                points="24,12 21.85,14.64 22.39,18 19.21,19.21 18,22.39 14.64,21.85 12,24 9.36,21.85 6,22.39 4.79,19.21 1.61,18 2.15,14.64 0,12 2.15,9.36 1.61,6 4.79,4.79 6,1.61 9.36,2.15 12,0 14.64,2.15 18,1.61 19.21,4.79 22.39,6 21.85,9.36"
+                fill="url(#goldA)" stroke="url(#goldA)" stroke-width="1.2" stroke-linejoin="round"/>
+              <g stroke="#fff" stroke-width="1.5" stroke-linecap="round" fill="none">
+                <path d="M12 5.6 7.6 8.6 h8.8 Z" fill="#fff" stroke="none"/>
+                <path d="M8.6 10.4 v5 M12 10.4 v5 M15.4 10.4 v5"/>
+                <path d="M7.2 17.2 h9.6"/>
+              </g>
+            </svg>
+          </button>
+        </h1>
+        <p class="greeting__date">martes, 22 de julio</p>
+        <p class="seal-tip">Miembro del Templo desde julio 2025 · 1 año</p>
+      </div>
+      <div class="fake-card">
+        <div class="fake-card__icon">⚑</div>
+        <div>
+          <div class="fake-card__title">Invitá un amigo</div>
+          <div class="fake-card__sub">Ambos se llevan un descuento</div>
+        </div>
+      </div>
+      <div class="zoom">
+        <p class="zoom__label">Zoom ×4 — detalle del sello</p>
+        <svg viewBox="0 0 24 24">
+          <defs>
+            <linearGradient id="goldAz" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#e8c95a"/>
+              <stop offset="0.55" stop-color="#c9a227"/>
+              <stop offset="1" stop-color="#8a6d1a"/>
+            </linearGradient>
+          </defs>
+          <polygon
+            points="24,12 21.85,14.64 22.39,18 19.21,19.21 18,22.39 14.64,21.85 12,24 9.36,21.85 6,22.39 4.79,19.21 1.61,18 2.15,14.64 0,12 2.15,9.36 1.61,6 4.79,4.79 6,1.61 9.36,2.15 12,0 14.64,2.15 18,1.61 19.21,4.79 22.39,6 21.85,9.36"
+            fill="url(#goldAz)" stroke="url(#goldAz)" stroke-width="1.2" stroke-linejoin="round"/>
+          <g stroke="#fff" stroke-width="1.5" stroke-linecap="round" fill="none">
+            <path d="M12 5.6 7.6 8.6 h8.8 Z" fill="#fff" stroke="none"/>
+            <path d="M8.6 10.4 v5 M12 10.4 v5 M15.4 10.4 v5"/>
+            <path d="M7.2 17.2 h9.6"/>
+          </g>
+        </svg>
+      </div>
+    </div>
+
+    <!-- ══ Variante B: medalla circular con laurel ══ -->
+    <div id="variant-b" class="variant">
+      <div class="greeting">
+        <h1 class="greeting__name">Hola, Nacho!
+          <button class="seal" onclick="sealTap(this)" aria-label="Miembro verificado del Templo">
+            <svg class="seal-svg" width="21" height="21" viewBox="0 0 24 24">
+              <defs>
+                <linearGradient id="goldB" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0" stop-color="#e8c95a"/>
+                  <stop offset="0.55" stop-color="#c9a227"/>
+                  <stop offset="1" stop-color="#8a6d1a"/>
+                </linearGradient>
+              </defs>
+              <circle cx="12" cy="12" r="11.2" fill="url(#goldB)"/>
+              <circle cx="12" cy="12" r="9.4" fill="none" stroke="#fff" stroke-width="0.7" opacity="0.55"/>
+              <g stroke="#8a6d1a" stroke-width="1" stroke-linecap="round" fill="none" opacity="0.9">
+                <path d="M6.2 17.5 C4.3 15.3, 4.1 10.5, 6.4 8 M6 15.5 l-1.6 0.7 M5.4 13 l-1.8 0.2 M5.5 10.5 l-1.6 -0.5"/>
+                <path d="M17.8 17.5 C19.7 15.3, 19.9 10.5, 17.6 8 M18 15.5 l1.6 0.7 M18.6 13 l1.8 0.2 M18.5 10.5 l1.6 -0.5"/>
+              </g>
+              <g stroke="#fff" stroke-width="1.4" stroke-linecap="round" fill="none">
+                <path d="M12 6.4 8.2 9 h7.6 Z" fill="#fff" stroke="none"/>
+                <path d="M9.2 10.6 v4.4 M12 10.6 v4.4 M14.8 10.6 v4.4"/>
+                <path d="M8 16.6 h8"/>
+              </g>
+            </svg>
+          </button>
+        </h1>
+        <p class="greeting__date">martes, 22 de julio</p>
+        <p class="seal-tip">Miembro del Templo desde julio 2025 · 1 año</p>
+      </div>
+      <div class="fake-card">
+        <div class="fake-card__icon">⚑</div>
+        <div>
+          <div class="fake-card__title">Invitá un amigo</div>
+          <div class="fake-card__sub">Ambos se llevan un descuento</div>
+        </div>
+      </div>
+      <div class="zoom">
+        <p class="zoom__label">Zoom ×4 — detalle del sello</p>
+        <svg viewBox="0 0 24 24">
+          <defs>
+            <linearGradient id="goldBz" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#e8c95a"/>
+              <stop offset="0.55" stop-color="#c9a227"/>
+              <stop offset="1" stop-color="#8a6d1a"/>
+            </linearGradient>
+          </defs>
+          <circle cx="12" cy="12" r="11.2" fill="url(#goldBz)"/>
+          <circle cx="12" cy="12" r="9.4" fill="none" stroke="#fff" stroke-width="0.7" opacity="0.55"/>
+          <g stroke="#8a6d1a" stroke-width="1" stroke-linecap="round" fill="none" opacity="0.9">
+            <path d="M6.2 17.5 C4.3 15.3, 4.1 10.5, 6.4 8 M6 15.5 l-1.6 0.7 M5.4 13 l-1.8 0.2 M5.5 10.5 l-1.6 -0.5"/>
+            <path d="M17.8 17.5 C19.7 15.3, 19.9 10.5, 17.6 8 M18 15.5 l1.6 0.7 M18.6 13 l1.8 0.2 M18.5 10.5 l1.6 -0.5"/>
+          </g>
+          <g stroke="#fff" stroke-width="1.4" stroke-linecap="round" fill="none">
+            <path d="M12 6.4 8.2 9 h7.6 Z" fill="#fff" stroke="none"/>
+            <path d="M9.2 10.6 v4.4 M12 10.6 v4.4 M14.8 10.6 v4.4"/>
+            <path d="M8 16.6 h8"/>
+          </g>
+        </svg>
+      </div>
+    </div>
+
+    <!-- ══ Variante C: silueta de templo en oro, sin contenedor ══ -->
+    <div id="variant-c" class="variant">
+      <div class="greeting">
+        <h1 class="greeting__name">Hola, Nacho!
+          <button class="seal" onclick="sealTap(this)" aria-label="Miembro verificado del Templo">
+            <svg class="seal-svg" width="21" height="21" viewBox="0 0 24 24">
+              <defs>
+                <linearGradient id="goldC" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0" stop-color="#e8c95a"/>
+                  <stop offset="0.55" stop-color="#c9a227"/>
+                  <stop offset="1" stop-color="#8a6d1a"/>
+                </linearGradient>
+              </defs>
+              <g fill="url(#goldC)">
+                <path d="M12 1.5 2.5 8 h19 Z"/>
+                <rect x="3.4" y="9.2" width="2.6" height="9" rx="0.8"/>
+                <rect x="8.1" y="9.2" width="2.6" height="9" rx="0.8"/>
+                <rect x="13.3" y="9.2" width="2.6" height="9" rx="0.8"/>
+                <rect x="18" y="9.2" width="2.6" height="9" rx="0.8"/>
+                <rect x="2" y="19.4" width="20" height="2.4" rx="1"/>
+              </g>
+            </svg>
+          </button>
+        </h1>
+        <p class="greeting__date">martes, 22 de julio</p>
+        <p class="seal-tip">Miembro del Templo desde julio 2025 · 1 año</p>
+      </div>
+      <div class="fake-card">
+        <div class="fake-card__icon">⚑</div>
+        <div>
+          <div class="fake-card__title">Invitá un amigo</div>
+          <div class="fake-card__sub">Ambos se llevan un descuento</div>
+        </div>
+      </div>
+      <div class="zoom">
+        <p class="zoom__label">Zoom ×4 — detalle del sello</p>
+        <svg viewBox="0 0 24 24">
+          <defs>
+            <linearGradient id="goldCz" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#e8c95a"/>
+              <stop offset="0.55" stop-color="#c9a227"/>
+              <stop offset="1" stop-color="#8a6d1a"/>
+            </linearGradient>
+          </defs>
+          <g fill="url(#goldCz)">
+            <path d="M12 1.5 2.5 8 h19 Z"/>
+            <rect x="3.4" y="9.2" width="2.6" height="9" rx="0.8"/>
+            <rect x="8.1" y="9.2" width="2.6" height="9" rx="0.8"/>
+            <rect x="13.3" y="9.2" width="2.6" height="9" rx="0.8"/>
+            <rect x="18" y="9.2" width="2.6" height="9" rx="0.8"/>
+            <rect x="2" y="19.4" width="20" height="2.4" rx="1"/>
+          </g>
+        </svg>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div id="sketch-tools">
+  <button onclick="document.getElementById('phone').classList.remove('desktop')">📱 375</button>
+  <button onclick="document.getElementById('phone').classList.add('desktop')">🖥 900</button>
+  <select onchange="document.querySelector('link[href*=themes]').href='../themes/'+this.value+'.css'">
+    <option value="default">El Templo</option>
+  </select>
+</div>
+
+<script>
+  function showVariant(id, ev) {
+    document.querySelectorAll('.variant').forEach(function (v) { v.classList.remove('active'); });
+    document.querySelectorAll('.variant-tab').forEach(function (t) { t.classList.remove('active'); });
+    document.getElementById('variant-' + id).classList.add('active');
+    ev.target.classList.add('active');
+  }
+
+  var SINCE = { 1: 'julio 2025', 2: 'julio 2024', 5: 'julio 2021' };
+
+  function setYears(n, ev) {
+    document.querySelectorAll('.seal-tip').forEach(function (el) {
+      el.textContent = 'Miembro del Templo desde ' + SINCE[n] + ' · ' + (n === 1 ? '1 año' : n + ' años');
+    });
+    markOn(ev.target, '.controls button:not(.sz)');
+  }
+
+  function setSize(px, ev) {
+    document.querySelectorAll('.seal-svg').forEach(function (el) {
+      el.setAttribute('width', px);
+      el.setAttribute('height', px);
+    });
+    ev.target.classList.add('sz');
+    markOn(ev.target, '.controls button.sz');
+  }
+
+  function markOn(btn, scope) {
+    document.querySelectorAll(scope).forEach(function (b) { b.classList.remove('on'); });
+    btn.classList.add('on');
+  }
+
+  function sealTap(el) {
+    el.classList.remove('pop');
+    void el.offsetWidth;
+    el.classList.add('pop');
+    var tip = el.closest('.greeting').querySelector('.seal-tip');
+    tip.classList.add('show');
+    setTimeout(function () { tip.classList.remove('show'); }, 2500);
+  }
+
+  document.querySelectorAll('.controls button').forEach(function (b) {
+    if (b.textContent.indexOf('px') !== -1) b.classList.add('sz');
+  });
+</script>
+</body>
+</html>

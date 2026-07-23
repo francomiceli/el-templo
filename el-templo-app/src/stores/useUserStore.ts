@@ -44,6 +44,9 @@ export interface UserProfile {
   barChallengeCompleted: boolean | null
   barChallengeSeconds: number | null
   barChallengeAttemptedAt: string | null
+  // Fecha de alta (users.created_at, ISO) — gatea el sello de veterano (1+ año).
+  // Opcional: un API viejo sin el campo simplemente oculta el sello.
+  memberSince?: string
 }
 
 export interface MemberSubscription {
