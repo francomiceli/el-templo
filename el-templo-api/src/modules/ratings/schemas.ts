@@ -74,10 +74,11 @@ export const pendingRatingSchema = {
  * paginación del listado individual (los promedios per-coach no paginan).
  * withComments y stars filtran SOLO el listado — ver getOwnerRatings.
  *
- * `stars` viaja como CSV ("1,2") y no como array repetido a propósito: ajv
- * corre con coerceTypes por defecto, que NO convierte escalar → array, así que
- * `?stars=2` (un solo valor) rompería contra un schema de tipo array. El
- * pattern deja pasar únicamente dígitos 1-5 separados por coma; el handler lo
+ * `stars` viaja como CSV ("1,2"). Un `type: "array"` con `?stars=1&stars=2`
+ * también habría funcionado — Fastify compila ajv con `coerceTypes: 'array'`,
+ * que envuelve el escalar suelto. Se eligió el CSV por ser una sola cadena
+ * validable con un pattern (el rango 1-5 queda garantizado en el borde, sin
+ * depender de la coerción), y porque deja la URL más corta. El handler lo
  * parsea. Duplicados y orden no importan (termina en un IN).
  */
 export const ownerRatingsQuerySchema = {

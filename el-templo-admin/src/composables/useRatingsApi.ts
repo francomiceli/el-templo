@@ -87,8 +87,8 @@ export interface OwnerRatingsFilters {
   branchId?: number;
   withComments?: boolean;
   /**
-   * Notas a mostrar (1-5). Viaja como CSV ("1,2") porque el querystring del API
-   * no acepta arrays repetidos — ver ownerRatingsQuerySchema.
+   * Notas a mostrar (1-5), como CSV ("1,2") — el formato que espera el
+   * querystring del API (ver ownerRatingsQuerySchema).
    */
   stars?: string;
   starsDimension?: StarsDimension;

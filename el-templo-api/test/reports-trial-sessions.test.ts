@@ -503,11 +503,28 @@ describe("Reports API — Trial Sessions (Phase 114-05)", () => {
     expect(cruzadoAr).toHaveLength(1);
     expect(cruzadoAr[0].bookingId).toBe(arBooking);
 
-    // Y filtrando la otra sede aparece con la otra SP -- una fila por lead en
-    // cada vista, nunca las dos juntas.
+    // Corazon del fix: SIN filtro de sede, el owner de test tiene scope AR (su
+    // sede es la TEST y branches.country default 'AR'), asi que la SP mas
+    // reciente del lead -- la de ES -- no le corresponde ver. Antes el lead
+    // desaparecia entero: se elegia la de ES como representativa y el scope de
+    // pais la descartaba despues. Ahora aparece con la SP que si entra.
+    const scopeRes = await ctx.app.inject({
+      method: "GET",
+      url: `${REPORTS_URL}/trial-sessions`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+    });
+    const scopeBody = JSON.parse(scopeRes.body);
+    const cruzadoScope = scopeBody.rows.filter(
+      (r: { userId: number }) => r.userId === u,
+    );
+    expect(cruzadoScope).toHaveLength(1);
+    expect(cruzadoScope[0].bookingId).toBe(arBooking);
+
+    // Con el toggle de pais en ES aparece con la otra SP -- una fila por lead
+    // en cada vista, nunca las dos juntas.
     const esRes = await ctx.app.inject({
       method: "GET",
-      url: `${REPORTS_URL}/trial-sessions?branchId=${ctx.esBranchId}`,
+      url: `${REPORTS_URL}/trial-sessions?country=ES`,
       headers: { authorization: `Bearer ${ctx.ownerToken}` },
     });
     const esBody = JSON.parse(esRes.body);
@@ -516,19 +533,6 @@ describe("Reports API — Trial Sessions (Phase 114-05)", () => {
     );
     expect(cruzadoEs).toHaveLength(1);
     expect(cruzadoEs[0].bookingId).toBe(esBooking);
-
-    // Sin filtro de sede sigue ganando la mas reciente (D-42 intacto).
-    const allRes = await ctx.app.inject({
-      method: "GET",
-      url: `${REPORTS_URL}/trial-sessions`,
-      headers: { authorization: `Bearer ${ctx.ownerToken}` },
-    });
-    const allBody = JSON.parse(allRes.body);
-    const cruzadoAll = allBody.rows.filter(
-      (r: { userId: number }) => r.userId === u,
-    );
-    expect(cruzadoAll).toHaveLength(1);
-    expect(cruzadoAll[0].bookingId).toBe(esBooking);
   });
 
   // 5. Country scope.
