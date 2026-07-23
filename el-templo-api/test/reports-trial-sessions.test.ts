@@ -470,6 +470,67 @@ describe("Reports API — Trial Sessions (Phase 114-05)", () => {
     expect(body.rows[0].bookingId).toBe(newer);
   });
 
+  // 4-bis. El representativo se elige DENTRO del filtro, no antes.
+  it("con filtro de sede muestra la SP de esa sede aunque la ultima sea de otra", async () => {
+    // Lead con SP vieja en AR y SP mas nueva en ES. Filtrando por la sede AR,
+    // antes desaparecia entero: el representativo se elegia como "su SP mas
+    // reciente" (la de ES) y despues el filtro de sede lo descartaba.
+    const u = await seedLead({
+      firstName: "Cruzado",
+      branchId: ctx.arBranchId,
+    });
+    const arBooking = await seedBooking({
+      userId: u,
+      scheduleId: ctx.scheduleArMorning,
+      bookingDateOffsetDays: -20,
+    });
+    const esBooking = await seedBooking({
+      userId: u,
+      scheduleId: ctx.scheduleEs,
+      bookingDateOffsetDays: -2,
+    });
+
+    const arRes = await ctx.app.inject({
+      method: "GET",
+      url: `${REPORTS_URL}/trial-sessions?branchId=${ctx.arBranchId}`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+    });
+    expect(arRes.statusCode).toBe(200);
+    const arBody = JSON.parse(arRes.body);
+    const cruzadoAr = arBody.rows.filter(
+      (r: { userId: number }) => r.userId === u,
+    );
+    expect(cruzadoAr).toHaveLength(1);
+    expect(cruzadoAr[0].bookingId).toBe(arBooking);
+
+    // Y filtrando la otra sede aparece con la otra SP -- una fila por lead en
+    // cada vista, nunca las dos juntas.
+    const esRes = await ctx.app.inject({
+      method: "GET",
+      url: `${REPORTS_URL}/trial-sessions?branchId=${ctx.esBranchId}`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+    });
+    const esBody = JSON.parse(esRes.body);
+    const cruzadoEs = esBody.rows.filter(
+      (r: { userId: number }) => r.userId === u,
+    );
+    expect(cruzadoEs).toHaveLength(1);
+    expect(cruzadoEs[0].bookingId).toBe(esBooking);
+
+    // Sin filtro de sede sigue ganando la mas reciente (D-42 intacto).
+    const allRes = await ctx.app.inject({
+      method: "GET",
+      url: `${REPORTS_URL}/trial-sessions`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+    });
+    const allBody = JSON.parse(allRes.body);
+    const cruzadoAll = allBody.rows.filter(
+      (r: { userId: number }) => r.userId === u,
+    );
+    expect(cruzadoAll).toHaveLength(1);
+    expect(cruzadoAll[0].bookingId).toBe(esBooking);
+  });
+
   // 5. Country scope.
   it("non-owner sees only own-country rows + virtual; owner sees all (D-24)", async () => {
     const arLead = await seedLead({

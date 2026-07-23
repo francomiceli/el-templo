@@ -1758,6 +1758,9 @@ export class ReportsService {
     // injects user input does so via drizzle's `${...}` parameter binding —
     // never string concat.
     const conds = this.buildTrialSessionsConditions(filters);
+    // Mismos filtros de sede/fecha/turno, pero con los alias de la derived
+    // table: acotan de QUÉ SP se elige el representativo de cada lead.
+    const bookingScope = this.buildTrialSessionsBookingScope(filters);
 
     // Total count: SAME `latest_trial` derived table + SAME predicates as
     // the row query, so `total` reflects deduplicated leads — not raw
@@ -1768,7 +1771,10 @@ export class ReportsService {
       FROM (
         SELECT b2.member_id, MAX(b2.id) AS booking_id
         FROM ${schema.bookings} AS b2
+        JOIN ${schema.schedules} AS s2  ON s2.id = b2.schedule_id
+        JOIN ${schema.branches}  AS br2 ON br2.id = s2.branch_id
         WHERE b2.is_trial = 1 AND b2.booking_status <> 'cancelado'
+          ${bookingScope}
         GROUP BY b2.member_id
       ) AS lt
       JOIN ${schema.bookings} AS b      ON b.id = lt.booking_id
@@ -1841,7 +1847,10 @@ export class ReportsService {
       FROM (
         SELECT b2.member_id, MAX(b2.id) AS booking_id
         FROM ${schema.bookings} AS b2
+        JOIN ${schema.schedules} AS s2  ON s2.id = b2.schedule_id
+        JOIN ${schema.branches}  AS br2 ON br2.id = s2.branch_id
         WHERE b2.is_trial = 1 AND b2.booking_status <> 'cancelado'
+          ${bookingScope}
         GROUP BY b2.member_id
       ) AS lt
       JOIN ${schema.bookings}  AS b      ON b.id = lt.booking_id
@@ -2054,6 +2063,51 @@ export class ReportsService {
    * (note the leading ` AND ` so it composes cleanly after `u.deleted_at IS
    * NULL` in the caller). Empty filters yield an empty fragment.
    */
+  /**
+   * Predicados que definen QUÉ sesión de prueba interesa (sede, país, fecha,
+   * turno), con los alias de la derived table `latest_trial` (b2/s2/br2).
+   *
+   * Van DENTRO de la subquery que elige el booking representativo de cada lead.
+   * Antes se aplicaban solo afuera, y eso subregistraba en silencio: el
+   * representativo se elegía como "la SP más reciente del lead" sin mirar los
+   * filtros, así que un lead con SP en la sede filtrada pero cuya última SP fue
+   * en OTRA sede (u otra fecha) perdía su fila entera. Medido en prod: Barcelona
+   * devolvía 85 filas para 95 leads con SP ahí.
+   *
+   * Con esto el representativo pasa a ser "la SP más reciente de las que entran
+   * en el filtro", y se mantiene la promesa de una sola fila por lead.
+   *
+   * Los predicados de LEAD (estado, gestiona, búsqueda, origen) y el de
+   * asistencia NO van acá a propósito: no definen cuál SP representa al lead,
+   * filtran al lead ya elegido. Moverlos cambiaría qué booking se muestra.
+   */
+  private buildTrialSessionsBookingScope(filters: TrialSessionsFilters): SQL {
+    const preds: SQL[] = [];
+
+    if (filters.country !== undefined) {
+      preds.push(sql`(br2.country = ${filters.country} OR br2.is_virtual = 1)`);
+    }
+    if (filters.branchId !== undefined) {
+      preds.push(sql`br2.id = ${filters.branchId}`);
+    }
+    if (filters.dateFrom !== undefined) {
+      preds.push(sql`b2.booking_date >= ${filters.dateFrom}`);
+    }
+    if (filters.dateTo !== undefined) {
+      preds.push(sql`b2.booking_date <= ${filters.dateTo}`);
+    }
+    if (filters.shift !== undefined) {
+      preds.push(
+        filters.shift === "TM"
+          ? sql`s2.start_time < '12:00'`
+          : sql`s2.start_time >= '12:00'`,
+      );
+    }
+
+    if (preds.length === 0) return sql``;
+    return sql` AND ${sql.join(preds, sql` AND `)}`;
+  }
+
   private buildTrialSessionsConditions(filters: TrialSessionsFilters): SQL {
     const preds: SQL[] = [];
 
