@@ -719,7 +719,7 @@
       <!-- Sesiones de Prueba Tab (Phase 114) -->
       <!-- ================================================================ -->
       <q-tab-panel name="sesiones-de-prueba">
-        <TrialSessionsReport :branch-id="selectedBranchId" />
+        <TrialSessionsReport :branch-id="selectedBranchId" :country="countryScope" />
       </q-tab-panel>
 
       <!-- ================================================================ -->
