@@ -30,7 +30,9 @@
       <!-- Greeting row — desktop only (stays in sticky header) -->
       <div v-if="isDesktop && isMiTemplo && authStore.isAuthenticated" class="header-greeting">
         <div class="header-greeting__text">
-          <h1 class="header-greeting__name">Hola, {{ memberName }}!</h1>
+          <h1 class="header-greeting__name">
+            Hola, {{ memberName }}!<VeteranSeal :since="memberSince" />
+          </h1>
           <p class="header-greeting__date">{{ formattedDate }}</p>
         </div>
         <HeaderLevelDropdown v-if="userStore.activeLevel" />
@@ -84,7 +86,9 @@
       <div v-if="!isDesktop && isMiTemplo && authStore.isAuthenticated" class="mobile-greeting">
         <div class="header-greeting">
           <div class="header-greeting__text">
-            <h1 class="header-greeting__name">Hola, {{ memberName }}!</h1>
+            <h1 class="header-greeting__name">
+              Hola, {{ memberName }}!<VeteranSeal :since="memberSince" />
+            </h1>
             <p class="header-greeting__date">{{ formattedDate }}</p>
           </div>
           <HeaderLevelDropdown v-if="userStore.activeLevel" />
@@ -159,6 +163,7 @@ import ImprovementPromptDialog from 'src/components/ImprovementPromptDialog.vue'
 import RatingPromptDialog from 'src/components/RatingPromptDialog.vue'
 import PlanExpiryDialog from 'src/components/PlanExpiryDialog.vue'
 import HeaderLevelDropdown from 'src/modules/training/components/HeaderLevelDropdown.vue'
+import VeteranSeal from 'src/components/VeteranSeal.vue'
 
 const $q = useQuasar()
 const router = useRouter()
@@ -169,6 +174,8 @@ const progressionStore = useProgressionStore()
 
 const isDesktop = computed(() => $q.screen.width >= 768)
 const isMiTemplo = computed(() => route.path === '/mi-templo')
+
+const memberSince = computed(() => userStore.profile?.memberSince ?? null)
 
 const memberName = computed(() => {
   const profile = userStore.profile

@@ -835,13 +835,6 @@ const selectedDay = ref<DayOfWeek>(getTodayDow(branchTimezone.value))
 // ─── Multi-branch ───────────────────────────────────────────────────
 const branches = ref<{ id: number; name: string }[]>([])
 const selectedBranchId = ref<number | null>(null)
-// Phase 104 (R11): single-capability gate para reservas. Usa
-// `hasPresencialReservationAccess` (useUserStore) que — a diferencia de
-// hasPresencialPlan — también cuenta las membresías con inicio futuro
-// ('scheduled'), para que un alumno cuya membresía arranca mañana pueda reservar
-// hoy dentro de la ventana de +48h (el backend valida que la fecha de la clase
-// caiga dentro del período de la membresía).
-const canReservePresencial = computed(() => userStore.hasPresencialReservationAccess)
 const hasActiveButNotPresencial = computed(
   () => userStore.hasActiveSubscription && !userStore.hasPresencialPlan,
 )

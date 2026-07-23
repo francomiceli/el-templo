@@ -639,6 +639,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           barChallengeCompleted: users.barChallengeCompleted,
           barChallengeSeconds: users.barChallengeSeconds,
           barChallengeAttemptedAt: users.barChallengeAttemptedAt,
+          createdAt: users.createdAt,
         })
         .from(users)
         .where(eq(users.id, userId))
@@ -727,6 +728,10 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         barChallengeCompleted: user.barChallengeCompleted,
         barChallengeSeconds: user.barChallengeSeconds,
         barChallengeAttemptedAt: user.barChallengeAttemptedAt,
+        // Fecha de alta del socio — alimenta el sello de veterano (1+ año) en
+        // el app. Para importados legacy es la fecha de import, igual que en
+        // analytics (los legacy cuentan por createdAt).
+        memberSince: user.createdAt.toISOString(),
       };
     },
   );
