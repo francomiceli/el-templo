@@ -1122,7 +1122,9 @@ export class MemberService {
    * Phase 114 (D-27): PATCH /api/admin/leads/:userId — admin edits the lead
    * lifecycle fields (lead_status, lead_notes) of a user with status='prueba'.
    *
-   * - D-28: rejects non-leads (status !== 'prueba') with ConflictError (409).
+   * - D-28 (relajado 2026-07-23): rechaza con ConflictError (409) solo a los
+   *   usuarios que nunca fueron leads. Los ex-leads ya convertidos siguen
+   *   siendo gestionables desde el reporte histórico de Sesiones de Prueba.
    * - D-28: empty-string lead_notes is normalized to NULL.
    * - Hotfix 2026-07: "Plan comprado" (purchased_plan_id) editable acá, con
    *   invariante 'ganado' ⇔ plan cargado:
@@ -1131,6 +1133,34 @@ export class MemberService {
    *     - borrar el plan dejando el estado en 'ganado' → 409
    *   lead_notes queda como texto libre puro — nunca se toca automáticamente.
    */
+  /**
+   * ¿El usuario fue lead alguna vez? Criterio deliberadamente alineado con la
+   * fuente de filas del reporte de Sesiones de Prueba (getTrialSessionsReport):
+   * un booking is_trial no cancelado. Los campos de lead ya escritos
+   * (converted_at / lead_status) cortan la consulta antes en el caso común.
+   */
+  private async wasEverLead(user: {
+    id: number;
+    convertedAt: Date | null;
+    leadStatus: string | null;
+  }): Promise<boolean> {
+    if (user.convertedAt !== null || user.leadStatus !== null) {
+      return true;
+    }
+    const [trial] = await this.db
+      .select({ id: schema.bookings.id })
+      .from(schema.bookings)
+      .where(
+        and(
+          eq(schema.bookings.memberId, user.id),
+          eq(schema.bookings.isTrial, true),
+          ne(schema.bookings.status, "cancelado"),
+        ),
+      )
+      .limit(1);
+    return trial !== undefined;
+  }
+
   async updateLead(
     userId: number,
     input: UpdateLeadInput,
@@ -1142,6 +1172,7 @@ export class MemberService {
         deletedAt: schema.users.deletedAt,
         leadStatus: schema.users.leadStatus,
         purchasedPlanId: schema.users.purchasedPlanId,
+        convertedAt: schema.users.convertedAt,
       })
       .from(schema.users)
       .where(eq(schema.users.id, userId))
@@ -1150,9 +1181,14 @@ export class MemberService {
     if (!user || user.deletedAt) {
       throw new NotFoundError("Lead no encontrado");
     }
-    if (user.status !== "prueba") {
+    // Fix 2026-07-23: el reporte de Sesiones de Prueba es HISTÓRICO — lista a
+    // todo usuario con un booking is_trial, incluidos los que ya convirtieron
+    // (status pasa a 'activo'/'inactivo'). Exigir status='prueba' hacía que
+    // toda edición sobre esas filas muriera en 409 (154 de 601 filas en prod).
+    // El gate ahora rechaza solo a quien NUNCA fue lead.
+    if (user.status !== "prueba" && !(await this.wasEverLead(user))) {
       throw new ConflictError(
-        "El usuario no es un lead (status='prueba' requerido)",
+        "El usuario nunca fue un lead (no tiene sesión de prueba registrada)",
       );
     }
 

@@ -35,9 +35,9 @@ export const QUOTES: SessionQuote[] = [
     author: 'Séneca.',
   },
   {
-    text: '\u201CLO QUE SE DEBE TEMER NO ES LA MUERTE, ',
-    goldText: 'SINO NO EMPEZAR A VIVIR.\u201D',
-    author: 'Marco Aurelio.',
+    text: '\u201CLA VIDA SE CONTRAE O SE EXPANDE ',
+    goldText: 'EN PROPORCIÓN A NUESTRO CORAJE.\u201D',
+    author: 'Anaïs Nin.',
   },
   {
     text: '\u201CQUIEN MUEVE UNA MONTAÑA ',
