@@ -111,6 +111,17 @@ export interface OwnerRatingsFilters {
   dateTo?: string;
   branchId?: number;
   withComments?: boolean;
+  /**
+   * Notas a mostrar en el listado (1-5). Mismo criterio que withComments: filtra
+   * SOLO el listado, nunca los promedios. Vacío o undefined = sin filtro.
+   */
+  stars?: number[];
+  /**
+   * Sobre qué dimensión aplica `stars`. "coach" (default) usa coach_ratings.stars;
+   * "class" usa class_stars, que es NULL en las puntuaciones previas al split de
+   * dimensiones — esas filas quedan fuera del listado al filtrar por clase.
+   */
+  starsDimension?: "coach" | "class";
   page?: number;
   limit?: number;
 }

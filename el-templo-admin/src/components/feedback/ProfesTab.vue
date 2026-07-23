@@ -94,6 +94,58 @@
           {{ ratings.length }} de {{ ratingsTotal }}
         </div>
       </div>
+
+      <!-- Filtro de notas: mismo criterio que el toggle de comentarios (solo el
+           listado). El selector de dimensión evita el malentendido de creer que
+           se están viendo todas las malas de clase habiendo filtrado por profe. -->
+      <div class="row items-center q-gutter-sm q-mb-md">
+        <q-btn-toggle
+          v-model="starsDimension"
+          :options="[
+            { label: 'Profe', value: 'coach' },
+            { label: 'Clase', value: 'class' },
+          ]"
+          dense
+          unelevated
+          no-caps
+          toggle-color="primary"
+          color="grey-3"
+          text-color="grey-8"
+          class="col-auto"
+        />
+        <div class="row items-center q-gutter-xs col-auto">
+          <q-chip
+            v-for="n in 5"
+            :key="n"
+            :selected="selectedStars.includes(n)"
+            clickable
+            dense
+            :color="selectedStars.includes(n) ? 'primary' : 'grey-3'"
+            :text-color="selectedStars.includes(n) ? 'white' : 'grey-8'"
+            @click="toggleStar(n)"
+          >
+            {{ n }}
+            <q-icon name="star" size="14px" class="q-ml-xs" />
+          </q-chip>
+        </div>
+        <q-btn
+          v-if="selectedStars.length > 0"
+          flat
+          dense
+          no-caps
+          size="sm"
+          label="Limpiar"
+          color="grey-7"
+          class="col-auto"
+          @click="clearStars"
+        />
+        <div v-if="starsDimension === 'class' && selectedStars.length > 0" class="col-12">
+          <div class="text-caption text-grey-6">
+            Las puntuaciones anteriores al desdoble de notas no tienen nota de clase, así que no
+            aparecen con este filtro.
+          </div>
+        </div>
+      </div>
       <q-list v-if="ratings.length > 0" bordered separator class="rounded-borders">
         <q-item v-for="r in ratings" :key="r.id">
           <q-item-section side top style="min-width: 140px">
@@ -141,6 +193,7 @@ import {
   type OwnerCoachRatingSummary,
   type OwnerRatingsFilters,
   type OwnerRecentRating,
+  type StarsDimension,
 } from 'src/composables/useRatingsApi';
 import { createLogger } from 'src/utils/logger';
 import type { FeedbackFilters } from 'src/components/feedback/feedback-filters';
@@ -153,6 +206,21 @@ const { loading, error, getOwnerRatings } = useRatingsApi();
 const PAGE_SIZE = 50;
 
 const withComments = ref(false);
+const selectedStars = ref<number[]>([]);
+const starsDimension = ref<StarsDimension>('coach');
+
+function toggleStar(n: number): void {
+  const i = selectedStars.value.indexOf(n);
+  if (i === -1) {
+    selectedStars.value.push(n);
+  } else {
+    selectedStars.value.splice(i, 1);
+  }
+}
+
+function clearStars(): void {
+  selectedStars.value = [];
+}
 
 const perCoach = ref<OwnerCoachRatingSummary[]>([]);
 const ratings = ref<OwnerRecentRating[]>([]);
@@ -201,11 +269,18 @@ function formatClassLabel(r: OwnerRecentRating): string {
 }
 
 function currentFilters(): OwnerRatingsFilters {
+  // El orden del CSV no importa (termina en un IN), pero se ordena para que la
+  // URL sea estable y no invalide la cache del navegador al azar.
+  const stars = [...selectedStars.value].sort().join(',');
   return {
     dateFrom: props.filters.dateFrom ?? undefined,
     dateTo: props.filters.dateTo ?? undefined,
     branchId: props.filters.branchId ?? undefined,
     withComments: withComments.value || undefined,
+    stars: stars || undefined,
+    // Sin notas seleccionadas la dimensión no aplica: mandarla igual ensuciaría
+    // la request sin cambiar el resultado.
+    starsDimension: stars ? starsDimension.value : undefined,
   };
 }
 
@@ -248,7 +323,16 @@ function loadMore(): Promise<void> {
 }
 
 watch(
-  () => [props.filters.dateFrom, props.filters.dateTo, props.filters.branchId, withComments.value],
+  () => [
+    props.filters.dateFrom,
+    props.filters.dateTo,
+    props.filters.branchId,
+    withComments.value,
+    // join(): el watcher compara por identidad y el array muta in-place al
+    // togglear un chip, así que sin esto el cambio no dispara la recarga.
+    selectedStars.value.join(','),
+    starsDimension.value,
+  ],
   () => {
     void load(true);
   }

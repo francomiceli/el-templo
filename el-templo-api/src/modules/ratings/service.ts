@@ -28,7 +28,14 @@ import {
 } from "drizzle-orm";
 import * as schema from "../../db/schema";
 import { BadRequestError } from "../shared/errors";
-import { getWeekRange } from "../shared/date-utils";
+// La regla de atribución (día ISO, turno, semana efectiva) vive en un módulo
+// aparte porque el export de sesiones de prueba resuelve el mismo profe por
+// otro camino — ver roster-attribution.ts.
+import {
+  isoDayOfWeek,
+  isoWeekStart,
+  slotFromStartTime,
+} from "./roster-attribution";
 import type {
   RosterAssignmentInput,
   RosterWeekRow,
@@ -43,27 +50,6 @@ import type {
 
 /** Rating opportunity window: 48 hours after the class (D-P3). */
 const RATING_WINDOW_MS = 48 * 60 * 60 * 1000;
-
-/**
- * Derive the ISO day-of-week (1=Mon .. 7=Sun) from a "YYYY-MM-DD" string.
- * Uses noon-UTC to avoid DST/day-boundary drift (same convention as
- * date-utils). Roster days are 1..6 (Mon-Sat); Sunday (7) has no slots.
- */
-function isoDayOfWeek(dateStr: string): number {
-  const d = new Date(dateStr + "T12:00:00Z");
-  const dow = d.getUTCDay(); // 0=Sun .. 6=Sat
-  return dow === 0 ? 7 : dow;
-}
-
-/** Monday (ISO) of the week containing the given "YYYY-MM-DD" string. */
-function isoWeekStart(dateStr: string): string {
-  return getWeekRange(new Date(dateStr + "T12:00:00Z")).monday;
-}
-
-/** Turn derived from a schedule startTime "HH:MM": <12:00 = morning (D-A1). */
-function slotFromStartTime(startTime: string): ClassSlot {
-  return startTime < "12:00" ? "morning" : "afternoon";
-}
 
 export class RatingsService {
   constructor(private readonly db: MySql2Database<typeof schema>) {}
@@ -580,6 +566,16 @@ export class RatingsService {
         isNotNull(schema.coachRatings.comment),
         ne(schema.coachRatings.comment, ""),
       );
+    }
+    // Filtro de notas: mismo criterio que withComments (solo el listado). La
+    // dimensión "class" arrastra las filas viejas con class_stars NULL, que un
+    // IN descarta solo — es lo correcto: no tienen nota de clase que mostrar.
+    if (filters.stars !== undefined && filters.stars.length > 0) {
+      const starsColumn =
+        filters.starsDimension === "class"
+          ? schema.coachRatings.classStars
+          : schema.coachRatings.stars;
+      listConds.push(inArray(starsColumn, filters.stars));
     }
     const listWhereClause =
       listConds.length > 0 ? and(...listConds) : undefined;

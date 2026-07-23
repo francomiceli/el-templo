@@ -1,7 +1,8 @@
-<!-- Feedback: la voz del alumno en un solo lugar (Dueño-only). Tres tabs:
+<!-- Feedback: la voz del alumno en un solo lugar (Dueño-only). Cuatro tabs:
      Clases (puntuaciones de clase, ex tab de Analíticas — Dueño),
-     Profes (puntuaciones de profes, ex /puntuaciones — owner) y
-     Sugerencias (ex /propuestas — Dueño).
+     Profes (puntuaciones de profes, ex /puntuaciones — owner),
+     Sugerencias (ex /propuestas — Dueño) y Registro del día (check-ins
+     diarios de energía/molestias/sueño — Dueño).
      Los filtros fecha/sucursal son compartidos entre tabs; cada tab
      agrega los suyos. El tab activo viaja en ?tab= para deep links
      (las rutas viejas redirigen acá). -->
@@ -50,7 +51,13 @@
       active-color="primary"
       indicator-color="primary"
     >
-      <q-tab v-for="t in visibleTabs" :key="t.name" :name="t.name" :label="t.label" :icon="t.icon" />
+      <q-tab
+        v-for="t in visibleTabs"
+        :key="t.name"
+        :name="t.name"
+        :label="t.label"
+        :icon="t.icon"
+      />
     </q-tabs>
 
     <q-tab-panels v-model="activeTab" animated>
@@ -63,6 +70,9 @@
       <q-tab-panel v-if="canSee('sugerencias')" name="sugerencias" class="q-pa-none">
         <SugerenciasTab :filters="filters" />
       </q-tab-panel>
+      <q-tab-panel v-if="canSee('registro')" name="registro" class="q-pa-none">
+        <RegistroDiaTab :filters="filters" />
+      </q-tab-panel>
     </q-tab-panels>
   </q-page>
 </template>
@@ -73,6 +83,7 @@ import { useRoute, useRouter } from 'vue-router';
 import ClasesTab from 'src/components/feedback/ClasesTab.vue';
 import ProfesTab from 'src/components/feedback/ProfesTab.vue';
 import SugerenciasTab from 'src/components/feedback/SugerenciasTab.vue';
+import RegistroDiaTab from 'src/components/feedback/RegistroDiaTab.vue';
 import { useAuthStore } from 'src/stores/useAuthStore';
 import { useMembersApi } from 'src/composables/useMembersApi';
 import { DUENO_ROLES } from 'src/config/templo-config';
@@ -96,6 +107,7 @@ const TABS: Array<{ name: string; label: string; icon: string; roles: AdminRole[
   { name: 'clases', label: 'Clases', icon: 'star', roles: DUENO_ROLES },
   { name: 'profes', label: 'Profes', icon: 'groups', roles: ['owner'] },
   { name: 'sugerencias', label: 'Sugerencias', icon: 'emoji_objects', roles: DUENO_ROLES },
+  { name: 'registro', label: 'Registro del día', icon: 'event_available', roles: DUENO_ROLES },
 ];
 
 const role = computed(() => authStore.user?.role);

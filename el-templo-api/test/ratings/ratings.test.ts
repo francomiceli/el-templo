@@ -1156,6 +1156,125 @@ describe("Ratings module (Phase 143)", () => {
     expect(body.perCoach[0]?.ratingCount).toBe(3);
   });
 
+  it("owner view: el filtro de estrellas acota el listado por dimensión sin tocar los promedios", async () => {
+    // 3 clases del mismo profe con notas cruzadas a propósito: la nota de
+    // profe y la de clase nunca coinciden, así que un filtro que mire la
+    // columna equivocada devuelve otra fila y el test lo caza.
+    const days = [classDaysAgo(0), classDaysAgo(1), classDaysAgo(2)];
+    const notas = [
+      { stars: 5, classStars: 1 },
+      { stars: 3, classStars: 2 },
+      { stars: 1, classStars: 5 },
+    ];
+
+    for (let i = 0; i < days.length; i++) {
+      await seedAttendance(app, {
+        memberId: ctx.memberId,
+        branchId: ctx.arBranchId,
+        scheduleId: ctx.scheduleMorningId,
+        sessionDate: days[i],
+        checkedInAt: new Date(Date.now() - i * 60 * 1000),
+      });
+      await seedRoster(app, {
+        branchId: ctx.arBranchId,
+        weekStartDate: isoMonday(days[i]),
+        dayOfWeek: isoDow(days[i]),
+        slot: "morning",
+        coachId: ctx.coachArId,
+      });
+      const submit = await app.inject({
+        method: "POST",
+        url: MEMBER_BASE,
+        headers: { authorization: `Bearer ${ctx.memberToken}` },
+        payload: {
+          sessionDate: days[i],
+          scheduleId: ctx.scheduleMorningId,
+          stars: notas[i].stars,
+          classStars: notas[i].classStars,
+        },
+      });
+      expect(submit.statusCode).toBe(201);
+    }
+
+    // Dimensión profe (default): 1 y 3 estrellas → las dos malas.
+    const profe = await app.inject({
+      method: "GET",
+      url: `${ADMIN_BASE}?stars=1,3`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+    });
+    expect(profe.statusCode).toBe(200);
+    const profeBody = JSON.parse(profe.body) as {
+      perCoach: Array<{ ratingCount: number }>;
+      ratings: {
+        rows: Array<{ stars: number; classStars: number | null }>;
+        total: number;
+      };
+    };
+    expect(profeBody.ratings.total).toBe(2);
+    expect(profeBody.ratings.rows.map((r) => r.stars).sort()).toEqual([1, 3]);
+
+    // El promedio por profe NO se filtra: sigue sobre las 3 (mismo criterio
+    // que withComments — si se moviera, "Promedio profe" mediría otra cosa).
+    expect(profeBody.perCoach[0]?.ratingCount).toBe(3);
+
+    // Misma nota, dimensión clase: 1 y 3 ahora matchean OTRAS filas (la de
+    // classStars=1), no las mismas dos de arriba.
+    const clase = await app.inject({
+      method: "GET",
+      url: `${ADMIN_BASE}?stars=1,3&starsDimension=class`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+    });
+    expect(clase.statusCode).toBe(200);
+    const claseBody = JSON.parse(clase.body) as {
+      ratings: {
+        rows: Array<{ stars: number; classStars: number | null }>;
+        total: number;
+      };
+    };
+    expect(claseBody.ratings.total).toBe(1);
+    expect(claseBody.ratings.rows[0]?.classStars).toBe(1);
+    expect(claseBody.ratings.rows[0]?.stars).toBe(5);
+
+    // Un solo valor: el CSV de un elemento no rompe el pattern del schema.
+    const uno = await app.inject({
+      method: "GET",
+      url: `${ADMIN_BASE}?stars=5`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+    });
+    expect(uno.statusCode).toBe(200);
+    expect(
+      (JSON.parse(uno.body) as { ratings: { total: number } }).ratings.total,
+    ).toBe(1);
+
+    // Sin el filtro siguen estando las 3.
+    const todas = await app.inject({
+      method: "GET",
+      url: ADMIN_BASE,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+    });
+    expect(
+      (JSON.parse(todas.body) as { ratings: { total: number } }).ratings.total,
+    ).toBe(3);
+  });
+
+  it("owner view: rechaza un filtro de estrellas fuera de rango o mal formado", async () => {
+    for (const bad of ["0", "6", "1,", "abc", "1;2", "1,2,9"]) {
+      const res = await app.inject({
+        method: "GET",
+        url: `${ADMIN_BASE}?stars=${encodeURIComponent(bad)}`,
+        headers: { authorization: `Bearer ${ctx.ownerToken}` },
+      });
+      expect(res.statusCode, `stars=${bad} debería ser 400`).toBe(400);
+    }
+
+    const badDimension = await app.inject({
+      method: "GET",
+      url: `${ADMIN_BASE}?stars=1&starsDimension=profe`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+    });
+    expect(badDimension.statusCode).toBe(400);
+  });
+
   it("lists coaches assignable to a branch", async () => {
     const res = await app.inject({
       method: "GET",

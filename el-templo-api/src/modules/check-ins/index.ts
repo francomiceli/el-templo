@@ -1,1 +1,1 @@
-export { checkInRoutes } from "./routes";
+export { checkInRoutes, checkInAdminRoutes } from "./routes";
