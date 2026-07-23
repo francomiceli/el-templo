@@ -52,3 +52,22 @@ export const errorResponseSchema = {
     error: { type: "string" },
   },
 };
+
+/**
+ * Querystring de la vista admin (Registro del día). Mismos filtros compartidos
+ * que el resto de Feedback (fechas + sucursal) más el tipo de pregunta.
+ */
+export const adminCheckInsQuerySchema = {
+  querystring: {
+    type: "object",
+    properties: {
+      dateFrom: { type: "string", format: "date" },
+      dateTo: { type: "string", format: "date" },
+      branchId: { type: "integer", minimum: 1 },
+      questionType: { type: "string", enum: ["energy", "soreness", "sleep"] },
+      page: { type: "integer", minimum: 1 },
+      limit: { type: "integer", minimum: 1, maximum: 200 },
+    },
+    additionalProperties: false,
+  },
+};

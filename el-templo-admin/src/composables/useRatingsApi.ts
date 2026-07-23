@@ -73,16 +73,25 @@ export interface OwnerRecentRating {
   branchName: string | null;
 }
 
+/** Dimensión sobre la que aplica el filtro de estrellas. */
+export type StarsDimension = 'coach' | 'class';
+
 /**
  * Filtros del owner view: fechas sobre sessionDate + sucursal + paginación.
- * withComments filtra solo el listado — los promedios por profe siguen siendo
- * sobre todas las puntuaciones.
+ * withComments y stars filtran solo el listado — los promedios por profe siguen
+ * siendo sobre todas las puntuaciones.
  */
 export interface OwnerRatingsFilters {
   dateFrom?: string; // YYYY-MM-DD
   dateTo?: string;
   branchId?: number;
   withComments?: boolean;
+  /**
+   * Notas a mostrar (1-5). Viaja como CSV ("1,2") porque el querystring del API
+   * no acepta arrays repetidos — ver ownerRatingsQuerySchema.
+   */
+  stars?: string;
+  starsDimension?: StarsDimension;
   page?: number;
   limit?: number;
 }

@@ -28,6 +28,17 @@ import { attachCountryScope } from "../shared/country-scope";
 import { requireBranchAccess } from "../shared/branch-access";
 import type { ClassSlot, SubmitRatingInput } from "./types";
 
+/**
+ * "1,2,5" → [1,2,5]. El querystring schema ya validó el formato, así que acá no
+ * hay que defenderse de basura: undefined/vacío devuelve undefined (= sin
+ * filtro), no un array vacío, para que el service no distinga dos "nada".
+ */
+function parseStarsFilter(raw: string | undefined): number[] | undefined {
+  if (!raw) return undefined;
+  const values = [...new Set(raw.split(",").map(Number))];
+  return values.length > 0 ? values : undefined;
+}
+
 // =============================================================================
 // Admin Routes (registered at /api/admin/ratings)
 // =============================================================================
@@ -120,6 +131,8 @@ export const ratingsAdminRoutes: FastifyPluginAsync = async (fastify) => {
       dateTo?: string;
       branchId?: number;
       withComments?: boolean;
+      stars?: string;
+      starsDimension?: "coach" | "class";
       page?: number;
       limit?: number;
     };
@@ -143,6 +156,11 @@ export const ratingsAdminRoutes: FastifyPluginAsync = async (fastify) => {
           dateTo: request.query.dateTo,
           branchId: request.query.branchId,
           withComments: request.query.withComments,
+          // El schema ya garantizó el formato "1,2,5" — acá solo se parsea y
+          // se deduplica (5 valores posibles: el Set es más barato que un IN
+          // con repetidos y deja el SQL estable para el query cache).
+          stars: parseStarsFilter(request.query.stars),
+          starsDimension: request.query.starsDimension,
           page: request.query.page,
           limit: request.query.limit,
         },

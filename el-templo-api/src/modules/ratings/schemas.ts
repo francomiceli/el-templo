@@ -72,7 +72,13 @@ export const pendingRatingSchema = {
 /**
  * Owner view querystring: rango de fechas sobre sessionDate + sucursal +
  * paginación del listado individual (los promedios per-coach no paginan).
- * withComments filtra SOLO el listado — ver getOwnerRatings.
+ * withComments y stars filtran SOLO el listado — ver getOwnerRatings.
+ *
+ * `stars` viaja como CSV ("1,2") y no como array repetido a propósito: ajv
+ * corre con coerceTypes por defecto, que NO convierte escalar → array, así que
+ * `?stars=2` (un solo valor) rompería contra un schema de tipo array. El
+ * pattern deja pasar únicamente dígitos 1-5 separados por coma; el handler lo
+ * parsea. Duplicados y orden no importan (termina en un IN).
  */
 export const ownerRatingsQuerySchema = {
   querystring: {
@@ -82,6 +88,8 @@ export const ownerRatingsQuerySchema = {
       dateTo: { type: "string", format: "date" },
       branchId: { type: "integer", minimum: 1 },
       withComments: { type: "boolean" },
+      stars: { type: "string", pattern: "^[1-5](,[1-5])*$" },
+      starsDimension: { type: "string", enum: ["coach", "class"] },
       page: { type: "integer", minimum: 1 },
       limit: { type: "integer", minimum: 1, maximum: 200 },
     },

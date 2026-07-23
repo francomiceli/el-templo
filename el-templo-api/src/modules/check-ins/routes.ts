@@ -1,11 +1,16 @@
 import { FastifyPluginAsync } from "fastify";
 import { CheckInService } from "./service";
-import type { CheckInAnswer } from "./types";
+import { CheckInAdminService } from "./admin-service";
+import { handleServiceError } from "../shared/error-handler";
+import { ADMIN_ROLES } from "../shared/permissions";
+import { attachCountryScope } from "../shared/country-scope";
+import type { CheckInAnswer, AdminCheckInsFilters } from "./types";
 import {
   submitCheckInBodySchema,
   checkInResponseSchema,
   todayCheckInResponseSchema,
   errorResponseSchema,
+  adminCheckInsQuerySchema,
 } from "./schemas";
 
 export const checkInRoutes: FastifyPluginAsync = async (fastify) => {
@@ -73,6 +78,46 @@ export const checkInRoutes: FastifyPluginAsync = async (fastify) => {
     async (request) => {
       const { userId } = request.user;
       return service.getTodayState(userId);
+    },
+  );
+};
+
+/**
+ * Vista admin del Registro del día (tab de Feedback), registrada en
+ * /api/admin/check-ins. ADMIN_ROLES (admin/owner) espeja el DUENO_ROLES del
+ * front: la página Feedback entera es Dueño-only, y acá se leen datos de salud
+ * autorreportados (dolor, sueño) con nombre y apellido — no se abre a
+ * coach/recepción.
+ */
+export const checkInAdminRoutes: FastifyPluginAsync = async (fastify) => {
+  const service = new CheckInAdminService(fastify.db);
+
+  fastify.addHook("onRequest", async (request, reply) => {
+    await fastify.authenticate(request, reply);
+    if (!(ADMIN_ROLES as readonly string[]).includes(request.user.role)) {
+      return reply.code(403).send({
+        error: "Acceso denegado",
+        message: "No tenés permisos para ver el registro del día",
+      });
+    }
+    await attachCountryScope(request, fastify.db);
+  });
+
+  fastify.get<{ Querystring: AdminCheckInsFilters }>(
+    "/",
+    { schema: adminCheckInsQuerySchema },
+    async (request, reply) => {
+      try {
+        return await service.getAdminCheckIns(
+          {
+            isOwner: request.scope.isOwner,
+            country: request.scope.country,
+          },
+          request.query,
+        );
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "get admin check-ins");
+      }
     },
   );
 };
