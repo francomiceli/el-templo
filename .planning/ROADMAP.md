@@ -4317,7 +4317,7 @@ Plans:
 **Wave 5** _(blocked on Wave 4 completion)_
 
 - [x] 164-10-PLAN.md — API: control del profe (context/state/end-class) con comandos absolutos idempotentes (completed 2026-07-24, `bbd776ae`)
-- [ ] 164-11-PLAN.md — TV: runtime completo (pairing, poll, reloj, clase, reposo/cierre, video, auto-reload)
+- [x] 164-11-PLAN.md — TV: runtime completo (pairing, poll, reloj, clase, reposo/cierre, video, auto-reload) (completed 2026-07-24, `174e63a9`)
 
 **Wave 6** _(blocked on Wave 5 completion)_
 

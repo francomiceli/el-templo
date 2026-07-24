@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v5.7
 milestone_name: Actividades con Aura
 status: executing
-stopped_at: Completed 164-10-PLAN.md
-last_updated: "2026-07-24T23:28:40.216Z"
+stopped_at: Completed 164-11-PLAN.md
+last_updated: "2026-07-24T23:55:00.000Z"
 last_activity: 2026-07-24
 progress:
   total_phases: 4
   completed_phases: 1
   total_plans: 30
-  completed_plans: 25
+  completed_plans: 26
   percent: 25
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 ## Current Position
 
 Phase: 164 (pantalla-tv-de-sucursal-plani-viva-por-bloque-con-timer-por-) — EXECUTING
-Plan: 11 of 13 (waves 1-5 backend completas — sigue 164-11, el kiosco)
+Plan: 12 of 13 (kiosco /tv/ completo — siguen 164-12 botonera del profe y 164-13 runbook+UAT)
 Status: Ready to execute
 Last activity: 2026-07-24
 
@@ -348,6 +348,7 @@ _Updated after each plan completion_
 | Phase 164 P09 | 10min | 3 tasks | 4 files |
 | Phase 164 P08 | 22min | 3 tasks | 3 files |
 | Phase 164 P10 | 17min | 3 tasks | 5 files |
+| Phase 164 P11 | 31min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -823,6 +824,12 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase 164-10]: Escribir estado sin sesion aprobada devuelve 409 y no crea fila: sin roster no hay rol al que apuntar y el TV quedaria en blanco
 - [Phase 164-10]: Un blockRole o level que hoy no existe se DESCARTA con warn, no se aplica-y-clampea: aplicarlo bajaria al profe al primer bloque con el timer en cero
 - [Phase 164-10]: endClass borra la fila de tv_class_state: 'sin fila' es el mismo reposo que ya produce el expire-on-read (D-07)
+- [Phase 164-11]: El kiosco guarda TRES claves en localStorage (deviceToken, deviceCode y userCode): /pair/status no devuelve el codigo visible, y sin persistirlo un reinicio antes de vincular deja la pantalla del codigo en blanco
+- [Phase 164-11]: El offset de reloj del TV se suaviza (media movil de 5 muestras + realineado si el salto supera 5 s): asignar serverNow crudo hace saltar los digitos con la latencia de cada poll
+- [Phase 164-11]: Un poll fallido NO toca el estado en memoria del kiosco — es lo que hace que con el wifi caido la pantalla no parpadee y el timer siga contando
+- [Phase 164-11]: location.reload() del kiosco vive detras de una unica guarda de screen === 'idle' (D-22), y el reciclado preventivo por 12 h de uptime pasa por la misma puerta
+- [Phase 164-11]: Los simbolos de nivel que el API manda dentro de listHeader se re-envuelven en span.glyph al pintarlos: como texto plano salen tofu, y el de kairos lo dibuja el CSS
+- [Phase 164-11]: El API tiene que sellar startedAt/pausedAt UNA sola vez — si se mueven en cada respuesta, el timer del TV no avanza (o los digitos se mueven estando en pausa)
 
 ### Pending Todos
 
