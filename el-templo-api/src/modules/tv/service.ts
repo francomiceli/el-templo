@@ -21,7 +21,7 @@ import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { todayInTz } from "../shared/date-utils";
-import { NotFoundError } from "../shared/errors";
+import { ConflictError, NotFoundError } from "../shared/errors";
 import { assembleVideoUrl } from "../shared/video-url";
 import {
   resolveClassDay,
@@ -40,8 +40,20 @@ import type {
   TvExercise,
   TvPollResponse,
   TvScreen,
+  TvStateWrite,
   TvTimerStatus,
 } from "./types";
+
+/** Comandos del timer (D-18: exactamente estos cuatro, ninguno relativo). */
+type TvTimerCommand = NonNullable<TvStateWrite["timer"]>;
+
+/** El timer en cero: cambiar de bloque y "reset" dejan exactamente esto. */
+const IDLE_TIMER = {
+  timerStatus: "idle" as TvTimerStatus,
+  timerStartedAt: null,
+  pausedAt: null,
+  pausedAccumMs: 0,
+};
 
 /** Lo unico que el servicio necesita saber de un televisor vinculado. */
 export interface TvDeviceRef {
@@ -356,9 +368,243 @@ export class TvService {
     return this.toControlContext(branch, classDay, stored);
   }
 
+  /**
+   * La UNICA escritura del profe. Absoluta, idempotente y clampeada.
+   *
+   * Por que un solo endpoint con valores absolutos y no un comando por accion:
+   * el profe maneja esto desde un celular en el medio de una clase, con la red
+   * de la sede. Un comando relativo ("el bloque que sigue") ante un doble tap o
+   * un reintento del cliente adelantaria DOS bloques; mandar el rol destino no
+   * puede hacer eso, porque repetir la misma escritura da el mismo resultado.
+   * Los tres comandos de timer con estado (`start`/`pause`/`resume`) son NO-OP
+   * cuando el timer ya esta en ese estado, por el mismo motivo.
+   *
+   * D-12: ultima escritura gana. Sin locks, sin numero de version, sin 409 por
+   * concurrencia — dos profes escribiendo a la vez es una decision explicita
+   * del usuario, no un caso a defender.
+   *
+   * Todos los sellos de tiempo se toman ACA (`now`), nunca del cliente: un
+   * telefono con el reloj corrido no puede mover el arranque de un timer que se
+   * proyecta en la pared (T-164-43).
+   *
+   * Devuelve el contexto COMPLETO y ya clampeado: el control es ciego (D-13) y
+   * no puede inferir el estado nuevo por su cuenta.
+   */
+  async writeState(
+    write: TvStateWrite,
+    userId: number,
+    now: Date = new Date(),
+  ): Promise<TvControlContext> {
+    const branch = await this.loadBranch(write.branchId);
+    const classDay = await resolveClassDay(this.db, branch, now);
+    const classDate = todayInTz(branch.timezone, now);
+    const roster = buildRoster(classDay);
+
+    // Sin sesion aprobada no existe un estado valido que escribir: no hay rol
+    // al que apuntar ni nivel al que caer. El control ya lo sabe por
+    // `sessionApproved` (D-10) y tiene la botonera deshabilitada, asi que una
+    // escritura aca solo puede venir de una carrera (aprobaron/desaprobaron la
+    // sesion mientras el profe tenia la pantalla abierta). Se responde
+    // explicito en vez de crear una fila corrupta que dejaria el TV en blanco.
+    if (!classDay.approved || roster.length === 0) {
+      throw new ConflictError("La sesión de hoy no está aprobada");
+    }
+
+    // Expire-on-read (D-07): una fila de ayer es como si no existiera, asi que
+    // la primera escritura del dia siempre nace con los defaults.
+    const stored = await this.readState(branch.id, classDate);
+    let state = this.clampState(
+      stored ?? {
+        screen: "class",
+        blockRole: roster[0].role,
+        // D-15: la clase arranca en alfa. Si hoy no hay alfa, el clamp de abajo
+        // lo baja al primer nivel que si exista.
+        level: "alfa",
+        exerciseIndex: 0,
+        soundEnabled: false,
+        ...IDLE_TIMER,
+      },
+      classDay,
+    );
+
+    // El orden importa y es parte del contrato: el bloque resetea, el nivel no.
+    state = this.applyBlockRole(state, write.blockRole, classDay, roster);
+    state = this.applyLevel(state, write.level, classDay);
+    if (write.exerciseIndex !== undefined) {
+      // El clamp final lo acota a la lista del (rol, nivel) que quedo vigente.
+      state = { ...state, exerciseIndex: write.exerciseIndex };
+    }
+    if (write.timer) {
+      state = this.applyTimerCommand(state, write.timer, now);
+    }
+    if (write.soundEnabled !== undefined) {
+      state = { ...state, soundEnabled: write.soundEnabled };
+    }
+    // D-08: la pantalla de cierre es un estado del profe, no del reloj. "idle"
+    // no se escribe: para volver a reposo esta `endClass`.
+    if (write.screen === "class" || write.screen === "closing") {
+      state = { ...state, screen: write.screen };
+    }
+
+    const next = this.clampState(state, classDay);
+    await this.persistState(branch.id, classDate, next, userId);
+    return this.toControlContext(branch, classDay, next);
+  }
+
+  /**
+   * Terminar la clase (D-07, boton manual del profe): el TV vuelve a reposo.
+   *
+   * Borra la fila en vez de marcarla: el expire-on-read ya trata un estado de
+   * otro dia como inexistente, asi que "sin fila" es exactamente el mismo
+   * reposo que amanece solo. Idempotente — terminar dos veces no falla.
+   */
+  async endClass(branchId: number): Promise<void> {
+    await this.db
+      .delete(schema.tvClassState)
+      .where(eq(schema.tvClassState.branchId, branchId));
+  }
+
   // ───────────────────────────────────────────────────────────────────────────
   // Helpers
   // ───────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Cambiar de bloque: resetea el ejercicio y el timer, CONSERVA el nivel.
+   *
+   * D-15 al pie de la letra. Y solo si el rol cambia de verdad: reescribir el
+   * bloque en el que ya estas (doble tap) no puede reiniciar un timer en curso.
+   *
+   * Un rol que no existe en el roster de hoy se DESCARTA en silencio en vez de
+   * aplicarse: aplicarlo haria que el clamp lo baje al primer bloque del dia, o
+   * sea que un valor invalido moveria al profe al bloque 1 y le reiniciaria el
+   * timer. El control recibe el estado real en la respuesta y se auto-corrige.
+   */
+  private applyBlockRole(
+    state: TvControlState,
+    blockRole: string | undefined,
+    classDay: ClassDay,
+    roster: TvBlockSummary[],
+  ): TvControlState {
+    if (blockRole === undefined || blockRole === state.blockRole) return state;
+    if (!roster.some((b) => b.role === blockRole)) {
+      this.log.warn(
+        { blockRole, mode: classDay.mode, date: classDay.date },
+        "tv: bloque inexistente en el roster del dia, descartado",
+      );
+      return state;
+    }
+    return { ...state, blockRole, exerciseIndex: 0, ...IDLE_TIMER };
+  }
+
+  /**
+   * Cambiar de nivel: NO toca el bloque ni el timer (D-15).
+   *
+   * El ejercicio puede quedar fuera de rango porque el nivel nuevo tenga una
+   * lista mas corta; de eso se encarga el clamp final, no este paso.
+   *
+   * Un nivel que hoy no existe se descarta (mismo criterio que el rol): el
+   * sabado ROM solo tiene alfa y delta (D-23), asi que un `sigma` de un control
+   * desactualizado deja al profe donde estaba en vez de saltarlo a otro tier.
+   */
+  private applyLevel(
+    state: TvControlState,
+    level: string | undefined,
+    classDay: ClassDay,
+  ): TvControlState {
+    if (level === undefined || level === state.level) return state;
+    if (!classDay.levels.includes(level)) {
+      this.log.warn(
+        { level, levels: classDay.levels, mode: classDay.mode },
+        "tv: nivel inexistente en el dia, descartado",
+      );
+      return state;
+    }
+    return { ...state, level };
+  }
+
+  /**
+   * Los cuatro comandos del timer (D-18: no hay saltar ni ajustar ronda).
+   *
+   * D-16: `start` arranca TRABAJO al instante, sin cuenta previa — el profe
+   * avisa a viva voz.
+   * D-17: la pausa acumula en vez de reescribir el arranque, asi que reanudar
+   * cae exacto donde quedo por mas veces que se pause.
+   */
+  private applyTimerCommand(
+    state: TvControlState,
+    command: TvTimerCommand,
+    now: Date,
+  ): TvControlState {
+    const at = now.getTime();
+    switch (command) {
+      case "start":
+        // Idempotente: un doble tap con red mala no puede reiniciar el bloque.
+        if (state.timerStatus === "running") return state;
+        return {
+          ...state,
+          timerStatus: "running",
+          timerStartedAt: at,
+          pausedAt: null,
+          pausedAccumMs: 0,
+        };
+      case "pause":
+        if (state.timerStatus !== "running") return state;
+        return { ...state, timerStatus: "paused", pausedAt: at };
+      case "resume":
+        if (state.timerStatus !== "paused") return state;
+        return {
+          ...state,
+          timerStatus: "running",
+          // El tramo pausado se suma al acumulado; el sello de arranque queda
+          // intacto (D-17). `Math.max` cubre un `paused_at` en el futuro por
+          // un ajuste de reloj del server.
+          pausedAccumMs:
+            state.pausedAccumMs + Math.max(0, at - (state.pausedAt ?? at)),
+          pausedAt: null,
+        };
+      case "reset":
+        return { ...state, ...IDLE_TIMER };
+    }
+  }
+
+  /**
+   * Upsert por sede (D-04: una sola fila por sucursal, garantizada por
+   * `uq_tv_class_state_branch`).
+   *
+   * `updated_by` deja registro de quien toco el estado (T-164-44), y
+   * `class_date` se reescribe SIEMPRE con la fecha de hoy en la TZ de la sede:
+   * es lo que convierte a la primera escritura del dia en "iniciar la clase"
+   * sin necesidad de un endpoint aparte.
+   */
+  private async persistState(
+    branchId: number,
+    classDate: string,
+    state: TvControlState,
+    userId: number,
+  ): Promise<void> {
+    const row = {
+      classDate,
+      screen: state.screen,
+      blockRole: state.blockRole,
+      level: state.level,
+      exerciseIndex: state.exerciseIndex,
+      timerStatus: state.timerStatus,
+      // fsp 3: los milisegundos del sello son el corazon del timer (Pitfall 9).
+      timerStartedAt: state.timerStartedAt
+        ? new Date(state.timerStartedAt)
+        : null,
+      pausedAt: state.pausedAt ? new Date(state.pausedAt) : null,
+      pausedAccumMs: state.pausedAccumMs,
+      soundEnabled: state.soundEnabled,
+      updatedBy: userId,
+    };
+
+    await this.db
+      .insert(schema.tvClassState)
+      .values({ branchId, ...row })
+      // D-12: ultima escritura gana, sin comparar contra lo que habia.
+      .onDuplicateKeyUpdate({ set: row });
+  }
 
   /**
    * La sede, o 404.

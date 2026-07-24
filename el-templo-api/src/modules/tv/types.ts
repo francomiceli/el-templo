@@ -240,8 +240,8 @@ export interface TvControlContext {
  *
  * D-18: `timer` is an idempotent command of exactly four values — there is no
  * "skip round" or "adjust round" in v1, so a double tap on a bad connection
- * cannot advance anything twice (relative commands like `next-block` are an
- * explicit anti-pattern here).
+ * cannot advance anything twice (relative commands — "the block after this
+ * one", "one more round" — are an explicit anti-pattern here).
  * D-12: last write wins, no locks.
  */
 export interface TvStateWrite {

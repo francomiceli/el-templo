@@ -31,11 +31,15 @@ import {
   tvDevicesListSchema,
   tvDeviceRevokeSchema,
   tvControlContextSchema,
+  tvControlStateSchema,
+  tvControlEndClassSchema,
   type TvPairClaimBody,
   type TvDevicesListQuery,
   type TvDeviceIdParams,
   type TvControlContextQuery,
+  type TvControlEndClassBody,
 } from "./schemas";
+import type { TvStateWrite } from "./types";
 import * as schema from "../../db/schema";
 
 export const tvControlRoutes: FastifyPluginAsync = async (fastify) => {
@@ -225,6 +229,60 @@ export const tvControlRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.send(context);
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "tv control context");
+      }
+    },
+  );
+
+  /**
+   * POST /api/admin/tv/control/state
+   *
+   * Toda accion del profe (bloque, nivel, ejercicio, timer, sonido, cierre)
+   * pasa por aca. Devuelve el contexto COMPLETO y clampeado, no un `ok`: el
+   * control es ciego (D-13) y necesita que el server le diga como quedo el
+   * estado — es tambien lo que hace que el clamp sea visible en la botonera.
+   *
+   * `request.user.userId` es la unica fuente del autor de la escritura
+   * (T-164-44): nunca se lee del body.
+   */
+  fastify.post<{ Body: TvStateWrite }>(
+    "/control/state",
+    {
+      schema: tvControlStateSchema,
+      preHandler: [requireBranchAccess({ from: "body.branchId" })],
+    },
+    async (request, reply) => {
+      try {
+        const service = new TvService(fastify.db, request.log);
+        const context = await service.writeState(
+          request.body,
+          request.user.userId,
+        );
+        return reply.send(context);
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "tv control state");
+      }
+    },
+  );
+
+  /**
+   * POST /api/admin/tv/control/end-class
+   *
+   * D-07: deja el televisor en reposo. Idempotente a proposito — el profe puede
+   * apretarlo dos veces, o dos profes de la misma sede a la vez, sin error.
+   */
+  fastify.post<{ Body: TvControlEndClassBody }>(
+    "/control/end-class",
+    {
+      schema: tvControlEndClassSchema,
+      preHandler: [requireBranchAccess({ from: "body.branchId" })],
+    },
+    async (request, reply) => {
+      try {
+        const service = new TvService(fastify.db, request.log);
+        await service.endClass(request.body.branchId);
+        return reply.send({ ok: true });
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "tv control end class");
       }
     },
   );

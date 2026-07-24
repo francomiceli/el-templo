@@ -371,6 +371,75 @@ export interface TvControlContextQuery {
 }
 
 /**
+ * Techo de `block_role` y `level`: es el largo fisico de sus columnas en
+ * `tv_class_state` (varchar 20). La validacion SEMANTICA de estos dos campos no
+ * puede vivir en un enum estatico — el roster y los niveles dependen del dia
+ * (un sabado ROM tiene otros roles y solo dos tiers, D-23), asi que se validan
+ * contra la sesion vigente dentro del servicio.
+ */
+const TV_STATE_TOKEN_MAX_LENGTH = 20;
+
+/**
+ * POST /api/admin/tv/control/state
+ *
+ * El unico endpoint de escritura del profe. Todos los campos son ABSOLUTOS y
+ * opcionales: una escritura toca solo lo que nombra, y repetirla da el mismo
+ * resultado. No existe ningun comando relativo (D-18) — con la red de una sede
+ * y un doble tap, "el bloque que sigue" adelantaria dos.
+ *
+ * `additionalProperties: false` es la mitigacion de T-164-43: el cliente no
+ * puede colar un sello de tiempo propio. Los timestamps los calcula el server
+ * en cada escritura, y ninguno figura en este contrato.
+ */
+export const tvControlStateSchema = {
+  body: {
+    type: "object",
+    required: ["branchId"],
+    additionalProperties: false,
+    properties: {
+      branchId: { type: "integer", minimum: 1 },
+      blockRole: {
+        type: "string",
+        minLength: 1,
+        maxLength: TV_STATE_TOKEN_MAX_LENGTH,
+      },
+      level: {
+        type: "string",
+        minLength: 1,
+        maxLength: TV_STATE_TOKEN_MAX_LENGTH,
+      },
+      // Sin techo: el clamp del servicio lo acota a la lista real del (rol,
+      // nivel) vigente, que es lo unico que conoce el largo verdadero.
+      exerciseIndex: { type: "integer", minimum: 0 },
+      timer: { type: "string", enum: ["start", "pause", "resume", "reset"] },
+      // "idle" NO se acepta: volver a reposo es `end-class`, no una pantalla.
+      screen: { type: "string", enum: ["class", "closing"] },
+      soundEnabled: { type: "boolean" },
+    },
+  },
+};
+
+/**
+ * POST /api/admin/tv/control/end-class
+ *
+ * D-07: el boton manual "terminar clase" que deja el TV en reposo. Idempotente.
+ */
+export const tvControlEndClassSchema = {
+  body: {
+    type: "object",
+    required: ["branchId"],
+    additionalProperties: false,
+    properties: {
+      branchId: { type: "integer", minimum: 1 },
+    },
+  },
+};
+
+export interface TvControlEndClassBody {
+  branchId: number;
+}
+
+/**
  * POST /api/admin/tv/devices/:id/revoke
  *
  * `:id` es el id del dispositivo, no de la sede — el acceso por sede se valida
