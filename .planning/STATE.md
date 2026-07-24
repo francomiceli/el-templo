@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v5.7
 milestone_name: Actividades con Aura
 status: executing
-stopped_at: Completed 164-08-PLAN.md
-last_updated: "2026-07-24T23:07:26.406Z"
+stopped_at: Completed 164-10-PLAN.md
+last_updated: "2026-07-24T23:28:40.216Z"
 last_activity: 2026-07-24
 progress:
   total_phases: 4
   completed_phases: 1
   total_plans: 30
-  completed_plans: 24
+  completed_plans: 25
   percent: 25
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 ## Current Position
 
 Phase: 164 (pantalla-tv-de-sucursal-plani-viva-por-bloque-con-timer-por-) — EXECUTING
-Plan: 10 of 13 (waves 1-4 completas — siguen 164-10 y 164-11, wave 5)
+Plan: 11 of 13 (waves 1-5 backend completas — sigue 164-11, el kiosco)
 Status: Ready to execute
 Last activity: 2026-07-24
 
@@ -347,6 +347,7 @@ _Updated after each plan completion_
 | Phase 164 P07 | 9min | 2 tasks | 2 files |
 | Phase 164 P09 | 10min | 3 tasks | 4 files |
 | Phase 164 P08 | 22min | 3 tasks | 3 files |
+| Phase 164 P10 | 17min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -818,6 +819,10 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase 164-08]: POST /api/tv/client-log escribe SIEMPRE en warn (el nivel reportado por el kiosco viaja como campo estructurado `reportedLevel`) — un televisor en loop de fallo pollea sin descanso y no puede disparar una cascada de alertas
 - [Phase 164-08]: El poll responde con `Cache-Control: no-store` — es estado vivo a 2.5 s y un intermediario que cachee deja el televisor congelado en un bloque que ya termino
 - [Phase 164-08]: Los tests de rutas del TV congelan el reloj con fake timers: la ruta no acepta un `now` inyectado (T-164-31) y sin congelarlo el archivo seria rojo los domingos y el borde AR/ES solo pasaria unas horas por dia
+- [Phase 164-10]: La escritura del control es ABSOLUTA e idempotente (start/pause/resume son NO-OP si ya estan en ese estado): con red mala, el doble tap no adelanta dos bloques ni reinicia el timer
+- [Phase 164-10]: Escribir estado sin sesion aprobada devuelve 409 y no crea fila: sin roster no hay rol al que apuntar y el TV quedaria en blanco
+- [Phase 164-10]: Un blockRole o level que hoy no existe se DESCARTA con warn, no se aplica-y-clampea: aplicarlo bajaria al profe al primer bloque con el timer en cero
+- [Phase 164-10]: endClass borra la fila de tv_class_state: 'sin fila' es el mismo reposo que ya produce el expire-on-read (D-07)
 
 ### Pending Todos
 
@@ -850,7 +855,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-24T23:07:26.384Z
+Last session: 2026-07-24T23:28:10.857Z
 Stopped at: Completed 164-08-PLAN.md
 Resume file: None
 
