@@ -1,17 +1,17 @@
 ---
 gsd_state_version: 1.0
-milestone: v5.8
-milestone_name: Sesiones de Prueba — automatización y self-service
-status: Awaiting next milestone
-stopped_at: Milestone v5.8 complete and archived
-last_updated: "2026-07-16T17:17:48.587Z"
-last_activity: 2026-07-16 — Milestone v5.8 completed and archived
+milestone: v5.7
+milestone_name: Actividades con Aura
+status: executing
+stopped_at: Phase 164 context gathered
+last_updated: "2026-07-24T19:14:04.047Z"
+last_activity: 2026-07-15
 progress:
   total_phases: 3
-  completed_phases: 3
+  completed_phases: 0
   total_plans: 13
-  completed_plans: 13
-  percent: 100
+  completed_plans: 11
+  percent: 0
 ---
 
 # Project State
@@ -20,21 +20,21 @@ progress:
 
 See: .planning/PROJECT.md (updated 2026-06-04)
 
-**Core value (v5.8):** Que el estado del lead de sesión de prueba se mantenga solo — Ganado ya es automático (hook `recomputeUserStatus`); falta vencer a Perdido por una ventana X (p90 histórico, configurable en `system_settings`) vía un cron diario nuevo en `src/jobs/`, y resetear a En seguimiento al reprogramar —, que la reprogramación de la primera clase sea acción de primera clase con historial visible, y que el self-service freemium→prueba existente (Phase 119, en prod sin UAT) quede validado end-to-end + teléfono obligatorio + UX de gestión. 3 fases (163-165), 12 requirements (AUTO/REPRO/SELF). 163 (máquina de estados) foundational; 164 depende de 163 (`lead_status_source`); 165 después de 163 (reset self-service). Se monta sobre infra existente (matching lead↔compra ya resuelto por diseño). Numeración arranca en 163 (159-160 reservadas v5.6, 161-162 v5.7). Staging-first estricto; migraciones a verificar en plan-phase (última aplicada 0180; 0181 es de rama no ejecutada).
-**Current focus:** Milestone complete
+**Core value (v5.7):** Clases especiales de sábado (Verticales con Pato, Acrobacias con Nico, 3ª a definir) gateadas por un pase mensual de 2 asistencias mezclables — socio activo +$10.000 ARS, externo $20.000 ARS — con reserva, cupo y asistencia sobre la infra existente (`activities`/`schedules`/`bookings`/`attendance`), y visibilidad de asistencias por actividad para el reparto manual a los profes. 2 fases (161-162), 14 requirements (ACT/PASE/GATE/APP/REP). Modelado: pase = 2 planes `planCategory:'especial'` con budget mensual explícito de 2 + gating por flag en `activities` + enforcement en `BookingService.reserve()` + consumo vía `classesRemaining`. Numeración arranca en 161 (159-160 reservadas por v5.6). Staging-first estricto; migraciones a verificar en plan-phase (0176-0178 tomadas por v5.5).
+**Current focus:** Phase 162 — Superficie — member app y reporte de reparto
 
 ## Current Position
 
-Phase: Milestone v5.8 complete
-Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-07-16 — Milestone v5.8 completed and archived
+Phase: 162 (Superficie — member app y reporte de reparto) — EXECUTING
+Plan: 6 of 6
+Status: Ready to execute
+Last activity: 2026-07-15
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 76 (v4.1)
+- Total plans completed: 63 (v4.1)
 - Average duration: ~11min
 - Total execution time: ~122min
 
@@ -58,9 +58,6 @@ Last activity: 2026-07-16 — Milestone v5.8 completed and archived
 | 154   | 5     | -      | -        |
 | 155   | 4     | -      | -        |
 | 156   | 5     | -      | -        |
-| 163 | 4 | - | - |
-| 164 | 4 | - | - |
-| 165 | 5 | - | - |
 
 **Recent Trend (from v4.0):**
 
@@ -341,20 +338,12 @@ _Updated after each plan completion_
 | Phase 162 P03 | ~14min | 3 tasks | 4 files |
 | Phase 162 P04 | ~5min | 3 tasks | 3 files |
 | Phase 162 P06 | ~13min | 2 tasks | 4 files |
-| Phase 163 P01 | 13min | 3 tasks | 5 files |
-| Phase 163 P03 | ~30min | 3 tasks | 4 files |
-| Phase 163 P163-04 | 18 | 2 tasks | 3 files |
-| Phase 164 P01 | ~15min | 2 tasks | 4 files |
-| Phase 164 P03 | 12min | 2 tasks | 5 files |
-| Phase 164 P164-02 | 15min | 2 tasks | 3 files |
-| Phase 165 P03 | 15min | 2 tasks | 6 files |
-| Phase 165 P04 | ~8min | 2 tasks | 2 files |
-| Phase 165 P165-05 | 25min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
 ### Roadmap Evolution
 
+- Phase 164 added (standalone admin/api, sin migraciones de sesiones; diseño YA validado en mockup v8): Pantalla TV de sucursal — plani viva por bloque (reemplaza el flujo de PNGs descargados del PDF builder) + timer por formato + video del ejercicio + control remoto del profe. Ruta pública `/tv` en el-templo-admin (marco 16:9, estética del PDF: mármol/Cinzel/NunitoSans/navy+oro de `session-pdf-builder.ts`); layout 2 columnas 45/55: lista del nivel elegido (ejercicio actual gigante) + timer abajo, video mp4 del ejercicio a la derecha (R2 público vía `assembleVideoUrl`). Control remoto = sección coach del admin en el celular: bloque, nivel (α/Δ/Σ/☉; deshabilitado en INITIUM/PYROS que es lista compartida y titula PYROS), ejercicio actual, timer start/reset. Comunicación celular↔TV SIN conexión directa: fila de estado por sede en la API, el TV hace polling 2-3s con device token (vinculación por código corto estilo Netflix), timers viajan como timestamp de inicio y el TV cuenta local. Origen: sugerencia #1 de los socios (6/42 piden reloj/segundero). Spec de UI: mockup navegable https://claude.ai/code/artifact/f61d5518-5716-4620-b02e-1696d961e100 + `164-UI-SPEC.md` + template HTML en el phase dir. Prerequisito operativo: wifi en Moreno. (TV-SUCURSAL)
 - v5.4 milestone roadmapped (phases 149-156, 33 reqs, granularity fine): Reforma del Admin — Correcciones white-label (pre-tenants). Deriva de `.docs/saas-multitenancy/Correcciones El Templo.md` + `01-analisis-correcciones-admin.md`. Continúa numeración desde 148 (NO reset). **149 Nav+RBAC foundational** (categorías Finanzas/Alumnos/Horarios/Planes + gating dueño-vs-empleado + gateo de features Templo fuera del MVP, no borradas). **150 Cuentas bancarias** (ABM flexible 3-obligatorios + baja lógica + retiros del dueño; levanta CAJA-F1 de v5.3) precede a **151 Cobros** (Pagos→Cobros, pasos separados, fecha/hora, COBRO-04 asocia cuenta). **152 Caja** (reorden tabs + estado por fila + filtro por día + validador + ABM centros de costo sobre `cost_centers` de v5.3 fase 147 + nota Saldos). **153 Deudas** (fecha+motivo+plan asociado+no-renovaciones; reutiliza `misc_reason` de v5.3 fase 145 — verificar, no duplicar). **154 Alumnos** (crear prominente + cobro en la fila + precio x medio config + avatar→segmento + niveles griegos gateados Templo). **155 Horarios** (clases simultáneas + crear clase desde slot + capacidad por actividad). **156 Planes** (Planes de pago vs Rutinas de entrenamiento + Zero a config + multi-programa por plan + suba de precio sin romper históricos con test). SIN tenants este milestone. (v5.4-ROADMAP)
 - Phase 148 added (continúa numeración tras v5.3 145-147; depende de v5.2 137/140/141 + v5.3 146): PoS profe — alta de alumno + plan en el cobro. El profe carga el plan directamente en el cobro (extiende `CargarPagoPage.vue` / Fase 140), creando al alumno si es nuevo, reemplazando el Google Form→Excel→admin. Modelo crear-en-vivo + validar-después (pago nace `pendiente` → bandeja Fase 137/141). Decisiones cerradas con el usuario (BRIEF-POS-PROFE-ALTA-ALUMNO.md): dedup por DNI (`check-duplicates`), cascade en void (desactiva membresía + alumno inactivo, no borra), sucursal default del profe editable, precio según medio de pago (tarjeta=`priceCreditCard`, resto=`priceRegular`/`priceZero` toggle Zero, parcial deja deuda), selector de turnos estructurado solo planes `fixed` (reusa `FixedSchedulePicker.vue`). Backend: endpoint nuevo en `coach-load-routes.ts` atómico e idempotente (resolver/crear alumno + `assignPlan(scheduleIds)` + transacción `pendiente`). Hallazgos: "Zero"=columna de precio no plan aparte; crear alumno mínimo ya existe (`POST /members/trial`, email null). Sobre `staging`, tren v5.2/v5.3. Decisiones cerradas → puede ir directo a /gsd-plan-phase (discuss opcional). (POS-NEW)
 - Phase 144 added (standalone app/api/admin, numerada después de 143, NO depende de ella ni del Módulo Contable v5.2): Notificaciones y bloqueo de vencimiento de membresía/plan — 3 entregables: (1) notificación push de vencimiento de plan ~7d antes, réplica del cron "Program Renewal Warning" pero sobre `subscriptions.end_date` + nuevo template `plan_renewal_warning` en `notifications/types.ts`; (2) pop-up in-app a 7 y 3 días del vencimiento con botón a WhatsApp (`buildWhatsAppUrl`); (3) bloqueo de reserva cuando `booking_date > subscription.end_date` en `booking-service.ts reserve()` (hoy ese check NO existe — bug latente) + pop-up en `ReservasPage.vue` con botón a WhatsApp. Reutiliza `pending_notifications`+FCM+`notification-cron` y `el-templo-app/src/utils/whatsapp.ts`. Decisiones abiertas (categoría entrenamiento vs programas, copy 7 vs 3d, anti-repetición del pop-up, salteable vs bloqueante, planes sin end_date, alcance presencial vs online) → discuss-phase. (PLAN-NOTIF, PLAN-POPUP, BOOK-BLOCK)
@@ -780,11 +769,6 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: 161-02: renew discrimina la sub por subscriptionId (valida ownership); guard D-09 en los 4 callsites de referral
 - [Phase ?]: 161-06: gating duro de especiales server-side; PassRequiredError→code PASS_REQUIRED en /reserve; D-04 cuenta reservas futuras pendientes; staff bypass con aviso en adminAddBooking
 - [Phase ?]: 162-03: reporte REP-01 socio/externo por sub que cubre session_date + fallback; sin montos; anti JOIN-fanout
-- [Phase 163]: Phase 163: lead_status_source ENUM(auto,manual) + leads.perdido_window_days seeded via dynamic p90 (fallback 14); getPerdidoWindowDays reader on SettingsService
-- [Phase 163]: 163-03: auto (compra/reset/alta) puede pisar Perdido; manual solo via PATCH humano, intocable por el cron
-- [Phase ?]: 164-01: rescheduleTrial transaccional (cancel-old + reset-lead source auto + create-new en UNA db.transaction); guard ALL_STAFF_ROLES heredado del hook
-- [Phase ?]: 164-02: UI Reprogramar sesion de prueba (dialogo fecha+slot) sobre endpoint 164-01; gate frontend por eslint (vue-tsc ausente del toolchain)
-- [Phase 165]: El teléfono del lead se pide recién en el diálogo de reserva de prueba (no en signup) cuando phoneRequired — cero fricción extra en el registro (D-05)
 
 ### Pending Todos
 
@@ -815,29 +799,10 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - Plan 130-02: graduation is event-driven (NO cron), wired as a guarded try/catch side effect into all 3 completed-session insert paths — sessions/routes.ts + goal-plans/routes.ts (after AURA award), attendance/service.ts (inline inside recordPresencialSession after the presencial mirror insert). 5 tests in test/kairos/kairos-graduation.test.ts (CI). API tsc green. staging, not pushed
 - Plan 130-04 (KAIROS-07 app half, D-04): decision pre-resolved include-kairos (overnight). Prepended `{ value: 'kairos', label: 'α Kairos' }` FIRST in LEVEL_SELECTOR_QUESTION.options (onboarding/types.ts) → self-pick now kairos→alfa→delta→sigma→omega (5 boxes; spartan still excluded — earned, not claimed). 5 boxes is below OnboardingQuestion's `>5` scrollable threshold → no layout break. HeaderLevelDropdown.vue already v-for's TRAINING_LEVELS (kairos first since 129) → VERIFIED, no change. Gate = app lint (0 errs) + quasar build (succeeded; vue-tsc not a runnable script here, build covers full tsc). human-verify (visual UAT) DEFERRED. KAIROS-07 now complete app+admin. staging, not pushed. Phase 130 ready_for_verification.
 
-## Deferred Items
-
-Items acknowledged and deferred at v5.8 milestone close on 2026-07-16 (audit-open: 72 open items, mayoría deuda histórica pre-v5.8):
-
-| Category | Item | Status |
-|----------|------|--------|
-| uat | 163-HUMAN-UAT.md — p90 real que siembre 0182 + dry-run 0183 contra prod (≈112 flips esperados) | pending |
-| uat | 164-HUMAN-UAT.md — reprogramar E2E + reporte con columnas nuevas | pending |
-| uat | 165-HUMAN-UAT.md — wa.me en dispositivo real, diálogo teléfono app, Ver ficha + aviso CSV (IN-02), variedad de formatos | pending |
-| verification | 165-VERIFICATION.md status `human_needed` (0 gaps de implementación) | pending UAT |
-| deferred | Flake UTC preexistente en `reports-trial-sessions.test.ts` (deferred-items.md de 164) | open |
-| histórico | 27 UAT gaps + 42 verification gaps acumulados de fases pre-v5.8 (v5.0/v5.1/116/134/136, tren v5.2/v5.3, v5.7 sin SUMMARYs 161-162) — ver memoria `archive/INDEX.md` | acknowledged |
-| quick_task | 001-remove-timers-add-saberes-info / 2-create-coach-user-guide (artefactos missing, stale) | acknowledged |
-| todo | v51-milestone-data-rollout (poblar `milestone_exercise_id`) | open |
-
 ## Session Continuity
 
-Last session: 2026-07-16T17:20:00.000Z
-Stopped at: Milestone v5.8 complete and archived
-Resume file: None
+Last session: 2026-07-24T19:14:04.013Z
+Stopped at: Phase 164 context gathered
+Resume file: .planning/phases/164-pantalla-tv-de-sucursal-plani-viva-por-bloque-con-timer-por-/164-CONTEXT.md
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
-
-## Operator Next Steps
-
-- Start the next milestone with /gsd-new-milestone
