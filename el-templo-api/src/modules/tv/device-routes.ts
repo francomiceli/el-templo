@@ -28,12 +28,30 @@ import { TvService } from "./service";
 import { makeDeviceAuth } from "./device-auth";
 import { handleServiceError } from "../shared/error-handler";
 import {
+  tvClientLogSchema,
   tvPairStartSchema,
   tvPairStatusSchema,
   tvStateSchema,
+  type TvClientLogBody,
   type TvPairStatusQuery,
 } from "./schemas";
 import * as schema from "../../db/schema";
+
+/** Techo de largo del texto que un kiosco puede escribir en los logs. */
+const CLIENT_LOG_MAX_LENGTH = 500;
+
+/**
+ * Saneo del texto que llega de un televisor.
+ *
+ * El JSON Schema ya acota el largo; este corte es la segunda linea (si mañana
+ * el schema cambia, el techo del log no se mueve). Los `<` y `>` se descartan
+ * en vez de escaparse: por este canal no viaja NADA que sea HTML, y un log
+ * agregador que renderice sin escapar no puede recibir un tag desde una
+ * pantalla colgada en una pared (T-164-34).
+ */
+function sanitizeClientLogText(value: string, max: number): string {
+  return value.replace(/[<>]/g, "").slice(0, max);
+}
 
 export const tvDeviceRoutes: FastifyPluginAsync = async (fastify) => {
   /**
@@ -138,6 +156,40 @@ export const tvDeviceRoutes: FastifyPluginAsync = async (fastify) => {
         } catch (err: unknown) {
           handleServiceError(err, reply, request.log, "tv poll state");
         }
+      },
+    );
+
+    /**
+     * POST /api/tv/client-log — telemetria minima del kiosco.
+     *
+     * Nadie va a abrir la consola de un televisor colgado a 3 metros del piso
+     * en una sede sin wifi decente: sin este canal, un TV que falla en la pared
+     * es una caja negra. Cuando algo se rompe del lado del cliente, el kiosco
+     * lo manda por aca y queda en el log del server, junto al id del dispositivo
+     * y su sede.
+     *
+     * Siempre se escribe en nivel `warn`, cualquiera sea el `level` reportado:
+     * un kiosco en loop de fallo pollea sin descanso y elevar la severidad
+     * dispararia una cascada de alertas por un solo televisor. El nivel que
+     * reporto el TV viaja como campo estructurado, que es donde sirve.
+     *
+     * Nunca se loguean headers ni el token del dispositivo (T-164-14).
+     */
+    deviceScope.post<{ Body: TvClientLogBody }>(
+      "/client-log",
+      { schema: tvClientLogSchema },
+      async (request, reply) => {
+        const { level, message, context } = request.body;
+        request.log.warn(
+          {
+            tvDeviceId: request.tvDevice.id,
+            branchId: request.tvDevice.branchId,
+            reportedLevel: level,
+            context: context ? sanitizeClientLogText(context, 100) : undefined,
+          },
+          sanitizeClientLogText(message, CLIENT_LOG_MAX_LENGTH),
+        );
+        return reply.code(204).send();
       },
     );
   });
