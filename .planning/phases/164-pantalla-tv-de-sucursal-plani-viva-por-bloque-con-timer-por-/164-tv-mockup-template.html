@@ -1,0 +1,689 @@
+<title>El Templo — Pantalla TV (mockup)</title>
+<style>
+  /* Réplica del lenguaje visual del PDF de planis (session-pdf-builder.ts):
+     mármol crema + navy + oro mate + arena, Cinzel/NunitoSans reales embebidas.
+     El PDF se genera a 3840×2160 → el marco del TV es 16:9 EXACTO (letterbox
+     alrededor si la ventana no acompaña). Unidades cqw = % del ancho del TV. */
+  @font-face {
+    font-family: 'Cinzel';
+    src: url(data:font/truetype;charset=utf-8;base64,__CINZEL_REG__) format('truetype');
+    font-weight: 400;
+  }
+  @font-face {
+    font-family: 'Cinzel';
+    src: url(data:font/truetype;charset=utf-8;base64,__CINZEL_BOLD__) format('truetype');
+    font-weight: 700;
+  }
+  @font-face {
+    font-family: 'NunitoSans';
+    src: url(data:font/truetype;charset=utf-8;base64,__NUNITO_REG__) format('truetype');
+    font-weight: 400;
+  }
+  @font-face {
+    font-family: 'NunitoSans';
+    src: url(data:font/truetype;charset=utf-8;base64,__NUNITO_BOLD__) format('truetype');
+    font-weight: 700;
+  }
+  :root {
+    --cream: #F2EBE1;      /* BG_CREAM */
+    --navy: #24364A;       /* NAVY — títulos y ejercicios */
+    --gold: #B08D6E;       /* GOLD — acentos, bordes, subtítulos */
+    --sand: #DBCAB4;       /* SAND — sombra de títulos */
+    --muted: #c5b9a8;      /* BORDER_MUTED */
+    --cinzel: 'Cinzel', Georgia, serif;
+    --nunito: 'NunitoSans', 'Segoe UI', system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: #17140f; /* letterbox alrededor del TV */
+    display: grid;
+    grid-template-rows: 1fr auto;
+    height: 100vh;
+    overflow: hidden;
+    font-family: var(--nunito);
+  }
+
+  /* ── El TV: marco 16:9 exacto, mismas proporciones que el PDF ── */
+  .tvWrap { display: grid; place-items: center; min-height: 0; padding: 1vh 1vw; }
+  #tv {
+    aspect-ratio: 16 / 9;
+    width: min(100%, calc((100vh - 2vh - 90px) * 16 / 9));
+    max-height: 100%;
+    container-type: size;
+    background: var(--cream) url(__MARBLE__) center / cover no-repeat;
+    color: var(--navy);
+    display: grid;
+    grid-template-rows: auto auto 1fr;
+    overflow: hidden;
+    box-shadow: 0 0 40px rgba(0, 0, 0, 0.55);
+  }
+
+  /* ── Barra superior: logo + sede | hora con segundero ── */
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 2cqw;
+    padding: 1cqw 2cqw 0.5cqw;
+  }
+  .topbar .marca { display: flex; align-items: center; gap: 1cqw; }
+  .topbar .marca img { height: 3.6cqw; display: block; }
+  .topbar .sede {
+    font-family: var(--cinzel);
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    font-size: 1.4cqw;
+    color: var(--navy);
+  }
+  .topbar .fecha {
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    font-size: 1cqw;
+    color: var(--gold);
+  }
+  .topbar .reloj {
+    font-family: var(--cinzel);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    font-size: 2.6cqw;
+    line-height: 1;
+    color: var(--navy);
+  }
+  .topbar .reloj .seg { color: var(--gold); }
+
+  /* ── Título del bloque, como el PDF: Cinzel navy con sombra arena ── */
+  .cabecera { text-align: center; padding: 0 2cqw; }
+  .cabecera h1 {
+    margin: 0;
+    font-family: var(--cinzel);
+    font-weight: 700;
+    letter-spacing: 0.09em;
+    font-size: 3.2cqw;
+    line-height: 1.1;
+    color: var(--navy);
+    text-shadow: 0.05em 0.035em 0 rgba(219, 202, 180, 0.85);
+    text-wrap: balance;
+  }
+  .cabecera .movilidad {
+    margin-top: 0.3cqw;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    font-size: 1.1cqw;
+    color: var(--gold);
+  }
+  .cabecera .bloqueNum {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5cqw;
+    margin-top: 0.35cqw;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    font-size: 0.85cqw;
+    color: var(--muted);
+  }
+  .cabecera .dot {
+    width: 0.5cqw; height: 0.5cqw;
+    border-radius: 50%;
+    background: var(--muted);
+    opacity: 0.5;
+  }
+  .cabecera .dot.activo { background: var(--gold); opacity: 1; }
+  .cabecera .dot.hecho { background: var(--navy); opacity: 0.55; }
+
+  /* ── Zona principal: 2 columnas — (lista / timer) | video ── */
+  .stage {
+    display: grid;
+    grid-template-columns: minmax(0, 45fr) minmax(0, 55fr);
+    gap: 1.2cqw;
+    padding: 0.9cqw 2cqw 1.4cqw;
+    min-height: 0;
+  }
+  .col { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+  /* Columna izquierda: dos mitades apiladas (lista arriba, timer abajo) */
+  .izq { gap: 1cqw; }
+  .izq .panel { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  .cabCol {
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    font-size: 1.4cqw;
+    color: var(--gold);
+    padding: 0 0.3cqw 0.45cqw;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .caja {
+    flex: 1;
+    border: 0.22cqw solid var(--gold);
+    border-radius: 1cqw;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  /* Columna 1: lista de ejercicios, actual gigante */
+  .listaCol .caja {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.5cqw;
+    padding: 1cqw 1.2cqw;
+  }
+  .listaCol .item {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 1cqw;
+    font-weight: 700;
+    color: var(--navy);
+    opacity: 0.45;
+    font-size: 1.45cqw;
+    line-height: 1.5;
+    transition: opacity 0.25s, font-size 0.25s;
+  }
+  .listaCol .item .ej::before { content: '•  '; }
+  .listaCol .item .rx { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .listaCol .item.activo {
+    opacity: 1;
+    font-size: 2.2cqw;
+    line-height: 1.4;
+  }
+  /* Listas largas (calentamiento): achica para que entren todas en la mitad */
+  .listaCol .caja.compacta { gap: 0.25cqw; }
+  .listaCol .caja.compacta .item { font-size: 1.1cqw; line-height: 1.45; }
+  .listaCol .caja.compacta .item.activo { font-size: 1.7cqw; line-height: 1.35; }
+  .listaCol .item.activo .ej::before { content: '▶  '; color: var(--gold); }
+  .listaCol .item.activo .rx { color: var(--gold); }
+
+  /* Columna 2: el video del ejercicio actual */
+  .videoCol .caja { position: relative; }
+  .videoCol video {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .videoCol .demoNota {
+    position: absolute;
+    left: 0.8cqw;
+    bottom: 0.6cqw;
+    font-weight: 700;
+    font-size: 0.75cqw;
+    letter-spacing: 0.1em;
+    color: rgba(242, 235, 225, 0.9);
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+  }
+
+  /* Timer (mitad inferior de la columna izquierda) */
+  .timerCaja .caja {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 0.5cqw;
+    padding: 1cqw;
+    transition: border-color 0.3s, background-color 0.3s;
+  }
+  .timerCaja.descanso .caja { border-color: var(--muted); }
+  .timerCaja.completo .caja { background: rgba(219, 202, 180, 0.35); }
+  .timerCaja .fase {
+    font-family: var(--cinzel);
+    font-weight: 700;
+    letter-spacing: 0.28em;
+    font-size: 1.5cqw;
+    color: var(--gold);
+    text-align: center;
+  }
+  .timerCaja.descanso .fase { color: var(--muted); }
+  .timerCaja .digitos {
+    font-family: var(--cinzel);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    font-size: 5.6cqw;
+    line-height: 1;
+    color: var(--navy);
+  }
+  .timerCaja .sub {
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    font-size: 1.1cqw;
+    color: var(--gold);
+    min-height: 1.3em;
+    text-align: center;
+  }
+  .timerCaja .barra {
+    width: 78%;
+    height: 0.45cqw;
+    background: rgba(197, 185, 168, 0.5);
+    border-radius: 99px;
+    overflow: hidden;
+    margin-top: 0.5cqw;
+  }
+  .timerCaja .barra i {
+    display: block;
+    height: 100%;
+    width: 0%;
+    background: var(--gold);
+    border-radius: 99px;
+    transition: width 0.2s linear;
+  }
+  .timerCaja .hint {
+    font-weight: 700;
+    font-size: 0.9cqw;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    margin-top: 0.3cqw;
+    text-align: center;
+  }
+  @keyframes pulso { 50% { opacity: 0.5; } }
+  .timerCaja.trabajo .fase { animation: pulso 1s ease-in-out infinite; }
+  @media (prefers-reduced-motion: reduce) {
+    .timerCaja .fase { animation: none !important; }
+    .listaCol .item { transition: none; }
+  }
+
+  /* ── Tira de demo (fuera del TV): simula el celular del profe ── */
+  .demo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px 16px 12px;
+    background: #211d17;
+  }
+  .demo .tag {
+    flex-basis: 100%;
+    text-align: center;
+    font-weight: 700;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    color: var(--gold);
+  }
+  .demo .grupo { display: flex; align-items: center; gap: 5px; padding: 0 10px; }
+  .demo .grupo + .grupo { border-left: 1px solid #453d31; }
+  .demo .grupoLabel {
+    font-weight: 700;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    color: #8a8071;
+    margin-right: 3px;
+  }
+  .demo button {
+    font-family: var(--nunito);
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.05em;
+    color: var(--cream);
+    background: #2e2820;
+    border: 1px solid #453d31;
+    border-radius: 6px;
+    padding: 6px 12px;
+    cursor: pointer;
+  }
+  .demo button:hover { border-color: var(--gold); }
+  .demo button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+  .demo button.primario { background: var(--gold); color: #211d17; border-color: var(--gold); }
+  .demo button.activo { background: var(--gold); color: #211d17; border-color: var(--gold); }
+  .demo button.inhabilitado { opacity: 0.35; pointer-events: none; }
+</style>
+
+<div class="tvWrap">
+  <div id="tv">
+    <header class="topbar">
+      <div class="marca">
+        <img src="__LOGO__" alt="El Templo" />
+        <div>
+          <div class="sede">EL TEMPLO ALEM</div>
+          <div class="fecha" id="fecha">MARTES · SEMANA 3</div>
+        </div>
+      </div>
+      <div class="reloj" id="reloj">--:--:<span class="seg">--</span></div>
+    </header>
+
+    <div class="cabecera">
+      <h1 id="titulo"></h1>
+      <div class="movilidad" id="movilidad"></div>
+      <div class="bloqueNum"><span id="bloqueNum">BLOQUE 1 / 5</span><span style="display:inline-flex;gap:0.4cqw" id="dots"></span></div>
+    </div>
+
+    <main class="stage" id="stage">
+      <section class="col izq">
+        <div class="panel listaCol">
+          <div class="cabCol" id="cabNivel"></div>
+          <div class="caja" id="listaBox"></div>
+        </div>
+        <div class="panel timerCaja" id="timerPanel">
+          <div class="cabCol" id="timerCab">TIMER</div>
+          <div class="caja">
+            <div class="fase" id="fase">LISTOS</div>
+            <div class="digitos" id="digitos">00:00</div>
+            <div class="sub" id="sub"></div>
+            <div class="barra"><i id="progreso"></i></div>
+            <div class="hint" id="hint"></div>
+          </div>
+        </div>
+      </section>
+      <section class="col videoCol">
+        <div class="cabCol" id="cabVideo">VIDEO</div>
+        <div class="caja">
+          <video autoplay loop muted playsinline src="__VIDEO__"></video>
+          <span class="demoNota">VIDEO REAL (ROW HORIZONTAL) — en la demo es el mismo para todos</span>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<footer class="demo" id="demoBar">
+  <span class="tag">DEMO — en el producto real esto es el control remoto en el celular del profe · el marco es 16:9 como los TVs (mismas proporciones que el PDF)</span>
+  <div class="grupo">
+    <span class="grupoLabel">BLOQUE</span>
+    <button id="btnPrev">◀</button>
+    <button id="btnNext">▶</button>
+  </div>
+  <div class="grupo" id="grupoNivel">
+    <span class="grupoLabel">NIVEL</span>
+    <button data-nivel="alfa">α</button>
+    <button data-nivel="delta">Δ</button>
+    <button data-nivel="sigma">Σ</button>
+    <button data-nivel="kairos">☉</button>
+  </div>
+  <div class="grupo">
+    <span class="grupoLabel">EJERCICIO</span>
+    <button id="btnEjPrev">◀</button>
+    <button id="btnEjNext">▶</button>
+  </div>
+  <div class="grupo">
+    <span class="grupoLabel">TIMER</span>
+    <button id="btnPlay" class="primario">▶ Iniciar</button>
+    <button id="btnReset">↺</button>
+    <button id="btnSound">🔇</button>
+  </div>
+</footer>
+
+<script>
+  'use strict';
+  // Sesión de ejemplo — misma estructura que PdfBlockPage del builder real.
+  const SIMBOLOS = { alfa: 'α', delta: 'Δ', sigma: 'Σ', kairos: '☉' };
+  const SESSION = {
+    blocks: [
+      {
+        role: 'INITIUM', blockName: 'PYROS',
+        formato: 'EVERY 30" × 12',
+        kind: 'intervals', params: { intervalSeconds: 30, rounds: 12 },
+        movilidad: null,
+        // Calentamiento compartido: lista única, sin selector de nivel
+        ejercicios: [
+          ['Jumping jacks', '30"'], ['Escaladores', '30"'], ['Sentadilla libre', '×15'],
+          ['Círculos de hombro', '×10'], ['Plancha activa', '20"'], ['Balanceos en barra', '×8'],
+          ['Push up escapular', '×10'], ['Gato-camello', '×10'],
+        ],
+      },
+      {
+        role: 'NUCLEUS',
+        formato: 'TABATA 20" / 10" × 8',
+        kind: 'tabata', params: { work: 20, rest: 10, rounds: 8 },
+        movilidad: 'ASSISTED SPAGAT DELTA 20"',
+        niveles: {
+          alfa:   { ruta: 'Tracción 60%', ejercicios: [['Remo invertido CON.', '×8'], ['Hollow hold ISO.', '20"'], ['Push up inclinado CON.', '×10']] },
+          delta:  { ruta: 'Tracción 70%', ejercicios: [['Dominada pronada CON.', '×6'], ['L-sit en cajón ISO.', '15"'], ['Push up estricto CON.', '×12']] },
+          sigma:  { ruta: 'Tracción 80%', ejercicios: [['Dominada lastrada CON.', '×5'], ['L-sit en paralelas ISO.', '20"'], ['Push up arquero CON.', '×8']] },
+          kairos: { ruta: 'Tracción 50%', ejercicios: [['Remo alto en banda CON.', '×10'], ['Plancha en rodillas ISO.', '15"'], ['Push up en pared CON.', '×10']] },
+        },
+      },
+      {
+        role: 'DEUTEROS I',
+        formato: "EMOM 60\" × 10'",
+        kind: 'emom', params: { intervalSeconds: 60, totalMinutes: 10 },
+        movilidad: 'PANCAKE ASISTIDO 30"',
+        niveles: {
+          alfa:   { ruta: 'Empuje 60%', ejercicios: [['Fondo en banco CON.', '×10'], ['Pike push up CON.', '×6']] },
+          delta:  { ruta: 'Empuje 70%', ejercicios: [['Fondo en paralelas CON.', '×8'], ['Pike elevado CON.', '×8']] },
+          sigma:  { ruta: 'Empuje 80%', ejercicios: [['Fondo lastrado CON.', '×6'], ['Vertical asistida ISO.', '30"']] },
+          kairos: { ruta: 'Empuje 50%', ejercicios: [['Fondo asistido CON.', '×8'], ['Pike en cajón CON.', '×6']] },
+        },
+      },
+      {
+        role: 'DEUTEROS II',
+        formato: "AMRAP 12'",
+        kind: 'amrap', params: { minutes: 12 },
+        movilidad: 'COLGADO PASIVO 40"',
+        niveles: {
+          alfa:   { ruta: 'Plancha 60%', ejercicios: [['Tuck plancha lean ISO.', '15"'], ['Remo a un brazo CON.', '×8'], ['Sentadilla búlgara CON.', '×10']] },
+          delta:  { ruta: 'Plancha 70%', ejercicios: [['Tuck plancha ISO.', '10"'], ['Remo arquero CON.', '×6'], ['Pistol asistido CON.', '×6']] },
+          sigma:  { ruta: 'Plancha 80%', ejercicios: [['Adv. tuck plancha ISO.', '8"'], ['Remo en anillas CON.', '×8'], ['Pistol squat CON.', '×5']] },
+          kairos: { ruta: 'Plancha 50%', ejercicios: [['Plancha en pared ISO.', '15"'], ['Remo en banda CON.', '×10'], ['Sentadilla a cajón CON.', '×8']] },
+        },
+      },
+      {
+        role: 'EPIKOS',
+        formato: 'STANDARD',
+        kind: 'free', params: {},
+        movilidad: 'RESPIRACIÓN NASAL 2\'',
+        niveles: {
+          alfa:   { ruta: 'Flow final', ejercicios: [['Puente de hombro CON.', '×10'], ['Spagat asistido ISO.', '40"']] },
+          delta:  { ruta: 'Flow final', ejercicios: [['Puente completo CON.', '×8'], ['Spagat ISO.', '40"']] },
+          sigma:  { ruta: 'Flow final', ejercicios: [['Puente a una pierna CON.', '×6'], ['Spagat completo ISO.', '60"']] },
+          kairos: { ruta: 'Flow final', ejercicios: [['Puente corto CON.', '×10'], ['Estiramiento suave ISO.', '40"']] },
+        },
+      },
+    ],
+  };
+
+  const $ = (id) => document.getElementById(id);
+  let idx = 1;              // arranca en NUCLEUS para lucir las 3 columnas
+  let nivel = 'delta';      // nivel elegido por el profe
+  let ejIdx = 0;            // ejercicio actual: resaltado en lista + video
+  let running = false;
+  let elapsed = 0;
+  let lastFrame = null;
+  let soundOn = false;
+  let lastBeepKey = null;
+  let audioCtx = null;
+
+  function beep(freq, dur) {
+    if (!soundOn) return;
+    try {
+      audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.frequency.value = freq;
+      osc.type = 'sine';
+      gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + dur);
+    } catch { /* sin audio disponible */ }
+  }
+
+  function fmt(sec) {
+    sec = Math.max(0, Math.ceil(sec));
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+  }
+
+  function totalSeconds(b) {
+    if (b.kind === 'tabata') return (b.params.work + b.params.rest) * b.params.rounds;
+    if (b.kind === 'emom') return b.params.totalMinutes * 60;
+    if (b.kind === 'amrap') return b.params.minutes * 60;
+    if (b.kind === 'intervals') return b.params.intervalSeconds * b.params.rounds;
+    return Infinity;
+  }
+
+  // Lista vigente: compartida (INITIUM) o la del nivel elegido
+  function listaActual() {
+    const b = SESSION.blocks[idx];
+    return b.niveles ? b.niveles[nivel].ejercicios : b.ejercicios;
+  }
+
+  // Redibuja título + contenido. El timer NO se resetea acá: cambiar de nivel
+  // o de ejercicio en medio de un bloque no interrumpe el conteo.
+  function renderContent() {
+    const b = SESSION.blocks[idx];
+    const compartido = !b.niveles;
+    $('bloqueNum').textContent = 'BLOQUE ' + (idx + 1) + ' / ' + SESSION.blocks.length;
+    $('dots').innerHTML = SESSION.blocks
+      .map((_, i) => '<span class="dot ' + (i < idx ? 'hecho' : i === idx ? 'activo' : '') + '"></span>')
+      .join('');
+    $('movilidad').textContent = b.movilidad ? 'MOVILIDAD  ·  ' + b.movilidad : '';
+
+    // El selector de nivel no aplica al bloque compartido
+    document.querySelectorAll('#grupoNivel button').forEach((btn) => {
+      btn.classList.toggle('activo', !compartido && btn.dataset.nivel === nivel);
+      btn.classList.toggle('inhabilitado', compartido);
+    });
+
+    // El bloque compartido titula con su nombre propio (PYROS), no "CALENTAMIENTO"
+    $('titulo').textContent = (b.blockName || b.role) + '  ·  ' + b.formato;
+    $('cabNivel').innerHTML = compartido
+      ? b.role + '  |  TODOS LOS NIVELES'
+      : 'NIVEL ' + SIMBOLOS[nivel] + '  |  ' + b.niveles[nivel].ruta;
+
+    const lista = listaActual();
+    ejIdx = Math.min(ejIdx, lista.length - 1);
+    $('cabVideo').textContent = lista[ejIdx][0].replace(/ (CON|EXC|ISO)\.$/, '');
+
+    $('listaBox').classList.toggle('compacta', lista.length > 5);
+    $('listaBox').innerHTML = lista
+      .map((e, i) =>
+        '<div class="item' + (i === ejIdx ? ' activo' : '') + '">' +
+        '<span class="ej">' + e[0] + '</span><span class="rx">' + e[1] + '</span></div>')
+      .join('');
+  }
+
+  function resetTimer() {
+    running = false;
+    elapsed = 0;
+    lastBeepKey = null;
+    $('btnPlay').textContent = '▶ Iniciar';
+    paintTimer();
+  }
+
+  function paintTimer() {
+    const b = SESSION.blocks[idx];
+    const p = b.params;
+    const panel = $('timerPanel');
+    const total = totalSeconds(b);
+    let fase = 'LISTOS', digitos = '00:00', sub = '', clase = '', hint = '', beepKey = null;
+
+    if (b.kind === 'free') {
+      fase = running ? 'CRONÓMETRO' : 'LISTOS';
+      digitos = fmt(elapsed);
+      sub = 'A RITMO PROPIO';
+      hint = 'Formato sin tiempos — segundero libre';
+    } else if (elapsed >= total) {
+      running = false;
+      fase = 'BLOQUE COMPLETO';
+      digitos = '00:00';
+      clase = 'completo';
+      hint = 'El profe avanza al siguiente bloque';
+      beepKey = 'fin';
+    } else if (b.kind === 'tabata') {
+      const ciclo = p.work + p.rest;
+      const ronda = Math.floor(elapsed / ciclo);
+      const dentro = elapsed - ronda * ciclo;
+      const enTrabajo = dentro < p.work;
+      fase = enTrabajo ? 'TRABAJO' : 'DESCANSO';
+      clase = enTrabajo ? 'trabajo' : 'descanso';
+      digitos = fmt(enTrabajo ? p.work - dentro : ciclo - dentro);
+      sub = 'RONDA ' + (ronda + 1) + ' / ' + p.rounds;
+      beepKey = ronda + '-' + (enTrabajo ? 'w' : 'r');
+    } else if (b.kind === 'emom' || b.kind === 'intervals') {
+      const intervalo = p.intervalSeconds;
+      const n = Math.floor(elapsed / intervalo);
+      const rondas = b.kind === 'emom' ? (p.totalMinutes * 60) / intervalo : p.rounds;
+      fase = 'TRABAJO';
+      clase = 'trabajo';
+      digitos = fmt(intervalo - (elapsed - n * intervalo));
+      sub = 'INTERVALO ' + (n + 1) + ' / ' + rondas;
+      beepKey = 'i' + n;
+    } else if (b.kind === 'amrap') {
+      fase = 'AMRAP';
+      clase = 'trabajo';
+      digitos = fmt(total - elapsed);
+      sub = 'MÁXIMAS RONDAS POSIBLES';
+      beepKey = 'amrap';
+    }
+
+    if (!running && elapsed === 0 && b.kind !== 'free') {
+      fase = 'LISTOS';
+      clase = '';
+    }
+
+    panel.className = 'panel timerCaja' + (clase ? ' ' + clase : '');
+    $('timerCab').textContent = b.formato;
+    $('fase').textContent = fase;
+    $('digitos').textContent = digitos;
+    $('sub').textContent = sub;
+    $('hint').textContent = hint;
+    $('progreso').style.width =
+      total === Infinity ? '0%' : Math.min(100, (elapsed / total) * 100) + '%';
+
+    if (running && beepKey && beepKey !== lastBeepKey) {
+      if (lastBeepKey !== null) beep(beepKey === 'fin' ? 660 : 880, 0.25);
+      lastBeepKey = beepKey;
+    }
+  }
+
+  // El video es un mp4 REAL de la app (exercises/3325.mp4, ROW HORIZONTAL)
+  // embebido como data URI. En el producto real el <video> recibe el
+  // videoUrl del ejercicio actual, igual que VideoPlaceholder.vue.
+  function tick(ts) {
+    if (lastFrame !== null && running) {
+      elapsed += (ts - lastFrame) / 1000;
+      paintTimer();
+    }
+    lastFrame = ts;
+    requestAnimationFrame(tick);
+  }
+
+  // Reloj de pared con segundero — siempre visible (el pedido de los socios)
+  function relojPared() {
+    const d = new Date();
+    const p = (n) => String(n).padStart(2, '0');
+    $('reloj').innerHTML = p(d.getHours()) + ':' + p(d.getMinutes()) + ':<span class="seg">' + p(d.getSeconds()) + '</span>';
+  }
+  setInterval(relojPared, 250);
+  relojPared();
+
+  const DIAS = ['DOMINGO', 'LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNES', 'SÁBADO'];
+  $('fecha').textContent = DIAS[new Date().getDay()] + ' · SEMANA 3';
+
+  $('btnPrev').addEventListener('click', () => {
+    idx = (idx - 1 + SESSION.blocks.length) % SESSION.blocks.length;
+    ejIdx = 0; renderContent(); resetTimer();
+  });
+  $('btnNext').addEventListener('click', () => {
+    idx = (idx + 1) % SESSION.blocks.length;
+    ejIdx = 0; renderContent(); resetTimer();
+  });
+  document.querySelectorAll('#grupoNivel button').forEach((btn) => {
+    btn.addEventListener('click', () => { nivel = btn.dataset.nivel; ejIdx = 0; renderContent(); });
+  });
+  $('btnEjPrev').addEventListener('click', () => { ejIdx = Math.max(0, ejIdx - 1); renderContent(); });
+  $('btnEjNext').addEventListener('click', () => {
+    ejIdx = Math.min(listaActual().length - 1, ejIdx + 1);
+    renderContent();
+  });
+  $('btnReset').addEventListener('click', resetTimer);
+  $('btnPlay').addEventListener('click', () => {
+    running = !running;
+    $('btnPlay').textContent = running ? '⏸ Pausar' : '▶ Iniciar';
+    if (running && audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+    paintTimer();
+  });
+  $('btnSound').addEventListener('click', () => {
+    soundOn = !soundOn;
+    $('btnSound').textContent = soundOn ? '🔊' : '🔇';
+    if (soundOn) beep(880, 0.15);
+  });
+
+  renderContent();
+  resetTimer();
+  requestAnimationFrame(tick);
+</script>
