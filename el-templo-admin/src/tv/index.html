@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>El Templo — Pantalla de sede</title>
+    <!--
+      Plantilla del kiosco. scripts/build-tv.mjs la convierte en public/tv/index.html
+      reemplazando los dos marcadores de abajo por el CSS y el JS INLINE.
+      Van inline a proposito: el nginx del admin cachea cualquier .js/.css un año con
+      immutable y este bundle no lleva hash en el nombre (Pitfall 7 del RESEARCH).
+      Los ids de abajo son el contrato de render del plan 164-11: no renombrar.
+    -->
+    <!--__STYLE__-->
+  </head>
+  <body>
+    <div class="tvWrap">
+      <div id="tv">
+        <header class="topbar">
+          <div class="marca">
+            <img src="logo.png" alt="El Templo" />
+            <div>
+              <div class="sede" id="sede">EL TEMPLO</div>
+              <div class="fecha" id="fecha"></div>
+            </div>
+          </div>
+          <div class="reloj" id="reloj">--:--:<span class="seg">--</span></div>
+        </header>
+
+        <div class="cabecera">
+          <h1 id="titulo"></h1>
+          <div class="movilidad" id="movilidad"></div>
+          <div class="bloqueNum">
+            <span id="bloqueNum"></span><span class="dots" id="dots"></span>
+          </div>
+        </div>
+
+        <main class="stage" id="stage">
+          <section class="col izq">
+            <div class="panel listaCol">
+              <div class="cabCol" id="cabNivel"></div>
+              <div class="caja" id="listaBox"></div>
+            </div>
+            <div class="panel timerCaja" id="timerPanel">
+              <div class="cabCol" id="timerCab"></div>
+              <div class="caja">
+                <div class="fase" id="fase">LISTOS</div>
+                <div class="digitos" id="digitos">00:00</div>
+                <div class="sub" id="sub"></div>
+                <div class="barra"><i id="progreso"></i></div>
+                <div class="hint" id="hint"></div>
+              </div>
+            </div>
+          </section>
+          <section class="col videoCol">
+            <div class="cabCol" id="cabVideo"></div>
+            <div class="caja">
+              <video autoplay loop muted playsinline></video>
+            </div>
+          </section>
+        </main>
+
+        <!--
+          Las otras tres pantallas del kiosco. Son overlays del marco 16:9 (tapan la
+          pantalla de clase completa, no hay que ocultarla aparte) y arrancan vacias:
+          las rellena el render del plan 164-11.
+          - pairing: TV sin vincular, muestra el codigo corto (estilo Netflix)
+          - reposo: fuera de clase — reloj gigante + logo + quote del PDF (D-06)
+          - cierre: despues del ultimo bloque de la sesion (D-08)
+        -->
+        <div class="pantalla" id="pantallaPairing"></div>
+        <div class="pantalla" id="pantallaReposo"></div>
+        <div class="pantalla" id="pantallaCierre"></div>
+      </div>
+    </div>
+    <!--__SCRIPT__-->
+  </body>
+</html>

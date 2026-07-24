@@ -1,0 +1,386 @@
+/* Réplica del lenguaje visual del PDF de planis (session-pdf-builder.ts):
+   mármol crema + navy + oro mate + arena, Cinzel/NunitoSans reales embebidas.
+   El PDF se genera a 3840×2160 → el marco del TV es 16:9 EXACTO (letterbox
+   alrededor si la ventana no acompaña). Unidades cqw = % del ancho del TV.
+
+   OJO: este archivo sale del mockup v8 validado y todavía usa container queries,
+   aspect-ratio, gap en flex y CSS grid — nada de eso baja al piso Chromium 53.
+   La conversión de compatibilidad (cqw → rem escalado por JS, grid → flex sin gap)
+   es el plan 164-06; acá el CSS entra tal cual para poder comparar contra el mockup.
+
+   Las fuentes y el mármol se sirven self-hosted desde /tv/ (C-12: sin CDN); los
+   archivos los escribe scripts/build-tv.mjs decodificando el base64 de pdf-assets.ts. */
+@font-face {
+  font-family: 'Cinzel';
+  src: url(fonts/cinzel-regular.ttf) format('truetype');
+  font-weight: 400;
+}
+@font-face {
+  font-family: 'Cinzel';
+  src: url(fonts/cinzel-bold.ttf) format('truetype');
+  font-weight: 700;
+}
+@font-face {
+  font-family: 'NunitoSans';
+  src: url(fonts/nunito-regular.ttf) format('truetype');
+  font-weight: 400;
+}
+@font-face {
+  font-family: 'NunitoSans';
+  src: url(fonts/nunito-bold.ttf) format('truetype');
+  font-weight: 700;
+}
+:root {
+  --cream: #f2ebe1; /* BG_CREAM */
+  --navy: #24364a; /* NAVY — títulos y ejercicios */
+  --gold: #b08d6e; /* GOLD — acentos, bordes, subtítulos */
+  --sand: #dbcab4; /* SAND — sombra de títulos */
+  --muted: #c5b9a8; /* BORDER_MUTED */
+  --cinzel: 'Cinzel', Georgia, serif;
+  --nunito: 'NunitoSans', 'Segoe UI', system-ui, sans-serif;
+}
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  height: 100%;
+}
+body {
+  margin: 0;
+  background: #17140f; /* letterbox alrededor del TV */
+  height: 100vh;
+  overflow: hidden;
+  font-family: var(--nunito);
+  cursor: none; /* kiosco: no hay mouse en la sede */
+}
+
+/* ── El TV: marco 16:9 exacto, mismas proporciones que el PDF ── */
+.tvWrap {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  min-height: 0;
+  padding: 1vh 1vw;
+}
+#tv {
+  position: relative; /* ancla de los overlays .pantalla */
+  aspect-ratio: 16 / 9;
+  width: min(100%, calc((100vh - 2vh) * 16 / 9));
+  max-height: 100%;
+  container-type: size;
+  background: var(--cream) url(marble.jpg) center / cover no-repeat;
+  color: var(--navy);
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  overflow: hidden;
+  box-shadow: 0 0 40px rgba(0, 0, 0, 0.55);
+}
+
+/* ── Barra superior: logo + sede | hora con segundero ── */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2cqw;
+  padding: 1cqw 2cqw 0.5cqw;
+}
+.topbar .marca {
+  display: flex;
+  align-items: center;
+  gap: 1cqw;
+}
+.topbar .marca img {
+  height: 3.6cqw;
+  display: block;
+}
+.topbar .sede {
+  font-family: var(--cinzel);
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  font-size: 1.4cqw;
+  color: var(--navy);
+}
+.topbar .fecha {
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  font-size: 1cqw;
+  color: var(--gold);
+}
+.topbar .reloj {
+  font-family: var(--cinzel);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  font-size: 2.6cqw;
+  line-height: 1;
+  color: var(--navy);
+}
+.topbar .reloj .seg {
+  color: var(--gold);
+}
+
+/* ── Título del bloque, como el PDF: Cinzel navy con sombra arena ── */
+.cabecera {
+  text-align: center;
+  padding: 0 2cqw;
+}
+.cabecera h1 {
+  margin: 0;
+  font-family: var(--cinzel);
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  font-size: 3.2cqw;
+  line-height: 1.1;
+  color: var(--navy);
+  text-shadow: 0.05em 0.035em 0 rgba(219, 202, 180, 0.85);
+  text-wrap: balance;
+}
+.cabecera .movilidad {
+  margin-top: 0.3cqw;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  font-size: 1.1cqw;
+  color: var(--gold);
+}
+.cabecera .bloqueNum {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5cqw;
+  margin-top: 0.35cqw;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  font-size: 0.85cqw;
+  color: var(--muted);
+}
+.cabecera .dots {
+  display: inline-flex;
+  gap: 0.4cqw;
+}
+.cabecera .dot {
+  width: 0.5cqw;
+  height: 0.5cqw;
+  border-radius: 50%;
+  background: var(--muted);
+  opacity: 0.5;
+}
+.cabecera .dot.activo {
+  background: var(--gold);
+  opacity: 1;
+}
+.cabecera .dot.hecho {
+  background: var(--navy);
+  opacity: 0.55;
+}
+
+/* ── Zona principal: 2 columnas — (lista / timer) | video ── */
+.stage {
+  display: grid;
+  grid-template-columns: minmax(0, 45fr) minmax(0, 55fr);
+  gap: 1.2cqw;
+  padding: 0.9cqw 2cqw 1.4cqw;
+  min-height: 0;
+}
+.col {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+/* Columna izquierda: dos mitades apiladas (lista arriba, timer abajo) */
+.izq {
+  gap: 1cqw;
+}
+.izq .panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.cabCol {
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  font-size: 1.4cqw;
+  color: var(--gold);
+  padding: 0 0.3cqw 0.45cqw;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.caja {
+  flex: 1;
+  border: 0.22cqw solid var(--gold);
+  border-radius: 1cqw;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Columna 1: lista de ejercicios, actual gigante */
+.listaCol .caja {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.5cqw;
+  padding: 1cqw 1.2cqw;
+}
+.listaCol .item {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1cqw;
+  font-weight: 700;
+  color: var(--navy);
+  opacity: 0.45;
+  font-size: 1.45cqw;
+  line-height: 1.5;
+  transition:
+    opacity 0.25s,
+    font-size 0.25s;
+}
+.listaCol .item .ej::before {
+  content: '•  ';
+}
+.listaCol .item .rx {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.listaCol .item.activo {
+  opacity: 1;
+  font-size: 2.2cqw;
+  line-height: 1.4;
+}
+/* Listas largas (calentamiento): achica para que entren todas en la mitad */
+.listaCol .caja.compacta {
+  gap: 0.25cqw;
+}
+.listaCol .caja.compacta .item {
+  font-size: 1.1cqw;
+  line-height: 1.45;
+}
+.listaCol .caja.compacta .item.activo {
+  font-size: 1.7cqw;
+  line-height: 1.35;
+}
+.listaCol .item.activo .ej::before {
+  content: '▶  ';
+  color: var(--gold);
+}
+.listaCol .item.activo .rx {
+  color: var(--gold);
+}
+
+/* Columna 2: el video del ejercicio actual */
+.videoCol .caja {
+  position: relative;
+}
+.videoCol video {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Timer (mitad inferior de la columna izquierda) */
+.timerCaja .caja {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 0.5cqw;
+  padding: 1cqw;
+  transition:
+    border-color 0.3s,
+    background-color 0.3s;
+}
+.timerCaja.descanso .caja {
+  border-color: var(--muted);
+}
+.timerCaja.completo .caja {
+  background: rgba(219, 202, 180, 0.35);
+}
+.timerCaja .fase {
+  font-family: var(--cinzel);
+  font-weight: 700;
+  letter-spacing: 0.28em;
+  font-size: 1.5cqw;
+  color: var(--gold);
+  text-align: center;
+}
+.timerCaja.descanso .fase {
+  color: var(--muted);
+}
+.timerCaja .digitos {
+  font-family: var(--cinzel);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  font-size: 5.6cqw;
+  line-height: 1;
+  color: var(--navy);
+}
+.timerCaja .sub {
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  font-size: 1.1cqw;
+  color: var(--gold);
+  min-height: 1.3em;
+  text-align: center;
+}
+.timerCaja .barra {
+  width: 78%;
+  height: 0.45cqw;
+  background: rgba(197, 185, 168, 0.5);
+  border-radius: 99px;
+  overflow: hidden;
+  margin-top: 0.5cqw;
+}
+.timerCaja .barra i {
+  display: block;
+  height: 100%;
+  width: 0%;
+  background: var(--gold);
+  border-radius: 99px;
+  transition: width 0.2s linear;
+}
+.timerCaja .hint {
+  font-weight: 700;
+  font-size: 0.9cqw;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  margin-top: 0.3cqw;
+  text-align: center;
+}
+@keyframes pulso {
+  50% {
+    opacity: 0.5;
+  }
+}
+.timerCaja.trabajo .fase {
+  animation: pulso 1s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .timerCaja .fase {
+    animation: none !important;
+  }
+  .listaCol .item {
+    transition: none;
+  }
+}
+
+/* ── Las otras pantallas (pairing / reposo / cierre): overlays del marco 16:9 ──
+   Tapan la pantalla de clase entera, así el render no tiene que ocultarla aparte.
+   Arrancan ocultas; el plan 164-11 las llena y togglea la clase .visible. */
+.pantalla {
+  display: none;
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--cream) url(marble.jpg) center / cover no-repeat;
+  color: var(--navy);
+  text-align: center;
+}
+.pantalla.visible {
+  display: block;
+}
