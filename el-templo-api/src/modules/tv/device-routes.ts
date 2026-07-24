@@ -49,7 +49,7 @@ const CLIENT_LOG_MAX_LENGTH = 500;
  * agregador que renderice sin escapar no puede recibir un tag desde una
  * pantalla colgada en una pared (T-164-34).
  */
-function sanitizeClientLogText(value: string, max: number): string {
+export function sanitizeClientLogText(value: string, max: number): string {
   return value.replace(/[<>]/g, "").slice(0, max);
 }
 
