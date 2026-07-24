@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v5.7
 milestone_name: Actividades con Aura
 status: executing
-stopped_at: Completed 164-06-PLAN.md
-last_updated: "2026-07-24T22:33:00Z"
+stopped_at: Completed 164-07-PLAN.md
+last_updated: "2026-07-24T22:42:00Z"
 last_activity: 2026-07-24
 progress:
   total_phases: 4
   completed_phases: 1
   total_plans: 30
-  completed_plans: 21
+  completed_plans: 22
   percent: 25
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 ## Current Position
 
 Phase: 164 (pantalla-tv-de-sucursal-plani-viva-por-bloque-con-timer-por-) — EXECUTING
-Plan: 7 of 13
+Plan: 8 of 13
 Status: Ready to execute
 Last activity: 2026-07-24
 
@@ -344,6 +344,7 @@ _Updated after each plan completion_
 | Phase 164 P04 | 11min | 3 tasks | 12 files |
 | Phase 164 P05 | 24min | 3 tasks | 10 files |
 | Phase 164 P06 | 18min | 3 tasks | 5 files |
+| Phase 164 P07 | 9min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -802,6 +803,11 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase 164-06]: Los simbolos de nivel se pintan con <span class="glyph"> (stack de sistema) y el de kairos con <span class="glyph kairos"> (dibujado en CSS): Cinzel no cubre griego, igual que en el PDF
 - [Phase 164-06]: /tv/?diag=1 es el unico instrumento de campo (no hay devtools en un TV): user agent, marco y px por rem, 12 feature-detects, version local vs version.txt, status+latencia del poll y las ultimas 20 lineas del log — todo con textContent y el device token truncado a 4 chars
 - [Phase 164-06]: tvApiBase() (diag.ts) es la resolucion unica de la base del API del kiosco — el poll de 164-11 debe reusarla, no escribir una segunda
+- [Phase 164-07]: src/tv/timer.ts es un port 1:1 de modules/tv/timer-phase.ts (con TimerSpec/TimerFrame duplicados a proposito): cualquier cambio va PRIMERO al API, donde estan los tests, y despues se copia — la divergencia la detecta ?selftest=1, no la lectura
+- [Phase 164-07]: elapsedFrom(timer, nowCorrected) implementa D-17 en el consumidor (running = nowCorrected - startedAt - pausedAccumMs, paused congelado en pausedAt, idle = 0) y NUNCA lee el reloj de pared: el runtime del poll (164-11) debe pasarle reloj local + offset del servidor, no el crudo
+- [Phase 164-07]: formatDigits redondea hacia ARRIBA como el fmt() del mockup v8 (el 00:01 dura todo el ultimo segundo); efecto conocido: un cronometro libre salta a 00:01 apenas arranca
+- [Phase 164-07]: /tv/?selftest=1 corre 34 casos en el televisor (28 samples de los 6 vectores dorados del API + 3 de elapsedFrom + 3 de formatDigits) y pinta PASS/FAIL gigante — es el primer paso del UAT en cada sede, antes de ?diag=1
+- [Phase 164-07]: No hay browser headless ni jsdom en esta maquina y no se pueden instalar (gate humano): el render del kiosco se verifica corriendo el <script> inline del public/tv/index.html generado con node:vm sobre un DOM minimo
 
 ### Pending Todos
 
@@ -834,8 +840,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-24T22:33:00Z
-Stopped at: Completed 164-06-PLAN.md
+Last session: 2026-07-24T22:42:00Z
+Stopped at: Completed 164-07-PLAN.md
 Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
