@@ -5,11 +5,13 @@ import * as schema from "../../db/schema";
 import { SessionGeneratorService } from "./service";
 import { ADMIN_ROLES } from "../shared/permissions";
 import {
-  DAY_OF_WEEK_MAP,
   DAY_NAME_TO_NUMBER,
   parseDayId,
   isTrainingLevel,
 } from "../shared/training-constants";
+// Phase 164: the week/day anchor moved to shared/week-dates.ts so the branch TV
+// resolves "today's session" with the exact same arithmetic as /sessions/daily.
+import { dateToWeekNumber, dateToDayName } from "../shared/week-dates";
 import { assembleVideoUrl } from "../shared/video-url";
 import {
   getDailySessionSchema,
@@ -55,28 +57,6 @@ function levelToLevelGroup(level: string): LevelGroup {
     default:
       return "alfa_delta";
   }
-}
-
-/**
- * Map date to Spanish day name
- */
-function dateToDayName(date: string): string {
-  const d = new Date(date + "T00:00:00");
-  return DAY_OF_WEEK_MAP[d.getDay()] || "domingo";
-}
-
-/**
- * Derive SPOM week number from a date relative to Week 1 Monday (2026-02-16).
- * Clamped to 1-52.
- */
-const WEEK_ONE_MONDAY = new Date("2026-02-23T00:00:00");
-
-function dateToWeekNumber(date: string): number {
-  const d = new Date(date + "T00:00:00");
-  const diffMs = d.getTime() - WEEK_ONE_MONDAY.getTime();
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-  const week = Math.floor(diffDays / 7) + 1;
-  return Math.max(1, Math.min(52, week));
 }
 
 /**
