@@ -992,28 +992,28 @@ La fase no tiene IDs de requisito; se mapea contra las decisiones.
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **OQ-1 — ¿Qué hace el TV los sábados (día ROM)?**
+1. **OQ-1 — ¿Qué hace el TV los sábados (día ROM)?** — RESOLVED: Franco 2026-07-24 → soportar ROM (CONTEXT D-23; plans 164-05/08/10/12).
    - Lo que sabemos: `day_modes` tiene `(6,'rom')` por seed; las sesiones ROM tienen roles `ROM_LOWER/CORE/UPPER` y solo tiers alfa/delta; el PDF ya las rotula BÁSICO/AVANZADO.
    - Lo que no está claro: si v1 soporta ROM o el TV queda en reposo los sábados. El UI-SPEC no lo menciona.
    - Recomendación: **soportarlo** — el costo es un roster alternativo y dos etiquetas, y "el TV no anda los sábados" es un bug percibido, no una decisión. Confirmar con Franco antes de planificar.
 
-2. **OQ-2 — ¿Qué marca/año son los TVs de las sedes?**
+2. **OQ-2 — ¿Qué marca/año son los TVs de las sedes?** — RESOLVED: todos post-2020, piso ≈ Chromium 68 → página estática ES2015 (CONTEXT D-24; plans 164-04/06).
    - Lo que sabemos: la matriz de motores es determinista por año/modelo.
    - Lo que no está claro: si el peor TV es de 2018 o de 2023 — cambia si hace falta el piso Chromium 53 o alcanza con 88.
    - Recomendación: preguntarlo **antes** de planificar. Si todos son ≥2023, la ruta Vue vuelve a ser viable y ahorra bastante trabajo. Si hay uno solo viejo, la página estática es obligatoria.
 
-3. **OQ-3 — Mecanismo exacto de la versión para D-22.**
+3. **OQ-3 — Mecanismo exacto de la versión para D-22.** — RESOLVED: `public/tv/version.txt` generado en build + cache-buster (discreción de Claude; plans 164-04/11).
    - Lo que sabemos: D-22 dice "el poll incluye la versión del frontend". Pero API y admin se deployan por separado: el API **no puede** conocer el hash del build del admin.
    - Lo que no está claro: si Franco acepta la variante `GET /tv/version.txt` (mismo origen, generado en build, cache-busted) en vez de piggyback en el poll.
    - Recomendación: usar `version.txt` (automático, sin riesgo de olvidar un bump manual) y anotar la desviación. El CONTEXT deja el "detalle técnico del contrato" a discreción, así que probablemente no requiere volver a discuss.
 
-4. **OQ-4 — ¿`public/tv/` se commitea o se genera?**
+4. **OQ-4 — ¿`public/tv/` se commitea o se genera?** — RESOLVED: se genera en build y se gitignorea, exit 1 si falla (plan 164-04).
    - Precedente contradictorio: `public/ffmpeg/` está commiteado aunque lo genera un script.
    - Recomendación: generarlo en `build` y gitignorearlo, con `exit 1` si falla el script — evita ~500 KB de binarios en cada diff. Decisión del planner.
 
-5. **OQ-5 — ¿Se acepta `fsp: 3` como primer uso en el repo?**
+5. **OQ-5 — ¿Se acepta `fsp: 3` como primer uso en el repo?** — RESOLVED: `timestamp(3)` adoptado con test de round-trip (plan 164-01).
    - Alternativa: `bigint` epoch ms (inmune a TZ de MySQL) o aceptar truncado al segundo.
    - Recomendación: `timestamp(3)`. Es la opción que mantiene la convención del repo y elimina el error de 1 s. Cubrir con un test de round-trip.
 
