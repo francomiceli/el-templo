@@ -4301,7 +4301,7 @@ Plans:
 **Wave 2** _(blocked on Wave 1 completion)_
 
 - [x] 164-03-PLAN.md — API: pairing RFC 8628, device token revocable, rutas de vinculacion (D-01..D-05) (completed 2026-07-24, `84a6d4d7`)
-- [ ] 164-04-PLAN.md — Admin: pipeline de build del kiosco estatico + QUOTES + esqueleto src/tv (D-24)
+- [x] 164-04-PLAN.md — Admin: pipeline de build del kiosco estatico + QUOTES + esqueleto src/tv (D-24) (completed 2026-07-24, `71431dd3`)
 
 **Wave 3** _(blocked on Wave 2 completion)_
 
