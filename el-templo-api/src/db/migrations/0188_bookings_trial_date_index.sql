@@ -1,0 +1,11 @@
+-- Fix: trials dialog (SesionesDePruebaDialog) timed out (>10s) in prod.
+-- trials-service.listTrials filters bookings on
+--   is_trial = 1 AND booking_date = ? AND status <> 'cancelado'
+-- but no index leads with is_trial or booking_date (booking_date is only ever
+-- the 2nd column of idx_bookings_schedule_date_status / idx_bookings_member_date,
+-- and there is no index on is_trial), so MySQL full-scanned bookings.
+-- This composite index leads with is_trial (trials are a small fraction of all
+-- bookings, so the seek subtree is tiny), then booking_date equality, then
+-- status for the <> 'cancelado' filter. Hand-written (db:generate is broken by
+-- pre-existing drift, see skill el-templo-db-migrations). Index-only, no data.
+CREATE INDEX `idx_bookings_trial_date_status` ON `bookings` (`is_trial`, `booking_date`, `status`);
