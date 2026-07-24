@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v5.7
 milestone_name: Actividades con Aura
 status: executing
-stopped_at: Completed 164-04-PLAN.md
-last_updated: "2026-07-24T21:49:02Z"
+stopped_at: Completed 164-05-PLAN.md
+last_updated: "2026-07-24T22:14:41Z"
 last_activity: 2026-07-24
 progress:
   total_phases: 4
   completed_phases: 1
   total_plans: 30
-  completed_plans: 19
+  completed_plans: 20
   percent: 25
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 ## Current Position
 
 Phase: 164 (pantalla-tv-de-sucursal-plani-viva-por-bloque-con-timer-por-) — EXECUTING
-Plan: 5 of 13
+Plan: 6 of 13
 Status: Ready to execute
 Last activity: 2026-07-24
 
@@ -342,6 +342,7 @@ _Updated after each plan completion_
 | Phase 162 P06 | ~13min | 2 tasks | 4 files |
 | Phase 164 P01 | ~25min | 3 tasks | 5 files |
 | Phase 164 P04 | 11min | 3 tasks | 12 files |
+| Phase 164 P05 | 24min | 3 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -788,6 +789,11 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase 164-04]: Las QUOTES del PDF entran al bundle del kiosco por un unico punto (main.ts) y bajan a boot(quotes) por parametro; el tipo es el SessionQuote que ya exporta quotes.ts
 - [Phase 164-04]: src/tv/tsconfig.tv.json (target es2015, lib es2015+dom, types []) es el linter de compatibilidad del kiosco: rechaza padStart/Object.entries en build, no en la sede
 - [Phase 164-04]: public/tv se genera en cada build y esta gitignoreado: los ~500 KB de fuentes/marmol/logo salen del base64 de pdf-assets.ts, no de binarios commiteados ni de un CDN
+- [Phase 164-05]: El orden canonico de bloques queda duplicado a proposito entre el API (modules/tv/roster.ts) y el admin (utils/pdf/session-data-transformer.ts) — el PDF corre en el browser y no puede importar del server; ambos archivos llevan comentario espejo y el test unitario del roster es la red de ese espejo
+- [Phase 164-05]: tv_class_state.class_date pasa a mode "string" (convencion del repo) — con un Date el expire-on-read obligaba a reformatear con getters UTC, que es exactamente el bug de TZ que D-07 evita. Solo mapeo del driver: sin migracion
+- [Phase 164-05]: levels nunca queda vacio mientras approved sea true — un nivel fuera del orden canonico se agrega al final en vez de descartarse, o el clamp se queda sin nivel al que caer y el TV muestra lista en blanco con sesion aprobada
+- [Phase 164-05]: Los formatos que dictan reps/segundos (tabata/interval/hiit/on_the_x/death_by) no muestran volumen en el TV — el valor guardado es basura de default y el editor ni siquiera lo expone; espejo de FORMAT_DICTATED_TYPES del admin
+- [Phase 164-05]: El tsconfig del API solo incluye src/\*\*/\* — los archivos de test NO se typechequean con tsc --noEmit (vitest los transpila sin chequear); un tsc limpio no prueba que los tests tipen
 
 ### Pending Todos
 
@@ -820,8 +826,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-24T21:49:02Z
-Stopped at: Completed 164-04-PLAN.md
+Last session: 2026-07-24T22:14:41Z
+Stopped at: Completed 164-05-PLAN.md
 Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
