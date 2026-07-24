@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v5.7
 milestone_name: Actividades con Aura
 status: executing
-stopped_at: Completed 164-01-PLAN.md
-last_updated: "2026-07-24T21:02:06.352Z"
+stopped_at: Completed 164-02-PLAN.md
+last_updated: "2026-07-24T21:14:41Z"
 last_activity: 2026-07-24
 progress:
   total_phases: 4
   completed_phases: 1
   total_plans: 30
-  completed_plans: 16
+  completed_plans: 17
   percent: 25
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 ## Current Position
 
 Phase: 164 (pantalla-tv-de-sucursal-plani-viva-por-bloque-con-timer-por-) — EXECUTING
-Plan: 2 of 13
+Plan: 3 of 13
 Status: Ready to execute
 Last activity: 2026-07-24
 
@@ -332,6 +332,7 @@ _Updated after each plan completion_
 | Phase 161 P03 | 30min | 3 tasks | 3 files |
 | Phase 161 P04 | 13min | 2 tasks | 11 files |
 | Phase 161 P05 | 10min | 2 tasks | 5 files |
+| Phase 164 P02 | 11min | 3 tasks | 6 files |
 | Phase 161 P06 | ~9min | 3 tasks | 3 files |
 | Phase 162 P01 | ~12min | 2 tasks | 4 files |
 | Phase 162 P02 | 14min | 2 tasks | 3 files |
@@ -387,6 +388,10 @@ Recent decisions affecting current work:
 - Nullable column extension pattern for backward-compatible schema changes (Phase 59)
 - [Phase 59]: documentType required in create mode only, optional in edit mode for backward compatibility
 - [Phase 59]: CSV import script uses static imports for drizzle-orm to avoid dynamic import type mismatches
+- [Phase 164-02]: La quote del reposo/cierre NO viaja en el poll del TV — el kiosco la inlinea en build (evita una tercera copia de las frases del PDF)
+- [Phase 164-02]: El reloj del TV se publica como serverNow + utcOffsetMinutes + dateLabel preformateado (nunca Intl.DateTimeFormat con timeZone: ICU reducida en TVs)
+- [Phase 164-02]: `rom` se modela como work_rest con workMs=0 (fase TRABAJO contando hacia adelante), conservando descanso pautado y contador de rondas
+- [Phase 164-02]: Todo TimerSpec cuya duracion sanitizada colapsa a cero degrada a countup (evita BLOQUE COMPLETO instantaneo y division por ciclo 0 en phaseAt)
 - [Phase 59]: 84 unique legacy plan names found, all created as archived subscription_plans on import
 - [Phase 59]: Bulk migration sets pricePaid=0 for legacy-to-current plan migrations (admin adjusts later)
 - [Phase 60]: system_settings key-value table for global config (grace period, future settings)
@@ -804,8 +809,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-24T21:01:44.726Z
-Stopped at: Completed 164-01-PLAN.md
+Last session: 2026-07-24T21:14:41Z
+Stopped at: Completed 164-02-PLAN.md
 Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z

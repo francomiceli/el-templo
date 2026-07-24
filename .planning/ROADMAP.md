@@ -4296,7 +4296,7 @@ Plans:
 **Wave 1**
 
 - [x] 164-01-PLAN.md — API: tablas tv_devices/tv_pairings/tv_class_state + migracion 0189 + higiene de tests (completed 2026-07-24, `20ceb74c`)
-- [ ] 164-02-PLAN.md — API: contrato de tipos + toTimerSpec + phaseAt + vectores dorados
+- [x] 164-02-PLAN.md — API: contrato de tipos + toTimerSpec + phaseAt + vectores dorados (completed 2026-07-24, `649fea38`)
 
 **Wave 2** _(blocked on Wave 1 completion)_
 
