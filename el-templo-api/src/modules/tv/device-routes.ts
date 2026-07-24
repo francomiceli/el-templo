@@ -24,11 +24,13 @@
 import { FastifyPluginAsync } from "fastify";
 import { eq } from "drizzle-orm";
 import { TvPairingService } from "./pairing";
+import { TvService } from "./service";
 import { makeDeviceAuth } from "./device-auth";
 import { handleServiceError } from "../shared/error-handler";
 import {
   tvPairStartSchema,
   tvPairStatusSchema,
+  tvStateSchema,
   type TvPairStatusQuery,
 } from "./schemas";
 import * as schema from "../../db/schema";
@@ -108,5 +110,35 @@ export const tvDeviceRoutes: FastifyPluginAsync = async (fastify) => {
         handleServiceError(err, reply, request.log, "tv device me");
       }
     });
+
+    /**
+     * GET /api/tv/state — el poll del televisor (cada 2.5 s).
+     *
+     * Es la unica ruta que el kiosco consume en operacion normal: todo lo que
+     * este mal aca se ve en la pared de la sede.
+     *
+     * La sede sale de `request.tvDevice.branchId`, es decir de la FILA del
+     * dispositivo. La ruta no acepta —ni podria— ningun parametro de sucursal:
+     * un televisor comprometido no puede leer la clase de otra sede (T-164-31).
+     *
+     * D-09: sin sesion aprobada la respuesta es `screen: "idle"` sin un solo
+     * campo de error. Un socio parado frente al TV no puede distinguir "no hay
+     * clase ahora" de "el profe no aprobo la sesion".
+     */
+    deviceScope.get(
+      "/state",
+      { schema: tvStateSchema },
+      async (request, reply) => {
+        try {
+          const service = new TvService(deviceScope.db, request.log);
+          const payload = await service.buildPollPayload(request.tvDevice);
+          // El poll es estado vivo: ningun intermediario puede servir una copia
+          // guardada, o el TV quedaria congelado en un bloque viejo.
+          return reply.header("Cache-Control", "no-store").send(payload);
+        } catch (err: unknown) {
+          handleServiceError(err, reply, request.log, "tv poll state");
+        }
+      },
+    );
   });
 };

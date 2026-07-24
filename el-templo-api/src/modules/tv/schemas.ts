@@ -107,6 +107,158 @@ export interface TvPairStatusQuery {
 }
 
 // ---------------------------------------------------------------------------
+// Rutas de dispositivo (device token, prefijo /api/tv)
+// ---------------------------------------------------------------------------
+
+/**
+ * Timer del bloque, tal como se publica en el poll.
+ *
+ * `spec` es una union de 4 formas (`TimerSpec` en `types.ts`) y se declara como
+ * UN objeto con la union de sus campos: fast-json-stringify omite las
+ * propiedades ausentes del objeto real, asi que un `countup` sale como
+ * `{ kind: "countup" }` y un `work_rest` con sus tres numeros. Declararlo con
+ * `anyOf` obligaria a repetir cuatro variantes para ganar cero seguridad — lo
+ * que importa es que ningun campo NO declarado pueda salir.
+ *
+ * `startedAt` / `pausedAt` son epoch ms (Pitfall 9: con milisegundos, nunca
+ * redondeados a segundo) y el tiempo transcurrido NO viaja: lo calcula el TV.
+ */
+const tvTimerStateSchema = {
+  type: "object",
+  properties: {
+    spec: {
+      type: "object",
+      properties: {
+        kind: { type: "string" },
+        workMs: { type: "integer" },
+        restMs: { type: "integer" },
+        rounds: { type: "integer" },
+        intervalMs: { type: "integer" },
+        totalMs: { type: "integer" },
+      },
+    },
+    status: { type: "string" },
+    startedAt: { type: ["integer", "null"] },
+    pausedAt: { type: ["integer", "null"] },
+    pausedAccumMs: { type: "integer" },
+    soundEnabled: { type: "boolean" },
+  },
+};
+
+/** El bloque en vivo. `null` en el payload siempre que `screen !== "class"`. */
+const tvClassPayloadSchema = {
+  type: "object",
+  properties: {
+    mode: { type: "string" },
+    levels: { type: "array", items: { type: "string" } },
+    level: { type: "string" },
+    levelLabel: { type: "string" },
+    blocks: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          role: { type: "string" },
+          title: { type: "string" },
+          shared: { type: "boolean" },
+        },
+      },
+    },
+    blockRole: { type: "string" },
+    // Pitfall 1: derivado del roster en cada lectura, nunca persistido.
+    blockIndex: { type: "integer" },
+    title: { type: "string" },
+    listHeader: { type: "string" },
+    mobilityLine: { type: ["string", "null"] },
+    exercises: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          name: { type: "string" },
+          rx: { type: "string" },
+          videoUrl: { type: ["string", "null"] },
+        },
+      },
+    },
+    exerciseIndex: { type: "integer" },
+    timer: tvTimerStateSchema,
+  },
+};
+
+/**
+ * GET /api/tv/state — el poll del televisor (cada 2.5 s).
+ *
+ * Sin querystring ni params A PROPOSITO: la sede sale de la fila del
+ * dispositivo (`request.tvDevice.branchId`). Si esta ruta aceptara un
+ * `branchId`, un TV comprometido podria leer la clase de otra sucursal
+ * (T-164-31).
+ *
+ * El schema de respuesta es la red de contencion de D-09: fast-json-stringify
+ * solo serializa lo declarado, asi que aunque alguien agregue mañana un campo
+ * de diagnostico al payload, NO puede aparecer en la pared de la sede sin
+ * declararlo aca. El reposo es exactamente
+ * `{ serverNow, branch, screen: "idle", class: null }`.
+ */
+export const tvStateSchema = {
+  response: {
+    200: {
+      type: "object",
+      required: ["serverNow", "branch", "screen", "class"],
+      properties: {
+        // Sello del server en TODOS los polls (Pattern 6): el TV corrige su
+        // reloj contra el, porque el suyo puede estar corrido.
+        serverNow: { type: "integer" },
+        branch: {
+          type: "object",
+          properties: {
+            name: { type: "string" },
+            // El kiosco arma HH:MM:SS con getUTC* + este offset: un Chromium
+            // empotrado puede no tener Intl por timezone.
+            utcOffsetMinutes: { type: "integer" },
+            dateLabel: { type: "string" },
+          },
+        },
+        screen: { type: "string", enum: ["idle", "class", "closing"] },
+        class: {
+          anyOf: [{ type: "null" }, tvClassPayloadSchema],
+        },
+      },
+    },
+  },
+};
+
+/**
+ * POST /api/tv/client-log — el unico canal de diagnostico del kiosco.
+ *
+ * Nadie va a abrir devtools en un televisor colgado a 3 metros del piso, asi
+ * que el TV reporta sus propios errores por aca. La superficie esta acotada a
+ * proposito (T-164-34): `level` es un enum cerrado, `message` y `context`
+ * tienen techo de largo, y no se acepta ningun campo mas — un dispositivo no
+ * puede inflar los logs del servidor con estructuras arbitrarias.
+ */
+export const tvClientLogSchema = {
+  body: {
+    type: "object",
+    required: ["level", "message"],
+    additionalProperties: false,
+    properties: {
+      // El nivel REPORTADO por el kiosco. Que se escriba siempre como warn en
+      // el log del server es decision del handler, no de este enum.
+      level: { type: "string", enum: ["warn", "error"] },
+      message: { type: "string", minLength: 1, maxLength: 500 },
+      context: { type: "string", minLength: 1, maxLength: 100 },
+    },
+  },
+};
+
+export interface TvClientLogBody {
+  level: "warn" | "error";
+  message: string;
+  context?: string;
+}
+
+// ---------------------------------------------------------------------------
 // Rutas de staff (JWT + TV_CONTROL_ROLES, prefijo /api/admin/tv)
 // ---------------------------------------------------------------------------
 
