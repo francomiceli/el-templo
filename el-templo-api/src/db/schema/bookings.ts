@@ -50,6 +50,17 @@ export const bookings = mysqlTable(
       table.status,
     ),
     index("idx_bookings_member_date").on(table.memberId, table.bookingDate),
+    // Serves the trials dialog query (trials-service.listTrials):
+    // WHERE is_trial = 1 AND booking_date = ? AND status <> 'cancelado'.
+    // Leads with is_trial (trials are a small fraction of bookings) so the
+    // seek is tight; booking_date equality next; status last for the
+    // <> 'cancelado' filter. Without this the query full-scanned bookings
+    // and timed out (>10s) in prod as the table grew.
+    index("idx_bookings_trial_date_status").on(
+      table.isTrial,
+      table.bookingDate,
+      table.status,
+    ),
     uniqueIndex("idx_bookings_member_schedule_date").on(
       table.memberId,
       table.scheduleId,
