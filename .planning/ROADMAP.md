@@ -4292,18 +4292,38 @@ _Plan counts populated by `/gsd-plan-phase`._
 
 Plans:
 
+**Wave 1**
+
 - [ ] 164-01-PLAN.md — API: tablas tv_devices/tv_pairings/tv_class_state + migracion 0189 + higiene de tests
 - [ ] 164-02-PLAN.md — API: contrato de tipos + toTimerSpec + phaseAt + vectores dorados
+
+**Wave 2** _(blocked on Wave 1 completion)_
+
 - [ ] 164-03-PLAN.md — API: pairing RFC 8628, device token revocable, rutas de vinculacion (D-01..D-05)
 - [ ] 164-04-PLAN.md — Admin: pipeline de build del kiosco estatico + QUOTES + esqueleto src/tv (D-24)
+
+**Wave 3** _(blocked on Wave 2 completion)_
+
 - [ ] 164-05-PLAN.md — API: roster canonico, resolucion del dia (TZ/ROM) y payload del poll (D-07/09/14/23)
 - [ ] 164-06-PLAN.md — TV: HTML/CSS compatible con Chromium 53 + escalado + ?diag=1 (D-20)
 - [ ] 164-07-PLAN.md — TV: motor de timer portado + ?selftest=1 con vectores dorados
-- [ ] 164-08-PLAN.md — API: GET /api/tv/state + client-log + tests de integracion del poll
 - [ ] 164-09-PLAN.md — Admin: composable useTvApi + pantalla de Televisores (vincular/monitorear/revocar)
+
+**Wave 4** _(blocked on Wave 3 completion)_
+
+- [ ] 164-08-PLAN.md — API: GET /api/tv/state + client-log + tests de integracion del poll
+
+**Wave 5** _(blocked on Wave 4 completion)_
+
 - [ ] 164-10-PLAN.md — API: control del profe (context/state/end-class) con comandos absolutos idempotentes
 - [ ] 164-11-PLAN.md — TV: runtime completo (pairing, poll, reloj, clase, reposo/cierre, video, auto-reload)
+
+**Wave 6** _(blocked on Wave 5 completion)_
+
 - [ ] 164-12-PLAN.md — Admin: botonera grande del profe BLOQUES/NIVELES/EJERCICIO/TIMER (D-13)
+
+**Wave 7** _(blocked on Wave 6 completion)_
+
 - [ ] 164-13-PLAN.md — Runbook del kiosco (D-21) + checkpoint humano en TV real y staging (D-20)
 
 ---
