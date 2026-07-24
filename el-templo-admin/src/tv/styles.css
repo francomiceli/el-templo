@@ -1,12 +1,34 @@
 /* Réplica del lenguaje visual del PDF de planis (session-pdf-builder.ts):
    mármol crema + navy + oro mate + arena, Cinzel/NunitoSans reales embebidas.
-   El PDF se genera a 3840×2160 → el marco del TV es 16:9 EXACTO (letterbox
-   alrededor si la ventana no acompaña). Unidades cqw = % del ancho del TV.
 
-   OJO: este archivo sale del mockup v8 validado y todavía usa container queries,
-   aspect-ratio, gap en flex y CSS grid — nada de eso baja al piso Chromium 53.
-   La conversión de compatibilidad (cqw → rem escalado por JS, grid → flex sin gap)
-   es el plan 164-06; acá el CSS entra tal cual para poder comparar contra el mockup.
+   ══ CONTRATO DE COMPATIBILIDAD (D-20 · plan 164-06) ══════════════════════════
+   Este archivo corre en el browser nativo del PEOR televisor plausible de una
+   sede: webOS 4.x = Chromium 53 (2016). El modo de falla es pantalla en blanco
+   en la sede, sin consola y sin devtools para verlo. Por eso el layout
+   compatible se escribe UNA sola vez (nada de bloques condicionales): el camino
+   que se ve en el navegador de escritorio es exactamente el que corre en el TV.
+
+   PROHIBIDO acá (Chromium mínimo entre paréntesis):
+     - container queries / unidades de contenedor / la at-rule de contenedor (105)
+     - la propiedad de relación de aspecto (88)
+     - separación entre ítems de flex vía la propiedad de una sola palabra (84)
+     - layout de rejilla (57)
+     - las funciones de comparacion de valores (79) y el atajo de posicion (87)
+     - equilibrado de saltos de línea en títulos (114)
+   PERMITIDO: flexbox, custom properties, object-fit, calc(), transiciones,
+   animaciones, pseudo-elementos, tabular-nums (52).
+
+   Conversión mecánica desde el mockup v8 (RESEARCH Pattern 7):
+     - toda medida que en el mockup era 1% del ancho del marco es ahora 1rem, y
+       scale.ts fija `html { font-size: anchoDelTv / 100 }` en cada resize. Se usa
+       rem y NO em a propósito: el mockup anida hasta 4 niveles y los em se
+       componen en cascada.
+     - el marco 16:9 lo fija scale.ts en px (width/height sobre #tv).
+     - las dos columnas 45/55 son dos flex-item de base fija (ver .izq y .videoCol),
+       ambos con min-width: 0 para que el contenido largo no las estire.
+     - la separación entre ítems se hace con margin/padding explícitos en los
+       hijos: el atajo de flex es Chromium 84, MÁS NUEVO que la rejilla, y es la
+       trampa fácil de pasar por alto (Pitfall 4).
 
    Las fuentes y el mármol se sirven self-hosted desde /tv/ (C-12: sin CDN); los
    archivos los escribe scripts/build-tv.mjs decodificando el base64 de pdf-assets.ts. */
@@ -38,9 +60,17 @@
   --muted: #c5b9a8; /* BORDER_MUTED */
   --cinzel: 'Cinzel', Georgia, serif;
   --nunito: 'NunitoSans', 'Segoe UI', system-ui, sans-serif;
+  /* Stack de sistema para los símbolos de nivel (Pitfall 6): Cinzel es una display
+     serif latina y NO cubre griego — el propio PDF cambia de fuente para pintarlos. */
+  --glyph: 'Segoe UI', Arial, 'Noto Sans', sans-serif;
 }
 * {
   box-sizing: border-box;
+}
+/* Fallback antes de que corra scale.ts (y red de seguridad si el JS muriera):
+   1920 / 100 = 19.2px por rem, que es la proporción del TV de referencia. */
+html {
+  font-size: 19.2px;
 }
 html,
 body {
@@ -55,65 +85,102 @@ body {
   cursor: none; /* kiosco: no hay mouse en la sede */
 }
 
-/* ── El TV: marco 16:9 exacto, mismas proporciones que el PDF ── */
+/* ── Símbolos de nivel ──────────────────────────────────────────────────────
+   .glyph fuerza el stack de sistema: NUNCA dejar un símbolo griego dentro de un
+   elemento con Cinzel (queda tofu). El símbolo de kairos (U+2609) no lo tiene ni
+   el stack de sistema — el PDF lo dibuja como vector — así que acá se dibuja con
+   CSS: círculo con borde + punto central. Uso desde el render (plan 164-11):
+     NIVEL <span class="glyph">Δ</span>   ·   NIVEL <span class="glyph kairos"></span> */
+.glyph {
+  font-family: var(--glyph);
+}
+.glyph.kairos {
+  display: inline-block;
+  position: relative;
+  width: 0.78em;
+  height: 0.78em;
+  border: 0.09em solid currentColor;
+  border-radius: 50%;
+  vertical-align: -0.06em;
+}
+.glyph.kairos::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0.24em;
+  height: 0.24em;
+  margin-left: -0.12em;
+  margin-top: -0.12em;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* ── El TV: marco 16:9 exacto, mismas proporciones que el PDF ──
+   El tamaño real lo escribe scale.ts (width/height en px + el font-size raíz).
+   El 100% de acá es sólo el estado previo al primer scaleTv(). */
 .tvWrap {
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   height: 100%;
   min-height: 0;
   padding: 1vh 1vw;
 }
 #tv {
   position: relative; /* ancla de los overlays .pantalla */
-  aspect-ratio: 16 / 9;
-  width: min(100%, calc((100vh - 2vh) * 16 / 9));
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
   max-height: 100%;
-  container-type: size;
   background: var(--cream) url(marble.jpg) center / cover no-repeat;
   color: var(--navy);
-  display: grid;
-  grid-template-rows: auto auto 1fr;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
   box-shadow: 0 0 40px rgba(0, 0, 0, 0.55);
 }
 
 /* ── Barra superior: logo + sede | hora con segundero ── */
 .topbar {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 2cqw;
-  padding: 1cqw 2cqw 0.5cqw;
+  padding: 1rem 2rem 0.5rem;
 }
 .topbar .marca {
   display: flex;
   align-items: center;
-  gap: 1cqw;
+  min-width: 0;
+  margin-right: 2rem; /* separación de la hora */
 }
 .topbar .marca img {
-  height: 3.6cqw;
+  height: 3.6rem;
   display: block;
+  margin-right: 1rem;
 }
 .topbar .sede {
   font-family: var(--cinzel);
   font-weight: 700;
   letter-spacing: 0.16em;
-  font-size: 1.4cqw;
+  font-size: 1.4rem;
   color: var(--navy);
 }
 .topbar .fecha {
   font-weight: 700;
   letter-spacing: 0.14em;
-  font-size: 1cqw;
+  font-size: 1rem;
   color: var(--gold);
 }
 .topbar .reloj {
   font-family: var(--cinzel);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  font-size: 2.6cqw;
+  font-size: 2.6rem;
   line-height: 1;
   color: var(--navy);
+  white-space: nowrap;
 }
 .topbar .reloj .seg {
   color: var(--gold);
@@ -121,47 +188,50 @@ body {
 
 /* ── Título del bloque, como el PDF: Cinzel navy con sombra arena ── */
 .cabecera {
+  flex: 0 0 auto;
   text-align: center;
-  padding: 0 2cqw;
+  padding: 0 2rem;
 }
 .cabecera h1 {
   margin: 0;
   font-family: var(--cinzel);
   font-weight: 700;
   letter-spacing: 0.09em;
-  font-size: 3.2cqw;
+  font-size: 3.2rem;
   line-height: 1.1;
   color: var(--navy);
   text-shadow: 0.05em 0.035em 0 rgba(219, 202, 180, 0.85);
-  text-wrap: balance;
 }
 .cabecera .movilidad {
-  margin-top: 0.3cqw;
+  margin-top: 0.3rem;
   font-weight: 700;
   letter-spacing: 0.12em;
-  font-size: 1.1cqw;
+  font-size: 1.1rem;
   color: var(--gold);
 }
 .cabecera .bloqueNum {
   display: inline-flex;
   align-items: center;
-  gap: 0.5cqw;
-  margin-top: 0.35cqw;
+  margin-top: 0.35rem;
   font-weight: 700;
   letter-spacing: 0.2em;
-  font-size: 0.85cqw;
+  font-size: 0.85rem;
   color: var(--muted);
 }
 .cabecera .dots {
   display: inline-flex;
-  gap: 0.4cqw;
+  margin-left: 0.5rem; /* separación del texto "BLOQUE n / m" */
 }
 .cabecera .dot {
-  width: 0.5cqw;
-  height: 0.5cqw;
+  width: 0.5rem;
+  height: 0.5rem;
   border-radius: 50%;
   background: var(--muted);
   opacity: 0.5;
+  margin-right: 0.4rem; /* separación entre dots */
+}
+.cabecera .dot:last-child {
+  margin-right: 0;
 }
 .cabecera .dot.activo {
   background: var(--gold);
@@ -172,12 +242,14 @@ body {
   opacity: 0.55;
 }
 
-/* ── Zona principal: 2 columnas — (lista / timer) | video ── */
+/* ── Zona principal: 2 columnas — (lista / timer) | video ──
+   45/55 exactos. El canal entre columnas es padding-right de la izquierda (y no
+   un margin) para que la suma de los dos flex-basis siga siendo 100%: con
+   box-sizing: border-box el padding entra DENTRO del 45%. */
 .stage {
-  display: grid;
-  grid-template-columns: minmax(0, 45fr) minmax(0, 55fr);
-  gap: 1.2cqw;
-  padding: 0.9cqw 2cqw 1.4cqw;
+  flex: 1 1 auto;
+  display: flex;
+  padding: 0.9rem 2rem 1.4rem;
   min-height: 0;
 }
 .col {
@@ -188,28 +260,36 @@ body {
 }
 /* Columna izquierda: dos mitades apiladas (lista arriba, timer abajo) */
 .izq {
-  gap: 1cqw;
+  flex: 0 0 45%;
+  padding-right: 1.2rem;
+}
+.videoCol {
+  flex: 0 0 55%;
 }
 .izq .panel {
   flex: 1;
   display: flex;
   flex-direction: column;
   min-height: 0;
+  margin-bottom: 1rem; /* separación entre lista y timer */
+}
+.izq .panel:last-child {
+  margin-bottom: 0;
 }
 .cabCol {
   font-weight: 700;
   letter-spacing: 0.06em;
-  font-size: 1.4cqw;
+  font-size: 1.4rem;
   color: var(--gold);
-  padding: 0 0.3cqw 0.45cqw;
+  padding: 0 0.3rem 0.45rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .caja {
   flex: 1;
-  border: 0.22cqw solid var(--gold);
-  border-radius: 1cqw;
+  border: 0.22rem solid var(--gold);
+  border-radius: 1rem;
   min-height: 0;
   overflow: hidden;
 }
@@ -219,22 +299,24 @@ body {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 0.5cqw;
-  padding: 1cqw 1.2cqw;
+  padding: 1rem 1.2rem;
 }
 .listaCol .item {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  gap: 1cqw;
   font-weight: 700;
   color: var(--navy);
   opacity: 0.45;
-  font-size: 1.45cqw;
+  font-size: 1.45rem;
   line-height: 1.5;
+  margin-bottom: 0.5rem; /* separación entre ejercicios */
   transition:
     opacity 0.25s,
     font-size 0.25s;
+}
+.listaCol .item:last-child {
+  margin-bottom: 0;
 }
 .listaCol .item .ej::before {
   content: '•  ';
@@ -242,27 +324,32 @@ body {
 .listaCol .item .rx {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  margin-left: 1rem; /* separación entre el ejercicio y su prescripción */
 }
 .listaCol .item.activo {
   opacity: 1;
-  font-size: 2.2cqw;
+  font-size: 2.2rem;
   line-height: 1.4;
 }
 /* Listas largas (calentamiento): achica para que entren todas en la mitad */
-.listaCol .caja.compacta {
-  gap: 0.25cqw;
-}
 .listaCol .caja.compacta .item {
-  font-size: 1.1cqw;
+  font-size: 1.1rem;
   line-height: 1.45;
+  margin-bottom: 0.25rem;
+}
+.listaCol .caja.compacta .item:last-child {
+  margin-bottom: 0;
 }
 .listaCol .caja.compacta .item.activo {
-  font-size: 1.7cqw;
+  font-size: 1.7rem;
   line-height: 1.35;
 }
+/* El triángulo del ejercicio en curso sale del stack de sistema por el mismo
+   motivo que los símbolos de nivel: NunitoSans no garantiza ese glifo. */
 .listaCol .item.activo .ej::before {
   content: '▶  ';
   color: var(--gold);
+  font-family: var(--glyph);
 }
 .listaCol .item.activo .rx {
   color: var(--gold);
@@ -287,8 +374,7 @@ body {
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  gap: 0.5cqw;
-  padding: 1cqw;
+  padding: 1rem;
   transition:
     border-color 0.3s,
     background-color 0.3s;
@@ -303,9 +389,10 @@ body {
   font-family: var(--cinzel);
   font-weight: 700;
   letter-spacing: 0.28em;
-  font-size: 1.5cqw;
+  font-size: 1.5rem;
   color: var(--gold);
   text-align: center;
+  margin-bottom: 0.5rem;
 }
 .timerCaja.descanso .fase {
   color: var(--muted);
@@ -314,25 +401,27 @@ body {
   font-family: var(--cinzel);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  font-size: 5.6cqw;
+  font-size: 5.6rem;
   line-height: 1;
   color: var(--navy);
+  margin-bottom: 0.5rem;
 }
 .timerCaja .sub {
   font-weight: 700;
   letter-spacing: 0.14em;
-  font-size: 1.1cqw;
+  font-size: 1.1rem;
   color: var(--gold);
   min-height: 1.3em;
   text-align: center;
+  margin-bottom: 0.5rem;
 }
 .timerCaja .barra {
   width: 78%;
-  height: 0.45cqw;
+  height: 0.45rem;
   background: rgba(197, 185, 168, 0.5);
   border-radius: 99px;
   overflow: hidden;
-  margin-top: 0.5cqw;
+  margin-top: 0.5rem;
 }
 .timerCaja .barra i {
   display: block;
@@ -344,10 +433,10 @@ body {
 }
 .timerCaja .hint {
   font-weight: 700;
-  font-size: 0.9cqw;
+  font-size: 0.9rem;
   letter-spacing: 0.1em;
   color: var(--muted);
-  margin-top: 0.3cqw;
+  margin-top: 0.8rem;
   text-align: center;
 }
 @keyframes pulso {
@@ -369,7 +458,8 @@ body {
 
 /* ── Las otras pantallas (pairing / reposo / cierre): overlays del marco 16:9 ──
    Tapan la pantalla de clase entera, así el render no tiene que ocultarla aparte.
-   Arrancan ocultas; el plan 164-11 las llena y togglea la clase .visible. */
+   Arrancan ocultas; el plan 164-11 las llena y togglea la clase .visible.
+   El markup esqueleto (con los ids) vive en index.html. */
 .pantalla {
   display: none;
   position: absolute;
@@ -383,4 +473,91 @@ body {
 }
 .pantalla.visible {
   display: block;
+}
+.pantalla .contenido {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 3rem 6rem;
+}
+.pantalla .logoGrande {
+  height: 7rem;
+  display: block;
+  margin-bottom: 2rem;
+}
+/* Reloj gigante de reposo/cierre (D-06/D-08): el pedido #1 de los socios es ver
+   la hora, así que también se ve fuera de clase. */
+.pantalla .relojXl {
+  font-family: var(--cinzel);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  font-size: 13rem;
+  color: var(--navy);
+  text-shadow: 0.05em 0.035em 0 rgba(219, 202, 180, 0.85);
+}
+.pantalla .relojXl .seg {
+  color: var(--gold);
+}
+.pantalla .fechaXl {
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  font-size: 1.6rem;
+  color: var(--gold);
+  margin-top: 1.2rem;
+}
+.pantalla .quote {
+  font-weight: 700;
+  font-size: 1.9rem;
+  line-height: 1.5;
+  max-width: 68%;
+  margin-top: 3rem;
+  color: var(--navy);
+}
+.pantalla .quote .oro {
+  color: var(--gold);
+}
+.pantalla .autor {
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  font-size: 1.3rem;
+  color: var(--gold);
+  margin-top: 1rem;
+}
+#pantallaCierre .titulo {
+  font-family: var(--cinzel);
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  font-size: 4.4rem;
+  line-height: 1.1;
+  color: var(--navy);
+  text-shadow: 0.05em 0.035em 0 rgba(219, 202, 180, 0.85);
+  margin-bottom: 1.5rem;
+}
+#pantallaCierre .relojXl {
+  font-size: 6rem;
+}
+#pantallaReposo .logoGrande {
+  height: 8rem;
+}
+/* Pairing: el código tiene que leerse desde el mostrador, a varios metros. */
+#pantallaPairing .codigo {
+  font-family: var(--cinzel);
+  font-weight: 700;
+  font-size: 11rem;
+  letter-spacing: 0.14em;
+  line-height: 1;
+  color: var(--navy);
+  text-shadow: 0.05em 0.035em 0 rgba(219, 202, 180, 0.85);
+}
+#pantallaPairing .instruccion {
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  font-size: 1.8rem;
+  line-height: 1.5;
+  color: var(--gold);
+  max-width: 70%;
+  margin-top: 2.5rem;
 }
