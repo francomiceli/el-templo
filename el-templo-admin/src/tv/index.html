@@ -61,6 +61,12 @@
             <div class="cabCol" id="cabVideo"></div>
             <div class="caja">
               <video autoplay loop muted playsinline></video>
+              <!--
+                Placeholder del video (mismo criterio que VideoPlaceholder.vue de la app):
+                se muestra cuando el ejercicio no tiene videoUrl o cuando el <video> falla
+                al cargar. Va en el esqueleto y no lo crea el render, por Pitfall 13.
+              -->
+              <div class="videoVacio" id="videoVacio">VIDEO PRÓXIMAMENTE</div>
             </div>
           </section>
         </main>

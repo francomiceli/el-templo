@@ -367,6 +367,27 @@ body {
   height: 100%;
   object-fit: cover;
 }
+/* Ejercicio sin video (o video que no cargó): mismo criterio que la app. Tapa el
+   <video> en vez de reemplazarlo, así el elemento sigue siendo uno solo. */
+.videoCol .videoVacio {
+  display: none;
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  align-items: center;
+  justify-content: center;
+  background: rgba(219, 202, 180, 0.35);
+  color: var(--gold);
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  font-size: 1.8rem;
+  text-align: center;
+}
+.videoCol .videoVacio.visible {
+  display: flex;
+}
 
 /* Timer (mitad inferior de la columna izquierda) */
 .timerCaja .caja {
