@@ -21,6 +21,7 @@ import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { todayInTz } from "../shared/date-utils";
+import { NotFoundError } from "../shared/errors";
 import { assembleVideoUrl } from "../shared/video-url";
 import {
   resolveClassDay,
@@ -33,6 +34,8 @@ import { toTimerSpec } from "./timer-spec";
 import type {
   TvBlockSummary,
   TvClassPayload,
+  TvControlBlock,
+  TvControlContext,
   TvControlState,
   TvExercise,
   TvPollResponse,
@@ -44,6 +47,13 @@ import type {
 export interface TvDeviceRef {
   id: number;
   branchId: number;
+}
+
+/** La sede, con lo minimo para resolver su dia y rotular su nombre. */
+interface TvBranchRef {
+  id: number;
+  name: string;
+  timezone: string;
 }
 
 /** Simbolos de nivel del UI-SPEC. */
@@ -315,8 +325,108 @@ export class TvService {
   }
 
   // ───────────────────────────────────────────────────────────────────────────
+  // Control del profe
+  // ───────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Todo lo que el control del profe necesita para dibujar su botonera CIEGA
+   * (D-13), en UNA sola llamada.
+   *
+   * El control no espeja la pantalla del TV: no hay preview. Por eso este
+   * contexto trae la cantidad de bloques, los niveles que existen HOY (en ROM
+   * son dos — D-23) y cuantos ejercicios tiene cada (bloque, nivel), que es lo
+   * que le permite deshabilitar el boton de "ejercicio siguiente" en el ultimo
+   * sin tener que adivinar.
+   *
+   * Diferencia deliberada con el poll del televisor: aca `sessionApproved`
+   * viaja explicito (D-10). El TV se queda en reposo mudo ante una sesion sin
+   * aprobar (D-09) porque cuelga de una pared publica; el celular del profe, en
+   * cambio, tiene que poder decirle por que no puede iniciar la clase.
+   */
+  async buildControlContext(
+    branchId: number,
+    now: Date = new Date(),
+  ): Promise<TvControlContext> {
+    const branch = await this.loadBranch(branchId);
+    const classDay = await resolveClassDay(this.db, branch, now);
+    const stored = await this.readState(
+      branch.id,
+      todayInTz(branch.timezone, now),
+    );
+    return this.toControlContext(branch, classDay, stored);
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
   // Helpers
   // ───────────────────────────────────────────────────────────────────────────
+
+  /**
+   * La sede, o 404.
+   *
+   * En las rutas de control esto es practicamente inalcanzable —
+   * `requireBranchAccess` corre antes y una sede inexistente ya cae en 403 (su
+   * predicado deniega cuando la fila no existe). Queda igual porque el servicio
+   * tambien se usa fuera de ese preHandler y un `undefined` silencioso aca
+   * terminaria en un TypeError 500 tres lineas mas abajo.
+   */
+  private async loadBranch(branchId: number): Promise<TvBranchRef> {
+    const [branch] = await this.db
+      .select({
+        id: schema.branches.id,
+        name: schema.branches.name,
+        timezone: schema.branches.timezone,
+      })
+      .from(schema.branches)
+      .where(eq(schema.branches.id, branchId))
+      .limit(1);
+
+    if (!branch) throw new NotFoundError("Esa sede no existe");
+    return branch;
+  }
+
+  /** Contexto del control a partir de datos ya resueltos (sin re-consultar). */
+  private toControlContext(
+    branch: TvBranchRef,
+    classDay: ClassDay,
+    stored: TvControlState | null,
+  ): TvControlContext {
+    const blocks: TvControlBlock[] = buildRoster(classDay).map((block) => ({
+      ...block,
+      exerciseCountByLevel: this.exerciseCountByLevel(classDay, block.role),
+    }));
+
+    return {
+      branch: { id: branch.id, name: branch.name },
+      // D-10: el control SI avisa. El TV no (D-09).
+      sessionApproved: classDay.approved,
+      mode: classDay.mode,
+      levels: classDay.levels,
+      blocks,
+      // `null` = la clase todavia no se inicio hoy (o el estado ya caduco).
+      state: stored ? this.clampState(stored, classDay) : null,
+    };
+  }
+
+  /**
+   * Cuantos ejercicios tiene un bloque en cada nivel del dia.
+   *
+   * Dos niveles del mismo dia pueden tener listas de largo distinto (Pitfall
+   * 1), asi que el control necesita el mapa completo para clampear al cambiar
+   * de nivel sin un round-trip extra. En INITIUM el numero es el mismo para
+   * todos los niveles: la lista es compartida.
+   */
+  private exerciseCountByLevel(
+    classDay: ClassDay,
+    role: string,
+  ): Record<string, number> {
+    const counts: Record<string, number> = {};
+    for (const level of classDay.levels) {
+      counts[level] = this.mainPrescriptions(
+        this.resolveBlock(classDay, role, level),
+      ).length;
+    }
+    return counts;
+  }
 
   private parseTimerStatus(value: string): TvTimerStatus {
     return value === "running" || value === "paused" ? value : "idle";

@@ -17,6 +17,7 @@
 import { FastifyPluginAsync } from "fastify";
 import { and, desc, eq, inArray, type SQL } from "drizzle-orm";
 import { TvPairingService } from "./pairing";
+import { TvService } from "./service";
 import { handleServiceError } from "../shared/error-handler";
 import { TV_CONTROL_ROLES } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
@@ -29,9 +30,11 @@ import {
   tvPairClaimSchema,
   tvDevicesListSchema,
   tvDeviceRevokeSchema,
+  tvControlContextSchema,
   type TvPairClaimBody,
   type TvDevicesListQuery,
   type TvDeviceIdParams,
+  type TvControlContextQuery,
 } from "./schemas";
 import * as schema from "../../db/schema";
 
@@ -194,6 +197,34 @@ export const tvControlRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.send({ ok: true });
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "tv device revoke");
+      }
+    },
+  );
+
+  /**
+   * GET /api/admin/tv/control/context?branchId=NN
+   *
+   * La UNICA lectura del control del profe. El control es ciego (D-13): no
+   * espeja la pantalla del TV, asi que de aca saca cuantos bloques hay, que
+   * niveles existen hoy, cuantos ejercicios tiene cada (bloque, nivel) y si la
+   * sesion del dia esta aprobada (D-10) para poder deshabilitar la botonera con
+   * un motivo, en vez de dejar al profe apretando botones sin efecto.
+   */
+  fastify.get<{ Querystring: TvControlContextQuery }>(
+    "/control/context",
+    {
+      schema: tvControlContextSchema,
+      preHandler: [requireBranchAccess({ from: "query.branchId" })],
+    },
+    async (request, reply) => {
+      try {
+        const service = new TvService(fastify.db, request.log);
+        const context = await service.buildControlContext(
+          request.query.branchId,
+        );
+        return reply.send(context);
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "tv control context");
       }
     },
   );

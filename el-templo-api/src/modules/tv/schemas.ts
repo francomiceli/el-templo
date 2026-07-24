@@ -342,6 +342,35 @@ export interface TvDeviceListItem {
 }
 
 /**
+ * GET /api/admin/tv/control/context?branchId=NN
+ *
+ * Todo lo que el control CIEGO del profe (D-13) necesita para dibujar su
+ * botonera. `branchId` es obligatorio y ademas lo valida `requireBranchAccess({
+ * from: "query.branchId" })`: el control arranca en la sede del profe pero
+ * tiene selector (D-11), asi que la sede viaja en cada llamada y se autoriza en
+ * cada llamada.
+ *
+ * Sin schema de respuesta a proposito: el contexto lleva un mapa de claves
+ * dinamicas (`exerciseCountByLevel`, una entrada por nivel del dia) y el
+ * payload lo construye el servicio campo por campo desde interfaces tipadas —
+ * no se serializa ninguna fila de la DB, asi que no hay nada que fast-json-
+ * stringify tenga que contener.
+ */
+export const tvControlContextSchema = {
+  querystring: {
+    type: "object",
+    required: ["branchId"],
+    properties: {
+      branchId: { type: "integer", minimum: 1 },
+    },
+  },
+};
+
+export interface TvControlContextQuery {
+  branchId: number;
+}
+
+/**
  * POST /api/admin/tv/devices/:id/revoke
  *
  * `:id` es el id del dispositivo, no de la sede — el acceso por sede se valida
