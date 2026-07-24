@@ -198,6 +198,13 @@ const TABLES_TO_CLEAN = [
   schema.transactionLinks,
   schema.balances,
   schema.financialTransactions,
+  // Fase 164: estado del TV por sede — sin limpiar se filtra entre archivos de
+  // test. tv_class_state es UNIQUE por branch_id, así que una fila huérfana de
+  // otro archivo hace fallar el insert del siguiente. Orden: pairings antes que
+  // devices (FK device_id), y ambos antes de branches/users.
+  schema.tvClassState,
+  schema.tvPairings,
+  schema.tvDevices,
   // Core entity tables
   schema.promoPlans,
   schema.subscriptions,
