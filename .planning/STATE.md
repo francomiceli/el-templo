@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v5.7
 milestone_name: Actividades con Aura
 status: executing
-stopped_at: Phase 164 context gathered
-last_updated: "2026-07-24T20:50:01.904Z"
-last_activity: 2026-07-24 -- Phase 164 execution started
+stopped_at: Completed 164-01-PLAN.md
+last_updated: "2026-07-24T21:02:06.352Z"
+last_activity: 2026-07-24
 progress:
   total_phases: 4
   completed_phases: 1
   total_plans: 30
-  completed_plans: 15
+  completed_plans: 16
   percent: 25
 ---
 
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 ## Current Position
 
 Phase: 164 (pantalla-tv-de-sucursal-plani-viva-por-bloque-con-timer-por-) — EXECUTING
-Plan: 1 of 13
-Status: Executing Phase 164
-Last activity: 2026-07-24 -- Phase 164 execution started
+Plan: 2 of 13
+Status: Ready to execute
+Last activity: 2026-07-24
 
 ## Performance Metrics
 
@@ -338,6 +338,7 @@ _Updated after each plan completion_
 | Phase 162 P03 | ~14min | 3 tasks | 4 files |
 | Phase 162 P04 | ~5min | 3 tasks | 3 files |
 | Phase 162 P06 | ~13min | 2 tasks | 4 files |
+| Phase 164 P01 | ~25min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -769,6 +770,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: 161-02: renew discrimina la sub por subscriptionId (valida ownership); guard D-09 en los 4 callsites de referral
 - [Phase ?]: 161-06: gating duro de especiales server-side; PassRequiredError→code PASS_REQUIRED en /reserve; D-04 cuenta reservas futuras pendientes; staff bypass con aviso en adminAddBooking
 - [Phase ?]: 162-03: reporte REP-01 socio/externo por sub que cubre session_date + fallback; sin montos; anti JOIN-fanout
+- [Phase 164]: Fase 164 se ejecuta en el worktree aislado /home/franco/projects/et-164-tv (rama feat/164-tv-sucursal, base origin/master) — El checkout principal estaba 135 commits atras (mig maxima 0181 vs 0188 en master) y con WIP sin commitear de otra sesion; cambiar de rama ahi habria contaminado trabajo ajeno
+- [Phase 164]: block_role/level/timer_status/screen se declaran varchar y no mysqlEnum — El primer argumento de mysqlEnum es el nombre fisico de la columna y su lista de valores debe coincidir byte a byte con el SQL; esa desalineacion rompio CI en 0138/0139 sin que tsc se entere
 
 ### Pending Todos
 
@@ -801,8 +804,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-24T19:14:04.013Z
-Stopped at: Phase 164 context gathered
-Resume file: .planning/phases/164-pantalla-tv-de-sucursal-plani-viva-por-bloque-con-timer-por-/164-CONTEXT.md
+Last session: 2026-07-24T21:01:44.726Z
+Stopped at: Completed 164-01-PLAN.md
+Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z

@@ -4295,7 +4295,7 @@ Plans:
 
 **Wave 1**
 
-- [ ] 164-01-PLAN.md — API: tablas tv_devices/tv_pairings/tv_class_state + migracion 0189 + higiene de tests
+- [x] 164-01-PLAN.md — API: tablas tv_devices/tv_pairings/tv_class_state + migracion 0189 + higiene de tests (completed 2026-07-24, `20ceb74c`)
 - [ ] 164-02-PLAN.md — API: contrato de tipos + toTimerSpec + phaseAt + vectores dorados
 
 **Wave 2** _(blocked on Wave 1 completion)_
@@ -4409,6 +4409,7 @@ _v5.7 (Actividades con Aura) added: 2026-07-14 — 2 phases (161-162), 14 requir
 **Plans:** 4/4 plans complete
 
 Plans:
+
 - [x] 164-01-PLAN.md — Backend transaccional de reprogramación (rescheduleTrial + endpoint + tests) (REPRO-01)
 - [x] 164-02-PLAN.md — Admin UI de reprogramación (acción + picker + cliente) (REPRO-01)
 - [x] 164-03-PLAN.md — Backend del reporte: contador de reprogramaciones + origen auto/manual + filtro (REPRO-02, REPRO-03)
@@ -4434,6 +4435,7 @@ Plans:
 **Plans:** 5/5 plans complete
 
 Plans:
+
 - [x] 165-01-PLAN.md — Backend scheduling: PHONE_REQUIRED self-service + bookTrial 409 + eligibility.phoneRequired (SELF-02/03)
 - [x] 165-02-PLAN.md — Admin alta de SP: teléfono obligatorio en convert-to-trial + verify alta directa (SELF-02)
 - [x] 165-03-PLAN.md — Reporte de Sesiones de Prueba: teléfono (wa.me) + CSV + acción Ver ficha (SELF-04)
@@ -4444,11 +4446,11 @@ Plans:
 
 ## v5.8 (Sesiones de Prueba — automatización y self-service) Progress
 
-| Phase                                       | Plans Complete | Status      | Completed |
-| ------------------------------------------- | -------------- | ----------- | --------- |
-| 163. Máquina de estados automática del lead | 4/4 | Complete    | 2026-07-16 |
-| 164. Reprogramación y reporte               | 4/4 | Complete    | 2026-07-16 |
-| 165. Self-service y UX de gestión           | 5/5 | Complete    | 2026-07-16 |
+| Phase                                       | Plans Complete | Status   | Completed  |
+| ------------------------------------------- | -------------- | -------- | ---------- |
+| 163. Máquina de estados automática del lead | 4/4            | Complete | 2026-07-16 |
+| 164. Reprogramación y reporte               | 4/4            | Complete | 2026-07-16 |
+| 165. Self-service y UX de gestión           | 5/5            | Complete | 2026-07-16 |
 
 _Plan counts populated by `/gsd-plan-phase`._
 
