@@ -73,6 +73,11 @@ Las 6 decisiones que el UI-SPEC dejó "abiertas para discuss-phase" quedaron TOD
 - **D-21:** La fase incluye un **runbook corto de setup del kiosco** en el repo (URL `/tv`, fullscreen, evitar sleep de pantalla, beeps, cómo re-vincular).
 - **D-22:** **Auto-reload por versión**: el poll del TV incluye la versión del frontend; al detectar una nueva, `location.reload()` en un momento seguro (en reposo — nunca en medio de un bloque).
 
+### Post-research (respondidas por Franco 2026-07-24 sobre OQ del RESEARCH.md)
+
+- **D-23:** El TV **soporta el modo ROM de los sábados**: sesión ROM con sus roles (ROM_LOWER/CORE/UPPER) y selector reducido a 2 niveles (BÁSICO/AVANZADO). No queda en reposo los sábados.
+- **D-24:** TVs de las sedes: **todos posteriores a 2020** (marca desconocida) → piso asumido ≈ Chromium 68 (webOS 5.0). Sigue sin alcanzar para el SPA ni para `cqw`: **`/tv` va como página estática autocontenida (ES2015) fuera del SPA**, según la recomendación del RESEARCH.md, con `?diag=1` para diagnóstico en el TV.
+
 ### Claude's Discretion
 
 - Naming/estructura exacta de las tablas nuevas (p. ej. `tv_devices`, `tv_class_state`) y forma del pairing code (largo/alfabeto legible en TV).
