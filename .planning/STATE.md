@@ -3,11 +3,11 @@ gsd_state_version: 1.0
 milestone: v5.7
 milestone_name: Actividades con Aura
 status: executing
-stopped_at: Phase 161 context gathered
-last_updated: "2026-07-15T02:44:36.316Z"
+stopped_at: Phase 164 context gathered
+last_updated: "2026-07-24T19:14:04.047Z"
 last_activity: 2026-07-15
 progress:
-  total_phases: 2
+  total_phases: 3
   completed_phases: 0
   total_plans: 13
   completed_plans: 11
@@ -343,6 +343,7 @@ _Updated after each plan completion_
 
 ### Roadmap Evolution
 
+- Phase 164 added (standalone admin/api, sin migraciones de sesiones; diseño YA validado en mockup v8): Pantalla TV de sucursal — plani viva por bloque (reemplaza el flujo de PNGs descargados del PDF builder) + timer por formato + video del ejercicio + control remoto del profe. Ruta pública `/tv` en el-templo-admin (marco 16:9, estética del PDF: mármol/Cinzel/NunitoSans/navy+oro de `session-pdf-builder.ts`); layout 2 columnas 45/55: lista del nivel elegido (ejercicio actual gigante) + timer abajo, video mp4 del ejercicio a la derecha (R2 público vía `assembleVideoUrl`). Control remoto = sección coach del admin en el celular: bloque, nivel (α/Δ/Σ/☉; deshabilitado en INITIUM/PYROS que es lista compartida y titula PYROS), ejercicio actual, timer start/reset. Comunicación celular↔TV SIN conexión directa: fila de estado por sede en la API, el TV hace polling 2-3s con device token (vinculación por código corto estilo Netflix), timers viajan como timestamp de inicio y el TV cuenta local. Origen: sugerencia #1 de los socios (6/42 piden reloj/segundero). Spec de UI: mockup navegable https://claude.ai/code/artifact/f61d5518-5716-4620-b02e-1696d961e100 + `164-UI-SPEC.md` + template HTML en el phase dir. Prerequisito operativo: wifi en Moreno. (TV-SUCURSAL)
 - v5.4 milestone roadmapped (phases 149-156, 33 reqs, granularity fine): Reforma del Admin — Correcciones white-label (pre-tenants). Deriva de `.docs/saas-multitenancy/Correcciones El Templo.md` + `01-analisis-correcciones-admin.md`. Continúa numeración desde 148 (NO reset). **149 Nav+RBAC foundational** (categorías Finanzas/Alumnos/Horarios/Planes + gating dueño-vs-empleado + gateo de features Templo fuera del MVP, no borradas). **150 Cuentas bancarias** (ABM flexible 3-obligatorios + baja lógica + retiros del dueño; levanta CAJA-F1 de v5.3) precede a **151 Cobros** (Pagos→Cobros, pasos separados, fecha/hora, COBRO-04 asocia cuenta). **152 Caja** (reorden tabs + estado por fila + filtro por día + validador + ABM centros de costo sobre `cost_centers` de v5.3 fase 147 + nota Saldos). **153 Deudas** (fecha+motivo+plan asociado+no-renovaciones; reutiliza `misc_reason` de v5.3 fase 145 — verificar, no duplicar). **154 Alumnos** (crear prominente + cobro en la fila + precio x medio config + avatar→segmento + niveles griegos gateados Templo). **155 Horarios** (clases simultáneas + crear clase desde slot + capacidad por actividad). **156 Planes** (Planes de pago vs Rutinas de entrenamiento + Zero a config + multi-programa por plan + suba de precio sin romper históricos con test). SIN tenants este milestone. (v5.4-ROADMAP)
 - Phase 148 added (continúa numeración tras v5.3 145-147; depende de v5.2 137/140/141 + v5.3 146): PoS profe — alta de alumno + plan en el cobro. El profe carga el plan directamente en el cobro (extiende `CargarPagoPage.vue` / Fase 140), creando al alumno si es nuevo, reemplazando el Google Form→Excel→admin. Modelo crear-en-vivo + validar-después (pago nace `pendiente` → bandeja Fase 137/141). Decisiones cerradas con el usuario (BRIEF-POS-PROFE-ALTA-ALUMNO.md): dedup por DNI (`check-duplicates`), cascade en void (desactiva membresía + alumno inactivo, no borra), sucursal default del profe editable, precio según medio de pago (tarjeta=`priceCreditCard`, resto=`priceRegular`/`priceZero` toggle Zero, parcial deja deuda), selector de turnos estructurado solo planes `fixed` (reusa `FixedSchedulePicker.vue`). Backend: endpoint nuevo en `coach-load-routes.ts` atómico e idempotente (resolver/crear alumno + `assignPlan(scheduleIds)` + transacción `pendiente`). Hallazgos: "Zero"=columna de precio no plan aparte; crear alumno mínimo ya existe (`POST /members/trial`, email null). Sobre `staging`, tren v5.2/v5.3. Decisiones cerradas → puede ir directo a /gsd-plan-phase (discuss opcional). (POS-NEW)
 - Phase 144 added (standalone app/api/admin, numerada después de 143, NO depende de ella ni del Módulo Contable v5.2): Notificaciones y bloqueo de vencimiento de membresía/plan — 3 entregables: (1) notificación push de vencimiento de plan ~7d antes, réplica del cron "Program Renewal Warning" pero sobre `subscriptions.end_date` + nuevo template `plan_renewal_warning` en `notifications/types.ts`; (2) pop-up in-app a 7 y 3 días del vencimiento con botón a WhatsApp (`buildWhatsAppUrl`); (3) bloqueo de reserva cuando `booking_date > subscription.end_date` en `booking-service.ts reserve()` (hoy ese check NO existe — bug latente) + pop-up en `ReservasPage.vue` con botón a WhatsApp. Reutiliza `pending_notifications`+FCM+`notification-cron` y `el-templo-app/src/utils/whatsapp.ts`. Decisiones abiertas (categoría entrenamiento vs programas, copy 7 vs 3d, anti-repetición del pop-up, salteable vs bloqueante, planes sin end_date, alcance presencial vs online) → discuss-phase. (PLAN-NOTIF, PLAN-POPUP, BOOK-BLOCK)
@@ -800,8 +801,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-15T02:44:36.298Z
-Stopped at: Phase 161 context gathered
-Resume file: None
+Last session: 2026-07-24T19:14:04.013Z
+Stopped at: Phase 164 context gathered
+Resume file: .planning/phases/164-pantalla-tv-de-sucursal-plani-viva-por-bloque-con-timer-por-/164-CONTEXT.md
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
