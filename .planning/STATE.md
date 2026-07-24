@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v5.7
 milestone_name: Actividades con Aura
 status: executing
-stopped_at: Completed 164-07-PLAN.md
-last_updated: "2026-07-24T22:42:00Z"
+stopped_at: Completed 164-09-PLAN.md
+last_updated: "2026-07-24T22:53:00Z"
 last_activity: 2026-07-24
 progress:
   total_phases: 4
   completed_phases: 1
   total_plans: 30
-  completed_plans: 22
-  percent: 25
+  completed_plans: 23
+  percent: 26
 ---
 
 # Project State
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 ## Current Position
 
 Phase: 164 (pantalla-tv-de-sucursal-plani-viva-por-bloque-con-timer-por-) — EXECUTING
-Plan: 8 of 13
+Plan: 9 of 13 (wave 3 completa — sigue 164-08, wave 4)
 Status: Ready to execute
 Last activity: 2026-07-24
 
@@ -345,6 +345,7 @@ _Updated after each plan completion_
 | Phase 164 P05 | 24min | 3 tasks | 10 files |
 | Phase 164 P06 | 18min | 3 tasks | 5 files |
 | Phase 164 P07 | 9min | 2 tasks | 2 files |
+| Phase 164 P09 | 10min | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -808,6 +809,10 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase 164-07]: formatDigits redondea hacia ARRIBA como el fmt() del mockup v8 (el 00:01 dura todo el ultimo segundo); efecto conocido: un cronometro libre salta a 00:01 apenas arranca
 - [Phase 164-07]: /tv/?selftest=1 corre 34 casos en el televisor (28 samples de los 6 vectores dorados del API + 3 de elapsedFrom + 3 de formatDigits) y pinta PASS/FAIL gigante — es el primer paso del UAT en cada sede, antes de ?diag=1
 - [Phase 164-07]: No hay browser headless ni jsdom en esta maquina y no se pueden instalar (gate humano): el render del kiosco se verifica corriendo el <script> inline del public/tv/index.html generado con node:vm sobre un DOM minimo
+- [Phase 164-09]: useTvApi.ts es el UNICO wrapper del admin sobre /api/admin/tv (el plan 164-12 le cuelga los metodos del control ahi, no en un composable nuevo); expone ademas normalizeUserCode/isValidUserCode/describeClaimError para que el codigo y los 404/409 se traten igual en toda la superficie
+- [Phase 164-09]: El SPA del admin NO puede tener una ruta con path 'tv' ni '/tv' (el kiosco es public/tv/index.html servido por nginx): las rutas del panel son 'tv/devices' y 'tv/control' — hay un chequeo de node en el verify del plan que lo vigila
+- [Phase 164-09]: TV_CONTROL_ROLES vive tambien en templo-config.ts (coach/admin/owner) y alimenta a la vez el nav y el meta.allowedRoles de la ruta: espeja el set homonimo del API, que es el gate real
+- [Phase 164-09]: Sin vue-tsc en el admin, el typecheck de un .vue se hace extrayendo el bloque <script setup> a un .ts temporal dentro de src/ y corriendo el tsc local con diff contra baseline; el compilado real lo valida `quasar build` (que ademas corre eslint via vite-plugin-checker)
 
 ### Pending Todos
 
@@ -840,8 +845,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-24T22:42:00Z
-Stopped at: Completed 164-07-PLAN.md
+Last session: 2026-07-24T22:53:00Z
+Stopped at: Completed 164-09-PLAN.md
 Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
