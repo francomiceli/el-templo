@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v5.7
 milestone_name: Actividades con Aura
 status: executing
-stopped_at: Completed 164-09-PLAN.md
-last_updated: "2026-07-24T22:53:00Z"
+stopped_at: Completed 164-08-PLAN.md
+last_updated: "2026-07-24T23:07:26.406Z"
 last_activity: 2026-07-24
 progress:
   total_phases: 4
   completed_phases: 1
   total_plans: 30
-  completed_plans: 23
-  percent: 26
+  completed_plans: 24
+  percent: 25
 ---
 
 # Project State
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 ## Current Position
 
 Phase: 164 (pantalla-tv-de-sucursal-plani-viva-por-bloque-con-timer-por-) — EXECUTING
-Plan: 9 of 13 (wave 3 completa — sigue 164-08, wave 4)
+Plan: 10 of 13 (waves 1-4 completas — siguen 164-10 y 164-11, wave 5)
 Status: Ready to execute
 Last activity: 2026-07-24
 
@@ -346,6 +346,7 @@ _Updated after each plan completion_
 | Phase 164 P06 | 18min | 3 tasks | 5 files |
 | Phase 164 P07 | 9min | 2 tasks | 2 files |
 | Phase 164 P09 | 10min | 3 tasks | 4 files |
+| Phase 164 P08 | 22min | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -813,6 +814,10 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase 164-09]: El SPA del admin NO puede tener una ruta con path 'tv' ni '/tv' (el kiosco es public/tv/index.html servido por nginx): las rutas del panel son 'tv/devices' y 'tv/control' — hay un chequeo de node en el verify del plan que lo vigila
 - [Phase 164-09]: TV_CONTROL_ROLES vive tambien en templo-config.ts (coach/admin/owner) y alimenta a la vez el nav y el meta.allowedRoles de la ruta: espeja el set homonimo del API, que es el gate real
 - [Phase 164-09]: Sin vue-tsc en el admin, el typecheck de un .vue se hace extrayendo el bloque <script setup> a un .ts temporal dentro de src/ y corriendo el tsc local con diff contra baseline; el compilado real lo valida `quasar build` (que ademas corre eslint via vite-plugin-checker)
+- [Phase 164-08]: El response schema de GET /api/tv/state es la red de contencion de D-09 — fast-json-stringify solo serializa lo declarado, asi que ningun campo de diagnostico agregado al payload puede llegar a la pared de la sede sin declararlo
+- [Phase 164-08]: POST /api/tv/client-log escribe SIEMPRE en warn (el nivel reportado por el kiosco viaja como campo estructurado `reportedLevel`) — un televisor en loop de fallo pollea sin descanso y no puede disparar una cascada de alertas
+- [Phase 164-08]: El poll responde con `Cache-Control: no-store` — es estado vivo a 2.5 s y un intermediario que cachee deja el televisor congelado en un bloque que ya termino
+- [Phase 164-08]: Los tests de rutas del TV congelan el reloj con fake timers: la ruta no acepta un `now` inyectado (T-164-31) y sin congelarlo el archivo seria rojo los domingos y el borde AR/ES solo pasaria unas horas por dia
 
 ### Pending Todos
 
@@ -845,8 +850,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-24T22:53:00Z
-Stopped at: Completed 164-09-PLAN.md
+Last session: 2026-07-24T23:07:26.384Z
+Stopped at: Completed 164-08-PLAN.md
 Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z

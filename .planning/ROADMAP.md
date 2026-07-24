@@ -4312,7 +4312,7 @@ Plans:
 
 **Wave 4** _(blocked on Wave 3 completion)_
 
-- [ ] 164-08-PLAN.md — API: GET /api/tv/state + client-log + tests de integracion del poll
+- [x] 164-08-PLAN.md — API: GET /api/tv/state + client-log + tests de integracion del poll (completed 2026-07-24, `c8634eba`)
 
 **Wave 5** _(blocked on Wave 4 completion)_
 
