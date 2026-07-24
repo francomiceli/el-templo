@@ -110,7 +110,14 @@ export const tvClassState = mysqlTable(
       .references(() => branches.id),
     // D-07 (expire-on-read): FECHA en la TZ de la sede, no un timestamp. Si la
     // fila quedo de ayer, el lector la trata como inexistente.
-    classDate: date("class_date").notNull(),
+    //
+    // `mode: "string"` (convencion del repo: subscriptions.start_date,
+    // bookings.booking_date). Sin esto el driver devuelve un Date en la TZ del
+    // proceso y compararlo contra la fecha de la SEDE obligaria a reformatearlo
+    // — que es exactamente el bug que D-07 evita (Barcelona limpiando el estado
+    // a la hora argentina). Es solo mapeo del driver: la columna SQL no cambia,
+    // no hay migracion.
+    classDate: date("class_date", { mode: "string" }).notNull(),
     // Pitfall 1: se guarda el ROL del bloque (INITIUM/NUCLEUS/...), nunca un
     // indice numerico — el roster de bloques cambia de largo entre niveles.
     blockRole: varchar("block_role", { length: 20 }).notNull(),
