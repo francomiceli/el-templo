@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v5.7
 milestone_name: Actividades con Aura
 status: executing
-stopped_at: Completed 164-05-PLAN.md
-last_updated: "2026-07-24T22:14:41Z"
+stopped_at: Completed 164-06-PLAN.md
+last_updated: "2026-07-24T22:33:00Z"
 last_activity: 2026-07-24
 progress:
   total_phases: 4
   completed_phases: 1
   total_plans: 30
-  completed_plans: 20
+  completed_plans: 21
   percent: 25
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 ## Current Position
 
 Phase: 164 (pantalla-tv-de-sucursal-plani-viva-por-bloque-con-timer-por-) — EXECUTING
-Plan: 6 of 13
+Plan: 7 of 13
 Status: Ready to execute
 Last activity: 2026-07-24
 
@@ -343,6 +343,7 @@ _Updated after each plan completion_
 | Phase 164 P01 | ~25min | 3 tasks | 5 files |
 | Phase 164 P04 | 11min | 3 tasks | 12 files |
 | Phase 164 P05 | 24min | 3 tasks | 10 files |
+| Phase 164 P06 | 18min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -794,6 +795,13 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase 164-05]: levels nunca queda vacio mientras approved sea true — un nivel fuera del orden canonico se agrega al final en vez de descartarse, o el clamp se queda sin nivel al que caer y el TV muestra lista en blanco con sesion aprobada
 - [Phase 164-05]: Los formatos que dictan reps/segundos (tabata/interval/hiit/on_the_x/death_by) no muestran volumen en el TV — el valor guardado es basura de default y el editor ni siquiera lo expone; espejo de FORMAT_DICTATED_TYPES del admin
 - [Phase 164-05]: El tsconfig del API solo incluye src/\*\*/\* — los archivos de test NO se typechequean con tsc --noEmit (vitest los transpila sin chequear); un tsc limpio no prueba que los tests tipen
+- [Phase 164-06]: El CSS del kiosco (src/tv/styles.css) tiene piso Chromium 53 y su encabezado lista las features prohibidas con la version en que aparecieron: se escribe UNA sola vez, sin bloques condicionales, para que el camino que se ve en escritorio sea el que corre en el TV
+- [Phase 164-06]: 1rem del kiosco == 1% del ancho del marco 16:9, porque scale.ts fija html { font-size: ancho/100 } — reemplaza container queries y la relacion de aspecto del mockup v8; rem y NO em (los em se componen en cascada y el layout anida 4 niveles)
+- [Phase 164-06]: El canal entre las columnas 45/55 es padding-right de la izquierda, no margin: con box-sizing border-box los dos flex-basis siguen sumando 100% exacto
+- [Phase 164-06]: pad2() vive en scale.ts y es el unico helper de relleno de src/tv/ (logger.ts lo importa); el metodo nativo es ES2017 y el tsconfig del kiosco lo rechaza
+- [Phase 164-06]: Los simbolos de nivel se pintan con <span class="glyph"> (stack de sistema) y el de kairos con <span class="glyph kairos"> (dibujado en CSS): Cinzel no cubre griego, igual que en el PDF
+- [Phase 164-06]: /tv/?diag=1 es el unico instrumento de campo (no hay devtools en un TV): user agent, marco y px por rem, 12 feature-detects, version local vs version.txt, status+latencia del poll y las ultimas 20 lineas del log — todo con textContent y el device token truncado a 4 chars
+- [Phase 164-06]: tvApiBase() (diag.ts) es la resolucion unica de la base del API del kiosco — el poll de 164-11 debe reusarla, no escribir una segunda
 
 ### Pending Todos
 
@@ -826,8 +834,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-24T22:14:41Z
-Stopped at: Completed 164-05-PLAN.md
+Last session: 2026-07-24T22:33:00Z
+Stopped at: Completed 164-06-PLAN.md
 Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z

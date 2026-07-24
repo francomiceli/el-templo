@@ -4306,7 +4306,7 @@ Plans:
 **Wave 3** _(blocked on Wave 2 completion)_
 
 - [x] 164-05-PLAN.md — API: roster canonico, resolucion del dia (TZ/ROM) y payload del poll (D-07/09/14/23) (completed 2026-07-24, `9f986d18`)
-- [ ] 164-06-PLAN.md — TV: HTML/CSS compatible con Chromium 53 + escalado + ?diag=1 (D-20)
+- [x] 164-06-PLAN.md — TV: HTML/CSS compatible con Chromium 53 + escalado + ?diag=1 (D-20) (completed 2026-07-24, `cc4113ae`)
 - [ ] 164-07-PLAN.md — TV: motor de timer portado + ?selftest=1 con vectores dorados
 - [ ] 164-09-PLAN.md — Admin: composable useTvApi + pantalla de Televisores (vincular/monitorear/revocar)
 
