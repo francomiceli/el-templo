@@ -6,6 +6,9 @@
 -- and there is no index on is_trial), so MySQL full-scanned bookings.
 -- This composite index leads with is_trial (trials are a small fraction of all
 -- bookings, so the seek subtree is tiny), then booking_date equality, then
--- status for the <> 'cancelado' filter. Hand-written (db:generate is broken by
--- pre-existing drift, see skill el-templo-db-migrations). Index-only, no data.
-CREATE INDEX `idx_bookings_trial_date_status` ON `bookings` (`is_trial`, `booking_date`, `status`);
+-- booking_status for the <> 'cancelado' filter. NOTE: the physical column is
+-- `booking_status` (mysqlEnum("booking_status", ...) in the schema; the TS
+-- property is `status`) — matching sibling index idx_bookings_schedule_date_status
+-- (mig 0035). Hand-written (db:generate is broken by pre-existing drift, see
+-- skill el-templo-db-migrations). Index-only, no data.
+CREATE INDEX `idx_bookings_trial_date_status` ON `bookings` (`is_trial`, `booking_date`, `booking_status`);
