@@ -10,7 +10,8 @@
     "lint": "eslint -c ./eslint.config.js \"./src*/**/*.{js,ts,cjs,mjs,vue}\"",
     "format": "prettier --write \"**/*.{js,ts,vue,scss,html,md,json}\" --ignore-path .gitignore",
     "dev": "quasar dev",
-    "build": "quasar build",
+    "build": "node scripts/build-tv.mjs && quasar build",
+    "build:tv": "node scripts/build-tv.mjs",
     "postinstall": "quasar prepare && node scripts/copy-ffmpeg.mjs"
   },
   "dependencies": {
