@@ -112,6 +112,15 @@ export const CAJA_SALDOS_ROLES: AdminRole[] = ['admin', 'owner'];
 /** Analíticas: Dueño-only. Mirrors the /analiticas route allowedRoles (ADMIN_ROLES). */
 export const ANALITICAS_ROLES: AdminRole[] = ['admin', 'owner'];
 
+/**
+ * Televisores de sucursal (fase 164): Dueño + coach (D-01). Mirrors
+ * TV_CONTROL_ROLES of the API (`shared/permissions.ts`), que es el gate REAL de
+ * `/api/admin/tv` — este set solo decide qué se ve (nav + `meta.allowedRoles`).
+ * Un rol fuera del set que navegue por URL directa es rebotado por el guard, y
+ * aun si llegara, el API le responde 403.
+ */
+export const TV_CONTROL_ROLES: AdminRole[] = ['coach', 'admin', 'owner'];
+
 // ---------------------------------------------------------------------------
 // Nav model
 // ---------------------------------------------------------------------------
@@ -172,6 +181,17 @@ export const NAV_MODEL: NavCategory[] = [
     items: [
       { path: '/alumnos', label: 'Alumnos', icon: 'people', roles: ALL_STAFF_ROLES },
       { path: '/horarios', label: 'Horarios', icon: 'calendar_month', roles: ALL_STAFF_ROLES },
+      {
+        // Televisores (fase 164): vincular/monitorear/revocar las pantallas de
+        // la sede. Dueño + coach (D-01). `templo: true` porque lo que la pantalla
+        // muestra es la estética del Templo (mármol, logo, frases): un
+        // white-label no hereda ese kiosco.
+        path: '/tv/devices',
+        label: 'Televisores',
+        icon: 'tv',
+        roles: TV_CONTROL_ROLES,
+        templo: true,
+      },
       {
         // Feedback: la voz del alumno (puntuaciones de clases/profes + sugerencias)
         // en una página con tabs. Reemplaza a los ex ítems Profes (/puntuaciones)
