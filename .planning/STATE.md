@@ -4,14 +4,14 @@ milestone: v5.7
 milestone_name: Actividades con Aura
 status: executing
 stopped_at: Phase 164 context gathered
-last_updated: "2026-07-24T20:32:55.469Z"
-last_activity: 2026-07-24 -- Phase 164 planning complete
+last_updated: "2026-07-24T20:50:01.904Z"
+last_activity: 2026-07-24 -- Phase 164 execution started
 progress:
-  total_phases: 3
-  completed_phases: 0
-  total_plans: 26
-  completed_plans: 11
-  percent: 0
+  total_phases: 4
+  completed_phases: 1
+  total_plans: 30
+  completed_plans: 15
+  percent: 25
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-04)
 
 **Core value (v5.7):** Clases especiales de sábado (Verticales con Pato, Acrobacias con Nico, 3ª a definir) gateadas por un pase mensual de 2 asistencias mezclables — socio activo +$10.000 ARS, externo $20.000 ARS — con reserva, cupo y asistencia sobre la infra existente (`activities`/`schedules`/`bookings`/`attendance`), y visibilidad de asistencias por actividad para el reparto manual a los profes. 2 fases (161-162), 14 requirements (ACT/PASE/GATE/APP/REP). Modelado: pase = 2 planes `planCategory:'especial'` con budget mensual explícito de 2 + gating por flag en `activities` + enforcement en `BookingService.reserve()` + consumo vía `classesRemaining`. Numeración arranca en 161 (159-160 reservadas por v5.6). Staging-first estricto; migraciones a verificar en plan-phase (0176-0178 tomadas por v5.5).
-**Current focus:** Phase 162 — Superficie — member app y reporte de reparto
+**Current focus:** Phase 164 — pantalla-tv-de-sucursal-plani-viva-por-bloque-con-timer-por-
 
 ## Current Position
 
-Phase: 162 (Superficie — member app y reporte de reparto) — EXECUTING
-Plan: 6 of 6
-Status: Ready to execute
-Last activity: 2026-07-24 -- Phase 164 planning complete
+Phase: 164 (pantalla-tv-de-sucursal-plani-viva-por-bloque-con-timer-por-) — EXECUTING
+Plan: 1 of 13
+Status: Executing Phase 164
+Last activity: 2026-07-24 -- Phase 164 execution started
 
 ## Performance Metrics
 
