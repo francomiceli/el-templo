@@ -18,8 +18,11 @@
  * para diagnosticar un kiosco a distancia.
  *
  * Reglas de compatibilidad de este archivo (valen para todo `src/tv/`): sin optional
- * chaining, sin `??`, sin spread de objetos, sin `padStart`, sin `Object.entries`.
+ * chaining, sin `??`, sin spread de objetos, sin el relleno nativo de strings ni las
+ * utilidades de objeto de ES2017 — el tsconfig del kiosco las rechaza en compilacion.
  */
+
+import { pad2 } from './scale';
 
 export type TvLogLevel = 'debug' | 'info' | 'warn' | 'error';
 
@@ -67,10 +70,8 @@ function push(entry: TvLogEntry): void {
   }
 }
 
-/** `padStart` es ES2017 (Chromium 57) — Pitfall 5. */
-function pad2(n: number): string {
-  return n < 10 ? '0' + n : String(n);
-}
+/* El relleno a dos digitos vive en `scale.ts` (unico helper para todo src/tv/: reloj,
+   timer y este stamp). El metodo nativo del string es ES2017 / Chromium 57 — Pitfall 5. */
 
 /** HH:MM:SS local, que es la referencia util cuando alguien mira el TV de la sede. */
 function stamp(at: number): string {
