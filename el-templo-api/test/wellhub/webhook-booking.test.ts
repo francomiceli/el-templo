@@ -661,11 +661,16 @@ describe("Wellhub — reservas y sincronización", () => {
       );
     });
 
-    const [slotRow] = await app.db
-      .select({ totalBooked: schema.wellhubSlots.totalBooked })
-      .from(schema.wellhubSlots)
-      .where(eq(schema.wellhubSlots.id, slot.slotRowId));
-    expect(slotRow.totalBooked).toBe(1);
+    // El UPDATE de la fila corre DESPUES del patchSlot (sync-service.ts), asi que haber
+    // visto el PATCH no garantiza que la ocupacion ya este escrita: sin esta segunda
+    // espera el test lee 0 cuando el runner viene cargado (falla real en CI).
+    await vi.waitFor(async () => {
+      const [slotRow] = await app.db
+        .select({ totalBooked: schema.wellhubSlots.totalBooked })
+        .from(schema.wellhubSlots)
+        .where(eq(schema.wellhubSlots.id, slot.slotRowId));
+      expect(slotRow.totalBooked).toBe(1);
+    });
   });
 
   // ─── Sincronización ──────────────────────────────────────────────────────
