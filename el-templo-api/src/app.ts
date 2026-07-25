@@ -103,6 +103,10 @@ export async function buildApp() {
             "http://localhost", // iOS Capacitor
           ],
     methods: ["GET", "HEAD", "PUT", "POST", "PATCH", "DELETE", "OPTIONS"],
+    // Sin esto el browser recuerda el preflight solo 5 segundos (default de la spec) y el
+    // kiosco de la TV, que pollea cada 2,5 s con header Authorization, manda un OPTIONS
+    // por medio. 24 h es el techo que respeta Chromium (lo capea a 2 h por su cuenta).
+    maxAge: 86400,
   });
 
   // Database plugin (decorates fastify.db)

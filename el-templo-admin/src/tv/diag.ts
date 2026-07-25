@@ -32,8 +32,15 @@ const COLOR_FAIL = '#ff7b6b';
 const COLOR_INFO = '#9aa7b4';
 
 /**
- * Base del API para la consulta de prueba: el mismo host que sirve el kiosco, con
- * override por `?api=` para probar contra otro backend desde la sede.
+ * Base del API, por orden de prioridad:
+ *   1. `?api=` — override para probar contra otro backend parado frente al televisor
+ *   2. `window.__TV_API_BASE__` — horneado en el build desde VITE_API_URL
+ *   3. el host que sirve la pagina — ultimo recurso
+ *
+ * El paso 2 NO es opcional en produccion: el vhost del admin sirve estaticos y no proxea
+ * `/api` (deploy/nginx/admin.eltemplo.org), asi que el paso 3 responde 405 al pairing y
+ * el kiosco se queda en "Conectando..." para siempre. Se cayo exactamente en eso durante
+ * la verificacion en staging de la fase 164.
  *
  * NOTA para el plan 164-11: el poll debe REUSAR esta funcion (importarla o promoverla a
  * un modulo compartido), no escribir una segunda resolucion de base — dos criterios
@@ -52,6 +59,10 @@ export function tvApiBase(): string {
     if (raw.length > 0) {
       return decodeURIComponent(raw).replace(/\/$/, '');
     }
+  }
+  const baked = window.__TV_API_BASE__;
+  if (baked) {
+    return baked.replace(/\/$/, '');
   }
   return window.location.protocol + '//' + window.location.host;
 }
@@ -245,7 +256,15 @@ export function renderDiag(): void {
 
   // ── Red ──────────────────────────────────────────────────────────────────
   makeTitle(root, 'RED');
-  makeRow(root, 'api base:', tvApiBase(), COLOR_FG);
+  // De donde salio la base importa tanto como la base misma: "host" en una sede
+  // significa que el build no trajo VITE_API_URL y el pairing no va a funcionar.
+  const apiOrigin =
+    window.location.search.indexOf('api=') >= 0
+      ? 'query'
+      : window.__TV_API_BASE__
+        ? 'build'
+        : 'host';
+  makeRow(root, 'api base:', tvApiBase() + '  (' + apiOrigin + ')', COLOR_FG);
   const apiRow = makeRow(root, 'GET /api/tv/state:', 'consultando…', COLOR_INFO);
 
   // ── Ultimas lineas del logger ────────────────────────────────────────────

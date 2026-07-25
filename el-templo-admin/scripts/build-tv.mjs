@@ -175,10 +175,35 @@ if (styles.indexOf('</style>') >= 0) {
   fail('styles.css contiene "</style>" y romperia el HTML inline');
 }
 
+/**
+ * Origen del API horneado en la pagina.
+ *
+ * El kiosco no pasa por Vite (esbuild a ES2015, D-24), asi que NO hereda
+ * `import.meta.env.VITE_API_URL` como el resto del admin. Sin este valor el runtime cae
+ * al host que sirve la pagina — y ese host es el vhost del admin, que sirve estaticos y
+ * no proxea `/api`: el pairing come 405 y el televisor queda en "Conectando..." para
+ * siempre. Paso en la verificacion en staging de la fase 164.
+ *
+ * Se saca el sufijo `/api` porque el kiosco arma las rutas completas (`/api/tv/...`),
+ * mismo criterio que el smoke test de .github/workflows/deploy.yml.
+ */
+const apiBase = (process.env.VITE_API_URL || '')
+  .trim()
+  .replace(/\/+$/, '')
+  .replace(/\/api$/, '');
+if (apiBase.length === 0) {
+  console.warn(
+    `${TAG} sin VITE_API_URL: el kiosco va a pegarle al host que lo sirve. Anda en dev con ?api=, NO en la sede.`
+  );
+}
+
+// La version entra al hash junto con la base: dos builds identicos salvo la URL del API
+// tienen que dar versiones distintas, o los televisores ya vinculados nunca recargan (D-22).
 const version = createHash('sha256')
   .update(bundleJs)
   .update(styles)
   .update(template)
+  .update(apiBase)
   .digest('hex')
   .slice(0, 8);
 
@@ -190,7 +215,10 @@ if (template.indexOf(SCRIPT_MARK) < 0) fail(`src/tv/index.html no tiene ${SCRIPT
 
 const html = template
   .replace(STYLE_MARK, `<style>\n${styles}\n</style>`)
-  .replace(SCRIPT_MARK, `<script>\nwindow.__TV_VERSION__ = ${JSON.stringify(version)};\n${bundleJs}\n</script>`);
+  .replace(
+    SCRIPT_MARK,
+    `<script>\nwindow.__TV_VERSION__ = ${JSON.stringify(version)};\nwindow.__TV_API_BASE__ = ${JSON.stringify(apiBase)};\n${bundleJs}\n</script>`
+  );
 
 writeIfChanged(resolve(outDir, 'index.html'), html);
 writeIfChanged(resolve(outDir, 'version.txt'), version);
