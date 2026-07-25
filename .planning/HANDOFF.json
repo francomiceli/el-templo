@@ -1,0 +1,103 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-07-25T03:31:34.233Z",
+  "phase": "164",
+  "phase_name": "pantalla-tv-de-sucursal-plani-viva-por-bloque-con-timer-por-",
+  "phase_dir": ".planning/phases/164-pantalla-tv-de-sucursal-plani-viva-por-bloque-con-timer-por-",
+  "plan": 13,
+  "task": 2,
+  "total_tasks": 2,
+  "status": "paused",
+  "worktree": {
+    "path": "/home/franco/projects/et-164-tv",
+    "branch": "feat/164-tv-sucursal",
+    "base": "origin/master (39568562)",
+    "note": "TODA la fase 164 vive acá. El checkout principal (/home/franco/projects/el-templo) está en fix/referral-preview-y-refresh-ficha, atrasado 135 commits y con WIP de CR-CAJA de otra sesión — NO ejecutar nada de la fase ahí."
+  },
+  "completed_tasks": [
+    {
+      "id": "164-01..164-12",
+      "name": "12 planes completos con SUMMARY.md (waves 1-6)",
+      "status": "done",
+      "commit": "ver git log --grep 164- en feat/164-tv-sucursal (~65 commits)"
+    },
+    {
+      "id": "164-13/T1",
+      "name": "deploy/TV-KIOSK-RUNBOOK.md",
+      "status": "done",
+      "commit": "1a9745d1"
+    },
+    {
+      "id": "164-13/T2",
+      "name": "[CHECKPOINT] verificación en staging + TV real",
+      "status": "in_progress",
+      "progress": "esperando OK de push a staging + reporte del televisor de sede"
+    }
+  ],
+  "remaining_tasks": [
+    {
+      "id": "164-13/T2",
+      "name": "checkpoint humano: push a staging (con OK explícito), probar /tv/ + ?selftest=1 + ?diag=1 en TV real, circuito Televisores/Control TV",
+      "status": "awaiting_human"
+    },
+    {
+      "id": "phase-close",
+      "name": "SUMMARY 164-13 + code_review_gate (/gsd:code-review 164) + gsd-verifier + update_roadmap",
+      "status": "not_started"
+    }
+  ],
+  "blockers": [
+    {
+      "description": "Push a staging requiere OK explícito del usuario (regla dura: siempre preguntar antes de push)",
+      "type": "human_action",
+      "workaround": null
+    },
+    {
+      "description": "D-20: no hay smart TV en este entorno; la verificación en hardware solo la puede hacer una persona en una sede",
+      "type": "human_action",
+      "workaround": null
+    }
+  ],
+  "human_actions_pending": [
+    {
+      "action": "OK para `git push origin feat/164-tv-sucursal:staging` (desde el worktree)",
+      "context": "el push toca el-templo-admin/ de sobra, la trampa de paths-filter no aplica",
+      "blocking": true
+    },
+    {
+      "action": "En el TV de sede: /tv/ carga, foto de ?diag=1 (user agent + 5 OK), ?selftest=1 PASS, circuito Gestión→Televisores/Control TV (<3 s por cambio)",
+      "context": "guion exacto en deploy/TV-KIOSK-RUNBOOK.md",
+      "blocking": true
+    }
+  ],
+  "decisions": [
+    {
+      "decision": "Fase ejecutada en worktree aislado /home/franco/projects/et-164-tv (rama feat/164-tv-sucursal desde origin/master)",
+      "rationale": "checkout principal compartido, atrasado y con WIP ajeno; gate del plan 164-01 lo exigía",
+      "phase": "164"
+    },
+    {
+      "decision": "8 commits docs(164) cherry-pickeados de fix/referral-preview-y-refresh-ficha + UI-SPEC/mockup commiteados (estaban untracked)",
+      "rationale": "el worktree desde master no tenía los docs de planificación",
+      "phase": "164"
+    },
+    {
+      "decision": "formatDigits redondea con ceil (como mockup v8); count-up salta a 00:01 al arrancar — revisar en UAT",
+      "rationale": "firma sin fase; cambiarlo a floor para count-up es cambio de firma en 164-11",
+      "phase": "164"
+    },
+    {
+      "decision": "Escritura de control con blockRole/level inexistente se descarta con warn (no rechaza, no clampea)",
+      "rationale": "no puede mover al profe de bloque ni matar el timer; el control se auto-corrige con la respuesta",
+      "phase": "164"
+    },
+    {
+      "decision": "tv_class_state.class_date con mode string (fix de TZ sobre 164-01); solo mapeo de driver, sin migración",
+      "rationale": "D-07: evitar reformateo con getters UTC",
+      "phase": "164"
+    }
+  ],
+  "uncommitted_files": [],
+  "next_action": "Pedir/confirmar OK del usuario para push a staging; con deploy verde y reporte del TV real, re-correr /gsd:execute-phase 164 — va a detectar 01..12 completos y retomar 164-13/T2 con un agente de continuación; después sigue el cierre de fase (code review + verifier + roadmap).",
+  "context_notes": "Checkpoint devuelto por el ejecutor de 164-13 (human-verify). Auth del kiosco: header `Authorization: Device <token>` (no Bearer); el pairing devuelve `deviceToken`. Si en staging /tv/ muestra el login del admin es config de nginx (asunción A1), no código. tests API: MAX_TEST_WORKERS=1 si aparece 'Table ... doesn't exist'. ROADMAP tiene DOS entradas 'Phase 164' (TV y legacy v5.8 Reprogramación): actualizar la del TV a mano."
+}
