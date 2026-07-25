@@ -4284,6 +4284,49 @@ Plans:
 
 _Plan counts populated by `/gsd-plan-phase`._
 
+### Phase 164: Pantalla TV de sucursal: plani viva por bloque con timer por formato, video de ejercicio y control remoto del profe
+
+**Goal:** El TV de cada sede muestra el bloque en curso de la sesión del día (lista del nivel elegido + timer por formato + video del ejercicio + segundero siempre visible) con la estética del PDF, controlado por el profe desde su celular vía la API (polling con device token) — reemplaza el flujo de PNGs descargados y responde al pedido #1 de las sugerencias de socios (reloj/segundero, 6/42).
+**Requirements**: Diseño cerrado en `164-UI-SPEC.md` (mockup v8 validado por Franco 2026-07-24); decisiones abiertas listadas ahí para discuss-phase.
+**Depends on:** Ninguna fase — standalone (admin + api; sin migraciones de sesiones). Prerequisito operativo: wifi en Moreno.
+**Plans:** 12/13 plans executed (13 plans, 7 waves)
+
+Plans:
+
+**Wave 1**
+
+- [x] 164-01-PLAN.md — API: tablas tv_devices/tv_pairings/tv_class_state + migracion 0189 + higiene de tests (completed 2026-07-24, `20ceb74c`)
+- [x] 164-02-PLAN.md — API: contrato de tipos + toTimerSpec + phaseAt + vectores dorados (completed 2026-07-24, `649fea38`)
+
+**Wave 2** _(blocked on Wave 1 completion)_
+
+- [x] 164-03-PLAN.md — API: pairing RFC 8628, device token revocable, rutas de vinculacion (D-01..D-05) (completed 2026-07-24, `84a6d4d7`)
+- [x] 164-04-PLAN.md — Admin: pipeline de build del kiosco estatico + QUOTES + esqueleto src/tv (D-24) (completed 2026-07-24, `71431dd3`)
+
+**Wave 3** _(blocked on Wave 2 completion)_
+
+- [x] 164-05-PLAN.md — API: roster canonico, resolucion del dia (TZ/ROM) y payload del poll (D-07/09/14/23) (completed 2026-07-24, `9f986d18`)
+- [x] 164-06-PLAN.md — TV: HTML/CSS compatible con Chromium 53 + escalado + ?diag=1 (D-20) (completed 2026-07-24, `cc4113ae`)
+- [x] 164-07-PLAN.md — TV: motor de timer portado + ?selftest=1 con vectores dorados (completed 2026-07-24, `284770bf`)
+- [x] 164-09-PLAN.md — Admin: composable useTvApi + pantalla de Televisores (vincular/monitorear/revocar) (completed 2026-07-24, `2ca686a9`)
+
+**Wave 4** _(blocked on Wave 3 completion)_
+
+- [x] 164-08-PLAN.md — API: GET /api/tv/state + client-log + tests de integracion del poll (completed 2026-07-24, `c8634eba`)
+
+**Wave 5** _(blocked on Wave 4 completion)_
+
+- [x] 164-10-PLAN.md — API: control del profe (context/state/end-class) con comandos absolutos idempotentes (completed 2026-07-24, `bbd776ae`)
+- [x] 164-11-PLAN.md — TV: runtime completo (pairing, poll, reloj, clase, reposo/cierre, video, auto-reload) (completed 2026-07-24, `174e63a9`)
+
+**Wave 6** _(blocked on Wave 5 completion)_
+
+- [x] 164-12-PLAN.md — Admin: botonera grande del profe BLOQUES/NIVELES/EJERCICIO/TIMER (D-13) (completed 2026-07-24, `feb8348c`)
+
+**Wave 7** _(blocked on Wave 6 completion)_
+
+- [ ] 164-13-PLAN.md — Runbook del kiosco (D-21) + checkpoint humano en TV real y staging (D-20)
+
 ---
 
 _v5.7 (Actividades con Aura) added: 2026-07-14 — 2 phases (161-162), 14 requirements (ACT, PASE, GATE, APP, REP). **Arranca en fase 161** (NO 159): las fases 159-160 están reservadas por v5.6 combos+técnica (rama `feat/dias-combos-tecnica`, sin ejecutar) — arrancar en 161 evita colisión. **161 (núcleo/modelo) es foundational**; 162 (superficie) depende de 161. Modelado decidido: pase = 2 planes `planCategory:'especial'` (Socio $10k / Externo $20k) con budget mensual explícito de 2 (además del derivado `ceil(durationDays/7)×classesPerWeek`); gating por flag en `activities`; enforcement en `BookingService.reserve()`; consumo vía `classesRemaining`. Programas descartados como vehículo (mig. 0071). Migraciones: numeración a verificar en plan-phase (0176-0178 aplicadas por v5.5; v5.6 puede reservar las siguientes). Staging-first estricto; tests de integración para rutas nuevas. Abierto para discuss-phase: externo `activo` en `recomputeUserStatus`, consumo reserva-vs-check-in, horarios/sedes/nombre de la 3ª actividad, bypass de staff. Fuente: `.docs/actividades-aura/` (audios de Nacho 2026-07-13) + 3 informes de research de codebase._
@@ -4366,6 +4409,7 @@ _v5.7 (Actividades con Aura) added: 2026-07-14 — 2 phases (161-162), 14 requir
 **Plans:** 4/4 plans complete
 
 Plans:
+
 - [x] 164-01-PLAN.md — Backend transaccional de reprogramación (rescheduleTrial + endpoint + tests) (REPRO-01)
 - [x] 164-02-PLAN.md — Admin UI de reprogramación (acción + picker + cliente) (REPRO-01)
 - [x] 164-03-PLAN.md — Backend del reporte: contador de reprogramaciones + origen auto/manual + filtro (REPRO-02, REPRO-03)
@@ -4391,6 +4435,7 @@ Plans:
 **Plans:** 5/5 plans complete
 
 Plans:
+
 - [x] 165-01-PLAN.md — Backend scheduling: PHONE_REQUIRED self-service + bookTrial 409 + eligibility.phoneRequired (SELF-02/03)
 - [x] 165-02-PLAN.md — Admin alta de SP: teléfono obligatorio en convert-to-trial + verify alta directa (SELF-02)
 - [x] 165-03-PLAN.md — Reporte de Sesiones de Prueba: teléfono (wa.me) + CSV + acción Ver ficha (SELF-04)
@@ -4401,11 +4446,11 @@ Plans:
 
 ## v5.8 (Sesiones de Prueba — automatización y self-service) Progress
 
-| Phase                                       | Plans Complete | Status      | Completed |
-| ------------------------------------------- | -------------- | ----------- | --------- |
-| 163. Máquina de estados automática del lead | 4/4 | Complete    | 2026-07-16 |
-| 164. Reprogramación y reporte               | 4/4 | Complete    | 2026-07-16 |
-| 165. Self-service y UX de gestión           | 5/5 | Complete    | 2026-07-16 |
+| Phase                                       | Plans Complete | Status   | Completed  |
+| ------------------------------------------- | -------------- | -------- | ---------- |
+| 163. Máquina de estados automática del lead | 4/4            | Complete | 2026-07-16 |
+| 164. Reprogramación y reporte               | 4/4            | Complete | 2026-07-16 |
+| 165. Self-service y UX de gestión           | 5/5            | Complete | 2026-07-16 |
 
 _Plan counts populated by `/gsd-plan-phase`._
 

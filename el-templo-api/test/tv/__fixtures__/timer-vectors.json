@@ -1,0 +1,313 @@
+[
+  {
+    "name": "tabata 20s/10s x8",
+    "params": {
+      "type": "tabata",
+      "workSeconds": 20,
+      "restSeconds": 10,
+      "rounds": 8
+    },
+    "spec": {
+      "kind": "work_rest",
+      "workMs": 20000,
+      "restMs": 10000,
+      "rounds": 8
+    },
+    "samples": [
+      {
+        "elapsedMs": 0,
+        "phase": "work",
+        "displayMs": 20000,
+        "round": 1,
+        "totalRounds": 8,
+        "finished": false
+      },
+      {
+        "elapsedMs": 19999,
+        "phase": "work",
+        "displayMs": 1,
+        "round": 1,
+        "totalRounds": 8,
+        "finished": false
+      },
+      {
+        "elapsedMs": 20000,
+        "phase": "rest",
+        "displayMs": 10000,
+        "round": 1,
+        "totalRounds": 8,
+        "finished": false
+      },
+      {
+        "elapsedMs": 30000,
+        "phase": "work",
+        "displayMs": 20000,
+        "round": 2,
+        "totalRounds": 8,
+        "finished": false
+      },
+      {
+        "elapsedMs": 239999,
+        "phase": "rest",
+        "displayMs": 1,
+        "round": 8,
+        "totalRounds": 8,
+        "finished": false
+      },
+      {
+        "elapsedMs": 240000,
+        "phase": "done",
+        "displayMs": 0,
+        "round": 8,
+        "totalRounds": 8,
+        "finished": true
+      }
+    ]
+  },
+  {
+    "name": "emom 60s x 10min",
+    "params": {
+      "type": "emom",
+      "intervalSeconds": 60,
+      "totalMinutes": 10
+    },
+    "spec": {
+      "kind": "interval",
+      "intervalMs": 60000,
+      "rounds": 10
+    },
+    "samples": [
+      {
+        "elapsedMs": 0,
+        "phase": "work",
+        "displayMs": 60000,
+        "round": 1,
+        "totalRounds": 10,
+        "finished": false
+      },
+      {
+        "elapsedMs": 59999,
+        "phase": "work",
+        "displayMs": 1,
+        "round": 1,
+        "totalRounds": 10,
+        "finished": false
+      },
+      {
+        "elapsedMs": 60000,
+        "phase": "work",
+        "displayMs": 60000,
+        "round": 2,
+        "totalRounds": 10,
+        "finished": false
+      },
+      {
+        "elapsedMs": 599999,
+        "phase": "work",
+        "displayMs": 1,
+        "round": 10,
+        "totalRounds": 10,
+        "finished": false
+      },
+      {
+        "elapsedMs": 600000,
+        "phase": "done",
+        "displayMs": 0,
+        "round": 10,
+        "totalRounds": 10,
+        "finished": true
+      }
+    ]
+  },
+  {
+    "name": "on the 2:00 x5",
+    "params": {
+      "type": "on_the_x",
+      "intervalSeconds": 120,
+      "rounds": 5
+    },
+    "spec": {
+      "kind": "interval",
+      "intervalMs": 120000,
+      "rounds": 5
+    },
+    "samples": [
+      {
+        "elapsedMs": 0,
+        "phase": "work",
+        "displayMs": 120000,
+        "round": 1,
+        "totalRounds": 5,
+        "finished": false
+      },
+      {
+        "elapsedMs": 120000,
+        "phase": "work",
+        "displayMs": 120000,
+        "round": 2,
+        "totalRounds": 5,
+        "finished": false
+      },
+      {
+        "elapsedMs": 125000,
+        "phase": "work",
+        "displayMs": 115000,
+        "round": 2,
+        "totalRounds": 5,
+        "finished": false
+      },
+      {
+        "elapsedMs": 600000,
+        "phase": "done",
+        "displayMs": 0,
+        "round": 5,
+        "totalRounds": 5,
+        "finished": true
+      }
+    ]
+  },
+  {
+    "name": "amrap 12min",
+    "params": {
+      "type": "amrap",
+      "minutes": 12
+    },
+    "spec": {
+      "kind": "countdown",
+      "totalMs": 720000
+    },
+    "samples": [
+      {
+        "elapsedMs": 0,
+        "phase": "run",
+        "displayMs": 720000,
+        "round": 1,
+        "totalRounds": 1,
+        "finished": false
+      },
+      {
+        "elapsedMs": 1,
+        "phase": "run",
+        "displayMs": 719999,
+        "round": 1,
+        "totalRounds": 1,
+        "finished": false
+      },
+      {
+        "elapsedMs": 719999,
+        "phase": "run",
+        "displayMs": 1,
+        "round": 1,
+        "totalRounds": 1,
+        "finished": false
+      },
+      {
+        "elapsedMs": 720000,
+        "phase": "done",
+        "displayMs": 0,
+        "round": 1,
+        "totalRounds": 1,
+        "finished": true
+      }
+    ]
+  },
+  {
+    "name": "for time sin cap (cronometro libre)",
+    "params": {
+      "type": "for_time"
+    },
+    "spec": {
+      "kind": "countup"
+    },
+    "samples": [
+      {
+        "elapsedMs": -1000,
+        "phase": "run",
+        "displayMs": 0,
+        "round": 1,
+        "totalRounds": 1,
+        "finished": false
+      },
+      {
+        "elapsedMs": 0,
+        "phase": "run",
+        "displayMs": 0,
+        "round": 1,
+        "totalRounds": 1,
+        "finished": false
+      },
+      {
+        "elapsedMs": 1000,
+        "phase": "run",
+        "displayMs": 1000,
+        "round": 1,
+        "totalRounds": 1,
+        "finished": false
+      },
+      {
+        "elapsedMs": 3600000,
+        "phase": "run",
+        "displayMs": 3600000,
+        "round": 1,
+        "totalRounds": 1,
+        "finished": false
+      }
+    ]
+  },
+  {
+    "name": "rom 4 rondas / 45s de descanso (sabado)",
+    "params": {
+      "type": "rom",
+      "rounds": 4,
+      "restSeconds": 45
+    },
+    "spec": {
+      "kind": "work_rest",
+      "workMs": 0,
+      "restMs": 45000,
+      "rounds": 4
+    },
+    "samples": [
+      {
+        "elapsedMs": 0,
+        "phase": "work",
+        "displayMs": 0,
+        "round": 1,
+        "totalRounds": 4,
+        "finished": false
+      },
+      {
+        "elapsedMs": 44999,
+        "phase": "work",
+        "displayMs": 44999,
+        "round": 1,
+        "totalRounds": 4,
+        "finished": false
+      },
+      {
+        "elapsedMs": 45000,
+        "phase": "work",
+        "displayMs": 0,
+        "round": 2,
+        "totalRounds": 4,
+        "finished": false
+      },
+      {
+        "elapsedMs": 179999,
+        "phase": "work",
+        "displayMs": 44999,
+        "round": 4,
+        "totalRounds": 4,
+        "finished": false
+      },
+      {
+        "elapsedMs": 180000,
+        "phase": "done",
+        "displayMs": 0,
+        "round": 4,
+        "totalRounds": 4,
+        "finished": true
+      }
+    ]
+  }
+]

@@ -256,3 +256,24 @@ export const FINANCE_READ_ROLES = [
 
 /** Roles that can soft-delete a member and reset member passwords. */
 export const MEMBER_LIFECYCLE_ROLES = ["owner", "admin", "gestion"] as const;
+
+/**
+ * Roles that can operate the branch TV screen (Fase 164 D-01): vincular un
+ * televisor a una sede, listarlos, revocarlos y manejar la botonera de clase.
+ * = el core Dueño (ADMIN_ROLES) + coach, porque el profe es quien tiene el TV
+ * enfrente durante la clase y quien lo vincula el día que lo cuelgan.
+ *
+ * Composición override → core igual que FINANCE_LOAD_ROLES: `[...ADMIN_ROLES,
+ * "coach"]`. El valor efectivo es `["admin", "owner", "coach"]` y está fijado
+ * byte a byte por `rbac-sets.test.ts`.
+ *
+ * ALCANCE: gatea ÚNICAMENTE el plugin `/api/admin/tv`. NO habilita ninguna otra
+ * superficie — coach sigue AUSENTE de FINANCE_READ_ROLES, FINANCE_VOID_ROLES,
+ * PROGRAMAS_LIST_ROLES, etc. No ensanchar este set para reusarlo en otro módulo:
+ * si otro módulo necesita "dueño + coach", que declare el suyo.
+ *
+ * El acceso por SEDE no lo resuelve este set: lo impone `requireBranchAccess`
+ * sobre `request.scope` (Rule 4 acota al coach a sus sedes operativas), así que
+ * un coach de Moreno no puede vincular un TV de Jujuy aunque pase este guard.
+ */
+export const TV_CONTROL_ROLES = [...ADMIN_ROLES, "coach"] as const;

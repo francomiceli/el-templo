@@ -1,0 +1,27 @@
+// Compilador del kiosco /tv — NO extiende el tsconfig del admin a proposito.
+//
+// El SPA compila a ES2022 con lib esnext; el TV de una sede puede ser un webOS 4.x
+// (Chromium 53). Los transpiladores bajan SINTAXIS, no built-ins: con la lib acotada
+// a es2015 + dom, tsc RECHAZA en compilacion String.padStart (Chromium 57),
+// Object.entries (54), Array.flat (69), Object.fromEntries (73) y compania.
+//
+// Este archivo es el linter de compatibilidad del kiosco (Pitfall 5 del RESEARCH):
+// si compila aca, corre en el TV mas viejo de las sedes. "types": [] saca del scope
+// los @types/node del admin (el kiosco solo tiene DOM).
+{
+  "compilerOptions": {
+    "target": "es2015",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "lib": ["es2015", "dom"],
+    "types": [],
+    "strict": true,
+    "noEmit": true,
+    "noUnusedLocals": true,
+    "noFallthroughCasesInSwitch": true,
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true,
+    "skipLibCheck": true
+  },
+  "include": ["./**/*.ts", "../utils/pdf/quotes.ts"]
+}

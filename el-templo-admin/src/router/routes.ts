@@ -2,7 +2,12 @@ import type { RouteRecordRaw } from 'vue-router';
 import type { AdminRole } from 'src/types/admin';
 import { useAuthStore } from 'stores/useAuthStore';
 import { canAccessTraining } from 'src/utils/trainingAccess';
-import { PLANES_READ_ROLES, PAGOS_ROLES, DUENO_ROLES } from 'src/config/templo-config';
+import {
+  PLANES_READ_ROLES,
+  PAGOS_ROLES,
+  DUENO_ROLES,
+  TV_CONTROL_ROLES,
+} from 'src/config/templo-config';
 
 /**
  * Landing por rol al entrar en '/' (D-14). Orden CRÍTICO (Pitfall 2):
@@ -133,6 +138,31 @@ const routes: RouteRecordRaw[] = [
         meta: {
           allowedRoles: ['coach', 'gestion', 'admin', 'owner'] as AdminRole[],
         },
+      },
+      {
+        // Fase 164 — panel de televisores de sucursal. Dueño + coach vía
+        // TV_CONTROL_ROLES (espejo del set homónimo del API, D-01); el gate real
+        // sigue siendo el API.
+        //
+        // CRÍTICO: el path es 'tv/devices', NUNCA 'tv'. El kiosco es un artefacto
+        // estático (`public/tv/index.html`) servido por nginx con `index
+        // index.html` sobre el directorio; una ruta 'tv' en el SPA se comería esa
+        // resolución y anularía toda la estrategia de compatibilidad del
+        // televisor (D-24). '/tv/devices' no existe como archivo ni como
+        // directorio, así que nginx la manda al fallback '/index.html' y el SPA
+        // la resuelve. En desarrollo el kiosco se abre en '/tv/index.html'.
+        path: 'tv/devices',
+        component: () => import('pages/TvDevicesPage.vue'),
+        meta: { allowedRoles: TV_CONTROL_ROLES },
+      },
+      {
+        // Fase 164 — control del TV desde el celular del profe (D-13). Mismo
+        // set de roles que el panel de televisores y la misma restricción de
+        // path: 'tv/control', NUNCA 'tv' (ver el comentario de arriba — una
+        // ruta 'tv' en el SPA se comería la resolución del kiosco estático).
+        path: 'tv/control',
+        component: () => import('pages/TvControlPage.vue'),
+        meta: { allowedRoles: TV_CONTROL_ROLES },
       },
       {
         path: 'analiticas',

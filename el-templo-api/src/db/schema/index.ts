@@ -73,3 +73,4 @@ export * from "./class-coach-assignments";
 export * from "./coach-ratings";
 export * from "./improvement-proposals";
 export * from "./wellhub";
+export * from "./tv";
