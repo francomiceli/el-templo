@@ -251,7 +251,11 @@ let lastListKey = '';
 let lastListHeader = '';
 let lastDotsKey = '';
 let lastExerciseIndex = -1;
-let lastVideoUrl: string | null = null;
+// `undefined` = todavia no se pinto ningun video. NO puede arrancar en `null`: null es
+// tambien "este ejercicio no tiene video", y la guardia de paintVideo cortaba por igualdad
+// antes de mostrar el cartel — la primera clase con un ejercicio sin video quedaba con el
+// hueco vacio, sin video y sin placeholder (visto en el TV de sede, verificacion de 164).
+let lastVideoUrl: string | null | undefined = undefined;
 let lastQuoteKey = '';
 let lastBeepKey: string | null = null;
 let itemNodes: HTMLElement[] = [];
