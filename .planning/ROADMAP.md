@@ -4289,7 +4289,7 @@ _Plan counts populated by `/gsd-plan-phase`._
 **Goal:** El TV de cada sede muestra el bloque en curso de la sesión del día (lista del nivel elegido + timer por formato + video del ejercicio + segundero siempre visible) con la estética del PDF, controlado por el profe desde su celular vía la API (polling con device token) — reemplaza el flujo de PNGs descargados y responde al pedido #1 de las sugerencias de socios (reloj/segundero, 6/42).
 **Requirements**: Diseño cerrado en `164-UI-SPEC.md` (mockup v8 validado por Franco 2026-07-24); decisiones abiertas listadas ahí para discuss-phase.
 **Depends on:** Ninguna fase — standalone (admin + api; sin migraciones de sesiones). Prerequisito operativo: wifi en Moreno.
-**Plans:** 13 plans (7 waves)
+**Plans:** 12/13 plans executed (13 plans, 7 waves)
 
 Plans:
 
@@ -4321,7 +4321,7 @@ Plans:
 
 **Wave 6** _(blocked on Wave 5 completion)_
 
-- [ ] 164-12-PLAN.md — Admin: botonera grande del profe BLOQUES/NIVELES/EJERCICIO/TIMER (D-13)
+- [x] 164-12-PLAN.md — Admin: botonera grande del profe BLOQUES/NIVELES/EJERCICIO/TIMER (D-13) (completed 2026-07-24, `feb8348c`)
 
 **Wave 7** _(blocked on Wave 6 completion)_
 

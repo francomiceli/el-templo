@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v5.7
 milestone_name: Actividades con Aura
 status: executing
-stopped_at: Completed 164-11-PLAN.md
-last_updated: "2026-07-24T23:55:00.000Z"
-last_activity: 2026-07-24
+stopped_at: Completed 164-12-PLAN.md
+last_updated: "2026-07-25T00:13:57.248Z"
+last_activity: 2026-07-25
 progress:
   total_phases: 4
   completed_phases: 1
   total_plans: 30
-  completed_plans: 26
+  completed_plans: 27
   percent: 25
 ---
 
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-06-04)
 ## Current Position
 
 Phase: 164 (pantalla-tv-de-sucursal-plani-viva-por-bloque-con-timer-por-) — EXECUTING
-Plan: 12 of 13 (kiosco /tv/ completo — siguen 164-12 botonera del profe y 164-13 runbook+UAT)
+Plan: 13 of 13 (control del profe listo y smoke end-to-end verde — queda 164-13 runbook+UAT)
 Status: Ready to execute
-Last activity: 2026-07-24
+Last activity: 2026-07-25
 
 ## Performance Metrics
 
@@ -349,6 +349,7 @@ _Updated after each plan completion_
 | Phase 164 P08 | 22min | 3 tasks | 3 files |
 | Phase 164 P10 | 17min | 3 tasks | 5 files |
 | Phase 164 P11 | 31min | 3 tasks | 6 files |
+| Phase 164 P12 | 38min | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -830,6 +831,12 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase 164-11]: location.reload() del kiosco vive detras de una unica guarda de screen === 'idle' (D-22), y el reciclado preventivo por 12 h de uptime pasa por la misma puerta
 - [Phase 164-11]: Los simbolos de nivel que el API manda dentro de listHeader se re-envuelven en span.glyph al pintarlos: como texto plano salen tofu, y el de kairos lo dibuja el CSS
 - [Phase 164-11]: El API tiene que sellar startedAt/pausedAt UNA sola vez — si se mueven en cada respuesta, el timer del TV no avanza (o los digitos se mueven estando en pausa)
+- [Phase 164-12]: Cada tap del control manda un estado ABSOLUTO y reemplaza el contexto local con la respuesta ya clampeada: el clamp del server se ve en la botonera sin re-consultar ni inferir nada
+- [Phase 164-12]: El boton de pantalla de cierre es un TOGGLE (VOLVER A LA CLASE, screen: 'class'): en una botonera ciega, un tap equivocado sin vuelta atras obliga a terminar la clase entera para recuperarse
+- [Phase 164-12]: El refresco periodico del control se saltea si hay una escritura en vuelo — una respuesta vieja aterrizando despues de un tap hace rebotar los botones, indistinguible de 'el tap no funciono'
+- [Phase 164-12]: El televisor se autentica con 'Authorization: Device <token>' (token opaco, NO Bearer) y el pairing devuelve el campo deviceToken, no token — las dos trampas que hicieron fallar el primer smoke
+- [Phase 164-12]: Smoke end-to-end local 23/23 (vincular -> iniciar -> bloque/nivel/ejercicio -> timer -> sonido -> cierre -> terminar, con el poll del TV reflejando cada paso). Pendiente: UAT visual en celular y en un TV real
+- [Phase 164-12]: Un smoke que toca la DB de desarrollo restaura PRIMERO lo que mas duele perder: la primera corrida murio por una FK de tv_pairings y dejo 5 sesiones movidas de semana
 
 ### Pending Todos
 
@@ -862,8 +869,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-24T23:28:10.857Z
-Stopped at: Completed 164-08-PLAN.md
+Last session: 2026-07-25T00:13:27.964Z
+Stopped at: Completed 164-12-PLAN.md
 Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
