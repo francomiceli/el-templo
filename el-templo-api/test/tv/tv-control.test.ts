@@ -610,15 +610,18 @@ describe("POST /control/state — el timer (D-16/17/18)", () => {
     await seedTuesday();
   });
 
-  it("D-16: iniciar arranca al instante, sin cuenta previa", async () => {
+  it("iniciar programa el arranque 3 s adelante, no al instante", async () => {
     const antes = Date.now();
     const state = await write({ timer: "start" });
 
     expect(state.timerStatus).toBe("running");
     expect(state.timerStartedAt).not.toBeNull();
-    // El sello es del server y es AHORA: no hay ningun offset de cuenta previa.
-    expect(state.timerStartedAt!).toBeGreaterThanOrEqual(antes);
-    expect(state.timerStartedAt!).toBeLessThanOrEqual(Date.now());
+    // El sello del server queda en el FUTURO. Revisa D-16 ("arranca al instante"), que
+    // ignoraba el poll de 2,5 s del televisor: para cuando la pantalla se enteraba, el
+    // cronometro ya iba en ~3 s y saltaba de 00:00 a 00:03 (visto en sede). Con el
+    // arranque programado, todos los televisores de la sala entran en cero juntos.
+    expect(state.timerStartedAt!).toBeGreaterThanOrEqual(antes + 3000);
+    expect(state.timerStartedAt!).toBeLessThanOrEqual(Date.now() + 3000);
     expect(state.pausedAt).toBeNull();
     expect(state.pausedAccumMs).toBe(0);
   });
@@ -654,11 +657,13 @@ describe("POST /control/state — el timer (D-16/17/18)", () => {
     expect(reanudado.timerStartedAt).toBe(arrancado.timerStartedAt);
     expect(reanudado.pausedAccumMs).toBeGreaterThan(0);
 
-    // El elapsed efectivo (now - startedAt - pausado) quedo por debajo del
-    // tiempo de pared: el bloque no se comio los 60ms de la pausa.
-    const pared = Date.now() - reanudado.timerStartedAt!;
-    const efectivo = pared - reanudado.pausedAccumMs;
-    expect(efectivo).toBeLessThan(pared);
+    // El elapsed efectivo (now - startedAt - pausado) no supera el tiempo de pared: el
+    // bloque no se comio los 60 ms de la pausa. Los `Math.max` son el mismo criterio que
+    // aplica el kiosco (`elapsedFrom`): con el arranque diferido, durante los primeros
+    // 3 s el sello esta en el futuro y el elapsed es 0, nunca negativo.
+    const pared = Math.max(0, Date.now() - reanudado.timerStartedAt!);
+    const efectivo = Math.max(0, pared - reanudado.pausedAccumMs);
+    expect(efectivo).toBeLessThanOrEqual(pared);
     expect(efectivo).toBeGreaterThanOrEqual(0);
   });
 

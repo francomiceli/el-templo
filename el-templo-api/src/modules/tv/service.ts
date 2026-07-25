@@ -55,6 +55,20 @@ const IDLE_TIMER = {
   pausedAccumMs: 0,
 };
 
+/**
+ * Arranque diferido del timer.
+ *
+ * El televisor se entera del "start" en su siguiente poll (2,5 s), y como el cronometro
+ * corre contra `timerStartedAt` del server, al enterarse ya tenia ~3 s corridos: la
+ * pantalla saltaba de 00:00 a 00:03 (visto en la verificacion en sede). Programando el
+ * arranque unos segundos adelante, todos los televisores de la sala reciben el estado
+ * ANTES de que empiece y el conteo arranca en cero, sincronizado entre aparatos.
+ *
+ * Revisa D-16 ("start arranca al instante"): el arranque sigue sin cuenta previa en la
+ * pantalla, pero el control del profe avisa que el play empieza en 3 segundos.
+ */
+const TIMER_START_LEAD_MS = 3000;
+
 /** Lo unico que el servicio necesita saber de un televisor vinculado. */
 export interface TvDeviceRef {
   id: number;
@@ -543,7 +557,10 @@ export class TvService {
         return {
           ...state,
           timerStatus: "running",
-          timerStartedAt: at,
+          // Arranque programado, no inmediato: el kiosco trata un `startedAt` futuro
+          // como elapsed 0, asi que los digitos quedan en el valor inicial hasta que
+          // llega el momento y recien ahi empiezan a correr.
+          timerStartedAt: at + TIMER_START_LEAD_MS,
           pausedAt: null,
           pausedAccumMs: 0,
         };
