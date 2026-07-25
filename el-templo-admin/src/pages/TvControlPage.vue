@@ -222,6 +222,16 @@
           </div>
         </div>
 
+        <!-- El play no es instantaneo: el API programa el arranque 3 s adelante para  -->
+        <!-- que todos los televisores entren en cero juntos. El profe tiene que       -->
+        <!-- saberlo (canta el "vamos" con eso en la cabeza), asi que el aviso esta    -->
+        <!-- siempre visible y se vuelve cuenta regresiva al apretar.                  -->
+        <div class="tv-lead-hint" :class="{ 'tv-lead-hint--activa': startsIn > 0 }">
+          <q-icon :name="startsIn > 0 ? 'hourglass_top' : 'schedule'" size="16px" />
+          <span v-if="startsIn > 0">Arranca en {{ startsIn }}…</span>
+          <span v-else>El play arranca 3 s después, para que la pantalla entre en cero</span>
+        </div>
+
         <!-- =========================== FIN DE CLASE ========================= -->
         <q-separator class="q-mb-md" />
         <div class="row q-col-gutter-sm">
@@ -489,7 +499,39 @@ function onExerciseStep(delta: number): void {
   void send({ exerciseIndex: target });
 }
 
+/**
+ * Cuenta local del arranque diferido (TIMER_START_LEAD_MS del API).
+ *
+ * Se cuenta desde el tap y NO contra el reloj del server: el profe acaba de apretar, y
+ * un celular con la hora corrida mostraria cualquier cosa. Son 3 segundos de aviso, no
+ * una fuente de verdad — la del cronometro sigue siendo `timerStartedAt`.
+ */
+const START_LEAD_SECONDS = 3;
+const startsIn = ref(0);
+let startsInId: ReturnType<typeof setInterval> | null = null;
+
+function clearStartCountdown(): void {
+  if (startsInId !== null) {
+    clearInterval(startsInId);
+    startsInId = null;
+  }
+  startsIn.value = 0;
+}
+
+function beginStartCountdown(): void {
+  clearStartCountdown();
+  startsIn.value = START_LEAD_SECONDS;
+  startsInId = setInterval(() => {
+    startsIn.value -= 1;
+    if (startsIn.value <= 0) clearStartCountdown();
+  }, 1000);
+}
+
 function onTimer(command: NonNullable<TvStateWrite['timer']>): void {
+  if (command === 'start' && timerStatus.value !== 'running') {
+    beginStartCountdown();
+  }
+  if (command === 'reset') clearStartCountdown();
   void send({ timer: command });
 }
 
@@ -542,6 +584,7 @@ onUnmounted(() => {
     clearInterval(refreshId);
     refreshId = null;
   }
+  clearStartCountdown();
   tvApi.cleanup();
 });
 </script>
@@ -568,6 +611,24 @@ onUnmounted(() => {
   letter-spacing: 0.18em;
   color: var(--q-primary);
   margin-bottom: 8px;
+}
+
+/* Aviso del arranque diferido: discreto mientras informa, evidente mientras cuenta. */
+.tv-lead-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  font-size: 0.78rem;
+  line-height: 1.3;
+  color: rgba(0, 0, 0, 0.55);
+}
+
+.tv-lead-hint--activa {
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--q-positive);
 }
 
 .tv-counter {
