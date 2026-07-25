@@ -182,6 +182,17 @@ export const NAV_MODEL: NavCategory[] = [
       { path: '/alumnos', label: 'Alumnos', icon: 'people', roles: ALL_STAFF_ROLES },
       { path: '/horarios', label: 'Horarios', icon: 'calendar_month', roles: ALL_STAFF_ROLES },
       {
+        // Control TV (fase 164): la botonera con la que el profe maneja el
+        // televisor de la sala desde el celular (D-13). Va ANTES de
+        // "Televisores" porque se usa en cada clase; vincular un TV pasa una
+        // vez. Mismo set de roles y mismo `templo: true` (es el mismo kiosco).
+        path: '/tv/control',
+        label: 'Control TV',
+        icon: 'settings_remote',
+        roles: TV_CONTROL_ROLES,
+        templo: true,
+      },
+      {
         // Televisores (fase 164): vincular/monitorear/revocar las pantallas de
         // la sede. Dueño + coach (D-01). `templo: true` porque lo que la pantalla
         // muestra es la estética del Templo (mármol, logo, frases): un

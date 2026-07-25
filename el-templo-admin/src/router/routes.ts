@@ -156,6 +156,15 @@ const routes: RouteRecordRaw[] = [
         meta: { allowedRoles: TV_CONTROL_ROLES },
       },
       {
+        // Fase 164 — control del TV desde el celular del profe (D-13). Mismo
+        // set de roles que el panel de televisores y la misma restricción de
+        // path: 'tv/control', NUNCA 'tv' (ver el comentario de arriba — una
+        // ruta 'tv' en el SPA se comería la resolución del kiosco estático).
+        path: 'tv/control',
+        component: () => import('pages/TvControlPage.vue'),
+        meta: { allowedRoles: TV_CONTROL_ROLES },
+      },
+      {
         path: 'analiticas',
         component: () => import('pages/AnaliticasPage.vue'),
         meta: { allowedRoles: ['admin', 'owner'] as AdminRole[] },
