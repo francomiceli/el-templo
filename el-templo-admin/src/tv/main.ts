@@ -24,6 +24,12 @@ declare global {
   interface Window {
     /** Version del build, inyectada por scripts/build-tv.mjs. Igual a /tv/version.txt (D-22). */
     __TV_VERSION__?: string;
+    /**
+     * Origen del API (sin el sufijo `/api`), inyectado por scripts/build-tv.mjs desde
+     * VITE_API_URL. El kiosco no pasa por Vite, asi que no hereda esa env como el SPA.
+     * Cadena vacia = no vino en el build y `tvApiBase()` cae al host que sirve la pagina.
+     */
+    __TV_API_BASE__?: string;
   }
 }
 
