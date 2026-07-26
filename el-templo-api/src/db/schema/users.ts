@@ -12,6 +12,7 @@ import {
 } from "drizzle-orm/mysql-core";
 import { relations } from "drizzle-orm";
 import { branches } from "./branches";
+import { tenants } from "./tenants";
 import { subscriptionPlans } from "./subscription-plans";
 
 export const roleEnum = mysqlEnum("role", [
@@ -102,6 +103,23 @@ export const users = mysqlTable(
   "users",
   {
     id: int("id").primaryKey().autoincrement(),
+    // Fase 166 (FUND-02): ancla de tenancy. `users` es una de las dos anclas del
+    // modelo (la otra es `branches`): el resto de las tablas gym-owned cuelga de
+    // acá en la fase 167.
+    // - El valor SALE SIEMPRE DEL SERVIDOR (`scope.tenantId`, resuelto por
+    //   attachScope leyendo esta misma columna). JAMÁS de un payload, de una
+    //   query string ni del JWT — el tenant no viaja por el borde (D-02/D-03).
+    // - Lleva DEFAULT 1 a propósito, no por comodidad: durante el rolling deploy
+    //   convive código viejo que no manda `tenant_id`, y `test/setup.ts` inserta
+    //   users/branches con `INSERT IGNORE` sin la columna (PATTERNS §0.3) — sin
+    //   DEFAULT esas filas no se insertarían y la suite se cae en cascada. El
+    //   DEFAULT se re-evalúa cuando exista un tenant 2, fuera de v6.0.
+    // - El orden en este archivo es de LECTURA y no refleja el orden físico: el
+    //   ALTER de la migración 0191 agrega la columna al final de la tabla.
+    tenantId: int("tenant_id")
+      .notNull()
+      .default(1)
+      .references(() => tenants.id),
     email: varchar("email", { length: 255 }).unique(),
     passwordHash: varchar("password_hash", { length: 255 }).notNull(),
     firstName: varchar("first_name", { length: 100 }),
@@ -227,6 +245,8 @@ export const users = mysqlTable(
     updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
   },
   (table) => [
+    // Fase 166 (FUND-02): toda query gym-owned filtra por tenant_id.
+    index("idx_users_tenant_id").on(table.tenantId),
     index("idx_users_branch_id").on(table.branchId),
     index("idx_users_role").on(table.role),
     index("idx_users_created_at").on(table.createdAt),
