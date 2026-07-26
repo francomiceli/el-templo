@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: "Tenancy — El Templo pasa a ser tenant #1"
 status: executing
-stopped_at: Completed 166-03-PLAN.md
-last_updated: "2026-07-26T20:31:26.581Z"
+stopped_at: Completed 166-04-PLAN.md
+last_updated: "2026-07-26T20:46:00.089Z"
 last_activity: 2026-07-26
 progress:
   total_phases: 11
   completed_phases: 0
   total_plans: 6
-  completed_plans: 3
+  completed_plans: 4
   percent: 0
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (milestone v6.0 initialized 2026-07-26)
 ## Current Position
 
 Phase: 166 (fundaci-n-tenants-anclas-y-scope-server-side) — EXECUTING
-Plan: 4 of 6
+Plan: 5 of 6
 Status: Ready to execute
 Last activity: 2026-07-26
 Next: `/gsd:plan-phase 166`
@@ -344,6 +344,7 @@ _Updated after each plan completion_
 | Phase 166 P01 | 5min | 3 tasks | 3 files |
 | Phase 166 P02 | 4min | 2 tasks | 3 files |
 | Phase 166 P03 | 15min | 2 tasks | 1 files |
+| Phase 166 P04 | 10min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -781,6 +782,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase 166]: tenant_id en las anclas es NOT NULL DEFAULT 1 (camino A): sin DEFAULT los INSERT IGNORE de test/setup.ts no insertan y el rolling deploy queda sin red — Verificado empiricamente en 166-02: insert sin tenant_id en users y branches resuelve a 1. El DEFAULT se repite en el MODIFY porque MySQL lo pierde. Se re-evalua cuando exista tenant 2, fuera de v6.0
 - [Phase ?]: 166-03: FUND-01/FUND-02 probados por introspeccion de INFORMATION_SCHEMA (12 it()), no por inspeccion manual
 - [Phase ?]: 166-03: regresion dirigida verde (32 archivos / 538 tests) sin ajustar una sola expectativa — el camino A (tenant_id NOT NULL DEFAULT 1) cumplio
+- [Phase 166]: El corte por tenants.status compara contra 'active' (deny-by-default) en vez de enumerar suspended/archived — Fail-closed frente al futuro: si el enum gana un estado y nadie lo agrega a la lista, con la enumeracion pasaria; contra 'active' deniega. Comportamiento identico para el enum actual (tests de suspended y archived verdes)
+- [Phase 166]: attachScope lanza AppError con code TENANT_SUSPENDED en vez de recibir reply: el 403 sale con code igual — Verificado sobre fastify 5.7.4 instalado (defaultErrorHandler -> fallbackErrorHandler serializa { statusCode, code: error.code, error, message }). Permite el enforcement sin cambiar la firma de 2 parametros ni tocar los 22 call sites (CD-03)
 
 ### Pending Todos
 
@@ -813,8 +816,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-26T20:31:26.562Z
-Stopped at: Completed 166-03-PLAN.md
+Last session: 2026-07-26T20:46:00.069Z
+Stopped at: Completed 166-04-PLAN.md
 Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
