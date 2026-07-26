@@ -4329,3 +4329,269 @@ Plans:
 ---
 
 _v5.7 (Actividades con Aura) added: 2026-07-14 — 2 phases (161-162), 14 requirements (ACT, PASE, GATE, APP, REP). **Arranca en fase 161** (NO 159): las fases 159-160 están reservadas por v5.6 combos+técnica (rama `feat/dias-combos-tecnica`, sin ejecutar) — arrancar en 161 evita colisión. **161 (núcleo/modelo) es foundational**; 162 (superficie) depende de 161. Modelado decidido: pase = 2 planes `planCategory:'especial'` (Socio $10k / Externo $20k) con budget mensual explícito de 2 (además del derivado `ceil(durationDays/7)×classesPerWeek`); gating por flag en `activities`; enforcement en `BookingService.reserve()`; consumo vía `classesRemaining`. Programas descartados como vehículo (mig. 0071). Migraciones: numeración a verificar en plan-phase (0176-0178 aplicadas por v5.5; v5.6 puede reservar las siguientes). Staging-first estricto; tests de integración para rutas nuevas. Abierto para discuss-phase: externo `activo` en `recomputeUserStatus`, consumo reserva-vs-check-in, horarios/sedes/nombre de la 3ª actividad, bypass de staff. Fuente: `.docs/actividades-aura/` (audios de Nacho 2026-07-13) + 3 informes de research de codebase._
+
+---
+
+## v6.0 (Tenancy — El Templo pasa a ser tenant #1) Overview
+
+**Milestone:** v6.0 — Tenancy: ejecución de la infraestructura multi-tenant sobre el admin core, con El Templo migrado como tenant 1
+
+**Status:** ACTIVO (planning, 2026-07-26). Diseño CERRADO — fases de diseño 1-3 de `.docs/saas-multitenancy/` completas y las 5 decisiones abiertas resueltas el 2026-07-26. Prerequisito satisfecho: la reforma del admin (v5.4) está en prod desde 2026-07-08 ("primero reforma, después tenancy", Nacho 2026-07-02).
+
+**Numeración — LEER:** este milestone arranca en **Phase 166**, NO se continúa desde el último número visible. El ROADMAP tiene **DOS "Phase 164"** (la de la TV de sucursal, abierta en el worktree `et-164-tv`, y una legacy de v5.8) y la **165 está tomada por v5.8**. Las fases nuevas son **166, 167, 168, …** — nada por debajo de 166 se toca ni se renumera.
+
+**Goal:** Que el sistema pase de "una sola gimnasia hardcodeada" a "un tenant entre N posibles" sin que el staff del Templo note absolutamente nada: tabla `tenants` + `tenant_id` denormalizado en las 87 tablas gym-owned + las 5 capas de enforcement (scope server-side, helpers por método, sentinel de pool, lint en CI, tests de aislamiento fail-closed), con migraciones incrementales compatibles con el código viejo y sin downtime.
+
+**Decisiones ya tomadas (NO re-litigar en discuss/plan-phase):**
+
+- **`tenant_id` denormalizado en toda tabla gym-owned** — regla mecánica, sin razonar JOINs por tabla.
+- **Escritura:** `tenant_id` sale SIEMPRE de `scope.tenantId` / `TenantContext` server-side, **jamás de un payload ni del JWT**.
+- **Backfill = `SET tenant_id = 1`** (hay un solo tenant): la cadena de FK del inventario es **verificación**, no fuente.
+- **Enforcement = 5 capas imperfectas que se solapan** (doc 03), no una mágica.
+- **Lista M8 queda global** (ids de plataforma externa Wellhub + secretos random con lookup pre-scope): las filas igual reciben `tenant_id`.
+- **Supresión de unsubscribes POR TENANT** (`(tenant_id, email)` + filtro de envío scopeado) — cierra la mina M3.
+- **Wellhub = CORE-integración** con flag (`integration.wellhub.enabled`), **no ofertada a otros gimnasios por ahora**; `labs_inquiries` = **GLOBAL** (leads del propio SaaS); **referidos = CORE** (4º cliente del hook `pricing.adjust`); `system_settings` **no** recibe `tenant_id` (deprecación gradual hacia `tenant_settings`).
+
+**Gate del MILESTONE (no de una fase):** el **tenant 2 NO se onboardea** hasta que los caminos críticos pasen la batería de aislamiento (ISO-03) en verde. Ninguna fase individual "abre" el SaaS; el gate se evalúa al cierre del milestone.
+
+**Constraint operativo (repo):**
+
+- **Migraciones:** incrementales y **compatibles con el código viejo** (columna nullable → backfill → `NOT NULL`), SQL commiteado junto al schema, nunca `;` en comentarios SQL. **Reservar el bloque de numeración al arrancar la fase 166** verificando el máximo real en `_migrations` en ese momento (al 2026-07-26 el último es **0189**, de la fase 164 TV, aún en worktree).
+- **Staging-first estricto:** ningún merge de feature a master; cada tanda se ensaya completa en staging antes de prod. Staging y prod comparten host MySQL con bases separadas — cada pipeline aplica las migs a SU base.
+- **Sin downtime y sin cambio visible para el staff:** el API pre-tenancy sigue funcionando durante todo el rollout; el criterio transversal de cada fase es "los mismos números y los mismos flujos que ayer".
+- **Tests de integración** obligatorios para todo lo nuevo (helpers, sentinel, manifiesto, aislamiento por módulo).
+
+**Secuencia (dependencias):** **166 (fundación) es foundational** — sin `scope.tenantId` no hay nada. **167** (columnas) depende de 166 (FK a `tenants`). **168** (uniques/índices) depende de 167. **169** (helpers + `TenantContext`) y **170** (sentinel + lint) construyen la capa de escritura y la red de detección sobre 168. **171** (manifiesto + fixtures 2-tenant) arma el backstop. **172-175** son la adopción módulo a módulo **en orden estricto de criticidad** (finance → members → subscriptions → scheduling → analytics → resto core), cada una con sentinel en throw y aislamiento verde para sus tablas. **176** cierra con el mecanismo de módulos.
+
+**Fuente de verdad:** `.docs/saas-multitenancy/` — `README.md` (decisiones validadas fases 1-2), `03-diseno-tenant-db-layer.md` (capa de datos), `04-mecanismo-modulos.md` (módulos/registry), `05-inventario-tablas-2026-07-26.md` (89 tablas + minas M1-M10, CERRADO), `06-estrategia-migracion.md` (4 tandas SQL + capas + fases T1-T6+, §8 resuelto).
+
+**Fuera de alcance:** módulo Gimnasio (milestone siguiente, `brief-fran-modulo-gimnasio.md` + addendum A1-A7), app member multi-tenant y split de repos (triggers intactos), transformar SPOM/`el-templo-app`, uniques de módulos Templo (M5 `sessions.day_id`, `aura_config.source_type`, slugs blog/gladius — deuda consciente documentada), migración big-bang de `system_settings` → `tenant_settings`, Postgres/RLS.
+
+## v6.0 (Tenancy) Phases
+
+- [ ] **Phase 166: Fundación — `tenants`, anclas y scope server-side** — tablas `tenants`/`tenant_settings` + seed El Templo `id=1`, `tenant_id NOT NULL` en las dos anclas (`users`, `branches`), y `attachCountryScope` → `attachScope` resolviendo `scope.tenantId` con enforcement de `tenants.status` (suspended/archived → 403).
+- [ ] **Phase 167: Columnas — `tenant_id` en las 85 tablas restantes + verificación** — tanda C agrupada por dominio (nullable → backfill `=1` → NOT NULL → FK) sobre las 46 CORE + 42 TEMPLO-MODULO menos anclas, con `system_settings` y `labs_inquiries` excluidas, más el script versionado que verifica el backfill contra las cadenas de FK del inventario.
+- [ ] **Phase 168: Contratos SQL — uniques compuestas e índices por `tenant_id`** — tanda D: conversión de las uniques globales a `(tenant_id, …)` según doc 06 §1-D (incluida la obligatoria `campaign_unsubscribes`), lista M8 explícitamente global, e índice con prefijo `tenant_id` en toda tabla gym-owned.
+- [ ] **Phase 169: Capa de escritura — helpers `tenantWhere`/`tenantValues` y `TenantContext`** — una sola API para request y caminos sin request (crons por tenant activo, webhook Wellhub por `branches.wellhub_gym_id`, CLI con tenant obligatorio, `tv_pairings` pre-claim exento y anotado).
+- [ ] **Phase 170: Detección automática — sentinel de pool mysql2 + lint en CI** — interceptor a nivel pool que detecta SQL sobre tabla gym-owned sin `tenant_id` (throw en test/dev para módulos migrados, `log.error` + métrica en prod) y lint estático con allowlist decreciente que rompe el build ante accesos nuevos sin scope ni anotación.
+- [ ] **Phase 171: Backstop — manifiesto de rutas fail-closed y fixtures 2-tenant** — `test/tenant-manifest.ts` clasificando el 100% de las rutas + hook `onRoute` que deja en rojo cualquier ruta nueva sin clasificar, y fixtures/helpers que siembran dos tenants con staff y socios propios.
+- [ ] **Phase 172: Adopción 1 (piloto) — `finance`** — services de finanzas reciben scope, todo WHERE/INSERT por helpers, sentinel en throw para sus tablas y primera batería de aislamiento verde (patrón reutilizable por las fases siguientes), con cobros/caja/deudas dando los mismos números que hoy.
+- [ ] **Phase 173: Adopción 2 — `members` + guarda de consistencia de anclas** — módulo de socios/staff migrado al patrón completo y el invariante `user.tenant_id === branch.tenant_id` enforced en los ~10 sitios de escritura de `branch_id`, `setMemberBranch()` y el cron de recategorización multisucursal (mina M10).
+- [ ] **Phase 174: Adopción 3 — `subscriptions` + `scheduling`** — planes/suscripciones (con la cadena de pricing override → boarding pass → AURA → referral intacta) y scheduling completo (schedules/bookings/attendance/schedule_exceptions, incluido el check-in por QR y el booking de admin) migrados y aislados.
+- [ ] **Phase 175: Adopción 4 — `analytics` + resto del core** — métricas scopeadas devolviendo los mismos números para el tenant 1, más campaigns, notifications, referrals, wellhub, feedback/sugerencias y auth/settings, con la supresión de unsubscribes por tenant efectiva punta a punta.
+- [ ] **Phase 176: Módulos — flags `module.*.enabled`, `requireModule` y registry de hooks** — los 4 módulos Templo (training/gamification/marketing/onboarding) gateados por `tenant_settings` (prendidos para el tenant 1, apagados por default para tenants nuevos) y la superficie mínima de hooks del doc 04 con composition root explícito.
+
+## v6.0 (Tenancy) Phase Details
+
+### Phase 166: Fundación — `tenants`, anclas y scope server-side
+
+**Goal:** El sistema conoce el concepto de tenant y lo resuelve solo. Existen `tenants` y `tenant_settings` con El Templo sembrado como tenant 1, las dos anclas del modelo (`users`, `branches`) llevan `tenant_id NOT NULL` con FK e índice, y **todo request autenticado tiene `scope.tenantId` resuelto server-side** en la misma query que hoy resuelve el scope de país, con enforcement del estado del tenant. End state: el scope queda disponible para todo lo que sigue y el staff del Templo no percibe ningún cambio.
+
+**Depends on:** Nada (foundational del milestone). Toca `el-templo-api` (schema/migraciones tandas A+B, `attachCountryScope` → `attachScope`, tipos del scope). **Reserva el bloque de numeración de migraciones del milestone** verificando `_migrations` al arrancar.
+
+**Requirements:** FUND-01, FUND-02, FUND-03, FUND-04
+
+**Success Criteria** (what must be TRUE):
+
+1. Las migraciones de las tandas A+B corren verdes en staging y después en prod sin downtime: `tenants` tiene exactamente una fila (`id=1`, slug `el-templo`, status `active`), `tenant_settings` existe, y `users` y `branches` tienen `tenant_id = 1` en el 100% de las filas con `NOT NULL` + FK + índice. (FUND-01, FUND-02)
+2. Cualquier request autenticado expone `scope.tenantId` resuelto server-side; un test verifica que ni el JWT ni ningún payload aceptado contiene `tenant_id` (mandarlo no cambia el scope resuelto). (FUND-03)
+3. Con el tenant en `suspended` o `archived`, toda ruta scoped responde 403 sin tocar datos; con `active` responde normal — enforced en la misma query que resuelve el scope, verificado por test de integración. (FUND-04)
+4. Sin cambio visible para el staff: la suite de integración existente pasa sin ajustar expectativas de comportamiento y el smoke post-deploy queda verde en staging y prod.
+
+**Plans:** TBD
+
+### Phase 167: Columnas — `tenant_id` en las 85 tablas restantes + verificación
+
+**Goal:** Toda tabla gym-owned del sistema tiene su columna `tenant_id NOT NULL` backfilleada a 1, aplicada en migraciones agrupadas por dominio y compatibles con el código viejo en cada paso, y existe un script versionado que demuestra —recorriendo las cadenas de FK del inventario— que el backfill es consistente. End state: el modelo de datos completo es tenant-aware aunque el código todavía no lo use.
+
+**Depends on:** Phase 166 (las FK apuntan a `tenants`; el patrón de migración incremental queda validado ahí). Toca `el-templo-api` (schema Drizzle de ~85 tablas, 2-3 migraciones agrupadas por dominio, `src/db/scripts/`).
+
+**Requirements:** COL-01, COL-02
+
+**Success Criteria** (what must be TRUE):
+
+1. Las 85 tablas gym-owned restantes (46 CORE + 42 TEMPLO-MODULO del doc 05, menos anclas) tienen `tenant_id NOT NULL` + FK a `tenants`, verdes en staging y luego en prod; `system_settings` y `labs_inquiries` quedan deliberadamente **sin** la columna y eso se verifica explícitamente. (COL-01)
+2. El script versionado de verificación corre en staging y prod y reporta **0 discrepancias** entre el valor backfilleado y el derivado por cadena de FK, incluyendo el mapeo manual de las FKs lógicas sin constraint (M9: `promo_plans.subscription_plan_id`, `blog_post_tags`, `session_prescriptions.exercise_id`, los `target_id` heterogéneos). (COL-02)
+3. El script lista aparte —como caso legítimo, no como error— las filas [SIN-ANCLA] y parciales de la mina M4 (cajas centrales/banco con `branch_id` NULL, egresos/movimientos sin member ni branch, unsubscribes solo-email, `tv_pairings` pre-claim). (COL-02)
+4. Cada paso intermedio (columna nullable → backfill → `NOT NULL`) deja el API pre-tenancy funcionando: suite verde y staff sin cambio visible durante todo el rollout, sin ventana de downtime.
+
+**Plans:** TBD
+
+### Phase 168: Contratos SQL — uniques compuestas e índices por `tenant_id`
+
+**Goal:** Los contratos de unicidad del schema dejan de ser globales donde un segundo gimnasio colisionaría, y toda tabla gym-owned tiene un índice que arranca por `tenant_id` para que el filtro obligatorio sea barato. End state: dos tenants pueden convivir en la misma base sin que uno le bloquee al otro un email, un DNI, un código de sede, un código promo o un unsubscribe — y el tenant 1 sigue rechazando duplicados exactamente como hoy.
+
+**Depends on:** Phase 167 (la columna tiene que existir y estar backfilleada en todas las tablas). Toca `el-templo-api` (schema + 1-2 migraciones de la tanda D). Punto de acople código↔schema más delicado del milestone, pero el código que inserta no cambia (los valores ya son únicos dentro del tenant 1).
+
+**Requirements:** CON-01, CON-02
+
+**Success Criteria** (what must be TRUE):
+
+1. Las uniques del doc 06 §1-D pasan a compuestas: un test siembra un segundo tenant e inserta el **mismo** `users.email`/`dni`/`referral_code`, `branches.code`, `cost_centers (name,country)`, `promo_plans.promo_code`, `notification_templates.template_key`, `day_modes.day_of_week`, `holidays (country,date)` y `formats.name` sin violar unique — y sigue violándola al repetirlo dentro del mismo tenant. (CON-01)
+2. `campaign_unsubscribes` acepta el mismo email en dos tenants (mina M3 cerrada en su mitad de schema) manteniendo el rechazo dentro del tenant. (CON-01)
+3. Las 11 uniques de la lista M8 siguen **globales** a propósito (ids de plataforma Wellhub + secretos random con lookup pre-scope), verificado por un test/assert con el motivo anotado en el código. (CON-01)
+4. Toda tabla gym-owned tiene un índice cuyo primer campo es `tenant_id` (por unique compuesta o `INDEX` explícito), verificado por una query a `information_schema` dentro de la suite. (CON-02)
+5. Cero cambio de comportamiento para el staff: alta de alumno, sedes, códigos promo, centros de costo y campañas siguen rechazando los duplicados que rechazaban ayer (suite verde, sin ajustar expectativas).
+
+**Plans:** TBD
+
+### Phase 169: Capa de escritura — helpers `tenantWhere`/`tenantValues` y `TenantContext`
+
+**Goal:** Existe **una sola forma** de leer y escribir con tenant, y funciona igual con o sin request. `shared/tenant.ts` expone los helpers que toman el tenant del scope, y los caminos que nacen fuera de un request (crons, webhook de Wellhub, scripts CLI) construyen un `TenantContext` explícito estructuralmente compatible con el scope. End state: no queda ningún camino de escritura sobre tabla gym-owned que dependa de que alguien "se acuerde" del tenant, ni ninguno que lo pueda tomar de un payload.
+
+**Depends on:** Phase 166 (scope) y Phase 168 (contratos estables). Toca `el-templo-api` (`src/modules/shared/tenant.ts`, crons de wellhub-sync/recategorización/vencimientos/streaks, módulo wellhub, scripts de `src/db/scripts/`).
+
+**Requirements:** CON-03, CON-04
+
+**Success Criteria** (what must be TRUE):
+
+1. `tenantWhere`/`tenantValues` viven en `shared/tenant.ts` y aceptan indistintamente el scope de un request y un `TenantContext { tenantId }` — una sola API, cubierta por tests unitarios. (CON-03)
+2. Un test manda `tenantId: 2` en el body de rutas de escritura y la fila nace igual con `tenant_id = 1`: el `tenant_id` sale exclusivamente de contexto server-side. (CON-03)
+3. Los crons iteran los tenants **activos** y corren el job con un `TenantContext` por tenant (hoy la lista es `[1]`, el patrón queda probado con 2 tenants sembrados; un tenant suspendido no se procesa). (CON-04)
+4. El webhook de Wellhub deriva el tenant vía `payload.gym.id` → `branches.wellhub_gym_id` → `branches.tenant_id` y **falla cerrado** (log + rechazo, sin auto-crear nada) cuando el gym id no mapea; los scripts CLI exigen el tenant como argumento explícito y abortan sin él. (CON-04)
+5. La excepción legítima de `tv_pairings` pre-claim queda anotada `/* tenant-safe: pairing pre-claim */` y el claim con scope de staff estampa el `tenant_id` (test del ciclo completo). (CON-04)
+
+**Plans:** TBD
+
+### Phase 170: Detección automática — sentinel de pool mysql2 + lint en CI
+
+**Goal:** El sistema se avisa solo cuando alguien escribe una query sin tenant. El sentinel a nivel pool observa el SQL real y el lint observa el código fuente; juntos convierten "olvidarse del tenant" en un error visible (rojo en test/CI para lo migrado, ruido accionable en prod para lo que falta). End state: la red de detección está armada y silenciosa en prod antes de que empiece la adopción módulo a módulo.
+
+**Depends on:** Phase 169 (los helpers son la forma correcta que el sentinel premia) y Phase 167 (lista estática de las 87 tablas gym-owned generada del schema). Toca `el-templo-api` (capa de pool mysql2, config de lint, workflow de CI).
+
+**Requirements:** CON-05, CON-06
+
+**Success Criteria** (what must be TRUE):
+
+1. Una query deliberada sin `tenant_id` sobre una tabla de un módulo ya migrado hace **throw** en test/dev; la misma query sobre un módulo aún no migrado solo advierte — comportamiento cubierto por tests. (CON-05)
+2. En staging/prod el sentinel emite `log.error` + métrica sin romper ningún camino, y tras la ventana de observación en staging la lista de excepciones queda cerrada (sin falsos positivos ruidosos recurrentes). (CON-05)
+3. Las exenciones `/* tenant-safe: <motivo> */` son grepeables y su inventario completo cabe en una sola búsqueda revisable, cada una con motivo escrito. (CON-05)
+4. El lint de CI deja el build **rojo** ante un ` sql` ``o`.from(<gym-owned>)`nuevo sin`tenant_id` ni anotación fuera de la allowlist (demostrado con un caso de prueba), y la allowlist arranca completa y solo puede achicarse — un check impide agrandarla. (CON-06)
+
+**Plans:** TBD
+
+### Phase 171: Backstop — manifiesto de rutas fail-closed y fixtures 2-tenant
+
+**Goal:** Ninguna ruta puede existir sin que alguien haya decidido conscientemente si es `tenant-scoped`, `global` o `templo-module`, y la infraestructura de tests puede simular dos gimnasios completos. End state: agregar una ruta nueva sin clasificarla rompe CI, y cualquier fase de adopción posterior tiene fixtures listos para probar aislamiento real.
+
+**Depends on:** Phase 166 (scope) y Phase 169 (helpers para sembrar datos por tenant). Toca `el-templo-api` (`test/tenant-manifest.ts`, hook `onRoute`, `test/helpers.ts` y fixtures).
+
+**Requirements:** ISO-01, ISO-02
+
+**Success Criteria** (what must be TRUE):
+
+1. `test/tenant-manifest.ts` clasifica el **100%** de las rutas registradas hoy en las 3 categorías, y un test compara el manifiesto contra lo que el hook `onRoute` observa en runtime: si los conteos difieren, rojo. (ISO-01)
+2. Agregar una ruta de prueba sin clasificarla deja CI en rojo con un mensaje que nombra la ruta faltante (demostrado, no asumido). (ISO-01)
+3. Los fixtures siembran 2 tenants completos (sedes, staff, socios, planes propios) y `createStaffUser` y afines aceptan el tenant como parámetro. (ISO-02)
+4. La suite completa sigue verde con los fixtures nuevos: el tenant 2 sembrado no altera ningún test existente ni sus expectativas de conteo. (ISO-02)
+
+**Plans:** TBD
+
+### Phase 172: Adopción 1 (piloto) — `finance`
+
+**Goal:** El módulo más crítico del admin (cobros, caja, deudas, centros de costo, balances) queda migrado al patrón completo y **demuestra el aislamiento**: es el piloto que convierte las 5 capas en una receta repetible. End state: sentinel en throw para las tablas de finanzas, batería de aislamiento verde para sus rutas, y el staff cobrando, validando y arqueando exactamente igual que ayer.
+
+**Depends on:** Phases 169, 170 y 171 (helpers, sentinel, manifiesto y fixtures). Primer módulo del orden de criticidad decidido (finance → members → subscriptions → scheduling → analytics → resto). Toca `el-templo-api` (módulo finance completo: `financial_transactions`, `transaction_links`, `balances`, `cash_registers`, `cost_centers`, `debt_management`).
+
+**Requirements:** ADO-01, ISO-03
+
+**Success Criteria** (what must be TRUE):
+
+1. Todos los services de finance reciben `scope`/`TenantContext` y cada WHERE/INSERT sobre sus tablas pasa por los helpers: el módulo sale de la allowlist del lint y el CI queda verde sin excepciones nuevas. (ADO-01)
+2. El sentinel está en modo **throw** para las tablas de finance en test/dev y la suite completa pasa: no quedó ningún camino de finanzas sin scope. (ADO-01)
+3. Batería de aislamiento verde: cada ruta `tenant-scoped` de finance, ejecutada como staff del tenant A, **no lee ni escribe** filas del tenant B — lecturas vacías/404 y escrituras rechazadas, ruta por ruta según el manifiesto. El patrón queda documentado como plantilla para las fases de adopción siguientes. (ISO-03)
+4. Sin cambio para el staff: cobros, validación, caja, movimientos, egresos, deudas y exports dan los **mismos números** en staging antes y después (comparación explícita), y la suite existente pasa sin ajustar expectativas.
+
+**Plans:** TBD
+
+### Phase 173: Adopción 2 — `members` + guarda de consistencia de anclas
+
+**Goal:** El módulo de socios y staff queda migrado, y —porque toca la otra ancla— el sistema garantiza que un usuario nunca queda apuntando a una sede de otro tenant. End state: `members` aislado y el invariante `user.tenant_id === branch.tenant_id` enforced a nivel app en todos los caminos que reescriben la sede, incluido el cron automático.
+
+**Depends on:** Phase 172 (receta de adopción probada en el piloto). Toca `el-templo-api` (módulo members: `users`, `user_branches`, `member_profiles`, `member_notes`, `member_logins`, `user_status_history`, `user_sepa_details`, `audit_log`) y el cron de recategorización multisucursal.
+
+**Requirements:** ADO-02, ADO-07
+
+**Success Criteria** (what must be TRUE):
+
+1. `members` migrado al patrón completo (services con scope, helpers en todo acceso, fuera de la allowlist del lint, sentinel en throw para sus tablas) con la batería de aislamiento verde para sus rutas. (ADO-02)
+2. Los ~10 sitios de escritura de `branch_id` y `setMemberBranch()` **rechazan con error explícito** asignar una sede de otro tenant, cubierto por test con 2 tenants. (ADO-07)
+3. El cron de recategorización multisucursal nunca mueve a un socio a una sede de otro tenant: test que le ofrece sedes de ambos tenants y verifica que solo considera las del propio. (ADO-07)
+4. Sin cambio para el staff: alta de alumno, ficha, notas, cambio de sede, listados, filtros y export se comportan igual (suite verde y verificación en staging).
+
+**Plans:** TBD
+
+### Phase 174: Adopción 3 — `subscriptions` + `scheduling`
+
+**Goal:** Los dos módulos que mueven la operación diaria —planes/suscripciones y grilla/reservas/asistencia— quedan migrados y aislados, con la cadena de pricing intacta. End state: asignar, renovar, cambiar plan, reservar, cancelar y marcar asistencia funcionan idénticamente para el Templo, y ninguna de esas rutas ve datos de otro tenant.
+
+**Depends on:** Phase 173 (`users` ya migrado; suscripciones y reservas cuelgan del socio). Toca `el-templo-api` (`subscription_plans`, `subscriptions`, `subscription_schedules`, `subscription_schedule_changes`, `promo_plans`, `plan_programs`; `activities`, `schedules`, `schedule_exceptions`, `bookings`, `attendance`, `holidays`, `class_coach_assignments`).
+
+**Requirements:** ADO-03, ADO-04
+
+**Success Criteria** (what must be TRUE):
+
+1. `subscriptions` migrado al patrón completo con la **cadena de pricing intacta** (override → boarding pass → AURA → referral): los tests de precio dan el mismo resultado antes y después, incluidos los combos con descuento de referido y boarding pass. (ADO-03)
+2. `scheduling` migrado al patrón completo incluyendo el booking de admin, el check-in por QR y las excepciones de fecha; sentinel en throw para las tablas de ambos módulos. (ADO-04)
+3. Batería de aislamiento verde para todas las rutas `tenant-scoped` de ambos módulos: staff del tenant A no ve grillas, cupos, reservas, asistencias ni suscripciones del tenant B, ni puede reservar contra un horario ajeno. (ADO-03, ADO-04)
+4. Sin cambio para el staff ni para el socio: asignar/renovar/cambiar plan, reservar, cancelar, marcar asistencia y consumir budget se comportan igual (suite existente verde sin ajustar expectativas).
+
+**Plans:** TBD
+
+### Phase 175: Adopción 4 — `analytics` + resto del core
+
+**Goal:** Se cierra la adopción del core: las métricas de gestión pasan a filtrar por tenant devolviendo los mismos números para el Templo, y los módulos restantes (campañas, notificaciones, referidos, wellhub, sugerencias, auth/settings) quedan aislados — incluida la supresión de unsubscribes por tenant. End state: no queda ninguna ruta core `tenant-scoped` fuera de la batería de aislamiento.
+
+**Depends on:** Phase 174 (analytics lee de finanzas, socios, suscripciones y asistencia — se migra después de sus fuentes). Toca `el-templo-api` (analytics/reportes; `campaigns` + `campaign_sends`/`events`/`unsubscribes`; notificaciones y `device_tokens`; `referrals`/`referral_credits`/`referral_cta_clicks`; wellhub; `improvement_proposals`; auth y settings).
+
+**Requirements:** ADO-05, ADO-06
+
+**Success Criteria** (what must be TRUE):
+
+1. `analytics` migrado: cada métrica filtra por tenant y devuelve **los mismos números** que hoy para el tenant 1 (comparación de snapshots antes/después en staging: churn, renovación, LTV, ticket, asistencia, funnel, altas/bajas). (ADO-05)
+2. Campaigns, notifications, referrals, wellhub, feedback/sugerencias y auth/settings migrados al patrón completo, con sentinel en throw para sus tablas y aislamiento verde. (ADO-06)
+3. La supresión de unsubscribes es **por tenant** punta a punta: un opt-out registrado en el tenant A no suprime ningún envío del tenant B, verificado con un envío end-to-end de prueba (cierra la mina M3 del lado del comportamiento). (ADO-06)
+4. El manifiesto no tiene ninguna ruta core `tenant-scoped` en estado "no migrado": el 100% de ellas está cubierto por la batería de aislamiento (insumo directo del gate de salida del milestone). (ADO-05, ADO-06)
+
+**Plans:** TBD
+
+### Phase 176: Módulos — flags `module.*.enabled`, `requireModule` y registry de hooks
+
+**Goal:** Lo que es El Templo deja de ser "lo que hace el sistema" y pasa a ser un módulo encendido para el tenant 1. Los 4 módulos Templo quedan gateados por flags en `tenant_settings` y la comunicación core↔módulo pasa por un registry tipado con superficie mínima. End state: un tenant nuevo nace sin metodología Templo y el Templo sigue funcionando idéntico con sus flags encendidos.
+
+**Depends on:** Phase 175 (todo el core migrado; el registry engancha el pricing ya scopeado). Toca `el-templo-api` (`tenant_settings`, guard `requireModule`, registry de hooks, composition root, rutas de los módulos templo-training/gamification/marketing/onboarding).
+
+**Requirements:** MOD-01, MOD-02
+
+**Success Criteria** (what must be TRUE):
+
+1. `tenant_settings` tiene los flags `module.<nombre>.enabled` para los 4 módulos Templo, **encendidos para el tenant 1** y **apagados por default** para un tenant creado desde cero (test con el tenant 2 de fixtures). (MOD-01)
+2. `requireModule` devuelve **404** (no 403) para módulo apagado y cubre el 100% de las rutas clasificadas como `templo-module` en el manifiesto — una ruta `templo-module` sin guard deja CI en rojo. (MOD-01)
+3. El registry tipado expone la superficie mínima validada: filter `pricing.adjust` **bloqueante** con sus 4 clientes (override → boarding pass → AURA → referral) y event `streak.milestone` **best-effort** (un handler que explota no rompe el camino), registrados en un composition root explícito y único. (MOD-02)
+4. Sin cambio para el Templo: entrenamiento/SPOM, AURA, marketing y onboarding siguen funcionando igual con los flags encendidos, y los precios calculados son byte-idénticos a los previos al registry. (MOD-01, MOD-02)
+
+**Plans:** TBD
+
+## v6.0 (Tenancy) Progress
+
+| Phase                                             | Plans Complete | Status      | Completed |
+| ------------------------------------------------- | -------------- | ----------- | --------- |
+| 166. Fundación — tenants, anclas y scope          | 0/?            | Not started |           |
+| 167. Columnas — tenant_id en 85 tablas            | 0/?            | Not started |           |
+| 168. Contratos SQL — uniques compuestas e índices | 0/?            | Not started |           |
+| 169. Capa de escritura — helpers y TenantContext  | 0/?            | Not started |           |
+| 170. Detección — sentinel de pool + lint CI       | 0/?            | Not started |           |
+| 171. Backstop — manifiesto + fixtures 2-tenant    | 0/?            | Not started |           |
+| 172. Adopción 1 (piloto) — finance                | 0/?            | Not started |           |
+| 173. Adopción 2 — members + guarda de anclas      | 0/?            | Not started |           |
+| 174. Adopción 3 — subscriptions + scheduling      | 0/?            | Not started |           |
+| 175. Adopción 4 — analytics + resto del core      | 0/?            | Not started |           |
+| 176. Módulos — flags, requireModule y registry    | 0/?            | Not started |           |
+
+_Plan counts populated by `/gsd:plan-phase`._
+
+**Gate de salida del milestone (no de una fase):** con 175 cerrada, la batería de aislamiento (ISO-03) tiene que estar verde sobre el 100% de las rutas core `tenant-scoped`. Recién ahí se habilita el onboarding del tenant 2 (alta comercial y provisioning quedan fuera de v6.0).
+
+---
+
+_v6.0 (Tenancy — El Templo pasa a ser tenant #1) added: 2026-07-26 — 11 fases (166-176), 24 REQ-IDs (FUND 4, COL 2, CON 6, ISO 3, ADO 7, MOD 2). **Arranca en fase 166** (NO 165): el ROADMAP tiene DOS "Phase 164" (TV de sucursal en el worktree `et-164-tv` + una legacy de v5.8) y la 165 está tomada por v5.8 — nada por debajo de 166 se renumera. Estructura derivada del esqueleto T1-T6+ del doc `06-estrategia-migracion.md` §7, con la capa de contratos partida en 3 fases (SQL / escritura / detección) por granularidad `fine` y la adopción en 4 fases respetando el orden estricto de criticidad (finance piloto → members+anclas → subscriptions+scheduling → analytics+resto). Reglas duras: `tenant_id` siempre server-side (jamás payload ni JWT); migraciones incrementales compatibles con el código viejo (nullable → backfill → NOT NULL); staging-first estricto; sin downtime; cero cambio visible para el staff. El gate "tenant 2 solo con batería de aislamiento verde" es del MILESTONE, no de una fase. Reservar bloque de numeración de migraciones al arrancar la 166 (último aplicado al 2026-07-26: 0189, fase 164 TV, aún en worktree). Fuente: `.docs/saas-multitenancy/` (README + 03 capa de datos + 04 módulos + 05 inventario de 89 tablas con minas M1-M10 + 06 estrategia de migración, §8 resuelto 2026-07-26). Cobertura: 24/24 REQ-IDs mapeados (el "23" del encabezado original de REQUIREMENTS.md era un error aritmético, corregido)._

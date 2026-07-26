@@ -4,7 +4,7 @@ Scope derivado del diseño SaaS validado y CERRADO (`.docs/saas-multitenancy/`):
 (decisiones fases 1-2, validadas con Nacho 2026-07-02), doc 05 (inventario real de 89
 tablas @ `8ac9ba9f`, minas M1-M10), doc 06 (estrategia de migración en 4 tandas +
 `TenantContext` + fases T1-T6+; las 5 decisiones abiertas §8 resueltas 2026-07-26).
-Requirements confirmados en sesión 2026-07-26 (23, con MOD incluido).
+Requirements confirmados en sesión 2026-07-26 (24, con MOD incluido).
 
 **Decisiones ya tomadas (NO re-litigar en discuss/plan-phase):** `tenant_id`
 denormalizado en toda tabla gym-owned; enforcement en 5 capas (scope server-side +
@@ -94,5 +94,43 @@ caminos críticos pasen la batería de aislamiento (ISO-03) en verde.
 
 _Se completa cuando el roadmap asigne cada REQ-ID a una fase._
 
-| REQ-ID | Fase | Estado |
-| ------ | ---- | ------ |
+| REQ-ID  | Fase      | Estado  |
+| ------- | --------- | ------- |
+| FUND-01 | Phase 166 | Pending |
+| FUND-02 | Phase 166 | Pending |
+| FUND-03 | Phase 166 | Pending |
+| FUND-04 | Phase 166 | Pending |
+| COL-01  | Phase 167 | Pending |
+| COL-02  | Phase 167 | Pending |
+| CON-01  | Phase 168 | Pending |
+| CON-02  | Phase 168 | Pending |
+| CON-03  | Phase 169 | Pending |
+| CON-04  | Phase 169 | Pending |
+| CON-05  | Phase 170 | Pending |
+| CON-06  | Phase 170 | Pending |
+| ISO-01  | Phase 171 | Pending |
+| ISO-02  | Phase 171 | Pending |
+| ISO-03  | Phase 172 | Pending |
+| ADO-01  | Phase 172 | Pending |
+| ADO-02  | Phase 173 | Pending |
+| ADO-07  | Phase 173 | Pending |
+| ADO-03  | Phase 174 | Pending |
+| ADO-04  | Phase 174 | Pending |
+| ADO-05  | Phase 175 | Pending |
+| ADO-06  | Phase 175 | Pending |
+| MOD-01  | Phase 176 | Pending |
+| MOD-02  | Phase 176 | Pending |
+
+**Cobertura: 24/24 REQ-IDs mapeados a exactamente una fase (0 huérfanos, 0 duplicados).**
+(El encabezado decía "23" por error aritmético al confirmar; son 24 REQ-IDs — corregido 2026-07-26.)
+
+**Notas de mapeo:**
+
+- **ISO-03** (batería de aislamiento) se ancla en la **fase 172** (piloto `finance`), que es donde
+  la batería se construye y corre verde por primera vez; cada fase de adopción posterior
+  (173-175) la extiende a sus rutas como parte de su propio ADO-xx.
+- **ADO-07** (guarda `user.tenant_id === branch.tenant_id`) viaja con **`members`** (fase 173),
+  que es donde viven `setMemberBranch()` y los sitios de escritura de `branch_id`, incluido el
+  cron de recategorización multisucursal.
+- El **gate del milestone** (tenant 2 solo con la batería verde) NO es de ninguna fase: se evalúa
+  al cierre de la fase 175 / del milestone.

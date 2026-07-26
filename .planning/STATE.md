@@ -3,10 +3,10 @@ gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: "Tenancy — El Templo pasa a ser tenant #1"
 status: planning
-last_updated: "2026-07-26T18:32:49.855Z"
+last_updated: "2026-07-26T00:00:00.000Z"
 last_activity: 2026-07-26
 progress:
-  total_phases: 0
+  total_phases: 11
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -17,17 +17,20 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-06-04)
+See: .planning/PROJECT.md (milestone v6.0 initialized 2026-07-26)
 
-**Core value (v5.7):** Clases especiales de sábado (Verticales con Pato, Acrobacias con Nico, 3ª a definir) gateadas por un pase mensual de 2 asistencias mezclables — socio activo +$10.000 ARS, externo $20.000 ARS — con reserva, cupo y asistencia sobre la infra existente (`activities`/`schedules`/`bookings`/`attendance`), y visibilidad de asistencias por actividad para el reparto manual a los profes. 2 fases (161-162), 14 requirements (ACT/PASE/GATE/APP/REP). Modelado: pase = 2 planes `planCategory:'especial'` con budget mensual explícito de 2 + gating por flag en `activities` + enforcement en `BookingService.reserve()` + consumo vía `classesRemaining`. Numeración arranca en 161 (159-160 reservadas por v5.6). Staging-first estricto; migraciones a verificar en plan-phase (0176-0178 tomadas por v5.5).
-**Current focus:** Phase 164 — pantalla-tv-de-sucursal-plani-viva-por-bloque-con-timer-por-
+**Core value (v6.0):** El Templo pasa de "una gimnasia hardcodeada" a "el tenant #1 de una plataforma multi-tenant", **sin downtime y sin que el staff note nada**. Alcance: tablas `tenants`/`tenant_settings` + `tenant_id` denormalizado en las 87 tablas gym-owned + las 5 capas de enforcement (scope server-side, helpers `tenantWhere`/`tenantValues` + `TenantContext`, sentinel de pool mysql2, lint en CI, manifiesto de rutas fail-closed + batería de aislamiento), y adopción módulo a módulo en orden estricto de criticidad: finance → members → subscriptions → scheduling → analytics → resto core. 11 fases (166-176), 24 REQ-IDs (FUND/COL/CON/ISO/ADO/MOD). Reglas duras: `tenant_id` SIEMPRE server-side (jamás payload ni JWT); migraciones incrementales compatibles con código viejo (nullable → backfill → NOT NULL); staging-first estricto; reservar bloque de numeración al arrancar la 166 (último aplicado al 2026-07-26: **0189**, fase 164 TV, aún en worktree). **Gate del MILESTONE (no de una fase): el tenant 2 no se onboardea hasta que la batería de aislamiento (ISO-03) esté verde sobre el 100% de las rutas core `tenant-scoped`.** Diseño CERRADO en `.docs/saas-multitenancy/` (README + docs 03/04/05/06, §8 resuelto 2026-07-26) — no re-litigar en discuss/plan-phase.
+**Current focus:** Phase 166 — Fundación: `tenants`, anclas y scope server-side
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 166 — Fundación (`tenants`, anclas y scope server-side)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-07-26 — Milestone v6.0 started
+Status: Not started (roadmap aprobado, sin planes)
+Last activity: 2026-07-26 — ROADMAP v6.0 creado: 11 fases (166-176), cobertura 24/24 REQs
+Next: `/gsd:plan-phase 166`
+
+**Numeración:** v6.0 arranca en **166** — el ROADMAP tiene DOS "Phase 164" (TV de sucursal, viva en el worktree `et-164-tv`, y una legacy de v5.8) y la 165 está tomada por v5.8. Nada por debajo de 166 se renumera. La fase 164 (TV) sigue abierta en su worktree y se cierra por su propio carril, fuera de este milestone.
 
 ## Performance Metrics
 
