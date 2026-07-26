@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "timestamp": "2026-07-25T03:31:34.233Z",
+  "timestamp": "2026-07-25T20:40:00.000Z",
   "phase": "164",
   "phase_name": "pantalla-tv-de-sucursal-plani-viva-por-bloque-con-timer-por-",
   "phase_dir": ".planning/phases/164-pantalla-tv-de-sucursal-plani-viva-por-bloque-con-timer-por-",
@@ -12,14 +12,14 @@
     "path": "/home/franco/projects/et-164-tv",
     "branch": "feat/164-tv-sucursal",
     "base": "origin/master (39568562)",
-    "note": "TODA la fase 164 vive acá. El checkout principal (/home/franco/projects/el-templo) está en fix/referral-preview-y-refresh-ficha, atrasado 135 commits y con WIP de CR-CAJA de otra sesión — NO ejecutar nada de la fase ahí."
+    "note": "TODA la fase 164 vive acá (70 commits, SIN push a origin). El checkout principal (/home/franco/projects/el-templo) está en fix/referral-preview-y-refresh-ficha con WIP de CR-CAJA de otra sesión — NO ejecutar nada de la fase ahí."
   },
   "completed_tasks": [
     {
       "id": "164-01..164-12",
       "name": "12 planes completos con SUMMARY.md (waves 1-6)",
       "status": "done",
-      "commit": "ver git log --grep 164- en feat/164-tv-sucursal (~65 commits)"
+      "commit": "ver git log --grep 164- en feat/164-tv-sucursal"
     },
     {
       "id": "164-13/T1",
@@ -31,43 +31,37 @@
       "id": "164-13/T2",
       "name": "[CHECKPOINT] verificación en staging + TV real",
       "status": "in_progress",
-      "progress": "esperando OK de push a staging + reporte del televisor de sede"
+      "progress": "2026-07-25: EN STAGING y PROBADO EN UN TV REAL — el kiosco conecta, el profe lo maneja desde el celular y el circuito funciona. Salieron 3 hallazgos, los 3 ya arreglados y desplegados. Falta re-probar el arranque del timer y los videos con el build nuevo."
     }
   ],
   "remaining_tasks": [
     {
       "id": "164-13/T2",
-      "name": "checkpoint humano: push a staging (con OK explícito), probar /tv/ + ?selftest=1 + ?diag=1 en TV real, circuito Televisores/Control TV",
+      "name": "re-verificar en el TV con el build 811030c8: (a) INICIAR arranca en 00:00 sin saltar a 00:03 y el celular muestra la cuenta 3-2-1, (b) los videos se reproducen (staging ya tiene las referencias de prod), (c) donde no haya video aparece VIDEO PRÓXIMAMENTE y no un hueco vacío",
       "status": "awaiting_human"
     },
     {
       "id": "phase-close",
-      "name": "SUMMARY 164-13 + code_review_gate (/gsd:code-review 164) + gsd-verifier + update_roadmap",
+      "name": "SUMMARY 164-13 + code_review_gate (/gsd:code-review 164) + gsd-verifier + update_roadmap. OJO: el verifier va a comparar contra D-16 — ver deviations.",
       "status": "not_started"
     }
   ],
-  "blockers": [
-    {
-      "description": "Push a staging requiere OK explícito del usuario (regla dura: siempre preguntar antes de push)",
-      "type": "human_action",
-      "workaround": null
-    },
-    {
-      "description": "D-20: no hay smart TV en este entorno; la verificación en hardware solo la puede hacer una persona en una sede",
-      "type": "human_action",
-      "workaround": null
-    }
-  ],
+  "blockers": [],
   "human_actions_pending": [
     {
-      "action": "OK para `git push origin feat/164-tv-sucursal:staging` (desde el worktree)",
-      "context": "el push toca el-templo-admin/ de sobra, la trampa de paths-filter no aplica",
+      "action": "Re-probar en el TV el arranque del timer y los videos con el build nuevo",
+      "context": "guion en deploy/TV-KIOSK-RUNBOOK.md. El TV se auto-recarga solo (chequea version.txt cada minuto)",
       "blocking": true
     },
     {
-      "action": "En el TV de sede: /tv/ carga, foto de ?diag=1 (user agent + 5 OK), ?selftest=1 PASS, circuito Gestión→Televisores/Control TV (<3 s por cambio)",
-      "context": "guion exacto en deploy/TV-KIOSK-RUNBOOK.md",
-      "blocking": true
+      "action": "Decidir si se pushea feat/164-tv-sucursal a origin como respaldo",
+      "context": "los 70 commits viven SOLO en el disco de Franco. A staging fue el merge, no la rama",
+      "blocking": false
+    },
+    {
+      "action": "Mirar el estado de CI #1303 (commit ed02444d) en GitHub Actions",
+      "context": "si #1303 fue verde, el test de Wellhub que falló en #1304 era flaky y ya está arreglado (f8d3c3a4). Si estaba rojo, el test venía roto de antes y hay que buscar otra causa. gh no está instalado local",
+      "blocking": false
     }
   ],
   "decisions": [
@@ -77,8 +71,13 @@
       "phase": "164"
     },
     {
-      "decision": "8 commits docs(164) cherry-pickeados de fix/referral-preview-y-refresh-ficha + UI-SPEC/mockup commiteados (estaban untracked)",
-      "rationale": "el worktree desde master no tenía los docs de planificación",
+      "decision": "DEVIATION de D-16: el timer ya NO arranca al instante — el server programa timerStartedAt 3 s adelante (TIMER_START_LEAD_MS en tv/service.ts)",
+      "rationale": "decisión explícita de Franco durante la verificación en sede. D-16 ignoraba el poll de 2,5 s del televisor: para cuando la pantalla se enteraba del start, el cronómetro ya iba en ~3 s y saltaba de 00:00 a 00:03. La pantalla sigue SIN cuenta previa (el espíritu de D-16); el aviso vive en el control del profe. Test 'D-16 arranca al instante' reescrito en tv-control.test.ts. El verifier tiene que leer esto antes de marcar incumplimiento",
+      "phase": "164"
+    },
+    {
+      "decision": "El kiosco recibe la URL del API horneada en el build (window.__TV_API_BASE__), no la deriva del host",
+      "rationale": "el vhost del admin no proxea /api y el bundle no pasa por Vite, así que no heredaba VITE_API_URL — el pairing comía 405. Ver reference_admin_nginx_no_proxea_api en la memoria de Claude",
       "phase": "164"
     },
     {
@@ -98,6 +97,6 @@
     }
   ],
   "uncommitted_files": [],
-  "next_action": "Pedir/confirmar OK del usuario para push a staging; con deploy verde y reporte del TV real, re-correr /gsd:execute-phase 164 — va a detectar 01..12 completos y retomar 164-13/T2 con un agente de continuación; después sigue el cierre de fase (code review + verifier + roadmap).",
-  "context_notes": "Checkpoint devuelto por el ejecutor de 164-13 (human-verify). Auth del kiosco: header `Authorization: Device <token>` (no Bearer); el pairing devuelve `deviceToken`. Si en staging /tv/ muestra el login del admin es config de nginx (asunción A1), no código. tests API: MAX_TEST_WORKERS=1 si aparece 'Table ... doesn't exist'. ROADMAP tiene DOS entradas 'Phase 164' (TV y legacy v5.8 Reprogramación): actualizar la del TV a mano."
+  "next_action": "Con el reporte del TV (arranque sin salto + videos), correr /gsd:execute-phase 164 DESDE EL WORKTREE: detecta 01..12 completos, cierra 164-13/T2 y sigue el cierre de fase (code review + verifier + roadmap). El verifier tiene que leer la deviation de D-16 de este archivo.",
+  "context_notes": "STAGING AL DÍA: tren ed02444d (fase) + cf89439a (API base del kiosco + maxAge de CORS) + f8d3c3a4 (test flaky de Wellhub) + 127205a0 (fixes de la verificación en sede). Kiosco desplegado: version.txt 811030c8, window.__TV_API_BASE__=https://api-staging.eltemplo.org. El merge a staging NO es fast-forward (staging tiene Wellhub + cajas + migs 0186-0188): se hace en worktree descartable y los conflictos son SIEMPRE los mismos dos, de registro adyacente — api/src/app.ts y db/schema/index.ts, import de Wellhub vs import de TV: se conservan los dos lados. DATOS DE STAGING: se copiaron 144 referencias de video de prod (script src/db/scripts/staging_copy_exercise_videos.sql, backup en exercises_video_backup_20260725); staging pasó de 6% a 32% de prescripciones con video. El reset semanal de staging está DESHABILITADO desde 2026-04-05, así que el TV vinculado no se desvincula solo. Auth del kiosco: header `Authorization: Device <token>` (no Bearer). tests API: MAX_TEST_WORKERS=1 si aparece 'Table ... doesn't exist'. ROADMAP tiene DOS entradas 'Phase 164' (TV y legacy v5.8 Reprogramación): actualizar la del TV a mano."
 }
