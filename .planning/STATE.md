@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: "Tenancy — El Templo pasa a ser tenant #1"
-status: Not started (roadmap aprobado, sin planes)
+status: executing
 stopped_at: Phase 166 context gathered
-last_updated: "2026-07-26T19:18:37.629Z"
-last_activity: "2026-07-26 — ROADMAP v6.0 creado: 11 fases (166-176), cobertura 24/24 REQs"
+last_updated: "2026-07-26T19:55:05.387Z"
+last_activity: 2026-07-26 -- Phase 166 planning complete
 progress:
   total_phases: 11
   completed_phases: 0
-  total_plans: 0
+  total_plans: 6
   completed_plans: 0
   percent: 0
 ---
@@ -27,8 +27,8 @@ See: .planning/PROJECT.md (milestone v6.0 initialized 2026-07-26)
 
 Phase: 166 — Fundación (`tenants`, anclas y scope server-side)
 Plan: —
-Status: Not started (roadmap aprobado, sin planes)
-Last activity: 2026-07-26 — ROADMAP v6.0 creado: 11 fases (166-176), cobertura 24/24 REQs
+Status: Ready to execute
+Last activity: 2026-07-26 -- Phase 166 planning complete
 Next: `/gsd:plan-phase 166`
 
 **Numeración:** v6.0 arranca en **166** — el ROADMAP tiene DOS "Phase 164" (TV de sucursal, viva en el worktree `et-164-tv`, y una legacy de v5.8) y la 165 está tomada por v5.8. Nada por debajo de 166 se renumera. La fase 164 (TV) sigue abierta en su worktree y se cierra por su propio carril, fuera de este milestone.

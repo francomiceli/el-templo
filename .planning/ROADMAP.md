@@ -4402,11 +4402,25 @@ _v5.7 (Actividades con Aura) added: 2026-07-14 — 2 phases (161-162), 14 requir
 
 Plans:
 
+**Wave 1**
+
 - [ ] 166-01-PLAN.md — Base de trabajo aislada (worktree sobre origin/master), reserva del bloque de numeracion y tanda A: `tenants` + `tenant_settings` + seed del tenant 1
+
+**Wave 2** _(blocked on Wave 1 completion)_
+
 - [ ] 166-02-PLAN.md — Tanda B: `tenant_id NOT NULL DEFAULT 1` con FK e indice en las anclas `users` y `branches`, backfilleado a 1
+
+**Wave 3** _(blocked on Wave 2 completion)_
+
 - [ ] 166-03-PLAN.md — Test de introspeccion del DDL de las tandas A y B + regresion dirigida sin ajustar expectativas
 - [ ] 166-04-PLAN.md — Capa 1: `attachScope` resuelve `scope.tenantId` server-side y corta con 403 `TENANT_SUSPENDED` (alias `attachCountryScope` deprecado)
+
+**Wave 4** _(blocked on Wave 3 completion)_
+
 - [ ] 166-05-PLAN.md — Integracion extremo a extremo del enforcement en rutas admin y member + gate de regresion de la fase
+
+**Wave 5** _(blocked on Wave 4 completion)_
+
 - [ ] 166-06-PLAN.md — Gate local consolidado + checkpoint humano de rollout staging-first y verificacion en `eltemplo_staging` y `eltemplo`
 
 ### Phase 167: Columnas — `tenant_id` en las 85 tablas restantes + verificación
