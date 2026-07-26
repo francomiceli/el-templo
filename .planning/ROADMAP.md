@@ -4398,13 +4398,13 @@ _v5.7 (Actividades con Aura) added: 2026-07-14 — 2 phases (161-162), 14 requir
 3. Con el tenant en `suspended` o `archived`, toda ruta scoped responde 403 sin tocar datos; con `active` responde normal — enforced en la misma query que resuelve el scope, verificado por test de integración. (FUND-04)
 4. Sin cambio visible para el staff: la suite de integración existente pasa sin ajustar expectativas de comportamiento y el smoke post-deploy queda verde en staging y prod.
 
-**Plans:** 6 plans
+**Plans:** 1/6 plans executed
 
 Plans:
 
 **Wave 1**
 
-- [ ] 166-01-PLAN.md — Base de trabajo aislada (worktree sobre origin/master), reserva del bloque de numeracion y tanda A: `tenants` + `tenant_settings` + seed del tenant 1
+- [x] 166-01-PLAN.md — Base de trabajo aislada (worktree sobre origin/master), reserva del bloque de numeracion y tanda A: `tenants` + `tenant_settings` + seed del tenant 1
 
 **Wave 2** _(blocked on Wave 1 completion)_
 
@@ -4599,7 +4599,7 @@ Plans:
 
 | Phase                                             | Plans Complete | Status      | Completed |
 | ------------------------------------------------- | -------------- | ----------- | --------- |
-| 166. Fundación — tenants, anclas y scope          | 0/?            | Not started |           |
+| 166. Fundación — tenants, anclas y scope          | 1/6            | In Progress |           |
 | 167. Columnas — tenant_id en 85 tablas            | 0/?            | Not started |           |
 | 168. Contratos SQL — uniques compuestas e índices | 0/?            | Not started |           |
 | 169. Capa de escritura — helpers y TenantContext  | 0/?            | Not started |           |

@@ -30,7 +30,7 @@ caminos críticos pasen la batería de aislamiento (ISO-03) en verde.
 
 ### FUND — Fundación de tenants
 
-- [ ] **FUND-01**: Existen `tenants` + `tenant_settings` (schema validado README §5) con El Templo sembrado como tenant `id=1`, slug `el-templo`, status `active`
+- [x] **FUND-01**: Existen `tenants` + `tenant_settings` (schema validado README §5) con El Templo sembrado como tenant `id=1`, slug `el-templo`, status `active`
 - [ ] **FUND-02**: `users` y `branches` (anclas) tienen `tenant_id NOT NULL` con FK a `tenants` e índice, backfilleado `=1`
 - [ ] **FUND-03**: Todo request autenticado resuelve `scope.tenantId` server-side en `attachScope` (extensión de `attachCountryScope`) — nunca del JWT ni de un payload
 - [ ] **FUND-04**: Un tenant `suspended`/`archived` recibe 403 en todo request scoped, enforced en la misma query que resuelve el scope
@@ -94,32 +94,32 @@ caminos críticos pasen la batería de aislamiento (ISO-03) en verde.
 
 _Se completa cuando el roadmap asigne cada REQ-ID a una fase._
 
-| REQ-ID  | Fase      | Estado  |
-| ------- | --------- | ------- |
-| FUND-01 | Phase 166 | Pending |
-| FUND-02 | Phase 166 | Pending |
-| FUND-03 | Phase 166 | Pending |
-| FUND-04 | Phase 166 | Pending |
-| COL-01  | Phase 167 | Pending |
-| COL-02  | Phase 167 | Pending |
-| CON-01  | Phase 168 | Pending |
-| CON-02  | Phase 168 | Pending |
-| CON-03  | Phase 169 | Pending |
-| CON-04  | Phase 169 | Pending |
-| CON-05  | Phase 170 | Pending |
-| CON-06  | Phase 170 | Pending |
-| ISO-01  | Phase 171 | Pending |
-| ISO-02  | Phase 171 | Pending |
-| ISO-03  | Phase 172 | Pending |
-| ADO-01  | Phase 172 | Pending |
-| ADO-02  | Phase 173 | Pending |
-| ADO-07  | Phase 173 | Pending |
-| ADO-03  | Phase 174 | Pending |
-| ADO-04  | Phase 174 | Pending |
-| ADO-05  | Phase 175 | Pending |
-| ADO-06  | Phase 175 | Pending |
-| MOD-01  | Phase 176 | Pending |
-| MOD-02  | Phase 176 | Pending |
+| REQ-ID  | Fase      | Estado   |
+| ------- | --------- | -------- |
+| FUND-01 | Phase 166 | Complete |
+| FUND-02 | Phase 166 | Pending  |
+| FUND-03 | Phase 166 | Pending  |
+| FUND-04 | Phase 166 | Pending  |
+| COL-01  | Phase 167 | Pending  |
+| COL-02  | Phase 167 | Pending  |
+| CON-01  | Phase 168 | Pending  |
+| CON-02  | Phase 168 | Pending  |
+| CON-03  | Phase 169 | Pending  |
+| CON-04  | Phase 169 | Pending  |
+| CON-05  | Phase 170 | Pending  |
+| CON-06  | Phase 170 | Pending  |
+| ISO-01  | Phase 171 | Pending  |
+| ISO-02  | Phase 171 | Pending  |
+| ISO-03  | Phase 172 | Pending  |
+| ADO-01  | Phase 172 | Pending  |
+| ADO-02  | Phase 173 | Pending  |
+| ADO-07  | Phase 173 | Pending  |
+| ADO-03  | Phase 174 | Pending  |
+| ADO-04  | Phase 174 | Pending  |
+| ADO-05  | Phase 175 | Pending  |
+| ADO-06  | Phase 175 | Pending  |
+| MOD-01  | Phase 176 | Pending  |
+| MOD-02  | Phase 176 | Pending  |
 
 **Cobertura: 24/24 REQ-IDs mapeados a exactamente una fase (0 huérfanos, 0 duplicados).**
 (El encabezado decía "23" por error aritmético al confirmar; son 24 REQ-IDs — corregido 2026-07-26.)

@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: "Tenancy — El Templo pasa a ser tenant #1"
 status: executing
-stopped_at: Phase 166 context gathered
-last_updated: "2026-07-26T19:55:05.387Z"
-last_activity: 2026-07-26 -- Phase 166 planning complete
+stopped_at: Completed 166-01-PLAN.md
+last_updated: "2026-07-26T20:05:29.750Z"
+last_activity: 2026-07-26
 progress:
   total_phases: 11
   completed_phases: 0
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (milestone v6.0 initialized 2026-07-26)
 
 **Core value (v6.0):** El Templo pasa de "una gimnasia hardcodeada" a "el tenant #1 de una plataforma multi-tenant", **sin downtime y sin que el staff note nada**. Alcance: tablas `tenants`/`tenant_settings` + `tenant_id` denormalizado en las 87 tablas gym-owned + las 5 capas de enforcement (scope server-side, helpers `tenantWhere`/`tenantValues` + `TenantContext`, sentinel de pool mysql2, lint en CI, manifiesto de rutas fail-closed + batería de aislamiento), y adopción módulo a módulo en orden estricto de criticidad: finance → members → subscriptions → scheduling → analytics → resto core. 11 fases (166-176), 24 REQ-IDs (FUND/COL/CON/ISO/ADO/MOD). Reglas duras: `tenant_id` SIEMPRE server-side (jamás payload ni JWT); migraciones incrementales compatibles con código viejo (nullable → backfill → NOT NULL); staging-first estricto; reservar bloque de numeración al arrancar la 166 (último aplicado al 2026-07-26: **0189**, fase 164 TV, aún en worktree). **Gate del MILESTONE (no de una fase): el tenant 2 no se onboardea hasta que la batería de aislamiento (ISO-03) esté verde sobre el 100% de las rutas core `tenant-scoped`.** Diseño CERRADO en `.docs/saas-multitenancy/` (README + docs 03/04/05/06, §8 resuelto 2026-07-26) — no re-litigar en discuss/plan-phase.
-**Current focus:** Phase 166 — Fundación: `tenants`, anclas y scope server-side
+**Current focus:** Phase 166 — fundaci-n-tenants-anclas-y-scope-server-side
 
 ## Current Position
 
-Phase: 166 — Fundación (`tenants`, anclas y scope server-side)
-Plan: —
+Phase: 166 (fundaci-n-tenants-anclas-y-scope-server-side) — EXECUTING
+Plan: 2 of 6
 Status: Ready to execute
-Last activity: 2026-07-26 -- Phase 166 planning complete
+Last activity: 2026-07-26
 Next: `/gsd:plan-phase 166`
 
 **Numeración:** v6.0 arranca en **166** — el ROADMAP tiene DOS "Phase 164" (TV de sucursal, viva en el worktree `et-164-tv`, y una legacy de v5.8) y la 165 está tomada por v5.8. Nada por debajo de 166 se renumera. La fase 164 (TV) sigue abierta en su worktree y se cierra por su propio carril, fuera de este milestone.
@@ -341,6 +341,7 @@ _Updated after each plan completion_
 | Phase 162 P03 | ~14min | 3 tasks | 4 files |
 | Phase 162 P04 | ~5min | 3 tasks | 3 files |
 | Phase 162 P06 | ~13min | 2 tasks | 4 files |
+| Phase 166 P01 | 5min | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -772,6 +773,9 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: 161-02: renew discrimina la sub por subscriptionId (valida ownership); guard D-09 en los 4 callsites de referral
 - [Phase ?]: 161-06: gating duro de especiales server-side; PassRequiredError→code PASS_REQUIRED en /reserve; D-04 cuenta reservas futuras pendientes; staff bypass con aviso en adminAddBooking
 - [Phase ?]: 162-03: reporte REP-01 socio/externo por sub que cubre session_date + fallback; sin montos; anti JOIN-fanout
+- [Phase ?]: Fase 166 corre en el worktree /home/franco/projects/et-166-tenancy (rama feat/166-tenancy-fundacion, base origin/master 8ac9ba9f) — el checkout principal no se toca
+- [Phase ?]: Bloque de migraciones v6.0 reservado: 0190 (tanda A, aplicada) y 0191 (tanda B, plan 166-02). Maximo real verificado 0189 en las 3 fuentes (arbol, \_migrations local, todas las ramas)
+- [Phase ?]: tenants.status usa mysqlEnum con primer argumento 'status' — se descarta 'tenant_status' del snippet del README seccion 5; la migracion 0190 lo espeja byte a byte
 
 ### Pending Todos
 
@@ -804,8 +808,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-26T19:18:37.607Z
-Stopped at: Phase 166 context gathered
-Resume file: .planning/phases/166-fundaci-n-tenants-anclas-y-scope-server-side/166-CONTEXT.md
+Last session: 2026-07-26T20:05:29.730Z
+Stopped at: Completed 166-01-PLAN.md
+Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
