@@ -1,93 +1,98 @@
-# Requirements — v5.7 Actividades con Aura
+# Requirements — v6.0 Tenancy — El Templo pasa a ser tenant #1
 
-Scope derivado de `.docs/actividades-aura/` (audios de Nacho, 2026-07-13) + research de
-codebase (2026-07-14, 3 informes: clases/formatos, planes/cobros, programas). Clases
-especiales de sábado (Verticales con Pato, Acrobacias con Nico, tercera a definir)
-gateadas por un pase mensual de 2 asistencias mezclables: socio activo +$10.000 ARS,
-externo $20.000 ARS.
+Scope derivado del diseño SaaS validado y CERRADO (`.docs/saas-multitenancy/`): README
+(decisiones fases 1-2, validadas con Nacho 2026-07-02), doc 05 (inventario real de 89
+tablas @ `8ac9ba9f`, minas M1-M10), doc 06 (estrategia de migración en 4 tandas +
+`TenantContext` + fases T1-T6+; las 5 decisiones abiertas §8 resueltas 2026-07-26).
+Requirements confirmados en sesión 2026-07-26 (23, con MOD incluido).
 
-**Modelado decidido (pre-discuss):** planes nuevos con `planCategory: 'especial'` +
-budget mensual explícito de 2 clases; gating por flag en `activities`; enforcement en
-`BookingService.reserve()`; consumo vía `classesRemaining` existente. Programas
-descartados como vehículo (contenido online, sin horario/cupo/asistencia; precio por
-programa removido a propósito en mig. 0071). Se descartó también una entidad
-`class_passes` separada: el plan reutiliza renovación, cobros, deuda, país/moneda y
-multi-sub por categoría (presencial + especial en paralelo, como presencial + online
-hoy).
+**Decisiones ya tomadas (NO re-litigar en discuss/plan-phase):** `tenant_id`
+denormalizado en toda tabla gym-owned; enforcement en 5 capas (scope server-side +
+helpers por-método + sentinel de pool + lint CI + tests de aislamiento fail-closed);
+`tenant_id` jamás viaja en JWT ni payload; backfill `=1` (un solo tenant existente, la
+cadena de FK es verificación, no fuente); lista M8 de uniques queda global; supresión de
+unsubscribes por tenant; wellhub = core-integración (flag, NO ofertada por ahora);
+`labs_inquiries` = GLOBAL; referidos = CORE; `system_settings` no recibe tenant_id
+(deprecación gradual hacia `tenant_settings`).
 
-**Constraint operativo:** staging-first estricto; migraciones con SQL commiteado
-(numeración a verificar en plan-phase — 0176-0178 aplicadas por v5.5, ojo con lo que
-reserve v5.6); tests de integración para rutas nuevas/modificadas.
+**Constraint operativo:** staging-first estricto; migraciones incrementales compatibles
+con código viejo (nullable → backfill → NOT NULL), SQL commiteado junto al schema,
+reservar bloque de numeración al arrancar (verificar `_migrations` en ese momento);
+tests de integración para todo lo nuevo; sin downtime; cero cambio visible para el staff
+del Templo.
 
-**Abierto para discuss-phase:** (a) el externo con pase contaría como `activo` en
-`recomputeUserStatus` — impacto en analytics/referidos; (b) consumo a la reserva vs al
-check-in (patrón actual: check-in); (c) horarios exactos, sedes y nombre real de la
-tercera actividad ("OpenShin" en el audio); (d) si el staff puede pisar el gating
-(bypass existente para admin/coach en bonus/multi-branch).
+**Gate del MILESTONE (no de una fase):** el tenant 2 no se onboardea hasta que los
+caminos críticos pasen la batería de aislamiento (ISO-03) en verde.
 
 ---
 
-## v5.7 Requirements
+## v6.0 Requirements
 
-### ACT — Actividades especiales
+### FUND — Fundación de tenants
 
-- [x] **ACT-01**: El admin puede marcar una actividad como "especial" (gateada por pase) al crearla o editarla.
-- [x] **ACT-02**: Las 3 actividades especiales (Verticales, Acrobacias, tercera a definir) existen como actividades con slots de sábado por sede/horario, cada una con su cupo propio.
+- [ ] **FUND-01**: Existen `tenants` + `tenant_settings` (schema validado README §5) con El Templo sembrado como tenant `id=1`, slug `el-templo`, status `active`
+- [ ] **FUND-02**: `users` y `branches` (anclas) tienen `tenant_id NOT NULL` con FK a `tenants` e índice, backfilleado `=1`
+- [ ] **FUND-03**: Todo request autenticado resuelve `scope.tenantId` server-side en `attachScope` (extensión de `attachCountryScope`) — nunca del JWT ni de un payload
+- [ ] **FUND-04**: Un tenant `suspended`/`archived` recibe 403 en todo request scoped, enforced en la misma query que resuelve el scope
 
-### PASE — Pase mensual "Actividades con Aura"
+### COL — Columnas y backfill
 
-- [x] **PASE-01**: Existen planes de categoría `especial` con budget mensual explícito de 2 clases, independiente del tope semanal (`classesPerWeek`).
-- [x] **PASE-02**: Un socio activo puede tener el pase Socio ($10.000 ARS) como suscripción en paralelo a su plan presencial; la asignación valida que tenga presencial activo.
-- [x] **PASE-03**: Un externo (sin plan presencial) puede tener el pase Externo ($20.000 ARS) como única suscripción.
-- [x] **PASE-04**: El pase entra al ciclo normal de renovación, cobro y deuda sin regresiones en los planes existentes.
+- [ ] **COL-01**: Las 85 tablas gym-owned restantes (46 CORE + 42 TEMPLO-MODULO del doc 05, menos anclas; `system_settings` y `labs_inquiries` excluidas por diseño) tienen `tenant_id NOT NULL` + FK, backfill `=1`
+- [ ] **COL-02**: Script versionado de verificación recorre las cadenas de FK del inventario (incl. mapeo manual de las FKs lógicas M9) y reporta 0 discrepancias entre backfill y derivación
 
-### GATE — Gating y consumo
+### CON — Contratos de acceso
 
-- [x] **GATE-01**: El backend rechaza la reserva de una actividad especial sin pase con saldo, con código de error tipado (hoy no existe gating por actividad).
-- [x] **GATE-02**: Cada asistencia a una actividad especial consume 1 clase del pase, no del presupuesto del plan presencial.
-- [x] **GATE-03**: El socio presencial sin pase no puede reservar actividades especiales; su acceso a clases regulares no cambia en nada.
-- [x] **GATE-04**: El externo con pase solo puede reservar actividades especiales, no clases regulares.
+- [ ] **CON-01**: Uniques globales convertidas a compuestas `(tenant_id, …)` según doc 06 §1-D (users.email/dni/referral_code, branches.code, cost_centers, promo_code, campaign_unsubscribes.email, template_key, day_modes, holidays, formats); lista M8 queda global (aprobada 2026-07-26)
+- [ ] **CON-02**: Toda tabla gym-owned tiene índice con prefijo `tenant_id` (vía unique compuesta o `INDEX` explícito) en la misma migración
+- [ ] **CON-03**: Helpers `tenantWhere`/`tenantValues` en `shared/tenant.ts`; todo INSERT sobre gym-owned toma `tenant_id` exclusivamente de scope/contexto server-side
+- [ ] **CON-04**: `TenantContext` explícito para caminos sin request: crons iteran tenants activos, webhook Wellhub deriva tenant vía `branches.wellhub_gym_id`, scripts CLI lo exigen como argumento; `tv_pairings` pre-claim con exención anotada (M7)
+- [ ] **CON-05**: Sentinel de pool mysql2 detecta SQL sobre tabla gym-owned sin `tenant_id`: test/dev = throw para módulos migrados, prod = `log.error` + métrica; exenciones `/* tenant-safe: <motivo> */` respetadas y grepeables
+- [ ] **CON-06**: Lint estático en CI falla ante ` sql` ``/`.from()`sobre gym-owned sin`tenant_id` ni anotación (allowlist decreciente por módulo)
 
-### APP — Member app
+### ISO — Backstop de aislamiento
 
-- [x] **APP-01**: La grilla de reservas muestra las actividades especiales con distintivo y estado según el acceso del usuario (con pase / sin pase).
-- [x] **APP-02**: El usuario con pase ve cuántas clases especiales le quedan en el mes (2/2, 1/2, 0/2).
-- [ ] **APP-03**: El usuario sin pase que intenta reservar una actividad especial recibe un mensaje claro de qué es el pase y cómo conseguirlo (informativo — sin pago in-app).
+- [ ] **ISO-01**: Manifiesto versionado (`test/tenant-manifest.ts`) clasifica el 100% de las rutas (`tenant-scoped`/`global`/`templo-module`); hook `onRoute` fail-closed: ruta nueva sin clasificar = test rojo
+- [ ] **ISO-02**: Fixtures de test siembran 2 tenants; helpers (`createStaffUser` y afines) soportan crear staff/socios por tenant
+- [ ] **ISO-03**: Batería de aislamiento: cada ruta `tenant-scoped` de un módulo migrado, ejecutada como staff del tenant A, no expone ni escribe datos del tenant B
 
-### REP — Reporte para reparto
+### ADO — Adopción módulo a módulo
 
-- [x] **REP-01**: El admin ve las asistencias por actividad especial por mes, separando origen socio/externo, como insumo del reparto manual a los profes (sin montos calculados).
+- [ ] **ADO-01**: `finance` migrado al patrón completo (services reciben scope + `tenantWhere`/`tenantValues` + sentinel throw para sus tablas + aislamiento verde)
+- [ ] **ADO-02**: `members` ídem
+- [ ] **ADO-03**: `subscriptions` ídem, con la cadena de pricing (override → boarding pass → AURA → referral) intacta
+- [ ] **ADO-04**: `scheduling` ídem (schedules/bookings/attendance/schedule_exceptions)
+- [ ] **ADO-05**: `analytics` ídem
+- [ ] **ADO-06**: Resto del core ídem (campaigns, notifications, referrals, wellhub, feedback/improvement_proposals, auth/settings) — incluye supresión de unsubscribes POR TENANT (decisión Q5, mina M3)
+- [ ] **ADO-07**: Guarda de consistencia `user.tenant_id === branch.tenant_id` en los ~10 sitios de escritura de `branch_id` + `setMemberBranch()` + cron de recategorización (mina M10)
+
+### MOD — Mecanismo de módulos
+
+- [ ] **MOD-01**: Flags `module.<nombre>.enabled` en `tenant_settings` + guard `requireModule` (404) gatean las rutas de los 4 módulos Templo (templo-training/gamification/marketing/onboarding) — prendidos para tenant 1, apagados por default para tenants nuevos
+- [ ] **MOD-02**: Registry de hooks tipado con la superficie mínima validada (doc 04): filter `pricing.adjust` (bloqueante) + event `streak.milestone` (best-effort), composition root explícito
+
+---
 
 ## Future Requirements (deferred)
 
-- **REP-F1**: Reparto con montos calculados por profe (requiere fijar la regla exacta de reparto — Nacho aún duda entre tercios y proporcional — y ligar cobros a asistencias).
-- **APP-F1**: Compra del pase in-app con gateway de pago (depende del milestone de payment gateway, v6.0+).
-- **PASE-F1**: Precios del pase configurables por país/sede más allá del mecanismo estándar de planes.
+- Módulo Gimnasio completo (catálogo genérico global + plantillas + registro + panel del profe) — **milestone siguiente**, spec en `brief-fran-modulo-gimnasio.md` + addendum A1-A7
+- Superficie member-facing multi-tenant (dónde vive se decide en la fase de diseño del milestone Gimnasio; reabre el trigger del split de repos)
+- Onboarding real del tenant 2 (alta comercial, provisioning) — post batería verde
+- Contrato de tipos API↔frontends (matar el patrón "mirror a mano") — oportunidad natural durante la adopción, pero no es requirement de v6.0
+- Billing/plan comercial del SaaS en `tenants` (se agrega cuando exista modelo comercial)
+- Login/dominios/subdominios por tenant (diferida original; `tenants.slug` es agnóstico)
 
 ## Out of Scope (this milestone)
 
-- **Pago in-app / gateway**: la venta del pase es carga manual vía admin/PoS, como todo cobro hoy.
-- **Reparto automático / liquidaciones a profes**: no existe infra de liquidaciones; REP-01 entrega el insumo y el reparto es manual.
-- **Notificaciones push / campaña de lanzamiento** de las actividades — anuncio ad-hoc fuera de este milestone.
-- **Programas** como vehículo del pase — descartado tras research (ver encabezado).
+- **Módulo Gimnasio** — milestone siguiente (secuencia decidida en addendum A7)
+- **App member multi-tenant y split de repos** — triggers intactos (README §6)
+- **Transformar SPOM o `el-templo-app`** — jamás se transforman (patrón "construir lo genérico nuevo")
+- **Uniques de módulos Templo** (`sessions.day_id` M5, `aura_config.source_type`, slugs blog/gladius) — reciben `tenant_id` como columna pero sus uniques quedan globales mientras esos módulos sean Templo-only (deuda consciente documentada)
+- **Migración de keys `system_settings` → `tenant_settings`** — coexistencia gradual, migra módulo a módulo cuando cada uno adopte el patrón (no big-bang en v6.0)
+- **Postgres/RLS** — MySQL se queda (decisión §4 README)
 
 ## Traceability
 
-<!-- Filled by roadmap -->
+_Se completa cuando el roadmap asigne cada REQ-ID a una fase._
 
-| Requirement | Phase     | Status   |
-| ----------- | --------- | -------- |
-| ACT-01      | Phase 161 | Complete |
-| ACT-02      | Phase 161 | Complete |
-| PASE-01     | Phase 161 | Complete |
-| PASE-02     | Phase 161 | Complete |
-| PASE-03     | Phase 161 | Complete |
-| PASE-04     | Phase 161 | Complete |
-| GATE-01     | Phase 161 | Complete |
-| GATE-02     | Phase 161 | Complete |
-| GATE-03     | Phase 161 | Complete |
-| GATE-04     | Phase 161 | Complete |
-| APP-01      | Phase 162 | Complete |
-| APP-02      | Phase 162 | Complete |
-| APP-03      | Phase 162 | Pending  |
-| REP-01      | Phase 162 | Complete |
+| REQ-ID | Fase | Estado |
+| ------ | ---- | ------ |
