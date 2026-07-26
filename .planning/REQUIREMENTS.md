@@ -31,7 +31,7 @@ caminos críticos pasen la batería de aislamiento (ISO-03) en verde.
 ### FUND — Fundación de tenants
 
 - [x] **FUND-01**: Existen `tenants` + `tenant_settings` (schema validado README §5) con El Templo sembrado como tenant `id=1`, slug `el-templo`, status `active`
-- [ ] **FUND-02**: `users` y `branches` (anclas) tienen `tenant_id NOT NULL` con FK a `tenants` e índice, backfilleado `=1`
+- [x] **FUND-02**: `users` y `branches` (anclas) tienen `tenant_id NOT NULL` con FK a `tenants` e índice, backfilleado `=1`
 - [ ] **FUND-03**: Todo request autenticado resuelve `scope.tenantId` server-side en `attachScope` (extensión de `attachCountryScope`) — nunca del JWT ni de un payload
 - [ ] **FUND-04**: Un tenant `suspended`/`archived` recibe 403 en todo request scoped, enforced en la misma query que resuelve el scope
 
@@ -97,7 +97,7 @@ _Se completa cuando el roadmap asigne cada REQ-ID a una fase._
 | REQ-ID  | Fase      | Estado   |
 | ------- | --------- | -------- |
 | FUND-01 | Phase 166 | Complete |
-| FUND-02 | Phase 166 | Pending  |
+| FUND-02 | Phase 166 | Complete |
 | FUND-03 | Phase 166 | Pending  |
 | FUND-04 | Phase 166 | Pending  |
 | COL-01  | Phase 167 | Pending  |

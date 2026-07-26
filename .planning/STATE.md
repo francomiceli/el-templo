@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: "Tenancy — El Templo pasa a ser tenant #1"
 status: executing
-stopped_at: Completed 166-01-PLAN.md
-last_updated: "2026-07-26T20:05:29.750Z"
+stopped_at: Completed 166-02-PLAN.md
+last_updated: "2026-07-26T20:14:04.931Z"
 last_activity: 2026-07-26
 progress:
   total_phases: 11
   completed_phases: 0
   total_plans: 6
-  completed_plans: 0
+  completed_plans: 2
   percent: 0
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (milestone v6.0 initialized 2026-07-26)
 ## Current Position
 
 Phase: 166 (fundaci-n-tenants-anclas-y-scope-server-side) — EXECUTING
-Plan: 2 of 6
+Plan: 3 of 6
 Status: Ready to execute
 Last activity: 2026-07-26
 Next: `/gsd:plan-phase 166`
@@ -342,6 +342,7 @@ _Updated after each plan completion_
 | Phase 162 P04 | ~5min | 3 tasks | 3 files |
 | Phase 162 P06 | ~13min | 2 tasks | 4 files |
 | Phase 166 P01 | 5min | 3 tasks | 3 files |
+| Phase 166 P02 | 4min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -776,6 +777,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: Fase 166 corre en el worktree /home/franco/projects/et-166-tenancy (rama feat/166-tenancy-fundacion, base origin/master 8ac9ba9f) — el checkout principal no se toca
 - [Phase ?]: Bloque de migraciones v6.0 reservado: 0190 (tanda A, aplicada) y 0191 (tanda B, plan 166-02). Maximo real verificado 0189 en las 3 fuentes (arbol, \_migrations local, todas las ramas)
 - [Phase ?]: tenants.status usa mysqlEnum con primer argumento 'status' — se descarta 'tenant_status' del snippet del README seccion 5; la migracion 0190 lo espeja byte a byte
+- [Phase 166]: tenant_id en las anclas es NOT NULL DEFAULT 1 (camino A): sin DEFAULT los INSERT IGNORE de test/setup.ts no insertan y el rolling deploy queda sin red — Verificado empiricamente en 166-02: insert sin tenant_id en users y branches resuelve a 1. El DEFAULT se repite en el MODIFY porque MySQL lo pierde. Se re-evalua cuando exista tenant 2, fuera de v6.0
 
 ### Pending Todos
 
@@ -808,8 +810,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-26T20:05:29.730Z
-Stopped at: Completed 166-01-PLAN.md
+Last session: 2026-07-26T20:14:04.912Z
+Stopped at: Completed 166-02-PLAN.md
 Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
