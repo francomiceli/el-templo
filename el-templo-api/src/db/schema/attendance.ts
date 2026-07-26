@@ -16,9 +16,14 @@ export const attendanceStatusEnum = mysqlEnum("attendance_status", [
   "confirmado",
 ]);
 
+// Integración Wellhub (2026-07, migración 0186): 'wellhub' = visita validada
+// vía Access Control API (webhook checkin + POST /access/v1/validate). Estas
+// visitas NO descuentan classesRemaining, NO otorgan AURA y NO registran
+// completed_sessions. Append-last, byte-idéntico al ALTER de la 0186.
 export const attendanceSourceEnum = mysqlEnum("attendance_source", [
   "qr",
   "manual",
+  "wellhub",
 ]);
 
 export const attendance = mysqlTable(

@@ -142,6 +142,13 @@ export async function registerUser(
  * branches / spom_config rows.
  */
 const TABLES_TO_CLEAN = [
+  // Integración Wellhub (0186): bookings/slots/classes en orden de FKs, y el
+  // log de eventos (sin FKs). users.gympass_id se limpia con el DELETE de
+  // users de más abajo.
+  schema.wellhubBookings,
+  schema.wellhubSlots,
+  schema.wellhubClasses,
+  schema.wellhubEvents,
   // Phase 119 campaign tables. FK ordering (FK checks are disabled below, so
   // strictly cosmetic, but kept correct): events -> sends -> unsubscribes ->
   // campaigns, all before users.

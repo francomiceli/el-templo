@@ -371,6 +371,9 @@ jobs:
           R2_BUCKET_NAME=${{ secrets.R2_BUCKET_NAME }}
           R2_PUBLIC_URL=${{ secrets.R2_PUBLIC_URL }}
           FIREBASE_SERVICE_ACCOUNT_BASE64=${{ secrets.FIREBASE_SERVICE_ACCOUNT_BASE64 }}
+          WELLHUB_API_KEY=${{ secrets.WELLHUB_API_KEY }}
+          WELLHUB_WEBHOOK_SECRET=${{ secrets.WELLHUB_WEBHOOK_SECRET }}
+          WELLHUB_BASE_URL=${{ secrets.WELLHUB_BASE_URL }}
           EOF
 
       # --- Deploy via rsync (only projects that were built) ---
