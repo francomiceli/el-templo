@@ -2,9 +2,10 @@
 gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: "Tenancy — El Templo pasa a ser tenant #1"
-status: planning
-last_updated: "2026-07-26T00:00:00.000Z"
-last_activity: 2026-07-26
+status: Not started (roadmap aprobado, sin planes)
+stopped_at: Phase 166 context gathered
+last_updated: "2026-07-26T19:18:37.629Z"
+last_activity: "2026-07-26 — ROADMAP v6.0 creado: 11 fases (166-176), cobertura 24/24 REQs"
 progress:
   total_phases: 11
   completed_phases: 0
@@ -803,8 +804,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-24T19:14:04.013Z
-Stopped at: Phase 164 context gathered
-Resume file: .planning/phases/164-pantalla-tv-de-sucursal-plani-viva-por-bloque-con-timer-por-/164-CONTEXT.md
+Last session: 2026-07-26T19:18:37.607Z
+Stopped at: Phase 166 context gathered
+Resume file: .planning/phases/166-fundaci-n-tenants-anclas-y-scope-server-side/166-CONTEXT.md
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
