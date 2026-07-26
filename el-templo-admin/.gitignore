@@ -31,6 +31,11 @@ yarn-error.log*
 # ffmpeg.wasm core files (copied from node_modules by scripts/copy-ffmpeg.mjs)
 /public/ffmpeg
 
+# Pantalla de sede: la genera scripts/build-tv.mjs en cada build (fuente: src/tv/).
+# A diferencia de public/ffmpeg no se commitea NADA: son ~500 KB de fuentes e
+# imagenes decodificadas de src/utils/pdf/pdf-assets.ts, que ya estan versionadas ahi.
+/public/tv
+
 # Lock files (we use pnpm)
 package-lock.json
 yarn.lock

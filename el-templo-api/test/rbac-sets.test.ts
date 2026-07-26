@@ -7,6 +7,7 @@ import {
   PROGRAMAS_ROLES,
   PROGRAMAS_LIST_ROLES,
   TEMPLO_RBAC_OVERRIDES,
+  TV_CONTROL_ROLES,
 } from "../src/modules/shared/permissions";
 
 /**
@@ -64,6 +65,14 @@ describe("RBAC sets — core white-label + Templo overrides", () => {
       "recepcion",
     ]);
     expect([...PROGRAMAS_LIST_ROLES]).not.toContain("coach");
+  });
+
+  it("TV_CONTROL_ROLES is Dueño core + coach (branch TV) — D-01 fase 164", () => {
+    // El profe vincula y maneja el TV de su sede; el resto del staff (gestion,
+    // recepcion) NO. El acceso por sede lo impone requireBranchAccess aparte.
+    expect([...TV_CONTROL_ROLES]).toEqual(["admin", "owner", "coach"]);
+    expect([...TV_CONTROL_ROLES]).not.toContain("gestion");
+    expect([...TV_CONTROL_ROLES]).not.toContain("recepcion");
   });
 
   it("TEMPLO_RBAC_OVERRIDES holds only the extra roles layered over the core", () => {

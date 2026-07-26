@@ -56,6 +56,7 @@ import { referralAdminRoutes } from "./modules/referrals/admin-routes";
 import { campaignRoutes } from "./modules/campaigns/routes";
 import { wellhubWebhookRoutes } from "./modules/wellhub/routes";
 import { wellhubOccupancyListener } from "./modules/wellhub/occupancy-listener";
+import { tvDeviceRoutes, tvControlRoutes } from "./modules/tv";
 
 export async function buildApp() {
   const app = Fastify({
@@ -104,6 +105,10 @@ export async function buildApp() {
             "http://localhost", // iOS Capacitor
           ],
     methods: ["GET", "HEAD", "PUT", "POST", "PATCH", "DELETE", "OPTIONS"],
+    // Sin esto el browser recuerda el preflight solo 5 segundos (default de la spec) y el
+    // kiosco de la TV, que pollea cada 2,5 s con header Authorization, manda un OPTIONS
+    // por medio. 24 h es el techo que respeta Chromium (lo capea a 2 h por su cuenta).
+    maxAge: 86400,
   });
 
   // Database plugin (decorates fastify.db)
@@ -260,6 +265,15 @@ export async function buildApp() {
   await app.register(coachLoadRoutes, {
     prefix: "/api/admin/finance/coach-load",
   });
+
+  // Fase 164 — pantalla TV de sucursal. DOS registros separados a proposito
+  // (mismo criterio que coachRoutes / coachLoadRoutes de arriba): los guards son
+  // incompatibles. `tvDeviceRoutes` atiende al televisor, que no tiene JWT ni
+  // rol ni scope de pais — solo un token opaco de dispositivo; `tvControlRoutes`
+  // atiende al staff con `fastify.authenticate` + TV_CONTROL_ROLES (D-01).
+  // Un unico plugin no podria tener las dos cosas.
+  await app.register(tvDeviceRoutes, { prefix: "/api/tv" });
+  await app.register(tvControlRoutes, { prefix: "/api/admin/tv" });
 
   // User management routes (owner-only staff CRUD)
   await app.register(userRoutes, {

@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>El Templo — Pantalla de sede</title>
+    <!--
+      Plantilla del kiosco. scripts/build-tv.mjs la convierte en public/tv/index.html
+      reemplazando los dos marcadores de abajo por el CSS y el JS INLINE.
+      Van inline a proposito: el nginx del admin cachea cualquier .js/.css un año con
+      immutable y este bundle no lleva hash en el nombre (Pitfall 7 del RESEARCH).
+      Los ids de abajo son el contrato de render del plan 164-11: no renombrar.
+
+      COMPATIBILIDAD (D-20): el piso es Chromium 53. Nada de estilos inline con
+      features modernas (el mockup traia un style="...gap..." en los dots) y nada de
+      atributos que dependan de APIs nuevas. La geometria del marco 16:9 y el tamaño
+      de fuente raiz los fija src/tv/scale.ts por JS, no el CSS.
+    -->
+    <!--__STYLE__-->
+  </head>
+  <body>
+    <div class="tvWrap">
+      <div id="tv">
+        <header class="topbar">
+          <div class="marca">
+            <img src="logo.png" alt="El Templo" />
+            <div>
+              <div class="sede" id="sede">EL TEMPLO</div>
+              <div class="fecha" id="fecha"></div>
+            </div>
+          </div>
+          <div class="reloj" id="reloj">--:--:<span class="seg">--</span></div>
+        </header>
+
+        <div class="cabecera">
+          <h1 id="titulo"></h1>
+          <div class="movilidad" id="movilidad"></div>
+          <div class="bloqueNum">
+            <span id="bloqueNum"></span><span class="dots" id="dots"></span>
+          </div>
+        </div>
+
+        <main class="stage" id="stage">
+          <section class="col izq">
+            <div class="panel listaCol">
+              <div class="cabCol" id="cabNivel"></div>
+              <div class="caja" id="listaBox"></div>
+            </div>
+            <div class="panel timerCaja" id="timerPanel">
+              <div class="cabCol" id="timerCab"></div>
+              <div class="caja">
+                <div class="fase" id="fase">LISTOS</div>
+                <div class="digitos" id="digitos">00:00</div>
+                <div class="sub" id="sub"></div>
+                <div class="barra"><i id="progreso"></i></div>
+                <div class="hint" id="hint"></div>
+              </div>
+            </div>
+          </section>
+          <section class="col videoCol">
+            <div class="cabCol" id="cabVideo"></div>
+            <div class="caja">
+              <video autoplay loop muted playsinline></video>
+              <!--
+                Placeholder del video (mismo criterio que VideoPlaceholder.vue de la app):
+                se muestra cuando el ejercicio no tiene videoUrl o cuando el <video> falla
+                al cargar. Va en el esqueleto y no lo crea el render, por Pitfall 13.
+              -->
+              <div class="videoVacio" id="videoVacio">VIDEO PRÓXIMAMENTE</div>
+            </div>
+          </section>
+        </main>
+
+        <!--
+          Las otras tres pantallas del kiosco. Son overlays del marco 16:9 (tapan la
+          pantalla de clase completa, no hay que ocultarla aparte) y arrancan ocultas.
+          - pairing: TV sin vincular, muestra el codigo corto (estilo Netflix)
+          - reposo: fuera de clase — reloj gigante + logo + quote del PDF (D-06)
+          - cierre: despues del ultimo bloque de la sesion (D-08)
+
+          El esqueleto va escrito aca (y no generado por JS) por Pitfall 13: el render
+          del plan 164-11 ACTUALIZA estos nodos con textContent en cada tick, nunca los
+          recrea. Los textos arrancan vacios: los llena el render.
+        -->
+        <div class="pantalla" id="pantallaPairing">
+          <div class="contenido">
+            <img class="logoGrande" src="logo.png" alt="El Templo" />
+            <div class="codigo" id="pairingCodigo"></div>
+            <div class="instruccion" id="pairingInstruccion"></div>
+          </div>
+        </div>
+        <div class="pantalla" id="pantallaReposo">
+          <div class="contenido">
+            <img class="logoGrande" src="logo.png" alt="El Templo" />
+            <div class="relojXl" id="reposoReloj">--:--:<span class="seg">--</span></div>
+            <div class="fechaXl" id="reposoFecha"></div>
+            <div class="quote" id="reposoQuote"></div>
+            <div class="autor" id="reposoAutor"></div>
+          </div>
+        </div>
+        <div class="pantalla" id="pantallaCierre">
+          <div class="contenido">
+            <img class="logoGrande" src="logo.png" alt="El Templo" />
+            <div class="titulo" id="cierreTitulo"></div>
+            <div class="relojXl" id="cierreReloj">--:--:<span class="seg">--</span></div>
+            <div class="quote" id="cierreQuote"></div>
+            <div class="autor" id="cierreAutor"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!--__SCRIPT__-->
+  </body>
+</html>

@@ -1,17 +1,17 @@
 ---
 gsd_state_version: 1.0
-milestone: v5.8
-milestone_name: Sesiones de Prueba — automatización y self-service
-status: Awaiting next milestone
-stopped_at: Milestone v5.8 complete and archived
-last_updated: "2026-07-16T17:17:48.587Z"
-last_activity: 2026-07-16 — Milestone v5.8 completed and archived
+milestone: v5.7
+milestone_name: Actividades con Aura
+status: executing
+stopped_at: Completed 164-12-PLAN.md
+last_updated: "2026-07-25T00:13:57.248Z"
+last_activity: 2026-07-25
 progress:
-  total_phases: 3
-  completed_phases: 3
-  total_plans: 13
-  completed_plans: 13
-  percent: 100
+  total_phases: 4
+  completed_phases: 1
+  total_plans: 30
+  completed_plans: 27
+  percent: 25
 ---
 
 # Project State
@@ -20,21 +20,21 @@ progress:
 
 See: .planning/PROJECT.md (updated 2026-06-04)
 
-**Core value (v5.8):** Que el estado del lead de sesión de prueba se mantenga solo — Ganado ya es automático (hook `recomputeUserStatus`); falta vencer a Perdido por una ventana X (p90 histórico, configurable en `system_settings`) vía un cron diario nuevo en `src/jobs/`, y resetear a En seguimiento al reprogramar —, que la reprogramación de la primera clase sea acción de primera clase con historial visible, y que el self-service freemium→prueba existente (Phase 119, en prod sin UAT) quede validado end-to-end + teléfono obligatorio + UX de gestión. 3 fases (163-165), 12 requirements (AUTO/REPRO/SELF). 163 (máquina de estados) foundational; 164 depende de 163 (`lead_status_source`); 165 después de 163 (reset self-service). Se monta sobre infra existente (matching lead↔compra ya resuelto por diseño). Numeración arranca en 163 (159-160 reservadas v5.6, 161-162 v5.7). Staging-first estricto; migraciones a verificar en plan-phase (última aplicada 0180; 0181 es de rama no ejecutada).
-**Current focus:** Milestone complete
+**Core value (v5.7):** Clases especiales de sábado (Verticales con Pato, Acrobacias con Nico, 3ª a definir) gateadas por un pase mensual de 2 asistencias mezclables — socio activo +$10.000 ARS, externo $20.000 ARS — con reserva, cupo y asistencia sobre la infra existente (`activities`/`schedules`/`bookings`/`attendance`), y visibilidad de asistencias por actividad para el reparto manual a los profes. 2 fases (161-162), 14 requirements (ACT/PASE/GATE/APP/REP). Modelado: pase = 2 planes `planCategory:'especial'` con budget mensual explícito de 2 + gating por flag en `activities` + enforcement en `BookingService.reserve()` + consumo vía `classesRemaining`. Numeración arranca en 161 (159-160 reservadas por v5.6). Staging-first estricto; migraciones a verificar en plan-phase (0176-0178 tomadas por v5.5).
+**Current focus:** Phase 164 — pantalla-tv-de-sucursal-plani-viva-por-bloque-con-timer-por-
 
 ## Current Position
 
-Phase: Milestone v5.8 complete
-Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-07-16 — Milestone v5.8 completed and archived
+Phase: 164 (pantalla-tv-de-sucursal-plani-viva-por-bloque-con-timer-por-) — EXECUTING
+Plan: 13 of 13 (control del profe listo y smoke end-to-end verde — queda 164-13 runbook+UAT)
+Status: Ready to execute
+Last activity: 2026-07-25
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 76 (v4.1)
+- Total plans completed: 63 (v4.1)
 - Average duration: ~11min
 - Total execution time: ~122min
 
@@ -58,9 +58,6 @@ Last activity: 2026-07-16 — Milestone v5.8 completed and archived
 | 154   | 5     | -      | -        |
 | 155   | 4     | -      | -        |
 | 156   | 5     | -      | -        |
-| 163 | 4 | - | - |
-| 164 | 4 | - | - |
-| 165 | 5 | - | - |
 
 **Recent Trend (from v4.0):**
 
@@ -335,26 +332,30 @@ _Updated after each plan completion_
 | Phase 161 P03 | 30min | 3 tasks | 3 files |
 | Phase 161 P04 | 13min | 2 tasks | 11 files |
 | Phase 161 P05 | 10min | 2 tasks | 5 files |
+| Phase 164 P02 | 11min | 3 tasks | 6 files |
+| Phase 164 P03 | 19min | 3 tasks | 10 files |
 | Phase 161 P06 | ~9min | 3 tasks | 3 files |
 | Phase 162 P01 | ~12min | 2 tasks | 4 files |
 | Phase 162 P02 | 14min | 2 tasks | 3 files |
 | Phase 162 P03 | ~14min | 3 tasks | 4 files |
 | Phase 162 P04 | ~5min | 3 tasks | 3 files |
 | Phase 162 P06 | ~13min | 2 tasks | 4 files |
-| Phase 163 P01 | 13min | 3 tasks | 5 files |
-| Phase 163 P03 | ~30min | 3 tasks | 4 files |
-| Phase 163 P163-04 | 18 | 2 tasks | 3 files |
-| Phase 164 P01 | ~15min | 2 tasks | 4 files |
-| Phase 164 P03 | 12min | 2 tasks | 5 files |
-| Phase 164 P164-02 | 15min | 2 tasks | 3 files |
-| Phase 165 P03 | 15min | 2 tasks | 6 files |
-| Phase 165 P04 | ~8min | 2 tasks | 2 files |
-| Phase 165 P165-05 | 25min | 2 tasks | 1 files |
+| Phase 164 P01 | ~25min | 3 tasks | 5 files |
+| Phase 164 P04 | 11min | 3 tasks | 12 files |
+| Phase 164 P05 | 24min | 3 tasks | 10 files |
+| Phase 164 P06 | 18min | 3 tasks | 5 files |
+| Phase 164 P07 | 9min | 2 tasks | 2 files |
+| Phase 164 P09 | 10min | 3 tasks | 4 files |
+| Phase 164 P08 | 22min | 3 tasks | 3 files |
+| Phase 164 P10 | 17min | 3 tasks | 5 files |
+| Phase 164 P11 | 31min | 3 tasks | 6 files |
+| Phase 164 P12 | 38min | 3 tasks | 4 files |
 
 ## Accumulated Context
 
 ### Roadmap Evolution
 
+- Phase 164 added (standalone admin/api, sin migraciones de sesiones; diseño YA validado en mockup v8): Pantalla TV de sucursal — plani viva por bloque (reemplaza el flujo de PNGs descargados del PDF builder) + timer por formato + video del ejercicio + control remoto del profe. Ruta pública `/tv` en el-templo-admin (marco 16:9, estética del PDF: mármol/Cinzel/NunitoSans/navy+oro de `session-pdf-builder.ts`); layout 2 columnas 45/55: lista del nivel elegido (ejercicio actual gigante) + timer abajo, video mp4 del ejercicio a la derecha (R2 público vía `assembleVideoUrl`). Control remoto = sección coach del admin en el celular: bloque, nivel (α/Δ/Σ/☉; deshabilitado en INITIUM/PYROS que es lista compartida y titula PYROS), ejercicio actual, timer start/reset. Comunicación celular↔TV SIN conexión directa: fila de estado por sede en la API, el TV hace polling 2-3s con device token (vinculación por código corto estilo Netflix), timers viajan como timestamp de inicio y el TV cuenta local. Origen: sugerencia #1 de los socios (6/42 piden reloj/segundero). Spec de UI: mockup navegable https://claude.ai/code/artifact/f61d5518-5716-4620-b02e-1696d961e100 + `164-UI-SPEC.md` + template HTML en el phase dir. Prerequisito operativo: wifi en Moreno. (TV-SUCURSAL)
 - v5.4 milestone roadmapped (phases 149-156, 33 reqs, granularity fine): Reforma del Admin — Correcciones white-label (pre-tenants). Deriva de `.docs/saas-multitenancy/Correcciones El Templo.md` + `01-analisis-correcciones-admin.md`. Continúa numeración desde 148 (NO reset). **149 Nav+RBAC foundational** (categorías Finanzas/Alumnos/Horarios/Planes + gating dueño-vs-empleado + gateo de features Templo fuera del MVP, no borradas). **150 Cuentas bancarias** (ABM flexible 3-obligatorios + baja lógica + retiros del dueño; levanta CAJA-F1 de v5.3) precede a **151 Cobros** (Pagos→Cobros, pasos separados, fecha/hora, COBRO-04 asocia cuenta). **152 Caja** (reorden tabs + estado por fila + filtro por día + validador + ABM centros de costo sobre `cost_centers` de v5.3 fase 147 + nota Saldos). **153 Deudas** (fecha+motivo+plan asociado+no-renovaciones; reutiliza `misc_reason` de v5.3 fase 145 — verificar, no duplicar). **154 Alumnos** (crear prominente + cobro en la fila + precio x medio config + avatar→segmento + niveles griegos gateados Templo). **155 Horarios** (clases simultáneas + crear clase desde slot + capacidad por actividad). **156 Planes** (Planes de pago vs Rutinas de entrenamiento + Zero a config + multi-programa por plan + suba de precio sin romper históricos con test). SIN tenants este milestone. (v5.4-ROADMAP)
 - Phase 148 added (continúa numeración tras v5.3 145-147; depende de v5.2 137/140/141 + v5.3 146): PoS profe — alta de alumno + plan en el cobro. El profe carga el plan directamente en el cobro (extiende `CargarPagoPage.vue` / Fase 140), creando al alumno si es nuevo, reemplazando el Google Form→Excel→admin. Modelo crear-en-vivo + validar-después (pago nace `pendiente` → bandeja Fase 137/141). Decisiones cerradas con el usuario (BRIEF-POS-PROFE-ALTA-ALUMNO.md): dedup por DNI (`check-duplicates`), cascade en void (desactiva membresía + alumno inactivo, no borra), sucursal default del profe editable, precio según medio de pago (tarjeta=`priceCreditCard`, resto=`priceRegular`/`priceZero` toggle Zero, parcial deja deuda), selector de turnos estructurado solo planes `fixed` (reusa `FixedSchedulePicker.vue`). Backend: endpoint nuevo en `coach-load-routes.ts` atómico e idempotente (resolver/crear alumno + `assignPlan(scheduleIds)` + transacción `pendiente`). Hallazgos: "Zero"=columna de precio no plan aparte; crear alumno mínimo ya existe (`POST /members/trial`, email null). Sobre `staging`, tren v5.2/v5.3. Decisiones cerradas → puede ir directo a /gsd-plan-phase (discuss opcional). (POS-NEW)
 - Phase 144 added (standalone app/api/admin, numerada después de 143, NO depende de ella ni del Módulo Contable v5.2): Notificaciones y bloqueo de vencimiento de membresía/plan — 3 entregables: (1) notificación push de vencimiento de plan ~7d antes, réplica del cron "Program Renewal Warning" pero sobre `subscriptions.end_date` + nuevo template `plan_renewal_warning` en `notifications/types.ts`; (2) pop-up in-app a 7 y 3 días del vencimiento con botón a WhatsApp (`buildWhatsAppUrl`); (3) bloqueo de reserva cuando `booking_date > subscription.end_date` en `booking-service.ts reserve()` (hoy ese check NO existe — bug latente) + pop-up en `ReservasPage.vue` con botón a WhatsApp. Reutiliza `pending_notifications`+FCM+`notification-cron` y `el-templo-app/src/utils/whatsapp.ts`. Decisiones abiertas (categoría entrenamiento vs programas, copy 7 vs 3d, anti-repetición del pop-up, salteable vs bloqueante, planes sin end_date, alcance presencial vs online) → discuss-phase. (PLAN-NOTIF, PLAN-POPUP, BOOK-BLOCK)
@@ -397,6 +398,15 @@ Recent decisions affecting current work:
 - Nullable column extension pattern for backward-compatible schema changes (Phase 59)
 - [Phase 59]: documentType required in create mode only, optional in edit mode for backward compatibility
 - [Phase 59]: CSV import script uses static imports for drizzle-orm to avoid dynamic import type mismatches
+- [Phase 164-02]: La quote del reposo/cierre NO viaja en el poll del TV — el kiosco la inlinea en build (evita una tercera copia de las frases del PDF)
+- [Phase 164-02]: El reloj del TV se publica como serverNow + utcOffsetMinutes + dateLabel preformateado (nunca Intl.DateTimeFormat con timeZone: ICU reducida en TVs)
+- [Phase 164-02]: `rom` se modela como work_rest con workMs=0 (fase TRABAJO contando hacia adelante), conservando descanso pautado y contador de rondas
+- [Phase 164-02]: Todo TimerSpec cuya duracion sanitizada colapsa a cero degrada a countup (evita BLOQUE COMPLETO instantaneo y division por ciclo 0 en phaseAt)
+- [Phase 164-03]: El consumo del pairing tambien se sella con UPDATE ... WHERE device_id IS NULL — dos polls solapados del TV podian emitir dos device tokens vivos para un mismo pairing
+- [Phase 164-03]: El guard de device auth se aplica por register anidado (encapsulacion de Fastify), no por preHandler ruta a ruta: /api/tv/pair/\* queda fuera del guard por construccion
+- [Phase 164-03]: POST /devices/:id/revoke lee la sede de la FILA del dispositivo, nunca del payload — requireBranchAccess no aplica cuando el :id es de un device
+- [Phase 164-03]: El listado de dispositivos es fail-closed: un scope sin sedes visibles devuelve [], nunca una query sin WHERE
+- [Phase 164-03]: TV_CONTROL_ROLES = [...ADMIN_ROLES, "coach"] gatea UNICAMENTE /api/admin/tv — no reusarlo en otro modulo (rbac-sets.test.ts lo fija byte a byte)
 - [Phase 59]: 84 unique legacy plan names found, all created as archived subscription_plans on import
 - [Phase 59]: Bulk migration sets pricePaid=0 for legacy-to-current plan migrations (admin adjusts later)
 - [Phase 60]: system_settings key-value table for global config (grace period, future settings)
@@ -780,11 +790,53 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: 161-02: renew discrimina la sub por subscriptionId (valida ownership); guard D-09 en los 4 callsites de referral
 - [Phase ?]: 161-06: gating duro de especiales server-side; PassRequiredError→code PASS_REQUIRED en /reserve; D-04 cuenta reservas futuras pendientes; staff bypass con aviso en adminAddBooking
 - [Phase ?]: 162-03: reporte REP-01 socio/externo por sub que cubre session_date + fallback; sin montos; anti JOIN-fanout
-- [Phase 163]: Phase 163: lead_status_source ENUM(auto,manual) + leads.perdido_window_days seeded via dynamic p90 (fallback 14); getPerdidoWindowDays reader on SettingsService
-- [Phase 163]: 163-03: auto (compra/reset/alta) puede pisar Perdido; manual solo via PATCH humano, intocable por el cron
-- [Phase ?]: 164-01: rescheduleTrial transaccional (cancel-old + reset-lead source auto + create-new en UNA db.transaction); guard ALL_STAFF_ROLES heredado del hook
-- [Phase ?]: 164-02: UI Reprogramar sesion de prueba (dialogo fecha+slot) sobre endpoint 164-01; gate frontend por eslint (vue-tsc ausente del toolchain)
-- [Phase 165]: El teléfono del lead se pide recién en el diálogo de reserva de prueba (no en signup) cuando phoneRequired — cero fricción extra en el registro (D-05)
+- [Phase 164]: Fase 164 se ejecuta en el worktree aislado /home/franco/projects/et-164-tv (rama feat/164-tv-sucursal, base origin/master) — El checkout principal estaba 135 commits atras (mig maxima 0181 vs 0188 en master) y con WIP sin commitear de otra sesion; cambiar de rama ahi habria contaminado trabajo ajeno
+- [Phase 164]: block_role/level/timer_status/screen se declaran varchar y no mysqlEnum — El primer argumento de mysqlEnum es el nombre fisico de la columna y su lista de valores debe coincidir byte a byte con el SQL; esa desalineacion rompio CI en 0138/0139 sin que tsc se entere
+- [Phase 164-04]: El kiosco /tv es un artefacto estatico fuera del SPA: bundle propio ES2015 con CSS y JS inline en el HTML (el nginx del admin cachea .js/.css 1 año immutable y congelaria los TVs)
+- [Phase 164-04]: Las QUOTES del PDF entran al bundle del kiosco por un unico punto (main.ts) y bajan a boot(quotes) por parametro; el tipo es el SessionQuote que ya exporta quotes.ts
+- [Phase 164-04]: src/tv/tsconfig.tv.json (target es2015, lib es2015+dom, types []) es el linter de compatibilidad del kiosco: rechaza padStart/Object.entries en build, no en la sede
+- [Phase 164-04]: public/tv se genera en cada build y esta gitignoreado: los ~500 KB de fuentes/marmol/logo salen del base64 de pdf-assets.ts, no de binarios commiteados ni de un CDN
+- [Phase 164-05]: El orden canonico de bloques queda duplicado a proposito entre el API (modules/tv/roster.ts) y el admin (utils/pdf/session-data-transformer.ts) — el PDF corre en el browser y no puede importar del server; ambos archivos llevan comentario espejo y el test unitario del roster es la red de ese espejo
+- [Phase 164-05]: tv_class_state.class_date pasa a mode "string" (convencion del repo) — con un Date el expire-on-read obligaba a reformatear con getters UTC, que es exactamente el bug de TZ que D-07 evita. Solo mapeo del driver: sin migracion
+- [Phase 164-05]: levels nunca queda vacio mientras approved sea true — un nivel fuera del orden canonico se agrega al final en vez de descartarse, o el clamp se queda sin nivel al que caer y el TV muestra lista en blanco con sesion aprobada
+- [Phase 164-05]: Los formatos que dictan reps/segundos (tabata/interval/hiit/on_the_x/death_by) no muestran volumen en el TV — el valor guardado es basura de default y el editor ni siquiera lo expone; espejo de FORMAT_DICTATED_TYPES del admin
+- [Phase 164-05]: El tsconfig del API solo incluye src/\*\*/\* — los archivos de test NO se typechequean con tsc --noEmit (vitest los transpila sin chequear); un tsc limpio no prueba que los tests tipen
+- [Phase 164-06]: El CSS del kiosco (src/tv/styles.css) tiene piso Chromium 53 y su encabezado lista las features prohibidas con la version en que aparecieron: se escribe UNA sola vez, sin bloques condicionales, para que el camino que se ve en escritorio sea el que corre en el TV
+- [Phase 164-06]: 1rem del kiosco == 1% del ancho del marco 16:9, porque scale.ts fija html { font-size: ancho/100 } — reemplaza container queries y la relacion de aspecto del mockup v8; rem y NO em (los em se componen en cascada y el layout anida 4 niveles)
+- [Phase 164-06]: El canal entre las columnas 45/55 es padding-right de la izquierda, no margin: con box-sizing border-box los dos flex-basis siguen sumando 100% exacto
+- [Phase 164-06]: pad2() vive en scale.ts y es el unico helper de relleno de src/tv/ (logger.ts lo importa); el metodo nativo es ES2017 y el tsconfig del kiosco lo rechaza
+- [Phase 164-06]: Los simbolos de nivel se pintan con <span class="glyph"> (stack de sistema) y el de kairos con <span class="glyph kairos"> (dibujado en CSS): Cinzel no cubre griego, igual que en el PDF
+- [Phase 164-06]: /tv/?diag=1 es el unico instrumento de campo (no hay devtools en un TV): user agent, marco y px por rem, 12 feature-detects, version local vs version.txt, status+latencia del poll y las ultimas 20 lineas del log — todo con textContent y el device token truncado a 4 chars
+- [Phase 164-06]: tvApiBase() (diag.ts) es la resolucion unica de la base del API del kiosco — el poll de 164-11 debe reusarla, no escribir una segunda
+- [Phase 164-07]: src/tv/timer.ts es un port 1:1 de modules/tv/timer-phase.ts (con TimerSpec/TimerFrame duplicados a proposito): cualquier cambio va PRIMERO al API, donde estan los tests, y despues se copia — la divergencia la detecta ?selftest=1, no la lectura
+- [Phase 164-07]: elapsedFrom(timer, nowCorrected) implementa D-17 en el consumidor (running = nowCorrected - startedAt - pausedAccumMs, paused congelado en pausedAt, idle = 0) y NUNCA lee el reloj de pared: el runtime del poll (164-11) debe pasarle reloj local + offset del servidor, no el crudo
+- [Phase 164-07]: formatDigits redondea hacia ARRIBA como el fmt() del mockup v8 (el 00:01 dura todo el ultimo segundo); efecto conocido: un cronometro libre salta a 00:01 apenas arranca
+- [Phase 164-07]: /tv/?selftest=1 corre 34 casos en el televisor (28 samples de los 6 vectores dorados del API + 3 de elapsedFrom + 3 de formatDigits) y pinta PASS/FAIL gigante — es el primer paso del UAT en cada sede, antes de ?diag=1
+- [Phase 164-07]: No hay browser headless ni jsdom en esta maquina y no se pueden instalar (gate humano): el render del kiosco se verifica corriendo el <script> inline del public/tv/index.html generado con node:vm sobre un DOM minimo
+- [Phase 164-09]: useTvApi.ts es el UNICO wrapper del admin sobre /api/admin/tv (el plan 164-12 le cuelga los metodos del control ahi, no en un composable nuevo); expone ademas normalizeUserCode/isValidUserCode/describeClaimError para que el codigo y los 404/409 se traten igual en toda la superficie
+- [Phase 164-09]: El SPA del admin NO puede tener una ruta con path 'tv' ni '/tv' (el kiosco es public/tv/index.html servido por nginx): las rutas del panel son 'tv/devices' y 'tv/control' — hay un chequeo de node en el verify del plan que lo vigila
+- [Phase 164-09]: TV_CONTROL_ROLES vive tambien en templo-config.ts (coach/admin/owner) y alimenta a la vez el nav y el meta.allowedRoles de la ruta: espeja el set homonimo del API, que es el gate real
+- [Phase 164-09]: Sin vue-tsc en el admin, el typecheck de un .vue se hace extrayendo el bloque <script setup> a un .ts temporal dentro de src/ y corriendo el tsc local con diff contra baseline; el compilado real lo valida `quasar build` (que ademas corre eslint via vite-plugin-checker)
+- [Phase 164-08]: El response schema de GET /api/tv/state es la red de contencion de D-09 — fast-json-stringify solo serializa lo declarado, asi que ningun campo de diagnostico agregado al payload puede llegar a la pared de la sede sin declararlo
+- [Phase 164-08]: POST /api/tv/client-log escribe SIEMPRE en warn (el nivel reportado por el kiosco viaja como campo estructurado `reportedLevel`) — un televisor en loop de fallo pollea sin descanso y no puede disparar una cascada de alertas
+- [Phase 164-08]: El poll responde con `Cache-Control: no-store` — es estado vivo a 2.5 s y un intermediario que cachee deja el televisor congelado en un bloque que ya termino
+- [Phase 164-08]: Los tests de rutas del TV congelan el reloj con fake timers: la ruta no acepta un `now` inyectado (T-164-31) y sin congelarlo el archivo seria rojo los domingos y el borde AR/ES solo pasaria unas horas por dia
+- [Phase 164-10]: La escritura del control es ABSOLUTA e idempotente (start/pause/resume son NO-OP si ya estan en ese estado): con red mala, el doble tap no adelanta dos bloques ni reinicia el timer
+- [Phase 164-10]: Escribir estado sin sesion aprobada devuelve 409 y no crea fila: sin roster no hay rol al que apuntar y el TV quedaria en blanco
+- [Phase 164-10]: Un blockRole o level que hoy no existe se DESCARTA con warn, no se aplica-y-clampea: aplicarlo bajaria al profe al primer bloque con el timer en cero
+- [Phase 164-10]: endClass borra la fila de tv_class_state: 'sin fila' es el mismo reposo que ya produce el expire-on-read (D-07)
+- [Phase 164-11]: El kiosco guarda TRES claves en localStorage (deviceToken, deviceCode y userCode): /pair/status no devuelve el codigo visible, y sin persistirlo un reinicio antes de vincular deja la pantalla del codigo en blanco
+- [Phase 164-11]: El offset de reloj del TV se suaviza (media movil de 5 muestras + realineado si el salto supera 5 s): asignar serverNow crudo hace saltar los digitos con la latencia de cada poll
+- [Phase 164-11]: Un poll fallido NO toca el estado en memoria del kiosco — es lo que hace que con el wifi caido la pantalla no parpadee y el timer siga contando
+- [Phase 164-11]: location.reload() del kiosco vive detras de una unica guarda de screen === 'idle' (D-22), y el reciclado preventivo por 12 h de uptime pasa por la misma puerta
+- [Phase 164-11]: Los simbolos de nivel que el API manda dentro de listHeader se re-envuelven en span.glyph al pintarlos: como texto plano salen tofu, y el de kairos lo dibuja el CSS
+- [Phase 164-11]: El API tiene que sellar startedAt/pausedAt UNA sola vez — si se mueven en cada respuesta, el timer del TV no avanza (o los digitos se mueven estando en pausa)
+- [Phase 164-12]: Cada tap del control manda un estado ABSOLUTO y reemplaza el contexto local con la respuesta ya clampeada: el clamp del server se ve en la botonera sin re-consultar ni inferir nada
+- [Phase 164-12]: El boton de pantalla de cierre es un TOGGLE (VOLVER A LA CLASE, screen: 'class'): en una botonera ciega, un tap equivocado sin vuelta atras obliga a terminar la clase entera para recuperarse
+- [Phase 164-12]: El refresco periodico del control se saltea si hay una escritura en vuelo — una respuesta vieja aterrizando despues de un tap hace rebotar los botones, indistinguible de 'el tap no funciono'
+- [Phase 164-12]: El televisor se autentica con 'Authorization: Device <token>' (token opaco, NO Bearer) y el pairing devuelve el campo deviceToken, no token — las dos trampas que hicieron fallar el primer smoke
+- [Phase 164-12]: Smoke end-to-end local 23/23 (vincular -> iniciar -> bloque/nivel/ejercicio -> timer -> sonido -> cierre -> terminar, con el poll del TV reflejando cada paso). Pendiente: UAT visual en celular y en un TV real
+- [Phase 164-12]: Un smoke que toca la DB de desarrollo restaura PRIMERO lo que mas duele perder: la primera corrida murio por una FK de tv_pairings y dejo 5 sesiones movidas de semana
 
 ### Pending Todos
 
@@ -815,29 +867,10 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - Plan 130-02: graduation is event-driven (NO cron), wired as a guarded try/catch side effect into all 3 completed-session insert paths — sessions/routes.ts + goal-plans/routes.ts (after AURA award), attendance/service.ts (inline inside recordPresencialSession after the presencial mirror insert). 5 tests in test/kairos/kairos-graduation.test.ts (CI). API tsc green. staging, not pushed
 - Plan 130-04 (KAIROS-07 app half, D-04): decision pre-resolved include-kairos (overnight). Prepended `{ value: 'kairos', label: 'α Kairos' }` FIRST in LEVEL_SELECTOR_QUESTION.options (onboarding/types.ts) → self-pick now kairos→alfa→delta→sigma→omega (5 boxes; spartan still excluded — earned, not claimed). 5 boxes is below OnboardingQuestion's `>5` scrollable threshold → no layout break. HeaderLevelDropdown.vue already v-for's TRAINING_LEVELS (kairos first since 129) → VERIFIED, no change. Gate = app lint (0 errs) + quasar build (succeeded; vue-tsc not a runnable script here, build covers full tsc). human-verify (visual UAT) DEFERRED. KAIROS-07 now complete app+admin. staging, not pushed. Phase 130 ready_for_verification.
 
-## Deferred Items
-
-Items acknowledged and deferred at v5.8 milestone close on 2026-07-16 (audit-open: 72 open items, mayoría deuda histórica pre-v5.8):
-
-| Category | Item | Status |
-|----------|------|--------|
-| uat | 163-HUMAN-UAT.md — p90 real que siembre 0182 + dry-run 0183 contra prod (≈112 flips esperados) | pending |
-| uat | 164-HUMAN-UAT.md — reprogramar E2E + reporte con columnas nuevas | pending |
-| uat | 165-HUMAN-UAT.md — wa.me en dispositivo real, diálogo teléfono app, Ver ficha + aviso CSV (IN-02), variedad de formatos | pending |
-| verification | 165-VERIFICATION.md status `human_needed` (0 gaps de implementación) | pending UAT |
-| deferred | Flake UTC preexistente en `reports-trial-sessions.test.ts` (deferred-items.md de 164) | open |
-| histórico | 27 UAT gaps + 42 verification gaps acumulados de fases pre-v5.8 (v5.0/v5.1/116/134/136, tren v5.2/v5.3, v5.7 sin SUMMARYs 161-162) — ver memoria `archive/INDEX.md` | acknowledged |
-| quick_task | 001-remove-timers-add-saberes-info / 2-create-coach-user-guide (artefactos missing, stale) | acknowledged |
-| todo | v51-milestone-data-rollout (poblar `milestone_exercise_id`) | open |
-
 ## Session Continuity
 
-Last session: 2026-07-16T17:20:00.000Z
-Stopped at: Milestone v5.8 complete and archived
+Last session: 2026-07-25T00:13:27.964Z
+Stopped at: Completed 164-12-PLAN.md
 Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
-
-## Operator Next Steps
-
-- Start the next milestone with /gsd-new-milestone

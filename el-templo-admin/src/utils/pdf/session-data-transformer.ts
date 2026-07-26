@@ -23,6 +23,12 @@ const LEVEL_ORDER = ['alfa', 'delta', 'sigma', 'kairos'];
 // sesiones, pero semanas viejas o ediciones manuales pueden divergir — por eso
 // la fuente se elige con orden determinista (alfa = canónico) en vez de tomar
 // la primera sesión que llegue del API (orden de filesort, no garantizado).
+//
+// ESPEJO (fase 164): este orden canónico —junto con el alias EPIKOS/ATHLOS de
+// findBlock y el orden de roles— está duplicado a propósito en
+// `el-templo-api/src/modules/tv/roster.ts`, que arma el roster de la pantalla
+// TV de sucursal. Ese código corre en el server y no puede importarse desde
+// acá (browser). Todo cambio en este archivo REQUIERE el cambio espejo allá.
 const INITIUM_SOURCE_ORDER = ['alfa', 'delta', 'sigma', 'kairos'];
 
 /** Pick the canonical INITIUM block: first level in INITIUM_SOURCE_ORDER that has one. */
