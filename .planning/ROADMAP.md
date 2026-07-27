@@ -4438,7 +4438,37 @@ Plans:
 3. El script lista aparte —como caso legítimo, no como error— las filas [SIN-ANCLA] y parciales de la mina M4 (cajas centrales/banco con `branch_id` NULL, egresos/movimientos sin member ni branch, unsubscribes solo-email, `tv_pairings` pre-claim). (COL-02)
 4. Cada paso intermedio (columna nullable → backfill → `NOT NULL`) deja el API pre-tenancy funcionando: suite verde y staff sin cambio visible durante todo el rollout, sin ventana de downtime.
 
-**Plans:** TBD
+**Plans:** 7 plans
+
+Plans:
+
+**Wave 1**
+
+- [ ] 167-01-PLAN.md — Base de trabajo aislada (worktree `et-167-columnas`), reserva de los numeros 0192-0195, helper unico `tenantIdColumn()` y clasificacion canonica de las 91 tablas con test fail-closed
+
+**Wave 2** _(blocked on Wave 1 completion)_
+
+- [ ] 167-02-PLAN.md — Tanda C1: `tenant_id` en las 27 tablas del core operativo (socios, scheduling, suscripciones, finanzas) + migracion 0192
+
+**Wave 3** _(blocked on Wave 2 completion)_
+
+- [ ] 167-03-PLAN.md — Tanda C2: `tenant_id` en las 16 tablas de comunicacion, crecimiento e integraciones Wellhub + migracion 0193
+
+**Wave 4** _(blocked on Wave 3 completion)_
+
+- [ ] 167-04-PLAN.md — Tanda C3: `tenant_id` en las 22 tablas del motor SPOM + migracion 0194
+
+**Wave 5** _(blocked on Wave 4 completion)_
+
+- [ ] 167-05-PLAN.md — Tanda C4: `tenant_id` en las 20 tablas de AURA, wellness, programs, marketing y TV + migracion 0195 (cierra las 85)
+
+**Wave 6** _(blocked on Wave 5 completion)_
+
+- [ ] 167-06-PLAN.md — COL-02: script versionado `verify-tenant-backfill.ts` (cadenas de FK, logicas M9, casos [SIN-ANCLA] y M4) + test de CI sobre las 87 tablas
+
+**Wave 7** _(blocked on Wave 6 completion)_
+
+- [ ] 167-07-PLAN.md — Gate local consolidado + checkpoint humano de rollout staging-first y verificacion en `eltemplo_staging` y `eltemplo`
 
 ### Phase 168: Contratos SQL — uniques compuestas e índices por `tenant_id`
 
