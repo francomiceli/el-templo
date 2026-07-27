@@ -49,6 +49,7 @@ export const tvDevices = mysqlTable(
       .notNull()
       .references(() => branches.id),
     // Solo sha256 hex del token opaco (T-164-03).
+    // tenant-global (M8) a proposito: secreto random con lookup pre-scope — el TV se identifica por su hash antes de que se sepa de que tenant es, asi que componer la unique por tenant seria circular. NO es un olvido de la fase 168: el motivo esta registrado en TENANT_GLOBAL_UNIQUES de src/db/tenant-tables.ts (lista M8, aprobada 2026-07-26, doc 06 §8-Q4).
     tokenHash: varchar("token_hash", { length: 64 }).notNull().unique(),
     name: varchar("name", { length: 100 }),
     isActive: boolean("is_active").default(true).notNull(),
@@ -80,8 +81,10 @@ export const tvPairings = mysqlTable("tv_pairings", {
   // Fase 167 (COL-01): tenancy. Valor server-side, nunca de payload. Ver src/db/schema/tenant-column.ts
   tenantId: tenantIdColumn(),
   // Publico: es lo que se ve en la pantalla del TV (D-02, no expira).
+  // tenant-global (M8) a proposito: codigo pre-claim con lookup pre-scope — ver la mina M7 de arriba, el staff lo reclama antes de que la fila tenga sede. NO es un olvido de la fase 168: el motivo esta registrado en TENANT_GLOBAL_UNIQUES de src/db/tenant-tables.ts (lista M8, aprobada 2026-07-26, doc 06 §8-Q4).
   userCode: varchar("user_code", { length: 6 }).notNull().unique(),
   // Secreto del TV — sha256 hex, nunca se muestra (T-164-03).
+  // tenant-global (M8) a proposito: secreto random pre-claim con lookup pre-scope — ver la mina M7 de arriba, el TV vuelve con este hash antes de que exista scope. NO es un olvido de la fase 168: el motivo esta registrado en TENANT_GLOBAL_UNIQUES de src/db/tenant-tables.ts (lista M8, aprobada 2026-07-26, doc 06 §8-Q4).
   deviceCodeHash: varchar("device_code_hash", { length: 64 })
     .notNull()
     .unique(),

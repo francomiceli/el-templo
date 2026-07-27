@@ -7,6 +7,7 @@ import {
   boolean,
   timestamp,
   index,
+  uniqueIndex,
 } from "drizzle-orm/mysql-core";
 import { relations } from "drizzle-orm";
 import { users } from "./users";
@@ -34,7 +35,9 @@ export const branches = mysqlTable(
       .default(1)
       .references(() => tenants.id),
     name: varchar("name", { length: 255 }).notNull(),
-    code: varchar("code", { length: 20 }).notNull().unique(),
+    // Fase 168 (CON-01): el código de sede dejó de ser único global — la unique
+    // vive en el callback de tabla como uq_branches_tenant_code (tenant_id, code).
+    code: varchar("code", { length: 20 }).notNull(),
     timezone: varchar("timezone", { length: 50 })
       .default("America/Argentina/Buenos_Aires")
       .notNull(),
@@ -48,6 +51,7 @@ export const branches = mysqlTable(
     // plataforma Wellhub/Gympass. NULL = sede sin Wellhub (integración apagada).
     // El webhook entrante resuelve la sede por este id (event_data.gym.id) y la
     // sincronización de clases/slots solo publica sedes con valor no-NULL.
+    // tenant-global (M8) a proposito: id de plataforma externa — la unique global es lo que impide que dos tenants reclamen el mismo gimnasio de Wellhub, y el webhook entrante resuelve la sede por este id SIN scope. NO es un olvido de la fase 168: el motivo esta registrado en TENANT_GLOBAL_UNIQUES de src/db/tenant-tables.ts (lista M8, aprobada 2026-07-26, doc 06 §8-Q4).
     wellhubGymId: bigint("wellhub_gym_id", { mode: "number" }).unique(),
     romEnabled: boolean("rom_enabled").default(false).notNull(),
     isActive: boolean("is_active").default(true).notNull(),
@@ -58,6 +62,11 @@ export const branches = mysqlTable(
   (table) => [
     // Fase 166 (FUND-02): toda query gym-owned filtra por tenant_id.
     index("idx_branches_tenant_id").on(table.tenantId),
+    // Fase 168 (CON-01): unicidad POR TENANT — el código de sede es único dentro
+    // del gimnasio, no del mundo. Sin índice secundario sobre `code` (D-06):
+    // branches es un catálogo de decenas de filas. Índice byte-for-byte con la
+    // migración 0196.
+    uniqueIndex("uq_branches_tenant_code").on(table.tenantId, table.code),
   ],
 );
 

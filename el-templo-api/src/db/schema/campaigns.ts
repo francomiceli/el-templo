@@ -114,10 +114,11 @@ export const campaignUnsubscribes = mysqlTable(
     id: int("id").primaryKey().autoincrement(),
     // Fase 167 (COL-01): tenancy. Valor server-side, nunca de payload. Ver src/db/schema/tenant-column.ts
     tenantId: tenantIdColumn(),
-    // Mina M3 (doc 06 §8-Q5): la unique global sobre `email` pasa a ser compuesta
-    // (tenant_id, email) en la fase 168 — hoy una baja en un gimnasio suprimiría los
-    // envíos de todos. Ojo: `user_id` puede ser NULL (baja solo-email), así que el
-    // backfill de esta tabla es DIRECTO a 1 y no derivado del socio.
+    // Mina M3 (doc 06 §8-Q5): RESUELTA en la fase 168 — la unique global sobre
+    // `email` YA es compuesta (tenant_id, email) desde la migración 0196, así que
+    // una baja en un gimnasio no suprime los envíos de los demás. Ojo: `user_id`
+    // puede ser NULL (baja solo-email), así que el backfill de esta tabla fue
+    // DIRECTO a 1 y no derivado del socio.
     userId: int("user_id").references(() => users.id, { onDelete: "cascade" }),
     email: varchar("email", { length: 255 }).notNull(),
     campaignId: int("campaign_id").references(() => campaigns.id, {
@@ -127,7 +128,16 @@ export const campaignUnsubscribes = mysqlTable(
   },
   (table) => [
     // Suppression idempotency (D-15): one unsubscribe row per email.
-    uniqueIndex("uniq_campaign_unsubscribe_email").on(table.email),
+    // Fase 168 (CON-01): unicidad POR TENANT — una fila de baja por email DENTRO
+    // del gimnasio. Índice byte-for-byte con la migración 0196.
+    uniqueIndex("uq_campaign_unsubscribes_tenant_email").on(
+      table.tenantId,
+      table.email,
+    ),
+    // Fase 168 (D-05): repone el lookup por el email pelado que la unique
+    // compuesta deja sin índice — el filtro NOT EXISTS de envíos de campañas.
+    // Byte-for-byte con la migración 0196.
+    index("idx_campaign_unsubscribes_email").on(table.email),
   ],
 );
 

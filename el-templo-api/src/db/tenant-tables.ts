@@ -1,8 +1,30 @@
 // Módulo: tenant-tables — clasificación canónica "¿esta tabla lleva tenant_id?" (v6.0, COL-01)
+//                          + "¿por qué esta unique sigue siendo global?" (v6.0, CON-01/CON-02)
 //
 // Esta es la fuente de verdad de qué tablas son gym-owned (llevan la columna
 // `tenant_id` que declara `schema/tenant-column.ts`) y cuáles están exentas.
 // Vive fuera de `schema/` a propósito: no es una tabla, es metadata del modelo.
+//
+// SEGUNDA RESPONSABILIDAD (fase 168, D-13/D-14)
+// --------------------------------------------
+// La fase 168 le suma un segundo eje de clasificación: no alcanza con saber qué
+// TABLAS llevan `tenant_id`, hay que saber qué UNIQUES siguen siendo globales y
+// POR QUÉ. Después de la migración 0196 quedan uniques de tablas gym-owned que
+// no arrancan con `tenant_id`, y hay exactamente tres motivos legítimos:
+//   1. `TENANT_GLOBAL_UNIQUES` — la lista M8 (doc 05 §6, aprobada 2026-07-26):
+//      ids de plataforma externa y secretos random con lookup pre-scope, que
+//      quedan globales PARA SIEMPRE y a propósito.
+//   2. `TENANT_UNIQUE_ALLOWLIST` — uniques seguras por transitividad (su primer
+//      campo es una FK a una tabla ya scopeada) o deuda consciente de módulos
+//      Templo-only.
+//   3. Ninguno: entonces es un bug de aislamiento y el verificador la reporta.
+// El motivo es OBLIGATORIO por entrada (D-13): los dos registros son
+// `Record<clave, motivo>` justamente para que no se pueda agregar una unique sin
+// escribir por qué. Una allowlist sin motivos se vuelve una alfombra.
+//
+// El gate que consume estos registros es
+// `src/db/scripts/verify-tenant-uniques.ts` (CLI + suite), fail-closed: una
+// unique global nueva sin clasificar devuelve exit 1.
 //
 // DE DÓNDE SALE LA LISTA
 // ----------------------
@@ -162,4 +184,270 @@ const GYM_OWNED_SET: ReadonlySet<string> = new Set(GYM_OWNED_TABLES);
  */
 export function isGymOwnedTable(name: string): boolean {
   return GYM_OWNED_SET.has(name);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Fase 168 (CON-01 / CON-02) — clasificación de uniques
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// FORMATO DE LA CLAVE
+// -------------------
+// `"<tabla_física>.<nombre_físico_de_índice>"`, los dos tal como los devuelve
+// INFORMATION_SCHEMA.STATISTICS — NO los nombres de las constantes TypeScript ni
+// el nombre de la columna. Importa: cuando una unique se declara con `.unique()`
+// inline, Drizzle genera el nombre `<tabla>_<columna>_unique`, pero varias
+// uniques de este repo nacieron en una migración hand-written con OTRO nombre y
+// el schema `.ts` nunca lo reflejó (`refresh_tokens` es el caso vivo: el schema
+// dice `.unique()` y la migración 0125 la creó como
+// `uq_refresh_tokens_token_hash`). La base es la verdad: estas claves se leen de
+// `INFORMATION_SCHEMA`, no se deducen del schema.
+
+/**
+ * Lista **M8** — uniques de tablas gym-owned que quedan GLOBALES a propósito y
+ * para siempre, con el motivo de cada una (doc 05 §6, aprobada completa el
+ * 2026-07-26 — doc 06 §8-Q4). Son once y no hay una doceava por descuido.
+ *
+ * Dos racionales, y ninguno es "no llegamos a convertirla":
+ *
+ * - **Id de plataforma externa.** El valor lo emite un tercero (Wellhub/Gympass)
+ *   y es único en SU universo. La unique global es justamente la que impide que
+ *   dos tenants reclamen el mismo recurso externo: componerla por `tenant_id`
+ *   permitiría que dos gimnasios se declaren dueños del mismo gym de Wellhub.
+ * - **Secreto random con lookup pre-scope.** El token llega solo, sin sesión: el
+ *   tenant se resuelve DESPUÉS de encontrar la fila. Componer por `tenant_id`
+ *   sería circular (haría falta el tenant para buscar lo que da el tenant), y
+ *   además la colisión entre dos valores random de 32+ bytes no existe en la
+ *   práctica.
+ *
+ * Cada una de las once lleva además un comentario de una línea en su schema
+ * file, que apunta acá (fase 168 plan 02). Si alguien "arregla" una de estas
+ * convirtiéndola a compuesta, rompe login, push, el pairing del TV o la
+ * integración con Wellhub.
+ */
+export const TENANT_GLOBAL_UNIQUES: Record<string, string> = {
+  // ── Ids de plataforma externa ──────────────────────────────────────────────
+  "users.users_gympass_id_unique":
+    "Id de plataforma externa: `gympass_id` lo emite Gympass/Wellhub, no El Templo. Global impide que dos tenants reclamen al mismo usuario de Gympass, que es exactamente el contrato que queremos.",
+  "branches.branches_wellhub_gym_id_unique":
+    "Id de plataforma externa: `wellhub_gym_id` identifica una sede en el catálogo de Wellhub. Dos tenants no pueden mapear su sede al MISMO gym de Wellhub — la unique global es la que lo garantiza.",
+  "wellhub_classes.idx_wellhub_classes_class_id":
+    "Id externo: `wellhub_class_id` viene en el payload de Wellhub y es la clave de upsert del sync. Componerla por tenant duplicaría la misma clase de Wellhub en dos gimnasios.",
+  "wellhub_slots.idx_wellhub_slots_slot_id":
+    "Id externo: `wellhub_slot_id` es la identidad del cupo del lado de Wellhub y la clave de upsert del sync de slots.",
+  "wellhub_bookings.idx_wellhub_bookings_number":
+    "Id externo: `booking_number` lo asigna Wellhub a la reserva. Es la referencia con la que Wellhub pide cancelar o validar, y llega sin ningún scope de tenant.",
+  "wellhub_events.idx_wellhub_events_event_id":
+    "Id externo con función de idempotencia: `event_id` deduplica el webhook de Wellhub. El webhook se procesa ANTES de saber a qué tenant pertenece, así que el dedup tiene que ser global o no dedup nada.",
+
+  // ── Secretos random con lookup pre-scope ───────────────────────────────────
+  "refresh_tokens.uq_refresh_tokens_token_hash":
+    "Secreto random con lookup pre-scope: el refresh llega con el token solo y el tenant sale de la fila encontrada, no al revés. OJO con el nombre: el schema declara `.unique()` inline (Drizzle lo llamaría `refresh_tokens_token_hash_unique`) pero la migración 0125 lo creó como `uq_refresh_tokens_token_hash` — el nombre físico manda.",
+  "device_tokens.device_tokens_token_unique":
+    "Token de push (FCM) con lookup pre-scope: el token lo emite Firebase y el upsert lo busca por valor pelado para reasignarlo cuando el mismo dispositivo cambia de socio.",
+  "tv_devices.tv_devices_token_hash_unique":
+    "Secreto random con lookup pre-scope: el TV se autentica con su token y de ahí sale la sede — y por lo tanto el tenant. Componerla sería circular.",
+  "tv_pairings.tv_pairings_user_code_unique":
+    "Pre-claim (mina M7): la fila de pairing nace ANTES de saber de quién es el televisor (`branch_id` nulo hasta el claim), así que el código que el staff tipea se resuelve sin ningún scope.",
+  "tv_pairings.tv_pairings_device_code_hash_unique":
+    "Pre-claim (mina M7): el device code lo poll-ea el televisor antes del claim, sin sesión ni tenant. Mismo motivo que `user_code`, sobre el hash del código de dispositivo.",
+};
+
+/**
+ * Uniques de tablas gym-owned que NO arrancan con `tenant_id` y NO son M8, con
+ * el motivo por el que igual son seguras (o por el que su riesgo está aceptado
+ * a conciencia). Tres categorías, distinguidas en el texto de cada motivo:
+ *
+ * **(a) Derivada de FK scopeada.** La PRIMERA columna del índice es una FK a una
+ * tabla que ya lleva `tenant_id`. Dos tenants no pueden compartir el valor de
+ * esa FK, así que la unicidad ya es por tenant por transitividad. Convertirlas
+ * sería ruido: agregaría una columna redundante a decenas de índices sin cambiar
+ * ni un contrato. El motivo de cada entrada NOMBRA la FK y la tabla padre — un
+ * "derivada de FK" genérico no permite auditar nada.
+ *
+ * **(b) Deuda consciente Templo-module.** Uniques de módulos que hoy solo usa el
+ * tenant 1 (SPOM, blog/marketing, Gladius, Aura). Colisionarían si un tenant
+ * distinto de 1 activara ese módulo — y ese es exactamente el momento en que se
+ * resuelven, en la discusión del módulo (README §4.3). **NO es un olvido de la
+ * fase 168:** está fuera del boundary de la fase por decisión explícita del
+ * CONTEXT, y la conversión sin el módulo discutido sería adivinar el contrato.
+ *
+ * **(c) Token opaco random con lookup pre-scope.** Mismo racional que la segunda
+ * mitad de M8, pero sobre una unique que no entró en aquella lista (M8 quedó
+ * cerrada en once el 2026-07-26 y no se toca desde acá).
+ *
+ * Esta lista es fail-closed: si falta una entrada, el verificador la reporta
+ * como discrepancia y devuelve exit 1. Nunca pasa en silencio.
+ */
+export const TENANT_UNIQUE_ALLOWLIST: Record<string, string> = {
+  // ── (a) Derivadas de una FK ya scopeada ────────────────────────────────────
+  "aura_balances.aura_balances_user_id_unique":
+    "Derivada de FK scopeada: primer campo `user_id` → `users`, que lleva `tenant_id`. El saldo Aura es uno por socio y el socio ya es de un solo tenant.",
+  "aura_transactions.unique_user_source_ref":
+    "Derivada de FK scopeada: primer campo `user_id` → `users`. La idempotencia (source_type, reference_type, reference_id) se evalúa dentro del socio, y el socio es de un solo tenant.",
+  "balances.uniq_balance_target":
+    "Derivada de FK scopeada: primer campo `member_id` → `users`. El saldo por (target_kind, target_id, currency) es del socio, así que la unicidad ya está encerrada en su tenant.",
+  "blog_post_tags.post_tag_unique":
+    "Derivada de FK scopeada: primer campo `post_id` → `blog_posts`, tabla gym-owned con `tenant_id`. Es la tabla puente del blog: no puede unir un post de un tenant con un tag de otro sin violar su propia FK.",
+  "bookings.idx_bookings_member_schedule_date":
+    "Derivada de FK scopeada: primer campo `member_id` → `users`. Una reserva por socio, horario y día — el socio ancla el tenant.",
+  "campaign_sends.uniq_campaign_user":
+    "Derivada de FK scopeada: primer campo `campaign_id` → `campaigns`, que lleva `tenant_id`. Un envío por campaña y destinatario, dentro de la campaña de un solo gimnasio.",
+  "check_in_responses.uq_check_in_daily":
+    "Derivada de FK scopeada: primer campo `user_id` → `users`. Una respuesta de check-in por socio, tipo de pregunta y día.",
+  "class_coach_assignments.class_coach_assignment_unique":
+    "Derivada de FK scopeada: primer campo `branch_id` → `branches`, la otra ancla del modelo. La grilla de asignación de profes es por sede, y la sede es de un solo tenant.",
+  "debt_management.uniq_debt_management_balance":
+    "Derivada de FK scopeada: primer campo `balance_id` → `balances`, que a su vez ancla en `users`. Una gestión de deuda por saldo.",
+  "exercise_dimension_proposals.exercise_dimension_proposals_exercise_uq":
+    "Derivada de FK scopeada: primer campo `exercise_id` → `exercises`, tabla gym-owned. Una propuesta de dimensiones viva por ejercicio.",
+  "exercise_milestone_proposals.exercise_milestone_proposals_exercise_uq":
+    "Derivada de FK scopeada: primer campo `exercise_id` → `exercises`. Una propuesta de hitos viva por ejercicio.",
+  "exercise_progressions.exercise_progressions_edge_uq":
+    "Derivada de FK scopeada: primer campo `from_exercise_id` → `exercises`. Es una arista del DAG de progresiones y sus dos extremos son ejercicios del mismo tenant.",
+  "format_compatibility.format_compat_lookup_idx":
+    "Derivada de FK scopeada: primer campo `format_id` → `formats`, que desde la 0196 tiene su propia unique compuesta `uq_formats_tenant_name`. La matriz de compatibilidad vive dentro del formato.",
+  "financial_transactions.uq_financial_tx_idempotency_key":
+    "Token opaco random con lookup pre-scope: `idempotency_key` es un `crypto.randomUUID()` generado por el admin (fase 140, CARGA-02) y el re-read post ER_DUP_ENTRY (`findByIdempotencyKey`) lo busca por el valor pelado, sin scope. Es NULLABLE y MySQL no cuenta los NULL bajo una unique, así que solo dedupea las cargas de profe. La colisión entre dos UUIDv4 de tenants distintos no existe en la práctica.",
+  "member_profiles.member_profiles_user_id_unique":
+    "Derivada de FK scopeada: primer campo `user_id` → `users`. Un perfil por socio.",
+  "notification_preferences.uq_notification_preferences_user_category":
+    "Derivada de FK scopeada: primer campo `user_id` → `users`. Una preferencia por socio y categoría de notificación.",
+  "plan_programs.plan_program_unique":
+    "Derivada de FK scopeada: primer campo `subscription_plan_id` → `subscription_plans`, tabla gym-owned. Es el puente plan↔programa: no puede unir el plan de un tenant con el programa de otro sin violar sus FKs.",
+  "referral_credits.unique_referral_credit_sub":
+    "Derivada de FK scopeada: primer campo `subscription_id` → `subscriptions`, que ancla en `users`. Un crédito de referido por suscripción.",
+  "referrals.referrals_referred_id_unique":
+    "Derivada de FK scopeada: `referred_id` → `users`. Un socio es referido una sola vez, y el socio pertenece a un solo tenant.",
+  "schedule_exceptions.idx_schedule_exceptions_schedule_date":
+    "Derivada de FK scopeada: primer campo `schedule_id` → `schedules`, tabla gym-owned. Una excepción por horario y fecha.",
+  "subscription_schedules.idx_sub_schedule":
+    "Derivada de FK scopeada: primer campo `subscription_id` → `subscriptions`. Es el puente suscripción↔turno y ambos extremos son del mismo tenant por sus FKs.",
+  "transaction_links.uniq_tx_target":
+    "Derivada de FK scopeada: primer campo `transaction_id` → `financial_transactions`, tabla gym-owned. Un link por transacción y destino heterogéneo (target_kind, target_id).",
+  "tv_class_state.uq_tv_class_state_branch":
+    "Derivada de FK scopeada: `branch_id` → `branches`. Un estado de clase vivo por sede. Ojo: esta tabla SÍ es post-claim (a diferencia de `tv_pairings`), por eso no es M8.",
+  "user_branches.user_branch_unique":
+    "Derivada de FK scopeada: primer campo `user_id` → `users`. Es el puente socio↔sede del multi-sede y sus dos extremos son anclas del mismo tenant.",
+  "user_sepa_details.user_sepa_details_user_id_unique":
+    "Derivada de FK scopeada: `user_id` → `users`. Un mandato SEPA por socio (sedes de España).",
+  "wellhub_classes.idx_wellhub_classes_branch_activity":
+    "Derivada de FK scopeada: primer campo `branch_id` → `branches`. NO es M8: no lleva ningún id de Wellhub, es el índice de lookup local (sede, actividad) del mapeo.",
+  "wellhub_slots.idx_wellhub_slots_schedule_date":
+    "Derivada de FK scopeada: primer campo `schedule_id` → `schedules`. NO es M8: es el índice local (horario, fecha) del slot, no el id de Wellhub.",
+
+  // ── (b) Deuda consciente Templo-module ─────────────────────────────────────
+  "sessions.sessions_day_id_unique":
+    "Deuda consciente Templo-module (mina M5, doc 05 §6): `day_id` es la identidad textual de la sesión SPOM (`W1-lunes-sigma`) y colisionaría si un segundo tenant corriera SPOM. Se resuelve SOLO cuando un tenant distinto de 1 active el módulo SPOM — NO es un olvido de la fase 168: el CONTEXT lo deja explícitamente fuera del boundary.",
+  "aura_config.aura_config_aura_config_source_type_unique":
+    "Deuda consciente Templo-module: config global del módulo Aura (12 filas, una por `source_type`). Se resuelve solo si un tenant distinto de 1 activa Aura, en la discusión de ese módulo (README §4.3). NO es un olvido de la fase 168. Ojo con el nombre de la columna: el `mysqlEnum` se llama `aura_config_source_type`, no `source_type`.",
+  "routes.routes_code_unique":
+    "Deuda consciente Templo-module: `code` es el código de ruta SPOM (sigma/omega/…). Catálogo Templo-only. Se resuelve solo si otro tenant activa SPOM — NO es un olvido de la fase 168.",
+  "intensity_rules.intensity_rules_intensity_unique":
+    "Deuda consciente Templo-module: catálogo de reglas de intensidad de SPOM, una fila por nivel. Templo-only hasta que otro tenant active SPOM. NO es un olvido de la fase 168.",
+  "contraction_rules.contraction_rules_intensity_total_idx":
+    "Deuda consciente Templo-module: catálogo de reglas de contracción de SPOM por (intensidad, total de ejercicios). Templo-only. NO es un olvido de la fase 168.",
+  "spom_rules.spom_rules_week_route_idx":
+    "Deuda consciente Templo-module: reglas de SPOM por (semana, ruta). El primer campo `week` es un entero, no una FK, así que NO hay transitividad — es deuda pura del módulo, resuelta cuando otro tenant lo active. NO es un olvido de la fase 168.",
+  "weekly_rotator.weekly_rotator_week_day_level_idx":
+    "Deuda consciente Templo-module: rotador semanal de SPOM por (semana, día, grupo de nivel). Primer campo `week`, entero, sin FK: deuda del módulo, no transitividad. NO es un olvido de la fase 168.",
+  "blog_posts.slug":
+    "Deuda consciente Templo-module: slug público del blog. El README §4.3 lo marca como decisión de la discusión del módulo de marketing (subdominio por tenant vs slug compuesto), no de esta fase. NO es un olvido de la fase 168. Ojo: el índice físico se llama `slug`, no `blog_posts_slug_unique`.",
+  "blog_tags.slug":
+    "Deuda consciente Templo-module: slug de tag del blog, misma discusión de módulo que `blog_posts.slug`. NO es un olvido de la fase 168. El índice físico también se llama `slug` a secas.",
+  "gladius_products.slug":
+    "Deuda consciente Templo-module: slug de producto de Gladius (tienda), módulo Templo-only. Se resuelve en la discusión de ese módulo. NO es un olvido de la fase 168. Índice físico `slug`.",
+};
+
+/**
+ * Tablas FÍSICAS que existen en MySQL pero NO en el schema Drizzle, y que por lo
+ * tanto no pueden estar ni en `GYM_OWNED_TABLES` ni en `TENANT_EXEMPT_TABLES`
+ * (las dos listas de la fase 167 se cruzan contra el schema, y un nombre que no
+ * exista ahí deja el test en rojo como "ghost").
+ *
+ * Son infraestructura del propio tooling, no datos de ningún gimnasio.
+ *
+ * - `_migrations` — tabla de tracking del runner propio
+ *   (`src/db/run-migrations.ts`). Es la única fuente de verdad de qué
+ *   migraciones se aplicaron, local y en producción.
+ * - `__drizzle_migrations` — residuo del journal de `drizzle-kit`, que el repo
+ *   NO usa (Hard Rule 1 del skill de migraciones: nunca `drizzle-kit migrate`).
+ *   Existe de arrastre y está muerta.
+ *
+ * **Las tablas de backup creadas por migraciones NO van acá** (por ejemplo
+ * `users_lead_backup_0183`, que vive en producción, o `users_lead_backup_0170`).
+ * Son efímeras por definición, aparecen en unas bases y no en otras, y meterlas
+ * en una lista versionada convertiría este archivo en un basurero que hay que
+ * podar a mano cada vez que se borra un backup. El verificador las detecta por
+ * el patrón de nombre y las reporta como **advertencia**, no como discrepancia:
+ * no bloquean la fase y quedan visibles en el reporte.
+ */
+export const PLATFORM_PHYSICAL_TABLES = [
+  "_migrations",
+  "__drizzle_migrations",
+] as const;
+
+export type PlatformPhysicalTable = (typeof PLATFORM_PHYSICAL_TABLES)[number];
+
+const PLATFORM_PHYSICAL_SET: ReadonlySet<string> = new Set(
+  PLATFORM_PHYSICAL_TABLES,
+);
+
+/** Arma la clave canónica `"tabla.indice"` de los dos registros de uniques. */
+function uniqueKey(table: string, indexName: string): string {
+  return `${table}.${indexName}`;
+}
+
+/**
+ * `true` si la unique `(table, indexName)` está en la lista M8: global a
+ * propósito y para siempre.
+ *
+ * Acepta `string` por el mismo motivo que `isGymOwnedTable`: los consumidores
+ * clasifican nombres que salen de INFORMATION_SCHEMA.
+ */
+export function isTenantGlobalUnique(
+  table: string,
+  indexName: string,
+): boolean {
+  return Object.prototype.hasOwnProperty.call(
+    TENANT_GLOBAL_UNIQUES,
+    uniqueKey(table, indexName),
+  );
+}
+
+/**
+ * `true` si la unique está clasificada en CUALQUIERA de los dos registros (M8 o
+ * allowlist). Es la pregunta que hace el verificador: una unique sin
+ * `tenant_id` al frente y sin clasificar es una discrepancia.
+ */
+export function isAllowedGlobalUnique(
+  table: string,
+  indexName: string,
+): boolean {
+  const key = uniqueKey(table, indexName);
+  return (
+    Object.prototype.hasOwnProperty.call(TENANT_GLOBAL_UNIQUES, key) ||
+    Object.prototype.hasOwnProperty.call(TENANT_UNIQUE_ALLOWLIST, key)
+  );
+}
+
+/**
+ * El motivo escrito de una unique global, o `undefined` si no está clasificada.
+ * Lo usa el reporte del verificador para que un hallazgo se lea con su contexto
+ * y no como un nombre suelto.
+ */
+export function tenantUniqueMotive(
+  table: string,
+  indexName: string,
+): string | undefined {
+  const key = uniqueKey(table, indexName);
+  return TENANT_GLOBAL_UNIQUES[key] ?? TENANT_UNIQUE_ALLOWLIST[key];
+}
+
+/**
+ * `true` si la tabla física es infraestructura del tooling (ver
+ * `PLATFORM_PHYSICAL_TABLES`). No lleva `tenant_id` ni entra en el inventario
+ * del schema Drizzle.
+ */
+export function isPlatformPhysicalTable(name: string): boolean {
+  return PLATFORM_PHYSICAL_SET.has(name);
 }

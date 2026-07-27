@@ -34,7 +34,15 @@ export const costCenters = mysqlTable(
   (table) => [
     index("idx_cost_centers_country_active").on(table.country, table.isActive),
     // Phase 152 (D-08): unicidad del ABM — un nombre de centro de costo no se
-    // repite dentro del mismo país. Índice byte-for-byte con la migración 0165.
-    uniqueIndex("uq_cost_centers_name_country").on(table.name, table.country),
+    // repite dentro del mismo país.
+    // Fase 168 (CON-01): unicidad POR TENANT — el país sigue en el contrato, tal
+    // como lo dejó la 0165, pero ahora dentro del gimnasio. Sin índice secundario
+    // (D-06): cost_centers es un catálogo chico. Índice byte-for-byte con la
+    // migración 0196.
+    uniqueIndex("uq_cost_centers_tenant_name_country").on(
+      table.tenantId,
+      table.name,
+      table.country,
+    ),
   ],
 );
