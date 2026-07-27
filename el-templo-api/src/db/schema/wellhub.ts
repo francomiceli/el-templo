@@ -55,6 +55,7 @@ export const wellhubClasses = mysqlTable(
       table.branchId,
       table.activityId,
     ),
+    // tenant-global (M8) a proposito: id externo — el class_id lo emite Wellhub y ya es unico del lado de la plataforma, asi que la unique global impide que dos tenants reclamen la misma class. NO es un olvido de la fase 168: el motivo esta registrado en TENANT_GLOBAL_UNIQUES de src/db/tenant-tables.ts (lista M8, aprobada 2026-07-26, doc 06 §8-Q4).
     uniqueIndex("idx_wellhub_classes_class_id").on(table.wellhubClassId),
   ],
 );
@@ -84,6 +85,7 @@ export const wellhubSlots = mysqlTable(
       table.scheduleId,
       table.sessionDate,
     ),
+    // tenant-global (M8) a proposito: id externo — el slot_id lo emite Wellhub y ya es unico del lado de la plataforma, asi que la unique global impide que dos tenants reclamen el mismo slot. NO es un olvido de la fase 168: el motivo esta registrado en TENANT_GLOBAL_UNIQUES de src/db/tenant-tables.ts (lista M8, aprobada 2026-07-26, doc 06 §8-Q4).
     uniqueIndex("idx_wellhub_slots_slot_id").on(table.wellhubSlotId),
     index("idx_wellhub_slots_session_date").on(table.sessionDate),
   ],
@@ -113,6 +115,7 @@ export const wellhubBookings = mysqlTable(
     updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
   },
   (table) => [
+    // tenant-global (M8) a proposito: id externo — el booking_number lo emite Wellhub y ya es unico del lado de la plataforma, asi que la unique global impide que dos tenants reclamen la misma reserva. NO es un olvido de la fase 168: el motivo esta registrado en TENANT_GLOBAL_UNIQUES de src/db/tenant-tables.ts (lista M8, aprobada 2026-07-26, doc 06 §8-Q4).
     uniqueIndex("idx_wellhub_bookings_number").on(table.bookingNumber),
     index("idx_wellhub_bookings_user").on(table.userId),
   ],
@@ -139,6 +142,7 @@ export const wellhubEvents = mysqlTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => [
+    // tenant-global (M8) a proposito: id externo con lookup pre-scope — es la llave de idempotencia del webhook, que se deduplica ANTES de derivar el tenant (payload.gym.id -> branches.wellhub_gym_id), asi que componer por tenant seria circular. NO es un olvido de la fase 168: el motivo esta registrado en TENANT_GLOBAL_UNIQUES de src/db/tenant-tables.ts (lista M8, aprobada 2026-07-26, doc 06 §8-Q4).
     uniqueIndex("idx_wellhub_events_event_id").on(table.eventId),
     index("idx_wellhub_events_created_at").on(table.createdAt),
   ],

@@ -51,6 +51,7 @@ export const branches = mysqlTable(
     // plataforma Wellhub/Gympass. NULL = sede sin Wellhub (integración apagada).
     // El webhook entrante resuelve la sede por este id (event_data.gym.id) y la
     // sincronización de clases/slots solo publica sedes con valor no-NULL.
+    // tenant-global (M8) a proposito: id de plataforma externa — la unique global es lo que impide que dos tenants reclamen el mismo gimnasio de Wellhub, y el webhook entrante resuelve la sede por este id SIN scope. NO es un olvido de la fase 168: el motivo esta registrado en TENANT_GLOBAL_UNIQUES de src/db/tenant-tables.ts (lista M8, aprobada 2026-07-26, doc 06 §8-Q4).
     wellhubGymId: bigint("wellhub_gym_id", { mode: "number" }).unique(),
     romEnabled: boolean("rom_enabled").default(false).notNull(),
     isActive: boolean("is_active").default(true).notNull(),

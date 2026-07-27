@@ -235,6 +235,7 @@ export const users = mysqlTable(
     // webhooks). Único y nullable — solo lo tienen los visitantes Wellhub (o
     // un socio existente al que se le vincula la visita por match de email).
     // Se auto-crea el usuario en el primer webhook con status='wellhub'.
+    // tenant-global (M8) a proposito: id de plataforma externa — la unique global es lo que impide que dos tenants reclamen el mismo usuario de Wellhub, que ya viene unico del lado de la plataforma. NO es un olvido de la fase 168: el motivo esta registrado en TENANT_GLOBAL_UNIQUES de src/db/tenant-tables.ts (lista M8, aprobada 2026-07-26, doc 06 §8-Q4).
     gympassId: varchar("gympass_id", { length: 16 }).unique(),
     // Phase 104 R5: pointer to the program_enrollment the member is currently
     // viewing. NULL means "Templo view" (only valid if user has presencial

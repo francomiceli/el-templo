@@ -39,6 +39,7 @@ export const refreshTokens = mysqlTable(
     userId: int("user_id")
       .references(() => users.id, { onDelete: "cascade" })
       .notNull(),
+    // tenant-global (M8) a proposito: secreto random con lookup pre-scope — componer la unique por tenant seria circular, porque el tenant se resuelve DESPUES de encontrar la fila por su hash. NO es un olvido de la fase 168: el motivo esta registrado en TENANT_GLOBAL_UNIQUES de src/db/tenant-tables.ts (lista M8, aprobada 2026-07-26, doc 06 §8-Q4).
     tokenHash: varchar("token_hash", { length: 64 }).notNull().unique(),
     expiresAt: timestamp("expires_at").notNull(),
     revokedAt: timestamp("revoked_at"),

@@ -46,6 +46,7 @@ export const deviceTokens = mysqlTable(
     userId: int("user_id")
       .references(() => users.id)
       .notNull(),
+    // tenant-global (M8) a proposito: token de push con lookup pre-scope — el token lo emite el dispositivo y se busca por su valor antes de conocer el tenant, asi que componer por tenant seria circular. NO es un olvido de la fase 168: el motivo esta registrado en TENANT_GLOBAL_UNIQUES de src/db/tenant-tables.ts (lista M8, aprobada 2026-07-26, doc 06 §8-Q4).
     token: varchar("token", { length: 500 }).notNull().unique(),
     platform: devicePlatformEnum.notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
