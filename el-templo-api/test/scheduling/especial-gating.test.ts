@@ -535,6 +535,40 @@ describe("Fase 161-06 — gating del pase de actividades especiales", () => {
     expect(rEsp.statusCode).toBe(201);
   });
 
+  it("(15) singular /me/subscription: el pase NUNCA pisa a la presencial (caso Lorena Giglio)", async () => {
+    // Pase comprado ANTES (startDate más viejo) + presencial renovada después,
+    // ambas activas y cubriendo hoy. El desempate por startDate ASC devolvía
+    // el PASE como "la" suscripción → el app trataba al socio como
+    // externo-solo-pase y le filtraba la grilla a especiales.
+    const { id, token } = await createMemberToken("singular-especial-15@test.com");
+    await insertSub(id, especialPlanId, "active", "2026-03-01", "2026-03-31", 2);
+    await insertSub(id, presencialPlanId, "active", "2026-03-10", "2026-04-09", 10);
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/members/subscription/me/subscription",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body) as { planCategory: string; planName: string };
+    expect(body.planCategory).toBe("presencial");
+    expect(body.planName).toBe("Presencial Mensual");
+  });
+
+  it("(16) singular /me/subscription: externo SOLO-pase sigue recibiendo el pase", async () => {
+    const { id, token } = await createMemberToken("singular-especial-16@test.com");
+    await insertSub(id, especialPlanId, "active", "2026-03-01", "2026-03-31", 2);
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/members/subscription/me/subscription",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body) as { planCategory: string };
+    expect(body.planCategory).toBe("especial");
+  });
+
   it("(14) dos ESPECIALES el mismo día → la segunda sigue bloqueada (409)", async () => {
     const { id, token } = await createMemberToken("daily-especial-14@test.com");
     await insertSub(id, especialPlanId, "active", "2026-02-14", "2026-04-15", 2);
