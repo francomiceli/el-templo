@@ -4370,7 +4370,7 @@ _v5.7 (Actividades con Aura) added: 2026-07-14 — 2 phases (161-162), 14 requir
 ## v6.0 (Tenancy) Phases
 
 - [x] **Phase 166: Fundación — `tenants`, anclas y scope server-side** — tablas `tenants`/`tenant_settings` + seed El Templo `id=1`, `tenant_id NOT NULL` en las dos anclas (`users`, `branches`), y `attachCountryScope` → `attachScope` resolviendo `scope.tenantId` con enforcement de `tenants.status` (suspended/archived → 403). (completed 2026-07-27)
-- [ ] **Phase 167: Columnas — `tenant_id` en las 85 tablas restantes + verificación** — tanda C agrupada por dominio (nullable → backfill `=1` → NOT NULL → FK) sobre las 46 CORE + 42 TEMPLO-MODULO menos anclas, con `system_settings` y `labs_inquiries` excluidas, más el script versionado que verifica el backfill contra las cadenas de FK del inventario. **(7/7 planes ejecutados 2026-07-27; migs 0192-0195 en staging y prod, verificador COL-02 en 0 discrepancias en las dos bases; pendiente `/gsd:verify-phase 167` + smoke por UI)**
+- [x] **Phase 167: Columnas — `tenant_id` en las 85 tablas restantes + verificación** — tanda C agrupada por dominio (nullable → backfill `=1` → NOT NULL → FK) sobre las 46 CORE + 42 TEMPLO-MODULO menos anclas, con `system_settings` y `labs_inquiries` excluidas, más el script versionado que verifica el backfill contra las cadenas de FK del inventario. **(7/7 planes ejecutados 2026-07-27; migs 0192-0195 en staging y prod, verificador COL-02 en 0 discrepancias en las dos bases; pendiente `/gsd:verify-phase 167` + smoke por UI)** (completed 2026-07-27)
 - [ ] **Phase 168: Contratos SQL — uniques compuestas e índices por `tenant_id`** — tanda D: conversión de las uniques globales a `(tenant_id, …)` según doc 06 §1-D (incluida la obligatoria `campaign_unsubscribes`), lista M8 explícitamente global, e índice con prefijo `tenant_id` en toda tabla gym-owned.
 - [ ] **Phase 169: Capa de escritura — helpers `tenantWhere`/`tenantValues` y `TenantContext`** — una sola API para request y caminos sin request (crons por tenant activo, webhook Wellhub por `branches.wellhub_gym_id`, CLI con tenant obligatorio, `tv_pairings` pre-claim exento y anotado).
 - [ ] **Phase 170: Detección automática — sentinel de pool mysql2 + lint en CI** — interceptor a nivel pool que detecta SQL sobre tabla gym-owned sin `tenant_id` (throw en test/dev para módulos migrados, `log.error` + métrica en prod) y lint estático con allowlist decreciente que rompe el build ante accesos nuevos sin scope ni anotación.
@@ -4438,7 +4438,7 @@ Plans:
 3. El script lista aparte —como caso legítimo, no como error— las filas [SIN-ANCLA] y parciales de la mina M4 (cajas centrales/banco con `branch_id` NULL, egresos/movimientos sin member ni branch, unsubscribes solo-email, `tv_pairings` pre-claim). (COL-02)
 4. Cada paso intermedio (columna nullable → backfill → `NOT NULL`) deja el API pre-tenancy funcionando: suite verde y staff sin cambio visible durante todo el rollout, sin ventana de downtime.
 
-**Plans:** 7/7 plans executed
+**Plans:** 7/7 plans complete
 
 Plans:
 
@@ -4630,7 +4630,7 @@ Plans:
 | Phase                                             | Plans Complete | Status      | Completed  |
 | ------------------------------------------------- | -------------- | ----------- | ---------- |
 | 166. Fundación — tenants, anclas y scope          | 6/6            | Complete    | 2026-07-27 |
-| 167. Columnas — tenant_id en 85 tablas            | 6/7            | In Progress |            |
+| 167. Columnas — tenant_id en 85 tablas            | 7/7            | Complete    | 2026-07-27 |
 | 168. Contratos SQL — uniques compuestas e índices | 0/?            | Not started |            |
 | 169. Capa de escritura — helpers y TenantContext  | 0/?            | Not started |            |
 | 170. Detección — sentinel de pool + lint CI       | 0/?            | Not started |            |

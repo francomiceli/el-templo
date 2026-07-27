@@ -37,7 +37,7 @@ caminos críticos pasen la batería de aislamiento (ISO-03) en verde.
 
 ### COL — Columnas y backfill
 
-- [ ] **COL-01**: Las 85 tablas gym-owned restantes (46 CORE + 42 TEMPLO-MODULO del doc 05, menos anclas; `system_settings` y `labs_inquiries` excluidas por diseño) tienen `tenant_id NOT NULL` + FK, backfill `=1`
+- [x] **COL-01**: Las 85 tablas gym-owned restantes (46 CORE + 42 TEMPLO-MODULO del doc 05, menos anclas; `system_settings` y `labs_inquiries` excluidas por diseño) tienen `tenant_id NOT NULL` + FK, backfill `=1`
 - [x] **COL-02**: Script versionado de verificación recorre las cadenas de FK del inventario (incl. mapeo manual de las FKs lógicas M9) y reporta 0 discrepancias entre backfill y derivación
 
 ### CON — Contratos de acceso
@@ -100,7 +100,7 @@ _Se completa cuando el roadmap asigne cada REQ-ID a una fase._
 | FUND-02 | Phase 166 | Complete |
 | FUND-03 | Phase 166 | Complete |
 | FUND-04 | Phase 166 | Complete |
-| COL-01  | Phase 167 | Pending  |
+| COL-01  | Phase 167 | Complete |
 | COL-02  | Phase 167 | Complete |
 | CON-01  | Phase 168 | Pending  |
 | CON-02  | Phase 168 | Pending  |
