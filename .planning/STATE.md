@@ -4,13 +4,13 @@ milestone: v6.0
 milestone_name: "Tenancy — El Templo pasa a ser tenant #1"
 status: executing
 stopped_at: Completed 168-02-PLAN.md
-last_updated: "2026-07-27T20:17:43.309Z"
+last_updated: "2026-07-27T20:51:46.802Z"
 last_activity: 2026-07-27
 progress:
   total_phases: 11
   completed_phases: 2
   total_plans: 19
-  completed_plans: 17
+  completed_plans: 18
   percent: 18
 ---
 
@@ -26,14 +26,16 @@ See: .planning/PROJECT.md (milestone v6.0 initialized 2026-07-26)
 ## Current Position
 
 Phase: 168 (contratos-sql-uniques-compuestas-e-ndices-por-tenant-id) — EXECUTING
-Plan: 5 of 6
+Plan: 6 of 6
 Status: Ready to execute
 Last activity: 2026-07-27
 Next: `/gsd:verify-phase 167` (los 7 planes ejecutados; migraciones 0192-0195 aplicadas en `eltemplo_staging` y `eltemplo` con 0 discrepancias en el verificador de COL-02 en las dos bases; falta el smoke funcional por UI de Franco, cerrado como pendiente por decisión suya). Sigue pendiente `/gsd:verify-phase 166` por el mismo motivo.
 
 **Tope de migración aplicado en producción: 0195.** Las fases siguientes reservan desde **0197** — el **0196** quedó tomado por la fase 168 (`0196_tenant_unique_contracts.sql`, escrita y aplicada SOLO en la base local en el plan 168-01; el rollout a staging y prod es del plan 168-06).
 
-**Worktree de la fase 168:** `/home/franco/projects/et-168-contratos`, rama `feat/168-contratos-sql` desde `origin/master` (`68c447cf`). `node_modules` por symlink al worktree 167 y `.env`/`.env.development` copiados — **no correr ningún install ahí**. El `.sql` de la 0196 YA está commiteado: viajó junto al schema Drizzle en `ec835050` (168-02, Hard Rule 3). Commits de código de la fase: `ec835050` (uniques compuestas + 4 índices secundarios + la 0196), `5d5c0bc7` (los 11 comentarios M8), `758f2aa3` (registro canónico de uniques con motivo), `44618ca2` (verificador `verify-tenant-uniques.ts` + script `db:verify-uniques`) y `ba37a148` (el 12º contrato), `2c1af25f` + `a0216641` (168-04: `test/tenancy/con-01-uniques-cross-tenant.test.ts`, los 12 contratos probados por comportamiento). Nada pusheado — el rollout a staging y prod es del plan 168-06.
+**Worktree de la fase 168:** `/home/franco/projects/et-168-contratos`, rama `feat/168-contratos-sql` desde `origin/master` (`68c447cf`). `node_modules` por symlink al worktree 167 y `.env`/`.env.development` copiados — **no correr ningún install ahí**. El `.sql` de la 0196 YA está commiteado: viajó junto al schema Drizzle en `ec835050` (168-02, Hard Rule 3). Commits de código de la fase: `ec835050` (uniques compuestas + 4 índices secundarios + la 0196), `5d5c0bc7` (los 11 comentarios M8), `758f2aa3` (registro canónico de uniques con motivo), `44618ca2` (verificador `verify-tenant-uniques.ts` + script `db:verify-uniques`) y `ba37a148` (el 12º contrato), `2c1af25f` + `a0216641` (168-04: `test/tenancy/con-01-uniques-cross-tenant.test.ts`, los 12 contratos probados por comportamiento) y `55c4059f` + `dbff616f` + `1200b8af` (168-05: introspección de la 0196, el verificador como gate de CI y el gate anti-podredumbre de los registros). Nada pusheado — el rollout a staging y prod es del plan 168-06.
+
+**Gate de CI puesto (168-05):** `test/migrations/0196-tenant-unique-contracts.test.ts` (638 líneas, 12 tests) verifica por `INFORMATION_SCHEMA` los 12 contratos compuestos, los 4 índices secundarios y que los **12 nombres viejos NO sobrevivan** —"presente lo nuevo" y "ausente lo viejo" son dos afirmaciones distintas y `test/setup.ts` tolera `"Can't DROP"`—, y corre `verifyTenantUniques` con `makeQueryFn(app)` con un test por categoría de hallazgo más `formatReport(report)` dentro del mensaje del `expect` de discrepancias. `test/db/tenant-tables.test.ts` sumó 7 gates de forma sobre los registros de uniques sin tocar los 5 de la 167 (87/4/91 intactos). **Fail-closed probado en vivo:** una unique global de prueba sobre `activities` dejó la suite en rojo con el reporte completo, y fue revertida (0 sobrevivientes). Ojo local: correr **más de un archivo de test a la vez** revienta el timeout de 120 s del provisioning en esta máquina (preexistente, reproducido con archivos de la 166/167) — usar `--no-file-parallelism` para los sanity-checks.
 
 **CON-01 probado por comportamiento (168-04):** `test/tenancy/con-01-uniques-cross-tenant.test.ts` (941 líneas, 14 tests verdes) siembra un segundo tenant (id fijo **90168**) e inserta los mismos valores que El Templo en las diez tablas convertidas: MySQL los acepta cross-tenant y sigue rechazando el duplicado intra-tenant con `ER_DUP_ENTRY`. **28 aserciones de contrato sobre los 12 contratos.** El helper de rechazo exige el errno de MySQL específicamente (una FK rota no puede hacerlo pasar) y las 8 fixtures exigen `tenantId` como primer parámetro obligatorio, así que `tsc` rechaza un payload que caería en el tenant 1 por el DEFAULT de la 167. La mina M3 (`campaign_unsubscribes`) tiene describe propio con el caso `user_id` NULL. Cero contaminación verificada por SQL después de la corrida: `tenants` = 1 y 0 filas del tenant 90168. El archivo NO toca `test/helpers.ts`.
 
@@ -371,6 +373,7 @@ _Updated after each plan completion_
 | Phase 168 P02 | 5min | 2 tasks | 13 files |
 | Phase 168 P03 | 45min | 3 tasks | 5 files |
 | Phase 168 P04 | 15min | 2 tasks | 1 files |
+| Phase 168 P05 | 40min | 3 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -834,6 +837,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: 168-03: el gate fail-closed encontro un 12o contrato de unicidad fuera de D-01 (subscription_plans name+country), invisible desde 2024 por drift schema-DB. Franco eligio convertirlo dentro de la misma 0196 (opcion A)
 - [Phase ?]: 168-04: los tests de CON-01 cubren 12 contratos, no 11 — el 12º (subscription_plans name+country) viene del hallazgo de drift del 168-03
 - [Phase ?]: 168-04: el invariante 'todo insert estampa tenantId' se hace cumplir por el tipo (tenantId como primer parámetro obligatorio de las 8 fixtures), no por grep — tsc rechaza un payload sin tenant
+- [Phase ?]: 168-05: el test de introspección de la 0196 es de SOLO LECTURA (no llama a cleanAllTestData) y el gate de CI consume verifyTenantUniques con makeQueryFn(app), así que CI y el CLI contra staging/prod ejecutan literalmente el mismo código
+- [Phase ?]: 168-05: la prueba manual del fail-closed hay que inyectarla DENTRO del beforeAll del test — el globalSetup de vitest dropea las bases per-worker al arrancar cada corrida, así que un índice de prueba creado por SQL antes da falso verde
 
 ### Pending Todos
 
@@ -866,7 +871,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-27T20:17:29.398Z
+Last session: 2026-07-27T20:51:22.410Z
 Stopped at: Completed 168-02-PLAN.md
 Resume file: None
 
