@@ -166,8 +166,12 @@ export class AttendanceService {
       }
     }
 
-    // Weekly limit check: count attendance this Mon-Sun week
+    // Weekly limit check: count attendance this Mon-Sun week. Las ESPECIALES
+    // (pase Aura) quedan fuera en ambos sentidos — no gastan el cupo semanal
+    // del plan regular ni se les aplica ese límite (su presupuesto es el del
+    // pase) — espejo del criterio de fase 161 en BookingService.
     if (
+      !isSpecialActivity &&
       planRow?.classesPerWeek !== null &&
       planRow?.classesPerWeek !== undefined
     ) {
@@ -187,14 +191,27 @@ export class AttendanceService {
       throw new BadRequestError("Agotaste tus clases del periodo");
     }
 
-    // One check-in per day (fast-path guard; authoritative check inside transaction)
+    // One check-in per day, per activity category (fast-path guard;
+    // authoritative check inside transaction). Una asistencia a una ESPECIAL
+    // (pase Aura) no bloquea el check-in de la clase regular del mismo día ni
+    // al revés: solo cuentan asistencias del mismo tipo. Asistencias sin
+    // schedule (force check-in, self-scan, wellhub) cuentan como regulares.
     const [alreadyCheckedIn] = await this.db
       .select({ id: schema.attendance.id })
       .from(schema.attendance)
+      .leftJoin(
+        schema.schedules,
+        eq(schema.schedules.id, schema.attendance.scheduleId),
+      )
+      .leftJoin(
+        schema.activities,
+        eq(schema.activities.id, schema.schedules.activityId),
+      )
       .where(
         and(
           eq(schema.attendance.memberId, memberId),
           sql`DATE(${schema.attendance.checkedInAt}) = ${todayStr}`,
+          sql`COALESCE(${schema.activities.isSpecial}, false) = ${isSpecialActivity}`,
         ),
       )
       .limit(1);
@@ -227,13 +244,24 @@ export class AttendanceService {
       // those diverge for retroactive coach check-ins and across
       // timezones, causing false positives that block legitimate
       // check-ins and false negatives that allow duplicates.
+      // Igual que el fast-path: la regla diaria es por categoría de
+      // actividad (especial vs regular).
       const [existingToday] = await tx
         .select({ id: schema.attendance.id })
         .from(schema.attendance)
+        .leftJoin(
+          schema.schedules,
+          eq(schema.schedules.id, schema.attendance.scheduleId),
+        )
+        .leftJoin(
+          schema.activities,
+          eq(schema.activities.id, schema.schedules.activityId),
+        )
         .where(
           and(
             eq(schema.attendance.memberId, memberId),
             eq(schema.attendance.sessionDate, todayStr),
+            sql`COALESCE(${schema.activities.isSpecial}, false) = ${isSpecialActivity}`,
           ),
         )
         .limit(1);
@@ -655,7 +683,9 @@ export class AttendanceService {
       throw new BadRequestError("Horario no encontrado");
     }
 
-    // One check-in per day guard.
+    // One check-in per day guard, per activity category: una asistencia a una
+    // ESPECIAL (pase Aura) no bloquea la de la clase regular del mismo día ni
+    // al revés. Asistencias sin schedule cuentan como regulares.
     // Compare against sessionDate (the logical class date), NOT
     // DATE(checkedInAt) which is the INSERT timestamp in server TZ.
     // Retroactive coach check-ins write session_date to the past while
@@ -664,10 +694,19 @@ export class AttendanceService {
     const [existingToday] = await this.db
       .select({ id: schema.attendance.id })
       .from(schema.attendance)
+      .leftJoin(
+        schema.schedules,
+        eq(schema.schedules.id, schema.attendance.scheduleId),
+      )
+      .leftJoin(
+        schema.activities,
+        eq(schema.activities.id, schema.schedules.activityId),
+      )
       .where(
         and(
           eq(schema.attendance.memberId, memberId),
           eq(schema.attendance.sessionDate, date),
+          sql`COALESCE(${schema.activities.isSpecial}, false) = ${schedule.isSpecial}`,
         ),
       )
       .limit(1);
@@ -1097,14 +1136,26 @@ export class AttendanceService {
   private async countWeeklyAttendance(memberId: number): Promise<number> {
     const { monday, saturday } = getWeekRange(new Date());
 
+    // Solo asistencias a actividades regulares: las especiales (pase Aura)
+    // no consumen el cupo semanal del plan (espejo de countWeeklyBookings).
+    // Asistencias sin schedule cuentan como regulares.
     const [result] = await this.db
       .select({ count: sql<number>`COUNT(*)` })
       .from(schema.attendance)
+      .leftJoin(
+        schema.schedules,
+        eq(schema.schedules.id, schema.attendance.scheduleId),
+      )
+      .leftJoin(
+        schema.activities,
+        eq(schema.activities.id, schema.schedules.activityId),
+      )
       .where(
         and(
           eq(schema.attendance.memberId, memberId),
           sql`DATE(${schema.attendance.checkedInAt}) >= ${monday}`,
           sql`DATE(${schema.attendance.checkedInAt}) <= ${saturday}`,
+          sql`COALESCE(${schema.activities.isSpecial}, false) = false`,
         ),
       );
 

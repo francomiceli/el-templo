@@ -949,11 +949,18 @@ export class SubscriptionService {
           ),
         ),
       )
-      // Prefer subs covering today (startDate <= today) over future ones,
-      // and within those prefer active/paused over scheduled. Renewal/early-
-      // change-plan flows can produce an active sub + a scheduled successor;
-      // this ordering keeps the active one as "current".
+      // El pase especial (planCategory 'especial') es ADITIVO: nunca
+      // representa al socio como "su" suscripción si existe una membresía
+      // principal (presencial/online), ni siquiera scheduled — si el singular
+      // devolviera el pase, el app trataría al socio como externo-solo-pase y
+      // le filtraría la grilla a especiales (caso Lorena Giglio: pase con
+      // startDate anterior a la renovación presencial ganaba el desempate).
+      // Luego: prefer subs covering today (startDate <= today) over future
+      // ones, and within those prefer active/paused over scheduled. Renewal/
+      // early-change-plan flows can produce an active sub + a scheduled
+      // successor; this ordering keeps the active one as "current".
       .orderBy(
+        sql`CASE WHEN ${schema.subscriptionPlans.planCategory} = 'especial' THEN 1 ELSE 0 END`,
         sql`CASE WHEN ${schema.subscriptions.startDate} <= CURDATE() THEN 0 ELSE 1 END`,
         sql`CASE ${schema.subscriptions.status} WHEN 'active' THEN 0 WHEN 'paused' THEN 1 ELSE 2 END`,
         schema.subscriptions.startDate,

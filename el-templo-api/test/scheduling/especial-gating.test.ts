@@ -493,6 +493,95 @@ describe("Fase 161-06 — gating del pase de actividades especiales", () => {
     expect(rReg.body.status).toBe("reservado");
   });
 
+  // ── (12)-(14) Regla diaria por categoría: especial y regular conviven ────
+  it("(12) especial y regular el MISMO día → ambas 201 (la diaria es por tipo)", async () => {
+    // Caso real: socios que van a ROM el mismo día de su actividad con Aura y
+    // recibían "Ya tenes una reserva para este dia".
+    const especialJuevesId = await createActivityAndSchedule(
+      "Aro Jueves",
+      true,
+      4, // mismo jueves que la regular
+      "12:00",
+      "13:00",
+    );
+    const { id, token } = await createMemberToken("daily-especial-12@test.com");
+    await insertSub(id, presencialPlanId, "active", "2026-02-14", "2026-04-15", 10);
+    await insertSub(id, especialPlanId, "active", "2026-02-14", "2026-04-15", 2);
+
+    const rEsp = await reserve(token, especialJuevesId, REGULAR_DATE);
+    expect(rEsp.statusCode).toBe(201);
+
+    const rReg = await reserve(token, regularScheduleId, REGULAR_DATE);
+    expect(rReg.statusCode).toBe(201);
+    expect(rReg.body.status).toBe("reservado");
+  });
+
+  it("(13) orden inverso: regular primero, especial del mismo día después → ambas 201", async () => {
+    const especialJuevesId = await createActivityAndSchedule(
+      "Aro Jueves",
+      true,
+      4,
+      "12:00",
+      "13:00",
+    );
+    const { id, token } = await createMemberToken("daily-especial-13@test.com");
+    await insertSub(id, presencialPlanId, "active", "2026-02-14", "2026-04-15", 10);
+    await insertSub(id, especialPlanId, "active", "2026-02-14", "2026-04-15", 2);
+
+    const rReg = await reserve(token, regularScheduleId, REGULAR_DATE);
+    expect(rReg.statusCode).toBe(201);
+
+    const rEsp = await reserve(token, especialJuevesId, REGULAR_DATE);
+    expect(rEsp.statusCode).toBe(201);
+  });
+
+  it("(15) singular /me/subscription: el pase NUNCA pisa a la presencial (caso Lorena Giglio)", async () => {
+    // Pase comprado ANTES (startDate más viejo) + presencial renovada después,
+    // ambas activas y cubriendo hoy. El desempate por startDate ASC devolvía
+    // el PASE como "la" suscripción → el app trataba al socio como
+    // externo-solo-pase y le filtraba la grilla a especiales.
+    const { id, token } = await createMemberToken("singular-especial-15@test.com");
+    await insertSub(id, especialPlanId, "active", "2026-03-01", "2026-03-31", 2);
+    await insertSub(id, presencialPlanId, "active", "2026-03-10", "2026-04-09", 10);
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/members/subscription/me/subscription",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body) as { planCategory: string; planName: string };
+    expect(body.planCategory).toBe("presencial");
+    expect(body.planName).toBe("Presencial Mensual");
+  });
+
+  it("(16) singular /me/subscription: externo SOLO-pase sigue recibiendo el pase", async () => {
+    const { id, token } = await createMemberToken("singular-especial-16@test.com");
+    await insertSub(id, especialPlanId, "active", "2026-03-01", "2026-03-31", 2);
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/members/subscription/me/subscription",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body) as { planCategory: string };
+    expect(body.planCategory).toBe("especial");
+  });
+
+  it("(14) dos ESPECIALES el mismo día → la segunda sigue bloqueada (409)", async () => {
+    const { id, token } = await createMemberToken("daily-especial-14@test.com");
+    await insertSub(id, especialPlanId, "active", "2026-02-14", "2026-04-15", 2);
+
+    // Verticales y Acrobacias caen el mismo sábado: la regla diaria intra-tipo
+    // se mantiene (el cruce que se liberó es solo especial ↔ regular).
+    const rVert = await reserve(token, verticalesScheduleId, SAT_1);
+    expect(rVert.statusCode).toBe(201);
+
+    const rAcro = await reserve(token, acrobaciasScheduleId, SAT_1);
+    expect(rAcro.statusCode).toBe(409);
+  });
+
   // ── (9) Fase 162-01 (APP-01): el grid member expone isSpecial por slot ───
   it("(9) APP-01: el grid semanal del member trae isSpecial:true en especiales y false en regulares", async () => {
     const { token } = await createMemberToken("grid-especial-9@test.com");
