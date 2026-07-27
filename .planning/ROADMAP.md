@@ -4486,7 +4486,16 @@ Plans:
 4. Toda tabla gym-owned tiene un índice cuyo primer campo es `tenant_id` (por unique compuesta o `INDEX` explícito), verificado por una query a `information_schema` dentro de la suite. (CON-02)
 5. Cero cambio de comportamiento para el staff: alta de alumno, sedes, códigos promo, centros de costo y campañas siguen rechazando los duplicados que rechazaban ayer (suite verde, sin ajustar expectativas).
 
-**Plans:** TBD
+**Plans:** 6 plans
+
+Plans:
+
+- [ ] 168-01-PLAN.md — Worktree desde `origin/master` + migración 0196 (11 uniques compuestas + 4 índices secundarios) aplicada en local
+- [ ] 168-02-PLAN.md — Schema Drizzle alineado byte a byte + comentarios M8 en las 11 uniques que quedan globales
+- [ ] 168-03-PLAN.md — `tenant-tables.ts` extendido (registro M8 + allowlist con motivo) y verificador `verify-tenant-uniques.ts`
+- [ ] 168-04-PLAN.md — Tests CON-01 de comportamiento: tenant 2 sembrado, duplicados cross-tenant aceptados e intra-tenant rechazados
+- [ ] 168-05-PLAN.md — Test de introspección de la 0196 + gate fail-closed de CON-02 y D-14 en la suite
+- [ ] 168-06-PLAN.md — Rollout staging-first y verificación contra `eltemplo_staging` y `eltemplo` (checkpoint bloqueante)
 
 ### Phase 169: Capa de escritura — helpers `tenantWhere`/`tenantValues` y `TenantContext`
 
