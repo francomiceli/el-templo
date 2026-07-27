@@ -7,6 +7,7 @@ import {
   boolean,
   timestamp,
   index,
+  uniqueIndex,
 } from "drizzle-orm/mysql-core";
 import { relations } from "drizzle-orm";
 import { users } from "./users";
@@ -34,7 +35,9 @@ export const branches = mysqlTable(
       .default(1)
       .references(() => tenants.id),
     name: varchar("name", { length: 255 }).notNull(),
-    code: varchar("code", { length: 20 }).notNull().unique(),
+    // Fase 168 (CON-01): el código de sede dejó de ser único global — la unique
+    // vive en el callback de tabla como uq_branches_tenant_code (tenant_id, code).
+    code: varchar("code", { length: 20 }).notNull(),
     timezone: varchar("timezone", { length: 50 })
       .default("America/Argentina/Buenos_Aires")
       .notNull(),
@@ -58,6 +61,11 @@ export const branches = mysqlTable(
   (table) => [
     // Fase 166 (FUND-02): toda query gym-owned filtra por tenant_id.
     index("idx_branches_tenant_id").on(table.tenantId),
+    // Fase 168 (CON-01): unicidad POR TENANT — el código de sede es único dentro
+    // del gimnasio, no del mundo. Sin índice secundario sobre `code` (D-06):
+    // branches es un catálogo de decenas de filas. Índice byte-for-byte con la
+    // migración 0196.
+    uniqueIndex("uq_branches_tenant_code").on(table.tenantId, table.code),
   ],
 );
 

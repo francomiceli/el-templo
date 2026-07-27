@@ -7,6 +7,7 @@ import {
   boolean,
   date,
   index,
+  uniqueIndex,
   text,
   type AnyMySqlColumn,
 } from "drizzle-orm/mysql-core";
@@ -120,7 +121,9 @@ export const users = mysqlTable(
       .notNull()
       .default(1)
       .references(() => tenants.id),
-    email: varchar("email", { length: 255 }).unique(),
+    // Fase 168 (CON-01): el email dejó de ser único global — la unique vive en el
+    // callback de tabla como uq_users_tenant_email (tenant_id, email).
+    email: varchar("email", { length: 255 }),
     passwordHash: varchar("password_hash", { length: 255 }).notNull(),
     firstName: varchar("first_name", { length: 100 }),
     lastName: varchar("last_name", { length: 100 }),
@@ -158,7 +161,9 @@ export const users = mysqlTable(
     // promotion. Defaults false; existing rows backfill to 0 in migration 0141.
     levelOverride: boolean("level_override").notNull().default(false),
     phone: varchar("phone", { length: 30 }),
-    dni: varchar("dni", { length: 20 }).unique(),
+    // Fase 168 (CON-01): el DNI dejó de ser único global — la unique vive en el
+    // callback de tabla como uq_users_tenant_dni (tenant_id, dni).
+    dni: varchar("dni", { length: 20 }),
     documentType: documentTypeEnum,
     address: varchar("address", { length: 500 }),
     dateOfBirth: date("date_of_birth", { mode: "string" }),
@@ -215,7 +220,9 @@ export const users = mysqlTable(
     // Phase 157 (REF-01): código de referido compartible tipo FRAN-A3B2 (D-16),
     // único por socio. Nullable: se genera eager para socios nuevos (D-25) y por
     // backfill idempotente para los ~2000 existentes (no en la migración).
-    referralCode: varchar("referral_code", { length: 16 }).unique(),
+    // Fase 168 (CON-01): dejó de ser único global — la unique vive en el callback
+    // de tabla como uq_users_tenant_referral_code (tenant_id, referral_code).
+    referralCode: varchar("referral_code", { length: 16 }),
     // Phase 157 (REF-01/D-08): quién lo refirió (self-FK a users). Lo escriben
     // ambos canales de atribución. Clona el patrón de createdBy (AnyMySqlColumn +
     // ON DELETE SET NULL). El vínculo canónico vive en la tabla referrals; esto
@@ -259,6 +266,23 @@ export const users = mysqlTable(
     index("idx_users_created_by").on(table.createdBy),
     // Phase 157 (REF-01): lookup de referidos por referidor.
     index("idx_users_referred_by").on(table.referredBy),
+    // Fase 168 (CON-01): unicidad POR TENANT. El email, el DNI y el código de
+    // referido son de cada gimnasio, no del mundo: dos tenants pueden tener el
+    // mismo valor sin pisarse. Índices byte-for-byte con la migración 0196.
+    uniqueIndex("uq_users_tenant_email").on(table.tenantId, table.email),
+    uniqueIndex("uq_users_tenant_dni").on(table.tenantId, table.dni),
+    uniqueIndex("uq_users_tenant_referral_code").on(
+      table.tenantId,
+      table.referralCode,
+    ),
+    // Fase 168 (D-05): al anteponer tenant_id, la unique deja de servir para
+    // buscar SOLO por el valor. Estos tres índices no-unique reponen los lookups
+    // por el valor pelado: login (src/modules/auth/routes.ts), registro por DNI
+    // (src/modules/auth/routes.ts) y resolveReferralCode
+    // (src/modules/referrals/service.ts). Byte-for-byte con la migración 0196.
+    index("idx_users_email").on(table.email),
+    index("idx_users_dni").on(table.dni),
+    index("idx_users_referral_code").on(table.referralCode),
   ],
 );
 

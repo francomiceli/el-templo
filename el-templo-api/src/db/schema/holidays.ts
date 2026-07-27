@@ -21,6 +21,14 @@ export const holidays = mysqlTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => [
-    uniqueIndex("idx_holidays_country_date").on(table.country, table.date),
+    // Fase 168 (CON-01): unicidad POR TENANT — el feriado sigue siendo uno por
+    // país y fecha, pero dentro del gimnasio. El nombre viejo empezaba con idx_
+    // aunque era unique igual (0035_scheduling.sql); el nuevo lo dice. Sin índice
+    // secundario (D-06). Índice byte-for-byte con la migración 0196.
+    uniqueIndex("uq_holidays_tenant_country_date").on(
+      table.tenantId,
+      table.country,
+      table.date,
+    ),
   ],
 );

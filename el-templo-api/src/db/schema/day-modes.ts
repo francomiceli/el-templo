@@ -12,5 +12,13 @@ export const dayModes = mysqlTable(
       .default("regular")
       .notNull(),
   },
-  (table) => [uniqueIndex("day_modes_day_of_week_unique").on(table.dayOfWeek)],
+  (table) => [
+    // Fase 168 (CON-01): unicidad POR TENANT — un modo por día de la semana POR
+    // gimnasio. Sin índice secundario (D-06): day_modes tiene seis filas. Índice
+    // byte-for-byte con la migración 0196.
+    uniqueIndex("uq_day_modes_tenant_day_of_week").on(
+      table.tenantId,
+      table.dayOfWeek,
+    ),
+  ],
 );
