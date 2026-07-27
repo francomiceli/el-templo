@@ -5,9 +5,12 @@ import {
   text,
   timestamp,
 } from "drizzle-orm/mysql-core";
+import { tenantIdColumn } from "./tenant-column";
 
 export const blogPosts = mysqlTable("blog_posts", {
   id: int("id").primaryKey().autoincrement(),
+  // Fase 167 (COL-01): tenancy. Valor server-side, nunca de payload. Ver src/db/schema/tenant-column.ts
+  tenantId: tenantIdColumn(),
   title: varchar("title", { length: 255 }).notNull(),
   slug: varchar("slug", { length: 255 }).notNull().unique(),
   excerpt: text("excerpt").notNull(),
