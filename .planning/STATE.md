@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: "Tenancy — El Templo pasa a ser tenant #1"
 status: executing
-stopped_at: Phase 168 context gathered
-last_updated: "2026-07-27T18:54:34.586Z"
-last_activity: 2026-07-27 -- Phase 168 planning complete
+stopped_at: Phase 168 plan 01 completed
+last_updated: "2026-07-27T19:08:16.264Z"
+last_activity: 2026-07-27
 progress:
   total_phases: 11
   completed_phases: 2
   total_plans: 19
-  completed_plans: 13
+  completed_plans: 14
   percent: 18
 ---
 
@@ -21,17 +21,19 @@ progress:
 See: .planning/PROJECT.md (milestone v6.0 initialized 2026-07-26)
 
 **Core value (v6.0):** El Templo pasa de "una gimnasia hardcodeada" a "el tenant #1 de una plataforma multi-tenant", **sin downtime y sin que el staff note nada**. Alcance: tablas `tenants`/`tenant_settings` + `tenant_id` denormalizado en las 87 tablas gym-owned + las 5 capas de enforcement (scope server-side, helpers `tenantWhere`/`tenantValues` + `TenantContext`, sentinel de pool mysql2, lint en CI, manifiesto de rutas fail-closed + batería de aislamiento), y adopción módulo a módulo en orden estricto de criticidad: finance → members → subscriptions → scheduling → analytics → resto core. 11 fases (166-176), 24 REQ-IDs (FUND/COL/CON/ISO/ADO/MOD). Reglas duras: `tenant_id` SIEMPRE server-side (jamás payload ni JWT); migraciones incrementales compatibles con código viejo (nullable → backfill → NOT NULL); staging-first estricto; reservar bloque de numeración al arrancar la 166 (**actualizado 2026-07-27: la 166 aplicó 0190 y 0191 en `eltemplo_staging` y en `eltemplo` — el tope en producción es 0191 y las fases siguientes reservan desde 0192**). **Gate del MILESTONE (no de una fase): el tenant 2 no se onboardea hasta que la batería de aislamiento (ISO-03) esté verde sobre el 100% de las rutas core `tenant-scoped`.** Diseño CERRADO en `.docs/saas-multitenancy/` (README + docs 03/04/05/06, §8 resuelto 2026-07-26) — no re-litigar en discuss/plan-phase.
-**Current focus:** Phase 168 — contratos sql — uniques compuestas e índices por `tenant_id`
+**Current focus:** Phase 168 — contratos-sql-uniques-compuestas-e-ndices-por-tenant-id
 
 ## Current Position
 
-Phase: 168
-Plan: Not started
+Phase: 168 (contratos-sql-uniques-compuestas-e-ndices-por-tenant-id) — EXECUTING
+Plan: 2 of 6
 Status: Ready to execute
-Last activity: 2026-07-27 -- Phase 168 planning complete
+Last activity: 2026-07-27
 Next: `/gsd:verify-phase 167` (los 7 planes ejecutados; migraciones 0192-0195 aplicadas en `eltemplo_staging` y `eltemplo` con 0 discrepancias en el verificador de COL-02 en las dos bases; falta el smoke funcional por UI de Franco, cerrado como pendiente por decisión suya). Sigue pendiente `/gsd:verify-phase 166` por el mismo motivo.
 
-**Tope de migración aplicado en producción: 0195.** Las fases siguientes reservan desde **0196**.
+**Tope de migración aplicado en producción: 0195.** Las fases siguientes reservan desde **0197** — el **0196** quedó tomado por la fase 168 (`0196_tenant_unique_contracts.sql`, escrita y aplicada SOLO en la base local en el plan 168-01; el rollout a staging y prod es del plan 168-06).
+
+**Worktree de la fase 168:** `/home/franco/projects/et-168-contratos`, rama `feat/168-contratos-sql` desde `origin/master` (`68c447cf`). `node_modules` por symlink al worktree 167 y `.env`/`.env.development` copiados — **no correr ningún install ahí**. El `.sql` de la 0196 sigue untracked a propósito: se commitea junto al schema Drizzle en 168-02 (Hard Rule 3).
 
 **Deuda anotada para ISO-03 (fase 171):** la arista lógica `completed_sessions.day_id -> sessions.day_id` no cubre el 98,8% de las filas en producción (15.449 de 15.631 huérfanas). No es una discrepancia hoy —todo está en `tenant_id=1`— pero esa tabla no tiene verificación por derivación. Staging no lo detecta (no tiene el histórico). Hipótesis sobre la semántica de `day_id` NO verificada. Detalle en `167-07-SUMMARY.md`.
 
@@ -359,6 +361,7 @@ _Updated after each plan completion_
 | Phase 167 P03 | 12min | 2 tasks | 8 files |
 | Phase 167 P04 | ~10min | 2 tasks | 23 files |
 | Phase 167 P05 | ~10min | 2 tasks | 17 files |
+| Phase 168 P01 | 6min | 3 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -815,6 +818,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: 167-06: adulterar una base `eltemplo_test_*` ANTES de correr vitest no prueba NADA — test/setup-global.ts las dropea todas al arrancar y el provisioning las recrea desde los .sql. La prueba negativa que pedia el plan dio verde sin haber ejercitado nada. Para ejercitar un gate de la suite, adulterar DENTRO del proceso de test
 - [Phase ?]: 167-06: una prueba negativa en verde hay que leerla con sospecha — 'el gate no se puso rojo' y 'la adulteracion nunca existio' se ven identicos desde afuera. Hay que probar que la adulteracion seguia viva en el momento de medir
 - [Phase ?]: 167-06: EXPECTED_ANCHORLESS = 32, contrastada contra doc 05 comparando CONJUNTOS DE NOMBRES (no totales): el '37 + 3 parciales' del resumen no decompone porque incluye las 2 exentas y NO incluye las 8 tablas de §2.7 (marcadas en el titulo de la seccion). Las 4 de la familia sessions difieren porque el doc mide 'conceptualmente no deriva' y el script mide 'existe camino de FKs declaradas' (sessions.approved_by -> users es NULLABLE pero existe)
+- [Phase ?]: 168-01: la 0196 convierte las 11 uniques globales a UNIQUE (tenant_id, ...) con DROP+ADD atomico en un solo ALTER por tabla — las 9 tablas lo aceptaron sin errno 150
+- [Phase ?]: 168-01: cero DDL de INDEX(tenant_id) en la 0196 (D-07) — las FK de las 0192-0195 ya dejaron el indice auto-creado y las anclas tienen el explicito de la 0191
 
 ### Pending Todos
 
@@ -847,8 +852,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-27T18:20:20.738Z
+Last session: 2026-07-27T19:08:11.072Z
 Stopped at: Phase 168 context gathered
-Resume file: .planning/phases/168-contratos-sql-uniques-compuestas-e-ndices-por-tenant-id/168-CONTEXT.md
+Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z

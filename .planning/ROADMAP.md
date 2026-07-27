@@ -4486,13 +4486,13 @@ Plans:
 4. Toda tabla gym-owned tiene un índice cuyo primer campo es `tenant_id` (por unique compuesta o `INDEX` explícito), verificado por una query a `information_schema` dentro de la suite. (CON-02)
 5. Cero cambio de comportamiento para el staff: alta de alumno, sedes, códigos promo, centros de costo y campañas siguen rechazando los duplicados que rechazaban ayer (suite verde, sin ajustar expectativas).
 
-**Plans:** 6 plans
+**Plans:** 1/6 plans executed
 
 Plans:
 
 **Wave 1**
 
-- [ ] 168-01-PLAN.md — Worktree desde `origin/master` + migración 0196 (11 uniques compuestas + 4 índices secundarios) aplicada en local
+- [x] 168-01-PLAN.md — Worktree desde `origin/master` + migración 0196 (11 uniques compuestas + 4 índices secundarios) aplicada en local
 
 **Wave 2** _(blocked on Wave 1 completion)_
 
@@ -4654,7 +4654,7 @@ Plans:
 | ------------------------------------------------- | -------------- | ----------- | ---------- |
 | 166. Fundación — tenants, anclas y scope          | 6/6            | Complete    | 2026-07-27 |
 | 167. Columnas — tenant_id en 85 tablas            | 7/7            | Complete    | 2026-07-27 |
-| 168. Contratos SQL — uniques compuestas e índices | 0/?            | Not started |            |
+| 168. Contratos SQL — uniques compuestas e índices | 1/6            | In Progress |            |
 | 169. Capa de escritura — helpers y TenantContext  | 0/?            | Not started |            |
 | 170. Detección — sentinel de pool + lint CI       | 0/?            | Not started |            |
 | 171. Backstop — manifiesto + fixtures 2-tenant    | 0/?            | Not started |            |
