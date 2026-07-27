@@ -334,15 +334,28 @@ export class BookingService {
       }
     }
 
-    // 8b. One booking per day (any schedule on same date)
+    // 8b. One booking per day, per activity category. Las ESPECIALES (pase
+    //     Aura) no chocan con las regulares: un socio puede tener la especial
+    //     y su clase regular (p. ej. ROM) el mismo día — la regla diaria
+    //     compara solo contra reservas del mismo tipo (mismo criterio que la
+    //     exención del límite semanal de fase 161).
     const [sameDayBooking] = await this.db
       .select({ id: schema.bookings.id })
       .from(schema.bookings)
+      .innerJoin(
+        schema.schedules,
+        eq(schema.schedules.id, schema.bookings.scheduleId),
+      )
+      .innerJoin(
+        schema.activities,
+        eq(schema.activities.id, schema.schedules.activityId),
+      )
       .where(
         and(
           eq(schema.bookings.memberId, memberId),
           eq(schema.bookings.bookingDate, date),
           sql`${schema.bookings.status} IN ('reservado', 'qr_escaneado', 'confirmado', 'lista_espera')`,
+          eq(schema.activities.isSpecial, isSpecialActivity),
         ),
       )
       .limit(1);
