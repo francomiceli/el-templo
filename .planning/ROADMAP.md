@@ -4356,7 +4356,7 @@ _v5.7 (Actividades con Aura) added: 2026-07-14 — 2 phases (161-162), 14 requir
 
 **Constraint operativo (repo):**
 
-- **Migraciones:** incrementales y **compatibles con el código viejo** (columna nullable → backfill → `NOT NULL`), SQL commiteado junto al schema, nunca `;` en comentarios SQL. **Reservar el bloque de numeración al arrancar la fase 166** verificando el máximo real en `_migrations` en ese momento (al 2026-07-26 el último es **0189**, de la fase 164 TV, aún en worktree).
+- **Migraciones:** incrementales y **compatibles con el código viejo** (columna nullable → backfill → `NOT NULL`), SQL commiteado junto al schema, nunca `;` en comentarios SQL. **Reservar el bloque de numeración al arrancar cada fase** verificando el máximo real en `_migrations` en ese momento (**actualizado 2026-07-27: la fase 166 aplicó 0190 y 0191 en `eltemplo_staging` y en `eltemplo` — el tope en producción es 0191, la fase 167 reserva desde 0192**).
 - **Staging-first estricto:** ningún merge de feature a master; cada tanda se ensaya completa en staging antes de prod. Staging y prod comparten host MySQL con bases separadas — cada pipeline aplica las migs a SU base.
 - **Sin downtime y sin cambio visible para el staff:** el API pre-tenancy sigue funcionando durante todo el rollout; el criterio transversal de cada fase es "los mismos números y los mismos flujos que ayer".
 - **Tests de integración** obligatorios para todo lo nuevo (helpers, sentinel, manifiesto, aislamiento por módulo).
@@ -4369,7 +4369,7 @@ _v5.7 (Actividades con Aura) added: 2026-07-14 — 2 phases (161-162), 14 requir
 
 ## v6.0 (Tenancy) Phases
 
-- [ ] **Phase 166: Fundación — `tenants`, anclas y scope server-side** — tablas `tenants`/`tenant_settings` + seed El Templo `id=1`, `tenant_id NOT NULL` en las dos anclas (`users`, `branches`), y `attachCountryScope` → `attachScope` resolviendo `scope.tenantId` con enforcement de `tenants.status` (suspended/archived → 403).
+- [x] **Phase 166: Fundación — `tenants`, anclas y scope server-side** — tablas `tenants`/`tenant_settings` + seed El Templo `id=1`, `tenant_id NOT NULL` en las dos anclas (`users`, `branches`), y `attachCountryScope` → `attachScope` resolviendo `scope.tenantId` con enforcement de `tenants.status` (suspended/archived → 403). (completed 2026-07-27)
 - [ ] **Phase 167: Columnas — `tenant_id` en las 85 tablas restantes + verificación** — tanda C agrupada por dominio (nullable → backfill `=1` → NOT NULL → FK) sobre las 46 CORE + 42 TEMPLO-MODULO menos anclas, con `system_settings` y `labs_inquiries` excluidas, más el script versionado que verifica el backfill contra las cadenas de FK del inventario.
 - [ ] **Phase 168: Contratos SQL — uniques compuestas e índices por `tenant_id`** — tanda D: conversión de las uniques globales a `(tenant_id, …)` según doc 06 §1-D (incluida la obligatoria `campaign_unsubscribes`), lista M8 explícitamente global, e índice con prefijo `tenant_id` en toda tabla gym-owned.
 - [ ] **Phase 169: Capa de escritura — helpers `tenantWhere`/`tenantValues` y `TenantContext`** — una sola API para request y caminos sin request (crons por tenant activo, webhook Wellhub por `branches.wellhub_gym_id`, CLI con tenant obligatorio, `tv_pairings` pre-claim exento y anotado).
@@ -4398,7 +4398,7 @@ _v5.7 (Actividades con Aura) added: 2026-07-14 — 2 phases (161-162), 14 requir
 3. Con el tenant en `suspended` o `archived`, toda ruta scoped responde 403 sin tocar datos; con `active` responde normal — enforced en la misma query que resuelve el scope, verificado por test de integración. (FUND-04)
 4. Sin cambio visible para el staff: la suite de integración existente pasa sin ajustar expectativas de comportamiento y el smoke post-deploy queda verde en staging y prod.
 
-**Plans:** 5/6 plans executed
+**Plans:** 6/6 plans complete
 
 Plans:
 
@@ -4421,7 +4421,7 @@ Plans:
 
 **Wave 5** _(blocked on Wave 4 completion)_
 
-- [ ] 166-06-PLAN.md — Gate local consolidado + checkpoint humano de rollout staging-first y verificacion en `eltemplo_staging` y `eltemplo`
+- [x] 166-06-PLAN.md — Gate local consolidado + checkpoint humano de rollout staging-first y verificacion en `eltemplo_staging` y `eltemplo`
 
 ### Phase 167: Columnas — `tenant_id` en las 85 tablas restantes + verificación
 
@@ -4597,19 +4597,19 @@ Plans:
 
 ## v6.0 (Tenancy) Progress
 
-| Phase                                             | Plans Complete | Status      | Completed |
-| ------------------------------------------------- | -------------- | ----------- | --------- |
-| 166. Fundación — tenants, anclas y scope          | 5/6            | In Progress |           |
-| 167. Columnas — tenant_id en 85 tablas            | 0/?            | Not started |           |
-| 168. Contratos SQL — uniques compuestas e índices | 0/?            | Not started |           |
-| 169. Capa de escritura — helpers y TenantContext  | 0/?            | Not started |           |
-| 170. Detección — sentinel de pool + lint CI       | 0/?            | Not started |           |
-| 171. Backstop — manifiesto + fixtures 2-tenant    | 0/?            | Not started |           |
-| 172. Adopción 1 (piloto) — finance                | 0/?            | Not started |           |
-| 173. Adopción 2 — members + guarda de anclas      | 0/?            | Not started |           |
-| 174. Adopción 3 — subscriptions + scheduling      | 0/?            | Not started |           |
-| 175. Adopción 4 — analytics + resto del core      | 0/?            | Not started |           |
-| 176. Módulos — flags, requireModule y registry    | 0/?            | Not started |           |
+| Phase                                             | Plans Complete | Status      | Completed  |
+| ------------------------------------------------- | -------------- | ----------- | ---------- |
+| 166. Fundación — tenants, anclas y scope          | 6/6            | Complete    | 2026-07-27 |
+| 167. Columnas — tenant_id en 85 tablas            | 0/?            | Not started |            |
+| 168. Contratos SQL — uniques compuestas e índices | 0/?            | Not started |            |
+| 169. Capa de escritura — helpers y TenantContext  | 0/?            | Not started |            |
+| 170. Detección — sentinel de pool + lint CI       | 0/?            | Not started |            |
+| 171. Backstop — manifiesto + fixtures 2-tenant    | 0/?            | Not started |            |
+| 172. Adopción 1 (piloto) — finance                | 0/?            | Not started |            |
+| 173. Adopción 2 — members + guarda de anclas      | 0/?            | Not started |            |
+| 174. Adopción 3 — subscriptions + scheduling      | 0/?            | Not started |            |
+| 175. Adopción 4 — analytics + resto del core      | 0/?            | Not started |            |
+| 176. Módulos — flags, requireModule y registry    | 0/?            | Not started |            |
 
 _Plan counts populated by `/gsd:plan-phase`._
 
