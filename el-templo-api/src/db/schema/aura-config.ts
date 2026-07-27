@@ -7,6 +7,7 @@ import {
   timestamp,
   mysqlEnum,
 } from "drizzle-orm/mysql-core";
+import { tenantIdColumn } from "./tenant-column";
 
 export const auraConfigSourceTypeEnum = mysqlEnum("aura_config_source_type", [
   "training_completion",
@@ -25,6 +26,8 @@ export const auraConfigSourceTypeEnum = mysqlEnum("aura_config_source_type", [
 
 export const auraConfig = mysqlTable("aura_config", {
   id: int("id").primaryKey().autoincrement(),
+  // Fase 167 (COL-01): tenancy. Valor server-side, nunca de payload. Ver src/db/schema/tenant-column.ts
+  tenantId: tenantIdColumn(),
   sourceType: auraConfigSourceTypeEnum.notNull().unique(),
   defaultAmount: int("default_amount").notNull(),
   description: varchar("description", { length: 255 }),

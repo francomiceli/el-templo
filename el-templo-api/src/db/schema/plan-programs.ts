@@ -2,6 +2,7 @@
 import { mysqlTable, int, uniqueIndex, index } from "drizzle-orm/mysql-core";
 import { subscriptionPlans } from "./subscription-plans";
 import { programs } from "./micro-programs";
+import { tenantIdColumn } from "./tenant-column";
 
 /**
  * Join table: a subscription plan grants access to an explicit list of
@@ -18,6 +19,8 @@ export const planPrograms = mysqlTable(
   "plan_programs",
   {
     id: int("id").primaryKey().autoincrement(),
+    // Fase 167 (COL-01): tenancy. Valor server-side, nunca de payload. Ver src/db/schema/tenant-column.ts
+    tenantId: tenantIdColumn(),
     subscriptionPlanId: int("subscription_plan_id")
       .notNull()
       .references(() => subscriptionPlans.id),

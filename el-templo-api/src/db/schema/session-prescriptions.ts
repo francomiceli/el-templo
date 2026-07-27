@@ -7,14 +7,20 @@ import {
 } from "drizzle-orm/mysql-core";
 import { relations } from "drizzle-orm";
 import { sessionBlocks } from "./session-blocks";
+import { tenantIdColumn } from "./tenant-column";
 
 export const sessionPrescriptions = mysqlTable(
   "session_prescriptions",
   {
     id: int("id").primaryKey().autoincrement(),
+    // Fase 167 (COL-01): tenancy. Valor server-side, nunca de payload. Ver src/db/schema/tenant-column.ts
+    tenantId: tenantIdColumn(),
     blockId: int("block_id")
       .notNull()
       .references(() => sessionBlocks.id, { onDelete: "cascade" }),
+    // Mina M9 (doc 05 §6): `exercise_id` apunta a `exercises.id` pero NO tiene FK
+    // real, asi que la consistencia de tenant sobre esa arista no la garantiza la
+    // DB — la verifica `src/db/scripts/verify-tenant-backfill.ts` con un join manual.
     exerciseId: int("exercise_id").notNull(),
     exerciseName: varchar("exercise_name", { length: 150 }).notNull(),
     contraction: varchar("contraction", { length: 10 }).notNull(), // CON, EXC, ISO

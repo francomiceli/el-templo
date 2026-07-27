@@ -9,6 +9,7 @@ import {
   index,
 } from "drizzle-orm/mysql-core";
 import { users } from "./users";
+import { tenantIdColumn } from "./tenant-column";
 
 /**
  * Audit log — forensic trail for financial actions.
@@ -35,6 +36,8 @@ export const auditLog = mysqlTable(
   "audit_log",
   {
     id: int("id").primaryKey().autoincrement(),
+    // Fase 167 (COL-01): tenancy. Valor server-side, nunca de payload. Ver src/db/schema/tenant-column.ts
+    tenantId: tenantIdColumn(),
     actorId: int("actor_id")
       .references(() => users.id)
       .notNull(),

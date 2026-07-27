@@ -1,8 +1,11 @@
 import { mysqlTable, int, varchar, index, uniqueIndex } from 'drizzle-orm/mysql-core';
 import { routes } from './routes';
+import { tenantIdColumn } from './tenant-column';
 
 export const spomRules = mysqlTable('spom_rules', {
   id: int('id').primaryKey().autoincrement(),
+  // Fase 167 (COL-01): tenancy. Valor server-side, nunca de payload. Ver src/db/schema/tenant-column.ts
+  tenantId: tenantIdColumn(),
   week: int('week').notNull(),
   routeId: int('route_id').notNull().references(() => routes.id),
   intensity: int('intensity').notNull(),

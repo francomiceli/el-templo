@@ -8,11 +8,14 @@ import {
   boolean,
 } from "drizzle-orm/mysql-core";
 import { users } from "./users";
+import { tenantIdColumn } from "./tenant-column";
 
 export const sessions = mysqlTable(
   "sessions",
   {
     id: int("id").primaryKey().autoincrement(),
+    // Fase 167 (COL-01): tenancy. Valor server-side, nunca de payload. Ver src/db/schema/tenant-column.ts
+    tenantId: tenantIdColumn(),
     dayId: varchar("day_id", { length: 50 }).notNull().unique(), // W1-lunes-sigma or J-empuje-W1-lunes-sigma
     week: int("week").notNull(),
     day: varchar("day", { length: 20 }).notNull(), // lunes, martes, etc

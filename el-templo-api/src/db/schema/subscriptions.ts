@@ -14,6 +14,7 @@ import { relations } from "drizzle-orm";
 import { users } from "./users";
 import { subscriptionPlans } from "./subscription-plans";
 import { branches } from "./branches";
+import { tenantIdColumn } from "./tenant-column";
 
 export const subscriptionStatusEnum = mysqlEnum("subscription_status", [
   "active",
@@ -42,6 +43,8 @@ export const subscriptions = mysqlTable(
   "subscriptions",
   {
     id: int("id").primaryKey().autoincrement(),
+    // Fase 167 (COL-01): tenancy. Valor server-side, nunca de payload. Ver src/db/schema/tenant-column.ts
+    tenantId: tenantIdColumn(),
     userId: int("user_id")
       .references(() => users.id)
       .notNull(),

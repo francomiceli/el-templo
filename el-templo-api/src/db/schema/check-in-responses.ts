@@ -8,6 +8,7 @@ import {
   index,
 } from "drizzle-orm/mysql-core";
 import { users } from "./users";
+import { tenantIdColumn } from "./tenant-column";
 
 export const checkInQuestionTypeEnum = mysqlEnum("question_type", [
   "energy",
@@ -19,6 +20,8 @@ export const checkInResponses = mysqlTable(
   "check_in_responses",
   {
     id: int("id").primaryKey().autoincrement(),
+    // Fase 167 (COL-01): tenancy. Valor server-side, nunca de payload. Ver src/db/schema/tenant-column.ts
+    tenantId: tenantIdColumn(),
     userId: int("user_id")
       .notNull()
       .references(() => users.id),

@@ -9,6 +9,7 @@ import {
 import { relations } from "drizzle-orm";
 import { subscriptions } from "./subscriptions";
 import { schedules } from "./schedules";
+import { tenantIdColumn } from "./tenant-column";
 
 /**
  * Junction table linking subscriptions to specific schedule slots.
@@ -18,6 +19,8 @@ export const subscriptionSchedules = mysqlTable(
   "subscription_schedules",
   {
     id: int("id").primaryKey().autoincrement(),
+    // Fase 167 (COL-01): tenancy. Valor server-side, nunca de payload. Ver src/db/schema/tenant-column.ts
+    tenantId: tenantIdColumn(),
     subscriptionId: int("subscription_id")
       .references(() => subscriptions.id)
       .notNull(),

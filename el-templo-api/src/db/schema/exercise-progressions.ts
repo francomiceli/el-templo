@@ -7,6 +7,7 @@ import {
   uniqueIndex,
 } from "drizzle-orm/mysql-core";
 import { exercises } from "./exercises";
+import { tenantIdColumn } from "./tenant-column";
 
 /**
  * Source of a progression edge (D-03).
@@ -41,6 +42,8 @@ export const exerciseProgressions = mysqlTable(
   "exercise_progressions",
   {
     id: int("id").primaryKey().autoincrement(),
+    // Fase 167 (COL-01): tenancy. Valor server-side, nunca de payload. Ver src/db/schema/tenant-column.ts
+    tenantId: tenantIdColumn(),
     fromExerciseId: int("from_exercise_id")
       .references(() => exercises.id, { onDelete: "cascade" })
       .notNull(),

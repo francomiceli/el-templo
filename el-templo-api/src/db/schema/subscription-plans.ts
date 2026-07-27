@@ -9,6 +9,7 @@ import {
   mysqlEnum,
 } from "drizzle-orm/mysql-core";
 import { programs } from "./micro-programs";
+import { tenantIdColumn } from "./tenant-column";
 
 export const planTierEnum = mysqlEnum("plan_tier", [
   "flex",
@@ -29,6 +30,8 @@ export const planCategoryEnum = mysqlEnum("plan_category", [
 
 export const subscriptionPlans = mysqlTable("subscription_plans", {
   id: int("id").primaryKey().autoincrement(),
+  // Fase 167 (COL-01): tenancy. Valor server-side, nunca de payload. Ver src/db/schema/tenant-column.ts
+  tenantId: tenantIdColumn(),
   name: varchar("name", { length: 150 }).notNull(),
   description: text("description"),
   planTier: planTierEnum.notNull(),

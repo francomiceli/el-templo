@@ -11,6 +11,7 @@ import {
 } from "drizzle-orm/mysql-core";
 import { relations } from "drizzle-orm";
 import { users } from "./users";
+import { tenantIdColumn } from "./tenant-column";
 
 // Estado del vínculo. pending = atribuido, aún sin primer pago del referido.
 // qualified = el referido pagó su 1er plan con pricePaid > 0 (D-20). revoked =
@@ -37,6 +38,8 @@ export const referralCopyVariantEnum = mysqlEnum("copy_variant", ["A", "B"]);
 
 export const referrals = mysqlTable("referrals", {
   id: int("id").primaryKey().autoincrement(),
+  // Fase 167 (COL-01): tenancy. Valor server-side, nunca de payload. Ver src/db/schema/tenant-column.ts
+  tenantId: tenantIdColumn(),
   // Quién refirió. Un referidor puede traer muchos referidos (sin UNIQUE).
   referrerId: int("referrer_id")
     .references(() => users.id)

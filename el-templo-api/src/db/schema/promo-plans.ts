@@ -8,6 +8,7 @@ import {
   datetime,
   mysqlEnum,
 } from "drizzle-orm/mysql-core";
+import { tenantIdColumn } from "./tenant-column";
 
 export const promoTypeEnum = mysqlEnum("promo_type", [
   "auto",
@@ -16,6 +17,8 @@ export const promoTypeEnum = mysqlEnum("promo_type", [
 
 export const promoPlans = mysqlTable("promo_plans", {
   id: int("id").primaryKey().autoincrement(),
+  // Fase 167 (COL-01): tenancy. Valor server-side, nunca de payload. Ver src/db/schema/tenant-column.ts
+  tenantId: tenantIdColumn(),
   name: varchar("name", { length: 150 }).notNull(),
   promoCode: varchar("promo_code", { length: 50 }).notNull().unique(),
   planDurationDays: int("plan_duration_days").notNull().default(30),

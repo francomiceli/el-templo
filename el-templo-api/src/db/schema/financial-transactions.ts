@@ -16,6 +16,7 @@ import { branches } from "./branches";
 import { cashRegisters } from "./cash-registers";
 import { costCenters } from "./cost-centers";
 import { transactionLinks } from "./transaction-links";
+import { tenantIdColumn } from "./tenant-column";
 
 // D-05: enums declared inline on the column. TS literals are inferred from
 // $inferSelect downstream (see modules/finance/types.ts). Single source of truth.
@@ -23,6 +24,8 @@ export const financialTransactions = mysqlTable(
   "financial_transactions",
   {
     id: int("id").primaryKey().autoincrement(),
+    // Fase 167 (COL-01): tenancy. Valor server-side, nunca de payload. Ver src/db/schema/tenant-column.ts
+    tenantId: tenantIdColumn(),
     // Phase 139 (D-06): NULLABLE — egresos/movimientos no tienen socio (modelo
     // honesto, sin usuario sentinel "Gimnasio" que ensucie listas/conteos). Los
     // reportes member-keyed los excluyen por INNER JOIN users / kind / direction.

@@ -27,11 +27,14 @@ import { branches } from "./branches";
 import { activities } from "./activities";
 import { schedules } from "./schedules";
 import { bookings } from "./bookings";
+import { tenantIdColumn } from "./tenant-column";
 
 export const wellhubClasses = mysqlTable(
   "wellhub_classes",
   {
     id: int("id").primaryKey().autoincrement(),
+    // Fase 167 (COL-01): tenancy. Valor server-side, nunca de payload. Ver src/db/schema/tenant-column.ts
+    tenantId: tenantIdColumn(),
     branchId: int("branch_id")
       .references(() => branches.id)
       .notNull(),
@@ -60,6 +63,8 @@ export const wellhubSlots = mysqlTable(
   "wellhub_slots",
   {
     id: int("id").primaryKey().autoincrement(),
+    // Fase 167 (COL-01): tenancy. Valor server-side, nunca de payload. Ver src/db/schema/tenant-column.ts
+    tenantId: tenantIdColumn(),
     wellhubClassRowId: int("wellhub_class_row_id")
       .references(() => wellhubClasses.id)
       .notNull(),
@@ -88,6 +93,8 @@ export const wellhubBookings = mysqlTable(
   "wellhub_bookings",
   {
     id: int("id").primaryKey().autoincrement(),
+    // Fase 167 (COL-01): tenancy. Valor server-side, nunca de payload. Ver src/db/schema/tenant-column.ts
+    tenantId: tenantIdColumn(),
     bookingNumber: varchar("booking_number", { length: 32 }).notNull(),
     // NULL cuando la solicitud fue rechazada (sin booking nuestro) o si el
     // booking se borró. ON DELETE SET NULL para no romper el audit trail.
@@ -115,6 +122,12 @@ export const wellhubEvents = mysqlTable(
   "wellhub_events",
   {
     id: int("id").primaryKey().autoincrement(),
+    // Fase 167 (COL-01): tenancy. Valor server-side, nunca de payload. Ver src/db/schema/tenant-column.ts
+    tenantId: tenantIdColumn(),
+    // Mina M6: esta tabla es la ÚNICA del grupo sin ninguna FK a nuestro dominio — el
+    // webhook entra sin sesión y el tenant no viaja en el payload de forma directa. La
+    // derivación real (payload.gym.id -> branches.wellhub_gym_id -> branch.tenant_id) es
+    // trabajo de la fase 169. Hoy, con un solo tenant, el backfill es DIRECTO a 1.
     // event_id del webhook, o sintetizado para checkin. Único = idempotencia:
     // un reintento del mismo evento se ignora sin reprocesar.
     eventId: varchar("event_id", { length: 128 }).notNull(),

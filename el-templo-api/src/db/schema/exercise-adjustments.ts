@@ -9,6 +9,7 @@ import {
 } from "drizzle-orm/mysql-core";
 import { users } from "./users";
 import { exercises } from "./exercises";
+import { tenantIdColumn } from "./tenant-column";
 
 /**
  * Outcome of an in-session difficulty adjustment (D-02).
@@ -54,6 +55,8 @@ export const exerciseAdjustments = mysqlTable(
   "exercise_adjustments",
   {
     id: int("id").primaryKey().autoincrement(),
+    // Fase 167 (COL-01): tenancy. Valor server-side, nunca de payload. Ver src/db/schema/tenant-column.ts
+    tenantId: tenantIdColumn(),
     memberId: int("member_id")
       .notNull()
       .references(() => users.id),

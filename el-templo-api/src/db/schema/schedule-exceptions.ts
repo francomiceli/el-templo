@@ -9,6 +9,7 @@ import {
 } from "drizzle-orm/mysql-core";
 import { relations } from "drizzle-orm";
 import { schedules } from "./schedules";
+import { tenantIdColumn } from "./tenant-column";
 
 /**
  * Per-date cancellation of a recurring schedule slot.
@@ -27,6 +28,8 @@ export const scheduleExceptions = mysqlTable(
   "schedule_exceptions",
   {
     id: int("id").primaryKey().autoincrement(),
+    // Fase 167 (COL-01): tenancy. Valor server-side, nunca de payload. Ver src/db/schema/tenant-column.ts
+    tenantId: tenantIdColumn(),
     scheduleId: int("schedule_id")
       .references(() => schedules.id)
       .notNull(),

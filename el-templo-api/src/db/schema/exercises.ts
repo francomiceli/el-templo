@@ -7,6 +7,7 @@ import {
   index,
   type AnyMySqlColumn,
 } from "drizzle-orm/mysql-core";
+import { tenantIdColumn } from "./tenant-column";
 
 export const exerciseLevelEnum = mysqlEnum("exercise_level", [
   "alfa",
@@ -20,6 +21,8 @@ export const exercises = mysqlTable(
   "exercises",
   {
     id: int("id").primaryKey().autoincrement(),
+    // Fase 167 (COL-01): tenancy. Valor server-side, nunca de payload. Ver src/db/schema/tenant-column.ts
+    tenantId: tenantIdColumn(),
     pattern: varchar("pattern", { length: 100 }).notNull(),
     category: varchar("category", { length: 100 }).notNull(),
     categorySecondary: varchar("category_secondary", { length: 100 }),

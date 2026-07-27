@@ -11,6 +11,7 @@ import {
 } from "drizzle-orm/mysql-core";
 import { relations } from "drizzle-orm";
 import { exercises } from "./exercises";
+import { tenantIdColumn } from "./tenant-column";
 
 export const contentBlockTypeEnum = mysqlEnum("block_type", [
   "video",
@@ -21,6 +22,8 @@ export const contentBlockTypeEnum = mysqlEnum("block_type", [
 
 export const programs = mysqlTable("programs", {
   id: int("id").primaryKey().autoincrement(),
+  // Fase 167 (COL-01): tenancy. Valor server-side, nunca de payload. Ver src/db/schema/tenant-column.ts
+  tenantId: tenantIdColumn(),
   name: varchar("name", { length: 150 }).notNull(),
   description: text("description"),
   goalPlanType: varchar("goal_plan_type", { length: 30 }),
@@ -39,6 +42,8 @@ export const programContentBlocks = mysqlTable(
   "program_content_blocks",
   {
     id: int("id").primaryKey().autoincrement(),
+    // Fase 167 (COL-01): tenancy. Valor server-side, nunca de payload. Ver src/db/schema/tenant-column.ts
+    tenantId: tenantIdColumn(),
     programId: int("program_id")
       .references(() => programs.id)
       .notNull(),

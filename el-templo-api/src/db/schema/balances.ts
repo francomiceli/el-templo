@@ -10,6 +10,7 @@ import {
 } from "drizzle-orm/mysql-core";
 import { relations } from "drizzle-orm";
 import { users } from "./users";
+import { tenantIdColumn } from "./tenant-column";
 
 // Cache table mirrored from financial_transactions + transaction_links.
 // Maintained atomically inside the same DB transaction as the ledger
@@ -23,6 +24,8 @@ export const balances = mysqlTable(
   "balances",
   {
     id: int("id").primaryKey().autoincrement(),
+    // Fase 167 (COL-01): tenancy. Valor server-side, nunca de payload. Ver src/db/schema/tenant-column.ts
+    tenantId: tenantIdColumn(),
     memberId: int("member_id")
       .references(() => users.id)
       .notNull(),

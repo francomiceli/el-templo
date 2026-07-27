@@ -11,11 +11,14 @@
 
 import { mysqlTable, int, timestamp, json, index } from 'drizzle-orm/mysql-core';
 import { sessions } from './sessions';
+import { tenantIdColumn } from './tenant-column';
 
 export const sessionTraces = mysqlTable(
   'session_traces',
   {
     id: int('id').primaryKey().autoincrement(),
+    // Fase 167 (COL-01): tenancy. Valor server-side, nunca de payload. Ver src/db/schema/tenant-column.ts
+    tenantId: tenantIdColumn(),
     sessionId: int('session_id')
       .notNull()
       .references(() => sessions.id, { onDelete: 'cascade' }),

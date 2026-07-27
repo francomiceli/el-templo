@@ -12,6 +12,7 @@ import {
 import { relations } from "drizzle-orm";
 import { branches } from "./branches";
 import { users } from "./users";
+import { tenantIdColumn } from "./tenant-column";
 
 /**
  * Pantalla TV de sucursal — dispositivos, pairing y estado de clase.
@@ -42,6 +43,8 @@ export const tvDevices = mysqlTable(
   "tv_devices",
   {
     id: int("id").primaryKey().autoincrement(),
+    // Fase 167 (COL-01): tenancy. Valor server-side, nunca de payload. Ver src/db/schema/tenant-column.ts
+    tenantId: tenantIdColumn(),
     branchId: int("branch_id")
       .notNull()
       .references(() => branches.id),
@@ -73,6 +76,9 @@ export const tvDevices = mysqlTable(
  */
 export const tvPairings = mysqlTable("tv_pairings", {
   id: int("id").primaryKey().autoincrement(),
+  // Mina M7: esta tabla es PRE-TENANT por diseno — la fila nace antes de que se sepa de quien es el televisor (branch_id nulo hasta el claim), asi que sus dos codigos quedan GLOBALES a proposito y para siempre (lista M8 aprobada), porque el claim tiene que resolverlos sin scope. La columna de abajo entra igual con DEFAULT 1, el claim la va a estampar con el scope del staff (CON-04) y la exencion `/* tenant-safe: pairing pre-claim */` del sentinel la agregan las fases 169/170.
+  // Fase 167 (COL-01): tenancy. Valor server-side, nunca de payload. Ver src/db/schema/tenant-column.ts
+  tenantId: tenantIdColumn(),
   // Publico: es lo que se ve en la pantalla del TV (D-02, no expira).
   userCode: varchar("user_code", { length: 6 }).notNull().unique(),
   // Secreto del TV — sha256 hex, nunca se muestra (T-164-03).
@@ -105,6 +111,8 @@ export const tvClassState = mysqlTable(
   "tv_class_state",
   {
     id: int("id").primaryKey().autoincrement(),
+    // Fase 167 (COL-01): tenancy. Valor server-side, nunca de payload. Ver src/db/schema/tenant-column.ts
+    tenantId: tenantIdColumn(),
     branchId: int("branch_id")
       .notNull()
       .references(() => branches.id),
