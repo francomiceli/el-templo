@@ -53,6 +53,12 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { sql, type SQL } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { createTestApp } from "../helpers";
+import {
+  verifyTenantUniques,
+  formatReport,
+  type QueryFn,
+  type TenantUniquesReport,
+} from "../../src/db/scripts/verify-tenant-uniques";
 
 interface IndexRow {
   INDEX_NAME: string;
@@ -209,6 +215,26 @@ async function queryRows<T>(
   const result = (await app.db.execute(statement)) as unknown as [T[]];
   const rows = Array.isArray(result) ? result[0] : (result as unknown as T[]);
   return Array.isArray(rows) ? rows : [];
+}
+
+/**
+ * Adapta `app.db` al `QueryFn` del verificador.
+ *
+ * Es el MISMO adaptador que usa `test/migrations/0192-0195-tenant-columns.test.ts`
+ * con el verificador hermano de la fase 167 — y la razón por la que el CLI que
+ * corre contra staging y prod y la suite que corre en CI ejecutan literalmente el
+ * mismo código, sin dos implementaciones que diverjan al primer cambio.
+ */
+function makeQueryFn(app: FastifyInstance): QueryFn {
+  return async (statement: string) => {
+    const result = (await app.db.execute(sql.raw(statement))) as unknown as [
+      Record<string, unknown>[],
+    ];
+    const rows = Array.isArray(result)
+      ? result[0]
+      : (result as unknown as Record<string, unknown>[]);
+    return Array.isArray(rows) ? rows : [];
+  };
 }
 
 async function getIndexRows(
@@ -470,5 +496,143 @@ describe("Migración 0196 — los 12 contratos de unicidad por tenant", () => {
           `veces (el segundo pase habría fallado con "Can't DROP" sobre índices ya dropeados).`,
       ).toBe(1);
     }
+  });
+});
+
+/**
+ * (d) El verificador `src/db/scripts/verify-tenant-uniques.ts` como gate de CI.
+ *
+ * El describe de arriba verifica lo que la 0196 hizo. Este verifica lo que NADIE
+ * puede deshacer después: que ninguna fase futura agregue una unique global sobre
+ * una tabla gym-owned sin clasificarla, ni una tabla gym-owned sin índice de
+ * prefijo `tenant_id`. La 168 termina, el gate queda.
+ *
+ * Este archivo CONSUME el verificador, no lo reimplementa. Si una aserción
+ * necesita saber si una unique es aceptable, la respuesta la da
+ * `verifyTenantUniques`: es el mismo código que el CLI corre contra
+ * `eltemplo_staging` y `eltemplo` (D-12), así que CI y el rollout no pueden
+ * divergir en su definición de "correcto".
+ */
+describe("Verificador de uniques e índices por tenant — gate fail-closed (CON-02, D-14)", () => {
+  let app: FastifyInstance;
+  let report: TenantUniquesReport;
+
+  beforeAll(async () => {
+    app = await createTestApp();
+    // Una sola corrida compartida por todo el describe: la verificación recorre
+    // INFORMATION_SCHEMA entero (todos los índices y todas las tablas de la
+    // base) y los seis tests miran el mismo reporte.
+    report = await verifyTenantUniques(makeQueryFn(app));
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it("Test 5: toda unique de tabla gym-owned arranca con tenant_id o está clasificada (D-14)", () => {
+    const detalle = report.uniquesMissingTenantPrefix
+      .map(
+        (hallazgo) =>
+          `  - ${hallazgo.table}.${hallazgo.indexName} (${hallazgo.columns.join(", ")}): ` +
+          `la primera columna es \`${hallazgo.firstColumn}\`, no \`tenant_id\`.`,
+      )
+      .join("\n");
+
+    expect(
+      report.uniquesMissingTenantPrefix,
+      `uniquesMissingTenantPrefix en ${report.database}:\n${detalle}\n` +
+        `Una unique global sobre una tabla gym-owned significa que el gimnasio 2 no puede ` +
+        `repetir un valor que el gimnasio 1 ya usó. Hay exactamente DOS salidas y ninguna es ` +
+        `borrar este test: (1) componer el índice como (tenant_id, ...) en una migración ` +
+        `nueva, o (2) clasificarlo en src/db/tenant-tables.ts —TENANT_GLOBAL_UNIQUES si es ` +
+        `M8, TENANT_UNIQUE_ALLOWLIST si no— con el motivo escrito, que tiene que nombrar la ` +
+        `FK padre concreta o el módulo Templo concreto.`,
+    ).toEqual([]);
+  });
+
+  it("Test 6: toda tabla gym-owned tiene un índice cuyo primer campo es tenant_id (CON-02 / D-11a)", () => {
+    // Los índices auto-creados por las FK `fk_<tabla>_tenant` de la fase 167
+    // cuentan: la 0196 no crea ni un solo INDEX(tenant_id) por eso (D-07).
+    expect(
+      report.tablesWithoutTenantIndex,
+      `tablesWithoutTenantIndex en ${report.database}: ` +
+        `${report.tablesWithoutTenantIndex.join(", ")}. Sin un índice de prefijo tenant_id, ` +
+        `TODA query scopeada de esa tabla es un full scan cuando entre el segundo gimnasio. ` +
+        `Que hacer: verificar que la FK fk_<tabla>_tenant de las migraciones 0192-0195 exista ` +
+        `en esta base (InnoDB crea su índice solo), o agregar un INDEX(tenant_id) explícito.`,
+    ).toEqual([]);
+  });
+
+  it("Test 7: toda tabla física de la base está clasificada (D-11b)", () => {
+    expect(
+      report.unclassifiedTables,
+      `unclassifiedTables en ${report.database}: ${report.unclassifiedTables.join(", ")}. ` +
+        `Toda tabla física tiene que entrar en una de las tres listas de ` +
+        `src/db/tenant-tables.ts: GYM_OWNED_TABLES (lleva tenant_id), TENANT_EXEMPT_TABLES ` +
+        `(exenta, con el motivo escrito) o PLATFORM_PHYSICAL_TABLES (infraestructura del ` +
+        `tooling, fuera del schema Drizzle). Las tablas de backup de migraciones NO van en ` +
+        `ninguna: el verificador las detecta por patrón de nombre y las reporta como warning.`,
+    ).toEqual([]);
+  });
+
+  it("Test 8: ninguna clasificación apunta a un índice inexistente (anti-podredumbre)", () => {
+    const detalle = report.staleClassifications
+      .map((entrada) => `  - ${entrada.key} (en ${entrada.register})`)
+      .join("\n");
+
+    expect(
+      report.staleClassifications,
+      `staleClassifications en ${report.database}:\n${detalle}\n` +
+        `Esas entradas de src/db/tenant-tables.ts apuntan a uniques que NO existen en esta ` +
+        `base: typo en el nombre físico, rename o índice borrado. Una clasificación podrida ` +
+        `no protege nada y convierte el gate en decoración. Que hacer: leer el nombre real de ` +
+        `INFORMATION_SCHEMA.STATISTICS y corregir la clave, o borrar la entrada si el índice ` +
+        `ya no existe.`,
+    ).toEqual([]);
+  });
+
+  it("Test 9: los contratos convertidos por la 0196 existen según el verificador (CON-01)", () => {
+    // Redundante a propósito con los Tests 1 a 1c: son dos caminos independientes
+    // (asserts escritos a mano acá, CONVERTED_CONTRACTS del verificador allá)
+    // sobre el mismo hecho. Si uno diera verde y el otro rojo, el problema está
+    // en el verificador y no en la base — que es justo lo que no queremos
+    // descubrir el día del rollout a producción.
+    const detalle = report.missingConvertedContracts
+      .map(
+        (hallazgo) =>
+          `  - ${hallazgo.table}.${hallazgo.indexName}: esperado (${hallazgo.expected}), ` +
+          `encontrado: ${hallazgo.found}`,
+      )
+      .join("\n");
+
+    expect(
+      report.missingConvertedContracts,
+      `missingConvertedContracts en ${report.database}:\n${detalle}\n` +
+        `Si los Tests 1-1c de este mismo archivo están en verde y este en rojo, el desacuerdo ` +
+        `está en CONVERTED_CONTRACTS de src/db/scripts/verify-tenant-uniques.ts, no en la base.`,
+    ).toEqual([]);
+  });
+
+  it("Test 10: el reporte cierra en 0 discrepancias y cubre las 87 tablas gym-owned", () => {
+    // El reporte completo va DENTRO del mensaje: un fallo en CI trae el detalle
+    // en el log y nadie tiene que reproducirlo local para saber qué pasó.
+    expect(
+      report.discrepancies,
+      `El verificador de uniques encontró discrepancias. Reporte completo:\n${formatReport(report)}`,
+    ).toBe(0);
+
+    // Sin estos dos, un reporte que no miró NADA (lista vacía, base equivocada,
+    // query rota) daría los cinco arrays vacíos y pasaría los Tests 5 a 9.
+    expect(
+      report.gymOwnedChecked,
+      `El verificador solo pudo mirar ${report.gymOwnedChecked} de las 87 tablas gym-owned de ` +
+        `la fase 167: faltan tablas en ${report.database} y el resultado no es concluyente.`,
+    ).toBe(87);
+    expect(
+      report.uniquesChecked,
+      `El verificador evaluó ${report.uniquesChecked} uniques de tablas gym-owned. Tienen que ` +
+        `ser al menos las 48 clasificadas en src/db/tenant-tables.ts (11 M8 + 37 allowlist): ` +
+        `un número menor significa que la introspección no está viendo la base entera.`,
+    ).toBeGreaterThanOrEqual(48);
   });
 });
