@@ -4486,7 +4486,7 @@ Plans:
 4. Toda tabla gym-owned tiene un índice cuyo primer campo es `tenant_id` (por unique compuesta o `INDEX` explícito), verificado por una query a `information_schema` dentro de la suite. (CON-02)
 5. Cero cambio de comportamiento para el staff: alta de alumno, sedes, códigos promo, centros de costo y campañas siguen rechazando los duplicados que rechazaban ayer (suite verde, sin ajustar expectativas).
 
-**Plans:** 3/6 plans executed
+**Plans:** 4/6 plans executed
 
 Plans:
 
@@ -4501,7 +4501,7 @@ Plans:
 **Wave 3** _(blocked on Wave 2 completion)_
 
 - [x] 168-03-PLAN.md — `tenant-tables.ts` extendido (registro M8 + allowlist con motivo) y verificador `verify-tenant-uniques.ts`
-- [ ] 168-04-PLAN.md — Tests CON-01 de comportamiento: tenant 2 sembrado, duplicados cross-tenant aceptados e intra-tenant rechazados
+- [x] 168-04-PLAN.md — Tests CON-01 de comportamiento: tenant 2 sembrado, duplicados cross-tenant aceptados e intra-tenant rechazados
 
 **Wave 4** _(blocked on Wave 3 completion)_
 
@@ -4654,7 +4654,7 @@ Plans:
 | ------------------------------------------------- | -------------- | ----------- | ---------- |
 | 166. Fundación — tenants, anclas y scope          | 6/6            | Complete    | 2026-07-27 |
 | 167. Columnas — tenant_id en 85 tablas            | 7/7            | Complete    | 2026-07-27 |
-| 168. Contratos SQL — uniques compuestas e índices | 3/6            | In Progress |            |
+| 168. Contratos SQL — uniques compuestas e índices | 4/6            | In Progress |            |
 | 169. Capa de escritura — helpers y TenantContext  | 0/?            | Not started |            |
 | 170. Detección — sentinel de pool + lint CI       | 0/?            | Not started |            |
 | 171. Backstop — manifiesto + fixtures 2-tenant    | 0/?            | Not started |            |
