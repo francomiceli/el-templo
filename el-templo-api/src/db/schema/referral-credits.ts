@@ -11,11 +11,14 @@ import {
 import { relations } from "drizzle-orm";
 import { users } from "./users";
 import { subscriptions } from "./subscriptions";
+import { tenantIdColumn } from "./tenant-column";
 
 export const referralCredits = mysqlTable(
   "referral_credits",
   {
     id: int("id").primaryKey().autoincrement(),
+    // Fase 167 (COL-01): tenancy. Valor server-side, nunca de payload. Ver src/db/schema/tenant-column.ts
+    tenantId: tenantIdColumn(),
     // El socio que recibió el descuento en este cobro (referidor o referido: D-02 simétrico).
     userId: int("user_id")
       .references(() => users.id)

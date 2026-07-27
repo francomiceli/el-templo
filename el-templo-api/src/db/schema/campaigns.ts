@@ -10,6 +10,7 @@ import {
 } from "drizzle-orm/mysql-core";
 import { relations } from "drizzle-orm";
 import { users } from "./users";
+import { tenantIdColumn } from "./tenant-column";
 
 /**
  * Reusable email-campaign schema (Phase 119, D-12).
@@ -36,6 +37,8 @@ import { users } from "./users";
  */
 export const campaigns = mysqlTable("campaigns", {
   id: int("id").primaryKey().autoincrement(),
+  // Fase 167 (COL-01): tenancy. Valor server-side, nunca de payload. Ver src/db/schema/tenant-column.ts
+  tenantId: tenantIdColumn(),
   name: varchar("name", { length: 255 }).notNull(),
   subject: varchar("subject", { length: 255 }).notNull(),
   // 'draft' | 'sending' | 'sent'
@@ -62,6 +65,8 @@ export const campaignSends = mysqlTable(
   "campaign_sends",
   {
     id: int("id").primaryKey().autoincrement(),
+    // Fase 167 (COL-01): tenancy. Valor server-side, nunca de payload. Ver src/db/schema/tenant-column.ts
+    tenantId: tenantIdColumn(),
     campaignId: int("campaign_id")
       .references(() => campaigns.id, { onDelete: "cascade" })
       .notNull(),
@@ -86,6 +91,8 @@ export const campaignEvents = mysqlTable(
   "campaign_events",
   {
     id: int("id").primaryKey().autoincrement(),
+    // Fase 167 (COL-01): tenancy. Valor server-side, nunca de payload. Ver src/db/schema/tenant-column.ts
+    tenantId: tenantIdColumn(),
     sendId: int("send_id")
       .references(() => campaignSends.id, { onDelete: "cascade" })
       .notNull(),
@@ -105,6 +112,12 @@ export const campaignUnsubscribes = mysqlTable(
   "campaign_unsubscribes",
   {
     id: int("id").primaryKey().autoincrement(),
+    // Fase 167 (COL-01): tenancy. Valor server-side, nunca de payload. Ver src/db/schema/tenant-column.ts
+    tenantId: tenantIdColumn(),
+    // Mina M3 (doc 06 §8-Q5): la unique global sobre `email` pasa a ser compuesta
+    // (tenant_id, email) en la fase 168 — hoy una baja en un gimnasio suprimiría los
+    // envíos de todos. Ojo: `user_id` puede ser NULL (baja solo-email), así que el
+    // backfill de esta tabla es DIRECTO a 1 y no derivado del socio.
     userId: int("user_id").references(() => users.id, { onDelete: "cascade" }),
     email: varchar("email", { length: 255 }).notNull(),
     campaignId: int("campaign_id").references(() => campaigns.id, {
