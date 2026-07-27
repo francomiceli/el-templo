@@ -111,6 +111,13 @@ Cuerpo: 9 statements `ALTER TABLE`, uno por tabla, cada uno precedido de un come
 - **Files modified:** `el-templo-api/.env`, `el-templo-api/.env.development` en el worktree (ambos gitignorados, no entran a ningún commit).
 - **Commit:** —
 
+**2. [Decisión de estado] CON-01 y CON-02 NO se marcaron completos en REQUIREMENTS.md**
+
+- **Found during:** actualización de estado post-ejecución
+- **Issue:** el frontmatter de este plan declara `requirements: [CON-01, CON-02]`, pero los seis planes de la fase 168 reclaman los mismos dos IDs (168-02 y 168-04 CON-01; 168-03, 168-05 y 168-06 los dos). Marcarlos completos ahora afirmaría que el contrato de unicidad está vivo en staging y prod, cuando solo lo está en la base local y el schema Drizzle todavía no lo declara.
+- **Fix:** se dejaron en `Pending`. Los marca el último plan que los cierra de verdad (168-06, rollout), o el verificador de fase.
+- **Commit:** —
+
 Ninguna otra desviación: el plan se ejecutó tal como estaba escrito. En particular, **no** hizo falta el plan de contingencia de errno 150 del Task 3.
 
 ## Threat Model — resultado
