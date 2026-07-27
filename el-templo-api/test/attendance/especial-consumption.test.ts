@@ -189,6 +189,25 @@ describe("Consumo por actividad — especial vs presencial (fase 161-03, GATE-02
     expect(await remaining(m.especialSubId)).toBe(2);
   });
 
+  it("(2b) check-in a especial Y regular el MISMO día → ambos 201, cada uno consume su sub", async () => {
+    // Caso real: socios que van a ROM el mismo día de su actividad con Aura
+    // recibían "ya tiene asistencia registrada en esta fecha".
+    const m = await memberWithBothSubs("ec-2b@test.com");
+
+    const rEsp = await coachCheckIn(especialScheduleId, m.memberId);
+    expect(rEsp.statusCode).toBe(201);
+
+    const rReg = await coachCheckIn(regularScheduleId, m.memberId);
+    expect(rReg.statusCode).toBe(201);
+
+    expect(await remaining(m.especialSubId)).toBe(1);
+    expect(await remaining(m.presencialSubId)).toBe(m.presencialRemaining - 1);
+
+    // La regla intra-tipo sigue: un SEGUNDO check-in especial el mismo día → 400.
+    const rEsp2 = await coachCheckIn(especialScheduleId, m.memberId);
+    expect(rEsp2.statusCode).toBe(400);
+  });
+
   it("(3) undo del check-in a la especial restaura la clase al pase (vuelve a 2)", async () => {
     const m = await memberWithBothSubs("ec-3@test.com");
 
