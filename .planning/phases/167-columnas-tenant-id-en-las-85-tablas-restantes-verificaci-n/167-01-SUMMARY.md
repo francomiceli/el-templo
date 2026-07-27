@@ -48,7 +48,10 @@ patterns-established:
   - "Prueba negativa del gate ejercitada de verdad: se agrega un nombre inventado, se confirma el rojo, se revierte y se confirma el verde"
   - "Los comentarios no repiten el literal de codigo que documentan (mantiene verificable el criterio 'una sola definicion' por grep)"
 
-requirements-completed: [COL-01]
+# COL-01 NO se marca completo todavia: este plan solo publica el contrato, las
+# 85 tablas reciben la columna en 167-02..167-05 (ver Deviations, punto 3).
+requirements-completed: []
+requirements-progressed: [COL-01]
 
 # Metrics
 duration: 9min
