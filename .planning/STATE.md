@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: "Tenancy — El Templo pasa a ser tenant #1"
 status: executing
-stopped_at: Completed 167-02-PLAN.md
-last_updated: "2026-07-27T03:06:36.181Z"
+stopped_at: Completed 167-04-PLAN.md
+last_updated: "2026-07-27T03:22:52.563Z"
 last_activity: 2026-07-27
 progress:
   total_phases: 11
   completed_phases: 1
   total_plans: 13
-  completed_plans: 9
+  completed_plans: 10
   percent: 9
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (milestone v6.0 initialized 2026-07-26)
 ## Current Position
 
 Phase: 167 (columnas-tenant-id-en-las-85-tablas-restantes-verificaci-n) — EXECUTING
-Plan: 4 of 7
+Plan: 5 of 7
 Status: Ready to execute
 Last activity: 2026-07-27
 Next: `/gsd:verify-phase 166` (los 6 planes ejecutados y desplegados en staging + prod; falta el smoke funcional por UI de Franco)
@@ -351,6 +351,7 @@ _Updated after each plan completion_
 | Phase 167 P01 | 9min | 3 tasks | 3 files |
 | Phase 167 P02 | 15min | 2 tasks | 29 files |
 | Phase 167 P03 | 12min | 2 tasks | 8 files |
+| Phase 167 P04 | ~10min | 2 tasks | 23 files |
 
 ## Accumulated Context
 
@@ -831,8 +832,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-27T03:06:22.605Z
-Stopped at: Completed 167-02-PLAN.md
+Last session: 2026-07-27T03:22:52.532Z
+Stopped at: Completed 167-04-PLAN.md
 Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
