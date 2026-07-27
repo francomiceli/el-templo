@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: "Tenancy — El Templo pasa a ser tenant #1"
 status: executing
-stopped_at: Completed 167-04-PLAN.md
-last_updated: "2026-07-27T03:22:52.563Z"
+stopped_at: Completed 167-05-PLAN.md
+last_updated: "2026-07-27T03:39:50.155Z"
 last_activity: 2026-07-27
 progress:
   total_phases: 11
   completed_phases: 1
   total_plans: 13
-  completed_plans: 10
+  completed_plans: 11
   percent: 9
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (milestone v6.0 initialized 2026-07-26)
 ## Current Position
 
 Phase: 167 (columnas-tenant-id-en-las-85-tablas-restantes-verificaci-n) — EXECUTING
-Plan: 5 of 7
+Plan: 6 of 7
 Status: Ready to execute
 Last activity: 2026-07-27
 Next: `/gsd:verify-phase 166` (los 6 planes ejecutados y desplegados en staging + prod; falta el smoke funcional por UI de Franco)
@@ -352,6 +352,7 @@ _Updated after each plan completion_
 | Phase 167 P02 | 15min | 2 tasks | 29 files |
 | Phase 167 P03 | 12min | 2 tasks | 8 files |
 | Phase 167 P04 | ~10min | 2 tasks | 23 files |
+| Phase 167 P05 | ~10min | 2 tasks | 17 files |
 
 ## Accumulated Context
 
@@ -800,6 +801,10 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: 167-02: la tanda C declara el DEFAULT desde el ADD COLUMN (fix WR-01 del review 166) — no copiar el ciclo de la 0191 en 167-03/04/05
 - [Phase ?]: 167-02: todo .select({...}) explicito tipado como typeof <tabla>.inferSelect rompe tsc al sumar tenant_id (caso balances/BalanceRow) — grepear inferSelect antes de cada tanda
 - [Phase ?]: 167-03: minas M3 y M6 anotadas en el codigo (campaign_unsubscribes y wellhub_events), no solo en el plan — la fase que cierra cada deuda queda escrita en el schema
+- [Phase ?]: 167-05: tanda C COMPLETA en local — 87 columnas tenant_id NOT NULL DEFAULT 1, 88 FKs a tenants, 0 filas mal backfilleadas sobre 26.519, conjunto identico a GYM_OWNED_TABLES en las dos direcciones
+- [Phase ?]: 167-05: el predicado de 'tabla tenant-aware' es NOT NULL DEFAULT 1, NO 'existe la columna tenant_id' — tenant_settings tiene la columna sin default (es su clave logica) y es EXENTA: con el predicado equivocado la comparacion da 88 vs 87
+- [Phase ?]: 167-05: MySQL LIKE no soporta clases de caracteres — el criterio LIKE '019[2-5]%' devuelve 0 siempre. Usar REGEXP '^019[2-5]'. Un falso negativo asi es indistinguible de un fallo real en la salida
+- [Phase ?]: 167-05: tv_pairings recibe la columna conservando su forma pre-claim (mina M7): insert sin tenant_id queda en 1 con branch_id NULL. Sus dos codigos quedan uniques GLOBALES para siempre (lista M8) porque el claim resuelve sin scope
 
 ### Pending Todos
 
@@ -832,8 +837,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-27T03:22:52.532Z
-Stopped at: Completed 167-04-PLAN.md
+Last session: 2026-07-27T03:39:50.135Z
+Stopped at: Completed 167-05-PLAN.md
 Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
