@@ -42,8 +42,8 @@ caminos críticos pasen la batería de aislamiento (ISO-03) en verde.
 
 ### CON — Contratos de acceso
 
-- [ ] **CON-01**: Uniques globales convertidas a compuestas `(tenant_id, …)` según doc 06 §1-D (users.email/dni/referral_code, branches.code, cost_centers, promo_code, campaign_unsubscribes.email, template_key, day_modes, holidays, formats); lista M8 queda global (aprobada 2026-07-26)
-- [ ] **CON-02**: Toda tabla gym-owned tiene índice con prefijo `tenant_id` (vía unique compuesta o `INDEX` explícito) en la misma migración
+- [x] **CON-01**: Uniques globales convertidas a compuestas `(tenant_id, …)` según doc 06 §1-D (users.email/dni/referral_code, branches.code, cost_centers, promo_code, campaign_unsubscribes.email, template_key, day_modes, holidays, formats); lista M8 queda global (aprobada 2026-07-26)
+- [x] **CON-02**: Toda tabla gym-owned tiene índice con prefijo `tenant_id` (vía unique compuesta o `INDEX` explícito) en la misma migración
 - [ ] **CON-03**: Helpers `tenantWhere`/`tenantValues` en `shared/tenant.ts`; todo INSERT sobre gym-owned toma `tenant_id` exclusivamente de scope/contexto server-side
 - [ ] **CON-04**: `TenantContext` explícito para caminos sin request: crons iteran tenants activos, webhook Wellhub deriva tenant vía `branches.wellhub_gym_id`, scripts CLI lo exigen como argumento; `tv_pairings` pre-claim con exención anotada (M7)
 - [ ] **CON-05**: Sentinel de pool mysql2 detecta SQL sobre tabla gym-owned sin `tenant_id`: test/dev = throw para módulos migrados, prod = `log.error` + métrica; exenciones `/* tenant-safe: <motivo> */` respetadas y grepeables
@@ -102,8 +102,8 @@ _Se completa cuando el roadmap asigne cada REQ-ID a una fase._
 | FUND-04 | Phase 166 | Complete |
 | COL-01  | Phase 167 | Complete |
 | COL-02  | Phase 167 | Complete |
-| CON-01  | Phase 168 | Pending  |
-| CON-02  | Phase 168 | Pending  |
+| CON-01  | Phase 168 | Complete |
+| CON-02  | Phase 168 | Complete |
 | CON-03  | Phase 169 | Pending  |
 | CON-04  | Phase 169 | Pending  |
 | CON-05  | Phase 170 | Pending  |

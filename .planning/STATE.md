@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: "Tenancy — El Templo pasa a ser tenant #1"
-status: executing
-stopped_at: Completed 168-02-PLAN.md
-last_updated: "2026-07-27T20:51:46.802Z"
+status: verifying
+stopped_at: Completed 168-06-PLAN.md
+last_updated: "2026-07-27T22:03:44.075Z"
 last_activity: 2026-07-27
 progress:
   total_phases: 11
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 19
-  completed_plans: 18
-  percent: 18
+  completed_plans: 19
+  percent: 27
 ---
 
 # Project State
@@ -25,15 +25,21 @@ See: .planning/PROJECT.md (milestone v6.0 initialized 2026-07-26)
 
 ## Current Position
 
-Phase: 168 (contratos-sql-uniques-compuestas-e-ndices-por-tenant-id) — EXECUTING
+Phase: 168 (contratos-sql-uniques-compuestas-e-ndices-por-tenant-id) — **COMPLETA, EN STAGING Y PROD 2026-07-27**
 Plan: 6 of 6
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-07-27
-Next: `/gsd:verify-phase 167` (los 7 planes ejecutados; migraciones 0192-0195 aplicadas en `eltemplo_staging` y `eltemplo` con 0 discrepancias en el verificador de COL-02 en las dos bases; falta el smoke funcional por UI de Franco, cerrado como pendiente por decisión suya). Sigue pendiente `/gsd:verify-phase 166` por el mismo motivo.
+Next: `/gsd:verify-phase 168` (los 6 planes ejecutados; la migración 0196 aplicada en `eltemplo_staging` y `eltemplo` con 0 discrepancias y exit 0 en el verificador de uniques en las dos bases; falta el smoke funcional por UI de Franco, cerrado como pendiente por decisión suya). Siguen pendientes `/gsd:verify-phase 166` y `/gsd:verify-phase 167` por el mismo motivo.
 
-**Tope de migración aplicado en producción: 0195.** Las fases siguientes reservan desde **0197** — el **0196** quedó tomado por la fase 168 (`0196_tenant_unique_contracts.sql`, escrita y aplicada SOLO en la base local en el plan 168-01; el rollout a staging y prod es del plan 168-06).
+**Tope de migración aplicado en producción: 0196.** Las fases siguientes reservan desde **0197**. La `0196_tenant_unique_contracts.sql` está aplicada **una sola vez en `eltemplo_staging` y una sola vez en `eltemplo`** (verificado en `_migrations` de cada base), desplegada por el plan 168-06 el 2026-07-27. Ya no hace falta consultar la rama de la fase: vive en `origin/master`.
 
-**Worktree de la fase 168:** `/home/franco/projects/et-168-contratos`, rama `feat/168-contratos-sql` desde `origin/master` (`68c447cf`). `node_modules` por symlink al worktree 167 y `.env`/`.env.development` copiados — **no correr ningún install ahí**. El `.sql` de la 0196 YA está commiteado: viajó junto al schema Drizzle en `ec835050` (168-02, Hard Rule 3). Commits de código de la fase: `ec835050` (uniques compuestas + 4 índices secundarios + la 0196), `5d5c0bc7` (los 11 comentarios M8), `758f2aa3` (registro canónico de uniques con motivo), `44618ca2` (verificador `verify-tenant-uniques.ts` + script `db:verify-uniques`) y `ba37a148` (el 12º contrato), `2c1af25f` + `a0216641` (168-04: `test/tenancy/con-01-uniques-cross-tenant.test.ts`, los 12 contratos probados por comportamiento) y `55c4059f` + `dbff616f` + `1200b8af` (168-05: introspección de la 0196, el verificador como gate de CI y el gate anti-podredumbre de los registros). Nada pusheado — el rollout a staging y prod es del plan 168-06.
+**Rollout de la 168 (168-06):** `origin/master` = **`1200b8af`** (los 10 commits de la fase, push fast-forward — `origin/master` no se había movido de `68c447cf`, así que no hizo falta merge y los 10 SHAs quedaron intactos). `origin/staging` = **`f934693c`** (merge `--no-ff` vía la rama descartable `tren/168-staging`, ya borrada). **Los 29 commits de CAJA/finance parados en staging NO viajaron a prod** (`merge-base --is-ancestor origin/staging HEAD` falla). Cuatro señales humanas registradas con hora y alcance en `168-06-SUMMARY.md`. Deploy paths reales, descubiertos con `pm2 describe`: `/opt/el-templo-staging/api` y `/var/www/api`.
+
+**Evidencia contra las dos bases reales:** 12 contratos compuestos con `tenant_id` en `SEQ_IN_INDEX=1`, **los 12 nombres viejos ausentes** y los 4 índices secundarios con `NON_UNIQUE=1`, verificados por `INFORMATION_SCHEMA` en `eltemplo_staging` y en `eltemplo`; `verify-tenant-uniques.js` con `DISCREPANCIAS: 0` y exit 0 en ambas, M8 11/11. **CON-01 y CON-02 marcados completos** en REQUIREMENTS.md. Prod: 7135 users, 130 planes, 1 tenant, cero filas fuera de `tenant_id=1`. **Ojo con leer el reloj como evidencia:** el step de migraciones tardó 4 s en las dos bases, pero eso no prueba nada — la heurística `alreadyApplied` del runner tolera `"Can't DROP"`, así que un `DROP INDEX` con el nombre equivocado habría salido verde en el deploy. Lo que lo prueba es `viejos_sobrevivientes = 0` contra `INFORMATION_SCHEMA`.
+
+**Pendiente de la 168: el smoke funcional por UI** (criterio 5 del ROADMAP, cero cambio de comportamiento para el staff): dar de alta un socio con un DNI que ya exista y ver que lo sigue rechazando, y crear una sede con código repetido y ver lo mismo. Cerrado como pendiente por decisión de Franco, igual que en 166 y 167.
+
+**Worktree de la fase 168:** `/home/franco/projects/et-168-contratos`, rama `feat/168-contratos-sql` = `1200b8af`, **vivo hasta el UAT** (patrón de las fases 166 y 167). Respaldada en `origin/feat/168-contratos-sql`. `.env`/`.env.development` copiados — **no correr ningún install ahí**; el `node_modules` es un symlink al worktree 167 que se crea y se borra alrededor de cada typecheck (la regla `node_modules/` del `.gitignore` no matchea un symlink, así que dejarlo ensucia `git status`). El `.sql` de la 0196 YA está commiteado: viajó junto al schema Drizzle en `ec835050` (168-02, Hard Rule 3). Commits de código de la fase: `ec835050` (uniques compuestas + 4 índices secundarios + la 0196), `5d5c0bc7` (los 11 comentarios M8), `758f2aa3` (registro canónico de uniques con motivo), `44618ca2` (verificador `verify-tenant-uniques.ts` + script `db:verify-uniques`) y `ba37a148` (el 12º contrato), `2c1af25f` + `a0216641` (168-04: `test/tenancy/con-01-uniques-cross-tenant.test.ts`, los 12 contratos probados por comportamiento) y `55c4059f` + `dbff616f` + `1200b8af` (168-05: introspección de la 0196, el verificador como gate de CI y el gate anti-podredumbre de los registros). Nada pusheado — el rollout a staging y prod es del plan 168-06.
 
 **Gate de CI puesto (168-05):** `test/migrations/0196-tenant-unique-contracts.test.ts` (638 líneas, 12 tests) verifica por `INFORMATION_SCHEMA` los 12 contratos compuestos, los 4 índices secundarios y que los **12 nombres viejos NO sobrevivan** —"presente lo nuevo" y "ausente lo viejo" son dos afirmaciones distintas y `test/setup.ts` tolera `"Can't DROP"`—, y corre `verifyTenantUniques` con `makeQueryFn(app)` con un test por categoría de hallazgo más `formatReport(report)` dentro del mensaje del `expect` de discrepancias. `test/db/tenant-tables.test.ts` sumó 7 gates de forma sobre los registros de uniques sin tocar los 5 de la 167 (87/4/91 intactos). **Fail-closed probado en vivo:** una unique global de prueba sobre `activities` dejó la suite en rojo con el reporte completo, y fue revertida (0 sobrevivientes). Ojo local: correr **más de un archivo de test a la vez** revienta el timeout de 120 s del provisioning en esta máquina (preexistente, reproducido con archivos de la 166/167) — usar `--no-file-parallelism` para los sanity-checks.
 
@@ -41,7 +47,7 @@ Next: `/gsd:verify-phase 167` (los 7 planes ejecutados; migraciones 0192-0195 ap
 
 **Contrato cerrado (168-03):** `TENANT_GLOBAL_UNIQUES` ya existe en `src/db/tenant-tables.ts` con las 11 M8 y su motivo, junto a `TENANT_UNIQUE_ALLOWLIST` (37 entradas) y `PLATFORM_PHYSICAL_TABLES`. Los 11 comentarios M8 del schema apuntan a un export real.
 
-**La 0196 tiene 12 contratos, no 11.** El verificador fail-closed del 168-03 encontró `subscription_plans.ux_subscription_plans_name_country` — unique global de tabla CORE gym-owned que la lista D-01 no tenía porque el índice existe en MySQL desde la migración **0091** y nunca se declaró en el schema Drizzle (drift schema↔DB; por eso el inventario del doc 05 anotó "name NO es unique"). Franco eligió el 2026-07-27 convertirla **dentro de la misma 0196** (opción A, no una 0197 aparte) y el drift quedó cerrado en el schema. Todo assert que cuente contratos convertidos dice **12**, y la 0196 tiene **10** `ALTER TABLE`. Aplicado a mano SOLO en la base local. `pnpm db:verify-uniques` contra `eltemplo` local: `discrepancies: 0`, exit 0.
+**La 0196 tiene 12 contratos, no 11.** El verificador fail-closed del 168-03 encontró `subscription_plans.ux_subscription_plans_name_country` — unique global de tabla CORE gym-owned que la lista D-01 no tenía porque el índice existe en MySQL desde la migración **0091** y nunca se declaró en el schema Drizzle (drift schema↔DB; por eso el inventario del doc 05 anotó "name NO es unique"). Franco eligió el 2026-07-27 convertirla **dentro de la misma 0196** (opción A, no una 0197 aparte) y el drift quedó cerrado en el schema. Todo assert que cuente contratos convertidos dice **12**, y la 0196 tiene **10** `ALTER TABLE`. **Aplicado en las tres bases** (local, `eltemplo_staging` y `eltemplo`) con `discrepancies: 0` y exit 0 en las tres. **Efecto de InnoDB a tener presente:** al crear `uq_subscription_plans_tenant_name_country`, InnoDB dropea solo el índice auto-creado `fk_subscription_plans_tenant` porque la unique nueva ya sirve a la FK — la FK sigue viva y `tablesWithoutTenantIndex` da 0. Ocurrió igual en las tres bases, como estaba previsto.
 
 **Deuda anotada para ISO-03 (fase 171):** la arista lógica `completed_sessions.day_id -> sessions.day_id` no cubre el 98,8% de las filas en producción (15.449 de 15.631 huérfanas). No es una discrepancia hoy —todo está en `tenant_id=1`— pero esa tabla no tiene verificación por derivación. Staging no lo detecta (no tiene el histórico). Hipótesis sobre la semántica de `day_id` NO verificada. Detalle en `167-07-SUMMARY.md`.
 
@@ -374,6 +380,7 @@ _Updated after each plan completion_
 | Phase 168 P03 | 45min | 3 tasks | 5 files |
 | Phase 168 P04 | 15min | 2 tasks | 1 files |
 | Phase 168 P05 | 40min | 3 tasks | 2 files |
+| Phase 168 P06 | ~53min | 2 tasks | 0 files |
 
 ## Accumulated Context
 
@@ -839,6 +846,10 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: 168-04: el invariante 'todo insert estampa tenantId' se hace cumplir por el tipo (tenantId como primer parámetro obligatorio de las 8 fixtures), no por grep — tsc rechaza un payload sin tenant
 - [Phase ?]: 168-05: el test de introspección de la 0196 es de SOLO LECTURA (no llama a cleanAllTestData) y el gate de CI consume verifyTenantUniques con makeQueryFn(app), así que CI y el CLI contra staging/prod ejecutan literalmente el mismo código
 - [Phase ?]: 168-05: la prueba manual del fail-closed hay que inyectarla DENTRO del beforeAll del test — el globalSetup de vitest dropea las bases per-worker al arrancar cada corrida, así que un índice de prueba creado por SQL antes da falso verde
+- [Phase 168]: 168-06: rollout de la tanda D a las dos bases reales — la 0196 aplicada UNA vez en eltemplo_staging y UNA en eltemplo, con 12 contratos compuestos presentes, los 12 nombres viejos ausentes y verify-tenant-uniques.js en 0 discrepancias/exit 0 en ambas. CON-01 y CON-02 cerrados en producción
+- [Phase 168]: 168-06: NO se squashearon los 10 commits de los planes 01-05 en el "commit único" que pedía el Task 1 — reescribir esos SHAs habría invalidado la evidencia que citan los cinco SUMMARY (mismo motivo por el que la 167 eligió merge --no-ff sobre rebase). Se verificaron los invariantes reales del gate: árbol limpio, diff exacto de 20 archivos, una sola migración, cero deleciones
+- [Phase 168]: 168-06: push a master de la RAMA DE FASE y fast-forward (origin/master no se había movido de 68c447cf) — sin merge commit, sin rebase, y con merge-base --is-ancestor origin/staging HEAD fallando, así que los 29 commits de CAJA/finance parados en staging no viajaron a prod
+- [Phase 168]: 168-06: el step de migraciones de un deploy NO es evidencia — tardó 4 s en las dos bases, pero la heurística alreadyApplied del runner tolera "Can't DROP" y un DROP INDEX mal nombrado saldría verde. La evidencia es la ausencia de los 12 nombres viejos en INFORMATION_SCHEMA de cada base real
 
 ### Pending Todos
 
@@ -871,8 +882,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-27T20:51:22.410Z
-Stopped at: Completed 168-02-PLAN.md
+Last session: 2026-07-27T22:03:44.056Z
+Stopped at: Completed 168-06-PLAN.md
 Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z

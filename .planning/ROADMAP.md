@@ -4371,7 +4371,7 @@ _v5.7 (Actividades con Aura) added: 2026-07-14 — 2 phases (161-162), 14 requir
 
 - [x] **Phase 166: Fundación — `tenants`, anclas y scope server-side** — tablas `tenants`/`tenant_settings` + seed El Templo `id=1`, `tenant_id NOT NULL` en las dos anclas (`users`, `branches`), y `attachCountryScope` → `attachScope` resolviendo `scope.tenantId` con enforcement de `tenants.status` (suspended/archived → 403). (completed 2026-07-27)
 - [x] **Phase 167: Columnas — `tenant_id` en las 85 tablas restantes + verificación** — tanda C agrupada por dominio (nullable → backfill `=1` → NOT NULL → FK) sobre las 46 CORE + 42 TEMPLO-MODULO menos anclas, con `system_settings` y `labs_inquiries` excluidas, más el script versionado que verifica el backfill contra las cadenas de FK del inventario. **(7/7 planes ejecutados 2026-07-27; migs 0192-0195 en staging y prod, verificador COL-02 en 0 discrepancias en las dos bases; pendiente `/gsd:verify-phase 167` + smoke por UI)** (completed 2026-07-27)
-- [ ] **Phase 168: Contratos SQL — uniques compuestas e índices por `tenant_id`** — tanda D: conversión de las uniques globales a `(tenant_id, …)` según doc 06 §1-D (incluida la obligatoria `campaign_unsubscribes`), lista M8 explícitamente global, e índice con prefijo `tenant_id` en toda tabla gym-owned.
+- [x] **Phase 168: Contratos SQL — uniques compuestas e índices por `tenant_id`** — tanda D: conversión de las uniques globales a `(tenant_id, …)` según doc 06 §1-D (incluida la obligatoria `campaign_unsubscribes`), lista M8 explícitamente global, e índice con prefijo `tenant_id` en toda tabla gym-owned. (completed 2026-07-27)
 - [ ] **Phase 169: Capa de escritura — helpers `tenantWhere`/`tenantValues` y `TenantContext`** — una sola API para request y caminos sin request (crons por tenant activo, webhook Wellhub por `branches.wellhub_gym_id`, CLI con tenant obligatorio, `tv_pairings` pre-claim exento y anotado).
 - [ ] **Phase 170: Detección automática — sentinel de pool mysql2 + lint en CI** — interceptor a nivel pool que detecta SQL sobre tabla gym-owned sin `tenant_id` (throw en test/dev para módulos migrados, `log.error` + métrica en prod) y lint estático con allowlist decreciente que rompe el build ante accesos nuevos sin scope ni anotación.
 - [ ] **Phase 171: Backstop — manifiesto de rutas fail-closed y fixtures 2-tenant** — `test/tenant-manifest.ts` clasificando el 100% de las rutas + hook `onRoute` que deja en rojo cualquier ruta nueva sin clasificar, y fixtures/helpers que siembran dos tenants con staff y socios propios.
@@ -4486,7 +4486,7 @@ Plans:
 4. Toda tabla gym-owned tiene un índice cuyo primer campo es `tenant_id` (por unique compuesta o `INDEX` explícito), verificado por una query a `information_schema` dentro de la suite. (CON-02)
 5. Cero cambio de comportamiento para el staff: alta de alumno, sedes, códigos promo, centros de costo y campañas siguen rechazando los duplicados que rechazaban ayer (suite verde, sin ajustar expectativas).
 
-**Plans:** 5/6 plans executed
+**Plans:** 6/6 plans complete
 
 Plans:
 
@@ -4509,7 +4509,7 @@ Plans:
 
 **Wave 5** _(blocked on Wave 4 completion)_
 
-- [ ] 168-06-PLAN.md — Rollout staging-first y verificación contra `eltemplo_staging` y `eltemplo` (checkpoint bloqueante)
+- [x] 168-06-PLAN.md — Rollout staging-first y verificación contra `eltemplo_staging` y `eltemplo` (checkpoint bloqueante)
 
 ### Phase 169: Capa de escritura — helpers `tenantWhere`/`tenantValues` y `TenantContext`
 
@@ -4654,7 +4654,7 @@ Plans:
 | ------------------------------------------------- | -------------- | ----------- | ---------- |
 | 166. Fundación — tenants, anclas y scope          | 6/6            | Complete    | 2026-07-27 |
 | 167. Columnas — tenant_id en 85 tablas            | 7/7            | Complete    | 2026-07-27 |
-| 168. Contratos SQL — uniques compuestas e índices | 5/6            | In Progress |            |
+| 168. Contratos SQL — uniques compuestas e índices | 6/6            | Complete    | 2026-07-27 |
 | 169. Capa de escritura — helpers y TenantContext  | 0/?            | Not started |            |
 | 170. Detección — sentinel de pool + lint CI       | 0/?            | Not started |            |
 | 171. Backstop — manifiesto + fixtures 2-tenant    | 0/?            | Not started |            |
