@@ -12,6 +12,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/run-migrations.ts",
     "db:verify-tenant": "tsx src/db/scripts/verify-tenant-backfill.ts",
+    "db:verify-uniques": "tsx src/db/scripts/verify-tenant-uniques.ts",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "db:seed": "tsx src/db/seed.ts",
