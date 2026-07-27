@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: "Tenancy — El Templo pasa a ser tenant #1"
 status: executing
-stopped_at: Completed 167-06-PLAN.md
-last_updated: "2026-07-27T12:45:00.000Z"
+stopped_at: Completed 167-07-PLAN.md
+last_updated: "2026-07-27T16:55:00.000Z"
 last_activity: 2026-07-27
 progress:
   total_phases: 11
   completed_phases: 1
   total_plans: 13
-  completed_plans: 12
+  completed_plans: 13
   percent: 9
 ---
 
@@ -25,11 +25,15 @@ See: .planning/PROJECT.md (milestone v6.0 initialized 2026-07-26)
 
 ## Current Position
 
-Phase: 167 (columnas-tenant-id-en-las-85-tablas-restantes-verificaci-n) — EXECUTING
-Plan: 7 of 7
-Status: Ready to execute
+Phase: 167 (columnas-tenant-id-en-las-85-tablas-restantes-verificaci-n) — EXECUTED (7/7 planes)
+Plan: 7 of 7 — COMPLETE
+Status: Ready to verify
 Last activity: 2026-07-27
-Next: `/gsd:verify-phase 166` (los 6 planes ejecutados y desplegados en staging + prod; falta el smoke funcional por UI de Franco)
+Next: `/gsd:verify-phase 167` (los 7 planes ejecutados; migraciones 0192-0195 aplicadas en `eltemplo_staging` y `eltemplo` con 0 discrepancias en el verificador de COL-02 en las dos bases; falta el smoke funcional por UI de Franco, cerrado como pendiente por decisión suya). Sigue pendiente `/gsd:verify-phase 166` por el mismo motivo.
+
+**Tope de migración aplicado en producción: 0195.** Las fases siguientes reservan desde **0196**.
+
+**Deuda anotada para ISO-03 (fase 171):** la arista lógica `completed_sessions.day_id -> sessions.day_id` no cubre el 98,8% de las filas en producción (15.449 de 15.631 huérfanas). No es una discrepancia hoy —todo está en `tenant_id=1`— pero esa tabla no tiene verificación por derivación. Staging no lo detecta (no tiene el histórico). Hipótesis sobre la semántica de `day_id` NO verificada. Detalle en `167-07-SUMMARY.md`.
 
 **Numeración:** v6.0 arranca en **166** — el ROADMAP tiene DOS "Phase 164" (TV de sucursal, viva en el worktree `et-164-tv`, y una legacy de v5.8) y la 165 está tomada por v5.8. Nada por debajo de 166 se renumera. La fase 164 (TV) sigue abierta en su worktree y se cierra por su propio carril, fuera de este milestone.
 
