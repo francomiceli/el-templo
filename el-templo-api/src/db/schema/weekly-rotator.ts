@@ -1,11 +1,14 @@
 import { mysqlTable, int, mysqlEnum, index, uniqueIndex } from 'drizzle-orm/mysql-core';
 import { routes } from './routes';
+import { tenantIdColumn } from './tenant-column';
 
 export const dayEnum = mysqlEnum('day', ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado']);
 export const levelGroupEnum = mysqlEnum('level_group', ['alfa_delta', 'sigma', 'omega']);
 
 export const weeklyRotator = mysqlTable('weekly_rotator', {
   id: int('id').primaryKey().autoincrement(),
+  // Fase 167 (COL-01): tenancy. Valor server-side, nunca de payload. Ver src/db/schema/tenant-column.ts
+  tenantId: tenantIdColumn(),
   week: int('week').notNull(),
   day: dayEnum.notNull(),
   levelGroup: levelGroupEnum.notNull(),

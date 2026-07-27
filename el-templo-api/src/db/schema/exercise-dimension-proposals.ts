@@ -9,6 +9,7 @@ import {
   uniqueIndex,
 } from "drizzle-orm/mysql-core";
 import { exercises } from "./exercises";
+import { tenantIdColumn } from "./tenant-column";
 
 /**
  * Status of a dimension proposal (D-01).
@@ -53,6 +54,8 @@ export const exerciseDimensionProposals = mysqlTable(
   "exercise_dimension_proposals",
   {
     id: int("id").primaryKey().autoincrement(),
+    // Fase 167 (COL-01): tenancy. Valor server-side, nunca de payload. Ver src/db/schema/tenant-column.ts
+    tenantId: tenantIdColumn(),
     exerciseId: int("exercise_id")
       .references(() => exercises.id, { onDelete: "cascade" })
       .notNull(),
