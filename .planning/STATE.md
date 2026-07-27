@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: "Tenancy — El Templo pasa a ser tenant #1"
-status: verifying
-stopped_at: Completed 168-06-PLAN.md
-last_updated: "2026-07-27T22:03:44.075Z"
+status: ready_to_plan
+stopped_at: Phase 168 complete (6/6) — ready to discuss Phase 169
+last_updated: 2026-07-27T22:28:55.873Z
 last_activity: 2026-07-27
 progress:
   total_phases: 11
   completed_phases: 3
   total_plans: 19
-  completed_plans: 19
+  completed_plans: 623
   percent: 27
 ---
 
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (milestone v6.0 initialized 2026-07-26)
 
 **Core value (v6.0):** El Templo pasa de "una gimnasia hardcodeada" a "el tenant #1 de una plataforma multi-tenant", **sin downtime y sin que el staff note nada**. Alcance: tablas `tenants`/`tenant_settings` + `tenant_id` denormalizado en las 87 tablas gym-owned + las 5 capas de enforcement (scope server-side, helpers `tenantWhere`/`tenantValues` + `TenantContext`, sentinel de pool mysql2, lint en CI, manifiesto de rutas fail-closed + batería de aislamiento), y adopción módulo a módulo en orden estricto de criticidad: finance → members → subscriptions → scheduling → analytics → resto core. 11 fases (166-176), 24 REQ-IDs (FUND/COL/CON/ISO/ADO/MOD). Reglas duras: `tenant_id` SIEMPRE server-side (jamás payload ni JWT); migraciones incrementales compatibles con código viejo (nullable → backfill → NOT NULL); staging-first estricto; reservar bloque de numeración al arrancar la 166 (**actualizado 2026-07-27: la 166 aplicó 0190 y 0191 en `eltemplo_staging` y en `eltemplo` — el tope en producción es 0191 y las fases siguientes reservan desde 0192**). **Gate del MILESTONE (no de una fase): el tenant 2 no se onboardea hasta que la batería de aislamiento (ISO-03) esté verde sobre el 100% de las rutas core `tenant-scoped`.** Diseño CERRADO en `.docs/saas-multitenancy/` (README + docs 03/04/05/06, §8 resuelto 2026-07-26) — no re-litigar en discuss/plan-phase.
-**Current focus:** Phase 168 — contratos-sql-uniques-compuestas-e-ndices-por-tenant-id
+**Current focus:** Phase 169 — capa de escritura — helpers `tenantwhere`/`tenantvalues` y `tenantcontext`
 
 ## Current Position
 
-Phase: 168 (contratos-sql-uniques-compuestas-e-ndices-por-tenant-id) — **COMPLETA, EN STAGING Y PROD 2026-07-27**
-Plan: 6 of 6
-Status: Phase complete — ready for verification
+Phase: 169
+Plan: Not started
+Status: Ready to plan
 Last activity: 2026-07-27
 Next: `/gsd:verify-phase 168` (los 6 planes ejecutados; la migración 0196 aplicada en `eltemplo_staging` y `eltemplo` con 0 discrepancias y exit 0 en el verificador de uniques en las dos bases; falta el smoke funcional por UI de Franco, cerrado como pendiente por decisión suya). Siguen pendientes `/gsd:verify-phase 166` y `/gsd:verify-phase 167` por el mismo motivo.
 
@@ -57,7 +57,7 @@ Next: `/gsd:verify-phase 168` (los 6 planes ejecutados; la migración 0196 aplic
 
 **Velocity:**
 
-- Total plans completed: 76 (v4.1)
+- Total plans completed: 82 (v4.1)
 - Average duration: ~11min
 - Total execution time: ~122min
 
@@ -83,6 +83,7 @@ Next: `/gsd:verify-phase 168` (los 6 planes ejecutados; la migración 0196 aplic
 | 156   | 5     | -      | -        |
 | 166   | 6     | -      | -        |
 | 167   | 7     | -      | -        |
+| 168   | 6     | -      | -        |
 
 **Recent Trend (from v4.0):**
 
