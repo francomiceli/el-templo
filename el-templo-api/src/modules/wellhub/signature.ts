@@ -8,8 +8,10 @@
  * permite, porque sus simuladores devuelven el payload sin firmar y lo
  * firmamos nosotros. Así que verificamos contra los formatos plausibles de
  * HMAC del RAW body con el secreto compartido: sha1/sha256, en hex o base64,
- * con o sin prefijo "sha1=" / "sha256=". Cada candidato se compara en tiempo
- * constante (timingSafeEqual, patrón de campaigns/token-service.ts CR-03).
+ * con o sin prefijo "sha1=" / "sha256=". El hex se compara sin distinguir
+ * mayúsculas (la primera prueba real de Wellhub llegó en hex MAYÚSCULA y un
+ * 401 la rechazó). Cada candidato se compara en tiempo constante
+ * (timingSafeEqual, patrón de campaigns/token-service.ts CR-03).
  *
  * Devuelve el formato que coincidió (para loguearlo): con el primer webhook
  * real de Wellhub, ese log identifica la receta definitiva y esta lista se
@@ -42,12 +44,16 @@ export function verifyWellhubSignature(
   const provided = signatureHeader.replace(/^sha(1|256)=/i, "").trim();
   if (provided.length === 0) return null;
   const providedBuf = Buffer.from(provided);
+  // El hex es case-insensitive: la comparación usa la firma normalizada a
+  // minúscula (digest.toString("hex") emite minúscula).
+  const providedHexBuf = Buffer.from(provided.toLowerCase());
 
   for (const algorithm of ["sha1", "sha256"] as const) {
     const hmac = createHmac(algorithm, secret).update(rawBody);
     const digest = hmac.digest();
     for (const encoding of ["hex", "base64", "base64url"] as const) {
-      if (safeEqual(providedBuf, Buffer.from(digest.toString(encoding)))) {
+      const candidate = encoding === "hex" ? providedHexBuf : providedBuf;
+      if (safeEqual(candidate, Buffer.from(digest.toString(encoding)))) {
         return { algorithm, encoding };
       }
     }

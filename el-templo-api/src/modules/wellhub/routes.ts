@@ -85,7 +85,16 @@ export const wellhubWebhookRoutes: FastifyPluginAsync = async (fastify) => {
       config.webhookSecret,
     );
     if (!signatureFormat) {
-      request.log.warn("Webhook Wellhub con firma inválida rechazado");
+      // La firma es un MAC del mensaje (no revela el secreto): loguearla
+      // permite diagnosticar la receta en la prueba conjunta con Wellhub.
+      request.log.warn(
+        {
+          signature: signature ?? null,
+          signatureLength: signature?.length ?? 0,
+          bodyLength: rawBody.length,
+        },
+        "Webhook Wellhub con firma inválida rechazado",
+      );
       return reply.code(401).send({ error: "Firma inválida" });
     }
     // Con el primer webhook real de Wellhub este log identifica la receta

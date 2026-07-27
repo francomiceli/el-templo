@@ -205,6 +205,23 @@ describe("Wellhub webhook — check-in", () => {
     ).toBe(200);
   });
 
+  it("acepta hex en MAYÚSCULAS (formato real de la prueba de Wellhub)", async () => {
+    stubValidateFetch();
+
+    // La primera prueba conjunta llegó como HMAC-SHA1 hex uppercase y daba
+    // 401: la comparación era sensible a mayúsculas.
+    const raw1 = checkinPayload({ token: uniqueToken(), gymId });
+    expect(
+      (await postWebhook(app, raw1, sign(raw1, "sha1").toUpperCase()))
+        .statusCode,
+    ).toBe(200);
+
+    const raw2 = checkinPayload({ token: uniqueToken(), gymId });
+    expect(
+      (await postWebhook(app, raw2, sign(raw2).toUpperCase())).statusCode,
+    ).toBe(200);
+  });
+
   it("acepta la firma también en X-Api-Signature (nombre del mail de Wellhub)", async () => {
     stubValidateFetch();
 
