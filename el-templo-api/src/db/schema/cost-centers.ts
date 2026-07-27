@@ -8,6 +8,7 @@ import {
   index,
   uniqueIndex,
 } from "drizzle-orm/mysql-core";
+import { tenantIdColumn } from "./tenant-column";
 
 // Phase 147 (EGR-01) — catálogo de centros de costo por país. Cada egreso
 // (kind='expense') se clasifica obligatoriamente en uno de estos rubros para
@@ -22,6 +23,8 @@ export const costCenters = mysqlTable(
   "cost_centers",
   {
     id: int("id").primaryKey().autoincrement(),
+    // Fase 167 (COL-01): tenancy. Valor server-side, nunca de payload. Ver src/db/schema/tenant-column.ts
+    tenantId: tenantIdColumn(),
     name: varchar("name", { length: 100 }).notNull(),
     country: varchar("country", { length: 2 }).default("AR").notNull(),
     isActive: boolean("is_active").default(true).notNull(),

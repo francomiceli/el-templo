@@ -9,9 +9,12 @@ import {
 } from "drizzle-orm/mysql-core";
 import { relations } from "drizzle-orm";
 import { schedules } from "./schedules";
+import { tenantIdColumn } from "./tenant-column";
 
 export const activities = mysqlTable("activities", {
   id: int("id").primaryKey().autoincrement(),
+  // Fase 167 (COL-01): tenancy. Valor server-side, nunca de payload. Ver src/db/schema/tenant-column.ts
+  tenantId: tenantIdColumn(),
   name: varchar("name", { length: 150 }).notNull(),
   description: text("description"),
   isActive: boolean("is_active").default(true).notNull(),

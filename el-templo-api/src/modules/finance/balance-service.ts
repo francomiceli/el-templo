@@ -314,6 +314,10 @@ export class BalanceService {
     const rows = await this.db
       .select({
         id: schema.balances.id,
+        // Fase 167 (COL-01): la proyección explícita tiene que listar TODAS las
+        // columnas de `balances` porque el retorno es BalanceRow ($inferSelect),
+        // y `tenant_id` pasó a ser parte de la fila. Sin esto no compila.
+        tenantId: schema.balances.tenantId,
         memberId: schema.balances.memberId,
         targetKind: schema.balances.targetKind,
         targetId: schema.balances.targetId,

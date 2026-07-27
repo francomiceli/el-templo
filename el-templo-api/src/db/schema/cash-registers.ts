@@ -11,6 +11,7 @@ import {
 } from "drizzle-orm/mysql-core";
 import { relations } from "drizzle-orm";
 import { branches } from "./branches";
+import { tenantIdColumn } from "./tenant-column";
 
 // Phase 138 — caja como entidad de primera clase (D-04). Una caja NUNCA
 // mezcla monedas: `currency` es fija (D-09, guard espejo de applyDelta).
@@ -30,6 +31,8 @@ export const cashRegisters = mysqlTable(
   "cash_registers",
   {
     id: int("id").primaryKey().autoincrement(),
+    // Fase 167 (COL-01): tenancy. Valor server-side, nunca de payload. Ver src/db/schema/tenant-column.ts
+    tenantId: tenantIdColumn(),
     name: varchar("name", { length: 100 }).notNull(),
     type: mysqlEnum("type", ["efectivo", "banco"]).notNull(),
     // NULLABLE: NULL = caja central (efectivo) o banco (por moneda). NOT NULL

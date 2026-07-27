@@ -13,6 +13,7 @@ import {
 } from "drizzle-orm/mysql-core";
 import { relations } from "drizzle-orm";
 import { financialTransactions } from "./financial-transactions";
+import { tenantIdColumn } from "./tenant-column";
 
 // Pivot table linking a financial_transaction to N concept rows (subscription,
 // debt_balance, transaction). target_id intentionally has NO `.references(...)`
@@ -22,6 +23,8 @@ export const transactionLinks = mysqlTable(
   "transaction_links",
   {
     id: int("id").primaryKey().autoincrement(),
+    // Fase 167 (COL-01): tenancy. Valor server-side, nunca de payload. Ver src/db/schema/tenant-column.ts
+    tenantId: tenantIdColumn(),
     transactionId: int("transaction_id")
       .references(() => financialTransactions.id)
       .notNull(),

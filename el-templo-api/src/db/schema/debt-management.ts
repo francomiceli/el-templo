@@ -30,6 +30,7 @@ import {
 import { relations } from "drizzle-orm";
 import { balances } from "./balances";
 import { users } from "./users";
+import { tenantIdColumn } from "./tenant-column";
 
 export const debtManagementStatusEnum = mysqlEnum("status", [
   "activa",
@@ -41,6 +42,8 @@ export const debtManagement = mysqlTable(
   "debt_management",
   {
     id: int("id").primaryKey().autoincrement(),
+    // Fase 167 (COL-01): tenancy. Valor server-side, nunca de payload. Ver src/db/schema/tenant-column.ts
+    tenantId: tenantIdColumn(),
     balanceId: int("balance_id")
       .references(() => balances.id)
       .notNull(),

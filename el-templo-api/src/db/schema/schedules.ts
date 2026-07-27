@@ -12,11 +12,14 @@ import { relations } from "drizzle-orm";
 import { branches } from "./branches";
 import { activities } from "./activities";
 import { bookings } from "./bookings";
+import { tenantIdColumn } from "./tenant-column";
 
 export const schedules = mysqlTable(
   "schedules",
   {
     id: int("id").primaryKey().autoincrement(),
+    // Fase 167 (COL-01): tenancy. Valor server-side, nunca de payload. Ver src/db/schema/tenant-column.ts
+    tenantId: tenantIdColumn(),
     branchId: int("branch_id")
       .references(() => branches.id)
       .notNull(),
