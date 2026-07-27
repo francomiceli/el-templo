@@ -4490,11 +4490,25 @@ Plans:
 
 Plans:
 
+**Wave 1**
+
 - [ ] 168-01-PLAN.md — Worktree desde `origin/master` + migración 0196 (11 uniques compuestas + 4 índices secundarios) aplicada en local
+
+**Wave 2** _(blocked on Wave 1 completion)_
+
 - [ ] 168-02-PLAN.md — Schema Drizzle alineado byte a byte + comentarios M8 en las 11 uniques que quedan globales
+
+**Wave 3** _(blocked on Wave 2 completion)_
+
 - [ ] 168-03-PLAN.md — `tenant-tables.ts` extendido (registro M8 + allowlist con motivo) y verificador `verify-tenant-uniques.ts`
 - [ ] 168-04-PLAN.md — Tests CON-01 de comportamiento: tenant 2 sembrado, duplicados cross-tenant aceptados e intra-tenant rechazados
+
+**Wave 4** _(blocked on Wave 3 completion)_
+
 - [ ] 168-05-PLAN.md — Test de introspección de la 0196 + gate fail-closed de CON-02 y D-14 en la suite
+
+**Wave 5** _(blocked on Wave 4 completion)_
+
 - [ ] 168-06-PLAN.md — Rollout staging-first y verificación contra `eltemplo_staging` y `eltemplo` (checkpoint bloqueante)
 
 ### Phase 169: Capa de escritura — helpers `tenantWhere`/`tenantValues` y `TenantContext`

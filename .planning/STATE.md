@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: "Tenancy — El Templo pasa a ser tenant #1"
-status: planning
+status: executing
 stopped_at: Phase 168 context gathered
-last_updated: "2026-07-27T18:20:20.764Z"
-last_activity: 2026-07-27
+last_updated: "2026-07-27T18:54:34.586Z"
+last_activity: 2026-07-27 -- Phase 168 planning complete
 progress:
   total_phases: 11
   completed_phases: 2
-  total_plans: 13
+  total_plans: 19
   completed_plans: 13
   percent: 18
 ---
@@ -27,8 +27,8 @@ See: .planning/PROJECT.md (milestone v6.0 initialized 2026-07-26)
 
 Phase: 168
 Plan: Not started
-Status: Ready to plan
-Last activity: 2026-07-27
+Status: Ready to execute
+Last activity: 2026-07-27 -- Phase 168 planning complete
 Next: `/gsd:verify-phase 167` (los 7 planes ejecutados; migraciones 0192-0195 aplicadas en `eltemplo_staging` y `eltemplo` con 0 discrepancias en el verificador de COL-02 en las dos bases; falta el smoke funcional por UI de Franco, cerrado como pendiente por decisión suya). Sigue pendiente `/gsd:verify-phase 166` por el mismo motivo.
 
 **Tope de migración aplicado en producción: 0195.** Las fases siguientes reservan desde **0196**.
