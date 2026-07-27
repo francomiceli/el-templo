@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: "Tenancy — El Templo pasa a ser tenant #1"
-status: ready_to_plan
-stopped_at: Phase 166 complete (6/6) — ready to discuss Phase 167
-last_updated: 2026-07-27T01:48:37.610Z
-last_activity: 2026-07-27
+status: executing
+stopped_at: Completed 166-06-PLAN.md — fase 166 desplegada en staging y prod, pendiente smoke funcional de UAT
+last_updated: "2026-07-27T02:23:08.030Z"
+last_activity: 2026-07-27 -- Phase 167 planning complete
 progress:
   total_phases: 11
   completed_phases: 1
-  total_plans: 6
-  completed_plans: 610
+  total_plans: 13
+  completed_plans: 6
   percent: 9
 ---
 
@@ -27,8 +27,8 @@ See: .planning/PROJECT.md (milestone v6.0 initialized 2026-07-26)
 
 Phase: 167
 Plan: Not started
-Status: Ready to plan
-Last activity: 2026-07-27
+Status: Ready to execute
+Last activity: 2026-07-27 -- Phase 167 planning complete
 Next: `/gsd:verify-phase 166` (los 6 planes ejecutados y desplegados en staging + prod; falta el smoke funcional por UI de Franco)
 
 **Numeración:** v6.0 arranca en **166** — el ROADMAP tiene DOS "Phase 164" (TV de sucursal, viva en el worktree `et-164-tv`, y una legacy de v5.8) y la 165 está tomada por v5.8. Nada por debajo de 166 se renumera. La fase 164 (TV) sigue abierta en su worktree y se cierra por su propio carril, fuera de este milestone.
