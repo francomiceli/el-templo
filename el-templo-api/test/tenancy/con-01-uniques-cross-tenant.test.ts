@@ -164,6 +164,13 @@ async function esperarAceptaCrossTenant<T>(
 }
 
 // ─── Fixtures locales mínimas ────────────────────────────────────────────────
+//
+// LAS OCHO EXIGEN `tenantId: number` COMO PRIMER PARÁMETRO, y no es cosmético:
+// es la mitigación de T-168-15 movida al compilador. Con el DEFAULT 1 de la
+// fase 167, un payload que se olvide del tenant cae en el tenant 1 en silencio
+// y el test pasa en verde probando nada. Acá no hay forma de construir el
+// payload sin decir de qué tenant es — `tsc` no compila si falta. Eso es más
+// fuerte que revisar a ojo que cada insert lo mencione.
 
 /**
  * Payload de `users` con todo lo obligatorio del schema, con `tenantId` SIEMPRE
@@ -192,6 +199,74 @@ function sede(tenantId: number, code: string) {
   return { tenantId, name: `CON-01 sede ${code}`, code };
 }
 
+/** Payload de `cost_centers`. El contrato es el PAR (name, country). */
+function centroDeCosto(tenantId: number, name: string, country: string) {
+  return { tenantId, name, country };
+}
+
+/** Payload de `subscription_plans` con todo lo obligatorio del schema. */
+function planDeSuscripcion(tenantId: number, name: string, country = "AR") {
+  return {
+    tenantId,
+    name,
+    planTier: "flex" as const,
+    bookingMode: "flexible" as const,
+    planCategory: "presencial" as const,
+    priceRegular: 15000,
+    priceZero: 10000,
+    durationDays: 30,
+    classesPerWeek: 3,
+    country,
+  };
+}
+
+/**
+ * Payload de `promo_plans`. `subscription_plan_id` es NOT NULL (sin FK física,
+ * verificado en 0063), pero se le pasa un plan REAL del mismo tenant: si una
+ * fase futura le agrega la FK, este test no se cae por eso.
+ */
+function promo(tenantId: number, promoCode: string, planId: number) {
+  const desde = new Date("2099-01-01T00:00:00Z");
+  const hasta = new Date("2099-12-31T00:00:00Z");
+  return {
+    tenantId,
+    name: `CON-01 promo ${promoCode}`,
+    promoCode,
+    subscriptionPlanId: planId,
+    startDate: desde,
+    expiryDate: hasta,
+  };
+}
+
+/**
+ * Payload de `campaign_unsubscribes`. `userId` va explícitamente en `null`: la
+ * baja solo-email es el caso real que motivó el backfill directo de esta tabla.
+ */
+function baja(tenantId: number, email: string) {
+  return { tenantId, email, userId: null, campaignId: null };
+}
+
+/** Payload de `notification_templates` con todo lo obligatorio. */
+function template(tenantId: number, templateKey: string) {
+  return {
+    tenantId,
+    templateKey,
+    category: "anuncios" as const,
+    title: "CON-01",
+    body: "Cuerpo de prueba del contrato CON-01",
+  };
+}
+
+/** Payload de `holidays`. El contrato es el PAR (country, date). */
+function feriado(tenantId: number, fecha: string) {
+  return {
+    tenantId,
+    country: "AR",
+    date: fecha,
+    name: "CON-01 feriado de prueba",
+  };
+}
+
 /**
  * Borra TODO rastro del tenant de prueba, en orden seguro de FKs.
  *
@@ -203,6 +278,26 @@ function sede(tenantId: number, code: string) {
  */
 async function limpiarTenantSegundo(app: FastifyInstance): Promise<void> {
   const t = TENANT_SEGUNDO;
+  // Orden seguro de FKs: primero lo que cuelga de users, después users, después
+  // branches (users.branch_id) y al final la raíz `tenants`.
+  await app.db
+    .delete(schema.campaignUnsubscribes)
+    .where(eq(schema.campaignUnsubscribes.tenantId, t));
+  await app.db
+    .delete(schema.promoPlans)
+    .where(eq(schema.promoPlans.tenantId, t));
+  await app.db
+    .delete(schema.notificationTemplates)
+    .where(eq(schema.notificationTemplates.tenantId, t));
+  await app.db.delete(schema.dayModes).where(eq(schema.dayModes.tenantId, t));
+  await app.db.delete(schema.holidays).where(eq(schema.holidays.tenantId, t));
+  await app.db.delete(schema.formats).where(eq(schema.formats.tenantId, t));
+  await app.db
+    .delete(schema.costCenters)
+    .where(eq(schema.costCenters.tenantId, t));
+  await app.db
+    .delete(schema.subscriptionPlans)
+    .where(eq(schema.subscriptionPlans.tenantId, t));
   await app.db.delete(schema.users).where(eq(schema.users.tenantId, t));
   await app.db.delete(schema.branches).where(eq(schema.branches.tenantId, t));
   await app.db.delete(schema.tenants).where(eq(schema.tenants.id, t));
@@ -429,5 +524,421 @@ describe("CON-01 — los contratos de unicidad por comportamiento (cross-tenant 
         }
       }
     });
+  });
+
+  // ─── cost_centers (name, country) ─────────────────────────────────────────
+  describe("cost_centers (name, country) — uq_cost_centers_tenant_name_country", () => {
+    const NOMBRE = "CON-01 Centro de costo";
+
+    it("el mismo par (nombre, país) existe en los dos tenants, y repetirlo dentro del tenant 1 sigue rechazando", async () => {
+      try {
+        await app.db
+          .insert(schema.costCenters)
+          .values(centroDeCosto(TENANT_TEMPLO, NOMBRE, "AR"));
+
+        await esperarAceptaCrossTenant("cost_centers (name, country)", () =>
+          app.db
+            .insert(schema.costCenters)
+            .values(centroDeCosto(TENANT_SEGUNDO, NOMBRE, "AR")),
+        );
+
+        const enLosDos = await contar(
+          app,
+          sql`SELECT COUNT(*) AS n FROM cost_centers WHERE name = ${NOMBRE} AND country = 'AR'`,
+        );
+        expect(enLosDos, "El mismo centro de costo, una vez por tenant").toBe(
+          2,
+        );
+
+        // El contrato es COMPUESTO: el mismo nombre en OTRO país sigue siendo
+        // legal dentro del mismo tenant, igual que antes de la 0196. Sin esta
+        // aserción, un contrato degradado a (tenant_id, name) pasaría en verde.
+        await esperarAceptaCrossTenant(
+          "cost_centers (name, country) — mismo nombre, otro país",
+          () =>
+            app.db
+              .insert(schema.costCenters)
+              .values(centroDeCosto(TENANT_TEMPLO, NOMBRE, "ES")),
+        );
+
+        // Rechazo con el PAR COMPLETO repetido: cambiar solo una de las dos
+        // columnas no probaría el contrato compuesto.
+        await esperarRechazoPorDuplicado("cost_centers (name, country)", () =>
+          app.db
+            .insert(schema.costCenters)
+            .values(centroDeCosto(TENANT_TEMPLO, NOMBRE, "AR")),
+        );
+      } finally {
+        // `cost_centers` NO está en TABLES_TO_CLEAN (y además viene seedeada por
+        // las migraciones 0161/0163/0165): se borran SOLO las filas de este test.
+        await app.db
+          .delete(schema.costCenters)
+          .where(eq(schema.costCenters.name, NOMBRE));
+      }
+    });
+  });
+
+  // ─── promo_plans.promo_code ───────────────────────────────────────────────
+  describe("promo_plans.promo_code — uq_promo_plans_tenant_promo_code", () => {
+    const PROMO = "CON01PROMO";
+
+    it("el mismo código promo existe en los dos tenants, y repetirlo dentro del tenant 1 sigue rechazando", async () => {
+      const [planT1] = await app.db
+        .insert(schema.subscriptionPlans)
+        .values(planDeSuscripcion(TENANT_TEMPLO, "CON-01 Plan para promo"))
+        .$returningId();
+      const [planT2] = await app.db
+        .insert(schema.subscriptionPlans)
+        .values(planDeSuscripcion(TENANT_SEGUNDO, "CON-01 Plan para promo"))
+        .$returningId();
+
+      await app.db
+        .insert(schema.promoPlans)
+        .values(promo(TENANT_TEMPLO, PROMO, planT1.id));
+
+      await esperarAceptaCrossTenant("promo_plans.promo_code", () =>
+        app.db
+          .insert(schema.promoPlans)
+          .values(promo(TENANT_SEGUNDO, PROMO, planT2.id)),
+      );
+
+      const enLosDos = await contar(
+        app,
+        sql`SELECT COUNT(*) AS n FROM promo_plans WHERE promo_code = ${PROMO}`,
+      );
+      expect(enLosDos, "El mismo código promo, una vez por tenant").toBe(2);
+
+      await esperarRechazoPorDuplicado("promo_plans.promo_code", () =>
+        app.db
+          .insert(schema.promoPlans)
+          .values(promo(TENANT_TEMPLO, PROMO, planT1.id)),
+      );
+    });
+  });
+
+  // ─── campaign_unsubscribes.email (mina M3) ────────────────────────────────
+  describe("campaign_unsubscribes.email — uq_campaign_unsubscribes_tenant_email (mina M3)", () => {
+    const EMAIL = "con01-baja@tenancy.test";
+
+    /**
+     * MINA M3 (doc 05 §6 + doc 06 §8-Q5). Esta es la conversión donde el bug
+     * era CUALITATIVAMENTE peor que una colisión molesta: con la unique global
+     * sobre `email`, una baja de campañas en UN gimnasio suprimía los envíos de
+     * TODOS los gimnasios de la plataforma. No era un duplicate-key al alta —
+     * era supresión silenciosa de marketing ajeno.
+     */
+    it("el mismo email de baja existe en los dos tenants: una baja en un gimnasio ya no suprime los envíos del otro", async () => {
+      await app.db
+        .insert(schema.campaignUnsubscribes)
+        .values(baja(TENANT_TEMPLO, EMAIL));
+
+      await esperarAceptaCrossTenant("campaign_unsubscribes.email", () =>
+        app.db
+          .insert(schema.campaignUnsubscribes)
+          .values(baja(TENANT_SEGUNDO, EMAIL)),
+      );
+
+      const enLosDos = await contar(
+        app,
+        sql`SELECT COUNT(*) AS n FROM campaign_unsubscribes WHERE email = ${EMAIL}`,
+      );
+      expect(
+        enLosDos,
+        "La misma baja, una vez por tenant — si diera 1, la supresión sigue siendo global (mina M3 abierta)",
+      ).toBe(2);
+
+      await esperarRechazoPorDuplicado("campaign_unsubscribes.email", () =>
+        app.db
+          .insert(schema.campaignUnsubscribes)
+          .values(baja(TENANT_TEMPLO, EMAIL)),
+      );
+    });
+
+    it("la baja solo-email (user_id NULL) respeta el mismo contrato por tenant", async () => {
+      const SOLO_EMAIL = "con01-baja-sin-socio@tenancy.test";
+
+      // `user_id` NULL es la baja de alguien que NO es socio (llegó por un link
+      // de unsubscribe). Es el motivo por el que el backfill de tenant_id de
+      // esta tabla en la fase 167 fue DIRECTO a 1 y no derivado del socio: no
+      // hay socio del que derivarlo.
+      await app.db
+        .insert(schema.campaignUnsubscribes)
+        .values(baja(TENANT_TEMPLO, SOLO_EMAIL));
+
+      const sinSocio = await contar(
+        app,
+        sql`SELECT COUNT(*) AS n FROM campaign_unsubscribes
+            WHERE email = ${SOLO_EMAIL} AND user_id IS NULL`,
+      );
+      expect(sinSocio, "La baja solo-email se guarda con user_id NULL").toBe(1);
+
+      await esperarAceptaCrossTenant(
+        "campaign_unsubscribes.email (user_id NULL)",
+        () =>
+          app.db
+            .insert(schema.campaignUnsubscribes)
+            .values(baja(TENANT_SEGUNDO, SOLO_EMAIL)),
+      );
+
+      await esperarRechazoPorDuplicado(
+        "campaign_unsubscribes.email (user_id NULL)",
+        () =>
+          app.db
+            .insert(schema.campaignUnsubscribes)
+            .values(baja(TENANT_TEMPLO, SOLO_EMAIL)),
+      );
+    });
+  });
+
+  // ─── notification_templates.template_key ──────────────────────────────────
+  describe("notification_templates.template_key — uq_notification_templates_tenant_key", () => {
+    const CLAVE = "con01_template_key";
+
+    it("la misma clave de template existe en los dos tenants, y repetirla dentro del tenant 1 sigue rechazando", async () => {
+      await app.db
+        .insert(schema.notificationTemplates)
+        .values(template(TENANT_TEMPLO, CLAVE));
+
+      await esperarAceptaCrossTenant(
+        "notification_templates.template_key",
+        () =>
+          app.db
+            .insert(schema.notificationTemplates)
+            .values(template(TENANT_SEGUNDO, CLAVE)),
+      );
+
+      const enLosDos = await contar(
+        app,
+        sql`SELECT COUNT(*) AS n FROM notification_templates WHERE template_key = ${CLAVE}`,
+      );
+      expect(
+        enLosDos,
+        "Cada gimnasio tiene su propio juego de templates con las mismas claves",
+      ).toBe(2);
+
+      await esperarRechazoPorDuplicado(
+        "notification_templates.template_key",
+        () =>
+          app.db
+            .insert(schema.notificationTemplates)
+            .values(template(TENANT_TEMPLO, CLAVE)),
+      );
+    });
+  });
+
+  // ─── day_modes.day_of_week ────────────────────────────────────────────────
+  describe("day_modes.day_of_week — uq_day_modes_tenant_day_of_week", () => {
+    // Dominio chico (1=lunes … 6=sábado) y tabla YA POBLADA: la migración 0080
+    // sembró las seis filas del tenant 1 y `day_modes` NO está en
+    // TABLES_TO_CLEAN, así que sobreviven a todo el archivo. Por eso la "fila
+    // del tenant 1" de este contrato es la que YA EXISTE — insertar una nueva
+    // chocaría contra el seed y probaría el rechazo por el motivo equivocado.
+    const DIA = 1;
+
+    it("el mismo día de la semana existe en los dos tenants, y repetirlo dentro del tenant 1 sigue rechazando", async () => {
+      try {
+        const seedT1 = await contar(
+          app,
+          sql`SELECT COUNT(*) AS n FROM day_modes
+              WHERE tenant_id = ${TENANT_TEMPLO} AND day_of_week = ${DIA}`,
+        );
+        expect(
+          seedT1,
+          "Fixture esperada: la migración 0080 dejó una fila del tenant 1 para este día",
+        ).toBe(1);
+
+        await esperarAceptaCrossTenant("day_modes.day_of_week", () =>
+          app.db
+            .insert(schema.dayModes)
+            .values({ tenantId: TENANT_SEGUNDO, dayOfWeek: DIA }),
+        );
+
+        await esperarRechazoPorDuplicado("day_modes.day_of_week", () =>
+          app.db
+            .insert(schema.dayModes)
+            .values({ tenantId: TENANT_TEMPLO, dayOfWeek: DIA }),
+        );
+      } finally {
+        // `day_modes` NO está en TABLES_TO_CLEAN: se borra SOLO lo del tenant 2,
+        // el seed del tenant 1 queda intacto para los archivos vecinos.
+        await app.db
+          .delete(schema.dayModes)
+          .where(eq(schema.dayModes.tenantId, TENANT_SEGUNDO));
+      }
+    });
+  });
+
+  // ─── holidays (country, date) ─────────────────────────────────────────────
+  describe("holidays (country, date) — uq_holidays_tenant_country_date", () => {
+    const FECHA = "2099-01-15";
+
+    it("el mismo par (país, fecha) existe en los dos tenants, y repetirlo dentro del tenant 1 sigue rechazando", async () => {
+      await app.db
+        .insert(schema.holidays)
+        .values(feriado(TENANT_TEMPLO, FECHA));
+
+      await esperarAceptaCrossTenant("holidays (country, date)", () =>
+        app.db.insert(schema.holidays).values(feriado(TENANT_SEGUNDO, FECHA)),
+      );
+
+      const enLosDos = await contar(
+        app,
+        sql`SELECT COUNT(*) AS n FROM holidays WHERE country = 'AR' AND date = ${FECHA}`,
+      );
+      expect(enLosDos, "El mismo feriado, una vez por tenant").toBe(2);
+
+      // Contrato COMPUESTO: la misma fecha en OTRO país sigue siendo legal
+      // dentro del mismo tenant.
+      await esperarAceptaCrossTenant(
+        "holidays (country, date) — misma fecha, otro país",
+        () =>
+          app.db
+            .insert(schema.holidays)
+            .values({ ...feriado(TENANT_TEMPLO, FECHA), country: "ES" }),
+      );
+
+      // Rechazo con el PAR COMPLETO repetido.
+      await esperarRechazoPorDuplicado("holidays (country, date)", () =>
+        app.db.insert(schema.holidays).values(feriado(TENANT_TEMPLO, FECHA)),
+      );
+    });
+  });
+
+  // ─── formats.name ─────────────────────────────────────────────────────────
+  describe("formats.name — uq_formats_tenant_name", () => {
+    const NOMBRE = "CON-01 Formato";
+
+    it("el mismo nombre de formato existe en los dos tenants, y repetirlo dentro del tenant 1 sigue rechazando", async () => {
+      await app.db
+        .insert(schema.formats)
+        .values({ tenantId: TENANT_TEMPLO, name: NOMBRE });
+
+      await esperarAceptaCrossTenant("formats.name", () =>
+        app.db
+          .insert(schema.formats)
+          .values({ tenantId: TENANT_SEGUNDO, name: NOMBRE }),
+      );
+
+      const enLosDos = await contar(
+        app,
+        sql`SELECT COUNT(*) AS n FROM formats WHERE name = ${NOMBRE}`,
+      );
+      expect(enLosDos, "El mismo formato, una vez por tenant").toBe(2);
+
+      await esperarRechazoPorDuplicado("formats.name", () =>
+        app.db
+          .insert(schema.formats)
+          .values({ tenantId: TENANT_TEMPLO, name: NOMBRE }),
+      );
+    });
+  });
+
+  // ─── subscription_plans (name, country) — el 12º contrato ─────────────────
+  describe("subscription_plans (name, country) — uq_subscription_plans_tenant_name_country", () => {
+    const NOMBRE = "CON-01 Flex";
+
+    /**
+     * EL DOCEAVO CONTRATO, que la lista D-01 no tenía.
+     *
+     * El índice `ux_subscription_plans_name_country` existe en MySQL desde la
+     * migración 0091 y nunca se declaró en el schema Drizzle — drift schema↔DB
+     * que hizo que el inventario del doc 05 anotara "name NO es unique". Lo
+     * encontró el verificador fail-closed del plan 168-03 y Franco decidió el
+     * 2026-07-27 convertirlo DENTRO de la misma 0196 (opción A), porque staging
+     * y prod están en 0195 y nunca vieron ese archivo.
+     *
+     * Sin esta conversión, un segundo gimnasio en AR que quisiera vender un
+     * plan llamado "Flex", "Foundation" o "Clase unica" —los nombres que hoy
+     * usa El Templo— recibiría un duplicate-key al darlo de alta. Era un bloqueo
+     * real del onboarding del tenant 2, no una molestia teórica.
+     */
+    it("el mismo par (nombre, país) de plan existe en los dos tenants, y repetirlo dentro del tenant 1 sigue rechazando", async () => {
+      await app.db
+        .insert(schema.subscriptionPlans)
+        .values(planDeSuscripcion(TENANT_TEMPLO, NOMBRE, "AR"));
+
+      await esperarAceptaCrossTenant("subscription_plans (name, country)", () =>
+        app.db
+          .insert(schema.subscriptionPlans)
+          .values(planDeSuscripcion(TENANT_SEGUNDO, NOMBRE, "AR")),
+      );
+
+      const enLosDos = await contar(
+        app,
+        sql`SELECT COUNT(*) AS n FROM subscription_plans WHERE name = ${NOMBRE} AND country = 'AR'`,
+      );
+      expect(enLosDos, "El mismo plan, una vez por tenant").toBe(2);
+
+      await esperarRechazoPorDuplicado(
+        "subscription_plans (name, country)",
+        () =>
+          app.db
+            .insert(schema.subscriptionPlans)
+            .values(planDeSuscripcion(TENANT_TEMPLO, NOMBRE, "AR")),
+      );
+    });
+  });
+
+  // ─── Cierre: cero contaminación ───────────────────────────────────────────
+  it("cierre: ninguna fila del tenant 2 queda colgada y el tenant 1 sigue entero", async () => {
+    // Nueve tablas físicas para once contratos (users aporta tres) más
+    // `branches`, que se chequea aparte por la sede sembrada en el beforeAll.
+    const tablas = [
+      "users",
+      "cost_centers",
+      "promo_plans",
+      "campaign_unsubscribes",
+      "notification_templates",
+      "day_modes",
+      "holidays",
+      "formats",
+      "subscription_plans",
+    ];
+
+    const colgadas: string[] = [];
+    for (const tabla of tablas) {
+      const n = await contar(
+        app,
+        sql.raw(
+          `SELECT COUNT(*) AS n FROM \`${tabla}\` WHERE tenant_id = ${TENANT_SEGUNDO}`,
+        ),
+      );
+      if (n !== 0) colgadas.push(`${tabla}: ${n} fila(s)`);
+    }
+
+    expect(
+      colgadas,
+      `Filas del tenant ${TENANT_SEGUNDO} colgadas después de los contratos. La base ` +
+        `de test la comparten todos los archivos del mismo worker de vitest ` +
+        `(fileParallelism con isolate: false): una fila acá rompe archivos vecinos ` +
+        `por motivos que no tienen nada que ver con lo que están probando.`,
+    ).toEqual([]);
+
+    // `branches` es la excepción DOCUMENTADA: la única fila del tenant 2 que
+    // puede quedar es la sede sembrada en el beforeAll, que borra el afterAll.
+    const sedesSegundo = await contar(
+      app,
+      sql`SELECT COUNT(*) AS n FROM branches WHERE tenant_id = ${TENANT_SEGUNDO}`,
+    );
+    expect(
+      sedesSegundo,
+      "La única sede del tenant 2 tiene que ser la del beforeAll — las de los contratos se borran en su finally",
+    ).toBe(1);
+
+    // El tenant 1 sigue entero: este archivo nunca lo borró ni lo modificó.
+    const templo = await contar(
+      app,
+      sql`SELECT COUNT(*) AS n FROM tenants WHERE id = ${TENANT_TEMPLO} AND slug = 'el-templo'`,
+    );
+    expect(templo, "El Templo (tenant 1) sigue siendo el tenant 1").toBe(1);
+
+    const totalTenants = await contar(
+      app,
+      sql`SELECT COUNT(*) AS n FROM tenants`,
+    );
+    expect(
+      totalTenants,
+      "Dos tenants mientras corre el archivo (El Templo + el de prueba). El afterAll devuelve la base a uno solo.",
+    ).toBe(2);
   });
 });
