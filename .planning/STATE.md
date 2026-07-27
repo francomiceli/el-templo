@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: "Tenancy — El Templo pasa a ser tenant #1"
 status: executing
-stopped_at: Completed 167-05-PLAN.md
-last_updated: "2026-07-27T03:39:50.155Z"
+stopped_at: Completed 167-06-PLAN.md
+last_updated: "2026-07-27T12:45:00.000Z"
 last_activity: 2026-07-27
 progress:
   total_phases: 11
   completed_phases: 1
   total_plans: 13
-  completed_plans: 11
+  completed_plans: 12
   percent: 9
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (milestone v6.0 initialized 2026-07-26)
 ## Current Position
 
 Phase: 167 (columnas-tenant-id-en-las-85-tablas-restantes-verificaci-n) — EXECUTING
-Plan: 6 of 7
+Plan: 7 of 7
 Status: Ready to execute
 Last activity: 2026-07-27
 Next: `/gsd:verify-phase 166` (los 6 planes ejecutados y desplegados en staging + prod; falta el smoke funcional por UI de Franco)
@@ -329,6 +329,7 @@ _Updated after each plan completion_
 | Phase 156 P05 | ~4min | 3 tasks | 6 files |
 | Phase 158 P01 | ~20min | 3 tasks | 7 files |
 | Phase 158 P02 | 9min | 3 tasks | 8 files |
+| Phase 167 P06 | ~30min | 3 tasks | 3 files |
 | Phase 158 P03 | ~10min | 2 tasks | 3 files |
 | Phase 158 P04 | 15 | 2 tasks | 3 files |
 | Phase 161 P01 | 18min | 3 tasks | 8 files |
@@ -805,6 +806,10 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: 167-05: el predicado de 'tabla tenant-aware' es NOT NULL DEFAULT 1, NO 'existe la columna tenant_id' — tenant_settings tiene la columna sin default (es su clave logica) y es EXENTA: con el predicado equivocado la comparacion da 88 vs 87
 - [Phase ?]: 167-05: MySQL LIKE no soporta clases de caracteres — el criterio LIKE '019[2-5]%' devuelve 0 siempre. Usar REGEXP '^019[2-5]'. Un falso negativo asi es indistinguible de un fallo real en la salida
 - [Phase ?]: 167-05: tv_pairings recibe la columna conservando su forma pre-claim (mina M7): insert sin tenant_id queda en 1 con branch_id NULL. Sus dos codigos quedan uniques GLOBALES para siempre (lista M8) porque el claim resuelve sin scope
+- [Phase ?]: 167-06: COL-02 completo — verify-tenant-backfill.ts (solo lectura) prueba 87 tablas, 125 aristas de FK leidas de INFORMATION_SCHEMA en runtime, 14 aristas logicas M9 y 53 cadenas hasta un ancla, con 0 discrepancias. Exit 0/1/2. Corre por CLI (pnpm db:verify-tenant, o dist/ en el server) y como gate de CI
+- [Phase ?]: 167-06: adulterar una base `eltemplo_test_*` ANTES de correr vitest no prueba NADA — test/setup-global.ts las dropea todas al arrancar y el provisioning las recrea desde los .sql. La prueba negativa que pedia el plan dio verde sin haber ejercitado nada. Para ejercitar un gate de la suite, adulterar DENTRO del proceso de test
+- [Phase ?]: 167-06: una prueba negativa en verde hay que leerla con sospecha — 'el gate no se puso rojo' y 'la adulteracion nunca existio' se ven identicos desde afuera. Hay que probar que la adulteracion seguia viva en el momento de medir
+- [Phase ?]: 167-06: EXPECTED_ANCHORLESS = 32, contrastada contra doc 05 comparando CONJUNTOS DE NOMBRES (no totales): el '37 + 3 parciales' del resumen no decompone porque incluye las 2 exentas y NO incluye las 8 tablas de §2.7 (marcadas en el titulo de la seccion). Las 4 de la familia sessions difieren porque el doc mide 'conceptualmente no deriva' y el script mide 'existe camino de FKs declaradas' (sessions.approved_by -> users es NULLABLE pero existe)
 
 ### Pending Todos
 
@@ -837,8 +842,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-27T03:39:50.135Z
-Stopped at: Completed 167-05-PLAN.md
+Last session: 2026-07-27T12:45:00.000Z
+Stopped at: Completed 167-06-PLAN.md
 Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z

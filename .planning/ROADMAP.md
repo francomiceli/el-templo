@@ -4464,7 +4464,7 @@ Plans:
 
 **Wave 6** _(blocked on Wave 5 completion)_
 
-- [ ] 167-06-PLAN.md — COL-02: script versionado `verify-tenant-backfill.ts` (cadenas de FK, logicas M9, casos [SIN-ANCLA] y M4) + test de CI sobre las 87 tablas
+- [x] 167-06-PLAN.md — COL-02: script versionado `verify-tenant-backfill.ts` (cadenas de FK, logicas M9, casos [SIN-ANCLA] y M4) + test de CI sobre las 87 tablas
 
 **Wave 7** _(blocked on Wave 6 completion)_
 
@@ -4630,7 +4630,7 @@ Plans:
 | Phase                                             | Plans Complete | Status      | Completed  |
 | ------------------------------------------------- | -------------- | ----------- | ---------- |
 | 166. Fundación — tenants, anclas y scope          | 6/6            | Complete    | 2026-07-27 |
-| 167. Columnas — tenant_id en 85 tablas            | 5/7            | In Progress |            |
+| 167. Columnas — tenant_id en 85 tablas            | 6/7            | In Progress |            |
 | 168. Contratos SQL — uniques compuestas e índices | 0/?            | Not started |            |
 | 169. Capa de escritura — helpers y TenantContext  | 0/?            | Not started |            |
 | 170. Detección — sentinel de pool + lint CI       | 0/?            | Not started |            |
