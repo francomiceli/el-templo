@@ -4,12 +4,26 @@
 -- QUÉ ARREGLA
 -- -----------
 -- Las fases 166 y 167 dejaron `tenant_id` en las 87 tablas gym-owned, pero la unicidad siguió
--- siendo GLOBAL. Con un segundo gimnasio en la misma base, once contratos colisionarían entre
+-- siendo GLOBAL. Con un segundo gimnasio en la misma base, doce contratos colisionarían entre
 -- tenants distintos: el email, el DNI y el código de referido del socio, el código de sede, el
 -- nombre del centro de costo por país, el código promo, la baja de campañas por email, la clave
--- de template de notificación, el modo del día de la semana, el feriado por país y fecha, y el
--- nombre del formato. Ninguno de esos valores es global por naturaleza -- son de cada gimnasio.
--- Esta migración los vuelve `UNIQUE (tenant_id, ...)`, que es exactamente el contrato CON-01.
+-- de template de notificación, el modo del día de la semana, el feriado por país y fecha, el
+-- nombre del formato y el nombre del plan de suscripción por país. Ninguno de esos valores es
+-- global por naturaleza -- son de cada gimnasio. Esta migración los vuelve
+-- `UNIQUE (tenant_id, ...)`, que es exactamente el contrato CON-01.
+--
+-- EL DOCEAVO CONTRATO NO ESTABA EN LA LISTA ORIGINAL -- lo encontró el gate
+-- ----------------------------------------------------------------------------
+-- La lista D-01 del doc 06 §1-D tenía ONCE conversiones. La de subscription_plans apareció
+-- después, cuando el verificador `src/db/scripts/verify-tenant-uniques.ts` (fase 168 plan 03)
+-- recorrió INFORMATION_SCHEMA y reportó `ux_subscription_plans_name_country` como unique global
+-- de tabla gym-owned sin clasificar. El motivo por el que nadie la había visto es un drift
+-- schema-contra-DB de larga data: el índice lo creó la migración 0091 y NUNCA se declaró en
+-- `src/db/schema/subscription-plans.ts`, así que el inventario del doc 05, que se armó leyendo
+-- los schema files, anotó literalmente "name NO es unique" para esta tabla. El drift se corrige
+-- en el mismo commit: el schema Drizzle pasa a declarar la unique compuesta. Es exactamente el
+-- modo de falla que el gate fail-closed viene a atrapar, y lo atrapó antes de que un segundo
+-- gimnasio no pudiera dar de alta un plan llamado "Flex" porque El Templo ya tiene uno.
 --
 -- LO QUE NO TOCA -- la lista M8 queda GLOBAL a propósito
 -- ------------------------------------------------------
@@ -29,7 +43,7 @@
 -- `fk_<tabla>_tenant` de las migraciones 0192 a 0195 dejó su índice auto-creado por InnoDB sobre
 -- `tenant_id`, y las dos anclas tienen además el índice explícito de la 0191
 -- (idx_users_tenant_id, idx_branches_tenant_id). Crear otro sería un índice redundante por tabla
--- en 87 tablas. Encima, las once uniques compuestas de abajo arrancan TODAS con `tenant_id`, así
+-- en 87 tablas. Encima, las doce uniques compuestas de abajo arrancan TODAS con `tenant_id`, así
 -- que también sirven de índice-prefijo para el filtro por tenant. Cero DDL nuevo para CON-02.
 --
 -- POR QUÉ VUELVEN CUATRO ÍNDICES NO-UNIQUE (D-05)
@@ -41,9 +55,9 @@
 --   users(referral_code) -- canje, src/modules/referrals/service.ts, resolveReferralCode
 --   campaign_unsubscribes(email) -- filtro NOT EXISTS del envío de campañas
 -- Los catálogos chicos (branches, cost_centers, promo_plans, notification_templates, day_modes,
--- holidays, formats) NO reciben índice secundario (D-06): son de decenas de filas y un scan les
--- sale más barato que mantener el índice. formats ya tenía formats_name_idx de antes y se deja
--- como está.
+-- holidays, formats, subscription_plans) NO reciben índice secundario (D-06): son de decenas de
+-- filas y un scan les sale más barato que mantener el índice. formats ya tenía formats_name_idx
+-- de antes y se deja como está.
 --
 -- ATOMICIDAD DEL CAMBIO (D-08)
 -- -----------------------------
@@ -52,7 +66,7 @@
 -- unicidad. Si alguna tabla hubiera necesitado statements separados por un errno 150 -- el índice
 -- sosteniendo una FK -- el orden habría sido ADD primero y DROP después, para que la ventana
 -- intermedia tenga DOS contratos y jamás cero. Verificado contra la base local antes de tocar
--- staging: ninguna FK depende de los once índices que se dropean, así que las nueve tablas
+-- staging: ninguna FK depende de los doce índices que se dropean, así que las diez tablas
 -- quedaron atómicas.
 --
 -- Hand-written: db:generate está roto por el drift de sessions.goal_plan_type y su journal
@@ -66,7 +80,7 @@
 -- _migrations. Peor todavía, test/setup.ts tolera literalmente "Can't DROP", así que un DROP con
 -- nombre equivocado pasaría en verde. Conclusión: la verificación de esta migración va SIEMPRE
 -- contra INFORMATION_SCHEMA.STATISTICS filtrando por TABLE_SCHEMA = DATABASE(), nunca contra
--- _migrations. Los once nombres viejos salen verificados por grep sobre las migraciones que los
+-- _migrations. Los doce nombres viejos salen verificados por grep sobre las migraciones que los
 -- crearon y por introspección de la base local.
 --
 -- run-migrations.ts splitea por punto y coma ANTES de stripear comentarios, así que ninguna línea
@@ -130,3 +144,13 @@ ALTER TABLE holidays
 ALTER TABLE formats
   DROP INDEX formats_name_unique,
   ADD UNIQUE INDEX uq_formats_tenant_name (tenant_id, name);
+
+-- subscription_plans -- el nombre del plan es único dentro del gimnasio y del país, no del mundo.
+-- Este es el doceavo contrato, el que NO estaba en la lista D-01 y que encontró el verificador de
+-- uniques (ver la sección de arriba). El índice viejo lo creó la 0091 con prefijo ux_ y el nombre
+-- nuevo sigue la convención uq_ del resto del archivo. Sin índice secundario por D-06: la tabla
+-- tiene decenas de filas. La migración 0179 usa este índice para su INSERT IGNORE por
+-- (name, country) -- ese dedupe sigue funcionando, ahora acotado al tenant que corre el INSERT.
+ALTER TABLE subscription_plans
+  DROP INDEX ux_subscription_plans_name_country,
+  ADD UNIQUE INDEX uq_subscription_plans_tenant_name_country (tenant_id, name, country);

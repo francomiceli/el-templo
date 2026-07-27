@@ -90,8 +90,16 @@ const TENANT_COLUMN = "tenant_id";
 const BACKUP_TABLE_PATTERN = /_backup(_\d+)?$/i;
 
 /**
- * Los 11 contratos que la migración 0196 convirtió (D-01), con el orden exacto
- * de columnas que tiene que devolver INFORMATION_SCHEMA.
+ * Los 12 contratos que la migración 0196 convirtió, con el orden exacto de
+ * columnas que tiene que devolver INFORMATION_SCHEMA.
+ *
+ * Once son los de la lista D-01 del doc 06 §1-D. El doceavo —
+ * `subscription_plans` — lo encontró ESTE MISMO verificador en su primera
+ * corrida: el índice `ux_subscription_plans_name_country` existía en MySQL desde
+ * la migración 0091 pero nunca se había declarado en el schema Drizzle, así que
+ * el inventario del doc 05 (armado leyendo los schema files) lo dio por
+ * inexistente y D-01 no lo listó. Aprobado por Franco el 2026-07-27 y agregado a
+ * la 0196 en la misma tanda D.
  *
  * Están enumerados acá y no en `tenant-tables.ts` a propósito: `tenant-tables`
  * clasifica lo que queda global, este archivo afirma lo que dejó de estarlo. Es
@@ -157,6 +165,11 @@ const CONVERTED_CONTRACTS: readonly {
     table: "formats",
     indexName: "uq_formats_tenant_name",
     columns: [TENANT_COLUMN, "name"],
+  },
+  {
+    table: "subscription_plans",
+    indexName: "uq_subscription_plans_tenant_name_country",
+    columns: [TENANT_COLUMN, "name", "country"],
   },
 ];
 
