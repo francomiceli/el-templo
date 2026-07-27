@@ -4438,7 +4438,7 @@ Plans:
 3. El script lista aparte —como caso legítimo, no como error— las filas [SIN-ANCLA] y parciales de la mina M4 (cajas centrales/banco con `branch_id` NULL, egresos/movimientos sin member ni branch, unsubscribes solo-email, `tv_pairings` pre-claim). (COL-02)
 4. Cada paso intermedio (columna nullable → backfill → `NOT NULL`) deja el API pre-tenancy funcionando: suite verde y staff sin cambio visible durante todo el rollout, sin ventana de downtime.
 
-**Plans:** 1/7 plans executed
+**Plans:** 2/7 plans executed
 
 Plans:
 
@@ -4448,7 +4448,7 @@ Plans:
 
 **Wave 2** _(blocked on Wave 1 completion)_
 
-- [ ] 167-02-PLAN.md — Tanda C1: `tenant_id` en las 27 tablas del core operativo (socios, scheduling, suscripciones, finanzas) + migracion 0192
+- [x] 167-02-PLAN.md — Tanda C1: `tenant_id` en las 27 tablas del core operativo (socios, scheduling, suscripciones, finanzas) + migracion 0192
 
 **Wave 3** _(blocked on Wave 2 completion)_
 
@@ -4630,7 +4630,7 @@ Plans:
 | Phase                                             | Plans Complete | Status      | Completed  |
 | ------------------------------------------------- | -------------- | ----------- | ---------- |
 | 166. Fundación — tenants, anclas y scope          | 6/6            | Complete    | 2026-07-27 |
-| 167. Columnas — tenant_id en 85 tablas            | 1/7            | In Progress |            |
+| 167. Columnas — tenant_id en 85 tablas            | 2/7            | In Progress |            |
 | 168. Contratos SQL — uniques compuestas e índices | 0/?            | Not started |            |
 | 169. Capa de escritura — helpers y TenantContext  | 0/?            | Not started |            |
 | 170. Detección — sentinel de pool + lint CI       | 0/?            | Not started |            |

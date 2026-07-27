@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: "Tenancy — El Templo pasa a ser tenant #1"
 status: executing
-stopped_at: Completed 167-01-PLAN.md
-last_updated: "2026-07-27T02:38:46.461Z"
+stopped_at: Completed 167-02-PLAN.md
+last_updated: "2026-07-27T02:56:43.760Z"
 last_activity: 2026-07-27
 progress:
   total_phases: 11
   completed_phases: 1
   total_plans: 13
-  completed_plans: 7
+  completed_plans: 8
   percent: 9
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (milestone v6.0 initialized 2026-07-26)
 ## Current Position
 
 Phase: 167 (columnas-tenant-id-en-las-85-tablas-restantes-verificaci-n) — EXECUTING
-Plan: 2 of 7
+Plan: 3 of 7
 Status: Ready to execute
 Last activity: 2026-07-27
 Next: `/gsd:verify-phase 166` (los 6 planes ejecutados y desplegados en staging + prod; falta el smoke funcional por UI de Franco)
@@ -349,6 +349,7 @@ _Updated after each plan completion_
 | Phase 166 P05 | 27min | 2 tasks | 1 files |
 | Phase 166 P06 | ~2h45min | 2 tasks | 0 files |
 | Phase 167 P01 | 9min | 3 tasks | 3 files |
+| Phase 167 P02 | 15min | 2 tasks | 29 files |
 
 ## Accumulated Context
 
@@ -794,6 +795,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase 167]: Numeros de migracion de la tanda C reservados: 0192-0195 (maximo real 0191 confirmado en 4 fuentes)
 - [Phase 167]: Helper tenantIdColumn() sin fallback: los schemas de la tanda C insertan 'tenantId: tenantIdColumn(),'
 - [Phase 167]: Clasificacion canonica 87 gym-owned / 4 exentas en src/db/tenant-tables.ts con gate fail-closed contra las 91 tablas del schema
+- [Phase ?]: 167-02: la tanda C declara el DEFAULT desde el ADD COLUMN (fix WR-01 del review 166) — no copiar el ciclo de la 0191 en 167-03/04/05
+- [Phase ?]: 167-02: todo .select({...}) explicito tipado como typeof <tabla>.inferSelect rompe tsc al sumar tenant_id (caso balances/BalanceRow) — grepear inferSelect antes de cada tanda
 
 ### Pending Todos
 
@@ -826,8 +829,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-27T02:38:46.438Z
-Stopped at: Completed 167-01-PLAN.md
+Last session: 2026-07-27T02:56:43.736Z
+Stopped at: Completed 167-02-PLAN.md
 Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
