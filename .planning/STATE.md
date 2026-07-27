@@ -4,13 +4,13 @@ milestone: v6.0
 milestone_name: "Tenancy — El Templo pasa a ser tenant #1"
 status: executing
 stopped_at: Completed 168-02-PLAN.md
-last_updated: "2026-07-27T19:18:01.911Z"
+last_updated: "2026-07-27T19:58:26.537Z"
 last_activity: 2026-07-27
 progress:
   total_phases: 11
   completed_phases: 2
   total_plans: 19
-  completed_plans: 15
+  completed_plans: 16
   percent: 18
 ---
 
@@ -26,16 +26,18 @@ See: .planning/PROJECT.md (milestone v6.0 initialized 2026-07-26)
 ## Current Position
 
 Phase: 168 (contratos-sql-uniques-compuestas-e-ndices-por-tenant-id) — EXECUTING
-Plan: 3 of 6
+Plan: 4 of 6
 Status: Ready to execute
 Last activity: 2026-07-27
 Next: `/gsd:verify-phase 167` (los 7 planes ejecutados; migraciones 0192-0195 aplicadas en `eltemplo_staging` y `eltemplo` con 0 discrepancias en el verificador de COL-02 en las dos bases; falta el smoke funcional por UI de Franco, cerrado como pendiente por decisión suya). Sigue pendiente `/gsd:verify-phase 166` por el mismo motivo.
 
 **Tope de migración aplicado en producción: 0195.** Las fases siguientes reservan desde **0197** — el **0196** quedó tomado por la fase 168 (`0196_tenant_unique_contracts.sql`, escrita y aplicada SOLO en la base local en el plan 168-01; el rollout a staging y prod es del plan 168-06).
 
-**Worktree de la fase 168:** `/home/franco/projects/et-168-contratos`, rama `feat/168-contratos-sql` desde `origin/master` (`68c447cf`). `node_modules` por symlink al worktree 167 y `.env`/`.env.development` copiados — **no correr ningún install ahí**. El `.sql` de la 0196 YA está commiteado: viajó junto al schema Drizzle en `ec835050` (168-02, Hard Rule 3). Commits de código de la fase: `ec835050` (uniques compuestas + 4 índices secundarios + la 0196) y `5d5c0bc7` (los 11 comentarios M8). Nada pusheado — el rollout a staging y prod es del plan 168-06.
+**Worktree de la fase 168:** `/home/franco/projects/et-168-contratos`, rama `feat/168-contratos-sql` desde `origin/master` (`68c447cf`). `node_modules` por symlink al worktree 167 y `.env`/`.env.development` copiados — **no correr ningún install ahí**. El `.sql` de la 0196 YA está commiteado: viajó junto al schema Drizzle en `ec835050` (168-02, Hard Rule 3). Commits de código de la fase: `ec835050` (uniques compuestas + 4 índices secundarios + la 0196), `5d5c0bc7` (los 11 comentarios M8), `758f2aa3` (registro canónico de uniques con motivo), `44618ca2` (verificador `verify-tenant-uniques.ts` + script `db:verify-uniques`) y `ba37a148` (el 12º contrato). Nada pusheado — el rollout a staging y prod es del plan 168-06.
 
-**Contrato abierto para el plan 168-03:** los 11 comentarios M8 del schema nombran `TENANT_GLOBAL_UNIQUES` de `src/db/tenant-tables.ts`, un export que todavía NO existe. El 168-03 tiene que crearlo con ese nombre exacto o corregir los 11 comentarios.
+**Contrato cerrado (168-03):** `TENANT_GLOBAL_UNIQUES` ya existe en `src/db/tenant-tables.ts` con las 11 M8 y su motivo, junto a `TENANT_UNIQUE_ALLOWLIST` (37 entradas) y `PLATFORM_PHYSICAL_TABLES`. Los 11 comentarios M8 del schema apuntan a un export real.
+
+**La 0196 tiene 12 contratos, no 11.** El verificador fail-closed del 168-03 encontró `subscription_plans.ux_subscription_plans_name_country` — unique global de tabla CORE gym-owned que la lista D-01 no tenía porque el índice existe en MySQL desde la migración **0091** y nunca se declaró en el schema Drizzle (drift schema↔DB; por eso el inventario del doc 05 anotó "name NO es unique"). Franco eligió el 2026-07-27 convertirla **dentro de la misma 0196** (opción A, no una 0197 aparte) y el drift quedó cerrado en el schema. Todo assert que cuente contratos convertidos dice **12**, y la 0196 tiene **10** `ALTER TABLE`. Aplicado a mano SOLO en la base local. `pnpm db:verify-uniques` contra `eltemplo` local: `discrepancies: 0`, exit 0.
 
 **Deuda anotada para ISO-03 (fase 171):** la arista lógica `completed_sessions.day_id -> sessions.day_id` no cubre el 98,8% de las filas en producción (15.449 de 15.631 huérfanas). No es una discrepancia hoy —todo está en `tenant_id=1`— pero esa tabla no tiene verificación por derivación. Staging no lo detecta (no tiene el histórico). Hipótesis sobre la semántica de `day_id` NO verificada. Detalle en `167-07-SUMMARY.md`.
 
@@ -365,6 +367,7 @@ _Updated after each plan completion_
 | Phase 167 P05 | ~10min | 2 tasks | 17 files |
 | Phase 168 P01 | 6min | 3 tasks | 1 files |
 | Phase 168 P02 | 5min | 2 tasks | 13 files |
+| Phase 168 P03 | 45min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -825,6 +828,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: 168-01: cero DDL de INDEX(tenant_id) en la 0196 (D-07) — las FK de las 0192-0195 ya dejaron el indice auto-creado y las anclas tienen el explicito de la 0191
 - [Phase ?]: Fase 168: el .sql de la 0196 se commiteó junto al schema Drizzle en 168-02 (Hard Rule 3), no en el rollout de 168-06
 - [Phase ?]: Fase 168: los 11 comentarios M8 del schema referencian TENANT_GLOBAL_UNIQUES de src/db/tenant-tables.ts — contrato de nombre para el plan 168-03
+- [Phase ?]: 168-03: el gate fail-closed encontro un 12o contrato de unicidad fuera de D-01 (subscription_plans name+country), invisible desde 2024 por drift schema-DB. Franco eligio convertirlo dentro de la misma 0196 (opcion A)
 
 ### Pending Todos
 
@@ -857,7 +861,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-27T19:18:01.890Z
+Last session: 2026-07-27T19:58:17.293Z
 Stopped at: Completed 168-02-PLAN.md
 Resume file: None
 
