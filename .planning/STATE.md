@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: "Tenancy — El Templo pasa a ser tenant #1"
 status: executing
-stopped_at: Completed 166-06-PLAN.md — fase 166 desplegada en staging y prod, pendiente smoke funcional de UAT
-last_updated: "2026-07-27T02:23:08.030Z"
-last_activity: 2026-07-27 -- Phase 167 planning complete
+stopped_at: Completed 167-01-PLAN.md
+last_updated: "2026-07-27T02:38:46.461Z"
+last_activity: 2026-07-27
 progress:
   total_phases: 11
   completed_phases: 1
   total_plans: 13
-  completed_plans: 6
+  completed_plans: 7
   percent: 9
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (milestone v6.0 initialized 2026-07-26)
 
 **Core value (v6.0):** El Templo pasa de "una gimnasia hardcodeada" a "el tenant #1 de una plataforma multi-tenant", **sin downtime y sin que el staff note nada**. Alcance: tablas `tenants`/`tenant_settings` + `tenant_id` denormalizado en las 87 tablas gym-owned + las 5 capas de enforcement (scope server-side, helpers `tenantWhere`/`tenantValues` + `TenantContext`, sentinel de pool mysql2, lint en CI, manifiesto de rutas fail-closed + batería de aislamiento), y adopción módulo a módulo en orden estricto de criticidad: finance → members → subscriptions → scheduling → analytics → resto core. 11 fases (166-176), 24 REQ-IDs (FUND/COL/CON/ISO/ADO/MOD). Reglas duras: `tenant_id` SIEMPRE server-side (jamás payload ni JWT); migraciones incrementales compatibles con código viejo (nullable → backfill → NOT NULL); staging-first estricto; reservar bloque de numeración al arrancar la 166 (**actualizado 2026-07-27: la 166 aplicó 0190 y 0191 en `eltemplo_staging` y en `eltemplo` — el tope en producción es 0191 y las fases siguientes reservan desde 0192**). **Gate del MILESTONE (no de una fase): el tenant 2 no se onboardea hasta que la batería de aislamiento (ISO-03) esté verde sobre el 100% de las rutas core `tenant-scoped`.** Diseño CERRADO en `.docs/saas-multitenancy/` (README + docs 03/04/05/06, §8 resuelto 2026-07-26) — no re-litigar en discuss/plan-phase.
-**Current focus:** Phase 167 — columnas — `tenant_id` en las 85 tablas restantes + verificación
+**Current focus:** Phase 167 — columnas-tenant-id-en-las-85-tablas-restantes-verificaci-n
 
 ## Current Position
 
-Phase: 167
-Plan: Not started
+Phase: 167 (columnas-tenant-id-en-las-85-tablas-restantes-verificaci-n) — EXECUTING
+Plan: 2 of 7
 Status: Ready to execute
-Last activity: 2026-07-27 -- Phase 167 planning complete
+Last activity: 2026-07-27
 Next: `/gsd:verify-phase 166` (los 6 planes ejecutados y desplegados en staging + prod; falta el smoke funcional por UI de Franco)
 
 **Numeración:** v6.0 arranca en **166** — el ROADMAP tiene DOS "Phase 164" (TV de sucursal, viva en el worktree `et-164-tv`, y una legacy de v5.8) y la 165 está tomada por v5.8. Nada por debajo de 166 se renumera. La fase 164 (TV) sigue abierta en su worktree y se cierra por su propio carril, fuera de este milestone.
@@ -348,6 +348,7 @@ _Updated after each plan completion_
 | Phase 166 P04 | 10min | 2 tasks | 2 files |
 | Phase 166 P05 | 27min | 2 tasks | 1 files |
 | Phase 166 P06 | ~2h45min | 2 tasks | 0 files |
+| Phase 167 P01 | 9min | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -790,6 +791,9 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: 166-05: el 403 de tenant suspendido llega por HTTP con code TENANT_SUSPENDED y error Forbidden — verificado sobre 3 rutas reales (admin members, admin plans, member app), no solo a nivel de objeto de error
 - [Phase 166]: 166-06: rollout staging-first via rama descartable tren/166-staging (staging estaba 25 commits adelante de master); la rama de fase quedo pura y el push a master fue fast-forward de 5 commits, sin arrastrar a prod el trabajo de CAJA parado en staging
 - [Phase 166]: 166-06: migraciones 0190 y 0191 aplicadas en eltemplo_staging y en eltemplo; el tope de migracion en produccion pasa de 0189 a 0191 y las fases siguientes reservan desde 0192
+- [Phase 167]: Numeros de migracion de la tanda C reservados: 0192-0195 (maximo real 0191 confirmado en 4 fuentes)
+- [Phase 167]: Helper tenantIdColumn() sin fallback: los schemas de la tanda C insertan 'tenantId: tenantIdColumn(),'
+- [Phase 167]: Clasificacion canonica 87 gym-owned / 4 exentas en src/db/tenant-tables.ts con gate fail-closed contra las 91 tablas del schema
 
 ### Pending Todos
 
@@ -822,8 +826,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-27T01:32:32.355Z
-Stopped at: Completed 166-06-PLAN.md — fase 166 desplegada en staging y prod, pendiente smoke funcional de UAT
+Last session: 2026-07-27T02:38:46.438Z
+Stopped at: Completed 167-01-PLAN.md
 Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
