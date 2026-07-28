@@ -544,18 +544,55 @@ function canCarryExemption(node: ts.Node): boolean {
 }
 
 /**
- * ¿Este especificador de módulo apunta al barrel de schema?
+ * ¿Este especificador de módulo apunta al schema de Drizzle?
  *
  * Por nombre y no por resolución de símbolos: es la consecuencia declarada de
- * D-10 (pase sintáctico, sin type checker). Cubre las dos formas vivas del
- * repo: `import * as schema from "../db/schema"` (110 archivos) y
- * `import { users } from "./schema"` (9 archivos).
+ * D-10 (pase sintáctico, sin type checker). Cubre las TRES formas vivas del
+ * repo:
+ *
+ *   import * as schema from "../db/schema"            (barrel, 110 archivos)
+ *   import { users } from "./schema"                  (barrel, 9 archivos)
+ *   import { blogPosts } from "../db/schema/blog-posts" (PROFUNDO, 18 archivos)
+ *
+ * EL PUNTO CIEGO QUE ESTA TERCERA FORMA CERRÓ (plan 08)
+ * ----------------------------------------------------
+ * Hasta el plan 07 esta función solo aceptaba el barrel, y la consecuencia no
+ * era "el lint avisa menos": era que **los 18 archivos que importan en
+ * profundidad quedaban con `SchemaBindings` vacío y TODOS sus accesos
+ * invisibles**. No aparecían como violación, no entraban a la allowlist, y —lo
+ * grave— un acceso NUEVO sin `tenant_id` en esos archivos no ponía el build en
+ * rojo. El peor caso era `src/modules/auth/routes.ts`, que importa **solo** en
+ * profundidad y toca `users`, `branches`, `member_profiles`, `promo_plans` y
+ * `referrals`.
+ *
+ * Lo destapó el inventario del sentinel del plan 08: la lente de runtime vio 86
+ * tablas gym-owned con deuda y la lente estática solo 78. Las 9 de diferencia
+ * (`blog_posts`, `audit_log`, `franchise_applications`, …) salían justamente de
+ * archivos con import profundo. Cuando las dos lentes discrepan, la respuesta
+ * está en `170-INVENTORY.md`.
+ *
+ * QUÉ NO MATCHEA, Y POR QUÉ IMPORTA
+ * ---------------------------------
+ * Solo el último segmento después de `schema/`: `…/schema/blog-posts` sí,
+ * `…/schema/blog/posts` no (no existe esa anidación) y `…/schema-utils` no (el
+ * segmento tiene que ser exactamente `schema`). Un especificador que apunte a
+ * un módulo del directorio que NO exporta tablas —`…/schema/tenant-column`, por
+ * ejemplo— matchea acá pero no aporta nada: sus identificadores no están en el
+ * mapa y `collectSchemaBindings` los descarta. Aceptar de más en esta función
+ * es barato; aceptar de menos es un agujero en el gate.
  */
 function isSchemaModule(specifier: string): boolean {
   if (!specifier.startsWith(".")) return false;
   const clean = specifier.replace(/\.(js|ts)$/, "");
-  return clean.endsWith("/schema") || clean.endsWith("/schema/index");
+  return SCHEMA_SPECIFIER.test(clean);
 }
+
+/**
+ * El barrel (`…/schema`, `…/schema/index`) o un archivo suelto del directorio
+ * (`…/schema/<archivo>`). El `(^|\/)` ancla `schema` como segmento completo,
+ * que es lo que deja afuera a `…/schema-utils`.
+ */
+const SCHEMA_SPECIFIER = /(^|\/)schema(\/[A-Za-z0-9._-]+)?$/;
 
 /** Los identificadores por los que un archivo puede nombrar una tabla. */
 interface SchemaBindings {

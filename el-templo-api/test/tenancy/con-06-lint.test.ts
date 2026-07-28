@@ -325,6 +325,42 @@ describe("lint-tenant — anclaje de exenciones contra los archivos reales", () 
     },
   );
 
+  it("ve los archivos que importan el schema EN PROFUNDIDAD (punto ciego del plan 08)", () => {
+    // Hasta el plan 07, `isSchemaModule()` solo aceptaba el barrel, así que un
+    // archivo que hiciera `import { users } from "../../db/schema/users"`
+    // quedaba con SchemaBindings vacío y TODOS sus accesos INVISIBLES: no
+    // aparecían como violación, no entraban a la allowlist, y un acceso nuevo
+    // sin tenant_id ahí NO ponía el build en rojo. Lo destapó el inventario del
+    // sentinel (170-INVENTORY.md): la lente de runtime veía 86 tablas con deuda
+    // y la estática 78.
+    //
+    // Estos tres archivos importan SOLO en profundidad. Si alguno vuelve a
+    // quedar en cero accesos, el punto ciego volvió.
+    const soloProfundos = [
+      `${API}/src/modules/auth/routes.ts`,
+      `${API}/src/modules/onboarding/routes.ts`,
+      `${API}/src/modules/shared/audit-log.ts`,
+    ];
+
+    for (const archivo of soloProfundos) {
+      const accesos = REAL_RESULT.accesses.filter(
+        (access) => access.file === archivo,
+      );
+      expect(
+        accesos.length,
+        `${archivo} importa el schema solo en profundidad (db/schema/<archivo>). Cero accesos acá ` +
+          `significa que el lint volvió a ser ciego a esa forma de import y que el archivo entero ` +
+          `quedó fuera del gate. El arreglo es isSchemaModule(), no bajar esta aserción.`,
+      ).toBeGreaterThan(0);
+    }
+
+    expect(
+      new Set(REAL_RESULT.violations.map((v) => v.table)).size,
+      "con el punto ciego cerrado, la lente estática llega a las 87 tablas gym-owned con deuda que " +
+        "el sentinel ve en runtime. Si este número baja, alguna forma de import volvió a quedar afuera.",
+    ).toBeGreaterThanOrEqual(87);
+  });
+
   it("no duplica la exención de notification-cron.ts (dedup por range.pos)", () => {
     // El MISMO comentario aparece como leading del ExpressionStatement y como
     // leading del CallExpression interno, porque los dos arrancan en el mismo
