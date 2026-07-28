@@ -104,7 +104,7 @@ completed: 2026-07-28
 
 - **Found during:** Task 2 (verificación de los criterios grepeables)
 - **Issue:** El separador de la clave `(archivo, tabla)` quedó escrito como un **byte NUL literal** dentro del template string, en vez de como secuencia de escape. Compilaba, corría y daba el resultado correcto, pero `grep` respondía `binary file matches` y `git`/GitHub tratan el archivo entero como binario: **el diff de un gate de seguridad dejaba de ser legible**, que es la peor forma de romper un archivo cuyo valor entero es que se revise.
-- **Fix:** `const KEY_SEPARATOR = " "` como escape, con el motivo escrito arriba. Verificado: `0` bytes NUL en el archivo y los criterios grepeables del plan vuelven a poder evaluarse.
+- **Fix:** `const KEY_SEPARATOR = "\u0000"` (la secuencia de escape, seis caracteres) en vez del byte, con el motivo escrito arriba. Verificado: `0` bytes NUL en el archivo y los criterios grepeables del plan vuelven a poder evaluarse.
 - **Files modified:** `el-templo-api/src/db/scripts/lint-tenant.ts`
 - **Committed in:** `31bc9f6a` (el commit del Task 1, `96d2a25d`, quedó con el byte; el fix llega en el siguiente y está anotado en su mensaje)
 
