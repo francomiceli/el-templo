@@ -261,10 +261,15 @@ o el skiplist — nunca "bajar el sentinel" ni "aceptar el ruido".**
 
 ---
 
-## Cruce con la allowlist del lint (CON-06) — HALLAZGO
+## Cruce con la allowlist del lint (CON-06) — HALLAZGO, ✅ RESUELTO
+
+> **Estado: RESUELTO en el commit `d8fa4986`** (`fix(170-08): el lint deja de ser ciego a los
+> imports profundos de db/schema`), por decisión de Franco en el checkpoint del plan 08:
+> arreglar el punto ciego **antes** de pushear la fase a staging. El resto de esta sección
+> queda como está —el diagnóstico es el que justifica el fix— y el cierre está al final.
 
 El sentinel (lente de runtime) y el lint (lente estática) tienen que ver aproximadamente la
-misma deuda. No la ven:
+misma deuda. No la veían:
 
 | Lente                          | Tablas gym-owned con deuda |
 | ------------------------------ | -------------------------- |
@@ -291,7 +296,10 @@ como violación, no entran a la allowlist, y —lo que importa— **un acceso NU
 El mapa de identificadores no es el problema (`buildSchemaTableMap` sí mapea `blogPosts →
 blog_posts`, verificado): el problema es la resolución del import.
 
-**13 archivos del alcance importan en profundidad:**
+**18 archivos del alcance importan en profundidad** (contados por AST). Los 13 de módulos y
+jobs son estos; los otros 5 son los scripts de importación de `src/db/` (`import-turnos.ts`,
+`import-members.ts`, `import-vigentes.ts`, `import-fecha-ingreso.ts`,
+`fill-future-bookings.ts`), que usan la forma corta `./schema/<archivo>`:
 
 | Archivo                              | Entradas hoy | Import |
 | ------------------------------------ | ------------ | ------ |
@@ -314,19 +322,36 @@ El peor es `src/modules/auth/routes.ts`: importa **solo** en profundidad, toca `
 gate. Que esas tablas igual figuren en la allowlist (por otros archivos) **no protege este
 archivo**: la unidad de la allowlist es el par `(archivo, tabla)` de D-13.
 
-### Qué NO se hizo, y por qué
+### Cómo se cerró (commit `d8fa4986`)
 
-El arreglo natural —aceptar el import profundo en `isSchemaModule()`— **agranda la allowlist**
-(los ~95 accesos nuevos hay que inventariarlos), y agrandar la allowlist es exactamente lo que
-el ratchet de D-14 declara build rojo. O sea: no es un fix de una línea, es tocar el contrato
-del gate que se acaba de shippear, y D-16 dice explícitamente que la lista se pobló **one-shot**
-y que no queda regenerador. Eso es una decisión de Franco, no del ejecutor (regla 4).
+El arreglo —aceptar el import profundo en `isSchemaModule()`— **agranda la allowlist**, y
+agrandarla es justo lo que el ratchet de D-14 declara build rojo. Por eso no se hizo de
+oficio: es tocar el contrato de un gate recién shippeado, y D-16 dice que la lista se pobló
+**one-shot** y sin regenerador. Se llevó al checkpoint del plan 08 y **Franco eligió
+arreglarlo antes de pushear la fase a staging**.
 
-**Recomendación:** arreglarlo, y hacerlo **antes** de la primera fase de adopción. El valor del
-gate es que el día que alguien escriba un acceso nuevo sin `tenant_id` el build se ponga rojo;
-con este hueco, 13 archivos —incluido el de auth— pueden hacerlo en silencio. Puede ir como
-plan corto de esta misma fase (arreglo + re-baseline one-shot + un `it` que congele el número de
-archivos con import profundo) o como primer plan de la 172.
+| Métrica de la lente estática | Antes     | Después   |
+| ---------------------------- | --------- | --------- |
+| Entradas `(archivo, tabla)`  | 389       | **423**   |
+| Accesos violadores           | 1.597     | **1.727** |
+| Archivos con deuda           | 108       | **120**   |
+| Tablas gym-owned con deuda   | 78        | **87**    |
+| Entradas perdidas            | —         | **0**     |
+
+Las 34 entradas nuevas se reparten sobre 17 archivos (7 `import-turnos.ts`, 5
+`auth/routes.ts`, 3 `import-members.ts`, 3 `blog/service.ts`, …). **No son deuda nueva**: son
+deuda que ya estaba y que el gate no veía. El re-baseline se hizo con un snippet descartable
+en el scratchpad —fuera del repo, igual que el baseline original del plan 07— tocando
+únicamente `entries` y `generated`.
+
+Con el fix, las dos lentes coinciden: **87 tablas gym-owned con deuda en la estática, 86 en el
+runtime** (la de menos es la que el suite no ejercitó sin filtro). Queda un `it` de regresión
+en `test/tenancy/con-06-lint.test.ts` que se pone rojo si algún archivo con import profundo
+vuelve a quedar en cero accesos, o si la lente estática baja de 87 tablas.
+
+`pnpm lint:tenant` sale **0 con la allowlist nueva**. Contra `origin/staging` el gate D-14 se
+saltea con su warning explícito (la allowlist no existe en esa base), que es exactamente el
+caso previsto para el commit que la introduce.
 
 ---
 
