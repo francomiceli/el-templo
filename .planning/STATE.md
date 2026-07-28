@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: "Tenancy — El Templo pasa a ser tenant #1"
-status: planning
+status: executing
 stopped_at: Phase 169 context gathered
-last_updated: "2026-07-28T02:30:02.494Z"
-last_activity: 2026-07-27
+last_updated: "2026-07-28T03:26:48.485Z"
+last_activity: 2026-07-28 -- Phase 169 planning complete
 progress:
   total_phases: 11
   completed_phases: 3
-  total_plans: 19
+  total_plans: 28
   completed_plans: 19
   percent: 27
 ---
@@ -27,8 +27,8 @@ See: .planning/PROJECT.md (milestone v6.0 initialized 2026-07-26)
 
 Phase: 169
 Plan: Not started
-Status: Ready to plan
-Last activity: 2026-07-27
+Status: Ready to execute
+Last activity: 2026-07-28 -- Phase 169 planning complete
 Next: `/gsd:verify-phase 168` (los 6 planes ejecutados; la migración 0196 aplicada en `eltemplo_staging` y `eltemplo` con 0 discrepancias y exit 0 en el verificador de uniques en las dos bases; falta el smoke funcional por UI de Franco, cerrado como pendiente por decisión suya). Siguen pendientes `/gsd:verify-phase 166` y `/gsd:verify-phase 167` por el mismo motivo.
 
 **Tope de migración aplicado en producción: 0196.** Las fases siguientes reservan desde **0197**. La `0196_tenant_unique_contracts.sql` está aplicada **una sola vez en `eltemplo_staging` y una sola vez en `eltemplo`** (verificado en `_migrations` de cada base), desplegada por el plan 168-06 el 2026-07-27. Ya no hace falta consultar la rama de la fase: vive en `origin/master`.
