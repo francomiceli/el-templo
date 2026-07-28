@@ -4562,7 +4562,7 @@ además al predecesor inmediato como dependencia operativa.
 
 **Wave 7** _(blocked on Wave 6 completion)_
 
-- [ ] 169-07-PLAN.md — CLI: helper `--tenant` con exit 2, retrofit de `seed-onboarding-aura` y las 6 anotaciones de scripts exentos
+- [x] 169-07-PLAN.md — CLI: helper `--tenant` con exit 2, retrofit de `seed-onboarding-aura` y las 6 anotaciones de scripts exentos
 
 **Wave 8** _(blocked on Wave 7 completion)_
 
@@ -4698,7 +4698,7 @@ además al predecesor inmediato como dependencia operativa.
 | 166. Fundación — tenants, anclas y scope          | 6/6            | Complete    | 2026-07-27 |
 | 167. Columnas — tenant_id en 85 tablas            | 7/7            | Complete    | 2026-07-27 |
 | 168. Contratos SQL — uniques compuestas e índices | 6/6            | Complete    | 2026-07-27 |
-| 169. Capa de escritura — helpers y TenantContext  | 6/9            | In Progress |            |
+| 169. Capa de escritura — helpers y TenantContext  | 7/9            | In Progress |            |
 | 170. Detección — sentinel de pool + lint CI       | 0/?            | Not started |            |
 | 171. Backstop — manifiesto + fixtures 2-tenant    | 0/?            | Not started |            |
 | 172. Adopción 1 (piloto) — finance                | 0/?            | Not started |            |
