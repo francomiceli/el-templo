@@ -4587,7 +4587,47 @@ además al predecesor inmediato como dependencia operativa.
 3. Las exenciones `/* tenant-safe: <motivo> */` son grepeables y su inventario completo cabe en una sola búsqueda revisable, cada una con motivo escrito. (CON-05)
 4. El lint de CI deja el build **rojo** ante un ` sql` ``o`.from(<gym-owned>)`nuevo sin`tenant_id` ni anotación fuera de la allowlist (demostrado con un caso de prueba), y la allowlist arranca completa y solo puede achicarse — un check impide agrandarla. (CON-06)
 
-**Plans:** TBD
+**Plans:** 8 plans
+
+Plans:
+
+Las 8 waves son **una por plan a propósito** (misma razón que la 169): los 8 comparten un
+único worktree (`et-170-deteccion`) y sus tests son MySQL-backed — dos archivos de vitest a
+la vez revientan el timeout de 120 s del provisioning por worker, y dos ejecutores en el
+mismo worktree se pisan el estado de git. Cero migraciones y cero dependencias nuevas en
+toda la fase.
+
+**Wave 1**
+
+- [ ] 170-01-PLAN.md — Worktree sobre `origin/master` + `TENANT_STRICT_MODULES` / `isStrictTable` / `strictTablesSet` en `tenant-tables.ts` (D-05/D-06, arranca vacía) + 5 gates de forma
+
+**Wave 2** _(blocked on Wave 1 completion)_
+
+- [ ] 170-02-PLAN.md — Sentinel: parser puro `analyzeSql` con recorte de proyección (Pitfall 2) y skiplist de no-DML + batería unitaria de 20 casos
+
+**Wave 3** _(blocked on Wave 2 completion)_
+
+- [ ] 170-03-PLAN.md — Lint: motor AST (mapa identificador→tabla física, detección de `sql` crudo y query builder, anclaje de exenciones que cierra el hallazgo 169-09) + fixtures
+
+**Wave 4** _(blocked on Wave 3 completion)_
+
+- [ ] 170-04-PLAN.md — Sentinel: wrap de `query` + `execute` + **`getConnection`**, severidad por (entorno × strict), dedup por fingerprint, resumen periódico con `unref` + batería con pool falso
+
+**Wave 5** _(blocked on Wave 4 completion)_
+
+- [ ] 170-05-PLAN.md — Lint: allowlist decreciente, cuatro gates del ratchet (no listada, stale ×2, ganada, coherencia strict), CLI con exit codes 0/1/2 y `pnpm lint:tenant`
+
+**Wave 6** _(blocked on Wave 5 completion)_
+
+- [ ] 170-06-PLAN.md — Cableado en `plugins/database.ts` (por debajo de Drizzle, `stop()` en `onClose`), flag `SENTINEL_INVENTORY`, `src/db/index.ts` desmentido + integración contra SQL real incluida transacción
+
+**Wave 7** _(blocked on Wave 6 completion)_
+
+- [ ] 170-07-PLAN.md — Baseline one-shot de la allowlist (D-16), step bloqueante en CI con `fetch-depth: 0`, y demostración en vivo del rojo (acceso nuevo, allowlist agrandada, base irresoluble)
+
+**Wave 8** _(blocked on Wave 7 completion)_
+
+- [ ] 170-08-PLAN.md — Inventario determinístico con `SENTINEL_INVENTORY=1` sobre la suite + checkpoint de rollout a staging + ventana de observación de 2-3 días (criterio 2)
 
 ### Phase 171: Backstop — manifiesto de rutas fail-closed y fixtures 2-tenant
 
@@ -4699,7 +4739,7 @@ además al predecesor inmediato como dependencia operativa.
 | 167. Columnas — tenant_id en 85 tablas            | 7/7            | Complete    | 2026-07-27 |
 | 168. Contratos SQL — uniques compuestas e índices | 6/6            | Complete    | 2026-07-27 |
 | 169. Capa de escritura — helpers y TenantContext  | 9/9            | Complete    | 2026-07-28 |
-| 170. Detección — sentinel de pool + lint CI       | 0/?            | Not started |            |
+| 170. Detección — sentinel de pool + lint CI       | 0/8            | Planned     |            |
 | 171. Backstop — manifiesto + fixtures 2-tenant    | 0/?            | Not started |            |
 | 172. Adopción 1 (piloto) — finance                | 0/?            | Not started |            |
 | 173. Adopción 2 — members + guarda de anclas      | 0/?            | Not started |            |
