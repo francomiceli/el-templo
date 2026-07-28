@@ -106,14 +106,27 @@ de las fases 166-169.
   regenerador permanente** — sería la puerta trasera del ratchet; achicar es borrar
   entradas a mano al migrar.
 
+### Canal de exención (resuelto post-research, 2026-07-28)
+
+- **D-17:** **Dos canales explícitos de exención** (decisión de Franco sobre la
+  open question #1 del RESEARCH): el **lint** razona sobre el código fuente
+  (comentario `/* tenant-safe: <motivo> */` anclado al call site vía AST) y el
+  **sentinel** razona sobre el SQL crudo. NO se fuerza a que el comentario viaje
+  embebido en el SQL — ninguna de las 9 exenciones reales de la 169 llega al SQL
+  (6 file-level, 3 comentarios TS) y no se reescriben. Consecuencia aceptada:
+  esas exenciones aparecen como violaciones no-strict en el inventario del
+  sentinel — correcto, porque son deuda real y ninguna tabla es strict aún.
+
 ### Lockeadas por diseño (NO re-litigar; fuentes en canonical_refs)
 
 - Sentinel envuelve `pool.query/execute` por debajo de Drizzle (doc 03 capa 3);
   **detecta, no re-escribe** SQL.
 - test/dev = throw (para strict); prod = `log.error` + métrica, jamás throw
   (decidido con Nacho 2026-07-02).
-- Exenciones `/* tenant-safe: <motivo> */` viajan en el SQL y son grepeables;
-  formato ya establecido con 9 exenciones reales escritas en la 169.
+- Exenciones `/* tenant-safe: <motivo> */` grepeables en el fuente; formato ya
+  establecido con 9 exenciones reales escritas en la 169. (El "viajan en el SQL"
+  del doc 03 queda superado por D-17: canal fuente para el lint, canal SQL para
+  el sentinel.)
 - Limitación asumida y documentada: el sentinel chequea **presencia** de
   `tenant_id`, no corrección del filtro — es tripwire contra el olvido; la
   corrección la prueba la capa 5 (fase 171+).
