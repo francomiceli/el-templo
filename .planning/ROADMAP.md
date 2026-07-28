@@ -4587,12 +4587,12 @@ además al predecesor inmediato como dependencia operativa.
 3. Las exenciones `/* tenant-safe: <motivo> */` son grepeables y su inventario completo cabe en una sola búsqueda revisable, cada una con motivo escrito. (CON-05)
 4. El lint de CI deja el build **rojo** ante un ` sql` ``o`.from(<gym-owned>)`nuevo sin`tenant_id` ni anotación fuera de la allowlist (demostrado con un caso de prueba), y la allowlist arranca completa y solo puede achicarse — un check impide agrandarla. (CON-06)
 
-**Plans:** 8/8 plans complete
+**Plans:** 8/10 plans complete (09 y 10 son cierre de gaps: criterio 4 / CON-06)
 
 Plans:
 
-Las 8 waves son **una por plan a propósito** (misma razón que la 169): los 8 comparten un
-único worktree (`et-170-deteccion`) y sus tests son MySQL-backed — dos archivos de vitest a
+Las 10 waves son **una por plan a propósito** (misma razón que la 169): las 10 comparten un
+único worktree (`et-170-sentinel`) y sus tests son MySQL-backed — dos archivos de vitest a
 la vez revientan el timeout de 120 s del provisioning por worker, y dos ejecutores en el
 mismo worktree se pisan el estado de git. Cero migraciones y cero dependencias nuevas en
 toda la fase.
@@ -4628,6 +4628,14 @@ toda la fase.
 **Wave 8** _(blocked on Wave 7 completion)_
 
 - [x] 170-08-PLAN.md — Inventario determinístico con `SENTINEL_INVENTORY=1` sobre la suite + checkpoint de rollout a staging + ventana de observación de 2-3 días (criterio 2)
+
+**Wave 9** _(cierre de gaps — 170-VERIFICATION.md dejó el criterio 4 FALLIDO)_
+
+- [ ] 170-09-PLAN.md — El motor del lint deja de ser ciego a los alias de variable local, a `alias()` guardado en variable y a los joins (CR-01 + WR-01), con fixture rojo primero y medición del delta de deuda destapada
+
+**Wave 10** _(blocked on Wave 9 completion)_
+
+- [ ] 170-10-PLAN.md — Re-baseline corregido de la allowlist + demostración en vivo del rojo con el caso exacto que el verificador reprodujo en verde + checkpoint de aprobación del crecimiento
 
 ### Phase 171: Backstop — manifiesto de rutas fail-closed y fixtures 2-tenant
 
@@ -4739,7 +4747,7 @@ toda la fase.
 | 167. Columnas — tenant_id en 85 tablas            | 7/7            | Complete    | 2026-07-27 |
 | 168. Contratos SQL — uniques compuestas e índices | 6/6            | Complete    | 2026-07-27 |
 | 169. Capa de escritura — helpers y TenantContext  | 9/9            | Complete    | 2026-07-28 |
-| 170. Detección — sentinel de pool + lint CI       | 8/8 | Complete   | 2026-07-28 |
+| 170. Detección — sentinel de pool + lint CI       | 8/10 | Gaps: planificados 09-10 | 2026-07-28 |
 | 171. Backstop — manifiesto + fixtures 2-tenant    | 0/?            | Not started |            |
 | 172. Adopción 1 (piloto) — finance                | 0/?            | Not started |            |
 | 173. Adopción 2 — members + guarda de anclas      | 0/?            | Not started |            |
