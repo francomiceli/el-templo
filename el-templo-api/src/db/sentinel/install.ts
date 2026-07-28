@@ -60,6 +60,25 @@
  * —son el segundo argumento de `query`/`execute`— y deliberadamente no los toca
  * ni los pasa a `analyzeSql`.
  *
+ * LA MÉTRICA, Y POR QUÉ NO ES SENTRY (D-02)
+ * -----------------------------------------
+ * La métrica de esta fase es **un contador in-memory más un resumen periódico
+ * en log estructurado**. Cero dependencias nuevas, cero infraestructura: se
+ * grepea con pm2/Pino. El resumen sale por `log.info` **a propósito**, porque
+ * `instrument.ts` manda a Sentry los `error` de Pino y esta deuda es CONOCIDA —
+ * meterla en el dashboard taparía los errores reales, que es justo lo que D-01 y
+ * D-02 vienen a evitar (T-170-13). Un sistema de métricas de verdad
+ * (Prometheus/OTel) es otra conversación, explícitamente diferida en el CONTEXT.
+ *
+ * EL MODO INVENTARIO (D-08 / D-04)
+ * --------------------------------
+ * Con `SENTINEL_INVENTORY=1` (o `inventory: true`) el sentinel acumula TODAS las
+ * violaciones —incluidas las de tablas no strict, que en modo throw quedan en
+ * silencio— sin el tope de statements distintos, para que **una corrida de la
+ * suite produzca el inventario determinístico** que D-04 pide como fuente del
+ * relevamiento de excepciones (los ~140 archivos de test ejercitan el SQL real).
+ * `report()` devuelve ese inventario como texto; imprimirlo es del llamador.
+ *
  * LA LIMITACIÓN, ESCRITA
  * ----------------------
  * El chequeo es de **PRESENCIA** del literal `tenant_id` en la zona de
@@ -181,6 +200,9 @@ const REPORT_SQL_MAX = 300;
 /** Default del resumen periódico: una hora. */
 const DEFAULT_SUMMARY_INTERVAL_MS = 3_600_000;
 
+/** Cuántas tablas y cuántos statements entran en el resumen periódico. */
+const TOP_N = 5;
+
 /**
  * Tope de statements violadores distintos que se rastrean fuera del modo
  * inventario.
@@ -289,6 +311,10 @@ export function installSentinel(
   let totalViolations = 0;
   /** Statements distintos que el tope dejó afuera del mapa. */
   let omitidos = 0;
+  /** Total al cierre del resumen anterior, para reportar "nuevas desde". */
+  let totalEnUltimoResumen = 0;
+  /** Timer del resumen periódico. Se crea al final, solo en modo log. */
+  let timer: ReturnType<typeof setInterval> | undefined;
 
   /** Registra la violación. Devuelve `true` si el statement es NUEVO (D-01). */
   function registrar(sql: string, tables: string[]): boolean {
@@ -378,12 +404,20 @@ export function installSentinel(
     };
   }
 
+  /**
+   * Reporte agregado del modo inventario (D-08). Devuelve texto plano al estilo
+   * de `formatReport` de `verify-tenant-uniques.ts` — **no imprime nada**: quien
+   * llama decide si va a `console.log` de un script, al log o a un archivo.
+   */
   function report(): string {
     const snap = snapshot();
     const lines: string[] = [];
     lines.push("=".repeat(72));
     lines.push("Inventario del sentinel de tenancy (D-04 / D-08)");
     lines.push("=".repeat(72));
+    lines.push(
+      `Modo: ${mode} · inventario: ${inventory ? "sí (sin tope de statements)" : "no"}`,
+    );
     lines.push(`Violaciones totales:        ${snap.totalViolations}`);
     lines.push(`Statements distintos:       ${snap.distinctFingerprints}`);
     if (omitidos > 0) {
@@ -409,9 +443,76 @@ export function installSentinel(
     return lines.join("\n");
   }
 
+  /**
+   * Resumen periódico de D-02. `log.info`, NO `log.error`: el canal de `error`
+   * de Pino termina en Sentry vía `instrument.ts` y esta deuda no va al
+   * dashboard de errores reales (T-170-13).
+   *
+   * No emite nada mientras no haya ni una violación: un "0 violaciones" cada
+   * hora es ruido puro en pm2.
+   */
+  function emitirResumen(): void {
+    try {
+      const snap = snapshot();
+      if (snap.totalViolations === 0) return;
+
+      const nuevas = snap.totalViolations - totalEnUltimoResumen;
+      totalEnUltimoResumen = snap.totalViolations;
+
+      log.info(
+        {
+          totalViolations: snap.totalViolations,
+          distinctFingerprints: snap.distinctFingerprints,
+          nuevasDesdeElResumenAnterior: nuevas,
+          fingerprintsOmitidos: omitidos,
+          topTablas: Object.entries(snap.byTable)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, TOP_N)
+            .map(([tabla, count]) => ({ tabla, count })),
+          topStatements: snap.byFingerprint.slice(0, TOP_N).map((entrada) => ({
+            sql: truncar(entrada.sql, SQL_LOG_MAX),
+            tables: entrada.tables,
+            count: entrada.count,
+          })),
+          // Sin `params`, igual que el log de la primera aparición (T-170-02).
+        },
+        "sentinel de tenancy: resumen periódico de violaciones",
+      );
+    } catch (err: unknown) {
+      // Un fallo del resumen corre adentro de un timer: sin este catch sería
+      // una excepción no capturada que tira el proceso entero.
+      const message = err instanceof Error ? err.message : String(err);
+      log.warn(
+        { err: message },
+        "sentinel de tenancy: fallo emitiendo el resumen periódico",
+      );
+    }
+  }
+
   function stop(): void {
-    // El timer del resumen periódico lo agrega el Task 2; `stop()` ya existe
-    // acá porque es parte del contrato del handle.
+    if (timer === undefined) return;
+    clearInterval(timer);
+    timer = undefined;
+  }
+
+  // ── Timer del resumen periódico ────────────────────────────────────────────
+  //
+  // Tres cosas que hay que saber antes de tocar este bloque:
+  //
+  //   (a) NO HAY NI UN `setInterval` EN TODO `src` HOY. Es un patrón nuevo en
+  //       este repo, sin precedente del que copiarse: se paga entero acá.
+  //   (b) SIN `.unref()` EL PROCESO NO TERMINA. Un timer pendiente mantiene
+  //       vivo el event loop, y eso hace que `pnpm test` corra todo en verde y
+  //       después se quede colgado para siempre (Pitfall 4, T-170-07).
+  //   (c) `vitest.config.ts` usa `pool: "forks"` con `isolate: false`, o sea que
+  //       el mismo proceso se REUTILIZA entre archivos de test: un timer que
+  //       queda vivo se ACUMULA archivo tras archivo.
+  //
+  // Por eso el timer solo existe en modo log (prod/staging), siempre lleva
+  // `.unref()`, y `stop()` —que el `onClose` del plugin llama— lo limpia.
+  if (mode === "log" && summaryIntervalMs > 0) {
+    timer = setInterval(emitirResumen, summaryIntervalMs);
+    timer.unref();
   }
 
   // ── El wrap de las tres puertas ────────────────────────────────────────────
