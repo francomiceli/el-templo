@@ -469,9 +469,34 @@ export const updateLeadSchema = {
   },
 } as const;
 
+/**
+ * POST /api/admin/members — alta de socio asistida.
+ *
+ * Fase 169 (D-08, auditoría de mass-assignment): el handler SPREADEA el body
+ * del request dentro del input de `createMember` (`members/routes.ts:650-655`),
+ * así que este schema es lo único que separa el
+ * payload del cliente del input del service. Sin `additionalProperties: false`
+ * una propiedad desconocida —`tenantId` el primero— viajaba entera hasta
+ * `createMember`; hoy el service enumera campos en su `.values()`, pero eso es
+ * una costumbre, no un contrato, y el spread la deja a un renglón de dejar de
+ * serlo.
+ *
+ * La regla que cierra: el gimnasio SALE SIEMPRE DEL SERVIDOR
+ * (`scope.tenantId` / `TenantContext`), JAMÁS de un payload, de una query
+ * string ni del JWT — texto canónico en `src/db/schema/tenant-column.ts:11-16`.
+ * Es exactamente el mismo contrato que el precedente de `routes.ts:766`
+ * ("Phase 114 D-31: createdBy comes from the JWT, never the request body"), un
+ * escalón más arriba.
+ *
+ * Cerrar el schema NO rompe clientes viejos: Fastify compila ajv con
+ * `removeAdditional: true` por default, así que una propiedad desconocida se
+ * strippea en silencio (mismo comportamiento que documenta `updateLeadSchema`
+ * más arriba), no produce un 400.
+ */
 export const createMemberSchema = {
   body: {
     type: "object",
+    additionalProperties: false,
     required: ["email", "firstName", "lastName", "phone", "dni", "branchId"],
     properties: {
       email: { type: "string", format: "email" },
