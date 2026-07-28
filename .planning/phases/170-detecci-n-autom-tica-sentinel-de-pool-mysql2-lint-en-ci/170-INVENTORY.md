@@ -209,21 +209,24 @@ fase 169 **no viajan en el SQL**, así que aparecen en este inventario como viol
 no-strict. **Eso es correcto y esperado**: son deuda real y ninguna tabla es strict todavía.
 No son falsos positivos y no hay que "arreglarlas" tocando el sentinel.
 
-Las 9 exenciones ancladas que hoy reconoce el lint, y qué pasó con cada una acá:
+Las **10** exenciones ancladas que hoy reconoce el lint (las 9 que dejó escritas la 169 más
+`src/db/scripts/lint-tenant.ts`, que se anotó a sí mismo en el plan 05), y qué pasó con cada
+una acá:
 
-| # | Exención (fuente)                              | Tipo        | ¿Aparece en el inventario? |
-| - | ---------------------------------------------- | ----------- | -------------------------- |
-| 1 | `src/db/seed.ts`                               | file-level  | No — no corre por el pool de la app |
-| 2 | `src/db/seed-spom.ts`                          | file-level  | No — ídem                  |
-| 3 | `src/db/run-migrations.ts`                     | file-level  | No — conexión propia       |
-| 4 | `src/db/scripts/verify-tenant-uniques.ts`      | file-level  | No — script standalone     |
-| 5 | `src/db/scripts/verify-tenant-backfill.ts`     | file-level  | No — script standalone     |
-| 6 | `src/db/scripts/lint-tenant.ts`                | file-level  | No — no ejecuta una query  |
-| 7 | `src/modules/wellhub/service.ts:135`           | call site   | **Sí** — `select id, status from wellhub_events where event_id = ?` |
-| 8 | `src/jobs/notification-cron.ts:754`            | call site   | **Sí** — `INSERT IGNORE INTO notification_templates (…)` |
-| 9 | `src/modules/tv/pairing.ts:145`                | call site   | No — el suite no ejercitó el INSERT pre-claim por ese camino (cero `insert into tv_pairings` en toda la corrida) |
+| #  | Exención (fuente)                          | Tipo       | ¿Aparece en el inventario?                                                                                      |
+| -- | ------------------------------------------ | ---------- | --------------------------------------------------------------------------------------------------------------- |
+| 1  | `src/db/seed.ts`                           | file-level | No — no corre por el pool de la app                                                                             |
+| 2  | `src/db/seed-spom.ts`                      | file-level | No — ídem                                                                                                       |
+| 3  | `src/db/run-migrations.ts`                 | file-level | No — conexión propia                                                                                            |
+| 4  | `src/db/scripts/verify-tenant-uniques.ts`  | file-level | No — script standalone                                                                                          |
+| 5  | `src/db/scripts/verify-tenant-backfill.ts` | file-level | No — script standalone                                                                                          |
+| 6  | `src/db/scripts/lint-tenant.ts`            | file-level | No — no ejecuta una query                                                                                       |
+| 7  | `scripts/wellhub-sandbox.ts`               | file-level | No — no toca la DB (postea al webhook)                                                                          |
+| 8  | `src/modules/wellhub/service.ts:135`       | call site  | **Sí** — `select id, status from wellhub_events where event_id = ?`                                             |
+| 9  | `src/jobs/notification-cron.ts:754`        | call site  | **Sí** — `INSERT IGNORE INTO notification_templates (…)`                                                        |
+| 10 | `src/modules/tv/pairing.ts:145`            | call site  | No — el suite no ejercitó el INSERT pre-claim por ese camino (cero `insert into tv_pairings` en toda la corrida) |
 
-Las 6 file-level no aparecen por una razón estructural, no por suerte: son scripts y
+Las 7 file-level no aparecen por una razón estructural, no por suerte: son scripts y
 herramientas de plataforma que **no usan el pool de la aplicación** (el único que tiene el
 sentinel instalado, congelado por el guard del plan 06). Las 2 de call site que sí corren en
 el runtime aparecen exactamente como D-17 anticipó.
