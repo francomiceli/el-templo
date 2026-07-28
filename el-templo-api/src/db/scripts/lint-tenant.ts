@@ -357,17 +357,33 @@ const RAW_TAG = /tenant-safe:/g;
 /**
  * El motivo de la exención si este comentario es una exención de verdad.
  *
- * Las DOS condiciones son necesarias, y cada una rechaza un caso real de
- * `origin/master` que el grep crudo de la fase 169 daba por bueno:
+ * Las DOS condiciones son necesarias y se refuerzan entre sí:
  *
- *   (a) `MultiLineCommentTrivia` — rechaza `src/db/schema/tv.ts`, donde la
- *       anotación está citada dentro de un comentario de línea.
+ *   (a) `MultiLineCommentTrivia` — la anotación citada en un comentario de
+ *       línea no exime, ni aunque el motivo esté escrito.
  *   (b) el tag arranca el comentario — rechaza
  *       `src/db/scripts/require-tenant.ts`, donde el tag vive dentro del JSDoc
  *       que documenta la convención.
  *
  * Y el motivo es obligatorio: una exención sin motivo es indistinguible de un
  * olvido (T-169-36).
+ *
+ * OJO CON "LA (a) PARECE REDUNDANTE"
+ * ----------------------------------
+ * Con la regex anclada de arriba, la (a) hoy no rechaza nada por su cuenta: un
+ * comentario de línea empieza con dos barras y ya falla la (b). Es defensa en
+ * profundidad, no código muerto, y está demostrado en vivo: aflojar SOLO la (b)
+ * —buscar el tag en cualquier parte del comentario— deja rojo el caso real de
+ * `require-tenant.ts`; aflojar las DOS deja rojo además el caso del comentario
+ * de línea del fixture. Sacar la (a) porque "no hace nada" desarma la segunda
+ * mitad de la mitigación de T-170-09 justo para el día en que alguien toque la
+ * regex.
+ *
+ * Y una precisión sobre el otro rechazo real, `src/db/schema/tv.ts`: su
+ * anotación citada está adentro de un comentario de línea que además vive en el
+ * medio de un objeto literal, una posición que este matcher no consulta nunca
+ * (solo mira trivia de statements y de llamadas). O sea que ese archivo está
+ * rechazado por partida doble. La aserción nominal del test lo cubre igual.
  */
 function exemptionMotive(
   text: string,
