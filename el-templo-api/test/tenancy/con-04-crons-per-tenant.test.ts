@@ -248,8 +248,123 @@ describe("criterio 3 — el cuerpo del cron corre una vez por gimnasio ACTIVO", 
   });
 });
 
+// ─── Gate de cobertura de D-01 ───────────────────────────────────────────────
+//
+// POR QUÉ ES FAIL-CLOSED (T-169-18)
+// ---------------------------------
+// D-01 dice que "ningún cron queda para acordarse después". Hoy los 7 jobs
+// barren por gimnasio activo, pero eso es un hecho, no una invariante: la
+// próxima fase que agregue un job a `src/jobs/` lo dejaría global sin que nada
+// se queje, y ese job escribiría o leería sin contexto de gimnasio para siempre.
+// Este gate convierte la decisión en invariante: falla ANTE LA DUDA, y obliga a
+// decidir conscientemente en vez de olvidar.
+//
+// QUÉ HACER CUANDO SE CAIGA
+// -------------------------
+//   - Si el job nuevo debe barrer por gimnasio (el caso normal): envolvé su
+//     cuerpo en `forEachActiveTenant` y sumalo a `JOBS_ESPERADOS`.
+//   - Si es GENUINAMENTE global (no toca ninguna de las 87 tablas gym-owned):
+//     anotalo en el fuente con `/* tenant-safe: <motivo> */` y agregalo a
+//     `JOBS_EXENTOS` CON SU MOTIVO. Nunca un `skip`, nunca una exención pelada:
+//     la lista de exenciones es documentación ejecutable, igual que la
+//     `TENANT_UNIQUE_ALLOWLIST` de la fase 168.
+//
+// POR QUÉ SE DESCARTAN LAS LÍNEAS DE COMENTARIO ANTES DE BUSCAR
+// -------------------------------------------------------------
+// Los 7 jobs llevan un docblock que EXPLICA el barrido y nombra
+// `forEachActiveTenant` en prosa. Sin el filtro, ese docblock alcanzaría para
+// satisfacer el gate en un job que no llama al sweep — el test pasaría en verde
+// probando la existencia de un comentario. El filtro no es cosmético.
+
+/** Directorio real de jobs, resuelto desde este archivo (no desde el cwd). */
+const DIR_JOBS = path.resolve(__dirname, "../../src/jobs");
+
+/**
+ * Los 7 jobs de D-01. La lista es exhaustiva a propósito: un archivo nuevo la
+ * rompe aunque venga con el sweep puesto, para que alguien mire el diff.
+ */
+const JOBS_ESPERADOS = [
+  "auto-approve.ts",
+  "auto-resume-pauses.ts",
+  "expire-lost-leads.ts",
+  "mark-no-shows.ts",
+  "notification-cron.ts",
+  "reassign-multibranch.ts",
+  "wellhub-sync.ts",
+];
+
+/**
+ * Jobs que corren fuera del sweep DELIBERADAMENTE, con su motivo. Hoy no hay
+ * ninguno: los 7 barren por gimnasio. El mapa existe para que la única forma de
+ * eximir un job sea escribir por qué.
+ */
+const JOBS_EXENTOS: Record<string, string> = {};
+
+/**
+ * El contenido del archivo con las líneas de comentario descartadas: `//`,
+ * apertura de bloque `/*` y continuación ` *`. Alcanza con el filtro por línea
+ * porque los 7 jobs escriben sus comentarios en líneas propias (idioma del
+ * repo); no se pretende un parser de TypeScript acá.
+ */
+function sinComentarios(contenido: string): string {
+  return contenido
+    .split("\n")
+    .filter((linea) => {
+      const t = linea.trim();
+      return !t.startsWith("//") && !t.startsWith("/*") && !t.startsWith("*");
+    })
+    .join("\n");
+}
+
+function leerJobs(): Array<{ nombre: string; codigo: string }> {
+  return fs
+    .readdirSync(DIR_JOBS)
+    .filter((n) => n.endsWith(".ts"))
+    .sort()
+    .map((nombre) => ({
+      nombre,
+      codigo: sinComentarios(
+        fs.readFileSync(path.join(DIR_JOBS, nombre), "utf8"),
+      ),
+    }));
+}
+
+describe("cobertura de D-01 — ningún job queda fuera del barrido por tenant", () => {
+  it("Test 6: src/jobs/ tiene exactamente los 7 jobs conocidos", () => {
+    const encontrados = leerJobs().map((j) => j.nombre);
+
+    expect(
+      encontrados,
+      `El inventario de src/jobs/ cambió. Esperados (${JOBS_ESPERADOS.length}): ` +
+        `${JOBS_ESPERADOS.join(", ")}. Encontrados (${encontrados.length}): ` +
+        `${encontrados.join(", ")}. Si agregaste un job, envolvé su cuerpo en ` +
+        `forEachActiveTenant (D-01) y sumalo a JOBS_ESPERADOS; si es ` +
+        `genuinamente global, anotalo con /* tenant-safe: <motivo> */ y ` +
+        `agregalo a JOBS_EXENTOS con el motivo escrito.`,
+    ).toEqual(JOBS_ESPERADOS);
+  });
+
+  it("Test 7: todo job con cron.schedule barre por tenant activo", () => {
+    const incumplidores = leerJobs()
+      .filter((j) => j.codigo.includes("cron.schedule"))
+      .filter((j) => !j.codigo.includes("forEachActiveTenant"))
+      .filter((j) => !(j.nombre in JOBS_EXENTOS))
+      .map((j) => j.nombre);
+
+    expect(
+      incumplidores,
+      `Jobs con cron.schedule que NO llaman a forEachActiveTenant: ` +
+        `${incumplidores.join(", ")}. Un cron sin barrido por gimnasio lee y ` +
+        `escribe sin contexto de tenant y nadie se entera (D-01/T-169-18). ` +
+        `Envolvé su cuerpo en forEachActiveTenant, o —si es genuinamente ` +
+        `global— anotalo con /* tenant-safe: <motivo> */ y agregalo a ` +
+        `JOBS_EXENTOS con el motivo.`,
+    ).toEqual([]);
+  });
+});
+
 describe("higiene del archivo", () => {
-  it("Test 6: la limpieza deja la base sin rastro del segundo gimnasio", async () => {
+  it("Test 8: la limpieza deja la base sin rastro del segundo gimnasio", async () => {
     await limpiarRastro(app);
 
     expect(await contarTenant(app, TENANT_SEGUNDO)).toBe(0);
