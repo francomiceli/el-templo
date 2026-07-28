@@ -4527,7 +4527,7 @@ Plans:
 4. El webhook de Wellhub deriva el tenant vía `payload.gym.id` → `branches.wellhub_gym_id` → `branches.tenant_id` y **falla cerrado** (log + rechazo, sin auto-crear nada) cuando el gym id no mapea; los scripts CLI exigen el tenant como argumento explícito y abortan sin él. (CON-04)
 5. La excepción legítima de `tv_pairings` pre-claim queda anotada `/* tenant-safe: pairing pre-claim */` y el claim con scope de staff estampa el `tenant_id` (test del ciclo completo). (CON-04)
 
-**Plans:** 1/9 plans executed
+**Plans:** 2/9 plans executed
 
 Plans:
 
@@ -4542,7 +4542,7 @@ además al predecesor inmediato como dependencia operativa.
 
 **Wave 2** _(blocked on Wave 1 completion)_
 
-- [ ] 169-02-PLAN.md — Crons A: sweep por tenant activo en `expire-lost-leads`, `wellhub-sync`, `mark-no-shows` y `reassign-multibranch`
+- [x] 169-02-PLAN.md — Crons A: sweep por tenant activo en `expire-lost-leads`, `wellhub-sync`, `mark-no-shows` y `reassign-multibranch`
 
 **Wave 3** _(blocked on Wave 2 completion)_
 
@@ -4698,7 +4698,7 @@ además al predecesor inmediato como dependencia operativa.
 | 166. Fundación — tenants, anclas y scope          | 6/6            | Complete    | 2026-07-27 |
 | 167. Columnas — tenant_id en 85 tablas            | 7/7            | Complete    | 2026-07-27 |
 | 168. Contratos SQL — uniques compuestas e índices | 6/6            | Complete    | 2026-07-27 |
-| 169. Capa de escritura — helpers y TenantContext  | 1/9            | In Progress |            |
+| 169. Capa de escritura — helpers y TenantContext  | 2/9            | In Progress |            |
 | 170. Detección — sentinel de pool + lint CI       | 0/?            | Not started |            |
 | 171. Backstop — manifiesto + fixtures 2-tenant    | 0/?            | Not started |            |
 | 172. Adopción 1 (piloto) — finance                | 0/?            | Not started |            |

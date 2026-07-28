@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: "Tenancy — El Templo pasa a ser tenant #1"
 status: executing
-stopped_at: Phase 169 Plan 01 complete
-last_updated: "2026-07-28T13:07:28.476Z"
-last_activity: 2026-07-28 -- Phase 169 Plan 01 ejecutado (tenant.ts + tests)
+stopped_at: Phase 169 Plan 02 complete (sweep por tenant en 4 crons, worktree et-169-tenant-layer)
+last_updated: "2026-07-28T13:24:12.528Z"
+last_activity: 2026-07-28 -- Phase 169 Plan 02 ejecutado (sweep por tenant en expire-lost-leads, wellhub-sync, mark-no-shows y reassign-multibranch)
 progress:
   total_phases: 11
   completed_phases: 3
   total_plans: 28
-  completed_plans: 20
+  completed_plans: 21
   percent: 27
 ---
 
@@ -26,12 +26,14 @@ See: .planning/PROJECT.md (milestone v6.0 initialized 2026-07-26)
 ## Current Position
 
 Phase: 169 (capa-de-escritura-helpers-tenantwhere-tenantvalues-y-tenantc) — EXECUTING
-Plan: 2 of 9
-Status: Executing Phase 169
-Last activity: 2026-07-28 -- Phase 169 Plan 01 ejecutado (tenant.ts + tests)
-Next: `/gsd:execute-phase 169` sigue por el plan **169-02**. En paralelo siguen pendientes `/gsd:verify-phase 168` (los 6 planes ejecutados; la migración 0196 aplicada en `eltemplo_staging` y `eltemplo` con 0 discrepancias y exit 0 en el verificador de uniques en las dos bases; falta el smoke funcional por UI de Franco, cerrado como pendiente por decisión suya). Siguen pendientes `/gsd:verify-phase 166` y `/gsd:verify-phase 167` por el mismo motivo.
+Plan: 3 of 9
+Status: Ready to execute
+Last activity: 2026-07-28 -- Phase 169 Plan 02 ejecutado (sweep por tenant en 4 crons)
+Next: `/gsd:execute-phase 169` sigue por el plan **169-03**. En paralelo siguen pendientes `/gsd:verify-phase 168` (los 6 planes ejecutados; la migración 0196 aplicada en `eltemplo_staging` y `eltemplo` con 0 discrepancias y exit 0 en el verificador de uniques en las dos bases; falta el smoke funcional por UI de Franco, cerrado como pendiente por decisión suya). Siguen pendientes `/gsd:verify-phase 166` y `/gsd:verify-phase 167` por el mismo motivo.
 
-**Worktree de la fase 169:** `/home/franco/projects/et-169-tenant-layer`, rama `feat/169-capa-escritura` sobre `origin/master` (`1200b8af`). `.env`/`.env.development` copiados desde el worktree de la 168 — **no correr ningún install ahí**: el `pnpm-lock.yaml` es byte-idéntico al de los worktrees 166/167/168 y el `node_modules` se resuelve por **symlink a `/home/franco/projects/et-167-columnas/el-templo-api/node_modules`** (el del 168 no existe hoy). El symlink se crea antes de cada typecheck/corrida de tests y **se borra antes de commitear** (la regla `node_modules/` del `.gitignore` no matchea un symlink). Commits de código del plan 01: `c21baefd` (`src/modules/shared/tenant.ts`) y `f6bc7ecc` (`test/tenancy/tenant-helpers.test.ts`). Nada pusheado. **Esta fase NO agrega migraciones**; si alguna la necesitara, reserva desde **0197**.
+**Worktree de la fase 169:** `/home/franco/projects/et-169-tenant-layer`, rama `feat/169-capa-escritura` sobre `origin/master` (`1200b8af`). `.env`/`.env.development` copiados desde el worktree de la 168 — **no correr ningún install ahí**: el `pnpm-lock.yaml` es byte-idéntico al de los worktrees 166/167/168 y el `node_modules` se resuelve por **symlink a `/home/franco/projects/et-167-columnas/el-templo-api/node_modules`** (el del 168 no existe hoy). El symlink se crea antes de cada typecheck/corrida de tests y **se borra antes de commitear** (la regla `node_modules/` del `.gitignore` no matchea un symlink). Commits de código del plan 01: `c21baefd` (`src/modules/shared/tenant.ts`) y `f6bc7ecc` (`test/tenancy/tenant-helpers.test.ts`); del plan 02: `0426d4de` (expire-lost-leads + wellhub-sync) y `bb85aa64` (mark-no-shows + reassign-multibranch). Nada pusheado. **Esta fase NO agrega migraciones**; si alguna la necesitara, reserva desde **0197**.
+
+**169-02 cerrado — 4 de los 7 crons ya barren por tenant activo.** `expire-lost-leads`, `wellhub-sync`, `mark-no-shows` y `reassign-multibranch` (los que ya tenían la separación `runX(db)` / `startXJob(db)`) corren su cuerpo dentro de `forEachActiveTenant`, con el `tenantId` como campo estructurado en una línea de log por vuelta y aislamiento de errores por gimnasio. **Patrón para el 169-03:** cuerpo por tenant PRIVADO con nombre grepeable `…ForTenant…` + `runX` público que acumula por closure y **conserva exactamente su tipo de retorno** — por eso los 3 archivos de test que invocan estos jobs (22 tests) siguen verdes **sin tocarlos**. Tres cosas que el plan siguiente debería copiar: (1) en `mark-no-shows` el sweep se puso en `runMarkNoShowsForTz`, que es lo que usa el scheduler (`runMarkNoShows` no corre nunca en producción), con el tenant POR FUERA del loop de timezone porque la lista de tz sale de `branches` y se scopeará en la 173; (2) en `wellhub-sync` el guard `if (!config) return null` precede al sweep y su función se declaró primera en el archivo para que el orden de lectura refleje el de ejecución (T-169-11); (3) el log por vuelta va a la ENTRADA del cuerpo cuando hay early return, para no duplicar el statement. Desviación registrada: el summary de Wellhub se loguea ahora en el cuerpo (con `tenantId`) y **ya no** en `startWellhubSyncJob` — el tipo de retorno lockeado no transporta el tenantId hasta el scheduler y, con varios gimnasios, atribuiría el summary del último a todos. **CON-04 sigue Pending a propósito** (faltan los 3 crons del 169-03, el webhook, el CLI y `tv_pairings`).
 
 **169-01 cerrado — la única API de tenancy existe.** `src/modules/shared/tenant.ts` (277 líneas, 10 exports) con la firma LOCKEADA del doc 03 §3: `tenantWhere(table, scope)` → `eq(table.tenantId, scope.tenantId)` y `tenantValues(scope, values)` → `{ ...values, tenantId: scope.tenantId }` (el tenant del scope va DESPUÉS del spread: mitigación de mass-assignment de tipo y de runtime a la vez). El punto de fricción que marcó el PATTERNS —`CountryScope.tenantId` es `number | null` y la firma pide `number`— se resolvió con **`assertTenant(scope, where)` exportado y fail-closed: `AppError` 403 `TENANT_UNRESOLVED`**, llamado en el CALL SITE para que el narrowing sea visible en el diff. Prohibidos el non-null assertion y el `?? 1` (verificado por grep en el `<verify>` del plan). Además `listActiveTenants` (comparación POSITIVA contra `'active'`) y `forEachActiveTenant` (loop secuencial, `try/catch` DENTRO del loop, `log.error({ err, tenantId, job })` y sigue — D-03), listos para los 7 crons del plan 169-04. `TenantLogger` es una interfaz estructural mínima y se verificó por typecheck que la satisfacen tanto `pino()` como `FastifyBaseLogger`, así que los jobs pasan su logger directo, sin adaptador. **13 tests verdes** en `test/tenancy/tenant-helpers.test.ts` contra MySQL real con un segundo tenant ad-hoc **id 90169** (el 90168 es del `con-01`: dos archivos con el mismo id se pisan con `isolate: false`; los ids de los otros archivos de la fase son 90269 / 90369 / 90469). Ojo para los planes siguientes: **`aura_config.source_type` sigue siendo unique GLOBAL** (deuda consciente allowlisteada), así que dos tenants NO pueden compartir el mismo `source_type` en un test.
 
@@ -387,6 +389,7 @@ _Updated after each plan completion_
 | Phase 168 P05 | 40min | 3 tasks | 2 files |
 | Phase 168 P06 | ~53min | 2 tasks | 0 files |
 | Phase 169 P01 | ~9min | 3 tasks | 2 files |
+| Phase 169 P02 | ~14min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -890,8 +893,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-28T13:07:14.896Z
+Last session: 2026-07-28T13:24:04.234Z
 Stopped at: Phase 169 Plan 01 complete (tenant.ts + tests, worktree et-169-tenant-layer)
-Resume file: .planning/phases/169-capa-de-escritura-helpers-tenantwhere-tenantvalues-y-tenantc/169-02-PLAN.md
+Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
