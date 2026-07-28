@@ -102,10 +102,42 @@
  *
  * CÓMO SE CORRE
  * -------------
- * Este archivo exporta el motor; la CLI (allowlist, ratchet y códigos de
- * salida 0/1/2) la agrega el plan 05 de esta misma fase, encima de estas
- * mismas funciones. Hasta entonces se consume desde el test
- * `test/tenancy/con-06-lint.test.ts`.
+ * Tres modos, con el contrato de salida de `verify-tenant-uniques.ts`
+ * (**0** = limpio, **1** = hay discrepancias, **2** = error de uso o interno):
+ *
+ * 1. **Local**, desde `el-templo-api/`:
+ *
+ *    ```
+ *    pnpm lint:tenant
+ *    ```
+ *
+ *    Sin `--base` el gate de entradas ganadas (D-14) no corre, y el reporte lo
+ *    dice en una advertencia. Los otros tres gates sí corren.
+ *
+ * 2. **CI**, en el step propio del job del API:
+ *
+ *    ```
+ *    pnpm lint:tenant --base=<sha o ref de la rama base>
+ *    ```
+ *
+ *    El checkout del job necesita `fetch-depth: 0`: con el `1` que trae por
+ *    default, la rama base no está en el clon y el lint sale **2** en vez de
+ *    pasar en verde sin haber podido mirar nada (T-170-04).
+ *
+ * 3. **En pre-commit: NUNCA** (D-11). Este pase mira el proyecto entero, y
+ *    sumarle ese segundo a todos los commits del repo termina, indefectible, en
+ *    alguien usando `--no-verify` por costumbre. Un gate que se esquiva a diario
+ *    no es un gate. Corre en CI, donde su rojo cuesta un push y no un flujo de
+ *    trabajo.
+ *
+ * Los flags `--root=<ruta>` y `--allowlist=<ruta>` existen para los tests y
+ * para correrlo desde otro cwd.
+ *
+ * `console.*` está permitido en este archivo: es tooling de línea de comandos,
+ * no el runtime de Fastify ni un frontend (precedente escrito en
+ * `require-tenant.ts`, y antes en `verify-tenant-uniques.ts`). Vive **solo**
+ * dentro del bloque de la CLI, al final: el motor no imprime nada, devuelve
+ * datos.
  */
 
 /* tenant-safe: tooling de plataforma: analiza el fuente por AST y no ejecuta una sola query */
@@ -115,6 +147,7 @@
 // de un olvido (T-169-36). Este archivo vive bajo `src/` y por lo tanto entra
 // en su propio alcance: se auto-analiza, y esta anotación es la que lo exime.
 
+import { execFileSync } from "node:child_process";
 import fs from "fs";
 import path from "path";
 import ts from "typescript";
@@ -868,9 +901,17 @@ export class LintArgError extends Error {
   }
 }
 
-/** La clave del par (archivo, tabla). El `\0` no puede aparecer en ninguno. */
+/**
+ * El separador de la clave (archivo, tabla). Va como SECUENCIA DE ESCAPE y
+ * nunca como byte crudo: un NUL literal adentro del fuente hace que git, grep
+ * y los diffs de GitHub traten el archivo entero como binario, y un gate cuyo
+ * codigo nadie puede leer en un diff no se revisa.
+ */
+const KEY_SEPARATOR = "\u0000";
+
+/** La clave del par (archivo, tabla). El separador no aparece en ninguno de los dos. */
 function entryKey(entry: { file: string; table: string }): string {
-  return `${entry.file} ${entry.table}`;
+  return `${entry.file}${KEY_SEPARATOR}${entry.table}`;
 }
 
 /** Ruta de la allowlist, relativa a la raíz del repo. */
@@ -1029,6 +1070,8 @@ export interface LintTenantOptions {
    * declarar migrado un módulo que no lo está.
    */
   strictTables?: ReadonlySet<string>;
+  /** Advertencias que produjo el llamador (típicamente la resolución de la base). */
+  extraWarnings?: readonly string[];
   scopeDirs?: string[];
   schemaMap?: ReadonlyMap<string, string>;
 }
@@ -1080,7 +1123,7 @@ export function lintTenant(opts: LintTenantOptions): TenantLintReport {
   // ── D-14: entradas ganadas respecto de la base ─────────────────────────────
   // Achicar SIEMPRE es legal: una entrada que la base tenía y la actual no es
   // exactamente lo que el ratchet quiere ver, así que no se compara al revés.
-  const warnings: string[] = [];
+  const warnings: string[] = [...(opts.extraWarnings ?? [])];
   let gainedEntries: AllowlistEntry[] = [];
   if (opts.baseAllowlist) {
     const baseKeys = new Set(opts.baseAllowlist.entries.map(entryKey));
@@ -1091,9 +1134,13 @@ export function lintTenant(opts: LintTenantOptions): TenantLintReport {
         `La allowlist ACHICO ${removed} entrada(s) respecto de la base. Eso es exactamente lo que el ratchet quiere ver.`,
       );
     }
+  } else if (opts.baseSkipReason) {
+    warnings.push(
+      `El gate de entradas ganadas (D-14) NO corrio: ${opts.baseSkipReason}. Los otros tres gates SI corrieron.`,
+    );
   } else {
     warnings.push(
-      `El gate de entradas ganadas (D-14) NO corrio: ${opts.baseSkipReason ?? "no se paso --base"}. ` +
+      `El gate de entradas ganadas (D-14) NO corrio: no se paso --base (uso local). ` +
         `Los otros tres gates SI corrieron. En CI el step tiene que pasar --base o el ratchet queda decorativo.`,
     );
   }
@@ -1288,4 +1335,260 @@ export function formatReport(report: TenantLintReport): string {
   );
 
   return lines.join("\n");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// El ratchet contra la rama base (D-14) — la única parte que habla con git
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Lo que `github.event.before` manda en el PRIMER push de una rama: la rama no
+ * tenía estado anterior, así que el evento trae el SHA nulo en vez de un commit.
+ * Pasárselo a `git show` da un error críptico, y tratar ese error como "no pude
+ * mirar la base" dejaría el build rojo en toda rama nueva. Se normaliza al
+ * `merge-base` con master, que es lo que el operador quería decir.
+ */
+const NULL_SHA = "0".repeat(40);
+
+/** La forma de una ref de git. Sirve para rechazar lo que empieza con `-`. */
+const REF_SHAPE = /^[A-Za-z0-9][A-Za-z0-9._/^~@{}-]*$/;
+
+const FETCH_DEPTH_HINT =
+  "Si esto pasa en CI, el checkout del job necesita `fetch-depth: 0`: el default es 1 y con un clon shallow la rama base NO esta en el repo. " +
+  "El lint sale 2 a proposito en vez de asumir 'sin cambios': un gate que pasa en verde por no haber podido mirar es peor que no tenerlo (T-170-04).";
+
+const USO =
+  "Uso: lint-tenant [--base=<ref>] [--root=<ruta>] [--allowlist=<ruta>]";
+
+/**
+ * Corre `git` **sin shell**: argumentos como array, nunca un string interpolado
+ * (T-170-16). Devuelve `undefined` si el comando falla, para que cada llamador
+ * decida qué significa ese fallo en su contexto.
+ */
+function tryGit(cwd: string, args: string[]): string | undefined {
+  try {
+    return execFileSync("git", args, {
+      cwd,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      maxBuffer: 32 * 1024 * 1024,
+    }).trim();
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * La raíz del repo. Hace falta porque el script corre con working-directory
+ * `el-templo-api` (tanto en CI como con `pnpm lint:tenant`) y todas las rutas
+ * del lint —las del reporte y las de la allowlist— son relativas a la raíz.
+ */
+export function resolveRepoRoot(cwd: string): string {
+  const root = tryGit(cwd, ["rev-parse", "--show-toplevel"]);
+  if (!root) {
+    throw new LintArgError(
+      `No se pudo resolver la raiz del repo con \`git rev-parse --show-toplevel\` desde ${cwd}. Pasa --root=<ruta> si estas corriendo el lint fuera de un checkout de git.`,
+    );
+  }
+  return root;
+}
+
+/**
+ * La ref de la base, ya resuelta a un commit concreto.
+ *
+ * Normaliza los dos casos que la CI produce sola —string vacío y SHA nulo— al
+ * `merge-base` con master. Todo lo demás es fail-closed: si la ref no se
+ * resuelve, el lint no corre.
+ */
+export function resolveBaseRef(rootDir: string, raw: string): string {
+  const ref = raw.trim();
+
+  if (ref === "" || ref === NULL_SHA) {
+    const fallback = tryGit(rootDir, ["merge-base", "origin/master", "HEAD"]);
+    if (!fallback) {
+      throw new LintArgError(
+        `--base vino ${ref === "" ? "vacio" : "con el SHA nulo (primer push de la rama)"} y el fallback \`git merge-base origin/master HEAD\` fallo. ${FETCH_DEPTH_HINT}`,
+      );
+    }
+    return fallback;
+  }
+
+  if (!REF_SHAPE.test(ref)) {
+    throw new LintArgError(
+      `--base=${ref} no tiene forma de ref de git. Se rechaza antes de llamar a git para que un valor que empieza con "-" no se cuele como flag del comando.`,
+    );
+  }
+
+  const resolved = tryGit(rootDir, [
+    "rev-parse",
+    "--verify",
+    "--quiet",
+    `${ref}^{commit}`,
+  ]);
+  if (!resolved) {
+    throw new LintArgError(
+      `La ref de --base no existe en este checkout: ${ref}. ${FETCH_DEPTH_HINT}`,
+    );
+  }
+  return resolved;
+}
+
+export interface BaseAllowlistResult {
+  /** Ausente = el archivo no existía en la base (la excepción única de abajo). */
+  allowlist?: Allowlist;
+  /** Advertencia ruidosa cuando el gate se saltea. */
+  warning?: string;
+}
+
+/**
+ * La allowlist tal como estaba en la rama base.
+ *
+ * FAIL-CLOSED, con **una sola excepción escrita**: que el archivo no exista en
+ * la base significa que éste es el commit que lo INTRODUCE (la fase 170). En
+ * ese caso el gate de entradas ganadas se saltea con una advertencia ruidosa
+ * que dice cuántas entradas trae el baseline — porque el otro camino a este
+ * mismo estado es que alguien BORRE el archivo para resetear el ratchet, y eso
+ * tiene que quedar escrito en el output además de visible en el diff.
+ *
+ * Cualquier otro fallo de lectura (ref rota, git que no responde, JSON que no
+ * parsea) es exit 2.
+ */
+export function readBaseAllowlist(
+  rootDir: string,
+  ref: string,
+  currentSize: number,
+): BaseAllowlistResult {
+  const listed = tryGit(rootDir, [
+    "ls-tree",
+    "-r",
+    "--name-only",
+    ref,
+    "--",
+    ALLOWLIST_PATH_FROM_ROOT,
+  ]);
+  if (listed === undefined) {
+    throw new LintArgError(
+      `\`git ls-tree\` fallo sobre la ref ${ref} buscando ${ALLOWLIST_PATH_FROM_ROOT}. ${FETCH_DEPTH_HINT}`,
+    );
+  }
+
+  if (listed === "") {
+    return {
+      warning:
+        `ATENCION: ${ALLOWLIST_PATH_FROM_ROOT} NO EXISTE en la rama base (${ref}), asi que el gate de entradas ganadas (D-14) se SALTEA. ` +
+        `Esto es correcto UNA sola vez: en el commit que introduce la allowlist, con ${currentSize} entrada(s) de baseline. ` +
+        `Si lees esto en cualquier otro PR, entonces el archivo se BORRO —que es la forma de resetear el ratchet— y eso se ve en el diff.`,
+    };
+  }
+
+  const text = tryGit(rootDir, ["show", `${ref}:${ALLOWLIST_PATH_FROM_ROOT}`]);
+  if (text === undefined) {
+    throw new LintArgError(
+      `\`git show ${ref}:${ALLOWLIST_PATH_FROM_ROOT}\` fallo aunque el archivo figura en el arbol de esa revision. ${FETCH_DEPTH_HINT}`,
+    );
+  }
+
+  return { allowlist: parseAllowlist(text, `la rama base (${ref})`) };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CLI
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * La CLI, sin `process.exit` adentro: devuelve el código y el texto.
+ *
+ * Esa separación no es estilo. Es lo que permite que el test afirme los tres
+ * códigos de salida sin matar al worker de Vitest, y por lo tanto que el
+ * contrato 0/1/2 esté cubierto por tests en vez de por confianza. El
+ * `process.exit` vive **solo** en el guard de abajo.
+ *
+ * `async` por contrato con el idioma de scripts del repo (el `main()` de
+ * `verify-tenant-uniques.ts` abre una conexión y sí espera); acá no hay nada
+ * que esperar, y está bien que así sea: el lint no toca la base.
+ */
+export async function runLint(
+  argv: string[],
+): Promise<{ code: 0 | 1 | 2; output: string }> {
+  try {
+    let baseArg: string | undefined;
+    let rootArg: string | undefined;
+    let allowlistArg: string | undefined;
+
+    for (const arg of argv) {
+      if (arg.startsWith("--base=")) {
+        baseArg = arg.slice("--base=".length);
+        continue;
+      }
+      if (arg.startsWith("--root=")) {
+        rootArg = arg.slice("--root=".length);
+        continue;
+      }
+      if (arg.startsWith("--allowlist=")) {
+        allowlistArg = arg.slice("--allowlist=".length);
+        continue;
+      }
+      // Fail-closed también acá: un flag mal escrito (`--bases=`, `--base sha`)
+      // que se ignorara en silencio apagaría un gate sin que nadie se entere.
+      throw new LintArgError(`Flag desconocido: ${arg}. ${USO}`);
+    }
+
+    const rootDir = rootArg
+      ? path.resolve(rootArg)
+      : resolveRepoRoot(process.cwd());
+    const allowlistPath = allowlistArg
+      ? path.resolve(allowlistArg)
+      : path.join(rootDir, ALLOWLIST_PATH_FROM_ROOT);
+
+    const allowlist = loadAllowlist(allowlistPath);
+
+    let baseAllowlist: Allowlist | undefined;
+    let baseSkipReason: string | undefined;
+    const extraWarnings: string[] = [];
+
+    if (baseArg !== undefined) {
+      const ref = resolveBaseRef(rootDir, baseArg);
+      const base = readBaseAllowlist(rootDir, ref, allowlist.entries.length);
+      baseAllowlist = base.allowlist;
+      if (base.warning) {
+        extraWarnings.push(base.warning);
+        baseSkipReason = `la allowlist todavia no existe en la rama base (${ref})`;
+      }
+    }
+
+    const report = lintTenant({
+      rootDir,
+      allowlist,
+      baseAllowlist,
+      baseSkipReason,
+      extraWarnings,
+    });
+
+    return {
+      code: report.discrepancies === 0 ? 0 : 1,
+      output: formatReport(report),
+    };
+  } catch (err: unknown) {
+    if (err instanceof LintArgError) {
+      return { code: 2, output: `lint-tenant fallo: ${err.message}` };
+    }
+    throw err;
+  }
+}
+
+if (require.main === module) {
+  runLint(process.argv.slice(2))
+    .then(({ code, output }) => {
+      if (code === 2) {
+        console.error(output);
+      } else {
+        console.log(output);
+      }
+      process.exit(code);
+    })
+    .catch((err: unknown) => {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`lint-tenant fallo: ${message}`);
+      process.exit(2);
+    });
 }
