@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: "Tenancy — El Templo pasa a ser tenant #1"
 status: executing
-stopped_at: Phase 169 Plan 04 complete (criterio 3 probado sobre crons reales + gate fail-closed de los 7 jobs, worktree et-169-tenant-layer)
-last_updated: "2026-07-28T14:20:00.000Z"
-last_activity: 2026-07-28 -- Phase 169 Plan 04 ejecutado (test/tenancy/con-04-crons-per-tenant.test.ts con 8 tests verdes + gate de cobertura de D-01 + comentario de arranque en src/index.ts)
+stopped_at: Phase 169 Plan 05 complete (derivación del tenant en el webhook de Wellhub + corte por estado + estampado de wellhub_events, worktree et-169-tenant-layer)
+last_updated: "2026-07-28T14:05:44.868Z"
+last_activity: 2026-07-28 -- Phase 169 Plan 05 ejecutado (webhook de Wellhub derivando el tenant server-side, 7 tests verdes con el tenant ad-hoc 90469)
 progress:
   total_phases: 11
   completed_phases: 3
   total_plans: 28
-  completed_plans: 23
-  percent: 29
+  completed_plans: 24
+  percent: 27
 ---
 
 # Project State
@@ -26,12 +26,14 @@ See: .planning/PROJECT.md (milestone v6.0 initialized 2026-07-26)
 ## Current Position
 
 Phase: 169 (capa-de-escritura-helpers-tenantwhere-tenantvalues-y-tenantc) — EXECUTING
-Plan: 5 of 9
+Plan: 6 of 9
 Status: Ready to execute
-Last activity: 2026-07-28 -- Phase 169 Plan 04 ejecutado (criterio 3 probado sobre crons reales + gate fail-closed de cobertura)
-Next: `/gsd:execute-phase 169` sigue por el plan **169-05**. En paralelo siguen pendientes `/gsd:verify-phase 168` (los 6 planes ejecutados; la migración 0196 aplicada en `eltemplo_staging` y `eltemplo` con 0 discrepancias y exit 0 en el verificador de uniques en las dos bases; falta el smoke funcional por UI de Franco, cerrado como pendiente por decisión suya). Siguen pendientes `/gsd:verify-phase 166` y `/gsd:verify-phase 167` por el mismo motivo.
+Last activity: 2026-07-28 -- Phase 169 Plan 05 ejecutado (derivación del tenant en el webhook público de Wellhub, mina M6 cerrada)
+Next: `/gsd:execute-phase 169` sigue por el plan **169-06**. En paralelo siguen pendientes `/gsd:verify-phase 168` (los 6 planes ejecutados; la migración 0196 aplicada en `eltemplo_staging` y `eltemplo` con 0 discrepancias y exit 0 en el verificador de uniques en las dos bases; falta el smoke funcional por UI de Franco, cerrado como pendiente por decisión suya). Siguen pendientes `/gsd:verify-phase 166` y `/gsd:verify-phase 167` por el mismo motivo.
 
 **Worktree de la fase 169:** `/home/franco/projects/et-169-tenant-layer`, rama `feat/169-capa-escritura` sobre `origin/master` (`1200b8af`). `.env`/`.env.development` copiados desde el worktree de la 168 — **no correr ningún install ahí**: el `pnpm-lock.yaml` es byte-idéntico al de los worktrees 166/167/168 y el `node_modules` se resuelve por **symlink a `/home/franco/projects/et-167-columnas/el-templo-api/node_modules`** (el del 168 no existe hoy). El symlink se crea antes de cada typecheck/corrida de tests y **se borra antes de commitear** (la regla `node_modules/` del `.gitignore` no matchea un symlink). Commits de código del plan 01: `c21baefd` (`src/modules/shared/tenant.ts`) y `f6bc7ecc` (`test/tenancy/tenant-helpers.test.ts`); del plan 02: `0426d4de` (expire-lost-leads + wellhub-sync) y `bb85aa64` (mark-no-shows + reassign-multibranch). Nada pusheado. **Esta fase NO agrega migraciones**; si alguna la necesitara, reserva desde **0197**.
+
+**169-05 cerrado — la mina M6 ya no existe: el webhook público de Wellhub deriva su tenant server-side.** `event_data.gym.id` → `branches.wellhub_gym_id` → `branches.tenant_id` → `tenants.status`, sin leer NUNCA el tenant del payload (Wellhub manda SU `gym.id`; el mapeo vive en nuestra DB). Los dos lookups del service —`findBranchByGymId` y `findPublishedSlot`— traen ahora `tenantId` + `tenantStatus` con **`leftJoin` a `tenants`**, y el LEFT quedó comentado con su consecuencia concreta en cada uno: con join estricto, una sede de gimnasio no resoluble caería en `gym_sin_sede` (mensaje FALSO: la sede existe) o el slot se trataría como "no publicado" — camino que **además le manda un PATCH de rechazo a Wellhub**. **Un solo helper privado, `resolverTenant`**, evalúa la tabla de corte para los dos caminos que crean datos y devuelve una unión discriminada `{ ok: true, ctx } | { ok: false, corte }` con el `WebhookHandleResult` YA ARMADO (no un booleano): el `!== "active"` aparece **una sola vez fuera de comentarios** en todo el archivo. **D-04 intacto** (`gym_sin_sede` conserva literalmente status, outcome, detail y mensaje de log) y **D-05 implementado**: `tenant_no_activo` con `log.warn({ gymId, branchId, tenantId, tenantStatus })` y `tenant_no_resoluble` con `log.error`, los dos 200 `skipped`. El corte va **ANTES de `findOrCreateVisitor`** en los dos caminos (checkin: línea 321 vs. 330; booking-requested: 518 vs. 561) — un gimnasio suspendido no llega a crear un usuario ni a facturarle una visita a Wellhub. **`handleBookingCanceled` NO corta**, con el motivo escrito: una cancelación libera cupo de una reserva que ya existe y bloquearla dejaría cupo fantasma en la grilla; el corte comercial aplica a lo que CREA datos, no a lo que los libera. **Estampado de `wellhub_events`:** `WebhookHandleResult` sumó `tenantId?: number`, el `UPDATE` de cierre de `handleEvent` construye el `.set()` condicionalmente y el INSERT previo lleva `/* tenant-safe: idempotencia global previa a la derivacion del tenant (M8) */` — la fila nace antes de la derivación porque el dedup por `event_id` es unique GLOBAL y componerlo por tenant sería circular. El comentario stale de `src/db/schema/wellhub.ts` ("es trabajo de la fase 169") quedó actualizado. **7 tests verdes** en `test/wellhub/webhook-tenant-derivation.test.ts` (tenant ad-hoc **90469**, 102,6 s) con las **dos sedes sembradas con `tenantId` explícito** (trampa del DEFAULT 1) y **aserciones de exclusión** en cada corte (cero usuarios, cero asistencias, cero llamadas al endpoint facturable) — no sólo el código HTTP. **El test que prueba de verdad el estampado es el del gimnasio ACTIVO distinto de 1:** los otros pasarían en verde con un `tenantId: 1` hardcodeado o incluso sin `UPDATE`, porque la columna tiene `DEFAULT 1`. `webhook-checkin.test.ts` **sin tocar**, 12 verdes. Commits: `58b4ea84` y `e2d7793f`. Dos desviaciones: el caso `tenant_no_resoluble` **no se simula** (exige una `branches.tenant_id` huérfana y la FK lo impide sin apagar `FOREIGN_KEY_CHECKS` sobre la base compartida del worker) y se sumó `tenantId` a los `log.info` de éxito (Rule 2: en el único camino sin sesión, el log tiene que decir de qué gimnasio era lo que se creó). **CON-04 sigue Pending** (faltan CLI y `tv_pairings`).
 
 **169-04 cerrado — el criterio 3 del ROADMAP ya no es una propiedad del helper: está probado sobre CRONS REALES.** `test/tenancy/con-04-crons-per-tenant.test.ts` (segundo tenant ad-hoc **90269**, 8 tests verdes en 80 s) afirma con `toHaveBeenCalledTimes` **exacto** que el cuerpo de `runAutoApprove` corre **2** veces con dos gimnasios activos y **1** con el 90269 en `suspended` y en `archived` (los dos estados no activos del enum, no sólo el feliz); que si el cuerpo explota en la 2ª vuelta `runAutoApprove` **resuelve** y el acumulador conserva el `{ approved: 3 }` del gimnasio sano (D-03 sobre un job real); y un smoke de `runExpireLostLeads` **sin spy**, contra MySQL, que prueba que un cuerpo con `sql` crudo sobrevive al sweep con dos tenants. **La técnica a copiar en los planes siguientes:** se espía el MÉTODO DEL SERVICE (`AdminSessionService.prototype.autoApprovePendingSessions`), **nunca** `forEachActiveTenant` — mockear el sweep probaría el mock; espiando el service quedan vivos `listActiveTenants` contra MySQL, el loop y el `try/catch` por iteración, y el corte cae justo donde empieza la lógica de negocio que esta fase no toca (D-02). Funciona porque los jobs instancian sus services DENTRO del cuerpo por tenant (169-02/169-03). **Gate fail-closed de D-01 puesto:** el mismo archivo lee `src/jobs/` con `fs` y exige (a) que la lista ordenada de `.ts` sea exactamente los 7 conocidos —lista completa, no sólo el conteo, para que un rename también rompa— y (b) que todo archivo con `cron.schedule` contenga `forEachActiveTenant`, **descartando las líneas de comentario antes de buscar** (sin ese filtro, la prosa del docblock de cualquier job satisfaría el gate). Los dos `expect` enumeran los incumplidores por nombre y dicen qué hacer; la única forma de eximir un job es sumarlo a `JOBS_EXENTOS` (mapa nombre→motivo, hoy vacío) con `/* tenant-safe: <motivo> */` en el fuente — nunca un `skip`. **Fail-closed verificado en vivo** con un `src/jobs/__gate-probe.ts` temporal: los dos gates cayeron listándolo, y la sonda se borró sin commitear. `src/index.ts` sumó **10 líneas de comentario, 0 deleciones** (verificado por `git diff --numstat`): documenta que la lista de gimnasios activos se resuelve **por corrida y no en el boot**, para que activar o suspender un gimnasio aplique en el tick siguiente sin reiniciar el proceso; las 7 llamadas `startXJob(app.db)` quedaron idénticas. Commits: `3f69a1fe` y `d79d5569`. **Cero desviaciones.** **CON-04 sigue Pending** (faltan webhook, `tv_pairings` y CLI).
 
@@ -394,6 +396,7 @@ _Updated after each plan completion_
 | Phase 168 P06 | ~53min | 2 tasks | 0 files |
 | Phase 169 P01 | ~9min | 3 tasks | 2 files |
 | Phase 169 P02 | ~14min | 2 tasks | 4 files |
+| Phase 169 P05 | ~18min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -865,6 +868,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase 168]: 168-06: el step de migraciones de un deploy NO es evidencia — tardó 4 s en las dos bases, pero la heurística alreadyApplied del runner tolera "Can't DROP" y un DROP INDEX mal nombrado saldría verde. La evidencia es la ausencia de los 12 nombres viejos en INFORMATION_SCHEMA de cada base real
 - [Phase 169]: 169-01: assertTenant es el unico puente entre CountryScope.tenantId (number|null) y la firma lockeada del doc 03 §3 — lanza AppError 403 TENANT_UNRESOLVED; prohibidos el non-null assertion y el default numerico
 - [Phase 169]: 169-01: tenant.ts NO se exporta desde el barrel shared/index.ts (consistencia con country-scope.ts, importado por path directo desde sus 22 call sites)
+- [Phase ?]: 169-05: el corte por tenant_no_resoluble NO estampa tenantId — branches.tenant_id apuntaría a una fila inexistente de tenants (dueño falso + choque con la FK)
+- [Phase ?]: 169-05: handleBookingCanceled NO se corta por estado del tenant — el corte comercial aplica a lo que CREA datos, no a lo que los libera (cupo fantasma en la grilla)
 
 ### Pending Todos
 
@@ -897,7 +902,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-28T14:20:00.000Z
+Last session: 2026-07-28T14:05:39.574Z
 Stopped at: Phase 169 Plan 04 complete (criterio 3 sobre crons reales + gate fail-closed de los 7 jobs, worktree et-169-tenant-layer)
 Resume file: None
 
