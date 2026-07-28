@@ -28,6 +28,10 @@ import { sql } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import * as schema from "../db/schema";
 import { SettingsService } from "../modules/settings/service";
+import {
+  forEachActiveTenant,
+  type TenantContext,
+} from "../modules/shared/tenant";
 
 const log = pino({ name: "expire-lost-leads" });
 
@@ -66,12 +70,31 @@ function candidateBaseConditions(windowDays: number) {
 }
 
 /**
- * Corre el barrido completo una vez. Expuesto para tests e invocación manual
- * (mismo patrón que runMarkNoShows). Devuelve cuántos leads venció y cuántos
- * salteó por ser 'manual'.
+ * Fase 169 (CON-04, D-01) — BARRIDO POR TENANT ACTIVO
+ * ---------------------------------------------------
+ * El barrido corre UNA VEZ POR GIMNASIO ACTIVO: `forEachActiveTenant` resuelve
+ * la lista de `tenants` en cada corrida (activar un gimnasio no debería exigir
+ * un restart de la API) y aísla los errores POR ITERACIÓN (D-03) — un gimnasio
+ * roto no frena el barrido de los demás, el error se loguea con `tenantId`
+ * estructurado y el loop sigue.
+ *
+ * D-02: el `ctx` NO baja a los services. Sus firmas cambian en su fase de
+ * adopción (172-175); acá el contexto llega hasta el CUERPO del job, se loguea
+ * y queda disponible. En particular el `sql` crudo de abajo TODAVÍA NO lleva
+ * `AND u.tenant_id = ${ctx.tenantId}`: eso entra con la adopción del módulo.
+ * Con un solo tenant activo el resultado es IDÉNTICO al de hoy.
+ *
+ * VENCIMIENTO de esta forma intermedia: mientras el cuerpo siga siendo global,
+ * más de un tenant activo repetiría el MISMO barrido N veces. Por eso el gate
+ * del MILESTONE (no de esta fase) es que el tenant 2 no se onboardea hasta que
+ * la batería de aislamiento ISO-03 (fase 171) esté verde.
+ *
+ * Cuerpo del barrido para UN gimnasio. Devuelve cuántos leads venció y cuántos
+ * salteó por ser 'manual'; el acumulador de abajo los suma entre gimnasios.
  */
-export async function runExpireLostLeads(
+async function runExpireLostLeadsForTenant(
   db: MySql2Database<typeof schema>,
+  ctx: TenantContext,
 ): Promise<{ expired: number; skippedManual: number }> {
   // (1) Leer X primero — reader canónico de settings (D-05), sin read bespoke.
   const settingsService = new SettingsService(db, log);
@@ -103,6 +126,35 @@ export async function runExpireLostLeads(
   const expired = Number(
     (updateRes as unknown as [{ affectedRows?: number }])[0]?.affectedRows ?? 0,
   );
+
+  // `tenantId` va como CAMPO ESTRUCTURADO, jamás interpolado en el mensaje
+  // (idioma de logging del milestone). Una línea por vuelta del barrido.
+  log.info(
+    { tenantId: ctx.tenantId, windowDays, expired, skippedManual },
+    "Barrido de leads perdidos completado para un gimnasio",
+  );
+
+  return { expired, skippedManual };
+}
+
+/**
+ * Corre el barrido completo una vez, para TODOS los gimnasios activos. Expuesto
+ * para tests e invocación manual (mismo patrón que runMarkNoShows). El tipo de
+ * retorno NO cambió con el sweep: sigue siendo el total agregado
+ * `{ expired, skippedManual }`, acumulado por closure sobre las vueltas (igual
+ * que `runMarkNoShows` acumula sobre el loop de timezones).
+ */
+export async function runExpireLostLeads(
+  db: MySql2Database<typeof schema>,
+): Promise<{ expired: number; skippedManual: number }> {
+  let expired = 0;
+  let skippedManual = 0;
+
+  await forEachActiveTenant(db, log, "expire-lost-leads", async (ctx) => {
+    const r = await runExpireLostLeadsForTenant(db, ctx);
+    expired += r.expired;
+    skippedManual += r.skippedManual;
+  });
 
   return { expired, skippedManual };
 }
