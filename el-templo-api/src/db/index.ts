@@ -8,7 +8,7 @@ import { dbConfig, poolConfig } from "./config";
  *
  * ⚠ NO ES EL POOL DE LA APLICACIÓN. El comentario anterior decía "Used by the
  * main application" y era FALSO: el servidor no la llama nunca. Sus únicos
- * consumidores son los 6 scripts de desarrollo de
+ * consumidores son los 5 scripts de desarrollo de
  * `src/modules/sessions/validation/` (generadores y validadores del algoritmo de
  * sesiones, con `console.log` y `process.exit`, que nadie importa desde el
  * runtime). Ese inventario está congelado por un guard en
