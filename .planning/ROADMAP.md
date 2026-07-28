@@ -4550,7 +4550,7 @@ además al predecesor inmediato como dependencia operativa.
 
 **Wave 4** _(blocked on Wave 3 completion)_
 
-- [ ] 169-04-PLAN.md — Test de criterio 3 sobre crons reales (2 tenants, suspendido no se procesa, aislamiento de errores) + gate fail-closed de cobertura de los 7 jobs
+- [x] 169-04-PLAN.md — Test de criterio 3 sobre crons reales (2 tenants, suspendido no se procesa, aislamiento de errores) + gate fail-closed de cobertura de los 7 jobs
 
 **Wave 5** _(blocked on Wave 4 completion)_
 
