@@ -26,8 +26,17 @@ jobs:
         working-directory: el-templo-api
 
     steps:
+      # fetch-depth: 0 (historia completa) SOLO en este job, y solo por el step
+      # "Tenant lint" de abajo: el gate anti-crecimiento de la allowlist resuelve la
+      # rama base con `git merge-base` / `git show <base>:...`. Con el clone shallow
+      # que actions/checkout trae por default (fetch-depth: 1) eso NO se puede
+      # resolver, y un ratchet que no puede mirar la base es un ratchet decorativo.
+      # El lint sale 2 (no 0) cuando no puede resolverla, así que sacar esta línea
+      # deja el build rojo en vez de dejarlo pasar en falso.
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -46,6 +55,19 @@ jobs:
 
       - name: Type check
         run: pnpm exec tsc --noEmit
+
+      # BLOQUEANTE A PROPÓSITO (D-09/D-14): sin `|| true` y sin continue-on-error, al
+      # revés que el "Security audit" de acá abajo y que los "Lint" de los frontends.
+      # Un acceso nuevo a una tabla gym-owned sin tenant_id ni anotación /* tenant-safe: */
+      # deja el build ROJO, y agrandar tenant-lint-allowlist.json también.
+      - name: Tenant lint (CON-06)
+        run: pnpm lint:tenant --base="$LINT_BASE"
+        env:
+          # En pull_request, la base del PR (siempre existe). En push, el `before` del
+          # evento — que en el PRIMER push de una rama viene con el SHA nulo de 40 ceros
+          # y en algunos eventos vacío: el script normaliza los dos casos cayendo a
+          # `git merge-base origin/master HEAD`, que necesita la historia de arriba.
+          LINT_BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
 
       - name: Security audit  # Advisory only (|| true) — logs CVEs without blocking
         run: pnpm audit --audit-level=high || true

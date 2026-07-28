@@ -29,10 +29,13 @@ import {
   TENANT_GLOBAL_UNIQUES,
   TENANT_UNIQUE_ALLOWLIST,
   PLATFORM_PHYSICAL_TABLES,
+  TENANT_STRICT_MODULES,
   isGymOwnedTable,
   isTenantGlobalUnique,
   isAllowedGlobalUnique,
   tenantUniqueMotive,
+  isStrictTable,
+  strictTablesSet,
 } from "../../src/db/tenant-tables";
 
 /**
@@ -311,5 +314,157 @@ describe("tenant-tables — registros de uniques globales (fase 168)", () => {
         `Drizzle (_migrations, __drizzle_migrations). Si una está en dos listas, el ` +
         `verificador la clasifica por la primera que evalúa y el criterio queda escondido.`,
     ).toEqual([]);
+  });
+});
+
+/**
+ * Fase 170 Plan 01 (CON-05, CON-06): gate de forma del TERCER registro de este
+ * archivo, `TENANT_STRICT_MODULES` (D-05/D-06).
+ *
+ * QUÉ PRUEBA
+ * ----------
+ * 1. Que la lista arranca vacía en la 170 (conteo exacto como decisión de diseño).
+ * 2. Que toda tabla listada existe de verdad en `GYM_OWNED_TABLES`.
+ * 3. Que ninguna tabla la reclaman dos módulos.
+ * 4. Que las claves son nombres de módulo, no frases.
+ * 5. Que `isStrictTable` y `strictTablesSet` dicen exactamente lo que dice el
+ *    registro.
+ *
+ * POR QUÉ NO ALCANZA CON EL LINT NI CON EL SENTINEL
+ * -------------------------------------------------
+ * Los dos consumidores CONSULTAN el registro; ninguno puede opinar sobre su
+ * forma. Una tabla mal escrita (`bookins`) no está en ningún SQL, así que el
+ * sentinel jamás la evalúa y el lint jamás la cruza: quedaría como una
+ * afirmación muerta de "módulo migrado" que no protege nada, en verde y en
+ * silencio. Estos gates son fail-closed justamente ahí.
+ *
+ * Este `describe` NO toca la base de datos: es introspección de objetos
+ * importados. Corre igual bajo el `setupFiles` del repo (que provisiona la DB
+ * por worker para TODO archivo de test, ~96 s — hallazgo 169-07).
+ */
+describe("TENANT_STRICT_MODULES (fase 170, D-05/D-06)", () => {
+  const modulos = Object.keys(TENANT_STRICT_MODULES);
+  const entradas: Array<{ modulo: string; tabla: string }> = Object.entries(
+    TENANT_STRICT_MODULES,
+  ).flatMap(([modulo, tablas]) => tablas.map((tabla) => ({ modulo, tabla })));
+
+  it("arranca vacía en la fase 170 (ningún módulo migrado todavía)", () => {
+    expect(
+      modulos.length,
+      `TENANT_STRICT_MODULES tiene ${modulos.length} entradas, esperadas 0. La fase 170 ` +
+        `construye los dos vigilantes (sentinel de pool + lint de CI), NO migra ningún ` +
+        `módulo: por eso la lista arranca vacía. Agregar la primera entrada es una DECISIÓN ` +
+        `DE DISEÑO de una fase de adopción (172+), no un detalle de implementación, y tiene ` +
+        `dos consecuencias que van juntas o no van: (1) el sentinel pasa a hacer THROW en ` +
+        `test/dev sobre las tablas de ese módulo — afirmás que TODAS sus lecturas y ` +
+        `escrituras usan tenantWhere/tenantValues; (2) OBLIGA a vaciar las entradas de esas ` +
+        `tablas en tenant-lint-allowlist.json, porque el lint deja el build rojo si conviven ` +
+        `(D-15). Si este test se cae y no estás migrando un módulo, la entrada sobra.`,
+    ).toBe(0);
+  });
+
+  it("toda tabla listada existe en GYM_OWNED_TABLES", () => {
+    // Fail-closed: una tabla mal escrita no puede quedar "silenciosamente
+    // no-strict". El sentinel clasifica por nombre exacto — `bookins` no
+    // matchearía ningún SQL y la afirmación "este módulo está migrado" quedaría
+    // muerta, en verde y sin proteger nada.
+    const huerfanas = entradas
+      .filter((entrada) => !gymOwned.has(entrada.tabla))
+      .map((entrada) => `${entrada.modulo}: ${entrada.tabla}`)
+      .sort();
+
+    expect(
+      huerfanas,
+      `Tablas de TENANT_STRICT_MODULES que NO están en GYM_OWNED_TABLES: ` +
+        `${huerfanas.join(", ")}. O el nombre está mal escrito, o se listó una tabla exenta ` +
+        `(que no lleva tenant_id y por lo tanto no puede ser strict). Los nombres son los ` +
+        `FÍSICOS de MySQL, los de getTableName(), no los de las constantes TypeScript. Una ` +
+        `tabla que no existe acá no la evalúa nunca ni el sentinel ni el lint: la entrada ` +
+        `sería una afirmación muerta de "módulo migrado".`,
+    ).toEqual([]);
+  });
+
+  it("ninguna tabla aparece en dos módulos", () => {
+    const duenos = new Map<string, string[]>();
+    for (const entrada of entradas) {
+      const previos = duenos.get(entrada.tabla) ?? [];
+      previos.push(entrada.modulo);
+      duenos.set(entrada.tabla, previos);
+    }
+    const duplicadas = [...duenos.entries()]
+      .filter(([, modulosQueLaReclaman]) => modulosQueLaReclaman.length > 1)
+      .map(([tabla, modulosQueLaReclaman]) => {
+        const lista = modulosQueLaReclaman.slice().sort().join(" y ");
+        return `${tabla} (reclamada por ${lista})`;
+      })
+      .sort();
+
+    expect(
+      duplicadas,
+      `Tablas listadas en más de un módulo de TENANT_STRICT_MODULES: ` +
+        `${duplicadas.join(", ")}. Dos dueños es ambigüedad sobre quién tiene que vaciar sus ` +
+        `entradas de tenant-lint-allowlist.json (D-15) cuando ese módulo se migre, y sobre ` +
+        `quién queda responsable si el throw del sentinel salta en producción de tests. Una ` +
+        `tabla pertenece a UN módulo: si de verdad la escriben dos, esa es la conversación de ` +
+        `boundary que hay que tener antes de declararla migrada, no después.`,
+    ).toEqual([]);
+  });
+
+  it("toda clave de módulo es un identificador no vacío en minúsculas", () => {
+    // La clave es el nombre del módulo del ROADMAP (`finance`, `members`,
+    // `subscriptions`, `scheduling`, `analytics`), no una frase ni un título:
+    // una fase de adopción = una entrada, y el diff de esa fase se tiene que
+    // leer de un vistazo. Un "finance (parcial, falta caja)" convierte el
+    // registro en prosa y hace imposible cruzarlo con el ROADMAP.
+    const IDENTIFICADOR = /^[a-z][a-z0-9-]*$/;
+    const malFormadas = modulos
+      .filter((modulo) => !IDENTIFICADOR.test(modulo))
+      .sort();
+
+    expect(
+      malFormadas,
+      `Claves de TENANT_STRICT_MODULES que no son identificadores de módulo: ` +
+        `${malFormadas.join(", ")}. El formato es ${IDENTIFICADOR.source} — minúsculas, sin ` +
+        `espacios, sin acentos, sin paréntesis. La clave nombra el módulo del ROADMAP tal ` +
+        `cual (finance, members, subscriptions, scheduling, analytics) porque es lo que ` +
+        `permite cruzar "qué fase declaró esto migrado" con el registro. Si hace falta ` +
+        `aclarar algo, va en el docblock del registro, no en la clave.`,
+    ).toEqual([]);
+  });
+
+  it("isStrictTable y strictTablesSet coinciden con el registro", () => {
+    const desalineadas = entradas
+      .filter(
+        (entrada) =>
+          !isStrictTable(entrada.tabla) || !strictTablesSet().has(entrada.tabla),
+      )
+      .map((entrada) => `${entrada.modulo}: ${entrada.tabla}`)
+      .sort();
+
+    expect(
+      desalineadas,
+      `Tablas de TENANT_STRICT_MODULES que los helpers NO reconocen como strict: ` +
+        `${desalineadas.join(", ")}. STRICT_SET se arma UNA vez a nivel de módulo aplanando ` +
+        `el registro (Object.values(...).flat()); si esto se cae, alguien rompió ese aplanado ` +
+        `y el sentinel dejó de hacer throw sobre tablas que el registro declara migradas — ` +
+        `una regresión silenciosa, que es el peor modo de falla posible acá.`,
+    ).toEqual([]);
+
+    // `bookings` es una tabla gym-owned real y NO strict hoy: nada está migrado
+    // en la 170. Cuando la fase 172 migre `finance`, esta línea se ACTUALIZA con
+    // otro ejemplo todavía no migrado — no se borra el gate. Es la única
+    // aserción del archivo que prueba el lado negativo del helper, y sin ella un
+    // `isStrictTable` que devolviera `true` siempre pasaría todo lo de arriba.
+    expect(
+      isStrictTable("bookings"),
+      `isStrictTable("bookings") devolvió true. bookings es gym-owned pero NO pertenece a ` +
+        `ningún módulo migrado en la fase 170. Si llegaste acá migrando finance en la 172: ` +
+        `cambiá el ejemplo por una tabla que siga sin migrar, no borres la aserción — es la ` +
+        `que distingue un helper que funciona de uno que dice true a todo.`,
+    ).toBe(false);
+    expect(
+      strictTablesSet().has("no_existe"),
+      "strictTablesSet no puede contener nombres que no salen del registro",
+    ).toBe(false);
   });
 });
