@@ -55,9 +55,15 @@ async function main() {
     // `tenantValues` estampa el gimnasio DESPUÉS del spread de los valores, así
     // que el tenant sale del servidor incluso si alguien agregara un `tenantId`
     // acá adentro (mitigación de mass-assignment, T-169-02).
+    //
+    // Dato para las fases de adopción (172-175): envolver el objeto en
+    // `tenantValues` NO ensancha los tipos literales. `sourceType` sigue
+    // llegando como `"onboarding_completion"` y no como `string`, así que el
+    // enum de Drizzle compila sin ningún `as const` de por medio — verificado
+    // por `tsc` con y sin él.
     await db.insert(auraConfig).values(
       tenantValues(ctx, {
-        sourceType: "onboarding_completion" as const,
+        sourceType: "onboarding_completion",
         defaultAmount: 50,
         description: "AURA reward for completing onboarding quiz",
         isActive: true,
