@@ -36,6 +36,11 @@
  * además el chequeo de comentario de bloque, se pone roja también la aserción
  * del fixture `conComentarioDeLinea`. Las dos condiciones son necesarias.
  *
+ * 3. **Los cuatro gates del ratchet y el contrato de exit codes 0/1/2**, con
+ *    allowlists en memoria contra los mismos fixtures. Ninguno de esos tests
+ *    escribe sobre `el-templo-api/tenant-lint-allowlist.json`: el archivo real
+ *    se lee, nunca se toca.
+ *
  * QUÉ HACER CUANDO ESTE GUARD SE CAIGA
  * ------------------------------------
  * **No borres la entrada de la allowlist ni desactives el lint.** El rojo dice
@@ -51,6 +56,14 @@
  *     Revisá contra los 6 archivos reales de la segunda batería antes de tocar
  *     una línea del motor.
  *
+ * Y la que NO está en la lista, escrita explícitamente porque es la tentación
+ * obvia: **agrandar `tenant-lint-allowlist.json` no es una salida válida.** No
+ * es una cuestión de disciplina, es que no funciona: el gate de entradas
+ * ganadas (D-14) compara la lista contra la rama base y deja el build rojo
+ * igual. La allowlist es deuda TOLERADA —la que ya estaba— y solo puede
+ * achicarse. Si tu PR necesita una entrada nueva, lo que necesita es migrar el
+ * acceso o escribirle la exención con motivo.
+ *
  * Los dos `describe` **NO tocan la base de datos**: leen archivos y los
  * parsean. Corren igual bajo el `setupFiles` del repo, que provisiona MySQL por
  * worker para TODO archivo de test (~96 s de overhead conocida, hallazgo
@@ -58,15 +71,25 @@
  * script standalone de CI y no un gate de Vitest.
  */
 
+import fs from "fs";
+import os from "os";
 import path from "path";
-import { describe, it, expect } from "vitest";
+import { afterAll, beforeAll, describe, it, expect } from "vitest";
 
 import {
   buildSchemaTableMap,
+  formatReport,
+  lintTenant,
   lintTenantSources,
+  runLint,
+  type Allowlist,
+  type AllowlistEntry,
   type LintSourceResult,
+  type LintTenantOptions,
   type TenantAccess,
+  type TenantLintReport,
 } from "../../src/db/scripts/lint-tenant";
+import { strictTablesSet } from "../../src/db/tenant-tables";
 
 /** El cwd de Vitest es `el-templo-api` (`root: "."` de `vitest.config.ts`). */
 const API_DIR = process.cwd();
@@ -334,5 +357,317 @@ describe("lint-tenant — anclaje de exenciones contra los archivos reales", () 
       "el 169-09-SUMMARY inventarió 9 exenciones reales. Si este número baja, el matcher dejó de " +
         "anclar alguna y ese sitio pasó a contar como violación nueva en el ratchet del plan 05.",
     ).toBeGreaterThanOrEqual(9);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** La allowlist real del repo. Se LEE; ningún test de acá la escribe. */
+const ALLOWLIST_REAL = path.join(API_DIR, "tenant-lint-allowlist.json");
+
+/** Contenido al cargar el módulo, para probar al final que nadie la tocó. */
+const ALLOWLIST_REAL_ANTES = fs.readFileSync(ALLOWLIST_REAL, "utf8");
+
+function allowlistEnMemoria(entries: AllowlistEntry[]): Allowlist {
+  return {
+    scope: "fixtures del test — nunca se escribe a disco",
+    generated: "en memoria",
+    entries,
+  };
+}
+
+/**
+ * Corre los gates contra el fixture del plan 03 con una allowlist en memoria.
+ * Ni toca `git` ni toca el archivo real: los cuatro gates son lógica pura sobre
+ * el resultado del motor, y por eso se pueden congelar sin infraestructura.
+ */
+function lintFixture(
+  entries: AllowlistEntry[],
+  extra: Partial<LintTenantOptions> = {},
+): TenantLintReport {
+  return lintTenant({
+    rootDir: FIXTURES_DIR,
+    scopeDirs: ["."],
+    schemaMap: SCHEMA_MAP,
+    allowlist: allowlistEnMemoria(entries),
+    ...extra,
+  });
+}
+
+/** Las 3 entradas que cubren exactamente las 4 violaciones del fixture. */
+const COBERTURA_COMPLETA: AllowlistEntry[] = [
+  { file: "accesos.ts", table: "bookings" },
+  { file: "exenciones.ts", table: "attendance" },
+  { file: "exenciones.ts", table: "users" },
+];
+
+describe("lint-tenant — los cuatro gates del ratchet", () => {
+  it("una violación que NO está en la allowlist es discrepancia (D-13)", () => {
+    const report = lintFixture([]);
+
+    expect(
+      report.unlistedViolations.map(
+        (access) => `${access.file} ${access.table}`,
+      ),
+      "las 4 violaciones del fixture no están toleradas por nadie: tienen que salir todas",
+    ).toEqual([
+      "accesos.ts bookings",
+      "accesos.ts bookings",
+      "exenciones.ts users",
+      "exenciones.ts attendance",
+    ]);
+    expect(report.discrepancies).toBe(4);
+  });
+
+  it("la MISMA violación CON su entrada en la allowlist deja el reporte limpio", () => {
+    const report = lintFixture(COBERTURA_COMPLETA);
+
+    expect(report.unlistedViolations).toEqual([]);
+    expect(
+      report.discrepancies,
+      "tolerar deuda que ya estaba es exactamente para lo que existe la allowlist: 3 entradas " +
+        "cubren las 4 violaciones porque la clave es (archivo, tabla) y no la línea (D-13)",
+    ).toBe(0);
+    expect(report.allowlistSize).toBe(3);
+  });
+
+  it("una entrada cuyo archivo ya no existe cae en staleMissingFile, y el reporte manda ACTUALIZAR LA RUTA (D-14)", () => {
+    const report = lintFixture([
+      ...COBERTURA_COMPLETA,
+      { file: "se-renombro.ts", table: "bookings" },
+    ]);
+
+    expect(report.staleMissingFile).toEqual([
+      { file: "se-renombro.ts", table: "bookings" },
+    ]);
+    expect(report.staleNoLongerViolating).toEqual([]);
+    expect(report.discrepancies).toBe(1);
+
+    const texto = formatReport(report);
+    expect(
+      texto,
+      "los dos tipos de stale tienen mensajes DISTINTOS a propósito: acá el archivo se movió y " +
+        "la entrada hay que reapuntarla, no borrarla (Open Question 4 del RESEARCH)",
+    ).toContain("ACTUALIZA LA RUTA");
+    expect(texto).toContain("se-renombro.ts — bookings");
+  });
+
+  it("una entrada cuyo archivo ya NO viola cae en staleNoLongerViolating, y el reporte manda BORRARLA (D-14)", () => {
+    // `accesos.ts` accede a `users` con `tenantValues`: cumple, así que esa
+    // entrada ya no tolera nada. Es el gate que FUERZA el achique al migrar.
+    const report = lintFixture([
+      ...COBERTURA_COMPLETA,
+      { file: "accesos.ts", table: "users" },
+    ]);
+
+    expect(report.staleNoLongerViolating).toEqual([
+      { file: "accesos.ts", table: "users" },
+    ]);
+    expect(report.staleMissingFile).toEqual([]);
+    expect(report.discrepancies).toBe(1);
+
+    const texto = formatReport(report);
+    expect(
+      texto,
+      "acá la deuda se PAGÓ: el mensaje tiene que mandar a borrar la entrada, no a reapuntarla. " +
+        "Si los dos stale dijeran lo mismo, el gate se esquiva reapuntando rutas para siempre",
+    ).toContain("BORRA LA ENTRADA");
+  });
+
+  it("una tabla de la lista strict con entradas vivas es discrepancia (D-15), con la lista inyectada por parámetro", () => {
+    const report = lintFixture(COBERTURA_COMPLETA, {
+      strictTables: new Set(["bookings"]),
+    });
+
+    expect(report.strictWithAllowlist).toEqual([
+      { file: "accesos.ts", table: "bookings" },
+    ]);
+    expect(report.discrepancies).toBe(1);
+    expect(formatReport(report)).toContain("VACIA las entradas de esa tabla");
+
+    expect(
+      strictTablesSet().size,
+      "el test inyecta la lista strict por parámetro (D-07). Declarar migrado un módulo real acá " +
+        "sería mentir: en la fase 170 no hay ninguno, y TENANT_STRICT_MODULES tiene que seguir vacío",
+    ).toBe(0);
+  });
+
+  it("una entrada que la base NO tenía cae en gainedEntries (D-14)", () => {
+    const base = allowlistEnMemoria(COBERTURA_COMPLETA.slice(0, 2));
+    const report = lintFixture(COBERTURA_COMPLETA, { baseAllowlist: base });
+
+    expect(report.gainedEntries).toEqual([
+      { file: "exenciones.ts", table: "users" },
+    ]);
+    expect(report.discrepancies).toBe(1);
+    expect(formatReport(report)).toContain("la allowlist CRECIO");
+  });
+
+  it("borrar una entrada respecto de la base NUNCA es discrepancia: achicar siempre es legal", () => {
+    const base = allowlistEnMemoria([
+      ...COBERTURA_COMPLETA,
+      { file: "exenciones.ts", table: "bookings" },
+    ]);
+    const report = lintFixture(COBERTURA_COMPLETA, { baseAllowlist: base });
+
+    expect(report.gainedEntries).toEqual([]);
+    expect(
+      report.discrepancies,
+      "el ratchet compara en UNA sola dirección: la lista que se achica es el objetivo del gate, " +
+        "no una anomalía. Si esto se pusiera rojo, migrar un módulo dejaría el build en rojo",
+    ).toBe(0);
+    expect(report.warnings.join("\n")).toContain("ACHICO 1 entrada");
+  });
+
+  it("sin baseAllowlist el gate de entradas ganadas no corre, y el reporte lo DICE", () => {
+    const report = lintFixture(COBERTURA_COMPLETA);
+
+    expect(report.gainedEntries).toEqual([]);
+    expect(
+      report.warnings.join("\n"),
+      "un gate que no corrió y no avisa es indistinguible de un gate que pasó (T-170-04)",
+    ).toContain("El gate de entradas ganadas (D-14) NO corrio");
+  });
+
+  it("las exenciones salen en el inventario, NO suman discrepancias, y las de archivo van marcadas (D-12)", () => {
+    const report = lintFixture(COBERTURA_COMPLETA);
+
+    expect(
+      report.exemptions,
+      "el fixture tiene 4 accesos cubiertos por una exención escrita",
+    ).toHaveLength(4);
+    expect(report.exemptionInventory).toHaveLength(3);
+    expect(
+      report.discrepancies,
+      "una exención con motivo NO es deuda tolerada: es una decisión escrita. Si sumara, el autor " +
+        "tendría que elegir entre explicar el motivo o dejar el build verde",
+    ).toBe(0);
+
+    const texto = formatReport(report);
+    expect(
+      texto,
+      "la exención de archivo cubre código que TODAVÍA NO SE ESCRIBIÓ (T-170-06): tiene que verse " +
+        "distinta de la de sitio o nadie la relee cuando el archivo crece",
+    ).toContain("[ARCHIVO ENTERO] exento-por-archivo.ts");
+    expect(texto).toContain("cubre 2 acceso(s)");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("lint-tenant — contrato de exit codes 0/1/2 (D-09)", () => {
+  /**
+   * Un árbol con la forma que el lint espera y SIN una sola violación: solo el
+   * schema copiado (declaraciones de tablas, cero accesos) y el `scripts/`
+   * vacío que el alcance de D-16 exige que exista.
+   */
+  let arbolLimpio: string;
+
+  beforeAll(() => {
+    arbolLimpio = fs.mkdtempSync(path.join(os.tmpdir(), "lint-tenant-"));
+    fs.mkdirSync(path.join(arbolLimpio, "el-templo-api/src/db"), {
+      recursive: true,
+    });
+    fs.mkdirSync(path.join(arbolLimpio, "el-templo-api/scripts"), {
+      recursive: true,
+    });
+    fs.cpSync(
+      path.join(API_DIR, "src/db/schema"),
+      path.join(arbolLimpio, "el-templo-api/src/db/schema"),
+      { recursive: true },
+    );
+  });
+
+  afterAll(() => {
+    fs.rmSync(arbolLimpio, { recursive: true, force: true });
+  });
+
+  it("un flag desconocido sale 2 — jamás se ignora en silencio", async () => {
+    const { code, output } = await runLint(["--flag-inventado"]);
+
+    expect(
+      code,
+      "un flag mal escrito que se ignorara dejaría el gate apagado sin que nadie se entere: " +
+        "`--bases=sha` correría sin ratchet y en verde",
+    ).toBe(2);
+    expect(output).toContain("Flag desconocido");
+  });
+
+  it("una allowlist que no parsea sale 2, nunca 'asumo la lista vacía'", async () => {
+    const { code, output } = await runLint([
+      `--root=${REPO_ROOT}`,
+      `--allowlist=${path.join(FIXTURES_DIR, "accesos.ts")}`,
+    ]);
+
+    expect(code).toBe(2);
+    expect(
+      output,
+      "asumir vacía sobre un archivo corrupto convierte TODA la deuda tolerada en violaciones " +
+        "nuevas, o —peor, si el default fuera al revés— pone en verde un repo que nadie miró",
+    ).toContain("no es JSON valido");
+  });
+
+  it("una allowlist que no existe sale 2", async () => {
+    const { code, output } = await runLint([
+      `--root=${REPO_ROOT}`,
+      `--allowlist=${path.join(REPO_ROOT, "no-existe-esta-allowlist.json")}`,
+    ]);
+
+    expect(code).toBe(2);
+    expect(output).toContain("No existe la allowlist");
+  });
+
+  it("una ref de --base irresoluble sale 2 y el mensaje nombra fetch-depth: 0", async () => {
+    const { code, output } = await runLint([
+      `--root=${REPO_ROOT}`,
+      `--allowlist=${ALLOWLIST_REAL}`,
+      "--base=deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+    ]);
+
+    expect(
+      code,
+      "ÉSTE es el test que sostiene todo el ratchet (T-170-04): si la resolución de la base " +
+        "devolviera 'sin cambios' en vez de fallar, un clone shallow dejaría el gate decorativo y " +
+        "TODO PR pasaría en verde sin que nadie lo notara jamás",
+    ).toBe(2);
+    expect(
+      output,
+      "el mensaje tiene que nombrar la solución concreta, no solo el síntoma: el 90 % de las veces " +
+        "esto es el `fetch-depth: 1` que trae por default el checkout de GitHub Actions",
+    ).toContain("fetch-depth: 0");
+  });
+
+  it("un árbol sin violaciones y con la allowlist vacía sale 0", async () => {
+    const { code, output } = await runLint([
+      `--root=${arbolLimpio}`,
+      `--allowlist=${ALLOWLIST_REAL}`,
+    ]);
+
+    expect(code).toBe(0);
+    expect(output).toContain("DISCREPANCIAS: 0");
+  });
+
+  it("el repo real con la allowlist todavía vacía sale 1", async () => {
+    const { code, output } = await runLint([
+      `--root=${REPO_ROOT}`,
+      `--allowlist=${ALLOWLIST_REAL}`,
+    ]);
+
+    expect(
+      code,
+      "el baseline lo puebla el plan 07: hasta entonces las ~1.600 violaciones reales del repo " +
+        "están sin tolerar y el lint sale 1. Si esto diera 0, el motor dejó de ver el repo",
+    ).toBe(1);
+    expect(output).toContain(
+      "Violaciones NO listadas en la allowlist (unlistedViolations):",
+    );
+  });
+
+  it("ningún test de esta batería escribió sobre la allowlist real", () => {
+    expect(
+      fs.readFileSync(ALLOWLIST_REAL, "utf8"),
+      "un test que reescriba tenant-lint-allowlist.json convertiría al gate en su propio " +
+        "regenerador, que es exactamente la puerta trasera que D-16 prohíbe",
+    ).toBe(ALLOWLIST_REAL_ANTES);
   });
 });
