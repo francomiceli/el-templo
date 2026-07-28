@@ -41,7 +41,13 @@
 // Esta lista es el insumo directo de las fases siguientes del milestone:
 //   - Fase 168 (CON-02): índices y uniques compuestas `(tenant_id, ...)`.
 //   - Fase 169 (helpers de escritura): `tenantWhere` / `tenantValues`.
-//   - Fase 170 (ISO): sentinel de pool mysql2 y lint en CI.
+//   - Fase 170 (ISO): sentinel de pool mysql2 y lint en CI. Le suma un TERCER
+//     registro, `TENANT_STRICT_MODULES` (CON-05/CON-06, D-05/D-06): qué módulos
+//     ya están migrados al patrón de la 169 y por lo tanto pasan de "deuda
+//     conocida" a "regresión". Sus dos consumidores son
+//     `src/db/sentinel/install.ts` (throw en test/dev sobre esas tablas, silencio
+//     sobre el resto) y `src/db/scripts/lint-tenant.ts` (gate de coherencia
+//     strict/allowlist, D-15).
 // Agregar una tabla nueva al schema OBLIGA a clasificarla acá. El test
 // `test/db/tenant-tables.test.ts` es fail-closed: una tabla sin clasificar deja
 // la suite en rojo, no pasa en silencio.
@@ -450,4 +456,81 @@ export function tenantUniqueMotive(
  */
 export function isPlatformPhysicalTable(name: string): boolean {
   return PLATFORM_PHYSICAL_SET.has(name);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Fase 170 (CON-05 / CON-06) — módulos ya migrados al patrón de tenant
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Registro de los módulos YA MIGRADOS al patrón de tenant (D-05/D-06). Es la
+ * fuente canónica ÚNICA que separa "deuda conocida" de "regresión", y la
+ * consumen los dos vigilantes de la fase 170:
+ * `src/db/sentinel/install.ts` y `src/db/scripts/lint-tenant.ts`.
+ *
+ * QUÉ SIGNIFICA "MÓDULO MIGRADO"
+ * ------------------------------
+ * Que TODAS sus escrituras y TODAS sus lecturas sobre tablas gym-owned pasan
+ * por `tenantWhere` / `tenantValues` de `src/modules/shared/tenant.ts` (fase
+ * 169). No "casi todas", no "las que encontramos": la afirmación es total, y es
+ * lo que habilita el throw.
+ *
+ * QUÉ CAMBIA AL AGREGAR UNA ENTRADA
+ * ---------------------------------
+ * 1. El sentinel pasa a hacer **THROW en test/dev** sobre las tablas listadas
+ *    acá cuando ve una query sin `tenant_id`. El resto de las tablas gym-owned
+ *    queda **en silencio** en la corrida normal de tests (D-08): son deuda
+ *    conocida, no regresión, y ensuciar el output de la suite con ellas taparía
+ *    los errores reales. En prod/staging el sentinel nunca hace throw: loguea.
+ * 2. **OBLIGA a vaciar las entradas de esas tablas en
+ *    `el-templo-api/tenant-lint-allowlist.json`.** El lint deja el build ROJO si
+ *    una tabla convive en este registro y en la allowlist (D-15): sería afirmar
+ *    "este módulo ya está migrado" y "este módulo todavía tiene accesos sin
+ *    scope perdonados" al mismo tiempo. Migrar el módulo y achicar la allowlist
+ *    son el mismo acto, no dos tareas separables.
+ *
+ * FORMA
+ * -----
+ * La CLAVE es el nombre del módulo tal como lo nombra el ROADMAP del milestone
+ * (`finance`, `members`, `subscriptions`, `scheduling`, `analytics`): una fase
+ * de adopción = una entrada, y el diff de esa fase se lee de un vistazo. El
+ * VALOR son nombres de tabla **FÍSICA**, tal cual figuran en
+ * `GYM_OWNED_TABLES` — los de `getTableName()`, no los de las constantes
+ * TypeScript. El sentinel aplana el registro internamente (`STRICT_SET`).
+ *
+ * POR QUÉ ARRANCA VACÍA
+ * ---------------------
+ * Porque en la fase 170 no hay ningún módulo migrado: la 170 construye los
+ * vigilantes, no migra código. La PRIMERA entrada la agrega la **fase 172**
+ * (`finance`). Que arranque vacía es lo que hace honesto al sentinel: hoy no
+ * hay ni una tabla sobre la que el throw esté justificado, y el gate de forma de
+ * `test/db/tenant-tables.test.ts` obliga a que sumar la primera sea una decisión
+ * de diseño visible en el diff, no un detalle de implementación.
+ */
+export const TENANT_STRICT_MODULES: Record<string, readonly string[]> = {};
+
+const STRICT_SET: ReadonlySet<string> = new Set(
+  Object.values(TENANT_STRICT_MODULES).flat(),
+);
+
+/**
+ * `true` si la tabla física `name` pertenece a un módulo ya migrado y por lo
+ * tanto el sentinel tiene que hacer throw sobre ella en test/dev.
+ *
+ * Acepta `string` (no `GymOwnedTable`) por el mismo motivo que
+ * `isGymOwnedTable`: el consumidor es el sentinel, que clasifica nombres de
+ * tabla extraídos del SQL en runtime — `string` en tiempo de compilación.
+ */
+export function isStrictTable(name: string): boolean {
+  return STRICT_SET.has(name);
+}
+
+/**
+ * El registro aplanado a un `Set` de nombres de tabla. Es el DEFAULT del
+ * parámetro `strictTables` del sentinel (D-07): la lista es inyectable para que
+ * el test del criterio 1 pueda pasarle una tabla real como strict y afirmar el
+ * throw, sin declarar migrado en el código ningún módulo que no lo esté.
+ */
+export function strictTablesSet(): ReadonlySet<string> {
+  return STRICT_SET;
 }
