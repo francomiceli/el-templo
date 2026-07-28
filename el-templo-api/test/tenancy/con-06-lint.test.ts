@@ -562,6 +562,16 @@ describe("lint-tenant — contrato de exit codes 0/1/2 (D-09)", () => {
    * vacío que el alcance de D-16 exige que exista.
    */
   let arbolLimpio: string;
+  /**
+   * Una allowlist VACÍA de verdad, en el árbol temporal y en el lugar exacto
+   * donde el lint la busca por default.
+   *
+   * Desde el plan 07 la allowlist real trae el baseline de la deuda existente
+   * (cientos de entradas), así que ya no sirve para el caso "árbol limpio +
+   * lista vacía": contra un árbol que no tiene esos archivos, cada entrada sale
+   * como `staleMissingFile` y el resultado sería 1 por el motivo equivocado.
+   */
+  let allowlistVacia: string;
 
   beforeAll(() => {
     arbolLimpio = fs.mkdtempSync(path.join(os.tmpdir(), "lint-tenant-"));
@@ -575,6 +585,19 @@ describe("lint-tenant — contrato de exit codes 0/1/2 (D-09)", () => {
       path.join(API_DIR, "src/db/schema"),
       path.join(arbolLimpio, "el-templo-api/src/db/schema"),
       { recursive: true },
+    );
+    allowlistVacia = path.join(
+      arbolLimpio,
+      "el-templo-api/tenant-lint-allowlist.json",
+    );
+    fs.writeFileSync(
+      allowlistVacia,
+      JSON.stringify(
+        { scope: "arbol temporal del test", generated: "test", entries: [] },
+        null,
+        2,
+      ),
+      "utf8",
     );
   });
 
@@ -638,16 +661,33 @@ describe("lint-tenant — contrato de exit codes 0/1/2 (D-09)", () => {
   });
 
   it("un árbol sin violaciones y con la allowlist vacía sale 0", async () => {
-    const { code, output } = await runLint([
-      `--root=${arbolLimpio}`,
-      `--allowlist=${ALLOWLIST_REAL}`,
-    ]);
+    // Sin `--allowlist`: se resuelve por default a `<root>/el-templo-api/
+    // tenant-lint-allowlist.json`, que es el camino que corre en CI.
+    const { code, output } = await runLint([`--root=${arbolLimpio}`]);
 
     expect(code).toBe(0);
     expect(output).toContain("DISCREPANCIAS: 0");
+    expect(output).toContain("Entradas de la allowlist:       0");
   });
 
-  it("el repo real con la allowlist todavía vacía sale 1", async () => {
+  it("el repo real con una allowlist VACÍA sale 1 — el motor sigue viendo la deuda", async () => {
+    const { code, output } = await runLint([
+      `--root=${REPO_ROOT}`,
+      `--allowlist=${allowlistVacia}`,
+    ]);
+
+    expect(
+      code,
+      "con la lista vacía, las ~1.600 violaciones reales del repo están sin tolerar y el lint " +
+        "sale 1. Si esto diera 0, el motor dejó de ver el repo — y el verde del test de abajo " +
+        "sería el verde de un lint ciego, no el de una deuda inventariada",
+    ).toBe(1);
+    expect(output).toContain(
+      "Violaciones NO listadas en la allowlist (unlistedViolations):",
+    );
+  });
+
+  it("el repo real con el baseline del plan 07 sale 0", async () => {
     const { code, output } = await runLint([
       `--root=${REPO_ROOT}`,
       `--allowlist=${ALLOWLIST_REAL}`,
@@ -655,12 +695,15 @@ describe("lint-tenant — contrato de exit codes 0/1/2 (D-09)", () => {
 
     expect(
       code,
-      "el baseline lo puebla el plan 07: hasta entonces las ~1.600 violaciones reales del repo " +
-        "están sin tolerar y el lint sale 1. Si esto diera 0, el motor dejó de ver el repo",
-    ).toBe(1);
-    expect(output).toContain(
-      "Violaciones NO listadas en la allowlist (unlistedViolations):",
-    );
+      "el baseline one-shot (D-16) tolera EXACTAMENTE la deuda que existía al cerrarse la fase " +
+        "170. Este `it` es el que se pone rojo el día que alguien agrega un acceso sin tenant_id " +
+        "y no lo migra ni lo exime — y también el día que borra una entrada sin pagar la deuda",
+    ).toBe(0);
+    expect(output).toContain("DISCREPANCIAS: 0");
+    expect(
+      output,
+      "una allowlist de tamaño 0 acá significaría que el baseline se perdió",
+    ).not.toContain("Entradas de la allowlist:       0");
   });
 
   it("ningún test de esta batería escribió sobre la allowlist real", () => {
