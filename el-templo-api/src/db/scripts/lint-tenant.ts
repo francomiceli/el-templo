@@ -10,6 +10,31 @@
  *    builder— y decide si el sitio nombra el gimnasio (`lintTenantSources`).
  * 3. Ancla las exenciones escritas en el fuente al sitio real del acceso, y
  *    emite el inventario completo de las que encontró (D-12).
+ * 4. Cruza todo eso con la allowlist de deuda tolerada y aplica los cuatro
+ *    gates del ratchet (`lintTenant`): violación no listada, entrada podrida
+ *    —por archivo inexistente o por deuda ya pagada—, entrada ganada respecto
+ *    de la rama base y tabla de módulo migrado que todavía tiene entradas.
+ *
+ * POR QUÉ LA ALLOWLIST ES JSON Y NO UN REGISTRO .ts
+ * -------------------------------------------------
+ * El milestone escribe sus registros en TypeScript (`TENANT_GLOBAL_UNIQUES`,
+ * `TENANT_UNIQUE_ALLOWLIST`, `TENANT_STRICT_MODULES`), y esta lista rompe ese
+ * idioma a propósito. El gate anti-crecimiento de D-14 tiene que leer la
+ * allowlist **como estaba en la rama base**, o sea en OTRA revisión de git:
+ *
+ * ```
+ * git show <base>:el-templo-api/tenant-lint-allowlist.json
+ * ```
+ *
+ * Con un `.ts` habría dos salidas y las dos son peores. Una: montar un pase de
+ * AST extra para levantar el literal exportado de un texto que no está en el
+ * disco. La otra: escribir ese texto a un temporal e importarlo — o sea
+ * **ejecutar código de una revisión arbitraria** dentro del job de CI, que es
+ * exactamente lo que la sección SOLO LECTURA de acá abajo promete no hacer
+ * (T-170-16). `JSON.parse` no corre nada de lo que lee, y esa es toda la razón.
+ *
+ * El precio es que el JSON no admite comentarios: por eso el archivo lleva un
+ * campo `note` con el racional del ratchet escrito adentro.
  *
  * ALCANCE DE ARCHIVOS (D-16), Y POR QUÉ QUEDA FIJADO
  * --------------------------------------------------
@@ -93,7 +118,7 @@
 import fs from "fs";
 import path from "path";
 import ts from "typescript";
-import { isGymOwnedTable } from "../tenant-tables";
+import { isGymOwnedTable, strictTablesSet } from "../tenant-tables";
 
 /** La columna que ancla el aislamiento. Un solo literal en todo el archivo. */
 const TENANT_COLUMN = "tenant_id";
@@ -798,4 +823,469 @@ export function lintTenantSources(opts: LintSourcesOptions): LintSourceResult {
     exemptionInventory,
     unanchoredTags,
   };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Allowlist (D-13)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Un par archivo + tabla cuya deuda está TOLERADA.
+ *
+ * Sin número de línea a propósito (D-13): la entrada tiene que sobrevivir a que
+ * alguien reformatee el archivo o mueva la función diez líneas más abajo. La
+ * contracara está aceptada: un acceso nuevo a OTRA tabla en el MISMO archivo es
+ * una entrada nueva, o sea rojo.
+ */
+export interface AllowlistEntry {
+  file: string;
+  table: string;
+}
+
+export interface Allowlist {
+  /** Los archivos que el baseline miró. Documental: el alcance real es D-16. */
+  scope: string;
+  /** Cuándo y cómo se generó el baseline. Documental. */
+  generated: string;
+  entries: AllowlistEntry[];
+}
+
+/**
+ * Error de USO o de entorno del lint — el que sale con código **2**.
+ *
+ * Mismo contrato que `TenantArgError` de `require-tenant.ts` y que el
+ * `main().catch(...)` de `verify-tenant-uniques.ts`: 0 = limpio, 1 = hay
+ * discrepancias, 2 = el lint no pudo ni siquiera evaluar. La distinción importa
+ * porque el 2 no significa "el código está mal", significa **"este resultado no
+ * vale"** — y un gate que no vale nunca puede quedar en verde.
+ */
+export class LintArgError extends Error {
+  readonly exitCode = 2;
+
+  constructor(message: string) {
+    super(message);
+    this.name = "LintArgError";
+  }
+}
+
+/** La clave del par (archivo, tabla). El `\0` no puede aparecer en ninguno. */
+function entryKey(entry: { file: string; table: string }): string {
+  return `${entry.file} ${entry.table}`;
+}
+
+/** Ruta de la allowlist, relativa a la raíz del repo. */
+export const ALLOWLIST_PATH_FROM_ROOT =
+  "el-templo-api/tenant-lint-allowlist.json";
+
+/**
+ * Parsea y **valida** la allowlist. Fail-closed en las siete formas en que un
+ * archivo puede estar roto: JSON inválido, raíz que no es objeto, `entries` que
+ * no es array, entrada que no es objeto, `file` o `table` ausente o vacío, ruta
+ * con separadores de Windows, y par duplicado.
+ *
+ * Ninguna de esas termina en "asumo la lista vacía". Una allowlist vacía por
+ * error no deja el build rojo de más: lo deja rojo de menos justo cuando el
+ * archivo que la gobierna está corrupto, y ese es el peor momento para confiar.
+ *
+ * @param source etiqueta legible del origen (ruta, o `<base>` en el ratchet),
+ *   para que el mensaje diga CUÁL de las dos allowlists está rota.
+ */
+export function parseAllowlist(text: string, source: string): Allowlist {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    throw new LintArgError(
+      `La allowlist de ${source} no es JSON valido: ${message}. El lint no asume una lista vacia: corregi el archivo.`,
+    );
+  }
+
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    throw new LintArgError(
+      `La allowlist de ${source} tiene que ser un objeto JSON con la clave "entries".`,
+    );
+  }
+
+  const raw = parsed as Record<string, unknown>;
+  if (!Array.isArray(raw.entries)) {
+    throw new LintArgError(
+      `La allowlist de ${source} no tiene "entries" como array. Forma esperada: { "entries": [{ "file": "...", "table": "..." }] }.`,
+    );
+  }
+
+  const entries: AllowlistEntry[] = [];
+  const seen = new Set<string>();
+
+  for (let index = 0; index < raw.entries.length; index += 1) {
+    const item: unknown = raw.entries[index];
+    const at = `entries[${index}] de ${source}`;
+
+    if (typeof item !== "object" || item === null || Array.isArray(item)) {
+      throw new LintArgError(`${at} no es un objeto { file, table }.`);
+    }
+
+    const record = item as Record<string, unknown>;
+    const file = record.file;
+    const table = record.table;
+
+    if (typeof file !== "string" || file.trim().length === 0) {
+      throw new LintArgError(`${at} no tiene "file" (string no vacio).`);
+    }
+    if (typeof table !== "string" || table.trim().length === 0) {
+      throw new LintArgError(`${at} no tiene "table" (string no vacio).`);
+    }
+    if (file.includes("\\")) {
+      throw new LintArgError(
+        `${at} usa separadores de Windows: "${file}". Las rutas van con "/" y relativas a la raiz del repo, o el par (file, table) no matchea nunca y la entrada queda podrida en silencio.`,
+      );
+    }
+
+    const key = entryKey({ file, table });
+    if (seen.has(key)) {
+      throw new LintArgError(
+        `${at} esta duplicada: ${file} + ${table}. Una entrada repetida infla el tamano de la lista y esconde un achique.`,
+      );
+    }
+    seen.add(key);
+    entries.push({ file, table });
+  }
+
+  return {
+    scope: typeof raw.scope === "string" ? raw.scope : "",
+    generated: typeof raw.generated === "string" ? raw.generated : "",
+    entries,
+  };
+}
+
+/** Lee la allowlist del disco. Archivo ausente = error de uso, no lista vacía. */
+export function loadAllowlist(filePath: string): Allowlist {
+  const absolute = path.resolve(filePath);
+  if (!fs.existsSync(absolute)) {
+    throw new LintArgError(
+      `No existe la allowlist ${absolute}. El lint NO asume una lista vacia: sin ese archivo no puede distinguir "no hay deuda tolerada" de "alguien la borro".`,
+    );
+  }
+  let text: string;
+  try {
+    text = fs.readFileSync(absolute, "utf8");
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    throw new LintArgError(
+      `No se pudo leer la allowlist ${absolute}: ${message}`,
+    );
+  }
+  return parseAllowlist(text, absolute);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Forma del reporte
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface TenantLintReport {
+  filesScanned: number;
+  allowlistSize: number;
+  /** D-13: violan y NO están en la allowlist. El hallazgo principal. */
+  unlistedViolations: TenantAccess[];
+  /** D-14: la entrada apunta a un archivo que ya no existe (rename o borrado). */
+  staleMissingFile: AllowlistEntry[];
+  /** D-14: el archivo existe y ya no viola. La deuda se pagó: borrá la entrada. */
+  staleNoLongerViolating: AllowlistEntry[];
+  /** D-14: entradas nuevas respecto de la rama base. La lista creció. */
+  gainedEntries: AllowlistEntry[];
+  /** D-15: tabla de módulo migrado (throw activo) con entradas vivas. */
+  strictWithAllowlist: AllowlistEntry[];
+  /** D-12: accesos cubiertos por una exención. NO suman. */
+  exemptions: TenantAccess[];
+  /**
+   * D-12: TODAS las exenciones ancladas del fuente, cubran o no algún acceso.
+   *
+   * Campo ADITIVO respecto del contrato del plan, por el mismo motivo que lo
+   * agregó el plan 03: la mitad del inventario que D-12 pide —las exenciones de
+   * archivo de los scripts de plataforma y la de `notification-cron.ts`— no
+   * tiene ningún acceso debajo y por lo tanto no puede existir como
+   * `TenantAccess`. Sin este campo, "el inventario completo en una sola corrida
+   * revisable" saldría incompleto y nadie lo notaría.
+   */
+  exemptionInventory: ExemptionRecord[];
+  /** Observaciones que NO son discrepancias. */
+  warnings: string[];
+  /** Suma de los cinco arrays de hallazgo. Los `warnings` NO suman. */
+  discrepancies: number;
+}
+
+export interface LintTenantOptions {
+  /** Raíz del repo. Las rutas del reporte y de la allowlist salen relativas a ésta. */
+  rootDir: string;
+  allowlist: Allowlist;
+  /** Ausente = el gate de entradas ganadas (D-14) no corre. */
+  baseAllowlist?: Allowlist;
+  /** Por qué no hay allowlist de base. Va textual a la advertencia. */
+  baseSkipReason?: string;
+  /**
+   * Lista strict del sentinel para el gate D-15. Default: `strictTablesSet()`,
+   * el aplanado de `TENANT_STRICT_MODULES`. Es inyectable por el mismo motivo
+   * que en el sentinel (D-07): el test del gate necesita una tabla strict sin
+   * declarar migrado un módulo que no lo está.
+   */
+  strictTables?: ReadonlySet<string>;
+  scopeDirs?: string[];
+  schemaMap?: ReadonlyMap<string, string>;
+}
+
+/**
+ * El motor del plan 03 cruzado con la allowlist: los cuatro gates del ratchet.
+ *
+ * Función pura sobre el disco: lee archivos, no habla con `git` ni con MySQL.
+ * La resolución de la allowlist de la base —que sí necesita `git`— vive en
+ * {@link runLint}, para que toda esta lógica sea testeable con allowlists en
+ * memoria.
+ */
+export function lintTenant(opts: LintTenantOptions): TenantLintReport {
+  const rootDir = path.resolve(opts.rootDir);
+  const source = lintTenantSources({
+    rootDir,
+    scopeDirs: opts.scopeDirs,
+    schemaMap: opts.schemaMap,
+  });
+
+  const entries = opts.allowlist.entries;
+  const allowed = new Set(entries.map(entryKey));
+
+  // ── D-13: violaciones que nadie tolera ──────────────────────────────────────
+  const unlistedViolations = source.violations.filter(
+    (violation) => !allowed.has(entryKey(violation)),
+  );
+
+  // ── D-14: las dos formas de entrada podrida ────────────────────────────────
+  // "Viva" = el par (archivo, tabla) todavía tiene al menos un acceso que no
+  // nombra el gimnasio, esté eximido o no. Los eximidos cuentan a propósito:
+  // escribir una exención no obliga a tocar la allowlist en el mismo PR, y un
+  // rojo por eso sería ruido que empuja a desactivar el gate.
+  const live = new Set<string>();
+  for (const access of source.accesses) {
+    if (!access.compliant || access.exemption) live.add(entryKey(access));
+  }
+
+  const staleMissingFile: AllowlistEntry[] = [];
+  const staleNoLongerViolating: AllowlistEntry[] = [];
+  for (const entry of entries) {
+    if (!fs.existsSync(path.resolve(rootDir, entry.file))) {
+      staleMissingFile.push(entry);
+      continue;
+    }
+    if (!live.has(entryKey(entry))) staleNoLongerViolating.push(entry);
+  }
+
+  // ── D-14: entradas ganadas respecto de la base ─────────────────────────────
+  // Achicar SIEMPRE es legal: una entrada que la base tenía y la actual no es
+  // exactamente lo que el ratchet quiere ver, así que no se compara al revés.
+  const warnings: string[] = [];
+  let gainedEntries: AllowlistEntry[] = [];
+  if (opts.baseAllowlist) {
+    const baseKeys = new Set(opts.baseAllowlist.entries.map(entryKey));
+    gainedEntries = entries.filter((entry) => !baseKeys.has(entryKey(entry)));
+    const removed = opts.baseAllowlist.entries.length - entries.length;
+    if (removed > 0) {
+      warnings.push(
+        `La allowlist ACHICO ${removed} entrada(s) respecto de la base. Eso es exactamente lo que el ratchet quiere ver.`,
+      );
+    }
+  } else {
+    warnings.push(
+      `El gate de entradas ganadas (D-14) NO corrio: ${opts.baseSkipReason ?? "no se paso --base"}. ` +
+        `Los otros tres gates SI corrieron. En CI el step tiene que pasar --base o el ratchet queda decorativo.`,
+    );
+  }
+
+  // ── D-15: coherencia strict / allowlist ────────────────────────────────────
+  const strictTables = opts.strictTables ?? strictTablesSet();
+  const strictWithAllowlist = entries.filter((entry) =>
+    strictTables.has(entry.table),
+  );
+
+  // ── Advertencias (NO suman) ────────────────────────────────────────────────
+  if (source.unanchoredTags.length > 0) {
+    const porArchivo = new Map<string, number>();
+    for (const tag of source.unanchoredTags) {
+      porArchivo.set(tag.file, (porArchivo.get(tag.file) ?? 0) + 1);
+    }
+    const detalle = [...porArchivo.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([file, count]) => `${file} (${count})`)
+      .join(", ");
+    warnings.push(
+      `Menciones del tag tenant-safe que NO eximen nada: ${detalle}. NO son violaciones — ` +
+        `hay archivos que documentan la convencion y otros donde el tag es un dato dentro de una regex. ` +
+        `Estan listadas para que nadie escriba la anotacion de una forma que no exime y se entere en el rojo de CI.`,
+    );
+  }
+
+  const sinOrden = entries.some((entry, index) => {
+    if (index === 0) return false;
+    const previous = entries[index - 1];
+    return (
+      previous.file > entry.file ||
+      (previous.file === entry.file && previous.table > entry.table)
+    );
+  });
+  if (sinOrden) {
+    warnings.push(
+      `La allowlist no esta ordenada por (file, table). No es una discrepancia, pero un orden estable es lo que hace legible el diff del achique.`,
+    );
+  }
+
+  const discrepancies =
+    unlistedViolations.length +
+    staleMissingFile.length +
+    staleNoLongerViolating.length +
+    gainedEntries.length +
+    strictWithAllowlist.length;
+
+  return {
+    filesScanned: source.filesScanned,
+    allowlistSize: entries.length,
+    unlistedViolations,
+    staleMissingFile,
+    staleNoLongerViolating,
+    gainedEntries,
+    strictWithAllowlist,
+    exemptions: source.exemptions,
+    exemptionInventory: source.exemptionInventory,
+    warnings,
+    discrepancies,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Presentación
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Agrupa accesos por (archivo, tabla) — la MISMA clave de la allowlist.
+ *
+ * El reporte no imprime números de línea a propósito (D-13). Dos motivos: la
+ * unidad accionable es el par que se escribe en la allowlist, y una línea
+ * impresa invita a pegarla en la entrada, que es justo lo que D-13 prohíbe
+ * porque haría podrirse la lista con cada reformateo. Las líneas siguen estando
+ * en `report.unlistedViolations` para quien las quiera.
+ */
+function groupByFileTable(accesses: readonly TenantAccess[]): string[] {
+  const counts = new Map<string, number>();
+  for (const access of accesses) {
+    const key = `${access.file} — ${access.table}`;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([key, count]) => `${key} (${count} acceso${count === 1 ? "" : "s"})`);
+}
+
+export function formatReport(report: TenantLintReport): string {
+  const lines: string[] = [];
+  lines.push("=".repeat(72));
+  lines.push(
+    "Lint de tenancy (CON-06) — accesos a tablas gym-owned sin gimnasio",
+  );
+  lines.push("=".repeat(72));
+  lines.push(`Archivos analizados:            ${report.filesScanned}`);
+  lines.push(`Entradas de la allowlist:       ${report.allowlistSize}`);
+  lines.push("");
+
+  lines.push(
+    `Violaciones NO listadas en la allowlist (unlistedViolations): ${report.unlistedViolations.length}`,
+  );
+  for (const entry of groupByFileTable(report.unlistedViolations)) {
+    lines.push(`  - ${entry}`);
+  }
+  if (report.unlistedViolations.length > 0) {
+    lines.push(
+      `      Que hacer: migra esos accesos a tenantWhere / tenantValues (src/modules/shared/tenant.ts, fase 169), ` +
+        `o escribi la exencion /* tenant-safe: <motivo> */ como comentario de BLOQUE pegado al sitio del write. ` +
+        `Agregar la entrada a ${ALLOWLIST_PATH_FROM_ROOT} NO es una salida valida: el gate de entradas ganadas (D-14) deja el build rojo igual.`,
+    );
+  }
+
+  lines.push(
+    `Entradas cuyo archivo ya NO existe (staleMissingFile): ${report.staleMissingFile.length}`,
+  );
+  for (const entry of report.staleMissingFile) {
+    lines.push(`  - ${entry.file} — ${entry.table}`);
+  }
+  if (report.staleMissingFile.length > 0) {
+    lines.push(
+      `      Que hacer: el archivo se renombro o se movio. ACTUALIZA LA RUTA de la entrada para que siga apuntando al mismo codigo ` +
+        `(o borrala, si el codigo se fue del repo). Dejarla apuntando a la nada equivale a no tener el acceso vigilado.`,
+    );
+  }
+
+  lines.push(
+    `Entradas que ya NO corresponden a una violacion (staleNoLongerViolating): ${report.staleNoLongerViolating.length}`,
+  );
+  for (const entry of report.staleNoLongerViolating) {
+    lines.push(`  - ${entry.file} — ${entry.table}`);
+  }
+  if (report.staleNoLongerViolating.length > 0) {
+    lines.push(
+      `      Que hacer: ese archivo ya NO accede a esa tabla sin gimnasio: la deuda se pago. BORRA LA ENTRADA en este mismo PR. ` +
+        `Migrar y achicar la allowlist son el mismo acto (D-14): si el achique queda para despues, no pasa nunca.`,
+    );
+  }
+
+  lines.push(
+    `Entradas GANADAS respecto de la rama base (gainedEntries): ${report.gainedEntries.length}`,
+  );
+  for (const entry of report.gainedEntries) {
+    lines.push(`  - ${entry.file} — ${entry.table}`);
+  }
+  if (report.gainedEntries.length > 0) {
+    lines.push(
+      `      Que hacer: la allowlist CRECIO, y solo puede achicarse (D-14). Saca la entrada y resolve el acceso: ` +
+        `migralo al patron de la fase 169 o escribile la exencion con motivo. La allowlist no es una alfombra.`,
+    );
+  }
+
+  lines.push(
+    `Tablas de modulos migrados con entradas vivas (strictWithAllowlist): ${report.strictWithAllowlist.length}`,
+  );
+  for (const entry of report.strictWithAllowlist) {
+    lines.push(`  - ${entry.file} — ${entry.table}`);
+  }
+  if (report.strictWithAllowlist.length > 0) {
+    lines.push(
+      `      Que hacer: esa tabla figura en TENANT_STRICT_MODULES (src/db/tenant-tables.ts), o sea que el sentinel ya hace THROW sobre ella. ` +
+        `Afirmar "modulo migrado" y "todavia hay accesos sin scope perdonados" al mismo tiempo es una contradiccion (D-15): ` +
+        `VACIA las entradas de esa tabla, o saca la tabla del registro strict hasta terminar la migracion.`,
+    );
+  }
+
+  lines.push("");
+  lines.push(`DISCREPANCIAS: ${report.discrepancies}`);
+  lines.push("");
+
+  lines.push("--- Advertencias (NO son discrepancias) ---");
+  for (const warning of report.warnings) {
+    lines.push(`  - ${warning}`);
+  }
+
+  lines.push("");
+  lines.push(
+    `--- Inventario de exenciones tenant-safe (D-12): ${report.exemptionInventory.length} ---`,
+  );
+  for (const record of report.exemptionInventory) {
+    // Las de alcance de archivo van marcadas: cubren TODO el archivo, incluido
+    // el codigo que todavia no se escribio (T-170-06). Una exencion asi hay que
+    // releerla cuando el archivo crece, y la unica forma de que eso pase es que
+    // se vea distinta de las demas.
+    const marca =
+      record.scope === "file" ? "[ARCHIVO ENTERO]" : "[sitio         ]";
+    lines.push(
+      `  ${marca} ${record.file}:${record.line} cubre ${record.covers} acceso(s) — ${record.motive}`,
+    );
+  }
+  lines.push(
+    `  Accesos cubiertos por alguna exencion: ${report.exemptions.length} (NO suman a DISCREPANCIAS).`,
+  );
+
+  return lines.join("\n");
 }

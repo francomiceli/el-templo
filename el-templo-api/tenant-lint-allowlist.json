@@ -1,0 +1,14 @@
+{
+  "note": [
+    "Allowlist del lint de tenancy (CON-06, fase 170). Deuda TOLERADA, no deuda perdonada.",
+    "FORMATO (D-13): cada entrada es `file` + `table`, y NADA MAS. Sin numero de linea a proposito: una entrada tiene que sobrevivir a que alguien reformatee el archivo o mueva la funcion diez lineas mas abajo. La contracara es que un acceso NUEVO a OTRA tabla en el MISMO archivo es una entrada nueva, o sea rojo.",
+    "ESTA LISTA SOLO PUEDE ACHICARSE (D-14). Agregar una entrada deja el build ROJO: el step de CI compara esta lista contra la de la rama base y toda entrada ganada es una discrepancia. Si el lint te da rojo, las salidas validas son dos: (a) migrar el acceso a `tenantWhere` / `tenantValues` (`src/modules/shared/tenant.ts`, fase 169), o (b) escribir la exencion `/* tenant-safe: <motivo> */` como comentario de BLOQUE pegado al sitio del write, con el motivo adentro. Sumar la entrada aca NO es una salida valida.",
+    "Y TAMPOCO ALCANZA CON DEJARLA QUIETA: una entrada que ya no corresponde a ninguna violacion viva tambien es rojo. Al migrar un modulo hay que borrar sus entradas en el mismo PR; migrar y achicar la allowlist son el mismo acto.",
+    "NO EXISTE COMANDO QUE REGENERE ESTE ARCHIVO (D-16). El baseline se genero UNA sola vez, se reviso y se commiteo. Un regenerador seria la puerta trasera del ratchet: cualquier PR podria correrlo y volver a poner en verde toda la deuda que acaba de introducir. Achicar es borrar entradas a mano.",
+    "ALCANCE: el `scope` de abajo es el conjunto de archivos que el lint mira, y esta FIJADO por D-16. Agrandarlo o achicarlo obliga a regenerar el baseline, que es justo lo que no hay comando para hacer. Cambiarlo es una decision de fase.",
+    "POR QUE ESTO ES JSON Y NO UN REGISTRO .ts como TENANT_UNIQUE_ALLOWLIST: el gate anti-crecimiento tiene que leer la version de esta lista en la RAMA BASE, con `git show <base>:el-templo-api/tenant-lint-allowlist.json`. Parsear un `.ts` de una revision arbitraria exigiria un pase de AST extra o —peor— importar y ejecutar codigo de esa revision. `JSON.parse` no corre nada de lo que lee."
+  ],
+  "scope": "el-templo-api/src/**/*.ts + el-templo-api/scripts/**/*.ts, sin los .d.ts y sin test/ (DEFAULT_SCOPE_DIRS de src/db/scripts/lint-tenant.ts, fijado por D-16)",
+  "generated": "pendiente: el baseline one-shot lo produce el plan 07 de la fase 170",
+  "entries": []
+}
