@@ -17,6 +17,18 @@
  * único (sintetizado para checkin, que no trae uno). Reintentos de eventos ya
  * procesados se responden 200 sin reprocesar; eventos en estado 'error' se
  * reprocesan en el reintento.
+ *
+ * Tenancy (fase 169, CON-04): este webhook es el único camino de ESCRITURA que
+ * entra sin sesión, así que el gimnasio dueño de lo que se crea se deriva
+ * SERVER-SIDE y nunca del payload:
+ *
+ *   event_data.gym.id → branches.wellhub_gym_id → branches.tenant_id → tenants.status
+ *
+ * Wellhub no manda un gimnasio nuestro: manda SU gym.id, y el mapeo vive en
+ * nuestra DB. Si un día el payload trajera un `tenant_id`, se ignora (T-169-21).
+ * El corte por estado comercial (D-05) se aplica ANTES de crear un usuario o una
+ * asistencia; el contrato de 200 `skipped` para el gym sin mapear NO cambia
+ * (D-04) — ver `resolverTenant` más abajo.
  */
 
 import argon2 from "argon2";
@@ -27,6 +39,7 @@ import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { todayInTz } from "../shared/date-utils";
 import { emitOccupancyChange } from "../shared/occupancy-events";
+import type { TenantContext } from "../shared/tenant";
 import type { BookingService } from "../scheduling/booking-service";
 import type { WellhubClient } from "./client";
 import { WellhubApiError } from "./client";
@@ -47,7 +60,30 @@ export interface WebhookHandleResult {
     | "already_checked_in"
     | "error";
   detail?: string;
+  /**
+   * Fase 169 (CON-04): gimnasio dueño del evento, DERIVADO server-side del
+   * `gym.id` del payload. Lo devuelve TODO camino que llegó a derivarlo — incluido
+   * el que corta por gimnasio no activo, que igual sabe de quién era el evento.
+   *
+   * Queda `undefined` en los caminos que cortan ANTES de poder derivarlo (payload
+   * incompleto, gym sin sede mapeada, tipo de evento desconocido, slot que no
+   * publicamos nosotros): ahí la fila de `wellhub_events` no se estampa y conserva
+   * su DEFAULT en vez de mentir con un tenant inventado.
+   */
+  tenantId?: number;
 }
+
+/**
+ * Fase 169 (CON-04/D-05): resultado de la derivación del tenant del webhook.
+ *
+ * O sale el {@link TenantContext} con el que sigue el procesamiento, o sale el
+ * `WebhookHandleResult` de corte ya armado (siempre 200 `skipped`, ver
+ * {@link WellhubService.resolverTenant}). Unión discriminada a propósito: no hay
+ * forma de seguir procesando "olvidándose" de mirar el corte.
+ */
+type TenantGate =
+  | { ok: true; ctx: TenantContext }
+  | { ok: false; corte: WebhookHandleResult };
 
 export class WellhubService {
   constructor(
@@ -89,6 +125,14 @@ export class WellhubService {
       eventRowId = existing.id;
     } else {
       try {
+        // La fila del evento NACE ANTES de saber de qué gimnasio es: la
+        // idempotencia se resuelve por `event_id`, que es una unique GLOBAL
+        // (motivo M8 registrado en `src/db/tenant-tables.ts:239-240`), y
+        // componerla por tenant sería circular — el tenant se deriva del
+        // `gym.id`, que recién se lee en el dispatch de más abajo. Por eso este
+        // INSERT no pasa por `tenantValues`: el `UPDATE` de cierre estampa el
+        // tenant DERIVADO cuando el dispatch lo devuelve.
+        /* tenant-safe: idempotencia global previa a la derivacion del tenant (M8) */
         const inserted = await this.db.insert(schema.wellhubEvents).values({
           eventId,
           eventType: event.event_type,
@@ -111,6 +155,12 @@ export class WellhubService {
         .set({
           status: result.outcome === "skipped" ? "skipped" : "processed",
           error: null,
+          // Estampado del tenant DERIVADO (T-169-25): sólo si el dispatch llegó
+          // a resolverlo. Si no vino, la columna no se toca y la fila queda con
+          // su DEFAULT 1 — preferible a escribir un dueño que no sabemos.
+          ...(result.tenantId !== undefined
+            ? { tenantId: result.tenantId }
+            : {}),
         })
         .where(eq(schema.wellhubEvents.id, eventRowId));
       return result;
@@ -162,6 +212,84 @@ export class WellhubService {
     return `${event.event_type}:${user?.unique_token ?? "unknown"}:${data.timestamp ?? 0}`;
   }
 
+  // ─── Derivación del tenant (CON-04) ────────────────────────────────────────
+
+  /**
+   * Evalúa el gimnasio ya derivado de la sede y decide si el evento se procesa.
+   *
+   * Única implementación de la tabla de corte de la fase 169 — la usan los DOS
+   * caminos que crean datos (`handleCheckin` y `handleBookingRequested`), así que
+   * la política no puede desincronizarse entre ellos:
+   *
+   * | Caso                        | HTTP | outcome | detail                |
+   * | --------------------------- | ---- | ------- | --------------------- |
+   * | `tenantStatus == null`      | 200  | skipped | `tenant_no_resoluble` |
+   * | `tenantStatus !== "active"` | 200  | skipped | `tenant_no_activo`    |
+   *
+   * (El tercer caso de la tabla, el gym sin sede mapeada, corta ANTES de llegar
+   * acá: no hay fila de `branches` de la que derivar nada. D-04 conserva ese
+   * camino literalmente como estaba.)
+   *
+   * Los dos cortes son 200 y no 4xx a propósito (D-04): un 4xx haría que Wellhub
+   * reintente eternamente un evento que jamás va a poder procesarse. El
+   * fail-closed es LÓGICO — no se crea ni un usuario ni una asistencia — no de
+   * transporte.
+   *
+   * La comparación es POSITIVA contra `"active"` y no una exclusión de la lista
+   * de estados malos: un estado que se agregue al enum de `tenants.status` en el
+   * futuro queda denegado por default en vez de colarse. Mismo criterio que
+   * `country-scope.ts:180-184` y que `listActiveTenants` (`shared/tenant.ts`).
+   *
+   * @param tenantStatus el `status` del gimnasio; `null` significa que el
+   *   `leftJoin` a `tenants` no matcheó, o sea corrupción de datos (la FK lo
+   *   vuelve imposible en la práctica) — se loguea `error` y se deniega, mismo
+   *   criterio fail-closed que `country-scope.ts:169-179`.
+   */
+  private resolverTenant(input: {
+    gymId: number;
+    branchId: number;
+    tenantId: number;
+    tenantStatus: string | null;
+  }): TenantGate {
+    const { gymId, branchId, tenantId, tenantStatus } = input;
+
+    if (tenantStatus == null) {
+      this.log.error(
+        { gymId, branchId },
+        "Webhook Wellhub sobre una sede con gimnasio no resoluble (corrupción de datos)",
+      );
+      return {
+        ok: false,
+        // Sin `tenantId`: el gimnasio de la sede apunta a una fila que no
+        // existe, así que estampar ese id en `wellhub_events` sería registrar un
+        // dueño falso (y chocaría con la FK de la columna).
+        corte: {
+          httpStatus: 200,
+          outcome: "skipped",
+          detail: "tenant_no_resoluble",
+        },
+      };
+    }
+
+    if (tenantStatus !== "active") {
+      this.log.warn(
+        { gymId, branchId, tenantId, tenantStatus },
+        "Webhook Wellhub para un gimnasio no activo, ignorado",
+      );
+      return {
+        ok: false,
+        corte: {
+          httpStatus: 200,
+          outcome: "skipped",
+          detail: "tenant_no_activo",
+          tenantId,
+        },
+      };
+    }
+
+    return { ok: true, ctx: { tenantId } };
+  }
+
   // ─── Check-in ──────────────────────────────────────────────────────────────
 
   private async handleCheckin(
@@ -186,6 +314,19 @@ export class WellhubService {
       return { httpStatus: 200, outcome: "skipped", detail: "gym_sin_sede" };
     }
 
+    // Fase 169 (D-05): el corte por estado comercial va ANTES de tocar `users`.
+    // Un gimnasio suspendido o archivado no puede dar de alta un visitante ni
+    // registrar una asistencia (T-169-22) — por eso esto precede a
+    // `findOrCreateVisitor` y a la llamada facturable a Wellhub.
+    const gate = this.resolverTenant({
+      gymId,
+      branchId: branch.id,
+      tenantId: branch.tenantId,
+      tenantStatus: branch.tenantStatus,
+    });
+    if (!gate.ok) return gate.corte;
+    const ctx = gate.ctx;
+
     const userId = await this.findOrCreateVisitor(data.user, branch.id);
     const todayStr = todayInTz(branch.timezone);
 
@@ -208,7 +349,11 @@ export class WellhubService {
         { userId, gymId, sessionDate: todayStr },
         "Checkin Wellhub ignorado: ya hay asistencia registrada hoy",
       );
-      return { httpStatus: 200, outcome: "already_checked_in" };
+      return {
+        httpStatus: 200,
+        outcome: "already_checked_in",
+        tenantId: ctx.tenantId,
+      };
     }
 
     // Punto final de validación: confirma el ticket del día y genera la
@@ -231,6 +376,7 @@ export class WellhubService {
           httpStatus: 200,
           outcome: "skipped",
           detail: "ticket_invalido",
+          tenantId: ctx.tenantId,
         };
       }
       throw err;
@@ -295,10 +441,16 @@ export class WellhubService {
     });
 
     this.log.info(
-      { userId, branchId: branch.id, gymId, sessionDate: todayStr },
+      {
+        userId,
+        branchId: branch.id,
+        gymId,
+        tenantId: ctx.tenantId,
+        sessionDate: todayStr,
+      },
       "Visita Wellhub registrada",
     );
-    return { httpStatus: 200, outcome: "processed" };
+    return { httpStatus: 200, outcome: "processed", tenantId: ctx.tenantId };
   }
 
   // ─── Reservas (Booking API) ────────────────────────────────────────────────
@@ -355,6 +507,23 @@ export class WellhubService {
       };
     }
 
+    // Fase 169 (D-05): mismo corte que el check-in, con la misma implementación,
+    // ANTES de `findOrCreateVisitor` y de cualquier `validateBooking` de este
+    // camino. Un gimnasio no activo no da de alta un visitante ni ocupa un cupo.
+    //
+    // No se le manda el PATCH de rechazo a Wellhub a propósito: la ventana dura
+    // de 15 minutos auto-rechaza la solicitud, que es exactamente el resultado
+    // correcto para un gimnasio suspendido — y un PATCH desde un gimnasio cortado
+    // sería operar en su nombre.
+    const gate = this.resolverTenant({
+      gymId: slot.gymId,
+      branchId: slot.branchId,
+      tenantId: slot.tenantId,
+      tenantStatus: slot.tenantStatus,
+    });
+    if (!gate.ok) return gate.corte;
+    const ctx = gate.ctx;
+
     // Reintento de una solicitud ya vista (por otro event_id): si quedó
     // 'pending' la confirmación no llegó a Wellhub — se reintenta el PATCH;
     // cualquier otro estado es un duplicado ya resuelto.
@@ -369,7 +538,7 @@ export class WellhubService {
 
     if (existing) {
       if (existing.status !== "pending") {
-        return { httpStatus: 200, outcome: "duplicate" };
+        return { httpStatus: 200, outcome: "duplicate", tenantId: ctx.tenantId };
       }
       await this.client.validateBooking({
         gymId: slot.gymId,
@@ -385,6 +554,7 @@ export class WellhubService {
         httpStatus: 200,
         outcome: "processed",
         detail: "confirm_reintentado",
+        tenantId: ctx.tenantId,
       };
     }
 
@@ -500,24 +670,44 @@ export class WellhubService {
         date: slot.sessionDate,
       });
       this.log.info(
-        { bookingNumber, bookingId, visitorId, scheduleId: slot.scheduleId },
+        {
+          bookingNumber,
+          bookingId,
+          visitorId,
+          tenantId: ctx.tenantId,
+          scheduleId: slot.scheduleId,
+        },
         "Reserva Wellhub confirmada",
       );
-      return { httpStatus: 200, outcome: "processed" };
+      return { httpStatus: 200, outcome: "processed", tenantId: ctx.tenantId };
     }
 
     this.log.info(
-      { bookingNumber, visitorId, rejectionCategory },
+      { bookingNumber, visitorId, tenantId: ctx.tenantId, rejectionCategory },
       "Reserva Wellhub rechazada",
     );
     return {
       httpStatus: 200,
       outcome: "processed",
       detail: `rechazada_${rejectionCategory ?? "otro"}`,
+      tenantId: ctx.tenantId,
     };
   }
 
-  /** Cancelación (normal o tardía) originada en Wellhub. */
+  /**
+   * Cancelación (normal o tardía) originada en Wellhub.
+   *
+   * Fase 169 (T-169-26) — este camino NO se corta por estado del gimnasio, a
+   * diferencia del check-in y del `booking-requested`, y es deliberado: una
+   * cancelación LIBERA el cupo de una reserva que YA existe. Bloquearla porque el
+   * gimnasio quedó suspendido dejaría cupo fantasma en nuestra grilla (una
+   * reserva viva de alguien que ya se fue) y la lista de espera nunca correría.
+   * La fila de `wellhub_bookings` además ya nació con su tenant cuando se creó.
+   *
+   * El criterio general de la fase: el corte comercial aplica a lo que CREA
+   * datos, no a lo que los libera. Por eso acá tampoco se deriva un
+   * `TenantContext` — no hay nada que estampar que no esté ya estampado.
+   */
   private async handleBookingCanceled(
     eventType: string,
     data: WellhubBookingEventData,
@@ -600,7 +790,20 @@ export class WellhubService {
     return { httpStatus: 200, outcome: "processed" };
   }
 
-  /** Slot publicado por nosotros, con todo lo necesario para operar la API. */
+  /**
+   * Slot publicado por nosotros, con todo lo necesario para operar la API.
+   *
+   * Fase 169 (CON-04): trae además el gimnasio dueño de la sede del slot
+   * (`tenantId`) y su estado comercial (`tenantStatus`), para que
+   * {@link WellhubService.resolverTenant} pueda cortar sin una segunda query.
+   *
+   * El join a `tenants` es LEFT a propósito, mismo criterio que
+   * `country-scope.ts:143-149`: con un join estricto, una sede cuyo gimnasio no
+   * resuelva haría desaparecer la fila entera y el slot se trataría como "no
+   * publicado" — un camino que ADEMÁS le manda un PATCH de rechazo a Wellhub. Con
+   * LEFT, el slot se encuentra igual y el problema de datos cae al camino
+   * fail-closed explícito (`tenant_no_resoluble`), que es visible en los logs.
+   */
   private async findPublishedSlot(wellhubSlotId: number): Promise<{
     rowId: number;
     scheduleId: number;
@@ -609,6 +812,8 @@ export class WellhubService {
     wellhubClassId: number;
     branchId: number;
     gymId: number;
+    tenantId: number;
+    tenantStatus: string | null;
   } | null> {
     const [slot] = await this.db
       .select({
@@ -619,6 +824,8 @@ export class WellhubService {
         wellhubClassId: schema.wellhubClasses.wellhubClassId,
         branchId: schema.wellhubClasses.branchId,
         gymId: schema.branches.wellhubGymId,
+        tenantId: schema.branches.tenantId,
+        tenantStatus: schema.tenants.status,
       })
       .from(schema.wellhubSlots)
       .innerJoin(
@@ -629,6 +836,7 @@ export class WellhubService {
         schema.branches,
         eq(schema.wellhubClasses.branchId, schema.branches.id),
       )
+      .leftJoin(schema.tenants, eq(schema.branches.tenantId, schema.tenants.id))
       .where(eq(schema.wellhubSlots.wellhubSlotId, wellhubSlotId))
       .limit(1);
 
@@ -638,15 +846,36 @@ export class WellhubService {
 
   // ─── Visitantes ────────────────────────────────────────────────────────────
 
-  private async findBranchByGymId(
-    gymId: number,
-  ): Promise<{ id: number; timezone: string } | null> {
+  /**
+   * Sede mapeada a un gimnasio del catálogo de Wellhub.
+   *
+   * Fase 169 (CON-04): este lookup es el ESLABÓN de la derivación del tenant
+   * (`gym.id` → `branches.wellhub_gym_id` → `branches.tenant_id`), así que
+   * devuelve también el gimnasio dueño y su estado comercial.
+   *
+   * El join a `tenants` es LEFT a propósito, mismo criterio que
+   * `country-scope.ts:143-149`: con un join estricto, una sede cuyo gimnasio no
+   * resuelva haría desaparecer la fila entera y el evento caería en el camino
+   * `gym_sin_sede` — un mensaje FALSO (la sede existe) que además esconde una
+   * corrupción de datos detrás de un log rutinario. Con LEFT, la sede se
+   * encuentra igual y el problema cae al camino fail-closed explícito
+   * (`tenant_no_resoluble`, con `log.error`).
+   */
+  private async findBranchByGymId(gymId: number): Promise<{
+    id: number;
+    timezone: string;
+    tenantId: number;
+    tenantStatus: string | null;
+  } | null> {
     const [branch] = await this.db
       .select({
         id: schema.branches.id,
         timezone: schema.branches.timezone,
+        tenantId: schema.branches.tenantId,
+        tenantStatus: schema.tenants.status,
       })
       .from(schema.branches)
+      .leftJoin(schema.tenants, eq(schema.branches.tenantId, schema.tenants.id))
       .where(eq(schema.branches.wellhubGymId, gymId))
       .limit(1);
     return branch ?? null;
