@@ -159,6 +159,10 @@ Ninguna que cambie el alcance. Dos ajustes de ejecución, los dos dentro de lo q
 | T-169-06 | Todo insert estampa `tenantId` explícito vía `tenantValues`; hay aserciones de **ausencia**, no sólo de presencia.                               |
 | T-169-SC | Cero dependencias nuevas, cero installs. `node_modules` por symlink tras verificar el lockfile con `cmp`.                                        |
 
+## Requirements: CON-03 y CON-04 quedan **Pending** a propósito
+
+El frontmatter del plan declara `requirements: [CON-03, CON-04]`, pero **no se marcaron completos en `REQUIREMENTS.md`**. Los dos son requisitos de fase, no de plan: CON-03 exige que _todo_ INSERT sobre tabla gym-owned tome el `tenant_id` del scope server-side (eso es el plan 169-08 + la auditoría de mass-assignment D-08), y CON-04 exige los caminos sin request enteros (crons 169-04, webhook 169-05, CLI 169-06, `tv_pairings` 169-07). Este plan entrega la **base** de los dos. Marcarlos ahora sería un falso positivo que el verificador de fase tendría que revertir. Los cierra el último plan de la fase.
+
 ## Estado del worktree
 
 `/home/franco/projects/et-169-tenant-layer`, rama `feat/169-capa-escritura`, 2 commits sobre `1200b8af`:

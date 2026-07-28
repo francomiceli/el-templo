@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: "Tenancy — El Templo pasa a ser tenant #1"
 status: executing
-stopped_at: Phase 169 context gathered
-last_updated: "2026-07-28T03:26:48.485Z"
-last_activity: 2026-07-28 -- Phase 169 planning complete
+stopped_at: Phase 169 Plan 01 complete
+last_updated: "2026-07-28T13:07:28.476Z"
+last_activity: 2026-07-28 -- Phase 169 Plan 01 ejecutado (tenant.ts + tests)
 progress:
   total_phases: 11
   completed_phases: 3
   total_plans: 28
-  completed_plans: 19
+  completed_plans: 20
   percent: 27
 ---
 
@@ -21,15 +21,19 @@ progress:
 See: .planning/PROJECT.md (milestone v6.0 initialized 2026-07-26)
 
 **Core value (v6.0):** El Templo pasa de "una gimnasia hardcodeada" a "el tenant #1 de una plataforma multi-tenant", **sin downtime y sin que el staff note nada**. Alcance: tablas `tenants`/`tenant_settings` + `tenant_id` denormalizado en las 87 tablas gym-owned + las 5 capas de enforcement (scope server-side, helpers `tenantWhere`/`tenantValues` + `TenantContext`, sentinel de pool mysql2, lint en CI, manifiesto de rutas fail-closed + batería de aislamiento), y adopción módulo a módulo en orden estricto de criticidad: finance → members → subscriptions → scheduling → analytics → resto core. 11 fases (166-176), 24 REQ-IDs (FUND/COL/CON/ISO/ADO/MOD). Reglas duras: `tenant_id` SIEMPRE server-side (jamás payload ni JWT); migraciones incrementales compatibles con código viejo (nullable → backfill → NOT NULL); staging-first estricto; reservar bloque de numeración al arrancar la 166 (**actualizado 2026-07-27: la 166 aplicó 0190 y 0191 en `eltemplo_staging` y en `eltemplo` — el tope en producción es 0191 y las fases siguientes reservan desde 0192**). **Gate del MILESTONE (no de una fase): el tenant 2 no se onboardea hasta que la batería de aislamiento (ISO-03) esté verde sobre el 100% de las rutas core `tenant-scoped`.** Diseño CERRADO en `.docs/saas-multitenancy/` (README + docs 03/04/05/06, §8 resuelto 2026-07-26) — no re-litigar en discuss/plan-phase.
-**Current focus:** Phase 169 — capa de escritura — helpers `tenantwhere`/`tenantvalues` y `tenantcontext`
+**Current focus:** Phase 169 — capa-de-escritura-helpers-tenantwhere-tenantvalues-y-tenantc
 
 ## Current Position
 
-Phase: 169
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-07-28 -- Phase 169 planning complete
-Next: `/gsd:verify-phase 168` (los 6 planes ejecutados; la migración 0196 aplicada en `eltemplo_staging` y `eltemplo` con 0 discrepancias y exit 0 en el verificador de uniques en las dos bases; falta el smoke funcional por UI de Franco, cerrado como pendiente por decisión suya). Siguen pendientes `/gsd:verify-phase 166` y `/gsd:verify-phase 167` por el mismo motivo.
+Phase: 169 (capa-de-escritura-helpers-tenantwhere-tenantvalues-y-tenantc) — EXECUTING
+Plan: 2 of 9
+Status: Executing Phase 169
+Last activity: 2026-07-28 -- Phase 169 Plan 01 ejecutado (tenant.ts + tests)
+Next: `/gsd:execute-phase 169` sigue por el plan **169-02**. En paralelo siguen pendientes `/gsd:verify-phase 168` (los 6 planes ejecutados; la migración 0196 aplicada en `eltemplo_staging` y `eltemplo` con 0 discrepancias y exit 0 en el verificador de uniques en las dos bases; falta el smoke funcional por UI de Franco, cerrado como pendiente por decisión suya). Siguen pendientes `/gsd:verify-phase 166` y `/gsd:verify-phase 167` por el mismo motivo.
+
+**Worktree de la fase 169:** `/home/franco/projects/et-169-tenant-layer`, rama `feat/169-capa-escritura` sobre `origin/master` (`1200b8af`). `.env`/`.env.development` copiados desde el worktree de la 168 — **no correr ningún install ahí**: el `pnpm-lock.yaml` es byte-idéntico al de los worktrees 166/167/168 y el `node_modules` se resuelve por **symlink a `/home/franco/projects/et-167-columnas/el-templo-api/node_modules`** (el del 168 no existe hoy). El symlink se crea antes de cada typecheck/corrida de tests y **se borra antes de commitear** (la regla `node_modules/` del `.gitignore` no matchea un symlink). Commits de código del plan 01: `c21baefd` (`src/modules/shared/tenant.ts`) y `f6bc7ecc` (`test/tenancy/tenant-helpers.test.ts`). Nada pusheado. **Esta fase NO agrega migraciones**; si alguna la necesitara, reserva desde **0197**.
+
+**169-01 cerrado — la única API de tenancy existe.** `src/modules/shared/tenant.ts` (277 líneas, 10 exports) con la firma LOCKEADA del doc 03 §3: `tenantWhere(table, scope)` → `eq(table.tenantId, scope.tenantId)` y `tenantValues(scope, values)` → `{ ...values, tenantId: scope.tenantId }` (el tenant del scope va DESPUÉS del spread: mitigación de mass-assignment de tipo y de runtime a la vez). El punto de fricción que marcó el PATTERNS —`CountryScope.tenantId` es `number | null` y la firma pide `number`— se resolvió con **`assertTenant(scope, where)` exportado y fail-closed: `AppError` 403 `TENANT_UNRESOLVED`**, llamado en el CALL SITE para que el narrowing sea visible en el diff. Prohibidos el non-null assertion y el `?? 1` (verificado por grep en el `<verify>` del plan). Además `listActiveTenants` (comparación POSITIVA contra `'active'`) y `forEachActiveTenant` (loop secuencial, `try/catch` DENTRO del loop, `log.error({ err, tenantId, job })` y sigue — D-03), listos para los 7 crons del plan 169-04. `TenantLogger` es una interfaz estructural mínima y se verificó por typecheck que la satisfacen tanto `pino()` como `FastifyBaseLogger`, así que los jobs pasan su logger directo, sin adaptador. **13 tests verdes** en `test/tenancy/tenant-helpers.test.ts` contra MySQL real con un segundo tenant ad-hoc **id 90169** (el 90168 es del `con-01`: dos archivos con el mismo id se pisan con `isolate: false`; los ids de los otros archivos de la fase son 90269 / 90369 / 90469). Ojo para los planes siguientes: **`aura_config.source_type` sigue siendo unique GLOBAL** (deuda consciente allowlisteada), así que dos tenants NO pueden compartir el mismo `source_type` en un test.
 
 **Tope de migración aplicado en producción: 0196.** Las fases siguientes reservan desde **0197**. La `0196_tenant_unique_contracts.sql` está aplicada **una sola vez en `eltemplo_staging` y una sola vez en `eltemplo`** (verificado en `_migrations` de cada base), desplegada por el plan 168-06 el 2026-07-27. Ya no hace falta consultar la rama de la fase: vive en `origin/master`.
 
@@ -382,6 +386,7 @@ _Updated after each plan completion_
 | Phase 168 P04 | 15min | 2 tasks | 1 files |
 | Phase 168 P05 | 40min | 3 tasks | 2 files |
 | Phase 168 P06 | ~53min | 2 tasks | 0 files |
+| Phase 169 P01 | ~9min | 3 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -851,6 +856,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase 168]: 168-06: NO se squashearon los 10 commits de los planes 01-05 en el "commit único" que pedía el Task 1 — reescribir esos SHAs habría invalidado la evidencia que citan los cinco SUMMARY (mismo motivo por el que la 167 eligió merge --no-ff sobre rebase). Se verificaron los invariantes reales del gate: árbol limpio, diff exacto de 20 archivos, una sola migración, cero deleciones
 - [Phase 168]: 168-06: push a master de la RAMA DE FASE y fast-forward (origin/master no se había movido de 68c447cf) — sin merge commit, sin rebase, y con merge-base --is-ancestor origin/staging HEAD fallando, así que los 29 commits de CAJA/finance parados en staging no viajaron a prod
 - [Phase 168]: 168-06: el step de migraciones de un deploy NO es evidencia — tardó 4 s en las dos bases, pero la heurística alreadyApplied del runner tolera "Can't DROP" y un DROP INDEX mal nombrado saldría verde. La evidencia es la ausencia de los 12 nombres viejos en INFORMATION_SCHEMA de cada base real
+- [Phase 169]: 169-01: assertTenant es el unico puente entre CountryScope.tenantId (number|null) y la firma lockeada del doc 03 §3 — lanza AppError 403 TENANT_UNRESOLVED; prohibidos el non-null assertion y el default numerico
+- [Phase 169]: 169-01: tenant.ts NO se exporta desde el barrel shared/index.ts (consistencia con country-scope.ts, importado por path directo desde sus 22 call sites)
 
 ### Pending Todos
 
@@ -883,8 +890,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-28T02:30:02.468Z
-Stopped at: Phase 169 context gathered
-Resume file: .planning/phases/169-capa-de-escritura-helpers-tenantwhere-tenantvalues-y-tenantc/169-CONTEXT.md
+Last session: 2026-07-28T13:07:14.896Z
+Stopped at: Phase 169 Plan 01 complete (tenant.ts + tests, worktree et-169-tenant-layer)
+Resume file: .planning/phases/169-capa-de-escritura-helpers-tenantwhere-tenantvalues-y-tenantc/169-02-PLAN.md
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
