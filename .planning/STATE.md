@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: "Tenancy — El Templo pasa a ser tenant #1"
 status: executing
-stopped_at: Phase 169 Plan 02 complete (sweep por tenant en 4 crons, worktree et-169-tenant-layer)
-last_updated: "2026-07-28T13:24:12.528Z"
-last_activity: 2026-07-28 -- Phase 169 Plan 02 ejecutado (sweep por tenant en expire-lost-leads, wellhub-sync, mark-no-shows y reassign-multibranch)
+stopped_at: Phase 169 Plan 03 complete (los 7 crons de D-01 barren por tenant, worktree et-169-tenant-layer)
+last_updated: "2026-07-28T14:05:00.000Z"
+last_activity: 2026-07-28 -- Phase 169 Plan 03 ejecutado (extracción de runX + sweep en auto-approve, auto-resume-pauses y los 4 schedules de notification-cron)
 progress:
   total_phases: 11
   completed_phases: 3
   total_plans: 28
-  completed_plans: 21
-  percent: 27
+  completed_plans: 22
+  percent: 28
 ---
 
 # Project State
@@ -26,12 +26,14 @@ See: .planning/PROJECT.md (milestone v6.0 initialized 2026-07-26)
 ## Current Position
 
 Phase: 169 (capa-de-escritura-helpers-tenantwhere-tenantvalues-y-tenantc) — EXECUTING
-Plan: 3 of 9
+Plan: 4 of 9
 Status: Ready to execute
-Last activity: 2026-07-28 -- Phase 169 Plan 02 ejecutado (sweep por tenant en 4 crons)
-Next: `/gsd:execute-phase 169` sigue por el plan **169-03**. En paralelo siguen pendientes `/gsd:verify-phase 168` (los 6 planes ejecutados; la migración 0196 aplicada en `eltemplo_staging` y `eltemplo` con 0 discrepancias y exit 0 en el verificador de uniques en las dos bases; falta el smoke funcional por UI de Franco, cerrado como pendiente por decisión suya). Siguen pendientes `/gsd:verify-phase 166` y `/gsd:verify-phase 167` por el mismo motivo.
+Last activity: 2026-07-28 -- Phase 169 Plan 03 ejecutado (los 7 crons de D-01 completos)
+Next: `/gsd:execute-phase 169` sigue por el plan **169-04**. En paralelo siguen pendientes `/gsd:verify-phase 168` (los 6 planes ejecutados; la migración 0196 aplicada en `eltemplo_staging` y `eltemplo` con 0 discrepancias y exit 0 en el verificador de uniques en las dos bases; falta el smoke funcional por UI de Franco, cerrado como pendiente por decisión suya). Siguen pendientes `/gsd:verify-phase 166` y `/gsd:verify-phase 167` por el mismo motivo.
 
 **Worktree de la fase 169:** `/home/franco/projects/et-169-tenant-layer`, rama `feat/169-capa-escritura` sobre `origin/master` (`1200b8af`). `.env`/`.env.development` copiados desde el worktree de la 168 — **no correr ningún install ahí**: el `pnpm-lock.yaml` es byte-idéntico al de los worktrees 166/167/168 y el `node_modules` se resuelve por **symlink a `/home/franco/projects/et-167-columnas/el-templo-api/node_modules`** (el del 168 no existe hoy). El symlink se crea antes de cada typecheck/corrida de tests y **se borra antes de commitear** (la regla `node_modules/` del `.gitignore` no matchea un symlink). Commits de código del plan 01: `c21baefd` (`src/modules/shared/tenant.ts`) y `f6bc7ecc` (`test/tenancy/tenant-helpers.test.ts`); del plan 02: `0426d4de` (expire-lost-leads + wellhub-sync) y `bb85aa64` (mark-no-shows + reassign-multibranch). Nada pusheado. **Esta fase NO agrega migraciones**; si alguna la necesitara, reserva desde **0197**.
+
+**169-03 cerrado — los 7 crons de D-01 completos.** Los 3 asimétricos (`auto-approve`, `auto-resume-pauses` y `notification-cron`) ahora tienen función pura exportada y barren por gimnasio activo. Commits: `dbb89644` (los dos primeros) y `f3036876` (los 4 schedules de notificaciones). **Cuatro funciones nuevas que antes no existían y hacían intesteables esos caminos:** `runAutoApprove(db)` → `{ approved }`, `runAutoResumePauses(db)` → `{ resumed, activated, expired }`, `runNotificationQueueTick(db)` → `{ sent, failed, purged }` y `runBatchSegmentRecalculation(db)` → `{ transitionsFound, notificationsQueued, ghostReattempts }`; los cuerpos privados son `…ForTenant` / `…ForTenantTz`, grepeables para el gate del 169-04. En `notification-cron` el sweep va DENTRO de cada `runX` (nunca en el callback del `cron.schedule`), con `jobName` distinto por camino: `notification-queue`, `notification-segments`, `notification-morning-energy` y `notification-weekly-summary` — siguen existiendo exactamente 4 `cron.schedule` y ninguno tiene lógica de negocio. **`runPlanRenewalWarnings` NO tiene sweep propio** (ya corre dentro del cuerpo por tenant de `runBatchSegmentRecalculation`; agregarle uno la haría correr N²) y su firma `(db, notificationService)` quedó intacta: los 6 tests de `test/notification-plan-renewal.test.ts` pasan **sin tocar el archivo**. **Primera anotación de exención de la fase:** `/* tenant-safe: seed de templates global hasta la adopción de notifications (fase 175) */` sobre la llamada a `seedTemplates()` — envolverla en el sweep no sembraría templates por gimnasio, correría el MISMO insert global N veces duplicando las filas del tenant 1. Dos desviaciones registradas, las dos de la misma familia: los schedules 1 y 2 no loguean total agregado (sus contadores ya se loguean por gimnasio; duplicarlos arriba sería la misma línea sin atribución de tenant, igual que el summary de wellhub-sync) y el `try/catch` externo del cuerpo del schedule 2 se movió al scheduler para que el catch por iteración del sweep pueda atribuir el error a un gimnasio (D-03). Los 3 `try/catch` internos de `auto-resume-pauses` y los `try/catch` por perfil quedaron intactos. **CON-04 sigue Pending** (faltan webhook, `tv_pairings`, CLI y el gate de cobertura).
 
 **169-02 cerrado — 4 de los 7 crons ya barren por tenant activo.** `expire-lost-leads`, `wellhub-sync`, `mark-no-shows` y `reassign-multibranch` (los que ya tenían la separación `runX(db)` / `startXJob(db)`) corren su cuerpo dentro de `forEachActiveTenant`, con el `tenantId` como campo estructurado en una línea de log por vuelta y aislamiento de errores por gimnasio. **Patrón para el 169-03:** cuerpo por tenant PRIVADO con nombre grepeable `…ForTenant…` + `runX` público que acumula por closure y **conserva exactamente su tipo de retorno** — por eso los 3 archivos de test que invocan estos jobs (22 tests) siguen verdes **sin tocarlos**. Tres cosas que el plan siguiente debería copiar: (1) en `mark-no-shows` el sweep se puso en `runMarkNoShowsForTz`, que es lo que usa el scheduler (`runMarkNoShows` no corre nunca en producción), con el tenant POR FUERA del loop de timezone porque la lista de tz sale de `branches` y se scopeará en la 173; (2) en `wellhub-sync` el guard `if (!config) return null` precede al sweep y su función se declaró primera en el archivo para que el orden de lectura refleje el de ejecución (T-169-11); (3) el log por vuelta va a la ENTRADA del cuerpo cuando hay early return, para no duplicar el statement. Desviación registrada: el summary de Wellhub se loguea ahora en el cuerpo (con `tenantId`) y **ya no** en `startWellhubSyncJob` — el tipo de retorno lockeado no transporta el tenantId hasta el scheduler y, con varios gimnasios, atribuiría el summary del último a todos. **CON-04 sigue Pending a propósito** (faltan los 3 crons del 169-03, el webhook, el CLI y `tv_pairings`).
 
