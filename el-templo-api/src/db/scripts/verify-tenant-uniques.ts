@@ -58,6 +58,13 @@
  * contratos convertidos, que son justamente lo que viene a afirmar.
  */
 
+/* tenant-safe: verificador de plataforma: escanea TODOS los tenants por diseño, corre en CI/deploy y es de solo lectura */
+// Exención de la regla `--tenant` obligatorio de los scripts CLI (fase 169,
+// CON-04/D-06 — ver `src/db/scripts/require-tenant.ts`). El motivo es
+// obligatorio y va escrito arriba: una exención sin motivo es indistinguible de
+// un olvido (T-169-36). La anotación la LEEN el sentinel y el lint de CI de la
+// fase 170; esta fase sólo la siembra.
+
 import dotenv from "dotenv";
 import mysql from "mysql2/promise";
 import path from "path";

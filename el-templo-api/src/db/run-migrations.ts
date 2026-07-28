@@ -7,6 +7,13 @@
  * Usage: npx tsx src/db/run-migrations.ts
  */
 
+/* tenant-safe: herramienta de plataforma: aplica DDL a la base entera, no escribe filas de negocio */
+// Exención de la regla `--tenant` obligatorio de los scripts CLI (fase 169,
+// CON-04/D-06 — ver `src/db/scripts/require-tenant.ts`). El motivo es
+// obligatorio y va escrito arriba: una exención sin motivo es indistinguible de
+// un olvido (T-169-36). La anotación la LEEN el sentinel y el lint de CI de la
+// fase 170; esta fase sólo la siembra.
+
 import dotenv from "dotenv";
 import mysql from "mysql2/promise";
 import fs from "fs";
