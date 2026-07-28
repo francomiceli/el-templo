@@ -4587,7 +4587,7 @@ además al predecesor inmediato como dependencia operativa.
 3. Las exenciones `/* tenant-safe: <motivo> */` son grepeables y su inventario completo cabe en una sola búsqueda revisable, cada una con motivo escrito. (CON-05)
 4. El lint de CI deja el build **rojo** ante un ` sql` ``o`.from(<gym-owned>)`nuevo sin`tenant_id` ni anotación fuera de la allowlist (demostrado con un caso de prueba), y la allowlist arranca completa y solo puede achicarse — un check impide agrandarla. (CON-06)
 
-**Plans:** 4/8 plans executed
+**Plans:** 5/8 plans executed
 
 Plans:
 
@@ -4615,7 +4615,7 @@ toda la fase.
 
 **Wave 5** _(blocked on Wave 4 completion)_
 
-- [ ] 170-05-PLAN.md — Lint: allowlist decreciente, cuatro gates del ratchet (no listada, stale ×2, ganada, coherencia strict), CLI con exit codes 0/1/2 y `pnpm lint:tenant`
+- [x] 170-05-PLAN.md — Lint: allowlist decreciente, cuatro gates del ratchet (no listada, stale ×2, ganada, coherencia strict), CLI con exit codes 0/1/2 y `pnpm lint:tenant`
 
 **Wave 6** _(blocked on Wave 5 completion)_
 
@@ -4739,7 +4739,7 @@ toda la fase.
 | 167. Columnas — tenant_id en 85 tablas            | 7/7            | Complete    | 2026-07-27 |
 | 168. Contratos SQL — uniques compuestas e índices | 6/6            | Complete    | 2026-07-27 |
 | 169. Capa de escritura — helpers y TenantContext  | 9/9            | Complete    | 2026-07-28 |
-| 170. Detección — sentinel de pool + lint CI       | 4/8 | In Progress|  |
+| 170. Detección — sentinel de pool + lint CI       | 5/8 | In Progress|  |
 | 171. Backstop — manifiesto + fixtures 2-tenant    | 0/?            | Not started |            |
 | 172. Adopción 1 (piloto) — finance                | 0/?            | Not started |            |
 | 173. Adopción 2 — members + guarda de anclas      | 0/?            | Not started |            |
