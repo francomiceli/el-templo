@@ -585,24 +585,26 @@ files=382  taggedTemplates=552  callExprs=17947  elapsed=606ms
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Brecha de canal de exención: el sentinel y el lint no leen lo mismo** _(la única contradicción real diseño↔código; conviene resolverla antes de planificar)_
+_Las 4 quedaron resueltas antes/durante la planificación: Q1 → decisión de Franco lockeada como **D-17** en CONTEXT.md (dos canales; planes 02/03) · Q2 → guard test en plan 06 tarea 3 · Q3 → las dos vías: test permanente con fixture (plan 03 tarea 3) + sonda en vivo (plan 07 tarea 3) · Q4 → plan 05 tarea 1 distingue `staleMissingFile` vs `staleNoLongerViolating` con mensajes propios._
+
+1. **[RESOLVED → D-17] Brecha de canal de exención: el sentinel y el lint no leen lo mismo** _(la única contradicción real diseño↔código; conviene resolverla antes de planificar)_
    - **Lo que sabemos:** el doc 03 §3 dice "el comentario viaja en el SQL y el sentinel lo respeta". Verificado: eso funciona — un `/* tenant-safe: … */` escrito **dentro de un ` sql` `` ** llega intacto al pool. Pero **ninguna de las 9 exenciones que dejó escritas la fase 169 está dentro de un ` sql` ``**: 6 son comentarios de bloque a nivel de archivo y 3 son comentarios TypeScript pegados a un call de query builder. Ninguna de las 9 llega jamás al SQL.
    - **Lo que no está claro:** si el sentinel debe (a) tener su propio canal —solo honra exenciones embebidas en el SQL, y las 9 actuales son exenciones **del lint** únicamente—, o (b) las 9 deben además propagarse al SQL, o (c) el sentinel debe correlacionar la query con el sitio del código que la originó (caro y frágil: requiere stack traces).
    - **Recomendación:** **(a)**, y escribirlo. Son dos capas con dos alcances: el lint razona sobre el **fuente** (donde vive la anotación) y el sentinel sobre el **SQL** (donde solo pueden llegar los ` sql` ``crudos). Consecuencia práctica y benigna: las 8 exenciones que no son`sql`-crudo van a aparecer como violaciones no-strict en el modo inventario — que es correcto, porque son deuda real, no falsos positivos, y ninguna es strict. La opción (c) contradice "detecta, no re-escribe" y agrega costo en el hot path.
 
-2. **`.iterator()` esquiva cualquier wrap de la capa promise**
+2. **[RESOLVED → plan 06] `.iterator()` esquiva cualquier wrap de la capa promise**
    - **Lo que sabemos:** `MySql2PreparedQuery.iterator()` hace `(await pool.getConnection()).connection` — toma la **conexión core de callbacks** de adentro del wrapper promise — y llama `conn.query(...)` ahí. Ni `pool.query` ni el wrap de la `PoolConnection` lo ven. Hoy hay **cero usos** de `.iterator(` en `src` (verificado por grep).
    - **Lo que no está claro:** si vale gastar un guard.
    - **Recomendación:** no envolver la conexión core (frágil y en el hot path). En cambio, un **test barato de guardia** que falle si aparece `.iterator(` en `src`, con el motivo escrito. Costo casi nulo, evita un agujero silencioso.
 
-3. **Cómo demostrar el rojo del criterio 4 sin commitear el estado roto**
+3. **[RESOLVED → planes 03+07] Cómo demostrar el rojo del criterio 4 sin commitear el estado roto**
    - **Lo que sabemos:** el repo ya tiene el patrón (168-05, 169-04, 169-08): sonda temporal → registrar el rojo → revertir sin commitear.
    - **Lo que no está claro:** si el verificador de la fase espera evidencia en el SUMMARY o un test permanente que ejercite el lint sobre un fixture.
    - **Recomendación:** **las dos.** Un test permanente que corra el lint contra un fixture violador dentro de `test/fixtures/` (fuera del alcance del lint real) da regresión duradera; la sonda en vivo satisface el "demostrado con un caso de prueba" del criterio y queda en el SUMMARY.
 
-4. **Precisión del gate de entradas "stale" (D-14)**
+4. **[RESOLVED → plan 05] Precisión del gate de entradas "stale" (D-14)**
    - **Lo que sabemos:** D-14 exige rojo cuando una entrada de la allowlist ya no corresponde a una violación real. Es lo que fuerza el achique.
    - **Lo que no está claro:** una entrada puede quedar stale porque el módulo se migró (querido: rojo que obliga a borrarla) **o** porque el archivo se renombró/movió (ruidoso: rojo sin significado). D-13 eligió "archivo + tabla" precisamente para ser estable ante _ediciones_, pero un **rename** igual la rompe.
    - **Recomendación:** que el mensaje de error distinga los dos casos ("el archivo no existe" vs. "el archivo existe y ya no viola") y proponga la acción concreta. No es un problema de diseño, es de calidad del mensaje — pero determina si el gate se respeta o se esquiva.
