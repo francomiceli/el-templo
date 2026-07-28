@@ -4,14 +4,14 @@ milestone: v6.0
 milestone_name: "Tenancy — El Templo pasa a ser tenant #1"
 status: executing
 stopped_at: Phase 170 context gathered
-last_updated: "2026-07-28T19:16:27.518Z"
-last_activity: 2026-07-28 -- Phase 170 planning complete
+last_updated: "2026-07-28T19:27:53.321Z"
+last_activity: 2026-07-28 -- Phase 170 execution started
 progress:
   total_phases: 11
-  completed_phases: 4
-  total_plans: 36
-  completed_plans: 28
-  percent: 36
+  completed_phases: 0
+  total_plans: 8
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (milestone v6.0 initialized 2026-07-26)
 
 **Core value (v6.0):** El Templo pasa de "una gimnasia hardcodeada" a "el tenant #1 de una plataforma multi-tenant", **sin downtime y sin que el staff note nada**. Alcance: tablas `tenants`/`tenant_settings` + `tenant_id` denormalizado en las 87 tablas gym-owned + las 5 capas de enforcement (scope server-side, helpers `tenantWhere`/`tenantValues` + `TenantContext`, sentinel de pool mysql2, lint en CI, manifiesto de rutas fail-closed + batería de aislamiento), y adopción módulo a módulo en orden estricto de criticidad: finance → members → subscriptions → scheduling → analytics → resto core. 11 fases (166-176), 24 REQ-IDs (FUND/COL/CON/ISO/ADO/MOD). Reglas duras: `tenant_id` SIEMPRE server-side (jamás payload ni JWT); migraciones incrementales compatibles con código viejo (nullable → backfill → NOT NULL); staging-first estricto; reservar bloque de numeración al arrancar la 166 (**actualizado 2026-07-27: la 166 aplicó 0190 y 0191 en `eltemplo_staging` y en `eltemplo` — el tope en producción es 0191 y las fases siguientes reservan desde 0192**). **Gate del MILESTONE (no de una fase): el tenant 2 no se onboardea hasta que la batería de aislamiento (ISO-03) esté verde sobre el 100% de las rutas core `tenant-scoped`.** Diseño CERRADO en `.docs/saas-multitenancy/` (README + docs 03/04/05/06, §8 resuelto 2026-07-26) — no re-litigar en discuss/plan-phase.
-**Current focus:** Phase 170 — detección automática — sentinel de pool mysql2 + lint en ci
+**Current focus:** Phase 170 — detecci-n-autom-tica-sentinel-de-pool-mysql2-lint-en-ci
 
 ## Current Position
 
-Phase: 170
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-07-28 -- Phase 170 planning complete
+Phase: 170 (detecci-n-autom-tica-sentinel-de-pool-mysql2-lint-en-ci) — EXECUTING
+Plan: 1 of 8
+Status: Executing Phase 170
+Last activity: 2026-07-28 -- Phase 170 execution started
 Next: `/gsd:execute-phase 169` sigue por el plan **169-09**, el último de la fase (gate consolidado + rollout). En paralelo siguen pendientes `/gsd:verify-phase 168` (los 6 planes ejecutados; la migración 0196 aplicada en `eltemplo_staging` y `eltemplo` con 0 discrepancias y exit 0 en el verificador de uniques en las dos bases; falta el smoke funcional por UI de Franco, cerrado como pendiente por decisión suya). Siguen pendientes `/gsd:verify-phase 166` y `/gsd:verify-phase 167` por el mismo motivo.
 
 **Worktree de la fase 169:** `/home/franco/projects/et-169-tenant-layer`, rama `feat/169-capa-escritura` sobre `origin/master` (`1200b8af`). `.env`/`.env.development` copiados desde el worktree de la 168 — **no correr ningún install ahí**: el `pnpm-lock.yaml` es byte-idéntico al de los worktrees 166/167/168 y el `node_modules` se resuelve por **symlink a `/home/franco/projects/et-167-columnas/el-templo-api/node_modules`** (el del 168 no existe hoy). El symlink se crea antes de cada typecheck/corrida de tests y **se borra antes de commitear** (la regla `node_modules/` del `.gitignore` no matchea un symlink). Commits de código del plan 01: `c21baefd` (`src/modules/shared/tenant.ts`) y `f6bc7ecc` (`test/tenancy/tenant-helpers.test.ts`); del plan 02: `0426d4de` (expire-lost-leads + wellhub-sync) y `bb85aa64` (mark-no-shows + reassign-multibranch). Nada pusheado. **Esta fase NO agrega migraciones**; si alguna la necesitara, reserva desde **0197**.
