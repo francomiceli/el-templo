@@ -24,6 +24,13 @@
  * Usuarios de prueba del sandbox: 1000000000001..1000000000010.
  */
 
+/* tenant-safe: no toca la DB: postea al webhook local, que resuelve el tenant por su propio camino (fase 169, plan 05) */
+// Exención de la regla `--tenant` obligatorio de los scripts CLI (fase 169,
+// CON-04/D-06 — ver `src/db/scripts/require-tenant.ts`). El motivo es
+// obligatorio y va escrito arriba: una exención sin motivo es indistinguible de
+// un olvido (T-169-36). La anotación la LEEN el sentinel y el lint de CI de la
+// fase 170; esta fase sólo la siembra.
+
 import { createHmac } from "crypto";
 import { config as loadEnv } from "dotenv";
 

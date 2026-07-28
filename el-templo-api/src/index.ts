@@ -36,6 +36,16 @@ async function start() {
 
     // Start cron jobs after server is ready. Mark-no-shows and notifications
     // discover branch timezones at boot, so they're async.
+    //
+    // Fase 169 (CON-04, D-01) — DÓNDE SE RESUELVE LA LISTA DE GIMNASIOS
+    // Los 7 jobs barren UNA VEZ POR GIMNASIO ACTIVO, pero esa lista NO se
+    // resuelve acá: cada job la pide en CADA CORRIDA vía forEachActiveTenant
+    // (src/modules/shared/tenant.ts). Es deliberado — activar o suspender un
+    // gimnasio aplica en el tick siguiente, sin reiniciar el proceso, mismo
+    // espíritu que "el tenant no viaja en el JWT" (country-scope.ts:30-31).
+    // Por eso el arranque de abajo NO cambió con la fase 169: las 7 firmas
+    // startXJob(app.db) son las mismas y sólo dos siguen siendo async, por el
+    // descubrimiento de timezones que ya hacían antes.
     startAutoApproveJob(app.db);
     startAutoResumePausesJob(app.db);
     startExpireLostLeadsJob(app.db);

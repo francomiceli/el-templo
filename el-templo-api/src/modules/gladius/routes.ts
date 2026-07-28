@@ -51,7 +51,19 @@ const inquireSchema = {
   },
 };
 
-const createProductSchema = {
+/**
+ * POST /api/gladius/products — alta de producto.
+ *
+ * Fase 169 (D-08): exportado para que el guard de mass-assignment de
+ * `test/tenancy/con-03-write-paths-tenant-id.test.ts` pueda importar el objeto
+ * y afirmar su `additionalProperties: false` — el handler SPREADEA el body del
+ * request dentro del input de `createProduct` (:185-188) y este schema es lo
+ * único que lo acota. El guard verifica por IMPORT y no por grep a propósito:
+ * un grep contaría la palabra en este mismo comentario. (Y el literal del
+ * spread tampoco se escribe acá: la auditoría D-08 cuenta esos sitios con un
+ * grep, y un comentario que lo copiara textual sumaría un falso positivo.)
+ */
+export const createProductSchema = {
   body: {
     type: "object",
     required: ["name", "description"],

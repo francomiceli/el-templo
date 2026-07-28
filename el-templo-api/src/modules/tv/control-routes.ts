@@ -21,6 +21,7 @@ import { TvService } from "./service";
 import { handleServiceError } from "../shared/error-handler";
 import { TV_CONTROL_ROLES } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
+import { assertTenant } from "../shared/tenant";
 import {
   BRANCH_OUT_OF_SCOPE,
   canAccessBranch,
@@ -60,6 +61,13 @@ export const tvControlRoutes: FastifyPluginAsync = async (fastify) => {
    * El staff tipea el codigo que ve en la pantalla del TV y elige la sede (D-01).
    * `requireBranchAccess` corre ANTES del handler: la sede tiene que estar en el
    * scope de quien reclama, no alcanza con tener el rol.
+   *
+   * Fase 169 (CON-04): este claim es el momento en que el pairing aprende de
+   * que gimnasio es, asi que le baja el `TenantContext` al service. Sale de
+   * `assertTenant(request.scope, …)` —resuelto server-side por el
+   * `attachCountryScope` del hook de arriba, leyendo `users.tenant_id`— y jamas
+   * del body. `assertTenant` es fail-closed: un scope sin gimnasio resoluble
+   * corta con 403 `TENANT_UNRESOLVED` en vez de caer en un default.
    */
   fastify.post<{ Body: TvPairClaimBody }>(
     "/pair/claim",
@@ -71,6 +79,7 @@ export const tvControlRoutes: FastifyPluginAsync = async (fastify) => {
       try {
         const pairing = new TvPairingService(fastify.db, request.log);
         await pairing.claim(
+          assertTenant(request.scope, "tv pair claim"),
           request.body.userCode,
           request.body.branchId,
           request.user.userId,

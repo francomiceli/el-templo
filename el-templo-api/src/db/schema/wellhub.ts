@@ -128,9 +128,15 @@ export const wellhubEvents = mysqlTable(
     // Fase 167 (COL-01): tenancy. Valor server-side, nunca de payload. Ver src/db/schema/tenant-column.ts
     tenantId: tenantIdColumn(),
     // Mina M6: esta tabla es la ÚNICA del grupo sin ninguna FK a nuestro dominio — el
-    // webhook entra sin sesión y el tenant no viaja en el payload de forma directa. La
-    // derivación real (payload.gym.id -> branches.wellhub_gym_id -> branch.tenant_id) es
-    // trabajo de la fase 169. Hoy, con un solo tenant, el backfill es DIRECTO a 1.
+    // webhook entra sin sesión y el tenant no viaja en el payload de forma directa.
+    // La derivación real (payload.gym.id -> branches.wellhub_gym_id -> branch.tenant_id)
+    // YA EXISTE desde la fase 169 y vive en src/modules/wellhub/service.ts
+    // (`findBranchByGymId` / `findPublishedSlot` + `resolverTenant`). El DEFAULT 1 de
+    // esta columna sobrevive por un motivo puntual: la fila se INSERTA antes de la
+    // derivación, porque la idempotencia por `event_id` es global (M8, ver la unique de
+    // más abajo); el UPDATE de cierre de `handleEvent` la estampa con el tenant derivado
+    // cuando se pudo derivar. Un evento que corta ANTES (gym sin sede mapeada, payload
+    // incompleto) queda con el DEFAULT a propósito: no sabemos de quién era.
     // event_id del webhook, o sintetizado para checkin. Único = idempotencia:
     // un reintento del mismo evento se ignora sin reprocesar.
     eventId: varchar("event_id", { length: 128 }).notNull(),

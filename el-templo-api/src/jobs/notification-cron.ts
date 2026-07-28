@@ -26,8 +26,50 @@ import { SegmentationService } from "../modules/segmentation/service";
 // segment_transition template keys are defined in SEGMENT_TRANSITION_TEMPLATES
 import { SEGMENT_TRANSITION_TEMPLATES } from "../modules/notifications/types";
 import type { MemberSegment } from "../modules/segmentation/types";
+import {
+  forEachActiveTenant,
+  type TenantContext,
+} from "../modules/shared/tenant";
 
 const log = pino({ name: "notification-cron" });
+
+/**
+ * Fase 169 (CON-04, D-01) — BARRIDO POR TENANT ACTIVO EN LOS CUATRO SCHEDULES
+ * ---------------------------------------------------------------------------
+ * Los cuatro caminos de este archivo (cola, segmentación, energía matinal y
+ * resumen semanal) corren UNA VEZ POR GIMNASIO ACTIVO: `forEachActiveTenant`
+ * resuelve la lista de `tenants` EN CADA CORRIDA —no en el boot— porque activar
+ * un gimnasio no debería exigir un restart del proceso (mismo espíritu que "el
+ * tenant no viaja en el JWT", `country-scope.ts:30-31`), y aísla los errores POR
+ * ITERACIÓN (D-03): un gimnasio roto no frena la cola de notificaciones de los
+ * demás.
+ *
+ * DÓNDE VA EL SWEEP (una sola forma, no cuatro copias)
+ * ----------------------------------------------------
+ * El envoltorio vive DENTRO de cada función `runX` —nunca en el callback del
+ * `cron.schedule`—, así que los cuatro schedules quedan reducidos a lo que
+ * siempre fueron (llamar a su función pura, loguear y contener el error) y el
+ * sweep se puede probar llamando a la función pura. `jobName` es distinto por
+ * camino para que el log diga CUÁL falló. Para los dos `…ForTz` el loop de
+ * tenant va POR FUERA de la dimensión de timezone, mismo criterio que
+ * `mark-no-shows` (fase 169-02).
+ *
+ * `runPlanRenewalWarnings` NO lleva su propio sweep: se la llama desde dentro
+ * del cuerpo por tenant de `runBatchSegmentRecalculation`, así que YA corre una
+ * vez por gimnasio. Agregarle uno anidaría dos barridos y la haría correr N².
+ *
+ * D-02: el `ctx` NO baja a los services. `NotificationService` y
+ * `SegmentationService` mantienen su firma hasta la adopción del módulo
+ * notifications (fase 175); acá el contexto llega hasta el CUERPO de cada job,
+ * se loguea y queda disponible. Con un solo tenant activo el resultado es
+ * IDÉNTICO al de hoy.
+ *
+ * VENCIMIENTO de esta forma intermedia: mientras el cuerpo siga siendo global,
+ * más de un tenant activo repetiría el MISMO barrido N veces (y mandaría los
+ * mismos pushes N veces). Por eso el gate del MILESTONE (no de esta fase) es que
+ * el tenant 2 no se onboardea hasta que la batería de aislamiento ISO-03 (fase
+ * 171) esté verde.
+ */
 
 /** Thirty days in milliseconds — ghost re-attempt interval */
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
@@ -91,14 +133,45 @@ async function getDistinctBranchTimezones(
 }
 
 /**
- * Queue the morning energy reminder for onboarded members in the given
- * branch timezone who haven't answered today's check-in. "Today" is the
- * date in `tz` so BCN and AR each evaluate their own day boundary.
+ * Energía matinal para una zona horaria, barriendo los gimnasios ACTIVOS. La
+ * firma `(db, tz)` y el tipo de retorno no cambiaron con el sweep: el total
+ * sigue siendo el agregado, acumulado por closure sobre las vueltas.
  */
 async function runMorningEnergyForTz(
   db: MySql2Database<typeof schema>,
   tz: string,
 ): Promise<{ eligible: number; queued: number }> {
+  let eligible = 0;
+  let queued = 0;
+
+  await forEachActiveTenant(
+    db,
+    log,
+    "notification-morning-energy",
+    async (ctx) => {
+      const r = await runMorningEnergyForTenantTz(db, ctx, tz);
+      eligible += r.eligible;
+      queued += r.queued;
+    },
+  );
+
+  return { eligible, queued };
+}
+
+/**
+ * Queue the morning energy reminder for onboarded members in the given
+ * branch timezone who haven't answered today's check-in, for a single gym
+ * (tenant). "Today" is the date in `tz` so BCN and AR each evaluate their own
+ * day boundary.
+ */
+async function runMorningEnergyForTenantTz(
+  db: MySql2Database<typeof schema>,
+  ctx: TenantContext,
+  tz: string,
+): Promise<{ eligible: number; queued: number }> {
+  // `tenantId` como CAMPO ESTRUCTURADO, jamás interpolado en el mensaje.
+  log.info({ tenantId: ctx.tenantId, tz }, "Energia matinal para un gimnasio");
+
   const notificationService = new NotificationService(db, log);
   const today = new Date().toLocaleDateString("en-CA", { timeZone: tz });
 
@@ -142,13 +215,41 @@ async function runMorningEnergyForTz(
 }
 
 /**
- * Queue weekly summary notifications for onboarded members in the given
- * branch timezone.
+ * Resumen semanal para una zona horaria, barriendo los gimnasios ACTIVOS. La
+ * firma `(db, tz)` y el tipo de retorno no cambiaron con el sweep.
  */
 async function runWeeklySummaryForTz(
   db: MySql2Database<typeof schema>,
   tz: string,
 ): Promise<{ total: number; queued: number }> {
+  let total = 0;
+  let queued = 0;
+
+  await forEachActiveTenant(
+    db,
+    log,
+    "notification-weekly-summary",
+    async (ctx) => {
+      const r = await runWeeklySummaryForTenantTz(db, ctx, tz);
+      total += r.total;
+      queued += r.queued;
+    },
+  );
+
+  return { total, queued };
+}
+
+/**
+ * Queue weekly summary notifications for onboarded members in the given
+ * branch timezone, for a single gym (tenant).
+ */
+async function runWeeklySummaryForTenantTz(
+  db: MySql2Database<typeof schema>,
+  ctx: TenantContext,
+  tz: string,
+): Promise<{ total: number; queued: number }> {
+  log.info({ tenantId: ctx.tenantId, tz }, "Resumen semanal para un gimnasio");
+
   const notificationService = new NotificationService(db, log);
 
   const members = await db
@@ -271,24 +372,308 @@ export async function runPlanRenewalWarnings(
   return totalQueued;
 }
 
+/**
+ * Un tick de la cola de notificaciones para UN gimnasio: inicializa Firebase,
+ * despacha lo pendiente y purga lo viejo (D-11).
+ */
+async function runNotificationQueueTickForTenant(
+  db: MySql2Database<typeof schema>,
+  ctx: TenantContext,
+): Promise<{ sent: number; failed: number; purged: number }> {
+  const tenantId = ctx.tenantId;
+  const notificationService = new NotificationService(db, log);
+
+  await notificationService.initFirebase();
+  const result = await notificationService.processQueue();
+  if (result.sent > 0 || result.failed > 0) {
+    log.info({ tenantId, ...result }, "Notification queue processed");
+  }
+
+  // Purge old sent/failed notifications (per D-11)
+  const purged = await notificationService.purgeOldNotifications();
+  if (purged > 0) {
+    log.info({ tenantId, purged }, "Old notifications purged");
+  }
+
+  return { sent: result.sent, failed: result.failed, purged };
+}
+
+/**
+ * Procesa la cola una vez para TODOS los gimnasios activos. Extraída del cuerpo
+ * del `cron.schedule` en la fase 169 (antes era intesteable) y expuesta con el
+ * idioma `runX(db)` de `expire-lost-leads`.
+ */
+export async function runNotificationQueueTick(
+  db: MySql2Database<typeof schema>,
+): Promise<{ sent: number; failed: number; purged: number }> {
+  let sent = 0;
+  let failed = 0;
+  let purged = 0;
+
+  await forEachActiveTenant(db, log, "notification-queue", async (ctx) => {
+    const r = await runNotificationQueueTickForTenant(db, ctx);
+    sent += r.sent;
+    failed += r.failed;
+    purged += r.purged;
+  });
+
+  return { sent, failed, purged };
+}
+
+/**
+ * Recálculo batch de segmentos para UN gimnasio, con la detección de
+ * transiciones, el re-intento mensual de "ausente" (D-10), el aviso de
+ * renovación de programas (D-08/D-16) y el de renovación de planes
+ * (D-02/D-03/D-05).
+ *
+ * El `try/catch` externo que tenía el cuerpo dentro del `cron.schedule` NO se
+ * replica acá: ese rol lo cumple ahora el catch POR ITERACIÓN de
+ * `forEachActiveTenant` (D-03), que además loguea el `tenantId` y sigue con el
+ * gimnasio siguiente. Los `try/catch` por perfil y por bloque de renovación
+ * quedan intactos.
+ */
+async function runBatchSegmentRecalculationForTenant(
+  db: MySql2Database<typeof schema>,
+  ctx: TenantContext,
+): Promise<{
+  transitionsFound: number;
+  notificationsQueued: number;
+  ghostReattempts: number;
+}> {
+  const tenantId = ctx.tenantId;
+  const notificationService = new NotificationService(db, log);
+  const segmentationService = new SegmentationService(db, log);
+
+  // Fetch ALL member profiles with their current segment
+  const profiles = await db
+    .select({
+      userId: s.memberProfiles.userId,
+      segment: s.memberProfiles.segment,
+      ghostReattemptCount: s.memberProfiles.ghostReattemptCount,
+      lastGhostReattemptAt: s.memberProfiles.lastGhostReattemptAt,
+    })
+    .from(s.memberProfiles)
+    .where(isNotNull(s.memberProfiles.onboardingCompletedAt));
+
+  let transitionsFound = 0;
+  let notificationsQueued = 0;
+  let ghostReattempts = 0;
+
+  for (const profile of profiles) {
+    try {
+      const oldSegment = profile.segment as MemberSegment | null;
+
+      // Calculate new Attendance label (bypass cooldown by calling
+      // calculateSegment directly). Returns null for <1 month tenure or
+      // members without an active plan (D-07/D-08) — persisting null is
+      // valid and simply means "no label".
+      const newSegment = await segmentationService.calculateSegment(
+        profile.userId,
+      );
+
+      // Persist the new segment
+      await db
+        .update(s.memberProfiles)
+        .set({
+          segment: newSegment,
+          segmentUpdatedAt: new Date(),
+        })
+        .where(eq(s.memberProfiles.userId, profile.userId));
+
+      // Check for transition
+      if (oldSegment !== newSegment) {
+        transitionsFound++;
+
+        const templateKey = getTransitionTemplateKey(oldSegment, newSegment);
+        if (templateKey) {
+          try {
+            await notificationService.queueNotification({
+              userId: profile.userId,
+              templateKey,
+            });
+            notificationsQueued++;
+          } catch (queueErr: unknown) {
+            const qMsg =
+              queueErr instanceof Error ? queueErr.message : "Unknown error";
+            log.warn(
+              { err: qMsg, userId: profile.userId, templateKey },
+              "Failed to queue segment transition notification",
+            );
+          }
+        }
+      }
+
+      // Monthly re-attempt for members who stay Ausente (per D-10).
+      // Reuses ghost_reattempt_count / last_ghost_reattempt_at and the
+      // ghost_monthly_reattempt template unchanged.
+      if (
+        newSegment === "ausente" &&
+        oldSegment === "ausente" // No transition — member was already ausente
+      ) {
+        const reattemptCount = profile.ghostReattemptCount ?? 0;
+        const lastReattempt = profile.lastGhostReattemptAt;
+
+        const isEligible =
+          reattemptCount < 3 &&
+          (lastReattempt === null ||
+            Date.now() - lastReattempt.getTime() >= THIRTY_DAYS_MS);
+
+        if (isEligible) {
+          try {
+            await notificationService.queueNotification({
+              userId: profile.userId,
+              templateKey: "ghost_monthly_reattempt",
+            });
+
+            // Update ghost reattempt tracking
+            await db
+              .update(s.memberProfiles)
+              .set({
+                ghostReattemptCount: reattemptCount + 1,
+                lastGhostReattemptAt: new Date(),
+              })
+              .where(eq(s.memberProfiles.userId, profile.userId));
+
+            ghostReattempts++;
+          } catch (ghostErr: unknown) {
+            const gMsg =
+              ghostErr instanceof Error ? ghostErr.message : "Unknown error";
+            log.warn(
+              { err: gMsg, userId: profile.userId },
+              "Failed to queue ghost re-attempt notification",
+            );
+          }
+        }
+      }
+    } catch (memberErr: unknown) {
+      const mMsg =
+        memberErr instanceof Error ? memberErr.message : "Unknown error";
+      log.warn(
+        { err: mMsg, userId: profile.userId },
+        "Segment recalc failed for member",
+      );
+    }
+  }
+
+  // `tenantId` como CAMPO ESTRUCTURADO, jamás interpolado en el mensaje.
+  log.info(
+    {
+      tenantId,
+      totalProcessed: profiles.length,
+      transitionsFound,
+      notificationsQueued,
+      ghostReattempts,
+    },
+    "Batch segment recalculation complete",
+  );
+
+  // ── Program Renewal Warning (per D-08, D-16) ──
+  // Check for active enrollments expiring in 7 days
+  try {
+    const sevenDaysFromNow = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const sixDaysFromNow = new Date(Date.now() + 6 * 24 * 60 * 60 * 1000);
+
+    // enrolledAt + (durationWeeks * 7 days) = expiryDate
+    // We want expiryDate to be ~7 days from now (check within a 1-day window)
+    const renewalEnrollments = await db
+      .select({
+        userId: s.programEnrollments.userId,
+        enrollmentId: s.programEnrollments.id,
+      })
+      .from(s.programEnrollments)
+      .innerJoin(s.programs, eq(s.programEnrollments.programId, s.programs.id))
+      .where(
+        and(
+          eq(s.programEnrollments.status, "active"),
+          sql`DATE_ADD(${s.programEnrollments.enrolledAt}, INTERVAL ${s.programs.durationWeeks} * 7 DAY) BETWEEN ${sixDaysFromNow} AND ${sevenDaysFromNow}`,
+        ),
+      );
+
+    let renewalWarnings = 0;
+    for (const enrollment of renewalEnrollments) {
+      try {
+        await notificationService.queueNotification({
+          userId: enrollment.userId,
+          templateKey: "program_renewal_warning",
+        });
+        renewalWarnings++;
+      } catch (renewErr: unknown) {
+        const rMsg =
+          renewErr instanceof Error ? renewErr.message : "Unknown error";
+        log.warn(
+          { err: rMsg, userId: enrollment.userId },
+          "Failed to queue renewal warning notification",
+        );
+      }
+    }
+
+    if (renewalWarnings > 0) {
+      log.info({ renewalWarnings }, "Program renewal warnings queued");
+    }
+  } catch (renewalErr: unknown) {
+    const rMsg =
+      renewalErr instanceof Error ? renewalErr.message : "Unknown error";
+    log.error({ err: rMsg, tenantId }, "Program renewal warning check failed");
+  }
+
+  // ── Plan Renewal Warning (per D-02, D-03, D-05) ──
+  // Enqueue a "Planes" push at 7d / 3d / expiry-day before the member's
+  // covered-until, suppressing anyone who already renewed (D-05).
+  // `runPlanRenewalWarnings` se llama DESDE ACÁ, o sea desde el cuerpo
+  // por tenant: ya corre una vez por gimnasio activo y por eso NO lleva
+  // su propio `forEachActiveTenant`. Agregarle uno anidaría dos barridos
+  // y la haría correr N² veces.
+  try {
+    await runPlanRenewalWarnings(db, notificationService);
+  } catch (planErr: unknown) {
+    const pMsg = planErr instanceof Error ? planErr.message : "Unknown error";
+    log.error({ err: pMsg, tenantId }, "Plan renewal warning check failed");
+  }
+
+  return { transitionsFound, notificationsQueued, ghostReattempts };
+}
+
+/**
+ * Recálculo batch de segmentos para TODOS los gimnasios activos. Extraída del
+ * cuerpo del `cron.schedule` en la fase 169 (antes era intesteable) y expuesta
+ * con el idioma `runX(db)` de `expire-lost-leads`.
+ */
+export async function runBatchSegmentRecalculation(
+  db: MySql2Database<typeof schema>,
+): Promise<{
+  transitionsFound: number;
+  notificationsQueued: number;
+  ghostReattempts: number;
+}> {
+  let transitionsFound = 0;
+  let notificationsQueued = 0;
+  let ghostReattempts = 0;
+
+  await forEachActiveTenant(db, log, "notification-segments", async (ctx) => {
+    const r = await runBatchSegmentRecalculationForTenant(db, ctx);
+    transitionsFound += r.transitionsFound;
+    notificationsQueued += r.notificationsQueued;
+    ghostReattempts += r.ghostReattempts;
+  });
+
+  return { transitionsFound, notificationsQueued, ghostReattempts };
+}
+
 export async function startNotificationJobs(
   db: MySql2Database<typeof schema>,
 ): Promise<void> {
   // ── 1. Queue Processor — every 15 minutes (per D-10) ─────────────────
+  //
+  // Los cuatro callbacks de acá abajo no tienen lógica de negocio: llaman a su
+  // función pura y contienen el error. Los schedules 1 y 2 NO loguean un total
+  // agregado, igual que antes de la fase 169: sus contadores ya se loguean
+  // adentro del cuerpo POR GIMNASIO (con `tenantId`), y repetirlos acá sería la
+  // misma línea sin atribución de tenant (mismo criterio que el summary de
+  // `wellhub-sync`, deviation 1 del plan 169-02). Los schedules 3 y 4 sí
+  // conservan su log agregado por timezone, porque ya lo tenían.
   cron.schedule("*/15 * * * *", async () => {
-    const notificationService = new NotificationService(db, log);
     try {
-      await notificationService.initFirebase();
-      const result = await notificationService.processQueue();
-      if (result.sent > 0 || result.failed > 0) {
-        log.info(result, "Notification queue processed");
-      }
-
-      // Purge old sent/failed notifications (per D-11)
-      const purged = await notificationService.purgeOldNotifications();
-      if (purged > 0) {
-        log.info({ purged }, "Old notifications purged");
-      }
+      await runNotificationQueueTick(db);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Unknown error";
       log.error({ err: message }, "Queue processor cron failed");
@@ -299,202 +684,8 @@ export async function startNotificationJobs(
   cron.schedule(
     "0 3 * * *",
     async () => {
-      const notificationService = new NotificationService(db, log);
-      const segmentationService = new SegmentationService(db, log);
-
       try {
-        // Fetch ALL member profiles with their current segment
-        const profiles = await db
-          .select({
-            userId: s.memberProfiles.userId,
-            segment: s.memberProfiles.segment,
-            ghostReattemptCount: s.memberProfiles.ghostReattemptCount,
-            lastGhostReattemptAt: s.memberProfiles.lastGhostReattemptAt,
-          })
-          .from(s.memberProfiles)
-          .where(isNotNull(s.memberProfiles.onboardingCompletedAt));
-
-        let transitionsFound = 0;
-        let notificationsQueued = 0;
-        let ghostReattempts = 0;
-
-        for (const profile of profiles) {
-          try {
-            const oldSegment = profile.segment as MemberSegment | null;
-
-            // Calculate new Attendance label (bypass cooldown by calling
-            // calculateSegment directly). Returns null for <1 month tenure or
-            // members without an active plan (D-07/D-08) — persisting null is
-            // valid and simply means "no label".
-            const newSegment = await segmentationService.calculateSegment(
-              profile.userId,
-            );
-
-            // Persist the new segment
-            await db
-              .update(s.memberProfiles)
-              .set({
-                segment: newSegment,
-                segmentUpdatedAt: new Date(),
-              })
-              .where(eq(s.memberProfiles.userId, profile.userId));
-
-            // Check for transition
-            if (oldSegment !== newSegment) {
-              transitionsFound++;
-
-              const templateKey = getTransitionTemplateKey(
-                oldSegment,
-                newSegment,
-              );
-              if (templateKey) {
-                try {
-                  await notificationService.queueNotification({
-                    userId: profile.userId,
-                    templateKey,
-                  });
-                  notificationsQueued++;
-                } catch (queueErr: unknown) {
-                  const qMsg =
-                    queueErr instanceof Error
-                      ? queueErr.message
-                      : "Unknown error";
-                  log.warn(
-                    { err: qMsg, userId: profile.userId, templateKey },
-                    "Failed to queue segment transition notification",
-                  );
-                }
-              }
-            }
-
-            // Monthly re-attempt for members who stay Ausente (per D-10).
-            // Reuses ghost_reattempt_count / last_ghost_reattempt_at and the
-            // ghost_monthly_reattempt template unchanged.
-            if (
-              newSegment === "ausente" &&
-              oldSegment === "ausente" // No transition — member was already ausente
-            ) {
-              const reattemptCount = profile.ghostReattemptCount ?? 0;
-              const lastReattempt = profile.lastGhostReattemptAt;
-
-              const isEligible =
-                reattemptCount < 3 &&
-                (lastReattempt === null ||
-                  Date.now() - lastReattempt.getTime() >= THIRTY_DAYS_MS);
-
-              if (isEligible) {
-                try {
-                  await notificationService.queueNotification({
-                    userId: profile.userId,
-                    templateKey: "ghost_monthly_reattempt",
-                  });
-
-                  // Update ghost reattempt tracking
-                  await db
-                    .update(s.memberProfiles)
-                    .set({
-                      ghostReattemptCount: reattemptCount + 1,
-                      lastGhostReattemptAt: new Date(),
-                    })
-                    .where(eq(s.memberProfiles.userId, profile.userId));
-
-                  ghostReattempts++;
-                } catch (ghostErr: unknown) {
-                  const gMsg =
-                    ghostErr instanceof Error
-                      ? ghostErr.message
-                      : "Unknown error";
-                  log.warn(
-                    { err: gMsg, userId: profile.userId },
-                    "Failed to queue ghost re-attempt notification",
-                  );
-                }
-              }
-            }
-          } catch (memberErr: unknown) {
-            const mMsg =
-              memberErr instanceof Error ? memberErr.message : "Unknown error";
-            log.warn(
-              { err: mMsg, userId: profile.userId },
-              "Segment recalc failed for member",
-            );
-          }
-        }
-
-        log.info(
-          {
-            totalProcessed: profiles.length,
-            transitionsFound,
-            notificationsQueued,
-            ghostReattempts,
-          },
-          "Batch segment recalculation complete",
-        );
-
-        // ── Program Renewal Warning (per D-08, D-16) ──
-        // Check for active enrollments expiring in 7 days
-        try {
-          const sevenDaysFromNow = new Date(
-            Date.now() + 7 * 24 * 60 * 60 * 1000,
-          );
-          const sixDaysFromNow = new Date(Date.now() + 6 * 24 * 60 * 60 * 1000);
-
-          // enrolledAt + (durationWeeks * 7 days) = expiryDate
-          // We want expiryDate to be ~7 days from now (check within a 1-day window)
-          const renewalEnrollments = await db
-            .select({
-              userId: s.programEnrollments.userId,
-              enrollmentId: s.programEnrollments.id,
-            })
-            .from(s.programEnrollments)
-            .innerJoin(
-              s.programs,
-              eq(s.programEnrollments.programId, s.programs.id),
-            )
-            .where(
-              and(
-                eq(s.programEnrollments.status, "active"),
-                sql`DATE_ADD(${s.programEnrollments.enrolledAt}, INTERVAL ${s.programs.durationWeeks} * 7 DAY) BETWEEN ${sixDaysFromNow} AND ${sevenDaysFromNow}`,
-              ),
-            );
-
-          let renewalWarnings = 0;
-          for (const enrollment of renewalEnrollments) {
-            try {
-              await notificationService.queueNotification({
-                userId: enrollment.userId,
-                templateKey: "program_renewal_warning",
-              });
-              renewalWarnings++;
-            } catch (renewErr: unknown) {
-              const rMsg =
-                renewErr instanceof Error ? renewErr.message : "Unknown error";
-              log.warn(
-                { err: rMsg, userId: enrollment.userId },
-                "Failed to queue renewal warning notification",
-              );
-            }
-          }
-
-          if (renewalWarnings > 0) {
-            log.info({ renewalWarnings }, "Program renewal warnings queued");
-          }
-        } catch (renewalErr: unknown) {
-          const rMsg =
-            renewalErr instanceof Error ? renewalErr.message : "Unknown error";
-          log.error({ err: rMsg }, "Program renewal warning check failed");
-        }
-
-        // ── Plan Renewal Warning (per D-02, D-03, D-05) ──
-        // Enqueue a "Planes" push at 7d / 3d / expiry-day before the member's
-        // covered-until, suppressing anyone who already renewed (D-05).
-        try {
-          await runPlanRenewalWarnings(db, notificationService);
-        } catch (planErr: unknown) {
-          const pMsg =
-            planErr instanceof Error ? planErr.message : "Unknown error";
-          log.error({ err: pMsg }, "Plan renewal warning check failed");
-        }
+        await runBatchSegmentRecalculation(db);
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : "Unknown error";
         log.error({ err: message }, "Batch segment recalculation cron failed");
@@ -550,7 +741,17 @@ export async function startNotificationJobs(
   }
 
   // ── 5. Auto-seed templates on startup ────────────────────────────────
+  //
+  // ÚNICA EXCEPCIÓN al barrido por tenant de este archivo (fase 169, D-01/D-02).
+  // `notification_templates` es gym-owned (CON-01) y su unique ya es COMPUESTA
+  // `(tenant_id, template_key)` desde la 168, pero `seedTemplates()` sigue
+  // insertando GLOBAL: no recibe contexto y estampa el DEFAULT 1. Envolverlo en
+  // `forEachActiveTenant` no sembraría los templates de cada gimnasio — correría
+  // el MISMO insert global una vez por gimnasio activo, DUPLICANDO las filas del
+  // tenant 1. Por eso queda deliberadamente fuera del sweep hasta que el service
+  // reciba el `TenantContext` en la adopción del módulo notifications (fase 175).
   const seedService = new NotificationService(db, log);
+  /* tenant-safe: seed de templates global hasta la adopción de notifications (fase 175) */
   seedService.seedTemplates().catch((err: unknown) => {
     const message = err instanceof Error ? err.message : "Unknown error";
     log.error({ err: message }, "Template seed failed");

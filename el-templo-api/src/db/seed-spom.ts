@@ -1,3 +1,10 @@
+/* tenant-safe: provisioning local/de test: construye la base desde cero, incluido el tenant 1 */
+// Exención de la regla `--tenant` obligatorio de los scripts CLI (fase 169,
+// CON-04/D-06 — ver `src/db/scripts/require-tenant.ts`). El motivo es
+// obligatorio y va escrito arriba: una exención sin motivo es indistinguible de
+// un olvido (T-169-36). La anotación la LEEN el sentinel y el lint de CI de la
+// fase 170; esta fase sólo la siembra.
+
 import "dotenv/config";
 import { parse } from "csv-parse";
 import fs from "fs";

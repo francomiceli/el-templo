@@ -22,6 +22,10 @@ import {
   CashRegisterService,
 } from "../modules/finance";
 import { EnrollmentService } from "../modules/programs/enrollment-service";
+import {
+  forEachActiveTenant,
+  type TenantContext,
+} from "../modules/shared/tenant";
 
 const log = pino({ name: "mark-no-shows" });
 
@@ -72,15 +76,71 @@ async function getDistinctBranchTimezones(
 }
 
 /**
- * Mark no-shows for bookings belonging to branches in the given timezone.
- * "Today" is computed in that timezone so BCN and AR each honour their own
- * day boundary — a BCN booking from Monday Madrid isn't prematurely marked
- * no-show at 22:00 AR on Monday (which is already Tuesday in Madrid).
+ * Fase 169 (CON-04, D-01) — BARRIDO POR TENANT ACTIVO, DIMENSIÓN TENANT × TZ
+ * --------------------------------------------------------------------------
+ * Este es el ÚNICO de los 7 crons con dos dimensiones, y el sweep de tenant va
+ * POR FUERA del de timezone (o sea: acá, y no dentro de `runMarkNoShows`). Dos
+ * razones:
+ *
+ *   1. Cobertura: `startMarkNoShowsJob` programa un `cron.schedule` POR TZ y
+ *      llama derecho a `runMarkNoShowsForTz` — el camino real de producción no
+ *      pasa por `runMarkNoShows`. Envolviendo acá, los dos caminos quedan
+ *      cubiertos con UNA sola implementación del sweep.
+ *   2. Anidamiento correcto para lo que viene: la lista de timezones se
+ *      descubre de `branches`, que HOY es una consulta global. Cuando `branches`
+ *      se scopee por tenant (fase 173), la dimensión de tz pasa a DEPENDER del
+ *      gimnasio; con el tenant por fuera, ese cambio es local (mover el
+ *      descubrimiento de tz adentro del loop) y no da vuelta el archivo.
+ *
+ * `forEachActiveTenant` resuelve la lista de `tenants` en cada corrida y aísla
+ * los errores POR ITERACIÓN (D-03): un gimnasio roto no frena a los demás.
+ *
+ * D-02: el `ctx` NO baja a los services (el `SubscriptionService` que arma el
+ * cuerpo mantiene su firma hasta 172-175). Con un solo tenant activo el
+ * resultado es IDÉNTICO al de hoy.
+ *
+ * VENCIMIENTO: mientras el cuerpo siga siendo global, más de un tenant activo
+ * repetiría el MISMO barrido N veces. Por eso el gate del MILESTONE es que el
+ * tenant 2 no se onboardea hasta que la batería ISO-03 (fase 171) esté verde.
+ *
+ * La firma `(db, tz)` y el tipo de retorno no cambiaron.
  */
 async function runMarkNoShowsForTz(
   db: MySql2Database<typeof schema>,
   tz: string,
 ): Promise<{ updated: number; decremented: number }> {
+  let updated = 0;
+  let decremented = 0;
+
+  await forEachActiveTenant(db, log, "mark-no-shows", async (ctx) => {
+    const r = await runMarkNoShowsForTenantTz(db, ctx, tz);
+    updated += r.updated;
+    decremented += r.decremented;
+  });
+
+  return { updated, decremented };
+}
+
+/**
+ * Mark no-shows for bookings belonging to branches in the given timezone, for a
+ * single gym (tenant). "Today" is computed in that timezone so BCN and AR each
+ * honour their own day boundary — a BCN booking from Monday Madrid isn't
+ * prematurely marked no-show at 22:00 AR on Monday (which is already Tuesday in
+ * Madrid).
+ */
+async function runMarkNoShowsForTenantTz(
+  db: MySql2Database<typeof schema>,
+  ctx: TenantContext,
+  tz: string,
+): Promise<{ updated: number; decremented: number }> {
+  // Una línea por vuelta del barrido, con `tenantId` como CAMPO ESTRUCTURADO
+  // (jamás interpolado en el mensaje). Va a la ENTRADA y no a la salida porque
+  // el cuerpo tiene un early return: así el statement no se duplica.
+  log.info(
+    { tenantId: ctx.tenantId, tz },
+    "Barrido de no-shows para un gimnasio",
+  );
+
   const today = todayInTz(tz);
 
   // Resolve `is_special` per booking (schedules → activities) so the decrement

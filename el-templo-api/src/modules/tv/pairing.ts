@@ -26,6 +26,17 @@
  * mal configurado pollea cada 3 s y llenaria Sentry en una tarde.
  *
  * DI por constructor (convencion fase 56).
+ *
+ * TENANCY (fase 169, CON-04). Este archivo tiene los tres unicos puntos de
+ * escritura del pairing y cada uno recibe un tratamiento DISTINTO, a proposito:
+ *
+ *   - `start()`  → EXENTO y anotado. La fila nace antes de que exista un dueño.
+ *   - `claim()`  → ESTAMPA el gimnasio del scope del STAFF que reclama.
+ *   - `consume()`→ ESTAMPA `tv_devices` con el gimnasio de la fila ya reclamada.
+ *
+ * Es la unica excepcion legitima de todo el milestone v6.0, y esta escrita
+ * arriba de cada metodo con su motivo para que el sentinel de la fase 170 no la
+ * confunda con un olvido.
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
@@ -34,6 +45,7 @@ import type { FastifyBaseLogger } from "fastify";
 import { createHash, randomBytes, randomInt } from "node:crypto";
 import * as schema from "../../db/schema";
 import { ConflictError, NotFoundError } from "../shared/errors";
+import { tenantValues, type TenantContext } from "../shared/tenant";
 import { TV_USER_CODE_ALPHABET, TV_USER_CODE_LENGTH } from "./schemas";
 
 /** Intentos maximos ante colision del UNIQUE de `user_code`. */
@@ -102,6 +114,25 @@ export class TvPairingService {
    * Reintenta ante colision del UNIQUE (el espacio es de 1.07e9, asi que en la
    * practica no ocurre; el retry existe para no romperle la pantalla a una sede
    * por un choque cosmico).
+   *
+   * EXENCION DE TENANCY (fase 169, CON-04) — `tenant-safe: pairing pre-claim`
+   * ------------------------------------------------------------------------
+   * Este INSERT es la UNICA escritura sobre una tabla gym-owned que la fase 169
+   * deja deliberadamente sin estampar el gimnasio, y no es un olvido: la fila
+   * nace ANTES de que se sepa de quien es el televisor. El TV arranca sin
+   * credenciales y sin sede (`branch_id` es nulo hasta el claim, D-01), asi que
+   * no hay ningun scope del cual sacar el dueño. Estampar algo aca seria
+   * INVENTARLO, y un dueño inventado es peor que la columna en su DEFAULT: el
+   * claim lo pisa con el gimnasio real un instante despues.
+   *
+   * Consecuencia permanente: los dos codigos de la fila (`user_code` y
+   * `device_code_hash`) quedan UNIQUE GLOBALES para siempre, porque el claim y
+   * el poll tienen que resolverlos SIN scope. Los motivos formales estan
+   * registrados en `TENANT_GLOBAL_UNIQUES` (`src/db/tenant-tables.ts:249-252`,
+   * lista M8 aprobada) — no se repiten aca para que exista una sola fuente.
+   *
+   * La ventana sin dueño la cierran `claim()` (que estampa) y el `consume()`
+   * (que propaga a `tv_devices`). Ver los docblocks de esos dos metodos.
    */
   async start(): Promise<{ userCode: string; deviceCode: string }> {
     const deviceCode = this.generateSecret();
@@ -111,7 +142,7 @@ export class TvPairingService {
       const userCode = this.generateUserCode();
       try {
         await this.db
-          .insert(schema.tvPairings)
+          .insert(schema.tvPairings) /* tenant-safe: pairing pre-claim */
           .values({ userCode, deviceCodeHash });
         return { userCode, deviceCode };
       } catch (err: unknown) {
@@ -135,8 +166,23 @@ export class TvPairingService {
    * personas mandan el mismo codigo a la vez, MySQL le da la fila a una sola y
    * la otra ve `affectedRows = 0` (T-164-10). El `SELECT` posterior corre SOLO
    * para elegir el mensaje de error (404 vs 409), nunca para decidir el update.
+   *
+   * TENANCY (fase 169, CON-04). Este es el momento exacto en que el sistema
+   * APRENDE de quien es el televisor, asi que aca se cierra la exencion de
+   * `start()`: el `.set()` pasa por `tenantValues` y estampa el gimnasio del
+   * scope del STAFF que reclama. El `ctx` va PRIMERO en la firma a proposito —
+   * agregarlo al final habria dejado que un call site viejo compilara con los
+   * argumentos corridos; asi, `tsc` obliga a mirar cada uno.
+   *
+   * De donde sale el gimnasio: de `assertTenant(request.scope, …)` en
+   * `control-routes.ts`, nunca del body (regla dura del milestone). El
+   * `requireBranchAccess({ from: "body.branchId" })` de esa misma ruta ya
+   * garantizo, ANTES de llegar aca, que la sede elegida esta dentro del scope
+   * de quien reclama. El invariante `user.tenant_id === branch.tenant_id` lo
+   * enforcea la fase 173 (ADO-07).
    */
   async claim(
+    ctx: TenantContext,
     userCode: string,
     branchId: number,
     claimedBy: number,
@@ -144,12 +190,19 @@ export class TvPairingService {
   ): Promise<void> {
     const result = await this.db
       .update(schema.tvPairings)
-      .set({
-        claimedAt: new Date(),
-        claimedBy,
-        branchId,
-        deviceName: name ?? null,
-      })
+      .set(
+        tenantValues(ctx, {
+          claimedAt: new Date(),
+          claimedBy,
+          branchId,
+          deviceName: name ?? null,
+        }),
+      )
+      // OJO: el WHERE NO lleva `tenantWhere` y no debe llevarlo nunca. El
+      // `user_code` es GLOBAL por diseño (mina M7) y el claim es justamente la
+      // operacion que DESCUBRE el tenant: filtrar por un gimnasio que la fila
+      // todavia no declara dejaria el pairing imposible de reclamar. "Falta el
+      // filtro de tenant" es, en este unico WHERE, la respuesta correcta.
       .where(
         and(
           eq(schema.tvPairings.userCode, userCode),
@@ -191,11 +244,20 @@ export class TvPairingService {
    * exactamente una vez: el `UPDATE ... WHERE device_id IS NULL` sella el
    * pairing. Si dos polls se pisan, el perdedor borra el device que acababa de
    * crear y ve `consumed` — nunca dos tokens vivos para un mismo pairing.
+   *
+   * TENANCY (fase 169, CON-04). `tv_devices` tambien es gym-owned, y este
+   * INSERT no tiene scope de request: el televisor pollea SIN sesion. El
+   * gimnasio sale entonces de la fila de pairing YA RECLAMADA —el `claim()` lo
+   * estampo con el scope del staff— y no de un DEFAULT ni de nada que mande el
+   * TV. Por eso el `select` de abajo trae `tenantId`.
    */
   async consume(deviceCode: string): Promise<TvPairingStatus> {
     const [pairing] = await this.db
       .select({
         id: schema.tvPairings.id,
+        // Fase 169: el dueño del dispositivo que se va a crear. `tenant_id` es
+        // NOT NULL desde la 167, asi que llega `number` y no necesita narrowing.
+        tenantId: schema.tvPairings.tenantId,
         branchId: schema.tvPairings.branchId,
         deviceName: schema.tvPairings.deviceName,
         claimedAt: schema.tvPairings.claimedAt,
@@ -230,12 +292,19 @@ export class TvPairingService {
     const deviceToken = this.generateSecret();
     const [inserted] = await this.db
       .insert(schema.tvDevices)
-      .values({
-        branchId,
-        tokenHash: this.hash(deviceToken),
-        name: pairing.deviceName,
-        pairedBy: pairing.claimedBy,
-      })
+      // El gimnasio viene de la fila de pairing reclamada, NO de un scope de
+      // request: el TV pollea sin sesion. Ver el docblock del metodo.
+      .values(
+        tenantValues(
+          { tenantId: pairing.tenantId },
+          {
+            branchId,
+            tokenHash: this.hash(deviceToken),
+            name: pairing.deviceName,
+            pairedBy: pairing.claimedBy,
+          },
+        ),
+      )
       .$returningId();
 
     const sealed = await this.db
