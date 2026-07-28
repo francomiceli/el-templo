@@ -4372,7 +4372,7 @@ _v5.7 (Actividades con Aura) added: 2026-07-14 — 2 phases (161-162), 14 requir
 - [x] **Phase 166: Fundación — `tenants`, anclas y scope server-side** — tablas `tenants`/`tenant_settings` + seed El Templo `id=1`, `tenant_id NOT NULL` en las dos anclas (`users`, `branches`), y `attachCountryScope` → `attachScope` resolviendo `scope.tenantId` con enforcement de `tenants.status` (suspended/archived → 403). (completed 2026-07-27)
 - [x] **Phase 167: Columnas — `tenant_id` en las 85 tablas restantes + verificación** — tanda C agrupada por dominio (nullable → backfill `=1` → NOT NULL → FK) sobre las 46 CORE + 42 TEMPLO-MODULO menos anclas, con `system_settings` y `labs_inquiries` excluidas, más el script versionado que verifica el backfill contra las cadenas de FK del inventario. **(7/7 planes ejecutados 2026-07-27; migs 0192-0195 en staging y prod, verificador COL-02 en 0 discrepancias en las dos bases; pendiente `/gsd:verify-phase 167` + smoke por UI)** (completed 2026-07-27)
 - [x] **Phase 168: Contratos SQL — uniques compuestas e índices por `tenant_id`** — tanda D: conversión de las uniques globales a `(tenant_id, …)` según doc 06 §1-D (incluida la obligatoria `campaign_unsubscribes`), lista M8 explícitamente global, e índice con prefijo `tenant_id` en toda tabla gym-owned. (completed 2026-07-27)
-- [ ] **Phase 169: Capa de escritura — helpers `tenantWhere`/`tenantValues` y `TenantContext`** — una sola API para request y caminos sin request (crons por tenant activo, webhook Wellhub por `branches.wellhub_gym_id`, CLI con tenant obligatorio, `tv_pairings` pre-claim exento y anotado).
+- [x] **Phase 169: Capa de escritura — helpers `tenantWhere`/`tenantValues` y `TenantContext`** — una sola API para request y caminos sin request (crons por tenant activo, webhook Wellhub por `branches.wellhub_gym_id`, CLI con tenant obligatorio, `tv_pairings` pre-claim exento y anotado). (completed 2026-07-28)
 - [ ] **Phase 170: Detección automática — sentinel de pool mysql2 + lint en CI** — interceptor a nivel pool que detecta SQL sobre tabla gym-owned sin `tenant_id` (throw en test/dev para módulos migrados, `log.error` + métrica en prod) y lint estático con allowlist decreciente que rompe el build ante accesos nuevos sin scope ni anotación.
 - [ ] **Phase 171: Backstop — manifiesto de rutas fail-closed y fixtures 2-tenant** — `test/tenant-manifest.ts` clasificando el 100% de las rutas + hook `onRoute` que deja en rojo cualquier ruta nueva sin clasificar, y fixtures/helpers que siembran dos tenants con staff y socios propios.
 - [ ] **Phase 172: Adopción 1 (piloto) — `finance`** — services de finanzas reciben scope, todo WHERE/INSERT por helpers, sentinel en throw para sus tablas y primera batería de aislamiento verde (patrón reutilizable por las fases siguientes), con cobros/caja/deudas dando los mismos números que hoy.
@@ -4527,7 +4527,7 @@ Plans:
 4. El webhook de Wellhub deriva el tenant vía `payload.gym.id` → `branches.wellhub_gym_id` → `branches.tenant_id` y **falla cerrado** (log + rechazo, sin auto-crear nada) cuando el gym id no mapea; los scripts CLI exigen el tenant como argumento explícito y abortan sin él. (CON-04)
 5. La excepción legítima de `tv_pairings` pre-claim queda anotada `/* tenant-safe: pairing pre-claim */` y el claim con scope de staff estampa el `tenant_id` (test del ciclo completo). (CON-04)
 
-**Plans:** 8/9 plans executed
+**Plans:** 9/9 plans complete
 
 Plans:
 
@@ -4570,7 +4570,7 @@ además al predecesor inmediato como dependencia operativa.
 
 **Wave 9** _(blocked on Wave 8 completion)_
 
-- [ ] 169-09-PLAN.md — Gate consolidado (typecheck, gate de `any` explícito, 11 archivos de test, inventario de exenciones, mapa criterio→prueba) + checkpoint humano de rollout staging-first
+- [x] 169-09-PLAN.md — Gate consolidado (typecheck, gate de `any` explícito, 11 archivos de test, inventario de exenciones, mapa criterio→prueba) + checkpoint humano de rollout staging-first
 
 ### Phase 170: Detección automática — sentinel de pool mysql2 + lint en CI
 
@@ -4698,7 +4698,7 @@ además al predecesor inmediato como dependencia operativa.
 | 166. Fundación — tenants, anclas y scope          | 6/6            | Complete    | 2026-07-27 |
 | 167. Columnas — tenant_id en 85 tablas            | 7/7            | Complete    | 2026-07-27 |
 | 168. Contratos SQL — uniques compuestas e índices | 6/6            | Complete    | 2026-07-27 |
-| 169. Capa de escritura — helpers y TenantContext  | 8/9            | In Progress |            |
+| 169. Capa de escritura — helpers y TenantContext  | 9/9            | Complete    | 2026-07-28 |
 | 170. Detección — sentinel de pool + lint CI       | 0/?            | Not started |            |
 | 171. Backstop — manifiesto + fixtures 2-tenant    | 0/?            | Not started |            |
 | 172. Adopción 1 (piloto) — finance                | 0/?            | Not started |            |
