@@ -77,7 +77,9 @@ export const tvDevices = mysqlTable(
  */
 export const tvPairings = mysqlTable("tv_pairings", {
   id: int("id").primaryKey().autoincrement(),
-  // Mina M7: esta tabla es PRE-TENANT por diseno — la fila nace antes de que se sepa de quien es el televisor (branch_id nulo hasta el claim), asi que sus dos codigos quedan GLOBALES a proposito y para siempre (lista M8 aprobada), porque el claim tiene que resolverlos sin scope. La columna de abajo entra igual con DEFAULT 1, el claim la va a estampar con el scope del staff (CON-04) y la exencion `/* tenant-safe: pairing pre-claim */` del sentinel la agregan las fases 169/170.
+  // Mina M7: esta tabla es PRE-TENANT por diseno — la fila nace antes de que se sepa de quien es el televisor (branch_id nulo hasta el claim), asi que sus dos codigos quedan GLOBALES a proposito y para siempre (lista M8 aprobada), porque el claim tiene que resolverlos sin scope.
+  // Fase 169 (CON-04), YA HECHO: el INSERT pre-claim de `TvPairingService.start()` lleva la exencion anotada `/* tenant-safe: pairing pre-claim */` con su motivo, el `claim()` estampa esta columna con el gimnasio del scope del staff via `tenantValues`, y el `consume()` propaga ese mismo gimnasio a `tv_devices`. El DEFAULT 1 de abajo sobrevive solo para la ventana pre-claim, que es la unica en que la fila no tiene dueño.
+  // Falta la fase 170: el sentinel que LEE estas anotaciones y el lint de CI que las exige.
   // Fase 167 (COL-01): tenancy. Valor server-side, nunca de payload. Ver src/db/schema/tenant-column.ts
   tenantId: tenantIdColumn(),
   // Publico: es lo que se ve en la pantalla del TV (D-02, no expira).

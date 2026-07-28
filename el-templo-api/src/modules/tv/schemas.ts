@@ -267,11 +267,20 @@ export interface TvClientLogBody {
  *
  * `branchId` es obligatorio y ademas lo verifica `requireBranchAccess({ from:
  * "body.branchId" })`: la sede la elige el staff (D-01), acotado a su scope.
+ *
+ * `additionalProperties: false` (fase 169, CON-04) es la regla dura del
+ * milestone v6.0 llevada a este borde: el `tenant_id` JAMAS viene del payload.
+ * Este claim es el momento en que el pairing aprende de que gimnasio es, y ese
+ * dato sale de `assertTenant(request.scope, …)`; con el schema abierto, un
+ * `tenantId` colado en el body quedaria a un solo spread de distancia de la
+ * escritura. Mismo precedente que `tvControlStateSchema` (T-164-43), donde la
+ * mitigacion evita que el cliente cuele su propio sello de tiempo.
  */
 export const tvPairClaimSchema = {
   body: {
     type: "object",
     required: ["userCode", "branchId"],
+    additionalProperties: false,
     properties: {
       userCode: { type: "string", pattern: TV_USER_CODE_PATTERN },
       branchId: { type: "integer", minimum: 1 },
