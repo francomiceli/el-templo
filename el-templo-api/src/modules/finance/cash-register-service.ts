@@ -20,6 +20,7 @@ import {
   NotFoundError,
 } from "../shared/errors";
 import { firmMoneyConditions } from "./firm-money";
+import { tenantWhere, type TenantContext } from "../shared/tenant";
 import type {
   BankAccountRow,
   CajaPeriodMovement,
@@ -778,11 +779,14 @@ export class CashRegisterService {
    * @throws BadRequestError cuando la sucursal está inactiva o el saldo es negativo.
    * @throws ConflictError cuando esa sucursal ya tiene caja efectivo activa en esa moneda.
    */
-  async createEfectivoCaja(input: {
-    branchId: number;
-    currency: string;
-    openingBalance?: number;
-  }): Promise<CajaSaldoRow> {
+  async createEfectivoCaja(
+    ctx: TenantContext,
+    input: {
+      branchId: number;
+      currency: string;
+      openingBalance?: number;
+    },
+  ): Promise<CajaSaldoRow> {
     const [branch] = await this.db
       .select({
         id: schema.branches.id,
@@ -790,7 +794,12 @@ export class CashRegisterService {
         isActive: schema.branches.isActive,
       })
       .from(schema.branches)
-      .where(eq(schema.branches.id, input.branchId))
+      .where(
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, input.branchId),
+        ),
+      )
       .limit(1);
     if (!branch) {
       throw new NotFoundError(`No existe la sucursal ${input.branchId}`);

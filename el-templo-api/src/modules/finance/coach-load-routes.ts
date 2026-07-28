@@ -40,6 +40,7 @@ import { handleServiceError } from "../shared/error-handler";
 import { BadRequestError, NotFoundError } from "../shared/errors";
 import { FINANCE_LOAD_ROLES, type AdminRole } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
+import { assertTenant, tenantWhere } from "../shared/tenant";
 import { requireBranchAccess } from "../shared/branch-access";
 import { isDuplicateKeyError } from "../shared/sql-errors";
 import * as schema from "../../db/schema";
@@ -980,13 +981,19 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
         if (override == null) {
           return reply.send({ caja: null });
         }
+        const ctx = assertTenant(request.scope, "coach caja-efectivo");
         const [caja] = await fastify.db
           .select({
             id: schema.cashRegisters.id,
             name: schema.cashRegisters.name,
           })
           .from(schema.cashRegisters)
-          .where(eq(schema.cashRegisters.id, override))
+          .where(
+            and(
+              tenantWhere(schema.cashRegisters, ctx),
+              eq(schema.cashRegisters.id, override),
+            ),
+          )
           .limit(1);
         return reply.send({ caja: caja ?? null });
       } catch (err: unknown) {

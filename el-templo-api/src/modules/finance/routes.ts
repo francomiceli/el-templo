@@ -63,6 +63,7 @@ import {
   ADMIN_ROLES,
 } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
+import { assertTenant } from "../shared/tenant";
 import {
   requireBranchAccess,
   BRANCH_OUT_OF_SCOPE,
@@ -1400,7 +1401,10 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
             message: "No tienes permiso para administrar cajas",
           });
         }
-        const caja = await cashRegisterService.createEfectivoCaja(request.body);
+        const caja = await cashRegisterService.createEfectivoCaja(
+          assertTenant(request.scope, "create efectivo caja"),
+          request.body,
+        );
         return reply.code(201).send({ caja });
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "create efectivo caja");
