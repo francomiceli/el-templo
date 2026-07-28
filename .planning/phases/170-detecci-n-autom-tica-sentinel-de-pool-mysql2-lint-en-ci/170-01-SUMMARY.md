@@ -171,6 +171,12 @@ None — cero variables de entorno nuevas, cero servicios externos, cero configu
 
 Ninguna superficie nueva. Los dos archivos tocados son metadata y test — cero endpoints, cero rutas de auth, cero acceso a archivos, cero cambios de schema. El plan aporta a la mitigación de T-170-01 (habilita el throw del sentinel y el gate D-15) y cierra T-170-04 con los gates 2, 3 y 5.
 
+## Self-Check: PASSED
+
+- Archivos: `el-templo-api/src/db/tenant-tables.ts`, `el-templo-api/test/db/tenant-tables.test.ts` y este SUMMARY existen en disco.
+- Commits: `0745ca73`, `79633c2c` y `4b535188` existen en `feat/170-sentinel-lint`.
+- `STATE.md` y `ROADMAP.md` no fueron modificados por este ejecutor (el diff pendiente de `STATE.md` es del orquestador).
+
 ---
 
 _Phase: 170-detecci-n-autom-tica-sentinel-de-pool-mysql2-lint-en-ci_
