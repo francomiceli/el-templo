@@ -266,6 +266,13 @@ function wrapSqlMethod<M>(original: M, inspect: (sql: string) => void): M {
     const texto = sqlTextOf(args[0]);
     // Inspecciona ANTES de delegar: en modo throw, la query violadora no llega
     // a ejecutarse.
+    //
+    // EL THROW ES SINCRÓNICO, no una promesa rechazada, y es a propósito:
+    // conserva el stack del CALL SITE (que es lo que hace accionable al error;
+    // el stack de adentro del driver no dice qué query fue) y no se puede
+    // perder en una promesa flotante. Para Drizzle da igual: llama a estos
+    // métodos desde adentro de funciones `async`, así que en el `await` el
+    // throw ya es un rejection y el rollback de `transaction()` corre normal.
     if (texto !== undefined) inspect(texto);
     return delegate.apply(this, args);
   };
