@@ -4527,7 +4527,36 @@ Plans:
 4. El webhook de Wellhub deriva el tenant vía `payload.gym.id` → `branches.wellhub_gym_id` → `branches.tenant_id` y **falla cerrado** (log + rechazo, sin auto-crear nada) cuando el gym id no mapea; los scripts CLI exigen el tenant como argumento explícito y abortan sin él. (CON-04)
 5. La excepción legítima de `tv_pairings` pre-claim queda anotada `/* tenant-safe: pairing pre-claim */` y el claim con scope de staff estampa el `tenant_id` (test del ciclo completo). (CON-04)
 
-**Plans:** TBD
+**Plans:** 9 plans
+
+Plans:
+
+**Wave 1**
+
+- [ ] 169-01-PLAN.md — Worktree sobre origin/master + `src/modules/shared/tenant.ts` (helpers, `TenantContext`, `assertTenant` fail-closed, iterador de tenants activos) + tests unitarios
+
+**Wave 2** _(blocked on Wave 1 completion)_
+
+- [ ] 169-02-PLAN.md — Crons A: sweep por tenant activo en `expire-lost-leads`, `wellhub-sync`, `mark-no-shows` y `reassign-multibranch`
+- [ ] 169-03-PLAN.md — Crons B: extracción de `runX` en `auto-approve` y `auto-resume-pauses` + los 4 schedules de `notification-cron`, con `seedTemplates` exento y anotado
+
+**Wave 3** _(blocked on Wave 2 completion)_
+
+- [ ] 169-04-PLAN.md — Test de criterio 3 sobre crons reales (2 tenants, suspendido no se procesa, aislamiento de errores) + gate fail-closed de cobertura de los 7 jobs
+- [ ] 169-05-PLAN.md — Webhook Wellhub: derivación del tenant, corte D-04/D-05, estampado de `wellhub_events` y su test
+
+**Wave 4** _(blocked on Wave 3 completion)_
+
+- [ ] 169-06-PLAN.md — TV: exención anotada del pre-claim, claim que estampa el tenant del staff, `consume()` que lo propaga a `tv_devices`, y test del ciclo completo
+- [ ] 169-07-PLAN.md — CLI: helper `--tenant` con exit 2, retrofit de `seed-onboarding-aura` y las 6 anotaciones de scripts exentos
+
+**Wave 5** _(blocked on Wave 4 completion)_
+
+- [ ] 169-08-PLAN.md — Auditoría D-08 de los 6 sitios de mass-assignment + guard de sus body-schemas + batería D-09 (`tenantId` en el body no cambia el `tenant_id`)
+
+**Wave 6** _(blocked on Wave 5 completion)_
+
+- [ ] 169-09-PLAN.md — Gate consolidado (typecheck, 11 archivos de test, inventario de exenciones, mapa criterio→prueba) + checkpoint humano de rollout staging-first
 
 ### Phase 170: Detección automática — sentinel de pool mysql2 + lint en CI
 
