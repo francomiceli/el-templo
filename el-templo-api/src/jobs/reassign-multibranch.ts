@@ -28,6 +28,10 @@ import pino from "pino";
 import { and, eq, gte, inArray, sql } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import * as schema from "../db/schema";
+import {
+  forEachActiveTenant,
+  type TenantContext,
+} from "../modules/shared/tenant";
 
 const log = pino({ name: "reassign-multibranch" });
 
@@ -68,14 +72,66 @@ export interface ReassignResult {
 }
 
 /**
+ * Fase 169 (CON-04, D-01) — BARRIDO POR TENANT ACTIVO
+ * ---------------------------------------------------
  * Lógica pura y testeable. Con dryRun=true NO escribe: solo devuelve qué
  * cambiaría (mismo cálculo, sin efectos).
+ *
+ * El barrido corre UNA VEZ POR GIMNASIO ACTIVO: `forEachActiveTenant` resuelve
+ * la lista de `tenants` en cada corrida (activar un gimnasio no debería exigir
+ * un restart de la API) y aísla los errores POR ITERACIÓN (D-03) — un gimnasio
+ * roto no frena la recategorización de los demás.
+ *
+ * La firma y el tipo de retorno NO cambiaron: los contadores y las listas se
+ * acumulan entre gimnasios (igual que `runMarkNoShows` acumula sobre el loop de
+ * timezones) y `dryRun` se propaga INTACTO al cuerpo — el sweep no altera qué
+ * escribe el job.
+ *
+ * D-02: el `ctx` NO baja a nada aguas abajo (`reassignMemberBranch` mantiene su
+ * firma hasta la fase de adopción, 172-175). Con un solo tenant activo el
+ * resultado es IDÉNTICO al de hoy.
+ *
+ * VENCIMIENTO de esta forma intermedia: mientras el cuerpo siga siendo global,
+ * más de un tenant activo repetiría el MISMO barrido N veces. Por eso el gate
+ * del MILESTONE es que el tenant 2 no se onboardea hasta que la batería de
+ * aislamiento ISO-03 (fase 171) esté verde.
  */
 export async function runReassignMultibranch(
   db: MySql2Database<typeof schema>,
   opts: { dryRun?: boolean } = {},
 ): Promise<ReassignResult> {
+  const result: ReassignResult = {
+    candidates: 0,
+    changes: [],
+    skipped: [],
+    dryRun: opts.dryRun ?? false,
+  };
+
+  await forEachActiveTenant(db, log, "reassign-multibranch", async (ctx) => {
+    const r = await runReassignMultibranchForTenant(db, ctx, opts);
+    result.candidates += r.candidates;
+    result.changes.push(...r.changes);
+    result.skipped.push(...r.skipped);
+  });
+
+  return result;
+}
+
+/** Cuerpo de la recategorización para UN gimnasio. */
+async function runReassignMultibranchForTenant(
+  db: MySql2Database<typeof schema>,
+  ctx: TenantContext,
+  opts: { dryRun?: boolean } = {},
+): Promise<ReassignResult> {
   const dryRun = opts.dryRun ?? false;
+
+  // Una línea por vuelta del barrido, con `tenantId` como CAMPO ESTRUCTURADO
+  // (jamás interpolado en el mensaje). Va a la ENTRADA y no a la salida porque
+  // el cuerpo tiene un early return: así el statement no se duplica.
+  log.info(
+    { tenantId: ctx.tenantId, dryRun },
+    "Recategorización multisucursal para un gimnasio",
+  );
 
   // 1. Candidatos: members con AL MENOS una sub ACTIVA sobre un plan multi_branch.
   const candidateRows = await db
