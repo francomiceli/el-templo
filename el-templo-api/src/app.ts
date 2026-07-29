@@ -1,5 +1,6 @@
 // Application entry point
 import Fastify from "fastify";
+import type { RouteOptions } from "fastify";
 import * as Sentry from "@sentry/node";
 import querystring from "node:querystring";
 import cors from "@fastify/cors";
@@ -58,10 +59,48 @@ import { wellhubWebhookRoutes } from "./modules/wellhub/routes";
 import { wellhubOccupancyListener } from "./modules/wellhub/occupancy-listener";
 import { tvDeviceRoutes, tvControlRoutes } from "./modules/tv";
 
-export async function buildApp() {
+/**
+ * Opciones de `buildApp`. Hoy tiene un solo campo y es a propósito: la
+ * superficie mínima es parte de la decisión (fase 171, ISO-01).
+ *
+ * ES TEST-ONLY
+ * ------------
+ * `src/index.ts` llama `buildApp()` sin argumentos: en producción las opciones
+ * son el default `{}`, el campo es exactamente `undefined` y NO se agrega
+ * ningún hook. El seam no cuesta nada en el binario que sirve a los socios.
+ *
+ * POR QUÉ VIVE ACÁ Y NO EN `createTestApp()`
+ * ------------------------------------------
+ * Porque ahí no funcionaría, no por gusto. Un hook `onRoute` solo ve las rutas
+ * registradas DESPUÉS de colgarse, y cada `await app.register(...)` de abajo
+ * ejecuta su plugin en el acto: para cuando `buildApp()` retorna, las ~370
+ * rutas ya están registradas y un hook colgado por el llamador vería 0. Peor
+ * todavía después de `await app.ready()`, donde Fastify tira
+ * `FST_ERR_INSTANCE_ALREADY_LISTENING`. Por eso el hook se cuelga acá adentro,
+ * como primerísimo statement del factory —antes del parser de content-type y
+ * antes del primer `register`— y `createTestApp()` solo REENVÍA las opciones.
+ *
+ * QUIÉN LO CONSUME
+ * ----------------
+ * El gate fail-closed `test/tenancy/iso-01-manifiesto.test.ts` (fase 171,
+ * ISO-01): cruza las rutas que este hook observa contra el manifiesto escrito a
+ * mano `test/tenant-manifest.ts`. Una ruta nueva sin clasificar deja CI en rojo.
+ * Si alguien "limpia" este parámetro, ese gate deja de existir.
+ */
+export interface BuildAppOptions {
+  /** Se invoca una vez por cada ruta registrada, con el `RouteOptions` de Fastify. */
+  onRoute?: (route: RouteOptions) => void;
+}
+
+export async function buildApp(opts: BuildAppOptions = {}) {
   const app = Fastify({
     logger: process.env.NODE_ENV === "test" ? { level: "silent" } : true,
   });
+
+  // Seam del inventario de rutas (fase 171, ISO-01). Va PRIMERO: un hook
+  // `onRoute` solo ve lo que se registra después de colgarse. Ver el docblock
+  // de `BuildAppOptions` — en producción esto es `undefined` y no corre nada.
+  if (opts.onRoute) app.addHook("onRoute", opts.onRoute);
 
   // Permissive content-type parser for application/x-www-form-urlencoded.
   // Capacitor Android WebView defaults to this content-type on mutating

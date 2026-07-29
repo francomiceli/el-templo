@@ -7,6 +7,7 @@
  */
 
 import { buildApp } from "../src/app";
+import type { BuildAppOptions } from "../src/app";
 import { sql, getTableName, eq, and } from "drizzle-orm";
 import argon2 from "argon2";
 import * as schema from "../src/db/schema";
@@ -18,9 +19,16 @@ import type { FastifyInstance } from "fastify";
  * from VITEST_POOL_ID so parallel workers don't share state).
  *
  * NODE_ENV and JWT_SECRET are set by vitest.config.ts env block.
+ *
+ * Fase 171 (ISO-01): acepta las `BuildAppOptions` y las REENVÍA a `buildApp`.
+ * Acá NO se cuelga ningún hook: el `onRoute` tiene que colgarse adentro de
+ * `buildApp`, antes de sus `register`, o vería 0 rutas (y después de `ready()`
+ * ni siquiera se puede colgar). Ver el docblock de `BuildAppOptions`.
  */
-export async function createTestApp(): Promise<FastifyInstance> {
-  const app = await buildApp();
+export async function createTestApp(
+  opts: BuildAppOptions = {},
+): Promise<FastifyInstance> {
+  const app = await buildApp(opts);
   await app.ready();
   return app;
 }
