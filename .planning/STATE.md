@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: "Tenancy — El Templo pasa a ser tenant #1"
 status: executing
-stopped_at: Completed 171-01-PLAN.md (seam onRoute + contrato del manifiesto)
-last_updated: "2026-07-29T17:11:08.860Z"
+stopped_at: Completed 171-02-PLAN.md (370 rutas clasificadas + dossier del checkpoint)
+last_updated: "2026-07-29T17:24:19.207Z"
 last_activity: 2026-07-29
 progress:
   total_phases: 11
   completed_phases: 1
   total_plans: 16
-  completed_plans: 11
+  completed_plans: 12
   percent: 9
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (milestone v6.0 initialized 2026-07-26)
 ## Current Position
 
 Phase: 171 (Backstop — manifiesto de rutas fail-closed y fixtures 2-tenant) — EXECUTING
-Plan: 2 of 6
+Plan: 3 of 6
 Status: Ready to execute
 Last activity: 2026-07-29
 Next: `/gsd:execute-phase 169` sigue por el plan **169-09**, el último de la fase (gate consolidado + rollout). En paralelo siguen pendientes `/gsd:verify-phase 168` (los 6 planes ejecutados; la migración 0196 aplicada en `eltemplo_staging` y `eltemplo` con 0 discrepancias y exit 0 en el verificador de uniques en las dos bases; falta el smoke funcional por UI de Franco, cerrado como pendiente por decisión suya). Siguen pendientes `/gsd:verify-phase 166` y `/gsd:verify-phase 167` por el mismo motivo.
@@ -408,6 +408,7 @@ _Updated after each plan completion_
 | Phase 169 P06 | ~15min | 2 tasks | 5 files |
 | Phase 169 P08 | ~17min | 2 tasks | 3 files |
 | Phase 171 P01 | 18min | 2 tasks | 3 files |
+| Phase 171 P02 | 40min | 3 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -882,6 +883,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: 169-05: el corte por tenant_no_resoluble NO estampa tenantId — branches.tenant_id apuntaría a una fila inexistente de tenants (dueño falso + choque con la FK)
 - [Phase ?]: 169-05: handleBookingCanceled NO se corta por estado del tenant — el corte comercial aplica a lo que CREA datos, no a lo que los libera (cupo fantasma en la grilla)
 - [Phase 171]: 171-01 (ISO-01) — el seam del inventario de rutas vive DENTRO de buildApp (BuildAppOptions.onRoute, un solo campo) y no en createTestApp: un hook onRoute solo ve rutas registradas despues de colgarse, y despues de ready() Fastify tira FST_ERR_INSTANCE_ALREADY_LISTENING. Inerte en produccion (src/index.ts intacto, 0 lineas cambiadas). test/tenant-manifest.ts nace SIN imports (TS puro, typechequeable suelto porque tsconfig solo incluye src/**) con TENANT_MANIFEST vacio a proposito (lo puebla 171-02), tipos derivados de arrays as const, y compararManifiesto puro con manifiesto inyectable por parametro (es lo que habilita demostrar el criterio 2 con fixtures sinteticos). 5 listas de discrepancias y no 4: se sumo categoriaInvalida porque CI no typechequea test/. El HEAD sintetico se particiona con guard de huerfanos, nunca se filtra en silencio. Trampa a recordar: tsc suelto usa target ES5 y el spread de Set es TS2802 -> Array.from.
+- [Phase 171]: 171-02: reparto real del manifiesto = 221 tenant-scoped / 11 global / 138 templo-module (el 218/141/11 del RESEARCH contaba labs-inquiry dos veces)
+- [Phase 171]: 171-02: el prefijo /api/app se parte — labs-inquiry a global por Q2 del doc 06, waitlist a templo-marketing
 
 ### Pending Todos
 
@@ -914,8 +917,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-29T17:11:08.840Z
-Stopped at: Completed 171-01-PLAN.md (seam onRoute + contrato del manifiesto)
+Last session: 2026-07-29T17:24:19.188Z
+Stopped at: Completed 171-02-PLAN.md (370 rutas clasificadas + dossier del checkpoint)
 Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
