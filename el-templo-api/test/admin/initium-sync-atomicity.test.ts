@@ -52,9 +52,20 @@ const { syncInitiumAcrossDay } =
 describe("INITIUM sync atomicity", () => {
   let app: FastifyInstance;
   let formatId: number;
+  // `session_edit_logs.user_id` tiene FK a `users`: el id no se puede hardcodear
+  // (la base de CI arranca sin el id 1). admin@test.com es el único usuario que
+  // cleanAllTestData preserva, así que es el editor estable para el fixture.
+  let editorUserId: number;
 
   beforeAll(async () => {
     app = await createTestApp();
+
+    const [editor] = await app.db
+      .select({ id: schema.users.id })
+      .from(schema.users)
+      .where(eq(schema.users.email, "admin@test.com"));
+    if (!editor) throw new Error("Falta el usuario seed admin@test.com");
+    editorUserId = editor.id;
 
     const existing = await app.db
       .select()
@@ -152,7 +163,11 @@ describe("INITIUM sync atomicity", () => {
 
     try {
       await expect(
-        syncInitiumAcrossDay(app.db, setup.initiumBlockIds.get("alfa")!, 1),
+        syncInitiumAcrossDay(
+          app.db,
+          setup.initiumBlockIds.get("alfa")!,
+          editorUserId,
+        ),
       ).rejects.toThrow("fallo inyectado en logEdit");
 
       for (const level of ["kairos", "sigma"]) {
@@ -202,7 +217,7 @@ describe("INITIUM sync atomicity", () => {
       const updated = await syncInitiumAcrossDay(
         app.db,
         setup.initiumBlockIds.get("alfa")!,
-        1,
+        editorUserId,
       );
       expect(updated).toBe(2);
 
