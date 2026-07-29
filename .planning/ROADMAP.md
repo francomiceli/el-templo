@@ -4747,7 +4747,7 @@ toda la fase.
 | 167. Columnas — tenant_id en 85 tablas            | 7/7            | Complete    | 2026-07-27 |
 | 168. Contratos SQL — uniques compuestas e índices | 6/6            | Complete    | 2026-07-27 |
 | 169. Capa de escritura — helpers y TenantContext  | 9/9            | Complete    | 2026-07-28 |
-| 170. Detección — sentinel de pool + lint CI       | 10/10 | Complete   | 2026-07-29 |
+| 170. Detección — sentinel de pool + lint CI       | 10/10 | Complete    | 2026-07-29 |
 | 171. Backstop — manifiesto + fixtures 2-tenant    | 0/?            | Not started |            |
 | 172. Adopción 1 (piloto) — finance                | 0/?            | Not started |            |
 | 173. Adopción 2 — members + guarda de anclas      | 0/?            | Not started |            |
