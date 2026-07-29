@@ -4,13 +4,13 @@ milestone: v6.0
 milestone_name: "Tenancy — El Templo pasa a ser tenant #1"
 status: executing
 stopped_at: Completed 171-02-PLAN.md (370 rutas clasificadas + dossier del checkpoint)
-last_updated: "2026-07-29T17:24:19.207Z"
+last_updated: "2026-07-29T17:36:06.873Z"
 last_activity: 2026-07-29
 progress:
   total_phases: 11
   completed_phases: 1
   total_plans: 16
-  completed_plans: 12
+  completed_plans: 13
   percent: 9
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (milestone v6.0 initialized 2026-07-26)
 ## Current Position
 
 Phase: 171 (Backstop — manifiesto de rutas fail-closed y fixtures 2-tenant) — EXECUTING
-Plan: 3 of 6
+Plan: 4 of 6
 Status: Ready to execute
 Last activity: 2026-07-29
 Next: `/gsd:execute-phase 169` sigue por el plan **169-09**, el último de la fase (gate consolidado + rollout). En paralelo siguen pendientes `/gsd:verify-phase 168` (los 6 planes ejecutados; la migración 0196 aplicada en `eltemplo_staging` y `eltemplo` con 0 discrepancias y exit 0 en el verificador de uniques en las dos bases; falta el smoke funcional por UI de Franco, cerrado como pendiente por decisión suya). Siguen pendientes `/gsd:verify-phase 166` y `/gsd:verify-phase 167` por el mismo motivo.
@@ -409,6 +409,7 @@ _Updated after each plan completion_
 | Phase 169 P08 | ~17min | 2 tasks | 3 files |
 | Phase 171 P01 | 18min | 2 tasks | 3 files |
 | Phase 171 P02 | 40min | 3 tasks | 2 files |
+| Phase 171 P03 | 25min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -917,7 +918,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-29T17:24:19.188Z
+Last session: 2026-07-29T17:36:02.560Z
 Stopped at: Completed 171-02-PLAN.md (370 rutas clasificadas + dossier del checkpoint)
 Resume file: None
 
