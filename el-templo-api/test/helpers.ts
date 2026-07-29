@@ -12,6 +12,11 @@ import { sql, getTableName, eq, and } from "drizzle-orm";
 import argon2 from "argon2";
 import * as schema from "../src/db/schema";
 import type { FastifyInstance } from "fastify";
+// Fase 171 (ISO-02): `tenantValues` estampa el gimnasio en TODO insert sobre
+// tabla gym-owned. Se importa por path DIRECTO a propósito: `shared/tenant.ts`
+// no está en el barrel `src/modules/shared/index.ts` y sus 22+ call sites de
+// producción también lo importan así.
+import { tenantValues } from "../src/modules/shared/tenant";
 
 /**
  * Create a Fastify test app instance connected to the per-worker test
@@ -356,6 +361,30 @@ export async function createTestPlan(
  *
  * Email defaults to a unique value so parallel/quick successive calls don't
  * collide; pass `overrides.email` when the test needs a specific one.
+ *
+ * Fase 171 (ISO-02): `overrides.tenantId` elige el gimnasio, con DEFAULT 1 = El
+ * Templo. Sin ese override —o con el 1— el camino es el de SIEMPRE, byte por
+ * byte: `POST /api/auth/register`. Eso es lo que preserva a los ~215 archivos
+ * de test que ya llaman a este helper.
+ *
+ * POR QUÉ EL GIMNASIO 2 NO PUEDE IR POR LA API
+ * --------------------------------------------
+ * `POST /api/auth/register` NO conoce el tenant (cero menciones de tenant en
+ * `src/modules/auth/routes.ts`): su insert cae en el DEFAULT 1 de la columna y
+ * el "socio del gimnasio 2" sería en realidad un socio de El Templo. Que la
+ * ruta lo conozca es ADO-06, fase 175 — esta fase la desbloquea, no al revés.
+ * Por eso `tenantId !== 1` va por INSERT directo con `tenantValues`, igual que
+ * `createEligibleFreemium` cuando la ruta pública no sirve.
+ *
+ * CONSECUENCIA ACEPTADA: el socio del gimnasio 2 NO tiene los efectos
+ * colaterales de `register` (código de referido, `member_profiles`, promo
+ * code). D-06 no los pide, y la alternativa —registrar por API y después
+ * `UPDATE users SET tenant_id`— dejaría esas filas colaterales en el tenant 1,
+ * o sea un fixture incoherente justo en lo que las fases 172-175 van a auditar.
+ *
+ * El token sale de `getAuthToken` (login normal): el login resuelve por email
+ * SIN filtro de tenant, así que funciona hoy — y por eso mismo el email del
+ * socio del gimnasio 2 tiene que ser distinto de todos los del 1.
  */
 export async function createTestMember(
   app: FastifyInstance,
@@ -382,14 +411,102 @@ export async function createTestMember(
     branchId: number;
     dni?: string;
     phone?: string;
+    tenantId?: number;
   };
-  const result = await registerUser(app, data);
+  // `tenantId` no es parte del payload de `/auth/register` (la ruta no lo
+  // conoce): se saca del objeto ANTES de mandarlo, así el camino del tenant 1
+  // llega a la API exactamente con las mismas claves que antes de la fase 171.
+  const { tenantId, ...datosDeRegistro } = data;
+
+  if (tenantId !== undefined && tenantId !== 1) {
+    return crearSocioDeOtroGimnasio(app, {
+      ...datosDeRegistro,
+      tenantId,
+      uniqueSuffix,
+    });
+  }
+
+  const result = await registerUser(app, datosDeRegistro);
   const user = result.user as { id: number; [key: string]: unknown };
   return {
     id: user.id,
     token: result.token,
     email: data.email,
     ...user,
+  };
+}
+
+/**
+ * Socio de un gimnasio distinto de El Templo, por INSERT directo.
+ *
+ * Espeja las columnas que `POST /api/auth/register` escribe (rol `member`,
+ * nivel `kairos`, status `freemium`, `branch_source = 'manual'`) para que la
+ * fila sea indistinguible de una registrada por la API en todo lo que a
+ * lecturas se refiere — lo único que cambia es de QUÉ gimnasio es. Ver el
+ * docblock de {@link createTestMember} para el porqué de este camino.
+ *
+ * `dni` y `phone` se generan únicos: la unique de `dni` ya es compuesta con el
+ * tenant desde la fase 168, pero el chequeo de teléfono duplicado de la fase
+ * 111 sigue siendo global y no queremos que un fixture del gimnasio 2 le
+ * bloquee un registro al 1.
+ */
+async function crearSocioDeOtroGimnasio(
+  app: FastifyInstance,
+  data: {
+    email: string;
+    password: string;
+    firstName?: string;
+    lastName?: string;
+    branchId: number;
+    dni?: string;
+    phone?: string;
+    tenantId: number;
+    uniqueSuffix: string;
+  },
+): Promise<{
+  id: number;
+  token: string;
+  email: string;
+  [key: string]: unknown;
+}> {
+  const passwordHash = await argon2.hash(data.password);
+  const firstName = data.firstName ?? "Test";
+  const lastName = data.lastName ?? "Member";
+
+  const [result] = await app.db
+    .insert(schema.users)
+    .values(
+      tenantValues(
+        { tenantId: data.tenantId },
+        {
+          email: data.email,
+          passwordHash,
+          firstName,
+          lastName,
+          dni: data.dni ?? `T${data.uniqueSuffix}`,
+          phone: data.phone ?? `+549${makeUniquePhoneLast10()}`,
+          role: "member" as const,
+          branchId: data.branchId,
+          branchUpdatedAt: new Date(),
+          branchSource: "manual" as const,
+          level: "kairos" as const,
+          status: "freemium" as const,
+        },
+      ),
+    )
+    .$returningId();
+
+  const token = await getAuthToken(app, data.email, data.password);
+
+  return {
+    id: result.id,
+    token,
+    email: data.email,
+    firstName,
+    lastName,
+    role: "member",
+    branchId: data.branchId,
+    tenantId: data.tenantId,
   };
 }
 
@@ -447,6 +564,19 @@ export async function seedAuraBalance(
  * migration-0107 backfill (`UPDATE users SET country = (SELECT country FROM
  * branches WHERE id = users.branch_id) WHERE role IN ('admin','gestion')`).
  * Owner stays NULL (global access). Coach/recepción/member stay NULL.
+ *
+ * Fase 171 (ISO-02): `tenantId` es opcional y su DEFAULT es 1 = El Templo, así
+ * que los ~215 archivos de test que ya llaman a este helper no cambian ni una
+ * línea (mismo criterio de retrocompatibilidad que el `country?` de la Phase
+ * 110, acá arriba). Los DOS inserts —`users` y `user_branches`— pasan por
+ * `tenantValues`, o sea que estampan el gimnasio EXPLÍCITO incluso cuando es el
+ * 1: `tenant_id` tiene DEFAULT 1 desde la fase 167 y un insert que se olvide de
+ * la columna cae en El Templo sin avisar (T-168-15), con lo cual un test de
+ * aislamiento pasaría en verde probando exactamente nada.
+ *
+ * Antes de esto, el único precedente del repo (`test/tv/tv-pairing-tenant.test.ts`,
+ * fase 169-06) reasignaba el staff con un `UPDATE users SET tenant_id` a mano
+ * después del insert. Ese workaround queda obsoleto: pasar `tenantId` acá.
  */
 export async function createStaffUser(
   app: FastifyInstance,
@@ -458,8 +588,11 @@ export async function createStaffUser(
     role: string;
     branchId: number;
     country?: "AR" | "ES" | null;
+    /** Fase 171 (ISO-02). Default 1 = El Templo: los call sites previos no cambian. */
+    tenantId?: number;
   },
 ): Promise<number> {
+  const ctx = { tenantId: data.tenantId ?? 1 };
   const passwordHash = await argon2.hash(data.password);
 
   // Phase 110 backfill mirror: when admin/gestion is created without an
@@ -479,15 +612,22 @@ export async function createStaffUser(
 
   const [result] = await app.db
     .insert(schema.users)
-    .values({
-      email: data.email,
-      passwordHash,
-      firstName: data.firstName,
-      lastName: data.lastName,
-      role: data.role as "coach" | "admin" | "owner" | "gestion" | "recepcion",
-      branchId: data.branchId,
-      country,
-    })
+    .values(
+      tenantValues(ctx, {
+        email: data.email,
+        passwordHash,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        role: data.role as
+          | "coach"
+          | "admin"
+          | "owner"
+          | "gestion"
+          | "recepcion",
+        branchId: data.branchId,
+        country,
+      }),
+    )
     .$returningId();
 
   // Phase 110 backfill mirror: when coach/recepcion is created, auto-insert
@@ -497,7 +637,9 @@ export async function createStaffUser(
   if (data.role === "coach" || data.role === "recepcion") {
     await app.db
       .insert(schema.userBranches)
-      .values({ userId: result.id, branchId: data.branchId });
+      .values(
+        tenantValues(ctx, { userId: result.id, branchId: data.branchId }),
+      );
   }
 
   return result.id;
