@@ -4652,7 +4652,33 @@ toda la fase.
 3. Los fixtures siembran 2 tenants completos (sedes, staff, socios, planes propios) y `createStaffUser` y afines aceptan el tenant como parámetro. (ISO-02)
 4. La suite completa sigue verde con los fixtures nuevos: el tenant 2 sembrado no altera ningún test existente ni sus expectativas de conteo. (ISO-02)
 
-**Plans:** TBD
+**Plans:** 6 plans
+
+Plans:
+
+**Wave 1**
+
+- [ ] 171-01-PLAN.md — Seam `onRoute` test-only en `buildApp` + módulo `test/tenant-manifest.ts` (tipos, comparador puro, manifiesto vacío)
+
+**Wave 2** _(blocked on Wave 1 completion)_
+
+- [ ] 171-02-PLAN.md — Baseline one-shot: las 370 entradas explícitas clasificadas (D-01/D-02/D-07) + dossier `171-CLASIFICACION.md`
+
+**Wave 3** _(blocked on Wave 2 completion)_
+
+- [ ] 171-03-PLAN.md — Gate fail-closed `iso-01-manifiesto.test.ts` + sonda en vivo (criterio 2 demostrado)
+
+**Wave 4** _(blocked on Wave 1 completion)_
+
+- [ ] 171-04-PLAN.md — `tenantId` opcional en `createStaffUser`/`createTestMember` + fixture `seedSecondTenant` (D-05/D-06)
+
+**Wave 5** _(blocked on Wave 4 completion)_
+
+- [ ] 171-05-PLAN.md — `iso-02-fixtures.test.ts` + regresión dirigida del criterio 4
+
+**Wave 6** _(blocked on Waves 2, 3 y 5)_
+
+- [ ] 171-06-PLAN.md — Checkpoint bloqueante D-03/D-04 (Franco revisa `global`, `templo-module` y las dudosas) + aplicación del veredicto
 
 ### Phase 172: Adopción 1 (piloto) — `finance`
 
