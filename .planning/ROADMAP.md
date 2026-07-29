@@ -4652,7 +4652,7 @@ toda la fase.
 3. Los fixtures siembran 2 tenants completos (sedes, staff, socios, planes propios) y `createStaffUser` y afines aceptan el tenant como parámetro. (ISO-02)
 4. La suite completa sigue verde con los fixtures nuevos: el tenant 2 sembrado no altera ningún test existente ni sus expectativas de conteo. (ISO-02)
 
-**Plans:** 3/6 plans executed
+**Plans:** 4/6 plans executed
 
 Plans:
 
@@ -4670,7 +4670,7 @@ Plans:
 
 **Wave 4** _(blocked on Wave 1 completion)_
 
-- [ ] 171-04-PLAN.md — `tenantId` opcional en `createStaffUser`/`createTestMember` + fixture `seedSecondTenant` (D-05/D-06)
+- [x] 171-04-PLAN.md — `tenantId` opcional en `createStaffUser`/`createTestMember` + fixture `seedSecondTenant` (D-05/D-06)
 
 **Wave 5** _(blocked on Wave 4 completion)_
 
@@ -4774,7 +4774,7 @@ Plans:
 | 168. Contratos SQL — uniques compuestas e índices | 6/6            | Complete    | 2026-07-27 |
 | 169. Capa de escritura — helpers y TenantContext  | 9/9            | Complete    | 2026-07-28 |
 | 170. Detección — sentinel de pool + lint CI       | 10/10 | Complete    | 2026-07-29 |
-| 171. Backstop — manifiesto + fixtures 2-tenant    | 3/6 | In Progress|  |
+| 171. Backstop — manifiesto + fixtures 2-tenant    | 4/6 | In Progress|  |
 | 172. Adopción 1 (piloto) — finance                | 0/?            | Not started |            |
 | 173. Adopción 2 — members + guarda de anclas      | 0/?            | Not started |            |
 | 174. Adopción 3 — subscriptions + scheduling      | 0/?            | Not started |            |
