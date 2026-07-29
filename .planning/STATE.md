@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: "Tenancy — El Templo pasa a ser tenant #1"
 status: executing
-stopped_at: Completed 171-04-PLAN.md (helpers con tenantId + fixture del segundo gimnasio)
-last_updated: "2026-07-29T17:49:20.342Z"
+stopped_at: Completed 171-05-PLAN.md (batería ISO-02 del fixture del gimnasio 2 + regresión dirigida del criterio 4)
+last_updated: "2026-07-29T18:07:17.577Z"
 last_activity: 2026-07-29
 progress:
   total_phases: 11
   completed_phases: 1
   total_plans: 16
-  completed_plans: 14
+  completed_plans: 15
   percent: 9
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (milestone v6.0 initialized 2026-07-26)
 ## Current Position
 
 Phase: 171 (Backstop — manifiesto de rutas fail-closed y fixtures 2-tenant) — EXECUTING
-Plan: 5 of 6
+Plan: 6 of 6
 Status: Ready to execute
 Last activity: 2026-07-29
 Next: `/gsd:execute-phase 169` sigue por el plan **169-09**, el último de la fase (gate consolidado + rollout). En paralelo siguen pendientes `/gsd:verify-phase 168` (los 6 planes ejecutados; la migración 0196 aplicada en `eltemplo_staging` y `eltemplo` con 0 discrepancias y exit 0 en el verificador de uniques en las dos bases; falta el smoke funcional por UI de Franco, cerrado como pendiente por decisión suya). Siguen pendientes `/gsd:verify-phase 166` y `/gsd:verify-phase 167` por el mismo motivo.
@@ -411,6 +411,7 @@ _Updated after each plan completion_
 | Phase 171 P02 | 40min | 3 tasks | 2 files |
 | Phase 171 P03 | 25min | 2 tasks | 1 files |
 | Phase 171 P04 | 35min | 2 tasks | 2 files |
+| Phase 171 P05 | 45min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -890,6 +891,10 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase 171]: 171-04 (ISO-02) — createStaffUser/createTestMember aceptan tenantId con default 1 — retrocompatibilidad total con los ~215 archivos que ya los llaman (mismo molde que el country? de la Phase 110)
 - [Phase 171]: 171-04 (ISO-02) — el socio de un gimnasio distinto de 1 se crea por INSERT directo con tenantValues, nunca por POST /api/auth/register (esa ruta no conoce el tenant hasta ADO-06, fase 175)
 - [Phase 171]: 171-04 (ISO-02) — la limpieza del segundo gimnasio es LOCAL al fixture (test/fixtures/second-tenant.ts) y TABLES_TO_CLEAN queda intacta — meter branches ahi rompe los 165 archivos que dependen de la sede semilla
+- [Phase 171]: 171-05 (ISO-02) — el tercero de la regresion dirigida sale del grep de createStaffUser (test/reports-trial-sessions.test.ts, 6 usos, el maximo del repo); los 3 archivos expuestos corrieron encadenados con && en verde (33+2 todo / 6 / 23 tests, exit 0) SIN tocar una linea, y el criterio 4 COMPLETO lo cierra CI (job api-test contra MySQL 8.0), no la maquina local
+- [Phase 171]: 171-05 (ISO-02) — el "every(f => f.tenantId === TENANT_DOS)" sobre una consulta que YA filtra por tenant_id es una tautologia y no puede fallar: la asercion de doble lado que si atrapa el fallo real es que la fila sembrada APAREZCA en la lista del gimnasio 2 y ESTE AUSENTE de la de El Templo, con contrapartes vivas del tenant 1 (un socio recien creado + el admin semilla) cruzadas en las dos direcciones
+- [Phase 171]: 171-05 (ISO-02) — gender es el discriminador de que createTestMember sin tenantId sigue yendo por POST /api/auth/register: las columnas que el 171-04 espejo a proposito (role/level/status/branch_source) son identicas en los dos caminos, y gender solo lo escribe la ruta (el INSERT directo no toca la columna)
+- [Phase 171]: 171-05 (ISO-02) — ISO-02 marcado Complete: 171-06 declara requirements [ISO-01], asi que ningun plan posterior de la fase lo reclama
 
 ### Pending Todos
 
@@ -922,8 +927,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-29T17:48:56.981Z
-Stopped at: Completed 171-04-PLAN.md (helpers con tenantId + fixture del segundo gimnasio)
+Last session: 2026-07-29T18:07:02.001Z
+Stopped at: Completed 171-05-PLAN.md (batería ISO-02 del fixture del gimnasio 2 + regresión dirigida del criterio 4)
 Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
