@@ -4373,7 +4373,7 @@ _v5.7 (Actividades con Aura) added: 2026-07-14 — 2 phases (161-162), 14 requir
 - [x] **Phase 167: Columnas — `tenant_id` en las 85 tablas restantes + verificación** — tanda C agrupada por dominio (nullable → backfill `=1` → NOT NULL → FK) sobre las 46 CORE + 42 TEMPLO-MODULO menos anclas, con `system_settings` y `labs_inquiries` excluidas, más el script versionado que verifica el backfill contra las cadenas de FK del inventario. **(7/7 planes ejecutados 2026-07-27; migs 0192-0195 en staging y prod, verificador COL-02 en 0 discrepancias en las dos bases; pendiente `/gsd:verify-phase 167` + smoke por UI)** (completed 2026-07-27)
 - [x] **Phase 168: Contratos SQL — uniques compuestas e índices por `tenant_id`** — tanda D: conversión de las uniques globales a `(tenant_id, …)` según doc 06 §1-D (incluida la obligatoria `campaign_unsubscribes`), lista M8 explícitamente global, e índice con prefijo `tenant_id` en toda tabla gym-owned. (completed 2026-07-27)
 - [x] **Phase 169: Capa de escritura — helpers `tenantWhere`/`tenantValues` y `TenantContext`** — una sola API para request y caminos sin request (crons por tenant activo, webhook Wellhub por `branches.wellhub_gym_id`, CLI con tenant obligatorio, `tv_pairings` pre-claim exento y anotado). (completed 2026-07-28)
-- [ ] **Phase 170: Detección automática — sentinel de pool mysql2 + lint en CI** — interceptor a nivel pool que detecta SQL sobre tabla gym-owned sin `tenant_id` (throw en test/dev para módulos migrados, `log.error` + métrica en prod) y lint estático con allowlist decreciente que rompe el build ante accesos nuevos sin scope ni anotación.
+- [x] **Phase 170: Detección automática — sentinel de pool mysql2 + lint en CI** — interceptor a nivel pool que detecta SQL sobre tabla gym-owned sin `tenant_id` (throw en test/dev para módulos migrados, `log.error` + métrica en prod) y lint estático con allowlist decreciente que rompe el build ante accesos nuevos sin scope ni anotación. (completed 2026-07-28)
 - [ ] **Phase 171: Backstop — manifiesto de rutas fail-closed y fixtures 2-tenant** — `test/tenant-manifest.ts` clasificando el 100% de las rutas + hook `onRoute` que deja en rojo cualquier ruta nueva sin clasificar, y fixtures/helpers que siembran dos tenants con staff y socios propios.
 - [ ] **Phase 172: Adopción 1 (piloto) — `finance`** — services de finanzas reciben scope, todo WHERE/INSERT por helpers, sentinel en throw para sus tablas y primera batería de aislamiento verde (patrón reutilizable por las fases siguientes), con cobros/caja/deudas dando los mismos números que hoy.
 - [ ] **Phase 173: Adopción 2 — `members` + guarda de consistencia de anclas** — módulo de socios/staff migrado al patrón completo y el invariante `user.tenant_id === branch.tenant_id` enforced en los ~10 sitios de escritura de `branch_id`, `setMemberBranch()` y el cron de recategorización multisucursal (mina M10).
@@ -4587,12 +4587,12 @@ además al predecesor inmediato como dependencia operativa.
 3. Las exenciones `/* tenant-safe: <motivo> */` son grepeables y su inventario completo cabe en una sola búsqueda revisable, cada una con motivo escrito. (CON-05)
 4. El lint de CI deja el build **rojo** ante un ` sql` ``o`.from(<gym-owned>)`nuevo sin`tenant_id` ni anotación fuera de la allowlist (demostrado con un caso de prueba), y la allowlist arranca completa y solo puede achicarse — un check impide agrandarla. (CON-06)
 
-**Plans:** 7/8 plans executed
+**Plans:** 10/10 plans complete
 
 Plans:
 
-Las 8 waves son **una por plan a propósito** (misma razón que la 169): los 8 comparten un
-único worktree (`et-170-deteccion`) y sus tests son MySQL-backed — dos archivos de vitest a
+Las 10 waves son **una por plan a propósito** (misma razón que la 169): las 10 comparten un
+único worktree (`et-170-sentinel`) y sus tests son MySQL-backed — dos archivos de vitest a
 la vez revientan el timeout de 120 s del provisioning por worker, y dos ejecutores en el
 mismo worktree se pisan el estado de git. Cero migraciones y cero dependencias nuevas en
 toda la fase.
@@ -4627,7 +4627,15 @@ toda la fase.
 
 **Wave 8** _(blocked on Wave 7 completion)_
 
-- [ ] 170-08-PLAN.md — Inventario determinístico con `SENTINEL_INVENTORY=1` sobre la suite + checkpoint de rollout a staging + ventana de observación de 2-3 días (criterio 2)
+- [x] 170-08-PLAN.md — Inventario determinístico con `SENTINEL_INVENTORY=1` sobre la suite + checkpoint de rollout a staging + ventana de observación de 2-3 días (criterio 2)
+
+**Wave 9** _(cierre de gaps — 170-VERIFICATION.md dejó el criterio 4 FALLIDO)_
+
+- [x] 170-09-PLAN.md — El motor del lint deja de ser ciego a los alias de variable local, a `alias()` guardado en variable y a los joins (CR-01 + WR-01), con fixture rojo primero y medición del delta de deuda destapada
+
+**Wave 10** _(blocked on Wave 9 completion)_
+
+- [x] 170-10-PLAN.md — Re-baseline corregido de la allowlist + demostración en vivo del rojo con el caso exacto que el verificador reprodujo en verde + checkpoint de aprobación del crecimiento
 
 ### Phase 171: Backstop — manifiesto de rutas fail-closed y fixtures 2-tenant
 
@@ -4739,7 +4747,7 @@ toda la fase.
 | 167. Columnas — tenant_id en 85 tablas            | 7/7            | Complete    | 2026-07-27 |
 | 168. Contratos SQL — uniques compuestas e índices | 6/6            | Complete    | 2026-07-27 |
 | 169. Capa de escritura — helpers y TenantContext  | 9/9            | Complete    | 2026-07-28 |
-| 170. Detección — sentinel de pool + lint CI       | 7/8 | In Progress|  |
+| 170. Detección — sentinel de pool + lint CI       | 10/10 | Complete    | 2026-07-29 |
 | 171. Backstop — manifiesto + fixtures 2-tenant    | 0/?            | Not started |            |
 | 172. Adopción 1 (piloto) — finance                | 0/?            | Not started |            |
 | 173. Adopción 2 — members + guarda de anclas      | 0/?            | Not started |            |

@@ -23,6 +23,9 @@ export interface FakeDb {
   set(row: unknown): FakeDb;
   where(condition: unknown): FakeDb;
   execute(query: unknown): FakeDb;
+  /** Los joins también reciben una tabla: su par (archivo, tabla) es propio. */
+  innerJoin(table: unknown, on?: unknown): FakeDb;
+  leftJoin(table: unknown, on?: unknown): FakeDb;
 }
 
 /** El mismo `TenantContext` de `src/modules/shared/tenant.ts`, en chiquito. */

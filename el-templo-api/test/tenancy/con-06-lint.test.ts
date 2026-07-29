@@ -145,7 +145,7 @@ describe("lint-tenant — motor sobre fixtures", () => {
     ).toEqual([]);
   });
 
-  it("clasifica las cinco formas de acceso de accesos.ts", () => {
+  it("clasifica las nueve formas de acceso de accesos.ts", () => {
     expect(resumir(deArchivo(FIXTURE_RESULT, "accesos.ts"))).toEqual([
       // selectSinFiltro: el olvido puro.
       "accesos.ts bookings query-builder viola",
@@ -157,6 +157,19 @@ describe("lint-tenant — motor sobre fixtures", () => {
       "accesos.ts bookings sql-template viola",
       // sqlCrudoConTenant: el filtro escrito a mano cuenta como cumplimiento.
       "accesos.ts bookings sql-template cumple",
+      // selectPorAliasLocal: `const a = schema.attendance` (punto ciego CR-01).
+      "accesos.ts attendance query-builder viola",
+      // selectPorAliasDeDrizzle: `alias(...)` guardado en variable (CR-01).
+      "accesos.ts subscriptions query-builder viola",
+      // joinSinFiltro: el JOIN genera su propio par (WR-01) y se visita ANTES
+      // que el `.from()` interno, porque es el nodo más externo del encadenado.
+      "accesos.ts member_profiles query-builder viola",
+      // joinSinFiltro: …y el `from` sigue produciendo el suyo.
+      "accesos.ts bookings query-builder viola",
+      // joinConTenantWhere: el mismo join, con el gimnasio nombrado en el
+      // statement. Sumar los joins no inventa rojos donde el sitio cumple.
+      "accesos.ts member_profiles query-builder cumple",
+      "accesos.ts bookings query-builder cumple",
     ]);
   });
 
@@ -220,10 +233,16 @@ describe("lint-tenant — motor sobre fixtures", () => {
     ]);
   });
 
-  it("el fixture tiene exactamente 4 violaciones y 4 accesos eximidos", () => {
+  it("el fixture tiene exactamente 8 violaciones y 4 accesos eximidos", () => {
     expect(resumir(FIXTURE_RESULT.violations)).toEqual([
       "accesos.ts bookings query-builder viola",
       "accesos.ts bookings sql-template viola",
+      // Las cuatro que el motor no veía hasta el plan 09: alias de variable
+      // local, `alias()` en variable y las dos del join sin filtro.
+      "accesos.ts attendance query-builder viola",
+      "accesos.ts subscriptions query-builder viola",
+      "accesos.ts member_profiles query-builder viola",
+      "accesos.ts bookings query-builder viola",
       "exenciones.ts users query-builder viola",
       "exenciones.ts attendance query-builder viola",
     ]);
@@ -361,6 +380,42 @@ describe("lint-tenant — anclaje de exenciones contra los archivos reales", () 
     ).toBeGreaterThanOrEqual(87);
   });
 
+  it("ve los accesos escritos por ALIAS LOCAL de variable (punto ciego CR-01)", () => {
+    // `src/modules/campaigns/service.ts` es la evidencia viva del punto ciego
+    // que cerró el plan 09: `listEligible()` liga las tablas a variables
+    // locales (`const u = schema.users; const br = schema.branches; …`) y
+    // después las usa en `.from(u)`, en `.innerJoin(br, …)` y adentro de
+    // interpolaciones `sql\`… FROM ${s} …\``. Ninguna de esas formas resolvía,
+    // así que los cuatro accesos —todos SIN tenant_id— eran invisibles al
+    // gate: no figuraban como violación, no entraron al baseline one-shot de
+    // D-16 y un acceso nuevo escrito así NO ponía el build en rojo.
+    //
+    // `users` y `branches` son además las dos tablas ancla de la fase 166. Si
+    // alguna de las cuatro desaparece de acá, el motor volvió a quedar ciego.
+    // El arreglo es `bindings.locals` + los joins en TABLE_METHODS, nunca
+    // bajar esta aserción.
+    const archivo = `${API}/src/modules/campaigns/service.ts`;
+    const tablas = new Set(
+      REAL_RESULT.accesses
+        .filter((access) => access.file === archivo)
+        .map((access) => access.table),
+    );
+
+    for (const tabla of [
+      "users",
+      "subscriptions",
+      "branches",
+      "campaign_unsubscribes",
+    ]) {
+      expect(
+        tablas.has(tabla),
+        `${archivo} accede a ${tabla} por alias de variable local y sin nombrar el gimnasio. ` +
+          `Que no aparezca significa que el motor volvió a ser ciego a esa forma (CR-01/WR-01) ` +
+          `y que ese acceso quedó fuera del gate y del ratchet.`,
+      ).toBe(true);
+    }
+  });
+
   it("no duplica la exención de notification-cron.ts (dedup por range.pos)", () => {
     // El MISMO comentario aparece como leading del ExpressionStatement y como
     // leading del CallExpression interno, porque los dos arrancan en el mismo
@@ -430,9 +485,18 @@ function lintFixture(
   });
 }
 
-/** Las 3 entradas que cubren exactamente las 4 violaciones del fixture. */
+/**
+ * Las 6 entradas que cubren exactamente las 8 violaciones del fixture.
+ *
+ * `exenciones.ts users` va ÚLTIMA a propósito: el test de `gainedEntries` usa
+ * esta lista sin su último elemento como base, y así el mensaje del gate sigue
+ * nombrando la misma entrada de siempre.
+ */
 const COBERTURA_COMPLETA: AllowlistEntry[] = [
   { file: "accesos.ts", table: "bookings" },
+  { file: "accesos.ts", table: "attendance" },
+  { file: "accesos.ts", table: "subscriptions" },
+  { file: "accesos.ts", table: "member_profiles" },
   { file: "exenciones.ts", table: "attendance" },
   { file: "exenciones.ts", table: "users" },
 ];
@@ -445,14 +509,18 @@ describe("lint-tenant — los cuatro gates del ratchet", () => {
       report.unlistedViolations.map(
         (access) => `${access.file} ${access.table}`,
       ),
-      "las 4 violaciones del fixture no están toleradas por nadie: tienen que salir todas",
+      "las 8 violaciones del fixture no están toleradas por nadie: tienen que salir todas",
     ).toEqual([
       "accesos.ts bookings",
+      "accesos.ts bookings",
+      "accesos.ts attendance",
+      "accesos.ts subscriptions",
+      "accesos.ts member_profiles",
       "accesos.ts bookings",
       "exenciones.ts users",
       "exenciones.ts attendance",
     ]);
-    expect(report.discrepancies).toBe(4);
+    expect(report.discrepancies).toBe(8);
   });
 
   it("la MISMA violación CON su entrada en la allowlist deja el reporte limpio", () => {
@@ -461,10 +529,10 @@ describe("lint-tenant — los cuatro gates del ratchet", () => {
     expect(report.unlistedViolations).toEqual([]);
     expect(
       report.discrepancies,
-      "tolerar deuda que ya estaba es exactamente para lo que existe la allowlist: 3 entradas " +
-        "cubren las 4 violaciones porque la clave es (archivo, tabla) y no la línea (D-13)",
+      "tolerar deuda que ya estaba es exactamente para lo que existe la allowlist: 6 entradas " +
+        "cubren las 8 violaciones porque la clave es (archivo, tabla) y no la línea (D-13)",
     ).toBe(0);
-    expect(report.allowlistSize).toBe(3);
+    expect(report.allowlistSize).toBe(6);
   });
 
   it("una entrada cuyo archivo ya no existe cae en staleMissingFile, y el reporte manda ACTUALIZAR LA RUTA (D-14)", () => {
@@ -529,7 +597,7 @@ describe("lint-tenant — los cuatro gates del ratchet", () => {
   });
 
   it("una entrada que la base NO tenía cae en gainedEntries (D-14)", () => {
-    const base = allowlistEnMemoria(COBERTURA_COMPLETA.slice(0, 2));
+    const base = allowlistEnMemoria(COBERTURA_COMPLETA.slice(0, -1));
     const report = lintFixture(COBERTURA_COMPLETA, { baseAllowlist: base });
 
     expect(report.gainedEntries).toEqual([

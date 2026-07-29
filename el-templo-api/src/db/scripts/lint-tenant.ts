@@ -88,6 +88,30 @@
  * un nodo. Por eso este pase **no** puede degradarse a un grep: no es una
  * cuestión de estilo, es que el grep contesta mal.
  *
+ * LAS FORMAS DE NOMBRAR UNA TABLA, Y LOS TRES PUNTOS CIEGOS YA CERRADOS
+ * ---------------------------------------------------------------------
+ * Toda forma de nombrar una tabla que el motor no resuelve es un **bypass
+ * silencioso del gate**: el acceso no sale como violación, no entra al baseline
+ * one-shot que D-16 congela, y un acceso NUEVO escrito así no pone el build en
+ * rojo. Por eso cada punto ciego encontrado queda escrito acá:
+ *
+ *   1. **Import profundo** (plan 08) — `import { blogPosts } from
+ *      "../db/schema/blog-posts"`. Detalle en `isSchemaModule`.
+ *   2. **Alias de variable local** (plan 09, CR-01) — `const u = schema.users;
+ *      … .from(u)` y `const o = alias(schema.users, "o")`. Evidencia viva y ya
+ *      mergeada: `src/modules/campaigns/service.ts` (`listEligible`) tocaba
+ *      `users`, `subscriptions`, `branches` y `campaign_unsubscribes` sin
+ *      scope, y ninguno de esos cuatro pares figuraba en las 423 entradas de la
+ *      allowlist — incluidas `users` y `branches`, las dos tablas ancla de la
+ *      fase 166. Detalle y limitación asumida (el mapa de locales es por
+ *      archivo y no modela scopes) en `collectSchemaBindings`.
+ *   3. **La tabla joineada** (plan 09, WR-01) — `.innerJoin(schema.users, …)`.
+ *      Detalle en `TABLE_METHODS`.
+ *
+ * La frontera que queda abierta y documentada está en `visitForAccesses`: un
+ * `execute` con string pelado o un nombre de tabla que entra por un fragmento
+ * crudo son invisibles a un pase sintáctico. Ahí cubre el sentinel de runtime.
+ *
  * SOLO LECTURA
  * ------------
  * El motor lee archivos y los parsea. **Nunca ejecuta ni carga dinámicamente
@@ -474,8 +498,26 @@ interface AnchoredTag {
 // Detección
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Los métodos del query builder de Drizzle que reciben una tabla. */
-const TABLE_METHODS = new Set(["from", "insert", "update", "delete"]);
+/**
+ * Los métodos del query builder de Drizzle que reciben una tabla.
+ *
+ * Los JOINS están acá por la misma razón que el `from` (WR-01): la clave del
+ * ratchet es el par **(archivo, tabla)** y no el statement, así que la tabla
+ * joineada tiene que generar su propio par. Sin ellos, un join nuevo sin scope
+ * a OTRA tabla gym-owned crecía deuda en silencio dentro de un archivo cuyo par
+ * del `from` ya estaba en la allowlist — y cuando el `from` no resolvía o era
+ * sobre una tabla exenta, el join quedaba 100 % invisible.
+ */
+const TABLE_METHODS = new Set([
+  "from",
+  "insert",
+  "update",
+  "delete",
+  "innerJoin",
+  "leftJoin",
+  "rightJoin",
+  "fullJoin",
+]);
 
 /**
  * Nombres de tabla referenciados en el texto literal de un template `sql`.
@@ -594,20 +636,72 @@ function isSchemaModule(specifier: string): boolean {
  */
 const SCHEMA_SPECIFIER = /(^|\/)schema(\/[A-Za-z0-9._-]+)?$/;
 
+/** El helper de Drizzle que renombra una tabla dentro de una query. */
+const DRIZZLE_ALIAS = "alias";
+
 /** Los identificadores por los que un archivo puede nombrar una tabla. */
 interface SchemaBindings {
   /** Nombres de los `import * as X` que apuntan al schema. */
   namespaces: Set<string>;
   /** `import { users }` -> nombre local a tabla física. */
   named: Map<string, string>;
+  /**
+   * `const u = schema.users` / `const o = alias(schema.users, "o")` -> tabla
+   * física. Es el punto ciego CR-01 que cerró el plan 09; ver el docblock de
+   * {@link collectSchemaBindings}.
+   */
+  locals: Map<string, string>;
 }
 
+/**
+ * Los identificadores del archivo que nombran una tabla del schema.
+ *
+ * Dos pases sobre el mismo archivo: primero los imports (namespace y nombrados)
+ * y después TODA declaración de variable, en orden de fuente.
+ *
+ * EL PUNTO CIEGO QUE CIERRA EL SEGUNDO PASE (plan 09, CR-01)
+ * ----------------------------------------------------------
+ * Un alias por variable local —`const u = schema.users; … .from(u)`— no estaba
+ * en `named` (no vino de un import), así que `tableOfExpression` devolvía
+ * `undefined` y el acceso era **INVISIBLE**: no salía como violación, no entró
+ * al baseline one-shot de D-16 y un acceso NUEVO escrito así **no ponía el
+ * build en rojo**. Es la misma clase de agujero que el plan 08 cerró para los
+ * imports profundos.
+ *
+ * La evidencia estaba viva y mergeada: `src/modules/campaigns/service.ts`
+ * (`listEligible`) liga `users`, `subscriptions`, `bookings`, `branches` y
+ * `campaign_unsubscribes` a variables locales y después las usa en `.from(u)`,
+ * en `.innerJoin(br, …)` y adentro de interpolaciones `sql`. Cuatro de esos
+ * pares —incluidas `users` y `branches`, las dos tablas ancla de la fase 166—
+ * NO figuraban en las 423 entradas de la allowlist: el motor nunca los vio.
+ *
+ * POR QUÉ EL RESOLVER DEL INICIALIZADOR ES PROPIO Y ACOTADO
+ * ---------------------------------------------------------
+ * Acepta exactamente tres formas: `namespace.prop`, un identificador ya ligado
+ * y una llamada a `alias(...)`. **No** reusa el fallback genérico de
+ * `tableOfExpression` ("cualquier llamada -> su primer argumento"). Ese
+ * fallback existe solo en la posición de argumento de `TABLE_METHODS`, donde
+ * sobre-reportar es gratis: termina en una violación que alguien revisa. En un
+ * inicializador ligaría cosas como `const q = db.select().from(schema.users)`
+ * al nombre `q`, y **cada par inventado así entra al baseline que D-16
+ * congela**: acá sobre-reportar NO es gratis.
+ *
+ * LIMITACIÓN ASUMIDA: NO MODELA SCOPES
+ * ------------------------------------
+ * El mapa es por ARCHIVO y el recorrido va en orden de fuente. Dos
+ * consecuencias, las dos aceptadas: una cadena escrita al revés (`const b = a;`
+ * antes de `const a = schema.users;`) no resuelve —fail-closed, no resolver es
+ * el default—, y una variable local de otra función que le pise el nombre a un
+ * alias sobre-reporta. Sobre-reportar es recuperable (una entrada de allowlist
+ * revisable); no ver un acceso, no.
+ */
 function collectSchemaBindings(
   sourceFile: ts.SourceFile,
   schemaMap: ReadonlyMap<string, string>,
 ): SchemaBindings {
   const namespaces = new Set<string>();
   const named = new Map<string, string>();
+  const locals = new Map<string, string>();
 
   for (const statement of sourceFile.statements) {
     if (!ts.isImportDeclaration(statement)) continue;
@@ -629,7 +723,44 @@ function collectSchemaBindings(
     }
   }
 
-  return { namespaces, named };
+  /** Las TRES formas que un inicializador puede tomar. Nada más. */
+  const tableOfInitializer = (
+    expression: ts.Expression,
+  ): string | undefined => {
+    if (
+      ts.isPropertyAccessExpression(expression) &&
+      ts.isIdentifier(expression.expression) &&
+      namespaces.has(expression.expression.text)
+    ) {
+      return schemaMap.get(expression.name.text);
+    }
+    if (ts.isIdentifier(expression)) {
+      return named.get(expression.text) ?? locals.get(expression.text);
+    }
+    if (
+      ts.isCallExpression(expression) &&
+      calleeName(expression.expression) === DRIZZLE_ALIAS &&
+      expression.arguments.length > 0
+    ) {
+      return tableOfInitializer(expression.arguments[0]);
+    }
+    return undefined;
+  };
+
+  const visit = (node: ts.Node): void => {
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.initializer
+    ) {
+      const table = tableOfInitializer(node.initializer);
+      if (table) locals.set(node.name.text, table);
+    }
+    ts.forEachChild(node, visit);
+  };
+  ts.forEachChild(sourceFile, visit);
+
+  return { namespaces, named, locals };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -739,8 +870,13 @@ export function lintTenantSources(opts: LintSourcesOptions): LintSourceResult {
       ) {
         return schemaMap.get(expression.name.text);
       }
+      // Primero el import nombrado y después el alias de variable local: la
+      // segunda consulta es la que cierra CR-01 (`const u = schema.users`).
       if (ts.isIdentifier(expression))
-        return bindings.named.get(expression.text);
+        return (
+          bindings.named.get(expression.text) ??
+          bindings.locals.get(expression.text)
+        );
       // `alias(schema.users, "u")` y compañía: se mira el primer argumento. Es
       // fail-closed a propósito — sobre-reportar es recuperable, no ver un
       // acceso no.
