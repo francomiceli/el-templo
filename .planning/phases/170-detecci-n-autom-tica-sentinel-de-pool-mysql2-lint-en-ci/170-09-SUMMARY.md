@@ -219,6 +219,10 @@ None.
 - **Queda un rojo vivo a proposito** (`el repo real con el baseline del plan 07 sale 0`). El plan 10 lo pone en verde re-baselineando la allowlist, **sin tocar el test**.
 - **Sin cerrar de esta fase (no son de este plan):** WR-02 (el recorte de proyeccion del sentinel es ciego a un `WITH`), WR-03 (`event.before` irresoluble tras force-push), WR-04 (`isCompliantText` matchea `tenant_id` dentro de comentarios y sin word boundary) y los cuatro Info del REVIEW. WR-04 es el mas cercano a este plan: es la misma familia prosa-vs-codigo y hoy un `// TODO: falta filtrar por tenant_id` blanquea un acceso.
 
+## Self-Check: PASSED
+
+Los 4 archivos modificados existen en disco y los 3 commits (`8888b011`, `7979016c`, `90ca1b59`) estan en el historial de `feat/170-sentinel-lint`. `git status --porcelain` solo muestra `.planning/STATE.md`, que es del orquestador y este plan no toco.
+
 ---
 
 _Phase: 170-detecci-n-autom-tica-sentinel-de-pool-mysql2-lint-en-ci_
