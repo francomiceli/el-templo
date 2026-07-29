@@ -476,7 +476,15 @@ describe("Schedule Exceptions (cancel single date)", () => {
 
     // Advance the (faked) clock past MySQL's 1s timestamp resolution so the
     // member's cancelledAt is strictly before the exception's createdAt.
-    vi.setSystemTime(new Date("2026-03-11T10:00:10Z"));
+    //
+    // El salto es RELATIVO al ahora del reloj falso, nunca a un instante fijo:
+    // useFakeTimers corre con shouldAdvanceTime, así que el reloj avanza con el
+    // tiempo real desde el beforeAll. Con un destino absoluto ("10:00:10"), un
+    // runner lento que tarde más de 10 s en llegar hasta acá convierte el
+    // avance en un RETROCESO — cancelledAt queda DESPUÉS del createdAt de la
+    // excepción, el restore la resucita y el test falla. Pasó en CI de staging
+    // el 2026-07-29 (verde en master, rojo en staging, mismo commit).
+    vi.setSystemTime(new Date(Date.now() + 10_000));
 
     expect((await cancelDate(scheduleId, THIS_FRIDAY)).statusCode).toBe(200);
 
