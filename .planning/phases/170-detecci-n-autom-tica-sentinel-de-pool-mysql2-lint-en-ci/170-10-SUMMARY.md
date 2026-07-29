@@ -286,6 +286,12 @@ en su propio turno (skill `el-templo-change-control`, seccion 5).
 - La deuda inventariada (501 pares, 120 archivos) es el mapa de la adopcion modulo por modulo de las
   fases 172+: cada migracion borra sus entradas en el mismo PR.
 
+## Self-Check: PASSED
+
+`el-templo-api/tenant-lint-allowlist.json` existe en disco con 501 entradas y los dos commits
+(`2401232c`, `b7246eab`) estan en el historial de `feat/170-sentinel-lint`. `git status --porcelain`
+esta limpio y no se pusheo nada.
+
 ---
 
 _Phase: 170-detecci-n-autom-tica-sentinel-de-pool-mysql2-lint-en-ci_
