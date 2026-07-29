@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: "Tenancy — El Templo pasa a ser tenant #1"
-status: ready_to_plan
-stopped_at: Phase 170 complete (10/10) — ready to discuss Phase 171
-last_updated: 2026-07-29T14:37:43.693Z
-last_activity: 2026-07-29 -- Phase 170 execution started
+status: planning
+stopped_at: Phase 171 context gathered
+last_updated: "2026-07-29T16:07:11.524Z"
+last_activity: 2026-07-29
 progress:
   total_phases: 11
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 10
-  completed_plans: 639
-  percent: 0
+  completed_plans: 10
+  percent: 9
 ---
 
 # Project State
@@ -912,8 +912,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-28T17:51:59.981Z
-Stopped at: Phase 170 context gathered
-Resume file: .planning/phases/170-detecci-n-autom-tica-sentinel-de-pool-mysql2-lint-en-ci/170-CONTEXT.md
+Last session: 2026-07-29T16:07:11.506Z
+Stopped at: Phase 171 context gathered
+Resume file: .planning/phases/171-backstop-manifiesto-de-rutas-fail-closed-y-fixtures-2-tenant/171-CONTEXT.md
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
