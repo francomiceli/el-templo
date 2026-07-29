@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: "Tenancy — El Templo pasa a ser tenant #1"
 status: executing
-stopped_at: Phase 171 context gathered
-last_updated: "2026-07-29T17:00:43.681Z"
-last_activity: 2026-07-29 -- Phase 171 planning complete
+stopped_at: Completed 171-01-PLAN.md (seam onRoute + contrato del manifiesto)
+last_updated: "2026-07-29T17:11:08.860Z"
+last_activity: 2026-07-29
 progress:
   total_phases: 11
   completed_phases: 1
   total_plans: 16
-  completed_plans: 10
+  completed_plans: 11
   percent: 9
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (milestone v6.0 initialized 2026-07-26)
 
 **Core value (v6.0):** El Templo pasa de "una gimnasia hardcodeada" a "el tenant #1 de una plataforma multi-tenant", **sin downtime y sin que el staff note nada**. Alcance: tablas `tenants`/`tenant_settings` + `tenant_id` denormalizado en las 87 tablas gym-owned + las 5 capas de enforcement (scope server-side, helpers `tenantWhere`/`tenantValues` + `TenantContext`, sentinel de pool mysql2, lint en CI, manifiesto de rutas fail-closed + batería de aislamiento), y adopción módulo a módulo en orden estricto de criticidad: finance → members → subscriptions → scheduling → analytics → resto core. 11 fases (166-176), 24 REQ-IDs (FUND/COL/CON/ISO/ADO/MOD). Reglas duras: `tenant_id` SIEMPRE server-side (jamás payload ni JWT); migraciones incrementales compatibles con código viejo (nullable → backfill → NOT NULL); staging-first estricto; reservar bloque de numeración al arrancar la 166 (**actualizado 2026-07-27: la 166 aplicó 0190 y 0191 en `eltemplo_staging` y en `eltemplo` — el tope en producción es 0191 y las fases siguientes reservan desde 0192**). **Gate del MILESTONE (no de una fase): el tenant 2 no se onboardea hasta que la batería de aislamiento (ISO-03) esté verde sobre el 100% de las rutas core `tenant-scoped`.** Diseño CERRADO en `.docs/saas-multitenancy/` (README + docs 03/04/05/06, §8 resuelto 2026-07-26) — no re-litigar en discuss/plan-phase.
-**Current focus:** Phase 171 — backstop — manifiesto de rutas fail closed y fixtures 2 tenant
+**Current focus:** Phase 171 — Backstop — manifiesto de rutas fail-closed y fixtures 2-tenant
 
 ## Current Position
 
-Phase: 171
-Plan: Not started
+Phase: 171 (Backstop — manifiesto de rutas fail-closed y fixtures 2-tenant) — EXECUTING
+Plan: 2 of 6
 Status: Ready to execute
-Last activity: 2026-07-29 -- Phase 171 planning complete
+Last activity: 2026-07-29
 Next: `/gsd:execute-phase 169` sigue por el plan **169-09**, el último de la fase (gate consolidado + rollout). En paralelo siguen pendientes `/gsd:verify-phase 168` (los 6 planes ejecutados; la migración 0196 aplicada en `eltemplo_staging` y `eltemplo` con 0 discrepancias y exit 0 en el verificador de uniques en las dos bases; falta el smoke funcional por UI de Franco, cerrado como pendiente por decisión suya). Siguen pendientes `/gsd:verify-phase 166` y `/gsd:verify-phase 167` por el mismo motivo.
 
 **Worktree de la fase 169:** `/home/franco/projects/et-169-tenant-layer`, rama `feat/169-capa-escritura` sobre `origin/master` (`1200b8af`). `.env`/`.env.development` copiados desde el worktree de la 168 — **no correr ningún install ahí**: el `pnpm-lock.yaml` es byte-idéntico al de los worktrees 166/167/168 y el `node_modules` se resuelve por **symlink a `/home/franco/projects/et-167-columnas/el-templo-api/node_modules`** (el del 168 no existe hoy). El symlink se crea antes de cada typecheck/corrida de tests y **se borra antes de commitear** (la regla `node_modules/` del `.gitignore` no matchea un symlink). Commits de código del plan 01: `c21baefd` (`src/modules/shared/tenant.ts`) y `f6bc7ecc` (`test/tenancy/tenant-helpers.test.ts`); del plan 02: `0426d4de` (expire-lost-leads + wellhub-sync) y `bb85aa64` (mark-no-shows + reassign-multibranch). Nada pusheado. **Esta fase NO agrega migraciones**; si alguna la necesitara, reserva desde **0197**.
@@ -407,6 +407,7 @@ _Updated after each plan completion_
 | Phase 169 P05 | ~18min | 2 tasks | 3 files |
 | Phase 169 P06 | ~15min | 2 tasks | 5 files |
 | Phase 169 P08 | ~17min | 2 tasks | 3 files |
+| Phase 171 P01 | 18min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -880,6 +881,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase 169]: 169-01: tenant.ts NO se exporta desde el barrel shared/index.ts (consistencia con country-scope.ts, importado por path directo desde sus 22 call sites)
 - [Phase ?]: 169-05: el corte por tenant_no_resoluble NO estampa tenantId — branches.tenant_id apuntaría a una fila inexistente de tenants (dueño falso + choque con la FK)
 - [Phase ?]: 169-05: handleBookingCanceled NO se corta por estado del tenant — el corte comercial aplica a lo que CREA datos, no a lo que los libera (cupo fantasma en la grilla)
+- [Phase 171]: 171-01 (ISO-01) — el seam del inventario de rutas vive DENTRO de buildApp (BuildAppOptions.onRoute, un solo campo) y no en createTestApp: un hook onRoute solo ve rutas registradas despues de colgarse, y despues de ready() Fastify tira FST_ERR_INSTANCE_ALREADY_LISTENING. Inerte en produccion (src/index.ts intacto, 0 lineas cambiadas). test/tenant-manifest.ts nace SIN imports (TS puro, typechequeable suelto porque tsconfig solo incluye src/**) con TENANT_MANIFEST vacio a proposito (lo puebla 171-02), tipos derivados de arrays as const, y compararManifiesto puro con manifiesto inyectable por parametro (es lo que habilita demostrar el criterio 2 con fixtures sinteticos). 5 listas de discrepancias y no 4: se sumo categoriaInvalida porque CI no typechequea test/. El HEAD sintetico se particiona con guard de huerfanos, nunca se filtra en silencio. Trampa a recordar: tsc suelto usa target ES5 y el spread de Set es TS2802 -> Array.from.
 
 ### Pending Todos
 
@@ -912,8 +914,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-29T16:07:11.506Z
-Stopped at: Phase 171 context gathered
-Resume file: .planning/phases/171-backstop-manifiesto-de-rutas-fail-closed-y-fixtures-2-tenant/171-CONTEXT.md
+Last session: 2026-07-29T17:11:08.840Z
+Stopped at: Completed 171-01-PLAN.md (seam onRoute + contrato del manifiesto)
+Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
