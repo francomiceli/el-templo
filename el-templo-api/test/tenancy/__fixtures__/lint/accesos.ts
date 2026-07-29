@@ -6,10 +6,16 @@
  * `test/tenancy/con-06-lint.test.ts`. Si tocás una función, actualizá su
  * aserción — no al revés.
  *
- * Cinco accesos esperados en este archivo, dos de ellos violación.
+ * Once accesos esperados en este archivo, seis de ellos violación.
+ *
+ * Los cuatro últimos casos son las TRES formas que el motor no veía hasta el
+ * plan 09 (punto ciego CR-01/WR-01): el alias de variable local, el `alias()`
+ * de Drizzle guardado en variable y la tabla joineada. Las tres dejaban el
+ * build en VERDE con un acceso sin `tenant_id` escrito así.
  */
 
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/mysql-core";
 import * as schema from "../../../../src/db/schema";
 import {
   tenantValues,
@@ -58,4 +64,65 @@ export function tablaExentaPorQueryBuilder(db: FakeDb): FakeDb {
 /** SIN ACCESO — `tenants` es tabla de plataforma, no de gimnasio. */
 export function tablaExentaPorSql(db: FakeDb): FakeDb {
   return db.execute(sql`select id from tenants`);
+}
+
+/**
+ * VIOLACIÓN (`attendance`, query-builder) — alias de VARIABLE LOCAL.
+ *
+ * La forma viva de `src/modules/campaigns/service.ts:65-69`. Hasta el plan 09
+ * el identificador no estaba en `named` (no vino de un import) y el acceso era
+ * INVISIBLE: ni violación, ni entrada de allowlist, ni rojo de CI.
+ */
+export function selectPorAliasLocal(db: FakeDb): FakeDb {
+  const a = schema.attendance;
+  return db.select().from(a);
+}
+
+/**
+ * VIOLACIÓN (`subscriptions`, query-builder) — `alias()` de Drizzle guardado en
+ * una variable.
+ *
+ * El motor ya resolvía `alias(schema.x, "y")` escrito INLINE dentro del
+ * `.from(...)`; guardado en un `const` —la forma de `transaction-service.ts`—
+ * no resolvía nada.
+ */
+export function selectPorAliasDeDrizzle(db: FakeDb): FakeDb {
+  const s = alias(schema.subscriptions, "s");
+  return db.select().from(s);
+}
+
+/**
+ * DOS VIOLACIONES (`member_profiles` por el join, `bookings` por el from), las
+ * dos query-builder.
+ *
+ * El par nuevo del ratchet es el del JOIN (WR-01): la clave es el par
+ * (archivo, tabla) y no el statement, así que un join sin scope a otra tabla
+ * gym-owned crecía deuda en silencio aunque el `from` ya estuviera listado.
+ */
+export function joinSinFiltro(db: FakeDb): FakeDb {
+  return db
+    .select()
+    .from(schema.bookings)
+    .innerJoin(
+      schema.memberProfiles,
+      eq(schema.memberProfiles.userId, schema.bookings.memberId),
+    );
+}
+
+/**
+ * CUMPLEN LOS DOS (`member_profiles` y `bookings`) — el mismo join, con
+ * `tenantWhere` en el `.where(...)` del mismo statement.
+ *
+ * Es el caso que prueba que sumar los joins a `TABLE_METHODS` no inventa rojos
+ * donde el sitio sí nombra al gimnasio.
+ */
+export function joinConTenantWhere(db: FakeDb, ctx: FakeCtx): FakeDb {
+  return db
+    .select()
+    .from(schema.bookings)
+    .innerJoin(
+      schema.memberProfiles,
+      eq(schema.memberProfiles.userId, schema.bookings.memberId),
+    )
+    .where(tenantWhere(schema.bookings, ctx));
 }
