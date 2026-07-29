@@ -92,50 +92,59 @@ export async function syncInitiumAcrossDay(
     .where(eq(schema.sessionPrescriptions.blockId, sourceBlockId))
     .orderBy(asc(schema.sessionPrescriptions.sortOrder));
 
-  for (const sibling of siblingBlocks) {
-    await db
-      .update(schema.sessionBlocks)
-      .set({
-        pattern: source.pattern,
-        intensity: source.intensity,
-        repsBudget: source.repsBudget,
-        formatId: source.formatId,
-        formatName: source.formatName,
-        exerciseCount: source.exerciseCount,
-        formatParams: source.formatParams,
-        customTitle: source.customTitle,
-      })
-      .where(eq(schema.sessionBlocks.id, sibling.id));
+  // DELETE + INSERT de prescripciones por hermana: sin transacción, un fallo a
+  // mitad del loop dejaba a esa sesión con el bloque actualizado y CERO
+  // prescripciones — un INITIUM vacío, sin rollback y sin forma de detectarlo.
+  // Una sola transacción para todo el loop porque el invariante es del día
+  // completo: sincronizar la mitad de las hermanas divergiría los niveles entre
+  // sí, que es exactamente lo que este helper existe para evitar. Mismo criterio
+  // que `swapBlock` en service.ts.
+  await db.transaction(async (tx) => {
+    for (const sibling of siblingBlocks) {
+      await tx
+        .update(schema.sessionBlocks)
+        .set({
+          pattern: source.pattern,
+          intensity: source.intensity,
+          repsBudget: source.repsBudget,
+          formatId: source.formatId,
+          formatName: source.formatName,
+          exerciseCount: source.exerciseCount,
+          formatParams: source.formatParams,
+          customTitle: source.customTitle,
+        })
+        .where(eq(schema.sessionBlocks.id, sibling.id));
 
-    await db
-      .delete(schema.sessionPrescriptions)
-      .where(eq(schema.sessionPrescriptions.blockId, sibling.id));
+      await tx
+        .delete(schema.sessionPrescriptions)
+        .where(eq(schema.sessionPrescriptions.blockId, sibling.id));
 
-    if (sourcePrescriptions.length > 0) {
-      await db.insert(schema.sessionPrescriptions).values(
-        sourcePrescriptions.map((p) => ({
-          blockId: sibling.id,
-          exerciseId: p.exerciseId,
-          exerciseName: p.exerciseName,
-          contraction: p.contraction,
-          reps: p.reps,
-          repsMax: p.repsMax,
-          seconds: p.seconds,
-          secondsMax: p.secondsMax,
-          increment: p.increment,
-          rest: p.rest,
-          notes: p.notes,
-          difficulty: p.difficulty,
-          sortOrder: p.sortOrder,
-          exerciseType: p.exerciseType,
-          weighted: p.weighted,
-        })),
-      );
+      if (sourcePrescriptions.length > 0) {
+        await tx.insert(schema.sessionPrescriptions).values(
+          sourcePrescriptions.map((p) => ({
+            blockId: sibling.id,
+            exerciseId: p.exerciseId,
+            exerciseName: p.exerciseName,
+            contraction: p.contraction,
+            reps: p.reps,
+            repsMax: p.repsMax,
+            seconds: p.seconds,
+            secondsMax: p.secondsMax,
+            increment: p.increment,
+            rest: p.rest,
+            notes: p.notes,
+            difficulty: p.difficulty,
+            sortOrder: p.sortOrder,
+            exerciseType: p.exerciseType,
+            weighted: p.weighted,
+          })),
+        );
+      }
+
+      await revertToPendingIfApproved(tx, sibling.sessionId);
+      await logEdit(tx, sibling.sessionId, userId, "initium_sync");
     }
-
-    await revertToPendingIfApproved(db, sibling.sessionId);
-    await logEdit(db, sibling.sessionId, userId, "initium_sync");
-  }
+  });
 
   return siblingBlocks.length;
 }
