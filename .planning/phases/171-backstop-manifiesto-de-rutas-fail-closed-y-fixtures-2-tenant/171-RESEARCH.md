@@ -840,26 +840,37 @@ expect(
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **¿`buildApp(opts.onRoute)` o `buildApp(opts.plugins)`?**
+_Las 3 quedaron resueltas durante la planificación: Q1 → seam `onRoute?: (route: RouteOptions) => void` (plan 01 task 1, con el docblock que defiende la ubicación) · Q2 → sí, `modulo` obligatorio para `templo-module`, expresado en el tipo (plan 01 task 2) y enforced en runtime por el gate `sinModulo` (plan 03 task 1) · Q3 → archivo propio `test/tenancy/iso-01-manifiesto.test.ts` (plan 03), separado de `test/tenancy/iso-02-fixtures.test.ts` (plan 05)._
+
+1. **[RESOLVED → plan 01] ¿`buildApp(opts.onRoute)` o `buildApp(opts.plugins)`?**
    - Qué sabemos: las dos funcionan; el doc 03 dice "plugin test-only"; el callback tiene
      menos superficie y `buildApp` tiene solo 2 call sites.
    - Qué falta: preferencia de estilo. Es discreción del planner (el CONTEXT la deja
      abierta en "estructura interna" / "dónde vive el test").
    - Recomendación: `onRoute?: (r: RouteOptions) => void`, con docblock que explique por
      qué NO puede vivir en `createTestApp()` (para que nadie lo "limpie" después).
+   - **Resolución (plan 01 task 1):** callback `onRoute`, superficie mínima; `createTestApp(opts)`
+     solo lo reenvía y NO cuelga nada. Se descartó `plugins: FastifyPluginCallback[]` por
+     ceremonioso: las dos formas honran el diseño cerrado del doc 03.
 
-2. **¿El manifiesto guarda también `templo-module` → nombre de módulo?**
+2. **[RESOLVED → planes 01+02+03] ¿El manifiesto guarda también `templo-module` → nombre de módulo?**
    - Qué sabemos: D-07 pide etiquetar ya; el doc 04 §3 pide que **toda ruta `templo-module`
      tenga `requireModule`**, y el test de la 176 lo va a verificar contra ESTE manifiesto.
    - Recomendación: **sí**, campo `modulo` obligatorio para esa categoría. Cuesta cero
      ahora y le ahorra a la 176 volver a clasificar 141 rutas.
+   - **Resolución (planes 01/02/03):** `modulo` vive en `EntradaManifiesto` (plan 01), se escribe
+     en las ~141 entradas (plan 02) y lo enforcea en runtime el gate `sinModulo` (plan 03) —
+     necesario porque CI no typechequea `test/`.
 
-3. **¿El test del manifiesto corre en un archivo propio o junto a los fixtures?**
+3. **[RESOLVED → planes 03+05] ¿El test del manifiesto corre en un archivo propio o junto a los fixtures?**
    - Recomendación: archivo propio (`test/tenancy/iso-01-manifiesto.test.ts`). Los tests
      de fixtures necesitan sembrar el gimnasio 2; el del manifiesto no toca datos y no
      debería heredar ese setup.
+   - **Resolución (planes 03/05):** dos archivos separados —`iso-01-manifiesto.test.ts` (plan 03)
+     e `iso-02-fixtures.test.ts` (plan 05)— y en waves distintas: cada archivo MySQL-backed
+     cuesta ~100 s y el worktree es único.
 
 ---
 
