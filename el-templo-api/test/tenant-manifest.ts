@@ -21,7 +21,15 @@
 // ----------------------
 // De un volcado one-shot del hook `onRoute` de Fastify sobre `buildApp()`,
 // hecho una sola vez al construir la fase 171 (el seam es `BuildAppOptions` en
-// `src/app.ts`). Siguiendo D-16 de la fase 170: **no se commitea ningún
+// `src/app.ts`).
+//
+// Volcado del 2026-07-29 sobre `feat/170-sentinel-lint`: 569 eventos `onRoute`,
+// 199 de ellos `HEAD` sintéticos, **370 rutas** clasificadas acá — 221
+// `tenant-scoped`, 138 `templo-module` (102 training, 32 marketing, 3
+// onboarding, 1 gamification) y 11 `global`. 0 claves duplicadas, 0 `HEAD`
+// huérfanos.
+//
+// Siguiendo D-16 de la fase 170: **no se commitea ningún
 // regenerador**. Refrescar la lista con un script convertiría la clasificación
 // en un trámite ("correr el script y commitear el diff") en vez de una decisión
 // por ruta, que es exactamente lo que este archivo compra. Toda ruta nueva
@@ -113,18 +121,1105 @@ export interface EntradaManifiesto {
  * El manifiesto. La clave es `` `${MÉTODO} ${url}` `` con la url tal cual la
  * reporta el hook `onRoute` (ya viene con el prefijo compuesto del plugin).
  *
- * ARRANCA VACÍO A PROPÓSITO. Las ~370 entradas de las rutas registradas hoy las
- * escribe el plan 171-02, después de que el contrato de este archivo esté
- * cerrado — así se clasifican contra una forma ya definida (categoría, motivo,
- * módulo) y no al revés. Mientras esté vacío el gate del plan 171-03 reporta
- * las 370 como `faltantes`, que es el comportamiento correcto de un registro
- * fail-closed sin poblar.
+ * 370 entradas, una por ruta exacta (D-01). Orden: plataforma, auth, los
+ * prefijos del API alfabéticamente, y al final los cuatro bloques `templo-*`.
+ * Reparto: 221 `tenant-scoped` · 11 `global` · 138 `templo-module`.
  *
- * El precedente de "el registro existe aunque esté vacío" es `JOBS_EXENTOS` de
- * `test/tenancy/con-04-crons-per-tenant.test.ts`: el mapa existe para que la
- * única forma de eximir algo sea escribir por qué.
+ * Las rutas que el plan 171-02 no pudo cerrar solo llevan arriba un comentario
+ * que arranca con `D-04 dudosa:` — son las que van al checkpoint humano con la
+ * recomendación escrita acá y el porqué en `171-CLASIFICACION.md`. Si Franco
+ * decide distinto, el plan 171-06 corrige la entrada Y borra el comentario.
+ *
+ * El precedente de "el registro existe con el motivo al lado" es
+ * `TENANT_GLOBAL_UNIQUES` de `src/db/tenant-tables.ts`: la única forma de
+ * eximir algo es escribir por qué.
  */
-export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {};
+export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
+  // ── plataforma ────────────────────────────────────────────────────────────
+  "GET /health": {
+    categoria: "global",
+    motivo:
+      "Liveness probe del proceso: devuelve un objeto fijo y no consulta ninguna tabla, así que no hay datos de ningún gimnasio que aislar.",
+  },
+  "OPTIONS *": {
+    categoria: "global",
+    motivo:
+      "Preflight CORS que registra @fastify/cors: responde cabeceras y termina, sin ejecutar una sola línea de lógica de negocio ni tocar la base.",
+  },
+
+  // ── auth ──────────────────────────────────────────────────────────────────
+  "POST /api/auth/login": {
+    categoria: "global",
+    motivo:
+      "Resuelve la identidad ANTES de conocer el gimnasio: busca por el email pelado y el tenant sale de la fila encontrada, no al revés.",
+  },
+  "POST /api/auth/refresh": {
+    categoria: "global",
+    motivo:
+      "Mismo lookup pre-scope que el login pero sobre el hash del refresh token: el tenant se deriva de la fila del token, que se encuentra sin ningún scope.",
+  },
+  "POST /api/auth/logout": {
+    categoria: "global",
+    motivo:
+      "Invalida el refresh token del portador y no lee ni escribe una sola fila de datos de un gimnasio.",
+  },
+  // D-04 dudosa: pública y sin sesión, pero crea una fila gym-owned; hoy cae en
+  // el DEFAULT 1 de la columna porque auth no es tenant-aware hasta la fase 175.
+  "POST /api/auth/register": { categoria: "tenant-scoped" },
+  // D-04 dudosa: las tres son self-scoped por el token, pero cuelgan del prefijo
+  // /api/auth, que en sus otras rutas es global.
+  "GET /api/auth/me": { categoria: "tenant-scoped" },
+  "POST /api/auth/me/change-password": { categoria: "tenant-scoped" },
+  "POST /api/auth/me/delete-account": { categoria: "tenant-scoped" },
+
+  // ── /api/admin/analytics ──────────────────────────────────────────────────
+  "GET /api/admin/analytics": { categoria: "tenant-scoped" },
+  "GET /api/admin/analytics/advanced-finance": { categoria: "tenant-scoped" },
+  "GET /api/admin/analytics/attendance": { categoria: "tenant-scoped" },
+  "GET /api/admin/analytics/attendance/checkin-adoption": {
+    categoria: "tenant-scoped",
+  },
+  "GET /api/admin/analytics/attendance/unique-members": {
+    categoria: "tenant-scoped",
+  },
+  "GET /api/admin/analytics/churn": { categoria: "tenant-scoped" },
+  "GET /api/admin/analytics/churned-members": { categoria: "tenant-scoped" },
+  "GET /api/admin/analytics/churned-members/export": {
+    categoria: "tenant-scoped",
+  },
+  "GET /api/admin/analytics/class-ratings": { categoria: "tenant-scoped" },
+  "GET /api/admin/analytics/engagement": { categoria: "tenant-scoped" },
+  "GET /api/admin/analytics/especiales": { categoria: "tenant-scoped" },
+  "GET /api/admin/analytics/especiales/export": { categoria: "tenant-scoped" },
+  "GET /api/admin/analytics/financial": { categoria: "tenant-scoped" },
+  "GET /api/admin/analytics/frequency": { categoria: "tenant-scoped" },
+  "GET /api/admin/analytics/funnel": { categoria: "tenant-scoped" },
+  "GET /api/admin/analytics/ltv": { categoria: "tenant-scoped" },
+  "GET /api/admin/analytics/member-flows": { categoria: "tenant-scoped" },
+  "GET /api/admin/analytics/members": { categoria: "tenant-scoped" },
+  "GET /api/admin/analytics/renewal": { categoria: "tenant-scoped" },
+  "GET /api/admin/analytics/retention": { categoria: "tenant-scoped" },
+  "GET /api/admin/analytics/ticket": { categoria: "tenant-scoped" },
+  "GET /api/admin/analytics/trial-funnel": { categoria: "tenant-scoped" },
+
+  // ── /api/admin/attendance ─────────────────────────────────────────────────
+  "DELETE /api/admin/attendance/:attendanceId": { categoria: "tenant-scoped" },
+  "GET /api/admin/attendance/member/:userId": { categoria: "tenant-scoped" },
+  "GET /api/admin/attendance/slot/:scheduleId/:date": {
+    categoria: "tenant-scoped",
+  },
+  "POST /api/admin/attendance/force": { categoria: "tenant-scoped" },
+  "POST /api/admin/attendance/slot/:scheduleId/:date/check-in": {
+    categoria: "tenant-scoped",
+  },
+
+  // ── /api/admin/coach ──────────────────────────────────────────────────────
+  "GET /api/admin/coach/outstanding-balances": { categoria: "tenant-scoped" },
+
+  // ── /api/admin/finance ────────────────────────────────────────────────────
+  "GET /api/admin/finance/cash-registers": { categoria: "tenant-scoped" },
+  "GET /api/admin/finance/cash-registers/balances": {
+    categoria: "tenant-scoped",
+  },
+  "GET /api/admin/finance/cash-registers/balances/export": {
+    categoria: "tenant-scoped",
+  },
+  "GET /api/admin/finance/coach-load/autocompletar/:userId": {
+    categoria: "tenant-scoped",
+  },
+  "GET /api/admin/finance/coach-load/bank-accounts": {
+    categoria: "tenant-scoped",
+  },
+  "GET /api/admin/finance/coach-load/mis-cargas": {
+    categoria: "tenant-scoped",
+  },
+  "GET /api/admin/finance/cost-centers": { categoria: "tenant-scoped" },
+  "GET /api/admin/finance/cost-centers/all": { categoria: "tenant-scoped" },
+  "GET /api/admin/finance/movements-history": { categoria: "tenant-scoped" },
+  "GET /api/admin/finance/movements-history/export": {
+    categoria: "tenant-scoped",
+  },
+  "GET /api/admin/finance/pending-tray": { categoria: "tenant-scoped" },
+  "GET /api/admin/finance/pending-tray/export": { categoria: "tenant-scoped" },
+  "GET /api/admin/finance/transactions": { categoria: "tenant-scoped" },
+  "GET /api/admin/finance/transactions/export": { categoria: "tenant-scoped" },
+  "GET /api/admin/finance/transactions/pending-misc/:memberId": {
+    categoria: "tenant-scoped",
+  },
+  "GET /api/admin/finance/transactions/summary": { categoria: "tenant-scoped" },
+  "PATCH /api/admin/finance/cash-registers/:id": { categoria: "tenant-scoped" },
+  "PATCH /api/admin/finance/cost-centers/:id": { categoria: "tenant-scoped" },
+  "POST /api/admin/finance/cash-registers": { categoria: "tenant-scoped" },
+  "POST /api/admin/finance/cash-registers/:id/close": {
+    categoria: "tenant-scoped",
+  },
+  "POST /api/admin/finance/cash-registers/:id/reactivate": {
+    categoria: "tenant-scoped",
+  },
+  "POST /api/admin/finance/coach-load/alta": { categoria: "tenant-scoped" },
+  "POST /api/admin/finance/coach-load/misc": { categoria: "tenant-scoped" },
+  "POST /api/admin/finance/coach-load/pay-plan": { categoria: "tenant-scoped" },
+  "POST /api/admin/finance/cost-centers": { categoria: "tenant-scoped" },
+  "POST /api/admin/finance/cost-centers/:id/deactivate": {
+    categoria: "tenant-scoped",
+  },
+  "POST /api/admin/finance/cost-centers/:id/reactivate": {
+    categoria: "tenant-scoped",
+  },
+  "POST /api/admin/finance/expenses": { categoria: "tenant-scoped" },
+  "POST /api/admin/finance/expenses/:id/void": { categoria: "tenant-scoped" },
+  "POST /api/admin/finance/movements": { categoria: "tenant-scoped" },
+  "POST /api/admin/finance/movements/:id/void": { categoria: "tenant-scoped" },
+  "POST /api/admin/finance/transactions": { categoria: "tenant-scoped" },
+  "POST /api/admin/finance/transactions/:id/correct": {
+    categoria: "tenant-scoped",
+  },
+  "POST /api/admin/finance/transactions/:id/observe": {
+    categoria: "tenant-scoped",
+  },
+  "POST /api/admin/finance/transactions/:id/validate": {
+    categoria: "tenant-scoped",
+  },
+  "POST /api/admin/finance/transactions/:id/void": {
+    categoria: "tenant-scoped",
+  },
+
+  // ── /api/admin/improvement-proposals ──────────────────────────────────────
+  "GET /api/admin/improvement-proposals": { categoria: "tenant-scoped" },
+  "GET /api/admin/improvement-proposals/export": { categoria: "tenant-scoped" },
+
+  // ── /api/admin/leads ──────────────────────────────────────────────────────
+  "PATCH /api/admin/leads/:userId": { categoria: "tenant-scoped" },
+
+  // ── /api/admin/members ────────────────────────────────────────────────────
+  "DELETE /api/admin/members/:userId": { categoria: "tenant-scoped" },
+  "DELETE /api/admin/members/:userId/notes/:noteId": {
+    categoria: "tenant-scoped",
+  },
+  "GET /api/admin/members": { categoria: "tenant-scoped" },
+  "GET /api/admin/members/:userId": { categoria: "tenant-scoped" },
+  "GET /api/admin/members/:userId/financial-history": {
+    categoria: "tenant-scoped",
+  },
+  "GET /api/admin/members/:userId/notes": { categoria: "tenant-scoped" },
+  "GET /api/admin/members/:userId/outstanding-concepts": {
+    categoria: "tenant-scoped",
+  },
+  "GET /api/admin/members/:userId/referrals": { categoria: "tenant-scoped" },
+  "GET /api/admin/members/:userId/session-levels": {
+    categoria: "tenant-scoped",
+  },
+  "GET /api/admin/members/branches": { categoria: "tenant-scoped" },
+  "GET /api/admin/members/check-dni": { categoria: "tenant-scoped" },
+  "GET /api/admin/members/check-duplicates": { categoria: "tenant-scoped" },
+  "GET /api/admin/members/export": { categoria: "tenant-scoped" },
+  "GET /api/admin/members/export-sepa": { categoria: "tenant-scoped" },
+  "GET /api/admin/members/search": { categoria: "tenant-scoped" },
+  "POST /api/admin/members": { categoria: "tenant-scoped" },
+  "POST /api/admin/members/:userId/convert-to-trial": {
+    categoria: "tenant-scoped",
+  },
+  "POST /api/admin/members/:userId/notes": { categoria: "tenant-scoped" },
+  "POST /api/admin/members/:userId/photo/upload-url": {
+    categoria: "tenant-scoped",
+  },
+  "POST /api/admin/members/trial": { categoria: "tenant-scoped" },
+  "PUT /api/admin/members/:userId": { categoria: "tenant-scoped" },
+  "PUT /api/admin/members/:userId/notes/:noteId": {
+    categoria: "tenant-scoped",
+  },
+  "PUT /api/admin/members/:userId/password": { categoria: "tenant-scoped" },
+
+  // ── /api/admin/ratings ────────────────────────────────────────────────────
+  // D-04 dudosa: "rating de clase" suena a feature Templo, pero `coach_ratings`
+  // es tabla core y la usa cualquier gimnasio que tenga coaches (idem
+  // /api/members/ratings más abajo).
+  "GET /api/admin/ratings": { categoria: "tenant-scoped" },
+  "GET /api/admin/ratings/coaches": { categoria: "tenant-scoped" },
+  "GET /api/admin/ratings/roster": { categoria: "tenant-scoped" },
+  "POST /api/admin/ratings/roster": { categoria: "tenant-scoped" },
+
+  // ── /api/admin/referrals ──────────────────────────────────────────────────
+  "GET /api/admin/referrals/ab-results": { categoria: "tenant-scoped" },
+
+  // ── /api/admin/reports ────────────────────────────────────────────────────
+  "GET /api/admin/reports/access": { categoria: "tenant-scoped" },
+  "GET /api/admin/reports/access/export": { categoria: "tenant-scoped" },
+  "GET /api/admin/reports/charges": { categoria: "tenant-scoped" },
+  "GET /api/admin/reports/charges/export": { categoria: "tenant-scoped" },
+  "GET /api/admin/reports/expired-members": { categoria: "tenant-scoped" },
+  "GET /api/admin/reports/expiring": { categoria: "tenant-scoped" },
+  "GET /api/admin/reports/expiring/export": { categoria: "tenant-scoped" },
+  "GET /api/admin/reports/inactive": { categoria: "tenant-scoped" },
+  "GET /api/admin/reports/inactive/export": { categoria: "tenant-scoped" },
+  "GET /api/admin/reports/multibranch-reassignment-preview": {
+    categoria: "tenant-scoped",
+  },
+  "GET /api/admin/reports/outstanding-balances": { categoria: "tenant-scoped" },
+  "GET /api/admin/reports/outstanding-balances/export": {
+    categoria: "tenant-scoped",
+  },
+  "GET /api/admin/reports/trial-conversion": { categoria: "tenant-scoped" },
+  "GET /api/admin/reports/trial-sessions": { categoria: "tenant-scoped" },
+  "GET /api/admin/reports/trial-sessions/export": {
+    categoria: "tenant-scoped",
+  },
+  "PATCH /api/admin/reports/outstanding-balances/:balanceId/management": {
+    categoria: "tenant-scoped",
+  },
+
+  // ── /api/admin/scheduling ─────────────────────────────────────────────────
+  "DELETE /api/admin/scheduling/bookings/:bookingId": {
+    categoria: "tenant-scoped",
+  },
+  "DELETE /api/admin/scheduling/holidays/:holidayId": {
+    categoria: "tenant-scoped",
+  },
+  "DELETE /api/admin/scheduling/schedules/:scheduleId/cancel-date/:date": {
+    categoria: "tenant-scoped",
+  },
+  "GET /api/admin/scheduling/activities": { categoria: "tenant-scoped" },
+  "GET /api/admin/scheduling/holidays": { categoria: "tenant-scoped" },
+  "GET /api/admin/scheduling/schedules/:scheduleId/deletion-preview": {
+    categoria: "tenant-scoped",
+  },
+  "GET /api/admin/scheduling/schedules/:scheduleId/detail": {
+    categoria: "tenant-scoped",
+  },
+  "GET /api/admin/scheduling/schedules/:scheduleId/next-available": {
+    categoria: "tenant-scoped",
+  },
+  "GET /api/admin/scheduling/schedules/weekly": { categoria: "tenant-scoped" },
+  "GET /api/admin/scheduling/trials": { categoria: "tenant-scoped" },
+  "GET /api/admin/scheduling/trials/eligible": { categoria: "tenant-scoped" },
+  "PATCH /api/admin/scheduling/schedules/:scheduleId/activity": {
+    categoria: "tenant-scoped",
+  },
+  "POST /api/admin/scheduling/activities": { categoria: "tenant-scoped" },
+  "POST /api/admin/scheduling/bookings": { categoria: "tenant-scoped" },
+  "POST /api/admin/scheduling/holidays": { categoria: "tenant-scoped" },
+  "POST /api/admin/scheduling/schedules": { categoria: "tenant-scoped" },
+  "POST /api/admin/scheduling/schedules/:scheduleId/cancel-date": {
+    categoria: "tenant-scoped",
+  },
+  "POST /api/admin/scheduling/schedules/:scheduleId/delete-from-date": {
+    categoria: "tenant-scoped",
+  },
+  "POST /api/admin/scheduling/schedules/seed": { categoria: "tenant-scoped" },
+  "POST /api/admin/scheduling/trials": { categoria: "tenant-scoped" },
+  "POST /api/admin/scheduling/trials/:bookingId/reschedule": {
+    categoria: "tenant-scoped",
+  },
+  "PUT /api/admin/scheduling/activities/:activityId": {
+    categoria: "tenant-scoped",
+  },
+  "PUT /api/admin/scheduling/schedules/:scheduleId/toggle": {
+    categoria: "tenant-scoped",
+  },
+
+  // ── /api/admin/settings ───────────────────────────────────────────────────
+  "GET /api/admin/settings/pricing/card-surcharge": {
+    categoria: "tenant-scoped",
+  },
+  "GET /api/admin/settings/pricing/zero-price": { categoria: "tenant-scoped" },
+  "PUT /api/admin/settings/pricing/card-surcharge": {
+    categoria: "tenant-scoped",
+  },
+  "PUT /api/admin/settings/pricing/zero-price": { categoria: "tenant-scoped" },
+
+  // ── /api/admin/subscriptions ──────────────────────────────────────────────
+  "GET /api/admin/subscriptions/members/:userId/class-usage": {
+    categoria: "tenant-scoped",
+  },
+  "GET /api/admin/subscriptions/members/:userId/subscription": {
+    categoria: "tenant-scoped",
+  },
+  "GET /api/admin/subscriptions/members/:userId/subscription/change-plan-preview":
+    { categoria: "tenant-scoped" },
+  "GET /api/admin/subscriptions/members/:userId/subscription/history": {
+    categoria: "tenant-scoped",
+  },
+  "GET /api/admin/subscriptions/members/:userId/subscription/pricing-preview": {
+    categoria: "tenant-scoped",
+  },
+  "GET /api/admin/subscriptions/members/:userId/subscriptions": {
+    categoria: "tenant-scoped",
+  },
+  "GET /api/admin/subscriptions/plans": { categoria: "tenant-scoped" },
+  "GET /api/admin/subscriptions/plans/:planId": { categoria: "tenant-scoped" },
+  "GET /api/admin/subscriptions/promo-plans": { categoria: "tenant-scoped" },
+  "GET /api/admin/subscriptions/subscriptions/:subscriptionId/schedule-changes":
+    { categoria: "tenant-scoped" },
+  "PATCH /api/admin/subscriptions/plans/:planId/deactivate": {
+    categoria: "tenant-scoped",
+  },
+  "PATCH /api/admin/subscriptions/promo-plans/:promoId": {
+    categoria: "tenant-scoped",
+  },
+  "PATCH /api/admin/subscriptions/promo-plans/:promoId/deactivate": {
+    categoria: "tenant-scoped",
+  },
+  "PATCH /api/admin/subscriptions/subscriptions/:subscriptionId/schedules": {
+    categoria: "tenant-scoped",
+  },
+  "PATCH /api/admin/subscriptions/subscriptions/:subscriptionId/start-date": {
+    categoria: "tenant-scoped",
+  },
+  "POST /api/admin/subscriptions/bulk-migrate": { categoria: "tenant-scoped" },
+  "POST /api/admin/subscriptions/members/:userId/subscription/assign": {
+    categoria: "tenant-scoped",
+  },
+  "POST /api/admin/subscriptions/members/:userId/subscription/cancel": {
+    categoria: "tenant-scoped",
+  },
+  "POST /api/admin/subscriptions/members/:userId/subscription/change-plan": {
+    categoria: "tenant-scoped",
+  },
+  "POST /api/admin/subscriptions/members/:userId/subscription/pause": {
+    categoria: "tenant-scoped",
+  },
+  "POST /api/admin/subscriptions/members/:userId/subscription/renew": {
+    categoria: "tenant-scoped",
+  },
+  "POST /api/admin/subscriptions/members/:userId/subscription/resume": {
+    categoria: "tenant-scoped",
+  },
+  "POST /api/admin/subscriptions/plans": { categoria: "tenant-scoped" },
+  "POST /api/admin/subscriptions/promo-plans": { categoria: "tenant-scoped" },
+  "POST /api/admin/subscriptions/subscriptions/:subscriptionId/compensate-days":
+    { categoria: "tenant-scoped" },
+  "PUT /api/admin/subscriptions/plans/:planId": { categoria: "tenant-scoped" },
+
+  // ── /api/admin/tv ─────────────────────────────────────────────────────────
+  "GET /api/admin/tv/control/context": { categoria: "tenant-scoped" },
+  "GET /api/admin/tv/devices": { categoria: "tenant-scoped" },
+  "POST /api/admin/tv/control/end-class": { categoria: "tenant-scoped" },
+  "POST /api/admin/tv/control/state": { categoria: "tenant-scoped" },
+  "POST /api/admin/tv/devices/:id/revoke": { categoria: "tenant-scoped" },
+  "POST /api/admin/tv/pair/claim": { categoria: "tenant-scoped" },
+
+  // ── /api/admin/users ──────────────────────────────────────────────────────
+  "GET /api/admin/users": { categoria: "tenant-scoped" },
+  "PATCH /api/admin/users/:userId/status": { categoria: "tenant-scoped" },
+  "POST /api/admin/users": { categoria: "tenant-scoped" },
+  "POST /api/admin/users/:userId/program-addons": {
+    categoria: "tenant-scoped",
+  },
+  "PUT /api/admin/users/:userId": { categoria: "tenant-scoped" },
+
+  // ── /api/app — leads de la PLATAFORMA (el prefijo se parte: el waitlist vive
+  //    en templo-marketing, más abajo) ─────────────────────────────────────────
+  // D-04 dudosa: conflicto real de docs — el doc 04 §2.1 mete `app-landing` en
+  // templo-marketing, pero la decisión Q2 del doc 06 §8 declara `labs_inquiries`
+  // tabla de PLATAFORMA. Se sigue Q2 y se parte el prefijo.
+  "POST /api/app/labs-inquiry": {
+    categoria: "global",
+    motivo:
+      "Lead del propio SaaS y no de un gimnasio: `labs_inquiries` es tabla de plataforma por la decisión Q2 del doc 06 §8, así que la fila nace sin dueño de gimnasio.",
+  },
+  "GET /api/app/admin/labs-inquiries": {
+    categoria: "global",
+    motivo:
+      "Bandeja de los leads de la plataforma: quien la lee es el dueño del SaaS y necesita verlos todos, no el staff de un gimnasio (decisión Q2 del doc 06 §8).",
+  },
+  "PATCH /api/app/admin/labs-inquiries/:id/status": {
+    categoria: "global",
+    motivo:
+      "Gestiona el estado de un lead de la plataforma sobre la misma tabla global de Q2; el que lo mueve es el dueño del SaaS.",
+  },
+
+  // ── /api/campaigns ────────────────────────────────────────────────────────
+  "GET /api/campaigns/admin": { categoria: "tenant-scoped" },
+  "GET /api/campaigns/admin/:id/funnel": { categoria: "tenant-scoped" },
+  "GET /api/campaigns/admin/eligible-count": { categoria: "tenant-scoped" },
+  "GET /api/campaigns/admin/sender": { categoria: "tenant-scoped" },
+  "POST /api/campaigns/admin": { categoria: "tenant-scoped" },
+  "POST /api/campaigns/admin/:id/send": { categoria: "tenant-scoped" },
+  "POST /api/campaigns/admin/:id/test": { categoria: "tenant-scoped" },
+  // D-04 dudosa: son públicas y se resuelven por token, pero la decisión Q5 del
+  // doc 06 §8 hizo la supresión de unsubscribes POR TENANT (`uq (tenant_id,
+  // email)`) — marcarlas `global` contradiría esa decisión.
+  "GET /api/campaigns/track/click": { categoria: "tenant-scoped" },
+  "GET /api/campaigns/track/open": { categoria: "tenant-scoped" },
+  "GET /api/campaigns/unsubscribe": { categoria: "tenant-scoped" },
+
+  // ── /api/members/attendance ───────────────────────────────────────────────
+  "GET /api/members/attendance/history": { categoria: "tenant-scoped" },
+  "POST /api/members/attendance/check-in": { categoria: "tenant-scoped" },
+
+  // ── /api/members/improvement-proposals ────────────────────────────────────
+  "GET /api/members/improvement-proposals/prompt-status": {
+    categoria: "tenant-scoped",
+  },
+  "POST /api/members/improvement-proposals": { categoria: "tenant-scoped" },
+
+  // ── /api/members/ratings ──────────────────────────────────────────────────
+  // D-04 dudosa: misma duda que /api/admin/ratings — `coach_ratings` es core.
+  "GET /api/members/ratings/pending": { categoria: "tenant-scoped" },
+  "POST /api/members/ratings": { categoria: "tenant-scoped" },
+
+  // ── /api/members/referrals ────────────────────────────────────────────────
+  "GET /api/members/referrals": { categoria: "tenant-scoped" },
+  "POST /api/members/referrals/cta-click": { categoria: "tenant-scoped" },
+
+  // ── /api/members/scheduling ───────────────────────────────────────────────
+  "DELETE /api/members/scheduling/bookings/:bookingId": {
+    categoria: "tenant-scoped",
+  },
+  "GET /api/members/scheduling/bonus-usage": { categoria: "tenant-scoped" },
+  "GET /api/members/scheduling/branches": { categoria: "tenant-scoped" },
+  "GET /api/members/scheduling/my-bookings": { categoria: "tenant-scoped" },
+  "GET /api/members/scheduling/trial-eligibility": {
+    categoria: "tenant-scoped",
+  },
+  "GET /api/members/scheduling/weekly": { categoria: "tenant-scoped" },
+  "POST /api/members/scheduling/cancel-trial": { categoria: "tenant-scoped" },
+  "POST /api/members/scheduling/reserve": { categoria: "tenant-scoped" },
+  "POST /api/members/scheduling/reserve-trial": { categoria: "tenant-scoped" },
+
+  // ── /api/members/subscription ─────────────────────────────────────────────
+  "GET /api/members/subscription/coverage": { categoria: "tenant-scoped" },
+  "GET /api/members/subscription/me/especial-pass": {
+    categoria: "tenant-scoped",
+  },
+  "GET /api/members/subscription/me/subscription": {
+    categoria: "tenant-scoped",
+  },
+  "GET /api/members/subscription/plans": { categoria: "tenant-scoped" },
+
+  // ── /api/notifications ────────────────────────────────────────────────────
+  "GET /api/notifications/admin/templates": { categoria: "tenant-scoped" },
+  "GET /api/notifications/preferences": { categoria: "tenant-scoped" },
+  "POST /api/notifications/:id/opened": { categoria: "tenant-scoped" },
+  "POST /api/notifications/admin/seed-templates": {
+    categoria: "tenant-scoped",
+  },
+  "POST /api/notifications/admin/send-segment": { categoria: "tenant-scoped" },
+  "POST /api/notifications/token": { categoria: "tenant-scoped" },
+  "PUT /api/notifications/admin/templates/:id": { categoria: "tenant-scoped" },
+  "PUT /api/notifications/preferences": { categoria: "tenant-scoped" },
+
+  // ── /api/tv ───────────────────────────────────────────────────────────────
+  "POST /api/tv/pair/start": {
+    categoria: "global",
+    motivo:
+      "Pre-claim (mina M7): la fila de pairing nace ANTES de saber de quién es el televisor — `branch_id` queda nulo hasta que el staff hace el claim.",
+  },
+  "GET /api/tv/pair/status": {
+    categoria: "global",
+    motivo:
+      "Pre-claim: el televisor poll-ea su device code sin sesión ni sede asignada, así que la fila que consulta todavía no pertenece a ningún gimnasio.",
+  },
+  // D-04 dudosa: post-claim — el televisor no tiene JWT ni scope, pero el tenant
+  // ya sale de la fila reclamada, a diferencia de las dos rutas de pairing.
+  "GET /api/tv/me": { categoria: "tenant-scoped" },
+  "GET /api/tv/state": { categoria: "tenant-scoped" },
+  "POST /api/tv/client-log": { categoria: "tenant-scoped" },
+
+  // ── /api/webhooks ─────────────────────────────────────────────────────────
+  "POST /api/webhooks/wellhub": {
+    categoria: "global",
+    motivo:
+      "Entrada pública sin sesión: Wellhub no manda tenant y el gimnasio se DERIVA server-side desde `gym.id` contra `branches.wellhub_gym_id` (CON-04, cerrado en 169-05).",
+  },
+
+  // ══ templo-training ═══════════════════════════════════════════════════════
+  // Doc 04 §2.1: spom, sessions, admin(editor), exercises, exercise-adjustments,
+  // tree-editor, tree-progress, goal-plans, progression, programs, check-ins,
+  // formats, routes, day-modes, weekly-rotator, saved-blocks, evaluation-requests.
+
+  // ── templo-training · /spom (fuera de /api) ───────────────────────────────
+  "GET /spom/exercises": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /spom/lookup": { categoria: "templo-module", modulo: "templo-training" },
+  "GET /spom/tables": { categoria: "templo-module", modulo: "templo-training" },
+  "GET /spom/week": { categoria: "templo-module", modulo: "templo-training" },
+  "PUT /spom/week": { categoria: "templo-module", modulo: "templo-training" },
+
+  // ── templo-training · /api/sessions ───────────────────────────────────────
+  "GET /api/sessions/:id": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/sessions/daily": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/sessions/weekly": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/sessions/complete": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/sessions/generate": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+
+  // ── templo-training · /api/admin/sessions ─────────────────────────────────
+  "DELETE /api/admin/sessions/:sessionId/blocks/:blockId/exercises/:prescriptionId":
+    { categoria: "templo-module", modulo: "templo-training" },
+  "GET /api/admin/sessions": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/admin/sessions/:id": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/admin/sessions/:id/preview": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/admin/sessions/coverage": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/admin/sessions/day-details": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/admin/sessions/day-modes": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/admin/sessions/pending-count": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "PATCH /api/admin/sessions/:sessionId/blocks/:blockId/custom-title": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "PATCH /api/admin/sessions/:sessionId/blocks/:blockId/exercises/:prescriptionId":
+    { categoria: "templo-module", modulo: "templo-training" },
+  "PATCH /api/admin/sessions/:sessionId/blocks/:blockId/exercises/:prescriptionId/reorder":
+    { categoria: "templo-module", modulo: "templo-training" },
+  "PATCH /api/admin/sessions/:sessionId/blocks/:blockId/format": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "PATCH /api/admin/sessions/:sessionId/blocks/:blockId/format-params": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "PATCH /api/admin/sessions/:sessionId/blocks/:blockId/role": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "PATCH /api/admin/sessions/:sessionId/blocks/:blockId/route": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/admin/sessions/:id/approve": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/admin/sessions/:id/reset": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/admin/sessions/:id/revert": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/admin/sessions/:sessionId/blocks/:blockId/exercises": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/admin/sessions/:sessionId/blocks/:blockId/exercises/:prescriptionId/swap":
+    { categoria: "templo-module", modulo: "templo-training" },
+  "POST /api/admin/sessions/:sessionId/blocks/:blockId/mobility/swap": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/admin/sessions/:sessionId/blocks/:blockId/swap": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/admin/sessions/bulk-approve": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "PUT /api/admin/sessions/day-modes": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+
+  // ── templo-training · editor (blocks, generate, routes, weeks, saved-blocks,
+  //    formats) ──────────────────────────────────────────────────────────────
+  "GET /api/admin/blocks/pool": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/admin/generate": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/admin/routes": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/admin/weeks/:week/summary": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "DELETE /api/admin/saved-blocks/:id": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/admin/saved-blocks": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/admin/saved-blocks": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/admin/formats/compatible": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/admin/formats/compatible-batch": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+
+  // ── templo-training · /api/admin/exercises ────────────────────────────────
+  "DELETE /api/admin/exercises/:exerciseId/video": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/admin/exercises": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/admin/exercises/mobility-pool": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/admin/exercises/pool": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/admin/exercises/proposals": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/admin/exercises/route-progression-map": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/admin/exercises/search": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "PATCH /api/admin/exercises/:exerciseId": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/admin/exercises": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/admin/exercises/:exerciseId/upload-complete": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/admin/exercises/:exerciseId/upload-url": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/admin/exercises/bulk-update-equipment": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/admin/exercises/bulk-upload-urls": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/admin/exercises/proposals/:id/accept": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/admin/exercises/proposals/:id/reject": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/admin/exercises/proposals/bulk-accept": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+
+  // ── templo-training · exercise-adjustments ────────────────────────────────
+  "GET /api/admin/exercise-adjustments/:memberId": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/exercise-adjustments": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+
+  // ── templo-training · tree-editor ─────────────────────────────────────────
+  "GET /api/admin/tree-editor/milestone-review": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/admin/tree-editor/milestone/:exerciseId/variants": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/admin/tree-editor/tree": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/admin/tree-editor/milestone-review/accept": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/admin/tree-editor/milestone-review/reject": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/admin/tree-editor/milestone/promote": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/admin/tree-editor/precedence": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/admin/tree-editor/regroup": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/admin/tree-editor/reorder": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+
+  // ── templo-training · tree-progress ───────────────────────────────────────
+  "GET /api/tree-progress/me": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+
+  // ── templo-training · goal-plans ──────────────────────────────────────────
+  "GET /api/admin/goal-plans/members": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/admin/goal-plans/members/:userId": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/admin/goal-plans/generate": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/goal-plans/active": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/goal-plans/archived": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/goal-plans/metadata": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/goal-plans/session": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/goal-plans/stats": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/goal-plans/complete": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+
+  // ── templo-training · progression / evaluation-requests ───────────────────
+  "GET /api/progression/stats": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/progression/weekly-summary": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/progression/request-evaluation": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+
+  // ── templo-training · programs ────────────────────────────────────────────
+  "GET /api/admin/programs": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/admin/programs/:programId": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/admin/programs/analytics": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/admin/programs/enrollments/user/:userId": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/admin/programs": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/admin/programs/:programId/content": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/admin/programs/:programId/deactivate": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/admin/programs/enrollments/:enrollmentId/advance": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/admin/programs/enrollments/:enrollmentId/cancel": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "PUT /api/admin/programs/:programId": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/members/programs/catalog": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/members/programs/has-goal-plan-access": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/members/programs/my-progress": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  // D-04 dudosa: viven bajo /api/members/me, que en el resto es core, pero lo que
+  // sirven es el programa de entrenamiento y sus inscripciones.
+  "GET /api/members/me/current-program": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/members/me/enrollments": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "PUT /api/members/me/current-program": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+
+  // ── templo-training · check-ins ───────────────────────────────────────────
+  // D-04 dudosa: el doc 04 §2.1 lista `check-ins` como Templo; el nombre se
+  // confunde con el check-in de asistencia (POST /api/members/attendance/check-in),
+  // que es CORE y queda tenant-scoped.
+  "GET /api/admin/check-ins": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/check-ins/today": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/check-ins": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+
+  // ══ templo-gamification ═══════════════════════════════════════════════════
+  // Doc 04 §2.1: aura + aura-*, lifestyle, bar-challenge. AURA no expone rutas
+  // propias (es un service interno), así que el módulo aporta una sola.
+  "POST /api/bar-challenge/result": {
+    categoria: "templo-module",
+    modulo: "templo-gamification",
+  },
+
+  // ══ templo-marketing ══════════════════════════════════════════════════════
+  // Doc 04 §2.1: blog, academy, gladius, franchise, app-landing.
+
+  // ── templo-marketing · blog ───────────────────────────────────────────────
+  // D-04 dudosa: son rutas públicas de eltemplo.org (contenido de marca), pero
+  // las tablas de blog son gym-owned.
+  "DELETE /api/blog/admin/posts/:id": {
+    categoria: "templo-module",
+    modulo: "templo-marketing",
+  },
+  "DELETE /api/blog/admin/tags/:id": {
+    categoria: "templo-module",
+    modulo: "templo-marketing",
+  },
+  "GET /api/blog/admin/posts": {
+    categoria: "templo-module",
+    modulo: "templo-marketing",
+  },
+  "GET /api/blog/admin/posts/:id": {
+    categoria: "templo-module",
+    modulo: "templo-marketing",
+  },
+  "GET /api/blog/admin/tags": {
+    categoria: "templo-module",
+    modulo: "templo-marketing",
+  },
+  "GET /api/blog/posts": {
+    categoria: "templo-module",
+    modulo: "templo-marketing",
+  },
+  "GET /api/blog/posts/:slug": {
+    categoria: "templo-module",
+    modulo: "templo-marketing",
+  },
+  "GET /api/blog/posts/:slug/related": {
+    categoria: "templo-module",
+    modulo: "templo-marketing",
+  },
+  "GET /api/blog/tags": {
+    categoria: "templo-module",
+    modulo: "templo-marketing",
+  },
+  "GET /api/blog/tags/:slug/posts": {
+    categoria: "templo-module",
+    modulo: "templo-marketing",
+  },
+  "POST /api/blog/admin/posts": {
+    categoria: "templo-module",
+    modulo: "templo-marketing",
+  },
+  "POST /api/blog/admin/tags": {
+    categoria: "templo-module",
+    modulo: "templo-marketing",
+  },
+  "POST /api/blog/admin/upload-image": {
+    categoria: "templo-module",
+    modulo: "templo-marketing",
+  },
+  "PUT /api/blog/admin/posts/:id": {
+    categoria: "templo-module",
+    modulo: "templo-marketing",
+  },
+  "PUT /api/blog/admin/posts/:id/tags": {
+    categoria: "templo-module",
+    modulo: "templo-marketing",
+  },
+  "PUT /api/blog/admin/tags/:id": {
+    categoria: "templo-module",
+    modulo: "templo-marketing",
+  },
+
+  // ── templo-marketing · academy ────────────────────────────────────────────
+  // D-04 dudosa: la academia es formación de marca, pero `academy_inquiries` es
+  // gym-owned.
+  "GET /api/academy/admin/inquiries": {
+    categoria: "templo-module",
+    modulo: "templo-marketing",
+  },
+  "POST /api/academy/inquire": {
+    categoria: "templo-module",
+    modulo: "templo-marketing",
+  },
+
+  // ── templo-marketing · gladius ────────────────────────────────────────────
+  // D-04 dudosa: tienda pública de la marca, pero `gladius_products` y sus
+  // consultas son gym-owned.
+  "DELETE /api/gladius/admin/products/:id": {
+    categoria: "templo-module",
+    modulo: "templo-marketing",
+  },
+  "GET /api/gladius/admin/products": {
+    categoria: "templo-module",
+    modulo: "templo-marketing",
+  },
+  "GET /api/gladius/products": {
+    categoria: "templo-module",
+    modulo: "templo-marketing",
+  },
+  "GET /api/gladius/products/:slug": {
+    categoria: "templo-module",
+    modulo: "templo-marketing",
+  },
+  "POST /api/gladius/admin/products": {
+    categoria: "templo-module",
+    modulo: "templo-marketing",
+  },
+  "POST /api/gladius/inquire": {
+    categoria: "templo-module",
+    modulo: "templo-marketing",
+  },
+  "PUT /api/gladius/admin/products/:id": {
+    categoria: "templo-module",
+    modulo: "templo-marketing",
+  },
+
+  // ── templo-marketing · franchise ──────────────────────────────────────────
+  // D-04 dudosa: franquiciar "El Templo" es la marca y no el gimnasio —roza
+  // plataforma—, pero el doc 04 §2.1 lo pone en templo-marketing.
+  "GET /api/franchise/admin/applications": {
+    categoria: "templo-module",
+    modulo: "templo-marketing",
+  },
+  "GET /api/franchise/admin/applications/:id": {
+    categoria: "templo-module",
+    modulo: "templo-marketing",
+  },
+  "PATCH /api/franchise/admin/applications/:id": {
+    categoria: "templo-module",
+    modulo: "templo-marketing",
+  },
+  "POST /api/franchise/admin/applications/:id/generate": {
+    categoria: "templo-module",
+    modulo: "templo-marketing",
+  },
+  "POST /api/franchise/apply": {
+    categoria: "templo-module",
+    modulo: "templo-marketing",
+  },
+
+  // ── templo-marketing · app-landing (waitlist) ─────────────────────────────
+  // D-04 dudosa: comparten el prefijo /api/app con las labs-inquiries de arriba,
+  // pero `app_waitlist` SÍ es gym-owned, así que se quedan en templo-marketing.
+  "GET /api/app/admin/waitlist": {
+    categoria: "templo-module",
+    modulo: "templo-marketing",
+  },
+  "POST /api/app/waitlist": {
+    categoria: "templo-module",
+    modulo: "templo-marketing",
+  },
+
+  // ══ templo-onboarding ═════════════════════════════════════════════════════
+  // Doc 04 §2.1: onboarding, onboarding-analytics.
+  "GET /api/onboarding/profile": {
+    categoria: "templo-module",
+    modulo: "templo-onboarding",
+  },
+  "POST /api/onboarding/analytics": {
+    categoria: "templo-module",
+    modulo: "templo-onboarding",
+  },
+  "POST /api/onboarding/complete": {
+    categoria: "templo-module",
+    modulo: "templo-onboarding",
+  },
+};
 
 /**
  * Claves de ruta de UN evento `onRoute`.
