@@ -4661,7 +4661,7 @@ toda la fase.
 3. Batería de aislamiento verde: cada ruta `tenant-scoped` de finance, ejecutada como staff del tenant A, **no lee ni escribe** filas del tenant B — lecturas vacías/404 y escrituras rechazadas, ruta por ruta según el manifiesto. El patrón queda documentado como plantilla para las fases de adopción siguientes. (ISO-03)
 4. Sin cambio para el staff: cobros, validación, caja, movimientos, egresos, deudas y exports dan los **mismos números** en staging antes y después (comparación explícita), y la suite existente pasa sin ajustar expectativas.
 
-**Plans:** 23 plans (14 waves)
+**Plans:** 23 plans (17 waves)
 
 Plans:
 
@@ -4681,6 +4681,11 @@ Plans:
 - [ ] 172-14-PLAN.md — endurecimiento de tests B: transacciones y coach-load
 - [ ] 172-15-PLAN.md — endurecimiento de tests C: suscripciones, reportes, socios, coach
 - [ ] 172-16-PLAN.md — endurecimiento de tests D: analytics, scheduling, migraciones, tenancy
+
+> Los planes 172-13 → 172-14 → 172-15 → 172-16 corren **en serie** (waves 8, 9, 10 y 11):
+> los cuatro encienden y revierten la misma sonda temporal sobre
+> `el-templo-api/src/db/tenant-tables.ts`, así que en paralelo se pisarían entre ellos.
+
 - [ ] 172-17-PLAN.md — ISO-03: fixture de finanzas del gimnasio 2 + 14 rutas de cajas
 - [ ] 172-18-PLAN.md — ISO-03: 13 rutas de transacciones, bandeja e historial
 - [ ] 172-19-PLAN.md — ISO-03: 11 rutas de coach-load (rol coach), movimientos y egresos
