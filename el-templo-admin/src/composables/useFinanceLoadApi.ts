@@ -128,6 +128,12 @@ export interface AutocompletarResult {
   intent: 'settle' | 'renew' | null;
   /** Outstanding debt on the current sub (0 when none). */
   outstanding: number;
+  /**
+   * Vencimiento (YYYY-MM-DD) de la sub vigente, null si no tiene. La PoS lo usa
+   * para explicitar que renovar antes del vencimiento NO pisa el período en
+   * curso: la renovación nace 'scheduled' y arranca ese día.
+   */
+  currentEndDate: string | null;
 }
 
 /** POST /coach-load/pay-plan → { subscription, transaction } (transaction null on free renewal). */
@@ -281,6 +287,22 @@ export function useFinanceLoadApi() {
     }
   }
 
+  /**
+   * GET /coach-load/caja-efectivo — caja destino de un cobro en efectivo. Para
+   * cash la caja la decide el server (sede del profe), así que la PoS no la
+   * pregunta; esto es sólo para MOSTRARLA. `caja: null` cuando no es resolvible
+   * (el server cae a la sede del socio) — no es un error, no se notifica.
+   */
+  async function getCajaEfectivo(
+    currency: string
+  ): Promise<{ caja: { id: number; name: string } | null }> {
+    const { data } = await api.get<{ caja: { id: number; name: string } | null }>(
+      '/admin/finance/coach-load/caja-efectivo',
+      { params: { currency } }
+    );
+    return data;
+  }
+
   function cleanup() {
     loading.value = false;
     error.value = null;
@@ -295,6 +317,7 @@ export function useFinanceLoadApi() {
     altaConPlan,
     listMyLoads,
     listBankAccounts,
+    getCajaEfectivo,
     cleanup,
   };
 }

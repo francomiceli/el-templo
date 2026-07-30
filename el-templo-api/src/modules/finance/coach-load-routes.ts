@@ -40,6 +40,7 @@ import { handleServiceError } from "../shared/error-handler";
 import { BadRequestError, NotFoundError } from "../shared/errors";
 import { FINANCE_LOAD_ROLES, type AdminRole } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
+import { assertTenant, tenantWhere } from "../shared/tenant";
 import { requireBranchAccess } from "../shared/branch-access";
 import { isDuplicateKeyError } from "../shared/sql-errors";
 import * as schema from "../../db/schema";
@@ -862,6 +863,9 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
   // the right amount WITHOUT the profe choosing renovación vs primer plan:
   //   - 'settle' → the current sub has outstanding debt; amount = that debt.
   //   - 'renew'  → no debt; amount = the plan price (a new period would be created).
+  //
+  // `currentEndDate` = vencimiento de la sub vigente (null si no tiene). La PoS
+  // lo muestra para que el operador vea que la renovación anticipada arranca ahí.
   // ===================================================================
   fastify.get<{ Params: { userId: number } }>(
     "/autocompletar/:userId",
@@ -879,6 +883,7 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
             currency: null,
             intent: null,
             outstanding: 0,
+            currentEndDate: null,
           });
         }
         const balanceRow = await balanceService.getRow(
@@ -897,6 +902,10 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
           currency: sub.currency,
           intent: outstanding > 0 ? "settle" : "renew",
           outstanding,
+          // Vencimiento de la sub vigente (UAT caja/cobros 2026-07-21). La PoS lo
+          // usa para explicitar que renovar ANTES del vencimiento no pisa el
+          // período en curso: la renovación nace 'scheduled' y arranca este día.
+          currentEndDate: sub.endDate ?? null,
         });
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "coach autocompletar");
@@ -932,6 +941,63 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.send({ accounts });
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "coach bank-accounts");
+      }
+    },
+  );
+
+  // ===================================================================
+  // GET /caja-efectivo — caja destino de un cobro en EFECTIVO (UAT caja/cobros
+  // 2026-07-21). Para cash la caja es server-derived (sede del profe, CAJA-01) y
+  // el body tiene prohibido elegirla, así que la PoS no pregunta nada — pero el
+  // operador igual necesita SABER a qué caja va la plata. Read-only: informa lo
+  // mismo que resolveSuggestedCaja va a decidir al confirmar.
+  //
+  // Devuelve `{ caja: null }` (200, no error) cuando la caja del profe no es
+  // resolvible — mismo fallback tolerante que resolveSuggestedCaja, que en ese
+  // caso deja que el service resuelva por la sede del socio. Un profe sin caja
+  // no debe quedar bloqueado ni ver un error.
+  // ===================================================================
+  fastify.get<{ Querystring: { currency: string } }>(
+    "/caja-efectivo",
+    {
+      schema: {
+        querystring: {
+          type: "object",
+          required: ["currency"],
+          additionalProperties: false,
+          properties: {
+            currency: { type: "string", minLength: 1, maxLength: 8 },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      try {
+        const { override } = await resolveSuggestedCaja(
+          "cash",
+          request.user.userId,
+          request.query.currency,
+        );
+        if (override == null) {
+          return reply.send({ caja: null });
+        }
+        const ctx = assertTenant(request.scope, "coach caja-efectivo");
+        const [caja] = await fastify.db
+          .select({
+            id: schema.cashRegisters.id,
+            name: schema.cashRegisters.name,
+          })
+          .from(schema.cashRegisters)
+          .where(
+            and(
+              tenantWhere(schema.cashRegisters, ctx),
+              eq(schema.cashRegisters.id, override),
+            ),
+          )
+          .limit(1);
+        return reply.send({ caja: caja ?? null });
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "coach caja-efectivo");
       }
     },
   );

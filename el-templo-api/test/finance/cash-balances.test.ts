@@ -16,7 +16,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { eq, sql, inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import {
   createTestApp,
@@ -39,6 +39,8 @@ let gestionToken: string;
 
 let efectivoCajaId: number;
 let bancoCajaId: number;
+/** Caja propia de los tests de período (aislada de los assertions de firme). */
+let periodoCajaId: number;
 
 interface CajaSaldoRow {
   cashRegisterId: number;
@@ -48,6 +50,13 @@ interface CajaSaldoRow {
   currency: string;
   firmeBalance: number;
   pendienteAmount: number;
+  period: {
+    dateFrom: string;
+    dateTo: string;
+    inflow: number;
+    outflow: number;
+    net: number;
+  } | null;
 }
 
 async function fetchBalances(
@@ -173,10 +182,34 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await app.db.execute(sql`DELETE FROM financial_transactions`);
-  await app.db
-    .delete(schema.cashRegisters)
-    .where(inArray(schema.cashRegisters.id, [efectivoCajaId, bancoCajaId]));
+  // Limpieza ACOTADA a las cajas de este suite. Antes era un
+  // `DELETE FROM financial_transactions` global, que además de borrar filas de
+  // otros suites que comparten la DB del worker fallaba con ER_ROW_IS_REFERENCED_2
+  // en cuanto alguna de esas filas tenía transaction_links colgando (el FK
+  // fk_tx_links_transaction no es ON DELETE CASCADE).
+  const cajaIds = [efectivoCajaId, bancoCajaId, periodoCajaId].filter(
+    (id): id is number => typeof id === "number",
+  );
+  if (cajaIds.length > 0) {
+    const txIds = (
+      await app.db
+        .select({ id: schema.financialTransactions.id })
+        .from(schema.financialTransactions)
+        .where(inArray(schema.financialTransactions.cashRegisterId, cajaIds))
+    ).map((r) => r.id);
+    // Los links primero: son los hijos del FK.
+    if (txIds.length > 0) {
+      await app.db
+        .delete(schema.transactionLinks)
+        .where(inArray(schema.transactionLinks.transactionId, txIds));
+      await app.db
+        .delete(schema.financialTransactions)
+        .where(inArray(schema.financialTransactions.id, txIds));
+    }
+    await app.db
+      .delete(schema.cashRegisters)
+      .where(inArray(schema.cashRegisters.id, cajaIds));
+  }
   await app.close();
 });
 
@@ -205,6 +238,145 @@ describe("REP-02: GET /cash-registers/balances (saldos por caja)", () => {
       headers: { authorization: `Bearer ${coachToken}` },
     });
     expect(res.statusCode).toBe(403);
+  });
+
+  // ── Movimiento del período (UAT caja/cobros 2026-07-21) ───────────────────
+  // El saldo firme sigue siendo acumulado desde el cutoff; el rango SOLO agrega
+  // entradas/salidas/neto del período, para poder conciliar una caja.
+  describe("movimiento del período (dateFrom/dateTo)", () => {
+    beforeAll(async () => {
+      const [caja] = await app.db
+        .insert(schema.cashRegisters)
+        .values({
+          name: `Bal periodo ${Date.now() % 100000}`,
+          type: "efectivo",
+          branchId,
+          currency: "ARS",
+          cutoffDate: CUTOFF,
+        })
+        .$returningId();
+      periodoCajaId = caja.id;
+
+      const base = {
+        memberId,
+        currency: "ARS",
+        paymentMethod: "cash" as const,
+        branchId,
+        cashRegisterId: periodoCajaId,
+        recordedBy: adminId,
+        validationStatus: "validado" as const,
+      };
+      await app.db.insert(schema.financialTransactions).values([
+        // Dentro del período (mayo): 3000 entra, 1000 sale → neto +2000.
+        {
+          ...base,
+          kind: "plan_charge",
+          direction: "inflow",
+          amount: 3000,
+          transactionDate: "2026-05-10",
+          effectiveDate: "2026-05-10",
+        },
+        {
+          ...base,
+          kind: "expense",
+          direction: "outflow",
+          amount: 1000,
+          transactionDate: "2026-05-20",
+          effectiveDate: "2026-05-20",
+        },
+        // Fuera del período (junio): no debe contarse en el neto de mayo, pero
+        // sí en el saldo firme acumulado.
+        {
+          ...base,
+          kind: "plan_charge",
+          direction: "inflow",
+          amount: 7000,
+          transactionDate: "2026-06-05",
+          effectiveDate: "2026-06-05",
+        },
+        // Pendiente dentro del período: NUNCA entra al neto firme (CAJA-03).
+        {
+          ...base,
+          validationStatus: "pendiente" as const,
+          kind: "plan_charge",
+          direction: "inflow",
+          amount: 900,
+          transactionDate: "2026-05-15",
+          effectiveDate: "2026-05-15",
+        },
+      ]);
+    });
+
+    async function fetchWithRange(
+      dateFrom: string,
+      dateTo: string,
+    ): Promise<{ statusCode: number; rows: CajaSaldoRow[] }> {
+      const res = await app.inject({
+        method: "GET",
+        url: `${BALANCES_URL}?dateFrom=${dateFrom}&dateTo=${dateTo}`,
+        headers: { authorization: `Bearer ${ownerToken}` },
+      });
+      if (res.statusCode !== 200)
+        return { statusCode: res.statusCode, rows: [] };
+      return {
+        statusCode: res.statusCode,
+        rows: JSON.parse(res.body) as CajaSaldoRow[],
+      };
+    }
+
+    it("con rango → entradas/salidas/neto sólo del período; el firme sigue acumulado", async () => {
+      const { statusCode, rows } = await fetchWithRange(
+        "2026-05-01",
+        "2026-05-31",
+      );
+      expect(statusCode).toBe(200);
+      const caja = rows.find((r) => r.cashRegisterId === periodoCajaId);
+      expect(caja?.period).not.toBeNull();
+      expect(caja?.period?.inflow).toBe(3000);
+      expect(caja?.period?.outflow).toBe(1000);
+      expect(caja?.period?.net).toBe(2000);
+      // El firme incluye TODO lo validado desde el cutoff (mayo + junio),
+      // no sólo el período: 3000 - 1000 + 7000.
+      expect(caja?.firmeBalance).toBe(9000);
+      // El pendiente de mayo se reporta aparte y no toca el neto.
+      expect(caja?.pendienteAmount).toBe(900);
+    });
+
+    it("un período sin movimientos → ceros, no null", async () => {
+      const { rows } = await fetchWithRange("2026-01-01", "2026-01-31");
+      const caja = rows.find((r) => r.cashRegisterId === periodoCajaId);
+      expect(caja?.period).toEqual({
+        dateFrom: "2026-01-01",
+        dateTo: "2026-01-31",
+        inflow: 0,
+        outflow: 0,
+        net: 0,
+      });
+    });
+
+    it("sin rango → period null (no cambia el contrato previo)", async () => {
+      const { rows } = await fetchBalances(ownerToken);
+      const caja = rows.find((r) => r.cashRegisterId === periodoCajaId);
+      expect(caja?.period).toBeNull();
+    });
+
+    it("rango a medias → 400", async () => {
+      const res = await app.inject({
+        method: "GET",
+        url: `${BALANCES_URL}?dateFrom=2026-05-01`,
+        headers: { authorization: `Bearer ${ownerToken}` },
+      });
+      expect(res.statusCode).toBe(400);
+    });
+
+    it("dateFrom posterior a dateTo → 400", async () => {
+      const res = await app.inject({
+        method: "GET",
+        url: `${BALANCES_URL}?dateFrom=2026-06-01&dateTo=2026-05-01`,
+        headers: { authorization: `Bearer ${ownerToken}` },
+      });
+      expect(res.statusCode).toBe(400);
+    });
   });
 
   it("scope: non-owner gestion does NOT see the branch-less banco caja; owner does", async () => {

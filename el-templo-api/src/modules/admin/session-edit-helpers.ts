@@ -8,7 +8,15 @@
 import { MySql2Database } from "drizzle-orm/mysql2";
 import { eq } from "drizzle-orm";
 import * as schema from "../../db/schema";
+import type { TxHandle } from "../finance/balance-service";
 import type { EditAction } from "./types";
+
+/**
+ * Ambos helpers aceptan el pool o un handle de transacción: los callers que
+ * escriben varias filas relacionadas (ver `syncInitiumAcrossDay`) necesitan que
+ * el revert y el log de auditoría entren en el mismo commit que la escritura.
+ */
+type DbOrTx = MySql2Database<typeof schema> | TxHandle;
 
 /** Payload to reset a session back to pending_review */
 export const PENDING_REVIEW_RESET = {
@@ -23,7 +31,7 @@ export const PENDING_REVIEW_RESET = {
  * Called after any edit mutation so coaches must re-approve.
  */
 export async function revertToPendingIfApproved(
-  db: MySql2Database<typeof schema>,
+  db: DbOrTx,
   sessionId: number,
 ): Promise<void> {
   const [session] = await db
@@ -43,7 +51,7 @@ export async function revertToPendingIfApproved(
  * Insert a row into session_edit_logs for audit trail.
  */
 export async function logEdit(
-  db: MySql2Database<typeof schema>,
+  db: DbOrTx,
   sessionId: number,
   userId: number,
   action: EditAction,

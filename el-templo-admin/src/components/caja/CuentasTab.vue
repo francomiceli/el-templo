@@ -1,5 +1,43 @@
 <template>
   <div class="q-pa-md">
+    <!-- Cajas de efectivo (UAT caja/cobros 2026-07-21: "te deja crear cuentas
+         bancarias, pero no nuevas cajas"). Una por sucursal y moneda. -->
+    <div class="row items-center q-mb-md">
+      <div class="text-subtitle1 text-weight-medium col">Cajas de efectivo</div>
+      <q-btn
+        icon="add"
+        label="Abrir caja"
+        color="primary"
+        unelevated
+        dense
+        @click="showCajaDialog = true"
+      />
+    </div>
+
+    <q-table
+      :rows="cajasEfectivo"
+      :columns="cajaColumns"
+      row-key="cashRegisterId"
+      flat
+      bordered
+      :loading="loadingCajas"
+      :pagination="{ rowsPerPage: 0 }"
+      hide-bottom
+    >
+      <template #body-cell-firmeBalance="cellProps">
+        <q-td :props="cellProps" class="text-weight-medium">
+          {{ formatPrice(cellProps.row.firmeBalance, cellProps.row.currency) }}
+        </q-td>
+      </template>
+      <template #no-data>
+        <div class="full-width text-center text-grey-6 q-pa-md">
+          Todavía no hay cajas de efectivo. Abrí la primera con "Abrir caja".
+        </div>
+      </template>
+    </q-table>
+
+    <q-separator class="q-my-lg" />
+
     <!-- Header: alta de cuenta (CTA-01) -->
     <div class="row items-center q-mb-md">
       <div class="text-subtitle1 text-weight-medium col">Cuentas bancarias</div>
@@ -180,6 +218,13 @@
       @saved="onSavedCategoria"
     />
 
+    <!-- Apertura de caja de efectivo (una por sucursal y moneda) -->
+    <CajaEfectivoFormDialog
+      v-model="showCajaDialog"
+      :selected-country="selectedCountry"
+      @saved="loadCajas"
+    />
+
     <!-- Alta / edición (CTA-01) -->
     <CuentaBancariaFormDialog
       v-model="showForm"
@@ -209,8 +254,9 @@ import { createLogger } from 'src/utils/logger';
 import { extractError } from 'src/utils/extract-error';
 import { formatPrice } from 'src/utils/format-price';
 import { useTransactionsApi } from 'src/composables/useTransactionsApi';
-import type { BankAccount, CostCenter } from 'src/types/transaction';
+import type { BankAccount, CajaSaldoRow, CostCenter } from 'src/types/transaction';
 import CuentaBancariaFormDialog from 'src/components/caja/CuentaBancariaFormDialog.vue';
+import CajaEfectivoFormDialog from 'src/components/caja/CajaEfectivoFormDialog.vue';
 import CategoriaEgresoFormDialog from 'src/components/caja/CategoriaEgresoFormDialog.vue';
 import RegistrarMovEgresoDialog from 'src/components/caja/RegistrarMovEgresoDialog.vue';
 
@@ -234,6 +280,38 @@ const columns: QTableColumn<BankAccount>[] = [
   { name: 'balance', label: 'Saldo firme', field: 'balance', align: 'left' },
   { name: 'actions', label: 'Acciones', field: 'id', align: 'right' },
 ];
+
+// =========================================================================
+// Cajas de efectivo (UAT 2026-07-21). Se leen del mismo endpoint de saldos
+// (sin rango: acá sólo interesa el saldo firme, no el neto del período) y se
+// filtran a las de sucursal — las branch-less son la central y los bancos.
+// =========================================================================
+
+const cajasEfectivo = ref<CajaSaldoRow[]>([]);
+const loadingCajas = ref(false);
+const showCajaDialog = ref(false);
+
+const cajaColumns: QTableColumn<CajaSaldoRow>[] = [
+  { name: 'name', label: 'Caja', field: 'name', align: 'left' },
+  { name: 'currency', label: 'Moneda', field: 'currency', align: 'left' },
+  { name: 'firmeBalance', label: 'Saldo firme', field: 'firmeBalance', align: 'left' },
+];
+
+async function loadCajas() {
+  loadingCajas.value = true;
+  try {
+    const rows = await transactionsApi.getCashRegisterBalances({
+      country: props.isOwner ? props.selectedCountry : undefined,
+    });
+    cajasEfectivo.value = rows.filter((r) => r.type === 'efectivo' && r.branchId !== null);
+  } catch (err: unknown) {
+    const message = extractError(err, 'Error cargando cajas');
+    log.error('Error loading cash registers', { error: message });
+    $q.notify({ type: 'negative', message });
+  } finally {
+    loadingCajas.value = false;
+  }
+}
 
 // =========================================================================
 // Data loading — reactivo al país (owner AR/ES) igual que los demás tabs.
@@ -439,6 +517,7 @@ async function reactivateCategoria(id: number) {
 onMounted(() => {
   void load();
   void loadCostCenters();
+  void loadCajas();
 });
 
 watch(
@@ -446,6 +525,7 @@ watch(
   () => {
     void load();
     void loadCostCenters();
+    void loadCajas();
   }
 );
 

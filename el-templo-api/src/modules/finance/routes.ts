@@ -41,6 +41,7 @@ import {
   pendingTraySchema,
   pendingTrayExportSchema,
   cashBalancesSchema,
+  createEfectivoCajaSchema,
   costCentersSchema,
   cashBalancesExportSchema,
   movementsHistorySchema,
@@ -62,6 +63,7 @@ import {
   ADMIN_ROLES,
 } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
+import { assertTenant } from "../shared/tenant";
 import {
   requireBranchAccess,
   BRANCH_OUT_OF_SCOPE,
@@ -1127,7 +1129,9 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
   // Non-owner sees only their country's sucursal cajas; central/banco
   // (branch-less) owner-only. Coach 403 via the module guard.
   // ===================================================================
-  fastify.get<{ Querystring: { country?: string } }>(
+  fastify.get<{
+    Querystring: { country?: string; dateFrom?: string; dateTo?: string };
+  }>(
     "/cash-registers/balances",
     { schema: cashBalancesSchema },
     async (request, reply) => {
@@ -1140,10 +1144,34 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
         } else {
           country = request.scope.country ?? undefined;
         }
-        return await cashRegisterService.listActiveCajasWithBalance({
-          isOwner: request.scope.isOwner,
-          country: country ?? null,
-        });
+        // El rango va completo o no va: con uno solo el neto sería engañoso
+        // (mitad del período), así que se rechaza en vez de asumir un borde.
+        const { dateFrom, dateTo } = request.query;
+        if ((dateFrom === undefined) !== (dateTo === undefined)) {
+          return reply.code(400).send({
+            error: "Solicitud invalida",
+            message: "Enviá dateFrom y dateTo juntos, o ninguno de los dos.",
+          });
+        }
+        if (
+          dateFrom !== undefined &&
+          dateTo !== undefined &&
+          dateFrom > dateTo
+        ) {
+          return reply.code(400).send({
+            error: "Solicitud invalida",
+            message: "dateFrom no puede ser posterior a dateTo.",
+          });
+        }
+        return await cashRegisterService.listActiveCajasWithBalance(
+          {
+            isOwner: request.scope.isOwner,
+            country: country ?? null,
+          },
+          dateFrom !== undefined && dateTo !== undefined
+            ? { dateFrom, dateTo }
+            : undefined,
+        );
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "finance cash balances");
         return reply;
@@ -1351,6 +1379,35 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.code(201).send({ account });
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "create bank account");
+      }
+    },
+  );
+
+  // POST /cash-registers/efectivo — abrir la caja de efectivo de una sucursal
+  // (UAT caja/cobros 2026-07-21). Mismo gate ADMIN_ROLES que las cuentas banco:
+  // el openingBalance entra directo al saldo firme, así que no es una escritura
+  // de gestión/recepción. El invariante "una activa por sucursal+moneda" lo
+  // sostiene el service (mantiene determinista a resolveCashRegister).
+  fastify.post<{
+    Body: { branchId: number; currency: string; openingBalance?: number };
+  }>(
+    "/cash-registers/efectivo",
+    { schema: createEfectivoCajaSchema },
+    async (request, reply) => {
+      try {
+        if (!(ADMIN_ROLES as readonly string[]).includes(request.user.role)) {
+          return reply.code(403).send({
+            error: "Acceso denegado",
+            message: "No tienes permiso para administrar cajas",
+          });
+        }
+        const caja = await cashRegisterService.createEfectivoCaja(
+          assertTenant(request.scope, "create efectivo caja"),
+          request.body,
+        );
+        return reply.code(201).send({ caja });
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "create efectivo caja");
       }
     },
   );

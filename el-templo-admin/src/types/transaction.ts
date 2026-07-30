@@ -498,10 +498,24 @@ export interface CajaSaldoRow {
   currency: string;
   firmeBalance: number;
   pendienteAmount: number;
+  /** Movimiento firme del período pedido; null si la consulta no pidió rango. */
+  period: CajaPeriodMovement | null;
+}
+
+/** Entradas/salidas firmes de una caja en un rango (inclusive). net puede ser negativo. */
+export interface CajaPeriodMovement {
+  dateFrom: string;
+  dateTo: string;
+  inflow: number;
+  outflow: number;
+  net: number;
 }
 
 export interface CashBalancesParams {
   country?: 'AR' | 'ES';
+  /** Rango opcional: van juntos o ninguno (el server rechaza uno solo). */
+  dateFrom?: string;
+  dateTo?: string;
 }
 
 // -- Phase 141 → 146 (ARQUEO): Arqueo por caja (REP-03 / ARQUEO-01/02) -------

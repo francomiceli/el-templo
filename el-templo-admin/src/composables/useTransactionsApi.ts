@@ -777,6 +777,33 @@ export function useTransactionsApi() {
   }
 
   /**
+   * Abre la caja de efectivo de una sucursal. Source: POST
+   * /admin/finance/cash-registers/efectivo. El backend rechaza con 409 si esa
+   * sucursal ya tiene una caja activa en esa moneda (invariante que mantiene
+   * determinista la resolución de caja en los cobros en efectivo).
+   */
+  async function createEfectivoCaja(input: {
+    branchId: number;
+    currency: string;
+    openingBalance?: number;
+  }): Promise<{ caja: CajaSaldoRow }> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.post<{ caja: CajaSaldoRow }>(
+        '/admin/finance/cash-registers/efectivo',
+        input
+      );
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error abriendo la caja');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  /**
    * Edición de cuenta bancaria. Source: PATCH /admin/finance/cash-registers/:id.
    * `input` NO incluye currency (moneda fija post-creación, D-04).
    */
@@ -891,6 +918,7 @@ export function useTransactionsApi() {
     // Phase 150 additions — ABM de cuentas bancarias (CTA-01):
     listBankAccounts,
     createBankAccount,
+    createEfectivoCaja,
     updateBankAccount,
     closeBankAccount,
     reactivateBankAccount,
