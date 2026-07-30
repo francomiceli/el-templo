@@ -741,8 +741,10 @@ describe("coach-load cobro suelto", () => {
   });
 });
 
-// ─── caja sugerida (CAJA-01): la caja nace de la sede del PROFE, no del socio ──
-describe("coach-load caja sugerida por sede del profe", () => {
+// ─── caja del cobro (CR-CAJA): la caja sigue la SEDE DEL COBRO, default = sede
+// del SOCIO (users.branchId). Overrideable con body.branchId, gated por
+// requireBranchAccess (optional). Reemplaza a CAJA-01 (sede del profe). ──
+describe("coach-load caja del cobro por sede del socio (CR-CAJA)", () => {
   let branchB: number; // sede del SOCIO (distinta a la del profe = branchId/sede A)
   let memberB: number; // socio de sede B
   let efectivoAId: number; // caja efectivo de la sede del profe (A)
@@ -821,7 +823,7 @@ describe("coach-load caja sugerida por sede del profe", () => {
     memberB = (member.user as { id: number }).id;
   });
 
-  it("misc cash: profe de sede A cobra a socio de sede B → caja efectivo de A, branch_id de B", async () => {
+  it("misc cash: profe de sede A cobra a socio de sede B → caja efectivo de B, branch_id de B", async () => {
     expect(efectivoAId).not.toBe(efectivoBId); // sanity: distintas cajas
     const res = await app.inject({
       method: "POST",
@@ -839,13 +841,58 @@ describe("coach-load caja sugerida por sede del profe", () => {
     });
     expect(res.statusCode).toBe(201);
     const row = await readTx(JSON.parse(res.body).transaction.id);
-    // La caja sugerida es la EFECTIVO de la sede del PROFE (A), no la del socio (B).
-    expect(row.cashRegisterId).toBe(efectivoAId);
-    // El branch_id comercial (ledger) sigue siendo el de la sede del SOCIO (B).
+    // CR-CAJA: la caja es la EFECTIVO de la sede del SOCIO (B), no la del profe (A).
+    expect(row.cashRegisterId).toBe(efectivoBId);
+    // El branch_id comercial (ledger) es el de la sede del SOCIO (B).
     expect(row.branchId).toBe(branchB);
   });
 
-  it("misc transfer: caja banco por moneda (sin regresión, sede del profe es moot)", async () => {
+  it("misc cash con branchId override (sede A, en scope del profe) → caja efectivo de A y branch_id de A", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: `${COACH_LOAD_URL}/misc`,
+      headers: { authorization: `Bearer ${coachToken}` },
+      payload: {
+        memberId: memberB,
+        amount: 8000,
+        concepto: "Cobro suelto con sede elegida",
+        paymentMethod: "cash",
+        currency: "ARS",
+        branchId,
+        idempotencyKey: `caja-misc-override-${Date.now()}`,
+        miscReason: "otro",
+      },
+    });
+    expect(res.statusCode).toBe(201);
+    const row = await readTx(JSON.parse(res.body).transaction.id);
+    // El select de Sede mueve la caja Y la recaudación a la sede elegida (A).
+    expect(row.cashRegisterId).toBe(efectivoAId);
+    expect(row.branchId).toBe(branchId);
+  });
+
+  it("misc con branchId fuera del scope operativo del profe → 403 BRANCH_OUT_OF_SCOPE", async () => {
+    // El coach solo tiene la sede A en user_branches; elegir B explícitamente
+    // se rechaza (el default implícito = sede del socio NO pasa por el gate).
+    const res = await app.inject({
+      method: "POST",
+      url: `${COACH_LOAD_URL}/misc`,
+      headers: { authorization: `Bearer ${coachToken}` },
+      payload: {
+        memberId: memberB,
+        amount: 8000,
+        concepto: "Cobro suelto sede ajena",
+        paymentMethod: "cash",
+        currency: "ARS",
+        branchId: branchB,
+        idempotencyKey: `caja-misc-fuera-scope-${Date.now()}`,
+        miscReason: "otro",
+      },
+    });
+    expect(res.statusCode).toBe(403);
+    expect(JSON.parse(res.body).code).toBe("BRANCH_OUT_OF_SCOPE");
+  });
+
+  it("misc transfer: caja banco por moneda (sin regresión, la sede del cobro es moot para la caja)", async () => {
     const res = await app.inject({
       method: "POST",
       url: `${COACH_LOAD_URL}/misc`,
@@ -867,7 +914,7 @@ describe("coach-load caja sugerida por sede del profe", () => {
     expect(row.branchId).toBe(branchB);
   });
 
-  it("settle cash: deuda saldada por profe de A → caja efectivo de A, branch_id de B", async () => {
+  it("settle cash: deuda saldada por profe de A → caja efectivo de B (sede del socio), branch_id de B", async () => {
     // Sub vigente con deuda para el socio de sede B.
     const start = new Date().toISOString().split("T")[0];
     const future = new Date(Date.now() + 20 * 24 * 60 * 60 * 1000)
@@ -908,11 +955,12 @@ describe("coach-load caja sugerida por sede del profe", () => {
     expect(res.statusCode).toBe(201);
     const row = await readTx(JSON.parse(res.body).transaction.id);
     expect(row.kind).toBe("debt_settlement");
-    expect(row.cashRegisterId).toBe(efectivoAId);
+    // CR-CAJA: la plata entra a la caja efectivo de la sede del SOCIO (B).
+    expect(row.cashRegisterId).toBe(efectivoBId);
     expect(row.branchId).toBe(branchB);
   });
 
-  it("renew cash: renovación de socio de sede B por profe de A → plan_charge en caja efectivo de A", async () => {
+  it("renew cash: renovación de socio de sede B por profe de A → plan_charge en caja efectivo de B", async () => {
     // Sub expirada ayer → renew crea un período activo nuevo + charge real.
     const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000)
       .toISOString()
@@ -954,9 +1002,10 @@ describe("coach-load caja sugerida por sede del profe", () => {
       .where(eq(schema.financialTransactions.memberId, memberB))
       .limit(1);
     expect(charge.kind).toBe("plan_charge");
-    // CAJA-01: el plan_charge de la renovación nace en la caja efectivo del PROFE (A).
-    expect(charge.cashRegisterId).toBe(efectivoAId);
-    // El branch_id sigue siendo el del socio (renew lo deriva de currentSub.branchId = B).
+    // CR-CAJA: el plan_charge de la renovación nace en la caja efectivo de la
+    // sede del SOCIO (B) — la sede del profe ya no pisa la caja.
+    expect(charge.cashRegisterId).toBe(efectivoBId);
+    // El branch_id sigue siendo el del socio (renewBranchId = users.branchId = B).
     expect(charge.branchId).toBe(branchB);
   });
 });
@@ -1403,14 +1452,15 @@ describe("coach-load bankAccountId (COBRO-04)", () => {
     expect(res.statusCode).toBe(403);
   });
 
-  // ── GET /caja-efectivo (UAT caja/cobros 2026-07-21) ─────────────────────────
-  // Informativo: para cash la caja es server-derived y el operador no la elige,
-  // pero tiene que poder VERLA antes de confirmar.
+  // ── GET /caja-efectivo (UAT caja/cobros 2026-07-21, CR-CAJA 2026-07-24) ────
+  // Informativo: la caja destino sigue la SEDE DEL COBRO (query branchId, que
+  // la PoS toma del select de Sede). El operador tiene que poder VERLA antes
+  // de confirmar.
   describe("GET /caja-efectivo", () => {
-    it("coach → 200 con la caja de efectivo de su sede", async () => {
+    it("coach → 200 con la caja de efectivo de la sede pedida", async () => {
       const res = await app.inject({
         method: "GET",
-        url: `${COACH_LOAD_URL}/caja-efectivo?currency=ARS`,
+        url: `${COACH_LOAD_URL}/caja-efectivo?currency=ARS&branchId=${branchId}`,
         headers: { authorization: `Bearer ${coachToken}` },
       });
       expect(res.statusCode).toBe(200);
@@ -1426,7 +1476,7 @@ describe("coach-load bankAccountId (COBRO-04)", () => {
     it("moneda sin caja de efectivo → 200 con caja:null (no rompe el cobro)", async () => {
       const res = await app.inject({
         method: "GET",
-        url: `${COACH_LOAD_URL}/caja-efectivo?currency=EUR`,
+        url: `${COACH_LOAD_URL}/caja-efectivo?currency=EUR&branchId=${branchId}`,
         headers: { authorization: `Bearer ${coachToken}` },
       });
       expect(res.statusCode).toBe(200);
@@ -1436,7 +1486,16 @@ describe("coach-load bankAccountId (COBRO-04)", () => {
     it("sin currency → 400", async () => {
       const res = await app.inject({
         method: "GET",
-        url: `${COACH_LOAD_URL}/caja-efectivo`,
+        url: `${COACH_LOAD_URL}/caja-efectivo?branchId=1`,
+        headers: { authorization: `Bearer ${coachToken}` },
+      });
+      expect(res.statusCode).toBe(400);
+    });
+
+    it("sin branchId → 400 (CR-CAJA: la sede del cobro es obligatoria)", async () => {
+      const res = await app.inject({
+        method: "GET",
+        url: `${COACH_LOAD_URL}/caja-efectivo?currency=ARS`,
         headers: { authorization: `Bearer ${coachToken}` },
       });
       expect(res.statusCode).toBe(400);
@@ -1445,7 +1504,7 @@ describe("coach-load bankAccountId (COBRO-04)", () => {
     it("sin token → 401", async () => {
       const res = await app.inject({
         method: "GET",
-        url: `${COACH_LOAD_URL}/caja-efectivo?currency=ARS`,
+        url: `${COACH_LOAD_URL}/caja-efectivo?currency=ARS&branchId=1`,
       });
       expect(res.statusCode).toBe(401);
     });
