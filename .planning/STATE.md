@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: "Tenancy — El Templo pasa a ser tenant #1"
 status: executing
-stopped_at: Completed 172-04-PLAN.md
-last_updated: "2026-07-30T21:31:09.632Z"
+stopped_at: Completed 172-05-PLAN.md
+last_updated: "2026-07-30T22:54:16.264Z"
 last_activity: 2026-07-30
 progress:
   total_phases: 11
   completed_phases: 4
   total_plans: 59
-  completed_plans: 33
+  completed_plans: 34
   percent: 36
 ---
 
@@ -26,12 +26,14 @@ See: .planning/PROJECT.md (milestone v6.0 initialized 2026-07-26)
 ## Current Position
 
 Phase: 172 (adopci-n-1-piloto-finance) — EXECUTING
-Plan: 6 of 23
+Plan: 7 of 23
 Status: Ready to execute
 Last activity: 2026-07-30
-Next: `/gsd:execute-phase 172` sigue por el plan **172-05** (que quedó sin ejecutar: el 172-06 se corrió antes por ser wave 2 sin dependencia del 05). En paralelo sigue pendiente el plan **169-09**, el último de la fase 169 (gate consolidado + rollout), y siguen pendientes
+Next: `/gsd:execute-phase 172` sigue por el plan **172-07** (el 172-05 quedó cerrado: era el que faltaba de la wave 2). En paralelo sigue pendiente el plan **169-09**, el último de la fase 169 (gate consolidado + rollout), y siguen pendientes
 
 **Deuda de allowlist acumulada en `feat/172-adopcion-finance`: 21 entradas** (9 del plan 172-02 + 4 del 172-03 + 6 del 172-04 + 2 del 172-06). El archivo real `tenant-lint-allowlist.json` tiene **un solo dueño, el plan 172-21**, así que `pnpm lint:tenant` sin `--allowlist` sale **rojo con `DISCREPANCIAS: 21`** en esa rama — todas `staleNoLongerViolating`, o sea deuda ya pagada esperando que la borren. **No es una regresión, pero si la rama se mergea a `staging` antes del 172-21, CI queda rojo por esto.**
+
+**172-05 cerrado — la línea de base de D-12 ("el staff ve los mismos números") YA ESTÁ TOMADA, y se tomó sobre el staging correcto.** `el-templo-api/src/scripts/snapshot-finance-endpoints.ts` (commit `173e2127`, 735 líneas, **cero dependencias nuevas** — `fetch` nativo) golpea 7 agregadores con GET, normaliza y guarda; `--diff` compara y sale 1 si difieren. **La foto está en `$HOME/.el-templo-snapshots/172/antes.json`** (99.483 bytes, permisos `600`, **fuera del repo y fuera de `.planning/`** — tiene plata real y nombres de socios, T-172-05-01): los **7 endpoints en 200**, con 13 cajas con saldo, 62 movimientos, 42 transacciones, 7 deudas y el summary con sus 4 agregados. Se capturó con CR-CAJA desplegado y **sin una sola línea de la fase 172** corriendo en staging, que es exactamente lo que el gate D-13 pedía: **el diff del 172-22 va a medir solo la migración de tenancy, sin mezclar el cambio de caja.** **Tres cosas que el plan 172-22 tiene que saber:** (1) el comando de cierre ya está escrito — `--diff=$HOME/.el-templo-snapshots/172/antes.json <despues.json>`, exit 0 = D-12 cumplido, exit 1 = hay un número movido y el script imprime el path exacto (`.body.rows[7].amount`, con los dos valores); (2) **no cambiar el rango fijo** `2026-01-01..2026-06-30` — el script corta con **exit 2** si los dos snapshots tienen rangos distintos, porque comparar rangos distintos no es un diff sino una confusión; (3) hace falta otro **JWT de admin/owner de staging**, que **dura 30 minutos**. **El determinismo se probó donde se puede probar de verdad:** dos capturas contra staging separadas por 8 s dan diff vacío, pero eso sólo prueba que en 8 s nadie cobró nada — la prueba real fue contra un servidor falso descartable que devuelve las **filas mezcladas**, `generatedAt`/`requestId`/`timestamp` nuevos en cada request y **450 filas en 3 páginas**: diff vacío igual, y con **un solo monto cambiado** a mano el diff sale rojo señalando el campo. **Dos decisiones de diseño que no son obvias:** el script **pagina hasta agotar `total`** (con el tope de 200 filas, un cambio de índice —que es lo que esta fase hace— cambiaría _qué filas_ caen en la página 1 y el diff compararía conjuntos distintos), y **el orden de las listas NO es señal a propósito** (MySQL puede devolver los empates al revés al cambiar de índice sin que ningún número se mueva; un cambio de orden visible lo caza el UAT, no este script). **Trampa cazada al escribirlo, que vale para cualquier script que golpee la API:** mandarle `dateFrom` a un endpoint cuyo schema no lo declara **no da 400** — Fastify compila ajv con `removeAdditional: true` y lo **strippea en silencio**, así que el snapshot habría dicho "rango 2026-H1" sobre el histórico completo de deudas; el rango se mapea al nombre real de cada schema (`accruedFrom`/`accruedTo` en `outstanding-balances`, ninguno en `cost-centers/all`). Otras salvaguardas: una captura con algún endpoint fuera de 200 se guarda en `<ruta>.parcial` y **nunca** con el nombre bueno, y una respuesta que no es JSON (la trampa conocida de apuntar al vhost del front, que devuelve HTML de nginx) queda legible como `noEsJson`. **El script no está cableado a ningún pipeline y sólo hace GETs.** **ADO-01 sigue Pending:** este plan no migra una línea de `finance`, construye el instrumento con el que se mide si la migración salió bien.
 
 **172-06 cerrado — el ABM de `finance` (centros de costo, cuentas bancarias y cajas de efectivo) ya no cruza gimnasios, y la trampa que el PATTERNS marcaba como riesgo 3 quedó cerrada.** `createEfectivoCaja` tenía el `ctx` en la firma desde la fase anterior y **no estaba migrado**: el SELECT que hace cumplir el invariante "una caja efectivo activa por (sucursal, moneda)" no filtraba por gimnasio —así que la caja de otro gimnasio en la misma sucursal bloqueaba el alta con un 409 que además delataba su existencia— y el INSERT no pasaba por `tenantValues` (la caja nacía en el tenant 1 por el `DEFAULT` de la columna, no por decisión de nadie). **El criterio de terminado es el inventario del lint, jamás la firma.** 18 métodos con `ctx` primero, 17 `tenantWhere` nuevos y 3 INSERT por `tenantValues`. **`assertUniqueName` compara por gimnasio**: antes, el guard y la unique compuesta de la fase 168 decían cosas distintas (el índice permitía el alta del segundo "Alquiler", el guard la rechazaba con un 409 que revelaba los nombres del vecino). **Tres cosas para copiar:** (1) **los 6 UPDATE también llevan `tenantWhere`** aunque el SELECT previo ya corte con 404 — el WHERE de una escritura no se apoya en una lectura anterior; (2) el `tenantWhere` de `branches` en el **LEFT JOIN** de `listActiveCajasWithBalance` va **en el `ON`**: en el WHERE, `NULL = 1` es falso para las cajas central/banco (`branch_id NULL`), el LEFT se vuelve INNER y esas cajas **desaparecen del listado de saldos en silencio con el lint en verde**; (3) tercera aparición de la misma trampa de la fase — en `listAllCostCenters` el filtro puesto como primer elemento del array `conditions` daba SQL correcto pero **dejaba el statement violando**, porque el lint mide por statement: **el gimnasio se nombra en el statement que nombra la tabla, inline, sin excepciones**. `validateBankAccountForCharge` (closure del plugin de coach-load, sin `request` a mano) recibe el `ctx` primero y sus 4 call sites lo resuelven con `assertTenant`. **Se corrió UN archivo de test contra MySQL real** (permitido por la task, es verificación dirigida): `test/finance/cash-balances.test.ts` **8/8 verde sin tocar expectativas**, que es lo que prueba que los saldos siguen dando los mismos números y que el owner sigue viendo las cajas branch-less — el `argon2` que la 172-01 dejó como bandera no dio problema. **Cero archivos de test tocados:** el plan pedía agregar el ctx a "call sites directos al service" de 4 archivos y **esos call sites no existen** (ejercitan las rutas por HTTP). **Riesgo residual explícito para el plan 172-09:** `getBalance` sigue **sin `ctx`** y suma `financial_transactions` por `cash_register_id` sin nombrar el gimnasio; sus 3 callers internos le pasan ids ya scopeados, así que hoy no hay camino de fuga, pero eso **no está probado**. Commits: `361f3eae`, `6d261929`, `49bac06d`. **ADO-01 sigue Pending**: este plan cierra la MITAD de un archivo de `finance`.
 
@@ -421,6 +423,7 @@ _Updated after each plan completion_
 | Phase 172 P03 | 13min | 2 tasks | 2 files |
 | Phase 172 P04 | 11min | 2 tasks | 5 files |
 | Phase 172 P06 | 25min | 3 tasks | 3 files |
+| Phase 172 P05 | 15min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -938,7 +941,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-30T21:30:20.544Z
+Last session: 2026-07-30T22:54:06.369Z
 Stopped at: Completed 172-04-PLAN.md
 Resume file: None
 
