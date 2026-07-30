@@ -32,12 +32,16 @@ import {
 } from "../helpers";
 import * as schema from "../../src/db/schema";
 import { BalanceService } from "../../src/modules/finance/balance-service";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 import type {
   FinancialTransactionRow,
   TransactionLinkRow,
 } from "../../src/modules/finance/types";
 
 const REPORTS_URL = "/api/admin/reports";
+
+// El gimnasio sale del fixture, nunca de un `1` a mano (T-172-09-04).
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 interface Ctx {
   arBranchId: number;
@@ -501,6 +505,7 @@ describe("Gestión de deudas — PATCH management + filtros del listado", () => 
     const balanceService = new BalanceService(app.db, app.log);
     await app.db.transaction(async (tx) => {
       await balanceService.applyDelta(
+        TEMPLO_CTX,
         tx,
         txRow as FinancialTransactionRow,
         linkRows as TransactionLinkRow[],
@@ -519,6 +524,7 @@ describe("Gestión de deudas — PATCH management + filtros del listado", () => 
     // Void del pago: la deuda vuelve a > 0 y la gestión a 'activa'.
     await app.db.transaction(async (tx) => {
       await balanceService.applyDelta(
+        TEMPLO_CTX,
         tx,
         txRow as FinancialTransactionRow,
         linkRows as TransactionLinkRow[],

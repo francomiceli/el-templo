@@ -337,11 +337,14 @@ describe("Phase 146 — Imputar cobro suelto al asignar plan (COBRO-03/04)", () 
     // create posterior del plan_charge dispara el throw → rollback total.
     const failingBalance = new BalanceService(app.db, app.log);
     const realApplyDelta = failingBalance.applyDelta.bind(failingBalance);
-    failingBalance.applyDelta = async (tx, row, links, sign) => {
+    // Fase 172: `applyDelta` recibe el `ctx` como PRIMER parámetro, antes del
+    // `tx`. El mock es POSICIONAL, así que si no se corre el argumento el `row`
+    // pasa a ser el `tx` y el `if` de abajo deja de disparar en silencio.
+    failingBalance.applyDelta = async (ctx, tx, row, links, sign) => {
       if (row.kind === "plan_charge") {
         throw new Error("simulated post-void failure");
       }
-      return realApplyDelta(tx, row, links, sign);
+      return realApplyDelta(ctx, tx, row, links, sign);
     };
     const cashRegisterSvc = new CashRegisterService(app.db, app.log);
     const txSvc = new TransactionService(

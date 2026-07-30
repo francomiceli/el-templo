@@ -448,6 +448,7 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
         const sub = await subscriptionService.getMemberSubscription(userId);
         const balanceRow = sub
           ? await balanceService.getRow(
+              ctx,
               userId,
               "subscription",
               sub.id,
@@ -910,6 +911,7 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
           });
         }
         const balanceRow = await balanceService.getRow(
+          assertTenant(request.scope, "finance.balances.autocompletar"),
           request.params.userId,
           "subscription",
           sub.id,

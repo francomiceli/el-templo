@@ -1602,7 +1602,10 @@ describe("BalanceService.getRowsForTransaction()", () => {
       baseInput({ amount: 1000 }),
       adminId,
     );
-    const rows = await balanceService.getRowsForTransaction(created.id);
+    const rows = await balanceService.getRowsForTransaction(
+      TEMPLO_CTX,
+      created.id,
+    );
     expect(rows.length).toBeGreaterThanOrEqual(1);
     expect(rows[0].memberId).toBe(memberId);
     expect(rows[0].targetKind).toBe("subscription");
@@ -1612,7 +1615,7 @@ describe("BalanceService.getRowsForTransaction()", () => {
 
   // B2: empty array for unknown transactionId
   it("B2: returns empty array for non-existent transaction", async () => {
-    const rows = await balanceService.getRowsForTransaction(999999);
+    const rows = await balanceService.getRowsForTransaction(TEMPLO_CTX, 999999);
     expect(rows).toEqual([]);
   });
 
@@ -1657,11 +1660,11 @@ describe("BalanceService.getRowsForTransaction()", () => {
       adminId,
     );
 
-    const r1 = await balanceService.getRowsForTransaction(tx1.id);
+    const r1 = await balanceService.getRowsForTransaction(TEMPLO_CTX, tx1.id);
     expect(r1).toHaveLength(1);
     expect(r1[0].targetId).toBe(subscriptionId);
 
-    const r2 = await balanceService.getRowsForTransaction(tx2.id);
+    const r2 = await balanceService.getRowsForTransaction(TEMPLO_CTX, tx2.id);
     expect(r2).toHaveLength(1);
     expect(r2[0].targetId).toBe(sub2);
   });

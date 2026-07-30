@@ -314,6 +314,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           request.user.userId,
         );
         const affectedBalances = await balanceService.getRowsForTransaction(
+          assertTenant(request.scope, "finance.balances.for-transaction"),
           detail.id,
         );
 

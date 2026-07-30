@@ -371,7 +371,7 @@ export class TransactionService {
         .where(eq(schema.transactionLinks.transactionId, transactionId));
 
       // 5. Apply cache delta in the SAME tx (atomicity per SPEC §8).
-      await this.balanceService.applyDelta(txHandle, txRow, linkRows, +1);
+      await this.balanceService.applyDelta(ctx, txHandle, txRow, linkRows, +1);
 
       this.log.info(
         {
@@ -527,7 +527,7 @@ export class TransactionService {
     // Reverse the original effect: pass the original (pre-void) row +
     // sign=-1 so applyDelta computes `-1 * baseDelta` and undoes the
     // create-time effect on the cache exactly.
-    await this.balanceService.applyDelta(tx, existing, linkRows, -1);
+    await this.balanceService.applyDelta(ctx, tx, existing, linkRows, -1);
 
     // VAL-06 / D-10: optionally cancel the linked subscription. Only the
     // explicit keepMembershipActive=false triggers this — default true (and
