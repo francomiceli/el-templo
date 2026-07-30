@@ -15,7 +15,7 @@ updated: 2026-07-29T14:35:01Z
 ### 1. Push a staging + rojo único esperado del gate D-14
 
 expected: Al pushear `feat/170-sentinel-lint` a staging, el step "Tenant lint (CON-06)" de ci.yml sale ROJO una sola vez — el ratchet D-14 detecta que la allowlist creció de 423 (origin/staging) a 501 entradas. Es el comportamiento aceptado en el checkpoint del plan 170-10 (mismo movimiento que el plan 08). El deploy de staging no depende de ci.yml. El push siguiente sobre la misma base vuelve a verde. Si el rojo persiste más de un run, ES un bug del gate.
-result: ROJO confirmado 2026-07-29 en el run del push `3c0857e9`: `gainedEntries: 78` contra `--base=e3ba7ae5` (exactamente los +78 del re-baseline), y los otros tres gates en 0 (`unlistedViolations: 0`, stale ×2 en 0, `strictWithAllowlist: 0`). Falta: confirmar deploy-staging verde de ese push + verde de ci.yml en el próximo push a staging (base ya con 501).
+result: PASSED 2026-07-29. Rojo único confirmado en el run del push `3c0857e9` (`gainedEntries: 78` contra `--base=e3ba7ae5`, los otros tres gates en 0). Verde confirmado en el push siguiente: CI #1327 sobre `bb9e9bf` (backmerge master→staging) pasó el step "Tenant lint (CON-06)" completo en verde, y Deploy Staging #775 verde (13m 32s). El ratchet se comportó exactamente como se aceptó en el checkpoint del plan 170-10.
 
 ### 2. Ventana de observación 2-3 días del sentinel en staging
 
@@ -25,9 +25,9 @@ result: [pending]
 ## Summary
 
 total: 2
-passed: 0
+passed: 1
 issues: 0
-pending: 2
+pending: 1
 skipped: 0
 blocked: 0
 
