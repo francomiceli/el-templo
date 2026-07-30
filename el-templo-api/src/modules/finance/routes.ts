@@ -1164,6 +1164,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           });
         }
         return await cashRegisterService.listActiveCajasWithBalance(
+          assertTenant(request.scope, "finance.cash-registers.balances"),
           {
             isOwner: request.scope.isOwner,
             country: country ?? null,
@@ -1532,10 +1533,13 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
         } else {
           country = request.scope.country ?? undefined;
         }
-        const rows = await cashRegisterService.listActiveCajasWithBalance({
-          isOwner: request.scope.isOwner,
-          country: country ?? null,
-        });
+        const rows = await cashRegisterService.listActiveCajasWithBalance(
+          assertTenant(request.scope, "finance.cash-registers.balances.export"),
+          {
+            isOwner: request.scope.isOwner,
+            country: country ?? null,
+          },
+        );
 
         const workbook = new Workbook();
         workbook.creator = "El Templo";

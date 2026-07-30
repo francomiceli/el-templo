@@ -334,6 +334,7 @@ export class CashRegisterService {
    * kind: todo lo que entra suma y todo lo que sale resta (D-09).
    */
   async getPeriodMovement(
+    ctx: TenantContext,
     cashRegisterId: number,
     dateFrom: string,
     dateTo: string,
@@ -341,7 +342,12 @@ export class CashRegisterService {
     const [caja] = await this.db
       .select({ cutoffDate: schema.cashRegisters.cutoffDate })
       .from(schema.cashRegisters)
-      .where(eq(schema.cashRegisters.id, cashRegisterId))
+      .where(
+        and(
+          tenantWhere(schema.cashRegisters, ctx),
+          eq(schema.cashRegisters.id, cashRegisterId),
+        ),
+      )
       .limit(1);
     if (!caja) {
       throw new NotFoundError(`No existe la caja ${cashRegisterId}`);
@@ -358,6 +364,9 @@ export class CashRegisterService {
         .from(schema.financialTransactions)
         .where(
           and(
+            // Las DOS tablas del método son strict y cada statement nombra la
+            // suya: `cash_registers` arriba, `financial_transactions` acá.
+            tenantWhere(schema.financialTransactions, ctx),
             eq(schema.financialTransactions.cashRegisterId, cashRegisterId),
             eq(schema.financialTransactions.direction, direction),
             ...firmMoneyConditions(),
@@ -390,6 +399,7 @@ export class CashRegisterService {
    * concern; 138 keeps the saldo derived, materialize only with perf evidence).
    */
   async listActiveCajasWithBalance(
+    ctx: TenantContext,
     scope?: {
       isOwner: boolean;
       country: string | null;
@@ -409,9 +419,23 @@ export class CashRegisterService {
       .from(schema.cashRegisters)
       .leftJoin(
         schema.branches,
-        eq(schema.branches.id, schema.cashRegisters.branchId),
+        // El filtro de gimnasio de `branches` va en el ON y JAMÁS en el WHERE
+        // (hallazgo 172-03): en el WHERE, `NULL = 1` es falso para las cajas
+        // central/banco (branch_id NULL) y el LEFT se vuelve INNER — esas cajas
+        // desaparecerían del listado de saldos en silencio, y el lint saldría
+        // verde igual. `branches` no es tabla strict, pero se scopea igual
+        // porque el país de la sucursal decide qué ve un no-owner.
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, schema.cashRegisters.branchId),
+        ),
       )
-      .where(eq(schema.cashRegisters.isActive, true));
+      .where(
+        and(
+          tenantWhere(schema.cashRegisters, ctx),
+          eq(schema.cashRegisters.isActive, true),
+        ),
+      );
 
     const out: CajaSaldoRow[] = [];
     for (const c of cajas) {
@@ -431,7 +455,12 @@ export class CashRegisterService {
         firmeBalance: bal.firmeBalance,
         pendienteAmount: bal.pendienteAmount,
         period: period
-          ? await this.getPeriodMovement(c.id, period.dateFrom, period.dateTo)
+          ? await this.getPeriodMovement(
+              ctx,
+              c.id,
+              period.dateFrom,
+              period.dateTo,
+            )
           : null,
       });
     }
@@ -689,10 +718,12 @@ export class CashRegisterService {
     // El WHERE dejó de ser condicional: el filtro de gimnasio SIEMPRE va, y el
     // de país se suma sólo cuando hay país. La rama sin `.where()` de antes es
     // exactamente la forma en que un listado se escapa del gimnasio.
-    const conditions = [tenantWhere(schema.costCenters, ctx)];
-    if (country !== null) {
-      conditions.push(eq(schema.costCenters.country, country));
-    }
+    //
+    // El `tenantWhere` va INLINE en la query y no como primer elemento de
+    // `conditions`: el lint razona por STATEMENT y el que nombra la tabla es
+    // este, no el `const conditions` de arriba (hallazgo 172-02/172-04).
+    const conditions =
+      country !== null ? [eq(schema.costCenters.country, country)] : [];
     return this.db
       .select({
         id: schema.costCenters.id,
@@ -701,7 +732,7 @@ export class CashRegisterService {
         isActive: schema.costCenters.isActive,
       })
       .from(schema.costCenters)
-      .where(and(...conditions))
+      .where(and(tenantWhere(schema.costCenters, ctx), ...conditions))
       .orderBy(asc(schema.costCenters.name));
   }
 
