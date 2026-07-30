@@ -4,7 +4,15 @@
 poblado en el plan 171-02 desde un volcado one-shot del hook `onRoute` sobre `buildApp()`
 real (2026-07-29, rama `feat/170-sentinel-lint`).
 
-**Reparto de las 370 rutas:** 221 `tenant-scoped` · 11 `global` · 138 `templo-module`.
+> **REVISADO Y APROBADO por Franco el 2026-07-29** en el checkpoint del plan 171-06.
+> El veredicto de cada caso está en la **sección D** al final de este documento, y ya
+> está aplicado en `el-templo-api/test/tenant-manifest.ts`. Las secciones A, B y C de
+> abajo quedan tal como se le presentaron —son el insumo de la decisión, no su
+> resultado—: donde el veredicto cambió algo, la sección D lo dice.
+
+**Reparto de las 370 rutas presentado a revisión:** 221 `tenant-scoped` · 11 `global` ·
+138 `templo-module`. **Reparto final aprobado:** 221 `tenant-scoped` · **8** `global` ·
+**141** `templo-module` (ver sección D).
 
 Se revisan **solo las dos listas peligrosas** (`global` y las fronteras de
 `templo-module`) más las dudosas. Las 221 `tenant-scoped` **no van a revisión** (D-03):
@@ -32,6 +40,10 @@ gimnasios y está bien". Se revisa entera, fila por fila.
 | `PATCH /api/app/admin/labs-inquiries/:id/status` | Gestiona el estado de un lead de la plataforma sobre la misma tabla global de Q2; el que lo mueve es el dueño del SaaS.                                              |
 
 Las tres últimas (`labs-inquiry`) son además **dudosas** — ver caso 3 de la sección C.
+
+> ⚠️ **Estas 3 filas ya NO son `global`.** El veredicto de Franco (sección D, caso 3) las
+> movió a `templo-module` / `templo-marketing`. La lista `global` vigente son las **8**
+> primeras filas de esta tabla.
 
 ---
 
@@ -105,5 +117,103 @@ real las registra ambas como **`POST`**; el manifiesto usa los métodos reales.
 
 ---
 
-_La decisión de Franco sobre esta sección se aplica al manifiesto en el plan **171-06**, y
-este dossier se actualiza ahí con el resultado._
+---
+
+## D. Veredicto — checkpoint del plan 171-06, **2026-07-29**
+
+Franco revisó la sección A entera, las fronteras de la sección B y los **14 casos** de la
+sección C uno por uno. Los dos conflictos reales de documentación tienen veredicto
+explícito. **No queda ninguna duda abierta:** `grep -c "D-04 dudosa:"` sobre
+`el-templo-api/test/tenant-manifest.ts` da **0**, y cada grupo que estuvo en duda conserva
+su comentario, ahora como `D-04 veredicto:` con la decisión y su fuente. La duda existió y
+su resolución es la información que se guarda; borrar el comentario habría borrado el
+rastro.
+
+### Sección A (`global`) y sección B (`templo-module`)
+
+Revisadas y **aprobadas**, con una única corrección: las 3 rutas de `labs-inquiries`
+salen de `global` (caso 3). Las 8 `global` que quedan y las fronteras módulo × prefijo
+de la sección B se aprobaron sin cambios.
+
+### Los 14 casos
+
+| #      | Ruta(s)                                        | Veredicto                                                | Fuente                                                                                                                                                                            |
+| ------ | ---------------------------------------------- | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1      | `POST /api/auth/register`                      | **APROBADO** `tenant-scoped`                             | Checkpoint 171-06, 2026-07-29                                                                                                                                                     |
+| 2      | `/api/auth/me` (3)                             | **APROBADO** `tenant-scoped`                             | Ídem                                                                                                                                                                              |
+| **3**  | **`labs-inquiry` + `labs-inquiries` (3)**      | **OVERRIDE → `templo-module` / `templo-marketing`**      | **Veredicto de Franco en el checkpoint 171-06, 2026-07-29** — palabras textuales: **"todo eso es parte del Templo"**. Supersede la recomendación Q2-global **para estas rutas**. |
+| 4      | `/api/app/{waitlist,admin/waitlist}` (2)       | **APROBADO** `templo-module` / `templo-marketing`        | Checkpoint 171-06, 2026-07-29                                                                                                                                                     |
+| **5**  | **`campaigns/track/*` + `/unsubscribe` (3)**   | **APROBADO** `tenant-scoped`, NO `global` — con salvedad | Checkpoint 171-06, 2026-07-29 + decisión Q5 del doc 06 §8 (ver salvedad abajo)                                                                                                     |
+| 6      | `/api/admin/ratings` (4)                       | **APROBADO** `tenant-scoped` (core)                      | Checkpoint 171-06, 2026-07-29                                                                                                                                                     |
+| 7      | `/api/members/ratings` (2)                     | **APROBADO** `tenant-scoped` (core)                      | Ídem                                                                                                                                                                              |
+| 8      | `/api/tv/{me,state,client-log}` (3)            | **APROBADO** `tenant-scoped` (post-claim)                | Ídem                                                                                                                                                                              |
+| 9      | `/api/members/me/{current-program,…}` (3)      | **APROBADO** `templo-module` / `templo-training`         | Ídem                                                                                                                                                                              |
+| 10     | `check-ins` de entrenamiento (3)               | **APROBADO** `templo-module` / `templo-training`         | Ídem — confirmada la trampa de nombre: el check-in de **asistencia** sigue core                                                                                                    |
+| 11     | `/api/blog/*` (16)                             | **APROBADO** `templo-module` / `templo-marketing`        | Ídem                                                                                                                                                                              |
+| 12     | `/api/academy/*` (2)                           | **APROBADO** `templo-module` / `templo-marketing`        | Ídem                                                                                                                                                                              |
+| 13     | `/api/gladius/*` (7)                           | **APROBADO** `templo-module` / `templo-marketing`        | Ídem                                                                                                                                                                              |
+| 14     | `/api/franchise/*` (5)                         | **APROBADO** `templo-module` / `templo-marketing`        | Ídem — misma dirección que el override del caso 3: lo de la marca es del Templo                                                                                                   |
+
+**13 de 14 aprobados tal como se recomendaron. 1 override: el caso 3.**
+
+### El override del caso 3, en detalle
+
+El plan 171-02 recomendaba `global` siguiendo la decisión **Q2** del doc 06 §8
+(`labs_inquiries` es tabla de PLATAFORMA: son leads del propio SaaS). El doc 04 §2.1, en
+cambio, mete `app-landing` entero en `templo-marketing`. Franco decidió por el doc 04:
+**"todo eso es parte del Templo"**.
+
+Consecuencias, escritas para que nadie las re-litigue por sorpresa:
+
+- Para la clasificación de **RUTAS**, el mapeo carpeta → módulo del doc 04 §2.1 gana sobre
+  la recomendación Q2-global **en este caso**. El veredicto no dice nada sobre la
+  clasificación de la **TABLA** `labs_inquiries` en `src/db/tenant-tables.ts`, que es un
+  registro distinto y sigue gobernada por Q2.
+- El prefijo `/api/app` **deja de partirse**: las 5 rutas viven juntas en
+  `templo-marketing · app-landing`.
+- La dirección es **más protección, no menos**: las 3 rutas pasan de estar exentas del
+  aislamiento a estar cubiertas por él. `global` baja de 11 a **8**.
+- En la fase **176**, estas 3 rutas van a requerir `requireModule("templo-marketing")`.
+
+### La salvedad del caso 5 — material de PLANNING de la fase 175
+
+Franco aprobó la clasificación `tenant-scoped` y agregó, textual:
+
+> "queda por verificar si campaigns está realmente preparado para que cada tenant lo use
+> (armando su propia campaña con su propio mail saliente, etc.) — es material de la fase
+> 175 (adopción)"
+
+**No cambia la clasificación de hoy.** Es un pendiente para el `/gsd:plan-phase 175`: el
+manifiesto afirma que estas rutas *deben* estar aisladas por tenant, no que el módulo
+`campaigns` ya sepa operar multi-tenant end-to-end (remitente saliente propio por
+gimnasio, entre otras). Etiquetarlas `tenant-scoped` es justamente lo que hace que la 175
+tenga que resolverlo en vez de descubrirlo en producción.
+
+### Reparto final, verificado por runtime
+
+Contado importando `TENANT_MANIFEST` y no a mano (Prettier parte las entradas largas en
+multilínea: cualquier contador textual es frágil — hallazgo del plan 171-02):
+
+| Categoría          | Presentado a revisión | **Final aprobado** |
+| ------------------ | --------------------: | -----------------: |
+| `tenant-scoped`    |                   221 |            **221** |
+| `global`           |                    11 |              **8** |
+| `templo-module`    |                   138 |            **141** |
+| **TOTAL**          |               **370** |            **370** |
+
+`templo-module` por módulo: `templo-training` **102** · `templo-marketing` **35** (era 32)
+· `templo-onboarding` **3** · `templo-gamification` **1**.
+
+Validaciones de forma en runtime: `sinMotivo` = 0, `sinModulo` = 0, `categoriaInvalida`
+= 0, suma de las 3 categorías = 370.
+
+**`tenant-scoped` no se movió**, y eso es lo esperado: las 3 rutas del override salieron de
+`global`, no de la masa. El TOTAL tampoco: una recategorización cambia la etiqueta, no la
+cantidad de rutas — que es la razón por la que el gate ISO-01 quedó **verde 9/9** después
+de aplicar el veredicto (afirma el total y la forma de cada entrada, no el reparto por
+categoría).
+
+---
+
+_Veredicto aplicado al manifiesto en el plan **171-06** el 2026-07-29. Gate ISO-01 verde
+9/9 con la clasificación aprobada._
