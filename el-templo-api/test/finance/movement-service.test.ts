@@ -155,8 +155,10 @@ describe("MovementService", () => {
       const destinoId = await newCaja(500);
 
       const before =
-        (await cashRegisterService.getBalance(origenId)).firmeBalance +
-        (await cashRegisterService.getBalance(destinoId)).firmeBalance;
+        (await cashRegisterService.getBalance(TEMPLO_CTX, origenId))
+          .firmeBalance +
+        (await cashRegisterService.getBalance(TEMPLO_CTX, destinoId))
+          .firmeBalance;
 
       const detail = await movementService.registerMovement(
         TEMPLO_CTX,
@@ -198,14 +200,18 @@ describe("MovementService", () => {
 
       // Net 0: the sum of both cajas' firmeBalance is unchanged; money moved.
       const after =
-        (await cashRegisterService.getBalance(origenId)).firmeBalance +
-        (await cashRegisterService.getBalance(destinoId)).firmeBalance;
+        (await cashRegisterService.getBalance(TEMPLO_CTX, origenId))
+          .firmeBalance +
+        (await cashRegisterService.getBalance(TEMPLO_CTX, destinoId))
+          .firmeBalance;
       expect(after).toBe(before);
       expect(
-        (await cashRegisterService.getBalance(origenId)).firmeBalance,
+        (await cashRegisterService.getBalance(TEMPLO_CTX, origenId))
+          .firmeBalance,
       ).toBe(750);
       expect(
-        (await cashRegisterService.getBalance(destinoId)).firmeBalance,
+        (await cashRegisterService.getBalance(TEMPLO_CTX, destinoId))
+          .firmeBalance,
       ).toBe(750);
     });
 
@@ -306,7 +312,8 @@ describe("MovementService", () => {
       // origen firmeBalance now reflects the physical count minus the movement:
       // 1000 (opening) − 200 (movement out) − 100 (adjustment) = 700 = counted(900) − 200.
       expect(
-        (await cashRegisterService.getBalance(origenId)).firmeBalance,
+        (await cashRegisterService.getBalance(TEMPLO_CTX, origenId))
+          .firmeBalance,
       ).toBe(700);
 
       // A 'reconciliation' audit row exists for this movement.
@@ -389,9 +396,9 @@ describe("MovementService", () => {
         .where(eq(schema.transactionLinks.transactionId, expenseTxId));
       expect(links.length).toBe(0);
 
-      expect((await cashRegisterService.getBalance(cajaId)).firmeBalance).toBe(
-        1000 - 333,
-      );
+      expect(
+        (await cashRegisterService.getBalance(TEMPLO_CTX, cajaId)).firmeBalance,
+      ).toBe(1000 - 333);
     });
 
     it("(D-07) registering a movement + an expense does NOT change the balances table", async () => {
@@ -465,10 +472,12 @@ describe("MovementService", () => {
 
       // Saldos restored to pre-movement values (void reverses the effect).
       expect(
-        (await cashRegisterService.getBalance(origenId)).firmeBalance,
+        (await cashRegisterService.getBalance(TEMPLO_CTX, origenId))
+          .firmeBalance,
       ).toBe(1000);
       expect(
-        (await cashRegisterService.getBalance(destinoId)).firmeBalance,
+        (await cashRegisterService.getBalance(TEMPLO_CTX, destinoId))
+          .firmeBalance,
       ).toBe(500);
     });
 
@@ -479,9 +488,9 @@ describe("MovementService", () => {
         { cajaId, amount: 400, costCenterId },
         adminId,
       );
-      expect((await cashRegisterService.getBalance(cajaId)).firmeBalance).toBe(
-        600,
-      );
+      expect(
+        (await cashRegisterService.getBalance(TEMPLO_CTX, cajaId)).firmeBalance,
+      ).toBe(600);
 
       await movementService.voidExpense(
         TEMPLO_CTX,
@@ -496,9 +505,9 @@ describe("MovementService", () => {
         .where(eq(schema.financialTransactions.id, expenseTxId));
       expect(row.voidedAt).not.toBeNull();
       // Saldo restored.
-      expect((await cashRegisterService.getBalance(cajaId)).firmeBalance).toBe(
-        1000,
-      );
+      expect(
+        (await cashRegisterService.getBalance(TEMPLO_CTX, cajaId)).firmeBalance,
+      ).toBe(1000);
     });
   });
 

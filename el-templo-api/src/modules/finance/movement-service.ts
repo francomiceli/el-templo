@@ -116,7 +116,7 @@ export class MovementService {
     // balance as the ledger stands now). The reconciliation diff is measured
     // against this expected vs the physical countedAmount.
     const expectedAmount = (
-      await this.cashRegisterService.getBalance(origenCajaId)
+      await this.cashRegisterService.getBalance(ctx, origenCajaId)
     ).firmeBalance;
 
     return await this.db.transaction(async (tx) => {

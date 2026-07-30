@@ -281,11 +281,13 @@ describe("CashRegisterService", () => {
       // cash → efectivo of (branch, currency); transfer/card → banco of currency;
       // aura_credit/internal → NULL (left untouched).
       const efectivoArsId = await service.resolveCashRegister(
+        TEMPLO_CTX,
         "cash",
         arsBranchId,
         "ARS",
       );
       const bancoArsId = await service.resolveCashRegister(
+        TEMPLO_CTX,
         "transfer",
         arsBranchId,
         "ARS",
@@ -363,7 +365,12 @@ describe("CashRegisterService", () => {
     // CAJA-02: cash -> efectivo(branch), transfer/card -> banco(currency),
     // aura_credit/internal -> NULL.
     it("cash resolves to the efectivo caja of the tx branch", async () => {
-      const id = await service.resolveCashRegister("cash", arsBranchId, "ARS");
+      const id = await service.resolveCashRegister(
+        TEMPLO_CTX,
+        "cash",
+        arsBranchId,
+        "ARS",
+      );
       const [caja] = await app.db
         .select({
           type: schema.cashRegisters.type,
@@ -379,11 +386,13 @@ describe("CashRegisterService", () => {
 
     it("transfer and card resolve to the banco caja of the currency", async () => {
       const transferId = await service.resolveCashRegister(
+        TEMPLO_CTX,
         "transfer",
         arsBranchId,
         "ARS",
       );
       const cardId = await service.resolveCashRegister(
+        TEMPLO_CTX,
         "card",
         arsBranchId,
         "EUR",
@@ -410,16 +419,21 @@ describe("CashRegisterService", () => {
 
     it("aura_credit and internal resolve to NULL", async () => {
       await expect(
-        service.resolveCashRegister("aura_credit", arsBranchId, "ARS"),
+        service.resolveCashRegister(
+          TEMPLO_CTX,
+          "aura_credit",
+          arsBranchId,
+          "ARS",
+        ),
       ).resolves.toBeNull();
       await expect(
-        service.resolveCashRegister("internal", arsBranchId, "ARS"),
+        service.resolveCashRegister(TEMPLO_CTX, "internal", arsBranchId, "ARS"),
       ).resolves.toBeNull();
     });
 
     it("throws when no banco caja exists for the currency", async () => {
       await expect(
-        service.resolveCashRegister("transfer", arsBranchId, "USD"),
+        service.resolveCashRegister(TEMPLO_CTX, "transfer", arsBranchId, "USD"),
       ).rejects.toThrow(/No existe caja banco/);
     });
   });
@@ -586,7 +600,7 @@ describe("CashRegisterService", () => {
     });
 
     it("firmeBalance = opening_balance + Σ validados since cutoff", async () => {
-      const bal = await service.getBalance(balCajaId);
+      const bal = await service.getBalance(TEMPLO_CTX, balCajaId);
       expect(bal.cashRegisterId).toBe(balCajaId);
       expect(bal.currency).toBe("ARS");
       // 1000 opening + 500 + 300 = 1800. Voided 444 and pre-cutoff 9999 excluded.
@@ -594,14 +608,14 @@ describe("CashRegisterService", () => {
     });
 
     it("pendienteAmount is reported separately and not added to firme", async () => {
-      const bal = await service.getBalance(balCajaId);
+      const bal = await service.getBalance(TEMPLO_CTX, balCajaId);
       expect(bal.pendienteAmount).toBe(200);
       // firme stays 1800 — the 200 pendiente is NEVER summed in.
       expect(bal.firmeBalance).toBe(1800);
     });
 
     it("throws NotFoundError for an unknown cashRegisterId", async () => {
-      await expect(service.getBalance(987654321)).rejects.toThrow();
+      await expect(service.getBalance(TEMPLO_CTX, 987654321)).rejects.toThrow();
     });
   });
 
@@ -660,8 +674,8 @@ describe("CashRegisterService", () => {
       const destinoId = await newCaja(500);
 
       const before =
-        (await service.getBalance(origenId)).firmeBalance +
-        (await service.getBalance(destinoId)).firmeBalance;
+        (await service.getBalance(TEMPLO_CTX, origenId)).firmeBalance +
+        (await service.getBalance(TEMPLO_CTX, destinoId)).firmeBalance;
 
       // The double-entry asiento: −N outflow leg at origen + +N inflow leg at
       // destino, same currency, both validado (139 D-01).
@@ -680,14 +694,18 @@ describe("CashRegisterService", () => {
       });
 
       const after =
-        (await service.getBalance(origenId)).firmeBalance +
-        (await service.getBalance(destinoId)).firmeBalance;
+        (await service.getBalance(TEMPLO_CTX, origenId)).firmeBalance +
+        (await service.getBalance(TEMPLO_CTX, destinoId)).firmeBalance;
 
       // No money created or destroyed: the pair nets to 0 across the two cajas.
       expect(after).toBe(before);
       // And it actually moved: origen dropped by N, destino rose by N.
-      expect((await service.getBalance(origenId)).firmeBalance).toBe(1000 - N);
-      expect((await service.getBalance(destinoId)).firmeBalance).toBe(500 + N);
+      expect(
+        (await service.getBalance(TEMPLO_CTX, origenId)).firmeBalance,
+      ).toBe(1000 - N);
+      expect(
+        (await service.getBalance(TEMPLO_CTX, destinoId)).firmeBalance,
+      ).toBe(500 + N);
     });
 
     it("an expense outflow reduces ONLY its caja by exactly the amount", async () => {
@@ -703,8 +721,12 @@ describe("CashRegisterService", () => {
       });
 
       // Its caja drops by exactly E; the other caja is untouched.
-      expect((await service.getBalance(cajaId)).firmeBalance).toBe(1000 - E);
-      expect((await service.getBalance(otherId)).firmeBalance).toBe(2000);
+      expect((await service.getBalance(TEMPLO_CTX, cajaId)).firmeBalance).toBe(
+        1000 - E,
+      );
+      expect((await service.getBalance(TEMPLO_CTX, otherId)).firmeBalance).toBe(
+        2000,
+      );
     });
 
     it("a refund outflow with a cash_register_id reduces the caja saldo (D-09 resolved)", async () => {
@@ -721,7 +743,9 @@ describe("CashRegisterService", () => {
         amount: R,
       });
 
-      expect((await service.getBalance(cajaId)).firmeBalance).toBe(1000 - R);
+      expect((await service.getBalance(TEMPLO_CTX, cajaId)).firmeBalance).toBe(
+        1000 - R,
+      );
     });
 
     it("regression: an inflow + an outflow net to a signed firmeBalance (138 inflow math stays green)", async () => {
@@ -741,7 +765,9 @@ describe("CashRegisterService", () => {
         amount: 250,
       });
       // 100 + 400 − 250 = 250.
-      expect((await service.getBalance(cajaId)).firmeBalance).toBe(250);
+      expect((await service.getBalance(TEMPLO_CTX, cajaId)).firmeBalance).toBe(
+        250,
+      );
     });
   });
 
@@ -777,7 +803,7 @@ describe("CashRegisterService", () => {
         recordedBy: adminId,
       });
 
-      const bal = await service.getBalance(cajaId);
+      const bal = await service.getBalance(TEMPLO_CTX, cajaId);
       // opening 0 + nothing since cutoff = 0. The 5000 pre-cutoff row is labeled
       // but excluded by the gte(transactionDate, cutoffDate) gate.
       expect(bal.firmeBalance).toBe(0);
@@ -804,19 +830,20 @@ describe("CashRegisterService", () => {
       // eurBranch's efectivo caja is EUR; a cash payment recorded there as ARS
       // must be rejected by the currency guard.
       await expect(
-        service.resolveCashRegister("cash", eurBranchId, "ARS"),
+        service.resolveCashRegister(TEMPLO_CTX, "cash", eurBranchId, "ARS"),
       ).rejects.toThrow(/Moneda inconsistente/);
     });
 
     it("throws when no efectivo caja exists for the branch", async () => {
       await expect(
-        service.resolveCashRegister("cash", 999999, "ARS"),
+        service.resolveCashRegister(TEMPLO_CTX, "cash", 999999, "ARS"),
       ).rejects.toThrow(/No existe caja efectivo/);
     });
 
     it("banco resolution always matches currency by construction", async () => {
       // banco is selected BY currency, so it can never mismatch.
       const id = await service.resolveCashRegister(
+        TEMPLO_CTX,
         "transfer",
         eurBranchId,
         "EUR",

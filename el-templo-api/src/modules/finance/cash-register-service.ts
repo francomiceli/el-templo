@@ -65,6 +65,7 @@ export class CashRegisterService {
    *         the resolved efectivo caja's currency differs from `currency`.
    */
   async resolveCashRegister(
+    ctx: TenantContext,
     paymentMethod: PaymentMethod,
     branchId: number | null,
     currency: string,
@@ -84,6 +85,10 @@ export class CashRegisterService {
         .from(schema.cashRegisters)
         .where(
           and(
+            // Fase 172: sin este filtro el cobro de un gimnasio podía aterrizar
+            // en la caja banco del vecino — la más antigua por id, que después
+            // de la fase 168 puede perfectamente ser de otro tenant.
+            tenantWhere(schema.cashRegisters, ctx),
             eq(schema.cashRegisters.type, "banco"),
             eq(schema.cashRegisters.currency, currency),
             eq(schema.cashRegisters.isActive, true),
@@ -114,6 +119,7 @@ export class CashRegisterService {
       .from(schema.cashRegisters)
       .where(
         and(
+          tenantWhere(schema.cashRegisters, ctx),
           eq(schema.cashRegisters.type, "efectivo"),
           eq(schema.cashRegisters.branchId, branchId),
           eq(schema.cashRegisters.isActive, true),
@@ -238,7 +244,10 @@ export class CashRegisterService {
    *
    * @throws NotFoundError when no caja exists for `cashRegisterId`.
    */
-  async getBalance(cashRegisterId: number): Promise<CashRegisterBalance> {
+  async getBalance(
+    ctx: TenantContext,
+    cashRegisterId: number,
+  ): Promise<CashRegisterBalance> {
     const [caja] = await this.db
       .select({
         openingBalance: schema.cashRegisters.openingBalance,
@@ -246,7 +255,12 @@ export class CashRegisterService {
         cutoffDate: schema.cashRegisters.cutoffDate,
       })
       .from(schema.cashRegisters)
-      .where(eq(schema.cashRegisters.id, cashRegisterId))
+      .where(
+        and(
+          tenantWhere(schema.cashRegisters, ctx),
+          eq(schema.cashRegisters.id, cashRegisterId),
+        ),
+      )
       .limit(1);
     if (!caja) {
       throw new NotFoundError(`No existe la caja ${cashRegisterId}`);
@@ -262,6 +276,11 @@ export class CashRegisterService {
       .from(schema.financialTransactions)
       .where(
         and(
+          // Las DOS tablas del saldo son strict y cada statement nombra la suya:
+          // `cash_registers` en el SELECT de arriba, `financial_transactions` en
+          // cada SUM. Sin esto, una transaccion de otro gimnasio apuntando a esta
+          // caja sumaria al saldo (riesgo residual que dejo abierto el 172-06).
+          tenantWhere(schema.financialTransactions, ctx),
           eq(schema.financialTransactions.cashRegisterId, cashRegisterId),
           eq(schema.financialTransactions.direction, "inflow"),
           ...firmMoneyConditions(),
@@ -280,6 +299,7 @@ export class CashRegisterService {
       .from(schema.financialTransactions)
       .where(
         and(
+          tenantWhere(schema.financialTransactions, ctx),
           eq(schema.financialTransactions.cashRegisterId, cashRegisterId),
           eq(schema.financialTransactions.direction, "outflow"),
           ...firmMoneyConditions(),
@@ -301,6 +321,7 @@ export class CashRegisterService {
       .from(schema.financialTransactions)
       .where(
         and(
+          tenantWhere(schema.financialTransactions, ctx),
           eq(schema.financialTransactions.cashRegisterId, cashRegisterId),
           eq(schema.financialTransactions.direction, "inflow"),
           eq(schema.financialTransactions.validationStatus, "pendiente"),
@@ -445,7 +466,7 @@ export class CashRegisterService {
         if (c.branchId === null) continue; // central/banco → owner-only
         if (c.branchCountry !== scope.country) continue; // cross-country → hide
       }
-      const bal = await this.getBalance(c.id);
+      const bal = await this.getBalance(ctx, c.id);
       out.push({
         cashRegisterId: c.id,
         name: c.name,
@@ -820,7 +841,7 @@ export class CashRegisterService {
     if (!caja || caja.type !== "banco") {
       throw new NotFoundError(`No existe la cuenta banco ${id}`);
     }
-    const bal = await this.getBalance(id);
+    const bal = await this.getBalance(ctx, id);
     return {
       id: caja.id,
       name: caja.name,
@@ -996,7 +1017,7 @@ export class CashRegisterService {
       "Caja efectivo creada",
     );
 
-    const bal = await this.getBalance(id);
+    const bal = await this.getBalance(ctx, id);
     return {
       cashRegisterId: id,
       name,

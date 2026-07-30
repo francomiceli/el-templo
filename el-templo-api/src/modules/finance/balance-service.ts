@@ -289,11 +289,6 @@ export class BalanceService {
     ctx: TenantContext,
     branchIds?: number[],
   ): Promise<Array<{ currency: string; amount: number }>> {
-    const conditions = [sql`${schema.balances.amount} > 0`];
-    if (branchIds !== undefined && branchIds.length > 0) {
-      conditions.push(sql`${schema.users.branchId} IN ${branchIds}`);
-    }
-
     const rows = await this.db
       .select({
         currency: schema.balances.currency,
@@ -310,10 +305,22 @@ export class BalanceService {
           eq(schema.users.id, schema.balances.memberId),
         ),
       )
-      // El `tenantWhere` va INLINE en el statement de la query, nunca como
-      // primer elemento del array `conditions` (desviación 2 del 172-06: el
-      // lint mide por statement y no ve el `const` de arriba).
-      .where(and(tenantWhere(schema.balances, ctx), ...conditions))
+      .where(
+        // Los DOS fragmentos `sql` van INLINE en el statement de la query, no
+        // en un `const` de arriba: el lint mide por STATEMENT, y un `sql` que
+        // nombra la tabla FUERA de la cadena de la query cuenta como un acceso
+        // propio y sin filtro (desviación 2 del 172-06, cuarta forma de la
+        // misma trampa — acá mordió dos veces: primero por el array
+        // `conditions` y después por un `const` con el ternario). El filtro
+        // opcional de sucursales devuelve `undefined` y `and()` lo saltea.
+        and(
+          tenantWhere(schema.balances, ctx),
+          sql`${schema.balances.amount} > 0`,
+          branchIds !== undefined && branchIds.length > 0
+            ? sql`${schema.users.branchId} IN ${branchIds}`
+            : undefined,
+        ),
+      )
       .groupBy(schema.balances.currency);
 
     return rows.map((r) => ({

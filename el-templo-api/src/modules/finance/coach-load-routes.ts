@@ -1001,9 +1001,15 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
     },
     async (request, reply) => {
       try {
+        // Fase 172 (analog B): el ctx se resuelve UNA vez al tope del try y lo
+        // usan el resolver y el SELECT de abajo. Queda DENTRO del try para que
+        // un TENANT_UNRESOLVED salga por `handleServiceError` con el formato de
+        // error del modulo y no con el default de Fastify.
+        const ctx = assertTenant(request.scope, "coach caja-efectivo");
         let override: number | null | undefined;
         try {
           override = await cashRegisterService.resolveCashRegister(
+            ctx,
             "cash",
             request.query.branchId,
             request.query.currency,
@@ -1022,7 +1028,6 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
         if (override == null) {
           return reply.send({ caja: null });
         }
-        const ctx = assertTenant(request.scope, "coach caja-efectivo");
         const [caja] = await fastify.db
           .select({
             id: schema.cashRegisters.id,

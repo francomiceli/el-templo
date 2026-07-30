@@ -164,6 +164,7 @@ export class TransactionService {
     currency: string,
   ): Promise<number | null> {
     return this.cashRegisterService.resolveCashRegister(
+      ctx,
       paymentMethod,
       branchId,
       currency,
@@ -296,6 +297,7 @@ export class TransactionService {
         input.cashRegisterId !== undefined
           ? input.cashRegisterId
           : await this.cashRegisterService.resolveCashRegister(
+              ctx,
               input.paymentMethod,
               input.branchId,
               input.currency ?? "ARS",
