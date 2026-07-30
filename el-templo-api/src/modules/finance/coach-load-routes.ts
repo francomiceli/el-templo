@@ -56,6 +56,10 @@ interface CoachPayPlanBody {
   // Phase 151 (COBRO-04): cuenta banco elegida en la PoS. Obligatoria para
   // transfer/card, prohibida para cash — validada server-side en el handler.
   bankAccountId?: number;
+  // CR-CAJA (2026-07-24): sede del cobro elegida en el select. OPCIONAL — default
+  // = sede del socio. Gated por requireBranchAccess (optional). Es el branch_id
+  // del ledger/charge Y la sede desde la que se resuelve la caja de efectivo.
+  branchId?: number;
 }
 
 interface CoachMiscLoadBody {
@@ -71,6 +75,10 @@ interface CoachMiscLoadBody {
   // Phase 151 (COBRO-04): cuenta banco elegida en la PoS. Obligatoria para
   // transfer/card, prohibida para cash — validada server-side en el handler.
   bankAccountId?: number;
+  // CR-CAJA (2026-07-24): sede del cobro elegida en el select. OPCIONAL — default
+  // = sede del socio. Gated por requireBranchAccess (optional). Es el branch_id
+  // del ledger/charge Y la sede desde la que se resuelve la caja de efectivo.
+  branchId?: number;
 }
 
 // Phase 148 (ALTA-01..07): alta de alumno + plan en el cobro. El profe resuelve
@@ -103,9 +111,10 @@ interface CoachAltaBody {
 
 // ── JSON schemas (reject validationStatus / cashRegisterId) ──────────────────
 // CAJA-04 (T-146-01): `additionalProperties:false` + properties SIN cashRegisterId
-// hace que el body del profe NUNCA pueda elegir caja ni sede. La caja se deriva
-// 100% server-side desde recordedBy (sede del profe, CAJA-01); la PoS
-// (CargarPagoPage.vue) tampoco expone ningún selector de caja/sede.
+// mantiene el invariante v5.3: el body NUNCA elige una caja cruda. CR-CAJA
+// (2026-07-24) SÍ acepta un `branchId` (sede del cobro) opcional, gateado por
+// requireBranchAccess — la caja efectivo se resuelve server-side desde esa sede
+// (default = sede del socio), nunca por id de caja directo.
 
 const PAYMENT_METHOD_ENUM = [
   "cash",
@@ -128,6 +137,9 @@ const coachPayPlanSchema = {
       // Phase 151 (COBRO-04): opcional en el schema; el requisito transfer/card
       // (payment-method-dependent) se enforce en el handler, no en JSON-Schema.
       bankAccountId: { type: "integer", minimum: 1 },
+      // CR-CAJA (2026-07-24): sede del cobro (opcional, default sede del socio).
+      // Gated por requireBranchAccess en el preHandler.
+      branchId: { type: "integer", minimum: 1 },
     },
   },
 } as const;
@@ -157,13 +169,17 @@ const coachMiscLoadSchema = {
       // Phase 151 (COBRO-04): opcional en el schema; el requisito transfer/card
       // (payment-method-dependent) se enforce en el handler, no en JSON-Schema.
       bankAccountId: { type: "integer", minimum: 1 },
+      // CR-CAJA (2026-07-24): sede del cobro (opcional, default sede del socio).
+      // Gated por requireBranchAccess en el preHandler.
+      branchId: { type: "integer", minimum: 1 },
     },
   },
 } as const;
 
 // Phase 148 (ALTA-01..07 / T-148-10): mismo contrato server-derived que pay-plan/misc
-// — additionalProperties:false + SIN cashRegisterId/validationStatus (la caja se sugiere
-// server-side desde la sede del profe; el status nace del rol, nunca del body). La XOR
+// — additionalProperties:false + SIN cashRegisterId/validationStatus (CR-CAJA: la caja
+// sigue el branchId del alta — la sede del cobro; el status nace del rol, nunca del
+// body). La XOR
 // userId ↔ {firstName,lastName,dni} se valida en el handler (JSON-Schema no la expresa
 // de forma limpia con additionalProperties:false).
 const coachAltaSchema = {
@@ -259,10 +275,10 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
     await attachCountryScope(request, fastify.db);
   });
 
-  // ── Resolve any user's branchId server-side (Pitfall 4): users.branchId with
-  // the virtual "Templo Online" fallback (mirror of renewSubscription's
-  // renewBranchId resolution). Shared by the member (sede del SOCIO → branch_id
-  // del ledger comercial) and the recorder (sede del PROFE → caja sugerida).
+  // ── Resolve the member's default branchId server-side (Pitfall 4):
+  // users.branchId with the virtual "Templo Online" fallback (mirror of
+  // renewSubscription's renewBranchId resolution). Es el DEFAULT de la sede del
+  // cobro cuando el body no trae `branchId` (select de Sede sin tocar).
   const resolveUserBranchId = async (userId: number): Promise<number> => {
     const [branchRow] = await fastify.db
       .select({ branchId: schema.users.branchId })
@@ -283,55 +299,12 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
     return virtualBranch.id;
   };
 
-  // Sede del SOCIO → branch_id del ledger comercial (sin cambio de comportamiento:
-  // para cash es la caja por defecto del resolver; para transfer/card es moot).
+  // CR-CAJA (2026-07-24): sede DEFAULT del cobro = la del SOCIO (users.branchId).
+  // Es el branch_id del ledger/charge Y la sede desde la que create() resuelve la
+  // caja de efectivo cuando el body no manda un `branchId` explícito (el select de
+  // Sede de la PoS). El operador puede overridear con `body.branchId`.
   const resolveMemberBranchId = (memberId: number): Promise<number> =>
     resolveUserBranchId(memberId);
-
-  // CAJA-01: sede del PROFE que carga (recordedBy → su branchId). La caja efectivo
-  // del cobro se sugiere desde ESTA sede, NO la del socio. El branch_id de la tx
-  // sigue siendo el del socio (resolveMemberBranchId) — la imputación de caja no
-  // altera el ledger comercial por sede.
-  const resolveRecorderBranchId = (recorderUserId: number): Promise<number> =>
-    resolveUserBranchId(recorderUserId);
-
-  // CAJA-01: pre-resolver la caja SUGERIDA desde la sede del profe. Para cash →
-  // caja efectivo de la sede del profe; transfer/card → banco por moneda (idéntico
-  // al default por moneda, inocuo). Devuelve el override para
-  // transactionService.create's cashRegisterId. Fallback (no romper; loguear): si
-  // la caja del profe no es resolvible (sin caja efectivo en su sede / moneda
-  // inconsistente), devuelve `undefined` → create resuelve por la sede del socio
-  // (comportamiento previo), para que un profe sin caja no bloquee el cobro.
-  const resolveSuggestedCaja = async (
-    paymentMethod: PaymentMethod,
-    recorderUserId: number,
-    currency: string,
-  ): Promise<{
-    override: number | null | undefined;
-    recorderBranchId: number;
-  }> => {
-    const recorderBranchId = await resolveRecorderBranchId(recorderUserId);
-    try {
-      const override = await cashRegisterService.resolveCashRegister(
-        paymentMethod,
-        recorderBranchId,
-        currency,
-      );
-      return { override, recorderBranchId };
-    } catch (err: unknown) {
-      fastify.log.warn(
-        {
-          recorderUserId,
-          recorderBranchId,
-          paymentMethod,
-          currency,
-          err: err instanceof Error ? err.message : String(err),
-        },
-        "Caja sugerida del profe no resolvible; fallback a la sede del socio",
-      );
-      return { override: undefined, recorderBranchId };
-    }
-  };
 
   // ── Phase 151 (COBRO-04 / T-151-01): guard compartido de cuenta banco ──
   // Mueve la imputación al punto de venta sin romper el invariante v5.3: el body
@@ -426,7 +399,12 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
   // ===================================================================
   fastify.post<{ Body: CoachPayPlanBody }>(
     "/pay-plan",
-    { schema: coachPayPlanSchema },
+    {
+      schema: coachPayPlanSchema,
+      // CR-CAJA: gatea la sede del cobro cuando el operador la eligió (optional →
+      // sin branchId, default a la sede del socio, sin check).
+      preHandler: requireBranchAccess({ from: "body.branchId", optional: true }),
+    },
     async (request, reply) => {
       const {
         userId,
@@ -434,6 +412,7 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
         paymentMethod,
         idempotencyKey,
         bankAccountId,
+        branchId: chosenBranchId,
       } = request.body;
       try {
         // Outstanding debt on the member's CURRENT sub (active/paused/scheduled)
@@ -474,17 +453,14 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
             });
           }
           const today = new Date().toISOString().split("T")[0];
-          const branchId = await resolveMemberBranchId(userId);
-          // CAJA-01: la caja se sugiere desde la sede del PROFE (recordedBy), no
-          // la del socio. branchId (ledger) sigue siendo el del socio.
-          const { override: suggestedCajaId, recorderBranchId } =
-            await resolveSuggestedCaja(
-              paymentMethod,
-              request.user.userId,
-              sub.currency,
-            );
+          // CR-CAJA: sede del cobro = la elegida en el select (gated) o, por
+          // default, la del socio. Es el branch_id del ledger Y la sede desde la
+          // que create() resuelve la caja de efectivo.
+          const branchId =
+            chosenBranchId ?? (await resolveMemberBranchId(userId));
           // COBRO-04: cuenta banco elegida en la PoS (transfer/card) → imputación
-          // directa del charge. Para cash se conserva la caja sugerida por sede.
+          // directa del charge. Para cash queda undefined → create resuelve la
+          // caja EFECTIVO desde `branchId` (la sede del cobro).
           const chosenBankAccountId = await validateBankAccountForCharge(
             paymentMethod,
             bankAccountId,
@@ -508,7 +484,7 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
               transactionDate: today,
               effectiveDate: today,
               branchId,
-              cashRegisterId: chosenBankAccountId ?? suggestedCajaId,
+              cashRegisterId: chosenBankAccountId,
               notes: `Pago de saldo plan ${sub.planName}`,
               validationStatus: initialStatus,
               idempotencyKey,
@@ -526,11 +502,10 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
             {
               memberId: userId,
               branchId,
-              recorderBranchId,
-              suggestedCajaId,
+              chosenBranchId: chosenBranchId ?? null,
               paymentMethod,
             },
-            "coach pay-plan settle: caja sugerida por sede del profe",
+            "coach pay-plan settle: caja por sede del cobro",
           );
           return reply
             .code(201)
@@ -538,14 +513,10 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
         }
 
         // ── RENEW — no debt, so create a new period (existing behaviour). ──
-        // CAJA-01: la caja del plan_charge se sugiere desde la sede del PROFE
-        // (recordedBy). El branch_id de la sub/charge sigue siendo el del socio.
-        const recorderBranchId = await resolveRecorderBranchId(
-          request.user.userId,
-        );
         // COBRO-04: cuenta banco elegida en la PoS (transfer/card) → override de
         // caja del charge de renovación. La moneda del cobro = la de la sub
-        // renovable. Para cash queda undefined → la caja se sugiere por sede.
+        // renovable. Para cash queda undefined → la caja se resuelve desde la sede
+        // del cobro (renewBranchId).
         const chosenBankAccountId = await validateBankAccountForCharge(
           paymentMethod,
           bankAccountId,
@@ -560,9 +531,11 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
             // a future admin-callable variant stays correct.
             recorderRole: request.user.role as AdminRole,
             idempotencyKey,
-            // CAJA-01: sede del profe → caja sugerida del cobro.
-            recorderBranchId,
-            // COBRO-04: cuenta banco pre-validada → bypassa la sugerencia por
+            // CR-CAJA: sede del cobro elegida en el select (gated). undefined →
+            // renew la deriva de users.branchId del socio. Es el branch_id del
+            // ledger/charge Y la sede desde la que se resuelve la caja efectivo.
+            branchId: chosenBranchId,
+            // COBRO-04: cuenta banco pre-validada → bypassa la resolución por
             // sede en el service. undefined (cash) → sin cambio.
             cashRegisterIdOverride: chosenBankAccountId,
           },
@@ -600,22 +573,24 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
   // ===================================================================
   fastify.post<{ Body: CoachMiscLoadBody }>(
     "/misc",
-    { schema: coachMiscLoadSchema },
+    {
+      schema: coachMiscLoadSchema,
+      // CR-CAJA: gatea la sede del cobro si el operador la eligió (optional).
+      preHandler: requireBranchAccess({ from: "body.branchId", optional: true }),
+    },
     async (request, reply) => {
       const today = new Date().toISOString().split("T")[0];
       try {
-        const branchId = await resolveMemberBranchId(request.body.memberId);
+        // CR-CAJA: sede del cobro = la elegida en el select (gated) o, por
+        // default, la del socio. Es el branch_id del ledger Y la sede desde la que
+        // create() resuelve la caja de efectivo.
+        const branchId =
+          request.body.branchId ??
+          (await resolveMemberBranchId(request.body.memberId));
         const currency = request.body.currency ?? "ARS";
-        // CAJA-01: la caja se sugiere desde la sede del PROFE (recordedBy), no la
-        // del socio. branchId (ledger) sigue siendo el del socio.
-        const { override: suggestedCajaId, recorderBranchId } =
-          await resolveSuggestedCaja(
-            request.body.paymentMethod,
-            request.user.userId,
-            currency,
-          );
         // COBRO-04: cuenta banco elegida en la PoS (transfer/card) → imputación
-        // directa del charge. Para cash se conserva la caja sugerida por sede.
+        // directa del charge. Para cash queda undefined → create resuelve la caja
+        // EFECTIVO desde `branchId` (la sede del cobro).
         const chosenBankAccountId = await validateBankAccountForCharge(
           request.body.paymentMethod,
           request.body.bankAccountId,
@@ -639,7 +614,7 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
             transactionDate: today,
             effectiveDate: today,
             branchId,
-            cashRegisterId: chosenBankAccountId ?? suggestedCajaId,
+            cashRegisterId: chosenBankAccountId,
             notes: request.body.concepto,
             // Phase 145 (COBRO-01): structured motivo → own column, not notes.
             miscReason: request.body.miscReason,
@@ -653,11 +628,10 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
           {
             memberId: request.body.memberId,
             branchId,
-            recorderBranchId,
-            suggestedCajaId,
+            chosenBranchId: request.body.branchId ?? null,
             paymentMethod: request.body.paymentMethod,
           },
-          "coach misc load: caja sugerida por sede del profe",
+          "coach misc load: caja por sede del cobro",
         );
         return reply.code(201).send({ transaction: detail });
       } catch (err: unknown) {
@@ -688,9 +662,9 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
   //       148-01— graba `createdMemberId` en el MISMO insert del charge (sin
   //       UPDATE suelto ni 3ª tx → sin ventana de crash que deje el id huérfano).
   //
-  // branchId (sede elegida) gated por requireBranchAccess (preHandler) — primer
-  // endpoint del plugin que acepta branchId. La caja se sigue SUGIRIENDO desde la
-  // sede del PROFE (recorderBranchId, CAJA-01), no la del socio.
+  // branchId (sede elegida) gated por requireBranchAccess (preHandler). CR-CAJA:
+  // esa sede es el branch_id del ledger/charge Y la sede desde la que se resuelve
+  // la caja de efectivo (default del select = sede del socio), NO la del profe.
   //
   // Idempotencia: la orquestación completa es un replay seguro. Un doble-submit
   // con el mismo idempotencyKey captura isDuplicateKeyError → findByIdempotencyKey
@@ -779,18 +753,14 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
               ? "zero"
               : "regular";
 
-        // CAJA-01: caja sugerida = sede del PROFE (recordedBy), NO la sede
-        // elegida del socio. El branch_id del ledger sigue siendo el del socio.
-        const recorderBranchId = await resolveRecorderBranchId(
-          request.user.userId,
-        );
-
         const today = new Date().toISOString().split("T")[0];
 
         const subscription = await subscriptionService.assignPlan(
           memberId,
           {
             planId: body.planId,
+            // CR-CAJA: la sede elegida (gated) es el branch_id del ledger/charge Y
+            // la sede desde la que create() resuelve la caja de efectivo.
             branchId: body.branchId,
             startDate: today,
             priceTypeApplied,
@@ -801,10 +771,8 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
             // Server-derived: charge nace 'pendiente' porque el rol es coach.
             recorderRole: request.user.role as AdminRole,
             idempotencyKey: body.idempotencyKey,
-            // CAJA-01: caja sugerida desde la sede del profe.
-            recorderBranchId,
-            // COBRO-04: cuenta banco pre-validada → bypassa la sugerencia por
-            // sede en el service. undefined (cash) → sin cambio.
+            // COBRO-04: cuenta banco pre-validada → bypassa la resolución por
+            // sede en el service. undefined (cash) → caja efectivo de body.branchId.
             cashRegisterIdOverride: chosenBankAccountId,
             // W-1 (148-01): el id viaja por el input → se graba en el MISMO
             // insert del charge (sin UPDATE suelto ni 3ª tx).
@@ -823,7 +791,6 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
             memberId,
             createdMemberId,
             branchId: body.branchId,
-            recorderBranchId,
             paymentMethod: body.paymentMethod,
             priceTypeApplied,
           },
@@ -872,6 +839,11 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: autocompletarSchema },
     async (request, reply) => {
       try {
+        // CR-CAJA: sede DEFAULT del cobro = la del socio (users.branchId con
+        // fallback Templo Online), para pre-seleccionar el select de Sede en la PoS.
+        const memberBranchId = await resolveMemberBranchId(
+          request.params.userId,
+        );
         const sub = await subscriptionService.getMemberSubscription(
           request.params.userId,
         );
@@ -884,6 +856,7 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
             intent: null,
             outstanding: 0,
             currentEndDate: null,
+            memberBranchId,
           });
         }
         const balanceRow = await balanceService.getRow(
@@ -906,6 +879,7 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
           // usa para explicitar que renovar ANTES del vencimiento no pisa el
           // período en curso: la renovación nace 'scheduled' y arranca este día.
           currentEndDate: sub.endDate ?? null,
+          memberBranchId,
         });
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "coach autocompletar");
@@ -947,37 +921,51 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
 
   // ===================================================================
   // GET /caja-efectivo — caja destino de un cobro en EFECTIVO (UAT caja/cobros
-  // 2026-07-21). Para cash la caja es server-derived (sede del profe, CAJA-01) y
-  // el body tiene prohibido elegirla, así que la PoS no pregunta nada — pero el
-  // operador igual necesita SABER a qué caja va la plata. Read-only: informa lo
-  // mismo que resolveSuggestedCaja va a decidir al confirmar.
+  // 2026-07-21). CR-CAJA (2026-07-24): la caja de efectivo sigue la SEDE DEL
+  // COBRO (default = sede del socio, overrideable con el select de Sede de la
+  // PoS), ya no la sede del profe. La PoS manda el `branchId` seleccionado y
+  // esta ruta informa, read-only, la misma caja que create() va a resolver al
+  // confirmar.
   //
-  // Devuelve `{ caja: null }` (200, no error) cuando la caja del profe no es
-  // resolvible — mismo fallback tolerante que resolveSuggestedCaja, que en ese
-  // caso deja que el service resuelva por la sede del socio. Un profe sin caja
-  // no debe quedar bloqueado ni ver un error.
+  // Devuelve `{ caja: null }` (200, no error) cuando esa sede no tiene caja
+  // efectivo resolvible — la PoS muestra el aviso y el 400 real lo da create()
+  // al confirmar ("No existe caja efectivo para la sucursal N").
   // ===================================================================
-  fastify.get<{ Querystring: { currency: string } }>(
+  fastify.get<{ Querystring: { currency: string; branchId: number } }>(
     "/caja-efectivo",
     {
       schema: {
         querystring: {
           type: "object",
-          required: ["currency"],
+          required: ["currency", "branchId"],
           additionalProperties: false,
           properties: {
             currency: { type: "string", minLength: 1, maxLength: 8 },
+            branchId: { type: "integer", minimum: 1 },
           },
         },
       },
     },
     async (request, reply) => {
       try {
-        const { override } = await resolveSuggestedCaja(
-          "cash",
-          request.user.userId,
-          request.query.currency,
-        );
+        let override: number | null | undefined;
+        try {
+          override = await cashRegisterService.resolveCashRegister(
+            "cash",
+            request.query.branchId,
+            request.query.currency,
+          );
+        } catch (err: unknown) {
+          request.log.warn(
+            {
+              branchId: request.query.branchId,
+              currency: request.query.currency,
+              err: err instanceof Error ? err.message : String(err),
+            },
+            "Caja efectivo de la sede del cobro no resolvible",
+          );
+          override = undefined;
+        }
         if (override == null) {
           return reply.send({ caja: null });
         }

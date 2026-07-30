@@ -1531,47 +1531,19 @@ export class SubscriptionService {
         ? Math.ceil(plan.durationDays / 7) * plan.classesPerWeek
         : (plan.monthlyClassBudget ?? null);
 
-    // ── Phase 146 (CAJA-01): caja SUGERIDA desde la sede del PROFE ──
-    // Análogo a renewSubscription: cuando la ruta coach-load pasa
-    // `recorderBranchId` (sede del profe que carga), pre-resolvemos la caja
-    // sugerida (cash → efectivo de esa sede; transfer/card → banco por moneda) y
-    // la forwardeamos como override al recordAssignmentCharge del path normal.
-    // `undefined` (path admin, los callers internos) mantiene la resolución por
-    // la sede del socio (sin regresión). El branch_id de la sub/charge sigue
-    // siendo input.branchId (sede del socio). Fallback no-rompe + log: si la caja
-    // del profe no es resolvible, `undefined` → create resuelve por sede socio.
+    // ── CR-CAJA (2026-07-24): la caja SIGUE la sede del cobro (input.branchId) ──
+    // La caja del plan_charge ya NO se sugiere desde la sede del profe. Para cash,
+    // dejamos `suggestedCajaId` undefined → recordAssignmentCharge/create resuelve
+    // la caja EFECTIVO desde `input.branchId` (la sede del cobro = sede del socio
+    // por default, editable con el select de Sede en la PoS). El único override es
+    // la cuenta banco pre-validada de COBRO-04.
     let suggestedCajaId: number | null | undefined;
     if (input.cashRegisterIdOverride !== undefined) {
       // ── Phase 151 (COBRO-04): caja banco pre-validada elegida en la PoS ──
       // La ruta coach-load YA corrió assertChosenBankAccount (type='banco' +
-      // activa + moneda-match). El service confía en el id y saltea la sugerencia
-      // por sede — no llama resolveCashRegister. Precede al fallback por sede del
-      // profe (recorderBranchId) porque la elección explícita del PoS manda.
+      // activa + moneda-match). El service confía en el id y saltea la resolución
+      // por sede — no llama resolveCashRegister.
       suggestedCajaId = input.cashRegisterIdOverride;
-    } else if (
-      input.recorderBranchId !== undefined &&
-      pricePaid > 0 &&
-      this.transactionService
-    ) {
-      try {
-        suggestedCajaId = await this.transactionService.resolveCashRegister(
-          input.paymentMethod,
-          input.recorderBranchId,
-          plan.currency,
-        );
-      } catch (err: unknown) {
-        this.log.warn(
-          {
-            userId,
-            recorderBranchId: input.recorderBranchId,
-            paymentMethod: input.paymentMethod,
-            currency: plan.currency,
-            err: err instanceof Error ? err.message : String(err),
-          },
-          "Caja sugerida del profe no resolvible en assign; fallback a la sede del socio",
-        );
-        suggestedCajaId = undefined;
-      }
     }
 
     // ── Atomic subscription mutation (Phase 103 D-16) ──
@@ -1827,10 +1799,12 @@ export class SubscriptionService {
             effectiveDate: input.startDate,
             adminId,
             flow: "assign",
-            // Phase 140/146/148: alta de profe → nace PENDIENTE (recorderRole),
-            // dedup (idempotencyKey), caja sugerida desde la sede del profe
-            // (suggestedCajaId) y alumno-nuevo grabado en el charge
-            // (createdMemberId). undefined en el path admin → sin regresión.
+            // Phase 140/148 + CR-CAJA: alta de profe → nace PENDIENTE
+            // (recorderRole), dedup (idempotencyKey) y alumno-nuevo grabado en el
+            // charge (createdMemberId). cashRegisterId = solo el override de banco
+            // (COBRO-04); undefined (cash) → create resuelve la caja efectivo desde
+            // input.branchId (la sede del cobro). undefined en el path admin → sin
+            // regresión.
             recorderRole: input.recorderRole,
             idempotencyKey: input.idempotencyKey,
             cashRegisterId: suggestedCajaId,
@@ -4233,8 +4207,14 @@ export class SubscriptionService {
     // Constraints; SPEC §1 requires NOT NULL on financial_transactions.branch_id).
     // Hoisted out of the tx (was previously executed AFTER tx close) so the
     // recordAssignmentCharge call inside the tx has the value available.
+    // CR-CAJA (2026-07-24): si la PoS pasa `input.branchId` (la sede del cobro
+    // elegida en el select, ya gateada por requireBranchAccess en la ruta), ESA
+    // es la sede del ledger/charge Y desde la que se resuelve la caja efectivo.
+    // Sin él (path admin / cliente viejo) se deriva de `users.branchId` del socio.
     let renewBranchId: number;
-    if (renewalPrice > 0) {
+    if (input.branchId !== undefined) {
+      renewBranchId = input.branchId;
+    } else if (renewalPrice > 0) {
       const [memberBranchRow] = await this.db
         .select({ branchId: schema.users.branchId })
         .from(schema.users)
@@ -4262,47 +4242,19 @@ export class SubscriptionService {
       renewBranchId = currentSub.branchId;
     }
 
-    // ── Phase 146 (CAJA-01): caja SUGERIDA desde la sede del PROFE ──
-    // Cuando la ruta coach-load pasa `recorderBranchId` (sede del profe que
-    // carga), pre-resolvemos la caja sugerida (cash → efectivo de esa sede;
-    // transfer/card → banco por moneda) y la forwardeamos como override a
-    // recordAssignmentCharge. `undefined` (path admin, los 4 callers internos)
-    // mantiene la resolución por la sede del socio (sin regresión). El branch_id
-    // de la sub/charge sigue siendo currentSub.branchId (sede del socio).
-    // Fallback (no romper; loguear): si la caja del profe no es resolvible,
-    // dejamos `undefined` → create resuelve por la sede del socio.
+    // ── CR-CAJA (2026-07-24): la caja SIGUE la sede del cobro (renewBranchId) ──
+    // La caja del plan_charge ya NO se sugiere desde la sede del profe. Para cash,
+    // dejamos `suggestedCajaId` undefined → recordAssignmentCharge/create resuelve
+    // la caja EFECTIVO desde `renewBranchId` (la sede del cobro = sede del socio
+    // por default, editable con el select de Sede). El único override es la cuenta
+    // banco pre-validada de COBRO-04.
     let suggestedCajaId: number | null | undefined;
     if (input.cashRegisterIdOverride !== undefined) {
       // ── Phase 151 (COBRO-04): caja banco pre-validada elegida en la PoS ──
       // La ruta coach-load YA corrió assertChosenBankAccount (type='banco' +
-      // activa + moneda-match). El service confía en el id y saltea la sugerencia
-      // por sede — no llama resolveCashRegister. Precede al fallback por sede del
-      // profe (recorderBranchId) porque la elección explícita del PoS manda.
+      // activa + moneda-match). El service confía en el id y saltea la resolución
+      // por sede — no llama resolveCashRegister.
       suggestedCajaId = input.cashRegisterIdOverride;
-    } else if (
-      input.recorderBranchId !== undefined &&
-      renewalPrice > 0 &&
-      this.transactionService
-    ) {
-      try {
-        suggestedCajaId = await this.transactionService.resolveCashRegister(
-          input.paymentMethod,
-          input.recorderBranchId,
-          plan.currency,
-        );
-      } catch (err: unknown) {
-        this.log.warn(
-          {
-            userId,
-            recorderBranchId: input.recorderBranchId,
-            paymentMethod: input.paymentMethod,
-            currency: plan.currency,
-            err: err instanceof Error ? err.message : String(err),
-          },
-          "Caja sugerida del profe no resolvible en renew; fallback a la sede del socio",
-        );
-        suggestedCajaId = undefined;
-      }
     }
 
     // ── Atomic renewal (Phase 103 D-16) ──

@@ -332,22 +332,16 @@ export interface AssignPlanInput {
    */
   idempotencyKey?: string;
   /**
-   * Phase 146 (CAJA-01): sede del PROFE que carga (recordedBy → su branchId).
-   * Cuando se provee, la caja del plan_charge se SUGIERE desde esta sede (caja
-   * efectivo del profe para cash; banco por moneda para transfer/card), no la
-   * del socio. El branch_id de la sub/charge sigue derivándose de la sede del
-   * socio. NUNCA del body crudo — la ruta coach-load lo resuelve de
-   * `request.user.userId`. Omitido en el path admin → caja por sede del socio
-   * (comportamiento previo, sin regresión).
-   */
-  recorderBranchId?: number;
-  /**
    * Phase 151 (COBRO-04): caja banco pre-validada elegida en la PoS de Cobros. El
    * caller (ruta coach-load) YA corrió assertChosenBankAccount (type='banco' +
    * activa + moneda-match) — el service confía en el id y lo usa como
    * `suggestedCajaId`, salteando resolveCashRegister. NUNCA del body crudo. Solo
    * lo setea la ruta coach-load tras validar; los paths admin/internos lo omiten →
    * caja sugerida por sede (sin regresión).
+   *
+   * CR-CAJA (2026-07-24): la caja de EFECTIVO ya NO se sugiere desde la sede del
+   * profe. Sin este override (cash), la caja se resuelve desde `branchId` (la
+   * sede del cobro, default = sede del socio, editable en la PoS).
    */
   cashRegisterIdOverride?: number;
   /**
@@ -410,15 +404,15 @@ export interface RenewSubscriptionInput {
    */
   idempotencyKey?: string;
   /**
-   * Phase 146 (CAJA-01): sede del PROFE que carga (recordedBy → su branchId).
-   * Cuando se provee, la caja del plan_charge se SUGIERE desde esta sede (caja
-   * efectivo del profe para cash; banco por moneda para transfer/card), no la
-   * del socio. El branch_id de la sub/charge sigue derivándose de la sede del
-   * socio. NUNCA del body crudo — la ruta coach-load lo resuelve de
-   * `request.user.userId`. Omitido en el path admin → caja por sede del socio
+   * CR-CAJA (2026-07-24): sede del COBRO elegida en la PoS (default = sede del
+   * socio, editable con el select de Sede). Cuando se provee, es el branch_id
+   * del ledger/charge de la renovación Y la sede desde la que se resuelve la
+   * caja de efectivo. NUNCA del body crudo sin gate — la ruta coach-load lo
+   * pasa desde `body.branchId` tras `requireBranchAccess`. Omitido (path admin /
+   * cliente viejo sin select) → se deriva de `users.branchId` del socio
    * (comportamiento previo, sin regresión).
    */
-  recorderBranchId?: number;
+  branchId?: number;
   /**
    * Phase 151 (COBRO-04): caja banco pre-validada elegida en la PoS de Cobros. El
    * caller (ruta coach-load) YA corrió assertChosenBankAccount (type='banco' +
@@ -426,6 +420,10 @@ export interface RenewSubscriptionInput {
    * `suggestedCajaId`, salteando resolveCashRegister. NUNCA del body crudo. Solo
    * lo setea la ruta coach-load tras validar; los paths admin/internos lo omiten →
    * caja sugerida por sede (sin regresión).
+   *
+   * CR-CAJA (2026-07-24): la caja de EFECTIVO ya NO se sugiere desde la sede del
+   * profe. Sin este override (cash), la caja se resuelve desde `renewBranchId`
+   * (la sede del cobro, default = sede del socio, editable en la PoS).
    */
   cashRegisterIdOverride?: number;
   /**
