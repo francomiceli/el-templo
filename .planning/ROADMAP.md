@@ -4374,7 +4374,7 @@ _v5.7 (Actividades con Aura) added: 2026-07-14 — 2 phases (161-162), 14 requir
 - [x] **Phase 168: Contratos SQL — uniques compuestas e índices por `tenant_id`** — tanda D: conversión de las uniques globales a `(tenant_id, …)` según doc 06 §1-D (incluida la obligatoria `campaign_unsubscribes`), lista M8 explícitamente global, e índice con prefijo `tenant_id` en toda tabla gym-owned. (completed 2026-07-27)
 - [x] **Phase 169: Capa de escritura — helpers `tenantWhere`/`tenantValues` y `TenantContext`** — una sola API para request y caminos sin request (crons por tenant activo, webhook Wellhub por `branches.wellhub_gym_id`, CLI con tenant obligatorio, `tv_pairings` pre-claim exento y anotado). (completed 2026-07-28)
 - [x] **Phase 170: Detección automática — sentinel de pool mysql2 + lint en CI** — interceptor a nivel pool que detecta SQL sobre tabla gym-owned sin `tenant_id` (throw en test/dev para módulos migrados, `log.error` + métrica en prod) y lint estático con allowlist decreciente que rompe el build ante accesos nuevos sin scope ni anotación. (completed 2026-07-28)
-- [ ] **Phase 171: Backstop — manifiesto de rutas fail-closed y fixtures 2-tenant** — `test/tenant-manifest.ts` clasificando el 100% de las rutas + hook `onRoute` que deja en rojo cualquier ruta nueva sin clasificar, y fixtures/helpers que siembran dos tenants con staff y socios propios.
+- [x] **Phase 171: Backstop — manifiesto de rutas fail-closed y fixtures 2-tenant** — `test/tenant-manifest.ts` clasificando el 100% de las rutas + hook `onRoute` que deja en rojo cualquier ruta nueva sin clasificar, y fixtures/helpers que siembran dos tenants con staff y socios propios. (completed 2026-07-30)
 - [ ] **Phase 172: Adopción 1 (piloto) — `finance`** — services de finanzas reciben scope, todo WHERE/INSERT por helpers, sentinel en throw para sus tablas y primera batería de aislamiento verde (patrón reutilizable por las fases siguientes), con cobros/caja/deudas dando los mismos números que hoy.
 - [ ] **Phase 173: Adopción 2 — `members` + guarda de consistencia de anclas** — módulo de socios/staff migrado al patrón completo y el invariante `user.tenant_id === branch.tenant_id` enforced en los ~10 sitios de escritura de `branch_id`, `setMemberBranch()` y el cron de recategorización multisucursal (mina M10).
 - [ ] **Phase 174: Adopción 3 — `subscriptions` + `scheduling`** — planes/suscripciones (con la cadena de pricing override → boarding pass → AURA → referral intacta) y scheduling completo (schedules/bookings/attendance/schedule_exceptions, incluido el check-in por QR y el booking de admin) migrados y aislados.
@@ -4652,7 +4652,7 @@ toda la fase.
 3. Los fixtures siembran 2 tenants completos (sedes, staff, socios, planes propios) y `createStaffUser` y afines aceptan el tenant como parámetro. (ISO-02)
 4. La suite completa sigue verde con los fixtures nuevos: el tenant 2 sembrado no altera ningún test existente ni sus expectativas de conteo. (ISO-02)
 
-**Plans:** 5/6 plans executed
+**Plans:** 6/6 plans complete
 
 Plans:
 
@@ -4678,7 +4678,7 @@ Plans:
 
 **Wave 6** _(blocked on Waves 2, 3 y 5)_
 
-- [ ] 171-06-PLAN.md — Checkpoint bloqueante D-03/D-04 (Franco revisa `global`, `templo-module` y las dudosas) + aplicación del veredicto
+- [x] 171-06-PLAN.md — Checkpoint bloqueante D-03/D-04 (Franco revisa `global`, `templo-module` y las dudosas) + aplicación del veredicto
 
 ### Phase 172: Adopción 1 (piloto) — `finance`
 
@@ -4774,7 +4774,7 @@ Plans:
 | 168. Contratos SQL — uniques compuestas e índices | 6/6            | Complete    | 2026-07-27 |
 | 169. Capa de escritura — helpers y TenantContext  | 9/9            | Complete    | 2026-07-28 |
 | 170. Detección — sentinel de pool + lint CI       | 10/10 | Complete    | 2026-07-29 |
-| 171. Backstop — manifiesto + fixtures 2-tenant    | 5/6 | In Progress|  |
+| 171. Backstop — manifiesto + fixtures 2-tenant    | 6/6 | Complete   | 2026-07-30 |
 | 172. Adopción 1 (piloto) — finance                | 0/?            | Not started |            |
 | 173. Adopción 2 — members + guarda de anclas      | 0/?            | Not started |            |
 | 174. Adopción 3 — subscriptions + scheduling      | 0/?            | Not started |            |

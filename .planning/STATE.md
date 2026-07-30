@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: "Tenancy — El Templo pasa a ser tenant #1"
-status: executing
+status: verifying
 stopped_at: Completed 171-05-PLAN.md (batería ISO-02 del fixture del gimnasio 2 + regresión dirigida del criterio 4)
-last_updated: "2026-07-29T18:07:17.577Z"
-last_activity: 2026-07-29
+last_updated: "2026-07-30T01:41:25.104Z"
+last_activity: 2026-07-30
 progress:
   total_phases: 11
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 16
-  completed_plans: 15
-  percent: 9
+  completed_plans: 16
+  percent: 18
 ---
 
 # Project State
@@ -27,8 +27,8 @@ See: .planning/PROJECT.md (milestone v6.0 initialized 2026-07-26)
 
 Phase: 171 (Backstop — manifiesto de rutas fail-closed y fixtures 2-tenant) — EXECUTING
 Plan: 6 of 6
-Status: Ready to execute
-Last activity: 2026-07-29
+Status: Phase complete — ready for verification
+Last activity: 2026-07-30
 Next: `/gsd:execute-phase 169` sigue por el plan **169-09**, el último de la fase (gate consolidado + rollout). En paralelo siguen pendientes `/gsd:verify-phase 168` (los 6 planes ejecutados; la migración 0196 aplicada en `eltemplo_staging` y `eltemplo` con 0 discrepancias y exit 0 en el verificador de uniques en las dos bases; falta el smoke funcional por UI de Franco, cerrado como pendiente por decisión suya). Siguen pendientes `/gsd:verify-phase 166` y `/gsd:verify-phase 167` por el mismo motivo.
 
 **Worktree de la fase 169:** `/home/franco/projects/et-169-tenant-layer`, rama `feat/169-capa-escritura` sobre `origin/master` (`1200b8af`). `.env`/`.env.development` copiados desde el worktree de la 168 — **no correr ningún install ahí**: el `pnpm-lock.yaml` es byte-idéntico al de los worktrees 166/167/168 y el `node_modules` se resuelve por **symlink a `/home/franco/projects/et-167-columnas/el-templo-api/node_modules`** (el del 168 no existe hoy). El symlink se crea antes de cada typecheck/corrida de tests y **se borra antes de commitear** (la regla `node_modules/` del `.gitignore` no matchea un symlink). Commits de código del plan 01: `c21baefd` (`src/modules/shared/tenant.ts`) y `f6bc7ecc` (`test/tenancy/tenant-helpers.test.ts`); del plan 02: `0426d4de` (expire-lost-leads + wellhub-sync) y `bb85aa64` (mark-no-shows + reassign-multibranch). Nada pusheado. **Esta fase NO agrega migraciones**; si alguna la necesitara, reserva desde **0197**.
@@ -412,6 +412,7 @@ _Updated after each plan completion_
 | Phase 171 P03 | 25min | 2 tasks | 1 files |
 | Phase 171 P04 | 35min | 2 tasks | 2 files |
 | Phase 171 P05 | 45min | 2 tasks | 1 files |
+| Phase 171 P06 | ~35min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -895,6 +896,9 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase 171]: 171-05 (ISO-02) — el "every(f => f.tenantId === TENANT_DOS)" sobre una consulta que YA filtra por tenant_id es una tautologia y no puede fallar: la asercion de doble lado que si atrapa el fallo real es que la fila sembrada APAREZCA en la lista del gimnasio 2 y ESTE AUSENTE de la de El Templo, con contrapartes vivas del tenant 1 (un socio recien creado + el admin semilla) cruzadas en las dos direcciones
 - [Phase 171]: 171-05 (ISO-02) — gender es el discriminador de que createTestMember sin tenantId sigue yendo por POST /api/auth/register: las columnas que el 171-04 espejo a proposito (role/level/status/branch_source) son identicas en los dos caminos, y gender solo lo escribe la ruta (el INSERT directo no toca la columna)
 - [Phase 171]: 171-05 (ISO-02) — ISO-02 marcado Complete: 171-06 declara requirements [ISO-01], asi que ningun plan posterior de la fase lo reclama
+- [Phase 171]: Checkpoint 171-06 (2026-07-29): las 3 rutas de labs-inquiries van a templo-marketing y NO a global — Franco: 'todo eso es parte del Templo'. Para la clasificacion de RUTAS gana el mapeo carpeta->modulo del doc 04 §2.1 sobre la recomendacion Q2-global; la TABLA labs_inquiries sigue gobernada por Q2 (otro registro). El prefijo /api/app deja de partirse. Manifiesto final: 221 tenant-scoped / 8 global / 141 templo-module (370 total).
+- [Phase 171]: El gate ISO-01 no afirma el reparto por categoria a proposito — Recategorizar una ruta NO pone rojo el gate: afirma el total (370) y la forma de cada entrada (sinMotivo/sinModulo/categoriaInvalida). Quien va en que categoria es una decision humana con dueno y fecha, registrada en 171-CLASIFICACION.md §D, no una constante de test que se ajusta hasta que pase.
+- [Phase 171]: PENDIENTE para el planning de la fase 175: verificar si campaigns esta realmente listo multi-tenant — Salvedad textual de Franco en el checkpoint 171-06 (2026-07-29): 'queda por verificar si campaigns esta realmente preparado para que cada tenant lo use (armando su propia campana con su propio mail saliente, etc.)'. NO cambia la clasificacion de hoy (las 3 rutas de track/unsubscribe quedan tenant-scoped por Q5); es una pregunta de adopcion que la 175 tiene que resolver en vez de descubrir en produccion.
 
 ### Pending Todos
 
@@ -927,7 +931,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-29T18:07:02.001Z
+Last session: 2026-07-30T01:40:53.473Z
 Stopped at: Completed 171-05-PLAN.md (batería ISO-02 del fixture del gimnasio 2 + regresión dirigida del criterio 4)
 Resume file: None
 

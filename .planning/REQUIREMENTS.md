@@ -51,7 +51,7 @@ caminos críticos pasen la batería de aislamiento (ISO-03) en verde.
 
 ### ISO — Backstop de aislamiento
 
-- [ ] **ISO-01**: Manifiesto versionado (`test/tenant-manifest.ts`) clasifica el 100% de las rutas (`tenant-scoped`/`global`/`templo-module`); hook `onRoute` fail-closed: ruta nueva sin clasificar = test rojo
+- [x] **ISO-01**: Manifiesto versionado (`test/tenant-manifest.ts`) clasifica el 100% de las rutas (`tenant-scoped`/`global`/`templo-module`); hook `onRoute` fail-closed: ruta nueva sin clasificar = test rojo
 - [x] **ISO-02**: Fixtures de test siembran 2 tenants; helpers (`createStaffUser` y afines) soportan crear staff/socios por tenant
 - [ ] **ISO-03**: Batería de aislamiento: cada ruta `tenant-scoped` de un módulo migrado, ejecutada como staff del tenant A, no expone ni escribe datos del tenant B
 
@@ -108,7 +108,7 @@ _Se completa cuando el roadmap asigne cada REQ-ID a una fase._
 | CON-04  | Phase 169 | Complete |
 | CON-05  | Phase 170 | Complete |
 | CON-06  | Phase 170 | Complete |
-| ISO-01  | Phase 171 | Pending  |
+| ISO-01  | Phase 171 | Complete |
 | ISO-02  | Phase 171 | Complete |
 | ISO-03  | Phase 172 | Pending  |
 | ADO-01  | Phase 172 | Pending  |
