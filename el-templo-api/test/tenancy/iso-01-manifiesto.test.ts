@@ -31,11 +31,15 @@
  *    no pueda serlo por vacuidad.
  * 5. Las validaciones de FORMA (D-02 motivo obligatorio en `global`, D-07
  *    módulo obligatorio en `templo-module`, categoría dentro de las tres) se
- *    corren en RUNTIME, con fixtures sintéticos que las dejan probadas en CI
- *    para siempre. No alcanza con los tipos: `tsconfig.json` incluye solo
- *    `src/**`, así que el `tsc --noEmit` de CI NO mira `test/` y Vitest usa
- *    esbuild (borra tipos sin chequearlos). `test/` es tierra sin tipos
- *    verificados.
+ *    AFIRMAN contra el manifiesto REAL (quinto test del bloque real-app) y
+ *    además se demuestran con fixtures sintéticos que dejan probado el motor en
+ *    CI para siempre. Las dos mitades hacen falta: sin la primera, una entrada
+ *    `global` con motivo "TODO" entraría a master en verde (la clave existe,
+ *    así que ni `faltantes` ni `fantasmas` la ven); sin la segunda, el verde de
+ *    la primera podría ser un comparador roto que nunca reporta nada. No
+ *    alcanza con los tipos: `tsconfig.json` incluye solo `src/**`, así que el
+ *    `tsc --noEmit` de CI NO mira `test/` y Vitest usa esbuild (borra tipos sin
+ *    chequearlos). `test/` es tierra sin tipos verificados.
  *
  * QUÉ NO ES ESTE ARCHIVO
  * ----------------------
@@ -66,6 +70,10 @@
  *     entrada.
  *   - Rojo en el guard de HEAD: alguien declaró un `HEAD` a mano. Clasificalo o
  *     quitalo — no lo filtres.
+ *   - Rojo en el test de FORMA: una entrada `global` quedó sin motivo utilizable
+ *     (D-02), una `templo-module` sin módulo válido (D-07), o una categoría está
+ *     mal escrita. Escribí el motivo/módulo que falta o corregí el typo — NO
+ *     borres la entrada para que se calle.
  *   - Rojo en el conteo: mirá el diff. El número sube cuando se agrega una ruta
  *     CON su línea y baja cuando se borra una ruta Y su línea; que se mueva solo
  *     significa que una de las dos mitades falta.
@@ -122,7 +130,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let discrepancias: Discrepancias;
 
   /**
-   * UN solo `beforeAll` para los cuatro tests: cada `buildApp()` registra ~35
+   * UN solo `beforeAll` para los cinco tests: cada `buildApp()` registra ~35
    * plugins y consulta la base, así que construir el app por test multiplicaría
    * el costo sin agregar una sola afirmación.
    */
@@ -234,6 +242,65 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
         `probando nada: revisá BuildAppOptions en src/app.ts antes que el ` +
         `manifiesto.`,
     ).toBe(ENTRADAS_BASELINE);
+  });
+
+  /**
+   * CR-01 de la review de fase: sin este test, D-02 y D-07 estaban ENUNCIADOS
+   * pero no ENFORCEADOS. Los dos tests bidireccionales de arriba solo miran
+   * claves: una entrada `global` con motivo "TODO" —o una `templo-module` sin
+   * módulo, o una categoría con typo— tiene su clave en las dos listas, así que
+   * ni `faltantes` ni `fantasmas` la ven y el gate pasaba en verde. Las tres
+   * listas de FORMA se validaban solo contra fixtures sintéticos (el describe
+   * de abajo), que prueban el MOTOR pero no el manifiesto real. Este test cierra
+   * ese agujero: `compararManifiesto` shape-valida TODAS las entradas del
+   * manifiesto que recibe, así que afirmar sobre el `discrepancias` real cubre
+   * las 370.
+   */
+  it("toda entrada del manifiesto real tiene la forma exigida (D-02 motivo, D-07 módulo, categoría válida)", () => {
+    const sinMotivo = discrepancias.sinMotivo.slice().sort();
+    const sinModulo = discrepancias.sinModulo.slice().sort();
+    const categoriaInvalida = discrepancias.categoriaInvalida.slice().sort();
+
+    expect(
+      sinMotivo,
+      `Entradas "global" del manifiesto REAL sin motivo utilizable (D-02): ` +
+        `${sinMotivo.join(", ")}. ` +
+        `QUÉ HACER: escribile a cada una un motivo que sea una oración completa ` +
+        `nombrando la causa concreta ("el webhook se procesa antes de saber a ` +
+        `qué gimnasio pertenece"), no una etiqueta ("es global"). Un motivo ` +
+        `vacío o con marcador de trabajo pendiente (TODO/FIXME/TBD/XXX/` +
+        `"pendiente") cuenta como ausente. ` +
+        `POR QUÉ IMPORTA: "global" es la categoría peligrosa —afirma que la ` +
+        `ruta ve datos de TODOS los gimnasios y está bien— y sin motivo escrito ` +
+        `nadie puede auditar en un año si fue deliberado o un descuido. Este es ` +
+        `el test que hace verdad la promesa de los mensajes de arriba ("la ` +
+        `validación de runtime la reporta en sinMotivo y el gate sigue rojo").`,
+    ).toEqual([]);
+
+    expect(
+      sinModulo,
+      `Entradas "templo-module" del manifiesto REAL sin módulo válido (D-07): ` +
+        `${sinModulo.join(", ")}. ` +
+        `QUÉ HACER: declarale a cada una su \`modulo\` con uno de los cuatro ` +
+        `valores de MODULOS_TEMPLO (un typo en el nombre del módulo también cae ` +
+        `acá). ` +
+        `POR QUÉ IMPORTA: la fase 176 va a LEER esa etiqueta para exigir ` +
+        `requireModule en la ruta; una entrada sin módulo es una ruta que queda ` +
+        `fuera del enforcement sin que nadie lo note.`,
+    ).toEqual([]);
+
+    expect(
+      categoriaInvalida,
+      `Entradas del manifiesto REAL con categoría fuera de las tres: ` +
+        `${categoriaInvalida.join(", ")}. ` +
+        `QUÉ HACER: corregí el typo — las categorías son exactamente ` +
+        `tenant-scoped, global y templo-module, y agregar una cuarta es una ` +
+        `decisión de diseño, no una edición de este manifiesto. ` +
+        `POR QUÉ IMPORTA: nadie typechequea test/ (tsconfig incluye solo src/ y ` +
+        `Vitest borra tipos con esbuild), así que esta validación de runtime es ` +
+        `la ÚNICA red contra una categoría mal escrita que dejaría la ruta ` +
+        `clasificada "en algo" que ningún consumidor entiende.`,
+    ).toEqual([]);
   });
 });
 
