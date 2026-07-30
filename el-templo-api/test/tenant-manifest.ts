@@ -29,6 +29,12 @@
 // onboarding, 1 gamification) y 8 `global`. 0 claves duplicadas, 0 `HEAD`
 // huérfanos.
 //
+// 2026-07-30 — **372 rutas** (223 `tenant-scoped`): el merge de `origin/staging`
+// para el tren a master trajo dos rutas de caja en efectivo escritas en paralelo
+// a esta fase, el gate ISO-01 las nombró en CI y se clasificaron `tenant-scoped`
+// (las dos ya llamaban `assertTenant`). Ver el docblock de `ENTRADAS_BASELINE`
+// en `test/tenancy/iso-01-manifiesto.test.ts`.
+//
 // Ese reparto es el APROBADO en el checkpoint del plan 171-06 (Franco,
 // 2026-07-29). El volcado del plan 171-02 había propuesto 221 / 11 / 138; la
 // única diferencia son las 3 rutas de `labs-inquiries`, que pasaron de `global`
@@ -130,9 +136,9 @@ export interface EntradaManifiesto {
  * El manifiesto. La clave es `` `${MÉTODO} ${url}` `` con la url tal cual la
  * reporta el hook `onRoute` (ya viene con el prefijo compuesto del plugin).
  *
- * 370 entradas, una por ruta exacta (D-01). Orden: plataforma, auth, los
+ * 372 entradas, una por ruta exacta (D-01). Orden: plataforma, auth, los
  * prefijos del API alfabéticamente, y al final los cuatro bloques `templo-*`.
- * Reparto: 221 `tenant-scoped` · 8 `global` · 141 `templo-module`.
+ * Reparto: 223 `tenant-scoped` · 8 `global` · 141 `templo-module`.
  *
  * La clasificación está APROBADA por el dueño del producto: Franco revisó las
  * dos listas peligrosas (`global` entera y las fronteras de `templo-module`) y
@@ -255,6 +261,9 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   "GET /api/admin/finance/coach-load/bank-accounts": {
     categoria: "tenant-scoped",
   },
+  "GET /api/admin/finance/coach-load/caja-efectivo": {
+    categoria: "tenant-scoped",
+  },
   "GET /api/admin/finance/coach-load/mis-cargas": {
     categoria: "tenant-scoped",
   },
@@ -279,6 +288,9 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
     categoria: "tenant-scoped",
   },
   "POST /api/admin/finance/cash-registers/:id/reactivate": {
+    categoria: "tenant-scoped",
+  },
+  "POST /api/admin/finance/cash-registers/efectivo": {
     categoria: "tenant-scoped",
   },
   "POST /api/admin/finance/coach-load/alta": { categoria: "tenant-scoped" },

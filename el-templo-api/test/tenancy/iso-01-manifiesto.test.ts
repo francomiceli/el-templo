@@ -117,16 +117,28 @@ import {
  * (plan 171-02): **370 rutas**. Mover este número es una DECISIÓN, no un
  * detalle: ver el cuarto test.
  *
- * El reparto por categoría vigente es 221 `tenant-scoped` · 8 `global` · 141
- * `templo-module`, aprobado por Franco en el checkpoint del plan 171-06
- * (2026-07-29). Este archivo NO afirma el reparto por categoría a propósito, y
+ * **Movido a 372 el 2026-07-30**, primera vez que el gate cobró en serio. Al
+ * mergear `origin/staging` para el tren a master entraron dos rutas de caja en
+ * efectivo escritas en paralelo a esta fase (UAT caja/cobros 2026-07-21), y el
+ * gate las nombró en CI:
+ *   - `GET /api/admin/finance/coach-load/caja-efectivo`
+ *   - `POST /api/admin/finance/cash-registers/efectivo`
+ * Ambas clasificadas **tenant-scoped**, que es lo que su código ya afirmaba:
+ * las dos llaman `assertTenant(request.scope, …)` y el GET filtra con
+ * `tenantWhere(schema.cashRegisters, ctx)`. Ver datos de UN gimnasio es
+ * exactamente el caso normal (D-02). Decisión de Franco, 2026-07-30.
+ *
+ * El reparto por categoría vigente es 223 `tenant-scoped` · 8 `global` · 141
+ * `templo-module` (221 + las dos de arriba), sobre el aprobado por Franco en el
+ * checkpoint del plan 171-06 (2026-07-29). Este archivo NO afirma el reparto
+ * por categoría a propósito, y
  * por eso recategorizar una ruta no lo pone rojo: lo que el gate defiende es que
  * NINGUNA ruta quede sin clasificar (los dos tests bidireccionales) y que la
  * forma de cada entrada se sostenga (`sinMotivo` / `sinModulo` /
  * `categoriaInvalida`). Quién va en qué categoría es una decisión humana con
  * dueño y fecha, registrada en `171-CLASIFICACION.md`, no una constante de test.
  */
-const ENTRADAS_BASELINE = 370;
+const ENTRADAS_BASELINE = 372;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -233,7 +245,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 370 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 372 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(
@@ -275,7 +287,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
    * de abajo), que prueban el MOTOR pero no el manifiesto real. Este test cierra
    * ese agujero: `compararManifiesto` shape-valida TODAS las entradas del
    * manifiesto que recibe, así que afirmar sobre el `discrepancias` real cubre
-   * las 370.
+   * las 372.
    */
   it("toda entrada del manifiesto real tiene la forma exigida (D-02 motivo, D-07 módulo, categoría válida)", () => {
     const sinMotivo = discrepancias.sinMotivo.slice().sort();
