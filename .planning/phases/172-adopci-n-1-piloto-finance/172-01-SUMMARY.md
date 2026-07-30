@@ -191,6 +191,16 @@ Tres cosas que los planes siguientes tienen que dar por sentadas:
 
 **Sin blockers.**
 
+## Self-Check: PASSED
+
+- `FOUND` `.planning/phases/172-adopci-n-1-piloto-finance/172-01-SUMMARY.md`
+- `FOUND` `/home/franco/projects/et-172/el-templo-api/.env`
+- `FOUND` `/home/franco/projects/et-172/el-templo-api/tenant-lint-allowlist.json` (501 entradas)
+- `FOUND` `/home/franco/projects/et-172/el-templo-api/node_modules/.modules.yaml`
+- `FOUND` commit `daf33692` (SUMMARY) y `1c030cce` (STATE + ROADMAP)
+
+**ADO-01 NO se marcó completo, deliberadamente.** El requisito dice "`finance` migrado al patrón completo (services reciben scope + `tenantWhere`/`tenantValues` + sentinel throw para sus tablas + aislamiento verde)" y lo citan **18 de los 23 planes** de la fase. Marcarlo desde el plan que sólo monta el worktree sería falso. Sigue `Pending` en REQUIREMENTS.md hasta el gate consolidado del final de la fase — misma convención que la 169 usó con CON-03 y CON-04.
+
 ---
 
 _Phase: 172-adopci-n-1-piloto-finance_
