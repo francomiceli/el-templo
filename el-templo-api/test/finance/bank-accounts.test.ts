@@ -30,6 +30,7 @@ let app: FastifyInstance;
 let ownerToken: string;
 let gestionToken: string;
 let coachToken: string;
+let branchId: number;
 
 const createdAccountIds: number[] = [];
 
@@ -73,7 +74,7 @@ beforeAll(async () => {
   const [branch] = await app.db
     .insert(schema.branches)
     .values({ name: "BA-Test AR", code: branchCode });
-  const branchId = Number(branch.insertId);
+  branchId = Number(branch.insertId);
 
   const ownerEmail = `ba-owner-${Date.now()}@test.com`;
   await createStaffUser(app, {
@@ -427,6 +428,160 @@ describe("Phase 150: ABM de cuentas bancarias", () => {
       ).accounts;
       const row = accounts.find((a) => a.id === id);
       expect(row?.currency).toBe("ARS");
+    });
+  });
+
+  // ── Cajas de efectivo (UAT caja/cobros 2026-07-21) ────────────────────────
+  // Hasta ahora sólo nacían por migración (0154). El invariante clave es UNA
+  // caja efectivo activa por (sucursal, moneda): es lo que mantiene
+  // determinista a resolveCashRegister, que elige con .limit(1) sin ORDER BY.
+  describe("POST /cash-registers/efectivo (abrir caja de sucursal)", () => {
+    async function abrirCaja(
+      token: string,
+      payload: Record<string, unknown>,
+    ): Promise<{ statusCode: number; body: string }> {
+      const res = await app.inject({
+        method: "POST",
+        url: "/api/admin/finance/cash-registers/efectivo",
+        headers: { authorization: `Bearer ${token}` },
+        payload,
+      });
+      if (res.statusCode === 201) {
+        const parsed = JSON.parse(res.body) as {
+          caja: { cashRegisterId: number };
+        };
+        createdAccountIds.push(parsed.caja.cashRegisterId);
+      }
+      return { statusCode: res.statusCode, body: res.body };
+    }
+
+    /** Sucursal nueva por test: el invariante es por sucursal. */
+    async function nuevaSucursal(label: string): Promise<number> {
+      const [b] = await app.db.insert(schema.branches).values({
+        name: `BA-${label}`,
+        code: `${label}${Date.now() % 1000000}`,
+      });
+      return Number(b.insertId);
+    }
+
+    it("owner abre la caja de una sucursal sin caja → 201, saldo = arqueo inicial", async () => {
+      const sucursal = await nuevaSucursal("Nueva");
+      const res = await abrirCaja(ownerToken, {
+        branchId: sucursal,
+        currency: "ARS",
+        openingBalance: 25000,
+      });
+      expect(res.statusCode).toBe(201);
+      const { caja } = JSON.parse(res.body) as {
+        caja: {
+          cashRegisterId: number;
+          name: string;
+          type: string;
+          branchId: number;
+          currency: string;
+          firmeBalance: number;
+        };
+      };
+      expect(caja.type).toBe("efectivo");
+      expect(caja.branchId).toBe(sucursal);
+      expect(caja.currency).toBe("ARS");
+      // Sin movimientos, el firme es exactamente el arqueo declarado.
+      expect(caja.firmeBalance).toBe(25000);
+      expect(caja.name).toContain("BA-Nueva");
+    });
+
+    it("openingBalance omitido → arranca en 0", async () => {
+      const sucursal = await nuevaSucursal("Cero");
+      const res = await abrirCaja(ownerToken, {
+        branchId: sucursal,
+        currency: "ARS",
+      });
+      expect(res.statusCode).toBe(201);
+      const { caja } = JSON.parse(res.body) as {
+        caja: { firmeBalance: number };
+      };
+      expect(caja.firmeBalance).toBe(0);
+    });
+
+    it("segunda caja de la MISMA sucursal y moneda → 409 (invariante del resolver)", async () => {
+      const sucursal = await nuevaSucursal("Dup");
+      expect(
+        (await abrirCaja(ownerToken, { branchId: sucursal, currency: "ARS" }))
+          .statusCode,
+      ).toBe(201);
+
+      const dup = await abrirCaja(ownerToken, {
+        branchId: sucursal,
+        currency: "ARS",
+      });
+      expect(dup.statusCode).toBe(409);
+      expect((JSON.parse(dup.body) as { message: string }).message).toContain(
+        "ya tiene una caja de efectivo",
+      );
+    });
+
+    it("misma sucursal con OTRA moneda → 201 (el invariante es por moneda)", async () => {
+      const sucursal = await nuevaSucursal("Multi");
+      expect(
+        (await abrirCaja(ownerToken, { branchId: sucursal, currency: "ARS" }))
+          .statusCode,
+      ).toBe(201);
+      expect(
+        (await abrirCaja(ownerToken, { branchId: sucursal, currency: "EUR" }))
+          .statusCode,
+      ).toBe(201);
+    });
+
+    it("sucursal inexistente → 404", async () => {
+      const res = await abrirCaja(ownerToken, {
+        branchId: 99999999,
+        currency: "ARS",
+      });
+      expect(res.statusCode).toBe(404);
+    });
+
+    it("saldo inicial negativo → 400", async () => {
+      const sucursal = await nuevaSucursal("Neg");
+      const res = await abrirCaja(ownerToken, {
+        branchId: sucursal,
+        currency: "ARS",
+        openingBalance: -100,
+      });
+      expect(res.statusCode).toBe(400);
+    });
+
+    it("gestion → 403; coach → 403 (mismo gate que las cuentas banco)", async () => {
+      const sucursal = await nuevaSucursal("Rbac");
+      expect(
+        (await abrirCaja(gestionToken, { branchId: sucursal, currency: "ARS" }))
+          .statusCode,
+      ).toBe(403);
+      expect(
+        (await abrirCaja(coachToken, { branchId: sucursal, currency: "ARS" }))
+          .statusCode,
+      ).toBe(403);
+    });
+
+    it("la caja creada es la que resuelve un cobro en efectivo de esa sucursal", async () => {
+      const sucursal = await nuevaSucursal("Resolver");
+      const res = await abrirCaja(ownerToken, {
+        branchId: sucursal,
+        currency: "ARS",
+      });
+      const { caja } = JSON.parse(res.body) as {
+        caja: { cashRegisterId: number };
+      };
+      const [found] = await app.db
+        .select({ id: schema.cashRegisters.id })
+        .from(schema.cashRegisters)
+        .where(
+          and(
+            eq(schema.cashRegisters.type, "efectivo"),
+            eq(schema.cashRegisters.branchId, sucursal),
+            eq(schema.cashRegisters.isActive, true),
+          ),
+        );
+      expect(found.id).toBe(caja.cashRegisterId);
     });
   });
 });

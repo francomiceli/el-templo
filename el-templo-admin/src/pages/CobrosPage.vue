@@ -181,6 +181,9 @@
                     <q-item v-bind="scope.itemProps">
                       <q-item-section>
                         <q-item-label>{{ scope.opt.displayLabel }}</q-item-label>
+                        <q-item-label v-if="scope.opt.planLabel" caption>
+                          {{ scope.opt.planLabel }}
+                        </q-item-label>
                       </q-item-section>
                       <q-item-section side>
                         <q-badge :color="scope.opt.statusColor" :label="scope.opt.statusLabel" />
@@ -258,6 +261,24 @@
                     formatPrice(autocompletar?.outstanding ?? 0, autocompletar?.currency ?? 'ARS')
                   }}
                   <span v-if="autocompletar?.planName"> — Plan {{ autocompletar.planName }}</span>
+                </q-banner>
+
+                <!-- Plan vigente sin deuda: el operador tiene que ver QUÉ plan
+                     está por cobrar y hasta cuándo está cubierto, no sólo
+                     "Activa" (UAT caja/cobros 2026-07-21). -->
+                <q-banner
+                  v-else-if="autocompletar?.hasRenewable && autocompletar.planName"
+                  dense
+                  rounded
+                  class="bg-grey-2 text-dark q-mt-md"
+                >
+                  <template #avatar>
+                    <q-icon name="card_membership" color="primary" />
+                  </template>
+                  Plan {{ autocompletar.planName }}
+                  <span v-if="autocompletar.currentEndDate">
+                    — vence el {{ formatDate(autocompletar.currentEndDate) }}
+                  </span>
                 </q-banner>
               </template>
 
@@ -353,12 +374,33 @@
                     <q-skeleton v-for="n in 3" :key="n" type="rect" height="56px" />
                   </div>
                   <div
-                    v-else-if="plansByTier.length === 0"
+                    v-else-if="plans.length === 0"
                     class="text-grey-5 text-italic q-pa-md text-center"
                   >
                     No hay planes activos para esta sede.
                   </div>
                   <template v-else>
+                    <!-- Filtro por tipo: colapsa el catálogo al grupo que se
+                         está cobrando (UAT caja/cobros 2026-07-21). Se oculta
+                         si hay un solo grupo — no aporta nada. -->
+                    <q-btn-toggle
+                      v-if="planGroupTabs.length > 1"
+                      v-model="planGroupFilter"
+                      :options="planGroupTabs"
+                      no-caps
+                      unelevated
+                      spread
+                      toggle-color="primary"
+                      color="grey-3"
+                      text-color="grey-8"
+                      class="q-mb-sm rounded-borders"
+                    />
+                    <div
+                      v-if="plansByTier.length === 0"
+                      class="text-grey-5 text-italic q-pa-md text-center"
+                    >
+                      No hay planes de este tipo para esta sede.
+                    </div>
                     <div v-for="tier in plansByTier" :key="tier.tier" class="q-mb-sm">
                       <q-badge
                         :color="tierColor(tier.tier)"
@@ -576,6 +618,19 @@
                   </q-banner>
                 </template>
 
+                <!-- Efectivo: la caja la decide el server por la sede de quien
+                     carga, así que no se pregunta — pero se MUESTRA (UAT
+                     caja/cobros 2026-07-21: "lo cobré en efectivo, ¿a qué caja
+                     lo manda?"). Si no es resolvible, no se muestra nada: el
+                     server cae a la sede del socio y el cobro igual entra. -->
+                <div
+                  v-else-if="cajaEfectivo"
+                  class="text-subtitle2 text-weight-regular text-grey-7 q-mt-md"
+                >
+                  <q-icon name="savings" size="xs" class="q-mr-xs" />Entra a
+                  <span class="text-weight-medium">{{ cajaEfectivo.name }}</span>
+                </div>
+
                 <div class="text-subtitle2 text-weight-regular text-grey-7 q-mt-sm">
                   <q-icon name="schedule" size="xs" class="q-mr-xs" />Queda pendiente de validación.
                 </div>
@@ -678,6 +733,7 @@ import { onBeforeRouteLeave, useRoute } from 'vue-router';
 import { createLogger } from 'src/utils/logger';
 import { extractError, isExpectedClientError } from 'src/utils/extract-error';
 import { formatPrice } from 'src/utils/format-price';
+import { formatDate } from 'src/utils/format-date';
 import { ZERO_PRICE_LABEL } from 'src/config/templo-config';
 import { useMembersApi } from 'src/composables/useMembersApi';
 import { usePricingSettingsApi } from 'src/composables/usePricingSettingsApi';
@@ -717,6 +773,11 @@ interface MemberSearchOption {
   displayLabel: string;
   statusLabel: string;
   statusColor: string;
+  /** Nombre del plan vigente, o null si no tiene. Se muestra bajo el nombre
+   *  (UAT caja/cobros 2026-07-21: el badge decía sólo "Activa" y el operador no
+   *  sabía QUÉ plan estaba por cobrar). El dato ya venía en el payload de
+   *  /members/search — sólo faltaba renderizarlo. */
+  planLabel: string | null;
 }
 
 // ─── Wizard step state ──────────────────────────────────────────────────────
@@ -755,21 +816,8 @@ function miscReasonLabel(value: MiscReason): string {
 
 // Step-2 associations (D-01, replaces the old mode toggle). Selecting one sets
 // `mode` and drives which endpoint the confirm dispatches.
-const associationOptions: Array<{ value: Mode; label: string; hint: string; icon: string }> = [
-  {
-    value: 'renew',
-    label: 'Renovar plan vigente',
-    hint: 'Cobrar la renovación del plan activo',
-    icon: 'autorenew',
-  },
-  {
-    value: 'alta',
-    label: 'Asignar plan nuevo',
-    hint: 'Elegir un plan del catálogo',
-    icon: 'add_card',
-  },
-  { value: 'misc', label: 'Cobro suelto', hint: 'Un cobro sin plan, con motivo', icon: 'receipt' },
-];
+// Las opciones de asociación se declaran junto al estado de `autocompletar`,
+// más abajo: el hint de `renew` depende del vencimiento vigente.
 
 // ─── Alta + plan (Mode C) ─────────────────────────────────────────────────
 // Sede elegida del socio (default = sede del profe, editable a sus sedes).
@@ -804,6 +852,48 @@ const searchingMembers = ref(false);
 // ─── Autocompletar (Mode A) ───────────────────────────────────────────────
 const autocompletar = ref<AutocompletarResult | null>(null);
 const autocompletando = ref(false);
+
+// Step-2 associations (D-01, replaces the old mode toggle). Selecting one sets
+// `mode` and drives which endpoint the confirm dispatches.
+//
+// El hint de `renew` es dinámico (UAT caja/cobros 2026-07-21): cuando el plan
+// sigue vigente, renovar NO pisa el período en curso — la renovación nace
+// 'scheduled' y arranca el día del vencimiento. Decirlo explícitamente evita que
+// el staff crea que tiene que esperar al vencimiento para cobrar el mes que viene.
+//
+// `stillCovered` exige vencimiento ESTRICTAMENTE futuro. Con el plan ya vencido
+// (o venciendo hoy) la copy vuelve a "Renovar plan vigente", que es lo correcto:
+// en ese caso renewSubscription arranca el nuevo período HOY, no a futuro, así
+// que anunciar una fecha de inicio sería mentira. Mismo borde que el service
+// (`oldSubExpired` / `autoStartDate` en subscriptions/service.ts).
+const associationOptions = computed<
+  Array<{ value: Mode; label: string; hint: string; icon: string }>
+>(() => {
+  const endDate = autocompletar.value?.currentEndDate ?? null;
+  const stillCovered = endDate !== null && endDate > new Date().toISOString().split('T')[0];
+  return [
+    {
+      value: 'renew',
+      label: stillCovered ? 'Cobrar próximo período' : 'Renovar plan vigente',
+      hint: stillCovered
+        ? `Arranca el ${formatDate(endDate)}, al vencer el actual`
+        : 'Cobrar la renovación del plan activo',
+      icon: 'autorenew',
+    },
+    {
+      value: 'alta',
+      label: 'Asignar plan nuevo',
+      hint: 'Elegir un plan del catálogo',
+      icon: 'add_card',
+    },
+    {
+      value: 'misc',
+      label: 'Cobro suelto',
+      hint: 'Un cobro sin plan, con motivo',
+      icon: 'receipt',
+    },
+  ];
+});
 
 // ─── Mis cargas ───────────────────────────────────────────────────────────
 const myLoads = ref<TransactionListItem[]>([]);
@@ -937,9 +1027,30 @@ async function loadBankAccounts() {
   }
 }
 
-// Cargar cuentas al elegir transferencia/tarjeta.
+// ─── Caja destino en efectivo (informativa) ─────────────────────────────────
+// Para cash la caja la resuelve el server desde la sede de quien carga (CAJA-01)
+// y el body no puede elegirla, así que no hay nada que preguntar — pero el
+// operador necesita ver a dónde va la plata (UAT caja/cobros 2026-07-21). null
+// cuando no es resolvible: el server cae a la sede del socio y el cobro entra
+// igual, así que se omite el cartel en vez de mostrar un error.
+const cajaEfectivo = ref<{ id: number; name: string } | null>(null);
+
+async function loadCajaEfectivo() {
+  try {
+    const { caja } = await financeApi.getCajaEfectivo(resumenCurrency.value);
+    cajaEfectivo.value = caja;
+  } catch (err: unknown) {
+    log.warn('No se pudo resolver la caja de efectivo destino', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    cajaEfectivo.value = null;
+  }
+}
+
+// Cargar cuentas al elegir transferencia/tarjeta; la caja al elegir efectivo.
 watch(paymentMethod, (m) => {
   if (m === 'transfer' || m === 'card') void loadBankAccounts();
+  if (m === 'cash') void loadCajaEfectivo();
 });
 
 // Si cambia la moneda del cobro, la cuenta elegida podría quedar de otra moneda:
@@ -947,6 +1058,7 @@ watch(paymentMethod, (m) => {
 watch(resumenCurrency, () => {
   selectedBankAccountId.value = null;
   if (needsBankAccount.value) void loadBankAccounts();
+  if (paymentMethod.value === 'cash') void loadCajaEfectivo();
 });
 
 // ─── Alta rápida de cuenta banco (D-08) — sólo admin/owner ──────────────────
@@ -1217,6 +1329,9 @@ function onUsarExistente() {
     displayLabel: dedupMatchName.value,
     statusLabel: m.status ?? 'Sin plan',
     statusColor: 'grey',
+    // El match de dedup no trae el plan; el banner del paso 1 lo resuelve vía
+    // autocompletar, que se dispara justo abajo.
+    planLabel: null,
   };
   resetAltaFields();
   // WR-02: adoptar un socio existente vía dedup debe cargar su autocompletar
@@ -1250,11 +1365,50 @@ interface TierGroup {
   plans: PlanListItem[];
 }
 
+// UAT caja/cobros 2026-07-21: el catálogo del país entero (presencial + online +
+// especial) se renderizaba en una sola grilla, y llegar al picker de turnos que
+// va abajo obligaba a scrollear toda la lista. El filtro colapsa la grilla al
+// grupo que el operador está cobrando. 'presencial' arranca preseleccionado
+// porque es el caso dominante en el mostrador; las pestañas sin planes no se
+// muestran, así que una sede sólo-presencial no ve ruido.
+type PlanGroupFilter = 'presencial' | 'online' | 'especial';
+
+function planGroupOf(p: PlanListItem): PlanGroupFilter {
+  if (p.planCategory === 'presencial') return 'presencial';
+  if (p.planCategory === 'especial') return 'especial';
+  return 'online';
+}
+
+const PLAN_GROUP_LABELS: Record<PlanGroupFilter, string> = {
+  presencial: 'Presencial',
+  online: 'Online',
+  especial: 'Especiales',
+};
+
+const planGroupFilter = ref<PlanGroupFilter>('presencial');
+
+/** Grupos con al menos un plan, en orden fijo. Vacío mientras cargan. */
+const planGroupTabs = computed<Array<{ value: PlanGroupFilter; label: string }>>(() => {
+  const order: PlanGroupFilter[] = ['presencial', 'online', 'especial'];
+  return order
+    .filter((g) => plans.value.some((p) => planGroupOf(p) === g))
+    .map((g) => ({ value: g, label: PLAN_GROUP_LABELS[g] }));
+});
+
+// Si el grupo activo se queda sin planes (cambio de sede/país), caer al primero
+// disponible para no mostrar una grilla vacía con planes cargados.
+watch(planGroupTabs, (tabs) => {
+  if (tabs.length > 0 && !tabs.some((t) => t.value === planGroupFilter.value)) {
+    planGroupFilter.value = tabs[0].value;
+  }
+});
+
 const plansByTier = computed((): TierGroup[] => {
   const tierOrder: PlanTier[] = ['flex', 'foundation', 'performance', 'other'];
   const groups: TierGroup[] = [];
+  const visible = plans.value.filter((p) => planGroupOf(p) === planGroupFilter.value);
   for (const tier of tierOrder) {
-    const tierPlans = plans.value.filter((p) => p.planTier === tier);
+    const tierPlans = visible.filter((p) => p.planTier === tier);
     if (tierPlans.length > 0) groups.push({ tier, plans: tierPlans });
   }
   return groups;
@@ -1374,6 +1528,7 @@ function buildMemberOption(m: {
       `${m.firstName ?? ''} ${m.lastName ?? ''}${m.dni ? ` (${m.dni})` : ''}`.trim() || `#${m.id}`,
     statusLabel,
     statusColor,
+    planLabel: m.planName,
   };
 }
 

@@ -13,17 +13,28 @@
       realidad.
     </q-banner>
 
-    <!-- Export (top-right). Excel only — no dead PDF control (REP-04, Excel-only v1). -->
-    <div class="row justify-end q-mb-md">
-      <q-btn
-        icon="download"
-        label="Exportar Excel"
-        color="primary"
-        outline
-        dense
-        :loading="exporting"
-        @click="onExportSaldos"
-      />
+    <!-- Rango del período + export. El rango NO cambia el saldo firme (que es
+         acumulado desde el corte): agrega el movimiento del período por caja,
+         que es lo que el staff necesita para conciliar (UAT 2026-07-21). -->
+    <div class="row items-center q-col-gutter-md q-mb-md">
+      <div class="col-12 col-sm-4">
+        <DateRangeFilter
+          :model-value="dateRange"
+          month-label="Movimientos del mes"
+          @update:model-value="onDateRangeChange"
+        />
+      </div>
+      <div class="col-12 col-sm row justify-end">
+        <q-btn
+          icon="download"
+          label="Exportar Excel"
+          color="primary"
+          outline
+          dense
+          :loading="exporting"
+          @click="onExportSaldos"
+        />
+      </div>
     </div>
 
     <!-- Groups in fixed order: Efectivo sucursales → Efectivo central → Banco (D-06) -->
@@ -62,6 +73,33 @@
                 <div v-else class="text-caption text-warning q-mt-xs">
                   Pendiente: {{ formatPrice(row.pendienteAmount, row.currency) }}
                 </div>
+
+                <!-- Movimiento del período: entradas/salidas/neto. Separado del
+                     saldo por una línea para que no se lea como parte de él. -->
+                <template v-if="!loading && row.period">
+                  <q-separator class="q-my-sm" />
+                  <div class="text-caption text-grey-7">
+                    <div class="row justify-between">
+                      <span>Entradas</span>
+                      <span class="text-positive"
+                        >+{{ formatPrice(row.period.inflow, row.currency) }}</span
+                      >
+                    </div>
+                    <div class="row justify-between">
+                      <span>Salidas</span>
+                      <span class="text-negative"
+                        >-{{ formatPrice(row.period.outflow, row.currency) }}</span
+                      >
+                    </div>
+                    <div class="row justify-between text-weight-medium text-grey-9">
+                      <span>Neto</span>
+                      <span :class="row.period.net < 0 ? 'text-negative' : 'text-positive'">
+                        {{ row.period.net < 0 ? '' : '+'
+                        }}{{ formatPrice(row.period.net, row.currency) }}
+                      </span>
+                    </div>
+                  </div>
+                </template>
               </q-card-section>
             </q-card>
           </div>
@@ -91,6 +129,8 @@ import { useQuasar } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { formatPrice } from 'src/utils/format-price';
 import { useTransactionsApi } from 'src/composables/useTransactionsApi';
+import DateRangeFilter from 'src/components/caja/DateRangeFilter.vue';
+import { currentMonthRange, type DateRangeValue } from 'src/utils/date-range';
 import type { CajaSaldoRow } from 'src/types/transaction';
 
 // =========================================================================
@@ -165,11 +205,26 @@ const groups = computed<SaldoGroup[]>(() => {
 // server-side (country param omitted).
 // =========================================================================
 
+// Rango del período (D-03, mismo control que Historial de cobros). Arranca en el
+// mes corriente. NO afecta el saldo firme — sólo el bloque de movimientos.
+const dateRange = ref<DateRangeValue>(currentMonthRange());
+
+function onDateRangeChange(value: DateRangeValue) {
+  dateRange.value = value;
+  void loadBalances();
+}
+
 async function loadBalances() {
   loading.value = true;
   try {
+    // El rango va completo o no va (el server rechaza uno solo con 400). Con el
+    // control en modo "por día" y una sola fecha elegida, se omite: los saldos
+    // se siguen mostrando, sin el bloque de movimientos.
+    const { dateFrom, dateTo } = dateRange.value;
+    const hasRange = dateFrom !== undefined && dateTo !== undefined;
     rows.value = await transactionsApi.getCashRegisterBalances({
       country: props.isOwner ? props.selectedCountry : undefined,
+      ...(hasRange ? { dateFrom, dateTo } : {}),
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido';

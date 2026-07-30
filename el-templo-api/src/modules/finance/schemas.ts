@@ -724,11 +724,43 @@ export const pendingTrayExportSchema = {
  * `country` (owner override; non-owner scope is pinned server-side). Loose
  * response (flat CajaSaldoRow array).
  */
+/**
+ * POST /cash-registers/efectivo — abrir la caja de efectivo de una sucursal
+ * (UAT caja/cobros 2026-07-21). `openingBalance` es el arqueo inicial en
+ * centavos/unidad mínima, igual que el resto del ledger; opcional, default 0.
+ * La unicidad por (sucursal, moneda) la valida el service.
+ */
+export const createEfectivoCajaSchema = {
+  body: {
+    type: "object",
+    required: ["branchId", "currency"],
+    additionalProperties: false,
+    properties: {
+      branchId: { type: "integer", minimum: 1 },
+      currency: { type: "string", minLength: 3, maxLength: 3 },
+      openingBalance: { type: "integer", minimum: 0 },
+    },
+  },
+  response: {
+    400: errorSchema,
+    401: errorSchema,
+    403: errorSchema,
+    404: errorSchema,
+    409: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
 export const cashBalancesSchema = {
   querystring: {
     type: "object",
     properties: {
       country: { type: "string", minLength: 2, maxLength: 2 },
+      // Rango opcional (UAT caja/cobros 2026-07-21): agrega el movimiento firme
+      // del período por caja. Los dos o ninguno — un rango a medias se rechaza
+      // en el handler, no acá (JSON-Schema no expresa la dependencia).
+      dateFrom: { type: "string", format: "date" },
+      dateTo: { type: "string", format: "date" },
     },
     additionalProperties: false,
   },

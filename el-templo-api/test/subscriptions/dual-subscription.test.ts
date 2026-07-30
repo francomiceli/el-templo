@@ -11,6 +11,7 @@ import {
   createMember,
   assignPlan,
   todayStr,
+  dateOffsetStr,
 } from "./_helpers";
 
 describe("Subscriptions API — Dual subscription + auto-enrollment", () => {
@@ -237,5 +238,129 @@ describe("Subscriptions API — Dual subscription + auto-enrollment", () => {
     expect(result.body.priceOverrideReason).toBe(
       "Descuento especial por amigo",
     );
+  });
+
+  // ── Carga anticipada (UAT caja/cobros 2026-07-21) ──────────────────────
+  // El staff cobra el período siguiente ANTES del vencimiento. Una sub que
+  // arranca cuando la vigente termina nace 'scheduled' y no se solapa, así que
+  // el conflicto de grupo no debe dispararse. El chequeo es por solapamiento
+  // (endDate > startDate), no por mera existencia de una sub del mismo grupo.
+  describe("carga anticipada (startDate futuro, sin solapamiento)", () => {
+    it("permite un presencial que arranca el día que vence el vigente", async () => {
+      const plan = await createPlan(app, adminToken, {
+        name: "Presencial Anticipada",
+        planCategory: "presencial",
+        durationDays: 30,
+      });
+      const member = await createMember(app);
+
+      const first = await assignPlan(app, adminToken, member.id, {
+        planId: plan.id,
+        startDate: todayStr(),
+      });
+      expect(first.statusCode).toBe(201);
+      expect(first.body.endDate).toBe(dateOffsetStr(30));
+
+      // Arranca exactamente al vencimiento → borde permitido.
+      const second = await assignPlan(app, adminToken, member.id, {
+        planId: plan.id,
+        startDate: dateOffsetStr(30),
+      });
+      expect(second.statusCode).toBe(201);
+      expect(second.body.status).toBe("scheduled");
+
+      const subs = await app.db
+        .select()
+        .from(subscriptions)
+        .where(eq(subscriptions.userId, member.id as number));
+      expect(subs.filter((s) => s.status === "active")).toHaveLength(1);
+      expect(subs.filter((s) => s.status === "scheduled")).toHaveLength(1);
+    });
+
+    it("permite encolar con un hueco entre el vencimiento y el nuevo inicio", async () => {
+      const plan = await createPlan(app, adminToken, {
+        name: "Presencial Hueco",
+        planCategory: "presencial",
+        durationDays: 30,
+      });
+      const member = await createMember(app);
+
+      expect(
+        (
+          await assignPlan(app, adminToken, member.id, {
+            planId: plan.id,
+            startDate: todayStr(),
+          })
+        ).statusCode,
+      ).toBe(201);
+
+      const second = await assignPlan(app, adminToken, member.id, {
+        planId: plan.id,
+        startDate: dateOffsetStr(45),
+      });
+      expect(second.statusCode).toBe(201);
+      expect(second.body.status).toBe("scheduled");
+    });
+
+    it("sigue bloqueando si el nuevo inicio cae ANTES del vencimiento", async () => {
+      const plan = await createPlan(app, adminToken, {
+        name: "Presencial Solapada",
+        planCategory: "presencial",
+        durationDays: 30,
+      });
+      const member = await createMember(app);
+
+      expect(
+        (
+          await assignPlan(app, adminToken, member.id, {
+            planId: plan.id,
+            startDate: todayStr(),
+          })
+        ).statusCode,
+      ).toBe(201);
+
+      // Un día antes del vencimiento → se solapa → 409.
+      const second = await assignPlan(app, adminToken, member.id, {
+        planId: plan.id,
+        startDate: dateOffsetStr(29),
+      });
+      expect(second.statusCode).toBe(409);
+      expect((second.body as { message: string }).message).toContain(
+        "presencial activa",
+      );
+    });
+
+    it("bloquea una tercera sub que se solapa con la ya encolada", async () => {
+      const plan = await createPlan(app, adminToken, {
+        name: "Presencial Triple",
+        planCategory: "presencial",
+        durationDays: 30,
+      });
+      const member = await createMember(app);
+
+      expect(
+        (
+          await assignPlan(app, adminToken, member.id, {
+            planId: plan.id,
+            startDate: todayStr(),
+          })
+        ).statusCode,
+      ).toBe(201);
+      expect(
+        (
+          await assignPlan(app, adminToken, member.id, {
+            planId: plan.id,
+            startDate: dateOffsetStr(30),
+          })
+        ).statusCode,
+      ).toBe(201);
+
+      // La scheduled cubre [30, 60) — arrancar en 45 se solapa con ella.
+      const third = await assignPlan(app, adminToken, member.id, {
+        planId: plan.id,
+        startDate: dateOffsetStr(45),
+      });
+      expect(third.statusCode).toBe(409);
+    });
   });
 });

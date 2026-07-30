@@ -12,6 +12,7 @@ import {
   and,
   or,
   ne,
+  gt,
   desc,
   sql,
   inArray,
@@ -1323,6 +1324,16 @@ export class SubscriptionService {
     // `categoryGroup` para que especial no choque con presencial ni con online.
     // Scheduled subs (future startDate) cuentan too — si no un admin podría encolar
     // un duplicado para la semana que viene sin que el sistema lo note.
+    //
+    // El conflicto es por SOLAPAMIENTO, no por mera existencia (UAT caja/cobros
+    // 2026-07-21): una carga anticipada que arranca CUANDO la vigente termina no
+    // crea dos subs simultáneas — nace 'scheduled' (ver initialStatus abajo) y el
+    // cron la activa al vencer. Rechazarla obligaba al staff a esperar al
+    // vencimiento para cobrar el período siguiente. Sólo choca una sub del mismo
+    // grupo que siga cubriendo el día de inicio: `endDate > startDate` (o endDate
+    // NULL = indefinida). El borde `endDate == startDate` se permite — mismo
+    // criterio que renewSubscription (`input.startDate < currentSub.endDate` →
+    // error) y que changePlanAfterCurrent, que ya encolaban correctamente.
     const planGroup = categoryGroup(plan.planCategory);
     const sameGroupCategoryCondition =
       planGroup === "presencial"
@@ -1347,6 +1358,13 @@ export class SubscriptionService {
             eq(schema.subscriptions.status, "active"),
             eq(schema.subscriptions.status, "paused"),
             eq(schema.subscriptions.status, "scheduled"),
+          ),
+          // Solapamiento: sin vencimiento (indefinida) o todavía cubriendo el
+          // día de inicio de la nueva. Una sub que termina antes (o justo el
+          // día que arranca la nueva) NO choca.
+          or(
+            isNull(schema.subscriptions.endDate),
+            gt(schema.subscriptions.endDate, input.startDate),
           ),
           sameGroupCategoryCondition,
         ),

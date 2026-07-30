@@ -10,7 +10,7 @@
 // auto-stamps `cash_register_id`, and is REUSED verbatim by phase 140 (carga
 // única del profe) — do NOT reinvent the resolver there.
 
-import { and, asc, eq, gte, isNull, ne, sql } from "drizzle-orm";
+import { and, asc, eq, gte, isNull, lte, ne, sql } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
@@ -20,8 +20,10 @@ import {
   NotFoundError,
 } from "../shared/errors";
 import { firmMoneyConditions } from "./firm-money";
+import { tenantWhere, type TenantContext } from "../shared/tenant";
 import type {
   BankAccountRow,
+  CajaPeriodMovement,
   CajaSaldoRow,
   CashRegisterBalance,
   CostCenter,
@@ -299,6 +301,63 @@ export class CashRegisterService {
   }
 
   /**
+   * Movimiento FIRME de una caja en un rango de fechas (inclusive), separado en
+   * entradas y salidas (UAT caja/cobros 2026-07-21).
+   *
+   * Por qué esto y no un "saldo a fecha": el firme es acumulado desde el
+   * cutoff_date de la caja y representa la plata que HAY hoy; recalcularlo a una
+   * fecha pasada daría un número que ya no coincide con la caja física. Lo que
+   * el staff necesita es el delta del período ("la caja tenía 100, cargué 100,
+   * ¿por qué el KPI dice 200?"), que es exactamente esto.
+   *
+   * Mismos filtros que getBalance: sólo plata firme (firmMoneyConditions) y
+   * nunca antes del cutoff — un rango que empiece antes se recorta al cutoff,
+   * porque esas filas no forman parte del saldo de esta caja. Sin filtro de
+   * kind: todo lo que entra suma y todo lo que sale resta (D-09).
+   */
+  async getPeriodMovement(
+    cashRegisterId: number,
+    dateFrom: string,
+    dateTo: string,
+  ): Promise<CajaPeriodMovement> {
+    const [caja] = await this.db
+      .select({ cutoffDate: schema.cashRegisters.cutoffDate })
+      .from(schema.cashRegisters)
+      .where(eq(schema.cashRegisters.id, cashRegisterId))
+      .limit(1);
+    if (!caja) {
+      throw new NotFoundError(`No existe la caja ${cashRegisterId}`);
+    }
+    // El cutoff gana sobre un dateFrom anterior: antes de esa fecha la caja no
+    // acumula (los históricos quedaron fuera a propósito en 0154).
+    const from = dateFrom < caja.cutoffDate ? caja.cutoffDate : dateFrom;
+
+    const sumFor = async (direction: "inflow" | "outflow"): Promise<number> => {
+      const [row] = await this.db
+        .select({
+          total: sql<number>`COALESCE(SUM(${schema.financialTransactions.amount}), 0)`,
+        })
+        .from(schema.financialTransactions)
+        .where(
+          and(
+            eq(schema.financialTransactions.cashRegisterId, cashRegisterId),
+            eq(schema.financialTransactions.direction, direction),
+            ...firmMoneyConditions(),
+            gte(schema.financialTransactions.transactionDate, from),
+            lte(schema.financialTransactions.transactionDate, dateTo),
+          ),
+        );
+      return Number(row?.total ?? 0);
+    };
+
+    const [inflow, outflow] = await Promise.all([
+      sumFor("inflow"),
+      sumFor("outflow"),
+    ]);
+    return { dateFrom: from, dateTo, inflow, outflow, net: inflow - outflow };
+  }
+
+  /**
    * Phase 141 (REP-02): list every ACTIVE caja with its firme + pendiente saldo,
    * composing the existing getBalance(id) per caja (no new balance SQL). Returns
    * a flat array; the frontend groups by type (efectivo sucursal/central/banco)
@@ -312,10 +371,14 @@ export class CashRegisterService {
    * Per-caja getBalance is fine at this scale (a handful of cajas — no N+1
    * concern; 138 keeps the saldo derived, materialize only with perf evidence).
    */
-  async listActiveCajasWithBalance(scope?: {
-    isOwner: boolean;
-    country: string | null;
-  }): Promise<CajaSaldoRow[]> {
+  async listActiveCajasWithBalance(
+    scope?: {
+      isOwner: boolean;
+      country: string | null;
+    },
+    /** Rango opcional: agrega el movimiento firme del período por caja. */
+    period?: { dateFrom: string; dateTo: string },
+  ): Promise<CajaSaldoRow[]> {
     const cajas = await this.db
       .select({
         id: schema.cashRegisters.id,
@@ -349,6 +412,9 @@ export class CashRegisterService {
         currency: c.currency,
         firmeBalance: bal.firmeBalance,
         pendienteAmount: bal.pendienteAmount,
+        period: period
+          ? await this.getPeriodMovement(c.id, period.dateFrom, period.dateTo)
+          : null,
       });
     }
     return out;
@@ -689,6 +755,115 @@ export class CashRegisterService {
       "Cuenta banco creada",
     );
     return this.getBankAccountRow(id);
+  }
+
+  /**
+   * Crea una caja de EFECTIVO de sucursal (UAT caja/cobros 2026-07-21: "te deja
+   * crear nuevas cuentas bancarias, pero no nuevas cajas"). Hasta ahora las
+   * cajas efectivo solo nacían por migración (0154), así que abrir una sucursal
+   * requería un deploy.
+   *
+   * INVARIANTE (D-01): una sola caja efectivo ACTIVA por (sucursal, moneda). Es
+   * lo que mantiene determinista a `resolveCashRegister`, que resuelve la caja
+   * de TODO cobro en efectivo con un `.limit(1)` sin ORDER BY: con dos cajas
+   * activas de la misma sede la elección sería arbitraria y la plata caería en
+   * una caja u otra según el plan de ejecución de MySQL. Por eso el conflicto se
+   * rechaza acá y el resolver queda intacto. Una caja CERRADA (is_active=false)
+   * no bloquea: reabrir una sede tras cerrarla es legítimo.
+   *
+   * `cutoffDate` = hoy y `openingBalance` = el arqueo inicial declarado: el saldo
+   * es `openingBalance + Σ validados desde el cutoff`, así que arrancar en la
+   * fecha de creación evita arrastrar históricos de otra caja.
+   *
+   * @throws NotFoundError cuando la sucursal no existe.
+   * @throws BadRequestError cuando la sucursal está inactiva o el saldo es negativo.
+   * @throws ConflictError cuando esa sucursal ya tiene caja efectivo activa en esa moneda.
+   */
+  async createEfectivoCaja(
+    ctx: TenantContext,
+    input: {
+      branchId: number;
+      currency: string;
+      openingBalance?: number;
+    },
+  ): Promise<CajaSaldoRow> {
+    const [branch] = await this.db
+      .select({
+        id: schema.branches.id,
+        name: schema.branches.name,
+        isActive: schema.branches.isActive,
+      })
+      .from(schema.branches)
+      .where(
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, input.branchId),
+        ),
+      )
+      .limit(1);
+    if (!branch) {
+      throw new NotFoundError(`No existe la sucursal ${input.branchId}`);
+    }
+    if (!branch.isActive) {
+      throw new BadRequestError(
+        `La sucursal ${branch.name} está inactiva: no se le puede abrir una caja`,
+      );
+    }
+
+    const openingBalance = input.openingBalance ?? 0;
+    if (openingBalance < 0) {
+      throw new BadRequestError("El saldo inicial no puede ser negativo");
+    }
+
+    const [existing] = await this.db
+      .select({ id: schema.cashRegisters.id })
+      .from(schema.cashRegisters)
+      .where(
+        and(
+          eq(schema.cashRegisters.type, "efectivo"),
+          eq(schema.cashRegisters.branchId, input.branchId),
+          eq(schema.cashRegisters.currency, input.currency),
+          eq(schema.cashRegisters.isActive, true),
+        ),
+      )
+      .limit(1);
+    if (existing) {
+      throw new ConflictError(
+        `${branch.name} ya tiene una caja de efectivo en ${input.currency}`,
+      );
+    }
+
+    const name = `Efectivo ${branch.name}`;
+    const inserted = await this.db.insert(schema.cashRegisters).values({
+      name,
+      type: "efectivo",
+      branchId: input.branchId,
+      currency: input.currency,
+      openingBalance,
+      cutoffDate: this.today(),
+    });
+    const id = Number(inserted[0].insertId);
+    this.log.info(
+      {
+        cashRegisterId: id,
+        branchId: input.branchId,
+        currency: input.currency,
+        openingBalance,
+      },
+      "Caja efectivo creada",
+    );
+
+    const bal = await this.getBalance(id);
+    return {
+      cashRegisterId: id,
+      name,
+      type: "efectivo",
+      branchId: input.branchId,
+      currency: input.currency,
+      firmeBalance: bal.firmeBalance,
+      pendienteAmount: bal.pendienteAmount,
+      period: null,
+    };
   }
 
   /**
