@@ -679,6 +679,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
 
             const today = new Date().toISOString().split("T")[0];
             await subscriptionService.assignPlan(
+              assertTenant(request.scope, "members.create.assignPlan"),
               member.id,
               {
                 planId: request.body.planId,
@@ -995,6 +996,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
             // authenticated admin's userId so the audit_log row records the
             // real principal who triggered the conversion.
             await subscriptionService.cancelSubscription(
+              assertTenant(request.scope, "members.update.cancelSubscription"),
               request.params.userId,
               request.user.userId,
               "Conversión a presencial",
@@ -1249,6 +1251,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         // authenticated principal so the audit_log row records who triggered
         // the soft-delete cascade (T-111-15 mitigation).
         await subscriptionService.cancelSubscription(
+          assertTenant(request.scope, "members.delete.cancelSubscription"),
           request.params.userId,
           request.user.userId,
           "Cancelado por eliminación del alumno",

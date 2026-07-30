@@ -19,6 +19,7 @@ import {
 } from "../finance";
 import { EnrollmentService } from "../programs/enrollment-service";
 import { handleServiceError } from "../shared/error-handler";
+import { assertTenant } from "../shared/tenant";
 import { InsufficientBalanceError } from "../aura";
 import type {
   AssignPlanInput,
@@ -309,6 +310,7 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       try {
         const subscription = await subscriptionService.assignPlan(
+          assertTenant(request.scope, "subscriptions.assign"),
           request.params.userId,
           request.body,
           request.user.userId,
@@ -352,6 +354,7 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       try {
         const subscription = await subscriptionService.changePlan(
+          assertTenant(request.scope, "subscriptions.changePlan"),
           request.params.userId,
           request.body,
           request.user.userId,
@@ -503,6 +506,7 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       try {
         const sub = await subscriptionService.cancelSubscription(
+          assertTenant(request.scope, "subscriptions.cancel"),
           request.params.userId,
           request.user.userId,
           request.body.notes,
@@ -560,6 +564,7 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       try {
         const sub = await subscriptionService.renewSubscription(
+          assertTenant(request.scope, "subscriptions.renew"),
           request.params.userId,
           request.body,
           request.user.userId,

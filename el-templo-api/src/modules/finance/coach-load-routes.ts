@@ -541,6 +541,7 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
           () => resolveRenewCurrency(userId),
         );
         const subscription = await subscriptionService.renewSubscription(
+          assertTenant(request.scope, "coach-load.renew"),
           userId,
           {
             paymentMethod,
@@ -779,6 +780,7 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
         const today = new Date().toISOString().split("T")[0];
 
         const subscription = await subscriptionService.assignPlan(
+          assertTenant(request.scope, "coach-load.assign"),
           memberId,
           {
             planId: body.planId,
