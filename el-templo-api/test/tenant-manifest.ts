@@ -1383,8 +1383,31 @@ export interface Discrepancias {
   categoriaInvalida: string[];
 }
 
-/** Marcadores que convierten un motivo escrito en un motivo inservible. */
-const MARCADORES_PENDIENTE = /\b(TODO|FIXME|TBD|XXX)\b|pendiente/i;
+/**
+ * Marcadores que convierten un motivo escrito en un motivo inservible.
+ *
+ * Son DOS regex a propósito, no una con flag `i` (WR-01 de la review de fase):
+ *
+ * - Los marcadores de trabajo (TODO/FIXME/TBD/XXX) se buscan case-SENSITIVE.
+ *   Con la flag `i`, `\bTODO\b` matchea la palabra castellana "todo" — una de
+ *   las más comunes del idioma en el que D-02 exige escribir los motivos: un
+ *   motivo legítimo como "aplica a todo el sistema" quedaría reportado como
+ *   pendiente. Falso negativo aceptado a cambio: un "todo"/"fixme" en
+ *   minúsculas usado como marcador no se detecta — la convención universal los
+ *   escribe en mayúsculas y ningún linter del repo los busca en minúsculas
+ *   tampoco.
+ * - "pendiente" sí es case-insensitive (es prosa castellana, puede arrancar
+ *   oración) pero lleva `\b` en los dos extremos: sin límites de palabra,
+ *   "independiente" y "dependiente" —adjetivos normales en un motivo tipo "el
+ *   endpoint es independiente del gimnasio"— disparaban el marcador.
+ */
+const MARCADORES_TRABAJO = /\b(TODO|FIXME|TBD|XXX)\b/;
+const MARCADOR_PENDIENTE = /\bpendiente\b/i;
+
+/** ¿El motivo es en realidad un marcador de trabajo pendiente? */
+function esMotivoPendiente(motivo: string): boolean {
+  return MARCADORES_TRABAJO.test(motivo) || MARCADOR_PENDIENTE.test(motivo);
+}
 
 const CATEGORIAS_VALIDAS: ReadonlySet<string> = new Set(CATEGORIAS);
 const MODULOS_VALIDOS: ReadonlySet<string> = new Set(MODULOS_TEMPLO);
@@ -1441,7 +1464,7 @@ export function compararManifiesto(
       const utilizable =
         typeof motivo === "string" &&
         motivo.trim().length > 0 &&
-        !MARCADORES_PENDIENTE.test(motivo);
+        !esMotivoPendiente(motivo);
       if (!utilizable) sinMotivo.push(clave);
     }
 
