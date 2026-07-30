@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: "Tenancy — El Templo pasa a ser tenant #1"
 status: executing
-stopped_at: Completed 172-05-PLAN.md
-last_updated: "2026-07-30T22:54:16.264Z"
+stopped_at: Completed 172-07-PLAN.md
+last_updated: "2026-07-30T23:14:10.615Z"
 last_activity: 2026-07-30
 progress:
   total_phases: 11
   completed_phases: 4
   total_plans: 59
-  completed_plans: 34
+  completed_plans: 35
   percent: 36
 ---
 
@@ -26,12 +26,14 @@ See: .planning/PROJECT.md (milestone v6.0 initialized 2026-07-26)
 ## Current Position
 
 Phase: 172 (adopci-n-1-piloto-finance) — EXECUTING
-Plan: 7 of 23
+Plan: 8 of 23
 Status: Ready to execute
 Last activity: 2026-07-30
-Next: `/gsd:execute-phase 172` sigue por el plan **172-07** (el 172-05 quedó cerrado: era el que faltaba de la wave 2). En paralelo sigue pendiente el plan **169-09**, el último de la fase 169 (gate consolidado + rollout), y siguen pendientes
+Next: `/gsd:execute-phase 172` sigue por el plan **172-08** (la wave 3 arrancó: el 172-07 rompió el ciclo `transaction-service` ↔ `subscriptions`). En paralelo sigue pendiente el plan **169-09**, el último de la fase 169 (gate consolidado + rollout), y siguen pendientes
 
-**Deuda de allowlist acumulada en `feat/172-adopcion-finance`: 21 entradas** (9 del plan 172-02 + 4 del 172-03 + 6 del 172-04 + 2 del 172-06). El archivo real `tenant-lint-allowlist.json` tiene **un solo dueño, el plan 172-21**, así que `pnpm lint:tenant` sin `--allowlist` sale **rojo con `DISCREPANCIAS: 21`** en esa rama — todas `staleNoLongerViolating`, o sea deuda ya pagada esperando que la borren. **No es una regresión, pero si la rama se mergea a `staging` antes del 172-21, CI queda rojo por esto.**
+**Deuda de allowlist acumulada en `feat/172-adopcion-finance`: 21 entradas** (9 del plan 172-02 + 4 del 172-03 + 6 del 172-04 + 2 del 172-06 + **0 del 172-07**, que migró 2 queries de un archivo con 18 entradas vivas y por lo tanto no mata ninguna). El archivo real `tenant-lint-allowlist.json` tiene **un solo dueño, el plan 172-21**, así que `pnpm lint:tenant` sin `--allowlist` sale **rojo con `DISCREPANCIAS: 21`** en esa rama — todas `staleNoLongerViolating`, o sea deuda ya pagada esperando que la borren. **No es una regresión, pero si la rama se mergea a `staging` antes del 172-21, CI queda rojo por esto.**
+
+**172-07 cerrado — el ciclo `transaction-service` ↔ `subscriptions` está roto y toda escritura de plata que arranca en suscripciones tiene gimnasio explícito de origen.** 7 firmas con `ctx: TenantContext` como **PRIMER** parámetro, **antes del `tx`** (`recordAssignmentCharge`, `assignPlan`, `changePlan`, `changePlanNow`, `changePlanAfterCurrent`, `renewSubscription` y el wrapper público `cancelSubscription`): la posición no es estética, un call site viejo queda con los argumentos corridos y **no compila**. Las 2 queries de finance del archivo migradas — el `INSERT` en `balances` que siembra la deuda del cobro parcial pasa por `tenantValues`, y el `SELECT` del anticipo sobre `financial_transactions` lleva `tenantWhere` de primer término. **`_cancelSubscription` quedó INTACTO a propósito**: su firma la cambia el **172-08** junto con el tipo `SubscriptionCanceller` de `transaction-service.ts`. **El caso que vale copiar es el autorregistro público** (`POST /api/auth/register`): no hay JWT ni `request.scope`, así que `assertTenant` no aplica y el gimnasio se deriva de la **fila de `branches`** que la ruta ya leía — las dos ramas de resolución de sede proyectan `tenant_id`, **el `id` de la sede pedida pasó a salir de la fila leída y no del número del body**, y hay guard fail-closed con el mismo 500 de "sede no configurada", nunca un default al tenant 1. Es el precedente para los caminos sin JWT de las fases 173-175 (webhook, QR). **Tres cosas para los planes siguientes:** (1) **`tsc` NO typechequea `test/`** en este repo (`tsconfig.json` tiene `include: ["src/**/*"]`), así que el inventario de call sites de test se saca por **grep** y hay que filtrar los helpers HTTP **homónimos** (`assignPlan` de `test/subscriptions/_helpers.ts`) — un call site de test desactualizado no da rojo hasta que el test corre; (2) los **2 jobs** y **4 de los 8 archivos de test** que el plan listaba **no tenían un solo call site que tocar** (los jobs llaman a `autoResume`/`activateDue`/`autoExpire`/`pickSubscription`, ninguno migrado); (3) `cancelSubscription` **recibe el `ctx` y todavía NO lo usa** — está escrito en mayúsculas en su docblock, porque la cancelación **no está scopeada** hasta el 172-08, que sólo tiene que bajar el `ctx` un nivel sin retocar ningún call site. **Verificado contra MySQL real:** `charge-on-assign` **14/14** y `user-status-transitions` **9/9**, sin tocar una sola expectativa (`grep -c "^[-+].*expect("` sobre el diff de test = **0**). Trampa boba pero real: el comentario del guard **no puede contener el literal `?? 1`**, porque el criterio de aceptación es un grep y no un parser. Commits: `234b42a5`, `0deb4e10`, `d73748d6`, `334d6e96`. **ADO-01 sigue Pending**: este plan migra la plomería que le da gimnasio a `finance` desde suscripciones, no `finance`.
 
 **172-05 cerrado — la línea de base de D-12 ("el staff ve los mismos números") YA ESTÁ TOMADA, y se tomó sobre el staging correcto.** `el-templo-api/src/scripts/snapshot-finance-endpoints.ts` (commit `173e2127`, 735 líneas, **cero dependencias nuevas** — `fetch` nativo) golpea 7 agregadores con GET, normaliza y guarda; `--diff` compara y sale 1 si difieren. **La foto está en `$HOME/.el-templo-snapshots/172/antes.json`** (99.483 bytes, permisos `600`, **fuera del repo y fuera de `.planning/`** — tiene plata real y nombres de socios, T-172-05-01): los **7 endpoints en 200**, con 13 cajas con saldo, 62 movimientos, 42 transacciones, 7 deudas y el summary con sus 4 agregados. Se capturó con CR-CAJA desplegado y **sin una sola línea de la fase 172** corriendo en staging, que es exactamente lo que el gate D-13 pedía: **el diff del 172-22 va a medir solo la migración de tenancy, sin mezclar el cambio de caja.** **Tres cosas que el plan 172-22 tiene que saber:** (1) el comando de cierre ya está escrito — `--diff=$HOME/.el-templo-snapshots/172/antes.json <despues.json>`, exit 0 = D-12 cumplido, exit 1 = hay un número movido y el script imprime el path exacto (`.body.rows[7].amount`, con los dos valores); (2) **no cambiar el rango fijo** `2026-01-01..2026-06-30` — el script corta con **exit 2** si los dos snapshots tienen rangos distintos, porque comparar rangos distintos no es un diff sino una confusión; (3) hace falta otro **JWT de admin/owner de staging**, que **dura 30 minutos**. **El determinismo se probó donde se puede probar de verdad:** dos capturas contra staging separadas por 8 s dan diff vacío, pero eso sólo prueba que en 8 s nadie cobró nada — la prueba real fue contra un servidor falso descartable que devuelve las **filas mezcladas**, `generatedAt`/`requestId`/`timestamp` nuevos en cada request y **450 filas en 3 páginas**: diff vacío igual, y con **un solo monto cambiado** a mano el diff sale rojo señalando el campo. **Dos decisiones de diseño que no son obvias:** el script **pagina hasta agotar `total`** (con el tope de 200 filas, un cambio de índice —que es lo que esta fase hace— cambiaría _qué filas_ caen en la página 1 y el diff compararía conjuntos distintos), y **el orden de las listas NO es señal a propósito** (MySQL puede devolver los empates al revés al cambiar de índice sin que ningún número se mueva; un cambio de orden visible lo caza el UAT, no este script). **Trampa cazada al escribirlo, que vale para cualquier script que golpee la API:** mandarle `dateFrom` a un endpoint cuyo schema no lo declara **no da 400** — Fastify compila ajv con `removeAdditional: true` y lo **strippea en silencio**, así que el snapshot habría dicho "rango 2026-H1" sobre el histórico completo de deudas; el rango se mapea al nombre real de cada schema (`accruedFrom`/`accruedTo` en `outstanding-balances`, ninguno en `cost-centers/all`). Otras salvaguardas: una captura con algún endpoint fuera de 200 se guarda en `<ruta>.parcial` y **nunca** con el nombre bueno, y una respuesta que no es JSON (la trampa conocida de apuntar al vhost del front, que devuelve HTML de nginx) queda legible como `noEsJson`. **El script no está cableado a ningún pipeline y sólo hace GETs.** **ADO-01 sigue Pending:** este plan no migra una línea de `finance`, construye el instrumento con el que se mide si la migración salió bien.
 
@@ -424,6 +426,7 @@ _Updated after each plan completion_
 | Phase 172 P04 | 11min | 2 tasks | 5 files |
 | Phase 172 P06 | 25min | 3 tasks | 3 files |
 | Phase 172 P05 | 15min | 2 tasks | 1 files |
+| Phase 172 P07 | 40min | 4 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -909,6 +912,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: 172-06: el criterio de terminado de un metodo migrado es el inventario del lint, nunca la firma (createEfectivoCaja tenia ctx y estaba sin migrar)
 - [Phase ?]: 172-06: el tenantWhere de una tabla LEFT JOINeada va en el ON; en el WHERE el LEFT se vuelve INNER y borra filas con el lint en verde
 - [Phase ?]: 172-06: los UPDATE del ABM llevan tenantWhere propio — el WHERE de una escritura no se apoya en el SELECT previo
+- [Phase 172]: 172-07: cancelSubscription recibe el ctx aunque todavia no lo use; 172-08 solo lo baja a \_cancelSubscription
+- [Phase 172]: 172-07: tsc NO typechequea test/ (tsconfig include src/\*_/_); el inventario de call sites de test sale por grep
 
 ### Pending Todos
 
@@ -941,8 +946,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-30T22:54:06.369Z
-Stopped at: Completed 172-04-PLAN.md
+Last session: 2026-07-30T23:14:10.586Z
+Stopped at: Completed 172-07-PLAN.md
 Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
