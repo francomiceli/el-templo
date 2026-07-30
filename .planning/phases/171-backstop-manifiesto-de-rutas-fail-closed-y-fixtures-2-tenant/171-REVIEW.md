@@ -15,7 +15,7 @@ findings:
   warning: 4
   info: 3
   total: 8
-status: issues_found
+status: fixed
 ---
 
 # Phase 171: Code Review Report
@@ -23,7 +23,9 @@ status: issues_found
 **Reviewed:** 2026-07-29
 **Depth:** standard
 **Files Reviewed:** 6
-**Status:** issues_found
+**Status:** fixed (los 5 hallazgos accionables corregidos el mismo día; los 3 Info quedan advisory)
+
+> **Resolución 2026-07-29:** CR-01 → `51dc9b95` (5º test real-app: `sinMotivo`/`sinModulo`/`categoriaInvalida` = [] sobre las 370 entradas reales) · WR-01 → `b5f8c225` (marcadores con boundaries: `TODO/FIXME/TBD/XXX` case-sensitive + `pendiente` con `\b`, sin falsos positivos de prosa) · WR-02 → `297ef650` (`ensureEfectivoCaja` con `tenantId` + `tenantValues`; `limpiarSegundoGimnasio` borra `cash_registers` antes que `branches`) · WR-03 → `d0b28c6e` (detección real del HEAD manual con GET hermano, no solo docblock) · WR-04 → `fc61a513` (`status`/`gender` honrados en el camino directo; throw accionable ante overrides no soportados). Verificación post-fix: gate iso-01 **11/11**, batería iso-02 **13/13**, `tsc --noEmit` limpio.
 
 ## Summary
 
