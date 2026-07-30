@@ -47,7 +47,10 @@ import { and, eq, sql, isNull, inArray, type SQL } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { applyScope } from "./scope";
+import { inclusiveRangeConditions } from "./cohorts";
 import { activeMemberExists } from "../shared/active-member";
+// Path directo, NUNCA por el barrel `shared/index.ts` (fase 169).
+import { tenantWhere, type TenantContext } from "../shared/tenant";
 import type {
   AnalyticsFilters,
   AdvancedFinanceAnalytics,
@@ -116,12 +119,18 @@ export class AdvancedFinanceService {
    * Caja + Devengado + ARPU, all per currency (D-07/D-08). Reads the canonical
    * cash trend, the accrual proration over effective windows, and the active
    * member denominator, then assembles the three monthly series.
+   *
+   * `ctx` PRIMERO (regla 169-06). Fase 172 (D-01): de las tres consultas, sólo
+   * `cashTrend` toca una tabla strict de `finance` — el devengado y el
+   * denominador de ARPU salen de `subscriptions` / `users`, que se migran en su
+   * propia fase (D-07).
    */
   async getAdvancedFinance(
+    ctx: TenantContext,
     filters: AnalyticsFilters,
   ): Promise<AdvancedFinanceAnalytics> {
     const [cashMap, accrual] = await Promise.all([
-      this.cashTrend(filters),
+      this.cashTrend(ctx, filters),
       this.accruedTrend(filters),
     ]);
 
@@ -176,7 +185,10 @@ export class AdvancedFinanceService {
    * the `branches` join is unconditional here — flavor A). Returns a Map keyed by
    * `YYYY-MM`.
    */
-  private async cashTrend(filters: AnalyticsFilters): Promise<CurrencyMap> {
+  private async cashTrend(
+    ctx: TenantContext,
+    filters: AnalyticsFilters,
+  ): Promise<CurrencyMap> {
     const { conditions: scopeConditions } = applyScope({
       branchId: filters.branchId,
       country: filters.country,
@@ -196,17 +208,15 @@ export class AdvancedFinanceService {
       ]) as unknown as SQL,
       eq(schema.financialTransactions.direction, "inflow") as unknown as SQL,
       ...scopeConditions,
+      // Rango CERRADO [dateFrom, dateTo] con los dos bordes opcionales —
+      // exactamente el mismo par de `if` que estaba escrito acá antes de la
+      // fase 172, ahora en `inclusiveRangeConditions` (ver su docblock).
+      ...inclusiveRangeConditions(
+        schema.financialTransactions.transactionDate,
+        filters.dateFrom,
+        filters.dateTo,
+      ),
     ];
-    if (filters.dateFrom !== undefined) {
-      conditions.push(
-        sql`${schema.financialTransactions.transactionDate} >= ${filters.dateFrom}`,
-      );
-    }
-    if (filters.dateTo !== undefined) {
-      conditions.push(
-        sql`${schema.financialTransactions.transactionDate} <= ${filters.dateTo}`,
-      );
-    }
 
     const rows = await this.db
       .select({
@@ -221,7 +231,7 @@ export class AdvancedFinanceService {
       )
       // Flavor A: branches always joined (country filter needs branches.country).
       .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
-      .where(and(...conditions))
+      .where(and(tenantWhere(schema.financialTransactions, ctx), ...conditions))
       .groupBy(
         sql`DATE_FORMAT(${schema.financialTransactions.transactionDate}, '%Y-%m')`,
         schema.financialTransactions.currency,

@@ -37,11 +37,20 @@ import { TransactionService } from "../../src/modules/finance/transaction-servic
 import { BalanceService } from "../../src/modules/finance/balance-service";
 import { CashRegisterService } from "../../src/modules/finance/cash-register-service";
 import { AdvancedFinanceService } from "../../src/modules/analytics/advanced-finance-service";
+import type { TenantContext } from "../../src/modules/shared/tenant";
 import * as schema from "../../src/db/schema";
 
 const TODAY = "2026-04-28";
 const MONTH_FROM = "2026-04-01";
 const MONTH_TO = "2026-04-30";
+
+/**
+ * El gimnasio de los fixtures (El Templo = tenant 1). Fase 172: la caja de
+ * analytics recibe el `TenantContext` como PRIMER argumento; en producción sale
+ * de `assertTenant(request.scope, …)`, acá se construye a mano porque el
+ * service se invoca sin request.
+ */
+const CTX: TenantContext = { tenantId: 1 };
 
 let app: FastifyInstance;
 let txService: TransactionService;
@@ -115,7 +124,7 @@ async function firmSaldo(): Promise<number> {
 
 /** ARS firm cash for the seeded branch/month via the analytics caja path (#10). */
 async function cashTrendArs(): Promise<number> {
-  const adv = await advFinance.getAdvancedFinance({
+  const adv = await advFinance.getAdvancedFinance(CTX, {
     branchId,
     dateFrom: MONTH_FROM,
     dateTo: MONTH_TO,

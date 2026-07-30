@@ -57,6 +57,13 @@ import {
   ANALYTICS_OPERATIONAL_ROLES,
 } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
+// Fase 172 (D-01/D-04): `assertTenant` es el ÚNICO puente permitido entre
+// `request.scope.tenantId` (`number | null`) y la firma `number` de los helpers
+// de tenancy. Prohibidos el non-null assertion y el default numérico
+// (shared/tenant.ts): un gimnasio no resoluble es DENY, jamás el tenant 1.
+// `assertTenant` lanza `AppError(403, TENANT_UNRESOLVED)`, que el
+// `handleServiceError` de cada handler ya sabe mapear: no hace falta try/catch nuevo.
+import { assertTenant } from "../shared/tenant";
 import { requireBranchAccess } from "../shared/branch-access";
 import type { FastifyReply, FastifyRequest } from "fastify";
 
@@ -144,7 +151,10 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
           dateFrom: request.query.dateFrom,
           dateTo: request.query.dateTo,
         };
-        const result = await analyticsService.getKpis(filters);
+        const result = await analyticsService.getKpis(
+          assertTenant(request.scope, "analytics.kpis"),
+          filters,
+        );
         return result;
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "get KPIs");
@@ -172,7 +182,10 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
           dateFrom: request.query.dateFrom,
           dateTo: request.query.dateTo,
         };
-        const result = await analyticsService.getMemberAnalytics(filters);
+        const result = await analyticsService.getMemberAnalytics(
+          assertTenant(request.scope, "analytics.members"),
+          filters,
+        );
         return result;
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "get member analytics");
@@ -227,7 +240,10 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
           dateFrom: request.query.dateFrom,
           dateTo: request.query.dateTo,
         };
-        const result = await analyticsService.getFinancialAnalytics(filters);
+        const result = await analyticsService.getFinancialAnalytics(
+          assertTenant(request.scope, "analytics.financial"),
+          filters,
+        );
         return result;
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "get financial analytics");
@@ -381,7 +397,10 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
           dateFrom: request.query.dateFrom,
           dateTo: request.query.dateTo,
         };
-        const result = await advancedFinanceService.getAdvancedFinance(filters);
+        const result = await advancedFinanceService.getAdvancedFinance(
+          assertTenant(request.scope, "analytics.advanced-finance"),
+          filters,
+        );
         return result;
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "get advanced finance");
