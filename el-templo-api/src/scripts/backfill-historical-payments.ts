@@ -14,13 +14,23 @@
  * exist in financial_transactions, OR if a balance row already exists
  * for sub 6116.
  *
+ * `--tenant=<id>` es OBLIGATORIO (fase 169 D-06, adoptado acá por la 172 D-02).
+ * Este script escribe plata en batch sin request y sin JWT, así que el gimnasio
+ * sólo puede venir del flag: sin él el proceso corta con exit code **2** antes
+ * de abrir la transacción y sin escribir una sola fila. El id se verifica contra
+ * la tabla `tenants` de ESTA base, o sea que un typo tampoco escribe en el
+ * gimnasio de al lado.
+ *
  * Usage (local):
- *   pnpm tsx src/scripts/backfill-historical-payments.ts            # dry run
- *   pnpm tsx src/scripts/backfill-historical-payments.ts --apply    # real
+ *   pnpm tsx src/scripts/backfill-historical-payments.ts --tenant=<id>            # dry run
+ *   pnpm tsx src/scripts/backfill-historical-payments.ts --tenant=<id> --apply    # real
  *
  * Usage (server, post-deploy):
- *   NODE_ENV=production node dist/scripts/backfill-historical-payments.js
- *   NODE_ENV=production node dist/scripts/backfill-historical-payments.js --apply
+ *   NODE_ENV=production node dist/scripts/backfill-historical-payments.js --tenant=<id>
+ *   NODE_ENV=production node dist/scripts/backfill-historical-payments.js --tenant=<id> --apply
+ *
+ * Exit codes: 0 OK · 1 fallo de datos o inesperado · 2 error de USO (falta
+ * `--tenant`, id inválido o gimnasio inexistente).
  *
  * Works against any env via .env DATABASE_URL. Single DB transaction —
  * partial failure rolls back everything.
@@ -38,6 +48,12 @@ import {
   users,
   branches,
 } from "../db/schema";
+import {
+  failTenantArg,
+  queryFnFromConnection,
+  requireTenant,
+} from "../db/scripts/require-tenant";
+import { tenantValues, tenantWhere } from "../modules/shared/tenant";
 import { and, eq, inArray } from "drizzle-orm";
 
 type Currency = "ARS" | "EUR";
@@ -334,6 +350,14 @@ async function main(): Promise<void> {
   const { db, connection } = await createSingleConnection();
 
   try {
+    // ── Gimnasio: ANTES de cualquier query (fase 169 D-06) ─────────────────
+    // Va primero a propósito: si falta `--tenant`, si el id no es un entero
+    // positivo o si no existe esa fila en `tenants`, esto lanza un
+    // `TenantArgError` y el proceso muere con exit 2 sin haber leído ni escrito
+    // una sola fila de negocio. El `finally` de abajo igual cierra la conexión.
+    const ctx = await requireTenant(queryFnFromConnection(connection));
+    console.log(`Tenant: ${ctx.tenantId}\n`);
+
     // ── Pre-flight: existence checks ───────────────────────────────────────
     const subIds = [
       ...PAYMENTS.map((p) => p.subscriptionId),
@@ -392,6 +416,7 @@ async function main(): Promise<void> {
         .from(financialTransactions)
         .where(
           and(
+            tenantWhere(financialTransactions, ctx),
             eq(financialTransactions.memberId, p.memberId),
             eq(financialTransactions.amount, p.amount),
             eq(financialTransactions.transactionDate, p.transactionDate),
@@ -410,6 +435,7 @@ async function main(): Promise<void> {
       .from(balances)
       .where(
         and(
+          tenantWhere(balances, ctx),
           eq(balances.memberId, PURINAN_MEMBER_ID),
           eq(balances.targetKind, "subscription"),
           eq(balances.targetId, PURINAN_SUBSCRIPTION_ID),
@@ -470,38 +496,48 @@ async function main(): Promise<void> {
 
     await db.transaction(async (tx) => {
       for (const p of PAYMENTS) {
-        const [result] = await tx.insert(financialTransactions).values({
-          memberId: p.memberId,
-          kind: "plan_charge",
-          direction: "inflow",
-          amount: p.amount,
-          currency: p.currency,
-          paymentMethod: p.paymentMethod,
-          transactionDate: p.transactionDate,
-          effectiveDate: p.transactionDate,
-          branchId: p.branchId,
-          recordedBy: p.recordedBy,
-          notes: p.notes,
-        });
+        // `tenantValues` estampa el gimnasio DESPUÉS del spread, así que pisa
+        // cualquier `tenantId` que viniera adentro y no depende del DEFAULT 1
+        // de la columna. Sin `as const`: `tenantValues` conserva los tipos
+        // literales de `kind`/`direction`/`targetKind` (hallazgo 169-07).
+        const [result] = await tx.insert(financialTransactions).values(
+          tenantValues(ctx, {
+            memberId: p.memberId,
+            kind: "plan_charge",
+            direction: "inflow",
+            amount: p.amount,
+            currency: p.currency,
+            paymentMethod: p.paymentMethod,
+            transactionDate: p.transactionDate,
+            effectiveDate: p.transactionDate,
+            branchId: p.branchId,
+            recordedBy: p.recordedBy,
+            notes: p.notes,
+          }),
+        );
         const newTxId = result.insertId;
         insertedTx++;
 
-        await tx.insert(transactionLinks).values({
-          transactionId: newTxId,
-          targetKind: "subscription",
-          targetId: p.subscriptionId,
-          allocatedAmount: p.amount,
-        });
+        await tx.insert(transactionLinks).values(
+          tenantValues(ctx, {
+            transactionId: newTxId,
+            targetKind: "subscription",
+            targetId: p.subscriptionId,
+            allocatedAmount: p.amount,
+          }),
+        );
         insertedLinks++;
       }
 
-      await tx.insert(balances).values({
-        memberId: PURINAN_MEMBER_ID,
-        targetKind: "subscription",
-        targetId: PURINAN_SUBSCRIPTION_ID,
-        currency: purinanSub.currency,
-        amount: purinanSub.pricePaid,
-      });
+      await tx.insert(balances).values(
+        tenantValues(ctx, {
+          memberId: PURINAN_MEMBER_ID,
+          targetKind: "subscription",
+          targetId: PURINAN_SUBSCRIPTION_ID,
+          currency: purinanSub.currency,
+          amount: purinanSub.pricePaid,
+        }),
+      );
       insertedBalance++;
     });
 
@@ -517,7 +553,11 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((err) => {
-  console.error("\n✗ FATAL:", err instanceof Error ? err.message : err);
-  process.exit(1);
-});
+// `failTenantArg` sale con **2** ante un error de USO (falta el flag, id
+// inválido, gimnasio inexistente) y con **1** para cualquier otro fallo. La
+// distinción importa: un 1 significaría "corrió y encontró un problema en los
+// datos", que es exactamente lo que NO pasó cuando el operador se olvidó del
+// `--tenant`.
+main().catch((err: unknown) =>
+  failTenantArg(err, "backfill-historical-payments"),
+);
