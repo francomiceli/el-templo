@@ -497,6 +497,28 @@
               <template v-else-if="currentStep === 3">
                 <div class="text-h5 q-mb-md">¿Cómo se paga?</div>
 
+                <!-- CR-CAJA: sede del cobro para renovación/cobro suelto (el
+                     alta ya elige la suya en el paso 2). Default = sede del
+                     socio. Mueve la recaudación (branch_id del cargo) Y la
+                     caja de efectivo destino. -->
+                <q-select
+                  v-if="mode === 'renew' || mode === 'misc'"
+                  v-model="sucursalId"
+                  :options="branchOptions"
+                  option-value="id"
+                  option-label="name"
+                  emit-value
+                  map-options
+                  outlined
+                  label="Sede del cobro"
+                  class="q-mb-md"
+                  @update:model-value="onSedeCobroChange"
+                >
+                  <template #prepend>
+                    <q-icon name="place" color="primary" />
+                  </template>
+                </q-select>
+
                 <div class="q-gutter-sm">
                   <q-btn
                     v-for="opt in paymentOptions"
@@ -618,11 +640,11 @@
                   </q-banner>
                 </template>
 
-                <!-- Efectivo: la caja la decide el server por la sede de quien
-                     carga, así que no se pregunta — pero se MUESTRA (UAT
-                     caja/cobros 2026-07-21: "lo cobré en efectivo, ¿a qué caja
-                     lo manda?"). Si no es resolvible, no se muestra nada: el
-                     server cae a la sede del socio y el cobro igual entra. -->
+                <!-- Efectivo: la caja destino sigue la SEDE DEL COBRO (CR-CAJA)
+                     y se MUESTRA (UAT caja/cobros 2026-07-21: "lo cobré en
+                     efectivo, ¿a qué caja lo manda?"). Si esa sede no tiene
+                     caja efectivo no se muestra nada acá; el 400 claro lo da
+                     el server al confirmar. -->
                 <div
                   v-else-if="cajaEfectivo"
                   class="text-subtitle2 text-weight-regular text-grey-7 q-mt-md"
@@ -981,11 +1003,10 @@ const resumenDebtWarning = computed<string | null>(() => {
   if (out <= 0) return null;
   return `Debe ${formatPrice(out, autocompletar.value?.currency ?? 'ARS')}`;
 });
-// Sede resuelta (nombre) — sólo para alta, donde el operador elige el branchId
-// que se persiste. Para renew/misc el branch lo deriva el server → null (fila
-// oculta en CobroResumen).
+// Sede del cobro resuelta (nombre). CR-CAJA: aplica a TODOS los modos — el
+// operador la elige (alta: paso 2; renovación/suelto: paso 3) con default =
+// sede del socio, y es el branchId que se persiste en el cargo.
 const resumenSede = computed<string | null>(() => {
-  if (mode.value !== 'alta') return null;
   return branchOptions.value.find((b) => b.id === sucursalId.value)?.name ?? null;
 });
 
@@ -1028,16 +1049,19 @@ async function loadBankAccounts() {
 }
 
 // ─── Caja destino en efectivo (informativa) ─────────────────────────────────
-// Para cash la caja la resuelve el server desde la sede de quien carga (CAJA-01)
-// y el body no puede elegirla, así que no hay nada que preguntar — pero el
-// operador necesita ver a dónde va la plata (UAT caja/cobros 2026-07-21). null
-// cuando no es resolvible: el server cae a la sede del socio y el cobro entra
-// igual, así que se omite el cartel en vez de mostrar un error.
+// CR-CAJA: para cash la caja sigue la SEDE DEL COBRO (el select de Sede,
+// default = sede del socio) — el operador necesita ver a dónde va la plata
+// (UAT caja/cobros 2026-07-21). null cuando esa sede no tiene caja efectivo:
+// se omite el cartel; si confirma igual, el server rechaza con un 400 claro.
 const cajaEfectivo = ref<{ id: number; name: string } | null>(null);
 
 async function loadCajaEfectivo() {
+  if (sucursalId.value == null) {
+    cajaEfectivo.value = null;
+    return;
+  }
   try {
-    const { caja } = await financeApi.getCajaEfectivo(resumenCurrency.value);
+    const { caja } = await financeApi.getCajaEfectivo(resumenCurrency.value, sucursalId.value);
     cajaEfectivo.value = caja;
   } catch (err: unknown) {
     log.warn('No se pudo resolver la caja de efectivo destino', {
@@ -1047,10 +1071,22 @@ async function loadCajaEfectivo() {
   }
 }
 
+// CR-CAJA: cambiar la sede del cobro (renovación/suelto) = otro cobro → nueva
+// idempotency key. Liviano a propósito: NO recarga planes del alta.
+function onSedeCobroChange() {
+  currentIdempotencyKey.value = null;
+}
+
 // Cargar cuentas al elegir transferencia/tarjeta; la caja al elegir efectivo.
 watch(paymentMethod, (m) => {
   if (m === 'transfer' || m === 'card') void loadBankAccounts();
   if (m === 'cash') void loadCajaEfectivo();
+});
+
+// CR-CAJA: si cambia la sede del cobro (select del alta o del paso de pago),
+// la caja efectivo destino es la de la nueva sede.
+watch(sucursalId, () => {
+  if (paymentMethod.value === 'cash') void loadCajaEfectivo();
 });
 
 // Si cambia la moneda del cobro, la cuenta elegida podría quedar de otra moneda:
@@ -1583,6 +1619,10 @@ async function loadAutocompletar(userId: number) {
   try {
     const res = await financeApi.getAutocompletar(userId);
     autocompletar.value = res;
+    // CR-CAJA: default de la sede del cobro = la sede del SOCIO. El operador
+    // puede cambiarla en el select de Sede (alta: paso 2; renovación/suelto:
+    // paso 3). Mueve la recaudación (branch_id) Y la caja de efectivo.
+    sucursalId.value = res.memberBranchId;
     if (mode.value === 'renew' && res.hasRenewable && res.amount != null) {
       amount.value = res.amount;
     }
@@ -1628,6 +1668,8 @@ async function onConfirm() {
         amountReceived: amount.value,
         paymentMethod: paymentMethod.value,
         idempotencyKey,
+        // CR-CAJA: sede del cobro elegida (default = sede del socio).
+        ...(sucursalId.value != null ? { branchId: sucursalId.value } : {}),
         ...(chosenBankAccountId != null ? { bankAccountId: chosenBankAccountId } : {}),
       });
     } else if (mode.value === 'misc') {
@@ -1639,6 +1681,8 @@ async function onConfirm() {
         currency: autocompletar.value?.currency ?? 'ARS',
         idempotencyKey,
         miscReason: miscReason.value ?? 'sin_plan',
+        // CR-CAJA: sede del cobro elegida (default = sede del socio).
+        ...(sucursalId.value != null ? { branchId: sucursalId.value } : {}),
         ...(chosenBankAccountId != null ? { bankAccountId: chosenBankAccountId } : {}),
       });
     } else {

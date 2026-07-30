@@ -36,6 +36,12 @@ export interface CoachPayPlanInput {
    * composable only forwards it). Omitted for cash.
    */
   bankAccountId?: number;
+  /**
+   * CR-CAJA (2026-07-24): sede del cobro elegida en el select (default = sede del
+   * socio). Es el branch_id del ledger Y la sede desde la que se resuelve la caja
+   * de efectivo. Gated server-side por requireBranchAccess. Omitido → sede socio.
+   */
+  branchId?: number;
   /** Client-generated, one per confirmation attempt (D-09 backstop). */
   idempotencyKey: string;
 }
@@ -53,6 +59,12 @@ export interface CoachMiscChargeInput {
    * transfer/card. Forwarded only; validated server-side. Omitted for cash.
    */
   bankAccountId?: number;
+  /**
+   * CR-CAJA (2026-07-24): sede del cobro elegida en el select (default = sede del
+   * socio). Es el branch_id del ledger Y la sede desde la que se resuelve la caja
+   * de efectivo. Gated server-side por requireBranchAccess. Omitido → sede socio.
+   */
+  branchId?: number;
   /** Client-generated, one per confirmation attempt (D-09 backstop). */
   idempotencyKey: string;
   /**
@@ -134,6 +146,11 @@ export interface AutocompletarResult {
    * curso: la renovación nace 'scheduled' y arranca ese día.
    */
   currentEndDate: string | null;
+  /**
+   * CR-CAJA (2026-07-24): sede del socio (users.branchId con fallback Templo
+   * Online). La PoS la usa para pre-seleccionar el select de Sede del cobro.
+   */
+  memberBranchId: number;
 }
 
 /** POST /coach-load/pay-plan → { subscription, transaction } (transaction null on free renewal). */
@@ -288,17 +305,19 @@ export function useFinanceLoadApi() {
   }
 
   /**
-   * GET /coach-load/caja-efectivo — caja destino de un cobro en efectivo. Para
-   * cash la caja la decide el server (sede del profe), así que la PoS no la
-   * pregunta; esto es sólo para MOSTRARLA. `caja: null` cuando no es resolvible
-   * (el server cae a la sede del socio) — no es un error, no se notifica.
+   * GET /coach-load/caja-efectivo — caja destino de un cobro en efectivo.
+   * CR-CAJA (2026-07-24): la caja sigue la SEDE DEL COBRO (el select de Sede de
+   * la PoS, default = sede del socio), así que se pasa el `branchId` elegido.
+   * Sólo para MOSTRARLA. `caja: null` cuando esa sede no tiene caja efectivo —
+   * no es un error acá, no se notifica (el 400 real lo da el confirm).
    */
   async function getCajaEfectivo(
-    currency: string
+    currency: string,
+    branchId: number
   ): Promise<{ caja: { id: number; name: string } | null }> {
     const { data } = await api.get<{ caja: { id: number; name: string } | null }>(
       '/admin/finance/coach-load/caja-efectivo',
-      { params: { currency } }
+      { params: { currency, branchId } }
     );
     return data;
   }
