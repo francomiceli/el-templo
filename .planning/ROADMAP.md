@@ -4661,7 +4661,33 @@ toda la fase.
 3. Batería de aislamiento verde: cada ruta `tenant-scoped` de finance, ejecutada como staff del tenant A, **no lee ni escribe** filas del tenant B — lecturas vacías/404 y escrituras rechazadas, ruta por ruta según el manifiesto. El patrón queda documentado como plantilla para las fases de adopción siguientes. (ISO-03)
 4. Sin cambio para el staff: cobros, validación, caja, movimientos, egresos, deudas y exports dan los **mismos números** en staging antes y después (comparación explícita), y la suite existente pasa sin ajustar expectativas.
 
-**Plans:** TBD
+**Plans:** 23 plans (14 waves)
+
+Plans:
+
+- [ ] 172-01-PLAN.md — worktree et-172 desde origin/master + gate CR-CAJA (D-13)
+- [ ] 172-02-PLAN.md — analytics ×4: queries finance scopeadas (cirugía mínima)
+- [ ] 172-03-PLAN.md — reports/service.ts: 11 accesos + los 6 helpers que devuelven SQL
+- [ ] 172-04-PLAN.md — coach + members + retrofit CLI de backfill-historical-payments
+- [ ] 172-05-PLAN.md — script de snapshot D-12 + captura de la línea de base en staging
+- [ ] 172-06-PLAN.md — cash-register-service: cluster ABM (cajas, cuentas, centros de costo)
+- [ ] 172-07-PLAN.md — subscriptions/service.ts: ctx + 2 queries finance (rompe el ciclo)
+- [ ] 172-08-PLAN.md — plomería de TransactionService (21 firmas + canceller + call sites)
+- [ ] 172-09-PLAN.md — balance-service + movement-service + cluster B de cash-register
+- [ ] 172-10-PLAN.md — transaction-service: queries de escritura (create/void/validate/correct)
+- [ ] 172-11-PLAN.md — closures y queries propias de finance/routes.ts y coach-load-routes.ts
+- [ ] 172-12-PLAN.md — transaction-service: queries de lectura (listados, resumen, exports)
+- [ ] 172-13-PLAN.md — endurecimiento de tests A: helpers/setup + cajas y centros de costo
+- [ ] 172-14-PLAN.md — endurecimiento de tests B: transacciones y coach-load
+- [ ] 172-15-PLAN.md — endurecimiento de tests C: suscripciones, reportes, socios, coach
+- [ ] 172-16-PLAN.md — endurecimiento de tests D: analytics, scheduling, migraciones, tenancy
+- [ ] 172-17-PLAN.md — ISO-03: fixture de finanzas del gimnasio 2 + 14 rutas de cajas
+- [ ] 172-18-PLAN.md — ISO-03: 13 rutas de transacciones, bandeja e historial
+- [ ] 172-19-PLAN.md — ISO-03: 11 rutas de coach-load (rol coach), movimientos y egresos
+- [ ] 172-20-PLAN.md — gate de cobertura fail-closed derivado del manifiesto
+- [ ] 172-21-PLAN.md — el switch: entrada strict, allowlist en cero, demo fail-closed
+- [ ] 172-22-PLAN.md — staging: CI completo, diff de números vacío, UAT del staff
+- [ ] 172-23-PLAN.md — doc `.docs/saas-multitenancy/07-receta-adopcion.md` + cierre
 
 ### Phase 173: Adopción 2 — `members` + guarda de consistencia de anclas
 
