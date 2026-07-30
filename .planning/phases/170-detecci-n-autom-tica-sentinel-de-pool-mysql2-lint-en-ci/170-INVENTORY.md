@@ -357,23 +357,85 @@ caso previsto para el commit que la introduce.
 
 ## Ventana de observación en staging
 
-> **PENDIENTE** — se completa después del Task 3 del plan 170-08, tras 2-3 días de uso real
-> del staff sobre staging y con el OK de Franco para leer los logs por SSH.
+**Veredicto de cierre: CERRADA CON LIMITACIÓN DECLARADA** (2026-07-30, decisión de Franco).
 
-Las tres preguntas a responder acá, con fechas y totales observados:
+### Cómo se leyó
 
-- **a.** ¿Apareció alguna violación que NO estuviera en el inventario del suite? ¿Cuál?
-- **b.** ¿Hay algún patrón que sea claramente **falso positivo** (statement de infraestructura,
-  introspección, forma de SQL que el parser lee mal)? Si lo hay, el trabajo es arreglar el
-  parser o el skiplist — nunca bajar el sentinel.
-- **c.** ¿El volumen es manejable? (o sea: ¿la dedup de D-01 funciona? Los `log.error`
-  distintos tienen que ser del orden de los fingerprints de este inventario, no del tráfico.)
+| Dato               | Valor                                                                       |
+| ------------------ | --------------------------------------------------------------------------- |
+| Fecha de lectura   | 2026-07-30                                                                  |
+| Muestra observada  | ~14 h (último restart de pm2 ≈ 2026-07-29 21:41Z → último resumen 11:41:30Z) |
+| Proceso            | `eltemplo-staging-api` — `status: online`, `unstable restarts: 0`           |
+| Acceso             | SSH read-only al EC2, con OK explícito de Franco (Rule 0 del playbook)      |
+| Comandos           | `pm2 describe` + `pm2 logs --lines 20000 --nostream` filtrado por sentinel  |
 
-Además hay que dejar registrado que ningún camino de staging se rompió y que este ruido **no**
-llegó a Sentry (el resumen sale por `log.info` justamente por eso — D-02 / T-170-13).
+### Totales observados
 
-**Veredicto de cierre:** _(pendiente)_
+| Métrica                              | Suite (2026-07-28) | Staging (14 h) |
+| ------------------------------------ | ------------------ | -------------- |
+| Fingerprints distintos               | 1.852              | **66**         |
+| Tablas gym-owned tocadas             | 86 de 87           | **39**         |
+| Violaciones con repeticiones         | ≥ 3.683 (piso)     | **2.731**      |
+| `fingerprintsOmitidos`               | —                  | **0**          |
+| Fallos internos del parser           | 0                  | **0**          |
+| Hits en modo strict (`"strict":true`) | 0                  | **0**          |
+
+### Respuestas a las tres preguntas
+
+- **a. ¿Violaciones fuera del inventario del suite?** **No, a nivel de tabla.** Las 39 tablas
+  gym-owned vistas en staging son subconjunto **estricto** de las 86 del inventario (`comm -13`
+  da vacío). Los caminos de fondo que más riesgo tenían de no estar cubiertos por el suite —el
+  cron de recategorización (`UPDATE users u SET u.status = CASE WHEN EXISTS …`), el worker de
+  `pending_notifications`, `notification_templates`— ya estaban inventariados.
+  **⚠ Limitación:** el cruce se hizo a nivel de **tabla**, no de fingerprint. El volcado crudo de
+  los 1.852 statements salió de una sonda revertida sin commitear (ver "Cómo se generó"), así que
+  cruzar 66 contra 1.852 exigiría re-correr el suite con la sonda (~23 min). No se hizo.
+- **b. ¿Falsos positivos?** **Ninguno.** Cero fallos internos del parser en 2.731 inspecciones.
+  Las formas que a primera vista lo parecen son los patrones ya documentados en "Candidatos a
+  falso positivo": proyecciones que incluyen `tenant_id` sin filtrarlo (p. ej.
+  `select id, tenant_id, … from day_modes` **sin `WHERE`** — scan completo, la fuga más grave que
+  existe, marcada **correctamente**) y accesos por PK (`where refresh_tokens.id = ?`), que son
+  violación legítima aunque de bajo riesgo. Ningún cambio pendiente en el parser ni en el skiplist.
+- **c. ¿Volumen manejable?** **Sí, con margen.** 2.731 violaciones comprimidas en 66 `log.error`
+  (ratio ≈ 41:1) y `fingerprintsOmitidos: 0` — el mapa de dedup de D-01 no se desbordó. El ruido
+  no llegó a Sentry: el resumen sale por `log.info` (D-02 / T-170-13) y los `log.error` son 66 en
+  14 h. Ningún camino de staging se rompió.
+
+### ⚠ Limitación declarada (por qué "con limitación" y no "confirmada")
+
+**Staging casi no se usó durante la ventana.** Los 66 fingerprints son el **3,6%** de los 1.852 del
+suite, y `distinctFingerprints` todavía venía subiendo (63 → 63 → 66 en las últimas tres horas), o
+sea que la muestra **no convergió**. Llamar a esto "confirmado con tráfico real del staff" sería
+estirar el dato, y no se hace.
+
+Lo que la ventana **sí** validó, y no depende del volumen de uso:
+
+1. El sentinel corre 14 h en un proceso real sin un solo fallo interno del parser.
+2. El dedup aguanta tráfico real — este era el riesgo concreto de D-01/D-02: que inundara los logs.
+3. No rompió ningún camino (`online`, `unstable restarts: 0`, cero hits strict).
+
+Se cierra igual porque **la ventana no puede fallar de forma cara**: el sentinel está en modo `log`
+con `TENANT_STRICT_MODULES` vacía y está estructuralmente impedido de tirar una query (T-170-14).
+Una forma no observada acá produce, como consecuencia completa, una línea más de `log.error`. El
+gate de las fases 172-175 tampoco es esta ventana: es el suite completo en verde con el módulo en
+strict, y en prod el modo sigue siendo `log` para siempre.
+
+### 📌 Obligación derivada: lectura en producción a T+48 h del tren
+
+**Prod es la ventana con dientes** y reemplaza lo que staging no pudo dar: mismo modo `log`, misma
+lista strict vacía, pero con el 100% del tráfico real del staff. Queda agendado:
+
+> **A las ~48 h de que el tren `170 + 171` llegue a `master`**, releer los logs del sentinel en el
+> proceso de producción (`eltemplo-api`) con la misma batería de comandos read-only usada acá, y
+> anotar el resultado en esta sección. Requiere OK de Franco para SSHear (Rule 0).
+
+Las preguntas son las mismas tres. Si aparece una **tabla** gym-owned que no esté entre las 86 del
+inventario, o un patrón que sí sea falso positivo del parser, es hallazgo y se arregla el parser o
+el skiplist — **nunca** "bajar el sentinel" ni "aceptar el ruido".
+
+**Resultado de la lectura en prod:** _(pendiente — agendada 2026-07-30)_
 
 ---
 
-_Fase 170 — plan 08 (CON-05). Generado el 2026-07-28 desde `feat/170-sentinel-lint` @ `f8674af3`._
+_Fase 170 — plan 08 (CON-05). Generado el 2026-07-28 desde `feat/170-sentinel-lint` @ `f8674af3`.
+Ventana de observación cerrada el 2026-07-30 desde `feat/170-sentinel-lint` @ `a94745b1`._
