@@ -29,7 +29,11 @@ import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { BadRequestError } from "../shared/errors";
 import { auditLog } from "../shared/audit-log";
-import type { TenantContext } from "../shared/tenant";
+import {
+  tenantValues,
+  tenantWhere,
+  type TenantContext,
+} from "../shared/tenant";
 import type { CashRegisterService } from "./cash-register-service";
 import type { TransactionService } from "./transaction-service";
 import type {
@@ -61,7 +65,7 @@ export class MovementService {
    * BadRequestError when the caja does not exist (a movement to a phantom caja
    * is a bad request, not a 404 — the route validates ids via schema first).
    */
-  private async loadCaja(cajaId: number): Promise<CajaRef> {
+  private async loadCaja(ctx: TenantContext, cajaId: number): Promise<CajaRef> {
     const [caja] = await this.db
       .select({
         id: schema.cashRegisters.id,
@@ -69,7 +73,17 @@ export class MovementService {
         branchId: schema.cashRegisters.branchId,
       })
       .from(schema.cashRegisters)
-      .where(eq(schema.cashRegisters.id, cajaId))
+      .where(
+        and(
+          // Este SELECT ES la validacion de que la caja existe: `origenCajaId`,
+          // `destinoCajaId` y `cajaId` llegan del BODY. Sin el filtro, un
+          // movimiento puede mover plata a la caja de otro gimnasio y un egreso
+          // puede restarle saldo (T-172-09-02). Con el, la caja ajena no matchea
+          // y cae en el BadRequest de abajo, sin filtrar que existe (D-09).
+          tenantWhere(schema.cashRegisters, ctx),
+          eq(schema.cashRegisters.id, cajaId),
+        ),
+      )
       .limit(1);
     if (!caja) {
       throw new BadRequestError(`No existe la caja ${cajaId}`);
@@ -104,8 +118,8 @@ export class MovementService {
 
     // Load both cajas + apply the same-currency guard (D-03) BEFORE any write —
     // mirror of cash-register-service.ts:104-108 wording. No FX in v1.
-    const origen = await this.loadCaja(origenCajaId);
-    const destino = await this.loadCaja(destinoCajaId);
+    const origen = await this.loadCaja(ctx, origenCajaId);
+    const destino = await this.loadCaja(ctx, destinoCajaId);
     if (origen.currency !== destino.currency) {
       throw new BadRequestError(
         `Moneda inconsistente: el origen es ${origen.currency}, el destino es ${destino.currency}`,
@@ -169,18 +183,23 @@ export class MovementService {
       // — provenance link, not a money allocation; applyDelta ignores tx-to-tx
       // links). voidMovement walks these to find the sibling leg.
       await tx.insert(schema.transactionLinks).values([
-        {
+        // `as const` SOLO acá: dentro de un array literal el elemento pierde el
+        // tipo contextual de `.values()`, asi que `tenantValues` infiere
+        // `targetKind: string` y el enum de Drizzle deja de compilar. En el
+        // insert de un objeto suelto (el del ajuste, abajo) no hace falta —
+        // es el matiz que el hallazgo 169-07 no cubria.
+        tenantValues(ctx, {
           transactionId: outflow.id,
-          targetKind: "transaction",
+          targetKind: "transaction" as const,
           targetId: inflow.id,
           allocatedAmount: 0,
-        },
-        {
+        }),
+        tenantValues(ctx, {
           transactionId: inflow.id,
-          targetKind: "transaction",
+          targetKind: "transaction" as const,
           targetId: outflow.id,
           allocatedAmount: 0,
-        },
+        }),
       ]);
 
       // D-04 reconciliation. Only materialize an adjustment when the physical
@@ -214,12 +233,14 @@ export class MovementService {
 
         // Link the adjustment to the origen movement row so voidMovement walks
         // it (and the trail shows the reconciliation belongs to this movement).
-        await tx.insert(schema.transactionLinks).values({
-          transactionId: adjustment.id,
-          targetKind: "transaction",
-          targetId: outflow.id,
-          allocatedAmount: 0,
-        });
+        await tx.insert(schema.transactionLinks).values(
+          tenantValues(ctx, {
+            transactionId: adjustment.id,
+            targetKind: "transaction",
+            targetId: outflow.id,
+            allocatedAmount: 0,
+          }),
+        );
       }
 
       // D-04 trail: always write the reconciliation audit (expected + counted +
@@ -293,7 +314,7 @@ export class MovementService {
         "Debés elegir un centro de costo válido para el egreso",
       );
     }
-    const caja = await this.loadCaja(cajaId);
+    const caja = await this.loadCaja(ctx, cajaId);
 
     // Phase 147 (EGR-02 / T-147-01): el centro de costo debe existir y estar
     // activo. Un solo SELECT — input no confiable (llega del body).
@@ -302,6 +323,9 @@ export class MovementService {
       .from(schema.costCenters)
       .where(
         and(
+          // `costCenterId` llega del body: un centro de costo de otro gimnasio
+          // no matchea y el egreso se rechaza (T-172-09-03).
+          tenantWhere(schema.costCenters, ctx),
           eq(schema.costCenters.id, costCenterId),
           eq(schema.costCenters.isActive, true),
         ),
@@ -375,6 +399,10 @@ export class MovementService {
       .from(schema.transactionLinks)
       .where(
         and(
+          // El void camina los links para descubrir la pata hermana y el ajuste:
+          // sin filtro, un link de otro gimnasio arrastraria una fila ajena al
+          // set de ids que se anula.
+          tenantWhere(schema.transactionLinks, ctx),
           eq(schema.transactionLinks.transactionId, movementRowId),
           eq(schema.transactionLinks.targetKind, "transaction"),
         ),
@@ -384,6 +412,7 @@ export class MovementService {
       .from(schema.transactionLinks)
       .where(
         and(
+          tenantWhere(schema.transactionLinks, ctx),
           eq(schema.transactionLinks.targetId, movementRowId),
           eq(schema.transactionLinks.targetKind, "transaction"),
         ),
