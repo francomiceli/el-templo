@@ -530,7 +530,7 @@ describe("C. higiene del archivo (D-05)", () => {
     for (const tabla of TABLAS_DEL_ESPEJO) {
       expect(
         await idsDelGimnasio(app, tabla, TENANT_DOS),
-        `Quedaron filas de \`${tabla}\` del gimnasio ${TENANT_DOS} después de limpiar. Los 7 DELETE ` +
+        `Quedaron filas de \`${tabla}\` del gimnasio ${TENANT_DOS} después de limpiar. Los 8 DELETE ` +
           `de \`limpiarSegundoGimnasio\` van en orden de FK con los checks ENCENDIDOS: si se agrega una ` +
           `pieza al fixture hay que agregarle su DELETE, en la posición correcta.`,
       ).toEqual([]);

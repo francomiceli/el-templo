@@ -67,8 +67,14 @@
  *     consciente del modulo Aura, registrada con motivo en
  *     `TENANT_UNIQUE_ALLOWLIST`). Una fila del gimnasio 2 chocaria con la del 1.
  *   - `cash_registers`: D-06 no lo pide. Si una bateria de finance necesita
- *     cobrar contra la sede del gimnasio 2, que llame `ensureEfectivoCaja(app,
- *     gym2.branchId)` — es idempotente y esta hecho para eso.
+ *     cobrar contra la sede del gimnasio 2, que llame
+ *     `ensureEfectivoCaja(app, gym2.branchId, "ARS", TENANT_DOS)` — es
+ *     idempotente y desde la fase 171 (WR-02) acepta el tenant. El cuarto
+ *     argumento NO es opcional en la practica: su default es 1, asi que
+ *     omitirlo estampa la caja en El Templo (T-168-15) y el fixture mentiria.
+ *     `limpiarSegundoGimnasio` ya borra las cajas del gimnasio 2 (antes que
+ *     `branches`, por la FK `cash_registers.branch_id`), asi que la limpieza
+ *     no necesita nada extra.
  *   - Subscripciones, reservas y asistencias: cada bateria siembra lo suyo. Este
  *     fixture es el ESQUELETO del gimnasio, no un gimnasio en funcionamiento.
  *
@@ -383,6 +389,16 @@ export async function limpiarSegundoGimnasio(
     sql`DELETE FROM user_branches WHERE tenant_id = ${TENANT_DOS}`,
   );
   await app.db.execute(sql`DELETE FROM users WHERE tenant_id = ${TENANT_DOS}`);
+  // Defensivo (WR-02): el fixture NO siembra cajas, pero una bateria de finance
+  // puede crear la suya via `ensureEfectivoCaja(app, gym2.branchId, "ARS",
+  // TENANT_DOS)`. `cash_registers.branch_id` tiene FK a `branches` sin cascade
+  // y la tabla no esta en `TABLES_TO_CLEAN`: sin este DELETE, esa caja
+  // sobreviviria a las dos limpiezas y el DELETE de `branches` de abajo
+  // reventaria con ER_ROW_IS_REFERENCED — filas del gimnasio 2 filtrandose a
+  // los demas archivos del worker (Pitfall 10 por otra puerta).
+  await app.db.execute(
+    sql`DELETE FROM cash_registers WHERE tenant_id = ${TENANT_DOS}`,
+  );
   await app.db.execute(
     sql`DELETE FROM branches WHERE tenant_id = ${TENANT_DOS}`,
   );

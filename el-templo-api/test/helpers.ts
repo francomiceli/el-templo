@@ -308,11 +308,21 @@ export const DEFAULT_TEST_PLAN = {
  * get a caja there, but branches a test inserts at runtime do not — call this
  * right after inserting such a branch when the test routes/creates cash charges
  * against it. Idempotent (skips if a caja already exists for the branch).
+ *
+ * Fase 171 (WR-02): `tenantId` es opcional con DEFAULT 1 = El Templo, la misma
+ * convención de retrocompatibilidad que `createStaffUser` / `createTestMember`.
+ * `cash_registers` es gym-owned (`tenant_id` DEFAULT 1 desde la fase 167): sin
+ * pasar el tenant, la caja de una sede del gimnasio 2 quedaba estampada en El
+ * Templo (T-168-15) y el fixture mentiría. Para una sede del gimnasio 2:
+ * `ensureEfectivoCaja(app, gym2.branchId, "ARS", TENANT_DOS)` — y acordate de
+ * que `limpiarSegundoGimnasio` ya borra las cajas del gimnasio 2 en su orden
+ * de FKs.
  */
 export async function ensureEfectivoCaja(
   app: FastifyInstance,
   branchId: number,
   currency = "ARS",
+  tenantId = 1,
 ): Promise<void> {
   const existing = await app.db
     .select({ id: schema.cashRegisters.id })
@@ -325,13 +335,18 @@ export async function ensureEfectivoCaja(
     )
     .limit(1);
   if (existing.length > 0) return;
-  await app.db.insert(schema.cashRegisters).values({
-    name: `Efectivo branch ${branchId}`,
-    type: "efectivo",
-    branchId,
-    currency,
-    cutoffDate: "2020-01-01",
-  });
+  await app.db.insert(schema.cashRegisters).values(
+    tenantValues(
+      { tenantId },
+      {
+        name: `Efectivo branch ${branchId}`,
+        type: "efectivo" as const,
+        branchId,
+        currency,
+        cutoffDate: "2020-01-01",
+      },
+    ),
+  );
 }
 
 /**
