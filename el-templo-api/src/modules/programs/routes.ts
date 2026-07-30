@@ -21,6 +21,7 @@ import {
   CashRegisterService,
 } from "../finance";
 import { handleServiceError } from "../shared/error-handler";
+import { assertTenant } from "../shared/tenant";
 import { auditLog } from "../shared/audit-log";
 import {
   PROGRAMAS_ROLES,
@@ -457,6 +458,7 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
         }
 
         const result = await enrollmentService.enrollAddon(
+          assertTenant(request.scope, "programs.enroll-addon"),
           request.params.userId,
           activeSub.id,
           {

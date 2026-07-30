@@ -29,6 +29,7 @@ import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { BadRequestError } from "../shared/errors";
 import { auditLog } from "../shared/audit-log";
+import type { TenantContext } from "../shared/tenant";
 import type { CashRegisterService } from "./cash-register-service";
 import type { TransactionService } from "./transaction-service";
 import type {
@@ -86,6 +87,7 @@ export class MovementService {
    * @throws BadRequestError on cross-currency, equal-caja, or unknown caja.
    */
   async registerMovement(
+    ctx: TenantContext,
     input: RegisterMovementInput,
     adminId: number,
   ): Promise<MovementDetail> {
@@ -123,6 +125,7 @@ export class MovementService {
       // branchId = la sucursal de la caja (null para central/banco — Plan 01
       // hizo branch_id NULLABLE para esto).
       const outflow = await this.txnService.create(
+        ctx,
         {
           memberId: null,
           kind: "cash_transfer",
@@ -143,6 +146,7 @@ export class MovementService {
 
       // Pata B: inflow en destino.
       const inflow = await this.txnService.create(
+        ctx,
         {
           memberId: null,
           kind: "cash_transfer",
@@ -188,6 +192,7 @@ export class MovementService {
       if (countedAmount !== undefined && countedAmount !== expectedAmount) {
         const diff = countedAmount - expectedAmount;
         const adjustment = await this.txnService.create(
+          ctx,
           {
             memberId: null,
             kind: "adjustment",
@@ -275,6 +280,7 @@ export class MovementService {
    *         inexistent/inactive cost center.
    */
   async registerExpense(
+    ctx: TenantContext,
     input: RegisterExpenseInput,
     adminId: number,
   ): Promise<{ expenseTxId: number }> {
@@ -308,6 +314,7 @@ export class MovementService {
     }
 
     const expense = await this.txnService.create(
+      ctx,
       {
         memberId: null,
         kind: "expense",
@@ -349,6 +356,7 @@ export class MovementService {
    *         (voidPair/_void enforce los guards; validamos reason temprano).
    */
   async voidMovement(
+    ctx: TenantContext,
     movementRowId: number,
     voidedBy: number,
     reason: string,
@@ -385,7 +393,7 @@ export class MovementService {
     for (const r of asSource) ids.add(r.targetId);
     for (const r of asTarget) ids.add(r.transactionId);
 
-    await this.txnService.voidPair([...ids], voidedBy, { reason });
+    await this.txnService.voidPair(ctx, [...ids], voidedBy, { reason });
 
     this.log.info(
       { movementRowId, voidedIds: [...ids], voidedBy, reason },
@@ -401,6 +409,7 @@ export class MovementService {
    * @throws BadRequestError on empty reason / already-voided; NotFoundError if absent.
    */
   async voidExpense(
+    ctx: TenantContext,
     expenseRowId: number,
     voidedBy: number,
     reason: string,
@@ -408,7 +417,7 @@ export class MovementService {
     if (!reason || reason.trim().length === 0) {
       throw new BadRequestError("Razon de anulacion requerida");
     }
-    await this.txnService.voidPair([expenseRowId], voidedBy, { reason });
+    await this.txnService.voidPair(ctx, [expenseRowId], voidedBy, { reason });
     this.log.info({ expenseRowId, voidedBy, reason }, "Expense voided");
   }
 

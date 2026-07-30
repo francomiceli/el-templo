@@ -1568,6 +1568,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         }
 
         return await transactionService.getFinancialHistory(
+          assertTenant(request.scope, "members.financial-history"),
           request.params.userId,
           {
             page: request.query.page,
@@ -1641,6 +1642,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
 
         // D-03: cuando no hay saldos abiertos, retornar { concepts: [] }.
         const concepts = await transactionService.getOutstandingConcepts(
+          assertTenant(request.scope, "members.outstanding-concepts"),
           request.params.userId,
         );
         return { concepts };

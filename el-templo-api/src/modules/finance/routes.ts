@@ -604,6 +604,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
         }
 
         const detail = await movementService.registerMovement(
+          assertTenant(request.scope, "finance.movements.create"),
           {
             origenCajaId: request.body.origenCajaId,
             destinoCajaId: request.body.destinoCajaId,
@@ -650,6 +651,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
         }
 
         const detail = await movementService.registerExpense(
+          assertTenant(request.scope, "finance.expenses.create"),
           {
             cajaId: request.body.cajaId,
             amount: request.body.amount,
@@ -696,6 +698,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
         }
 
         await movementService.voidMovement(
+          assertTenant(request.scope, "finance.movements.void"),
           request.params.id,
           request.user.userId,
           request.body.reason,
@@ -737,6 +740,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
         }
 
         await movementService.voidExpense(
+          assertTenant(request.scope, "finance.expenses.void"),
           request.params.id,
           request.user.userId,
           request.body.reason,

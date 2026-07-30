@@ -574,6 +574,7 @@ export class SubscriptionService {
     if (amountReceived > 0) {
       const flowLabel = flowLabelMap[params.flow];
       await this.transactionService.create(
+        ctx,
         {
           memberId: params.userId,
           kind: "plan_charge" as const,
@@ -1792,7 +1793,7 @@ export class SubscriptionService {
           // (1) Anular el anticipo en ESTA tx. voidInTx re-chequea voidedAt y
           // revierte su efecto de balance (un cobro suelto no tiene links, así
           // que el balance del socio queda intacto).
-          await this.transactionService.voidInTx(tx, advance.id, adminId, {
+          await this.transactionService.voidInTx(ctx, tx, advance.id, adminId, {
             reason: "Imputado al alta de plan",
           });
 
