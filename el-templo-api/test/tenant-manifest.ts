@@ -1323,25 +1323,42 @@ export interface Particion {
  * Pero filtrar `HEAD` a secas sería el anti-patrón: si mañana alguien declara
  * un `HEAD` A MANO —una ruta real, con su handler y su acceso a datos— el
  * filtro ciego la dejaría fuera del backstop en silencio, que es exactamente lo
- * que este archivo existe para impedir. Por eso los HEAD sin `GET` hermano
- * salen por `headHuerfanos` y el gate los pone en rojo.
+ * que este archivo existe para impedir. Un HEAD manual tiene DOS formas
+ * posibles y las dos se detectan (WR-03 de la review de fase):
+ *
+ *   1. HEAD sin `GET` hermano: sale por `headHuerfanos` y el gate lo pone en
+ *      rojo.
+ *   2. HEAD conviviendo con un `GET` de la misma url — que en Fastify obliga a
+ *      registrar ese GET con `exposeHeadRoute: false` (si no, el HEAD sintético
+ *      choca con el manual). Un GET así NO genera HEAD sintético, o sea que
+ *      cualquier HEAD observado en su url es a mano seguro: va a `rutas` y el
+ *      manifiesto tiene que clasificarlo como a cualquier otra. Para eso existe
+ *      el segundo parámetro, `urlsGetSinHeadSintetico`: las urls de los GET que
+ *      el hook `onRoute` vio con `exposeHeadRoute: false`. Sin ese dato, este
+ *      caso era indistinguible de un sintético y se colaba por el filtro en
+ *      silencio.
  *
  * POR QUÉ SE COMPARA TAMBIÉN SIN LA BARRA FINAL
  * ---------------------------------------------
  * Una ruta declarada en `"/"` dentro de un plugin con prefijo dispara un tercer
  * evento fantasma, `HEAD <prefijo>/` con barra final, que no tiene `GET`
  * hermano con esa url exacta (son 7 en el app real). Se resuelve comparando el
- * HEAD contra el set de GET con y sin barra final.
+ * HEAD contra el set de GET con y sin barra final (mismo criterio para
+ * `urlsGetSinHeadSintetico`).
  *
  * Lo que NO se hace es normalizar la barra final de TODAS las urls:
  * `ignoreTrailingSlash` está en su default `false`, o sea que
  * `/api/admin/analytics` y `/api/admin/analytics/` son rutas DISTINTAS para
  * find-my-way. Colapsarlas escondería una ruta real detrás de otra.
  */
-export function particionarObservadas(claves: readonly string[]): Particion {
+export function particionarObservadas(
+  claves: readonly string[],
+  urlsGetSinHeadSintetico: readonly string[] = [],
+): Particion {
   const heads: string[] = [];
   const rutas = new Set<string>();
   const urlsGet = new Set<string>();
+  const sinSintetico = new Set(urlsGetSinHeadSintetico);
 
   for (const clave of claves) {
     const corte = clave.indexOf(" ");
@@ -1349,6 +1366,13 @@ export function particionarObservadas(claves: readonly string[]): Particion {
     const url = corte === -1 ? "" : clave.slice(corte + 1);
 
     if (metodo === "HEAD") {
+      // Caso 2 del docblock: el GET de esta url renunció al HEAD sintético
+      // (`exposeHeadRoute: false`), así que este HEAD es una ruta declarada a
+      // mano. Se clasifica como cualquier otra, no se filtra.
+      if (sinSintetico.has(url) || sinSintetico.has(url.replace(/\/$/, ""))) {
+        rutas.add(clave);
+        continue;
+      }
       heads.push(clave);
       continue;
     }

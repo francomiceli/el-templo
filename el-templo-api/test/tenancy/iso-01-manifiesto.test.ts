@@ -26,7 +26,11 @@
  *    (`fantasmas` = []): atrapa typos, renames y rutas borradas.
  * 3. Todo `HEAD` observado se explica por un `GET` hermano
  *    (`headHuerfanos` = []): un HEAD declarado A MANO se pone rojo en vez de
- *    colarse por el filtro.
+ *    colarse por el filtro. Las dos formas de declararlo se detectan: sin GET
+ *    hermano cae en `headHuerfanos`, y con GET hermano —que Fastify obliga a
+ *    registrar con `exposeHeadRoute: false`— el `onRoute` lo delata y el HEAD
+ *    va al manifiesto como cualquier ruta (rojo en el test 1 hasta que se
+ *    clasifique).
  * 4. El manifiesto tiene el conteo exacto del baseline, para que un gate verde
  *    no pueda serlo por vacuidad.
  * 5. Las validaciones de FORMA (D-02 motivo obligatorio en `global`, D-07
@@ -136,14 +140,28 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
    */
   beforeAll(async () => {
     const observadas: string[] = [];
+    const getsSinHeadSintetico: string[] = [];
     app = await createTestApp({
       onRoute: (route) => {
         for (const clave of clavesDeEvento(route.method, route.url)) {
           observadas.push(clave);
         }
+        // WR-03: un GET registrado con `exposeHeadRoute: false` NO genera HEAD
+        // sintético — es la única forma que Fastify acepta de convivir con un
+        // HEAD declarado a mano en la misma url. Registrar estas urls es lo que
+        // le permite a `particionarObservadas` mandar ese HEAD manual al
+        // manifiesto en vez de filtrarlo como si fuera sintético.
+        const metodos =
+          typeof route.method === "string" ? [route.method] : route.method;
+        if (
+          route.exposeHeadRoute === false &&
+          metodos.some((m) => m.trim().toUpperCase() === "GET")
+        ) {
+          getsSinHeadSintetico.push(route.url);
+        }
       },
     });
-    particion = particionarObservadas(observadas);
+    particion = particionarObservadas(observadas, getsSinHeadSintetico);
     discrepancias = compararManifiesto(particion.rutas);
   });
 
@@ -208,7 +226,10 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
         `para impedir. ` +
         `QUÉ HACER: si el HEAD listado arriba es una ruta real, clasificala en ` +
         `el manifiesto como cualquier otra; si sobra, quitala del código. Lo que ` +
-        `no se hace es agrandar el filtro.`,
+        `no se hace es agrandar el filtro. ` +
+        `(La otra forma de declarar un HEAD a mano —junto a un GET con ` +
+        `exposeHeadRoute: false— no cae acá: el onRoute la delata y ese HEAD va ` +
+        `derecho al manifiesto, o sea al primer test.)`,
     ).toEqual([]);
   });
 
@@ -325,6 +346,46 @@ describe("manifiesto de rutas — motor con fixtures sintéticos (criterio 2, de
   const MANIFIESTO_OK: Record<string, EntradaManifiesto> = {
     "GET /api/fixture/socios": { categoria: "tenant-scoped" },
   };
+
+  it("un HEAD manual junto a un GET con exposeHeadRoute: false va al manifiesto, no al filtro (WR-03)", () => {
+    const URL_MANUAL = "/api/fixture/head-manual";
+    const URL_NORMAL = "/api/fixture/head-sintetico";
+
+    const particion = particionarObservadas(
+      [
+        `GET ${URL_MANUAL}`,
+        `HEAD ${URL_MANUAL}`, // declarado a mano: su GET renunció al sintético
+        `GET ${URL_NORMAL}`,
+        `HEAD ${URL_NORMAL}`, // sintético de Fastify: se filtra como siempre
+      ],
+      [URL_MANUAL],
+    );
+
+    expect(
+      particion.rutas,
+      `El HEAD declarado a mano NO llegó al manifiesto. Un GET registrado con ` +
+        `exposeHeadRoute: false no genera HEAD sintético —es la única forma que ` +
+        `Fastify acepta de convivir con un HEAD manual en la misma url—, así que ` +
+        `un HEAD observado ahí es una ruta real con handler y acceso a datos: ` +
+        `filtrarla la dejaría fuera del backstop en silencio, que es exactamente ` +
+        `lo que este archivo existe para impedir. Rutas: ${particion.rutas.join(", ")}`,
+    ).toContain(`HEAD ${URL_MANUAL}`);
+
+    expect(
+      particion.rutas,
+      `El HEAD sintético se metió al manifiesto: duplicaría cada decisión de ` +
+        `clasificación sin agregar información. El filtro solo puede abrirse ` +
+        `para urls cuyo GET tiene exposeHeadRoute: false. Rutas: ` +
+        `${particion.rutas.join(", ")}`,
+    ).not.toContain(`HEAD ${URL_NORMAL}`);
+
+    expect(
+      particion.headHuerfanos,
+      `Ningún HEAD de este fixture es huérfano (los dos tienen GET hermano): el ` +
+        `manual se clasifica, no se reporta dos veces. Reportado: ` +
+        `${particion.headHuerfanos.join(", ")}`,
+    ).toEqual([]);
+  });
 
   it("una ruta observada sin entrada cae en faltantes y sale nombrada", () => {
     const RUTA_NUEVA = "POST /api/_probe-171-sin-clasificar";
