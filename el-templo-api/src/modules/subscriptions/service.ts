@@ -2707,15 +2707,11 @@ export class SubscriptionService {
    * layer (request.user.userId). All callers MUST pass it explicitly so the
    * audit row records the real actor (T-111-14 mitigation).
    *
-   * Fase 172 (ADO-01) — LEER ANTES DE CONFIAR EN EL `ctx`: este método ya lo
-   * RECIBE pero TODAVÍA NO LO USA. Las queries que tocan tablas strict en el
-   * camino de cancelación viven en `_cancelSubscription` (colapso de deuda
-   * fantasma), cuya firma la cambia el plan 172-08 junto con el tipo
-   * `SubscriptionCanceller` de `transaction-service.ts` — que es quien la
-   * invoca y por qué no se puede migrar acá sin romper el ciclo al revés.
-   * El parámetro se agrega ahora, y no en 172-08, para que los call sites de
-   * ruta se actualicen UNA sola vez: el plan siguiente sólo tiene que bajar el
-   * `ctx` un nivel. Hasta entonces, la cancelación NO está scopeada.
+   * Fase 172 (ADO-01) — el `ctx` YA BAJA (plan 172-08). El parámetro se agregó
+   * en el plan 172-07 sin usarse todavía; ahora viaja a `_cancelSubscription`,
+   * que es donde viven las dos queries de tablas strict del camino de
+   * cancelación (el guard de cobros vivos sobre `transaction_links` y el
+   * colapso de deuda fantasma sobre `balances`). Las dos las nombran.
    */
   async cancelSubscription(
     ctx: TenantContext,
@@ -2756,6 +2752,7 @@ export class SubscriptionService {
     const resolvedSubId = sub.id;
     await this.db.transaction(async (tx) => {
       await this._cancelSubscription(
+        ctx,
         tx,
         userId,
         actorId,
@@ -2805,6 +2802,7 @@ export class SubscriptionService {
    * only void()'s keepMembershipActive=false branch should invoke this directly.
    */
   async _cancelSubscription(
+    ctx: TenantContext,
     tx: TxHandle,
     userId: number,
     actorId: number,
@@ -2873,6 +2871,10 @@ export class SubscriptionService {
         )
         .where(
           and(
+            // Fase 172 (ADO-01 / T-172-08-02): el gimnasio PRIMERO. Sin él, un
+            // link de otro gimnasio apuntando a este targetId bloquearía la
+            // cancelación con un 409 que además delata su existencia.
+            tenantWhere(schema.transactionLinks, ctx),
             eq(schema.transactionLinks.targetKind, "subscription"),
             eq(schema.transactionLinks.targetId, sub.id),
             // Phase 137 (VAL-05) — EXCEPCION DELIBERADA (site #14 de la
@@ -2959,6 +2961,10 @@ export class SubscriptionService {
       .set({ amount: 0, lastRecomputedAt: new Date() })
       .where(
         and(
+          // Fase 172 (ADO-01 / T-172-08-02): el WHERE de una ESCRITURA nombra el
+          // gimnasio por su cuenta, no se apoya en que el SELECT previo haya
+          // cortado. Este UPDATE pisa `amount` a 0 por (memberId, targetId).
+          tenantWhere(schema.balances, ctx),
           eq(schema.balances.memberId, userId),
           eq(schema.balances.targetKind, "subscription"),
           inArray(schema.balances.targetId, targetSubIds),

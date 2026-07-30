@@ -11,6 +11,21 @@
 // this class deliberately exposes NO `update` method. Only `void()` is
 // allowed to mutate an existing row, and only on the soft-void triplet
 // (voidedAt, voidedBy, voidReason).
+//
+// TENANCY (fase 172, ADO-01). Los 21 métodos públicos y privados de esta clase
+// reciben `ctx: TenantContext` como PRIMER parámetro, antes de `tx` y antes de
+// los ids. La posición es la mitigación, no una convención estética: un call
+// site que no lo entregue queda con los argumentos CORRIDOS y `tsc` lo marca.
+// Si el parámetro fuera último u opcional, un caller olvidado compilaría y
+// cobraría, anularía o validaría sin gimnasio resuelto. Las únicas fuentes
+// legítimas del `ctx` son las cuatro de `../shared/tenant` — en las rutas,
+// `assertTenant(request.scope, "<etiqueta>")`. Prohibido narrowear el
+// `tenantId` con un non-null assertion o con un default numérico al gimnasio 1.
+//
+// El `ctx` llega a las FIRMAS en el plan 172-08; los `tenantWhere` /
+// `tenantValues` de las queries de este archivo son de los planes 172-10
+// (escrituras) y 172-12 (lecturas). O sea: que un método de acá tenga `ctx`
+// TODAVÍA NO significa que sus queries filtren por gimnasio.
 
 import {
   eq,
@@ -34,6 +49,7 @@ import { BadRequestError, NotFoundError } from "../shared/errors";
 import { buildMemberNameSearchCondition } from "../shared/member-search";
 import type { PaginatedResult } from "../shared/types";
 import { auditLog } from "../shared/audit-log";
+import type { TenantContext } from "../shared/tenant";
 import { BalanceService, type TxHandle } from "./balance-service";
 import { CashRegisterService } from "./cash-register-service";
 // Phase 149 (D-13, Opción A): el umbral de pendientes queda hardcodeado en la
@@ -88,9 +104,17 @@ const KINDS_ALLOWED_WITHOUT_LINKS: ReadonlyArray<string> = [
  * `_cancelSubscription` runs against the caller's tx handle and, with
  * skipActiveChargesGuard=true, bypasses the SUB_HAS_ACTIVE_TRANSACTIONS guard
  * because the charge being voided is already soft-voided in that same tx.
+ *
+ * TENANCY (fase 172, ADO-01 / T-172-08-02). El `ctx` va PRIMERO, antes del
+ * `tx`, y no es estilo: este tipo es el CONTRATO de la única arista que sale
+ * del módulo finance hacia otro módulo (un void cancela una suscripción). Con
+ * el gimnasio en el tipo, un canceller que no lo reciba NO COMPILA; con el
+ * parámetro al final u opcional, un implementador olvidado seguiría
+ * compilando y la cancelación tocaría filas de cualquier gimnasio.
  */
 export interface SubscriptionCanceller {
   _cancelSubscription(
+    ctx: TenantContext,
     tx: TxHandle,
     userId: number,
     actorId: number,
@@ -134,6 +158,7 @@ export class TransactionService {
    * choke-point used internally by create(); never sourced from a request body.
    */
   resolveCashRegister(
+    ctx: TenantContext,
     paymentMethod: PaymentMethod,
     branchId: number | null,
     currency: string,
@@ -156,6 +181,7 @@ export class TransactionService {
    * — backward-compat for the REST endpoint `POST /api/admin/transactions`.
    */
   async create(
+    ctx: TenantContext,
     input: CreateTransactionInput,
     recordedBy: number,
     tx?: TxHandle,
@@ -373,12 +399,13 @@ export class TransactionService {
    * When false, the linked subscription is cancelled inside the same tx.
    */
   async void(
+    ctx: TenantContext,
     id: number,
     voidedBy: number,
     input: VoidTransactionInput,
   ): Promise<TransactionDetail> {
     return await this.db.transaction(async (tx) => {
-      await this._void(tx, id, voidedBy, input);
+      await this._void(ctx, tx, id, voidedBy, input);
 
       const linkRows = await tx
         .select()
@@ -406,6 +433,7 @@ export class TransactionService {
    * second void of the same id (or an empty reason) rolls the whole pair back.
    */
   async voidPair(
+    ctx: TenantContext,
     ids: number[],
     voidedBy: number,
     input: VoidTransactionInput,
@@ -417,7 +445,7 @@ export class TransactionService {
     }
     await this.db.transaction(async (tx) => {
       for (const id of ids) {
-        await this._void(tx, id, voidedBy, input);
+        await this._void(ctx, tx, id, voidedBy, input);
       }
     });
   }
@@ -433,12 +461,13 @@ export class TransactionService {
    * not-already-voided + reason-required + el rollback de balance + audit row).
    */
   async voidInTx(
+    ctx: TenantContext,
     tx: TxHandle,
     id: number,
     voidedBy: number,
     input: VoidTransactionInput,
   ): Promise<void> {
-    await this._void(tx, id, voidedBy, input);
+    await this._void(ctx, tx, id, voidedBy, input);
   }
 
   /**
@@ -457,6 +486,7 @@ export class TransactionService {
    * soft-voided here). Default true leaves the sub untouched.
    */
   private async _void(
+    ctx: TenantContext,
     tx: TxHandle,
     id: number,
     voidedBy: number,
@@ -520,6 +550,7 @@ export class TransactionService {
           );
         }
         await this.subscriptionCanceller._cancelSubscription(
+          ctx,
           tx,
           existing.memberId,
           voidedBy,
@@ -632,6 +663,7 @@ export class TransactionService {
    * 'pendiente', miscReason='sin_plan', or the caja elegida es invalida.
    */
   async validate(
+    ctx: TenantContext,
     id: number,
     adminId: number,
     cashRegisterId?: number,
@@ -748,6 +780,7 @@ export class TransactionService {
    * Throws if absent, voided, or not in 'pendiente'.
    */
   async observe(
+    ctx: TenantContext,
     id: number,
     adminId: number,
     input: ObserveTransactionInput,
@@ -824,6 +857,7 @@ export class TransactionService {
    * `correctedFields` may change ONLY amount / memberId / paymentMethod.
    */
   async correct(
+    ctx: TenantContext,
     originalId: number,
     correctedFields: Partial<
       Pick<CreateTransactionInput, "amount" | "memberId" | "paymentMethod">
@@ -855,6 +889,7 @@ export class TransactionService {
 
       // 1. Void the original, marking it 'corregido' (void-for-correction).
       await this._void(
+        ctx,
         tx,
         originalId,
         adminId,
@@ -900,7 +935,7 @@ export class TransactionService {
       };
 
       // 3. Create the replacement in the SAME tx (born 'validado').
-      const created = await this.create(newInput, adminId, tx);
+      const created = await this.create(ctx, newInput, adminId, tx);
 
       // 4. Link the new tx → original (target_kind='transaction') for the
       // trail. allocatedAmount 0: this is a provenance link, not a money
@@ -953,6 +988,7 @@ export class TransactionService {
    * 500. Returns null when no row carries the key (the caller then rethrows).
    */
   async findByIdempotencyKey(
+    ctx: TenantContext,
     idempotencyKey: string,
   ): Promise<TransactionDetail | null> {
     const [row] = await this.db
@@ -969,7 +1005,10 @@ export class TransactionService {
   }
 
   /** Get a single transaction with its links. */
-  async getById(id: number): Promise<TransactionDetail | null> {
+  async getById(
+    ctx: TenantContext,
+    id: number,
+  ): Promise<TransactionDetail | null> {
     // Phase 148 (ALTA-06): leftJoin a users por createdMemberId para surfacar el
     // nombre del alumno creado (null cuando la carga no creó alumno). Aditivo —
     // no cambia el conjunto de filas (leftJoin) ni el filtro de dinero firme.
@@ -1003,6 +1042,7 @@ export class TransactionService {
 
   /** List a member's transactions ordered by transaction_date desc. */
   async listForMember(
+    ctx: TenantContext,
     memberId: number,
     opts?: { limit?: number; offset?: number },
   ): Promise<TransactionDetail[]> {
@@ -1046,7 +1086,10 @@ export class TransactionService {
    * plan, y el endpoint GET /transactions/pending-misc/:memberId. NO incluye
    * validados/anulados ni otros kinds.
    */
-  async listPendingMiscForMember(memberId: number): Promise<PendingMiscItem[]> {
+  async listPendingMiscForMember(
+    ctx: TenantContext,
+    memberId: number,
+  ): Promise<PendingMiscItem[]> {
     const rows = await this.db
       .select({
         id: schema.financialTransactions.id,
@@ -1089,6 +1132,7 @@ export class TransactionService {
    * via filters.country (always-present for non-owners, optional for owner).
    */
   async list(
+    ctx: TenantContext,
     filters: TransactionListFilters,
   ): Promise<PaginatedResult<TransactionListItem>> {
     const page = Math.max(1, filters.page ?? 1);
@@ -1101,7 +1145,7 @@ export class TransactionService {
     // cobros. LEFT JOIN (validatedBy es nullable, a diferencia del recorder
     // INNER). Solo lo usa la query de filas, no el COUNT.
     const validator = alias(schema.users, "validator");
-    const conditions = this.buildListConditions(filters);
+    const conditions = this.buildListConditions(ctx, filters);
 
     // 1) COUNT — same join chain as the row query so country/search filters
     //    that reference users/branches/recorder resolve identically.
@@ -1259,6 +1303,7 @@ export class TransactionService {
    * excluded (isNull(voidedAt)).
    */
   async listPendingTray(
+    ctx: TenantContext,
     filters: PendingTrayFilters,
   ): Promise<PaginatedResult<PendingTrayItem> & { thresholdDays: number }> {
     const page = Math.max(1, filters.page ?? 1);
@@ -1460,6 +1505,7 @@ export class TransactionService {
    * Owner sees all rows; an optional ?country narrows to that country's cajas.
    */
   async listMovEgresos(
+    ctx: TenantContext,
     filters: MovEgresoFilters,
   ): Promise<PaginatedResult<MovEgresoItem>> {
     const page = Math.max(1, filters.page ?? 1);
@@ -1620,7 +1666,10 @@ export class TransactionService {
     return { rows, total, page, limit };
   }
 
-  private buildListConditions(filters: TransactionListFilters): SQL[] {
+  private buildListConditions(
+    ctx: TenantContext,
+    filters: TransactionListFilters,
+  ): SQL[] {
     const conds: SQL[] = [];
     if (filters.branchId !== undefined) {
       conds.push(eq(schema.financialTransactions.branchId, filters.branchId));
@@ -1679,6 +1728,7 @@ export class TransactionService {
    * for target_kind='subscription' (D-13).
    */
   async getFinancialHistory(
+    ctx: TenantContext,
     memberId: number,
     filters: FinancialHistoryFilters,
   ): Promise<PaginatedResult<FinancialHistoryItem>> {
@@ -1787,6 +1837,7 @@ export class TransactionService {
    *   o "Saldo libre #<id>" (debt_balance fallback) per D-06.
    */
   async getOutstandingConcepts(
+    ctx: TenantContext,
     memberId: number,
   ): Promise<OutstandingConcept[]> {
     this.log.info({ memberId }, "Loading outstanding concepts");
@@ -1909,7 +1960,10 @@ export class TransactionService {
    * to 5 keys (cash/transfer/card/aura_credit/internal). revenueByBranch is
    * sorted DESC by revenue.
    */
-  async getSummary(filters: FinanceSummaryFilters): Promise<FinanceSummary> {
+  async getSummary(
+    ctx: TenantContext,
+    filters: FinanceSummaryFilters,
+  ): Promise<FinanceSummary> {
     const conds: SQL[] = [
       eq(schema.financialTransactions.direction, "inflow"),
       // Firm-money axis (not voided AND validated). Phase 137 (VAL-05): a
@@ -2066,10 +2120,11 @@ export class TransactionService {
    * (mirrors reports/service.ts → reports/routes.ts split).
    */
   async exportRowsForExcel(
+    ctx: TenantContext,
     filters: TransactionListFilters,
   ): Promise<TransactionExportRow[]> {
     const recorder = alias(schema.users, "recorder");
-    const conditions = this.buildListConditions(filters);
+    const conditions = this.buildListConditions(ctx, filters);
 
     const raw = await this.db
       .select({
