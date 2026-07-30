@@ -40,7 +40,11 @@ import { handleServiceError } from "../shared/error-handler";
 import { BadRequestError, NotFoundError } from "../shared/errors";
 import { FINANCE_LOAD_ROLES, type AdminRole } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
-import { assertTenant, tenantWhere } from "../shared/tenant";
+import {
+  assertTenant,
+  tenantWhere,
+  type TenantContext,
+} from "../shared/tenant";
 import { requireBranchAccess } from "../shared/branch-access";
 import { isDuplicateKeyError } from "../shared/sql-errors";
 import * as schema from "../../db/schema";
@@ -318,7 +322,12 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
   // `getCurrency` es un thunk: la moneda del cobro solo se resuelve cuando de
   // verdad hace falta (transfer/card con id), evitando queries/errores en el
   // camino cash. Devuelve el id validado (o undefined) para imputarlo al charge.
+  // Fase 172: el `ctx` va PRIMERO también en este closure. No tiene `request` a
+  // mano (es del plugin, no del handler), así que cada uno de sus 4 call sites lo
+  // resuelve con `assertTenant(request.scope, …)` — el compilador obliga a
+  // mirarlos todos.
   const validateBankAccountForCharge = async (
+    ctx: TenantContext,
     paymentMethod: PaymentMethod,
     bankAccountId: number | undefined,
     getCurrency: () => Promise<string>,
@@ -339,7 +348,11 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
       );
     }
     const currency = await getCurrency();
-    await cashRegisterService.assertChosenBankAccount(bankAccountId, currency);
+    await cashRegisterService.assertChosenBankAccount(
+      ctx,
+      bankAccountId,
+      currency,
+    );
     return bankAccountId;
   };
 
@@ -403,7 +416,10 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
       schema: coachPayPlanSchema,
       // CR-CAJA: gatea la sede del cobro cuando el operador la eligió (optional →
       // sin branchId, default a la sede del socio, sin check).
-      preHandler: requireBranchAccess({ from: "body.branchId", optional: true }),
+      preHandler: requireBranchAccess({
+        from: "body.branchId",
+        optional: true,
+      }),
     },
     async (request, reply) => {
       const {
@@ -462,6 +478,7 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
           // directa del charge. Para cash queda undefined → create resuelve la
           // caja EFECTIVO desde `branchId` (la sede del cobro).
           const chosenBankAccountId = await validateBankAccountForCharge(
+            assertTenant(request.scope, "coach-load.bank-accounts.pay-plan"),
             paymentMethod,
             bankAccountId,
             async () => sub.currency,
@@ -518,6 +535,7 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
         // renovable. Para cash queda undefined → la caja se resuelve desde la sede
         // del cobro (renewBranchId).
         const chosenBankAccountId = await validateBankAccountForCharge(
+          assertTenant(request.scope, "coach-load.bank-accounts.renew"),
           paymentMethod,
           bankAccountId,
           () => resolveRenewCurrency(userId),
@@ -576,7 +594,10 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
     {
       schema: coachMiscLoadSchema,
       // CR-CAJA: gatea la sede del cobro si el operador la eligió (optional).
-      preHandler: requireBranchAccess({ from: "body.branchId", optional: true }),
+      preHandler: requireBranchAccess({
+        from: "body.branchId",
+        optional: true,
+      }),
     },
     async (request, reply) => {
       const today = new Date().toISOString().split("T")[0];
@@ -592,6 +613,7 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
         // directa del charge. Para cash queda undefined → create resuelve la caja
         // EFECTIVO desde `branchId` (la sede del cobro).
         const chosenBankAccountId = await validateBankAccountForCharge(
+          assertTenant(request.scope, "coach-load.bank-accounts.misc"),
           request.body.paymentMethod,
           request.body.bankAccountId,
           async () => currency,
@@ -698,6 +720,7 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
         // acá con 400 sin efectos colaterales (no se crea alumno ni sub). La
         // moneda del cobro es la del plan elegido.
         const chosenBankAccountId = await validateBankAccountForCharge(
+          assertTenant(request.scope, "coach-load.bank-accounts.alta"),
           body.paymentMethod,
           body.bankAccountId,
           () => resolvePlanCurrency(body.planId),
@@ -910,6 +933,7 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       try {
         const accounts = await cashRegisterService.listActiveBankAccounts(
+          assertTenant(request.scope, "coach-load.bank-accounts"),
           request.query.currency,
         );
         return reply.send({ accounts });

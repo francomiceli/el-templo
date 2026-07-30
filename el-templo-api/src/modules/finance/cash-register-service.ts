@@ -142,6 +142,7 @@ export class CashRegisterService {
    * cobro); sin `currency` devuelve todas las cuentas banco activas.
    */
   async listActiveBankAccounts(
+    ctx: TenantContext,
     currency?: string,
   ): Promise<Array<{ id: number; name: string; currency: string }>> {
     const conditions = [
@@ -158,7 +159,7 @@ export class CashRegisterService {
         currency: schema.cashRegisters.currency,
       })
       .from(schema.cashRegisters)
-      .where(and(...conditions))
+      .where(and(tenantWhere(schema.cashRegisters, ctx), ...conditions))
       .orderBy(asc(schema.cashRegisters.id));
   }
 
@@ -171,10 +172,18 @@ export class CashRegisterService {
    * (mismo mensaje de moneda que resolveCashRegister/balance-service para el guard
    * de moneda). Devuelve la fila validada.
    *
+   * Fase 172: una cuenta de OTRO gimnasio no matchea el SELECT y cae en la misma
+   * rama "no existe o está inactiva" (400 genérico, sin filtrar existencia). Es
+   * el choke-point que impide imputar un cobro a la cuenta bancaria del vecino.
+   *
    * @throws BadRequestError cuando no existe / no es banco / está inactiva, o
    *         cuando la moneda de la cuenta no coincide con la del cobro.
    */
-  async assertChosenBankAccount(id: number, currency: string) {
+  async assertChosenBankAccount(
+    ctx: TenantContext,
+    id: number,
+    currency: string,
+  ) {
     const [caja] = await this.db
       .select({
         id: schema.cashRegisters.id,
@@ -184,7 +193,12 @@ export class CashRegisterService {
         type: schema.cashRegisters.type,
       })
       .from(schema.cashRegisters)
-      .where(eq(schema.cashRegisters.id, id))
+      .where(
+        and(
+          tenantWhere(schema.cashRegisters, ctx),
+          eq(schema.cashRegisters.id, id),
+        ),
+      )
       .limit(1);
     if (!caja || caja.type !== "banco" || !caja.isActive) {
       throw new BadRequestError("La cuenta elegida no existe o está inactiva");
@@ -746,7 +760,10 @@ export class CashRegisterService {
    *
    * @throws NotFoundError cuando no existe o no es una caja type='banco'.
    */
-  private async getBankAccountRow(id: number): Promise<BankAccountRow> {
+  private async getBankAccountRow(
+    ctx: TenantContext,
+    id: number,
+  ): Promise<BankAccountRow> {
     const [caja] = await this.db
       .select({
         id: schema.cashRegisters.id,
@@ -762,7 +779,12 @@ export class CashRegisterService {
         accountNumber: schema.cashRegisters.accountNumber,
       })
       .from(schema.cashRegisters)
-      .where(eq(schema.cashRegisters.id, id))
+      .where(
+        and(
+          tenantWhere(schema.cashRegisters, ctx),
+          eq(schema.cashRegisters.id, id),
+        ),
+      )
       .limit(1);
     if (!caja || caja.type !== "banco") {
       throw new NotFoundError(`No existe la cuenta banco ${id}`);
@@ -792,6 +814,7 @@ export class CashRegisterService {
    * @throws BadRequestError cuando faltan CBU/CVU y Alias (regla uno-de-dos).
    */
   async createBankAccount(
+    ctx: TenantContext,
     input: CreateBankAccountInput,
   ): Promise<BankAccountRow> {
     const bankName = input.bankName.trim();
@@ -810,26 +833,32 @@ export class CashRegisterService {
       accountNumber,
     );
 
-    const inserted = await this.db.insert(schema.cashRegisters).values({
-      name,
-      type: "banco",
-      branchId: null,
-      currency: input.currency,
-      bankName,
-      accountHolder,
-      taxId,
-      cbuCvu,
-      accountAlias,
-      accountNumber,
-      openingBalance: 0,
-      cutoffDate: this.today(),
-    });
+    // `tenantValues` va por fuera del literal (no dentro): el gimnasio se
+    // estampa DESPUÉS del spread, así que ningún campo del input puede pisarlo.
+    // Los enums de Drizzle (`type: "banco"`) compilan igual — no hace falta
+    // `as const` (hallazgo 169-07).
+    const inserted = await this.db.insert(schema.cashRegisters).values(
+      tenantValues(ctx, {
+        name,
+        type: "banco",
+        branchId: null,
+        currency: input.currency,
+        bankName,
+        accountHolder,
+        taxId,
+        cbuCvu,
+        accountAlias,
+        accountNumber,
+        openingBalance: 0,
+        cutoffDate: this.today(),
+      }),
+    );
     const id = Number(inserted[0].insertId);
     this.log.info(
-      { cashRegisterId: id, currency: input.currency },
+      { cashRegisterId: id, currency: input.currency, tenantId: ctx.tenantId },
       "Cuenta banco creada",
     );
-    return this.getBankAccountRow(id);
+    return this.getBankAccountRow(ctx, id);
   }
 
   /**
@@ -890,11 +919,17 @@ export class CashRegisterService {
       throw new BadRequestError("El saldo inicial no puede ser negativo");
     }
 
+    // El invariante "una caja efectivo activa por (sucursal, moneda)" es POR
+    // GIMNASIO: sin este filtro, la caja de otro gimnasio en la misma sucursal
+    // bloquearía el alta con un 409 que además delata su existencia. Hasta la
+    // fase 172 este SELECT era el contraejemplo canónico de "el método tiene ctx
+    // en la firma pero NO está migrado" (riesgo 3 del PATTERNS).
     const [existing] = await this.db
       .select({ id: schema.cashRegisters.id })
       .from(schema.cashRegisters)
       .where(
         and(
+          tenantWhere(schema.cashRegisters, ctx),
           eq(schema.cashRegisters.type, "efectivo"),
           eq(schema.cashRegisters.branchId, input.branchId),
           eq(schema.cashRegisters.currency, input.currency),
@@ -909,14 +944,16 @@ export class CashRegisterService {
     }
 
     const name = `Efectivo ${branch.name}`;
-    const inserted = await this.db.insert(schema.cashRegisters).values({
-      name,
-      type: "efectivo",
-      branchId: input.branchId,
-      currency: input.currency,
-      openingBalance,
-      cutoffDate: this.today(),
-    });
+    const inserted = await this.db.insert(schema.cashRegisters).values(
+      tenantValues(ctx, {
+        name,
+        type: "efectivo",
+        branchId: input.branchId,
+        currency: input.currency,
+        openingBalance,
+        cutoffDate: this.today(),
+      }),
+    );
     const id = Number(inserted[0].insertId);
     this.log.info(
       {
@@ -952,10 +989,11 @@ export class CashRegisterService {
    * @throws BadRequestError cuando el estado resultante no tiene CBU/CVU ni Alias.
    */
   async updateBankAccount(
+    ctx: TenantContext,
     id: number,
     input: UpdateBankAccountInput,
   ): Promise<BankAccountRow> {
-    const current = await this.getBankAccountRow(id);
+    const current = await this.getBankAccountRow(ctx, id);
 
     const bankName =
       input.bankName !== undefined
@@ -1001,10 +1039,18 @@ export class CashRegisterService {
         accountAlias,
         accountNumber,
       })
-      .where(eq(schema.cashRegisters.id, id));
+      // El SELECT previo ya cortó con 404 si la cuenta es de otro gimnasio; el
+      // filtro va igual en el UPDATE (T-172-06-02: el WHERE de una escritura no
+      // se apoya en una lectura anterior).
+      .where(
+        and(
+          tenantWhere(schema.cashRegisters, ctx),
+          eq(schema.cashRegisters.id, id),
+        ),
+      );
 
     this.log.info({ cashRegisterId: id }, "Cuenta banco actualizada");
-    return this.getBankAccountRow(id);
+    return this.getBankAccountRow(ctx, id);
   }
 
   /**
@@ -1015,12 +1061,20 @@ export class CashRegisterService {
    *
    * @throws NotFoundError cuando no existe o no es type='banco'.
    */
-  async closeBankAccount(id: number): Promise<{ balance: number }> {
-    const row = await this.getBankAccountRow(id);
+  async closeBankAccount(
+    ctx: TenantContext,
+    id: number,
+  ): Promise<{ balance: number }> {
+    const row = await this.getBankAccountRow(ctx, id);
     await this.db
       .update(schema.cashRegisters)
       .set({ isActive: false })
-      .where(eq(schema.cashRegisters.id, id));
+      .where(
+        and(
+          tenantWhere(schema.cashRegisters, ctx),
+          eq(schema.cashRegisters.id, id),
+        ),
+      );
     this.log.info({ cashRegisterId: id }, "Cuenta banco cerrada (baja lógica)");
     return { balance: row.balance };
   }
@@ -1031,14 +1085,22 @@ export class CashRegisterService {
    *
    * @throws NotFoundError cuando no existe o no es type='banco'.
    */
-  async reactivateBankAccount(id: number): Promise<BankAccountRow> {
-    await this.getBankAccountRow(id);
+  async reactivateBankAccount(
+    ctx: TenantContext,
+    id: number,
+  ): Promise<BankAccountRow> {
+    await this.getBankAccountRow(ctx, id);
     await this.db
       .update(schema.cashRegisters)
       .set({ isActive: true })
-      .where(eq(schema.cashRegisters.id, id));
+      .where(
+        and(
+          tenantWhere(schema.cashRegisters, ctx),
+          eq(schema.cashRegisters.id, id),
+        ),
+      );
     this.log.info({ cashRegisterId: id }, "Cuenta banco reactivada");
-    return this.getBankAccountRow(id);
+    return this.getBankAccountRow(ctx, id);
   }
 
   /**
@@ -1047,15 +1109,20 @@ export class CashRegisterService {
    * sumado con pendiente — CAJA-03). Compone getBalance por caja (patrón de
    * listActiveCajasWithBalance; a escala de un puñado de cuentas, sin N+1 real).
    */
-  async listBankAccounts(): Promise<BankAccountRow[]> {
+  async listBankAccounts(ctx: TenantContext): Promise<BankAccountRow[]> {
     const cajas = await this.db
       .select({ id: schema.cashRegisters.id })
       .from(schema.cashRegisters)
-      .where(eq(schema.cashRegisters.type, "banco"))
+      .where(
+        and(
+          tenantWhere(schema.cashRegisters, ctx),
+          eq(schema.cashRegisters.type, "banco"),
+        ),
+      )
       .orderBy(asc(schema.cashRegisters.id));
     const out: BankAccountRow[] = [];
     for (const c of cajas) {
-      out.push(await this.getBankAccountRow(c.id));
+      out.push(await this.getBankAccountRow(ctx, c.id));
     }
     return out;
   }

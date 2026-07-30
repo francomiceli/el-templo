@@ -1382,6 +1382,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           });
         }
         const account = await cashRegisterService.createBankAccount(
+          assertTenant(request.scope, "finance.bank-accounts.create"),
           request.body,
         );
         return reply.code(201).send({ account });
@@ -1433,6 +1434,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           });
         }
         const account = await cashRegisterService.updateBankAccount(
+          assertTenant(request.scope, "finance.bank-accounts.update"),
           request.params.id,
           request.body,
         );
@@ -1455,10 +1457,14 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
             message: "No tienes permiso para administrar cuentas bancarias",
           });
         }
+        // El ctx se usa dos veces en este handler → variable (analog de
+        // coach-load-routes L972), no dos `assertTenant` inline.
+        const ctx = assertTenant(request.scope, "finance.bank-accounts.close");
         const { balance } = await cashRegisterService.closeBankAccount(
+          ctx,
           request.params.id,
         );
-        const accounts = await cashRegisterService.listBankAccounts();
+        const accounts = await cashRegisterService.listBankAccounts(ctx);
         const account = accounts.find((a) => a.id === request.params.id);
         return reply.code(200).send({ account, balance });
       } catch (err: unknown) {
@@ -1480,6 +1486,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           });
         }
         const account = await cashRegisterService.reactivateBankAccount(
+          assertTenant(request.scope, "finance.bank-accounts.reactivate"),
           request.params.id,
         );
         return reply.code(200).send({ account });
@@ -1498,7 +1505,9 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           message: "No tienes permiso para administrar cuentas bancarias",
         });
       }
-      const accounts = await cashRegisterService.listBankAccounts();
+      const accounts = await cashRegisterService.listBankAccounts(
+        assertTenant(request.scope, "finance.bank-accounts.list"),
+      );
       return reply.code(200).send({ accounts });
     } catch (err: unknown) {
       handleServiceError(err, reply, request.log, "list bank accounts");
