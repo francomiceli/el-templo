@@ -309,6 +309,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           : "validado";
 
         const detail = await transactionService.create(
+          assertTenant(request.scope, "finance.transactions.create"),
           { ...request.body, validationStatus: initialStatus },
           request.user.userId,
         );
@@ -390,6 +391,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
         // VAL-06 / D-10: keepMembershipActive default true (sub untouched).
         // When false, void() cancels the linked subscription atomically.
         const detail = await transactionService.void(
+          assertTenant(request.scope, "finance.transactions.void"),
           request.params.id,
           request.user.userId,
           {
@@ -427,6 +429,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
         // CAJA-02/CAJA-03: gestion confirma/cambia la caja imputada (opcional).
         // El guard de coherencia (existe/activa/moneda) vive en validate().
         const detail = await transactionService.validate(
+          assertTenant(request.scope, "finance.transactions.validate"),
           request.params.id,
           request.user.userId,
           request.body?.cashRegisterId,
@@ -464,6 +467,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           });
         }
         const items = await transactionService.listPendingMiscForMember(
+          assertTenant(request.scope, "finance.transactions.pending-misc"),
           request.params.memberId,
         );
         return { items };
@@ -500,6 +504,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           });
         }
         const detail = await transactionService.observe(
+          assertTenant(request.scope, "finance.transactions.observe"),
           request.params.id,
           request.user.userId,
           { reason: request.body.reason },
@@ -544,6 +549,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           });
         }
         const detail = await transactionService.correct(
+          assertTenant(request.scope, "finance.transactions.correct"),
           request.params.id,
           request.body.correctedFields,
           request.user.userId,
@@ -800,7 +806,10 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           page: request.query.page,
           limit: request.query.limit,
         };
-        return await transactionService.list(filters);
+        return await transactionService.list(
+          assertTenant(request.scope, "finance.transactions.list"),
+          filters,
+        );
       } catch (err: unknown) {
         handleServiceError(
           err,
@@ -850,7 +859,10 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           dateFrom: request.query.dateFrom,
           dateTo: request.query.dateTo,
         };
-        return await transactionService.getSummary(filters);
+        return await transactionService.getSummary(
+          assertTenant(request.scope, "finance.transactions.summary"),
+          filters,
+        );
       } catch (err: unknown) {
         handleServiceError(
           err,
@@ -917,7 +929,10 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           search: request.query.search,
         };
 
-        const rows = await transactionService.exportRowsForExcel(filters);
+        const rows = await transactionService.exportRowsForExcel(
+          assertTenant(request.scope, "finance.transactions.export"),
+          filters,
+        );
 
         const workbook = new Workbook();
         workbook.creator = "El Templo";
@@ -1024,7 +1039,10 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
         page: request.query.page,
         limit: request.query.limit,
       };
-      return await transactionService.listPendingTray(filters);
+      return await transactionService.listPendingTray(
+        assertTenant(request.scope, "finance.pending-tray"),
+        filters,
+      );
     } catch (err: unknown) {
       handleServiceError(err, reply, request.log, "finance pending tray");
       return reply;
@@ -1067,7 +1085,10 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           limit: 200,
           page: 1,
         };
-        const result = await transactionService.listPendingTray(filters);
+        const result = await transactionService.listPendingTray(
+          assertTenant(request.scope, "finance.pending-tray.export"),
+          filters,
+        );
 
         const workbook = new Workbook();
         workbook.creator = "El Templo";
@@ -1627,7 +1648,10 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           page: request.query.page,
           limit: request.query.limit,
         };
-        return await transactionService.listMovEgresos(filters);
+        return await transactionService.listMovEgresos(
+          assertTenant(request.scope, "finance.movements-history"),
+          filters,
+        );
       } catch (err: unknown) {
         handleServiceError(
           err,
@@ -1675,7 +1699,10 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           limit: 200,
           page: 1,
         };
-        const result = await transactionService.listMovEgresos(filters);
+        const result = await transactionService.listMovEgresos(
+          assertTenant(request.scope, "finance.movements-history.export"),
+          filters,
+        );
 
         const workbook = new Workbook();
         workbook.creator = "El Templo";

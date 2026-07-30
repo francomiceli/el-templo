@@ -431,6 +431,11 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
         branchId: chosenBranchId,
       } = request.body;
       try {
+        // Fase 172 (ADO-01): el gimnasio se resuelve UNA vez por handler y se
+        // reusa — este handler llama a varios metodos del service y a
+        // validateBankAccountForCharge, y un solo assertTenant deja un unico
+        // 403 TENANT_UNRESOLVED que nombra la ruta.
+        const ctx = assertTenant(request.scope, "coach-load.pay-plan");
         // Outstanding debt on the member's CURRENT sub (active/paused/scheduled)
         // decides settle vs renew. getMemberSubscription excludes expired subs
         // (those are the renewal case), so a null sub here just means "nothing
@@ -478,7 +483,7 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
           // directa del charge. Para cash queda undefined → create resuelve la
           // caja EFECTIVO desde `branchId` (la sede del cobro).
           const chosenBankAccountId = await validateBankAccountForCharge(
-            assertTenant(request.scope, "coach-load.bank-accounts.pay-plan"),
+            ctx,
             paymentMethod,
             bankAccountId,
             async () => sub.currency,
@@ -491,6 +496,7 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
             : "validado";
 
           const detail = await transactionService.create(
+            ctx,
             {
               memberId: userId,
               kind: "debt_settlement",
@@ -535,13 +541,13 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
         // renovable. Para cash queda undefined → la caja se resuelve desde la sede
         // del cobro (renewBranchId).
         const chosenBankAccountId = await validateBankAccountForCharge(
-          assertTenant(request.scope, "coach-load.bank-accounts.renew"),
+          ctx,
           paymentMethod,
           bankAccountId,
           () => resolveRenewCurrency(userId),
         );
         const subscription = await subscriptionService.renewSubscription(
-          assertTenant(request.scope, "coach-load.renew"),
+          ctx,
           userId,
           {
             paymentMethod,
@@ -562,16 +568,20 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
         );
         // The charge carries the idempotencyKey (renewalPrice>0 → a charge was
         // created); a free renewal (price 0) produces no charge → transaction null.
-        const transaction =
-          await transactionService.findByIdempotencyKey(idempotencyKey);
+        const transaction = await transactionService.findByIdempotencyKey(
+          ctx,
+          idempotencyKey,
+        );
         return reply.code(201).send({ subscription, transaction });
       } catch (err: unknown) {
         // D-09 / Pitfall 3: a duplicate idempotency key means this exact load
         // already happened — the settle/renewal tx rolled back wholesale. Re-read
         // the existing charge (fresh connection) and return it as a 200 no-op.
         if (isDuplicateKeyError(err).isDuplicate) {
-          const existing =
-            await transactionService.findByIdempotencyKey(idempotencyKey);
+          const existing = await transactionService.findByIdempotencyKey(
+            assertTenant(request.scope, "coach-load.pay-plan.replay"),
+            idempotencyKey,
+          );
           if (existing) {
             const subscription =
               await subscriptionService.getMemberSubscription(userId);
@@ -603,6 +613,11 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       const today = new Date().toISOString().split("T")[0];
       try {
+        // Fase 172 (ADO-01): el gimnasio se resuelve UNA vez por handler y se
+        // reusa — este handler llama a varios metodos del service y a
+        // validateBankAccountForCharge, y un solo assertTenant deja un unico
+        // 403 TENANT_UNRESOLVED que nombra la ruta.
+        const ctx = assertTenant(request.scope, "coach-load.misc");
         // CR-CAJA: sede del cobro = la elegida en el select (gated) o, por
         // default, la del socio. Es el branch_id del ledger Y la sede desde la que
         // create() resuelve la caja de efectivo.
@@ -614,7 +629,7 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
         // directa del charge. Para cash queda undefined → create resuelve la caja
         // EFECTIVO desde `branchId` (la sede del cobro).
         const chosenBankAccountId = await validateBankAccountForCharge(
-          assertTenant(request.scope, "coach-load.bank-accounts.misc"),
+          ctx,
           request.body.paymentMethod,
           request.body.bankAccountId,
           async () => currency,
@@ -627,6 +642,7 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
           : "validado";
 
         const detail = await transactionService.create(
+          ctx,
           {
             memberId: request.body.memberId,
             kind: "advance_payment",
@@ -661,6 +677,7 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
         // D-09: idempotent no-op on a duplicate key — re-read + return existing.
         if (isDuplicateKeyError(err).isDuplicate) {
           const existing = await transactionService.findByIdempotencyKey(
+            assertTenant(request.scope, "coach-load.misc.replay"),
             request.body.idempotencyKey,
           );
           if (existing) {
@@ -703,6 +720,11 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       const body = request.body;
       try {
+        // Fase 172 (ADO-01): el gimnasio se resuelve UNA vez por handler y se
+        // reusa — este handler llama a varios metodos del service y a
+        // validateBankAccountForCharge, y un solo assertTenant deja un unico
+        // 403 TENANT_UNRESOLVED que nombra la ruta.
+        const ctx = assertTenant(request.scope, "coach-load.alta");
         // ── Idempotencia (D-09 / W-1): replay-short-circuit ANTES de assignPlan ──
         // Un doble-submit con el MISMO idempotencyKey NO puede caer al catch de
         // abajo: en el replay el alumno ya tiene la sub activa del 1er POST, así
@@ -710,6 +732,7 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
         // re-insertar el charge. Por eso re-leemos acá el charge ya persistido (el
         // alumno + charge nacieron atómicos en el 1er POST) y devolvemos 200 no-op.
         const replay = await transactionService.findByIdempotencyKey(
+          ctx,
           body.idempotencyKey,
         );
         if (replay) {
@@ -721,7 +744,7 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
         // acá con 400 sin efectos colaterales (no se crea alumno ni sub). La
         // moneda del cobro es la del plan elegido.
         const chosenBankAccountId = await validateBankAccountForCharge(
-          assertTenant(request.scope, "coach-load.bank-accounts.alta"),
+          ctx,
           body.paymentMethod,
           body.bankAccountId,
           () => resolvePlanCurrency(body.planId),
@@ -780,7 +803,7 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
         const today = new Date().toISOString().split("T")[0];
 
         const subscription = await subscriptionService.assignPlan(
-          assertTenant(request.scope, "coach-load.assign"),
+          ctx,
           memberId,
           {
             planId: body.planId,
@@ -809,6 +832,7 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
         // El plan_charge lleva el idempotencyKey (precio>0 → hubo charge). Un
         // alta gratis (precio 0) no produce charge → transaction null.
         const transaction = await transactionService.findByIdempotencyKey(
+          ctx,
           body.idempotencyKey,
         );
         request.log.info(
@@ -835,6 +859,7 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
         // y devolverlo como 200 no-op.
         if (isDuplicateKeyError(err).isDuplicate) {
           const existing = await transactionService.findByIdempotencyKey(
+            assertTenant(request.scope, "coach-load.alta.replay"),
             body.idempotencyKey,
           );
           if (existing) {
@@ -1026,12 +1051,15 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
   // ===================================================================
   fastify.get("/mis-cargas", async (request, reply) => {
     try {
-      const result = await transactionService.list({
-        ...(request.user.role === "coach"
-          ? { recordedBy: request.user.userId }
-          : {}),
-        limit: 50,
-      });
+      const result = await transactionService.list(
+        assertTenant(request.scope, "coach-load.mis-cargas"),
+        {
+          ...(request.user.role === "coach"
+            ? { recordedBy: request.user.userId }
+            : {}),
+          limit: 50,
+        },
+      );
       return reply.send(result);
     } catch (err: unknown) {
       handleServiceError(err, reply, request.log, "coach mis-cargas");
