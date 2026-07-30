@@ -4,13 +4,13 @@ milestone: v6.0
 milestone_name: "Tenancy — El Templo pasa a ser tenant #1"
 status: executing
 stopped_at: Completed 172-01-PLAN.md
-last_updated: "2026-07-30T20:23:48.332Z"
+last_updated: "2026-07-30T20:45:07.517Z"
 last_activity: 2026-07-30
 progress:
   total_phases: 11
   completed_phases: 4
   total_plans: 59
-  completed_plans: 29
+  completed_plans: 30
   percent: 36
 ---
 
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (milestone v6.0 initialized 2026-07-26)
 ## Current Position
 
 Phase: 172 (adopci-n-1-piloto-finance) — EXECUTING
-Plan: 2 of 23
+Plan: 3 of 23
 Status: Ready to execute
-Last activity: 2026-07-30 -- 172-01 cerrado (base de ejecución + gate D-13)
+Last activity: 2026-07-30
 Next: `/gsd:execute-phase 172` sigue por el plan **172-02**. En paralelo sigue pendiente el plan **169-09**, el último de la fase 169 (gate consolidado + rollout), y siguen pendientes
 
 **Worktree de la fase 172:** `/home/franco/projects/et-172`, rama `feat/172-adopcion-finance`, base `a6272df0` = `origin/master` **con CR-CAJA adentro** (los 3 commits `1f033f62`/`362d795a`/`a6272df0` encima del tren `29e61c8b` de las fases 170+171). Se eligió esa base y no `29e61c8b` porque CR-CAJA reescribió `finance/coach-load-routes.ts` y `subscriptions/service.ts`, que son **dos de los archivos que esta fase migra**: partir de antes garantizaba conflicto sobre exactamente las líneas en juego. **A diferencia de las fases 166-170, este worktree tiene `node_modules` PROPIO** (`pnpm install --frozen-lockfile` en `el-templo-api`, 3,4 s con el store caliente, lockfile byte-idéntico md5 `5f468b75…`): no hay symlink que crear ni borrar alrededor de los commits. `.env` y `.env.development` copiados desde `et-170-sentinel`. **Al branch se le sacó el upstream** — `git worktree add -b … origin/master` lo dejaba trackeando `origin/master`, y en este repo un `git push` sin argumentos a master **es un deploy a producción**. **Baseline verde registrado antes de tocar una línea:** `tsc --noEmit` exit 0, `pnpm lint:tenant` exit 0 con `DISCREPANCIAS: 0`, **allowlist en 501 entradas** (la línea de partida contra la que D-06 mide el descenso a 0 en `finance`) y 10 exenciones `tenant-safe` heredadas, **ninguna de finance**. Dos banderas para los planes siguientes: (1) el install dejó **build scripts sin aprobar** (`argon2`, `esbuild`, `@firebase/util`, `protobufjs`) — si un test con MySQL real falla por el binding nativo de `argon2`, la salida es `pnpm approve-builds`, que es **gate humano de dependencias**, no una decisión de oficio; (2) `.docs/saas-multitenancy/` **no está versionada**, así que no existe en el worktree — el plan que escriba `07-receta-adopcion.md` (D-11) tiene que crearlo en el checkout principal. **ADO-01 sigue Pending a propósito:** lo citan 18 de los 23 planes y el requisito es "`finance` migrado al patrón completo"; lo cierra el gate consolidado del final de la fase, no este plan.
@@ -411,6 +411,7 @@ _Updated after each plan completion_
 | Phase 169 P06 | ~15min | 2 tasks | 5 files |
 | Phase 169 P08 | ~17min | 2 tasks | 3 files |
 | Phase 172 P01 | 6min | 2 tasks | 0 files |
+| Phase 172 P02 | 55min | 2 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -887,6 +888,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: 172-01: el worktree et-172 se creó desde a6272df0 (origin/master CON CR-CAJA), no desde 29e61c8b — CR-CAJA reescribió coach-load-routes.ts y subscriptions/service.ts, los dos archivos que la fase migra
 - [Phase ?]: 172-01: node_modules propio con pnpm install --frozen-lockfile en vez del symlink de las fases 166-170 (3,4 s con el store caliente) — 23 planes no aguantan el ritual de crear y borrar el symlink alrededor de cada commit
 - [Phase ?]: 172-01: al branch de fase se le sacó el upstream (git worktree add lo dejó trackeando origin/master, y en este repo todo push a master es un deploy a prod)
+- [Phase ?]: 172-02: el tenantWhere va en el statement de la QUERY (el lint razona por statement); los fragmentos sql de fecha viajan por helper con la columna como parametro
+- [Phase ?]: 172-02: scopear un statement paga la deuda de todas las tablas que joinea — 172-21 debe borrar 9 entradas de allowlist, no 6
 
 ### Pending Todos
 
@@ -919,7 +922,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-30T20:23:48.303Z
+Last session: 2026-07-30T20:44:55.084Z
 Stopped at: Completed 172-01-PLAN.md
 Resume file: None
 
