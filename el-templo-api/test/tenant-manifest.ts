@@ -25,9 +25,18 @@
 //
 // Volcado del 2026-07-29 sobre `feat/170-sentinel-lint`: 569 eventos `onRoute`,
 // 199 de ellos `HEAD` sintéticos, **370 rutas** clasificadas acá — 221
-// `tenant-scoped`, 138 `templo-module` (102 training, 32 marketing, 3
-// onboarding, 1 gamification) y 11 `global`. 0 claves duplicadas, 0 `HEAD`
+// `tenant-scoped`, 141 `templo-module` (102 training, 35 marketing, 3
+// onboarding, 1 gamification) y 8 `global`. 0 claves duplicadas, 0 `HEAD`
 // huérfanos.
+//
+// Ese reparto es el APROBADO en el checkpoint del plan 171-06 (Franco,
+// 2026-07-29). El volcado del plan 171-02 había propuesto 221 / 11 / 138; la
+// única diferencia son las 3 rutas de `labs-inquiries`, que pasaron de `global`
+// a `templo-marketing` por decisión de Franco (ver el veredicto del caso 3, en
+// el bloque templo-marketing · app-landing). Por eso se movieron SOLO dos
+// números —`global` 11 → 8 y `templo-module` 138 → 141— y `tenant-scoped` quedó
+// en 221: las tres rutas salieron de `global`, no de la masa. El TOTAL tampoco
+// se movió: una recategorización cambia la etiqueta, no la cantidad de rutas.
 //
 // Siguiendo D-16 de la fase 170: **no se commitea ningún
 // regenerador**. Refrescar la lista con un script convertiría la clasificación
@@ -123,12 +132,21 @@ export interface EntradaManifiesto {
  *
  * 370 entradas, una por ruta exacta (D-01). Orden: plataforma, auth, los
  * prefijos del API alfabéticamente, y al final los cuatro bloques `templo-*`.
- * Reparto: 221 `tenant-scoped` · 11 `global` · 138 `templo-module`.
+ * Reparto: 221 `tenant-scoped` · 8 `global` · 141 `templo-module`.
  *
- * Las rutas que el plan 171-02 no pudo cerrar solo llevan arriba un comentario
- * que arranca con `D-04 dudosa:` — son las que van al checkpoint humano con la
- * recomendación escrita acá y el porqué en `171-CLASIFICACION.md`. Si Franco
- * decide distinto, el plan 171-06 corrige la entrada Y borra el comentario.
+ * La clasificación está APROBADA por el dueño del producto: Franco revisó las
+ * dos listas peligrosas (`global` entera y las fronteras de `templo-module`) y
+ * los 14 grupos dudosos uno por uno en el checkpoint del plan 171-06, el
+ * 2026-07-29 (D-03 / D-04). Cada grupo que estuvo en duda lleva arriba un
+ * comentario que arranca con `D-04 veredicto:` con la decisión y su fuente: la
+ * duda existió, y su resolución es información que se conserva. No queda
+ * ninguna duda abierta.
+ *
+ * El único override sobre la recomendación del plan 171-02 fue el de las tres
+ * rutas de `labs-inquiries`, que pasaron de `global` a `templo-marketing` (bajó
+ * `global` de 11 a 8 y subió `templo-module` de 138 a 141; `tenant-scoped` no se
+ * movió). Está registrado en `171-CLASIFICACION.md`, sección C caso 3, con el
+ * motivo textual de Franco.
  *
  * El precedente de "el registro existe con el motivo al lado" es
  * `TENANT_GLOBAL_UNIQUES` de `src/db/tenant-tables.ts`: la única forma de
@@ -163,11 +181,18 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
     motivo:
       "Invalida el refresh token del portador y no lee ni escribe una sola fila de datos de un gimnasio.",
   },
-  // D-04 dudosa: pública y sin sesión, pero crea una fila gym-owned; hoy cae en
-  // el DEFAULT 1 de la columna porque auth no es tenant-aware hasta la fase 175.
+  // D-04 veredicto (caso 1): confirmada `tenant-scoped`. Es pública y sin sesión
+  // como sus tres hermanas `global`, pero CREA una fila gym-owned, y eso manda.
+  // Hoy cae en el DEFAULT 1 de la columna porque auth no es tenant-aware hasta la
+  // fase 175 (ADO-06). Aprobado por Franco en el checkpoint del plan 171-06,
+  // 2026-07-29.
   "POST /api/auth/register": { categoria: "tenant-scoped" },
-  // D-04 dudosa: las tres son self-scoped por el token, pero cuelgan del prefijo
-  // /api/auth, que en sus otras rutas es global.
+  // D-04 veredicto (caso 2): confirmadas `tenant-scoped`. Son self-scoped por el
+  // token del portador; que cuelguen de /api/auth —global en sus otras rutas— es
+  // una frontera de prefijo, no un argumento. Sin conflicto documental. Aprobado
+  // por Franco en el checkpoint del plan 171-06, 2026-07-29. Nota de exactitud:
+  // las dos últimas se registran como POST, no como PATCH/DELETE que anotaba el
+  // RESEARCH — el volcado del app real es la única fuente válida de la clave.
   "GET /api/auth/me": { categoria: "tenant-scoped" },
   "POST /api/auth/me/change-password": { categoria: "tenant-scoped" },
   "POST /api/auth/me/delete-account": { categoria: "tenant-scoped" },
@@ -331,9 +356,11 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   "PUT /api/admin/members/:userId/password": { categoria: "tenant-scoped" },
 
   // ── /api/admin/ratings ────────────────────────────────────────────────────
-  // D-04 dudosa: "rating de clase" suena a feature Templo, pero `coach_ratings`
-  // es tabla core y la usa cualquier gimnasio que tenga coaches (idem
-  // /api/members/ratings más abajo).
+  // D-04 veredicto (caso 6): confirmadas `tenant-scoped` (core). "Rating de clase"
+  // suena a feature Templo, pero `coach_ratings` es tabla core y la usa cualquier
+  // gimnasio que tenga coaches; el doc 04 §2.1 no lista `ratings` en ningún
+  // módulo. Aprobado por Franco en el checkpoint del plan 171-06, 2026-07-29
+  // (idem /api/members/ratings más abajo, caso 7).
   "GET /api/admin/ratings": { categoria: "tenant-scoped" },
   "GET /api/admin/ratings/coaches": { categoria: "tenant-scoped" },
   "GET /api/admin/ratings/roster": { categoria: "tenant-scoped" },
@@ -507,26 +534,9 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   },
   "PUT /api/admin/users/:userId": { categoria: "tenant-scoped" },
 
-  // ── /api/app — leads de la PLATAFORMA (el prefijo se parte: el waitlist vive
-  //    en templo-marketing, más abajo) ─────────────────────────────────────────
-  // D-04 dudosa: conflicto real de docs — el doc 04 §2.1 mete `app-landing` en
-  // templo-marketing, pero la decisión Q2 del doc 06 §8 declara `labs_inquiries`
-  // tabla de PLATAFORMA. Se sigue Q2 y se parte el prefijo.
-  "POST /api/app/labs-inquiry": {
-    categoria: "global",
-    motivo:
-      "Lead del propio SaaS y no de un gimnasio: `labs_inquiries` es tabla de plataforma por la decisión Q2 del doc 06 §8, así que la fila nace sin dueño de gimnasio.",
-  },
-  "GET /api/app/admin/labs-inquiries": {
-    categoria: "global",
-    motivo:
-      "Bandeja de los leads de la plataforma: quien la lee es el dueño del SaaS y necesita verlos todos, no el staff de un gimnasio (decisión Q2 del doc 06 §8).",
-  },
-  "PATCH /api/app/admin/labs-inquiries/:id/status": {
-    categoria: "global",
-    motivo:
-      "Gestiona el estado de un lead de la plataforma sobre la misma tabla global de Q2; el que lo mueve es el dueño del SaaS.",
-  },
+  // ── /api/app ──────────────────────────────────────────────────────────────
+  // El prefijo entero vive en templo-marketing (app-landing), más abajo: no se
+  // parte. Ver el veredicto del caso 3 del checkpoint 171-06.
 
   // ── /api/campaigns ────────────────────────────────────────────────────────
   "GET /api/campaigns/admin": { categoria: "tenant-scoped" },
@@ -536,9 +546,16 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   "POST /api/campaigns/admin": { categoria: "tenant-scoped" },
   "POST /api/campaigns/admin/:id/send": { categoria: "tenant-scoped" },
   "POST /api/campaigns/admin/:id/test": { categoria: "tenant-scoped" },
-  // D-04 dudosa: son públicas y se resuelven por token, pero la decisión Q5 del
-  // doc 06 §8 hizo la supresión de unsubscribes POR TENANT (`uq (tenant_id,
-  // email)`) — marcarlas `global` contradiría esa decisión.
+  // D-04 veredicto (caso 5 — el segundo conflicto de docs): confirmadas
+  // `tenant-scoped`, NO `global`. Son públicas y se resuelven por token, que es el
+  // perfil típico de una `global`, pero la decisión Q5 del doc 06 §8 hizo la
+  // supresión de unsubscribes POR TENANT (`uq (tenant_id, email)`): marcarlas
+  // `global` contradiría esa decisión y dejaría Q5 sin backstop en la fase 175.
+  // Aprobado por Franco en el checkpoint del plan 171-06, 2026-07-29, con una
+  // salvedad textual que es material de PLANNING de la fase 175 y no cambia la
+  // clasificación de hoy: "queda por verificar si campaigns está realmente
+  // preparado para que cada tenant lo use (armando su propia campaña con su
+  // propio mail saliente, etc.) — es material de la fase 175 (adopción)".
   "GET /api/campaigns/track/click": { categoria: "tenant-scoped" },
   "GET /api/campaigns/track/open": { categoria: "tenant-scoped" },
   "GET /api/campaigns/unsubscribe": { categoria: "tenant-scoped" },
@@ -554,7 +571,9 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   "POST /api/members/improvement-proposals": { categoria: "tenant-scoped" },
 
   // ── /api/members/ratings ──────────────────────────────────────────────────
-  // D-04 dudosa: misma duda que /api/admin/ratings — `coach_ratings` es core.
+  // D-04 veredicto (caso 7): confirmadas `tenant-scoped` (core). Misma duda que
+  // /api/admin/ratings y misma razón: `coach_ratings` es tabla core. Aprobado por
+  // Franco en el checkpoint del plan 171-06, 2026-07-29.
   "GET /api/members/ratings/pending": { categoria: "tenant-scoped" },
   "POST /api/members/ratings": { categoria: "tenant-scoped" },
 
@@ -610,8 +629,11 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
     motivo:
       "Pre-claim: el televisor poll-ea su device code sin sesión ni sede asignada, así que la fila que consulta todavía no pertenece a ningún gimnasio.",
   },
-  // D-04 dudosa: post-claim — el televisor no tiene JWT ni scope, pero el tenant
-  // ya sale de la fila reclamada, a diferencia de las dos rutas de pairing.
+  // D-04 veredicto (caso 8): confirmadas `tenant-scoped`. El televisor no tiene
+  // JWT ni scope, igual que las dos rutas de pairing que sí son `global`, pero
+  // éstas son POST-claim: el tenant sale de la fila ya reclamada y no de una fila
+  // pre-claim sin dueño. Aprobado por Franco en el checkpoint del plan 171-06,
+  // 2026-07-29.
   "GET /api/tv/me": { categoria: "tenant-scoped" },
   "GET /api/tv/state": { categoria: "tenant-scoped" },
   "POST /api/tv/client-log": { categoria: "tenant-scoped" },
@@ -1014,8 +1036,11 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
     categoria: "templo-module",
     modulo: "templo-training",
   },
-  // D-04 dudosa: viven bajo /api/members/me, que en el resto es core, pero lo que
-  // sirven es el programa de entrenamiento y sus inscripciones.
+  // D-04 veredicto (caso 9): confirmadas `templo-training`. Viven bajo
+  // /api/members/me, que en el resto del API es core, pero lo que sirven es el
+  // programa de ENTRENAMIENTO y sus inscripciones, y el doc 04 §2.1 pone
+  // `programs` en templo-training. Aprobado por Franco en el checkpoint del plan
+  // 171-06, 2026-07-29.
   "GET /api/members/me/current-program": {
     categoria: "templo-module",
     modulo: "templo-training",
@@ -1030,9 +1055,11 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   },
 
   // ── templo-training · check-ins ───────────────────────────────────────────
-  // D-04 dudosa: el doc 04 §2.1 lista `check-ins` como Templo; el nombre se
-  // confunde con el check-in de asistencia (POST /api/members/attendance/check-in),
-  // que es CORE y queda tenant-scoped.
+  // D-04 veredicto (caso 10): confirmadas `templo-training`. El doc 04 §2.1 lista
+  // `check-ins` (el feature de entrenamiento) como Templo. TRAMPA DE NOMBRE que la
+  // revisión confirmó a propósito: NO es el check-in de asistencia
+  // (POST /api/members/attendance/check-in), que es CORE y quedó tenant-scoped.
+  // Aprobado por Franco en el checkpoint del plan 171-06, 2026-07-29.
   "GET /api/admin/check-ins": {
     categoria: "templo-module",
     modulo: "templo-training",
@@ -1058,8 +1085,10 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   // Doc 04 §2.1: blog, academy, gladius, franchise, app-landing.
 
   // ── templo-marketing · blog ───────────────────────────────────────────────
-  // D-04 dudosa: son rutas públicas de eltemplo.org (contenido de marca), pero
-  // las tablas de blog son gym-owned.
+  // D-04 veredicto (caso 11): confirmadas `templo-marketing`. Son rutas públicas de
+  // eltemplo.org —contenido de marca, no del gimnasio— y el doc 04 §2.1 pone
+  // `blog` en templo-marketing; las tablas de blog son gym-owned. Aprobado por
+  // Franco en el checkpoint del plan 171-06, 2026-07-29.
   "DELETE /api/blog/admin/posts/:id": {
     categoria: "templo-module",
     modulo: "templo-marketing",
@@ -1126,8 +1155,10 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   },
 
   // ── templo-marketing · academy ────────────────────────────────────────────
-  // D-04 dudosa: la academia es formación de marca, pero `academy_inquiries` es
-  // gym-owned.
+  // D-04 veredicto (caso 12): confirmadas `templo-marketing`. La academia es
+  // formación de marca y el doc 04 §2.1 pone `academy` en templo-marketing;
+  // `academy_inquiries` es gym-owned. Aprobado por Franco en el checkpoint del
+  // plan 171-06, 2026-07-29.
   "GET /api/academy/admin/inquiries": {
     categoria: "templo-module",
     modulo: "templo-marketing",
@@ -1138,8 +1169,10 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   },
 
   // ── templo-marketing · gladius ────────────────────────────────────────────
-  // D-04 dudosa: tienda pública de la marca, pero `gladius_products` y sus
-  // consultas son gym-owned.
+  // D-04 veredicto (caso 13): confirmadas `templo-marketing`. Tienda pública de la
+  // marca y el doc 04 §2.1 pone `gladius` en templo-marketing; `gladius_products`
+  // y sus consultas son gym-owned. Aprobado por Franco en el checkpoint del plan
+  // 171-06, 2026-07-29.
   "DELETE /api/gladius/admin/products/:id": {
     categoria: "templo-module",
     modulo: "templo-marketing",
@@ -1170,8 +1203,12 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   },
 
   // ── templo-marketing · franchise ──────────────────────────────────────────
-  // D-04 dudosa: franquiciar "El Templo" es la marca y no el gimnasio —roza
-  // plataforma—, pero el doc 04 §2.1 lo pone en templo-marketing.
+  // D-04 veredicto (caso 14): confirmadas `templo-marketing`. Franquiciar "El
+  // Templo" es la MARCA y no el gimnasio —roza plataforma, como las labs-inquiries
+  // del caso 3—, pero el doc 04 §2.1 lo pone en templo-marketing y ninguna decisión
+  // del doc 06 §8 lo contradice. Aprobado por Franco en el checkpoint del plan
+  // 171-06, 2026-07-29, en la misma dirección que el override del caso 3: lo de la
+  // marca es del Templo, o sea tenant #1, no de la plataforma.
   "GET /api/franchise/admin/applications": {
     categoria: "templo-module",
     modulo: "templo-marketing",
@@ -1193,14 +1230,39 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
     modulo: "templo-marketing",
   },
 
-  // ── templo-marketing · app-landing (waitlist) ─────────────────────────────
-  // D-04 dudosa: comparten el prefijo /api/app con las labs-inquiries de arriba,
-  // pero `app_waitlist` SÍ es gym-owned, así que se quedan en templo-marketing.
+  // ── templo-marketing · app-landing (waitlist + labs-inquiries) ────────────
+  // D-04 veredicto (caso 4): confirmada `templo-marketing`. `app_waitlist` SÍ es
+  // gym-owned y el doc 04 §2.1 la pone acá. Aprobado por Franco en el checkpoint
+  // del plan 171-06, 2026-07-29.
   "GET /api/app/admin/waitlist": {
     categoria: "templo-module",
     modulo: "templo-marketing",
   },
   "POST /api/app/waitlist": {
+    categoria: "templo-module",
+    modulo: "templo-marketing",
+  },
+  // D-04 veredicto (caso 3 — OVERRIDE, el único de la revisión): estas tres eran
+  // el conflicto real de documentación. El plan 171-02 las recomendaba `global`
+  // siguiendo la decisión Q2 del doc 06 §8 (`labs_inquiries` = tabla de
+  // PLATAFORMA, leads del propio SaaS). Franco decidió lo contrario en el
+  // checkpoint del plan 171-06, el 2026-07-29, con estas palabras: "todo eso es
+  // parte del Templo". Van a `templo-marketing`, o sea que para la clasificación
+  // de RUTAS gana el mapeo carpeta → módulo del doc 04 §2.1 (`app-landing`
+  // entero es templo-marketing) por sobre la recomendación Q2-global, y el
+  // prefijo /api/app deja de partirse. Fuente: veredicto de Franco en el
+  // checkpoint 171-06 (2026-07-29), registrado en 171-CLASIFICACION.md §C caso
+  // 3; supersede la recomendación Q2-global PARA ESTAS RUTAS. Consecuencia
+  // buscada: quedan protegidas por el aislamiento en vez de exentas.
+  "GET /api/app/admin/labs-inquiries": {
+    categoria: "templo-module",
+    modulo: "templo-marketing",
+  },
+  "PATCH /api/app/admin/labs-inquiries/:id/status": {
+    categoria: "templo-module",
+    modulo: "templo-marketing",
+  },
+  "POST /api/app/labs-inquiry": {
     categoria: "templo-module",
     modulo: "templo-marketing",
   },
