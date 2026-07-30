@@ -102,9 +102,17 @@ import {
 
 /**
  * Conteo del baseline volcado el 2026-07-29 sobre `feat/170-sentinel-lint`
- * (plan 171-02): 370 rutas — 221 `tenant-scoped`, 11 `global`, 138
- * `templo-module`. Mover este número es una DECISIÓN, no un detalle: ver el
- * cuarto test.
+ * (plan 171-02): **370 rutas**. Mover este número es una DECISIÓN, no un
+ * detalle: ver el cuarto test.
+ *
+ * El reparto por categoría vigente es 221 `tenant-scoped` · 8 `global` · 141
+ * `templo-module`, aprobado por Franco en el checkpoint del plan 171-06
+ * (2026-07-29). Este archivo NO afirma el reparto por categoría a propósito, y
+ * por eso recategorizar una ruta no lo pone rojo: lo que el gate defiende es que
+ * NINGUNA ruta quede sin clasificar (los dos tests bidireccionales) y que la
+ * forma de cada entrada se sostenga (`sinMotivo` / `sinModulo` /
+ * `categoriaInvalida`). Quién va en qué categoría es una decisión humana con
+ * dueño y fecha, registrada en `171-CLASIFICACION.md`, no una constante de test.
  */
 const ENTRADAS_BASELINE = 370;
 
