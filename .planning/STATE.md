@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: "Tenancy — El Templo pasa a ser tenant #1"
 status: executing
-stopped_at: Completed 172-03-PLAN.md
-last_updated: "2026-07-30T21:02:23.183Z"
+stopped_at: Completed 172-04-PLAN.md
+last_updated: "2026-07-30T21:13:13.808Z"
 last_activity: 2026-07-30
 progress:
   total_phases: 11
   completed_phases: 4
   total_plans: 59
-  completed_plans: 31
+  completed_plans: 32
   percent: 36
 ---
 
@@ -26,12 +26,14 @@ See: .planning/PROJECT.md (milestone v6.0 initialized 2026-07-26)
 ## Current Position
 
 Phase: 172 (adopci-n-1-piloto-finance) — EXECUTING
-Plan: 4 of 23
+Plan: 5 of 23
 Status: Ready to execute
 Last activity: 2026-07-30
-Next: `/gsd:execute-phase 172` sigue por el plan **172-04**. En paralelo sigue pendiente el plan **169-09**, el último de la fase 169 (gate consolidado + rollout), y siguen pendientes
+Next: `/gsd:execute-phase 172` sigue por el plan **172-05**. En paralelo sigue pendiente el plan **169-09**, el último de la fase 169 (gate consolidado + rollout), y siguen pendientes
 
-**Deuda de allowlist acumulada en `feat/172-adopcion-finance`: 13 entradas** (9 del plan 172-02 + 4 del 172-03). El archivo real `tenant-lint-allowlist.json` tiene **un solo dueño, el plan 172-21**, así que `pnpm lint:tenant` sin `--allowlist` sale **rojo con `DISCREPANCIAS: 13`** en esa rama — todas `staleNoLongerViolating`, o sea deuda ya pagada esperando que la borren. **No es una regresión, pero si la rama se mergea a `staging` antes del 172-21, CI queda rojo por esto.**
+**Deuda de allowlist acumulada en `feat/172-adopcion-finance`: 19 entradas** (9 del plan 172-02 + 4 del 172-03 + 6 del 172-04). El archivo real `tenant-lint-allowlist.json` tiene **un solo dueño, el plan 172-21**, así que `pnpm lint:tenant` sin `--allowlist` sale **rojo con `DISCREPANCIAS: 19`** en esa rama — todas `staleNoLongerViolating`, o sea deuda ya pagada esperando que la borren. **No es una regresión, pero si la rama se mergea a `staging` antes del 172-21, CI queda rojo por esto.**
+
+**Las 6 del 172-04:** `coach/service.ts` (`balances` + `users` colateral), `members/service.ts` (`balances`) y `scripts/backfill-historical-payments.ts` (`balances`, `financial_transactions`, `transaction_links`). El script de backfill histórico **ya no corre sin `--tenant`**: muere con exit **2** antes de leer una fila (verificado en vivo, igual que el `--tenant=999999` inexistente; con `--tenant=1` sigue y falla con **1** en el pre-flight de datos, que es la separación de códigos funcionando). **Aviso para el plan 172-07:** la firma de `MemberService.listMembers` cambió — el `ctx` va **primero** (`listMembers(ctx, params)`), y `members/routes.ts` ya lo resuelve con `assertTenant(request.scope, "members.list")`.
 
 **Worktree de la fase 172:** `/home/franco/projects/et-172`, rama `feat/172-adopcion-finance`, base `a6272df0` = `origin/master` **con CR-CAJA adentro** (los 3 commits `1f033f62`/`362d795a`/`a6272df0` encima del tren `29e61c8b` de las fases 170+171). Se eligió esa base y no `29e61c8b` porque CR-CAJA reescribió `finance/coach-load-routes.ts` y `subscriptions/service.ts`, que son **dos de los archivos que esta fase migra**: partir de antes garantizaba conflicto sobre exactamente las líneas en juego. **A diferencia de las fases 166-170, este worktree tiene `node_modules` PROPIO** (`pnpm install --frozen-lockfile` en `el-templo-api`, 3,4 s con el store caliente, lockfile byte-idéntico md5 `5f468b75…`): no hay symlink que crear ni borrar alrededor de los commits. `.env` y `.env.development` copiados desde `et-170-sentinel`. **Al branch se le sacó el upstream** — `git worktree add -b … origin/master` lo dejaba trackeando `origin/master`, y en este repo un `git push` sin argumentos a master **es un deploy a producción**. **Baseline verde registrado antes de tocar una línea:** `tsc --noEmit` exit 0, `pnpm lint:tenant` exit 0 con `DISCREPANCIAS: 0`, **allowlist en 501 entradas** (la línea de partida contra la que D-06 mide el descenso a 0 en `finance`) y 10 exenciones `tenant-safe` heredadas, **ninguna de finance**. Dos banderas para los planes siguientes: (1) el install dejó **build scripts sin aprobar** (`argon2`, `esbuild`, `@firebase/util`, `protobufjs`) — si un test con MySQL real falla por el binding nativo de `argon2`, la salida es `pnpm approve-builds`, que es **gate humano de dependencias**, no una decisión de oficio; (2) `.docs/saas-multitenancy/` **no está versionada**, así que no existe en el worktree — el plan que escriba `07-receta-adopcion.md` (D-11) tiene que crearlo en el checkout principal. **ADO-01 sigue Pending a propósito:** lo citan 18 de los 23 planes y el requisito es "`finance` migrado al patrón completo"; lo cierra el gate consolidado del final de la fase, no este plan.
 
@@ -415,6 +417,7 @@ _Updated after each plan completion_
 | Phase 172 P01 | 6min | 2 tasks | 0 files |
 | Phase 172 P02 | 55min | 2 tasks | 11 files |
 | Phase 172 P03 | 13min | 2 tasks | 2 files |
+| Phase 172 P04 | 11min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -895,6 +898,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: 172-02: scopear un statement paga la deuda de todas las tablas que joinea — 172-21 debe borrar 9 entradas de allowlist, no 6
 - [Phase ?]: 172-03: los helpers que devuelven fragmentos SQL reciben las COLUMNAS por parametro (buildOutstandingScope), no el ctx — el lint mide por statement y el filtro en el array no vuelve cumplidores a los pushes
 - [Phase ?]: 172-03: tenantWhere de tabla LEFT JOINeada va en el ON, nunca en el WHERE (en el WHERE el LEFT se vuelve INNER y desaparecen las deudas sin gestion)
+- [Phase ?]: 172-04: el tenantWhere va en el statement de la QUERY, no en el array de conditions — el array ni siquiera cuenta como acceso para el lint
+- [Phase ?]: 172-04: listMembers scopea TAMBIEN el EXISTS crudo de debtorOnly — sin el, el filtro de deudores miraba la deuda de todos los gimnasios
 
 ### Pending Todos
 
@@ -927,8 +932,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-30T21:02:23.160Z
-Stopped at: Completed 172-03-PLAN.md
+Last session: 2026-07-30T21:13:13.781Z
+Stopped at: Completed 172-04-PLAN.md
 Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z

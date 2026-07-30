@@ -4661,7 +4661,7 @@ toda la fase.
 3. Batería de aislamiento verde: cada ruta `tenant-scoped` de finance, ejecutada como staff del tenant A, **no lee ni escribe** filas del tenant B — lecturas vacías/404 y escrituras rechazadas, ruta por ruta según el manifiesto. El patrón queda documentado como plantilla para las fases de adopción siguientes. (ISO-03)
 4. Sin cambio para el staff: cobros, validación, caja, movimientos, egresos, deudas y exports dan los **mismos números** en staging antes y después (comparación explícita), y la suite existente pasa sin ajustar expectativas.
 
-**Plans:** 3/23 plans executed
+**Plans:** 4/23 plans executed
 
 Plans:
 
@@ -4673,7 +4673,7 @@ Plans:
 
 - [x] 172-02-PLAN.md — analytics ×4: queries finance scopeadas (cirugía mínima)
 - [x] 172-03-PLAN.md — reports/service.ts: 11 accesos + los 6 helpers que devuelven SQL
-- [ ] 172-04-PLAN.md — coach + members + retrofit CLI de backfill-historical-payments
+- [x] 172-04-PLAN.md — coach + members + retrofit CLI de backfill-historical-payments
 - [ ] 172-05-PLAN.md — script de snapshot D-12 + captura de la línea de base en staging
 - [ ] 172-06-PLAN.md — cash-register-service: cluster ABM (cajas, cuentas, centros de costo)
 
@@ -4808,7 +4808,7 @@ Plans:
 | 169. Capa de escritura — helpers y TenantContext  | 9/9            | Complete    | 2026-07-28 |
 | 170. Detección — sentinel de pool + lint CI       | 0/8            | Planned     |            |
 | 171. Backstop — manifiesto + fixtures 2-tenant    | 0/?            | Not started |            |
-| 172. Adopción 1 (piloto) — finance                | 3/23           | In Progress |            |
+| 172. Adopción 1 (piloto) — finance                | 4/23           | In Progress |            |
 | 173. Adopción 2 — members + guarda de anclas      | 0/?            | Not started |            |
 | 174. Adopción 3 — subscriptions + scheduling      | 0/?            | Not started |            |
 | 175. Adopción 4 — analytics + resto del core      | 0/?            | Not started |            |
