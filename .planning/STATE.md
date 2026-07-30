@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: "Tenancy — El Templo pasa a ser tenant #1"
 status: executing
-stopped_at: Completed 172-07-PLAN.md
-last_updated: "2026-07-30T23:14:10.615Z"
+stopped_at: Completed 172-08-PLAN.md
+last_updated: "2026-07-30T23:38:50.393Z"
 last_activity: 2026-07-30
 progress:
   total_phases: 11
   completed_phases: 4
   total_plans: 59
-  completed_plans: 35
+  completed_plans: 36
   percent: 36
 ---
 
@@ -26,12 +26,14 @@ See: .planning/PROJECT.md (milestone v6.0 initialized 2026-07-26)
 ## Current Position
 
 Phase: 172 (adopci-n-1-piloto-finance) — EXECUTING
-Plan: 8 of 23
+Plan: 9 of 23
 Status: Ready to execute
 Last activity: 2026-07-30
-Next: `/gsd:execute-phase 172` sigue por el plan **172-08** (la wave 3 arrancó: el 172-07 rompió el ciclo `transaction-service` ↔ `subscriptions`). En paralelo sigue pendiente el plan **169-09**, el último de la fase 169 (gate consolidado + rollout), y siguen pendientes
+Next: `/gsd:execute-phase 172` sigue por el plan **172-09** (la wave 4 quedó cerrada: el 172-08 puso `TenantContext` en las 21 firmas de `TransactionService`). En paralelo sigue pendiente el plan **169-09**, el último de la fase 169 (gate consolidado + rollout), y siguen pendientes
 
-**Deuda de allowlist acumulada en `feat/172-adopcion-finance`: 21 entradas** (9 del plan 172-02 + 4 del 172-03 + 6 del 172-04 + 2 del 172-06 + **0 del 172-07**, que migró 2 queries de un archivo con 18 entradas vivas y por lo tanto no mata ninguna). El archivo real `tenant-lint-allowlist.json` tiene **un solo dueño, el plan 172-21**, así que `pnpm lint:tenant` sin `--allowlist` sale **rojo con `DISCREPANCIAS: 21`** en esa rama — todas `staleNoLongerViolating`, o sea deuda ya pagada esperando que la borren. **No es una regresión, pero si la rama se mergea a `staging` antes del 172-21, CI queda rojo por esto.**
+**Deuda de allowlist acumulada en `feat/172-adopcion-finance`: 24 entradas** (9 del plan 172-02 + 4 del 172-03 + 6 del 172-04 + 2 del 172-06 + 0 del 172-07 + **3 del 172-08**, que son las 3 últimas de `subscriptions/service.ts` sobre tablas de finance: `balances`, `financial_transactions` y `transaction_links`). El archivo real `tenant-lint-allowlist.json` tiene **un solo dueño, el plan 172-21**, así que `pnpm lint:tenant` sin `--allowlist` sale **rojo con `DISCREPANCIAS: 24`** en esa rama — todas `staleNoLongerViolating`, o sea deuda ya pagada esperando que la borren. **No es una regresión, pero si la rama se mergea a `staging` antes del 172-21, CI queda rojo por esto.** La evidencia ejecutable vigente es `/tmp/allowlist-172-08.json` (477 entradas): el lint sale `DISCREPANCIAS: 0` y `unlistedViolations: 0` contra él.
+
+**172-08 cerrado — el compilador ya no deja ejecutar un cobro, una anulación, una validación, una observación ni una corrección sin gimnasio resuelto server-side.** Los **21 métodos** de `TransactionService` reciben `ctx: TenantContext` como **PRIMER** parámetro (antes del `tx` y antes de los ids), y con ellos el tipo `SubscriptionCanceller` —la única arista que sale de `finance` hacia otro módulo— y los **4 métodos públicos de `MovementService`**. `_cancelSubscription` recibe el `ctx` del `_void` que la invoca y sus 2 queries de tablas strict lo nombran (`tenantWhere` sobre `transaction_links` en el guard de cobros vivos y sobre `balances` en el colapso de deuda fantasma): **con eso mueren las 3 últimas entradas de allowlist de `subscriptions/service.ts`, que el 172-07 no había podido pagar** porque el ratchet razona por `(archivo, tabla)`. **37 call sites de producción** (33 con `assertTenant(request.scope, "<etiqueta que nombra la ruta>")`) y **192 de test** con `TEMPLO_CTX` del fixture. **Cuatro cosas que los planes siguientes tienen que dar por sentadas:** (1) **tener `ctx` ≠ estar migrado** — las ~90 queries de `transaction-service.ts` **siguen sin `tenantWhere`** y el archivo conserva sus entradas de allowlist enteras; lo cierran el **172-10** (escrituras) y el **172-12** (lecturas), y quedó escrito arriba de la clase para que nadie repita la trampa de `createEfectivoCaja`; (2) **`movement-service.ts` no estaba en el plan y sin él el código de producción no compila** — es el único dueño de 4 `create` y 2 `voidPair`, y llama al service por el campo `this.txnService`, así que ni la lectura dirigida por número de línea ni un grep del nombre de variable lo encontraban; lo cazó `tsc`, y se pagó la verificación con `movement-service.test.ts` **10/10** verde; (3) **el inventario de call sites de test se saca con `tsc -p` y un config temporal con `include: ["src/**/_", "test/\*\*/_"]`**, no con grep: `TS2554`(aridad incorrecta) sobre TODO`test/` en **0** es prueba positiva de que no queda ninguno — ojo con los **182 errores de tipos preexistentes** del árbol de tests, que son ruido de fondo y no de la fase; (4) **`TransactionService.resolveCashRegister`quedó sin un solo caller** desde CR-CAJA (la reescritura borró`resolveSuggestedCaja`): es una fachada muerta y el 172-09 decide si la borra. **Verificado contra MySQL real:** `transaction-service.test.ts`**43/43** y`movement-service.test.ts`**10/10**, sin tocar una sola expectativa — y esta vez no se probó por grep: el criterio`grep -c "^[-+]._expect("`dio **8 falsos positivos** de reenvolvimiento de prettier, así que se hizo la prueba fuerte (borrarle el`TEMPLO_CTX`a los 8 archivos, normalizar espacios y comas colgantes y comparar contra`HEAD~1`: **IDÉNTICO en los 8**). Trampa repetida por segunda vez en la fase: el gate `grep -nE "tenantId!|\?\? 1"` tiene **falsos positivos estructurales** (`filters.page ?? 1`es paginación) — el regex correcto es`tenantId!|tenantId\s_\?\?`. Commits: `176c9fa4`, `bf8d87a5`, `3f2efd18`, `e0039b54`. **ADO-01 sigue Pending**: este plan cierra la plomería de `TransactionService`, no sus queries.
 
 **172-07 cerrado — el ciclo `transaction-service` ↔ `subscriptions` está roto y toda escritura de plata que arranca en suscripciones tiene gimnasio explícito de origen.** 7 firmas con `ctx: TenantContext` como **PRIMER** parámetro, **antes del `tx`** (`recordAssignmentCharge`, `assignPlan`, `changePlan`, `changePlanNow`, `changePlanAfterCurrent`, `renewSubscription` y el wrapper público `cancelSubscription`): la posición no es estética, un call site viejo queda con los argumentos corridos y **no compila**. Las 2 queries de finance del archivo migradas — el `INSERT` en `balances` que siembra la deuda del cobro parcial pasa por `tenantValues`, y el `SELECT` del anticipo sobre `financial_transactions` lleva `tenantWhere` de primer término. **`_cancelSubscription` quedó INTACTO a propósito**: su firma la cambia el **172-08** junto con el tipo `SubscriptionCanceller` de `transaction-service.ts`. **El caso que vale copiar es el autorregistro público** (`POST /api/auth/register`): no hay JWT ni `request.scope`, así que `assertTenant` no aplica y el gimnasio se deriva de la **fila de `branches`** que la ruta ya leía — las dos ramas de resolución de sede proyectan `tenant_id`, **el `id` de la sede pedida pasó a salir de la fila leída y no del número del body**, y hay guard fail-closed con el mismo 500 de "sede no configurada", nunca un default al tenant 1. Es el precedente para los caminos sin JWT de las fases 173-175 (webhook, QR). **Tres cosas para los planes siguientes:** (1) **`tsc` NO typechequea `test/`** en este repo (`tsconfig.json` tiene `include: ["src/**/*"]`), así que el inventario de call sites de test se saca por **grep** y hay que filtrar los helpers HTTP **homónimos** (`assignPlan` de `test/subscriptions/_helpers.ts`) — un call site de test desactualizado no da rojo hasta que el test corre; (2) los **2 jobs** y **4 de los 8 archivos de test** que el plan listaba **no tenían un solo call site que tocar** (los jobs llaman a `autoResume`/`activateDue`/`autoExpire`/`pickSubscription`, ninguno migrado); (3) `cancelSubscription` **recibe el `ctx` y todavía NO lo usa** — está escrito en mayúsculas en su docblock, porque la cancelación **no está scopeada** hasta el 172-08, que sólo tiene que bajar el `ctx` un nivel sin retocar ningún call site. **Verificado contra MySQL real:** `charge-on-assign` **14/14** y `user-status-transitions` **9/9**, sin tocar una sola expectativa (`grep -c "^[-+].*expect("` sobre el diff de test = **0**). Trampa boba pero real: el comentario del guard **no puede contener el literal `?? 1`**, porque el criterio de aceptación es un grep y no un parser. Commits: `234b42a5`, `0deb4e10`, `d73748d6`, `334d6e96`. **ADO-01 sigue Pending**: este plan migra la plomería que le da gimnasio a `finance` desde suscripciones, no `finance`.
 
@@ -427,6 +429,7 @@ _Updated after each plan completion_
 | Phase 172 P06 | 25min | 3 tasks | 3 files |
 | Phase 172 P05 | 15min | 2 tasks | 1 files |
 | Phase 172 P07 | 40min | 4 tasks | 9 files |
+| Phase 172 P08 | 55min | 4 tasks | 16 files |
 
 ## Accumulated Context
 
@@ -914,6 +917,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: 172-06: los UPDATE del ABM llevan tenantWhere propio — el WHERE de una escritura no se apoya en el SELECT previo
 - [Phase 172]: 172-07: cancelSubscription recibe el ctx aunque todavia no lo use; 172-08 solo lo baja a \_cancelSubscription
 - [Phase 172]: 172-07: tsc NO typechequea test/ (tsconfig include src/\*_/_); el inventario de call sites de test sale por grep
+- [Phase ?]: 172-08: el ctx va PRIMERO en las 21 firmas de TransactionService — un call site viejo queda con los argumentos corridos y no compila
+- [Phase ?]: 172-08: movement-service.ts entro al plan por tsc (4 create + 2 voidPair propios); el inventario de call sites se saca por compilador, no por lectura dirigida
 
 ### Pending Todos
 
@@ -946,7 +951,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-30T23:14:10.586Z
+Last session: 2026-07-30T23:38:45.782Z
 Stopped at: Completed 172-07-PLAN.md
 Resume file: None
 
