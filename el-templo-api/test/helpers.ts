@@ -397,6 +397,17 @@ export async function createTestPlan(
  * `UPDATE users SET tenant_id`— dejaría esas filas colaterales en el tenant 1,
  * o sea un fixture incoherente justo en lo que las fases 172-175 van a auditar.
  *
+ * OVERRIDES EN EL CAMINO DEL GIMNASIO 2 (WR-04 de la review de fase)
+ * ------------------------------------------------------------------
+ * El INSERT directo honra las columnas planas que `register` también persiste
+ * (`status`, `gender`, además de email/password/nombre/branchId/dni/phone).
+ * Cualquier otro override —`promoCode` es el ejemplo típico: es un EFECTO del
+ * register, no una columna— hace THROW en vez de descartarse en silencio: una
+ * batería que crea "un socio activo del gimnasio 2" y recibe un freemium sin
+ * aviso ejercería el estado equivocado y su verde no probaría nada. Si la
+ * columna que necesitás es honrable, extendé `crearSocioDeOtroGimnasio`; si es
+ * un efecto colateral de register, sembralo a mano después.
+ *
  * El token sale de `getAuthToken` (login normal): el login resuelve por email
  * SIN filtro de tenant, así que funciona hoy — y por eso mismo el email del
  * socio del gimnasio 2 tiene que ser distinto de todos los del 1.
@@ -427,6 +438,8 @@ export async function createTestMember(
     dni?: string;
     phone?: string;
     tenantId?: number;
+    status?: NuevoUsuario["status"];
+    gender?: NuevoUsuario["gender"];
   };
   // `tenantId` no es parte del payload de `/auth/register` (la ruta no lo
   // conoce): se saca del objeto ANTES de mandarlo, así el camino del tenant 1
@@ -434,6 +447,23 @@ export async function createTestMember(
   const { tenantId, ...datosDeRegistro } = data;
 
   if (tenantId !== undefined && tenantId !== 1) {
+    // WR-04: el INSERT directo NO pasa por /auth/register, así que un override
+    // que ese camino no consume se perdería en silencio. Se chequean las CLAVES
+    // que el caller pasó de verdad (`overrides`), no el objeto con defaults.
+    const ignoradas = Object.keys(overrides).filter(
+      (clave) => !OVERRIDES_SOPORTADOS_GIMNASIO_2.has(clave),
+    );
+    if (ignoradas.length > 0) {
+      throw new Error(
+        `createTestMember con tenantId=${tenantId} (≠ El Templo) va por INSERT ` +
+          `directo y NO soporta estos overrides: ${ignoradas.sort().join(", ")}. ` +
+          `Descartarlos en silencio dejaría al test ejerciendo un estado que ` +
+          `cree haber configurado (WR-04). Si es una columna plana de users, ` +
+          `extendé crearSocioDeOtroGimnasio en test/helpers.ts; si es un efecto ` +
+          `colateral de /auth/register (promoCode, member_profiles, código de ` +
+          `referido), sembralo a mano después de crear el socio.`,
+      );
+    }
     return crearSocioDeOtroGimnasio(app, {
       ...datosDeRegistro,
       tenantId,
@@ -451,6 +481,28 @@ export async function createTestMember(
   };
 }
 
+/** Forma de insert de `users`, para tipar los overrides honrados abajo. */
+type NuevoUsuario = typeof schema.users.$inferInsert;
+
+/**
+ * WR-04: las únicas claves de `overrides` que `createTestMember` acepta cuando
+ * `tenantId !== 1`. Todo lo demás hace throw en vez de descartarse en silencio
+ * — ver el docblock de {@link createTestMember}. Si agregás una clave acá,
+ * agregala también al tipo y al INSERT de {@link crearSocioDeOtroGimnasio}.
+ */
+const OVERRIDES_SOPORTADOS_GIMNASIO_2: ReadonlySet<string> = new Set([
+  "email",
+  "password",
+  "firstName",
+  "lastName",
+  "branchId",
+  "dni",
+  "phone",
+  "tenantId",
+  "status",
+  "gender",
+]);
+
 /**
  * Socio de un gimnasio distinto de El Templo, por INSERT directo.
  *
@@ -459,6 +511,12 @@ export async function createTestMember(
  * fila sea indistinguible de una registrada por la API en todo lo que a
  * lecturas se refiere — lo único que cambia es de QUÉ gimnasio es. Ver el
  * docblock de {@link createTestMember} para el porqué de este camino.
+ *
+ * `status` y `gender` son las dos columnas planas que el register también
+ * persiste y que este camino honra cuando vienen como override (WR-04):
+ * `status` con default `freemium` (el que pone register) y `gender` solo si es
+ * explícito — sin override la columna queda NULL, a diferencia del camino de
+ * register cuyo payload de test siempre manda "male".
  *
  * `dni` y `phone` se generan únicos: la unique de `dni` ya es compuesta con el
  * tenant desde la fase 168, pero el chequeo de teléfono duplicado de la fase
@@ -477,6 +535,8 @@ async function crearSocioDeOtroGimnasio(
     phone?: string;
     tenantId: number;
     uniqueSuffix: string;
+    status?: NuevoUsuario["status"];
+    gender?: NuevoUsuario["gender"];
   },
 ): Promise<{
   id: number;
@@ -505,7 +565,11 @@ async function crearSocioDeOtroGimnasio(
           branchUpdatedAt: new Date(),
           branchSource: "manual" as const,
           level: "kairos" as const,
-          status: "freemium" as const,
+          status: data.status ?? ("freemium" as const),
+          // Solo si vino explícito: sin override se preserva el NULL histórico
+          // de este camino (iso-02 lo usa de discriminador entre los dos
+          // caminos del helper).
+          ...(data.gender !== undefined ? { gender: data.gender } : {}),
         },
       ),
     )

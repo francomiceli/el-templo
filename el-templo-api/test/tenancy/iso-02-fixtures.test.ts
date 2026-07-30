@@ -488,8 +488,9 @@ describe("B. retrocompatibilidad de los helpers (criterio 3 del ROADMAP)", () =>
 
     // `gender` es el discriminador honesto entre los dos caminos del helper: la
     // ruta `/auth/register` lo persiste (el payload de `registerUser` manda
-    // "male"), y el INSERT directo del camino del gimnasio 2 NO toca la columna,
-    // así que dejaría NULL. Un NULL acá significa que el helper se fue por la
+    // "male"), y el INSERT directo del camino del gimnasio 2 NO toca la columna
+    // salvo override explícito (WR-04) — y esta llamada no pasa ninguno, así
+    // que dejaría NULL. Un NULL acá significa que el helper se fue por la
     // bifurcación equivocada — que es exactamente lo que rompería a los ~215
     // call sites, porque ese camino se saltea los efectos colaterales de
     // register (código de referido, member_profiles, promo code).
