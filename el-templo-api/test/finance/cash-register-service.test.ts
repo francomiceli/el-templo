@@ -24,6 +24,15 @@ import * as schema from "../../src/db/schema";
 import { CashRegisterService } from "../../src/modules/finance/cash-register-service";
 import { TransactionService } from "../../src/modules/finance/transaction-service";
 import { BalanceService } from "../../src/modules/finance/balance-service";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+
+/**
+ * Fase 172 (ADO-01 / T-172-08-04): gimnasio de los call sites DIRECTOS al
+ * service. Sale del fixture, nunca de un `1` a mano. Una sola constante y no
+ * el objeto literal repetido en cada llamada: el dia que un caso ejercite
+ * dos gimnasios, el segundo se agrega al lado y se ve la diferencia.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 let app: FastifyInstance;
 let service: CashRegisterService;
@@ -420,6 +429,7 @@ describe("CashRegisterService", () => {
     // create paths funnel through) stamps a non-null cash_register_id.
     it("create() populates cash_register_id via the resolver on every path", async () => {
       const result = await txService.create(
+        TEMPLO_CTX,
         {
           memberId,
           kind: "adjustment",
@@ -447,6 +457,7 @@ describe("CashRegisterService", () => {
 
     it("a transfer charge stamps the banco caja of the currency", async () => {
       const result = await txService.create(
+        TEMPLO_CTX,
         {
           memberId,
           kind: "adjustment",
@@ -485,6 +496,7 @@ describe("CashRegisterService", () => {
 
     it("an aura_credit charge persists cash_register_id NULL", async () => {
       const result = await txService.create(
+        TEMPLO_CTX,
         {
           memberId,
           kind: "adjustment",

@@ -28,6 +28,15 @@ import { AuraService } from "../../src/modules/aura/service";
 import { EnrollmentService } from "../../src/modules/programs/enrollment-service";
 import { BadRequestError } from "../../src/modules/shared/errors";
 import * as schema from "../../src/db/schema";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+
+/**
+ * Fase 172 (ADO-01 / T-172-08-04): gimnasio de los call sites DIRECTOS al
+ * service. Sale del fixture, nunca de un `1` a mano. Una sola constante y no
+ * el objeto literal repetido en cada llamada: el dia que un caso ejercite
+ * dos gimnasios, el segundo se agrega al lado y se ve la diferencia.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 const FINANCE_URL = "/api/admin/finance";
 const TODAY = "2026-04-28";
@@ -279,8 +288,13 @@ beforeEach(async () => {
 
 describe("validate() con caja + guards (CAJA-02/CAJA-03 + COBRO-05)", () => {
   it("imputa la caja banco elegida (Galicia) y pasa a validado", async () => {
-    const tx = await txService.create(transferInput(), adminId);
-    const result = await txService.validate(tx.id, adminId, galiciaCajaId);
+    const tx = await txService.create(TEMPLO_CTX, transferInput(), adminId);
+    const result = await txService.validate(
+      TEMPLO_CTX,
+      tx.id,
+      adminId,
+      galiciaCajaId,
+    );
     expect(result.validationStatus).toBe("validado");
     expect(result.cashRegisterId).toBe(galiciaCajaId);
     const row = await readTx(tx.id);
@@ -290,60 +304,62 @@ describe("validate() con caja + guards (CAJA-02/CAJA-03 + COBRO-05)", () => {
 
   it("sin cashRegisterId conserva la caja sugerida y pasa a validado", async () => {
     // create() resuelve la caja sugerida (banco ARS) server-side.
-    const tx = await txService.create(transferInput(), adminId);
+    const tx = await txService.create(TEMPLO_CTX, transferInput(), adminId);
     expect(tx.cashRegisterId).not.toBeNull();
     const suggested = tx.cashRegisterId;
 
-    const result = await txService.validate(tx.id, adminId);
+    const result = await txService.validate(TEMPLO_CTX, tx.id, adminId);
     expect(result.validationStatus).toBe("validado");
     expect(result.cashRegisterId).toBe(suggested);
   });
 
   it("rechaza una caja inexistente (400)", async () => {
-    const tx = await txService.create(transferInput(), adminId);
-    await expect(txService.validate(tx.id, adminId, 999999)).rejects.toThrow(
-      BadRequestError,
-    );
+    const tx = await txService.create(TEMPLO_CTX, transferInput(), adminId);
+    await expect(
+      txService.validate(TEMPLO_CTX, tx.id, adminId, 999999),
+    ).rejects.toThrow(BadRequestError);
     // La fila sigue pendiente (la tx hizo rollback).
     expect((await readTx(tx.id)).validationStatus).toBe("pendiente");
   });
 
   it("rechaza una caja inactiva (400)", async () => {
-    const tx = await txService.create(transferInput(), adminId);
+    const tx = await txService.create(TEMPLO_CTX, transferInput(), adminId);
     await expect(
-      txService.validate(tx.id, adminId, inactiveCajaId),
+      txService.validate(TEMPLO_CTX, tx.id, adminId, inactiveCajaId),
     ).rejects.toThrow(BadRequestError);
   });
 
   it("rechaza una caja de otra moneda (400)", async () => {
-    const tx = await txService.create(transferInput(), adminId);
+    const tx = await txService.create(TEMPLO_CTX, transferInput(), adminId);
     await expect(
-      txService.validate(tx.id, adminId, bancoEurCajaId),
+      txService.validate(TEMPLO_CTX, tx.id, adminId, bancoEurCajaId),
     ).rejects.toThrow(BadRequestError);
   });
 
   it("COBRO-05: rechaza validar un cobro miscReason='sin_plan' (400)", async () => {
     const tx = await txService.create(
+      TEMPLO_CTX,
       miscInput({ miscReason: "sin_plan" }),
       adminId,
     );
-    await expect(txService.validate(tx.id, adminId)).rejects.toThrow(
-      BadRequestError,
-    );
+    await expect(
+      txService.validate(TEMPLO_CTX, tx.id, adminId),
+    ).rejects.toThrow(BadRequestError);
     expect((await readTx(tx.id)).validationStatus).toBe("pendiente");
   });
 
   it("permite validar un cobro misc con miscReason='otro'", async () => {
     const tx = await txService.create(
+      TEMPLO_CTX,
       miscInput({ miscReason: "otro" }),
       adminId,
     );
-    const result = await txService.validate(tx.id, adminId);
+    const result = await txService.validate(TEMPLO_CTX, tx.id, adminId);
     expect(result.validationStatus).toBe("validado");
   });
 
   it("admin valida con cashRegisterId sobre REST → 200 + validado + caja imputada", async () => {
-    const tx = await txService.create(transferInput(), adminId);
+    const tx = await txService.create(TEMPLO_CTX, transferInput(), adminId);
     const res = await app.inject({
       method: "POST",
       url: `${FINANCE_URL}/transactions/${tx.id}/validate`,
@@ -358,13 +374,13 @@ describe("validate() con caja + guards (CAJA-02/CAJA-03 + COBRO-05)", () => {
 
 describe("validador denormalizado + filtro por estado (152-03: CAJA-02/D-05/D-06)", () => {
   it("validate() setea validated_by=admin y validated_at no-null (D-05)", async () => {
-    const tx = await txService.create(transferInput(), adminId);
+    const tx = await txService.create(TEMPLO_CTX, transferInput(), adminId);
     // Antes de validar: columnas del validador en NULL.
     const before = await readTx(tx.id);
     expect(before.validatedBy).toBeNull();
     expect(before.validatedAt).toBeNull();
 
-    await txService.validate(tx.id, adminId, galiciaCajaId);
+    await txService.validate(TEMPLO_CTX, tx.id, adminId, galiciaCajaId);
 
     const after = await readTx(tx.id);
     expect(after.validationStatus).toBe("validado");
@@ -373,8 +389,8 @@ describe("validador denormalizado + filtro por estado (152-03: CAJA-02/D-05/D-06
   });
 
   it("el listado expone validatorName con el nombre del validador tras validar", async () => {
-    const tx = await txService.create(transferInput(), adminId);
-    await txService.validate(tx.id, adminId, galiciaCajaId);
+    const tx = await txService.create(TEMPLO_CTX, transferInput(), adminId);
+    await txService.validate(TEMPLO_CTX, tx.id, adminId, galiciaCajaId);
 
     const row = await listRowById(tx.id);
     expect(row).not.toBeNull();
@@ -386,6 +402,7 @@ describe("validador denormalizado + filtro por estado (152-03: CAJA-02/D-05/D-06
   it("D-06: un cobro nacido validado (admin-load) queda con validated_by/at NULL y sin validatorName", async () => {
     // Carga admin: nace validationStatus='validado' sin pasar por validate().
     const tx = await txService.create(
+      TEMPLO_CTX,
       transferInput({ validationStatus: "validado" }),
       adminId,
     );
@@ -403,10 +420,12 @@ describe("validador denormalizado + filtro por estado (152-03: CAJA-02/D-05/D-06
   it("D-06: un cobro corregido (anular+recrear) nace validado con columnas del validador NULL", async () => {
     // Original nacido validado; correct() lo anula (corregido) y recrea uno nuevo.
     const original = await txService.create(
+      TEMPLO_CTX,
       transferInput({ validationStatus: "validado" }),
       adminId,
     );
     const corrected = await txService.correct(
+      TEMPLO_CTX,
       original.id,
       { amount: 1500 },
       adminId,
@@ -427,8 +446,13 @@ describe("validador denormalizado + filtro por estado (152-03: CAJA-02/D-05/D-06
 
   it("GET /transactions?validationStatus=pendiente|validado filtra server-side por estado", async () => {
     // Un pendiente (transfer sin validar) + uno validado (admin-load).
-    const pendiente = await txService.create(transferInput(), adminId);
+    const pendiente = await txService.create(
+      TEMPLO_CTX,
+      transferInput(),
+      adminId,
+    );
     const validado = await txService.create(
+      TEMPLO_CTX,
       transferInput({ validationStatus: "validado" }),
       adminId,
     );
@@ -478,24 +502,30 @@ describe("primitivos plan 03: voidInTx + listPendingMiscForMember", () => {
   it("listPendingMiscForMember devuelve solo advance_payment pendientes no anulados del socio", async () => {
     // 2 cobros sueltos pendientes del socio.
     const a = await txService.create(
+      TEMPLO_CTX,
       miscInput({ amount: 300, miscReason: "sin_plan" }),
       adminId,
     );
     await txService.create(
+      TEMPLO_CTX,
       miscInput({ amount: 700, miscReason: "otro" }),
       adminId,
     );
     // Un advance_payment YA validado (no debe aparecer).
     await txService.create(
+      TEMPLO_CTX,
       miscInput({ amount: 900, validationStatus: "validado" }),
       adminId,
     );
     // Un plan_charge pendiente (no es advance_payment → no debe aparecer).
-    await txService.create(transferInput(), adminId);
+    await txService.create(TEMPLO_CTX, transferInput(), adminId);
     // Un advance_payment pendiente ANULADO (no debe aparecer).
-    await txService.void(a.id, adminId, { reason: "anular" });
+    await txService.void(TEMPLO_CTX, a.id, adminId, { reason: "anular" });
 
-    const items = await txService.listPendingMiscForMember(memberId);
+    const items = await txService.listPendingMiscForMember(
+      TEMPLO_CTX,
+      memberId,
+    );
     expect(items).toHaveLength(1);
     expect(items[0].amount).toBe(700);
     expect(items[0].miscReason).toBe("otro");
@@ -512,7 +542,11 @@ describe("primitivos plan 03: voidInTx + listPendingMiscForMember", () => {
       amount: 1000,
     });
     // Cobro que salda la deuda (balance → 0).
-    const tx = await txService.create(transferInput({ amount: 1000 }), adminId);
+    const tx = await txService.create(
+      TEMPLO_CTX,
+      transferInput({ amount: 1000 }),
+      adminId,
+    );
     const [bAfterPay] = await app.db
       .select({ amount: schema.balances.amount })
       .from(schema.balances)
@@ -526,7 +560,9 @@ describe("primitivos plan 03: voidInTx + listPendingMiscForMember", () => {
 
     // voidInTx dentro de una db.transaction del caller (no abre tx propia).
     await app.db.transaction(async (trx) => {
-      await txService.voidInTx(trx, tx.id, adminId, { reason: "anular en tx" });
+      await txService.voidInTx(TEMPLO_CTX, trx, tx.id, adminId, {
+        reason: "anular en tx",
+      });
     });
 
     expect((await readTx(tx.id)).voidedAt).not.toBeNull();
@@ -547,6 +583,7 @@ describe("primitivos plan 03: voidInTx + listPendingMiscForMember", () => {
 describe("GET /transactions/pending-misc/:memberId", () => {
   it("admin → 200 con los cobros sueltos pendientes del socio", async () => {
     await txService.create(
+      TEMPLO_CTX,
       miscInput({ amount: 400, miscReason: "sin_plan" }),
       adminId,
     );

@@ -22,6 +22,15 @@ import { CashRegisterService } from "../../src/modules/finance/cash-register-ser
 import { TransactionService } from "../../src/modules/finance/transaction-service";
 import { BalanceService } from "../../src/modules/finance/balance-service";
 import { MovementService } from "../../src/modules/finance/movement-service";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+
+/**
+ * Fase 172 (ADO-01 / T-172-08-04): gimnasio de los call sites DIRECTOS al
+ * service. Sale del fixture, nunca de un `1` a mano. Una sola constante y no
+ * el objeto literal repetido en cada llamada: el dia que un caso ejercite
+ * dos gimnasios, el segundo se agrega al lado y se ve la diferencia.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 let app: FastifyInstance;
 let cashRegisterService: CashRegisterService;
@@ -150,6 +159,7 @@ describe("MovementService", () => {
         (await cashRegisterService.getBalance(destinoId)).firmeBalance;
 
       const detail = await movementService.registerMovement(
+        TEMPLO_CTX,
         { origenCajaId: origenId, destinoCajaId: destinoId, amount: 250 },
         adminId,
       );
@@ -205,6 +215,7 @@ describe("MovementService", () => {
       const centralId = await newCaja(0, "ARS", null);
 
       const detail = await movementService.registerMovement(
+        TEMPLO_CTX,
         { origenCajaId: origenId, destinoCajaId: centralId, amount: 100 },
         adminId,
       );
@@ -236,6 +247,7 @@ describe("MovementService", () => {
 
       await expect(
         movementService.registerMovement(
+          TEMPLO_CTX,
           { origenCajaId: arsId, destinoCajaId: eurId, amount: 100 },
           adminId,
         ),
@@ -265,6 +277,7 @@ describe("MovementService", () => {
 
       // expected saldo of origen = 1000. Physical count is 900 (100 short).
       const detail = await movementService.registerMovement(
+        TEMPLO_CTX,
         {
           origenCajaId: origenId,
           destinoCajaId: destinoId,
@@ -318,6 +331,7 @@ describe("MovementService", () => {
       const destinoId = await newCaja(0);
 
       const detail = await movementService.registerMovement(
+        TEMPLO_CTX,
         {
           origenCajaId: origenId,
           destinoCajaId: destinoId,
@@ -355,6 +369,7 @@ describe("MovementService", () => {
       const cajaId = await newCaja(1000);
 
       const { expenseTxId } = await movementService.registerExpense(
+        TEMPLO_CTX,
         { cajaId, amount: 333, costCenterId, notes: "Compra de agua" },
         adminId,
       );
@@ -387,10 +402,12 @@ describe("MovementService", () => {
       const origenId = await newCaja(1000);
       const destinoId = await newCaja(0);
       await movementService.registerMovement(
+        TEMPLO_CTX,
         { origenCajaId: origenId, destinoCajaId: destinoId, amount: 150 },
         adminId,
       );
       await movementService.registerExpense(
+        TEMPLO_CTX,
         { cajaId: origenId, amount: 50, costCenterId },
         adminId,
       );
@@ -410,6 +427,7 @@ describe("MovementService", () => {
       const destinoId = await newCaja(500);
 
       const detail = await movementService.registerMovement(
+        TEMPLO_CTX,
         {
           origenCajaId: origenId,
           destinoCajaId: destinoId,
@@ -422,6 +440,7 @@ describe("MovementService", () => {
 
       // Void via EITHER leg id — voidMovement discovers the sibling + adjustment.
       await movementService.voidMovement(
+        TEMPLO_CTX,
         detail.outflowTxId,
         adminId,
         "Movimiento equivocado",
@@ -456,6 +475,7 @@ describe("MovementService", () => {
     it("voidExpense voids the single row and restores the caja saldo", async () => {
       const cajaId = await newCaja(1000);
       const { expenseTxId } = await movementService.registerExpense(
+        TEMPLO_CTX,
         { cajaId, amount: 400, costCenterId },
         adminId,
       );
@@ -464,6 +484,7 @@ describe("MovementService", () => {
       );
 
       await movementService.voidExpense(
+        TEMPLO_CTX,
         expenseTxId,
         adminId,
         "Egreso mal cargado",

@@ -23,6 +23,15 @@ import * as schema from "../../src/db/schema";
 import { CashRegisterService } from "../../src/modules/finance/cash-register-service";
 import { TransactionService } from "../../src/modules/finance/transaction-service";
 import { BalanceService } from "../../src/modules/finance/balance-service";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+
+/**
+ * Fase 172 (ADO-01 / T-172-08-04): gimnasio de los call sites DIRECTOS al
+ * service. Sale del fixture, nunca de un `1` a mano. Una sola constante y no
+ * el objeto literal repetido en cada llamada: el dia que un caso ejercite
+ * dos gimnasios, el segundo se agrega al lado y se ve la diferencia.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 let app: FastifyInstance;
 let txService: TransactionService;
@@ -297,7 +306,7 @@ describe("Phase 147: cost centers", () => {
       ).expense.expenseTxId;
 
       // Owner sees all rows (no country scope), so the arqueo includes this caja.
-      const result = await txService.listMovEgresos({
+      const result = await txService.listMovEgresos(TEMPLO_CTX, {
         cashRegisterId: localCaja,
         isOwner: true,
       });
