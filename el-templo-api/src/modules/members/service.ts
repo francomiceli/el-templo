@@ -65,6 +65,7 @@ import { referralCopyVariant } from "../referrals/ab-variant";
 import { isValidIban, normalizeIban } from "../shared/iban";
 import { activeMemberExists } from "../shared/active-member";
 import { memberCoveredUntilSql } from "../shared/covered-until";
+import { tenantWhere, type TenantContext } from "../shared/tenant";
 import { alias } from "drizzle-orm/mysql-core";
 import type { MemberSegment } from "../segmentation/types";
 
@@ -79,8 +80,18 @@ export class MemberService {
   /**
    * List members with search, filters, and pagination.
    * Search matches against firstName, lastName, email, and dni.
+   *
+   * Fase 172 (ADO-01): `ctx` es el PRIMER parámetro y llega desde
+   * `assertTenant(request.scope, "members.list")`. Sólo scopea los DOS accesos a
+   * `balances` de este método (el filtro `debtorOnly` y el agregado de deuda),
+   * que son las únicas tablas strict de `finance` que toca. El resto de las
+   * tablas del listado (`users`, `subscriptions`, `branches`, …) se migra en su
+   * propia fase (D-07).
    */
-  async listMembers(params: MemberListParams): Promise<{
+  async listMembers(
+    ctx: TenantContext,
+    params: MemberListParams,
+  ): Promise<{
     members: MemberListItem[];
     total: number;
     totalDebtByCurrency: TotalDebtRow[];
@@ -211,10 +222,17 @@ export class MemberService {
     // (Plan 01) backs this lookup. Replaces the previous EXISTS against
     // the dropped `debts` table.
     if (debtorOnly === true) {
+      // `b.tenant_id` PRIMERO en el WHERE de la subconsulta, antes de la
+      // correlación (convención de `shared/tenant.ts:20`). Sin él, el filtro
+      // "sólo deudores" marcaría como deudor a un socio que debe plata en OTRO
+      // gimnasio: la subconsulta tiene su propio FROM, así que el WHERE externo
+      // no la alcanza.
       conditions.push(
         sql`EXISTS (
           SELECT 1 FROM balances b
-          WHERE b.member_id = users.id AND b.amount > 0
+          WHERE b.tenant_id = ${ctx.tenantId}
+            AND b.member_id = users.id
+            AND b.amount > 0
         )`,
       );
     }
@@ -364,7 +382,13 @@ export class MemberService {
             schema.branches,
             eq(schema.branches.id, schema.users.branchId),
           )
-          .where(and(sql`${schema.balances.amount} > 0`, whereClause))
+          .where(
+            and(
+              tenantWhere(schema.balances, ctx),
+              sql`${schema.balances.amount} > 0`,
+              whereClause,
+            ),
+          )
           .groupBy(schema.balances.currency)
       : Promise.resolve<TotalDebtRow[]>([]);
 

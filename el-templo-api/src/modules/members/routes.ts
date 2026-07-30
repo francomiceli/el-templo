@@ -30,6 +30,7 @@ import {
   ConflictError,
   NotFoundError,
 } from "../shared/errors";
+import { assertTenant } from "../shared/tenant";
 import { EmailService } from "../email";
 import type {
   CreateMemberInput,
@@ -483,7 +484,10 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         limit,
       };
 
-      const result = await memberService.listMembers(params);
+      const result = await memberService.listMembers(
+        assertTenant(request.scope, "members.list"),
+        params,
+      );
       return { ...result, page, limit };
     },
   );
