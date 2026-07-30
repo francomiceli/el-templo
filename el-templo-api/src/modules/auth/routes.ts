@@ -19,6 +19,7 @@ import {
 } from "../finance";
 import { EnrollmentService } from "../programs/enrollment-service";
 import { normalizePhone } from "../shared";
+import type { TenantContext } from "../shared/tenant";
 import {
   RefreshTokenService,
   RefreshTokenError,
@@ -132,11 +133,26 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         }
       }
 
-      // Resolve branch: use provided branchId or default to ONLINE
+      // Resolve branch: use provided branchId or default to ONLINE.
+      //
+      // Fase 172 (ADO-01 / T-172-07-01): las DOS ramas proyectan también
+      // `tenantId`. Esta ruta es PÚBLICA — no hay JWT, no hay `request.user` y
+      // por lo tanto NO hay `request.scope`, así que `assertTenant` no aplica y
+      // no existe una quinta fuente de tenant que inventar. El gimnasio se
+      // deriva SERVER-SIDE de la fila de `branches` que la propia ruta ya lee:
+      // el cliente elige una SEDE, y la sede —no el cliente— dice de qué
+      // gimnasio es. Es el precedente que copian los demás caminos sin JWT
+      // (webhook de Wellhub, QR de asistencia) en las fases siguientes.
+      //
+      // Además el id de la sede pedida se toma de la FILA leída y ya no del
+      // número del body: antes se validaba la existencia y después se usaba
+      // `requestedBranchId` igual, lo cual funcionaba pero dejaba al payload
+      // como fuente del dato que ahora decide el tenant.
       let branchId: number;
+      let branchTenantId: number;
       if (requestedBranchId) {
         const branch = await fastify.db
-          .select({ id: branches.id })
+          .select({ id: branches.id, tenantId: branches.tenantId })
           .from(branches)
           .where(eq(branches.id, requestedBranchId))
           .limit(1);
@@ -147,10 +163,11 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
             message: "Sucursal invalida",
           });
         }
-        branchId = requestedBranchId;
+        branchId = branch[0].id;
+        branchTenantId = branch[0].tenantId;
       } else {
         const defaultBranch = await fastify.db
-          .select({ id: branches.id })
+          .select({ id: branches.id, tenantId: branches.tenantId })
           .from(branches)
           .where(eq(branches.code, "ONLINE"))
           .limit(1);
@@ -162,6 +179,24 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           });
         }
         branchId = defaultBranch[0].id;
+        branchTenantId = defaultBranch[0].tenantId;
+      }
+
+      // Fail-closed. `branches.tenant_id` es NOT NULL con FK a `tenants`
+      // (`tenant-column.ts`), así que en una base sana esto no dispara nunca —
+      // es defensa en profundidad contra drift de schema, no una rama esperada.
+      // Se corta con el MISMO 500 de "sede no configurada" a propósito: un
+      // gimnasio no resoluble es DENY, nunca un default numérico al tenant 1
+      // (`country-scope.ts:33-37`).
+      if (!Number.isInteger(branchTenantId)) {
+        request.log.error(
+          { branchId },
+          "Sucursal sin gimnasio resoluble en el autorregistro",
+        );
+        return reply.code(500).send({
+          error: "Error del servidor",
+          message: "Sucursal predeterminada no configurada",
+        });
       }
 
       // Hash password and create user
@@ -247,7 +282,12 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
               );
 
               const today = new Date().toISOString().split("T")[0];
+              // Fase 172: el ctx sale de la fila de sede leída arriba, no de
+              // `request.scope` (que no existe en una ruta pública) ni del
+              // body. Ver el comentario de la resolución de sede.
+              const ctx: TenantContext = { tenantId: branchTenantId };
               await subscriptionService.assignPlan(
+                ctx,
                 userId,
                 {
                   planId: promo.subscriptionPlanId,
