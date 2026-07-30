@@ -4,13 +4,13 @@ milestone: v6.0
 milestone_name: "Tenancy — El Templo pasa a ser tenant #1"
 status: executing
 stopped_at: Completed 172-04-PLAN.md
-last_updated: "2026-07-30T21:13:13.808Z"
+last_updated: "2026-07-30T21:31:09.632Z"
 last_activity: 2026-07-30
 progress:
   total_phases: 11
   completed_phases: 4
   total_plans: 59
-  completed_plans: 32
+  completed_plans: 33
   percent: 36
 ---
 
@@ -26,12 +26,14 @@ See: .planning/PROJECT.md (milestone v6.0 initialized 2026-07-26)
 ## Current Position
 
 Phase: 172 (adopci-n-1-piloto-finance) — EXECUTING
-Plan: 5 of 23
+Plan: 6 of 23
 Status: Ready to execute
 Last activity: 2026-07-30
-Next: `/gsd:execute-phase 172` sigue por el plan **172-05**. En paralelo sigue pendiente el plan **169-09**, el último de la fase 169 (gate consolidado + rollout), y siguen pendientes
+Next: `/gsd:execute-phase 172` sigue por el plan **172-05** (que quedó sin ejecutar: el 172-06 se corrió antes por ser wave 2 sin dependencia del 05). En paralelo sigue pendiente el plan **169-09**, el último de la fase 169 (gate consolidado + rollout), y siguen pendientes
 
-**Deuda de allowlist acumulada en `feat/172-adopcion-finance`: 19 entradas** (9 del plan 172-02 + 4 del 172-03 + 6 del 172-04). El archivo real `tenant-lint-allowlist.json` tiene **un solo dueño, el plan 172-21**, así que `pnpm lint:tenant` sin `--allowlist` sale **rojo con `DISCREPANCIAS: 19`** en esa rama — todas `staleNoLongerViolating`, o sea deuda ya pagada esperando que la borren. **No es una regresión, pero si la rama se mergea a `staging` antes del 172-21, CI queda rojo por esto.**
+**Deuda de allowlist acumulada en `feat/172-adopcion-finance`: 21 entradas** (9 del plan 172-02 + 4 del 172-03 + 6 del 172-04 + 2 del 172-06). El archivo real `tenant-lint-allowlist.json` tiene **un solo dueño, el plan 172-21**, así que `pnpm lint:tenant` sin `--allowlist` sale **rojo con `DISCREPANCIAS: 21`** en esa rama — todas `staleNoLongerViolating`, o sea deuda ya pagada esperando que la borren. **No es una regresión, pero si la rama se mergea a `staging` antes del 172-21, CI queda rojo por esto.**
+
+**172-06 cerrado — el ABM de `finance` (centros de costo, cuentas bancarias y cajas de efectivo) ya no cruza gimnasios, y la trampa que el PATTERNS marcaba como riesgo 3 quedó cerrada.** `createEfectivoCaja` tenía el `ctx` en la firma desde la fase anterior y **no estaba migrado**: el SELECT que hace cumplir el invariante "una caja efectivo activa por (sucursal, moneda)" no filtraba por gimnasio —así que la caja de otro gimnasio en la misma sucursal bloqueaba el alta con un 409 que además delataba su existencia— y el INSERT no pasaba por `tenantValues` (la caja nacía en el tenant 1 por el `DEFAULT` de la columna, no por decisión de nadie). **El criterio de terminado es el inventario del lint, jamás la firma.** 18 métodos con `ctx` primero, 17 `tenantWhere` nuevos y 3 INSERT por `tenantValues`. **`assertUniqueName` compara por gimnasio**: antes, el guard y la unique compuesta de la fase 168 decían cosas distintas (el índice permitía el alta del segundo "Alquiler", el guard la rechazaba con un 409 que revelaba los nombres del vecino). **Tres cosas para copiar:** (1) **los 6 UPDATE también llevan `tenantWhere`** aunque el SELECT previo ya corte con 404 — el WHERE de una escritura no se apoya en una lectura anterior; (2) el `tenantWhere` de `branches` en el **LEFT JOIN** de `listActiveCajasWithBalance` va **en el `ON`**: en el WHERE, `NULL = 1` es falso para las cajas central/banco (`branch_id NULL`), el LEFT se vuelve INNER y esas cajas **desaparecen del listado de saldos en silencio con el lint en verde**; (3) tercera aparición de la misma trampa de la fase — en `listAllCostCenters` el filtro puesto como primer elemento del array `conditions` daba SQL correcto pero **dejaba el statement violando**, porque el lint mide por statement: **el gimnasio se nombra en el statement que nombra la tabla, inline, sin excepciones**. `validateBankAccountForCharge` (closure del plugin de coach-load, sin `request` a mano) recibe el `ctx` primero y sus 4 call sites lo resuelven con `assertTenant`. **Se corrió UN archivo de test contra MySQL real** (permitido por la task, es verificación dirigida): `test/finance/cash-balances.test.ts` **8/8 verde sin tocar expectativas**, que es lo que prueba que los saldos siguen dando los mismos números y que el owner sigue viendo las cajas branch-less — el `argon2` que la 172-01 dejó como bandera no dio problema. **Cero archivos de test tocados:** el plan pedía agregar el ctx a "call sites directos al service" de 4 archivos y **esos call sites no existen** (ejercitan las rutas por HTTP). **Riesgo residual explícito para el plan 172-09:** `getBalance` sigue **sin `ctx`** y suma `financial_transactions` por `cash_register_id` sin nombrar el gimnasio; sus 3 callers internos le pasan ids ya scopeados, así que hoy no hay camino de fuga, pero eso **no está probado**. Commits: `361f3eae`, `6d261929`, `49bac06d`. **ADO-01 sigue Pending**: este plan cierra la MITAD de un archivo de `finance`.
 
 **Las 6 del 172-04:** `coach/service.ts` (`balances` + `users` colateral), `members/service.ts` (`balances`) y `scripts/backfill-historical-payments.ts` (`balances`, `financial_transactions`, `transaction_links`). El script de backfill histórico **ya no corre sin `--tenant`**: muere con exit **2** antes de leer una fila (verificado en vivo, igual que el `--tenant=999999` inexistente; con `--tenant=1` sigue y falla con **1** en el pre-flight de datos, que es la separación de códigos funcionando). **Aviso para el plan 172-07:** la firma de `MemberService.listMembers` cambió — el `ctx` va **primero** (`listMembers(ctx, params)`), y `members/routes.ts` ya lo resuelve con `assertTenant(request.scope, "members.list")`.
 
@@ -418,6 +420,7 @@ _Updated after each plan completion_
 | Phase 172 P02 | 55min | 2 tasks | 11 files |
 | Phase 172 P03 | 13min | 2 tasks | 2 files |
 | Phase 172 P04 | 11min | 2 tasks | 5 files |
+| Phase 172 P06 | 25min | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -900,6 +903,9 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: 172-03: tenantWhere de tabla LEFT JOINeada va en el ON, nunca en el WHERE (en el WHERE el LEFT se vuelve INNER y desaparecen las deudas sin gestion)
 - [Phase ?]: 172-04: el tenantWhere va en el statement de la QUERY, no en el array de conditions — el array ni siquiera cuenta como acceso para el lint
 - [Phase ?]: 172-04: listMembers scopea TAMBIEN el EXISTS crudo de debtorOnly — sin el, el filtro de deudores miraba la deuda de todos los gimnasios
+- [Phase ?]: 172-06: el criterio de terminado de un metodo migrado es el inventario del lint, nunca la firma (createEfectivoCaja tenia ctx y estaba sin migrar)
+- [Phase ?]: 172-06: el tenantWhere de una tabla LEFT JOINeada va en el ON; en el WHERE el LEFT se vuelve INNER y borra filas con el lint en verde
+- [Phase ?]: 172-06: los UPDATE del ABM llevan tenantWhere propio — el WHERE de una escritura no se apoya en el SELECT previo
 
 ### Pending Todos
 
@@ -932,7 +938,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-30T21:13:13.781Z
+Last session: 2026-07-30T21:30:20.544Z
 Stopped at: Completed 172-04-PLAN.md
 Resume file: None
 
