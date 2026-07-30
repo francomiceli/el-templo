@@ -8,12 +8,21 @@ import {
   cleanAllTestData,
 } from "../helpers";
 import { LtvService } from "../../src/modules/analytics/ltv-service";
+import type { TenantContext } from "../../src/modules/shared/tenant";
 import { ChurnService } from "../../src/modules/analytics/churn-service";
 import { subscriptions } from "../../src/db/schema/subscriptions";
 import { subscriptionPlans } from "../../src/db/schema/subscription-plans";
 import { branches } from "../../src/db/schema/branches";
 import { users } from "../../src/db/schema/users";
 import { financialTransactions } from "../../src/db/schema/financial-transactions";
+
+/**
+ * El gimnasio de los fixtures (El Templo = tenant 1). Fase 172: el service
+ * recibe el `TenantContext` como PRIMER argumento; en producción sale de
+ * `assertTenant(request.scope, …)`, acá se construye a mano porque el service se
+ * invoca sin request.
+ */
+const CTX: TenantContext = { tenantId: 1 };
 
 const ANALYTICS_URL = "/api/admin/analytics";
 
@@ -255,7 +264,7 @@ describe("LtvService (Phase 122 Plan 03)", () => {
     }
 
     const filters = await wideRange();
-    const ltv = await ltvSvc.getLtv(filters);
+    const ltv = await ltvSvc.getLtv(CTX, filters);
     const churn = await churnSvc.getChurn(filters);
 
     // The headline is exactly 1 ÷ (churn% / 100) for the SAME filters (D-122-03).
@@ -282,7 +291,7 @@ describe("LtvService (Phase 122 Plan 03)", () => {
     });
 
     const filters = await wideRange();
-    const ltv = await ltvSvc.getLtv(filters);
+    const ltv = await ltvSvc.getLtv(CTX, filters);
     const churn = await churnSvc.getChurn(filters);
 
     expect(churn.window.churn.percentage).toBe(0);
@@ -318,7 +327,7 @@ describe("LtvService (Phase 122 Plan 03)", () => {
     }
 
     const filters = await wideRange();
-    const ltv = await ltvSvc.getLtv(filters);
+    const ltv = await ltvSvc.getLtv(CTX, filters);
     const churn = await churnSvc.getChurn(filters);
 
     // n is the FULL matured cohort (closed + censored), matching churn's denominator —
@@ -351,7 +360,7 @@ describe("LtvService (Phase 122 Plan 03)", () => {
       date: await dateOffset(-45),
     });
 
-    const ltv = await ltvSvc.getLtv(await wideRange());
+    const ltv = await ltvSvc.getLtv(CTX, await wideRange());
 
     // Observed = SUM of the real amounts (13000), NOT the list price (would be 30000).
     expect(ltv.monetary.ARS.observed).toBe(13000);
@@ -386,7 +395,7 @@ describe("LtvService (Phase 122 Plan 03)", () => {
       voidedAt: await serverNow(),
     });
 
-    const ltv = await ltvSvc.getLtv(await wideRange());
+    const ltv = await ltvSvc.getLtv(CTX, await wideRange());
     expect(ltv.monetary.ARS.observed).toBe(7000);
   });
 
@@ -430,7 +439,7 @@ describe("LtvService (Phase 122 Plan 03)", () => {
       branchId: branchES,
     });
 
-    const ltv = await ltvSvc.getLtv(await wideRange());
+    const ltv = await ltvSvc.getLtv(CTX, await wideRange());
 
     // Each currency holds ONLY its own figure — the EUR 200 is never folded into the
     // ARS 10000 (and vice-versa). The blocks are isolated (D-122-09).
@@ -460,7 +469,7 @@ describe("LtvService (Phase 122 Plan 03)", () => {
       date: await dateOffset(-60),
     });
 
-    const res = await ltvSvc.getLtv(await wideRange());
+    const res = await ltvSvc.getLtv(CTX, await wideRange());
     const axes = new Set(res.breakdowns.map((b) => b.axis));
     expect(axes.has("branch")).toBe(true);
     expect(axes.has("country")).toBe(true);

@@ -437,7 +437,10 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
           dateTo: request.query.dateTo,
           planId: request.query.planId,
         };
-        const result = await ticketService.getTicket(filters);
+        const result = await ticketService.getTicket(
+          assertTenant(request.scope, "analytics.ticket"),
+          filters,
+        );
         return result;
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "get ticket");
@@ -795,7 +798,10 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
           window: request.query.window,
           planId: request.query.planId,
         };
-        const result = await ltvService.getLtv(filters);
+        const result = await ltvService.getLtv(
+          assertTenant(request.scope, "analytics.ltv"),
+          filters,
+        );
         return result;
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "get ltv");
