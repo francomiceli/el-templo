@@ -4,12 +4,12 @@ milestone: v6.0
 milestone_name: "Tenancy — El Templo pasa a ser tenant #1"
 status: executing
 stopped_at: Phase 172 context gathered
-last_updated: "2026-07-30T18:22:46.603Z"
-last_activity: 2026-07-28 -- Phase 170 planning complete
+last_updated: "2026-07-30T19:33:46.655Z"
+last_activity: 2026-07-30 -- Phase 172 planning complete
 progress:
   total_phases: 11
   completed_phases: 4
-  total_plans: 36
+  total_plans: 59
   completed_plans: 28
   percent: 36
 ---
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (milestone v6.0 initialized 2026-07-26)
 Phase: 170
 Plan: Not started
 Status: Ready to execute
-Last activity: 2026-07-28 -- Phase 170 planning complete
+Last activity: 2026-07-30 -- Phase 172 planning complete
 Next: `/gsd:execute-phase 169` sigue por el plan **169-09**, el último de la fase (gate consolidado + rollout). En paralelo siguen pendientes `/gsd:verify-phase 168` (los 6 planes ejecutados; la migración 0196 aplicada en `eltemplo_staging` y `eltemplo` con 0 discrepancias y exit 0 en el verificador de uniques en las dos bases; falta el smoke funcional por UI de Franco, cerrado como pendiente por decisión suya). Siguen pendientes `/gsd:verify-phase 166` y `/gsd:verify-phase 167` por el mismo motivo.
 
 **Worktree de la fase 169:** `/home/franco/projects/et-169-tenant-layer`, rama `feat/169-capa-escritura` sobre `origin/master` (`1200b8af`). `.env`/`.env.development` copiados desde el worktree de la 168 — **no correr ningún install ahí**: el `pnpm-lock.yaml` es byte-idéntico al de los worktrees 166/167/168 y el `node_modules` se resuelve por **symlink a `/home/franco/projects/et-167-columnas/el-templo-api/node_modules`** (el del 168 no existe hoy). El symlink se crea antes de cada typecheck/corrida de tests y **se borra antes de commitear** (la regla `node_modules/` del `.gitignore` no matchea un symlink). Commits de código del plan 01: `c21baefd` (`src/modules/shared/tenant.ts`) y `f6bc7ecc` (`test/tenancy/tenant-helpers.test.ts`); del plan 02: `0426d4de` (expire-lost-leads + wellhub-sync) y `bb85aa64` (mark-no-shows + reassign-multibranch). Nada pusheado. **Esta fase NO agrega migraciones**; si alguna la necesitara, reserva desde **0197**.

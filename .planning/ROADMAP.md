@@ -4665,22 +4665,58 @@ toda la fase.
 
 Plans:
 
+**Wave 1**
+
 - [ ] 172-01-PLAN.md — worktree et-172 desde origin/master + gate CR-CAJA (D-13)
+
+**Wave 2** _(blocked on Wave 1 completion)_
+
 - [ ] 172-02-PLAN.md — analytics ×4: queries finance scopeadas (cirugía mínima)
 - [ ] 172-03-PLAN.md — reports/service.ts: 11 accesos + los 6 helpers que devuelven SQL
 - [ ] 172-04-PLAN.md — coach + members + retrofit CLI de backfill-historical-payments
 - [ ] 172-05-PLAN.md — script de snapshot D-12 + captura de la línea de base en staging
 - [ ] 172-06-PLAN.md — cash-register-service: cluster ABM (cajas, cuentas, centros de costo)
+
+**Wave 3** _(blocked on Wave 2 completion)_
+
 - [ ] 172-07-PLAN.md — subscriptions/service.ts: ctx + 2 queries finance (rompe el ciclo)
+
+**Wave 4** _(blocked on Wave 3 completion)_
+
 - [ ] 172-08-PLAN.md — plomería de TransactionService (21 firmas + canceller + call sites)
+
+**Wave 5** _(blocked on Wave 4 completion)_
+
 - [ ] 172-09-PLAN.md — balance-service + movement-service + cluster B de cash-register
+
+**Wave 6** _(blocked on Wave 5 completion)_
+
 - [ ] 172-10-PLAN.md — transaction-service: queries de escritura (create/void/validate/correct)
 - [ ] 172-11-PLAN.md — closures y queries propias de finance/routes.ts y coach-load-routes.ts
+
+**Wave 7** _(blocked on Wave 6 completion)_
+
 - [ ] 172-12-PLAN.md — transaction-service: queries de lectura (listados, resumen, exports)
+
+**Wave 8** _(blocked on Wave 7 completion)_
+
 - [ ] 172-13-PLAN.md — endurecimiento de tests A: helpers/setup + cajas y centros de costo
+
+**Wave 9** _(blocked on Wave 8 completion)_
+
 - [ ] 172-14-PLAN.md — endurecimiento de tests B: transacciones y coach-load
+
+**Wave 10** _(blocked on Wave 9 completion)_
+
 - [ ] 172-15-PLAN.md — endurecimiento de tests C: suscripciones, reportes, socios, coach
+
+**Wave 11** _(blocked on Wave 10 completion)_
+
 - [ ] 172-16-PLAN.md — endurecimiento de tests D: analytics, scheduling, migraciones, tenancy
+
+**Cross-cutting constraints:**
+
+- Toda query directa de esos tests sobre las 6 tablas strict lleva tenant_id explícito
 
 > Los planes 172-13 → 172-14 → 172-15 → 172-16 corren **en serie** (waves 8, 9, 10 y 11):
 > los cuatro encienden y revierten la misma sonda temporal sobre
