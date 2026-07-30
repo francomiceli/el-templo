@@ -20,7 +20,11 @@ import {
   NotFoundError,
 } from "../shared/errors";
 import { firmMoneyConditions } from "./firm-money";
-import { tenantWhere, type TenantContext } from "../shared/tenant";
+import {
+  tenantValues,
+  tenantWhere,
+  type TenantContext,
+} from "../shared/tenant";
 import type {
   BankAccountRow,
   CajaPeriodMovement,
@@ -429,21 +433,28 @@ export class CashRegisterService {
    * devuelve los de todos los países; si no, acota a ese país. Ordenado por name.
    */
   async listActiveCostCenters(
+    ctx: TenantContext,
     country: string | null,
   ): Promise<CostCenterItem[]> {
     const conditions = [eq(schema.costCenters.isActive, true)];
     if (country !== null) {
       conditions.push(eq(schema.costCenters.country, country));
     }
-    return this.db
-      .select({
-        id: schema.costCenters.id,
-        name: schema.costCenters.name,
-        country: schema.costCenters.country,
-      })
-      .from(schema.costCenters)
-      .where(and(...conditions))
-      .orderBy(asc(schema.costCenters.name));
+    return (
+      this.db
+        .select({
+          id: schema.costCenters.id,
+          name: schema.costCenters.name,
+          country: schema.costCenters.country,
+        })
+        .from(schema.costCenters)
+        // El filtro de gimnasio va acá y NO como primer elemento de `conditions`:
+        // el lint de tenancy razona por STATEMENT y el que nombra la tabla es el
+        // de la query, no el del array (hallazgo 172-02/172-04). El SQL es el
+        // mismo — `tenant_id` queda igual como primer término del AND.
+        .where(and(tenantWhere(schema.costCenters, ctx), ...conditions))
+        .orderBy(asc(schema.costCenters.name))
+    );
   }
 
   // -- Phase 152: ABM de centros de costo (CAJA-05, levanta EGR-F2 de v5.3) --
@@ -457,9 +468,16 @@ export class CashRegisterService {
   /**
    * Lee un centro de costo por id, mapeado a CostCenter (incl. isActive).
    *
-   * @throws NotFoundError cuando no existe.
+   * Fase 172 (D-09): el filtro de gimnasio convierte "el centro de otro
+   * gimnasio" en NotFound — 404, NUNCA 403. Es deliberado: un 403 confirmaría
+   * que el id existe en otro lado. No lo "corrijas" a 403 más adelante.
+   *
+   * @throws NotFoundError cuando no existe (o es de otro gimnasio).
    */
-  private async getCostCenterRow(id: number): Promise<CostCenter> {
+  private async getCostCenterRow(
+    ctx: TenantContext,
+    id: number,
+  ): Promise<CostCenter> {
     const [row] = await this.db
       .select({
         id: schema.costCenters.id,
@@ -468,7 +486,12 @@ export class CashRegisterService {
         isActive: schema.costCenters.isActive,
       })
       .from(schema.costCenters)
-      .where(eq(schema.costCenters.id, id))
+      .where(
+        and(
+          tenantWhere(schema.costCenters, ctx),
+          eq(schema.costCenters.id, id),
+        ),
+      )
       .limit(1);
     if (!row) {
       throw new NotFoundError(`No existe el centro de costo ${id}`);
@@ -485,9 +508,17 @@ export class CashRegisterService {
    * índice único — no se distingue "Alquiler" de "alquiler". `excludeId` permite
    * renombrar una fila a un nombre que ella misma ya tenía sin auto-colisionar.
    *
+   * Fase 172: la unicidad es POR GIMNASIO (el filtro de tenant va primero, antes
+   * de comparar el nombre). Dos gimnasios pueden tener un centro "Alquiler" cada
+   * uno y eso es correcto — sin el filtro, el alta del gimnasio B chocaría contra
+   * el nombre del A y el 409 le revelaría los nombres del vecino (T-172-06-04).
+   * La unique compuesta de la base ya lleva `tenant_id` (fase 168), así que este
+   * guard y el índice vuelven a decir lo mismo.
+   *
    * @throws ConflictError cuando ya existe otro centro con ese (name, country).
    */
   private async assertUniqueName(
+    ctx: TenantContext,
     name: string,
     country: string,
     excludeId?: number,
@@ -502,7 +533,7 @@ export class CashRegisterService {
     const [existing] = await this.db
       .select({ id: schema.costCenters.id })
       .from(schema.costCenters)
-      .where(and(...conditions))
+      .where(and(tenantWhere(schema.costCenters, ctx), ...conditions))
       .limit(1);
     if (existing) {
       throw new ConflictError(
@@ -519,18 +550,27 @@ export class CashRegisterService {
    * @throws BadRequestError cuando el nombre queda vacío tras el trim.
    * @throws ConflictError cuando ya existe ese nombre en el país.
    */
-  async createCostCenter(name: string, country: string): Promise<CostCenter> {
+  async createCostCenter(
+    ctx: TenantContext,
+    name: string,
+    country: string,
+  ): Promise<CostCenter> {
     const trimmed = name.trim();
     if (!trimmed) {
       throw new BadRequestError("El nombre del centro de costo es obligatorio");
     }
-    await this.assertUniqueName(trimmed, country);
+    await this.assertUniqueName(ctx, trimmed, country);
     const inserted = await this.db
       .insert(schema.costCenters)
-      .values({ name: trimmed, country });
+      // `tenantValues` estampa el gimnasio DESPUÉS del objeto, así que un
+      // `tenantId` que viniera del body no puede ganar (T-172-06-03).
+      .values(tenantValues(ctx, { name: trimmed, country }));
     const id = Number(inserted[0].insertId);
-    this.log.info({ costCenterId: id, country }, "Centro de costo creado");
-    return this.getCostCenterRow(id);
+    this.log.info(
+      { costCenterId: id, country, tenantId: ctx.tenantId },
+      "Centro de costo creado",
+    );
+    return this.getCostCenterRow(ctx, id);
   }
 
   /**
@@ -542,19 +582,31 @@ export class CashRegisterService {
    * @throws BadRequestError cuando el nombre queda vacío tras el trim.
    * @throws ConflictError cuando el nuevo nombre ya existe en el país.
    */
-  async renameCostCenter(id: number, name: string): Promise<CostCenter> {
-    const current = await this.getCostCenterRow(id);
+  async renameCostCenter(
+    ctx: TenantContext,
+    id: number,
+    name: string,
+  ): Promise<CostCenter> {
+    const current = await this.getCostCenterRow(ctx, id);
     const trimmed = name.trim();
     if (!trimmed) {
       throw new BadRequestError("El nombre del centro de costo es obligatorio");
     }
-    await this.assertUniqueName(trimmed, current.country, id);
+    await this.assertUniqueName(ctx, trimmed, current.country, id);
     await this.db
       .update(schema.costCenters)
       .set({ name: trimmed })
-      .where(eq(schema.costCenters.id, id));
+      // El SELECT previo ya cortó con 404 si la fila es de otro gimnasio; el
+      // filtro va igual en el UPDATE (defensa en profundidad: el WHERE de una
+      // escritura nunca se apoya en una lectura anterior — T-172-06-02).
+      .where(
+        and(
+          tenantWhere(schema.costCenters, ctx),
+          eq(schema.costCenters.id, id),
+        ),
+      );
     this.log.info({ costCenterId: id }, "Centro de costo renombrado");
-    return this.getCostCenterRow(id);
+    return this.getCostCenterRow(ctx, id);
   }
 
   /**
@@ -565,17 +617,25 @@ export class CashRegisterService {
    *
    * @throws NotFoundError cuando no existe.
    */
-  async deactivateCostCenter(id: number): Promise<CostCenter> {
-    await this.getCostCenterRow(id);
+  async deactivateCostCenter(
+    ctx: TenantContext,
+    id: number,
+  ): Promise<CostCenter> {
+    await this.getCostCenterRow(ctx, id);
     await this.db
       .update(schema.costCenters)
       .set({ isActive: false })
-      .where(eq(schema.costCenters.id, id));
+      .where(
+        and(
+          tenantWhere(schema.costCenters, ctx),
+          eq(schema.costCenters.id, id),
+        ),
+      );
     this.log.info(
       { costCenterId: id },
       "Centro de costo desactivado (baja lógica)",
     );
-    return this.getCostCenterRow(id);
+    return this.getCostCenterRow(ctx, id);
   }
 
   /**
@@ -584,14 +644,22 @@ export class CashRegisterService {
    *
    * @throws NotFoundError cuando no existe.
    */
-  async reactivateCostCenter(id: number): Promise<CostCenter> {
-    await this.getCostCenterRow(id);
+  async reactivateCostCenter(
+    ctx: TenantContext,
+    id: number,
+  ): Promise<CostCenter> {
+    await this.getCostCenterRow(ctx, id);
     await this.db
       .update(schema.costCenters)
       .set({ isActive: true })
-      .where(eq(schema.costCenters.id, id));
+      .where(
+        and(
+          tenantWhere(schema.costCenters, ctx),
+          eq(schema.costCenters.id, id),
+        ),
+      );
     this.log.info({ costCenterId: id }, "Centro de costo reactivado");
-    return this.getCostCenterRow(id);
+    return this.getCostCenterRow(ctx, id);
   }
 
   /**
@@ -600,20 +668,27 @@ export class CashRegisterService {
    * filtro isActive. Cuando `country` es null (owner sin filtro) devuelve los de
    * todos los países; si no, acota. Ordenado por name.
    */
-  async listAllCostCenters(country: string | null): Promise<CostCenter[]> {
-    const base = this.db
+  async listAllCostCenters(
+    ctx: TenantContext,
+    country: string | null,
+  ): Promise<CostCenter[]> {
+    // El WHERE dejó de ser condicional: el filtro de gimnasio SIEMPRE va, y el
+    // de país se suma sólo cuando hay país. La rama sin `.where()` de antes es
+    // exactamente la forma en que un listado se escapa del gimnasio.
+    const conditions = [tenantWhere(schema.costCenters, ctx)];
+    if (country !== null) {
+      conditions.push(eq(schema.costCenters.country, country));
+    }
+    return this.db
       .select({
         id: schema.costCenters.id,
         name: schema.costCenters.name,
         country: schema.costCenters.country,
         isActive: schema.costCenters.isActive,
       })
-      .from(schema.costCenters);
-    return country !== null
-      ? base
-          .where(eq(schema.costCenters.country, country))
-          .orderBy(asc(schema.costCenters.name))
-      : base.orderBy(asc(schema.costCenters.name));
+      .from(schema.costCenters)
+      .where(and(...conditions))
+      .orderBy(asc(schema.costCenters.name));
   }
 
   // -- Phase 150: ABM de cuentas bancarias (CTA-01 / CTA-02) -----------------

@@ -1208,7 +1208,10 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
         } else {
           country = request.scope.country ?? undefined;
         }
-        return await cashRegisterService.listActiveCostCenters(country ?? null);
+        return await cashRegisterService.listActiveCostCenters(
+          assertTenant(request.scope, "finance.cost-centers.list"),
+          country ?? null,
+        );
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "finance cost centers");
         return reply;
@@ -1241,6 +1244,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           });
         }
         const center = await cashRegisterService.createCostCenter(
+          assertTenant(request.scope, "finance.cost-centers.create"),
           request.body.name,
           request.body.country,
         );
@@ -1264,6 +1268,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           });
         }
         const center = await cashRegisterService.renameCostCenter(
+          assertTenant(request.scope, "finance.cost-centers.rename"),
           request.params.id,
           request.body.name,
         );
@@ -1287,6 +1292,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           });
         }
         const center = await cashRegisterService.deactivateCostCenter(
+          assertTenant(request.scope, "finance.cost-centers.deactivate"),
           request.params.id,
         );
         return reply.code(200).send({ center });
@@ -1309,6 +1315,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           });
         }
         const center = await cashRegisterService.reactivateCostCenter(
+          assertTenant(request.scope, "finance.cost-centers.reactivate"),
           request.params.id,
         );
         return reply.code(200).send({ center });
@@ -1339,6 +1346,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           country = request.scope.country ?? undefined;
         }
         const centers = await cashRegisterService.listAllCostCenters(
+          assertTenant(request.scope, "finance.cost-centers.list-all"),
           country ?? null,
         );
         return reply.code(200).send({ centers });
