@@ -39,6 +39,7 @@ import {
   todayStr,
 } from "./_helpers";
 import * as schema from "../../src/db/schema";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 import { SubscriptionService } from "../../src/modules/subscriptions/service";
 import { AuraService } from "../../src/modules/aura";
 import {
@@ -357,6 +358,7 @@ describe("Phase 146 — Imputar cobro suelto al asignar plan (COBRO-03/04)", () 
 
     await expect(
       subSvc.assignPlan(
+        { tenantId: TENANT_TEMPLO },
         member.id,
         {
           planId: plan.id,

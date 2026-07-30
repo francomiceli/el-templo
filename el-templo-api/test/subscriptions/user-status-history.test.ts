@@ -32,6 +32,7 @@ import { eq } from "drizzle-orm";
 import argon2 from "argon2";
 import * as schema from "../../src/db/schema";
 import { createTestApp, cleanAllTestData } from "../helpers";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 import { SubscriptionService } from "../../src/modules/subscriptions/service";
 import { AuraService } from "../../src/modules/aura";
 import {
@@ -102,6 +103,7 @@ describe("Phase 117-02 — user_status_history forward-only hook", () => {
 
   async function assignDefaultPlan(userId: number): Promise<void> {
     await svc.assignPlan(
+      { tenantId: TENANT_TEMPLO },
       userId,
       {
         planId: testPlanId,

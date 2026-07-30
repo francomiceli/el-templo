@@ -34,6 +34,7 @@ import {
   todayStr,
 } from "./_helpers";
 import * as schema from "../../src/db/schema";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 import { SubscriptionService } from "../../src/modules/subscriptions/service";
 import { AuraService } from "../../src/modules/aura";
 import {
@@ -345,6 +346,7 @@ describe("Phase 107 — Charge on assign / change / renew", () => {
 
       await expect(
         subSvc.assignPlan(
+          { tenantId: TENANT_TEMPLO },
           member.id,
           {
             planId: plan.id,
