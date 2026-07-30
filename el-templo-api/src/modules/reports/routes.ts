@@ -143,7 +143,10 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
           page: request.query.page,
           limit: request.query.limit,
         };
-        return await reportsService.getChargeHistory(filters);
+        return await reportsService.getChargeHistory(
+          assertTenant(request.scope, "reports.charge-history"),
+          filters,
+        );
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "get charges report");
       }
@@ -237,7 +240,10 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
           dateFrom: request.query.dateFrom,
           dateTo: request.query.dateTo,
         };
-        return await reportsService.getTrialConversionReport(filters);
+        return await reportsService.getTrialConversionReport(
+          assertTenant(request.scope, "reports.trial-conversion"),
+          filters,
+        );
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "get trial conversion");
       }
@@ -506,7 +512,10 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
           search: request.query.search,
           paymentMethod: request.query.paymentMethod,
         };
-        const rows = await reportsService.exportChargeHistory(filters);
+        const rows = await reportsService.exportChargeHistory(
+          assertTenant(request.scope, "reports.export-charge-history"),
+          filters,
+        );
 
         const workbook = new Workbook();
         workbook.creator = "El Templo";
@@ -817,6 +826,7 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       try {
         return await reportsService.updateDebtManagement(
+          assertTenant(request.scope, "reports.debt-management"),
           request.params.balanceId,
           request.body,
           {

@@ -453,6 +453,7 @@ export class ReportsService {
   // ─── Charge History ───────────────────────────────────────────────────────
 
   async getChargeHistory(
+    ctx: TenantContext,
     filters: ChargeReportFilters,
   ): Promise<PaginatedResult<ChargeReportRow>> {
     const page = filters.page ?? 1;
@@ -461,7 +462,10 @@ export class ReportsService {
 
     const memberAlias = schema.users;
 
-    const conditions = this.buildChargeConditions(filters);
+    // El filtro de gimnasio sobre financial_transactions viaja adentro de
+    // `conditions` (primer término del WHERE); transaction_links lleva el suyo
+    // en el ON del join de acá abajo.
+    const conditions = this.buildChargeConditions(ctx, filters);
 
     // Count total — join branches so country filter in buildChargeConditions
     // resolves without reference errors. Phase 105 D-01: revenue rows are
@@ -475,6 +479,7 @@ export class ReportsService {
       .innerJoin(
         schema.transactionLinks,
         and(
+          tenantWhere(schema.transactionLinks, ctx),
           eq(
             schema.transactionLinks.transactionId,
             schema.financialTransactions.id,
@@ -515,12 +520,14 @@ export class ReportsService {
       FROM financial_transactions ft
       INNER JOIN transaction_links tl
         ON tl.transaction_id = ft.id AND tl.target_kind = 'subscription'
+        AND tl.tenant_id = ${ctx.tenantId}
       INNER JOIN subscriptions s ON s.id = tl.target_id
       INNER JOIN users m ON m.id = ft.member_id
       INNER JOIN branches b ON b.id = m.branch_id
       INNER JOIN subscription_plans sp ON sp.id = s.plan_id
       INNER JOIN users r ON r.id = ft.recorded_by
-      WHERE ft.kind IN ('plan_charge', 'debt_settlement')
+      WHERE ft.tenant_id = ${ctx.tenantId}
+        AND ft.kind IN ('plan_charge', 'debt_settlement')
         AND ft.direction = 'inflow'
         AND ${sql.raw(firmMoneySqlFor("ft"))}
         AND ${this.buildChargeConditionsRaw(filters)}
@@ -1539,6 +1546,7 @@ export class ReportsService {
    * the admin country-scope behaviour.
    */
   async getTrialConversionReport(
+    ctx: TenantContext,
     filters: TrialConversionFilters,
   ): Promise<TrialConversionReport> {
     // Subquery: each lead's first trial (one row per user with is_trial=1,
@@ -1593,7 +1601,8 @@ export class ReportsService {
         COALESCE((
           SELECT SUM(fx.amount)
           FROM financial_transactions fx
-          WHERE fx.member_id = ft.user_id
+          WHERE fx.tenant_id = ${ctx.tenantId}
+            AND fx.member_id = ft.user_id
             AND ${sql.raw(firmMoneySqlFor("fx"))}
             AND fx.direction = 'inflow'
             AND fx.kind IN ('plan_charge', 'debt_settlement')
@@ -2449,9 +2458,10 @@ export class ReportsService {
   }
 
   async exportChargeHistory(
+    ctx: TenantContext,
     filters: ChargeReportFilters,
   ): Promise<ChargeReportRow[]> {
-    const result = await this.getChargeHistory({
+    const result = await this.getChargeHistory(ctx, {
       ...filters,
       page: 1,
       limit: 100000,
@@ -2513,6 +2523,7 @@ export class ReportsService {
    * país. Fail-closed si el scope de país no resolvió.
    */
   async updateDebtManagement(
+    ctx: TenantContext,
     balanceId: number,
     input: DebtManagementUpdateInput,
     actor: { userId: number; isOwner: boolean; country: "AR" | "ES" | null },
@@ -2534,9 +2545,17 @@ export class ReportsService {
         schema.branches,
         eq(schema.branches.id, schema.subscriptions.branchId),
       )
-      .where(eq(schema.balances.id, balanceId))
+      .where(
+        and(
+          tenantWhere(schema.balances, ctx),
+          eq(schema.balances.id, balanceId),
+        ),
+      )
       .limit(1);
 
+    // Fail-closed cross-tenant: una deuda de otro gimnasio no matchea el
+    // SELECT y sale por acá con 404 — nunca 403, para no filtrar existencia
+    // (mismo idioma que enforceCajaScope en finance/routes.ts).
     if (!bal) {
       throw new NotFoundError("Deuda no encontrada");
     }
@@ -2550,13 +2569,18 @@ export class ReportsService {
     // ON DUPLICATE KEY UPDATE pisa SOLO los campos provistos (PATCH parcial).
     await this.db
       .insert(schema.debtManagement)
-      .values({
-        balanceId,
-        status: input.status ?? "activa",
-        promisedPaymentDate: input.promisedPaymentDate ?? null,
-        notes: input.notes ?? null,
-        updatedBy: actor.userId,
-      })
+      // tenantValues estampa el gimnasio DESPUÉS del objeto, así que el tenant
+      // sale del servidor aunque un día alguien spreadee el body acá adentro
+      // (mitigación de mass-assignment, 169-01).
+      .values(
+        tenantValues(ctx, {
+          balanceId,
+          status: input.status ?? "activa",
+          promisedPaymentDate: input.promisedPaymentDate ?? null,
+          notes: input.notes ?? null,
+          updatedBy: actor.userId,
+        }),
+      )
       .onDuplicateKeyUpdate({
         set: {
           updatedBy: actor.userId,
@@ -2575,7 +2599,12 @@ export class ReportsService {
         notes: schema.debtManagement.notes,
       })
       .from(schema.debtManagement)
-      .where(eq(schema.debtManagement.balanceId, balanceId))
+      .where(
+        and(
+          tenantWhere(schema.debtManagement, ctx),
+          eq(schema.debtManagement.balanceId, balanceId),
+        ),
+      )
       .limit(1);
 
     return {
@@ -2630,19 +2659,47 @@ export class ReportsService {
   }
 
   private buildChargeConditions(
+    ctx: TenantContext,
     filters: ChargeReportFilters,
   ): ReturnType<typeof sql>[] {
     // Phase 105 D-01: revenue == financial_transactions where kind is a real
     // cash inflow (plan_charge, debt_settlement) and the row is not voided.
     // direction='inflow' excludes refunds. These three conditions belong on
     // every charge-history listing.
+    //
+    // Fase 172 — TODA referencia a `financial_transactions` vive en ESTE
+    // statement, que es el que nombra el gimnasio. Los filtros opcionales que
+    // antes se agregaban con `conditions.push(...)` entran acá con spread
+    // condicional: un `push` es un statement aparte y un fragmento sobre una
+    // tabla del módulo migrado que no nombra el tenant es exactamente el
+    // agujero que este archivo viene a cerrar (mismo criterio que
+    // `buildOutstandingScope`). El orden dentro del AND es irrelevante.
     const conditions: ReturnType<typeof sql>[] = [
+      tenantWhere(schema.financialTransactions, ctx),
       sql`1 = 1`,
       sql`${schema.financialTransactions.kind} IN ('plan_charge', 'debt_settlement')`,
       eq(schema.financialTransactions.direction, "inflow"),
       isNull(schema.financialTransactions.voidedAt),
       // Phase 137 (VAL-05): firm money counts only validated rows.
       eq(schema.financialTransactions.validationStatus, "validado"),
+      ...(filters.dateFrom
+        ? [
+            sql`${schema.financialTransactions.transactionDate} >= ${filters.dateFrom}`,
+          ]
+        : []),
+      ...(filters.dateTo
+        ? [
+            sql`${schema.financialTransactions.transactionDate} <= ${filters.dateTo}`,
+          ]
+        : []),
+      ...(filters.paymentMethod
+        ? [
+            eq(
+              schema.financialTransactions.paymentMethod,
+              filters.paymentMethod,
+            ),
+          ]
+        : []),
     ];
 
     if (filters.branchId !== undefined) {
@@ -2651,24 +2708,6 @@ export class ReportsService {
 
     if (filters.country !== undefined) {
       conditions.push(eq(schema.branches.country, filters.country));
-    }
-
-    if (filters.dateFrom) {
-      conditions.push(
-        sql`${schema.financialTransactions.transactionDate} >= ${filters.dateFrom}`,
-      );
-    }
-
-    if (filters.dateTo) {
-      conditions.push(
-        sql`${schema.financialTransactions.transactionDate} <= ${filters.dateTo}`,
-      );
-    }
-
-    if (filters.paymentMethod) {
-      conditions.push(
-        eq(schema.financialTransactions.paymentMethod, filters.paymentMethod),
-      );
     }
 
     if (filters.search) {
