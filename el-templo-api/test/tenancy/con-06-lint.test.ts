@@ -373,11 +373,30 @@ describe("lint-tenant — anclaje de exenciones contra los archivos reales", () 
       ).toBeGreaterThan(0);
     }
 
+    // El número: la 170 lo dejó en 87 (todas las tablas gym-owned con deuda que
+    // el sentinel ve en runtime). La fase 172 adoptó `finance` y PAGÓ la deuda
+    // de sus 6 tablas —vengan del módulo o de analytics, reports, subscriptions,
+    // members, coach o el backfill—, así que la lente ve 81. Bajar el piso acá
+    // es legítimo SOLO porque la baja está contabilizada tabla por tabla: la
+    // aserción de abajo verifica que las 6 que faltan son exactamente las
+    // strict. Una baja sin esa contrapartida es el punto ciego volviendo, y el
+    // arreglo sigue siendo isSchemaModule(), no este número.
+    const tablasConDeuda = new Set(REAL_RESULT.violations.map((v) => v.table));
+
     expect(
-      new Set(REAL_RESULT.violations.map((v) => v.table)).size,
-      "con el punto ciego cerrado, la lente estática llega a las 87 tablas gym-owned con deuda que " +
-        "el sentinel ve en runtime. Si este número baja, alguna forma de import volvió a quedar afuera.",
-    ).toBeGreaterThanOrEqual(87);
+      [...strictTablesSet()].filter((tabla) => tablasConDeuda.has(tabla)).sort(),
+      "una tabla de un módulo declarado migrado (TENANT_STRICT_MODULES) no puede seguir teniendo " +
+        "accesos que violan: el sentinel hace THROW sobre ella en test/dev. Si esto se cae, la " +
+        "adopción de ese módulo quedó a medias y el lint y el sentinel se están contradiciendo.",
+    ).toEqual([]);
+
+    expect(
+      tablasConDeuda.size,
+      "con el punto ciego cerrado la lente estática veía 87 tablas gym-owned con deuda; la fase " +
+        "172 pagó la de las 6 de finance y quedan 81. Si este número baja SIN que la baja se " +
+        "explique por tablas que entraron a TENANT_STRICT_MODULES, alguna forma de import volvió " +
+        "a quedar afuera del lint.",
+    ).toBeGreaterThanOrEqual(81);
   });
 
   it("ve los accesos escritos por ALIAS LOCAL de variable (punto ciego CR-01)", () => {
@@ -589,11 +608,20 @@ describe("lint-tenant — los cuatro gates del ratchet", () => {
     expect(report.discrepancies).toBe(1);
     expect(formatReport(report)).toContain("VACIA las entradas de esa tabla");
 
+    // El test inyecta la lista strict por parámetro (D-07) y NO la lee del
+    // registro real. Desde la fase 172 el registro dejó de estar vacío
+    // (`finance`), así que "size === 0" ya no sirve para probar la inyección:
+    // lo que la prueba es que `bookings` —la tabla del fixture— NO está en la
+    // lista real. Si algún día bookings entrara a un módulo migrado, este
+    // fixture pasaría a coincidir con la realidad por casualidad y el `it`
+    // dejaría de distinguir la lista inyectada de la del registro: ahí hay que
+    // cambiar la tabla del fixture, no bajar la aserción.
     expect(
-      strictTablesSet().size,
-      "el test inyecta la lista strict por parámetro (D-07). Declarar migrado un módulo real acá " +
-        "sería mentir: en la fase 170 no hay ninguno, y TENANT_STRICT_MODULES tiene que seguir vacío",
-    ).toBe(0);
+      strictTablesSet().has("bookings"),
+      "el fixture inyecta strictTables = {bookings} para probar que el parámetro MANDA sobre el " +
+        "registro real (D-07). Si bookings pasó a ser strict de verdad, el fixture dejó de probar " +
+        "eso: elegí otra tabla todavía no migrada",
+    ).toBe(false);
   });
 
   it("una entrada que la base NO tenía cae en gainedEntries (D-14)", () => {
