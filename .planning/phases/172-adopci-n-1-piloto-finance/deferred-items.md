@@ -162,3 +162,24 @@ gimnasio**. Sin esa sede el fallback tira un `Error` y las rutas de carga contes
 
 **Un gimnasio nuevo necesita su propia sede virtual para adoptar coach-load.** Va a
 `.docs/saas-multitenancy/07-receta-adopcion.md` (plan **172-23**).
+
+---
+
+## 📋 CIERRE DE MILESTONE — la tabla de trazabilidad de `REQUIREMENTS.md` está atrasada (172-20)
+
+No es deuda de código: es contabilidad. `ISO-01` e `ISO-02` siguen marcados `Pending` en
+`.planning/REQUIREMENTS.md` (checkbox y tabla) aunque la **fase 171 los entregó y están en
+master**, y ningún `docs(172-XX)` de esta fase tocó el archivo. El 172-20 mantuvo esa
+convención en vez de marcar `ISO-03` solo.
+
+**Qué revisar al cerrar el milestone v6.0**, en un solo pase:
+
+- `ISO-01` / `ISO-02` → entregados por la fase 171.
+- `ISO-03` → las 38 rutas finance tienen caso + gate de cobertura (172-17/18/19/20). **Ojo
+  con la letra del requisito** ("no expone ni escribe datos del tenant B"): hoy
+  `GET /coach-load/autocompletar/:userId` **sí expone** el plan de un socio ajeno, por la
+  deuda de `subscriptions` que arregla la **fase 173**. Decidir si se marca con esa fuga
+  viva o después.
+- `CON-05` / `CON-06` → los entrega el **172-21** (el switch + allowlist en cero).
+- `ADO-01` → falta el switch (172-21) **y** el alta de coach-load usable por un gimnasio
+  nuevo (fase 173).
