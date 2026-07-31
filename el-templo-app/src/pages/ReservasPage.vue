@@ -1376,9 +1376,14 @@ function onSlotTap(slot: WeeklySlotView) {
   const dateStr = `${d.getDate()} ${MONTH_ABBREV[d.getMonth()]}`
   const timeStr = formatTime(slot.startTime)
 
+  // El choque diario es POR CATEGORÍA, igual que la guarda 8b del server: una
+  // especial (pase Aura) no colisiona con una regular del mismo día — el socio
+  // puede tener ROM el sábado y la clase con Aura ese mismo sábado. Sin este
+  // filtro la app ofrecía "Cambiar horario" y le cancelaba la otra reserva.
   const existingBooking = myBookings.value.find(
     (b) =>
       b.bookingDate === date &&
+      b.isSpecial === slot.isSpecial &&
       ['reservado', 'qr_escaneado', 'confirmado', 'lista_espera'].includes(b.status),
   )
 

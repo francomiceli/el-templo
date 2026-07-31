@@ -110,6 +110,10 @@ const bookingRecordSchema = {
     // Vencimiento countdown source: active/paused subscription end date
     // (YYYY-MM-DD) or null. The pill label is derived client-side.
     endDate: { type: ["string", "null"] },
+    // Categoría de la actividad reservada (activities.is_special). El app la
+    // usa para aplicar la regla diaria por categoría igual que la guarda 8b
+    // del server — sin esta propiedad fast-json-stringify la strippea.
+    isSpecial: { type: "boolean" },
   },
 } as const;
 

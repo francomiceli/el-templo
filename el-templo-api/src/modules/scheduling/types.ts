@@ -49,6 +49,8 @@ export interface ScheduleSlot {
    * restored" to the deactivation window.
    */
   deactivatedAt: string | null;
+  /** Categoría de la actividad del slot (activities.is_special). */
+  isSpecial: boolean;
 }
 
 export interface WeeklySlotView extends ScheduleSlot {
@@ -96,6 +98,11 @@ export interface BookingRecord {
   // Active/paused subscription end date (YYYY-MM-DD) for the Vencimiento
   // countdown pill. Null when the member has no active/paused subscription.
   endDate: string | null;
+  // Categoría de la actividad reservada (activities.is_special). El app la
+  // necesita para aplicar la regla diaria por categoría del mismo modo que
+  // el server (reserve() 8b): una especial (pase Aura) no choca con una
+  // regular del mismo día.
+  isSpecial: boolean;
 }
 
 export interface HolidayRecord {

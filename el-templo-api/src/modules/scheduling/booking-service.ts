@@ -548,6 +548,7 @@ export class BookingService {
         bookedAt: schema.bookings.bookedAt,
         cancelledAt: schema.bookings.cancelledAt,
         isTrial: schema.bookings.isTrial,
+        isSpecial: schema.activities.isSpecial,
       })
       .from(schema.bookings)
       .innerJoin(schema.users, eq(schema.users.id, schema.bookings.memberId))
@@ -2149,6 +2150,7 @@ export class BookingService {
         bookedAt: schema.bookings.bookedAt,
         cancelledAt: schema.bookings.cancelledAt,
         isTrial: schema.bookings.isTrial,
+        isSpecial: schema.activities.isSpecial,
       })
       .from(schema.bookings)
       .innerJoin(schema.users, eq(schema.users.id, schema.bookings.memberId))
@@ -2184,6 +2186,7 @@ export class BookingService {
     bookedAt: Date;
     cancelledAt: Date | null;
     isTrial: boolean;
+    isSpecial: boolean;
   }): BookingRecord {
     return {
       id: row.id,
@@ -2207,6 +2210,7 @@ export class BookingService {
       segment: null,
       seniority: null,
       endDate: null,
+      isSpecial: row.isSpecial,
     };
   }
 }
