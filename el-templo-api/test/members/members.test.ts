@@ -24,6 +24,16 @@ import { memberProfiles } from "../../src/db/schema/member-profiles";
 import { financialTransactions } from "../../src/db/schema/financial-transactions";
 import { transactionLinks } from "../../src/db/schema/transaction-links";
 import { balances } from "../../src/db/schema/balances";
+import { tenantValues } from "../../src/modules/shared/tenant";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+
+/**
+ * 172-15: `TEMPLO_CTX` es el gimnasio de este archivo. Las queries directas de
+ * los tests pasan por `app.dbPool` igual que las de la app, asi que con
+ * `finance` en `TENANT_STRICT_MODULES` una lectura o una siembra sobre las
+ * tablas strict sin gimnasio hace throw antes de llegar a MySQL.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 describe("Members Management Routes", () => {
   let app: FastifyInstance;
@@ -366,13 +376,15 @@ describe("Members Management Routes", () => {
         password: "password123",
         branchId: 1,
       });
-      await app.db.insert(balances).values({
-        memberId: user.id as number,
-        targetKind: "subscription",
-        targetId: 999999,
-        currency: "ARS",
-        amount: 5000,
-      });
+      await app.db.insert(balances).values(
+        tenantValues(TEMPLO_CTX, {
+          memberId: user.id as number,
+          targetKind: "subscription",
+          targetId: 999999,
+          currency: "ARS",
+          amount: 5000,
+        }),
+      );
 
       // owner/admin: sees the financial aggregate.
       const adminRes = await app.inject({
@@ -1071,25 +1083,29 @@ describe("Members Management Routes", () => {
       const today = new Date().toISOString().split("T")[0];
       const [txIns] = await app.db
         .insert(financialTransactions)
-        .values({
-          memberId: member.id,
-          kind: "plan_charge",
-          direction: "inflow",
-          amount: 65000,
-          currency: "ARS",
-          paymentMethod: "cash",
-          transactionDate: today,
-          effectiveDate: today,
-          branchId: 1,
-          recordedBy: admin.id,
-        })
+        .values(
+          tenantValues(TEMPLO_CTX, {
+            memberId: member.id,
+            kind: "plan_charge",
+            direction: "inflow",
+            amount: 65000,
+            currency: "ARS",
+            paymentMethod: "cash",
+            transactionDate: today,
+            effectiveDate: today,
+            branchId: 1,
+            recordedBy: admin.id,
+          }),
+        )
         .$returningId();
-      await app.db.insert(transactionLinks).values({
-        transactionId: txIns.id,
-        targetKind: "subscription",
-        targetId: sub.id,
-        allocatedAmount: 65000,
-      });
+      await app.db.insert(transactionLinks).values(
+        tenantValues(TEMPLO_CTX, {
+          transactionId: txIns.id,
+          targetKind: "subscription",
+          targetId: sub.id,
+          allocatedAmount: 65000,
+        }),
+      );
 
       const delRes = await app.inject({
         method: "DELETE",
