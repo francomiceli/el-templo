@@ -289,6 +289,11 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
         }
         const bodyBranchId = request.body.branchId;
 
+        // Fase 172 (ADO-01): un solo ctx por handler — lo usan el guard de sede
+        // de abajo, `create()` y `getRowsForTransaction`. Dentro del try para que
+        // un TENANT_UNRESOLVED salga por `handleServiceError`.
+        const ctx = assertTenant(request.scope, "finance.transactions.create");
+
         // T-106-03: non-owner cannot post against a branch in another country.
         if (!request.scope.isOwner) {
           const [branchRow] = await fastify.db
@@ -298,7 +303,15 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
               isVirtual: schema.branches.isVirtual,
             })
             .from(schema.branches)
-            .where(eq(schema.branches.id, bodyBranchId))
+            // T-172-11-03: la sede llega del body. Sin el gimnasio en el filtro,
+            // una sede ajena del mismo país pasaba este guard y el cobro nacía
+            // imputado contra ella.
+            .where(
+              and(
+                tenantWhere(schema.branches, ctx),
+                eq(schema.branches.id, bodyBranchId),
+              ),
+            )
             .limit(1);
           if (!branchRow) {
             return reply.code(404).send({
@@ -347,12 +360,12 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           : "validado";
 
         const detail = await transactionService.create(
-          assertTenant(request.scope, "finance.transactions.create"),
+          ctx,
           { ...request.body, validationStatus: initialStatus },
           request.user.userId,
         );
         const affectedBalances = await balanceService.getRowsForTransaction(
-          assertTenant(request.scope, "finance.balances.for-transaction"),
+          ctx,
           detail.id,
         );
 
@@ -394,6 +407,10 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           });
         }
 
+        // Fase 172 (ADO-01): un solo ctx por handler — lo usan el guard de país
+        // de abajo y `void()`.
+        const ctx = assertTenant(request.scope, "finance.transactions.void");
+
         // T-106-04: non-owner cannot void a transaction in another country.
         if (!request.scope.isOwner) {
           const [target] = await fastify.db
@@ -403,11 +420,22 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
               branchIsVirtual: schema.branches.isVirtual,
             })
             .from(schema.financialTransactions)
+            // Las DOS tablas nombran el gimnasio: es un inner join, así que acá
+            // el filtro de `branches` puede ir en el ON sin cambiar la forma del
+            // resultado (a diferencia del leftJoin de `resolveCajaCountry`).
             .innerJoin(
               schema.branches,
-              eq(schema.branches.id, schema.financialTransactions.branchId),
+              and(
+                tenantWhere(schema.branches, ctx),
+                eq(schema.branches.id, schema.financialTransactions.branchId),
+              ),
             )
-            .where(eq(schema.financialTransactions.id, request.params.id))
+            .where(
+              and(
+                tenantWhere(schema.financialTransactions, ctx),
+                eq(schema.financialTransactions.id, request.params.id),
+              ),
+            )
             .limit(1);
           if (!target) {
             return reply.code(404).send({
@@ -430,7 +458,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
         // VAL-06 / D-10: keepMembershipActive default true (sub untouched).
         // When false, void() cancels the linked subscription atomically.
         const detail = await transactionService.void(
-          assertTenant(request.scope, "finance.transactions.void"),
+          ctx,
           request.params.id,
           request.user.userId,
           {
