@@ -411,6 +411,8 @@ export class SchedulingService {
       segment: r.segment ?? null,
       seniority: computeSeniority(r.createdAt),
       endDate: r.endDate ?? null,
+      // Todas las reservas de este roster son del mismo slot.
+      isSpecial: slot.isSpecial,
     }));
 
     // Query attendance records for this branch + date
@@ -962,6 +964,7 @@ export class SchedulingService {
         isActive: schema.schedules.isActive,
         inactiveReason: schema.schedules.inactiveReason,
         deactivatedAt: schema.schedules.deactivatedAt,
+        isSpecial: schema.activities.isSpecial,
       })
       .from(schema.schedules)
       .innerJoin(
@@ -987,6 +990,7 @@ export class SchedulingService {
       isActive: row.isActive,
       inactiveReason: row.inactiveReason,
       deactivatedAt: row.deactivatedAt?.toISOString() ?? null,
+      isSpecial: row.isSpecial,
     };
   }
 }

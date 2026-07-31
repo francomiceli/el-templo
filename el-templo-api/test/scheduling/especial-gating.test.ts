@@ -614,4 +614,44 @@ describe("Fase 161-06 — gating del pase de actividades especiales", () => {
     expect(acrobaciasSlot).toBeDefined();
     expect(acrobaciasSlot?.isSpecial).toBe(true);
   });
+
+  // ── (17) el listado de MIS reservas expone isSpecial ────────────────────
+  it("(17) /my-bookings trae isSpecial por reserva — el app aplica la diaria por tipo", async () => {
+    // El server ya permite especial + regular el mismo día (tests 12/13), pero
+    // el app aplicaba su propia regla "un turno por día" sin distinguir tipo y
+    // ofrecía "Cambiar horario" cancelando la otra reserva. Para replicar el
+    // criterio del server necesita el flag por reserva: si el schema de
+    // respuesta no lo declara, fast-json-stringify lo strippea (ver test 9).
+    const especialJuevesId = await createActivityAndSchedule(
+      "Aro Jueves",
+      true,
+      4, // mismo jueves que la regular
+      "12:00",
+      "13:00",
+    );
+    const { id, token } = await createMemberToken("my-bookings-17@test.com");
+    await insertSub(id, presencialPlanId, "active", "2026-02-14", "2026-04-15", 10);
+    await insertSub(id, especialPlanId, "active", "2026-02-14", "2026-04-15", 2);
+
+    expect((await reserve(token, regularScheduleId, REGULAR_DATE)).statusCode).toBe(201);
+    expect((await reserve(token, especialJuevesId, REGULAR_DATE)).statusCode).toBe(201);
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/api/members/scheduling/my-bookings?weekStart=${WEEK_START}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(200);
+
+    const body = JSON.parse(res.body) as {
+      bookings: Array<{ scheduleId: number; isSpecial: boolean }>;
+    };
+    const regular = body.bookings.find((b) => b.scheduleId === regularScheduleId);
+    const especial = body.bookings.find((b) => b.scheduleId === especialJuevesId);
+
+    expect(regular).toBeDefined();
+    expect(regular?.isSpecial).toBe(false);
+    expect(especial).toBeDefined();
+    expect(especial?.isSpecial).toBe(true);
+  });
 });

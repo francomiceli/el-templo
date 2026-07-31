@@ -43,6 +43,10 @@ export interface BookingRecord {
   waitlistPosition: number | null
   bookedAt: string
   cancelledAt: string | null
+  // Categoría de la actividad reservada (activities.is_special). La regla
+  // diaria del cliente compara solo contra reservas del mismo tipo, igual
+  // que la guarda 8b del server.
+  isSpecial: boolean
 }
 
 export interface AttendanceWeekRecord {
