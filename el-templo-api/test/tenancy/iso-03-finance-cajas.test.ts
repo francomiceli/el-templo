@@ -110,6 +110,7 @@ import {
   tenantDeLaFila,
   campoDeLaFila,
   IMPORTE_SEMBRADO,
+  MONEDA_SEMBRADA,
   type FinanzasDeElTemplo,
   type FinanzasDelGimnasioDos,
 } from "../fixtures/finance-gimnasio-dos";
@@ -168,6 +169,20 @@ async function getComoGimnasioDos(url: string) {
     method: "GET",
     url: `${BASE}${url}`,
     headers: { authorization: `Bearer ${gym2.adminToken}` },
+  });
+}
+
+/** POST / PATCH como staff del gimnasio 2. */
+async function escribirComoGimnasioDos(
+  method: "POST" | "PATCH",
+  url: string,
+  payload?: Record<string, unknown>,
+) {
+  return app.inject({
+    method,
+    url: `${BASE}${url}`,
+    headers: { authorization: `Bearer ${gym2.adminToken}` },
+    ...(payload === undefined ? {} : { payload }),
   });
 }
 
@@ -591,5 +606,548 @@ describe("centros de costo del ABM (incluye inactivos) — GET /api/admin/financ
       `${RUTA} tiene que incluir los centros DADOS DE BAJA del gimnasio propio (es el listado ` +
         `del ABM). Si vuelve solo activos, el caso de aislamiento de al lado esconde su fuga.`,
     ).toBe(false);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ESCRITURAS (las 9 rutas POST/PATCH del grupo)
+//
+// El status por si solo NO alcanza: un handler que MUTE la fila ajena y despues
+// conteste "no existe" daria verde mirando nada mas la respuesta. Por eso cada
+// caso de aislamiento releé la fila objetivo con `campoDeLaFila` /
+// `tenantDeLaFila` y la compara contra su valor original (T-172-17-02).
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Mensaje compartido de los rojos de AISLAMIENTO en escrituras.
+ */
+function porQueImportaLaEscritura(ruta: string, filaId: number): string {
+  return (
+    `${ruta} dejo que el staff del gimnasio ${TENANT_DOS} operara sobre la fila ${filaId}, que es ` +
+    `de El Templo (${TENANT_TEMPLO}). Eso es TAMPERING cross-tenant (T-172-17-02): al UPDATE le ` +
+    `falta su \`tenantWhere(tabla, ctx)\`, o el guard de lectura previo (getBankAccountRow / ` +
+    `getCostCenterRow en src/modules/finance/cash-register-service.ts) dejo de filtrar por ` +
+    `gimnasio. El contrato del milestone (D-09) es que el recurso ajeno sea indistinguible de ` +
+    `uno inexistente: "no existe", nunca "prohibido".`
+  );
+}
+
+/**
+ * Afirma que la fila AJENA sigue siendo del otro gimnasio y con el mismo valor
+ * en la columna que se intento cambiar.
+ *
+ * Las DOS mitades importan: el gimnasio (nadie se robo la fila) y el valor
+ * (nadie la escribio antes de contestar que no existe).
+ */
+async function afirmarFilaAjenaIntacta(
+  ruta: string,
+  tabla: "cash_registers" | "cost_centers",
+  filaId: number,
+  columna: "name" | "is_active",
+  valorOriginal: string | null,
+): Promise<void> {
+  expect(
+    await tenantDeLaFila(app, tabla, filaId),
+    porQueImportaLaEscritura(ruta, filaId) +
+      ` (la fila cambio de GIMNASIO: se la llevaron al ${TENANT_DOS})`,
+  ).toBe(TENANT_TEMPLO);
+  expect(
+    await campoDeLaFila(app, tabla, columna, filaId),
+    porQueImportaLaEscritura(ruta, filaId) +
+      ` (la columna \`${columna}\` de la fila ajena CAMBIO, aunque la respuesta HTTP dijera que ` +
+      `no existe: el 404 llego DESPUES del UPDATE. Mirar solo el status es exactamente la ` +
+      `evidencia que este archivo no acepta).`,
+  ).toBe(valorOriginal);
+}
+
+/** Cuenta las cajas de un gimnasio para una sede + moneda dadas. */
+async function contarCajas(
+  tenantId: number,
+  branchId: number,
+  currency: string,
+): Promise<number> {
+  const filas = await app.db
+    .select({ id: schema.cashRegisters.id })
+    .from(schema.cashRegisters)
+    .where(
+      and(
+        tenantWhere(schema.cashRegisters, { tenantId }),
+        eq(schema.cashRegisters.branchId, branchId),
+        eq(schema.cashRegisters.currency, currency),
+      ),
+    );
+  return filas.length;
+}
+
+/** Body valido de alta de cuenta banco (la regla uno-de-dos pide alias o CBU). */
+function altaDeCuentaBanco(spoof: Record<string, unknown>) {
+  return {
+    bankName: "Banco del Gimnasio Dos",
+    accountHolder: "Gimnasio Dos",
+    currency: MONEDA_SEMBRADA,
+    accountAlias: `alta.g2.${Date.now().toString(36)}`,
+    ...spoof,
+  };
+}
+
+describe("alta de cuenta banco — POST /api/admin/finance/cash-registers", () => {
+  const RUTA = "POST /api/admin/finance/cash-registers";
+
+  it("aislamiento: con tenantId de El Templo en el body, la cuenta nace igual en el gimnasio 2", async () => {
+    // Mass-assignment (T-172-17-03 / T-169-02 aplicado a finance). Aca hay DOS
+    // barreras y las dos tienen que estar: `createBankAccountSchema` declara
+    // `additionalProperties: false` y ajv corre con `removeAdditional: true`, asi
+    // que el campo desconocido se descarta en el transporte; y aguas abajo
+    // `tenantValues(ctx, …)` estampa el gimnasio DESPUES del spread, asi que
+    // ningun campo del input puede pisarlo. Lo que se afirma es el RESULTADO:
+    // el gimnasio de la fila lo eligio el servidor, no el cliente.
+    const res = await escribirComoGimnasioDos(
+      "POST",
+      "/cash-registers",
+      altaDeCuentaBanco({ tenantId: TENANT_TEMPLO }),
+    );
+    expect(
+      res.statusCode,
+      `${RUTA} con un tenantId spoofeado en el body no devolvio 201: ${res.body}. Si devolvio ` +
+        `400, la barrera se mudo al transporte (el schema paso a RECHAZAR la propiedad ` +
+        `desconocida en vez de descartarla): tambien es un contrato valido, pero entonces este ` +
+        `caso tiene que afirmar eso y no esto.`,
+    ).toBe(201);
+    const id = JSON.parse(res.body).account.id as number;
+    expect(
+      await tenantDeLaFila(app, "cash_registers", id),
+      `La cuenta banco ${id} nacio en el gimnasio equivocado. Si es ${TENANT_TEMPLO}, el ` +
+        `\`tenant_id\` se esta tomando del BODY: el cliente eligio en que gimnasio escribir ` +
+        `(T-172-17-03). La regla del milestone es que el gimnasio sale SIEMPRE del scope ` +
+        `server-side (src/db/schema/tenant-column.ts:11-16), jamas de un payload.`,
+    ).toBe(TENANT_DOS);
+  });
+
+  it("control: sin el campo spoofeado, la cuenta nace en el gimnasio 2 igual", async () => {
+    const res = await escribirComoGimnasioDos(
+      "POST",
+      "/cash-registers",
+      altaDeCuentaBanco({}),
+    );
+    expect(res.statusCode, `${RUTA} fallo: ${res.body}`).toBe(201);
+    const id = JSON.parse(res.body).account.id as number;
+    expect(
+      await tenantDeLaFila(app, "cash_registers", id),
+      porQueImportaElControl(RUTA, id),
+    ).toBe(TENANT_DOS);
+  });
+});
+
+describe("alta de caja efectivo — POST /api/admin/finance/cash-registers/efectivo", () => {
+  const RUTA = "POST /api/admin/finance/cash-registers/efectivo";
+  // La moneda va distinta de la sembrada a proposito: el invariante "una caja
+  // efectivo ACTIVA por (sucursal, moneda)" haria chocar un alta en la moneda
+  // del fixture con un 409 que no tiene nada que ver con el aislamiento.
+  const MONEDA_LIBRE = "EUR";
+
+  it("aislamiento: no puede abrirle una caja a una sede de El Templo", async () => {
+    const antes = await contarCajas(
+      TENANT_TEMPLO,
+      templo.branchId,
+      MONEDA_LIBRE,
+    );
+    const res = await escribirComoGimnasioDos(
+      "POST",
+      "/cash-registers/efectivo",
+      {
+        branchId: templo.branchId,
+        currency: MONEDA_LIBRE,
+      },
+    );
+    expect(
+      res.statusCode,
+      porQueImportaLaEscritura(RUTA, templo.branchId) +
+        ` (la sede es de El Templo y para el gimnasio ${TENANT_DOS} tiene que NO EXISTIR: el ` +
+        `SELECT de \`branches\` de createEfectivoCaja lleva su tenantWhere). Respuesta: ${res.body}`,
+    ).toBe(404);
+    expect(
+      await contarCajas(TENANT_TEMPLO, templo.branchId, MONEDA_LIBRE),
+      `${RUTA} le abrio una caja de verdad a la sede ${templo.branchId} de El Templo aunque ` +
+        `contesto que no existe. El 404 llego DESPUES del INSERT.`,
+    ).toBe(antes);
+  });
+
+  it("aislamiento: con tenantId de El Templo en el body, la caja nace igual en el gimnasio 2", async () => {
+    const res = await escribirComoGimnasioDos(
+      "POST",
+      "/cash-registers/efectivo",
+      {
+        branchId: gym2.branchId,
+        currency: MONEDA_LIBRE,
+        tenantId: TENANT_TEMPLO,
+      },
+    );
+    expect(res.statusCode, `${RUTA} spoofeado: ${res.body}`).toBe(201);
+    const id = JSON.parse(res.body).caja.cashRegisterId as number;
+    expect(
+      await tenantDeLaFila(app, "cash_registers", id),
+      `La caja ${id} nacio en el gimnasio equivocado: el \`tenant_id\` salio del BODY ` +
+        `(T-172-17-03) y no del scope server-side.`,
+    ).toBe(TENANT_DOS);
+  });
+
+  it("control: SI puede abrirle una caja a su propia sede", async () => {
+    const res = await escribirComoGimnasioDos(
+      "POST",
+      "/cash-registers/efectivo",
+      {
+        branchId: gym2.branchId,
+        currency: MONEDA_LIBRE,
+      },
+    );
+    expect(res.statusCode, `${RUTA} fallo: ${res.body}`).toBe(201);
+    const id = JSON.parse(res.body).caja.cashRegisterId as number;
+    expect(
+      await tenantDeLaFila(app, "cash_registers", id),
+      porQueImportaElControl(RUTA, id),
+    ).toBe(TENANT_DOS);
+  });
+});
+
+describe("edicion de cuenta banco — PATCH /api/admin/finance/cash-registers/:id", () => {
+  const RUTA = "PATCH /api/admin/finance/cash-registers/:id";
+
+  it("aislamiento: no puede editar la cuenta banco de El Templo, y la fila queda intacta", async () => {
+    const nombreOriginal = await campoDeLaFila(
+      app,
+      "cash_registers",
+      "name",
+      templo.bankAccountId,
+    );
+    const res = await escribirComoGimnasioDos(
+      "PATCH",
+      `/cash-registers/${templo.bankAccountId}`,
+      { bankName: "Banco Intervenido" },
+    );
+    expect(
+      res.statusCode,
+      porQueImportaLaEscritura(RUTA, templo.bankAccountId) +
+        ` Respuesta: ${res.body}`,
+    ).toBe(404);
+    // `updateBankAccount` recalcula `name` a partir de `bankName`, asi que si el
+    // UPDATE hubiera corrido el nombre habria cambiado: es el testigo exacto.
+    await afirmarFilaAjenaIntacta(
+      RUTA,
+      "cash_registers",
+      templo.bankAccountId,
+      "name",
+      nombreOriginal,
+    );
+  });
+
+  it("control: SI puede editar su propia cuenta banco", async () => {
+    const nombreOriginal = await campoDeLaFila(
+      app,
+      "cash_registers",
+      "name",
+      dos.bankAccountId,
+    );
+    const res = await escribirComoGimnasioDos(
+      "PATCH",
+      `/cash-registers/${dos.bankAccountId}`,
+      { bankName: "Banco Renombrado" },
+    );
+    expect(
+      res.statusCode,
+      porQueImportaElControl(RUTA, dos.bankAccountId) +
+        ` Respuesta: ${res.body}`,
+    ).toBe(200);
+    expect(
+      await campoDeLaFila(app, "cash_registers", "name", dos.bankAccountId),
+      `${RUTA} contesto 200 pero no cambio el nombre de la cuenta propia. Sin este control, ` +
+        `el caso de aislamiento de al lado pasaria en verde con la ruta rota para TODOS.`,
+    ).not.toBe(nombreOriginal);
+    expect(
+      await tenantDeLaFila(app, "cash_registers", dos.bankAccountId),
+      `La cuenta propia cambio de gimnasio al editarla: el UPDATE esta tocando \`tenant_id\`.`,
+    ).toBe(TENANT_DOS);
+  });
+});
+
+describe("cierre de cuenta banco — POST /api/admin/finance/cash-registers/:id/close", () => {
+  const RUTA = "POST /api/admin/finance/cash-registers/:id/close";
+
+  it("aislamiento: no puede cerrar la cuenta banco de El Templo, y sigue activa", async () => {
+    const res = await escribirComoGimnasioDos(
+      "POST",
+      `/cash-registers/${templo.bankAccountId}/close`,
+    );
+    expect(
+      res.statusCode,
+      porQueImportaLaEscritura(RUTA, templo.bankAccountId) +
+        ` Respuesta: ${res.body}`,
+    ).toBe(404);
+    await afirmarFilaAjenaIntacta(
+      RUTA,
+      "cash_registers",
+      templo.bankAccountId,
+      "is_active",
+      "1",
+    );
+  });
+
+  it("control: SI puede cerrar su propia cuenta banco", async () => {
+    const res = await escribirComoGimnasioDos(
+      "POST",
+      `/cash-registers/${dos.bankAccountId}/close`,
+    );
+    expect(
+      res.statusCode,
+      porQueImportaElControl(RUTA, dos.bankAccountId) +
+        ` Respuesta: ${res.body}`,
+    ).toBe(200);
+    expect(
+      await campoDeLaFila(
+        app,
+        "cash_registers",
+        "is_active",
+        dos.bankAccountId,
+      ),
+      `${RUTA} contesto 200 pero la cuenta propia sigue activa: la baja logica no corrio.`,
+    ).toBe("0");
+  });
+});
+
+describe("reactivacion de cuenta banco — POST /api/admin/finance/cash-registers/:id/reactivate", () => {
+  const RUTA = "POST /api/admin/finance/cash-registers/:id/reactivate";
+
+  it("aislamiento: no puede reactivar una cuenta banco cerrada de El Templo", async () => {
+    // Se cierra la cuenta AJENA por la base para que "reactivar" tenga algo real
+    // que hacer: si el objetivo ya estuviera activo, un UPDATE que se colara no
+    // dejaria rastro y el caso no probaria nada.
+    await app.db
+      .update(schema.cashRegisters)
+      .set({ isActive: false })
+      .where(
+        and(
+          tenantWhere(schema.cashRegisters, { tenantId: TENANT_TEMPLO }),
+          eq(schema.cashRegisters.id, templo.bankAccountId),
+        ),
+      );
+
+    const res = await escribirComoGimnasioDos(
+      "POST",
+      `/cash-registers/${templo.bankAccountId}/reactivate`,
+    );
+    expect(
+      res.statusCode,
+      porQueImportaLaEscritura(RUTA, templo.bankAccountId) +
+        ` Respuesta: ${res.body}`,
+    ).toBe(404);
+    await afirmarFilaAjenaIntacta(
+      RUTA,
+      "cash_registers",
+      templo.bankAccountId,
+      "is_active",
+      "0",
+    );
+  });
+
+  it("control: SI puede reactivar su propia cuenta banco cerrada", async () => {
+    const cierre = await escribirComoGimnasioDos(
+      "POST",
+      `/cash-registers/${dos.bankAccountId}/close`,
+    );
+    expect(cierre.statusCode, `cierre previo fallo: ${cierre.body}`).toBe(200);
+
+    const res = await escribirComoGimnasioDos(
+      "POST",
+      `/cash-registers/${dos.bankAccountId}/reactivate`,
+    );
+    expect(
+      res.statusCode,
+      porQueImportaElControl(RUTA, dos.bankAccountId) +
+        ` Respuesta: ${res.body}`,
+    ).toBe(200);
+    expect(
+      await campoDeLaFila(
+        app,
+        "cash_registers",
+        "is_active",
+        dos.bankAccountId,
+      ),
+      `${RUTA} contesto 200 pero la cuenta propia sigue cerrada.`,
+    ).toBe("1");
+  });
+});
+
+describe("alta de centro de costo — POST /api/admin/finance/cost-centers", () => {
+  const RUTA = "POST /api/admin/finance/cost-centers";
+
+  it("aislamiento: con tenantId de El Templo en el body, el centro nace igual en el gimnasio 2", async () => {
+    const res = await escribirComoGimnasioDos("POST", "/cost-centers", {
+      name: `Centro spoofeado ${Date.now().toString(36)}`,
+      country: "AR",
+      tenantId: TENANT_TEMPLO,
+    });
+    expect(
+      res.statusCode,
+      `${RUTA} con tenantId spoofeado no devolvio 201: ${res.body}`,
+    ).toBe(201);
+    const id = JSON.parse(res.body).center.id as number;
+    expect(
+      await tenantDeLaFila(app, "cost_centers", id),
+      `El centro de costo ${id} nacio en el gimnasio equivocado: el \`tenant_id\` salio del ` +
+        `BODY (T-172-17-03). \`createCostCenter\` tiene que estampar el gimnasio con ` +
+        `\`tenantValues(ctx, …)\` DESPUES del spread.`,
+    ).toBe(TENANT_DOS);
+  });
+
+  it("control: sin el campo spoofeado, el centro nace en el gimnasio 2 igual", async () => {
+    const res = await escribirComoGimnasioDos("POST", "/cost-centers", {
+      name: `Centro limpio ${Date.now().toString(36)}`,
+      country: "AR",
+    });
+    expect(res.statusCode, `${RUTA} fallo: ${res.body}`).toBe(201);
+    const id = JSON.parse(res.body).center.id as number;
+    expect(
+      await tenantDeLaFila(app, "cost_centers", id),
+      porQueImportaElControl(RUTA, id),
+    ).toBe(TENANT_DOS);
+  });
+});
+
+describe("renombrado de centro de costo — PATCH /api/admin/finance/cost-centers/:id", () => {
+  const RUTA = "PATCH /api/admin/finance/cost-centers/:id";
+
+  it("aislamiento: no puede renombrar el centro de costo de El Templo", async () => {
+    const res = await escribirComoGimnasioDos(
+      "PATCH",
+      `/cost-centers/${templo.costCenterId}`,
+      { name: "Centro intervenido" },
+    );
+    expect(
+      res.statusCode,
+      porQueImportaLaEscritura(RUTA, templo.costCenterId) +
+        ` Respuesta: ${res.body}`,
+    ).toBe(404);
+    await afirmarFilaAjenaIntacta(
+      RUTA,
+      "cost_centers",
+      templo.costCenterId,
+      "name",
+      templo.costCenterName,
+    );
+  });
+
+  it("control: SI puede renombrar su propio centro de costo", async () => {
+    const nuevo = `Centro propio renombrado ${Date.now().toString(36)}`;
+    const res = await escribirComoGimnasioDos(
+      "PATCH",
+      `/cost-centers/${dos.costCenterId}`,
+      { name: nuevo },
+    );
+    expect(
+      res.statusCode,
+      porQueImportaElControl(RUTA, dos.costCenterId) +
+        ` Respuesta: ${res.body}`,
+    ).toBe(200);
+    expect(
+      await campoDeLaFila(app, "cost_centers", "name", dos.costCenterId),
+      `${RUTA} contesto 200 pero no renombro el centro propio.`,
+    ).toBe(nuevo);
+    expect(
+      await tenantDeLaFila(app, "cost_centers", dos.costCenterId),
+      `El centro propio cambio de gimnasio al renombrarlo: el UPDATE toca \`tenant_id\`.`,
+    ).toBe(TENANT_DOS);
+  });
+});
+
+describe("baja logica de centro de costo — POST /api/admin/finance/cost-centers/:id/deactivate", () => {
+  const RUTA = "POST /api/admin/finance/cost-centers/:id/deactivate";
+
+  it("aislamiento: no puede dar de baja el centro de costo de El Templo, y sigue activo", async () => {
+    const res = await escribirComoGimnasioDos(
+      "POST",
+      `/cost-centers/${templo.costCenterId}/deactivate`,
+    );
+    expect(
+      res.statusCode,
+      porQueImportaLaEscritura(RUTA, templo.costCenterId) +
+        ` Respuesta: ${res.body}`,
+    ).toBe(404);
+    await afirmarFilaAjenaIntacta(
+      RUTA,
+      "cost_centers",
+      templo.costCenterId,
+      "is_active",
+      "1",
+    );
+  });
+
+  it("control: SI puede dar de baja su propio centro de costo", async () => {
+    const res = await escribirComoGimnasioDos(
+      "POST",
+      `/cost-centers/${dos.costCenterId}/deactivate`,
+    );
+    expect(
+      res.statusCode,
+      porQueImportaElControl(RUTA, dos.costCenterId) +
+        ` Respuesta: ${res.body}`,
+    ).toBe(200);
+    expect(
+      await campoDeLaFila(app, "cost_centers", "is_active", dos.costCenterId),
+      `${RUTA} contesto 200 pero el centro propio sigue activo.`,
+    ).toBe("0");
+  });
+});
+
+describe("reactivacion de centro de costo — POST /api/admin/finance/cost-centers/:id/reactivate", () => {
+  const RUTA = "POST /api/admin/finance/cost-centers/:id/reactivate";
+
+  it("aislamiento: no puede reactivar un centro de costo dado de baja de El Templo", async () => {
+    await app.db
+      .update(schema.costCenters)
+      .set({ isActive: false })
+      .where(
+        and(
+          tenantWhere(schema.costCenters, { tenantId: TENANT_TEMPLO }),
+          eq(schema.costCenters.id, templo.costCenterId),
+        ),
+      );
+
+    const res = await escribirComoGimnasioDos(
+      "POST",
+      `/cost-centers/${templo.costCenterId}/reactivate`,
+    );
+    expect(
+      res.statusCode,
+      porQueImportaLaEscritura(RUTA, templo.costCenterId) +
+        ` Respuesta: ${res.body}`,
+    ).toBe(404);
+    await afirmarFilaAjenaIntacta(
+      RUTA,
+      "cost_centers",
+      templo.costCenterId,
+      "is_active",
+      "0",
+    );
+  });
+
+  it("control: SI puede reactivar su propio centro de costo dado de baja", async () => {
+    const baja = await escribirComoGimnasioDos(
+      "POST",
+      `/cost-centers/${dos.costCenterId}/deactivate`,
+    );
+    expect(baja.statusCode, `baja previa fallo: ${baja.body}`).toBe(200);
+
+    const res = await escribirComoGimnasioDos(
+      "POST",
+      `/cost-centers/${dos.costCenterId}/reactivate`,
+    );
+    expect(
+      res.statusCode,
+      porQueImportaElControl(RUTA, dos.costCenterId) +
+        ` Respuesta: ${res.body}`,
+    ).toBe(200);
+    expect(
+      await campoDeLaFila(app, "cost_centers", "is_active", dos.costCenterId),
+      `${RUTA} contesto 200 pero el centro propio sigue dado de baja.`,
+    ).toBe("1");
   });
 });
