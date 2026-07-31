@@ -4,13 +4,13 @@ milestone: v6.0
 milestone_name: "Tenancy — El Templo pasa a ser tenant #1"
 status: executing
 stopped_at: Completed 172-10-PLAN.md
-last_updated: "2026-07-31T01:25:44.523Z"
+last_updated: "2026-07-31T02:24:28.343Z"
 last_activity: 2026-07-31
 progress:
   total_phases: 11
   completed_phases: 4
   total_plans: 59
-  completed_plans: 41
+  completed_plans: 42
   percent: 36
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (milestone v6.0 initialized 2026-07-26)
 ## Current Position
 
 Phase: 172 (adopci-n-1-piloto-finance) — EXECUTING
-Plan: 14 of 23
+Plan: 15 of 23
 Status: Ready to execute
 Last activity: 2026-07-31
 Next: `/gsd:execute-phase 172` sigue por el plan **172-14**. **`finance` quedó CERRADO con el 172-12** (cero entradas vivas de allowlist en los 6 archivos del módulo, `strictWithAllowlist` 0) y con el **172-13** arrancó la cadena SERIALIZADA de endurecimiento de tests (13→14→15→16), que comparte la sonda temporal sobre `src/db/tenant-tables.ts`: **pre-check obligatorio de `git status --porcelain el-templo-api/src/db/tenant-tables.ts` (tiene que salir vacío) antes de encenderla**. En paralelo sigue pendiente el plan **169-09**, el último de la fase 169 (gate consolidado + rollout), y siguen pendientes
@@ -439,6 +439,7 @@ _Updated after each plan completion_
 | Phase 172 P11 | 18min | 3 tasks | 2 files |
 | Phase 172 P12 | 19min | 3 tasks | 1 files |
 | Phase 172 P13 | 32min | 2 tasks | 8 files |
+| Phase 172 P14 | 68min | 2 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -940,6 +941,9 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase 172]: 172-12: el filtro de una tabla joineada va en el ON tambien en los INNER JOIN — una sola forma para los dos casos evita que el proximo copie la equivocada
 - [Phase 172]: 172-12: un subquery que arma su propio predicado necesita su propio tenantWhere — el IN de afuera no lo cubre
 - [Phase 172]: 172-12: la allowlist filtrada se deriva de la CADENA de la fase, no de la real — partir de la real deja vivas las entradas ya pagadas y el lint sale rojo por deuda ajena
+- [Phase ?]: 172-14: cero exenciones tenant-safe — los 34 sitios de SQL crudo se acotaron con tenant_id (regla del 172-13)
+- [Phase ?]: 172-14: el SQL crudo por conn.query con backticks es invisible al inventario por grep — 15 sitios que solo cazo la corrida en caliente del sentinel
+- [Phase ?]: 172-14: tsc --noEmit NO typechequea test/ (tsconfig incluye solo src/\*\*) — el unico gate real de un test es vitest
 
 ### Pending Todos
 
@@ -972,7 +976,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-31T01:25:44.475Z
+Last session: 2026-07-31T02:24:16.187Z
 Stopped at: Completed 172-10-PLAN.md
 Resume file: None
 
