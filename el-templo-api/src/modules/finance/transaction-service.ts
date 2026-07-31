@@ -763,7 +763,12 @@ export class TransactionService {
       const [existing] = await tx
         .select()
         .from(schema.financialTransactions)
-        .where(eq(schema.financialTransactions.id, id));
+        .where(
+          and(
+            tenantWhere(schema.financialTransactions, ctx),
+            eq(schema.financialTransactions.id, id),
+          ),
+        );
       if (!existing) {
         throw new NotFoundError("Transaccion no encontrada");
       }
@@ -796,7 +801,15 @@ export class TransactionService {
             isActive: schema.cashRegisters.isActive,
           })
           .from(schema.cashRegisters)
-          .where(eq(schema.cashRegisters.id, cashRegisterId))
+          // Validar contra una caja de OTRO gimnasio es el camino mas directo a
+          // corromper un arqueo ajeno (T-172-10-04): la caja ajena no matchea y
+          // el guard de abajo tira el BadRequestError que ya existia.
+          .where(
+            and(
+              tenantWhere(schema.cashRegisters, ctx),
+              eq(schema.cashRegisters.id, cashRegisterId),
+            ),
+          )
           .limit(1);
         if (!caja || !caja.isActive) {
           throw new BadRequestError(
@@ -825,7 +838,14 @@ export class TransactionService {
           // cashRegisterId la fila conserva su caja sugerida actual.
           ...(cashRegisterId !== undefined ? { cashRegisterId } : {}),
         })
-        .where(eq(schema.financialTransactions.id, id));
+        // Igual que el UPDATE de anulacion: el WHERE de la escritura nombra el
+        // gimnasio por su cuenta, no por el SELECT de arriba (T-172-10-01).
+        .where(
+          and(
+            tenantWhere(schema.financialTransactions, ctx),
+            eq(schema.financialTransactions.id, id),
+          ),
+        );
 
       // Caja final imputada: la elegida por gestion, o la conservada (sugerida).
       const finalCashRegisterId =
@@ -854,11 +874,21 @@ export class TransactionService {
       const [updatedRow] = await tx
         .select()
         .from(schema.financialTransactions)
-        .where(eq(schema.financialTransactions.id, id));
+        .where(
+          and(
+            tenantWhere(schema.financialTransactions, ctx),
+            eq(schema.financialTransactions.id, id),
+          ),
+        );
       const linkRows = await tx
         .select()
         .from(schema.transactionLinks)
-        .where(eq(schema.transactionLinks.transactionId, id));
+        .where(
+          and(
+            tenantWhere(schema.transactionLinks, ctx),
+            eq(schema.transactionLinks.transactionId, id),
+          ),
+        );
       return { ...updatedRow, links: linkRows };
     });
   }
@@ -883,7 +913,12 @@ export class TransactionService {
       const [existing] = await tx
         .select()
         .from(schema.financialTransactions)
-        .where(eq(schema.financialTransactions.id, id));
+        .where(
+          and(
+            tenantWhere(schema.financialTransactions, ctx),
+            eq(schema.financialTransactions.id, id),
+          ),
+        );
       if (!existing) {
         throw new NotFoundError("Transaccion no encontrada");
       }
@@ -899,7 +934,12 @@ export class TransactionService {
       await tx
         .update(schema.financialTransactions)
         .set({ validationStatus: "observado" })
-        .where(eq(schema.financialTransactions.id, id));
+        .where(
+          and(
+            tenantWhere(schema.financialTransactions, ctx),
+            eq(schema.financialTransactions.id, id),
+          ),
+        );
 
       await auditLog.write(tx, {
         actorId: adminId,
@@ -924,11 +964,21 @@ export class TransactionService {
       const [updatedRow] = await tx
         .select()
         .from(schema.financialTransactions)
-        .where(eq(schema.financialTransactions.id, id));
+        .where(
+          and(
+            tenantWhere(schema.financialTransactions, ctx),
+            eq(schema.financialTransactions.id, id),
+          ),
+        );
       const linkRows = await tx
         .select()
         .from(schema.transactionLinks)
-        .where(eq(schema.transactionLinks.transactionId, id));
+        .where(
+          and(
+            tenantWhere(schema.transactionLinks, ctx),
+            eq(schema.transactionLinks.transactionId, id),
+          ),
+        );
       return { ...updatedRow, links: linkRows };
     });
   }
