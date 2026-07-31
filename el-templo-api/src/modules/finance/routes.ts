@@ -13,7 +13,7 @@
  */
 
 import { FastifyPluginAsync } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { Workbook } from "exceljs";
 import {
   TransactionService,
@@ -63,7 +63,11 @@ import {
   ADMIN_ROLES,
 } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
-import { assertTenant } from "../shared/tenant";
+import {
+  assertTenant,
+  tenantWhere,
+  type TenantContext,
+} from "../shared/tenant";
 import {
   requireBranchAccess,
   BRANCH_OUT_OF_SCOPE,
@@ -123,7 +127,15 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
   // country-agnostic → owner-only access. Used by the movement/expense route
   // country-scope guards (T-139-07). Returns undefined when the caja does not
   // exist so the caller can 404 without leaking existence.
+  //
+  // Fase 172 (ADO-01): el `ctx` va PRIMERO. Esta closure vive en el plugin, no en
+  // un handler, así que no tiene `request` a mano: cada call site le pasa el ctx
+  // que ya resolvió con `assertTenant`. Una caja de OTRO gimnasio deja de
+  // matchear y la closure devuelve `undefined` — o sea, cae en la misma rama
+  // "no existe" que ya tenía. Eso ES el contrato D-09: el recurso ajeno es
+  // indistinguible de uno inexistente.
   const resolveCajaCountry = async (
+    ctx: TenantContext,
     cajaId: number,
   ): Promise<{ country: string | null } | undefined> => {
     const [row] = await fastify.db
@@ -132,11 +144,22 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
         branchCountry: schema.branches.country,
       })
       .from(schema.cashRegisters)
+      // El filtro de la sede va en el ON y NO en el WHERE: en el WHERE convierte
+      // el left join en inner y la caja SIN sede (efectivo/banco central) dejaría
+      // de resolver, cambiándole el resultado al guard (patrón 172-06/172-10).
       .leftJoin(
         schema.branches,
-        eq(schema.branches.id, schema.cashRegisters.branchId),
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, schema.cashRegisters.branchId),
+        ),
       )
-      .where(eq(schema.cashRegisters.id, cajaId))
+      .where(
+        and(
+          tenantWhere(schema.cashRegisters, ctx),
+          eq(schema.cashRegisters.id, cajaId),
+        ),
+      )
       .limit(1);
     if (!row) return undefined;
     // branch-less caja → country-agnostic (null). Otherwise the branch country.
@@ -147,13 +170,21 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
   // tuple { code, message } to send (404 for unknown/cross-country to avoid
   // existence leak — mirror of routes.ts:253-268), or null when access is OK.
   // A branch-less caja is owner-only (non-owner gets 404).
+  //
+  // Fase 172 (ADO-01): el filtro ahora es TENANT + país, en ese orden — primero
+  // el gimnasio (en el WHERE de `resolveCajaCountry`), después el país. La caja
+  // de otro gimnasio no llega ni a la comparación de país: sale por la rama
+  // "no encontrada" con el MISMO 404 de siempre. No hay 403 nuevo acá: un 403
+  // distinguiría "existe pero no es tuya" de "no existe", que es justo lo que
+  // este guard no puede filtrar (D-09).
   const enforceCajaScope = async (
+    ctx: TenantContext,
     cajaId: number,
     isOwner: boolean,
     scopeCountry: string | null,
   ): Promise<{ code: number; message: string } | null> => {
     if (isOwner) return null;
-    const resolved = await resolveCajaCountry(cajaId);
+    const resolved = await resolveCajaCountry(ctx, cajaId);
     if (!resolved) {
       return { code: 404, message: "Caja no encontrada" };
     }
@@ -169,6 +200,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
   // Used by the void routes. 404 for unknown row / branch-less caja /
   // cross-country (no existence leak — mirror of routes.ts void precedent).
   const enforceRowScope = async (
+    ctx: TenantContext,
     rowId: number,
     isOwner: boolean,
     scopeCountry: string | null,
@@ -179,12 +211,18 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
         cashRegisterId: schema.financialTransactions.cashRegisterId,
       })
       .from(schema.financialTransactions)
-      .where(eq(schema.financialTransactions.id, rowId))
+      .where(
+        and(
+          tenantWhere(schema.financialTransactions, ctx),
+          eq(schema.financialTransactions.id, rowId),
+        ),
+      )
       .limit(1);
     if (!row || row.cashRegisterId === null) {
       return { code: 404, message: "Transaccion no encontrada" };
     }
     const scopeErr = await enforceCajaScope(
+      ctx,
       row.cashRegisterId,
       isOwner,
       scopeCountry,
@@ -587,12 +625,18 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           });
         }
 
+        // Fase 172 (ADO-01): el gimnasio se resuelve UNA vez al tope del handler
+        // y lo usan el guard de scope Y el service. Queda dentro del try para que
+        // un TENANT_UNRESOLVED salga por `handleServiceError`.
+        const ctx = assertTenant(request.scope, "finance.movements.create");
+
         // T-139-07: non-owner country scope on BOTH cajas (branch-less = 404).
         for (const cajaId of [
           request.body.origenCajaId,
           request.body.destinoCajaId,
         ]) {
           const scopeErr = await enforceCajaScope(
+            ctx,
             cajaId,
             request.scope.isOwner,
             request.scope.country ?? null,
@@ -605,7 +649,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
         }
 
         const detail = await movementService.registerMovement(
-          assertTenant(request.scope, "finance.movements.create"),
+          ctx,
           {
             origenCajaId: request.body.origenCajaId,
             destinoCajaId: request.body.destinoCajaId,
@@ -640,7 +684,11 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           });
         }
 
+        // Fase 172 (ADO-01): un solo ctx por handler — lo usan el guard y el service.
+        const ctx = assertTenant(request.scope, "finance.expenses.create");
+
         const scopeErr = await enforceCajaScope(
+          ctx,
           request.body.cajaId,
           request.scope.isOwner,
           request.scope.country ?? null,
@@ -652,7 +700,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
         }
 
         const detail = await movementService.registerExpense(
-          assertTenant(request.scope, "finance.expenses.create"),
+          ctx,
           {
             cajaId: request.body.cajaId,
             amount: request.body.amount,
@@ -687,7 +735,11 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           });
         }
 
+        // Fase 172 (ADO-01): un solo ctx por handler — lo usan el guard y el service.
+        const ctx = assertTenant(request.scope, "finance.movements.void");
+
         const scopeErr = await enforceRowScope(
+          ctx,
           request.params.id,
           request.scope.isOwner,
           request.scope.country ?? null,
@@ -699,7 +751,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
         }
 
         await movementService.voidMovement(
-          assertTenant(request.scope, "finance.movements.void"),
+          ctx,
           request.params.id,
           request.user.userId,
           request.body.reason,
@@ -729,7 +781,11 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           });
         }
 
+        // Fase 172 (ADO-01): un solo ctx por handler — lo usan el guard y el service.
+        const ctx = assertTenant(request.scope, "finance.expenses.void");
+
         const scopeErr = await enforceRowScope(
+          ctx,
           request.params.id,
           request.scope.isOwner,
           request.scope.country ?? null,
@@ -741,7 +797,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
         }
 
         await movementService.voidExpense(
-          assertTenant(request.scope, "finance.expenses.void"),
+          ctx,
           request.params.id,
           request.user.userId,
           request.body.reason,
