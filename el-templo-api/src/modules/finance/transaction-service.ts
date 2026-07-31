@@ -460,11 +460,21 @@ export class TransactionService {
       const linkRows = await tx
         .select()
         .from(schema.transactionLinks)
-        .where(eq(schema.transactionLinks.transactionId, id));
+        .where(
+          and(
+            tenantWhere(schema.transactionLinks, ctx),
+            eq(schema.transactionLinks.transactionId, id),
+          ),
+        );
       const [updatedRow] = await tx
         .select()
         .from(schema.financialTransactions)
-        .where(eq(schema.financialTransactions.id, id));
+        .where(
+          and(
+            tenantWhere(schema.financialTransactions, ctx),
+            eq(schema.financialTransactions.id, id),
+          ),
+        );
 
       return { ...updatedRow, links: linkRows };
     });
@@ -546,7 +556,12 @@ export class TransactionService {
     const [existing] = await tx
       .select()
       .from(schema.financialTransactions)
-      .where(eq(schema.financialTransactions.id, id));
+      .where(
+        and(
+          tenantWhere(schema.financialTransactions, ctx),
+          eq(schema.financialTransactions.id, id),
+        ),
+      );
     if (!existing) {
       throw new NotFoundError("Transaccion no encontrada");
     }
@@ -567,12 +582,26 @@ export class TransactionService {
         // validation_status as-is (orthogonal axis untouched).
         ...(statusOverride ? { validationStatus: statusOverride } : {}),
       })
-      .where(eq(schema.financialTransactions.id, id));
+      // El WHERE de la escritura NO se apoya en el SELECT de arriba: el
+      // tenantWhere va acá también (defensa en profundidad, T-172-10-01). Sin
+      // él, anular por id ajeno queda posible el día que alguien reordene el
+      // método o cachee la lectura previa.
+      .where(
+        and(
+          tenantWhere(schema.financialTransactions, ctx),
+          eq(schema.financialTransactions.id, id),
+        ),
+      );
 
     const linkRows = await tx
       .select()
       .from(schema.transactionLinks)
-      .where(eq(schema.transactionLinks.transactionId, id));
+      .where(
+        and(
+          tenantWhere(schema.transactionLinks, ctx),
+          eq(schema.transactionLinks.transactionId, id),
+        ),
+      );
 
     // Reverse the original effect: pass the original (pre-void) row +
     // sign=-1 so applyDelta computes `-1 * baseDelta` and undoes the
@@ -629,22 +658,34 @@ export class TransactionService {
       const [createdMember] = await tx
         .select({ status: schema.users.status })
         .from(schema.users)
-        .where(eq(schema.users.id, existing.createdMemberId));
+        .where(
+          and(
+            tenantWhere(schema.users, ctx),
+            eq(schema.users.id, existing.createdMemberId),
+          ),
+        );
       if (createdMember) {
         await tx
           .update(schema.users)
           .set({ status: "inactivo" })
-          .where(eq(schema.users.id, existing.createdMemberId));
+          .where(
+            and(
+              tenantWhere(schema.users, ctx),
+              eq(schema.users.id, existing.createdMemberId),
+            ),
+          );
         // Dedupe on from==to (mirror L854): only write history when the status
         // actually changed, so a re-void / already-inactivo alumno does not
         // accumulate duplicate transition rows (T-148-12 — traza sin ruido).
         if (createdMember.status !== "inactivo") {
-          await tx.insert(schema.userStatusHistory).values({
-            userId: existing.createdMemberId,
-            fromStatus: createdMember.status,
-            toStatus: "inactivo",
-            source: "admin",
-          });
+          await tx.insert(schema.userStatusHistory).values(
+            tenantValues(ctx, {
+              userId: existing.createdMemberId,
+              fromStatus: createdMember.status,
+              toStatus: "inactivo",
+              source: "admin" as const,
+            }),
+          );
           this.log.info(
             {
               userId: existing.createdMemberId,
@@ -918,7 +959,12 @@ export class TransactionService {
       const [original] = await tx
         .select()
         .from(schema.financialTransactions)
-        .where(eq(schema.financialTransactions.id, originalId));
+        .where(
+          and(
+            tenantWhere(schema.financialTransactions, ctx),
+            eq(schema.financialTransactions.id, originalId),
+          ),
+        );
       if (!original) {
         throw new NotFoundError("Transaccion no encontrada");
       }
@@ -935,7 +981,12 @@ export class TransactionService {
       const originalLinks = await tx
         .select()
         .from(schema.transactionLinks)
-        .where(eq(schema.transactionLinks.transactionId, originalId));
+        .where(
+          and(
+            tenantWhere(schema.transactionLinks, ctx),
+            eq(schema.transactionLinks.transactionId, originalId),
+          ),
+        );
 
       // 1. Void the original, marking it 'corregido' (void-for-correction).
       await this._void(
@@ -990,12 +1041,14 @@ export class TransactionService {
       // 4. Link the new tx → original (target_kind='transaction') for the
       // trail. allocatedAmount 0: this is a provenance link, not a money
       // allocation (applyDelta ignores target_kind='transaction' links).
-      await tx.insert(schema.transactionLinks).values({
-        transactionId: created.id,
-        targetKind: "transaction",
-        targetId: originalId,
-        allocatedAmount: 0,
-      });
+      await tx.insert(schema.transactionLinks).values(
+        tenantValues(ctx, {
+          transactionId: created.id,
+          targetKind: "transaction" as const,
+          targetId: originalId,
+          allocatedAmount: 0,
+        }),
+      );
 
       // 5. Forensic audit row for the correction.
       await auditLog.write(tx, {
@@ -1023,7 +1076,12 @@ export class TransactionService {
       const finalLinks = await tx
         .select()
         .from(schema.transactionLinks)
-        .where(eq(schema.transactionLinks.transactionId, created.id));
+        .where(
+          and(
+            tenantWhere(schema.transactionLinks, ctx),
+            eq(schema.transactionLinks.transactionId, created.id),
+          ),
+        );
       return { ...created, links: finalLinks };
     });
   }
