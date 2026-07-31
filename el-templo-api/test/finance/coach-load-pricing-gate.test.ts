@@ -21,7 +21,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
-import { eq, sql, and } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import {
   createTestApp,
@@ -198,22 +198,38 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
+  // Clean finance + subscription state on a SINGLE pooled connection with FK
+  // checks disabled (same pattern as coach-load.test.ts): FOREIGN_KEY_CHECKS
+  // is a per-connection session variable, and program_enrollments left behind
+  // by another test file sharing this per-worker DB (isolate=false) otherwise
+  // fail `DELETE FROM subscriptions` with ER_ROW_IS_REFERENCED_2.
   // 172-14: los 3 DELETE sobre tablas strict se ACOTAN al gimnasio (regla del
   // 172-13: global a proposito -> exencion; acotable -> filtro). Este archivo no
-  // siembra en otro gimnasio, asi que el borrado global era comodidad.
-  await app.db.execute(
-    sql`DELETE FROM transaction_links WHERE tenant_id = ${TENANT_TEMPLO}`,
-  );
-  await app.db.execute(
-    sql`DELETE FROM financial_transactions WHERE tenant_id = ${TENANT_TEMPLO}`,
-  );
-  await app.db.execute(
-    sql`DELETE FROM balances WHERE tenant_id = ${TENANT_TEMPLO}`,
-  );
-  await app.db.execute(sql`DELETE FROM bookings`);
-  await app.db.execute(sql`DELETE FROM subscription_schedules`);
-  await app.db.execute(sql`DELETE FROM subscriptions`);
-  await app.db.execute(sql`DELETE FROM system_settings`);
+  // siembra en otro gimnasio, asi que el borrado global era comodidad. La
+  // conexion cruda del pool es una de las puertas que el sentinel intercepta,
+  // asi que sin filtro haria throw.
+  const conn = await app.dbPool.getConnection();
+  try {
+    await conn.query("SET FOREIGN_KEY_CHECKS=0");
+    await conn.query("DELETE FROM `transaction_links` WHERE tenant_id = ?", [
+      TENANT_TEMPLO,
+    ]);
+    await conn.query(
+      "DELETE FROM `financial_transactions` WHERE tenant_id = ?",
+      [TENANT_TEMPLO],
+    );
+    await conn.query("DELETE FROM `balances` WHERE tenant_id = ?", [
+      TENANT_TEMPLO,
+    ]);
+    await conn.query("DELETE FROM `bookings`");
+    await conn.query("DELETE FROM `subscription_schedules`");
+    await conn.query("DELETE FROM `program_enrollments`");
+    await conn.query("DELETE FROM `subscriptions`");
+    await conn.query("DELETE FROM `system_settings`");
+    await conn.query("SET FOREIGN_KEY_CHECKS=1");
+  } finally {
+    conn.release();
+  }
 });
 
 // ─── (a) regla ON → tarjeta aplica el recargo ────────────────────────────────

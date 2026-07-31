@@ -278,27 +278,36 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
-  // Limpiar el estado finance + suscripciones entre tests (FK checks off vía la
-  // conexión raw es innecesario acá; el orden cubre las FKs). Los users creados
-  // por /alta persisten pero usan DNIs únicos → no interfieren.
+  // Limpiar el estado finance + suscripciones en UNA conexion del pool con FK
+  // checks off (mismo patron que coach-load.test.ts): "el orden cubre las FKs"
+  // era falso en cuanto otro archivo del mismo worker (isolate=false) deja
+  // program_enrollments referenciando subscriptions — ER_ROW_IS_REFERENCED_2.
+  // Los users creados por /alta persisten pero usan DNIs únicos → no interfieren.
   // 172-14: los 3 DELETE sobre tablas strict se ACOTAN al gimnasio en vez de
   // llevar exencion `tenant-safe`. El borrado global aca era comodidad, no
-  // diseno: este archivo no siembra en otro gimnasio. Acotarlo es ademas mas
-  // seguro que antes — el dia que un fixture siembre en el gimnasio 2, este
-  // beforeEach ya no se lo lleva puesto (misma regla que el 172-13 fijo para
-  // validate-caja.test.ts).
-  await app.db.execute(
-    sql`DELETE FROM transaction_links WHERE tenant_id = ${TENANT_TEMPLO}`,
-  );
-  await app.db.execute(
-    sql`DELETE FROM financial_transactions WHERE tenant_id = ${TENANT_TEMPLO}`,
-  );
-  await app.db.execute(
-    sql`DELETE FROM balances WHERE tenant_id = ${TENANT_TEMPLO}`,
-  );
-  await app.db.execute(sql`DELETE FROM bookings`);
-  await app.db.execute(sql`DELETE FROM subscription_schedules`);
-  await app.db.execute(sql`DELETE FROM subscriptions`);
+  // diseno: este archivo no siembra en otro gimnasio. La conexion cruda del
+  // pool es una de las puertas que el sentinel intercepta: sin filtro, throw.
+  const conn = await app.dbPool.getConnection();
+  try {
+    await conn.query("SET FOREIGN_KEY_CHECKS=0");
+    await conn.query("DELETE FROM `transaction_links` WHERE tenant_id = ?", [
+      TENANT_TEMPLO,
+    ]);
+    await conn.query(
+      "DELETE FROM `financial_transactions` WHERE tenant_id = ?",
+      [TENANT_TEMPLO],
+    );
+    await conn.query("DELETE FROM `balances` WHERE tenant_id = ?", [
+      TENANT_TEMPLO,
+    ]);
+    await conn.query("DELETE FROM `bookings`");
+    await conn.query("DELETE FROM `subscription_schedules`");
+    await conn.query("DELETE FROM `program_enrollments`");
+    await conn.query("DELETE FROM `subscriptions`");
+    await conn.query("SET FOREIGN_KEY_CHECKS=1");
+  } finally {
+    conn.release();
+  }
 });
 
 // ─── 1. crear-nuevo ──────────────────────────────────────────────────────────
