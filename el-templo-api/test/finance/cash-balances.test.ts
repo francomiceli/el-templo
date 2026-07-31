@@ -16,7 +16,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import {
   createTestApp,
@@ -25,6 +25,17 @@ import {
   registerUser,
 } from "../helpers";
 import * as schema from "../../src/db/schema";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
+
+/**
+ * Fase 172 (172-13): gimnasio de las queries DIRECTAS de este archivo. Sale del
+ * fixture, nunca de un `1` a mano. El sentinel de tenancy ve las queries de los
+ * tests igual que las de la app —comparten el pool—, asi que con `finance` en
+ * `TENANT_STRICT_MODULES` una siembra de `cash_registers` /
+ * `financial_transactions` sin estampa hace throw antes de llegar a MySQL.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 const BALANCES_URL = "/api/admin/finance/cash-registers/balances";
 const CUTOFF = "2020-01-01";
@@ -125,32 +136,38 @@ beforeAll(async () => {
   const suffix = Date.now() % 100000;
   const [ef] = await app.db
     .insert(schema.cashRegisters)
-    .values({
-      name: `Bal efectivo ${suffix}`,
-      type: "efectivo",
-      branchId,
-      currency: "ARS",
-      cutoffDate: CUTOFF,
-    })
+    .values(
+      tenantValues(TEMPLO_CTX, {
+        name: `Bal efectivo ${suffix}`,
+        type: "efectivo",
+        branchId,
+        currency: "ARS",
+        cutoffDate: CUTOFF,
+      }),
+    )
     .$returningId();
   efectivoCajaId = ef.id;
 
   const [banco] = await app.db
     .insert(schema.cashRegisters)
-    .values({
-      name: `Bal banco ${suffix}`,
-      type: "banco",
-      branchId: null,
-      currency: "ARS",
-      cutoffDate: CUTOFF,
-    })
+    .values(
+      tenantValues(TEMPLO_CTX, {
+        name: `Bal banco ${suffix}`,
+        type: "banco",
+        branchId: null,
+        currency: "ARS",
+        cutoffDate: CUTOFF,
+      }),
+    )
     .$returningId();
   bancoCajaId = banco.id;
 
   // Seed one validado inflow (firme) + one pendiente inflow into the efectivo
   // caja so firme excludes pendiente.
+  // Insert multi-fila: `tenantValues` envuelve CADA fila. Una sola llamada
+  // afuera del array no compila y —peor— dejaria filas sin gimnasio explicito.
   await app.db.insert(schema.financialTransactions).values([
-    {
+    tenantValues(TEMPLO_CTX, {
       memberId,
       kind: "plan_charge",
       direction: "inflow",
@@ -163,8 +180,8 @@ beforeAll(async () => {
       cashRegisterId: efectivoCajaId,
       recordedBy: adminId,
       validationStatus: "validado",
-    },
-    {
+    }),
+    tenantValues(TEMPLO_CTX, {
       memberId,
       kind: "plan_charge",
       direction: "inflow",
@@ -177,7 +194,7 @@ beforeAll(async () => {
       cashRegisterId: efectivoCajaId,
       recordedBy: adminId,
       validationStatus: "pendiente",
-    },
+    }),
   ]);
 });
 
@@ -195,20 +212,40 @@ afterAll(async () => {
       await app.db
         .select({ id: schema.financialTransactions.id })
         .from(schema.financialTransactions)
-        .where(inArray(schema.financialTransactions.cashRegisterId, cajaIds))
+        .where(
+          and(
+            tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+            inArray(schema.financialTransactions.cashRegisterId, cajaIds),
+          ),
+        )
     ).map((r) => r.id);
     // Los links primero: son los hijos del FK.
     if (txIds.length > 0) {
       await app.db
         .delete(schema.transactionLinks)
-        .where(inArray(schema.transactionLinks.transactionId, txIds));
+        .where(
+          and(
+            tenantWhere(schema.transactionLinks, TEMPLO_CTX),
+            inArray(schema.transactionLinks.transactionId, txIds),
+          ),
+        );
       await app.db
         .delete(schema.financialTransactions)
-        .where(inArray(schema.financialTransactions.id, txIds));
+        .where(
+          and(
+            tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+            inArray(schema.financialTransactions.id, txIds),
+          ),
+        );
     }
     await app.db
       .delete(schema.cashRegisters)
-      .where(inArray(schema.cashRegisters.id, cajaIds));
+      .where(
+        and(
+          tenantWhere(schema.cashRegisters, TEMPLO_CTX),
+          inArray(schema.cashRegisters.id, cajaIds),
+        ),
+      );
   }
   await app.close();
 });
@@ -247,13 +284,15 @@ describe("REP-02: GET /cash-registers/balances (saldos por caja)", () => {
     beforeAll(async () => {
       const [caja] = await app.db
         .insert(schema.cashRegisters)
-        .values({
-          name: `Bal periodo ${Date.now() % 100000}`,
-          type: "efectivo",
-          branchId,
-          currency: "ARS",
-          cutoffDate: CUTOFF,
-        })
+        .values(
+          tenantValues(TEMPLO_CTX, {
+            name: `Bal periodo ${Date.now() % 100000}`,
+            type: "efectivo",
+            branchId,
+            currency: "ARS",
+            cutoffDate: CUTOFF,
+          }),
+        )
         .$returningId();
       periodoCajaId = caja.id;
 
@@ -268,34 +307,34 @@ describe("REP-02: GET /cash-registers/balances (saldos por caja)", () => {
       };
       await app.db.insert(schema.financialTransactions).values([
         // Dentro del período (mayo): 3000 entra, 1000 sale → neto +2000.
-        {
+        tenantValues(TEMPLO_CTX, {
           ...base,
           kind: "plan_charge",
           direction: "inflow",
           amount: 3000,
           transactionDate: "2026-05-10",
           effectiveDate: "2026-05-10",
-        },
-        {
+        }),
+        tenantValues(TEMPLO_CTX, {
           ...base,
           kind: "expense",
           direction: "outflow",
           amount: 1000,
           transactionDate: "2026-05-20",
           effectiveDate: "2026-05-20",
-        },
+        }),
         // Fuera del período (junio): no debe contarse en el neto de mayo, pero
         // sí en el saldo firme acumulado.
-        {
+        tenantValues(TEMPLO_CTX, {
           ...base,
           kind: "plan_charge",
           direction: "inflow",
           amount: 7000,
           transactionDate: "2026-06-05",
           effectiveDate: "2026-06-05",
-        },
+        }),
         // Pendiente dentro del período: NUNCA entra al neto firme (CAJA-03).
-        {
+        tenantValues(TEMPLO_CTX, {
           ...base,
           validationStatus: "pendiente" as const,
           kind: "plan_charge",
@@ -303,7 +342,7 @@ describe("REP-02: GET /cash-registers/balances (saldos por caja)", () => {
           amount: 900,
           transactionDate: "2026-05-15",
           effectiveDate: "2026-05-15",
-        },
+        }),
       ]);
     });
 

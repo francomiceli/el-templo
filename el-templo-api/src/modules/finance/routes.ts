@@ -13,7 +13,7 @@
  */
 
 import { FastifyPluginAsync } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { Workbook } from "exceljs";
 import {
   TransactionService,
@@ -63,7 +63,11 @@ import {
   ADMIN_ROLES,
 } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
-import { assertTenant } from "../shared/tenant";
+import {
+  assertTenant,
+  tenantWhere,
+  type TenantContext,
+} from "../shared/tenant";
 import {
   requireBranchAccess,
   BRANCH_OUT_OF_SCOPE,
@@ -123,7 +127,15 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
   // country-agnostic → owner-only access. Used by the movement/expense route
   // country-scope guards (T-139-07). Returns undefined when the caja does not
   // exist so the caller can 404 without leaking existence.
+  //
+  // Fase 172 (ADO-01): el `ctx` va PRIMERO. Esta closure vive en el plugin, no en
+  // un handler, así que no tiene `request` a mano: cada call site le pasa el ctx
+  // que ya resolvió con `assertTenant`. Una caja de OTRO gimnasio deja de
+  // matchear y la closure devuelve `undefined` — o sea, cae en la misma rama
+  // "no existe" que ya tenía. Eso ES el contrato D-09: el recurso ajeno es
+  // indistinguible de uno inexistente.
   const resolveCajaCountry = async (
+    ctx: TenantContext,
     cajaId: number,
   ): Promise<{ country: string | null } | undefined> => {
     const [row] = await fastify.db
@@ -132,11 +144,22 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
         branchCountry: schema.branches.country,
       })
       .from(schema.cashRegisters)
+      // El filtro de la sede va en el ON y NO en el WHERE: en el WHERE convierte
+      // el left join en inner y la caja SIN sede (efectivo/banco central) dejaría
+      // de resolver, cambiándole el resultado al guard (patrón 172-06/172-10).
       .leftJoin(
         schema.branches,
-        eq(schema.branches.id, schema.cashRegisters.branchId),
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, schema.cashRegisters.branchId),
+        ),
       )
-      .where(eq(schema.cashRegisters.id, cajaId))
+      .where(
+        and(
+          tenantWhere(schema.cashRegisters, ctx),
+          eq(schema.cashRegisters.id, cajaId),
+        ),
+      )
       .limit(1);
     if (!row) return undefined;
     // branch-less caja → country-agnostic (null). Otherwise the branch country.
@@ -147,13 +170,21 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
   // tuple { code, message } to send (404 for unknown/cross-country to avoid
   // existence leak — mirror of routes.ts:253-268), or null when access is OK.
   // A branch-less caja is owner-only (non-owner gets 404).
+  //
+  // Fase 172 (ADO-01): el filtro ahora es TENANT + país, en ese orden — primero
+  // el gimnasio (en el WHERE de `resolveCajaCountry`), después el país. La caja
+  // de otro gimnasio no llega ni a la comparación de país: sale por la rama
+  // "no encontrada" con el MISMO 404 de siempre. No hay 403 nuevo acá: un 403
+  // distinguiría "existe pero no es tuya" de "no existe", que es justo lo que
+  // este guard no puede filtrar (D-09).
   const enforceCajaScope = async (
+    ctx: TenantContext,
     cajaId: number,
     isOwner: boolean,
     scopeCountry: string | null,
   ): Promise<{ code: number; message: string } | null> => {
     if (isOwner) return null;
-    const resolved = await resolveCajaCountry(cajaId);
+    const resolved = await resolveCajaCountry(ctx, cajaId);
     if (!resolved) {
       return { code: 404, message: "Caja no encontrada" };
     }
@@ -169,6 +200,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
   // Used by the void routes. 404 for unknown row / branch-less caja /
   // cross-country (no existence leak — mirror of routes.ts void precedent).
   const enforceRowScope = async (
+    ctx: TenantContext,
     rowId: number,
     isOwner: boolean,
     scopeCountry: string | null,
@@ -179,12 +211,18 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
         cashRegisterId: schema.financialTransactions.cashRegisterId,
       })
       .from(schema.financialTransactions)
-      .where(eq(schema.financialTransactions.id, rowId))
+      .where(
+        and(
+          tenantWhere(schema.financialTransactions, ctx),
+          eq(schema.financialTransactions.id, rowId),
+        ),
+      )
       .limit(1);
     if (!row || row.cashRegisterId === null) {
       return { code: 404, message: "Transaccion no encontrada" };
     }
     const scopeErr = await enforceCajaScope(
+      ctx,
       row.cashRegisterId,
       isOwner,
       scopeCountry,
@@ -251,6 +289,11 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
         }
         const bodyBranchId = request.body.branchId;
 
+        // Fase 172 (ADO-01): un solo ctx por handler — lo usan el guard de sede
+        // de abajo, `create()` y `getRowsForTransaction`. Dentro del try para que
+        // un TENANT_UNRESOLVED salga por `handleServiceError`.
+        const ctx = assertTenant(request.scope, "finance.transactions.create");
+
         // T-106-03: non-owner cannot post against a branch in another country.
         if (!request.scope.isOwner) {
           const [branchRow] = await fastify.db
@@ -260,7 +303,15 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
               isVirtual: schema.branches.isVirtual,
             })
             .from(schema.branches)
-            .where(eq(schema.branches.id, bodyBranchId))
+            // T-172-11-03: la sede llega del body. Sin el gimnasio en el filtro,
+            // una sede ajena del mismo país pasaba este guard y el cobro nacía
+            // imputado contra ella.
+            .where(
+              and(
+                tenantWhere(schema.branches, ctx),
+                eq(schema.branches.id, bodyBranchId),
+              ),
+            )
             .limit(1);
           if (!branchRow) {
             return reply.code(404).send({
@@ -309,10 +360,12 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           : "validado";
 
         const detail = await transactionService.create(
+          ctx,
           { ...request.body, validationStatus: initialStatus },
           request.user.userId,
         );
         const affectedBalances = await balanceService.getRowsForTransaction(
+          ctx,
           detail.id,
         );
 
@@ -354,6 +407,10 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           });
         }
 
+        // Fase 172 (ADO-01): un solo ctx por handler — lo usan el guard de país
+        // de abajo y `void()`.
+        const ctx = assertTenant(request.scope, "finance.transactions.void");
+
         // T-106-04: non-owner cannot void a transaction in another country.
         if (!request.scope.isOwner) {
           const [target] = await fastify.db
@@ -363,11 +420,22 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
               branchIsVirtual: schema.branches.isVirtual,
             })
             .from(schema.financialTransactions)
+            // Las DOS tablas nombran el gimnasio: es un inner join, así que acá
+            // el filtro de `branches` puede ir en el ON sin cambiar la forma del
+            // resultado (a diferencia del leftJoin de `resolveCajaCountry`).
             .innerJoin(
               schema.branches,
-              eq(schema.branches.id, schema.financialTransactions.branchId),
+              and(
+                tenantWhere(schema.branches, ctx),
+                eq(schema.branches.id, schema.financialTransactions.branchId),
+              ),
             )
-            .where(eq(schema.financialTransactions.id, request.params.id))
+            .where(
+              and(
+                tenantWhere(schema.financialTransactions, ctx),
+                eq(schema.financialTransactions.id, request.params.id),
+              ),
+            )
             .limit(1);
           if (!target) {
             return reply.code(404).send({
@@ -390,6 +458,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
         // VAL-06 / D-10: keepMembershipActive default true (sub untouched).
         // When false, void() cancels the linked subscription atomically.
         const detail = await transactionService.void(
+          ctx,
           request.params.id,
           request.user.userId,
           {
@@ -427,6 +496,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
         // CAJA-02/CAJA-03: gestion confirma/cambia la caja imputada (opcional).
         // El guard de coherencia (existe/activa/moneda) vive en validate().
         const detail = await transactionService.validate(
+          assertTenant(request.scope, "finance.transactions.validate"),
           request.params.id,
           request.user.userId,
           request.body?.cashRegisterId,
@@ -464,6 +534,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           });
         }
         const items = await transactionService.listPendingMiscForMember(
+          assertTenant(request.scope, "finance.transactions.pending-misc"),
           request.params.memberId,
         );
         return { items };
@@ -500,6 +571,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           });
         }
         const detail = await transactionService.observe(
+          assertTenant(request.scope, "finance.transactions.observe"),
           request.params.id,
           request.user.userId,
           { reason: request.body.reason },
@@ -544,6 +616,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           });
         }
         const detail = await transactionService.correct(
+          assertTenant(request.scope, "finance.transactions.correct"),
           request.params.id,
           request.body.correctedFields,
           request.user.userId,
@@ -580,12 +653,18 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           });
         }
 
+        // Fase 172 (ADO-01): el gimnasio se resuelve UNA vez al tope del handler
+        // y lo usan el guard de scope Y el service. Queda dentro del try para que
+        // un TENANT_UNRESOLVED salga por `handleServiceError`.
+        const ctx = assertTenant(request.scope, "finance.movements.create");
+
         // T-139-07: non-owner country scope on BOTH cajas (branch-less = 404).
         for (const cajaId of [
           request.body.origenCajaId,
           request.body.destinoCajaId,
         ]) {
           const scopeErr = await enforceCajaScope(
+            ctx,
             cajaId,
             request.scope.isOwner,
             request.scope.country ?? null,
@@ -598,6 +677,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
         }
 
         const detail = await movementService.registerMovement(
+          ctx,
           {
             origenCajaId: request.body.origenCajaId,
             destinoCajaId: request.body.destinoCajaId,
@@ -632,7 +712,11 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           });
         }
 
+        // Fase 172 (ADO-01): un solo ctx por handler — lo usan el guard y el service.
+        const ctx = assertTenant(request.scope, "finance.expenses.create");
+
         const scopeErr = await enforceCajaScope(
+          ctx,
           request.body.cajaId,
           request.scope.isOwner,
           request.scope.country ?? null,
@@ -644,6 +728,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
         }
 
         const detail = await movementService.registerExpense(
+          ctx,
           {
             cajaId: request.body.cajaId,
             amount: request.body.amount,
@@ -678,7 +763,11 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           });
         }
 
+        // Fase 172 (ADO-01): un solo ctx por handler — lo usan el guard y el service.
+        const ctx = assertTenant(request.scope, "finance.movements.void");
+
         const scopeErr = await enforceRowScope(
+          ctx,
           request.params.id,
           request.scope.isOwner,
           request.scope.country ?? null,
@@ -690,6 +779,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
         }
 
         await movementService.voidMovement(
+          ctx,
           request.params.id,
           request.user.userId,
           request.body.reason,
@@ -719,7 +809,11 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           });
         }
 
+        // Fase 172 (ADO-01): un solo ctx por handler — lo usan el guard y el service.
+        const ctx = assertTenant(request.scope, "finance.expenses.void");
+
         const scopeErr = await enforceRowScope(
+          ctx,
           request.params.id,
           request.scope.isOwner,
           request.scope.country ?? null,
@@ -731,6 +825,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
         }
 
         await movementService.voidExpense(
+          ctx,
           request.params.id,
           request.user.userId,
           request.body.reason,
@@ -800,7 +895,10 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           page: request.query.page,
           limit: request.query.limit,
         };
-        return await transactionService.list(filters);
+        return await transactionService.list(
+          assertTenant(request.scope, "finance.transactions.list"),
+          filters,
+        );
       } catch (err: unknown) {
         handleServiceError(
           err,
@@ -850,7 +948,10 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           dateFrom: request.query.dateFrom,
           dateTo: request.query.dateTo,
         };
-        return await transactionService.getSummary(filters);
+        return await transactionService.getSummary(
+          assertTenant(request.scope, "finance.transactions.summary"),
+          filters,
+        );
       } catch (err: unknown) {
         handleServiceError(
           err,
@@ -917,7 +1018,10 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           search: request.query.search,
         };
 
-        const rows = await transactionService.exportRowsForExcel(filters);
+        const rows = await transactionService.exportRowsForExcel(
+          assertTenant(request.scope, "finance.transactions.export"),
+          filters,
+        );
 
         const workbook = new Workbook();
         workbook.creator = "El Templo";
@@ -1024,7 +1128,10 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
         page: request.query.page,
         limit: request.query.limit,
       };
-      return await transactionService.listPendingTray(filters);
+      return await transactionService.listPendingTray(
+        assertTenant(request.scope, "finance.pending-tray"),
+        filters,
+      );
     } catch (err: unknown) {
       handleServiceError(err, reply, request.log, "finance pending tray");
       return reply;
@@ -1067,7 +1174,10 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           limit: 200,
           page: 1,
         };
-        const result = await transactionService.listPendingTray(filters);
+        const result = await transactionService.listPendingTray(
+          assertTenant(request.scope, "finance.pending-tray.export"),
+          filters,
+        );
 
         const workbook = new Workbook();
         workbook.creator = "El Templo";
@@ -1164,6 +1274,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           });
         }
         return await cashRegisterService.listActiveCajasWithBalance(
+          assertTenant(request.scope, "finance.cash-registers.balances"),
           {
             isOwner: request.scope.isOwner,
             country: country ?? null,
@@ -1208,7 +1319,10 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
         } else {
           country = request.scope.country ?? undefined;
         }
-        return await cashRegisterService.listActiveCostCenters(country ?? null);
+        return await cashRegisterService.listActiveCostCenters(
+          assertTenant(request.scope, "finance.cost-centers.list"),
+          country ?? null,
+        );
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "finance cost centers");
         return reply;
@@ -1241,6 +1355,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           });
         }
         const center = await cashRegisterService.createCostCenter(
+          assertTenant(request.scope, "finance.cost-centers.create"),
           request.body.name,
           request.body.country,
         );
@@ -1264,6 +1379,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           });
         }
         const center = await cashRegisterService.renameCostCenter(
+          assertTenant(request.scope, "finance.cost-centers.rename"),
           request.params.id,
           request.body.name,
         );
@@ -1287,6 +1403,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           });
         }
         const center = await cashRegisterService.deactivateCostCenter(
+          assertTenant(request.scope, "finance.cost-centers.deactivate"),
           request.params.id,
         );
         return reply.code(200).send({ center });
@@ -1309,6 +1426,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           });
         }
         const center = await cashRegisterService.reactivateCostCenter(
+          assertTenant(request.scope, "finance.cost-centers.reactivate"),
           request.params.id,
         );
         return reply.code(200).send({ center });
@@ -1339,6 +1457,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           country = request.scope.country ?? undefined;
         }
         const centers = await cashRegisterService.listAllCostCenters(
+          assertTenant(request.scope, "finance.cost-centers.list-all"),
           country ?? null,
         );
         return reply.code(200).send({ centers });
@@ -1374,6 +1493,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           });
         }
         const account = await cashRegisterService.createBankAccount(
+          assertTenant(request.scope, "finance.bank-accounts.create"),
           request.body,
         );
         return reply.code(201).send({ account });
@@ -1425,6 +1545,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           });
         }
         const account = await cashRegisterService.updateBankAccount(
+          assertTenant(request.scope, "finance.bank-accounts.update"),
           request.params.id,
           request.body,
         );
@@ -1447,10 +1568,14 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
             message: "No tienes permiso para administrar cuentas bancarias",
           });
         }
+        // El ctx se usa dos veces en este handler → variable (analog de
+        // coach-load-routes L972), no dos `assertTenant` inline.
+        const ctx = assertTenant(request.scope, "finance.bank-accounts.close");
         const { balance } = await cashRegisterService.closeBankAccount(
+          ctx,
           request.params.id,
         );
-        const accounts = await cashRegisterService.listBankAccounts();
+        const accounts = await cashRegisterService.listBankAccounts(ctx);
         const account = accounts.find((a) => a.id === request.params.id);
         return reply.code(200).send({ account, balance });
       } catch (err: unknown) {
@@ -1472,6 +1597,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           });
         }
         const account = await cashRegisterService.reactivateBankAccount(
+          assertTenant(request.scope, "finance.bank-accounts.reactivate"),
           request.params.id,
         );
         return reply.code(200).send({ account });
@@ -1490,7 +1616,9 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           message: "No tienes permiso para administrar cuentas bancarias",
         });
       }
-      const accounts = await cashRegisterService.listBankAccounts();
+      const accounts = await cashRegisterService.listBankAccounts(
+        assertTenant(request.scope, "finance.bank-accounts.list"),
+      );
       return reply.code(200).send({ accounts });
     } catch (err: unknown) {
       handleServiceError(err, reply, request.log, "list bank accounts");
@@ -1515,10 +1643,13 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
         } else {
           country = request.scope.country ?? undefined;
         }
-        const rows = await cashRegisterService.listActiveCajasWithBalance({
-          isOwner: request.scope.isOwner,
-          country: country ?? null,
-        });
+        const rows = await cashRegisterService.listActiveCajasWithBalance(
+          assertTenant(request.scope, "finance.cash-registers.balances.export"),
+          {
+            isOwner: request.scope.isOwner,
+            country: country ?? null,
+          },
+        );
 
         const workbook = new Workbook();
         workbook.creator = "El Templo";
@@ -1606,7 +1737,10 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           page: request.query.page,
           limit: request.query.limit,
         };
-        return await transactionService.listMovEgresos(filters);
+        return await transactionService.listMovEgresos(
+          assertTenant(request.scope, "finance.movements-history"),
+          filters,
+        );
       } catch (err: unknown) {
         handleServiceError(
           err,
@@ -1654,7 +1788,10 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           limit: 200,
           page: 1,
         };
-        const result = await transactionService.listMovEgresos(filters);
+        const result = await transactionService.listMovEgresos(
+          assertTenant(request.scope, "finance.movements-history.export"),
+          filters,
+        );
 
         const workbook = new Workbook();
         workbook.creator = "El Templo";

@@ -46,7 +46,7 @@
  * opina sobre cómo se resuelve el login. Ningún test de acá la bloquea.
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
-import { sql, eq, type SQL } from "drizzle-orm";
+import { and, sql, eq, type SQL } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { createTestApp, cleanAllTestData } from "../helpers";
 import * as schema from "../../src/db/schema";
@@ -542,9 +542,15 @@ describe("CON-01 — los contratos de unicidad por comportamiento (cross-tenant 
             .values(centroDeCosto(TENANT_SEGUNDO, NOMBRE, "AR")),
         );
 
+        // Fase 172: `cost_centers` es strict, y este COUNT es global A
+        // PROPOSITO — contar las filas de LOS DOS gimnasios es exactamente lo
+        // que la asercion compra. Acotarlo por tenant lo volveria tautologico
+        // (contaria 1 por definicion), asi que la salida honesta es la exencion
+        // anotada, la misma regla que el 172-13 dejo escrita: global a
+        // proposito -> exencion; acotable -> filtro.
         const enLosDos = await contar(
           app,
-          sql`SELECT COUNT(*) AS n FROM cost_centers WHERE name = ${NOMBRE} AND country = 'AR'`,
+          sql`SELECT /* tenant-safe: la asercion cross-tenant necesita contar los dos gimnasios */ COUNT(*) AS n FROM cost_centers WHERE name = ${NOMBRE} AND country = 'AR'`,
         );
         expect(enLosDos, "El mismo centro de costo, una vez por tenant").toBe(
           2,
@@ -571,9 +577,20 @@ describe("CON-01 — los contratos de unicidad por comportamiento (cross-tenant 
       } finally {
         // `cost_centers` NO está en TABLES_TO_CLEAN (y además viene seedeada por
         // las migraciones 0161/0163/0165): se borran SOLO las filas de este test.
+        //
+        // Fase 172: el barrido es cross-tenant a proposito — este bloque sembro
+        // en El Templo (AR y ES) y en el gimnasio 2, y el nombre `NOMBRE` es de
+        // uso exclusivo de este test. Acotarlo por gimnasio dejaria filas vivas
+        // para los archivos vecinos del mismo worker (`isolate: false`), que es
+        // justo el bug que el `finally` existe para no tener.
         await app.db
           .delete(schema.costCenters)
-          .where(eq(schema.costCenters.name, NOMBRE));
+          .where(
+            and(
+              sql`/* tenant-safe: limpieza cross-tenant de las filas que sembro este mismo test */ 1 = 1`,
+              eq(schema.costCenters.name, NOMBRE),
+            ),
+          );
       }
     });
   });

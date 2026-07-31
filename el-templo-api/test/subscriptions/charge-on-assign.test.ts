@@ -34,6 +34,7 @@ import {
   todayStr,
 } from "./_helpers";
 import * as schema from "../../src/db/schema";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 import { SubscriptionService } from "../../src/modules/subscriptions/service";
 import { AuraService } from "../../src/modules/aura";
 import {
@@ -43,6 +44,15 @@ import {
 } from "../../src/modules/finance";
 import { BookingService } from "../../src/modules/scheduling/booking-service";
 import { NotificationService } from "../../src/modules/notifications/service";
+import { tenantWhere } from "../../src/modules/shared/tenant";
+
+/**
+ * 172-15: `TEMPLO_CTX` es el gimnasio de este archivo. Las queries directas de
+ * los tests pasan por `app.dbPool` igual que las de la app, asi que con
+ * `finance` en `TENANT_STRICT_MODULES` una lectura o una siembra sobre las
+ * tablas strict sin gimnasio hace throw antes de llegar a MySQL.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 describe("Phase 107 — Charge on assign / change / renew", () => {
   let app: FastifyInstance;
@@ -82,6 +92,7 @@ describe("Phase 107 — Charge on assign / change / renew", () => {
         .from(schema.balances)
         .where(
           and(
+            tenantWhere(schema.balances, TEMPLO_CTX),
             eq(schema.balances.memberId, member.id),
             eq(schema.balances.targetKind, "subscription"),
             eq(schema.balances.targetId, subId),
@@ -93,7 +104,12 @@ describe("Phase 107 — Charge on assign / change / renew", () => {
       const [tx] = await app.db
         .select()
         .from(schema.financialTransactions)
-        .where(eq(schema.financialTransactions.memberId, member.id))
+        .where(
+          and(
+            tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+            eq(schema.financialTransactions.memberId, member.id),
+          ),
+        )
         .limit(1);
       expect(tx?.notes ?? "").toMatch(/Cobro al asignar plan/);
       expect(tx?.amount).toBe(100000);
@@ -118,6 +134,7 @@ describe("Phase 107 — Charge on assign / change / renew", () => {
         .from(schema.balances)
         .where(
           and(
+            tenantWhere(schema.balances, TEMPLO_CTX),
             eq(schema.balances.memberId, member.id),
             eq(schema.balances.targetKind, "subscription"),
             eq(schema.balances.targetId, subId),
@@ -129,7 +146,12 @@ describe("Phase 107 — Charge on assign / change / renew", () => {
       const [tx] = await app.db
         .select()
         .from(schema.financialTransactions)
-        .where(eq(schema.financialTransactions.memberId, member.id))
+        .where(
+          and(
+            tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+            eq(schema.financialTransactions.memberId, member.id),
+          ),
+        )
         .limit(1);
       expect(tx?.amount).toBe(100000);
     });
@@ -153,6 +175,7 @@ describe("Phase 107 — Charge on assign / change / renew", () => {
         .from(schema.balances)
         .where(
           and(
+            tenantWhere(schema.balances, TEMPLO_CTX),
             eq(schema.balances.memberId, member.id),
             eq(schema.balances.targetKind, "subscription"),
             eq(schema.balances.targetId, subId),
@@ -164,7 +187,12 @@ describe("Phase 107 — Charge on assign / change / renew", () => {
       const [tx] = await app.db
         .select()
         .from(schema.financialTransactions)
-        .where(eq(schema.financialTransactions.memberId, member.id))
+        .where(
+          and(
+            tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+            eq(schema.financialTransactions.memberId, member.id),
+          ),
+        )
         .limit(1);
       expect(tx?.amount).toBe(90000);
       expect(tx?.notes ?? "").toMatch(/Cobro al asignar plan/);
@@ -189,13 +217,23 @@ describe("Phase 107 — Charge on assign / change / renew", () => {
       const txs = await app.db
         .select()
         .from(schema.financialTransactions)
-        .where(eq(schema.financialTransactions.memberId, member.id));
+        .where(
+          and(
+            tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+            eq(schema.financialTransactions.memberId, member.id),
+          ),
+        );
       expect(txs).toHaveLength(0);
 
       const balances = await app.db
         .select()
         .from(schema.balances)
-        .where(eq(schema.balances.memberId, member.id));
+        .where(
+          and(
+            tenantWhere(schema.balances, TEMPLO_CTX),
+            eq(schema.balances.memberId, member.id),
+          ),
+        );
       expect(balances).toHaveLength(0);
     });
 
@@ -218,6 +256,7 @@ describe("Phase 107 — Charge on assign / change / renew", () => {
         .from(schema.balances)
         .where(
           and(
+            tenantWhere(schema.balances, TEMPLO_CTX),
             eq(schema.balances.memberId, member.id),
             eq(schema.balances.targetKind, "subscription"),
             eq(schema.balances.targetId, subId),
@@ -230,7 +269,12 @@ describe("Phase 107 — Charge on assign / change / renew", () => {
       const txs = await app.db
         .select()
         .from(schema.financialTransactions)
-        .where(eq(schema.financialTransactions.memberId, member.id));
+        .where(
+          and(
+            tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+            eq(schema.financialTransactions.memberId, member.id),
+          ),
+        );
       expect(txs).toHaveLength(0);
     });
 
@@ -261,7 +305,12 @@ describe("Phase 107 — Charge on assign / change / renew", () => {
       const txs = await app.db
         .select()
         .from(schema.financialTransactions)
-        .where(eq(schema.financialTransactions.memberId, member.id));
+        .where(
+          and(
+            tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+            eq(schema.financialTransactions.memberId, member.id),
+          ),
+        );
       expect(txs).toHaveLength(0);
     });
 
@@ -345,6 +394,7 @@ describe("Phase 107 — Charge on assign / change / renew", () => {
 
       await expect(
         subSvc.assignPlan(
+          { tenantId: TENANT_TEMPLO },
           member.id,
           {
             planId: plan.id,
@@ -370,7 +420,12 @@ describe("Phase 107 — Charge on assign / change / renew", () => {
       const txs = await app.db
         .select()
         .from(schema.financialTransactions)
-        .where(eq(schema.financialTransactions.memberId, member.id));
+        .where(
+          and(
+            tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+            eq(schema.financialTransactions.memberId, member.id),
+          ),
+        );
       expect(txs).toHaveLength(0);
 
       // Invariante 3: NO hay balance row persistido. Si applyDelta hubiera
@@ -379,7 +434,12 @@ describe("Phase 107 — Charge on assign / change / renew", () => {
       const balances = await app.db
         .select()
         .from(schema.balances)
-        .where(eq(schema.balances.memberId, member.id));
+        .where(
+          and(
+            tenantWhere(schema.balances, TEMPLO_CTX),
+            eq(schema.balances.memberId, member.id),
+          ),
+        );
       expect(balances).toHaveLength(0);
     });
   });
@@ -443,6 +503,7 @@ describe("Phase 107 — Charge on assign / change / renew", () => {
         .from(schema.balances)
         .where(
           and(
+            tenantWhere(schema.balances, TEMPLO_CTX),
             eq(schema.balances.memberId, member.id),
             eq(schema.balances.targetKind, "subscription"),
             eq(schema.balances.targetId, newSubId),
@@ -456,7 +517,12 @@ describe("Phase 107 — Charge on assign / change / renew", () => {
       const txs = await app.db
         .select()
         .from(schema.financialTransactions)
-        .where(eq(schema.financialTransactions.memberId, member.id))
+        .where(
+          and(
+            tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+            eq(schema.financialTransactions.memberId, member.id),
+          ),
+        )
         .orderBy(desc(schema.financialTransactions.id));
       const changeTx = txs.find((t) => t.amount === partial);
       expect(changeTx).toBeTruthy();
@@ -524,7 +590,12 @@ describe("Phase 107 — Charge on assign / change / renew", () => {
       const txs = await app.db
         .select()
         .from(schema.financialTransactions)
-        .where(eq(schema.financialTransactions.memberId, member.id));
+        .where(
+          and(
+            tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+            eq(schema.financialTransactions.memberId, member.id),
+          ),
+        );
       // Solo el cobro original del assignPlan (8000) — ninguno por 8801.
       expect(txs.find((t) => t.amount === 8801)).toBeUndefined();
     });
@@ -584,6 +655,7 @@ describe("Phase 107 — Charge on assign / change / renew", () => {
         .from(schema.balances)
         .where(
           and(
+            tenantWhere(schema.balances, TEMPLO_CTX),
             eq(schema.balances.memberId, member.id),
             eq(schema.balances.targetKind, "subscription"),
             eq(schema.balances.targetId, newSubId),
@@ -595,7 +667,12 @@ describe("Phase 107 — Charge on assign / change / renew", () => {
       const txs = await app.db
         .select()
         .from(schema.financialTransactions)
-        .where(eq(schema.financialTransactions.memberId, member.id));
+        .where(
+          and(
+            tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+            eq(schema.financialTransactions.memberId, member.id),
+          ),
+        );
       const scheduledTx = txs.find((t) => t.amount === partial);
       expect(scheduledTx).toBeTruthy();
       expect(scheduledTx?.notes ?? "").toMatch(
@@ -655,7 +732,12 @@ describe("Phase 107 — Charge on assign / change / renew", () => {
       const txs = await app.db
         .select()
         .from(schema.financialTransactions)
-        .where(eq(schema.financialTransactions.memberId, member.id));
+        .where(
+          and(
+            tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+            eq(schema.financialTransactions.memberId, member.id),
+          ),
+        );
       expect(txs.find((t) => t.amount === 12001)).toBeUndefined();
     });
   });
@@ -699,6 +781,7 @@ describe("Phase 107 — Charge on assign / change / renew", () => {
         .from(schema.balances)
         .where(
           and(
+            tenantWhere(schema.balances, TEMPLO_CTX),
             eq(schema.balances.memberId, member.id),
             eq(schema.balances.targetKind, "subscription"),
             eq(schema.balances.targetId, newSubId),
@@ -710,7 +793,12 @@ describe("Phase 107 — Charge on assign / change / renew", () => {
       const txs = await app.db
         .select()
         .from(schema.financialTransactions)
-        .where(eq(schema.financialTransactions.memberId, member.id));
+        .where(
+          and(
+            tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+            eq(schema.financialTransactions.memberId, member.id),
+          ),
+        );
       const renewTx = txs.find((t) => t.amount === partial);
       expect(renewTx).toBeTruthy();
       expect(renewTx?.notes ?? "").toMatch(/Cobro al renovar plan/);
@@ -759,7 +847,12 @@ describe("Phase 107 — Charge on assign / change / renew", () => {
       const txs = await app.db
         .select()
         .from(schema.financialTransactions)
-        .where(eq(schema.financialTransactions.memberId, member.id));
+        .where(
+          and(
+            tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+            eq(schema.financialTransactions.memberId, member.id),
+          ),
+        );
       expect(txs.find((t) => t.amount === 10001)).toBeUndefined();
     });
   });

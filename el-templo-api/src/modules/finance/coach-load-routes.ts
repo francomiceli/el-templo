@@ -40,7 +40,11 @@ import { handleServiceError } from "../shared/error-handler";
 import { BadRequestError, NotFoundError } from "../shared/errors";
 import { FINANCE_LOAD_ROLES, type AdminRole } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
-import { assertTenant, tenantWhere } from "../shared/tenant";
+import {
+  assertTenant,
+  tenantWhere,
+  type TenantContext,
+} from "../shared/tenant";
 import { requireBranchAccess } from "../shared/branch-access";
 import { isDuplicateKeyError } from "../shared/sql-errors";
 import * as schema from "../../db/schema";
@@ -279,17 +283,33 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
   // users.branchId with the virtual "Templo Online" fallback (mirror of
   // renewSubscription's renewBranchId resolution). Es el DEFAULT de la sede del
   // cobro cuando el body no trae `branchId` (select de Sede sin tocar).
-  const resolveUserBranchId = async (userId: number): Promise<number> => {
+  //
+  // Fase 172 (ADO-01): `ctx` PRIMERO. El `userId` llega del body/params, así que
+  // sin filtro un socio de OTRO gimnasio resolvía su sede y el cobro nacía con
+  // ella (T-172-11-02). Con el filtro la fila ajena no matchea y cae en el
+  // fallback "Templo Online" DEL PROPIO gimnasio — el guard de sede aguas abajo
+  // (requireBranchAccess / create) es el que corta, sin filtrar existencia.
+  const resolveUserBranchId = async (
+    ctx: TenantContext,
+    userId: number,
+  ): Promise<number> => {
     const [branchRow] = await fastify.db
       .select({ branchId: schema.users.branchId })
       .from(schema.users)
-      .where(eq(schema.users.id, userId))
+      .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)))
       .limit(1);
     if (branchRow?.branchId) return branchRow.branchId;
     const [virtualBranch] = await fastify.db
       .select({ id: schema.branches.id })
       .from(schema.branches)
-      .where(eq(schema.branches.name, "Templo Online"))
+      // La sede virtual es POR gimnasio: sin el filtro, el fallback devolvía la
+      // "Templo Online" del primer gimnasio que la tuviera, no la del cobro.
+      .where(
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.name, "Templo Online"),
+        ),
+      )
       .limit(1);
     if (!virtualBranch) {
       throw new Error(
@@ -303,8 +323,10 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
   // Es el branch_id del ledger/charge Y la sede desde la que create() resuelve la
   // caja de efectivo cuando el body no manda un `branchId` explícito (el select de
   // Sede de la PoS). El operador puede overridear con `body.branchId`.
-  const resolveMemberBranchId = (memberId: number): Promise<number> =>
-    resolveUserBranchId(memberId);
+  const resolveMemberBranchId = (
+    ctx: TenantContext,
+    memberId: number,
+  ): Promise<number> => resolveUserBranchId(ctx, memberId);
 
   // ── Phase 151 (COBRO-04 / T-151-01): guard compartido de cuenta banco ──
   // Mueve la imputación al punto de venta sin romper el invariante v5.3: el body
@@ -318,7 +340,12 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
   // `getCurrency` es un thunk: la moneda del cobro solo se resuelve cuando de
   // verdad hace falta (transfer/card con id), evitando queries/errores en el
   // camino cash. Devuelve el id validado (o undefined) para imputarlo al charge.
+  // Fase 172: el `ctx` va PRIMERO también en este closure. No tiene `request` a
+  // mano (es del plugin, no del handler), así que cada uno de sus 4 call sites lo
+  // resuelve con `assertTenant(request.scope, …)` — el compilador obliga a
+  // mirarlos todos.
   const validateBankAccountForCharge = async (
+    ctx: TenantContext,
     paymentMethod: PaymentMethod,
     bankAccountId: number | undefined,
     getCurrency: () => Promise<string>,
@@ -339,19 +366,30 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
       );
     }
     const currency = await getCurrency();
-    await cashRegisterService.assertChosenBankAccount(bankAccountId, currency);
+    await cashRegisterService.assertChosenBankAccount(
+      ctx,
+      bankAccountId,
+      currency,
+    );
     return bankAccountId;
   };
 
   // COBRO-04: moneda del cobro de renovación = la de la sub renovable (active gana
   // sobre expired, igual que renewSubscription's currentSub). Se resuelve en la
   // ruta para validar la cuenta banco elegida ANTES de delegar en renewSubscription.
-  const resolveRenewCurrency = async (userId: number): Promise<string> => {
+  // Fase 172 (ADO-01): `ctx` PRIMERO. Sin el filtro, la moneda con la que se
+  // valida la cuenta banco del cobro podía salir de la suscripción de un socio de
+  // otro gimnasio (T-172-11-02).
+  const resolveRenewCurrency = async (
+    ctx: TenantContext,
+    userId: number,
+  ): Promise<string> => {
     const [row] = await fastify.db
       .select({ currency: schema.subscriptions.currency })
       .from(schema.subscriptions)
       .where(
         and(
+          tenantWhere(schema.subscriptions, ctx),
           eq(schema.subscriptions.userId, userId),
           or(
             eq(schema.subscriptions.status, "active"),
@@ -373,11 +411,22 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
   // COBRO-04: moneda del cobro del alta = la del plan elegido (assignPlan usa
   // plan.currency). Se resuelve en la ruta para validar la cuenta banco antes de
   // delegar en assignPlan.
-  const resolvePlanCurrency = async (planId: number): Promise<string> => {
+  // Fase 172 (ADO-01): `ctx` PRIMERO. El `planId` llega del body del alta; sin el
+  // filtro, un plan de otro gimnasio existía para este guard y la validación de
+  // la cuenta banco se hacía contra SU moneda (T-172-11-02).
+  const resolvePlanCurrency = async (
+    ctx: TenantContext,
+    planId: number,
+  ): Promise<string> => {
     const [row] = await fastify.db
       .select({ currency: schema.subscriptionPlans.currency })
       .from(schema.subscriptionPlans)
-      .where(eq(schema.subscriptionPlans.id, planId))
+      .where(
+        and(
+          tenantWhere(schema.subscriptionPlans, ctx),
+          eq(schema.subscriptionPlans.id, planId),
+        ),
+      )
       .limit(1);
     if (!row) {
       throw new NotFoundError("Plan no encontrado");
@@ -403,7 +452,10 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
       schema: coachPayPlanSchema,
       // CR-CAJA: gatea la sede del cobro cuando el operador la eligió (optional →
       // sin branchId, default a la sede del socio, sin check).
-      preHandler: requireBranchAccess({ from: "body.branchId", optional: true }),
+      preHandler: requireBranchAccess({
+        from: "body.branchId",
+        optional: true,
+      }),
     },
     async (request, reply) => {
       const {
@@ -415,6 +467,11 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
         branchId: chosenBranchId,
       } = request.body;
       try {
+        // Fase 172 (ADO-01): el gimnasio se resuelve UNA vez por handler y se
+        // reusa — este handler llama a varios metodos del service y a
+        // validateBankAccountForCharge, y un solo assertTenant deja un unico
+        // 403 TENANT_UNRESOLVED que nombra la ruta.
+        const ctx = assertTenant(request.scope, "coach-load.pay-plan");
         // Outstanding debt on the member's CURRENT sub (active/paused/scheduled)
         // decides settle vs renew. getMemberSubscription excludes expired subs
         // (those are the renewal case), so a null sub here just means "nothing
@@ -427,6 +484,7 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
         const sub = await subscriptionService.getMemberSubscription(userId);
         const balanceRow = sub
           ? await balanceService.getRow(
+              ctx,
               userId,
               "subscription",
               sub.id,
@@ -457,11 +515,12 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
           // default, la del socio. Es el branch_id del ledger Y la sede desde la
           // que create() resuelve la caja de efectivo.
           const branchId =
-            chosenBranchId ?? (await resolveMemberBranchId(userId));
+            chosenBranchId ?? (await resolveMemberBranchId(ctx, userId));
           // COBRO-04: cuenta banco elegida en la PoS (transfer/card) → imputación
           // directa del charge. Para cash queda undefined → create resuelve la
           // caja EFECTIVO desde `branchId` (la sede del cobro).
           const chosenBankAccountId = await validateBankAccountForCharge(
+            ctx,
             paymentMethod,
             bankAccountId,
             async () => sub.currency,
@@ -474,6 +533,7 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
             : "validado";
 
           const detail = await transactionService.create(
+            ctx,
             {
               memberId: userId,
               kind: "debt_settlement",
@@ -518,11 +578,13 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
         // renovable. Para cash queda undefined → la caja se resuelve desde la sede
         // del cobro (renewBranchId).
         const chosenBankAccountId = await validateBankAccountForCharge(
+          ctx,
           paymentMethod,
           bankAccountId,
-          () => resolveRenewCurrency(userId),
+          () => resolveRenewCurrency(ctx, userId),
         );
         const subscription = await subscriptionService.renewSubscription(
+          ctx,
           userId,
           {
             paymentMethod,
@@ -543,16 +605,20 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
         );
         // The charge carries the idempotencyKey (renewalPrice>0 → a charge was
         // created); a free renewal (price 0) produces no charge → transaction null.
-        const transaction =
-          await transactionService.findByIdempotencyKey(idempotencyKey);
+        const transaction = await transactionService.findByIdempotencyKey(
+          ctx,
+          idempotencyKey,
+        );
         return reply.code(201).send({ subscription, transaction });
       } catch (err: unknown) {
         // D-09 / Pitfall 3: a duplicate idempotency key means this exact load
         // already happened — the settle/renewal tx rolled back wholesale. Re-read
         // the existing charge (fresh connection) and return it as a 200 no-op.
         if (isDuplicateKeyError(err).isDuplicate) {
-          const existing =
-            await transactionService.findByIdempotencyKey(idempotencyKey);
+          const existing = await transactionService.findByIdempotencyKey(
+            assertTenant(request.scope, "coach-load.pay-plan.replay"),
+            idempotencyKey,
+          );
           if (existing) {
             const subscription =
               await subscriptionService.getMemberSubscription(userId);
@@ -576,22 +642,31 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
     {
       schema: coachMiscLoadSchema,
       // CR-CAJA: gatea la sede del cobro si el operador la eligió (optional).
-      preHandler: requireBranchAccess({ from: "body.branchId", optional: true }),
+      preHandler: requireBranchAccess({
+        from: "body.branchId",
+        optional: true,
+      }),
     },
     async (request, reply) => {
       const today = new Date().toISOString().split("T")[0];
       try {
+        // Fase 172 (ADO-01): el gimnasio se resuelve UNA vez por handler y se
+        // reusa — este handler llama a varios metodos del service y a
+        // validateBankAccountForCharge, y un solo assertTenant deja un unico
+        // 403 TENANT_UNRESOLVED que nombra la ruta.
+        const ctx = assertTenant(request.scope, "coach-load.misc");
         // CR-CAJA: sede del cobro = la elegida en el select (gated) o, por
         // default, la del socio. Es el branch_id del ledger Y la sede desde la que
         // create() resuelve la caja de efectivo.
         const branchId =
           request.body.branchId ??
-          (await resolveMemberBranchId(request.body.memberId));
+          (await resolveMemberBranchId(ctx, request.body.memberId));
         const currency = request.body.currency ?? "ARS";
         // COBRO-04: cuenta banco elegida en la PoS (transfer/card) → imputación
         // directa del charge. Para cash queda undefined → create resuelve la caja
         // EFECTIVO desde `branchId` (la sede del cobro).
         const chosenBankAccountId = await validateBankAccountForCharge(
+          ctx,
           request.body.paymentMethod,
           request.body.bankAccountId,
           async () => currency,
@@ -604,6 +679,7 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
           : "validado";
 
         const detail = await transactionService.create(
+          ctx,
           {
             memberId: request.body.memberId,
             kind: "advance_payment",
@@ -638,6 +714,7 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
         // D-09: idempotent no-op on a duplicate key — re-read + return existing.
         if (isDuplicateKeyError(err).isDuplicate) {
           const existing = await transactionService.findByIdempotencyKey(
+            assertTenant(request.scope, "coach-load.misc.replay"),
             request.body.idempotencyKey,
           );
           if (existing) {
@@ -680,6 +757,11 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       const body = request.body;
       try {
+        // Fase 172 (ADO-01): el gimnasio se resuelve UNA vez por handler y se
+        // reusa — este handler llama a varios metodos del service y a
+        // validateBankAccountForCharge, y un solo assertTenant deja un unico
+        // 403 TENANT_UNRESOLVED que nombra la ruta.
+        const ctx = assertTenant(request.scope, "coach-load.alta");
         // ── Idempotencia (D-09 / W-1): replay-short-circuit ANTES de assignPlan ──
         // Un doble-submit con el MISMO idempotencyKey NO puede caer al catch de
         // abajo: en el replay el alumno ya tiene la sub activa del 1er POST, así
@@ -687,6 +769,7 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
         // re-insertar el charge. Por eso re-leemos acá el charge ya persistido (el
         // alumno + charge nacieron atómicos en el 1er POST) y devolvemos 200 no-op.
         const replay = await transactionService.findByIdempotencyKey(
+          ctx,
           body.idempotencyKey,
         );
         if (replay) {
@@ -698,9 +781,10 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
         // acá con 400 sin efectos colaterales (no se crea alumno ni sub). La
         // moneda del cobro es la del plan elegido.
         const chosenBankAccountId = await validateBankAccountForCharge(
+          ctx,
           body.paymentMethod,
           body.bankAccountId,
-          () => resolvePlanCurrency(body.planId),
+          () => resolvePlanCurrency(ctx, body.planId),
         );
 
         // ── (a) Resolver/crear alumno ───────────────────────────────────────
@@ -756,6 +840,7 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
         const today = new Date().toISOString().split("T")[0];
 
         const subscription = await subscriptionService.assignPlan(
+          ctx,
           memberId,
           {
             planId: body.planId,
@@ -784,6 +869,7 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
         // El plan_charge lleva el idempotencyKey (precio>0 → hubo charge). Un
         // alta gratis (precio 0) no produce charge → transaction null.
         const transaction = await transactionService.findByIdempotencyKey(
+          ctx,
           body.idempotencyKey,
         );
         request.log.info(
@@ -810,6 +896,7 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
         // y devolverlo como 200 no-op.
         if (isDuplicateKeyError(err).isDuplicate) {
           const existing = await transactionService.findByIdempotencyKey(
+            assertTenant(request.scope, "coach-load.alta.replay"),
             body.idempotencyKey,
           );
           if (existing) {
@@ -839,9 +926,14 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: autocompletarSchema },
     async (request, reply) => {
       try {
+        // Fase 172 (ADO-01): el ctx se resuelve UNA vez al tope del try (antes lo
+        // resolvía inline el `getRow` de más abajo) porque el resolver de sede lo
+        // necesita primero. Un solo assertTenant por handler, una sola etiqueta.
+        const ctx = assertTenant(request.scope, "coach-load.autocompletar");
         // CR-CAJA: sede DEFAULT del cobro = la del socio (users.branchId con
         // fallback Templo Online), para pre-seleccionar el select de Sede en la PoS.
         const memberBranchId = await resolveMemberBranchId(
+          ctx,
           request.params.userId,
         );
         const sub = await subscriptionService.getMemberSubscription(
@@ -860,6 +952,7 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
           });
         }
         const balanceRow = await balanceService.getRow(
+          ctx,
           request.params.userId,
           "subscription",
           sub.id,
@@ -910,6 +1003,7 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       try {
         const accounts = await cashRegisterService.listActiveBankAccounts(
+          assertTenant(request.scope, "coach-load.bank-accounts"),
           request.query.currency,
         );
         return reply.send({ accounts });
@@ -948,9 +1042,15 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
     },
     async (request, reply) => {
       try {
+        // Fase 172 (analog B): el ctx se resuelve UNA vez al tope del try y lo
+        // usan el resolver y el SELECT de abajo. Queda DENTRO del try para que
+        // un TENANT_UNRESOLVED salga por `handleServiceError` con el formato de
+        // error del modulo y no con el default de Fastify.
+        const ctx = assertTenant(request.scope, "coach caja-efectivo");
         let override: number | null | undefined;
         try {
           override = await cashRegisterService.resolveCashRegister(
+            ctx,
             "cash",
             request.query.branchId,
             request.query.currency,
@@ -969,7 +1069,6 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
         if (override == null) {
           return reply.send({ caja: null });
         }
-        const ctx = assertTenant(request.scope, "coach caja-efectivo");
         const [caja] = await fastify.db
           .select({
             id: schema.cashRegisters.id,
@@ -1000,12 +1099,15 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
   // ===================================================================
   fastify.get("/mis-cargas", async (request, reply) => {
     try {
-      const result = await transactionService.list({
-        ...(request.user.role === "coach"
-          ? { recordedBy: request.user.userId }
-          : {}),
-        limit: 50,
-      });
+      const result = await transactionService.list(
+        assertTenant(request.scope, "coach-load.mis-cargas"),
+        {
+          ...(request.user.role === "coach"
+            ? { recordedBy: request.user.userId }
+            : {}),
+          limit: 50,
+        },
+      );
       return reply.send(result);
     } catch (err: unknown) {
       handleServiceError(err, reply, request.log, "coach mis-cargas");

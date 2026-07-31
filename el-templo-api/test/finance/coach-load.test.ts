@@ -24,7 +24,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import {
   createTestApp,
@@ -34,6 +34,18 @@ import {
   ensureEfectivoCaja,
 } from "../helpers";
 import * as schema from "../../src/db/schema";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
+
+/**
+ * Fase 172 (172-14): gimnasio de las queries DIRECTAS de este archivo. Sale del
+ * fixture, nunca de un `1` a mano. El sentinel de tenancy ve las queries de los
+ * tests igual que las de la app —comparten `app.dbPool`—, asi que con `finance`
+ * en `TENANT_STRICT_MODULES` una lectura o una siembra de
+ * `financial_transactions` / `transaction_links` / `balances` / `cash_registers`
+ * sin gimnasio hace throw antes de llegar a MySQL.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 const COACH_LOAD_URL = "/api/admin/finance/coach-load";
 const FINANCE_URL = "/api/admin/finance";
@@ -71,7 +83,12 @@ async function readTx(id: number): Promise<{
       branchId: schema.financialTransactions.branchId,
     })
     .from(schema.financialTransactions)
-    .where(eq(schema.financialTransactions.id, id))
+    .where(
+      and(
+        eq(schema.financialTransactions.id, id),
+        tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+      ),
+    )
     .limit(1);
   return row;
 }
@@ -81,7 +98,12 @@ async function countMemberTx(): Promise<number> {
   const [row] = await app.db
     .select({ count: sql<number>`COUNT(*)` })
     .from(schema.financialTransactions)
-    .where(eq(schema.financialTransactions.memberId, memberId));
+    .where(
+      and(
+        eq(schema.financialTransactions.memberId, memberId),
+        tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+      ),
+    );
   return Number(row?.count ?? 0);
 }
 
@@ -114,13 +136,15 @@ async function seedSubscriptionDebt(
   subscriptionId: number,
   amount: number,
 ): Promise<void> {
-  await app.db.insert(schema.balances).values({
-    memberId,
-    targetKind: "subscription",
-    targetId: subscriptionId,
-    currency: "ARS",
-    amount,
-  });
+  await app.db.insert(schema.balances).values(
+    tenantValues(TEMPLO_CTX, {
+      memberId,
+      targetKind: "subscription",
+      targetId: subscriptionId,
+      currency: "ARS",
+      amount,
+    }),
+  );
 }
 
 /** Seed an ACTIVE expired-yesterday subscription so renew creates a new active period. */
@@ -206,9 +230,19 @@ beforeEach(async () => {
   const conn = await app.dbPool.getConnection();
   try {
     await conn.query("SET FOREIGN_KEY_CHECKS=0");
-    await conn.query("DELETE FROM `transaction_links`");
-    await conn.query("DELETE FROM `financial_transactions`");
-    await conn.query("DELETE FROM `balances`");
+    // 172-14: los 3 DELETE sobre tablas strict se ACOTAN al gimnasio. Este
+    // beforeEach corre sobre una conexion CRUDA del pool —que es una de las
+    // tres puertas que el sentinel intercepta—, asi que sin filtro hace throw.
+    await conn.query("DELETE FROM `transaction_links` WHERE tenant_id = ?", [
+      TENANT_TEMPLO,
+    ]);
+    await conn.query(
+      "DELETE FROM `financial_transactions` WHERE tenant_id = ?",
+      [TENANT_TEMPLO],
+    );
+    await conn.query("DELETE FROM `balances` WHERE tenant_id = ?", [
+      TENANT_TEMPLO,
+    ]);
     await conn.query("DELETE FROM `audit_log`");
     await conn.query("DELETE FROM `bookings`");
     await conn.query("DELETE FROM `program_enrollments`");
@@ -344,7 +378,12 @@ describe("coach-load renew", () => {
         kind: schema.financialTransactions.kind,
       })
       .from(schema.financialTransactions)
-      .where(eq(schema.financialTransactions.memberId, memberId))
+      .where(
+        and(
+          eq(schema.financialTransactions.memberId, memberId),
+          tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+        ),
+      )
       .limit(1);
     expect(charge).toBeTruthy();
     expect(charge.validationStatus).toBe("pendiente");
@@ -398,7 +437,12 @@ describe("coach-load pay-plan settle debt", () => {
         targetId: schema.transactionLinks.targetId,
       })
       .from(schema.transactionLinks)
-      .where(eq(schema.transactionLinks.transactionId, body.transaction.id));
+      .where(
+        and(
+          eq(schema.transactionLinks.transactionId, body.transaction.id),
+          tenantWhere(schema.transactionLinks, TEMPLO_CTX),
+        ),
+      );
     expect(links).toEqual([{ targetKind: "subscription", targetId: subId }]);
 
     const [balance] = await app.db
@@ -409,6 +453,7 @@ describe("coach-load pay-plan settle debt", () => {
           eq(schema.balances.memberId, memberId),
           eq(schema.balances.targetKind, "subscription"),
           eq(schema.balances.targetId, subId),
+          tenantWhere(schema.balances, TEMPLO_CTX),
         ),
       );
     expect(balance.amount).toBe(0);
@@ -446,6 +491,7 @@ describe("coach-load pay-plan settle debt", () => {
           eq(schema.balances.memberId, memberId),
           eq(schema.balances.targetKind, "subscription"),
           eq(schema.balances.targetId, subId),
+          tenantWhere(schema.balances, TEMPLO_CTX),
         ),
       );
     expect(balance.amount).toBe(60000);
@@ -504,7 +550,12 @@ describe("coach-load idempotency", () => {
     const rows = await app.db
       .select({ id: schema.financialTransactions.id })
       .from(schema.financialTransactions)
-      .where(eq(schema.financialTransactions.idempotencyKey, key));
+      .where(
+        and(
+          eq(schema.financialTransactions.idempotencyKey, key),
+          tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+        ),
+      );
     expect(rows.length).toBe(1);
 
     // Both responses point at the same charge.
@@ -544,7 +595,12 @@ describe("coach-load idempotency", () => {
     const rows = await app.db
       .select({ id: schema.financialTransactions.id })
       .from(schema.financialTransactions)
-      .where(eq(schema.financialTransactions.idempotencyKey, key));
+      .where(
+        and(
+          eq(schema.financialTransactions.idempotencyKey, key),
+          tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+        ),
+      );
     expect(rows.length).toBe(1);
     expect(secondBody.transaction.id).toBe(firstBody.transaction.id);
   });
@@ -631,13 +687,23 @@ describe("coach-load cobro suelto", () => {
     const balances = await app.db
       .select({ id: schema.balances.id })
       .from(schema.balances)
-      .where(eq(schema.balances.memberId, memberId));
+      .where(
+        and(
+          eq(schema.balances.memberId, memberId),
+          tenantWhere(schema.balances, TEMPLO_CTX),
+        ),
+      );
     expect(balances.length).toBe(0);
 
     const linkRows = await app.db
       .select({ id: schema.transactionLinks.id })
       .from(schema.transactionLinks)
-      .where(eq(schema.transactionLinks.transactionId, body.transaction.id));
+      .where(
+        and(
+          eq(schema.transactionLinks.transactionId, body.transaction.id),
+          tenantWhere(schema.transactionLinks, TEMPLO_CTX),
+        ),
+      );
     expect(linkRows.length).toBe(0);
   });
 
@@ -760,6 +826,7 @@ describe("coach-load caja del cobro por sede del socio (CR-CAJA)", () => {
         and(
           eq(schema.cashRegisters.type, "efectivo"),
           eq(schema.cashRegisters.branchId, branch),
+          tenantWhere(schema.cashRegisters, TEMPLO_CTX),
         ),
       )
       .limit(1);
@@ -791,6 +858,7 @@ describe("coach-load caja del cobro por sede del socio (CR-CAJA)", () => {
         and(
           eq(schema.cashRegisters.type, "banco"),
           eq(schema.cashRegisters.currency, "ARS"),
+          tenantWhere(schema.cashRegisters, TEMPLO_CTX),
         ),
       )
       .limit(1);
@@ -799,13 +867,15 @@ describe("coach-load caja del cobro por sede del socio (CR-CAJA)", () => {
     } else {
       const [banco] = await app.db
         .insert(schema.cashRegisters)
-        .values({
-          name: "Banco ARS",
-          type: "banco",
-          branchId: null,
-          currency: "ARS",
-          cutoffDate: "2020-01-01",
-        })
+        .values(
+          tenantValues(TEMPLO_CTX, {
+            name: "Banco ARS",
+            type: "banco" as const,
+            branchId: null,
+            currency: "ARS",
+            cutoffDate: "2020-01-01",
+          }),
+        )
         .$returningId();
       bancoArsId = banco.id;
     }
@@ -934,13 +1004,15 @@ describe("coach-load caja del cobro por sede del socio (CR-CAJA)", () => {
         priceTypeApplied: "regular",
       })
       .$returningId();
-    await app.db.insert(schema.balances).values({
-      memberId: memberB,
-      targetKind: "subscription",
-      targetId: sub.id,
-      currency: "ARS",
-      amount: 50000,
-    });
+    await app.db.insert(schema.balances).values(
+      tenantValues(TEMPLO_CTX, {
+        memberId: memberB,
+        targetKind: "subscription" as const,
+        targetId: sub.id,
+        currency: "ARS",
+        amount: 50000,
+      }),
+    );
 
     const res = await app.inject({
       method: "POST",
@@ -999,7 +1071,12 @@ describe("coach-load caja del cobro por sede del socio (CR-CAJA)", () => {
         kind: schema.financialTransactions.kind,
       })
       .from(schema.financialTransactions)
-      .where(eq(schema.financialTransactions.memberId, memberB))
+      .where(
+        and(
+          eq(schema.financialTransactions.memberId, memberB),
+          tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+        ),
+      )
       .limit(1);
     expect(charge.kind).toBe("plan_charge");
     // CR-CAJA: el plan_charge de la renovación nace en la caja efectivo de la
@@ -1031,19 +1108,21 @@ describe("coach-load mis-cargas", () => {
 
     // An admin-recorded charge against the SAME member must NOT show in the
     // coach's mis-cargas (recordedBy forced to the coach).
-    await app.db.insert(schema.financialTransactions).values({
-      memberId,
-      kind: "advance_payment",
-      direction: "inflow",
-      amount: 4000,
-      currency: "ARS",
-      paymentMethod: "cash",
-      transactionDate: new Date().toISOString().split("T")[0],
-      effectiveDate: new Date().toISOString().split("T")[0],
-      branchId,
-      recordedBy: adminId,
-      validationStatus: "validado",
-    });
+    await app.db.insert(schema.financialTransactions).values(
+      tenantValues(TEMPLO_CTX, {
+        memberId,
+        kind: "advance_payment" as const,
+        direction: "inflow" as const,
+        amount: 4000,
+        currency: "ARS",
+        paymentMethod: "cash" as const,
+        transactionDate: new Date().toISOString().split("T")[0],
+        effectiveDate: new Date().toISOString().split("T")[0],
+        branchId,
+        recordedBy: adminId,
+        validationStatus: "validado" as const,
+      }),
+    );
 
     const res = await app.inject({
       method: "GET",
@@ -1099,19 +1178,21 @@ describe("coach-load mis-cargas", () => {
     });
 
     // ...plus an admin-recorded charge against the same member.
-    await app.db.insert(schema.financialTransactions).values({
-      memberId,
-      kind: "advance_payment",
-      direction: "inflow",
-      amount: 4000,
-      currency: "ARS",
-      paymentMethod: "cash",
-      transactionDate: new Date().toISOString().split("T")[0],
-      effectiveDate: new Date().toISOString().split("T")[0],
-      branchId,
-      recordedBy: adminId,
-      validationStatus: "validado",
-    });
+    await app.db.insert(schema.financialTransactions).values(
+      tenantValues(TEMPLO_CTX, {
+        memberId,
+        kind: "advance_payment" as const,
+        direction: "inflow" as const,
+        amount: 4000,
+        currency: "ARS",
+        paymentMethod: "cash" as const,
+        transactionDate: new Date().toISOString().split("T")[0],
+        effectiveDate: new Date().toISOString().split("T")[0],
+        branchId,
+        recordedBy: adminId,
+        validationStatus: "validado" as const,
+      }),
+    );
 
     // Recepción (never recorded anything) still sees BOTH loads.
     const res = await app.inject({
@@ -1144,38 +1225,44 @@ describe("coach-load bankAccountId (COBRO-04)", () => {
     const stamp = Date.now().toString(36).slice(-6);
     const [ars] = await app.db
       .insert(schema.cashRegisters)
-      .values({
-        name: `COBRO04 Banco ARS ${stamp}`,
-        type: "banco",
-        branchId: null,
-        currency: "ARS",
-        cutoffDate: "2020-01-01",
-      })
+      .values(
+        tenantValues(TEMPLO_CTX, {
+          name: `COBRO04 Banco ARS ${stamp}`,
+          type: "banco" as const,
+          branchId: null,
+          currency: "ARS",
+          cutoffDate: "2020-01-01",
+        }),
+      )
       .$returningId();
     bankArsId = ars.id;
 
     const [eur] = await app.db
       .insert(schema.cashRegisters)
-      .values({
-        name: `COBRO04 Banco EUR ${stamp}`,
-        type: "banco",
-        branchId: null,
-        currency: "EUR",
-        cutoffDate: "2020-01-01",
-      })
+      .values(
+        tenantValues(TEMPLO_CTX, {
+          name: `COBRO04 Banco EUR ${stamp}`,
+          type: "banco" as const,
+          branchId: null,
+          currency: "EUR",
+          cutoffDate: "2020-01-01",
+        }),
+      )
       .$returningId();
     bankEurId = eur.id;
 
     const [inactive] = await app.db
       .insert(schema.cashRegisters)
-      .values({
-        name: `COBRO04 Banco ARS inactiva ${stamp}`,
-        type: "banco",
-        branchId: null,
-        currency: "ARS",
-        isActive: false,
-        cutoffDate: "2020-01-01",
-      })
+      .values(
+        tenantValues(TEMPLO_CTX, {
+          name: `COBRO04 Banco ARS inactiva ${stamp}`,
+          type: "banco" as const,
+          branchId: null,
+          currency: "ARS",
+          isActive: false,
+          cutoffDate: "2020-01-01",
+        }),
+      )
       .$returningId();
     bankInactiveId = inactive.id;
 
@@ -1186,6 +1273,7 @@ describe("coach-load bankAccountId (COBRO-04)", () => {
         and(
           eq(schema.cashRegisters.type, "efectivo"),
           eq(schema.cashRegisters.branchId, branchId),
+          tenantWhere(schema.cashRegisters, TEMPLO_CTX),
         ),
       )
       .limit(1);
@@ -1353,7 +1441,12 @@ describe("coach-load bankAccountId (COBRO-04)", () => {
         kind: schema.financialTransactions.kind,
       })
       .from(schema.financialTransactions)
-      .where(eq(schema.financialTransactions.memberId, memberId))
+      .where(
+        and(
+          eq(schema.financialTransactions.memberId, memberId),
+          tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+        ),
+      )
       .limit(1);
     expect(charge.kind).toBe("plan_charge");
     expect(charge.cashRegisterId).toBe(bankArsId);
@@ -1382,7 +1475,12 @@ describe("coach-load bankAccountId (COBRO-04)", () => {
         kind: schema.financialTransactions.kind,
       })
       .from(schema.financialTransactions)
-      .where(eq(schema.financialTransactions.memberId, memberId))
+      .where(
+        and(
+          eq(schema.financialTransactions.memberId, memberId),
+          tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+        ),
+      )
       .limit(1);
     expect(charge.kind).toBe("plan_charge");
     expect(charge.cashRegisterId).toBe(bankArsId);

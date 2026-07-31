@@ -38,6 +38,16 @@ import {
   ensureEfectivoCaja,
 } from "../helpers";
 import * as schema from "../../src/db/schema";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+import { tenantWhere } from "../../src/modules/shared/tenant";
+
+/**
+ * Fase 172 (172-14): gimnasio de las queries DIRECTAS de este archivo. Sale del
+ * fixture, nunca de un `1` a mano. Con `finance` en `TENANT_STRICT_MODULES` el
+ * sentinel hace throw sobre cualquier acceso a `financial_transactions` /
+ * `balances` sin gimnasio en el predicado — incluidos los `sql` crudos.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 const COACH_LOAD_URL = "/api/admin/finance/coach-load";
 const FINANCE_URL = "/api/admin/finance";
@@ -104,7 +114,12 @@ async function readChargeByKey(key: string): Promise<{
       voidedAt: schema.financialTransactions.voidedAt,
     })
     .from(schema.financialTransactions)
-    .where(eq(schema.financialTransactions.idempotencyKey, key))
+    .where(
+      and(
+        eq(schema.financialTransactions.idempotencyKey, key),
+        tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+      ),
+    )
     .limit(1);
   return row ?? null;
 }
@@ -143,6 +158,7 @@ async function readSubBalance(
         eq(schema.balances.memberId, memberId),
         eq(schema.balances.targetKind, "subscription"),
         eq(schema.balances.targetId, subscriptionId),
+        tenantWhere(schema.balances, TEMPLO_CTX),
       ),
     )
     .limit(1);
@@ -265,9 +281,21 @@ beforeEach(async () => {
   // Limpiar el estado finance + suscripciones entre tests (FK checks off vía la
   // conexión raw es innecesario acá; el orden cubre las FKs). Los users creados
   // por /alta persisten pero usan DNIs únicos → no interfieren.
-  await app.db.execute(sql`DELETE FROM transaction_links`);
-  await app.db.execute(sql`DELETE FROM financial_transactions`);
-  await app.db.execute(sql`DELETE FROM balances`);
+  // 172-14: los 3 DELETE sobre tablas strict se ACOTAN al gimnasio en vez de
+  // llevar exencion `tenant-safe`. El borrado global aca era comodidad, no
+  // diseno: este archivo no siembra en otro gimnasio. Acotarlo es ademas mas
+  // seguro que antes — el dia que un fixture siembre en el gimnasio 2, este
+  // beforeEach ya no se lo lleva puesto (misma regla que el 172-13 fijo para
+  // validate-caja.test.ts).
+  await app.db.execute(
+    sql`DELETE FROM transaction_links WHERE tenant_id = ${TENANT_TEMPLO}`,
+  );
+  await app.db.execute(
+    sql`DELETE FROM financial_transactions WHERE tenant_id = ${TENANT_TEMPLO}`,
+  );
+  await app.db.execute(
+    sql`DELETE FROM balances WHERE tenant_id = ${TENANT_TEMPLO}`,
+  );
   await app.db.execute(sql`DELETE FROM bookings`);
   await app.db.execute(sql`DELETE FROM subscription_schedules`);
   await app.db.execute(sql`DELETE FROM subscriptions`);
@@ -691,7 +719,12 @@ describe("alta idempotencia", () => {
     const rows = await app.db
       .select({ id: schema.financialTransactions.id })
       .from(schema.financialTransactions)
-      .where(eq(schema.financialTransactions.idempotencyKey, key));
+      .where(
+        and(
+          eq(schema.financialTransactions.idempotencyKey, key),
+          tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+        ),
+      );
     expect(rows.length).toBe(1);
   });
 });

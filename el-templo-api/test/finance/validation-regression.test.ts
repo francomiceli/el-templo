@@ -37,11 +37,30 @@ import { TransactionService } from "../../src/modules/finance/transaction-servic
 import { BalanceService } from "../../src/modules/finance/balance-service";
 import { CashRegisterService } from "../../src/modules/finance/cash-register-service";
 import { AdvancedFinanceService } from "../../src/modules/analytics/advanced-finance-service";
+import type { TenantContext } from "../../src/modules/shared/tenant";
 import * as schema from "../../src/db/schema";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
+
+/**
+ * Fase 172 (ADO-01 / T-172-08-04): gimnasio de los call sites DIRECTOS al
+ * service. Sale del fixture, nunca de un `1` a mano. Una sola constante y no
+ * el objeto literal repetido en cada llamada: el dia que un caso ejercite
+ * dos gimnasios, el segundo se agrega al lado y se ve la diferencia.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 const TODAY = "2026-04-28";
 const MONTH_FROM = "2026-04-01";
 const MONTH_TO = "2026-04-30";
+
+/**
+ * El gimnasio de los fixtures (El Templo = tenant 1). Fase 172: la caja de
+ * analytics recibe el `TenantContext` como PRIMER argumento; en producción sale
+ * de `assertTenant(request.scope, …)`, acá se construye a mano porque el
+ * service se invoca sin request.
+ */
+const CTX: TenantContext = { tenantId: 1 };
 
 let app: FastifyInstance;
 let txService: TransactionService;
@@ -105,7 +124,7 @@ function coachCharge(amount: number) {
 }
 
 async function firmSaldo(): Promise<number> {
-  const summary = await txService.getSummary({
+  const summary = await txService.getSummary(TEMPLO_CTX, {
     branchId,
     dateFrom: MONTH_FROM,
     dateTo: MONTH_TO,
@@ -115,7 +134,7 @@ async function firmSaldo(): Promise<number> {
 
 /** ARS firm cash for the seeded branch/month via the analytics caja path (#10). */
 async function cashTrendArs(): Promise<number> {
-  const adv = await advFinance.getAdvancedFinance({
+  const adv = await advFinance.getAdvancedFinance(CTX, {
     branchId,
     dateFrom: MONTH_FROM,
     dateTo: MONTH_TO,
@@ -132,6 +151,7 @@ async function readSubBalance(): Promise<number | null> {
         eq(schema.balances.memberId, memberId),
         eq(schema.balances.targetKind, "subscription"),
         eq(schema.balances.targetId, subscriptionId),
+        tenantWhere(schema.balances, TEMPLO_CTX),
       ),
     )
     .limit(1);
@@ -199,9 +219,17 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
-  await app.db.execute(sql`DELETE FROM transaction_links`);
-  await app.db.execute(sql`DELETE FROM financial_transactions`);
-  await app.db.execute(sql`DELETE FROM balances`);
+  // 172-14: acotados al gimnasio (regla del 172-13: global a proposito ->
+  // exencion; acotable -> filtro). Este archivo no siembra en otro gimnasio.
+  await app.db.execute(
+    sql`DELETE FROM transaction_links WHERE tenant_id = ${TENANT_TEMPLO}`,
+  );
+  await app.db.execute(
+    sql`DELETE FROM financial_transactions WHERE tenant_id = ${TENANT_TEMPLO}`,
+  );
+  await app.db.execute(
+    sql`DELETE FROM balances WHERE tenant_id = ${TENANT_TEMPLO}`,
+  );
   await app.db.execute(sql`DELETE FROM audit_log`);
   subscriptionId = await seedSubscription();
 });
@@ -210,12 +238,12 @@ describe("firm-money regression (VAL-05 / VAL-07)", () => {
   // ─── R1: a PENDIENTE must not move firm cash ──────────────────────────────
   it("R1: a PENDIENTE does NOT move summary monthlyRevenue / firm saldo", async () => {
     // Baseline: one validado charge of 1000 → firm cash = 1000.
-    await txService.create(adminCharge(1000), adminId);
+    await txService.create(TEMPLO_CTX, adminCharge(1000), adminId);
     const baseline = await firmSaldo();
     expect(baseline).toBe(1000);
 
     // Add a PENDIENTE of 5000 → firm cash MUST stay at 1000.
-    await txService.create(coachCharge(5000), adminId);
+    await txService.create(TEMPLO_CTX, coachCharge(5000), adminId);
     const afterPendiente = await firmSaldo();
     expect(afterPendiente).toBe(baseline);
     expect(afterPendiente).toBe(1000);
@@ -223,10 +251,18 @@ describe("firm-money regression (VAL-05 / VAL-07)", () => {
 
   // ─── R2: validating the PENDIENTE makes it count ──────────────────────────
   it("R2: validating the PENDIENTE DOES add it to firm money", async () => {
-    const pendiente = await txService.create(coachCharge(5000), adminId);
+    const pendiente = await txService.create(
+      TEMPLO_CTX,
+      coachCharge(5000),
+      adminId,
+    );
     expect(await firmSaldo()).toBe(0); // pendiente not yet firm
 
-    const validated = await txService.validate(pendiente.id, adminId);
+    const validated = await txService.validate(
+      TEMPLO_CTX,
+      pendiente.id,
+      adminId,
+    );
     expect(validated.validationStatus).toBe("validado");
 
     // Now the 5000 is firm cash (delta == amount).
@@ -236,9 +272,9 @@ describe("firm-money regression (VAL-05 / VAL-07)", () => {
   // ─── R3: validado fixtures identical across finance + analytics paths ─────
   it("R3: validado numbers identical; a PENDIENTE never pollutes the v5.0 caja/summary", async () => {
     // Fixture of three VALIDADO charges (backfill-equivalent: all validado).
-    await txService.create(adminCharge(1000), adminId);
-    await txService.create(adminCharge(2000), adminId);
-    await txService.create(adminCharge(3000), adminId);
+    await txService.create(TEMPLO_CTX, adminCharge(1000), adminId);
+    await txService.create(TEMPLO_CTX, adminCharge(2000), adminId);
+    await txService.create(TEMPLO_CTX, adminCharge(3000), adminId);
 
     // Both the finance firm-cash (#1) and the analytics caja (#10) paths must
     // report the same validated total — the predicate is centralized, so the
@@ -250,7 +286,7 @@ describe("firm-money regression (VAL-05 / VAL-07)", () => {
 
     // A PENDIENTE of 9999 must change NEITHER number (backfill identity: only
     // validado rows count; the new predicate excludes the pendiente everywhere).
-    await txService.create(coachCharge(9999), adminId);
+    await txService.create(TEMPLO_CTX, coachCharge(9999), adminId);
     expect(await firmSaldo()).toBe(summaryBaseline);
     expect(await cashTrendArs()).toBe(cajaBaseline);
   });
@@ -258,18 +294,20 @@ describe("firm-money regression (VAL-05 / VAL-07)", () => {
   // ─── R4: a PENDIENTE still settles the member's balances (D-09) ───────────
   it("R4: a PENDIENTE settles balances (deuda → 0) but is NOT firm cash", async () => {
     // Seed the debt: full price owed.
-    await app.db.insert(schema.balances).values({
-      memberId,
-      targetKind: "subscription",
-      targetId: subscriptionId,
-      currency: "ARS",
-      amount: 1000,
-    });
+    await app.db.insert(schema.balances).values(
+      tenantValues(TEMPLO_CTX, {
+        memberId,
+        targetKind: "subscription" as const,
+        targetId: subscriptionId,
+        currency: "ARS",
+        amount: 1000,
+      }),
+    );
     expect(await readSubBalance()).toBe(1000);
 
     // A PENDIENTE for the full amount settles the debt (applyDelta runs
     // unconditionally) — but does NOT add to firm cash.
-    await txService.create(coachCharge(1000), adminId);
+    await txService.create(TEMPLO_CTX, coachCharge(1000), adminId);
 
     expect(await readSubBalance()).toBe(0); // deuda saldada
     expect(await firmSaldo()).toBe(0); // pero NO es caja firme

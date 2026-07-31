@@ -11,6 +11,33 @@
 // this class deliberately exposes NO `update` method. Only `void()` is
 // allowed to mutate an existing row, and only on the soft-void triplet
 // (voidedAt, voidedBy, voidReason).
+//
+// TENANCY (fase 172, ADO-01). Los 21 métodos públicos y privados de esta clase
+// reciben `ctx: TenantContext` como PRIMER parámetro, antes de `tx` y antes de
+// los ids. La posición es la mitigación, no una convención estética: un call
+// site que no lo entregue queda con los argumentos CORRIDOS y `tsc` lo marca.
+// Si el parámetro fuera último u opcional, un caller olvidado compilaría y
+// cobraría, anularía o validaría sin gimnasio resuelto. Las únicas fuentes
+// legítimas del `ctx` son las cuatro de `../shared/tenant` — en las rutas,
+// `assertTenant(request.scope, "<etiqueta>")`. Prohibido narrowear el
+// `tenantId` con un non-null assertion o con un default numérico al gimnasio 1.
+//
+// El archivo está migrado ENTERO: el `ctx` llegó a las firmas en el plan
+// 172-08, las escrituras (create / void / correct / validate / observe) en el
+// 172-10 y las lecturas y agregaciones (list / bandeja / historial / resumen /
+// export) en el 172-12. Ya no queda una sola query sin gimnasio acá adentro, y
+// `transaction-service.ts` no tiene ninguna entrada en
+// `tenant-lint-allowlist.json`: un acceso nuevo sin `tenantWhere` /
+// `tenantValues` sale ROJO en el lint de una, sin ratchet que lo amortigüe.
+//
+// Dos formas que hay que respetar al agregar una query acá:
+//   - El filtro de una tabla JOINEADA va en el ON. En un LEFT JOIN ponerlo en
+//     el WHERE lo convierte en INNER y borra las filas sin match (los egresos y
+//     traspasos sin socio ni sede, los saldos libres sin suscripción, los
+//     cobros nacidos validados).
+//   - `buildListConditions` devuelve el filtro DENTRO de su `SQL[]`: toda query
+//     que componga ese fragmento queda scopeada sola. No le agregues el
+//     `tenantWhere` de `financial_transactions` por afuera — ya está adentro.
 
 import {
   eq,
@@ -34,6 +61,11 @@ import { BadRequestError, NotFoundError } from "../shared/errors";
 import { buildMemberNameSearchCondition } from "../shared/member-search";
 import type { PaginatedResult } from "../shared/types";
 import { auditLog } from "../shared/audit-log";
+import {
+  tenantValues,
+  tenantWhere,
+  type TenantContext,
+} from "../shared/tenant";
 import { BalanceService, type TxHandle } from "./balance-service";
 import { CashRegisterService } from "./cash-register-service";
 // Phase 149 (D-13, Opción A): el umbral de pendientes queda hardcodeado en la
@@ -88,9 +120,17 @@ const KINDS_ALLOWED_WITHOUT_LINKS: ReadonlyArray<string> = [
  * `_cancelSubscription` runs against the caller's tx handle and, with
  * skipActiveChargesGuard=true, bypasses the SUB_HAS_ACTIVE_TRANSACTIONS guard
  * because the charge being voided is already soft-voided in that same tx.
+ *
+ * TENANCY (fase 172, ADO-01 / T-172-08-02). El `ctx` va PRIMERO, antes del
+ * `tx`, y no es estilo: este tipo es el CONTRATO de la única arista que sale
+ * del módulo finance hacia otro módulo (un void cancela una suscripción). Con
+ * el gimnasio en el tipo, un canceller que no lo reciba NO COMPILA; con el
+ * parámetro al final u opcional, un implementador olvidado seguiría
+ * compilando y la cancelación tocaría filas de cualquier gimnasio.
  */
 export interface SubscriptionCanceller {
   _cancelSubscription(
+    ctx: TenantContext,
     tx: TxHandle,
     userId: number,
     actorId: number,
@@ -134,11 +174,13 @@ export class TransactionService {
    * choke-point used internally by create(); never sourced from a request body.
    */
   resolveCashRegister(
+    ctx: TenantContext,
     paymentMethod: PaymentMethod,
     branchId: number | null,
     currency: string,
   ): Promise<number | null> {
     return this.cashRegisterService.resolveCashRegister(
+      ctx,
       paymentMethod,
       branchId,
       currency,
@@ -156,6 +198,7 @@ export class TransactionService {
    * — backward-compat for the REST endpoint `POST /api/admin/transactions`.
    */
   async create(
+    ctx: TenantContext,
     input: CreateTransactionInput,
     recordedBy: number,
     tx?: TxHandle,
@@ -188,7 +231,12 @@ export class TransactionService {
         const memberExists = await txHandle
           .select({ id: schema.users.id })
           .from(schema.users)
-          .where(eq(schema.users.id, input.memberId))
+          .where(
+            and(
+              tenantWhere(schema.users, ctx),
+              eq(schema.users.id, input.memberId),
+            ),
+          )
           .limit(1);
         if (memberExists.length === 0) {
           throw new NotFoundError("Miembro no encontrado");
@@ -202,7 +250,12 @@ export class TransactionService {
         const branchExists = await txHandle
           .select({ id: schema.branches.id })
           .from(schema.branches)
-          .where(eq(schema.branches.id, input.branchId))
+          .where(
+            and(
+              tenantWhere(schema.branches, ctx),
+              eq(schema.branches.id, input.branchId),
+            ),
+          )
           .limit(1);
         if (branchExists.length === 0) {
           throw new NotFoundError("Sucursal no encontrada");
@@ -218,21 +271,36 @@ export class TransactionService {
             exists = await txHandle
               .select({ id: schema.subscriptions.id })
               .from(schema.subscriptions)
-              .where(eq(schema.subscriptions.id, link.targetId))
+              .where(
+                and(
+                  tenantWhere(schema.subscriptions, ctx),
+                  eq(schema.subscriptions.id, link.targetId),
+                ),
+              )
               .limit(1);
             break;
           case "debt_balance":
             exists = await txHandle
               .select({ id: schema.balances.id })
               .from(schema.balances)
-              .where(eq(schema.balances.id, link.targetId))
+              .where(
+                and(
+                  tenantWhere(schema.balances, ctx),
+                  eq(schema.balances.id, link.targetId),
+                ),
+              )
               .limit(1);
             break;
           case "transaction":
             exists = await txHandle
               .select({ id: schema.financialTransactions.id })
               .from(schema.financialTransactions)
-              .where(eq(schema.financialTransactions.id, link.targetId))
+              .where(
+                and(
+                  tenantWhere(schema.financialTransactions, ctx),
+                  eq(schema.financialTransactions.id, link.targetId),
+                ),
+              )
               .limit(1);
             break;
           case "enrollment":
@@ -241,7 +309,12 @@ export class TransactionService {
             exists = await txHandle
               .select({ id: schema.programEnrollments.id })
               .from(schema.programEnrollments)
-              .where(eq(schema.programEnrollments.id, link.targetId))
+              .where(
+                and(
+                  tenantWhere(schema.programEnrollments, ctx),
+                  eq(schema.programEnrollments.id, link.targetId),
+                ),
+              )
               .limit(1);
             break;
           default: {
@@ -270,6 +343,7 @@ export class TransactionService {
         input.cashRegisterId !== undefined
           ? input.cashRegisterId
           : await this.cashRegisterService.resolveCashRegister(
+              ctx,
               input.paymentMethod,
               input.branchId,
               input.currency ?? "ARS",
@@ -278,57 +352,61 @@ export class TransactionService {
       // 2. INSERT financial_transactions.
       const inserted = await txHandle
         .insert(schema.financialTransactions)
-        .values({
-          memberId: input.memberId,
-          kind: input.kind,
-          direction: input.direction,
-          amount: input.amount,
-          currency: input.currency ?? "ARS",
-          paymentMethod: input.paymentMethod,
-          transactionDate: input.transactionDate,
-          effectiveDate: input.effectiveDate,
-          branchId: input.branchId,
-          cashRegisterId,
-          // Phase 147 (EGR-02): centro de costo. NULL para los 10 create paths;
-          // SOLO registerExpense lo setea (tras validar exists+active).
-          costCenterId: input.costCenterId ?? null,
-          recordedBy,
-          notes: input.notes ?? null,
-          // Phase 145 (COBRO-01): structured cobro-suelto reason. NULL for every
-          // path except POST /coach-load/misc (the PoS dropdown Motivo). Stored
-          // as its own column — NEVER folded into `notes`.
-          miscReason: input.miscReason ?? null,
-          // Phase 137 (VAL-02): birth validation status. Defaults to 'validado'
-          // (matches the column DEFAULT) when undefined — so the 4 internal
-          // recordAssignmentCharge callers (admin path) keep producing validado
-          // without edits. 'pendiente' arrives ONLY from the server-side
-          // role→status derivation (coach loads). NOTE: applyDelta below runs
-          // REGARDLESS of this value — a PENDIENTE still settles the member's
-          // balance (D-09); only the read-side firm-money filter excludes it.
-          validationStatus: input.validationStatus ?? "validado",
-          // Phase 140 (CARGA-02 / D-09): persist the client-generated idempotency
-          // ticket key. NULL for every admin/historical path (multiple NULLs are
-          // allowed under the UNIQUE index); a duplicate non-null key raises
-          // ER_DUP_ENTRY at the DB, caught endpoint-side in Wave 2 (Pitfall 3).
-          idempotencyKey: input.idempotencyKey ?? null,
-          // Phase 148 (ALTA-06 / W-1): persist the new-student id IN THE SAME
-          // insert as the charge (within the caller's tx when `tx` is passed),
-          // so void's cascade (148-03) can find the member to inactivate without
-          // a crash window. NULL for every admin/historical path.
-          createdMemberId: input.createdMemberId ?? null,
-        });
+        .values(
+          tenantValues(ctx, {
+            memberId: input.memberId,
+            kind: input.kind,
+            direction: input.direction,
+            amount: input.amount,
+            currency: input.currency ?? "ARS",
+            paymentMethod: input.paymentMethod,
+            transactionDate: input.transactionDate,
+            effectiveDate: input.effectiveDate,
+            branchId: input.branchId,
+            cashRegisterId,
+            // Phase 147 (EGR-02): centro de costo. NULL para los 10 create paths;
+            // SOLO registerExpense lo setea (tras validar exists+active).
+            costCenterId: input.costCenterId ?? null,
+            recordedBy,
+            notes: input.notes ?? null,
+            // Phase 145 (COBRO-01): structured cobro-suelto reason. NULL for every
+            // path except POST /coach-load/misc (the PoS dropdown Motivo). Stored
+            // as its own column — NEVER folded into `notes`.
+            miscReason: input.miscReason ?? null,
+            // Phase 137 (VAL-02): birth validation status. Defaults to 'validado'
+            // (matches the column DEFAULT) when undefined — so the 4 internal
+            // recordAssignmentCharge callers (admin path) keep producing validado
+            // without edits. 'pendiente' arrives ONLY from the server-side
+            // role→status derivation (coach loads). NOTE: applyDelta below runs
+            // REGARDLESS of this value — a PENDIENTE still settles the member's
+            // balance (D-09); only the read-side firm-money filter excludes it.
+            validationStatus: input.validationStatus ?? "validado",
+            // Phase 140 (CARGA-02 / D-09): persist the client-generated idempotency
+            // ticket key. NULL for every admin/historical path (multiple NULLs are
+            // allowed under the UNIQUE index); a duplicate non-null key raises
+            // ER_DUP_ENTRY at the DB, caught endpoint-side in Wave 2 (Pitfall 3).
+            idempotencyKey: input.idempotencyKey ?? null,
+            // Phase 148 (ALTA-06 / W-1): persist the new-student id IN THE SAME
+            // insert as the charge (within the caller's tx when `tx` is passed),
+            // so void's cascade (148-03) can find the member to inactivate without
+            // a crash window. NULL for every admin/historical path.
+            createdMemberId: input.createdMemberId ?? null,
+          }),
+        );
       const transactionId = Number(inserted[0].insertId);
 
       // 3. INSERT transaction_links (UNIQUE constraint catches duplicate
       // (transaction_id, target_kind, target_id) tuples).
       if (input.links.length > 0) {
         await txHandle.insert(schema.transactionLinks).values(
-          input.links.map((l) => ({
-            transactionId,
-            targetKind: l.targetKind,
-            targetId: l.targetId,
-            allocatedAmount: l.allocatedAmount,
-          })),
+          input.links.map((l) =>
+            tenantValues(ctx, {
+              transactionId,
+              targetKind: l.targetKind,
+              targetId: l.targetId,
+              allocatedAmount: l.allocatedAmount,
+            }),
+          ),
         );
       }
 
@@ -338,14 +416,24 @@ export class TransactionService {
       const [txRow] = await txHandle
         .select()
         .from(schema.financialTransactions)
-        .where(eq(schema.financialTransactions.id, transactionId));
+        .where(
+          and(
+            tenantWhere(schema.financialTransactions, ctx),
+            eq(schema.financialTransactions.id, transactionId),
+          ),
+        );
       const linkRows = await txHandle
         .select()
         .from(schema.transactionLinks)
-        .where(eq(schema.transactionLinks.transactionId, transactionId));
+        .where(
+          and(
+            tenantWhere(schema.transactionLinks, ctx),
+            eq(schema.transactionLinks.transactionId, transactionId),
+          ),
+        );
 
       // 5. Apply cache delta in the SAME tx (atomicity per SPEC §8).
-      await this.balanceService.applyDelta(txHandle, txRow, linkRows, +1);
+      await this.balanceService.applyDelta(ctx, txHandle, txRow, linkRows, +1);
 
       this.log.info(
         {
@@ -373,21 +461,32 @@ export class TransactionService {
    * When false, the linked subscription is cancelled inside the same tx.
    */
   async void(
+    ctx: TenantContext,
     id: number,
     voidedBy: number,
     input: VoidTransactionInput,
   ): Promise<TransactionDetail> {
     return await this.db.transaction(async (tx) => {
-      await this._void(tx, id, voidedBy, input);
+      await this._void(ctx, tx, id, voidedBy, input);
 
       const linkRows = await tx
         .select()
         .from(schema.transactionLinks)
-        .where(eq(schema.transactionLinks.transactionId, id));
+        .where(
+          and(
+            tenantWhere(schema.transactionLinks, ctx),
+            eq(schema.transactionLinks.transactionId, id),
+          ),
+        );
       const [updatedRow] = await tx
         .select()
         .from(schema.financialTransactions)
-        .where(eq(schema.financialTransactions.id, id));
+        .where(
+          and(
+            tenantWhere(schema.financialTransactions, ctx),
+            eq(schema.financialTransactions.id, id),
+          ),
+        );
 
       return { ...updatedRow, links: linkRows };
     });
@@ -406,6 +505,7 @@ export class TransactionService {
    * second void of the same id (or an empty reason) rolls the whole pair back.
    */
   async voidPair(
+    ctx: TenantContext,
     ids: number[],
     voidedBy: number,
     input: VoidTransactionInput,
@@ -417,7 +517,7 @@ export class TransactionService {
     }
     await this.db.transaction(async (tx) => {
       for (const id of ids) {
-        await this._void(tx, id, voidedBy, input);
+        await this._void(ctx, tx, id, voidedBy, input);
       }
     });
   }
@@ -433,12 +533,13 @@ export class TransactionService {
    * not-already-voided + reason-required + el rollback de balance + audit row).
    */
   async voidInTx(
+    ctx: TenantContext,
     tx: TxHandle,
     id: number,
     voidedBy: number,
     input: VoidTransactionInput,
   ): Promise<void> {
-    await this._void(tx, id, voidedBy, input);
+    await this._void(ctx, tx, id, voidedBy, input);
   }
 
   /**
@@ -457,6 +558,7 @@ export class TransactionService {
    * soft-voided here). Default true leaves the sub untouched.
    */
   private async _void(
+    ctx: TenantContext,
     tx: TxHandle,
     id: number,
     voidedBy: number,
@@ -466,7 +568,12 @@ export class TransactionService {
     const [existing] = await tx
       .select()
       .from(schema.financialTransactions)
-      .where(eq(schema.financialTransactions.id, id));
+      .where(
+        and(
+          tenantWhere(schema.financialTransactions, ctx),
+          eq(schema.financialTransactions.id, id),
+        ),
+      );
     if (!existing) {
       throw new NotFoundError("Transaccion no encontrada");
     }
@@ -487,17 +594,31 @@ export class TransactionService {
         // validation_status as-is (orthogonal axis untouched).
         ...(statusOverride ? { validationStatus: statusOverride } : {}),
       })
-      .where(eq(schema.financialTransactions.id, id));
+      // El WHERE de la escritura NO se apoya en el SELECT de arriba: el
+      // tenantWhere va acá también (defensa en profundidad, T-172-10-01). Sin
+      // él, anular por id ajeno queda posible el día que alguien reordene el
+      // método o cachee la lectura previa.
+      .where(
+        and(
+          tenantWhere(schema.financialTransactions, ctx),
+          eq(schema.financialTransactions.id, id),
+        ),
+      );
 
     const linkRows = await tx
       .select()
       .from(schema.transactionLinks)
-      .where(eq(schema.transactionLinks.transactionId, id));
+      .where(
+        and(
+          tenantWhere(schema.transactionLinks, ctx),
+          eq(schema.transactionLinks.transactionId, id),
+        ),
+      );
 
     // Reverse the original effect: pass the original (pre-void) row +
     // sign=-1 so applyDelta computes `-1 * baseDelta` and undoes the
     // create-time effect on the cache exactly.
-    await this.balanceService.applyDelta(tx, existing, linkRows, -1);
+    await this.balanceService.applyDelta(ctx, tx, existing, linkRows, -1);
 
     // VAL-06 / D-10: optionally cancel the linked subscription. Only the
     // explicit keepMembershipActive=false triggers this — default true (and
@@ -520,6 +641,7 @@ export class TransactionService {
           );
         }
         await this.subscriptionCanceller._cancelSubscription(
+          ctx,
           tx,
           existing.memberId,
           voidedBy,
@@ -548,22 +670,34 @@ export class TransactionService {
       const [createdMember] = await tx
         .select({ status: schema.users.status })
         .from(schema.users)
-        .where(eq(schema.users.id, existing.createdMemberId));
+        .where(
+          and(
+            tenantWhere(schema.users, ctx),
+            eq(schema.users.id, existing.createdMemberId),
+          ),
+        );
       if (createdMember) {
         await tx
           .update(schema.users)
           .set({ status: "inactivo" })
-          .where(eq(schema.users.id, existing.createdMemberId));
+          .where(
+            and(
+              tenantWhere(schema.users, ctx),
+              eq(schema.users.id, existing.createdMemberId),
+            ),
+          );
         // Dedupe on from==to (mirror L854): only write history when the status
         // actually changed, so a re-void / already-inactivo alumno does not
         // accumulate duplicate transition rows (T-148-12 — traza sin ruido).
         if (createdMember.status !== "inactivo") {
-          await tx.insert(schema.userStatusHistory).values({
-            userId: existing.createdMemberId,
-            fromStatus: createdMember.status,
-            toStatus: "inactivo",
-            source: "admin",
-          });
+          await tx.insert(schema.userStatusHistory).values(
+            tenantValues(ctx, {
+              userId: existing.createdMemberId,
+              fromStatus: createdMember.status,
+              toStatus: "inactivo",
+              source: "admin" as const,
+            }),
+          );
           this.log.info(
             {
               userId: existing.createdMemberId,
@@ -632,6 +766,7 @@ export class TransactionService {
    * 'pendiente', miscReason='sin_plan', or the caja elegida es invalida.
    */
   async validate(
+    ctx: TenantContext,
     id: number,
     adminId: number,
     cashRegisterId?: number,
@@ -640,7 +775,12 @@ export class TransactionService {
       const [existing] = await tx
         .select()
         .from(schema.financialTransactions)
-        .where(eq(schema.financialTransactions.id, id));
+        .where(
+          and(
+            tenantWhere(schema.financialTransactions, ctx),
+            eq(schema.financialTransactions.id, id),
+          ),
+        );
       if (!existing) {
         throw new NotFoundError("Transaccion no encontrada");
       }
@@ -673,7 +813,15 @@ export class TransactionService {
             isActive: schema.cashRegisters.isActive,
           })
           .from(schema.cashRegisters)
-          .where(eq(schema.cashRegisters.id, cashRegisterId))
+          // Validar contra una caja de OTRO gimnasio es el camino mas directo a
+          // corromper un arqueo ajeno (T-172-10-04): la caja ajena no matchea y
+          // el guard de abajo tira el BadRequestError que ya existia.
+          .where(
+            and(
+              tenantWhere(schema.cashRegisters, ctx),
+              eq(schema.cashRegisters.id, cashRegisterId),
+            ),
+          )
           .limit(1);
         if (!caja || !caja.isActive) {
           throw new BadRequestError(
@@ -702,7 +850,14 @@ export class TransactionService {
           // cashRegisterId la fila conserva su caja sugerida actual.
           ...(cashRegisterId !== undefined ? { cashRegisterId } : {}),
         })
-        .where(eq(schema.financialTransactions.id, id));
+        // Igual que el UPDATE de anulacion: el WHERE de la escritura nombra el
+        // gimnasio por su cuenta, no por el SELECT de arriba (T-172-10-01).
+        .where(
+          and(
+            tenantWhere(schema.financialTransactions, ctx),
+            eq(schema.financialTransactions.id, id),
+          ),
+        );
 
       // Caja final imputada: la elegida por gestion, o la conservada (sugerida).
       const finalCashRegisterId =
@@ -731,11 +886,21 @@ export class TransactionService {
       const [updatedRow] = await tx
         .select()
         .from(schema.financialTransactions)
-        .where(eq(schema.financialTransactions.id, id));
+        .where(
+          and(
+            tenantWhere(schema.financialTransactions, ctx),
+            eq(schema.financialTransactions.id, id),
+          ),
+        );
       const linkRows = await tx
         .select()
         .from(schema.transactionLinks)
-        .where(eq(schema.transactionLinks.transactionId, id));
+        .where(
+          and(
+            tenantWhere(schema.transactionLinks, ctx),
+            eq(schema.transactionLinks.transactionId, id),
+          ),
+        );
       return { ...updatedRow, links: linkRows };
     });
   }
@@ -748,6 +913,7 @@ export class TransactionService {
    * Throws if absent, voided, or not in 'pendiente'.
    */
   async observe(
+    ctx: TenantContext,
     id: number,
     adminId: number,
     input: ObserveTransactionInput,
@@ -759,7 +925,12 @@ export class TransactionService {
       const [existing] = await tx
         .select()
         .from(schema.financialTransactions)
-        .where(eq(schema.financialTransactions.id, id));
+        .where(
+          and(
+            tenantWhere(schema.financialTransactions, ctx),
+            eq(schema.financialTransactions.id, id),
+          ),
+        );
       if (!existing) {
         throw new NotFoundError("Transaccion no encontrada");
       }
@@ -775,7 +946,12 @@ export class TransactionService {
       await tx
         .update(schema.financialTransactions)
         .set({ validationStatus: "observado" })
-        .where(eq(schema.financialTransactions.id, id));
+        .where(
+          and(
+            tenantWhere(schema.financialTransactions, ctx),
+            eq(schema.financialTransactions.id, id),
+          ),
+        );
 
       await auditLog.write(tx, {
         actorId: adminId,
@@ -800,11 +976,21 @@ export class TransactionService {
       const [updatedRow] = await tx
         .select()
         .from(schema.financialTransactions)
-        .where(eq(schema.financialTransactions.id, id));
+        .where(
+          and(
+            tenantWhere(schema.financialTransactions, ctx),
+            eq(schema.financialTransactions.id, id),
+          ),
+        );
       const linkRows = await tx
         .select()
         .from(schema.transactionLinks)
-        .where(eq(schema.transactionLinks.transactionId, id));
+        .where(
+          and(
+            tenantWhere(schema.transactionLinks, ctx),
+            eq(schema.transactionLinks.transactionId, id),
+          ),
+        );
       return { ...updatedRow, links: linkRows };
     });
   }
@@ -824,6 +1010,7 @@ export class TransactionService {
    * `correctedFields` may change ONLY amount / memberId / paymentMethod.
    */
   async correct(
+    ctx: TenantContext,
     originalId: number,
     correctedFields: Partial<
       Pick<CreateTransactionInput, "amount" | "memberId" | "paymentMethod">
@@ -834,7 +1021,12 @@ export class TransactionService {
       const [original] = await tx
         .select()
         .from(schema.financialTransactions)
-        .where(eq(schema.financialTransactions.id, originalId));
+        .where(
+          and(
+            tenantWhere(schema.financialTransactions, ctx),
+            eq(schema.financialTransactions.id, originalId),
+          ),
+        );
       if (!original) {
         throw new NotFoundError("Transaccion no encontrada");
       }
@@ -851,10 +1043,16 @@ export class TransactionService {
       const originalLinks = await tx
         .select()
         .from(schema.transactionLinks)
-        .where(eq(schema.transactionLinks.transactionId, originalId));
+        .where(
+          and(
+            tenantWhere(schema.transactionLinks, ctx),
+            eq(schema.transactionLinks.transactionId, originalId),
+          ),
+        );
 
       // 1. Void the original, marking it 'corregido' (void-for-correction).
       await this._void(
+        ctx,
         tx,
         originalId,
         adminId,
@@ -900,17 +1098,19 @@ export class TransactionService {
       };
 
       // 3. Create the replacement in the SAME tx (born 'validado').
-      const created = await this.create(newInput, adminId, tx);
+      const created = await this.create(ctx, newInput, adminId, tx);
 
       // 4. Link the new tx → original (target_kind='transaction') for the
       // trail. allocatedAmount 0: this is a provenance link, not a money
       // allocation (applyDelta ignores target_kind='transaction' links).
-      await tx.insert(schema.transactionLinks).values({
-        transactionId: created.id,
-        targetKind: "transaction",
-        targetId: originalId,
-        allocatedAmount: 0,
-      });
+      await tx.insert(schema.transactionLinks).values(
+        tenantValues(ctx, {
+          transactionId: created.id,
+          targetKind: "transaction" as const,
+          targetId: originalId,
+          allocatedAmount: 0,
+        }),
+      );
 
       // 5. Forensic audit row for the correction.
       await auditLog.write(tx, {
@@ -938,7 +1138,12 @@ export class TransactionService {
       const finalLinks = await tx
         .select()
         .from(schema.transactionLinks)
-        .where(eq(schema.transactionLinks.transactionId, created.id));
+        .where(
+          and(
+            tenantWhere(schema.transactionLinks, ctx),
+            eq(schema.transactionLinks.transactionId, created.id),
+          ),
+        );
       return { ...created, links: finalLinks };
     });
   }
@@ -953,23 +1158,37 @@ export class TransactionService {
    * 500. Returns null when no row carries the key (the caller then rethrows).
    */
   async findByIdempotencyKey(
+    ctx: TenantContext,
     idempotencyKey: string,
   ): Promise<TransactionDetail | null> {
     const [row] = await this.db
       .select()
       .from(schema.financialTransactions)
-      .where(eq(schema.financialTransactions.idempotencyKey, idempotencyKey))
+      .where(
+        and(
+          tenantWhere(schema.financialTransactions, ctx),
+          eq(schema.financialTransactions.idempotencyKey, idempotencyKey),
+        ),
+      )
       .limit(1);
     if (!row) return null;
     const links = await this.db
       .select()
       .from(schema.transactionLinks)
-      .where(eq(schema.transactionLinks.transactionId, row.id));
+      .where(
+        and(
+          tenantWhere(schema.transactionLinks, ctx),
+          eq(schema.transactionLinks.transactionId, row.id),
+        ),
+      );
     return { ...row, links };
   }
 
   /** Get a single transaction with its links. */
-  async getById(id: number): Promise<TransactionDetail | null> {
+  async getById(
+    ctx: TenantContext,
+    id: number,
+  ): Promise<TransactionDetail | null> {
     // Phase 148 (ALTA-06): leftJoin a users por createdMemberId para surfacar el
     // nombre del alumno creado (null cuando la carga no creó alumno). Aditivo —
     // no cambia el conjunto de filas (leftJoin) ni el filtro de dinero firme.
@@ -983,15 +1202,31 @@ export class TransactionService {
       .from(schema.financialTransactions)
       .leftJoin(
         createdMember,
-        eq(createdMember.id, schema.financialTransactions.createdMemberId),
+        // El filtro del alumno creado va en el ON y no en el WHERE: en un
+        // leftJoin, moverlo al WHERE convertiría el join en inner y perdería
+        // la fila cuando el alumno no existe (hallazgo del plan 172-06).
+        and(
+          tenantWhere(createdMember, ctx),
+          eq(createdMember.id, schema.financialTransactions.createdMemberId),
+        ),
       )
-      .where(eq(schema.financialTransactions.id, id))
+      .where(
+        and(
+          tenantWhere(schema.financialTransactions, ctx),
+          eq(schema.financialTransactions.id, id),
+        ),
+      )
       .limit(1);
     if (!row) return null;
     const links = await this.db
       .select()
       .from(schema.transactionLinks)
-      .where(eq(schema.transactionLinks.transactionId, id));
+      .where(
+        and(
+          tenantWhere(schema.transactionLinks, ctx),
+          eq(schema.transactionLinks.transactionId, id),
+        ),
+      );
     const createdMemberName =
       row.createdMemberFirstName !== null
         ? `${row.createdMemberFirstName ?? ""} ${
@@ -1003,6 +1238,7 @@ export class TransactionService {
 
   /** List a member's transactions ordered by transaction_date desc. */
   async listForMember(
+    ctx: TenantContext,
     memberId: number,
     opts?: { limit?: number; offset?: number },
   ): Promise<TransactionDetail[]> {
@@ -1011,17 +1247,28 @@ export class TransactionService {
     const rows = await this.db
       .select()
       .from(schema.financialTransactions)
-      .where(eq(schema.financialTransactions.memberId, memberId))
+      .where(
+        and(
+          tenantWhere(schema.financialTransactions, ctx),
+          eq(schema.financialTransactions.memberId, memberId),
+        ),
+      )
       .orderBy(desc(schema.financialTransactions.transactionDate))
       .limit(limit)
       .offset(offset);
     if (rows.length === 0) return [];
     const ids = rows.map((r) => r.id);
-    const allLinks = await this.db.select().from(schema.transactionLinks).where(
-      // inArray would be cleaner; sticking to existing util usage to
-      // keep the import surface minimal in this scaffolding plan.
-      eq(schema.transactionLinks.transactionId, ids[0]),
-    );
+    const allLinks = await this.db
+      .select()
+      .from(schema.transactionLinks)
+      .where(
+        and(
+          tenantWhere(schema.transactionLinks, ctx),
+          // inArray would be cleaner; sticking to existing util usage to
+          // keep the import surface minimal in this scaffolding plan.
+          eq(schema.transactionLinks.transactionId, ids[0]),
+        ),
+      );
     // For lists with multiple ids, fetch links per-row. The N+1 here is
     // acceptable for now (Plan 06+ rewrites callers to use a richer list
     // endpoint). Keeping logic explicit so the scaffolding is testable.
@@ -1033,7 +1280,12 @@ export class TransactionService {
           : await this.db
               .select()
               .from(schema.transactionLinks)
-              .where(eq(schema.transactionLinks.transactionId, r.id));
+              .where(
+                and(
+                  tenantWhere(schema.transactionLinks, ctx),
+                  eq(schema.transactionLinks.transactionId, r.id),
+                ),
+              );
       byTx.set(r.id, links);
     }
     return rows.map((r) => ({ ...r, links: byTx.get(r.id) ?? [] }));
@@ -1046,7 +1298,10 @@ export class TransactionService {
    * plan, y el endpoint GET /transactions/pending-misc/:memberId. NO incluye
    * validados/anulados ni otros kinds.
    */
-  async listPendingMiscForMember(memberId: number): Promise<PendingMiscItem[]> {
+  async listPendingMiscForMember(
+    ctx: TenantContext,
+    memberId: number,
+  ): Promise<PendingMiscItem[]> {
     const rows = await this.db
       .select({
         id: schema.financialTransactions.id,
@@ -1061,6 +1316,7 @@ export class TransactionService {
       .from(schema.financialTransactions)
       .where(
         and(
+          tenantWhere(schema.financialTransactions, ctx),
           eq(schema.financialTransactions.memberId, memberId),
           eq(schema.financialTransactions.kind, "advance_payment"),
           eq(schema.financialTransactions.validationStatus, "pendiente"),
@@ -1089,6 +1345,7 @@ export class TransactionService {
    * via filters.country (always-present for non-owners, optional for owner).
    */
   async list(
+    ctx: TenantContext,
     filters: TransactionListFilters,
   ): Promise<PaginatedResult<TransactionListItem>> {
     const page = Math.max(1, filters.page ?? 1);
@@ -1101,24 +1358,38 @@ export class TransactionService {
     // cobros. LEFT JOIN (validatedBy es nullable, a diferencia del recorder
     // INNER). Solo lo usa la query de filas, no el COUNT.
     const validator = alias(schema.users, "validator");
-    const conditions = this.buildListConditions(filters);
+    const conditions = this.buildListConditions(ctx, filters);
 
     // 1) COUNT — same join chain as the row query so country/search filters
     //    that reference users/branches/recorder resolve identically.
+    // TENANCY: el filtro de `financial_transactions` viaja dentro de
+    // `conditions` (ver buildListConditions). Las tablas JOINEADAS nombran el
+    // gimnasio en su propio ON — en un INNER JOIN da lo mismo ON o WHERE
+    // (ninguna fila sin match sobrevive), y en el ON queda pegado a la tabla
+    // que filtra, que es lo que hace obvio el día que alguien agregue un join.
     const [countRow] = await this.db
       .select({ count: sql<number>`COUNT(*)` })
       .from(schema.financialTransactions)
       .innerJoin(
         schema.users,
-        eq(schema.users.id, schema.financialTransactions.memberId),
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.financialTransactions.memberId),
+        ),
       )
       .innerJoin(
         schema.branches,
-        eq(schema.branches.id, schema.financialTransactions.branchId),
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, schema.financialTransactions.branchId),
+        ),
       )
       .innerJoin(
         recorder,
-        eq(recorder.id, schema.financialTransactions.recordedBy),
+        and(
+          tenantWhere(recorder, ctx),
+          eq(recorder.id, schema.financialTransactions.recordedBy),
+        ),
       )
       .where(conditions.length > 0 ? and(...conditions) : undefined);
     const total = Number(countRow?.count ?? 0);
@@ -1155,19 +1426,34 @@ export class TransactionService {
       .from(schema.financialTransactions)
       .innerJoin(
         schema.users,
-        eq(schema.users.id, schema.financialTransactions.memberId),
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.financialTransactions.memberId),
+        ),
       )
       .innerJoin(
         schema.branches,
-        eq(schema.branches.id, schema.financialTransactions.branchId),
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, schema.financialTransactions.branchId),
+        ),
       )
       .innerJoin(
         recorder,
-        eq(recorder.id, schema.financialTransactions.recordedBy),
+        and(
+          tenantWhere(recorder, ctx),
+          eq(recorder.id, schema.financialTransactions.recordedBy),
+        ),
       )
+      // El filtro del validador va en el ON y NUNCA en el WHERE: en el WHERE
+      // convierte este LEFT JOIN en INNER y la lista pierde todas las filas
+      // nacidas validadas (validatedBy NULL), que son la mayoría.
       .leftJoin(
         validator,
-        eq(validator.id, schema.financialTransactions.validatedBy),
+        and(
+          tenantWhere(validator, ctx),
+          eq(validator.id, schema.financialTransactions.validatedBy),
+        ),
       )
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(
@@ -1189,7 +1475,12 @@ export class TransactionService {
               allocatedAmount: schema.transactionLinks.allocatedAmount,
             })
             .from(schema.transactionLinks)
-            .where(inArray(schema.transactionLinks.transactionId, txIds))
+            .where(
+              and(
+                tenantWhere(schema.transactionLinks, ctx),
+                inArray(schema.transactionLinks.transactionId, txIds),
+              ),
+            )
         : [];
 
     const linksByTx = new Map<
@@ -1259,6 +1550,7 @@ export class TransactionService {
    * excluded (isNull(voidedAt)).
    */
   async listPendingTray(
+    ctx: TenantContext,
     filters: PendingTrayFilters,
   ): Promise<PaginatedResult<PendingTrayItem> & { thresholdDays: number }> {
     const page = Math.max(1, filters.page ?? 1);
@@ -1289,7 +1581,11 @@ export class TransactionService {
       ]);
     }
 
+    // TENANCY: el gimnasio va PRIMERO y en el array de condiciones, que es lo
+    // que comparten el COUNT y la query de filas — así los dos números salen
+    // del mismo universo. Las tablas de los LEFT JOIN filtran en su ON (abajo).
     const conditions: SQL[] = [
+      tenantWhere(schema.financialTransactions, ctx),
       statusCond,
       isNull(schema.financialTransactions.voidedAt),
     ];
@@ -1312,27 +1608,43 @@ export class TransactionService {
       );
     }
 
+    // Los filtros de las tablas joineadas van en el ON y NUNCA en el WHERE: acá
+    // son LEFT JOIN a propósito (una fila sin socio, sin sede o sin caja tiene
+    // que sobrevivir — egresos y traspasos son justo eso) y en el WHERE se
+    // volverían INNER, cambiando el número que el staff mira.
     const [countRow] = await this.db
       .select({ count: sql<number>`COUNT(*)` })
       .from(schema.financialTransactions)
       .leftJoin(
         schema.users,
-        eq(schema.users.id, schema.financialTransactions.memberId),
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.financialTransactions.memberId),
+        ),
       )
       .leftJoin(
         schema.branches,
-        eq(schema.branches.id, schema.financialTransactions.branchId),
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, schema.financialTransactions.branchId),
+        ),
       )
       .leftJoin(
         schema.cashRegisters,
-        eq(
-          schema.cashRegisters.id,
-          schema.financialTransactions.cashRegisterId,
+        and(
+          tenantWhere(schema.cashRegisters, ctx),
+          eq(
+            schema.cashRegisters.id,
+            schema.financialTransactions.cashRegisterId,
+          ),
         ),
       )
       .leftJoin(
         recorder,
-        eq(recorder.id, schema.financialTransactions.recordedBy),
+        and(
+          tenantWhere(recorder, ctx),
+          eq(recorder.id, schema.financialTransactions.recordedBy),
+        ),
       )
       .where(and(...conditions));
     const total = Number(countRow?.count ?? 0);
@@ -1361,26 +1673,41 @@ export class TransactionService {
       .from(schema.financialTransactions)
       .leftJoin(
         schema.users,
-        eq(schema.users.id, schema.financialTransactions.memberId),
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.financialTransactions.memberId),
+        ),
       )
       .leftJoin(
         schema.branches,
-        eq(schema.branches.id, schema.financialTransactions.branchId),
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, schema.financialTransactions.branchId),
+        ),
       )
       .leftJoin(
         schema.cashRegisters,
-        eq(
-          schema.cashRegisters.id,
-          schema.financialTransactions.cashRegisterId,
+        and(
+          tenantWhere(schema.cashRegisters, ctx),
+          eq(
+            schema.cashRegisters.id,
+            schema.financialTransactions.cashRegisterId,
+          ),
         ),
       )
       .leftJoin(
         recorder,
-        eq(recorder.id, schema.financialTransactions.recordedBy),
+        and(
+          tenantWhere(recorder, ctx),
+          eq(recorder.id, schema.financialTransactions.recordedBy),
+        ),
       )
       .leftJoin(
         createdMember,
-        eq(createdMember.id, schema.financialTransactions.createdMemberId),
+        and(
+          tenantWhere(createdMember, ctx),
+          eq(createdMember.id, schema.financialTransactions.createdMemberId),
+        ),
       )
       .where(and(...conditions))
       // REP-01 / D-02: OLDEST-FIRST (opposite of list()'s desc).
@@ -1460,6 +1787,7 @@ export class TransactionService {
    * Owner sees all rows; an optional ?country narrows to that country's cajas.
    */
   async listMovEgresos(
+    ctx: TenantContext,
     filters: MovEgresoFilters,
   ): Promise<PaginatedResult<MovEgresoItem>> {
     const page = Math.max(1, filters.page ?? 1);
@@ -1472,7 +1800,9 @@ export class TransactionService {
     // kind IN ('cash_transfer','expense','adjustment') — eso dropeaba los cobros
     // de socio (plan_charge/debt_settlement/advance_payment/refund) imputados a
     // la caja. El filtro primario es cash_register_id (filters.cashRegisterId).
-    const conditions: SQL[] = [];
+    // TENANCY: el gimnasio va PRIMERO y en el array compartido por el COUNT y
+    // la query de filas — los dos números tienen que salir del mismo universo.
+    const conditions: SQL[] = [tenantWhere(schema.financialTransactions, ctx)];
 
     if (filters.cashRegisterId !== undefined) {
       conditions.push(
@@ -1498,14 +1828,25 @@ export class TransactionService {
     // - owner + ?country: optional narrowing to that country's branch cajas.
     // - owner + no country: no scope condition (sees all rows, incl. branch-less).
     if (filters.country !== undefined) {
+      // El subquery arma su PROPIO predicado, así que lleva su propio filtro de
+      // gimnasio: sin él, el conjunto de cajas "del país" incluiría las del
+      // vecino y el IN de afuera dejaría entrar filas ajenas.
       const scopedCajas = this.db
         .select({ id: schema.cashRegisters.id })
         .from(schema.cashRegisters)
         .innerJoin(
           schema.branches,
-          eq(schema.branches.id, schema.cashRegisters.branchId),
+          and(
+            tenantWhere(schema.branches, ctx),
+            eq(schema.branches.id, schema.cashRegisters.branchId),
+          ),
         )
-        .where(eq(schema.branches.country, filters.country));
+        .where(
+          and(
+            tenantWhere(schema.cashRegisters, ctx),
+            eq(schema.branches.country, filters.country),
+          ),
+        );
       conditions.push(
         inArray(schema.financialTransactions.cashRegisterId, scopedCajas),
       );
@@ -1515,27 +1856,43 @@ export class TransactionService {
       conditions.push(sql`1 = 0`);
     }
 
+    // Los filtros de las tablas joineadas van en el ON y NUNCA en el WHERE: acá
+    // son LEFT JOIN a propósito (una fila sin socio, sin sede o sin caja tiene
+    // que sobrevivir — egresos y traspasos son justo eso) y en el WHERE se
+    // volverían INNER, cambiando el número que el staff mira.
     const [countRow] = await this.db
       .select({ count: sql<number>`COUNT(*)` })
       .from(schema.financialTransactions)
       .leftJoin(
         schema.users,
-        eq(schema.users.id, schema.financialTransactions.memberId),
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.financialTransactions.memberId),
+        ),
       )
       .leftJoin(
         schema.branches,
-        eq(schema.branches.id, schema.financialTransactions.branchId),
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, schema.financialTransactions.branchId),
+        ),
       )
       .leftJoin(
         schema.cashRegisters,
-        eq(
-          schema.cashRegisters.id,
-          schema.financialTransactions.cashRegisterId,
+        and(
+          tenantWhere(schema.cashRegisters, ctx),
+          eq(
+            schema.cashRegisters.id,
+            schema.financialTransactions.cashRegisterId,
+          ),
         ),
       )
       .leftJoin(
         recorder,
-        eq(recorder.id, schema.financialTransactions.recordedBy),
+        and(
+          tenantWhere(recorder, ctx),
+          eq(recorder.id, schema.financialTransactions.recordedBy),
+        ),
       )
       .where(and(...conditions));
     const total = Number(countRow?.count ?? 0);
@@ -1566,26 +1923,41 @@ export class TransactionService {
       .from(schema.financialTransactions)
       .leftJoin(
         schema.users,
-        eq(schema.users.id, schema.financialTransactions.memberId),
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.financialTransactions.memberId),
+        ),
       )
       .leftJoin(
         schema.branches,
-        eq(schema.branches.id, schema.financialTransactions.branchId),
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, schema.financialTransactions.branchId),
+        ),
       )
       .leftJoin(
         schema.cashRegisters,
-        eq(
-          schema.cashRegisters.id,
-          schema.financialTransactions.cashRegisterId,
+        and(
+          tenantWhere(schema.cashRegisters, ctx),
+          eq(
+            schema.cashRegisters.id,
+            schema.financialTransactions.cashRegisterId,
+          ),
         ),
       )
       .leftJoin(
         schema.costCenters,
-        eq(schema.costCenters.id, schema.financialTransactions.costCenterId),
+        and(
+          tenantWhere(schema.costCenters, ctx),
+          eq(schema.costCenters.id, schema.financialTransactions.costCenterId),
+        ),
       )
       .leftJoin(
         recorder,
-        eq(recorder.id, schema.financialTransactions.recordedBy),
+        and(
+          tenantWhere(recorder, ctx),
+          eq(recorder.id, schema.financialTransactions.recordedBy),
+        ),
       )
       .where(and(...conditions))
       .orderBy(
@@ -1620,8 +1992,17 @@ export class TransactionService {
     return { rows, total, page, limit };
   }
 
-  private buildListConditions(filters: TransactionListFilters): SQL[] {
-    const conds: SQL[] = [];
+  private buildListConditions(
+    ctx: TenantContext,
+    filters: TransactionListFilters,
+  ): SQL[] {
+    // TENANCY (fase 172, T-172-12-02). El filtro de gimnasio es el PRIMER
+    // elemento del array que este helper devuelve, y no algo que cada llamador
+    // agregue: así toda query que componga este fragmento —hoy `list()` y
+    // `exportRowsForExcel()`, mañana la que se escriba— queda scopeada sin que
+    // nadie tenga que acordarse. Un `tenantWhere` en el llamador se olvida; uno
+    // acá adentro es imposible de saltear.
+    const conds: SQL[] = [tenantWhere(schema.financialTransactions, ctx)];
     if (filters.branchId !== undefined) {
       conds.push(eq(schema.financialTransactions.branchId, filters.branchId));
     }
@@ -1679,6 +2060,7 @@ export class TransactionService {
    * for target_kind='subscription' (D-13).
    */
   async getFinancialHistory(
+    ctx: TenantContext,
     memberId: number,
     filters: FinancialHistoryFilters,
   ): Promise<PaginatedResult<FinancialHistoryItem>> {
@@ -1689,13 +2071,23 @@ export class TransactionService {
     const [countRow] = await this.db
       .select({ count: sql<number>`COUNT(*)` })
       .from(schema.financialTransactions)
-      .where(eq(schema.financialTransactions.memberId, memberId));
+      .where(
+        and(
+          tenantWhere(schema.financialTransactions, ctx),
+          eq(schema.financialTransactions.memberId, memberId),
+        ),
+      );
     const total = Number(countRow?.count ?? 0);
 
     const txRows = await this.db
       .select()
       .from(schema.financialTransactions)
-      .where(eq(schema.financialTransactions.memberId, memberId))
+      .where(
+        and(
+          tenantWhere(schema.financialTransactions, ctx),
+          eq(schema.financialTransactions.memberId, memberId),
+        ),
+      )
       .orderBy(
         desc(schema.financialTransactions.transactionDate),
         desc(schema.financialTransactions.createdAt),
@@ -1720,18 +2112,30 @@ export class TransactionService {
         subscriptionStartDate: schema.subscriptions.startDate,
       })
       .from(schema.transactionLinks)
+      // Los dos filtros de gimnasio van en el ON: son LEFT JOIN porque un link
+      // que no es de suscripción no tiene fila del otro lado, y en el WHERE se
+      // volverían INNER, borrando de la ficha los cobros de deuda y anticipos.
       .leftJoin(
         schema.subscriptions,
         and(
+          tenantWhere(schema.subscriptions, ctx),
           eq(schema.transactionLinks.targetKind, "subscription"),
           eq(schema.subscriptions.id, schema.transactionLinks.targetId),
         ),
       )
       .leftJoin(
         schema.subscriptionPlans,
-        eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
+        and(
+          tenantWhere(schema.subscriptionPlans, ctx),
+          eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
+        ),
       )
-      .where(inArray(schema.transactionLinks.transactionId, txIds));
+      .where(
+        and(
+          tenantWhere(schema.transactionLinks, ctx),
+          inArray(schema.transactionLinks.transactionId, txIds),
+        ),
+      );
 
     const linksByTx = new Map<number, FinancialHistoryItem["links"]>();
     for (const l of linkRows) {
@@ -1787,6 +2191,7 @@ export class TransactionService {
    *   o "Saldo libre #<id>" (debt_balance fallback) per D-06.
    */
   async getOutstandingConcepts(
+    ctx: TenantContext,
     memberId: number,
   ): Promise<OutstandingConcept[]> {
     this.log.info({ memberId }, "Loading outstanding concepts");
@@ -1802,19 +2207,28 @@ export class TransactionService {
         balanceCreatedAt: schema.balances.createdAt,
       })
       .from(schema.balances)
+      // Filtro de gimnasio en el ON y no en el WHERE: el LEFT JOIN es
+      // OBLIGATORIO acá (target_kind='debt_balance' no tiene FK a
+      // subscriptions) y en el WHERE se volvería INNER, borrando en silencio
+      // justo los saldos libres que este método existe para listar.
       .leftJoin(
         schema.subscriptions,
         and(
+          tenantWhere(schema.subscriptions, ctx),
           eq(schema.balances.targetKind, "subscription"),
           eq(schema.subscriptions.id, schema.balances.targetId),
         ),
       )
       .leftJoin(
         schema.subscriptionPlans,
-        eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
+        and(
+          tenantWhere(schema.subscriptionPlans, ctx),
+          eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
+        ),
       )
       .where(
         and(
+          tenantWhere(schema.balances, ctx),
           eq(schema.balances.memberId, memberId),
           gt(schema.balances.amount, 0),
         ),
@@ -1909,8 +2323,15 @@ export class TransactionService {
    * to 5 keys (cash/transfer/card/aura_credit/internal). revenueByBranch is
    * sorted DESC by revenue.
    */
-  async getSummary(filters: FinanceSummaryFilters): Promise<FinanceSummary> {
+  async getSummary(
+    ctx: TenantContext,
+    filters: FinanceSummaryFilters,
+  ): Promise<FinanceSummary> {
+    // TENANCY: el gimnasio va PRIMERO y en el array que comparten las CUATRO
+    // agregaciones (total, por método, por sede, por kind) — si viviera en una
+    // sola, las tarjetas de la CajaPage dejarían de sumar entre sí.
     const conds: SQL[] = [
+      tenantWhere(schema.financialTransactions, ctx),
       eq(schema.financialTransactions.direction, "inflow"),
       // Firm-money axis (not voided AND validated). Phase 137 (VAL-05): a
       // PENDIENTE must NOT count as firm cash. Sourced from the canonical helper.
@@ -1951,7 +2372,10 @@ export class TransactionService {
       .from(schema.financialTransactions)
       .innerJoin(
         schema.branches,
-        eq(schema.branches.id, schema.financialTransactions.branchId),
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, schema.financialTransactions.branchId),
+        ),
       )
       .where(and(...conds));
     const monthlyRevenue = Number(totalRow?.total ?? 0);
@@ -1965,7 +2389,10 @@ export class TransactionService {
       .from(schema.financialTransactions)
       .innerJoin(
         schema.branches,
-        eq(schema.branches.id, schema.financialTransactions.branchId),
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, schema.financialTransactions.branchId),
+        ),
       )
       .where(and(...conds))
       .groupBy(schema.financialTransactions.paymentMethod);
@@ -1990,7 +2417,10 @@ export class TransactionService {
       .from(schema.financialTransactions)
       .innerJoin(
         schema.branches,
-        eq(schema.branches.id, schema.financialTransactions.branchId),
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, schema.financialTransactions.branchId),
+        ),
       )
       .where(and(...conds))
       .groupBy(schema.financialTransactions.branchId, schema.branches.name)
@@ -2029,7 +2459,10 @@ export class TransactionService {
       .from(schema.financialTransactions)
       .innerJoin(
         schema.branches,
-        eq(schema.branches.id, schema.financialTransactions.branchId),
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, schema.financialTransactions.branchId),
+        ),
       )
       .where(and(...conds))
       .groupBy(schema.financialTransactions.kind);
@@ -2066,10 +2499,11 @@ export class TransactionService {
    * (mirrors reports/service.ts → reports/routes.ts split).
    */
   async exportRowsForExcel(
+    ctx: TenantContext,
     filters: TransactionListFilters,
   ): Promise<TransactionExportRow[]> {
     const recorder = alias(schema.users, "recorder");
-    const conditions = this.buildListConditions(filters);
+    const conditions = this.buildListConditions(ctx, filters);
 
     const raw = await this.db
       .select({
@@ -2094,17 +2528,30 @@ export class TransactionService {
         notes: schema.financialTransactions.notes,
       })
       .from(schema.financialTransactions)
+      // TENANCY (T-172-12-03): el export es el vector más silencioso de fuga
+      // masiva — una planilla se manda por mail sin que nadie mire fila por
+      // fila. El filtro de `financial_transactions` viaja dentro de
+      // `conditions` (buildListConditions) y las joineadas en su propio ON.
       .innerJoin(
         schema.users,
-        eq(schema.users.id, schema.financialTransactions.memberId),
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.financialTransactions.memberId),
+        ),
       )
       .innerJoin(
         schema.branches,
-        eq(schema.branches.id, schema.financialTransactions.branchId),
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, schema.financialTransactions.branchId),
+        ),
       )
       .innerJoin(
         recorder,
-        eq(recorder.id, schema.financialTransactions.recordedBy),
+        and(
+          tenantWhere(recorder, ctx),
+          eq(recorder.id, schema.financialTransactions.recordedBy),
+        ),
       )
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(
@@ -2124,7 +2571,12 @@ export class TransactionService {
               allocatedAmount: schema.transactionLinks.allocatedAmount,
             })
             .from(schema.transactionLinks)
-            .where(inArray(schema.transactionLinks.transactionId, txIds))
+            .where(
+              and(
+                tenantWhere(schema.transactionLinks, ctx),
+                inArray(schema.transactionLinks.transactionId, txIds),
+              ),
+            )
         : [];
 
     const linksByTx = new Map<

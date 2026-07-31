@@ -55,6 +55,31 @@ const TANDA_C_MIGRATIONS = [
 ];
 
 /**
+ * Motivo de la exención `tenant-safe:` que se le antepone a cada statement del
+ * script (fase 172).
+ *
+ * `verifyTenantBackfill` audita el backfill de `tenant_id` en las 87 tablas
+ * gym-owned de TODA la base: cuenta filas sin tenant y busca huérfanos de FK
+ * cruzando tablas. Tres de las que cruza —`transaction_links`, `balances` y
+ * `financial_transactions`— son strict, así que con `finance` en
+ * `TENANT_STRICT_MODULES` el barrido hace throw.
+ *
+ * Acotarlo por gimnasio no es una opción: un huérfano del gimnasio 2 que el
+ * barrido no viera sería exactamente el bug que el script existe para cazar.
+ * Es global A PROPÓSITO — el caso de manual de la regla que dejó escrita el
+ * 172-13 (global a propósito → exención; acotable → filtro).
+ *
+ * La anotación va acá y NO en `src/db/scripts/verify-tenant-backfill.ts` porque
+ * el sentinel solo intercepta el pool de la app: el script se usa por CLI con
+ * `createSingleConnection`, que no pasa por esa puerta, y este test es el ÚNICO
+ * call site que lo enchufa a `app.db`. Si algún día el script se llama desde una
+ * ruta o un job, la exención se muda al script.
+ */
+const MOTIVO_EXENCION =
+  "/* tenant-safe: auditoria global del backfill de tenant_id sobre las 87 " +
+  "tablas gym-owned de toda la base, de todos los gimnasios */\n";
+
+/**
  * Adapta `app.db` al `QueryFn` del script.
  *
  * mysql2 devuelve `[rows, fields]` y drizzle lo pasa tal cual para SQL crudo:
@@ -63,9 +88,9 @@ const TANDA_C_MIGRATIONS = [
  */
 function makeQueryFn(app: FastifyInstance): QueryFn {
   return async (statement: string) => {
-    const result = (await app.db.execute(sql.raw(statement))) as unknown as [
-      Record<string, unknown>[],
-    ];
+    const result = (await app.db.execute(
+      sql.raw(MOTIVO_EXENCION + statement),
+    )) as unknown as [Record<string, unknown>[]];
     const rows = Array.isArray(result)
       ? result[0]
       : (result as unknown as Record<string, unknown>[]);

@@ -24,6 +24,21 @@ import {
   BadRequestError,
   NotFoundError,
 } from "../../src/modules/shared/errors";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
+
+/**
+ * Fase 172 (ADO-01 / T-172-08-04): gimnasio de los call sites DIRECTOS al
+ * service. Sale del fixture, nunca de un `1` a mano. Una sola constante y no
+ * el objeto literal repetido en cada llamada: el dia que un caso ejercite
+ * dos gimnasios, el segundo se agrega al lado y se ve la diferencia.
+ *
+ * 172-14: la MISMA constante scopea ahora las queries DIRECTAS de fixture y de
+ * asercion. Con `finance` en `TENANT_STRICT_MODULES` el sentinel hace throw
+ * sobre cualquier acceso a las 6 tablas strict sin gimnasio, y una asercion sin
+ * scope podia darse por satisfecha con una fila de otro gimnasio.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 let app: FastifyInstance;
 let txService: TransactionService;
@@ -80,17 +95,20 @@ async function seedEfectivoCaja(
       and(
         eq(schema.cashRegisters.type, "efectivo"),
         eq(schema.cashRegisters.branchId, branchIdToSeed),
+        tenantWhere(schema.cashRegisters, TEMPLO_CTX),
       ),
     )
     .limit(1);
   if (existing.length > 0) return;
-  await app.db.insert(schema.cashRegisters).values({
-    name: `Efectivo branch ${branchIdToSeed}`,
-    type: "efectivo",
-    branchId: branchIdToSeed,
-    currency,
-    cutoffDate: "2020-01-01",
-  });
+  await app.db.insert(schema.cashRegisters).values(
+    tenantValues(TEMPLO_CTX, {
+      name: `Efectivo branch ${branchIdToSeed}`,
+      type: "efectivo" as const,
+      branchId: branchIdToSeed,
+      currency,
+      cutoffDate: "2020-01-01",
+    }),
+  );
 }
 
 beforeAll(async () => {
@@ -160,9 +178,17 @@ afterAll(async () => {
 
 beforeEach(async () => {
   // Children first to satisfy the FK from transaction_links → financial_transactions.
-  await app.db.execute(sql`DELETE FROM transaction_links`);
-  await app.db.execute(sql`DELETE FROM financial_transactions`);
-  await app.db.execute(sql`DELETE FROM balances`);
+  // 172-14: acotados al gimnasio (regla del 172-13: global a proposito ->
+  // exencion; acotable -> filtro). Este archivo no siembra en otro gimnasio.
+  await app.db.execute(
+    sql`DELETE FROM transaction_links WHERE tenant_id = ${TENANT_TEMPLO}`,
+  );
+  await app.db.execute(
+    sql`DELETE FROM financial_transactions WHERE tenant_id = ${TENANT_TEMPLO}`,
+  );
+  await app.db.execute(
+    sql`DELETE FROM balances WHERE tenant_id = ${TENANT_TEMPLO}`,
+  );
 });
 
 // Common defaults to keep test bodies focused on the case at hand.
@@ -191,7 +217,11 @@ function baseInput(overrides: Record<string, unknown> = {}) {
 
 describe("TransactionService — SPEC §7 invariants", () => {
   it("Test A: 1 link with allocated=amount succeeds", async () => {
-    const result = await txService.create(baseInput({ amount: 1000 }), adminId);
+    const result = await txService.create(
+      TEMPLO_CTX,
+      baseInput({ amount: 1000 }),
+      adminId,
+    );
     expect(result.id).toBeGreaterThan(0);
     expect(result.links).toHaveLength(1);
   });
@@ -199,6 +229,7 @@ describe("TransactionService — SPEC §7 invariants", () => {
   it("Test B: 0 links with kind='plan_charge' is rejected (sum invariant)", async () => {
     await expect(
       txService.create(
+        TEMPLO_CTX,
         baseInput({ kind: "plan_charge", links: [], amount: 1000 }),
         adminId,
       ),
@@ -207,6 +238,7 @@ describe("TransactionService — SPEC §7 invariants", () => {
 
   it("Test C: 0 links with kind='adjustment' is accepted (SPEC §9)", async () => {
     const result = await txService.create(
+      TEMPLO_CTX,
       baseInput({
         kind: "adjustment",
         direction: "inflow",
@@ -222,13 +254,19 @@ describe("TransactionService — SPEC §7 invariants", () => {
     const rows = await app.db
       .select()
       .from(schema.balances)
-      .where(eq(schema.balances.memberId, memberId));
+      .where(
+        and(
+          eq(schema.balances.memberId, memberId),
+          tenantWhere(schema.balances, TEMPLO_CTX),
+        ),
+      );
     expect(rows).toHaveLength(0);
   });
 
   it("Test D: link to non-existent subscription throws NotFoundError (TXN-07)", async () => {
     await expect(
       txService.create(
+        TEMPLO_CTX,
         baseInput({
           links: [
             {
@@ -256,6 +294,7 @@ describe("TransactionService — SPEC §7 invariants", () => {
 
     // Happy: 600 + 400 = 1000.
     const ok = await txService.create(
+      TEMPLO_CTX,
       baseInput({
         amount: 1000,
         links: [
@@ -278,6 +317,7 @@ describe("TransactionService — SPEC §7 invariants", () => {
     // Sad: 600 + 300 ≠ 1000.
     await expect(
       txService.create(
+        TEMPLO_CTX,
         baseInput({
           amount: 1000,
           links: [
@@ -301,6 +341,7 @@ describe("TransactionService — SPEC §7 invariants", () => {
   it("Test I: more sum-invariant edges — single link mismatch rejected", async () => {
     await expect(
       txService.create(
+        TEMPLO_CTX,
         baseInput({
           amount: 1000,
           links: [
@@ -321,6 +362,7 @@ describe("TransactionService — SPEC §8 LOCKED cache sequence", () => {
   it("Test E: pricePaid=100k + plan_charge 90k → 10000; + debt_settlement 5k → 5000; void → 10000", async () => {
     // Step 1: plan_charge inflow 90000 against the seeded 100k subscription.
     await txService.create(
+      TEMPLO_CTX,
       baseInput({
         amount: 90000,
         links: [
@@ -343,6 +385,7 @@ describe("TransactionService — SPEC §8 LOCKED cache sequence", () => {
           eq(schema.balances.targetKind, "subscription"),
           eq(schema.balances.targetId, subscriptionId),
           eq(schema.balances.currency, "ARS"),
+          tenantWhere(schema.balances, TEMPLO_CTX),
         ),
       )
       .limit(1);
@@ -350,6 +393,7 @@ describe("TransactionService — SPEC §8 LOCKED cache sequence", () => {
 
     // Step 2: debt_settlement inflow 5000 against the same subscription.
     const settlement = await txService.create(
+      TEMPLO_CTX,
       baseInput({
         kind: "debt_settlement",
         direction: "inflow",
@@ -368,17 +412,29 @@ describe("TransactionService — SPEC §8 LOCKED cache sequence", () => {
     row = await app.db
       .select()
       .from(schema.balances)
-      .where(eq(schema.balances.id, row[0].id))
+      .where(
+        and(
+          eq(schema.balances.id, row[0].id),
+          tenantWhere(schema.balances, TEMPLO_CTX),
+        ),
+      )
       .limit(1);
     expect(row[0].amount).toBe(5000);
 
     // Step 3: void the debt_settlement.
-    await txService.void(settlement.id, adminId, { reason: "test rollback" });
+    await txService.void(TEMPLO_CTX, settlement.id, adminId, {
+      reason: "test rollback",
+    });
 
     row = await app.db
       .select()
       .from(schema.balances)
-      .where(eq(schema.balances.id, row[0].id))
+      .where(
+        and(
+          eq(schema.balances.id, row[0].id),
+          tenantWhere(schema.balances, TEMPLO_CTX),
+        ),
+      )
       .limit(1);
     expect(row[0].amount).toBe(10000);
   });
@@ -394,6 +450,7 @@ describe("TransactionService — SPEC §8 LOCKED cache sequence", () => {
     });
 
     await txService.create(
+      TEMPLO_CTX,
       baseInput({
         amount: 120000,
         links: [
@@ -416,6 +473,7 @@ describe("TransactionService — SPEC §8 LOCKED cache sequence", () => {
           eq(schema.balances.targetKind, "subscription"),
           eq(schema.balances.targetId, overpaidSub),
           eq(schema.balances.currency, "ARS"),
+          tenantWhere(schema.balances, TEMPLO_CTX),
         ),
       )
       .limit(1);
@@ -433,6 +491,7 @@ describe("TransactionService — SPEC §8 LOCKED cache sequence", () => {
     });
 
     await txService.create(
+      TEMPLO_CTX,
       baseInput({
         amount: 100000,
         links: [
@@ -455,6 +514,7 @@ describe("TransactionService — SPEC §8 LOCKED cache sequence", () => {
           eq(schema.balances.targetKind, "subscription"),
           eq(schema.balances.targetId, exactSub),
           eq(schema.balances.currency, "ARS"),
+          tenantWhere(schema.balances, TEMPLO_CTX),
         ),
       );
     expect(rows.length).toBeGreaterThanOrEqual(1);
@@ -466,25 +526,28 @@ describe("TransactionService — DB constraints + immutability", () => {
   it("Test J: UNIQUE(transaction_id, target_kind, target_id) on transaction_links rejects duplicates", async () => {
     // First create a real transaction to satisfy the FK on transaction_id.
     const created = await txService.create(
+      TEMPLO_CTX,
       baseInput({ amount: 1000 }),
       adminId,
     );
 
     let caught: unknown = null;
     try {
+      // Insert multi-fila: `tenantValues` envuelve CADA fila, no el array
+      // (patron fijado por el 172-13).
       await app.db.insert(schema.transactionLinks).values([
-        {
+        tenantValues(TEMPLO_CTX, {
           transactionId: created.id,
-          targetKind: "subscription",
+          targetKind: "subscription" as const,
           targetId: subscriptionId,
           allocatedAmount: 500,
-        },
-        {
+        }),
+        tenantValues(TEMPLO_CTX, {
           transactionId: created.id,
-          targetKind: "subscription",
+          targetKind: "subscription" as const,
           targetId: subscriptionId,
           allocatedAmount: 500,
-        },
+        }),
       ]);
     } catch (err) {
       caught = err;
@@ -505,12 +568,17 @@ describe("TransactionService — DB constraints + immutability", () => {
 
   it("Test L: voiding twice throws BadRequestError ('ya fue anulada')", async () => {
     const created = await txService.create(
+      TEMPLO_CTX,
       baseInput({ amount: 1000 }),
       adminId,
     );
-    await txService.void(created.id, adminId, { reason: "first void" });
+    await txService.void(TEMPLO_CTX, created.id, adminId, {
+      reason: "first void",
+    });
     await expect(
-      txService.void(created.id, adminId, { reason: "second void" }),
+      txService.void(TEMPLO_CTX, created.id, adminId, {
+        reason: "second void",
+      }),
     ).rejects.toThrow(/ya fue anulada/);
   });
 
@@ -520,6 +588,7 @@ describe("TransactionService — DB constraints + immutability", () => {
     // accepts USD (the schema does not constrain currency vs. subscription).
     await expect(
       txService.create(
+        TEMPLO_CTX,
         baseInput({
           currency: "USD",
           links: [
@@ -543,8 +612,8 @@ describe("TransactionService — DB constraints + immutability", () => {
 describe("TransactionService.list()", () => {
   // L1: defaults
   it("L1: returns PaginatedResult shape with defaults page=1, limit=50", async () => {
-    await txService.create(baseInput({ amount: 1000 }), adminId);
-    const result = await txService.list({});
+    await txService.create(TEMPLO_CTX, baseInput({ amount: 1000 }), adminId);
+    const result = await txService.list(TEMPLO_CTX, {});
     expect(result).toHaveProperty("rows");
     expect(result).toHaveProperty("total");
     expect(result.page).toBe(1);
@@ -602,7 +671,7 @@ describe("TransactionService.list()", () => {
     const esSubId = esSubRes[0].id;
 
     // 2 AR transactions
-    await txService.create(baseInput({ amount: 1000 }), adminId);
+    await txService.create(TEMPLO_CTX, baseInput({ amount: 1000 }), adminId);
     const sub2 = await seedSubscription({
       userId: memberId,
       planId,
@@ -611,6 +680,7 @@ describe("TransactionService.list()", () => {
       currency: "ARS",
     });
     await txService.create(
+      TEMPLO_CTX,
       baseInput({
         amount: 2000,
         links: [
@@ -626,6 +696,7 @@ describe("TransactionService.list()", () => {
 
     // 1 ES transaction
     await txService.create(
+      TEMPLO_CTX,
       baseInput({
         amount: 5000,
         currency: "EUR",
@@ -641,21 +712,22 @@ describe("TransactionService.list()", () => {
       adminId,
     );
 
-    const arResult = await txService.list({ country: "AR" });
+    const arResult = await txService.list(TEMPLO_CTX, { country: "AR" });
     expect(arResult.total).toBe(2);
     for (const r of arResult.rows) {
       expect(r.currency).toBe("ARS");
     }
 
-    const esResult = await txService.list({ country: "ES" });
+    const esResult = await txService.list(TEMPLO_CTX, { country: "ES" });
     expect(esResult.total).toBe(1);
     expect(esResult.rows[0].currency).toBe("EUR");
   });
 
   // L3: kind filter
   it("L3: filters by kind", async () => {
-    await txService.create(baseInput({ amount: 1000 }), adminId);
+    await txService.create(TEMPLO_CTX, baseInput({ amount: 1000 }), adminId);
     await txService.create(
+      TEMPLO_CTX,
       baseInput({
         kind: "adjustment",
         direction: "inflow",
@@ -667,6 +739,7 @@ describe("TransactionService.list()", () => {
     // advance_payment is the other kind allowed without links per
     // KINDS_ALLOWED_WITHOUT_LINKS in transaction-service.ts.
     await txService.create(
+      TEMPLO_CTX,
       baseInput({
         kind: "advance_payment",
         direction: "inflow",
@@ -676,7 +749,7 @@ describe("TransactionService.list()", () => {
       adminId,
     );
 
-    const result = await txService.list({ kind: "plan_charge" });
+    const result = await txService.list(TEMPLO_CTX, { kind: "plan_charge" });
     expect(result.total).toBe(1);
     expect(result.rows[0].kind).toBe("plan_charge");
   });
@@ -684,6 +757,7 @@ describe("TransactionService.list()", () => {
   // L4: date filters
   it("L4: filters by dateFrom + dateTo (inclusive)", async () => {
     await txService.create(
+      TEMPLO_CTX,
       baseInput({
         amount: 1000,
         transactionDate: "2026-01-01",
@@ -692,6 +766,7 @@ describe("TransactionService.list()", () => {
       adminId,
     );
     await txService.create(
+      TEMPLO_CTX,
       baseInput({
         amount: 1000,
         transactionDate: "2026-02-15",
@@ -700,6 +775,7 @@ describe("TransactionService.list()", () => {
       adminId,
     );
     await txService.create(
+      TEMPLO_CTX,
       baseInput({
         amount: 1000,
         transactionDate: "2026-03-31",
@@ -708,7 +784,7 @@ describe("TransactionService.list()", () => {
       adminId,
     );
 
-    const result = await txService.list({
+    const result = await txService.list(TEMPLO_CTX, {
       dateFrom: "2026-02-01",
       dateTo: "2026-02-28",
     });
@@ -735,8 +811,9 @@ describe("TransactionService.list()", () => {
       currency: "ARS",
     });
 
-    await txService.create(baseInput({ amount: 1000 }), adminId);
+    await txService.create(TEMPLO_CTX, baseInput({ amount: 1000 }), adminId);
     await txService.create(
+      TEMPLO_CTX,
       baseInput({
         memberId: otherId,
         amount: 2000,
@@ -751,7 +828,7 @@ describe("TransactionService.list()", () => {
       adminId,
     );
 
-    const result = await txService.list({ memberId });
+    const result = await txService.list(TEMPLO_CTX, { memberId });
     expect(result.total).toBe(1);
     expect(result.rows[0].memberId).toBe(memberId);
   });
@@ -759,6 +836,7 @@ describe("TransactionService.list()", () => {
   // L6: paymentMethod filter (T-106-05 enum guard)
   it("L6: filters by paymentMethod='aura_credit'", async () => {
     await txService.create(
+      TEMPLO_CTX,
       baseInput({ amount: 1000, paymentMethod: "cash" }),
       adminId,
     );
@@ -770,6 +848,7 @@ describe("TransactionService.list()", () => {
       currency: "ARS",
     });
     await txService.create(
+      TEMPLO_CTX,
       baseInput({
         amount: 500,
         paymentMethod: "aura_credit",
@@ -784,7 +863,9 @@ describe("TransactionService.list()", () => {
       adminId,
     );
 
-    const result = await txService.list({ paymentMethod: "aura_credit" });
+    const result = await txService.list(TEMPLO_CTX, {
+      paymentMethod: "aura_credit",
+    });
     expect(result.total).toBe(1);
     expect(result.rows[0].paymentMethod).toBe("aura_credit");
   });
@@ -809,8 +890,9 @@ describe("TransactionService.list()", () => {
       currency: "ARS",
     });
 
-    await txService.create(baseInput({ amount: 1000 }), adminId);
+    await txService.create(TEMPLO_CTX, baseInput({ amount: 1000 }), adminId);
     await txService.create(
+      TEMPLO_CTX,
       baseInput({
         memberId: distinctId,
         amount: 2000,
@@ -825,7 +907,7 @@ describe("TransactionService.list()", () => {
       adminId,
     );
 
-    const result = await txService.list({ search: "Zorrillo" });
+    const result = await txService.list(TEMPLO_CTX, { search: "Zorrillo" });
     expect(result.total).toBe(1);
     expect(result.rows[0].memberId).toBe(distinctId);
   });
@@ -843,6 +925,7 @@ describe("TransactionService.list()", () => {
       });
       // Stagger by created_at so ORDER BY transaction_date DESC, created_at DESC is deterministic.
       await txService.create(
+        TEMPLO_CTX,
         baseInput({
           amount: 100 + i,
           links: [
@@ -857,13 +940,13 @@ describe("TransactionService.list()", () => {
       );
     }
 
-    const p1 = await txService.list({ page: 1, limit: 2 });
+    const p1 = await txService.list(TEMPLO_CTX, { page: 1, limit: 2 });
     expect(p1.total).toBe(5);
     expect(p1.rows).toHaveLength(2);
     expect(p1.page).toBe(1);
     expect(p1.limit).toBe(2);
 
-    const p2 = await txService.list({ page: 2, limit: 2 });
+    const p2 = await txService.list(TEMPLO_CTX, { page: 2, limit: 2 });
     expect(p2.total).toBe(5);
     expect(p2.rows).toHaveLength(2);
     expect(p2.page).toBe(2);
@@ -878,8 +961,8 @@ describe("TransactionService.list()", () => {
 
   // L9: denormalized fields populated
   it("L9: denormalized memberName, branchName, recorderName populated", async () => {
-    await txService.create(baseInput({ amount: 1000 }), adminId);
-    const result = await txService.list({});
+    await txService.create(TEMPLO_CTX, baseInput({ amount: 1000 }), adminId);
+    const result = await txService.list(TEMPLO_CTX, {});
     expect(result.rows[0].memberName.length).toBeGreaterThan(0);
     expect(result.rows[0].branchName.length).toBeGreaterThan(0);
     expect(result.rows[0].recorderName.length).toBeGreaterThan(0);
@@ -887,8 +970,8 @@ describe("TransactionService.list()", () => {
 
   // L10: linkSummary populated
   it("L10: linkSummary array populated for transactions with links", async () => {
-    await txService.create(baseInput({ amount: 1000 }), adminId);
-    const result = await txService.list({});
+    await txService.create(TEMPLO_CTX, baseInput({ amount: 1000 }), adminId);
+    const result = await txService.list(TEMPLO_CTX, {});
     expect(Array.isArray(result.rows[0].linkSummary)).toBe(true);
     expect(result.rows[0].linkSummary.length).toBeGreaterThanOrEqual(1);
     expect(result.rows[0].linkSummary[0]).toHaveProperty("targetKind");
@@ -898,6 +981,7 @@ describe("TransactionService.list()", () => {
   // L11: order by transaction_date DESC, created_at DESC
   it("L11: orders by transaction_date DESC, created_at DESC", async () => {
     await txService.create(
+      TEMPLO_CTX,
       baseInput({
         amount: 1000,
         transactionDate: "2026-01-01",
@@ -913,6 +997,7 @@ describe("TransactionService.list()", () => {
       currency: "ARS",
     });
     await txService.create(
+      TEMPLO_CTX,
       baseInput({
         amount: 2000,
         transactionDate: "2026-03-15",
@@ -935,6 +1020,7 @@ describe("TransactionService.list()", () => {
       currency: "ARS",
     });
     await txService.create(
+      TEMPLO_CTX,
       baseInput({
         amount: 500,
         transactionDate: "2026-02-10",
@@ -950,7 +1036,7 @@ describe("TransactionService.list()", () => {
       adminId,
     );
 
-    const result = await txService.list({});
+    const result = await txService.list(TEMPLO_CTX, {});
     expect(result.rows.map((r) => r.transactionDate)).toEqual([
       "2026-03-15",
       "2026-02-10",
@@ -963,6 +1049,7 @@ describe("TransactionService.getFinancialHistory()", () => {
   // H1: ordered DESC
   it("H1: returns PaginatedResult ordered transaction_date DESC", async () => {
     await txService.create(
+      TEMPLO_CTX,
       baseInput({
         amount: 1000,
         transactionDate: "2026-01-01",
@@ -978,6 +1065,7 @@ describe("TransactionService.getFinancialHistory()", () => {
       currency: "ARS",
     });
     await txService.create(
+      TEMPLO_CTX,
       baseInput({
         amount: 2000,
         transactionDate: "2026-03-15",
@@ -993,7 +1081,11 @@ describe("TransactionService.getFinancialHistory()", () => {
       adminId,
     );
 
-    const result = await txService.getFinancialHistory(memberId, {});
+    const result = await txService.getFinancialHistory(
+      TEMPLO_CTX,
+      memberId,
+      {},
+    );
     expect(result.total).toBe(2);
     expect(result.rows[0].transaction.transactionDate).toBe("2026-03-15");
     expect(result.rows[1].transaction.transactionDate).toBe("2026-01-01");
@@ -1017,8 +1109,9 @@ describe("TransactionService.getFinancialHistory()", () => {
       currency: "ARS",
     });
 
-    await txService.create(baseInput({ amount: 1000 }), adminId);
+    await txService.create(TEMPLO_CTX, baseInput({ amount: 1000 }), adminId);
     await txService.create(
+      TEMPLO_CTX,
       baseInput({
         memberId: otherId,
         amount: 2000,
@@ -1033,7 +1126,11 @@ describe("TransactionService.getFinancialHistory()", () => {
       adminId,
     );
 
-    const result = await txService.getFinancialHistory(memberId, {});
+    const result = await txService.getFinancialHistory(
+      TEMPLO_CTX,
+      memberId,
+      {},
+    );
     expect(result.total).toBe(1);
     expect(result.rows[0].transaction.memberId).toBe(memberId);
   });
@@ -1041,12 +1138,19 @@ describe("TransactionService.getFinancialHistory()", () => {
   // H3: voidInfo populated when voidedAt present
   it("H3: each item has transaction + links; voidInfo populated when voided", async () => {
     const created = await txService.create(
+      TEMPLO_CTX,
       baseInput({ amount: 1000 }),
       adminId,
     );
-    await txService.void(created.id, adminId, { reason: "fixed an error" });
+    await txService.void(TEMPLO_CTX, created.id, adminId, {
+      reason: "fixed an error",
+    });
 
-    const result = await txService.getFinancialHistory(memberId, {});
+    const result = await txService.getFinancialHistory(
+      TEMPLO_CTX,
+      memberId,
+      {},
+    );
     expect(result.rows).toHaveLength(1);
     const item = result.rows[0];
     expect(item.transaction).toBeDefined();
@@ -1060,8 +1164,12 @@ describe("TransactionService.getFinancialHistory()", () => {
 
   // H4: conceptLabel for subscription targets
   it("H4: conceptLabel populated for target_kind='subscription' (plan name)", async () => {
-    await txService.create(baseInput({ amount: 1000 }), adminId);
-    const result = await txService.getFinancialHistory(memberId, {});
+    await txService.create(TEMPLO_CTX, baseInput({ amount: 1000 }), adminId);
+    const result = await txService.getFinancialHistory(
+      TEMPLO_CTX,
+      memberId,
+      {},
+    );
     const subLink = result.rows[0].links.find(
       (l) => l.targetKind === "subscription",
     );
@@ -1073,8 +1181,12 @@ describe("TransactionService.getFinancialHistory()", () => {
 
   // H5: pagination defaults
   it("H5: pagination defaults to page=1, limit=50", async () => {
-    await txService.create(baseInput({ amount: 1000 }), adminId);
-    const result = await txService.getFinancialHistory(memberId, {});
+    await txService.create(TEMPLO_CTX, baseInput({ amount: 1000 }), adminId);
+    const result = await txService.getFinancialHistory(
+      TEMPLO_CTX,
+      memberId,
+      {},
+    );
     expect(result.page).toBe(1);
     expect(result.limit).toBe(50);
   });
@@ -1120,8 +1232,8 @@ describe("TransactionService.getSummary()", () => {
   }
 
   it("SUM1: returns shape { monthlyRevenue, revenueByMethod (5 keys), revenueByBranch }", async () => {
-    await txService.create(baseInput({ amount: 1000 }), adminId);
-    const result = await txService.getSummary({});
+    await txService.create(TEMPLO_CTX, baseInput({ amount: 1000 }), adminId);
+    const result = await txService.getSummary(TEMPLO_CTX, {});
     expect(result).toHaveProperty("monthlyRevenue");
     expect(result).toHaveProperty("revenueByMethod");
     expect(result).toHaveProperty("revenueByBranch");
@@ -1142,8 +1254,9 @@ describe("TransactionService.getSummary()", () => {
       pricePaid: 50000,
       currency: "ARS",
     });
-    await txService.create(baseInput({ amount: 1000 }), adminId);
+    await txService.create(TEMPLO_CTX, baseInput({ amount: 1000 }), adminId);
     await txService.create(
+      TEMPLO_CTX,
       baseInput({
         amount: 2500,
         links: [
@@ -1157,7 +1270,7 @@ describe("TransactionService.getSummary()", () => {
       adminId,
     );
 
-    const result = await txService.getSummary({});
+    const result = await txService.getSummary(TEMPLO_CTX, {});
     expect(result.monthlyRevenue).toBe(3500);
   });
 
@@ -1169,8 +1282,13 @@ describe("TransactionService.getSummary()", () => {
       pricePaid: 50000,
       currency: "ARS",
     });
-    const t1 = await txService.create(baseInput({ amount: 1000 }), adminId);
+    const t1 = await txService.create(
+      TEMPLO_CTX,
+      baseInput({ amount: 1000 }),
+      adminId,
+    );
     await txService.create(
+      TEMPLO_CTX,
       baseInput({
         amount: 4000,
         links: [
@@ -1183,32 +1301,34 @@ describe("TransactionService.getSummary()", () => {
       }),
       adminId,
     );
-    await txService.void(t1.id, adminId, { reason: "test void" });
+    await txService.void(TEMPLO_CTX, t1.id, adminId, { reason: "test void" });
 
-    const result = await txService.getSummary({});
+    const result = await txService.getSummary(TEMPLO_CTX, {});
     expect(result.monthlyRevenue).toBe(4000);
   });
 
   it("SUM4: outflow transactions are excluded (revenue = inflow only)", async () => {
     // Inflow 1000.
-    await txService.create(baseInput({ amount: 1000 }), adminId);
+    await txService.create(TEMPLO_CTX, baseInput({ amount: 1000 }), adminId);
     // Outflow 500 (e.g., refund). Use kind='refund' with a transaction-link
     // so the service accepts it; allocate against the original transaction.
     // Simpler path: insert directly via Drizzle to bypass kind/link validation.
-    await app.db.insert(schema.financialTransactions).values({
-      memberId,
-      kind: "refund",
-      direction: "outflow",
-      amount: 500,
-      currency: "ARS",
-      paymentMethod: "cash",
-      transactionDate: TODAY,
-      effectiveDate: TODAY,
-      branchId,
-      recordedBy: adminId,
-    });
+    await app.db.insert(schema.financialTransactions).values(
+      tenantValues(TEMPLO_CTX, {
+        memberId,
+        kind: "refund" as const,
+        direction: "outflow" as const,
+        amount: 500,
+        currency: "ARS",
+        paymentMethod: "cash" as const,
+        transactionDate: TODAY,
+        effectiveDate: TODAY,
+        branchId,
+        recordedBy: adminId,
+      }),
+    );
 
-    const result = await txService.getSummary({});
+    const result = await txService.getSummary(TEMPLO_CTX, {});
     expect(result.monthlyRevenue).toBe(1000);
   });
 
@@ -1255,6 +1375,7 @@ describe("TransactionService.getSummary()", () => {
       currency: "ARS",
     });
     await txService.create(
+      TEMPLO_CTX,
       baseInput({
         amount: 4000,
         links: [
@@ -1268,6 +1389,7 @@ describe("TransactionService.getSummary()", () => {
       adminId,
     );
     await txService.create(
+      TEMPLO_CTX,
       baseInput({
         amount: 6000,
         links: [
@@ -1283,6 +1405,7 @@ describe("TransactionService.getSummary()", () => {
 
     // 1 ES inflow of 5000.
     await txService.create(
+      TEMPLO_CTX,
       baseInput({
         amount: 5000,
         currency: "EUR",
@@ -1298,13 +1421,13 @@ describe("TransactionService.getSummary()", () => {
       adminId,
     );
 
-    const arSummary = await txService.getSummary({ country: "AR" });
+    const arSummary = await txService.getSummary(TEMPLO_CTX, { country: "AR" });
     expect(arSummary.monthlyRevenue).toBe(10000);
     for (const b of arSummary.revenueByBranch) {
       expect(b.branchId).not.toBe(esBranchId);
     }
 
-    const esSummary = await txService.getSummary({ country: "ES" });
+    const esSummary = await txService.getSummary(TEMPLO_CTX, { country: "ES" });
     expect(esSummary.monthlyRevenue).toBe(5000);
     expect(esSummary.revenueByBranch).toHaveLength(1);
     expect(esSummary.revenueByBranch[0].branchId).toBe(esBranchId);
@@ -1321,9 +1444,10 @@ describe("TransactionService.getSummary()", () => {
     });
 
     // Default branch (TEST) inflow 1000.
-    await txService.create(baseInput({ amount: 1000 }), adminId);
+    await txService.create(TEMPLO_CTX, baseInput({ amount: 1000 }), adminId);
     // ar2 branch inflow 7000.
     await txService.create(
+      TEMPLO_CTX,
       baseInput({
         amount: 7000,
         branchId: ar2Id,
@@ -1338,7 +1462,7 @@ describe("TransactionService.getSummary()", () => {
       adminId,
     );
 
-    const result = await txService.getSummary({ branchId: ar2Id });
+    const result = await txService.getSummary(TEMPLO_CTX, { branchId: ar2Id });
     expect(result.monthlyRevenue).toBe(7000);
     expect(result.revenueByBranch).toHaveLength(1);
     expect(result.revenueByBranch[0].branchId).toBe(ar2Id);
@@ -1346,6 +1470,7 @@ describe("TransactionService.getSummary()", () => {
 
   it("SUM7: dateFrom/dateTo filter — only transactions in inclusive range", async () => {
     await txService.create(
+      TEMPLO_CTX,
       baseInput({
         amount: 1000,
         transactionDate: "2026-01-01",
@@ -1361,6 +1486,7 @@ describe("TransactionService.getSummary()", () => {
       currency: "ARS",
     });
     await txService.create(
+      TEMPLO_CTX,
       baseInput({
         amount: 2000,
         transactionDate: "2026-02-15",
@@ -1383,6 +1509,7 @@ describe("TransactionService.getSummary()", () => {
       currency: "ARS",
     });
     await txService.create(
+      TEMPLO_CTX,
       baseInput({
         amount: 3000,
         transactionDate: "2026-03-31",
@@ -1398,7 +1525,7 @@ describe("TransactionService.getSummary()", () => {
       adminId,
     );
 
-    const result = await txService.getSummary({
+    const result = await txService.getSummary(TEMPLO_CTX, {
       dateFrom: "2026-02-01",
       dateTo: "2026-02-28",
     });
@@ -1421,10 +1548,12 @@ describe("TransactionService.getSummary()", () => {
       currency: "ARS",
     });
     await txService.create(
+      TEMPLO_CTX,
       baseInput({ amount: 1000, paymentMethod: "cash" }),
       adminId,
     );
     await txService.create(
+      TEMPLO_CTX,
       baseInput({
         amount: 2000,
         paymentMethod: "transfer",
@@ -1439,6 +1568,7 @@ describe("TransactionService.getSummary()", () => {
       adminId,
     );
     await txService.create(
+      TEMPLO_CTX,
       baseInput({
         amount: 3000,
         paymentMethod: "aura_credit",
@@ -1453,7 +1583,7 @@ describe("TransactionService.getSummary()", () => {
       adminId,
     );
 
-    const result = await txService.getSummary({});
+    const result = await txService.getSummary(TEMPLO_CTX, {});
     expect(result.revenueByMethod).toEqual({
       cash: 1000,
       transfer: 2000,
@@ -1474,9 +1604,10 @@ describe("TransactionService.getSummary()", () => {
     });
 
     // Default branch (TEST): 1000.
-    await txService.create(baseInput({ amount: 1000 }), adminId);
+    await txService.create(TEMPLO_CTX, baseInput({ amount: 1000 }), adminId);
     // ar2: 5000 (should be first in DESC order).
     await txService.create(
+      TEMPLO_CTX,
       baseInput({
         amount: 5000,
         branchId: ar2Id,
@@ -1491,7 +1622,7 @@ describe("TransactionService.getSummary()", () => {
       adminId,
     );
 
-    const result = await txService.getSummary({});
+    const result = await txService.getSummary(TEMPLO_CTX, {});
     expect(result.revenueByBranch.length).toBeGreaterThanOrEqual(2);
     // First entry should have the highest revenue.
     expect(result.revenueByBranch[0].revenue).toBeGreaterThanOrEqual(
@@ -1506,10 +1637,14 @@ describe("BalanceService.getRowsForTransaction()", () => {
   // B1: returns balance rows touched by the tx links (excluding 'transaction' kind)
   it("B1: returns BalanceRow[] for balances touched by the transaction", async () => {
     const created = await txService.create(
+      TEMPLO_CTX,
       baseInput({ amount: 1000 }),
       adminId,
     );
-    const rows = await balanceService.getRowsForTransaction(created.id);
+    const rows = await balanceService.getRowsForTransaction(
+      TEMPLO_CTX,
+      created.id,
+    );
     expect(rows.length).toBeGreaterThanOrEqual(1);
     expect(rows[0].memberId).toBe(memberId);
     expect(rows[0].targetKind).toBe("subscription");
@@ -1519,7 +1654,7 @@ describe("BalanceService.getRowsForTransaction()", () => {
 
   // B2: empty array for unknown transactionId
   it("B2: returns empty array for non-existent transaction", async () => {
-    const rows = await balanceService.getRowsForTransaction(999999);
+    const rows = await balanceService.getRowsForTransaction(TEMPLO_CTX, 999999);
     expect(rows).toEqual([]);
   });
 
@@ -1536,6 +1671,7 @@ describe("BalanceService.getRowsForTransaction()", () => {
 
     // Two separate transactions, each touching one subscription.
     const tx1 = await txService.create(
+      TEMPLO_CTX,
       baseInput({
         amount: 1000,
         links: [
@@ -1549,6 +1685,7 @@ describe("BalanceService.getRowsForTransaction()", () => {
       adminId,
     );
     const tx2 = await txService.create(
+      TEMPLO_CTX,
       baseInput({
         amount: 500,
         links: [
@@ -1562,11 +1699,11 @@ describe("BalanceService.getRowsForTransaction()", () => {
       adminId,
     );
 
-    const r1 = await balanceService.getRowsForTransaction(tx1.id);
+    const r1 = await balanceService.getRowsForTransaction(TEMPLO_CTX, tx1.id);
     expect(r1).toHaveLength(1);
     expect(r1[0].targetId).toBe(subscriptionId);
 
-    const r2 = await balanceService.getRowsForTransaction(tx2.id);
+    const r2 = await balanceService.getRowsForTransaction(TEMPLO_CTX, tx2.id);
     expect(r2).toHaveLength(1);
     expect(r2[0].targetId).toBe(sub2);
   });
@@ -1581,6 +1718,7 @@ describe("TransactionService.void — Phase 111 REQ-7 audit_log", () => {
     // Create a charge tx with one link, then void it. links allocatedAmount
     // must equal amount (TXN-06 sum invariant).
     const created = await txService.create(
+      TEMPLO_CTX,
       baseInput({
         amount: 7500,
         kind: "plan_charge",
@@ -1595,7 +1733,9 @@ describe("TransactionService.void — Phase 111 REQ-7 audit_log", () => {
       adminId,
     );
 
-    await txService.void(created.id, adminId, { reason: "operator typo" });
+    await txService.void(TEMPLO_CTX, created.id, adminId, {
+      reason: "operator typo",
+    });
 
     const rows = await app.db
       .select()
@@ -1638,6 +1778,7 @@ describe("TransactionService.void — Phase 111 REQ-7 audit_log", () => {
 
   it("writes no audit row when void fails (e.g. tx already voided)", async () => {
     const created = await txService.create(
+      TEMPLO_CTX,
       baseInput({
         amount: 1234,
         kind: "plan_charge",
@@ -1652,13 +1793,17 @@ describe("TransactionService.void — Phase 111 REQ-7 audit_log", () => {
       adminId,
     );
 
-    await txService.void(created.id, adminId, { reason: "first void" });
+    await txService.void(TEMPLO_CTX, created.id, adminId, {
+      reason: "first void",
+    });
 
     // Second void should throw "ya fue anulada" before reaching applyDelta /
     // audit write. This verifies the helper isn't called eagerly outside
     // the success path.
     await expect(
-      txService.void(created.id, adminId, { reason: "second void" }),
+      txService.void(TEMPLO_CTX, created.id, adminId, {
+        reason: "second void",
+      }),
     ).rejects.toThrow();
 
     const rows = await app.db

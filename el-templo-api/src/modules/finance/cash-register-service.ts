@@ -20,7 +20,11 @@ import {
   NotFoundError,
 } from "../shared/errors";
 import { firmMoneyConditions } from "./firm-money";
-import { tenantWhere, type TenantContext } from "../shared/tenant";
+import {
+  tenantValues,
+  tenantWhere,
+  type TenantContext,
+} from "../shared/tenant";
 import type {
   BankAccountRow,
   CajaPeriodMovement,
@@ -61,6 +65,7 @@ export class CashRegisterService {
    *         the resolved efectivo caja's currency differs from `currency`.
    */
   async resolveCashRegister(
+    ctx: TenantContext,
     paymentMethod: PaymentMethod,
     branchId: number | null,
     currency: string,
@@ -80,6 +85,10 @@ export class CashRegisterService {
         .from(schema.cashRegisters)
         .where(
           and(
+            // Fase 172: sin este filtro el cobro de un gimnasio podía aterrizar
+            // en la caja banco del vecino — la más antigua por id, que después
+            // de la fase 168 puede perfectamente ser de otro tenant.
+            tenantWhere(schema.cashRegisters, ctx),
             eq(schema.cashRegisters.type, "banco"),
             eq(schema.cashRegisters.currency, currency),
             eq(schema.cashRegisters.isActive, true),
@@ -110,6 +119,7 @@ export class CashRegisterService {
       .from(schema.cashRegisters)
       .where(
         and(
+          tenantWhere(schema.cashRegisters, ctx),
           eq(schema.cashRegisters.type, "efectivo"),
           eq(schema.cashRegisters.branchId, branchId),
           eq(schema.cashRegisters.isActive, true),
@@ -138,6 +148,7 @@ export class CashRegisterService {
    * cobro); sin `currency` devuelve todas las cuentas banco activas.
    */
   async listActiveBankAccounts(
+    ctx: TenantContext,
     currency?: string,
   ): Promise<Array<{ id: number; name: string; currency: string }>> {
     const conditions = [
@@ -154,7 +165,7 @@ export class CashRegisterService {
         currency: schema.cashRegisters.currency,
       })
       .from(schema.cashRegisters)
-      .where(and(...conditions))
+      .where(and(tenantWhere(schema.cashRegisters, ctx), ...conditions))
       .orderBy(asc(schema.cashRegisters.id));
   }
 
@@ -167,10 +178,18 @@ export class CashRegisterService {
    * (mismo mensaje de moneda que resolveCashRegister/balance-service para el guard
    * de moneda). Devuelve la fila validada.
    *
+   * Fase 172: una cuenta de OTRO gimnasio no matchea el SELECT y cae en la misma
+   * rama "no existe o está inactiva" (400 genérico, sin filtrar existencia). Es
+   * el choke-point que impide imputar un cobro a la cuenta bancaria del vecino.
+   *
    * @throws BadRequestError cuando no existe / no es banco / está inactiva, o
    *         cuando la moneda de la cuenta no coincide con la del cobro.
    */
-  async assertChosenBankAccount(id: number, currency: string) {
+  async assertChosenBankAccount(
+    ctx: TenantContext,
+    id: number,
+    currency: string,
+  ) {
     const [caja] = await this.db
       .select({
         id: schema.cashRegisters.id,
@@ -180,7 +199,12 @@ export class CashRegisterService {
         type: schema.cashRegisters.type,
       })
       .from(schema.cashRegisters)
-      .where(eq(schema.cashRegisters.id, id))
+      .where(
+        and(
+          tenantWhere(schema.cashRegisters, ctx),
+          eq(schema.cashRegisters.id, id),
+        ),
+      )
       .limit(1);
     if (!caja || caja.type !== "banco" || !caja.isActive) {
       throw new BadRequestError("La cuenta elegida no existe o está inactiva");
@@ -220,7 +244,10 @@ export class CashRegisterService {
    *
    * @throws NotFoundError when no caja exists for `cashRegisterId`.
    */
-  async getBalance(cashRegisterId: number): Promise<CashRegisterBalance> {
+  async getBalance(
+    ctx: TenantContext,
+    cashRegisterId: number,
+  ): Promise<CashRegisterBalance> {
     const [caja] = await this.db
       .select({
         openingBalance: schema.cashRegisters.openingBalance,
@@ -228,7 +255,12 @@ export class CashRegisterService {
         cutoffDate: schema.cashRegisters.cutoffDate,
       })
       .from(schema.cashRegisters)
-      .where(eq(schema.cashRegisters.id, cashRegisterId))
+      .where(
+        and(
+          tenantWhere(schema.cashRegisters, ctx),
+          eq(schema.cashRegisters.id, cashRegisterId),
+        ),
+      )
       .limit(1);
     if (!caja) {
       throw new NotFoundError(`No existe la caja ${cashRegisterId}`);
@@ -244,6 +276,11 @@ export class CashRegisterService {
       .from(schema.financialTransactions)
       .where(
         and(
+          // Las DOS tablas del saldo son strict y cada statement nombra la suya:
+          // `cash_registers` en el SELECT de arriba, `financial_transactions` en
+          // cada SUM. Sin esto, una transaccion de otro gimnasio apuntando a esta
+          // caja sumaria al saldo (riesgo residual que dejo abierto el 172-06).
+          tenantWhere(schema.financialTransactions, ctx),
           eq(schema.financialTransactions.cashRegisterId, cashRegisterId),
           eq(schema.financialTransactions.direction, "inflow"),
           ...firmMoneyConditions(),
@@ -262,6 +299,7 @@ export class CashRegisterService {
       .from(schema.financialTransactions)
       .where(
         and(
+          tenantWhere(schema.financialTransactions, ctx),
           eq(schema.financialTransactions.cashRegisterId, cashRegisterId),
           eq(schema.financialTransactions.direction, "outflow"),
           ...firmMoneyConditions(),
@@ -283,6 +321,7 @@ export class CashRegisterService {
       .from(schema.financialTransactions)
       .where(
         and(
+          tenantWhere(schema.financialTransactions, ctx),
           eq(schema.financialTransactions.cashRegisterId, cashRegisterId),
           eq(schema.financialTransactions.direction, "inflow"),
           eq(schema.financialTransactions.validationStatus, "pendiente"),
@@ -316,6 +355,7 @@ export class CashRegisterService {
    * kind: todo lo que entra suma y todo lo que sale resta (D-09).
    */
   async getPeriodMovement(
+    ctx: TenantContext,
     cashRegisterId: number,
     dateFrom: string,
     dateTo: string,
@@ -323,7 +363,12 @@ export class CashRegisterService {
     const [caja] = await this.db
       .select({ cutoffDate: schema.cashRegisters.cutoffDate })
       .from(schema.cashRegisters)
-      .where(eq(schema.cashRegisters.id, cashRegisterId))
+      .where(
+        and(
+          tenantWhere(schema.cashRegisters, ctx),
+          eq(schema.cashRegisters.id, cashRegisterId),
+        ),
+      )
       .limit(1);
     if (!caja) {
       throw new NotFoundError(`No existe la caja ${cashRegisterId}`);
@@ -340,6 +385,9 @@ export class CashRegisterService {
         .from(schema.financialTransactions)
         .where(
           and(
+            // Las DOS tablas del método son strict y cada statement nombra la
+            // suya: `cash_registers` arriba, `financial_transactions` acá.
+            tenantWhere(schema.financialTransactions, ctx),
             eq(schema.financialTransactions.cashRegisterId, cashRegisterId),
             eq(schema.financialTransactions.direction, direction),
             ...firmMoneyConditions(),
@@ -372,6 +420,7 @@ export class CashRegisterService {
    * concern; 138 keeps the saldo derived, materialize only with perf evidence).
    */
   async listActiveCajasWithBalance(
+    ctx: TenantContext,
     scope?: {
       isOwner: boolean;
       country: string | null;
@@ -391,9 +440,23 @@ export class CashRegisterService {
       .from(schema.cashRegisters)
       .leftJoin(
         schema.branches,
-        eq(schema.branches.id, schema.cashRegisters.branchId),
+        // El filtro de gimnasio de `branches` va en el ON y JAMÁS en el WHERE
+        // (hallazgo 172-03): en el WHERE, `NULL = 1` es falso para las cajas
+        // central/banco (branch_id NULL) y el LEFT se vuelve INNER — esas cajas
+        // desaparecerían del listado de saldos en silencio, y el lint saldría
+        // verde igual. `branches` no es tabla strict, pero se scopea igual
+        // porque el país de la sucursal decide qué ve un no-owner.
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, schema.cashRegisters.branchId),
+        ),
       )
-      .where(eq(schema.cashRegisters.isActive, true));
+      .where(
+        and(
+          tenantWhere(schema.cashRegisters, ctx),
+          eq(schema.cashRegisters.isActive, true),
+        ),
+      );
 
     const out: CajaSaldoRow[] = [];
     for (const c of cajas) {
@@ -403,7 +466,7 @@ export class CashRegisterService {
         if (c.branchId === null) continue; // central/banco → owner-only
         if (c.branchCountry !== scope.country) continue; // cross-country → hide
       }
-      const bal = await this.getBalance(c.id);
+      const bal = await this.getBalance(ctx, c.id);
       out.push({
         cashRegisterId: c.id,
         name: c.name,
@@ -413,7 +476,12 @@ export class CashRegisterService {
         firmeBalance: bal.firmeBalance,
         pendienteAmount: bal.pendienteAmount,
         period: period
-          ? await this.getPeriodMovement(c.id, period.dateFrom, period.dateTo)
+          ? await this.getPeriodMovement(
+              ctx,
+              c.id,
+              period.dateFrom,
+              period.dateTo,
+            )
           : null,
       });
     }
@@ -429,21 +497,28 @@ export class CashRegisterService {
    * devuelve los de todos los países; si no, acota a ese país. Ordenado por name.
    */
   async listActiveCostCenters(
+    ctx: TenantContext,
     country: string | null,
   ): Promise<CostCenterItem[]> {
     const conditions = [eq(schema.costCenters.isActive, true)];
     if (country !== null) {
       conditions.push(eq(schema.costCenters.country, country));
     }
-    return this.db
-      .select({
-        id: schema.costCenters.id,
-        name: schema.costCenters.name,
-        country: schema.costCenters.country,
-      })
-      .from(schema.costCenters)
-      .where(and(...conditions))
-      .orderBy(asc(schema.costCenters.name));
+    return (
+      this.db
+        .select({
+          id: schema.costCenters.id,
+          name: schema.costCenters.name,
+          country: schema.costCenters.country,
+        })
+        .from(schema.costCenters)
+        // El filtro de gimnasio va acá y NO como primer elemento de `conditions`:
+        // el lint de tenancy razona por STATEMENT y el que nombra la tabla es el
+        // de la query, no el del array (hallazgo 172-02/172-04). El SQL es el
+        // mismo — `tenant_id` queda igual como primer término del AND.
+        .where(and(tenantWhere(schema.costCenters, ctx), ...conditions))
+        .orderBy(asc(schema.costCenters.name))
+    );
   }
 
   // -- Phase 152: ABM de centros de costo (CAJA-05, levanta EGR-F2 de v5.3) --
@@ -457,9 +532,16 @@ export class CashRegisterService {
   /**
    * Lee un centro de costo por id, mapeado a CostCenter (incl. isActive).
    *
-   * @throws NotFoundError cuando no existe.
+   * Fase 172 (D-09): el filtro de gimnasio convierte "el centro de otro
+   * gimnasio" en NotFound — 404, NUNCA 403. Es deliberado: un 403 confirmaría
+   * que el id existe en otro lado. No lo "corrijas" a 403 más adelante.
+   *
+   * @throws NotFoundError cuando no existe (o es de otro gimnasio).
    */
-  private async getCostCenterRow(id: number): Promise<CostCenter> {
+  private async getCostCenterRow(
+    ctx: TenantContext,
+    id: number,
+  ): Promise<CostCenter> {
     const [row] = await this.db
       .select({
         id: schema.costCenters.id,
@@ -468,7 +550,12 @@ export class CashRegisterService {
         isActive: schema.costCenters.isActive,
       })
       .from(schema.costCenters)
-      .where(eq(schema.costCenters.id, id))
+      .where(
+        and(
+          tenantWhere(schema.costCenters, ctx),
+          eq(schema.costCenters.id, id),
+        ),
+      )
       .limit(1);
     if (!row) {
       throw new NotFoundError(`No existe el centro de costo ${id}`);
@@ -485,9 +572,17 @@ export class CashRegisterService {
    * índice único — no se distingue "Alquiler" de "alquiler". `excludeId` permite
    * renombrar una fila a un nombre que ella misma ya tenía sin auto-colisionar.
    *
+   * Fase 172: la unicidad es POR GIMNASIO (el filtro de tenant va primero, antes
+   * de comparar el nombre). Dos gimnasios pueden tener un centro "Alquiler" cada
+   * uno y eso es correcto — sin el filtro, el alta del gimnasio B chocaría contra
+   * el nombre del A y el 409 le revelaría los nombres del vecino (T-172-06-04).
+   * La unique compuesta de la base ya lleva `tenant_id` (fase 168), así que este
+   * guard y el índice vuelven a decir lo mismo.
+   *
    * @throws ConflictError cuando ya existe otro centro con ese (name, country).
    */
   private async assertUniqueName(
+    ctx: TenantContext,
     name: string,
     country: string,
     excludeId?: number,
@@ -502,7 +597,7 @@ export class CashRegisterService {
     const [existing] = await this.db
       .select({ id: schema.costCenters.id })
       .from(schema.costCenters)
-      .where(and(...conditions))
+      .where(and(tenantWhere(schema.costCenters, ctx), ...conditions))
       .limit(1);
     if (existing) {
       throw new ConflictError(
@@ -519,18 +614,27 @@ export class CashRegisterService {
    * @throws BadRequestError cuando el nombre queda vacío tras el trim.
    * @throws ConflictError cuando ya existe ese nombre en el país.
    */
-  async createCostCenter(name: string, country: string): Promise<CostCenter> {
+  async createCostCenter(
+    ctx: TenantContext,
+    name: string,
+    country: string,
+  ): Promise<CostCenter> {
     const trimmed = name.trim();
     if (!trimmed) {
       throw new BadRequestError("El nombre del centro de costo es obligatorio");
     }
-    await this.assertUniqueName(trimmed, country);
+    await this.assertUniqueName(ctx, trimmed, country);
     const inserted = await this.db
       .insert(schema.costCenters)
-      .values({ name: trimmed, country });
+      // `tenantValues` estampa el gimnasio DESPUÉS del objeto, así que un
+      // `tenantId` que viniera del body no puede ganar (T-172-06-03).
+      .values(tenantValues(ctx, { name: trimmed, country }));
     const id = Number(inserted[0].insertId);
-    this.log.info({ costCenterId: id, country }, "Centro de costo creado");
-    return this.getCostCenterRow(id);
+    this.log.info(
+      { costCenterId: id, country, tenantId: ctx.tenantId },
+      "Centro de costo creado",
+    );
+    return this.getCostCenterRow(ctx, id);
   }
 
   /**
@@ -542,19 +646,31 @@ export class CashRegisterService {
    * @throws BadRequestError cuando el nombre queda vacío tras el trim.
    * @throws ConflictError cuando el nuevo nombre ya existe en el país.
    */
-  async renameCostCenter(id: number, name: string): Promise<CostCenter> {
-    const current = await this.getCostCenterRow(id);
+  async renameCostCenter(
+    ctx: TenantContext,
+    id: number,
+    name: string,
+  ): Promise<CostCenter> {
+    const current = await this.getCostCenterRow(ctx, id);
     const trimmed = name.trim();
     if (!trimmed) {
       throw new BadRequestError("El nombre del centro de costo es obligatorio");
     }
-    await this.assertUniqueName(trimmed, current.country, id);
+    await this.assertUniqueName(ctx, trimmed, current.country, id);
     await this.db
       .update(schema.costCenters)
       .set({ name: trimmed })
-      .where(eq(schema.costCenters.id, id));
+      // El SELECT previo ya cortó con 404 si la fila es de otro gimnasio; el
+      // filtro va igual en el UPDATE (defensa en profundidad: el WHERE de una
+      // escritura nunca se apoya en una lectura anterior — T-172-06-02).
+      .where(
+        and(
+          tenantWhere(schema.costCenters, ctx),
+          eq(schema.costCenters.id, id),
+        ),
+      );
     this.log.info({ costCenterId: id }, "Centro de costo renombrado");
-    return this.getCostCenterRow(id);
+    return this.getCostCenterRow(ctx, id);
   }
 
   /**
@@ -565,17 +681,25 @@ export class CashRegisterService {
    *
    * @throws NotFoundError cuando no existe.
    */
-  async deactivateCostCenter(id: number): Promise<CostCenter> {
-    await this.getCostCenterRow(id);
+  async deactivateCostCenter(
+    ctx: TenantContext,
+    id: number,
+  ): Promise<CostCenter> {
+    await this.getCostCenterRow(ctx, id);
     await this.db
       .update(schema.costCenters)
       .set({ isActive: false })
-      .where(eq(schema.costCenters.id, id));
+      .where(
+        and(
+          tenantWhere(schema.costCenters, ctx),
+          eq(schema.costCenters.id, id),
+        ),
+      );
     this.log.info(
       { costCenterId: id },
       "Centro de costo desactivado (baja lógica)",
     );
-    return this.getCostCenterRow(id);
+    return this.getCostCenterRow(ctx, id);
   }
 
   /**
@@ -584,14 +708,22 @@ export class CashRegisterService {
    *
    * @throws NotFoundError cuando no existe.
    */
-  async reactivateCostCenter(id: number): Promise<CostCenter> {
-    await this.getCostCenterRow(id);
+  async reactivateCostCenter(
+    ctx: TenantContext,
+    id: number,
+  ): Promise<CostCenter> {
+    await this.getCostCenterRow(ctx, id);
     await this.db
       .update(schema.costCenters)
       .set({ isActive: true })
-      .where(eq(schema.costCenters.id, id));
+      .where(
+        and(
+          tenantWhere(schema.costCenters, ctx),
+          eq(schema.costCenters.id, id),
+        ),
+      );
     this.log.info({ costCenterId: id }, "Centro de costo reactivado");
-    return this.getCostCenterRow(id);
+    return this.getCostCenterRow(ctx, id);
   }
 
   /**
@@ -600,20 +732,29 @@ export class CashRegisterService {
    * filtro isActive. Cuando `country` es null (owner sin filtro) devuelve los de
    * todos los países; si no, acota. Ordenado por name.
    */
-  async listAllCostCenters(country: string | null): Promise<CostCenter[]> {
-    const base = this.db
+  async listAllCostCenters(
+    ctx: TenantContext,
+    country: string | null,
+  ): Promise<CostCenter[]> {
+    // El WHERE dejó de ser condicional: el filtro de gimnasio SIEMPRE va, y el
+    // de país se suma sólo cuando hay país. La rama sin `.where()` de antes es
+    // exactamente la forma en que un listado se escapa del gimnasio.
+    //
+    // El `tenantWhere` va INLINE en la query y no como primer elemento de
+    // `conditions`: el lint razona por STATEMENT y el que nombra la tabla es
+    // este, no el `const conditions` de arriba (hallazgo 172-02/172-04).
+    const conditions =
+      country !== null ? [eq(schema.costCenters.country, country)] : [];
+    return this.db
       .select({
         id: schema.costCenters.id,
         name: schema.costCenters.name,
         country: schema.costCenters.country,
         isActive: schema.costCenters.isActive,
       })
-      .from(schema.costCenters);
-    return country !== null
-      ? base
-          .where(eq(schema.costCenters.country, country))
-          .orderBy(asc(schema.costCenters.name))
-      : base.orderBy(asc(schema.costCenters.name));
+      .from(schema.costCenters)
+      .where(and(tenantWhere(schema.costCenters, ctx), ...conditions))
+      .orderBy(asc(schema.costCenters.name));
   }
 
   // -- Phase 150: ABM de cuentas bancarias (CTA-01 / CTA-02) -----------------
@@ -671,7 +812,10 @@ export class CashRegisterService {
    *
    * @throws NotFoundError cuando no existe o no es una caja type='banco'.
    */
-  private async getBankAccountRow(id: number): Promise<BankAccountRow> {
+  private async getBankAccountRow(
+    ctx: TenantContext,
+    id: number,
+  ): Promise<BankAccountRow> {
     const [caja] = await this.db
       .select({
         id: schema.cashRegisters.id,
@@ -687,12 +831,17 @@ export class CashRegisterService {
         accountNumber: schema.cashRegisters.accountNumber,
       })
       .from(schema.cashRegisters)
-      .where(eq(schema.cashRegisters.id, id))
+      .where(
+        and(
+          tenantWhere(schema.cashRegisters, ctx),
+          eq(schema.cashRegisters.id, id),
+        ),
+      )
       .limit(1);
     if (!caja || caja.type !== "banco") {
       throw new NotFoundError(`No existe la cuenta banco ${id}`);
     }
-    const bal = await this.getBalance(id);
+    const bal = await this.getBalance(ctx, id);
     return {
       id: caja.id,
       name: caja.name,
@@ -717,6 +866,7 @@ export class CashRegisterService {
    * @throws BadRequestError cuando faltan CBU/CVU y Alias (regla uno-de-dos).
    */
   async createBankAccount(
+    ctx: TenantContext,
     input: CreateBankAccountInput,
   ): Promise<BankAccountRow> {
     const bankName = input.bankName.trim();
@@ -735,26 +885,32 @@ export class CashRegisterService {
       accountNumber,
     );
 
-    const inserted = await this.db.insert(schema.cashRegisters).values({
-      name,
-      type: "banco",
-      branchId: null,
-      currency: input.currency,
-      bankName,
-      accountHolder,
-      taxId,
-      cbuCvu,
-      accountAlias,
-      accountNumber,
-      openingBalance: 0,
-      cutoffDate: this.today(),
-    });
+    // `tenantValues` va por fuera del literal (no dentro): el gimnasio se
+    // estampa DESPUÉS del spread, así que ningún campo del input puede pisarlo.
+    // Los enums de Drizzle (`type: "banco"`) compilan igual — no hace falta
+    // `as const` (hallazgo 169-07).
+    const inserted = await this.db.insert(schema.cashRegisters).values(
+      tenantValues(ctx, {
+        name,
+        type: "banco",
+        branchId: null,
+        currency: input.currency,
+        bankName,
+        accountHolder,
+        taxId,
+        cbuCvu,
+        accountAlias,
+        accountNumber,
+        openingBalance: 0,
+        cutoffDate: this.today(),
+      }),
+    );
     const id = Number(inserted[0].insertId);
     this.log.info(
-      { cashRegisterId: id, currency: input.currency },
+      { cashRegisterId: id, currency: input.currency, tenantId: ctx.tenantId },
       "Cuenta banco creada",
     );
-    return this.getBankAccountRow(id);
+    return this.getBankAccountRow(ctx, id);
   }
 
   /**
@@ -815,11 +971,17 @@ export class CashRegisterService {
       throw new BadRequestError("El saldo inicial no puede ser negativo");
     }
 
+    // El invariante "una caja efectivo activa por (sucursal, moneda)" es POR
+    // GIMNASIO: sin este filtro, la caja de otro gimnasio en la misma sucursal
+    // bloquearía el alta con un 409 que además delata su existencia. Hasta la
+    // fase 172 este SELECT era el contraejemplo canónico de "el método tiene ctx
+    // en la firma pero NO está migrado" (riesgo 3 del PATTERNS).
     const [existing] = await this.db
       .select({ id: schema.cashRegisters.id })
       .from(schema.cashRegisters)
       .where(
         and(
+          tenantWhere(schema.cashRegisters, ctx),
           eq(schema.cashRegisters.type, "efectivo"),
           eq(schema.cashRegisters.branchId, input.branchId),
           eq(schema.cashRegisters.currency, input.currency),
@@ -834,14 +996,16 @@ export class CashRegisterService {
     }
 
     const name = `Efectivo ${branch.name}`;
-    const inserted = await this.db.insert(schema.cashRegisters).values({
-      name,
-      type: "efectivo",
-      branchId: input.branchId,
-      currency: input.currency,
-      openingBalance,
-      cutoffDate: this.today(),
-    });
+    const inserted = await this.db.insert(schema.cashRegisters).values(
+      tenantValues(ctx, {
+        name,
+        type: "efectivo",
+        branchId: input.branchId,
+        currency: input.currency,
+        openingBalance,
+        cutoffDate: this.today(),
+      }),
+    );
     const id = Number(inserted[0].insertId);
     this.log.info(
       {
@@ -853,7 +1017,7 @@ export class CashRegisterService {
       "Caja efectivo creada",
     );
 
-    const bal = await this.getBalance(id);
+    const bal = await this.getBalance(ctx, id);
     return {
       cashRegisterId: id,
       name,
@@ -877,10 +1041,11 @@ export class CashRegisterService {
    * @throws BadRequestError cuando el estado resultante no tiene CBU/CVU ni Alias.
    */
   async updateBankAccount(
+    ctx: TenantContext,
     id: number,
     input: UpdateBankAccountInput,
   ): Promise<BankAccountRow> {
-    const current = await this.getBankAccountRow(id);
+    const current = await this.getBankAccountRow(ctx, id);
 
     const bankName =
       input.bankName !== undefined
@@ -926,10 +1091,18 @@ export class CashRegisterService {
         accountAlias,
         accountNumber,
       })
-      .where(eq(schema.cashRegisters.id, id));
+      // El SELECT previo ya cortó con 404 si la cuenta es de otro gimnasio; el
+      // filtro va igual en el UPDATE (T-172-06-02: el WHERE de una escritura no
+      // se apoya en una lectura anterior).
+      .where(
+        and(
+          tenantWhere(schema.cashRegisters, ctx),
+          eq(schema.cashRegisters.id, id),
+        ),
+      );
 
     this.log.info({ cashRegisterId: id }, "Cuenta banco actualizada");
-    return this.getBankAccountRow(id);
+    return this.getBankAccountRow(ctx, id);
   }
 
   /**
@@ -940,12 +1113,20 @@ export class CashRegisterService {
    *
    * @throws NotFoundError cuando no existe o no es type='banco'.
    */
-  async closeBankAccount(id: number): Promise<{ balance: number }> {
-    const row = await this.getBankAccountRow(id);
+  async closeBankAccount(
+    ctx: TenantContext,
+    id: number,
+  ): Promise<{ balance: number }> {
+    const row = await this.getBankAccountRow(ctx, id);
     await this.db
       .update(schema.cashRegisters)
       .set({ isActive: false })
-      .where(eq(schema.cashRegisters.id, id));
+      .where(
+        and(
+          tenantWhere(schema.cashRegisters, ctx),
+          eq(schema.cashRegisters.id, id),
+        ),
+      );
     this.log.info({ cashRegisterId: id }, "Cuenta banco cerrada (baja lógica)");
     return { balance: row.balance };
   }
@@ -956,14 +1137,22 @@ export class CashRegisterService {
    *
    * @throws NotFoundError cuando no existe o no es type='banco'.
    */
-  async reactivateBankAccount(id: number): Promise<BankAccountRow> {
-    await this.getBankAccountRow(id);
+  async reactivateBankAccount(
+    ctx: TenantContext,
+    id: number,
+  ): Promise<BankAccountRow> {
+    await this.getBankAccountRow(ctx, id);
     await this.db
       .update(schema.cashRegisters)
       .set({ isActive: true })
-      .where(eq(schema.cashRegisters.id, id));
+      .where(
+        and(
+          tenantWhere(schema.cashRegisters, ctx),
+          eq(schema.cashRegisters.id, id),
+        ),
+      );
     this.log.info({ cashRegisterId: id }, "Cuenta banco reactivada");
-    return this.getBankAccountRow(id);
+    return this.getBankAccountRow(ctx, id);
   }
 
   /**
@@ -972,15 +1161,20 @@ export class CashRegisterService {
    * sumado con pendiente — CAJA-03). Compone getBalance por caja (patrón de
    * listActiveCajasWithBalance; a escala de un puñado de cuentas, sin N+1 real).
    */
-  async listBankAccounts(): Promise<BankAccountRow[]> {
+  async listBankAccounts(ctx: TenantContext): Promise<BankAccountRow[]> {
     const cajas = await this.db
       .select({ id: schema.cashRegisters.id })
       .from(schema.cashRegisters)
-      .where(eq(schema.cashRegisters.type, "banco"))
+      .where(
+        and(
+          tenantWhere(schema.cashRegisters, ctx),
+          eq(schema.cashRegisters.type, "banco"),
+        ),
+      )
       .orderBy(asc(schema.cashRegisters.id));
     const out: BankAccountRow[] = [];
     for (const c of cajas) {
-      out.push(await this.getBankAccountRow(c.id));
+      out.push(await this.getBankAccountRow(ctx, c.id));
     }
     return out;
   }

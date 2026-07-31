@@ -59,6 +59,11 @@ import type { GoalPlanType } from "../goal-plans/types";
 import { populateBookings, cancelBookingsInRange } from "./booking-population";
 import { auditLog } from "../shared/audit-log";
 import type { AdminRole } from "../shared/permissions";
+import {
+  tenantValues,
+  tenantWhere,
+  type TenantContext,
+} from "../shared/tenant";
 import { EnrollmentService } from "../programs/enrollment-service";
 import { SettingsService } from "../settings/service";
 import { PRICING_SETTINGS_KEYS } from "../settings/keys";
@@ -484,7 +489,20 @@ export class SubscriptionService {
     );
   }
 
+  /**
+   * Fase 172 (ADO-01 / D-04): el `ctx` va PRIMERO, ANTES del `tx`.
+   *
+   * No es estilo: es la regla 169-06 puesta a trabajar. Cualquier call site
+   * viejo que no lo pase queda con los argumentos CORRIDOS (`tx` en la posición
+   * de `ctx`) y NO COMPILA. Si el parámetro fuera opcional o fuera último, un
+   * caller olvidado seguiría compilando y escribiría el cargo sin gimnasio.
+   *
+   * El gimnasio sale SIEMPRE del servidor: `assertTenant(request.scope, …)` en
+   * las rutas de admin, el `ctx` de `forEachActiveTenant` en los crons, o la
+   * fila de `branches` ya leída en el autorregistro público. Jamás del payload.
+   */
   private async recordAssignmentCharge(
+    ctx: TenantContext,
     tx: TxHandle,
     params: {
       userId: number;
@@ -556,6 +574,7 @@ export class SubscriptionService {
     if (amountReceived > 0) {
       const flowLabel = flowLabelMap[params.flow];
       await this.transactionService.create(
+        ctx,
         {
           memberId: params.userId,
           kind: "plan_charge" as const,
@@ -596,13 +615,20 @@ export class SubscriptionService {
       // explícitamente para que la sub aparezca en Reporte Deudas. Sin
       // este insert, la lazy-seed de BalanceService no dispara hasta el
       // primer cobro y la deuda queda invisible.
-      await tx.insert(schema.balances).values({
-        memberId: params.userId,
-        targetKind: "subscription",
-        targetId: params.subscriptionId,
-        currency: params.planCurrency,
-        amount: params.chargeBase,
-      });
+      //
+      // Fase 172 (T-172-07-02): el saldo nace con el gimnasio del SERVIDOR. El
+      // `tenantId` va DESPUÉS del literal, así que pisa cualquier valor que un
+      // día llegara spreadeado desde un payload — hoy no hay ninguno, y esta es
+      // la forma de que siga siendo cierto sin depender de que alguien mire.
+      await tx.insert(schema.balances).values(
+        tenantValues(ctx, {
+          memberId: params.userId,
+          targetKind: "subscription",
+          targetId: params.subscriptionId,
+          currency: params.planCurrency,
+          amount: params.chargeBase,
+        }),
+      );
     }
 
     if (amountReceived < params.chargeBase) {
@@ -1220,8 +1246,12 @@ export class SubscriptionService {
    *
    * Validates: member exists, plan exists and is active, no existing active/paused
    * subscription, boarding pass eligibility, AURA balance for discount.
+   *
+   * Fase 172 (ADO-01 / D-04): `ctx` PRIMERO — ver el docblock de
+   * {@link recordAssignmentCharge} para el porqué de la posición.
    */
   async assignPlan(
+    ctx: TenantContext,
     userId: number,
     input: AssignPlanInput,
     adminId: number,
@@ -1724,8 +1754,16 @@ export class SubscriptionService {
               voidedAt: schema.financialTransactions.voidedAt,
             })
             .from(schema.financialTransactions)
+            // Fase 172 (T-172-07-03): el gimnasio PRIMERO. Sin este término, un
+            // `appliedMiscChargeId` de otro gimnasio pasaba el guard de
+            // pertenencia sólo si el socio coincidía — y aunque hoy la FK de
+            // `memberId` lo hace improbable, el anticipo que se anula e imputa
+            // sale de una tabla strict y no puede leerse sin nombrar el dueño.
             .where(
-              eq(schema.financialTransactions.id, input.appliedMiscChargeId),
+              and(
+                tenantWhere(schema.financialTransactions, ctx),
+                eq(schema.financialTransactions.id, input.appliedMiscChargeId),
+              ),
             )
             .limit(1);
 
@@ -1755,14 +1793,14 @@ export class SubscriptionService {
           // (1) Anular el anticipo en ESTA tx. voidInTx re-chequea voidedAt y
           // revierte su efecto de balance (un cobro suelto no tiene links, así
           // que el balance del socio queda intacto).
-          await this.transactionService.voidInTx(tx, advance.id, adminId, {
+          await this.transactionService.voidInTx(ctx, tx, advance.id, adminId, {
             reason: "Imputado al alta de plan",
           });
 
           // (2) Recrear el plan_charge con la caja/monto/método del anticipo,
           // vinculado a la nueva sub. Reemplaza al recordAssignmentCharge
           // default — nunca se ejecutan ambos.
-          await this.recordAssignmentCharge(tx, {
+          await this.recordAssignmentCharge(ctx, tx, {
             userId,
             subscriptionId: newSubscriptionId,
             planId: plan.id,
@@ -1786,7 +1824,7 @@ export class SubscriptionService {
           });
           effectiveAmountReceived = advance.amount;
         } else {
-          await this.recordAssignmentCharge(tx, {
+          await this.recordAssignmentCharge(ctx, tx, {
             userId,
             subscriptionId: newSubscriptionId,
             planId: plan.id,
@@ -2669,8 +2707,15 @@ export class SubscriptionService {
    * `actorId` (Phase 111): JWT-authenticated principal sourced at the route
    * layer (request.user.userId). All callers MUST pass it explicitly so the
    * audit row records the real actor (T-111-14 mitigation).
+   *
+   * Fase 172 (ADO-01) — el `ctx` YA BAJA (plan 172-08). El parámetro se agregó
+   * en el plan 172-07 sin usarse todavía; ahora viaja a `_cancelSubscription`,
+   * que es donde viven las dos queries de tablas strict del camino de
+   * cancelación (el guard de cobros vivos sobre `transaction_links` y el
+   * colapso de deuda fantasma sobre `balances`). Las dos las nombran.
    */
   async cancelSubscription(
+    ctx: TenantContext,
     userId: number,
     actorId: number,
     notes?: string | null,
@@ -2708,6 +2753,7 @@ export class SubscriptionService {
     const resolvedSubId = sub.id;
     await this.db.transaction(async (tx) => {
       await this._cancelSubscription(
+        ctx,
         tx,
         userId,
         actorId,
@@ -2757,6 +2803,7 @@ export class SubscriptionService {
    * only void()'s keepMembershipActive=false branch should invoke this directly.
    */
   async _cancelSubscription(
+    ctx: TenantContext,
     tx: TxHandle,
     userId: number,
     actorId: number,
@@ -2825,6 +2872,10 @@ export class SubscriptionService {
         )
         .where(
           and(
+            // Fase 172 (ADO-01 / T-172-08-02): el gimnasio PRIMERO. Sin él, un
+            // link de otro gimnasio apuntando a este targetId bloquearía la
+            // cancelación con un 409 que además delata su existencia.
+            tenantWhere(schema.transactionLinks, ctx),
             eq(schema.transactionLinks.targetKind, "subscription"),
             eq(schema.transactionLinks.targetId, sub.id),
             // Phase 137 (VAL-05) — EXCEPCION DELIBERADA (site #14 de la
@@ -2911,6 +2962,10 @@ export class SubscriptionService {
       .set({ amount: 0, lastRecomputedAt: new Date() })
       .where(
         and(
+          // Fase 172 (ADO-01 / T-172-08-02): el WHERE de una ESCRITURA nombra el
+          // gimnasio por su cuenta, no se apoya en que el SELECT previo haya
+          // cortado. Este UPDATE pisa `amount` a 0 por (memberId, targetId).
+          tenantWhere(schema.balances, ctx),
           eq(schema.balances.memberId, userId),
           eq(schema.balances.targetKind, "subscription"),
           inArray(schema.balances.targetId, targetSubIds),
@@ -3113,6 +3168,7 @@ export class SubscriptionService {
    * 'scheduled', which the daily 00:05 ART cron activates on its startDate.
    */
   async changePlan(
+    ctx: TenantContext,
     userId: number,
     input: AssignPlanInput,
     adminId: number,
@@ -3121,9 +3177,9 @@ export class SubscriptionService {
       input.startMode === "after_current" ||
       input.startDate > todayDateString()
     ) {
-      return this.changePlanAfterCurrent(userId, input, adminId);
+      return this.changePlanAfterCurrent(ctx, userId, input, adminId);
     }
-    return this.changePlanNow(userId, input, adminId);
+    return this.changePlanNow(ctx, userId, input, adminId);
   }
 
   /**
@@ -3131,6 +3187,7 @@ export class SubscriptionService {
    * Cancels any scheduled (early-renewed) subscription first.
    */
   private async changePlanNow(
+    ctx: TenantContext,
     userId: number,
     input: AssignPlanInput,
     adminId: number,
@@ -3487,7 +3544,7 @@ export class SubscriptionService {
         // Net (post-proration) charge persisted inside the same tx as the
         // new subscription. amountReceived defaults to netAmount when the
         // client doesn't supply it (D-13 backward-compat).
-        await this.recordAssignmentCharge(tx, {
+        await this.recordAssignmentCharge(ctx, tx, {
           userId,
           subscriptionId: subId,
           planId: targetPlan.id,
@@ -3593,6 +3650,7 @@ export class SubscriptionService {
    * are generated at scheduling time for the future period.
    */
   private async changePlanAfterCurrent(
+    ctx: TenantContext,
     userId: number,
     input: AssignPlanInput,
     adminId: number,
@@ -3884,7 +3942,7 @@ export class SubscriptionService {
       // ── Atomic charge recording (Phase 107 D-10 / CHARGE-03) ──
       // Scheduled changes charge the full new-plan price now (no proration).
       // Persisted inside the same tx as the scheduled subscription.
-      await this.recordAssignmentCharge(tx, {
+      await this.recordAssignmentCharge(ctx, tx, {
         userId,
         subscriptionId: subId,
         planId: targetPlan.id,
@@ -3941,6 +3999,7 @@ export class SubscriptionService {
    * For fixed plans, copies schedule assignments and generates bookings.
    */
   async renewSubscription(
+    ctx: TenantContext,
     userId: number,
     input: RenewSubscriptionInput,
     adminId: number,
@@ -4403,7 +4462,7 @@ export class SubscriptionService {
       // ── Atomic charge recording (Phase 107 D-10 / CHARGE-03) ──
       // renewBranchId resolved above (out of tx). Charge persisted inside
       // the same tx as the new subscription — rollback on any failure.
-      await this.recordAssignmentCharge(tx, {
+      await this.recordAssignmentCharge(ctx, tx, {
         userId,
         subscriptionId: subId,
         planId: plan.id,

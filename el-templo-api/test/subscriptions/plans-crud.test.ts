@@ -17,6 +17,16 @@ import {
 } from "./_helpers";
 import { programs } from "../../src/db/schema/micro-programs";
 import * as schema from "../../src/db/schema";
+import { tenantWhere } from "../../src/modules/shared/tenant";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+
+/**
+ * 172-15: `TEMPLO_CTX` es el gimnasio de este archivo. Las queries directas de
+ * los tests pasan por `app.dbPool` igual que las de la app, asi que con
+ * `finance` en `TENANT_STRICT_MODULES` una lectura o una siembra sobre las
+ * tablas strict sin gimnasio hace throw antes de llegar a MySQL.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 /**
  * Insert an active, OTORGABLE program directly via DB. Returns its id.
@@ -712,7 +722,12 @@ describe("Subscriptions API — Plans CRUD", () => {
       const [txBefore] = await app.db
         .select()
         .from(schema.financialTransactions)
-        .where(eq(schema.financialTransactions.memberId, member1.id));
+        .where(
+          and(
+            tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+            eq(schema.financialTransactions.memberId, member1.id),
+          ),
+        );
       expect(txBefore.amount).toBe(10000);
 
       // Bump the plan price (inflation).
@@ -738,7 +753,12 @@ describe("Subscriptions API — Plans CRUD", () => {
       const [txAfter] = await app.db
         .select()
         .from(schema.financialTransactions)
-        .where(eq(schema.financialTransactions.memberId, member1.id));
+        .where(
+          and(
+            tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+            eq(schema.financialTransactions.memberId, member1.id),
+          ),
+        );
       expect(txAfter.amount).toBe(10000);
 
       // (c) A NEW assignment (different member) uses the NEW price.

@@ -34,6 +34,16 @@ import {
   registerUser,
 } from "../helpers";
 import * as schema from "../../src/db/schema";
+import { tenantValues } from "../../src/modules/shared/tenant";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+
+/**
+ * 172-15: `TEMPLO_CTX` es el gimnasio de este archivo. Las queries directas de
+ * los tests pasan por `app.dbPool` igual que las de la app, asi que con
+ * `finance` en `TENANT_STRICT_MODULES` una lectura o una siembra sobre las
+ * tablas strict sin gimnasio hace throw antes de llegar a MySQL.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 const REPORTS_URL = "/api/admin/reports";
 
@@ -283,14 +293,16 @@ async function seedSubscriptionWithBalance(
 
   const createdOffset =
     opts.balanceCreatedOffsetDays ?? opts.startDateOffsetDays;
-  await opts.app.db.insert(schema.balances).values({
-    memberId,
-    targetKind: "subscription",
-    targetId: subscriptionId,
-    currency: opts.planCurrency,
-    amount: opts.amount,
-    createdAt: new Date(dateOffset(createdOffset) + "T00:00:00Z"),
-  });
+  await opts.app.db.insert(schema.balances).values(
+    tenantValues(TEMPLO_CTX, {
+      memberId,
+      targetKind: "subscription",
+      targetId: subscriptionId,
+      currency: opts.planCurrency,
+      amount: opts.amount,
+      createdAt: new Date(dateOffset(createdOffset) + "T00:00:00Z"),
+    }),
+  );
 
   return { memberId, subscriptionId, startDate, endDate };
 }
@@ -333,40 +345,46 @@ async function seedDebtBalanceWithOrigin(opts: {
 
   const [tx] = await opts.app.db
     .insert(schema.financialTransactions)
-    .values({
-      memberId,
-      kind: "advance_payment",
-      direction: "inflow",
-      amount: opts.amount,
-      currency,
-      paymentMethod: "cash",
-      transactionDate: dateOffset(-3),
-      effectiveDate: dateOffset(-3),
-      branchId: opts.branchId,
-      recordedBy: opts.recordedBy,
-      miscReason: opts.miscReason,
-      notes: opts.notes,
-      voidedAt: opts.voided ? new Date() : null,
-    })
+    .values(
+      tenantValues(TEMPLO_CTX, {
+        memberId,
+        kind: "advance_payment",
+        direction: "inflow",
+        amount: opts.amount,
+        currency,
+        paymentMethod: "cash",
+        transactionDate: dateOffset(-3),
+        effectiveDate: dateOffset(-3),
+        branchId: opts.branchId,
+        recordedBy: opts.recordedBy,
+        miscReason: opts.miscReason,
+        notes: opts.notes,
+        voidedAt: opts.voided ? new Date() : null,
+      }),
+    )
     .$returningId();
 
   const [balance] = await opts.app.db
     .insert(schema.balances)
-    .values({
-      memberId,
-      targetKind: "debt_balance",
-      targetId,
-      currency,
-      amount: opts.amount,
-    })
+    .values(
+      tenantValues(TEMPLO_CTX, {
+        memberId,
+        targetKind: "debt_balance",
+        targetId,
+        currency,
+        amount: opts.amount,
+      }),
+    )
     .$returningId();
 
-  await opts.app.db.insert(schema.transactionLinks).values({
-    transactionId: tx.id,
-    targetKind: "debt_balance",
-    targetId,
-    allocatedAmount: opts.amount,
-  });
+  await opts.app.db.insert(schema.transactionLinks).values(
+    tenantValues(TEMPLO_CTX, {
+      transactionId: tx.id,
+      targetKind: "debt_balance",
+      targetId,
+      allocatedAmount: opts.amount,
+    }),
+  );
 
   return { memberId, balanceId: balance.id, targetId, txId: tx.id };
 }
@@ -391,29 +409,33 @@ async function addAdvancePaymentToDebt(opts: {
   const currency = opts.currency ?? "ARS";
   const [tx] = await opts.app.db
     .insert(schema.financialTransactions)
-    .values({
-      memberId: opts.memberId,
-      kind: "advance_payment",
-      direction: "inflow",
-      amount: opts.amount,
-      currency,
-      paymentMethod: "cash",
-      transactionDate: dateOffset(-2),
-      effectiveDate: dateOffset(-2),
-      branchId: opts.branchId,
-      recordedBy: opts.recordedBy,
-      miscReason: opts.miscReason,
-      notes: opts.notes,
-      voidedAt: opts.voided ? new Date() : null,
-    })
+    .values(
+      tenantValues(TEMPLO_CTX, {
+        memberId: opts.memberId,
+        kind: "advance_payment",
+        direction: "inflow",
+        amount: opts.amount,
+        currency,
+        paymentMethod: "cash",
+        transactionDate: dateOffset(-2),
+        effectiveDate: dateOffset(-2),
+        branchId: opts.branchId,
+        recordedBy: opts.recordedBy,
+        miscReason: opts.miscReason,
+        notes: opts.notes,
+        voidedAt: opts.voided ? new Date() : null,
+      }),
+    )
     .$returningId();
 
-  await opts.app.db.insert(schema.transactionLinks).values({
-    transactionId: tx.id,
-    targetKind: "debt_balance",
-    targetId: opts.targetId,
-    allocatedAmount: opts.amount,
-  });
+  await opts.app.db.insert(schema.transactionLinks).values(
+    tenantValues(TEMPLO_CTX, {
+      transactionId: tx.id,
+      targetKind: "debt_balance",
+      targetId: opts.targetId,
+      allocatedAmount: opts.amount,
+    }),
+  );
 
   return tx.id;
 }
@@ -440,13 +462,15 @@ async function seedDebtBalance(opts: {
   const syntheticTargetId = Math.floor(Math.random() * 1_000_000) + 1;
   const [inserted] = await opts.app.db
     .insert(schema.balances)
-    .values({
-      memberId,
-      targetKind: "debt_balance",
-      targetId: syntheticTargetId,
-      currency: opts.currency ?? "ARS",
-      amount: opts.amount,
-    })
+    .values(
+      tenantValues(TEMPLO_CTX, {
+        memberId,
+        targetKind: "debt_balance",
+        targetId: syntheticTargetId,
+        currency: opts.currency ?? "ARS",
+        amount: opts.amount,
+      }),
+    )
     .$returningId();
   return { memberId, balanceId: inserted.id };
 }
@@ -455,9 +479,19 @@ async function clearLedger(app: FastifyInstance): Promise<void> {
   const conn = await app.dbPool.getConnection();
   try {
     await conn.query("SET FOREIGN_KEY_CHECKS=0");
-    await conn.query("DELETE FROM `transaction_links`");
-    await conn.query("DELETE FROM `financial_transactions`");
-    await conn.query("DELETE FROM `balances`");
+    // 172-15: los DELETE crudos se ACOTAN al gimnasio. Corren sobre una conexion
+    // cruda de `app.dbPool` —una de las tres puertas que el sentinel intercepta—,
+    // asi que sin `tenant_id` hacen throw con `finance` en TENANT_STRICT_MODULES.
+    await conn.query("DELETE FROM `transaction_links` WHERE tenant_id = ?", [
+      TENANT_TEMPLO,
+    ]);
+    await conn.query(
+      "DELETE FROM `financial_transactions` WHERE tenant_id = ?",
+      [TENANT_TEMPLO],
+    );
+    await conn.query("DELETE FROM `balances` WHERE tenant_id = ?", [
+      TENANT_TEMPLO,
+    ]);
     await conn.query("SET FOREIGN_KEY_CHECKS=1");
   } finally {
     conn.release();
@@ -1069,13 +1103,15 @@ describe("Reports API — GET /outstanding-balances (Phase 109-02)", () => {
         priceTypeApplied: "regular",
       })
       .$returningId();
-    await app.db.insert(schema.balances).values({
-      memberId: memberZeroId,
-      targetKind: "subscription",
-      targetId: zeroSub.id,
-      currency: "ARS",
-      amount: 0,
-    });
+    await app.db.insert(schema.balances).values(
+      tenantValues(TEMPLO_CTX, {
+        memberId: memberZeroId,
+        targetKind: "subscription",
+        targetId: zeroSub.id,
+        currency: "ARS",
+        amount: 0,
+      }),
+    );
 
     const res = await app.inject({
       method: "GET",

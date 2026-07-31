@@ -63,6 +63,8 @@ import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { applyScope } from "./scope";
 import { rangeConditions } from "./cohorts";
+// Path directo, NUNCA por el barrel `shared/index.ts` (fase 169).
+import { tenantWhere, type TenantContext } from "../shared/tenant";
 import { metricShape, median } from "./metric-shape";
 import { deriveDurationTier, type DurationTier } from "./duration-tier";
 import type {
@@ -179,11 +181,18 @@ export class TicketService {
    * The full ticket payload (TICKET-01..04). Reads the linked membership charges
    * and the bare in-period `plan_charge` universe (for `excludedNoLink`), then
    * folds both into the per-currency blocks.
+   *
+   * `ctx` PRIMERO (regla 169-06). Fase 172 (D-01): las DOS consultas leen
+   * `financial_transactions` y la primera además joinea `transaction_links` —
+   * las dos son tablas strict de `finance`, así que el gimnasio viaja a ambas.
    */
-  async getTicket(filters: AnalyticsFilters): Promise<TicketAnalytics> {
+  async getTicket(
+    ctx: TenantContext,
+    filters: AnalyticsFilters,
+  ): Promise<TicketAnalytics> {
     const [charges, universeByCurrency] = await Promise.all([
-      this.linkedCharges(filters),
-      this.universeCountByCurrency(filters),
+      this.linkedCharges(ctx, filters),
+      this.universeCountByCurrency(ctx, filters),
     ]);
 
     const accByCurrency = new Map<Currency, CurrencyAcc>([
@@ -426,7 +435,10 @@ export class TicketService {
    * (NOT `ft.amount`). Branch axis name comes from the joined `branches` row; the
    * join is unconditional here because the branch breakdown always needs the name.
    */
-  private async linkedCharges(filters: AnalyticsFilters): Promise<ChargeRow[]> {
+  private async linkedCharges(
+    ctx: TenantContext,
+    filters: AnalyticsFilters,
+  ): Promise<ChargeRow[]> {
     const { conditions: scopeConditions } = applyScope({
       branchId: filters.branchId,
       country: filters.country,
@@ -496,7 +508,17 @@ export class TicketService {
         schema.branches,
         eq(schema.branches.id, schema.financialTransactions.branchId),
       )
-      .where(and(...conditions));
+      // DOS `tenantWhere`, uno por tabla strict presente en el statement: el
+      // sentinel exige el literal `tenant_id` por CADA tabla migrada que aparece
+      // en la query, y un join entre dos tablas de plata scopeando sólo una deja
+      // el otro lado sin filtrar (T-172-02-03).
+      .where(
+        and(
+          tenantWhere(schema.financialTransactions, ctx),
+          tenantWhere(schema.transactionLinks, ctx),
+          ...conditions,
+        ),
+      );
 
     return rows.map((r) => ({
       currency: String(r.currency),
@@ -520,6 +542,7 @@ export class TicketService {
    * canonical filter + scope + range as `linkedCharges`, but NO link join.
    */
   private async universeCountByCurrency(
+    ctx: TenantContext,
     filters: AnalyticsFilters,
   ): Promise<Map<Currency, number>> {
     const { conditions: scopeConditions, needsBranchJoin } = applyScope({
@@ -540,11 +563,16 @@ export class TicketService {
       // D-11: excluir del UNIVERSO los cargos ligados a un pase especial, para que
       // el conteo case con `linkedCharges` (que ya excluye especial) y no inflen
       // `excludedNoLink`. Esta query no joinea planes → NOT EXISTS por link.
+      // Fase 172 (D-01): `transaction_links` es tabla strict y acá se nombra en
+      // un `sql` crudo, donde la convención lockeada es el literal
+      // `tenant_id = ${ctx.tenantId}` (shared/tenant.ts:20). Va PRIMERO en el
+      // WHERE de la subconsulta, antes de la correlación.
       sql`NOT EXISTS (
         SELECT 1 FROM transaction_links tl
         JOIN subscriptions s ON s.id = tl.target_id AND tl.target_kind = 'subscription'
         JOIN subscription_plans sp ON sp.id = s.plan_id
-        WHERE tl.transaction_id = financial_transactions.id
+        WHERE tl.tenant_id = ${ctx.tenantId}
+          AND tl.transaction_id = financial_transactions.id
           AND sp.plan_category = 'especial'
       )`,
       ...scopeConditions,
@@ -555,12 +583,18 @@ export class TicketService {
       ),
     ];
 
+    // El WHERE se arma JUNTO al `from` (y no después del join condicional) para
+    // que el statement que nombra `financial_transactions` sea el mismo que
+    // nombra el gimnasio. `$dynamic()` desactiva el orden fijo del builder, y
+    // Drizzle ensambla el SQL desde la config: el `innerJoin` de abajo entra en
+    // el FROM igual, se haya encadenado antes o después del `where`.
     let query = this.db
       .select({
         currency: schema.financialTransactions.currency,
         count: sql<number>`COUNT(*)`,
       })
       .from(schema.financialTransactions)
+      .where(and(tenantWhere(schema.financialTransactions, ctx), ...conditions))
       .$dynamic();
 
     if (needsBranchJoin) {
@@ -570,9 +604,7 @@ export class TicketService {
       );
     }
 
-    const rows = await query
-      .where(and(...conditions))
-      .groupBy(schema.financialTransactions.currency);
+    const rows = await query.groupBy(schema.financialTransactions.currency);
 
     const out = new Map<Currency, number>([
       ["ARS", 0],

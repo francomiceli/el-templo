@@ -20,6 +20,7 @@ import { MySql2Database } from "drizzle-orm/mysql2";
 import { eq, and, gt, inArray, sql, type SQL } from "drizzle-orm";
 import * as schema from "../../db/schema";
 import { buildMemberNameSearchCondition } from "../shared/member-search";
+import { tenantWhere, type TenantContext } from "../shared/tenant";
 import type {
   CoachOutstandingBalanceRow,
   CoachOutstandingBalancesFilters,
@@ -36,7 +37,16 @@ type CoachScope = {
 export class CoachService {
   constructor(private readonly db: MySql2Database<typeof schema>) {}
 
+  /**
+   * Fase 172 (ADO-01): `ctx` es el PRIMER parámetro y llega desde
+   * `assertTenant(request.scope, "coach.outstanding-balances")`. Va delante de
+   * `scope` a propósito: `CoachScope` (rol/país/sucursales) resuelve QUÉ SUBSET
+   * del gimnasio ve este profe, mientras que `ctx` resuelve DE QUÉ GIMNASIO son
+   * los datos. Son dos preguntas distintas y la segunda no es negociable, así
+   * que se responde primero.
+   */
   async getOutstandingBalances(
+    ctx: TenantContext,
     filters: CoachOutstandingBalancesFilters,
     scope: CoachScope,
   ): Promise<CoachOutstandingBalancesResult> {
@@ -73,7 +83,11 @@ export class CoachService {
       })
       .from(schema.balances)
       .innerJoin(schema.users, eq(schema.users.id, schema.balances.memberId))
-      .where(and(...conds))
+      // El filtro de gimnasio se escribe ACÁ y no como primer elemento de
+      // `conds`: el SQL sale idéntico (primer término del WHERE en los dos
+      // casos), pero el lint de tenancy razona por STATEMENT (hallazgo 172-02)
+      // y el statement que nombra `balances` es ÉSTE, no el del array.
+      .where(and(tenantWhere(schema.balances, ctx), ...conds))
       .groupBy(
         schema.balances.memberId,
         schema.users.firstName,

@@ -39,6 +39,7 @@ import {
   todayStr,
 } from "./_helpers";
 import * as schema from "../../src/db/schema";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 import { SubscriptionService } from "../../src/modules/subscriptions/service";
 import { AuraService } from "../../src/modules/aura";
 import {
@@ -48,6 +49,15 @@ import {
 } from "../../src/modules/finance";
 import { BookingService } from "../../src/modules/scheduling/booking-service";
 import { NotificationService } from "../../src/modules/notifications/service";
+import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
+
+/**
+ * 172-15: `TEMPLO_CTX` es el gimnasio de este archivo. Las queries directas de
+ * los tests pasan por `app.dbPool` igual que las de la app, asi que con
+ * `finance` en `TENANT_STRICT_MODULES` una lectura o una siembra sobre las
+ * tablas strict sin gimnasio hace throw antes de llegar a MySQL.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 describe("Phase 146 — Imputar cobro suelto al asignar plan (COBRO-03/04)", () => {
   let app: FastifyInstance;
@@ -79,6 +89,7 @@ describe("Phase 146 — Imputar cobro suelto al asignar plan (COBRO-03/04)", () 
       .from(schema.cashRegisters)
       .where(
         and(
+          tenantWhere(schema.cashRegisters, TEMPLO_CTX),
           eq(schema.cashRegisters.type, "efectivo"),
           eq(schema.cashRegisters.branchId, 1),
         ),
@@ -98,23 +109,25 @@ describe("Phase 146 — Imputar cobro suelto al asignar plan (COBRO-03/04)", () 
   }): Promise<number> {
     const [res] = await app.db
       .insert(schema.financialTransactions)
-      .values({
-        memberId: opts.memberId,
-        kind: "advance_payment",
-        direction: "inflow",
-        amount: opts.amount,
-        currency: "ARS",
-        paymentMethod: opts.paymentMethod ?? "transfer",
-        transactionDate: todayStr(),
-        effectiveDate: todayStr(),
-        branchId: 1,
-        cashRegisterId:
-          opts.cashRegisterId === undefined ? cajaId : opts.cashRegisterId,
-        recordedBy: adminId,
-        validationStatus: opts.validationStatus ?? "pendiente",
-        miscReason: "otro",
-        notes: "Cobro suelto de prueba",
-      })
+      .values(
+        tenantValues(TEMPLO_CTX, {
+          memberId: opts.memberId,
+          kind: "advance_payment",
+          direction: "inflow",
+          amount: opts.amount,
+          currency: "ARS",
+          paymentMethod: opts.paymentMethod ?? "transfer",
+          transactionDate: todayStr(),
+          effectiveDate: todayStr(),
+          branchId: 1,
+          cashRegisterId:
+            opts.cashRegisterId === undefined ? cajaId : opts.cashRegisterId,
+          recordedBy: adminId,
+          validationStatus: opts.validationStatus ?? "pendiente",
+          miscReason: "otro",
+          notes: "Cobro suelto de prueba",
+        }),
+      )
       .$returningId();
     return res.id;
   }
@@ -126,6 +139,7 @@ describe("Phase 146 — Imputar cobro suelto al asignar plan (COBRO-03/04)", () 
       .from(schema.transactionLinks)
       .where(
         and(
+          tenantWhere(schema.transactionLinks, TEMPLO_CTX),
           eq(schema.transactionLinks.targetKind, "subscription"),
           eq(schema.transactionLinks.targetId, subId),
         ),
@@ -136,6 +150,7 @@ describe("Phase 146 — Imputar cobro suelto al asignar plan (COBRO-03/04)", () 
       .from(schema.financialTransactions)
       .where(
         and(
+          tenantWhere(schema.financialTransactions, TEMPLO_CTX),
           inArray(
             schema.financialTransactions.id,
             linkRows.map((l) => l.transactionId),
@@ -170,7 +185,12 @@ describe("Phase 146 — Imputar cobro suelto al asignar plan (COBRO-03/04)", () 
     const [advance] = await app.db
       .select()
       .from(schema.financialTransactions)
-      .where(eq(schema.financialTransactions.id, advanceId))
+      .where(
+        and(
+          tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+          eq(schema.financialTransactions.id, advanceId),
+        ),
+      )
       .limit(1);
     expect(advance?.voidedAt).not.toBeNull();
     expect(advance?.voidReason).toBe("Imputado al alta de plan");
@@ -181,6 +201,7 @@ describe("Phase 146 — Imputar cobro suelto al asignar plan (COBRO-03/04)", () 
       .from(schema.financialTransactions)
       .where(
         and(
+          tenantWhere(schema.financialTransactions, TEMPLO_CTX),
           eq(schema.financialTransactions.memberId, member.id),
           eq(schema.financialTransactions.kind, "plan_charge"),
         ),
@@ -201,6 +222,7 @@ describe("Phase 146 — Imputar cobro suelto al asignar plan (COBRO-03/04)", () 
       .from(schema.balances)
       .where(
         and(
+          tenantWhere(schema.balances, TEMPLO_CTX),
           eq(schema.balances.memberId, member.id),
           eq(schema.balances.targetKind, "subscription"),
           eq(schema.balances.targetId, subId),
@@ -235,7 +257,12 @@ describe("Phase 146 — Imputar cobro suelto al asignar plan (COBRO-03/04)", () 
     const [advance] = await app.db
       .select()
       .from(schema.financialTransactions)
-      .where(eq(schema.financialTransactions.id, advanceId))
+      .where(
+        and(
+          tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+          eq(schema.financialTransactions.id, advanceId),
+        ),
+      )
       .limit(1);
     expect(advance?.voidedAt).toBeNull();
     expect(advance?.validationStatus).toBe("pendiente");
@@ -252,6 +279,7 @@ describe("Phase 146 — Imputar cobro suelto al asignar plan (COBRO-03/04)", () 
       .from(schema.financialTransactions)
       .where(
         and(
+          tenantWhere(schema.financialTransactions, TEMPLO_CTX),
           eq(schema.financialTransactions.memberId, member.id),
           eq(schema.financialTransactions.kind, "plan_charge"),
         ),
@@ -284,7 +312,12 @@ describe("Phase 146 — Imputar cobro suelto al asignar plan (COBRO-03/04)", () 
     const [advance] = await app.db
       .select()
       .from(schema.financialTransactions)
-      .where(eq(schema.financialTransactions.id, advanceId))
+      .where(
+        and(
+          tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+          eq(schema.financialTransactions.id, advanceId),
+        ),
+      )
       .limit(1);
     expect(advance?.voidedAt).toBeNull();
 
@@ -336,11 +369,14 @@ describe("Phase 146 — Imputar cobro suelto al asignar plan (COBRO-03/04)", () 
     // create posterior del plan_charge dispara el throw → rollback total.
     const failingBalance = new BalanceService(app.db, app.log);
     const realApplyDelta = failingBalance.applyDelta.bind(failingBalance);
-    failingBalance.applyDelta = async (tx, row, links, sign) => {
+    // Fase 172: `applyDelta` recibe el `ctx` como PRIMER parámetro, antes del
+    // `tx`. El mock es POSICIONAL, así que si no se corre el argumento el `row`
+    // pasa a ser el `tx` y el `if` de abajo deja de disparar en silencio.
+    failingBalance.applyDelta = async (ctx, tx, row, links, sign) => {
       if (row.kind === "plan_charge") {
         throw new Error("simulated post-void failure");
       }
-      return realApplyDelta(tx, row, links, sign);
+      return realApplyDelta(ctx, tx, row, links, sign);
     };
     const cashRegisterSvc = new CashRegisterService(app.db, app.log);
     const txSvc = new TransactionService(
@@ -357,6 +393,7 @@ describe("Phase 146 — Imputar cobro suelto al asignar plan (COBRO-03/04)", () 
 
     await expect(
       subSvc.assignPlan(
+        { tenantId: TENANT_TEMPLO },
         member.id,
         {
           planId: plan.id,
@@ -374,7 +411,12 @@ describe("Phase 146 — Imputar cobro suelto al asignar plan (COBRO-03/04)", () 
     const [advance] = await app.db
       .select()
       .from(schema.financialTransactions)
-      .where(eq(schema.financialTransactions.id, advanceId))
+      .where(
+        and(
+          tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+          eq(schema.financialTransactions.id, advanceId),
+        ),
+      )
       .limit(1);
     expect(advance?.voidedAt).toBeNull();
     expect(advance?.validationStatus).toBe("pendiente");
@@ -391,6 +433,7 @@ describe("Phase 146 — Imputar cobro suelto al asignar plan (COBRO-03/04)", () 
       .from(schema.financialTransactions)
       .where(
         and(
+          tenantWhere(schema.financialTransactions, TEMPLO_CTX),
           eq(schema.financialTransactions.memberId, member.id),
           eq(schema.financialTransactions.kind, "plan_charge"),
         ),

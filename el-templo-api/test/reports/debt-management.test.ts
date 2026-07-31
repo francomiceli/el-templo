@@ -21,7 +21,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import {
   createTestApp,
@@ -32,12 +32,17 @@ import {
 } from "../helpers";
 import * as schema from "../../src/db/schema";
 import { BalanceService } from "../../src/modules/finance/balance-service";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 import type {
   FinancialTransactionRow,
   TransactionLinkRow,
 } from "../../src/modules/finance/types";
+import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
 
 const REPORTS_URL = "/api/admin/reports";
+
+// El gimnasio sale del fixture, nunca de un `1` a mano (T-172-09-04).
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 interface Ctx {
   arBranchId: number;
@@ -170,16 +175,18 @@ async function seedDebt(opts: {
 
   const [bal] = await opts.app.db
     .insert(schema.balances)
-    .values({
-      memberId,
-      targetKind: "subscription",
-      targetId: sub.id,
-      currency: "ARS",
-      amount: opts.amount,
-      createdAt: new Date(
-        dateOffset(opts.createdOffsetDays ?? -10) + "T00:00:00Z",
-      ),
-    })
+    .values(
+      tenantValues(TEMPLO_CTX, {
+        memberId,
+        targetKind: "subscription",
+        targetId: sub.id,
+        currency: "ARS",
+        amount: opts.amount,
+        createdAt: new Date(
+          dateOffset(opts.createdOffsetDays ?? -10) + "T00:00:00Z",
+        ),
+      }),
+    )
     .$returningId();
 
   return { memberId, subscriptionId: sub.id, balanceId: bal.id };
@@ -225,10 +232,22 @@ async function clearLedger(app: FastifyInstance): Promise<void> {
   const conn = await app.dbPool.getConnection();
   try {
     await conn.query("SET FOREIGN_KEY_CHECKS=0");
-    await conn.query("DELETE FROM `debt_management`");
-    await conn.query("DELETE FROM `transaction_links`");
-    await conn.query("DELETE FROM `financial_transactions`");
-    await conn.query("DELETE FROM `balances`");
+    // 172-15: los DELETE crudos se ACOTAN al gimnasio. Corren sobre una conexion
+    // cruda de `app.dbPool` —una de las tres puertas que el sentinel intercepta—,
+    // asi que sin `tenant_id` hacen throw con `finance` en TENANT_STRICT_MODULES.
+    await conn.query("DELETE FROM `debt_management` WHERE tenant_id = ?", [
+      TENANT_TEMPLO,
+    ]);
+    await conn.query("DELETE FROM `transaction_links` WHERE tenant_id = ?", [
+      TENANT_TEMPLO,
+    ]);
+    await conn.query(
+      "DELETE FROM `financial_transactions` WHERE tenant_id = ?",
+      [TENANT_TEMPLO],
+    );
+    await conn.query("DELETE FROM `balances` WHERE tenant_id = ?", [
+      TENANT_TEMPLO,
+    ]);
     await conn.query("SET FOREIGN_KEY_CHECKS=1");
   } finally {
     conn.release();
@@ -352,7 +371,12 @@ describe("Gestión de deudas — PATCH management + filtros del listado", () => 
     await app.db
       .update(schema.balances)
       .set({ amount: 0 })
-      .where(eq(schema.balances.id, a.balanceId));
+      .where(
+        and(
+          tenantWhere(schema.balances, TEMPLO_CTX),
+          eq(schema.balances.id, a.balanceId),
+        ),
+      );
     await patchManagement(app, ctx.ownerToken, a.balanceId, {
       status: "cobrada",
     });
@@ -468,39 +492,54 @@ describe("Gestión de deudas — PATCH management + filtros del listado", () => 
     // Pago completo: inflow de 10000 linkeado a la suscripción.
     const [txIns] = await app.db
       .insert(schema.financialTransactions)
-      .values({
-        memberId: debt.memberId,
-        kind: "debt_settlement",
-        direction: "inflow",
-        amount: 10000,
-        currency: "ARS",
-        paymentMethod: "cash",
-        transactionDate: dateOffset(0),
-        effectiveDate: dateOffset(0),
-        branchId: ctx.arBranchId,
-        recordedBy: ctx.ownerId,
-      })
+      .values(
+        tenantValues(TEMPLO_CTX, {
+          memberId: debt.memberId,
+          kind: "debt_settlement",
+          direction: "inflow",
+          amount: 10000,
+          currency: "ARS",
+          paymentMethod: "cash",
+          transactionDate: dateOffset(0),
+          effectiveDate: dateOffset(0),
+          branchId: ctx.arBranchId,
+          recordedBy: ctx.ownerId,
+        }),
+      )
       .$returningId();
-    await app.db.insert(schema.transactionLinks).values({
-      transactionId: txIns.id,
-      targetKind: "subscription",
-      targetId: debt.subscriptionId,
-      allocatedAmount: 10000,
-    });
+    await app.db.insert(schema.transactionLinks).values(
+      tenantValues(TEMPLO_CTX, {
+        transactionId: txIns.id,
+        targetKind: "subscription",
+        targetId: debt.subscriptionId,
+        allocatedAmount: 10000,
+      }),
+    );
 
     const [txRow] = await app.db
       .select()
       .from(schema.financialTransactions)
-      .where(eq(schema.financialTransactions.id, txIns.id))
+      .where(
+        and(
+          tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+          eq(schema.financialTransactions.id, txIns.id),
+        ),
+      )
       .limit(1);
     const linkRows = await app.db
       .select()
       .from(schema.transactionLinks)
-      .where(eq(schema.transactionLinks.transactionId, txIns.id));
+      .where(
+        and(
+          tenantWhere(schema.transactionLinks, TEMPLO_CTX),
+          eq(schema.transactionLinks.transactionId, txIns.id),
+        ),
+      );
 
     const balanceService = new BalanceService(app.db, app.log);
     await app.db.transaction(async (tx) => {
       await balanceService.applyDelta(
+        TEMPLO_CTX,
         tx,
         txRow as FinancialTransactionRow,
         linkRows as TransactionLinkRow[],
@@ -511,7 +550,12 @@ describe("Gestión de deudas — PATCH management + filtros del listado", () => 
     const [dmAfterPay] = await app.db
       .select()
       .from(schema.debtManagement)
-      .where(eq(schema.debtManagement.balanceId, debt.balanceId))
+      .where(
+        and(
+          tenantWhere(schema.debtManagement, TEMPLO_CTX),
+          eq(schema.debtManagement.balanceId, debt.balanceId),
+        ),
+      )
       .limit(1);
     expect(dmAfterPay.status).toBe("cobrada");
     expect(dmAfterPay.notes).toBe("en gestión");
@@ -519,6 +563,7 @@ describe("Gestión de deudas — PATCH management + filtros del listado", () => 
     // Void del pago: la deuda vuelve a > 0 y la gestión a 'activa'.
     await app.db.transaction(async (tx) => {
       await balanceService.applyDelta(
+        TEMPLO_CTX,
         tx,
         txRow as FinancialTransactionRow,
         linkRows as TransactionLinkRow[],
@@ -528,7 +573,12 @@ describe("Gestión de deudas — PATCH management + filtros del listado", () => 
     const [dmAfterVoid] = await app.db
       .select()
       .from(schema.debtManagement)
-      .where(eq(schema.debtManagement.balanceId, debt.balanceId))
+      .where(
+        and(
+          tenantWhere(schema.debtManagement, TEMPLO_CTX),
+          eq(schema.debtManagement.balanceId, debt.balanceId),
+        ),
+      )
       .limit(1);
     expect(dmAfterVoid.status).toBe("activa");
   });

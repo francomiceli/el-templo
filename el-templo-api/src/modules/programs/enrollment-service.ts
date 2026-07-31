@@ -32,6 +32,7 @@ import type { TxHandle } from "../finance/balance-service";
 import type { TransactionService } from "../finance/transaction-service";
 import type { PaymentMethod } from "../finance/types";
 import { auditLog } from "../shared/audit-log";
+import type { TenantContext } from "../shared/tenant";
 import {
   BadRequestError,
   ConflictError,
@@ -317,6 +318,7 @@ export class EnrollmentService {
    * handleServiceError.
    */
   async enrollAddon(
+    ctx: TenantContext,
     userId: number,
     subscriptionId: number,
     input: EnrollAddonInput,
@@ -431,6 +433,7 @@ export class EnrollmentService {
         const today = new Date().toISOString().split("T")[0];
         const amount = input.pricePaid as number;
         await this.transactionService.create(
+          ctx,
           {
             memberId: userId,
             kind: "plan_charge",

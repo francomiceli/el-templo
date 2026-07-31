@@ -41,6 +41,16 @@ import {
   NotFoundError,
 } from "../../src/modules/shared/errors";
 import * as schema from "../../src/db/schema";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
+
+/**
+ * Fase 172 (ADO-01 / T-172-08-04): gimnasio de los call sites DIRECTOS al
+ * service. Sale del fixture, nunca de un `1` a mano. Una sola constante y no
+ * el objeto literal repetido en cada llamada: el dia que un caso ejercite
+ * dos gimnasios, el segundo se agrega al lado y se ve la diferencia.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 const FINANCE_URL = "/api/admin/finance";
 const TODAY = "2026-04-28";
@@ -109,7 +119,12 @@ async function readTx(
       voidedAt: schema.financialTransactions.voidedAt,
     })
     .from(schema.financialTransactions)
-    .where(eq(schema.financialTransactions.id, id))
+    .where(
+      and(
+        eq(schema.financialTransactions.id, id),
+        tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+      ),
+    )
     .limit(1);
   return row;
 }
@@ -124,6 +139,7 @@ async function readSubBalance(): Promise<number | null> {
         eq(schema.balances.memberId, memberId),
         eq(schema.balances.targetKind, "subscription"),
         eq(schema.balances.targetId, subscriptionId),
+        tenantWhere(schema.balances, TEMPLO_CTX),
       ),
     )
     .limit(1);
@@ -203,9 +219,17 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
-  await app.db.execute(sql`DELETE FROM transaction_links`);
-  await app.db.execute(sql`DELETE FROM financial_transactions`);
-  await app.db.execute(sql`DELETE FROM balances`);
+  // 172-14: acotados al gimnasio (regla del 172-13: global a proposito ->
+  // exencion; acotable -> filtro). Este archivo no siembra en otro gimnasio.
+  await app.db.execute(
+    sql`DELETE FROM transaction_links WHERE tenant_id = ${TENANT_TEMPLO}`,
+  );
+  await app.db.execute(
+    sql`DELETE FROM financial_transactions WHERE tenant_id = ${TENANT_TEMPLO}`,
+  );
+  await app.db.execute(
+    sql`DELETE FROM balances WHERE tenant_id = ${TENANT_TEMPLO}`,
+  );
   await app.db.execute(sql`DELETE FROM audit_log`);
   // Reset the subscription to active for each test (some tests cancel it).
   subscriptionId = await seedSubscription();
@@ -215,7 +239,7 @@ describe("validation state machine", () => {
   // ─── VAL-02: role → validation_status derived server-side ────────────────
 
   it("admin create (no validationStatus) → validation_status='validado'", async () => {
-    const tx = await txService.create(baseInput(), adminId);
+    const tx = await txService.create(TEMPLO_CTX, baseInput(), adminId);
     const row = await readTx(tx.id);
     expect(row.validationStatus).toBe("validado");
   });
@@ -225,6 +249,7 @@ describe("validation state machine", () => {
     // so the coach→pendiente DERIVATION is what we assert: a create carrying
     // the server-derived 'pendiente' births a pendiente row.
     const tx = await txService.create(
+      TEMPLO_CTX,
       baseInput({ validationStatus: "pendiente" }),
       adminId,
     );
@@ -236,17 +261,20 @@ describe("validation state machine", () => {
 
   it("VAL-07: a PENDIENTE settles balances (applyDelta NOT tied to status)", async () => {
     // Seed the debt: full price owed.
-    await app.db.insert(schema.balances).values({
-      memberId,
-      targetKind: "subscription",
-      targetId: subscriptionId,
-      currency: "ARS",
-      amount: 1000,
-    });
+    await app.db.insert(schema.balances).values(
+      tenantValues(TEMPLO_CTX, {
+        memberId,
+        targetKind: "subscription" as const,
+        targetId: subscriptionId,
+        currency: "ARS",
+        amount: 1000,
+      }),
+    );
     expect(await readSubBalance()).toBe(1000);
 
     // A PENDIENTE charge for the full amount must still zero the balance.
     await txService.create(
+      TEMPLO_CTX,
       baseInput({ amount: 1000, validationStatus: "pendiente" }),
       adminId,
     );
@@ -257,10 +285,11 @@ describe("validation state machine", () => {
 
   it("validate(): pendiente → validado + transaction_validated audit row", async () => {
     const tx = await txService.create(
+      TEMPLO_CTX,
       baseInput({ validationStatus: "pendiente" }),
       adminId,
     );
-    const result = await txService.validate(tx.id, adminId);
+    const result = await txService.validate(TEMPLO_CTX, tx.id, adminId);
     expect(result.validationStatus).toBe("validado");
     expect((await readTx(tx.id)).validationStatus).toBe("validado");
 
@@ -277,26 +306,27 @@ describe("validation state machine", () => {
   });
 
   it("validate(): rejects a non-pendiente transaction", async () => {
-    const tx = await txService.create(baseInput(), adminId); // born validado
-    await expect(txService.validate(tx.id, adminId)).rejects.toThrow(
-      BadRequestError,
-    );
+    const tx = await txService.create(TEMPLO_CTX, baseInput(), adminId); // born validado
+    await expect(
+      txService.validate(TEMPLO_CTX, tx.id, adminId),
+    ).rejects.toThrow(BadRequestError);
   });
 
   it("validate(): rejects an absent transaction", async () => {
-    await expect(txService.validate(999999, adminId)).rejects.toThrow(
-      NotFoundError,
-    );
+    await expect(
+      txService.validate(TEMPLO_CTX, 999999, adminId),
+    ).rejects.toThrow(NotFoundError);
   });
 
   // ─── VAL-04: observe() ───────────────────────────────────────────────────
 
   it("observe(): pendiente → observado + transaction_observed audit row", async () => {
     const tx = await txService.create(
+      TEMPLO_CTX,
       baseInput({ validationStatus: "pendiente" }),
       adminId,
     );
-    const result = await txService.observe(tx.id, adminId, {
+    const result = await txService.observe(TEMPLO_CTX, tx.id, adminId, {
       reason: "Falta confirmar el monto con el profe",
     });
     expect(result.validationStatus).toBe("observado");
@@ -315,11 +345,12 @@ describe("validation state machine", () => {
 
   it("observe(): requires a reason", async () => {
     const tx = await txService.create(
+      TEMPLO_CTX,
       baseInput({ validationStatus: "pendiente" }),
       adminId,
     );
     await expect(
-      txService.observe(tx.id, adminId, { reason: "  " }),
+      txService.observe(TEMPLO_CTX, tx.id, adminId, { reason: "  " }),
     ).rejects.toThrow(BadRequestError);
   });
 
@@ -327,11 +358,13 @@ describe("validation state machine", () => {
 
   it("correct(): voids original (corregido) and recreates a validado linked via transaction_links", async () => {
     const original = await txService.create(
+      TEMPLO_CTX,
       baseInput({ amount: 1000, validationStatus: "pendiente" }),
       adminId,
     );
 
     const corrected = await txService.correct(
+      TEMPLO_CTX,
       original.id,
       { amount: 1500 },
       adminId,
@@ -356,6 +389,7 @@ describe("validation state machine", () => {
           eq(schema.transactionLinks.transactionId, corrected.id),
           eq(schema.transactionLinks.targetKind, "transaction"),
           eq(schema.transactionLinks.targetId, original.id),
+          tenantWhere(schema.transactionLinks, TEMPLO_CTX),
         ),
       );
     expect(provenance).toHaveLength(1);
@@ -374,26 +408,28 @@ describe("validation state machine", () => {
   });
 
   it("correct(): rejects an already-voided transaction", async () => {
-    const tx = await txService.create(baseInput(), adminId);
-    await txService.void(tx.id, adminId, { reason: "anular" });
+    const tx = await txService.create(TEMPLO_CTX, baseInput(), adminId);
+    await txService.void(TEMPLO_CTX, tx.id, adminId, { reason: "anular" });
     await expect(
-      txService.correct(tx.id, { amount: 2000 }, adminId),
+      txService.correct(TEMPLO_CTX, tx.id, { amount: 2000 }, adminId),
     ).rejects.toThrow(BadRequestError);
   });
 
   // ─── VAL-06: void() + keepMembershipActive ──────────────────────────────
 
   it("VAL-01: a validado transaction can still be voided (orthogonal axes)", async () => {
-    const tx = await txService.create(baseInput(), adminId); // validado
-    const voided = await txService.void(tx.id, adminId, { reason: "error" });
+    const tx = await txService.create(TEMPLO_CTX, baseInput(), adminId); // validado
+    const voided = await txService.void(TEMPLO_CTX, tx.id, adminId, {
+      reason: "error",
+    });
     expect(voided.voidedAt).not.toBeNull();
     // validation_status stays 'validado' — soft-void is a separate axis.
     expect(voided.validationStatus).toBe("validado");
   });
 
   it("void(): keepMembershipActive default true leaves the sub active", async () => {
-    const tx = await txService.create(baseInput(), adminId);
-    await txService.void(tx.id, adminId, { reason: "devolucion" });
+    const tx = await txService.create(TEMPLO_CTX, baseInput(), adminId);
+    await txService.void(TEMPLO_CTX, tx.id, adminId, { reason: "devolucion" });
 
     const [sub] = await app.db
       .select({ status: schema.subscriptions.status })
@@ -404,8 +440,8 @@ describe("validation state machine", () => {
   });
 
   it("void(): keepMembershipActive=false cancels the linked subscription", async () => {
-    const tx = await txService.create(baseInput(), adminId);
-    await txService.void(tx.id, adminId, {
+    const tx = await txService.create(TEMPLO_CTX, baseInput(), adminId);
+    await txService.void(TEMPLO_CTX, tx.id, adminId, {
       reason: "devolucion total",
       keepMembershipActive: false,
     });
@@ -434,6 +470,7 @@ describe("validation state machine", () => {
 
   it("RBAC: coach cannot validate a transaction (403)", async () => {
     const tx = await txService.create(
+      TEMPLO_CTX,
       baseInput({ validationStatus: "pendiente" }),
       adminId,
     );
@@ -447,6 +484,7 @@ describe("validation state machine", () => {
 
   it("RBAC: coach cannot observe a transaction (403)", async () => {
     const tx = await txService.create(
+      TEMPLO_CTX,
       baseInput({ validationStatus: "pendiente" }),
       adminId,
     );
@@ -461,6 +499,7 @@ describe("validation state machine", () => {
 
   it("RBAC: coach cannot correct a transaction (403)", async () => {
     const tx = await txService.create(
+      TEMPLO_CTX,
       baseInput({ validationStatus: "pendiente" }),
       adminId,
     );
@@ -474,7 +513,7 @@ describe("validation state machine", () => {
   });
 
   it("RBAC: coach cannot void a transaction (403)", async () => {
-    const tx = await txService.create(baseInput(), adminId);
+    const tx = await txService.create(TEMPLO_CTX, baseInput(), adminId);
     const res = await app.inject({
       method: "POST",
       url: `${FINANCE_URL}/transactions/${tx.id}/void`,
@@ -488,6 +527,7 @@ describe("validation state machine", () => {
 
   it("admin validates a pendiente over REST → 200 + validado", async () => {
     const tx = await txService.create(
+      TEMPLO_CTX,
       baseInput({ validationStatus: "pendiente" }),
       adminId,
     );

@@ -189,9 +189,10 @@ describe("guard de mass-assignment (D-08)", () => {
     ).toBe(6);
 
     const nombres = SITIOS_QUE_SPREADEAN_EL_BODY.map((s) => s.schemaName);
-    expect(new Set(nombres).size, "hay schemas repetidos en el inventario").toBe(
-      nombres.length,
-    );
+    expect(
+      new Set(nombres).size,
+      "hay schemas repetidos en el inventario",
+    ).toBe(nombres.length);
   });
 });
 
@@ -296,13 +297,20 @@ function unico(): string {
  * un identificador — es seguro porque `TablaInspeccionada` es una unión
  * cerrada de literales y `tsc` rechaza cualquier otra cosa. El id SÍ va
  * parametrizado.
+ *
+ * Fase 172: `financial_transactions` está en la unión y es tabla strict, así que
+ * este SELECT hace throw sin anotación. La exención `tenant-safe:` va EMBEBIDA
+ * en el SQL (único canal que el sentinel lee) y es la salida correcta, no un
+ * escape: filtrar por `tenant_id` acá volvería la aserción TAUTOLÓGICA — el test
+ * pregunta justamente "¿en qué gimnasio nació esta fila?" y una query que ya
+ * asume la respuesta no prueba nada.
  */
 async function tenantDeLaFila(
   tabla: TablaInspeccionada,
   filaId: number,
 ): Promise<number> {
   const resultado = (await app.db.execute(
-    sql`SELECT tenant_id AS tenantId FROM ${sql.raw(tabla)} WHERE id = ${filaId}`,
+    sql`SELECT /* tenant-safe: leer el tenant_id de la fila ES la asercion; filtrar por el volveria el test tautologico */ tenant_id AS tenantId FROM ${sql.raw(tabla)} WHERE id = ${filaId}`,
   )) as unknown as [Array<{ tenantId: number }>];
   const filas = Array.isArray(resultado)
     ? resultado[0]
@@ -585,9 +593,10 @@ describe("batería D-09 — el tenant no viene del borde", () => {
       headers: { authorization: `Bearer ${adminToken}` },
       payload: { name: "Calistenia 169-08", description: "Clase grupal" },
     });
-    expect(actividadRes.statusCode, `seed actividad: ${actividadRes.body}`).toBe(
-      201,
-    );
+    expect(
+      actividadRes.statusCode,
+      `seed actividad: ${actividadRes.body}`,
+    ).toBe(201);
     const actividadId = JSON.parse(actividadRes.body).id as number;
 
     const horarioRes = await app.inject({

@@ -44,6 +44,15 @@ import { activities } from "../../src/db/schema/activities";
 import { users } from "../../src/db/schema/users";
 import { financialTransactions } from "../../src/db/schema/financial-transactions";
 import { transactionLinks } from "../../src/db/schema/transaction-links";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+import { tenantValues } from "../../src/modules/shared/tenant";
+
+/**
+ * Fase 172: `finance` entra en `TENANT_STRICT_MODULES`. El seed de cobro de
+ * este archivo estampa el gimnasio explicito en vez de depender del `DEFAULT 1`
+ * de la columna `tenant_id`.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 const ADMIN_URL = "/api/admin/scheduling";
 const MEMBER_URL = "/api/members/scheduling";
@@ -213,25 +222,29 @@ describe("Phase 155: horarios — simultaneidad + cupo efectivo + ABM cupo", () 
     amount: number,
     subscriptionId: number,
   ): Promise<void> {
-    const [inserted] = await app.db.insert(financialTransactions).values({
-      memberId,
-      kind: "plan_charge",
-      direction: "inflow",
-      amount,
-      currency: "ARS",
-      paymentMethod: "cash",
-      transactionDate: "2026-03-10",
-      effectiveDate: "2026-03-10",
-      branchId: testBranchId,
-      recordedBy: adminUserId,
-    });
+    const [inserted] = await app.db.insert(financialTransactions).values(
+      tenantValues(TEMPLO_CTX, {
+        memberId,
+        kind: "plan_charge",
+        direction: "inflow",
+        amount,
+        currency: "ARS",
+        paymentMethod: "cash",
+        transactionDate: "2026-03-10",
+        effectiveDate: "2026-03-10",
+        branchId: testBranchId,
+        recordedBy: adminUserId,
+      }),
+    );
     const txnId = (inserted as { insertId: number }).insertId;
-    await app.db.insert(transactionLinks).values({
-      transactionId: txnId,
-      targetKind: "subscription",
-      targetId: subscriptionId,
-      allocatedAmount: amount,
-    });
+    await app.db.insert(transactionLinks).values(
+      tenantValues(TEMPLO_CTX, {
+        transactionId: txnId,
+        targetKind: "subscription",
+        targetId: subscriptionId,
+        allocatedAmount: amount,
+      }),
+    );
   }
 
   /**

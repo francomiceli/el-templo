@@ -18,6 +18,10 @@ import {
 import { firmMoneySqlFor } from "../finance/firm-money";
 import { resolveEffectiveCapacity } from "../scheduling/capacity";
 import { applyScope } from "./scope";
+import { inclusiveRangeConditions } from "./cohorts";
+// Path directo, NUNCA por el barrel `shared/index.ts`: el módulo `tenant` no se
+// exporta desde ahí a propósito (fase 169).
+import { tenantWhere, type TenantContext } from "../shared/tenant";
 import type {
   KpiStats,
   MonetaryKpiByCurrency,
@@ -54,8 +58,16 @@ export class AnalyticsService {
 
   /**
    * Get high-level KPI stats with trend vs prior period.
+   *
+   * `ctx` va PRIMERO en la firma a propósito (regla 169-06): agregarlo al final
+   * habría dejado que un call site viejo compilara con los argumentos corridos.
+   * Fase 172 (D-01): el gimnasio sale de `assertTenant(request.scope, …)` en el
+   * handler y llega hasta la única query de plata de este camino (`sumRevenue`).
    */
-  async getKpis(filters: AnalyticsFilters): Promise<KpiStats> {
+  async getKpis(
+    ctx: TenantContext,
+    filters: AnalyticsFilters,
+  ): Promise<KpiStats> {
     const { dateFrom, dateTo } = this.resolveDefaults(filters);
     const { priorFrom, priorTo } = this.computePriorPeriod(dateFrom, dateTo);
     const branchId = filters.branchId;
@@ -72,6 +84,7 @@ export class AnalyticsService {
           priorTo,
         ),
         this.getMonthlyRevenueKpi(
+          ctx,
           branchId,
           country,
           dateFrom,
@@ -94,7 +107,13 @@ export class AnalyticsService {
 
   // ─── Member Analytics ──────────────────────────────────────────────────────
 
+  /**
+   * Fase 172 (D-01): recibe `ctx` por una sola de sus seis consultas —
+   * `getAttentionList`, cuyo flag `yaPago` lee `financial_transactions`. El
+   * resto del bloque de miembros se migra en su propia fase (173-175).
+   */
   async getMemberAnalytics(
+    ctx: TenantContext,
     filters: AnalyticsFilters,
   ): Promise<MemberAnalytics> {
     const { dateFrom, dateTo } = this.resolveDefaults(filters);
@@ -113,7 +132,7 @@ export class AnalyticsService {
       this.countChurnedMembers(branchId, country, dateFrom, dateTo),
       this.computeRetentionRate(branchId, country, dateFrom, dateTo),
       this.getPlanDistribution(branchId, country),
-      this.getAttentionList(branchId, country),
+      this.getAttentionList(ctx, branchId, country),
       this.getRenewalRate(branchId, country),
     ]);
 
@@ -149,7 +168,13 @@ export class AnalyticsService {
 
   // ─── Financial Analytics ───────────────────────────────────────────────────
 
+  /**
+   * Fase 172 (D-01): las CUATRO consultas de este bloque tocan tablas strict de
+   * `finance` (`financial_transactions` y `balances`), así que el `ctx` viaja a
+   * todas. Los joins contra `users` y `branches` NO se tocan (D-07).
+   */
   async getFinancialAnalytics(
+    ctx: TenantContext,
     filters: AnalyticsFilters,
   ): Promise<FinancialAnalytics> {
     const { dateFrom, dateTo } = this.resolveDefaults(filters);
@@ -162,10 +187,10 @@ export class AnalyticsService {
       revenueByBranch,
       outstandingByCurrency,
     ] = await Promise.all([
-      this.getRevenueTrend(branchId, country, dateFrom, dateTo),
-      this.getRevenueByMethod(branchId, country, dateFrom, dateTo),
-      this.getRevenueByBranch(branchId, country, dateFrom, dateTo),
-      this.getOutstandingByCurrency(branchId, country),
+      this.getRevenueTrend(ctx, branchId, country, dateFrom, dateTo),
+      this.getRevenueByMethod(ctx, branchId, country, dateFrom, dateTo),
+      this.getRevenueByBranch(ctx, branchId, country, dateFrom, dateTo),
+      this.getOutstandingByCurrency(ctx, branchId, country),
     ]);
 
     return {
@@ -246,6 +271,7 @@ export class AnalyticsService {
   }
 
   private async getMonthlyRevenueKpi(
+    ctx: TenantContext,
     branchId: number | undefined,
     country: "AR" | "ES" | undefined,
     dateFrom: string,
@@ -255,8 +281,20 @@ export class AnalyticsService {
   ): Promise<MonetaryKpiByCurrency> {
     // Phase 117 D-05 / D-17: per-currency KPI with an independent trend for
     // each currency vs the prior period — ARS and EUR are never summed.
-    const current = await this.sumRevenue(branchId, country, dateFrom, dateTo);
-    const prior = await this.sumRevenue(branchId, country, priorFrom, priorTo);
+    const current = await this.sumRevenue(
+      ctx,
+      branchId,
+      country,
+      dateFrom,
+      dateTo,
+    );
+    const prior = await this.sumRevenue(
+      ctx,
+      branchId,
+      country,
+      priorFrom,
+      priorTo,
+    );
 
     return {
       ARS: {
@@ -542,6 +580,7 @@ export class AnalyticsService {
    * (phone) of members outside their authorized branches/country.
    */
   private async getAttentionList(
+    ctx: TenantContext,
     branchId: number | undefined,
     country: "AR" | "ES" | undefined,
   ): Promise<AttentionMember[]> {
@@ -552,9 +591,14 @@ export class AnalyticsService {
     });
 
     // yaPago: derived EXISTS over recent non-voided plan_charge inflows (D-16).
+    // Fase 172 (D-01): `financial_transactions` es tabla strict de `finance`, y
+    // en un `sql` crudo la convención lockeada es el literal
+    // `tenant_id = ${ctx.tenantId}` (shared/tenant.ts:20). Va PRIMERO, antes de
+    // la correlación, por el mismo motivo que `tenantWhere` abre todo `and(...)`.
     const yaPagoExpr = sql<number>`EXISTS (
       SELECT 1 FROM financial_transactions ft
-      WHERE ft.member_id = ${schema.subscriptions.userId}
+      WHERE ft.tenant_id = ${ctx.tenantId}
+        AND ft.member_id = ${schema.subscriptions.userId}
         AND ft.kind = 'plan_charge'
         AND ft.direction = 'inflow'
         AND ${sql.raw(firmMoneySqlFor("ft"))}
@@ -1070,6 +1114,7 @@ export class AnalyticsService {
   // ═══════════════════════════════════════════════════════════════════════════
 
   private async getRevenueTrend(
+    ctx: TenantContext,
     branchId: number | undefined,
     country: "AR" | "ES" | undefined,
     dateFrom: string,
@@ -1090,8 +1135,13 @@ export class AnalyticsService {
         "debt_settlement",
       ]) as unknown as SQL,
       eq(schema.financialTransactions.direction, "inflow") as unknown as SQL,
-      sql`${schema.financialTransactions.transactionDate} >= ${dateFrom}`,
-      sql`${schema.financialTransactions.transactionDate} <= ${dateTo}`,
+      // Rango CERRADO [dateFrom, dateTo], idéntico al `>= / <=` que estaba
+      // escrito acá antes de la fase 172 (ver `inclusiveRangeConditions`).
+      ...inclusiveRangeConditions(
+        schema.financialTransactions.transactionDate,
+        dateFrom,
+        dateTo,
+      ),
     ];
 
     if (branchId !== undefined) {
@@ -1113,7 +1163,7 @@ export class AnalyticsService {
         eq(schema.users.id, schema.financialTransactions.memberId),
       )
       .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
-      .where(and(...conditions))
+      .where(and(tenantWhere(schema.financialTransactions, ctx), ...conditions))
       .groupBy(
         sql`DATE_FORMAT(${schema.financialTransactions.transactionDate}, '%Y-%m')`,
         schema.financialTransactions.currency,
@@ -1141,6 +1191,7 @@ export class AnalyticsService {
   }
 
   private async getRevenueByMethod(
+    ctx: TenantContext,
     branchId: number | undefined,
     country: "AR" | "ES" | undefined,
     dateFrom: string,
@@ -1165,8 +1216,12 @@ export class AnalyticsService {
         "debt_settlement",
       ]) as unknown as SQL,
       eq(schema.financialTransactions.direction, "inflow") as unknown as SQL,
-      sql`${schema.financialTransactions.transactionDate} >= ${dateFrom}`,
-      sql`${schema.financialTransactions.transactionDate} <= ${dateTo}`,
+      // Rango CERRADO [dateFrom, dateTo] (ver `inclusiveRangeConditions`).
+      ...inclusiveRangeConditions(
+        schema.financialTransactions.transactionDate,
+        dateFrom,
+        dateTo,
+      ),
     ];
 
     if (branchId !== undefined) {
@@ -1188,7 +1243,7 @@ export class AnalyticsService {
         eq(schema.users.id, schema.financialTransactions.memberId),
       )
       .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
-      .where(and(...conditions))
+      .where(and(tenantWhere(schema.financialTransactions, ctx), ...conditions))
       .groupBy(
         schema.financialTransactions.paymentMethod,
         schema.financialTransactions.currency,
@@ -1212,6 +1267,7 @@ export class AnalyticsService {
   }
 
   private async getRevenueByBranch(
+    ctx: TenantContext,
     branchId: number | undefined,
     country: "AR" | "ES" | undefined,
     dateFrom: string,
@@ -1233,8 +1289,12 @@ export class AnalyticsService {
         "debt_settlement",
       ]) as unknown as SQL,
       eq(schema.financialTransactions.direction, "inflow") as unknown as SQL,
-      sql`${schema.financialTransactions.transactionDate} >= ${dateFrom}`,
-      sql`${schema.financialTransactions.transactionDate} <= ${dateTo}`,
+      // Rango CERRADO [dateFrom, dateTo] (ver `inclusiveRangeConditions`).
+      ...inclusiveRangeConditions(
+        schema.financialTransactions.transactionDate,
+        dateFrom,
+        dateTo,
+      ),
     ];
 
     if (branchId !== undefined) {
@@ -1258,7 +1318,7 @@ export class AnalyticsService {
         schema.branches,
         eq(schema.branches.id, schema.financialTransactions.branchId),
       )
-      .where(and(...conditions))
+      .where(and(tenantWhere(schema.financialTransactions, ctx), ...conditions))
       .groupBy(
         schema.financialTransactions.branchId,
         schema.branches.name,
@@ -1304,6 +1364,7 @@ export class AnalyticsService {
    * summed across.
    */
   private async getOutstandingByCurrency(
+    ctx: TenantContext,
     branchId: number | undefined,
     country: "AR" | "ES" | undefined,
   ): Promise<OutstandingByCurrency> {
@@ -1333,7 +1394,9 @@ export class AnalyticsService {
         schema.branches,
         eq(schema.branches.id, schema.subscriptions.branchId),
       )
-      .where(and(...conditions))
+      // `balances` es la OTRA tabla strict de este archivo: el filtro va sobre
+      // ella, no sobre las tablas del LEFT JOIN (D-07).
+      .where(and(tenantWhere(schema.balances, ctx), ...conditions))
       .groupBy(schema.balances.currency);
 
     const result: OutstandingByCurrency = { ARS: 0, EUR: 0 };
@@ -1350,6 +1413,7 @@ export class AnalyticsService {
   // ═══════════════════════════════════════════════════════════════════════════
 
   private async sumRevenue(
+    ctx: TenantContext,
     branchId: number | undefined,
     country: "AR" | "ES" | undefined,
     dateFrom: string,
@@ -1368,8 +1432,12 @@ export class AnalyticsService {
         "debt_settlement",
       ]) as unknown as SQL,
       eq(schema.financialTransactions.direction, "inflow") as unknown as SQL,
-      sql`${schema.financialTransactions.transactionDate} >= ${dateFrom}`,
-      sql`${schema.financialTransactions.transactionDate} <= ${dateTo}`,
+      // Rango CERRADO [dateFrom, dateTo] (ver `inclusiveRangeConditions`).
+      ...inclusiveRangeConditions(
+        schema.financialTransactions.transactionDate,
+        dateFrom,
+        dateTo,
+      ),
     ];
 
     if (branchId !== undefined) {
@@ -1390,7 +1458,7 @@ export class AnalyticsService {
         eq(schema.users.id, schema.financialTransactions.memberId),
       )
       .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
-      .where(and(...conditions))
+      .where(and(tenantWhere(schema.financialTransactions, ctx), ...conditions))
       .groupBy(schema.financialTransactions.currency);
 
     const result: RevenueByCurrency = { ARS: 0, EUR: 0 };

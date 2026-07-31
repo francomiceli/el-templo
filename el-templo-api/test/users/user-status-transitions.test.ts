@@ -24,6 +24,7 @@ import { eq, and } from "drizzle-orm";
 import argon2 from "argon2";
 import * as schema from "../../src/db/schema";
 import { createTestApp, cleanAllTestData } from "../helpers";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 import { SubscriptionService } from "../../src/modules/subscriptions/service";
 import { AuraService } from "../../src/modules/aura";
 import {
@@ -116,6 +117,7 @@ describe("Phase 103 — User status auto-transitions", () => {
     }> = {},
   ): Promise<void> {
     await svc.assignPlan(
+      { tenantId: TENANT_TEMPLO },
       userId,
       {
         planId: overrides.planId ?? testPlanId,
@@ -240,7 +242,11 @@ describe("Phase 103 — User status auto-transitions", () => {
       await assignDefaultPlan(userId);
       expect(await getStatus(userId)).toBe("activo");
 
-      await svc.cancelSubscription(userId, /* actorId */ 2);
+      await svc.cancelSubscription(
+        { tenantId: TENANT_TEMPLO },
+        userId,
+        /* actorId */ 2,
+      );
       expect(await getStatus(userId)).toBe("inactivo");
     });
 
@@ -268,7 +274,11 @@ describe("Phase 103 — User status auto-transitions", () => {
       expect(subs).toHaveLength(2);
 
       // Cancel one through the service (it cancels the latest active sub).
-      await svc.cancelSubscription(userId, /* actorId */ 2);
+      await svc.cancelSubscription(
+        { tenantId: TENANT_TEMPLO },
+        userId,
+        /* actorId */ 2,
+      );
       // One sub remains active → status stays 'activo'
       expect(await getStatus(userId)).toBe("activo");
     });
@@ -283,7 +293,11 @@ describe("Phase 103 — User status auto-transitions", () => {
       expect(await getStatus(userId)).toBe("activo");
 
       // Cancel → inactivo (NOT back to freemium, per D-04 — paying history)
-      await svc.cancelSubscription(userId, /* actorId */ 2);
+      await svc.cancelSubscription(
+        { tenantId: TENANT_TEMPLO },
+        userId,
+        /* actorId */ 2,
+      );
       expect(await getStatus(userId)).toBe("inactivo");
     });
   });
@@ -330,7 +344,11 @@ describe("Phase 103 — User status auto-transitions", () => {
 
       // Idempotency: a second sub mutation does NOT overwrite convertedAt
       const firstConvertedAtMs = (convertedAt as Date).getTime();
-      await svc.cancelSubscription(userId, /* actorId */ 2);
+      await svc.cancelSubscription(
+        { tenantId: TENANT_TEMPLO },
+        userId,
+        /* actorId */ 2,
+      );
       // Re-buy the same plan path
       await assignDefaultPlan(userId);
       const second = await getConvertedAt(userId);

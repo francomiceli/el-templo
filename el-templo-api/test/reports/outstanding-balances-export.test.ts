@@ -28,6 +28,16 @@ import {
   registerUser,
 } from "../helpers";
 import * as schema from "../../src/db/schema";
+import { tenantValues } from "../../src/modules/shared/tenant";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+
+/**
+ * 172-15: `TEMPLO_CTX` es el gimnasio de este archivo. Las queries directas de
+ * los tests pasan por `app.dbPool` igual que las de la app, asi que con
+ * `finance` en `TENANT_STRICT_MODULES` una lectura o una siembra sobre las
+ * tablas strict sin gimnasio hace throw antes de llegar a MySQL.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 const REPORTS_URL = "/api/admin/reports";
 
@@ -221,14 +231,16 @@ async function seedSubscriptionWithBalance(
   // desde el devengo (start_date). Default = mismo offset que start_date.
   const createdOffset =
     opts.balanceCreatedOffsetDays ?? opts.startDateOffsetDays;
-  await opts.app.db.insert(schema.balances).values({
-    memberId,
-    targetKind: "subscription",
-    targetId: subscriptionId,
-    currency: opts.planCurrency,
-    amount: opts.amount,
-    createdAt: new Date(dateOffset(createdOffset) + "T00:00:00Z"),
-  });
+  await opts.app.db.insert(schema.balances).values(
+    tenantValues(TEMPLO_CTX, {
+      memberId,
+      targetKind: "subscription",
+      targetId: subscriptionId,
+      currency: opts.planCurrency,
+      amount: opts.amount,
+      createdAt: new Date(dateOffset(createdOffset) + "T00:00:00Z"),
+    }),
+  );
 
   return { memberId, subscriptionId };
 }
@@ -237,9 +249,19 @@ async function clearLedger(app: FastifyInstance): Promise<void> {
   const conn = await app.dbPool.getConnection();
   try {
     await conn.query("SET FOREIGN_KEY_CHECKS=0");
-    await conn.query("DELETE FROM `transaction_links`");
-    await conn.query("DELETE FROM `financial_transactions`");
-    await conn.query("DELETE FROM `balances`");
+    // 172-15: los DELETE crudos se ACOTAN al gimnasio. Corren sobre una conexion
+    // cruda de `app.dbPool` —una de las tres puertas que el sentinel intercepta—,
+    // asi que sin `tenant_id` hacen throw con `finance` en TENANT_STRICT_MODULES.
+    await conn.query("DELETE FROM `transaction_links` WHERE tenant_id = ?", [
+      TENANT_TEMPLO,
+    ]);
+    await conn.query(
+      "DELETE FROM `financial_transactions` WHERE tenant_id = ?",
+      [TENANT_TEMPLO],
+    );
+    await conn.query("DELETE FROM `balances` WHERE tenant_id = ?", [
+      TENANT_TEMPLO,
+    ]);
     await conn.query("SET FOREIGN_KEY_CHECKS=1");
   } finally {
     conn.release();

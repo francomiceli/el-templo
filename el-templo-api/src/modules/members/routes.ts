@@ -30,6 +30,7 @@ import {
   ConflictError,
   NotFoundError,
 } from "../shared/errors";
+import { assertTenant } from "../shared/tenant";
 import { EmailService } from "../email";
 import type {
   CreateMemberInput,
@@ -483,7 +484,10 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         limit,
       };
 
-      const result = await memberService.listMembers(params);
+      const result = await memberService.listMembers(
+        assertTenant(request.scope, "members.list"),
+        params,
+      );
       return { ...result, page, limit };
     },
   );
@@ -675,6 +679,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
 
             const today = new Date().toISOString().split("T")[0];
             await subscriptionService.assignPlan(
+              assertTenant(request.scope, "members.create.assignPlan"),
               member.id,
               {
                 planId: request.body.planId,
@@ -991,6 +996,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
             // authenticated admin's userId so the audit_log row records the
             // real principal who triggered the conversion.
             await subscriptionService.cancelSubscription(
+              assertTenant(request.scope, "members.update.cancelSubscription"),
               request.params.userId,
               request.user.userId,
               "Conversión a presencial",
@@ -1245,6 +1251,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         // authenticated principal so the audit_log row records who triggered
         // the soft-delete cascade (T-111-15 mitigation).
         await subscriptionService.cancelSubscription(
+          assertTenant(request.scope, "members.delete.cancelSubscription"),
           request.params.userId,
           request.user.userId,
           "Cancelado por eliminación del alumno",
@@ -1561,6 +1568,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         }
 
         return await transactionService.getFinancialHistory(
+          assertTenant(request.scope, "members.financial-history"),
           request.params.userId,
           {
             page: request.query.page,
@@ -1634,6 +1642,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
 
         // D-03: cuando no hay saldos abiertos, retornar { concepts: [] }.
         const concepts = await transactionService.getOutstandingConcepts(
+          assertTenant(request.scope, "members.outstanding-concepts"),
           request.params.userId,
         );
         return { concepts };

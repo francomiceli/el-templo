@@ -24,6 +24,22 @@ import * as schema from "../../src/db/schema";
 import { CashRegisterService } from "../../src/modules/finance/cash-register-service";
 import { TransactionService } from "../../src/modules/finance/transaction-service";
 import { BalanceService } from "../../src/modules/finance/balance-service";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
+
+/**
+ * Fase 172 (ADO-01 / T-172-08-04): gimnasio de los call sites DIRECTOS al
+ * service. Sale del fixture, nunca de un `1` a mano. Una sola constante y no
+ * el objeto literal repetido en cada llamada: el dia que un caso ejercite
+ * dos gimnasios, el segundo se agrega al lado y se ve la diferencia.
+ *
+ * Fase 172 (172-13): el MISMO ctx sirve para las queries directas de este
+ * archivo. El sentinel de tenancy ve las queries de los tests igual que las de
+ * la app —comparten el pool—, asi que con `finance` en `TENANT_STRICT_MODULES`
+ * toda lectura de `cash_registers` / `financial_transactions` / `balances` sin
+ * `tenantWhere` y toda escritura sin `tenantValues` hacen throw.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 let app: FastifyInstance;
 let service: CashRegisterService;
@@ -55,34 +71,42 @@ beforeAll(async () => {
   eurBranchId = Number(eurBranch.insertId);
 
   // efectivo ARS for arsBranch, efectivo EUR for eurBranch, banco ARS, banco EUR.
-  const efAr = await app.db.insert(schema.cashRegisters).values({
-    name: "CR-Test efectivo ARS",
-    type: "efectivo",
-    branchId: arsBranchId,
-    currency: "ARS",
-    cutoffDate: CUTOFF,
-  });
-  const efEur = await app.db.insert(schema.cashRegisters).values({
-    name: "CR-Test efectivo EUR",
-    type: "efectivo",
-    branchId: eurBranchId,
-    currency: "EUR",
-    cutoffDate: CUTOFF,
-  });
-  const bcAr = await app.db.insert(schema.cashRegisters).values({
-    name: "CR-Test banco ARS",
-    type: "banco",
-    branchId: null,
-    currency: "ARS",
-    cutoffDate: CUTOFF,
-  });
-  const bcEur = await app.db.insert(schema.cashRegisters).values({
-    name: "CR-Test banco EUR",
-    type: "banco",
-    branchId: null,
-    currency: "EUR",
-    cutoffDate: CUTOFF,
-  });
+  const efAr = await app.db.insert(schema.cashRegisters).values(
+    tenantValues(TEMPLO_CTX, {
+      name: "CR-Test efectivo ARS",
+      type: "efectivo",
+      branchId: arsBranchId,
+      currency: "ARS",
+      cutoffDate: CUTOFF,
+    }),
+  );
+  const efEur = await app.db.insert(schema.cashRegisters).values(
+    tenantValues(TEMPLO_CTX, {
+      name: "CR-Test efectivo EUR",
+      type: "efectivo",
+      branchId: eurBranchId,
+      currency: "EUR",
+      cutoffDate: CUTOFF,
+    }),
+  );
+  const bcAr = await app.db.insert(schema.cashRegisters).values(
+    tenantValues(TEMPLO_CTX, {
+      name: "CR-Test banco ARS",
+      type: "banco",
+      branchId: null,
+      currency: "ARS",
+      cutoffDate: CUTOFF,
+    }),
+  );
+  const bcEur = await app.db.insert(schema.cashRegisters).values(
+    tenantValues(TEMPLO_CTX, {
+      name: "CR-Test banco EUR",
+      type: "banco",
+      branchId: null,
+      currency: "EUR",
+      cutoffDate: CUTOFF,
+    }),
+  );
   seededCajaIds.push(
     Number(efAr[0].insertId),
     Number(efEur[0].insertId),
@@ -124,10 +148,20 @@ afterAll(async () => {
   if (memberId) {
     await app.db
       .delete(schema.balances)
-      .where(eq(schema.balances.memberId, memberId));
+      .where(
+        and(
+          tenantWhere(schema.balances, TEMPLO_CTX),
+          eq(schema.balances.memberId, memberId),
+        ),
+      );
     await app.db
       .delete(schema.financialTransactions)
-      .where(eq(schema.financialTransactions.memberId, memberId));
+      .where(
+        and(
+          tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+          eq(schema.financialTransactions.memberId, memberId),
+        ),
+      );
   }
   if (seededCajaIds.length > 0) {
     // Phase 139: the outflow tests insert NULL-member ledger rows
@@ -137,11 +171,19 @@ afterAll(async () => {
     await app.db
       .delete(schema.financialTransactions)
       .where(
-        inArray(schema.financialTransactions.cashRegisterId, seededCajaIds),
+        and(
+          tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+          inArray(schema.financialTransactions.cashRegisterId, seededCajaIds),
+        ),
       );
     await app.db
       .delete(schema.cashRegisters)
-      .where(inArray(schema.cashRegisters.id, seededCajaIds));
+      .where(
+        and(
+          tenantWhere(schema.cashRegisters, TEMPLO_CTX),
+          inArray(schema.cashRegisters.id, seededCajaIds),
+        ),
+      );
   }
   await app.close();
 });
@@ -161,7 +203,12 @@ describe("CashRegisterService", () => {
           currency: schema.cashRegisters.currency,
         })
         .from(schema.cashRegisters)
-        .where(eq(schema.cashRegisters.type, "efectivo"));
+        .where(
+          and(
+            tenantWhere(schema.cashRegisters, TEMPLO_CTX),
+            eq(schema.cashRegisters.type, "efectivo"),
+          ),
+        );
       expect(efectivos.length).toBeGreaterThan(0);
       for (const caja of efectivos) {
         // currency is NOT NULL and a 3-char code.
@@ -176,7 +223,12 @@ describe("CashRegisterService", () => {
           currency: schema.cashRegisters.currency,
         })
         .from(schema.cashRegisters)
-        .where(eq(schema.cashRegisters.type, "banco"));
+        .where(
+          and(
+            tenantWhere(schema.cashRegisters, TEMPLO_CTX),
+            eq(schema.cashRegisters.type, "banco"),
+          ),
+        );
       const currencies = new Set(bancos.map((b) => b.currency));
       expect(currencies.has("ARS")).toBe(true);
       expect(currencies.has("EUR")).toBe(true);
@@ -217,66 +269,74 @@ describe("CashRegisterService", () => {
       // cash row at arsBranch → should label with arsBranch's efectivo caja.
       const [cashRow] = await app.db
         .insert(schema.financialTransactions)
-        .values({
-          memberId,
-          kind: "adjustment",
-          direction: "inflow",
-          amount: 9999,
-          currency: "ARS",
-          paymentMethod: "cash",
-          validationStatus: "validado",
-          transactionDate: PRE_CUTOFF,
-          effectiveDate: PRE_CUTOFF,
-          branchId: arsBranchId,
-          recordedBy: adminId,
-        });
+        .values(
+          tenantValues(TEMPLO_CTX, {
+            memberId,
+            kind: "adjustment",
+            direction: "inflow",
+            amount: 9999,
+            currency: "ARS",
+            paymentMethod: "cash",
+            validationStatus: "validado",
+            transactionDate: PRE_CUTOFF,
+            effectiveDate: PRE_CUTOFF,
+            branchId: arsBranchId,
+            recordedBy: adminId,
+          }),
+        );
       const cashId = Number(cashRow.insertId);
 
       // transfer row (ARS) → banco caja of ARS.
       const [transferRow] = await app.db
         .insert(schema.financialTransactions)
-        .values({
-          memberId,
-          kind: "adjustment",
-          direction: "inflow",
-          amount: 8888,
-          currency: "ARS",
-          paymentMethod: "transfer",
-          validationStatus: "validado",
-          transactionDate: PRE_CUTOFF,
-          effectiveDate: PRE_CUTOFF,
-          branchId: arsBranchId,
-          recordedBy: adminId,
-        });
+        .values(
+          tenantValues(TEMPLO_CTX, {
+            memberId,
+            kind: "adjustment",
+            direction: "inflow",
+            amount: 8888,
+            currency: "ARS",
+            paymentMethod: "transfer",
+            validationStatus: "validado",
+            transactionDate: PRE_CUTOFF,
+            effectiveDate: PRE_CUTOFF,
+            branchId: arsBranchId,
+            recordedBy: adminId,
+          }),
+        );
       const transferId = Number(transferRow.insertId);
 
       // aura_credit row → stays NULL.
       const [auraRow] = await app.db
         .insert(schema.financialTransactions)
-        .values({
-          memberId,
-          kind: "adjustment",
-          direction: "inflow",
-          amount: 7777,
-          currency: "ARS",
-          paymentMethod: "aura_credit",
-          validationStatus: "validado",
-          transactionDate: PRE_CUTOFF,
-          effectiveDate: PRE_CUTOFF,
-          branchId: arsBranchId,
-          recordedBy: adminId,
-        });
+        .values(
+          tenantValues(TEMPLO_CTX, {
+            memberId,
+            kind: "adjustment",
+            direction: "inflow",
+            amount: 7777,
+            currency: "ARS",
+            paymentMethod: "aura_credit",
+            validationStatus: "validado",
+            transactionDate: PRE_CUTOFF,
+            effectiveDate: PRE_CUTOFF,
+            branchId: arsBranchId,
+            recordedBy: adminId,
+          }),
+        );
       const auraId = Number(auraRow.insertId);
 
       // Apply the same D-01 derivation the migration 0154 backfill performs:
       // cash → efectivo of (branch, currency); transfer/card → banco of currency;
       // aura_credit/internal → NULL (left untouched).
       const efectivoArsId = await service.resolveCashRegister(
+        TEMPLO_CTX,
         "cash",
         arsBranchId,
         "ARS",
       );
       const bancoArsId = await service.resolveCashRegister(
+        TEMPLO_CTX,
         "transfer",
         arsBranchId,
         "ARS",
@@ -284,11 +344,21 @@ describe("CashRegisterService", () => {
       await app.db
         .update(schema.financialTransactions)
         .set({ cashRegisterId: efectivoArsId })
-        .where(eq(schema.financialTransactions.id, cashId));
+        .where(
+          and(
+            tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+            eq(schema.financialTransactions.id, cashId),
+          ),
+        );
       await app.db
         .update(schema.financialTransactions)
         .set({ cashRegisterId: bancoArsId })
-        .where(eq(schema.financialTransactions.id, transferId));
+        .where(
+          and(
+            tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+            eq(schema.financialTransactions.id, transferId),
+          ),
+        );
       // aura row intentionally NOT updated (stays NULL).
 
       const labeled = await app.db
@@ -298,11 +368,14 @@ describe("CashRegisterService", () => {
         })
         .from(schema.financialTransactions)
         .where(
-          inArray(schema.financialTransactions.id, [
-            cashId,
-            transferId,
-            auraId,
-          ]),
+          and(
+            tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+            inArray(schema.financialTransactions.id, [
+              cashId,
+              transferId,
+              auraId,
+            ]),
+          ),
         );
       const byId = new Map(labeled.map((r) => [r.id, r.cashRegisterId]));
 
@@ -316,7 +389,12 @@ describe("CashRegisterService", () => {
           currency: schema.cashRegisters.currency,
         })
         .from(schema.cashRegisters)
-        .where(eq(schema.cashRegisters.id, cashCajaId as number));
+        .where(
+          and(
+            tenantWhere(schema.cashRegisters, TEMPLO_CTX),
+            eq(schema.cashRegisters.id, cashCajaId as number),
+          ),
+        );
       expect(cashCaja.type).toBe("efectivo");
       expect(cashCaja.branchId).toBe(arsBranchId);
       expect(cashCaja.currency).toBe("ARS");
@@ -330,7 +408,12 @@ describe("CashRegisterService", () => {
           currency: schema.cashRegisters.currency,
         })
         .from(schema.cashRegisters)
-        .where(eq(schema.cashRegisters.id, transferCajaId as number));
+        .where(
+          and(
+            tenantWhere(schema.cashRegisters, TEMPLO_CTX),
+            eq(schema.cashRegisters.id, transferCajaId as number),
+          ),
+        );
       expect(transferCaja.type).toBe("banco");
       expect(transferCaja.currency).toBe("ARS");
 
@@ -341,11 +424,14 @@ describe("CashRegisterService", () => {
       await app.db
         .delete(schema.financialTransactions)
         .where(
-          inArray(schema.financialTransactions.id, [
-            cashId,
-            transferId,
-            auraId,
-          ]),
+          and(
+            tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+            inArray(schema.financialTransactions.id, [
+              cashId,
+              transferId,
+              auraId,
+            ]),
+          ),
         );
     });
   });
@@ -354,7 +440,12 @@ describe("CashRegisterService", () => {
     // CAJA-02: cash -> efectivo(branch), transfer/card -> banco(currency),
     // aura_credit/internal -> NULL.
     it("cash resolves to the efectivo caja of the tx branch", async () => {
-      const id = await service.resolveCashRegister("cash", arsBranchId, "ARS");
+      const id = await service.resolveCashRegister(
+        TEMPLO_CTX,
+        "cash",
+        arsBranchId,
+        "ARS",
+      );
       const [caja] = await app.db
         .select({
           type: schema.cashRegisters.type,
@@ -362,7 +453,12 @@ describe("CashRegisterService", () => {
           currency: schema.cashRegisters.currency,
         })
         .from(schema.cashRegisters)
-        .where(eq(schema.cashRegisters.id, id as number));
+        .where(
+          and(
+            tenantWhere(schema.cashRegisters, TEMPLO_CTX),
+            eq(schema.cashRegisters.id, id as number),
+          ),
+        );
       expect(caja.type).toBe("efectivo");
       expect(caja.branchId).toBe(arsBranchId);
       expect(caja.currency).toBe("ARS");
@@ -370,11 +466,13 @@ describe("CashRegisterService", () => {
 
     it("transfer and card resolve to the banco caja of the currency", async () => {
       const transferId = await service.resolveCashRegister(
+        TEMPLO_CTX,
         "transfer",
         arsBranchId,
         "ARS",
       );
       const cardId = await service.resolveCashRegister(
+        TEMPLO_CTX,
         "card",
         arsBranchId,
         "EUR",
@@ -385,14 +483,24 @@ describe("CashRegisterService", () => {
           currency: schema.cashRegisters.currency,
         })
         .from(schema.cashRegisters)
-        .where(eq(schema.cashRegisters.id, transferId as number));
+        .where(
+          and(
+            tenantWhere(schema.cashRegisters, TEMPLO_CTX),
+            eq(schema.cashRegisters.id, transferId as number),
+          ),
+        );
       const [bancoEur] = await app.db
         .select({
           type: schema.cashRegisters.type,
           currency: schema.cashRegisters.currency,
         })
         .from(schema.cashRegisters)
-        .where(eq(schema.cashRegisters.id, cardId as number));
+        .where(
+          and(
+            tenantWhere(schema.cashRegisters, TEMPLO_CTX),
+            eq(schema.cashRegisters.id, cardId as number),
+          ),
+        );
       expect(bancoArs.type).toBe("banco");
       expect(bancoArs.currency).toBe("ARS");
       expect(bancoEur.type).toBe("banco");
@@ -401,16 +509,21 @@ describe("CashRegisterService", () => {
 
     it("aura_credit and internal resolve to NULL", async () => {
       await expect(
-        service.resolveCashRegister("aura_credit", arsBranchId, "ARS"),
+        service.resolveCashRegister(
+          TEMPLO_CTX,
+          "aura_credit",
+          arsBranchId,
+          "ARS",
+        ),
       ).resolves.toBeNull();
       await expect(
-        service.resolveCashRegister("internal", arsBranchId, "ARS"),
+        service.resolveCashRegister(TEMPLO_CTX, "internal", arsBranchId, "ARS"),
       ).resolves.toBeNull();
     });
 
     it("throws when no banco caja exists for the currency", async () => {
       await expect(
-        service.resolveCashRegister("transfer", arsBranchId, "USD"),
+        service.resolveCashRegister(TEMPLO_CTX, "transfer", arsBranchId, "USD"),
       ).rejects.toThrow(/No existe caja banco/);
     });
   });
@@ -420,6 +533,7 @@ describe("CashRegisterService", () => {
     // create paths funnel through) stamps a non-null cash_register_id.
     it("create() populates cash_register_id via the resolver on every path", async () => {
       const result = await txService.create(
+        TEMPLO_CTX,
         {
           memberId,
           kind: "adjustment",
@@ -440,13 +554,19 @@ describe("CashRegisterService", () => {
           cashRegisterId: schema.financialTransactions.cashRegisterId,
         })
         .from(schema.financialTransactions)
-        .where(eq(schema.financialTransactions.id, result.id));
+        .where(
+          and(
+            tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+            eq(schema.financialTransactions.id, result.id),
+          ),
+        );
       // cash → efectivo caja of arsBranch.
       expect(row.cashRegisterId).toBe(seededCajaIds[0]);
     });
 
     it("a transfer charge stamps the banco caja of the currency", async () => {
       const result = await txService.create(
+        TEMPLO_CTX,
         {
           memberId,
           kind: "adjustment",
@@ -467,7 +587,12 @@ describe("CashRegisterService", () => {
           cashRegisterId: schema.financialTransactions.cashRegisterId,
         })
         .from(schema.financialTransactions)
-        .where(eq(schema.financialTransactions.id, result.id));
+        .where(
+          and(
+            tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+            eq(schema.financialTransactions.id, result.id),
+          ),
+        );
       // transfer → a banco caja of the tx currency. (The test DB may carry more
       // than one banco ARS — from the global seed and this file's own seed — so
       // assert by the resolved caja's type/currency, not a specific id.)
@@ -478,13 +603,19 @@ describe("CashRegisterService", () => {
           currency: schema.cashRegisters.currency,
         })
         .from(schema.cashRegisters)
-        .where(eq(schema.cashRegisters.id, row.cashRegisterId as number));
+        .where(
+          and(
+            tenantWhere(schema.cashRegisters, TEMPLO_CTX),
+            eq(schema.cashRegisters.id, row.cashRegisterId as number),
+          ),
+        );
       expect(caja.type).toBe("banco");
       expect(caja.currency).toBe("ARS");
     });
 
     it("an aura_credit charge persists cash_register_id NULL", async () => {
       const result = await txService.create(
+        TEMPLO_CTX,
         {
           memberId,
           kind: "adjustment",
@@ -505,7 +636,12 @@ describe("CashRegisterService", () => {
           cashRegisterId: schema.financialTransactions.cashRegisterId,
         })
         .from(schema.financialTransactions)
-        .where(eq(schema.financialTransactions.id, result.id));
+        .where(
+          and(
+            tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+            eq(schema.financialTransactions.id, result.id),
+          ),
+        );
       expect(row.cashRegisterId).toBeNull();
     });
   });
@@ -522,14 +658,16 @@ describe("CashRegisterService", () => {
     const PRE = "2025-12-01"; // before cutoff
 
     beforeAll(async () => {
-      const [caja] = await app.db.insert(schema.cashRegisters).values({
-        name: "CR-Test getBalance",
-        type: "efectivo",
-        branchId: arsBranchId,
-        currency: "ARS",
-        openingBalance: 1000,
-        cutoffDate: BAL_CUTOFF,
-      });
+      const [caja] = await app.db.insert(schema.cashRegisters).values(
+        tenantValues(TEMPLO_CTX, {
+          name: "CR-Test getBalance",
+          type: "efectivo",
+          branchId: arsBranchId,
+          currency: "ARS",
+          openingBalance: 1000,
+          cutoffDate: BAL_CUTOFF,
+        }),
+      );
       balCajaId = Number(caja.insertId);
       seededCajaIds.push(balCajaId);
 
@@ -540,25 +678,32 @@ describe("CashRegisterService", () => {
         date: string,
         opts?: { voided?: boolean },
       ): Promise<void> => {
-        const [row] = await app.db.insert(schema.financialTransactions).values({
-          memberId,
-          kind: "adjustment",
-          direction: "inflow",
-          amount,
-          currency: "ARS",
-          paymentMethod: "cash",
-          validationStatus: status,
-          transactionDate: date,
-          effectiveDate: date,
-          branchId: arsBranchId,
-          cashRegisterId: balCajaId,
-          recordedBy: adminId,
-        });
+        const [row] = await app.db.insert(schema.financialTransactions).values(
+          tenantValues(TEMPLO_CTX, {
+            memberId,
+            kind: "adjustment",
+            direction: "inflow",
+            amount,
+            currency: "ARS",
+            paymentMethod: "cash",
+            validationStatus: status,
+            transactionDate: date,
+            effectiveDate: date,
+            branchId: arsBranchId,
+            cashRegisterId: balCajaId,
+            recordedBy: adminId,
+          }),
+        );
         if (opts?.voided) {
           await app.db
             .update(schema.financialTransactions)
             .set({ voidedAt: new Date() })
-            .where(eq(schema.financialTransactions.id, Number(row.insertId)));
+            .where(
+              and(
+                tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+                eq(schema.financialTransactions.id, Number(row.insertId)),
+              ),
+            );
         }
       };
 
@@ -574,7 +719,7 @@ describe("CashRegisterService", () => {
     });
 
     it("firmeBalance = opening_balance + Σ validados since cutoff", async () => {
-      const bal = await service.getBalance(balCajaId);
+      const bal = await service.getBalance(TEMPLO_CTX, balCajaId);
       expect(bal.cashRegisterId).toBe(balCajaId);
       expect(bal.currency).toBe("ARS");
       // 1000 opening + 500 + 300 = 1800. Voided 444 and pre-cutoff 9999 excluded.
@@ -582,14 +727,14 @@ describe("CashRegisterService", () => {
     });
 
     it("pendienteAmount is reported separately and not added to firme", async () => {
-      const bal = await service.getBalance(balCajaId);
+      const bal = await service.getBalance(TEMPLO_CTX, balCajaId);
       expect(bal.pendienteAmount).toBe(200);
       // firme stays 1800 — the 200 pendiente is NEVER summed in.
       expect(bal.firmeBalance).toBe(1800);
     });
 
     it("throws NotFoundError for an unknown cashRegisterId", async () => {
-      await expect(service.getBalance(987654321)).rejects.toThrow();
+      await expect(service.getBalance(TEMPLO_CTX, 987654321)).rejects.toThrow();
     });
   });
 
@@ -613,31 +758,35 @@ describe("CashRegisterService", () => {
       amount: number;
       date?: string;
     }): Promise<void> => {
-      await app.db.insert(schema.financialTransactions).values({
-        memberId: null,
-        kind: opts.kind,
-        direction: opts.direction,
-        amount: opts.amount,
-        currency: "ARS",
-        paymentMethod: "cash",
-        validationStatus: "validado",
-        transactionDate: opts.date ?? POST_OUT,
-        effectiveDate: opts.date ?? POST_OUT,
-        branchId: null,
-        cashRegisterId: opts.cajaId,
-        recordedBy: adminId,
-      });
+      await app.db.insert(schema.financialTransactions).values(
+        tenantValues(TEMPLO_CTX, {
+          memberId: null,
+          kind: opts.kind,
+          direction: opts.direction,
+          amount: opts.amount,
+          currency: "ARS",
+          paymentMethod: "cash",
+          validationStatus: "validado",
+          transactionDate: opts.date ?? POST_OUT,
+          effectiveDate: opts.date ?? POST_OUT,
+          branchId: null,
+          cashRegisterId: opts.cajaId,
+          recordedBy: adminId,
+        }),
+      );
     };
 
     const newCaja = async (opening: number): Promise<number> => {
-      const [caja] = await app.db.insert(schema.cashRegisters).values({
-        name: `CR-Test outflow ${Date.now()}-${Math.random()}`,
-        type: "efectivo",
-        branchId: arsBranchId,
-        currency: "ARS",
-        openingBalance: opening,
-        cutoffDate: OUT_CUTOFF,
-      });
+      const [caja] = await app.db.insert(schema.cashRegisters).values(
+        tenantValues(TEMPLO_CTX, {
+          name: `CR-Test outflow ${Date.now()}-${Math.random()}`,
+          type: "efectivo",
+          branchId: arsBranchId,
+          currency: "ARS",
+          openingBalance: opening,
+          cutoffDate: OUT_CUTOFF,
+        }),
+      );
       const id = Number(caja.insertId);
       seededCajaIds.push(id);
       return id;
@@ -648,8 +797,8 @@ describe("CashRegisterService", () => {
       const destinoId = await newCaja(500);
 
       const before =
-        (await service.getBalance(origenId)).firmeBalance +
-        (await service.getBalance(destinoId)).firmeBalance;
+        (await service.getBalance(TEMPLO_CTX, origenId)).firmeBalance +
+        (await service.getBalance(TEMPLO_CTX, destinoId)).firmeBalance;
 
       // The double-entry asiento: −N outflow leg at origen + +N inflow leg at
       // destino, same currency, both validado (139 D-01).
@@ -668,14 +817,18 @@ describe("CashRegisterService", () => {
       });
 
       const after =
-        (await service.getBalance(origenId)).firmeBalance +
-        (await service.getBalance(destinoId)).firmeBalance;
+        (await service.getBalance(TEMPLO_CTX, origenId)).firmeBalance +
+        (await service.getBalance(TEMPLO_CTX, destinoId)).firmeBalance;
 
       // No money created or destroyed: the pair nets to 0 across the two cajas.
       expect(after).toBe(before);
       // And it actually moved: origen dropped by N, destino rose by N.
-      expect((await service.getBalance(origenId)).firmeBalance).toBe(1000 - N);
-      expect((await service.getBalance(destinoId)).firmeBalance).toBe(500 + N);
+      expect(
+        (await service.getBalance(TEMPLO_CTX, origenId)).firmeBalance,
+      ).toBe(1000 - N);
+      expect(
+        (await service.getBalance(TEMPLO_CTX, destinoId)).firmeBalance,
+      ).toBe(500 + N);
     });
 
     it("an expense outflow reduces ONLY its caja by exactly the amount", async () => {
@@ -691,8 +844,12 @@ describe("CashRegisterService", () => {
       });
 
       // Its caja drops by exactly E; the other caja is untouched.
-      expect((await service.getBalance(cajaId)).firmeBalance).toBe(1000 - E);
-      expect((await service.getBalance(otherId)).firmeBalance).toBe(2000);
+      expect((await service.getBalance(TEMPLO_CTX, cajaId)).firmeBalance).toBe(
+        1000 - E,
+      );
+      expect((await service.getBalance(TEMPLO_CTX, otherId)).firmeBalance).toBe(
+        2000,
+      );
     });
 
     it("a refund outflow with a cash_register_id reduces the caja saldo (D-09 resolved)", async () => {
@@ -709,7 +866,9 @@ describe("CashRegisterService", () => {
         amount: R,
       });
 
-      expect((await service.getBalance(cajaId)).firmeBalance).toBe(1000 - R);
+      expect((await service.getBalance(TEMPLO_CTX, cajaId)).firmeBalance).toBe(
+        1000 - R,
+      );
     });
 
     it("regression: an inflow + an outflow net to a signed firmeBalance (138 inflow math stays green)", async () => {
@@ -729,7 +888,9 @@ describe("CashRegisterService", () => {
         amount: 250,
       });
       // 100 + 400 − 250 = 250.
-      expect((await service.getBalance(cajaId)).firmeBalance).toBe(250);
+      expect((await service.getBalance(TEMPLO_CTX, cajaId)).firmeBalance).toBe(
+        250,
+      );
     });
   });
 
@@ -738,34 +899,38 @@ describe("CashRegisterService", () => {
     // NOT included in firmeBalance (D-05/D-06).
     it("a pre-cutoff validado tx is labeled but excluded from firmeBalance", async () => {
       const CUT = "2026-01-01";
-      const [caja] = await app.db.insert(schema.cashRegisters).values({
-        name: "CR-Test cutoff",
-        type: "efectivo",
-        branchId: arsBranchId,
-        currency: "ARS",
-        openingBalance: 0,
-        cutoffDate: CUT,
-      });
+      const [caja] = await app.db.insert(schema.cashRegisters).values(
+        tenantValues(TEMPLO_CTX, {
+          name: "CR-Test cutoff",
+          type: "efectivo",
+          branchId: arsBranchId,
+          currency: "ARS",
+          openingBalance: 0,
+          cutoffDate: CUT,
+        }),
+      );
       const cajaId = Number(caja.insertId);
       seededCajaIds.push(cajaId);
 
       // Pre-cutoff validado inflow, labeled with this caja.
-      await app.db.insert(schema.financialTransactions).values({
-        memberId,
-        kind: "adjustment",
-        direction: "inflow",
-        amount: 5000,
-        currency: "ARS",
-        paymentMethod: "cash",
-        validationStatus: "validado",
-        transactionDate: "2025-11-15",
-        effectiveDate: "2025-11-15",
-        branchId: arsBranchId,
-        cashRegisterId: cajaId,
-        recordedBy: adminId,
-      });
+      await app.db.insert(schema.financialTransactions).values(
+        tenantValues(TEMPLO_CTX, {
+          memberId,
+          kind: "adjustment",
+          direction: "inflow",
+          amount: 5000,
+          currency: "ARS",
+          paymentMethod: "cash",
+          validationStatus: "validado",
+          transactionDate: "2025-11-15",
+          effectiveDate: "2025-11-15",
+          branchId: arsBranchId,
+          cashRegisterId: cajaId,
+          recordedBy: adminId,
+        }),
+      );
 
-      const bal = await service.getBalance(cajaId);
+      const bal = await service.getBalance(TEMPLO_CTX, cajaId);
       // opening 0 + nothing since cutoff = 0. The 5000 pre-cutoff row is labeled
       // but excluded by the gte(transactionDate, cutoffDate) gate.
       expect(bal.firmeBalance).toBe(0);
@@ -777,6 +942,7 @@ describe("CashRegisterService", () => {
         .from(schema.financialTransactions)
         .where(
           and(
+            tenantWhere(schema.financialTransactions, TEMPLO_CTX),
             eq(schema.financialTransactions.cashRegisterId, cajaId),
             eq(schema.financialTransactions.transactionDate, "2025-11-15"),
           ),
@@ -792,19 +958,20 @@ describe("CashRegisterService", () => {
       // eurBranch's efectivo caja is EUR; a cash payment recorded there as ARS
       // must be rejected by the currency guard.
       await expect(
-        service.resolveCashRegister("cash", eurBranchId, "ARS"),
+        service.resolveCashRegister(TEMPLO_CTX, "cash", eurBranchId, "ARS"),
       ).rejects.toThrow(/Moneda inconsistente/);
     });
 
     it("throws when no efectivo caja exists for the branch", async () => {
       await expect(
-        service.resolveCashRegister("cash", 999999, "ARS"),
+        service.resolveCashRegister(TEMPLO_CTX, "cash", 999999, "ARS"),
       ).rejects.toThrow(/No existe caja efectivo/);
     });
 
     it("banco resolution always matches currency by construction", async () => {
       // banco is selected BY currency, so it can never mismatch.
       const id = await service.resolveCashRegister(
+        TEMPLO_CTX,
         "transfer",
         eurBranchId,
         "EUR",
@@ -812,7 +979,12 @@ describe("CashRegisterService", () => {
       const [caja] = await app.db
         .select({ currency: schema.cashRegisters.currency })
         .from(schema.cashRegisters)
-        .where(eq(schema.cashRegisters.id, id as number));
+        .where(
+          and(
+            tenantWhere(schema.cashRegisters, TEMPLO_CTX),
+            eq(schema.cashRegisters.id, id as number),
+          ),
+        );
       expect(caja.currency).toBe("EUR");
     });
   });

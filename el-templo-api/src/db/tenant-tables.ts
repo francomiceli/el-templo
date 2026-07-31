@@ -498,16 +498,39 @@ export function isPlatformPhysicalTable(name: string): boolean {
  * `GYM_OWNED_TABLES` — los de `getTableName()`, no los de las constantes
  * TypeScript. El sentinel aplana el registro internamente (`STRICT_SET`).
  *
- * POR QUÉ ARRANCA VACÍA
- * ---------------------
- * Porque en la fase 170 no hay ningún módulo migrado: la 170 construye los
- * vigilantes, no migra código. La PRIMERA entrada la agrega la **fase 172**
- * (`finance`). Que arranque vacía es lo que hace honesto al sentinel: hoy no
- * hay ni una tabla sobre la que el throw esté justificado, y el gate de forma de
- * `test/db/tenant-tables.test.ts` obliga a que sumar la primera sea una decisión
- * de diseño visible en el diff, no un detalle de implementación.
+ * ARRANCÓ VACÍA, Y QUIÉN ESCRIBIÓ LA PRIMERA ENTRADA
+ * --------------------------------------------------
+ * En la fase 170 no había ningún módulo migrado: la 170 construye los
+ * vigilantes, no migra código. Que arrancara vacía es lo que hacía honesto al
+ * sentinel — no había ni una tabla sobre la que el throw estuviera justificado.
+ *
+ * La PRIMERA entrada la escribe la **fase 172** (`finance`), y la escribe al
+ * FINAL de la fase a propósito (D-03): primero se migraron TODOS los accesos a
+ * sus 6 tablas —los de `src/modules/finance/` y los de analytics, reports,
+ * subscriptions, members, coach y `scripts/backfill-historical-payments.ts`,
+ * porque el alcance del throw es POR TABLA, no por directorio (D-01)— y recién
+ * después se prendió el interruptor. Así la suite nunca quedó roja entre planes.
+ *
+ * `aura_balances` y `aura_transactions` NO están acá aunque suenen a finanzas:
+ * las escribe gamification, y su throw llega con la adopción de ese módulo
+ * (D-05). Una tabla entra a esta lista cuando su módulo dueño la migra entera,
+ * no cuando su nombre encaja en un rubro.
+ *
+ * El gate de forma de `test/db/tenant-tables.test.ts` obliga a que sumar cada
+ * entrada nueva sea una decisión de diseño visible en el diff, no un detalle de
+ * implementación: exige las tablas exactas de los módulos ya declarados y cruza
+ * la lista contra `tenant-lint-allowlist.json` (D-15).
  */
-export const TENANT_STRICT_MODULES: Record<string, readonly string[]> = {};
+export const TENANT_STRICT_MODULES: Record<string, readonly string[]> = {
+  finance: [
+    "balances",
+    "cash_registers",
+    "cost_centers",
+    "debt_management",
+    "financial_transactions",
+    "transaction_links",
+  ],
+};
 
 const STRICT_SET: ReadonlySet<string> = new Set(
   Object.values(TENANT_STRICT_MODULES).flat(),

@@ -41,6 +41,16 @@ import {
   dateOffsetStr,
 } from "../helpers";
 import * as schema from "../../src/db/schema";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+import { tenantWhere } from "../../src/modules/shared/tenant";
+
+/**
+ * Fase 172: la sede de este archivo se crea sin `tenantId`, asi que cae en El
+ * Templo por el `DEFAULT 1` de la columna — igual que la caja que le siembra
+ * `ensureEfectivoCaja`. El DELETE de limpieza lo hace explicito para sobrevivir
+ * al throw del sentinel sobre `cash_registers`.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 import { runWellhubSync } from "../../src/jobs/wellhub-sync";
 
 const WEBHOOK_URL = "/api/webhooks/wellhub";
@@ -259,7 +269,12 @@ describe("Wellhub — reservas y sincronización", () => {
     await cleanAllTestData(app);
     await app.db
       .delete(schema.cashRegisters)
-      .where(eq(schema.cashRegisters.branchId, branchId));
+      .where(
+        and(
+          tenantWhere(schema.cashRegisters, TEMPLO_CTX),
+          eq(schema.cashRegisters.branchId, branchId),
+        ),
+      );
     await app.db
       .delete(schema.branches)
       .where(eq(schema.branches.id, branchId));

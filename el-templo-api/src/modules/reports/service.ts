@@ -23,6 +23,11 @@ import { firmMoneySqlFor } from "../finance/firm-money";
 import { buildMemberNameSearchCondition } from "../shared/member-search";
 import { activeMemberExists } from "../shared/active-member";
 import { ForbiddenError, NotFoundError } from "../shared/errors";
+import {
+  tenantValues,
+  tenantWhere,
+  type TenantContext,
+} from "../shared/tenant";
 import { runReassignMultibranch } from "../../jobs/reassign-multibranch";
 // Atribución de profe por roster: misma regla que usan las puntuaciones.
 import {
@@ -448,6 +453,7 @@ export class ReportsService {
   // ─── Charge History ───────────────────────────────────────────────────────
 
   async getChargeHistory(
+    ctx: TenantContext,
     filters: ChargeReportFilters,
   ): Promise<PaginatedResult<ChargeReportRow>> {
     const page = filters.page ?? 1;
@@ -456,7 +462,10 @@ export class ReportsService {
 
     const memberAlias = schema.users;
 
-    const conditions = this.buildChargeConditions(filters);
+    // El filtro de gimnasio sobre financial_transactions viaja adentro de
+    // `conditions` (primer término del WHERE); transaction_links lleva el suyo
+    // en el ON del join de acá abajo.
+    const conditions = this.buildChargeConditions(ctx, filters);
 
     // Count total — join branches so country filter in buildChargeConditions
     // resolves without reference errors. Phase 105 D-01: revenue rows are
@@ -470,6 +479,7 @@ export class ReportsService {
       .innerJoin(
         schema.transactionLinks,
         and(
+          tenantWhere(schema.transactionLinks, ctx),
           eq(
             schema.transactionLinks.transactionId,
             schema.financialTransactions.id,
@@ -510,12 +520,14 @@ export class ReportsService {
       FROM financial_transactions ft
       INNER JOIN transaction_links tl
         ON tl.transaction_id = ft.id AND tl.target_kind = 'subscription'
+        AND tl.tenant_id = ${ctx.tenantId}
       INNER JOIN subscriptions s ON s.id = tl.target_id
       INNER JOIN users m ON m.id = ft.member_id
       INNER JOIN branches b ON b.id = m.branch_id
       INNER JOIN subscription_plans sp ON sp.id = s.plan_id
       INNER JOIN users r ON r.id = ft.recorded_by
-      WHERE ft.kind IN ('plan_charge', 'debt_settlement')
+      WHERE ft.tenant_id = ${ctx.tenantId}
+        AND ft.kind IN ('plan_charge', 'debt_settlement')
         AND ft.direction = 'inflow'
         AND ${sql.raw(firmMoneySqlFor("ft"))}
         AND ${this.buildChargeConditionsRaw(filters)}
@@ -766,8 +778,16 @@ export class ReportsService {
    *
    * Shared by getOutstandingBalances + exportOutstandingBalances so the JSON
    * listing and the Excel export derive the same motivo/nota.
+   *
+   * Fase 172 — el `ctx` entra ACÁ y no en la query de afuera porque esto es una
+   * SUBCONSULTA con su propio FROM/JOIN: el WHERE del SELECT externo no alcanza
+   * a las filas de esta derivada. Sin el filtro adentro, un `debt_balance` de
+   * otro gimnasio con el mismo targetId podría aportar el motivo/nota de la
+   * deuda que se muestra. Es el ÚNICO helper de este archivo donde el filtro va
+   * dentro del fragmento — ver el docblock de `buildOutstandingScope` para el
+   * criterio general.
    */
-  private buildDebtOriginTxSubquery() {
+  private buildDebtOriginTxSubquery(ctx: TenantContext) {
     return this.db
       .select({
         targetId: schema.transactionLinks.targetId,
@@ -777,6 +797,7 @@ export class ReportsService {
       .innerJoin(
         schema.financialTransactions,
         and(
+          tenantWhere(schema.financialTransactions, ctx),
           eq(
             schema.financialTransactions.id,
             schema.transactionLinks.transactionId,
@@ -785,7 +806,12 @@ export class ReportsService {
           isNull(schema.financialTransactions.voidedAt),
         ),
       )
-      .where(eq(schema.transactionLinks.targetKind, "debt_balance"))
+      .where(
+        and(
+          tenantWhere(schema.transactionLinks, ctx),
+          eq(schema.transactionLinks.targetKind, "debt_balance"),
+        ),
+      )
       .groupBy(schema.transactionLinks.targetId)
       .as("debt_origin_tx");
   }
@@ -810,11 +836,58 @@ export class ReportsService {
   }
 
   /**
+   * Fase 172 — el gimnasio del reporte Deudas, resuelto en UN SOLO statement.
+   *
+   * PLANTILLA PARA LAS FASES 173-175. Léase antes de migrar cualquier archivo
+   * con helpers que devuelven fragmentos `SQL` en vez de ejecutar la query.
+   *
+   * EL PROBLEMA. Cuatro helpers de este bloque (`buildOutstandingBaseConds`,
+   * `buildOutstandingStatusConds`, `buildOutstandingOrderBy` y
+   * `effectiveDebtStatusSQL`) no hacen la query: devuelven pedazos que se
+   * componen en OTRA. Un pedazo que nombra `balances` sin nombrar el gimnasio
+   * termina en una query que parece scopeada y no lo está, y —peor— el lint de
+   * tenancy razona por STATEMENT: cada `conds.push(sql\`… balances …\`)` es su
+   * propio statement, así que agregar el filtro al array NO los vuelve
+   * cumplidores. Duplicar `tenantWhere` en cada push tampoco: sale
+   * `tenant_id = 1 AND … AND tenant_id = 1` repetido diez veces.
+   *
+   * LA SALIDA (hallazgo 172-02). La columna viaja como PARÁMETRO. Este helper
+   * es el único statement del bloque que nombra `balances` y `debt_management`,
+   * y nombra el gimnasio con `tenantWhere`. Los helpers reciben este objeto y
+   * arman sus fragmentos con `cols.*`, sin importar el schema. Resultado: el
+   * filtro de gimnasio existe UNA vez (como primer elemento de las conditions,
+   * o sea primer término del WHERE) y no hay forma de escribir un fragmento
+   * nuevo que se olvide de él, porque las columnas no están a mano.
+   *
+   * Las tablas del JOIN (`debt_management`, `financial_transactions`) llevan su
+   * propio `tenantWhere` en la cláusula ON de cada query — NUNCA en el WHERE:
+   * son LEFT JOIN y un predicado sobre la tabla derecha en el WHERE convierte
+   * el LEFT en INNER, lo que borraría del reporte todas las deudas sin gestión.
+   */
+  private buildOutstandingScope(ctx: TenantContext) {
+    return {
+      /** Primer término del WHERE de las 4 queries del reporte. */
+      tenantFilter: tenantWhere(schema.balances, ctx),
+      amount: schema.balances.amount,
+      id: schema.balances.id,
+      currency: schema.balances.currency,
+      createdAt: schema.balances.createdAt,
+      dmStatus: schema.debtManagement.status,
+      dmPromisedPaymentDate: schema.debtManagement.promisedPaymentDate,
+    };
+  }
+
+  /**
    * Estado efectivo de gestión: una deuda sin fila en debt_management es
    * 'activa'. Compartido por conditions, statusTotals y projection.
+   *
+   * La columna llega por parámetro (ver `buildOutstandingScope`): es una
+   * proyección, no un predicado, así que no puede llevar el filtro adentro.
    */
-  private effectiveDebtStatusSQL(): SQL {
-    return sql`COALESCE(${schema.debtManagement.status}, 'activa')`;
+  private effectiveDebtStatusSQL(
+    statusColumn: typeof schema.debtManagement.status,
+  ): SQL {
+    return sql`COALESCE(${statusColumn}, 'activa')`;
   }
 
   /**
@@ -826,8 +899,11 @@ export class ReportsService {
   private buildOutstandingBaseConds(
     filters: OutstandingBalancesFilters,
     lastAtt: ReturnType<ReportsService["buildLastAttendanceSubquery"]>,
+    cols: ReturnType<ReportsService["buildOutstandingScope"]>,
   ): SQL[] {
-    const conds: SQL[] = [];
+    // El filtro de gimnasio es el PRIMER término del WHERE de toda query que
+    // componga estas conditions (convención lockeada, shared/tenant.ts:18-21).
+    const conds: SQL[] = [cols.tenantFilter];
 
     if (filters.branchId !== undefined) {
       // Filter on subscriptions.branchId (LEFT JOIN). debt_balance rows have
@@ -838,7 +914,7 @@ export class ReportsService {
       conds.push(eq(schema.branches.country, filters.country));
     }
     if (filters.currency !== undefined) {
-      conds.push(eq(schema.balances.currency, filters.currency));
+      conds.push(eq(cols.currency, filters.currency));
     }
     if (filters.search !== undefined && filters.search.trim().length > 0) {
       const searchCond = buildMemberNameSearchCondition(filters.search, {
@@ -853,35 +929,33 @@ export class ReportsService {
     // gestionadas (LEFT JOIN → columna NULL). 'vencida' es la cola de trabajo
     // de cobranzas: prometió una fecha ya pasada y la deuda no se cobró.
     if (filters.promise === "con") {
-      conds.push(isNotNull(schema.debtManagement.promisedPaymentDate));
+      conds.push(isNotNull(cols.dmPromisedPaymentDate));
     } else if (filters.promise === "sin") {
-      conds.push(isNull(schema.debtManagement.promisedPaymentDate));
+      conds.push(isNull(cols.dmPromisedPaymentDate));
     } else if (filters.promise === "vencida") {
-      conds.push(sql`${schema.debtManagement.promisedPaymentDate} < CURDATE()`);
-      conds.push(sql`${this.effectiveDebtStatusSQL()} <> 'cobrada'`);
+      conds.push(sql`${cols.dmPromisedPaymentDate} < CURDATE()`);
+      conds.push(
+        sql`${this.effectiveDebtStatusSQL(cols.dmStatus)} <> 'cobrada'`,
+      );
     }
 
     // Rangos de fecha (brief §4.2): registro = DATE(balances.createdAt);
     // devengo = COALESCE(subscriptions.startDate, registro) — el mismo
     // fallback que deriveEffectiveDateAndLabelOB usa para effectiveDate.
     if (filters.registeredFrom !== undefined) {
-      conds.push(
-        sql`DATE(${schema.balances.createdAt}) >= ${filters.registeredFrom}`,
-      );
+      conds.push(sql`DATE(${cols.createdAt}) >= ${filters.registeredFrom}`);
     }
     if (filters.registeredTo !== undefined) {
-      conds.push(
-        sql`DATE(${schema.balances.createdAt}) <= ${filters.registeredTo}`,
-      );
+      conds.push(sql`DATE(${cols.createdAt}) <= ${filters.registeredTo}`);
     }
     if (filters.accruedFrom !== undefined) {
       conds.push(
-        sql`COALESCE(${schema.subscriptions.startDate}, DATE(${schema.balances.createdAt})) >= ${filters.accruedFrom}`,
+        sql`COALESCE(${schema.subscriptions.startDate}, DATE(${cols.createdAt})) >= ${filters.accruedFrom}`,
       );
     }
     if (filters.accruedTo !== undefined) {
       conds.push(
-        sql`COALESCE(${schema.subscriptions.startDate}, DATE(${schema.balances.createdAt})) <= ${filters.accruedTo}`,
+        sql`COALESCE(${schema.subscriptions.startDate}, DATE(${cols.createdAt})) <= ${filters.accruedTo}`,
       );
     }
 
@@ -906,11 +980,12 @@ export class ReportsService {
    */
   private buildOutstandingStatusConds(
     status: OutstandingBalancesFilters["status"],
+    cols: ReturnType<ReportsService["buildOutstandingScope"]>,
   ): SQL[] {
-    const effStatus = this.effectiveDebtStatusSQL();
+    const effStatus = this.effectiveDebtStatusSQL(cols.dmStatus);
     const effective = status ?? "activa";
     if (effective === "activa") {
-      return [gt(schema.balances.amount, 0), sql`${effStatus} = 'activa'`];
+      return [gt(cols.amount, 0), sql`${effStatus} = 'activa'`];
     }
     if (effective === "incobrable") {
       return [sql`${effStatus} = 'incobrable'`];
@@ -928,23 +1003,24 @@ export class ReportsService {
   private buildOutstandingOrderBy(
     filters: OutstandingBalancesFilters,
     lastAtt: ReturnType<ReportsService["buildLastAttendanceSubquery"]>,
+    cols: ReturnType<ReportsService["buildOutstandingScope"]>,
   ): SQL {
     const sortBy = filters.sortBy ?? "age";
     const dir = filters.sortDir ?? "desc";
     if (sortBy === "amount") {
       return dir === "asc"
-        ? sql`${schema.balances.amount} ASC, ${schema.balances.id} ASC`
-        : sql`${schema.balances.amount} DESC, ${schema.balances.id} ASC`;
+        ? sql`${cols.amount} ASC, ${cols.id} ASC`
+        : sql`${cols.amount} DESC, ${cols.id} ASC`;
     }
     if (sortBy === "lastAttendance") {
       return dir === "asc"
-        ? sql`${lastAtt.lastCheckinAt} ASC, ${schema.balances.id} ASC`
-        : sql`${lastAtt.lastCheckinAt} DESC, ${schema.balances.id} ASC`;
+        ? sql`${lastAtt.lastCheckinAt} ASC, ${cols.id} ASC`
+        : sql`${lastAtt.lastCheckinAt} DESC, ${cols.id} ASC`;
     }
     // age (default): DESC = más vieja primero = createdAt ASC.
     return dir === "asc"
-      ? sql`${schema.balances.createdAt} DESC, ${schema.balances.id} DESC`
-      : sql`${schema.balances.createdAt} ASC, ${schema.balances.id} ASC`;
+      ? sql`${cols.createdAt} DESC, ${cols.id} DESC`
+      : sql`${cols.createdAt} ASC, ${cols.id} ASC`;
   }
 
   /**
@@ -953,6 +1029,7 @@ export class ReportsService {
    * nunca deriven (mismo contrato que ya cumplían por copia, ahora por DRY).
    */
   private async selectOutstandingRows(opts: {
+    ctx: TenantContext;
     lastAtt: ReturnType<ReportsService["buildLastAttendanceSubquery"]>;
     whereClause: SQL | undefined;
     orderBy: SQL;
@@ -961,7 +1038,7 @@ export class ReportsService {
   }): Promise<OutstandingBalanceRow[]> {
     // Phase 153 (DEUDA-02/D-11): resolve the origin advance_payment of each
     // debt_balance to derive the motivo (miscReason) + free-text note.
-    const debtOriginTx = this.buildDebtOriginTxSubquery();
+    const debtOriginTx = this.buildDebtOriginTxSubquery(opts.ctx);
 
     let query = this.db
       .select({
@@ -1004,9 +1081,15 @@ export class ReportsService {
         eq(schema.branches.id, schema.subscriptions.branchId),
       )
       .leftJoin(schema.users, eq(schema.users.id, schema.balances.memberId))
+      // El filtro de gimnasio de las tablas LEFT JOINeadas va en el ON, jamás
+      // en el WHERE: en el WHERE convertiría el LEFT en INNER y desaparecerían
+      // del reporte las deudas sin fila de gestión (la mayoría).
       .leftJoin(
         schema.debtManagement,
-        eq(schema.debtManagement.balanceId, schema.balances.id),
+        and(
+          tenantWhere(schema.debtManagement, opts.ctx),
+          eq(schema.debtManagement.balanceId, schema.balances.id),
+        ),
       )
       .leftJoin(
         opts.lastAtt,
@@ -1021,7 +1104,10 @@ export class ReportsService {
       )
       .leftJoin(
         schema.financialTransactions,
-        eq(schema.financialTransactions.id, debtOriginTx.txId),
+        and(
+          tenantWhere(schema.financialTransactions, opts.ctx),
+          eq(schema.financialTransactions.id, debtOriginTx.txId),
+        ),
       )
       .where(opts.whereClause)
       .orderBy(opts.orderBy)
@@ -1124,6 +1210,7 @@ export class ReportsService {
    * Sort order: ageInDays DESC (oldest debts first).
    */
   async getOutstandingBalances(
+    ctx: TenantContext,
     filters: OutstandingBalancesFilters,
     scope: { isOwner: boolean },
   ): Promise<OutstandingBalancesResult> {
@@ -1135,10 +1222,11 @@ export class ReportsService {
     // Base (sucursal/país/moneda/búsqueda/promesa/fechas/asistencia) + corte
     // por estado (default 'activa'). La MISMA instancia de lastAtt se usa en
     // conditions, joins y orderBy (alias compartido del derived table).
+    const cols = this.buildOutstandingScope(ctx);
     const lastAtt = this.buildLastAttendanceSubquery();
-    const baseConds = this.buildOutstandingBaseConds(filters, lastAtt);
+    const baseConds = this.buildOutstandingBaseConds(filters, lastAtt, cols);
     const whereClause = and(
-      ...this.buildOutstandingStatusConds(filters.status),
+      ...this.buildOutstandingStatusConds(filters.status, cols),
       ...baseConds,
     );
 
@@ -1165,8 +1253,13 @@ export class ReportsService {
       )
       .leftJoin(schema.users, eq(schema.users.id, schema.balances.memberId))
       .leftJoin(
+        // tenantWhere en el ON y no en el WHERE: el LEFT JOIN tiene que seguir
+        // devolviendo las deudas sin fila de gestión (ver buildOutstandingScope).
         schema.debtManagement,
-        eq(schema.debtManagement.balanceId, schema.balances.id),
+        and(
+          tenantWhere(schema.debtManagement, ctx),
+          eq(schema.debtManagement.balanceId, schema.balances.id),
+        ),
       )
       .leftJoin(lastAtt, eq(lastAtt.memberId, schema.balances.memberId))
       .where(whereClause);
@@ -1178,9 +1271,10 @@ export class ReportsService {
     // selectOutstandingRows. El orden es determinista (tiebreaker balances.id)
     // así que la paginación LIMIT/OFFSET no duplica ni pierde filas.
     const mapped = await this.selectOutstandingRows({
+      ctx,
       lastAtt,
       whereClause,
-      orderBy: this.buildOutstandingOrderBy(filters, lastAtt),
+      orderBy: this.buildOutstandingOrderBy(filters, lastAtt, cols),
       limit,
       offset,
     });
@@ -1216,8 +1310,13 @@ export class ReportsService {
       )
       .leftJoin(schema.users, eq(schema.users.id, schema.balances.memberId))
       .leftJoin(
+        // tenantWhere en el ON y no en el WHERE: el LEFT JOIN tiene que seguir
+        // devolviendo las deudas sin fila de gestión (ver buildOutstandingScope).
         schema.debtManagement,
-        eq(schema.debtManagement.balanceId, schema.balances.id),
+        and(
+          tenantWhere(schema.debtManagement, ctx),
+          eq(schema.debtManagement.balanceId, schema.balances.id),
+        ),
       )
       .leftJoin(lastAtt, eq(lastAtt.memberId, schema.balances.memberId))
       .where(whereClause);
@@ -1253,9 +1352,10 @@ export class ReportsService {
     const statusTotalsRows = await this.db
       .select({
         currency: schema.balances.currency,
-        effStatus: sql<string>`${this.effectiveDebtStatusSQL()}`.as(
-          "eff_status",
-        ),
+        effStatus:
+          sql<string>`${this.effectiveDebtStatusSQL(cols.dmStatus)}`.as(
+            "eff_status",
+          ),
         totalAmount: sql<number>`CAST(SUM(${schema.balances.amount}) AS SIGNED)`,
       })
       .from(schema.balances)
@@ -1272,8 +1372,13 @@ export class ReportsService {
       )
       .leftJoin(schema.users, eq(schema.users.id, schema.balances.memberId))
       .leftJoin(
+        // tenantWhere en el ON y no en el WHERE: el LEFT JOIN tiene que seguir
+        // devolviendo las deudas sin fila de gestión (ver buildOutstandingScope).
         schema.debtManagement,
-        eq(schema.debtManagement.balanceId, schema.balances.id),
+        and(
+          tenantWhere(schema.debtManagement, ctx),
+          eq(schema.debtManagement.balanceId, schema.balances.id),
+        ),
       )
       .leftJoin(lastAtt, eq(lastAtt.memberId, schema.balances.memberId))
       .where(and(gt(schema.balances.amount, 0), ...baseConds))
@@ -1441,6 +1546,7 @@ export class ReportsService {
    * the admin country-scope behaviour.
    */
   async getTrialConversionReport(
+    ctx: TenantContext,
     filters: TrialConversionFilters,
   ): Promise<TrialConversionReport> {
     // Subquery: each lead's first trial (one row per user with is_trial=1,
@@ -1495,7 +1601,8 @@ export class ReportsService {
         COALESCE((
           SELECT SUM(fx.amount)
           FROM financial_transactions fx
-          WHERE fx.member_id = ft.user_id
+          WHERE fx.tenant_id = ${ctx.tenantId}
+            AND fx.member_id = ft.user_id
             AND ${sql.raw(firmMoneySqlFor("fx"))}
             AND fx.direction = 'inflow'
             AND fx.kind IN ('plan_charge', 'debt_settlement')
@@ -2351,9 +2458,10 @@ export class ReportsService {
   }
 
   async exportChargeHistory(
+    ctx: TenantContext,
     filters: ChargeReportFilters,
   ): Promise<ChargeReportRow[]> {
-    const result = await this.getChargeHistory({
+    const result = await this.getChargeHistory(ctx, {
       ...filters,
       page: 1,
       limit: 100000,
@@ -2386,17 +2494,20 @@ export class ReportsService {
    * exclude debt_balance rows (no branch/no geography).
    */
   async exportOutstandingBalances(
+    ctx: TenantContext,
     filters: OutstandingBalancesFilters,
   ): Promise<OutstandingBalanceRow[]> {
+    const cols = this.buildOutstandingScope(ctx);
     const lastAtt = this.buildLastAttendanceSubquery();
     const whereClause = and(
-      ...this.buildOutstandingStatusConds(filters.status),
-      ...this.buildOutstandingBaseConds(filters, lastAtt),
+      ...this.buildOutstandingStatusConds(filters.status, cols),
+      ...this.buildOutstandingBaseConds(filters, lastAtt, cols),
     );
     return this.selectOutstandingRows({
+      ctx,
       lastAtt,
       whereClause,
-      orderBy: this.buildOutstandingOrderBy(filters, lastAtt),
+      orderBy: this.buildOutstandingOrderBy(filters, lastAtt, cols),
     });
   }
 
@@ -2412,6 +2523,7 @@ export class ReportsService {
    * país. Fail-closed si el scope de país no resolvió.
    */
   async updateDebtManagement(
+    ctx: TenantContext,
     balanceId: number,
     input: DebtManagementUpdateInput,
     actor: { userId: number; isOwner: boolean; country: "AR" | "ES" | null },
@@ -2433,9 +2545,17 @@ export class ReportsService {
         schema.branches,
         eq(schema.branches.id, schema.subscriptions.branchId),
       )
-      .where(eq(schema.balances.id, balanceId))
+      .where(
+        and(
+          tenantWhere(schema.balances, ctx),
+          eq(schema.balances.id, balanceId),
+        ),
+      )
       .limit(1);
 
+    // Fail-closed cross-tenant: una deuda de otro gimnasio no matchea el
+    // SELECT y sale por acá con 404 — nunca 403, para no filtrar existencia
+    // (mismo idioma que enforceCajaScope en finance/routes.ts).
     if (!bal) {
       throw new NotFoundError("Deuda no encontrada");
     }
@@ -2449,13 +2569,18 @@ export class ReportsService {
     // ON DUPLICATE KEY UPDATE pisa SOLO los campos provistos (PATCH parcial).
     await this.db
       .insert(schema.debtManagement)
-      .values({
-        balanceId,
-        status: input.status ?? "activa",
-        promisedPaymentDate: input.promisedPaymentDate ?? null,
-        notes: input.notes ?? null,
-        updatedBy: actor.userId,
-      })
+      // tenantValues estampa el gimnasio DESPUÉS del objeto, así que el tenant
+      // sale del servidor aunque un día alguien spreadee el body acá adentro
+      // (mitigación de mass-assignment, 169-01).
+      .values(
+        tenantValues(ctx, {
+          balanceId,
+          status: input.status ?? "activa",
+          promisedPaymentDate: input.promisedPaymentDate ?? null,
+          notes: input.notes ?? null,
+          updatedBy: actor.userId,
+        }),
+      )
       .onDuplicateKeyUpdate({
         set: {
           updatedBy: actor.userId,
@@ -2474,7 +2599,12 @@ export class ReportsService {
         notes: schema.debtManagement.notes,
       })
       .from(schema.debtManagement)
-      .where(eq(schema.debtManagement.balanceId, balanceId))
+      .where(
+        and(
+          tenantWhere(schema.debtManagement, ctx),
+          eq(schema.debtManagement.balanceId, balanceId),
+        ),
+      )
       .limit(1);
 
     return {
@@ -2529,19 +2659,47 @@ export class ReportsService {
   }
 
   private buildChargeConditions(
+    ctx: TenantContext,
     filters: ChargeReportFilters,
   ): ReturnType<typeof sql>[] {
     // Phase 105 D-01: revenue == financial_transactions where kind is a real
     // cash inflow (plan_charge, debt_settlement) and the row is not voided.
     // direction='inflow' excludes refunds. These three conditions belong on
     // every charge-history listing.
+    //
+    // Fase 172 — TODA referencia a `financial_transactions` vive en ESTE
+    // statement, que es el que nombra el gimnasio. Los filtros opcionales que
+    // antes se agregaban con `conditions.push(...)` entran acá con spread
+    // condicional: un `push` es un statement aparte y un fragmento sobre una
+    // tabla del módulo migrado que no nombra el tenant es exactamente el
+    // agujero que este archivo viene a cerrar (mismo criterio que
+    // `buildOutstandingScope`). El orden dentro del AND es irrelevante.
     const conditions: ReturnType<typeof sql>[] = [
+      tenantWhere(schema.financialTransactions, ctx),
       sql`1 = 1`,
       sql`${schema.financialTransactions.kind} IN ('plan_charge', 'debt_settlement')`,
       eq(schema.financialTransactions.direction, "inflow"),
       isNull(schema.financialTransactions.voidedAt),
       // Phase 137 (VAL-05): firm money counts only validated rows.
       eq(schema.financialTransactions.validationStatus, "validado"),
+      ...(filters.dateFrom
+        ? [
+            sql`${schema.financialTransactions.transactionDate} >= ${filters.dateFrom}`,
+          ]
+        : []),
+      ...(filters.dateTo
+        ? [
+            sql`${schema.financialTransactions.transactionDate} <= ${filters.dateTo}`,
+          ]
+        : []),
+      ...(filters.paymentMethod
+        ? [
+            eq(
+              schema.financialTransactions.paymentMethod,
+              filters.paymentMethod,
+            ),
+          ]
+        : []),
     ];
 
     if (filters.branchId !== undefined) {
@@ -2550,24 +2708,6 @@ export class ReportsService {
 
     if (filters.country !== undefined) {
       conditions.push(eq(schema.branches.country, filters.country));
-    }
-
-    if (filters.dateFrom) {
-      conditions.push(
-        sql`${schema.financialTransactions.transactionDate} >= ${filters.dateFrom}`,
-      );
-    }
-
-    if (filters.dateTo) {
-      conditions.push(
-        sql`${schema.financialTransactions.transactionDate} <= ${filters.dateTo}`,
-      );
-    }
-
-    if (filters.paymentMethod) {
-      conditions.push(
-        eq(schema.financialTransactions.paymentMethod, filters.paymentMethod),
-      );
     }
 
     if (filters.search) {

@@ -9,12 +9,24 @@ import {
   cleanAllTestData,
 } from "../helpers";
 import { TicketService } from "../../src/modules/analytics/ticket-service";
+import {
+  tenantValues,
+  type TenantContext,
+} from "../../src/modules/shared/tenant";
 import { financialTransactions } from "../../src/db/schema/financial-transactions";
 import { transactionLinks } from "../../src/db/schema/transaction-links";
 import { subscriptions } from "../../src/db/schema/subscriptions";
 import { subscriptionPlans } from "../../src/db/schema/subscription-plans";
 import { branches } from "../../src/db/schema/branches";
 import { users } from "../../src/db/schema/users";
+
+/**
+ * El gimnasio de los fixtures (El Templo = tenant 1). Fase 172: el service
+ * recibe el `TenantContext` como PRIMER argumento; en producción sale de
+ * `assertTenant(request.scope, …)`, acá se construye a mano porque el service se
+ * invoca sin request.
+ */
+const CTX: TenantContext = { tenantId: 1 };
 
 const ANALYTICS_URL = "/api/admin/analytics";
 
@@ -175,26 +187,30 @@ describe("TicketService (Phase 120 Plan 04)", () => {
     });
     const subId = (sub as { insertId: number }).insertId;
 
-    const [ft] = await app.db.insert(financialTransactions).values({
-      memberId: opts.userId,
-      kind: "plan_charge",
-      direction: "inflow",
-      amount: opts.ftAmount ?? opts.pricePaid,
-      currency,
-      paymentMethod: "cash",
-      transactionDate: opts.date ?? "2026-03-10",
-      effectiveDate: opts.date ?? "2026-03-10",
-      branchId,
-      recordedBy: recorderId,
-    });
+    const [ft] = await app.db.insert(financialTransactions).values(
+      tenantValues(CTX, {
+        memberId: opts.userId,
+        kind: "plan_charge",
+        direction: "inflow",
+        amount: opts.ftAmount ?? opts.pricePaid,
+        currency,
+        paymentMethod: "cash",
+        transactionDate: opts.date ?? "2026-03-10",
+        effectiveDate: opts.date ?? "2026-03-10",
+        branchId,
+        recordedBy: recorderId,
+      }),
+    );
     const ftId = (ft as { insertId: number }).insertId;
 
-    await app.db.insert(transactionLinks).values({
-      transactionId: ftId,
-      targetKind: "subscription",
-      targetId: subId,
-      allocatedAmount: opts.ftAmount ?? opts.pricePaid,
-    });
+    await app.db.insert(transactionLinks).values(
+      tenantValues(CTX, {
+        transactionId: ftId,
+        targetKind: "subscription",
+        targetId: subId,
+        allocatedAmount: opts.ftAmount ?? opts.pricePaid,
+      }),
+    );
   }
 
   /**
@@ -212,25 +228,29 @@ describe("TicketService (Phase 120 Plan 04)", () => {
     date?: string;
   }): Promise<void> {
     const branchId = opts.branchId ?? branchA;
-    const [ft] = await app.db.insert(financialTransactions).values({
-      memberId: opts.userId,
-      kind: "plan_charge",
-      direction: "inflow",
-      amount: opts.amount,
-      currency: opts.currency ?? "ARS",
-      paymentMethod: "cash",
-      transactionDate: opts.date ?? "2026-03-10",
-      effectiveDate: opts.date ?? "2026-03-10",
-      branchId,
-      recordedBy: recorderId,
-    });
+    const [ft] = await app.db.insert(financialTransactions).values(
+      tenantValues(CTX, {
+        memberId: opts.userId,
+        kind: "plan_charge",
+        direction: "inflow",
+        amount: opts.amount,
+        currency: opts.currency ?? "ARS",
+        paymentMethod: "cash",
+        transactionDate: opts.date ?? "2026-03-10",
+        effectiveDate: opts.date ?? "2026-03-10",
+        branchId,
+        recordedBy: recorderId,
+      }),
+    );
     const ftId = (ft as { insertId: number }).insertId;
-    await app.db.insert(transactionLinks).values({
-      transactionId: ftId,
-      targetKind: "enrollment",
-      targetId: 999999,
-      allocatedAmount: opts.amount,
-    });
+    await app.db.insert(transactionLinks).values(
+      tenantValues(CTX, {
+        transactionId: ftId,
+        targetKind: "enrollment",
+        targetId: 999999,
+        allocatedAmount: opts.amount,
+      }),
+    );
   }
 
   const RANGE = { dateFrom: "2026-03-01", dateTo: "2026-04-01" }; // half-open
@@ -264,7 +284,7 @@ describe("TicketService (Phase 120 Plan 04)", () => {
       ftAmount: 150, // partial cash — must be IGNORED
     });
 
-    const res = await svc.getTicket(RANGE);
+    const res = await svc.getTicket(CTX, RANGE);
     // global = (100+200+300)/3 = 200, NOT (100+200+150)/3 = 150.
     expect(res.byCurrency.ARS.global.nominal).toBe(200);
     expect(res.byCurrency.ARS.global.n).toBe(3);
@@ -293,7 +313,7 @@ describe("TicketService (Phase 120 Plan 04)", () => {
       priceRegularSnapshot: 1000,
     });
 
-    const res = await svc.getTicket(RANGE);
+    const res = await svc.getTicket(CTX, RANGE);
     // weighted = (100*3 + 1000)/4 = 1300/4 = 325.
     // mean-of-means = (100 + 1000)/2 = 550 (WRONG — must NOT equal this).
     expect(res.byCurrency.ARS.global.nominal).toBe(325);
@@ -330,7 +350,7 @@ describe("TicketService (Phase 120 Plan 04)", () => {
       priceRegularSnapshot: 15000,
     });
 
-    const res = await svc.getTicket(RANGE);
+    const res = await svc.getTicket(CTX, RANGE);
     // average over priced charges only = 10000 (the $0 excluded).
     expect(res.byCurrency.ARS.global.nominal).toBe(10000);
     expect(res.byCurrency.ARS.global.n).toBe(1);
@@ -363,7 +383,7 @@ describe("TicketService (Phase 120 Plan 04)", () => {
       branchId: branchES,
     });
 
-    const res = await svc.getTicket(RANGE);
+    const res = await svc.getTicket(CTX, RANGE);
     expect(res.byCurrency.ARS.global.nominal).toBe(15000);
     expect(res.byCurrency.ARS.global.n).toBe(1);
     expect(res.byCurrency.EUR.global.nominal).toBe(100);
@@ -392,7 +412,7 @@ describe("TicketService (Phase 120 Plan 04)", () => {
       priceRegularSnapshot: null,
     });
 
-    const res = await svc.getTicket(RANGE);
+    const res = await svc.getTicket(CTX, RANGE);
     expect(res.historicalFallbackCount).toBe(1);
     // both discounts are 0.20 → mean and median both 0.20.
     expect(res.byCurrency.ARS.discountMean).toBeCloseTo(0.2, 5);
@@ -430,7 +450,7 @@ describe("TicketService (Phase 120 Plan 04)", () => {
       priceOverrideAmount: 15000,
     });
 
-    const res = await svc.getTicket(RANGE);
+    const res = await svc.getTicket(CTX, RANGE);
     const ars = res.byCurrency.ARS;
     // Global cohorts: 1 list-price (15000), 2 discounted/customized (12000, 15000).
     expect(ars.globalCohorts.listPrice.n).toBe(1);
@@ -460,7 +480,7 @@ describe("TicketService (Phase 120 Plan 04)", () => {
     // One enrollment-only plan_charge (no subscription link) in the same period.
     await seedEnrollmentCharge({ userId: m2, amount: 9999 });
 
-    const res = await svc.getTicket(RANGE);
+    const res = await svc.getTicket(CTX, RANGE);
     // The membership ticket reflects ONLY the linked charge (15000), not 9999.
     expect(res.byCurrency.ARS.global.nominal).toBe(15000);
     expect(res.byCurrency.ARS.global.n).toBe(1);
@@ -488,7 +508,7 @@ describe("TicketService (Phase 120 Plan 04)", () => {
       priceRegularSnapshot: 40000,
     });
 
-    const res = await svc.getTicket(RANGE);
+    const res = await svc.getTicket(CTX, RANGE);
     const monthly = res.byCurrency.ARS.byDuration.find(
       (d) => d.durationTier === "monthly",
     );
@@ -523,7 +543,7 @@ describe("TicketService (Phase 120 Plan 04)", () => {
       branchId: branchES,
     });
 
-    const res = await svc.getTicket({ ...RANGE, branchId: branchA });
+    const res = await svc.getTicket(CTX, { ...RANGE, branchId: branchA });
     expect(res.byCurrency.ARS.global.n).toBe(1);
     // The ES branch charge is out of scope → EUR has no charges.
     expect(res.byCurrency.EUR.global.n).toBe(0);
@@ -552,7 +572,7 @@ describe("TicketService (Phase 120 Plan 04)", () => {
       date: "2026-04-01", // == dateTo → must be EXCLUDED
     });
 
-    const res = await svc.getTicket(RANGE);
+    const res = await svc.getTicket(CTX, RANGE);
     expect(res.byCurrency.ARS.global.n).toBe(1);
     expect(res.byCurrency.ARS.global.nominal).toBe(15000);
   });
@@ -578,7 +598,7 @@ describe("TicketService (Phase 120 Plan 04)", () => {
       priceRegularSnapshot: 40000,
     });
 
-    const res = await svc.getTicket({ ...RANGE, planId: planArId });
+    const res = await svc.getTicket(CTX, { ...RANGE, planId: planArId });
     // Only the plan-AR charge is counted: global reflects 15000 over n=1.
     expect(res.byCurrency.ARS.global.n).toBe(1);
     expect(res.byCurrency.ARS.global.nominal).toBe(15000);
@@ -601,7 +621,7 @@ describe("TicketService (Phase 120 Plan 04)", () => {
 
     // planId=AR (a real plan) but scoped to a DIFFERENT branch → no data: the
     // plan filter must AND with scope, never bypass it.
-    const res = await svc.getTicket({
+    const res = await svc.getTicket(CTX, {
       ...RANGE,
       planId: planArId,
       branchId: branchES,
