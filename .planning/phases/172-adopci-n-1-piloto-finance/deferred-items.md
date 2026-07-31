@@ -74,3 +74,33 @@ error dice qué hacer.
 
 **Lo que NO hay que hacer:** sacar tablas de `TENANT_STRICT_MODULES` para que estos
 gates pasen. Es literalmente lo que el mensaje del sentinel prohíbe.
+
+---
+
+## AMBIENTAL — `test/tenancy` entero EN PARALELO no entra en esta máquina (172-18)
+
+**Encontrado:** plan 172-18, corrida de verificación cruzada del directorio.
+
+`pnpm exec vitest run test/tenancy` (10 archivos, paralelismo por defecto) dio
+**7 archivos rojos / 13 tests fallados / 142 salteados**. **Ninguno es un rojo de
+aislamiento ni de tenancy:** son todos de provisioning de las bases por worker.
+
+| Error                                                            | Qué es                                                                 |
+| ---------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `Unknown column 'tenant_id' in 'field list'` (`aura_config`)     | una base por worker quedó **sin las migraciones de la 167**            |
+| `la migración 0196 no la convirtió` (×10, uniques de `con-01`)   | esa misma base, sin la 0196                                            |
+| `Cannot read properties of undefined (reading 'dbPool')` (×3)    | `createTestApp()` nunca terminó — el `beforeAll` murió antes           |
+| `Hook timed out in 250000ms` / `Login failed for admin@test.com` | el provisioning + seed no entra en el timeout con 10 archivos a la vez |
+
+**Prueba de que es ambiental:** `iso-03-finance-cajas.test.ts` —verde en su propio
+plan (172-17) y verde otra vez en la corrida de a dos— **también falló** en esa
+corrida. Y los dos archivos iso-03 juntos en **un solo worker**
+(`--no-file-parallelism`, base compartida, uno después del otro) dan **67/67**.
+
+**Mitigación:** en esta máquina, correr `test/tenancy` con `--no-file-parallelism`
+o de a un archivo.
+
+**Para quién es:** sobre todo el **plan 172-21**, que corre la suite completa con el
+sentinel en **throw**. Un rojo de provisioning en medio de esa corrida se lee como un
+rojo del switch y hace perder una hora. También el **172-19**, que agrega el tercer
+archivo de la batería.

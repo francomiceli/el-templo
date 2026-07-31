@@ -4661,7 +4661,7 @@ toda la fase.
 3. Batería de aislamiento verde: cada ruta `tenant-scoped` de finance, ejecutada como staff del tenant A, **no lee ni escribe** filas del tenant B — lecturas vacías/404 y escrituras rechazadas, ruta por ruta según el manifiesto. El patrón queda documentado como plantilla para las fases de adopción siguientes. (ISO-03)
 4. Sin cambio para el staff: cobros, validación, caja, movimientos, egresos, deudas y exports dan los **mismos números** en staging antes y después (comparación explícita), y la suite existente pasa sin ajustar expectativas.
 
-**Plans:** 17/23 plans executed
+**Plans:** 18/23 plans executed
 
 Plans:
 
@@ -4723,7 +4723,7 @@ Plans:
 > `el-templo-api/src/db/tenant-tables.ts`, así que en paralelo se pisarían entre ellos.
 
 - [x] 172-17-PLAN.md — ISO-03: fixture de finanzas del gimnasio 2 + 14 rutas de cajas
-- [ ] 172-18-PLAN.md — ISO-03: 13 rutas de transacciones, bandeja e historial
+- [x] 172-18-PLAN.md — ISO-03: 13 rutas de transacciones, bandeja e historial
 - [ ] 172-19-PLAN.md — ISO-03: 11 rutas de coach-load (rol coach), movimientos y egresos
 - [ ] 172-20-PLAN.md — gate de cobertura fail-closed derivado del manifiesto
 - [ ] 172-21-PLAN.md — el switch: entrada strict, allowlist en cero, demo fail-closed
@@ -4808,7 +4808,7 @@ Plans:
 | 169. Capa de escritura — helpers y TenantContext  | 9/9            | Complete    | 2026-07-28 |
 | 170. Detección — sentinel de pool + lint CI       | 0/8            | Planned     |            |
 | 171. Backstop — manifiesto + fixtures 2-tenant    | 0/?            | Not started |            |
-| 172. Adopción 1 (piloto) — finance                | 17/23          | In Progress |            |
+| 172. Adopción 1 (piloto) — finance                | 18/23          | In Progress |            |
 | 173. Adopción 2 — members + guarda de anclas      | 0/?            | Not started |            |
 | 174. Adopción 3 — subscriptions + scheduling      | 0/?            | Not started |            |
 | 175. Adopción 4 — analytics + resto del core      | 0/?            | Not started |            |
