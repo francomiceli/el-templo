@@ -1052,3 +1052,494 @@ describe("historial de movimientos (arqueo por caja) — GET /api/admin/finance/
     ).toBe(3);
   });
 });
+
+describe("export del historial — GET /api/admin/finance/movements-history/export", () => {
+  const RUTA = "GET /api/admin/finance/movements-history/export";
+  /** Columnas de la hoja "Mov-Egresos". */
+  const COL_MONTO = 5;
+  const COL_CAJA = 7;
+  const COLUMNAS = 10;
+
+  it("aislamiento: el .xlsx del arqueo no trae ni un importe ni una caja de El Templo", async () => {
+    const cajaAjena = await campoDeLaFila(
+      app,
+      "cash_registers",
+      "name",
+      templo.cajaId,
+    );
+    const filas = await filasDelExport(
+      `/movements-history/export?${rangoAncho()}`,
+      "Mov-Egresos",
+      COLUMNAS,
+    );
+
+    for (const ajeno of [MONTO_UNICO_TEMPLO, MONTO_PENDIENTE_TEMPLO]) {
+      expect(
+        columna(filas, COL_MONTO),
+        porQueImportaElExport(RUTA, `un movimiento de ${ajeno}`),
+      ).not.toContain(String(ajeno));
+    }
+    expect(
+      columna(filas, COL_CAJA),
+      porQueImportaElExport(RUTA, `la caja "${cajaAjena}"`),
+    ).not.toContain(cajaAjena);
+  });
+
+  it("control: el .xlsx SI trae los movimientos propios, con la caja propia", async () => {
+    const cajaPropia = await campoDeLaFila(
+      app,
+      "cash_registers",
+      "name",
+      dos.cajaId,
+    );
+    const filas = await filasDelExport(
+      `/movements-history/export?${rangoAncho()}`,
+      "Mov-Egresos",
+      COLUMNAS,
+    );
+
+    expect(
+      columna(filas, COL_MONTO),
+      porQueImportaElControl(RUTA, unicoDos) +
+        ` (el importe propio ${MONTO_UNICO_DOS} no aparece en la planilla)`,
+    ).toContain(String(MONTO_UNICO_DOS));
+    expect(
+      columna(filas, COL_CAJA),
+      porQueImportaElControl(RUTA, dos.cajaId) +
+        ` (la caja propia "${cajaPropia}" no aparece en la planilla)`,
+    ).toContain(cajaPropia);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ESCRITURAS — las 5 rutas POST del grupo
+//
+// El status por si solo NO alcanza: un handler que MUTE la transaccion ajena y
+// despues conteste "no existe" daria verde mirando nada mas la respuesta. Por
+// eso cada caso de aislamiento releé la transaccion objetivo con
+// `fotoDeLaTransaccion` —las cinco columnas de una vez— y la compara contra su
+// estado original (T-172-18-02).
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Importe del cobro que crea el control positivo de `POST /transactions`. */
+const MONTO_COBRO_NUEVO = 4_242;
+/** Importe al que corrige el control positivo de `/correct`. */
+const MONTO_CORREGIDO = 2_121;
+
+/** Mensaje compartido de los rojos de AISLAMIENTO en escrituras. */
+function porQueImportaLaEscritura(ruta: string, filaId: number): string {
+  return (
+    `${ruta} dejo que el staff del gimnasio ${TENANT_DOS} operara sobre la transaccion ${filaId}, ` +
+    `que es de El Templo (${TENANT_TEMPLO}). Eso es TAMPERING cross-tenant sobre PLATA ` +
+    `(T-172-18-02): al UPDATE le falta su \`tenantWhere(financialTransactions, ctx)\`, o el ` +
+    `SELECT previo del metodo (validate / observe / correct / _void en ` +
+    `src/modules/finance/transaction-service.ts) dejo de filtrar por gimnasio. El contrato del ` +
+    `milestone (D-09) es que el recurso ajeno sea indistinguible de uno inexistente: "no existe", ` +
+    `nunca "prohibido".`
+  );
+}
+
+/**
+ * Afirma que la transaccion AJENA sigue siendo de El Templo y con las cinco
+ * columnas como estaban.
+ *
+ * Las dos mitades importan: el gimnasio (nadie se robo la fila) y el estado
+ * (nadie la valido, la observo, la corrigio ni la anulo antes de contestar que
+ * no existe).
+ */
+async function afirmarTransaccionAjenaIntacta(
+  ruta: string,
+  filaId: number,
+  esperada: Omit<FotoDeLaTransaccion, "tenantId">,
+): Promise<void> {
+  expect(
+    await fotoDeLaTransaccion(filaId),
+    porQueImportaLaEscritura(ruta, filaId) +
+      ` La foto de la fila ajena (gimnasio, estado, anulacion, caja imputada e importe) tiene que ` +
+      `ser IDENTICA a la de antes del intento: si el status HTTP dice "no existe" pero alguna de ` +
+      `esas columnas cambio, el 404 llego DESPUES de la escritura — y mirar solo el status es ` +
+      `exactamente la evidencia que este archivo no acepta.`,
+  ).toEqual({ tenantId: TENANT_TEMPLO, ...esperada });
+}
+
+/** Cuerpo valido de alta de cobro, con lo que cada caso quiera pisar. */
+function cobroDelGimnasioDos(pisar: Record<string, unknown>) {
+  return {
+    memberId: gym2.socios[0].id,
+    kind: "advance_payment",
+    direction: "inflow",
+    amount: MONTO_COBRO_NUEVO,
+    currency: MONEDA_SEMBRADA,
+    paymentMethod: "cash",
+    transactionDate: FECHA_SEMBRADA,
+    effectiveDate: FECHA_SEMBRADA,
+    branchId: gym2.branchId,
+    links: [] as Array<Record<string, unknown>>,
+    ...pisar,
+  };
+}
+
+describe("alta de cobro — POST /api/admin/finance/transactions", () => {
+  const RUTA = "POST /api/admin/finance/transactions";
+
+  it("aislamiento: no puede cobrarle a un socio de El Templo, y no nace ninguna transaccion", async () => {
+    const antesDos = await contarTransacciones(TENANT_DOS);
+    const antesTemplo = await contarTransacciones(TENANT_TEMPLO);
+
+    const res = await postComoGimnasioDos(
+      "/transactions",
+      cobroDelGimnasioDos({ memberId: usuarioTemploId }),
+    );
+    expect(
+      res.statusCode,
+      porQueImportaLaEscritura(RUTA, usuarioTemploId) +
+        ` (el id ajeno viajo como \`memberId\` del body: el SELECT de \`users\` de create() lleva ` +
+        `su tenantWhere y el socio ajeno tiene que NO EXISTIR). Respuesta: ${res.body}`,
+    ).toBe(404);
+
+    expect(
+      [
+        await contarTransacciones(TENANT_DOS),
+        await contarTransacciones(TENANT_TEMPLO),
+      ],
+      `${RUTA} escribio una transaccion aunque contesto que el socio no existe. El 404 llego ` +
+        `DESPUES del INSERT — y una fila de plata a nombre de un socio ajeno es corrupcion ` +
+        `contable en los dos gimnasios a la vez.`,
+    ).toEqual([antesDos, antesTemplo]);
+  });
+
+  it("aislamiento: no puede imputarle un cobro a una sede de El Templo", async () => {
+    // OJO con el guard que NO alcanza: el preHandler `requireBranchAccess` solo
+    // responde "¿este actor puede operar en esta sede?" mirando el PAIS, y las
+    // dos sedes son AR — asi que lo pasa. El que tiene que frenar el intento es
+    // el guard de sede del handler, que si lleva `tenantWhere(branches, ctx)`.
+    // Por eso este caso vale: ejercita la unica barrera que queda.
+    const antesDos = await contarTransacciones(TENANT_DOS);
+    const antesTemplo = await contarTransacciones(TENANT_TEMPLO);
+
+    const res = await postComoGimnasioDos(
+      "/transactions",
+      cobroDelGimnasioDos({ branchId: templo.branchId }),
+    );
+    expect(
+      res.statusCode,
+      porQueImportaLaEscritura(RUTA, templo.branchId) +
+        ` (el id ajeno viajo como \`branchId\` del body: para el gimnasio ${TENANT_DOS} esa sede ` +
+        `tiene que NO EXISTIR). Respuesta: ${res.body}`,
+    ).toBe(404);
+
+    expect(
+      [
+        await contarTransacciones(TENANT_DOS),
+        await contarTransacciones(TENANT_TEMPLO),
+      ],
+      `${RUTA} escribio una transaccion imputada a una sede ajena aunque contesto que no existe: ` +
+        `el 404 llego DESPUES del INSERT.`,
+    ).toEqual([antesDos, antesTemplo]);
+  });
+
+  it("control: el cobro propio queda estampado en las TRES tablas del gimnasio 2", async () => {
+    // Un cobro no escribe una fila: escribe tres (el asiento, su imputacion y el
+    // saldo del socio). Basta con que UNA de las tres pierda el gimnasio para
+    // que la plata quede contablemente en el gimnasio equivocado sin que ninguna
+    // pantalla lo muestre.
+    const res = await postComoGimnasioDos(
+      "/transactions",
+      cobroDelGimnasioDos({
+        kind: "plan_charge",
+        links: [
+          {
+            targetKind: "debt_balance",
+            targetId: dos.balanceId,
+            allocatedAmount: MONTO_COBRO_NUEVO,
+          },
+        ],
+      }),
+    );
+    expect(res.statusCode, `${RUTA} fallo: ${res.body}`).toBe(201);
+    const cuerpo = JSON.parse(res.body) as {
+      transaction: { id: number };
+      links: Array<{ id: number }>;
+      affectedBalances: Array<{ id: number }>;
+    };
+
+    expect(
+      cuerpo.links.length > 0 && cuerpo.affectedBalances.length > 0,
+      `${RUTA} contesto 201 pero no devolvio la imputacion o el saldo afectado. Sin esas dos ` +
+        `filas este control no puede mirar las tres tablas, que es todo su punto.`,
+    ).toBe(true);
+
+    expect(
+      [
+        await tenantDeLaFila(
+          app,
+          "financial_transactions",
+          cuerpo.transaction.id,
+        ),
+        await tenantDeLaFila(app, "transaction_links", cuerpo.links[0].id),
+        await tenantDeLaFila(app, "balances", cuerpo.affectedBalances[0].id),
+      ],
+      `El cobro del gimnasio ${TENANT_DOS} nacio con alguna de sus tres filas en otro gimnasio ` +
+        `(orden: financial_transactions, transaction_links, balances). Si alguna dice ` +
+        `${TENANT_TEMPLO}, ese INSERT perdio su \`tenantValues(ctx, …)\` y cayo en el DEFAULT 1 ` +
+        `de la columna: la plata quedaria en el gimnasio equivocado sin que ninguna pantalla lo ` +
+        `muestre. Mirar create() y applyDelta() en src/modules/finance/.`,
+    ).toEqual([TENANT_DOS, TENANT_DOS, TENANT_DOS]);
+
+    // La caja NO viaja en el body (el schema la descarta): la resuelve el
+    // servidor desde el medio de pago y la sede. Que haya elegido la caja PROPIA
+    // es la prueba de que ese resolver tambien esta scopeado.
+    expect(
+      (await fotoDeLaTransaccion(cuerpo.transaction.id)).cashRegisterId,
+      `El cobro propio quedo imputado a una caja que no es la del gimnasio ${TENANT_DOS}. Si es ` +
+        `${templo.cajaId}, \`resolveCashRegister\` esta resolviendo la caja de efectivo de El ` +
+        `Templo y el arqueo ajeno se ensucia con plata que no es suya.`,
+    ).toBe(dos.cajaId);
+  });
+});
+
+describe("validacion de un cobro — POST /api/admin/finance/transactions/:id/validate", () => {
+  const RUTA = "POST /api/admin/finance/transactions/:id/validate";
+
+  it("aislamiento: no puede validar el pendiente de El Templo, y queda igual", async () => {
+    // El objetivo esta PENDIENTE a proposito: si estuviera validado, un intento
+    // que se colara chocaria con el guard de estado y devolveria un error igual,
+    // escondiendo la fuga detras de la validacion de negocio.
+    const res = await postComoGimnasioDos(
+      `/transactions/${pendienteTemplo}/validate`,
+      {},
+    );
+    expect(
+      res.statusCode,
+      porQueImportaLaEscritura(RUTA, pendienteTemplo) +
+        ` Respuesta: ${res.body}`,
+    ).toBe(404);
+    await afirmarTransaccionAjenaIntacta(RUTA, pendienteTemplo, {
+      validationStatus: "pendiente",
+      anulada: false,
+      cashRegisterId: templo.cajaId,
+      amount: MONTO_PENDIENTE_TEMPLO,
+    });
+  });
+
+  it("aislamiento: no puede imputar su propio cobro a una caja de El Templo", async () => {
+    // Es el UNICO vector de "caja ajena" que la superficie HTTP deja alcanzar:
+    // `POST /transactions` no acepta `cashRegisterId` en el body (lo resuelve el
+    // servidor), pero validate SI deja elegirla. Validar contra una caja ajena
+    // es el camino mas directo a corromper el arqueo del vecino.
+    const res = await postComoGimnasioDos(
+      `/transactions/${pendienteDos}/validate`,
+      { cashRegisterId: templo.cajaId },
+    );
+    expect(
+      res.statusCode,
+      porQueImportaLaEscritura(RUTA, templo.cajaId) +
+        ` (aca la fila ajena es la CAJA: para el gimnasio ${TENANT_DOS} tiene que no existir, y ` +
+        `el guard de coherencia de validate() la rechaza por eso). Respuesta: ${res.body}`,
+    ).toBe(400);
+    expect(
+      await fotoDeLaTransaccion(pendienteDos),
+      `${RUTA} rechazo la caja ajena pero igual toco el cobro propio: tiene que quedar PENDIENTE ` +
+        `y con su caja de siempre. Un rechazo que ya escribio la mitad es peor que no rechazar.`,
+    ).toEqual({
+      tenantId: TENANT_DOS,
+      validationStatus: "pendiente",
+      anulada: false,
+      cashRegisterId: dos.cajaId,
+      amount: MONTO_PENDIENTE_DOS,
+    });
+  });
+
+  it("control: SI puede validar su propio pendiente, eligiendo su propia caja", async () => {
+    const res = await postComoGimnasioDos(
+      `/transactions/${pendienteDos}/validate`,
+      { cashRegisterId: dos.cajaId },
+    );
+    expect(
+      res.statusCode,
+      porQueImportaElControl(RUTA, pendienteDos) + ` Respuesta: ${res.body}`,
+    ).toBe(200);
+    expect(
+      await fotoDeLaTransaccion(pendienteDos),
+      `${RUTA} contesto 200 pero el cobro propio no quedo validado. Sin este control, el caso de ` +
+        `aislamiento de al lado pasaria en verde con la ruta rota para TODOS.`,
+    ).toEqual({
+      tenantId: TENANT_DOS,
+      validationStatus: "validado",
+      anulada: false,
+      cashRegisterId: dos.cajaId,
+      amount: MONTO_PENDIENTE_DOS,
+    });
+  });
+});
+
+describe("observacion de un cobro — POST /api/admin/finance/transactions/:id/observe", () => {
+  const RUTA = "POST /api/admin/finance/transactions/:id/observe";
+
+  it("aislamiento: no puede observar el pendiente de El Templo, y queda igual", async () => {
+    const res = await postComoGimnasioDos(
+      `/transactions/${pendienteTemplo}/observe`,
+      { reason: "Observado desde el gimnasio equivocado" },
+    );
+    expect(
+      res.statusCode,
+      porQueImportaLaEscritura(RUTA, pendienteTemplo) +
+        ` Respuesta: ${res.body}`,
+    ).toBe(404);
+    await afirmarTransaccionAjenaIntacta(RUTA, pendienteTemplo, {
+      validationStatus: "pendiente",
+      anulada: false,
+      cashRegisterId: templo.cajaId,
+      amount: MONTO_PENDIENTE_TEMPLO,
+    });
+  });
+
+  it("control: SI puede observar su propio pendiente", async () => {
+    const res = await postComoGimnasioDos(
+      `/transactions/${pendienteDos}/observe`,
+      { reason: "Falta el comprobante" },
+    );
+    expect(
+      res.statusCode,
+      porQueImportaElControl(RUTA, pendienteDos) + ` Respuesta: ${res.body}`,
+    ).toBe(200);
+    expect(
+      (await fotoDeLaTransaccion(pendienteDos)).validationStatus,
+      `${RUTA} contesto 200 pero el cobro propio no quedo observado.`,
+    ).toBe("observado");
+  });
+});
+
+describe("correccion de un cobro — POST /api/admin/finance/transactions/:id/correct", () => {
+  const RUTA = "POST /api/admin/finance/transactions/:id/correct";
+
+  it("aislamiento: no puede corregir el pendiente de El Templo, y no lo anula", async () => {
+    // Corregir es anular + recrear: si el intento prosperara, la fila ajena
+    // quedaria ANULADA aunque la respuesta hablara de otra cosa. Por eso la
+    // evidencia mira `voided_at` y el importe, no solo el estado.
+    const res = await postComoGimnasioDos(
+      `/transactions/${pendienteTemplo}/correct`,
+      { correctedFields: { amount: 1 } },
+    );
+    expect(
+      res.statusCode,
+      porQueImportaLaEscritura(RUTA, pendienteTemplo) +
+        ` Respuesta: ${res.body}`,
+    ).toBe(404);
+    await afirmarTransaccionAjenaIntacta(RUTA, pendienteTemplo, {
+      validationStatus: "pendiente",
+      anulada: false,
+      cashRegisterId: templo.cajaId,
+      amount: MONTO_PENDIENTE_TEMPLO,
+    });
+  });
+
+  it("aislamiento: no puede reasignarle su propio cobro a un socio de El Templo", async () => {
+    // `correctedFields.memberId` es un id de socio elegido por el cliente: el
+    // camino mas corto para mudar plata de un gimnasio al otro sin tocar ninguna
+    // ruta de alta. Y como todo el metodo corre en UNA transaccion, el rechazo
+    // tiene que dejar el cobro propio SIN anular: es tambien la prueba de que el
+    // rollback funciona.
+    const res = await postComoGimnasioDos(
+      `/transactions/${pendienteDos}/correct`,
+      { correctedFields: { memberId: usuarioTemploId } },
+    );
+    expect(
+      res.statusCode,
+      porQueImportaLaEscritura(RUTA, usuarioTemploId) +
+        ` (el id ajeno viajo como \`correctedFields.memberId\`). Respuesta: ${res.body}`,
+    ).toBe(404);
+    expect(
+      await fotoDeLaTransaccion(pendienteDos),
+      `${RUTA} rechazo al socio ajeno pero dejo el cobro propio anulado a medias: corregir es ` +
+        `anular + recrear dentro de UNA transaccion, asi que el rechazo tiene que revertir la ` +
+        `anulacion. Un cobro anulado sin reemplazo es plata que desaparece del arqueo.`,
+    ).toEqual({
+      tenantId: TENANT_DOS,
+      validationStatus: "pendiente",
+      anulada: false,
+      cashRegisterId: dos.cajaId,
+      amount: MONTO_PENDIENTE_DOS,
+    });
+  });
+
+  it("control: SI puede corregir su propio cobro, y el reemplazo nace en el gimnasio 2", async () => {
+    const res = await postComoGimnasioDos(
+      `/transactions/${pendienteDos}/correct`,
+      { correctedFields: { amount: MONTO_CORREGIDO } },
+    );
+    expect(
+      res.statusCode,
+      porQueImportaElControl(RUTA, pendienteDos) + ` Respuesta: ${res.body}`,
+    ).toBe(201);
+    const nueva = (JSON.parse(res.body) as { transaction: { id: number } })
+      .transaction;
+
+    expect(
+      await fotoDeLaTransaccion(pendienteDos),
+      `${RUTA} contesto 201 pero el cobro original no quedo anulado como corregido.`,
+    ).toEqual({
+      tenantId: TENANT_DOS,
+      validationStatus: "corregido",
+      anulada: true,
+      cashRegisterId: dos.cajaId,
+      amount: MONTO_PENDIENTE_DOS,
+    });
+    expect(
+      await fotoDeLaTransaccion(nueva.id),
+      `El reemplazo que creo la correccion no nacio en el gimnasio ${TENANT_DOS} o no quedo con ` +
+        `el importe corregido: \`correct()\` recrea llamando a \`create()\` con el mismo \`ctx\`, ` +
+        `asi que un gimnasio distinto aca significa que el ctx se perdio en el camino.`,
+    ).toEqual({
+      tenantId: TENANT_DOS,
+      validationStatus: "validado",
+      anulada: false,
+      cashRegisterId: dos.cajaId,
+      amount: MONTO_CORREGIDO,
+    });
+  });
+});
+
+describe("anulacion de un cobro — POST /api/admin/finance/transactions/:id/void", () => {
+  const RUTA = "POST /api/admin/finance/transactions/:id/void";
+
+  it("aislamiento: no puede anular la transaccion de El Templo, y sigue viva", async () => {
+    const res = await postComoGimnasioDos(
+      `/transactions/${templo.transactionId}/void`,
+      { reason: "Anulada desde el gimnasio equivocado" },
+    );
+    expect(
+      res.statusCode,
+      porQueImportaLaEscritura(RUTA, templo.transactionId) +
+        ` Respuesta: ${res.body}`,
+    ).toBe(404);
+    await afirmarTransaccionAjenaIntacta(RUTA, templo.transactionId, {
+      validationStatus: "validado",
+      anulada: false,
+      cashRegisterId: templo.cajaId,
+      amount: IMPORTE_SEMBRADO,
+    });
+  });
+
+  it("control: SI puede anular su propia transaccion", async () => {
+    const res = await postComoGimnasioDos(
+      `/transactions/${dos.transactionId}/void`,
+      { reason: "Cobro duplicado" },
+    );
+    expect(
+      res.statusCode,
+      porQueImportaElControl(RUTA, dos.transactionId) +
+        ` Respuesta: ${res.body}`,
+    ).toBe(200);
+    const foto = await fotoDeLaTransaccion(dos.transactionId);
+    expect(
+      foto.anulada,
+      `${RUTA} contesto 200 pero la transaccion propia sigue sin anular: la anulacion no corrio y ` +
+        `el caso de aislamiento de al lado estaria pasando con la ruta rota para TODOS.`,
+    ).toBe(true);
+    expect(
+      foto.tenantId,
+      `La transaccion propia cambio de gimnasio al anularla: el UPDATE esta tocando \`tenant_id\`.`,
+    ).toBe(TENANT_DOS);
+  });
+});
