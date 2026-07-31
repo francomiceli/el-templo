@@ -31,11 +31,20 @@ const POOL_ID = process.env.VITEST_POOL_ID || "1";
 const TEST_DB = `eltemplo_test_${POOL_ID}`;
 
 /**
- * El Templo. Mismo valor que `TENANT_TEMPLO` de `test/fixtures/second-tenant.ts`,
- * declarado acá y no importado a propósito: ese fixture importa `test/helpers.ts`,
- * que importa `buildApp` — y este archivo corre ANTES de que exista una app (fija
- * `process.env.DB_NAME` en el load del módulo). Traer la cadena entera del app a
- * `setupFiles` por una constante numérica sería peor que repetirla.
+ * El Templo. Mismo valor que la constante `TENANT_TEMPLO` del fixture del
+ * gimnasio 2 (vive en `test/fixtures/`), declarado acá y no importado a
+ * propósito: ese fixture importa `test/helpers.ts`, que importa `buildApp` — y
+ * este archivo corre ANTES de que exista una app (fija `process.env.DB_NAME` en
+ * el load del módulo). Traer la cadena entera del app a `setupFiles` por una
+ * constante numérica sería peor que repetirla.
+ *
+ * OJO AL EDITAR: el Test 13 de la bateria iso-02 de tenancy prueba que la
+ * siembra del gimnasio 2 es OPT-IN por archivo y no esta enchufada a este setup
+ * global, y lo prueba buscando TRES marcas por SUBSTRING en este archivo (el
+ * nombre del modulo del fixture, el de su funcion de siembra y el de su
+ * constante de tenant). El gate no distingue codigo de comentario: escribir
+ * cualquiera de las tres aca —aunque sea para explicar por que NO se usan— lo
+ * pone en rojo. Paso entre el 172-13 y el 172-16.
  *
  * Existe para que los seeds de `cash_registers` de abajo nombren el gimnasio en
  * vez de dejar un `1` mágico o —peor— caer en el DEFAULT de la columna (T-168-15).
