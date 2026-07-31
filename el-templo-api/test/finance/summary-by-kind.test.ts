@@ -34,19 +34,26 @@ import { TransactionService } from "../../src/modules/finance/transaction-servic
 import { BalanceService } from "../../src/modules/finance/balance-service";
 import { CashRegisterService } from "../../src/modules/finance/cash-register-service";
 import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
 
 /**
  * Fase 172 (ADO-01 / T-172-08-04): gimnasio de los call sites DIRECTOS al
  * service. Sale del fixture, nunca de un `1` a mano. Una sola constante y no
  * el objeto literal repetido en cada llamada: el dia que un caso ejercite
  * dos gimnasios, el segundo se agrega al lado y se ve la diferencia.
+ *
+ * 172-14: la MISMA constante scopea ahora las queries DIRECTAS. Importa doble
+ * aca: `countBalances` es un COUNT(*) sin `where`, o sea el peor caso del
+ * sentinel (scan completo) y ademas una asercion que una fila de otro gimnasio
+ * podia satisfacer.
  */
 const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 async function countBalances(app: FastifyInstance): Promise<number> {
   const [row] = await app.db
     .select({ c: sql<number>`COUNT(*)` })
-    .from(schema.balances);
+    .from(schema.balances)
+    .where(tenantWhere(schema.balances, TEMPLO_CTX));
   return Number(row?.c ?? 0);
 }
 
@@ -263,19 +270,21 @@ async function insertTxn(
   app: FastifyInstance,
   args: InsertTxnArgs,
 ): Promise<number> {
-  const [inserted] = await app.db.insert(schema.financialTransactions).values({
-    memberId: args.memberId,
-    kind: args.kind,
-    direction: args.direction,
-    amount: args.amount,
-    currency: "ARS",
-    paymentMethod: args.paymentMethod ?? "cash",
-    transactionDate: args.transactionDate ?? TODAY,
-    effectiveDate: args.effectiveDate ?? TODAY,
-    branchId: args.branchId,
-    recordedBy: args.recordedBy,
-    voidedAt: args.voidedAt ?? null,
-  });
+  const [inserted] = await app.db.insert(schema.financialTransactions).values(
+    tenantValues(TEMPLO_CTX, {
+      memberId: args.memberId,
+      kind: args.kind,
+      direction: args.direction,
+      amount: args.amount,
+      currency: "ARS",
+      paymentMethod: args.paymentMethod ?? ("cash" as const),
+      transactionDate: args.transactionDate ?? TODAY,
+      effectiveDate: args.effectiveDate ?? TODAY,
+      branchId: args.branchId,
+      recordedBy: args.recordedBy,
+      voidedAt: args.voidedAt ?? null,
+    }),
+  );
   return (inserted as { insertId: number }).insertId;
 }
 
@@ -301,9 +310,19 @@ describe("Finance API — GET /transactions/summary revenueByKind (Phase 109)", 
     const conn = await app.dbPool.getConnection();
     try {
       await conn.query("SET FOREIGN_KEY_CHECKS=0");
-      await conn.query("DELETE FROM `transaction_links`");
-      await conn.query("DELETE FROM `financial_transactions`");
-      await conn.query("DELETE FROM `balances`");
+      // 172-14: los 3 DELETE sobre tablas strict se ACOTAN al gimnasio. Este
+      // beforeEach corre sobre una conexion CRUDA del pool —que es una de las
+      // tres puertas que el sentinel intercepta—, asi que sin filtro hace throw.
+      await conn.query("DELETE FROM `transaction_links` WHERE tenant_id = ?", [
+        TENANT_TEMPLO,
+      ]);
+      await conn.query(
+        "DELETE FROM `financial_transactions` WHERE tenant_id = ?",
+        [TENANT_TEMPLO],
+      );
+      await conn.query("DELETE FROM `balances` WHERE tenant_id = ?", [
+        TENANT_TEMPLO,
+      ]);
       await conn.query("SET FOREIGN_KEY_CHECKS=1");
     } finally {
       conn.release();
@@ -631,9 +650,19 @@ describe("Finance — Phase 139 movement/expense regressions", () => {
     const conn = await app.dbPool.getConnection();
     try {
       await conn.query("SET FOREIGN_KEY_CHECKS=0");
-      await conn.query("DELETE FROM `transaction_links`");
-      await conn.query("DELETE FROM `financial_transactions`");
-      await conn.query("DELETE FROM `balances`");
+      // 172-14: los 3 DELETE sobre tablas strict se ACOTAN al gimnasio. Este
+      // beforeEach corre sobre una conexion CRUDA del pool —que es una de las
+      // tres puertas que el sentinel intercepta—, asi que sin filtro hace throw.
+      await conn.query("DELETE FROM `transaction_links` WHERE tenant_id = ?", [
+        TENANT_TEMPLO,
+      ]);
+      await conn.query(
+        "DELETE FROM `financial_transactions` WHERE tenant_id = ?",
+        [TENANT_TEMPLO],
+      );
+      await conn.query("DELETE FROM `balances` WHERE tenant_id = ?", [
+        TENANT_TEMPLO,
+      ]);
       await conn.query("SET FOREIGN_KEY_CHECKS=1");
     } finally {
       conn.release();

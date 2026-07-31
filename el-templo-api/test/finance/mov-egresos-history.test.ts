@@ -27,7 +27,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
-import { sql, eq } from "drizzle-orm";
+import { sql, eq, and } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import {
   createTestApp,
@@ -37,6 +37,16 @@ import {
   ensureEfectivoCaja,
 } from "../helpers";
 import * as schema from "../../src/db/schema";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
+
+/**
+ * Fase 172 (172-14): gimnasio de las queries DIRECTAS de este archivo. Sale del
+ * fixture, nunca de un `1` a mano. Con `finance` en `TENANT_STRICT_MODULES` el
+ * sentinel hace throw sobre cualquier acceso a `financial_transactions` /
+ * `transaction_links` / `cash_registers` sin gimnasio.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 const MOV_EGRESOS_URL = "/api/admin/finance/movements-history";
 const TRANSACTIONS_URL = "/api/admin/finance/transactions";
@@ -91,21 +101,23 @@ async function seedMovEgreso(opts: {
 }): Promise<number> {
   const [res] = await app.db
     .insert(schema.financialTransactions)
-    .values({
-      memberId: null, // ← the whole point: NULL-member rows must survive the LEFT JOIN
-      kind: opts.kind,
-      direction: opts.direction,
-      amount: 500,
-      currency: "ARS",
-      paymentMethod: "cash",
-      transactionDate: opts.transactionDate,
-      effectiveDate: opts.transactionDate,
-      branchId: opts.branchId,
-      cashRegisterId: opts.cashRegisterId,
-      recordedBy: adminId,
-      validationStatus: opts.validationStatus ?? "validado",
-      notes: opts.notes ?? null,
-    })
+    .values(
+      tenantValues(TEMPLO_CTX, {
+        memberId: null, // ← the whole point: NULL-member rows must survive the LEFT JOIN
+        kind: opts.kind,
+        direction: opts.direction,
+        amount: 500,
+        currency: "ARS",
+        paymentMethod: "cash" as const,
+        transactionDate: opts.transactionDate,
+        effectiveDate: opts.transactionDate,
+        branchId: opts.branchId,
+        cashRegisterId: opts.cashRegisterId,
+        recordedBy: adminId,
+        validationStatus: opts.validationStatus ?? ("validado" as const),
+        notes: opts.notes ?? null,
+      }),
+    )
     .$returningId();
   return res.id;
 }
@@ -122,20 +134,22 @@ async function seedMemberCobro(opts: {
 }): Promise<number> {
   const [res] = await app.db
     .insert(schema.financialTransactions)
-    .values({
-      memberId,
-      kind: opts.kind,
-      direction: opts.direction,
-      amount: 1000,
-      currency: "ARS",
-      paymentMethod: "cash",
-      transactionDate: opts.transactionDate,
-      effectiveDate: opts.transactionDate,
-      branchId: opts.branchId,
-      cashRegisterId: opts.cashRegisterId,
-      recordedBy: adminId,
-      validationStatus: opts.validationStatus ?? "validado",
-    })
+    .values(
+      tenantValues(TEMPLO_CTX, {
+        memberId,
+        kind: opts.kind,
+        direction: opts.direction,
+        amount: 1000,
+        currency: "ARS",
+        paymentMethod: "cash" as const,
+        transactionDate: opts.transactionDate,
+        effectiveDate: opts.transactionDate,
+        branchId: opts.branchId,
+        cashRegisterId: opts.cashRegisterId,
+        recordedBy: adminId,
+        validationStatus: opts.validationStatus ?? ("validado" as const),
+      }),
+    )
     .$returningId();
   return res.id;
 }
@@ -175,21 +189,28 @@ beforeAll(async () => {
   const [caja] = await app.db
     .select({ id: schema.cashRegisters.id })
     .from(schema.cashRegisters)
-    .where(eq(schema.cashRegisters.branchId, branchId))
+    .where(
+      and(
+        eq(schema.cashRegisters.branchId, branchId),
+        tenantWhere(schema.cashRegisters, TEMPLO_CTX),
+      ),
+    )
     .limit(1);
   cajaId = caja.id;
 
   // A second caja (same branch) for the ?cashRegisterId filter test.
   const [other] = await app.db
     .insert(schema.cashRegisters)
-    .values({
-      name: `MovEgr-Other ${Date.now()}`,
-      type: "efectivo",
-      branchId,
-      currency: "ARS",
-      openingBalance: 0,
-      cutoffDate: "2020-01-01",
-    })
+    .values(
+      tenantValues(TEMPLO_CTX, {
+        name: `MovEgr-Other ${Date.now()}`,
+        type: "efectivo" as const,
+        branchId,
+        currency: "ARS",
+        openingBalance: 0,
+        cutoffDate: "2020-01-01",
+      }),
+    )
     .$returningId();
   otherCajaId = other.id;
 });
@@ -197,13 +218,24 @@ beforeAll(async () => {
 afterAll(async () => {
   await app.db
     .delete(schema.cashRegisters)
-    .where(eq(schema.cashRegisters.id, otherCajaId));
+    .where(
+      and(
+        eq(schema.cashRegisters.id, otherCajaId),
+        tenantWhere(schema.cashRegisters, TEMPLO_CTX),
+      ),
+    );
   await app.close();
 });
 
 beforeEach(async () => {
-  await app.db.execute(sql`DELETE FROM transaction_links`);
-  await app.db.execute(sql`DELETE FROM financial_transactions`);
+  // 172-14: acotados al gimnasio (regla del 172-13: global a proposito ->
+  // exencion; acotable -> filtro). Este archivo no siembra en otro gimnasio.
+  await app.db.execute(
+    sql`DELETE FROM transaction_links WHERE tenant_id = ${TENANT_TEMPLO}`,
+  );
+  await app.db.execute(
+    sql`DELETE FROM financial_transactions WHERE tenant_id = ${TENANT_TEMPLO}`,
+  );
 });
 
 async function fetchHistory(

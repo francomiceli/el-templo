@@ -230,9 +230,19 @@ beforeEach(async () => {
   const conn = await app.dbPool.getConnection();
   try {
     await conn.query("SET FOREIGN_KEY_CHECKS=0");
-    await conn.query("DELETE FROM `transaction_links`");
-    await conn.query("DELETE FROM `financial_transactions`");
-    await conn.query("DELETE FROM `balances`");
+    // 172-14: los 3 DELETE sobre tablas strict se ACOTAN al gimnasio. Este
+    // beforeEach corre sobre una conexion CRUDA del pool —que es una de las
+    // tres puertas que el sentinel intercepta—, asi que sin filtro hace throw.
+    await conn.query("DELETE FROM `transaction_links` WHERE tenant_id = ?", [
+      TENANT_TEMPLO,
+    ]);
+    await conn.query(
+      "DELETE FROM `financial_transactions` WHERE tenant_id = ?",
+      [TENANT_TEMPLO],
+    );
+    await conn.query("DELETE FROM `balances` WHERE tenant_id = ?", [
+      TENANT_TEMPLO,
+    ]);
     await conn.query("DELETE FROM `audit_log`");
     await conn.query("DELETE FROM `bookings`");
     await conn.query("DELETE FROM `program_enrollments`");

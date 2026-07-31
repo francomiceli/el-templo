@@ -41,6 +41,16 @@ import {
   registerUser,
 } from "../helpers";
 import * as schema from "../../src/db/schema";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+import { tenantValues } from "../../src/modules/shared/tenant";
+
+/**
+ * Fase 172 (172-14): gimnasio de las siembras DIRECTAS de este archivo. Sale
+ * del fixture, nunca de un `1` a mano. Con `finance` en
+ * `TENANT_STRICT_MODULES` un INSERT sobre `financial_transactions` sin estampa
+ * hace throw antes de llegar a MySQL.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 const FINANCE_URL = "/api/admin/finance";
 const TODAY = "2026-04-28";
@@ -229,19 +239,21 @@ async function insertTxn(
   app: FastifyInstance,
   args: InsertTxnArgs,
 ): Promise<void> {
-  await app.db.insert(schema.financialTransactions).values({
-    memberId: args.memberId,
-    kind: args.kind,
-    direction: args.direction,
-    amount: args.amount,
-    currency: "ARS",
-    paymentMethod: args.paymentMethod ?? "cash",
-    transactionDate: args.transactionDate ?? TODAY,
-    effectiveDate: args.transactionDate ?? TODAY,
-    branchId: args.branchId,
-    recordedBy: args.recordedBy,
-    voidedAt: args.voidedAt ?? null,
-  });
+  await app.db.insert(schema.financialTransactions).values(
+    tenantValues(TEMPLO_CTX, {
+      memberId: args.memberId,
+      kind: args.kind,
+      direction: args.direction,
+      amount: args.amount,
+      currency: "ARS",
+      paymentMethod: args.paymentMethod ?? ("cash" as const),
+      transactionDate: args.transactionDate ?? TODAY,
+      effectiveDate: args.transactionDate ?? TODAY,
+      branchId: args.branchId,
+      recordedBy: args.recordedBy,
+      voidedAt: args.voidedAt ?? null,
+    }),
+  );
 }
 
 /**
@@ -389,9 +401,19 @@ describe("Finance API — summary cross-aggregation sanity invariants (Phase 109
     const conn = await app.dbPool.getConnection();
     try {
       await conn.query("SET FOREIGN_KEY_CHECKS=0");
-      await conn.query("DELETE FROM `transaction_links`");
-      await conn.query("DELETE FROM `financial_transactions`");
-      await conn.query("DELETE FROM `balances`");
+      // 172-14: los 3 DELETE sobre tablas strict se ACOTAN al gimnasio. Este
+      // beforeEach corre sobre una conexion CRUDA del pool —que es una de las
+      // tres puertas que el sentinel intercepta—, asi que sin filtro hace throw.
+      await conn.query("DELETE FROM `transaction_links` WHERE tenant_id = ?", [
+        TENANT_TEMPLO,
+      ]);
+      await conn.query(
+        "DELETE FROM `financial_transactions` WHERE tenant_id = ?",
+        [TENANT_TEMPLO],
+      );
+      await conn.query("DELETE FROM `balances` WHERE tenant_id = ?", [
+        TENANT_TEMPLO,
+      ]);
       await conn.query("SET FOREIGN_KEY_CHECKS=1");
     } finally {
       conn.release();

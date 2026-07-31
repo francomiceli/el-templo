@@ -42,6 +42,7 @@ import {
 } from "../../src/modules/shared/errors";
 import * as schema from "../../src/db/schema";
 import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
 
 /**
  * Fase 172 (ADO-01 / T-172-08-04): gimnasio de los call sites DIRECTOS al
@@ -118,7 +119,12 @@ async function readTx(
       voidedAt: schema.financialTransactions.voidedAt,
     })
     .from(schema.financialTransactions)
-    .where(eq(schema.financialTransactions.id, id))
+    .where(
+      and(
+        eq(schema.financialTransactions.id, id),
+        tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+      ),
+    )
     .limit(1);
   return row;
 }
@@ -133,6 +139,7 @@ async function readSubBalance(): Promise<number | null> {
         eq(schema.balances.memberId, memberId),
         eq(schema.balances.targetKind, "subscription"),
         eq(schema.balances.targetId, subscriptionId),
+        tenantWhere(schema.balances, TEMPLO_CTX),
       ),
     )
     .limit(1);
@@ -212,9 +219,17 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
-  await app.db.execute(sql`DELETE FROM transaction_links`);
-  await app.db.execute(sql`DELETE FROM financial_transactions`);
-  await app.db.execute(sql`DELETE FROM balances`);
+  // 172-14: acotados al gimnasio (regla del 172-13: global a proposito ->
+  // exencion; acotable -> filtro). Este archivo no siembra en otro gimnasio.
+  await app.db.execute(
+    sql`DELETE FROM transaction_links WHERE tenant_id = ${TENANT_TEMPLO}`,
+  );
+  await app.db.execute(
+    sql`DELETE FROM financial_transactions WHERE tenant_id = ${TENANT_TEMPLO}`,
+  );
+  await app.db.execute(
+    sql`DELETE FROM balances WHERE tenant_id = ${TENANT_TEMPLO}`,
+  );
   await app.db.execute(sql`DELETE FROM audit_log`);
   // Reset the subscription to active for each test (some tests cancel it).
   subscriptionId = await seedSubscription();
@@ -246,13 +261,15 @@ describe("validation state machine", () => {
 
   it("VAL-07: a PENDIENTE settles balances (applyDelta NOT tied to status)", async () => {
     // Seed the debt: full price owed.
-    await app.db.insert(schema.balances).values({
-      memberId,
-      targetKind: "subscription",
-      targetId: subscriptionId,
-      currency: "ARS",
-      amount: 1000,
-    });
+    await app.db.insert(schema.balances).values(
+      tenantValues(TEMPLO_CTX, {
+        memberId,
+        targetKind: "subscription" as const,
+        targetId: subscriptionId,
+        currency: "ARS",
+        amount: 1000,
+      }),
+    );
     expect(await readSubBalance()).toBe(1000);
 
     // A PENDIENTE charge for the full amount must still zero the balance.
@@ -372,6 +389,7 @@ describe("validation state machine", () => {
           eq(schema.transactionLinks.transactionId, corrected.id),
           eq(schema.transactionLinks.targetKind, "transaction"),
           eq(schema.transactionLinks.targetId, original.id),
+          tenantWhere(schema.transactionLinks, TEMPLO_CTX),
         ),
       );
     expect(provenance).toHaveLength(1);
