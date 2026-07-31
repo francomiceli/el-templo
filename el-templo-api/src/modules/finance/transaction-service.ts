@@ -49,7 +49,11 @@ import { BadRequestError, NotFoundError } from "../shared/errors";
 import { buildMemberNameSearchCondition } from "../shared/member-search";
 import type { PaginatedResult } from "../shared/types";
 import { auditLog } from "../shared/audit-log";
-import type { TenantContext } from "../shared/tenant";
+import {
+  tenantValues,
+  tenantWhere,
+  type TenantContext,
+} from "../shared/tenant";
 import { BalanceService, type TxHandle } from "./balance-service";
 import { CashRegisterService } from "./cash-register-service";
 // Phase 149 (D-13, Opción A): el umbral de pendientes queda hardcodeado en la
@@ -215,7 +219,12 @@ export class TransactionService {
         const memberExists = await txHandle
           .select({ id: schema.users.id })
           .from(schema.users)
-          .where(eq(schema.users.id, input.memberId))
+          .where(
+            and(
+              tenantWhere(schema.users, ctx),
+              eq(schema.users.id, input.memberId),
+            ),
+          )
           .limit(1);
         if (memberExists.length === 0) {
           throw new NotFoundError("Miembro no encontrado");
@@ -229,7 +238,12 @@ export class TransactionService {
         const branchExists = await txHandle
           .select({ id: schema.branches.id })
           .from(schema.branches)
-          .where(eq(schema.branches.id, input.branchId))
+          .where(
+            and(
+              tenantWhere(schema.branches, ctx),
+              eq(schema.branches.id, input.branchId),
+            ),
+          )
           .limit(1);
         if (branchExists.length === 0) {
           throw new NotFoundError("Sucursal no encontrada");
@@ -245,21 +259,36 @@ export class TransactionService {
             exists = await txHandle
               .select({ id: schema.subscriptions.id })
               .from(schema.subscriptions)
-              .where(eq(schema.subscriptions.id, link.targetId))
+              .where(
+                and(
+                  tenantWhere(schema.subscriptions, ctx),
+                  eq(schema.subscriptions.id, link.targetId),
+                ),
+              )
               .limit(1);
             break;
           case "debt_balance":
             exists = await txHandle
               .select({ id: schema.balances.id })
               .from(schema.balances)
-              .where(eq(schema.balances.id, link.targetId))
+              .where(
+                and(
+                  tenantWhere(schema.balances, ctx),
+                  eq(schema.balances.id, link.targetId),
+                ),
+              )
               .limit(1);
             break;
           case "transaction":
             exists = await txHandle
               .select({ id: schema.financialTransactions.id })
               .from(schema.financialTransactions)
-              .where(eq(schema.financialTransactions.id, link.targetId))
+              .where(
+                and(
+                  tenantWhere(schema.financialTransactions, ctx),
+                  eq(schema.financialTransactions.id, link.targetId),
+                ),
+              )
               .limit(1);
             break;
           case "enrollment":
@@ -268,7 +297,12 @@ export class TransactionService {
             exists = await txHandle
               .select({ id: schema.programEnrollments.id })
               .from(schema.programEnrollments)
-              .where(eq(schema.programEnrollments.id, link.targetId))
+              .where(
+                and(
+                  tenantWhere(schema.programEnrollments, ctx),
+                  eq(schema.programEnrollments.id, link.targetId),
+                ),
+              )
               .limit(1);
             break;
           default: {
@@ -306,57 +340,61 @@ export class TransactionService {
       // 2. INSERT financial_transactions.
       const inserted = await txHandle
         .insert(schema.financialTransactions)
-        .values({
-          memberId: input.memberId,
-          kind: input.kind,
-          direction: input.direction,
-          amount: input.amount,
-          currency: input.currency ?? "ARS",
-          paymentMethod: input.paymentMethod,
-          transactionDate: input.transactionDate,
-          effectiveDate: input.effectiveDate,
-          branchId: input.branchId,
-          cashRegisterId,
-          // Phase 147 (EGR-02): centro de costo. NULL para los 10 create paths;
-          // SOLO registerExpense lo setea (tras validar exists+active).
-          costCenterId: input.costCenterId ?? null,
-          recordedBy,
-          notes: input.notes ?? null,
-          // Phase 145 (COBRO-01): structured cobro-suelto reason. NULL for every
-          // path except POST /coach-load/misc (the PoS dropdown Motivo). Stored
-          // as its own column — NEVER folded into `notes`.
-          miscReason: input.miscReason ?? null,
-          // Phase 137 (VAL-02): birth validation status. Defaults to 'validado'
-          // (matches the column DEFAULT) when undefined — so the 4 internal
-          // recordAssignmentCharge callers (admin path) keep producing validado
-          // without edits. 'pendiente' arrives ONLY from the server-side
-          // role→status derivation (coach loads). NOTE: applyDelta below runs
-          // REGARDLESS of this value — a PENDIENTE still settles the member's
-          // balance (D-09); only the read-side firm-money filter excludes it.
-          validationStatus: input.validationStatus ?? "validado",
-          // Phase 140 (CARGA-02 / D-09): persist the client-generated idempotency
-          // ticket key. NULL for every admin/historical path (multiple NULLs are
-          // allowed under the UNIQUE index); a duplicate non-null key raises
-          // ER_DUP_ENTRY at the DB, caught endpoint-side in Wave 2 (Pitfall 3).
-          idempotencyKey: input.idempotencyKey ?? null,
-          // Phase 148 (ALTA-06 / W-1): persist the new-student id IN THE SAME
-          // insert as the charge (within the caller's tx when `tx` is passed),
-          // so void's cascade (148-03) can find the member to inactivate without
-          // a crash window. NULL for every admin/historical path.
-          createdMemberId: input.createdMemberId ?? null,
-        });
+        .values(
+          tenantValues(ctx, {
+            memberId: input.memberId,
+            kind: input.kind,
+            direction: input.direction,
+            amount: input.amount,
+            currency: input.currency ?? "ARS",
+            paymentMethod: input.paymentMethod,
+            transactionDate: input.transactionDate,
+            effectiveDate: input.effectiveDate,
+            branchId: input.branchId,
+            cashRegisterId,
+            // Phase 147 (EGR-02): centro de costo. NULL para los 10 create paths;
+            // SOLO registerExpense lo setea (tras validar exists+active).
+            costCenterId: input.costCenterId ?? null,
+            recordedBy,
+            notes: input.notes ?? null,
+            // Phase 145 (COBRO-01): structured cobro-suelto reason. NULL for every
+            // path except POST /coach-load/misc (the PoS dropdown Motivo). Stored
+            // as its own column — NEVER folded into `notes`.
+            miscReason: input.miscReason ?? null,
+            // Phase 137 (VAL-02): birth validation status. Defaults to 'validado'
+            // (matches the column DEFAULT) when undefined — so the 4 internal
+            // recordAssignmentCharge callers (admin path) keep producing validado
+            // without edits. 'pendiente' arrives ONLY from the server-side
+            // role→status derivation (coach loads). NOTE: applyDelta below runs
+            // REGARDLESS of this value — a PENDIENTE still settles the member's
+            // balance (D-09); only the read-side firm-money filter excludes it.
+            validationStatus: input.validationStatus ?? "validado",
+            // Phase 140 (CARGA-02 / D-09): persist the client-generated idempotency
+            // ticket key. NULL for every admin/historical path (multiple NULLs are
+            // allowed under the UNIQUE index); a duplicate non-null key raises
+            // ER_DUP_ENTRY at the DB, caught endpoint-side in Wave 2 (Pitfall 3).
+            idempotencyKey: input.idempotencyKey ?? null,
+            // Phase 148 (ALTA-06 / W-1): persist the new-student id IN THE SAME
+            // insert as the charge (within the caller's tx when `tx` is passed),
+            // so void's cascade (148-03) can find the member to inactivate without
+            // a crash window. NULL for every admin/historical path.
+            createdMemberId: input.createdMemberId ?? null,
+          }),
+        );
       const transactionId = Number(inserted[0].insertId);
 
       // 3. INSERT transaction_links (UNIQUE constraint catches duplicate
       // (transaction_id, target_kind, target_id) tuples).
       if (input.links.length > 0) {
         await txHandle.insert(schema.transactionLinks).values(
-          input.links.map((l) => ({
-            transactionId,
-            targetKind: l.targetKind,
-            targetId: l.targetId,
-            allocatedAmount: l.allocatedAmount,
-          })),
+          input.links.map((l) =>
+            tenantValues(ctx, {
+              transactionId,
+              targetKind: l.targetKind,
+              targetId: l.targetId,
+              allocatedAmount: l.allocatedAmount,
+            }),
+          ),
         );
       }
 
@@ -366,11 +404,21 @@ export class TransactionService {
       const [txRow] = await txHandle
         .select()
         .from(schema.financialTransactions)
-        .where(eq(schema.financialTransactions.id, transactionId));
+        .where(
+          and(
+            tenantWhere(schema.financialTransactions, ctx),
+            eq(schema.financialTransactions.id, transactionId),
+          ),
+        );
       const linkRows = await txHandle
         .select()
         .from(schema.transactionLinks)
-        .where(eq(schema.transactionLinks.transactionId, transactionId));
+        .where(
+          and(
+            tenantWhere(schema.transactionLinks, ctx),
+            eq(schema.transactionLinks.transactionId, transactionId),
+          ),
+        );
 
       // 5. Apply cache delta in the SAME tx (atomicity per SPEC §8).
       await this.balanceService.applyDelta(ctx, txHandle, txRow, linkRows, +1);
@@ -996,13 +1044,23 @@ export class TransactionService {
     const [row] = await this.db
       .select()
       .from(schema.financialTransactions)
-      .where(eq(schema.financialTransactions.idempotencyKey, idempotencyKey))
+      .where(
+        and(
+          tenantWhere(schema.financialTransactions, ctx),
+          eq(schema.financialTransactions.idempotencyKey, idempotencyKey),
+        ),
+      )
       .limit(1);
     if (!row) return null;
     const links = await this.db
       .select()
       .from(schema.transactionLinks)
-      .where(eq(schema.transactionLinks.transactionId, row.id));
+      .where(
+        and(
+          tenantWhere(schema.transactionLinks, ctx),
+          eq(schema.transactionLinks.transactionId, row.id),
+        ),
+      );
     return { ...row, links };
   }
 
@@ -1024,15 +1082,31 @@ export class TransactionService {
       .from(schema.financialTransactions)
       .leftJoin(
         createdMember,
-        eq(createdMember.id, schema.financialTransactions.createdMemberId),
+        // El filtro del alumno creado va en el ON y no en el WHERE: en un
+        // leftJoin, moverlo al WHERE convertiría el join en inner y perdería
+        // la fila cuando el alumno no existe (hallazgo del plan 172-06).
+        and(
+          tenantWhere(createdMember, ctx),
+          eq(createdMember.id, schema.financialTransactions.createdMemberId),
+        ),
       )
-      .where(eq(schema.financialTransactions.id, id))
+      .where(
+        and(
+          tenantWhere(schema.financialTransactions, ctx),
+          eq(schema.financialTransactions.id, id),
+        ),
+      )
       .limit(1);
     if (!row) return null;
     const links = await this.db
       .select()
       .from(schema.transactionLinks)
-      .where(eq(schema.transactionLinks.transactionId, id));
+      .where(
+        and(
+          tenantWhere(schema.transactionLinks, ctx),
+          eq(schema.transactionLinks.transactionId, id),
+        ),
+      );
     const createdMemberName =
       row.createdMemberFirstName !== null
         ? `${row.createdMemberFirstName ?? ""} ${
