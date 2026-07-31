@@ -107,6 +107,68 @@ archivo de la batería.
 
 ---
 
+## 🔴 LIMITACIÓN DE DISEÑO — el sentinel de RUNTIME evalúa por QUERY, no por tabla (172-21)
+
+**Encontrado:** plan 172-21, en el PRIMER intento (fallido) de la demo del fail-closed.
+
+Se le sacó el `tenantWhere(schema.financialTransactions, ctx)` al array `conds` de
+`getSummary()` —la condición que comparten las **cuatro** agregaciones del resumen de
+caja— y `test/finance/summary-sanity.test.ts` dio **5/5 verde, cero throws**, con
+`finance` ya en `TENANT_STRICT_MODULES`.
+
+El motivo está en `src/db/sentinel/analyze.ts:240-247`, etapa 4:
+
+```typescript
+return TENANT_ID.test(predicado)
+  ? verdict("ok", "menciona tenant_id en el predicado", involucradas)
+  : verdict("violation", `sin tenant_id sobre ${involucradas.join(", ")}`, ...);
+```
+
+Las 4 agregaciones hacen `innerJoin` a `branches` **con su propio `tenantWhere`**, así
+que el SQL sigue mencionando `tenant_id` en la zona de predicado y el veredicto es `ok`
+— aunque `financial_transactions`, que es la tabla strict, quedó sin filtrar.
+
+**No es un bug del switch ni una regresión: es el diseño del analizador de runtime**
+(regex sobre el texto del SQL, sin parser — T-170-03 evitó a propósito el costo de un
+parser en el hot path de toda query). Pero **nadie lo había escrito**, y cambia cómo hay
+que leer el verde:
+
+- El **sentinel** NO cubre por sí solo las queries multi-tabla. Una tabla strict puede
+  quedar sin filtrar y pasar, si cualquier otra tabla de la misma query lleva su filtro.
+- La **lente estática del lint** SÍ es por tabla: cuenta un acceso por tabla involucrada,
+  incluidas las joineadas (WR-01 de la 170). Es la que atrapa este caso.
+- **El switch descansa en las dos, no en una.** Una fase de adopción que solo mire el
+  verde del sentinel se está mintiendo.
+
+**Para quién es:** las fases **173-175** (mismo modo de falla en cada switch) y el
+**172-23**, que escribe `.docs/saas-multitenancy/07-receta-adopcion.md`: la receta tiene
+que decir que la sonda de la demo va sobre una query de **UNA SOLA TABLA**, y que el
+criterio de "módulo migrado" lo certifica el lint, no el sentinel.
+
+**Lo que NO hay que hacer:** meter un parser de SQL en el wrap del pool para arreglarlo.
+Es una decisión arquitectónica de la 170 (costo por query en TODA la app), no un
+descuido.
+
+---
+
+## ✅ RESUELTO por el 172-21 — los 2 rojos de `coach-load-alta` eran AMBIENTALES (paralelismo)
+
+Los dos `it` que la sección de arriba (172-14) documentó como preexistentes en master
+—`alta crear-nuevo … esperaba activo, recibió prueba` y `void→cascade … esperaba activo,
+recibió freemium`— **pasan** en la corrida del 172-21: `test/finance` entero con
+`--no-file-parallelism` da **20 archivos / 343 tests verdes**, `coach-load-alta.test.ts`
+incluido (20/20), con el sentinel en **throw**.
+
+Eso confirma la sospecha que el 172-14 dejó anotada sin verificar: las tres corridas que
+los reprodujeron usaban el **paralelismo por defecto**. Con un solo worker la base es una
+sola y compartida, y las dos aserciones sobre `users.status` dan lo esperado.
+
+**No es un bug de producción tapado.** La causa exacta (seed compartido entre archivos,
+recategorización, o el estado `prueba` de v5.8 interactuando) **no se investigó** y no
+hace falta: CI corre verde sobre esa base y el rojo no aparece con un worker.
+
+---
+
 ## 🔴 FASE 173 — dos deudas de `subscriptions` que la batería ISO-03 dejó ancladas (172-19)
 
 **Encontrado:** plan 172-19, bajando al rol COACH sobre `/coach-load/*` (las 27 rutas

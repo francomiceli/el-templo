@@ -4726,7 +4726,7 @@ Plans:
 - [x] 172-18-PLAN.md — ISO-03: 13 rutas de transacciones, bandeja e historial
 - [x] 172-19-PLAN.md — ISO-03: 11 rutas de coach-load (rol coach), movimientos y egresos
 - [x] 172-20-PLAN.md — gate de cobertura fail-closed derivado del manifiesto
-- [ ] 172-21-PLAN.md — el switch: entrada strict, allowlist en cero, demo fail-closed
+- [x] 172-21-PLAN.md — el switch: entrada strict, allowlist en cero, demo fail-closed
 - [ ] 172-22-PLAN.md — staging: CI completo, diff de números vacío, UAT del staff
 - [ ] 172-23-PLAN.md — doc `.docs/saas-multitenancy/07-receta-adopcion.md` + cierre
 
@@ -4808,7 +4808,7 @@ Plans:
 | 169. Capa de escritura — helpers y TenantContext  | 9/9            | Complete    | 2026-07-28 |
 | 170. Detección — sentinel de pool + lint CI       | 0/8            | Planned     |            |
 | 171. Backstop — manifiesto + fixtures 2-tenant    | 0/?            | Not started |            |
-| 172. Adopción 1 (piloto) — finance                | 20/23          | In Progress |            |
+| 172. Adopción 1 (piloto) — finance                | 21/23          | In Progress |            |
 | 173. Adopción 2 — members + guarda de anclas      | 0/?            | Not started |            |
 | 174. Adopción 3 — subscriptions + scheduling      | 0/?            | Not started |            |
 | 175. Adopción 4 — analytics + resto del core      | 0/?            | Not started |            |
