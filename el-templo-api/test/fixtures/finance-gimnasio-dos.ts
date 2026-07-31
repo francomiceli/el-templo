@@ -126,13 +126,20 @@ export const MARCA_ISO03 = "ISO03";
 const EMAIL_ADMIN_SEMILLA = "admin@test.com";
 
 /** Moneda de todo lo que siembra este fixture. Las dos sedes son AR. */
-const MONEDA = "ARS";
+export const MONEDA_SEMBRADA = "ARS";
 
 /** Fecha fija de las transacciones sembradas: posterior a todo `cutoff_date`. */
 const FECHA = "2026-01-15";
 
-/** Importe de la transaccion sembrada, en la unidad minima del ledger. */
-const IMPORTE = 12345;
+/**
+ * Importe de la transaccion sembrada, en la unidad minima del ledger.
+ *
+ * Se EXPORTA porque es la asercion mas fina de la bateria sobre los saldos: cada
+ * gimnasio tiene exactamente UNA transaccion validada, asi que el saldo firme de
+ * su caja tiene que dar exactamente esto. Un saldo del DOBLE seria la plata del
+ * otro gimnasio sumada al propio — una fuga que un "es mayor que cero" no ve.
+ */
+export const IMPORTE_SEMBRADO = 12345;
 
 // ─── Forma de los handles ────────────────────────────────────────────────────
 
@@ -366,7 +373,7 @@ export async function sembrarFinanzasTemplo(
         name: bankAccountName,
         type: "banco",
         branchId: null,
-        currency: MONEDA,
+        currency: MONEDA_SEMBRADA,
         bankName: "Banco del Templo",
         accountHolder: "El Templo",
         accountAlias: `${MARCA_ISO03.toLowerCase()}.templo.${suf}`,
@@ -419,7 +426,7 @@ export async function sembrarFinanzasGimnasioDos(
 
   // El 4o argumento NO es opcional en la practica: su default es 1, asi que
   // omitirlo estampa la caja en El Templo (T-168-15) y el fixture mentiria.
-  await ensureEfectivoCaja(app, gym2.branchId, MONEDA, TENANT_DOS);
+  await ensureEfectivoCaja(app, gym2.branchId, MONEDA_SEMBRADA, TENANT_DOS);
   const [caja] = await app.db
     .select({ id: schema.cashRegisters.id })
     .from(schema.cashRegisters)
@@ -447,7 +454,7 @@ export async function sembrarFinanzasGimnasioDos(
         name: bankAccountName,
         type: "banco",
         branchId: null,
-        currency: MONEDA,
+        currency: MONEDA_SEMBRADA,
         bankName: "Banco del Gimnasio Dos",
         accountHolder: "Gimnasio Dos",
         accountAlias: `${MARCA_ISO03.toLowerCase()}.g2.${suf}`,
@@ -510,8 +517,8 @@ async function sembrarElAsiento(
         memberId: datos.memberId,
         kind: "plan_charge",
         direction: "inflow",
-        amount: IMPORTE,
-        currency: MONEDA,
+        amount: IMPORTE_SEMBRADO,
+        currency: MONEDA_SEMBRADA,
         paymentMethod: "cash",
         transactionDate: FECHA,
         effectiveDate: FECHA,
@@ -530,7 +537,7 @@ async function sembrarElAsiento(
         transactionId: tx.id,
         targetKind: "debt_balance",
         targetId: 0,
-        allocatedAmount: IMPORTE,
+        allocatedAmount: IMPORTE_SEMBRADO,
       }),
     )
     .$returningId();
@@ -542,8 +549,8 @@ async function sembrarElAsiento(
         memberId: datos.memberId,
         targetKind: "debt_balance",
         targetId: 0,
-        currency: MONEDA,
-        amount: IMPORTE,
+        currency: MONEDA_SEMBRADA,
+        amount: IMPORTE_SEMBRADO,
       }),
     )
     .$returningId();
