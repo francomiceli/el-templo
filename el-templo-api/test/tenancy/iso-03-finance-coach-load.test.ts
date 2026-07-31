@@ -108,6 +108,7 @@ import {
   createTestApp,
   cleanAllTestData,
   createTestMember,
+  ensureEfectivoCaja,
   getAuthToken,
 } from "../helpers";
 import * as schema from "../../src/db/schema";
@@ -175,6 +176,8 @@ let planTemploId: number;
 let subTemploId: number;
 /** Sede VIRTUAL del gimnasio 2 ("Templo Online" propia) — ver el docblock de la siembra. */
 let sedeVirtualDosId: number;
+/** SEGUNDA caja de efectivo del gimnasio 2 — el destino del movimiento propio. */
+let cajaSecundariaDosId: number;
 /** Suscripcion activa CON DEUDA del socio 0 del gimnasio 2 (control de pay-plan). */
 let subDosId: number;
 /** Las dos patas del movimiento inter-caja sembrado en El Templo. */
@@ -220,6 +223,7 @@ beforeEach(async () => {
     subId: subTemploId,
   } = await sembrarSocioYPlanDeElTemplo());
   sedeVirtualDosId = await sembrarSedeVirtualDelGimnasioDos();
+  cajaSecundariaDosId = await sembrarSegundaCajaDelGimnasioDos();
   subDosId = await sembrarSuscripcionConDeudaDelGimnasioDos();
   ({ outflowId: movTemploOutflowId, inflowId: movTemploInflowId } =
     await sembrarMovimientoDeElTemplo());
@@ -391,6 +395,44 @@ async function sembrarSedeVirtualDelGimnasioDos(): Promise<number> {
     )
     .$returningId();
   return sede.id;
+}
+
+/**
+ * La SEGUNDA caja de efectivo del gimnasio 2, colgada de su sede virtual.
+ *
+ * Un movimiento inter-caja necesita DOS cajas propias, de la misma moneda y —lo
+ * que no es obvio— las dos CON sede: `enforceCajaScope` (finance/routes.ts)
+ * rechaza para un actor no-owner toda caja sin sucursal, porque sin sede no hay
+ * pais con el que comparar. La cuenta banco del fixture tiene `branch_id` NULL,
+ * asi que no sirve de destino: el rechazo llegaria por el guard de pais y no por
+ * el de gimnasio, y el control positivo moriria por un motivo ajeno al
+ * aislamiento.
+ *
+ * El invariante "una caja efectivo ACTIVA por (sucursal, moneda)" obliga a que
+ * sea OTRA sede: por eso cuelga de la virtual. `ensureEfectivoCaja` es
+ * idempotente y su 4to argumento NO es opcional en la practica (su default es 1,
+ * asi que omitirlo estampa la caja en El Templo — T-168-15).
+ */
+async function sembrarSegundaCajaDelGimnasioDos(): Promise<number> {
+  await ensureEfectivoCaja(app, sedeVirtualDosId, MONEDA_SEMBRADA, TENANT_DOS);
+  const [caja] = await app.db
+    .select({ id: schema.cashRegisters.id })
+    .from(schema.cashRegisters)
+    .where(
+      and(
+        tenantWhere(schema.cashRegisters, { tenantId: TENANT_DOS }),
+        eq(schema.cashRegisters.type, "efectivo"),
+        eq(schema.cashRegisters.branchId, sedeVirtualDosId),
+      ),
+    )
+    .limit(1);
+  if (!caja) {
+    throw new Error(
+      `La segunda caja del gimnasio ${TENANT_DOS} no quedo en su gimnasio. Si aparece en El ` +
+        `Templo, a la llamada de ensureEfectivoCaja le falto el 4to argumento.`,
+    );
+  }
+  return caja.id;
 }
 
 /**
@@ -787,6 +829,27 @@ async function idDelBalanceDeLaSub(): Promise<number> {
  * tautologica. Mismo razonamiento que `tenantDeLaFila` y que
  * `fotoDeLaTransaccion` del 172-18.
  */
+/**
+ * SALDO de una caja, calculado de la base sumando TODAS las filas de ledger
+ * imputadas a ella (inflow suma, outflow resta), sin filtrar por gimnasio.
+ *
+ * La falta de filtro es EL PUNTO, no un descuido: lo que este archivo tiene que
+ * cazar es una fila del gimnasio 2 imputada a una caja de El Templo (o al
+ * reves). Sumar solo las filas del gimnasio de la caja esconderia exactamente la
+ * plata que se colo — la asercion se volveria ciega justo para el caso que la
+ * motiva. Por eso lleva la exencion `tenant-safe:` embebida, el unico canal que
+ * el sentinel lee, con el mismo razonamiento que `tenantDeLaFila`.
+ *
+ * Las filas anuladas quedan afuera (`voided_at IS NULL`): un movimiento anulado
+ * ya no mueve el saldo, que es justo lo que afirman los casos de anulacion.
+ */
+async function saldoDeLaCaja(cajaId: number): Promise<number> {
+  const filas = await consultar<{ saldo: string | number | null }>(
+    sql`SELECT /* tenant-safe: el punto es cazar una fila de OTRO gimnasio imputada a esta caja; filtrar por gimnasio esconderia justamente la plata colada */ COALESCE(SUM(CASE WHEN direction = 'inflow' THEN amount ELSE -amount END), 0) AS saldo FROM financial_transactions WHERE cash_register_id = ${cajaId} AND voided_at IS NULL`,
+  );
+  return Number(filas[0]?.saldo ?? 0);
+}
+
 async function estaAnulada(id: number): Promise<boolean> {
   const filas = await consultar<{ voided_at: unknown }>(
     sql`SELECT /* tenant-safe: releer la fila AJENA es la asercion de tampering; filtrarla por gimnasio la volveria tautologica */ voided_at FROM financial_transactions WHERE id = ${id}`,
@@ -1454,5 +1517,396 @@ describe("cobro del plan — POST /coach-load/pay-plan (actor: COACH, rol minimo
       `El cobro del plan nacio en el gimnasio equivocado: el \`tenant_id\` no salio del scope ` +
         `server-side (T-168-15).`,
     ).toBe(TENANT_DOS);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MOVIMIENTOS Y EGRESOS — las 4 rutas donde la plata se mueve SIN socio
+//
+// Actor: `gym2.adminToken`. Estas 4 viven en `finance/routes.ts`, cuyo hook de
+// modulo exige FINANCE_READ_ROLES (coach EXCLUIDO) y cuyos handlers exigen
+// ademas FINANCE_VOID_ROLES (owner/admin/gestion). `seedSecondTenant` no crea
+// `gestion` ni `recepcion`: `admin` ES el rol minimo disponible (D-10, misma
+// justificacion que el 172-18).
+//
+// POR QUE ESTE GRUPO ES EL MAS EXPUESTO: sus filas tienen `member_id` NULL. El
+// 172-18 encontro que el aislamiento de los listados de transacciones esta
+// sostenido por DOS filtros —el de la tabla y el `INNER JOIN users` con su
+// propio tenantWhere—, y que sacarle uno no pone ningun test en rojo. Aca esa
+// segunda barrera NO EXISTE: sin socio no hay join que filtre, y el
+// `tenantWhere` de la caja (o el de la tabla) es la UNICA defensa.
+//
+// LA EVIDENCIA ES EL SALDO. Un rechazo que ya escribio la mitad de un asiento de
+// doble entrada deja el saldo de una caja movido y el de la otra no: por eso
+// cada caso compara los saldos de las cajas involucradas ANTES y DESPUES, en los
+// DOS gimnasios.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Importes propios del gimnasio 2 para los movimientos y egresos de este bloque. */
+const MONTO_MOVIMIENTO_DOS = 606;
+const MONTO_EGRESO_DOS = 353;
+
+describe("movimiento inter-caja — POST /movements (actor: ADMIN, el rol minimo que este fixture puede dar)", () => {
+  const RUTA = "POST /api/admin/finance/movements";
+
+  it("aislamiento: no puede mandar plata a una caja de El Templo, y ningun saldo se mueve", async () => {
+    const saldos = async () => [
+      await saldoDeLaCaja(dos.cajaId),
+      await saldoDeLaCaja(templo.cajaId),
+    ];
+    const antes = await saldos();
+
+    const res = await postComoGimnasioDos("/movements", gym2.adminToken, {
+      origenCajaId: dos.cajaId,
+      destinoCajaId: templo.cajaId,
+      amount: MONTO_MOVIMIENTO_DOS,
+    });
+    expect(
+      res.statusCode,
+      porQueImportaLaEscritura(
+        RUTA,
+        `mandara plata a la caja ${templo.cajaId} de El Templo. Es la corrupcion contable mas ` +
+          `directa que existe: mueve plata sin pasar por ningun socio, asi que ningun join de ` +
+          `\`users\` la frena — el filtro de la caja es la unica barrera`,
+      ) + ` Respuesta: ${res.body}`,
+    ).toBe(404);
+    expect(
+      await saldos(),
+      porQueImportaLaEscritura(
+        RUTA,
+        `moviera un saldo igual. Un asiento de doble entrada escrito a medias es PEOR que uno ` +
+          `completo: deja el neto del sistema distinto de cero y el arqueo de las dos cajas ` +
+          `mintiendo. Saldos antes: [${antes.join(", ")}]`,
+      ),
+    ).toEqual(antes);
+  });
+
+  it("aislamiento: tampoco puede sacarle plata a una caja de El Templo (la combinacion inversa)", async () => {
+    const saldos = async () => [
+      await saldoDeLaCaja(templo.cajaId),
+      await saldoDeLaCaja(dos.cajaId),
+    ];
+    const antes = await saldos();
+
+    const res = await postComoGimnasioDos("/movements", gym2.adminToken, {
+      origenCajaId: templo.cajaId,
+      destinoCajaId: dos.cajaId,
+      amount: MONTO_MOVIMIENTO_DOS,
+    });
+    expect(
+      res.statusCode,
+      porQueImportaLaEscritura(
+        RUTA,
+        `VACIARA una caja de El Templo hacia una propia. La direccion importa: el guard tiene que ` +
+          `correr sobre las DOS cajas del asiento, no solo sobre el destino`,
+      ) + ` Respuesta: ${res.body}`,
+    ).toBe(404);
+    expect(
+      await saldos(),
+      porQueImportaLaEscritura(
+        RUTA,
+        `moviera un saldo igual. Saldos antes: [${antes.join(", ")}]`,
+      ),
+    ).toEqual(antes);
+  });
+
+  it("control: SI puede mover plata entre DOS cajas propias, y los dos saldos se mueven", async () => {
+    const origenAntes = await saldoDeLaCaja(dos.cajaId);
+    const destinoAntes = await saldoDeLaCaja(cajaSecundariaDosId);
+
+    const res = await postComoGimnasioDos("/movements", gym2.adminToken, {
+      origenCajaId: dos.cajaId,
+      destinoCajaId: cajaSecundariaDosId,
+      amount: MONTO_MOVIMIENTO_DOS,
+    });
+    expect(
+      res.statusCode,
+      porQueImportaElControl(RUTA) + ` Respuesta: ${res.body}`,
+    ).toBe(201);
+    const movimiento = JSON.parse(res.body).movement as {
+      outflowTxId: number;
+      inflowTxId: number;
+    };
+    expect(
+      [
+        await tenantDeLaFila(
+          app,
+          "financial_transactions",
+          movimiento.outflowTxId,
+        ),
+        await tenantDeLaFila(
+          app,
+          "financial_transactions",
+          movimiento.inflowTxId,
+        ),
+      ],
+      `Alguna de las dos patas del movimiento propio nacio en otro gimnasio: el \`tenant_id\` no ` +
+        `salio del scope server-side (T-168-15).`,
+    ).toEqual([TENANT_DOS, TENANT_DOS]);
+    expect(
+      [
+        await saldoDeLaCaja(dos.cajaId),
+        await saldoDeLaCaja(cajaSecundariaDosId),
+      ],
+      `${RUTA} contesto 201 pero los saldos no se movieron por ${MONTO_MOVIMIENTO_DOS}. Sin este ` +
+        `control, los dos casos de aislamiento de arriba ("ningun saldo cambio") pasarian en verde ` +
+        `con la ruta rota para todos: nunca cambia ningun saldo.`,
+    ).toEqual([
+      origenAntes - MONTO_MOVIMIENTO_DOS,
+      destinoAntes + MONTO_MOVIMIENTO_DOS,
+    ]);
+  });
+});
+
+describe("egreso — POST /expenses (actor: ADMIN, el rol minimo que este fixture puede dar)", () => {
+  const RUTA = "POST /api/admin/finance/expenses";
+
+  it("aislamiento: no puede imputarle un egreso a un centro de costo de El Templo", async () => {
+    // La caja es PROPIA y el centro de costo AJENO: el intento pasa el guard de
+    // caja y llega hasta la validacion del centro, que es la que tiene que
+    // cortar. El rechazo es "pedido invalido" y no "no existe" —
+    // `registerExpense` trata un centro que no matchea como body invalido— y el
+    // contrato se cumple igual: el mensaje es EXACTAMENTE el mismo que para un
+    // centro de costo inexistente, asi que no filtra existencia (precedente del
+    // 172-18 con la caja ajena de `validate`).
+    const ledgerDosAntes = await contarLedgerDelGimnasio(TENANT_DOS);
+    const saldoAntes = await saldoDeLaCaja(dos.cajaId);
+
+    const res = await postComoGimnasioDos("/expenses", gym2.adminToken, {
+      cajaId: dos.cajaId,
+      amount: MONTO_EGRESO_DOS,
+      costCenterId: templo.costCenterId,
+    });
+    expect(
+      res.statusCode,
+      porQueImportaLaEscritura(
+        RUTA,
+        `imputara un gasto al centro de costo ${templo.costCenterId} de El Templo`,
+      ) + ` Respuesta: ${res.body}`,
+    ).toBe(400);
+    expect(
+      [
+        await contarLedgerDelGimnasio(TENANT_DOS),
+        await saldoDeLaCaja(dos.cajaId),
+      ],
+      porQueImportaLaEscritura(
+        RUTA,
+        `escribiera el egreso igual (el rechazo llego DESPUES del INSERT): el saldo de la caja ` +
+          `propia se movio o aparecio una fila nueva`,
+      ),
+    ).toEqual([ledgerDosAntes, saldoAntes]);
+  });
+
+  it("aislamiento: tampoco puede sacarle plata a una caja de El Templo", async () => {
+    const ledgerTemploAntes = await contarLedgerDelGimnasio(TENANT_TEMPLO);
+    const saldoAntes = await saldoDeLaCaja(templo.cajaId);
+
+    const res = await postComoGimnasioDos("/expenses", gym2.adminToken, {
+      cajaId: templo.cajaId,
+      amount: MONTO_EGRESO_DOS,
+      costCenterId: dos.costCenterId,
+    });
+    expect(
+      res.statusCode,
+      porQueImportaLaEscritura(
+        RUTA,
+        `le restara plata a la caja ${templo.cajaId} de El Templo`,
+      ) + ` Respuesta: ${res.body}`,
+    ).toBe(404);
+    expect(
+      [
+        await contarLedgerDelGimnasio(TENANT_TEMPLO),
+        await saldoDeLaCaja(templo.cajaId),
+      ],
+      porQueImportaLaEscritura(
+        RUTA,
+        `le moviera el saldo a la caja ajena aunque contestara que no existe`,
+      ),
+    ).toEqual([ledgerTemploAntes, saldoAntes]);
+  });
+
+  it("control: SI puede registrar un egreso propio, y le baja el saldo a su caja", async () => {
+    const saldoAntes = await saldoDeLaCaja(dos.cajaId);
+
+    const res = await postComoGimnasioDos("/expenses", gym2.adminToken, {
+      cajaId: dos.cajaId,
+      amount: MONTO_EGRESO_DOS,
+      costCenterId: dos.costCenterId,
+    });
+    expect(
+      res.statusCode,
+      porQueImportaElControl(RUTA) + ` Respuesta: ${res.body}`,
+    ).toBe(201);
+    const expenseTxId = JSON.parse(res.body).expense.expenseTxId as number;
+    expect(
+      await tenantDeLaFila(app, "financial_transactions", expenseTxId),
+      `El egreso propio nacio en el gimnasio equivocado: el \`tenant_id\` no salio del scope ` +
+        `server-side (T-168-15).`,
+    ).toBe(TENANT_DOS);
+    expect(
+      await saldoDeLaCaja(dos.cajaId),
+      `${RUTA} contesto 201 pero el saldo de la caja propia no bajo ${MONTO_EGRESO_DOS}. Sin este ` +
+        `control, los dos casos de aislamiento de arriba pasarian en verde con la ruta rota para ` +
+        `todos.`,
+    ).toBe(saldoAntes - MONTO_EGRESO_DOS);
+  });
+});
+
+describe("anulacion de movimiento — POST /movements/:id/void (actor: ADMIN, el rol minimo que este fixture puede dar)", () => {
+  const RUTA = "POST /api/admin/finance/movements/:id/void";
+
+  it("aislamiento: no puede anular un movimiento de El Templo, y las DOS patas siguen vivas", async () => {
+    const saldosAntes = [
+      await saldoDeLaCaja(templo.cajaId),
+      await saldoDeLaCaja(templo.bankAccountId),
+    ];
+
+    const res = await postComoGimnasioDos(
+      `/movements/${movTemploOutflowId}/void`,
+      gym2.adminToken,
+      { reason: "anulacion cross-tenant" },
+    );
+    expect(
+      res.statusCode,
+      porQueImportaLaEscritura(
+        RUTA,
+        `anulara el movimiento ${movTemploOutflowId} de El Templo`,
+      ) + ` Respuesta: ${res.body}`,
+    ).toBe(404);
+
+    // Las DOS patas: `voidMovement` camina `transaction_links` para descubrir la
+    // hermana, asi que una anulacion que se colara se llevaria puestas ambas — y
+    // con ellas el neto cero del asiento ajeno.
+    expect(
+      [
+        await estaAnulada(movTemploOutflowId),
+        await estaAnulada(movTemploInflowId),
+      ],
+      porQueImportaLaEscritura(
+        RUTA,
+        `anulara la fila ajena igual: el \`voided_at\` de alguna de las dos patas dejo de estar ` +
+          `vacio aunque la respuesta dijera que no existe (el rechazo llego DESPUES del UPDATE)`,
+      ),
+    ).toEqual([false, false]);
+    expect(
+      [
+        await saldoDeLaCaja(templo.cajaId),
+        await saldoDeLaCaja(templo.bankAccountId),
+      ],
+      porQueImportaLaEscritura(
+        RUTA,
+        `le moviera el arqueo a El Templo: anular un movimiento devuelve la plata a la caja ` +
+          `origen, asi que un void colado se ve en los saldos aunque las filas parezcan intactas`,
+      ),
+    ).toEqual(saldosAntes);
+  });
+
+  it("control: SI puede anular un movimiento propio, y las dos patas quedan anuladas", async () => {
+    const alta = await postComoGimnasioDos("/movements", gym2.adminToken, {
+      origenCajaId: dos.cajaId,
+      destinoCajaId: cajaSecundariaDosId,
+      amount: MONTO_MOVIMIENTO_DOS,
+    });
+    expect(
+      alta.statusCode,
+      `No se pudo sembrar el movimiento propio via POST /movements: ${alta.body}`,
+    ).toBe(201);
+    const movimiento = JSON.parse(alta.body).movement as {
+      outflowTxId: number;
+      inflowTxId: number;
+    };
+    const saldoAntes = await saldoDeLaCaja(dos.cajaId);
+
+    const res = await postComoGimnasioDos(
+      `/movements/${movimiento.outflowTxId}/void`,
+      gym2.adminToken,
+      { reason: "anulacion propia" },
+    );
+    expect(
+      res.statusCode,
+      porQueImportaElControl(RUTA) + ` Respuesta: ${res.body}`,
+    ).toBe(200);
+    expect(
+      [
+        await estaAnulada(movimiento.outflowTxId),
+        await estaAnulada(movimiento.inflowTxId),
+      ],
+      `${RUTA} contesto que anulo el movimiento propio pero alguna pata sigue viva. Sin este ` +
+        `control, el caso de aislamiento de al lado ("la fila ajena sigue viva") pasaria en verde ` +
+        `con la ruta rota para todos: nunca anula nada.`,
+    ).toEqual([true, true]);
+    expect(
+      await saldoDeLaCaja(dos.cajaId),
+      `${RUTA} anulo las filas pero no le devolvio la plata a la caja origen.`,
+    ).toBe(saldoAntes + MONTO_MOVIMIENTO_DOS);
+  });
+});
+
+describe("anulacion de egreso — POST /expenses/:id/void (actor: ADMIN, el rol minimo que este fixture puede dar)", () => {
+  const RUTA = "POST /api/admin/finance/expenses/:id/void";
+
+  it("aislamiento: no puede anular un egreso de El Templo, y el egreso ajeno sigue vivo", async () => {
+    const saldoAntes = await saldoDeLaCaja(templo.cajaId);
+
+    const res = await postComoGimnasioDos(
+      `/expenses/${egresoTemploId}/void`,
+      gym2.adminToken,
+      { reason: "anulacion cross-tenant" },
+    );
+    expect(
+      res.statusCode,
+      porQueImportaLaEscritura(
+        RUTA,
+        `anulara el egreso ${egresoTemploId} de El Templo`,
+      ) + ` Respuesta: ${res.body}`,
+    ).toBe(404);
+    expect(
+      await estaAnulada(egresoTemploId),
+      porQueImportaLaEscritura(
+        RUTA,
+        `anulara el egreso ajeno igual: su \`voided_at\` dejo de estar vacio aunque la respuesta ` +
+          `dijera que no existe`,
+      ),
+    ).toBe(false);
+    expect(
+      await saldoDeLaCaja(templo.cajaId),
+      porQueImportaLaEscritura(
+        RUTA,
+        `le devolviera al arqueo de El Templo los ${MONTO_EGRESO_TEMPLO} del egreso anulado`,
+      ),
+    ).toBe(saldoAntes);
+  });
+
+  it("control: SI puede anular un egreso propio, y le devuelve la plata a su caja", async () => {
+    const alta = await postComoGimnasioDos("/expenses", gym2.adminToken, {
+      cajaId: dos.cajaId,
+      amount: MONTO_EGRESO_DOS,
+      costCenterId: dos.costCenterId,
+    });
+    expect(
+      alta.statusCode,
+      `No se pudo sembrar el egreso propio via POST /expenses: ${alta.body}`,
+    ).toBe(201);
+    const expenseTxId = JSON.parse(alta.body).expense.expenseTxId as number;
+    const saldoAntes = await saldoDeLaCaja(dos.cajaId);
+
+    const res = await postComoGimnasioDos(
+      `/expenses/${expenseTxId}/void`,
+      gym2.adminToken,
+      { reason: "anulacion propia" },
+    );
+    expect(
+      res.statusCode,
+      porQueImportaElControl(RUTA) + ` Respuesta: ${res.body}`,
+    ).toBe(200);
+    expect(
+      await estaAnulada(expenseTxId),
+      `${RUTA} contesto que anulo el egreso propio pero sigue vivo. Sin este control, el caso de ` +
+        `aislamiento de al lado pasaria en verde con la ruta rota para todos.`,
+    ).toBe(true);
+    expect(
+      await saldoDeLaCaja(dos.cajaId),
+      `${RUTA} anulo el egreso propio pero no le devolvio la plata a la caja.`,
+    ).toBe(saldoAntes + MONTO_EGRESO_DOS);
   });
 });
