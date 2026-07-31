@@ -404,7 +404,7 @@ describe("saldos por caja — GET /api/admin/finance/cash-registers/balances", (
   });
 });
 
-describe("saldos por caja CON rango de fechas — GET /api/admin/finance/cash-registers/balances?dateFrom&dateTo", () => {
+describe("saldos por caja CON rango de fechas (dateFrom/dateTo) — GET /api/admin/finance/cash-registers/balances", () => {
   const RUTA = "GET /api/admin/finance/cash-registers/balances (con rango)";
 
   it("aislamiento: el movimiento del periodo no cuenta plata de El Templo", async () => {

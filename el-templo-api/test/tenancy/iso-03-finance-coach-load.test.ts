@@ -902,7 +902,7 @@ function porQueImportaLaEscritura(ruta: string, detalle: string): string {
   );
 }
 
-describe("autocompletar del socio — GET /coach-load/autocompletar/:userId (actor: COACH, rol minimo real)", () => {
+describe("autocompletar del socio — GET /api/admin/finance/coach-load/autocompletar/:userId (actor: COACH, rol minimo real)", () => {
   const RUTA = "GET /api/admin/finance/coach-load/autocompletar/:userId";
 
   it("aislamiento: pidiendo por un socio de El Templo no devuelve la SEDE del socio ajeno", async () => {
@@ -1012,7 +1012,7 @@ describe("autocompletar del socio — GET /coach-load/autocompletar/:userId (act
   });
 });
 
-describe("cuentas banco de la PoS — GET /coach-load/bank-accounts (actor: COACH, rol minimo real)", () => {
+describe("cuentas banco de la PoS — GET /api/admin/finance/coach-load/bank-accounts (actor: COACH, rol minimo real)", () => {
   const RUTA = "GET /api/admin/finance/coach-load/bank-accounts";
 
   it("aislamiento: no devuelve ni una cuenta banco de El Templo", async () => {
@@ -1062,7 +1062,7 @@ describe("cuentas banco de la PoS — GET /coach-load/bank-accounts (actor: COAC
   });
 });
 
-describe("caja destino del cobro en efectivo — GET /coach-load/caja-efectivo (actor: COACH, rol minimo real)", () => {
+describe("caja destino del cobro en efectivo — GET /api/admin/finance/coach-load/caja-efectivo (actor: COACH, rol minimo real)", () => {
   const RUTA = "GET /api/admin/finance/coach-load/caja-efectivo";
 
   it("aislamiento: pidiendo por una sede de El Templo no resuelve ninguna caja", async () => {
@@ -1097,7 +1097,7 @@ describe("caja destino del cobro en efectivo — GET /coach-load/caja-efectivo (
   });
 });
 
-describe("cargas del profe — GET /coach-load/mis-cargas (actor: COACH, rol minimo real)", () => {
+describe("cargas del profe — GET /api/admin/finance/coach-load/mis-cargas (actor: COACH, rol minimo real)", () => {
   const RUTA = "GET /api/admin/finance/coach-load/mis-cargas";
 
   it("aislamiento: el coach no ve ni una carga de El Templo", async () => {
@@ -1191,7 +1191,7 @@ describe("cargas del profe — GET /coach-load/mis-cargas (actor: COACH, rol min
   });
 });
 
-describe("alta de alumno con plan — POST /coach-load/alta (actor: COACH, rol minimo real)", () => {
+describe("alta de alumno con plan — POST /api/admin/finance/coach-load/alta (actor: COACH, rol minimo real)", () => {
   const RUTA = "POST /api/admin/finance/coach-load/alta";
   // NOTA sobre el vector "sede ajena": este archivo NO lo afirma en esta ruta.
   // `/alta` lleva el preHandler `requireBranchAccess({from:"body.branchId"})`,
@@ -1363,7 +1363,7 @@ describe("alta de alumno con plan — POST /coach-load/alta (actor: COACH, rol m
   });
 });
 
-describe("cobro suelto — POST /coach-load/misc (actor: COACH, rol minimo real)", () => {
+describe("cobro suelto — POST /api/admin/finance/coach-load/misc (actor: COACH, rol minimo real)", () => {
   const RUTA = "POST /api/admin/finance/coach-load/misc";
 
   it("aislamiento: no puede cobrarle a un socio de El Templo, y no nace ninguna fila", async () => {
@@ -1434,7 +1434,7 @@ describe("cobro suelto — POST /coach-load/misc (actor: COACH, rol minimo real)
   });
 });
 
-describe("cobro del plan — POST /coach-load/pay-plan (actor: COACH, rol minimo real)", () => {
+describe("cobro del plan — POST /api/admin/finance/coach-load/pay-plan (actor: COACH, rol minimo real)", () => {
   const RUTA = "POST /api/admin/finance/coach-load/pay-plan";
 
   it("aislamiento: no puede cobrarle el plan a un socio de El Templo, y no nace ninguna fila", async () => {
@@ -1546,7 +1546,7 @@ describe("cobro del plan — POST /coach-load/pay-plan (actor: COACH, rol minimo
 const MONTO_MOVIMIENTO_DOS = 606;
 const MONTO_EGRESO_DOS = 353;
 
-describe("movimiento inter-caja — POST /movements (actor: ADMIN, el rol minimo que este fixture puede dar)", () => {
+describe("movimiento inter-caja — POST /api/admin/finance/movements (actor: ADMIN, el rol minimo que este fixture puede dar)", () => {
   const RUTA = "POST /api/admin/finance/movements";
 
   it("aislamiento: no puede mandar plata a una caja de El Templo, y ningun saldo se mueve", async () => {
@@ -1658,7 +1658,7 @@ describe("movimiento inter-caja — POST /movements (actor: ADMIN, el rol minimo
   });
 });
 
-describe("egreso — POST /expenses (actor: ADMIN, el rol minimo que este fixture puede dar)", () => {
+describe("egreso — POST /api/admin/finance/expenses (actor: ADMIN, el rol minimo que este fixture puede dar)", () => {
   const RUTA = "POST /api/admin/finance/expenses";
 
   it("aislamiento: no puede imputarle un egreso a un centro de costo de El Templo", async () => {
@@ -1752,7 +1752,7 @@ describe("egreso — POST /expenses (actor: ADMIN, el rol minimo que este fixtur
   });
 });
 
-describe("anulacion de movimiento — POST /movements/:id/void (actor: ADMIN, el rol minimo que este fixture puede dar)", () => {
+describe("anulacion de movimiento — POST /api/admin/finance/movements/:id/void (actor: ADMIN, el rol minimo que este fixture puede dar)", () => {
   const RUTA = "POST /api/admin/finance/movements/:id/void";
 
   it("aislamiento: no puede anular un movimiento de El Templo, y las DOS patas siguen vivas", async () => {
@@ -1842,7 +1842,7 @@ describe("anulacion de movimiento — POST /movements/:id/void (actor: ADMIN, el
   });
 });
 
-describe("anulacion de egreso — POST /expenses/:id/void (actor: ADMIN, el rol minimo que este fixture puede dar)", () => {
+describe("anulacion de egreso — POST /api/admin/finance/expenses/:id/void (actor: ADMIN, el rol minimo que este fixture puede dar)", () => {
   const RUTA = "POST /api/admin/finance/expenses/:id/void";
 
   it("aislamiento: no puede anular un egreso de El Templo, y el egreso ajeno sigue vivo", async () => {
