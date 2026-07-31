@@ -22,10 +22,22 @@
 // `assertTenant(request.scope, "<etiqueta>")`. Prohibido narrowear el
 // `tenantId` con un non-null assertion o con un default numérico al gimnasio 1.
 //
-// El `ctx` llega a las FIRMAS en el plan 172-08; los `tenantWhere` /
-// `tenantValues` de las queries de este archivo son de los planes 172-10
-// (escrituras) y 172-12 (lecturas). O sea: que un método de acá tenga `ctx`
-// TODAVÍA NO significa que sus queries filtren por gimnasio.
+// El archivo está migrado ENTERO: el `ctx` llegó a las firmas en el plan
+// 172-08, las escrituras (create / void / correct / validate / observe) en el
+// 172-10 y las lecturas y agregaciones (list / bandeja / historial / resumen /
+// export) en el 172-12. Ya no queda una sola query sin gimnasio acá adentro, y
+// `transaction-service.ts` no tiene ninguna entrada en
+// `tenant-lint-allowlist.json`: un acceso nuevo sin `tenantWhere` /
+// `tenantValues` sale ROJO en el lint de una, sin ratchet que lo amortigüe.
+//
+// Dos formas que hay que respetar al agregar una query acá:
+//   - El filtro de una tabla JOINEADA va en el ON. En un LEFT JOIN ponerlo en
+//     el WHERE lo convierte en INNER y borra las filas sin match (los egresos y
+//     traspasos sin socio ni sede, los saldos libres sin suscripción, los
+//     cobros nacidos validados).
+//   - `buildListConditions` devuelve el filtro DENTRO de su `SQL[]`: toda query
+//     que componga ese fragmento queda scopeada sola. No le agregues el
+//     `tenantWhere` de `financial_transactions` por afuera — ya está adentro.
 
 import {
   eq,
@@ -2059,13 +2071,23 @@ export class TransactionService {
     const [countRow] = await this.db
       .select({ count: sql<number>`COUNT(*)` })
       .from(schema.financialTransactions)
-      .where(eq(schema.financialTransactions.memberId, memberId));
+      .where(
+        and(
+          tenantWhere(schema.financialTransactions, ctx),
+          eq(schema.financialTransactions.memberId, memberId),
+        ),
+      );
     const total = Number(countRow?.count ?? 0);
 
     const txRows = await this.db
       .select()
       .from(schema.financialTransactions)
-      .where(eq(schema.financialTransactions.memberId, memberId))
+      .where(
+        and(
+          tenantWhere(schema.financialTransactions, ctx),
+          eq(schema.financialTransactions.memberId, memberId),
+        ),
+      )
       .orderBy(
         desc(schema.financialTransactions.transactionDate),
         desc(schema.financialTransactions.createdAt),
@@ -2090,18 +2112,30 @@ export class TransactionService {
         subscriptionStartDate: schema.subscriptions.startDate,
       })
       .from(schema.transactionLinks)
+      // Los dos filtros de gimnasio van en el ON: son LEFT JOIN porque un link
+      // que no es de suscripción no tiene fila del otro lado, y en el WHERE se
+      // volverían INNER, borrando de la ficha los cobros de deuda y anticipos.
       .leftJoin(
         schema.subscriptions,
         and(
+          tenantWhere(schema.subscriptions, ctx),
           eq(schema.transactionLinks.targetKind, "subscription"),
           eq(schema.subscriptions.id, schema.transactionLinks.targetId),
         ),
       )
       .leftJoin(
         schema.subscriptionPlans,
-        eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
+        and(
+          tenantWhere(schema.subscriptionPlans, ctx),
+          eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
+        ),
       )
-      .where(inArray(schema.transactionLinks.transactionId, txIds));
+      .where(
+        and(
+          tenantWhere(schema.transactionLinks, ctx),
+          inArray(schema.transactionLinks.transactionId, txIds),
+        ),
+      );
 
     const linksByTx = new Map<number, FinancialHistoryItem["links"]>();
     for (const l of linkRows) {
@@ -2173,19 +2207,28 @@ export class TransactionService {
         balanceCreatedAt: schema.balances.createdAt,
       })
       .from(schema.balances)
+      // Filtro de gimnasio en el ON y no en el WHERE: el LEFT JOIN es
+      // OBLIGATORIO acá (target_kind='debt_balance' no tiene FK a
+      // subscriptions) y en el WHERE se volvería INNER, borrando en silencio
+      // justo los saldos libres que este método existe para listar.
       .leftJoin(
         schema.subscriptions,
         and(
+          tenantWhere(schema.subscriptions, ctx),
           eq(schema.balances.targetKind, "subscription"),
           eq(schema.subscriptions.id, schema.balances.targetId),
         ),
       )
       .leftJoin(
         schema.subscriptionPlans,
-        eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
+        and(
+          tenantWhere(schema.subscriptionPlans, ctx),
+          eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
+        ),
       )
       .where(
         and(
+          tenantWhere(schema.balances, ctx),
           eq(schema.balances.memberId, memberId),
           gt(schema.balances.amount, 0),
         ),
@@ -2485,17 +2528,30 @@ export class TransactionService {
         notes: schema.financialTransactions.notes,
       })
       .from(schema.financialTransactions)
+      // TENANCY (T-172-12-03): el export es el vector más silencioso de fuga
+      // masiva — una planilla se manda por mail sin que nadie mire fila por
+      // fila. El filtro de `financial_transactions` viaja dentro de
+      // `conditions` (buildListConditions) y las joineadas en su propio ON.
       .innerJoin(
         schema.users,
-        eq(schema.users.id, schema.financialTransactions.memberId),
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.financialTransactions.memberId),
+        ),
       )
       .innerJoin(
         schema.branches,
-        eq(schema.branches.id, schema.financialTransactions.branchId),
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, schema.financialTransactions.branchId),
+        ),
       )
       .innerJoin(
         recorder,
-        eq(recorder.id, schema.financialTransactions.recordedBy),
+        and(
+          tenantWhere(recorder, ctx),
+          eq(recorder.id, schema.financialTransactions.recordedBy),
+        ),
       )
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(
@@ -2515,7 +2571,12 @@ export class TransactionService {
               allocatedAmount: schema.transactionLinks.allocatedAmount,
             })
             .from(schema.transactionLinks)
-            .where(inArray(schema.transactionLinks.transactionId, txIds))
+            .where(
+              and(
+                tenantWhere(schema.transactionLinks, ctx),
+                inArray(schema.transactionLinks.transactionId, txIds),
+              ),
+            )
         : [];
 
     const linksByTx = new Map<
