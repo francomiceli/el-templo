@@ -18,7 +18,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
-import { sql, eq } from "drizzle-orm";
+import { sql, eq, and } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import {
   createTestApp,
@@ -29,6 +29,16 @@ import {
 } from "../helpers";
 import * as schema from "../../src/db/schema";
 import { OVERDUE_DAYS } from "../../src/modules/finance/constants";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
+
+/**
+ * Fase 172 (172-14): gimnasio de las queries DIRECTAS de este archivo. Sale del
+ * fixture, nunca de un `1` a mano. Con `finance` en `TENANT_STRICT_MODULES` el
+ * sentinel hace throw sobre cualquier acceso a `financial_transactions` /
+ * `transaction_links` / `cash_registers` sin gimnasio.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 const PENDING_TRAY_URL = "/api/admin/finance/pending-tray";
 
@@ -69,21 +79,23 @@ async function seedTrayRow(opts: {
 }): Promise<number> {
   const [res] = await app.db
     .insert(schema.financialTransactions)
-    .values({
-      memberId,
-      kind: opts.kind ?? "plan_charge",
-      direction: "inflow",
-      amount: 1000,
-      currency: "ARS",
-      paymentMethod: "cash",
-      transactionDate: opts.transactionDate,
-      effectiveDate: opts.transactionDate,
-      branchId,
-      cashRegisterId: cajaId,
-      recordedBy: adminId,
-      validationStatus: opts.validationStatus,
-      miscReason: opts.miscReason ?? null,
-    })
+    .values(
+      tenantValues(TEMPLO_CTX, {
+        memberId,
+        kind: opts.kind ?? ("plan_charge" as const),
+        direction: "inflow" as const,
+        amount: 1000,
+        currency: "ARS",
+        paymentMethod: "cash" as const,
+        transactionDate: opts.transactionDate,
+        effectiveDate: opts.transactionDate,
+        branchId,
+        cashRegisterId: cajaId,
+        recordedBy: adminId,
+        validationStatus: opts.validationStatus,
+        miscReason: opts.miscReason ?? null,
+      }),
+    )
     .$returningId();
   return res.id;
 }
@@ -123,7 +135,12 @@ beforeAll(async () => {
   const [caja] = await app.db
     .select({ id: schema.cashRegisters.id })
     .from(schema.cashRegisters)
-    .where(eq(schema.cashRegisters.branchId, branchId))
+    .where(
+      and(
+        eq(schema.cashRegisters.branchId, branchId),
+        tenantWhere(schema.cashRegisters, TEMPLO_CTX),
+      ),
+    )
     .limit(1);
   cajaId = caja.id;
 });
@@ -133,8 +150,14 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
-  await app.db.execute(sql`DELETE FROM transaction_links`);
-  await app.db.execute(sql`DELETE FROM financial_transactions`);
+  // 172-14: acotados al gimnasio (regla del 172-13: global a proposito ->
+  // exencion; acotable -> filtro). Este archivo no siembra en otro gimnasio.
+  await app.db.execute(
+    sql`DELETE FROM transaction_links WHERE tenant_id = ${TENANT_TEMPLO}`,
+  );
+  await app.db.execute(
+    sql`DELETE FROM financial_transactions WHERE tenant_id = ${TENANT_TEMPLO}`,
+  );
 });
 
 async function fetchTray(
@@ -175,20 +198,22 @@ describe("REP-01: GET /pending-tray (bandeja de pendientes)", () => {
       validationStatus: "pendiente",
     });
     // A validado row must NOT appear in the tray.
-    await app.db.insert(schema.financialTransactions).values({
-      memberId,
-      kind: "plan_charge",
-      direction: "inflow",
-      amount: 1000,
-      currency: "ARS",
-      paymentMethod: "cash",
-      transactionDate: daysAgo(2),
-      effectiveDate: daysAgo(2),
-      branchId,
-      cashRegisterId: cajaId,
-      recordedBy: adminId,
-      validationStatus: "validado",
-    });
+    await app.db.insert(schema.financialTransactions).values(
+      tenantValues(TEMPLO_CTX, {
+        memberId,
+        kind: "plan_charge" as const,
+        direction: "inflow" as const,
+        amount: 1000,
+        currency: "ARS",
+        paymentMethod: "cash" as const,
+        transactionDate: daysAgo(2),
+        effectiveDate: daysAgo(2),
+        branchId,
+        cashRegisterId: cajaId,
+        recordedBy: adminId,
+        validationStatus: "validado" as const,
+      }),
+    );
 
     const { statusCode, rows } = await fetchTray(adminToken);
     expect(statusCode).toBe(200);

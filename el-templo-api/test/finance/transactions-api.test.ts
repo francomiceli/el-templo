@@ -29,6 +29,19 @@ import {
   ensureEfectivoCaja,
 } from "../helpers";
 import * as schema from "../../src/db/schema";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+import { tenantValues } from "../../src/modules/shared/tenant";
+
+/**
+ * Fase 172 (172-14): gimnasio de las siembras DIRECTAS de este archivo. Sale
+ * del fixture, nunca de un `1` a mano. Con `finance` en
+ * `TENANT_STRICT_MODULES` un INSERT sobre `financial_transactions` /
+ * `transaction_links` sin estampa hace throw antes de llegar a MySQL.
+ *
+ * Ojo: las sedes ES de este archivo son de El Templo (`branches.country='ES'`),
+ * no de otro gimnasio — el pais y el gimnasio son ejes distintos.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 const FINANCE_URL = "/api/admin/finance";
 const TODAY = "2026-04-28";
@@ -693,27 +706,29 @@ describe("Finance API — GET /transactions", () => {
 
   /** Helper: seed an ES transaction directly via Drizzle. */
   async function insertEsTxn(amount = 5000): Promise<number> {
-    const [inserted] = await app.db
-      .insert(schema.financialTransactions)
-      .values({
+    const [inserted] = await app.db.insert(schema.financialTransactions).values(
+      tenantValues(TEMPLO_CTX, {
         memberId: ctx.memberEsId,
-        kind: "plan_charge",
-        direction: "inflow",
+        kind: "plan_charge" as const,
+        direction: "inflow" as const,
         amount,
         currency: "EUR",
-        paymentMethod: "cash",
+        paymentMethod: "cash" as const,
         transactionDate: TODAY,
         effectiveDate: TODAY,
         branchId: ctx.esBranchId,
         recordedBy: ctx.ownerId,
-      });
+      }),
+    );
     const txnId = (inserted as { insertId: number }).insertId;
-    await app.db.insert(schema.transactionLinks).values({
-      transactionId: txnId,
-      targetKind: "subscription",
-      targetId: ctx.subEsId,
-      allocatedAmount: amount,
-    });
+    await app.db.insert(schema.transactionLinks).values(
+      tenantValues(TEMPLO_CTX, {
+        transactionId: txnId,
+        targetKind: "subscription" as const,
+        targetId: ctx.subEsId,
+        allocatedAmount: amount,
+      }),
+    );
     return txnId;
   }
 
@@ -1145,27 +1160,29 @@ describe("Finance API — POST /transactions/:id/void", () => {
   /** Insert an ES-country transaction directly via Drizzle (no API path so
    *  we don't need cross-country owner gymnastics for VS1). */
   async function insertEsTxn(): Promise<number> {
-    const [inserted] = await app.db
-      .insert(schema.financialTransactions)
-      .values({
+    const [inserted] = await app.db.insert(schema.financialTransactions).values(
+      tenantValues(TEMPLO_CTX, {
         memberId: ctx.memberEsId,
-        kind: "plan_charge",
-        direction: "inflow",
+        kind: "plan_charge" as const,
+        direction: "inflow" as const,
         amount: 10000,
         currency: "ARS",
-        paymentMethod: "cash",
+        paymentMethod: "cash" as const,
         transactionDate: TODAY,
         effectiveDate: TODAY,
         branchId: ctx.esBranchId,
         recordedBy: ctx.ownerId,
-      });
+      }),
+    );
     const txnId = (inserted as { insertId: number }).insertId;
-    await app.db.insert(schema.transactionLinks).values({
-      transactionId: txnId,
-      targetKind: "subscription",
-      targetId: ctx.subEsId,
-      allocatedAmount: 10000,
-    });
+    await app.db.insert(schema.transactionLinks).values(
+      tenantValues(TEMPLO_CTX, {
+        transactionId: txnId,
+        targetKind: "subscription" as const,
+        targetId: ctx.subEsId,
+        allocatedAmount: 10000,
+      }),
+    );
     return txnId;
   }
 
@@ -1383,27 +1400,29 @@ describe("Finance API — GET /transactions/summary", () => {
 
   /** Helper: insert an ES inflow txn directly via Drizzle. */
   async function insertEsTxn(amount = 5000): Promise<number> {
-    const [inserted] = await app.db
-      .insert(schema.financialTransactions)
-      .values({
+    const [inserted] = await app.db.insert(schema.financialTransactions).values(
+      tenantValues(TEMPLO_CTX, {
         memberId: ctx.memberEsId,
-        kind: "plan_charge",
-        direction: "inflow",
+        kind: "plan_charge" as const,
+        direction: "inflow" as const,
         amount,
         currency: "EUR",
-        paymentMethod: "cash",
+        paymentMethod: "cash" as const,
         transactionDate: TODAY,
         effectiveDate: TODAY,
         branchId: ctx.esBranchId,
         recordedBy: ctx.ownerId,
-      });
+      }),
+    );
     const txnId = (inserted as { insertId: number }).insertId;
-    await app.db.insert(schema.transactionLinks).values({
-      transactionId: txnId,
-      targetKind: "subscription",
-      targetId: ctx.subEsId,
-      allocatedAmount: amount,
-    });
+    await app.db.insert(schema.transactionLinks).values(
+      tenantValues(TEMPLO_CTX, {
+        transactionId: txnId,
+        targetKind: "subscription" as const,
+        targetId: ctx.subEsId,
+        allocatedAmount: amount,
+      }),
+    );
     return txnId;
   }
 

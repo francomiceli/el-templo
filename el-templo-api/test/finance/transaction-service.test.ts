@@ -25,12 +25,18 @@ import {
   NotFoundError,
 } from "../../src/modules/shared/errors";
 import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
 
 /**
  * Fase 172 (ADO-01 / T-172-08-04): gimnasio de los call sites DIRECTOS al
  * service. Sale del fixture, nunca de un `1` a mano. Una sola constante y no
  * el objeto literal repetido en cada llamada: el dia que un caso ejercite
  * dos gimnasios, el segundo se agrega al lado y se ve la diferencia.
+ *
+ * 172-14: la MISMA constante scopea ahora las queries DIRECTAS de fixture y de
+ * asercion. Con `finance` en `TENANT_STRICT_MODULES` el sentinel hace throw
+ * sobre cualquier acceso a las 6 tablas strict sin gimnasio, y una asercion sin
+ * scope podia darse por satisfecha con una fila de otro gimnasio.
  */
 const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
@@ -89,17 +95,20 @@ async function seedEfectivoCaja(
       and(
         eq(schema.cashRegisters.type, "efectivo"),
         eq(schema.cashRegisters.branchId, branchIdToSeed),
+        tenantWhere(schema.cashRegisters, TEMPLO_CTX),
       ),
     )
     .limit(1);
   if (existing.length > 0) return;
-  await app.db.insert(schema.cashRegisters).values({
-    name: `Efectivo branch ${branchIdToSeed}`,
-    type: "efectivo",
-    branchId: branchIdToSeed,
-    currency,
-    cutoffDate: "2020-01-01",
-  });
+  await app.db.insert(schema.cashRegisters).values(
+    tenantValues(TEMPLO_CTX, {
+      name: `Efectivo branch ${branchIdToSeed}`,
+      type: "efectivo" as const,
+      branchId: branchIdToSeed,
+      currency,
+      cutoffDate: "2020-01-01",
+    }),
+  );
 }
 
 beforeAll(async () => {
@@ -169,9 +178,17 @@ afterAll(async () => {
 
 beforeEach(async () => {
   // Children first to satisfy the FK from transaction_links → financial_transactions.
-  await app.db.execute(sql`DELETE FROM transaction_links`);
-  await app.db.execute(sql`DELETE FROM financial_transactions`);
-  await app.db.execute(sql`DELETE FROM balances`);
+  // 172-14: acotados al gimnasio (regla del 172-13: global a proposito ->
+  // exencion; acotable -> filtro). Este archivo no siembra en otro gimnasio.
+  await app.db.execute(
+    sql`DELETE FROM transaction_links WHERE tenant_id = ${TENANT_TEMPLO}`,
+  );
+  await app.db.execute(
+    sql`DELETE FROM financial_transactions WHERE tenant_id = ${TENANT_TEMPLO}`,
+  );
+  await app.db.execute(
+    sql`DELETE FROM balances WHERE tenant_id = ${TENANT_TEMPLO}`,
+  );
 });
 
 // Common defaults to keep test bodies focused on the case at hand.
@@ -237,7 +254,12 @@ describe("TransactionService — SPEC §7 invariants", () => {
     const rows = await app.db
       .select()
       .from(schema.balances)
-      .where(eq(schema.balances.memberId, memberId));
+      .where(
+        and(
+          eq(schema.balances.memberId, memberId),
+          tenantWhere(schema.balances, TEMPLO_CTX),
+        ),
+      );
     expect(rows).toHaveLength(0);
   });
 
@@ -363,6 +385,7 @@ describe("TransactionService — SPEC §8 LOCKED cache sequence", () => {
           eq(schema.balances.targetKind, "subscription"),
           eq(schema.balances.targetId, subscriptionId),
           eq(schema.balances.currency, "ARS"),
+          tenantWhere(schema.balances, TEMPLO_CTX),
         ),
       )
       .limit(1);
@@ -389,7 +412,12 @@ describe("TransactionService — SPEC §8 LOCKED cache sequence", () => {
     row = await app.db
       .select()
       .from(schema.balances)
-      .where(eq(schema.balances.id, row[0].id))
+      .where(
+        and(
+          eq(schema.balances.id, row[0].id),
+          tenantWhere(schema.balances, TEMPLO_CTX),
+        ),
+      )
       .limit(1);
     expect(row[0].amount).toBe(5000);
 
@@ -401,7 +429,12 @@ describe("TransactionService — SPEC §8 LOCKED cache sequence", () => {
     row = await app.db
       .select()
       .from(schema.balances)
-      .where(eq(schema.balances.id, row[0].id))
+      .where(
+        and(
+          eq(schema.balances.id, row[0].id),
+          tenantWhere(schema.balances, TEMPLO_CTX),
+        ),
+      )
       .limit(1);
     expect(row[0].amount).toBe(10000);
   });
@@ -440,6 +473,7 @@ describe("TransactionService — SPEC §8 LOCKED cache sequence", () => {
           eq(schema.balances.targetKind, "subscription"),
           eq(schema.balances.targetId, overpaidSub),
           eq(schema.balances.currency, "ARS"),
+          tenantWhere(schema.balances, TEMPLO_CTX),
         ),
       )
       .limit(1);
@@ -480,6 +514,7 @@ describe("TransactionService — SPEC §8 LOCKED cache sequence", () => {
           eq(schema.balances.targetKind, "subscription"),
           eq(schema.balances.targetId, exactSub),
           eq(schema.balances.currency, "ARS"),
+          tenantWhere(schema.balances, TEMPLO_CTX),
         ),
       );
     expect(rows.length).toBeGreaterThanOrEqual(1);
@@ -498,19 +533,21 @@ describe("TransactionService — DB constraints + immutability", () => {
 
     let caught: unknown = null;
     try {
+      // Insert multi-fila: `tenantValues` envuelve CADA fila, no el array
+      // (patron fijado por el 172-13).
       await app.db.insert(schema.transactionLinks).values([
-        {
+        tenantValues(TEMPLO_CTX, {
           transactionId: created.id,
-          targetKind: "subscription",
+          targetKind: "subscription" as const,
           targetId: subscriptionId,
           allocatedAmount: 500,
-        },
-        {
+        }),
+        tenantValues(TEMPLO_CTX, {
           transactionId: created.id,
-          targetKind: "subscription",
+          targetKind: "subscription" as const,
           targetId: subscriptionId,
           allocatedAmount: 500,
-        },
+        }),
       ]);
     } catch (err) {
       caught = err;
@@ -1276,18 +1313,20 @@ describe("TransactionService.getSummary()", () => {
     // Outflow 500 (e.g., refund). Use kind='refund' with a transaction-link
     // so the service accepts it; allocate against the original transaction.
     // Simpler path: insert directly via Drizzle to bypass kind/link validation.
-    await app.db.insert(schema.financialTransactions).values({
-      memberId,
-      kind: "refund",
-      direction: "outflow",
-      amount: 500,
-      currency: "ARS",
-      paymentMethod: "cash",
-      transactionDate: TODAY,
-      effectiveDate: TODAY,
-      branchId,
-      recordedBy: adminId,
-    });
+    await app.db.insert(schema.financialTransactions).values(
+      tenantValues(TEMPLO_CTX, {
+        memberId,
+        kind: "refund" as const,
+        direction: "outflow" as const,
+        amount: 500,
+        currency: "ARS",
+        paymentMethod: "cash" as const,
+        transactionDate: TODAY,
+        effectiveDate: TODAY,
+        branchId,
+        recordedBy: adminId,
+      }),
+    );
 
     const result = await txService.getSummary(TEMPLO_CTX, {});
     expect(result.monthlyRevenue).toBe(1000);
