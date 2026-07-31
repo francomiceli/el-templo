@@ -30,6 +30,18 @@ const DB_PASSWORD = process.env.DB_PASSWORD || "";
 const POOL_ID = process.env.VITEST_POOL_ID || "1";
 const TEST_DB = `eltemplo_test_${POOL_ID}`;
 
+/**
+ * El Templo. Mismo valor que `TENANT_TEMPLO` de `test/fixtures/second-tenant.ts`,
+ * declarado acá y no importado a propósito: ese fixture importa `test/helpers.ts`,
+ * que importa `buildApp` — y este archivo corre ANTES de que exista una app (fija
+ * `process.env.DB_NAME` en el load del módulo). Traer la cadena entera del app a
+ * `setupFiles` por una constante numérica sería peor que repetirla.
+ *
+ * Existe para que los seeds de `cash_registers` de abajo nombren el gimnasio en
+ * vez de dejar un `1` mágico o —peor— caer en el DEFAULT de la columna (T-168-15).
+ */
+const TENANT_TEMPLO = 1;
+
 // Override DB_NAME so buildApp's database plugin connects to the per-worker DB.
 // This must happen at module load time (top-level), before any test code
 // constructs a Fastify app.
@@ -75,39 +87,58 @@ async function seedTestData(conn: mysql.Connection): Promise<void> {
   // (including the inactive PARK fixture and the virtual ONLINE branch), and
   // the resolver hard-throws when a cash payment hits a branch with no efectivo
   // caja. Seeding all branches keeps existing create()-path tests green.
+  //
+  // Fase 172 (ADO-01): los cuatro seeds nombran `tenant_id` EXPLÍCITAMENTE y sus
+  // sondas `NOT EXISTS` filtran por gimnasio. Dos motivos, y el segundo es el que
+  // importa:
+  //   1. El del gimnasio: sin la columna, la caja cae en el DEFAULT 1 de la tabla
+  //      y "funciona" hasta que exista una sede de otro gimnasio a esta altura
+  //      (T-168-15). El de cada sede sale de `b.tenant_id`, no de un literal.
+  //   2. El de la sonda: sin `cr.tenant_id` en el NOT EXISTS, la caja del
+  //      gimnasio 2 de una corrida anterior haría creer que la de El Templo ya
+  //      existe, y el seed se saltearía en silencio.
+  // Ojo con la asimetría: estas queries van por una conexión mysql2 PROPIA de
+  // este archivo, no por `app.dbPool`, así que el sentinel de la fase 170 NO las
+  // ve y nunca habrían hecho throw. Se migran igual porque el riesgo real (una
+  // caja estampada en el gimnasio equivocado) no depende de que haya un vigilante
+  // mirando.
   await conn.query(
-    `INSERT INTO cash_registers (name, type, branch_id, currency, opening_balance, cutoff_date, is_active)
-       SELECT CONCAT('Efectivo ', b.name), 'efectivo', b.id,
+    `INSERT INTO cash_registers (tenant_id, name, type, branch_id, currency, opening_balance, cutoff_date, is_active)
+       SELECT b.tenant_id, CONCAT('Efectivo ', b.name), 'efectivo', b.id,
               CASE WHEN b.country = 'ES' THEN 'EUR' ELSE 'ARS' END,
               0, '2020-01-01', true
          FROM branches b
         WHERE NOT EXISTS (
             SELECT 1 FROM cash_registers cr
-             WHERE cr.type = 'efectivo' AND cr.branch_id = b.id
+             WHERE cr.tenant_id = b.tenant_id
+               AND cr.type = 'efectivo' AND cr.branch_id = b.id
           )`,
   );
   await conn.query(
-    `INSERT INTO cash_registers (name, type, branch_id, currency, opening_balance, cutoff_date, is_active)
-       SELECT 'Efectivo Central', 'efectivo', NULL, 'ARS', 0, '2020-01-01', true
+    `INSERT INTO cash_registers (tenant_id, name, type, branch_id, currency, opening_balance, cutoff_date, is_active)
+       SELECT ${TENANT_TEMPLO}, 'Efectivo Central', 'efectivo', NULL, 'ARS', 0, '2020-01-01', true
         WHERE NOT EXISTS (
           SELECT 1 FROM cash_registers cr
-           WHERE cr.type = 'efectivo' AND cr.branch_id IS NULL AND cr.currency = 'ARS'
+           WHERE cr.tenant_id = ${TENANT_TEMPLO}
+             AND cr.type = 'efectivo' AND cr.branch_id IS NULL AND cr.currency = 'ARS'
         )`,
   );
   await conn.query(
-    `INSERT INTO cash_registers (name, type, branch_id, currency, opening_balance, cutoff_date, is_active)
-       SELECT 'Banco ARS', 'banco', NULL, 'ARS', 0, '2020-01-01', true
+    `INSERT INTO cash_registers (tenant_id, name, type, branch_id, currency, opening_balance, cutoff_date, is_active)
+       SELECT ${TENANT_TEMPLO}, 'Banco ARS', 'banco', NULL, 'ARS', 0, '2020-01-01', true
         WHERE NOT EXISTS (
           SELECT 1 FROM cash_registers cr
-           WHERE cr.type = 'banco' AND cr.currency = 'ARS'
+           WHERE cr.tenant_id = ${TENANT_TEMPLO}
+             AND cr.type = 'banco' AND cr.currency = 'ARS'
         )`,
   );
   await conn.query(
-    `INSERT INTO cash_registers (name, type, branch_id, currency, opening_balance, cutoff_date, is_active)
-       SELECT 'Banco EUR', 'banco', NULL, 'EUR', 0, '2020-01-01', true
+    `INSERT INTO cash_registers (tenant_id, name, type, branch_id, currency, opening_balance, cutoff_date, is_active)
+       SELECT ${TENANT_TEMPLO}, 'Banco EUR', 'banco', NULL, 'EUR', 0, '2020-01-01', true
         WHERE NOT EXISTS (
           SELECT 1 FROM cash_registers cr
-           WHERE cr.type = 'banco' AND cr.currency = 'EUR'
+           WHERE cr.tenant_id = ${TENANT_TEMPLO}
+             AND cr.type = 'banco' AND cr.currency = 'EUR'
         )`,
   );
 }

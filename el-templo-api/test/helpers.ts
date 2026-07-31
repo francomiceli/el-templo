@@ -16,7 +16,10 @@ import type { FastifyInstance } from "fastify";
 // tabla gym-owned. Se importa por path DIRECTO a propósito: `shared/tenant.ts`
 // no está en el barrel `src/modules/shared/index.ts` y sus 22+ call sites de
 // producción también lo importan así.
-import { tenantValues } from "../src/modules/shared/tenant";
+// Fase 172 (ADO-01): `tenantWhere` entra por el mismo path directo — con
+// `finance` en `TENANT_STRICT_MODULES` una lectura de `cash_registers` sin
+// filtro hace throw en el pool antes de llegar a MySQL.
+import { tenantValues, tenantWhere } from "../src/modules/shared/tenant";
 
 /**
  * Create a Fastify test app instance connected to the per-worker test
@@ -254,12 +257,51 @@ const TABLES_TO_CLEAN = [
   schema.weeklyRotator,
 ];
 
+/**
+ * Fase 172 (ADO-01): POR QUÉ ESTE DELETE LLEVA UNA EXENCIÓN `tenant-safe` Y NO
+ * UN FILTRO DE GIMNASIO.
+ *
+ * `app.dbPool` está envuelto por el sentinel de tenancy (fase 170,
+ * `src/db/sentinel/install.ts`), que inspecciona el SQL de las TRES puertas del
+ * pool — `pool.query`, `pool.execute` y las conexiones de `getConnection()`, que
+ * es justo la que usa esta función. Con `finance` adentro de
+ * `TENANT_STRICT_MODULES`, un `DELETE FROM …` sin `tenant_id` sobre
+ * `financial_transactions`, `transaction_links` o `balances` (las tres tablas
+ * strict que están en `TABLES_TO_CLEAN`) hace THROW, y como esta función corre
+ * en el `beforeEach` de decenas de archivos, se caería la suite ENTERA.
+ *
+ * El borrado global es DELIBERADO: esto vacía la base de test, de todos los
+ * gimnasios, y filtrarlo por El Templo dejaría vivas las filas del gimnasio 2
+ * entre archivos (`isolate: false` ⇒ misma base por worker) — o sea, cambiaría
+ * el comportamiento del helper para hacer feliz a un vigilante. Por eso la
+ * salida correcta es DECLARAR la exención, no esquivarla.
+ *
+ * POR QUÉ NO SE RESUELVE CON LA ALLOWLIST DEL LINT. Son dos canales distintos y
+ * ninguno de los dos sustituye al otro (D-17 de la fase 170): el canal del LINT
+ * es el código fuente y `tenant-lint-allowlist.json` solo cubre `src/` — no mira
+ * `test/`; el canal del SENTINEL es el TEXTO SQL que ve el pool en runtime. Una
+ * entrada de allowlist no calla un throw del sentinel, y sumar entradas está
+ * además explícitamente prohibido como salida (172-PATTERNS §"Exención
+ * tenant-safe"). La única anotación que el sentinel lee es un comentario de
+ * BLOQUE `tenant-safe: <motivo>` con motivo no vacío, embebido en el SQL mismo
+ * (`src/db/sentinel/analyze.ts`, etapa 2).
+ *
+ * ALCANCE DE LA EXENCIÓN: solo el DELETE del loop, que es el que toca tablas
+ * strict. Los dos statements sobre `users` de más abajo NO se anotan a propósito
+ * — `users` no es strict hoy, y anotar de más apaga el tripwire justo el día que
+ * el módulo dueño de `users` se migre. Cuando llegue ese día, el que lo migre
+ * tiene que TOMAR esa decisión, no encontrarla ya tomada.
+ */
 export async function cleanAllTestData(app: FastifyInstance): Promise<void> {
   const conn = await app.dbPool.getConnection();
   try {
     await conn.query("SET FOREIGN_KEY_CHECKS=0");
     for (const t of TABLES_TO_CLEAN) {
-      await conn.query(`DELETE FROM \`${getTableName(t)}\``);
+      // El comentario va DENTRO del SQL (entre el verbo y el FROM) porque el
+      // sentinel lee el texto del statement, no el fuente TypeScript.
+      await conn.query(
+        `DELETE /* tenant-safe: limpieza global de la base de test (todos los gimnasios) */ FROM \`${getTableName(t)}\``,
+      );
     }
     // NULL-safe inequality: `email != 'admin@test.com'` returns NULL (not TRUE)
     // for rows with email IS NULL — Phase 102 trial users have null emails and
@@ -317,6 +359,14 @@ export const DEFAULT_TEST_PLAN = {
  * `ensureEfectivoCaja(app, gym2.branchId, "ARS", TENANT_DOS)` — y acordate de
  * que `limpiarSegundoGimnasio` ya borra las cajas del gimnasio 2 en su orden
  * de FKs.
+ *
+ * Fase 172 (ADO-01): el default `tenantId = 1` SIGUE siendo el default (los ~40
+ * call sites de El Templo no cambian), pero para una sede que no sea de El
+ * Templo el 4º argumento es OBLIGATORIO EN LA PRÁCTICA — omitirlo no falla, hace
+ * algo peor: siembra la caja en el gimnasio equivocado en silencio, y desde que
+ * `cash_registers` es strict, la sonda de idempotencia de acá abajo (que ahora
+ * filtra por gimnasio) tampoco la vería, así que cada llamada crearía una caja
+ * nueva. Regla simple: si el `branchId` no es de El Templo, pasá su `tenantId`.
  */
 export async function ensureEfectivoCaja(
   app: FastifyInstance,
@@ -329,6 +379,10 @@ export async function ensureEfectivoCaja(
     .from(schema.cashRegisters)
     .where(
       and(
+        // Fase 172: `cash_registers` es strict. Sin este filtro el SELECT hace
+        // throw con el sentinel encendido — y además la sonda de idempotencia
+        // miraba las cajas de TODOS los gimnasios.
+        tenantWhere(schema.cashRegisters, { tenantId }),
         eq(schema.cashRegisters.type, "efectivo"),
         eq(schema.cashRegisters.branchId, branchId),
       ),
@@ -698,11 +752,7 @@ export async function createStaffUser(
         firstName: data.firstName,
         lastName: data.lastName,
         role: data.role as
-          | "coach"
-          | "admin"
-          | "owner"
-          | "gestion"
-          | "recepcion",
+          "coach" | "admin" | "owner" | "gestion" | "recepcion",
         branchId: data.branchId,
         country,
       }),
