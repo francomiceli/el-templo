@@ -4,13 +4,13 @@ milestone: v6.0
 milestone_name: "Tenancy — El Templo pasa a ser tenant #1"
 status: executing
 stopped_at: Completed 172-10-PLAN.md
-last_updated: "2026-07-31T00:18:36.857Z"
+last_updated: "2026-07-31T00:35:04.835Z"
 last_activity: 2026-07-31
 progress:
   total_phases: 11
   completed_phases: 4
   total_plans: 59
-  completed_plans: 38
+  completed_plans: 39
   percent: 36
 ---
 
@@ -26,12 +26,12 @@ See: .planning/PROJECT.md (milestone v6.0 initialized 2026-07-26)
 ## Current Position
 
 Phase: 172 (adopci-n-1-piloto-finance) — EXECUTING
-Plan: 11 of 23
+Plan: 12 of 23
 Status: Ready to execute
 Last activity: 2026-07-31
-Next: `/gsd:execute-phase 172` sigue por el plan **172-09** (la wave 4 quedó cerrada: el 172-08 puso `TenantContext` en las 21 firmas de `TransactionService`). En paralelo sigue pendiente el plan **169-09**, el último de la fase 169 (gate consolidado + rollout), y siguen pendientes
+Next: `/gsd:execute-phase 172` sigue por el plan **172-12** (las LECTURAS de `transaction-service.ts`, el único archivo de `finance` que conserva entradas de allowlist: 9). En paralelo sigue pendiente el plan **169-09**, el último de la fase 169 (gate consolidado + rollout), y siguen pendientes
 
-**Deuda de allowlist acumulada en `feat/172-adopcion-finance`: 24 entradas** (9 del plan 172-02 + 4 del 172-03 + 6 del 172-04 + 2 del 172-06 + 0 del 172-07 + **3 del 172-08**, que son las 3 últimas de `subscriptions/service.ts` sobre tablas de finance: `balances`, `financial_transactions` y `transaction_links`). El archivo real `tenant-lint-allowlist.json` tiene **un solo dueño, el plan 172-21**, así que `pnpm lint:tenant` sin `--allowlist` sale **rojo con `DISCREPANCIAS: 24`** en esa rama — todas `staleNoLongerViolating`, o sea deuda ya pagada esperando que la borren. **No es una regresión, pero si la rama se mergea a `staging` antes del 172-21, CI queda rojo por esto.** La evidencia ejecutable vigente es `/tmp/allowlist-172-08.json` (477 entradas): el lint sale `DISCREPANCIAS: 0` y `unlistedViolations: 0` contra él.
+**Deuda de allowlist acumulada en `feat/172-adopcion-finance`: 42 entradas** (9 del 172-02 + 4 del 172-03 + 6 del 172-04 + 2 del 172-06 + 0 del 172-07 + 3 del 172-08 + 9 del 172-09 + 2 del 172-10 + **7 del 172-11**, que sacan de la allowlist a los DOS archivos de rutas de `finance` — `routes.ts` y `coach-load-routes.ts`). El archivo real `tenant-lint-allowlist.json` tiene **un solo dueño, el plan 172-21**, así que `pnpm lint:tenant` sin `--allowlist` sale **rojo con `DISCREPANCIAS: 42`** en esa rama — todas `staleNoLongerViolating`, o sea deuda ya pagada esperando que la borren. **No es una regresión, pero si la rama se mergea a `staging` antes del 172-21, CI queda rojo por esto.** La evidencia ejecutable vigente es `/tmp/allowlist-172-11.json` (459 entradas): el lint sale `DISCREPANCIAS: 0` y `unlistedViolations: 0` contra él.
 
 **172-08 cerrado — el compilador ya no deja ejecutar un cobro, una anulación, una validación, una observación ni una corrección sin gimnasio resuelto server-side.** Los **21 métodos** de `TransactionService` reciben `ctx: TenantContext` como **PRIMER** parámetro (antes del `tx` y antes de los ids), y con ellos el tipo `SubscriptionCanceller` —la única arista que sale de `finance` hacia otro módulo— y los **4 métodos públicos de `MovementService`**. `_cancelSubscription` recibe el `ctx` del `_void` que la invoca y sus 2 queries de tablas strict lo nombran (`tenantWhere` sobre `transaction_links` en el guard de cobros vivos y sobre `balances` en el colapso de deuda fantasma): **con eso mueren las 3 últimas entradas de allowlist de `subscriptions/service.ts`, que el 172-07 no había podido pagar** porque el ratchet razona por `(archivo, tabla)`. **37 call sites de producción** (33 con `assertTenant(request.scope, "<etiqueta que nombra la ruta>")`) y **192 de test** con `TEMPLO_CTX` del fixture. **Cuatro cosas que los planes siguientes tienen que dar por sentadas:** (1) **tener `ctx` ≠ estar migrado** — las ~90 queries de `transaction-service.ts` **siguen sin `tenantWhere`** y el archivo conserva sus entradas de allowlist enteras; lo cierran el **172-10** (escrituras) y el **172-12** (lecturas), y quedó escrito arriba de la clase para que nadie repita la trampa de `createEfectivoCaja`; (2) **`movement-service.ts` no estaba en el plan y sin él el código de producción no compila** — es el único dueño de 4 `create` y 2 `voidPair`, y llama al service por el campo `this.txnService`, así que ni la lectura dirigida por número de línea ni un grep del nombre de variable lo encontraban; lo cazó `tsc`, y se pagó la verificación con `movement-service.test.ts` **10/10** verde; (3) **el inventario de call sites de test se saca con `tsc -p` y un config temporal con `include: ["src/**/_", "test/\*\*/_"]`**, no con grep: `TS2554`(aridad incorrecta) sobre TODO`test/` en **0** es prueba positiva de que no queda ninguno — ojo con los **182 errores de tipos preexistentes** del árbol de tests, que son ruido de fondo y no de la fase; (4) **`TransactionService.resolveCashRegister`quedó sin un solo caller** desde CR-CAJA (la reescritura borró`resolveSuggestedCaja`): es una fachada muerta y el 172-09 decide si la borra. **Verificado contra MySQL real:** `transaction-service.test.ts`**43/43** y`movement-service.test.ts`**10/10**, sin tocar una sola expectativa — y esta vez no se probó por grep: el criterio`grep -c "^[-+]._expect("`dio **8 falsos positivos** de reenvolvimiento de prettier, así que se hizo la prueba fuerte (borrarle el`TEMPLO_CTX`a los 8 archivos, normalizar espacios y comas colgantes y comparar contra`HEAD~1`: **IDÉNTICO en los 8**). Trampa repetida por segunda vez en la fase: el gate `grep -nE "tenantId!|\?\? 1"` tiene **falsos positivos estructurales** (`filters.page ?? 1`es paginación) — el regex correcto es`tenantId!|tenantId\s_\?\?`. Commits: `176c9fa4`, `bf8d87a5`, `3f2efd18`, `e0039b54`. **ADO-01 sigue Pending**: este plan cierra la plomería de `TransactionService`, no sus queries.
 
@@ -432,6 +432,7 @@ _Updated after each plan completion_
 | Phase 172 P08 | 55min | 4 tasks | 16 files |
 | Phase 172 P09 | 20min | 3 tasks | 11 files |
 | Phase 172 P10 | 16min | 3 tasks | 1 files |
+| Phase 172 P11 | 18min | 3 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -925,6 +926,9 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: 172-09: el tsconfig temporal que incluye test/ necesita rootDir '.' y vivir dentro del proyecto — la receta del 172-08 devuelve TS2554=0 falso
 - [Phase 172]: 172-10: el tenantWhere de un leftJoin va en el ON, no en el WHERE (en el WHERE lo convierte en inner join)
 - [Phase 172]: 172-10: los 3 UPDATE de transaction-service llevan tenantWhere propio — el WHERE de una escritura no se apoya en la lectura previa
+- [Phase 172]: 172-11: el tenantWhere de branches en el leftJoin de resolveCajaCountry va en el ON — en el WHERE convertia el left join en inner y la caja sin sede dejaba de resolver
+- [Phase 172]: 172-11: el fallback 'Templo Online' de coach-load filtra por gimnasio — es la unica query del modulo que busca por NOMBRE y sin tenant devuelve la sede virtual del vecino
+- [Phase 172]: 172-11: cero 403 nuevos en las closures de scope de finance — la caja/fila ajena sale por la rama 404 que ya existia (D-09)
 
 ### Pending Todos
 
@@ -957,7 +961,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-31T00:18:36.822Z
+Last session: 2026-07-31T00:34:48.819Z
 Stopped at: Completed 172-10-PLAN.md
 Resume file: None
 
