@@ -53,11 +53,11 @@ caminos críticos pasen la batería de aislamiento (ISO-03) en verde.
 
 - [ ] **ISO-01**: Manifiesto versionado (`test/tenant-manifest.ts`) clasifica el 100% de las rutas (`tenant-scoped`/`global`/`templo-module`); hook `onRoute` fail-closed: ruta nueva sin clasificar = test rojo
 - [ ] **ISO-02**: Fixtures de test siembran 2 tenants; helpers (`createStaffUser` y afines) soportan crear staff/socios por tenant
-- [ ] **ISO-03**: Batería de aislamiento: cada ruta `tenant-scoped` de un módulo migrado, ejecutada como staff del tenant A, no expone ni escribe datos del tenant B
+- [x] **ISO-03**: Batería de aislamiento: cada ruta `tenant-scoped` de un módulo migrado, ejecutada como staff del tenant A, no expone ni escribe datos del tenant B
 
 ### ADO — Adopción módulo a módulo
 
-- [ ] **ADO-01**: `finance` migrado al patrón completo (services reciben scope + `tenantWhere`/`tenantValues` + sentinel throw para sus tablas + aislamiento verde)
+- [x] **ADO-01**: `finance` migrado al patrón completo (services reciben scope + `tenantWhere`/`tenantValues` + sentinel throw para sus tablas + aislamiento verde)
 - [ ] **ADO-02**: `members` ídem
 - [ ] **ADO-03**: `subscriptions` ídem, con la cadena de pricing (override → boarding pass → AURA → referral) intacta
 - [ ] **ADO-04**: `scheduling` ídem (schedules/bookings/attendance/schedule_exceptions)
@@ -110,8 +110,8 @@ _Se completa cuando el roadmap asigne cada REQ-ID a una fase._
 | CON-06  | Phase 170 | Pending  |
 | ISO-01  | Phase 171 | Pending  |
 | ISO-02  | Phase 171 | Pending  |
-| ISO-03  | Phase 172 | Pending  |
-| ADO-01  | Phase 172 | Pending  |
+| ISO-03  | Phase 172 | Complete |
+| ADO-01  | Phase 172 | Complete |
 | ADO-02  | Phase 173 | Pending  |
 | ADO-07  | Phase 173 | Pending  |
 | ADO-03  | Phase 174 | Pending  |

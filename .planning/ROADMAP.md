@@ -4375,7 +4375,7 @@ _v5.7 (Actividades con Aura) added: 2026-07-14 — 2 phases (161-162), 14 requir
 - [x] **Phase 169: Capa de escritura — helpers `tenantWhere`/`tenantValues` y `TenantContext`** — una sola API para request y caminos sin request (crons por tenant activo, webhook Wellhub por `branches.wellhub_gym_id`, CLI con tenant obligatorio, `tv_pairings` pre-claim exento y anotado). (completed 2026-07-28)
 - [ ] **Phase 170: Detección automática — sentinel de pool mysql2 + lint en CI** — interceptor a nivel pool que detecta SQL sobre tabla gym-owned sin `tenant_id` (throw en test/dev para módulos migrados, `log.error` + métrica en prod) y lint estático con allowlist decreciente que rompe el build ante accesos nuevos sin scope ni anotación.
 - [ ] **Phase 171: Backstop — manifiesto de rutas fail-closed y fixtures 2-tenant** — `test/tenant-manifest.ts` clasificando el 100% de las rutas + hook `onRoute` que deja en rojo cualquier ruta nueva sin clasificar, y fixtures/helpers que siembran dos tenants con staff y socios propios.
-- [ ] **Phase 172: Adopción 1 (piloto) — `finance`** — services de finanzas reciben scope, todo WHERE/INSERT por helpers, sentinel en throw para sus tablas y primera batería de aislamiento verde (patrón reutilizable por las fases siguientes), con cobros/caja/deudas dando los mismos números que hoy.
+- [x] **Phase 172: Adopción 1 (piloto) — `finance`** — services de finanzas reciben scope, todo WHERE/INSERT por helpers, sentinel en throw para sus tablas y primera batería de aislamiento verde (patrón reutilizable por las fases siguientes), con cobros/caja/deudas dando los mismos números que hoy. (completed 2026-07-31)
 - [ ] **Phase 173: Adopción 2 — `members` + guarda de consistencia de anclas** — módulo de socios/staff migrado al patrón completo y el invariante `user.tenant_id === branch.tenant_id` enforced en los ~10 sitios de escritura de `branch_id`, `setMemberBranch()` y el cron de recategorización multisucursal (mina M10).
 - [ ] **Phase 174: Adopción 3 — `subscriptions` + `scheduling`** — planes/suscripciones (con la cadena de pricing override → boarding pass → AURA → referral intacta) y scheduling completo (schedules/bookings/attendance/schedule_exceptions, incluido el check-in por QR y el booking de admin) migrados y aislados.
 - [ ] **Phase 175: Adopción 4 — `analytics` + resto del core** — métricas scopeadas devolviendo los mismos números para el tenant 1, más campaigns, notifications, referrals, wellhub, feedback/sugerencias y auth/settings, con la supresión de unsubscribes por tenant efectiva punta a punta.
@@ -4661,7 +4661,7 @@ toda la fase.
 3. Batería de aislamiento verde: cada ruta `tenant-scoped` de finance, ejecutada como staff del tenant A, **no lee ni escribe** filas del tenant B — lecturas vacías/404 y escrituras rechazadas, ruta por ruta según el manifiesto. El patrón queda documentado como plantilla para las fases de adopción siguientes. (ISO-03)
 4. Sin cambio para el staff: cobros, validación, caja, movimientos, egresos, deudas y exports dan los **mismos números** en staging antes y después (comparación explícita), y la suite existente pasa sin ajustar expectativas.
 
-**Plans:** 23/23 plans executed
+**Plans:** 23/23 plans complete
 
 Plans:
 
@@ -4808,7 +4808,7 @@ Plans:
 | 169. Capa de escritura — helpers y TenantContext  | 9/9            | Complete    | 2026-07-28 |
 | 170. Detección — sentinel de pool + lint CI       | 0/8            | Planned     |            |
 | 171. Backstop — manifiesto + fixtures 2-tenant    | 0/?            | Not started |            |
-| 172. Adopción 1 (piloto) — finance                | 23/23          | In Progress |            |
+| 172. Adopción 1 (piloto) — finance                | 23/23          | Complete    | 2026-07-31 |
 | 173. Adopción 2 — members + guarda de anclas      | 0/?            | Not started |            |
 | 174. Adopción 3 — subscriptions + scheduling      | 0/?            | Not started |            |
 | 175. Adopción 4 — analytics + resto del core      | 0/?            | Not started |            |
