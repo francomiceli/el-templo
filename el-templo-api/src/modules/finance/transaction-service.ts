@@ -1569,7 +1569,11 @@ export class TransactionService {
       ]);
     }
 
+    // TENANCY: el gimnasio va PRIMERO y en el array de condiciones, que es lo
+    // que comparten el COUNT y la query de filas — así los dos números salen
+    // del mismo universo. Las tablas de los LEFT JOIN filtran en su ON (abajo).
     const conditions: SQL[] = [
+      tenantWhere(schema.financialTransactions, ctx),
       statusCond,
       isNull(schema.financialTransactions.voidedAt),
     ];
@@ -1592,27 +1596,43 @@ export class TransactionService {
       );
     }
 
+    // Los filtros de las tablas joineadas van en el ON y NUNCA en el WHERE: acá
+    // son LEFT JOIN a propósito (una fila sin socio, sin sede o sin caja tiene
+    // que sobrevivir — egresos y traspasos son justo eso) y en el WHERE se
+    // volverían INNER, cambiando el número que el staff mira.
     const [countRow] = await this.db
       .select({ count: sql<number>`COUNT(*)` })
       .from(schema.financialTransactions)
       .leftJoin(
         schema.users,
-        eq(schema.users.id, schema.financialTransactions.memberId),
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.financialTransactions.memberId),
+        ),
       )
       .leftJoin(
         schema.branches,
-        eq(schema.branches.id, schema.financialTransactions.branchId),
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, schema.financialTransactions.branchId),
+        ),
       )
       .leftJoin(
         schema.cashRegisters,
-        eq(
-          schema.cashRegisters.id,
-          schema.financialTransactions.cashRegisterId,
+        and(
+          tenantWhere(schema.cashRegisters, ctx),
+          eq(
+            schema.cashRegisters.id,
+            schema.financialTransactions.cashRegisterId,
+          ),
         ),
       )
       .leftJoin(
         recorder,
-        eq(recorder.id, schema.financialTransactions.recordedBy),
+        and(
+          tenantWhere(recorder, ctx),
+          eq(recorder.id, schema.financialTransactions.recordedBy),
+        ),
       )
       .where(and(...conditions));
     const total = Number(countRow?.count ?? 0);
@@ -1641,26 +1661,41 @@ export class TransactionService {
       .from(schema.financialTransactions)
       .leftJoin(
         schema.users,
-        eq(schema.users.id, schema.financialTransactions.memberId),
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.financialTransactions.memberId),
+        ),
       )
       .leftJoin(
         schema.branches,
-        eq(schema.branches.id, schema.financialTransactions.branchId),
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, schema.financialTransactions.branchId),
+        ),
       )
       .leftJoin(
         schema.cashRegisters,
-        eq(
-          schema.cashRegisters.id,
-          schema.financialTransactions.cashRegisterId,
+        and(
+          tenantWhere(schema.cashRegisters, ctx),
+          eq(
+            schema.cashRegisters.id,
+            schema.financialTransactions.cashRegisterId,
+          ),
         ),
       )
       .leftJoin(
         recorder,
-        eq(recorder.id, schema.financialTransactions.recordedBy),
+        and(
+          tenantWhere(recorder, ctx),
+          eq(recorder.id, schema.financialTransactions.recordedBy),
+        ),
       )
       .leftJoin(
         createdMember,
-        eq(createdMember.id, schema.financialTransactions.createdMemberId),
+        and(
+          tenantWhere(createdMember, ctx),
+          eq(createdMember.id, schema.financialTransactions.createdMemberId),
+        ),
       )
       .where(and(...conditions))
       // REP-01 / D-02: OLDEST-FIRST (opposite of list()'s desc).
@@ -1753,7 +1788,9 @@ export class TransactionService {
     // kind IN ('cash_transfer','expense','adjustment') — eso dropeaba los cobros
     // de socio (plan_charge/debt_settlement/advance_payment/refund) imputados a
     // la caja. El filtro primario es cash_register_id (filters.cashRegisterId).
-    const conditions: SQL[] = [];
+    // TENANCY: el gimnasio va PRIMERO y en el array compartido por el COUNT y
+    // la query de filas — los dos números tienen que salir del mismo universo.
+    const conditions: SQL[] = [tenantWhere(schema.financialTransactions, ctx)];
 
     if (filters.cashRegisterId !== undefined) {
       conditions.push(
@@ -1779,14 +1816,25 @@ export class TransactionService {
     // - owner + ?country: optional narrowing to that country's branch cajas.
     // - owner + no country: no scope condition (sees all rows, incl. branch-less).
     if (filters.country !== undefined) {
+      // El subquery arma su PROPIO predicado, así que lleva su propio filtro de
+      // gimnasio: sin él, el conjunto de cajas "del país" incluiría las del
+      // vecino y el IN de afuera dejaría entrar filas ajenas.
       const scopedCajas = this.db
         .select({ id: schema.cashRegisters.id })
         .from(schema.cashRegisters)
         .innerJoin(
           schema.branches,
-          eq(schema.branches.id, schema.cashRegisters.branchId),
+          and(
+            tenantWhere(schema.branches, ctx),
+            eq(schema.branches.id, schema.cashRegisters.branchId),
+          ),
         )
-        .where(eq(schema.branches.country, filters.country));
+        .where(
+          and(
+            tenantWhere(schema.cashRegisters, ctx),
+            eq(schema.branches.country, filters.country),
+          ),
+        );
       conditions.push(
         inArray(schema.financialTransactions.cashRegisterId, scopedCajas),
       );
@@ -1796,27 +1844,43 @@ export class TransactionService {
       conditions.push(sql`1 = 0`);
     }
 
+    // Los filtros de las tablas joineadas van en el ON y NUNCA en el WHERE: acá
+    // son LEFT JOIN a propósito (una fila sin socio, sin sede o sin caja tiene
+    // que sobrevivir — egresos y traspasos son justo eso) y en el WHERE se
+    // volverían INNER, cambiando el número que el staff mira.
     const [countRow] = await this.db
       .select({ count: sql<number>`COUNT(*)` })
       .from(schema.financialTransactions)
       .leftJoin(
         schema.users,
-        eq(schema.users.id, schema.financialTransactions.memberId),
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.financialTransactions.memberId),
+        ),
       )
       .leftJoin(
         schema.branches,
-        eq(schema.branches.id, schema.financialTransactions.branchId),
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, schema.financialTransactions.branchId),
+        ),
       )
       .leftJoin(
         schema.cashRegisters,
-        eq(
-          schema.cashRegisters.id,
-          schema.financialTransactions.cashRegisterId,
+        and(
+          tenantWhere(schema.cashRegisters, ctx),
+          eq(
+            schema.cashRegisters.id,
+            schema.financialTransactions.cashRegisterId,
+          ),
         ),
       )
       .leftJoin(
         recorder,
-        eq(recorder.id, schema.financialTransactions.recordedBy),
+        and(
+          tenantWhere(recorder, ctx),
+          eq(recorder.id, schema.financialTransactions.recordedBy),
+        ),
       )
       .where(and(...conditions));
     const total = Number(countRow?.count ?? 0);
@@ -1847,26 +1911,41 @@ export class TransactionService {
       .from(schema.financialTransactions)
       .leftJoin(
         schema.users,
-        eq(schema.users.id, schema.financialTransactions.memberId),
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.financialTransactions.memberId),
+        ),
       )
       .leftJoin(
         schema.branches,
-        eq(schema.branches.id, schema.financialTransactions.branchId),
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, schema.financialTransactions.branchId),
+        ),
       )
       .leftJoin(
         schema.cashRegisters,
-        eq(
-          schema.cashRegisters.id,
-          schema.financialTransactions.cashRegisterId,
+        and(
+          tenantWhere(schema.cashRegisters, ctx),
+          eq(
+            schema.cashRegisters.id,
+            schema.financialTransactions.cashRegisterId,
+          ),
         ),
       )
       .leftJoin(
         schema.costCenters,
-        eq(schema.costCenters.id, schema.financialTransactions.costCenterId),
+        and(
+          tenantWhere(schema.costCenters, ctx),
+          eq(schema.costCenters.id, schema.financialTransactions.costCenterId),
+        ),
       )
       .leftJoin(
         recorder,
-        eq(recorder.id, schema.financialTransactions.recordedBy),
+        and(
+          tenantWhere(recorder, ctx),
+          eq(recorder.id, schema.financialTransactions.recordedBy),
+        ),
       )
       .where(and(...conditions))
       .orderBy(
@@ -2205,7 +2284,11 @@ export class TransactionService {
     ctx: TenantContext,
     filters: FinanceSummaryFilters,
   ): Promise<FinanceSummary> {
+    // TENANCY: el gimnasio va PRIMERO y en el array que comparten las CUATRO
+    // agregaciones (total, por método, por sede, por kind) — si viviera en una
+    // sola, las tarjetas de la CajaPage dejarían de sumar entre sí.
     const conds: SQL[] = [
+      tenantWhere(schema.financialTransactions, ctx),
       eq(schema.financialTransactions.direction, "inflow"),
       // Firm-money axis (not voided AND validated). Phase 137 (VAL-05): a
       // PENDIENTE must NOT count as firm cash. Sourced from the canonical helper.
@@ -2246,7 +2329,10 @@ export class TransactionService {
       .from(schema.financialTransactions)
       .innerJoin(
         schema.branches,
-        eq(schema.branches.id, schema.financialTransactions.branchId),
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, schema.financialTransactions.branchId),
+        ),
       )
       .where(and(...conds));
     const monthlyRevenue = Number(totalRow?.total ?? 0);
@@ -2260,7 +2346,10 @@ export class TransactionService {
       .from(schema.financialTransactions)
       .innerJoin(
         schema.branches,
-        eq(schema.branches.id, schema.financialTransactions.branchId),
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, schema.financialTransactions.branchId),
+        ),
       )
       .where(and(...conds))
       .groupBy(schema.financialTransactions.paymentMethod);
@@ -2285,7 +2374,10 @@ export class TransactionService {
       .from(schema.financialTransactions)
       .innerJoin(
         schema.branches,
-        eq(schema.branches.id, schema.financialTransactions.branchId),
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, schema.financialTransactions.branchId),
+        ),
       )
       .where(and(...conds))
       .groupBy(schema.financialTransactions.branchId, schema.branches.name)
@@ -2324,7 +2416,10 @@ export class TransactionService {
       .from(schema.financialTransactions)
       .innerJoin(
         schema.branches,
-        eq(schema.branches.id, schema.financialTransactions.branchId),
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, schema.financialTransactions.branchId),
+        ),
       )
       .where(and(...conds))
       .groupBy(schema.financialTransactions.kind);
