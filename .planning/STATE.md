@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: "Tenancy — El Templo pasa a ser tenant #1"
 status: executing
-stopped_at: Completed 172-10-PLAN.md
-last_updated: "2026-07-31T02:24:28.343Z"
+stopped_at: Completed 172-15-PLAN.md
+last_updated: "2026-07-31T12:05:00.000Z"
 last_activity: 2026-07-31
 progress:
   total_phases: 11
   completed_phases: 4
   total_plans: 59
-  completed_plans: 42
+  completed_plans: 43
   percent: 36
 ---
 
@@ -26,10 +26,10 @@ See: .planning/PROJECT.md (milestone v6.0 initialized 2026-07-26)
 ## Current Position
 
 Phase: 172 (adopci-n-1-piloto-finance) — EXECUTING
-Plan: 15 of 23
+Plan: 16 of 23
 Status: Ready to execute
 Last activity: 2026-07-31
-Next: `/gsd:execute-phase 172` sigue por el plan **172-14**. **`finance` quedó CERRADO con el 172-12** (cero entradas vivas de allowlist en los 6 archivos del módulo, `strictWithAllowlist` 0) y con el **172-13** arrancó la cadena SERIALIZADA de endurecimiento de tests (13→14→15→16), que comparte la sonda temporal sobre `src/db/tenant-tables.ts`: **pre-check obligatorio de `git status --porcelain el-templo-api/src/db/tenant-tables.ts` (tiene que salir vacío) antes de encenderla**. En paralelo sigue pendiente el plan **169-09**, el último de la fase 169 (gate consolidado + rollout), y siguen pendientes
+Next: `/gsd:execute-phase 172` sigue por el plan **172-16** (cierra la cadena serializada 13→16). El **172-15 se cerró por safe-resume** (la sesión anterior dejó los 3 commits hechos y la sonda viva sin SUMMARY: se re-verificó en caliente —54 archivos / 639 tests verdes, 0 throws—, se revirtió la sonda y se escribió el SUMMARY; incluye el fix `4c252510` de la regresión `assertTenant` sin `attachCountryScope` en la ruta de add-ons de programas). **`finance` quedó CERRADO con el 172-12** (cero entradas vivas de allowlist en los 6 archivos del módulo, `strictWithAllowlist` 0) y con el **172-13** arrancó la cadena SERIALIZADA de endurecimiento de tests (13→14→15→16), que comparte la sonda temporal sobre `src/db/tenant-tables.ts`: **pre-check obligatorio de `git status --porcelain el-templo-api/src/db/tenant-tables.ts` (tiene que salir vacío) antes de encenderla**. En paralelo sigue pendiente el plan **169-09**, el último de la fase 169 (gate consolidado + rollout), y siguen pendientes
 
 **Deuda de allowlist acumulada en `feat/172-adopcion-finance`: 51 entradas** (9 del 172-02 + 4 del 172-03 + 6 del 172-04 + 2 del 172-06 + 0 del 172-07 + 3 del 172-08 + 9 del 172-09 + 2 del 172-10 + 7 del 172-11 + **9 del 172-12**, que sacan de la allowlist a `transaction-service.ts` entero y con él a **todo el módulo `finance`**; el **172-13 paga 0 y está bien**: solo toca `test/`, y la allowlist cubre `src/`). El archivo real `tenant-lint-allowlist.json` tiene **un solo dueño, el plan 172-21**, así que `pnpm lint:tenant` sin `--allowlist` sale **rojo con `DISCREPANCIAS: 51`** en esa rama — todas `staleNoLongerViolating`, o sea deuda ya pagada esperando que la borren. **No es una regresión, pero si la rama se mergea a `staging` antes del 172-21, CI queda rojo por esto.** La evidencia ejecutable vigente es `/tmp/allowlist-172-12.json` (450 entradas): el lint sale `DISCREPANCIAS: 0`, `unlistedViolations: 0` y `strictWithAllowlist: 0` contra él.
 
@@ -440,6 +440,7 @@ _Updated after each plan completion_
 | Phase 172 P12 | 19min | 3 tasks | 1 files |
 | Phase 172 P13 | 32min | 2 tasks | 8 files |
 | Phase 172 P14 | 68min | 2 tasks | 12 files |
+| Phase 172 P15 | 70min | 2 tasks | 18 files |
 
 ## Accumulated Context
 
@@ -944,6 +945,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: 172-14: cero exenciones tenant-safe — los 34 sitios de SQL crudo se acotaron con tenant_id (regla del 172-13)
 - [Phase ?]: 172-14: el SQL crudo por conn.query con backticks es invisible al inventario por grep — 15 sitios que solo cazo la corrida en caliente del sentinel
 - [Phase ?]: 172-14: tsc --noEmit NO typechequea test/ (tsconfig incluye solo src/\*\*) — el unico gate real de un test es vitest
+- [Phase ?]: 172-15: assertTenant en un modulo que no monta attachCountryScope en ningun hook tira TypeError (500) en vez de 403 — el fix es el patron per-ruta de campaigns/routes.ts:181, y todo modulo nuevo que sume assertTenant tiene que verificar primero que el scope este montado
+- [Phase ?]: 172-15: un rojo nuevo en la corrida en caliente se discrimina por aislamiento (src/ master vs HEAD, sonda ON vs OFF), no razonando el diff — los 13 rojos de add-ons eran regresion propia, no sentinel
 
 ### Pending Todos
 
