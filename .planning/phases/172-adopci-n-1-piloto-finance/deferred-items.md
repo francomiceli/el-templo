@@ -104,3 +104,61 @@ o de a un archivo.
 sentinel en **throw**. Un rojo de provisioning en medio de esa corrida se lee como un
 rojo del switch y hace perder una hora. También el **172-19**, que agrega el tercer
 archivo de la batería.
+
+---
+
+## 🔴 FASE 173 — dos deudas de `subscriptions` que la batería ISO-03 dejó ancladas (172-19)
+
+**Encontrado:** plan 172-19, bajando al rol COACH sobre `/coach-load/*` (las 27 rutas
+anteriores de la batería no las podían ver: las dos entran por `subscriptions`, y
+`subscriptions` solo se toca desde coach-load).
+
+**Fuera de alcance por D-07** ("en archivos ajenos se tocan ÚNICAMENTE las queries
+sobre las 6 tablas strict"; `subscriptions` no es una de ellas). Las dos están
+ancladas con aserciones ejecutables en
+`el-templo-api/test/tenancy/iso-03-finance-coach-load.test.ts`, así que **el arreglo
+las pone en rojo** y quien lo haga tiene que convertirlas en casos normales.
+
+### 1. FUGA de datos entre gimnasios — `GET /coach-load/autocompletar/:userId`
+
+`subscriptionService.getMemberSubscription(userId)` es la única llamada del handler
+que **no recibe `ctx`** (`src/modules/subscriptions/service.ts` ~L919: filtra por
+`userId` y estado, sin gimnasio). Con un socio de otro gimnasio que tenga sub
+vigente, la ruta devuelve su **`planName`, `amount`, `currency` y `currentEndDate`**
+— al **coach**, iterando ids.
+
+- **Severidad hoy:** ninguna en prod (un solo gimnasio). **Bloqueante al onboardear el segundo.**
+- **Lo que SÍ aísla:** `memberBranchId` (sale de `resolveUserBranchId`, que sí lleva su `tenantWhere`).
+- **Arreglo:** `ctx` a `getMemberSubscription` + `tenantWhere(subscriptions, ctx)`.
+- **Ancla:** el `it` llamado `FUGA CONOCIDA (dueño: fase 173): el coach del gimnasio 2
+SI ve el plan de un socio de El Templo`, marcado como fallo esperado. Al arreglarlo
+  se pone en rojo ("esperaba fallar y pasó"): desmarcarlo y dejarlo como aislamiento.
+
+### 2. BLOQUEO de adopción — `POST /coach-load/alta`
+
+`assignPlan` inserta `subscriptions` **sin `tenantValues`** (~L1592) → la sub de un
+gimnasio nuevo nace con el `DEFAULT 1` (El Templo, T-168-15). El charge la valida como
+concepto enlazado **con** filtro de gimnasio y no la encuentra:
+
+```
+POST /coach-load/alta (gimnasio 2, todo propio)
+→ 404 {"message":"Concepto enlazado no existe: subscription N"} + rollback completo
+```
+
+- **Fail-closed, NO es fuga** (nada queda escrito; el test lo verifica contando filas).
+- **Consecuencia:** el alta de coach-load **no es usable por un gimnasio nuevo** hasta la 173.
+- **Ancla:** el `it` `limitacion conocida (dueño: fase 173): con recursos PROPIOS el alta
+se corta en el charge, sin escribir nada`. Al arreglarlo contesta 201 y el `it` se pone
+  en rojo: convertirlo en el control positivo (201 + sub y charge en el gimnasio 2).
+
+---
+
+## 📌 REQUISITO DE ADOPCIÓN (no es deuda, es documentación) — la sede virtual propia (172-19)
+
+`resolveUserBranchId` (`coach-load-routes.ts`) cae, cuando el socio pedido no es del
+gimnasio, a un fallback que busca la sede llamada **"Templo Online" del propio
+gimnasio**. Sin esa sede el fallback tira un `Error` y las rutas de carga contestan
+**error del servidor** en vez del payload vacío que pide D-09.
+
+**Un gimnasio nuevo necesita su propia sede virtual para adoptar coach-load.** Va a
+`.docs/saas-multitenancy/07-receta-adopcion.md` (plan **172-23**).
