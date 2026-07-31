@@ -31,6 +31,15 @@ import { scheduleExceptions } from "../../src/db/schema/schedule-exceptions";
 import { subscriptions } from "../../src/db/schema/subscriptions";
 import { financialTransactions } from "../../src/db/schema/financial-transactions";
 import { transactionLinks } from "../../src/db/schema/transaction-links";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+import { tenantValues } from "../../src/modules/shared/tenant";
+
+/**
+ * Fase 172: `finance` entra en `TENANT_STRICT_MODULES`. El seed de cobro de
+ * este archivo estampa el gimnasio explicito en vez de depender del `DEFAULT 1`
+ * de la columna `tenant_id`.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 import { users } from "../../src/db/schema/users";
 import { branches } from "../../src/db/schema/branches";
 
@@ -128,25 +137,29 @@ describe("Schedule Exceptions (cancel single date)", () => {
     userId: number,
     subscriptionId: number,
   ): Promise<void> {
-    const [inserted] = await app.db.insert(financialTransactions).values({
-      memberId: userId,
-      kind: "plan_charge",
-      direction: "inflow",
-      amount: basePlan.priceRegular,
-      currency: "ARS",
-      paymentMethod: "cash",
-      transactionDate: "2026-03-10",
-      effectiveDate: "2026-03-10",
-      branchId: testBranchId,
-      recordedBy: adminUserId,
-    });
+    const [inserted] = await app.db.insert(financialTransactions).values(
+      tenantValues(TEMPLO_CTX, {
+        memberId: userId,
+        kind: "plan_charge",
+        direction: "inflow",
+        amount: basePlan.priceRegular,
+        currency: "ARS",
+        paymentMethod: "cash",
+        transactionDate: "2026-03-10",
+        effectiveDate: "2026-03-10",
+        branchId: testBranchId,
+        recordedBy: adminUserId,
+      }),
+    );
     const txnId = (inserted as { insertId: number }).insertId;
-    await app.db.insert(transactionLinks).values({
-      transactionId: txnId,
-      targetKind: "subscription",
-      targetId: subscriptionId,
-      allocatedAmount: basePlan.priceRegular,
-    });
+    await app.db.insert(transactionLinks).values(
+      tenantValues(TEMPLO_CTX, {
+        transactionId: txnId,
+        targetKind: "subscription",
+        targetId: subscriptionId,
+        allocatedAmount: basePlan.priceRegular,
+      }),
+    );
   }
 
   /** Flexible-plan member with paid active subscription + auth token. */

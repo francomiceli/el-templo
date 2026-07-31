@@ -24,6 +24,15 @@ import { attendance } from "../../src/db/schema/attendance";
 import { completedSessions } from "../../src/db/schema/completed-sessions";
 import { financialTransactions } from "../../src/db/schema/financial-transactions";
 import { transactionLinks } from "../../src/db/schema/transaction-links";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+import { tenantValues } from "../../src/modules/shared/tenant";
+
+/**
+ * Fase 172: `finance` entra en `TENANT_STRICT_MODULES`. El seed de cobro de
+ * este archivo estampa el gimnasio explicito en vez de depender del `DEFAULT 1`
+ * de la columna `tenant_id`.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 import { subscriptions } from "../../src/db/schema/subscriptions";
 import { subscriptionPlans } from "../../src/db/schema/subscription-plans";
 import { users } from "../../src/db/schema/users";
@@ -167,25 +176,29 @@ describe("Scheduling API", () => {
     amount: number,
     subscriptionId: number,
   ): Promise<void> {
-    const [inserted] = await app.db.insert(financialTransactions).values({
-      memberId: userId,
-      kind: "plan_charge",
-      direction: "inflow",
-      amount,
-      currency: "ARS",
-      paymentMethod: "cash",
-      transactionDate: "2026-03-10",
-      effectiveDate: "2026-03-10",
-      branchId: testBranchId,
-      recordedBy: adminUserId,
-    });
+    const [inserted] = await app.db.insert(financialTransactions).values(
+      tenantValues(TEMPLO_CTX, {
+        memberId: userId,
+        kind: "plan_charge",
+        direction: "inflow",
+        amount,
+        currency: "ARS",
+        paymentMethod: "cash",
+        transactionDate: "2026-03-10",
+        effectiveDate: "2026-03-10",
+        branchId: testBranchId,
+        recordedBy: adminUserId,
+      }),
+    );
     const txnId = (inserted as { insertId: number }).insertId;
-    await app.db.insert(transactionLinks).values({
-      transactionId: txnId,
-      targetKind: "subscription",
-      targetId: subscriptionId,
-      allocatedAmount: amount,
-    });
+    await app.db.insert(transactionLinks).values(
+      tenantValues(TEMPLO_CTX, {
+        transactionId: txnId,
+        targetKind: "subscription",
+        targetId: subscriptionId,
+        allocatedAmount: amount,
+      }),
+    );
   }
 
   async function setupMemberWithSubscription(

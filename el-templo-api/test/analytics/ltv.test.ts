@@ -8,7 +8,10 @@ import {
   cleanAllTestData,
 } from "../helpers";
 import { LtvService } from "../../src/modules/analytics/ltv-service";
-import type { TenantContext } from "../../src/modules/shared/tenant";
+import {
+  tenantValues,
+  type TenantContext,
+} from "../../src/modules/shared/tenant";
 import { ChurnService } from "../../src/modules/analytics/churn-service";
 import { subscriptions } from "../../src/db/schema/subscriptions";
 import { subscriptionPlans } from "../../src/db/schema/subscription-plans";
@@ -179,19 +182,21 @@ describe("LtvService (Phase 122 Plan 03)", () => {
     date: string;
     branchId?: number;
   }): Promise<void> {
-    await app.db.insert(financialTransactions).values({
-      memberId: opts.memberId,
-      kind: "plan_charge",
-      direction: "inflow",
-      amount: opts.amount,
-      currency: opts.currency ?? "ARS",
-      paymentMethod: "cash",
-      transactionDate: opts.date,
-      effectiveDate: opts.date,
-      branchId: opts.branchId ?? branchA,
-      recordedBy: recorderId,
-      voidedAt: null,
-    });
+    await app.db.insert(financialTransactions).values(
+      tenantValues(CTX, {
+        memberId: opts.memberId,
+        kind: "plan_charge",
+        direction: "inflow",
+        amount: opts.amount,
+        currency: opts.currency ?? "ARS",
+        paymentMethod: "cash",
+        transactionDate: opts.date,
+        effectiveDate: opts.date,
+        branchId: opts.branchId ?? branchA,
+        recordedBy: recorderId,
+        voidedAt: null,
+      }),
+    );
   }
 
   /** Resolve `DATE_ADD/SUB(CURDATE(), INTERVAL n DAY)` to a literal YYYY-MM-DD. */
@@ -381,19 +386,21 @@ describe("LtvService (Phase 122 Plan 03)", () => {
       date: await dateOffset(-60),
     });
     // A voided payment must NOT be counted.
-    await app.db.insert(financialTransactions).values({
-      memberId: closed,
-      kind: "plan_charge",
-      direction: "inflow",
-      amount: 99999,
-      currency: "ARS",
-      paymentMethod: "cash",
-      transactionDate: await dateOffset(-55),
-      effectiveDate: await dateOffset(-55),
-      branchId: branchA,
-      recordedBy: recorderId,
-      voidedAt: await serverNow(),
-    });
+    await app.db.insert(financialTransactions).values(
+      tenantValues(CTX, {
+        memberId: closed,
+        kind: "plan_charge",
+        direction: "inflow",
+        amount: 99999,
+        currency: "ARS",
+        paymentMethod: "cash",
+        transactionDate: await dateOffset(-55),
+        effectiveDate: await dateOffset(-55),
+        branchId: branchA,
+        recordedBy: recorderId,
+        voidedAt: await serverNow(),
+      }),
+    );
 
     const ltv = await ltvSvc.getLtv(CTX, await wideRange());
     expect(ltv.monetary.ARS.observed).toBe(7000);

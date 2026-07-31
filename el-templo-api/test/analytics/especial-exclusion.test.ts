@@ -32,7 +32,10 @@ import {
 } from "../helpers";
 import { MemberFlowsService } from "../../src/modules/analytics/member-flows-service";
 import { TicketService } from "../../src/modules/analytics/ticket-service";
-import type { TenantContext } from "../../src/modules/shared/tenant";
+import {
+  tenantValues,
+  type TenantContext,
+} from "../../src/modules/shared/tenant";
 import { subscriptions } from "../../src/db/schema/subscriptions";
 import { subscriptionPlans } from "../../src/db/schema/subscription-plans";
 import { financialTransactions } from "../../src/db/schema/financial-transactions";
@@ -163,25 +166,29 @@ describe("D-11 — exclusión del pase especial de las métricas de membresía",
     amount: number;
     date: string;
   }): Promise<void> {
-    const [ft] = await app.db.insert(financialTransactions).values({
-      memberId: opts.userId,
-      kind: "plan_charge",
-      direction: "inflow",
-      amount: opts.amount,
-      currency: "ARS",
-      paymentMethod: "cash",
-      transactionDate: opts.date,
-      effectiveDate: opts.date,
-      branchId: branchA,
-      recordedBy: recorderId,
-    });
+    const [ft] = await app.db.insert(financialTransactions).values(
+      tenantValues(CTX, {
+        memberId: opts.userId,
+        kind: "plan_charge",
+        direction: "inflow",
+        amount: opts.amount,
+        currency: "ARS",
+        paymentMethod: "cash",
+        transactionDate: opts.date,
+        effectiveDate: opts.date,
+        branchId: branchA,
+        recordedBy: recorderId,
+      }),
+    );
     const ftId = (ft as { insertId: number }).insertId;
-    await app.db.insert(transactionLinks).values({
-      transactionId: ftId,
-      targetKind: "subscription",
-      targetId: opts.subId,
-      allocatedAmount: opts.amount,
-    });
+    await app.db.insert(transactionLinks).values(
+      tenantValues(CTX, {
+        transactionId: ftId,
+        targetKind: "subscription",
+        targetId: opts.subId,
+        allocatedAmount: opts.amount,
+      }),
+    );
   }
 
   // ═══════════════════════════════════════════════════════════════════════

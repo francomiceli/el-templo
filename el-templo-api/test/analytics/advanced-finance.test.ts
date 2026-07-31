@@ -9,7 +9,10 @@ import {
   cleanAllTestData,
 } from "../helpers";
 import { AdvancedFinanceService } from "../../src/modules/analytics/advanced-finance-service";
-import type { TenantContext } from "../../src/modules/shared/tenant";
+import {
+  tenantValues,
+  type TenantContext,
+} from "../../src/modules/shared/tenant";
 import { financialTransactions } from "../../src/db/schema/financial-transactions";
 import { subscriptions } from "../../src/db/schema/subscriptions";
 import { subscriptionPlans } from "../../src/db/schema/subscription-plans";
@@ -136,19 +139,21 @@ describe("AdvancedFinanceService (Phase 118 Plan 03)", () => {
     branchId?: number;
     voided?: boolean;
   }): Promise<void> {
-    await app.db.insert(financialTransactions).values({
-      memberId: opts.memberId,
-      kind: opts.kind ?? "plan_charge",
-      direction: opts.direction ?? "inflow",
-      amount: opts.amount,
-      currency: opts.currency ?? "ARS",
-      paymentMethod: "cash",
-      transactionDate: opts.date,
-      effectiveDate: opts.date,
-      branchId: opts.branchId ?? branchA,
-      recordedBy: recorderId,
-      voidedAt: opts.voided ? new Date() : null,
-    });
+    await app.db.insert(financialTransactions).values(
+      tenantValues(CTX, {
+        memberId: opts.memberId,
+        kind: opts.kind ?? "plan_charge",
+        direction: opts.direction ?? "inflow",
+        amount: opts.amount,
+        currency: opts.currency ?? "ARS",
+        paymentMethod: "cash",
+        transactionDate: opts.date,
+        effectiveDate: opts.date,
+        branchId: opts.branchId ?? branchA,
+        recordedBy: recorderId,
+        voidedAt: opts.voided ? new Date() : null,
+      }),
+    );
   }
 
   async function insertSub(opts: {

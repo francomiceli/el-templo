@@ -28,6 +28,15 @@ import { memberProfiles } from "../../src/db/schema/member-profiles";
 import type { MemberSegment } from "../../src/modules/segmentation/types";
 import { sql } from "drizzle-orm";
 import { activeMemberExists } from "../../src/modules/shared/active-member";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+import { tenantValues } from "../../src/modules/shared/tenant";
+
+/**
+ * Fase 172: `finance` entra en `TENANT_STRICT_MODULES`, asi que todo INSERT de
+ * este archivo sobre `financial_transactions` / `transaction_links` estampa el
+ * gimnasio explicito en vez de depender del `DEFAULT 1` de la columna.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 const ANALYTICS_URL = "/api/admin/analytics";
 const SUBSCRIPTIONS_URL = "/api/admin/subscriptions";
@@ -171,25 +180,29 @@ describe("Analytics API", () => {
     const today = new Date().toISOString().split("T")[0];
     const paymentMethod =
       (overrides.paymentMethod as "cash" | "transfer" | "card") ?? "cash";
-    const [inserted] = await app.db.insert(financialTransactions).values({
-      memberId,
-      kind: "plan_charge",
-      direction: "inflow",
-      amount,
-      currency: "ARS",
-      paymentMethod,
-      transactionDate: today,
-      effectiveDate: today,
-      branchId: testBranchId,
-      recordedBy: adminUserId,
-    });
+    const [inserted] = await app.db.insert(financialTransactions).values(
+      tenantValues(TEMPLO_CTX, {
+        memberId,
+        kind: "plan_charge",
+        direction: "inflow",
+        amount,
+        currency: "ARS",
+        paymentMethod,
+        transactionDate: today,
+        effectiveDate: today,
+        branchId: testBranchId,
+        recordedBy: adminUserId,
+      }),
+    );
     const txnId = (inserted as { insertId: number }).insertId;
-    await app.db.insert(transactionLinks).values({
-      transactionId: txnId,
-      targetKind: "subscription",
-      targetId: subId,
-      allocatedAmount: amount,
-    });
+    await app.db.insert(transactionLinks).values(
+      tenantValues(TEMPLO_CTX, {
+        transactionId: txnId,
+        targetKind: "subscription",
+        targetId: subId,
+        allocatedAmount: amount,
+      }),
+    );
     return { id: txnId, amount, paymentMethod, subscriptionId: subId };
   }
 
@@ -650,18 +663,20 @@ describe("Analytics API", () => {
 
       // The "paid" member has a recent non-voided plan_charge inflow.
       const today = new Date().toISOString().split("T")[0];
-      await app.db.insert(financialTransactions).values({
-        memberId: paid.id,
-        kind: "plan_charge",
-        direction: "inflow",
-        amount: 15000,
-        currency: "ARS",
-        paymentMethod: "cash",
-        transactionDate: today,
-        effectiveDate: today,
-        branchId: testBranchId,
-        recordedBy: adminUserId,
-      });
+      await app.db.insert(financialTransactions).values(
+        tenantValues(TEMPLO_CTX, {
+          memberId: paid.id,
+          kind: "plan_charge",
+          direction: "inflow",
+          amount: 15000,
+          currency: "ARS",
+          paymentMethod: "cash",
+          transactionDate: today,
+          effectiveDate: today,
+          branchId: testBranchId,
+          recordedBy: adminUserId,
+        }),
+      );
 
       const res = await app.inject({
         method: "GET",
@@ -1265,24 +1280,28 @@ describe("Analytics API", () => {
 
       // One ARS inflow and one EUR inflow, both plan_charge.
       for (const currency of ["ARS", "EUR"] as const) {
-        const [tx] = await app.db.insert(financialTransactions).values({
-          memberId: member.id,
-          kind: "plan_charge",
-          direction: "inflow",
-          amount: currency === "ARS" ? 10000 : 200,
-          currency,
-          paymentMethod: "cash",
-          transactionDate: today,
-          effectiveDate: today,
-          branchId: testBranchId,
-          recordedBy: adminUserId,
-        });
-        await app.db.insert(transactionLinks).values({
-          transactionId: (tx as { insertId: number }).insertId,
-          targetKind: "subscription",
-          targetId: sub.id as number,
-          allocatedAmount: currency === "ARS" ? 10000 : 200,
-        });
+        const [tx] = await app.db.insert(financialTransactions).values(
+          tenantValues(TEMPLO_CTX, {
+            memberId: member.id,
+            kind: "plan_charge",
+            direction: "inflow",
+            amount: currency === "ARS" ? 10000 : 200,
+            currency,
+            paymentMethod: "cash",
+            transactionDate: today,
+            effectiveDate: today,
+            branchId: testBranchId,
+            recordedBy: adminUserId,
+          }),
+        );
+        await app.db.insert(transactionLinks).values(
+          tenantValues(TEMPLO_CTX, {
+            transactionId: (tx as { insertId: number }).insertId,
+            targetKind: "subscription",
+            targetId: sub.id as number,
+            allocatedAmount: currency === "ARS" ? 10000 : 200,
+          }),
+        );
       }
 
       const firstOfMonth = today.substring(0, 8) + "01";
@@ -1324,24 +1343,28 @@ describe("Analytics API", () => {
       const sub = await assignSubscription(member.id, plan.id);
       const today = new Date().toISOString().split("T")[0];
 
-      const [tx] = await app.db.insert(financialTransactions).values({
-        memberId: member.id,
-        kind: "plan_charge",
-        direction: "inflow",
-        amount: 500,
-        currency: "EUR",
-        paymentMethod: "cash",
-        transactionDate: today,
-        effectiveDate: today,
-        branchId: testBranchId,
-        recordedBy: adminUserId,
-      });
-      await app.db.insert(transactionLinks).values({
-        transactionId: (tx as { insertId: number }).insertId,
-        targetKind: "subscription",
-        targetId: sub.id as number,
-        allocatedAmount: 500,
-      });
+      const [tx] = await app.db.insert(financialTransactions).values(
+        tenantValues(TEMPLO_CTX, {
+          memberId: member.id,
+          kind: "plan_charge",
+          direction: "inflow",
+          amount: 500,
+          currency: "EUR",
+          paymentMethod: "cash",
+          transactionDate: today,
+          effectiveDate: today,
+          branchId: testBranchId,
+          recordedBy: adminUserId,
+        }),
+      );
+      await app.db.insert(transactionLinks).values(
+        tenantValues(TEMPLO_CTX, {
+          transactionId: (tx as { insertId: number }).insertId,
+          targetKind: "subscription",
+          targetId: sub.id as number,
+          allocatedAmount: 500,
+        }),
+      );
 
       const today2 = new Date().toISOString().split("T")[0];
       const firstOfMonth = today2.substring(0, 8) + "01";
