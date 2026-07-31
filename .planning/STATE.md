@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: "Tenancy — El Templo pasa a ser tenant #1"
 status: executing
-stopped_at: Completed 172-09-PLAN.md
-last_updated: "2026-07-31T00:00:15.119Z"
-last_activity: 2026-07-30
+stopped_at: Completed 172-10-PLAN.md
+last_updated: "2026-07-31T00:18:36.857Z"
+last_activity: 2026-07-31
 progress:
   total_phases: 11
   completed_phases: 4
   total_plans: 59
-  completed_plans: 37
+  completed_plans: 38
   percent: 36
 ---
 
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (milestone v6.0 initialized 2026-07-26)
 ## Current Position
 
 Phase: 172 (adopci-n-1-piloto-finance) — EXECUTING
-Plan: 10 of 23
+Plan: 11 of 23
 Status: Ready to execute
-Last activity: 2026-07-30
+Last activity: 2026-07-31
 Next: `/gsd:execute-phase 172` sigue por el plan **172-09** (la wave 4 quedó cerrada: el 172-08 puso `TenantContext` en las 21 firmas de `TransactionService`). En paralelo sigue pendiente el plan **169-09**, el último de la fase 169 (gate consolidado + rollout), y siguen pendientes
 
 **Deuda de allowlist acumulada en `feat/172-adopcion-finance`: 24 entradas** (9 del plan 172-02 + 4 del 172-03 + 6 del 172-04 + 2 del 172-06 + 0 del 172-07 + **3 del 172-08**, que son las 3 últimas de `subscriptions/service.ts` sobre tablas de finance: `balances`, `financial_transactions` y `transaction_links`). El archivo real `tenant-lint-allowlist.json` tiene **un solo dueño, el plan 172-21**, así que `pnpm lint:tenant` sin `--allowlist` sale **rojo con `DISCREPANCIAS: 24`** en esa rama — todas `staleNoLongerViolating`, o sea deuda ya pagada esperando que la borren. **No es una regresión, pero si la rama se mergea a `staging` antes del 172-21, CI queda rojo por esto.** La evidencia ejecutable vigente es `/tmp/allowlist-172-08.json` (477 entradas): el lint sale `DISCREPANCIAS: 0` y `unlistedViolations: 0` contra él.
@@ -431,6 +431,7 @@ _Updated after each plan completion_
 | Phase 172 P07 | 40min | 4 tasks | 9 files |
 | Phase 172 P08 | 55min | 4 tasks | 16 files |
 | Phase 172 P09 | 20min | 3 tasks | 11 files |
+| Phase 172 P10 | 16min | 3 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -922,6 +923,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: 172-08: movement-service.ts entro al plan por tsc (4 create + 2 voidPair propios); el inventario de call sites se saca por compilador, no por lectura dirigida
 - [Phase ?]: 172-09: un fragmento sql que nombra una tabla FUERA de la cadena de la query es un acceso sin filtro para el lint (4a y 5a vez en la fase): va INLINE, el condicional con ternario que devuelve undefined
 - [Phase ?]: 172-09: el tsconfig temporal que incluye test/ necesita rootDir '.' y vivir dentro del proyecto — la receta del 172-08 devuelve TS2554=0 falso
+- [Phase 172]: 172-10: el tenantWhere de un leftJoin va en el ON, no en el WHERE (en el WHERE lo convierte en inner join)
+- [Phase 172]: 172-10: los 3 UPDATE de transaction-service llevan tenantWhere propio — el WHERE de una escritura no se apoya en la lectura previa
 
 ### Pending Todos
 
@@ -954,8 +957,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-31T00:00:10.503Z
-Stopped at: Completed 172-09-PLAN.md
+Last session: 2026-07-31T00:18:36.822Z
+Stopped at: Completed 172-10-PLAN.md
 Resume file: None
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
