@@ -96,9 +96,10 @@ Los dos commits viven en `/home/franco/projects/et-172` (rama `feat/172-adopcion
 
 ## Accomplishments
 
-- **La exención está donde el sentinel la lee: adentro del SQL.** El statement quedó
-  `DELETE /* tenant-safe: limpieza global de la base de test (todos los gimnasios) */ FROM \`<tabla>\``.
-Verificado ejecutando el clasificador real (`analyzeSql`de`src/db/sentinel/analyze.ts`) sobre el texto exacto que se manda al driver:
+- **La exención está donde el sentinel la lee: adentro del SQL.** El statement pasó a ser
+  `DELETE` + el comentario de bloque `tenant-safe: …` + `FROM <tabla>`, con la anotación
+  entre el verbo y el `FROM`. Verificado ejecutando el clasificador real (`analyzeSql` de
+  `src/db/sentinel/analyze.ts`) sobre el texto exacto que se manda al driver:
 
   ```
   con exención:  {"kind":"exempt","reason":"anotado en el SQL: limpieza global de la base de test (todos los gimnasios)","tables":[]}

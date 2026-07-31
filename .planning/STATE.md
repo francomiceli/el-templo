@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: "Tenancy — El Templo pasa a ser tenant #1"
 status: executing
-stopped_at: Completed 172-12-PLAN.md
-last_updated: "2026-07-31T00:54:44.236Z"
+stopped_at: Completed 172-10-PLAN.md
+last_updated: "2026-07-31T01:25:44.523Z"
 last_activity: 2026-07-31
 progress:
   total_phases: 11
   completed_phases: 4
   total_plans: 59
-  completed_plans: 40
+  completed_plans: 41
   percent: 36
 ---
 
@@ -26,12 +26,14 @@ See: .planning/PROJECT.md (milestone v6.0 initialized 2026-07-26)
 ## Current Position
 
 Phase: 172 (adopci-n-1-piloto-finance) — EXECUTING
-Plan: 13 of 23
+Plan: 14 of 23
 Status: Ready to execute
 Last activity: 2026-07-31
-Next: `/gsd:execute-phase 172` sigue por el plan **172-13**. **`finance` quedó CERRADO con el 172-12**: los 6 archivos del módulo no tienen una sola entrada viva de allowlist y `strictWithAllowlist` da 0. En paralelo sigue pendiente el plan **169-09**, el último de la fase 169 (gate consolidado + rollout), y siguen pendientes
+Next: `/gsd:execute-phase 172` sigue por el plan **172-14**. **`finance` quedó CERRADO con el 172-12** (cero entradas vivas de allowlist en los 6 archivos del módulo, `strictWithAllowlist` 0) y con el **172-13** arrancó la cadena SERIALIZADA de endurecimiento de tests (13→14→15→16), que comparte la sonda temporal sobre `src/db/tenant-tables.ts`: **pre-check obligatorio de `git status --porcelain el-templo-api/src/db/tenant-tables.ts` (tiene que salir vacío) antes de encenderla**. En paralelo sigue pendiente el plan **169-09**, el último de la fase 169 (gate consolidado + rollout), y siguen pendientes
 
-**Deuda de allowlist acumulada en `feat/172-adopcion-finance`: 51 entradas** (9 del 172-02 + 4 del 172-03 + 6 del 172-04 + 2 del 172-06 + 0 del 172-07 + 3 del 172-08 + 9 del 172-09 + 2 del 172-10 + 7 del 172-11 + **9 del 172-12**, que sacan de la allowlist a `transaction-service.ts` entero y con él a **todo el módulo `finance`**). El archivo real `tenant-lint-allowlist.json` tiene **un solo dueño, el plan 172-21**, así que `pnpm lint:tenant` sin `--allowlist` sale **rojo con `DISCREPANCIAS: 51`** en esa rama — todas `staleNoLongerViolating`, o sea deuda ya pagada esperando que la borren. **No es una regresión, pero si la rama se mergea a `staging` antes del 172-21, CI queda rojo por esto.** La evidencia ejecutable vigente es `/tmp/allowlist-172-12.json` (450 entradas): el lint sale `DISCREPANCIAS: 0`, `unlistedViolations: 0` y `strictWithAllowlist: 0` contra él.
+**Deuda de allowlist acumulada en `feat/172-adopcion-finance`: 51 entradas** (9 del 172-02 + 4 del 172-03 + 6 del 172-04 + 2 del 172-06 + 0 del 172-07 + 3 del 172-08 + 9 del 172-09 + 2 del 172-10 + 7 del 172-11 + **9 del 172-12**, que sacan de la allowlist a `transaction-service.ts` entero y con él a **todo el módulo `finance`**; el **172-13 paga 0 y está bien**: solo toca `test/`, y la allowlist cubre `src/`). El archivo real `tenant-lint-allowlist.json` tiene **un solo dueño, el plan 172-21**, así que `pnpm lint:tenant` sin `--allowlist` sale **rojo con `DISCREPANCIAS: 51`** en esa rama — todas `staleNoLongerViolating`, o sea deuda ya pagada esperando que la borren. **No es una regresión, pero si la rama se mergea a `staging` antes del 172-21, CI queda rojo por esto.** La evidencia ejecutable vigente es `/tmp/allowlist-172-12.json` (450 entradas): el lint sale `DISCREPANCIAS: 0`, `unlistedViolations: 0` y `strictWithAllowlist: 0` contra él.
+
+**172-13 cerrado — la infraestructura de test sobrevive al throw, y la deuda de allowlist NO se movió (sigue en 51) a propósito.** `cleanAllTestData` —el `beforeEach` de decenas de archivos, un `DELETE FROM` sin filtro sobre ~70 tablas, tres de ellas strict, **por el pool que el sentinel envuelve**— era el bloqueante #1 del switch: sin este plan, el 172-21 no habría visto "40 archivos rojos" sino **la suite entera caída en el primer hook**. Su statement lleva ahora la exención **escrita ADENTRO DEL SQL** (`DELETE /* tenant-safe: … */ FROM …`), que es el único canal que el sentinel lee — **la allowlist del lint NO sirve para esto: son dos canales distintos (D-17 de la 170) y esa allowlist ni siquiera mira `test/`**. Probado ejecutando el clasificador real: `analyzeSql` devuelve `exempt` con motivo sobre el statement anotado y `violation` sobre el mismo sin anotar. **La regla para decidir, que vale para los planes 14/15/16:** si el acceso global es DELIBERADO → exención con motivo; si se puede acotar sin cambiar lo que el test prueba → filtro (por eso los 3 `sql` crudos del `beforeEach` de `validate-caja` pasaron a `WHERE tenant_id = ${TENANT_TEMPLO}` en vez de llevar exención). **Los statements sobre `users` NO se anotaron a propósito**: `users` no es strict hoy y una exención heredada sin dueño es cómo se apaga un tripwire solo. Además: `ensureEfectivoCaja` tenía un throw esperándolo (su sonda de idempotencia sobre `cash_registers` no filtraba) y los 4 seeds de `cash_registers` de `test/setup.ts` estampan `tenant_id` explícito con sus `NOT EXISTS` filtrados — **ojo, `setup.ts` NO pasa por `app.dbPool`** (crea sus propias conexiones mysql2), así que el sentinel no lo ve: se migró por el riesgo real, no por el vigilante. **80 queries directas migradas** en los 6 archivos de cajas/cuentas/centros de costo (cash-register-service 35 · cash-balances 13 · cost-centers 12 · validate-caja 11 · cost-centers-abm 6 · bank-accounts 3), **cero expectativas tocadas**, y **93/93 tests verdes contra MySQL real CON `finance` puesto a mano en `TENANT_STRICT_MODULES`** (30+37+26 en tres corridas). **La sonda se revirtió** y `git status --porcelain … tenant-tables.ts` sale vacío. Dos cosas más para copiar: `tenantValues` en un insert multi-fila envuelve **cada fila** del array, no el array; y la cobertura se auditó con un `awk` que exige `tenantWhere`/`tenantValues`/`tenant_id` en la ventana de cada acceso a tabla strict y **lista la línea** de los que faltan (un archivo de 858 líneas con 35 accesos no se revisa a ojo). Commits: `e3092ea6`, `4a3244fe`. **ADO-01 sigue Pending.**
 
 **172-12 cerrado — `finance` no tiene una sola query sin gimnasio.** Los diez caminos de LECTURA de `transaction-service.ts` (`list`, `buildListConditions`, `listForMember`, `listPendingMiscForMember`, `listPendingTray`, `listMovEgresos`, `getSummary`, `getFinancialHistory`, `getOutstandingConcepts`, `exportRowsForExcel`) filtran por gimnasio: **52 `tenantWhere` nuevos sobre 33 queries**, sin mover una firma, una paginación, un orden ni un filtro de negocio (`git diff | grep -cE "^[-+].*(limit|offset|orderBy)\("` = **0**, ídem `throw new` y `code: 403`). **Lo que vale copiar en las fases 173-175:** (1) **un helper que devuelve `SQL[]` lleva el `tenantWhere` DENTRO del array** — `buildListConditions` lo devuelve como primer elemento, así que `list()`, `exportRowsForExcel()` y cualquier query futura que componga el fragmento nacen scopeadas y **no hay nada que recordar**; duplicarlo en el llamador daría el mismo SQL pero mataría la garantía; (2) **cuando el COUNT y la query de filas comparten un array de conditions, el filtro va en el ARRAY** — si el total sale de un universo y las filas de otro, la paginación miente; (3) **el filtro de toda tabla joineada va en el ON, también en los INNER JOIN**: en los 9 LEFT JOIN del archivo es obligatorio (en el WHERE se vuelven INNER y desaparecen los egresos/traspasos sin socio ni sede, los saldos libres sin suscripción y los cobros nacidos validados), y en los INNER es equivalente — una sola forma para las dos evita que el próximo que agregue un join tenga que elegir cuál copiar; (4) **un subquery que arma su propio predicado necesita su propio filtro** (el `scopedCajas` de `listMovEgresos`, en sus dos tablas): el `IN` de afuera no lo cubre; (5) **`tenantWhere` acepta los alias de drizzle** (`alias(schema.users, "recorder")`) sin gimnasia de tipos, y el lint los resuelve a su tabla real, así que hay que filtrarlos. **Verificado contra MySQL real:** `pending-tray.test.ts` **6/6** y `summary-by-kind.test.ts` **10/10**, sin tocar una expectativa; **84 `tenantWhere(`** en el archivo. Se pagó además la deuda del **docblock de la clase** que el 172-10 y el 172-11 se venían pasando: ya no dice "las queries todavía no filtran". **Sexta aparición** de los conteos sobrestimados del PATTERNS (son referencias `schema.X`, no queries) y **segunda** del falso positivo `?? 1` (es `filters.page ?? 1`, paginación). Sigue viva y sin caller `TransactionService.resolveCashRegister`: no afecta al lint ni a D-06, es limpieza pendiente. Commits: `57729cd7`, `03c66158`, `9e9846a6`. **ADO-01 sigue Pending**: falta el aislamiento verde (172-22/23), el borrado de las 51 entradas (172-21) y el diff del snapshot D-12.
 
@@ -436,6 +438,7 @@ _Updated after each plan completion_
 | Phase 172 P10 | 16min | 3 tasks | 1 files |
 | Phase 172 P11 | 18min | 3 tasks | 2 files |
 | Phase 172 P12 | 19min | 3 tasks | 1 files |
+| Phase 172 P13 | 32min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -969,7 +972,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-31T00:54:15.702Z
+Last session: 2026-07-31T01:25:44.475Z
 Stopped at: Completed 172-10-PLAN.md
 Resume file: None
 
