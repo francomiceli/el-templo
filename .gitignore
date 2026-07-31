@@ -27,3 +27,6 @@ poc-pdf/
 el-templo-video-pipeline/
 el-templo-tools/contexto/
 contexto/
+
+# macOS metadata
+.DS_Store
