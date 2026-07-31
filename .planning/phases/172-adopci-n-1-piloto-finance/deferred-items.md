@@ -42,3 +42,35 @@ interactuando con la recategorización—, pero **nadie lo comprobó**: puede se
 bug real de producción tapado por no correr estos 2 casos localmente. Si CI está
 verde sobre `a6272df0`, la diferencia es ambiental y hay que encontrarla antes de
 confiar en esa suite como gate.
+
+---
+
+## 3 tests rojos en `test/tenancy/con-06-lint.test.ts` — son del 172-21
+
+**Encontrado en:** plan 172-16, corrida en caliente sobre los 6 directorios del plan
+(`test/analytics test/scheduling test/attendance test/migrations test/wellhub test/tenancy`).
+
+Con `finance` puesto a mano en `TENANT_STRICT_MODULES`, la corrida dio **649/652**
+con **cero throws del sentinel**. Los 3 rojos son todos de `con-06-lint.test.ts` y
+ninguno es de este plan. Discriminados con una corrida extra con la **sonda apagada**:
+
+| `it`                                                              | ¿Rojo con la sonda APAGADA? | Causa                                                                                                   |
+| ----------------------------------------------------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------- |
+| "ve los archivos que importan el schema EN PROFUNDIDAD"           | **SÍ**                      | la lente estática ve **81** tablas con deuda y el gate exige **≥ 87**: bajó porque la fase migró `src/` |
+| "el repo real con el baseline del plan 07 sale 0"                 | **SÍ**                      | `lint:tenant` sale 1 — son las **51 entradas stale** esperando que el 172-21 las borre                  |
+| "una tabla de la lista strict con entradas vivas es discrepancia" | **NO**                      | artefacto de la sonda: el gate afirma que `TENANT_STRICT_MODULES` sigue **vacía** (D-15 de la fase 170) |
+
+**Prueba de que no son del 172-16:** `git diff 4c252510..HEAD --name-only | grep -cE
+'^el-templo-api/(src|tenant-lint-allowlist.json)'` devuelve **0**. El plan toca
+únicamente archivos de `test/`, y los tres gates leen `src/`, la allowlist y la lista
+strict.
+
+**Para quién es:** el **plan 172-21**, dueño único de `tenant-lint-allowlist.json` y
+el que escribe la entrada `finance` en `TENANT_STRICT_MODULES`. Los dos primeros se
+apagan borrando las 51 entradas; el tercero hay que **reescribirlo** junto con
+`test/db/tenant-tables.test.ts:351` (`expect(modulos.length).toBe(0)`), que también se
+va a poner rojo — está anunciado en el `172-PATTERNS.md` §7 y su propio mensaje de
+error dice qué hacer.
+
+**Lo que NO hay que hacer:** sacar tablas de `TENANT_STRICT_MODULES` para que estos
+gates pasen. Es literalmente lo que el mensaje del sentinel prohíbe.

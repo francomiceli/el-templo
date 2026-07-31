@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: "Tenancy — El Templo pasa a ser tenant #1"
 status: executing
-stopped_at: Completed 172-15-PLAN.md
-last_updated: "2026-07-31T12:05:00.000Z"
+stopped_at: Completed 172-16-PLAN.md
+last_updated: "2026-07-31T13:40:00.000Z"
 last_activity: 2026-07-31
 progress:
   total_phases: 11
   completed_phases: 4
   total_plans: 59
-  completed_plans: 43
+  completed_plans: 44
   percent: 36
 ---
 
@@ -26,10 +26,10 @@ See: .planning/PROJECT.md (milestone v6.0 initialized 2026-07-26)
 ## Current Position
 
 Phase: 172 (adopci-n-1-piloto-finance) — EXECUTING
-Plan: 16 of 23
+Plan: 17 of 23
 Status: Ready to execute
 Last activity: 2026-07-31
-Next: `/gsd:execute-phase 172` sigue por el plan **172-16** (cierra la cadena serializada 13→16). El **172-15 se cerró por safe-resume** (la sesión anterior dejó los 3 commits hechos y la sonda viva sin SUMMARY: se re-verificó en caliente —54 archivos / 639 tests verdes, 0 throws—, se revirtió la sonda y se escribió el SUMMARY; incluye el fix `4c252510` de la regresión `assertTenant` sin `attachCountryScope` en la ruta de add-ons de programas). **`finance` quedó CERRADO con el 172-12** (cero entradas vivas de allowlist en los 6 archivos del módulo, `strictWithAllowlist` 0) y con el **172-13** arrancó la cadena SERIALIZADA de endurecimiento de tests (13→14→15→16), que comparte la sonda temporal sobre `src/db/tenant-tables.ts`: **pre-check obligatorio de `git status --porcelain el-templo-api/src/db/tenant-tables.ts` (tiene que salir vacío) antes de encenderla**. En paralelo sigue pendiente el plan **169-09**, el último de la fase 169 (gate consolidado + rollout), y siguen pendientes
+Next: `/gsd:execute-phase 172` sigue por el plan **172-17**. **La cadena serializada 13→14→15→16 quedó CERRADA con el 172-16**: el barrido global sobre TODO `test/` (245 archivos) sale en **cero** —no queda una sola query literal sobre las 6 tablas strict sin tenant ni exención— y la corrida en caliente dio **649/652 con CERO throws del sentinel**. Los 3 rojos que quedan son los tres `it` de `test/tenancy/con-06-lint.test.ts` y **le pertenecen al 172-21**: dos reproducen con la sonda APAGADA (son la deuda de allowlist de la fase, 51 entradas stale + la lente estática que bajó de 87 a 81 tablas porque `src/` está migrado) y el tercero es el gate D-15 que afirma que `TENANT_STRICT_MODULES` sigue vacía. El 172-16 además arregló **2 rojos de la fase que nadie había visto**: el gate `iso-02 Test 13` estaba rojo desde el 172-13 (un comentario de `test/setup.ts` nombraba el módulo del fixture y el gate busca por substring) y el barrido de integridad de `verifyTenantBackfill` hacía throw sobre 3 tablas strict. El **172-15 se cerró por safe-resume** (la sesión anterior dejó los 3 commits hechos y la sonda viva sin SUMMARY: se re-verificó en caliente —54 archivos / 639 tests verdes, 0 throws—, se revirtió la sonda y se escribió el SUMMARY; incluye el fix `4c252510` de la regresión `assertTenant` sin `attachCountryScope` en la ruta de add-ons de programas). **`finance` quedó CERRADO con el 172-12** (cero entradas vivas de allowlist en los 6 archivos del módulo, `strictWithAllowlist` 0) y con el **172-13** arrancó la cadena SERIALIZADA de endurecimiento de tests (13→14→15→16), que comparte la sonda temporal sobre `src/db/tenant-tables.ts`: **pre-check obligatorio de `git status --porcelain el-templo-api/src/db/tenant-tables.ts` (tiene que salir vacío) antes de encenderla**. En paralelo sigue pendiente el plan **169-09**, el último de la fase 169 (gate consolidado + rollout), y siguen pendientes
 
 **Deuda de allowlist acumulada en `feat/172-adopcion-finance`: 51 entradas** (9 del 172-02 + 4 del 172-03 + 6 del 172-04 + 2 del 172-06 + 0 del 172-07 + 3 del 172-08 + 9 del 172-09 + 2 del 172-10 + 7 del 172-11 + **9 del 172-12**, que sacan de la allowlist a `transaction-service.ts` entero y con él a **todo el módulo `finance`**; el **172-13 paga 0 y está bien**: solo toca `test/`, y la allowlist cubre `src/`). El archivo real `tenant-lint-allowlist.json` tiene **un solo dueño, el plan 172-21**, así que `pnpm lint:tenant` sin `--allowlist` sale **rojo con `DISCREPANCIAS: 51`** en esa rama — todas `staleNoLongerViolating`, o sea deuda ya pagada esperando que la borren. **No es una regresión, pero si la rama se mergea a `staging` antes del 172-21, CI queda rojo por esto.** La evidencia ejecutable vigente es `/tmp/allowlist-172-12.json` (450 entradas): el lint sale `DISCREPANCIAS: 0`, `unlistedViolations: 0` y `strictWithAllowlist: 0` contra él.
 
@@ -441,6 +441,7 @@ _Updated after each plan completion_
 | Phase 172 P13 | 32min | 2 tasks | 8 files |
 | Phase 172 P14 | 68min | 2 tasks | 12 files |
 | Phase 172 P15 | 70min | 2 tasks | 18 files |
+| Phase 172 P16 | 95min | 2 tasks | 16 files |
 
 ## Accumulated Context
 
@@ -947,6 +948,10 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: 172-14: tsc --noEmit NO typechequea test/ (tsconfig incluye solo src/\*\*) — el unico gate real de un test es vitest
 - [Phase ?]: 172-15: assertTenant en un modulo que no monta attachCountryScope en ningun hook tira TypeError (500) en vez de 403 — el fix es el patron per-ruta de campaigns/routes.ts:181, y todo modulo nuevo que sume assertTenant tiene que verificar primero que el scope este montado
 - [Phase ?]: 172-15: un rojo nuevo en la corrida en caliente se discrimina por aislamiento (src/ master vs HEAD, sonda ON vs OFF), no razonando el diff — los 13 rojos de add-ons eran regresion propia, no sentinel
+- [Phase ?]: 172-16: TERCER punto ciego del inventario por grep — el statement cuyo nombre de tabla NO esta en el fuente (sql.raw(tabla) sobre una union cerrada, o SQL armado por un helper de src/). La auditoria se parte en dos barridos: literal (veredicto) y dinamico (triage manual)
+- [Phase ?]: 172-16: la exencion tenant-safe de un SQL que viene de afuera del test (migracion historica inmutable, script de src/) se antepone EN EL PUNTO DE APLICACION del test, nunca en el archivo de origen — en produccion las migraciones no corren por el pool que el sentinel intercepta
+- [Phase ?]: 172-16: un gate que busca marcas por substring no distingue codigo de comentario — explicar en un comentario por que NO se usa una marca pone el gate en rojo igual (test/setup.ts vs iso-02 Test 13, roto dos planes sin que nadie lo viera porque el 14 y el 15 no corrieron test/tenancy)
+- [Phase ?]: 172-16: leer el tenant_id de una fila ES la asercion en las baterias de tenancy — filtrarlo la vuelve tautologica, asi que va exencion y no filtro (el sentinel lo caza porque recorta la proyeccion de todo SELECT antes de buscar la columna)
 
 ### Pending Todos
 
