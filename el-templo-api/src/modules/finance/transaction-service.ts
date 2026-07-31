@@ -1235,17 +1235,28 @@ export class TransactionService {
     const rows = await this.db
       .select()
       .from(schema.financialTransactions)
-      .where(eq(schema.financialTransactions.memberId, memberId))
+      .where(
+        and(
+          tenantWhere(schema.financialTransactions, ctx),
+          eq(schema.financialTransactions.memberId, memberId),
+        ),
+      )
       .orderBy(desc(schema.financialTransactions.transactionDate))
       .limit(limit)
       .offset(offset);
     if (rows.length === 0) return [];
     const ids = rows.map((r) => r.id);
-    const allLinks = await this.db.select().from(schema.transactionLinks).where(
-      // inArray would be cleaner; sticking to existing util usage to
-      // keep the import surface minimal in this scaffolding plan.
-      eq(schema.transactionLinks.transactionId, ids[0]),
-    );
+    const allLinks = await this.db
+      .select()
+      .from(schema.transactionLinks)
+      .where(
+        and(
+          tenantWhere(schema.transactionLinks, ctx),
+          // inArray would be cleaner; sticking to existing util usage to
+          // keep the import surface minimal in this scaffolding plan.
+          eq(schema.transactionLinks.transactionId, ids[0]),
+        ),
+      );
     // For lists with multiple ids, fetch links per-row. The N+1 here is
     // acceptable for now (Plan 06+ rewrites callers to use a richer list
     // endpoint). Keeping logic explicit so the scaffolding is testable.
@@ -1257,7 +1268,12 @@ export class TransactionService {
           : await this.db
               .select()
               .from(schema.transactionLinks)
-              .where(eq(schema.transactionLinks.transactionId, r.id));
+              .where(
+                and(
+                  tenantWhere(schema.transactionLinks, ctx),
+                  eq(schema.transactionLinks.transactionId, r.id),
+                ),
+              );
       byTx.set(r.id, links);
     }
     return rows.map((r) => ({ ...r, links: byTx.get(r.id) ?? [] }));
@@ -1288,6 +1304,7 @@ export class TransactionService {
       .from(schema.financialTransactions)
       .where(
         and(
+          tenantWhere(schema.financialTransactions, ctx),
           eq(schema.financialTransactions.memberId, memberId),
           eq(schema.financialTransactions.kind, "advance_payment"),
           eq(schema.financialTransactions.validationStatus, "pendiente"),
@@ -1333,20 +1350,34 @@ export class TransactionService {
 
     // 1) COUNT — same join chain as the row query so country/search filters
     //    that reference users/branches/recorder resolve identically.
+    // TENANCY: el filtro de `financial_transactions` viaja dentro de
+    // `conditions` (ver buildListConditions). Las tablas JOINEADAS nombran el
+    // gimnasio en su propio ON — en un INNER JOIN da lo mismo ON o WHERE
+    // (ninguna fila sin match sobrevive), y en el ON queda pegado a la tabla
+    // que filtra, que es lo que hace obvio el día que alguien agregue un join.
     const [countRow] = await this.db
       .select({ count: sql<number>`COUNT(*)` })
       .from(schema.financialTransactions)
       .innerJoin(
         schema.users,
-        eq(schema.users.id, schema.financialTransactions.memberId),
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.financialTransactions.memberId),
+        ),
       )
       .innerJoin(
         schema.branches,
-        eq(schema.branches.id, schema.financialTransactions.branchId),
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, schema.financialTransactions.branchId),
+        ),
       )
       .innerJoin(
         recorder,
-        eq(recorder.id, schema.financialTransactions.recordedBy),
+        and(
+          tenantWhere(recorder, ctx),
+          eq(recorder.id, schema.financialTransactions.recordedBy),
+        ),
       )
       .where(conditions.length > 0 ? and(...conditions) : undefined);
     const total = Number(countRow?.count ?? 0);
@@ -1383,19 +1414,34 @@ export class TransactionService {
       .from(schema.financialTransactions)
       .innerJoin(
         schema.users,
-        eq(schema.users.id, schema.financialTransactions.memberId),
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.financialTransactions.memberId),
+        ),
       )
       .innerJoin(
         schema.branches,
-        eq(schema.branches.id, schema.financialTransactions.branchId),
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, schema.financialTransactions.branchId),
+        ),
       )
       .innerJoin(
         recorder,
-        eq(recorder.id, schema.financialTransactions.recordedBy),
+        and(
+          tenantWhere(recorder, ctx),
+          eq(recorder.id, schema.financialTransactions.recordedBy),
+        ),
       )
+      // El filtro del validador va en el ON y NUNCA en el WHERE: en el WHERE
+      // convierte este LEFT JOIN en INNER y la lista pierde todas las filas
+      // nacidas validadas (validatedBy NULL), que son la mayoría.
       .leftJoin(
         validator,
-        eq(validator.id, schema.financialTransactions.validatedBy),
+        and(
+          tenantWhere(validator, ctx),
+          eq(validator.id, schema.financialTransactions.validatedBy),
+        ),
       )
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(
@@ -1417,7 +1463,12 @@ export class TransactionService {
               allocatedAmount: schema.transactionLinks.allocatedAmount,
             })
             .from(schema.transactionLinks)
-            .where(inArray(schema.transactionLinks.transactionId, txIds))
+            .where(
+              and(
+                tenantWhere(schema.transactionLinks, ctx),
+                inArray(schema.transactionLinks.transactionId, txIds),
+              ),
+            )
         : [];
 
     const linksByTx = new Map<
@@ -1854,7 +1905,13 @@ export class TransactionService {
     ctx: TenantContext,
     filters: TransactionListFilters,
   ): SQL[] {
-    const conds: SQL[] = [];
+    // TENANCY (fase 172, T-172-12-02). El filtro de gimnasio es el PRIMER
+    // elemento del array que este helper devuelve, y no algo que cada llamador
+    // agregue: así toda query que componga este fragmento —hoy `list()` y
+    // `exportRowsForExcel()`, mañana la que se escriba— queda scopeada sin que
+    // nadie tenga que acordarse. Un `tenantWhere` en el llamador se olvida; uno
+    // acá adentro es imposible de saltear.
+    const conds: SQL[] = [tenantWhere(schema.financialTransactions, ctx)];
     if (filters.branchId !== undefined) {
       conds.push(eq(schema.financialTransactions.branchId, filters.branchId));
     }
