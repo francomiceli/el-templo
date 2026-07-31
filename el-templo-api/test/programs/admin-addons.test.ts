@@ -29,6 +29,16 @@ import { financialTransactions } from "../../src/db/schema/financial-transaction
 import { transactionLinks } from "../../src/db/schema/transaction-links";
 import { auditLog } from "../../src/db/schema/audit-log";
 import { createPlan, assignPlan } from "../subscriptions/_helpers";
+import { tenantWhere } from "../../src/modules/shared/tenant";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+
+/**
+ * 172-15: `TEMPLO_CTX` es el gimnasio de este archivo. Las queries directas de
+ * los tests pasan por `app.dbPool` igual que las de la app, asi que con
+ * `finance` en `TENANT_STRICT_MODULES` una lectura o una siembra sobre las
+ * tablas strict sin gimnasio hace throw antes de llegar a MySQL.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 describe("Admin add-on assignment endpoint (Phase 112 Plan 04)", () => {
   let app: FastifyInstance;
@@ -209,6 +219,7 @@ describe("Admin add-on assignment endpoint (Phase 112 Plan 04)", () => {
       .from(financialTransactions)
       .where(
         and(
+          tenantWhere(financialTransactions, TEMPLO_CTX),
           eq(financialTransactions.memberId, userId),
           eq(financialTransactions.kind, "plan_charge"),
         ),
@@ -224,7 +235,12 @@ describe("Admin add-on assignment endpoint (Phase 112 Plan 04)", () => {
     const links = await app.db
       .select()
       .from(transactionLinks)
-      .where(eq(transactionLinks.transactionId, addonTx.id));
+      .where(
+        and(
+          tenantWhere(transactionLinks, TEMPLO_CTX),
+          eq(transactionLinks.transactionId, addonTx.id),
+        ),
+      );
     expect(links).toHaveLength(1);
     expect(links[0].targetKind).toBe("enrollment");
     expect(links[0].targetId).toBe(enrollmentId);
@@ -240,7 +256,12 @@ describe("Admin add-on assignment endpoint (Phase 112 Plan 04)", () => {
     const ftBefore = await app.db
       .select({ count: sql<number>`COUNT(*)` })
       .from(financialTransactions)
-      .where(eq(financialTransactions.memberId, userId));
+      .where(
+        and(
+          tenantWhere(financialTransactions, TEMPLO_CTX),
+          eq(financialTransactions.memberId, userId),
+        ),
+      );
 
     const res = await postAddon(ownerToken, userId, {
       programId,
@@ -251,7 +272,12 @@ describe("Admin add-on assignment endpoint (Phase 112 Plan 04)", () => {
     const ftAfter = await app.db
       .select({ count: sql<number>`COUNT(*)` })
       .from(financialTransactions)
-      .where(eq(financialTransactions.memberId, userId));
+      .where(
+        and(
+          tenantWhere(financialTransactions, TEMPLO_CTX),
+          eq(financialTransactions.memberId, userId),
+        ),
+      );
     expect(Number(ftAfter[0].count)).toBe(Number(ftBefore[0].count));
   });
 
@@ -264,7 +290,12 @@ describe("Admin add-on assignment endpoint (Phase 112 Plan 04)", () => {
     const ftBefore = await app.db
       .select({ count: sql<number>`COUNT(*)` })
       .from(financialTransactions)
-      .where(eq(financialTransactions.memberId, userId));
+      .where(
+        and(
+          tenantWhere(financialTransactions, TEMPLO_CTX),
+          eq(financialTransactions.memberId, userId),
+        ),
+      );
 
     const res = await postAddon(ownerToken, userId, { programId });
     expect(res.statusCode).toBe(200);
@@ -272,7 +303,12 @@ describe("Admin add-on assignment endpoint (Phase 112 Plan 04)", () => {
     const ftAfter = await app.db
       .select({ count: sql<number>`COUNT(*)` })
       .from(financialTransactions)
-      .where(eq(financialTransactions.memberId, userId));
+      .where(
+        and(
+          tenantWhere(financialTransactions, TEMPLO_CTX),
+          eq(financialTransactions.memberId, userId),
+        ),
+      );
     expect(Number(ftAfter[0].count)).toBe(Number(ftBefore[0].count));
 
     const { enrollmentId } = JSON.parse(res.body) as { enrollmentId: number };
@@ -545,6 +581,7 @@ describe("Admin add-on assignment endpoint (Phase 112 Plan 04)", () => {
       .from(financialTransactions)
       .where(
         and(
+          tenantWhere(financialTransactions, TEMPLO_CTX),
           eq(financialTransactions.memberId, userId),
           eq(financialTransactions.kind, "plan_charge"),
         ),

@@ -15,6 +15,16 @@ import {
   todayStr,
   dateOffsetStr,
 } from "./_helpers";
+import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+
+/**
+ * 172-15: `TEMPLO_CTX` es el gimnasio de este archivo. Las queries directas de
+ * los tests pasan por `app.dbPool` igual que las de la app, asi que con
+ * `finance` en `TENANT_STRICT_MODULES` una lectura o una siembra sobre las
+ * tablas strict sin gimnasio hace throw antes de llegar a MySQL.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 describe("Subscriptions API — Lifecycle", () => {
   let app: FastifyInstance;
@@ -120,13 +130,17 @@ describe("Subscriptions API — Lifecycle", () => {
         .from(schema.transactionLinks)
         .innerJoin(
           schema.financialTransactions,
-          eq(
-            schema.transactionLinks.transactionId,
-            schema.financialTransactions.id,
+          and(
+            tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+            eq(
+              schema.transactionLinks.transactionId,
+              schema.financialTransactions.id,
+            ),
           ),
         )
         .where(
           and(
+            tenantWhere(schema.transactionLinks, TEMPLO_CTX),
             eq(schema.transactionLinks.targetKind, "subscription"),
             eq(schema.transactionLinks.targetId, subId),
           ),
@@ -139,7 +153,12 @@ describe("Subscriptions API — Lifecycle", () => {
             voidedBy: admin?.id ?? null,
             voidReason: "test setup — pre-void",
           })
-          .where(eq(schema.financialTransactions.id, t.id));
+          .where(
+            and(
+              tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+              eq(schema.financialTransactions.id, t.id),
+            ),
+          );
       }
 
       // Cancel so we can attempt another assign
@@ -576,28 +595,32 @@ describe("Subscriptions API — Lifecycle", () => {
       if (!admin) throw new Error("admin@test.com seed missing");
       const [txRes] = await app.db
         .insert(schema.financialTransactions)
-        .values({
-          memberId,
-          kind: "plan_charge",
-          direction: "inflow",
-          amount,
-          currency: "ARS",
-          paymentMethod: "cash",
-          transactionDate: today,
-          effectiveDate: today,
-          branchId,
-          recordedBy: admin.id,
-          voidedAt: voided ? new Date() : null,
-          voidedBy: voided ? admin.id : null,
-          voidReason: voided ? "test seed" : null,
-        })
+        .values(
+          tenantValues(TEMPLO_CTX, {
+            memberId,
+            kind: "plan_charge",
+            direction: "inflow",
+            amount,
+            currency: "ARS",
+            paymentMethod: "cash",
+            transactionDate: today,
+            effectiveDate: today,
+            branchId,
+            recordedBy: admin.id,
+            voidedAt: voided ? new Date() : null,
+            voidedBy: voided ? admin.id : null,
+            voidReason: voided ? "test seed" : null,
+          }),
+        )
         .$returningId();
-      await app.db.insert(schema.transactionLinks).values({
-        transactionId: txRes.id,
-        targetKind: "subscription",
-        targetId: subId,
-        allocatedAmount: amount,
-      });
+      await app.db.insert(schema.transactionLinks).values(
+        tenantValues(TEMPLO_CTX, {
+          transactionId: txRes.id,
+          targetKind: "subscription",
+          targetId: subId,
+          allocatedAmount: amount,
+        }),
+      );
       return txRes.id;
     }
 
@@ -679,13 +702,17 @@ describe("Subscriptions API — Lifecycle", () => {
         .from(schema.transactionLinks)
         .innerJoin(
           schema.financialTransactions,
-          eq(
-            schema.transactionLinks.transactionId,
-            schema.financialTransactions.id,
+          and(
+            tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+            eq(
+              schema.transactionLinks.transactionId,
+              schema.financialTransactions.id,
+            ),
           ),
         )
         .where(
           and(
+            tenantWhere(schema.transactionLinks, TEMPLO_CTX),
             eq(schema.transactionLinks.targetKind, "subscription"),
             eq(schema.transactionLinks.targetId, subId),
           ),
@@ -698,7 +725,12 @@ describe("Subscriptions API — Lifecycle", () => {
             voidedBy: admin.id,
             voidReason: "test setup — pre-void",
           })
-          .where(eq(schema.financialTransactions.id, t.id));
+          .where(
+            and(
+              tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+              eq(schema.financialTransactions.id, t.id),
+            ),
+          );
       }
 
       const res = await app.inject({
@@ -794,6 +826,7 @@ describe("Subscriptions API — Lifecycle", () => {
         .from(schema.balances)
         .where(
           and(
+            tenantWhere(schema.balances, TEMPLO_CTX),
             eq(schema.balances.memberId, member.id),
             eq(schema.balances.targetKind, "subscription"),
             eq(schema.balances.targetId, subId),
@@ -816,6 +849,7 @@ describe("Subscriptions API — Lifecycle", () => {
         .from(schema.balances)
         .where(
           and(
+            tenantWhere(schema.balances, TEMPLO_CTX),
             eq(schema.balances.memberId, member.id),
             eq(schema.balances.targetKind, "subscription"),
             eq(schema.balances.targetId, subId),
@@ -845,6 +879,7 @@ describe("Subscriptions API — Lifecycle", () => {
         .set({ amount: -25000 })
         .where(
           and(
+            tenantWhere(schema.balances, TEMPLO_CTX),
             eq(schema.balances.memberId, member.id),
             eq(schema.balances.targetKind, "subscription"),
             eq(schema.balances.targetId, subId),
@@ -864,6 +899,7 @@ describe("Subscriptions API — Lifecycle", () => {
         .from(schema.balances)
         .where(
           and(
+            tenantWhere(schema.balances, TEMPLO_CTX),
             eq(schema.balances.memberId, member.id),
             eq(schema.balances.targetKind, "subscription"),
             eq(schema.balances.targetId, subId),
