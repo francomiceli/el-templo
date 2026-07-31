@@ -357,10 +357,6 @@
     },
     {
       "file": "el-templo-api/src/modules/analytics/advanced-finance-service.ts",
-      "table": "financial_transactions"
-    },
-    {
-      "file": "el-templo-api/src/modules/analytics/advanced-finance-service.ts",
       "table": "subscriptions"
     },
     {
@@ -505,19 +501,11 @@
     },
     {
       "file": "el-templo-api/src/modules/analytics/ltv-service.ts",
-      "table": "financial_transactions"
-    },
-    {
-      "file": "el-templo-api/src/modules/analytics/ltv-service.ts",
       "table": "subscription_plans"
     },
     {
       "file": "el-templo-api/src/modules/analytics/ltv-service.ts",
       "table": "subscriptions"
-    },
-    {
-      "file": "el-templo-api/src/modules/analytics/ltv-service.ts",
-      "table": "users"
     },
     {
       "file": "el-templo-api/src/modules/analytics/member-flows-service.ts",
@@ -569,19 +557,11 @@
     },
     {
       "file": "el-templo-api/src/modules/analytics/service.ts",
-      "table": "balances"
-    },
-    {
-      "file": "el-templo-api/src/modules/analytics/service.ts",
       "table": "bookings"
     },
     {
       "file": "el-templo-api/src/modules/analytics/service.ts",
       "table": "branches"
-    },
-    {
-      "file": "el-templo-api/src/modules/analytics/service.ts",
-      "table": "financial_transactions"
     },
     {
       "file": "el-templo-api/src/modules/analytics/service.ts",
@@ -606,22 +586,6 @@
     {
       "file": "el-templo-api/src/modules/analytics/ticket-service.ts",
       "table": "branches"
-    },
-    {
-      "file": "el-templo-api/src/modules/analytics/ticket-service.ts",
-      "table": "financial_transactions"
-    },
-    {
-      "file": "el-templo-api/src/modules/analytics/ticket-service.ts",
-      "table": "subscription_plans"
-    },
-    {
-      "file": "el-templo-api/src/modules/analytics/ticket-service.ts",
-      "table": "subscriptions"
-    },
-    {
-      "file": "el-templo-api/src/modules/analytics/ticket-service.ts",
-      "table": "transaction_links"
     },
     {
       "file": "el-templo-api/src/modules/analytics/trial-funnel-service.ts",
@@ -812,14 +776,6 @@
       "table": "check_in_responses"
     },
     {
-      "file": "el-templo-api/src/modules/coach/service.ts",
-      "table": "balances"
-    },
-    {
-      "file": "el-templo-api/src/modules/coach/service.ts",
-      "table": "users"
-    },
-    {
       "file": "el-templo-api/src/modules/exercise-adjustments/coach-service.ts",
       "table": "exercise_adjustments"
     },
@@ -834,122 +790,6 @@
     {
       "file": "el-templo-api/src/modules/exercise-adjustments/service.ts",
       "table": "exercises"
-    },
-    {
-      "file": "el-templo-api/src/modules/finance/balance-service.ts",
-      "table": "balances"
-    },
-    {
-      "file": "el-templo-api/src/modules/finance/balance-service.ts",
-      "table": "debt_management"
-    },
-    {
-      "file": "el-templo-api/src/modules/finance/balance-service.ts",
-      "table": "subscriptions"
-    },
-    {
-      "file": "el-templo-api/src/modules/finance/balance-service.ts",
-      "table": "users"
-    },
-    {
-      "file": "el-templo-api/src/modules/finance/cash-register-service.ts",
-      "table": "branches"
-    },
-    {
-      "file": "el-templo-api/src/modules/finance/cash-register-service.ts",
-      "table": "cash_registers"
-    },
-    {
-      "file": "el-templo-api/src/modules/finance/cash-register-service.ts",
-      "table": "cost_centers"
-    },
-    {
-      "file": "el-templo-api/src/modules/finance/cash-register-service.ts",
-      "table": "financial_transactions"
-    },
-    {
-      "file": "el-templo-api/src/modules/finance/coach-load-routes.ts",
-      "table": "branches"
-    },
-    {
-      "file": "el-templo-api/src/modules/finance/coach-load-routes.ts",
-      "table": "subscription_plans"
-    },
-    {
-      "file": "el-templo-api/src/modules/finance/coach-load-routes.ts",
-      "table": "subscriptions"
-    },
-    {
-      "file": "el-templo-api/src/modules/finance/coach-load-routes.ts",
-      "table": "users"
-    },
-    {
-      "file": "el-templo-api/src/modules/finance/movement-service.ts",
-      "table": "cash_registers"
-    },
-    {
-      "file": "el-templo-api/src/modules/finance/movement-service.ts",
-      "table": "cost_centers"
-    },
-    {
-      "file": "el-templo-api/src/modules/finance/movement-service.ts",
-      "table": "transaction_links"
-    },
-    {
-      "file": "el-templo-api/src/modules/finance/routes.ts",
-      "table": "branches"
-    },
-    {
-      "file": "el-templo-api/src/modules/finance/routes.ts",
-      "table": "cash_registers"
-    },
-    {
-      "file": "el-templo-api/src/modules/finance/routes.ts",
-      "table": "financial_transactions"
-    },
-    {
-      "file": "el-templo-api/src/modules/finance/transaction-service.ts",
-      "table": "balances"
-    },
-    {
-      "file": "el-templo-api/src/modules/finance/transaction-service.ts",
-      "table": "branches"
-    },
-    {
-      "file": "el-templo-api/src/modules/finance/transaction-service.ts",
-      "table": "cash_registers"
-    },
-    {
-      "file": "el-templo-api/src/modules/finance/transaction-service.ts",
-      "table": "cost_centers"
-    },
-    {
-      "file": "el-templo-api/src/modules/finance/transaction-service.ts",
-      "table": "financial_transactions"
-    },
-    {
-      "file": "el-templo-api/src/modules/finance/transaction-service.ts",
-      "table": "program_enrollments"
-    },
-    {
-      "file": "el-templo-api/src/modules/finance/transaction-service.ts",
-      "table": "subscription_plans"
-    },
-    {
-      "file": "el-templo-api/src/modules/finance/transaction-service.ts",
-      "table": "subscriptions"
-    },
-    {
-      "file": "el-templo-api/src/modules/finance/transaction-service.ts",
-      "table": "transaction_links"
-    },
-    {
-      "file": "el-templo-api/src/modules/finance/transaction-service.ts",
-      "table": "user_status_history"
-    },
-    {
-      "file": "el-templo-api/src/modules/finance/transaction-service.ts",
-      "table": "users"
     },
     {
       "file": "el-templo-api/src/modules/franchise/service.ts",
@@ -1046,10 +886,6 @@
     {
       "file": "el-templo-api/src/modules/members/service.ts",
       "table": "attendance"
-    },
-    {
-      "file": "el-templo-api/src/modules/members/service.ts",
-      "table": "balances"
     },
     {
       "file": "el-templo-api/src/modules/members/service.ts",
@@ -1301,10 +1137,6 @@
     },
     {
       "file": "el-templo-api/src/modules/reports/service.ts",
-      "table": "balances"
-    },
-    {
-      "file": "el-templo-api/src/modules/reports/service.ts",
       "table": "bookings"
     },
     {
@@ -1317,14 +1149,6 @@
     },
     {
       "file": "el-templo-api/src/modules/reports/service.ts",
-      "table": "debt_management"
-    },
-    {
-      "file": "el-templo-api/src/modules/reports/service.ts",
-      "table": "financial_transactions"
-    },
-    {
-      "file": "el-templo-api/src/modules/reports/service.ts",
       "table": "schedules"
     },
     {
@@ -1334,10 +1158,6 @@
     {
       "file": "el-templo-api/src/modules/reports/service.ts",
       "table": "subscriptions"
-    },
-    {
-      "file": "el-templo-api/src/modules/reports/service.ts",
-      "table": "transaction_links"
     },
     {
       "file": "el-templo-api/src/modules/reports/service.ts",
@@ -1745,19 +1565,11 @@
     },
     {
       "file": "el-templo-api/src/modules/subscriptions/service.ts",
-      "table": "balances"
-    },
-    {
-      "file": "el-templo-api/src/modules/subscriptions/service.ts",
       "table": "bookings"
     },
     {
       "file": "el-templo-api/src/modules/subscriptions/service.ts",
       "table": "branches"
-    },
-    {
-      "file": "el-templo-api/src/modules/subscriptions/service.ts",
-      "table": "financial_transactions"
     },
     {
       "file": "el-templo-api/src/modules/subscriptions/service.ts",
@@ -1794,10 +1606,6 @@
     {
       "file": "el-templo-api/src/modules/subscriptions/service.ts",
       "table": "subscriptions"
-    },
-    {
-      "file": "el-templo-api/src/modules/subscriptions/service.ts",
-      "table": "transaction_links"
     },
     {
       "file": "el-templo-api/src/modules/subscriptions/service.ts",
@@ -1989,23 +1797,11 @@
     },
     {
       "file": "el-templo-api/src/scripts/backfill-historical-payments.ts",
-      "table": "balances"
-    },
-    {
-      "file": "el-templo-api/src/scripts/backfill-historical-payments.ts",
       "table": "branches"
     },
     {
       "file": "el-templo-api/src/scripts/backfill-historical-payments.ts",
-      "table": "financial_transactions"
-    },
-    {
-      "file": "el-templo-api/src/scripts/backfill-historical-payments.ts",
       "table": "subscriptions"
-    },
-    {
-      "file": "el-templo-api/src/scripts/backfill-historical-payments.ts",
-      "table": "transaction_links"
     },
     {
       "file": "el-templo-api/src/scripts/backfill-historical-payments.ts",
