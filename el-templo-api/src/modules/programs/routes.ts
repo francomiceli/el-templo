@@ -22,6 +22,7 @@ import {
 } from "../finance";
 import { handleServiceError } from "../shared/error-handler";
 import { assertTenant } from "../shared/tenant";
+import { attachCountryScope } from "../shared/country-scope";
 import { auditLog } from "../shared/audit-log";
 import {
   PROGRAMAS_ROLES,
@@ -432,6 +433,15 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       try {
+        // 172-15: el modulo `programs` NO monta `attachCountryScope` en un hook
+        // (cada ruta se registra con `onRequest: [fastify.authenticate]` a
+        // secas), asi que `request.scope` llega `undefined` y el
+        // `assertTenant` de abajo tiraba un TypeError en vez de su 403 —
+        // `handleServiceError` lo mapeaba a 500 y la ruta quedaba caida para
+        // todo request con suscripcion activa. Se resuelve el scope aca, que
+        // es el mismo patron per-ruta de `campaigns/routes.ts:181`.
+        await attachCountryScope(request, fastify.db);
+
         // Resolve the user's active|paused sub id BEFORE delegating to
         // EnrollmentService — duplicates the D-11 check on purpose so the
         // structured 4xx body is emitted consistently regardless of whether
