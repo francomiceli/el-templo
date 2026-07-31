@@ -24,12 +24,17 @@ import { CashRegisterService } from "../../src/modules/finance/cash-register-ser
 import { TransactionService } from "../../src/modules/finance/transaction-service";
 import { BalanceService } from "../../src/modules/finance/balance-service";
 import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
 
 /**
  * Fase 172 (ADO-01 / T-172-08-04): gimnasio de los call sites DIRECTOS al
  * service. Sale del fixture, nunca de un `1` a mano. Una sola constante y no
  * el objeto literal repetido en cada llamada: el dia que un caso ejercite
  * dos gimnasios, el segundo se agrega al lado y se ve la diferencia.
+ *
+ * Fase 172 (172-13): el mismo ctx filtra y estampa las queries DIRECTAS de este
+ * archivo sobre `cost_centers`, `cash_registers`, `financial_transactions` y
+ * `transaction_links` — cuatro de las seis tablas strict.
  */
 const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
@@ -46,14 +51,16 @@ const CUTOFF = "2020-01-01"; // well before "today" so the expense counts
 const seededCajaIds: number[] = [];
 
 async function newCaja(opening = 0): Promise<number> {
-  const [caja] = await app.db.insert(schema.cashRegisters).values({
-    name: `CC-Test ${Date.now()}-${Math.random()}`,
-    type: "efectivo",
-    branchId: arsBranchId,
-    currency: "ARS",
-    openingBalance: opening,
-    cutoffDate: CUTOFF,
-  });
+  const [caja] = await app.db.insert(schema.cashRegisters).values(
+    tenantValues(TEMPLO_CTX, {
+      name: `CC-Test ${Date.now()}-${Math.random()}`,
+      type: "efectivo",
+      branchId: arsBranchId,
+      currency: "ARS",
+      openingBalance: opening,
+      cutoffDate: CUTOFF,
+    }),
+  );
   const id = Number(caja.insertId);
   seededCajaIds.push(id);
   return id;
@@ -84,6 +91,7 @@ beforeAll(async () => {
     .from(schema.costCenters)
     .where(
       and(
+        tenantWhere(schema.costCenters, TEMPLO_CTX),
         eq(schema.costCenters.country, "AR"),
         eq(schema.costCenters.isActive, true),
       ),
@@ -94,7 +102,7 @@ beforeAll(async () => {
   } else {
     const [created] = await app.db
       .insert(schema.costCenters)
-      .values({ name: "Varios", country: "AR" });
+      .values(tenantValues(TEMPLO_CTX, { name: "Varios", country: "AR" }));
     arCostCenterId = Number(created.insertId);
   }
 
@@ -144,20 +152,38 @@ afterAll(async () => {
       .select({ id: schema.financialTransactions.id })
       .from(schema.financialTransactions)
       .where(
-        inArray(schema.financialTransactions.cashRegisterId, seededCajaIds),
+        and(
+          tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+          inArray(schema.financialTransactions.cashRegisterId, seededCajaIds),
+        ),
       );
     const txIds = txRows.map((r) => r.id);
     if (txIds.length > 0) {
       await app.db
         .delete(schema.transactionLinks)
-        .where(inArray(schema.transactionLinks.transactionId, txIds));
+        .where(
+          and(
+            tenantWhere(schema.transactionLinks, TEMPLO_CTX),
+            inArray(schema.transactionLinks.transactionId, txIds),
+          ),
+        );
       await app.db
         .delete(schema.financialTransactions)
-        .where(inArray(schema.financialTransactions.id, txIds));
+        .where(
+          and(
+            tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+            inArray(schema.financialTransactions.id, txIds),
+          ),
+        );
     }
     await app.db
       .delete(schema.cashRegisters)
-      .where(inArray(schema.cashRegisters.id, seededCajaIds));
+      .where(
+        and(
+          tenantWhere(schema.cashRegisters, TEMPLO_CTX),
+          inArray(schema.cashRegisters.id, seededCajaIds),
+        ),
+      );
   }
   await app.close();
 });
@@ -234,14 +260,22 @@ describe("Phase 147: cost centers", () => {
     });
 
     it("rejects an expense with an INACTIVE costCenterId (400, service)", async () => {
-      const [inactive] = await app.db
-        .insert(schema.costCenters)
-        .values({ name: `CC-Inactive ${Date.now()}`, country: "AR" });
+      const [inactive] = await app.db.insert(schema.costCenters).values(
+        tenantValues(TEMPLO_CTX, {
+          name: `CC-Inactive ${Date.now()}`,
+          country: "AR",
+        }),
+      );
       const inactiveId = Number(inactive.insertId);
       await app.db
         .update(schema.costCenters)
         .set({ isActive: false })
-        .where(eq(schema.costCenters.id, inactiveId));
+        .where(
+          and(
+            tenantWhere(schema.costCenters, TEMPLO_CTX),
+            eq(schema.costCenters.id, inactiveId),
+          ),
+        );
 
       const res = await app.inject({
         method: "POST",
@@ -253,7 +287,12 @@ describe("Phase 147: cost centers", () => {
 
       await app.db
         .delete(schema.costCenters)
-        .where(eq(schema.costCenters.id, inactiveId));
+        .where(
+          and(
+            tenantWhere(schema.costCenters, TEMPLO_CTX),
+            eq(schema.costCenters.id, inactiveId),
+          ),
+        );
     });
 
     it("accepts a valid AR cost center (201) and persists cost_center_id", async () => {
@@ -280,7 +319,12 @@ describe("Phase 147: cost centers", () => {
           costCenterId: schema.financialTransactions.costCenterId,
         })
         .from(schema.financialTransactions)
-        .where(eq(schema.financialTransactions.id, expenseTxId));
+        .where(
+          and(
+            tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+            eq(schema.financialTransactions.id, expenseTxId),
+          ),
+        );
       expect(row.kind).toBe("expense");
       expect(row.costCenterId).toBe(arCostCenterId);
     });
@@ -317,7 +361,12 @@ describe("Phase 147: cost centers", () => {
       const [center] = await app.db
         .select({ name: schema.costCenters.name })
         .from(schema.costCenters)
-        .where(eq(schema.costCenters.id, arCostCenterId));
+        .where(
+          and(
+            tenantWhere(schema.costCenters, TEMPLO_CTX),
+            eq(schema.costCenters.id, arCostCenterId),
+          ),
+        );
       expect(expenseRow?.costCenterName).toBe(center.name);
     });
   });

@@ -21,9 +21,19 @@
 
 import { describe, it, beforeAll, afterAll, expect } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq, inArray } from "drizzle-orm";
+import { and, inArray } from "drizzle-orm";
 import { createTestApp, getAuthToken, createStaffUser } from "../helpers";
 import * as schema from "../../src/db/schema";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
+
+/**
+ * Fase 172 (172-13): gimnasio de las queries DIRECTAS de este archivo. Sale del
+ * fixture, nunca de un `1` a mano. El sentinel de tenancy ve las queries de los
+ * tests igual que las de la app —comparten el pool—, asi que con `finance` en
+ * `TENANT_STRICT_MODULES` un acceso sin filtro/estampa hace throw.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 let app: FastifyInstance;
 let ownerToken: string;
@@ -70,14 +80,16 @@ beforeAll(async () => {
     .values({ name: "ABM-Test AR", code: `ABM${Date.now() % 100000}` });
   arsBranchId = Number(branch.insertId);
 
-  const [caja] = await app.db.insert(schema.cashRegisters).values({
-    name: `ABM-Caja ${Date.now()}`,
-    type: "efectivo",
-    branchId: arsBranchId,
-    currency: "ARS",
-    openingBalance: 1000,
-    cutoffDate: CUTOFF,
-  });
+  const [caja] = await app.db.insert(schema.cashRegisters).values(
+    tenantValues(TEMPLO_CTX, {
+      name: `ABM-Caja ${Date.now()}`,
+      type: "efectivo",
+      branchId: arsBranchId,
+      currency: "ARS",
+      openingBalance: 1000,
+      cutoffDate: CUTOFF,
+    }),
+  );
   cajaId = Number(caja.insertId);
   seededCajaIds.push(cajaId);
 
@@ -124,25 +136,48 @@ afterAll(async () => {
       .select({ id: schema.financialTransactions.id })
       .from(schema.financialTransactions)
       .where(
-        inArray(schema.financialTransactions.cashRegisterId, seededCajaIds),
+        and(
+          tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+          inArray(schema.financialTransactions.cashRegisterId, seededCajaIds),
+        ),
       );
     const txIds = txRows.map((r) => r.id);
     if (txIds.length > 0) {
       await app.db
         .delete(schema.transactionLinks)
-        .where(inArray(schema.transactionLinks.transactionId, txIds));
+        .where(
+          and(
+            tenantWhere(schema.transactionLinks, TEMPLO_CTX),
+            inArray(schema.transactionLinks.transactionId, txIds),
+          ),
+        );
       await app.db
         .delete(schema.financialTransactions)
-        .where(inArray(schema.financialTransactions.id, txIds));
+        .where(
+          and(
+            tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+            inArray(schema.financialTransactions.id, txIds),
+          ),
+        );
     }
     await app.db
       .delete(schema.cashRegisters)
-      .where(inArray(schema.cashRegisters.id, seededCajaIds));
+      .where(
+        and(
+          tenantWhere(schema.cashRegisters, TEMPLO_CTX),
+          inArray(schema.cashRegisters.id, seededCajaIds),
+        ),
+      );
   }
   if (createdCenterIds.length > 0) {
     await app.db
       .delete(schema.costCenters)
-      .where(inArray(schema.costCenters.id, createdCenterIds));
+      .where(
+        and(
+          tenantWhere(schema.costCenters, TEMPLO_CTX),
+          inArray(schema.costCenters.id, createdCenterIds),
+        ),
+      );
   }
   await app.close();
 });

@@ -29,12 +29,18 @@ import { EnrollmentService } from "../../src/modules/programs/enrollment-service
 import { BadRequestError } from "../../src/modules/shared/errors";
 import * as schema from "../../src/db/schema";
 import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
 
 /**
  * Fase 172 (ADO-01 / T-172-08-04): gimnasio de los call sites DIRECTOS al
  * service. Sale del fixture, nunca de un `1` a mano. Una sola constante y no
  * el objeto literal repetido en cada llamada: el dia que un caso ejercite
  * dos gimnasios, el segundo se agrega al lado y se ve la diferencia.
+ *
+ * Fase 172 (172-13): el mismo ctx filtra y estampa las queries DIRECTAS. Ojo
+ * con los tres `sql` crudos del `beforeEach`: en SQL a mano el gimnasio va
+ * escrito en el predicado (`WHERE tenant_id = ${TENANT_TEMPLO}`), que es la
+ * convencion de `shared/tenant.ts` y lo que el sentinel busca en el texto.
  */
 const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
@@ -135,7 +141,12 @@ async function readTx(id: number): Promise<{
       validatedAt: schema.financialTransactions.validatedAt,
     })
     .from(schema.financialTransactions)
-    .where(eq(schema.financialTransactions.id, id))
+    .where(
+      and(
+        tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+        eq(schema.financialTransactions.id, id),
+      ),
+    )
     .limit(1);
   return row;
 }
@@ -241,7 +252,12 @@ beforeAll(async () => {
   const [galicia] = await app.db
     .select({ id: schema.cashRegisters.id })
     .from(schema.cashRegisters)
-    .where(eq(schema.cashRegisters.name, "Galicia"))
+    .where(
+      and(
+        tenantWhere(schema.cashRegisters, TEMPLO_CTX),
+        eq(schema.cashRegisters.name, "Galicia"),
+      ),
+    )
     .limit(1);
   galiciaCajaId = galicia.id;
 
@@ -251,6 +267,7 @@ beforeAll(async () => {
     .from(schema.cashRegisters)
     .where(
       and(
+        tenantWhere(schema.cashRegisters, TEMPLO_CTX),
         eq(schema.cashRegisters.type, "banco"),
         eq(schema.cashRegisters.currency, "EUR"),
       ),
@@ -261,15 +278,17 @@ beforeAll(async () => {
   // Una caja banco ARS INACTIVA — para el guard de caja inactiva.
   const [inactive] = await app.db
     .insert(schema.cashRegisters)
-    .values({
-      name: "Banco ARS Inactiva (test)",
-      type: "banco",
-      branchId: null,
-      currency: "ARS",
-      openingBalance: 0,
-      cutoffDate: "2020-01-01",
-      isActive: false,
-    })
+    .values(
+      tenantValues(TEMPLO_CTX, {
+        name: "Banco ARS Inactiva (test)",
+        type: "banco",
+        branchId: null,
+        currency: "ARS",
+        openingBalance: 0,
+        cutoffDate: "2020-01-01",
+        isActive: false,
+      }),
+    )
     .$returningId();
   inactiveCajaId = inactive.id;
 });
@@ -279,9 +298,20 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
-  await app.db.execute(sql`DELETE FROM transaction_links`);
-  await app.db.execute(sql`DELETE FROM financial_transactions`);
-  await app.db.execute(sql`DELETE FROM balances`);
+  // El gimnasio va ESCRITO en el predicado: es la convencion de `sql` crudo de
+  // `shared/tenant.ts` y es lo que el sentinel busca en el texto del statement.
+  // Acotar el borrado a El Templo ademas es mas seguro que el DELETE global que
+  // habia antes: este archivo no siembra en otro gimnasio, y si algun dia un
+  // fixture lo hiciera, este beforeEach ya no se lo llevaria puesto.
+  await app.db.execute(
+    sql`DELETE FROM transaction_links WHERE tenant_id = ${TENANT_TEMPLO}`,
+  );
+  await app.db.execute(
+    sql`DELETE FROM financial_transactions WHERE tenant_id = ${TENANT_TEMPLO}`,
+  );
+  await app.db.execute(
+    sql`DELETE FROM balances WHERE tenant_id = ${TENANT_TEMPLO}`,
+  );
   await app.db.execute(sql`DELETE FROM audit_log`);
   subscriptionId = await seedSubscription();
 });
@@ -534,13 +564,15 @@ describe("primitivos plan 03: voidInTx + listPendingMiscForMember", () => {
 
   it("voidInTx anula la fila dentro de la tx del caller y revierte el balance", async () => {
     // Saldo del socio: debe 1000 por la subscripcion.
-    await app.db.insert(schema.balances).values({
-      memberId,
-      targetKind: "subscription",
-      targetId: subscriptionId,
-      currency: "ARS",
-      amount: 1000,
-    });
+    await app.db.insert(schema.balances).values(
+      tenantValues(TEMPLO_CTX, {
+        memberId,
+        targetKind: "subscription",
+        targetId: subscriptionId,
+        currency: "ARS",
+        amount: 1000,
+      }),
+    );
     // Cobro que salda la deuda (balance → 0).
     const tx = await txService.create(
       TEMPLO_CTX,
@@ -552,6 +584,7 @@ describe("primitivos plan 03: voidInTx + listPendingMiscForMember", () => {
       .from(schema.balances)
       .where(
         and(
+          tenantWhere(schema.balances, TEMPLO_CTX),
           eq(schema.balances.targetKind, "subscription"),
           eq(schema.balances.targetId, subscriptionId),
         ),
@@ -572,6 +605,7 @@ describe("primitivos plan 03: voidInTx + listPendingMiscForMember", () => {
       .from(schema.balances)
       .where(
         and(
+          tenantWhere(schema.balances, TEMPLO_CTX),
           eq(schema.balances.targetKind, "subscription"),
           eq(schema.balances.targetId, subscriptionId),
         ),

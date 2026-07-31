@@ -25,6 +25,17 @@ import type { FastifyInstance } from "fastify";
 import { eq, inArray, and } from "drizzle-orm";
 import { createTestApp, getAuthToken, createStaffUser } from "../helpers";
 import * as schema from "../../src/db/schema";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+import { tenantWhere } from "../../src/modules/shared/tenant";
+
+/**
+ * Fase 172 (172-13): gimnasio de las queries DIRECTAS de este archivo. Sale del
+ * fixture, nunca de un `1` a mano. Las cuentas y cajas que este archivo crea
+ * nacen por la API (que ya estampa el gimnasio del staff): lo que hay que
+ * filtrar aca son las tres lecturas/borrados directos sobre `cash_registers` y
+ * `cost_centers`, tablas strict desde esta fase.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 let app: FastifyInstance;
 let ownerToken: string;
@@ -116,7 +127,12 @@ afterAll(async () => {
   if (createdAccountIds.length > 0) {
     await app.db
       .delete(schema.cashRegisters)
-      .where(inArray(schema.cashRegisters.id, createdAccountIds));
+      .where(
+        and(
+          tenantWhere(schema.cashRegisters, TEMPLO_CTX),
+          inArray(schema.cashRegisters.id, createdAccountIds),
+        ),
+      );
   }
   await app.close();
 });
@@ -389,6 +405,7 @@ describe("Phase 150: ABM de cuentas bancarias", () => {
         .from(schema.costCenters)
         .where(
           and(
+            tenantWhere(schema.costCenters, TEMPLO_CTX),
             eq(schema.costCenters.name, "Retiros"),
             eq(schema.costCenters.country, "AR"),
           ),
@@ -576,6 +593,7 @@ describe("Phase 150: ABM de cuentas bancarias", () => {
         .from(schema.cashRegisters)
         .where(
           and(
+            tenantWhere(schema.cashRegisters, TEMPLO_CTX),
             eq(schema.cashRegisters.type, "efectivo"),
             eq(schema.cashRegisters.branchId, sucursal),
             eq(schema.cashRegisters.isActive, true),
