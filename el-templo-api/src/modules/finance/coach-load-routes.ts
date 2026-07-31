@@ -283,17 +283,33 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
   // users.branchId with the virtual "Templo Online" fallback (mirror of
   // renewSubscription's renewBranchId resolution). Es el DEFAULT de la sede del
   // cobro cuando el body no trae `branchId` (select de Sede sin tocar).
-  const resolveUserBranchId = async (userId: number): Promise<number> => {
+  //
+  // Fase 172 (ADO-01): `ctx` PRIMERO. El `userId` llega del body/params, así que
+  // sin filtro un socio de OTRO gimnasio resolvía su sede y el cobro nacía con
+  // ella (T-172-11-02). Con el filtro la fila ajena no matchea y cae en el
+  // fallback "Templo Online" DEL PROPIO gimnasio — el guard de sede aguas abajo
+  // (requireBranchAccess / create) es el que corta, sin filtrar existencia.
+  const resolveUserBranchId = async (
+    ctx: TenantContext,
+    userId: number,
+  ): Promise<number> => {
     const [branchRow] = await fastify.db
       .select({ branchId: schema.users.branchId })
       .from(schema.users)
-      .where(eq(schema.users.id, userId))
+      .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)))
       .limit(1);
     if (branchRow?.branchId) return branchRow.branchId;
     const [virtualBranch] = await fastify.db
       .select({ id: schema.branches.id })
       .from(schema.branches)
-      .where(eq(schema.branches.name, "Templo Online"))
+      // La sede virtual es POR gimnasio: sin el filtro, el fallback devolvía la
+      // "Templo Online" del primer gimnasio que la tuviera, no la del cobro.
+      .where(
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.name, "Templo Online"),
+        ),
+      )
       .limit(1);
     if (!virtualBranch) {
       throw new Error(
@@ -307,8 +323,10 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
   // Es el branch_id del ledger/charge Y la sede desde la que create() resuelve la
   // caja de efectivo cuando el body no manda un `branchId` explícito (el select de
   // Sede de la PoS). El operador puede overridear con `body.branchId`.
-  const resolveMemberBranchId = (memberId: number): Promise<number> =>
-    resolveUserBranchId(memberId);
+  const resolveMemberBranchId = (
+    ctx: TenantContext,
+    memberId: number,
+  ): Promise<number> => resolveUserBranchId(ctx, memberId);
 
   // ── Phase 151 (COBRO-04 / T-151-01): guard compartido de cuenta banco ──
   // Mueve la imputación al punto de venta sin romper el invariante v5.3: el body
@@ -359,12 +377,19 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
   // COBRO-04: moneda del cobro de renovación = la de la sub renovable (active gana
   // sobre expired, igual que renewSubscription's currentSub). Se resuelve en la
   // ruta para validar la cuenta banco elegida ANTES de delegar en renewSubscription.
-  const resolveRenewCurrency = async (userId: number): Promise<string> => {
+  // Fase 172 (ADO-01): `ctx` PRIMERO. Sin el filtro, la moneda con la que se
+  // valida la cuenta banco del cobro podía salir de la suscripción de un socio de
+  // otro gimnasio (T-172-11-02).
+  const resolveRenewCurrency = async (
+    ctx: TenantContext,
+    userId: number,
+  ): Promise<string> => {
     const [row] = await fastify.db
       .select({ currency: schema.subscriptions.currency })
       .from(schema.subscriptions)
       .where(
         and(
+          tenantWhere(schema.subscriptions, ctx),
           eq(schema.subscriptions.userId, userId),
           or(
             eq(schema.subscriptions.status, "active"),
@@ -386,11 +411,22 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
   // COBRO-04: moneda del cobro del alta = la del plan elegido (assignPlan usa
   // plan.currency). Se resuelve en la ruta para validar la cuenta banco antes de
   // delegar en assignPlan.
-  const resolvePlanCurrency = async (planId: number): Promise<string> => {
+  // Fase 172 (ADO-01): `ctx` PRIMERO. El `planId` llega del body del alta; sin el
+  // filtro, un plan de otro gimnasio existía para este guard y la validación de
+  // la cuenta banco se hacía contra SU moneda (T-172-11-02).
+  const resolvePlanCurrency = async (
+    ctx: TenantContext,
+    planId: number,
+  ): Promise<string> => {
     const [row] = await fastify.db
       .select({ currency: schema.subscriptionPlans.currency })
       .from(schema.subscriptionPlans)
-      .where(eq(schema.subscriptionPlans.id, planId))
+      .where(
+        and(
+          tenantWhere(schema.subscriptionPlans, ctx),
+          eq(schema.subscriptionPlans.id, planId),
+        ),
+      )
       .limit(1);
     if (!row) {
       throw new NotFoundError("Plan no encontrado");
@@ -479,7 +515,7 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
           // default, la del socio. Es el branch_id del ledger Y la sede desde la
           // que create() resuelve la caja de efectivo.
           const branchId =
-            chosenBranchId ?? (await resolveMemberBranchId(userId));
+            chosenBranchId ?? (await resolveMemberBranchId(ctx, userId));
           // COBRO-04: cuenta banco elegida en la PoS (transfer/card) → imputación
           // directa del charge. Para cash queda undefined → create resuelve la
           // caja EFECTIVO desde `branchId` (la sede del cobro).
@@ -545,7 +581,7 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
           ctx,
           paymentMethod,
           bankAccountId,
-          () => resolveRenewCurrency(userId),
+          () => resolveRenewCurrency(ctx, userId),
         );
         const subscription = await subscriptionService.renewSubscription(
           ctx,
@@ -624,7 +660,7 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
         // create() resuelve la caja de efectivo.
         const branchId =
           request.body.branchId ??
-          (await resolveMemberBranchId(request.body.memberId));
+          (await resolveMemberBranchId(ctx, request.body.memberId));
         const currency = request.body.currency ?? "ARS";
         // COBRO-04: cuenta banco elegida en la PoS (transfer/card) → imputación
         // directa del charge. Para cash queda undefined → create resuelve la caja
@@ -748,7 +784,7 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
           ctx,
           body.paymentMethod,
           body.bankAccountId,
-          () => resolvePlanCurrency(body.planId),
+          () => resolvePlanCurrency(ctx, body.planId),
         );
 
         // ── (a) Resolver/crear alumno ───────────────────────────────────────
@@ -890,9 +926,14 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: autocompletarSchema },
     async (request, reply) => {
       try {
+        // Fase 172 (ADO-01): el ctx se resuelve UNA vez al tope del try (antes lo
+        // resolvía inline el `getRow` de más abajo) porque el resolver de sede lo
+        // necesita primero. Un solo assertTenant por handler, una sola etiqueta.
+        const ctx = assertTenant(request.scope, "coach-load.autocompletar");
         // CR-CAJA: sede DEFAULT del cobro = la del socio (users.branchId con
         // fallback Templo Online), para pre-seleccionar el select de Sede en la PoS.
         const memberBranchId = await resolveMemberBranchId(
+          ctx,
           request.params.userId,
         );
         const sub = await subscriptionService.getMemberSubscription(
@@ -911,7 +952,7 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
           });
         }
         const balanceRow = await balanceService.getRow(
-          assertTenant(request.scope, "finance.balances.autocompletar"),
+          ctx,
           request.params.userId,
           "subscription",
           sub.id,
