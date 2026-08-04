@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
-import { eq, isNull, isNotNull } from "drizzle-orm";
+import { eq, isNull, isNotNull, sql } from "drizzle-orm";
 import { createHash } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import { createTestApp, cleanAllTestData, registerUser } from "../helpers";
@@ -12,7 +12,9 @@ import * as schema from "../../src/db/schema";
  * Flujos cubiertos:
  *  - Refresh exitoso + rotación (Req 2,6): el viejo queda revoked_at + replaced_by_id
  *    apuntando al nuevo; el nuevo expira ≈ now+30d (sliding); el access nuevo pasa /me.
- *  - Reuse detection (Req 3): reusar un refresh ya rotado → 401 + toda la familia revocada.
+ *  - Reuse detection (Req 3): reusar un refresh ya rotado fuera de la ventana de
+ *    gracia → 401 + revocación de ESA cadena (no de las demás sesiones del user,
+ *    fix 2026-08-04); dentro de la gracia → 200, es un reintento de red.
  *  - Logout idempotente (Req 4, D-04): logout → 200; refresh post-logout → 401; segundo logout → 200.
  *  - Change-password (Req 12, D-01): revoca todos los refresh menos emite par nuevo para el device actual.
  *  - Delete-account (D-05): revoca todos los refresh del user tras el soft-delete.
@@ -174,35 +176,88 @@ describe("Refresh Tokens — integración (Phase 116 Req 14)", () => {
   // -------------------------------------------------------------------------
   // Reuse detection (Req 3)
   // -------------------------------------------------------------------------
-  it("reuse detection: reusar un refresh ya rotado → 401 y revoca la familia completa", async () => {
-    const session = await registerSession("reuse");
-    const tokenA = session.refreshToken;
+  /**
+   * Envejece el `revoked_at` de un token para sacarlo de la ventana de gracia
+   * sin fake timers: el servicio compara contra `Date.now()`, así que mover la
+   * fila hacia atrás es equivalente a esperar, y es determinista.
+   */
+  async function ageRevocation(plain: string, seconds: number): Promise<void> {
+    await app.db.execute(
+      sql`UPDATE refresh_tokens
+          SET revoked_at = DATE_SUB(NOW(), INTERVAL ${seconds} SECOND)
+          WHERE token_hash = ${hashToken(plain)}`,
+    );
+  }
 
-    // Primera rotación: A → B (A queda revocado).
-    const first = await refresh(tokenA);
+  it("replay fuera de la ventana de gracia → 401 y revoca SOLO la cadena de ese token", async () => {
+    const sessionA = await registerSession("reuse");
+    // Segunda sesión del MISMO user (el caso real: compu + celular).
+    const sessionB = await login(sessionA.email);
+
+    // Cadena A: A → A2 (A queda revocado).
+    const first = await refresh(sessionA.refreshToken);
     expect(first.statusCode).toBe(200);
+    const a2 = (JSON.parse(first.body) as RefreshResponseBody).refreshToken;
 
-    // Reusar A (ya rotado/revocado) → 401.
-    const replay = await refresh(tokenA);
+    // Sacamos A de la gracia: ahora sí es un replay.
+    await ageRevocation(sessionA.refreshToken, 60);
+
+    const replay = await refresh(sessionA.refreshToken);
     expect(replay.statusCode).toBe(401);
 
-    // Toda la familia del user quedó revocada (incluido B emitido en la rotación).
-    const active = await app.db
+    // La cadena comprometida muere entera: A2 tampoco sirve.
+    const a2After = await refresh(a2);
+    expect(a2After.statusCode).toBe(401);
+
+    // LO QUE IMPORTA (fix 2026-08-04): la OTRA sesión del mismo user sobrevive.
+    // Antes, revokeAllForUser la mataba y el usuario perdía todos sus devices.
+    const bAfter = await refresh(sessionB.refreshToken);
+    expect(bAfter.statusCode).toBe(200);
+  });
+
+  it("reintento dentro de la ventana de gracia → 200, sin abrir una sesión nueva", async () => {
+    const session = await registerSession("grace");
+
+    // El cliente rota A → B, pero la respuesta se pierde (timeout de red).
+    const first = await refresh(session.refreshToken);
+    expect(first.statusCode).toBe(200);
+
+    // Reintenta con A, lo único que tiene. Dentro de la gracia NO es robo.
+    const retry = await refresh(session.refreshToken);
+    expect(retry.statusCode).toBe(200);
+    const retryToken = (JSON.parse(retry.body) as RefreshResponseBody)
+      .refreshToken;
+
+    // El token servido funciona de verdad.
+    const again = await refresh(retryToken);
+    expect(again.statusCode).toBe(200);
+
+    // Y quedó UNA sola cadena viva, no dos sesiones paralelas.
+    const alive = await app.db
       .select()
       .from(schema.refreshTokens)
       .where(eq(schema.refreshTokens.userId, session.userId));
-    expect(active.length).toBeGreaterThan(0);
-    for (const row of active) {
-      expect(row.revokedAt).not.toBeNull();
+    expect(alive.filter((r) => r.revokedAt === null)).toHaveLength(1);
+  });
+
+  it("un replay repetido no puede tumbar las demás sesiones del user", async () => {
+    const sessionA = await registerSession("replayloop");
+    const sessionB = await login(sessionA.email);
+    const sessionC = await login(sessionA.email);
+
+    const first = await refresh(sessionA.refreshToken);
+    expect(first.statusCode).toBe(200);
+    await ageRevocation(sessionA.refreshToken, 60);
+
+    // Tres replays seguidos del token comprometido.
+    for (let i = 0; i < 3; i++) {
+      const replay = await refresh(sessionA.refreshToken);
+      expect(replay.statusCode).toBe(401);
     }
 
-    // Confirmación adicional: no queda ningún refresh activo (revoked_at IS NULL).
-    const stillActive = await app.db
-      .select()
-      .from(schema.refreshTokens)
-      .where(isNull(schema.refreshTokens.revokedAt));
-    const mine = stillActive.filter((r) => r.userId === session.userId);
-    expect(mine.length).toBe(0);
+    // B y C siguen intactas.
+    expect((await refresh(sessionB.refreshToken)).statusCode).toBe(200);
+    expect((await refresh(sessionC.refreshToken)).statusCode).toBe(200);
   });
 
   // -------------------------------------------------------------------------
