@@ -570,6 +570,7 @@ describe("Finance API — GET /transactions/summary revenueByKind (Phase 109)", 
       card: 0,
       aura_credit: 0,
       internal: 0,
+      direct_debit: 0,
     });
     expect(Array.isArray(body.revenueByBranch)).toBe(true);
     expect(body.revenueByBranch.length).toBeGreaterThanOrEqual(1);

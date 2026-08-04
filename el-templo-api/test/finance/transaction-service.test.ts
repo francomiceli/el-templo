@@ -1119,7 +1119,7 @@ describe("TransactionService.getSummary()", () => {
     return res.id;
   }
 
-  it("SUM1: returns shape { monthlyRevenue, revenueByMethod (5 keys), revenueByBranch }", async () => {
+  it("SUM1: returns shape { monthlyRevenue, revenueByMethod (6 keys), revenueByBranch }", async () => {
     await txService.create(baseInput({ amount: 1000 }), adminId);
     const result = await txService.getSummary({});
     expect(result).toHaveProperty("monthlyRevenue");
@@ -1131,6 +1131,7 @@ describe("TransactionService.getSummary()", () => {
       card: 0,
       aura_credit: 0,
       internal: 0,
+      direct_debit: 0,
     });
   });
 
@@ -1460,6 +1461,7 @@ describe("TransactionService.getSummary()", () => {
       card: 0,
       aura_credit: 3000,
       internal: 0,
+      direct_debit: 0,
     });
   });
 
