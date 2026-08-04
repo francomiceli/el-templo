@@ -62,7 +62,12 @@ patterns-established:
   - "Antes de aceptar el número de un plan, medirlo: 3 de los números heredados (372 rutas, 7 global, 90 entradas como si fuera el trabajo) resultaron ser otra cosa"
   - "Cruzar la lista de archivos violadores contra los files_modified de TODOS los planes de la fase caza huecos de planificación antes de que los cace CI"
 
-requirements-completed: [ADO-02]
+# ADO-02 NO se marca completo acá: este plan produce el inventario, no la
+# migración. ADO-02 ("`members` migrado al patrón completo") es cierto recién
+# después del switch del 173-30. El frontmatter del PLAN lo declaraba y el
+# handler lo marcó; se revirtió a mano.
+requirements-completed: []
+requirements-touched: [ADO-02]
 
 # Metrics
 duration: ~95min
