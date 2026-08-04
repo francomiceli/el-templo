@@ -115,6 +115,35 @@ describe("AdvancedFinanceService (Phase 118 Plan 03)", () => {
     });
   }
 
+  /**
+   * Mes de facturación aislado para el test de ARPU: el mes completo que empieza
+   * dentro de 3 meses.
+   *
+   * NO es cosmética. `makeActive` inserta una suscripción de hoy a hoy+30d, y el
+   * devengado se prorratea por día — así que si el mes elegido cae dentro de esa
+   * ventana, las subs de "activos" le suman devengado y el `toBe(20000)` se
+   * rompe. Con un mes fijo (era "2026-09") eso pasa SOLO en ciertos días del
+   * calendario: el 2026-08-02 el test empezó a fallar en todo push, con 22903 en
+   * vez de 20000 (los 2903 son 15000 × 3/31 × 2 subs), sin que nadie hubiera
+   * tocado analytics. A 3 meses de distancia ninguna ventana de 30 días llega.
+   */
+  function billingMonth(): { month: string; start: string; end: string } {
+    const now = new Date();
+    const first = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 3, 1),
+    );
+    // Día 0 del mes siguiente = último día del mes ancla.
+    const last = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 4, 0),
+    );
+    const iso = (d: Date): string => d.toISOString().split("T")[0];
+    return {
+      month: iso(first).slice(0, 7),
+      start: iso(first),
+      end: iso(last),
+    };
+  }
+
   async function insertTx(opts: {
     memberId: number;
     amount: number;
@@ -371,28 +400,30 @@ describe("AdvancedFinanceService (Phase 118 Plan 03)", () => {
       await makeActive(a1);
       await makeActive(a2);
 
-      // A separate single-month accrual sub for member a1 in a fixed month.
+      // A separate single-month accrual sub for member a1, in a month that
+      // `makeActive` NO puede tocar (ver billingMonth).
       const billed = await createMember("arpu-bill@test.com", "93000042");
+      const { month, start, end } = billingMonth();
       await insertSub({
         userId: billed,
-        startDate: "2026-09-01",
-        endDate: "2026-09-30",
+        startDate: start,
+        endDate: end,
         pricePaid: 20000,
         currency: "ARS",
       });
 
       const res = await svc.getAdvancedFinance({});
-      const sep = res.arpu.find((r) => r.month === "2026-09");
-      expect(sep).toBeDefined();
+      const target = res.arpu.find((r) => r.month === month);
+      expect(target).toBeDefined();
       // active count is 2 (the two makeActive members; billed sub is in the
       // future so its member is also active → 3). Compute denominator from
       // accrued / arpu relationship instead of hardcoding.
-      const sepAccrued = res.accruedTrend.find((r) => r.month === "2026-09");
-      expect(sepAccrued?.ARS).toBe(20000);
+      const targetAccrued = res.accruedTrend.find((r) => r.month === month);
+      expect(targetAccrued?.ARS).toBe(20000);
       // ARPU must be a positive integer share of the accrued amount.
-      expect(sep?.ARS).toBeGreaterThan(0);
-      expect(sep!.ARS).toBeLessThanOrEqual(20000);
-      expect(Number.isInteger(sep!.ARS)).toBe(true);
+      expect(target?.ARS).toBeGreaterThan(0);
+      expect(target!.ARS).toBeLessThanOrEqual(20000);
+      expect(Number.isInteger(target!.ARS)).toBe(true);
     });
 
     it("a month with accrual but 0 active members reports ARPU 0 (no div-by-zero)", async () => {
