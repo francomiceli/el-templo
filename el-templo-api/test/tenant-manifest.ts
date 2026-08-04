@@ -357,6 +357,10 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
     categoria: "tenant-scoped",
   },
   "POST /api/admin/members/:userId/notes": { categoria: "tenant-scoped" },
+  // Atribución retroactiva de referidor (fase 173). tenant-scoped: escribe en
+  // `referrals`, que es gym-owned — el INSERT toma el gimnasio de
+  // `assertTenant(request.scope)`, nunca del body.
+  "POST /api/admin/members/:userId/referrals": { categoria: "tenant-scoped" },
   "POST /api/admin/members/:userId/photo/upload-url": {
     categoria: "tenant-scoped",
   },

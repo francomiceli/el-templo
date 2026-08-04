@@ -7,7 +7,7 @@
  * All routes require authentication and coach/admin/owner/gestion role.
  */
 
-import { FastifyPluginAsync } from "fastify";
+import { FastifyPluginAsync, FastifyRequest } from "fastify";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
@@ -28,8 +28,11 @@ import { NotificationService } from "../notifications/service";
 import {
   BadRequestError,
   ConflictError,
+  ForbiddenError,
   NotFoundError,
+  ValidationError,
 } from "../shared/errors";
+import { assertTenant } from "../shared/tenant";
 import { EmailService } from "../email";
 import type {
   CreateMemberInput,
@@ -55,6 +58,7 @@ import {
   uploadPhotoUrlSchema,
   listNotesSchema,
   createNoteSchema,
+  assignReferrerSchema,
   updateNoteSchema,
   deleteNoteSchema,
   getMemberSessionLevelsSchema,
@@ -1657,73 +1661,105 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
     },
   );
 
+  /**
+   * Guard compartido de las dos rutas de referidos de la ficha (GET y POST).
+   *
+   * Existe para no tener la misma verificación escrita dos veces: rol
+   * (MEMBER_LIFECYCLE_ROLES — coach y recepción no ven referidos ajenos, T-158-02
+   * WR-05), id parseable, socio existente y —para no-owners— país del scope.
+   * Lanza en vez de responder, así el `handleServiceError` de cada ruta arma el
+   * shape; los códigos son idénticos a los que devolvía el GET inline.
+   *
+   * El cross-country responde 404 y no 403 a propósito (mirror del patrón de
+   * DELETE /:userId): un 403 confirmaría que el id existe en otro país.
+   */
+  async function assertReferralTargetInScope(
+    request: FastifyRequest<{ Params: { userId: number } }>,
+  ): Promise<number> {
+    const { role } = request.user;
+    if (!(MEMBER_LIFECYCLE_ROLES as readonly string[]).includes(role)) {
+      throw new ForbiddenError("No tienes permiso para ver los referidos");
+    }
+    const targetId = Number(request.params.userId);
+    if (!Number.isInteger(targetId)) {
+      throw new ValidationError("id inválido");
+    }
+
+    // T-106-02 — verify target member exists and (for non-owners) lives in a
+    // branch that matches the request's country scope.
+    const [target] = await fastify.db
+      .select({
+        id: schema.users.id,
+        deletedAt: schema.users.deletedAt,
+        branchCountry: schema.branches.country,
+        branchIsVirtual: schema.branches.isVirtual,
+      })
+      .from(schema.users)
+      .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
+      .where(eq(schema.users.id, targetId))
+      .limit(1);
+
+    if (!target || target.deletedAt) {
+      throw new NotFoundError("Miembro no encontrado");
+    }
+    if (
+      !request.scope.isOwner &&
+      !target.branchIsVirtual &&
+      target.branchCountry !== request.scope.country
+    ) {
+      throw new NotFoundError("Miembro no encontrado");
+    }
+    return targetId;
+  }
+
   // GET /admin/members/:userId/referrals — Referral overview de la ficha del
   // alumno (fase 158, D-34). Gestión consulta quién lo trajo y a quiénes trajo
   // con el MISMO estado derivado (deriveCoveredUntil) que la app.
-  //
-  // Guard extra (T-158-02, WR-05): además del MEMBER_ROLES del plugin, esta
-  // ruta exige MEMBER_LIFECYCLE_ROLES — coach y recepción no leen referidos de
-  // otro alumno. El admin oculta el tab a esos dos roles (AlumnoDetailPage).
   fastify.get<{ Params: { userId: number } }>(
     "/:userId/referrals",
     async (request, reply) => {
       try {
-        const { role } = request.user;
-        if (!(MEMBER_LIFECYCLE_ROLES as readonly string[]).includes(role)) {
-          return reply.code(403).send({
-            error: "Acceso denegado",
-            message: "No tienes permiso para ver los referidos",
-          });
-        }
-        const targetId = Number(request.params.userId);
-        if (!Number.isInteger(targetId)) {
-          return reply.code(400).send({
-            error: "Solicitud inválida",
-            message: "id inválido",
-          });
-        }
-
-        // T-106-02 — verify target member exists and (for non-owners) lives
-        // in a branch that matches the request's country scope. 404 (no 403)
-        // para cross-country, mirror DELETE /:userId pattern (info-leak avoid).
-        const [target] = await fastify.db
-          .select({
-            id: schema.users.id,
-            deletedAt: schema.users.deletedAt,
-            branchCountry: schema.branches.country,
-            branchIsVirtual: schema.branches.isVirtual,
-          })
-          .from(schema.users)
-          .innerJoin(
-            schema.branches,
-            eq(schema.branches.id, schema.users.branchId),
-          )
-          .where(eq(schema.users.id, targetId))
-          .limit(1);
-
-        if (!target || target.deletedAt) {
-          return reply.code(404).send({
-            error: "No encontrado",
-            message: "Miembro no encontrado",
-          });
-        }
-
-        if (
-          !request.scope.isOwner &&
-          !target.branchIsVirtual &&
-          target.branchCountry !== request.scope.country
-        ) {
-          // 404 (not 403) to mirror DELETE /:userId pattern (info-leak avoid).
-          return reply.code(404).send({
-            error: "No encontrado",
-            message: "Miembro no encontrado",
-          });
-        }
-
+        const targetId = await assertReferralTargetInScope(request);
         const referralService = new ReferralService(fastify.db, fastify.log);
         return await referralService.getReferralOverview(targetId);
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "get member referrals");
+      }
+    },
+  );
+
+  // POST /admin/members/:userId/referrals — Atribución RETROACTIVA de referidor
+  // sobre un socio ya creado (fase 173).
+  //
+  // El canal asistido de la 157 solo atribuye dentro del alta, y en la operación
+  // real el dato llega después: entre el deploy de la 157 (2026-07-14) y el
+  // 2026-08-04 hubo 352 altas y CERO vínculos `assisted`. Esta ruta es la única
+  // forma de cargar el vínculo sin tocar la base a mano.
+  //
+  // Mismo guard que el GET (incluido MEMBER_LIFECYCLE_ROLES: recepción carga el
+  // alta pero no atribuye referidos — la decisión de a quién se le acredita un
+  // descuento es de gestión). El `referrerId` se valida SIEMPRE server-side, y a
+  // diferencia del alta no degrada en silencio: acá la atribución es la
+  // operación, un referidor inválido tiene que fallar visible.
+  fastify.post<{ Params: { userId: number }; Body: { referrerId: number } }>(
+    "/:userId/referrals",
+    { schema: assignReferrerSchema },
+    async (request, reply) => {
+      try {
+        const targetId = await assertReferralTargetInScope(request);
+        const referralService = new ReferralService(fastify.db, fastify.log);
+        const result = await referralService.assignReferrerToMember({
+          referredId: targetId,
+          referrerId: request.body.referrerId,
+          createdBy: request.user.userId,
+          // El gimnasio SIEMPRE sale del scope del request, nunca del body
+          // (mass-assignment, T-169-02). Un scope no resoluble es DENY.
+          tenantId: assertTenant(request.scope, "referrals.assignReferrer")
+            .tenantId,
+        });
+        return reply.code(201).send(result);
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "assign member referrer");
       }
     },
   );

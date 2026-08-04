@@ -150,32 +150,16 @@
                   </div>
                 </div>
 
-                <!-- Referido por (opcional) — atribución de referido, create-only (157-05) -->
+                <!-- Referido por (opcional) — atribución de referido en el alta
+                     (157-05). Si el dato aparece después, el tab "Referidos" de
+                     la ficha lo carga retroactivamente (fase 173). -->
                 <div class="row q-col-gutter-sm">
                   <div class="col-12">
-                    <q-select
+                    <ReferrerSelect
+                      ref="referrerSelect"
                       v-model="referrer"
-                      :options="referrerSearchResults"
-                      option-value="id"
-                      option-label="displayLabel"
                       label="Referido por (opcional)"
-                      hint="Buscá por nombre o DNI al socio que lo refirió"
-                      dense
-                      outlined
-                      clearable
-                      use-input
-                      input-debounce="300"
-                      :loading="searchingReferrer"
-                      @filter="onReferrerSearch"
-                    >
-                      <template #no-option>
-                        <q-item>
-                          <q-item-section class="text-grey">
-                            No se encontró ningún socio
-                          </q-item-section>
-                        </q-item>
-                      </template>
-                    </q-select>
+                    />
                   </div>
                 </div>
 
@@ -614,6 +598,7 @@ import { useMembersApi, type DuplicateMatch } from 'src/composables/useMembersAp
 import { useAuthStore } from 'src/stores/useAuthStore';
 import { extractError, isExpectedClientError } from 'src/utils/extract-error';
 import { normalizePhone } from 'src/utils/phone';
+import ReferrerSelect from './ReferrerSelect.vue';
 import { isValidIban } from 'src/utils/iban';
 import type { MemberProfile, BranchOption, UpdateMemberInput } from 'src/types/member';
 
@@ -738,41 +723,11 @@ const form = ref({
   sepaCountry: 'ES',
 });
 
-// ¿Quién lo trajo? (opcional) — atribución de referido, create-only (157-05).
-// El id elegido viaja como referredBy en el create; el server valida.
-const referrer = ref<{ id: number; displayLabel: string } | null>(null);
-const referrerSearchResults = ref<Array<{ id: number; displayLabel: string }>>([]);
-const searchingReferrer = ref(false);
-
-function onReferrerSearch(val: string, update: (fn: () => void) => void, _abort: () => void) {
-  if (!val || val.length < 2) {
-    update(() => {
-      referrerSearchResults.value = [];
-    });
-    return;
-  }
-  searchingReferrer.value = true;
-  membersApi
-    .searchMembers(val, 10)
-    .then((members) => {
-      update(() => {
-        referrerSearchResults.value = members.map((m) => ({
-          id: m.id,
-          displayLabel: `${m.firstName} ${m.lastName}${m.dni ? ` (${m.dni})` : ''}`,
-        }));
-      });
-    })
-    .catch((err: unknown) => {
-      const message = err instanceof Error ? err.message : 'Error desconocido';
-      log.error('Error searching referrer', { error: message });
-      update(() => {
-        referrerSearchResults.value = [];
-      });
-    })
-    .finally(() => {
-      searchingReferrer.value = false;
-    });
-}
+// ¿Quién lo trajo? (opcional) — atribución de referido en el alta (157-05). El
+// id elegido viaja como referredBy en el create; el server valida. El typeahead
+// vive en ReferrerSelect, compartido con la atribución retroactiva de la ficha.
+const referrer = ref<number | null>(null);
+const referrerSelect = ref<{ reset: () => void } | null>(null);
 
 // Sección SEPA: gateada por el país de la sucursal seleccionada EN el form
 // (no la guardada) — al mover un socio a una sede ES los campos aparecen en
@@ -1003,7 +958,7 @@ watch(
       };
       // Reset la atribución de referido en cada apertura del alta.
       referrer.value = null;
-      referrerSearchResults.value = [];
+      referrerSelect.value?.reset();
     }
   }
 );
@@ -1161,7 +1116,7 @@ async function onSubmit() {
         emergencyContactName: form.value.emergencyContactName || null,
         emergencyContactPhone: form.value.emergencyContactPhone || null,
         emergencyContactRelationship: form.value.emergencyContactRelationship || null,
-        referredBy: referrer.value?.id ?? null,
+        referredBy: referrer.value,
       });
       // Pass the new member up so the parent can offer to load a membership
       // right after creation (skipping the "go find user → edit → subs"

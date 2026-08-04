@@ -17,7 +17,7 @@
 //
 // Constructor DI (db, log) clonado de settings/service.ts:26-30.
 
-import { and, eq, isNotNull, ne, or, sql } from "drizzle-orm";
+import { and, eq, gt, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import type * as schema from "../../db/schema";
@@ -26,13 +26,21 @@ import {
   referrals,
   referralCredits,
   referralCtaClicks,
+  subscriptions,
   auraConfig,
   auraTransactions,
   systemSettings,
 } from "../../db/schema";
 import { deriveCoveredUntil } from "../subscriptions/service";
+import {
+  BadRequestError,
+  ConflictError,
+  NotFoundError,
+} from "../shared/errors";
+import { tenantValues } from "../shared/tenant";
 import { referralCopyVariant } from "./ab-variant";
 import type {
+  ReferralAssignmentResult,
   ReferralConfig,
   ReferralLinkView,
   ReferralOverview,
@@ -366,6 +374,118 @@ export class ReferralService {
       referrerId: pending.referrerId,
       referredFirstName: pending.referredFirstName ?? "",
     };
+  }
+
+  /**
+   * Atribución RETROACTIVA de referidor sobre un socio ya creado (fase 173).
+   *
+   * Es la contraparte del canal asistido de la 157 para el caso que ese canal
+   * no cubre: el alta ya ocurrió y el dato de quién lo trajo llegó después. La
+   * mecánica de la 157 NO se toca — este método produce exactamente la misma
+   * fila que habría producido `createMember` con `referredBy` (canal
+   * `assisted`, `copyVariant` derivado del referidor, `createdBy` del admin),
+   * de modo que el vínculo es indistinguible aguas abajo: `qualifyFirstPayment`
+   * y `computeReferralDiscountPercent` no saben —ni tienen por qué saber— si el
+   * vínculo se creó en el alta o tres días después.
+   *
+   * Reglas, todas heredadas (nada nuevo se inventa acá):
+   *  - D-13: nadie se refiere a sí mismo → 400.
+   *  - Referidor inexistente o borrado → 404. A diferencia del alta (que degrada
+   *    a "sin atribución" para no bloquear el alta, `members/routes.ts`), acá la
+   *    atribución ES la operación: fallar en silencio dejaría al admin creyendo
+   *    que cargó un vínculo que no existe.
+   *  - D-14: `referred_id` es UNIQUE, un socio tiene a lo sumo un referidor →
+   *    409. Se chequea antes Y se atrapa el ER_DUP_ENTRY, porque entre el SELECT
+   *    y el INSERT hay una ventana de carrera real (dos admins, dos pestañas).
+   *  - D-20: el estado inicial usa el MISMO criterio que el cobro
+   *    (`pricePaid > 0`), ver {@link ReferralAssignmentResult}.
+   *
+   * El `qualifiedAt` de un vínculo que nace `qualified` es AHORA, no la fecha
+   * del pago viejo: es el momento en que el sistema se enteró del vínculo, y
+   * fechar hacia atrás mentiría sobre cuándo empezó a correr el beneficio.
+   */
+  async assignReferrerToMember(params: {
+    referredId: number;
+    referrerId: number;
+    createdBy: number;
+    tenantId: number;
+  }): Promise<ReferralAssignmentResult> {
+    const { referredId, referrerId, createdBy, tenantId } = params;
+
+    if (referredId === referrerId) {
+      throw new BadRequestError(
+        "Un socio no puede figurar como su propio referidor",
+      );
+    }
+
+    const [referrer] = await this.db
+      .select({ id: users.id })
+      .from(users)
+      .where(and(eq(users.id, referrerId), isNull(users.deletedAt)))
+      .limit(1);
+    if (!referrer) {
+      throw new NotFoundError("El socio que figura como referidor no existe");
+    }
+
+    const [existing] = await this.db
+      .select({ id: referrals.id })
+      .from(referrals)
+      .where(eq(referrals.referredId, referredId))
+      .limit(1);
+    if (existing) {
+      throw new ConflictError("Este socio ya tiene un referidor asignado");
+    }
+
+    // D-20: ¿ya pagó algún plan? Mismo umbral que qualifyReferralOnCharge
+    // (`pricePaid > 0`) — un mes 100% bonificado no cualifica.
+    const [paid] = await this.db
+      .select({ id: subscriptions.id })
+      .from(subscriptions)
+      .where(
+        and(
+          eq(subscriptions.userId, referredId),
+          gt(subscriptions.pricePaid, 0),
+        ),
+      )
+      .limit(1);
+    const status = paid ? "qualified" : "pending";
+
+    try {
+      await this.db.insert(referrals).values(
+        tenantValues(
+          { tenantId },
+          {
+            referrerId,
+            referredId,
+            status,
+            attributionChannel: "assisted" as const,
+            createdBy,
+            qualifiedAt: status === "qualified" ? new Date() : null,
+            copyVariant: referralCopyVariant(referrerId),
+          },
+        ),
+      );
+    } catch (err: unknown) {
+      // Carrera contra el UNIQUE de referred_id (D-14): otro admin ganó.
+      if (isDuplicateKeyError(err)) {
+        throw new ConflictError("Este socio ya tiene un referidor asignado");
+      }
+      throw err;
+    }
+
+    // Espejo desnormalizado, igual que las dos vías de la 157. El vínculo
+    // canónico vive en `referrals`; esto alimenta los listados.
+    await this.db
+      .update(users)
+      .set({ referredBy: referrerId })
+      .where(eq(users.id, referredId));
+
+    this.log.info(
+      { referredId, referrerId, status, createdBy },
+      "referral: atribución retroactiva creada desde la ficha",
+    );
+
+    return { status, referrerId, referredId };
   }
 
   /**

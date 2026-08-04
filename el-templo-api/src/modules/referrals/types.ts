@@ -94,3 +94,29 @@ export interface ReferralAbVariantResult {
 export interface ReferralAbResults {
   variants: ReferralAbVariantResult[];
 }
+
+/**
+ * Resultado de la atribución retroactiva desde la ficha del admin (fase 173).
+ *
+ * POR QUÉ EXISTE: el canal asistido de la 157 (REF-03/D-08) solo puede atribuir
+ * DENTRO del alta, y en la operación real el dato llega después — el referidor
+ * comparte su código más tarde, o el alumno cuenta quién lo trajo recién en su
+ * segunda visita. Entre el 2026-07-14 (deploy de la 157) y el 2026-08-04 hubo
+ * 352 altas y CERO vínculos `assisted`: la ventana de captura no era el
+ * problema del staff, era del diseño. Caso testigo: Guido Recoulat (alta
+ * asistida 11:46) y Valentina Rossi (compartió su código 13:07, 1h21m después).
+ *
+ * `status` es el estado con el que quedó el vínculo, y es el MISMO criterio del
+ * cobro (D-20, `pricePaid > 0`): `qualified` si el referido ya pagó algún plan
+ * —el vínculo nace ya cumplido, no hay pago futuro que lo cualifique—, `pending`
+ * si todavía no. Nunca se inventa un `qualifiedAt` retroactivo: se estampa el
+ * momento de la atribución, que es cuando el sistema se enteró.
+ */
+export interface ReferralAssignmentResult {
+  /** Estado con el que nació el vínculo (ver criterio D-20 arriba). */
+  status: "pending" | "qualified";
+  /** userId del referidor asignado (eco del input ya validado). */
+  referrerId: number;
+  /** userId del referido (eco del input ya validado). */
+  referredId: number;
+}

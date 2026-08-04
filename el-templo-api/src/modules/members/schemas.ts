@@ -801,6 +801,41 @@ export const listNotesSchema = {
   },
 };
 
+/**
+ * POST /admin/members/:userId/referrals — atribución retroactiva (fase 173).
+ *
+ * `referrerId` es lo único que viaja: el estado del vínculo, el canal, el
+ * `createdBy` y el gimnasio los decide el servidor (DESC-05 y T-169-02). Un
+ * body con `status` o `tenantId` no tiene efecto — no están en `properties` y
+ * el serializador de respuesta solo emite los tres campos de abajo.
+ */
+export const assignReferrerSchema = {
+  params: {
+    type: "object",
+    required: ["userId"],
+    properties: {
+      userId: { type: "integer" },
+    },
+  },
+  body: {
+    type: "object",
+    required: ["referrerId"],
+    properties: {
+      referrerId: { type: "integer", minimum: 1 },
+    },
+  },
+  response: {
+    201: {
+      type: "object",
+      properties: {
+        status: { type: "string" },
+        referrerId: { type: "integer" },
+        referredId: { type: "integer" },
+      },
+    },
+  },
+};
+
 export const createNoteSchema = {
   params: {
     type: "object",
