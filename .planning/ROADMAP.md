@@ -4749,37 +4749,88 @@ Plans:
 
 Plans:
 
+**Wave 1**
+
 - [ ] 173-01-PLAN.md — gate D-16 (backmerge master→staging), worktree et-173 y `tsconfig.test-check.json`
+
+**Wave 2** _(blocked on Wave 1 completion)_
+
 - [ ] 173-02-PLAN.md — inventario con las dos lentes (lint + SENTINEL_INVENTORY) y sync del manifiesto
 - [ ] 173-03-PLAN.md — fix IN-02 y snapshot `antes.json` de los endpoints de socios (D-10)
 - [ ] 173-04-PLAN.md — helpers compartidos: `audit-log.ts` y `country-scope.ts`
-- [ ] 173-05-PLAN.md — helpers compartidos: `member-search.ts` y `covered-until.ts`
-- [ ] 173-06-PLAN.md — cirugía mínima en los 6 services de analytics
-- [ ] 173-07-PLAN.md — cirugía mínima en scheduling, asistencia, check-ins y ratings
-- [ ] 173-08-PLAN.md — cirugía mínima en campañas, segmentación, notificaciones, onboarding y referidos
-- [ ] 173-09-PLAN.md — cirugía mínima en entrenamiento, progresión y gamificación
 - [ ] 173-10-PLAN.md — retrofit `requireTenant` en los 6 scripts CLI (D-03)
 - [ ] 173-11-PLAN.md — helper de anclas `branch-consistency.ts` y `canAccessBranch` por gimnasio (D-05a, D-14)
+
+**Wave 3** _(blocked on Wave 2 completion)_
+
+- [ ] 173-05-PLAN.md — helpers compartidos: `member-search.ts` y `covered-until.ts`
+- [ ] 173-06-PLAN.md — cirugía mínima en los 6 services de analytics
+- [ ] 173-08-PLAN.md — cirugía mínima en campañas, segmentación, notificaciones, onboarding y referidos
+- [ ] 173-09-PLAN.md — cirugía mínima en entrenamiento, progresión y gamificación
 - [ ] 173-12-PLAN.md — schema + migración 0198: unique `(tenant_id, id)` y FK compuesta (D-05b, D-18)
-- [ ] 173-13-PLAN.md — `users/service.ts` y `users/routes.ts`: staff, `user_branches` y 6 sitios de ancla
-- [ ] 173-14-PLAN.md — deudas de la 172 en `subscriptions/service.ts` (D-13, D-15) y desmarque del ancla
 - [ ] 173-15-PLAN.md — WR-01 del autorregistro (D-12) y Wellhub
+
+**Wave 4** _(blocked on Wave 3 completion)_
+
+- [ ] 173-13-PLAN.md — `users/service.ts` y `users/routes.ts`: staff, `user_branches` y 6 sitios de ancla
 - [ ] 173-16-PLAN.md — los 3 crons y el test SC3 del cron de recategorización (D-04, D-07)
 - [ ] 173-17-PLAN.md — plomería de firmas: `ctx` primero en los 23 métodos y `assertTenant` en 25 rutas
+
+**Wave 5** _(blocked on Wave 4 completion)_
+
+- [ ] 173-07-PLAN.md — cirugía mínima en scheduling, asistencia, check-ins y ratings
+- [ ] 173-14-PLAN.md — deudas de la 172 en `subscriptions/service.ts` (D-13, D-15) y desmarque del ancla
 - [ ] 173-18-PLAN.md — queries de escritura de `members/service.ts` y los 4 sitios de ancla
-- [ ] 173-19-PLAN.md — queries de lectura de `members/service.ts` y las 11 entradas por archivo
 - [ ] 173-20-PLAN.md — queries directas de `members/routes.ts` y `leads-routes.ts`
+
+**Wave 6** _(blocked on Wave 5 completion)_
+
+- [ ] 173-19-PLAN.md — queries de lectura de `members/service.ts` y las 11 entradas por archivo
+
+**Wave 7** _(blocked on Wave 6 completion)_
+
 - [ ] 173-21-PLAN.md — endurecimiento de test/: infra, `cleanAllTestData` y la sonda
+
+**Wave 8** _(blocked on Wave 7 completion)_
+
 - [ ] 173-22-PLAN.md — endurecimiento de test/: socios, staff, auth y leads
+
+**Wave 9** _(blocked on Wave 8 completion)_
+
 - [ ] 173-23-PLAN.md — endurecimiento de test/: suscripciones, finanzas, reportes, coach y referidos
+
+**Wave 10** _(blocked on Wave 9 completion)_
+
 - [ ] 173-24-PLAN.md — endurecimiento de test/: analytics, grilla, asistencia y comunicación
+
+**Wave 11** _(blocked on Wave 10 completion)_
+
 - [ ] 173-25-PLAN.md — endurecimiento de test/: cola larga y barrido global en cero
+
+**Wave 12** _(blocked on Wave 11 completion)_
+
 - [ ] 173-26-PLAN.md — batería ISO-03: fixture del gimnasio 2 y las 9 rutas de listados y exports
+
+**Wave 13** _(blocked on Wave 12 completion)_
+
 - [ ] 173-27-PLAN.md — batería ISO-03: las 10 rutas de la ficha del socio
 - [ ] 173-28-PLAN.md — batería ISO-03: las 11 rutas de alta, edición y staff (ADO-07)
+
+**Wave 14** _(blocked on Wave 13 completion)_
+
 - [ ] 173-29-PLAN.md — gate de cobertura con los 3 prefijos y las 30 rutas (D-09)
+
+**Wave 15** _(blocked on Wave 14 completion)_
+
 - [ ] 173-30-PLAN.md — el switch en dos commits y la demo del fail-closed (D-01)
+
+**Wave 16** _(blocked on Wave 15 completion)_
+
 - [ ] 173-31-PLAN.md — CI, diff de números, merge a staging y UAT del staff (D-10, D-11, D-17)
+
+**Cross-cutting constraints:**
+
+- Los DELETE de conveniencia se acotan con filtro parametrizado; solo la limpieza global y las lecturas de evidencia se eximen
 
 ### Phase 174: Adopción 3 — `subscriptions` + `scheduling`
 
