@@ -4745,7 +4745,7 @@ Plans:
 3. El cron de recategorización multisucursal nunca mueve a un socio a una sede de otro tenant: test que le ofrece sedes de ambos tenants y verifica que solo considera las del propio. (ADO-07)
 4. Sin cambio para el staff: alta de alumno, ficha, notas, cambio de sede, listados, filtros y export se comportan igual (suite verde y verificación en staging).
 
-**Plans:** 1/31 plans executed
+**Plans:** 2/31 plans executed
 
 Plans:
 
@@ -4756,7 +4756,7 @@ Plans:
 **Wave 2** _(blocked on Wave 1 completion)_
 
 - [ ] 173-02-PLAN.md — inventario con las dos lentes (lint + SENTINEL_INVENTORY) y sync del manifiesto
-- [ ] 173-03-PLAN.md — fix IN-02 y snapshot `antes.json` de los endpoints de socios (D-10)
+- [x] 173-03-PLAN.md — fix IN-02 y snapshot `antes.json` de los endpoints de socios (D-10)
 - [ ] 173-04-PLAN.md — helpers compartidos: `audit-log.ts` y `country-scope.ts`
 - [ ] 173-10-PLAN.md — retrofit `requireTenant` en los 6 scripts CLI (D-03)
 - [ ] 173-11-PLAN.md — helper de anclas `branch-consistency.ts` y `canAccessBranch` por gimnasio (D-05a, D-14)
@@ -4894,7 +4894,7 @@ Plans:
 | 170. Detección — sentinel de pool + lint CI       | 0/8            | Planned     |            |
 | 171. Backstop — manifiesto + fixtures 2-tenant    | 0/?            | Not started |            |
 | 172. Adopción 1 (piloto) — finance                | 23/23          | Complete    | 2026-07-31 |
-| 173. Adopción 2 — members + guarda de anclas      | 1/31           | In Progress |            |
+| 173. Adopción 2 — members + guarda de anclas      | 2/31           | In Progress |            |
 | 174. Adopción 3 — subscriptions + scheduling      | 0/?            | Not started |            |
 | 175. Adopción 4 — analytics + resto del core      | 0/?            | Not started |            |
 | 176. Módulos — flags, requireModule y registry    | 0/?            | Not started |            |
