@@ -55,7 +55,7 @@ import type { PaymentMethod, TransactionDetail } from "./types";
 interface CoachPayPlanBody {
   userId: number;
   amountReceived?: number;
-  paymentMethod: "cash" | "transfer" | "card" | "aura_credit" | "internal";
+  paymentMethod: PaymentMethod;
   idempotencyKey: string;
   // Phase 151 (COBRO-04): cuenta banco elegida en la PoS. Obligatoria para
   // transfer/card, prohibida para cash — validada server-side en el handler.
@@ -70,7 +70,7 @@ interface CoachMiscLoadBody {
   memberId: number;
   amount: number;
   concepto: string;
-  paymentMethod: "cash" | "transfer" | "card" | "aura_credit" | "internal";
+  paymentMethod: PaymentMethod;
   currency?: string;
   idempotencyKey: string;
   // Phase 145 (COBRO-01): structured motivo del cobro suelto. REQUIRED (the PoS
@@ -101,7 +101,7 @@ interface CoachAltaBody {
   planId: number;
   // Toggle "Precio Zero". paymentMethod 'card' override a priceCreditCard en el handler.
   zero?: boolean;
-  paymentMethod: "cash" | "transfer" | "card" | "aura_credit" | "internal";
+  paymentMethod: PaymentMethod;
   // Monto recibido (cents). < precio → deja deuda (assignPlan lo soporta).
   amountReceived?: number;
   // Solo planes fixed: assignPlan valida length === plan.classesPerWeek.
@@ -126,6 +126,7 @@ const PAYMENT_METHOD_ENUM = [
   "card",
   "aura_credit",
   "internal",
+  "direct_debit",
 ] as const;
 
 const coachPayPlanSchema = {
@@ -333,12 +334,15 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
   // NO puede elegir `cashRegisterId` (additionalProperties:false), solo un
   // `bankAccountId` que se valida server-side. Reglas dependientes del medio de
   // pago (no expresables en JSON-Schema):
-  //   - transfer/card SIN bankAccountId → 400 (obligatorio).
-  //   - transfer/card CON bankAccountId → assertChosenBankAccount (banco + activa
-  //     + moneda-match); id inválido → BadRequestError → handleServiceError → 400.
+  //   - transfer/card/direct_debit SIN bankAccountId → 400 (obligatorio).
+  //   - transfer/card/direct_debit CON bankAccountId → assertChosenBankAccount
+  //     (banco + activa + moneda-match); id inválido → BadRequestError →
+  //     handleServiceError → 400.
   //   - cash CON bankAccountId → 400 (no corresponde).
+  // La domiciliación entra por el banco igual que una transferencia, así que
+  // comparte el guard completo.
   // `getCurrency` es un thunk: la moneda del cobro solo se resuelve cuando de
-  // verdad hace falta (transfer/card con id), evitando queries/errores en el
+  // verdad hace falta (métodos bancarios con id), evitando queries/errores en el
   // camino cash. Devuelve el id validado (o undefined) para imputarlo al charge.
   // Fase 172: el `ctx` va PRIMERO también en este closure. No tiene `request` a
   // mano (es del plugin, no del handler), así que cada uno de sus 4 call sites lo
@@ -351,7 +355,9 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
     getCurrency: () => Promise<string>,
   ): Promise<number | undefined> => {
     const isBankMethod =
-      paymentMethod === "transfer" || paymentMethod === "card";
+      paymentMethod === "transfer" ||
+      paymentMethod === "card" ||
+      paymentMethod === "direct_debit";
     if (!isBankMethod) {
       if (bankAccountId !== undefined) {
         throw new BadRequestError(
@@ -362,7 +368,7 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
     }
     if (bankAccountId === undefined) {
       throw new BadRequestError(
-        "Elegí una cuenta bancaria para cobrar por transferencia o tarjeta.",
+        "Elegí una cuenta bancaria para cobrar por transferencia, tarjeta o domiciliación.",
       );
     }
     const currency = await getCurrency();

@@ -1901,6 +1901,7 @@ const PAYMENT_METHOD_LABELS_ES: Record<PaymentMethod, string> = {
   card: "Tarjeta",
   aura_credit: "AURA",
   internal: "Interno",
+  direct_debit: "Domiciliación",
 };
 
 /**

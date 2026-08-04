@@ -39,6 +39,9 @@ const PAYMENT_METHOD_ENUM = [
   "card",
   "aura_credit",
   "internal",
+  // Domiciliación SEPA. Solo aceptado en sedes ES (gate por branch.country en
+  // transaction-service, no en el schema: el país es de la sucursal).
+  "direct_debit",
 ] as const;
 
 const TARGET_KIND_ENUM = [
@@ -374,6 +377,7 @@ export const transactionsSummarySchema = {
             card: { type: "integer" },
             aura_credit: { type: "integer" },
             internal: { type: "integer" },
+            direct_debit: { type: "integer" },
           },
         },
         revenueByBranch: {

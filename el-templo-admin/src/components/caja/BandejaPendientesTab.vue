@@ -560,7 +560,11 @@ const cajaOptions = computed<Array<{ label: string; value: number }>>(() => {
   return cashRegisters.value
     .filter((c) => c.currency === row.currency)
     .filter((c) => {
-      if (row.paymentMethod === 'transfer' || row.paymentMethod === 'card') {
+      if (
+        row.paymentMethod === 'transfer' ||
+        row.paymentMethod === 'card' ||
+        row.paymentMethod === 'direct_debit'
+      ) {
         return c.type === 'banco';
       }
       if (row.paymentMethod === 'cash') return c.type === 'efectivo';
@@ -569,9 +573,10 @@ const cajaOptions = computed<Array<{ label: string; value: number }>>(() => {
     .map((c) => ({ label: c.name, value: c.cashRegisterId }));
 });
 
-const cajaSelectLabel = computed(() =>
-  actionRow.value?.paymentMethod === 'transfer' ? 'Cuenta banco' : 'Caja'
-);
+const cajaSelectLabel = computed(() => {
+  const method = actionRow.value?.paymentMethod;
+  return method === 'transfer' || method === 'direct_debit' ? 'Cuenta banco' : 'Caja';
+});
 
 function onValidar(row: PendingTrayItem) {
   // COBRO-05 guard — el botón ya está :disable para sin_plan; esto es la

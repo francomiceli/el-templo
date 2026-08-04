@@ -1200,10 +1200,16 @@ export class AnalyticsService {
     cash: RevenueByCurrency;
     transfer: RevenueByCurrency;
     card: RevenueByCurrency;
+    direct_debit: RevenueByCurrency;
   }> {
     // Phase 117 D-05 / D-17: split each payment method per currency. The
     // payment-method type guard (T-105-17) is preserved so the kind/direction
     // filter's exclusion of aura_credit/internal is reinforced.
+    //
+    // El guard descarta en silencio (continue) cualquier método que no esté en
+    // `result`. Al sumar un método nuevo al enum HAY QUE agregarlo acá también,
+    // o su facturación desaparece del panel sin error ni log: así estuvieron a
+    // punto de perderse los domiciliados de Barcelona.
     const conditions: SQL[] = [
       isNull(schema.financialTransactions.voidedAt),
       // Phase 137 (VAL-05): firm money counts only validated rows.
@@ -1253,10 +1259,16 @@ export class AnalyticsService {
       cash: { ARS: 0, EUR: 0 } as RevenueByCurrency,
       transfer: { ARS: 0, EUR: 0 } as RevenueByCurrency,
       card: { ARS: 0, EUR: 0 } as RevenueByCurrency,
+      direct_debit: { ARS: 0, EUR: 0 } as RevenueByCurrency,
     };
     for (const row of rows) {
       const method = row.method;
-      if (method !== "cash" && method !== "transfer" && method !== "card") {
+      if (
+        method !== "cash" &&
+        method !== "transfer" &&
+        method !== "card" &&
+        method !== "direct_debit"
+      ) {
         continue;
       }
       if (row.currency === "ARS" || row.currency === "EUR") {

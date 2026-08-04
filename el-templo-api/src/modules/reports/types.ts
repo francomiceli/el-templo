@@ -18,13 +18,25 @@ export interface AccessReportFilters {
   limit?: number;
 }
 
+/**
+ * Métodos que mueven plata real y por eso aparecen en el reporte de cobros.
+ * Subconjunto deliberado de `PaymentMethod`: excluye aura_credit e internal,
+ * que no son ingreso de caja. 'direct_debit' (domiciliación SEPA) sí entra —
+ * es plata que el banco ya confirmó cuando el staff la carga.
+ */
+export type ChargeReportPaymentMethod =
+  | "cash"
+  | "transfer"
+  | "card"
+  | "direct_debit";
+
 export interface ChargeReportFilters {
   branchId?: number;
   country?: "AR" | "ES";
   dateFrom?: string;
   dateTo?: string;
   search?: string;
-  paymentMethod?: "cash" | "transfer" | "card";
+  paymentMethod?: ChargeReportPaymentMethod;
   page?: number;
   limit?: number;
 }
@@ -71,7 +83,7 @@ export interface ChargeReportRow {
   planName: string;
   amount: number;
   currency: string; // "ARS" | "EUR" — REQ-98-10 / D-13
-  paymentMethod: "cash" | "transfer" | "card";
+  paymentMethod: ChargeReportPaymentMethod;
   recorderName: string;
   voidedAt: string | null;
 }

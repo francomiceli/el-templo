@@ -564,7 +564,7 @@
                   {{ formatPrice(altaPrice - (amount ?? 0), altaCurrency) }}.
                 </q-banner>
 
-                <!-- Cuenta banco (COBRO-04) — sólo transferencia/tarjeta. -->
+                <!-- Cuenta banco (COBRO-04) — sólo transferencia/tarjeta/domiciliación. -->
                 <template v-if="needsBankAccount">
                   <div v-if="loadingBankAccounts" class="q-mt-md">
                     <q-skeleton type="QInput" />
@@ -610,7 +610,7 @@
                       v-if="selectedBankAccountId == null"
                       class="text-subtitle2 text-weight-regular text-warning q-mt-xs"
                     >
-                      Elegí una cuenta bancaria para cobrar por transferencia o tarjeta.
+                      Elegí una cuenta bancaria para cobrar por transferencia, tarjeta o domiciliación.
                     </div>
                   </template>
 
@@ -636,7 +636,7 @@
                       <q-icon name="warning" color="dark" />
                     </template>
                     Todavía no hay cuentas bancarias cargadas. Pedile al dueño que cargue una para
-                    cobrar por transferencia o tarjeta. Podés cobrar en efectivo.
+                    cobrar por transferencia, tarjeta o domiciliación. Podés cobrar en efectivo.
                   </q-banner>
                 </template>
 
@@ -788,7 +788,7 @@ const authStore = useAuthStore();
 // El "modo" antiguo pasa a ser la ASOCIACIÓN elegida en el paso 2 (D-01, sin
 // toggle de modo). Arranca en null: nada preseleccionado hasta el paso 2.
 type Mode = 'renew' | 'misc' | 'alta';
-type LoadPaymentMethod = 'cash' | 'transfer' | 'card';
+type LoadPaymentMethod = 'cash' | 'transfer' | 'card' | 'direct_debit';
 
 interface MemberSearchOption {
   id: number;
@@ -928,11 +928,23 @@ const submitting = ref(false);
 // attempt, and regenerated only after an acknowledged success (form reset).
 const currentIdempotencyKey = ref<string | null>(null);
 
-const paymentOptions: Array<{ label: string; value: LoadPaymentMethod; icon: string }> = [
-  { label: 'Efectivo', value: 'cash', icon: 'payments' },
-  { label: 'Transferencia', value: 'transfer', icon: 'swap_horiz' },
-  { label: 'Tarjeta', value: 'card', icon: 'credit_card' },
-];
+// Domiciliación sólo en España (instrumento SEPA). `chargeCountry` se define más
+// abajo pero el computed es lazy — se evalúa recién desde el template. El backend
+// valida lo mismo contra branches.country en transaction-service.create(), así que
+// esconder la opción es comodidad, no la barrera.
+const paymentOptions = computed<Array<{ label: string; value: LoadPaymentMethod; icon: string }>>(
+  () => {
+    const opts: Array<{ label: string; value: LoadPaymentMethod; icon: string }> = [
+      { label: 'Efectivo', value: 'cash', icon: 'payments' },
+      { label: 'Transferencia', value: 'transfer', icon: 'swap_horiz' },
+      { label: 'Tarjeta', value: 'card', icon: 'credit_card' },
+    ];
+    if (chargeCountry.value === 'ES') {
+      opts.push({ label: 'Domiciliación', value: 'direct_debit', icon: 'account_balance' });
+    }
+    return opts;
+  }
+);
 
 const currencySymbol = computed(() => (autocompletar.value?.currency === 'EUR' ? '€' : '$'));
 // Monto suffix: alta usa la moneda del plan; renew/misc la del socio.
@@ -993,7 +1005,7 @@ const resumenQueSecobra = computed<string | null>(() => {
 });
 const resumenComoPaga = computed<string | null>(() => {
   if (!paymentMethod.value) return null;
-  return paymentOptions.find((o) => o.value === paymentMethod.value)?.label ?? null;
+  return paymentOptions.value.find((o) => o.value === paymentMethod.value)?.label ?? null;
 });
 const resumenCurrency = computed(() =>
   mode.value === 'alta' ? altaCurrency.value : (autocompletar.value?.currency ?? 'ARS')
@@ -1011,7 +1023,7 @@ const resumenSede = computed<string | null>(() => {
 });
 
 // ─── Cuenta banco (COBRO-04) ────────────────────────────────────────────────
-// Sólo para transferencia/tarjeta: se elige la cuenta banco (type=banco, activa)
+// Sólo para transferencia/tarjeta/domiciliación: se elige la cuenta banco (type=banco, activa)
 // de la MONEDA del cobro. El server (assertChosenBankAccount, Plan 01) es la
 // autoridad; acá sólo guiamos y filtramos. Efectivo nunca muestra el selector.
 const bankAccounts = ref<Array<{ id: number; name: string; currency: string }>>([]);
@@ -1019,7 +1031,10 @@ const loadingBankAccounts = ref(false);
 const selectedBankAccountId = ref<number | null>(null);
 
 const needsBankAccount = computed(
-  () => paymentMethod.value === 'transfer' || paymentMethod.value === 'card'
+  () =>
+    paymentMethod.value === 'transfer' ||
+    paymentMethod.value === 'card' ||
+    paymentMethod.value === 'direct_debit'
 );
 
 const bankAccountOptions = computed(() =>
@@ -1077,7 +1092,7 @@ function onSedeCobroChange() {
   currentIdempotencyKey.value = null;
 }
 
-// Cargar cuentas al elegir transferencia/tarjeta; la caja al elegir efectivo.
+// Cargar cuentas al elegir transferencia/tarjeta/domiciliación; la caja al elegir efectivo.
 watch(paymentMethod, (m) => {
   if (m === 'transfer' || m === 'card') void loadBankAccounts();
   if (m === 'cash') void loadCajaEfectivo();
@@ -1093,6 +1108,13 @@ watch(sucursalId, () => {
 // se limpia (no debe filtrarse) y se recargan las cuentas de la nueva moneda.
 watch(resumenCurrency, () => {
   selectedBankAccountId.value = null;
+  // Cambiar de socio/plan puede mover el cobro de España a Argentina con
+  // 'Domiciliación' ya elegida. La opción desaparece del selector pero el valor
+  // quedaría pegado y el server lo rechazaría al confirmar — se limpia acá para
+  // que el operador vuelva a elegir un método que existe en la sede.
+  if (paymentMethod.value === 'direct_debit' && chargeCountry.value !== 'ES') {
+    paymentMethod.value = null;
+  }
   if (needsBankAccount.value) void loadBankAccounts();
   if (paymentMethod.value === 'cash') void loadCajaEfectivo();
 });
@@ -1654,7 +1676,7 @@ async function onConfirm() {
   }
   const idempotencyKey = currentIdempotencyKey.value;
 
-  // COBRO-04: sólo transferencia/tarjeta llevan cuenta banco; efectivo nunca.
+  // COBRO-04: sólo transferencia/tarjeta/domiciliación llevan cuenta banco; efectivo nunca.
   const chosenBankAccountId =
     needsBankAccount.value && selectedBankAccountId.value != null
       ? selectedBankAccountId.value

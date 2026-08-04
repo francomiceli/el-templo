@@ -3,6 +3,8 @@
  * Mirrors the API response shapes from el-templo-api/src/modules/reports/types.ts.
  */
 
+import type { LegacyPaymentMethod } from './transaction';
+
 // -- Response Row Types ------------------------------------------------------
 
 export interface AccessReportRow {
@@ -23,7 +25,7 @@ export interface ChargeReportRow {
   planName: string;
   amount: number;
   currency?: string;
-  paymentMethod: 'cash' | 'transfer' | 'card';
+  paymentMethod: LegacyPaymentMethod;
   recorderName: string;
   voidedAt: string | null;
 }
@@ -80,7 +82,7 @@ export interface ChargeReportParams {
   dateFrom?: string;
   dateTo?: string;
   search?: string;
-  paymentMethod?: 'cash' | 'transfer' | 'card';
+  paymentMethod?: LegacyPaymentMethod;
   page?: number;
   limit?: number;
 }

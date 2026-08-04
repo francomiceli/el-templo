@@ -39,6 +39,7 @@ import type {
   AccessReportRow,
   BucketTotals,
   ChargeReportFilters,
+  ChargeReportPaymentMethod,
   ChargeReportRow,
   DebtBucket,
   DebtManagementUpdateInput,
@@ -546,7 +547,9 @@ export class ReportsService {
         planName: String(r.planName),
         amount: Number(r.amount),
         currency: r.currency ? String(r.currency) : "ARS",
-        paymentMethod: String(r.paymentMethod) as "cash" | "transfer" | "card",
+        paymentMethod: String(
+          r.paymentMethod,
+        ) as ChargeReportPaymentMethod,
         recorderName: String(r.recorderName).trim(),
         voidedAt: r.voidedAt ? String(r.voidedAt) : null,
       }),

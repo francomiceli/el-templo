@@ -21,6 +21,7 @@ import type {
   DebtManagementUpdateInput,
   DebtPromiseFilter,
   DebtSortBy,
+  ChargeReportPaymentMethod,
   ExpiredMembersFilters,
   ExpiringReportFilters,
   InactiveReportFilters,
@@ -119,7 +120,7 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
       dateFrom?: string;
       dateTo?: string;
       search?: string;
-      paymentMethod?: "cash" | "transfer" | "card";
+      paymentMethod?: ChargeReportPaymentMethod;
       page?: number;
       limit?: number;
     };
@@ -492,7 +493,7 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
       dateFrom?: string;
       dateTo?: string;
       search?: string;
-      paymentMethod?: "cash" | "transfer" | "card";
+      paymentMethod?: ChargeReportPaymentMethod;
     };
   }>(
     "/charges/export",

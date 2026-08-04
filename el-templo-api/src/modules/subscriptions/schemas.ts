@@ -351,7 +351,10 @@ export const assignPlanSchema = {
         type: "string",
         enum: ["regular", "zero", "credit_card"],
       },
-      paymentMethod: { type: "string", enum: ["cash", "transfer", "card"] },
+      paymentMethod: {
+        type: "string",
+        enum: ["cash", "transfer", "card", "direct_debit"],
+      },
       scheduleIds: { type: "array", items: { type: "integer" }, minItems: 1 },
       // Per-slot deferred start dates from the picker (slot full this week).
       scheduleStartDates: {
@@ -404,7 +407,10 @@ export const changePlanSchema = {
         type: "string",
         enum: ["regular", "zero", "credit_card"],
       },
-      paymentMethod: { type: "string", enum: ["cash", "transfer", "card"] },
+      paymentMethod: {
+        type: "string",
+        enum: ["cash", "transfer", "card", "direct_debit"],
+      },
       scheduleIds: { type: "array", items: { type: "integer" }, minItems: 1 },
       auraSpend: { type: "integer", minimum: 0 },
       priceOverrideAmount: { type: "integer", minimum: 0 },
@@ -442,7 +448,10 @@ export const renewSubscriptionSchema = {
     type: "object",
     required: ["paymentMethod"],
     properties: {
-      paymentMethod: { type: "string", enum: ["cash", "transfer", "card"] },
+      paymentMethod: {
+        type: "string",
+        enum: ["cash", "transfer", "card", "direct_debit"],
+      },
       amountReceived: { type: "integer", minimum: 0 },
       priceOverrideAmount: { type: "integer", minimum: 0 },
       priceOverrideReason: { type: "string" },

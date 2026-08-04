@@ -27,15 +27,25 @@ export type ValidationStatus = 'pendiente' | 'observado' | 'corregido' | 'valida
  * UI dropdowns in Phase 106 still expose 3 options (cash/transfer/card)
  * per PATTERNS.md decision 4 — full UI widening is Phase 109.
  */
-export type PaymentMethod = 'cash' | 'transfer' | 'card' | 'aura_credit' | 'internal';
+export type PaymentMethod =
+  | 'cash'
+  | 'transfer'
+  | 'card'
+  | 'aura_credit'
+  | 'internal'
+  | 'direct_debit';
 
 /**
  * Legacy 3-key subset preserved for callsites that still bind to the
  * narrow contract (charges report `ChargeReportParams.paymentMethod`,
  * assign-plan + renewal selectors). When Phase 109 widens the reports
  * pipeline this can be removed and call-sites switched to PaymentMethod.
+ *
+ * Incluye 'direct_debit' desde que Barcelona cobra por domiciliación: el
+ * reporte de cobros lista plata real, y un domiciliado lo es. Espejo de
+ * `ChargeReportPaymentMethod` en la API (reports/types.ts).
  */
-export type LegacyPaymentMethod = 'cash' | 'transfer' | 'card';
+export type LegacyPaymentMethod = 'cash' | 'transfer' | 'card' | 'direct_debit';
 
 export type TargetKind = 'subscription' | 'debt_balance' | 'transaction';
 
@@ -47,6 +57,7 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   card: 'Tarjeta',
   aura_credit: 'AURA',
   internal: 'Interno',
+  direct_debit: 'Domiciliación',
 };
 
 export const PAYMENT_METHOD_COLORS: Record<PaymentMethod, string> = {
@@ -55,6 +66,7 @@ export const PAYMENT_METHOD_COLORS: Record<PaymentMethod, string> = {
   card: 'purple',
   aura_credit: 'amber',
   internal: 'grey',
+  direct_debit: 'teal',
 };
 
 /**
@@ -73,7 +85,34 @@ export const PAYMENT_METHOD_FILTER_OPTIONS: Array<{
   { label: 'Efectivo', value: 'cash' },
   { label: 'Transferencia', value: 'transfer' },
   { label: 'Tarjeta', value: 'card' },
+  // Domiciliación queda SIEMPRE visible al filtrar (aunque la sede sea AR):
+  // filtrar por un método sin movimientos devuelve vacío, que es inocuo. El
+  // gate por país aplica al COBRAR, no al buscar — ver paymentMethodOptionsFor.
+  { label: 'Domiciliación', value: 'direct_debit' },
 ];
+
+/**
+ * Opciones del selector al COBRAR, gateadas por el país de la sede.
+ *
+ * La domiciliación bancaria es un instrumento SEPA: solo se ofrece en sedes de
+ * España. El backend valida lo mismo en transaction-service.create() contra
+ * `branches.country`, así que esto es la mitad visible de un gate de dos capas
+ * — si el país no se conoce todavía (undefined), se cae al set conservador sin
+ * domiciliación en lugar de ofrecer un método que el server va a rechazar.
+ */
+export function paymentMethodOptionsFor(
+  country: 'AR' | 'ES' | undefined | null
+): Array<{ label: string; value: PaymentMethod }> {
+  const base: Array<{ label: string; value: PaymentMethod }> = [
+    { label: 'Efectivo', value: 'cash' },
+    { label: 'Transferencia', value: 'transfer' },
+    { label: 'Tarjeta', value: 'card' },
+  ];
+  if (country === 'ES') {
+    base.push({ label: 'Domiciliación', value: 'direct_debit' });
+  }
+  return base;
+}
 
 /**
  * Backward-compatible alias for callsites that previously imported
@@ -81,8 +120,20 @@ export const PAYMENT_METHOD_FILTER_OPTIONS: Array<{
  * subscription renewal, charges report filter). Same 3-option subset as
  * PAYMENT_METHOD_FILTER_OPTIONS — kept under the legacy name to avoid
  * a Phase 106 rename churn across unrelated callsites.
+ *
+ * YA NO es un alias de PAYMENT_METHOD_FILTER_OPTIONS: este set alimenta
+ * selectores de COBRO, donde ofrecer domiciliación fuera de España haría que el
+ * server rechace el cobro al confirmar. Los callsites que conocen el país de la
+ * sede deben usar `paymentMethodOptionsFor(country)` en su lugar.
  */
-export const PAYMENT_METHOD_OPTIONS = PAYMENT_METHOD_FILTER_OPTIONS;
+export const PAYMENT_METHOD_OPTIONS: Array<{
+  label: string;
+  value: PaymentMethod;
+}> = [
+  { label: 'Efectivo', value: 'cash' },
+  { label: 'Transferencia', value: 'transfer' },
+  { label: 'Tarjeta', value: 'card' },
+];
 
 // -- Row + list shapes -----------------------------------------------------
 
@@ -147,6 +198,7 @@ export interface FinanceSummary {
     card: number;
     aura_credit: number;
     internal: number;
+    direct_debit: number;
   };
   revenueByBranch: Array<{
     branchId: number;
