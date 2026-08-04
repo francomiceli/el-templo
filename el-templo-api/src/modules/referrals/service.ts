@@ -37,7 +37,7 @@ import {
   ConflictError,
   NotFoundError,
 } from "../shared/errors";
-import { tenantValues } from "../shared/tenant";
+import { tenantValues, tenantWhere } from "../shared/tenant";
 import { referralCopyVariant } from "./ab-variant";
 import type {
   ReferralAssignmentResult,
@@ -437,12 +437,15 @@ export class ReferralService {
     }
 
     // D-20: ¿ya pagó algún plan? Mismo umbral que qualifyReferralOnCharge
-    // (`pricePaid > 0`) — un mes 100% bonificado no cualifica.
+    // (`pricePaid > 0`) — un mes 100% bonificado no cualifica. Acotado al
+    // gimnasio del scope (`subscriptions` es gym-owned): un cargo de OTRO
+    // gimnasio no puede cualificar un vínculo de este.
     const [paid] = await this.db
       .select({ id: subscriptions.id })
       .from(subscriptions)
       .where(
         and(
+          tenantWhere(subscriptions, { tenantId }),
           eq(subscriptions.userId, referredId),
           gt(subscriptions.pricePaid, 0),
         ),
