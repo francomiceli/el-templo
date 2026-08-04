@@ -35,6 +35,33 @@
 // (las dos ya llamaban `assertTenant`). Ver el docblock de `ENTRADAS_BASELINE`
 // en `test/tenancy/iso-01-manifiesto.test.ts`.
 //
+// 2026-08-04 — **373 rutas** (224 `tenant-scoped`): `e1952606` agregó
+// `POST /api/admin/members/:userId/referrals` (asignar referidor desde la ficha
+// del alumno). Ese commit movió `ENTRADAS_BASELINE` a 373 en
+// `test/tenancy/iso-01-manifiesto.test.ts` y agregó la entrada al registro de
+// abajo, pero NO actualizó ESTE header ni el del `TENANT_MANIFEST`: los dos
+// siguieron declarando 372 / 223. La fase 173 (plan 173-02) los sincroniza.
+//
+// LA UNIDAD GANADA, CONTABILIZADA (regla del doc 07 §6: un número pelado que se
+// mueve está prohibido). +1 entra por `tenant-scoped` y por el TOTAL, y NADA
+// más se mueve:
+//
+//   tenant-scoped  223 → 224   (+1, la ruta nueva)
+//   templo-module  141 → 141   (sin cambio)
+//   global           8 →   8   (sin cambio)
+//   ─────────────────────────
+//   TOTAL          372 → 373   (+1)
+//
+// Es una ruta NUEVA, no una recategorización: por eso se mueven el total y una
+// sola categoría. (El caso del 2026-07-29 fue el opuesto — tres rutas cambiaron
+// de etiqueta, se movieron dos categorías y el total no.)
+//
+// ⚠️ 373 son las ENTRADAS del registro, y una de las 8 `global` es `OPTIONS *`,
+// el preflight de CORS, que no es una ruta de negocio. De ahí que un conteo de
+// "rutas" que la excluya dé 372 y uno que la incluya dé 373. `ENTRADAS_BASELINE`
+// cuenta ENTRADAS: es 373. Quien vuelva a medir esto: contá entradas del
+// `Record`, no rutas conceptuales, o vas a "corregir" un número que estaba bien.
+//
 // Ese reparto es el APROBADO en el checkpoint del plan 171-06 (Franco,
 // 2026-07-29). El volcado del plan 171-02 había propuesto 221 / 11 / 138; la
 // única diferencia son las 3 rutas de `labs-inquiries`, que pasaron de `global`
@@ -136,9 +163,15 @@ export interface EntradaManifiesto {
  * El manifiesto. La clave es `` `${MÉTODO} ${url}` `` con la url tal cual la
  * reporta el hook `onRoute` (ya viene con el prefijo compuesto del plugin).
  *
- * 372 entradas, una por ruta exacta (D-01). Orden: plataforma, auth, los
+ * **373 entradas**, una por ruta exacta (D-01). Orden: plataforma, auth, los
  * prefijos del API alfabéticamente, y al final los cuatro bloques `templo-*`.
- * Reparto: 223 `tenant-scoped` · 8 `global` · 141 `templo-module`.
+ * Reparto: **224 `tenant-scoped` · 8 `global` · 141 `templo-module`**.
+ *
+ * Este número es el mismo `ENTRADAS_BASELINE` de
+ * `test/tenancy/iso-01-manifiesto.test.ts`, que es el gate que lo hace cumplir.
+ * Si acá dice un número y allá otro, el que manda es el gate — y el header
+ * quedó stale, que es exactamente lo que pasó entre el `e1952606` y el plan
+ * 173-02 (ver el bloque "2026-08-04" del header del archivo).
  *
  * La clasificación está APROBADA por el dueño del producto: Franco revisó las
  * dos listas peligrosas (`global` entera y las fronteras de `templo-module`) y
