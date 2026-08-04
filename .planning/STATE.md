@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v6.0
 milestone_name: "Tenancy — El Templo pasa a ser tenant #1"
-status: ready_to_plan
-stopped_at: Phase 172 complete (23/23) — ready to discuss Phase 173
-last_updated: 2026-07-31T19:44:59.907Z
+status: planning
+stopped_at: Phase 173 context gathered
+last_updated: "2026-08-04T19:36:00.339Z"
 last_activity: 2026-07-31
 progress:
   total_phases: 11
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 59
-  completed_plans: 655
-  percent: 36
+  completed_plans: 51
+  percent: 45
 ---
 
 # Project State
@@ -1025,8 +1025,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-07-31T19:25:21.000Z
-Stopped at: Completed 172-23-PLAN.md — los 23 planes de la fase 172 ejecutados, esperando verificación
-Resume file: None
+Last session: 2026-08-04T19:36:00.314Z
+Stopped at: Phase 173 context gathered
+Resume file: .planning/phases/173-adopci-n-2-members-guarda-de-consistencia-de-anclas/173-CONTEXT.md
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
