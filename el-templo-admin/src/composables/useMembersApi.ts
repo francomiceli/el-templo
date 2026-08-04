@@ -99,6 +99,15 @@ export interface MemberReferralsResponse {
   referredBy: MemberReferralLink | null;
 }
 
+// Fase 173: respuesta de POST /admin/members/:id/referrals (atribución
+// retroactiva). `status` lo decide el server con el criterio del cobro
+// (pricePaid > 0), no el cliente.
+export interface AssignReferrerResponse {
+  status: 'pending' | 'qualified';
+  referrerId: number;
+  referredId: number;
+}
+
 export function useMembersApi() {
   const loading = ref(false);
   const error = ref<string | null>(null);
@@ -421,6 +430,31 @@ export function useMembersApi() {
     }
   }
 
+  // POST /admin/members/:id/referrals → atribución retroactiva (fase 173).
+  //
+  // El alta pregunta "¿quién lo trajo?" cuando recepción carga al alumno, pero
+  // el dato suele llegar después. Esta es la única vía de cargar el vínculo sin
+  // tocar la base a mano. El estado del vínculo lo decide el backend.
+  async function assignReferrer(
+    userId: number,
+    referrerId: number
+  ): Promise<AssignReferrerResponse> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.post<AssignReferrerResponse>(
+        `/admin/members/${userId}/referrals`,
+        { referrerId }
+      );
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error asignando el referidor');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   // ─── Plans (lightweight for member creation dialog) ──────────────────
 
   interface PlanOption {
@@ -610,6 +644,7 @@ export function useMembersApi() {
     bulkMigratePlan,
     getNotes,
     getReferrals,
+    assignReferrer,
     createNote,
     updateNote,
     deleteNote,
