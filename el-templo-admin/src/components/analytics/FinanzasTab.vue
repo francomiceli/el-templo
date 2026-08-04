@@ -48,6 +48,17 @@
                   formatCurrency(props.data.revenueByMethod.card[currencyCode])
                 }}</span>
               </div>
+              <!-- Domiciliación (SEPA): solo sedes ES, y solo cuando hubo
+                   movimiento — en Argentina la fila nunca aparece. -->
+              <div
+                v-if="props.data.revenueByMethod.direct_debit[currencyCode] > 0"
+                class="row items-center justify-between"
+              >
+                <span class="text-caption">Domiciliación</span>
+                <span class="text-weight-bold">{{
+                  formatCurrency(props.data.revenueByMethod.direct_debit[currencyCode])
+                }}</span>
+              </div>
             </div>
           </q-card-section>
         </q-card>

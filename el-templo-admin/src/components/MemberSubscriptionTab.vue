@@ -630,7 +630,7 @@ import {
   type SubscriptionStatus,
 } from 'src/types/subscription';
 import {
-  PAYMENT_METHOD_OPTIONS,
+  paymentMethodOptionsFor,
   type PaymentMethod,
   type OutstandingConcept,
 } from 'src/types/transaction';
@@ -725,7 +725,11 @@ const renewalPickerRef = ref<InstanceType<typeof FixedSchedulePicker> | null>(nu
 const showEditStartDateDialog = ref(false);
 const editStartDateTarget = ref<SubscriptionDetail | null>(null);
 
-const paymentMethodOptions = PAYMENT_METHOD_OPTIONS;
+// Domiciliación sólo en España: se deriva de la moneda de la suscripción que se
+// está renovando (el server la fuerza a coincidir con el país de la sede).
+const paymentMethodOptions = computed(() =>
+  paymentMethodOptionsFor(renewTarget.value?.currency === 'EUR' ? 'ES' : 'AR')
+);
 
 // =========================================================================
 // Computed — split subscriptions

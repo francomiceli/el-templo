@@ -214,6 +214,8 @@ export interface FinancialAnalytics {
     cash: RevenueByCurrency;
     transfer: RevenueByCurrency;
     card: RevenueByCurrency;
+    /** Domiciliación SEPA — solo con movimiento en sedes ES. */
+    direct_debit: RevenueByCurrency;
   };
   revenueByBranch: Array<{
     branchId: number;

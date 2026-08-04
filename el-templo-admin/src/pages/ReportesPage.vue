@@ -744,7 +744,7 @@ import { createLogger } from 'src/utils/logger';
 import { formatPrice } from 'src/utils/format-price';
 import {
   PAYMENT_METHOD_LABELS,
-  PAYMENT_METHOD_OPTIONS,
+  PAYMENT_METHOD_FILTER_OPTIONS,
   type PaymentMethod,
   type LegacyPaymentMethod,
 } from 'src/types/transaction';
@@ -950,9 +950,13 @@ const sourceOptions = [
 
 // -- Payment method filter options -------------------------------------------
 
+// Filtro del reporte de cobros: usa el set de FILTRO (incluye domiciliación),
+// no el de cobro. Filtrar por un método sin movimientos devuelve vacío, así que
+// mostrarlo en Argentina es inocuo — y esconderlo dejaría a España sin poder
+// aislar sus domiciliados, que es justamente para lo que se pidió el método.
 const paymentMethodFilterOptions = [
   { label: 'Todos', value: undefined as PaymentMethod | undefined },
-  ...PAYMENT_METHOD_OPTIONS,
+  ...PAYMENT_METHOD_FILTER_OPTIONS,
 ];
 
 // -- WhatsApp contact --------------------------------------------------------

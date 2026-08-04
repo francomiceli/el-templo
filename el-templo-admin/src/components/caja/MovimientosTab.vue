@@ -52,6 +52,24 @@
           </q-card-section>
         </q-card>
       </div>
+      <!-- Domiciliación (SEPA) — solo sedes de España. Se muestra únicamente
+           cuando hubo movimiento, así el grid de 4 columnas queda intacto en
+           Argentina, donde el método no existe. -->
+      <div v-if="summary.revenueByMethod.direct_debit > 0" class="col-6 col-sm-3">
+        <q-card flat bordered>
+          <q-card-section>
+            <div class="text-caption text-grey-7">
+              <q-icon name="account_balance" color="teal" class="q-mr-xs" /> Domiciliación
+            </div>
+            <div v-if="loadingSummary" class="q-mt-xs">
+              <q-skeleton type="text" width="100px" />
+            </div>
+            <div v-else class="text-h5 text-weight-bold q-mt-xs">
+              {{ formatPrice(summary.revenueByMethod.direct_debit, displayCurrency) }}
+            </div>
+          </q-card-section>
+        </q-card>
+      </div>
       <!-- Total -->
       <div class="col-6 col-sm-3">
         <q-card flat bordered class="bg-grey-1">
@@ -540,7 +558,14 @@ const exporting = ref(false);
 
 const summary = reactive<FinanceSummary>({
   monthlyRevenue: 0,
-  revenueByMethod: { cash: 0, transfer: 0, card: 0, aura_credit: 0, internal: 0 },
+  revenueByMethod: {
+    cash: 0,
+    transfer: 0,
+    card: 0,
+    aura_credit: 0,
+    internal: 0,
+    direct_debit: 0,
+  },
   revenueByBranch: [],
   // Phase 109 D-11 — additive field for "Por tipo de transaccion" block.
   revenueByKind: {

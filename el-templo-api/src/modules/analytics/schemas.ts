@@ -1215,6 +1215,7 @@ export const financialAnalyticsSchema = {
             cash: revenueByCurrencySchema,
             transfer: revenueByCurrencySchema,
             card: revenueByCurrencySchema,
+            direct_debit: revenueByCurrencySchema,
           },
         },
         revenueByBranch: {

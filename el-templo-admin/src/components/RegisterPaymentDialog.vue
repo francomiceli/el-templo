@@ -129,6 +129,7 @@ import { formatPrice } from 'src/utils/format-price';
 import { useTransactionsApi } from 'src/composables/useTransactionsApi';
 import {
   PAYMENT_METHOD_OPTIONS,
+  paymentMethodOptionsFor,
   type OutstandingConcept,
   type PaymentMethod,
   type RegisterPaymentInput,
@@ -158,7 +159,12 @@ const log = createLogger('RegisterPaymentDialog');
 // Constants
 // =========================================================================
 
-const paymentMethodOptions = PAYMENT_METHOD_OPTIONS;
+// Domiciliación sólo en España: el país se deriva de la moneda del cobro, mismo
+// criterio que CobrosPage. `displayCurrency` se define más abajo — el computed es
+// lazy, así que se resuelve recién al renderizar el selector.
+const paymentMethodOptions = computed(() =>
+  paymentMethodOptionsFor(displayCurrency.value === 'EUR' ? 'ES' : 'AR')
+);
 
 // Default desde el array — NO hardcodear 'cash'. Si el array estuviera vacío (no debería),
 // caemos a 'cash' que es un valor presente en el enum del schema (financial-transactions.ts).

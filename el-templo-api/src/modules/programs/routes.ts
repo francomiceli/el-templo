@@ -20,6 +20,7 @@ import {
   BalanceService,
   CashRegisterService,
 } from "../finance";
+import type { PaymentMethod } from "../finance/types";
 import { handleServiceError } from "../shared/error-handler";
 import { auditLog } from "../shared/audit-log";
 import {
@@ -158,7 +159,14 @@ const enrollAddonBodySchema = {
     pricePaid: { type: ["integer", "null"], minimum: 0 },
     paymentMethod: {
       type: "string",
-      enum: ["cash", "transfer", "card", "aura_credit", "internal"],
+      enum: [
+        "cash",
+        "transfer",
+        "card",
+        "aura_credit",
+        "internal",
+        "direct_debit",
+      ],
     },
     notes: { type: ["string", "null"], maxLength: 500 },
   },
@@ -406,7 +414,7 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
     Body: {
       programId: number;
       pricePaid?: number | null;
-      paymentMethod?: "cash" | "transfer" | "card" | "aura_credit" | "internal";
+      paymentMethod?: PaymentMethod;
       notes?: string | null;
     };
   }>(

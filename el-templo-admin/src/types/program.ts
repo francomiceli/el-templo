@@ -3,6 +3,8 @@
  * Matches the API response shapes from the programs module (Plan 83-02).
  */
 
+import type { PaymentMethod } from './transaction';
+
 // ─── Enum Union Types ────────────────────────────────────────────────────────
 
 export type ContentBlockType = 'video' | 'text' | 'pdf' | 'exercise';
@@ -124,7 +126,7 @@ export interface ProgramOption {
 export interface AssignAddonPayload {
   programId: number;
   pricePaid?: number | null;
-  paymentMethod?: 'cash' | 'transfer' | 'card' | 'aura_credit' | 'internal';
+  paymentMethod?: PaymentMethod;
   notes?: string | null;
 }
 

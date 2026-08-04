@@ -951,8 +951,8 @@ import {
   type ChangePlanPreview,
 } from 'src/types/subscription';
 import {
-  PAYMENT_METHOD_OPTIONS,
   PAYMENT_METHOD_LABELS,
+  paymentMethodOptionsFor,
   type PaymentMethod,
   type PendingMiscItem,
 } from 'src/types/transaction';
@@ -1122,7 +1122,12 @@ const startMode = computed<'now' | 'after_current'>(() =>
   changeMode.value === 'after_current' ? 'after_current' : 'now'
 );
 
-const paymentMethodOptions = PAYMENT_METHOD_OPTIONS;
+// Domiciliación sólo en España: se deriva de la moneda del plan elegido, que el
+// server ya fuerza a coincidir con el país de la sede del socio (fase 98 D-03/D-05).
+// `displayCurrency` se define más abajo; el computed es lazy.
+const paymentMethodOptions = computed(() =>
+  paymentMethodOptionsFor(displayCurrency.value === 'EUR' ? 'ES' : 'AR')
+);
 
 // =========================================================================
 // Cobro al asignar (Phase 107 D-01..D-07)

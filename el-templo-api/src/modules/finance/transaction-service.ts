@@ -199,14 +199,32 @@ export class TransactionService {
       // egreso to a branch-less central/banco caja has no sucursal — skip the
       // lookup when branchId is null. Only null short-circuits.
       if (input.branchId !== null) {
-        const branchExists = await txHandle
-          .select({ id: schema.branches.id })
+        const [branch] = await txHandle
+          .select({
+            id: schema.branches.id,
+            country: schema.branches.country,
+          })
           .from(schema.branches)
           .where(eq(schema.branches.id, input.branchId))
           .limit(1);
-        if (branchExists.length === 0) {
+        if (!branch) {
           throw new NotFoundError("Sucursal no encontrada");
         }
+        // La domiciliación bancaria es un instrumento SEPA: solo tiene sentido
+        // en sedes de España. Se valida acá (y no en el JSON-Schema) porque el
+        // país es de la SUCURSAL, no de la transacción — el schema no lo ve.
+        // Reusa el lookup de arriba, así el gate no cuesta una query extra.
+        if (input.paymentMethod === "direct_debit" && branch.country !== "ES") {
+          throw new BadRequestError(
+            "La domiciliación bancaria solo está disponible en sedes de España",
+          );
+        }
+      } else if (input.paymentMethod === "direct_debit") {
+        // Sin sucursal no hay país que validar: un movimiento/egreso branch-less
+        // nunca es una domiciliación.
+        throw new BadRequestError(
+          "La domiciliación bancaria requiere una sucursal",
+        );
       }
 
       // 1d. For each link, probe target_id exists in the table matching
@@ -1975,6 +1993,7 @@ export class TransactionService {
       card: 0,
       aura_credit: 0,
       internal: 0,
+      direct_debit: 0,
     };
     for (const r of methodRows) {
       revenueByMethod[r.paymentMethod] = Number(r.total);

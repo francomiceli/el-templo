@@ -46,12 +46,18 @@ export const financialTransactions = mysqlTable(
     direction: mysqlEnum("direction", ["inflow", "outflow"]).notNull(),
     amount: int("amount").notNull(),
     currency: varchar("currency", { length: 3 }).default("ARS").notNull(),
+    // 'direct_debit' (domiciliación bancaria SEPA) solo aplica a sedes de
+    // España — validado a nivel app, no por constraint. El banco confirma el
+    // cobro dentro de las 48 h, así que el staff carga el cobro ya sabiendo el
+    // resultado: un rechazo se resuelve anulando la transacción (voidedAt),
+    // no con un estado "pendiente" propio.
     paymentMethod: mysqlEnum("payment_method", [
       "cash",
       "transfer",
       "card",
       "aura_credit",
       "internal",
+      "direct_debit",
     ]).notNull(),
     transactionDate: date("transaction_date", { mode: "string" }).notNull(),
     effectiveDate: date("effective_date", { mode: "string" }).notNull(),

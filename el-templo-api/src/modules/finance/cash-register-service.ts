@@ -47,9 +47,11 @@ export class CashRegisterService {
    *
    * Rule:
    *   - aura_credit / internal → NULL (not firm cash in any caja).
-   *   - transfer / card        → banco caja of `currency` (resolved BY currency,
-   *                              so a currency mismatch is structurally
-   *                              impossible — no guard needed).
+   *   - transfer / card /      → banco caja of `currency` (resolved BY currency,
+   *     direct_debit             so a currency mismatch is structurally
+   *                              impossible — no guard needed). La domiciliación
+   *                              entra por el banco igual que una transferencia:
+   *                              nunca toca la caja efectivo de la sede.
    *   - cash                   → efectivo caja of `branchId`. Here the caja's
    *                              currency could differ from the tx currency
    *                              (e.g. an EUR cash payment recorded at an ARS
@@ -69,7 +71,11 @@ export class CashRegisterService {
       return null;
     }
 
-    if (paymentMethod === "transfer" || paymentMethod === "card") {
+    if (
+      paymentMethod === "transfer" ||
+      paymentMethod === "card" ||
+      paymentMethod === "direct_debit"
+    ) {
       // Phase 146 (CAJA-03 / LOW 1): con multiples cajas banco de la misma moneda
       // (Banco ARS + Galicia + Mercado Pago), el destructuring [banco] sin orden
       // daria una caja SUGERIDA no-determinista. orderBy(id) la fija a la mas

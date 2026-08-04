@@ -19,6 +19,20 @@ const paginationQuerystring = {
   limit: { type: "integer", minimum: 1, maximum: 100 },
 } as const;
 
+/**
+ * Métodos de pago que muestra el reporte de cobros — espejo de
+ * `ChargeReportPaymentMethod` en ./types.ts. Vive en una constante única porque
+ * se usa en el filtro (querystring) Y en la fila (response): cuando esto eran
+ * dos literales sueltos, sumar un método al enum dejaba el response schema
+ * corto y fast-json-stringify se comía la fila.
+ */
+const CHARGE_REPORT_PAYMENT_METHOD_ENUM = [
+  "cash",
+  "transfer",
+  "card",
+  "direct_debit",
+] as const;
+
 // =============================================================================
 // Access Report Schema
 // =============================================================================
@@ -77,7 +91,10 @@ export const chargeReportSchema = {
       dateFrom: { type: "string", format: "date" },
       dateTo: { type: "string", format: "date" },
       search: { type: "string" },
-      paymentMethod: { type: "string", enum: ["cash", "transfer", "card"] },
+      paymentMethod: {
+        type: "string",
+        enum: CHARGE_REPORT_PAYMENT_METHOD_ENUM,
+      },
       ...paginationQuerystring,
     },
   },
@@ -99,7 +116,7 @@ export const chargeReportSchema = {
               currency: { type: "string" },
               paymentMethod: {
                 type: "string",
-                enum: ["cash", "transfer", "card"],
+                enum: CHARGE_REPORT_PAYMENT_METHOD_ENUM,
               },
               recorderName: { type: "string" },
               voidedAt: { type: ["string", "null"] },

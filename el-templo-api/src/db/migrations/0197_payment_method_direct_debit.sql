@@ -1,0 +1,31 @@
+-- Domiciliación bancaria (SEPA) como método de pago propio.
+--
+-- QUÉ ARREGLA
+-- -----------
+-- La sede de Barcelona cobra por domiciliación desde que existe el export SEPA
+-- (migración 0171), pero el enum `payment_method` no tenía el valor, así que el
+-- staff los venía cargando como 'transfer'. Resultado: los domiciliados quedaban
+-- mezclados con las transferencias manuales en Caja, en Analytics y en el reporte
+-- de cobros, y no había forma de conciliar contra el extracto del banco.
+--
+-- POR QUÉ NO HACE FALTA UN ESTADO "PENDIENTE"
+-- -------------------------------------------
+-- Una domiciliación SEPA puede rebotar, así que a priori parecía necesario un
+-- estado intermedio para no contar plata que todavía no entró. No hace falta: el
+-- banco retiene el importe 48 h y confirma en esa ventana si se pudo cobrar, y el
+-- staff carga el cobro recién cuando ya sabe el resultado. Un rechazo posterior se
+-- resuelve con el flujo de anulación que ya existe (`voided_at` / `void_reason`),
+-- que es el mismo camino que cualquier otro cobro mal cargado.
+--
+-- ALCANCE
+-- -------
+-- El valor solo se ofrece y se acepta en sedes con country='ES' -- la validación
+-- vive en la capa de aplicación (branch.country), no en un constraint, porque el
+-- país es de la sucursal y no de la transacción. Ver members/routes.ts para el
+-- mismo gate en el export de domiciliación.
+
+-- El nombre de columna payment_method debe coincidir con el 1er arg de mysqlEnum
+-- en src/db/schema/financial-transactions.ts. Se agrega al final para no alterar
+-- el orden de los valores existentes.
+ALTER TABLE `financial_transactions`
+  MODIFY COLUMN `payment_method` enum('cash','transfer','card','aura_credit','internal','direct_debit') NOT NULL;
