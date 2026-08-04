@@ -235,7 +235,12 @@ type ValorJson =
 
 interface EntradaSnapshot {
   status: number;
-  /** `true` si la paginación se cortó en `MAX_PAGINAS` (captura incompleta). */
+  /**
+   * `true` si la paginación cortó ANTES de agotar `total`, por cualquiera de
+   * los tres motivos: tope de `MAX_PAGINAS`, página sin `rows` como array, o
+   * página vacía (IN-02). Un snapshot con `truncado: true` NO sirve como línea
+   * de base.
+   */
   truncado: boolean;
   body: ValorJson;
 }
@@ -367,6 +372,25 @@ async function pedir(
   return { status: respuesta.status, body };
 }
 
+/**
+ * Warn único de captura incompleta. Nombra el endpoint, la página donde cortó,
+ * el par `filas/total` y el motivo: sin el par, un `TRUNCADO` en la salida no
+ * dice si faltó una fila o la mitad del listado.
+ */
+function avisarTruncado(
+  path: string,
+  pagina: number,
+  cantidadFilas: number,
+  total: number,
+  motivo: string,
+): void {
+  console.warn(
+    `  ! ${path}: captura TRUNCADA en ${cantidadFilas}/${total} filas ` +
+      `(página ${pagina}: ${motivo}). El diff de este endpoint puede dar ` +
+      `falsos positivos.`,
+  );
+}
+
 async function capturarEndpoint(
   baseUrl: string,
   token: string,
@@ -399,10 +423,12 @@ async function capturarEndpoint(
   while (filas.length < total) {
     if (pagina >= MAX_PAGINAS) {
       truncado = true;
-      console.warn(
-        `  ! ${spec.path}: captura TRUNCADA en ${filas.length}/${total} filas ` +
-          `(tope de ${MAX_PAGINAS} páginas). El diff de este endpoint puede dar ` +
-          `falsos positivos.`,
+      avisarTruncado(
+        spec.path,
+        pagina,
+        filas.length,
+        total,
+        `tope de ${MAX_PAGINAS} páginas`,
       );
       break;
     }
@@ -416,8 +442,39 @@ async function capturarEndpoint(
       };
     }
     const cuerpo = siguiente.body;
-    if (!esObjeto(cuerpo) || !Array.isArray(cuerpo.rows)) break;
-    if (cuerpo.rows.length === 0) break; // el server dejó de dar filas
+    if (!esObjeto(cuerpo) || !Array.isArray(cuerpo.rows)) {
+      // Página intermedia con body bien formado pero SIN `rows` como array: la
+      // captura queda INCOMPLETA. Mismo trato que el tope de `MAX_PAGINAS` — el
+      // flag `truncado` existe exactamente para delatar esto (IN-02 de la 172).
+      // Sin esto, un `antes.json` parcial se declara completo y el `--diff`
+      // posterior compara contra una línea de base incompleta en silencio.
+      if (filas.length < total) {
+        truncado = true;
+        avisarTruncado(
+          spec.path,
+          pagina,
+          filas.length,
+          total,
+          "la página no trae 'rows' como array",
+        );
+      }
+      break;
+    }
+    if (cuerpo.rows.length === 0) {
+      // El server dejó de dar filas antes de agotar `total`: mismo modo de
+      // falla que el anterior (incompleto, no completo).
+      if (filas.length < total) {
+        truncado = true;
+        avisarTruncado(
+          spec.path,
+          pagina,
+          filas.length,
+          total,
+          "la página vino vacía antes de agotar el total",
+        );
+      }
+      break;
+    }
     filas.push(...cuerpo.rows);
   }
 
@@ -434,6 +491,7 @@ async function capturar(baseUrl: string, token: string, ruta: string) {
   console.log(`Endpoints: ${ENDPOINTS.length}\n`);
 
   const endpoints: Record<string, EntradaSnapshot> = {};
+  const truncados: string[] = [];
   let huboFallas = false;
 
   // Secuencial a propósito: no hay motivo para golpear staging en paralelo.
@@ -449,7 +507,10 @@ async function capturar(baseUrl: string, token: string, ruta: string) {
     console.log(
       `${entrada.status}${filas}${entrada.truncado ? " TRUNCADO" : ""}`,
     );
-    if (entrada.status !== 200) huboFallas = true;
+    // Un endpoint truncado invalida la captura tanto como uno que no dio 200:
+    // en los dos casos el archivo NO sirve como línea de base (IN-02).
+    if (entrada.status !== 200 || entrada.truncado) huboFallas = true;
+    if (entrada.truncado) truncados.push(nombre);
   }
 
   const snapshot: Snapshot = {
@@ -473,13 +534,21 @@ async function capturar(baseUrl: string, token: string, ruta: string) {
   );
 
   if (huboFallas) {
+    if (truncados.length > 0) {
+      console.error(
+        `\nCAPTURA TRUNCADA en ${truncados.length} endpoint(s): ` +
+          `${truncados.join(", ")}. Subí MAX_PAGINAS o acotá el filtro y repetí.`,
+      );
+    }
     console.error(
-      "\nFALLÓ: al menos un endpoint no devolvió 200. La captura quedó en " +
-        `${destino} para inspección, NO como línea de base.`,
+      "\nFALLÓ: al menos un endpoint no devolvió 200 o quedó truncado. La " +
+        `captura quedó en ${destino} para inspección, NO como línea de base.`,
     );
     process.exit(1);
   }
-  console.log("\nCaptura completa: los 7 endpoints en 200.");
+  console.log(
+    `\nCaptura completa: los ${ENDPOINTS.length} endpoints en 200, ninguno truncado.`,
+  );
 }
 
 function aJson(snapshot: Snapshot): ValorJson {
