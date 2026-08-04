@@ -4745,13 +4745,13 @@ Plans:
 3. El cron de recategorización multisucursal nunca mueve a un socio a una sede de otro tenant: test que le ofrece sedes de ambos tenants y verifica que solo considera las del propio. (ADO-07)
 4. Sin cambio para el staff: alta de alumno, ficha, notas, cambio de sede, listados, filtros y export se comportan igual (suite verde y verificación en staging).
 
-**Plans:** 31 plans en 16 olas
+**Plans:** 1/31 plans executed
 
 Plans:
 
 **Wave 1**
 
-- [ ] 173-01-PLAN.md — gate D-16 (backmerge master→staging), worktree et-173 y `tsconfig.test-check.json`
+- [x] 173-01-PLAN.md — gate D-16 (backmerge master→staging), worktree et-173 y `tsconfig.test-check.json`
 
 **Wave 2** _(blocked on Wave 1 completion)_
 
@@ -4894,7 +4894,7 @@ Plans:
 | 170. Detección — sentinel de pool + lint CI       | 0/8            | Planned     |            |
 | 171. Backstop — manifiesto + fixtures 2-tenant    | 0/?            | Not started |            |
 | 172. Adopción 1 (piloto) — finance                | 23/23          | Complete    | 2026-07-31 |
-| 173. Adopción 2 — members + guarda de anclas      | 0/31           | Planned     |            |
+| 173. Adopción 2 — members + guarda de anclas      | 1/31           | In Progress |            |
 | 174. Adopción 3 — subscriptions + scheduling      | 0/?            | Not started |            |
 | 175. Adopción 4 — analytics + resto del core      | 0/?            | Not started |            |
 | 176. Módulos — flags, requireModule y registry    | 0/?            | Not started |            |
