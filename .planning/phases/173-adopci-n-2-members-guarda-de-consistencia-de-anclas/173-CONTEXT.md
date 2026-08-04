@@ -59,10 +59,10 @@ viaja junto a master cuando esté listo (decisión de Franco, esta sesión).
   es la fase de su módulo. El planner NO infla el alcance.
 - **D-03:** Los scripts de `src/db/` y `src/scripts/` que tocan `users`
   (`import-members`, `import-fecha-ingreso`, `import-turnos`, `import-vigentes`,
-  `seed-staging`, `backfill-referral-codes`) reciben **retrofit `requireTenant`**
-  - helpers, todos por igual — misma receta que el piloto aplicó a
-    `backfill-historical-payments.ts` (ejemplar: `scripts/seed-onboarding-aura.ts`).
-    **Cero exenciones `tenant-safe` nuevas** por esta vía.
+  `seed-staging`, `backfill-referral-codes`) reciben **retrofit `requireTenant`
+  más helpers**, todos por igual — misma receta que el piloto aplicó a
+  `backfill-historical-payments.ts` (ejemplar: `scripts/seed-onboarding-aura.ts`).
+  **Cero exenciones `tenant-safe` nuevas** por esta vía.
 - **D-04:** Los 7 jobs ya barren con `forEachActiveTenant` (169/171) pero
   **tener `ctx` ≠ estar migrado** (trampa (a) del doc 07): los que tocan tablas
   del módulo (`reassign-multibranch`, `notification-cron`, `expire-lost-leads`)
