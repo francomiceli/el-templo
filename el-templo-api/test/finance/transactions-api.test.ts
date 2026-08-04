@@ -1438,7 +1438,7 @@ describe("Finance API — GET /transactions/summary", () => {
 
   // ─── Happy path ──────────────────────────────────────────────────────────
 
-  it("SU1: owner GET → 200 with { monthlyRevenue, revenueByMethod (5 keys), revenueByBranch }", async () => {
+  it("SU1: owner GET → 200 with { monthlyRevenue, revenueByMethod (6 keys), revenueByBranch }", async () => {
     await createArTxn(1000);
     const res = await app.inject({
       method: "GET",
@@ -1456,6 +1456,7 @@ describe("Finance API — GET /transactions/summary", () => {
       card: 0,
       aura_credit: 0,
       internal: 0,
+      direct_debit: 0,
     });
   });
 
