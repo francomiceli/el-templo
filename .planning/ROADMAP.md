@@ -4745,7 +4745,41 @@ Plans:
 3. El cron de recategorización multisucursal nunca mueve a un socio a una sede de otro tenant: test que le ofrece sedes de ambos tenants y verifica que solo considera las del propio. (ADO-07)
 4. Sin cambio para el staff: alta de alumno, ficha, notas, cambio de sede, listados, filtros y export se comportan igual (suite verde y verificación en staging).
 
-**Plans:** TBD
+**Plans:** 31 plans en 16 olas
+
+Plans:
+
+- [ ] 173-01-PLAN.md — gate D-16 (backmerge master→staging), worktree et-173 y `tsconfig.test-check.json`
+- [ ] 173-02-PLAN.md — inventario con las dos lentes (lint + SENTINEL_INVENTORY) y sync del manifiesto
+- [ ] 173-03-PLAN.md — fix IN-02 y snapshot `antes.json` de los endpoints de socios (D-10)
+- [ ] 173-04-PLAN.md — helpers compartidos: `audit-log.ts` y `country-scope.ts`
+- [ ] 173-05-PLAN.md — helpers compartidos: `member-search.ts` y `covered-until.ts`
+- [ ] 173-06-PLAN.md — cirugía mínima en los 6 services de analytics
+- [ ] 173-07-PLAN.md — cirugía mínima en scheduling, asistencia, check-ins y ratings
+- [ ] 173-08-PLAN.md — cirugía mínima en campañas, segmentación, notificaciones, onboarding y referidos
+- [ ] 173-09-PLAN.md — cirugía mínima en entrenamiento, progresión y gamificación
+- [ ] 173-10-PLAN.md — retrofit `requireTenant` en los 6 scripts CLI (D-03)
+- [ ] 173-11-PLAN.md — helper de anclas `branch-consistency.ts` y `canAccessBranch` por gimnasio (D-05a, D-14)
+- [ ] 173-12-PLAN.md — schema + migración 0198: unique `(tenant_id, id)` y FK compuesta (D-05b, D-18)
+- [ ] 173-13-PLAN.md — `users/service.ts` y `users/routes.ts`: staff, `user_branches` y 6 sitios de ancla
+- [ ] 173-14-PLAN.md — deudas de la 172 en `subscriptions/service.ts` (D-13, D-15) y desmarque del ancla
+- [ ] 173-15-PLAN.md — WR-01 del autorregistro (D-12) y Wellhub
+- [ ] 173-16-PLAN.md — los 3 crons y el test SC3 del cron de recategorización (D-04, D-07)
+- [ ] 173-17-PLAN.md — plomería de firmas: `ctx` primero en los 23 métodos y `assertTenant` en 25 rutas
+- [ ] 173-18-PLAN.md — queries de escritura de `members/service.ts` y los 4 sitios de ancla
+- [ ] 173-19-PLAN.md — queries de lectura de `members/service.ts` y las 11 entradas por archivo
+- [ ] 173-20-PLAN.md — queries directas de `members/routes.ts` y `leads-routes.ts`
+- [ ] 173-21-PLAN.md — endurecimiento de test/: infra, `cleanAllTestData` y la sonda
+- [ ] 173-22-PLAN.md — endurecimiento de test/: socios, staff, auth y leads
+- [ ] 173-23-PLAN.md — endurecimiento de test/: suscripciones, finanzas, reportes, coach y referidos
+- [ ] 173-24-PLAN.md — endurecimiento de test/: analytics, grilla, asistencia y comunicación
+- [ ] 173-25-PLAN.md — endurecimiento de test/: cola larga y barrido global en cero
+- [ ] 173-26-PLAN.md — batería ISO-03: fixture del gimnasio 2 y las 9 rutas de listados y exports
+- [ ] 173-27-PLAN.md — batería ISO-03: las 10 rutas de la ficha del socio
+- [ ] 173-28-PLAN.md — batería ISO-03: las 11 rutas de alta, edición y staff (ADO-07)
+- [ ] 173-29-PLAN.md — gate de cobertura con los 3 prefijos y las 30 rutas (D-09)
+- [ ] 173-30-PLAN.md — el switch en dos commits y la demo del fail-closed (D-01)
+- [ ] 173-31-PLAN.md — CI, diff de números, merge a staging y UAT del staff (D-10, D-11, D-17)
 
 ### Phase 174: Adopción 3 — `subscriptions` + `scheduling`
 
@@ -4809,7 +4843,7 @@ Plans:
 | 170. Detección — sentinel de pool + lint CI       | 0/8            | Planned     |            |
 | 171. Backstop — manifiesto + fixtures 2-tenant    | 0/?            | Not started |            |
 | 172. Adopción 1 (piloto) — finance                | 23/23          | Complete    | 2026-07-31 |
-| 173. Adopción 2 — members + guarda de anclas      | 0/?            | Not started |            |
+| 173. Adopción 2 — members + guarda de anclas      | 0/31           | Planned     |            |
 | 174. Adopción 3 — subscriptions + scheduling      | 0/?            | Not started |            |
 | 175. Adopción 4 — analytics + resto del core      | 0/?            | Not started |            |
 | 176. Módulos — flags, requireModule y registry    | 0/?            | Not started |            |
