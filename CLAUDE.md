@@ -59,6 +59,13 @@ Monorepo with 3 apps:
   - Frontend: `@sentry/vue` in `src/boot/sentry.ts` (first boot file). Guarded by `VITE_SENTRY_DSN` env var. `createLogger().error()` sends to Sentry automatically.
   - GitHub Issues integration: Not available. Errors go to Sentry dashboard only.
 
+## Delegación a subagentes (ahorro de cuota)
+
+- Barridos de lectura, búsquedas amplias, arqueología de git e inventarios multi-archivo → delegar a un subagente **Explore** con `model: sonnet` (devuelve la conclusión, no los volcados de archivos). No hacer estos barridos en el hilo principal.
+- Verificaciones mecánicas repetitivas (comparar N archivos contra una rama, greps de inventario) → un solo comando con loop, o subagente si son muchas.
+- El hilo principal queda para decisiones, ediciones, merges delicados y comunicación con el usuario.
+- Preguntas de referencia sobre la API/modelos de Anthropic → sesión aparte (el skill `claude-api` inyecta decenas de miles de tokens al contexto y quedan cargados el resto de la sesión).
+
 ## Plan Mode Review
 
 When entering plan mode, review the plan thoroughly before making any code changes. For every issue or recommendation, explain the concrete tradeoffs, give an opinionated recommendation, and ask for user input before assuming a direction.
