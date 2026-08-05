@@ -46,18 +46,18 @@ caminos críticos pasen la batería de aislamiento (ISO-03) en verde.
 - [x] **CON-02**: Toda tabla gym-owned tiene índice con prefijo `tenant_id` (vía unique compuesta o `INDEX` explícito) en la misma migración
 - [x] **CON-03**: Helpers `tenantWhere`/`tenantValues` en `shared/tenant.ts`; todo INSERT sobre gym-owned toma `tenant_id` exclusivamente de scope/contexto server-side
 - [x] **CON-04**: `TenantContext` explícito para caminos sin request: crons iteran tenants activos, webhook Wellhub deriva tenant vía `branches.wellhub_gym_id`, scripts CLI lo exigen como argumento; `tv_pairings` pre-claim con exención anotada (M7)
-- [x] **CON-05**: Sentinel de pool mysql2 detecta SQL sobre tabla gym-owned sin `tenant_id`: test/dev = throw para módulos migrados, prod = `log.error` + métrica; exenciones `/* tenant-safe: <motivo> */` respetadas y grepeables
-- [x] **CON-06**: Lint estático en CI falla ante ` sql` ``/`.from()`sobre gym-owned sin`tenant_id` ni anotación (allowlist decreciente por módulo)
+- [ ] **CON-05**: Sentinel de pool mysql2 detecta SQL sobre tabla gym-owned sin `tenant_id`: test/dev = throw para módulos migrados, prod = `log.error` + métrica; exenciones `/* tenant-safe: <motivo> */` respetadas y grepeables
+- [ ] **CON-06**: Lint estático en CI falla ante ` sql` ``/`.from()`sobre gym-owned sin`tenant_id` ni anotación (allowlist decreciente por módulo)
 
 ### ISO — Backstop de aislamiento
 
-- [x] **ISO-01**: Manifiesto versionado (`test/tenant-manifest.ts`) clasifica el 100% de las rutas (`tenant-scoped`/`global`/`templo-module`); hook `onRoute` fail-closed: ruta nueva sin clasificar = test rojo
-- [x] **ISO-02**: Fixtures de test siembran 2 tenants; helpers (`createStaffUser` y afines) soportan crear staff/socios por tenant
-- [ ] **ISO-03**: Batería de aislamiento: cada ruta `tenant-scoped` de un módulo migrado, ejecutada como staff del tenant A, no expone ni escribe datos del tenant B
+- [ ] **ISO-01**: Manifiesto versionado (`test/tenant-manifest.ts`) clasifica el 100% de las rutas (`tenant-scoped`/`global`/`templo-module`); hook `onRoute` fail-closed: ruta nueva sin clasificar = test rojo
+- [ ] **ISO-02**: Fixtures de test siembran 2 tenants; helpers (`createStaffUser` y afines) soportan crear staff/socios por tenant
+- [x] **ISO-03**: Batería de aislamiento: cada ruta `tenant-scoped` de un módulo migrado, ejecutada como staff del tenant A, no expone ni escribe datos del tenant B
 
 ### ADO — Adopción módulo a módulo
 
-- [ ] **ADO-01**: `finance` migrado al patrón completo (services reciben scope + `tenantWhere`/`tenantValues` + sentinel throw para sus tablas + aislamiento verde)
+- [x] **ADO-01**: `finance` migrado al patrón completo (services reciben scope + `tenantWhere`/`tenantValues` + sentinel throw para sus tablas + aislamiento verde)
 - [ ] **ADO-02**: `members` ídem
 - [ ] **ADO-03**: `subscriptions` ídem, con la cadena de pricing (override → boarding pass → AURA → referral) intacta
 - [ ] **ADO-04**: `scheduling` ídem (schedules/bookings/attendance/schedule_exceptions)
@@ -106,12 +106,12 @@ _Se completa cuando el roadmap asigne cada REQ-ID a una fase._
 | CON-02  | Phase 168 | Complete |
 | CON-03  | Phase 169 | Complete |
 | CON-04  | Phase 169 | Complete |
-| CON-05  | Phase 170 | Complete |
-| CON-06  | Phase 170 | Complete |
-| ISO-01  | Phase 171 | Complete |
-| ISO-02  | Phase 171 | Complete |
-| ISO-03  | Phase 172 | Pending  |
-| ADO-01  | Phase 172 | Pending  |
+| CON-05  | Phase 170 | Pending  |
+| CON-06  | Phase 170 | Pending  |
+| ISO-01  | Phase 171 | Pending  |
+| ISO-02  | Phase 171 | Pending  |
+| ISO-03  | Phase 172 | Complete |
+| ADO-01  | Phase 172 | Complete |
 | ADO-02  | Phase 173 | Pending  |
 | ADO-07  | Phase 173 | Pending  |
 | ADO-03  | Phase 174 | Pending  |
