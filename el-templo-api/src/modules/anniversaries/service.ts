@@ -13,6 +13,7 @@ import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { addDays } from "../shared/date-utils";
 import { milestoneOnDate } from "../shared/tenure-milestones";
+import { tenantWhere, type TenantContext } from "../shared/tenant";
 
 export interface AnniversaryEntry {
   memberId: number;
@@ -37,6 +38,7 @@ export class AnniversaryService {
    * Orden: primero HOY, y dentro de cada día el hito más grande arriba.
    */
   async getBranchAnniversaries(
+    ctx: TenantContext,
     branchId: number,
     opts: { today: string; includeTomorrow?: boolean },
   ): Promise<AnniversaryEntry[]> {
@@ -53,6 +55,7 @@ export class AnniversaryService {
       .from(schema.users)
       .where(
         and(
+          tenantWhere(schema.users, ctx),
           eq(schema.users.role, "member"),
           eq(schema.users.status, "activo"),
           eq(schema.users.branchId, branchId),

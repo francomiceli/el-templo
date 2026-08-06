@@ -23,7 +23,11 @@ import pino from "pino";
 import { and, eq, inArray } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import * as schema from "../db/schema";
-import { forEachActiveTenant } from "../modules/shared/tenant";
+import {
+  forEachActiveTenant,
+  tenantWhere,
+  type TenantContext,
+} from "../modules/shared/tenant";
 import { todayInTz } from "../modules/shared/date-utils";
 import { milestoneOnDate } from "../modules/shared/tenure-milestones";
 import { AuraService } from "../modules/aura/service";
@@ -66,8 +70,8 @@ export async function runTenureMilestones(
     failed: 0,
   };
 
-  await forEachActiveTenant(db, log, "tenure-milestones", async () => {
-    const r = await runForTenant(db, opts);
+  await forEachActiveTenant(db, log, "tenure-milestones", async (ctx) => {
+    const r = await runForTenant(db, ctx, opts);
     result.candidates += r.candidates;
     result.recognized.push(...r.recognized);
     result.alreadyDone += r.alreadyDone;
@@ -79,6 +83,7 @@ export async function runTenureMilestones(
 
 async function runForTenant(
   db: MySql2Database<typeof schema>,
+  ctx: TenantContext,
   opts: { now?: Date; dryRun?: boolean },
 ): Promise<TenureMilestoneResult> {
   const dryRun = opts.dryRun ?? false;
@@ -104,7 +109,11 @@ async function runForTenant(
     })
     .from(schema.users)
     .where(
-      and(eq(schema.users.role, "member"), eq(schema.users.status, "activo")),
+      and(
+        tenantWhere(schema.users, ctx),
+        eq(schema.users.role, "member"),
+        eq(schema.users.status, "activo"),
+      ),
     );
 
   // Filtrar a los que cumplen un hito EXACTAMENTE hoy.
@@ -128,6 +137,7 @@ async function runForTenant(
     .from(schema.auraTransactions)
     .where(
       and(
+        tenantWhere(schema.auraTransactions, ctx),
         inArray(schema.auraTransactions.userId, hitIds),
         eq(schema.auraTransactions.sourceType, "tenure_milestone"),
         eq(schema.auraTransactions.referenceType, "tenure_milestone"),
