@@ -117,4 +117,5 @@ watch(includeTomorrow, load);
   border-color: #f0c675;
   background: #fffaf0;
 }
+/* chore(staging): re-trigger de deploy (paths-filter/event.before) — solo staging. */
 </style>
