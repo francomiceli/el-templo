@@ -327,6 +327,11 @@
                     <span class="text-grey-5">Reservado</span>
                   </template>
                 </q-item-label>
+                <q-item-label v-if="member.anniversaryLabel" caption>
+                  <span class="anniversary-line">
+                    🎉 {{ member.anniversaryLabel }}
+                  </span>
+                </q-item-label>
               </q-item-section>
               <q-item-section side>
                 <div class="row items-center q-gutter-xs">
@@ -1412,5 +1417,11 @@ watch(
   cursor: pointer;
   text-decoration: underline;
   text-underline-offset: 2px;
+}
+
+/* Aniversario de permanencia: línea cálida y destacada bajo el nombre. */
+.anniversary-line {
+  color: #b26a00;
+  font-weight: 600;
 }
 </style>

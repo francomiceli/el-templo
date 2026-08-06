@@ -22,6 +22,7 @@ export const auraConfigSourceTypeEnum = mysqlEnum("aura_config_source_type", [
   "onboarding_completion",
   "program_week_completion",
   "program_completion",
+  "tenure_milestone",
 ]);
 
 export const auraConfig = mysqlTable("aura_config", {
