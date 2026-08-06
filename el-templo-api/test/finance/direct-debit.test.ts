@@ -205,7 +205,6 @@ function directDebitCharge(overrides: Record<string, unknown> = {}) {
 describe("domiciliación (direct_debit) — gate por país", () => {
   it("acepta el cobro en una sede de España", async () => {
     const result = await txService.create(
-      TEMPLO_CTX,
       directDebitCharge(),
       adminId,
     );
@@ -215,7 +214,6 @@ describe("domiciliación (direct_debit) — gate por país", () => {
   it("rechaza el cobro en una sede de Argentina", async () => {
     await expect(
       txService.create(
-        TEMPLO_CTX,
         directDebitCharge({
           memberId: arMemberId,
           branchId: arBranchId,
@@ -229,7 +227,6 @@ describe("domiciliación (direct_debit) — gate por país", () => {
   it("rechaza el cobro sin sucursal (no hay país que validar)", async () => {
     await expect(
       txService.create(
-        TEMPLO_CTX,
         directDebitCharge({ branchId: null }),
         adminId,
       ),
@@ -267,7 +264,6 @@ async function cajaShape(
 describe("domiciliación (direct_debit) — caja destino", () => {
   it("imputa a una caja banco de la moneda, no a la efectivo de la sede", async () => {
     const resolved = await cashRegisterService.resolveCashRegister(
-      TEMPLO_CTX,
       "direct_debit",
       esBranchId,
       "EUR",
@@ -280,7 +276,6 @@ describe("domiciliación (direct_debit) — caja destino", () => {
 
   it("estampa esa caja en la fila del ledger al cobrar", async () => {
     const result = await txService.create(
-      TEMPLO_CTX,
       directDebitCharge({ amount: 6100 }),
       adminId,
     );
@@ -309,12 +304,11 @@ describe("domiciliación (direct_debit) — rechazo del banco", () => {
     // resultado. Un rechazo posterior usa el mismo camino que cualquier cobro
     // mal cargado: anular. Por eso no hay 'pendiente de confirmación'.
     const created = await txService.create(
-      TEMPLO_CTX,
       directDebitCharge({ amount: 7300 }),
       adminId,
     );
 
-    await txService.void(TEMPLO_CTX, created.id, adminId, {
+    await txService.void(created.id, adminId, {
       reason: "Devolución SEPA — el banco rechazó el recibo",
     });
 
