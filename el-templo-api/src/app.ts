@@ -32,6 +32,7 @@ import {
   attendanceAdminRoutes,
   attendanceMemberRoutes,
 } from "./modules/attendance";
+import { anniversaryAdminRoutes } from "./modules/anniversaries";
 import {
   schedulingAdminRoutes,
   schedulingMemberRoutes,
@@ -226,6 +227,10 @@ export async function buildApp(opts: BuildAppOptions = {}) {
   });
 
   // Attendance management routes (QR generation, batch confirm, manual check-in)
+  await app.register(anniversaryAdminRoutes, {
+    prefix: "/api/admin/anniversaries",
+  });
+
   await app.register(attendanceAdminRoutes, {
     prefix: "/api/admin/attendance",
   });
