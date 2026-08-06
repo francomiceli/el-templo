@@ -290,12 +290,13 @@ const JOBS_ESPERADOS = [
   "mark-no-shows.ts",
   "notification-cron.ts",
   "reassign-multibranch.ts",
+  "tenure-milestones.ts",
   "wellhub-sync.ts",
 ];
 
 /**
  * Jobs que corren fuera del sweep DELIBERADAMENTE, con su motivo. Hoy no hay
- * ninguno: los 7 barren por gimnasio. El mapa existe para que la única forma de
+ * ninguno: los 8 barren por gimnasio. El mapa existe para que la única forma de
  * eximir un job sea escribir por qué.
  */
 const JOBS_EXENTOS: Record<string, string> = {};
@@ -330,7 +331,7 @@ function leerJobs(): Array<{ nombre: string; codigo: string }> {
 }
 
 describe("cobertura de D-01 — ningún job queda fuera del barrido por tenant", () => {
-  it("Test 6: src/jobs/ tiene exactamente los 7 jobs conocidos", () => {
+  it("Test 6: src/jobs/ tiene exactamente los 8 jobs conocidos", () => {
     const encontrados = leerJobs().map((j) => j.nombre);
 
     expect(

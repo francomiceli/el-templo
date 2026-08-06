@@ -10,6 +10,7 @@ import { handleServiceError } from "../shared/error-handler";
 import { ATTENDANCE_ROLES } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
 import { requireBranchAccess } from "../shared/branch-access";
+import { assertTenant } from "../shared/tenant";
 import { todayInTz } from "../shared/date-utils";
 
 const AR_TZ = "America/Argentina/Buenos_Aires";
@@ -41,8 +42,10 @@ export const anniversaryAdminRoutes: FastifyPluginAsync = async (fastify) => {
     },
     async (request, reply) => {
       try {
+        const ctx = assertTenant(request.scope, "anniversaries.list");
         const today = request.query.date ?? todayInTz(AR_TZ);
         const anniversaries = await service.getBranchAnniversaries(
+          ctx,
           request.query.branchId,
           {
             today,
