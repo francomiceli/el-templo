@@ -259,4 +259,5 @@ $seal-gold-light: #f5dd7e;
   background: rgba(white, 0.7);
 }
 /* chore(staging): re-trigger de deploy (paths-filter/event.before) — solo staging. */
+/* reintento 2 tras incidente de GitHub Actions (2026-08-06). */
 </style>

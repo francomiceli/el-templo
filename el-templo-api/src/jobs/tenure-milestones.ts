@@ -238,3 +238,4 @@ export function startTenureMilestonesJob(
   log.info("Tenure-milestones cron scheduled daily at 09:00 (Argentina timezone)");
 }
 // chore(staging): re-trigger de deploy (paths-filter/event.before) — solo staging.
+// reintento 2 tras incidente de GitHub Actions (2026-08-06).
