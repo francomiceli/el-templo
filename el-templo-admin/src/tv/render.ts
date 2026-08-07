@@ -79,9 +79,6 @@ interface Nodes {
   sub: HTMLElement;
   progreso: HTMLElement;
   hint: HTMLElement;
-  cabVideo: HTMLElement;
-  video: HTMLVideoElement | null;
-  videoVacio: HTMLElement;
   pantallaPairing: HTMLElement;
   pairingCodigo: HTMLElement;
   pairingInstruccion: HTMLElement;
@@ -140,7 +137,6 @@ function ensureNodes(): Nodes {
   if (nodes) {
     return nodes;
   }
-  const video = document.querySelector('.videoCol video');
   nodes = {
     sede: byId('sede'),
     fecha: byId('fecha'),
@@ -158,9 +154,6 @@ function ensureNodes(): Nodes {
     sub: byId('sub'),
     progreso: byId('progreso'),
     hint: byId('hint'),
-    cabVideo: byId('cabVideo'),
-    video: video ? (video as HTMLVideoElement) : null,
-    videoVacio: byId('videoVacio'),
     pantallaPairing: byId('pantallaPairing'),
     pairingCodigo: byId('pairingCodigo'),
     pairingInstruccion: byId('pairingInstruccion'),
@@ -175,17 +168,6 @@ function ensureNodes(): Nodes {
     cierreQuote: byId('cierreQuote'),
     cierreAutor: byId('cierreAutor'),
   };
-  if (!nodes.video) {
-    log.warn('la plantilla no tiene <video> en la columna derecha');
-  }
-  // El video del ejercicio puede fallar (R2 caido, mp4 corrupto): ahi vale el mismo
-  // criterio que la app — placeholder, nunca un panel negro sin explicacion.
-  if (nodes.video) {
-    nodes.video.addEventListener('error', function () {
-      log.warn('el video no cargo', { url: lastVideoUrl ? lastVideoUrl : '' });
-      showPlaceholder(true);
-    });
-  }
   return nodes;
 }
 
@@ -250,15 +232,8 @@ let last: TvPollResponse | null = null;
 let lastListKey = '';
 let lastListHeader = '';
 let lastDotsKey = '';
-let lastExerciseIndex = -1;
-// `undefined` = todavia no se pinto ningun video. NO puede arrancar en `null`: null es
-// tambien "este ejercicio no tiene video", y la guardia de paintVideo cortaba por igualdad
-// antes de mostrar el cartel — la primera clase con un ejercicio sin video quedaba con el
-// hueco vacio, sin video y sin placeholder (visto en el TV de sede, verificacion de 164).
-let lastVideoUrl: string | null | undefined = undefined;
 let lastQuoteKey = '';
 let lastBeepKey: string | null = null;
-let itemNodes: HTMLElement[] = [];
 
 /** Las frases del PDF, que `boot.ts` recibe por parametro desde `main.ts` (D-06/D-08). */
 export function setQuotes(next: SessionQuote[]): void {
@@ -327,9 +302,7 @@ function paintList(n: Nodes, c: TvClassPayload): void {
   }
   if (key !== lastListKey) {
     lastListKey = key;
-    lastExerciseIndex = -1;
     clear(n.listaBox);
-    itemNodes = [];
     for (let i = 0; i < c.exercises.length; i++) {
       const item = document.createElement('div');
       item.className = 'item';
@@ -342,52 +315,9 @@ function paintList(n: Nodes, c: TvClassPayload): void {
       item.appendChild(ej);
       item.appendChild(rx);
       n.listaBox.appendChild(item);
-      itemNodes.push(item);
     }
     // Listas largas (calentamiento): entran todas achicando la tipografia.
     setClass(n.listaBox, c.exercises.length > COMPACT_OVER ? 'caja compacta' : 'caja');
-  }
-
-  if (c.exerciseIndex !== lastExerciseIndex) {
-    lastExerciseIndex = c.exerciseIndex;
-    for (let i = 0; i < itemNodes.length; i++) {
-      setClass(itemNodes[i], i === c.exerciseIndex ? 'item activo' : 'item');
-    }
-  }
-}
-
-/** Muestra u oculta el cartel de "sin video". El `<video>` siempre es el mismo elemento. */
-function showPlaceholder(show: boolean): void {
-  if (!nodes) {
-    return;
-  }
-  setVisible(nodes.videoVacio, 'videoVacio', show);
-}
-
-function paintVideo(n: Nodes, url: string | null): void {
-  if (url === lastVideoUrl) {
-    return;
-  }
-  lastVideoUrl = url;
-  if (!n.video) {
-    return;
-  }
-  if (!url) {
-    showPlaceholder(true);
-    n.video.removeAttribute('src');
-    n.video.load();
-    return;
-  }
-  showPlaceholder(false);
-  n.video.src = url;
-  n.video.load();
-  // El autoplay puede estar bloqueado por politica del navegador del TV: se intenta y, si
-  // no, queda el primer frame. Nunca puede tirar la pantalla abajo.
-  const jugando = n.video.play() as Promise<void> | undefined;
-  if (jugando && typeof jugando.catch === 'function') {
-    jugando.catch(function () {
-      log.debug('autoplay bloqueado, queda el primer frame');
-    });
   }
 }
 
@@ -436,10 +366,7 @@ export function renderState(payload: TvPollResponse): void {
 
   paintList(n, c);
 
-  const actual = c.exercises[c.exerciseIndex];
-  setText(n.cabVideo, actual ? actual.name : '');
   setText(n.timerCab, formatLabel(c.title));
-  paintVideo(n, actual ? actual.videoUrl : null);
 
   // Que el timer no espere hasta 250 ms para reflejar un start/reset del profe.
   tickTimer();
@@ -620,7 +547,7 @@ export function tickTimer(): void {
   const frame = phaseAt(elapsedFrom(c.timer, nowCorrected()), c.timer.spec);
   const paint = timerPaint(c, frame);
 
-  setClass(n.timerPanel, 'panel timerCaja' + (paint.clase ? ' ' + paint.clase : ''));
+  setClass(n.timerPanel, 'col panel timerCaja' + (paint.clase ? ' ' + paint.clase : ''));
   setText(n.fase, paint.fase);
   setText(n.digitos, paint.digitos);
   setText(n.sub, paint.sub);

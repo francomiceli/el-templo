@@ -1,7 +1,7 @@
 <template>
   <!-- Fase 164 — Control del TV de sucursal desde el celular del profe.      -->
   <!-- D-13: control CIEGO (no espeja la pantalla del televisor) y de botones -->
-  <!-- GRANDES, en secciones BLOQUES / NIVELES / EJERCICIO / TIMER. Cada tap  -->
+  <!-- GRANDES, en secciones BLOQUES / NIVELES / TIMER. Cada tap             -->
   <!-- manda un estado ABSOLUTO y el API devuelve el estado nuevo completo,   -->
   <!-- que es lo que redibuja la botonera.                                     -->
   <q-page padding class="tv-control">
@@ -139,34 +139,6 @@
         </div>
         <div v-if="levelsDisabled" class="text-caption text-grey-7 q-mt-xs">
           {{ currentBlockTitle }} es lista compartida: la ven todos los niveles.
-        </div>
-
-        <!-- =========================== EJERCICIO =========================== -->
-        <div class="tv-section-title">EJERCICIO</div>
-        <div class="row items-stretch q-col-gutter-sm">
-          <div class="col-4">
-            <q-btn
-              class="tv-btn full-width"
-              icon="chevron_left"
-              color="primary"
-              outline
-              :disable="!canControl || exerciseIndex <= 0"
-              @click="onExerciseStep(-1)"
-            />
-          </div>
-          <div class="col-4 flex flex-center">
-            <div class="tv-counter">{{ exerciseIndex + 1 }} / {{ Math.max(exerciseCount, 1) }}</div>
-          </div>
-          <div class="col-4">
-            <q-btn
-              class="tv-btn full-width"
-              icon="chevron_right"
-              color="primary"
-              outline
-              :disable="!canControl || exerciseIndex >= exerciseCount - 1"
-              @click="onExerciseStep(1)"
-            />
-          </div>
         </div>
 
         <!-- ============================= TIMER ============================= -->
@@ -383,10 +355,6 @@ const currentBlockTitle = computed(() => currentBlock.value?.title ?? 'Este bloq
 const levelsDisabled = computed(() => currentBlock.value?.shared === true);
 
 const currentLevel = computed(() => context.value?.state?.level ?? '');
-const exerciseIndex = computed(() => context.value?.state?.exerciseIndex ?? 0);
-const exerciseCount = computed(
-  () => currentBlock.value?.exerciseCountByLevel[currentLevel.value] ?? 0
-);
 
 const timerStatus = computed(() => context.value?.state?.timerStatus ?? 'idle');
 const soundEnabled = computed(() => context.value?.state?.soundEnabled === true);
@@ -490,13 +458,6 @@ function onSelectBlock(role: string): void {
 function onSelectLevel(level: string): void {
   if (level === currentLevel.value) return;
   void send({ level });
-}
-
-/** Índice ABSOLUTO, acotado contra la lista del (bloque, nivel) vigente. */
-function onExerciseStep(delta: number): void {
-  const target = exerciseIndex.value + delta;
-  if (target < 0 || target > exerciseCount.value - 1) return;
-  void send({ exerciseIndex: target });
 }
 
 /**
@@ -629,11 +590,5 @@ onUnmounted(() => {
   font-weight: 700;
   letter-spacing: 0.04em;
   color: var(--q-positive);
-}
-
-.tv-counter {
-  font-size: 1.8rem;
-  font-weight: 700;
-  line-height: 1;
 }
 </style>

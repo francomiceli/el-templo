@@ -41,32 +41,18 @@
         </div>
 
         <main class="stage" id="stage">
-          <section class="col izq">
-            <div class="panel listaCol">
-              <div class="cabCol" id="cabNivel"></div>
-              <div class="caja" id="listaBox"></div>
-            </div>
-            <div class="panel timerCaja" id="timerPanel">
-              <div class="cabCol" id="timerCab"></div>
-              <div class="caja">
-                <div class="fase" id="fase">LISTOS</div>
-                <div class="digitos" id="digitos">00:00</div>
-                <div class="sub" id="sub"></div>
-                <div class="barra"><i id="progreso"></i></div>
-                <div class="hint" id="hint"></div>
-              </div>
-            </div>
+          <section class="col panel listaCol">
+            <div class="cabCol" id="cabNivel"></div>
+            <div class="caja" id="listaBox"></div>
           </section>
-          <section class="col videoCol">
-            <div class="cabCol" id="cabVideo"></div>
+          <section class="col panel timerCaja" id="timerPanel">
+            <div class="cabCol" id="timerCab"></div>
             <div class="caja">
-              <video autoplay loop muted playsinline></video>
-              <!--
-                Placeholder del video (mismo criterio que VideoPlaceholder.vue de la app):
-                se muestra cuando el ejercicio no tiene videoUrl o cuando el <video> falla
-                al cargar. Va en el esqueleto y no lo crea el render, por Pitfall 13.
-              -->
-              <div class="videoVacio" id="videoVacio">VIDEO PRÓXIMAMENTE</div>
+              <div class="fase" id="fase">LISTOS</div>
+              <div class="digitos" id="digitos">00:00</div>
+              <div class="sub" id="sub"></div>
+              <div class="barra"><i id="progreso"></i></div>
+              <div class="hint" id="hint"></div>
             </div>
           </section>
         </main>

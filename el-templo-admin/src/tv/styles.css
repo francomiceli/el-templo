@@ -24,8 +24,10 @@
        rem y NO em a propósito: el mockup anida hasta 4 niveles y los em se
        componen en cascada.
      - el marco 16:9 lo fija scale.ts en px (width/height sobre #tv).
-     - las dos columnas 45/55 son dos flex-item de base fija (ver .izq y .videoCol),
-       ambos con min-width: 0 para que el contenido largo no las estire.
+     - la zona principal son DOS columnas 50/50 lado a lado (.listaCol | .timerCaja),
+       ambas con min-width: 0 para que el contenido largo no las estire. El canal
+       entre columnas es padding-right de la izquierda (no margin) para que la suma
+       de los dos flex-basis siga siendo 100%.
      - la separación entre ítems se hace con margin/padding explícitos en los
        hijos: el atajo de flex es Chromium 84, MÁS NUEVO que la rejilla, y es la
        trampa fácil de pasar por alto (Pitfall 4).
@@ -141,13 +143,15 @@ body {
   box-shadow: 0 0 40px rgba(0, 0, 0, 0.55);
 }
 
-/* ── Barra superior: logo + sede | hora con segundero ── */
+/* ── Barra superior: logo + sede | hora con segundero ──
+   Compacta a propósito: la prioridad de la pantalla es la lista de ejercicios y el
+   cronómetro, así que la marca y la hora ocupan lo mínimo arriba. */
 .topbar {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 1rem 2rem 0.5rem;
+  padding: 0.55rem 2rem 0.25rem;
 }
 .topbar .marca {
   display: flex;
@@ -156,7 +160,7 @@ body {
   margin-right: 2rem; /* separación de la hora */
 }
 .topbar .marca img {
-  height: 3.6rem;
+  height: 3rem;
   display: block;
   margin-right: 1rem;
 }
@@ -164,20 +168,20 @@ body {
   font-family: var(--cinzel);
   font-weight: 700;
   letter-spacing: 0.16em;
-  font-size: 1.4rem;
+  font-size: 1.3rem;
   color: var(--navy);
 }
 .topbar .fecha {
   font-weight: 700;
   letter-spacing: 0.14em;
-  font-size: 1rem;
+  font-size: 0.95rem;
   color: var(--gold);
 }
 .topbar .reloj {
   font-family: var(--cinzel);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  font-size: 2.6rem;
+  font-size: 2.3rem;
   line-height: 1;
   color: var(--navy);
   white-space: nowrap;
@@ -186,7 +190,8 @@ body {
   color: var(--gold);
 }
 
-/* ── Título del bloque, como el PDF: Cinzel navy con sombra arena ── */
+/* ── Título del bloque, como el PDF: Cinzel navy con sombra arena ──
+   También compacto: da paso a la zona principal (lista + timer). */
 .cabecera {
   flex: 0 0 auto;
   text-align: center;
@@ -197,22 +202,22 @@ body {
   font-family: var(--cinzel);
   font-weight: 700;
   letter-spacing: 0.09em;
-  font-size: 3.2rem;
+  font-size: 2.7rem;
   line-height: 1.1;
   color: var(--navy);
   text-shadow: 0.05em 0.035em 0 rgba(219, 202, 180, 0.85);
 }
 .cabecera .movilidad {
-  margin-top: 0.3rem;
+  margin-top: 0.2rem;
   font-weight: 700;
   letter-spacing: 0.12em;
-  font-size: 1.1rem;
+  font-size: 1.05rem;
   color: var(--gold);
 }
 .cabecera .bloqueNum {
   display: inline-flex;
   align-items: center;
-  margin-top: 0.35rem;
+  margin-top: 0.25rem;
   font-weight: 700;
   letter-spacing: 0.2em;
   font-size: 0.85rem;
@@ -242,14 +247,15 @@ body {
   opacity: 0.55;
 }
 
-/* ── Zona principal: 2 columnas — (lista / timer) | video ──
-   45/55 exactos. El canal entre columnas es padding-right de la izquierda (y no
-   un margin) para que la suma de los dos flex-basis siga siendo 100%: con
-   box-sizing: border-box el padding entra DENTRO del 45%. */
+/* ── Zona principal: DOS columnas 50/50 lado a lado — lista de ejercicios a la
+   izquierda, timer a la derecha (el video se quitó del kiosco). El canal entre
+   columnas es el padding-right de la izquierda (no un margin) para que la suma
+   de los dos flex-basis siga siendo 100%: con box-sizing: border-box el padding
+   entra DENTRO del 50%. */
 .stage {
   flex: 1 1 auto;
   display: flex;
-  padding: 0.9rem 2rem 1.4rem;
+  padding: 0.6rem 2rem 1.4rem;
   min-height: 0;
 }
 .col {
@@ -258,23 +264,13 @@ body {
   min-height: 0;
   min-width: 0;
 }
-/* Columna izquierda: dos mitades apiladas (lista arriba, timer abajo) */
-.izq {
-  flex: 0 0 45%;
+/* Las dos columnas se reparten el ancho en partes iguales. */
+.listaCol {
+  flex: 0 0 50%;
   padding-right: 1.2rem;
 }
-.videoCol {
-  flex: 0 0 55%;
-}
-.izq .panel {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  margin-bottom: 1rem; /* separación entre lista y timer */
-}
-.izq .panel:last-child {
-  margin-bottom: 0;
+.timerCaja {
+  flex: 0 0 50%;
 }
 .cabCol {
   font-weight: 700;
@@ -294,12 +290,13 @@ body {
   overflow: hidden;
 }
 
-/* Columna 1: lista de ejercicios, actual gigante */
+/* Columna 1: lista de ejercicios — todos los ítems con el mismo peso (sin
+   ejercicio "en curso" resaltado: ya no se avanza de a uno). */
 .listaCol .caja {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding: 1rem 1.2rem;
+  padding: 1rem 1.4rem;
 }
 .listaCol .item {
   display: flex;
@@ -307,89 +304,34 @@ body {
   align-items: baseline;
   font-weight: 700;
   color: var(--navy);
-  opacity: 0.45;
-  font-size: 1.45rem;
-  line-height: 1.5;
-  margin-bottom: 0.5rem; /* separación entre ejercicios */
-  transition:
-    opacity 0.25s,
-    font-size 0.25s;
+  font-size: 1.9rem;
+  line-height: 1.45;
+  margin-bottom: 0.7rem; /* separación entre ejercicios */
 }
 .listaCol .item:last-child {
   margin-bottom: 0;
 }
 .listaCol .item .ej::before {
   content: '•  ';
+  color: var(--gold);
 }
 .listaCol .item .rx {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   margin-left: 1rem; /* separación entre el ejercicio y su prescripción */
-}
-.listaCol .item.activo {
-  opacity: 1;
-  font-size: 2.2rem;
-  line-height: 1.4;
+  color: var(--gold);
 }
 /* Listas largas (calentamiento): achica para que entren todas en la mitad */
 .listaCol .caja.compacta .item {
-  font-size: 1.1rem;
+  font-size: 1.35rem;
   line-height: 1.45;
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.4rem;
 }
 .listaCol .caja.compacta .item:last-child {
   margin-bottom: 0;
 }
-.listaCol .caja.compacta .item.activo {
-  font-size: 1.7rem;
-  line-height: 1.35;
-}
-/* El triángulo del ejercicio en curso sale del stack de sistema por el mismo
-   motivo que los símbolos de nivel: NunitoSans no garantiza ese glifo. */
-.listaCol .item.activo .ej::before {
-  content: '▶  ';
-  color: var(--gold);
-  font-family: var(--glyph);
-}
-.listaCol .item.activo .rx {
-  color: var(--gold);
-}
 
-/* Columna 2: el video del ejercicio actual */
-.videoCol .caja {
-  position: relative;
-}
-.videoCol video {
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-/* Ejercicio sin video (o video que no cargó): mismo criterio que la app. Tapa el
-   <video> en vez de reemplazarlo, así el elemento sigue siendo uno solo. */
-.videoCol .videoVacio {
-  display: none;
-  position: absolute;
-  left: 0;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  align-items: center;
-  justify-content: center;
-  background: rgba(219, 202, 180, 0.35);
-  color: var(--gold);
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  font-size: 1.8rem;
-  text-align: center;
-}
-.videoCol .videoVacio.visible {
-  display: flex;
-}
-
-/* Timer (mitad inferior de la columna izquierda) */
+/* Timer (mitad inferior de la columna) */
 .timerCaja .caja {
   display: flex;
   flex-direction: column;
@@ -410,10 +352,10 @@ body {
   font-family: var(--cinzel);
   font-weight: 700;
   letter-spacing: 0.28em;
-  font-size: 1.5rem;
+  font-size: 1.9rem;
   color: var(--gold);
   text-align: center;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.6rem;
 }
 .timerCaja.descanso .fase {
   color: var(--muted);
@@ -422,15 +364,15 @@ body {
   font-family: var(--cinzel);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  font-size: 5.6rem;
+  font-size: 7rem;
   line-height: 1;
   color: var(--navy);
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.6rem;
 }
 .timerCaja .sub {
   font-weight: 700;
   letter-spacing: 0.14em;
-  font-size: 1.1rem;
+  font-size: 1.3rem;
   color: var(--gold);
   min-height: 1.3em;
   text-align: center;
