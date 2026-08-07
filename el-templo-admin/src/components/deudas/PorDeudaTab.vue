@@ -179,6 +179,7 @@
 
     <!-- Tabla detallada -->
     <q-table
+      class="deudas-table"
       :rows="items"
       :columns="columns"
       :row-key="rowKey"
@@ -247,7 +248,7 @@
       </template>
       <!-- Promesa de pago (brief §2.1): editable inline; vencida en rojo. -->
       <template #body-cell-promesa="props">
-        <q-td :props="props" class="cursor-pointer sticky-col sticky-promesa">
+        <q-td :props="props" class="cursor-pointer">
           <span
             v-if="props.row.promisedPaymentDate"
             :class="isPromiseOverdue(props.row) ? 'text-negative text-weight-medium' : ''"
@@ -281,7 +282,7 @@
       </template>
       <!-- Estado (brief §2.4/§3): badge + cambio rápido desde la fila. -->
       <template #body-cell-estado="props">
-        <q-td :props="props" class="cursor-pointer sticky-col sticky-estado">
+        <q-td :props="props" class="cursor-pointer">
           <q-badge :color="statusColor(props.row.status)">
             {{ STATUS_LABELS_ES[props.row.status as DebtManagementStatus] }}
             <q-icon name="arrow_drop_down" size="14px" />
@@ -302,7 +303,7 @@
       </template>
       <!-- Observaciones (brief §2.2): campo único, editable inline. -->
       <template #body-cell-observaciones="props">
-        <q-td :props="props" class="cursor-pointer sticky-col sticky-observ" style="max-width: 220px">
+        <q-td :props="props" class="cursor-pointer" style="width: 230px; max-width: 230px">
           <div class="ellipsis" style="max-width: 200px">
             <span v-if="props.row.managementNotes">{{ props.row.managementNotes }}</span>
             <span v-else class="text-grey-5">
@@ -503,6 +504,9 @@ const sortDirTooltip = computed(() => {
   return filters.sortDir === 'asc' ? 'Más abandonado primero' : 'Asistencia más reciente primero';
 });
 
+// Orden: las 6 columnas principales primero (visibles de entrada, con ancho
+// acotado para que entren todas al abrir), y el resto accesible hacia la derecha
+// con el scroll horizontal de la tabla. Ya no hay columnas fijadas (sticky).
 const columns = [
   {
     name: 'miembro',
@@ -510,7 +514,50 @@ const columns = [
     field: 'memberName',
     align: 'left' as const,
     sortable: false,
+    headerStyle: 'width: 170px',
   },
+  {
+    name: 'monto',
+    label: 'Monto',
+    field: 'amount',
+    align: 'right' as const,
+    sortable: false,
+    headerStyle: 'width: 110px',
+  },
+  {
+    name: 'antiguedad',
+    label: 'Antigüedad (días)',
+    field: 'ageInDays',
+    align: 'right' as const,
+    sortable: false,
+    style: 'width: 95px',
+    headerStyle: 'width: 95px',
+  },
+  {
+    name: 'promesa',
+    label: 'Promesa de pago',
+    field: 'promisedPaymentDate',
+    align: 'left' as const,
+    sortable: false,
+    headerStyle: 'width: 140px',
+  },
+  {
+    name: 'estado',
+    label: 'Estado',
+    field: 'status',
+    align: 'center' as const,
+    sortable: false,
+    headerStyle: 'width: 120px',
+  },
+  {
+    name: 'observaciones',
+    label: 'Observaciones',
+    field: 'managementNotes',
+    align: 'left' as const,
+    sortable: false,
+    headerStyle: 'width: 230px',
+  },
+  // ---- Columnas secundarias: a la derecha, se acceden con el scroll horizontal ----
   {
     name: 'telefono',
     label: 'Teléfono',
@@ -537,20 +584,6 @@ const columns = [
     label: 'Sucursal',
     field: (r: OutstandingBalanceRow) => r.branchName ?? '—',
     align: 'left' as const,
-    sortable: false,
-  },
-  {
-    name: 'monto',
-    label: 'Monto',
-    field: 'amount',
-    align: 'right' as const,
-    sortable: false,
-  },
-  {
-    name: 'antiguedad',
-    label: 'Antigüedad (días)',
-    field: 'ageInDays',
-    align: 'right' as const,
     sortable: false,
   },
   {
@@ -587,34 +620,6 @@ const columns = [
     field: 'currency',
     align: 'center' as const,
     sortable: false,
-  },
-  // Columnas editables fijadas al borde derecho (sticky): se usan mucho y antes
-  // obligaban a scrollear toda la tabla. Van últimas para que el sticky-right no
-  // se superponga con columnas posteriores; el orden acá define el orden visual y
-  // debe coincidir con los offsets `right` del <style> (observaciones = borde, right:0).
-  {
-    name: 'promesa',
-    label: 'Promesa de pago',
-    field: 'promisedPaymentDate',
-    align: 'left' as const,
-    sortable: false,
-    headerClasses: 'sticky-col sticky-promesa',
-  },
-  {
-    name: 'estado',
-    label: 'Estado',
-    field: 'status',
-    align: 'center' as const,
-    sortable: false,
-    headerClasses: 'sticky-col sticky-estado',
-  },
-  {
-    name: 'observaciones',
-    label: 'Observaciones',
-    field: 'managementNotes',
-    align: 'left' as const,
-    sortable: false,
-    headerClasses: 'sticky-col sticky-observ',
   },
 ];
 
@@ -878,51 +883,22 @@ function downloadBlob(blob: Blob, filename: string): void {
 
 <style scoped>
 /*
- * Columnas editables (promesa / estado / observaciones) fijadas al borde derecho.
- * El resto de la tabla sigue scrolleando horizontalmente por debajo. Los offsets
- * `right` se encadenan de derecha a izquierda y deben sumar los anchos fijos:
- *   observaciones (220px) en el borde  -> right: 0
- *   estado        (130px) a su izq     -> right: 220px
- *   promesa       (150px) a su izq     -> right: 350px  (220 + 130)
- * Si cambiás un ancho, actualizá los `right` de las columnas a su izquierda.
- * position: sticky funciona relativo al scroller de q-table (.q-table__middle).
+ * La tabla tiene alto propio (max-height) para que el scroll horizontal y el
+ * vertical vivan DENTRO del recuadro blanco: ya no hace falta bajar al pie de la
+ * página para alcanzar la barra horizontal. El header queda pegado arriba del
+ * scroll (sticky) usando el scroller nativo de q-table (.q-table__middle).
  */
-.por-deuda-tab :deep(.sticky-col) {
+.por-deuda-tab :deep(.deudas-table) {
+  max-height: 600px;
+}
+
+.por-deuda-tab :deep(.deudas-table thead tr th) {
   position: sticky;
+  z-index: 2;
   background-color: #fff;
-  z-index: 1;
 }
 
-/* El header sticky va por encima de las celdas sticky del cuerpo. */
-.por-deuda-tab :deep(thead .sticky-col) {
-  z-index: 3;
-}
-
-.por-deuda-tab :deep(.sticky-promesa) {
-  right: 350px;
-  width: 150px;
-  min-width: 150px;
-  max-width: 150px;
-  /* Sombra en el borde izquierdo del grupo fijo: indica que hay scroll debajo. */
-  box-shadow: -6px 0 8px -8px rgba(0, 0, 0, 0.3);
-}
-
-.por-deuda-tab :deep(.sticky-estado) {
-  right: 220px;
-  width: 130px;
-  min-width: 130px;
-  max-width: 130px;
-}
-
-.por-deuda-tab :deep(.sticky-observ) {
-  right: 0;
-  width: 220px;
-  min-width: 220px;
-  max-width: 220px;
-}
-
-/* Mantener el fondo de las columnas fijas al pasar el mouse por la fila. */
-.por-deuda-tab :deep(tbody tr:hover .sticky-col) {
-  background-color: #f5f5f5;
+.por-deuda-tab :deep(.deudas-table thead tr:first-child th) {
+  top: 0;
 }
 </style>
