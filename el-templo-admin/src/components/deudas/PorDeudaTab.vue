@@ -191,7 +191,7 @@
     >
       <!-- Nombre clickeable → perfil del alumno (brief §3). -->
       <template #body-cell-miembro="props">
-        <q-td :props="props">
+        <q-td :props="props" class="sticky-miembro" style="width: 170px">
           <router-link
             :to="`/alumnos/${props.row.memberId}`"
             class="text-primary"
@@ -515,6 +515,8 @@ const columns = [
     align: 'left' as const,
     sortable: false,
     headerStyle: 'width: 170px',
+    // Fija a la izquierda: el nombre queda visible al scrollear horizontal.
+    headerClasses: 'sticky-miembro',
   },
   {
     name: 'monto',
@@ -900,5 +902,27 @@ function downloadBlob(blob: Blob, filename: string): void {
 
 .por-deuda-tab :deep(.deudas-table thead tr:first-child th) {
   top: 0;
+}
+
+/*
+ * Columna Miembro fija a la izquierda: queda visible al scrollear horizontal.
+ * En el cuerpo va por encima de las celdas normales; en el header, por encima
+ * también de las demás celdas sticky-top (para que la esquina superior izq. mande).
+ */
+.por-deuda-tab :deep(.deudas-table .sticky-miembro) {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background-color: #fff;
+  /* Sombra al borde derecho: indica que hay más columnas debajo del scroll. */
+  box-shadow: 6px 0 8px -8px rgba(0, 0, 0, 0.3);
+}
+
+.por-deuda-tab :deep(.deudas-table thead .sticky-miembro) {
+  z-index: 3;
+}
+
+.por-deuda-tab :deep(.deudas-table tbody tr:hover .sticky-miembro) {
+  background-color: #f5f5f5;
 }
 </style>
