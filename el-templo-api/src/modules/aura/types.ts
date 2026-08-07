@@ -12,7 +12,8 @@ export type AuraSourceType =
   | "goal_plan_completion"
   | "onboarding_completion"
   | "program_week_completion"
-  | "program_completion";
+  | "program_completion"
+  | "tenure_milestone";
 
 export interface AwardInput {
   userId: number;

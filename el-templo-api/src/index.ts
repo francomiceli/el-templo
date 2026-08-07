@@ -21,6 +21,7 @@ import { startExpireLostLeadsJob } from "./jobs/expire-lost-leads";
 import { startNotificationJobs } from "./jobs/notification-cron";
 import { startReassignMultibranchJob } from "./jobs/reassign-multibranch";
 import { startWellhubSyncJob } from "./jobs/wellhub-sync";
+import { startTenureMilestonesJob } from "./jobs/tenure-milestones";
 
 async function start() {
   const app = await buildApp();
@@ -51,6 +52,7 @@ async function start() {
     startExpireLostLeadsJob(app.db);
     startReassignMultibranchJob(app.db);
     startWellhubSyncJob(app.db);
+    startTenureMilestonesJob(app.db);
     await startMarkNoShowsJob(app.db);
     await startNotificationJobs(app.db);
   } catch (err: unknown) {

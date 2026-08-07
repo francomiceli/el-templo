@@ -7,7 +7,7 @@
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { eq, and, sql, desc } from "drizzle-orm";
+import { eq, and, sql, desc, inArray, lt } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { BadRequestError } from "../shared/errors";
@@ -20,6 +20,10 @@ import {
 } from "../shared/date-utils";
 import { validateQrToken } from "../shared/qr-token";
 import { memberCoveredUntilSql } from "../shared/covered-until";
+import {
+  milestoneInWindow,
+  toUtcDateStr,
+} from "../shared/tenure-milestones";
 import { SubscriptionService } from "../subscriptions/service";
 import { AuraService } from "../aura/service";
 import type {
@@ -523,6 +527,10 @@ export class AttendanceService {
       // Active/paused subscription end date (YYYY-MM-DD) for the Vencimiento
       // countdown pill. Null when no active/paused subscription.
       endDate: string | null;
+      // Aniversario de permanencia: frase lista para mostrar ("Cumple 1 año en
+      // El Templo") cuando el alumno cruza un hito entre su clase anterior y
+      // ésta. Null si no cae ningún hito en la ventana. Ver tenure-milestones.
+      anniversaryLabel: string | null;
     }>;
   }> {
     // Fecha de cobertura para el pill "Venc" (bug Joaquim Mas 2026-07-07).
@@ -595,8 +603,13 @@ export class AttendanceService {
         segment: string | null;
         seniority: MemberSeniority | null;
         endDate: string | null;
+        anniversaryLabel: string | null;
       }
     >();
+
+    // createdAt por miembro, para calcular el aniversario luego de conocer su
+    // asistencia previa (no se expone en el resultado).
+    const createdAtByMember = new Map<number, Date | string | null>();
 
     for (const b of bookingRows) {
       memberMap.set(b.memberId, {
@@ -612,7 +625,9 @@ export class AttendanceService {
         segment: b.segment ?? null,
         seniority: computeSeniority(b.createdAt),
         endDate: b.endDate ?? null,
+        anniversaryLabel: null,
       });
+      createdAtByMember.set(b.memberId, b.createdAt);
     }
 
     for (const a of attendanceRows) {
@@ -642,7 +657,44 @@ export class AttendanceService {
           segment: a.segment ?? null,
           seniority: computeSeniority(a.createdAt),
           endDate: a.endDate ?? null,
+          anniversaryLabel: null,
         });
+      }
+      createdAtByMember.set(a.memberId, a.createdAt);
+    }
+
+    // ─── Aniversario de permanencia (Fase aniversarios) ─────────────────────
+    // La línea "Cumple X en El Templo" aparece cuando un hito cae en la ventana
+    // entre la clase ANTERIOR del alumno (exclusiva) y ésta (inclusiva). Así se
+    // muestra el día justo, o en la próxima clase si el día exacto cayó en
+    // falta, y exactamente una vez. La ventana arranca en createdAt cuando no
+    // hay asistencia previa registrada.
+    const memberIds = Array.from(memberMap.keys());
+    if (memberIds.length > 0) {
+      const prevRows = await this.db
+        .select({
+          memberId: schema.attendance.memberId,
+          lastDate: sql<string>`MAX(${schema.attendance.sessionDate})`,
+        })
+        .from(schema.attendance)
+        .where(
+          and(
+            inArray(schema.attendance.memberId, memberIds),
+            lt(schema.attendance.sessionDate, date),
+          ),
+        )
+        .groupBy(schema.attendance.memberId);
+      const prevByMember = new Map(prevRows.map((r) => [r.memberId, r.lastDate]));
+
+      for (const [memberId, entry] of memberMap) {
+        const createdAt = createdAtByMember.get(memberId);
+        const createdStr = toUtcDateStr(createdAt);
+        if (createdStr === null) continue;
+        const windowStart = prevByMember.get(memberId) ?? createdStr;
+        const milestone = milestoneInWindow(createdAt, windowStart, date);
+        if (milestone !== null) {
+          entry.anniversaryLabel = `Cumple ${milestone.label} en El Templo`;
+        }
       }
     }
 
