@@ -37,7 +37,10 @@ import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { applyScope } from "./scope";
 import { activeMemberExists } from "../shared/active-member";
-import { excludeEspecialSubs } from "./especial-exclusion";
+import {
+  excludeEspecialSubs,
+  excludeInternalSubs,
+} from "./especial-exclusion";
 import type {
   AnalyticsFilters,
   RetentionAnalytics,
@@ -99,7 +102,12 @@ export class RetentionService {
     });
 
     // D-11: el pase especial no forma cohortes/ciclos de retención de membresía.
-    const conditions: SQL[] = [excludeEspecialSubs(), ...scopeConditions];
+    // Membresías internas (staff/bonificadas) tampoco forman cohortes.
+    const conditions: SQL[] = [
+      excludeEspecialSubs(),
+      excludeInternalSubs(),
+      ...scopeConditions,
+    ];
 
     // Plan filter (follow-up): exact match on subscriptions.plan_id. No plan join
     // needed — plan_id lives on the subscription row. Undefined → no restriction.
@@ -308,6 +316,8 @@ export class RetentionService {
       // D-11: no contar los ciclos del pase especial (el externo-solo-pase queda
       // con 0 filas → fuera de la distribución de ciclos de membresía).
       excludeEspecialSubs(),
+      // Membresías internas: staff/bonificadas quedan con 0 filas → fuera.
+      excludeInternalSubs(),
       ...scopeConditions,
     ];
 

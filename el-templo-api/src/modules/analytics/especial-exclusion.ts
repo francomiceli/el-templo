@@ -30,3 +30,16 @@ export function excludeEspecialSubs(): SQL {
     SELECT id FROM subscription_plans WHERE plan_category = 'especial'
   )`;
 }
+
+/**
+ * Membresías internas (2026-08-07): excluye subs `membership_kind` distinto de
+ * 'paga' — 'bonificada' (regaladas 100%: canje, sorteo, cortesía) y 'staff'
+ * (cuentas de entrenamiento del equipo, que son role='member' y por eso
+ * invisibles a filtros por rol). Mismo contrato que `excludeEspecialSubs`:
+ * SOLO métricas de membresía de analytics — listados, cobros, vencidos y
+ * recategorización NO lo usan. Prefijo literal `subscriptions.` obligatorio
+ * por el mismo gotcha de des-calificación de Drizzle documentado arriba.
+ */
+export function excludeInternalSubs(): SQL {
+  return sql`subscriptions.membership_kind = 'paga'`;
+}

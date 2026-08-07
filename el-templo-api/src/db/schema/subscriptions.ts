@@ -32,6 +32,17 @@ export const priceTypeAppliedEnum = mysqlEnum("price_type_applied", [
   "credit_card",
 ]);
 
+// Etiqueta de membresía interna (2026-08-07): 'bonificada' = regalada al 100%
+// (override $0: canje, sorteo, cortesía), 'staff' = cuenta de entrenamiento del
+// equipo (profes/gerencia entrenan con cuentas role='member' separadas, así que
+// users.role NO sirve para detectarlas). Solo la lee analytics de membresía —
+// no cambia nada del flujo de alta/cobro.
+export const membershipKindEnum = mysqlEnum("membership_kind", [
+  "paga",
+  "bonificada",
+  "staff",
+]);
+
 /**
  * Subscriptions table.
  *
@@ -71,6 +82,7 @@ export const subscriptions = mysqlTable(
     boardingPassUsed: boolean("boarding_pass_used").default(false).notNull(),
     priceOverrideAmount: int("price_override_amount"),
     priceOverrideReason: text("price_override_reason"),
+    membershipKind: membershipKindEnum.default("paga").notNull(),
     // nullable — NULL for all rows before migration 0136; captures the plan's
     // current price_regular at each new membership charge for the faithful
     // ticket discount (D-05).

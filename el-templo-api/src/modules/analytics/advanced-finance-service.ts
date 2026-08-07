@@ -48,7 +48,7 @@ import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { applyScope } from "./scope";
 import { inclusiveRangeConditions } from "./cohorts";
-import { activeMemberExists } from "../shared/active-member";
+import { activePayingMemberExists } from "../shared/active-member";
 // Path directo, NUNCA por el barrel `shared/index.ts` (fase 169).
 import { tenantWhere, type TenantContext } from "../shared/tenant";
 import type {
@@ -386,7 +386,9 @@ export class AdvancedFinanceService {
     });
 
     const conditions: SQL[] = [
-      activeMemberExists(schema.users.id),
+      // Membresías internas (staff/bonificadas) fuera del denominador del ARPU
+      // (2026-08-07). Los pases 'especial' SÍ cuentan acá (su plata es real).
+      activePayingMemberExists(schema.users.id),
       ...scopeConditions,
     ];
 
