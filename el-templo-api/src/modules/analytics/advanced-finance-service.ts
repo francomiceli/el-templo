@@ -47,7 +47,7 @@ import { and, eq, sql, isNull, inArray, type SQL } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { applyScope } from "./scope";
-import { activeMemberExists } from "../shared/active-member";
+import { activePayingMemberExists } from "../shared/active-member";
 import type {
   AnalyticsFilters,
   AdvancedFinanceAnalytics,
@@ -376,7 +376,9 @@ export class AdvancedFinanceService {
     });
 
     const conditions: SQL[] = [
-      activeMemberExists(schema.users.id),
+      // Membresías internas (staff/bonificadas) fuera del denominador del ARPU
+      // (2026-08-07). Los pases 'especial' SÍ cuentan acá (su plata es real).
+      activePayingMemberExists(schema.users.id),
       ...scopeConditions,
     ];
 

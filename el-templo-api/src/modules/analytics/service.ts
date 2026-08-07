@@ -13,7 +13,7 @@ import * as schema from "../../db/schema";
 import { resolveMonthRange, computePriorPeriod } from "../shared/date-utils";
 import {
   activeMemberExists,
-  activeNonEspecialMemberExists,
+  activePayingNonEspecialMemberExists,
 } from "../shared/active-member";
 import { firmMoneySqlFor } from "../finance/firm-money";
 import { resolveEffectiveCapacity } from "../scheduling/capacity";
@@ -225,7 +225,8 @@ export class AnalyticsService {
       // el pase especial (externo-solo-pase). Un socio con presencial + pase SÍ
       // cuenta (su presencial satisface el EXISTS). La plata del pase igual entra
       // por caja/cobros/advanced-finance, que NO se tocan.
-      activeNonEspecialMemberExists(schema.users.id),
+      // Membresías internas (staff/bonificadas) tampoco cuentan (2026-08-07).
+      activePayingNonEspecialMemberExists(schema.users.id),
     ];
     if (branchId !== undefined) {
       conditions.push(eq(schema.users.branchId, branchId) as unknown as SQL);
@@ -318,7 +319,8 @@ export class AnalyticsService {
       // el pase especial (externo-solo-pase). Un socio con presencial + pase SÍ
       // cuenta (su presencial satisface el EXISTS). La plata del pase igual entra
       // por caja/cobros/advanced-finance, que NO se tocan.
-      activeNonEspecialMemberExists(schema.users.id),
+      // Membresías internas (staff/bonificadas) tampoco cuentan (2026-08-07).
+      activePayingNonEspecialMemberExists(schema.users.id),
       sql`${schema.users.createdAt} >= ${dateFrom}`,
       sql`${schema.users.createdAt} < ${nextDay(dateTo)}`,
     ];
