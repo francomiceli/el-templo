@@ -260,4 +260,5 @@ $seal-gold-light: #f5dd7e;
 }
 /* chore(staging): re-trigger de deploy (paths-filter/event.before) — solo staging. */
 /* reintento 2 tras incidente de GitHub Actions (2026-08-06). */
+/* reintento 3 (2026-08-07): GitHub Actions ya se recuperó, re-disparar CI+deploy de staging. */
 </style>
