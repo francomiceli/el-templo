@@ -35,6 +35,7 @@ import {
 import {
   assertTenant,
   tenantWhere,
+  tenantValues,
   type TenantContext,
 } from "../shared/tenant";
 import { EmailService } from "../email";
@@ -1074,15 +1075,22 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
               await tx
                 .update(schema.users)
                 .set({ status: "inactivo" })
-                .where(eq(schema.users.id, request.params.userId));
+                .where(
+                  and(
+                    tenantWhere(schema.users, ctx),
+                    eq(schema.users.id, request.params.userId),
+                  ),
+                );
 
               if (statusBefore !== "inactivo") {
-                await tx.insert(schema.userStatusHistory).values({
-                  userId: request.params.userId,
-                  fromStatus: statusBefore,
-                  toStatus: "inactivo",
-                  source: "admin",
-                });
+                await tx.insert(schema.userStatusHistory).values(
+                  tenantValues(ctx, {
+                    userId: request.params.userId,
+                    fromStatus: statusBefore,
+                    toStatus: "inactivo",
+                    source: "admin",
+                  }),
+                );
                 request.log.info(
                   {
                     userId: request.params.userId,
@@ -1148,14 +1156,21 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
               await tx
                 .update(schema.users)
                 .set({ status: "inactivo" })
-                .where(eq(schema.users.id, request.params.userId));
+                .where(
+                  and(
+                    tenantWhere(schema.users, ctx),
+                    eq(schema.users.id, request.params.userId),
+                  ),
+                );
 
-              await tx.insert(schema.userStatusHistory).values({
-                userId: request.params.userId,
-                fromStatus: statusBefore,
-                toStatus: "inactivo",
-                source: "admin",
-              });
+              await tx.insert(schema.userStatusHistory).values(
+                tenantValues(ctx, {
+                  userId: request.params.userId,
+                  fromStatus: statusBefore,
+                  toStatus: "inactivo",
+                  source: "admin",
+                }),
+              );
               request.log.info(
                 {
                   userId: request.params.userId,
