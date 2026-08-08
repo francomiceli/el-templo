@@ -56,10 +56,22 @@
 // sola categoría. (El caso del 2026-07-29 fue el opuesto — tres rutas cambiaron
 // de etiqueta, se movieron dos categorías y el total no.)
 //
-// ⚠️ 373 son las ENTRADAS del registro, y una de las 8 `global` es `OPTIONS *`,
+// 2026-08-07 — **374 rutas** (225 `tenant-scoped`): el merge de `origin/staging`
+// hacia esta fase trajo los aniversarios de permanencia con
+// `GET /api/admin/anniversaries`, ya clasificada `tenant-scoped` en staging
+// (commit `ced0fecf`, que también movió `ENTRADAS_BASELINE` a 374). Este header
+// se sincroniza en el mismo merge. La unidad ganada, contabilizada:
+//
+//   tenant-scoped  224 → 225   (+1, la ruta nueva)
+//   templo-module  141 → 141   (sin cambio)
+//   global           8 →   8   (sin cambio)
+//   ─────────────────────────
+//   TOTAL          373 → 374   (+1)
+//
+// ⚠️ 374 son las ENTRADAS del registro, y una de las 8 `global` es `OPTIONS *`,
 // el preflight de CORS, que no es una ruta de negocio. De ahí que un conteo de
-// "rutas" que la excluya dé 372 y uno que la incluya dé 373. `ENTRADAS_BASELINE`
-// cuenta ENTRADAS: es 373. Quien vuelva a medir esto: contá entradas del
+// "rutas" que la excluya dé 373 y uno que la incluya dé 374. `ENTRADAS_BASELINE`
+// cuenta ENTRADAS: es 374. Quien vuelva a medir esto: contá entradas del
 // `Record`, no rutas conceptuales, o vas a "corregir" un número que estaba bien.
 //
 // Ese reparto es el APROBADO en el checkpoint del plan 171-06 (Franco,
@@ -163,9 +175,9 @@ export interface EntradaManifiesto {
  * El manifiesto. La clave es `` `${MÉTODO} ${url}` `` con la url tal cual la
  * reporta el hook `onRoute` (ya viene con el prefijo compuesto del plugin).
  *
- * **373 entradas**, una por ruta exacta (D-01). Orden: plataforma, auth, los
+ * **374 entradas**, una por ruta exacta (D-01). Orden: plataforma, auth, los
  * prefijos del API alfabéticamente, y al final los cuatro bloques `templo-*`.
- * Reparto: **224 `tenant-scoped` · 8 `global` · 141 `templo-module`**.
+ * Reparto: **225 `tenant-scoped` · 8 `global` · 141 `templo-module`**.
  *
  * Este número es el mismo `ENTRADAS_BASELINE` de
  * `test/tenancy/iso-01-manifiesto.test.ts`, que es el gate que lo hace cumplir.
