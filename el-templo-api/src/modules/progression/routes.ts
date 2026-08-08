@@ -13,6 +13,8 @@ import {
   weeklySummaryResponseSchema,
   errorResponseSchema,
 } from "./schemas";
+import { attachCountryScope } from "../shared/country-scope";
+import { assertTenant, tenantWhere } from "../shared/tenant";
 
 export const progressionRoutes: FastifyPluginAsync = async (fastify) => {
   // GET /progression/stats - Get member's progression data
@@ -30,11 +32,21 @@ export const progressionRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       const { userId } = request.user;
 
+      // T-173-09-01: `users` y `member_profiles` son tablas strict. El ctx
+      // sale de la propia fila del socio autenticado (attachCountryScope +
+      // assertTenant), nunca del body/params — D-09: esta ruta member-facing
+      // NO recibe su caso de aislamiento en esta fase (dueño: fase de
+      // progression, ver SUMMARY).
+      await attachCountryScope(request, fastify.db);
+      const ctx = assertTenant(request.scope, "progression.stats");
+
       // Get user level
       const [user] = await fastify.db
         .select({ level: schema.users.level })
         .from(schema.users)
-        .where(eq(schema.users.id, userId));
+        .where(
+          and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)),
+        );
 
       if (!user) {
         return reply.status(404).send({ error: "Usuario no encontrado" });
@@ -123,7 +135,12 @@ export const progressionRoutes: FastifyPluginAsync = async (fastify) => {
             longestStreak: schema.memberProfiles.longestStreak,
           })
           .from(schema.memberProfiles)
-          .where(eq(schema.memberProfiles.userId, userId)),
+          .where(
+            and(
+              tenantWhere(schema.memberProfiles, ctx),
+              eq(schema.memberProfiles.userId, userId),
+            ),
+          ),
 
         // Check for pending evaluation request
         fastify.db

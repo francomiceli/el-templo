@@ -36,6 +36,12 @@ import { AuraService } from "../aura/service";
 import { StreakService } from "../streaks";
 import { ProgramsService } from "../programs/service";
 import { NotificationService } from "../notifications/service";
+import { attachCountryScope } from "../shared/country-scope";
+import {
+  assertTenant,
+  tenantWhere,
+  type TenantContext,
+} from "../shared/tenant";
 
 /**
  * Map individual level to level group for session generation
@@ -209,6 +215,7 @@ type ResolveViewResult =
 
 async function resolveSessionView(
   db: MySql2Database<typeof schema>,
+  ctx: TenantContext,
   userId: number,
   requested: "templo" | "program" | undefined,
 ): Promise<ResolveViewResult> {
@@ -236,12 +243,13 @@ async function resolveSessionView(
   const hasPresencial = !!presencialSub;
 
   // 2. Read user's currentProgramEnrollmentId pointer (Phase 104 Plan 01).
+  // T-173-09-01: `users` es tabla strict.
   const [user] = await db
     .select({
       currentProgramEnrollmentId: schema.users.currentProgramEnrollmentId,
     })
     .from(schema.users)
-    .where(eq(schema.users.id, userId))
+    .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)))
     .limit(1);
 
   async function loadEnrollment(enrollmentId: number) {
@@ -399,11 +407,20 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
       const { date, level: levelOverride } = request.query;
       const { userId } = request.user;
 
+      // T-173-09-01: `users` es tabla strict. El ctx sale de la propia fila
+      // del socio autenticado (attachCountryScope + assertTenant) — D-09:
+      // esta ruta member-facing NO recibe su caso de aislamiento en esta
+      // fase (dueño: fase de sessions, ver SUMMARY).
+      await attachCountryScope(request, fastify.db);
+      const ctx = assertTenant(request.scope, "sessions.daily");
+
       // 1. Get member's level from database
       const [user] = await fastify.db
         .select({ level: schema.users.level })
         .from(schema.users)
-        .where(eq(schema.users.id, userId));
+        .where(
+          and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)),
+        );
 
       if (!user) {
         return reply.status(404).send({ error: "Usuario no encontrado" });
@@ -416,6 +433,7 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
       // 3. Phase 104 R7+R8: resolve view + ownership gate (mirrors /weekly).
       const viewResult = await resolveSessionView(
         fastify.db,
+        ctx,
         userId,
         request.query.view,
       );
@@ -508,11 +526,20 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
       const { weekStart, level: levelOverride } = request.query;
       const { userId } = request.user;
 
+      // T-173-09-01: `users` es tabla strict. El ctx sale de la propia fila
+      // del socio autenticado (attachCountryScope + assertTenant) — D-09:
+      // esta ruta member-facing NO recibe su caso de aislamiento en esta
+      // fase (dueño: fase de sessions, ver SUMMARY).
+      await attachCountryScope(request, fastify.db);
+      const ctx = assertTenant(request.scope, "sessions.weekly");
+
       // 1. Get member's level from database
       const [user] = await fastify.db
         .select({ level: schema.users.level })
         .from(schema.users)
-        .where(eq(schema.users.id, userId));
+        .where(
+          and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)),
+        );
 
       if (!user) {
         return reply.status(404).send({ error: "Usuario no encontrado" });
@@ -524,6 +551,7 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
       // 3. Phase 104 R7+R8: resolve which view to serve and gate access.
       const viewResult = await resolveSessionView(
         fastify.db,
+        ctx,
         userId,
         request.query.view,
       );
@@ -738,6 +766,13 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
         exercisesCompleted,
       } = request.body;
 
+      // T-173-09-01: `users` es tabla strict. El ctx sale de la propia fila
+      // del socio autenticado (attachCountryScope + assertTenant) — D-09:
+      // esta ruta member-facing NO recibe su caso de aislamiento en esta
+      // fase (dueño: fase de sessions, ver SUMMARY).
+      await attachCountryScope(request, fastify.db);
+      const ctx = assertTenant(request.scope, "sessions.complete");
+
       // Parse and validate the level the session was played at (last dayId
       // segment). Independent of users.level so members can train at any level.
       const sessionLevel = parseDayId(dayId).level;
@@ -751,7 +786,9 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
       const [user] = await fastify.db
         .select({ branchId: schema.users.branchId })
         .from(schema.users)
-        .where(eq(schema.users.id, userId));
+        .where(
+          and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)),
+        );
 
       if (!user) {
         return reply.status(404).send({ error: "Usuario no encontrado" });
@@ -840,7 +877,7 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
 
       // Update streak (D-03)
       try {
-        await streakService.updateStreak(userId);
+        await streakService.updateStreak(ctx, userId);
       } catch (streakErr: unknown) {
         request.log.warn(
           { err: streakErr, userId },

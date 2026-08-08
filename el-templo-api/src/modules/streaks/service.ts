@@ -13,6 +13,7 @@ import {
   systemSettings,
 } from "../../db/schema";
 import type { AuraService } from "../aura/service";
+import { tenantWhere, type TenantContext } from "../shared/tenant";
 import {
   STREAK_SETTINGS_KEYS,
   STREAK_DEFAULTS,
@@ -126,13 +127,18 @@ export class StreakService {
    * 5. Update longestStreak if needed
    * 6. Check for milestone AURA bonus
    */
-  async updateStreak(userId: number): Promise<StreakUpdateResult> {
+  async updateStreak(
+    ctx: TenantContext,
+    userId: number,
+  ): Promise<StreakUpdateResult> {
     const noStreakResult: StreakUpdateResult = {
       currentStreak: 0,
       longestStreak: 0,
       milestoneReached: null,
     };
 
+    // T-173-09-01: `member_profiles` es tabla strict. El ctx llega ya
+    // resuelto desde el borde del handler (sessions/routes.ts, D-09).
     // Get or create member profile
     const profiles = await this.db
       .select({
@@ -141,11 +147,19 @@ export class StreakService {
         streakUpdatedAt: memberProfiles.streakUpdatedAt,
       })
       .from(memberProfiles)
-      .where(eq(memberProfiles.userId, userId));
+      .where(
+        and(
+          tenantWhere(memberProfiles, ctx),
+          eq(memberProfiles.userId, userId),
+        ),
+      );
 
     if (profiles.length === 0) {
       // No profile row — onboarding creates this. Skip streak update.
-      this.log.debug({ userId }, "No member_profiles row — skipping streak update");
+      this.log.debug(
+        { userId },
+        "No member_profiles row — skipping streak update",
+      );
       return noStreakResult;
     }
 
@@ -229,7 +243,12 @@ export class StreakService {
         longestStreak,
         streakUpdatedAt: new Date(),
       })
-      .where(eq(memberProfiles.userId, userId));
+      .where(
+        and(
+          tenantWhere(memberProfiles, ctx),
+          eq(memberProfiles.userId, userId),
+        ),
+      );
 
     // Check for milestone AURA bonus
     let milestoneReached: number | null = null;

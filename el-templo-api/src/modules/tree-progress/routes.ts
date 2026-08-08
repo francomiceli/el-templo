@@ -1,6 +1,8 @@
 import { FastifyPluginAsync } from "fastify";
 import { buildMemberTree } from "./service";
 import { memberTreeResponseSchema, errorResponseSchema } from "./schemas";
+import { attachCountryScope } from "../shared/country-scope";
+import { assertTenant } from "../shared/tenant";
 
 /**
  * tree-progress routes — Phase 127 Plan 01 (TREE-06).
@@ -25,7 +27,13 @@ export const treeProgressRoutes: FastifyPluginAsync = async (fastify) => {
     },
     async (request) => {
       const { userId } = request.user;
-      return buildMemberTree(fastify.db, userId, request.log);
+      // T-173-09-01: `users` es tabla strict. El ctx sale de la propia fila
+      // del socio autenticado (attachCountryScope + assertTenant) — D-09:
+      // esta ruta member-facing NO recibe su caso de aislamiento en esta
+      // fase (dueño: fase de tree-progress, ver SUMMARY).
+      await attachCountryScope(request, fastify.db);
+      const ctx = assertTenant(request.scope, "tree-progress.me");
+      return buildMemberTree(fastify.db, ctx, userId, request.log);
     },
   );
 };
