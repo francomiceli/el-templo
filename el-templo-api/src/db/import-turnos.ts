@@ -12,8 +12,14 @@
  * Unmatched members (no active subscription in DB) are skipped and logged.
  * Existing schedules/bookings for processed members are overwritten.
  *
+ * `--tenant=<id>` es OBLIGATORIO (fase 169 D-06, retrofit fase 173 D-03): la
+ * resolución de socios por email es la única tabla strict que este script
+ * toca (`users`), así que el gimnasio sólo puede venir del flag — se valida
+ * ANTES de mirar `--data-dir`, y con un id inexistente también corta antes de
+ * tocar la base.
+ *
  * Usage:
- *   pnpm tsx src/db/import-turnos.ts --data-dir /path/to/csvs [--execute]
+ *   pnpm tsx src/db/import-turnos.ts --tenant=<id> --data-dir /path/to/csvs [--execute]
  */
 
 import fs from "node:fs";
@@ -27,6 +33,12 @@ import { subscriptionPlans } from "./schema/subscription-plans.js";
 import { subscriptionSchedules } from "./schema/subscription-schedules.js";
 import { schedules } from "./schema/schedules.js";
 import { bookings } from "./schema/bookings.js";
+import {
+  failTenantArg,
+  queryFnFromConnection,
+  requireTenant,
+} from "./scripts/require-tenant.js";
+import { tenantWhere } from "../modules/shared/tenant.js";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -293,14 +305,6 @@ interface ImportReport {
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
-  const dataDirIdx = args.indexOf("--data-dir");
-  if (dataDirIdx === -1 || !args[dataDirIdx + 1]) {
-    console.error(
-      "Usage: pnpm tsx src/db/import-turnos.ts --data-dir /path/to/csvs [--execute]",
-    );
-    process.exit(1);
-  }
-  const dataDir = args[dataDirIdx + 1];
   const executeMode = args.includes("--execute");
 
   if (executeMode && process.env.NODE_ENV === "production") {
@@ -323,8 +327,23 @@ async function main(): Promise<void> {
   const { db, connection } = await createSingleConnection();
 
   try {
+    // Gimnasio: ANTES de cualquier otra validación de uso (fase 169 D-06,
+    // retrofit 173 D-03). Corta con exit 2 antes de mirar `--data-dir` y sin
+    // haber tocado la base.
+    const ctx = await requireTenant(queryFnFromConnection(connection), args);
+
+    const dataDirIdx = args.indexOf("--data-dir");
+    if (dataDirIdx === -1 || !args[dataDirIdx + 1]) {
+      console.error(
+        "Usage: pnpm tsx src/db/import-turnos.ts --tenant=<id> --data-dir /path/to/csvs [--execute]",
+      );
+      process.exit(1);
+    }
+    const dataDir = args[dataDirIdx + 1];
+
     console.log(`\nCSV Turnos Import`);
     console.log(`Mode: ${executeMode ? "EXECUTE" : "DRY-RUN"}`);
+    console.log(`Tenant: ${ctx.tenantId}`);
     console.log(`Data dir: ${dataDir}\n`);
 
     // ── Step 1: Parse CSVs ──
@@ -376,7 +395,7 @@ async function main(): Promise<void> {
       ? await db
           .select({ id: users.id, email: users.email })
           .from(users)
-          .where(inArray(users.email, allEmails))
+          .where(and(tenantWhere(users, ctx), inArray(users.email, allEmails)))
       : [];
     const userByEmail = new Map<string, number>();
     for (const u of dbUsers) {
@@ -687,11 +706,7 @@ void sql;
 if (typeof require !== "undefined" && require.main === module) {
   main()
     .then(() => process.exit(0))
-    .catch((err: unknown) => {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error("Import failed:", msg);
-      process.exit(1);
-    });
+    .catch((err: unknown) => failTenantArg(err, "import-turnos"));
 }
 
 export { main };

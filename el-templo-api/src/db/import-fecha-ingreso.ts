@@ -12,15 +12,27 @@
  *
  * Members whose email doesn't match a DB user are skipped + logged.
  *
+ * `--tenant=<id>` es OBLIGATORIO (fase 169 D-06, retrofit fase 173 D-03): este
+ * script escribe `users.created_at` en batch sin request y sin JWT, así que el
+ * gimnasio sólo puede venir del flag — se valida ANTES incluso de mirar
+ * `--data-dir`, así que falta cualquiera de los dos corta con exit 2 y sin
+ * tocar la base.
+ *
  * Usage:
- *   pnpm tsx src/db/import-fecha-ingreso.ts --data-dir /path [--execute]
+ *   pnpm tsx src/db/import-fecha-ingreso.ts --tenant=<id> --data-dir /path [--execute]
  */
 
 import fs from "node:fs";
 import path from "node:path";
 import { parse } from "csv-parse/sync";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { users } from "./schema/users.js";
+import {
+  failTenantArg,
+  queryFnFromConnection,
+  requireTenant,
+} from "./scripts/require-tenant.js";
+import { tenantWhere } from "../modules/shared/tenant.js";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -163,14 +175,6 @@ interface ImportReport {
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
-  const dataDirIdx = args.indexOf("--data-dir");
-  if (dataDirIdx === -1 || !args[dataDirIdx + 1]) {
-    console.error(
-      "Usage: pnpm tsx src/db/import-fecha-ingreso.ts --data-dir /path [--execute]",
-    );
-    process.exit(1);
-  }
-  const dataDir = args[dataDirIdx + 1];
   const executeMode = args.includes("--execute");
 
   if (executeMode && process.env.NODE_ENV === "production") {
@@ -193,8 +197,24 @@ async function main(): Promise<void> {
   const { db, connection } = await createSingleConnection();
 
   try {
+    // Gimnasio: ANTES de cualquier otra validación de uso (fase 169 D-06,
+    // retrofit 173 D-03). Si falta `--tenant`, si el id no es un entero
+    // positivo o si no existe esa fila en `tenants`, esto corta con exit 2
+    // antes de mirar `--data-dir` y sin haber leído ni escrito una sola fila.
+    const ctx = await requireTenant(queryFnFromConnection(connection), args);
+
+    const dataDirIdx = args.indexOf("--data-dir");
+    if (dataDirIdx === -1 || !args[dataDirIdx + 1]) {
+      console.error(
+        "Usage: pnpm tsx src/db/import-fecha-ingreso.ts --tenant=<id> --data-dir /path [--execute]",
+      );
+      process.exit(1);
+    }
+    const dataDir = args[dataDirIdx + 1];
+
     console.log(`\nFecha de Ingreso Import`);
     console.log(`Mode: ${executeMode ? "EXECUTE" : "DRY-RUN"}`);
+    console.log(`Tenant: ${ctx.tenantId}`);
     console.log(`Data dir: ${dataDir}\n`);
 
     const rows = parseAllIngresoCsvs(dataDir);
@@ -224,7 +244,7 @@ async function main(): Promise<void> {
             createdAt: users.createdAt,
           })
           .from(users)
-          .where(inArray(users.email, emails))
+          .where(and(tenantWhere(users, ctx), inArray(users.email, emails)))
       : [];
 
     const userByEmail = new Map<
@@ -280,7 +300,7 @@ async function main(): Promise<void> {
         await db
           .update(users)
           .set({ createdAt: new Date(p.newCreatedAt + "T00:00:00Z") })
-          .where(eq(users.id, p.userId));
+          .where(and(tenantWhere(users, ctx), eq(users.id, p.userId)));
         done++;
       }
       console.log(`Rows updated: ${done}`);
@@ -318,11 +338,7 @@ async function main(): Promise<void> {
 if (typeof require !== "undefined" && require.main === module) {
   main()
     .then(() => process.exit(0))
-    .catch((err: unknown) => {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error("Import failed:", msg);
-      process.exit(1);
-    });
+    .catch((err: unknown) => failTenantArg(err, "import-fecha-ingreso"));
 }
 
 export { main };
