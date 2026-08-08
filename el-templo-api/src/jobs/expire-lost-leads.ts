@@ -179,7 +179,9 @@ export async function runExpireLostLeads(
  * interno de una sola zona horaria (patrón notification-cron): el estado del
  * lead no depende de la sede, así que no se itera por timezone de branch.
  */
-export function startExpireLostLeadsJob(db: MySql2Database<typeof schema>): void {
+export function startExpireLostLeadsJob(
+  db: MySql2Database<typeof schema>,
+): void {
   cron.schedule(
     "0 4 * * *",
     async () => {

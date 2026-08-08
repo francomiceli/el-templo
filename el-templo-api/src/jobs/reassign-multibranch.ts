@@ -179,7 +179,10 @@ async function runReassignMultibranchForTenant(
     })
     .from(schema.users)
     .where(
-      and(tenantWhere(schema.users, ctx), inArray(schema.users.id, candidateIds)),
+      and(
+        tenantWhere(schema.users, ctx),
+        inArray(schema.users.id, candidateIds),
+      ),
     );
   const memberById = new Map(members.map((m) => [m.id, m]));
 
@@ -224,7 +227,10 @@ async function runReassignMultibranchForTenant(
     )
     .groupBy(schema.attendance.memberId, schema.attendance.branchId);
 
-  const byMember = new Map<number, Array<{ branchId: number; count: number }>>();
+  const byMember = new Map<
+    number,
+    Array<{ branchId: number; count: number }>
+  >();
   for (const r of attRows) {
     const arr = byMember.get(r.memberId) ?? [];
     arr.push({ branchId: r.branchId, count: Number(r.count) });
@@ -356,7 +362,9 @@ async function reassignMemberBranch(
         branchUpdatedAt: new Date(),
         branchSource: "auto",
       })
-      .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, memberId)));
+      .where(
+        and(tenantWhere(schema.users, ctx), eq(schema.users.id, memberId)),
+      );
     await tx
       .update(schema.subscriptions)
       .set({ branchId: branch.id })
