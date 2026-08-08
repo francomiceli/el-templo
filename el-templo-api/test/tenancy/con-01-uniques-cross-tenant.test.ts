@@ -386,9 +386,13 @@ describe("CON-01 — los contratos de unicidad por comportamiento (cross-tenant 
           .values(usuario(TENANT_SEGUNDO, sedeSegundo, { email: EMAIL })),
       );
 
+      // T-173-22: `users` entra a TENANT_STRICT_MODULES en la fase 173. La
+      // pregunta de este test es justamente cuántas veces existe el email
+      // EN TODOS los gimnasios — filtrar por uno lo volvería tautológico
+      // (misma categoría "lectura de evidencia" que `tenantDeLaFila`).
       const enLosDos = await contar(
         app,
-        sql`SELECT COUNT(*) AS n FROM users WHERE email = ${EMAIL}`,
+        sql`SELECT /* tenant-safe: la pregunta es cuantas veces existe el email en TODOS los gimnasios; filtrar por uno lo volveria tautologico */ COUNT(*) AS n FROM users WHERE email = ${EMAIL}`,
       );
       expect(
         enLosDos,
@@ -425,9 +429,11 @@ describe("CON-01 — los contratos de unicidad por comportamiento (cross-tenant 
         ),
       );
 
+      // T-173-22: idem nota del email arriba — leer cuántas veces existe el
+      // DNI en TODOS los gimnasios ES la aserción de este test.
       const enLosDos = await contar(
         app,
-        sql`SELECT COUNT(*) AS n FROM users WHERE dni = ${DNI}`,
+        sql`SELECT /* tenant-safe: la pregunta es cuantas veces existe el DNI en TODOS los gimnasios; filtrar por uno lo volveria tautologico */ COUNT(*) AS n FROM users WHERE dni = ${DNI}`,
       );
       expect(enLosDos, "El mismo DNI, una vez por tenant").toBe(2);
 
@@ -465,9 +471,11 @@ describe("CON-01 — los contratos de unicidad por comportamiento (cross-tenant 
         ),
       );
 
+      // T-173-22: idem nota del email arriba — leer cuántas veces existe el
+      // código de referido en TODOS los gimnasios ES la aserción.
       const enLosDos = await contar(
         app,
-        sql`SELECT COUNT(*) AS n FROM users WHERE referral_code = ${CODIGO}`,
+        sql`SELECT /* tenant-safe: la pregunta es cuantas veces existe el codigo de referido en TODOS los gimnasios; filtrar por uno lo volveria tautologico */ COUNT(*) AS n FROM users WHERE referral_code = ${CODIGO}`,
       );
       expect(enLosDos, "El mismo código de referido, una vez por tenant").toBe(
         2,

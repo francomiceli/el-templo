@@ -79,11 +79,19 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       // pre-existente (fase 168, CON-01, dejó `uq_users_tenant_email` POR
       // gimnasio) que esta ruta y `/login` no explotan todavía: documentada en
       // el SUMMARY de este plan, no la resuelve.
+      //
+      // T-173-22 (deferred-items.md, hallazgo 173-21): este comentario TS
+      // exime al LINT (ancla por AST al statement), pero el SENTINEL solo lee
+      // el SQL de runtime — Drizzle nunca emite un comentario TS en el texto
+      // que llega al pool. Por eso la MISMA exención se repite EMBEBIDA en el
+      // SQL del `where`, el único canal que el sentinel puede leer (D-17).
       /* tenant-safe: chequeo de duplicado deliberadamente cross-tenant — ver comentario arriba (deuda pre-existente fase 168) */
       const [existingByEmail] = await fastify.db
         .select({ id: users.id })
         .from(users)
-        .where(eq(users.email, email))
+        .where(
+          sql`/* tenant-safe: chequeo de duplicado deliberadamente cross-tenant — ver comentario arriba (deuda pre-existente fase 168) */ ${eq(users.email, email)}`,
+        )
         .limit(1);
 
       if (existingByEmail) {
@@ -96,11 +104,15 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
 
       // Reject if DNI already exists
       if (dni) {
+        // T-173-22: idem nota de arriba — el tag va embebido en el SQL además
+        // del comentario TS, porque el sentinel no lee comentarios de fuente.
         /* tenant-safe: chequeo de duplicado deliberadamente cross-tenant — mismo motivo que el email arriba */
         const [existingByDni] = await fastify.db
           .select({ id: users.id })
           .from(users)
-          .where(eq(users.dni, dni))
+          .where(
+            sql`/* tenant-safe: chequeo de duplicado deliberadamente cross-tenant — mismo motivo que el email arriba */ ${eq(users.dni, dni)}`,
+          )
           .limit(1);
 
         if (existingByDni) {
@@ -122,13 +134,17 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       if (phone) {
         const normalized = normalizePhone(phone);
         if (normalized.length > 0) {
+          // T-173-22: idem nota de arriba — el tag va embebido en el propio
+          // fragmento `sql` de abajo (no hace falta un `sql` extra: este
+          // statement ya arma su predicado con uno), además del comentario TS
+          // que exime al lint.
           /* tenant-safe: chequeo de duplicado deliberadamente cross-tenant — mismo motivo que el email arriba */
           const [existingByPhone] = await fastify.db
             .select({ id: users.id })
             .from(users)
             .where(
               and(
-                sql`RIGHT(REGEXP_REPLACE(${users.phone}, '[^0-9]', ''), 10) = ${normalized}`,
+                sql`/* tenant-safe: chequeo de duplicado deliberadamente cross-tenant — mismo motivo que el email arriba */ RIGHT(REGEXP_REPLACE(${users.phone}, '[^0-9]', ''), 10) = ${normalized}`,
                 isNull(users.deletedAt),
               ),
             )
@@ -472,6 +488,10 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       // en TODOS los gimnasios (deuda pre-existente de la fase 168/CON-01,
       // documentada en el SUMMARY de este plan). El `ctx` de este handler nace
       // RECIÉN DESPUÉS, de la fila encontrada (`user.tenantId`).
+      //
+      // T-173-22: el comentario TS de arriba exime al LINT, no al SENTINEL
+      // (que solo lee el SQL de runtime) — la misma exención se repite
+      // embebida en el SQL del `where` de abajo.
       /* tenant-safe: login sin selector de gimnasio, busca a propósito cross-tenant — ver comentario arriba (deuda pre-existente fase 168) */
       const userResults = await fastify.db
         .select({
@@ -493,7 +513,9 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           staffDisabled: users.staffDisabled,
         })
         .from(users)
-        .where(eq(users.email, email))
+        .where(
+          sql`/* tenant-safe: login sin selector de gimnasio, busca a propósito cross-tenant — ver comentario arriba (deuda pre-existente fase 168) */ ${eq(users.email, email)}`,
+        )
         .limit(1);
 
       if (userResults.length === 0) {
@@ -558,7 +580,10 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         })
         .from(memberProfiles)
         .where(
-          and(tenantWhere(memberProfiles, ctx), eq(memberProfiles.userId, user.id)),
+          and(
+            tenantWhere(memberProfiles, ctx),
+            eq(memberProfiles.userId, user.id),
+          ),
         )
         .limit(1);
       const onboardingCompleted =
@@ -654,11 +679,16 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       // body-based) y el filtro por `id` ya es una fila única: no hay sede
       // ajena que pueda "ganar" acá, a diferencia del `branchId` del body de
       // `/register`. Mismo criterio que la lectura interna de `attachScope`.
+      //
+      // T-173-22: el comentario TS de arriba exime al LINT, no al SENTINEL —
+      // la misma exención se repite embebida en el SQL del `where` de abajo.
       /* tenant-safe: userId server-resuelto desde el refresh token opaco, no hay ctx previo posible — ver comentario arriba */
       const [u] = await fastify.db
         .select({ id: users.id, email: users.email, role: users.role })
         .from(users)
-        .where(eq(users.id, rotated.userId))
+        .where(
+          sql`/* tenant-safe: userId server-resuelto desde el refresh token opaco, no hay ctx previo posible — ver comentario arriba */ ${eq(users.id, rotated.userId)}`,
+        )
         .limit(1);
 
       // Caso defensivo: refresh huerfano (user inexistente). No deberia
@@ -799,7 +829,10 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           })
           .from(memberProfiles)
           .where(
-            and(tenantWhere(memberProfiles, ctx), eq(memberProfiles.userId, userId)),
+            and(
+              tenantWhere(memberProfiles, ctx),
+              eq(memberProfiles.userId, userId),
+            ),
           )
           .limit(1);
 
@@ -813,7 +846,10 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         })
         .from(memberProfiles)
         .where(
-          and(tenantWhere(memberProfiles, ctx), eq(memberProfiles.userId, userId)),
+          and(
+            tenantWhere(memberProfiles, ctx),
+            eq(memberProfiles.userId, userId),
+          ),
         )
         .limit(1);
       const onboardingCompleted =
