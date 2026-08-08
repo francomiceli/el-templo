@@ -940,50 +940,33 @@ describe("autocompletar del socio — GET /api/admin/finance/coach-load/autocomp
     ).toBe(sedeVirtualDosId);
   });
 
-  // ⚠️⚠️ FUGA REAL, ENCONTRADA POR ESTA BATERIA — DUEÑO: FASE 173 ⚠️⚠️
-  //
-  // `subscriptionService.getMemberSubscription(userId)` es la UNICA llamada de
-  // este handler que NO recibe `ctx`: su query filtra por `userId` y por estado,
-  // sin gimnasio (src/modules/subscriptions/service.ts, ~L919). Con un socio de
-  // OTRO gimnasio que tenga una sub vigente, la ruta devuelve su `planName`, su
-  // `amount`, su `currency` y su `currentEndDate` — al COACH del gimnasio 2, que
-  // es el actor menos privilegiado del sistema, y con solo iterar ids.
-  //
-  // NO se arregla en esta fase por decision explicita del CONTEXT (D-07: en
-  // archivos ajenos se tocan UNICAMENTE las queries sobre las 6 tablas strict de
-  // finance, y `subscriptions` no es una de ellas — su migracion es la fase 173).
-  //
-  // El `it` de abajo afirma el contrato CORRECTO y esta marcado como fallo
-  // ESPERADO. Es a proposito y es lo contrario de esconderlo:
-  //   - hoy documenta la fuga con una asercion ejecutable, no con un comentario;
-  //   - el dia que la fase 173 le pase el gimnasio a esa query, este `it` se
-  //     pone en ROJO ("esperaba fallar y paso") y obliga a quien lo arregle a
-  //     desmarcarlo y dejarlo como un caso de aislamiento normal.
-  // NO lo borres para "poner el archivo en verde": ya esta en verde, y borrarlo
-  // borra la unica prueba de que la fuga existe.
-  it.fails(
-    "FUGA CONOCIDA (dueño: fase 173): el coach del gimnasio 2 SI ve el plan de un socio de El Templo",
-    async () => {
-      const res = await getComoGimnasioDos(
-        `/coach-load/autocompletar/${usuarioTemploId}`,
-        gym2.coachToken,
-      );
-      const cuerpo = JSON.parse(res.body) as {
-        hasRenewable: boolean;
-        planName: string | null;
-        amount: number | null;
-      };
-      expect(
-        [cuerpo.hasRenewable, cuerpo.planName, cuerpo.amount],
-        porQueImportaLaLectura(
-          RUTA,
-          `el plan del socio ${usuarioTemploId}, que es de El Templo. Si estas leyendo este ` +
-            `mensaje, la fuga se ARREGLO: sacale el marcador de fallo esperado a este \`it\` y ` +
-            `dejalo como el caso de aislamiento que siempre tuvo que ser`,
-        ),
-      ).toEqual([false, null, null]);
-    },
-  );
+  // Fase 173 (D-13, T-173-14-01): la fuga que este bloque documentaba esta
+  // CERRADA. `getMemberSubscription` ahora recibe `ctx` PRIMERO y filtra por
+  // gimnasio (src/modules/subscriptions/service.ts) — pedido por el socio de
+  // El Templo desde el coach del gimnasio 2 ya no matchea ninguna fila, y la
+  // ruta responde "sin plan" en vez de servir el plan/importe ajenos. El `it`
+  // de abajo era `it.fails` (control positivo del bug, marcado como fallo
+  // ESPERADO); al cerrarse la fuga se invierte a un caso de aislamiento
+  // normal, mismo criterio que el ancla gemela de `:1326` en este archivo.
+  it("aislamiento: el coach del gimnasio 2 NO ve el plan de un socio de El Templo", async () => {
+    const res = await getComoGimnasioDos(
+      `/coach-load/autocompletar/${usuarioTemploId}`,
+      gym2.coachToken,
+    );
+    const cuerpo = JSON.parse(res.body) as {
+      hasRenewable: boolean;
+      planName: string | null;
+      amount: number | null;
+    };
+    expect(
+      [cuerpo.hasRenewable, cuerpo.planName, cuerpo.amount],
+      porQueImportaLaLectura(
+        RUTA,
+        `el plan del socio ${usuarioTemploId}, que es de El Templo. getMemberSubscription ` +
+          `perdio su ctx o su tenantWhere(subscriptions, ctx) (src/modules/subscriptions/service.ts)`,
+      ),
+    ).toEqual([false, null, null]);
+  });
 
   it("control: con un socio propio devuelve su plan, su deuda y su sede", async () => {
     const res = await getComoGimnasioDos(
@@ -1299,34 +1282,15 @@ describe("alta de alumno con plan — POST /api/admin/finance/coach-load/alta (a
     ).toBe(TENANT_TEMPLO);
   });
 
-  // ⚠️⚠️ LIMITACION CONOCIDA DE LA ADOPCION — DUEÑO: FASE 173 ⚠️⚠️
-  //
-  // El alta con recursos PROPIOS del gimnasio 2 hoy NO se puede completar, y el
-  // motivo no es finance: `assignPlan` inserta la fila de `subscriptions` SIN
-  // `tenantValues` (src/modules/subscriptions/service.ts, ~L1592), asi que la
-  // sub del gimnasio 2 nace con el `DEFAULT 1` de la columna — o sea, en El
-  // Templo (T-168-15). Acto seguido, el charge la valida como concepto enlazado
-  // CON el filtro de gimnasio (TransactionService.create, paso 1d) y no la
-  // encuentra: la operacion entera se rollea.
-  //
-  // Es fail-closed y NO es una fuga: nada queda escrito, ni en un gimnasio ni en
-  // el otro. Pero significa que **el alta de coach-load no es usable por un
-  // gimnasio nuevo hasta que la fase 173 migre `subscriptions`**, y eso tiene
-  // que estar escrito en la receta de adopcion (172-23) y en el SUMMARY.
-  //
-  // NO se arregla en esta fase por decision explicita del CONTEXT (D-07: en
-  // archivos ajenos se tocan UNICAMENTE las queries sobre las 6 tablas strict de
-  // finance, y `subscriptions` no es una de ellas).
-  //
-  // El `it` de abajo afirma lo unico que hoy se puede certificar de esta ruta
-  // para el gimnasio 2 —que el rechazo es LIMPIO— y deja anclado el motivo. El
-  // dia que la fase 173 estampe el gimnasio, el rechazo desaparece, este `it` se
-  // pone en ROJO y quien lo arregle tiene que convertirlo en el control positivo
-  // que hoy no se puede escribir (201 + sub y charge en el gimnasio 2).
-  it("limitacion conocida (dueño: fase 173): con recursos PROPIOS el alta se corta en el charge, sin escribir nada", async () => {
-    const ledgerDosAntes = await contarLedgerDelGimnasio(TENANT_DOS);
-    const subsAntes = await contarSubsDelSocio(gym2.socios[1].id);
-
+  // Fase 173 (D-13, T-173-14-03): la deuda que este bloque anclaba esta
+  // CERRADA. `assignPlan` ahora estampa `tenantValues(ctx, {...})` en el
+  // insert de `subscriptions` (src/modules/subscriptions/service.ts) — la sub
+  // del gimnasio 2 nace en el gimnasio 2, el charge la encuentra como concepto
+  // enlazado y el alta se completa entera. El `it` de abajo era el rechazo
+  // limpio documentado (404 + "Concepto enlazado no existe"); al cerrarse la
+  // deuda se invierte en el control positivo que antes no se podia escribir:
+  // 201 + sub y charge con tenant_id = TENANT_DOS.
+  it("control: con recursos PROPIOS del gimnasio 2 el alta funciona de punta a punta (201 + sub y charge propios)", async () => {
     const res = await postComoGimnasioDos("/coach-load/alta", gym2.coachToken, {
       userId: gym2.socios[1].id,
       branchId: gym2.branchId,
@@ -1336,30 +1300,67 @@ describe("alta de alumno con plan — POST /api/admin/finance/coach-load/alta (a
     });
     expect(
       res.statusCode,
-      `${RUTA} cambio de comportamiento con recursos propios del gimnasio ${TENANT_DOS}. Si ahora ` +
-        `contesta 201, la fase 173 migro \`subscriptions\`: convertí este \`it\` en el control ` +
-        `positivo de la ruta (201 + la sub y el charge con tenant_id = ${TENANT_DOS}) y borrá esta ` +
-        `nota. Respuesta: ${res.body}`,
-    ).toBe(404);
-    expect(
-      JSON.parse(res.body).message,
-      `${RUTA} rechazo el alta propia por un motivo distinto del documentado (la sub nace en el ` +
-        `gimnasio ${TENANT_TEMPLO} y el charge no la encuentra). Revisar antes de tocar nada. ` +
-        `Respuesta: ${res.body}`,
-    ).toContain("Concepto enlazado no existe");
+      porQueImportaElControl(RUTA) +
+        ` El alta con recursos propios del gimnasio ${TENANT_DOS} no devolvio 201: assignPlan ` +
+        `perdio su tenantValues (src/modules/subscriptions/service.ts) y la sub volvio a nacer en ` +
+        `otro gimnasio. Respuesta: ${res.body}`,
+    ).toBe(201);
 
-    // Lo que SI se certifica hoy: el rechazo es limpio en los dos gimnasios. Una
-    // sub colgada en El Templo con el socio del gimnasio 2 seria un cruce de
-    // datos de verdad, no una limitacion.
+    const cuerpo = JSON.parse(res.body) as {
+      subscription: { id: number } | null;
+      transaction: { id: number } | null;
+    };
+    const subId = cuerpo.subscription?.id ?? 0;
+    const chargeId = cuerpo.transaction?.id ?? 0;
+    expect(
+      subId,
+      `${RUTA} contesto 201 sin sub: el alta no recorrio el camino de escritura entero.`,
+    ).toBeGreaterThan(0);
+    expect(
+      chargeId,
+      `${RUTA} contesto 201 sin cobro: el plan sembrado tiene precio > 0, asi que assignPlan tiene ` +
+        `que haber creado el charge.`,
+    ).toBeGreaterThan(0);
+
+    // La evidencia se lee de la BASE, no de la respuesta HTTP.
+    // `subscriptions` no es tabla strict todavia (D-02, fase 174) asi que no
+    // pasa por `tenantDeLaFila` (esta tipada a las 6 tablas strict de
+    // finance) — se lee con la MISMA exencion embebida que `contarSubsDelSocio`.
+    const [filaSub] = await consultar<{ tenant_id: number }>(
+      sql`SELECT /* tenant-safe: leer el tenant_id de la fila ES la asercion; filtrarla por gimnasio la volveria tautologica */ tenant_id FROM subscriptions WHERE id = ${subId}`,
+    );
+    expect(
+      [filaSub?.tenant_id, await tenantDeLaFila(app, "financial_transactions", chargeId)],
+      `El alta con recursos propios del gimnasio ${TENANT_DOS} escribio la sub o el cobro en OTRO ` +
+        `gimnasio (assignPlan perdio su tenantValues, o el charge nacio sin el gimnasio del ctx).`,
+    ).toEqual([TENANT_DOS, TENANT_DOS]);
+
+    // Evidencia de escritura con VARIAS columnas juntas (doc 07 §5): un
+    // rechazo que ya escribio la mitad se ve igual que uno limpio si se mira
+    // una sola columna. `amount` se compara contra el `price_paid` de la
+    // MISMA sub (no un magic number) para no acoplar el test al precio
+    // sembrado del plan.
+    const [filaCharge] = await consultar<{
+      tenant_id: number;
+      validation_status: string;
+      cash_register_id: number | null;
+      amount: number;
+    }>(
+      sql`SELECT /* tenant-safe: leer la fila ES la asercion de evidencia (multi-columna); filtrarla por gimnasio la volveria tautologica, mismo razonamiento que tenantDeLaFila */ tenant_id, validation_status, cash_register_id, amount FROM financial_transactions WHERE id = ${chargeId}`,
+    );
+    const [filaSubPrecio] = await consultar<{ price_paid: number }>(
+      sql`SELECT price_paid FROM subscriptions WHERE id = ${subId}`,
+    );
     expect(
       [
-        await contarSubsDelSocio(gym2.socios[1].id),
-        await contarLedgerDelGimnasio(TENANT_DOS),
+        filaCharge?.tenant_id,
+        filaCharge?.validation_status,
+        filaCharge?.cash_register_id,
+        filaCharge?.amount,
       ],
-      `${RUTA} dejo rastro pese al rechazo: el rollback de assignPlan no cubrio todo. Una sub del ` +
-        `socio del gimnasio ${TENANT_DOS} sobreviviendo en El Templo seria un cruce de datos ` +
-        `REAL, no la limitacion conocida.`,
-    ).toEqual([subsAntes, ledgerDosAntes]);
+      `El charge del alta propia del gimnasio ${TENANT_DOS} no quedo con [gimnasio, estado, caja, ` +
+        `importe] consistentes. Respuesta: ${res.body}`,
+    ).toEqual([TENANT_DOS, "pendiente", dos.cajaId, filaSubPrecio?.price_paid]);
   });
 });
 
