@@ -54,9 +54,16 @@ const lastTrialBookingJoin = sql`
 
 /**
  * Predicados base del candidato a vencer (sin el guard de source, que difiere
- * entre el flip y el conteo de salteados). `windowDays` es un entero positivo
- * garantizado por getPerdidoWindowDays (Math.trunc + guard > 0, default 14),
- * así que su interpolación en `INTERVAL ... DAY` es segura.
+ * entre el flip y el conteo de salteados, y sin el filtro de tenant). `windowDays`
+ * es un entero positivo garantizado por getPerdidoWindowDays (Math.trunc + guard
+ * > 0, default 14), así que su interpolación en `INTERVAL ... DAY` es segura.
+ *
+ * El filtro de tenant NO vive acá: el lint de tenancy (CON-06) juzga por
+ * STATEMENT completo, no por fragmento compartido — un `${base}` interpolado
+ * en OTRO `sql\`...\`` no arrastra el texto literal de este fragmento (mordió
+ * en el plan 173-05, mismo motivo). Por eso `u.tenant_id = ${ctx.tenantId}` va
+ * inline en CADA statement que nombra `users` (el COUNT y el UPDATE de abajo),
+ * no accá.
  */
 function candidateBaseConditions(windowDays: number) {
   return sql`
@@ -80,8 +87,9 @@ function candidateBaseConditions(windowDays: number) {
  *
  * D-02: el `ctx` NO baja a los services. Sus firmas cambian en su fase de
  * adopción (172-175); acá el contexto llega hasta el CUERPO del job, se loguea
- * y queda disponible. En particular el `sql` crudo de abajo TODAVÍA NO lleva
- * `AND u.tenant_id = ${ctx.tenantId}`: eso entra con la adopción del módulo.
+ * y queda disponible. El `sql` crudo de abajo YA lleva
+ * `u.tenant_id = ${ctx.tenantId}` (fase 173, D-01: `users` es tabla strict de
+ * este módulo) — `bookings` queda sin tocar, D-02 de la 173 (cirugía mínima).
  * Con un solo tenant activo el resultado es IDÉNTICO al de hoy.
  *
  * VENCIMIENTO de esta forma intermedia: mientras el cuerpo siga siendo global,
@@ -104,11 +112,16 @@ async function runExpireLostLeadsForTenant(
 
   // (4) Contar candidatos que hubieran vencido pero son 'manual' (D-04). El
   // UPDATE nunca los toca, así que el conteo es estable corra antes o después.
+  // `u.tenant_id` PRIMERO (D-01, fase 173): `users` es tabla strict de esta
+  // fase — el estado de un lead de OTRO gimnasio no puede vencer por el
+  // barrido de este. `bookings` (usada solo para `b.booking_date` vía
+  // `lastTrialBookingJoin`) NO se toca — D-02, cirugía mínima.
   const countRes = await db.execute(sql`
     SELECT COUNT(*) AS cnt
     FROM users u
     ${lastTrialBookingJoin}
-    WHERE ${base}
+    WHERE u.tenant_id = ${ctx.tenantId}
+      AND ${base}
       AND u.lead_status_source = 'manual'
   `);
   const skippedRow = (countRes as unknown as [Array<{ cnt: unknown }>])[0]?.[0];
@@ -116,11 +129,13 @@ async function runExpireLostLeadsForTenant(
 
   // (3) Flip: sólo candidatos no-manuales (NULL tratado como 'auto', D-07).
   // Setea source='auto' para dejar auditado que lo puso el automatismo.
+  // `u.tenant_id` PRIMERO, mismo motivo que el COUNT de arriba.
   const updateRes = await db.execute(sql`
     UPDATE users u
     ${lastTrialBookingJoin}
     SET u.lead_status = 'perdido', u.lead_status_source = 'auto'
-    WHERE ${base}
+    WHERE u.tenant_id = ${ctx.tenantId}
+      AND ${base}
       AND (u.lead_status_source <> 'manual' OR u.lead_status_source IS NULL)
   `);
   const expired = Number(

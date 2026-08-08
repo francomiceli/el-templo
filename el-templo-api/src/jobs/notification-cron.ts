@@ -28,6 +28,7 @@ import { SEGMENT_TRANSITION_TEMPLATES } from "../modules/notifications/types";
 import type { MemberSegment } from "../modules/segmentation/types";
 import {
   forEachActiveTenant,
+  tenantWhere,
   type TenantContext,
 } from "../modules/shared/tenant";
 
@@ -178,10 +179,14 @@ async function runMorningEnergyForTenantTz(
   const eligibleMembers = await db
     .select({ userId: s.memberProfiles.userId })
     .from(s.memberProfiles)
-    .innerJoin(s.users, eq(s.users.id, s.memberProfiles.userId))
+    .innerJoin(
+      s.users,
+      and(tenantWhere(s.users, ctx), eq(s.users.id, s.memberProfiles.userId)),
+    )
     .innerJoin(s.branches, eq(s.branches.id, s.users.branchId))
     .where(
       and(
+        tenantWhere(s.memberProfiles, ctx),
         isNotNull(s.memberProfiles.onboardingCompletedAt),
         eq(s.branches.timezone, tz),
         sql`${s.memberProfiles.userId} NOT IN (
@@ -255,10 +260,14 @@ async function runWeeklySummaryForTenantTz(
   const members = await db
     .select({ userId: s.memberProfiles.userId })
     .from(s.memberProfiles)
-    .innerJoin(s.users, eq(s.users.id, s.memberProfiles.userId))
+    .innerJoin(
+      s.users,
+      and(tenantWhere(s.users, ctx), eq(s.users.id, s.memberProfiles.userId)),
+    )
     .innerJoin(s.branches, eq(s.branches.id, s.users.branchId))
     .where(
       and(
+        tenantWhere(s.memberProfiles, ctx),
         isNotNull(s.memberProfiles.onboardingCompletedAt),
         eq(s.branches.timezone, tz),
       ),
@@ -453,7 +462,12 @@ async function runBatchSegmentRecalculationForTenant(
       lastGhostReattemptAt: s.memberProfiles.lastGhostReattemptAt,
     })
     .from(s.memberProfiles)
-    .where(isNotNull(s.memberProfiles.onboardingCompletedAt));
+    .where(
+      and(
+        tenantWhere(s.memberProfiles, ctx),
+        isNotNull(s.memberProfiles.onboardingCompletedAt),
+      ),
+    );
 
   let transitionsFound = 0;
   let notificationsQueued = 0;
@@ -478,7 +492,12 @@ async function runBatchSegmentRecalculationForTenant(
           segment: newSegment,
           segmentUpdatedAt: new Date(),
         })
-        .where(eq(s.memberProfiles.userId, profile.userId));
+        .where(
+          and(
+            tenantWhere(s.memberProfiles, ctx),
+            eq(s.memberProfiles.userId, profile.userId),
+          ),
+        );
 
       // Check for transition
       if (oldSegment !== newSegment) {
@@ -532,7 +551,12 @@ async function runBatchSegmentRecalculationForTenant(
                 ghostReattemptCount: reattemptCount + 1,
                 lastGhostReattemptAt: new Date(),
               })
-              .where(eq(s.memberProfiles.userId, profile.userId));
+              .where(
+                and(
+                  tenantWhere(s.memberProfiles, ctx),
+                  eq(s.memberProfiles.userId, profile.userId),
+                ),
+              );
 
             ghostReattempts++;
           } catch (ghostErr: unknown) {
