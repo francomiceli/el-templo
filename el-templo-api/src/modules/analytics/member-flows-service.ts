@@ -60,7 +60,10 @@ import { and, eq, ne, sql } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { applyScope } from "./scope";
-import { excludeEspecialSubs } from "./especial-exclusion";
+import {
+  excludeEspecialSubs,
+  excludeInternalSubs,
+} from "./especial-exclusion";
 import { bucketExpr, rangeConditions } from "./cohorts";
 import {
   expiryCohortConditions,
@@ -210,6 +213,7 @@ export class MemberFlowsService {
         streakStartExpr,
         // D-11: el pase especial no cuenta como alta de membresía.
         excludeEspecialSubs(),
+        excludeInternalSubs(),
         ...scopeConditions,
       ),
     );
@@ -263,6 +267,7 @@ export class MemberFlowsService {
         ),
         // D-11: un importado cuya única sub es el pase no es alta de membresía.
         excludeEspecialSubs(),
+        excludeInternalSubs(),
         ...scopeConditions,
       ),
     );
@@ -312,6 +317,7 @@ export class MemberFlowsService {
         lastExpiryPerPersonExpr(filters.dateFrom, filters.dateTo),
         // D-11: el vencimiento de un pase especial no es una baja de membresía.
         excludeEspecialSubs(),
+        excludeInternalSubs(),
         ...scopeConditions,
       ),
     );

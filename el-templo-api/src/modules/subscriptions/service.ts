@@ -1605,6 +1605,9 @@ export class SubscriptionService {
           boardingPassUsed,
           priceOverrideAmount,
           priceOverrideReason,
+          // Override a $0 = membresía regalada: se auto-etiqueta para que
+          // analytics de membresía la excluya (corregible a 'staff' luego).
+          membershipKind: priceOverrideAmount === 0 ? "bonificada" : "paga",
           classesRemaining,
           classesBudget: classesRemaining,
           notes: input.notes ?? null,
@@ -3442,6 +3445,11 @@ export class SubscriptionService {
           priceTypeApplied: resolvedPriceType,
           priceOverrideAmount: resolvedOverrideAmount,
           priceOverrideReason: resolvedOverrideReason,
+          // Se chequea el override TIPEADO por el admin (input), no el
+          // resolved: boarding pass / prorrateo pueden dejar netAmount=0
+          // sin que la membresía sea regalada.
+          membershipKind:
+            input.priceOverrideAmount === 0 ? "bonificada" : "paga",
           referralDiscountPercent,
           referralDiscountAmount,
           boardingPassUsed,
@@ -3889,6 +3897,8 @@ export class SubscriptionService {
         boardingPassUsed,
         priceOverrideAmount,
         priceOverrideReason,
+        // Override a $0 = membresía regalada (ver assignPlan/changePlanNow).
+        membershipKind: priceOverrideAmount === 0 ? "bonificada" : "paga",
         classesRemaining,
         classesBudget: classesRemaining,
         previousSubscriptionId: currentSub.id,
@@ -4042,6 +4052,7 @@ export class SubscriptionService {
       pricePaid: schema.subscriptions.pricePaid,
       priceTypeApplied: schema.subscriptions.priceTypeApplied,
       referralDiscountAmount: schema.subscriptions.referralDiscountAmount,
+      membershipKind: schema.subscriptions.membershipKind,
     };
     let currentSub;
     if (input.subscriptionId !== undefined) {
@@ -4341,6 +4352,18 @@ export class SubscriptionService {
         priceTypeApplied: renewalPriceType,
         priceOverrideAmount: renewalOverrideAmount,
         priceOverrideReason: renewalOverrideReason,
+        // Herencia de la etiqueta al renovar: override explícito a $0 mantiene
+        // 'staff' (corrección manual) o cae a 'bonificada'; renovación gratis
+        // implícita (precio heredado 0, p.ej. subs del import CSV) conserva la
+        // etiqueta previa; precio real → 'paga'.
+        membershipKind:
+          renewalOverrideAmount === 0
+            ? currentSub.membershipKind === "staff"
+              ? "staff"
+              : "bonificada"
+            : renewalPrice === 0
+              ? currentSub.membershipKind
+              : "paga",
         referralDiscountPercent,
         referralDiscountAmount,
         classesRemaining: periodBudget,

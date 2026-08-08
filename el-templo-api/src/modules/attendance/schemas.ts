@@ -119,6 +119,9 @@ const slotAttendanceItemSchema = {
     // Vencimiento countdown source: active/paused subscription end date
     // (YYYY-MM-DD) or null. The pill label is derived client-side.
     endDate: { type: ["string", "null"] },
+    // Aniversario de permanencia: frase lista ("Cumple 1 año en El Templo") o
+    // null. Aparece el día del hito o en la próxima clase si cayó en falta.
+    anniversaryLabel: { type: ["string", "null"] },
   },
 } as const;
 

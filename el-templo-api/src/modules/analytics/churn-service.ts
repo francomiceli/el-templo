@@ -64,7 +64,10 @@ import {
   RENOVATION_WINDOW_DEFAULT_DAYS,
   CHURN_COMPARISON_WINDOWS,
 } from "./expiry-cohort";
-import { excludeEspecialSubs } from "./especial-exclusion";
+import {
+  excludeEspecialSubs,
+  excludeInternalSubs,
+} from "./especial-exclusion";
 import type {
   AnalyticsFilters,
   ChurnAnalytics,
@@ -195,6 +198,7 @@ export class ChurnService {
         lastExpiryPerPersonExpr(filters.dateFrom, filters.dateTo),
         // D-11: el pase especial no cuenta en el churn/no-renovación de membresía.
         excludeEspecialSubs(),
+        excludeInternalSubs(),
         ...scopeConditions,
         ...subscriptionPlanFilter(filters.planId),
       ),
@@ -265,6 +269,7 @@ export class ChurnService {
         lastExpiryPerPersonExpr(filters.dateFrom, filters.dateTo),
         // D-11: el pase especial no cuenta en el churn/no-renovación de membresía.
         excludeEspecialSubs(),
+        excludeInternalSubs(),
         ...scopeConditions,
         ...subscriptionPlanFilter(filters.planId),
       ),
@@ -322,6 +327,7 @@ export class ChurnService {
         lastExpiryPerPersonExpr(filters.dateFrom, filters.dateTo),
         // D-11: el pase especial no cuenta en el churn/no-renovación de membresía.
         excludeEspecialSubs(),
+        excludeInternalSubs(),
         ...scopeConditions,
         ...subscriptionPlanFilter(filters.planId),
       ),

@@ -4373,9 +4373,9 @@ _v5.7 (Actividades con Aura) added: 2026-07-14 — 2 phases (161-162), 14 requir
 - [x] **Phase 167: Columnas — `tenant_id` en las 85 tablas restantes + verificación** — tanda C agrupada por dominio (nullable → backfill `=1` → NOT NULL → FK) sobre las 46 CORE + 42 TEMPLO-MODULO menos anclas, con `system_settings` y `labs_inquiries` excluidas, más el script versionado que verifica el backfill contra las cadenas de FK del inventario. **(7/7 planes ejecutados 2026-07-27; migs 0192-0195 en staging y prod, verificador COL-02 en 0 discrepancias en las dos bases; pendiente `/gsd:verify-phase 167` + smoke por UI)** (completed 2026-07-27)
 - [x] **Phase 168: Contratos SQL — uniques compuestas e índices por `tenant_id`** — tanda D: conversión de las uniques globales a `(tenant_id, …)` según doc 06 §1-D (incluida la obligatoria `campaign_unsubscribes`), lista M8 explícitamente global, e índice con prefijo `tenant_id` en toda tabla gym-owned. (completed 2026-07-27)
 - [x] **Phase 169: Capa de escritura — helpers `tenantWhere`/`tenantValues` y `TenantContext`** — una sola API para request y caminos sin request (crons por tenant activo, webhook Wellhub por `branches.wellhub_gym_id`, CLI con tenant obligatorio, `tv_pairings` pre-claim exento y anotado). (completed 2026-07-28)
-- [x] **Phase 170: Detección automática — sentinel de pool mysql2 + lint en CI** — interceptor a nivel pool que detecta SQL sobre tabla gym-owned sin `tenant_id` (throw en test/dev para módulos migrados, `log.error` + métrica en prod) y lint estático con allowlist decreciente que rompe el build ante accesos nuevos sin scope ni anotación. (completed 2026-07-28)
-- [x] **Phase 171: Backstop — manifiesto de rutas fail-closed y fixtures 2-tenant** — `test/tenant-manifest.ts` clasificando el 100% de las rutas + hook `onRoute` que deja en rojo cualquier ruta nueva sin clasificar, y fixtures/helpers que siembran dos tenants con staff y socios propios. (completed 2026-07-30)
-- [ ] **Phase 172: Adopción 1 (piloto) — `finance`** — services de finanzas reciben scope, todo WHERE/INSERT por helpers, sentinel en throw para sus tablas y primera batería de aislamiento verde (patrón reutilizable por las fases siguientes), con cobros/caja/deudas dando los mismos números que hoy.
+- [ ] **Phase 170: Detección automática — sentinel de pool mysql2 + lint en CI** — interceptor a nivel pool que detecta SQL sobre tabla gym-owned sin `tenant_id` (throw en test/dev para módulos migrados, `log.error` + métrica en prod) y lint estático con allowlist decreciente que rompe el build ante accesos nuevos sin scope ni anotación.
+- [ ] **Phase 171: Backstop — manifiesto de rutas fail-closed y fixtures 2-tenant** — `test/tenant-manifest.ts` clasificando el 100% de las rutas + hook `onRoute` que deja en rojo cualquier ruta nueva sin clasificar, y fixtures/helpers que siembran dos tenants con staff y socios propios.
+- [x] **Phase 172: Adopción 1 (piloto) — `finance`** — services de finanzas reciben scope, todo WHERE/INSERT por helpers, sentinel en throw para sus tablas y primera batería de aislamiento verde (patrón reutilizable por las fases siguientes), con cobros/caja/deudas dando los mismos números que hoy. (completed 2026-07-31)
 - [ ] **Phase 173: Adopción 2 — `members` + guarda de consistencia de anclas** — módulo de socios/staff migrado al patrón completo y el invariante `user.tenant_id === branch.tenant_id` enforced en los ~10 sitios de escritura de `branch_id`, `setMemberBranch()` y el cron de recategorización multisucursal (mina M10).
 - [ ] **Phase 174: Adopción 3 — `subscriptions` + `scheduling`** — planes/suscripciones (con la cadena de pricing override → boarding pass → AURA → referral intacta) y scheduling completo (schedules/bookings/attendance/schedule_exceptions, incluido el check-in por QR y el booking de admin) migrados y aislados.
 - [ ] **Phase 175: Adopción 4 — `analytics` + resto del core** — métricas scopeadas devolviendo los mismos números para el tenant 1, más campaigns, notifications, referrals, wellhub, feedback/sugerencias y auth/settings, con la supresión de unsubscribes por tenant efectiva punta a punta.
@@ -4587,55 +4587,47 @@ además al predecesor inmediato como dependencia operativa.
 3. Las exenciones `/* tenant-safe: <motivo> */` son grepeables y su inventario completo cabe en una sola búsqueda revisable, cada una con motivo escrito. (CON-05)
 4. El lint de CI deja el build **rojo** ante un ` sql` ``o`.from(<gym-owned>)`nuevo sin`tenant_id` ni anotación fuera de la allowlist (demostrado con un caso de prueba), y la allowlist arranca completa y solo puede achicarse — un check impide agrandarla. (CON-06)
 
-**Plans:** 10/10 plans complete
+**Plans:** 8 plans
 
 Plans:
 
-Las 10 waves son **una por plan a propósito** (misma razón que la 169): las 10 comparten un
-único worktree (`et-170-sentinel`) y sus tests son MySQL-backed — dos archivos de vitest a
+Las 8 waves son **una por plan a propósito** (misma razón que la 169): los 8 comparten un
+único worktree (`et-170-deteccion`) y sus tests son MySQL-backed — dos archivos de vitest a
 la vez revientan el timeout de 120 s del provisioning por worker, y dos ejecutores en el
 mismo worktree se pisan el estado de git. Cero migraciones y cero dependencias nuevas en
 toda la fase.
 
 **Wave 1**
 
-- [x] 170-01-PLAN.md — Worktree sobre `origin/master` + `TENANT_STRICT_MODULES` / `isStrictTable` / `strictTablesSet` en `tenant-tables.ts` (D-05/D-06, arranca vacía) + 5 gates de forma
+- [ ] 170-01-PLAN.md — Worktree sobre `origin/master` + `TENANT_STRICT_MODULES` / `isStrictTable` / `strictTablesSet` en `tenant-tables.ts` (D-05/D-06, arranca vacía) + 5 gates de forma
 
 **Wave 2** _(blocked on Wave 1 completion)_
 
-- [x] 170-02-PLAN.md — Sentinel: parser puro `analyzeSql` con recorte de proyección (Pitfall 2) y skiplist de no-DML + batería unitaria de 20 casos
+- [ ] 170-02-PLAN.md — Sentinel: parser puro `analyzeSql` con recorte de proyección (Pitfall 2) y skiplist de no-DML + batería unitaria de 20 casos
 
 **Wave 3** _(blocked on Wave 2 completion)_
 
-- [x] 170-03-PLAN.md — Lint: motor AST (mapa identificador→tabla física, detección de `sql` crudo y query builder, anclaje de exenciones que cierra el hallazgo 169-09) + fixtures
+- [ ] 170-03-PLAN.md — Lint: motor AST (mapa identificador→tabla física, detección de `sql` crudo y query builder, anclaje de exenciones que cierra el hallazgo 169-09) + fixtures
 
 **Wave 4** _(blocked on Wave 3 completion)_
 
-- [x] 170-04-PLAN.md — Sentinel: wrap de `query` + `execute` + **`getConnection`**, severidad por (entorno × strict), dedup por fingerprint, resumen periódico con `unref` + batería con pool falso
+- [ ] 170-04-PLAN.md — Sentinel: wrap de `query` + `execute` + **`getConnection`**, severidad por (entorno × strict), dedup por fingerprint, resumen periódico con `unref` + batería con pool falso
 
 **Wave 5** _(blocked on Wave 4 completion)_
 
-- [x] 170-05-PLAN.md — Lint: allowlist decreciente, cuatro gates del ratchet (no listada, stale ×2, ganada, coherencia strict), CLI con exit codes 0/1/2 y `pnpm lint:tenant`
+- [ ] 170-05-PLAN.md — Lint: allowlist decreciente, cuatro gates del ratchet (no listada, stale ×2, ganada, coherencia strict), CLI con exit codes 0/1/2 y `pnpm lint:tenant`
 
 **Wave 6** _(blocked on Wave 5 completion)_
 
-- [x] 170-06-PLAN.md — Cableado en `plugins/database.ts` (por debajo de Drizzle, `stop()` en `onClose`), flag `SENTINEL_INVENTORY`, `src/db/index.ts` desmentido + integración contra SQL real incluida transacción
+- [ ] 170-06-PLAN.md — Cableado en `plugins/database.ts` (por debajo de Drizzle, `stop()` en `onClose`), flag `SENTINEL_INVENTORY`, `src/db/index.ts` desmentido + integración contra SQL real incluida transacción
 
 **Wave 7** _(blocked on Wave 6 completion)_
 
-- [x] 170-07-PLAN.md — Baseline one-shot de la allowlist (D-16), step bloqueante en CI con `fetch-depth: 0`, y demostración en vivo del rojo (acceso nuevo, allowlist agrandada, base irresoluble)
+- [ ] 170-07-PLAN.md — Baseline one-shot de la allowlist (D-16), step bloqueante en CI con `fetch-depth: 0`, y demostración en vivo del rojo (acceso nuevo, allowlist agrandada, base irresoluble)
 
 **Wave 8** _(blocked on Wave 7 completion)_
 
-- [x] 170-08-PLAN.md — Inventario determinístico con `SENTINEL_INVENTORY=1` sobre la suite + checkpoint de rollout a staging + ventana de observación de 2-3 días (criterio 2)
-
-**Wave 9** _(cierre de gaps — 170-VERIFICATION.md dejó el criterio 4 FALLIDO)_
-
-- [x] 170-09-PLAN.md — El motor del lint deja de ser ciego a los alias de variable local, a `alias()` guardado en variable y a los joins (CR-01 + WR-01), con fixture rojo primero y medición del delta de deuda destapada
-
-**Wave 10** _(blocked on Wave 9 completion)_
-
-- [x] 170-10-PLAN.md — Re-baseline corregido de la allowlist + demostración en vivo del rojo con el caso exacto que el verificador reprodujo en verde + checkpoint de aprobación del crecimiento
+- [ ] 170-08-PLAN.md — Inventario determinístico con `SENTINEL_INVENTORY=1` sobre la suite + checkpoint de rollout a staging + ventana de observación de 2-3 días (criterio 2)
 
 ### Phase 171: Backstop — manifiesto de rutas fail-closed y fixtures 2-tenant
 
@@ -4652,33 +4644,7 @@ toda la fase.
 3. Los fixtures siembran 2 tenants completos (sedes, staff, socios, planes propios) y `createStaffUser` y afines aceptan el tenant como parámetro. (ISO-02)
 4. La suite completa sigue verde con los fixtures nuevos: el tenant 2 sembrado no altera ningún test existente ni sus expectativas de conteo. (ISO-02)
 
-**Plans:** 6/6 plans complete
-
-Plans:
-
-**Wave 1**
-
-- [x] 171-01-PLAN.md — Seam `onRoute` test-only en `buildApp` + módulo `test/tenant-manifest.ts` (tipos, comparador puro, manifiesto vacío)
-
-**Wave 2** _(blocked on Wave 1 completion)_
-
-- [x] 171-02-PLAN.md — Baseline one-shot: las 370 entradas explícitas clasificadas (D-01/D-02/D-07) + dossier `171-CLASIFICACION.md`
-
-**Wave 3** _(blocked on Wave 2 completion)_
-
-- [x] 171-03-PLAN.md — Gate fail-closed `iso-01-manifiesto.test.ts` + sonda en vivo (criterio 2 demostrado)
-
-**Wave 4** _(blocked on Wave 1 completion)_
-
-- [x] 171-04-PLAN.md — `tenantId` opcional en `createStaffUser`/`createTestMember` + fixture `seedSecondTenant` (D-05/D-06)
-
-**Wave 5** _(blocked on Wave 4 completion)_
-
-- [x] 171-05-PLAN.md — `iso-02-fixtures.test.ts` + regresión dirigida del criterio 4
-
-**Wave 6** _(blocked on Waves 2, 3 y 5)_
-
-- [x] 171-06-PLAN.md — Checkpoint bloqueante D-03/D-04 (Franco revisa `global`, `templo-module` y las dudosas) + aplicación del veredicto
+**Plans:** TBD
 
 ### Phase 172: Adopción 1 (piloto) — `finance`
 
@@ -4695,7 +4661,74 @@ Plans:
 3. Batería de aislamiento verde: cada ruta `tenant-scoped` de finance, ejecutada como staff del tenant A, **no lee ni escribe** filas del tenant B — lecturas vacías/404 y escrituras rechazadas, ruta por ruta según el manifiesto. El patrón queda documentado como plantilla para las fases de adopción siguientes. (ISO-03)
 4. Sin cambio para el staff: cobros, validación, caja, movimientos, egresos, deudas y exports dan los **mismos números** en staging antes y después (comparación explícita), y la suite existente pasa sin ajustar expectativas.
 
-**Plans:** TBD
+**Plans:** 23/23 plans complete
+
+Plans:
+
+**Wave 1**
+
+- [x] 172-01-PLAN.md — worktree et-172 desde origin/master + gate CR-CAJA (D-13)
+
+**Wave 2** _(blocked on Wave 1 completion)_
+
+- [x] 172-02-PLAN.md — analytics ×4: queries finance scopeadas (cirugía mínima)
+- [x] 172-03-PLAN.md — reports/service.ts: 11 accesos + los 6 helpers que devuelven SQL
+- [x] 172-04-PLAN.md — coach + members + retrofit CLI de backfill-historical-payments
+- [x] 172-05-PLAN.md — script de snapshot D-12 + captura de la línea de base en staging
+- [x] 172-06-PLAN.md — cash-register-service: cluster ABM (cajas, cuentas, centros de costo)
+
+**Wave 3** _(blocked on Wave 2 completion)_
+
+- [x] 172-07-PLAN.md — subscriptions/service.ts: ctx + 2 queries finance (rompe el ciclo)
+
+**Wave 4** _(blocked on Wave 3 completion)_
+
+- [x] 172-08-PLAN.md — plomería de TransactionService (21 firmas + canceller + call sites)
+
+**Wave 5** _(blocked on Wave 4 completion)_
+
+- [x] 172-09-PLAN.md — balance-service + movement-service + cluster B de cash-register
+
+**Wave 6** _(blocked on Wave 5 completion)_
+
+- [x] 172-10-PLAN.md — transaction-service: queries de escritura (create/void/validate/correct)
+- [x] 172-11-PLAN.md — closures y queries propias de finance/routes.ts y coach-load-routes.ts
+
+**Wave 7** _(blocked on Wave 6 completion)_
+
+- [x] 172-12-PLAN.md — transaction-service: queries de lectura (listados, resumen, exports)
+
+**Wave 8** _(blocked on Wave 7 completion)_
+
+- [x] 172-13-PLAN.md — endurecimiento de tests A: helpers/setup + cajas y centros de costo
+
+**Wave 9** _(blocked on Wave 8 completion)_
+
+- [x] 172-14-PLAN.md — endurecimiento de tests B: transacciones y coach-load
+
+**Wave 10** _(blocked on Wave 9 completion)_
+
+- [x] 172-15-PLAN.md — endurecimiento de tests C: suscripciones, reportes, socios, coach
+
+**Wave 11** _(blocked on Wave 10 completion)_
+
+- [x] 172-16-PLAN.md — endurecimiento de tests D: analytics, scheduling, migraciones, tenancy
+
+**Cross-cutting constraints:**
+
+- Toda query directa de esos tests sobre las 6 tablas strict lleva tenant_id explícito
+
+> Los planes 172-13 → 172-14 → 172-15 → 172-16 corren **en serie** (waves 8, 9, 10 y 11):
+> los cuatro encienden y revierten la misma sonda temporal sobre
+> `el-templo-api/src/db/tenant-tables.ts`, así que en paralelo se pisarían entre ellos.
+
+- [x] 172-17-PLAN.md — ISO-03: fixture de finanzas del gimnasio 2 + 14 rutas de cajas
+- [x] 172-18-PLAN.md — ISO-03: 13 rutas de transacciones, bandeja e historial
+- [x] 172-19-PLAN.md — ISO-03: 11 rutas de coach-load (rol coach), movimientos y egresos
+- [x] 172-20-PLAN.md — gate de cobertura fail-closed derivado del manifiesto
+- [x] 172-21-PLAN.md — el switch: entrada strict, allowlist en cero, demo fail-closed
+- [x] 172-22-PLAN.md — staging: CI completo, diff de números vacío, UAT del staff
+- [x] 172-23-PLAN.md — doc `.docs/saas-multitenancy/07-receta-adopcion.md` + cierre
 
 ### Phase 173: Adopción 2 — `members` + guarda de consistencia de anclas
 
@@ -4712,7 +4745,92 @@ Plans:
 3. El cron de recategorización multisucursal nunca mueve a un socio a una sede de otro tenant: test que le ofrece sedes de ambos tenants y verifica que solo considera las del propio. (ADO-07)
 4. Sin cambio para el staff: alta de alumno, ficha, notas, cambio de sede, listados, filtros y export se comportan igual (suite verde y verificación en staging).
 
-**Plans:** TBD
+**Plans:** 3/31 plans executed
+
+Plans:
+
+**Wave 1**
+
+- [x] 173-01-PLAN.md — gate D-16 (backmerge master→staging), worktree et-173 y `tsconfig.test-check.json`
+
+**Wave 2** _(blocked on Wave 1 completion)_
+
+- [x] 173-02-PLAN.md — inventario con las dos lentes (lint + SENTINEL_INVENTORY) y sync del manifiesto
+- [x] 173-03-PLAN.md — fix IN-02 y snapshot `antes.json` de los endpoints de socios (D-10)
+- [ ] 173-04-PLAN.md — helpers compartidos: `audit-log.ts` y `country-scope.ts`
+- [ ] 173-10-PLAN.md — retrofit `requireTenant` en los 6 scripts CLI (D-03)
+- [ ] 173-11-PLAN.md — helper de anclas `branch-consistency.ts` y `canAccessBranch` por gimnasio (D-05a, D-14)
+
+**Wave 3** _(blocked on Wave 2 completion)_
+
+- [ ] 173-05-PLAN.md — helpers compartidos: `member-search.ts` y `covered-until.ts`
+- [ ] 173-06-PLAN.md — cirugía mínima en los 6 services de analytics
+- [ ] 173-08-PLAN.md — cirugía mínima en campañas, segmentación, notificaciones, onboarding y referidos
+- [ ] 173-09-PLAN.md — cirugía mínima en entrenamiento, progresión y gamificación
+- [ ] 173-12-PLAN.md — schema + migración 0198: unique `(tenant_id, id)` y FK compuesta (D-05b, D-18)
+- [ ] 173-15-PLAN.md — WR-01 del autorregistro (D-12) y Wellhub
+
+**Wave 4** _(blocked on Wave 3 completion)_
+
+- [ ] 173-13-PLAN.md — `users/service.ts` y `users/routes.ts`: staff, `user_branches` y 6 sitios de ancla
+- [ ] 173-16-PLAN.md — los 3 crons y el test SC3 del cron de recategorización (D-04, D-07)
+- [ ] 173-17-PLAN.md — plomería de firmas: `ctx` primero en los 23 métodos y `assertTenant` en 25 rutas
+
+**Wave 5** _(blocked on Wave 4 completion)_
+
+- [ ] 173-07-PLAN.md — cirugía mínima en scheduling, asistencia, check-ins y ratings
+- [ ] 173-14-PLAN.md — deudas de la 172 en `subscriptions/service.ts` (D-13, D-15) y desmarque del ancla
+- [ ] 173-18-PLAN.md — queries de escritura de `members/service.ts` y los 4 sitios de ancla
+- [ ] 173-20-PLAN.md — queries directas de `members/routes.ts` y `leads-routes.ts`
+
+**Wave 6** _(blocked on Wave 5 completion)_
+
+- [ ] 173-19-PLAN.md — queries de lectura de `members/service.ts` y las 11 entradas por archivo
+
+**Wave 7** _(blocked on Wave 6 completion)_
+
+- [ ] 173-21-PLAN.md — endurecimiento de test/: infra, `cleanAllTestData` y la sonda
+
+**Wave 8** _(blocked on Wave 7 completion)_
+
+- [ ] 173-22-PLAN.md — endurecimiento de test/: socios, staff, auth y leads
+
+**Wave 9** _(blocked on Wave 8 completion)_
+
+- [ ] 173-23-PLAN.md — endurecimiento de test/: suscripciones, finanzas, reportes, coach y referidos
+
+**Wave 10** _(blocked on Wave 9 completion)_
+
+- [ ] 173-24-PLAN.md — endurecimiento de test/: analytics, grilla, asistencia y comunicación
+
+**Wave 11** _(blocked on Wave 10 completion)_
+
+- [ ] 173-25-PLAN.md — endurecimiento de test/: cola larga y barrido global en cero
+
+**Wave 12** _(blocked on Wave 11 completion)_
+
+- [ ] 173-26-PLAN.md — batería ISO-03: fixture del gimnasio 2 y las 9 rutas de listados y exports
+
+**Wave 13** _(blocked on Wave 12 completion)_
+
+- [ ] 173-27-PLAN.md — batería ISO-03: las 10 rutas de la ficha del socio
+- [ ] 173-28-PLAN.md — batería ISO-03: las 11 rutas de alta, edición y staff (ADO-07)
+
+**Wave 14** _(blocked on Wave 13 completion)_
+
+- [ ] 173-29-PLAN.md — gate de cobertura con los 3 prefijos y las 30 rutas (D-09)
+
+**Wave 15** _(blocked on Wave 14 completion)_
+
+- [ ] 173-30-PLAN.md — el switch en dos commits y la demo del fail-closed (D-01)
+
+**Wave 16** _(blocked on Wave 15 completion)_
+
+- [ ] 173-31-PLAN.md — CI, diff de números, merge a staging y UAT del staff (D-10, D-11, D-17)
+
+**Cross-cutting constraints:**
+
+- Los DELETE de conveniencia se acotan con filtro parametrizado; solo la limpieza global y las lecturas de evidencia se eximen
 
 ### Phase 174: Adopción 3 — `subscriptions` + `scheduling`
 
@@ -4773,10 +4891,10 @@ Plans:
 | 167. Columnas — tenant_id en 85 tablas            | 7/7            | Complete    | 2026-07-27 |
 | 168. Contratos SQL — uniques compuestas e índices | 6/6            | Complete    | 2026-07-27 |
 | 169. Capa de escritura — helpers y TenantContext  | 9/9            | Complete    | 2026-07-28 |
-| 170. Detección — sentinel de pool + lint CI       | 10/10 | Complete    | 2026-07-29 |
-| 171. Backstop — manifiesto + fixtures 2-tenant    | 6/6 | Complete    | 2026-07-30 |
-| 172. Adopción 1 (piloto) — finance                | 0/?            | Not started |            |
-| 173. Adopción 2 — members + guarda de anclas      | 0/?            | Not started |            |
+| 170. Detección — sentinel de pool + lint CI       | 0/8            | Planned     |            |
+| 171. Backstop — manifiesto + fixtures 2-tenant    | 0/?            | Not started |            |
+| 172. Adopción 1 (piloto) — finance                | 23/23          | Complete    | 2026-07-31 |
+| 173. Adopción 2 — members + guarda de anclas      | 3/31           | In Progress |            |
 | 174. Adopción 3 — subscriptions + scheduling      | 0/?            | Not started |            |
 | 175. Adopción 4 — analytics + resto del core      | 0/?            | Not started |            |
 | 176. Módulos — flags, requireModule y registry    | 0/?            | Not started |            |

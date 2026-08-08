@@ -266,6 +266,10 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   "GET /api/admin/analytics/ticket": { categoria: "tenant-scoped" },
   "GET /api/admin/analytics/trial-funnel": { categoria: "tenant-scoped" },
 
+  // ── /api/admin/anniversaries ──────────────────────────────────────────────
+  // Cartelera de aniversarios de permanencia: lee alumnos de UNA sede (branchId
+  // + requireBranchAccess). Datos de un solo gimnasio → tenant-scoped.
+  "GET /api/admin/anniversaries": { categoria: "tenant-scoped" },
   // ── /api/admin/attendance ─────────────────────────────────────────────────
   "DELETE /api/admin/attendance/:attendanceId": { categoria: "tenant-scoped" },
   "GET /api/admin/attendance/member/:userId": { categoria: "tenant-scoped" },

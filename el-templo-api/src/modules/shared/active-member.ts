@@ -58,3 +58,42 @@ export function activeNonEspecialMemberExists(userIdColumn: AnyColumn): SQL {
       )
   )`;
 }
+
+/**
+ * Membresías internas (2026-08-07): variante de `activeNonEspecialMemberExists`
+ * que además exige `membership_kind='paga'`. Un staff o bonificado 100% cuya
+ * única sub vigente es regalada NO cuenta como "miembro activo" en las
+ * MÉTRICAS DE MEMBRESÍA (KPIs de miembros activos, compromiso). No reemplaza
+ * a `activeMemberExists` en members/reports (siguen mostrando a todos).
+ */
+export function activePayingNonEspecialMemberExists(
+  userIdColumn: AnyColumn,
+): SQL {
+  return sql`EXISTS (
+    SELECT 1 FROM subscriptions s
+    WHERE s.user_id = ${userIdColumn}
+      AND s.subscription_status IN ('active','paused')
+      AND s.start_date <= CURDATE()
+      AND (s.end_date IS NULL OR s.end_date >= CURDATE())
+      AND s.membership_kind = 'paga'
+      AND s.plan_id NOT IN (
+        SELECT id FROM subscription_plans WHERE plan_category = 'especial'
+      )
+  )`;
+}
+
+/**
+ * Variante para el denominador del ARPU (advanced-finance): excluye membresías
+ * internas pero NO los pases 'especial' — la plata del pase sí es ingreso real
+ * y su comprador cuenta como miembro activo ahí (D-11).
+ */
+export function activePayingMemberExists(userIdColumn: AnyColumn): SQL {
+  return sql`EXISTS (
+    SELECT 1 FROM subscriptions s
+    WHERE s.user_id = ${userIdColumn}
+      AND s.subscription_status IN ('active','paused')
+      AND s.start_date <= CURDATE()
+      AND (s.end_date IS NULL OR s.end_date >= CURDATE())
+      AND s.membership_kind = 'paga'
+  )`;
+}

@@ -188,6 +188,16 @@ No runtime third-party CDN fetches (unpkg, jsdelivr, Google Fonts `<link>`, etc.
 
 Keep responses proportional: for simple data/CRUD tasks, a short bullet plan and **one** confirmation question.
 
+## 12. Branch hygiene in the shared main checkout
+
+The main checkout (`/home/franco/projects/el-templo`) is shared across sessions, and code work happens in worktrees — so the only thing that regularly commits here is GSD docs work, which commits wherever HEAD happens to be. Without these rules the checkout drifts onto a stale branch indefinitely.
+
+- **New branches are ALWAYS cut from `origin/<target>`** (`origin/master` for fixes/hotfixes, `origin/staging` when the work rides the milestone lane) — never from HEAD. Before editing anything, verify the base: `git fetch && git rev-list --left-right --count origin/master...HEAD`. A large left count means HEAD is stale; `N 0` means the branch is already fully merged.
+- **Re-park the checkout when you finish.** Never leave it sitting on the feature/fix branch you just shipped. Park it on a branch that equals `origin/master` (or on `staging`). A parked stale branch silently becomes the base for the next weeks of docs commits.
+- **`.planning` docs commits must not accumulate unpushed on a side branch.** They are docs-only: after a batch, propose pushing them to **master AND staging** (push gate still applies). Verify no drift with `git log origin/master..HEAD -- .planning`.
+
+**Incident (2026-08-05, the reason for this section):** the checkout sat parked on `fix/referral-preview-y-refresh-ficha` for 2+ weeks after that fix shipped. GSD sessions committed **154 docs commits (fases 164→173, 3 weeks of planning history)** onto it, reachable only from a stale branch whose name suggested it was safe to delete; 29 more GSD artifacts were never committed at all. Recovery required a docs-only rescue merge to master (`9da97479`) and staging (`dff0be6a`), plus a second batch for the orphans (`8179d875`), conflict-resolving 4 global state files by recency.
+
 ## When NOT to use this skill
 
 - Migration mechanics (writing SQL, the runner's `;`-splitting caveat, `_migrations` tracking, drizzle-kit quirks) → **el-templo-db-migrations**

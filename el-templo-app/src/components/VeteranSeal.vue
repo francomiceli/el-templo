@@ -1,13 +1,15 @@
 <template>
   <button
-    v-if="years >= 1"
+    v-if="tier"
     class="veteran-seal"
     :class="{ 'veteran-seal--pop': popping }"
     :aria-label="label"
     @click="pop"
     @animationend="popping = false"
   >
-    <span class="veteran-seal__dust" aria-hidden="true">
+    <!-- El polvillo dorado se reserva para el sello de oro (1 año+): es el hito
+         más grande y así los tres niveles se distinguen de un vistazo. -->
+    <span v-if="tier === 'gold'" class="veteran-seal__dust" aria-hidden="true">
       <span v-for="n in 7" :key="n" :class="`veteran-seal__mote veteran-seal__mote--${n}`" />
     </span>
     <svg class="veteran-seal__rosette" viewBox="0 0 24 24" aria-hidden="true">
@@ -17,11 +19,21 @@
           <stop offset="0.55" stop-color="#e0b93f" />
           <stop offset="1" stop-color="#b28a24" />
         </linearGradient>
+        <linearGradient id="veteran-seal-silver" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#f2f3f6" />
+          <stop offset="0.55" stop-color="#c8ccd4" />
+          <stop offset="1" stop-color="#9aa0ab" />
+        </linearGradient>
+        <linearGradient id="veteran-seal-bronze" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#e8c9a0" />
+          <stop offset="0.55" stop-color="#c98a4e" />
+          <stop offset="1" stop-color="#8a5a2b" />
+        </linearGradient>
       </defs>
       <polygon
         points="24,12 21.85,14.64 22.39,18 19.21,19.21 18,22.39 14.64,21.85 12,24 9.36,21.85 6,22.39 4.79,19.21 1.61,18 2.15,14.64 0,12 2.15,9.36 1.61,6 4.79,4.79 6,1.61 9.36,2.15 12,0 14.64,2.15 18,1.61 19.21,4.79 22.39,6 21.85,9.36"
-        fill="url(#veteran-seal-gold)"
-        stroke="url(#veteran-seal-gold)"
+        :fill="`url(#veteran-seal-${tier})`"
+        :stroke="`url(#veteran-seal-${tier})`"
         stroke-width="1.2"
         stroke-linejoin="round"
       />
@@ -35,26 +47,48 @@
 import { computed, ref } from 'vue'
 
 const props = defineProps<{
-  /** Fecha de alta del socio (ISO). null u <1 año de antigüedad → no se renderiza. */
+  /**
+   * Fecha de alta del socio (ISO). El sello de permanencia se muestra a partir
+   * de los 3 meses y sube de nivel con la antigüedad:
+   *   3m → bronce · 6m → plata · 1 año+ → oro (el look histórico del veterano).
+   * null o < 3 meses → no se renderiza.
+   */
   since: string | null
 }>()
 
-const YEAR_MS = 365.25 * 24 * 60 * 60 * 1000
+type Tier = 'bronze' | 'silver' | 'gold'
 
-const years = computed(() => {
+/** Meses de calendario completos desde el alta (día-aware, en UTC como el backend). */
+const months = computed(() => {
   if (!props.since) return 0
-  const start = new Date(props.since).getTime()
-  if (Number.isNaN(start)) return 0
-  return Math.floor((Date.now() - start) / YEAR_MS)
+  const s = new Date(props.since)
+  if (Number.isNaN(s.getTime())) return 0
+  const now = new Date()
+  let m =
+    (now.getUTCFullYear() - s.getUTCFullYear()) * 12 +
+    (now.getUTCMonth() - s.getUTCMonth())
+  if (now.getUTCDate() < s.getUTCDate()) m -= 1
+  return Math.max(0, m)
+})
+
+const tier = computed<Tier | null>(() => {
+  const m = months.value
+  if (m >= 12) return 'gold'
+  if (m >= 6) return 'silver'
+  if (m >= 3) return 'bronze'
+  return null
 })
 
 const label = computed(() => {
-  if (!props.since) return ''
+  if (!props.since || !tier.value) return ''
+  if (tier.value === 'bronze') return '3 meses en El Templo'
+  if (tier.value === 'silver') return '6 meses en El Templo'
+  // Oro: conserva el texto histórico del sello de veterano, con los años.
   const sinceLabel = new Date(props.since).toLocaleDateString('es-ES', {
     month: 'long',
     year: 'numeric',
   })
-  const y = years.value
+  const y = Math.floor(months.value / 12)
   return `Miembro del Templo desde ${sinceLabel} · ${y === 1 ? '1 año' : `${y} años`}`
 })
 
@@ -224,4 +258,7 @@ $seal-gold-light: #f5dd7e;
   animation-delay: 1.6s;
   background: rgba(white, 0.7);
 }
+/* chore(staging): re-trigger de deploy (paths-filter/event.before) — solo staging. */
+/* reintento 2 tras incidente de GitHub Actions (2026-08-06). */
+/* reintento 3 (2026-08-07): GitHub Actions ya se recuperó, re-disparar CI+deploy de staging. */
 </style>
