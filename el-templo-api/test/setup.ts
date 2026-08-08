@@ -76,9 +76,18 @@ async function seedTestData(conn: mysql.Connection): Promise<void> {
     "SELECT id FROM branches WHERE code = 'TEST' LIMIT 1",
   )) as unknown as [Array<{ id: number }>];
   const testBranchId = branchRows[0]?.id ?? 1;
+  // Fase 173 (ADO-02): `tenant_id` EXPLÍCITO en el INSERT en vez de confiar en
+  // el DEFAULT 1 de la columna. `users` es una de las 8 tablas que esta fase
+  // vuelve strict: el admin canónico de la suite es y va a ser siempre El
+  // Templo, pero dejarlo en el DEFAULT deja esa decisión implícita justo en la
+  // tabla que se vuelve strict (mismo riesgo, T-168-15, que ya mordió a
+  // `cash_registers` acá abajo en la fase 172 — este INSERT usa una conexión
+  // mysql2 propia, no `app.dbPool`, así que el sentinel no lo ve, pero el
+  // riesgo real de estampar en el gimnasio equivocado no depende de que haya
+  // un vigilante mirando).
   await conn.query(
-    "INSERT IGNORE INTO users (email, password_hash, first_name, last_name, role, branch_id, level) VALUES ('admin@test.com', ?, 'Test', 'Admin', 'owner', ?, 'spartan')",
-    [hash, testBranchId],
+    "INSERT IGNORE INTO users (email, password_hash, first_name, last_name, role, branch_id, level, tenant_id) VALUES ('admin@test.com', ?, 'Test', 'Admin', 'owner', ?, 'spartan', ?)",
+    [hash, testBranchId, TENANT_TEMPLO],
   );
 
   // Phase 138: cash_registers. The migration 0154 seed is SELECT-driven off
