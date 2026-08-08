@@ -14,6 +14,7 @@ import {
   users,
 } from "../../db/schema";
 import { NotFoundError, ConflictError, ForbiddenError } from "../shared/errors";
+import { tenantWhere, type TenantContext } from "../shared/tenant";
 import type { AuraService } from "../aura/service";
 import type {
   CreateProgramInput,
@@ -433,8 +434,15 @@ export class ProgramsService {
    * and a resolved `assignedByName` (LEFT JOIN users-as-assigner). Legacy
    * rows whose assignedBy is NULL emit assignedByName: null.
    */
-  async getEnrollmentsByUser(userId: number): Promise<ProgramEnrollment[]> {
+  async getEnrollmentsByUser(
+    ctx: TenantContext,
+    userId: number,
+  ): Promise<ProgramEnrollment[]> {
     const assigner = alias(users, "assigner");
+    // T-173-09-01: `users` es tabla strict. El join a `assigner` (alias de
+    // `users`) es LEFT — el filtro va en el ON, nunca en el WHERE, o un
+    // legacy row con assignedBy NULL convertiría el LEFT en INNER en
+    // silencio (PATTERNS §2.3).
     const rows = await this.db
       .select({
         id: programEnrollments.id,
@@ -457,7 +465,13 @@ export class ProgramsService {
       })
       .from(programEnrollments)
       .innerJoin(programs, eq(programEnrollments.programId, programs.id))
-      .leftJoin(assigner, eq(assigner.id, programEnrollments.assignedBy))
+      .leftJoin(
+        assigner,
+        and(
+          tenantWhere(assigner, ctx),
+          eq(assigner.id, programEnrollments.assignedBy),
+        ),
+      )
       .where(eq(programEnrollments.userId, userId))
       .orderBy(
         sql`CASE WHEN ${programEnrollments.status} = 'active' THEN 0 ELSE 1 END`,
@@ -493,8 +507,13 @@ export class ProgramsService {
   /**
    * Get the single active enrollment for a user, or null.
    */
-  async getActiveEnrollment(userId: number): Promise<ProgramEnrollment | null> {
+  async getActiveEnrollment(
+    ctx: TenantContext,
+    userId: number,
+  ): Promise<ProgramEnrollment | null> {
     const assigner = alias(users, "assigner");
+    // T-173-09-01: `users` es tabla strict. Filtro de `assigner` (LEFT JOIN)
+    // en el ON, nunca en el WHERE (PATTERNS §2.3).
     const rows = await this.db
       .select({
         id: programEnrollments.id,
@@ -517,7 +536,13 @@ export class ProgramsService {
       })
       .from(programEnrollments)
       .innerJoin(programs, eq(programEnrollments.programId, programs.id))
-      .leftJoin(assigner, eq(assigner.id, programEnrollments.assignedBy))
+      .leftJoin(
+        assigner,
+        and(
+          tenantWhere(assigner, ctx),
+          eq(assigner.id, programEnrollments.assignedBy),
+        ),
+      )
       .where(
         and(
           eq(programEnrollments.userId, userId),
@@ -595,12 +620,14 @@ export class ProgramsService {
    * IMPORTANT: includes programId for PlanesPage enrollment check per D-47.
    */
   async getMemberProgress(
+    ctx: TenantContext,
     userId: number,
   ): Promise<MemberEnrollmentProgress | null> {
+    // T-173-09-01: `users` es tabla strict.
     const [userRow] = await this.db
       .select({ currentProgramEnrollmentId: users.currentProgramEnrollmentId })
       .from(users)
-      .where(eq(users.id, userId))
+      .where(and(tenantWhere(users, ctx), eq(users.id, userId)))
       .limit(1);
 
     const baseSelect = () =>
@@ -970,11 +997,15 @@ export class ProgramsService {
    *
    * Stale pointers are logged as warnings so we can spot data integrity issues.
    */
-  async getCurrentProgram(userId: number): Promise<CurrentProgramResponse> {
+  async getCurrentProgram(
+    ctx: TenantContext,
+    userId: number,
+  ): Promise<CurrentProgramResponse> {
+    // T-173-09-01: `users` es tabla strict.
     const [user] = await this.db
       .select({ currentProgramEnrollmentId: users.currentProgramEnrollmentId })
       .from(users)
-      .where(eq(users.id, userId))
+      .where(and(tenantWhere(users, ctx), eq(users.id, userId)))
       .limit(1);
 
     if (!user || user.currentProgramEnrollmentId === null) {
@@ -1040,6 +1071,7 @@ export class ProgramsService {
    * handleServiceError).
    */
   async setCurrentProgram(
+    ctx: TenantContext,
     userId: number,
     enrollmentId: number | null,
   ): Promise<CurrentProgramResponse> {
@@ -1069,10 +1101,11 @@ export class ProgramsService {
         );
       }
 
+      // T-173-09-01: `users` es tabla strict.
       await this.db
         .update(users)
         .set({ currentProgramEnrollmentId: null })
-        .where(eq(users.id, userId));
+        .where(and(tenantWhere(users, ctx), eq(users.id, userId)));
 
       this.log?.info(
         { userId },
@@ -1102,11 +1135,11 @@ export class ProgramsService {
     await this.db
       .update(users)
       .set({ currentProgramEnrollmentId: enrollmentId })
-      .where(eq(users.id, userId));
+      .where(and(tenantWhere(users, ctx), eq(users.id, userId)));
 
     this.log?.info({ userId, enrollmentId }, "currentProgramEnrollmentId set");
 
-    return this.getCurrentProgram(userId);
+    return this.getCurrentProgram(ctx, userId);
   }
 
   /**

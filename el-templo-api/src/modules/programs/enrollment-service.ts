@@ -32,7 +32,7 @@ import type { TxHandle } from "../finance/balance-service";
 import type { TransactionService } from "../finance/transaction-service";
 import type { PaymentMethod } from "../finance/types";
 import { auditLog } from "../shared/audit-log";
-import type { TenantContext } from "../shared/tenant";
+import { tenantWhere, type TenantContext } from "../shared/tenant";
 import {
   BadRequestError,
   ConflictError,
@@ -724,15 +724,35 @@ export class EnrollmentService {
       .where(inArray(schema.programEnrollments.id, cancelIds));
 
     // Step 6 — clear stale current_program_enrollment_id pointer.
-    await runner
-      .update(schema.users)
-      .set({ currentProgramEnrollmentId: null })
-      .where(
-        and(
-          eq(schema.users.id, userId),
-          inArray(schema.users.currentProgramEnrollmentId, cancelIds),
-        ),
-      );
+    //
+    // T-173-09-01: `users` es tabla strict, pero este método NO recibe `ctx`
+    // — sus 4 call sites viven en subscriptions/service.ts (dueño: 173-04/
+    // 173-05/173-14, fuera de alcance D-02 de este plan) y ninguno propaga
+    // uno hoy. En vez de inflar el alcance propagando `ctx` a través de un
+    // archivo ajeno, se resuelve acá mismo leyendo el `tenant_id` de la
+    // PROPIA fila que se va a actualizar (mismo patrón que
+    // `country-scope.ts::attachScope`: el ctx sale de una fila leída del
+    // server, nunca de un `?? 1`). Fail-closed: si la fila no existe, no hay
+    // nada que limpiar.
+    const [ownerRow] = await runner
+      .select({ tenantId: schema.users.tenantId })
+      .from(schema.users)
+      .where(eq(schema.users.id, userId))
+      .limit(1);
+
+    if (ownerRow) {
+      const ctx: TenantContext = { tenantId: ownerRow.tenantId };
+      await runner
+        .update(schema.users)
+        .set({ currentProgramEnrollmentId: null })
+        .where(
+          and(
+            tenantWhere(schema.users, ctx),
+            eq(schema.users.id, userId),
+            inArray(schema.users.currentProgramEnrollmentId, cancelIds),
+          ),
+        );
+    }
 
     this.log.info(
       {

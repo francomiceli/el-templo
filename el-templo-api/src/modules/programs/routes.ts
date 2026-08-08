@@ -281,7 +281,15 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       try {
+        // T-173-09-01: `users` es tabla strict. `programs` no monta
+        // `attachCountryScope` en un hook (cada ruta lo resuelve per-ruta,
+        // mismo patrón que enrollAddon/:451 y cancel-enrollment/:535). El
+        // `userId` llega por params: sin filtro un staff de OTRO gimnasio
+        // podía leer inscripciones de un socio ajeno.
+        await attachCountryScope(request, fastify.db);
+        const ctx = assertTenant(request.scope, "programs.enrollmentsByUser");
         const enrollments = await service.getEnrollmentsByUser(
+          ctx,
           request.params.userId,
         );
         return { enrollments };
@@ -630,7 +638,16 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
     { onRequest: [fastify.authenticate] },
     async (request, reply) => {
       try {
-        const progress = await service.getMemberProgress(request.user.userId);
+        // T-173-09-01: `users` es tabla strict. El ctx sale de la propia
+        // fila del socio autenticado — D-09: esta ruta member-facing NO
+        // recibe su caso de aislamiento en esta fase (dueño: fase de
+        // programs, ver SUMMARY).
+        await attachCountryScope(request, fastify.db);
+        const ctx = assertTenant(request.scope, "programs.myProgress");
+        const progress = await service.getMemberProgress(
+          ctx,
+          request.user.userId,
+        );
 
         if (!progress) {
           return reply.code(204).send();
@@ -682,7 +699,16 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
     { onRequest: [fastify.authenticate] },
     async (request, reply) => {
       try {
-        const result = await service.getCurrentProgram(request.user.userId);
+        // T-173-09-01: `users` es tabla strict. El ctx sale de la propia
+        // fila del socio autenticado — D-09: esta ruta member-facing NO
+        // recibe su caso de aislamiento en esta fase (dueño: fase de
+        // programs, ver SUMMARY).
+        await attachCountryScope(request, fastify.db);
+        const ctx = assertTenant(request.scope, "programs.currentProgram.get");
+        const result = await service.getCurrentProgram(
+          ctx,
+          request.user.userId,
+        );
         return reply.code(200).send(result);
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "getCurrentProgram");
@@ -739,7 +765,14 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
     },
     async (request, reply) => {
       try {
+        // T-173-09-01: `users` es tabla strict. El ctx sale de la propia
+        // fila del socio autenticado — D-09: esta ruta member-facing NO
+        // recibe su caso de aislamiento en esta fase (dueño: fase de
+        // programs, ver SUMMARY).
+        await attachCountryScope(request, fastify.db);
+        const ctx = assertTenant(request.scope, "programs.currentProgram.set");
         const result = await service.setCurrentProgram(
+          ctx,
           request.user.userId,
           request.body.enrollmentId,
         );
