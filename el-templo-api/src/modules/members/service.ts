@@ -69,51 +69,6 @@ import { tenantWhere, type TenantContext } from "../shared/tenant";
 import { alias } from "drizzle-orm/mysql-core";
 import type { MemberSegment } from "../segmentation/types";
 
-/**
- * 173-05 (D-02): copia LOCAL, sin gimnasio, de la lógica tokenizada de
- * `shared/member-search.ts` (previa a esta fase). `searchMembers` y
- * `exportMembers` todavía no reciben `ctx` — la plomería de las 23 firmas de
- * este archivo es del plan 173-17, y adelantarla acá para estas dos nomás
- * dejaría el archivo a medio camino en un commit que no es el suyo. Hasta
- * que 173-17 migre este archivo, estos dos call sites usan ESTA copia en
- * vez de importar `buildMemberNameSearchCondition` (que ahora exige `ctx`).
- *
- * ⚠️ HALLAZGO PARA 173-17: `searchMembers` sirve `/api/admin/members/search`
- * — es LITERALMENTE la query que el piloto identificó como la más cara
- * (T-173-05-01, "búsqueda por nombre"): un nombre común devuelve la fila del
- * primer gimnasio que lo tenga. Con un solo tenant activo es invisible. Debería
- * ser lo PRIMERO que 173-17 migra, no lo último.
- */
-function legacyUnscopedNameSearchCondition(
-  search: string,
-  options: { includeDni?: boolean } = {},
-): SQL | null {
-  const includeDni = options.includeDni ?? true;
-  const tokens = search
-    .split(/\s+/)
-    .map((t) => t.trim())
-    .filter((t) => t.length > 0);
-  if (tokens.length === 0) return null;
-
-  const tokenConditions = tokens.map((token) => {
-    const pattern = `%${token}%`;
-    if (includeDni) {
-      return sql`(${schema.users.firstName} LIKE ${pattern}
-        OR ${schema.users.lastName} LIKE ${pattern}
-        OR ${schema.users.email} LIKE ${pattern}
-        OR ${schema.users.dni} LIKE ${pattern}
-        OR CONCAT_WS(' ', ${schema.users.firstName}, ${schema.users.lastName}) LIKE ${pattern})`;
-    }
-    return sql`(${schema.users.firstName} LIKE ${pattern}
-      OR ${schema.users.lastName} LIKE ${pattern}
-      OR ${schema.users.email} LIKE ${pattern}
-      OR CONCAT_WS(' ', ${schema.users.firstName}, ${schema.users.lastName}) LIKE ${pattern})`;
-  });
-
-  if (tokenConditions.length === 1) return tokenConditions[0];
-  return sql.join(tokenConditions, sql` AND `);
-}
-
 export class MemberService {
   constructor(
     private db: MySql2Database<typeof schema>,
@@ -127,11 +82,19 @@ export class MemberService {
    * Search matches against firstName, lastName, email, and dni.
    *
    * Fase 172 (ADO-01): `ctx` es el PRIMER parámetro y llega desde
-   * `assertTenant(request.scope, "members.list")`. Sólo scopea los DOS accesos a
-   * `balances` de este método (el filtro `debtorOnly` y el agregado de deuda),
-   * que son las únicas tablas strict de `finance` que toca. El resto de las
-   * tablas del listado (`users`, `subscriptions`, `branches`, …) se migra en su
-   * propia fase (D-07).
+   * `assertTenant(request.scope, "members.list")`. Scopea los DOS accesos a
+   * `balances` (el filtro `debtorOnly` y el agregado de deuda) y, desde 173-05,
+   * también `buildMemberNameSearchCondition`/`memberCoveredUntilSql` (que ya
+   * filtran por gimnasio puertas adentro, sin que este método tenga que
+   * duplicar nada).
+   *
+   * ⚠️ ESTADO INTERMEDIO (173-17): el resto del listado —el `.from(schema.users)`
+   * principal de `countPromise`/`rowsPromise`, el `innerJoin(schema.branches)`,
+   * y las subqueries de `subscriptions`/`subscription_plans`/`member_profiles`/
+   * `bookings`— TODAVÍA NO FILTRA por gimnasio. Este plan es solo plomería de
+   * firmas (doc 07 §3, corte 2): `ctx` viaja hasta acá pero la migración de
+   * estas queries es de los planes 173-18/173-19/173-20. NO asumir que
+   * `listMembers` está aislado hasta que esos planes cierren.
    */
   async listMembers(
     ctx: TenantContext,
@@ -487,11 +450,25 @@ export class MemberService {
    * substring. This query projects only id/name/dni, so even though the
    * `LIKE '%token%'` is a full scan, materializing + ordering the matches is
    * cheap and the LIMIT keeps the result small.
+   *
+   * Fase 173-17 (T-173-05-01): `ctx` PRIMERO. Hasta acá, este método usaba
+   * `legacyUnscopedNameSearchCondition` — una copia LOCAL de la búsqueda por
+   * nombre, sin gimnasio, que 173-05 dejó a propósito (ver docblock que tenía
+   * arriba, ya borrado) por ser el call site de mayor prioridad de la fase:
+   * sirve `/api/admin/members/search`, la query que el piloto identificó como
+   * la más cara (un nombre común devuelve la fila del primer gimnasio que lo
+   * tenga, sin 403, sin error). Ahora que `searchMembers` recibe `ctx`, pasa a
+   * usar `buildMemberNameSearchCondition` (el helper ya scopeado de
+   * `shared/member-search.ts`) en vez de mantener una segunda copia de la
+   * misma lógica.
    */
-  async searchMembers(params: MemberSearchParams): Promise<MemberSearchItem[]> {
+  async searchMembers(
+    ctx: TenantContext,
+    params: MemberSearchParams,
+  ): Promise<MemberSearchItem[]> {
     const { search, country, limit } = params;
 
-    const searchCondition = legacyUnscopedNameSearchCondition(search);
+    const searchCondition = buildMemberNameSearchCondition(ctx, search);
     // No meaningful tokens (e.g. only whitespace) → nothing to search for.
     if (!searchCondition) return [];
 
@@ -556,7 +533,10 @@ export class MemberService {
   /**
    * Get full member profile by ID. Returns null if not found.
    */
-  async getMemberById(id: number): Promise<MemberProfile | null> {
+  async getMemberById(
+    ctx: TenantContext,
+    id: number,
+  ): Promise<MemberProfile | null> {
     // Phase 103 (R10): users.status is the source of truth — direct
     // projection (no derived subquery).
 
@@ -742,6 +722,7 @@ export class MemberService {
    * Throws on duplicate email or DNI.
    */
   async createMember(
+    ctx: TenantContext,
     input: CreateMemberServiceInput,
   ): Promise<{ member: MemberProfile; tempPassword: string }> {
     const tempPassword = MEMBER_TEMP_PASSWORD;
@@ -861,7 +842,7 @@ export class MemberService {
       );
     }
 
-    const member = await this.getMemberById(userId);
+    const member = await this.getMemberById(ctx, userId);
 
     if (!member) {
       throw new Error("Failed to retrieve newly created member");
@@ -890,6 +871,7 @@ export class MemberService {
    *     same person book a second trial via a different user row.
    */
   async createTrialMember(
+    ctx: TenantContext,
     input: CreateTrialMemberServiceInput,
   ): Promise<{ member: MemberProfile; tempPassword: string }> {
     const normalizedPhone = normalizePhone(input.phone);
@@ -966,7 +948,7 @@ export class MemberService {
       return newUserId;
     });
 
-    const member = await this.getMemberById(userId);
+    const member = await this.getMemberById(ctx, userId);
 
     if (!member) {
       throw new Error("Failed to retrieve newly created trial member");
@@ -994,6 +976,7 @@ export class MemberService {
    * never surfacing an uncontrolled 500 nor creating a duplicate.
    */
   async createMinimalMember(
+    ctx: TenantContext,
     input: CreateMinimalMemberServiceInput,
   ): Promise<number> {
     const dni = input.dni.trim();
@@ -1050,7 +1033,7 @@ export class MemberService {
       // T-148-02: carrera contra el UNIQUE de dni. Re-dedup y devolver el
       // existente (backstop del dedup previo del orquestador 148-02).
       if (isDuplicateKeyError(err).isDuplicate) {
-        const { matches } = await this.checkDuplicates({ dni });
+        const { matches } = await this.checkDuplicates(ctx, { dni });
         const existing = matches.find((m) => m.matchedField === "dni");
         if (existing) return existing.id;
       }
@@ -1090,6 +1073,7 @@ export class MemberService {
    *   - 409 if the target branch is virtual (a trial session must be presencial).
    */
   async convertFreemiumToTrial(
+    ctx: TenantContext,
     userId: number,
     input: ConvertFreemiumToTrialServiceInput,
   ): Promise<MemberProfile> {
@@ -1180,7 +1164,7 @@ export class MemberService {
       );
     });
 
-    const member = await this.getMemberById(userId);
+    const member = await this.getMemberById(ctx, userId);
     if (!member) {
       throw new Error("Failed to retrieve converted trial member");
     }
@@ -1208,11 +1192,14 @@ export class MemberService {
    * un booking is_trial no cancelado. Los campos de lead ya escritos
    * (converted_at / lead_status) cortan la consulta antes en el caso común.
    */
-  private async wasEverLead(user: {
-    id: number;
-    convertedAt: Date | null;
-    leadStatus: string | null;
-  }): Promise<boolean> {
+  private async wasEverLead(
+    ctx: TenantContext,
+    user: {
+      id: number;
+      convertedAt: Date | null;
+      leadStatus: string | null;
+    },
+  ): Promise<boolean> {
     if (user.convertedAt !== null || user.leadStatus !== null) {
       return true;
     }
@@ -1231,6 +1218,7 @@ export class MemberService {
   }
 
   async updateLead(
+    ctx: TenantContext,
     userId: number,
     input: UpdateLeadInput,
   ): Promise<LeadSnapshot> {
@@ -1255,7 +1243,7 @@ export class MemberService {
     // (status pasa a 'activo'/'inactivo'). Exigir status='prueba' hacía que
     // toda edición sobre esas filas muriera en 409 (154 de 601 filas en prod).
     // El gate ahora rechaza solo a quien NUNCA fue lead.
-    if (user.status !== "prueba" && !(await this.wasEverLead(user))) {
+    if (user.status !== "prueba" && !(await this.wasEverLead(ctx, user))) {
       throw new ConflictError(
         "El usuario nunca fue un lead (no tiene sesión de prueba registrada)",
       );
@@ -1369,7 +1357,10 @@ export class MemberService {
    * the user does not exist or is soft-deleted. The route handler converts
    * null → 404 before reaching updateLead.
    */
-  async getLeadBranchId(userId: number): Promise<number | null> {
+  async getLeadBranchId(
+    ctx: TenantContext,
+    userId: number,
+  ): Promise<number | null> {
     const [row] = await this.db
       .select({
         branchId: schema.users.branchId,
@@ -1389,10 +1380,11 @@ export class MemberService {
    * file stays immutable since it's the member's app login identity.
    */
   async updateMember(
+    ctx: TenantContext,
     id: number,
     input: UpdateMemberInput,
   ): Promise<MemberProfile | null> {
-    const existing = await this.getMemberById(id);
+    const existing = await this.getMemberById(ctx, id);
     if (!existing) return null;
 
     // Domiciliación (SEPA): validar el IBAN ANTES de tocar users, así un 400
@@ -1620,7 +1612,7 @@ export class MemberService {
         .onDuplicateKeyUpdate({ set: sepaData });
     }
 
-    return this.getMemberById(id);
+    return this.getMemberById(ctx, id);
   }
 
   /**
@@ -1645,6 +1637,7 @@ export class MemberService {
    *   - { ok: false, reason: "already_deleted" }
    */
   async softDeleteMember(
+    ctx: TenantContext,
     id: number,
   ): Promise<
     | { ok: true }
@@ -1690,6 +1683,7 @@ export class MemberService {
    *   - { ok: false, reason: "deleted" }    — refuses soft-deleted rows
    */
   async resetMemberPassword(
+    ctx: TenantContext,
     id: number,
   ): Promise<
     { ok: true } | { ok: false; reason: "not_found" | "not_member" | "deleted" }
@@ -1723,6 +1717,7 @@ export class MemberService {
    * Optionally excludes a specific user (for edit scenarios).
    */
   async checkDniUniqueness(
+    ctx: TenantContext,
     dni: string,
     excludeUserId?: number,
   ): Promise<DniCheckResult> {
@@ -1765,7 +1760,10 @@ export class MemberService {
    * `matchedField='dni'` is preferred so the admin sees the stronger
    * identifier first.
    */
-  async checkDuplicates(opts: { dni?: string; phone?: string }): Promise<{
+  async checkDuplicates(
+    ctx: TenantContext,
+    opts: { dni?: string; phone?: string },
+  ): Promise<{
     matches: Array<{
       id: number;
       firstName: string | null;
@@ -1838,7 +1836,11 @@ export class MemberService {
   /**
    * Update just the photo_url column for a given user.
    */
-  async updatePhoto(userId: number, photoUrl: string): Promise<void> {
+  async updatePhoto(
+    ctx: TenantContext,
+    userId: number,
+    photoUrl: string,
+  ): Promise<void> {
     await this.db
       .update(schema.users)
       .set({ photoUrl })
@@ -1850,8 +1852,15 @@ export class MemberService {
   /**
    * Export all members matching filters (no pagination) as rows for Excel export.
    * Reuses the same filter logic as listMembers but without offset/limit.
+   *
+   * Fase 173-17 (T-173-05-01): `ctx` PRIMERO, prioridad sobre el resto de las
+   * 23 firmas del archivo — mismo motivo que `searchMembers`. Pasa a usar
+   * `buildMemberNameSearchCondition`/`memberCoveredUntilSql` (helpers ya
+   * scopeados) en vez de la copia local `legacyUnscopedNameSearchCondition` /
+   * la subquery de `endDate` sin filtro que 173-05 dejó a propósito.
    */
   async exportMembers(
+    ctx: TenantContext,
     params: Omit<MemberListParams, "page" | "limit">,
   ): Promise<MemberExportRow[]> {
     const {
@@ -1872,7 +1881,7 @@ export class MemberService {
     conditions.push(isNull(schema.users.deletedAt));
 
     if (search) {
-      const condition = legacyUnscopedNameSearchCondition(search);
+      const condition = buildMemberNameSearchCondition(ctx, search);
       if (condition) conditions.push(condition);
     }
 
@@ -1971,19 +1980,10 @@ export class MemberService {
     )`;
 
     // Fecha de cobertura para la columna 'Vencimiento suscripción' del export.
-    // Misma implementación que el pill del listado (shared/covered-until.ts):
-    // el export de un socio ya renovado mostraba la fecha vieja.
-    //
-    // 173-05 (D-02): `exportMembers` todavía no recibe `ctx` (23 firmas de
-    // este archivo son del plan 173-17); se replica LOCALMENTE, sin filtro de
-    // gimnasio, la MISMA query que `memberCoveredUntilSql` corría antes de
-    // esta fase. Ver shared/covered-until.ts.
-    const endDateSubquery = sql<string | null>`(
-      SELECT DATE_FORMAT(MAX(s.end_date), '%Y-%m-%d') FROM subscriptions s
-      WHERE s.user_id = users.id
-        AND s.subscription_status IN ('active','paused','scheduled')
-        AND s.end_date IS NOT NULL
-    )`;
+    // Misma implementación que el pill del listado — fuente única compartida,
+    // `shared/covered-until.ts` (173-17: reemplaza la copia local sin gimnasio
+    // que 173-05 dejó a propósito).
+    const endDateSubquery = memberCoveredUntilSql(ctx);
 
     const rows = await this.db
       .select({
@@ -2041,10 +2041,13 @@ export class MemberService {
    * 2026-05-26) y un socio dado de baja no puede colarse en el débito
    * bancario del mes.
    */
-  async exportSepaMembers(params: {
-    branchId?: number;
-    status?: "activo" | "todos";
-  }): Promise<SepaExportRow[]> {
+  async exportSepaMembers(
+    ctx: TenantContext,
+    params: {
+      branchId?: number;
+      status?: "activo" | "todos";
+    },
+  ): Promise<SepaExportRow[]> {
     const conditions: SQL[] = [
       eq(schema.users.role, "member"),
       isNull(schema.users.deletedAt),
@@ -2113,7 +2116,7 @@ export class MemberService {
    * List notes for a user, ordered by most recent first.
    * Joins author info for display.
    */
-  async getNotes(userId: number): Promise<MemberNote[]> {
+  async getNotes(ctx: TenantContext, userId: number): Promise<MemberNote[]> {
     // Alias for author table
     const authorUsers = schema.users;
 
@@ -2150,6 +2153,7 @@ export class MemberService {
    * Create a note on a member profile.
    */
   async createNote(
+    ctx: TenantContext,
     authorId: number,
     input: CreateNoteInput,
   ): Promise<MemberNote> {
@@ -2160,7 +2164,7 @@ export class MemberService {
     });
 
     const noteId = Number(result[0].insertId);
-    const notes = await this.getNotes(input.userId);
+    const notes = await this.getNotes(ctx, input.userId);
     const note = notes.find((n) => n.id === noteId);
 
     if (!note) {
@@ -2174,6 +2178,7 @@ export class MemberService {
    * Update note content.
    */
   async updateNote(
+    ctx: TenantContext,
     noteId: number,
     input: UpdateNoteInput,
   ): Promise<MemberNote | null> {
@@ -2192,14 +2197,14 @@ export class MemberService {
       .set({ content: input.content })
       .where(eq(schema.memberNotes.id, noteId));
 
-    const notes = await this.getNotes(existing.userId);
+    const notes = await this.getNotes(ctx, existing.userId);
     return notes.find((n) => n.id === noteId) ?? null;
   }
 
   /**
    * Delete a note.
    */
-  async deleteNote(noteId: number): Promise<boolean> {
+  async deleteNote(ctx: TenantContext, noteId: number): Promise<boolean> {
     const [existing] = await this.db
       .select({ id: schema.memberNotes.id })
       .from(schema.memberNotes)
@@ -2231,6 +2236,7 @@ export class MemberService {
    * guaranteed and is not asserted by the client.
    */
   async getSessionLevelCounts(
+    ctx: TenantContext,
     userId: number,
     days: number,
   ): Promise<Array<{ level: TrainingLevel; count: number }>> {
