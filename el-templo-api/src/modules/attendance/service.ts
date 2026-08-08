@@ -20,6 +20,7 @@ import {
 } from "../shared/date-utils";
 import { validateQrToken } from "../shared/qr-token";
 import { memberCoveredUntilSql } from "../shared/covered-until";
+import type { TenantContext } from "../shared/tenant";
 import {
   milestoneInWindow,
   toUtcDateStr,
@@ -506,8 +507,15 @@ export class AttendanceService {
   /**
    * Get attendance for a specific schedule slot on a given date.
    * Returns members with booking + attendance status, including walk-in QR scans.
+   *
+   * Fase 173 (D-02): `ctx` es el PRIMER parámetro y llega desde
+   * `assertTenant(request.scope, "attendance.slotAttendance")`. Solo scopea
+   * la lectura de `subscriptions` que hace `memberCoveredUntilSql` — el resto
+   * de las tablas de este método (`bookings`, `attendance`, `users`,
+   * `member_profiles`, …) se migra en su propia fase (D-02, plan 173-14).
    */
   async getSlotAttendance(
+    ctx: TenantContext,
     scheduleId: number,
     date: string,
   ): Promise<{
@@ -535,7 +543,7 @@ export class AttendanceService {
   }> {
     // Fecha de cobertura para el pill "Venc" (bug Joaquim Mas 2026-07-07).
     // Implementación única compartida — ver shared/covered-until.ts.
-    const endDateExpr = memberCoveredUntilSql();
+    const endDateExpr = memberCoveredUntilSql(ctx);
 
     // Get all bookings for this slot+date
     const bookingRows = await this.db

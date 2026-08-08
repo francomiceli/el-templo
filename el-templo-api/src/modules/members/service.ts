@@ -344,7 +344,7 @@ export class MemberService {
     // tiene ninguna sub con fecha. Implementación única compartida — ver
     // shared/covered-until.ts (incluye 'scheduled', así el ya renovado no
     // figura venciendo).
-    const endDateSubquery = memberCoveredUntilSql();
+    const endDateSubquery = memberCoveredUntilSql(ctx);
 
     // Phase 102 (R7): EXISTS projection for the trial-history boolean.
     // Returns 1/0 from MySQL; coerced to boolean in the mapper below.
@@ -1973,7 +1973,17 @@ export class MemberService {
     // Fecha de cobertura para la columna 'Vencimiento suscripción' del export.
     // Misma implementación que el pill del listado (shared/covered-until.ts):
     // el export de un socio ya renovado mostraba la fecha vieja.
-    const endDateSubquery = memberCoveredUntilSql();
+    //
+    // 173-05 (D-02): `exportMembers` todavía no recibe `ctx` (23 firmas de
+    // este archivo son del plan 173-17); se replica LOCALMENTE, sin filtro de
+    // gimnasio, la MISMA query que `memberCoveredUntilSql` corría antes de
+    // esta fase. Ver shared/covered-until.ts.
+    const endDateSubquery = sql<string | null>`(
+      SELECT DATE_FORMAT(MAX(s.end_date), '%Y-%m-%d') FROM subscriptions s
+      WHERE s.user_id = users.id
+        AND s.subscription_status IN ('active','paused','scheduled')
+        AND s.end_date IS NOT NULL
+    )`;
 
     const rows = await this.db
       .select({

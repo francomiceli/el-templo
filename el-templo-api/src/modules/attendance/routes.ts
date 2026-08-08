@@ -25,6 +25,7 @@ import {
 
 import { ATTENDANCE_ROLES } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
+import { assertTenant } from "../shared/tenant";
 import { requireBranchAccess } from "../shared/branch-access";
 
 // =============================================================================
@@ -114,7 +115,9 @@ export const attendanceAdminRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: slotAttendanceSchema },
     async (request, reply) => {
       try {
+        const ctx = assertTenant(request.scope, "attendance.slotAttendance");
         const result = await attendanceService.getSlotAttendance(
+          ctx,
           request.params.scheduleId,
           request.params.date,
         );

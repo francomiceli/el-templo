@@ -15,6 +15,7 @@ import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { addDays, computeSeniority, todayInTz } from "../shared/date-utils";
 import { memberCoveredUntilSql } from "../shared/covered-until";
+import type { TenantContext } from "../shared/tenant";
 import type {
   ScheduleSlot,
   WeeklySlotView,
@@ -332,8 +333,15 @@ export class SchedulingService {
 
   /**
    * Get slot detail with all bookings for a specific date.
+   *
+   * Fase 173 (D-02): `ctx` es el PRIMER parámetro y llega desde
+   * `assertTenant(request.scope, "scheduling.slotDetail")`. Solo scopea la
+   * lectura de `subscriptions` que hace `memberCoveredUntilSql` — el resto de
+   * las tablas de este método (`bookings`, `users`, `member_profiles`, …)
+   * se migra en su propia fase (D-02, plan 173-07).
    */
   async getSlotDetail(
+    ctx: TenantContext,
     scheduleId: number,
     date: string,
   ): Promise<SlotDetailView> {
@@ -359,7 +367,7 @@ export class SchedulingService {
     // UI splits them visually using `isTrial`. This is NOT a capacity query.
     // Fecha de cobertura para el pill "Venc" (bug Joaquim Mas 2026-07-07).
     // Implementación única compartida — ver shared/covered-until.ts.
-    const endDateExpr = memberCoveredUntilSql();
+    const endDateExpr = memberCoveredUntilSql(ctx);
 
     const bookingRows = await this.db
       .select({

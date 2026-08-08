@@ -23,6 +23,7 @@ import { BookingService } from "./booking-service";
 import { HolidayService } from "./holiday-service";
 import { TrialService } from "./trials-service";
 import { attachCountryScope } from "../shared/country-scope";
+import { assertTenant } from "../shared/tenant";
 import { requireBranchAccess } from "../shared/branch-access";
 import type { TrialShift } from "./trials-service";
 import { SubscriptionService } from "../subscriptions/service";
@@ -276,7 +277,9 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: slotDetailSchema },
     async (request, reply) => {
       try {
+        const ctx = assertTenant(request.scope, "scheduling.slotDetail");
         const detail = await schedulingService.getSlotDetail(
+          ctx,
           request.params.scheduleId,
           request.query.date,
         );
