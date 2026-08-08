@@ -25,13 +25,23 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import fs from "fs";
 import path from "path";
 import { createTestApp, cleanAllTestData } from "./helpers";
 import * as schema from "../src/db/schema";
 import { LEADS_SETTINGS_KEYS } from "../src/modules/settings/keys";
 import { splitSqlStatements } from "../src/db/run-migrations";
+// Fase 173 (ADO-02): `users` entra a TENANT_STRICT_MODULES — las lecturas de
+// conveniencia por id de este archivo se acotan con `tenantWhere` (categoría
+// 2, docblock de `test/helpers.ts`); este archivo no siembra en el gimnasio 2.
+// El UPDATE de la migracion historica 0183 SÍ se exime (ver
+// MOTIVO_EXENCION_0183 más abajo): reescribirlo cambiaría lo que el test
+// declara probar ("el statement EXACTO de la migración").
+import { tenantWhere } from "../src/modules/shared/tenant";
+import { TENANT_TEMPLO } from "./fixtures/second-tenant";
+
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 let app: FastifyInstance;
 let branchId: number;
@@ -111,7 +121,10 @@ async function seedLead(opts: SeedLeadOpts = {}): Promise<number> {
   return u.id;
 }
 
-async function seedTrialBooking(userId: number, daysAgo: number): Promise<void> {
+async function seedTrialBooking(
+  userId: number,
+  daysAgo: number,
+): Promise<void> {
   await app.db.insert(schema.bookings).values({
     memberId: userId,
     scheduleId,
@@ -130,14 +143,36 @@ async function leadStatusOf(
       leadStatusSource: schema.users.leadStatusSource,
     })
     .from(schema.users)
-    .where(eq(schema.users.id, userId));
+    .where(
+      and(tenantWhere(schema.users, TEMPLO_CTX), eq(schema.users.id, userId)),
+    );
   return { leadStatus: row.leadStatus, leadStatusSource: row.leadStatusSource };
 }
+
+/**
+ * Motivo de la exencion `tenant-safe:` que se antepone al UPDATE extraido.
+ *
+ * La 0183 es un data-fix retroactivo escrito en 2026-07, ANTES de que
+ * `users` entrara a TENANT_STRICT_MODULES (fase 173): su WHERE reclasifica
+ * leads por regla de negocio (ventana de dias), no por gimnasio, y el archivo
+ * de migracion es INMUTABLE (el `_migrations` de la base lo da por
+ * aplicado). Acotarlo reescribiria el statement que el test declara probar
+ * "EXACTO" -- dejarlo pelado hace throw con `members` en
+ * TENANT_STRICT_MODULES. La anotacion va ACA, en el punto de aplicacion del
+ * test (mismo patron que test/migrations/0109_reconcile_soledad.test.ts), y
+ * NO en el .sql: en produccion las migraciones no corren por el pool que el
+ * sentinel intercepta.
+ */
+const MOTIVO_EXENCION_0183 =
+  "/* tenant-safe: migracion historica 0183, data-fix retroactivo de leads " +
+  "por ventana de dias escrito antes de que users entrara a strict (fase 173) */\n";
 
 /** Corre el UPDATE de reclasificacion EXACTO de la migracion 0183. */
 async function runBackfillReclassify(): Promise<number> {
   if (!reclassifyStmt) throw new Error("UPDATE stmt no encontrado en 0183");
-  const res = await app.db.execute(sql.raw(reclassifyStmt));
+  const res = await app.db.execute(
+    sql.raw(MOTIVO_EXENCION_0183 + reclassifyStmt),
+  );
   return Number(
     (res as unknown as [{ affectedRows?: number }])[0]?.affectedRows ?? 0,
   );

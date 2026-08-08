@@ -16,7 +16,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import argon2 from "argon2";
 import {
   createTestApp,
@@ -39,7 +39,7 @@ import {
 } from "../src/modules/finance";
 import { NotificationService } from "../src/modules/notifications/service";
 import { dowInTz, addDays } from "../src/modules/shared/date-utils";
-import type { TenantContext } from "../src/modules/shared/tenant";
+import { tenantWhere, type TenantContext } from "../src/modules/shared/tenant";
 
 /**
  * El gimnasio de los fixtures (El Templo = tenant 1). Fase 173 (plan 173-07):
@@ -236,10 +236,18 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
   // ============================================================
   // canAccessBranch — pure unit tests (REQ-5, REQ-6, REQ-10)
   // ============================================================
+  // Fase 173 (D-14, deferred-items.md hallazgo 173-20): `canAccessBranch`
+  // llama `assertTenant(scope, …)` internamente desde el plan 173-11 — un
+  // `CountryScope` sin `tenantId` hace que `assertTenant` lance, el `catch`
+  // interno lo convierte en `false`, y los 10 casos de este describe pasaban
+  // (o fallaban) por ESE motivo, no por la regla que dicen estar probando.
+  // `tenantId: 1` (El Templo, el gimnasio de los fixtures de este archivo)
+  // restaura la cobertura real del motor de reglas.
   describe("canAccessBranch — unit", () => {
     it("returns true for virtual branch (any role)", async () => {
       const ok = await canAccessBranch(
         {
+          tenantId: 1,
           country: "AR",
           branchIds: [],
           isOwner: false,
@@ -255,6 +263,7 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
     it("returns true for owner regardless of country", async () => {
       const ok = await canAccessBranch(
         {
+          tenantId: 1,
           country: "AR",
           branchIds: [],
           isOwner: true,
@@ -270,6 +279,7 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
     it("admin/gestion: same country → true", async () => {
       const ok = await canAccessBranch(
         {
+          tenantId: 1,
           country: "AR",
           branchIds: [],
           isOwner: false,
@@ -285,6 +295,7 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
     it("admin/gestion: cross country → false", async () => {
       const ok = await canAccessBranch(
         {
+          tenantId: 1,
           country: "AR",
           branchIds: [],
           isOwner: false,
@@ -300,6 +311,7 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
     it("admin: scope.country=null (data-corruption fail-closed) → false (default-deny lateral)", async () => {
       const ok = await canAccessBranch(
         {
+          tenantId: 1,
           country: null,
           branchIds: [],
           isOwner: false,
@@ -315,6 +327,7 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
     it("coach: branchId in scope.branchIds → true", async () => {
       const ok = await canAccessBranch(
         {
+          tenantId: 1,
           country: "AR",
           branchIds: [arBranchId],
           isOwner: false,
@@ -330,6 +343,7 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
     it("coach: branchId NOT in scope.branchIds → false", async () => {
       const ok = await canAccessBranch(
         {
+          tenantId: 1,
           country: "AR",
           branchIds: [arBranchId],
           isOwner: false,
@@ -345,6 +359,7 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
     it("member: branchId === scope.userBranchId → true", async () => {
       const ok = await canAccessBranch(
         {
+          tenantId: 1,
           country: "AR",
           branchIds: [],
           isOwner: false,
@@ -360,6 +375,7 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
     it("member: branchId !== scope.userBranchId → false", async () => {
       const ok = await canAccessBranch(
         {
+          tenantId: 1,
           country: "AR",
           branchIds: [],
           isOwner: false,
@@ -375,6 +391,7 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
     it("branch not found → false", async () => {
       const ok = await canAccessBranch(
         {
+          tenantId: 1,
           country: "AR",
           branchIds: [],
           isOwner: true,
@@ -951,7 +968,12 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
       const ub = await app.db
         .select({ branchId: schema.userBranches.branchId })
         .from(schema.userBranches)
-        .where(eq(schema.userBranches.userId, body.id));
+        .where(
+          and(
+            tenantWhere(schema.userBranches, CTX),
+            eq(schema.userBranches.userId, body.id),
+          ),
+        );
       expect(ub.map((r) => r.branchId)).toContain(arBranchId);
     });
   });

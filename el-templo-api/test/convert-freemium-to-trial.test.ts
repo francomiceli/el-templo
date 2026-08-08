@@ -9,7 +9,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   createTestApp,
   getAuthToken,
@@ -17,6 +17,14 @@ import {
   cleanAllTestData,
 } from "./helpers";
 import * as schema from "../src/db/schema";
+// Fase 173 (ADO-02): `users` entra a TENANT_STRICT_MODULES — las lecturas de
+// conveniencia por id/email de este archivo se acotan con `tenantWhere`
+// (categoría 2, docblock de `test/helpers.ts`); este archivo no siembra en
+// el gimnasio 2.
+import { tenantWhere } from "../src/modules/shared/tenant";
+import { TENANT_TEMPLO } from "./fixtures/second-tenant";
+
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 describe("POST /api/admin/members/:userId/convert-to-trial", () => {
   let app: FastifyInstance;
@@ -32,7 +40,12 @@ describe("POST /api/admin/members/:userId/convert-to-trial", () => {
     const [admin] = await app.db
       .select({ id: schema.users.id })
       .from(schema.users)
-      .where(eq(schema.users.email, "admin@test.com"))
+      .where(
+        and(
+          tenantWhere(schema.users, TEMPLO_CTX),
+          eq(schema.users.email, "admin@test.com"),
+        ),
+      )
       .limit(1);
     if (!admin) throw new Error("seed admin missing");
     adminId = admin.id;
@@ -88,7 +101,12 @@ describe("POST /api/admin/members/:userId/convert-to-trial", () => {
         convertedAt: schema.users.convertedAt,
       })
       .from(schema.users)
-      .where(eq(schema.users.id, member.id))
+      .where(
+        and(
+          tenantWhere(schema.users, TEMPLO_CTX),
+          eq(schema.users.id, member.id),
+        ),
+      )
       .limit(1);
     expect(before.status).toBe("freemium");
 
@@ -108,7 +126,12 @@ describe("POST /api/admin/members/:userId/convert-to-trial", () => {
         convertedAt: schema.users.convertedAt,
       })
       .from(schema.users)
-      .where(eq(schema.users.id, member.id))
+      .where(
+        and(
+          tenantWhere(schema.users, TEMPLO_CTX),
+          eq(schema.users.id, member.id),
+        ),
+      )
       .limit(1);
 
     expect(after.status).toBe("prueba");
@@ -133,7 +156,12 @@ describe("POST /api/admin/members/:userId/convert-to-trial", () => {
     const [after] = await app.db
       .select({ createdBy: schema.users.createdBy })
       .from(schema.users)
-      .where(eq(schema.users.id, member.id))
+      .where(
+        and(
+          tenantWhere(schema.users, TEMPLO_CTX),
+          eq(schema.users.id, member.id),
+        ),
+      )
       .limit(1);
     expect(after.createdBy).toBe(adminId);
   });
@@ -150,7 +178,12 @@ describe("POST /api/admin/members/:userId/convert-to-trial", () => {
     const [after] = await app.db
       .select({ status: schema.users.status })
       .from(schema.users)
-      .where(eq(schema.users.id, member.id))
+      .where(
+        and(
+          tenantWhere(schema.users, TEMPLO_CTX),
+          eq(schema.users.id, member.id),
+        ),
+      )
       .limit(1);
     expect(after.status).toBe("freemium");
   });
@@ -188,7 +221,12 @@ describe("POST /api/admin/members/:userId/convert-to-trial", () => {
     await app.db
       .update(schema.users)
       .set({ phone: null })
-      .where(eq(schema.users.id, member.id));
+      .where(
+        and(
+          tenantWhere(schema.users, TEMPLO_CTX),
+          eq(schema.users.id, member.id),
+        ),
+      );
 
     const { statusCode, body } = await convert(member.id, {
       branchId: physicalBranchId,
@@ -201,7 +239,12 @@ describe("POST /api/admin/members/:userId/convert-to-trial", () => {
     const [after] = await app.db
       .select({ status: schema.users.status })
       .from(schema.users)
-      .where(eq(schema.users.id, member.id))
+      .where(
+        and(
+          tenantWhere(schema.users, TEMPLO_CTX),
+          eq(schema.users.id, member.id),
+        ),
+      )
       .limit(1);
     expect(after.status).toBe("freemium");
   });
@@ -211,7 +254,12 @@ describe("POST /api/admin/members/:userId/convert-to-trial", () => {
     await app.db
       .update(schema.users)
       .set({ phone: null })
-      .where(eq(schema.users.id, member.id));
+      .where(
+        and(
+          tenantWhere(schema.users, TEMPLO_CTX),
+          eq(schema.users.id, member.id),
+        ),
+      );
 
     const { statusCode, body } = await convert(member.id, {
       branchId: physicalBranchId,
@@ -224,7 +272,12 @@ describe("POST /api/admin/members/:userId/convert-to-trial", () => {
     const [after] = await app.db
       .select({ status: schema.users.status, phone: schema.users.phone })
       .from(schema.users)
-      .where(eq(schema.users.id, member.id))
+      .where(
+        and(
+          tenantWhere(schema.users, TEMPLO_CTX),
+          eq(schema.users.id, member.id),
+        ),
+      )
       .limit(1);
     expect(after.status).toBe("prueba");
     // WR-02: número completo con país (ya no truncado a "1122223333").
@@ -236,7 +289,12 @@ describe("POST /api/admin/members/:userId/convert-to-trial", () => {
     await app.db
       .update(schema.users)
       .set({ phone: null })
-      .where(eq(schema.users.id, member.id));
+      .where(
+        and(
+          tenantWhere(schema.users, TEMPLO_CTX),
+          eq(schema.users.id, member.id),
+        ),
+      );
 
     const { statusCode } = await convert(member.id, {
       branchId: physicalBranchId,
@@ -247,7 +305,12 @@ describe("POST /api/admin/members/:userId/convert-to-trial", () => {
     const [after] = await app.db
       .select({ phone: schema.users.phone })
       .from(schema.users)
-      .where(eq(schema.users.id, member.id))
+      .where(
+        and(
+          tenantWhere(schema.users, TEMPLO_CTX),
+          eq(schema.users.id, member.id),
+        ),
+      )
       .limit(1);
     // normalizePhone truncaba a "4612345678" (perdía el 3 del 34). Ahora intacto.
     expect(after.phone).toBe("+34612345678");
@@ -258,7 +321,12 @@ describe("POST /api/admin/members/:userId/convert-to-trial", () => {
     await app.db
       .update(schema.users)
       .set({ phone: null })
-      .where(eq(schema.users.id, member.id));
+      .where(
+        and(
+          tenantWhere(schema.users, TEMPLO_CTX),
+          eq(schema.users.id, member.id),
+        ),
+      );
 
     // "abc" no tiene dígitos: WR-03 (pattern ≥6 dígitos) lo rechaza en el borde;
     // el guard del service (CR-01) es el respaldo. El teléfono NUNCA se dropea:
@@ -272,7 +340,12 @@ describe("POST /api/admin/members/:userId/convert-to-trial", () => {
     const [after] = await app.db
       .select({ status: schema.users.status, phone: schema.users.phone })
       .from(schema.users)
-      .where(eq(schema.users.id, member.id))
+      .where(
+        and(
+          tenantWhere(schema.users, TEMPLO_CTX),
+          eq(schema.users.id, member.id),
+        ),
+      )
       .limit(1);
     expect(after.status).toBe("freemium");
     expect(after.phone).toBeNull();

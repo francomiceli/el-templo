@@ -114,7 +114,12 @@ afterAll(async () => {
   await app.db.execute(
     sql`UPDATE tenants SET status='active' WHERE id = ${EL_TEMPLO_TENANT_ID}`,
   );
-  await app.db.execute(sql`DELETE FROM users WHERE id = ${staffId}`);
+  // Fase 173 (ADO-02): `users` entra a TENANT_STRICT_MODULES — el DELETE de
+  // conveniencia se acota por gimnasio (categoría 2, docblock de
+  // `test/helpers.ts`); este archivo no siembra en el gimnasio 2.
+  await app.db.execute(
+    sql`DELETE FROM users WHERE id = ${staffId} AND tenant_id = ${EL_TEMPLO_TENANT_ID}`,
+  );
   await app.close();
 });
 

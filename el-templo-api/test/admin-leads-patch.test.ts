@@ -12,10 +12,18 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import argon2 from "argon2";
 import { createTestApp, getAuthToken, cleanAllTestData } from "./helpers";
 import * as schema from "../src/db/schema";
+// Fase 173 (ADO-02): `users` entra a TENANT_STRICT_MODULES — las lecturas/
+// escrituras de conveniencia por id/email de este archivo se acotan con
+// `tenantWhere` (categoría 2, docblock de `test/helpers.ts`); este archivo
+// no siembra en el gimnasio 2.
+import { tenantWhere } from "../src/modules/shared/tenant";
+import { TENANT_TEMPLO } from "./fixtures/second-tenant";
+
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 describe("PATCH /api/admin/leads/:userId (Phase 114 D-27..D-34)", () => {
   let app: FastifyInstance;
@@ -152,7 +160,12 @@ describe("PATCH /api/admin/leads/:userId (Phase 114 D-27..D-34)", () => {
     const [admin] = await app.db
       .select({ id: schema.users.id })
       .from(schema.users)
-      .where(eq(schema.users.email, "admin@test.com"));
+      .where(
+        and(
+          tenantWhere(schema.users, TEMPLO_CTX),
+          eq(schema.users.email, "admin@test.com"),
+        ),
+      );
     expect(admin?.id).toBeGreaterThan(0);
 
     const userId = await seedLead({
@@ -184,7 +197,9 @@ describe("PATCH /api/admin/leads/:userId (Phase 114 D-27..D-34)", () => {
         leadNotes: schema.users.leadNotes,
       })
       .from(schema.users)
-      .where(eq(schema.users.id, userId));
+      .where(
+        and(tenantWhere(schema.users, TEMPLO_CTX), eq(schema.users.id, userId)),
+      );
     expect(dbRow?.leadStatus).toBe("perdido");
     expect(dbRow?.leadNotes).toBe("No respondió");
   });
@@ -212,7 +227,9 @@ describe("PATCH /api/admin/leads/:userId (Phase 114 D-27..D-34)", () => {
     const [dbRow] = await app.db
       .select({ leadNotes: schema.users.leadNotes })
       .from(schema.users)
-      .where(eq(schema.users.id, userId));
+      .where(
+        and(tenantWhere(schema.users, TEMPLO_CTX), eq(schema.users.id, userId)),
+      );
     expect(dbRow?.leadNotes).toBeNull();
   });
 
@@ -253,7 +270,12 @@ describe("PATCH /api/admin/leads/:userId (Phase 114 D-27..D-34)", () => {
         status: schema.users.status,
       })
       .from(schema.users)
-      .where(eq(schema.users.id, activeRow.id));
+      .where(
+        and(
+          tenantWhere(schema.users, TEMPLO_CTX),
+          eq(schema.users.id, activeRow.id),
+        ),
+      );
     expect(dbRow?.leadStatus).toBeNull();
     expect(dbRow?.status).toBe("activo");
   });
@@ -272,7 +294,9 @@ describe("PATCH /api/admin/leads/:userId (Phase 114 D-27..D-34)", () => {
         leadStatus: null,
         convertedAt: new Date(),
       })
-      .where(eq(schema.users.id, userId));
+      .where(
+        and(tenantWhere(schema.users, TEMPLO_CTX), eq(schema.users.id, userId)),
+      );
 
     const res = await app.inject({
       method: "PATCH",
@@ -285,7 +309,9 @@ describe("PATCH /api/admin/leads/:userId (Phase 114 D-27..D-34)", () => {
     const [dbRow] = await app.db
       .select({ leadNotes: schema.users.leadNotes })
       .from(schema.users)
-      .where(eq(schema.users.id, userId));
+      .where(
+        and(tenantWhere(schema.users, TEMPLO_CTX), eq(schema.users.id, userId)),
+      );
     expect(dbRow?.leadNotes).toBe("Se dio de alta, seguimiento post-venta");
   });
 
@@ -301,7 +327,9 @@ describe("PATCH /api/admin/leads/:userId (Phase 114 D-27..D-34)", () => {
     await app.db
       .update(schema.users)
       .set({ status: "inactivo", convertedAt: new Date() })
-      .where(eq(schema.users.id, userId));
+      .where(
+        and(tenantWhere(schema.users, TEMPLO_CTX), eq(schema.users.id, userId)),
+      );
 
     const res = await app.inject({
       method: "PATCH",
@@ -318,7 +346,9 @@ describe("PATCH /api/admin/leads/:userId (Phase 114 D-27..D-34)", () => {
         status: schema.users.status,
       })
       .from(schema.users)
-      .where(eq(schema.users.id, userId));
+      .where(
+        and(tenantWhere(schema.users, TEMPLO_CTX), eq(schema.users.id, userId)),
+      );
     expect(dbRow?.leadStatus).toBe("perdido");
     expect(dbRow?.purchasedPlanId).toBeNull();
     // El PATCH de lead NO toca el status del usuario.
@@ -332,7 +362,9 @@ describe("PATCH /api/admin/leads/:userId (Phase 114 D-27..D-34)", () => {
     await app.db
       .update(schema.users)
       .set({ status: "activo", leadStatus: null, convertedAt: null })
-      .where(eq(schema.users.id, userId));
+      .where(
+        and(tenantWhere(schema.users, TEMPLO_CTX), eq(schema.users.id, userId)),
+      );
 
     const [act] = await app.db
       .insert(schema.activities)
@@ -367,7 +399,9 @@ describe("PATCH /api/admin/leads/:userId (Phase 114 D-27..D-34)", () => {
     const [dbRow] = await app.db
       .select({ leadStatus: schema.users.leadStatus })
       .from(schema.users)
-      .where(eq(schema.users.id, userId));
+      .where(
+        and(tenantWhere(schema.users, TEMPLO_CTX), eq(schema.users.id, userId)),
+      );
     expect(dbRow?.leadStatus).toBe("perdido");
   });
 
@@ -393,7 +427,9 @@ describe("PATCH /api/admin/leads/:userId (Phase 114 D-27..D-34)", () => {
     await app.db
       .update(schema.users)
       .set({ deletedAt: new Date() })
-      .where(eq(schema.users.id, userId));
+      .where(
+        and(tenantWhere(schema.users, TEMPLO_CTX), eq(schema.users.id, userId)),
+      );
 
     const res = await app.inject({
       method: "PATCH",
@@ -441,7 +477,9 @@ describe("PATCH /api/admin/leads/:userId (Phase 114 D-27..D-34)", () => {
     const [dbRow] = await app.db
       .select({ leadNotes: schema.users.leadNotes })
       .from(schema.users)
-      .where(eq(schema.users.id, userId));
+      .where(
+        and(tenantWhere(schema.users, TEMPLO_CTX), eq(schema.users.id, userId)),
+      );
     expect(dbRow?.leadNotes).toBeNull();
   });
 
@@ -474,7 +512,9 @@ describe("PATCH /api/admin/leads/:userId (Phase 114 D-27..D-34)", () => {
         leadNotes: schema.users.leadNotes,
       })
       .from(schema.users)
-      .where(eq(schema.users.id, userId));
+      .where(
+        and(tenantWhere(schema.users, TEMPLO_CTX), eq(schema.users.id, userId)),
+      );
     expect(dbRow?.leadStatus).toBe("en_seguimiento");
     expect(dbRow?.leadNotes).toBe("untouched");
   });
@@ -513,7 +553,9 @@ describe("PATCH /api/admin/leads/:userId (Phase 114 D-27..D-34)", () => {
         purchasedPlanId: schema.users.purchasedPlanId,
       })
       .from(schema.users)
-      .where(eq(schema.users.id, userId));
+      .where(
+        and(tenantWhere(schema.users, TEMPLO_CTX), eq(schema.users.id, userId)),
+      );
     expect(dbRow?.leadStatus).toBe("ganado");
     expect(dbRow?.purchasedPlanId).toBe(planId);
     expect(dbRow?.leadNotes).toBe("manual note");
@@ -539,7 +581,9 @@ describe("PATCH /api/admin/leads/:userId (Phase 114 D-27..D-34)", () => {
     const [dbRow] = await app.db
       .select({ leadStatus: schema.users.leadStatus })
       .from(schema.users)
-      .where(eq(schema.users.id, userId));
+      .where(
+        and(tenantWhere(schema.users, TEMPLO_CTX), eq(schema.users.id, userId)),
+      );
     expect(dbRow?.leadStatus).toBe("en_seguimiento");
   });
 

@@ -25,11 +25,18 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { createTestApp, cleanAllTestData } from "./helpers";
 import * as schema from "../src/db/schema";
 import { LEADS_SETTINGS_KEYS } from "../src/modules/settings/keys";
 import { runExpireLostLeads } from "../src/jobs/expire-lost-leads";
+// Fase 173 (ADO-02): `users` entra a TENANT_STRICT_MODULES — las lecturas de
+// conveniencia por id de este archivo se acotan con `tenantWhere` (categoría
+// 2, docblock de `test/helpers.ts`); este archivo no siembra en el gimnasio 2.
+import { tenantWhere } from "../src/modules/shared/tenant";
+import { TENANT_TEMPLO } from "./fixtures/second-tenant";
+
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 let app: FastifyInstance;
 let branchId: number;
@@ -90,7 +97,8 @@ async function seedLead(opts: SeedLeadOpts = {}): Promise<number> {
         .toString()
         .padStart(3, "0")}`,
       status: opts.status ?? "prueba",
-      leadStatus: opts.leadStatus === undefined ? "en_seguimiento" : opts.leadStatus,
+      leadStatus:
+        opts.leadStatus === undefined ? "en_seguimiento" : opts.leadStatus,
       leadStatusSource: opts.leadStatusSource ?? null,
       convertedAt: opts.convertedAt ?? null,
       purchasedPlanId: opts.purchasedPlanId ?? null,
@@ -102,11 +110,7 @@ async function seedLead(opts: SeedLeadOpts = {}): Promise<number> {
 async function seedTrialBooking(
   userId: number,
   daysAgo: number,
-  status:
-    | "reservado"
-    | "confirmado"
-    | "cancelado"
-    | "no_show" = "reservado",
+  status: "reservado" | "confirmado" | "cancelado" | "no_show" = "reservado",
 ): Promise<void> {
   await app.db.insert(schema.bookings).values({
     memberId: userId,
@@ -142,7 +146,9 @@ async function leadStatusOf(
       leadStatusSource: schema.users.leadStatusSource,
     })
     .from(schema.users)
-    .where(eq(schema.users.id, userId));
+    .where(
+      and(tenantWhere(schema.users, TEMPLO_CTX), eq(schema.users.id, userId)),
+    );
   return { leadStatus: row.leadStatus, leadStatusSource: row.leadStatusSource };
 }
 
@@ -223,7 +229,9 @@ describe("runExpireLostLeads (Fase 163-02)", () => {
     const [ownManual] = await app.db
       .select({ src: schema.users.leadStatusSource })
       .from(schema.users)
-      .where(eq(schema.users.id, userId));
+      .where(
+        and(tenantWhere(schema.users, TEMPLO_CTX), eq(schema.users.id, userId)),
+      );
     expect(ownManual.src).toBe("manual");
     expect(expired).toBe(0);
   });
