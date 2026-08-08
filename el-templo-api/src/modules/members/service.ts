@@ -65,7 +65,12 @@ import { referralCopyVariant } from "../referrals/ab-variant";
 import { isValidIban, normalizeIban } from "../shared/iban";
 import { activeMemberExists } from "../shared/active-member";
 import { memberCoveredUntilSql } from "../shared/covered-until";
-import { tenantWhere, type TenantContext } from "../shared/tenant";
+import {
+  tenantValues,
+  tenantWhere,
+  type TenantContext,
+} from "../shared/tenant";
+import { assertBranchDelGimnasio } from "../shared/branch-consistency";
 import { alias } from "drizzle-orm/mysql-core";
 import type { MemberSegment } from "../segmentation/types";
 
@@ -738,54 +743,70 @@ export class MemberService {
     // single tx so the 'prueba' transition is recorded atomically. New alta →
     // fromStatus=null, toStatus='prueba', source='admin' (staff-initiated).
     const userId = await this.db.transaction(async (tx) => {
-      const result = await tx.insert(schema.users).values({
-        email: input.email,
-        passwordHash,
-        firstName: input.firstName.trim(),
-        lastName: input.lastName.trim(),
-        phone: input.phone,
-        dni: input.dni,
-        documentType: (input.documentType as DocType) || null,
-        address: input.address || null,
-        branchId: input.branchId,
-        // Recategorización (0185): el alta fija la sede elegida → 'manual' para
-        // que el cron mensual respete la ventana de protección.
-        branchUpdatedAt: new Date(),
-        branchSource: "manual" as const,
-        // Phase 130 (KAIROS-04, D-01): new members default to kairos when no
-        // explicit level is supplied. An explicit input.level (e.g. 'delta') is
-        // still honored — the default only applies when the field is omitted.
-        level: (input.level as Level) || "kairos",
-        dateOfBirth: input.dateOfBirth || null,
-        gender: (input.gender as Gender) || null,
-        emergencyContactName: input.emergencyContactName || null,
-        emergencyContactPhone: input.emergencyContactPhone || null,
-        emergencyContactRelationship:
-          input.emergencyContactRelationship || null,
-        role: "member",
-        // Phase 157-03 (REF-03, D-08): canal asistido. referredBy ya viene
-        // validado del route (socio real o undefined). Se persiste en el mismo
-        // insert; el vínculo referrals(pending, assisted) se crea abajo.
-        referredBy: input.referredBy ?? null,
-        // Phase 103-04 (R7, D-12, BLOCKER 3): admin enrolling someone who walked
-        // into a sede starts as 'prueba'. If planId is also provided, the
-        // route handler calls subscriptionService.assignPlan which triggers
-        // Plan 02's recomputeUserStatus → flips status to 'activo' inside
-        // the same transaction. Single-owner edit per the wave-conflict
-        // resolution.
-        status: "prueba" as const,
-      });
+      // Fase 173 (D-05/T-173-18-02): `input.branchId` sale del payload del
+      // formulario de alta y nadie verificaba de qué gimnasio era esa sede.
+      // `assertBranchDelGimnasio` resuelve DENTRO de esta misma tx (404 "Sede
+      // no encontrada" — jamás un código de acceso denegado, D-06 — si la
+      // sede es ajena o no existe) y se escribe `branch.id` (la fila YA
+      // resuelta), nunca el número crudo del payload.
+      const branch = await assertBranchDelGimnasio(ctx, input.branchId, tx);
+
+      // Fase 173 (T-173-18-01): `tenantValues` estampa el gimnasio DESPUÉS
+      // del spread — un `tenantId` que viniera adentro del objeto no gana.
+      const result = await tx.insert(schema.users).values(
+        tenantValues(ctx, {
+          email: input.email,
+          passwordHash,
+          firstName: input.firstName.trim(),
+          lastName: input.lastName.trim(),
+          phone: input.phone,
+          dni: input.dni,
+          documentType: (input.documentType as DocType) || null,
+          address: input.address || null,
+          branchId: branch.id,
+          // Recategorización (0185): el alta fija la sede elegida → 'manual' para
+          // que el cron mensual respete la ventana de protección.
+          branchUpdatedAt: new Date(),
+          branchSource: "manual" as const,
+          // Phase 130 (KAIROS-04, D-01): new members default to kairos when no
+          // explicit level is supplied. An explicit input.level (e.g. 'delta') is
+          // still honored — the default only applies when the field is omitted.
+          level: (input.level as Level) || "kairos",
+          dateOfBirth: input.dateOfBirth || null,
+          gender: (input.gender as Gender) || null,
+          emergencyContactName: input.emergencyContactName || null,
+          emergencyContactPhone: input.emergencyContactPhone || null,
+          emergencyContactRelationship:
+            input.emergencyContactRelationship || null,
+          role: "member",
+          // Phase 157-03 (REF-03, D-08): canal asistido. referredBy ya viene
+          // validado del route (socio real o undefined). Se persiste en el mismo
+          // insert; el vínculo referrals(pending, assisted) se crea abajo.
+          referredBy: input.referredBy ?? null,
+          // Phase 103-04 (R7, D-12, BLOCKER 3): admin enrolling someone who walked
+          // into a sede starts as 'prueba'. If planId is also provided, the
+          // route handler calls subscriptionService.assignPlan which triggers
+          // Plan 02's recomputeUserStatus → flips status to 'activo' inside
+          // the same transaction. Single-owner edit per the wave-conflict
+          // resolution.
+          status: "prueba" as const,
+        }),
+      );
 
       const newUserId = Number(result[0].insertId);
 
       // Phase 118-01 (D-02): record the freemium-less alta → 'prueba'
       // transition. No prior status on a brand-new row, so fromStatus=null.
-      await tx.insert(schema.userStatusHistory).values({
-        userId: newUserId,
-        fromStatus: null,
-        toStatus: "prueba",
-        source: "admin",
-      });
+      // Fase 173 (T-173-18-01): `tenantValues` acá también — user_status_history
+      // es tabla propia del módulo (TENANT_STRICT_MODULES.members).
+      await tx.insert(schema.userStatusHistory).values(
+        tenantValues(ctx, {
+          userId: newUserId,
+          fromStatus: null,
+          toStatus: "prueba",
+          source: "admin",
+        }),
+      );
       this.log.info(
         { userId: newUserId, fromStatus: null, toStatus: "prueba" },
         "user status transition recorded",
@@ -879,6 +900,9 @@ export class MemberService {
       throw new ConflictError("El teléfono ingresado no es válido");
     }
 
+    // Fase 173 (D-06/T-173-18-04): `tenantWhere` inline — sin él, un teléfono
+    // repetido en OTRO gimnasio bloquearía esta alta con un 409 que además
+    // delataría que ese socio existe (trampa (a) del piloto).
     const [existing] = await this.db
       .select({
         id: schema.users.id,
@@ -888,6 +912,7 @@ export class MemberService {
       .from(schema.users)
       .where(
         and(
+          tenantWhere(schema.users, ctx),
           eq(schema.users.phone, normalizedPhone),
           isNull(schema.users.deletedAt),
         ),
@@ -910,36 +935,44 @@ export class MemberService {
     // new lead's 'prueba' transition is recorded atomically (fromStatus=null,
     // source='admin' — receptionist-initiated trial registration).
     const userId = await this.db.transaction(async (tx) => {
-      const result = await tx.insert(schema.users).values({
-        passwordHash,
-        firstName: input.firstName.trim(),
-        lastName: input.lastName.trim(),
-        phone: normalizedPhone,
-        branchId: input.branchId,
-        // Recategorización (0185): el alta fija la sede elegida → 'manual'.
-        branchUpdatedAt: new Date(),
-        branchSource: "manual" as const,
-        role: "member",
-        // Phase 130 (KAIROS-04, D-01): admin-created trial/lead members are
-        // born kairos like every other new member.
-        level: "kairos",
-        status: "prueba" as const,
-        // Phase 114 D-31: lead lifecycle starts here. lead_status='en_seguimiento'
-        // is the only valid initial value for an admin-created trial. created_by
-        // is the JWT-authenticated admin from the route layer.
-        leadStatus: "en_seguimiento" as const,
-        leadStatusSource: "auto" as const, // Phase 163 (D-07): alta = automatismo
-        createdBy: input.createdBy,
-      });
+      // Fase 173 (D-05/T-173-18-02): resolver DENTRO de la tx, escribir
+      // `branch.id` (la fila YA resuelta), nunca el número crudo del payload.
+      const branch = await assertBranchDelGimnasio(ctx, input.branchId, tx);
+
+      const result = await tx.insert(schema.users).values(
+        tenantValues(ctx, {
+          passwordHash,
+          firstName: input.firstName.trim(),
+          lastName: input.lastName.trim(),
+          phone: normalizedPhone,
+          branchId: branch.id,
+          // Recategorización (0185): el alta fija la sede elegida → 'manual'.
+          branchUpdatedAt: new Date(),
+          branchSource: "manual" as const,
+          role: "member",
+          // Phase 130 (KAIROS-04, D-01): admin-created trial/lead members are
+          // born kairos like every other new member.
+          level: "kairos",
+          status: "prueba" as const,
+          // Phase 114 D-31: lead lifecycle starts here. lead_status='en_seguimiento'
+          // is the only valid initial value for an admin-created trial. created_by
+          // is the JWT-authenticated admin from the route layer.
+          leadStatus: "en_seguimiento" as const,
+          leadStatusSource: "auto" as const, // Phase 163 (D-07): alta = automatismo
+          createdBy: input.createdBy,
+        }),
+      );
 
       const newUserId = Number(result[0].insertId);
 
-      await tx.insert(schema.userStatusHistory).values({
-        userId: newUserId,
-        fromStatus: null,
-        toStatus: "prueba",
-        source: "admin",
-      });
+      await tx.insert(schema.userStatusHistory).values(
+        tenantValues(ctx, {
+          userId: newUserId,
+          fromStatus: null,
+          toStatus: "prueba",
+          source: "admin",
+        }),
+      );
       this.log.info(
         { userId: newUserId, fromStatus: null, toStatus: "prueba" },
         "user status transition recorded",
@@ -991,35 +1024,43 @@ export class MemberService {
       // 'prueba' transition is recorded atomically (fromStatus=null,
       // source='admin' — staff/profe-initiated PoS alta).
       const userId = await this.db.transaction(async (tx) => {
-        const result = await tx.insert(schema.users).values({
-          passwordHash,
-          firstName: input.firstName.trim(),
-          lastName: input.lastName.trim(),
-          dni,
-          // email/phone intencionalmente null: el walk-in que paga en mostrador
-          // no los aporta; gestión los completa al validar (CONTEXT L70-74).
-          email: null,
-          branchId: input.branchId,
-          // Recategorización (0185): el alta fija la sede elegida → 'manual'.
-          branchUpdatedAt: new Date(),
-          branchSource: "manual" as const,
-          role: "member",
-          // Phase 130 (KAIROS-04, D-01): nuevos miembros nacen kairos.
-          level: "kairos",
-          status: "prueba" as const,
-          // Phase 148 (D-31): created_by es el usuario autenticado por JWT,
-          // resuelto en la ruta orquestadora — nunca del body crudo.
-          createdBy: input.createdBy,
-        });
+        // Fase 173 (D-05/T-173-18-02): resolver DENTRO de la tx, escribir
+        // `branch.id` (la fila YA resuelta), nunca el número crudo del payload.
+        const branch = await assertBranchDelGimnasio(ctx, input.branchId, tx);
+
+        const result = await tx.insert(schema.users).values(
+          tenantValues(ctx, {
+            passwordHash,
+            firstName: input.firstName.trim(),
+            lastName: input.lastName.trim(),
+            dni,
+            // email/phone intencionalmente null: el walk-in que paga en mostrador
+            // no los aporta; gestión los completa al validar (CONTEXT L70-74).
+            email: null,
+            branchId: branch.id,
+            // Recategorización (0185): el alta fija la sede elegida → 'manual'.
+            branchUpdatedAt: new Date(),
+            branchSource: "manual" as const,
+            role: "member",
+            // Phase 130 (KAIROS-04, D-01): nuevos miembros nacen kairos.
+            level: "kairos",
+            status: "prueba" as const,
+            // Phase 148 (D-31): created_by es el usuario autenticado por JWT,
+            // resuelto en la ruta orquestadora — nunca del body crudo.
+            createdBy: input.createdBy,
+          }),
+        );
 
         const newUserId = Number(result[0].insertId);
 
-        await tx.insert(schema.userStatusHistory).values({
-          userId: newUserId,
-          fromStatus: null,
-          toStatus: "prueba",
-          source: "admin",
-        });
+        await tx.insert(schema.userStatusHistory).values(
+          tenantValues(ctx, {
+            userId: newUserId,
+            fromStatus: null,
+            toStatus: "prueba",
+            source: "admin",
+          }),
+        );
         this.log.info(
           { userId: newUserId, fromStatus: null, toStatus: "prueba" },
           "user status transition recorded",
@@ -1077,6 +1118,8 @@ export class MemberService {
     userId: number,
     input: ConvertFreemiumToTrialServiceInput,
   ): Promise<MemberProfile> {
+    // Fase 173 (T-173-18-04): `tenantWhere` inline — un `userId` de otro
+    // gimnasio tiene que verse EXACTO igual que uno inexistente (D-06).
     const [user] = await this.db
       .select({
         id: schema.users.id,
@@ -1085,7 +1128,7 @@ export class MemberService {
         phone: schema.users.phone,
       })
       .from(schema.users)
-      .where(eq(schema.users.id, userId))
+      .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)))
       .limit(1);
 
     if (!user || user.deletedAt) {
@@ -1115,24 +1158,6 @@ export class MemberService {
     }
     const phone = !user.phone ? phoneFromBody : undefined;
 
-    const [branch] = await this.db
-      .select({
-        id: schema.branches.id,
-        isVirtual: schema.branches.isVirtual,
-      })
-      .from(schema.branches)
-      .where(eq(schema.branches.id, input.branchId))
-      .limit(1);
-
-    if (!branch) {
-      throw new NotFoundError("Sede no encontrada");
-    }
-    if (branch.isVirtual) {
-      throw new ConflictError(
-        "La sesión de prueba debe asignarse a una sede física",
-      );
-    }
-
     // Phase 118-01 (D-02): the 409 guard above already restricts this path to
     // freemium → prueba, so the transition always changes the status — no
     // dedupe branch is needed here (TS narrows user.status to 'freemium', which
@@ -1140,6 +1165,18 @@ export class MemberService {
     // same tx → rolls back together. source='admin' (admin-initiated convert).
     const statusBefore = user.status;
     await this.db.transaction(async (tx) => {
+      // Fase 173 (D-05/T-173-18-02): `input.branchId` sale del payload del
+      // staff; se resuelve DENTRO de esta misma tx con `assertBranchDelGimnasio`
+      // (404 "Sede no encontrada" — mismo mensaje que ya usaba este método, D-06:
+      // jamás un código de acceso denegado) y se escribe `branch.id` (la fila YA
+      // resuelta), nunca el número crudo del payload.
+      const branch = await assertBranchDelGimnasio(ctx, input.branchId, tx);
+      if (branch.isVirtual) {
+        throw new ConflictError(
+          "La sesión de prueba debe asignarse a una sede física",
+        );
+      }
+
       await tx
         .update(schema.users)
         .set({
@@ -1147,17 +1184,21 @@ export class MemberService {
           leadStatus: "en_seguimiento" as const,
           leadStatusSource: "auto" as const, // Phase 163 (D-07): alta = automatismo
           createdBy: input.createdBy,
-          branchId: input.branchId,
+          branchId: branch.id,
           ...(phone ? { phone } : {}),
         })
-        .where(eq(schema.users.id, userId));
+        .where(
+          and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)),
+        );
 
-      await tx.insert(schema.userStatusHistory).values({
-        userId,
-        fromStatus: statusBefore,
-        toStatus: "prueba",
-        source: "admin",
-      });
+      await tx.insert(schema.userStatusHistory).values(
+        tenantValues(ctx, {
+          userId,
+          fromStatus: statusBefore,
+          toStatus: "prueba",
+          source: "admin",
+        }),
+      );
       this.log.info(
         { userId, fromStatus: statusBefore, toStatus: "prueba" },
         "user status transition recorded",
