@@ -69,6 +69,51 @@ import { tenantWhere, type TenantContext } from "../shared/tenant";
 import { alias } from "drizzle-orm/mysql-core";
 import type { MemberSegment } from "../segmentation/types";
 
+/**
+ * 173-05 (D-02): copia LOCAL, sin gimnasio, de la lógica tokenizada de
+ * `shared/member-search.ts` (previa a esta fase). `searchMembers` y
+ * `exportMembers` todavía no reciben `ctx` — la plomería de las 23 firmas de
+ * este archivo es del plan 173-17, y adelantarla acá para estas dos nomás
+ * dejaría el archivo a medio camino en un commit que no es el suyo. Hasta
+ * que 173-17 migre este archivo, estos dos call sites usan ESTA copia en
+ * vez de importar `buildMemberNameSearchCondition` (que ahora exige `ctx`).
+ *
+ * ⚠️ HALLAZGO PARA 173-17: `searchMembers` sirve `/api/admin/members/search`
+ * — es LITERALMENTE la query que el piloto identificó como la más cara
+ * (T-173-05-01, "búsqueda por nombre"): un nombre común devuelve la fila del
+ * primer gimnasio que lo tenga. Con un solo tenant activo es invisible. Debería
+ * ser lo PRIMERO que 173-17 migra, no lo último.
+ */
+function legacyUnscopedNameSearchCondition(
+  search: string,
+  options: { includeDni?: boolean } = {},
+): SQL | null {
+  const includeDni = options.includeDni ?? true;
+  const tokens = search
+    .split(/\s+/)
+    .map((t) => t.trim())
+    .filter((t) => t.length > 0);
+  if (tokens.length === 0) return null;
+
+  const tokenConditions = tokens.map((token) => {
+    const pattern = `%${token}%`;
+    if (includeDni) {
+      return sql`(${schema.users.firstName} LIKE ${pattern}
+        OR ${schema.users.lastName} LIKE ${pattern}
+        OR ${schema.users.email} LIKE ${pattern}
+        OR ${schema.users.dni} LIKE ${pattern}
+        OR CONCAT_WS(' ', ${schema.users.firstName}, ${schema.users.lastName}) LIKE ${pattern})`;
+    }
+    return sql`(${schema.users.firstName} LIKE ${pattern}
+      OR ${schema.users.lastName} LIKE ${pattern}
+      OR ${schema.users.email} LIKE ${pattern}
+      OR CONCAT_WS(' ', ${schema.users.firstName}, ${schema.users.lastName}) LIKE ${pattern})`;
+  });
+
+  if (tokenConditions.length === 1) return tokenConditions[0];
+  return sql.join(tokenConditions, sql` AND `);
+}
+
 export class MemberService {
   constructor(
     private db: MySql2Database<typeof schema>,
@@ -121,7 +166,7 @@ export class MemberService {
     conditions.push(isNull(schema.users.deletedAt));
 
     if (search) {
-      const condition = buildMemberNameSearchCondition(search);
+      const condition = buildMemberNameSearchCondition(ctx, search);
       if (condition) conditions.push(condition);
     }
 
@@ -446,7 +491,7 @@ export class MemberService {
   async searchMembers(params: MemberSearchParams): Promise<MemberSearchItem[]> {
     const { search, country, limit } = params;
 
-    const searchCondition = buildMemberNameSearchCondition(search);
+    const searchCondition = legacyUnscopedNameSearchCondition(search);
     // No meaningful tokens (e.g. only whitespace) → nothing to search for.
     if (!searchCondition) return [];
 
@@ -1827,7 +1872,7 @@ export class MemberService {
     conditions.push(isNull(schema.users.deletedAt));
 
     if (search) {
-      const condition = buildMemberNameSearchCondition(search);
+      const condition = legacyUnscopedNameSearchCondition(search);
       if (condition) conditions.push(condition);
     }
 

@@ -2066,7 +2066,7 @@ export class TransactionService {
       );
     }
     if (filters.search !== undefined && filters.search.trim().length > 0) {
-      const cond = buildMemberNameSearchCondition(filters.search.trim());
+      const cond = buildMemberNameSearchCondition(ctx, filters.search.trim());
       if (cond) conds.push(cond);
     }
     return conds;

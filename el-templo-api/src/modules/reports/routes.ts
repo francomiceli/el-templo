@@ -106,7 +106,8 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
           page: request.query.page,
           limit: request.query.limit,
         };
-        return await reportsService.getAccessLog(filters);
+        const ctx = assertTenant(request.scope, "reports.access-log");
+        return await reportsService.getAccessLog(ctx, filters);
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "get access report");
       }
@@ -452,7 +453,8 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
           search: request.query.search,
           source: request.query.source,
         };
-        const rows = await reportsService.exportAccessLog(filters);
+        const ctx = assertTenant(request.scope, "reports.export-access-log");
+        const rows = await reportsService.exportAccessLog(ctx, filters);
 
         const workbook = new Workbook();
         workbook.creator = "El Templo";

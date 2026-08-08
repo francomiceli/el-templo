@@ -357,13 +357,14 @@ export class ReportsService {
   // ─── Access Log ───────────────────────────────────────────────────────────
 
   async getAccessLog(
+    ctx: TenantContext,
     filters: AccessReportFilters,
   ): Promise<PaginatedResult<AccessReportRow>> {
     const page = filters.page ?? 1;
     const limit = filters.limit ?? 20;
     const offset = (page - 1) * limit;
 
-    const conditions = this.buildAccessConditions(filters);
+    const conditions = this.buildAccessConditions(ctx, filters);
 
     // Count total
     // NOTE: join on branches already present; buildAccessConditions may emit
@@ -371,7 +372,16 @@ export class ReportsService {
     const [countResult] = await this.db
       .select({ count: sql<number>`COUNT(*)` })
       .from(schema.attendance)
-      .innerJoin(schema.users, eq(schema.users.id, schema.attendance.memberId))
+      .innerJoin(
+        schema.users,
+        // Fase 173 (D-08): el filtro de la tabla joineada va en el ON,
+        // también en INNER — el `tenantWhere` del array de `conditions` vive
+        // en OTRO statement (`buildAccessConditions`) y no cubre a ESTE.
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.attendance.memberId),
+        ),
+      )
       .innerJoin(
         schema.branches,
         eq(schema.branches.id, schema.attendance.branchId),
@@ -393,7 +403,13 @@ export class ReportsService {
         scheduleId: schema.attendance.scheduleId,
       })
       .from(schema.attendance)
-      .innerJoin(schema.users, eq(schema.users.id, schema.attendance.memberId))
+      .innerJoin(
+        schema.users,
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.attendance.memberId),
+        ),
+      )
       .innerJoin(
         schema.branches,
         eq(schema.branches.id, schema.attendance.branchId),
@@ -900,6 +916,7 @@ export class ReportsService {
    * incobrable) necesita el universo filtrado con TODOS los estados.
    */
   private buildOutstandingBaseConds(
+    ctx: TenantContext,
     filters: OutstandingBalancesFilters,
     lastAtt: ReturnType<ReportsService["buildLastAttendanceSubquery"]>,
     cols: ReturnType<ReportsService["buildOutstandingScope"]>,
@@ -920,7 +937,7 @@ export class ReportsService {
       conds.push(eq(cols.currency, filters.currency));
     }
     if (filters.search !== undefined && filters.search.trim().length > 0) {
-      const searchCond = buildMemberNameSearchCondition(filters.search, {
+      const searchCond = buildMemberNameSearchCondition(ctx, filters.search, {
         includeDni: false,
       });
       if (searchCond !== null) {
@@ -1227,7 +1244,12 @@ export class ReportsService {
     // conditions, joins y orderBy (alias compartido del derived table).
     const cols = this.buildOutstandingScope(ctx);
     const lastAtt = this.buildLastAttendanceSubquery();
-    const baseConds = this.buildOutstandingBaseConds(filters, lastAtt, cols);
+    const baseConds = this.buildOutstandingBaseConds(
+      ctx,
+      filters,
+      lastAtt,
+      cols,
+    );
     const whereClause = and(
       ...this.buildOutstandingStatusConds(filters.status, cols),
       ...baseConds,
@@ -1469,9 +1491,30 @@ export class ReportsService {
     }
 
     if (filters.search !== undefined && filters.search.trim().length > 0) {
-      const searchCond = buildMemberNameSearchCondition(filters.search, {
-        includeDni: false,
+      // 173-05 (D-02): `getExpiredMembers` todavía no recibe `ctx` — el resto
+      // del método tiene otras lecturas de `subscriptions`/`users` sin migrar
+      // (fuera del alcance de este plan) y agregarle `ctx` solo para esta
+      // condición dejaría el archivo a medio camino. Se replica LOCALMENTE la
+      // MISMA lógica tokenizada de `buildMemberNameSearchCondition` (sin DNI),
+      // sin el filtro de gimnasio, IDÉNTICA a la de antes de esta fase, hasta
+      // que este método se migre completo. Ver shared/member-search.ts.
+      const searchTokens = filters.search
+        .split(/\s+/)
+        .map((t) => t.trim())
+        .filter((t) => t.length > 0);
+      const tokenConds = searchTokens.map((token) => {
+        const pattern = `%${token}%`;
+        return sql`(${schema.users.firstName} LIKE ${pattern}
+          OR ${schema.users.lastName} LIKE ${pattern}
+          OR ${schema.users.email} LIKE ${pattern}
+          OR CONCAT_WS(' ', ${schema.users.firstName}, ${schema.users.lastName}) LIKE ${pattern})`;
       });
+      const searchCond =
+        tokenConds.length === 0
+          ? null
+          : tokenConds.length === 1
+            ? tokenConds[0]
+            : sql.join(tokenConds, sql` AND `);
       if (searchCond !== null) {
         conds.push(searchCond);
       }
@@ -2450,9 +2493,10 @@ export class ReportsService {
   // ─── Export Methods (no pagination) ───────────────────────────────────────
 
   async exportAccessLog(
+    ctx: TenantContext,
     filters: AccessReportFilters,
   ): Promise<AccessReportRow[]> {
-    const result = await this.getAccessLog({
+    const result = await this.getAccessLog(ctx, {
       ...filters,
       page: 1,
       limit: 100000,
@@ -2504,7 +2548,7 @@ export class ReportsService {
     const lastAtt = this.buildLastAttendanceSubquery();
     const whereClause = and(
       ...this.buildOutstandingStatusConds(filters.status, cols),
-      ...this.buildOutstandingBaseConds(filters, lastAtt, cols),
+      ...this.buildOutstandingBaseConds(ctx, filters, lastAtt, cols),
     );
     return this.selectOutstandingRows({
       ctx,
@@ -2623,9 +2667,15 @@ export class ReportsService {
   // ═══════════════════════════════════════════════════════════════════════════
 
   private buildAccessConditions(
+    ctx: TenantContext,
     filters: AccessReportFilters,
   ): ReturnType<typeof sql>[] {
-    const conditions: ReturnType<typeof sql>[] = [sql`1 = 1`];
+    // Fase 173 (ADO-02): `users` entra a `TENANT_STRICT_MODULES` en esta
+    // fase — el filtro de gimnasio va PRIMERO, mismo criterio que
+    // `buildChargeConditions` (línea de arriba en este archivo).
+    const conditions: ReturnType<typeof sql>[] = [
+      tenantWhere(schema.users, ctx),
+    ];
 
     if (filters.branchId !== undefined) {
       conditions.push(eq(schema.attendance.branchId, filters.branchId));
@@ -2653,8 +2703,11 @@ export class ReportsService {
 
     if (filters.search) {
       const searchTerm = `%${filters.search}%`;
+      // El `push` es un STATEMENT APARTE del array de arriba (el lint razona
+      // por statement, hallazgo 172-02/173): el `tenantWhere` del elemento
+      // [0] no lo cubre, así que va INLINE acá también.
       conditions.push(
-        sql`(CONCAT(COALESCE(${schema.users.firstName}, ''), ' ', COALESCE(${schema.users.lastName}, '')) LIKE ${searchTerm} OR ${schema.users.dni} LIKE ${searchTerm})`,
+        sql`(${tenantWhere(schema.users, ctx)} AND (CONCAT(COALESCE(${schema.users.firstName}, ''), ' ', COALESCE(${schema.users.lastName}, '')) LIKE ${searchTerm} OR ${schema.users.dni} LIKE ${searchTerm}))`,
       );
     }
 
@@ -2715,8 +2768,11 @@ export class ReportsService {
 
     if (filters.search) {
       const searchTerm = `%${filters.search}%`;
+      // El `push` es un STATEMENT APARTE (mismo hallazgo que
+      // `buildAccessConditions`, arriba): el `tenantWhere` de `financial_transactions`
+      // del elemento [0] no cubre a `users`, así que va INLINE acá también.
       conditions.push(
-        sql`(CONCAT(COALESCE(${schema.users.firstName}, ''), ' ', COALESCE(${schema.users.lastName}, '')) LIKE ${searchTerm} OR ${schema.users.dni} LIKE ${searchTerm})`,
+        sql`(${tenantWhere(schema.users, ctx)} AND (CONCAT(COALESCE(${schema.users.firstName}, ''), ' ', COALESCE(${schema.users.lastName}, '')) LIKE ${searchTerm} OR ${schema.users.dni} LIKE ${searchTerm}))`,
       );
     }
 

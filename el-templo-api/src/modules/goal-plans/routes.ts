@@ -12,7 +12,6 @@ import { GoalPlanService, SubscriptionRequiredError } from "./service";
 import { AuraService } from "../aura/service";
 import { GOAL_PLAN_METADATA, ALL_GOAL_PLAN_TYPES } from "./constants";
 import { assembleVideoUrl } from "../shared/video-url";
-import { buildMemberNameSearchCondition } from "../shared";
 import type { GoalPlanType } from "./types";
 import type { DaySession } from "../sessions/types";
 import {
@@ -425,9 +424,29 @@ export const goalPlanRoutes: FastifyPluginAsync = async (fastify) => {
         const conditions = [eq(schema.users.role, "member")];
 
         if (search) {
-          const condition = buildMemberNameSearchCondition(search, {
-            includeDni: false,
+          // 173-05 (D-02): esta ruta no registra `attachCountryScope` (no hay
+          // `request.scope` disponible) — es de goal-plans, un módulo que
+          // todavía no migró a tenancy. Se replica LOCALMENTE la misma lógica
+          // tokenizada de `buildMemberNameSearchCondition` (que ahora exige
+          // `ctx`), sin filtro de gimnasio, IDÉNTICA a la de antes de esta
+          // fase. Ver shared/member-search.ts.
+          const searchTokens = search
+            .split(/\s+/)
+            .map((t) => t.trim())
+            .filter((t) => t.length > 0);
+          const tokenConds = searchTokens.map((token) => {
+            const pattern = `%${token}%`;
+            return sql`(${schema.users.firstName} LIKE ${pattern}
+              OR ${schema.users.lastName} LIKE ${pattern}
+              OR ${schema.users.email} LIKE ${pattern}
+              OR CONCAT_WS(' ', ${schema.users.firstName}, ${schema.users.lastName}) LIKE ${pattern})`;
           });
+          const condition =
+            tokenConds.length === 0
+              ? null
+              : tokenConds.length === 1
+                ? tokenConds[0]
+                : sql.join(tokenConds, sql` AND `);
           if (condition) conditions.push(condition);
         }
 

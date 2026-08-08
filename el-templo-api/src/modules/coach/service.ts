@@ -64,7 +64,7 @@ export class CoachService {
     }
 
     if (filters.search !== undefined && filters.search.trim().length > 0) {
-      const searchCond = buildMemberNameSearchCondition(filters.search, {
+      const searchCond = buildMemberNameSearchCondition(ctx, filters.search, {
         includeDni: false,
       });
       if (searchCond !== null) {
