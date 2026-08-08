@@ -22,6 +22,7 @@ import {
 } from "./schemas";
 import { MEMBER_LIFECYCLE_ROLES } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
+import { assertTenant } from "../shared/tenant";
 import { styleHeaderRow, sendExcelReply } from "../shared/excel";
 import type { SubmitProposalInput, AdminProposalsFilters } from "./types";
 
@@ -37,9 +38,7 @@ export const improvementProposalsAdminRoutes: FastifyPluginAsync = async (
   fastify.addHook("onRequest", async (request, reply) => {
     await fastify.authenticate(request, reply);
     if (
-      !(MEMBER_LIFECYCLE_ROLES as readonly string[]).includes(
-        request.user.role,
-      )
+      !(MEMBER_LIFECYCLE_ROLES as readonly string[]).includes(request.user.role)
     ) {
       return reply.code(403).send({
         error: "Acceso denegado",
@@ -139,7 +138,9 @@ export const improvementProposalsMemberRoutes: FastifyPluginAsync = async (
     { schema: submitProposalBodySchema },
     async (request, reply) => {
       try {
-        await service.submitProposal(request.user.userId, request.body);
+        await attachCountryScope(request, fastify.db);
+        const ctx = assertTenant(request.scope, "improvement-proposals.submit");
+        await service.submitProposal(ctx, request.user.userId, request.body);
         return reply.code(201).send({ ok: true });
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "submit proposal");

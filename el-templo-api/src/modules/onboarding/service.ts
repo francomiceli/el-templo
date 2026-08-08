@@ -1,10 +1,15 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import { memberProfiles, onboardingAnalytics } from "../../db/schema";
 import { users } from "../../db/schema/users";
 import type { AuraService } from "../aura/service";
 import type * as schema from "../../db/schema";
+import {
+  tenantWhere,
+  tenantValues,
+  type TenantContext,
+} from "../shared/tenant";
 import type {
   CompleteOnboardingInput,
   OnboardingProfile,
@@ -24,13 +29,19 @@ export class OnboardingService {
   ) {}
 
   async completeOnboarding(
+    ctx: TenantContext,
     input: CompleteOnboardingInput,
   ): Promise<{ profile: OnboardingProfile; auraAwarded: number }> {
     // Check if user already completed onboarding (prevent duplicates)
     const existing = await this.db
       .select({ id: memberProfiles.id })
       .from(memberProfiles)
-      .where(eq(memberProfiles.userId, input.userId))
+      .where(
+        and(
+          tenantWhere(memberProfiles, ctx),
+          eq(memberProfiles.userId, input.userId),
+        ),
+      )
       .limit(1);
 
     if (existing.length > 0) {
@@ -39,14 +50,16 @@ export class OnboardingService {
 
     // Insert profile
     const now = new Date();
-    await this.db.insert(memberProfiles).values({
-      userId: input.userId,
-      goalType: input.goalType,
-      experienceLevel: input.experienceLevel,
-      trainingFocus: input.trainingFocus,
-      motivationStyle: input.motivationStyle,
-      onboardingCompletedAt: now,
-    });
+    await this.db.insert(memberProfiles).values(
+      tenantValues(ctx, {
+        userId: input.userId,
+        goalType: input.goalType,
+        experienceLevel: input.experienceLevel,
+        trainingFocus: input.trainingFocus,
+        motivationStyle: input.motivationStyle,
+        onboardingCompletedAt: now,
+      }),
+    );
 
     // Award 50 AURA (per D-22)
     let auraAwarded = 0;
@@ -80,6 +93,7 @@ export class OnboardingService {
   }
 
   async completeOnboardingV2(
+    ctx: TenantContext,
     input: CompleteOnboardingInputV2,
   ): Promise<{ profile: OnboardingProfileV2; auraAwarded: number }> {
     // Idempotent: if the user already has a profile, overwrite it with the
@@ -88,7 +102,12 @@ export class OnboardingService {
     const existing = await this.db
       .select({ id: memberProfiles.id })
       .from(memberProfiles)
-      .where(eq(memberProfiles.userId, input.userId))
+      .where(
+        and(
+          tenantWhere(memberProfiles, ctx),
+          eq(memberProfiles.userId, input.userId),
+        ),
+      )
       .limit(1);
 
     const isRepeat = existing.length > 0;
@@ -118,9 +137,16 @@ export class OnboardingService {
       await this.db
         .update(memberProfiles)
         .set(profileValues)
-        .where(eq(memberProfiles.userId, input.userId));
+        .where(
+          and(
+            tenantWhere(memberProfiles, ctx),
+            eq(memberProfiles.userId, input.userId),
+          ),
+        );
     } else {
-      await this.db.insert(memberProfiles).values(profileValues);
+      await this.db
+        .insert(memberProfiles)
+        .values(tenantValues(ctx, profileValues));
     }
 
     // Update user level if they selected one (el_templo training background)
@@ -128,7 +154,7 @@ export class OnboardingService {
       await this.db
         .update(users)
         .set({ level: input.level })
-        .where(eq(users.id, input.userId));
+        .where(and(tenantWhere(users, ctx), eq(users.id, input.userId)));
     }
 
     // Award 50 AURA only on first completion (graceful degradation)
@@ -183,7 +209,10 @@ export class OnboardingService {
     };
   }
 
-  async getProfileV2(userId: number): Promise<OnboardingProfileV2 | null> {
+  async getProfileV2(
+    ctx: TenantContext,
+    userId: number,
+  ): Promise<OnboardingProfileV2 | null> {
     const rows = await this.db
       .select({
         ageRange: memberProfiles.ageRange,
@@ -194,7 +223,12 @@ export class OnboardingService {
         onboardingCompletedAt: memberProfiles.onboardingCompletedAt,
       })
       .from(memberProfiles)
-      .where(eq(memberProfiles.userId, userId))
+      .where(
+        and(
+          tenantWhere(memberProfiles, ctx),
+          eq(memberProfiles.userId, userId),
+        ),
+      )
       .limit(1);
 
     if (rows.length === 0 || !rows[0].avatarType) return null;
@@ -217,7 +251,10 @@ export class OnboardingService {
     };
   }
 
-  async getProfile(userId: number): Promise<OnboardingProfile | null> {
+  async getProfile(
+    ctx: TenantContext,
+    userId: number,
+  ): Promise<OnboardingProfile | null> {
     const rows = await this.db
       .select({
         goalType: memberProfiles.goalType,
@@ -227,7 +264,12 @@ export class OnboardingService {
         onboardingCompletedAt: memberProfiles.onboardingCompletedAt,
       })
       .from(memberProfiles)
-      .where(eq(memberProfiles.userId, userId))
+      .where(
+        and(
+          tenantWhere(memberProfiles, ctx),
+          eq(memberProfiles.userId, userId),
+        ),
+      )
       .limit(1);
 
     if (rows.length === 0) return null;
@@ -244,11 +286,19 @@ export class OnboardingService {
     };
   }
 
-  async hasCompletedOnboarding(userId: number): Promise<boolean> {
+  async hasCompletedOnboarding(
+    ctx: TenantContext,
+    userId: number,
+  ): Promise<boolean> {
     const rows = await this.db
       .select({ completedAt: memberProfiles.onboardingCompletedAt })
       .from(memberProfiles)
-      .where(eq(memberProfiles.userId, userId))
+      .where(
+        and(
+          tenantWhere(memberProfiles, ctx),
+          eq(memberProfiles.userId, userId),
+        ),
+      )
       .limit(1);
 
     return rows.length > 0 && rows[0].completedAt !== null;

@@ -334,7 +334,15 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       // silently skipped/swallowed: the registration still succeeds.
       if (ref) {
         try {
-          const referrerId = await referralService.resolveReferralCode(ref);
+          // T-173-08: `resolveReferralCode` necesita `ctx` (users.referral_code
+          // es UNIQUE compuesto con tenant_id — el mismo código puede existir en
+          // dos gimnasios). Ruta pública sin `request.scope`: el ctx sale de la
+          // misma fila de sede leída arriba (branchTenantId), no del body.
+          const ctx: TenantContext = { tenantId: branchTenantId };
+          const referrerId = await referralService.resolveReferralCode(
+            ctx,
+            ref,
+          );
           if (referrerId !== null && referrerId !== userId) {
             await fastify.db
               .update(users)

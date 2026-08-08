@@ -11,6 +11,8 @@
 
 import { FastifyPluginAsync } from "fastify";
 import { ReferralService } from "./service";
+import { attachCountryScope } from "../shared/country-scope";
+import { assertTenant } from "../shared/tenant";
 
 export const referralMemberRoutes: FastifyPluginAsync = async (fastify) => {
   const service = new ReferralService(fastify.db, fastify.log);
@@ -19,7 +21,11 @@ export const referralMemberRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get("/", { onRequest: [fastify.authenticate] }, async (request) => {
     // Server-derived: nunca aceptar el userId del cliente (IDOR, T-158-01).
     const { userId } = request.user;
-    return service.getReferralOverview(userId);
+    // T-173-08: `users` es tabla strict — el ctx sale de la propia fila del
+    // socio autenticado, nunca del body.
+    await attachCountryScope(request, fastify.db);
+    const ctx = assertTenant(request.scope, "referrals.overview");
+    return service.getReferralOverview(ctx, userId);
   });
 
   // POST /api/members/referrals/cta-click — A/B copy test: registra el tap en el

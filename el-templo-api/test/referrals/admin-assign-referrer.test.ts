@@ -29,7 +29,11 @@ import {
 } from "../helpers";
 import { createPlan, createMember } from "../subscriptions/_helpers";
 import { ReferralService } from "../../src/modules/referrals/service";
+import type { TenantContext } from "../../src/modules/shared/tenant";
 import * as schema from "../../src/db/schema";
+
+// T-173-08: `qualifyFirstPayment` recibe `ctx` primero.
+const CTX: TenantContext = { tenantId: 1 };
 
 const MEMBER_PASSWORD = "pass123456";
 
@@ -232,7 +236,7 @@ describe("POST /api/admin/members/:id/referrals — atribución retroactiva", ()
 
     // El hook del cobro encuentra el vínculo y lo flippea, sin saber que se
     // creó retroactivamente.
-    const flipped = await service.qualifyFirstPayment(target.id);
+    const flipped = await service.qualifyFirstPayment(CTX, target.id);
     expect(flipped?.referrerId).toBe(referrer.id);
 
     // Con ambas partes cubiertas, el descuento simétrico corre para los dos.

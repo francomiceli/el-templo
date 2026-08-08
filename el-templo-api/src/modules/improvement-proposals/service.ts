@@ -16,6 +16,7 @@ import { MySql2Database } from "drizzle-orm/mysql2";
 import { eq, and, gte, sql, desc, like, inArray, type SQL } from "drizzle-orm";
 import * as schema from "../../db/schema";
 import { BadRequestError } from "../shared/errors";
+import { tenantWhere, type TenantContext } from "../shared/tenant";
 import type {
   ProposalPromptStatus,
   SubmitProposalInput,
@@ -82,8 +83,19 @@ export class ImprovementProposalsService {
   /**
    * Registra una propuesta. La sucursal sale de users.branch_id; el límite
    * anti-spam se revalida acá (no se confía en que el cliente lo respete).
+   *
+   * T-173-08: `users` es tabla strict. Filtrar por gimnasio ACÁ **no rompe el
+   * anonimato del canal** (el copy de la app promete que la sugerencia es
+   * anónima de cara al staff): esta lectura solo resuelve `branchId` para
+   * denormalizarlo en la fila, nunca se expone el nombre/identidad del socio
+   * al staff que lee `getAdminProposals`/`getExportRows` (ver el comentario de
+   * `fetchRows` — NO joinea `users`). Sin el filtro, una propuesta podría
+   * quedar denormalizada con la sucursal de un socio de OTRO gimnasio si algún
+   * día `memberId` dejara de ser confiable — el `ctx` sale siempre de
+   * `assertTenant(request.scope, ...)` en el borde, nunca del body.
    */
   async submitProposal(
+    ctx: TenantContext,
     memberId: number,
     input: SubmitProposalInput,
   ): Promise<void> {
@@ -98,7 +110,7 @@ export class ImprovementProposalsService {
     const [user] = await this.db
       .select({ branchId: schema.users.branchId })
       .from(schema.users)
-      .where(eq(schema.users.id, memberId))
+      .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, memberId)))
       .limit(1);
     if (!user) {
       throw new BadRequestError("Usuario no encontrado");

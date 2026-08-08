@@ -7,11 +7,13 @@
  * All routes require authentication.
  */
 
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { FastifyPluginAsync } from "fastify";
 import { OnboardingService, DuplicateOnboardingError } from "./service";
 import { AuraService } from "../aura/service";
 import { users } from "../../db/schema/users";
+import { attachCountryScope } from "../shared/country-scope";
+import { assertTenant, tenantWhere } from "../shared/tenant";
 import type {
   AgeRange,
   TrainingBackground,
@@ -152,17 +154,22 @@ export const onboardingRoutes: FastifyPluginAsync = async (fastify) => {
         request.log,
       );
 
+      // T-173-08: `users` es tabla strict. El ctx sale de la propia fila del
+      // socio autenticado (attachCountryScope + assertTenant), nunca del body.
+      await attachCountryScope(request, fastify.db);
+      const ctx = assertTenant(request.scope, "onboarding.complete");
+
       // T-90-02: Read gender from DB server-side, NOT from client body
       const [userRow] = await fastify.db
         .select({ gender: users.gender })
         .from(users)
-        .where(eq(users.id, request.user.userId))
+        .where(and(tenantWhere(users, ctx), eq(users.id, request.user.userId)))
         .limit(1);
 
       const gender: Gender = userRow?.gender ?? "unspecified";
 
       try {
-        const result = await service.completeOnboardingV2({
+        const result = await service.completeOnboardingV2(ctx, {
           userId: request.user.userId,
           gender,
           ageRange: request.body.ageRange,
@@ -196,7 +203,9 @@ export const onboardingRoutes: FastifyPluginAsync = async (fastify) => {
     const auraService = new AuraService(fastify.db);
     const service = new OnboardingService(fastify.db, auraService);
 
-    const profile = await service.getProfile(request.user.userId);
+    await attachCountryScope(request, fastify.db);
+    const ctx = assertTenant(request.scope, "onboarding.profile");
+    const profile = await service.getProfile(ctx, request.user.userId);
 
     if (!profile) {
       return reply.code(204).send();

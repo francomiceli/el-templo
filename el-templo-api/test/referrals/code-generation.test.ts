@@ -11,6 +11,10 @@ import type { FastifyInstance } from "fastify";
 import { createTestApp, getAuthToken, cleanAllTestData } from "../helpers";
 import { createMember } from "../subscriptions/_helpers";
 import { ReferralService } from "../../src/modules/referrals/service";
+import type { TenantContext } from "../../src/modules/shared/tenant";
+
+// T-173-08: `resolveReferralCode` recibe `ctx` primero.
+const CTX: TenantContext = { tenantId: 1 };
 
 let app: FastifyInstance;
 let adminToken: string;
@@ -142,8 +146,8 @@ describe("ReferralService.resolveReferralCode", () => {
     const service = new ReferralService(app.db, app.log);
     const code = await service.generateReferralCode(member.id);
 
-    expect(await service.resolveReferralCode(code)).toBe(member.id);
-    expect(await service.resolveReferralCode("NOPE-9999")).toBeNull();
+    expect(await service.resolveReferralCode(CTX, code)).toBe(member.id);
+    expect(await service.resolveReferralCode(CTX, "NOPE-9999")).toBeNull();
   });
 });
 

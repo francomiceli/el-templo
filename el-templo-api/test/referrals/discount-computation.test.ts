@@ -17,6 +17,10 @@ import {
 } from "../helpers";
 import { createPlan, createMember } from "../subscriptions/_helpers";
 import { ReferralService } from "../../src/modules/referrals/service";
+import type { TenantContext } from "../../src/modules/shared/tenant";
+
+// T-173-08: `qualifyFirstPayment` recibe `ctx` primero.
+const CTX: TenantContext = { tenantId: 1 };
 
 let app: FastifyInstance;
 let adminToken: string;
@@ -145,8 +149,8 @@ describe("ReferralService.qualifyFirstPayment", () => {
     await linkQualified(referrer.id, referred.id, "pending");
 
     const service = new ReferralService(app.db, app.log);
-    await service.qualifyFirstPayment(referred.id);
-    await service.qualifyFirstPayment(referred.id); // 2da vez = no-op
+    await service.qualifyFirstPayment(CTX, referred.id);
+    await service.qualifyFirstPayment(CTX, referred.id); // 2da vez = no-op
 
     const rows = await app.db.execute(
       sql`SELECT status FROM referrals WHERE referred_id = ${referred.id}`,
@@ -160,6 +164,8 @@ describe("ReferralService.qualifyFirstPayment", () => {
   it("no-op si el payer no tiene vínculo pending", async () => {
     const other = await createMember(app, { email: "q2@test.com" });
     const service = new ReferralService(app.db, app.log);
-    await expect(service.qualifyFirstPayment(other.id)).resolves.toBeNull();
+    await expect(
+      service.qualifyFirstPayment(CTX, other.id),
+    ).resolves.toBeNull();
   });
 });

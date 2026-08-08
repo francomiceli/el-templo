@@ -1729,7 +1729,10 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       try {
         const targetId = await assertReferralTargetInScope(request);
         const referralService = new ReferralService(fastify.db, fastify.log);
-        return await referralService.getReferralOverview(targetId);
+        return await referralService.getReferralOverview(
+          assertTenant(request.scope, "referrals.overview"),
+          targetId,
+        );
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "get member referrals");
       }

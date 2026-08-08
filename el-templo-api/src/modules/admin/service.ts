@@ -23,6 +23,7 @@ import {
   parseDayId,
 } from "../shared/training-constants";
 import { syncInitiumAcrossDay } from "./initium-sync";
+import { tenantWhere, type TenantContext } from "../shared/tenant";
 
 export interface SessionFilter {
   week?: number;
@@ -70,7 +71,16 @@ export class AdminSessionService {
     this.spomService = new SpomService(db);
   }
 
-  async getSessions(filter: SessionFilter): Promise<SessionListResult> {
+  /**
+   * T-173-08: `users` es tabla strict. `approvedBy` es un LEFT JOIN a propósito
+   * (sesiones aprobadas por el sistema tienen `approvedBy IS NULL`, D-08) — el
+   * `tenantWhere` va en el `ON`, nunca en el `WHERE`: ahí convertiría el LEFT
+   * en un INNER de hecho y borraría en silencio las sesiones auto-aprobadas.
+   */
+  async getSessions(
+    ctx: TenantContext,
+    filter: SessionFilter,
+  ): Promise<SessionListResult> {
     const page = filter.page || 1;
     const limit = filter.limit || 20;
     const offset = (page - 1) * limit;
@@ -121,7 +131,13 @@ export class AdminSessionService {
         approverLastName: schema.users.lastName,
       })
       .from(schema.sessions)
-      .leftJoin(schema.users, eq(schema.sessions.approvedBy, schema.users.id))
+      .leftJoin(
+        schema.users,
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.sessions.approvedBy, schema.users.id),
+        ),
+      )
       .where(whereClause)
       .orderBy(
         filter.sortBy === "status"

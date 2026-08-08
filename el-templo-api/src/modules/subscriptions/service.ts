@@ -416,6 +416,7 @@ export class SubscriptionService {
    * cualificado ya descuente en ESTE mismo cargo si su referidor está activo.
    */
   private async qualifyReferralOnCharge(
+    ctx: TenantContext,
     payerUserId: number,
     pricePaid: number,
   ): Promise<void> {
@@ -423,7 +424,7 @@ export class SubscriptionService {
     const flipped = await new ReferralService(
       this.db,
       this.log,
-    ).qualifyFirstPayment(payerUserId);
+    ).qualifyFirstPayment(ctx, payerUserId);
 
     // Solo el flip REAL (pending→qualified) notifica; un re-cobro devuelve null
     // y no re-notifica (VIS-02/D-31). La notificación va SIEMPRE al referidor,
@@ -1531,7 +1532,7 @@ export class SubscriptionService {
     // cualifican vínculos ni reciben el descuento simétrico (el descuento es de
     // cuotas de membresía, no del pase). Guard por categoría (T-161-05).
     if (plan.planCategory !== "especial") {
-      await this.qualifyReferralOnCharge(userId, pricePaid);
+      await this.qualifyReferralOnCharge(ctx, userId, pricePaid);
       const referral = await this.computePriceWithReferralDiscount(
         userId,
         pricePaid,
@@ -3327,7 +3328,7 @@ export class SubscriptionService {
     // D-09: cambiar HACIA un plan especial no cualifica ni descuenta referidos
     // (T-161-05). Guard por la categoría del plan destino.
     if (targetPlan.planCategory !== "especial") {
-      await this.qualifyReferralOnCharge(userId, netAmount);
+      await this.qualifyReferralOnCharge(ctx, userId, netAmount);
       const referral = await this.computePriceWithReferralDiscount(
         userId,
         netAmount,
@@ -3841,7 +3842,7 @@ export class SubscriptionService {
     // D-09: cambiar HACIA un plan especial (after_current) tampoco toca referidos
     // (T-161-05). Guard por la categoría del plan destino.
     if (targetPlan.planCategory !== "especial") {
-      await this.qualifyReferralOnCharge(userId, pricePaid);
+      await this.qualifyReferralOnCharge(ctx, userId, pricePaid);
       const referral = await this.computePriceWithReferralDiscount(
         userId,
         pricePaid,
@@ -4244,7 +4245,7 @@ export class SubscriptionService {
     // renovación — no cualifican vínculos ni descuentan (T-161-05). Guard por
     // categoría del plan de la sub renovada.
     if (plan.planCategory !== "especial") {
-      await this.qualifyReferralOnCharge(userId, renewalPrice);
+      await this.qualifyReferralOnCharge(ctx, userId, renewalPrice);
       const referral = await this.computePriceWithReferralDiscount(
         userId,
         renewalPrice,

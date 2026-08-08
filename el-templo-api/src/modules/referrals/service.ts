@@ -37,7 +37,11 @@ import {
   ConflictError,
   NotFoundError,
 } from "../shared/errors";
-import { tenantValues, tenantWhere } from "../shared/tenant";
+import {
+  tenantValues,
+  tenantWhere,
+  type TenantContext,
+} from "../shared/tenant";
 import { referralCopyVariant } from "./ab-variant";
 import type {
   ReferralAssignmentResult,
@@ -83,12 +87,20 @@ export class ReferralService {
    *
    * Tras agotar los reintentos lanza — la política de fallo del alta la decide el
    * llamador (plan 03, best-effort), no este método.
+   *
+   * T-173-08: `users` es tabla strict pero este método no recibe `ctx`
+   * externo — sus 2 call sites (`auth/routes.ts` en el autorregistro público,
+   * `members/service.ts` en el alta admin) son archivos ajenos de otras fases
+   * (173-15/173-19, D-02 no infla el alcance). El `userId` es siempre el PK
+   * propio del socio recién creado (nunca un filtro de lista), así que el
+   * guard `isNotNull(tenantId)` es el mismo fail-closed contra corrupción de
+   * datos que usa `country-scope.ts`, sin inventar una quinta fuente de ctx.
    */
   async generateReferralCode(userId: number): Promise<string> {
     const [row] = await this.db
       .select({ code: users.referralCode, firstName: users.firstName })
       .from(users)
-      .where(eq(users.id, userId))
+      .where(and(eq(users.id, userId), isNotNull(users.tenantId)))
       .limit(1);
 
     if (!row) {
@@ -105,7 +117,7 @@ export class ReferralService {
         await this.db
           .update(users)
           .set({ referralCode: code })
-          .where(eq(users.id, userId));
+          .where(and(eq(users.id, userId), isNotNull(users.tenantId)));
         return code;
       } catch (err: unknown) {
         if (isDuplicateKeyError(err)) {
@@ -124,12 +136,26 @@ export class ReferralService {
     );
   }
 
-  /** Devuelve el userId dueño del code, o null si no existe. */
-  async resolveReferralCode(code: string): Promise<number | null> {
+  /**
+   * Devuelve el userId dueño del code, o null si no existe.
+   *
+   * T-173-08: `referral_code` es UNIQUE COMPUESTO `(tenant_id, referral_code)`
+   * (`uq_users_tenant_referral_code`) — el mismo código puede existir en DOS
+   * gimnasios distintos. Sin `tenantWhere` acá, un code que colisione entre
+   * gimnasios podría resolver al socio del gimnasio EQUIVOCADO (no es solo
+   * un gate: es un bug de atribución real). El único llamador es el
+   * autorregistro público (`auth/routes.ts`), que ya resuelve `branchTenantId`
+   * de la sede elegida antes de esta llamada (trampa (f): ruta pública sin
+   * `request.scope`, el ctx sale de la fila de sede leída, nunca del body).
+   */
+  async resolveReferralCode(
+    ctx: TenantContext,
+    code: string,
+  ): Promise<number | null> {
     const [row] = await this.db
       .select({ id: users.id })
       .from(users)
-      .where(eq(users.referralCode, code))
+      .where(and(tenantWhere(users, ctx), eq(users.referralCode, code)))
       .limit(1);
     return row?.id ?? null;
   }
@@ -237,7 +263,14 @@ export class ReferralService {
    * (`deriveCoveredUntil` de la contraparte vs today, D-09/D-24/D-28), NUNCA
    * `users.status`. Los vínculos `revoked` se excluyen.
    */
-  async getReferralOverview(userId: number): Promise<ReferralOverview> {
+  // T-173-08: `ctx` PRIMERO (D-01/D-02) - el nombre de la contraparte sale de
+  // `users`, tabla strict; sin filtro, la ficha de un socio podria mostrar el
+  // nombre de un homonimo de OTRO gimnasio si `referrals` (no strict todavia)
+  // alguna vez enlazara ids cruzados.
+  async getReferralOverview(
+    ctx: TenantContext,
+    userId: number,
+  ): Promise<ReferralOverview> {
     const referralCode = await this.generateReferralCode(userId);
 
     // Vínculos no-revoked en cualquiera de las dos direcciones.
@@ -289,7 +322,7 @@ export class ReferralService {
       const [cp] = await this.db
         .select({ firstName: users.firstName, lastName: users.lastName })
         .from(users)
-        .where(eq(users.id, counterpartyId))
+        .where(and(tenantWhere(users, ctx), eq(users.id, counterpartyId)))
         .limit(1);
       const fullName = [cp?.firstName, cp?.lastName]
         .filter(Boolean)
@@ -336,8 +369,15 @@ export class ReferralService {
    * si no hubo pending que flippear (re-cobro o sin vínculo) — así el hook de
    * notificación dispara UNA sola vez, en el flip real. El SELECT previo NO altera
    * la mecánica del UPDATE (157 congelada): la cláusula del UPDATE es idéntica.
+   *
+   * T-173-08: `ctx` PRIMERO (D-01/D-02) — `users` es tabla strict, el
+   * `tenantWhere` va en el `ON` del `innerJoin` (D-08). El único llamador es
+   * `qualifyReferralOnCharge` (subscriptions/service.ts), que YA tiene `ctx`
+   * en sus 4 charge-paths (assignPlan/changePlanNow/changePlanAfterCurrent/
+   * renewSubscription).
    */
   async qualifyFirstPayment(
+    ctx: TenantContext,
     payerUserId: number,
   ): Promise<{ referrerId: number; referredFirstName: string } | null> {
     // SELECT previo del vínculo pending (con el firstName del payer/referido)
@@ -348,7 +388,10 @@ export class ReferralService {
         referredFirstName: users.firstName,
       })
       .from(referrals)
-      .innerJoin(users, eq(users.id, referrals.referredId))
+      .innerJoin(
+        users,
+        and(tenantWhere(users, ctx), eq(users.id, referrals.referredId)),
+      )
       .where(
         and(
           eq(referrals.referredId, payerUserId),
@@ -418,10 +461,20 @@ export class ReferralService {
       );
     }
 
+    // T-173-08: `users` es tabla strict. `tenantWhere` acá es lo que impide
+    // que un admin de OTRO gimnasio asigne como referidor a un socio de un
+    // gimnasio distinto — sin este filtro, `referrerId` era un id sin dueño
+    // (cualquier fila de `users` calificaba).
     const [referrer] = await this.db
       .select({ id: users.id })
       .from(users)
-      .where(and(eq(users.id, referrerId), isNull(users.deletedAt)))
+      .where(
+        and(
+          tenantWhere(users, { tenantId }),
+          eq(users.id, referrerId),
+          isNull(users.deletedAt),
+        ),
+      )
       .limit(1);
     if (!referrer) {
       throw new NotFoundError("El socio que figura como referidor no existe");
@@ -481,7 +534,7 @@ export class ReferralService {
     await this.db
       .update(users)
       .set({ referredBy: referrerId })
-      .where(eq(users.id, referredId));
+      .where(and(tenantWhere(users, { tenantId }), eq(users.id, referredId)));
 
     this.log.info(
       { referredId, referrerId, status, createdBy },
@@ -553,6 +606,7 @@ export class ReferralService {
    */
   async getAbTestResults(): Promise<ReferralAbResults> {
     // Expuestos por variante: paridad del id del socio activo.
+    /* tenant-safe: A/B test global de todo el sistema de referidos (docblock de referrals/admin-routes.ts: "superficie de LECTURA global, no per-gimnasio"); acotarlo por gimnasio cambiaria lo que la metrica mide */
     const exposedRows = await this.db
       .select({
         variant: sql<string>`CASE WHEN ${users.id} % 2 = 0 THEN 'A' ELSE 'B' END`,
