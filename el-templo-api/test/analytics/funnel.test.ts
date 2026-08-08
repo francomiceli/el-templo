@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   createTestApp,
   getAuthToken,
@@ -14,7 +14,10 @@ import { userStatusHistory } from "../../src/db/schema/user-status-history";
 import { subscriptions } from "../../src/db/schema/subscriptions";
 import { subscriptionPlans } from "../../src/db/schema/subscription-plans";
 import { branches } from "../../src/db/schema/branches";
-import { type TenantContext } from "../../src/modules/shared/tenant";
+import {
+  tenantWhere,
+  type TenantContext,
+} from "../../src/modules/shared/tenant";
 import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 
 const ANALYTICS_URL = "/api/admin/analytics";
@@ -106,7 +109,7 @@ describe("FunnelService (Phase 118 Plan 04)", () => {
     await app.db
       .update(users)
       .set({ createdAt: new Date(createdAt) })
-      .where(eq(users.id, userId));
+      .where(and(tenantWhere(users, CTX), eq(users.id, userId)));
     return userId;
   }
 

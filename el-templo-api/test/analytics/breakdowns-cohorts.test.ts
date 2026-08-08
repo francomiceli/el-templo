@@ -75,7 +75,9 @@ describe("breakdowns + cohorts primitives (Phase 120 Plan 03)", () => {
     const [admin] = await app.db
       .select({ id: users.id })
       .from(users)
-      .where(eq(users.email, "admin@test.com"));
+      .where(
+        and(tenantWhere(users, TEMPLO_CTX), eq(users.email, "admin@test.com")),
+      );
     recorderId = admin.id;
   });
 

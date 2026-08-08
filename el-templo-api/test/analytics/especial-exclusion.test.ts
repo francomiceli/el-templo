@@ -22,7 +22,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   createTestApp,
   getAuthToken,
@@ -34,6 +34,7 @@ import { MemberFlowsService } from "../../src/modules/analytics/member-flows-ser
 import { TicketService } from "../../src/modules/analytics/ticket-service";
 import {
   tenantValues,
+  tenantWhere,
   type TenantContext,
 } from "../../src/modules/shared/tenant";
 import { subscriptions } from "../../src/db/schema/subscriptions";
@@ -79,7 +80,7 @@ describe("D-11 — exclusión del pase especial de las métricas de membresía",
     const [admin] = await app.db
       .select({ id: users.id })
       .from(users)
-      .where(eq(users.email, "admin@test.com"));
+      .where(and(tenantWhere(users, CTX), eq(users.email, "admin@test.com")));
     recorderId = admin.id;
   });
 

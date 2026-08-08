@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   createTestApp,
   getAuthToken,
@@ -29,7 +29,7 @@ import type { MemberSegment } from "../../src/modules/segmentation/types";
 import { sql } from "drizzle-orm";
 import { activeMemberExists } from "../../src/modules/shared/active-member";
 import { TENANT_TEMPLO } from "../fixtures/second-tenant";
-import { tenantValues } from "../../src/modules/shared/tenant";
+import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
 
 /**
  * Fase 172: `finance` entra en `TENANT_STRICT_MODULES`, asi que todo INSERT de
@@ -76,7 +76,9 @@ describe("Analytics API", () => {
     const [adminUser] = await app.db
       .select({ id: users.id })
       .from(users)
-      .where(eq(users.email, "admin@test.com"));
+      .where(
+        and(tenantWhere(users, TEMPLO_CTX), eq(users.email, "admin@test.com")),
+      );
     adminUserId = adminUser.id;
 
     const [branch] = await app.db
@@ -225,7 +227,12 @@ describe("Analytics API", () => {
       const [row] = await app.db
         .select({ count: sql<number>`COUNT(*)` })
         .from(users)
-        .where(sql`${users.role} = 'member' AND ${predicate}`);
+        .where(
+          and(
+            tenantWhere(users, TEMPLO_CTX),
+            sql`${users.role} = 'member' AND ${predicate}`,
+          ),
+        );
       return Number(row?.count ?? 0);
     }
 
@@ -266,7 +273,7 @@ describe("Analytics API", () => {
       await app.db
         .update(users)
         .set({ status: "activo" })
-        .where(eq(users.id, member.id));
+        .where(and(tenantWhere(users, TEMPLO_CTX), eq(users.id, member.id)));
 
       const count = await countActiveViaHelper();
       expect(count).toBe(0);

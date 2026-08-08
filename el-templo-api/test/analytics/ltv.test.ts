@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import {
   createTestApp,
   getAuthToken,
@@ -10,6 +10,7 @@ import {
 import { LtvService } from "../../src/modules/analytics/ltv-service";
 import {
   tenantValues,
+  tenantWhere,
   type TenantContext,
 } from "../../src/modules/shared/tenant";
 import { ChurnService } from "../../src/modules/analytics/churn-service";
@@ -93,7 +94,7 @@ describe("LtvService (Phase 122 Plan 03)", () => {
     const [admin] = await app.db
       .select({ id: users.id })
       .from(users)
-      .where(eq(users.email, "admin@test.com"));
+      .where(and(tenantWhere(users, CTX), eq(users.email, "admin@test.com")));
     recorderId = admin.id;
   });
 

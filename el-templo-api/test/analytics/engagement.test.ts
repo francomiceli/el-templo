@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   createTestApp,
   getAuthToken,
@@ -15,7 +15,10 @@ import { subscriptions } from "../../src/db/schema/subscriptions";
 import { subscriptionPlans } from "../../src/db/schema/subscription-plans";
 import { branches } from "../../src/db/schema/branches";
 import type { MemberSegment } from "../../src/modules/segmentation/types";
-import { type TenantContext } from "../../src/modules/shared/tenant";
+import {
+  tenantWhere,
+  type TenantContext,
+} from "../../src/modules/shared/tenant";
 import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 
 const ANALYTICS_URL = "/api/admin/analytics";
@@ -249,11 +252,11 @@ describe("EngagementService (Phase 117 Plan 04)", () => {
       await app.db
         .update(usersTable)
         .set({ lastName: "Aaa" })
-        .where(eq(usersTable.id, alerta));
+        .where(and(tenantWhere(usersTable, CTX), eq(usersTable.id, alerta)));
       await app.db
         .update(usersTable)
         .set({ lastName: "Bbb" })
-        .where(eq(usersTable.id, ausente));
+        .where(and(tenantWhere(usersTable, CTX), eq(usersTable.id, ausente)));
 
       await setSegment(alerta, "alerta");
       await setSegment(ausente, "ausente");

@@ -28,7 +28,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import {
   createTestApp,
   getAuthToken,
@@ -40,7 +40,10 @@ import { subscriptions } from "../../src/db/schema/subscriptions";
 import { subscriptionPlans } from "../../src/db/schema/subscription-plans";
 import { branches } from "../../src/db/schema/branches";
 import { users } from "../../src/db/schema/users";
-import { type TenantContext } from "../../src/modules/shared/tenant";
+import {
+  tenantWhere,
+  type TenantContext,
+} from "../../src/modules/shared/tenant";
 import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 
 const ANALYTICS_URL = "/api/admin/analytics";
@@ -300,7 +303,7 @@ describe("MemberFlowsService (altas vs bajas + detalle)", () => {
     await app.db
       .update(users)
       .set({ createdAt: sql`DATE_SUB(NOW(), INTERVAL 100 DAY)` })
-      .where(eq(users.id, imported));
+      .where(and(tenantWhere(users, CTX), eq(users.id, imported)));
     // Sub importada "invertida" como las de prod: startDate placeholder
     // reciente, endDate histórico real.
     await insertSub({
@@ -328,7 +331,7 @@ describe("MemberFlowsService (altas vs bajas + detalle)", () => {
     await app.db
       .update(users)
       .set({ createdAt: sql`DATE_SUB(NOW(), INTERVAL 300 DAY)` })
-      .where(eq(users.id, importedActive));
+      .where(and(tenantWhere(users, CTX), eq(users.id, importedActive)));
     // Período vigente al importar (fechas reales) + renovación encadenada
     // post-importación.
     await insertSub({
@@ -356,7 +359,7 @@ describe("MemberFlowsService (altas vs bajas + detalle)", () => {
     await app.db
       .update(users)
       .set({ createdAt: sql`DATE_SUB(NOW(), INTERVAL 300 DAY)` })
-      .where(eq(users.id, rejoiner));
+      .where(and(tenantWhere(users, CTX), eq(users.id, rejoiner)));
     // Último período del sistema viejo: venció hace 90 días.
     await insertSub({
       userId: rejoiner,
@@ -391,7 +394,7 @@ describe("MemberFlowsService (altas vs bajas + detalle)", () => {
     await app.db
       .update(users)
       .set({ createdAt: sql`DATE_SUB(NOW(), INTERVAL 400 DAY)` })
-      .where(eq(users.id, churner));
+      .where(and(tenantWhere(users, CTX), eq(users.id, churner)));
     await insertSub({
       userId: churner,
       startDate: await dateOffset(-100),

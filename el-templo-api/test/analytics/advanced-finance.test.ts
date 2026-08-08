@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   createTestApp,
   getAuthToken,
@@ -11,6 +11,7 @@ import {
 import { AdvancedFinanceService } from "../../src/modules/analytics/advanced-finance-service";
 import {
   tenantValues,
+  tenantWhere,
   type TenantContext,
 } from "../../src/modules/shared/tenant";
 import { financialTransactions } from "../../src/db/schema/financial-transactions";
@@ -73,7 +74,7 @@ describe("AdvancedFinanceService (Phase 118 Plan 03)", () => {
     const [admin] = await app.db
       .select({ id: users.id })
       .from(users)
-      .where(eq(users.email, "admin@test.com"));
+      .where(and(tenantWhere(users, CTX), eq(users.email, "admin@test.com")));
     recorderId = admin.id;
   });
 

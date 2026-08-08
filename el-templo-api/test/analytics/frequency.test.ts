@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   createTestApp,
   getAuthToken,
@@ -16,7 +16,10 @@ import { branches } from "../../src/db/schema/branches";
 import { attendance } from "../../src/db/schema/attendance";
 import { schedules } from "../../src/db/schema/schedules";
 import { activities } from "../../src/db/schema/activities";
-import { type TenantContext } from "../../src/modules/shared/tenant";
+import {
+  tenantWhere,
+  type TenantContext,
+} from "../../src/modules/shared/tenant";
 import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 
 const ANALYTICS_URL = "/api/admin/analytics";
@@ -129,7 +132,10 @@ describe("FrequencyService (Phase 123 Plan 01)", () => {
       branchId,
     });
     const userId = (result.user as { id: number }).id;
-    await app.db.update(users).set({ createdAt }).where(eq(users.id, userId));
+    await app.db
+      .update(users)
+      .set({ createdAt })
+      .where(and(tenantWhere(users, CTX), eq(users.id, userId)));
     return userId;
   }
 
@@ -366,7 +372,7 @@ describe("FrequencyService (Phase 123 Plan 01)", () => {
     await app.db
       .update(users)
       .set({ firstName: "Carla", lastName: "Gomez", phone: "+5491155551234" })
-      .where(eq(users.id, u));
+      .where(and(tenantWhere(users, CTX), eq(users.id, u)));
 
     const result = await svc.getFrequency(CTX, {});
 
@@ -378,7 +384,10 @@ describe("FrequencyService (Phase 123 Plan 01)", () => {
 
   it("returns phone: null (not undefined, not '') for a member with NULL phone (D-12)", async () => {
     const u = await makeCoolingMember("freq-d12-nullphone@test.com");
-    await app.db.update(users).set({ phone: null }).where(eq(users.id, u));
+    await app.db
+      .update(users)
+      .set({ phone: null })
+      .where(and(tenantWhere(users, CTX), eq(users.id, u)));
 
     const result = await svc.getFrequency(CTX, {});
 
