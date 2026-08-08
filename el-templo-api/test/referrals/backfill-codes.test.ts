@@ -11,6 +11,9 @@ import type { FastifyInstance } from "fastify";
 import { createTestApp, getAuthToken, cleanAllTestData } from "../helpers";
 import { createMember } from "../subscriptions/_helpers";
 import { backfillReferralCodes } from "../../src/scripts/backfill-referral-codes";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 let app: FastifyInstance;
 
@@ -58,7 +61,9 @@ describe("backfillReferralCodes", () => {
     await clearCode(a.id);
     await clearCode(b.id);
 
-    const result = await backfillReferralCodes(app.db, { apply: true });
+    const result = await backfillReferralCodes(app.db, TEMPLO_CTX, {
+      apply: true,
+    });
 
     expect(result.assigned).toBeGreaterThanOrEqual(2);
     expect(result.errors).toBe(0);
@@ -73,10 +78,12 @@ describe("backfillReferralCodes", () => {
     });
     await clearCode(m.id);
 
-    await backfillReferralCodes(app.db, { apply: true });
+    await backfillReferralCodes(app.db, TEMPLO_CTX, { apply: true });
     const codeAfterFirst = await readCode(m.id);
 
-    const second = await backfillReferralCodes(app.db, { apply: true });
+    const second = await backfillReferralCodes(app.db, TEMPLO_CTX, {
+      apply: true,
+    });
     const codeAfterSecond = await readCode(m.id);
 
     expect(codeAfterSecond).toBe(codeAfterFirst);
@@ -98,7 +105,7 @@ describe("backfillReferralCodes", () => {
     });
     await clearCode(without.id);
 
-    await backfillReferralCodes(app.db, { apply: true });
+    await backfillReferralCodes(app.db, TEMPLO_CTX, { apply: true });
 
     expect(await readCode(withCode.id)).toBe("PREEXIST-1");
     expect(await readCode(without.id)).toMatch(/^[A-Z]+-[A-Z0-9]+$/);
@@ -111,7 +118,9 @@ describe("backfillReferralCodes", () => {
     });
     await clearCode(m.id);
 
-    const result = await backfillReferralCodes(app.db, { apply: false });
+    const result = await backfillReferralCodes(app.db, TEMPLO_CTX, {
+      apply: false,
+    });
 
     expect(result.candidates).toBeGreaterThanOrEqual(1);
     expect(result.assigned).toBe(0);

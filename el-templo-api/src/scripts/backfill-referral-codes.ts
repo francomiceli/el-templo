@@ -21,8 +21,15 @@
  *   pnpm tsx src/scripts/backfill-referral-codes.ts --apply    # real
  *
  * Usage (server, post-deploy):
- *   NODE_ENV=production node dist/scripts/backfill-referral-codes.js
- *   NODE_ENV=production node dist/scripts/backfill-referral-codes.js --apply
+ *   NODE_ENV=production node dist/scripts/backfill-referral-codes.js --tenant=<id>
+ *   NODE_ENV=production node dist/scripts/backfill-referral-codes.js --tenant=<id> --apply
+ *
+ * `--tenant=<id>` es OBLIGATORIO (fase 169 D-06, retrofit fase 173 D-03): este
+ * barrido lee `users` en batch sin request y sin JWT, así que el gimnasio sólo
+ * puede venir del flag. Es semánticamente distinto de un cron: corre POR
+ * GIMNASIO (`tenantWhere` inline), no sobre todos a la vez — el operador lo
+ * corre una vez por gimnasio, adrede (no es un `forEachActiveTenant`, ese es
+ * el criterio de los crons).
  *
  * EXECUTED IN PROD: <FILL DATE WHEN APPLIED>
  */
@@ -30,12 +37,18 @@
 import "dotenv/config";
 import { drizzle } from "drizzle-orm/mysql2";
 import type { MySql2Database } from "drizzle-orm/mysql2";
-import { isNull } from "drizzle-orm";
+import { and, isNull } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import { createSingleConnection } from "../db/index";
 import * as schema from "../db/schema";
 import { users } from "../db/schema";
 import { ReferralService } from "../modules/referrals/service";
+import {
+  failTenantArg,
+  queryFnFromConnection,
+  requireTenant,
+} from "../db/scripts/require-tenant";
+import { tenantWhere, type TenantContext } from "../modules/shared/tenant";
 
 type DbInstance = MySql2Database<typeof schema>;
 
@@ -63,6 +76,7 @@ export interface BackfillResult {
  */
 export async function backfillReferralCodes(
   db: DbInstance,
+  ctx: TenantContext,
   options: { apply: boolean },
 ): Promise<BackfillResult> {
   const service = new ReferralService(db, scriptLog);
@@ -70,7 +84,7 @@ export async function backfillReferralCodes(
   const rows = await db
     .select({ id: users.id })
     .from(users)
-    .where(isNull(users.referralCode));
+    .where(and(tenantWhere(users, ctx), isNull(users.referralCode)));
 
   const candidates = rows.length;
   if (!options.apply) {
@@ -105,10 +119,16 @@ async function main(): Promise<void> {
   console.log(`Timestamp: ${new Date().toISOString()}\n`);
 
   const { connection } = await createSingleConnection();
+
+  // Gimnasio: ANTES de cualquier query (fase 169 D-06, retrofit 173 D-03).
+  // Corta con exit 2 sin haber tocado la base.
+  const ctx = await requireTenant(queryFnFromConnection(connection));
+  console.log(`Tenant: ${ctx.tenantId}`);
+
   const db = drizzle(connection, { schema, mode: "default" });
 
   try {
-    const result = await backfillReferralCodes(db, { apply });
+    const result = await backfillReferralCodes(db, ctx, { apply });
     if (!apply) {
       console.log(
         `Socios sin código: ${result.candidates}. Re-correr con --apply para persistir.\n`,
@@ -127,8 +147,5 @@ async function main(): Promise<void> {
 // Solo corre el CLI al ejecutarse directo; los tests importan las funciones sin
 // disparar la conexión (VITEST lo setea el runner).
 if (!process.env.VITEST) {
-  main().catch((err) => {
-    console.error("\n✗ FATAL:", err instanceof Error ? err.message : err);
-    process.exit(1);
-  });
+  main().catch((err: unknown) => failTenantArg(err, "backfill-referral-codes"));
 }
