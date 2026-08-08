@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import {
   createTestApp,
   getAuthToken,
@@ -21,6 +21,15 @@ import {
   assignPlan,
   todayStr,
 } from "./_helpers";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+import { tenantWhere } from "../../src/modules/shared/tenant";
+
+/**
+ * Fase 173 (ADO-02): gimnasio de la escritura DIRECTA de `users` en este
+ * archivo. Con `members` en TENANT_STRICT_MODULES un UPDATE sin filtro hace
+ * throw antes de llegar a MySQL.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 describe("Subscriptions API — PATCH /:id/schedules (change fixed turnos)", () => {
   let app: FastifyInstance;
@@ -413,7 +422,7 @@ describe("Subscriptions API — PATCH /:id/schedules (change fixed turnos)", () 
     await app.db
       .update(users)
       .set({ role: "coach" })
-      .where(eq(users.email, coachEmail));
+      .where(and(tenantWhere(users, TEMPLO_CTX), eq(users.email, coachEmail)));
     const coachToken = await getAuthToken(app, coachEmail, "coach12345");
 
     const { statusCode } = await patchSchedules(

@@ -28,11 +28,19 @@ import {
   vi,
 } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import argon2 from "argon2";
 import * as schema from "../../src/db/schema";
 import { createTestApp, cleanAllTestData } from "../helpers";
 import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+import { tenantWhere } from "../../src/modules/shared/tenant";
+
+/**
+ * Fase 173 (ADO-02): gimnasio de las lecturas DIRECTAS de este archivo. Con
+ * `members` en TENANT_STRICT_MODULES una lectura de `users` /
+ * `user_status_history` sin estampa hace throw antes de llegar a MySQL.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 import { SubscriptionService } from "../../src/modules/subscriptions/service";
 import { AuraService } from "../../src/modules/aura";
 import {
@@ -124,7 +132,12 @@ describe("Phase 117-02 — user_status_history forward-only hook", () => {
     return app.db
       .select()
       .from(schema.userStatusHistory)
-      .where(eq(schema.userStatusHistory.userId, userId));
+      .where(
+        and(
+          tenantWhere(schema.userStatusHistory, TEMPLO_CTX),
+          eq(schema.userStatusHistory.userId, userId),
+        ),
+      );
   }
 
   beforeAll(async () => {
@@ -228,7 +241,9 @@ describe("Phase 117-02 — user_status_history forward-only hook", () => {
     const [u] = await app.db
       .select({ status: schema.users.status })
       .from(schema.users)
-      .where(eq(schema.users.id, userId));
+      .where(
+        and(tenantWhere(schema.users, TEMPLO_CTX), eq(schema.users.id, userId)),
+      );
     expect(u?.status).toBe("freemium");
 
     spy.mockRestore();

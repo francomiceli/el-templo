@@ -36,6 +36,15 @@ import {
   todayStr,
   dateOffsetStr,
 } from "./_helpers";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+import { tenantWhere } from "../../src/modules/shared/tenant";
+
+/**
+ * Fase 173 (ADO-02): gimnasio de las queries DIRECTAS de `users` en este
+ * archivo. Con `members` en TENANT_STRICT_MODULES una lectura/escritura sin
+ * estampa hace throw antes de llegar a MySQL.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 describe("Bundle Todos los Programas (Phase 104 R3+R4 + checker fixes)", () => {
   let app: FastifyInstance;
@@ -338,7 +347,9 @@ describe("Bundle Todos los Programas (Phase 104 R3+R4 + checker fixes)", () => {
     await app.db
       .update(users)
       .set({ currentProgramEnrollmentId: pointerEnrollmentId })
-      .where(eq(users.id, member.id as number));
+      .where(
+        and(tenantWhere(users, TEMPLO_CTX), eq(users.id, member.id as number)),
+      );
 
     // Cancel via HTTP endpoint
     const cancelRes = await app.inject({
@@ -366,7 +377,9 @@ describe("Bundle Todos los Programas (Phase 104 R3+R4 + checker fixes)", () => {
         currentProgramEnrollmentId: users.currentProgramEnrollmentId,
       })
       .from(users)
-      .where(eq(users.id, member.id as number));
+      .where(
+        and(tenantWhere(users, TEMPLO_CTX), eq(users.id, member.id as number)),
+      );
     expect(u.currentProgramEnrollmentId).toBeNull();
   });
 
@@ -475,7 +488,9 @@ describe("Bundle Todos los Programas (Phase 104 R3+R4 + checker fixes)", () => {
     await app.db
       .update(users)
       .set({ currentProgramEnrollmentId: p1Enrollment.id })
-      .where(eq(users.id, member.id as number));
+      .where(
+        and(tenantWhere(users, TEMPLO_CTX), eq(users.id, member.id as number)),
+      );
 
     // Trigger autoExpireSubscriptions by reading the member subscription.
     // The bundle has endDate=yesterday → marked expired → teardown invoked.
@@ -516,7 +531,9 @@ describe("Bundle Todos los Programas (Phase 104 R3+R4 + checker fixes)", () => {
         currentProgramEnrollmentId: users.currentProgramEnrollmentId,
       })
       .from(users)
-      .where(eq(users.id, member.id as number));
+      .where(
+        and(tenantWhere(users, TEMPLO_CTX), eq(users.id, member.id as number)),
+      );
     expect(u.currentProgramEnrollmentId).toBe(p1Enrollment.id);
   });
 
@@ -559,7 +576,9 @@ describe("Bundle Todos los Programas (Phase 104 R3+R4 + checker fixes)", () => {
     await app.db
       .update(users)
       .set({ currentProgramEnrollmentId: pointerEnrollmentId })
-      .where(eq(users.id, member.id as number));
+      .where(
+        and(tenantWhere(users, TEMPLO_CTX), eq(users.id, member.id as number)),
+      );
 
     // Force-expire by directly UPDATE-ing endDate to yesterday
     const yesterday = dateOffsetStr(-1);
@@ -592,7 +611,9 @@ describe("Bundle Todos los Programas (Phase 104 R3+R4 + checker fixes)", () => {
         currentProgramEnrollmentId: users.currentProgramEnrollmentId,
       })
       .from(users)
-      .where(eq(users.id, member.id as number));
+      .where(
+        and(tenantWhere(users, TEMPLO_CTX), eq(users.id, member.id as number)),
+      );
     expect(u.currentProgramEnrollmentId).toBeNull();
   });
 
@@ -646,7 +667,9 @@ describe("Bundle Todos los Programas (Phase 104 R3+R4 + checker fixes)", () => {
     await app.db
       .update(users)
       .set({ currentProgramEnrollmentId: pointerEnrollmentId })
-      .where(eq(users.id, member.id as number));
+      .where(
+        and(tenantWhere(users, TEMPLO_CTX), eq(users.id, member.id as number)),
+      );
 
     // Change plan (default startMode = "now")
     const changeRes = await app.inject({
@@ -690,7 +713,9 @@ describe("Bundle Todos los Programas (Phase 104 R3+R4 + checker fixes)", () => {
         currentProgramEnrollmentId: users.currentProgramEnrollmentId,
       })
       .from(users)
-      .where(eq(users.id, member.id as number));
+      .where(
+        and(tenantWhere(users, TEMPLO_CTX), eq(users.id, member.id as number)),
+      );
     expect(u.currentProgramEnrollmentId).toBeNull();
   });
 

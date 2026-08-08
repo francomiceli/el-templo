@@ -200,7 +200,12 @@ beforeAll(async () => {
       lastName: schema.users.lastName,
     })
     .from(schema.users)
-    .where(eq(schema.users.email, "admin@test.com"))
+    .where(
+      and(
+        tenantWhere(schema.users, TEMPLO_CTX),
+        eq(schema.users.email, "admin@test.com"),
+      ),
+    )
     .limit(1);
   adminId = admin.id;
   branchId = admin.branchId ?? 1;
@@ -312,7 +317,9 @@ beforeEach(async () => {
   await app.db.execute(
     sql`DELETE FROM balances WHERE tenant_id = ${TENANT_TEMPLO}`,
   );
-  await app.db.execute(sql`DELETE FROM audit_log`);
+  await app.db.execute(
+    sql`DELETE FROM audit_log WHERE tenant_id = ${TEMPLO_CTX.tenantId}`,
+  );
   subscriptionId = await seedSubscription();
 });
 

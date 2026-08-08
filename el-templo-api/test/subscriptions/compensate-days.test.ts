@@ -13,6 +13,15 @@ import {
   assignPlan,
   dateOffsetStr,
 } from "./_helpers";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+import { tenantWhere } from "../../src/modules/shared/tenant";
+
+/**
+ * Fase 173 (ADO-02): gimnasio de la lectura de evidencia de `audit_log` en
+ * este archivo. Con `members` en TENANT_STRICT_MODULES una lectura sin
+ * estampa hace throw antes de llegar a MySQL.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 describe("Subscriptions API — POST /:id/compensate-days (pausa retroactiva)", () => {
   let app: FastifyInstance;
@@ -94,6 +103,7 @@ describe("Subscriptions API — POST /:id/compensate-days (pausa retroactiva)", 
       .from(schema.auditLog)
       .where(
         and(
+          tenantWhere(schema.auditLog, TEMPLO_CTX),
           eq(schema.auditLog.action, "days_compensated"),
           eq(schema.auditLog.targetKind, "subscription"),
           eq(schema.auditLog.targetId, subId),

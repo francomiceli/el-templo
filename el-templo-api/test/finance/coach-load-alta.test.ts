@@ -131,7 +131,7 @@ async function readUser(
   const [row] = await app.db
     .select({ status: schema.users.status, email: schema.users.email })
     .from(schema.users)
-    .where(eq(schema.users.id, id))
+    .where(and(tenantWhere(schema.users, TEMPLO_CTX), eq(schema.users.id, id)))
     .limit(1);
   return row ?? null;
 }
@@ -141,7 +141,9 @@ async function countUsersByDni(dni: string): Promise<number> {
   const [row] = await app.db
     .select({ count: sql<number>`COUNT(*)` })
     .from(schema.users)
-    .where(eq(schema.users.dni, dni));
+    .where(
+      and(tenantWhere(schema.users, TEMPLO_CTX), eq(schema.users.dni, dni)),
+    );
   return Number(row?.count ?? 0);
 }
 
@@ -200,7 +202,12 @@ beforeAll(async () => {
   const [admin] = await app.db
     .select({ id: schema.users.id, branchId: schema.users.branchId })
     .from(schema.users)
-    .where(eq(schema.users.email, "admin@test.com"))
+    .where(
+      and(
+        tenantWhere(schema.users, TEMPLO_CTX),
+        eq(schema.users.email, "admin@test.com"),
+      ),
+    )
     .limit(1);
   branchId = admin.branchId ?? 1;
   adminToken = await getAuthToken(app, "admin@test.com", "adminpass123");
@@ -342,6 +349,7 @@ describe("alta crear-nuevo", () => {
       .from(schema.userStatusHistory)
       .where(
         and(
+          tenantWhere(schema.userStatusHistory, TEMPLO_CTX),
           eq(schema.userStatusHistory.userId, body.createdMemberId),
           eq(schema.userStatusHistory.toStatus, "prueba"),
         ),
@@ -574,6 +582,7 @@ describe("alta void→cascade", () => {
       .from(schema.userStatusHistory)
       .where(
         and(
+          tenantWhere(schema.userStatusHistory, TEMPLO_CTX),
           eq(schema.userStatusHistory.userId, createdMemberId),
           eq(schema.userStatusHistory.toStatus, "inactivo"),
         ),
@@ -645,6 +654,7 @@ describe("alta void→cascade", () => {
       .from(schema.userStatusHistory)
       .where(
         and(
+          tenantWhere(schema.userStatusHistory, TEMPLO_CTX),
           eq(schema.userStatusHistory.userId, existingId),
           eq(schema.userStatusHistory.toStatus, "inactivo"),
         ),

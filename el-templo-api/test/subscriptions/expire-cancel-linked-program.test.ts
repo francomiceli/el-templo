@@ -27,6 +27,15 @@ import {
   todayStr,
   dateOffsetStr,
 } from "./_helpers";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+import { tenantWhere } from "../../src/modules/shared/tenant";
+
+/**
+ * Fase 173 (ADO-02): gimnasio de las queries DIRECTAS de este archivo. Con
+ * `members` en TENANT_STRICT_MODULES una lectura/escritura de `users` sin
+ * estampa hace throw antes de llegar a MySQL.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 describe("Linked-program enrollment teardown (cancel + autoExpire)", () => {
   let app: FastifyInstance;
@@ -101,7 +110,9 @@ describe("Linked-program enrollment teardown (cancel + autoExpire)", () => {
     await app.db
       .update(users)
       .set({ currentProgramEnrollmentId: before[0].id })
-      .where(eq(users.id, member.id as number));
+      .where(
+        and(tenantWhere(users, TEMPLO_CTX), eq(users.id, member.id as number)),
+      );
 
     const cancelRes = await app.inject({
       method: "POST",
@@ -126,7 +137,9 @@ describe("Linked-program enrollment teardown (cancel + autoExpire)", () => {
         status: users.status,
       })
       .from(users)
-      .where(eq(users.id, member.id as number));
+      .where(
+        and(tenantWhere(users, TEMPLO_CTX), eq(users.id, member.id as number)),
+      );
     expect(u.currentProgramEnrollmentId).toBeNull();
     expect(u.status).toBe("inactivo");
   });
@@ -167,7 +180,9 @@ describe("Linked-program enrollment teardown (cancel + autoExpire)", () => {
     const [userBefore] = await app.db
       .select({ status: users.status })
       .from(users)
-      .where(eq(users.id, member.id as number));
+      .where(
+        and(tenantWhere(users, TEMPLO_CTX), eq(users.id, member.id as number)),
+      );
     expect(userBefore.status).toBe("activo");
 
     // Force endDate into the past so the next read auto-expires.
@@ -196,7 +211,9 @@ describe("Linked-program enrollment teardown (cancel + autoExpire)", () => {
     const [userAfter] = await app.db
       .select({ status: users.status })
       .from(users)
-      .where(eq(users.id, member.id as number));
+      .where(
+        and(tenantWhere(users, TEMPLO_CTX), eq(users.id, member.id as number)),
+      );
     expect(userAfter.status).toBe("inactivo");
   });
 
@@ -282,7 +299,9 @@ describe("Linked-program enrollment teardown (cancel + autoExpire)", () => {
     const [userAfter] = await app.db
       .select({ status: users.status })
       .from(users)
-      .where(eq(users.id, member.id as number));
+      .where(
+        and(tenantWhere(users, TEMPLO_CTX), eq(users.id, member.id as number)),
+      );
     expect(userAfter.status).toBe("activo");
   });
 
@@ -346,7 +365,9 @@ describe("Linked-program enrollment teardown (cancel + autoExpire)", () => {
     const [userAfter] = await app.db
       .select({ status: users.status })
       .from(users)
-      .where(eq(users.id, member.id as number));
+      .where(
+        and(tenantWhere(users, TEMPLO_CTX), eq(users.id, member.id as number)),
+      );
     expect(userAfter.status).toBe("inactivo");
   });
 });

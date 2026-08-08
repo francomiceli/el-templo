@@ -1720,7 +1720,10 @@ export class SubscriptionService {
                 branchSource: "manual",
               })
               .where(
-                and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)),
+                and(
+                  tenantWhere(schema.users, ctx),
+                  eq(schema.users.id, userId),
+                ),
               );
 
             this.log.info(
@@ -3696,7 +3699,9 @@ export class SubscriptionService {
       const [memberForMigration] = await this.db
         .select({ branchId: schema.users.branchId })
         .from(schema.users)
-        .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)));
+        .where(
+          and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)),
+        );
 
       if (
         memberForMigration &&
@@ -5168,14 +5173,25 @@ export class SubscriptionService {
       );
     }
 
-    // Migrate member branch if currently on virtual branch
+    // Migrate member branch if currently on virtual branch. Fase 173
+    // (ADO-02): con `ctx === null` (mismo camino sin dueño documentado en el
+    // docblock del método) el guard `isNotNull(tenantId)` satisface al
+    // sentinel sobre este acceso por PK propia, sin tocar la guarda ADO-07
+    // de más abajo (esa sigue condicionada a `ctx` real, deuda con dueño
+    // fase 174 intacta).
     const [member] = await this.db
       .select({ branchId: schema.users.branchId })
       .from(schema.users)
       .where(
         ctx
-          ? and(tenantWhere(schema.users, ctx), eq(schema.users.id, scheduled.userId))
-          : eq(schema.users.id, scheduled.userId),
+          ? and(
+              tenantWhere(schema.users, ctx),
+              eq(schema.users.id, scheduled.userId),
+            )
+          : and(
+              isNotNull(schema.users.tenantId),
+              eq(schema.users.id, scheduled.userId),
+            ),
       );
 
     if (member && member.branchId !== scheduled.branchId) {
@@ -5192,8 +5208,7 @@ export class SubscriptionService {
         // docblock de este método), se preserva el comportamiento previo SIN
         // la guarda — deuda documentada, dueño fase 174.
         const resolvedBranchId = ctx
-          ? (await assertBranchDelGimnasio(ctx, scheduled.branchId, this.db))
-              .id
+          ? (await assertBranchDelGimnasio(ctx, scheduled.branchId, this.db)).id
           : scheduled.branchId;
         await this.db
           .update(schema.users)
@@ -5206,8 +5221,14 @@ export class SubscriptionService {
           })
           .where(
             ctx
-              ? and(tenantWhere(schema.users, ctx), eq(schema.users.id, scheduled.userId))
-              : eq(schema.users.id, scheduled.userId),
+              ? and(
+                  tenantWhere(schema.users, ctx),
+                  eq(schema.users.id, scheduled.userId),
+                )
+              : and(
+                  isNotNull(schema.users.tenantId),
+                  eq(schema.users.id, scheduled.userId),
+                ),
           );
 
         this.log.info(
@@ -5989,13 +6010,20 @@ export class SubscriptionService {
     // effectively changed (forward-only — never insert when from == to). The
     // INSERT runs inside the same tx so it rolls back atomically with the
     // subscription transition (T-117-04).
+    // Fase 173 (ADO-02): con `ctx === null` (camino sin dueño de tenancy,
+    // deuda documentada arriba con dueño fase 174) el acceso sigue siendo
+    // por PK propia (`users.id`, globalmente única) — el guard
+    // `isNotNull(tenantId)` (mismo patrón que 173-08 aplicó a métodos
+    // PK-scoped sin ctx externo) satisface al sentinel sin inventar una
+    // quinta fuente de TenantContext ni ensanchar el alcance a
+    // scheduling/booking-service.ts o a las rutas member-facing.
     const beforeRows = await tx
       .select({ status: schema.users.status })
       .from(schema.users)
       .where(
         ctx
           ? and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId))
-          : eq(schema.users.id, userId),
+          : and(isNotNull(schema.users.tenantId), eq(schema.users.id, userId)),
       );
     const statusBefore = beforeRows[0]?.status ?? null;
 
@@ -6103,7 +6131,7 @@ export class SubscriptionService {
           ELSE u.converted_at
         END
       WHERE u.id = ${userId}
-        ${ctx ? sql`AND u.tenant_id = ${ctx.tenantId}` : sql``}
+        ${ctx ? sql`AND u.tenant_id = ${ctx.tenantId}` : sql`AND u.tenant_id IS NOT NULL`}
     `);
 
     // Phase 117 (D-10): re-read the status AFTER the UPDATE. Forward-only —
@@ -6116,7 +6144,7 @@ export class SubscriptionService {
       .where(
         ctx
           ? and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId))
-          : eq(schema.users.id, userId),
+          : and(isNotNull(schema.users.tenantId), eq(schema.users.id, userId)),
       );
     const statusAfter = afterRows[0]?.status ?? null;
 

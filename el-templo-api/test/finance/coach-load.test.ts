@@ -181,7 +181,12 @@ beforeAll(async () => {
   const [admin] = await app.db
     .select({ id: schema.users.id, branchId: schema.users.branchId })
     .from(schema.users)
-    .where(eq(schema.users.email, "admin@test.com"))
+    .where(
+      and(
+        tenantWhere(schema.users, TEMPLO_CTX),
+        eq(schema.users.email, "admin@test.com"),
+      ),
+    )
     .limit(1);
   adminId = admin.id;
   branchId = admin.branchId ?? 1;
@@ -243,7 +248,9 @@ beforeEach(async () => {
     await conn.query("DELETE FROM `balances` WHERE tenant_id = ?", [
       TENANT_TEMPLO,
     ]);
-    await conn.query("DELETE FROM `audit_log`");
+    await conn.query("DELETE FROM `audit_log` WHERE tenant_id = ?", [
+      TENANT_TEMPLO,
+    ]);
     await conn.query("DELETE FROM `bookings`");
     await conn.query("DELETE FROM `program_enrollments`");
     await conn.query("DELETE FROM `subscriptions`");

@@ -171,7 +171,12 @@ beforeAll(async () => {
   const [admin] = await app.db
     .select({ id: schema.users.id, branchId: schema.users.branchId })
     .from(schema.users)
-    .where(eq(schema.users.email, "admin@test.com"))
+    .where(
+      and(
+        tenantWhere(schema.users, TEMPLO_CTX),
+        eq(schema.users.email, "admin@test.com"),
+      ),
+    )
     .limit(1);
   adminId = admin.id;
   branchId = admin.branchId ?? 1;
@@ -230,7 +235,9 @@ beforeEach(async () => {
   await app.db.execute(
     sql`DELETE FROM balances WHERE tenant_id = ${TENANT_TEMPLO}`,
   );
-  await app.db.execute(sql`DELETE FROM audit_log`);
+  await app.db.execute(
+    sql`DELETE FROM audit_log WHERE tenant_id = ${TEMPLO_CTX.tenantId}`,
+  );
   // Reset the subscription to active for each test (some tests cancel it).
   subscriptionId = await seedSubscription();
 });
@@ -298,6 +305,7 @@ describe("validation state machine", () => {
       .from(schema.auditLog)
       .where(
         and(
+          tenantWhere(schema.auditLog, TEMPLO_CTX),
           eq(schema.auditLog.targetKind, "transaction"),
           eq(schema.auditLog.targetId, tx.id),
         ),
@@ -336,6 +344,7 @@ describe("validation state machine", () => {
       .from(schema.auditLog)
       .where(
         and(
+          tenantWhere(schema.auditLog, TEMPLO_CTX),
           eq(schema.auditLog.targetKind, "transaction"),
           eq(schema.auditLog.targetId, tx.id),
         ),
@@ -400,6 +409,7 @@ describe("validation state machine", () => {
       .from(schema.auditLog)
       .where(
         and(
+          tenantWhere(schema.auditLog, TEMPLO_CTX),
           eq(schema.auditLog.targetKind, "transaction"),
           eq(schema.auditLog.targetId, original.id),
         ),
@@ -459,6 +469,7 @@ describe("validation state machine", () => {
       .from(schema.auditLog)
       .where(
         and(
+          tenantWhere(schema.auditLog, TEMPLO_CTX),
           eq(schema.auditLog.targetKind, "subscription"),
           eq(schema.auditLog.targetId, subscriptionId),
         ),

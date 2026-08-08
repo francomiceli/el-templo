@@ -96,7 +96,12 @@ beforeAll(async () => {
   const [admin] = await app.db
     .select({ id: schema.users.id })
     .from(schema.users)
-    .where(eq(schema.users.email, "admin@test.com"))
+    .where(
+      and(
+        tenantWhere(schema.users, TEMPLO_CTX),
+        eq(schema.users.email, "admin@test.com"),
+      ),
+    )
     .limit(1);
   if (!admin) {
     throw new Error(
@@ -378,6 +383,7 @@ describe("MovementService", () => {
         .from(schema.auditLog)
         .where(
           and(
+            tenantWhere(schema.auditLog, TEMPLO_CTX),
             eq(schema.auditLog.action, "reconciliation"),
             eq(schema.auditLog.targetId, detail.outflowTxId),
           ),
@@ -423,6 +429,7 @@ describe("MovementService", () => {
         .from(schema.auditLog)
         .where(
           and(
+            tenantWhere(schema.auditLog, TEMPLO_CTX),
             eq(schema.auditLog.action, "reconciliation"),
             eq(schema.auditLog.targetId, detail.outflowTxId),
           ),

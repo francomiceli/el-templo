@@ -199,7 +199,7 @@ describe("Phase 114-03 — subscription conversion hook (lead_status + lead_note
         status: users.status,
       })
       .from(users)
-      .where(eq(users.id, userId));
+      .where(and(tenantWhere(users, TEMPLO_CTX), eq(users.id, userId)));
     if (!row) throw new Error(`user ${userId} not found`);
     return row as LeadColumns;
   }
@@ -245,7 +245,7 @@ describe("Phase 114-03 — subscription conversion hook (lead_status + lead_note
     await app.db
       .update(users)
       .set({ leadNotes: "manual: muy interesado" })
-      .where(eq(users.id, userId));
+      .where(and(tenantWhere(users, TEMPLO_CTX), eq(users.id, userId)));
 
     const assign = await assignPlanViaHttp(userId, proPlanId);
     expect(assign.statusCode).toBe(201);
@@ -270,7 +270,7 @@ describe("Phase 114-03 — subscription conversion hook (lead_status + lead_note
     await app.db
       .update(users)
       .set({ leadNotes: "" })
-      .where(eq(users.id, userId));
+      .where(and(tenantWhere(users, TEMPLO_CTX), eq(users.id, userId)));
 
     const assign = await assignPlanViaHttp(userId, basicPlanId);
     expect(assign.statusCode).toBe(201);
@@ -348,7 +348,9 @@ describe("Phase 114-03 — subscription conversion hook (lead_status + lead_note
     const [adminRow] = await app.db
       .select({ id: users.id })
       .from(users)
-      .where(eq(users.email, "admin@test.com"))
+      .where(
+        and(tenantWhere(users, TEMPLO_CTX), eq(users.email, "admin@test.com")),
+      )
       .limit(1);
     const linkedTxIds = await app.db
       .select({ id: financialTransactions.id })

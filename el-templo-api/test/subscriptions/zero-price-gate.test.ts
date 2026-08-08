@@ -20,7 +20,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 
 import { createTestApp, cleanAllTestData, getAuthToken } from "../helpers";
@@ -33,6 +33,15 @@ import {
 } from "./_helpers";
 import * as schema from "../../src/db/schema";
 import { PRICING_SETTINGS_KEYS } from "../../src/modules/settings/keys";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+import { tenantWhere } from "../../src/modules/shared/tenant";
+
+/**
+ * Fase 173 (ADO-02): gimnasio de la lectura DIRECTA de `users` en este
+ * archivo. Con `members` en TENANT_STRICT_MODULES una lectura sin estampa
+ * hace throw antes de llegar a MySQL.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 const PRICE_REGULAR = 100000;
 const PRICE_ZERO = 50000;
@@ -76,7 +85,9 @@ async function readUserBoardingPass(userId: number): Promise<boolean> {
   const [row] = await app.db
     .select({ used: schema.users.boardingPassUsed })
     .from(schema.users)
-    .where(eq(schema.users.id, userId))
+    .where(
+      and(tenantWhere(schema.users, TEMPLO_CTX), eq(schema.users.id, userId)),
+    )
     .limit(1);
   return row?.used ?? false;
 }

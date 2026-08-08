@@ -18,7 +18,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import {
   createTestApp,
@@ -30,7 +30,7 @@ import {
 } from "../helpers";
 import * as schema from "../../src/db/schema";
 import { TENANT_TEMPLO } from "../fixtures/second-tenant";
-import { tenantValues } from "../../src/modules/shared/tenant";
+import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
 
 /**
  * Fase 172 (172-14): gimnasio de las siembras DIRECTAS de este archivo. Sale
@@ -147,7 +147,12 @@ async function seedUsersAndPlan(
   const [ownerRow] = await app.db
     .select({ id: schema.users.id })
     .from(schema.users)
-    .where(eq(schema.users.email, "admin@test.com"))
+    .where(
+      and(
+        tenantWhere(schema.users, TEMPLO_CTX),
+        eq(schema.users.email, "admin@test.com"),
+      ),
+    )
     .limit(1);
   ctx.ownerId = ownerRow.id;
 

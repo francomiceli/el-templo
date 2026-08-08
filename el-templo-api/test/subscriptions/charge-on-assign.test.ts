@@ -388,7 +388,12 @@ describe("Phase 107 — Charge on assign / change / renew", () => {
       const [admin] = await app.db
         .select({ id: schema.users.id })
         .from(schema.users)
-        .where(eq(schema.users.email, "admin@test.com"))
+        .where(
+          and(
+            tenantWhere(schema.users, TEMPLO_CTX),
+            eq(schema.users.email, "admin@test.com"),
+          ),
+        )
         .limit(1);
       if (!admin) throw new Error("admin@test.com seed missing");
 

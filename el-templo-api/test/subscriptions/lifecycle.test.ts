@@ -122,8 +122,17 @@ describe("Subscriptions API — Lifecycle", () => {
       const subId = first.body.id as number;
       const [admin] = await app.db
         .select({ id: schema.users.id })
+
         .from(schema.users)
-        .where(eq(schema.users.email, "admin@test.com"))
+
+        .where(
+          and(
+            tenantWhere(schema.users, TEMPLO_CTX),
+
+            eq(schema.users.email, "admin@test.com"),
+          ),
+        )
+
         .limit(1);
       const linkedTxIds = await app.db
         .select({ id: schema.financialTransactions.id })
@@ -331,8 +340,15 @@ describe("Subscriptions API — Lifecycle", () => {
 
       const [before] = await app.db
         .select({ status: schema.users.status })
+
         .from(schema.users)
-        .where(eq(schema.users.id, member.id));
+
+        .where(
+          and(
+            tenantWhere(schema.users, TEMPLO_CTX),
+            eq(schema.users.id, member.id),
+          ),
+        );
       expect(before.status).toBe("activo");
 
       // Run the bulk expire the daily cron invokes — no per-member read.
@@ -372,8 +388,15 @@ describe("Subscriptions API — Lifecycle", () => {
 
       const [after] = await app.db
         .select({ status: schema.users.status })
+
         .from(schema.users)
-        .where(eq(schema.users.id, member.id));
+
+        .where(
+          and(
+            tenantWhere(schema.users, TEMPLO_CTX),
+            eq(schema.users.id, member.id),
+          ),
+        );
       expect(after.status).toBe("inactivo");
     });
   });
@@ -589,8 +612,17 @@ describe("Subscriptions API — Lifecycle", () => {
       const today = todayStr();
       const [admin] = await app.db
         .select({ id: schema.users.id })
+
         .from(schema.users)
-        .where(eq(schema.users.email, "admin@test.com"))
+
+        .where(
+          and(
+            tenantWhere(schema.users, TEMPLO_CTX),
+
+            eq(schema.users.email, "admin@test.com"),
+          ),
+        )
+
         .limit(1);
       if (!admin) throw new Error("admin@test.com seed missing");
       const [txRes] = await app.db
@@ -625,7 +657,9 @@ describe("Subscriptions API — Lifecycle", () => {
     }
 
     it("REQ-3: cancel returns 400 SUB_HAS_ACTIVE_TRANSACTIONS when a non-voided charge tx exists", async () => {
-      await app.db.execute(sql`DELETE FROM audit_log`);
+      await app.db.execute(
+        sql`DELETE FROM audit_log WHERE tenant_id = ${TEMPLO_CTX.tenantId}`,
+      );
       const plan = await createPlan(app, adminToken);
       const member = await createMember(app);
       const assigned = await assignPlan(app, adminToken, member.id, {
@@ -671,6 +705,7 @@ describe("Subscriptions API — Lifecycle", () => {
         .from(schema.auditLog)
         .where(
           and(
+            tenantWhere(schema.auditLog, TEMPLO_CTX),
             eq(schema.auditLog.action, "subscription_cancelled"),
             eq(schema.auditLog.targetId, subId),
           ),
@@ -679,7 +714,9 @@ describe("Subscriptions API — Lifecycle", () => {
     });
 
     it("REQ-3: cancel succeeds (200) when all charge tx for the sub are voided", async () => {
-      await app.db.execute(sql`DELETE FROM audit_log`);
+      await app.db.execute(
+        sql`DELETE FROM audit_log WHERE tenant_id = ${TEMPLO_CTX.tenantId}`,
+      );
       const plan = await createPlan(app, adminToken);
       const member = await createMember(app);
       const assigned = await assignPlan(app, adminToken, member.id, {
@@ -693,8 +730,17 @@ describe("Subscriptions API — Lifecycle", () => {
       // void route.
       const [admin] = await app.db
         .select({ id: schema.users.id })
+
         .from(schema.users)
-        .where(eq(schema.users.email, "admin@test.com"))
+
+        .where(
+          and(
+            tenantWhere(schema.users, TEMPLO_CTX),
+
+            eq(schema.users.email, "admin@test.com"),
+          ),
+        )
+
         .limit(1);
       if (!admin) throw new Error("admin@test.com seed missing");
       const linkedTxIds = await app.db
@@ -745,7 +791,9 @@ describe("Subscriptions API — Lifecycle", () => {
     });
 
     it("REQ-7: successful cancelSubscription writes one subscription_cancelled audit row", async () => {
-      await app.db.execute(sql`DELETE FROM audit_log`);
+      await app.db.execute(
+        sql`DELETE FROM audit_log WHERE tenant_id = ${TEMPLO_CTX.tenantId}`,
+      );
       const plan = await createPlan(app, adminToken);
       const member = await createMember(app);
       const assigned = await assignPlan(app, adminToken, member.id, {
@@ -761,8 +809,17 @@ describe("Subscriptions API — Lifecycle", () => {
       // Resolve admin id for actorId assertion
       const [admin] = await app.db
         .select({ id: schema.users.id })
+
         .from(schema.users)
-        .where(eq(schema.users.email, "admin@test.com"))
+
+        .where(
+          and(
+            tenantWhere(schema.users, TEMPLO_CTX),
+
+            eq(schema.users.email, "admin@test.com"),
+          ),
+        )
+
         .limit(1);
 
       const res = await app.inject({
@@ -778,6 +835,7 @@ describe("Subscriptions API — Lifecycle", () => {
         .from(schema.auditLog)
         .where(
           and(
+            tenantWhere(schema.auditLog, TEMPLO_CTX),
             eq(schema.auditLog.action, "subscription_cancelled"),
             eq(schema.auditLog.targetId, subId),
           ),

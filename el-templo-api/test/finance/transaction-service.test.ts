@@ -125,7 +125,12 @@ beforeAll(async () => {
   const [admin] = await app.db
     .select({ id: schema.users.id, branchId: schema.users.branchId })
     .from(schema.users)
-    .where(eq(schema.users.email, "admin@test.com"))
+    .where(
+      and(
+        tenantWhere(schema.users, TEMPLO_CTX),
+        eq(schema.users.email, "admin@test.com"),
+      ),
+    )
     .limit(1);
   if (!admin) {
     throw new Error(
@@ -1713,7 +1718,9 @@ describe("BalanceService.getRowsForTransaction()", () => {
 
 describe("TransactionService.void — Phase 111 REQ-7 audit_log", () => {
   beforeEach(async () => {
-    await app.db.execute(sql`DELETE FROM audit_log`);
+    await app.db.execute(
+      sql`DELETE FROM audit_log WHERE tenant_id = ${TEMPLO_CTX.tenantId}`,
+    );
   });
 
   it("writes one transaction_voided audit row with the D-13 payload on successful void", async () => {
@@ -1744,6 +1751,7 @@ describe("TransactionService.void — Phase 111 REQ-7 audit_log", () => {
       .from(schema.auditLog)
       .where(
         and(
+          tenantWhere(schema.auditLog, TEMPLO_CTX),
           eq(schema.auditLog.action, "transaction_voided"),
           eq(schema.auditLog.targetId, created.id),
         ),
@@ -1813,6 +1821,7 @@ describe("TransactionService.void — Phase 111 REQ-7 audit_log", () => {
       .from(schema.auditLog)
       .where(
         and(
+          tenantWhere(schema.auditLog, TEMPLO_CTX),
           eq(schema.auditLog.action, "transaction_voided"),
           eq(schema.auditLog.targetId, created.id),
         ),
