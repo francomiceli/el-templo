@@ -19,6 +19,7 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { BadRequestError } from "../shared/errors";
+import { tenantWhere, type TenantContext } from "../shared/tenant";
 import { EmailService } from "../email/service";
 import { signCampaignToken } from "./token-service";
 import { trialCampaignHtml } from "./templates";
@@ -60,14 +61,31 @@ export class CampaignService {
    *
    * Ghosts / inactives are intentionally included — there is no activity filter
    * (D-09). An optional country scope filters by the user's branch country.
+   *
+   * T-173-08: `ctx` PRIMERO (D-01/D-02) — la audiencia de una campaña NUNCA
+   * puede incluir socios de otro gimnasio, es el peor caso práctico de una
+   * fuga de tenancy (sale un email/push a un destinatario ajeno, sin 404 que
+   * lo mitigue después). El `tenantWhere` va INLINE en el `and(...)` final,
+   * no en el array `conditions` de arriba (el lint juzga por STATEMENT: el
+   * array se construye en statements separados del `.from(u)...where(...)`).
    */
-  async listEligible(country?: "AR" | "ES" | null): Promise<EligibleUser[]> {
+  async listEligible(
+    ctx: TenantContext,
+    country?: "AR" | "ES" | null,
+  ): Promise<EligibleUser[]> {
     const u = schema.users;
     const s = schema.subscriptions;
     const b = schema.bookings;
     const unsub = schema.campaignUnsubscribes;
     const br = schema.branches;
 
+    // T-173-08: los `sql` de abajo referencian `${u.id}` / `${u.email}` como
+    // VALOR de una subconsulta correlacionada contra OTRA tabla (subscriptions
+    // / bookings / campaign_unsubscribes) — ninguno hace `FROM users`, así que
+    // no hay tabla `users` que filtrar ahí adentro. El acceso real a `users`
+    // de este método es el `.from(u)` de más abajo, ya scopeado con
+    // `tenantWhere(u, ctx)` en su propio `.where(...)`.
+    /* tenant-safe: sql correlacionado que solo referencia users.id/email como valor, no hace FROM users (D-02) */
     const conditions = [
       eq(u.status, "freemium"),
       sql`${u.email} IS NOT NULL`,
@@ -106,7 +124,7 @@ export class CampaignService {
       })
       .from(u)
       .innerJoin(br, eq(br.id, u.branchId))
-      .where(and(...conditions));
+      .where(and(tenantWhere(u, ctx), ...conditions));
 
     // email IS NOT NULL is enforced in SQL; narrow the nullable column here.
     return rows
@@ -248,7 +266,7 @@ export class CampaignService {
    * `sending` after a crash needs a deliberate manual reset to `draft` (safer
    * than auto-resuming into a possibly-still-in-flight send).
    */
-  async send(campaignId: number): Promise<SendResult> {
+  async send(ctx: TenantContext, campaignId: number): Promise<SendResult> {
     const [campaign] = await this.db
       .select()
       .from(schema.campaigns)
@@ -287,7 +305,7 @@ export class CampaignService {
         ? campaign.country
         : null;
 
-    const eligible = await this.listEligible(scopeCountry);
+    const eligible = await this.listEligible(ctx, scopeCountry);
 
     // ── Enroll audience idempotently ──────────────────────────────────────
     let newlyEnrolled = 0;
@@ -462,8 +480,13 @@ export class CampaignService {
    *   - asistió   = of those, with a confirmed attendance row
    *   - convirtió = of those, later reaching status='activo' in
    *                 user_status_history (aligns with funnel-service.ts — A6)
+   *
+   * T-173-08: `user_status_history` es tabla strict — el `tenantWhere` va en
+   * el `ON` del `innerJoin` (D-02), nunca en el `WHERE` (una tabla joineada
+   * en INNER es equivalente, se usa la misma forma que en un LEFT para que el
+   * próximo join no tenga que elegir).
    */
-  async funnel(campaignId: number): Promise<FunnelStages> {
+  async funnel(ctx: TenantContext, campaignId: number): Promise<FunnelStages> {
     const [campaign] = await this.db
       .select({ id: schema.campaigns.id, sentAt: schema.campaigns.sentAt })
       .from(schema.campaigns)
@@ -585,6 +608,7 @@ export class CampaignService {
       .innerJoin(
         schema.userStatusHistory,
         and(
+          tenantWhere(schema.userStatusHistory, ctx),
           eq(schema.userStatusHistory.userId, schema.campaignSends.userId),
           eq(schema.userStatusHistory.toStatus, "activo"),
           sql`${schema.userStatusHistory.changedAt} >= ${sentAtSql}`,

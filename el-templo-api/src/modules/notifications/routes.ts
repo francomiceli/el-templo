@@ -10,10 +10,12 @@
  */
 
 import { FastifyPluginAsync } from "fastify";
-import { eq, sql, inArray } from "drizzle-orm";
+import { eq, and, sql, inArray } from "drizzle-orm";
 import { NotificationService } from "./service";
 import { NOTIFICATION_CATEGORIES, type NotificationCategory } from "./types";
 import { ADMIN_ROLES, OWNER_ROLES } from "../shared/permissions";
+import { attachCountryScope } from "../shared/country-scope";
+import { assertTenant, tenantWhere } from "../shared/tenant";
 import * as schema from "../../db/schema";
 // Attendance label values (4 bands) — single source of truth (D-01).
 import type { MemberSegment } from "../segmentation/types";
@@ -410,6 +412,12 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.code(403).send({ error: "Acceso denegado" });
       }
 
+      // T-173-08: `member_profiles` y `users` son tablas strict — el
+      // gimnasio del staff que envía el segmento acota la audiencia (una
+      // campaña de push nunca puede alcanzar a un socio de otro gimnasio).
+      await attachCountryScope(request, fastify.db);
+      const ctx = assertTenant(request.scope, "notifications.sendSegment");
+
       const { title, body, segmentIds, route, titleFemale, bodyFemale } =
         request.body;
 
@@ -422,9 +430,17 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
         .from(schema.memberProfiles)
         .innerJoin(
           schema.users,
-          eq(schema.memberProfiles.userId, schema.users.id),
+          and(
+            tenantWhere(schema.users, ctx),
+            eq(schema.memberProfiles.userId, schema.users.id),
+          ),
         )
-        .where(inArray(schema.memberProfiles.segment, segmentIds));
+        .where(
+          and(
+            tenantWhere(schema.memberProfiles, ctx),
+            inArray(schema.memberProfiles.segment, segmentIds),
+          ),
+        );
 
       let queued = 0;
 

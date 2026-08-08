@@ -29,10 +29,14 @@ import {
 } from "./helpers";
 import { CampaignService } from "../src/modules/campaigns/service";
 import { EmailService } from "../src/modules/email/service";
+import type { TenantContext } from "../src/modules/shared/tenant";
 import * as schema from "../src/db/schema";
 
 let app: FastifyInstance;
 let ownerId: number;
+
+// T-173-08: `send()` recibe `ctx` primero (audiencia scopeada por gimnasio).
+const CTX: TenantContext = { tenantId: 1 };
 
 beforeAll(async () => {
   app = await createTestApp();
@@ -112,7 +116,7 @@ describe("campaign send pipeline (Phase 119)", () => {
       ownerId,
     );
 
-    const result = await service.send(campaign.id);
+    const result = await service.send(CTX, campaign.id);
     expect(result.recipientCount).toBe(2);
 
     const sends = await app.db
@@ -137,14 +141,16 @@ describe("campaign send pipeline (Phase 119)", () => {
       ownerId,
     );
 
-    const first = await service.send(campaign.id);
+    const first = await service.send(CTX, campaign.id);
     expect(first.recipientCount).toBe(1);
 
     // The atomic status gate makes the mass-send single-shot: a second send on
     // an already-'sent' campaign is rejected, so the audience is never
     // re-enrolled (duplicate delivery prevented at the source, not just via
     // Resend's idempotency window).
-    await expect(service.send(campaign.id)).rejects.toThrow(/ya fue enviada/i);
+    await expect(service.send(CTX, campaign.id)).rejects.toThrow(
+      /ya fue enviada/i,
+    );
 
     const sends = await app.db
       .select()
@@ -169,7 +175,7 @@ describe("campaign send pipeline (Phase 119)", () => {
       ownerId,
     );
 
-    await service.send(campaign.id);
+    await service.send(CTX, campaign.id);
 
     expect(spy).toHaveBeenCalledTimes(1);
     const [messages, idempotencyKey] = spy.mock.calls[0];
@@ -197,7 +203,7 @@ describe("campaign send pipeline (Phase 119)", () => {
       ownerId,
     );
 
-    await expect(service.send(campaign.id)).resolves.toBeDefined();
+    await expect(service.send(CTX, campaign.id)).resolves.toBeDefined();
 
     const [campaignRow] = await app.db
       .select()

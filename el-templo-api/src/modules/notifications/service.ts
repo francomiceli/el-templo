@@ -7,7 +7,7 @@
  * Uses constructor DI pattern (Phase 56 convention).
  */
 
-import { eq, and, lte, sql, inArray } from "drizzle-orm";
+import { eq, and, lte, sql, inArray, isNotNull } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
@@ -205,12 +205,23 @@ export class NotificationService {
   /**
    * Resolve whether a user should receive female notification copy.
    * Per D-12: only 'female' gets female copy; male/other/unspecified/null all get default (male).
+   *
+   * T-173-08: `users` es tabla strict pero `queueNotification` (el único
+   * llamador) tiene ~13 call sites fuera de este módulo — crons
+   * (notification-cron.ts, dueño 173-16), subscriptions/service.ts,
+   * scheduling/booking-service.ts y sessions/routes.ts — la mayoría sin
+   * infraestructura de tenancy. D-02 no infla el alcance de esta cirugía
+   * mínima a esos archivos ajenos. El `userId` es siempre el PK propio del
+   * destinatario (nunca un filtro de lista), así que el guard
+   * `isNotNull(tenantId)` es el mismo fail-closed contra corrupción de datos
+   * que usa `country-scope.ts`, y le da al sentinel el literal `tenant_id`
+   * que necesita en el predicado sin inventar una quinta fuente de `ctx`.
    */
   private async resolveUseFemale(userId: number): Promise<boolean> {
     const [user] = await this.db
       .select({ gender: schema.users.gender })
       .from(schema.users)
-      .where(eq(schema.users.id, userId))
+      .where(and(eq(schema.users.id, userId), isNotNull(schema.users.tenantId)))
       .limit(1);
     return user?.gender === "female";
   }

@@ -19,11 +19,15 @@ import {
 } from "./helpers";
 import { CampaignService } from "../src/modules/campaigns/service";
 import { EmailService } from "../src/modules/email/service";
+import type { TenantContext } from "../src/modules/shared/tenant";
 import * as schema from "../src/db/schema";
 
 let app: FastifyInstance;
 let service: CampaignService;
 let branchId: number;
+
+// T-173-08: `users` es tabla strict — `listEligible` recibe `ctx` primero.
+const CTX: TenantContext = { tenantId: 1 };
 
 function makeService(a: FastifyInstance): CampaignService {
   return new CampaignService(a.db, a.log, new EmailService(a.log));
@@ -106,28 +110,28 @@ beforeEach(async () => {
 describe("campaign audience query (Phase 119)", () => {
   it("D-08: includes an eligible freemium user with an email", async () => {
     const { id } = await createEligibleFreemium(app, { branchId });
-    const eligible = await service.listEligible();
+    const eligible = await service.listEligible(CTX);
     expect(eligible.map((e) => e.userId)).toContain(id);
   });
 
   it("D-08: excludes users with an active subscription", async () => {
     const { id } = await createEligibleFreemium(app, { branchId });
     await seedActiveSubscription(id);
-    const eligible = await service.listEligible();
+    const eligible = await service.listEligible(CTX);
     expect(eligible.map((e) => e.userId)).not.toContain(id);
   });
 
   it("D-08: excludes users with a non-cancelled is_trial booking", async () => {
     const { id } = await createEligibleFreemium(app, { branchId });
     await seedTrialBooking(id, "reservado");
-    const eligible = await service.listEligible();
+    const eligible = await service.listEligible(CTX);
     expect(eligible.map((e) => e.userId)).not.toContain(id);
   });
 
   it("D-08: includes a user whose only is_trial booking is cancelled", async () => {
     const { id } = await createEligibleFreemium(app, { branchId });
     await seedTrialBooking(id, "cancelado");
-    const eligible = await service.listEligible();
+    const eligible = await service.listEligible(CTX);
     expect(eligible.map((e) => e.userId)).toContain(id);
   });
 
@@ -137,14 +141,14 @@ describe("campaign audience query (Phase 119)", () => {
       .update(schema.users)
       .set({ email: null })
       .where(eq(schema.users.id, id));
-    const eligible = await service.listEligible();
+    const eligible = await service.listEligible(CTX);
     expect(eligible.map((e) => e.userId)).not.toContain(id);
   });
 
   it("D-08: excludes unsubscribed emails (suppression list)", async () => {
     const { id, email } = await createEligibleFreemium(app, { branchId });
     await app.db.insert(schema.campaignUnsubscribes).values({ email });
-    const eligible = await service.listEligible();
+    const eligible = await service.listEligible(CTX);
     expect(eligible.map((e) => e.userId)).not.toContain(id);
   });
 
@@ -153,7 +157,7 @@ describe("campaign audience query (Phase 119)", () => {
       branchId,
       createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
     });
-    const eligible = await service.listEligible();
+    const eligible = await service.listEligible(CTX);
     expect(eligible.map((e) => e.userId)).not.toContain(id);
   });
 
@@ -162,7 +166,7 @@ describe("campaign audience query (Phase 119)", () => {
       branchId,
       createdAt: new Date(Date.now() - 200 * 24 * 60 * 60 * 1000),
     });
-    const eligible = await service.listEligible();
+    const eligible = await service.listEligible(CTX);
     expect(eligible.map((e) => e.userId)).toContain(id);
   });
 });

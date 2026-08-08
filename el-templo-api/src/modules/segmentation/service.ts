@@ -14,9 +14,10 @@
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { eq, and, gte, sql, desc, inArray } from "drizzle-orm";
+import { eq, and, gte, sql, desc, inArray, isNotNull } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
+import { tenantValues, type TenantContext } from "../shared/tenant";
 import type { MemberSegment } from "./types";
 import {
   ATTENDANCE_OPTIMA_PCT,
@@ -59,10 +60,23 @@ export class SegmentationService {
   async calculateSegment(userId: number): Promise<MemberSegment | null> {
     // Step 1: tenure guard (D-07). Members with < 1 month since registration
     // have no Attendance label — the column stays NULL.
+    //
+    // T-173-08: `users` es tabla strict (D-01) pero este método no recibe un
+    // `ctx` externo. Sus 2 call sites son `GET /me` (auth/routes.ts, ruta JWT
+    // pública del socio, sin `request.scope`) y el cron de recategorización
+    // de segmentos (notification-cron.ts, dueño 173-16) — ninguno de los dos
+    // es archivo de este plan (D-02: cirugía mínima, no se infla el alcance a
+    // módulos ajenos). El `id` es siempre el PK propio del socio (su propio
+    // JWT o el `userId` que ya iteró el cron), nunca un filtro de lista, así
+    // que el `isNotNull(tenantId)` de abajo no es un adorno: es el mismo
+    // guard fail-closed contra corrupción de datos que usa `country-scope.ts`
+    // (un socio sin gimnasio resoluble no participa de ninguna operación), y
+    // le da al sentinel el literal `tenant_id` que necesita en la zona de
+    // predicado sin inventar una quinta fuente de `TenantContext`.
     const [user] = await this.db
       .select({ createdAt: schema.users.createdAt })
       .from(schema.users)
-      .where(eq(schema.users.id, userId))
+      .where(and(eq(schema.users.id, userId), isNotNull(schema.users.tenantId)))
       .limit(1);
 
     if (!user) {
@@ -158,6 +172,11 @@ export class SegmentationService {
    * NULL is a valid result to persist (D-07/D-08: no label applies).
    */
   async calculateAndUpdate(userId: number): Promise<MemberSegment | null> {
+    // T-173-08: mismo caso que calculateSegment — sin `ctx` externo (mismos 2
+    // call sites ajenos), `member_profiles` tiene su propia columna
+    // `tenant_id` y el guard `isNotNull` se aplica sobre ELLA, no sobre la de
+    // `users` (cada tabla strict lleva el suyo).
+    //
     // Check cooldown: skip if recently updated and a label is already set.
     const [profile] = await this.db
       .select({
@@ -165,7 +184,12 @@ export class SegmentationService {
         segmentUpdatedAt: schema.memberProfiles.segmentUpdatedAt,
       })
       .from(schema.memberProfiles)
-      .where(eq(schema.memberProfiles.userId, userId))
+      .where(
+        and(
+          eq(schema.memberProfiles.userId, userId),
+          isNotNull(schema.memberProfiles.tenantId),
+        ),
+      )
       .limit(1);
 
     if (profile?.segmentUpdatedAt) {
@@ -186,7 +210,12 @@ export class SegmentationService {
           segment,
           segmentUpdatedAt: new Date(),
         })
-        .where(eq(schema.memberProfiles.userId, userId));
+        .where(
+          and(
+            eq(schema.memberProfiles.userId, userId),
+            isNotNull(schema.memberProfiles.tenantId),
+          ),
+        );
     }
 
     return segment;
@@ -194,11 +223,37 @@ export class SegmentationService {
 
   /**
    * Record a login event for the user.
+   *
+   * T-173-08: `member_logins` es tabla strict y el INSERT necesita un
+   * `tenant_id` REAL (a diferencia de un guard de lectura, acá no alcanza con
+   * "nombrar la columna" — el valor que se escribe importa). Sin `ctx`
+   * externo disponible (mismo caso que `calculateSegment`), se resuelve el
+   * gimnasio de ESTE socio leyendo su propia fila de `users` por `id` — el
+   * mismo origen que usa `attachScope` (`country-scope.ts`) antes de que
+   * exista un `TenantContext`. Si el socio no resuelve gimnasio (corrupción
+   * de datos), se omite el registro en vez de escribir una fila sin dueño.
    */
   async recordLogin(userId: number): Promise<void> {
-    await this.db.insert(schema.memberLogins).values({
-      userId,
-      loggedInAt: new Date(),
-    });
+    const [owner] = await this.db
+      .select({ tenantId: schema.users.tenantId })
+      .from(schema.users)
+      .where(and(eq(schema.users.id, userId), isNotNull(schema.users.tenantId)))
+      .limit(1);
+
+    if (!owner) {
+      this.log.warn(
+        { userId },
+        "recordLogin: no se pudo resolver el gimnasio del socio — se omite el registro",
+      );
+      return;
+    }
+
+    const ctx: TenantContext = { tenantId: owner.tenantId };
+    await this.db.insert(schema.memberLogins).values(
+      tenantValues(ctx, {
+        userId,
+        loggedInAt: new Date(),
+      }),
+    );
   }
 }

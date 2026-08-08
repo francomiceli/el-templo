@@ -22,6 +22,7 @@ import { EmailService } from "../email/service";
 import { validateCampaignToken } from "./token-service";
 import { ADMIN_ROLES, OWNER_ROLES } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
+import { assertTenant } from "../shared/tenant";
 import {
   trackingQuerySchema,
   createCampaignSchema,
@@ -215,7 +216,9 @@ export const campaignRoutes: FastifyPluginAsync = async (fastify) => {
       if (!(OWNER_ROLES as readonly string[]).includes(request.user.role)) {
         return reply.status(403).send({ error: "Acceso de owner requerido" });
       }
-      return service.send(request.params.id);
+      await attachCountryScope(request, fastify.db);
+      const ctx = assertTenant(request.scope, "campaigns.send");
+      return service.send(ctx, request.params.id);
     },
   );
 
@@ -253,7 +256,9 @@ export const campaignRoutes: FastifyPluginAsync = async (fastify) => {
       if (!(ADMIN_ROLES as readonly string[]).includes(request.user.role)) {
         return reply.status(403).send({ error: "Acceso de admin requerido" });
       }
-      return service.funnel(request.params.id);
+      await attachCountryScope(request, fastify.db);
+      const ctx = assertTenant(request.scope, "campaigns.funnel");
+      return service.funnel(ctx, request.params.id);
     },
   );
 
@@ -266,10 +271,11 @@ export const campaignRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(403).send({ error: "Acceso de admin requerido" });
       }
       await attachCountryScope(request, fastify.db);
+      const ctx = assertTenant(request.scope, "campaigns.eligibleCount");
       const country = request.scope.isOwner
         ? (request.query.country ?? null)
         : scopeCountry(request);
-      const eligible = await service.listEligible(country);
+      const eligible = await service.listEligible(ctx, country);
       return { count: eligible.length };
     },
   );
