@@ -87,19 +87,24 @@ export class MemberService {
    * Search matches against firstName, lastName, email, and dni.
    *
    * Fase 172 (ADO-01): `ctx` es el PRIMER parámetro y llega desde
-   * `assertTenant(request.scope, "members.list")`. Scopea los DOS accesos a
-   * `balances` (el filtro `debtorOnly` y el agregado de deuda) y, desde 173-05,
-   * también `buildMemberNameSearchCondition`/`memberCoveredUntilSql` (que ya
-   * filtran por gimnasio puertas adentro, sin que este método tenga que
-   * duplicar nada).
+   * `assertTenant(request.scope, "members.list")`.
    *
-   * ⚠️ ESTADO INTERMEDIO (173-17): el resto del listado —el `.from(schema.users)`
-   * principal de `countPromise`/`rowsPromise`, el `innerJoin(schema.branches)`,
-   * y las subqueries de `subscriptions`/`subscription_plans`/`member_profiles`/
-   * `bookings`— TODAVÍA NO FILTRA por gimnasio. Este plan es solo plomería de
-   * firmas (doc 07 §3, corte 2): `ctx` viaja hasta acá pero la migración de
-   * estas queries es de los planes 173-18/173-19/173-20. NO asumir que
-   * `listMembers` está aislado hasta que esos planes cierren.
+   * Fase 173-19 (ADO-02): el listado queda completamente scopeado. `users` (la
+   * tabla ancla) se filtra en `conditions` (primer push, cubre las tres
+   * queries — `countPromise`/`rowsPromise`/`totalDebtPromise` — porque las
+   * tres arman su `WHERE` con `whereClause = and(...conditions)`, y el
+   * agregado de deuda además repite el filtro en su propio `and()`, ya que es
+   * una query con `FROM balances` distinta). El `innerJoin(schema.branches)`
+   * de las tres lleva su propio `tenantWhere` en el `ON` (INNER, así que
+   * cambia poco en la práctica, pero es el idioma que usa todo el resto del
+   * módulo). Las subqueries correlacionadas (`subscriptions`/
+   * `subscription_plans` del filtro `multiBranch`/`planId` y de
+   * `planNameSubquery`; `member_profiles` de `segment`/`avatarType`;
+   * `bookings` de `hasUsedTrialSubquery`) llevan el gimnasio INLINE, en el
+   * mismo `sql` crudo que nombra la tabla — no hay forma de que un
+   * `tenantWhere` de afuera alcance un `FROM` propio. `buildMemberNameSearchCondition`
+   * y `memberCoveredUntilSql` (173-05/173-17) ya scopean puertas adentro; este
+   * método no les duplica el filtro.
    */
   async listMembers(
     ctx: TenantContext,
@@ -128,6 +133,12 @@ export class MemberService {
 
     const conditions: ReturnType<typeof eq>[] = [];
 
+    // Fase 173-19 (ADO-02, T-173-19-03): PRIMER elemento del array — `users`
+    // es la tabla ancla del listado y hasta acá no tenía NINGÚN filtro propio
+    // (solo lo tenían `balances` y, puertas adentro, la búsqueda por nombre).
+    // Sin esto, un socio de otro gimnasio aparecía en el listado, en el
+    // `total` y en el `totalDebtByCurrency` de CUALQUIER staff.
+    conditions.push(tenantWhere(schema.users, ctx));
     // Only show actual members (not coaches/admins)
     conditions.push(eq(schema.users.role, "member"));
     // Hide soft-deleted rows from the admin list.
@@ -139,12 +150,15 @@ export class MemberService {
     }
 
     if (multiBranch === true) {
-      // Filter members whose active subscription is on a multi-branch plan
+      // Filter members whose active subscription is on a multi-branch plan.
+      // Fase 173-19: `sub`/`sp` tienen su propio FROM/JOIN — el gimnasio va
+      // INLINE, uno por tabla (doc 07 §4(d)).
       conditions.push(
         sql`EXISTS (
           SELECT 1 FROM subscriptions sub
-          INNER JOIN subscription_plans sp ON sp.id = sub.plan_id
+          INNER JOIN subscription_plans sp ON sp.id = sub.plan_id AND sp.tenant_id = ${ctx.tenantId}
           WHERE sub.user_id = ${schema.users.id}
+            AND sub.tenant_id = ${ctx.tenantId}
             AND sp.multi_branch = 1
             AND (sub.subscription_status = 'active' OR sub.end_date >= CURDATE())
         )`,
@@ -179,11 +193,12 @@ export class MemberService {
     // planId>0 means filter by specific plan
     if (planId !== undefined) {
       if (planId === 0) {
-        // Members with NO active/paused subscription
+        // Members with NO active/paused subscription. Fase 173-19: `s.tenant_id`
+        // inline — subquery con FROM propio.
         conditions.push(
           sql`NOT EXISTS (
             SELECT 1 FROM subscriptions s
-            WHERE s.user_id = users.id AND s.subscription_status IN ('active','paused')
+            WHERE s.user_id = users.id AND s.tenant_id = ${ctx.tenantId} AND s.subscription_status IN ('active','paused')
           )`,
         );
       } else {
@@ -191,7 +206,7 @@ export class MemberService {
         conditions.push(
           sql`EXISTS (
             SELECT 1 FROM subscriptions s
-            WHERE s.user_id = users.id AND s.subscription_status IN ('active','paused') AND s.plan_id = ${planId}
+            WHERE s.user_id = users.id AND s.tenant_id = ${ctx.tenantId} AND s.subscription_status IN ('active','paused') AND s.plan_id = ${planId}
           )`,
         );
       }
@@ -199,12 +214,13 @@ export class MemberService {
 
     // Segment filter (Phase 136): filter by the Attendance label stored in
     // member_profiles.member_segment. The query param is validated against the
-    // 4-band enum in schemas.ts before reaching here.
+    // 4-band enum in schemas.ts before reaching here. Fase 173-19: `mp.tenant_id`
+    // inline — `member_profiles` es tabla propia del módulo (TENANT_STRICT_MODULES.members).
     if (segment !== undefined) {
       conditions.push(
         sql`EXISTS (
           SELECT 1 FROM member_profiles mp
-          WHERE mp.user_id = users.id AND mp.member_segment = ${segment}
+          WHERE mp.user_id = users.id AND mp.tenant_id = ${ctx.tenantId} AND mp.member_segment = ${segment}
         )`,
       );
     }
@@ -216,14 +232,14 @@ export class MemberService {
         conditions.push(
           sql`NOT EXISTS (
             SELECT 1 FROM member_profiles mp
-            WHERE mp.user_id = users.id AND mp.avatar_type IS NOT NULL
+            WHERE mp.user_id = users.id AND mp.tenant_id = ${ctx.tenantId} AND mp.avatar_type IS NOT NULL
           )`,
         );
       } else {
         conditions.push(
           sql`EXISTS (
             SELECT 1 FROM member_profiles mp
-            WHERE mp.user_id = users.id AND mp.avatar_type = ${avatarType}
+            WHERE mp.user_id = users.id AND mp.tenant_id = ${ctx.tenantId} AND mp.avatar_type = ${avatarType}
           )`,
         );
       }
@@ -258,11 +274,13 @@ export class MemberService {
     // here mirrors recomputeUserStatus's CASE exactly so the list (and its
     // status filter) is always correct, independent of cache freshness.
     // 'freemium'/'prueba' are not derivable from subs, so they pass through.
+    // Fase 173-19: `s.tenant_id` inline.
     const effectiveStatusExpr = sql<UserStatus>`(
       CASE
         WHEN EXISTS (
           SELECT 1 FROM subscriptions s
           WHERE s.user_id = users.id
+            AND s.tenant_id = ${ctx.tenantId}
             AND s.subscription_status IN ('active','paused')
             AND s.start_date <= CURDATE()
             AND (s.end_date IS NULL OR s.end_date >= CURDATE())
@@ -286,26 +304,29 @@ export class MemberService {
 
     const whereClause = and(...conditions);
 
-    // Subquery: active subscription plan name (most recent if multiple)
+    // Subquery: active subscription plan name (most recent if multiple).
+    // Fase 173-19: `sp.tenant_id` en el ON del JOIN, `s.tenant_id` en el WHERE
+    // — dos tablas del módulo en el mismo statement, dos filtros.
     const planNameSubquery = sql<string | null>`(
       SELECT sp.name FROM subscriptions s
-      JOIN subscription_plans sp ON sp.id = s.plan_id
-      WHERE s.user_id = users.id AND s.subscription_status IN ('active','paused')
+      JOIN subscription_plans sp ON sp.id = s.plan_id AND sp.tenant_id = ${ctx.tenantId}
+      WHERE s.user_id = users.id AND s.tenant_id = ${ctx.tenantId} AND s.subscription_status IN ('active','paused')
       ORDER BY s.created_at DESC LIMIT 1
     )`;
 
     // Subquery: Attendance label (Phase 136) from member_profiles. Reads the
     // physical column `member_segment` (name unchanged); the value is now one
     // of the 4 Attendance bands or NULL (<1 month / no active plan, D-07/D-08).
+    // Fase 173-19: `mp.tenant_id` inline.
     const segmentSubquery = sql<MemberSegment | null>`(
       SELECT mp.member_segment FROM member_profiles mp
-      WHERE mp.user_id = users.id LIMIT 1
+      WHERE mp.user_id = users.id AND mp.tenant_id = ${ctx.tenantId} LIMIT 1
     )`;
 
-    // Subquery: avatar type from member_profiles
+    // Subquery: avatar type from member_profiles. Fase 173-19: `mp.tenant_id` inline.
     const avatarTypeSubquery = sql<string | null>`(
       SELECT mp.avatar_type FROM member_profiles mp
-      WHERE mp.user_id = users.id LIMIT 1
+      WHERE mp.user_id = users.id AND mp.tenant_id = ${ctx.tenantId} LIMIT 1
     )`;
 
     // Fecha de cobertura para el pill "Venc" (YYYY-MM-DD); null si el socio no
@@ -319,10 +340,11 @@ export class MemberService {
     // Uses idx_bookings_member_date (member_id prefix) for the lookup.
     // Cancelled trials are excluded so that admin can cancel a trial booking
     // (from the slot dialog) to reset the chip back to 0/1 and re-schedule.
+    // Fase 173-19: `b.tenant_id` inline — subquery con FROM propio.
     const hasUsedTrialSubquery = sql<number>`(
       SELECT EXISTS (
         SELECT 1 FROM bookings b
-        WHERE b.member_id = users.id AND b.is_trial = 1 AND b.booking_status != 'cancelado'
+        WHERE b.member_id = users.id AND b.tenant_id = ${ctx.tenantId} AND b.is_trial = 1 AND b.booking_status != 'cancelado'
       )
     )`;
 
@@ -336,7 +358,16 @@ export class MemberService {
     const countPromise = this.db
       .select({ count: sql<number>`COUNT(*)` })
       .from(schema.users)
-      .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
+      .innerJoin(
+        schema.branches,
+        // Fase 173-19: `branches` no es tabla strict del módulo, pero se
+        // scopea igual (doc 07 §0.3, criterio de archivo) — INNER, así que
+        // ON o WHERE dan lo mismo, pero el ON es el idioma del resto del módulo.
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, schema.users.branchId),
+        ),
+      )
       .where(whereClause);
 
     const rowsPromise = this.db
@@ -364,7 +395,13 @@ export class MemberService {
         hasUsedTrial: hasUsedTrialSubquery,
       })
       .from(schema.users)
-      .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
+      .innerJoin(
+        schema.branches,
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, schema.users.branchId),
+        ),
+      )
       .where(whereClause)
       .orderBy(schema.users.firstName, schema.users.lastName)
       .limit(limit)
@@ -389,11 +426,17 @@ export class MemberService {
           .from(schema.balances)
           .innerJoin(
             schema.users,
-            eq(schema.users.id, schema.balances.memberId),
+            and(
+              tenantWhere(schema.users, ctx),
+              eq(schema.users.id, schema.balances.memberId),
+            ),
           )
           .innerJoin(
             schema.branches,
-            eq(schema.branches.id, schema.users.branchId),
+            and(
+              tenantWhere(schema.branches, ctx),
+              eq(schema.branches.id, schema.users.branchId),
+            ),
           )
           .where(
             and(
@@ -1986,6 +2029,10 @@ export class MemberService {
    * `buildMemberNameSearchCondition`/`memberCoveredUntilSql` (helpers ya
    * scopeados) en vez de la copia local `legacyUnscopedNameSearchCondition` /
    * la subquery de `endDate` sin filtro que 173-05 dejó a propósito.
+   *
+   * Fase 173-19 (ADO-02): resto del filtro scopeado — mismo criterio que
+   * `listMembers` (T-173-19-02: el export entrega el padrón completo de una
+   * vez, es la ruta que más datos filtra de golpe).
    */
   async exportMembers(
     ctx: TenantContext,
@@ -2004,6 +2051,8 @@ export class MemberService {
 
     const conditions: ReturnType<typeof eq>[] = [];
 
+    // Fase 173-19: PRIMER elemento — mismo motivo que `listMembers`.
+    conditions.push(tenantWhere(schema.users, ctx));
     conditions.push(eq(schema.users.role, "member"));
     // Hide soft-deleted rows from exports (mirrors listMembers).
     conditions.push(isNull(schema.users.deletedAt));
@@ -2014,11 +2063,13 @@ export class MemberService {
     }
 
     if (multiBranch === true) {
+      // Fase 173-19: `sub.tenant_id`/`sp.tenant_id` inline.
       conditions.push(
         sql`EXISTS (
           SELECT 1 FROM subscriptions sub
-          INNER JOIN subscription_plans sp ON sp.id = sub.plan_id
+          INNER JOIN subscription_plans sp ON sp.id = sub.plan_id AND sp.tenant_id = ${ctx.tenantId}
           WHERE sub.user_id = ${schema.users.id}
+            AND sub.tenant_id = ${ctx.tenantId}
             AND sp.multi_branch = 1
             AND (sub.subscription_status = 'active' OR sub.end_date >= CURDATE())
         )`,
@@ -2062,36 +2113,38 @@ export class MemberService {
 
     if (planId !== undefined) {
       if (planId === 0) {
+        // Fase 173-19: `s.tenant_id` inline.
         conditions.push(
           sql`NOT EXISTS (
             SELECT 1 FROM subscriptions s
-            WHERE s.user_id = users.id AND s.subscription_status IN ('active','paused')
+            WHERE s.user_id = users.id AND s.tenant_id = ${ctx.tenantId} AND s.subscription_status IN ('active','paused')
           )`,
         );
       } else {
         conditions.push(
           sql`EXISTS (
             SELECT 1 FROM subscriptions s
-            WHERE s.user_id = users.id AND s.subscription_status IN ('active','paused') AND s.plan_id = ${planId}
+            WHERE s.user_id = users.id AND s.tenant_id = ${ctx.tenantId} AND s.subscription_status IN ('active','paused') AND s.plan_id = ${planId}
           )`,
         );
       }
     }
 
-    // Avatar type filter: filter by avatar type from member_profiles
+    // Avatar type filter: filter by avatar type from member_profiles. Fase
+    // 173-19: `mp.tenant_id` inline.
     if (avatarType !== undefined) {
       if (avatarType === "none") {
         conditions.push(
           sql`NOT EXISTS (
             SELECT 1 FROM member_profiles mp
-            WHERE mp.user_id = users.id AND mp.avatar_type IS NOT NULL
+            WHERE mp.user_id = users.id AND mp.tenant_id = ${ctx.tenantId} AND mp.avatar_type IS NOT NULL
           )`,
         );
       } else {
         conditions.push(
           sql`EXISTS (
             SELECT 1 FROM member_profiles mp
-            WHERE mp.user_id = users.id AND mp.avatar_type = ${avatarType}
+            WHERE mp.user_id = users.id AND mp.tenant_id = ${ctx.tenantId} AND mp.avatar_type = ${avatarType}
           )`,
         );
       }
@@ -2099,11 +2152,12 @@ export class MemberService {
 
     const whereClause = and(...conditions);
 
-    // Subquery: active subscription plan name
+    // Subquery: active subscription plan name. Fase 173-19: `sp.tenant_id`/
+    // `s.tenant_id` inline.
     const planNameSubquery = sql<string | null>`(
       SELECT sp.name FROM subscriptions s
-      JOIN subscription_plans sp ON sp.id = s.plan_id
-      WHERE s.user_id = users.id AND s.subscription_status IN ('active','paused')
+      JOIN subscription_plans sp ON sp.id = s.plan_id AND sp.tenant_id = ${ctx.tenantId}
+      WHERE s.user_id = users.id AND s.tenant_id = ${ctx.tenantId} AND s.subscription_status IN ('active','paused')
       ORDER BY s.created_at DESC LIMIT 1
     )`;
 
@@ -2131,7 +2185,13 @@ export class MemberService {
         address: schema.users.address,
       })
       .from(schema.users)
-      .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
+      .innerJoin(
+        schema.branches,
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, schema.users.branchId),
+        ),
+      )
       .where(whereClause)
       .orderBy(schema.users.lastName, schema.users.firstName);
 
@@ -2168,6 +2228,15 @@ export class MemberService {
    * subscriptions), NO con users.status — la columna driftea (fantasmas
    * 2026-05-26) y un socio dado de baja no puede colarse en el débito
    * bancario del mes.
+   *
+   * Fase 173-19 (ADO-02, T-173-19-02): `users`/`branches`/`user_sepa_details`
+   * (los IBANs, el dato más sensible del export) quedan scopeados. NOTA:
+   * `activeMemberExists` (`shared/active-member.ts`) es un helper compartido
+   * con reports/advanced-finance que NO recibe `ctx` — su `EXISTS` correlaciona
+   * por `s.user_id = users.id` (un id de usuario es de UN solo gimnasio), así
+   * que no hay fuga cross-tenant real, pero tampoco nombra el gimnasio. Darle
+   * `ctx` es un cambio de firma que toca módulos fuera de `members` (D-02,
+   * cirugía mínima) — queda documentado, no arreglado acá.
    */
   async exportSepaMembers(
     ctx: TenantContext,
@@ -2177,6 +2246,7 @@ export class MemberService {
     },
   ): Promise<SepaExportRow[]> {
     const conditions: SQL[] = [
+      tenantWhere(schema.users, ctx),
       eq(schema.users.role, "member"),
       isNull(schema.users.deletedAt),
       eq(schema.branches.country, "ES"),
@@ -2192,10 +2262,11 @@ export class MemberService {
       conditions.push(activeMemberExists(schema.users.id));
     }
 
+    // Fase 173-19: `sp.tenant_id`/`s.tenant_id` inline.
     const planNameSubquery = sql<string | null>`(
       SELECT sp.name FROM subscriptions s
-      JOIN subscription_plans sp ON sp.id = s.plan_id
-      WHERE s.user_id = users.id AND s.subscription_status IN ('active','paused')
+      JOIN subscription_plans sp ON sp.id = s.plan_id AND sp.tenant_id = ${ctx.tenantId}
+      WHERE s.user_id = users.id AND s.tenant_id = ${ctx.tenantId} AND s.subscription_status IN ('active','paused')
       ORDER BY s.created_at DESC LIMIT 1
     )`;
 
@@ -2215,10 +2286,22 @@ export class MemberService {
         country: schema.userSepaDetails.country,
       })
       .from(schema.users)
-      .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
+      .innerJoin(
+        schema.branches,
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, schema.users.branchId),
+        ),
+      )
+      // Fase 173-19 (T-173-19-04): LEFT JOIN — filtro en el ON. En el WHERE
+      // convertiría el LEFT en INNER y un socio sin domiciliación cargada
+      // desaparecería del export en vez de figurar con los campos SEPA vacíos.
       .leftJoin(
         schema.userSepaDetails,
-        eq(schema.userSepaDetails.userId, schema.users.id),
+        and(
+          tenantWhere(schema.userSepaDetails, ctx),
+          eq(schema.userSepaDetails.userId, schema.users.id),
+        ),
       )
       .where(and(...conditions))
       .orderBy(schema.users.lastName, schema.users.firstName);
