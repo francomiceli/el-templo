@@ -9,6 +9,8 @@ import { FastifyPluginAsync } from "fastify";
 import { UserService } from "./service";
 import { OWNER_ROLES } from "../shared/permissions";
 import { handleServiceError } from "../shared/error-handler";
+import { attachCountryScope } from "../shared/country-scope";
+import { assertTenant } from "../shared/tenant";
 import type { CreateStaffInput, UpdateStaffInput } from "./types";
 import {
   listStaffSchema,
@@ -22,6 +24,12 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
 
   /**
    * Guard: require owner role on all routes in this plugin.
+   *
+   * Fase 173 (ADO-02): `attachCountryScope` monta `request.scope` DESPUÉS del
+   * check de rol (mismo orden que `coach-load-routes.ts:270-280`) — si no
+   * estuviera acá, `request.scope` llegaría `undefined` a cada handler y
+   * `assertTenant` no tendría de dónde leer (fue una regresión real del
+   * piloto, doc 07 §4).
    */
   fastify.addHook("onRequest", async (request, reply) => {
     await fastify.authenticate(request, reply);
@@ -31,14 +39,20 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
         message: "Solo el propietario puede gestionar usuarios",
       });
     }
+    await attachCountryScope(request, fastify.db);
   });
 
   // GET / - List staff users
   fastify.get<{ Querystring: { branchId?: number } }>(
     "/",
     { schema: listStaffSchema },
-    async (request) => {
-      return userService.listStaff(request.query.branchId);
+    async (request, reply) => {
+      try {
+        const ctx = assertTenant(request.scope, "users.list");
+        return await userService.listStaff(ctx, request.query.branchId);
+      } catch (err: unknown) {
+        return handleServiceError(err, reply, request.log, "list staff users");
+      }
     },
   );
 
@@ -48,7 +62,8 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: createStaffSchema },
     async (request, reply) => {
       try {
-        const id = await userService.createStaff(request.body);
+        const ctx = assertTenant(request.scope, "users.createStaff");
+        const id = await userService.createStaff(ctx, request.body);
         return reply.code(201).send({
           id,
           email: request.body.email,
@@ -87,7 +102,9 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: updateStaffSchema },
     async (request, reply) => {
       try {
+        const ctx = assertTenant(request.scope, "users.updateStaff");
         const result = await userService.updateStaff(
+          ctx,
           request.params.userId,
           request.body,
         );
@@ -127,7 +144,9 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: toggleStatusSchema },
     async (request, reply) => {
       try {
+        const ctx = assertTenant(request.scope, "users.setStatus");
         const result = await userService.toggleDisabled(
+          ctx,
           request.params.userId,
           request.body.disabled,
           request.user.userId,
