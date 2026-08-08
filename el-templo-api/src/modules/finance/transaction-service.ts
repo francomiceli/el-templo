@@ -733,7 +733,7 @@ export class TransactionService {
     // voids. Atomic with the soft-void update + balance rollback — if any
     // of the writes above throws after this point, the audit row vanishes
     // (helper requires tx handle; never opens its own transaction).
-    await auditLog.write(tx, {
+    await auditLog.write(ctx, tx, {
       actorId: voidedBy,
       action: "transaction_voided",
       targetKind: "transaction",
@@ -881,7 +881,7 @@ export class TransactionService {
       const finalCashRegisterId =
         cashRegisterId !== undefined ? cashRegisterId : existing.cashRegisterId;
 
-      await auditLog.write(tx, {
+      await auditLog.write(ctx, tx, {
         actorId: adminId,
         action: "transaction_validated",
         targetKind: "transaction",
@@ -971,7 +971,7 @@ export class TransactionService {
           ),
         );
 
-      await auditLog.write(tx, {
+      await auditLog.write(ctx, tx, {
         actorId: adminId,
         action: "transaction_observed",
         targetKind: "transaction",
@@ -1131,7 +1131,7 @@ export class TransactionService {
       );
 
       // 5. Forensic audit row for the correction.
-      await auditLog.write(tx, {
+      await auditLog.write(ctx, tx, {
         actorId: adminId,
         action: "transaction_corrected",
         targetKind: "transaction",

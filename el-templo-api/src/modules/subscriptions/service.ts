@@ -1857,7 +1857,7 @@ export class SubscriptionService {
         // REQ-7 (Phase 111): forensic trail for plan_assigned (D-13 payload).
         // Atomic with the subscription insert + charge — if either fails, the
         // audit row vanishes with the rest of the transaction.
-        await auditLog.write(tx, {
+        await auditLog.write(ctx, tx, {
           actorId: adminId,
           action: "plan_assigned",
           targetKind: "subscription",
@@ -2541,6 +2541,7 @@ export class SubscriptionService {
    * transaction as the endDate update.
    */
   async compensateDays(
+    ctx: TenantContext,
     subscriptionId: number,
     input: { fromDate: string; toDate: string; reason: string },
     actorId: number,
@@ -2637,7 +2638,7 @@ export class SubscriptionService {
         .set({ endDate: newEndDate })
         .where(eq(schema.subscriptions.id, subscriptionId));
 
-      await auditLog.write(tx, {
+      await auditLog.write(ctx, tx, {
         actorId,
         action: "days_compensated",
         targetKind: "subscription",
@@ -2990,7 +2991,7 @@ export class SubscriptionService {
     // Atomic with the cancel — if any of the writes above rolls back,
     // this row vanishes too (helper requires tx handle, never opens its
     // own transaction).
-    await auditLog.write(tx, {
+    await auditLog.write(ctx, tx, {
       actorId,
       action: "subscription_cancelled",
       targetKind: "subscription",

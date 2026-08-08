@@ -14,7 +14,13 @@ import { sql, eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { createTestApp, registerUser } from "../helpers";
 import { auditLog } from "../../src/modules/shared/audit-log";
+import type { TenantContext } from "../../src/modules/shared/tenant";
 import * as schema from "../../src/db/schema";
+
+// 173-04 (D-01): `auditLog.write` ahora pide `ctx` PRIMERO. El gimnasio 1 es
+// el unico tenant de este archivo — cero fixtures de segundo gimnasio, la
+// prueba de aislamiento por tenant vive en la bateria ISO-03, no aca.
+const CTX: TenantContext = { tenantId: 1 };
 
 let app: FastifyInstance;
 let actorId: number;
@@ -61,7 +67,7 @@ beforeEach(async () => {
 describe("auditLog.write — atomicity contract", () => {
   it("Test 1: happy path — row is persisted after transaction commits", async () => {
     await app.db.transaction(async (tx) => {
-      await auditLog.write(tx, {
+      await auditLog.write(CTX, tx, {
         actorId,
         action: "subscription_cancelled",
         targetKind: "subscription",
@@ -95,7 +101,7 @@ describe("auditLog.write — atomicity contract", () => {
 
     await expect(
       app.db.transaction(async (tx) => {
-        await auditLog.write(tx, {
+        await auditLog.write(CTX, tx, {
           actorId,
           action: "transaction_voided",
           targetKind: "transaction",
@@ -114,7 +120,7 @@ describe("auditLog.write — atomicity contract", () => {
 
   it("Test 3: reason omitted — DB row has reason IS NULL", async () => {
     await app.db.transaction(async (tx) => {
-      await auditLog.write(tx, {
+      await auditLog.write(CTX, tx, {
         actorId,
         action: "plan_assigned",
         targetKind: "subscription",
@@ -141,7 +147,7 @@ describe("auditLog.write — atomicity contract", () => {
     };
 
     await app.db.transaction(async (tx) => {
-      await auditLog.write(tx, {
+      await auditLog.write(CTX, tx, {
         actorId,
         action: "reconciliation",
         targetKind: "member",

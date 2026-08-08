@@ -460,7 +460,7 @@ export class EnrollmentService {
 
       // Step 6 (D-24) — audit log row. Same tx as the rest, so a downstream
       // failure rolls everything back.
-      await auditLog.write(txHandle, {
+      await auditLog.write(ctx, txHandle, {
         actorId: input.assignedBy,
         action: "plan_assigned",
         targetKind: "member",

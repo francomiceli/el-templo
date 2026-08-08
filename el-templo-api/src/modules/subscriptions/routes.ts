@@ -433,6 +433,7 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       try {
         const sub = await subscriptionService.compensateDays(
+          assertTenant(request.scope, "subscriptions.compensateDays"),
           request.params.subscriptionId,
           request.body,
           request.user.userId,

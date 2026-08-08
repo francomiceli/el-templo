@@ -529,6 +529,12 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       try {
+        // 173-04: mismo patrón que enrollAddon (:451) — el módulo `programs`
+        // no monta `attachCountryScope` en un hook, así que se resuelve acá
+        // antes de que `auditLog.write` (ya migrado, D-01) lo necesite.
+        await attachCountryScope(request, fastify.db);
+        const ctx = assertTenant(request.scope, "programs.enrollment.cancel");
+
         // Resolve enrollment metadata BEFORE cancel (cancelEnrollment opens
         // its own write, so we read first to know whether the audit branch
         // applies). Fetched outside the audit tx for read simplicity; the
@@ -549,7 +555,7 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
         await fastify.db.transaction(async (tx) => {
           await service.cancelEnrollment(request.params.enrollmentId);
           if (enrollmentRow && enrollmentRow.source === "admin_addon") {
-            await auditLog.write(tx, {
+            await auditLog.write(ctx, tx, {
               actorId: request.user.userId,
               action: "plan_assigned",
               targetKind: "member",

@@ -246,7 +246,7 @@ export class MovementService {
       // D-04 trail: always write the reconciliation audit (expected + counted +
       // diff). When counted is omitted, counted/diff are null — the rastro still
       // records the expected saldo at the moment of the movement.
-      await auditLog.write(tx, {
+      await auditLog.write(ctx, tx, {
         actorId: adminId,
         action: "reconciliation",
         targetKind: "transaction",
