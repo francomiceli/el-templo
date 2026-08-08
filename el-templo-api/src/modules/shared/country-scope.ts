@@ -1,9 +1,10 @@
 import type { FastifyRequest } from "fastify";
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import * as schema from "../../db/schema";
 import { OWNER_ROLES } from "./permissions";
 import { AppError } from "./errors";
+import { tenantWhere, type TenantContext } from "./tenant";
 
 export type CountryCode = "AR" | "ES";
 
@@ -195,6 +196,22 @@ export async function attachScope(
 
       userBranchId = row.branchId ?? null;
 
+      // 173-04 (D-02, T-173-04-02): el ctx de tenancy nace de la MISMA fila
+      // de `users` que ya resolvió `tenantId` arriba — nunca de
+      // `request.user` ni del body. `null` cuando el gimnasio no se pudo
+      // resolver (corrupción de datos, la FK fk_users_tenant lo vuelve
+      // imposible en la práctica): las dos queries de abajo
+      // (`user_branches` y el join de `resolveBranchCountry`) solo agregan
+      // el filtro cuando hay un gimnasio real, y jamás caen a `?? 1` ni a un
+      // `!` — ese es el guard fail-closed. El PAÍS sigue filtrando adentro
+      // (`resolveBranchCountry`, `row.country`) pero ya no es lo que aísla:
+      // el aislamiento lo da el gimnasio (mismo movimiento que D-14 hace en
+      // `branch-access.ts`, plan 173-11). Ambas queries además ya scopean
+      // por `users.id = userId` / `user_branches.user_id = userId`, así que
+      // `tenantWhere` acá es un cinturón de defensa en profundidad y no la
+      // única barrera contra una fuga entre gimnasios.
+      const ctx: TenantContext | null = tenantId === null ? null : { tenantId };
+
       if (isOwner) {
         // Phase 98 D-18 invariant: owner-without-toggle resolves to their own
         // branch country (NOT hardcoded 'AR'). Toggle wins when present.
@@ -203,7 +220,7 @@ export async function attachScope(
         if (q === "AR" || q === "ES") {
           country = q;
         } else {
-          const branchCountry = await resolveBranchCountry(db, userId);
+          const branchCountry = await resolveBranchCountry(db, ctx, userId);
           if (branchCountry) country = branchCountry;
           // else: country stays null (no resolvable branch — should not happen
           // for owner; fail-closed if it does).
@@ -228,17 +245,24 @@ export async function attachScope(
         const ubRows = await db
           .select({ branchId: schema.userBranches.branchId })
           .from(schema.userBranches)
-          .where(eq(schema.userBranches.userId, userId));
+          .where(
+            ctx
+              ? and(
+                  tenantWhere(schema.userBranches, ctx),
+                  eq(schema.userBranches.userId, userId),
+                )
+              : eq(schema.userBranches.userId, userId),
+          );
         branchIds = ubRows.map((r) => r.branchId).sort((a, b) => a - b);
 
         // Country derived from the actor's own branch (their personal training
         // sede) — mirrors the previous JOIN behavior for consumers like
         // FinanceService that rely on `scope.country`.
-        const branchCountry = await resolveBranchCountry(db, userId);
+        const branchCountry = await resolveBranchCountry(db, ctx, userId);
         if (branchCountry) country = branchCountry;
       } else {
         // Member (and any future role): preserve pre-Phase-110 JOIN-based behavior.
-        const branchCountry = await resolveBranchCountry(db, userId);
+        const branchCountry = await resolveBranchCountry(db, ctx, userId);
         if (branchCountry) {
           country = branchCountry;
         } else {
@@ -263,15 +287,29 @@ export async function attachScope(
  */
 export const attachCountryScope = attachScope;
 
+/**
+ * 173-04 (D-02): `ctx` es `TenantContext | null` y no `TenantContext` a
+ * secas — a diferencia de un route handler (que SIEMPRE puede pasar por
+ * `assertTenant` en el borde), acá el llamador es el propio `attachScope`
+ * TODAVÍA resolviendo el scope, así que un gimnasio no resoluble es un
+ * estado legítimo de este punto del código (guard fail-closed de arriba) y
+ * no una excepción de programación. `null` NO filtra por tenant — la query
+ * sigue scopeada a `users.id = userId`, una sola fila.
+ */
 async function resolveBranchCountry(
   db: MySql2Database<typeof schema>,
+  ctx: TenantContext | null,
   userId: number,
 ): Promise<CountryCode | null> {
   const [row] = await db
     .select({ country: schema.branches.country })
     .from(schema.users)
     .innerJoin(schema.branches, eq(schema.users.branchId, schema.branches.id))
-    .where(eq(schema.users.id, userId));
+    .where(
+      ctx
+        ? and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId))
+        : eq(schema.users.id, userId),
+    );
   if (row?.country === "AR" || row?.country === "ES") {
     return row.country;
   }
