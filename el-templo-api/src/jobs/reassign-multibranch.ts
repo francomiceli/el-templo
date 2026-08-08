@@ -28,8 +28,10 @@ import pino from "pino";
 import { and, eq, gte, inArray, sql } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import * as schema from "../db/schema";
+import { resolveBranchDelGimnasio } from "../modules/shared/branch-consistency";
 import {
   forEachActiveTenant,
+  tenantWhere,
   type TenantContext,
 } from "../modules/shared/tenant";
 
@@ -61,7 +63,8 @@ export interface ReassignSkip {
     | "few_attendances"
     | "cross_country"
     | "already_top"
-    | "no_dominance";
+    | "no_dominance"
+    | "cross_tenant";
 }
 
 export interface ReassignResult {
@@ -134,15 +137,23 @@ async function runReassignMultibranchForTenant(
   );
 
   // 1. Candidatos: members con AL MENOS una sub ACTIVA sobre un plan multi_branch.
+  //    `subscriptions` y `subscription_plans` no son tablas strict de ESTA fase
+  //    (son de la 174), pero filtrarlas igual es correcto y necesario para que
+  //    el barrido sea por gimnasio (D-04) — el `tenantWhere` va en el `where`
+  //    de la tabla base y en el `ON` del join (mordió 4× en el resto de la fase).
   const candidateRows = await db
     .selectDistinct({ memberId: schema.subscriptions.userId })
     .from(schema.subscriptions)
     .innerJoin(
       schema.subscriptionPlans,
-      eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
+      and(
+        tenantWhere(schema.subscriptionPlans, ctx),
+        eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
+      ),
     )
     .where(
       and(
+        tenantWhere(schema.subscriptions, ctx),
         eq(schema.subscriptions.status, "active"),
         eq(schema.subscriptionPlans.multiBranch, true),
       ),
@@ -158,6 +169,7 @@ async function runReassignMultibranchForTenant(
   if (candidateIds.length === 0) return result;
 
   // 2. Estado actual de cada candidato: sede home + tracking del último cambio.
+  //    `users` SÍ es tabla strict de esta fase (D-01): `tenantWhere` inline.
   const members = await db
     .select({
       id: schema.users.id,
@@ -166,18 +178,31 @@ async function runReassignMultibranchForTenant(
       branchSource: schema.users.branchSource,
     })
     .from(schema.users)
-    .where(inArray(schema.users.id, candidateIds));
+    .where(
+      and(tenantWhere(schema.users, ctx), inArray(schema.users.id, candidateIds)),
+    );
   const memberById = new Map(members.map((m) => [m.id, m]));
 
-  // 3. Mapa de sedes → país (guardrail de mismo país).
+  // 3. Mapa de sedes → país (guardrail de mismo país). T-173-16-02 (mina M10):
+  //    SOLO sedes del PROPIO gimnasio — sin este filtro, esta es la query que
+  //    le permite al cron elegir una sede ajena como "dominante" (una sede de
+  //    otro gimnasio quedaba en el mapa con su país real y podía ganar la
+  //    comparación de abajo). Con el filtro, una sede ajena simplemente NO
+  //    ESTÁ en `countryByBranch` y el filtro de `buckets` de más abajo la
+  //    descarta antes de que compita por ser la sede top.
   const branchRows = await db
     .select({ id: schema.branches.id, country: schema.branches.country })
-    .from(schema.branches);
+    .from(schema.branches)
+    .where(tenantWhere(schema.branches, ctx));
   const countryByBranch = new Map(branchRows.map((b) => [b.id, b.country]));
 
   // 4. Asistencias por (miembro, sede) en la ventana, en una sola agregada.
   //    La ventana se computa en JS (desde Date.now()) para que sea determinista
   //    bajo fake timers en los tests; sessionDate es un DATE (YYYY-MM-DD).
+  //    `attendance` no es tabla strict de esta fase, pero se filtra igual
+  //    (D-04): sin esto, una asistencia con `branch_id` de otro gimnasio (dato
+  //    cruzado, la tabla no tiene ninguna FK que lo impida hoy — D-08) seguiría
+  //    entrando al cómputo de "dónde entrena".
   const windowStartStr = new Date(
     Date.now() - ATTENDANCE_WINDOW_DAYS * 24 * 60 * 60 * 1000,
   )
@@ -192,6 +217,7 @@ async function runReassignMultibranchForTenant(
     .from(schema.attendance)
     .where(
       and(
+        tenantWhere(schema.attendance, ctx),
         inArray(schema.attendance.memberId, candidateIds),
         gte(schema.attendance.sessionDate, windowStartStr),
       ),
@@ -222,7 +248,13 @@ async function runReassignMultibranchForTenant(
       continue;
     }
 
+    // T-173-16-02: solo compiten por ser la sede top las sedes que aparecen en
+    // `countryByBranch`, o sea las del PROPIO gimnasio (query 3). Una
+    // asistencia con `branch_id` de otro gimnasio queda descartada ACÁ, antes
+    // de que `total`/`top` la vean — es la mitigación de la mina M10 aplicada
+    // a la señal de entrada, no solo al UPDATE final.
     const buckets = (byMember.get(memberId) ?? [])
+      .filter((b) => countryByBranch.has(b.branchId))
       .slice()
       .sort((a, b) => b.count - a.count);
     const total = buckets.reduce((s, b) => s + b.count, 0);
@@ -268,7 +300,22 @@ async function runReassignMultibranchForTenant(
     });
 
     if (!dryRun) {
-      await reassignMemberBranch(db, memberId, top.branchId);
+      // D-07 — guarda ANTES del UPDATE, además del filtro de arriba (defensa
+      // en profundidad, mina M10): `reassignMemberBranch` vuelve a resolver la
+      // sede por `ctx` justo antes de escribir. Si por cualquier motivo ya no
+      // es del gimnasio (carrera, dato que cambió entre el SELECT y acá), NO
+      // escribe nada, el "change" recién agregado se revierte a "skipped", se
+      // loguea con campos estructurados y el barrido SIGUE con el resto.
+      const moved = await reassignMemberBranch(ctx, db, memberId, top.branchId);
+      if (!moved) {
+        result.changes.pop();
+        result.skipped.push({ memberId, reason: "cross_tenant" });
+        log.warn(
+          { tenantId: ctx.tenantId, memberId, branchId: top.branchId },
+          "Sede candidata ya no es del gimnasio: recategorización salteada",
+        );
+        continue;
+      }
     }
   }
 
@@ -280,22 +327,42 @@ async function runReassignMultibranchForTenant(
  * subscriptions.branch_id de las subs vivas (active/scheduled/paused). El
  * miembro es multi_branch, así que NO se tocan bookings ni turnos fijos (a
  * diferencia del path single-branch de la edición admin).
+ *
+ * D-07 (mina M10) — GUARDA ANTES DEL UPDATE: resuelve la sede con
+ * `resolveBranchDelGimnasio` filtrada por `ctx` ANTES de escribir. Si no
+ * resuelve (la sede ya no es del gimnasio, o no existe), NO escribe nada y
+ * devuelve `false` — el llamador decide "saltear y seguir", nunca abortar el
+ * barrido (D-07/T-173-16-05). Con la FK compuesta `users(tenant_id,
+ * branch_id)` del plan 173-12 aplicada, un UPDATE cross-tenant además EXPLOTA
+ * en la base: esta guarda de app existe para que el cron salte limpio en vez
+ * de reventar con un error de FK. Escribe el `id` de la fila YA RESUELTA
+ * (`branch.id`), no el parámetro crudo — mismo idioma que
+ * `assertBranchDelGimnasio` en `members/service.ts` y `users/service.ts`.
  */
 async function reassignMemberBranch(
+  ctx: TenantContext,
   db: MySql2Database<typeof schema>,
   memberId: number,
   branchId: number,
-): Promise<void> {
-  await db.transaction(async (tx) => {
+): Promise<boolean> {
+  return db.transaction(async (tx) => {
+    const branch = await resolveBranchDelGimnasio(ctx, branchId, tx);
+    if (!branch) return false;
+
     await tx
       .update(schema.users)
-      .set({ branchId, branchUpdatedAt: new Date(), branchSource: "auto" })
-      .where(eq(schema.users.id, memberId));
+      .set({
+        branchId: branch.id,
+        branchUpdatedAt: new Date(),
+        branchSource: "auto",
+      })
+      .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, memberId)));
     await tx
       .update(schema.subscriptions)
-      .set({ branchId })
+      .set({ branchId: branch.id })
       .where(
         and(
+          tenantWhere(schema.subscriptions, ctx),
           eq(schema.subscriptions.userId, memberId),
           inArray(schema.subscriptions.status, [
             "active",
@@ -304,6 +371,7 @@ async function reassignMemberBranch(
           ]),
         ),
       );
+    return true;
   });
 }
 
