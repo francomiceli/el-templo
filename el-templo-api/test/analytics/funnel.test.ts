@@ -14,8 +14,17 @@ import { userStatusHistory } from "../../src/db/schema/user-status-history";
 import { subscriptions } from "../../src/db/schema/subscriptions";
 import { subscriptionPlans } from "../../src/db/schema/subscription-plans";
 import { branches } from "../../src/db/schema/branches";
+import { type TenantContext } from "../../src/modules/shared/tenant";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 
 const ANALYTICS_URL = "/api/admin/analytics";
+
+/**
+ * Fase 173 (D-02): `getFunnel` recibe `TenantContext` como PRIMER argumento
+ * (en producción sale de `assertTenant(request.scope, …)`); acá se construye
+ * a mano porque el service se invoca sin request. El Templo es el tenant 1.
+ */
+const CTX: TenantContext = { tenantId: TENANT_TEMPLO };
 
 /**
  * Phase 118 Plan 04 — FunnelService (D-01 / D-03 / D-09 / D-11 / D-12).
@@ -142,7 +151,7 @@ describe("FunnelService (Phase 118 Plan 04)", () => {
       await createMember("c-b@test.com", "94000002", "2026-01-20T10:00:00Z");
       await createMember("c-c@test.com", "94000003", "2026-02-10T10:00:00Z");
 
-      const res = await svc.getFunnel({});
+      const res = await svc.getFunnel(CTX, {});
       const jan = res.cohorts.find((c) => c.cohortMonth === "2026-01");
       const feb = res.cohorts.find((c) => c.cohortMonth === "2026-02");
       expect(jan!.size).toBe(2);
@@ -154,7 +163,7 @@ describe("FunnelService (Phase 118 Plan 04)", () => {
       await createMember("s-b@test.com", "94001002", "2026-01-01T10:00:00Z");
       await createMember("s-c@test.com", "94001003", "2026-02-01T10:00:00Z");
 
-      const res = await svc.getFunnel({});
+      const res = await svc.getFunnel(CTX, {});
       const months = res.cohorts.map((c) => c.cohortMonth);
       expect(months).toEqual([...months].sort());
     });
@@ -183,7 +192,7 @@ describe("FunnelService (Phase 118 Plan 04)", () => {
       await addTransition(u1, "freemium", "prueba", "2026-01-12T10:00:00Z");
       await addTransition(u2, "freemium", "prueba", "2026-01-13T10:00:00Z");
 
-      const res = await svc.getFunnel({});
+      const res = await svc.getFunnel(CTX, {});
       const jan = res.cohorts.find((c) => c.cohortMonth === "2026-01");
       expect(jan!.size).toBe(4);
       // 2 of 4 reached prueba → 50%
@@ -209,7 +218,7 @@ describe("FunnelService (Phase 118 Plan 04)", () => {
       await addTransition(u1, "prueba", "activo", "2026-01-20T10:00:00Z");
       await addSub(u2, "2026-01-25T10:00:00Z");
 
-      const res = await svc.getFunnel({});
+      const res = await svc.getFunnel(CTX, {});
       const jan = res.cohorts.find((c) => c.cohortMonth === "2026-01");
       expect(jan!.size).toBe(3);
       // u1 + u2 reached activo (one via history, one via sub) → 2/3 ≈ 67%
@@ -220,7 +229,7 @@ describe("FunnelService (Phase 118 Plan 04)", () => {
       await createMember("z-1@test.com", "94030001", "2026-01-02T10:00:00Z");
       await createMember("z-2@test.com", "94030002", "2026-01-03T10:00:00Z");
 
-      const res = await svc.getFunnel({});
+      const res = await svc.getFunnel(CTX, {});
       const jan = res.cohorts.find((c) => c.cohortMonth === "2026-01");
       expect(jan!.toPruebaPct).toBe(0);
       expect(jan!.toActivoPct).toBe(0);
@@ -253,7 +262,7 @@ describe("FunnelService (Phase 118 Plan 04)", () => {
       await addTransition(u1, "freemium", "prueba", "2026-01-11T00:00:00Z"); // 10d
       await addTransition(u2, "freemium", "prueba", "2026-01-21T00:00:00Z"); // 20d
 
-      const res = await svc.getFunnel({});
+      const res = await svc.getFunnel(CTX, {});
       const jan = res.cohorts.find((c) => c.cohortMonth === "2026-01");
       // median of [10, 20] = 15
       expect(jan!.medianDaysFreemiumToPrueba).toBe(15);
@@ -277,7 +286,7 @@ describe("FunnelService (Phase 118 Plan 04)", () => {
       await addTransition(u1, "prueba", "activo", "2026-01-17T00:00:00Z"); // +6d
       await addSub(u2, "2026-01-25T00:00:00Z"); // activo, but no prueba
 
-      const res = await svc.getFunnel({});
+      const res = await svc.getFunnel(CTX, {});
       const jan = res.cohorts.find((c) => c.cohortMonth === "2026-01");
       // Only u1 passed through both stages → median of [6] = 6
       expect(jan!.medianDaysPruebaToActivo).toBe(6);
@@ -297,7 +306,7 @@ describe("FunnelService (Phase 118 Plan 04)", () => {
       );
       await addSub(u, "2026-01-20T10:00:00Z");
 
-      const res = await svc.getFunnel({});
+      const res = await svc.getFunnel(CTX, {});
       const jan = res.cohorts.find((c) => c.cohortMonth === "2026-01");
       expect(jan!.toActivoPct).toBe(100);
     });
@@ -368,7 +377,7 @@ describe("FunnelService (Phase 118 Plan 04)", () => {
 
     it("all (default) includes every origin in the cohort", async () => {
       await seedMixedCohort();
-      const res = await svc.getFunnel({});
+      const res = await svc.getFunnel(CTX, {});
       expect(res.entryOrigin).toBe("all");
       const mar = res.cohorts.find((c) => c.cohortMonth === "2026-03");
       expect(mar!.size).toBe(6);
@@ -376,7 +385,7 @@ describe("FunnelService (Phase 118 Plan 04)", () => {
 
     it("directo keeps only trials created directly as prueba (from=NULL)", async () => {
       await seedMixedCohort();
-      const res = await svc.getFunnel({ entryOrigin: "directo" });
+      const res = await svc.getFunnel(CTX, { entryOrigin: "directo" });
       expect(res.entryOrigin).toBe("directo");
       const mar = res.cohorts.find((c) => c.cohortMonth === "2026-03");
       expect(mar!.size).toBe(2); // d1, d2 only (s1/o1/freemium excluded)
@@ -387,7 +396,7 @@ describe("FunnelService (Phase 118 Plan 04)", () => {
 
     it("freemium keeps only trials converted from a freemium account", async () => {
       await seedMixedCohort();
-      const res = await svc.getFunnel({ entryOrigin: "freemium" });
+      const res = await svc.getFunnel(CTX, { entryOrigin: "freemium" });
       expect(res.entryOrigin).toBe("freemium");
       const mar = res.cohorts.find((c) => c.cohortMonth === "2026-03");
       expect(mar!.size).toBe(2); // f1, f2 only
@@ -397,9 +406,9 @@ describe("FunnelService (Phase 118 Plan 04)", () => {
 
     it("segments never mix: directo + freemium sizes sum to less than `all`", async () => {
       await seedMixedCohort();
-      const all = await svc.getFunnel({});
-      const directo = await svc.getFunnel({ entryOrigin: "directo" });
-      const freemium = await svc.getFunnel({ entryOrigin: "freemium" });
+      const all = await svc.getFunnel(CTX, {});
+      const directo = await svc.getFunnel(CTX, { entryOrigin: "directo" });
+      const freemium = await svc.getFunnel(CTX, { entryOrigin: "freemium" });
       const sz = (r: { cohorts: { cohortMonth: string; size: number }[] }) =>
         r.cohorts.find((c) => c.cohortMonth === "2026-03")?.size ?? 0;
       // s1 (no prueba) + o1 (otro) live only in `all`.
@@ -427,7 +436,7 @@ describe("FunnelService (Phase 118 Plan 04)", () => {
         branchES,
       );
 
-      const onlyA = await svc.getFunnel({ branchId: branchA });
+      const onlyA = await svc.getFunnel(CTX, { branchId: branchA });
       const jan = onlyA.cohorts.find((c) => c.cohortMonth === "2026-01");
       expect(jan!.size).toBe(1);
     });

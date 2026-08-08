@@ -33,6 +33,8 @@ import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { applyScope } from "./scope";
 import { activeMemberExists } from "../shared/active-member";
+// Path directo, NUNCA por el barrel `shared/index.ts` (fase 169).
+import { tenantWhere, type TenantContext } from "../shared/tenant";
 import type { MemberSegment } from "../segmentation/types";
 import type {
   AnalyticsFilters,
@@ -62,8 +64,15 @@ export class EngagementService {
    * computed) land in `sinSegmento` so the per-band counts reconcile against
    * the total active count. Scope via applyScope on `users.branchId` (D-17).
    * Reused, never recalculated.
+   *
+   * Fase 173 (D-02): `ctx` PRIMERO. `users` es la tabla FROM (filtro inline en
+   * el `.where(and(tenantWhere(...), ...))` de cada rama del ternario) y
+   * `member_profiles` es un LEFT JOIN — su filtro va en el ON, nunca en el
+   * WHERE (en el WHERE, `NULL = ctx.tenantId` es falso para un activo sin
+   * perfil y el LEFT se vuelve INNER, borrando la fila en silencio).
    */
   async countActiveBySegment(
+    ctx: TenantContext,
     filters: AnalyticsFilters,
   ): Promise<SegmentCounts> {
     const { conditions: scopeConditions, needsBranchJoin } = applyScope({
@@ -89,7 +98,10 @@ export class EngagementService {
       .from(schema.users)
       .leftJoin(
         schema.memberProfiles,
-        eq(schema.memberProfiles.userId, schema.users.id),
+        and(
+          tenantWhere(schema.memberProfiles, ctx),
+          eq(schema.memberProfiles.userId, schema.users.id),
+        ),
       );
 
     const rows = needsBranchJoin
@@ -98,12 +110,12 @@ export class EngagementService {
             schema.branches,
             eq(schema.branches.id, schema.users.branchId),
           )
-          .where(and(...conditions))
+          .where(and(tenantWhere(schema.users, ctx), ...conditions))
           .groupBy(
             sql`COALESCE(${schema.memberProfiles.segment}, 'sinSegmento')`,
           )
       : await base
-          .where(and(...conditions))
+          .where(and(tenantWhere(schema.users, ctx), ...conditions))
           .groupBy(
             sql`COALESCE(${schema.memberProfiles.segment}, 'sinSegmento')`,
           );
@@ -145,8 +157,14 @@ export class EngagementService {
    * most relevant in-effect subscription. Scope via applyScope on
    * `users.branchId` (T-117-01: no PII leak across sedes). PII (phone) is gated
    * upstream by the ADMIN_ROLES guard (T-117-06).
+   *
+   * Fase 173 (D-02): `ctx` PRIMERO. Mismo tratamiento que `countActiveBySegment`
+   * — `member_profiles` lleva su `tenantWhere` en el ON del join (acá INNER,
+   * mismo idioma que el LEFT de arriba para que no haya que elegir), `users`
+   * (la tabla FROM) lo lleva en el `.where(...)` de cada rama.
    */
   async getEngagementNominalList(
+    ctx: TenantContext,
     filters: AnalyticsFilters,
   ): Promise<EngagementMember[]> {
     const { conditions: scopeConditions, needsBranchJoin } = applyScope({
@@ -157,6 +175,10 @@ export class EngagementService {
 
     const conditions: SQL[] = [
       eq(schema.users.role, "member") as unknown as SQL,
+      // Fase 173 (D-02): redundante con el `tenantWhere(schema.memberProfiles,
+      // ctx)` del ON del INNER JOIN de `base` (más abajo) — pero ESTE array se
+      // construye en su propio statement de JS, que el lint mira aparte.
+      tenantWhere(schema.memberProfiles, ctx),
       sql`${schema.memberProfiles.segment} IN ('alerta','ausente')`,
       activeMemberExists(schema.users.id),
       ...scopeConditions,
@@ -165,6 +187,12 @@ export class EngagementService {
     // Plan name comes from a correlated subquery over the in-effect subscription
     // (same predicate window as activeMemberExists), avoiding a fan-out join
     // when a member has multiple subscriptions.
+    // Fase 173 (D-02): `${schema.users.id}` acá es solo el VALOR correlacionado
+    // de la fila externa (ya viene filtrada por gimnasio vía `base`, más
+    // abajo) — esta subquery no hace FROM users, así que no hay tabla propia
+    // que filtrar adentro; agregar un tenantWhere acá sería referenciar
+    // `users` en un scope donde esa tabla no existe (rompe el SQL).
+    /* tenant-safe: subquery correlacionada por valor, no hace FROM users (D-02) */
     const planNameExpr = sql<string | null>`(SELECT sp.name FROM subscriptions s
         INNER JOIN subscription_plans sp ON sp.id = s.plan_id
         WHERE s.user_id = ${schema.users.id}
@@ -186,7 +214,10 @@ export class EngagementService {
       .from(schema.users)
       .innerJoin(
         schema.memberProfiles,
-        eq(schema.memberProfiles.userId, schema.users.id),
+        and(
+          tenantWhere(schema.memberProfiles, ctx),
+          eq(schema.memberProfiles.userId, schema.users.id),
+        ),
       );
 
     const rows = needsBranchJoin
@@ -195,8 +226,8 @@ export class EngagementService {
             schema.branches,
             eq(schema.branches.id, schema.users.branchId),
           )
-          .where(and(...conditions))
-      : await base.where(and(...conditions));
+          .where(and(tenantWhere(schema.users, ctx), ...conditions))
+      : await base.where(and(tenantWhere(schema.users, ctx), ...conditions));
 
     // Sort ausente before alerta (ausente = higher urgency, 0% usage), then by
     // name for a stable list. The admin can re-sort; this is a sensible default.

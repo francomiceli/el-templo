@@ -328,9 +328,10 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
           dateFrom: request.query.dateFrom,
           dateTo: request.query.dateTo,
         };
+        const ctx = assertTenant(request.scope, "analytics.engagement");
         const [counts, nominalList] = await Promise.all([
-          engagementService.countActiveBySegment(filters),
-          engagementService.getEngagementNominalList(filters),
+          engagementService.countActiveBySegment(ctx, filters),
+          engagementService.getEngagementNominalList(ctx, filters),
         ]);
         return { counts, nominalList };
       } catch (err: unknown) {
@@ -837,7 +838,10 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
           dateTo: request.query.dateTo,
           entryOrigin: request.query.entryOrigin,
         };
-        const result = await funnelService.getFunnel(filters);
+        const result = await funnelService.getFunnel(
+          assertTenant(request.scope, "analytics.funnel"),
+          filters,
+        );
         return result;
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "get funnel");

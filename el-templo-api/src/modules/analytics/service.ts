@@ -62,7 +62,11 @@ export class AnalyticsService {
    * `ctx` va PRIMERO en la firma a propósito (regla 169-06): agregarlo al final
    * habría dejado que un call site viejo compilara con los argumentos corridos.
    * Fase 172 (D-01): el gimnasio sale de `assertTenant(request.scope, …)` en el
-   * handler y llega hasta la única query de plata de este camino (`sumRevenue`).
+   * handler y llega hasta `sumRevenue` (la query de plata). Fase 173 (D-02):
+   * también llega hasta `countActiveMembers`/`countNewMembers` vía
+   * `getActiveMembersKpi` — las dos únicas queries de este camino sobre
+   * `users`. `countChurnedMembers`/`computeDailyAvg` quedan afuera (leen
+   * `subscriptions`/`attendance`, de otra fase).
    */
   async getKpis(
     ctx: TenantContext,
@@ -76,6 +80,7 @@ export class AnalyticsService {
     const [activeMembers, monthlyRevenue, dailyAttendanceAvg] =
       await Promise.all([
         this.getActiveMembersKpi(
+          ctx,
           branchId,
           country,
           dateFrom,
@@ -108,9 +113,11 @@ export class AnalyticsService {
   // ─── Member Analytics ──────────────────────────────────────────────────────
 
   /**
-   * Fase 172 (D-01): recibe `ctx` por una sola de sus seis consultas —
-   * `getAttentionList`, cuyo flag `yaPago` lee `financial_transactions`. El
-   * resto del bloque de miembros se migra en su propia fase (173-175).
+   * Fase 172 (D-01): recibe `ctx` por `getAttentionList`, cuyo flag `yaPago`
+   * lee `financial_transactions`. Fase 173 (D-02): también por `countNewMembers`
+   * (única query de este bloque sobre `users`). `countChurnedMembers`,
+   * `computeRetentionRate`, `getPlanDistribution` y `getRenewalRate` quedan
+   * afuera — leen `subscriptions`, de otra fase.
    */
   async getMemberAnalytics(
     ctx: TenantContext,
@@ -128,7 +135,7 @@ export class AnalyticsService {
       attentionList,
       renewalRate,
     ] = await Promise.all([
-      this.countNewMembers(branchId, country, dateFrom, dateTo),
+      this.countNewMembers(ctx, branchId, country, dateFrom, dateTo),
       this.countChurnedMembers(branchId, country, dateFrom, dateTo),
       this.computeRetentionRate(branchId, country, dateFrom, dateTo),
       this.getPlanDistribution(branchId, country),
@@ -206,6 +213,7 @@ export class AnalyticsService {
   // ═══════════════════════════════════════════════════════════════════════════
 
   private async getActiveMembersKpi(
+    ctx: TenantContext,
     branchId: number | undefined,
     country: "AR" | "ES" | undefined,
     dateFrom: string,
@@ -213,10 +221,11 @@ export class AnalyticsService {
     priorFrom: string,
     priorTo: string,
   ): Promise<{ value: number; trend: Trend }> {
-    const currentCount = await this.countActiveMembers(branchId, country);
+    const currentCount = await this.countActiveMembers(ctx, branchId, country);
     // For trend: estimate prior period active members by subtracting
     // new members added during current period and adding back churned ones
     const newInPeriod = await this.countNewMembers(
+      ctx,
       branchId,
       country,
       dateFrom,
@@ -237,6 +246,7 @@ export class AnalyticsService {
   }
 
   private async countActiveMembers(
+    ctx: TenantContext,
     branchId: number | undefined,
     country: "AR" | "ES" | undefined,
   ): Promise<number> {
@@ -260,11 +270,14 @@ export class AnalyticsService {
       conditions.push(eq(schema.branches.country, country) as unknown as SQL);
     }
 
+    // Fase 173 (D-02): `tenantWhere` INLINE en el `and(...)` de este statement
+    // — `conditions` se arma arriba pero el gimnasio se nombra ACÁ, donde el
+    // lint lo busca (170-INVENTORY trampa "gimnasio inline").
     const query = this.db
       .select({ count: sql<number>`COUNT(*)` })
       .from(schema.users)
       .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
-      .where(and(...conditions));
+      .where(and(tenantWhere(schema.users, ctx), ...conditions));
 
     const [result] = await query;
 
@@ -341,6 +354,7 @@ export class AnalyticsService {
   // ═══════════════════════════════════════════════════════════════════════════
 
   private async countNewMembers(
+    ctx: TenantContext,
     branchId: number | undefined,
     country: "AR" | "ES" | undefined,
     dateFrom: string,
@@ -352,6 +366,11 @@ export class AnalyticsService {
     // estimate circular. Phase 117 D-08: half-open [dateFrom, dateTo+1) range so
     // the createdAt index is usable (no DATE() wrapper).
     const conditions: SQL[] = [
+      // Fase 173 (D-02): redundante con el `tenantWhere` del `.where(...)` de
+      // abajo, pero ESTE array se construye en su propio statement de JS
+      // (con dos `sql\`...\`` sobre `users.createdAt`), que el lint mira
+      // aparte del statement final.
+      tenantWhere(schema.users, ctx),
       eq(schema.users.role, "member") as unknown as SQL,
       // D-11: miembros activos / altas de membresía NO cuentan al que tiene solo
       // el pase especial (externo-solo-pase). Un socio con presencial + pase SÍ
@@ -370,11 +389,12 @@ export class AnalyticsService {
       conditions.push(eq(schema.branches.country, country) as unknown as SQL);
     }
 
+    // Fase 173 (D-02): `tenantWhere` INLINE, mismo tratamiento que countActiveMembers.
     const [result] = await this.db
       .select({ count: sql<number>`COUNT(*)` })
       .from(schema.users)
       .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
-      .where(and(...conditions));
+      .where(and(tenantWhere(schema.users, ctx), ...conditions));
 
     return Number(result?.count ?? 0);
   }
@@ -629,7 +649,15 @@ export class AnalyticsService {
         segment: schema.memberProfiles.segment,
       })
       .from(schema.subscriptions)
-      .innerJoin(schema.users, eq(schema.users.id, schema.subscriptions.userId))
+      .innerJoin(
+        schema.users,
+        // Fase 173 (D-02): INNER JOIN, pero igual va en el ON (mismo idioma que
+        // el LEFT de abajo, para que el próximo join no tenga que elegir).
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.subscriptions.userId),
+        ),
+      )
       .innerJoin(
         schema.branches,
         eq(schema.branches.id, schema.subscriptions.branchId),
@@ -640,7 +668,13 @@ export class AnalyticsService {
       )
       .leftJoin(
         schema.memberProfiles,
-        eq(schema.memberProfiles.userId, schema.subscriptions.userId),
+        // Fase 173 (D-02): LEFT JOIN — el filtro va en el ON, JAMÁS en el
+        // WHERE: en el WHERE, `NULL = ctx.tenantId` es falso para un socio sin
+        // perfil y el LEFT se vuelve INNER, borrando la fila en silencio.
+        and(
+          tenantWhere(schema.memberProfiles, ctx),
+          eq(schema.memberProfiles.userId, schema.subscriptions.userId),
+        ),
       )
       .where(and(...expiringConditions))
       .limit(50);
@@ -689,7 +723,13 @@ export class AnalyticsService {
         segment: schema.memberProfiles.segment,
       })
       .from(schema.subscriptions)
-      .innerJoin(schema.users, eq(schema.users.id, schema.subscriptions.userId))
+      .innerJoin(
+        schema.users,
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.subscriptions.userId),
+        ),
+      )
       .innerJoin(
         schema.branches,
         eq(schema.branches.id, schema.subscriptions.branchId),
@@ -700,7 +740,10 @@ export class AnalyticsService {
       )
       .leftJoin(
         schema.memberProfiles,
-        eq(schema.memberProfiles.userId, schema.subscriptions.userId),
+        and(
+          tenantWhere(schema.memberProfiles, ctx),
+          eq(schema.memberProfiles.userId, schema.subscriptions.userId),
+        ),
       )
       .where(and(...overdueConditions))
       .limit(50);
