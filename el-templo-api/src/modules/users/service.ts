@@ -6,11 +6,16 @@
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { eq, ne, inArray } from "drizzle-orm";
+import { and, eq, ne, inArray } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import argon2 from "argon2";
 import * as schema from "../../db/schema";
 import type { StaffUser, CreateStaffInput, UpdateStaffInput } from "./types";
+import { tenantWhere, tenantValues, type TenantContext } from "../shared/tenant";
+import {
+  assertBranchDelGimnasio,
+  resolveBranchDelGimnasio,
+} from "../shared/branch-consistency";
 
 /**
  * Phase 110 REQ-9: per-role cardinality validation. Throws Error with
@@ -77,8 +82,21 @@ export class UserService {
    *
    * Phase 110 REQ-9 / REQ-11: also projects `country` (admin/gestion scope)
    * and aggregates `branchIds` (coach/recepción operational scope) per row.
+   *
+   * Fase 173 (ADO-02): `ctx` PRIMERO. `branchId` es un filtro de querystring
+   * del cliente — se resuelve contra el gimnasio del `ctx` ANTES de listar
+   * (D-06): una sede de otro gimnasio devuelve lista vacía, nunca filas
+   * ajenas ni un código de acceso denegado que confirme que la sede existe
+   * en otro lado.
    */
-  async listStaff(branchId?: number): Promise<StaffUser[]> {
+  async listStaff(ctx: TenantContext, branchId?: number): Promise<StaffUser[]> {
+    if (branchId != null) {
+      const resolved = await resolveBranchDelGimnasio(ctx, branchId, this.db);
+      if (!resolved) {
+        return [];
+      }
+    }
+
     const rows = await this.db
       .select({
         id: schema.users.id,
@@ -93,8 +111,17 @@ export class UserService {
         createdAt: schema.users.createdAt,
       })
       .from(schema.users)
-      .innerJoin(schema.branches, eq(schema.users.branchId, schema.branches.id))
-      .where(ne(schema.users.role, "member"))
+      .innerJoin(
+        schema.branches,
+        // D-14/2.3: el filtro de la tabla joineada va en el ON, también en
+        // INNER — branches no es la tabla ancla de este query pero comparte
+        // el mismo gimnasio del ctx (users.branch_id -> FK compuesta 173-12).
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.users.branchId, schema.branches.id),
+        ),
+      )
+      .where(and(tenantWhere(schema.users, ctx), ne(schema.users.role, "member")))
       .orderBy(schema.users.createdAt);
 
     // Apply branchId filter in-memory (simpler than dynamic where clause)
@@ -112,7 +139,12 @@ export class UserService {
               branchId: schema.userBranches.branchId,
             })
             .from(schema.userBranches)
-            .where(inArray(schema.userBranches.userId, ids))
+            .where(
+              and(
+                tenantWhere(schema.userBranches, ctx),
+                inArray(schema.userBranches.userId, ids),
+              ),
+            )
         : [];
 
     const branchIdsByUser = new Map<number, number[]>();
@@ -139,8 +171,18 @@ export class UserService {
    *
    * Phase 110: writes to users + user_branches in a single transaction
    * so partial state is impossible (T-110-05-01).
+   *
+   * Fase 173 (ADO-02, D-05/D-06/D-08): `ctx` PRIMERO. `input.branchId` y cada
+   * elemento de `input.branchIds` se resuelven con `assertBranchDelGimnasio`
+   * DENTRO de la misma transacción — lo que se escribe es el `id` de la fila
+   * resuelta, nunca el número crudo del payload. Una sede de otro gimnasio
+   * lanza `NotFoundError` ("Sede no encontrada"), jamás un código de acceso
+   * denegado (T-173-13-01).
+   * `branchIds[]` se resuelve una por una y si CUALQUIERA no es del gimnasio
+   * se rechaza la operación ENTERA (T-173-13-02): filtrar en silencio dejaría
+   * al operador creyendo que guardó sedes que en realidad no guardó.
    */
-  async createStaff(input: CreateStaffInput): Promise<number> {
+  async createStaff(ctx: TenantContext, input: CreateStaffInput): Promise<number> {
     // Phase 110 REQ-9: cardinality first, before any DB work.
     validateStaffCardinality(input);
 
@@ -148,7 +190,7 @@ export class UserService {
     const [existing] = await this.db
       .select({ id: schema.users.id, role: schema.users.role })
       .from(schema.users)
-      .where(eq(schema.users.email, input.email))
+      .where(and(tenantWhere(schema.users, ctx), eq(schema.users.email, input.email)))
       .limit(1);
 
     if (existing && existing.role !== "member") {
@@ -162,6 +204,16 @@ export class UserService {
     const branchIds = input.branchIds ?? [];
 
     return this.db.transaction(async (tx) => {
+      // ADO-07: resolver la sede del alta/promoción ANTES de escribir nada.
+      const branch = await assertBranchDelGimnasio(ctx, input.branchId, tx);
+
+      // branchIds[]: resolución una por una, todo-o-nada (T-173-13-02).
+      const resolvedBranchIds: number[] = [];
+      for (const bid of branchIds) {
+        const resolvedBranch = await assertBranchDelGimnasio(ctx, bid, tx);
+        resolvedBranchIds.push(resolvedBranch.id);
+      }
+
       let userId: number;
 
       if (existing) {
@@ -173,43 +225,56 @@ export class UserService {
             firstName: input.firstName,
             lastName: input.lastName,
             role: input.role,
-            branchId: input.branchId,
+            branchId: branch.id,
             // Recategorización (0185): promoción a staff fija la sede → 'manual'.
             branchUpdatedAt: new Date(),
             branchSource: "manual" as const,
             country,
           })
-          .where(eq(schema.users.id, existing.id));
+          .where(
+            and(tenantWhere(schema.users, ctx), eq(schema.users.id, existing.id)),
+          );
         userId = existing.id;
         // Replace any prior user_branches rows for the promoted user.
         await tx
           .delete(schema.userBranches)
-          .where(eq(schema.userBranches.userId, userId));
+          .where(
+            and(
+              tenantWhere(schema.userBranches, ctx),
+              eq(schema.userBranches.userId, userId),
+            ),
+          );
       } else {
         const [result] = await tx
           .insert(schema.users)
-          .values({
-            email: input.email,
-            passwordHash,
-            firstName: input.firstName,
-            lastName: input.lastName,
-            role: input.role,
-            branchId: input.branchId,
-            // Recategorización (0185): alta de staff fija la sede → 'manual'.
-            branchUpdatedAt: new Date(),
-            branchSource: "manual" as const,
-            country,
-            // Phase 103-06 (BLOCKER 1): staff inserts explicitly status=null.
-            status: null,
-          })
+          .values(
+            tenantValues(ctx, {
+              email: input.email,
+              passwordHash,
+              firstName: input.firstName,
+              lastName: input.lastName,
+              role: input.role,
+              branchId: branch.id,
+              // Recategorización (0185): alta de staff fija la sede → 'manual'.
+              branchUpdatedAt: new Date(),
+              branchSource: "manual" as const,
+              country,
+              // Phase 103-06 (BLOCKER 1): staff inserts explicitly status=null.
+              status: null,
+            }),
+          )
           .$returningId();
         userId = result.id;
       }
 
-      if (branchIds.length > 0) {
+      if (resolvedBranchIds.length > 0) {
         await tx
           .insert(schema.userBranches)
-          .values(branchIds.map((bid) => ({ userId, branchId: bid })));
+          .values(
+            resolvedBranchIds.map((bid) =>
+              tenantValues(ctx, { userId, branchId: bid }),
+            ),
+          );
       }
 
       this.log.info(
@@ -230,8 +295,17 @@ export class UserService {
    * Phase 110 REQ-9: validates per-role cardinality on the effective shape
    * (target row + input overrides). All writes (users + user_branches) are
    * wrapped in a single transaction so partial state is impossible.
+   *
+   * Fase 173 (ADO-02, D-05/D-06/D-08): `ctx` PRIMERO (antes de `userId`).
+   * `input.branchId` se resuelve con `assertBranchDelGimnasio` DENTRO de la
+   * transacción — se escribe el `id` de la fila resuelta, y el trío
+   * `branchId`/`branchUpdatedAt`/`branchSource` se escribe SIEMPRE junto
+   * (`src/db/schema/users.ts:144`; antes de este plan la edición de sede vía
+   * PUT no tocaba `branchUpdatedAt`/`branchSource` — Rule 1, ver SUMMARY).
+   * `input.branchIds[]` se resuelve una por una, todo-o-nada (T-173-13-02).
    */
   async updateStaff(
+    ctx: TenantContext,
     userId: number,
     input: UpdateStaffInput,
   ): Promise<StaffUser | null> {
@@ -244,7 +318,7 @@ export class UserService {
         country: schema.users.country,
       })
       .from(schema.users)
-      .where(eq(schema.users.id, userId))
+      .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)))
       .limit(1);
 
     if (!target || target.role === "member") {
@@ -256,7 +330,9 @@ export class UserService {
       const [existing] = await this.db
         .select({ id: schema.users.id })
         .from(schema.users)
-        .where(eq(schema.users.email, input.email))
+        .where(
+          and(tenantWhere(schema.users, ctx), eq(schema.users.email, input.email)),
+        )
         .limit(1);
 
       if (existing) {
@@ -286,7 +362,12 @@ export class UserService {
       const currentRows = await this.db
         .select({ branchId: schema.userBranches.branchId })
         .from(schema.userBranches)
-        .where(eq(schema.userBranches.userId, userId));
+        .where(
+          and(
+            tenantWhere(schema.userBranches, ctx),
+            eq(schema.userBranches.userId, userId),
+          ),
+        );
       effectiveBranchIds = currentRows.map((r) => r.branchId);
     }
     validateStaffCardinality({
@@ -295,25 +376,36 @@ export class UserService {
       branchIds: effectiveBranchIds,
     });
 
-    // Build update fields (now executed inside the transaction).
-    const updateFields: Record<string, unknown> = {};
-    if (input.firstName !== undefined) updateFields.firstName = input.firstName;
-    if (input.lastName !== undefined) updateFields.lastName = input.lastName;
-    if (input.email !== undefined) updateFields.email = input.email;
-    if (input.role !== undefined) updateFields.role = input.role;
-    if (input.branchId !== undefined) updateFields.branchId = input.branchId;
-    if (input.country !== undefined) updateFields.country = input.country;
+    // Build the fields that don't need DB validation, outside the
+    // transaction (argon2.hash is CPU-bound — no reason to hold a tx open).
+    const baseUpdateFields: Record<string, unknown> = {};
+    if (input.firstName !== undefined) baseUpdateFields.firstName = input.firstName;
+    if (input.lastName !== undefined) baseUpdateFields.lastName = input.lastName;
+    if (input.email !== undefined) baseUpdateFields.email = input.email;
+    if (input.role !== undefined) baseUpdateFields.role = input.role;
+    if (input.country !== undefined) baseUpdateFields.country = input.country;
 
     if (input.password) {
-      updateFields.passwordHash = await argon2.hash(input.password);
+      baseUpdateFields.passwordHash = await argon2.hash(input.password);
     }
 
     return this.db.transaction(async (tx) => {
+      const updateFields: Record<string, unknown> = { ...baseUpdateFields };
+
+      if (input.branchId !== undefined) {
+        // ADO-07: resolver ANTES de armar el update — lo que se escribe es
+        // el id de la fila resuelta, no el número crudo del payload.
+        const branch = await assertBranchDelGimnasio(ctx, input.branchId, tx);
+        updateFields.branchId = branch.id;
+        updateFields.branchUpdatedAt = new Date();
+        updateFields.branchSource = "manual" as const;
+      }
+
       if (Object.keys(updateFields).length > 0) {
         await tx
           .update(schema.users)
           .set(updateFields)
-          .where(eq(schema.users.id, userId));
+          .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)));
       }
 
       // Phase 110: replace user_branches atomically when caller provides
@@ -322,11 +414,26 @@ export class UserService {
       if (input.branchIds !== undefined) {
         await tx
           .delete(schema.userBranches)
-          .where(eq(schema.userBranches.userId, userId));
+          .where(
+            and(
+              tenantWhere(schema.userBranches, ctx),
+              eq(schema.userBranches.userId, userId),
+            ),
+          );
         if (input.branchIds.length > 0) {
+          // branchIds[]: resolución una por una, todo-o-nada (T-173-13-02).
+          const resolvedBranchIds: number[] = [];
+          for (const bid of input.branchIds) {
+            const resolvedBranch = await assertBranchDelGimnasio(ctx, bid, tx);
+            resolvedBranchIds.push(resolvedBranch.id);
+          }
           await tx
             .insert(schema.userBranches)
-            .values(input.branchIds.map((bid) => ({ userId, branchId: bid })));
+            .values(
+              resolvedBranchIds.map((bid) =>
+                tenantValues(ctx, { userId, branchId: bid }),
+              ),
+            );
         }
       }
 
@@ -347,9 +454,12 @@ export class UserService {
         .from(schema.users)
         .innerJoin(
           schema.branches,
-          eq(schema.users.branchId, schema.branches.id),
+          and(
+            tenantWhere(schema.branches, ctx),
+            eq(schema.users.branchId, schema.branches.id),
+          ),
         )
-        .where(eq(schema.users.id, userId))
+        .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)))
         .limit(1);
 
       if (!updated) {
@@ -359,7 +469,12 @@ export class UserService {
       const ubRows = await tx
         .select({ branchId: schema.userBranches.branchId })
         .from(schema.userBranches)
-        .where(eq(schema.userBranches.userId, userId));
+        .where(
+          and(
+            tenantWhere(schema.userBranches, ctx),
+            eq(schema.userBranches.userId, userId),
+          ),
+        );
       const branchIds = ubRows.map((r) => r.branchId).sort((a, b) => a - b);
 
       this.log.info(
@@ -388,8 +503,13 @@ export class UserService {
    * with the explicit value from the caller — no toggling on the server
    * side, so concurrent admin clicks converge on the requested state
    * instead of fighting each other.
+   *
+   * Fase 173 (ADO-02): `ctx` PRIMERO — el read y el update quedan acotados
+   * al gimnasio, así un `userId` de otro gimnasio no matchea (404 vía
+   * `!target`, mismo contrato que el resto de la fase).
    */
   async toggleDisabled(
+    ctx: TenantContext,
     userId: number,
     disabled: boolean,
     requesterId: number,
@@ -402,7 +522,7 @@ export class UserService {
         staffDisabled: schema.users.staffDisabled,
       })
       .from(schema.users)
-      .where(eq(schema.users.id, userId))
+      .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)))
       .limit(1);
 
     if (!target || target.role === "member") {
@@ -421,7 +541,7 @@ export class UserService {
     await this.db
       .update(schema.users)
       .set({ staffDisabled: disabled })
-      .where(eq(schema.users.id, userId));
+      .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)));
 
     this.log.info(
       { staffId: userId, staffDisabled: disabled },
