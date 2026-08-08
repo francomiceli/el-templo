@@ -519,7 +519,10 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
           dateTo: request.query.dateTo,
           window: request.query.window,
         };
-        const result = await memberFlowsService.getMonthlyFlows(filters);
+        const result = await memberFlowsService.getMonthlyFlows(
+          assertTenant(request.scope, "analytics.member-flows"),
+          filters,
+        );
         return result;
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "get member flows");
@@ -556,7 +559,10 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
           dateTo: request.query.dateTo,
           window: request.query.window,
         };
-        const members = await memberFlowsService.getChurnedMembers(filters);
+        const members = await memberFlowsService.getChurnedMembers(
+          assertTenant(request.scope, "analytics.churned-members"),
+          filters,
+        );
         return { members };
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "get churned members");
@@ -591,7 +597,10 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
           dateTo: request.query.dateTo,
           window: request.query.window,
         };
-        const members = await memberFlowsService.getChurnedMembers(filters);
+        const members = await memberFlowsService.getChurnedMembers(
+          assertTenant(request.scope, "analytics.churned-members"),
+          filters,
+        );
 
         const workbook = new Workbook();
         workbook.creator = "El Templo";
@@ -885,7 +894,10 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
           planId: request.query.planId,
           turno: request.query.turno,
         };
-        const result = await frequencyService.getFrequency(filters);
+        const result = await frequencyService.getFrequency(
+          assertTenant(request.scope, "analytics.frequency"),
+          filters,
+        );
         return result;
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "get frequency");

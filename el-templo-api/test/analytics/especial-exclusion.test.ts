@@ -264,7 +264,7 @@ describe("D-11 — exclusión del pase especial de las métricas de membresía",
       endDate: end,
     });
 
-    const res = await flowsSvc.getMonthlyFlows({
+    const res = await flowsSvc.getMonthlyFlows(CTX, {
       dateFrom: dateOffsetStr(-40),
       dateTo: dateOffsetStr(1),
     });

@@ -43,6 +43,8 @@ import { and, eq, ne, inArray, sql, type SQL } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { applyScope } from "./scope";
+// Path directo, NUNCA por el barrel `shared/index.ts` (fase 169).
+import { tenantWhere, type TenantContext } from "../shared/tenant";
 import { metricShape } from "./metric-shape";
 import { deriveDurationTier } from "./duration-tier";
 import { breakdownSegmentKey, type BreakdownAxis } from "./breakdowns";
@@ -223,13 +225,21 @@ export class FrequencyService {
    * population, the per-member current/prior visits/week (normalized), the band
    * distribution (incl. active-0-visits → Inactivo), the cooling-down list, the
    * reused check-in adoption, and the 4-axis breakdowns over the active cohort.
+   *
+   * Fase 173 (D-02): `ctx` PRIMERO. Única query de este método sobre `users`:
+   * `activeMemberPopulation` (la población, join a `users` para PII/cohorte).
+   * `visitCountsForWindow` (sobre `attendance`) y `checkInAdoptionByBranch`
+   * quedan afuera, de otra fase.
    */
-  async getFrequency(filters: AnalyticsFilters): Promise<FrequencyAnalytics> {
+  async getFrequency(
+    ctx: TenantContext,
+    filters: AnalyticsFilters,
+  ): Promise<FrequencyAnalytics> {
     const now = new Date();
 
     // Active member population (the distribution denominator). Scoped on the
     // subscription branch (D-123-04 "active" = has active/paused subscription).
-    const activeMembers = await this.activeMemberPopulation(filters, now);
+    const activeMembers = await this.activeMemberPopulation(ctx, filters, now);
 
     // Per-member visit counts for the current [now-28d, now) and prior
     // [now-56d, now-28d) windows, scoped on the attendance branch.
@@ -266,8 +276,13 @@ export class FrequencyService {
    * per sub — the band fold dedups by userId on the LAST seen row, which is
    * acceptable since the band only depends on the member's visits, not the sub).
    * Scoped on `subscriptions.branchId`; country filter joins `branches`.
+   *
+   * Fase 173 (D-02): `ctx` PRIMERO, `tenantWhere(schema.users, ctx)` en el ON
+   * del INNER JOIN a `users` (mismo idioma que un LEFT, para que el próximo
+   * join no tenga que elegir).
    */
   private async activeMemberPopulation(
+    ctx: TenantContext,
     filters: AnalyticsFilters,
     _now: Date,
   ): Promise<ActiveMemberRow[]> {
@@ -313,7 +328,10 @@ export class FrequencyService {
       .from(schema.subscriptions)
       .innerJoin(
         schema.users,
-        sql`${schema.users.id} = ${schema.subscriptions.userId}`,
+        and(
+          tenantWhere(schema.users, ctx),
+          sql`${schema.users.id} = ${schema.subscriptions.userId}`,
+        ),
       )
       .innerJoin(
         schema.branches,
@@ -577,22 +595,33 @@ export class FrequencyService {
    * prior band rank vs the immediately-preceding window of equal length). This
    * is the single batched query — the cron MUST NOT duplicate the window math.
    *
-   * Scope-UNAWARE on purpose (the nightly batch is global): no branch/country
-   * filter is applied. Reuses the same normalization + band logic as
-   * `getFrequency` so the signal is consistent.
+   * Scope-UNAWARE on purpose for BRANCH/COUNTRY (the nightly batch is global
+   * within a gimnasio): no branch/country filter is applied. Reuses the same
+   * normalization + band logic as `getFrequency` so the signal is consistent.
    *
+   * Fase 173 (D-02): `ctx` PRIMERO. "Scope-unaware" nunca significó
+   * cross-tenant — la ausencia de filtro era sobre sede/país, y esta query
+   * quedaba directamente SIN el gimnasio (escrita antes de la 169). El futuro
+   * cron que la consuma la va a llamar una vez por gimnasio activo
+   * (`forEachActiveTenant`), como cualquier otro job de la fase 169.
+   *
+   * @param ctx el gimnasio (sale de `forEachActiveTenant` cuando se conecte a
+   *   un cron; hoy la construye a mano quien la invoque).
    * @param windowDays the rolling window length in days (defaults to the
    *   28-day frequency window when not provided / non-positive).
    * @returns the set of golden-case user IDs.
    */
-  async coolingOrInactiveUserIds(windowDays: number): Promise<Set<number>> {
+  async coolingOrInactiveUserIds(
+    ctx: TenantContext,
+    windowDays: number,
+  ): Promise<Set<number>> {
     const now = new Date();
     const window =
       Number.isFinite(windowDays) && windowDays > 0
         ? Math.floor(windowDays)
         : FREQUENCY_WINDOW_DAYS;
 
-    // Global active population (scope-unaware).
+    // Active population of ESTE gimnasio (scope-unaware solo para sede/país).
     const activeRows = await this.db
       .select({
         userId: schema.subscriptions.userId,
@@ -601,7 +630,10 @@ export class FrequencyService {
       .from(schema.subscriptions)
       .innerJoin(
         schema.users,
-        sql`${schema.users.id} = ${schema.subscriptions.userId}`,
+        and(
+          tenantWhere(schema.users, ctx),
+          sql`${schema.users.id} = ${schema.subscriptions.userId}`,
+        ),
       )
       .where(inArray(schema.subscriptions.status, ["active", "paused"]));
 

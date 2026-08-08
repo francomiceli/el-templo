@@ -40,8 +40,18 @@ import { subscriptions } from "../../src/db/schema/subscriptions";
 import { subscriptionPlans } from "../../src/db/schema/subscription-plans";
 import { branches } from "../../src/db/schema/branches";
 import { users } from "../../src/db/schema/users";
+import { type TenantContext } from "../../src/modules/shared/tenant";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 
 const ANALYTICS_URL = "/api/admin/analytics";
+
+/**
+ * Fase 173 (D-02): `getMonthlyFlows`/`getChurnedMembers` reciben
+ * `TenantContext` como PRIMER argumento (en producción sale de
+ * `assertTenant(request.scope, …)`); acá se construye a mano porque el
+ * service se invoca sin request. El Templo es el tenant 1.
+ */
+const CTX: TenantContext = { tenantId: TENANT_TEMPLO };
 
 describe("MemberFlowsService (altas vs bajas + detalle)", () => {
   let app: FastifyInstance;
@@ -171,7 +181,7 @@ describe("MemberFlowsService (altas vs bajas + detalle)", () => {
       endDate: await dateOffset(-40),
     });
 
-    const res = await svc.getMonthlyFlows(await wideRange());
+    const res = await svc.getMonthlyFlows(CTX, await wideRange());
     expect(res.windowDays).toBe(15);
     const t = totals(res.series);
     expect(t.altas).toBe(1);
@@ -192,7 +202,7 @@ describe("MemberFlowsService (altas vs bajas + detalle)", () => {
       endDate: await dateOffset(-20),
     });
 
-    const res = await svc.getMonthlyFlows(await wideRange());
+    const res = await svc.getMonthlyFlows(CTX, await wideRange());
     const t = totals(res.series);
     // Una sola alta (la primera sub) — la renovación no arranca racha nueva.
     expect(t.altas).toBe(1);
@@ -217,7 +227,7 @@ describe("MemberFlowsService (altas vs bajas + detalle)", () => {
       status: "active",
     });
 
-    const res = await svc.getMonthlyFlows(await wideRange());
+    const res = await svc.getMonthlyFlows(CTX, await wideRange());
     const t = totals(res.series);
     expect(t.altas).toBe(2);
     // La baja del primer ciclo cuenta: el reingreso llegó fuera de la ventana.
@@ -232,7 +242,7 @@ describe("MemberFlowsService (altas vs bajas + detalle)", () => {
       endDate: await dateOffset(-5), // dentro de la ventana de 15 días
     });
 
-    const res = await svc.getMonthlyFlows(await wideRange());
+    const res = await svc.getMonthlyFlows(CTX, await wideRange());
     const t = totals(res.series);
     expect(t.bajas).toBe(0);
     expect(res.series.reduce((a, p) => a + p.bajasEnGracia, 0)).toBe(1);
@@ -249,7 +259,7 @@ describe("MemberFlowsService (altas vs bajas + detalle)", () => {
     });
 
     // Rango que se extiende al futuro, como cuando el admin pide el mes entero.
-    const res = await svc.getMonthlyFlows({
+    const res = await svc.getMonthlyFlows(CTX, {
       dateFrom: await dateOffset(-120),
       dateTo: await dateOffset(40),
     });
@@ -274,7 +284,7 @@ describe("MemberFlowsService (altas vs bajas + detalle)", () => {
       status: "active",
     });
 
-    const res = await svc.getMonthlyFlows(await wideRange());
+    const res = await svc.getMonthlyFlows(CTX, await wideRange());
     const t = totals(res.series);
     expect(t.bajas).toBe(0);
     expect(res.series.reduce((a, p) => a + p.bajasEnGracia, 0)).toBe(0);
@@ -300,7 +310,7 @@ describe("MemberFlowsService (altas vs bajas + detalle)", () => {
       legacy: true,
     });
 
-    const res = await svc.getMonthlyFlows(await wideRange());
+    const res = await svc.getMonthlyFlows(CTX, await wideRange());
     const t = totals(res.series);
     expect(t.altas).toBe(1);
     // El alta cae en el mes de registro (-100d), no en el del placeholder (-40d).
@@ -334,7 +344,7 @@ describe("MemberFlowsService (altas vs bajas + detalle)", () => {
       status: "active",
     });
 
-    const res = await svc.getMonthlyFlows(await wideRange());
+    const res = await svc.getMonthlyFlows(CTX, await wideRange());
     const t = totals(res.series);
     // Ni alta por registro (fuera de rango) ni por la renovación encadenada.
     expect(t.altas).toBe(0);
@@ -362,7 +372,7 @@ describe("MemberFlowsService (altas vs bajas + detalle)", () => {
       status: "active",
     });
 
-    const res = await svc.getMonthlyFlows(await wideRange());
+    const res = await svc.getMonthlyFlows(CTX, await wideRange());
     const t = totals(res.series);
     expect(t.altas).toBe(1);
     const altaPoint = res.series.find((p) => p.altas > 0);
@@ -407,7 +417,7 @@ describe("MemberFlowsService (altas vs bajas + detalle)", () => {
       status: "active",
     });
 
-    const members = await svc.getChurnedMembers(await wideRange());
+    const members = await svc.getChurnedMembers(CTX, await wideRange());
     expect(members).toHaveLength(1);
     const row = members[0];
     expect(row.userId).toBe(churner);

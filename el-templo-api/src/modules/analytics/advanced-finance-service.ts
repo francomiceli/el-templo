@@ -120,10 +120,11 @@ export class AdvancedFinanceService {
    * cash trend, the accrual proration over effective windows, and the active
    * member denominator, then assembles the three monthly series.
    *
-   * `ctx` PRIMERO (regla 169-06). Fase 172 (D-01): de las tres consultas, sólo
-   * `cashTrend` toca una tabla strict de `finance` — el devengado y el
-   * denominador de ARPU salen de `subscriptions` / `users`, que se migran en su
-   * propia fase (D-07).
+   * `ctx` PRIMERO (regla 169-06). Fase 172 (D-01): `cashTrend` toca una tabla
+   * strict de `finance`. Fase 173 (D-02): el denominador de ARPU
+   * (`activeMemberCount`) toca `users` — la única query de este método sobre
+   * el módulo — y también recibe `ctx`. `accruedTrend` (sobre `subscriptions`)
+   * queda afuera, de otra fase.
    */
   async getAdvancedFinance(
     ctx: TenantContext,
@@ -134,7 +135,7 @@ export class AdvancedFinanceService {
       this.accruedTrend(filters),
     ]);
 
-    const activeMembers = await this.activeMemberCount(filters);
+    const activeMembers = await this.activeMemberCount(ctx, filters);
 
     // Union of months present in caja or devengado, sorted ascending.
     const months = new Set<string>([...cashMap.keys(), ...accrual.map.keys()]);
@@ -377,8 +378,20 @@ export class AdvancedFinanceService {
    * snapshot reused as the denominator for every month's ARPU — the canonical
    * predicate is "active right now", so ARPU is the per-active-member accrued
    * revenue of each month relative to the current active base.
+   *
+   * Fase 173 (D-02): `ctx` PRIMERO. `tenantWhere` INLINE en el `.where(...)`,
+   * y el `.where(...)` va ANTES del `.innerJoin` condicional (no después):
+   * Drizzle arma el SQL final por config acumulada, no por orden de llamada,
+   * así que el orden no cambia el resultado — y este orden deja el
+   * `.from(schema.users)` y el `tenantWhere` en el MISMO statement de JS, que
+   * es lo que el lint mira (si el `tenantWhere` quedara en un `.where(...)`
+   * posterior a un `if` intermedio, sería otro statement y el lint marcaría
+   * `.from(schema.users)` como sin filtrar aunque la query sí filtre).
    */
-  private async activeMemberCount(filters: AnalyticsFilters): Promise<number> {
+  private async activeMemberCount(
+    ctx: TenantContext,
+    filters: AnalyticsFilters,
+  ): Promise<number> {
     const { conditions: scopeConditions, needsBranchJoin } = applyScope({
       branchId: filters.branchId,
       country: filters.country,
@@ -395,6 +408,7 @@ export class AdvancedFinanceService {
     let query = this.db
       .select({ count: sql<number>`COUNT(*)` })
       .from(schema.users)
+      .where(and(tenantWhere(schema.users, ctx), ...conditions))
       .$dynamic();
 
     if (needsBranchJoin) {
@@ -404,7 +418,7 @@ export class AdvancedFinanceService {
       );
     }
 
-    const [row] = await query.where(and(...conditions));
+    const [row] = await query;
     return Number(row?.count ?? 0);
   }
 }

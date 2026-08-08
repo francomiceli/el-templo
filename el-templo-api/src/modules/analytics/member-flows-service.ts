@@ -60,6 +60,8 @@ import { and, eq, ne, sql } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { applyScope } from "./scope";
+// Path directo, NUNCA por el barrel `shared/index.ts` (fase 169).
+import { tenantWhere, type TenantContext } from "../shared/tenant";
 import {
   excludeEspecialSubs,
   excludeInternalSubs,
@@ -98,12 +100,19 @@ export class MemberFlowsService {
    * sobre `[dateFrom, dateTo)`. Las bajas reutilizan la cohorte de vencimiento
    * del churn; `bajasProvisional` marca los meses cuya cohorte todavía no
    * maduró completa (los últimos `window` días).
+   *
+   * Fase 173 (D-02): `ctx` PRIMERO. Única query de este archivo sobre `users`:
+   * `legacyAltasRows` (fuente (b) de altas, personas importadas). `bajasSeries`
+   * y `streakAltasRows` leen `subscriptions`, de otra fase.
    */
-  async getMonthlyFlows(filters: AnalyticsFilters): Promise<MemberFlowsResult> {
+  async getMonthlyFlows(
+    ctx: TenantContext,
+    filters: AnalyticsFilters,
+  ): Promise<MemberFlowsResult> {
     const window = filters.window ?? RENOVATION_WINDOW_DEFAULT_DAYS;
 
     const [altasByBucket, bajasByBucket] = await Promise.all([
-      this.altasSeries(filters, window),
+      this.altasSeries(ctx, filters, window),
       this.bajasSeries(filters, window),
     ]);
 
@@ -131,12 +140,13 @@ export class MemberFlowsService {
    * dedupe persona-mes entre fuentes lo hace el Set por bucket.
    */
   private async altasSeries(
+    ctx: TenantContext,
     filters: AnalyticsFilters,
     window: number,
   ): Promise<Map<string, number>> {
     const [streakRows, legacyRows] = await Promise.all([
       this.streakAltasRows(filters, window),
-      this.legacyAltasRows(filters),
+      this.legacyAltasRows(ctx, filters),
     ]);
 
     // Distinct persons per bucket (una persona con dos rachas en el mismo mes
@@ -226,8 +236,16 @@ export class MemberFlowsService {
    * del sistema viejo no son reconstruibles — cada importado cuenta una sola
    * alta, la de su primer registro. El scope de sede/país se aplica por la
    * branch de la sub importada (consistente con el resto del motor).
+   *
+   * Fase 173 (D-02): `ctx` PRIMERO. `tenantWhere(schema.users, ctx)` INLINE en
+   * el `.where(...)`, y el `.where(...)` va ANTES del `.innerJoin` condicional
+   * a `branches` (no después): Drizzle arma el SQL por config acumulada, no
+   * por orden de llamada, así que el orden no cambia el resultado — y este
+   * orden deja el `.from(schema.users)` y el `tenantWhere` en el MISMO
+   * statement de JS, que es lo que el lint mira.
    */
   private async legacyAltasRows(
+    ctx: TenantContext,
     filters: AnalyticsFilters,
   ): Promise<Array<{ bucket: string; userId: number }>> {
     const { conditions: scopeConditions, needsBranchJoin } = applyScope({
@@ -251,6 +269,20 @@ export class MemberFlowsService {
           sql`${schema.subscriptions.createdAt} < ${LEGACY_IMPORT_CUTOFF}`,
         ),
       )
+      .where(
+        and(
+          tenantWhere(schema.users, ctx),
+          ...rangeConditions(
+            schema.users.createdAt,
+            filters.dateFrom,
+            filters.dateTo,
+          ),
+          // D-11: un importado cuya única sub es el pase no es alta de membresía.
+          excludeEspecialSubs(),
+          excludeInternalSubs(),
+          ...scopeConditions,
+        ),
+      )
       .$dynamic();
     if (needsBranchJoin) {
       query = query.innerJoin(
@@ -258,19 +290,7 @@ export class MemberFlowsService {
         eq(schema.branches.id, schema.subscriptions.branchId),
       );
     }
-    return query.where(
-      and(
-        ...rangeConditions(
-          schema.users.createdAt,
-          filters.dateFrom,
-          filters.dateTo,
-        ),
-        // D-11: un importado cuya única sub es el pase no es alta de membresía.
-        excludeEspecialSubs(),
-        excludeInternalSubs(),
-        ...scopeConditions,
-      ),
-    );
+    return query;
   }
 
   /**
@@ -355,8 +375,13 @@ export class MemberFlowsService {
    * pueden renovar), con el contexto de ficha que pide el staff. La cohorte es
    * la misma del churn/serie de arriba, así la tabla siempre suma lo que el
    * gráfico muestra.
+   *
+   * Fase 173 (D-02): `ctx` PRIMERO, `tenantWhere(schema.users, ctx)` en el ON
+   * del INNER JOIN a `users` (mismo idioma que un LEFT, para que el próximo
+   * join no tenga que elegir).
    */
   async getChurnedMembers(
+    ctx: TenantContext,
     filters: AnalyticsFilters,
   ): Promise<ChurnedMemberRow[]> {
     const window = filters.window ?? RENOVATION_WINDOW_DEFAULT_DAYS;
@@ -390,7 +415,13 @@ export class MemberFlowsService {
         membershipsPaid: membershipsPaidExpr,
       })
       .from(schema.subscriptions)
-      .innerJoin(schema.users, eq(schema.users.id, schema.subscriptions.userId))
+      .innerJoin(
+        schema.users,
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.subscriptions.userId),
+        ),
+      )
       .innerJoin(
         schema.branches,
         eq(schema.branches.id, schema.subscriptions.branchId),

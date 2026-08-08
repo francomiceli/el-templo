@@ -37,8 +37,18 @@ import { subscriptions } from "../../src/db/schema/subscriptions";
 import { subscriptionPlans } from "../../src/db/schema/subscription-plans";
 import { branches } from "../../src/db/schema/branches";
 import { users } from "../../src/db/schema/users";
+import { type TenantContext } from "../../src/modules/shared/tenant";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 
 const ANALYTICS_URL = "/api/admin/analytics";
+
+/**
+ * Fase 173 (D-02): `getMonthlyFlows` recibe `TenantContext` como PRIMER
+ * argumento (en producción sale de `assertTenant(request.scope, …)`); acá se
+ * construye a mano porque el service se invoca sin request. El Templo es el
+ * tenant 1.
+ */
+const CTX: TenantContext = { tenantId: TENANT_TEMPLO };
 
 describe("membresías internas — exclusión de métricas de membresía", () => {
   let app: FastifyInstance;
@@ -214,7 +224,7 @@ describe("membresías internas — exclusión de métricas de membresía", () =>
       endDate: end,
     });
 
-    const res = await flowsSvc.getMonthlyFlows({
+    const res = await flowsSvc.getMonthlyFlows(CTX, {
       dateFrom: dateOffsetStr(-40),
       dateTo: dateOffsetStr(1),
     });

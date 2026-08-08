@@ -16,8 +16,18 @@ import { branches } from "../../src/db/schema/branches";
 import { attendance } from "../../src/db/schema/attendance";
 import { schedules } from "../../src/db/schema/schedules";
 import { activities } from "../../src/db/schema/activities";
+import { type TenantContext } from "../../src/modules/shared/tenant";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 
 const ANALYTICS_URL = "/api/admin/analytics";
+
+/**
+ * Fase 173 (D-02): `getFrequency`/`coolingOrInactiveUserIds` reciben
+ * `TenantContext` como PRIMER argumento (en producción sale de
+ * `assertTenant(request.scope, …)`); acá se construye a mano porque el
+ * service se invoca sin request. El Templo es el tenant 1.
+ */
+const CTX: TenantContext = { tenantId: TENANT_TEMPLO };
 
 /**
  * Phase 123 Plan 01 — FrequencyService (FREQ-01..04, D-123-03..06 / D-123-14).
@@ -200,7 +210,7 @@ describe("FrequencyService (Phase 123 Plan 01)", () => {
     const u = await createMember("freq-inactivo@test.com", daysAgo(60));
     await addActiveSub(u);
 
-    const result = await svc.getFrequency({});
+    const result = await svc.getFrequency(CTX, {});
 
     const inactivo = result.distribution.find((d) => d.band === "inactivo");
     expect(inactivo).toBeDefined();
@@ -220,7 +230,7 @@ describe("FrequencyService (Phase 123 Plan 01)", () => {
     await addVisit(u, daysAgo(2));
     await addVisit(u, daysAgo(4));
 
-    const result = await svc.getFrequency({});
+    const result = await svc.getFrequency(CTX, {});
 
     // 2 visits ÷ 1 week = 2/wk → Medio (>= 1.5, < 2.5), NOT Bajo.
     const medio = result.distribution.find((d) => d.band === "medio");
@@ -245,7 +255,7 @@ describe("FrequencyService (Phase 123 Plan 01)", () => {
     await addVisit(u, daysAgo(2));
     await addVisit(u, daysAgo(10));
 
-    const result = await svc.getFrequency({});
+    const result = await svc.getFrequency(CTX, {});
 
     const row = result.coolingDown.find((c) => c.userId === u);
     expect(row).toBeDefined();
@@ -264,7 +274,7 @@ describe("FrequencyService (Phase 123 Plan 01)", () => {
     const u = await createMember("freq-adoption@test.com", daysAgo(60));
     await addActiveSub(u);
 
-    const result = await svc.getFrequency({});
+    const result = await svc.getFrequency(CTX, {});
 
     // The array is always present (may be empty when no confirmed bookings in
     // scope); the reuse contract is that the field exists with the ratio shape.
@@ -293,7 +303,7 @@ describe("FrequencyService (Phase 123 Plan 01)", () => {
     );
     await addActiveSub(esMember, branchES, planES);
 
-    const result = await svc.getFrequency({});
+    const result = await svc.getFrequency(CTX, {});
 
     const branchAxis = result.breakdowns.filter((b) => b.axis === "branch");
     const countryAxis = result.breakdowns.filter((b) => b.axis === "country");
@@ -326,7 +336,7 @@ describe("FrequencyService (Phase 123 Plan 01)", () => {
     await addVisit(active, daysAgo(24));
     await addVisit(active, daysAgo(27));
 
-    const golden = await svc.coolingOrInactiveUserIds(28);
+    const golden = await svc.coolingOrInactiveUserIds(CTX, 28);
 
     expect(golden.has(inactive)).toBe(true);
     expect(golden.has(active)).toBe(false);
@@ -358,7 +368,7 @@ describe("FrequencyService (Phase 123 Plan 01)", () => {
       .set({ firstName: "Carla", lastName: "Gomez", phone: "+5491155551234" })
       .where(eq(users.id, u));
 
-    const result = await svc.getFrequency({});
+    const result = await svc.getFrequency(CTX, {});
 
     const row = result.coolingDown.find((c) => c.userId === u);
     expect(row).toBeDefined();
@@ -370,7 +380,7 @@ describe("FrequencyService (Phase 123 Plan 01)", () => {
     const u = await makeCoolingMember("freq-d12-nullphone@test.com");
     await app.db.update(users).set({ phone: null }).where(eq(users.id, u));
 
-    const result = await svc.getFrequency({});
+    const result = await svc.getFrequency(CTX, {});
 
     const row = result.coolingDown.find((c) => c.userId === u);
     expect(row).toBeDefined();
@@ -395,7 +405,7 @@ describe("FrequencyService (Phase 123 Plan 01)", () => {
     await addVisit(esUser, daysAgo(10), branchES);
 
     // Caller scoped to branchA → the ES member's PII must NOT appear.
-    const result = await svc.getFrequency({ branchId: branchA });
+    const result = await svc.getFrequency(CTX, { branchId: branchA });
 
     const row = result.coolingDown.find((c) => c.userId === esUser);
     expect(row).toBeUndefined();
@@ -416,7 +426,7 @@ describe("FrequencyService (Phase 123 Plan 01)", () => {
     );
     await addActiveSub(esUser, branchES, planES);
 
-    const result = await svc.getFrequency({ planId: planAR });
+    const result = await svc.getFrequency(CTX, { planId: planAR });
 
     // The active population (sum over the distribution `n`) is plan-A only (1).
     const inactivo = result.distribution.find((d) => d.band === "inactivo");
@@ -437,8 +447,8 @@ describe("FrequencyService (Phase 123 Plan 01)", () => {
       await addVisitWithSchedule(u, daysAgo(3 + i), tardeSchedule);
     }
 
-    const all = await svc.getFrequency({});
-    const manana = await svc.getFrequency({ turno: "manana" });
+    const all = await svc.getFrequency(CTX, {});
+    const manana = await svc.getFrequency(CTX, { turno: "manana" });
 
     // Unfiltered: all 12 visits → Alto. Restricted to the 2 mañana visits the
     // member drops to Bajo — proving only mañana attendance was counted.
@@ -462,7 +472,7 @@ describe("FrequencyService (Phase 123 Plan 01)", () => {
     );
     await addActiveSub(esUser, branchES, planAR);
 
-    const result = await svc.getFrequency({
+    const result = await svc.getFrequency(CTX, {
       branchId: branchA,
       planId: planAR,
     });
