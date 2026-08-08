@@ -143,12 +143,10 @@ describe("membresías internas — exclusión de métricas de membresía", () =>
       days >= 0
         ? sql`DATE_ADD(CURDATE(), INTERVAL ${interval} DAY)`
         : sql`DATE_SUB(CURDATE(), INTERVAL ${interval} DAY)`;
-    const result = await app.db.execute(
+    const result = (await app.db.execute(
       sql`SELECT DATE_FORMAT(${dateExpr}, '%Y-%m-%d') AS d`,
-    );
-    const rows = (Array.isArray(result) ? result[0] : result) as Array<{
-      d: string;
-    }>;
+    )) as unknown as [Array<{ d: string }>];
+    const rows = Array.isArray(result) ? result[0] : result;
     return String(rows[0].d);
   }
 
