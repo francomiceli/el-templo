@@ -520,7 +520,12 @@ export class MemberService {
     // No meaningful tokens (e.g. only whitespace) → nothing to search for.
     if (!searchCondition) return [];
 
+    // Fase 173-19 (T-173-19-01): PRIMER elemento — `buildMemberNameSearchCondition`
+    // ya filtra `users` puertas adentro (173-05/173-17), pero el resto del
+    // statement (el `.from(schema.users)` de la query final) no tenía filtro
+    // propio. Inline y primero, mismo criterio que `listMembers`.
     const conditions: SQL[] = [
+      tenantWhere(schema.users, ctx),
       eq(schema.users.role, "member"),
       isNull(schema.users.deletedAt),
       searchCondition,
@@ -537,22 +542,25 @@ export class MemberService {
     }
 
     // Active subscription plan name — same subquery as listMembers, for the
-    // "Sin plan / Activa / Inactiva" badge in SlotAttendancePanel.
+    // "Sin plan / Activa / Inactiva" badge in SlotAttendancePanel. Fase 173-19:
+    // `sp.tenant_id`/`s.tenant_id` inline.
     const planNameSubquery = sql<string | null>`(
       SELECT sp.name FROM subscriptions s
-      JOIN subscription_plans sp ON sp.id = s.plan_id
-      WHERE s.user_id = users.id AND s.subscription_status IN ('active','paused')
+      JOIN subscription_plans sp ON sp.id = s.plan_id AND sp.tenant_id = ${ctx.tenantId}
+      WHERE s.user_id = users.id AND s.tenant_id = ${ctx.tenantId} AND s.subscription_status IN ('active','paused')
       ORDER BY s.created_at DESC LIMIT 1
     )`;
 
     // Effective status computed live from subscriptions (mirrors listMembers'
     // effectiveStatusExpr) so a lapsed member reads 'inactivo' immediately,
     // without waiting for the auto-expire cron to refresh users.status.
+    // Fase 173-19: `s.tenant_id` inline.
     const effectiveStatusExpr = sql<UserStatus>`(
       CASE
         WHEN EXISTS (
           SELECT 1 FROM subscriptions s
           WHERE s.user_id = users.id
+            AND s.tenant_id = ${ctx.tenantId}
             AND s.subscription_status IN ('active','paused')
             AND s.start_date <= CURDATE()
             AND (s.end_date IS NULL OR s.end_date >= CURDATE())
@@ -572,7 +580,13 @@ export class MemberService {
         status: effectiveStatusExpr,
       })
       .from(schema.users)
-      .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
+      .innerJoin(
+        schema.branches,
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, schema.users.branchId),
+        ),
+      )
       .where(and(...conditions))
       .orderBy(schema.users.firstName, schema.users.lastName)
       .limit(limit);
@@ -580,6 +594,11 @@ export class MemberService {
 
   /**
    * Get full member profile by ID. Returns null if not found.
+   *
+   * Fase 173-19 (ADO-02): las tres queries (ficha, trial, SEPA) quedan
+   * scopeadas. Los LEFT JOIN (`creator`, `subscriptionPlans`, `attendance`)
+   * llevan el filtro en el `ON` — en el `WHERE` convertirían el LEFT en
+   * INNER y borrarían en silencio socios sin creador/plan/asistencia.
    */
   async getMemberById(
     ctx: TenantContext,
@@ -590,10 +609,11 @@ export class MemberService {
 
     // Phase 102 (R7): same EXISTS predicate as the list endpoint — single
     // source of truth for hasUsedTrial semantics. Cancelled trials excluded.
+    // Fase 173-19: `b.tenant_id` inline — subquery con FROM propio.
     const hasUsedTrialSubquery = sql<number>`(
       SELECT EXISTS (
         SELECT 1 FROM bookings b
-        WHERE b.member_id = users.id AND b.is_trial = 1 AND b.booking_status != 'cancelado'
+        WHERE b.member_id = users.id AND b.tenant_id = ${ctx.tenantId} AND b.is_trial = 1 AND b.booking_status != 'cancelado'
       )
     )`;
 
@@ -636,13 +656,34 @@ export class MemberService {
         creatorLastName: creator.lastName,
       })
       .from(schema.users)
-      .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
-      .leftJoin(creator, eq(creator.id, schema.users.createdBy))
+      .innerJoin(
+        schema.branches,
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, schema.users.branchId),
+        ),
+      )
+      // Fase 173-19 (T-173-19-04): LEFT JOIN — el filtro va en el ON, JAMÁS
+      // en el WHERE (ahí convertiría el LEFT en INNER y borraría en silencio
+      // a los socios sin creador o sin plan comprado).
+      .leftJoin(
+        creator,
+        and(tenantWhere(creator, ctx), eq(creator.id, schema.users.createdBy)),
+      )
       .leftJoin(
         schema.subscriptionPlans,
-        eq(schema.subscriptionPlans.id, schema.users.purchasedPlanId),
+        and(
+          tenantWhere(schema.subscriptionPlans, ctx),
+          eq(schema.subscriptionPlans.id, schema.users.purchasedPlanId),
+        ),
       )
-      .where(and(eq(schema.users.id, id), isNull(schema.users.deletedAt)));
+      .where(
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, id),
+          isNull(schema.users.deletedAt),
+        ),
+      );
 
     if (!row) return null;
 
@@ -661,15 +702,25 @@ export class MemberService {
       .from(schema.bookings)
       .innerJoin(
         schema.schedules,
-        eq(schema.schedules.id, schema.bookings.scheduleId),
+        and(
+          tenantWhere(schema.schedules, ctx),
+          eq(schema.schedules.id, schema.bookings.scheduleId),
+        ),
       )
       .innerJoin(
         schema.branches,
-        eq(schema.branches.id, schema.schedules.branchId),
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, schema.schedules.branchId),
+        ),
       )
+      // Fase 173-19 (T-173-19-04): LEFT JOIN — filtro en el ON. En el WHERE
+      // convertiría el LEFT en INNER y un trial sin asistencia confirmada
+      // desaparecería de la ficha en vez de mostrar "no asistió".
       .leftJoin(
         schema.attendance,
         and(
+          tenantWhere(schema.attendance, ctx),
           eq(schema.attendance.memberId, schema.bookings.memberId),
           eq(schema.attendance.scheduleId, schema.bookings.scheduleId),
           eq(schema.attendance.sessionDate, schema.bookings.bookingDate),
@@ -678,6 +729,7 @@ export class MemberService {
       )
       .where(
         and(
+          tenantWhere(schema.bookings, ctx),
           eq(schema.bookings.memberId, id),
           eq(schema.bookings.isTrial, true),
           ne(schema.bookings.status, "cancelado"),
@@ -700,7 +752,12 @@ export class MemberService {
         iban: schema.userSepaDetails.iban,
       })
       .from(schema.userSepaDetails)
-      .where(eq(schema.userSepaDetails.userId, id))
+      .where(
+        and(
+          tenantWhere(schema.userSepaDetails, ctx),
+          eq(schema.userSepaDetails.userId, id),
+        ),
+      )
       .limit(1);
 
     let latestTrial: MemberProfile["latestTrial"] = null;
@@ -871,17 +928,22 @@ export class MemberService {
     // same referred_id (UNIQUE, D-14) throws and is swallowed here.
     if (input.referredBy != null && input.referredBy !== userId) {
       try {
-        await this.db.insert(schema.referrals).values({
-          referrerId: input.referredBy,
-          referredId: userId,
-          status: "pending",
-          attributionChannel: "assisted",
-          createdBy: input.createdBy ?? null,
-          // A/B copy test: variante del referidor (derivada de su id). Aunque el
-          // alta asistida no pasa por la card, se estampa igual para no perder la
-          // conversión en el denominador del reporte por variante.
-          copyVariant: referralCopyVariant(input.referredBy),
-        });
+        // Fase 173-19 (T-173-19-01): `tenantValues` — sin esto, el vínculo de
+        // referido nacía sin gimnasio (DEFAULT 1) sin importar de qué
+        // gimnasio fuera el alta.
+        await this.db.insert(schema.referrals).values(
+          tenantValues(ctx, {
+            referrerId: input.referredBy,
+            referredId: userId,
+            status: "pending",
+            attributionChannel: "assisted",
+            createdBy: input.createdBy ?? null,
+            // A/B copy test: variante del referidor (derivada de su id). Aunque el
+            // alta asistida no pasa por la card, se estampa igual para no perder la
+            // conversión en el denominador del reporte por variante.
+            copyVariant: referralCopyVariant(input.referredBy),
+          }),
+        );
       } catch (err: unknown) {
         this.log.warn(
           {
@@ -1890,7 +1952,13 @@ export class MemberService {
     dni: string,
     excludeUserId?: number,
   ): Promise<DniCheckResult> {
-    const conditions = [eq(schema.users.dni, dni)];
+    // Fase 173-19 (T-173-19-05): `tenantWhere` PRIMERO — un DNI repetido en
+    // OTRO gimnasio no puede dar conflicto ni delatar que existe (mismo
+    // contrato que el resto de los checks de unicidad, D-06).
+    const conditions = [
+      tenantWhere(schema.users, ctx),
+      eq(schema.users.dni, dni),
+    ];
 
     if (excludeUserId !== undefined) {
       conditions.push(ne(schema.users.id, excludeUserId));
@@ -1903,7 +1971,12 @@ export class MemberService {
         lastName: schema.users.lastName,
       })
       .from(schema.users)
-      .where(and(...conditions))
+      // `tenantWhere` ya es `conditions[0]`; se repite acá porque el lint de
+      // tenancy (CON-06) razona por STATEMENT: el `.from(schema.users)` de
+      // esta query es un statement DISTINTO del `const conditions = [...]`
+      // de arriba, así que necesita el gimnasio en el sitio exacto donde
+      // nombra la tabla (mismo criterio que `buildMemberNameSearchCondition`).
+      .where(and(tenantWhere(schema.users, ctx), ...conditions))
       .limit(1);
 
     if (existing) {
@@ -1954,8 +2027,13 @@ export class MemberService {
     const orParts: SQL[] = [];
     if (dniInput) orParts.push(eq(schema.users.dni, dniInput));
     if (phoneNormalized && phoneNormalized.length > 0) {
+      // El `tenantWhere` de acá es redundante con el de la query final (ya
+      // ANDeado afuera) — se repite en ESTE statement porque el lint de
+      // tenancy razona por STATEMENT (mismo criterio que
+      // `buildMemberNameSearchCondition`): el `.push(sql...)` de arriba es
+      // su propio statement, distinto del `.where()` de la query final.
       orParts.push(
-        sql`RIGHT(REGEXP_REPLACE(${schema.users.phone}, '[^0-9]', ''), 10) = ${phoneNormalized}`,
+        sql`(${tenantWhere(schema.users, ctx)} AND RIGHT(REGEXP_REPLACE(${schema.users.phone}, '[^0-9]', ''), 10) = ${phoneNormalized})`,
       );
     }
     if (orParts.length === 0) return { matches: [] };
@@ -1974,8 +2052,24 @@ export class MemberService {
         phone: schema.users.phone,
       })
       .from(schema.users)
-      .innerJoin(schema.branches, eq(schema.users.branchId, schema.branches.id))
-      .where(and(or(...orParts), isNull(schema.users.deletedAt)));
+      .innerJoin(
+        schema.branches,
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.users.branchId, schema.branches.id),
+        ),
+      )
+      .where(
+        and(
+          // Fase 173-19 (T-173-19-01): `tenantWhere` PRIMERO — un DNI o
+          // teléfono repetido en OTRO gimnasio no puede figurar como
+          // duplicado (mismo criterio que `searchMembers`: el dato que más
+          // caro salió en el piloto).
+          tenantWhere(schema.users, ctx),
+          or(...orParts),
+          isNull(schema.users.deletedAt),
+        ),
+      );
 
     // Deduplicate by user id; prefer dni when both criteria match the row.
     const seen = new Map<number, (typeof rows)[number]>();
@@ -2326,6 +2420,9 @@ export class MemberService {
   /**
    * List notes for a user, ordered by most recent first.
    * Joins author info for display.
+   *
+   * Fase 173-19 (T-173-19-01): `tenantWhere` inline — una nota de otro
+   * gimnasio (o su autor) tiene que verse EXACTO igual que si no existiera.
    */
   async getNotes(ctx: TenantContext, userId: number): Promise<MemberNote[]> {
     // Alias for author table
@@ -2343,9 +2440,26 @@ export class MemberService {
         updatedAt: schema.memberNotes.updatedAt,
       })
       .from(schema.memberNotes)
-      .innerJoin(authorUsers, eq(authorUsers.id, schema.memberNotes.authorId))
-      .where(eq(schema.memberNotes.userId, userId))
-      .orderBy(desc(schema.memberNotes.createdAt));
+      .innerJoin(
+        authorUsers,
+        and(
+          tenantWhere(authorUsers, ctx),
+          eq(authorUsers.id, schema.memberNotes.authorId),
+        ),
+      )
+      .where(
+        and(
+          tenantWhere(schema.memberNotes, ctx),
+          eq(schema.memberNotes.userId, userId),
+        ),
+      )
+      // Fase 173-19 (Rule 1): `id` DESC como desempate — `created_at` es un
+      // `timestamp` sin fracción de segundo, así que dos notas creadas en el
+      // mismo segundo empatan y el orden entre ellas dejaba de ser el de
+      // inserción en cuanto el JOIN cambiaba de forma (el INNER JOIN scopeado
+      // de 173-19 alteró el plan y expuso el empate). `id` autoincremental
+      // hace el "más reciente primero" determinístico sin depender del plan.
+      .orderBy(desc(schema.memberNotes.createdAt), desc(schema.memberNotes.id));
 
     return rows.map((r) => ({
       id: r.id,
@@ -2486,6 +2600,9 @@ export class MemberService {
    * Return per-level session completion counts for a member over the last
    * `days` days. Only levels with count > 0 are returned. Order is not
    * guaranteed and is not asserted by the client.
+   *
+   * Fase 173-19 (T-173-19-01): `tenantWhere` inline — es un agregado sobre
+   * una sola tabla del módulo, un filtro alcanza.
    */
   async getSessionLevelCounts(
     ctx: TenantContext,
@@ -2504,6 +2621,7 @@ export class MemberService {
       .from(schema.completedSessions)
       .where(
         and(
+          tenantWhere(schema.completedSessions, ctx),
           eq(schema.completedSessions.userId, userId),
           gte(schema.completedSessions.date, since),
         ),
