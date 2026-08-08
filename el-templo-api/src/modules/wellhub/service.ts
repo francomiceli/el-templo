@@ -39,7 +39,8 @@ import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { todayInTz } from "../shared/date-utils";
 import { emitOccupancyChange } from "../shared/occupancy-events";
-import type { TenantContext } from "../shared/tenant";
+import { tenantValues, tenantWhere, type TenantContext } from "../shared/tenant";
+import { assertBranchDelGimnasio } from "../shared/branch-consistency";
 import type { BookingService } from "../scheduling/booking-service";
 import type { WellhubClient } from "./client";
 import { WellhubApiError } from "./client";
@@ -327,7 +328,7 @@ export class WellhubService {
     if (!gate.ok) return gate.corte;
     const ctx = gate.ctx;
 
-    const userId = await this.findOrCreateVisitor(data.user, branch.id);
+    const userId = await this.findOrCreateVisitor(ctx, data.user, branch.id);
     const todayStr = todayInTz(branch.timezone);
 
     // Guard uno-por-día ANTES de validar: si ya hay asistencia de hoy (por
@@ -558,7 +559,11 @@ export class WellhubService {
       };
     }
 
-    const visitorId = await this.findOrCreateVisitor(data.user, slot.branchId);
+    const visitorId = await this.findOrCreateVisitor(
+      ctx,
+      data.user,
+      slot.branchId,
+    );
 
     // Cupo + duplicados en transacción (mismas reglas que reserve() de
     // socios; los bookings Wellhub son filas normales así que el conteo los
@@ -888,11 +893,21 @@ export class WellhubService {
    *      la visita queda en su cuenta pero sin efectos de membresía).
    *   3. Alta nueva con status='wellhub', fuera del pipeline de leads
    *      (lead_status NULL) y con password aleatoria (no puede loguearse).
+   *
+   * Fase 173 (ADO-07 / T-173-15-04): `ctx` llega de `resolverTenant` en los DOS
+   * call sites (`handleCheckin`, `handleBookingRequested`) — el gimnasio del
+   * webhook ya está resuelto y activo antes de tocar `users`.
    */
   async findOrCreateVisitor(
+    ctx: TenantContext,
     user: WellhubWebhookUser,
     branchId: number,
   ): Promise<number> {
+    // M8 (`TENANT_GLOBAL_UNIQUES`, doc 06 §8-Q4): `gympass_id` es un id de
+    // plataforma EXTERNA, único a nivel de TODO el sistema a propósito — es lo
+    // que impide que dos gimnasios reclamen al mismo visitante de Wellhub. Esta
+    // lectura busca a propósito en todos los gimnasios; no es un olvido.
+    /* tenant-safe: M8 (TENANT_GLOBAL_UNIQUES) — gympass_id es global por diseño, no por gimnasio */
     const [byGympassId] = await this.db
       .select({ id: schema.users.id })
       .from(schema.users)
@@ -902,11 +917,20 @@ export class WellhubService {
 
     const email = user.email?.trim().toLowerCase();
     if (email) {
+      // T-173-15-04: a diferencia de `gympass_id`, el email es único POR
+      // GIMNASIO desde la fase 168 (CON-01) — sin este filtro, un email
+      // coincidente de OTRO gimnasio quedaría vinculado al gympass_id de este
+      // webhook, mezclando la identidad de un socio ajeno con una visita de
+      // ESTE gimnasio (fuga entre gimnasios, no solo un ancla desalineada).
       const [byEmail] = await this.db
         .select({ id: schema.users.id, gympassId: schema.users.gympassId })
         .from(schema.users)
         .where(
-          and(eq(schema.users.email, email), isNull(schema.users.deletedAt)),
+          and(
+            tenantWhere(schema.users, ctx),
+            eq(schema.users.email, email),
+            isNull(schema.users.deletedAt),
+          ),
         )
         .limit(1);
       if (byEmail) {
@@ -914,7 +938,12 @@ export class WellhubService {
           await this.db
             .update(schema.users)
             .set({ gympassId: user.unique_token })
-            .where(eq(schema.users.id, byEmail.id));
+            .where(
+              and(
+                tenantWhere(schema.users, ctx),
+                eq(schema.users.id, byEmail.id),
+              ),
+            );
           this.log.info(
             { userId: byEmail.id },
             "Usuario existente vinculado a Wellhub por email",
@@ -937,27 +966,38 @@ export class WellhubService {
 
     try {
       const userId = await this.db.transaction(async (tx) => {
-        const result = await tx.insert(schema.users).values({
-          passwordHash,
-          firstName,
-          lastName,
-          email: email ?? null,
-          phone: user.phone_number?.trim() || null,
-          branchId,
-          branchUpdatedAt: new Date(),
-          branchSource: "auto" as const,
-          role: "member",
-          status: "wellhub" as const,
-          gympassId: user.unique_token,
-        });
+        // Sitio de ancla #11 (D-05/ADO-07): `branchId` viene del mapeo
+        // gym-de-Wellhub → sede que ya resolvió `resolverTenant`, pero se
+        // revalida acá con el mismo resolvedor único que consumen los otros
+        // 12 sitios (plan 173-11) en vez de confiar en que el llamador lo hizo
+        // bien — y se escribe el `id` de la FILA RESUELTA, no el parámetro.
+        const branch = await assertBranchDelGimnasio(ctx, branchId, tx);
+
+        const result = await tx.insert(schema.users).values(
+          tenantValues(ctx, {
+            passwordHash,
+            firstName,
+            lastName,
+            email: email ?? null,
+            phone: user.phone_number?.trim() || null,
+            branchId: branch.id,
+            branchUpdatedAt: new Date(),
+            branchSource: "auto" as const,
+            role: "member",
+            status: "wellhub" as const,
+            gympassId: user.unique_token,
+          }),
+        );
         const newUserId = Number(result[0].insertId);
 
-        await tx.insert(schema.userStatusHistory).values({
-          userId: newUserId,
-          fromStatus: null,
-          toStatus: "wellhub",
-          source: "wellhub",
-        });
+        await tx.insert(schema.userStatusHistory).values(
+          tenantValues(ctx, {
+            userId: newUserId,
+            fromStatus: null,
+            toStatus: "wellhub",
+            source: "wellhub",
+          }),
+        );
 
         return newUserId;
       });
@@ -967,6 +1007,8 @@ export class WellhubService {
     } catch (err: unknown) {
       // Carrera entre dos webhooks del mismo usuario nuevo: la unique key de
       // gympass_id tumba el segundo INSERT — re-resolvemos por lookup.
+      // Mismo motivo que `byGympassId` arriba: M8, global por diseño.
+      /* tenant-safe: M8 (TENANT_GLOBAL_UNIQUES) — gympass_id es global por diseño, no por gimnasio */
       const [retry] = await this.db
         .select({ id: schema.users.id })
         .from(schema.users)
