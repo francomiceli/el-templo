@@ -39,6 +39,15 @@ import {
 } from "../src/modules/finance";
 import { NotificationService } from "../src/modules/notifications/service";
 import { dowInTz, addDays } from "../src/modules/shared/date-utils";
+import type { TenantContext } from "../src/modules/shared/tenant";
+
+/**
+ * El gimnasio de los fixtures (El Templo = tenant 1). Fase 173 (plan 173-07):
+ * `BookingService.reserve` recibe `ctx: TenantContext` como PRIMER argumento;
+ * en producción sale de `assertTenant(request.scope, …)`, acá se construye a
+ * mano porque el service se invoca directo (sin request).
+ */
+const CTX: TenantContext = { tenantId: 1 };
 
 describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", () => {
   let app: FastifyInstance;
@@ -751,7 +760,7 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
         1,
       );
       await expect(
-        bookings.reserve(svcMemberId, svcScheduleOtherId, tomorrow),
+        bookings.reserve(CTX, svcMemberId, svcScheduleOtherId, tomorrow),
       ).rejects.toThrow(
         /No podes reservar clases bonus en otra sucursal con tu plan actual/i,
       );
@@ -764,6 +773,7 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
         1,
       );
       const booking = await bookings.reserve(
+        CTX,
         svcCoachId,
         svcScheduleOtherId,
         tomorrow,

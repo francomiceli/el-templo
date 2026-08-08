@@ -36,6 +36,7 @@ import {
 import { categoryGroup } from "../subscriptions/types";
 import { getEffectiveCapacity as resolveSlotCapacity } from "./capacity";
 import { getScheduleException } from "./schedule-exceptions";
+import { tenantWhere, type TenantContext } from "../shared/tenant";
 
 /**
  * Member self-booking window: today .. today + N days (branch-local).
@@ -59,8 +60,13 @@ export class BookingService {
    * Validates: schedule active, date within current week, not past,
    * day matches schedule, not a holiday, active subscription, not overdue,
    * weekly limit, no duplicate, capacity (waitlist if full).
+   *
+   * Fase 173 (D-02, plan 173-07): `ctx` PRIMERO, filtra la resolución del rol
+   * del actor (`users`) y se propaga a `getBookingRecord`. `bookings` y
+   * `schedules` no se tocan (D-02, fase 174).
    */
   async reserve(
+    ctx: TenantContext,
     memberId: number,
     scheduleId: number,
     date: string,
@@ -92,7 +98,7 @@ export class BookingService {
     const [actor] = await this.db
       .select({ role: schema.users.role })
       .from(schema.users)
-      .where(eq(schema.users.id, memberId))
+      .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, memberId)))
       .limit(1);
     const actorRole: string = actor?.role ?? "member";
 
@@ -414,7 +420,7 @@ export class BookingService {
 
       return Number(result[0].insertId);
     });
-    const booking = await this.getBookingRecord(bookingId);
+    const booking = await this.getBookingRecord(ctx, bookingId);
     if (!booking) throw new Error("Failed to retrieve newly created booking");
 
     this.log.info(
@@ -432,8 +438,15 @@ export class BookingService {
    * Cancel a booking.
    * Validates ownership, status, and cancellation window.
    * Auto-promotes waitlist if the cancelled booking was confirmed.
+   *
+   * Fase 173 (D-02, plan 173-07): `ctx` PRIMERO, se propaga a
+   * `getBookingRecord` (no hay lectura propia de `users` en este método).
    */
-  async cancel(memberId: number, bookingId: number): Promise<BookingRecord> {
+  async cancel(
+    ctx: TenantContext,
+    memberId: number,
+    bookingId: number,
+  ): Promise<BookingRecord> {
     // 1. Validate booking exists and belongs to member
     const [bookingRow] = await this.db
       .select({
@@ -505,7 +518,7 @@ export class BookingService {
       await this.promoteWaitlist(bookingRow.scheduleId, bookingRow.bookingDate);
     }
 
-    const updated = await this.getBookingRecord(bookingId);
+    const updated = await this.getBookingRecord(ctx, bookingId);
     if (!updated) throw new Error("Failed to retrieve cancelled booking");
 
     this.log.info(
@@ -525,8 +538,11 @@ export class BookingService {
 
   /**
    * Get a member's bookings for a given week.
+   *
+   * Fase 173 (D-02, plan 173-07): `ctx` PRIMERO, filtra el join a `users`.
    */
   async getMyBookings(
+    ctx: TenantContext,
     memberId: number,
     weekStartDate: string,
   ): Promise<BookingRecord[]> {
@@ -551,7 +567,13 @@ export class BookingService {
         isSpecial: schema.activities.isSpecial,
       })
       .from(schema.bookings)
-      .innerJoin(schema.users, eq(schema.users.id, schema.bookings.memberId))
+      .innerJoin(
+        schema.users,
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.bookings.memberId),
+        ),
+      )
       .innerJoin(
         schema.schedules,
         eq(schema.schedules.id, schema.bookings.scheduleId),
@@ -627,8 +649,12 @@ export class BookingService {
   /**
    * Admin add booking (skip subscription/overdue checks, enforce capacity).
    * Returns warnings for subscription issues without blocking.
+   *
+   * Fase 173 (D-02, plan 173-07): `ctx` PRIMERO, se propaga a
+   * `getBookingRecord` (no hay lectura propia de `users` en este método).
    */
   async adminAddBooking(
+    ctx: TenantContext,
     scheduleId: number,
     memberId: number,
     date: string,
@@ -760,7 +786,7 @@ export class BookingService {
     });
 
     const bookingId = Number(result[0].insertId);
-    const booking = await this.getBookingRecord(bookingId);
+    const booking = await this.getBookingRecord(ctx, bookingId);
     if (!booking) throw new Error("Failed to retrieve admin booking");
 
     this.log.info(
@@ -889,8 +915,11 @@ export class BookingService {
    * any writes — used to populate the admin confirmation dialog. Mirrors
    * the same join used by `cancelBookingsFromDateAndGrantCredits` so the
    * preview number matches what actually gets cancelled.
+   *
+   * Fase 173 (D-02, plan 173-07): `ctx` PRIMERO, filtra el join a `users`.
    */
   async previewScheduleDeletion(
+    ctx: TenantContext,
     scheduleId: number,
     fromDate: string,
   ): Promise<{
@@ -918,7 +947,13 @@ export class BookingService {
         bookingDate: schema.bookings.bookingDate,
       })
       .from(schema.bookings)
-      .innerJoin(schema.users, eq(schema.users.id, schema.bookings.memberId))
+      .innerJoin(
+        schema.users,
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.bookings.memberId),
+        ),
+      )
       .where(
         and(
           eq(schema.bookings.scheduleId, scheduleId),
@@ -2130,8 +2165,11 @@ export class BookingService {
 
   /**
    * Get a booking record with joins (for response).
+   *
+   * Fase 173 (D-02, plan 173-07): `ctx` PRIMERO, filtra el join a `users`.
    */
   private async getBookingRecord(
+    ctx: TenantContext,
     bookingId: number,
   ): Promise<BookingRecord | null> {
     const [row] = await this.db
@@ -2153,7 +2191,13 @@ export class BookingService {
         isSpecial: schema.activities.isSpecial,
       })
       .from(schema.bookings)
-      .innerJoin(schema.users, eq(schema.users.id, schema.bookings.memberId))
+      .innerJoin(
+        schema.users,
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.bookings.memberId),
+        ),
+      )
       .innerJoin(
         schema.schedules,
         eq(schema.schedules.id, schema.bookings.scheduleId),

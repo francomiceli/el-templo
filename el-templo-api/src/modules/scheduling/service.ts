@@ -15,7 +15,7 @@ import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { addDays, computeSeniority, todayInTz } from "../shared/date-utils";
 import { memberCoveredUntilSql } from "../shared/covered-until";
-import type { TenantContext } from "../shared/tenant";
+import { tenantWhere, type TenantContext } from "../shared/tenant";
 import type {
   ScheduleSlot,
   WeeklySlotView,
@@ -335,10 +335,11 @@ export class SchedulingService {
    * Get slot detail with all bookings for a specific date.
    *
    * Fase 173 (D-02): `ctx` es el PRIMER parámetro y llega desde
-   * `assertTenant(request.scope, "scheduling.slotDetail")`. Solo scopea la
-   * lectura de `subscriptions` que hace `memberCoveredUntilSql` — el resto de
-   * las tablas de este método (`bookings`, `users`, `member_profiles`, …)
-   * se migra en su propia fase (D-02, plan 173-07).
+   * `assertTenant(request.scope, "scheduling.slotDetail")`. Plan 173-07: los
+   * joins a `users` y `member_profiles` de este método ya llevan
+   * `tenantWhere` inline en el `ON` (INNER y LEFT respectivamente), además de
+   * la lectura de `subscriptions` que hace `memberCoveredUntilSql`.
+   * `bookings` y `schedules` NO se tocan (D-02) — su migración es la fase 174.
    */
   async getSlotDetail(
     ctx: TenantContext,
@@ -387,10 +388,19 @@ export class SchedulingService {
         endDate: endDateExpr,
       })
       .from(schema.bookings)
-      .innerJoin(schema.users, eq(schema.users.id, schema.bookings.memberId))
+      .innerJoin(
+        schema.users,
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.bookings.memberId),
+        ),
+      )
       .leftJoin(
         schema.memberProfiles,
-        eq(schema.memberProfiles.userId, schema.bookings.memberId),
+        and(
+          tenantWhere(schema.memberProfiles, ctx),
+          eq(schema.memberProfiles.userId, schema.bookings.memberId),
+        ),
       )
       .where(
         and(
@@ -433,7 +443,13 @@ export class SchedulingService {
         status: schema.attendance.status,
       })
       .from(schema.attendance)
-      .innerJoin(schema.users, eq(schema.users.id, schema.attendance.memberId))
+      .innerJoin(
+        schema.users,
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.attendance.memberId),
+        ),
+      )
       .where(
         and(
           eq(schema.attendance.branchId, slot.branchId),
