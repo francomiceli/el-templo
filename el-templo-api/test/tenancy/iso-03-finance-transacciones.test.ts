@@ -1209,11 +1209,20 @@ describe("alta de cobro — POST /api/admin/finance/transactions", () => {
   });
 
   it("aislamiento: no puede imputarle un cobro a una sede de El Templo", async () => {
-    // OJO con el guard que NO alcanza: el preHandler `requireBranchAccess` solo
-    // responde "¿este actor puede operar en esta sede?" mirando el PAIS, y las
-    // dos sedes son AR — asi que lo pasa. El que tiene que frenar el intento es
-    // el guard de sede del handler, que si lleva `tenantWhere(branches, ctx)`.
-    // Por eso este caso vale: ejercita la unica barrera que queda.
+    // Fase 173 plan 11 (D-14): ACTUALIZADO. Antes de este plan, el preHandler
+    // `requireBranchAccess` solo miraba el PAIS (las dos sedes son AR, asi que
+    // lo dejaba pasar) y la unica barrera real era el guard de sede del propio
+    // handler (`tenantWhere(branches, ctx)` en transaction-service.ts), que
+    // contestaba 404. D-14 hizo que `canAccessBranch` (la funcion detras de
+    // `requireBranchAccess`) tambien filtre por GIMNASIO, asi que ahora el
+    // intento se frena UN PASO ANTES, en el preHandler: la sede de El Templo
+    // no es del gimnasio 90671 y `canAccessBranch` devuelve `false` -> 403
+    // BRANCH_OUT_OF_SCOPE. Esto NO reabre la fuga que D-06 prohibe (un 403
+    // ahi no distingue "sede de otro gimnasio" de "sede propia fuera del rol
+    // operativo del actor" - es el mismo codigo generico para las dos), y la
+    // barrera que este `it` señalaba como "la unica que queda" en
+    // transaction-service.ts sigue viva e intacta, solo que ya no se alcanza
+    // a ejercitar en este caso porque el preHandler corta antes.
     const antesDos = await contarTransacciones(TENANT_DOS);
     const antesTemplo = await contarTransacciones(TENANT_TEMPLO);
 
@@ -1223,18 +1232,31 @@ describe("alta de cobro — POST /api/admin/finance/transactions", () => {
     );
     expect(
       res.statusCode,
-      porQueImportaLaEscritura(RUTA, templo.branchId) +
-        ` (el id ajeno viajo como \`branchId\` del body: para el gimnasio ${TENANT_DOS} esa sede ` +
-        `tiene que NO EXISTIR). Respuesta: ${res.body}`,
-    ).toBe(404);
+      `${RUTA} dejo pasar al staff del gimnasio ${TENANT_DOS} sobre una sede de El Templo ` +
+        `(${templo.branchId}). Con D-14, \`requireBranchAccess\` (via \`canAccessBranch\`) tiene ` +
+        `que frenarlo ANTES de llegar al handler, con BRANCH_OUT_OF_SCOPE. Respuesta: ${res.body}`,
+    ).toBe(403);
+    // NOTA: esta ruta serializa sus 403/404 con `errorSchema` (solo `error` +
+    // `message`, sin `code` - schemas.ts), asi que `BRANCH_OUT_OF_SCOPE` no
+    // sobrevive la serializacion aunque `requireBranchAccess` lo mande. La
+    // asercion util acá es el MENSAJE, que sí es el genérico de sede fuera de
+    // alcance (branch-access.ts) y no el de "Concepto enlazado no existe" u
+    // otro 404 de mas abajo.
+    expect(
+      JSON.parse(res.body).message,
+      "El mensaje tiene que ser el generico de sede fuera de alcance " +
+        '("No tenés acceso a esta sede", branch-access.ts), no un 404 filtrado mas abajo: si ' +
+        "esto cambia, revisar que el preHandler siga corriendo antes que el handler de " +
+        "POST /transactions.",
+    ).toBe("No tenés acceso a esta sede");
 
     expect(
       [
         await contarTransacciones(TENANT_DOS),
         await contarTransacciones(TENANT_TEMPLO),
       ],
-      `${RUTA} escribio una transaccion imputada a una sede ajena aunque contesto que no existe: ` +
-        `el 404 llego DESPUES del INSERT.`,
+      `${RUTA} escribio una transaccion imputada a una sede ajena aunque el preHandler la tendria ` +
+        `que haber frenado antes de llegar al handler.`,
     ).toEqual([antesDos, antesTemplo]);
   });
 
