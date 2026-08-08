@@ -17,7 +17,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { Workbook } from "exceljs";
 import type { FastifyInstance } from "fastify";
 import {
@@ -28,7 +28,7 @@ import {
   registerUser,
 } from "../helpers";
 import * as schema from "../../src/db/schema";
-import { tenantValues } from "../../src/modules/shared/tenant";
+import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
 import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 
 /**
@@ -122,7 +122,12 @@ async function seedRolesAndPlans(
   await app.db
     .select({ id: schema.users.id })
     .from(schema.users)
-    .where(eq(schema.users.email, "admin@test.com"))
+    .where(
+      and(
+        tenantWhere(schema.users, TEMPLO_CTX),
+        eq(schema.users.email, "admin@test.com"),
+      ),
+    )
     .limit(1);
 
   ctx.adminArId = await createStaffUser(app, {

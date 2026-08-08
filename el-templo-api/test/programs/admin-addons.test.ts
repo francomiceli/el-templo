@@ -408,6 +408,7 @@ describe("Admin add-on assignment endpoint (Phase 112 Plan 04)", () => {
       .from(auditLog)
       .where(
         and(
+          tenantWhere(auditLog, TEMPLO_CTX),
           eq(auditLog.action, "plan_assigned"),
           eq(auditLog.targetKind, "member"),
           eq(auditLog.targetId, userId),
@@ -470,6 +471,7 @@ describe("Admin add-on assignment endpoint (Phase 112 Plan 04)", () => {
       .from(auditLog)
       .where(
         and(
+          tenantWhere(auditLog, TEMPLO_CTX),
           eq(auditLog.action, "plan_assigned"),
           eq(auditLog.targetKind, "member"),
           eq(auditLog.targetId, userId),

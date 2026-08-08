@@ -184,7 +184,8 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
           includeExpired: request.query.includeExpired,
           includeRenewed: request.query.includeRenewed,
         };
-        return await reportsService.getExpiringMemberships(filters);
+        const ctx = assertTenant(request.scope, "reports.expiring");
+        return await reportsService.getExpiringMemberships(ctx, filters);
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "get expiring report");
       }
@@ -212,7 +213,8 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
           country: request.scope.country ?? undefined,
           daysThreshold: request.query.daysThreshold,
         };
-        return await reportsService.getInactiveMembers(filters);
+        const ctx = assertTenant(request.scope, "reports.inactive");
+        return await reportsService.getInactiveMembers(ctx, filters);
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "get inactive report");
       }
@@ -391,7 +393,8 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
           page: request.query.page,
           limit: request.query.limit,
         };
-        return await reportsService.getExpiredMembers(filters, {
+        const ctx = assertTenant(request.scope, "reports.expired-members");
+        return await reportsService.getExpiredMembers(ctx, filters, {
           isOwner: request.scope.isOwner,
         });
       } catch (err: unknown) {
@@ -587,7 +590,11 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
           includeExpired: request.query.includeExpired,
           includeRenewed: request.query.includeRenewed,
         };
-        const rows = await reportsService.exportExpiringMemberships(filters);
+        const ctx = assertTenant(request.scope, "reports.export-expiring");
+        const rows = await reportsService.exportExpiringMemberships(
+          ctx,
+          filters,
+        );
 
         const workbook = new Workbook();
         workbook.creator = "El Templo";
@@ -646,7 +653,8 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
           country: request.scope.country ?? undefined,
           daysThreshold: request.query.daysThreshold,
         };
-        const rows = await reportsService.exportInactiveMembers(filters);
+        const ctx = assertTenant(request.scope, "reports.export-inactive");
+        const rows = await reportsService.exportInactiveMembers(ctx, filters);
 
         const workbook = new Workbook();
         workbook.creator = "El Templo";
@@ -886,7 +894,8 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       try {
         const filters = buildTrialSessionsFilters(request);
-        return await reportsService.getTrialSessionsReport(filters);
+        const ctx = assertTenant(request.scope, "reports.trial-sessions");
+        return await reportsService.getTrialSessionsReport(ctx, filters);
       } catch (err: unknown) {
         handleServiceError(
           err,
@@ -909,7 +918,11 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       try {
         const filters = buildTrialSessionsFilters(request);
-        const csv = await reportsService.exportTrialSessions(filters);
+        const ctx = assertTenant(
+          request.scope,
+          "reports.export-trial-sessions",
+        );
+        const csv = await reportsService.exportTrialSessions(ctx, filters);
 
         const today = new Date().toISOString().split("T")[0];
         // The leading "\uFEFF" is the UTF-8 BOM (U+FEFF). Excel requires it to

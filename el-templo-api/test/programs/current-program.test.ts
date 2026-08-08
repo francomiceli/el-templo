@@ -22,7 +22,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   createTestApp,
   registerUser,
@@ -32,6 +32,15 @@ import {
 import { users } from "../../src/db/schema/users";
 import { programs } from "../../src/db/schema/micro-programs";
 import { programEnrollments } from "../../src/db/schema/program-enrollments";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+import { tenantWhere } from "../../src/modules/shared/tenant";
+
+/**
+ * Fase 173 (ADO-02): gimnasio de las queries DIRECTAS de `users` en este
+ * archivo. Con `members` en TENANT_STRICT_MODULES una lectura/escritura sin
+ * estampa hace throw antes de llegar a MySQL.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 // =============================================================================
 // Local fixture helpers
@@ -226,7 +235,7 @@ describe("Current Program endpoint (Phase 104 R6)", () => {
     const [row] = await app.db
       .select({ id: users.currentProgramEnrollmentId })
       .from(users)
-      .where(eq(users.id, memberAId));
+      .where(and(tenantWhere(users, TEMPLO_CTX), eq(users.id, memberAId)));
     expect(row.id).toBe(enrollmentId);
   });
 
@@ -251,7 +260,7 @@ describe("Current Program endpoint (Phase 104 R6)", () => {
     const [row] = await app.db
       .select({ id: users.currentProgramEnrollmentId })
       .from(users)
-      .where(eq(users.id, memberBId));
+      .where(and(tenantWhere(users, TEMPLO_CTX), eq(users.id, memberBId)));
     expect(row.id).toBeNull();
   });
 
@@ -312,7 +321,7 @@ describe("Current Program endpoint (Phase 104 R6)", () => {
     await app.db
       .update(users)
       .set({ currentProgramEnrollmentId: enrollmentId })
-      .where(eq(users.id, memberAId));
+      .where(and(tenantWhere(users, TEMPLO_CTX), eq(users.id, memberAId)));
 
     const res = await app.inject({
       method: "PUT",
@@ -330,7 +339,7 @@ describe("Current Program endpoint (Phase 104 R6)", () => {
     const [row] = await app.db
       .select({ id: users.currentProgramEnrollmentId })
       .from(users)
-      .where(eq(users.id, memberAId));
+      .where(and(tenantWhere(users, TEMPLO_CTX), eq(users.id, memberAId)));
     expect(row.id).toBeNull();
   });
 

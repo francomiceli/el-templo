@@ -29,7 +29,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   createTestApp,
   cleanAllTestData,
@@ -37,6 +37,15 @@ import {
   getAuthToken,
 } from "./helpers";
 import * as schema from "../src/db/schema";
+import { TENANT_TEMPLO } from "./fixtures/second-tenant";
+import { tenantWhere } from "../src/modules/shared/tenant";
+
+/**
+ * Fase 173 (ADO-02): gimnasio de la lectura DIRECTA de `users` en este
+ * archivo. Con `members` en TENANT_STRICT_MODULES una lectura sin estampa
+ * hace throw antes de llegar a MySQL.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 const REPORTS_URL = "/api/admin/reports";
 
@@ -278,7 +287,12 @@ async function provisionStaff(): Promise<void> {
   const [ow] = await ctx.app.db
     .select({ id: schema.users.id })
     .from(schema.users)
-    .where(eq(schema.users.email, "admin@test.com"));
+    .where(
+      and(
+        tenantWhere(schema.users, TEMPLO_CTX),
+        eq(schema.users.email, "admin@test.com"),
+      ),
+    );
   ctx.ownerUserId = ow.id;
 
   ctx.adminArId = await createStaffUser(ctx.app, {

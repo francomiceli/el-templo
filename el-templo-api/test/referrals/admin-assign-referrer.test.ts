@@ -85,7 +85,7 @@ async function referralRow(referredId: number): Promise<ReferralRow | null> {
 
 async function referredByOf(userId: number): Promise<number | null> {
   const rows = await app.db.execute(
-    sql`SELECT referred_by FROM users WHERE id = ${userId}`,
+    sql`SELECT referred_by FROM users WHERE id = ${userId} AND tenant_id = ${CTX.tenantId}`,
   );
   const list = rows[0] as unknown as Array<{ referred_by: number | null }>;
   return list[0]?.referred_by ?? null;
@@ -300,7 +300,7 @@ describe("POST /api/admin/members/:id/referrals — atribución retroactiva", ()
       const target = await createMember(app, { email: "ar-delr-t@test.com" });
       const referrer = await createMember(app, { email: "ar-delr-r@test.com" });
       await app.db.execute(
-        sql`UPDATE users SET deleted_at = NOW() WHERE id = ${referrer.id}`,
+        sql`UPDATE users SET deleted_at = NOW() WHERE id = ${referrer.id} AND tenant_id = ${CTX.tenantId}`,
       );
       expect((await assign(target.id, referrer.id)).statusCode).toBe(404);
       expect(await referralRow(target.id)).toBeNull();
@@ -328,7 +328,7 @@ describe("POST /api/admin/members/:id/referrals — atribución retroactiva", ()
       const target = await createMember(app, { email: "ar-gdel-t@test.com" });
       const referrer = await createMember(app, { email: "ar-gdel-r@test.com" });
       await app.db.execute(
-        sql`UPDATE users SET deleted_at = NOW() WHERE id = ${target.id}`,
+        sql`UPDATE users SET deleted_at = NOW() WHERE id = ${target.id} AND tenant_id = ${CTX.tenantId}`,
       );
       expect((await assign(target.id, referrer.id)).statusCode).toBe(404);
     });

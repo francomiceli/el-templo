@@ -19,6 +19,14 @@ import {
 } from "../helpers";
 import { createPlan, createMember } from "../subscriptions/_helpers";
 import * as schema from "../../src/db/schema";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+
+/**
+ * Fase 173 (ADO-02): gimnasio de la escritura DIRECTA de `users` en este
+ * archivo. Con `members` en TENANT_STRICT_MODULES un UPDATE crudo sin
+ * `tenant_id` en el predicado hace throw antes de llegar a MySQL.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 const MEMBER_PASSWORD = "pass123456";
 
@@ -178,7 +186,7 @@ describe("GET /api/admin/members/:id/referrals — ficha admin", () => {
   it("404 para un miembro soft-deleted", async () => {
     const target = await createMember(app, { email: "a-deleted@test.com" });
     await app.db.execute(
-      sql`UPDATE users SET deleted_at = NOW() WHERE id = ${target.id}`,
+      sql`UPDATE users SET deleted_at = NOW() WHERE id = ${target.id} AND tenant_id = ${TEMPLO_CTX.tenantId}`,
     );
     const res = await app.inject({
       method: "GET",

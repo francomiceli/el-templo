@@ -21,6 +21,14 @@ import { createMember } from "../subscriptions/_helpers";
 import { ReferralService } from "../../src/modules/referrals/service";
 import { referralCopyVariant } from "../../src/modules/referrals/ab-variant";
 import * as schema from "../../src/db/schema";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+
+/**
+ * Fase 173 (ADO-02): gimnasio de la escritura DIRECTA de `users` en este
+ * archivo. Con `members` en TENANT_STRICT_MODULES un UPDATE crudo sin
+ * `tenant_id` en el predicado hace throw antes de llegar a MySQL.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 const CTA_URL = "/api/members/referrals/cta-click";
 const AB_URL = "/api/admin/referrals/ab-results";
@@ -58,7 +66,7 @@ beforeEach(async () => {
 
 async function setActivo(userId: number): Promise<void> {
   await app.db.execute(
-    sql`UPDATE users SET status='activo' WHERE id=${userId}`,
+    sql`UPDATE users SET status='activo' WHERE id=${userId} AND tenant_id = ${TEMPLO_CTX.tenantId}`,
   );
 }
 

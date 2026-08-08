@@ -50,7 +50,7 @@ async function clearReferralConfig(): Promise<void> {
  */
 async function clearCode(userId: number): Promise<void> {
   await app.db.execute(
-    sql`UPDATE users SET referral_code = NULL WHERE id = ${userId}`,
+    sql`UPDATE users SET referral_code = NULL WHERE id = ${userId} AND tenant_id = ${CTX.tenantId}`,
   );
 }
 

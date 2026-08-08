@@ -606,6 +606,10 @@ export class ReferralService {
    */
   async getAbTestResults(): Promise<ReferralAbResults> {
     // Expuestos por variante: paridad del id del socio activo.
+    // Fase 173 (ADO-02, T-173-21/T-173-22): el comentario TS de abajo exime
+    // al LINT (ancla por AST), pero el SENTINEL solo lee el SQL de runtime
+    // (D-17) — la misma exención se repite EMBEBIDA en el `where`, el único
+    // canal que el sentinel puede leer.
     /* tenant-safe: A/B test global de todo el sistema de referidos (docblock de referrals/admin-routes.ts: "superficie de LECTURA global, no per-gimnasio"); acotarlo por gimnasio cambiaria lo que la metrica mide */
     const exposedRows = await this.db
       .select({
@@ -613,7 +617,9 @@ export class ReferralService {
         count: sql<number>`COUNT(*)`,
       })
       .from(users)
-      .where(and(eq(users.role, "member"), eq(users.status, "activo")))
+      .where(
+        sql`/* tenant-safe: A/B test global de todo el sistema de referidos (docblock de referrals/admin-routes.ts: "superficie de LECTURA global, no per-gimnasio"); acotarlo por gimnasio cambiaria lo que la metrica mide */ ${and(eq(users.role, "member"), eq(users.status, "activo"))}`,
+      )
       .groupBy(sql`CASE WHEN ${users.id} % 2 = 0 THEN 'A' ELSE 'B' END`);
 
     // Clics: clickers únicos + clics totales por variante.

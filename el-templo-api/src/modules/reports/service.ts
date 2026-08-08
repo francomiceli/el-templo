@@ -563,9 +563,7 @@ export class ReportsService {
         planName: String(r.planName),
         amount: Number(r.amount),
         currency: r.currency ? String(r.currency) : "ARS",
-        paymentMethod: String(
-          r.paymentMethod,
-        ) as ChargeReportPaymentMethod,
+        paymentMethod: String(r.paymentMethod) as ChargeReportPaymentMethod,
         recorderName: String(r.recorderName).trim(),
         voidedAt: r.voidedAt ? String(r.voidedAt) : null,
       }),
@@ -576,7 +574,12 @@ export class ReportsService {
 
   // ─── Expiring Memberships ────────────────────────────────────────────────
 
+  // Fase 173 (ADO-02, D-02 acotado): `ctx` PRIMERO — deuda documentada por la
+  // 173-05 (`users`/`subscriptions` sin filtro en este método) que este plan
+  // cierra con cirugía mínima: único call site en routes.ts, sin tocar el
+  // resto del archivo (ver docblock previo del 173-05-SUMMARY).
   async getExpiringMemberships(
+    ctx: TenantContext,
     filters: ExpiringReportFilters,
   ): Promise<ExpiringReportRow[]> {
     const daysWindow = filters.daysWindow ?? 7;
@@ -617,6 +620,7 @@ export class ReportsService {
     )`;
 
     const conditions: ReturnType<typeof sql>[] = [
+      tenantWhere(schema.subscriptions, ctx),
       sql`${schema.subscriptions.status} IN (${sql.join(
         statusValues.map((s) => sql`${s}`),
         sql`, `,
@@ -669,7 +673,13 @@ export class ReportsService {
         hasFutureCoverage: sql<number>`${coverageExists}`,
       })
       .from(schema.subscriptions)
-      .innerJoin(schema.users, eq(schema.users.id, schema.subscriptions.userId))
+      .innerJoin(
+        schema.users,
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.subscriptions.userId),
+        ),
+      )
       .innerJoin(
         schema.branches,
         eq(schema.branches.id, schema.subscriptions.branchId),
@@ -704,7 +714,12 @@ export class ReportsService {
 
   // ─── Inactive Members ────────────────────────────────────────────────────
 
+  // Fase 173 (ADO-02, D-02 acotado): `ctx` PRIMERO — deuda documentada por la
+  // 173-05 (`users`/`subscriptions` sin filtro en este método) que este plan
+  // cierra con cirugía mínima: único call site en routes.ts, sin tocar el
+  // resto del archivo (ver docblock previo del 173-05-SUMMARY).
   async getInactiveMembers(
+    ctx: TenantContext,
     filters: InactiveReportFilters,
   ): Promise<InactiveReportRow[]> {
     const daysThreshold = filters.daysThreshold ?? 14;
@@ -728,11 +743,12 @@ export class ReportsService {
         u.phone,
         s.start_date AS startDate
       FROM subscriptions s
-      INNER JOIN users u ON u.id = s.user_id
+      INNER JOIN users u ON u.id = s.user_id AND u.tenant_id = ${ctx.tenantId}
       INNER JOIN branches b ON b.id = s.branch_id
       INNER JOIN subscription_plans sp ON sp.id = s.plan_id
       LEFT JOIN attendance a ON a.member_id = s.user_id
       WHERE s.subscription_status IN ('active', 'paused')
+        AND s.tenant_id = ${ctx.tenantId}
         ${branchCondition}
         ${countryCondition}
       GROUP BY s.user_id, u.first_name, u.last_name, sp.name, u.phone, s.start_date
@@ -1446,7 +1462,12 @@ export class ReportsService {
    * Dedup + pagination happen in JS (the 60-day cohort is small) so the total
    * counts distinct members, not sub rows.
    */
+  // Fase 173 (ADO-02, D-02 acotado): `ctx` PRIMERO — deuda documentada por la
+  // 173-05 (`users`/`subscriptions` sin filtro en este método, ver comentario
+  // más abajo en el bloque `search`) que este plan cierra con cirugía mínima:
+  // único call site en routes.ts, sin tocar el resto del archivo.
   async getExpiredMembers(
+    ctx: TenantContext,
     filters: ExpiredMembersFilters,
     scope: { isOwner: boolean },
   ): Promise<ExpiredMembersResult> {
@@ -1455,6 +1476,7 @@ export class ReportsService {
     const offset = (page - 1) * limit;
 
     const conds: SQL[] = [
+      tenantWhere(schema.subscriptions, ctx),
       sql`${schema.subscriptions.endDate} < CURDATE()`,
       sql`${schema.subscriptions.endDate} >= DATE_SUB(CURDATE(), INTERVAL 60 DAY)`,
       // Discard the historical inverted-window dirty data (end < start, all
@@ -1491,13 +1513,14 @@ export class ReportsService {
     }
 
     if (filters.search !== undefined && filters.search.trim().length > 0) {
-      // 173-05 (D-02): `getExpiredMembers` todavía no recibe `ctx` — el resto
-      // del método tiene otras lecturas de `subscriptions`/`users` sin migrar
-      // (fuera del alcance de este plan) y agregarle `ctx` solo para esta
-      // condición dejaría el archivo a medio camino. Se replica LOCALMENTE la
-      // MISMA lógica tokenizada de `buildMemberNameSearchCondition` (sin DNI),
-      // sin el filtro de gimnasio, IDÉNTICA a la de antes de esta fase, hasta
-      // que este método se migre completo. Ver shared/member-search.ts.
+      // Fase 173 (ADO-02): `getExpiredMembers` ya recibe `ctx` (deuda de la
+      // 173-05 cerrada por 173-23) — el gimnasio ya lo aporta `conds[0]`
+      // (`tenantWhere(subscriptions, ctx)`), así que esta condición de
+      // búsqueda por nombre no necesita su propio filtro. Se mantiene la
+      // MISMA lógica tokenizada LOCAL de `buildMemberNameSearchCondition`
+      // (sin DNI) en vez de importar el helper compartido — no es deuda de
+      // tenancy, es una decisión de shared/member-search.ts que queda fuera
+      // del alcance de este plan (D-02).
       const searchTokens = filters.search
         .split(/\s+/)
         .map((t) => t.trim())
@@ -1533,7 +1556,13 @@ export class ReportsService {
         daysOverdue: sql<number>`DATEDIFF(CURDATE(), ${schema.subscriptions.endDate})`,
       })
       .from(schema.subscriptions)
-      .innerJoin(schema.users, eq(schema.users.id, schema.subscriptions.userId))
+      .innerJoin(
+        schema.users,
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.subscriptions.userId),
+        ),
+      )
       .innerJoin(
         schema.branches,
         eq(schema.branches.id, schema.subscriptions.branchId),
@@ -1900,7 +1929,12 @@ export class ReportsService {
   // schema layer is the first defense (integer/enum enforcement); this is
   // defense-in-depth (T-114-05-04).
 
+  // Fase 173 (ADO-02, D-02 acotado): `ctx` PRIMERO — deuda documentada por la
+  // 173-05 (`users` sin filtro en este método, 2 alias `u`/`creator`) que
+  // este plan cierra con cirugía mínima: único call site en routes.ts, sin
+  // tocar el resto del archivo.
   async getTrialSessionsReport(
+    ctx: TenantContext,
     filters: TrialSessionsFilters,
   ): Promise<TrialSessionsReport> {
     const page = filters.page ?? 1;
@@ -1931,7 +1965,7 @@ export class ReportsService {
         GROUP BY b2.member_id
       ) AS lt
       JOIN ${schema.bookings} AS b      ON b.id = lt.booking_id
-      JOIN ${schema.users}    AS u      ON u.id = lt.member_id
+      JOIN ${schema.users}    AS u      ON u.id = lt.member_id AND u.tenant_id = ${ctx.tenantId}
       JOIN ${schema.schedules} AS s     ON s.id = b.schedule_id
       JOIN ${schema.branches}  AS br    ON br.id = s.branch_id
       LEFT JOIN ${schema.attendance} AS a
@@ -1939,7 +1973,7 @@ export class ReportsService {
        AND a.schedule_id = b.schedule_id
        AND a.session_date = b.booking_date
        AND a.attendance_status = 'confirmado'
-      LEFT JOIN ${schema.users} AS creator ON creator.id = u.created_by
+      LEFT JOIN ${schema.users} AS creator ON creator.id = u.created_by AND creator.tenant_id = ${ctx.tenantId}
       WHERE u.deleted_at IS NULL
         ${conds}
     `);
@@ -2007,7 +2041,7 @@ export class ReportsService {
         GROUP BY b2.member_id
       ) AS lt
       JOIN ${schema.bookings}  AS b      ON b.id = lt.booking_id
-      JOIN ${schema.users}     AS u      ON u.id = lt.member_id
+      JOIN ${schema.users}     AS u      ON u.id = lt.member_id AND u.tenant_id = ${ctx.tenantId}
       JOIN ${schema.schedules} AS s      ON s.id = b.schedule_id
       JOIN ${schema.branches}  AS br     ON br.id = s.branch_id
       LEFT JOIN ${schema.attendance} AS a
@@ -2015,7 +2049,7 @@ export class ReportsService {
        AND a.schedule_id = b.schedule_id
        AND a.session_date = b.booking_date
        AND a.attendance_status = 'confirmado'
-      LEFT JOIN ${schema.users} AS creator ON creator.id = u.created_by
+      LEFT JOIN ${schema.users} AS creator ON creator.id = u.created_by AND creator.tenant_id = ${ctx.tenantId}
       LEFT JOIN ${schema.subscriptionPlans} AS pp ON pp.id = u.purchased_plan_id
       WHERE u.deleted_at IS NULL
         ${conds}
@@ -2076,16 +2110,19 @@ export class ReportsService {
    * cargado para ese día/turno en esa semana. Es una columna del export
    * únicamente: el listado JSON del reporte no lo devuelve.
    */
-  async exportTrialSessions(filters: TrialSessionsFilters): Promise<string> {
+  async exportTrialSessions(
+    ctx: TenantContext,
+    filters: TrialSessionsFilters,
+  ): Promise<string> {
     // D-26 / T-114-05-03 — hard cap. Override pagination, fetch the full set.
     const HARD_CAP = 10000;
-    const data = await this.getTrialSessionsReport({
+    const data = await this.getTrialSessionsReport(ctx, {
       ...filters,
       page: 1,
       limit: HARD_CAP,
     });
 
-    const rosterIndex = await this.loadRosterAttribution(data.rows);
+    const rosterIndex = await this.loadRosterAttribution(ctx, data.rows);
 
     const headers = [
       "Lead",
@@ -2161,6 +2198,7 @@ export class ReportsService {
    * change-point viejo, así que no se puede acotar por abajo).
    */
   private async loadRosterAttribution(
+    ctx: TenantContext,
     rows: TrialSessionsRow[],
   ): Promise<RosterAttributionIndex> {
     if (rows.length === 0) {
@@ -2185,7 +2223,10 @@ export class ReportsService {
       .from(schema.classCoachAssignments)
       .innerJoin(
         schema.users,
-        eq(schema.users.id, schema.classCoachAssignments.coachId),
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.classCoachAssignments.coachId),
+        ),
       )
       .where(
         and(
@@ -2517,15 +2558,17 @@ export class ReportsService {
   }
 
   async exportExpiringMemberships(
+    ctx: TenantContext,
     filters: ExpiringReportFilters,
   ): Promise<ExpiringReportRow[]> {
-    return this.getExpiringMemberships(filters);
+    return this.getExpiringMemberships(ctx, filters);
   }
 
   async exportInactiveMembers(
+    ctx: TenantContext,
     filters: InactiveReportFilters,
   ): Promise<InactiveReportRow[]> {
-    return this.getInactiveMembers(filters);
+    return this.getInactiveMembers(ctx, filters);
   }
 
   /**

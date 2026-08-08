@@ -32,7 +32,7 @@ beforeEach(async () => {
 
 async function readCode(userId: number): Promise<string | null> {
   const [rows] = await app.db.execute(
-    sql`SELECT referral_code FROM users WHERE id = ${userId}`,
+    sql`SELECT referral_code FROM users WHERE id = ${userId} AND tenant_id = ${TEMPLO_CTX.tenantId}`,
   );
   return (rows as Array<{ referral_code: string | null }>)[0]?.referral_code;
 }
@@ -44,7 +44,7 @@ async function readCode(userId: number): Promise<string | null> {
  */
 async function clearCode(userId: number): Promise<void> {
   await app.db.execute(
-    sql`UPDATE users SET referral_code = NULL WHERE id = ${userId}`,
+    sql`UPDATE users SET referral_code = NULL WHERE id = ${userId} AND tenant_id = ${TEMPLO_CTX.tenantId}`,
   );
 }
 
@@ -97,7 +97,7 @@ describe("backfillReferralCodes", () => {
       firstName: "Pedro",
     });
     await app.db.execute(
-      sql`UPDATE users SET referral_code = 'PREEXIST-1' WHERE id = ${withCode.id}`,
+      sql`UPDATE users SET referral_code = 'PREEXIST-1' WHERE id = ${withCode.id} AND tenant_id = ${TEMPLO_CTX.tenantId}`,
     );
     const without = await createMember(app, {
       email: "bf-null@test.com",
