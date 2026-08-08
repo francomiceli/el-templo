@@ -12,7 +12,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { Workbook } from "exceljs";
 import {
   createTestApp,
@@ -23,6 +23,14 @@ import {
   dateOffsetStr,
 } from "../helpers";
 import * as schema from "../../src/db/schema";
+// Fase 173 (ADO-02): `user_sepa_details` entra a TENANT_STRICT_MODULES — las
+// lecturas de conveniencia por `userId` de este archivo se acotan con
+// `tenantWhere` (categoría 2, docblock de `test/helpers.ts`); este archivo no
+// siembra en el gimnasio 2.
+import { tenantWhere } from "../../src/modules/shared/tenant";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 const VALID_IBAN_SPACED = "ES91 2100 0418 4502 0005 1332";
 const VALID_IBAN = "ES9121000418450200051332";
@@ -221,7 +229,12 @@ describe("Domiciliación bancaria (SEPA)", () => {
     const rows = await app.db
       .select({ id: schema.userSepaDetails.id })
       .from(schema.userSepaDetails)
-      .where(eq(schema.userSepaDetails.userId, esActiveMemberId));
+      .where(
+        and(
+          tenantWhere(schema.userSepaDetails, TEMPLO_CTX),
+          eq(schema.userSepaDetails.userId, esActiveMemberId),
+        ),
+      );
     expect(rows).toHaveLength(1);
   });
 
@@ -237,7 +250,12 @@ describe("Domiciliación bancaria (SEPA)", () => {
     const rows = await app.db
       .select({ id: schema.userSepaDetails.id })
       .from(schema.userSepaDetails)
-      .where(eq(schema.userSepaDetails.userId, esInactiveMemberId));
+      .where(
+        and(
+          tenantWhere(schema.userSepaDetails, TEMPLO_CTX),
+          eq(schema.userSepaDetails.userId, esInactiveMemberId),
+        ),
+      );
     expect(rows).toHaveLength(0);
   });
 

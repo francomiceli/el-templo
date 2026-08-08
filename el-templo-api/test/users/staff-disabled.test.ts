@@ -14,7 +14,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   createTestApp,
   getAuthToken,
@@ -22,6 +22,13 @@ import {
   createStaffUser,
 } from "../helpers";
 import * as schema from "../../src/db/schema";
+// Fase 173 (ADO-02): `users` entra a TENANT_STRICT_MODULES — las lecturas de
+// conveniencia por id de este archivo se acotan con `tenantWhere` (categoría
+// 2, docblock de `test/helpers.ts`); este archivo no siembra en el gimnasio 2.
+import { tenantWhere } from "../../src/modules/shared/tenant";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 const STATUS_URL = (id: number) => `/api/admin/users/${id}/status`;
 
@@ -73,7 +80,12 @@ describe("Phase 103-06 — PATCH /api/admin/users/:id/status (R11)", () => {
     const [row] = await app.db
       .select({ staffDisabled: schema.users.staffDisabled })
       .from(schema.users)
-      .where(eq(schema.users.id, coachId));
+      .where(
+        and(
+          tenantWhere(schema.users, TEMPLO_CTX),
+          eq(schema.users.id, coachId),
+        ),
+      );
     // MySQL returns BOOLEAN as 1/0 via tinyint; Drizzle coerces to boolean
     expect(row.staffDisabled).toBe(true);
   });
@@ -85,7 +97,12 @@ describe("Phase 103-06 — PATCH /api/admin/users/:id/status (R11)", () => {
     await app.db
       .update(schema.users)
       .set({ staffDisabled: true })
-      .where(eq(schema.users.id, coachId));
+      .where(
+        and(
+          tenantWhere(schema.users, TEMPLO_CTX),
+          eq(schema.users.id, coachId),
+        ),
+      );
 
     const res = await app.inject({
       method: "PATCH",
@@ -101,7 +118,12 @@ describe("Phase 103-06 — PATCH /api/admin/users/:id/status (R11)", () => {
     const [row] = await app.db
       .select({ staffDisabled: schema.users.staffDisabled })
       .from(schema.users)
-      .where(eq(schema.users.id, coachId));
+      .where(
+        and(
+          tenantWhere(schema.users, TEMPLO_CTX),
+          eq(schema.users.id, coachId),
+        ),
+      );
     expect(row.staffDisabled).toBe(false);
   });
 
@@ -123,7 +145,12 @@ describe("Phase 103-06 — PATCH /api/admin/users/:id/status (R11)", () => {
     const [row] = await app.db
       .select({ staffDisabled: schema.users.staffDisabled })
       .from(schema.users)
-      .where(eq(schema.users.id, coachId));
+      .where(
+        and(
+          tenantWhere(schema.users, TEMPLO_CTX),
+          eq(schema.users.id, coachId),
+        ),
+      );
     expect(row.staffDisabled).toBe(false);
   });
 
@@ -174,7 +201,12 @@ describe("Phase 103-06 — PATCH /api/admin/users/:id/status (R11)", () => {
     await app.db
       .update(schema.users)
       .set({ staffDisabled: true })
-      .where(eq(schema.users.id, coachId));
+      .where(
+        and(
+          tenantWhere(schema.users, TEMPLO_CTX),
+          eq(schema.users.id, coachId),
+        ),
+      );
 
     const res = await app.inject({
       method: "GET",
@@ -221,7 +253,12 @@ describe("Phase 103-06 — PATCH /api/admin/users/:id/status (R11)", () => {
     const [row] = await app.db
       .select({ status: schema.users.status, role: schema.users.role })
       .from(schema.users)
-      .where(eq(schema.users.id, body.id));
+      .where(
+        and(
+          tenantWhere(schema.users, TEMPLO_CTX),
+          eq(schema.users.id, body.id),
+        ),
+      );
     expect(row.role).toBe("coach");
     // R7 acceptance for non-member roles: status MUST be NULL.
     expect(row.status).toBeNull();

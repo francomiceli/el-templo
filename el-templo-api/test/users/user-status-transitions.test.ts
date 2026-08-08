@@ -25,6 +25,10 @@ import argon2 from "argon2";
 import * as schema from "../../src/db/schema";
 import { createTestApp, cleanAllTestData } from "../helpers";
 import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+// Fase 173 (ADO-02): `users` entra a TENANT_STRICT_MODULES — las lecturas de
+// conveniencia por id de este archivo se acotan con `tenantWhere` (categoría
+// 2, docblock de `test/helpers.ts`); este archivo no siembra en el gimnasio 2.
+import { tenantWhere } from "../../src/modules/shared/tenant";
 import { SubscriptionService } from "../../src/modules/subscriptions/service";
 import { AuraService } from "../../src/modules/aura";
 import {
@@ -35,6 +39,8 @@ import {
 import { BookingService } from "../../src/modules/scheduling/booking-service";
 import { NotificationService } from "../../src/modules/notifications/service";
 import { EnrollmentService } from "../../src/modules/programs/enrollment-service";
+
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 describe("Phase 103 — User status auto-transitions", () => {
   let app: FastifyInstance;
@@ -136,7 +142,9 @@ describe("Phase 103 — User status auto-transitions", () => {
     const [u] = await app.db
       .select({ status: schema.users.status })
       .from(schema.users)
-      .where(eq(schema.users.id, userId));
+      .where(
+        and(tenantWhere(schema.users, TEMPLO_CTX), eq(schema.users.id, userId)),
+      );
     return u?.status ?? null;
   }
 
@@ -144,7 +152,9 @@ describe("Phase 103 — User status auto-transitions", () => {
     const [u] = await app.db
       .select({ convertedAt: schema.users.convertedAt })
       .from(schema.users)
-      .where(eq(schema.users.id, userId));
+      .where(
+        and(tenantWhere(schema.users, TEMPLO_CTX), eq(schema.users.id, userId)),
+      );
     return u?.convertedAt ?? null;
   }
 

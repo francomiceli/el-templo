@@ -1,10 +1,18 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { createTestApp, cleanAllTestData } from "../helpers";
 import { users } from "../../src/db/schema/users";
 import { branches } from "../../src/db/schema/branches";
 import { referrals } from "../../src/db/schema/referrals";
+// Fase 173 (ADO-02): `users` entra a TENANT_STRICT_MODULES — las lecturas de
+// conveniencia por email/id de este archivo se acotan con `tenantWhere`
+// (categoría 2, docblock de `test/helpers.ts`); este archivo no siembra en el
+// gimnasio 2. `referrals` todavía no es strict (no se anota, regla D-4).
+import { tenantWhere } from "../../src/modules/shared/tenant";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 /**
  * Phase 111 Plan 04 — REQ-5 (phone duplicate block) + REQ-9 (firstName /
@@ -219,7 +227,12 @@ describe("POST /api/auth/register — phone duplicate block + trim", () => {
     const [row] = await app.db
       .select({ firstName: users.firstName, lastName: users.lastName })
       .from(users)
-      .where(eq(users.email, "trim-test@test.com"))
+      .where(
+        and(
+          tenantWhere(users, TEMPLO_CTX),
+          eq(users.email, "trim-test@test.com"),
+        ),
+      )
       .limit(1);
     expect(row.firstName).toBe("Soledad");
     expect(row.lastName).toBe("Mailland");
@@ -301,7 +314,7 @@ describe("POST /api/auth/register — referral attribution + eager code (157-03)
     const [u] = await app.db
       .select({ referredBy: users.referredBy, code: users.referralCode })
       .from(users)
-      .where(eq(users.id, newUserId))
+      .where(and(tenantWhere(users, TEMPLO_CTX), eq(users.id, newUserId)))
       .limit(1);
     expect(u.referredBy).toBe(referrerId);
     // Eager code is populated even in the ?ref path (D-25).
@@ -344,7 +357,7 @@ describe("POST /api/auth/register — referral attribution + eager code (157-03)
     const [u] = await app.db
       .select({ code: users.referralCode })
       .from(users)
-      .where(eq(users.id, newUserId))
+      .where(and(tenantWhere(users, TEMPLO_CTX), eq(users.id, newUserId)))
       .limit(1);
     expect(u.code).toMatch(CODE_RE);
   });
@@ -377,7 +390,7 @@ describe("POST /api/auth/register — referral attribution + eager code (157-03)
     const [u] = await app.db
       .select({ referredBy: users.referredBy, code: users.referralCode })
       .from(users)
-      .where(eq(users.id, newUserId))
+      .where(and(tenantWhere(users, TEMPLO_CTX), eq(users.id, newUserId)))
       .limit(1);
     expect(u.referredBy).toBeNull();
     expect(u.code).toMatch(CODE_RE);

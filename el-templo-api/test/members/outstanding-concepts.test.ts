@@ -17,7 +17,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import {
   createTestApp,
@@ -27,7 +27,7 @@ import {
   registerUser,
 } from "../helpers";
 import * as schema from "../../src/db/schema";
-import { tenantValues } from "../../src/modules/shared/tenant";
+import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
 import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 
 /**
@@ -133,7 +133,12 @@ async function seedUsersAndPlan(
   const [ownerRow] = await app.db
     .select({ id: schema.users.id })
     .from(schema.users)
-    .where(eq(schema.users.email, "admin@test.com"))
+    .where(
+      and(
+        tenantWhere(schema.users, TEMPLO_CTX),
+        eq(schema.users.email, "admin@test.com"),
+      ),
+    )
     .limit(1);
   ctx.ownerId = ownerRow.id;
 
@@ -669,7 +674,12 @@ describe("GET /admin/members/:userId/outstanding-concepts (Phase 108)", () => {
     await app.db
       .update(schema.users)
       .set({ deletedAt: new Date() })
-      .where(eq(schema.users.id, ctx.memberArId));
+      .where(
+        and(
+          tenantWhere(schema.users, TEMPLO_CTX),
+          eq(schema.users.id, ctx.memberArId),
+        ),
+      );
 
     const res = await app.inject({
       method: "GET",

@@ -1,9 +1,17 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { createTestApp, getAuthToken, cleanAllTestData } from "../helpers";
 import { users } from "../../src/db/schema/users";
 import argon2 from "argon2";
+// Fase 173 (ADO-02): `users` entra a TENANT_STRICT_MODULES — las lecturas de
+// conveniencia por id/email de este archivo se acotan con `tenantWhere`
+// (categoría 2, docblock de `test/helpers.ts`); este archivo no siembra en el
+// gimnasio 2.
+import { tenantWhere } from "../../src/modules/shared/tenant";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 /**
  * POST /api/admin/members/trial — soft register for "sesión de prueba" (SP).
@@ -70,7 +78,7 @@ describe("POST /api/admin/members/trial", () => {
         gender: users.gender,
       })
       .from(users)
-      .where(eq(users.id, body.id));
+      .where(and(tenantWhere(users, TEMPLO_CTX), eq(users.id, body.id)));
 
     expect(row?.email).toBeNull();
     expect(row?.dni).toBeNull();
@@ -92,7 +100,7 @@ describe("POST /api/admin/members/trial", () => {
     const [row] = await app.db
       .select({ passwordHash: users.passwordHash })
       .from(users)
-      .where(eq(users.id, body.id));
+      .where(and(tenantWhere(users, TEMPLO_CTX), eq(users.id, body.id)));
 
     expect(await argon2.verify(row!.passwordHash, "eltemplo2026")).toBe(true);
   });
@@ -192,7 +200,7 @@ describe("POST /api/admin/members/trial", () => {
     const [row] = await app.db
       .select({ email: users.email })
       .from(users)
-      .where(eq(users.id, body.id));
+      .where(and(tenantWhere(users, TEMPLO_CTX), eq(users.id, body.id)));
     expect(row?.email).toBeNull();
   });
 
@@ -214,7 +222,9 @@ describe("POST /api/admin/members/trial", () => {
     const [admin] = await app.db
       .select({ id: users.id })
       .from(users)
-      .where(eq(users.email, "admin@test.com"));
+      .where(
+        and(tenantWhere(users, TEMPLO_CTX), eq(users.email, "admin@test.com")),
+      );
     expect(admin?.id).toBeGreaterThan(0);
 
     const res = await app.inject({
@@ -233,7 +243,7 @@ describe("POST /api/admin/members/trial", () => {
         status: users.status,
       })
       .from(users)
-      .where(eq(users.id, body.id));
+      .where(and(tenantWhere(users, TEMPLO_CTX), eq(users.id, body.id)));
 
     expect(row?.leadStatus).toBe("en_seguimiento");
     expect(row?.createdBy).toBe(admin!.id);
@@ -251,7 +261,9 @@ describe("POST /api/admin/members/trial", () => {
     const [admin] = await app.db
       .select({ id: users.id })
       .from(users)
-      .where(eq(users.email, "admin@test.com"));
+      .where(
+        and(tenantWhere(users, TEMPLO_CTX), eq(users.email, "admin@test.com")),
+      );
 
     const res = await app.inject({
       method: "POST",
@@ -265,7 +277,7 @@ describe("POST /api/admin/members/trial", () => {
     const [row] = await app.db
       .select({ createdBy: users.createdBy })
       .from(users)
-      .where(eq(users.id, body.id));
+      .where(and(tenantWhere(users, TEMPLO_CTX), eq(users.id, body.id)));
 
     // The spoofed 999999 is stripped; created_by is the JWT admin id.
     expect(row?.createdBy).toBe(admin!.id);
@@ -284,7 +296,9 @@ describe("POST /api/admin/members/trial", () => {
         lastName: users.lastName,
       })
       .from(users)
-      .where(eq(users.email, "admin@test.com"));
+      .where(
+        and(tenantWhere(users, TEMPLO_CTX), eq(users.email, "admin@test.com")),
+      );
 
     // Create the trial via the public endpoint so createdBy is wired
     // server-side (Plan 02 invariant).

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   createTestApp,
   getAuthToken,
@@ -24,7 +24,7 @@ import { memberProfiles } from "../../src/db/schema/member-profiles";
 import { financialTransactions } from "../../src/db/schema/financial-transactions";
 import { transactionLinks } from "../../src/db/schema/transaction-links";
 import { balances } from "../../src/db/schema/balances";
-import { tenantValues } from "../../src/modules/shared/tenant";
+import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
 import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 
 /**
@@ -540,7 +540,7 @@ describe("Members Management Routes", () => {
           lastName: users.lastName,
         })
         .from(users)
-        .where(eq(users.id, body.id));
+        .where(and(tenantWhere(users, TEMPLO_CTX), eq(users.id, body.id)));
       expect(row?.firstName).toBe("Soledad");
       expect(row?.lastName).toBe("Mailland");
     });
@@ -816,7 +816,12 @@ describe("Members Management Routes", () => {
           lastName: users.lastName,
         })
         .from(users)
-        .where(eq(users.id, member.id as number));
+        .where(
+          and(
+            tenantWhere(users, TEMPLO_CTX),
+            eq(users.id, member.id as number),
+          ),
+        );
       expect(row?.firstName).toBe("Updated");
       expect(row?.lastName).toBe("Mailland");
     });
@@ -849,7 +854,9 @@ describe("Members Management Routes", () => {
       const [row] = await app.db
         .select({ email: users.email })
         .from(users)
-        .where(eq(users.id, trial.id as number));
+        .where(
+          and(tenantWhere(users, TEMPLO_CTX), eq(users.id, trial.id as number)),
+        );
       expect(row?.email).toBe("nuevo-alumno@test.com");
     });
 
@@ -869,7 +876,12 @@ describe("Members Management Routes", () => {
       const [row] = await app.db
         .select({ email: users.email })
         .from(users)
-        .where(eq(users.id, member.id as number));
+        .where(
+          and(
+            tenantWhere(users, TEMPLO_CTX),
+            eq(users.id, member.id as number),
+          ),
+        );
       expect(row?.email).toBe(getBaseMember().email);
     });
 
@@ -900,7 +912,9 @@ describe("Members Management Routes", () => {
       const [row] = await app.db
         .select({ email: users.email })
         .from(users)
-        .where(eq(users.id, trial.id as number));
+        .where(
+          and(tenantWhere(users, TEMPLO_CTX), eq(users.id, trial.id as number)),
+        );
       expect(row?.email).toBeNull();
       void member;
     });
@@ -1077,7 +1091,12 @@ describe("Members Management Routes", () => {
       const [admin] = await app.db
         .select({ id: users.id })
         .from(users)
-        .where(eq(users.email, "admin@test.com"));
+        .where(
+          and(
+            tenantWhere(users, TEMPLO_CTX),
+            eq(users.email, "admin@test.com"),
+          ),
+        );
 
       // Insert a non-voided charge transaction linked to the sub
       const today = new Date().toISOString().split("T")[0];
@@ -1183,7 +1202,12 @@ describe("Members Management Routes", () => {
       const [row] = await app.db
         .select({ id: users.id })
         .from(users)
-        .where(eq(users.email, "protected-coach@test.com"));
+        .where(
+          and(
+            tenantWhere(users, TEMPLO_CTX),
+            eq(users.email, "protected-coach@test.com"),
+          ),
+        );
 
       const res = await app.inject({
         method: "DELETE",
@@ -1983,7 +2007,7 @@ describe("Members Management Routes", () => {
       await app.db
         .update(users)
         .set({ passwordHash: otherHash })
-        .where(eq(users.id, member.id));
+        .where(and(tenantWhere(users, TEMPLO_CTX), eq(users.id, member.id)));
 
       const res = await app.inject({
         method: "PUT",
@@ -2097,7 +2121,12 @@ describe("Members Management Routes", () => {
       const [row] = await app.db
         .select({ id: users.id })
         .from(users)
-        .where(eq(users.email, "protected-coach-pwd@test.com"));
+        .where(
+          and(
+            tenantWhere(users, TEMPLO_CTX),
+            eq(users.email, "protected-coach-pwd@test.com"),
+          ),
+        );
 
       const res = await app.inject({
         method: "PUT",
@@ -2170,7 +2199,7 @@ describe("Members Management Routes", () => {
       const [row] = await app.db
         .select({ branchId: users.branchId, status: users.status })
         .from(users)
-        .where(eq(users.id, userId));
+        .where(and(tenantWhere(users, TEMPLO_CTX), eq(users.id, userId)));
       expect(row.branchId).not.toBe(1);
       expect(row.status).toBe("freemium");
     });
@@ -2216,7 +2245,7 @@ describe("Members Management Routes", () => {
           emergencyContactPhone: "+5491100009999",
           emergencyContactRelationship: "Madre",
         })
-        .where(eq(users.id, userId));
+        .where(and(tenantWhere(users, TEMPLO_CTX), eq(users.id, userId)));
 
       const res = await app.inject({
         method: "PUT",
@@ -2246,7 +2275,7 @@ describe("Members Management Routes", () => {
       const beforeRow = await app.db
         .select({ status: users.status })
         .from(users)
-        .where(eq(users.id, member.id))
+        .where(and(tenantWhere(users, TEMPLO_CTX), eq(users.id, member.id)))
         .limit(1);
       const statusBefore = beforeRow[0]?.status;
 
@@ -2327,7 +2356,7 @@ describe("Members Management Routes", () => {
       const [row] = await app.db
         .select({ status: users.status, dni: users.dni })
         .from(users)
-        .where(eq(users.id, userId));
+        .where(and(tenantWhere(users, TEMPLO_CTX), eq(users.id, userId)));
       expect(row?.status).toBe("inactivo");
       expect(row?.dni).toBe("39111222");
     });
@@ -2355,7 +2384,7 @@ describe("Members Management Routes", () => {
       const [row] = await app.db
         .select({ status: users.status, dni: users.dni })
         .from(users)
-        .where(eq(users.id, userId));
+        .where(and(tenantWhere(users, TEMPLO_CTX), eq(users.id, userId)));
       expect(row?.status).toBe("prueba");
       expect(row?.dni).toBe("39333444"); // personal data still persisted
     });
@@ -2372,13 +2401,13 @@ describe("Members Management Routes", () => {
           dni: "39555666",
           documentType: "DNI",
         })
-        .where(eq(users.id, userId));
+        .where(and(tenantWhere(users, TEMPLO_CTX), eq(users.id, userId)));
 
       // Sanity: still in 'prueba' because no PUT has triggered the flip yet.
       const [pre] = await app.db
         .select({ status: users.status })
         .from(users)
-        .where(eq(users.id, userId));
+        .where(and(tenantWhere(users, TEMPLO_CTX), eq(users.id, userId)));
       expect(pre?.status).toBe("prueba");
 
       const res = await app.inject({

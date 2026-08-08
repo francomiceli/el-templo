@@ -28,6 +28,14 @@ import {
 import { users } from "../../src/db/schema/users";
 import { subscriptionPlans } from "../../src/db/schema/subscription-plans";
 import { subscriptions } from "../../src/db/schema/subscriptions";
+// Fase 173 (ADO-02): `users` entra a TENANT_STRICT_MODULES — las lecturas de
+// conveniencia por id/role/status de este archivo se acotan con
+// `tenantWhere` (categoría 2, docblock de `test/helpers.ts`); este archivo no
+// siembra en el gimnasio 2.
+import { tenantWhere } from "../../src/modules/shared/tenant";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 describe("GET /api/admin/members — status enum filter (computed from subscriptions)", () => {
   let app: FastifyInstance;
@@ -160,6 +168,7 @@ describe("GET /api/admin/members — status enum filter (computed from subscript
         .from(users)
         .where(
           and(
+            tenantWhere(users, TEMPLO_CTX),
             eq(users.role, "member"),
             eq(users.status, s),
             isNull(users.deletedAt),
@@ -255,7 +264,7 @@ describe("GET /api/admin/members — status enum filter (computed from subscript
     const [row] = await app.db
       .select({ status: users.status })
       .from(users)
-      .where(eq(users.id, body.id));
+      .where(and(tenantWhere(users, TEMPLO_CTX), eq(users.id, body.id)));
     expect(row?.status).toBe("prueba");
   });
 
@@ -277,7 +286,7 @@ describe("GET /api/admin/members — status enum filter (computed from subscript
     const [row] = await app.db
       .select({ status: users.status })
       .from(users)
-      .where(eq(users.id, stale));
+      .where(and(tenantWhere(users, TEMPLO_CTX), eq(users.id, stale)));
     expect(row?.status).toBe("activo");
 
     // ?status=activo must NOT include the lapsed member...

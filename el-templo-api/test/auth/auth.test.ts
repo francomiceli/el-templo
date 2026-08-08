@@ -1,9 +1,18 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import argon2 from "argon2";
 import type { FastifyInstance } from "fastify";
 import { createTestApp, registerUser } from "../helpers";
 import * as schema from "../../src/db/schema";
+// Fase 173 (ADO-02): `users` entra a TENANT_STRICT_MODULES — toda lectura/
+// escritura de conveniencia por `id` en un beforeEach/it de este archivo se
+// acota con `tenantWhere`, no se exime (categoría 2 del docblock de
+// `test/helpers.ts`: convivencia acotable sin cambiar lo que el test prueba;
+// este archivo nunca siembra en el gimnasio 2).
+import { tenantWhere } from "../../src/modules/shared/tenant";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 describe("Auth Routes", () => {
   let app: FastifyInstance;
@@ -259,7 +268,12 @@ describe("Auth Routes", () => {
       await app.db
         .update(schema.users)
         .set({ dateOfBirth: "1990-06-15", gender: "female" })
-        .where(eq(schema.users.id, (registered as { id: number }).id));
+        .where(
+          and(
+            tenantWhere(schema.users, TEMPLO_CTX),
+            eq(schema.users.id, (registered as { id: number }).id),
+          ),
+        );
 
       const res = await app.inject({
         method: "POST",
@@ -388,7 +402,12 @@ describe("Auth Routes", () => {
       await app.db
         .update(schema.users)
         .set({ dateOfBirth: "1990-06-15" })
-        .where(eq(schema.users.id, user.id as number));
+        .where(
+          and(
+            tenantWhere(schema.users, TEMPLO_CTX),
+            eq(schema.users.id, user.id as number),
+          ),
+        );
 
       const res = await app.inject({
         method: "GET",
@@ -413,7 +432,12 @@ describe("Auth Routes", () => {
       await app.db
         .update(schema.users)
         .set({ createdAt: alta })
-        .where(eq(schema.users.id, user.id as number));
+        .where(
+          and(
+            tenantWhere(schema.users, TEMPLO_CTX),
+            eq(schema.users.id, user.id as number),
+          ),
+        );
 
       const res = await app.inject({
         method: "GET",
@@ -488,7 +512,9 @@ describe("Auth Routes", () => {
       await app.db
         .update(schema.users)
         .set({ deletedAt: new Date() })
-        .where(eq(schema.users.id, u.id));
+        .where(
+          and(tenantWhere(schema.users, TEMPLO_CTX), eq(schema.users.id, u.id)),
+        );
       const res = await app.inject({
         method: "POST",
         url: "/api/auth/login",
@@ -613,7 +639,9 @@ describe("Auth Routes", () => {
       const [row] = await app.db
         .select()
         .from(schema.users)
-        .where(eq(schema.users.id, u.id));
+        .where(
+          and(tenantWhere(schema.users, TEMPLO_CTX), eq(schema.users.id, u.id)),
+        );
       expect(row.deletedAt).not.toBeNull();
 
       // Subsequent login is rejected by the soft-delete gate
