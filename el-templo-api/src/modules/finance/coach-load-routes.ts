@@ -813,7 +813,7 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
             });
           }
           // Dedup por DNI ANTES de crear (checkDuplicates ya filtra borrados).
-          const { matches } = await memberService.checkDuplicates({
+          const { matches } = await memberService.checkDuplicates(ctx, {
             dni: body.dni,
           });
           const dniMatch = matches.find((m) => m.matchedField === "dni");
@@ -823,7 +823,7 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
           } else {
             // Sin match ⇒ crear alumno mínimo en su propia tx. createdBy SIEMPRE
             // del JWT (request.user.userId), nunca del body (anti-spoof D-31).
-            createdMemberId = await memberService.createMinimalMember({
+            createdMemberId = await memberService.createMinimalMember(ctx, {
               firstName: body.firstName,
               lastName: body.lastName,
               dni: body.dni,

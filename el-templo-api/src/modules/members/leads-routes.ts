@@ -25,6 +25,7 @@ import { ConflictError, NotFoundError } from "../shared/errors";
 import { CAJA_ROLES } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
 import { canAccessBranch, BRANCH_OUT_OF_SCOPE } from "../shared/branch-access";
+import { assertTenant } from "../shared/tenant";
 import type { UpdateLeadInput } from "./types";
 
 export const leadsRoutes: FastifyPluginAsync = async (fastify) => {
@@ -50,6 +51,7 @@ export const leadsRoutes: FastifyPluginAsync = async (fastify) => {
     Params: { userId: number };
     Body: UpdateLeadInput;
   }>("/:userId", { schema: updateLeadSchema }, async (request, reply) => {
+    const ctx = assertTenant(request.scope, "leads.update");
     try {
       // D-29: lead's branchId must be in the admin's scope. We can't reuse
       // requireBranchAccess({ from: ... }) directly because the branchId
@@ -59,6 +61,7 @@ export const leadsRoutes: FastifyPluginAsync = async (fastify) => {
       // owner / admin-gestion country / coach-recepción branchIds / member)
       // and BRANCH_OUT_OF_SCOPE error shape stay identical.
       const branchId = await memberService.getLeadBranchId(
+        ctx,
         request.params.userId,
       );
       if (branchId === null) {
@@ -92,6 +95,7 @@ export const leadsRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       const snapshot = await memberService.updateLead(
+        ctx,
         request.params.userId,
         request.body,
       );
