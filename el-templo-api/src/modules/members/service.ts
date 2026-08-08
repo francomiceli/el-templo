@@ -1244,11 +1244,14 @@ export class MemberService {
     if (user.convertedAt !== null || user.leadStatus !== null) {
       return true;
     }
+    // Fase 173 (T-173-18): `ctx` ya llegaba en la firma pero no filtraba nada
+    // (trampa (a)) — `tenantWhere` inline, primer término del `and(...)`.
     const [trial] = await this.db
       .select({ id: schema.bookings.id })
       .from(schema.bookings)
       .where(
         and(
+          tenantWhere(schema.bookings, ctx),
           eq(schema.bookings.memberId, user.id),
           eq(schema.bookings.isTrial, true),
           ne(schema.bookings.status, "cancelado"),
@@ -1263,6 +1266,8 @@ export class MemberService {
     userId: number,
     input: UpdateLeadInput,
   ): Promise<LeadSnapshot> {
+    // Fase 173 (D-06): `tenantWhere` inline — un `userId` de otro gimnasio
+    // tiene que verse EXACTO igual que uno inexistente.
     const [user] = await this.db
       .select({
         id: schema.users.id,
@@ -1273,7 +1278,7 @@ export class MemberService {
         convertedAt: schema.users.convertedAt,
       })
       .from(schema.users)
-      .where(eq(schema.users.id, userId))
+      .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)))
       .limit(1);
 
     if (!user || user.deletedAt) {
@@ -1291,10 +1296,17 @@ export class MemberService {
     }
 
     if (input.purchasedPlanId !== undefined && input.purchasedPlanId !== null) {
+      // Fase 173 (D-06): un plan de otro gimnasio tiene que rechazarse igual
+      // que uno inexistente — `tenantWhere` inline.
       const [plan] = await this.db
         .select({ id: schema.subscriptionPlans.id })
         .from(schema.subscriptionPlans)
-        .where(eq(schema.subscriptionPlans.id, input.purchasedPlanId))
+        .where(
+          and(
+            tenantWhere(schema.subscriptionPlans, ctx),
+            eq(schema.subscriptionPlans.id, input.purchasedPlanId),
+          ),
+        )
         .limit(1);
       if (!plan) {
         throw new BadRequestError("El plan indicado no existe");
@@ -1345,11 +1357,18 @@ export class MemberService {
       await this.db
         .update(schema.users)
         .set(updateData)
-        .where(eq(schema.users.id, userId));
+        .where(
+          and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)),
+        );
     }
 
     // Re-fetch with the createdBy admin JOIN so the response payload renders
     // "Gestiona: <name>" without a second round-trip.
+    //
+    // Fase 173: el filtro de una tabla joineada va en el ON, también en un
+    // LEFT JOIN (mordió 4x en el piloto) — ponerlo en el WHERE convertiría el
+    // LEFT en INNER en silencio y perdería la fila cuando createdBy/purchasedPlanId
+    // son NULL.
     const creator = alias(schema.users, "creator");
     const [snapshot] = await this.db
       .select({
@@ -1364,12 +1383,18 @@ export class MemberService {
         creatorLastName: creator.lastName,
       })
       .from(schema.users)
-      .leftJoin(creator, eq(creator.id, schema.users.createdBy))
+      .leftJoin(
+        creator,
+        and(tenantWhere(creator, ctx), eq(creator.id, schema.users.createdBy)),
+      )
       .leftJoin(
         schema.subscriptionPlans,
-        eq(schema.subscriptionPlans.id, schema.users.purchasedPlanId),
+        and(
+          tenantWhere(schema.subscriptionPlans, ctx),
+          eq(schema.subscriptionPlans.id, schema.users.purchasedPlanId),
+        ),
       )
-      .where(eq(schema.users.id, userId))
+      .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)))
       .limit(1);
 
     return {
@@ -1408,7 +1433,7 @@ export class MemberService {
         deletedAt: schema.users.deletedAt,
       })
       .from(schema.users)
-      .where(eq(schema.users.id, userId))
+      .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)))
       .limit(1);
     if (!row || row.deletedAt) return null;
     return row.branchId;
@@ -1425,6 +1450,19 @@ export class MemberService {
     id: number,
     input: UpdateMemberInput,
   ): Promise<MemberProfile | null> {
+    // Fase 173 (D-06/T-173-18-05): `getMemberById` (fuera del alcance de este
+    // plan — ver 173-19/20) TODAVÍA NO filtra por gimnasio, así que sin esta
+    // guarda un `id` de otro gimnasio pasaría el check de "existe" de abajo y
+    // las cascadas de sedes (subscriptions/bookings/subscription_schedules)
+    // más adelante en este método tocarían filas ajenas. Socio ajeno tiene que
+    // verse EXACTO igual que inexistente.
+    const [ownRow] = await this.db
+      .select({ id: schema.users.id })
+      .from(schema.users)
+      .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, id)))
+      .limit(1);
+    if (!ownRow) return null;
+
     const existing = await this.getMemberById(ctx, id);
     if (!existing) return null;
 
@@ -1470,7 +1508,9 @@ export class MemberService {
     if (input.emergencyContactRelationship !== undefined)
       updateData.emergencyContactRelationship =
         input.emergencyContactRelationship;
-    if (input.branchId !== undefined) updateData.branchId = input.branchId;
+    // Fase 173 (D-05/T-173-18-02): `input.branchId` NO se copia acá — se
+    // resuelve más abajo con `assertBranchDelGimnasio` DENTRO de la tx y se
+    // escribe la fila YA resuelta (ver `branchChanged`).
     if (input.level !== undefined) {
       const newLevel = input.level as
         | "kairos"
@@ -1502,11 +1542,15 @@ export class MemberService {
       (existing.email === null || existing.email === "")
     ) {
       const email = input.email.trim();
+      // Fase 173 (D-06/T-173-18-04): `tenantWhere` inline — un email repetido
+      // en OTRO gimnasio no puede bloquear esta edición ni delatar que ese
+      // socio existe.
       const [emailClash] = await this.db
         .select({ id: schema.users.id })
         .from(schema.users)
         .where(
           and(
+            tenantWhere(schema.users, ctx),
             eq(schema.users.email, email),
             ne(schema.users.id, id),
             isNull(schema.users.deletedAt),
@@ -1519,7 +1563,15 @@ export class MemberService {
       updateData.email = email;
     }
 
-    if (Object.keys(updateData).length > 0) {
+    // Fase 173 (T-173-18-02): calculado ACÁ (antes del gate de abajo) porque
+    // `updateData.branchId` ya no se puebla fuera de la tx (se resuelve con
+    // `assertBranchDelGimnasio` recién dentro) — si el ÚNICO campo que cambia
+    // es la sede, `updateData` de los campos de arriba queda vacío y el gate
+    // tiene que entrar igual.
+    const branchChanged =
+      input.branchId !== undefined && input.branchId !== existing.branchId;
+
+    if (Object.keys(updateData).length > 0 || branchChanged) {
       // When the member's sede changes, cascade the destructive cleanup the
       // admin opted in to via the MemberFormDialog confirmation:
       //   1. Sync subscriptions.branch_id so the fixed-schedule editor
@@ -1539,25 +1591,41 @@ export class MemberService {
       // reserve in any sede — cancelling future bookings or dropping fixed
       // schedules would be wrong. In that case we only sync sub.branch_id
       // (step 1) and leave bookings + schedules alone.
-      const branchChanged =
-        input.branchId !== undefined && input.branchId !== existing.branchId;
-      if (branchChanged) {
-        // Recategorización multisucursal (migración 0185): marcar el cambio de
-        // sede como MANUAL para que el cron mensual respete la ventana de
-        // protección de 45 días y no lo pise. Solo cuando la sede realmente
-        // cambia (editar otro campo no debe proteger la sede del cron).
-        updateData.branchUpdatedAt = new Date();
-        updateData.branchSource = "manual";
-      }
       await this.db.transaction(async (tx) => {
+        if (branchChanged) {
+          // Fase 173 (D-05/T-173-18-02, sitio de ancla): `input.branchId` sale
+          // del payload de la edición de ficha; se resuelve DENTRO de esta
+          // misma tx con `assertBranchDelGimnasio` (404 "Sede no encontrada" —
+          // jamás un código de acceso denegado, D-06) y se escribe `branch.id`
+          // (la fila YA resuelta), nunca el número crudo del payload.
+          const branch = await assertBranchDelGimnasio(
+            ctx,
+            input.branchId ?? null,
+            tx,
+          );
+          updateData.branchId = branch.id;
+          // Recategorización multisucursal (migración 0185): marcar el cambio de
+          // sede como MANUAL para que el cron mensual respete la ventana de
+          // protección de 45 días y no lo pise. Solo cuando la sede realmente
+          // cambia (editar otro campo no debe proteger la sede del cron).
+          updateData.branchUpdatedAt = new Date();
+          updateData.branchSource = "manual";
+        }
+
         await tx
           .update(schema.users)
           .set(updateData)
-          .where(eq(schema.users.id, id));
+          .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, id)));
         if (branchChanged) {
+          const resolvedBranchId = updateData.branchId as number;
           // Detect whether any live sub is multi_branch — that disables the
           // destructive cleanup and keeps the member's bookings/schedules
           // intact across sedes.
+          //
+          // Fase 173: el filtro de `subscriptionPlans` (tabla joineada) va en
+          // el ON — también en un INNER JOIN, mismo idioma que
+          // cash-register-service.ts (mordió 4x en el piloto si se pone en el
+          // WHERE de un LEFT).
           const liveSubs = await tx
             .select({
               id: schema.subscriptions.id,
@@ -1566,10 +1634,14 @@ export class MemberService {
             .from(schema.subscriptions)
             .innerJoin(
               schema.subscriptionPlans,
-              eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
+              and(
+                tenantWhere(schema.subscriptionPlans, ctx),
+                eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
+              ),
             )
             .where(
               and(
+                tenantWhere(schema.subscriptions, ctx),
                 eq(schema.subscriptions.userId, id),
                 inArray(schema.subscriptions.status, [
                   "active",
@@ -1584,9 +1656,10 @@ export class MemberService {
           //    multi-branch). The "principal" sede follows the member.
           await tx
             .update(schema.subscriptions)
-            .set({ branchId: input.branchId as number })
+            .set({ branchId: resolvedBranchId })
             .where(
               and(
+                tenantWhere(schema.subscriptions, ctx),
                 eq(schema.subscriptions.userId, id),
                 inArray(schema.subscriptions.status, [
                   "active",
@@ -1608,6 +1681,7 @@ export class MemberService {
               })
               .where(
                 and(
+                  tenantWhere(schema.bookings, ctx),
                   eq(schema.bookings.memberId, id),
                   inArray(schema.bookings.status, ["reservado", "confirmado"]),
                   gte(schema.bookings.bookingDate, todayStr),
@@ -1618,9 +1692,12 @@ export class MemberService {
             //    the admin can reassign them in the new sede.
             if (liveSubs.length > 0) {
               await tx.delete(schema.subscriptionSchedules).where(
-                inArray(
-                  schema.subscriptionSchedules.subscriptionId,
-                  liveSubs.map((r) => r.id),
+                and(
+                  tenantWhere(schema.subscriptionSchedules, ctx),
+                  inArray(
+                    schema.subscriptionSchedules.subscriptionId,
+                    liveSubs.map((r) => r.id),
+                  ),
                 ),
               );
             }
@@ -1647,9 +1724,12 @@ export class MemberService {
         nif: normalize(sepa.nif)?.toUpperCase() ?? null,
         iban: sepa.iban ? normalizeIban(sepa.iban) : null,
       };
+      // Fase 173 (T-173-18-01): `tenantValues` — `id` ya se verificó del
+      // propio gimnasio arriba (guarda de tenant al inicio del método), pero
+      // el insert igual estampa el tenant server-side, nunca del payload.
       await this.db
         .insert(schema.userSepaDetails)
-        .values({ userId: id, ...sepaData })
+        .values(tenantValues(ctx, { userId: id, ...sepaData }))
         .onDuplicateKeyUpdate({ set: sepaData });
     }
 
@@ -1684,6 +1764,8 @@ export class MemberService {
     | { ok: true }
     | { ok: false; reason: "not_found" | "not_member" | "already_deleted" }
   > {
+    // Fase 173 (D-06/T-173-18-05): `tenantWhere` inline — un `id` de otro
+    // gimnasio tiene que verse EXACTO igual que uno inexistente.
     const [existing] = await this.db
       .select({
         id: schema.users.id,
@@ -1691,7 +1773,7 @@ export class MemberService {
         deletedAt: schema.users.deletedAt,
       })
       .from(schema.users)
-      .where(eq(schema.users.id, id))
+      .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, id)))
       .limit(1);
 
     if (!existing) return { ok: false, reason: "not_found" };
@@ -1708,7 +1790,7 @@ export class MemberService {
         email: scrubbedEmail,
         dni: null,
       })
-      .where(eq(schema.users.id, id));
+      .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, id)));
 
     return { ok: true };
   }
@@ -1729,6 +1811,9 @@ export class MemberService {
   ): Promise<
     { ok: true } | { ok: false; reason: "not_found" | "not_member" | "deleted" }
   > {
+    // Fase 173 (T-173-18-03, EoP más grave del plan): `tenantWhere` inline —
+    // sin él, un `id` de OTRO gimnasio permite tomar control de esa cuenta
+    // reseteando su password.
     const [existing] = await this.db
       .select({
         id: schema.users.id,
@@ -1736,7 +1821,7 @@ export class MemberService {
         deletedAt: schema.users.deletedAt,
       })
       .from(schema.users)
-      .where(eq(schema.users.id, id))
+      .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, id)))
       .limit(1);
 
     if (!existing) return { ok: false, reason: "not_found" };
@@ -1748,7 +1833,7 @@ export class MemberService {
     await this.db
       .update(schema.users)
       .set({ passwordHash })
-      .where(eq(schema.users.id, id));
+      .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, id)));
 
     return { ok: true };
   }
@@ -1882,10 +1967,12 @@ export class MemberService {
     userId: number,
     photoUrl: string,
   ): Promise<void> {
+    // Fase 173 (T-173-18-05): `tenantWhere` inline — un `userId` ajeno deja
+    // de matchear.
     await this.db
       .update(schema.users)
       .set({ photoUrl })
-      .where(eq(schema.users.id, userId));
+      .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)));
   }
 
   // ─── Export ──────────────────────────────────────────────────────────
@@ -2198,11 +2285,28 @@ export class MemberService {
     authorId: number,
     input: CreateNoteInput,
   ): Promise<MemberNote> {
-    const result = await this.db.insert(schema.memberNotes).values({
-      userId: input.userId,
-      authorId,
-      content: input.content,
-    });
+    // Fase 173 (T-173-18-06): verificar que el socio sea del gimnasio ANTES
+    // de escribirle una nota — sin esto, una nota puede quedar colgando de un
+    // socio ajeno. Mismo contrato de rechazo que el resto (D-06): socio ajeno
+    // = socio inexistente.
+    const [ownMember] = await this.db
+      .select({ id: schema.users.id })
+      .from(schema.users)
+      .where(
+        and(tenantWhere(schema.users, ctx), eq(schema.users.id, input.userId)),
+      )
+      .limit(1);
+    if (!ownMember) {
+      throw new NotFoundError("Alumno no encontrado");
+    }
+
+    const result = await this.db.insert(schema.memberNotes).values(
+      tenantValues(ctx, {
+        userId: input.userId,
+        authorId,
+        content: input.content,
+      }),
+    );
 
     const noteId = Number(result[0].insertId);
     const notes = await this.getNotes(ctx, input.userId);
@@ -2223,20 +2327,32 @@ export class MemberService {
     noteId: number,
     input: UpdateNoteInput,
   ): Promise<MemberNote | null> {
+    // Fase 173 (T-173-18-06): `tenantWhere` inline — una nota de otro
+    // gimnasio tiene que verse EXACTO igual que una inexistente.
     const [existing] = await this.db
       .select({
         id: schema.memberNotes.id,
         userId: schema.memberNotes.userId,
       })
       .from(schema.memberNotes)
-      .where(eq(schema.memberNotes.id, noteId));
+      .where(
+        and(
+          tenantWhere(schema.memberNotes, ctx),
+          eq(schema.memberNotes.id, noteId),
+        ),
+      );
 
     if (!existing) return null;
 
     await this.db
       .update(schema.memberNotes)
       .set({ content: input.content })
-      .where(eq(schema.memberNotes.id, noteId));
+      .where(
+        and(
+          tenantWhere(schema.memberNotes, ctx),
+          eq(schema.memberNotes.id, noteId),
+        ),
+      );
 
     const notes = await this.getNotes(ctx, existing.userId);
     return notes.find((n) => n.id === noteId) ?? null;
@@ -2246,16 +2362,28 @@ export class MemberService {
    * Delete a note.
    */
   async deleteNote(ctx: TenantContext, noteId: number): Promise<boolean> {
+    // Fase 173 (T-173-18-06): `tenantWhere` inline — mismo criterio que
+    // updateNote.
     const [existing] = await this.db
       .select({ id: schema.memberNotes.id })
       .from(schema.memberNotes)
-      .where(eq(schema.memberNotes.id, noteId));
+      .where(
+        and(
+          tenantWhere(schema.memberNotes, ctx),
+          eq(schema.memberNotes.id, noteId),
+        ),
+      );
 
     if (!existing) return false;
 
     await this.db
       .delete(schema.memberNotes)
-      .where(eq(schema.memberNotes.id, noteId));
+      .where(
+        and(
+          tenantWhere(schema.memberNotes, ctx),
+          eq(schema.memberNotes.id, noteId),
+        ),
+      );
 
     return true;
   }
