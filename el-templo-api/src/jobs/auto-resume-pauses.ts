@@ -38,10 +38,18 @@ const log = pino({ name: "auto-resume-pauses" });
  * debería exigir un restart de la API) y aísla los errores POR ITERACIÓN
  * (D-03) — un gimnasio roto no frena a los demás.
  *
- * D-02: el `ctx` NO baja a los services. Las seis firmas de service que se
- * construyen acá abajo cambian en su fase de adopción (172-175); en la 169 el
- * contexto llega hasta el CUERPO del job, se loguea y queda disponible. Con un
- * solo tenant activo el resultado es IDÉNTICO al de hoy.
+ * D-02 (169) / actualizado en la 173 (D-05/D-13, trampa (a)): el `ctx` NO
+ * bajaba a los services — quedaba disponible en el CUERPO del job sin
+ * usarse. Eso cambió acá: `activateDueScheduledSubs(ctx)` y
+ * `autoResumeDuePauses(ctx)` ya lo reciben y lo usan (la sede que escribe
+ * `activateScheduledSub` se valida contra el gimnasio; `resumeSubscription` y
+ * `recomputeUserStatus` filtran `users`/`user_status_history`).
+ * `autoExpireDueSubscriptions` SIGUE sin recibirlo: su `autoExpireSubscriptions`
+ * interno es un helper compartido por `getMemberSubscriptions`/
+ * `getMemberSubscriptionHistory`, consumidos por `scheduling/booking-service.ts`
+ * y rutas member-facing de la app — fuera del alcance acotado D-02/D-09 de la
+ * 173 (dueño fase 174). Con un solo tenant activo el resultado es IDÉNTICO al
+ * de hoy en los tres barridos.
  *
  * VENCIMIENTO de esta forma intermedia: mientras el cuerpo siga siendo global,
  * más de un tenant activo repetiría el MISMO barrido N veces. Por eso el gate
@@ -98,7 +106,7 @@ async function runAutoResumePausesForTenant(
   let expired = 0;
 
   try {
-    resumed = await subscriptionService.autoResumeDuePauses();
+    resumed = await subscriptionService.autoResumeDuePauses(ctx);
     if (resumed === 0) {
       log.info({ tenantId }, "No paused subscriptions due for resume");
     }
@@ -107,7 +115,7 @@ async function runAutoResumePausesForTenant(
   }
 
   try {
-    activated = await subscriptionService.activateDueScheduledSubs();
+    activated = await subscriptionService.activateDueScheduledSubs(ctx);
     if (activated === 0) {
       log.info({ tenantId }, "No scheduled subscriptions due for activation");
     } else {

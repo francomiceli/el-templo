@@ -64,6 +64,7 @@ import {
   tenantWhere,
   type TenantContext,
 } from "../shared/tenant";
+import { assertBranchDelGimnasio } from "../shared/branch-consistency";
 import { EnrollmentService } from "../programs/enrollment-service";
 import { SettingsService } from "../settings/service";
 import { PRICING_SETTINGS_KEYS } from "../settings/keys";
@@ -916,8 +917,23 @@ export class SubscriptionService {
    * Get the current active/paused subscription for a member.
    * Auto-expires subscriptions where endDate < today.
    * Returns null if no active/paused subscription.
+   *
+   * Fase 173 (D-13): `ctx` PRIMERO y `tenantWhere(subscriptions, ctx)` inline
+   * en el `where`. Este método alimenta
+   * `/api/admin/finance/coach-load/autocompletar/:userId` (el `userId` llega
+   * por la URL): sin el filtro, un socio de OTRO gimnasio resolvía su sub y el
+   * autocompletado de la PoS mostraba plan/importe/moneda ajenos
+   * (T-173-14-01). Trampa (a): este método YA tenía la firma sin `ctx` en la
+   * 172 y nadie lo tocó — tener el nombre en el inventario del piloto no lo
+   * migraba. `autoExpireSubscriptions` (llamado abajo) NO recibe `ctx`: es un
+   * helper compartido por `getMemberSubscriptions` (plural) y
+   * `getMemberSubscriptionHistory`, que a su vez alimentan rutas member-facing
+   * de la app y `scheduling/booking-service.ts` — fuera del alcance acotado de
+   * este plan (D-02). Ver el docblock de `activateScheduledSub` para el
+   * detalle de por qué esa cascada queda deferida a la fase 174.
    */
   async getMemberSubscription(
+    ctx: TenantContext,
     userId: number,
   ): Promise<SubscriptionDetail | null> {
     // First, auto-expire any active subscriptions past their end date
@@ -969,6 +985,7 @@ export class SubscriptionService {
       )
       .where(
         and(
+          tenantWhere(schema.subscriptions, ctx),
           eq(schema.subscriptions.userId, userId),
           or(
             eq(schema.subscriptions.status, "active"),
@@ -1268,7 +1285,7 @@ export class SubscriptionService {
       })
       .from(schema.users)
       .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
-      .where(eq(schema.users.id, userId));
+      .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)));
 
     if (!member) {
       throw new NotFoundError("Miembro no encontrado");
@@ -1489,7 +1506,9 @@ export class SubscriptionService {
       await this.db
         .update(schema.users)
         .set({ boardingPassUsed: true })
-        .where(eq(schema.users.id, userId));
+        .where(
+          and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)),
+        );
     }
     // Normal price calculation
     else {
@@ -1590,31 +1609,46 @@ export class SubscriptionService {
         // Insert subscription. `currency` is inherited from the plan so EUR
         // plans produce EUR subscriptions (defense in depth — the country
         // guard above already prevents cross-country assignments).
-        const insResult = await tx.insert(schema.subscriptions).values({
-          userId,
-          planId: input.planId,
-          branchId: input.branchId,
-          status: initialStatus,
-          startDate: input.startDate,
-          endDate: endDateStr,
-          pricePaid,
-          priceTypeApplied,
-          auraDiscount,
-          auraDiscountPercent,
-          referralDiscountPercent,
-          referralDiscountAmount,
-          boardingPassUsed,
-          priceOverrideAmount,
-          priceOverrideReason,
-          // Override a $0 = membresía regalada: se auto-etiqueta para que
-          // analytics de membresía la excluya (corregible a 'staff' luego).
-          membershipKind: priceOverrideAmount === 0 ? "bonificada" : "paga",
-          classesRemaining,
-          classesBudget: classesRemaining,
-          notes: input.notes ?? null,
-          currency: plan.currency,
-          priceRegularSnapshot: plan.priceRegular,
-        });
+        //
+        // Fase 173 (D-13/T-173-14-03): `tenantValues(ctx, {...})` — sin esto la
+        // sub nacía con el DEFAULT 1 de la columna, así que un alta en el
+        // gimnasio 2 quedaba escrita en el gimnasio 1 y el cobro que sigue
+        // (recordAssignmentCharge, mismo tx) no encontraba al socio del
+        // gimnasio correcto. El `tenantId` va DESPUÉS del spread (mismo idioma
+        // que el insert de `balances` más arriba, `:624`): pisa cualquier valor
+        // que llegara spreadeado desde el `input`. `assignPlan` tiene 5 inserts
+        // a `subscriptions` en este archivo; este es el ÚNICO que este plan
+        // toca (D-13 lo acota a este). Los otros 4 (`changePlanNow`,
+        // `changePlanAfterCurrent`, `renewSubscription`, `bulkMigratePlan`) NO
+        // bloquean el alta de un gimnasio nuevo y quedan con dueño explícito:
+        // FASE 174 (D-02), marcados con un comentario de bloque cada uno.
+        const insResult = await tx.insert(schema.subscriptions).values(
+          tenantValues(ctx, {
+            userId,
+            planId: input.planId,
+            branchId: input.branchId,
+            status: initialStatus,
+            startDate: input.startDate,
+            endDate: endDateStr,
+            pricePaid,
+            priceTypeApplied,
+            auraDiscount,
+            auraDiscountPercent,
+            referralDiscountPercent,
+            referralDiscountAmount,
+            boardingPassUsed,
+            priceOverrideAmount,
+            priceOverrideReason,
+            // Override a $0 = membresía regalada: se auto-etiqueta para que
+            // analytics de membresía la excluya (corregible a 'staff' luego).
+            membershipKind: priceOverrideAmount === 0 ? "bonificada" : "paga",
+            classesRemaining,
+            classesBudget: classesRemaining,
+            notes: input.notes ?? null,
+            currency: plan.currency,
+            priceRegularSnapshot: plan.priceRegular,
+          }),
+        );
 
         const newSubscriptionId = Number(insResult[0].insertId);
 
@@ -1664,16 +1698,30 @@ export class SubscriptionService {
             .where(eq(schema.branches.id, member.branchId));
 
           if (currentBranch?.isVirtual) {
+            // Fase 173 (D-05/ADO-07, T-173-14-04): la sede de destino sale de
+            // `input.branchId` (ya validado país/virtualidad arriba, pero NO
+            // gimnasio). `assertBranchDelGimnasio` resuelve DENTRO de esta
+            // misma tx y lanza "Sede no encontrada" (404, D-06 — jamás un
+            // código de acceso denegado) si la sede es de otro gimnasio. Se
+            // escribe `branch.id` (la fila YA resuelta), nunca el número crudo
+            // del payload — mismo idioma que `users/service.ts:208`.
+            const branch = await assertBranchDelGimnasio(
+              ctx,
+              input.branchId,
+              tx,
+            );
             await tx
               .update(schema.users)
               // Recategorización (0185): mover de sede virtual a física es un
               // cambio deliberado → 'manual' para la ventana del cron.
               .set({
-                branchId: input.branchId,
+                branchId: branch.id,
                 branchUpdatedAt: new Date(),
                 branchSource: "manual",
               })
-              .where(eq(schema.users.id, userId));
+              .where(
+                and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)),
+              );
 
             this.log.info(
               {
@@ -1721,7 +1769,7 @@ export class SubscriptionService {
         // ── Recompute user.status (R5/D-01) ──
         // Final write inside the tx. Flips status to 'activo' (single source
         // of truth) and absorbs the Phase 102-07 trial-conversion logic.
-        await this.recomputeUserStatus(userId, tx);
+        await this.recomputeUserStatus(ctx, userId, tx);
 
         // ── Atomic charge recording (Phase 107 D-10 / CHARGE-03) ──
         // Move the financial_transaction + balance write INSIDE the same tx
@@ -2086,7 +2134,11 @@ export class SubscriptionService {
    * - Cannot move startDate past an existing attendance — would orphan
    *   the attended class outside the new sub range.
    */
+  // Fase 173 (D-13, cascada mecánica): `ctx` PRIMERO, solo para reenviar a
+  // `recomputeUserStatus` (el compilador nombró este call site al migrar el
+  // helper).
   async editSubscriptionStartDate(
+    ctx: TenantContext,
     subscriptionId: number,
     newStartDate: string,
     actorId: number,
@@ -2174,7 +2226,7 @@ export class SubscriptionService {
         })
         .where(eq(schema.subscriptions.id, subscriptionId));
 
-      await this.recomputeUserStatus(sub.userId, tx);
+      await this.recomputeUserStatus(ctx, sub.userId, tx);
     });
 
     // Regenerate bookings for presencial subs with anchors. Cancel covers
@@ -2222,8 +2274,15 @@ export class SubscriptionService {
    * to 'active' and recomputes the owning member's user.status. Handles
    * standalone scheduled subs (created via assignPlan with future startDate)
    * as well as scheduled successors created by change-plan / renewal.
+   *
+   * Fase 173 (D-05/D-13): `ctx` PRIMERO — ya lo resuelve el llamador
+   * (`auto-resume-pauses.ts`, `runAutoResumePausesForTenant`, D-01/CON-04 de la
+   * 169). Tener `ctx` disponible en el cuerpo del job NO era lo mismo que
+   * usarlo (trampa (a)): el barrido de "due" es ahora POR GIMNASIO, y
+   * `activateScheduledSub` recibe el mismo `ctx` para resolver la sede del
+   * ancla con `assertBranchDelGimnasio` (T-173-14-04).
    */
-  async activateDueScheduledSubs(): Promise<number> {
+  async activateDueScheduledSubs(ctx: TenantContext): Promise<number> {
     const today = todayDateString();
     const due = await this.db
       .select({
@@ -2233,14 +2292,15 @@ export class SubscriptionService {
       .from(schema.subscriptions)
       .where(
         and(
+          tenantWhere(schema.subscriptions, ctx),
           eq(schema.subscriptions.status, "scheduled"),
           sql`${schema.subscriptions.startDate} <= ${today}`,
         ),
       );
 
     for (const row of due) {
-      await this.activateScheduledSub(row.id);
-      await this.recomputeUserStatus(row.userId, this.db);
+      await this.activateScheduledSub(ctx, row.id);
+      await this.recomputeUserStatus(ctx, row.userId, this.db);
     }
 
     return due.length;
@@ -2280,8 +2340,14 @@ export class SubscriptionService {
 
   /**
    * List schedule-change audit entries for a subscription (newest first).
+   *
+   * Fase 173 (D-13, cascada mecánica): `ctx` PRIMERO. El `LEFT JOIN` a
+   * `users` lleva `tenantWhere` en el `ON` (nunca en el `WHERE`, que
+   * convertiría el LEFT en INNER y borraría en silencio las filas cuyo actor
+   * no matchee — mordida (2.3) del mapa de patrones).
    */
   async listScheduleChanges(
+    ctx: TenantContext,
     subscriptionId: number,
   ): Promise<import("./types").SubscriptionScheduleChangeEntry[]> {
     const rows = await this.db
@@ -2299,7 +2365,10 @@ export class SubscriptionService {
       .from(schema.subscriptionScheduleChanges)
       .leftJoin(
         schema.users,
-        eq(schema.users.id, schema.subscriptionScheduleChanges.actorId),
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.subscriptionScheduleChanges.actorId),
+        ),
       )
       .where(
         eq(schema.subscriptionScheduleChanges.subscriptionId, subscriptionId),
@@ -2322,12 +2391,17 @@ export class SubscriptionService {
   /**
    * Pause an active subscription. Optionally schedule auto-resume on pauseEndDate.
    * If pauseEndDate is omitted, pause is open-ended (manual resume only).
+   *
+   * Fase 173 (D-13, cascada mecánica): `ctx` PRIMERO. El único uso es reenviarlo
+   * a `getMemberSubscription`, que ahora lo exige — el compilador nombró este
+   * call site.
    */
   async pauseSubscription(
+    ctx: TenantContext,
     userId: number,
     pauseEndDate?: string,
   ): Promise<SubscriptionDetail> {
-    const sub = await this.getMemberSubscription(userId);
+    const sub = await this.getMemberSubscription(ctx, userId);
     if (!sub) {
       throw new NotFoundError("No se encontro suscripcion activa");
     }
@@ -2371,7 +2445,7 @@ export class SubscriptionService {
         await this.enrollmentService.pauseForSubscription(sub.id, tx);
       }
 
-      await this.recomputeUserStatus(userId, tx);
+      await this.recomputeUserStatus(ctx, userId, tx);
     });
 
     // Cancel all future reservations for this sub's fixed slots. Schedules
@@ -2393,7 +2467,12 @@ export class SubscriptionService {
   /**
    * Resume a paused subscription. Extends endDate by the paused duration.
    */
-  async resumeSubscription(userId: number): Promise<SubscriptionDetail> {
+  // Fase 173 (D-13, cascada mecánica): `ctx` PRIMERO, solo para reenviar a
+  // `recomputeUserStatus`.
+  async resumeSubscription(
+    ctx: TenantContext,
+    userId: number,
+  ): Promise<SubscriptionDetail> {
     const sub = await this.getActivePausedSubscriptionRaw(userId);
     if (!sub) {
       throw new NotFoundError("No se encontro suscripcion pausada");
@@ -2449,7 +2528,7 @@ export class SubscriptionService {
         await this.enrollmentService.resumeForSubscription(sub.id, tx);
       }
 
-      await this.recomputeUserStatus(userId, tx);
+      await this.recomputeUserStatus(ctx, userId, tx);
     });
 
     // Regenerate bookings for the resume window (today → endDate).
@@ -2472,8 +2551,12 @@ export class SubscriptionService {
    * Auto-resume paused subscriptions whose pauseEndDate has arrived.
    * Intended to be called by a daily cron job. Returns the number of
    * subscriptions resumed.
+   *
+   * Fase 173 (D-05/D-13): `ctx` PRIMERO — mismo idioma que
+   * `activateDueScheduledSubs`, ya resuelto por el llamador
+   * (`auto-resume-pauses.ts`, `runAutoResumePausesForTenant`).
    */
-  async autoResumeDuePauses(): Promise<number> {
+  async autoResumeDuePauses(ctx: TenantContext): Promise<number> {
     const today = new Date().toISOString().split("T")[0];
 
     const due = await this.db
@@ -2481,6 +2564,7 @@ export class SubscriptionService {
       .from(schema.subscriptions)
       .where(
         and(
+          tenantWhere(schema.subscriptions, ctx),
           eq(schema.subscriptions.status, "paused"),
           sql`${schema.subscriptions.pauseEndDate} IS NOT NULL`,
           sql`${schema.subscriptions.pauseEndDate} <= ${today}`,
@@ -2490,7 +2574,7 @@ export class SubscriptionService {
     let resumed = 0;
     for (const row of due) {
       try {
-        await this.resumeSubscription(row.userId);
+        await this.resumeSubscription(ctx, row.userId);
         resumed += 1;
       } catch (err: unknown) {
         const message =
@@ -2741,7 +2825,7 @@ export class SubscriptionService {
         );
       }
     } else {
-      sub = await this.getMemberSubscription(userId);
+      sub = await this.getMemberSubscription(ctx, userId);
       if (!sub) {
         throw new NotFoundError(
           "No se encontro suscripcion activa, pausada o programada",
@@ -2870,9 +2954,24 @@ export class SubscriptionService {
         .from(schema.transactionLinks)
         .innerJoin(
           schema.financialTransactions,
-          eq(
-            schema.transactionLinks.transactionId,
-            schema.financialTransactions.id,
+          // Fase 173 (D-15/WR-02, T-173-14-02): `tenantWhere(financialTransactions,
+          // ctx)` va EN EL ON, no en el WHERE de más abajo — el `and(...)` de
+          // ACÁ es el segundo argumento del INNER JOIN, no un `.where()`.
+          // Antes este join unía por PK sin filtrar `financial_transactions`;
+          // solo `transaction_links` llevaba `tenantWhere`. El sentinel daba
+          // VERDE igual (evalúa por QUERY completa: le alcanza con encontrar UN
+          // `tenant_id` en cualquier lado del statement — trampa (h) del doc
+          // 07 §4). La lente que lo ve es el lint POR TABLA, no el sentinel. Y
+          // esto no es cosmético: `txId`, `amount` y `currency` de la fila NO
+          // filtrada se SERIALIZAN en el body del 409 (`SUB_HAS_ACTIVE_TRANSACTIONS`,
+          // más abajo) — un link corrupto o de otro gimnasio devolvía ids e
+          // importes ajenos por ese borde.
+          and(
+            tenantWhere(schema.financialTransactions, ctx),
+            eq(
+              schema.transactionLinks.transactionId,
+              schema.financialTransactions.id,
+            ),
           ),
         )
         .where(
@@ -2986,7 +3085,7 @@ export class SubscriptionService {
     // enrollment teardown + pointer cleanup are atomic.
     await this.requireEnrollmentService().tearDownForSubscription(sub.id, tx);
 
-    await this.recomputeUserStatus(userId, tx);
+    await this.recomputeUserStatus(ctx, userId, tx);
 
     // REQ-7 (Phase 111 D-13): subscription_cancelled forensic audit row.
     // Atomic with the cancel — if any of the writes above rolls back,
@@ -3067,12 +3166,16 @@ export class SubscriptionService {
   /**
    * Preview a plan change for a member: checks upgrade/downgrade,
    * calculates proration, and returns net amount.
+   *
+   * Fase 173 (D-13, cascada mecánica): `ctx` PRIMERO, solo para reenviar a
+   * `getMemberSubscription`.
    */
   async getChangePlanPreview(
+    ctx: TenantContext,
     userId: number,
     targetPlanId: number,
   ): Promise<ChangePlanPreview> {
-    const sub = await this.getMemberSubscription(userId);
+    const sub = await this.getMemberSubscription(ctx, userId);
     if (!sub) {
       throw new NotFoundError("No se encontro suscripcion activa o pausada");
     }
@@ -3212,7 +3315,7 @@ export class SubscriptionService {
         ),
       );
 
-    const existingSub = await this.getMemberSubscription(userId);
+    const existingSub = await this.getMemberSubscription(ctx, userId);
     if (!existingSub) {
       throw new NotFoundError("No se encontro suscripcion activa o pausada");
     }
@@ -3227,7 +3330,7 @@ export class SubscriptionService {
       })
       .from(schema.users)
       .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
-      .where(eq(schema.users.id, userId));
+      .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)));
 
     if (!memberForCountry) {
       throw new NotFoundError("Miembro no encontrado");
@@ -3313,7 +3416,9 @@ export class SubscriptionService {
       await this.db
         .update(schema.users)
         .set({ boardingPassUsed: true })
-        .where(eq(schema.users.id, userId));
+        .where(
+          and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)),
+        );
     } else {
       const basePrice = this.getBasePrice(targetPlan, resolvedPriceType);
       netAmount = Math.max(0, basePrice - proration.remainingValue);
@@ -3435,6 +3540,13 @@ export class SubscriptionService {
       // transaction so Task 1b's recomputeUserStatus rolls back atomically
       // with the new sub on failure. External helpers (bookingService,
       // transactionService) stay on this.db (out of scope per WARNING 9).
+      //
+      // DEUDA CON DUEÑO — FASE 174 (D-02/D-13): este insert NO usa
+      // `tenantValues`. D-13 (fase 173) acotó el arreglo de `subscriptions` al
+      // insert de `assignPlan` (el único que bloquea el alta de un gimnasio
+      // nuevo); este y los otros 3 inserts del archivo (`changePlanAfterCurrent`,
+      // `renewSubscription`, `bulkMigratePlan`) migran junto con el resto del
+      // módulo en la 174. No ensanchar el alcance acá.
       const { newSubscriptionId } = await this.db.transaction(async (tx) => {
         const insResult = await tx.insert(schema.subscriptions).values({
           userId,
@@ -3548,7 +3660,7 @@ export class SubscriptionService {
         );
 
         // ── Recompute user.status (R5/D-01) ──
-        await this.recomputeUserStatus(userId, tx);
+        await this.recomputeUserStatus(ctx, userId, tx);
 
         // ── Atomic charge recording (Phase 107 D-10 / CHARGE-03) ──
         // Net (post-proration) charge persisted inside the same tx as the
@@ -3584,7 +3696,7 @@ export class SubscriptionService {
       const [memberForMigration] = await this.db
         .select({ branchId: schema.users.branchId })
         .from(schema.users)
-        .where(eq(schema.users.id, userId));
+        .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)));
 
       if (
         memberForMigration &&
@@ -3596,22 +3708,35 @@ export class SubscriptionService {
           .where(eq(schema.branches.id, memberForMigration.branchId));
 
         if (currentBranch?.isVirtual) {
+          // Fase 173 (D-05/ADO-07, T-173-14-04): mismo idioma que el sitio
+          // gemelo de `assignPlan` — resolver la sede CONTRA el gimnasio antes
+          // de escribirla, y escribir el `id` de la fila resuelta (jamás el
+          // número crudo de `input.branchId`). Sin `tx` acá (este bloque corre
+          // sobre `this.db`, fuera de la transacción principal — comportamiento
+          // preexistente, D-16), así que se pasa `this.db`.
+          const branch = await assertBranchDelGimnasio(
+            ctx,
+            input.branchId,
+            this.db,
+          );
           await this.db
             .update(schema.users)
             // Recategorización (0185): mover de sede virtual a física es un
             // cambio deliberado → 'manual' para la ventana del cron.
             .set({
-              branchId: input.branchId,
+              branchId: branch.id,
               branchUpdatedAt: new Date(),
               branchSource: "manual",
             })
-            .where(eq(schema.users.id, userId));
+            .where(
+              and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)),
+            );
 
           this.log.info(
             {
               userId,
               fromBranchId: memberForMigration.branchId,
-              toBranchId: input.branchId,
+              toBranchId: branch.id,
             },
             "Auto-migrated member from virtual branch to subscription branch on plan change",
           );
@@ -3684,7 +3809,7 @@ export class SubscriptionService {
     }
 
     // Find current active subscription (must be active, not paused, with endDate)
-    const currentSub = await this.getMemberSubscription(userId);
+    const currentSub = await this.getMemberSubscription(ctx, userId);
     if (!currentSub) {
       throw new NotFoundError("No se encontro suscripcion activa");
     }
@@ -3724,7 +3849,7 @@ export class SubscriptionService {
       .select({ branchCountry: schema.branches.country })
       .from(schema.users)
       .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
-      .where(eq(schema.users.id, userId));
+      .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)));
 
     if (!memberBranchForCountry) {
       throw new NotFoundError("Miembro no encontrado");
@@ -3764,7 +3889,7 @@ export class SubscriptionService {
         boardingPassUsed: schema.users.boardingPassUsed,
       })
       .from(schema.users)
-      .where(eq(schema.users.id, userId));
+      .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)));
     if (!member) {
       throw new NotFoundError("Miembro no encontrado");
     }
@@ -3809,7 +3934,9 @@ export class SubscriptionService {
       await this.db
         .update(schema.users)
         .set({ boardingPassUsed: true })
-        .where(eq(schema.users.id, userId));
+        .where(
+          and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)),
+        );
     } else {
       const basePrice = this.getBasePrice(targetPlan, priceTypeApplied);
       pricePaid = basePrice;
@@ -3882,6 +4009,9 @@ export class SubscriptionService {
     // Task 1b's recomputeUserStatus rolls back atomically on failure.
     // (recomputeUserStatus is defensive here — scheduled subs don't change
     // user.status, but consistency matters.)
+    //
+    // DEUDA CON DUEÑO — FASE 174 (D-02/D-13): sin `tenantValues`, ver el
+    // comentario gemelo de `changePlanNow` más arriba — mismo acote.
     const { newSubscriptionId } = await this.db.transaction(async (tx) => {
       const insResult = await tx.insert(schema.subscriptions).values({
         userId,
@@ -3949,7 +4079,7 @@ export class SubscriptionService {
       // Scheduled subs don't change current status (user is already 'activo'
       // since changePlanAfterCurrent requires an active sub), but consistency
       // with the other mutating methods matters.
-      await this.recomputeUserStatus(userId, tx);
+      await this.recomputeUserStatus(ctx, userId, tx);
 
       // ── Atomic charge recording (Phase 107 D-10 / CHARGE-03) ──
       // Scheduled changes charge the full new-plan price now (no proration).
@@ -4290,7 +4420,7 @@ export class SubscriptionService {
       const [memberBranchRow] = await this.db
         .select({ branchId: schema.users.branchId })
         .from(schema.users)
-        .where(eq(schema.users.id, userId))
+        .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)))
         .limit(1);
       if (memberBranchRow?.branchId) {
         renewBranchId = memberBranchRow.branchId;
@@ -4343,6 +4473,10 @@ export class SubscriptionService {
 
       // Create new subscription record for the new period. Currency is
       // inherited from the existing plan — renewals never change plan/country.
+      //
+      // DEUDA CON DUEÑO — FASE 174 (D-02/D-13): sin `tenantValues`, ver el
+      // comentario gemelo de `changePlanNow` (assignPlan es el único acotado
+      // a esta fase).
       const insResult = await tx.insert(schema.subscriptions).values({
         userId,
         planId: currentSub.planId,
@@ -4482,7 +4616,7 @@ export class SubscriptionService {
       // ── Recompute user.status (R5/D-01) ──
       // Renewal of an active sub keeps user 'activo'. Renewal of an expired
       // sub flips user back to 'activo' (was 'inactivo' until now).
-      await this.recomputeUserStatus(userId, tx);
+      await this.recomputeUserStatus(ctx, userId, tx);
 
       // ── Atomic charge recording (Phase 107 D-10 / CHARGE-03) ──
       // renewBranchId resolved above (out of tx). Charge persisted inside
@@ -4547,7 +4681,11 @@ export class SubscriptionService {
    * Bulk-migrate members from their current plan to a target plan.
    * Cancels existing active subscriptions and creates new ones.
    */
+  // Fase 173 (D-13, cascada mecánica): `ctx` PRIMERO, solo para reenviar a
+  // `getMemberSubscription` en el loop de abajo — el compilador nombró este
+  // call site.
   async bulkMigratePlan(
+    ctx: TenantContext,
     input: BulkMigrateInput,
     adminId: number,
   ): Promise<BulkMigrateResult> {
@@ -4585,7 +4723,7 @@ export class SubscriptionService {
     for (const userId of input.userIds) {
       try {
         // Find active subscription
-        const activeSub = await this.getMemberSubscription(userId);
+        const activeSub = await this.getMemberSubscription(ctx, userId);
         if (!activeSub) {
           skipped++;
           continue;
@@ -4609,6 +4747,10 @@ export class SubscriptionService {
             .where(eq(schema.subscriptions.id, activeSub.id));
 
           // Create new subscription
+          //
+          // DEUDA CON DUEÑO — FASE 174 (D-02/D-13): sin `tenantValues`, ver el
+          // comentario gemelo de `changePlanNow` (assignPlan es el único
+          // acotado a esta fase).
           await tx.insert(schema.subscriptions).values({
             userId,
             planId: input.targetPlanId,
@@ -4623,7 +4765,7 @@ export class SubscriptionService {
 
           // Recompute user.status (R5/D-01). User stays 'activo' (had a sub
           // before, has one after) — recompute keeps the invariant explicit.
-          await this.recomputeUserStatus(userId, tx);
+          await this.recomputeUserStatus(ctx, userId, tx);
         });
 
         migrated++;
@@ -4655,8 +4797,11 @@ export class SubscriptionService {
   /**
    * Get a pricing preview for assigning a plan to a member.
    * Does NOT modify any data.
+   *
+   * Fase 173 (D-13, cascada mecánica): `ctx` PRIMERO + `tenantWhere` inline.
    */
   async getPricingPreview(
+    ctx: TenantContext,
     userId: number,
     planId: number,
     priceType: PriceType,
@@ -4669,7 +4814,7 @@ export class SubscriptionService {
         boardingPassUsed: schema.users.boardingPassUsed,
       })
       .from(schema.users)
-      .where(eq(schema.users.id, userId));
+      .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)));
 
     if (!member) throw new NotFoundError("Miembro no encontrado");
 
@@ -4844,8 +4989,17 @@ export class SubscriptionService {
 
     // Activate scheduled successors (handles program enrollment + branch migration
     // when the scheduled sub is for a different plan than the expiring one).
+    //
+    // Fase 173 (D-05, alcance documentado): `ctx: null` — `autoExpireSubscriptions`
+    // (el llamador de este método, `_expireOneUser` más abajo en la pila) es un
+    // helper compartido por `getMemberSubscriptions`/`getMemberSubscriptionHistory`,
+    // que a su vez alimentan `scheduling/booking-service.ts` y rutas member-facing
+    // de la app (fuera del alcance acotado D-02/D-09 de este plan). Threadear un
+    // `ctx` real hasta acá exigiría migrar esos módulos ahora, ensanchando el
+    // alcance de la 173. Ver el docblock de `activateScheduledSub` para el
+    // detalle de qué guarda se salta con `ctx = null` y quién lo cierra (fase 174).
     for (const successor of scheduledSuccessors) {
-      await this.activateScheduledSub(successor.id);
+      await this.activateScheduledSub(null, successor.id);
     }
 
     // Recompute users.status after the expiration. Without this, a user
@@ -4854,15 +5008,45 @@ export class SubscriptionService {
     // calls recomputeUserStatus, but the passive auto-expire was the
     // historical gap). recomputeUserStatus is idempotent and safe to run
     // even when scheduled successors were activated above.
-    await this.recomputeUserStatus(userId, this.db);
+    //
+    // Fase 173 (D-05, alcance documentado): `ctx: null` — mismo motivo que el
+    // `activateScheduledSub(null, ...)` de arriba (ver su docblock): este
+    // caller es `autoExpireSubscriptions`, fuera del alcance acotado D-02/D-09
+    // de esta fase.
+    await this.recomputeUserStatus(null, userId, this.db);
   }
 
   /**
    * Activate a scheduled subscription. Flips status to "active", and if the
    * incoming plan differs from the outgoing plan (scheduled plan change),
    * handles program enrollment transitions and branch migration from virtual.
+   *
+   * Fase 173 (D-05/ADO-07, T-173-14-04): `ctx: TenantContext | null` —
+   * DELIBERADAMENTE nullable, no un `ctx` obligatorio como el resto de la
+   * fase. Este método tiene DOS llamadores con acceso muy distinto a un
+   * `TenantContext`:
+   *   1. `activateDueScheduledSubs` (cron `auto-resume-pauses.ts`, ctx real
+   *      vía `forEachActiveTenant`, D-01/CON-04): acá SÍ se aplica la guarda —
+   *      la migración de sede virtual→física de más abajo resuelve con
+   *      `assertBranchDelGimnasio` y escribe el `id` ya validado.
+   *   2. `autoExpireSubscriptions` (helper compartido por `getMemberSubscriptions`
+   *      / `getMemberSubscriptionHistory`, consumidos por
+   *      `scheduling/booking-service.ts` y rutas member-facing de la app):
+   *      esos callers están fuera del alcance acotado D-02/D-09 de esta fase,
+   *      así que threadear un ctx real hasta acá ensancharía la 173 a migrar
+   *      esos módulos. Con `ctx === null`, este método preserva el
+   *      comportamiento PREVIO (escribe `branchId` crudo, sin validar
+   *      gimnasio) — es la MISMA deuda de ANTES de este plan, no una nueva.
+   * DEUDA CON DUEÑO — FASE 174: cerrar el camino 2 requiere threadear `ctx`
+   * por `getMemberSubscriptions`/`getMemberSubscriptionHistory` hasta sus
+   * ~8 call sites (incluye `booking-service.ts` y `member-routes.ts`), que es
+   * exactamente el trabajo que D-02 reserva para la adopción completa de
+   * `subscriptions`.
    */
-  private async activateScheduledSub(scheduledId: number): Promise<void> {
+  private async activateScheduledSub(
+    ctx: TenantContext | null,
+    scheduledId: number,
+  ): Promise<void> {
     const [scheduled] = await this.db
       .select({
         id: schema.subscriptions.id,
@@ -4988,7 +5172,11 @@ export class SubscriptionService {
     const [member] = await this.db
       .select({ branchId: schema.users.branchId })
       .from(schema.users)
-      .where(eq(schema.users.id, scheduled.userId));
+      .where(
+        ctx
+          ? and(tenantWhere(schema.users, ctx), eq(schema.users.id, scheduled.userId))
+          : eq(schema.users.id, scheduled.userId),
+      );
 
     if (member && member.branchId !== scheduled.branchId) {
       const [currentBranch] = await this.db
@@ -4997,22 +5185,36 @@ export class SubscriptionService {
         .where(eq(schema.branches.id, member.branchId));
 
       if (currentBranch?.isVirtual) {
+        // Fase 173 (D-05/ADO-07, T-173-14-04): con `ctx` real (camino del
+        // cron), resolver y validar la sede contra el gimnasio antes de
+        // escribirla — mismo idioma que los 2 sitios gemelos de este archivo.
+        // Con `ctx === null` (camino de `autoExpireSubscriptions`, ver
+        // docblock de este método), se preserva el comportamiento previo SIN
+        // la guarda — deuda documentada, dueño fase 174.
+        const resolvedBranchId = ctx
+          ? (await assertBranchDelGimnasio(ctx, scheduled.branchId, this.db))
+              .id
+          : scheduled.branchId;
         await this.db
           .update(schema.users)
           // Recategorización (0185): mover de sede virtual a física es un
           // cambio deliberado → 'manual' para la ventana del cron.
           .set({
-            branchId: scheduled.branchId,
+            branchId: resolvedBranchId,
             branchUpdatedAt: new Date(),
             branchSource: "manual",
           })
-          .where(eq(schema.users.id, scheduled.userId));
+          .where(
+            ctx
+              ? and(tenantWhere(schema.users, ctx), eq(schema.users.id, scheduled.userId))
+              : eq(schema.users.id, scheduled.userId),
+          );
 
         this.log.info(
           {
             userId: scheduled.userId,
             fromBranchId: member.branchId,
-            toBranchId: scheduled.branchId,
+            toBranchId: resolvedBranchId,
           },
           "Migrated member from virtual branch on scheduled plan-change activation",
         );
@@ -5184,9 +5386,15 @@ export class SubscriptionService {
   /**
    * Get class usage information for a member's current subscription.
    * Returns weekly attendance count, remaining classes, fixed days, and booking mode.
+   *
+   * Fase 173 (D-13, cascada mecánica): `ctx` PRIMERO, solo para reenviar a
+   * `getMemberSubscription`.
    */
-  async getClassUsageThisWeek(userId: number): Promise<ClassUsageInfo> {
-    const sub = await this.getMemberSubscription(userId);
+  async getClassUsageThisWeek(
+    ctx: TenantContext,
+    userId: number,
+  ): Promise<ClassUsageInfo> {
+    const sub = await this.getMemberSubscription(ctx, userId);
     if (!sub) {
       throw new NotFoundError("No se encontro suscripcion activa");
     }
@@ -5750,8 +5958,24 @@ export class SubscriptionService {
    * D-34 keeps the hook scoped to subscription create — admin-initiated
    * lead_status flips go through PATCH /admin/leads/:userId (Plan 04) which
    * deliberately does NOT touch lead_notes.
+   *
+   * Fase 173 (D-13, alcance objetivo): `ctx: TenantContext | null` — este es
+   * el ÚNICO acceso de `subscriptions/service.ts` a `user_status_history` y
+   * uno de los ~15 a `users`, y tiene 11 llamadores. 9 de ellos ya resuelven
+   * `ctx` real (assignPlan, pauseSubscription, resumeSubscription,
+   * compensateDays, changePlanNow, changePlanAfterCurrent, renewSubscription,
+   * bulkMigratePlan, editSubscriptionStartDate, activateDueScheduledSubs) y
+   * lo pasan. El único `null` es `autoExpireSubscriptions` — helper
+   * compartido por `getMemberSubscriptions`/`getMemberSubscriptionHistory`,
+   * consumidos por `scheduling/booking-service.ts` y rutas member-facing de
+   * la app (fuera del alcance acotado D-02/D-09 de esta fase; mismo
+   * razonamiento que `activateScheduledSub`, ver su docblock). Con
+   * `ctx === null` se preserva el comportamiento PREVIO (sin filtro) — la
+   * MISMA deuda de antes de este plan, no una nueva. DEUDA CON DUEÑO — FASE
+   * 174: cerrar ese único camino.
    */
   private async recomputeUserStatus(
+    ctx: TenantContext | null,
     userId: number,
     tx: MySql2Database<typeof schema>,
   ): Promise<void> {
@@ -5768,7 +5992,11 @@ export class SubscriptionService {
     const beforeRows = await tx
       .select({ status: schema.users.status })
       .from(schema.users)
-      .where(eq(schema.users.id, userId));
+      .where(
+        ctx
+          ? and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId))
+          : eq(schema.users.id, userId),
+      );
     const statusBefore = beforeRows[0]?.status ?? null;
 
     // MySQL evaluates SET assignments LEFT-TO-RIGHT and later expressions
@@ -5780,6 +6008,12 @@ export class SubscriptionService {
     // converted_at column itself is written — otherwise they'd see the
     // freshly-set CURRENT_TIMESTAMP and the conversion gate would always
     // be false on the very write that should trigger them. Order matters.
+    //
+    // Fase 173 (D-13): el gimnasio se nombra INLINE en el statement (mordida
+    // 2.6 del mapa de patrones — un `const` de arriba no cuenta para el
+    // lint), condicionado a que `ctx` este resuelto (ver docblock del
+    // metodo). El fragmento queda vacio cuando `ctx` es null, preservando el
+    // comportamiento previo tal cual.
     await tx.execute(sql`
       UPDATE users u
       SET
@@ -5869,6 +6103,7 @@ export class SubscriptionService {
           ELSE u.converted_at
         END
       WHERE u.id = ${userId}
+        ${ctx ? sql`AND u.tenant_id = ${ctx.tenantId}` : sql``}
     `);
 
     // Phase 117 (D-10): re-read the status AFTER the UPDATE. Forward-only —
@@ -5878,16 +6113,33 @@ export class SubscriptionService {
     const afterRows = await tx
       .select({ status: schema.users.status })
       .from(schema.users)
-      .where(eq(schema.users.id, userId));
+      .where(
+        ctx
+          ? and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId))
+          : eq(schema.users.id, userId),
+      );
     const statusAfter = afterRows[0]?.status ?? null;
 
     if (statusAfter !== null && statusAfter !== statusBefore) {
-      await tx.insert(schema.userStatusHistory).values({
-        userId,
-        fromStatus: statusBefore,
-        toStatus: statusAfter,
-        source: "recompute",
-      });
+      // Fase 173 (D-13): `tenantValues` estampa el gimnasio DESPUES del
+      // spread cuando hay `ctx` real; con `ctx === null` (ver docblock del
+      // metodo) la fila nace con el DEFAULT de la columna, comportamiento
+      // previo sin cambios.
+      await tx.insert(schema.userStatusHistory).values(
+        ctx
+          ? tenantValues(ctx, {
+              userId,
+              fromStatus: statusBefore,
+              toStatus: statusAfter,
+              source: "recompute",
+            })
+          : {
+              userId,
+              fromStatus: statusBefore,
+              toStatus: statusAfter,
+              source: "recompute",
+            },
+      );
       this.log.info(
         { userId, fromStatus: statusBefore, toStatus: statusAfter },
         "user status transition recorded",

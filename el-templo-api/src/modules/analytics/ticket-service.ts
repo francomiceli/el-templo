@@ -508,10 +508,17 @@ export class TicketService {
         schema.branches,
         eq(schema.branches.id, schema.financialTransactions.branchId),
       )
-      // DOS `tenantWhere`, uno por tabla strict presente en el statement: el
-      // sentinel exige el literal `tenant_id` por CADA tabla migrada que aparece
-      // en la query, y un join entre dos tablas de plata scopeando sólo una deja
-      // el otro lado sin filtrar (T-172-02-03).
+      // DOS `tenantWhere`, uno por tabla strict presente en el statement. NO es
+      // un requisito que el sentinel verifique (IN-01, fase 173): el sentinel
+      // evalúa por QUERY completa y le alcanza con UN literal `tenant_id` en
+      // cualquier lado del statement para dar verde (trampa (h), doc 07 §4) —
+      // el guard de cobros vivos de `subscriptions/service.ts` (WR-02) probó
+      // exactamente eso: filtraba una sola de dos tablas strict y el sentinel
+      // no lo cazó. Filtrar cada tabla strict del join es CONVENCIÓN del
+      // módulo (defensa en profundidad) — la lente que la hace cumplir es el
+      // lint POR TABLA (`pnpm lint:tenant`), no el sentinel de runtime. Un join
+      // entre dos tablas de plata scopeando sólo una deja el otro lado sin
+      // filtrar (T-172-02-03).
       .where(
         and(
           tenantWhere(schema.financialTransactions, ctx),

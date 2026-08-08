@@ -20,6 +20,7 @@ import {
   type PlanCategory,
 } from "./types";
 import { attachCountryScope } from "../shared/country-scope";
+import { assertTenant } from "../shared/tenant";
 import { todayInTz } from "../shared/date-utils";
 import { especialPassSchema } from "./schemas";
 
@@ -60,7 +61,11 @@ export const memberSubscriptionRoutes: FastifyPluginAsync = async (fastify) => {
 
   // GET /me/subscription — Get the authenticated member's current subscription
   fastify.get("/me/subscription", async (request, reply) => {
+    // Fase 173 (D-13, cascada mecánica): assertTenant ya resuelve el ctx acá
+    // (attachCountryScope corre en el onRequest hook del plugin) — el compilador
+    // nombró este call site cuando getMemberSubscription pasó a exigir ctx.
     const sub = await subscriptionService.getMemberSubscription(
+      assertTenant(request.scope, "subscriptions.me"),
       request.user.userId,
     );
 
@@ -206,6 +211,7 @@ export const memberSubscriptionRoutes: FastifyPluginAsync = async (fastify) => {
     // surfaced so the member can keep seeing their own plan — this is narrower
     // than exposing the full other-country catalog.
     const sub = await subscriptionService.getMemberSubscription(
+      assertTenant(request.scope, "subscriptions.availablePlans"),
       request.user.userId,
     );
     if (sub && !planIds.has(sub.planId)) {

@@ -298,7 +298,10 @@ export class BookingService {
     //    veía su reserva especial rechazada con "Alcanzaste tu limite semanal"
     //    aunque el pase tuviera clases disponibles.
     if (!isBonus && !isSpecialActivity) {
-      const classesPerWeek = await this.getMemberClassesPerWeek(memberId);
+      const classesPerWeek = await this.getMemberClassesPerWeek(
+        ctx,
+        memberId,
+      );
       if (classesPerWeek !== null) {
         const { monday, saturday } = getWeekRange(
           new Date(date + "T12:00:00Z"),
@@ -700,7 +703,10 @@ export class BookingService {
       }
 
       // Weekly limit warning
-      const classesPerWeek = await this.getMemberClassesPerWeek(memberId);
+      const classesPerWeek = await this.getMemberClassesPerWeek(
+        ctx,
+        memberId,
+      );
       if (classesPerWeek !== null) {
         const { monday, saturday } = getWeekRange(
           new Date(date + "T12:00:00Z"),
@@ -1916,12 +1922,19 @@ export class BookingService {
   /**
    * Get the classesPerWeek limit for a member's active subscription plan.
    * Returns null if unlimited.
+   *
+   * Fase 173 (D-13, cascada mecánica): `ctx` PRIMERO, solo para reenviar a
+   * `getMemberSubscription` — sus dos llamadores (`reserve`, `adminAddBooking`)
+   * ya lo resuelven (plan 173-07).
    */
   private async getMemberClassesPerWeek(
+    ctx: TenantContext,
     memberId: number,
   ): Promise<number | null> {
-    const subscription =
-      await this.subscriptionService.getMemberSubscription(memberId);
+    const subscription = await this.subscriptionService.getMemberSubscription(
+      ctx,
+      memberId,
+    );
     if (!subscription) return null;
 
     const [plan] = await this.db
@@ -2066,16 +2079,24 @@ export class BookingService {
    * Public: return the member's current bonus-class usage for their active
    * subscription. Returns { applicable: false } when the mechanic doesn't
    * apply (no active subscription, or plan is not fixed).
+   *
+   * Fase 173 (D-13, cascada mecánica): `ctx` PRIMERO, solo para reenviar a
+   * `getMemberSubscription`.
    */
-  async getBonusUsage(memberId: number): Promise<{
+  async getBonusUsage(
+    ctx: TenantContext,
+    memberId: number,
+  ): Promise<{
     applicable: boolean;
     used?: number;
     limit?: number;
     periodStart?: string;
     periodEnd?: string;
   }> {
-    const subscription =
-      await this.subscriptionService.getMemberSubscription(memberId);
+    const subscription = await this.subscriptionService.getMemberSubscription(
+      ctx,
+      memberId,
+    );
     if (!subscription) return { applicable: false };
 
     const plan = await this.subscriptionService.getPlanById(

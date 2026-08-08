@@ -186,9 +186,13 @@ describe("Phase 117-02 — user_status_history forward-only hook", () => {
     // forward-only no-op (from == to) → no second row.
     await (
       svc as unknown as {
-        recomputeUserStatus: (uid: number, tx: typeof app.db) => Promise<void>;
+        recomputeUserStatus: (
+          ctx: { tenantId: number } | null,
+          uid: number,
+          tx: typeof app.db,
+        ) => Promise<void>;
       }
-    ).recomputeUserStatus(userId, app.db);
+    ).recomputeUserStatus({ tenantId: TENANT_TEMPLO }, userId, app.db);
 
     expect(await getHistory(userId)).toHaveLength(1);
   });

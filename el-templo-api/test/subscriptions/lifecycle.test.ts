@@ -439,7 +439,7 @@ describe("Subscriptions API — Lifecycle", () => {
         cashRegisters,
       );
       const svc = new SubscriptionService(app.db, app.log, aura, txns);
-      const resumed = await svc.autoResumeDuePauses();
+      const resumed = await svc.autoResumeDuePauses(TEMPLO_CTX);
       expect(resumed).toBe(1);
 
       const [sub] = await app.db

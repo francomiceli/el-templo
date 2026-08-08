@@ -487,7 +487,10 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
         // seeds it); amount>0 means there is debt. NOTE: debt on an ALREADY-expired
         // sub is not surfaced here and falls to renovación (rare; in our flow the
         // alta con deuda is always an active sub).
-        const sub = await subscriptionService.getMemberSubscription(userId);
+        const sub = await subscriptionService.getMemberSubscription(
+          ctx,
+          userId,
+        );
         const balanceRow = sub
           ? await balanceService.getRow(
               ctx,
@@ -621,13 +624,19 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
         // already happened — the settle/renewal tx rolled back wholesale. Re-read
         // the existing charge (fresh connection) and return it as a 200 no-op.
         if (isDuplicateKeyError(err).isDuplicate) {
+          const replayCtx = assertTenant(
+            request.scope,
+            "coach-load.pay-plan.replay",
+          );
           const existing = await transactionService.findByIdempotencyKey(
-            assertTenant(request.scope, "coach-load.pay-plan.replay"),
+            replayCtx,
             idempotencyKey,
           );
           if (existing) {
-            const subscription =
-              await subscriptionService.getMemberSubscription(userId);
+            const subscription = await subscriptionService.getMemberSubscription(
+              replayCtx,
+              userId,
+            );
             return reply
               .code(200)
               .send({ subscription, transaction: existing });
@@ -943,6 +952,7 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
           request.params.userId,
         );
         const sub = await subscriptionService.getMemberSubscription(
+          ctx,
           request.params.userId,
         );
         if (!sub) {
