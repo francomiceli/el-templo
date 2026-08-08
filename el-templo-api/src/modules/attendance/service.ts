@@ -20,7 +20,7 @@ import {
 } from "../shared/date-utils";
 import { validateQrToken } from "../shared/qr-token";
 import { memberCoveredUntilSql } from "../shared/covered-until";
-import type { TenantContext } from "../shared/tenant";
+import { tenantWhere, type TenantContext } from "../shared/tenant";
 import {
   milestoneInWindow,
   toUtcDateStr,
@@ -52,7 +52,14 @@ export class AttendanceService {
    * and one-per-day constraint. Creates attendance with status "confirmado"
    * and awards AURA immediately.
    */
-  async checkIn(memberId: number, qrToken: string): Promise<AttendanceRecord> {
+  // Fase 173 (D-02, plan 173-07): `ctx` PRIMERO, filtra las 2 lecturas de
+  // `users` (rol del escaneador, sede del socio para el chequeo single-branch)
+  // y se propaga a `coachSelfScan`, `getRecordById` y `recordPresencialSession`.
+  async checkIn(
+    ctx: TenantContext,
+    memberId: number,
+    qrToken: string,
+  ): Promise<AttendanceRecord> {
     // Validate QR token
     const qrPayload = validateQrToken(qrToken);
     if (!qrPayload) {
@@ -84,10 +91,10 @@ export class AttendanceService {
     const [scanningUser] = await this.db
       .select({ role: schema.users.role })
       .from(schema.users)
-      .where(eq(schema.users.id, memberId));
+      .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, memberId)));
 
     if (scanningUser?.role === "coach") {
-      return this.coachSelfScan(memberId, branchId, tz);
+      return this.coachSelfScan(ctx, memberId, branchId, tz);
     }
 
     // Compute tz-aware "today" for the booking lookup + one-per-day math.
@@ -162,7 +169,9 @@ export class AttendanceService {
       const [memberRow] = await this.db
         .select({ branchId: schema.users.branchId })
         .from(schema.users)
-        .where(eq(schema.users.id, memberId));
+        .where(
+          and(tenantWhere(schema.users, ctx), eq(schema.users.id, memberId)),
+        );
 
       if (memberRow && memberRow.branchId !== branchId) {
         throw new BadRequestError(
@@ -329,7 +338,7 @@ export class AttendanceService {
     // get credit for showing up — same way an online session completion does.
     // Marked with goal_plan_type='presencial' so it's distinguishable.
     // Outside the tx (mirrors AURA pattern): if it fails the check-in still wins.
-    await this.recordPresencialSession({
+    await this.recordPresencialSession(ctx, {
       memberId,
       branchId,
       checkedInAt: now,
@@ -345,7 +354,7 @@ export class AttendanceService {
       "Booking confirmed on QR check-in",
     );
 
-    return this.getRecordById(recordId);
+    return this.getRecordById(ctx, recordId);
   }
 
   /**
@@ -357,8 +366,12 @@ export class AttendanceService {
    * attendance for the coach, not member-program credit. Independent of rating
    * attribution (the roster owns that, D-Q1): does NOT touch coach_ratings or
    * class_coach_assignments. Keeps the one-per-day guard.
+   *
+   * Fase 173 (D-02, plan 173-07): `ctx` PRIMERO, filtra `user_branches` — es
+   * una de las dos anclas que ADO-07 protege.
    */
   private async coachSelfScan(
+    ctx: TenantContext,
     coachId: number,
     branchId: number,
     tz: string,
@@ -371,6 +384,7 @@ export class AttendanceService {
       .from(schema.userBranches)
       .where(
         and(
+          tenantWhere(schema.userBranches, ctx),
           eq(schema.userBranches.userId, coachId),
           eq(schema.userBranches.branchId, branchId),
         ),
@@ -419,7 +433,7 @@ export class AttendanceService {
       "Coach QR self-scan recorded",
     );
 
-    return this.getRecordById(recordId);
+    return this.getRecordById(ctx, recordId);
   }
 
   /**
@@ -428,8 +442,13 @@ export class AttendanceService {
    * Bypasses all enforcement (subscription, overdue, weekly, monthly).
    * Creates attendance with source="manual" and status="confirmado".
    * Awards 10 AURA immediately. Still decrements classesRemaining to keep budget accurate.
+   *
+   * Fase 173 (D-02, plan 173-07): `ctx` PRIMERO, se propaga a
+   * `recordPresencialSession` y `getRecordById` (no hay lectura propia de
+   * `users` en este método).
    */
   async forceCheckIn(
+    ctx: TenantContext,
     input: ForceCheckInInput,
     adminId: number,
   ): Promise<AttendanceRecord> {
@@ -487,7 +506,7 @@ export class AttendanceService {
     }
 
     // Mirror as completed_sessions (presencial). See checkIn() for rationale.
-    await this.recordPresencialSession({
+    await this.recordPresencialSession(ctx, {
       memberId,
       branchId,
       checkedInAt: new Date(),
@@ -499,7 +518,7 @@ export class AttendanceService {
       "Force check-in recorded",
     );
 
-    return this.getRecordById(recordId);
+    return this.getRecordById(ctx, recordId);
   }
 
   // ─── Slot Attendance Methods ──────────────────────────────────────────────
@@ -558,10 +577,19 @@ export class AttendanceService {
         endDate: endDateExpr,
       })
       .from(schema.bookings)
-      .innerJoin(schema.users, eq(schema.users.id, schema.bookings.memberId))
+      .innerJoin(
+        schema.users,
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.bookings.memberId),
+        ),
+      )
       .leftJoin(
         schema.memberProfiles,
-        eq(schema.memberProfiles.userId, schema.bookings.memberId),
+        and(
+          tenantWhere(schema.memberProfiles, ctx),
+          eq(schema.memberProfiles.userId, schema.bookings.memberId),
+        ),
       )
       .where(
         and(
@@ -585,10 +613,19 @@ export class AttendanceService {
         endDate: endDateExpr,
       })
       .from(schema.attendance)
-      .innerJoin(schema.users, eq(schema.users.id, schema.attendance.memberId))
+      .innerJoin(
+        schema.users,
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.attendance.memberId),
+        ),
+      )
       .leftJoin(
         schema.memberProfiles,
-        eq(schema.memberProfiles.userId, schema.attendance.memberId),
+        and(
+          tenantWhere(schema.memberProfiles, ctx),
+          eq(schema.memberProfiles.userId, schema.attendance.memberId),
+        ),
       )
       .where(
         and(
@@ -713,8 +750,13 @@ export class AttendanceService {
    * Coach manual check-in from a schedule slot.
    * Validates membership and returns subscription status warnings alongside
    * the created attendance record. Always allows check-in (coach override).
+   *
+   * Fase 173 (D-02, plan 173-07): `ctx` PRIMERO, se propaga a
+   * `recordPresencialSession` y `getRecordById` (no hay lectura propia de
+   * `users` en este método).
    */
   async coachCheckIn(
+    ctx: TenantContext,
     scheduleId: number,
     date: string,
     memberId: number,
@@ -854,7 +896,7 @@ export class AttendanceService {
     `);
 
     // Mirror as completed_sessions (presencial). See checkIn() for rationale.
-    await this.recordPresencialSession({
+    await this.recordPresencialSession(ctx, {
       memberId,
       branchId: schedule.branchId,
       checkedInAt: new Date(),
@@ -866,7 +908,7 @@ export class AttendanceService {
       "Coach check-in recorded",
     );
 
-    const record = await this.getRecordById(recordId);
+    const record = await this.getRecordById(ctx, recordId);
     return { attendance: record, warnings };
   }
 
@@ -1000,18 +1042,25 @@ export class AttendanceService {
    * No AURA is awarded here — the check-in path already grants 10 AURA via
    * sourceType='attendance', and we don't want presencial members to get
    * double credit.
+   *
+   * Fase 173 (D-02, plan 173-07): `ctx` PRIMERO, filtra la lectura de `users`.
    */
-  private async recordPresencialSession(input: {
-    memberId: number;
-    branchId: number;
-    checkedInAt: Date;
-    dateStr: string;
-  }): Promise<void> {
+  private async recordPresencialSession(
+    ctx: TenantContext,
+    input: {
+      memberId: number;
+      branchId: number;
+      checkedInAt: Date;
+      dateStr: string;
+    },
+  ): Promise<void> {
     try {
       const [user] = await this.db
         .select({ level: schema.users.level })
         .from(schema.users)
-        .where(eq(schema.users.id, input.memberId));
+        .where(
+          and(tenantWhere(schema.users, ctx), eq(schema.users.id, input.memberId)),
+        );
       if (!user) return;
 
       // Presencial members do the full coached class — credit them with
@@ -1041,8 +1090,11 @@ export class AttendanceService {
 
   /**
    * List attendance records with filters and pagination.
+   *
+   * Fase 173 (D-02, plan 173-07): `ctx` PRIMERO, filtra el join a `users`.
    */
   async listAttendance(
+    ctx: TenantContext,
     params: AttendanceListParams,
   ): Promise<{ records: AttendanceRecord[]; total: number }> {
     const { branchId, date, dateFrom, dateTo, status, memberId, page, limit } =
@@ -1101,7 +1153,13 @@ export class AttendanceService {
         source: schema.attendance.source,
       })
       .from(schema.attendance)
-      .innerJoin(schema.users, eq(schema.users.id, schema.attendance.memberId))
+      .innerJoin(
+        schema.users,
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.attendance.memberId),
+        ),
+      )
       .innerJoin(
         schema.branches,
         eq(schema.branches.id, schema.attendance.branchId),
@@ -1119,21 +1177,29 @@ export class AttendanceService {
 
   /**
    * Get a member's attendance history (paginated).
+   *
+   * Fase 173 (D-02, plan 173-07): `ctx` PRIMERO, se propaga a `listAttendance`.
    */
   async getMemberAttendance(
+    ctx: TenantContext,
     memberId: number,
     page: number,
     limit: number,
   ): Promise<{ records: AttendanceRecord[]; total: number }> {
-    return this.listAttendance({ memberId, page, limit });
+    return this.listAttendance(ctx, { memberId, page, limit });
   }
 
   // ─── Private Helpers ───────────────────────────────────────────────────────
 
   /**
    * Get a single attendance record by ID with joins.
+   *
+   * Fase 173 (D-02, plan 173-07): `ctx` PRIMERO, filtra el join a `users`.
    */
-  private async getRecordById(recordId: number): Promise<AttendanceRecord> {
+  private async getRecordById(
+    ctx: TenantContext,
+    recordId: number,
+  ): Promise<AttendanceRecord> {
     const [row] = await this.db
       .select({
         id: schema.attendance.id,
@@ -1147,7 +1213,13 @@ export class AttendanceService {
         source: schema.attendance.source,
       })
       .from(schema.attendance)
-      .innerJoin(schema.users, eq(schema.users.id, schema.attendance.memberId))
+      .innerJoin(
+        schema.users,
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.attendance.memberId),
+        ),
+      )
       .innerJoin(
         schema.branches,
         eq(schema.branches.id, schema.attendance.branchId),

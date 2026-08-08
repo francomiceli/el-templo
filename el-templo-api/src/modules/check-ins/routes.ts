@@ -4,6 +4,7 @@ import { CheckInAdminService } from "./admin-service";
 import { handleServiceError } from "../shared/error-handler";
 import { ADMIN_ROLES } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
+import { assertTenant } from "../shared/tenant";
 import type { CheckInAnswer, AdminCheckInsFilters } from "./types";
 import {
   submitCheckInBodySchema,
@@ -108,7 +109,9 @@ export const checkInAdminRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: adminCheckInsQuerySchema },
     async (request, reply) => {
       try {
+        const ctx = assertTenant(request.scope, "check-ins.adminOverview");
         return await service.getAdminCheckIns(
+          ctx,
           {
             isOwner: request.scope.isOwner,
             country: request.scope.country,

@@ -28,6 +28,7 @@ import {
 } from "drizzle-orm";
 import * as schema from "../../db/schema";
 import { BadRequestError } from "../shared/errors";
+import { tenantWhere, type TenantContext } from "../shared/tenant";
 // La regla de atribución (día ISO, turno, semana efectiva) vive en un módulo
 // aparte porque el export de sesiones de prueba resuelve el mismo profe por
 // otro camino — ver roster-attribution.ts.
@@ -59,8 +60,14 @@ export class RatingsService {
   /**
    * Coaches assignable to a branch: users with role 'coach' that have a
    * user_branches row for the branch.
+   *
+   * Fase 173 (D-02, plan 173-07): `ctx` PRIMERO, filtra `users` y
+   * `user_branches` — ambas son anclas que ADO-07 protege.
    */
-  async getCoachesForBranch(branchId: number): Promise<CoachOption[]> {
+  async getCoachesForBranch(
+    ctx: TenantContext,
+    branchId: number,
+  ): Promise<CoachOption[]> {
     const rows = await this.db
       .select({
         id: schema.users.id,
@@ -70,10 +77,14 @@ export class RatingsService {
       .from(schema.users)
       .innerJoin(
         schema.userBranches,
-        eq(schema.userBranches.userId, schema.users.id),
+        and(
+          tenantWhere(schema.userBranches, ctx),
+          eq(schema.userBranches.userId, schema.users.id),
+        ),
       )
       .where(
         and(
+          tenantWhere(schema.users, ctx),
           eq(schema.users.role, "coach"),
           eq(schema.userBranches.branchId, branchId),
         ),
@@ -95,8 +106,13 @@ export class RatingsService {
    * whose week is <= the viewed week. So for each cell we pick the latest
    * change-point <= `weekStartDate` (window ROW_NUMBER, rn=1). A cell with no
    * change-point on or before the week is simply absent (no coach yet).
+   *
+   * Fase 173 (D-02, plan 173-07): `ctx` PRIMERO, filtra el `JOIN users` inline
+   * en el `ON` (SQL crudo — `class_coach_assignments` no es tabla del módulo
+   * `members` y no se toca acá, D-02).
    */
   async getRosterWeek(
+    ctx: TenantContext,
     branchId: number,
     weekStartDate: string,
   ): Promise<RosterWeekRow[]> {
@@ -117,7 +133,7 @@ export class RatingsService {
         WHERE branch_id = ${branchId}
           AND week_start_date <= ${weekStartDate}
       ) t
-      JOIN users u ON u.id = t.coach_id
+      JOIN users u ON u.id = t.coach_id AND u.tenant_id = ${ctx.tenantId}
       WHERE t.rn = 1
     `);
 
@@ -162,8 +178,14 @@ export class RatingsService {
    * Guards: coach must belong to the branch (user_branches, T-143-05), dayOfWeek
    * in 1..6, slot valid, and the target week must not be in the past — history
    * stays frozen so past attribution is never rewritten.
+   *
+   * Fase 173 (D-02, plan 173-07): `ctx` PRIMERO, filtra `users` y
+   * `user_branches` en la validación del coach.
    */
-  async upsertRosterAssignment(input: RosterAssignmentInput): Promise<void> {
+  async upsertRosterAssignment(
+    ctx: TenantContext,
+    input: RosterAssignmentInput,
+  ): Promise<void> {
     const { branchId, weekStartDate, dayOfWeek, slot, coachId } = input;
 
     if (dayOfWeek < 1 || dayOfWeek > 6) {
@@ -188,10 +210,14 @@ export class RatingsService {
       .from(schema.users)
       .innerJoin(
         schema.userBranches,
-        eq(schema.userBranches.userId, schema.users.id),
+        and(
+          tenantWhere(schema.userBranches, ctx),
+          eq(schema.userBranches.userId, schema.users.id),
+        ),
       )
       .where(
         and(
+          tenantWhere(schema.users, ctx),
           eq(schema.users.id, coachId),
           eq(schema.users.role, "coach"),
           eq(schema.userBranches.branchId, branchId),
@@ -511,8 +537,12 @@ export class RatingsService {
    * branch. Filters: rango de fechas sobre sessionDate (la clase puntuada) y
    * sucursal; ambos aplican a promedios Y listado. La paginación y
    * withComments, solo al listado.
+   *
+   * Fase 173 (D-02, plan 173-07): `ctx` PRIMERO, filtra los dos joins a `users`
+   * (perCoachRows y ratingRows).
    */
   async getOwnerRatings(
+    ctx: TenantContext,
     scope: RatingsScope,
     filters: OwnerRatingsFilters = {},
   ): Promise<OwnerRatingsResult> {
@@ -594,7 +624,13 @@ export class RatingsService {
         classRatingCount: sql<number>`COUNT(${schema.coachRatings.classStars})`,
       })
       .from(schema.coachRatings)
-      .innerJoin(schema.users, eq(schema.users.id, schema.coachRatings.coachId))
+      .innerJoin(
+        schema.users,
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.coachRatings.coachId),
+        ),
+      )
       .where(whereClause)
       .groupBy(
         schema.coachRatings.coachId,
@@ -623,7 +659,13 @@ export class RatingsService {
         branchName: schema.branches.name,
       })
       .from(schema.coachRatings)
-      .innerJoin(schema.users, eq(schema.users.id, schema.coachRatings.coachId))
+      .innerJoin(
+        schema.users,
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.coachRatings.coachId),
+        ),
+      )
       .leftJoin(
         schema.branches,
         eq(schema.branches.id, schema.coachRatings.branchId),

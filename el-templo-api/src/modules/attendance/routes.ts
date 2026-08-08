@@ -75,8 +75,10 @@ export const attendanceAdminRoutes: FastifyPluginAsync = async (fastify) => {
     "/member/:userId",
     { schema: memberAttendanceHistorySchema },
     async (request) => {
+      const ctx = assertTenant(request.scope, "attendance.memberHistory");
       const { page = 1, limit = 20 } = request.query;
       const result = await attendanceService.getMemberAttendance(
+        ctx,
         request.params.userId,
         page,
         limit,
@@ -96,7 +98,9 @@ export const attendanceAdminRoutes: FastifyPluginAsync = async (fastify) => {
     },
     async (request, reply) => {
       try {
+        const ctx = assertTenant(request.scope, "attendance.forceCheckIn");
         const record = await attendanceService.forceCheckIn(
+          ctx,
           request.body,
           request.user.userId,
         );
@@ -137,7 +141,9 @@ export const attendanceAdminRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: slotCheckInSchema },
     async (request, reply) => {
       try {
+        const ctx = assertTenant(request.scope, "attendance.coachCheckIn");
         const result = await attendanceService.coachCheckIn(
+          ctx,
           request.params.scheduleId,
           request.params.date,
           request.body.memberId,
@@ -192,9 +198,14 @@ export const attendanceMemberRoutes: FastifyPluginAsync = async (fastify) => {
 
   /**
    * Guard: require authentication (any role) on all routes in this plugin.
+   *
+   * Fase 173 (D-02, plan 173-07): `attachCountryScope` resuelve `request.scope`
+   * (incluido `tenantId`) para el check-in y el historial propios del socio —
+   * sin esto `assertTenant(request.scope, …)` explotaría contra `undefined`.
    */
   fastify.addHook("onRequest", async (request, reply) => {
     await fastify.authenticate(request, reply);
+    await attachCountryScope(request, fastify.db);
   });
 
   // POST /check-in — Member QR check-in
@@ -203,7 +214,9 @@ export const attendanceMemberRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: memberCheckInSchema },
     async (request, reply) => {
       try {
+        const ctx = assertTenant(request.scope, "attendance.memberCheckIn");
         const record = await attendanceService.checkIn(
+          ctx,
           request.user.userId,
           request.body.qrToken,
         );
@@ -219,8 +232,10 @@ export const attendanceMemberRoutes: FastifyPluginAsync = async (fastify) => {
     "/history",
     { schema: memberHistorySchema },
     async (request) => {
+      const ctx = assertTenant(request.scope, "attendance.memberOwnHistory");
       const { page = 1, limit = 20 } = request.query;
       const result = await attendanceService.getMemberAttendance(
+        ctx,
         request.user.userId,
         page,
         limit,

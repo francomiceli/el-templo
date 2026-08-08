@@ -15,11 +15,17 @@
  * de ese socio. Es aceptable para "cómo viene la gente de esta sede" y evita
  * desnormalizar; si alguna vez importa la sede al momento del check-in, hay
  * que agregar la columna.
+ *
+ * Fase 173 (D-02, plan 173-07): los 4 joins a `users` (fetchSummary,
+ * fetchBodyAreas, countDays, fetchDayRows) llevan `tenantWhere` inline —
+ * `check_in_responses` y `branches` no son tablas del módulo `members` y no
+ * se tocan acá (D-02, fase 174/175).
  */
 
 import { eq, and, gte, lte, inArray, sql, desc, type SQL } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import * as schema from "../../db/schema";
+import { tenantWhere, type TenantContext } from "../shared/tenant";
 import { QUESTION_TYPES, VALID_VALUES } from "./types";
 import type {
   AdminCheckInsFilters,
@@ -36,7 +42,14 @@ type DbInstance = MySql2Database<typeof schema>;
 export class CheckInAdminService {
   constructor(private readonly db: DbInstance) {}
 
+  /**
+   * Fase 173 (D-02, plan 173-07): `ctx` PRIMERO, se propaga a los 4 helpers
+   * privados que joinean `users` (`fetchSummary`, `fetchBodyAreas`,
+   * `countDays`, `fetchDayRows`). `check_in_responses` y `branches` no se
+   * tocan (D-02 — no son tablas del módulo `members`).
+   */
   async getAdminCheckIns(
+    ctx: TenantContext,
     scope: CheckInScope,
     filters: AdminCheckInsFilters = {},
   ): Promise<AdminCheckInsResult> {
@@ -59,12 +72,13 @@ export class CheckInAdminService {
     const whereClause = conds.length > 0 ? and(...conds) : undefined;
 
     const [summary, bodyAreas, total] = await Promise.all([
-      this.fetchSummary(whereClause),
-      this.fetchBodyAreas(whereClause),
-      this.countDays(whereClause),
+      this.fetchSummary(ctx, whereClause),
+      this.fetchBodyAreas(ctx, whereClause),
+      this.countDays(ctx, whereClause),
     ]);
 
     const rows = await this.fetchDayRows(
+      ctx,
       whereClause,
       limit,
       offset,
@@ -119,8 +133,13 @@ export class CheckInAdminService {
     return conds;
   }
 
-  /** Distribución por tipo de pregunta y valor sobre TODO el filtro (no pagina). */
+  /**
+   * Distribución por tipo de pregunta y valor sobre TODO el filtro (no pagina).
+   *
+   * Fase 173 (D-02, plan 173-07): `ctx` PRIMERO, filtra el join a `users`.
+   */
   private async fetchSummary(
+    ctx: TenantContext,
     whereClause: SQL | undefined,
   ): Promise<CheckInSummary> {
     const rows = await this.db
@@ -132,7 +151,10 @@ export class CheckInAdminService {
       .from(schema.checkInResponses)
       .innerJoin(
         schema.users,
-        eq(schema.users.id, schema.checkInResponses.userId),
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.checkInResponses.userId),
+        ),
       )
       .where(whereClause)
       .groupBy(
@@ -152,8 +174,13 @@ export class CheckInAdminService {
     return summary;
   }
 
-  /** Zonas del cuerpo más reportadas (solo aplica a soreness). */
+  /**
+   * Zonas del cuerpo más reportadas (solo aplica a soreness).
+   *
+   * Fase 173 (D-02, plan 173-07): `ctx` PRIMERO, filtra el join a `users`.
+   */
   private async fetchBodyAreas(
+    ctx: TenantContext,
     whereClause: SQL | undefined,
   ): Promise<Array<{ area: string; count: number }>> {
     const conds: SQL[] = [sql`${schema.checkInResponses.bodyArea} IS NOT NULL`];
@@ -169,7 +196,10 @@ export class CheckInAdminService {
       .from(schema.checkInResponses)
       .innerJoin(
         schema.users,
-        eq(schema.users.id, schema.checkInResponses.userId),
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.checkInResponses.userId),
+        ),
       )
       .where(and(...conds))
       .groupBy(schema.checkInResponses.bodyArea)
@@ -185,7 +215,11 @@ export class CheckInAdminService {
    * la paginación agrupa, así que contar respuestas prometería más páginas de
    * las que existen.
    */
-  private async countDays(whereClause: SQL | undefined): Promise<number> {
+  // Fase 173 (D-02, plan 173-07): `ctx` PRIMERO, filtra el join a `users`.
+  private async countDays(
+    ctx: TenantContext,
+    whereClause: SQL | undefined,
+  ): Promise<number> {
     const [row] = await this.db
       .select({
         count: sql<number>`COUNT(DISTINCT ${schema.checkInResponses.userId}, ${schema.checkInResponses.date})`,
@@ -193,7 +227,10 @@ export class CheckInAdminService {
       .from(schema.checkInResponses)
       .innerJoin(
         schema.users,
-        eq(schema.users.id, schema.checkInResponses.userId),
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.checkInResponses.userId),
+        ),
       )
       .where(whereClause);
     return Number(row?.count ?? 0);
@@ -204,7 +241,9 @@ export class CheckInAdminService {
    * (socio, día) y recién después se traen sus respuestas. Paginar sobre las
    * respuestas partiría un mismo día de un mismo socio entre dos páginas.
    */
+  // Fase 173 (D-02, plan 173-07): `ctx` PRIMERO, filtra el join a `users`.
   private async fetchDayRows(
+    ctx: TenantContext,
     whereClause: SQL | undefined,
     limit: number,
     offset: number,
@@ -221,7 +260,10 @@ export class CheckInAdminService {
       .from(schema.checkInResponses)
       .innerJoin(
         schema.users,
-        eq(schema.users.id, schema.checkInResponses.userId),
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.checkInResponses.userId),
+        ),
       )
       .leftJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
       .where(whereClause)
