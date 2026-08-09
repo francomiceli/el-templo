@@ -1535,18 +1535,17 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: uploadPhotoUrlSchema },
     async (request, reply) => {
       const ctx = assertTenant(request.scope, "members.photo");
-      if (!fastify.r2) {
-        return reply.code(503).send({
-          error: "Servicio no disponible",
-          message: "Almacenamiento de imagenes no configurado",
-        });
-      }
 
       // Fase 173-27 (T-173-27-06, D-06): sin este chequeo, la ruta generaba
       // una URL prefirmada de R2 para CUALQUIER userId, incluido uno de otro
       // gimnasio — `updatePhoto` ya filtraba el UPDATE con `tenantWhere`
       // (no-op para un socio ajeno), pero la URL en sí se generaba igual.
       // Mismo contrato que el resto de la ficha: socio ajeno = inexistente.
+      //
+      // La existencia/tenancy se resuelve ANTES que la disponibilidad del
+      // storage: un socio ajeno debe dar 404 (indistinguible de inexistente)
+      // aunque R2 no esté configurado. Si el 503 fuera primero, el recurso
+      // ajeno se filtraría como "existe pero sin storage".
       const [target] = await fastify.db
         .select({ id: schema.users.id })
         .from(schema.users)
@@ -1562,6 +1561,13 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         return reply
           .code(404)
           .send({ error: "No encontrado", message: "Miembro no encontrado" });
+      }
+
+      if (!fastify.r2) {
+        return reply.code(503).send({
+          error: "Servicio no disponible",
+          message: "Almacenamiento de imagenes no configurado",
+        });
       }
 
       const sanitized = request.body.filename

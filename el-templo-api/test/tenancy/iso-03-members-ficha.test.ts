@@ -745,29 +745,52 @@ describe("URL de subida de foto — POST /api/admin/members/:userId/photo/upload
     ).toEqual([fotoAntes.tenantId, fotoAntes.photoUrl]);
   });
 
-  it("control: pedir la URL para el socio propio del gimnasio 2 SI funciona, y su photo_url SI cambia", async () => {
+  it("control: pedir la URL para el socio propio del gimnasio 2 pasa el filtro de gimnasio (NO 404)", async () => {
+    // R2 no está configurado en CI (igual que members.test.ts "returns 503
+    // when R2 is not configured"): sin storage el socio propio no puede llegar
+    // a 200. Lo que el control tiene que probar es que NO lo rechaza como ajeno
+    // (404) — el handler resuelve tenancy ANTES que la disponibilidad de R2, así
+    // que el socio propio pasa el filtro de gimnasio y recién ahí, si falta R2,
+    // corta con 503. Con R2 disponible sí genera la URL y persiste el photo_url.
+    const hasR2 = !!process.env.R2_ACCOUNT_ID;
+    const fotoAntes = await fotoDelUsuario(dos.userId);
     const res = await comoGimnasioDos(
       "POST",
       `/${dos.userId}/photo/upload-url`,
       { filename: "propia.jpg" },
     );
+
+    if (hasR2) {
+      expect(
+        res.statusCode,
+        porQueImportaElControl(RUTA, dos.userId) + ` Respuesta: ${res.body}`,
+      ).toBe(200);
+      const body = JSON.parse(res.body) as {
+        uploadUrl: string;
+        publicUrl: string;
+      };
+      expect(
+        body.uploadUrl,
+        `${RUTA} no genero uploadUrl para el socio propio.`,
+      ).toEqual(expect.any(String));
+      const foto = await fotoDelUsuario(dos.userId);
+      expect(
+        [foto.tenantId, foto.photoUrl],
+        `${RUTA} respondio 200 pero no persistio el photo_url del socio propio.`,
+      ).toEqual([TENANT_DOS, body.publicUrl]);
+      return;
+    }
+
+    // Sin R2: el socio propio pasó el filtro de gimnasio (NO 404) y cortó en 503.
     expect(
       res.statusCode,
       porQueImportaElControl(RUTA, dos.userId) + ` Respuesta: ${res.body}`,
-    ).toBe(200);
-    const body = JSON.parse(res.body) as {
-      uploadUrl: string;
-      publicUrl: string;
-    };
-    expect(
-      body.uploadUrl,
-      `${RUTA} no genero uploadUrl para el socio propio.`,
-    ).toEqual(expect.any(String));
+    ).toBe(503);
     const foto = await fotoDelUsuario(dos.userId);
     expect(
       [foto.tenantId, foto.photoUrl],
-      `${RUTA} respondio 200 pero no persistio el photo_url del socio propio.`,
-    ).toEqual([TENANT_DOS, body.publicUrl]);
+      `${RUTA} corto con 503 pero igual toco el photo_url del socio propio.`,
+    ).toEqual([TENANT_DOS, fotoAntes.photoUrl]);
   });
 });
 
