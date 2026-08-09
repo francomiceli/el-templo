@@ -511,6 +511,16 @@ export function isPlatformPhysicalTable(name: string): boolean {
  * porque el alcance del throw es POR TABLA, no por directorio (D-01)— y recién
  * después se prendió el interruptor. Así la suite nunca quedó roja entre planes.
  *
+ * La SEGUNDA entrada la escribe la **fase 173** (`members`), con el mismo
+ * orden interno: primero se migraron TODOS los accesos a sus 8 tablas —los de
+ * `src/modules/members/` y los de los ~50 archivos ajenos que las tocan
+ * (auth, analytics, scheduling, subscriptions, users, wellhub, reports, los
+ * scripts de import y el job de recategorización multisucursal, entre
+ * otros)— y recién después se prendió el interruptor acá. `users` es el ancla
+ * más joineada del sistema (ADO-07): su throw cubre también
+ * `user_branches`, la otra tabla del invariante `user.tenant_id ===
+ * branch.tenant_id` que la guarda de anclas de la fase 173 protege.
+ *
  * `aura_balances` y `aura_transactions` NO están acá aunque suenen a finanzas:
  * las escribe gamification, y su throw llega con la adopción de ese módulo
  * (D-05). Una tabla entra a esta lista cuando su módulo dueño la migra entera,
@@ -529,6 +539,16 @@ export const TENANT_STRICT_MODULES: Record<string, readonly string[]> = {
     "debt_management",
     "financial_transactions",
     "transaction_links",
+  ],
+  members: [
+    "audit_log",
+    "member_logins",
+    "member_notes",
+    "member_profiles",
+    "user_branches",
+    "user_sepa_details",
+    "user_status_history",
+    "users",
   ],
 };
 

@@ -36,9 +36,17 @@ export function selectConTenantWhere(db: FakeDb, ctx: FakeCtx): FakeDb {
     .where(tenantWhere(schema.bookings, ctx));
 }
 
-/** CUMPLE — `tenantValues` estampa el gimnasio del scope en el INSERT. */
+/**
+ * CUMPLE — `tenantValues` estampa el gimnasio del scope en el INSERT.
+ *
+ * Tabla `branches` (no `users`, fase 173-30): `users` entró a
+ * `TENANT_STRICT_MODULES` con la adopción de `members`, y este fixture
+ * prueba el gate de staleness (D-14) sobre un acceso puramente COMPLIANT —
+ * mismo criterio que el resto de los swaps de este archivo: si la tabla del
+ * fixture pasa a ser strict de verdad, se cambia la tabla, no la aserción.
+ */
 export function insertConTenantValues(db: FakeDb, ctx: FakeCtx): FakeDb {
-  return db.insert(schema.users).values(tenantValues(ctx, { firstName: "x" }));
+  return db.insert(schema.branches).values(tenantValues(ctx, { name: "x" }));
 }
 
 /** VIOLACIÓN — template `sql` crudo sobre tabla gym-owned, sin filtro. */
@@ -92,25 +100,31 @@ export function selectPorAliasDeDrizzle(db: FakeDb): FakeDb {
 }
 
 /**
- * DOS VIOLACIONES (`member_profiles` por el join, `bookings` por el from), las
+ * DOS VIOLACIONES (`schedules` por el join, `bookings` por el from), las
  * dos query-builder.
  *
  * El par nuevo del ratchet es el del JOIN (WR-01): la clave es el par
  * (archivo, tabla) y no el statement, así que un join sin scope a otra tabla
  * gym-owned crecía deuda en silencio aunque el `from` ya estuviera listado.
+ *
+ * Tabla `schedules` (no `member_profiles`, fase 173-30): `member_profiles`
+ * entró a `TENANT_STRICT_MODULES` con la adopción de `members`, y este
+ * fixture prueba el gate del JOIN (WR-01) aislado de D-15 — mismo criterio
+ * que el `it` de más abajo documenta para `bookings`: si la tabla del
+ * fixture pasa a ser strict de verdad, se cambia la tabla, no la aserción.
  */
 export function joinSinFiltro(db: FakeDb): FakeDb {
   return db
     .select()
     .from(schema.bookings)
     .innerJoin(
-      schema.memberProfiles,
-      eq(schema.memberProfiles.userId, schema.bookings.memberId),
+      schema.schedules,
+      eq(schema.schedules.id, schema.bookings.scheduleId),
     );
 }
 
 /**
- * CUMPLEN LOS DOS (`member_profiles` y `bookings`) — el mismo join, con
+ * CUMPLEN LOS DOS (`schedules` y `bookings`) — el mismo join, con
  * `tenantWhere` en el `.where(...)` del mismo statement.
  *
  * Es el caso que prueba que sumar los joins a `TABLE_METHODS` no inventa rojos
@@ -121,8 +135,8 @@ export function joinConTenantWhere(db: FakeDb, ctx: FakeCtx): FakeDb {
     .select()
     .from(schema.bookings)
     .innerJoin(
-      schema.memberProfiles,
-      eq(schema.memberProfiles.userId, schema.bookings.memberId),
+      schema.schedules,
+      eq(schema.schedules.id, schema.bookings.scheduleId),
     )
     .where(tenantWhere(schema.bookings, ctx));
 }

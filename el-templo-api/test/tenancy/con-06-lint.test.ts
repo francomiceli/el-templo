@@ -152,7 +152,8 @@ describe("lint-tenant — motor sobre fixtures", () => {
       // selectConTenantWhere: la forma canónica premiada (fase 169).
       "accesos.ts bookings query-builder cumple",
       // insertConTenantValues: el INSERT que estampa el gimnasio del scope.
-      "accesos.ts users query-builder cumple",
+      // Tabla `branches` (no `users`, fase 173-30): ver docblock en accesos.ts.
+      "accesos.ts branches query-builder cumple",
       // sqlCrudoSinTenant: el template crudo también se mira.
       "accesos.ts bookings sql-template viola",
       // sqlCrudoConTenant: el filtro escrito a mano cuenta como cumplimiento.
@@ -163,12 +164,13 @@ describe("lint-tenant — motor sobre fixtures", () => {
       "accesos.ts subscriptions query-builder viola",
       // joinSinFiltro: el JOIN genera su propio par (WR-01) y se visita ANTES
       // que el `.from()` interno, porque es el nodo más externo del encadenado.
-      "accesos.ts member_profiles query-builder viola",
+      // Tabla `schedules` (no `member_profiles`, fase 173-30): ver docblock.
+      "accesos.ts schedules query-builder viola",
       // joinSinFiltro: …y el `from` sigue produciendo el suyo.
       "accesos.ts bookings query-builder viola",
       // joinConTenantWhere: el mismo join, con el gimnasio nombrado en el
       // statement. Sumar los joins no inventa rojos donde el sitio cumple.
-      "accesos.ts member_profiles query-builder cumple",
+      "accesos.ts schedules query-builder cumple",
       "accesos.ts bookings query-builder cumple",
     ]);
   });
@@ -187,7 +189,8 @@ describe("lint-tenant — motor sobre fixtures", () => {
       // conExencionValida: comentario de bloque, tag pegado a la apertura.
       "exenciones.ts bookings query-builder viola exento:site",
       // conMotivoVacio: la anotación pelada es indistinguible de un olvido.
-      "exenciones.ts users query-builder viola",
+      // Tabla `subscription_plans` (no `users`, fase 173-30): ver docblock.
+      "exenciones.ts subscription_plans query-builder viola",
       // conComentarioDeLinea: el tag solo cuenta en un comentario de BLOQUE.
       "exenciones.ts attendance query-builder viola",
       // conExencionTrailing: la forma real de src/modules/tv/pairing.ts.
@@ -241,9 +244,9 @@ describe("lint-tenant — motor sobre fixtures", () => {
       // local, `alias()` en variable y las dos del join sin filtro.
       "accesos.ts attendance query-builder viola",
       "accesos.ts subscriptions query-builder viola",
-      "accesos.ts member_profiles query-builder viola",
+      "accesos.ts schedules query-builder viola",
       "accesos.ts bookings query-builder viola",
-      "exenciones.ts users query-builder viola",
+      "exenciones.ts subscription_plans query-builder viola",
       "exenciones.ts attendance query-builder viola",
     ]);
     expect(FIXTURE_RESULT.exemptions).toHaveLength(4);
@@ -520,17 +523,22 @@ function lintFixture(
 /**
  * Las 6 entradas que cubren exactamente las 8 violaciones del fixture.
  *
- * `exenciones.ts users` va ÚLTIMA a propósito: el test de `gainedEntries` usa
- * esta lista sin su último elemento como base, y así el mensaje del gate sigue
- * nombrando la misma entrada de siempre.
+ * `exenciones.ts subscription_plans` va ÚLTIMA a propósito: el test de
+ * `gainedEntries` usa esta lista sin su último elemento como base, y así el
+ * mensaje del gate sigue nombrando la misma entrada de siempre.
+ *
+ * Ni `member_profiles` ni `users` aparecen acá (fase 173-30): las dos entraron
+ * a `TENANT_STRICT_MODULES` con la adopción de `members`, y este `describe`
+ * prueba los gates D-13/D-14 aislado de D-15 — `schedules` y
+ * `subscription_plans` los reemplazan (ver docblocks de los fixtures).
  */
 const COBERTURA_COMPLETA: AllowlistEntry[] = [
   { file: "accesos.ts", table: "bookings" },
   { file: "accesos.ts", table: "attendance" },
   { file: "accesos.ts", table: "subscriptions" },
-  { file: "accesos.ts", table: "member_profiles" },
+  { file: "accesos.ts", table: "schedules" },
   { file: "exenciones.ts", table: "attendance" },
-  { file: "exenciones.ts", table: "users" },
+  { file: "exenciones.ts", table: "subscription_plans" },
 ];
 
 describe("lint-tenant — los cuatro gates del ratchet", () => {
@@ -547,9 +555,9 @@ describe("lint-tenant — los cuatro gates del ratchet", () => {
       "accesos.ts bookings",
       "accesos.ts attendance",
       "accesos.ts subscriptions",
-      "accesos.ts member_profiles",
+      "accesos.ts schedules",
       "accesos.ts bookings",
-      "exenciones.ts users",
+      "exenciones.ts subscription_plans",
       "exenciones.ts attendance",
     ]);
     expect(report.discrepancies).toBe(8);
@@ -589,15 +597,15 @@ describe("lint-tenant — los cuatro gates del ratchet", () => {
   });
 
   it("una entrada cuyo archivo ya NO viola cae en staleNoLongerViolating, y el reporte manda BORRARLA (D-14)", () => {
-    // `accesos.ts` accede a `users` con `tenantValues`: cumple, así que esa
+    // `accesos.ts` accede a `branches` con `tenantValues`: cumple, así que esa
     // entrada ya no tolera nada. Es el gate que FUERZA el achique al migrar.
     const report = lintFixture([
       ...COBERTURA_COMPLETA,
-      { file: "accesos.ts", table: "users" },
+      { file: "accesos.ts", table: "branches" },
     ]);
 
     expect(report.staleNoLongerViolating).toEqual([
-      { file: "accesos.ts", table: "users" },
+      { file: "accesos.ts", table: "branches" },
     ]);
     expect(report.staleMissingFile).toEqual([]);
     expect(report.discrepancies).toBe(1);
@@ -642,7 +650,7 @@ describe("lint-tenant — los cuatro gates del ratchet", () => {
     const report = lintFixture(COBERTURA_COMPLETA, { baseAllowlist: base });
 
     expect(report.gainedEntries).toEqual([
-      { file: "exenciones.ts", table: "users" },
+      { file: "exenciones.ts", table: "subscription_plans" },
     ]);
     expect(report.discrepancies).toBe(1);
     expect(formatReport(report)).toContain("la allowlist CRECIO");

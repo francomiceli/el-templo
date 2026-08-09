@@ -362,6 +362,10 @@ describe("TENANT_STRICT_MODULES (fase 170, D-05/D-06)", () => {
    * que convierte "sumar un módulo" en una decisión visible en el diff.
    *
    * Las 6 de `finance` son las del ROADMAP del milestone (D-05).
+   * Las 8 de `members` son el ancla `users`/`user_branches` + sus 6 tablas
+   * propias (D-01 de la fase 173): `audit_log`, `member_logins`,
+   * `member_notes`, `member_profiles`, `user_branches`, `user_sepa_details`,
+   * `user_status_history`, `users`.
    * `aura_balances` / `aura_transactions` NO están: las escribe gamification y
    * su throw llega con la adopción de ESE módulo.
    */
@@ -374,9 +378,19 @@ describe("TENANT_STRICT_MODULES (fase 170, D-05/D-06)", () => {
       "financial_transactions",
       "transaction_links",
     ],
+    members: [
+      "audit_log",
+      "member_logins",
+      "member_notes",
+      "member_profiles",
+      "user_branches",
+      "user_sepa_details",
+      "user_status_history",
+      "users",
+    ],
   };
 
-  it("declara exactamente los módulos ya adoptados, con sus tablas exactas (172-21: finance es el primero)", () => {
+  it("declara exactamente los módulos ya adoptados, con sus tablas exactas (172-21: finance; 173-30: members)", () => {
     const normalizar = (registro: Record<string, readonly string[]>) =>
       Object.fromEntries(
         Object.entries(registro).map(([modulo, tablas]) => [
