@@ -376,11 +376,22 @@ describe("lint-tenant — anclaje de exenciones contra los archivos reales", () 
     // El número: la 170 lo dejó en 87 (todas las tablas gym-owned con deuda que
     // el sentinel ve en runtime). La fase 172 adoptó `finance` y PAGÓ la deuda
     // de sus 6 tablas —vengan del módulo o de analytics, reports, subscriptions,
-    // members, coach o el backfill—, así que la lente ve 81. Bajar el piso acá
-    // es legítimo SOLO porque la baja está contabilizada tabla por tabla: la
-    // aserción de abajo verifica que las 6 que faltan son exactamente las
-    // strict. Una baja sin esa contrapartida es el punto ciego volviendo, y el
-    // arreglo sigue siendo isSchemaModule(), no este número.
+    // members, coach o el backfill—, así que la lente vio 81. La fase 173
+    // adoptó `members` y PAGÓ la deuda de sus 8 tablas: 7 (`member_profiles`,
+    // `user_status_history`, `user_branches`, `member_notes`,
+    // `user_sepa_details`, `member_logins`, `audit_log`) ya habían quedado sin
+    // un solo acceso vivo por el trabajo de los planes 173-01..29; la octava
+    // (`users`) traía dos accesos reales que ningún plan anterior había
+    // cerrado —`reports/service.ts:1530` (fragmento de búsqueda por nombre,
+    // resuelto con la MISMA exención que goal-plans/routes.ts:484: el AND con
+    // el `tenantWhere` del join real lo hace redundante) y
+    // `backfill-historical-payments.ts:386` (chequeo de pre-flight sin
+    // `tenantWhere`, bug real, cerrado acá)— así que la lente ve 73. Bajar el
+    // piso acá es legítimo SOLO porque la baja está contabilizada tabla por
+    // tabla: la aserción de abajo verifica que las 8 que faltan son
+    // exactamente las strict de `members`. Una baja sin esa contrapartida es
+    // el punto ciego volviendo, y el arreglo sigue siendo isSchemaModule(), no
+    // este número.
     const tablasConDeuda = new Set(REAL_RESULT.violations.map((v) => v.table));
 
     expect(
@@ -395,10 +406,10 @@ describe("lint-tenant — anclaje de exenciones contra los archivos reales", () 
     expect(
       tablasConDeuda.size,
       "con el punto ciego cerrado la lente estática veía 87 tablas gym-owned con deuda; la fase " +
-        "172 pagó la de las 6 de finance y quedan 81. Si este número baja SIN que la baja se " +
-        "explique por tablas que entraron a TENANT_STRICT_MODULES, alguna forma de import volvió " +
-        "a quedar afuera del lint.",
-    ).toBeGreaterThanOrEqual(81);
+        "172 pagó la de las 6 de finance (81) y la 173 pagó la de las 8 de members (73). Si este " +
+        "número baja SIN que la baja se explique por tablas que entraron a TENANT_STRICT_MODULES, " +
+        "alguna forma de import volvió a quedar afuera del lint.",
+    ).toBeGreaterThanOrEqual(73);
   });
 
   it("ve los accesos escritos por ALIAS LOCAL de variable (punto ciego CR-01)", () => {

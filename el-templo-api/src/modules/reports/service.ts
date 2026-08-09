@@ -1527,6 +1527,12 @@ export class ReportsService {
         .filter((t) => t.length > 0);
       const tokenConds = searchTokens.map((token) => {
         const pattern = `%${token}%`;
+        /* tenant-safe: fragmento de condicion por nombre/email, NO ejecuta
+           query propia — siempre se agrega a `conds` y viaja ANDed con el
+           `tenantWhere(schema.users, ctx)` del innerJoin de abajo (:1562) en
+           la MISMA query final (`.where(whereClause)`). El lint juzga por
+           statement y este `return` no ve ese AND en su propio texto — mismo
+           patron que goal-plans/routes.ts:484 (173-30, switch de members). */
         return sql`(${schema.users.firstName} LIKE ${pattern}
           OR ${schema.users.lastName} LIKE ${pattern}
           OR ${schema.users.email} LIKE ${pattern}

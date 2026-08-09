@@ -386,7 +386,12 @@ async function main(): Promise<void> {
     const existingMembers = await db
       .select({ id: users.id })
       .from(users)
-      .where(inArray(users.id, [...memberIds, ...recorderIds]));
+      .where(
+        and(
+          tenantWhere(users, ctx),
+          inArray(users.id, [...memberIds, ...recorderIds]),
+        ),
+      );
     const foundMemberIds = new Set(existingMembers.map((u) => u.id));
     const missingMembers = [...memberIds, ...recorderIds].filter(
       (id) => !foundMemberIds.has(id),
