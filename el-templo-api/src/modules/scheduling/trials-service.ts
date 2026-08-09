@@ -270,7 +270,9 @@ export class TrialService {
         isVirtual: schema.branches.isVirtual,
       })
       .from(schema.branches)
-      .where(eq(schema.branches.id, input.branchId))
+      .where(
+        and(tenantWhere(schema.branches, ctx), eq(schema.branches.id, input.branchId)),
+      )
       .limit(1);
     if (!branch) throw new NotFoundError("Sede no encontrada");
     if (branch.isVirtual) {
@@ -285,6 +287,7 @@ export class TrialService {
       .from(schema.bookings)
       .where(
         and(
+          tenantWhere(schema.bookings, ctx),
           eq(schema.bookings.memberId, userId),
           eq(schema.bookings.isTrial, true),
           ne(schema.bookings.status, "cancelado"),
@@ -304,6 +307,7 @@ export class TrialService {
       .from(schema.subscriptions)
       .where(
         and(
+          tenantWhere(schema.subscriptions, ctx),
           eq(schema.subscriptions.userId, userId),
           inArray(schema.subscriptions.status, [
             ...BLOCKING_SUBSCRIPTION_STATUSES,
@@ -321,6 +325,7 @@ export class TrialService {
     //    Skips the subscription check (freemium has none) by going through the
     //    dedicated trial validator instead of BookingService.reserve.
     const scheduleBranchId = await this.bookingService.validateTrialBookingDate(
+      ctx,
       input.scheduleId,
       input.date,
     );
@@ -369,6 +374,7 @@ export class TrialService {
         .from(schema.bookings)
         .where(
           and(
+            tenantWhere(schema.bookings, ctx),
             eq(schema.bookings.memberId, userId),
             eq(schema.bookings.scheduleId, input.scheduleId),
             eq(schema.bookings.bookingDate, input.date),
@@ -390,14 +396,16 @@ export class TrialService {
         return existing.id;
       }
 
-      const inserted = await tx.insert(schema.bookings).values({
-        memberId: userId,
-        scheduleId: input.scheduleId,
-        bookingDate: input.date,
-        status: "reservado",
-        isTrial: true,
-        source: "self_service", // D-18 attribution
-      });
+      const inserted = await tx.insert(schema.bookings).values(
+        tenantValues(ctx, {
+          memberId: userId,
+          scheduleId: input.scheduleId,
+          bookingDate: input.date,
+          status: "reservado",
+          isTrial: true,
+          source: "self_service", // D-18 attribution
+        }),
+      );
       return Number(inserted[0].insertId);
     });
 
@@ -457,6 +465,7 @@ export class TrialService {
       .from(schema.subscriptions)
       .where(
         and(
+          tenantWhere(schema.subscriptions, ctx),
           eq(schema.subscriptions.userId, userId),
           inArray(schema.subscriptions.status, [
             ...BLOCKING_SUBSCRIPTION_STATUSES,
@@ -491,6 +500,7 @@ export class TrialService {
       )
       .where(
         and(
+          tenantWhere(schema.bookings, ctx),
           eq(schema.bookings.memberId, userId),
           eq(schema.bookings.isTrial, true),
           ne(schema.bookings.status, "cancelado"),
@@ -584,6 +594,7 @@ export class TrialService {
       )
       .where(
         and(
+          tenantWhere(schema.bookings, ctx),
           eq(schema.bookings.memberId, userId),
           eq(schema.bookings.isTrial, true),
           ne(schema.bookings.status, "cancelado"),
@@ -678,7 +689,12 @@ export class TrialService {
         schema.branches,
         eq(schema.branches.id, schema.schedules.branchId),
       )
-      .where(eq(schema.schedules.id, input.scheduleId));
+      .where(
+        and(
+          tenantWhere(schema.schedules, ctx),
+          eq(schema.schedules.id, input.scheduleId),
+        ),
+      );
     if (!scheduleRow) throw new NotFoundError("Horario no encontrado");
 
     // 2. Validate user exists and is in 'prueba' state.
@@ -727,6 +743,7 @@ export class TrialService {
       .from(schema.bookings)
       .where(
         and(
+          tenantWhere(schema.bookings, ctx),
           eq(schema.bookings.memberId, input.userId),
           eq(schema.bookings.isTrial, true),
           inArray(schema.bookings.status, [...ACTIVE_TRIAL_STATUSES]),
@@ -784,6 +801,7 @@ export class TrialService {
         .from(schema.bookings)
         .where(
           and(
+            tenantWhere(schema.bookings, ctx),
             eq(schema.bookings.memberId, input.userId),
             eq(schema.bookings.scheduleId, input.scheduleId),
             eq(schema.bookings.bookingDate, input.bookingDate),
@@ -804,13 +822,15 @@ export class TrialService {
         return existing.id;
       }
 
-      const bookingInsert = await tx.insert(schema.bookings).values({
-        memberId: input.userId,
-        scheduleId: input.scheduleId,
-        bookingDate: input.bookingDate,
-        status: "reservado",
-        isTrial: true,
-      });
+      const bookingInsert = await tx.insert(schema.bookings).values(
+        tenantValues(ctx, {
+          memberId: input.userId,
+          scheduleId: input.scheduleId,
+          bookingDate: input.bookingDate,
+          status: "reservado",
+          isTrial: true,
+        }),
+      );
       return Number(bookingInsert[0].insertId);
     });
 
@@ -864,7 +884,12 @@ export class TrialService {
         isTrial: schema.bookings.isTrial,
       })
       .from(schema.bookings)
-      .where(eq(schema.bookings.id, input.bookingId));
+      .where(
+        and(
+          tenantWhere(schema.bookings, ctx),
+          eq(schema.bookings.id, input.bookingId),
+        ),
+      );
     if (!oldBooking) throw new NotFoundError("Reserva no encontrada");
     if (!oldBooking.isTrial) {
       throw new ConflictError("La reserva no es una sesión de prueba");
@@ -885,7 +910,12 @@ export class TrialService {
         schema.branches,
         eq(schema.branches.id, schema.schedules.branchId),
       )
-      .where(eq(schema.schedules.id, input.scheduleId));
+      .where(
+        and(
+          tenantWhere(schema.schedules, ctx),
+          eq(schema.schedules.id, input.scheduleId),
+        ),
+      );
     if (!scheduleRow) throw new NotFoundError("Horario no encontrado");
 
     // 3. Validate the alumno still exists, is in 'prueba' state, and pull its
@@ -980,6 +1010,7 @@ export class TrialService {
         .from(schema.bookings)
         .where(
           and(
+            tenantWhere(schema.bookings, ctx),
             eq(schema.bookings.memberId, userId),
             eq(schema.bookings.scheduleId, input.scheduleId),
             eq(schema.bookings.bookingDate, input.date),
@@ -1001,13 +1032,15 @@ export class TrialService {
         return existing.id;
       }
 
-      const inserted = await tx.insert(schema.bookings).values({
-        memberId: userId,
-        scheduleId: input.scheduleId,
-        bookingDate: input.date,
-        status: "reservado",
-        isTrial: true,
-      });
+      const inserted = await tx.insert(schema.bookings).values(
+        tenantValues(ctx, {
+          memberId: userId,
+          scheduleId: input.scheduleId,
+          bookingDate: input.date,
+          status: "reservado",
+          isTrial: true,
+        }),
+      );
       return Number(inserted[0].insertId);
     });
 
@@ -1049,7 +1082,9 @@ export class TrialService {
     const [branchRow] = await this.db
       .select({ tz: schema.branches.timezone })
       .from(schema.branches)
-      .where(eq(schema.branches.id, branchId))
+      .where(
+        and(tenantWhere(schema.branches, ctx), eq(schema.branches.id, branchId)),
+      )
       .limit(1);
     const today = todayInTz(branchRow?.tz ?? "America/Argentina/Buenos_Aires");
 

@@ -702,7 +702,7 @@ export class BookingService {
 
     // Per-date cancellation blocks admin adds too — the class won't run that
     // day, so seating someone into it would only create a phantom booking.
-    const exception = await getScheduleException(this.db, scheduleId, date);
+    const exception = await getScheduleException(ctx, scheduleId, date, this.db);
     if (exception) {
       throw new ConflictError(
         "La clase de este dia esta cancelada. Restaurala primero para agregar reservas.",
@@ -1734,8 +1734,13 @@ export class BookingService {
    * Loads the schedule row (timezone + dayOfWeek + branch) and delegates to
    * the shared assertDateWithinWindow helper. Throws NotFoundError if the slot
    * doesn't exist and BadRequestError for any invalid date.
+   *
+   * Fase 174 (D-02, plan 174-04): `ctx` PRIMERO — trials-service.ts ya lo trae
+   * (fase 173) y ahora lo propaga hasta acá, cerrando el deferral documentado
+   * en `assertDateWithinWindow` (ya no hace falta el fallback `isNotNull`).
    */
   async validateTrialBookingDate(
+    ctx: TenantContext,
     scheduleId: number,
     date: string,
   ): Promise<number> {
@@ -1750,6 +1755,7 @@ export class BookingService {
       scheduleRow,
       date,
       TRIAL_BOOKING_WINDOW_DAYS,
+      ctx,
     );
     // Phase 119 (CR-01): return the schedule's branch so the self-service trial
     // path can assert it matches the chosen branch (cross-sede coherence). The
@@ -1778,11 +1784,11 @@ export class BookingService {
     },
     date: string,
     windowDays: number,
-    // Fase 174 (D-02, plan 174-03): OPCIONAL — reserve() (member) ya lo trae;
-    // validateTrialBookingDate() (trials, sin ctx todavía) queda con el
-    // fallback isNotNull hasta su propia migración (fuera de 174-03, archivo
-    // trials-service.ts no está en files_modified de este plan).
-    ctx?: TenantContext,
+    // Fase 174 (D-02, plan 174-04): las dos llamadas (reserve() y
+    // validateTrialBookingDate()) ya traen ctx real — el fallback isNotNull
+    // provisional de la 174-03 se cierra acá (Pattern D solo aplica sin
+    // actor, y acá siempre lo hay).
+    ctx: TenantContext,
   ): Promise<void> {
     // "today" is evaluated in the branch's timezone so BCN and AR members each
     // see their own day boundary.
@@ -1813,9 +1819,7 @@ export class BookingService {
       .from(schema.branches)
       .where(
         and(
-          ctx
-            ? tenantWhere(schema.branches, ctx)
-            : isNotNull(schema.branches.tenantId),
+          tenantWhere(schema.branches, ctx),
           eq(schema.branches.id, scheduleRow.branchId),
         ),
       );
@@ -1826,9 +1830,7 @@ export class BookingService {
         .from(schema.holidays)
         .where(
           and(
-            ctx
-              ? tenantWhere(schema.holidays, ctx)
-              : isNotNull(schema.holidays.tenantId),
+            tenantWhere(schema.holidays, ctx),
             eq(schema.holidays.country, branch.country),
             eq(schema.holidays.date, date),
           ),
@@ -1843,7 +1845,12 @@ export class BookingService {
     // Per-date cancellation (schedule_exceptions): the slot runs every other
     // week but NOT on this date. Mirrors the inactiveReason UX — the admin's
     // reason (when present) is the message the member sees.
-    const exception = await getScheduleException(this.db, scheduleRow.id, date);
+    const exception = await getScheduleException(
+      ctx,
+      scheduleRow.id,
+      date,
+      this.db,
+    );
     if (exception) {
       throw new BadRequestError(
         exception.reason ?? "La clase de este dia fue cancelada",
