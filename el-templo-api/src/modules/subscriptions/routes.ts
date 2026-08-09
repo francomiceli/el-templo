@@ -143,7 +143,11 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
     "/plans/:planId",
     { schema: getPlanSchema },
     async (request, reply) => {
-      const plan = await subscriptionService.getPlanById(request.params.planId);
+      const ctx = assertTenant(request.scope, "subscriptions.getPlanById");
+      const plan = await subscriptionService.getPlanById(
+        ctx,
+        request.params.planId,
+      );
       if (!plan) {
         return reply
           .code(404)

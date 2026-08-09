@@ -255,6 +255,7 @@ export class BookingService {
     //    part of their fixed subscription_schedules. Fixed plans get 2 bonuses
     //    per 30-day window from subscription.startDate.
     const plan = await this.subscriptionService.getPlanById(
+      ctx,
       subscription.planId,
     );
     const isFixedPlan = plan?.bookingMode === "fixed";
@@ -2243,6 +2244,7 @@ export class BookingService {
     if (!subscription) return { applicable: false };
 
     const plan = await this.subscriptionService.getPlanById(
+      ctx,
       subscription.planId,
     );
     if (plan?.bookingMode !== "fixed") return { applicable: false };

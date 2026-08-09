@@ -276,8 +276,15 @@ export class SubscriptionService {
   /**
    * Read the explicit program list for a plan (D-06). Empty when the plan uses
    * grantsAllPrograms or grants no online program.
+   *
+   * Fase 174-02: `ctx: TenantContext | null` — compartido por la cadena de
+   * pricing (ctx real, todos sus call sites lo tienen) y por
+   * `activateScheduledSub` (ctx puede ser `null` cuando lo dispara
+   * `autoExpireSubscriptions`, fuera del alcance D-02/D-07 de este plan).
+   * `null` preserva el comportamiento previo (sin filtro) vía Pattern D.
    */
   private async getPlanProgramIds(
+    ctx: TenantContext | null,
     planId: number,
     tx?: TxHandle,
   ): Promise<number[]> {
@@ -285,7 +292,17 @@ export class SubscriptionService {
     const rows = await runner
       .select({ programId: schema.planPrograms.programId })
       .from(schema.planPrograms)
-      .where(eq(schema.planPrograms.subscriptionPlanId, planId));
+      .where(
+        ctx
+          ? and(
+              tenantWhere(schema.planPrograms, ctx),
+              eq(schema.planPrograms.subscriptionPlanId, planId),
+            )
+          : and(
+              isNotNull(schema.planPrograms.tenantId),
+              eq(schema.planPrograms.subscriptionPlanId, planId),
+            ),
+      );
     return rows.map((r) => r.programId);
   }
 
@@ -729,20 +746,38 @@ export class SubscriptionService {
       .where(and(...conditions))
       .orderBy(schema.subscriptionPlans.name);
 
-    return Promise.all(rows.map((r) => this.mapPlanRow(r)));
+    return Promise.all(rows.map((r) => this.mapPlanRow(ctx, r)));
   }
 
   /**
    * Get a single plan by ID. Returns null if not found.
+   *
+   * Fase 174-02: `ctx: TenantContext | null` — la cadena de pricing y el resto
+   * de sus ~20 call sites resuelven ctx real; el único `null` es
+   * `activateScheduledSub` cuando lo dispara `autoExpireSubscriptions`
+   * (D-02/D-07, fuera del alcance de este plan). Pattern D en el `where`.
    */
-  async getPlanById(planId: number): Promise<PlanDetail | null> {
+  async getPlanById(
+    ctx: TenantContext | null,
+    planId: number,
+  ): Promise<PlanDetail | null> {
     const [row] = await this.db
       .select()
       .from(schema.subscriptionPlans)
-      .where(eq(schema.subscriptionPlans.id, planId));
+      .where(
+        ctx
+          ? and(
+              tenantWhere(schema.subscriptionPlans, ctx),
+              eq(schema.subscriptionPlans.id, planId),
+            )
+          : and(
+              isNotNull(schema.subscriptionPlans.tenantId),
+              eq(schema.subscriptionPlans.id, planId),
+            ),
+      );
 
     if (!row) return null;
-    return this.mapPlanRow(row);
+    return this.mapPlanRow(ctx, row);
   }
 
   /**
@@ -815,7 +850,7 @@ export class SubscriptionService {
       return newId;
     });
 
-    const plan = await this.getPlanById(planId);
+    const plan = await this.getPlanById(ctx, planId);
     if (!plan) throw new Error("Failed to retrieve newly created plan");
     return plan;
   }
@@ -828,7 +863,7 @@ export class SubscriptionService {
     planId: number,
     input: UpdatePlanInput,
   ): Promise<PlanDetail | null> {
-    const existing = await this.getPlanById(planId);
+    const existing = await this.getPlanById(ctx, planId);
     if (!existing) return null;
 
     const updateData: Partial<typeof schema.subscriptionPlans.$inferInsert> =
@@ -867,7 +902,7 @@ export class SubscriptionService {
     const effectiveProgramIds =
       input.programIds !== undefined
         ? input.programIds
-        : await this.getPlanProgramIds(planId);
+        : await this.getPlanProgramIds(ctx, planId);
 
     this.assertPlanInvariants({
       planCategory:
@@ -918,7 +953,7 @@ export class SubscriptionService {
       }
     });
 
-    return this.getPlanById(planId);
+    return this.getPlanById(ctx, planId);
   }
 
   /**
@@ -928,7 +963,7 @@ export class SubscriptionService {
     ctx: TenantContext,
     planId: number,
   ): Promise<PlanDetail | null> {
-    const existing = await this.getPlanById(planId);
+    const existing = await this.getPlanById(ctx, planId);
     if (!existing) return null;
 
     await this.db
@@ -941,7 +976,7 @@ export class SubscriptionService {
         ),
       );
 
-    return this.getPlanById(planId);
+    return this.getPlanById(ctx, planId);
   }
 
   // ─── Subscription Queries ────────────────────────────────────────────────
@@ -1057,7 +1092,7 @@ export class SubscriptionService {
 
     if (rows.length === 0) return null;
 
-    return this.enrichWithScheduleIds(this.mapSubscriptionRow(rows[0]));
+    return this.enrichWithScheduleIds(ctx, this.mapSubscriptionRow(rows[0]));
   }
 
   /**
@@ -1246,8 +1281,14 @@ export class SubscriptionService {
 
   /**
    * Get a subscription by ID. Returns null if not found.
+   *
+   * Fase 174-02: `ctx: TenantContext` — todos los ~13 call sites (cadena de
+   * pricing + lifecycle: changeFixedSchedules, editSubscriptionStartDate,
+   * pauseSubscription, resumeSubscription, compensateDays, cancelSubscription)
+   * ya resuelven ctx real, ninguno lo llama con null.
    */
   async getSubscriptionById(
+    ctx: TenantContext,
     subscriptionId: number,
   ): Promise<SubscriptionDetail | null> {
     const rows = await this.db
@@ -1294,10 +1335,15 @@ export class SubscriptionService {
         schema.branches,
         eq(schema.branches.id, schema.subscriptions.branchId),
       )
-      .where(eq(schema.subscriptions.id, subscriptionId));
+      .where(
+        and(
+          tenantWhere(schema.subscriptions, ctx),
+          eq(schema.subscriptions.id, subscriptionId),
+        ),
+      );
 
     if (rows.length === 0) return null;
-    return this.enrichWithScheduleIds(this.mapSubscriptionRow(rows[0]));
+    return this.enrichWithScheduleIds(ctx, this.mapSubscriptionRow(rows[0]));
   }
 
   // ─── Subscription Lifecycle ──────────────────────────────────────────────
@@ -1335,7 +1381,7 @@ export class SubscriptionService {
     }
 
     // Validate plan exists and is active
-    const plan = await this.getPlanById(input.planId);
+    const plan = await this.getPlanById(ctx, input.planId);
     if (!plan) {
       throw new NotFoundError("Plan no encontrado");
     }
@@ -1359,7 +1405,12 @@ export class SubscriptionService {
     const [memberBranch] = await this.db
       .select({ isVirtual: schema.branches.isVirtual })
       .from(schema.branches)
-      .where(eq(schema.branches.id, member.branchId));
+      .where(
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, member.branchId),
+        ),
+      );
     if (
       plan.planCategory === "presencial" &&
       memberBranch?.isVirtual === true
@@ -1387,6 +1438,7 @@ export class SubscriptionService {
         )
         .where(
           and(
+            tenantWhere(schema.subscriptions, ctx),
             eq(schema.subscriptions.userId, userId),
             or(
               eq(schema.subscriptions.status, "active"),
@@ -1444,6 +1496,7 @@ export class SubscriptionService {
       )
       .where(
         and(
+          tenantWhere(schema.subscriptions, ctx),
           eq(schema.subscriptions.userId, userId),
           or(
             eq(schema.subscriptions.status, "active"),
@@ -1611,7 +1664,7 @@ export class SubscriptionService {
     this.assertScheduleSelectionForPlan(plan, input.scheduleIds ?? []);
 
     if (input.scheduleIds && input.scheduleIds.length > 0) {
-      await this.validateAnchorSet(input.scheduleIds, input.branchId, plan);
+      await this.validateAnchorSet(ctx, input.scheduleIds, input.branchId, plan);
     }
 
     // Calculate monthly class budget from plan configuration. Los planes con
@@ -1703,10 +1756,12 @@ export class SubscriptionService {
         let credits = 0;
         if (input.scheduleIds && input.scheduleIds.length > 0) {
           await tx.insert(schema.subscriptionSchedules).values(
-            input.scheduleIds.map((scheduleId) => ({
-              subscriptionId: newSubscriptionId,
-              scheduleId,
-            })),
+            input.scheduleIds.map((scheduleId) =>
+              tenantValues(ctx, {
+                subscriptionId: newSubscriptionId,
+                scheduleId,
+              }),
+            ),
           );
 
           if (this.bookingService) {
@@ -1730,7 +1785,12 @@ export class SubscriptionService {
             await tx
               .update(schema.subscriptions)
               .set({ replacementCredits: credits })
-              .where(eq(schema.subscriptions.id, newSubscriptionId));
+              .where(
+                and(
+                  tenantWhere(schema.subscriptions, ctx),
+                  eq(schema.subscriptions.id, newSubscriptionId),
+                ),
+              );
           }
         }
 
@@ -1739,7 +1799,12 @@ export class SubscriptionService {
           const [currentBranch] = await tx
             .select({ isVirtual: schema.branches.isVirtual })
             .from(schema.branches)
-            .where(eq(schema.branches.id, member.branchId));
+            .where(
+              and(
+                tenantWhere(schema.branches, ctx),
+                eq(schema.branches.id, member.branchId),
+              ),
+            );
 
           if (currentBranch?.isVirtual) {
             // Fase 173 (D-05/ADO-07, T-173-14-04): la sede de destino sale de
@@ -1794,7 +1859,7 @@ export class SubscriptionService {
         // Phase 156-03 (PLAN-03/D-07): project the plan's explicit program
         // list so enrollFromPlan can resolve all → list → nothing. The guard
         // gains `programIds.length > 0` so a list-only plan still enrolls.
-        const planProgramIds = await this.getPlanProgramIds(plan.id, tx);
+        const planProgramIds = await this.getPlanProgramIds(ctx, plan.id, tx);
         if (
           plan.linkedProgramId ||
           plan.grantsAllPrograms ||
@@ -1981,7 +2046,7 @@ export class SubscriptionService {
       },
     );
 
-    const subscription = await this.getSubscriptionById(subscriptionId);
+    const subscription = await this.getSubscriptionById(ctx, subscriptionId);
     if (!subscription) {
       throw new Error("Failed to retrieve newly created subscription");
     }
@@ -2038,7 +2103,7 @@ export class SubscriptionService {
       scheduleStartDates?: Record<number, string>;
     },
   ): Promise<SubscriptionDetail> {
-    const sub = await this.getSubscriptionById(subscriptionId);
+    const sub = await this.getSubscriptionById(ctx, subscriptionId);
     if (!sub) {
       throw new NotFoundError("Suscripcion no encontrada");
     }
@@ -2103,7 +2168,7 @@ export class SubscriptionService {
 
     // Validate the new schedule IDs: exist, active, branch policy, distinct days
     if (input.scheduleIds.length > 0) {
-      await this.validateAnchorSet(input.scheduleIds, sub.branchId, plan);
+      await this.validateAnchorSet(ctx, input.scheduleIds, sub.branchId, plan);
     }
 
     const oldScheduleIds = sub.scheduleIds;
@@ -2183,7 +2248,7 @@ export class SubscriptionService {
       "Fixed subscription schedules changed",
     );
 
-    const updated = await this.getSubscriptionById(subscriptionId);
+    const updated = await this.getSubscriptionById(ctx, subscriptionId);
     return updated!;
   }
 
@@ -2209,7 +2274,7 @@ export class SubscriptionService {
     newStartDate: string,
     actorId: number,
   ): Promise<SubscriptionDetail> {
-    const sub = await this.getSubscriptionById(subscriptionId);
+    const sub = await this.getSubscriptionById(ctx, subscriptionId);
     if (!sub) {
       throw new NotFoundError("Suscripcion no encontrada");
     }
@@ -2343,7 +2408,7 @@ export class SubscriptionService {
       "Subscription start date edited",
     );
 
-    const updated = await this.getSubscriptionById(subscriptionId);
+    const updated = await this.getSubscriptionById(ctx, subscriptionId);
     return updated!;
   }
 
@@ -2543,7 +2608,7 @@ export class SubscriptionService {
       await this.bookingService.cancelFutureBookings(ctx, sub.id);
     }
 
-    const updated = await this.getSubscriptionById(sub.id);
+    const updated = await this.getSubscriptionById(ctx, sub.id);
     if (!updated) throw new Error("Failed to retrieve updated subscription");
 
     this.log.info(
@@ -2631,7 +2696,7 @@ export class SubscriptionService {
     // (External helper, not transaction-aware — kept on this.db.)
     await populateBookings(ctx, this.db, this.log, sub.id);
 
-    const updated = await this.getSubscriptionById(sub.id);
+    const updated = await this.getSubscriptionById(ctx, sub.id);
     if (!updated) throw new Error("Failed to retrieve updated subscription");
 
     this.log.info(
@@ -2725,7 +2790,7 @@ export class SubscriptionService {
     input: { fromDate: string; toDate: string; reason: string },
     actorId: number,
   ): Promise<SubscriptionDetail> {
-    const sub = await this.getSubscriptionById(subscriptionId);
+    const sub = await this.getSubscriptionById(ctx, subscriptionId);
     if (!sub) {
       throw new NotFoundError("Suscripcion no encontrada");
     }
@@ -2865,7 +2930,7 @@ export class SubscriptionService {
       );
     }
 
-    const updated = await this.getSubscriptionById(subscriptionId);
+    const updated = await this.getSubscriptionById(ctx, subscriptionId);
     if (!updated) throw new Error("Failed to retrieve updated subscription");
 
     this.log.info(
@@ -2965,7 +3030,7 @@ export class SubscriptionService {
       await this.bookingService.cancelFutureBookings(ctx, resolvedSubId);
     }
 
-    const updated = await this.getSubscriptionById(resolvedSubId);
+    const updated = await this.getSubscriptionById(ctx, resolvedSubId);
     if (!updated) throw new Error("Failed to retrieve updated subscription");
 
     this.log.info(
@@ -3297,12 +3362,12 @@ export class SubscriptionService {
       throw new NotFoundError("No se encontro suscripcion activa o pausada");
     }
 
-    const currentPlan = await this.getPlanById(sub.planId);
+    const currentPlan = await this.getPlanById(ctx, sub.planId);
     if (!currentPlan) {
       throw new NotFoundError("Plan actual no encontrado");
     }
 
-    const targetPlan = await this.getPlanById(targetPlanId);
+    const targetPlan = await this.getPlanById(ctx, targetPlanId);
     if (!targetPlan) {
       throw new NotFoundError("Plan destino no encontrado");
     }
@@ -3417,7 +3482,12 @@ export class SubscriptionService {
     input: AssignPlanInput,
     adminId: number,
   ): Promise<SubscriptionDetail> {
-    // Cancel any scheduled successor before proceeding
+    // Cancel any scheduled successor before proceeding.
+    // Fase 174-02 (Rule 1 — T-174-02-T): esta update corría ANTES de la
+    // primera validación de tenant sobre `userId` (getMemberSubscription más
+    // abajo). Sin `tenantWhere`, un userId de OTRO gimnasio cancelaba su
+    // propia sub programada aunque el resto del método terminara en 404 —
+    // tampering cross-tenant real, no solo lectura.
     await this.db
       .update(schema.subscriptions)
       .set({
@@ -3427,6 +3497,7 @@ export class SubscriptionService {
       })
       .where(
         and(
+          tenantWhere(schema.subscriptions, ctx),
           eq(schema.subscriptions.userId, userId),
           eq(schema.subscriptions.status, "scheduled"),
         ),
@@ -3454,12 +3525,12 @@ export class SubscriptionService {
     }
 
     // Get current and target plans for upgrade/downgrade validation
-    const currentPlan = await this.getPlanById(existingSub.planId);
+    const currentPlan = await this.getPlanById(ctx, existingSub.planId);
     if (!currentPlan) {
       throw new NotFoundError("Plan actual no encontrado");
     }
 
-    const targetPlan = await this.getPlanById(input.planId);
+    const targetPlan = await this.getPlanById(ctx, input.planId);
     if (!targetPlan) {
       throw new NotFoundError("Plan destino no encontrado");
     }
@@ -3591,7 +3662,12 @@ export class SubscriptionService {
           ? `${existingSub.notes} | Cambiado a ${targetPlan.name}`
           : `Cambiado a ${targetPlan.name}`,
       })
-      .where(eq(schema.subscriptions.id, existingSub.id));
+      .where(
+        and(
+          tenantWhere(schema.subscriptions, ctx),
+          eq(schema.subscriptions.id, existingSub.id),
+        ),
+      );
 
     // Cancel future bookings for the old subscription
     if (this.bookingService) {
@@ -3616,6 +3692,7 @@ export class SubscriptionService {
           );
         }
         await this.validateAnchorSet(
+          ctx,
           input.scheduleIds,
           input.branchId,
           targetPlan,
@@ -3658,42 +3735,40 @@ export class SubscriptionService {
       // with the new sub on failure. External helpers (bookingService,
       // transactionService) stay on this.db (out of scope per WARNING 9).
       //
-      // DEUDA CON DUEÑO — FASE 174 (D-02/D-13): este insert NO usa
-      // `tenantValues`. D-13 (fase 173) acotó el arreglo de `subscriptions` al
-      // insert de `assignPlan` (el único que bloquea el alta de un gimnasio
-      // nuevo); este y los otros 3 inserts del archivo (`changePlanAfterCurrent`,
-      // `renewSubscription`, `bulkMigratePlan`) migran junto con el resto del
-      // módulo en la 174. No ensanchar el alcance acá.
+      // Fase 174-02: DEUDA de `:3547` (D-02/D-13) saldada — `tenantValues(ctx, {...})`,
+      // mismo idioma que el insert ya migrado de `assignPlan`.
       const { newSubscriptionId } = await this.db.transaction(async (tx) => {
-        const insResult = await tx.insert(schema.subscriptions).values({
-          userId,
-          planId: input.planId,
-          branchId: input.branchId,
-          status: "active",
-          startDate: input.startDate,
-          endDate: endDateStr,
-          pricePaid: netAmount,
-          priceTypeApplied: resolvedPriceType,
-          priceOverrideAmount: resolvedOverrideAmount,
-          priceOverrideReason: resolvedOverrideReason,
-          // Se chequea el override TIPEADO por el admin (input), no el
-          // resolved: boarding pass / prorrateo pueden dejar netAmount=0
-          // sin que la membresía sea regalada.
-          membershipKind:
-            input.priceOverrideAmount === 0 ? "bonificada" : "paga",
-          referralDiscountPercent,
-          referralDiscountAmount,
-          boardingPassUsed,
-          classesRemaining,
-          classesBudget: classesRemaining,
-          previousSubscriptionId: existingSub.id,
-          notes: input.notes ?? null,
-          // Propagate the new plan's currency onto the subscription. Cross-
-          // country transitions are rejected above, but this is an explicit
-          // grep-visible marker that currency follows the plan.
-          currency: newPlan.currency,
-          priceRegularSnapshot: newPlan.priceRegular,
-        });
+        const insResult = await tx.insert(schema.subscriptions).values(
+          tenantValues(ctx, {
+            userId,
+            planId: input.planId,
+            branchId: input.branchId,
+            status: "active",
+            startDate: input.startDate,
+            endDate: endDateStr,
+            pricePaid: netAmount,
+            priceTypeApplied: resolvedPriceType,
+            priceOverrideAmount: resolvedOverrideAmount,
+            priceOverrideReason: resolvedOverrideReason,
+            // Se chequea el override TIPEADO por el admin (input), no el
+            // resolved: boarding pass / prorrateo pueden dejar netAmount=0
+            // sin que la membresía sea regalada.
+            membershipKind:
+              input.priceOverrideAmount === 0 ? "bonificada" : "paga",
+            referralDiscountPercent,
+            referralDiscountAmount,
+            boardingPassUsed,
+            classesRemaining,
+            classesBudget: classesRemaining,
+            previousSubscriptionId: existingSub.id,
+            notes: input.notes ?? null,
+            // Propagate the new plan's currency onto the subscription. Cross-
+            // country transitions are rejected above, but this is an explicit
+            // grep-visible marker that currency follows the plan.
+            currency: newPlan.currency,
+            priceRegularSnapshot: newPlan.priceRegular,
+          }),
+        );
 
         const subId = Number(insResult[0].insertId);
 
@@ -3705,10 +3780,12 @@ export class SubscriptionService {
           input.scheduleIds.length > 0
         ) {
           await tx.insert(schema.subscriptionSchedules).values(
-            input.scheduleIds.map((scheduleId) => ({
-              subscriptionId: subId,
-              scheduleId,
-            })),
+            input.scheduleIds.map((scheduleId) =>
+              tenantValues(ctx, {
+                subscriptionId: subId,
+                scheduleId,
+              }),
+            ),
           );
 
           if (this.bookingService) {
@@ -3729,7 +3806,12 @@ export class SubscriptionService {
             await tx
               .update(schema.subscriptions)
               .set({ replacementCredits: credits })
-              .where(eq(schema.subscriptions.id, subId));
+              .where(
+                and(
+                  tenantWhere(schema.subscriptions, ctx),
+                  eq(schema.subscriptions.id, subId),
+                ),
+              );
           }
         }
 
@@ -3743,6 +3825,7 @@ export class SubscriptionService {
         // Phase 156-03 (PLAN-03/D-07): project the target plan's program list
         // so enrollFromPlan resolves all → list → nothing; widen the guard.
         const targetPlanProgramIds = await this.getPlanProgramIds(
+          ctx,
           targetPlan.id,
           tx,
         );
@@ -3825,7 +3908,12 @@ export class SubscriptionService {
         const [currentBranch] = await this.db
           .select({ isVirtual: schema.branches.isVirtual })
           .from(schema.branches)
-          .where(eq(schema.branches.id, memberForMigration.branchId));
+          .where(
+            and(
+              tenantWhere(schema.branches, ctx),
+              eq(schema.branches.id, memberForMigration.branchId),
+            ),
+          );
 
         if (currentBranch?.isVirtual) {
           // Fase 173 (D-05/ADO-07, T-173-14-04): mismo idioma que el sitio
@@ -3863,7 +3951,7 @@ export class SubscriptionService {
         }
       }
 
-      const newSub = await this.getSubscriptionById(newSubscriptionId);
+      const newSub = await this.getSubscriptionById(ctx, newSubscriptionId);
       if (!newSub) {
         throw new Error(
           "Failed to retrieve new subscription after plan change",
@@ -3893,7 +3981,12 @@ export class SubscriptionService {
           status: oldStatus,
           notes: existingSub.notes,
         })
-        .where(eq(schema.subscriptions.id, existingSub.id));
+        .where(
+          and(
+            tenantWhere(schema.subscriptions, ctx),
+            eq(schema.subscriptions.id, existingSub.id),
+          ),
+        );
       throw err;
     }
   }
@@ -3916,6 +4009,7 @@ export class SubscriptionService {
       .from(schema.subscriptions)
       .where(
         and(
+          tenantWhere(schema.subscriptions, ctx),
           eq(schema.subscriptions.userId, userId),
           eq(schema.subscriptions.status, "scheduled"),
         ),
@@ -3952,7 +4046,7 @@ export class SubscriptionService {
     }
 
     // Validate target plan
-    const targetPlan = await this.getPlanById(input.planId);
+    const targetPlan = await this.getPlanById(ctx, input.planId);
     if (!targetPlan) {
       throw new NotFoundError("Plan destino no encontrado");
     }
@@ -3996,6 +4090,7 @@ export class SubscriptionService {
         );
       }
       await this.validateAnchorSet(
+        ctx,
         input.scheduleIds,
         input.branchId,
         targetPlan,
@@ -4130,34 +4225,36 @@ export class SubscriptionService {
     // (recomputeUserStatus is defensive here — scheduled subs don't change
     // user.status, but consistency matters.)
     //
-    // DEUDA CON DUEÑO — FASE 174 (D-02/D-13): sin `tenantValues`, ver el
-    // comentario gemelo de `changePlanNow` más arriba — mismo acote.
+    // Fase 174-02: DEUDA de `:4018` (D-02/D-13) saldada — `tenantValues(ctx, {...})`,
+    // mismo idioma que `changePlanNow`/`assignPlan`.
     const { newSubscriptionId } = await this.db.transaction(async (tx) => {
-      const insResult = await tx.insert(schema.subscriptions).values({
-        userId,
-        planId: input.planId,
-        branchId: input.branchId,
-        status: "scheduled",
-        startDate: newStartDate,
-        endDate: newEndDate,
-        pricePaid,
-        priceTypeApplied,
-        auraDiscount,
-        auraDiscountPercent,
-        referralDiscountPercent,
-        referralDiscountAmount,
-        boardingPassUsed,
-        priceOverrideAmount,
-        priceOverrideReason,
-        // Override a $0 = membresía regalada (ver assignPlan/changePlanNow).
-        membershipKind: priceOverrideAmount === 0 ? "bonificada" : "paga",
-        classesRemaining,
-        classesBudget: classesRemaining,
-        previousSubscriptionId: currentSub.id,
-        notes: input.notes ?? null,
-        currency: targetPlan.currency,
-        priceRegularSnapshot: targetPlan.priceRegular,
-      });
+      const insResult = await tx.insert(schema.subscriptions).values(
+        tenantValues(ctx, {
+          userId,
+          planId: input.planId,
+          branchId: input.branchId,
+          status: "scheduled",
+          startDate: newStartDate,
+          endDate: newEndDate,
+          pricePaid,
+          priceTypeApplied,
+          auraDiscount,
+          auraDiscountPercent,
+          referralDiscountPercent,
+          referralDiscountAmount,
+          boardingPassUsed,
+          priceOverrideAmount,
+          priceOverrideReason,
+          // Override a $0 = membresía regalada (ver assignPlan/changePlanNow).
+          membershipKind: priceOverrideAmount === 0 ? "bonificada" : "paga",
+          classesRemaining,
+          classesBudget: classesRemaining,
+          previousSubscriptionId: currentSub.id,
+          notes: input.notes ?? null,
+          currency: targetPlan.currency,
+          priceRegularSnapshot: targetPlan.priceRegular,
+        }),
+      );
 
       const subId = Number(insResult[0].insertId);
 
@@ -4169,10 +4266,12 @@ export class SubscriptionService {
         input.scheduleIds.length > 0
       ) {
         await tx.insert(schema.subscriptionSchedules).values(
-          input.scheduleIds.map((scheduleId) => ({
-            subscriptionId: subId,
-            scheduleId,
-          })),
+          input.scheduleIds.map((scheduleId) =>
+            tenantValues(ctx, {
+              subscriptionId: subId,
+              scheduleId,
+            }),
+          ),
         );
 
         if (this.bookingService) {
@@ -4192,7 +4291,12 @@ export class SubscriptionService {
           await tx
             .update(schema.subscriptions)
             .set({ replacementCredits: credits })
-            .where(eq(schema.subscriptions.id, subId));
+            .where(
+              and(
+                tenantWhere(schema.subscriptions, ctx),
+                eq(schema.subscriptions.id, subId),
+              ),
+            );
         }
       }
 
@@ -4231,7 +4335,7 @@ export class SubscriptionService {
       referralDiscountAmount ?? 0,
     );
 
-    const newSub = await this.getSubscriptionById(newSubscriptionId);
+    const newSub = await this.getSubscriptionById(ctx, newSubscriptionId);
     if (!newSub) {
       throw new Error(
         "Failed to retrieve scheduled subscription after plan change",
@@ -4273,6 +4377,7 @@ export class SubscriptionService {
       .from(schema.subscriptions)
       .where(
         and(
+          tenantWhere(schema.subscriptions, ctx),
           eq(schema.subscriptions.userId, userId),
           eq(schema.subscriptions.status, "scheduled"),
         ),
@@ -4314,6 +4419,7 @@ export class SubscriptionService {
         .from(schema.subscriptions)
         .where(
           and(
+            tenantWhere(schema.subscriptions, ctx),
             eq(schema.subscriptions.id, input.subscriptionId),
             eq(schema.subscriptions.userId, userId),
           ),
@@ -4328,6 +4434,7 @@ export class SubscriptionService {
         .from(schema.subscriptions)
         .where(
           and(
+            tenantWhere(schema.subscriptions, ctx),
             eq(schema.subscriptions.userId, userId),
             or(
               eq(schema.subscriptions.status, "active"),
@@ -4347,7 +4454,7 @@ export class SubscriptionService {
     }
 
     // Get the plan to know durationDays
-    const plan = await this.getPlanById(currentSub.planId);
+    const plan = await this.getPlanById(ctx, currentSub.planId);
     if (!plan) {
       throw new NotFoundError("Plan no encontrado");
     }
@@ -4380,6 +4487,7 @@ export class SubscriptionService {
       this.assertScheduleSelectionForPlan(plan, input.scheduleIds);
       if (input.scheduleIds.length > 0) {
         await this.validateAnchorSet(
+          ctx,
           input.scheduleIds,
           currentSub.branchId,
           plan,
@@ -4549,7 +4657,12 @@ export class SubscriptionService {
         const [virtualBranch] = await this.db
           .select({ id: schema.branches.id })
           .from(schema.branches)
-          .where(eq(schema.branches.name, "Templo Online"))
+          .where(
+            and(
+              tenantWhere(schema.branches, ctx),
+              eq(schema.branches.name, "Templo Online"),
+            ),
+          )
           .limit(1);
         if (!virtualBranch) {
           throw new Error(
@@ -4589,46 +4702,52 @@ export class SubscriptionService {
         await tx
           .update(schema.subscriptions)
           .set({ status: "completed" })
-          .where(eq(schema.subscriptions.id, currentSub.id));
+          .where(
+            and(
+              tenantWhere(schema.subscriptions, ctx),
+              eq(schema.subscriptions.id, currentSub.id),
+            ),
+          );
       }
 
       // Create new subscription record for the new period. Currency is
       // inherited from the existing plan — renewals never change plan/country.
       //
-      // DEUDA CON DUEÑO — FASE 174 (D-02/D-13): sin `tenantValues`, ver el
-      // comentario gemelo de `changePlanNow` (assignPlan es el único acotado
-      // a esta fase).
-      const insResult = await tx.insert(schema.subscriptions).values({
-        userId,
-        planId: currentSub.planId,
-        branchId: currentSub.branchId,
-        status: newStatus,
-        startDate: newStartDate,
-        endDate: newEndDate,
-        pricePaid: renewalPrice,
-        priceTypeApplied: renewalPriceType,
-        priceOverrideAmount: renewalOverrideAmount,
-        priceOverrideReason: renewalOverrideReason,
-        // Herencia de la etiqueta al renovar: override explícito a $0 mantiene
-        // 'staff' (corrección manual) o cae a 'bonificada'; renovación gratis
-        // implícita (precio heredado 0, p.ej. subs del import CSV) conserva la
-        // etiqueta previa; precio real → 'paga'.
-        membershipKind:
-          renewalOverrideAmount === 0
-            ? currentSub.membershipKind === "staff"
-              ? "staff"
-              : "bonificada"
-            : renewalPrice === 0
-              ? currentSub.membershipKind
-              : "paga",
-        referralDiscountPercent,
-        referralDiscountAmount,
-        classesRemaining: periodBudget,
-        classesBudget: periodBudget,
-        previousSubscriptionId: currentSub.id,
-        currency: plan.currency,
-        priceRegularSnapshot: plan.priceRegular,
-      });
+      // Fase 174-02: DEUDA de `:4482` (D-02/D-13) saldada — `tenantValues(ctx, {...})`,
+      // mismo idioma que `changePlanNow`/`changePlanAfterCurrent`/`assignPlan`.
+      const insResult = await tx.insert(schema.subscriptions).values(
+        tenantValues(ctx, {
+          userId,
+          planId: currentSub.planId,
+          branchId: currentSub.branchId,
+          status: newStatus,
+          startDate: newStartDate,
+          endDate: newEndDate,
+          pricePaid: renewalPrice,
+          priceTypeApplied: renewalPriceType,
+          priceOverrideAmount: renewalOverrideAmount,
+          priceOverrideReason: renewalOverrideReason,
+          // Herencia de la etiqueta al renovar: override explícito a $0 mantiene
+          // 'staff' (corrección manual) o cae a 'bonificada'; renovación gratis
+          // implícita (precio heredado 0, p.ej. subs del import CSV) conserva la
+          // etiqueta previa; precio real → 'paga'.
+          membershipKind:
+            renewalOverrideAmount === 0
+              ? currentSub.membershipKind === "staff"
+                ? "staff"
+                : "bonificada"
+              : renewalPrice === 0
+                ? currentSub.membershipKind
+                : "paga",
+          referralDiscountPercent,
+          referralDiscountAmount,
+          classesRemaining: periodBudget,
+          classesBudget: periodBudget,
+          previousSubscriptionId: currentSub.id,
+          currency: plan.currency,
+          priceRegularSnapshot: plan.priceRegular,
+        }),
+      );
 
       const subId = Number(insResult[0].insertId);
 
@@ -4646,16 +4765,21 @@ export class SubscriptionService {
           .select({ scheduleId: schema.subscriptionSchedules.scheduleId })
           .from(schema.subscriptionSchedules)
           .where(
-            eq(schema.subscriptionSchedules.subscriptionId, currentSub.id),
+            and(
+              tenantWhere(schema.subscriptionSchedules, ctx),
+              eq(schema.subscriptionSchedules.subscriptionId, currentSub.id),
+            ),
           );
         scheduleIds = scheduleRows.map((r) => r.scheduleId);
       }
       if (scheduleIds.length > 0) {
         await tx.insert(schema.subscriptionSchedules).values(
-          scheduleIds.map((scheduleId) => ({
-            subscriptionId: subId,
-            scheduleId,
-          })),
+          scheduleIds.map((scheduleId) =>
+            tenantValues(ctx, {
+              subscriptionId: subId,
+              scheduleId,
+            }),
+          ),
         );
 
         if (this.bookingService) {
@@ -4679,7 +4803,12 @@ export class SubscriptionService {
         await tx
           .update(schema.subscriptions)
           .set({ replacementCredits: credits })
-          .where(eq(schema.subscriptions.id, subId));
+          .where(
+            and(
+              tenantWhere(schema.subscriptions, ctx),
+              eq(schema.subscriptions.id, subId),
+            ),
+          );
       }
 
       // Phase 112-02: program enrollment on renewal flows through
@@ -4695,7 +4824,7 @@ export class SubscriptionService {
       // legacy shouldEnroll guard still protects an in-flight linked-program
       // enrollment (currentWeek progress); list/bundle grants dedupe inside
       // enrollFromPlan so re-enrolling is a safe no-op.
-      const renewPlanProgramIds = await this.getPlanProgramIds(plan.id, tx);
+      const renewPlanProgramIds = await this.getPlanProgramIds(ctx, plan.id, tx);
       if (
         plan.linkedProgramId ||
         plan.grantsAllPrograms ||
@@ -4778,7 +4907,7 @@ export class SubscriptionService {
       referralDiscountAmount ?? 0,
     );
 
-    const newSub = await this.getSubscriptionById(newSubscriptionId);
+    const newSub = await this.getSubscriptionById(ctx, newSubscriptionId);
     if (!newSub) {
       throw new Error("Failed to retrieve renewed subscription");
     }
@@ -4812,7 +4941,7 @@ export class SubscriptionService {
     adminId: number,
   ): Promise<BulkMigrateResult> {
     // Validate target plan exists and is not archived
-    const targetPlan = await this.getPlanById(input.targetPlanId);
+    const targetPlan = await this.getPlanById(ctx, input.targetPlanId);
     if (!targetPlan) {
       throw new NotFoundError("Plan destino no encontrado");
     }
@@ -4955,7 +5084,7 @@ export class SubscriptionService {
     if (!member) throw new NotFoundError("Miembro no encontrado");
 
     // Validate plan
-    const plan = await this.getPlanById(planId);
+    const plan = await this.getPlanById(ctx, planId);
     if (!plan) throw new NotFoundError("Plan no encontrado");
 
     // Route the preview through the single server-side gate (WR-01, D-04): with
@@ -5229,8 +5358,8 @@ export class SubscriptionService {
     if (prevSub.planId === scheduled.planId) return;
 
     // Different plan: handle program enrollment + branch migration
-    const prevPlan = await this.getPlanById(prevSub.planId);
-    const newPlan = await this.getPlanById(scheduled.planId);
+    const prevPlan = await this.getPlanById(ctx, prevSub.planId);
+    const newPlan = await this.getPlanById(ctx, scheduled.planId);
     if (!prevPlan || !newPlan) return;
 
     // Phase 112-02: program enrollment transitions on scheduled plan-change
@@ -5266,7 +5395,7 @@ export class SubscriptionService {
     // enrollFromPlan resolves all → list → nothing; widen the guard. Runs on
     // this.db (no tx — preserves the legacy best-effort semantics of this
     // activation path). Dedupe inside enrollFromPlan keeps it idempotent.
-    const newPlanProgramIds = await this.getPlanProgramIds(newPlan.id);
+    const newPlanProgramIds = await this.getPlanProgramIds(ctx, newPlan.id);
     if (
       (newPlan.linkedProgramId &&
         newPlan.linkedProgramId !== prevPlan.linkedProgramId) ||
@@ -5498,14 +5627,20 @@ export class SubscriptionService {
 
   /**
    * Map a raw plan row to PlanListItem, resolving goalPlanType from linked program.
+   *
+   * Fase 174-02: `ctx: TenantContext | null` — pass-through desde `getPlanById`
+   * (único caller que puede traer `null`, vía `activateScheduledSub`) y
+   * `listPlans` (ctx real). `resolveGoalPlanType` NO se toca acá: lee
+   * `programs`, tabla fuera de la lista de 174-02 (D-02, deuda pre-existente).
    */
   private async mapPlanRow(
+    ctx: TenantContext | null,
     row: typeof schema.subscriptionPlans.$inferSelect,
   ): Promise<PlanListItem> {
     const goalPlanType = await this.resolveGoalPlanType(
       row.linkedProgramId ?? null,
     );
-    const programIds = await this.getPlanProgramIds(row.id);
+    const programIds = await this.getPlanProgramIds(ctx, row.id);
     return {
       id: row.id,
       name: row.name,
@@ -5556,7 +5691,7 @@ export class SubscriptionService {
     }
 
     // Get the plan to determine booking mode and weekly limit
-    const plan = await this.getPlanById(sub.planId);
+    const plan = await this.getPlanById(ctx, sub.planId);
     if (!plan) {
       throw new NotFoundError("Plan no encontrado");
     }
@@ -5590,7 +5725,7 @@ export class SubscriptionService {
     const classesUsedThisWeek = Number(result?.count ?? 0);
 
     // Get scheduleIds and slot details from subscription_schedules
-    const scheduleIds = await this.getSubscriptionScheduleIds(sub.id);
+    const scheduleIds = await this.getSubscriptionScheduleIds(ctx, sub.id);
     const scheduleSlots =
       scheduleIds.length > 0
         ? await this.getScheduleSlotDetails(scheduleIds)
@@ -5613,12 +5748,18 @@ export class SubscriptionService {
    * Fetch scheduleIds from subscription_schedules for a given subscription.
    */
   private async getSubscriptionScheduleIds(
+    ctx: TenantContext,
     subscriptionId: number,
   ): Promise<number[]> {
     const rows = await this.db
       .select({ scheduleId: schema.subscriptionSchedules.scheduleId })
       .from(schema.subscriptionSchedules)
-      .where(eq(schema.subscriptionSchedules.subscriptionId, subscriptionId));
+      .where(
+        and(
+          tenantWhere(schema.subscriptionSchedules, ctx),
+          eq(schema.subscriptionSchedules.subscriptionId, subscriptionId),
+        ),
+      );
     return rows.map((r) => r.scheduleId);
   }
 
@@ -5655,11 +5796,15 @@ export class SubscriptionService {
 
   /**
    * Enrich a mapped SubscriptionDetail with scheduleIds from subscription_schedules.
+   *
+   * Fase 174-02: `ctx: TenantContext` — sus dos callers (`getMemberSubscription`,
+   * `getSubscriptionById`) siempre resuelven ctx real.
    */
   private async enrichWithScheduleIds(
+    ctx: TenantContext,
     detail: SubscriptionDetail,
   ): Promise<SubscriptionDetail> {
-    const scheduleIds = await this.getSubscriptionScheduleIds(detail.id);
+    const scheduleIds = await this.getSubscriptionScheduleIds(ctx, detail.id);
     return { ...detail, scheduleIds };
   }
 
@@ -5822,7 +5967,7 @@ export class SubscriptionService {
     input: CreatePromoInput,
   ): Promise<PromoListItem> {
     // Validate subscription plan exists
-    const plan = await this.getPlanById(input.subscriptionPlanId);
+    const plan = await this.getPlanById(ctx, input.subscriptionPlanId);
     if (!plan) {
       throw new NotFoundError("Plan de suscripcion no encontrado");
     }
@@ -5896,7 +6041,7 @@ export class SubscriptionService {
     }
 
     if (input.subscriptionPlanId) {
-      const plan = await this.getPlanById(input.subscriptionPlanId);
+      const plan = await this.getPlanById(ctx, input.subscriptionPlanId);
       if (!plan) {
         throw new NotFoundError("Plan de suscripcion no encontrado");
       }
@@ -6031,7 +6176,11 @@ export class SubscriptionService {
    *
    * Returns the loaded schedule rows so callers don't re-query.
    */
+  // Fase 174-02: `ctx: TenantContext` — sus 5 call sites (assignPlan,
+  // changeFixedSchedules, changePlanNow, changePlanAfterCurrent,
+  // renewSubscription) ya resuelven ctx real.
   private async validateAnchorSet(
+    ctx: TenantContext,
     scheduleIds: number[],
     anchorBranchId: number,
     plan: { multiBranch: boolean },
@@ -6044,7 +6193,12 @@ export class SubscriptionService {
         dayOfWeek: schema.schedules.dayOfWeek,
       })
       .from(schema.schedules)
-      .where(inArray(schema.schedules.id, scheduleIds));
+      .where(
+        and(
+          tenantWhere(schema.schedules, ctx),
+          inArray(schema.schedules.id, scheduleIds),
+        ),
+      );
 
     if (scheduleRows.length !== scheduleIds.length) {
       const foundIds = new Set(scheduleRows.map((s) => s.id));
@@ -6080,7 +6234,12 @@ export class SubscriptionService {
           country: schema.branches.country,
         })
         .from(schema.branches)
-        .where(inArray(schema.branches.id, branchIds));
+        .where(
+          and(
+            tenantWhere(schema.branches, ctx),
+            inArray(schema.branches.id, branchIds),
+          ),
+        );
 
       const anchorCountry = branchRows.find(
         (b) => b.id === anchorBranchId,

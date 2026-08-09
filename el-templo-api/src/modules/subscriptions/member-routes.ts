@@ -182,10 +182,10 @@ export const memberSubscriptionRoutes: FastifyPluginAsync = async (fastify) => {
     "/me/especial-pass",
     { schema: especialPassSchema },
     async (request) => {
-      // Fase 174 (Task 3, D-01): resuelve el actor acá aunque
-      // `getMemberSubscriptions`/`getPlanById` (D-07/FRONTERA 174-02/174-06)
-      // todavía no lo exijan — deja el punto de entrada establecido.
-      assertTenant(request.scope, "subscriptions.especialPass");
+      // Fase 174-02: `getPlanById` ya exige ctx (D-06 golden). `getMemberSubscriptions`
+      // (D-07/FRONTERA 174-06) sigue crudo — deja ese punto de entrada establecido
+      // pero sin threadear todavía.
+      const ctx = assertTenant(request.scope, "subscriptions.especialPass");
       const subs = await subscriptionService.getMemberSubscriptions(
         request.user.userId,
       );
@@ -200,7 +200,7 @@ export const memberSubscriptionRoutes: FastifyPluginAsync = async (fastify) => {
         return { hasPass: false };
       }
 
-      const plan = await subscriptionService.getPlanById(pass.planId);
+      const plan = await subscriptionService.getPlanById(ctx, pass.planId);
 
       return {
         hasPass: true,
@@ -240,7 +240,10 @@ export const memberSubscriptionRoutes: FastifyPluginAsync = async (fastify) => {
       request.user.userId,
     );
     if (sub && !planIds.has(sub.planId)) {
-      const legacyPlan = await subscriptionService.getPlanById(sub.planId);
+      const legacyPlan = await subscriptionService.getPlanById(
+        ctx,
+        sub.planId,
+      );
       if (legacyPlan) {
         plans.push(legacyPlan);
       }
