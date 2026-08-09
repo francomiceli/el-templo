@@ -1542,6 +1542,28 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         });
       }
 
+      // Fase 173-27 (T-173-27-06, D-06): sin este chequeo, la ruta generaba
+      // una URL prefirmada de R2 para CUALQUIER userId, incluido uno de otro
+      // gimnasio — `updatePhoto` ya filtraba el UPDATE con `tenantWhere`
+      // (no-op para un socio ajeno), pero la URL en sí se generaba igual.
+      // Mismo contrato que el resto de la ficha: socio ajeno = inexistente.
+      const [target] = await fastify.db
+        .select({ id: schema.users.id })
+        .from(schema.users)
+        .where(
+          and(
+            tenantWhere(schema.users, ctx),
+            eq(schema.users.id, request.params.userId),
+            isNull(schema.users.deletedAt),
+          ),
+        )
+        .limit(1);
+      if (!target) {
+        return reply
+          .code(404)
+          .send({ error: "No encontrado", message: "Miembro no encontrado" });
+      }
+
       const sanitized = request.body.filename
         .toLowerCase()
         .replace(/[^a-z0-9._-]/g, "-")
