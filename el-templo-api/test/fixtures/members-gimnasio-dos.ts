@@ -71,6 +71,12 @@
  *   - La sede virtual "Templo Online" del gimnasio 2 (ver abajo): no la
  *     ejercita ninguna de las 9 rutas de esta batería, pero es un insumo de
  *     onboarding que el propio plan pide dejar resuelto acá.
+ *   - **Agregado en 173-27 (Task 1):** una fila de `financial_transactions`
+ *     por ficha (`kind: 'advance_payment'`, sin `transaction_links` — está en
+ *     `KINDS_ALLOWED_WITHOUT_LINKS`). `GET /:userId/financial-history` (una
+ *     de las 10 rutas de la ficha) no tenía ningún dato propio para que el
+ *     control positivo lo distinguiera de un total vacío contaminado.
+ *     Mismo criterio de magnitud distinta (222 vs 888888) que `debtAmount`.
  *
  * ONBOARDING DEL GIMNASIO NUEVO (doc 07 §1.4)
  * --------------------------------------------
@@ -195,6 +201,15 @@ export interface FichaTemplo {
   sessionCount: number;
   /** Sede ES + socio SEPA propios de El Templo (recurso ajeno de export-sepa). */
   sepa: FichaSepa;
+  /**
+   * Fila de `financial_transactions` (plan 173-27, Task 1): sin ESTO,
+   * `GET /:userId/financial-history` no tiene NADA que aislar — el control
+   * positivo del gimnasio 2 necesita poder distinguirse de un total vacío.
+   * Importe de otro orden de magnitud que el del gimnasio 2 (mismo criterio
+   * que `debtAmount`/`sessionCount` de arriba).
+   */
+  transactionId: number;
+  transactionAmount: number;
 }
 
 /** La ficha completa de un socio del gimnasio 2. */
@@ -220,6 +235,9 @@ export interface FichaGimnasioDos {
   virtualBranchId: number;
   /** Sede ES + socio SEPA + actor `owner` propios del gimnasio 2. */
   sepa: FichaSepa & { ownerToken: string; ownerId: number };
+  /** Fila de `financial_transactions` propia — ver el docblock en `FichaTemplo`. */
+  transactionId: number;
+  transactionAmount: number;
 }
 
 // ─── Evidencia leida de la BASE ──────────────────────────────────────────────
@@ -520,6 +538,30 @@ export async function sembrarSocioTemplo(
 
   const sepa = await sembrarFichaSepa(app, CTX_TEMPLO, "Templo");
 
+  // Plan 173-27 (Task 1): un cobro real para que `GET /:userId/financial-history`
+  // tenga algo que aislar. `kind: 'advance_payment'` esta en
+  // `KINDS_ALLOWED_WITHOUT_LINKS` — no hace falta una fila de `transaction_links`
+  // para que el historial la lea. Importe chico, mismo criterio que `debtAmount`.
+  const transactionAmount = 222;
+  const [transaction] = await app.db
+    .insert(schema.financialTransactions)
+    .values(
+      tenantValues(CTX_TEMPLO, {
+        memberId: socio.id,
+        kind: "advance_payment" as const,
+        direction: "inflow" as const,
+        amount: transactionAmount,
+        currency: "ARS",
+        paymentMethod: "cash" as const,
+        transactionDate: hoy,
+        effectiveDate: hoy,
+        branchId: sede.id,
+        recordedBy: authorId,
+        validationStatus: "validado" as const,
+      }),
+    )
+    .$returningId();
+
   return {
     userId: socio.id,
     branchId: sede.id,
@@ -539,6 +581,8 @@ export async function sembrarSocioTemplo(
     sessionLevel: "omega",
     sessionCount,
     sepa,
+    transactionId: transaction.id,
+    transactionAmount,
   };
 }
 
@@ -696,6 +740,29 @@ export async function sembrarSociosGimnasioDos(
 
   const sepaBase = await sembrarFichaSepa(app, CTX_DOS, "Gdos");
 
+  // Plan 173-27 (Task 1): idem El Templo — importe de otro orden de magnitud
+  // (222) para que el control positivo de `financial-history` se distinga de
+  // uno contaminado.
+  const transactionAmount = 888888;
+  const [transaction] = await app.db
+    .insert(schema.financialTransactions)
+    .values(
+      tenantValues(CTX_DOS, {
+        memberId: socio.id,
+        kind: "advance_payment" as const,
+        direction: "inflow" as const,
+        amount: transactionAmount,
+        currency: "ARS",
+        paymentMethod: "cash" as const,
+        transactionDate: hoy,
+        effectiveDate: hoy,
+        branchId: gym2.branchId,
+        recordedBy: gym2.adminId,
+        validationStatus: "validado" as const,
+      }),
+    )
+    .$returningId();
+
   return {
     userId: socio.id,
     branchId: gym2.branchId,
@@ -716,6 +783,8 @@ export async function sembrarSociosGimnasioDos(
     sessionCount,
     virtualBranchId: virtualBranch.id,
     sepa: { ...sepaBase, ownerToken, ownerId },
+    transactionId: transaction.id,
+    transactionAmount,
   };
 }
 
