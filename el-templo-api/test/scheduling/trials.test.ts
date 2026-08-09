@@ -36,6 +36,10 @@ import {
 import { bookings } from "../../src/db/schema/bookings";
 import { users } from "../../src/db/schema/users";
 import { branches } from "../../src/db/schema/branches";
+import { tenantWhere } from "../../src/modules/shared/tenant";
+
+// El gimnasio de los fixtures (El Templo = tenant 1).
+const CTX = { tenantId: 1 };
 
 const ADMIN_URL = "/api/admin/scheduling";
 const MEMBER_URL = "/api/members/scheduling";
@@ -602,7 +606,7 @@ describe("Scheduling Trials API (Phase 102 + 103)", () => {
     await app.db
       .update(users)
       .set({ phone: null })
-      .where(eq(users.id, userId));
+      .where(and(tenantWhere(users, CTX), eq(users.id, userId)));
 
     const res = await app.inject({
       method: "POST",
@@ -998,7 +1002,7 @@ describe("Scheduling Trials API (Phase 102 + 103)", () => {
     const [beforeRow] = await app.db
       .select({ convertedAt: users.convertedAt })
       .from(users)
-      .where(eq(users.id, leadUserId));
+      .where(and(tenantWhere(users, CTX), eq(users.id, leadUserId)));
     expect(beforeRow.convertedAt).toBeNull();
 
     const planRes = await app.inject({
@@ -1039,7 +1043,7 @@ describe("Scheduling Trials API (Phase 102 + 103)", () => {
     const [afterRow] = await app.db
       .select({ convertedAt: users.convertedAt })
       .from(users)
-      .where(eq(users.id, leadUserId));
+      .where(and(tenantWhere(users, CTX), eq(users.id, leadUserId)));
     expect(afterRow.convertedAt).not.toBeNull();
   });
 
@@ -1178,7 +1182,7 @@ describe("Scheduling Trials API (Phase 102 + 103)", () => {
     const [row] = await app.db
       .select({ convertedAt: users.convertedAt })
       .from(users)
-      .where(eq(users.id, memberId));
+      .where(and(tenantWhere(users, CTX), eq(users.id, memberId)));
     expect(row.convertedAt).toBeNull();
   });
 

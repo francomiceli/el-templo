@@ -24,7 +24,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   createTestApp,
   getAuthToken,
@@ -33,6 +33,10 @@ import {
   cleanAllTestData,
 } from "./helpers";
 import * as schema from "../src/db/schema";
+import { tenantWhere } from "../src/modules/shared/tenant";
+
+// El gimnasio de los fixtures (El Templo = tenant 1).
+const CTX = { tenantId: 1 };
 
 const ADMIN_SCHED_URL = "/api/admin/scheduling";
 const ELIGIBILITY_URL = "/api/members/scheduling/trial-eligibility";
@@ -179,7 +183,7 @@ describe("E2E self-service trial funnel (Fase 165-05, SELF-01)", () => {
     const [afterRegister] = await app.db
       .select({ status: schema.users.status, phone: schema.users.phone })
       .from(schema.users)
-      .where(eq(schema.users.id, id))
+      .where(and(tenantWhere(schema.users, CTX), eq(schema.users.id, id)))
       .limit(1);
     expect(
       afterRegister.status,
@@ -219,7 +223,7 @@ describe("E2E self-service trial funnel (Fase 165-05, SELF-01)", () => {
         branchId: schema.users.branchId,
       })
       .from(schema.users)
-      .where(eq(schema.users.id, id))
+      .where(and(tenantWhere(schema.users, CTX), eq(schema.users.id, id)))
       .limit(1);
     expect(user.status, "reserve promueve a prueba").toBe("prueba");
     expect(user.leadStatus, "el lead entra en seguimiento").toBe(
@@ -241,7 +245,12 @@ describe("E2E self-service trial funnel (Fase 165-05, SELF-01)", () => {
         source: schema.userStatusHistory.source,
       })
       .from(schema.userStatusHistory)
-      .where(eq(schema.userStatusHistory.userId, id));
+      .where(
+        and(
+          tenantWhere(schema.userStatusHistory, CTX),
+          eq(schema.userStatusHistory.userId, id),
+        ),
+      );
     expect(history).toHaveLength(1);
     expect(history[0].fromStatus).toBe("freemium");
     expect(history[0].toStatus).toBe("prueba");
@@ -360,7 +369,7 @@ describe("E2E self-service trial funnel (Fase 165-05, SELF-01)", () => {
     const [user] = await app.db
       .select({ status: schema.users.status })
       .from(schema.users)
-      .where(eq(schema.users.id, id))
+      .where(and(tenantWhere(schema.users, CTX), eq(schema.users.id, id)))
       .limit(1);
     expect(user.status, "cancelar revierte prueba→freemium").toBe("freemium");
   });
@@ -379,7 +388,7 @@ describe("E2E self-service trial funnel (Fase 165-05, SELF-01)", () => {
     const [user] = await app.db
       .select({ status: schema.users.status, phone: schema.users.phone })
       .from(schema.users)
-      .where(eq(schema.users.id, id))
+      .where(and(tenantWhere(schema.users, CTX), eq(schema.users.id, id)))
       .limit(1);
     expect(user.status).toBe("freemium");
     expect(user.phone).toBeNull();
@@ -412,7 +421,7 @@ describe("E2E self-service trial funnel (Fase 165-05, SELF-01)", () => {
     const [user] = await app.db
       .select({ status: schema.users.status, phone: schema.users.phone })
       .from(schema.users)
-      .where(eq(schema.users.id, id))
+      .where(and(tenantWhere(schema.users, CTX), eq(schema.users.id, id)))
       .limit(1);
     expect(user.status).toBe("prueba");
     // WR-02: número completo con país → wa.me-resolvable (ya no "1122334455").
@@ -432,7 +441,7 @@ describe("E2E self-service trial funnel (Fase 165-05, SELF-01)", () => {
     const [user] = await app.db
       .select({ status: schema.users.status, phone: schema.users.phone })
       .from(schema.users)
-      .where(eq(schema.users.id, id))
+      .where(and(tenantWhere(schema.users, CTX), eq(schema.users.id, id)))
       .limit(1);
     expect(user.status).toBe("prueba");
     // normalizePhone truncaba a "4612345678" (dígito de país perdido). Ahora intacto.
@@ -455,7 +464,7 @@ describe("E2E self-service trial funnel (Fase 165-05, SELF-01)", () => {
     const [user] = await app.db
       .select({ status: schema.users.status, phone: schema.users.phone })
       .from(schema.users)
-      .where(eq(schema.users.id, id))
+      .where(and(tenantWhere(schema.users, CTX), eq(schema.users.id, id)))
       .limit(1);
     expect(user.status).toBe("freemium");
     expect(user.phone).toBeNull();

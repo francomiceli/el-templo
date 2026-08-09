@@ -18,7 +18,7 @@ import {
   vi,
 } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   createTestApp,
   getAuthToken,
@@ -26,6 +26,10 @@ import {
   cleanAllTestData,
 } from "./helpers";
 import * as schema from "../src/db/schema";
+import { tenantWhere } from "../src/modules/shared/tenant";
+
+// El gimnasio de los fixtures (El Templo = tenant 1).
+const CTX = { tenantId: 1 };
 
 const ADMIN_URL = "/api/admin/scheduling";
 const ELIGIBILITY_URL = "/api/members/scheduling/trial-eligibility";
@@ -137,7 +141,7 @@ describe("GET /api/members/scheduling/trial-eligibility (Phase 119)", () => {
     await app.db
       .update(schema.users)
       .set({ phone: "1199887766", status: "activo" })
-      .where(eq(schema.users.id, id));
+      .where(and(tenantWhere(schema.users, CTX), eq(schema.users.id, id)));
 
     const { body } = await getEligibility(token);
     expect(body.eligible).toBe(false);
@@ -202,7 +206,7 @@ describe("GET /api/members/scheduling/trial-eligibility (Phase 119)", () => {
     await app.db
       .update(schema.users)
       .set({ status: "activo" })
-      .where(eq(schema.users.id, id));
+      .where(and(tenantWhere(schema.users, CTX), eq(schema.users.id, id)));
 
     const { body } = await getEligibility(token);
     expect(body.eligible).toBe(false);

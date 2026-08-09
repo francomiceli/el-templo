@@ -25,7 +25,11 @@ import {
   TEMPLATE_SEEDS,
 } from "../src/modules/notifications/types";
 import * as schema from "../src/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { tenantWhere } from "../src/modules/shared/tenant";
+import { and, eq, sql } from "drizzle-orm";
+
+// El gimnasio de los fixtures (El Templo = tenant 1).
+const CTX = { tenantId: 1 };
 
 describe("Notification Module", () => {
   let app: FastifyInstance;
@@ -708,7 +712,7 @@ describe("Notification Module", () => {
       await app.db
         .update(schema.users)
         .set({ gender: "female" })
-        .where(eq(schema.users.id, memberId));
+        .where(and(tenantWhere(schema.users, CTX), eq(schema.users.id, memberId)));
 
       // Set female variants on morning_energy template
       await setTemplateFemaleVariants(
@@ -747,7 +751,7 @@ describe("Notification Module", () => {
       await app.db
         .update(schema.users)
         .set({ gender: "male" })
-        .where(eq(schema.users.id, memberId));
+        .where(and(tenantWhere(schema.users, CTX), eq(schema.users.id, memberId)));
 
       // Set female variants on morning_energy template
       await setTemplateFemaleVariants(
@@ -794,7 +798,7 @@ describe("Notification Module", () => {
       await app.db
         .update(schema.users)
         .set({ gender: null })
-        .where(eq(schema.users.id, memberId));
+        .where(and(tenantWhere(schema.users, CTX), eq(schema.users.id, memberId)));
 
       // Set female variants on morning_energy template
       await setTemplateFemaleVariants(
@@ -837,7 +841,7 @@ describe("Notification Module", () => {
 
       // Set gender to unspecified (uses raw SQL since 'unspecified' added by plan 88-01)
       await app.db.execute(
-        sql`UPDATE users SET gender = 'unspecified' WHERE id = ${memberId}`,
+        sql`UPDATE users SET gender = 'unspecified' WHERE id = ${memberId} AND tenant_id = ${CTX.tenantId}`,
       );
 
       // Set female variants on morning_energy template
@@ -893,12 +897,12 @@ describe("Notification Module", () => {
       await app.db
         .update(schema.users)
         .set({ gender: "male" })
-        .where(eq(schema.users.id, memberId));
+        .where(and(tenantWhere(schema.users, CTX), eq(schema.users.id, memberId)));
 
       await app.db
         .update(schema.users)
         .set({ gender: "female" })
-        .where(eq(schema.users.id, femaleMemberId));
+        .where(and(tenantWhere(schema.users, CTX), eq(schema.users.id, femaleMemberId)));
 
       // Create member_profiles with known Attendance label for both members
       await app.db.insert(schema.memberProfiles).values({

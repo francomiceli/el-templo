@@ -26,6 +26,10 @@ import {
   cleanAllTestData,
 } from "./helpers";
 import * as schema from "../src/db/schema";
+import { tenantWhere } from "../src/modules/shared/tenant";
+
+// El gimnasio de los fixtures (El Templo = tenant 1).
+const CTX = { tenantId: 1 };
 
 const ADMIN_URL = "/api/admin/scheduling";
 const RESERVE_TRIAL_URL = "/api/members/scheduling/reserve-trial";
@@ -147,7 +151,7 @@ describe("POST /api/members/scheduling/cancel-trial (Phase 119)", () => {
     const [user] = await app.db
       .select({ status: schema.users.status })
       .from(schema.users)
-      .where(eq(schema.users.id, id));
+      .where(and(tenantWhere(schema.users, CTX), eq(schema.users.id, id)));
     expect(user.status).toBe("freemium");
 
     const history = await app.db
@@ -156,7 +160,12 @@ describe("POST /api/members/scheduling/cancel-trial (Phase 119)", () => {
         toStatus: schema.userStatusHistory.toStatus,
       })
       .from(schema.userStatusHistory)
-      .where(eq(schema.userStatusHistory.userId, id));
+      .where(
+        and(
+          tenantWhere(schema.userStatusHistory, CTX),
+          eq(schema.userStatusHistory.userId, id),
+        ),
+      );
     expect(history).toContainEqual({
       fromStatus: "prueba",
       toStatus: "freemium",
@@ -201,7 +210,7 @@ describe("POST /api/members/scheduling/cancel-trial (Phase 119)", () => {
     const [user] = await app.db
       .select({ status: schema.users.status })
       .from(schema.users)
-      .where(eq(schema.users.id, id));
+      .where(and(tenantWhere(schema.users, CTX), eq(schema.users.id, id)));
     expect(user.status).toBe("prueba");
   });
 

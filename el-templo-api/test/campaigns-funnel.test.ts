@@ -11,7 +11,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   createTestApp,
   cleanAllTestData,
@@ -22,7 +22,10 @@ import {
 } from "./helpers";
 import { CampaignService } from "../src/modules/campaigns/service";
 import { EmailService } from "../src/modules/email/service";
-import type { TenantContext } from "../src/modules/shared/tenant";
+import {
+  tenantWhere,
+  type TenantContext,
+} from "../src/modules/shared/tenant";
 import * as schema from "../src/db/schema";
 
 let app: FastifyInstance;
@@ -45,7 +48,12 @@ beforeEach(async () => {
   const [owner] = await app.db
     .select({ id: schema.users.id })
     .from(schema.users)
-    .where(eq(schema.users.email, "admin@test.com"))
+    .where(
+      and(
+        tenantWhere(schema.users, CTX),
+        eq(schema.users.email, "admin@test.com"),
+      ),
+    )
     .limit(1);
   ownerId = owner.id;
   const [branch] = await app.db

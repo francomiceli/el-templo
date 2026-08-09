@@ -9,7 +9,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   createTestApp,
   cleanAllTestData,
@@ -18,10 +18,14 @@ import {
   createTestSend,
 } from "./helpers";
 import { signCampaignToken } from "../src/modules/campaigns/token-service";
+import { tenantWhere } from "../src/modules/shared/tenant";
 import * as schema from "../src/db/schema";
 
 let app: FastifyInstance;
 let ownerId: number;
+
+// El gimnasio de los fixtures (El Templo = tenant 1).
+const CTX = { tenantId: 1 };
 
 beforeAll(async () => {
   app = await createTestApp();
@@ -36,7 +40,12 @@ beforeEach(async () => {
   const [owner] = await app.db
     .select({ id: schema.users.id })
     .from(schema.users)
-    .where(eq(schema.users.email, "admin@test.com"))
+    .where(
+      and(
+        tenantWhere(schema.users, CTX),
+        eq(schema.users.email, "admin@test.com"),
+      ),
+    )
     .limit(1);
   ownerId = owner.id;
 });

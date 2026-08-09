@@ -10,7 +10,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   createTestApp,
   cleanAllTestData,
@@ -19,7 +19,10 @@ import {
 } from "./helpers";
 import { CampaignService } from "../src/modules/campaigns/service";
 import { EmailService } from "../src/modules/email/service";
-import type { TenantContext } from "../src/modules/shared/tenant";
+import {
+  tenantWhere,
+  type TenantContext,
+} from "../src/modules/shared/tenant";
 import * as schema from "../src/db/schema";
 
 let app: FastifyInstance;
@@ -140,7 +143,7 @@ describe("campaign audience query (Phase 119)", () => {
     await app.db
       .update(schema.users)
       .set({ email: null })
-      .where(eq(schema.users.id, id));
+      .where(and(tenantWhere(schema.users, CTX), eq(schema.users.id, id)));
     const eligible = await service.listEligible(CTX);
     expect(eligible.map((e) => e.userId)).not.toContain(id);
   });

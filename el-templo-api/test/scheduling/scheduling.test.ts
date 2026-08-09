@@ -8,7 +8,7 @@ import {
   vi,
 } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   createTestApp,
   getAuthToken,
@@ -25,7 +25,7 @@ import { completedSessions } from "../../src/db/schema/completed-sessions";
 import { financialTransactions } from "../../src/db/schema/financial-transactions";
 import { transactionLinks } from "../../src/db/schema/transaction-links";
 import { TENANT_TEMPLO } from "../fixtures/second-tenant";
-import { tenantValues } from "../../src/modules/shared/tenant";
+import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
 
 /**
  * Fase 172: `finance` entra en `TENANT_STRICT_MODULES`. El seed de cobro de
@@ -93,7 +93,9 @@ describe("Scheduling API", () => {
     const [adminUser] = await app.db
       .select({ id: users.id })
       .from(users)
-      .where(eq(users.email, "admin@test.com"));
+      .where(
+        and(tenantWhere(users, TEMPLO_CTX), eq(users.email, "admin@test.com")),
+      );
     adminUserId = adminUser.id;
 
     const [branch] = await app.db
