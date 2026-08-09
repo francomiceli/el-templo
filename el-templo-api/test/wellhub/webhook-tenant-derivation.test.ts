@@ -69,7 +69,7 @@ import {
 } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { createHmac } from "crypto";
-import { eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { createTestApp } from "../helpers";
 import * as schema from "../../src/db/schema";
 
@@ -149,19 +149,16 @@ function sign(raw: string, algorithm: "sha1" | "sha256" = "sha256"): string {
 /** fetch mock: responde OK al validate y registra las llamadas. */
 function stubValidateFetch(): { calls: Array<{ url: string }> } {
   const calls: Array<{ url: string }> = [];
-  vi.stubGlobal(
-    "fetch",
-    async (url: string | URL): Promise<Response> => {
-      calls.push({ url: String(url) });
-      return new Response(
-        JSON.stringify({
-          metadata: { total: 1, errors: 0 },
-          results: { validated_at: "2026-07-21T12:00:00Z" },
-        }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      );
-    },
-  );
+  vi.stubGlobal("fetch", async (url: string | URL): Promise<Response> => {
+    calls.push({ url: String(url) });
+    return new Response(
+      JSON.stringify({
+        metadata: { total: 1, errors: 0 },
+        results: { validated_at: "2026-07-21T12:00:00Z" },
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
+  });
   return { calls };
 }
 
@@ -202,12 +199,19 @@ async function contarTenant(
   return Number(filas?.[0]?.n ?? -1);
 }
 
-/** Usuarios visitantes creados por un token puntual (aserción de exclusión). */
+/**
+ * Usuarios visitantes creados por un token puntual (aserción de exclusión).
+ * Exención `tenant-safe` embebida: el archivo cubre DOS gimnasios y la
+ * pregunta es "¿existe esta fila en ALGÚN tenant?" — filtrar por uno la
+ * volvería tautológica para los casos que crean en el otro.
+ */
 async function visitantesDe(app: FastifyInstance, token: string) {
   return app.db
     .select({ id: schema.users.id })
     .from(schema.users)
-    .where(eq(schema.users.gympassId, token));
+    .where(
+      sql`/* tenant-safe: la pregunta es si el webhook creo un visitante en ALGUN gimnasio; filtrar por uno la volveria tautologica */ ${schema.users.gympassId} = ${token}`,
+    );
 }
 
 /** Fila de `wellhub_events` de un evento puntual, con su tenant estampado. */
@@ -300,7 +304,12 @@ afterAll(async () => {
     const visitantes = await app.db
       .select({ id: schema.users.id })
       .from(schema.users)
-      .where(inArray(schema.users.gympassId, tokensEmitidos));
+      .where(
+        and(
+          sql`/* tenant-safe: limpieza de los DOS gimnasios que este archivo siembra, por token emitido */ 1=1`,
+          inArray(schema.users.gympassId, tokensEmitidos),
+        ),
+      );
     const ids = visitantes.map((v) => v.id);
     if (ids.length > 0) {
       await app.db
@@ -308,8 +317,20 @@ afterAll(async () => {
         .where(inArray(schema.attendance.memberId, ids));
       await app.db
         .delete(schema.userStatusHistory)
-        .where(inArray(schema.userStatusHistory.userId, ids));
-      await app.db.delete(schema.users).where(inArray(schema.users.id, ids));
+        .where(
+          and(
+            sql`/* tenant-safe: limpieza de los DOS gimnasios que este archivo siembra, por id ya resuelto */ 1=1`,
+            inArray(schema.userStatusHistory.userId, ids),
+          ),
+        );
+      await app.db
+        .delete(schema.users)
+        .where(
+          and(
+            sql`/* tenant-safe: limpieza de los DOS gimnasios que este archivo siembra, por id ya resuelto */ 1=1`,
+            inArray(schema.users.id, ids),
+          ),
+        );
     }
   }
   if (eventosEmitidos.length > 0) {

@@ -33,13 +33,17 @@
 
 import argon2 from "argon2";
 import { randomBytes } from "crypto";
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { todayInTz } from "../shared/date-utils";
 import { emitOccupancyChange } from "../shared/occupancy-events";
-import { tenantValues, tenantWhere, type TenantContext } from "../shared/tenant";
+import {
+  tenantValues,
+  tenantWhere,
+  type TenantContext,
+} from "../shared/tenant";
 import { assertBranchDelGimnasio } from "../shared/branch-consistency";
 import type { BookingService } from "../scheduling/booking-service";
 import type { WellhubClient } from "./client";
@@ -539,7 +543,11 @@ export class WellhubService {
 
     if (existing) {
       if (existing.status !== "pending") {
-        return { httpStatus: 200, outcome: "duplicate", tenantId: ctx.tenantId };
+        return {
+          httpStatus: 200,
+          outcome: "duplicate",
+          tenantId: ctx.tenantId,
+        };
       }
       await this.client.validateBooking({
         gymId: slot.gymId,
@@ -911,7 +919,9 @@ export class WellhubService {
     const [byGympassId] = await this.db
       .select({ id: schema.users.id })
       .from(schema.users)
-      .where(eq(schema.users.gympassId, user.unique_token))
+      .where(
+        sql`/* tenant-safe: M8 (TENANT_GLOBAL_UNIQUES) — gympass_id es global por diseño, no por gimnasio */ ${eq(schema.users.gympassId, user.unique_token)}`,
+      )
       .limit(1);
     if (byGympassId) return byGympassId.id;
 
@@ -1012,7 +1022,9 @@ export class WellhubService {
       const [retry] = await this.db
         .select({ id: schema.users.id })
         .from(schema.users)
-        .where(eq(schema.users.gympassId, user.unique_token))
+        .where(
+          sql`/* tenant-safe: M8 (TENANT_GLOBAL_UNIQUES) — gympass_id es global por diseño, no por gimnasio */ ${eq(schema.users.gympassId, user.unique_token)}`,
+        )
         .limit(1);
       if (retry) return retry.id;
       throw err;

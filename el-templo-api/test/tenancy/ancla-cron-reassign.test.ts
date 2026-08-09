@@ -49,10 +49,11 @@
  *
  * EL THROW DEL SENTINEL Y `users`
  * --------------------------------
- * `users` todavía NO es tabla strict (`TENANT_STRICT_MODULES`, el switch lo
- * enciende un plan posterior de esta fase) — este archivo no necesita
- * exención `tenant-safe` para leerla con SQL crudo. El día que se vuelva
- * strict, el throw del sentinel llega envuelto en `DrizzleQueryError.cause`.
+ * `users` es tabla strict desde 173-25: los dos lectores locales de evidencia
+ * (`tenantDeLaFila` / `campoDeLaFila`) llevan la exención `tenant-safe`
+ * embebida en el SQL — leer el valor REAL de la fila ES la aserción, filtrar
+ * por tenant la volvería tautológica. El throw del sentinel llega envuelto en
+ * `DrizzleQueryError.cause`.
  *
  * CERO 403 A PROPÓSITO
  * ---------------------
@@ -119,16 +120,15 @@ function hoy(): string {
 type TablaInspeccionada = "users";
 
 /**
- * Lee el `tenant_id` REAL de una fila de `users`, SQL crudo. `users` todavía
- * NO es tabla strict (ver docblock de cabecera), así que no hace falta
- * exención `tenant-safe`. Mismo patrón que `ancla-autorregistro.test.ts`.
+ * Lee el `tenant_id` REAL de una fila de `users`, SQL crudo. Exención
+ * `tenant-safe` embebida: mismo patrón que `ancla-autorregistro.test.ts`.
  */
 async function tenantDeLaFila(
   tabla: TablaInspeccionada,
   filaId: number,
 ): Promise<number | null> {
   const resultado = (await app.db.execute(
-    sql`SELECT tenant_id AS tenantId FROM ${sql.raw(tabla)} WHERE id = ${filaId}`,
+    sql`SELECT /* tenant-safe: leer el tenant_id de la fila ES la asercion; filtrar por el la volveria tautologica */ tenant_id AS tenantId FROM ${sql.raw(tabla)} WHERE id = ${filaId}`,
   )) as unknown as [Array<{ tenantId: number | null }>];
   const filas = Array.isArray(resultado)
     ? resultado[0]
@@ -144,7 +144,7 @@ async function campoDeLaFila(
   filaId: number,
 ): Promise<string | null> {
   const resultado = (await app.db.execute(
-    sql`SELECT ${sql.raw(columna)} AS v FROM ${sql.raw(tabla)} WHERE id = ${filaId}`,
+    sql`SELECT /* tenant-safe: leer el valor REAL de la columna ES la asercion; filtrar por tenant la volveria tautologica */ ${sql.raw(columna)} AS v FROM ${sql.raw(tabla)} WHERE id = ${filaId}`,
   )) as unknown as [Array<{ v: unknown }>];
   const filas = Array.isArray(resultado)
     ? resultado[0]

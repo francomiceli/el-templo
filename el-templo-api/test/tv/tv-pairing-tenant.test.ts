@@ -151,7 +151,11 @@ function status(app: FastifyInstance, deviceCode: string) {
 async function tenantDelPairing(
   app: FastifyInstance,
   userCode: string,
-): Promise<{ tenantId: number; branchId: number | null; claimedAt: Date | null }> {
+): Promise<{
+  tenantId: number;
+  branchId: number | null;
+  claimedAt: Date | null;
+}> {
   const [row] = await app.db
     .select({
       tenantId: schema.tvPairings.tenantId,
@@ -260,22 +264,21 @@ describe("Fase 169 (CON-04) — el ciclo del TV estampa el gimnasio correcto", (
       branchId: branchTemploId,
     });
 
-    const ownerSegundoId = await createStaffUser(app, {
+    // `tenantId` EXPLÍCITO (173-25): la FK compuesta `fk_users_tenant_branch`
+    // (migración 0200, ADO-07) rechaza un INSERT que apunte `branch_id` de un
+    // gimnasio con `tenant_id` de otro — reasignar el tenant DESPUÉS del alta
+    // (como hacía este archivo antes) ya no compila contra la base. Es lo que
+    // hace que `attachScope` le resuelva `scope.tenantId = 90569` y que el
+    // claim tenga algo distinto de 1 que estampar.
+    await createStaffUser(app, {
       email: "tv-tenant-owner-2@test.com",
       password: "owner-pass-123",
       firstName: "Dueño",
       lastName: "Segundo",
       role: "owner",
       branchId: branchSegundoId,
+      tenantId: TENANT_SEGUNDO,
     });
-    // `createStaffUser` no expone `tenantId` (todo el staff de hoy es del
-    // tenant 1 y cae en el DEFAULT), asi que el dueño del segundo gimnasio se
-    // reasigna aca. Es lo que hace que `attachScope` le resuelva
-    // `scope.tenantId = 90569` y que el claim tenga algo distinto de 1 que
-    // estampar.
-    await app.db.execute(
-      sql`UPDATE users SET tenant_id = ${TENANT_SEGUNDO} WHERE id = ${ownerSegundoId}`,
-    );
 
     ctx = {
       branchTemploId,

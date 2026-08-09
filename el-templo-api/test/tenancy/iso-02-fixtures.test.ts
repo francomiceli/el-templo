@@ -49,7 +49,7 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
 import fs from "fs";
 import path from "path";
-import { eq, sql, type SQL } from "drizzle-orm";
+import { and, eq, sql, type SQL } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import {
   createTestApp,
@@ -58,6 +58,10 @@ import {
   createTestMember,
 } from "../helpers";
 import * as schema from "../../src/db/schema";
+import {
+  tenantWhere,
+  type TenantContext,
+} from "../../src/modules/shared/tenant";
 import {
   seedSecondTenant,
   limpiarSegundoGimnasio,
@@ -83,6 +87,9 @@ const SEDE_SEMILLA = 1;
  * las aserciones de exclusión.
  */
 const EMAIL_ADMIN_SEMILLA = "admin@test.com";
+
+/** Contexto de El Templo, para filtrar la lectura del admin semilla. */
+const CTX_TEMPLO: TenantContext = { tenantId: TENANT_TEMPLO };
 
 /** Ruta del setup global, para el gate de opt-in (D-05). */
 const RUTA_SETUP = path.resolve(__dirname, "..", "setup.ts");
@@ -155,7 +162,7 @@ async function tenantDeLaFila(
 ): Promise<number | null> {
   const filas = await consultar<{ t: number | null }>(
     app,
-    sql`SELECT tenant_id AS t FROM ${sql.raw(tabla)} WHERE id = ${id}`,
+    sql`SELECT /* tenant-safe: leer el tenant_id de la fila ES la asercion; filtrar por el la volveria tautologica */ tenant_id AS t FROM ${sql.raw(tabla)} WHERE id = ${id}`,
   );
   if (filas[0] === undefined || filas[0].t === null) return null;
   return Number(filas[0].t);
@@ -304,7 +311,9 @@ describe("A. el espejo mínimo de D-06 nace en el gimnasio 2", () => {
         tenantId: schema.userBranches.tenantId,
       })
       .from(schema.userBranches)
-      .where(eq(schema.userBranches.userId, gym2.coachId));
+      .where(
+        sql`/* tenant-safe: leer el tenant_id REAL del vinculo ES la asercion; filtrar por tenant la volveria tautologica */ ${schema.userBranches.userId} = ${gym2.coachId}`,
+      );
 
     expect(
       vinculo?.tenantId,
@@ -360,7 +369,12 @@ describe("A. el espejo mínimo de D-06 nace en el gimnasio 2", () => {
     const [adminSemilla] = await app.db
       .select({ id: schema.users.id, tenantId: schema.users.tenantId })
       .from(schema.users)
-      .where(eq(schema.users.email, EMAIL_ADMIN_SEMILLA));
+      .where(
+        and(
+          tenantWhere(schema.users, CTX_TEMPLO),
+          eq(schema.users.email, EMAIL_ADMIN_SEMILLA),
+        ),
+      );
 
     const usuariosDelDos = await idsDelGimnasio(app, "users", TENANT_DOS);
     const usuariosDelTemplo = await idsDelGimnasio(app, "users", TENANT_TEMPLO);
@@ -461,7 +475,9 @@ describe("B. retrocompatibilidad de los helpers (criterio 3 del ROADMAP)", () =>
     const [vinculo] = await app.db
       .select({ tenantId: schema.userBranches.tenantId })
       .from(schema.userBranches)
-      .where(eq(schema.userBranches.userId, coachId));
+      .where(
+        sql`/* tenant-safe: leer el tenant_id REAL del vinculo ES la asercion; filtrar por tenant la volveria tautologica */ ${schema.userBranches.userId} = ${coachId}`,
+      );
     expect(vinculo?.tenantId, mensaje).toBe(TENANT_TEMPLO);
 
     // Doble lado: el coach legacy NO aparece entre los del gimnasio 2.
@@ -476,7 +492,7 @@ describe("B. retrocompatibilidad de los helpers (criterio 3 del ROADMAP)", () =>
 
     const filas = await consultar<{ t: number; gender: string | null }>(
       app,
-      sql`SELECT tenant_id AS t, gender FROM users WHERE id = ${socio.id}`,
+      sql`SELECT /* tenant-safe: leer el tenant_id REAL de la fila ES la asercion; filtrar por tenant la volveria tautologica */ tenant_id AS t, gender FROM users WHERE id = ${socio.id}`,
     );
     const fila = filas[0];
 
@@ -552,7 +568,12 @@ describe("C. higiene del archivo (D-05)", () => {
     const [adminSemilla] = await app.db
       .select({ id: schema.users.id, tenantId: schema.users.tenantId })
       .from(schema.users)
-      .where(eq(schema.users.email, EMAIL_ADMIN_SEMILLA));
+      .where(
+        and(
+          tenantWhere(schema.users, CTX_TEMPLO),
+          eq(schema.users.email, EMAIL_ADMIN_SEMILLA),
+        ),
+      );
     expect(adminSemilla?.tenantId, mensajeTemplo).toBe(TENANT_TEMPLO);
   });
 

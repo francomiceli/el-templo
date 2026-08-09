@@ -59,7 +59,7 @@
  * precondición se afirma en el propio test, no se asume).
  */
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { createTestApp, cleanAllTestData, createTestMember } from "../helpers";
 import {
@@ -70,6 +70,13 @@ import {
   type SegundoGimnasio,
 } from "../fixtures/second-tenant";
 import * as schema from "../../src/db/schema";
+import {
+  tenantWhere,
+  type TenantContext,
+} from "../../src/modules/shared/tenant";
+
+/** El socio de cada `it` es siempre del gimnasio 2 (creado con tenantId explícito). */
+const CTX_DOS: TenantContext = { tenantId: TENANT_DOS };
 
 // ─── Detección específica del motivo de rechazo (idioma de con-01) ──────────
 
@@ -160,7 +167,9 @@ describe("FK compuesta users(tenant_id, branch_id) -> branches(tenant_id, id) [A
         branchId: schema.users.branchId,
       })
       .from(schema.users)
-      .where(eq(schema.users.id, socio.id));
+      .where(
+        and(tenantWhere(schema.users, CTX_DOS), eq(schema.users.id, socio.id)),
+      );
 
     expect(filaTrasInsert?.tenantId).toBe(TENANT_DOS);
     expect(filaTrasInsert?.branchId).toBe(gym2.branchId);
@@ -171,12 +180,16 @@ describe("FK compuesta users(tenant_id, branch_id) -> branches(tenant_id, id) [A
     await app.db
       .update(schema.users)
       .set({ branchId: gym2.branchId })
-      .where(eq(schema.users.id, socio.id));
+      .where(
+        and(tenantWhere(schema.users, CTX_DOS), eq(schema.users.id, socio.id)),
+      );
 
     const [filaTrasUpdate] = await app.db
       .select({ branchId: schema.users.branchId })
       .from(schema.users)
-      .where(eq(schema.users.id, socio.id));
+      .where(
+        and(tenantWhere(schema.users, CTX_DOS), eq(schema.users.id, socio.id)),
+      );
 
     expect(filaTrasUpdate?.branchId).toBe(gym2.branchId);
   });
@@ -213,7 +226,12 @@ describe("FK compuesta users(tenant_id, branch_id) -> branches(tenant_id, id) [A
       await app.db
         .update(schema.users)
         .set({ branchId: sedeTemplo!.id })
-        .where(eq(schema.users.id, socio.id));
+        .where(
+          and(
+            tenantWhere(schema.users, CTX_DOS),
+            eq(schema.users.id, socio.id),
+          ),
+        );
       paso = true;
     } catch (err: unknown) {
       capturado = err;
@@ -239,7 +257,9 @@ describe("FK compuesta users(tenant_id, branch_id) -> branches(tenant_id, id) [A
     const [filaFinal] = await app.db
       .select({ branchId: schema.users.branchId })
       .from(schema.users)
-      .where(eq(schema.users.id, socio.id));
+      .where(
+        and(tenantWhere(schema.users, CTX_DOS), eq(schema.users.id, socio.id)),
+      );
     expect(filaFinal?.branchId).toBe(gym2.branchId);
   });
 

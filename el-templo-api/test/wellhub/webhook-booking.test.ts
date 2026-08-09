@@ -42,7 +42,7 @@ import {
 } from "../helpers";
 import * as schema from "../../src/db/schema";
 import { TENANT_TEMPLO } from "../fixtures/second-tenant";
-import { tenantWhere } from "../../src/modules/shared/tenant";
+import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
 
 /**
  * Fase 172: la sede de este archivo se crea sin `tenantId`, asi que cae en El
@@ -228,15 +228,17 @@ describe("Wellhub — reservas y sincronización", () => {
   async function insertBareUser(
     status: "wellhub" | null = null,
   ): Promise<number> {
-    const inserted = await app.db.insert(schema.users).values({
-      passwordHash: "x",
-      firstName: "Filler",
-      lastName: `U${Math.random().toString(36).slice(2, 7)}`,
-      role: "member",
-      branchId,
-      status,
-      gympassId: status === "wellhub" ? uniqueToken() : null,
-    });
+    const inserted = await app.db.insert(schema.users).values(
+      tenantValues(TEMPLO_CTX, {
+        passwordHash: "x",
+        firstName: "Filler",
+        lastName: `U${Math.random().toString(36).slice(2, 7)}`,
+        role: "member",
+        branchId,
+        status,
+        gympassId: status === "wellhub" ? uniqueToken() : null,
+      }),
+    );
     return Number(inserted[0].insertId);
   }
 
@@ -345,7 +347,12 @@ describe("Wellhub — reservas y sincronización", () => {
     const [visitor] = await app.db
       .select({ id: schema.users.id, status: schema.users.status })
       .from(schema.users)
-      .where(eq(schema.users.gympassId, token));
+      .where(
+        and(
+          tenantWhere(schema.users, TEMPLO_CTX),
+          eq(schema.users.gympassId, token),
+        ),
+      );
     expect(visitor.status).toBe("wellhub");
 
     const bookings = await app.db
@@ -587,15 +594,17 @@ describe("Wellhub — reservas y sincronización", () => {
     const token = uniqueToken();
     const visitorId = await app.db
       .insert(schema.users)
-      .values({
-        passwordHash: "x",
-        firstName: "Visitor",
-        lastName: "ConReserva",
-        role: "member",
-        branchId,
-        status: "wellhub",
-        gympassId: token,
-      })
+      .values(
+        tenantValues(TEMPLO_CTX, {
+          passwordHash: "x",
+          firstName: "Visitor",
+          lastName: "ConReserva",
+          role: "member",
+          branchId,
+          status: "wellhub",
+          gympassId: token,
+        }),
+      )
       .then((r) => Number(r[0].insertId));
 
     const insertedBooking = await app.db.insert(schema.bookings).values({

@@ -18,10 +18,18 @@ import {
   vi,
 } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { createTestApp, cleanAllTestData } from "../helpers";
 import * as schema from "../../src/db/schema";
 import { runReassignMultibranch } from "../../src/jobs/reassign-multibranch";
+import {
+  tenantWhere,
+  type TenantContext,
+} from "../../src/modules/shared/tenant";
+
+// Archivo single-tenant (solo El Templo, sin segundo gimnasio): filtro
+// preciso, no exencion.
+const CTX_TEMPLO: TenantContext = { tenantId: 1 };
 
 // "Ahora" pinneado. Ventana de asistencias = [NOW-30d, NOW].
 const NOW = new Date("2026-06-15T12:00:00Z");
@@ -148,7 +156,9 @@ describe("cron recategorización multisucursal", () => {
     const [row] = await app.db
       .select({ branchId: schema.users.branchId })
       .from(schema.users)
-      .where(eq(schema.users.id, userId));
+      .where(
+        and(tenantWhere(schema.users, CTX_TEMPLO), eq(schema.users.id, userId)),
+      );
     return row.branchId;
   }
 
@@ -226,7 +236,10 @@ describe("cron recategorización multisucursal", () => {
     await addAttendance(m, branchB, 6); // dominaría B, pero está protegido
 
     const res = await runReassignMultibranch(app.db);
-    expect(res.skipped).toContainEqual({ memberId: m, reason: "manual_recent" });
+    expect(res.skipped).toContainEqual({
+      memberId: m,
+      reason: "manual_recent",
+    });
     expect(await homeBranchOf(m)).toBe(branchA);
   });
 
@@ -251,7 +264,10 @@ describe("cron recategorización multisucursal", () => {
     await addAttendance(m, branchC, 6); // C es ES
 
     const res = await runReassignMultibranch(app.db);
-    expect(res.skipped).toContainEqual({ memberId: m, reason: "cross_country" });
+    expect(res.skipped).toContainEqual({
+      memberId: m,
+      reason: "cross_country",
+    });
     expect(await homeBranchOf(m)).toBe(branchA);
   });
 

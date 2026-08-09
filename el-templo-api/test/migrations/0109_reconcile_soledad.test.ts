@@ -186,15 +186,18 @@ describe("Migration 0109 — reconcile Soledad Mailland", () => {
         `DELETE FROM subscriptions WHERE id IN (${SUB_CANCELLED_ID}, ${SUB_OTHER_CANCELLED_ID}, ${SUB_OTHER_CANCELLED_2_ID}, ${SUB_ACTIVE_ID})`,
       );
       await conn.query(
-        `DELETE FROM users WHERE id IN (${DELETED_USER_ID}, ${ACTIVE_USER_ID})`,
+        `DELETE FROM users WHERE id IN (${DELETED_USER_ID}, ${ACTIVE_USER_ID}) AND tenant_id = ?`,
+        [TENANT_TEMPLO],
       );
       // Clean up the Test 4 fallback user (only present if Test 4 inserted
       // explicit id=1 because the per-worker DB lacked a low-id founder row).
       await conn.query(
-        `DELETE FROM users WHERE email = 'fallback-actor-1@test.local'`,
+        `DELETE FROM users WHERE email = 'fallback-actor-1@test.local' AND tenant_id = ?`,
+        [TENANT_TEMPLO],
       );
       await conn.query(
-        `DELETE FROM audit_log WHERE action = 'reconciliation' AND target_id = ${ACTIVE_USER_ID}`,
+        `DELETE FROM audit_log WHERE action = 'reconciliation' AND target_id = ${ACTIVE_USER_ID} AND tenant_id = ?`,
+        [TENANT_TEMPLO],
       );
       await conn.query("SET FOREIGN_KEY_CHECKS=1");
     } finally {
@@ -230,10 +233,12 @@ describe("Migration 0109 — reconcile Soledad Mailland", () => {
         `DELETE FROM subscriptions WHERE id IN (${SUB_CANCELLED_ID}, ${SUB_OTHER_CANCELLED_ID}, ${SUB_OTHER_CANCELLED_2_ID}, ${SUB_ACTIVE_ID})`,
       );
       await conn.query(
-        `DELETE FROM users WHERE id IN (${DELETED_USER_ID}, ${ACTIVE_USER_ID})`,
+        `DELETE FROM users WHERE id IN (${DELETED_USER_ID}, ${ACTIVE_USER_ID}) AND tenant_id = ?`,
+        [TENANT_TEMPLO],
       );
       await conn.query(
-        `DELETE FROM audit_log WHERE action = 'reconciliation' AND target_id = ${ACTIVE_USER_ID}`,
+        `DELETE FROM audit_log WHERE action = 'reconciliation' AND target_id = ${ACTIVE_USER_ID} AND tenant_id = ?`,
+        [TENANT_TEMPLO],
       );
       await conn.query("SET FOREIGN_KEY_CHECKS=1");
     } finally {
@@ -265,10 +270,11 @@ describe("Migration 0109 — reconcile Soledad Mailland", () => {
       // non-owner role so the COALESCE fallback (user id 1) is exercised.
       // Phase 103 backfill seeded admin@test.com as 'owner' with low id.
       await conn.query(
-        `INSERT INTO users (id, email, password_hash, first_name, last_name, role, branch_id, level, status, deleted_at)
-         VALUES (?, ?, ?, ?, ?, 'member', ?, 'alfa', 'inactivo', NOW())`,
+        `INSERT INTO users (id, tenant_id, email, password_hash, first_name, last_name, role, branch_id, level, status, deleted_at)
+         VALUES (?, ?, ?, ?, ?, ?, 'member', ?, 'alfa', 'inactivo', NOW())`,
         [
           DELETED_USER_ID,
+          TENANT_TEMPLO,
           `soledad-deleted-${DELETED_USER_ID}@test.local`,
           argonHash,
           "Soledad",
@@ -277,10 +283,11 @@ describe("Migration 0109 — reconcile Soledad Mailland", () => {
         ],
       );
       await conn.query(
-        `INSERT INTO users (id, email, password_hash, first_name, last_name, role, branch_id, level, status)
-         VALUES (?, ?, ?, ?, ?, 'member', ?, 'alfa', 'prueba')`,
+        `INSERT INTO users (id, tenant_id, email, password_hash, first_name, last_name, role, branch_id, level, status)
+         VALUES (?, ?, ?, ?, ?, ?, 'member', ?, 'alfa', 'prueba')`,
         [
           ACTIVE_USER_ID,
+          TENANT_TEMPLO,
           `soledad-active-${ACTIVE_USER_ID}@test.local`,
           argonHash,
           "Soledad",
@@ -392,13 +399,21 @@ describe("Migration 0109 — reconcile Soledad Mailland", () => {
       // at id 1, but per-worker test DBs auto-increment from whatever the
       // migration seed populated first.
       if (opts?.omitOwnerRole) {
+        // tenant-safe: el escenario de Test 4 es "no existe NINGUN owner", a
+        // proposito global — acotar por gimnasio dejaria vivo un owner de
+        // otro tenant y el fallback COALESCE de la migracion no se ejercitaria.
         await conn.query(
-          `UPDATE users SET role = 'member' WHERE role = 'owner'`,
+          `UPDATE /* tenant-safe: Test 4 fuerza "cero owners en TODO el sistema" para ejercitar el fallback COALESCE de la migracion */ users SET role = 'member' WHERE role = 'owner'`,
         );
         await conn.query(
-          `INSERT IGNORE INTO users (id, email, password_hash, first_name, last_name, role, branch_id, level)
-           VALUES (1, ?, ?, 'Fallback', 'Founder', 'member', ?, 'alfa')`,
-          [`fallback-actor-1@test.local`, argonHash, testBranchId],
+          `INSERT IGNORE INTO users (id, tenant_id, email, password_hash, first_name, last_name, role, branch_id, level)
+           VALUES (1, ?, ?, ?, 'Fallback', 'Founder', 'member', ?, 'alfa')`,
+          [
+            TENANT_TEMPLO,
+            `fallback-actor-1@test.local`,
+            argonHash,
+            testBranchId,
+          ],
         );
       }
 
@@ -418,7 +433,8 @@ describe("Migration 0109 — reconcile Soledad Mailland", () => {
     try {
       await conn.query("SET FOREIGN_KEY_CHECKS=0");
       await conn.query(
-        `UPDATE users SET role = 'owner' WHERE email = 'admin@test.com'`,
+        `UPDATE users SET role = 'owner' WHERE email = 'admin@test.com' AND tenant_id = ?`,
+        [TENANT_TEMPLO],
       );
       await conn.query("SET FOREIGN_KEY_CHECKS=1");
     } finally {
@@ -443,10 +459,11 @@ describe("Migration 0109 — reconcile Soledad Mailland", () => {
 
       // Same users as the buggy state.
       await conn.query(
-        `INSERT INTO users (id, email, password_hash, first_name, last_name, role, branch_id, level, status, deleted_at)
-         VALUES (?, ?, ?, ?, ?, 'member', ?, 'alfa', 'inactivo', NOW())`,
+        `INSERT INTO users (id, tenant_id, email, password_hash, first_name, last_name, role, branch_id, level, status, deleted_at)
+         VALUES (?, ?, ?, ?, ?, ?, 'member', ?, 'alfa', 'inactivo', NOW())`,
         [
           DELETED_USER_ID,
+          TENANT_TEMPLO,
           `soledad-deleted-${DELETED_USER_ID}@test.local`,
           argonHash,
           "Soledad",
@@ -455,10 +472,11 @@ describe("Migration 0109 — reconcile Soledad Mailland", () => {
         ],
       );
       await conn.query(
-        `INSERT INTO users (id, email, password_hash, first_name, last_name, role, branch_id, level, status)
-         VALUES (?, ?, ?, ?, ?, 'member', ?, 'alfa', 'prueba')`,
+        `INSERT INTO users (id, tenant_id, email, password_hash, first_name, last_name, role, branch_id, level, status)
+         VALUES (?, ?, ?, ?, ?, ?, 'member', ?, 'alfa', 'prueba')`,
         [
           ACTIVE_USER_ID,
+          TENANT_TEMPLO,
           `soledad-active-${ACTIVE_USER_ID}@test.local`,
           argonHash,
           "Soledad",
@@ -542,13 +560,14 @@ describe("Migration 0109 — reconcile Soledad Mailland", () => {
       if (opts?.withAuditRow) {
         // Resolve an actor: the seed admin@test.com or fallback id 1.
         const [actorRows] = (await conn.query(
-          `SELECT id FROM users WHERE role = 'owner' ORDER BY id LIMIT 1`,
+          `SELECT /* tenant-safe: mirror deliberado del COALESCE de la migracion 0109, global por diseno (escrita antes de tenant_id) */ id FROM users WHERE role = 'owner' ORDER BY id LIMIT 1`,
         )) as unknown as [Array<{ id: number }>];
         const actorId = actorRows[0]?.id ?? 1;
         await conn.query(
-          `INSERT INTO audit_log (actor_id, action, target_kind, target_id, payload_json, reason, created_at)
-           VALUES (?, 'reconciliation', 'member', ?, ?, ?, NOW())`,
+          `INSERT INTO audit_log (tenant_id, actor_id, action, target_kind, target_id, payload_json, reason, created_at)
+           VALUES (?, ?, 'reconciliation', 'member', ?, ?, ?, NOW())`,
           [
+            TENANT_TEMPLO,
             actorId,
             ACTIVE_USER_ID,
             JSON.stringify({
@@ -672,6 +691,7 @@ describe("Migration 0109 — reconcile Soledad Mailland", () => {
       .from(schema.auditLog)
       .where(
         and(
+          tenantWhere(schema.auditLog, TEMPLO_CTX),
           eq(schema.auditLog.action, "reconciliation"),
           eq(schema.auditLog.targetId, ACTIVE_USER_ID),
         ),
@@ -782,6 +802,7 @@ describe("Migration 0109 — reconcile Soledad Mailland", () => {
       .from(schema.auditLog)
       .where(
         and(
+          tenantWhere(schema.auditLog, TEMPLO_CTX),
           eq(schema.auditLog.action, "reconciliation"),
           eq(schema.auditLog.targetId, ACTIVE_USER_ID),
         ),
@@ -842,6 +863,7 @@ describe("Migration 0109 — reconcile Soledad Mailland", () => {
         .from(schema.auditLog)
         .where(
           and(
+            tenantWhere(schema.auditLog, TEMPLO_CTX),
             eq(schema.auditLog.action, "reconciliation"),
             eq(schema.auditLog.targetId, ACTIVE_USER_ID),
           ),

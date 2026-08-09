@@ -21,6 +21,14 @@ import { and, count, eq, isNotNull, isNull, ne, sql } from "drizzle-orm";
 import { createTestApp, cleanAllTestData } from "../helpers";
 import { users } from "../../src/db/schema/users";
 import { branches } from "../../src/db/schema/branches";
+import {
+  tenantWhere,
+  type TenantContext,
+} from "../../src/modules/shared/tenant";
+
+// Archivo single-tenant (solo El Templo): filtro preciso para lecturas por
+// id conocido, no exencion.
+const CTX_TEMPLO: TenantContext = { tenantId: 1 };
 import { subscriptions } from "../../src/db/schema/subscriptions";
 import { subscriptionPlans } from "../../src/db/schema/subscription-plans";
 import { bookings } from "../../src/db/schema/bookings";
@@ -111,7 +119,7 @@ describe("Phase 103 - Migration 0100 backfill correctness", () => {
    */
   const resetStatusForAllUsers = async (): Promise<void> => {
     await app.db.execute(
-      sql`UPDATE users SET status = NULL, staff_disabled = FALSE`,
+      sql`UPDATE /* tenant-safe: reset global deliberado del snapshot pre-backfill, mismo alcance que la migracion 0100 */ users SET status = NULL, staff_disabled = FALSE`,
     );
   };
 
@@ -123,7 +131,7 @@ describe("Phase 103 - Migration 0100 backfill correctness", () => {
    */
   const runBackfill = async (): Promise<void> => {
     await app.db.execute(sql`
-      UPDATE users u
+      UPDATE /* tenant-safe: mirror deliberado, global, de la migracion 0100 (corrio antes de que tenant_id existiera) */ users u
         SET u.status = 'activo'
         WHERE u.role = 'member'
           AND u.status IS NULL
@@ -135,7 +143,7 @@ describe("Phase 103 - Migration 0100 backfill correctness", () => {
           )
     `);
     await app.db.execute(sql`
-      UPDATE users u
+      UPDATE /* tenant-safe: mirror deliberado, global, de la migracion 0100 (corrio antes de que tenant_id existiera) */ users u
         SET u.status = 'prueba'
         WHERE u.role = 'member'
           AND u.status IS NULL
@@ -145,14 +153,14 @@ describe("Phase 103 - Migration 0100 backfill correctness", () => {
           )
     `);
     await app.db.execute(sql`
-      UPDATE users u
+      UPDATE /* tenant-safe: mirror deliberado, global, de la migracion 0100 (corrio antes de que tenant_id existiera) */ users u
         SET u.status = 'freemium'
         WHERE u.role = 'member'
           AND u.status IS NULL
           AND u.branch_id = (SELECT id FROM branches WHERE code = 'ONLINE')
     `);
     await app.db.execute(sql`
-      UPDATE users u
+      UPDATE /* tenant-safe: mirror deliberado, global, de la migracion 0100 (corrio antes de que tenant_id existiera) */ users u
         SET u.status = 'inactivo'
         WHERE u.role = 'member'
           AND u.status IS NULL
@@ -242,7 +250,7 @@ describe("Phase 103 - Migration 0100 backfill correctness", () => {
     const [row] = await app.db
       .select({ status: users.status })
       .from(users)
-      .where(eq(users.id, userId));
+      .where(and(tenantWhere(users, CTX_TEMPLO), eq(users.id, userId)));
     return row?.status ?? null;
   };
 
@@ -371,6 +379,10 @@ describe("Phase 103 - Migration 0100 backfill correctness", () => {
       .from(users)
       .where(
         and(
+          // tenant-safe: R4 es el gate de integridad de la propia migracion
+          // 0100 (cero NULL en TODA la tabla) — corrio antes de que tenant_id
+          // existiera y acotarlo por gimnasio le cambiaria lo que audita.
+          sql`/* tenant-safe: R4 audita TODA la tabla, mismo alcance que la migracion 0100 */ 1=1`,
           eq(users.role, "member"),
           isNull(users.status),
           isNull(users.deletedAt),
@@ -381,7 +393,13 @@ describe("Phase 103 - Migration 0100 backfill correctness", () => {
     const [{ staffWithStatusCount }] = await app.db
       .select({ staffWithStatusCount: count() })
       .from(users)
-      .where(and(ne(users.role, "member"), isNotNull(users.status)));
+      .where(
+        and(
+          sql`/* tenant-safe: R4 audita TODA la tabla, mismo alcance que la migracion 0100 */ 1=1`,
+          ne(users.role, "member"),
+          isNotNull(users.status),
+        ),
+      );
     expect(staffWithStatusCount).toBe(0);
   });
 });

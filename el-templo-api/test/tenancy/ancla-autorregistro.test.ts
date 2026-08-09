@@ -93,16 +93,16 @@ type TablaInspeccionada = "users" | "subscriptions";
  * Lee el `tenant_id` REAL de una fila. SQL crudo a propósito: la pregunta es
  * "¿en qué gimnasio nació esta fila?", y filtrar por `tenant_id` acá volvería
  * la aserción tautológica (mismo razonamiento que `con-03` y
- * `finance-gimnasio-dos.ts:tenantDeLaFila`). `users` todavía NO es tabla
- * strict (el switch lo enciende un plan posterior), así que este SELECT no
- * necesita exención: no hay sentinel corriendo sobre ella todavía.
+ * `finance-gimnasio-dos.ts:tenantDeLaFila`). Exención `tenant-safe` embebida en
+ * el SQL (único canal que lee el sentinel): con `users` ya strict (173-25,
+ * sonda), este SELECT hace throw sin ella.
  */
 async function tenantDeLaFila(
   tabla: TablaInspeccionada,
   filaId: number,
 ): Promise<number | null> {
   const resultado = (await app.db.execute(
-    sql`SELECT tenant_id AS tenantId FROM ${sql.raw(tabla)} WHERE id = ${filaId}`,
+    sql`SELECT /* tenant-safe: leer el tenant_id de la fila ES la asercion; filtrar por el la volveria tautologica */ tenant_id AS tenantId FROM ${sql.raw(tabla)} WHERE id = ${filaId}`,
   )) as unknown as [Array<{ tenantId: number | null }>];
   const filas = Array.isArray(resultado)
     ? resultado[0]
@@ -187,7 +187,7 @@ describe("ancla del autorregistro (D-12/WR-01) — el usuario nace en el gimnasi
     const body = JSON.parse(res.body) as { user: { id: number } };
 
     const [fila] = await app.db.execute(
-      sql`SELECT tenant_id AS tenantId, branch_id AS branchId, status AS status,
+      sql`SELECT /* tenant-safe: leer el gimnasio y la sede REALES de la fila ES la asercion; filtrar por tenant la volveria tautologica */ tenant_id AS tenantId, branch_id AS branchId, status AS status,
                  branch_source AS branchSource
           FROM users WHERE id = ${body.user.id}`,
     );
@@ -224,7 +224,9 @@ describe("ancla del autorregistro (D-12/WR-01) — el usuario nace en el gimnasi
     const [existente] = await app.db
       .select({ id: schema.users.id })
       .from(schema.users)
-      .where(sql`${schema.users.email} = ${payload.email}`);
+      .where(
+        sql`/* tenant-safe: el branchId es inexistente asi que no hay gimnasio que filtrar; la pregunta es si el alta dejo una fila en ALGUN tenant */ ${schema.users.email} = ${payload.email}`,
+      );
     expect(
       existente,
       "El rechazo fail-closed no puede dejar una fila a medias: el usuario NO debe existir.",

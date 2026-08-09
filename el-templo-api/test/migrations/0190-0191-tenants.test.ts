@@ -386,7 +386,9 @@ describe("Migraciones 0190 + 0191 — tenants, tenant_settings y anclas", () => 
     const [readBack] = await app.db
       .select({ id: schema.users.id, tenantId: schema.users.tenantId })
       .from(schema.users)
-      .where(eq(schema.users.id, inserted.id))
+      .where(
+        sql`/* tenant-safe: la pregunta es a que tenant resolvio el DEFAULT sin estampar; filtrar por tenant la volveria tautologica */ ${schema.users.id} = ${inserted.id}`,
+      )
       .limit(1);
 
     expect(readBack).toBeDefined();
@@ -394,7 +396,11 @@ describe("Migraciones 0190 + 0191 — tenants, tenant_settings y anclas", () => 
 
     // users SÍ se limpia en el beforeEach, pero borrar acá deja el archivo
     // autocontenido y no depende del orden de los tests.
-    await app.db.delete(schema.users).where(eq(schema.users.id, inserted.id));
+    await app.db
+      .delete(schema.users)
+      .where(
+        sql`/* tenant-safe: limpieza de la fila-sonda de este mismo test, ya verificada arriba */ ${schema.users.id} = ${inserted.id}`,
+      );
   });
 
   // ─── 6. Idempotencia ────────────────────────────────────────────────────

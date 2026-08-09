@@ -1,8 +1,15 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { createTestApp } from "../helpers";
-import { eq, inArray, asc } from "drizzle-orm";
+import { and, eq, inArray, asc } from "drizzle-orm";
 import * as schema from "../../src/db/schema";
+import {
+  tenantWhere,
+  type TenantContext,
+} from "../../src/modules/shared/tenant";
+
+// Archivo single-tenant (solo El Templo): filtro preciso, no exencion.
+const CTX_TEMPLO: TenantContext = { tenantId: 1 };
 
 /**
  * Atomicidad del INITIUM sync (NODE-4V).
@@ -63,7 +70,12 @@ describe("INITIUM sync atomicity", () => {
     const [editor] = await app.db
       .select({ id: schema.users.id })
       .from(schema.users)
-      .where(eq(schema.users.email, "admin@test.com"));
+      .where(
+        and(
+          tenantWhere(schema.users, CTX_TEMPLO),
+          eq(schema.users.email, "admin@test.com"),
+        ),
+      );
     if (!editor) throw new Error("Falta el usuario seed admin@test.com");
     editorUserId = editor.id;
 

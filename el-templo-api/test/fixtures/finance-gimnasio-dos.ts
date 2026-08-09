@@ -292,7 +292,12 @@ async function adminSemillaId(app: FastifyInstance): Promise<number> {
   const [fila] = await app.db
     .select({ id: schema.users.id })
     .from(schema.users)
-    .where(eq(schema.users.email, EMAIL_ADMIN_SEMILLA))
+    .where(
+      and(
+        tenantWhere(schema.users, CTX_TEMPLO),
+        eq(schema.users.email, EMAIL_ADMIN_SEMILLA),
+      ),
+    )
     .limit(1);
   if (!fila) {
     throw new Error(

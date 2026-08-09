@@ -30,6 +30,14 @@ import type { FastifyInstance } from "fastify";
 import { createTestApp, cleanAllTestData } from "../helpers";
 import { splitSqlStatements } from "../../src/db/run-migrations";
 import * as schema from "../../src/db/schema";
+import {
+  tenantValues,
+  type TenantContext,
+} from "../../src/modules/shared/tenant";
+
+// Archivo single-tenant (solo El Templo): estampar tenant_id explicito, no
+// confiar en el DEFAULT 1 de la columna.
+const CTX_TEMPLO: TenantContext = { tenantId: 1 };
 
 const MIGRATION_PATH = path.resolve(
   __dirname,
@@ -208,15 +216,17 @@ describe("Migration 0111 — program_enrollments add-on columns", () => {
     const passwordHash = "x".repeat(64);
     const [user] = await app.db
       .insert(schema.users)
-      .values({
-        email: `t3-${Date.now()}@test.local`,
-        passwordHash,
-        firstName: "Test",
-        lastName: "Three",
-        role: "member",
-        branchId: presentialBranchId,
-        level: "alfa",
-      })
+      .values(
+        tenantValues(CTX_TEMPLO, {
+          email: `t3-${Date.now()}@test.local`,
+          passwordHash,
+          firstName: "Test",
+          lastName: "Three",
+          role: "member",
+          branchId: presentialBranchId,
+          level: "alfa",
+        }),
+      )
       .$returningId();
 
     const today = new Date().toISOString().slice(0, 10);
@@ -308,15 +318,17 @@ describe("Migration 0111 — program_enrollments add-on columns", () => {
     const passwordHash = "x".repeat(64);
     const [user] = await app.db
       .insert(schema.users)
-      .values({
-        email: `t4-${Date.now()}@test.local`,
-        passwordHash,
-        firstName: "Test",
-        lastName: "Four",
-        role: "member",
-        branchId: presentialBranchId,
-        level: "alfa",
-      })
+      .values(
+        tenantValues(CTX_TEMPLO, {
+          email: `t4-${Date.now()}@test.local`,
+          passwordHash,
+          firstName: "Test",
+          lastName: "Four",
+          role: "member",
+          branchId: presentialBranchId,
+          level: "alfa",
+        }),
+      )
       .$returningId();
 
     const today = new Date().toISOString().slice(0, 10);
@@ -400,15 +412,17 @@ describe("Migration 0111 — program_enrollments add-on columns", () => {
     const passwordHash = "x".repeat(64);
     const [user] = await app.db
       .insert(schema.users)
-      .values({
-        email: `t5-${Date.now()}@test.local`,
-        passwordHash,
-        firstName: "Test",
-        lastName: "Five",
-        role: "member",
-        branchId: presentialBranchId,
-        level: "alfa",
-      })
+      .values(
+        tenantValues(CTX_TEMPLO, {
+          email: `t5-${Date.now()}@test.local`,
+          passwordHash,
+          firstName: "Test",
+          lastName: "Five",
+          role: "member",
+          branchId: presentialBranchId,
+          level: "alfa",
+        }),
+      )
       .$returningId();
 
     const today = new Date().toISOString().slice(0, 10);
