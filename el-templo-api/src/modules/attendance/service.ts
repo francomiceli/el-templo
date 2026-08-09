@@ -7,7 +7,7 @@
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { eq, and, sql, desc, inArray, lt } from "drizzle-orm";
+import { eq, and, sql, desc, inArray, lt, isNotNull } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { BadRequestError } from "../shared/errors";
@@ -72,7 +72,9 @@ export class AttendanceService {
     const [branchRow] = await this.db
       .select({ timezone: schema.branches.timezone })
       .from(schema.branches)
-      .where(eq(schema.branches.id, branchId));
+      .where(
+        and(tenantWhere(schema.branches, ctx), eq(schema.branches.id, branchId)),
+      );
 
     if (!branchRow) {
       throw new BadRequestError("Sede invalida");
@@ -128,6 +130,7 @@ export class AttendanceService {
       )
       .where(
         and(
+          tenantWhere(schema.bookings, ctx),
           eq(schema.bookings.memberId, memberId),
           eq(schema.bookings.bookingDate, todayStr),
           eq(schema.bookings.status, "reservado"),
@@ -163,7 +166,12 @@ export class AttendanceService {
         classesPerWeek: schema.subscriptionPlans.classesPerWeek,
       })
       .from(schema.subscriptionPlans)
-      .where(eq(schema.subscriptionPlans.id, subscription.planId));
+      .where(
+        and(
+          tenantWhere(schema.subscriptionPlans, ctx),
+          eq(schema.subscriptionPlans.id, subscription.planId),
+        ),
+      );
 
     if (planRow && !planRow.multiBranch) {
       const [memberRow] = await this.db
@@ -189,7 +197,7 @@ export class AttendanceService {
       planRow?.classesPerWeek !== null &&
       planRow?.classesPerWeek !== undefined
     ) {
-      const weeklyCount = await this.countWeeklyAttendance(memberId);
+      const weeklyCount = await this.countWeeklyAttendance(ctx, memberId);
       if (weeklyCount >= planRow.classesPerWeek) {
         throw new BadRequestError(
           `Alcanzaste tu limite semanal (${weeklyCount}/${planRow.classesPerWeek})`,
@@ -223,6 +231,7 @@ export class AttendanceService {
       )
       .where(
         and(
+          tenantWhere(schema.attendance, ctx),
           eq(schema.attendance.memberId, memberId),
           sql`DATE(${schema.attendance.checkedInAt}) = ${todayStr}`,
           sql`COALESCE(${schema.activities.isSpecial}, false) = ${isSpecialActivity}`,
@@ -273,6 +282,7 @@ export class AttendanceService {
         )
         .where(
           and(
+            tenantWhere(schema.attendance, ctx),
             eq(schema.attendance.memberId, memberId),
             eq(schema.attendance.sessionDate, todayStr),
             sql`COALESCE(${schema.activities.isSpecial}, false) = ${isSpecialActivity}`,
@@ -406,6 +416,7 @@ export class AttendanceService {
         .from(schema.attendance)
         .where(
           and(
+            tenantWhere(schema.attendance, ctx),
             eq(schema.attendance.memberId, coachId),
             eq(schema.attendance.sessionDate, todayStr),
           ),
@@ -724,6 +735,7 @@ export class AttendanceService {
         .from(schema.attendance)
         .where(
           and(
+            tenantWhere(schema.attendance, ctx),
             inArray(schema.attendance.memberId, memberIds),
             lt(schema.attendance.sessionDate, date),
           ),
@@ -779,7 +791,12 @@ export class AttendanceService {
         schema.activities,
         eq(schema.activities.id, schema.schedules.activityId),
       )
-      .where(eq(schema.schedules.id, scheduleId));
+      .where(
+        and(
+          tenantWhere(schema.schedules, ctx),
+          eq(schema.schedules.id, scheduleId),
+        ),
+      );
 
     if (!schedule) {
       throw new BadRequestError("Horario no encontrado");
@@ -806,6 +823,7 @@ export class AttendanceService {
       )
       .where(
         and(
+          tenantWhere(schema.attendance, ctx),
           eq(schema.attendance.memberId, memberId),
           eq(schema.attendance.sessionDate, date),
           sql`COALESCE(${schema.activities.isSpecial}, false) = ${schedule.isSpecial}`,
@@ -915,8 +933,18 @@ export class AttendanceService {
   /**
    * Remove a check-in (coach undo). Deletes the attendance record,
    * restores classesRemaining, reverses AURA, and reverts booking status.
+   *
+   * Fase 174 (174-05): `ctx` es OPCIONAL y va AL FINAL (no "ctx PRIMERO" como
+   * el resto del archivo) porque su único caller (`attendance/routes.ts`,
+   * DELETE /:attendanceId) todavia no deriva `assertTenant` — threadear ctx
+   * ahi es deuda fuera del alcance de este plan (files_modified = solo
+   * service.ts). Con ctx ausente cae al guard provisorio Pattern D
+   * (isNotNull), igual que `activateScheduledSub` en subscriptions/service.ts.
    */
-  async removeCheckIn(attendanceId: number): Promise<{ removed: boolean }> {
+  async removeCheckIn(
+    attendanceId: number,
+    ctx?: TenantContext,
+  ): Promise<{ removed: boolean }> {
     // Get the attendance record
     const [attRecord] = await this.db
       .select({
@@ -926,7 +954,17 @@ export class AttendanceService {
         checkedInAt: schema.attendance.checkedInAt,
       })
       .from(schema.attendance)
-      .where(eq(schema.attendance.id, attendanceId));
+      .where(
+        ctx
+          ? and(
+              tenantWhere(schema.attendance, ctx),
+              eq(schema.attendance.id, attendanceId),
+            )
+          : and(
+              isNotNull(schema.attendance.tenantId),
+              eq(schema.attendance.id, attendanceId),
+            ),
+      );
 
     if (!attRecord) {
       throw new BadRequestError("Registro de asistencia no encontrado");
@@ -941,6 +979,7 @@ export class AttendanceService {
     // Fase 161 (GATE-02): restaurar la clase a la sub correcta según si la
     // actividad era especial. scheduleId null (force check-in) → regular.
     const isSpecialActivity = await this.isSpecialSchedule(
+      ctx,
       attRecord.scheduleId,
     );
     const subscription =
@@ -1018,8 +1057,14 @@ export class AttendanceService {
    * Fase 161 (GATE-02): resuelve si la actividad de un scheduleId es especial
    * (activities.is_special) para rutear el consumo a la sub correcta. Devuelve
    * false si scheduleId es null o el horario no existe (defensivo: regular).
+   *
+   * Fase 174 (174-05): `ctx` opcional (ver `removeCheckIn`, su único caller) —
+   * mismo guard provisorio Pattern D cuando no llega.
    */
-  private async isSpecialSchedule(scheduleId: number | null): Promise<boolean> {
+  private async isSpecialSchedule(
+    ctx: TenantContext | undefined,
+    scheduleId: number | null,
+  ): Promise<boolean> {
     if (scheduleId === null) return false;
     const [row] = await this.db
       .select({ isSpecial: schema.activities.isSpecial })
@@ -1028,7 +1073,17 @@ export class AttendanceService {
         schema.activities,
         eq(schema.activities.id, schema.schedules.activityId),
       )
-      .where(eq(schema.schedules.id, scheduleId))
+      .where(
+        ctx
+          ? and(
+              tenantWhere(schema.schedules, ctx),
+              eq(schema.schedules.id, scheduleId),
+            )
+          : and(
+              isNotNull(schema.schedules.tenantId),
+              eq(schema.schedules.id, scheduleId),
+            ),
+      )
       .limit(1);
     return row?.isSpecial ?? false;
   }
@@ -1101,7 +1156,9 @@ export class AttendanceService {
       params;
     const offset = (page - 1) * limit;
 
-    const conditions: ReturnType<typeof eq>[] = [];
+    const conditions: ReturnType<typeof eq>[] = [
+      tenantWhere(schema.attendance, ctx),
+    ];
 
     if (branchId !== undefined) {
       conditions.push(eq(schema.attendance.branchId, branchId));
@@ -1264,8 +1321,14 @@ export class AttendanceService {
   /**
    * Count this member's attendance records in the current Mon-Sat calendar week.
    * Uses getWeekRange (UTC-based) to match booking-service week boundaries.
+   *
+   * Fase 174 (174-05): `ctx` PRIMERO — único caller es `checkIn`, en este
+   * mismo archivo, que ya lo tiene.
    */
-  private async countWeeklyAttendance(memberId: number): Promise<number> {
+  private async countWeeklyAttendance(
+    ctx: TenantContext,
+    memberId: number,
+  ): Promise<number> {
     const { monday, saturday } = getWeekRange(new Date());
 
     // Solo asistencias a actividades regulares: las especiales (pase Aura)
@@ -1284,6 +1347,7 @@ export class AttendanceService {
       )
       .where(
         and(
+          tenantWhere(schema.attendance, ctx),
           eq(schema.attendance.memberId, memberId),
           sql`DATE(${schema.attendance.checkedInAt}) >= ${monday}`,
           sql`DATE(${schema.attendance.checkedInAt}) <= ${saturday}`,
