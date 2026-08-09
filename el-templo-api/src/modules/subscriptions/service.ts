@@ -2626,7 +2626,7 @@ export class SubscriptionService {
     // Pause cleared out future bookings; subscription_schedules stayed,
     // so we can auto-populate without asking the admin to re-set slots.
     // (External helper, not transaction-aware — kept on this.db.)
-    await populateBookings(this.db, this.log, sub.id);
+    await populateBookings(ctx, this.db, this.log, sub.id);
 
     const updated = await this.getSubscriptionById(sub.id);
     if (!updated) throw new Error("Failed to retrieve updated subscription");
@@ -2844,7 +2844,7 @@ export class SubscriptionService {
     // Seed bookings for the extended tail. Idempotent (INSERT IGNORE), so
     // already-materialized future bookings stay put. (External helper, not
     // transaction-aware — kept on this.db, same as resumeSubscription.)
-    await populateBookings(this.db, this.log, subscriptionId);
+    await populateBookings(ctx, this.db, this.log, subscriptionId);
 
     // Frozen future days: the member announced they won't attend, so their
     // fixed-slot reservations inside the range must release capacity. Runs
@@ -2853,6 +2853,7 @@ export class SubscriptionService {
     const today = todayDateString();
     if (toDate >= today) {
       await cancelBookingsInRange(
+        ctx,
         this.db,
         this.log,
         subscriptionId,
