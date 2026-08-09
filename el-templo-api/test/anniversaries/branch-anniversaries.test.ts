@@ -7,14 +7,7 @@
  * por query para no depender del reloj del server (evita la trampa de CI por
  * calendario).
  */
-import {
-  describe,
-  it,
-  expect,
-  beforeAll,
-  afterAll,
-  beforeEach,
-} from "vitest";
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
 import {
   createTestApp,
@@ -112,8 +105,16 @@ describe("GET /api/admin/anniversaries", () => {
     const { anniversaries } = JSON.parse(res.body);
 
     expect(anniversaries).toHaveLength(2);
-    expect(anniversaries[0]).toMatchObject({ months: 12, label: "1 año", when: "today" });
-    expect(anniversaries[1]).toMatchObject({ months: 3, label: "3 meses", when: "today" });
+    expect(anniversaries[0]).toMatchObject({
+      months: 12,
+      label: "1 año",
+      when: "today",
+    });
+    expect(anniversaries[1]).toMatchObject({
+      months: 3,
+      label: "3 meses",
+      when: "today",
+    });
   });
 
   it("incluye los de mañana con includeTomorrow, marcados 'tomorrow'", async () => {
@@ -130,7 +131,11 @@ describe("GET /api/admin/anniversaries", () => {
   });
 
   it("no incluye alumnos inactivos", async () => {
-    await insertMember({ createdAt: "2025-06-15", branchId, status: "inactivo" });
+    await insertMember({
+      createdAt: "2025-06-15",
+      branchId,
+      status: "inactivo",
+    });
 
     const res = await get({ branchId, date: TODAY });
     expect(res.statusCode).toBe(200);

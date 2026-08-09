@@ -205,7 +205,10 @@ describe("Reschedule Trial API (Fase 164-01, REPRO-01)", () => {
       })
       .from(users)
       .where(and(tenantWhere(users, CTX), eq(users.id, userId)));
-    return { leadStatus: row.leadStatus, leadStatusSource: row.leadStatusSource };
+    return {
+      leadStatus: row.leadStatus,
+      leadStatusSource: row.leadStatusSource,
+    };
   }
 
   async function setLead(

@@ -1330,7 +1330,10 @@ describe("alta de alumno con plan — POST /api/admin/finance/coach-load/alta (a
       sql`SELECT /* tenant-safe: leer el tenant_id de la fila ES la asercion; filtrarla por gimnasio la volveria tautologica */ tenant_id FROM subscriptions WHERE id = ${subId}`,
     );
     expect(
-      [filaSub?.tenant_id, await tenantDeLaFila(app, "financial_transactions", chargeId)],
+      [
+        filaSub?.tenant_id,
+        await tenantDeLaFila(app, "financial_transactions", chargeId),
+      ],
       `El alta con recursos propios del gimnasio ${TENANT_DOS} escribio la sub o el cobro en OTRO ` +
         `gimnasio (assignPlan perdio su tenantValues, o el charge nacio sin el gimnasio del ctx).`,
     ).toEqual([TENANT_DOS, TENANT_DOS]);

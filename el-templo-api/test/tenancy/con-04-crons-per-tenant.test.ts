@@ -223,7 +223,9 @@ describe("criterio 3 — el cuerpo del cron corre una vez por gimnasio ACTIVO", 
     const spy = vi
       .spyOn(AdminSessionService.prototype, "autoApprovePendingSessions")
       .mockResolvedValueOnce({ approved: 3 })
-      .mockRejectedValueOnce(new Error("explota sólo para el segundo gimnasio"));
+      .mockRejectedValueOnce(
+        new Error("explota sólo para el segundo gimnasio"),
+      );
 
     const resultado = await runAutoApprove(app.db);
 

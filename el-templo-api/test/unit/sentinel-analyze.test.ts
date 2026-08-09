@@ -109,13 +109,17 @@ describe("analyzeSql — veredictos sobre SQL emitido por Drizzle", () => {
   it("violation: un UPDATE filtrado solo por id", () => {
     // El caso clásico del olvido: el id parece suficiente hasta que dos
     // gimnasios tienen filas con ids que el atacante puede enumerar.
-    const v = kinds("update `users` set `first_name` = ? where `users`.`id` = ?");
+    const v = kinds(
+      "update `users` set `first_name` = ? where `users`.`id` = ?",
+    );
     expect(v.kind).toBe("violation");
     expect(v.tables).toEqual(["users"]);
   });
 
   it("ok: un DELETE con tenant_id en el WHERE", () => {
-    const v = kinds("delete from `users` where `users`.`tenant_id` = ? and `id` = ?");
+    const v = kinds(
+      "delete from `users` where `users`.`tenant_id` = ? and `id` = ?",
+    );
     expect(v.kind).toBe("ok");
     expect(v.tables).toEqual(["users"]);
   });
@@ -263,9 +267,9 @@ describe("analyzeSql — tablas fuera del alcance", () => {
   });
 
   it("skip: la propia tabla `tenants` (es plataforma, no de un gimnasio)", () => {
-    expect(kinds("select `id`, `status` from `tenants` where `id` = ?").kind).toBe(
-      "skip",
-    );
+    expect(
+      kinds("select `id`, `status` from `tenants` where `id` = ?").kind,
+    ).toBe("skip");
   });
 
   it("D-07: el set gym-owned inyectado se respeta", () => {

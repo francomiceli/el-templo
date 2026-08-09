@@ -275,7 +275,10 @@ describe("tenantWhere — filtro por gimnasio (T-169-01)", () => {
 
   it("Test 4: contra MySQL devuelve sólo las filas del gimnasio pedido", async () => {
     const delSegundo = await app.db
-      .select({ id: schema.auraConfig.id, tenantId: schema.auraConfig.tenantId })
+      .select({
+        id: schema.auraConfig.id,
+        tenantId: schema.auraConfig.tenantId,
+      })
       .from(schema.auraConfig)
       .where(tenantWhere(schema.auraConfig, CTX_SEGUNDO));
 

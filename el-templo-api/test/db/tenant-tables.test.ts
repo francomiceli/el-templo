@@ -474,7 +474,8 @@ describe("TENANT_STRICT_MODULES (fase 170, D-05/D-06)", () => {
     const desalineadas = entradas
       .filter(
         (entrada) =>
-          !isStrictTable(entrada.tabla) || !strictTablesSet().has(entrada.tabla),
+          !isStrictTable(entrada.tabla) ||
+          !strictTablesSet().has(entrada.tabla),
       )
       .map((entrada) => `${entrada.modulo}: ${entrada.tabla}`)
       .sort();

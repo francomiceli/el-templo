@@ -29,10 +29,7 @@ import {
 } from "./helpers";
 import { CampaignService } from "../src/modules/campaigns/service";
 import { EmailService } from "../src/modules/email/service";
-import {
-  tenantWhere,
-  type TenantContext,
-} from "../src/modules/shared/tenant";
+import { tenantWhere, type TenantContext } from "../src/modules/shared/tenant";
 import * as schema from "../src/db/schema";
 
 let app: FastifyInstance;

@@ -384,7 +384,9 @@ describe("lint-tenant — anclaje de exenciones contra los archivos reales", () 
     const tablasConDeuda = new Set(REAL_RESULT.violations.map((v) => v.table));
 
     expect(
-      [...strictTablesSet()].filter((tabla) => tablasConDeuda.has(tabla)).sort(),
+      [...strictTablesSet()]
+        .filter((tabla) => tablasConDeuda.has(tabla))
+        .sort(),
       "una tabla de un módulo declarado migrado (TENANT_STRICT_MODULES) no puede seguir teniendo " +
         "accesos que violan: el sentinel hace THROW sobre ella en test/dev. Si esto se cae, la " +
         "adopción de ese módulo quedó a medias y el lint y el sentinel se están contradiciendo.",

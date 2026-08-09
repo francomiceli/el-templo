@@ -218,7 +218,10 @@ describe("failTenantArg", () => {
 
   it("sale con 2 ante un error de uso", () => {
     expect(() =>
-      failTenantArg(new TenantArgError("falta --tenant=<id>"), "seed-de-prueba"),
+      failTenantArg(
+        new TenantArgError("falta --tenant=<id>"),
+        "seed-de-prueba",
+      ),
     ).toThrow(ProcessExitError);
     expect(exitSpy).toHaveBeenCalledWith(2);
     expect(String(errorSpy.mock.calls[0]?.[0] ?? "")).toContain(

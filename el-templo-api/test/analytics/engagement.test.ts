@@ -277,7 +277,9 @@ describe("EngagementService (Phase 117 Plan 04)", () => {
       await setSegment(mA, "ausente");
       await setSegment(mES, "ausente");
 
-      const onlyA = await svc.getEngagementNominalList(CTX, { branchId: branchA });
+      const onlyA = await svc.getEngagementNominalList(CTX, {
+        branchId: branchA,
+      });
       expect(onlyA.map((m) => m.userId)).toEqual([mA]);
     });
 

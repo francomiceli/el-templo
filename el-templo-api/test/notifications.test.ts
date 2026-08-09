@@ -712,7 +712,9 @@ describe("Notification Module", () => {
       await app.db
         .update(schema.users)
         .set({ gender: "female" })
-        .where(and(tenantWhere(schema.users, CTX), eq(schema.users.id, memberId)));
+        .where(
+          and(tenantWhere(schema.users, CTX), eq(schema.users.id, memberId)),
+        );
 
       // Set female variants on morning_energy template
       await setTemplateFemaleVariants(
@@ -751,7 +753,9 @@ describe("Notification Module", () => {
       await app.db
         .update(schema.users)
         .set({ gender: "male" })
-        .where(and(tenantWhere(schema.users, CTX), eq(schema.users.id, memberId)));
+        .where(
+          and(tenantWhere(schema.users, CTX), eq(schema.users.id, memberId)),
+        );
 
       // Set female variants on morning_energy template
       await setTemplateFemaleVariants(
@@ -798,7 +802,9 @@ describe("Notification Module", () => {
       await app.db
         .update(schema.users)
         .set({ gender: null })
-        .where(and(tenantWhere(schema.users, CTX), eq(schema.users.id, memberId)));
+        .where(
+          and(tenantWhere(schema.users, CTX), eq(schema.users.id, memberId)),
+        );
 
       // Set female variants on morning_energy template
       await setTemplateFemaleVariants(
@@ -897,12 +903,19 @@ describe("Notification Module", () => {
       await app.db
         .update(schema.users)
         .set({ gender: "male" })
-        .where(and(tenantWhere(schema.users, CTX), eq(schema.users.id, memberId)));
+        .where(
+          and(tenantWhere(schema.users, CTX), eq(schema.users.id, memberId)),
+        );
 
       await app.db
         .update(schema.users)
         .set({ gender: "female" })
-        .where(and(tenantWhere(schema.users, CTX), eq(schema.users.id, femaleMemberId)));
+        .where(
+          and(
+            tenantWhere(schema.users, CTX),
+            eq(schema.users.id, femaleMemberId),
+          ),
+        );
 
       // Create member_profiles with known Attendance label for both members
       await app.db.insert(schema.memberProfiles).values({
