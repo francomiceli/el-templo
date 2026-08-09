@@ -10,6 +10,7 @@ import { eq, and, ne } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { ConflictError, NotFoundError } from "../shared/errors";
+import { tenantWhere, tenantValues, type TenantContext } from "../shared/tenant";
 import type { ActivityRecord, AffectedScheduleRef } from "./types";
 
 export class ActivityService {
@@ -20,8 +21,12 @@ export class ActivityService {
 
   /**
    * Create a new activity.
+   *
+   * Fase 174 (D-02, plan 174-04): `ctx` PRIMERO, filtra el chequeo de
+   * colisión de nombre y estampa `tenantId` en el insert.
    */
   async createActivity(
+    ctx: TenantContext,
     name: string,
     description?: string,
     maxCapacity?: number | null,
@@ -37,6 +42,7 @@ export class ActivityService {
       .from(schema.activities)
       .where(
         and(
+          tenantWhere(schema.activities, ctx),
           eq(schema.activities.name, name),
           eq(schema.activities.isActive, true),
         ),
@@ -46,18 +52,20 @@ export class ActivityService {
       throw new ConflictError("Ya existe una actividad activa con ese nombre");
     }
 
-    const result = await this.db.insert(schema.activities).values({
-      name,
-      description: description ?? null,
-      // D-08 (HOR-03): NULL cuando no se envía → hereda el cupo de la sucursal.
-      maxCapacity: maxCapacity ?? null,
-      // ACT-01 (fase 161): flag de gating del pase "Actividades con Aura".
-      // Default false → cero cambio de comportamiento para actividades regulares.
-      isSpecial: isSpecial ?? false,
-    });
+    const result = await this.db.insert(schema.activities).values(
+      tenantValues(ctx, {
+        name,
+        description: description ?? null,
+        // D-08 (HOR-03): NULL cuando no se envía → hereda el cupo de la sucursal.
+        maxCapacity: maxCapacity ?? null,
+        // ACT-01 (fase 161): flag de gating del pase "Actividades con Aura".
+        // Default false → cero cambio de comportamiento para actividades regulares.
+        isSpecial: isSpecial ?? false,
+      }),
+    );
 
     const id = Number(result[0].insertId);
-    const activity = await this.getActivity(id);
+    const activity = await this.getActivity(ctx, id);
     if (!activity) throw new Error("Failed to retrieve newly created activity");
     return activity;
   }
@@ -66,11 +74,14 @@ export class ActivityService {
    * List all activities (active + inactive). The admin UI surfaces the
    * full state so inactive rows can be reactivated instead of appearing
    * to have been deleted.
+   *
+   * Fase 174 (D-02, plan 174-04): `ctx` PRIMERO, filtra la lectura.
    */
-  async listActivities(): Promise<ActivityRecord[]> {
+  async listActivities(ctx: TenantContext): Promise<ActivityRecord[]> {
     const rows = await this.db
       .select()
       .from(schema.activities)
+      .where(tenantWhere(schema.activities, ctx))
       .orderBy(schema.activities.name);
 
     return rows.map((r) => this.mapActivityRow(r));
@@ -78,8 +89,12 @@ export class ActivityService {
 
   /**
    * Update an existing activity.
+   *
+   * Fase 174 (D-02, plan 174-04): `ctx` PRIMERO, filtra las lecturas de
+   * colisión de nombre y del cascade-block de schedules afectados.
    */
   async updateActivity(
+    ctx: TenantContext,
     id: number,
     data: {
       name?: string;
@@ -89,7 +104,7 @@ export class ActivityService {
       isSpecial?: boolean;
     },
   ): Promise<ActivityRecord> {
-    const existing = await this.getActivity(id);
+    const existing = await this.getActivity(ctx, id);
     if (!existing) throw new NotFoundError("Actividad no encontrada");
 
     // Phase 113 (D-16): rename collision check. Excludes self via `ne(id)`
@@ -101,6 +116,7 @@ export class ActivityService {
         .from(schema.activities)
         .where(
           and(
+            tenantWhere(schema.activities, ctx),
             eq(schema.activities.name, data.name),
             eq(schema.activities.isActive, true),
             ne(schema.activities.id, id),
@@ -131,10 +147,14 @@ export class ActivityService {
         .from(schema.schedules)
         .innerJoin(
           schema.branches,
-          eq(schema.branches.id, schema.schedules.branchId),
+          and(
+            tenantWhere(schema.branches, ctx),
+            eq(schema.branches.id, schema.schedules.branchId),
+          ),
         )
         .where(
           and(
+            tenantWhere(schema.schedules, ctx),
             eq(schema.schedules.activityId, id),
             eq(schema.schedules.isActive, true),
           ),
@@ -174,19 +194,24 @@ export class ActivityService {
         .where(eq(schema.activities.id, id));
     }
 
-    const updated = await this.getActivity(id);
+    const updated = await this.getActivity(ctx, id);
     if (!updated) throw new Error("Failed to retrieve updated activity");
     return updated;
   }
 
   /**
    * Get a single activity by ID.
+   *
+   * Fase 174 (D-02, plan 174-04): `ctx` PRIMERO, filtra la lectura.
    */
-  async getActivity(id: number): Promise<ActivityRecord | null> {
+  async getActivity(
+    ctx: TenantContext,
+    id: number,
+  ): Promise<ActivityRecord | null> {
     const [row] = await this.db
       .select()
       .from(schema.activities)
-      .where(eq(schema.activities.id, id));
+      .where(and(tenantWhere(schema.activities, ctx), eq(schema.activities.id, id)));
 
     if (!row) return null;
     return this.mapActivityRow(row);

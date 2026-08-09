@@ -9,6 +9,7 @@
 import { MySql2Database } from "drizzle-orm/mysql2";
 import { eq, and } from "drizzle-orm";
 import * as schema from "../../db/schema";
+import { tenantWhere, type TenantContext } from "../shared/tenant";
 
 export interface ScheduleExceptionRow {
   id: number;
@@ -21,11 +22,16 @@ export interface ScheduleExceptionRow {
 /**
  * Return the exception cancelling `scheduleId` on `date` (YYYY-MM-DD),
  * or null when the class runs normally that day.
+ *
+ * Fase 174 (D-02, plan 174-04): `ctx` PRIMERO y `db` AL FINAL — mismo orden
+ * que `assertBranchDelGimnasio` (shared/branch-consistency.ts) — filtra
+ * `schedule_exceptions` por gimnasio.
  */
 export async function getScheduleException(
-  db: MySql2Database<typeof schema>,
+  ctx: TenantContext,
   scheduleId: number,
   date: string,
+  db: MySql2Database<typeof schema>,
 ): Promise<ScheduleExceptionRow | null> {
   const [row] = await db
     .select({
@@ -38,6 +44,7 @@ export async function getScheduleException(
     .from(schema.scheduleExceptions)
     .where(
       and(
+        tenantWhere(schema.scheduleExceptions, ctx),
         eq(schema.scheduleExceptions.scheduleId, scheduleId),
         eq(schema.scheduleExceptions.exceptionDate, date),
       ),
