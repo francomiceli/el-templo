@@ -20,7 +20,7 @@ import {
 } from "../shared/date-utils";
 import { validateQrToken } from "../shared/qr-token";
 import { memberCoveredUntilSql } from "../shared/covered-until";
-import { tenantWhere, type TenantContext } from "../shared/tenant";
+import { tenantWhere, tenantValues, type TenantContext } from "../shared/tenant";
 import {
   milestoneInWindow,
   toUtcDateStr,
@@ -295,15 +295,17 @@ export class AttendanceService {
       }
 
       // Insert attendance record
-      const result = await tx.insert(schema.attendance).values({
-        memberId,
-        branchId,
-        scheduleId: matchingBooking.scheduleId,
-        sessionDate: todayStr,
-        status: "confirmado",
-        source: "qr",
-        checkedInAt: now,
-      });
+      const result = await tx.insert(schema.attendance).values(
+        tenantValues(ctx, {
+          memberId,
+          branchId,
+          scheduleId: matchingBooking.scheduleId,
+          sessionDate: todayStr,
+          status: "confirmado",
+          source: "qr",
+          checkedInAt: now,
+        }),
+      );
 
       const id = Number(result[0].insertId);
 
@@ -427,14 +429,16 @@ export class AttendanceService {
         throw new BadRequestError("Ya registraste asistencia hoy");
       }
 
-      const result = await tx.insert(schema.attendance).values({
-        memberId: coachId,
-        branchId,
-        sessionDate: todayStr,
-        status: "confirmado",
-        source: "qr",
-        checkedInAt: now,
-      });
+      const result = await tx.insert(schema.attendance).values(
+        tenantValues(ctx, {
+          memberId: coachId,
+          branchId,
+          sessionDate: todayStr,
+          status: "confirmado",
+          source: "qr",
+          checkedInAt: now,
+        }),
+      );
 
       return Number(result[0].insertId);
     });
@@ -467,14 +471,16 @@ export class AttendanceService {
 
     // Insert attendance record
     const todayStr = new Date().toISOString().split("T")[0];
-    const result = await this.db.insert(schema.attendance).values({
-      memberId,
-      branchId,
-      scheduleId: null,
-      sessionDate: todayStr,
-      status: "confirmado",
-      source: "manual",
-    });
+    const result = await this.db.insert(schema.attendance).values(
+      tenantValues(ctx, {
+        memberId,
+        branchId,
+        scheduleId: null,
+        sessionDate: todayStr,
+        status: "confirmado",
+        source: "manual",
+      }),
+    );
 
     const recordId = Number(result[0].insertId);
 
@@ -856,14 +862,16 @@ export class AttendanceService {
     }
 
     // Insert attendance record
-    const result = await this.db.insert(schema.attendance).values({
-      memberId,
-      branchId: schedule.branchId,
-      scheduleId,
-      sessionDate: date,
-      status: "confirmado",
-      source: "manual",
-    });
+    const result = await this.db.insert(schema.attendance).values(
+      tenantValues(ctx, {
+        memberId,
+        branchId: schedule.branchId,
+        scheduleId,
+        sessionDate: date,
+        status: "confirmado",
+        source: "manual",
+      }),
+    );
 
     const recordId = Number(result[0].insertId);
 
@@ -1122,17 +1130,19 @@ export class AttendanceService {
       // every standard block. Deuteros defaults to DEUTEROS_1 only (not the
       // online DEUTEROS_1+DEUTEROS_2 split) since the coach picks one
       // accessory variant per session.
-      await this.db.insert(schema.completedSessions).values({
-        userId: input.memberId,
-        branchId: input.branchId,
-        dayId: `presencial-${input.dateStr}`,
-        sessionLevel: user.level,
-        date: input.dateStr,
-        startedAt: input.checkedInAt,
-        completedAt: input.checkedInAt,
-        blocksCompleted: ["INITIUM", "NUCLEUS", "DEUTEROS_1", "ATHLOS"],
-        goalPlanType: "presencial",
-      });
+      await this.db.insert(schema.completedSessions).values(
+        tenantValues(ctx, {
+          userId: input.memberId,
+          branchId: input.branchId,
+          dayId: `presencial-${input.dateStr}`,
+          sessionLevel: user.level,
+          date: input.dateStr,
+          startedAt: input.checkedInAt,
+          completedAt: input.checkedInAt,
+          blocksCompleted: ["INITIUM", "NUCLEUS", "DEUTEROS_1", "ATHLOS"],
+          goalPlanType: "presencial",
+        }),
+      );
     } catch (err) {
       this.log.error(
         { err, memberId: input.memberId, dateStr: input.dateStr },
