@@ -8,7 +8,7 @@
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { eq, and, sql, asc, gte, lte, inArray } from "drizzle-orm";
+import { eq, and, sql, asc, gte, lte, inArray, isNotNull } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { SubscriptionService } from "../subscriptions/service";
@@ -36,7 +36,7 @@ import {
 import { categoryGroup } from "../subscriptions/types";
 import { getEffectiveCapacity as resolveSlotCapacity } from "./capacity";
 import { getScheduleException } from "./schedule-exceptions";
-import { tenantWhere, type TenantContext } from "../shared/tenant";
+import { tenantWhere, tenantValues, type TenantContext } from "../shared/tenant";
 
 /**
  * Member self-booking window: today .. today + N days (branch-local).
@@ -113,6 +113,7 @@ export class BookingService {
         scheduleRow,
         date,
         MEMBER_BOOKING_WINDOW_DAYS,
+        ctx,
       );
     }
 
@@ -158,7 +159,7 @@ export class BookingService {
         subscription.endDate,
         today,
       );
-      await this.assertDateWithinWindow(scheduleRow, date, windowDays);
+      await this.assertDateWithinWindow(scheduleRow, date, windowDays, ctx);
     }
 
     // 5a. Coverage block (Phase 144-04, D-12/D-13/D-14): reject a class dated
@@ -200,12 +201,22 @@ export class BookingService {
     const [branch] = await this.db
       .select({ country: schema.branches.country })
       .from(schema.branches)
-      .where(eq(schema.branches.id, scheduleRow.branchId));
+      .where(
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, scheduleRow.branchId),
+        ),
+      );
     if (actorRole === "member" && branch) {
       const [subBranch] = await this.db
         .select({ country: schema.branches.country })
         .from(schema.branches)
-        .where(eq(schema.branches.id, subscription.branchId));
+        .where(
+          and(
+            tenantWhere(schema.branches, ctx),
+            eq(schema.branches.id, subscription.branchId),
+          ),
+        );
       if (subBranch && subBranch.country !== branch.country) {
         throw new BadRequestError("No podes reservar en sedes de otro pais");
       }
@@ -307,6 +318,7 @@ export class BookingService {
           new Date(date + "T12:00:00Z"),
         );
         const weeklyCount = await this.countWeeklyBookings(
+          ctx,
           memberId,
           monday,
           saturday,
@@ -325,6 +337,7 @@ export class BookingService {
       .from(schema.bookings)
       .where(
         and(
+          tenantWhere(schema.bookings, ctx),
           eq(schema.bookings.memberId, memberId),
           eq(schema.bookings.scheduleId, scheduleId),
           eq(schema.bookings.bookingDate, date),
@@ -361,6 +374,7 @@ export class BookingService {
       )
       .where(
         and(
+          tenantWhere(schema.bookings, ctx),
           eq(schema.bookings.memberId, memberId),
           eq(schema.bookings.bookingDate, date),
           sql`${schema.bookings.status} IN ('reservado', 'qr_escaneado', 'confirmado', 'lista_espera')`,
@@ -377,7 +391,12 @@ export class BookingService {
 
     // 9. Check capacity + insert in transaction to prevent overbooking
     const bookingId = await this.db.transaction(async (tx) => {
-      const activeCount = await this.countActiveBookings(scheduleId, date, tx);
+      const activeCount = await this.countActiveBookings(
+        scheduleId,
+        date,
+        tx,
+        ctx,
+      );
       const maxCapacity = await this.getEffectiveCapacity(
         scheduleRow.branchId,
         scheduleRow.activityId,
@@ -395,6 +414,7 @@ export class BookingService {
           .from(schema.bookings)
           .where(
             and(
+              tenantWhere(schema.bookings, ctx),
               eq(schema.bookings.scheduleId, scheduleId),
               eq(schema.bookings.bookingDate, date),
               eq(schema.bookings.status, "lista_espera"),
@@ -413,13 +433,15 @@ export class BookingService {
           .where(eq(schema.bookings.id, duplicate.id));
       }
 
-      const result = await tx.insert(schema.bookings).values({
-        memberId,
-        scheduleId,
-        bookingDate: date,
-        status,
-        waitlistPosition,
-      });
+      const result = await tx.insert(schema.bookings).values(
+        tenantValues(ctx, {
+          memberId,
+          scheduleId,
+          bookingDate: date,
+          status,
+          waitlistPosition,
+        }),
+      );
 
       return Number(result[0].insertId);
     });
@@ -461,7 +483,9 @@ export class BookingService {
         isTrial: schema.bookings.isTrial,
       })
       .from(schema.bookings)
-      .where(eq(schema.bookings.id, bookingId));
+      .where(
+        and(tenantWhere(schema.bookings, ctx), eq(schema.bookings.id, bookingId)),
+      );
 
     if (!bookingRow) throw new NotFoundError("Reserva no encontrada");
     if (bookingRow.memberId !== memberId) {
@@ -518,7 +542,11 @@ export class BookingService {
     // 5. If cancelled booking occupied a slot, promote waitlist
     const slotOccupyingStatuses = ["reservado", "qr_escaneado", "confirmado"];
     if (slotOccupyingStatuses.includes(previousStatus)) {
-      await this.promoteWaitlist(bookingRow.scheduleId, bookingRow.bookingDate);
+      await this.promoteWaitlist(
+        bookingRow.scheduleId,
+        bookingRow.bookingDate,
+        ctx,
+      );
     }
 
     const updated = await this.getBookingRecord(ctx, bookingId);
@@ -600,8 +628,11 @@ export class BookingService {
 
   /**
    * Get a member's attendance records for a given week (schedule-linked only).
+   *
+   * Fase 174 (D-02, plan 174-03): `ctx` PRIMERO, filtra `attendance`.
    */
   async getMyWeeklyAttendance(
+    ctx: TenantContext,
     memberId: number,
     weekStartDate: string,
   ): Promise<AttendanceWeekRecord[]> {
@@ -628,6 +659,7 @@ export class BookingService {
       )
       .where(
         and(
+          tenantWhere(schema.attendance, ctx),
           eq(schema.attendance.memberId, memberId),
           sql`DATE(${schema.attendance.checkedInAt}) >= ${weekStartDate}`,
           sql`DATE(${schema.attendance.checkedInAt}) <= ${weekEnd}`,
@@ -712,6 +744,7 @@ export class BookingService {
           new Date(date + "T12:00:00Z"),
         );
         const weeklyCount = await this.countWeeklyBookings(
+          ctx,
           memberId,
           monday,
           saturday,
@@ -730,6 +763,7 @@ export class BookingService {
       .from(schema.bookings)
       .where(
         and(
+          tenantWhere(schema.bookings, ctx),
           eq(schema.bookings.memberId, memberId),
           eq(schema.bookings.scheduleId, scheduleId),
           eq(schema.bookings.bookingDate, date),
@@ -757,7 +791,12 @@ export class BookingService {
     }
 
     // Check capacity
-    const activeCount = await this.countActiveBookings(scheduleId, date);
+    const activeCount = await this.countActiveBookings(
+      scheduleId,
+      date,
+      undefined,
+      ctx,
+    );
     const maxCapacity = await this.getEffectiveCapacity(
       scheduleRow.branchId,
       scheduleRow.activityId,
@@ -775,6 +814,7 @@ export class BookingService {
         .from(schema.bookings)
         .where(
           and(
+            tenantWhere(schema.bookings, ctx),
             eq(schema.bookings.scheduleId, scheduleId),
             eq(schema.bookings.bookingDate, date),
             eq(schema.bookings.status, "lista_espera"),
@@ -783,13 +823,15 @@ export class BookingService {
       waitlistPosition = (Number(maxPos?.maxPos) ?? 0) + 1;
     }
 
-    const result = await this.db.insert(schema.bookings).values({
-      memberId,
-      scheduleId,
-      bookingDate: date,
-      status,
-      waitlistPosition,
-    });
+    const result = await this.db.insert(schema.bookings).values(
+      tenantValues(ctx, {
+        memberId,
+        scheduleId,
+        bookingDate: date,
+        status,
+        waitlistPosition,
+      }),
+    );
 
     const bookingId = Number(result[0].insertId);
     const booking = await this.getBookingRecord(ctx, bookingId);
@@ -815,7 +857,10 @@ export class BookingService {
    * per-lifetime guard). no_show bookings don't occupy a slot, so we
    * never promote the waitlist for them.
    */
-  async adminRemoveBooking(bookingId: number): Promise<void> {
+  async adminRemoveBooking(
+    ctx: TenantContext,
+    bookingId: number,
+  ): Promise<void> {
     const [bookingRow] = await this.db
       .select({
         id: schema.bookings.id,
@@ -824,7 +869,9 @@ export class BookingService {
         status: schema.bookings.status,
       })
       .from(schema.bookings)
-      .where(eq(schema.bookings.id, bookingId));
+      .where(
+        and(tenantWhere(schema.bookings, ctx), eq(schema.bookings.id, bookingId)),
+      );
 
     if (!bookingRow) throw new NotFoundError("Reserva no encontrada");
 
@@ -852,6 +899,7 @@ export class BookingService {
         await this.promoteWaitlist(
           bookingRow.scheduleId,
           bookingRow.bookingDate,
+          ctx,
         );
       }
 
@@ -1011,9 +1059,12 @@ export class BookingService {
         ),
       )
       .where(
-        inArray(
-          schema.bookings.id,
-          candidateBookings.map((b) => b.id),
+        and(
+          tenantWhere(schema.bookings, ctx),
+          inArray(
+            schema.bookings.id,
+            candidateBookings.map((b) => b.id),
+          ),
         ),
       );
 
@@ -1069,6 +1120,7 @@ export class BookingService {
    * day's bookings are touched. Omitted = open-ended (delete-from-date flow).
    */
   async cancelBookingsFromDateAndGrantCredits(
+    ctx: TenantContext,
     scheduleId: number,
     fromDate: string,
     toDate?: string,
@@ -1089,6 +1141,7 @@ export class BookingService {
       .from(schema.bookings)
       .where(
         and(
+          tenantWhere(schema.bookings, ctx),
           eq(schema.bookings.scheduleId, scheduleId),
           gte(schema.bookings.bookingDate, fromDate),
           toDate !== undefined
@@ -1141,9 +1194,12 @@ export class BookingService {
         ),
       )
       .where(
-        inArray(
-          schema.bookings.id,
-          toCancel.map((b) => b.id),
+        and(
+          tenantWhere(schema.bookings, ctx),
+          inArray(
+            schema.bookings.id,
+            toCancel.map((b) => b.id),
+          ),
         ),
       );
 
@@ -1307,6 +1363,7 @@ export class BookingService {
    * admin still wants to anchor a fixed-plan member to it starting later.
    */
   async findNextAvailableDate(
+    ctx: TenantContext,
     scheduleId: number,
     fromDate?: string,
     maxWeeksAhead = 12,
@@ -1325,7 +1382,12 @@ export class BookingService {
     const [branch] = await this.db
       .select({ country: schema.branches.country })
       .from(schema.branches)
-      .where(eq(schema.branches.id, scheduleRow.branchId));
+      .where(
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, scheduleRow.branchId),
+        ),
+      );
     const country = branch?.country ?? "AR";
 
     // Compute first occurrence of the slot's dayOfWeek on or after `start`.
@@ -1342,6 +1404,7 @@ export class BookingService {
       .from(schema.holidays)
       .where(
         and(
+          tenantWhere(schema.holidays, ctx),
           eq(schema.holidays.country, country),
           gte(schema.holidays.date, cursor),
           sql`${schema.holidays.date} <= ${windowEnd}`,
@@ -1355,6 +1418,7 @@ export class BookingService {
       .from(schema.scheduleExceptions)
       .where(
         and(
+          tenantWhere(schema.scheduleExceptions, ctx),
           eq(schema.scheduleExceptions.scheduleId, scheduleId),
           gte(schema.scheduleExceptions.exceptionDate, cursor),
           lte(schema.scheduleExceptions.exceptionDate, windowEnd),
@@ -1364,7 +1428,12 @@ export class BookingService {
 
     for (let i = 0; i < maxWeeksAhead; i++) {
       if (!holidaySet.has(cursor) && !exceptionSet.has(cursor)) {
-        const count = await this.countActiveBookings(scheduleId, cursor);
+        const count = await this.countActiveBookings(
+          scheduleId,
+          cursor,
+          undefined,
+          ctx,
+        );
         if (count < maxCapacity) return cursor;
       }
       cursor = addDays(cursor, 7);
@@ -1386,6 +1455,7 @@ export class BookingService {
    * this week but free in a later week.
    */
   async generateFixedBookings(
+    ctx: TenantContext,
     subscriptionId: number,
     memberId: number,
     scheduleIds: number[],
@@ -1406,7 +1476,12 @@ export class BookingService {
         activityId: schema.schedules.activityId,
       })
       .from(schema.schedules)
-      .where(inArray(schema.schedules.id, scheduleIds));
+      .where(
+        and(
+          tenantWhere(schema.schedules, ctx),
+          inArray(schema.schedules.id, scheduleIds),
+        ),
+      );
 
     // Holidays are scoped by country. The validateAnchorSet helper in
     // SubscriptionService guarantees that every anchor branch is in the same
@@ -1415,7 +1490,9 @@ export class BookingService {
     const [branch] = await this.db
       .select({ country: schema.branches.country })
       .from(schema.branches)
-      .where(eq(schema.branches.id, branchId));
+      .where(
+        and(tenantWhere(schema.branches, ctx), eq(schema.branches.id, branchId)),
+      );
 
     const country = branch?.country ?? "AR";
 
@@ -1425,6 +1502,7 @@ export class BookingService {
       .from(schema.holidays)
       .where(
         and(
+          tenantWhere(schema.holidays, ctx),
           eq(schema.holidays.country, country),
           sql`${schema.holidays.date} >= ${startDate}`,
           sql`${schema.holidays.date} <= ${endDate}`,
@@ -1442,6 +1520,7 @@ export class BookingService {
       .from(schema.scheduleExceptions)
       .where(
         and(
+          tenantWhere(schema.scheduleExceptions, ctx),
           inArray(schema.scheduleExceptions.scheduleId, scheduleIds),
           gte(schema.scheduleExceptions.exceptionDate, startDate),
           lte(schema.scheduleExceptions.exceptionDate, endDate),
@@ -1493,6 +1572,7 @@ export class BookingService {
             .from(schema.bookings)
             .where(
               and(
+                tenantWhere(schema.bookings, ctx),
                 eq(schema.bookings.memberId, memberId),
                 eq(schema.bookings.scheduleId, sched.id),
                 eq(schema.bookings.bookingDate, dateStr),
@@ -1522,6 +1602,8 @@ export class BookingService {
             const activeCount = await this.countActiveBookings(
               sched.id,
               dateStr,
+              undefined,
+              ctx,
             );
             const maxCapacity = await this.getEffectiveCapacity(
               sched.branchId,
@@ -1540,6 +1622,7 @@ export class BookingService {
                 .from(schema.bookings)
                 .where(
                   and(
+                    tenantWhere(schema.bookings, ctx),
                     eq(schema.bookings.scheduleId, sched.id),
                     eq(schema.bookings.bookingDate, dateStr),
                     eq(schema.bookings.status, "lista_espera"),
@@ -1548,13 +1631,15 @@ export class BookingService {
               waitlistPosition = (Number(maxPos?.maxPos) ?? 0) + 1;
             }
 
-            await this.db.insert(schema.bookings).values({
-              memberId,
-              scheduleId: sched.id,
-              bookingDate: dateStr,
-              status,
-              waitlistPosition,
-            });
+            await this.db.insert(schema.bookings).values(
+              tenantValues(ctx, {
+                memberId,
+                scheduleId: sched.id,
+                bookingDate: dateStr,
+                status,
+                waitlistPosition,
+              }),
+            );
             totalGenerated++;
           }
           // else: existing booking with active status (reservado/lista_espera/
@@ -1578,12 +1663,20 @@ export class BookingService {
    * Cancel all future bookings for a subscription's schedule slot IDs.
    * Preserves past bookings (historical records).
    */
-  async cancelFutureBookings(subscriptionId: number): Promise<void> {
+  async cancelFutureBookings(
+    ctx: TenantContext,
+    subscriptionId: number,
+  ): Promise<void> {
     // Get schedule IDs from subscription_schedules
     const subSchedules = await this.db
       .select({ scheduleId: schema.subscriptionSchedules.scheduleId })
       .from(schema.subscriptionSchedules)
-      .where(eq(schema.subscriptionSchedules.subscriptionId, subscriptionId));
+      .where(
+        and(
+          tenantWhere(schema.subscriptionSchedules, ctx),
+          eq(schema.subscriptionSchedules.subscriptionId, subscriptionId),
+        ),
+      );
 
     if (subSchedules.length === 0) return;
 
@@ -1593,7 +1686,12 @@ export class BookingService {
     const [sub] = await this.db
       .select({ userId: schema.subscriptions.userId })
       .from(schema.subscriptions)
-      .where(eq(schema.subscriptions.id, subscriptionId));
+      .where(
+        and(
+          tenantWhere(schema.subscriptions, ctx),
+          eq(schema.subscriptions.id, subscriptionId),
+        ),
+      );
 
     if (!sub) return;
 
@@ -1680,6 +1778,11 @@ export class BookingService {
     },
     date: string,
     windowDays: number,
+    // Fase 174 (D-02, plan 174-03): OPCIONAL — reserve() (member) ya lo trae;
+    // validateTrialBookingDate() (trials, sin ctx todavía) queda con el
+    // fallback isNotNull hasta su propia migración (fuera de 174-03, archivo
+    // trials-service.ts no está en files_modified de este plan).
+    ctx?: TenantContext,
   ): Promise<void> {
     // "today" is evaluated in the branch's timezone so BCN and AR members each
     // see their own day boundary.
@@ -1708,7 +1811,14 @@ export class BookingService {
     const [branch] = await this.db
       .select({ country: schema.branches.country })
       .from(schema.branches)
-      .where(eq(schema.branches.id, scheduleRow.branchId));
+      .where(
+        and(
+          ctx
+            ? tenantWhere(schema.branches, ctx)
+            : isNotNull(schema.branches.tenantId),
+          eq(schema.branches.id, scheduleRow.branchId),
+        ),
+      );
 
     if (branch) {
       const [holiday] = await this.db
@@ -1716,6 +1826,9 @@ export class BookingService {
         .from(schema.holidays)
         .where(
           and(
+            ctx
+              ? tenantWhere(schema.holidays, ctx)
+              : isNotNull(schema.holidays.tenantId),
             eq(schema.holidays.country, branch.country),
             eq(schema.holidays.date, date),
           ),
@@ -1778,8 +1891,17 @@ export class BookingService {
   async promoteWaitlist(
     scheduleId: number,
     bookingDate: string,
+    // Fase 174 (D-02, plan 174-03): OPCIONAL al final — callers dentro de
+    // este archivo (cancel/adminRemoveBooking) ya lo traen; los callers de
+    // Wellhub (wellhub/service.ts) todavía no resuelven ctx en ese camino, así
+    // que quedan con el fallback isNotNull hasta su propia migración (fuera
+    // de 174-03, esos archivos no están en files_modified de este plan).
+    ctx?: TenantContext,
   ): Promise<void> {
     const promoted = await this.db.transaction(async (tx) => {
+      const tenantFilter = ctx
+        ? tenantWhere(schema.bookings, ctx)
+        : isNotNull(schema.bookings.tenantId);
       // Find the first waitlisted booking (lowest position)
       const [first] = await tx
         .select({
@@ -1790,6 +1912,7 @@ export class BookingService {
         .from(schema.bookings)
         .where(
           and(
+            tenantFilter,
             eq(schema.bookings.scheduleId, scheduleId),
             eq(schema.bookings.bookingDate, bookingDate),
             eq(schema.bookings.status, "lista_espera"),
@@ -1815,6 +1938,7 @@ export class BookingService {
         .from(schema.bookings)
         .where(
           and(
+            tenantFilter,
             eq(schema.bookings.scheduleId, scheduleId),
             eq(schema.bookings.bookingDate, bookingDate),
             eq(schema.bookings.status, "lista_espera"),
@@ -1866,6 +1990,13 @@ export class BookingService {
     scheduleId: number,
     date: string,
     db?: MySql2Database<typeof schema>,
+    // Fase 174 (D-02, plan 174-03): OPCIONAL al final — callers internos ya
+    // migrados de este archivo lo pasan; los callers de Wellhub
+    // (wellhub/service.ts, wellhub/sync-service.ts) todavía no resuelven ctx
+    // en todos sus caminos, así que quedan con el fallback isNotNull hasta
+    // su propia migración (fuera de 174-03, esos archivos no están en
+    // files_modified de este plan).
+    ctx?: TenantContext,
   ): Promise<number> {
     const q = db ?? this.db;
     const [result] = await q
@@ -1873,6 +2004,9 @@ export class BookingService {
       .from(schema.bookings)
       .where(
         and(
+          ctx
+            ? tenantWhere(schema.bookings, ctx)
+            : isNotNull(schema.bookings.tenantId),
           eq(schema.bookings.scheduleId, scheduleId),
           eq(schema.bookings.bookingDate, date),
           sql`${schema.bookings.status} IN ('reservado', 'qr_escaneado', 'confirmado')`,
@@ -1891,6 +2025,7 @@ export class BookingService {
    * reserva especial anterior en la semana no le come el cupo a las regulares.
    */
   private async countWeeklyBookings(
+    ctx: TenantContext,
     memberId: number,
     monday: string,
     saturday: string,
@@ -1908,6 +2043,7 @@ export class BookingService {
       )
       .where(
         and(
+          tenantWhere(schema.bookings, ctx),
           eq(schema.bookings.memberId, memberId),
           sql`${schema.bookings.status} IN ('reservado', 'qr_escaneado', 'confirmado')`,
           sql`${schema.bookings.bookingDate} >= ${monday}`,

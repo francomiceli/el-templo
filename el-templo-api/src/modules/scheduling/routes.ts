@@ -352,6 +352,7 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: cancelScheduleDateSchema },
     async (request, reply) => {
       try {
+        const ctx = assertTenant(request.scope, "scheduling.cancelScheduleDate");
         const { scheduleId } = request.params;
         const { date, reason } = request.body;
 
@@ -363,6 +364,7 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
 
         const cancelResult =
           await bookingService.cancelBookingsFromDateAndGrantCredits(
+            ctx,
             scheduleId,
             date,
             date,
@@ -453,11 +455,13 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: deleteScheduleFromDateSchema },
     async (request, reply) => {
       try {
+        const ctx = assertTenant(request.scope, "scheduling.deleteFromDate");
         const { scheduleId } = request.params;
         const { fromDate } = request.body;
 
         const cancelResult =
           await bookingService.cancelBookingsFromDateAndGrantCredits(
+            ctx,
             scheduleId,
             fromDate,
           );
@@ -554,7 +558,9 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
     },
     async (request, reply) => {
       try {
+        const ctx = assertTenant(request.scope, "scheduling.nextAvailable");
         const date = await bookingService.findNextAvailableDate(
+          ctx,
           request.params.scheduleId,
           request.query.from,
         );
@@ -591,7 +597,8 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: adminRemoveBookingSchema },
     async (request, reply) => {
       try {
-        await bookingService.adminRemoveBooking(request.params.bookingId);
+        const ctx = assertTenant(request.scope, "scheduling.adminRemoveBooking");
+        await bookingService.adminRemoveBooking(ctx, request.params.bookingId);
         return { cancelled: true };
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "admin remove booking");
@@ -859,6 +866,7 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
           request.query.weekStart,
         ),
         bookingService.getMyWeeklyAttendance(
+          ctx,
           request.user.userId,
           request.query.weekStart,
         ),

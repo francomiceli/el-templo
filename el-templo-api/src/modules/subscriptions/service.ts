@@ -1712,6 +1712,7 @@ export class SubscriptionService {
           if (this.bookingService) {
             const bookingResult =
               await this.bookingService.generateFixedBookings(
+                ctx,
                 newSubscriptionId,
                 userId,
                 input.scheduleIds,
@@ -2118,7 +2119,7 @@ export class SubscriptionService {
 
     // 1. Cancel future bookings on old slots (reads current subscription_schedules)
     if (this.bookingService) {
-      await this.bookingService.cancelFutureBookings(subscriptionId);
+      await this.bookingService.cancelFutureBookings(ctx, subscriptionId);
     }
 
     // 2. Swap subscription_schedules rows (insert is skipped when the new set is empty)
@@ -2160,6 +2161,7 @@ export class SubscriptionService {
       const today = new Date().toISOString().split("T")[0];
       if (today <= sub.endDate) {
         await this.bookingService.generateFixedBookings(
+          ctx,
           subscriptionId,
           sub.userId,
           input.scheduleIds,
@@ -2313,10 +2315,11 @@ export class SubscriptionService {
       sub.scheduleIds.length > 0 &&
       newStatus !== "paused"
     ) {
-      await this.bookingService.cancelFutureBookings(subscriptionId);
+      await this.bookingService.cancelFutureBookings(ctx, subscriptionId);
       const regenStart = newStartDate > today ? newStartDate : today;
       if (regenStart <= newEndDate) {
         await this.bookingService.generateFixedBookings(
+          ctx,
           subscriptionId,
           sub.userId,
           sub.scheduleIds,
@@ -2537,7 +2540,7 @@ export class SubscriptionService {
     // Cancel all future reservations for this sub's fixed slots. Schedules
     // (subscription_schedules) stay intact so resume can auto-regenerate.
     if (this.bookingService) {
-      await this.bookingService.cancelFutureBookings(sub.id);
+      await this.bookingService.cancelFutureBookings(ctx, sub.id);
     }
 
     const updated = await this.getSubscriptionById(sub.id);
@@ -2959,7 +2962,7 @@ export class SubscriptionService {
     // Cancel all future bookings for fixed-plan subscriptions (external
     // helper, not transaction-aware — Rule 4 / WARNING 9 keeps it on this.db).
     if (this.bookingService) {
-      await this.bookingService.cancelFutureBookings(resolvedSubId);
+      await this.bookingService.cancelFutureBookings(ctx, resolvedSubId);
     }
 
     const updated = await this.getSubscriptionById(resolvedSubId);
@@ -3592,7 +3595,7 @@ export class SubscriptionService {
 
     // Cancel future bookings for the old subscription
     if (this.bookingService) {
-      await this.bookingService.cancelFutureBookings(existingSub.id);
+      await this.bookingService.cancelFutureBookings(ctx, existingSub.id);
     }
 
     // Create new subscription directly (not via assignPlan, to avoid conflict check issues)
@@ -3711,6 +3714,7 @@ export class SubscriptionService {
           if (this.bookingService) {
             const bookingResult =
               await this.bookingService.generateFixedBookings(
+                ctx,
                 subId,
                 userId,
                 input.scheduleIds,
@@ -4173,6 +4177,7 @@ export class SubscriptionService {
 
         if (this.bookingService) {
           const bookingResult = await this.bookingService.generateFixedBookings(
+            ctx,
             subId,
             userId,
             input.scheduleIds,
@@ -4655,6 +4660,7 @@ export class SubscriptionService {
 
         if (this.bookingService) {
           const bookingResult = await this.bookingService.generateFixedBookings(
+            ctx,
             subId,
             userId,
             scheduleIds,
