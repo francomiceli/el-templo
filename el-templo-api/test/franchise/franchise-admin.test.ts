@@ -79,7 +79,7 @@ describe("Franchise Admin Routes", () => {
       `DELETE FROM franchise_applications WHERE email LIKE '${TEST_EMAIL_PREFIX}%'`,
     );
     await app.db.execute(
-      `DELETE FROM users WHERE email = 'fran-admin-member@test.com'`,
+      `DELETE FROM users WHERE email = 'fran-admin-member@test.com' AND tenant_id = 1`,
     );
     await app.close();
   });

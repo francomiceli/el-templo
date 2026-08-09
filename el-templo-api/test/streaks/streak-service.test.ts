@@ -11,7 +11,7 @@
 
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import {
   createTestApp,
   getAuthToken,
@@ -19,6 +19,13 @@ import {
   cleanAllTestData,
 } from "../helpers";
 import * as schema from "../../src/db/schema";
+import {
+  tenantWhere,
+  type TenantContext,
+} from "../../src/modules/shared/tenant";
+
+// Archivo single-tenant (solo El Templo): filtro preciso, no exencion.
+const CTX_TEMPLO: TenantContext = { tenantId: 1 };
 
 describe("Streak Service Integration", () => {
   let app: FastifyInstance;
@@ -103,7 +110,12 @@ describe("Streak Service Integration", () => {
         longestStreak: schema.memberProfiles.longestStreak,
       })
       .from(schema.memberProfiles)
-      .where(eq(schema.memberProfiles.userId, memberId));
+      .where(
+        and(
+          tenantWhere(schema.memberProfiles, CTX_TEMPLO),
+          eq(schema.memberProfiles.userId, memberId),
+        ),
+      );
 
     expect(profile).toBeDefined();
     expect(profile.currentStreak).toBe(1);
@@ -123,7 +135,12 @@ describe("Streak Service Integration", () => {
         longestStreak: schema.memberProfiles.longestStreak,
       })
       .from(schema.memberProfiles)
-      .where(eq(schema.memberProfiles.userId, memberId));
+      .where(
+        and(
+          tenantWhere(schema.memberProfiles, CTX_TEMPLO),
+          eq(schema.memberProfiles.userId, memberId),
+        ),
+      );
 
     expect(profile1.currentStreak).toBe(1);
     expect(profile1.longestStreak).toBe(1);
@@ -138,7 +155,12 @@ describe("Streak Service Integration", () => {
         longestStreak: schema.memberProfiles.longestStreak,
       })
       .from(schema.memberProfiles)
-      .where(eq(schema.memberProfiles.userId, memberId));
+      .where(
+        and(
+          tenantWhere(schema.memberProfiles, CTX_TEMPLO),
+          eq(schema.memberProfiles.userId, memberId),
+        ),
+      );
 
     // Second call increments streak again
     expect(profile2.currentStreak).toBe(2);

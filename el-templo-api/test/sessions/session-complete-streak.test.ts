@@ -9,7 +9,11 @@
 
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
+import {
+  tenantWhere,
+  type TenantContext,
+} from "../../src/modules/shared/tenant";
 import {
   createTestApp,
   getAuthToken,
@@ -17,6 +21,9 @@ import {
   cleanAllTestData,
 } from "../helpers";
 import * as schema from "../../src/db/schema";
+
+// Archivo single-tenant (solo El Templo): filtro preciso, no exencion.
+const CTX_TEMPLO: TenantContext = { tenantId: 1 };
 
 describe("Session Complete → AURA + Streak E2E", () => {
   let app: FastifyInstance;
@@ -120,7 +127,12 @@ describe("Session Complete → AURA + Streak E2E", () => {
         streakUpdatedAt: schema.memberProfiles.streakUpdatedAt,
       })
       .from(schema.memberProfiles)
-      .where(eq(schema.memberProfiles.userId, memberId));
+      .where(
+        and(
+          tenantWhere(schema.memberProfiles, CTX_TEMPLO),
+          eq(schema.memberProfiles.userId, memberId),
+        ),
+      );
 
     expect(profile).toBeDefined();
     expect(profile.currentStreak).toBeGreaterThanOrEqual(1);
@@ -156,7 +168,12 @@ describe("Session Complete → AURA + Streak E2E", () => {
     const [profile] = await app.db
       .select({ currentStreak: schema.memberProfiles.currentStreak })
       .from(schema.memberProfiles)
-      .where(eq(schema.memberProfiles.userId, memberId));
+      .where(
+        and(
+          tenantWhere(schema.memberProfiles, CTX_TEMPLO),
+          eq(schema.memberProfiles.userId, memberId),
+        ),
+      );
 
     expect(profile).toBeDefined();
     expect(profile.currentStreak).toBeGreaterThanOrEqual(1);

@@ -16,7 +16,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   createTestApp,
   getAuthToken,
@@ -24,6 +24,13 @@ import {
   cleanAllTestData,
 } from "../helpers";
 import { users } from "../../src/db/schema/users";
+import {
+  tenantWhere,
+  type TenantContext,
+} from "../../src/modules/shared/tenant";
+
+// Archivo single-tenant (solo El Templo): filtro preciso, no exencion.
+const CTX_TEMPLO: TenantContext = { tenantId: 1 };
 
 describe("Phase 130 - kairos default and coach override", () => {
   let app: FastifyInstance;
@@ -71,7 +78,7 @@ describe("Phase 130 - kairos default and coach override", () => {
     const [row] = await app.db
       .select({ level: users.level, levelOverride: users.levelOverride })
       .from(users)
-      .where(eq(users.id, userId))
+      .where(and(tenantWhere(users, CTX_TEMPLO), eq(users.id, userId)))
       .limit(1);
     return row;
   }

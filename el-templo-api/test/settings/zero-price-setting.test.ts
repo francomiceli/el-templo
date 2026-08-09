@@ -24,7 +24,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import {
   createTestApp,
@@ -33,6 +33,13 @@ import {
   getAuthToken,
 } from "../helpers";
 import * as schema from "../../src/db/schema";
+import {
+  tenantWhere,
+  type TenantContext,
+} from "../../src/modules/shared/tenant";
+
+// Archivo single-tenant (solo El Templo): filtro preciso, no exencion.
+const CTX_TEMPLO: TenantContext = { tenantId: 1 };
 
 const SETTING_URL = "/api/admin/settings/pricing/zero-price";
 
@@ -69,7 +76,12 @@ beforeAll(async () => {
   const [owner] = await app.db
     .select({ branchId: schema.users.branchId })
     .from(schema.users)
-    .where(eq(schema.users.email, "admin@test.com"))
+    .where(
+      and(
+        tenantWhere(schema.users, CTX_TEMPLO),
+        eq(schema.users.email, "admin@test.com"),
+      ),
+    )
     .limit(1);
   const branchId = owner.branchId ?? 1;
   ownerToken = await getAuthToken(app, "admin@test.com", "adminpass123");
