@@ -301,7 +301,11 @@ export class SubscriptionService {
    * solo por Foundation pasaría el invariante de plan online (hasProgramList=true)
    * pero el socio quedaría inscripto en CERO programas. Rechazamos explícito.
    */
+  // Fase 174 (D-02): `ctx` primero — llamado SOLO desde createPlan/updatePlan
+  // (ya con ctx real); `getPlanProgramIds`/`mapPlanRow` NO se tocan acá porque
+  // los comparten con la cadena de pricing y `getPlanById` (FRONTERA 174-02).
   private async assertProgramsExist(
+    ctx: TenantContext,
     tx: TxHandle,
     programIds: number[],
   ): Promise<void> {
@@ -316,6 +320,7 @@ export class SubscriptionService {
       .from(schema.programs)
       .where(
         and(
+          tenantWhere(schema.programs, ctx),
           inArray(schema.programs.id, uniqueIds),
           eq(schema.programs.isActive, true),
         ),
@@ -344,21 +349,31 @@ export class SubscriptionService {
    * plan and insert the (deduped) new set. Must run inside the same
    * transaction as the plan write so the list and the plan stay atomic.
    */
+  // Fase 174 (D-02): `ctx` primero — mismo alcance que assertProgramsExist
+  // (llamado solo desde createPlan/updatePlan).
   private async persistPlanPrograms(
+    ctx: TenantContext,
     tx: TxHandle,
     planId: number,
     programIds: number[],
   ): Promise<void> {
     await tx
       .delete(schema.planPrograms)
-      .where(eq(schema.planPrograms.subscriptionPlanId, planId));
+      .where(
+        and(
+          tenantWhere(schema.planPrograms, ctx),
+          eq(schema.planPrograms.subscriptionPlanId, planId),
+        ),
+      );
     const uniqueIds = [...new Set(programIds)];
     if (uniqueIds.length > 0) {
       await tx.insert(schema.planPrograms).values(
-        uniqueIds.map((programId) => ({
-          subscriptionPlanId: planId,
-          programId,
-        })),
+        uniqueIds.map((programId) =>
+          tenantValues(ctx, {
+            subscriptionPlanId: planId,
+            programId,
+          }),
+        ),
       );
     }
   }
@@ -663,7 +678,11 @@ export class SubscriptionService {
    * member plan catalog in member-routes.ts) still pass booleans — the
    * overload below preserves that call shape.
    */
+  // Fase 174 (D-01/D-02, ADO-03): `ctx` PRIMERO — listPlans/getPlanById son la
+  // única lectura crudo-a-strict de `subscription_plans` cuyo llamador (admin
+  // routes + member catalog) YA resuelve `ctx` en ambos puntos de entrada.
   async listPlans(
+    ctx: TenantContext,
     isActiveOrFilters?: boolean | ListPlansFilters,
     includeArchived?: boolean,
   ): Promise<PlanListItem[]> {
@@ -682,13 +701,18 @@ export class SubscriptionService {
       const [branch] = await this.db
         .select({ country: schema.branches.country })
         .from(schema.branches)
-        .where(eq(schema.branches.id, filters.branchId));
+        .where(
+          and(
+            tenantWhere(schema.branches, ctx),
+            eq(schema.branches.id, filters.branchId),
+          ),
+        );
       if (branch?.country === "AR" || branch?.country === "ES") {
         effectiveCountry = branch.country;
       }
     }
 
-    const conditions = [];
+    const conditions = [tenantWhere(schema.subscriptionPlans, ctx)];
     if (filters.isActive !== undefined) {
       conditions.push(eq(schema.subscriptionPlans.isActive, filters.isActive));
     }
@@ -699,12 +723,10 @@ export class SubscriptionService {
       conditions.push(eq(schema.subscriptionPlans.country, effectiveCountry));
     }
 
-    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
-
     const rows = await this.db
       .select()
       .from(schema.subscriptionPlans)
-      .where(whereClause)
+      .where(and(...conditions))
       .orderBy(schema.subscriptionPlans.name);
 
     return Promise.all(rows.map((r) => this.mapPlanRow(r)));
@@ -726,7 +748,12 @@ export class SubscriptionService {
   /**
    * Create a new subscription plan.
    */
-  async createPlan(input: CreatePlanInput): Promise<PlanDetail> {
+  // Fase 174 (D-01/D-02, ADO-03): `ctx` primero — createPlan/updatePlan
+  // tienen un único call site (`routes.ts`, ya con `assertTenant`).
+  async createPlan(
+    ctx: TenantContext,
+    input: CreatePlanInput,
+  ): Promise<PlanDetail> {
     const planCategory = input.planCategory ?? "presencial";
     const linkedProgramId = input.linkedProgramId ?? null;
     const grantsAllPrograms = input.grantsAllPrograms ?? false;
@@ -747,30 +774,32 @@ export class SubscriptionService {
     // Duplicate plan name (UNIQUE name+country, incluye archivados) → 409 claro
     // en vez del 500 crudo (merge v5.4: preserva multi-programa + hotfix eb2b18de).
     const planId = await this.db.transaction(async (tx) => {
-      await this.assertProgramsExist(tx, programIds);
+      await this.assertProgramsExist(ctx, tx, programIds);
 
       let result;
       try {
-        result = await tx.insert(schema.subscriptionPlans).values({
-          name: input.name,
-          description: input.description ?? null,
-          planTier: input.planTier,
-          bookingMode: input.bookingMode,
-          priceRegular: input.priceRegular,
-          priceZero: input.priceZero,
-          priceCreditCard: input.priceCreditCard ?? null,
-          durationDays: input.durationDays,
-          classesPerWeek: input.classesPerWeek ?? null,
-          multiBranch: input.multiBranch ?? false,
-          isTrial: input.isTrial ?? false,
-          isGroup: input.isGroup ?? false,
-          planCategory,
-          linkedProgramId,
-          groupMaxMembers: input.groupMaxMembers ?? null,
-          grantsAllPrograms,
-          country,
-          currency,
-        });
+        result = await tx.insert(schema.subscriptionPlans).values(
+          tenantValues(ctx, {
+            name: input.name,
+            description: input.description ?? null,
+            planTier: input.planTier,
+            bookingMode: input.bookingMode,
+            priceRegular: input.priceRegular,
+            priceZero: input.priceZero,
+            priceCreditCard: input.priceCreditCard ?? null,
+            durationDays: input.durationDays,
+            classesPerWeek: input.classesPerWeek ?? null,
+            multiBranch: input.multiBranch ?? false,
+            isTrial: input.isTrial ?? false,
+            isGroup: input.isGroup ?? false,
+            planCategory,
+            linkedProgramId,
+            groupMaxMembers: input.groupMaxMembers ?? null,
+            grantsAllPrograms,
+            country,
+            currency,
+          }),
+        );
       } catch (err: unknown) {
         // UNIQUE ux_subscription_plans_name_country (name, country). El nombre
         // puede estar tomado por un plan ARCHIVADO (invisible en la lista), así
@@ -782,7 +811,7 @@ export class SubscriptionService {
       }
 
       const newId = Number(result[0].insertId);
-      await this.persistPlanPrograms(tx, newId, programIds);
+      await this.persistPlanPrograms(ctx, tx, newId, programIds);
       return newId;
     });
 
@@ -795,6 +824,7 @@ export class SubscriptionService {
    * Update an existing subscription plan.
    */
   async updatePlan(
+    ctx: TenantContext,
     planId: number,
     input: UpdatePlanInput,
   ): Promise<PlanDetail | null> {
@@ -861,7 +891,7 @@ export class SubscriptionService {
     // (activo o archivado) → 409 claro (merge v5.4: multi-programa + hotfix eb2b18de).
     await this.db.transaction(async (tx) => {
       if (input.programIds !== undefined) {
-        await this.assertProgramsExist(tx, input.programIds);
+        await this.assertProgramsExist(ctx, tx, input.programIds);
       }
 
       if (Object.keys(updateData).length > 0) {
@@ -869,7 +899,12 @@ export class SubscriptionService {
           await tx
             .update(schema.subscriptionPlans)
             .set(updateData)
-            .where(eq(schema.subscriptionPlans.id, planId));
+            .where(
+              and(
+                tenantWhere(schema.subscriptionPlans, ctx),
+                eq(schema.subscriptionPlans.id, planId),
+              ),
+            );
         } catch (err: unknown) {
           if (isDuplicateKeyError(err).isDuplicate) {
             throw new ConflictError(DUPLICATE_PLAN_NAME_MESSAGE);
@@ -879,7 +914,7 @@ export class SubscriptionService {
       }
 
       if (input.programIds !== undefined) {
-        await this.persistPlanPrograms(tx, planId, input.programIds);
+        await this.persistPlanPrograms(ctx, tx, planId, input.programIds);
       }
     });
 
@@ -889,14 +924,22 @@ export class SubscriptionService {
   /**
    * Deactivate a subscription plan (soft delete).
    */
-  async deactivatePlan(planId: number): Promise<PlanDetail | null> {
+  async deactivatePlan(
+    ctx: TenantContext,
+    planId: number,
+  ): Promise<PlanDetail | null> {
     const existing = await this.getPlanById(planId);
     if (!existing) return null;
 
     await this.db
       .update(schema.subscriptionPlans)
       .set({ isActive: false })
-      .where(eq(schema.subscriptionPlans.id, planId));
+      .where(
+        and(
+          tenantWhere(schema.subscriptionPlans, ctx),
+          eq(schema.subscriptionPlans.id, planId),
+        ),
+      );
 
     return this.getPlanById(planId);
   }
@@ -1973,7 +2016,11 @@ export class SubscriptionService {
    * rows, regenerates bookings on the new slots from tomorrow to endDate, and
    * records an audit row. Today's booking on the old slot is preserved.
    */
+  // Fase 174 (D-01/D-02): `ctx` primero — único call site (`routes.ts`, ya
+  // con `assertTenant`). `getSubscriptionById` sigue crudo (FRONTERA 174-02:
+  // lo comparten assignPlan/changePlan/renewSubscription).
   async changeFixedSchedules(
+    ctx: TenantContext,
     subscriptionId: number,
     actorId: number,
     input: {
@@ -2016,7 +2063,12 @@ export class SubscriptionService {
         multiBranch: schema.subscriptionPlans.multiBranch,
       })
       .from(schema.subscriptionPlans)
-      .where(eq(schema.subscriptionPlans.id, sub.planId));
+      .where(
+        and(
+          tenantWhere(schema.subscriptionPlans, ctx),
+          eq(schema.subscriptionPlans.id, sub.planId),
+        ),
+      );
 
     if (!plan) {
       throw new BadRequestError("Plan no encontrado");
@@ -2072,24 +2124,33 @@ export class SubscriptionService {
     // 2. Swap subscription_schedules rows (insert is skipped when the new set is empty)
     await this.db
       .delete(schema.subscriptionSchedules)
-      .where(eq(schema.subscriptionSchedules.subscriptionId, subscriptionId));
+      .where(
+        and(
+          tenantWhere(schema.subscriptionSchedules, ctx),
+          eq(schema.subscriptionSchedules.subscriptionId, subscriptionId),
+        ),
+      );
     if (input.scheduleIds.length > 0) {
       await this.db.insert(schema.subscriptionSchedules).values(
-        input.scheduleIds.map((scheduleId) => ({
-          subscriptionId,
-          scheduleId,
-        })),
+        input.scheduleIds.map((scheduleId) =>
+          tenantValues(ctx, {
+            subscriptionId,
+            scheduleId,
+          }),
+        ),
       );
     }
 
     // 3. Record audit trail
-    await this.db.insert(schema.subscriptionScheduleChanges).values({
-      subscriptionId,
-      actorId,
-      oldScheduleIds,
-      newScheduleIds: input.scheduleIds,
-      reason: input.reason ?? null,
-    });
+    await this.db.insert(schema.subscriptionScheduleChanges).values(
+      tenantValues(ctx, {
+        subscriptionId,
+        actorId,
+        oldScheduleIds,
+        newScheduleIds: input.scheduleIds,
+        reason: input.reason ?? null,
+      }),
+    );
 
     // 4. Regenerate future bookings on new slots starting today. Class
     //    hasn't happened yet — today is part of the "future" window when
@@ -2178,6 +2239,7 @@ export class SubscriptionService {
       .from(schema.attendance)
       .where(
         and(
+          tenantWhere(schema.attendance, ctx),
           eq(schema.attendance.memberId, sub.userId),
           sql`${schema.attendance.sessionDate} >= ${sub.startDate}`,
           sql`${schema.attendance.sessionDate} < ${newStartDate}`,
@@ -2196,7 +2258,12 @@ export class SubscriptionService {
     const [plan] = await this.db
       .select({ durationDays: schema.subscriptionPlans.durationDays })
       .from(schema.subscriptionPlans)
-      .where(eq(schema.subscriptionPlans.id, sub.planId));
+      .where(
+        and(
+          tenantWhere(schema.subscriptionPlans, ctx),
+          eq(schema.subscriptionPlans.id, sub.planId),
+        ),
+      );
 
     if (!plan) {
       throw new BadRequestError("Plan no encontrado");
@@ -2227,7 +2294,12 @@ export class SubscriptionService {
           endDate: newEndDate,
           status: newStatus,
         })
-        .where(eq(schema.subscriptions.id, subscriptionId));
+        .where(
+          and(
+            tenantWhere(schema.subscriptions, ctx),
+            eq(schema.subscriptions.id, subscriptionId),
+          ),
+        );
 
       await this.recomputeUserStatus(ctx, sub.userId, tx);
     });
@@ -2374,7 +2446,13 @@ export class SubscriptionService {
         ),
       )
       .where(
-        eq(schema.subscriptionScheduleChanges.subscriptionId, subscriptionId),
+        and(
+          tenantWhere(schema.subscriptionScheduleChanges, ctx),
+          eq(
+            schema.subscriptionScheduleChanges.subscriptionId,
+            subscriptionId,
+          ),
+        ),
       )
       .orderBy(desc(schema.subscriptionScheduleChanges.createdAt));
 
@@ -2434,7 +2512,12 @@ export class SubscriptionService {
           pausedAt: new Date(),
           pauseEndDate: pauseEndDate ?? null,
         })
-        .where(eq(schema.subscriptions.id, sub.id));
+        .where(
+          and(
+            tenantWhere(schema.subscriptions, ctx),
+            eq(schema.subscriptions.id, sub.id),
+          ),
+        );
 
       // Phase 112 D-16: cascade pause to all active enrollments tied to this
       // sub (every source: plan_linked, plan_bundle, admin_addon). Closes
@@ -2476,7 +2559,7 @@ export class SubscriptionService {
     ctx: TenantContext,
     userId: number,
   ): Promise<SubscriptionDetail> {
-    const sub = await this.getActivePausedSubscriptionRaw(userId);
+    const sub = await this.getActivePausedSubscriptionRaw(ctx, userId);
     if (!sub) {
       throw new NotFoundError("No se encontro suscripcion pausada");
     }
@@ -2519,7 +2602,12 @@ export class SubscriptionService {
       await tx
         .update(schema.subscriptions)
         .set(updateData)
-        .where(eq(schema.subscriptions.id, sub.id));
+        .where(
+          and(
+            tenantWhere(schema.subscriptions, ctx),
+            eq(schema.subscriptions.id, sub.id),
+          ),
+        );
 
       // Phase 112 D-17: un-pause enrollments that were paused by this sub.
       // Cancelled / completed / expired rows are NOT resurrected — only the
@@ -2675,6 +2763,7 @@ export class SubscriptionService {
       .from(schema.attendance)
       .where(
         and(
+          tenantWhere(schema.attendance, ctx),
           eq(schema.attendance.memberId, sub.userId),
           sql`${schema.attendance.sessionDate} >= ${fromDate}`,
           sql`${schema.attendance.sessionDate} <= ${toDate}`,
@@ -2697,10 +2786,14 @@ export class SubscriptionService {
       .from(schema.subscriptions)
       .innerJoin(
         schema.subscriptionPlans,
-        eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
+        and(
+          tenantWhere(schema.subscriptionPlans, ctx),
+          eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
+        ),
       )
       .where(
         and(
+          tenantWhere(schema.subscriptions, ctx),
           eq(schema.subscriptions.userId, sub.userId),
           eq(schema.subscriptions.status, "scheduled"),
           eq(schema.subscriptionPlans.planCategory, sub.planCategory),
@@ -2724,7 +2817,12 @@ export class SubscriptionService {
       await tx
         .update(schema.subscriptions)
         .set({ endDate: newEndDate })
-        .where(eq(schema.subscriptions.id, subscriptionId));
+        .where(
+          and(
+            tenantWhere(schema.subscriptions, ctx),
+            eq(schema.subscriptions.id, subscriptionId),
+          ),
+        );
 
       await auditLog.write(ctx, tx, {
         actorId,
@@ -2913,7 +3011,12 @@ export class SubscriptionService {
         status: schema.subscriptions.status,
       })
       .from(schema.subscriptions)
-      .where(eq(schema.subscriptions.id, subscriptionId))
+      .where(
+        and(
+          tenantWhere(schema.subscriptions, ctx),
+          eq(schema.subscriptions.id, subscriptionId),
+        ),
+      )
       .limit(1);
     if (!subRow || subRow.userId !== userId) {
       throw new NotFoundError(
@@ -3020,7 +3123,12 @@ export class SubscriptionService {
     await tx
       .update(schema.subscriptions)
       .set(updateData)
-      .where(eq(schema.subscriptions.id, sub.id));
+      .where(
+        and(
+          tenantWhere(schema.subscriptions, ctx),
+          eq(schema.subscriptions.id, sub.id),
+        ),
+      );
 
     // Cascade-cancel scheduled successors ONLY when killing the current
     // membership (active/paused). When the admin cancels a scheduled sub
@@ -3033,6 +3141,7 @@ export class SubscriptionService {
         .from(schema.subscriptions)
         .where(
           and(
+            tenantWhere(schema.subscriptions, ctx),
             eq(schema.subscriptions.userId, userId),
             eq(schema.subscriptions.status, "scheduled"),
           ),
@@ -3046,6 +3155,7 @@ export class SubscriptionService {
         })
         .where(
           and(
+            tenantWhere(schema.subscriptions, ctx),
             eq(schema.subscriptions.userId, userId),
             eq(schema.subscriptions.status, "scheduled"),
           ),
@@ -4710,7 +4820,12 @@ export class SubscriptionService {
     const [branch] = await this.db
       .select({ id: schema.branches.id, name: schema.branches.name })
       .from(schema.branches)
-      .where(eq(schema.branches.id, input.targetBranchId));
+      .where(
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, input.targetBranchId),
+        ),
+      );
 
     if (!branch) {
       throw new NotFoundError("Sucursal destino no encontrada");
@@ -4749,24 +4864,33 @@ export class SubscriptionService {
               cancelledAt: new Date(),
               notes: `Migrado a ${targetPlan.name}`,
             })
-            .where(eq(schema.subscriptions.id, activeSub.id));
+            .where(
+              and(
+                tenantWhere(schema.subscriptions, ctx),
+                eq(schema.subscriptions.id, activeSub.id),
+              ),
+            );
 
           // Create new subscription
           //
-          // DEUDA CON DUEÑO — FASE 174 (D-02/D-13): sin `tenantValues`, ver el
-          // comentario gemelo de `changePlanNow` (assignPlan es el único
-          // acotado a esta fase).
-          await tx.insert(schema.subscriptions).values({
-            userId,
-            planId: input.targetPlanId,
-            branchId: input.targetBranchId,
-            status: "active",
-            startDate: today,
-            endDate: endDateStr,
-            pricePaid: 0,
-            priceTypeApplied: "regular",
-            notes: "Migrado desde plan legacy",
-          });
+          // Fase 174 (D-02/D-13, plan 174-01): `tenantValues(ctx, {...})`
+          // salda la DEUDA CON DUEÑO dejada por la 173 — este es el único de
+          // los 4 inserts crudos a `subscriptions` que le toca a este plan
+          // (bulkMigratePlan NO es pricing; los otros 3 —changePlanNow,
+          // changePlanAfterCurrent, renewSubscription— quedan para 174-02).
+          await tx.insert(schema.subscriptions).values(
+            tenantValues(ctx, {
+              userId,
+              planId: input.targetPlanId,
+              branchId: input.targetBranchId,
+              status: "active",
+              startDate: today,
+              endDate: endDateStr,
+              pricePaid: 0,
+              priceTypeApplied: "regular",
+              notes: "Migrado desde plan legacy",
+            }),
+          );
 
           // Recompute user.status (R5/D-01). User stays 'activo' (had a sub
           // before, has one after) — recompute keeps the invariant explicit.
@@ -5246,7 +5370,10 @@ export class SubscriptionService {
   /**
    * Get raw active/paused subscription (without auto-expire, for resume).
    */
-  private async getActivePausedSubscriptionRaw(userId: number): Promise<{
+  private async getActivePausedSubscriptionRaw(
+    ctx: TenantContext,
+    userId: number,
+  ): Promise<{
     id: number;
     status: string;
     pausedAt: Date | null;
@@ -5262,6 +5389,7 @@ export class SubscriptionService {
       .from(schema.subscriptions)
       .where(
         and(
+          tenantWhere(schema.subscriptions, ctx),
           eq(schema.subscriptions.userId, userId),
           or(
             eq(schema.subscriptions.status, "active"),
@@ -5444,6 +5572,7 @@ export class SubscriptionService {
       .from(schema.attendance)
       .where(
         and(
+          tenantWhere(schema.attendance, ctx),
           eq(schema.attendance.memberId, userId),
           eq(schema.attendance.status, "confirmado"),
           sql`${schema.attendance.checkedInAt} >= ${monday.toISOString().slice(0, 19).replace("T", " ")}`,
@@ -5650,19 +5779,22 @@ export class SubscriptionService {
    * List all promo plans ordered by most recent first, optionally filtered
    * by country scope (enforced by the route layer via request.scope.country).
    */
+  // Fase 174 (D-01/D-02, ADO-03): `ctx` primero en las 4 — único call site
+  // de cada una (`routes.ts`, ya con `assertTenant`). `getPlanById` sigue
+  // crudo (FRONTERA 174-02).
   async listPromoPlans(
+    ctx: TenantContext,
     filters: ListPromoPlansFilters = {},
   ): Promise<PromoListItem[]> {
-    const conditions = [];
+    const conditions = [tenantWhere(schema.promoPlans, ctx)];
     if (filters.country !== undefined) {
       conditions.push(eq(schema.promoPlans.country, filters.country));
     }
-    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
     const rows = await this.db
       .select()
       .from(schema.promoPlans)
-      .where(whereClause)
+      .where(and(...conditions))
       .orderBy(desc(schema.promoPlans.createdAt));
     return rows.map((r) => ({
       ...r,
@@ -5678,7 +5810,10 @@ export class SubscriptionService {
    * exists and the promo code is unique. The promo inherits its country from
    * the referenced subscription plan so it can never drift cross-country.
    */
-  async createPromo(input: CreatePromoInput): Promise<PromoListItem> {
+  async createPromo(
+    ctx: TenantContext,
+    input: CreatePromoInput,
+  ): Promise<PromoListItem> {
     // Validate subscription plan exists
     const plan = await this.getPlanById(input.subscriptionPlanId);
     if (!plan) {
@@ -5689,28 +5824,40 @@ export class SubscriptionService {
     const [existing] = await this.db
       .select({ id: schema.promoPlans.id })
       .from(schema.promoPlans)
-      .where(eq(schema.promoPlans.promoCode, input.promoCode))
+      .where(
+        and(
+          tenantWhere(schema.promoPlans, ctx),
+          eq(schema.promoPlans.promoCode, input.promoCode),
+        ),
+      )
       .limit(1);
     if (existing) {
       throw new ConflictError("El codigo promo ya existe");
     }
 
-    const result = await this.db.insert(schema.promoPlans).values({
-      name: input.name,
-      promoCode: input.promoCode,
-      planDurationDays: input.planDurationDays,
-      startDate: new Date(input.startDate),
-      expiryDate: new Date(input.expiryDate),
-      promoType: input.promoType,
-      subscriptionPlanId: input.subscriptionPlanId,
-      country: plan.country,
-    });
+    const result = await this.db.insert(schema.promoPlans).values(
+      tenantValues(ctx, {
+        name: input.name,
+        promoCode: input.promoCode,
+        planDurationDays: input.planDurationDays,
+        startDate: new Date(input.startDate),
+        expiryDate: new Date(input.expiryDate),
+        promoType: input.promoType,
+        subscriptionPlanId: input.subscriptionPlanId,
+        country: plan.country,
+      }),
+    );
 
     const promoId = Number(result[0].insertId);
     const [promo] = await this.db
       .select()
       .from(schema.promoPlans)
-      .where(eq(schema.promoPlans.id, promoId));
+      .where(
+        and(
+          tenantWhere(schema.promoPlans, ctx),
+          eq(schema.promoPlans.id, promoId),
+        ),
+      );
     return {
       ...promo,
       startDate: promo.startDate.toISOString(),
@@ -5724,13 +5871,19 @@ export class SubscriptionService {
    * Update an existing promo plan (name, dates, duration, type, plan).
    */
   async updatePromo(
+    ctx: TenantContext,
     promoId: number,
     input: UpdatePromoInput,
   ): Promise<PromoListItem> {
     const [existing] = await this.db
       .select({ id: schema.promoPlans.id })
       .from(schema.promoPlans)
-      .where(eq(schema.promoPlans.id, promoId));
+      .where(
+        and(
+          tenantWhere(schema.promoPlans, ctx),
+          eq(schema.promoPlans.id, promoId),
+        ),
+      );
     if (!existing) {
       throw new NotFoundError("Promo no encontrada");
     }
@@ -5757,12 +5910,22 @@ export class SubscriptionService {
     await this.db
       .update(schema.promoPlans)
       .set(updates)
-      .where(eq(schema.promoPlans.id, promoId));
+      .where(
+        and(
+          tenantWhere(schema.promoPlans, ctx),
+          eq(schema.promoPlans.id, promoId),
+        ),
+      );
 
     const [promo] = await this.db
       .select()
       .from(schema.promoPlans)
-      .where(eq(schema.promoPlans.id, promoId));
+      .where(
+        and(
+          tenantWhere(schema.promoPlans, ctx),
+          eq(schema.promoPlans.id, promoId),
+        ),
+      );
     return {
       ...promo,
       startDate: promo.startDate.toISOString(),
@@ -5775,18 +5938,28 @@ export class SubscriptionService {
   /**
    * Deactivate a promo plan by setting isActive to false.
    */
-  async deactivatePromo(promoId: number): Promise<void> {
+  async deactivatePromo(ctx: TenantContext, promoId: number): Promise<void> {
     const [promo] = await this.db
       .select({ id: schema.promoPlans.id })
       .from(schema.promoPlans)
-      .where(eq(schema.promoPlans.id, promoId));
+      .where(
+        and(
+          tenantWhere(schema.promoPlans, ctx),
+          eq(schema.promoPlans.id, promoId),
+        ),
+      );
     if (!promo) {
       throw new NotFoundError("Promo no encontrada");
     }
     await this.db
       .update(schema.promoPlans)
       .set({ isActive: false })
-      .where(eq(schema.promoPlans.id, promoId));
+      .where(
+        and(
+          tenantWhere(schema.promoPlans, ctx),
+          eq(schema.promoPlans.id, promoId),
+        ),
+      );
   }
 
   /**

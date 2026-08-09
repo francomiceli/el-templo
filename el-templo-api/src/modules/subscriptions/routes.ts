@@ -126,12 +126,15 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
       country?: "AR" | "ES";
     };
   }>("/plans", { schema: listPlansSchema }, async (request) => {
-    const plans = await subscriptionService.listPlans({
-      isActive: request.query.isActive,
-      includeArchived: request.query.includeArchived,
-      country: request.scope.country ?? undefined,
-      branchId: request.query.branchId,
-    });
+    const plans = await subscriptionService.listPlans(
+      assertTenant(request.scope, "subscriptions.listPlans"),
+      {
+        isActive: request.query.isActive,
+        includeArchived: request.query.includeArchived,
+        country: request.scope.country ?? undefined,
+        branchId: request.query.branchId,
+      },
+    );
     return { plans };
   });
 
@@ -166,7 +169,10 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
           .send({ error: "Acceso denegado", message: "Solo owner/admin" });
       }
       try {
-        const plan = await subscriptionService.createPlan(request.body);
+        const plan = await subscriptionService.createPlan(
+          assertTenant(request.scope, "subscriptions.createPlan"),
+          request.body,
+        );
         return reply.code(201).send(plan);
       } catch (err: unknown) {
         // Sin este catch, un ConflictError (nombre duplicado) caería al handler
@@ -191,6 +197,7 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
       }
       try {
         const plan = await subscriptionService.updatePlan(
+          assertTenant(request.scope, "subscriptions.updatePlan"),
           request.params.planId,
           request.body,
         );
@@ -220,6 +227,7 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
           .send({ error: "Acceso denegado", message: "Solo owner/admin" });
       }
       const plan = await subscriptionService.deactivatePlan(
+        assertTenant(request.scope, "subscriptions.deactivatePlan"),
         request.params.planId,
       );
       if (!plan) {
@@ -388,6 +396,7 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       try {
         const sub = await subscriptionService.changeFixedSchedules(
+          assertTenant(request.scope, "subscriptions.changeFixedSchedules"),
           request.params.subscriptionId,
           request.user.userId,
           request.body,
@@ -638,9 +647,12 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
 
   // GET /promo-plans — List all promo plans (scoped to request.scope.country)
   fastify.get("/promo-plans", { schema: listPromosSchema }, async (request) => {
-    return subscriptionService.listPromoPlans({
-      country: request.scope.country ?? undefined,
-    });
+    return subscriptionService.listPromoPlans(
+      assertTenant(request.scope, "subscriptions.listPromoPlans"),
+      {
+        country: request.scope.country ?? undefined,
+      },
+    );
   });
 
   // POST /promo-plans — Create a promo plan
@@ -657,7 +669,10 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
           .send({ error: "Acceso denegado", message: "Solo owner/admin" });
       }
       try {
-        const promo = await subscriptionService.createPromo(request.body);
+        const promo = await subscriptionService.createPromo(
+          assertTenant(request.scope, "subscriptions.createPromo"),
+          request.body,
+        );
         return reply.code(201).send(promo);
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "create promo");
@@ -680,6 +695,7 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
       }
       try {
         const promo = await subscriptionService.updatePromo(
+          assertTenant(request.scope, "subscriptions.updatePromo"),
           request.params.promoId,
           request.body,
         );
@@ -704,7 +720,10 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
           .send({ error: "Acceso denegado", message: "Solo owner/admin" });
       }
       try {
-        await subscriptionService.deactivatePromo(request.params.promoId);
+        await subscriptionService.deactivatePromo(
+          assertTenant(request.scope, "subscriptions.deactivatePromo"),
+          request.params.promoId,
+        );
         return { message: "Promo desactivada" };
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "deactivate promo");
