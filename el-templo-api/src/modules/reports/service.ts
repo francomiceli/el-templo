@@ -1683,7 +1683,7 @@ export class ReportsService {
             AND fx.kind IN ('plan_charge', 'debt_settlement')
         ), 0) AS revenue
       FROM ${firstTrialSQL} AS ft
-      JOIN users u ON u.id = ft.user_id
+      JOIN users u ON u.id = ft.user_id AND u.tenant_id = ${ctx.tenantId}
       JOIN schedules s ON s.id = ft.first_schedule_id
       JOIN branches br ON br.id = s.branch_id
       WHERE ft.trial_date >= ${dateFrom}
@@ -1730,7 +1730,7 @@ export class ReportsService {
         COUNT(*) AS trials_count,
         SUM(CASE WHEN u.converted_at IS NOT NULL THEN 1 ELSE 0 END) AS converted_count
       FROM ${firstTrialSQL} AS ft
-      JOIN users u ON u.id = ft.user_id
+      JOIN users u ON u.id = ft.user_id AND u.tenant_id = ${ctx.tenantId}
       JOIN schedules s ON s.id = ft.first_schedule_id
       JOIN branches br ON br.id = s.branch_id
       WHERE ft.trial_date >= ${dateFrom}
@@ -1769,7 +1769,7 @@ export class ReportsService {
         COUNT(*) AS trials_count,
         SUM(CASE WHEN u.converted_at IS NOT NULL THEN 1 ELSE 0 END) AS converted_count
       FROM ${firstTrialSQL} AS ft
-      JOIN users u ON u.id = ft.user_id
+      JOIN users u ON u.id = ft.user_id AND u.tenant_id = ${ctx.tenantId}
       JOIN schedules s ON s.id = ft.first_schedule_id
       JOIN branches br ON br.id = s.branch_id
       WHERE ft.trial_date >= ${dateFrom}
@@ -1806,7 +1806,7 @@ export class ReportsService {
         COUNT(*) AS trials_count,
         SUM(CASE WHEN u.converted_at IS NOT NULL THEN 1 ELSE 0 END) AS converted_count
       FROM ${firstTrialSQL} AS ft
-      JOIN users u ON u.id = ft.user_id
+      JOIN users u ON u.id = ft.user_id AND u.tenant_id = ${ctx.tenantId}
       JOIN schedules s ON s.id = ft.first_schedule_id
       JOIN branches br ON br.id = s.branch_id
       WHERE ft.trial_date >= ${dateFrom}
@@ -1854,7 +1854,7 @@ export class ReportsService {
         ft.trial_date,
         DATEDIFF(CURDATE(), ft.trial_date) AS days_since_trial
       FROM ${firstTrialSQL} AS ft
-      JOIN users u ON u.id = ft.user_id
+      JOIN users u ON u.id = ft.user_id AND u.tenant_id = ${ctx.tenantId}
       JOIN schedules s ON s.id = ft.first_schedule_id
       JOIN branches br ON br.id = s.branch_id
       WHERE ft.trial_date >= ${dateFrom}
