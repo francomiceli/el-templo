@@ -22,7 +22,7 @@ import {
 } from "../finance";
 import type { PaymentMethod } from "../finance/types";
 import { handleServiceError } from "../shared/error-handler";
-import { assertTenant } from "../shared/tenant";
+import { assertTenant, tenantWhere } from "../shared/tenant";
 import { attachCountryScope } from "../shared/country-scope";
 import { auditLog } from "../shared/audit-log";
 import {
@@ -458,6 +458,38 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
         // es el mismo patron per-ruta de `campaigns/routes.ts:181`.
         await attachCountryScope(request, fastify.db);
 
+        // Fase 173 (D-02, T-173-28-08, cirugia minima sobre `users` — tabla
+        // strict de esta fase): esta ruta vive en el modulo `programs`
+        // (fuera del alcance de 173-176/175) pero su `:userId` es un socio,
+        // asi que el ancla `users.tenant_id` SI aplica. Antes de este fix, ni
+        // el lookup de `activeSub` de aca abajo NI `enrollAddon` (que solo
+        // valida userId+subscriptionId, ambos SIN tenantWhere) chequeaban de
+        // que gimnasio era el socio — un staff de OTRO gimnasio podia
+        // inscribir a un socio ajeno en un addon `pricePaid=0` (el path que
+        // NO pasa por `transactionService.create`, que si es strict desde la
+        // fase 172 y hubiera bloqueado el caso con pricePaid>0). Verificado
+        // en vivo antes de este fix: 200 + fila real en `program_enrollments`
+        // con el socio de El Templo, actuando como staff del gimnasio 2.
+        const ctxAddon = assertTenant(
+          request.scope,
+          "programs.enroll-addon.guard",
+        );
+        const [socioPropio] = await fastify.db
+          .select({ id: schema.users.id })
+          .from(schema.users)
+          .where(
+            and(
+              tenantWhere(schema.users, ctxAddon),
+              eq(schema.users.id, request.params.userId),
+            ),
+          )
+          .limit(1);
+        if (!socioPropio) {
+          return reply
+            .code(404)
+            .send({ error: "No encontrado", message: "Miembro no encontrado" });
+        }
+
         // Resolve the user's active|paused sub id BEFORE delegating to
         // EnrollmentService — duplicates the D-11 check on purpose so the
         // structured 4xx body is emitted consistently regardless of whether
@@ -484,7 +516,7 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
         }
 
         const result = await enrollmentService.enrollAddon(
-          assertTenant(request.scope, "programs.enroll-addon"),
+          ctxAddon,
           request.params.userId,
           activeSub.id,
           {
