@@ -292,6 +292,18 @@ export interface AssignPlanInput {
   priceOverrideAmount?: number;
   priceOverrideReason?: string;
   boardingPass?: boolean;
+  /**
+   * Alta prorrateada hasta fin de mes. Cuando es true, la vigencia termina el
+   * último día del mes calendario del `startDate` (en vez de
+   * `startDate + durationDays`) y el precio es el proporcional de los días
+   * restantes (día del alta incluido). El monto exacto lo decide el staff: el
+   * front precarga el sugerido (endpoint de preview) en un input editable y lo
+   * envía como `priceOverrideAmount`; si no viene, el service calcula el
+   * sugerido. Mutuamente excluyente con `boardingPass` y con AURA/referidos (el
+   * precio proporcional es el precio final, sin descuentos automáticos encima).
+   * Solo aplica al alta — las renovaciones siempre son de mes completo.
+   */
+  prorateToMonthEnd?: boolean;
   notes?: string;
   startMode?: "now" | "after_current";
   /**

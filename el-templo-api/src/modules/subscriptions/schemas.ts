@@ -371,6 +371,9 @@ export const assignPlanSchema = {
       appliedMiscChargeId: { type: "integer", minimum: 1 },
       priceOverrideReason: { type: "string" },
       boardingPass: { type: "boolean" },
+      // Alta prorrateada hasta fin de mes: vigencia al último día del mes del
+      // startDate y precio proporcional (priceOverrideAmount = monto editado).
+      prorateToMonthEnd: { type: "boolean" },
       notes: { type: "string" },
     },
   },
@@ -799,6 +802,42 @@ export const pricingPreviewSchema = {
   },
   response: {
     200: pricingPreviewResponseSchema,
+    404: errorSchema,
+  },
+};
+
+export const assignProrationPreviewSchema = {
+  params: {
+    type: "object",
+    required: ["userId"],
+    properties: {
+      userId: { type: "integer" },
+    },
+  },
+  querystring: {
+    type: "object",
+    required: ["planId", "startDate", "priceType"],
+    properties: {
+      planId: { type: "integer" },
+      startDate: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+      priceType: {
+        type: "string",
+        enum: ["regular", "zero", "credit_card"],
+      },
+    },
+  },
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        basePrice: { type: "integer" },
+        suggestedPrice: { type: "integer" },
+        endDate: { type: "string" },
+        daysCharged: { type: "integer" },
+        daysInMonth: { type: "integer" },
+        currency: { type: "string" },
+      },
+    },
     404: errorSchema,
   },
 };

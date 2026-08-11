@@ -444,12 +444,38 @@
                     </div>
 
                     <q-toggle
-                      v-if="zeroPriceEnabled"
+                      v-if="zeroPriceEnabled && !prorateToMonthEnd"
                       v-model="zeroPrice"
                       :label="ZERO_PRICE_LABEL"
                       color="positive"
                       class="q-mt-sm"
                     />
+
+                    <!-- Prorrateo hasta fin de mes (alta): vigencia al último día
+                         del mes y precio proporcional editable. Excluyente con Zero. -->
+                    <div v-if="selectedPlan">
+                      <q-toggle
+                        v-model="prorateToMonthEnd"
+                        label="Prorratear hasta fin de mes"
+                        color="primary"
+                        class="q-mt-sm"
+                        @update:model-value="onProrateToggleAlta"
+                      />
+                      <div v-if="prorateToMonthEnd" class="q-mt-sm" style="max-width: 240px">
+                        <q-input
+                          v-model.number="proratedPrice"
+                          label="Precio prorrateado"
+                          type="number"
+                          dense
+                          outlined
+                          hint="Sugerido según los días restantes. Editable."
+                        />
+                        <div class="text-caption text-grey-7 q-mt-xs">
+                          Cobra {{ prorationDays.daysCharged }} de {{ prorationDays.daysInMonth }}
+                          días · vence fin de mes
+                        </div>
+                      </div>
+                    </div>
                   </template>
 
                   <!-- Turnos: estructurado SOLO para planes fixed -->
@@ -610,7 +636,8 @@
                       v-if="selectedBankAccountId == null"
                       class="text-subtitle2 text-weight-regular text-warning q-mt-xs"
                     >
-                      Elegí una cuenta bancaria para cobrar por transferencia, tarjeta o domiciliación.
+                      Elegí una cuenta bancaria para cobrar por transferencia, tarjeta o
+                      domiciliación.
                     </div>
                   </template>
 
@@ -862,6 +889,10 @@ const plans = ref<PlanListItem[]>([]);
 const loadingPlans = ref(false);
 const selectedPlan = ref<PlanListItem | null>(null);
 const zeroPrice = ref(false);
+// Alta prorrateada hasta fin de mes: usa "hoy" como inicio (el server también),
+// vigencia al último día del mes y precio proporcional editable.
+const prorateToMonthEnd = ref(false);
+const proratedPrice = ref<number | null>(null);
 const scheduleIds = ref<number[]>([]);
 // IDs de los tickets que ESTA alta creó-nuevo → chip "Nuevo" tras el re-fetch.
 const createdNewTicketIds = ref<Set<number>>(new Set());
@@ -975,6 +1006,8 @@ function onSelectAssociation(m: Mode) {
   miscReason.value = 'sin_plan';
   selectedPlan.value = null;
   zeroPrice.value = false;
+  prorateToMonthEnd.value = false;
+  proratedPrice.value = null;
   scheduleIds.value = [];
   currentIdempotencyKey.value = null;
   if (m === 'alta') {
@@ -1499,8 +1532,43 @@ function getBasePriceFor(plan: PlanListItem, method: LoadPaymentMethod, zero: bo
 
 const altaPrice = computed(() => {
   if (!selectedPlan.value || !paymentMethod.value) return 0;
+  // Alta prorrateada: cobramos el proporcional editable, no el precio completo.
+  if (prorateToMonthEnd.value) return proratedPrice.value ?? 0;
   return getBasePriceFor(selectedPlan.value, paymentMethod.value, zeroPrice.value);
 });
+
+// Precio del mes completo del alta (base para el proporcional): sigue el medio
+// de pago (card → priceCreditCard) pero ignora Zero (excluyente con prorrateo).
+const altaFullMonthPrice = computed(() => {
+  if (!selectedPlan.value || !paymentMethod.value) return 0;
+  return getBasePriceFor(selectedPlan.value, paymentMethod.value, false);
+});
+
+// Desglose de días del mes en curso ("hoy" = inicio, igual que el server).
+const prorationDays = computed(() => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth(); // 0-based
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const daysCharged = daysInMonth - now.getDate() + 1;
+  return { daysInMonth, daysCharged };
+});
+
+// Sugerido = round(precio mes completo × días restantes / días del mes).
+function suggestProratedPrice(): number {
+  const { daysInMonth, daysCharged } = prorationDays.value;
+  if (daysInMonth === 0) return altaFullMonthPrice.value;
+  return Math.round((altaFullMonthPrice.value * daysCharged) / daysInMonth);
+}
+
+function onProrateToggleAlta(): void {
+  if (prorateToMonthEnd.value) {
+    zeroPrice.value = false;
+    proratedPrice.value = suggestProratedPrice();
+  } else {
+    proratedPrice.value = null;
+  }
+}
 
 const isAltaPartial = computed(
   () => altaPrice.value > 0 && amount.value != null && amount.value < altaPrice.value
@@ -1551,12 +1619,20 @@ async function loadAltaPlans() {
 // async en onMounted; sin ella, si la regla llega DESPUÉS de elegir plan+tarjeta
 // el monto queda con precio regular y no se recalcula → cobro parcial / deuda
 // fantasma por el recargo.
-watch([selectedPlan, paymentMethod, zeroPrice, cardSurchargeEnabled], () => {
-  if (mode.value !== 'alta') return;
-  if (selectedPlan.value && paymentMethod.value) {
-    amount.value = altaPrice.value;
+watch(
+  [selectedPlan, paymentMethod, zeroPrice, cardSurchargeEnabled, prorateToMonthEnd, proratedPrice],
+  (newVals, oldVals) => {
+    if (mode.value !== 'alta') return;
+    // Prorrateo activo: recomputar el sugerido cuando cambia plan o medio de pago
+    // (no cuando el profe edita el precio a mano). Índices: 0=plan, 1=method.
+    if (prorateToMonthEnd.value && (newVals[0] !== oldVals[0] || newVals[1] !== oldVals[1])) {
+      proratedPrice.value = suggestProratedPrice();
+    }
+    if (selectedPlan.value && paymentMethod.value) {
+      amount.value = altaPrice.value;
+    }
   }
-});
+);
 
 // ─── Typeahead ────────────────────────────────────────────────────────────
 // Mapea un socio (resultado de búsqueda o perfil por id) al shape del selector.
@@ -1725,6 +1801,12 @@ async function onConfirm() {
         paymentMethod: paymentMethod.value,
         amountReceived: amount.value,
         idempotencyKey,
+        ...(prorateToMonthEnd.value
+          ? {
+              prorateToMonthEnd: true,
+              ...(proratedPrice.value != null ? { priceOverrideAmount: proratedPrice.value } : {}),
+            }
+          : {}),
         ...(selectedPlan.value.bookingMode === 'fixed' ? { scheduleIds: scheduleIds.value } : {}),
         ...(chosenBankAccountId != null ? { bankAccountId: chosenBankAccountId } : {}),
       };

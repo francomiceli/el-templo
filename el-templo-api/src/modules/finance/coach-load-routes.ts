@@ -98,6 +98,12 @@ interface CoachAltaBody {
   // Toggle "Precio Zero". paymentMethod 'card' override a priceCreditCard en el handler.
   zero?: boolean;
   paymentMethod: PaymentMethod;
+  // Alta prorrateada hasta fin de mes: vigencia al último día del mes y precio
+  // proporcional. El monto editado por el profe viaja en priceOverrideAmount;
+  // sin él, assignPlan calcula el proporcional. Excluyente con zero (la UI lo
+  // apaga). Solo alta.
+  prorateToMonthEnd?: boolean;
+  priceOverrideAmount?: number;
   // Monto recibido (cents). < precio → deja deuda (assignPlan lo soporta).
   amountReceived?: number;
   // Solo planes fixed: assignPlan valida length === plan.classesPerWeek.
@@ -199,6 +205,8 @@ const coachAltaSchema = {
       branchId: { type: "integer", minimum: 1 },
       planId: { type: "integer", minimum: 1 },
       zero: { type: "boolean" },
+      prorateToMonthEnd: { type: "boolean" },
+      priceOverrideAmount: { type: "integer", minimum: 0 },
       paymentMethod: { type: "string", enum: PAYMENT_METHOD_ENUM },
       amountReceived: { type: "integer", minimum: 0 },
       scheduleIds: {
@@ -409,7 +417,10 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
       schema: coachPayPlanSchema,
       // CR-CAJA: gatea la sede del cobro cuando el operador la eligió (optional →
       // sin branchId, default a la sede del socio, sin check).
-      preHandler: requireBranchAccess({ from: "body.branchId", optional: true }),
+      preHandler: requireBranchAccess({
+        from: "body.branchId",
+        optional: true,
+      }),
     },
     async (request, reply) => {
       const {
@@ -582,7 +593,10 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
     {
       schema: coachMiscLoadSchema,
       // CR-CAJA: gatea la sede del cobro si el operador la eligió (optional).
-      preHandler: requireBranchAccess({ from: "body.branchId", optional: true }),
+      preHandler: requireBranchAccess({
+        from: "body.branchId",
+        optional: true,
+      }),
     },
     async (request, reply) => {
       const today = new Date().toISOString().split("T")[0];
@@ -773,6 +787,13 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
             paymentMethod: body.paymentMethod,
             scheduleIds: body.scheduleIds,
             amountReceived: body.amountReceived,
+            // Alta prorrateada hasta fin de mes: el flag + el precio editado (si
+            // vino) se delegan a assignPlan, que recalcula el proporcional
+            // cuando no se manda monto.
+            prorateToMonthEnd: body.prorateToMonthEnd,
+            priceOverrideAmount: body.prorateToMonthEnd
+              ? body.priceOverrideAmount
+              : undefined,
             notes: body.notes,
             // Server-derived: charge nace 'pendiente' porque el rol es coach.
             recorderRole: request.user.role as AdminRole,
