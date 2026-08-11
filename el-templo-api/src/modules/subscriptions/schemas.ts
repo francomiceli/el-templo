@@ -285,8 +285,10 @@ export const especialPassSchema = {
       type: "object",
       properties: {
         hasPass: { type: "boolean" },
-        classesRemaining: { type: "integer" },
-        classesBudget: { type: "integer" },
+        // null = pase de acceso ilimitado (monthly_class_budget NULL). Los tiers
+        // con cupo (2/4 accesos) devuelven el entero. Nullable como endDate.
+        classesRemaining: { type: ["integer", "null"] },
+        classesBudget: { type: ["integer", "null"] },
         endDate: { type: ["string", "null"] },
         isSocio: { type: "boolean" },
       },

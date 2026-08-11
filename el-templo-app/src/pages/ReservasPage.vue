@@ -281,7 +281,10 @@
         <q-chip
           dense
           class="especial-chip"
-          :class="{ 'especial-chip--exhausted': userStore.especialClassesRemaining <= 0 }"
+          :class="{
+            'especial-chip--exhausted':
+              !userStore.especialUnlimited && userStore.especialClassesRemaining <= 0,
+          }"
         >
           <q-icon name="auto_awesome" size="14px" class="q-mr-xs" />
           {{ especialChipLabel }}
@@ -848,15 +851,18 @@ const canAccessGrid = computed(
 
 // E1/E4: hay saldo del plan especial para reservar (user-level, no depende del slot).
 const especialReservable = computed(
-  () => userStore.hasEspecialPass && userStore.especialClassesRemaining > 0,
+  () =>
+    userStore.hasEspecialPass &&
+    (userStore.especialUnlimited || userStore.especialClassesRemaining > 0),
 )
 
-// Chip contador x/2. En 0/2 cambia el copy a tono apagado (se renuevan el próximo mes).
-const especialChipLabel = computed(() =>
-  userStore.especialClassesRemaining <= 0
+// Chip contador. Ilimitado → "Ilimitado"; con cupo x/budget; en 0/budget copy apagado.
+const especialChipLabel = computed(() => {
+  if (userStore.especialUnlimited) return 'Especiales · Ilimitado'
+  return userStore.especialClassesRemaining <= 0
     ? `Especiales · 0/${userStore.especialClassesBudget} · se renuevan el próximo mes`
-    : `Especiales · ${userStore.especialClassesRemaining}/${userStore.especialClassesBudget}`,
-)
+    : `Especiales · ${userStore.especialClassesRemaining}/${userStore.especialClassesBudget}`
+})
 
 // Differentiated empty-state copy: "no plan at all" vs "wrong plan type".
 const emptyTitle = computed(() =>
@@ -1360,10 +1366,10 @@ function onSlotTap(slot: WeeklySlotView) {
       showAuraInfoDialog.value = true
       return
     }
-    if (userStore.especialClassesRemaining <= 0) {
+    if (!userStore.especialUnlimited && userStore.especialClassesRemaining <= 0) {
       $q.notify({
         type: 'info',
-        message: 'Ya usaste tus 2 clases especiales del mes. Se renuevan con tu próximo período.',
+        message: 'Ya usaste tus accesos especiales del mes. Se renuevan con tu próximo período.',
         timeout: 3000,
       })
       return

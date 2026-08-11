@@ -34,8 +34,8 @@ const MEMBER_PASSWORD = "pass123456";
 
 interface EspecialPassBody {
   hasPass: boolean;
-  classesRemaining?: number;
-  classesBudget?: number;
+  classesRemaining?: number | null;
+  classesBudget?: number | null;
   endDate?: string | null;
   isSocio?: boolean;
 }
@@ -171,6 +171,54 @@ describe("Subscriptions — GET /me/especial-pass (member especial pass endpoint
     expect(body.isSocio).toBe(false);
     expect(body.classesRemaining).toBe(2);
     expect(body.classesBudget).toBe(2);
+  });
+
+  it("returns classesRemaining/classesBudget = null for an unlimited pass (budget NULL)", async () => {
+    // Pase ilimitado (0201): plan con monthly_class_budget NULL → la sub queda
+    // con classesRemaining/classesBudget NULL (= sin tope). El endpoint NO debe
+    // colapsarlo a 0: la app usa null para distinguir "ilimitado" de "agotado".
+    const member = await createMember(app, { email: "ep-unlim@test.com" });
+    const planRes = await app.db.insert(schema.subscriptionPlans).values({
+      name: "Pase Ilimitado member",
+      planTier: "other",
+      bookingMode: "flexible",
+      planCategory: "especial",
+      priceRegular: 20000,
+      priceZero: 20000,
+      durationDays: 30,
+      classesPerWeek: null,
+      monthlyClassBudget: null,
+      requiresPresencial: true,
+      country: "AR",
+      currency: "ARS",
+    });
+    const planId = Number(planRes[0].insertId);
+    await app.db.insert(schema.subscriptions).values({
+      userId: member.id,
+      planId,
+      branchId: 1,
+      status: "active",
+      startDate: arDateOffset(-1),
+      endDate: arDateOffset(20),
+      pricePaid: 20000,
+      priceTypeApplied: "regular",
+      classesRemaining: null,
+      classesBudget: null,
+    });
+    const token = await getAuthToken(app, "ep-unlim@test.com", MEMBER_PASSWORD);
+
+    const res = await app.inject({
+      method: "GET",
+      url: ESPECIAL_PASS_URL,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body) as EspecialPassBody;
+    expect(body.hasPass).toBe(true);
+    expect(body.isSocio).toBe(true);
+    expect(body.classesRemaining).toBeNull();
+    expect(body.classesBudget).toBeNull();
   });
 
   it("is server-derived: a member only ever reads their OWN pass (IDOR)", async () => {
