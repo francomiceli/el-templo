@@ -20,6 +20,11 @@ import {
   PassRequiredError,
   BadRequestError,
 } from "../../src/modules/shared/errors";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+
+// Fase 174-06 (D-07): pickSubscriptionForActivity ahora recibe ctx real
+// PRIMERO — mismo patrón que charge-on-assign.test.ts (TEMPLO_CTX).
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 describe("Phase 161-01 — contratos del pase especial", () => {
   let app: FastifyInstance;
@@ -92,6 +97,7 @@ describe("Phase 161-01 — contratos del pase especial", () => {
       const svc = makeService();
 
       const special = await svc.pickSubscriptionForActivity(
+        TEMPLO_CTX,
         member.id as number,
         true,
       );
@@ -99,6 +105,7 @@ describe("Phase 161-01 — contratos del pase especial", () => {
       expect(special?.planCategory).toBe("especial");
 
       const regular = await svc.pickSubscriptionForActivity(
+        TEMPLO_CTX,
         member.id as number,
         false,
       );
@@ -119,6 +126,7 @@ describe("Phase 161-01 — contratos del pase especial", () => {
 
       const svc = makeService();
       const special = await svc.pickSubscriptionForActivity(
+        TEMPLO_CTX,
         member.id as number,
         true,
       );

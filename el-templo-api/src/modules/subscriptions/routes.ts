@@ -293,11 +293,19 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   // GET /members/:userId/subscriptions — Get ALL active/paused subscriptions (plural)
+  //
+  // Fase 174-06 (D-07, saldada): assertTenant + ctx real threadeado a
+  // getMemberSubscriptions.
   fastify.get<{ Params: { userId: number } }>(
     "/members/:userId/subscriptions",
     { schema: getMemberSubscriptionHistorySchema },
     async (request) => {
+      const ctx = assertTenant(
+        request.scope,
+        "subscriptions.memberSubscriptions",
+      );
       const subscriptions = await subscriptionService.getMemberSubscriptions(
+        ctx,
         request.params.userId,
       );
       return { subscriptions };
@@ -305,12 +313,17 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   // GET /members/:userId/subscription/history — Get subscription history
+  //
+  // Fase 174-06 (D-07, saldada): assertTenant + ctx real threadeado a
+  // getMemberSubscriptionHistory.
   fastify.get<{ Params: { userId: number } }>(
     "/members/:userId/subscription/history",
     { schema: getMemberSubscriptionHistorySchema },
     async (request) => {
+      const ctx = assertTenant(request.scope, "subscriptions.memberHistory");
       const subscriptions =
         await subscriptionService.getMemberSubscriptionHistory(
+          ctx,
           request.params.userId,
         );
       return { subscriptions };

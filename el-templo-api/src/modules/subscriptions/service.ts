@@ -279,8 +279,9 @@ export class SubscriptionService {
    *
    * Fase 174-02: `ctx: TenantContext | null` — compartido por la cadena de
    * pricing (ctx real, todos sus call sites lo tienen) y por
-   * `activateScheduledSub` (ctx puede ser `null` cuando lo dispara
-   * `autoExpireSubscriptions`, fuera del alcance D-02/D-07 de este plan).
+   * `activateScheduledSub`. Fase 174-06 (D-07): `ctx` es real ahí en el camino
+   * member-facing; el único `null` que le sigue llegando es el barrido cron
+   * `autoExpireDueSubscriptions` (excepción `tenant-safe` formalizada).
    * `null` preserva el comportamiento previo (sin filtro) vía Pattern D.
    */
   private async getPlanProgramIds(
@@ -753,9 +754,12 @@ export class SubscriptionService {
    * Get a single plan by ID. Returns null if not found.
    *
    * Fase 174-02: `ctx: TenantContext | null` — la cadena de pricing y el resto
-   * de sus ~20 call sites resuelven ctx real; el único `null` es
-   * `activateScheduledSub` cuando lo dispara `autoExpireSubscriptions`
-   * (D-02/D-07, fuera del alcance de este plan). Pattern D en el `where`.
+   * de sus ~20 call sites resuelven ctx real. Fase 174-06 (D-07): el `null`
+   * que le llegaba SIEMPRE vía `activateScheduledSub` cuando lo disparaba
+   * `autoExpireSubscriptions` ahora es real en el camino member-facing; el
+   * único `null` que sigue llegando es el barrido cron genuinamente
+   * cross-tenant `autoExpireDueSubscriptions` (excepción formalizada). Pattern
+   * D en el `where`.
    */
   async getPlanById(
     ctx: TenantContext | null,
@@ -1003,19 +1007,16 @@ export class SubscriptionService {
    * autocompletado de la PoS mostraba plan/importe/moneda ajenos
    * (T-173-14-01). Trampa (a): este método YA tenía la firma sin `ctx` en la
    * 172 y nadie lo tocó — tener el nombre en el inventario del piloto no lo
-   * migraba. `autoExpireSubscriptions` (llamado abajo) NO recibe `ctx`: es un
-   * helper compartido por `getMemberSubscriptions` (plural) y
-   * `getMemberSubscriptionHistory`, que a su vez alimentan rutas member-facing
-   * de la app y `scheduling/booking-service.ts` — fuera del alcance acotado de
-   * este plan (D-02). Ver el docblock de `activateScheduledSub` para el
-   * detalle de por qué esa cascada queda deferida a la fase 174.
+   * migraba. Fase 174-06 (D-07): `autoExpireSubscriptions` (llamado abajo) ya
+   * recibe `ctx` real por el camino member-facing — deuda saldada, ver su
+   * propio docblock.
    */
   async getMemberSubscription(
     ctx: TenantContext,
     userId: number,
   ): Promise<SubscriptionDetail | null> {
     // First, auto-expire any active subscriptions past their end date
-    await this.autoExpireSubscriptions(userId);
+    await this.autoExpireSubscriptions(ctx, userId);
 
     const rows = await this.db
       .select({
@@ -1098,9 +1099,177 @@ export class SubscriptionService {
   /**
    * Get ALL active/paused subscriptions for a member (supports dual presencial + online).
    * Returns an array (empty if none).
+   *
+   * Fase 174-06 (D-07): `ctx: TenantContext | null` PRIMERO — real por TODOS
+   * sus ~8 call sites documentados en el plan (Pattern A, `tenantWhere` en el
+   * `where`). El tipo se mantiene nullable (no `TenantContext` estricto)
+   * SOLO porque `pickSubscriptionForActivity` (que envuelve a este método) lo
+   * propaga desde `attendance/service.ts::removeCheckIn`, cuyo ctx es
+   * `TenantContext | undefined` desde ANTES de esta fase (su caller en
+   * `attendance/routes.ts` no resuelve `assertTenant` — deuda pre-existente,
+   * documentada como residual por 174-05, dueño 174.1/175, fuera del fence de
+   * este plan). Con `ctx === null` cae a Pattern D (`isNotNull`), igual que
+   * `autoExpireSubscriptions`/`activateScheduledSub`/`getPlanById` en este
+   * mismo archivo — NINGÚN call site real de este plan pasa `null`.
    */
-  async getMemberSubscriptions(userId: number): Promise<SubscriptionDetail[]> {
-    await this.autoExpireSubscriptions(userId);
+  async getMemberSubscriptions(
+    ctx: TenantContext | null,
+    userId: number,
+  ): Promise<SubscriptionDetail[]> {
+    await this.autoExpireSubscriptions(ctx, userId);
+
+    const rows = await this.db
+      .select({
+        id: schema.subscriptions.id,
+        userId: schema.subscriptions.userId,
+        planId: schema.subscriptions.planId,
+        planName: schema.subscriptionPlans.name,
+        planTier: schema.subscriptionPlans.planTier,
+        planCategory: schema.subscriptionPlans.planCategory,
+        branchId: schema.subscriptions.branchId,
+        branchName: schema.branches.name,
+        status: schema.subscriptions.status,
+        startDate: schema.subscriptions.startDate,
+        endDate: schema.subscriptions.endDate,
+        pricePaid: schema.subscriptions.pricePaid,
+        priceTypeApplied: schema.subscriptions.priceTypeApplied,
+        auraDiscount: schema.subscriptions.auraDiscount,
+        auraDiscountPercent: schema.subscriptions.auraDiscountPercent,
+        referralDiscountPercent: schema.subscriptions.referralDiscountPercent,
+        referralDiscountAmount: schema.subscriptions.referralDiscountAmount,
+        boardingPassUsed: schema.subscriptions.boardingPassUsed,
+        priceOverrideAmount: schema.subscriptions.priceOverrideAmount,
+        priceOverrideReason: schema.subscriptions.priceOverrideReason,
+        pausedAt: schema.subscriptions.pausedAt,
+        pauseEndDate: schema.subscriptions.pauseEndDate,
+        resumedAt: schema.subscriptions.resumedAt,
+        cancelledAt: schema.subscriptions.cancelledAt,
+        classesRemaining: schema.subscriptions.classesRemaining,
+        classesBudget: schema.subscriptions.classesBudget,
+        previousSubscriptionId: schema.subscriptions.previousSubscriptionId,
+        replacementCredits: schema.subscriptions.replacementCredits,
+        notes: schema.subscriptions.notes,
+        currency: schema.subscriptions.currency,
+        createdAt: schema.subscriptions.createdAt,
+        updatedAt: schema.subscriptions.updatedAt,
+      })
+      .from(schema.subscriptions)
+      .innerJoin(
+        schema.subscriptionPlans,
+        eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
+      )
+      .innerJoin(
+        schema.branches,
+        eq(schema.branches.id, schema.subscriptions.branchId),
+      )
+      .where(
+        ctx
+          ? and(
+              tenantWhere(schema.subscriptions, ctx),
+              eq(schema.subscriptions.userId, userId),
+              or(
+                eq(schema.subscriptions.status, "active"),
+                eq(schema.subscriptions.status, "paused"),
+                eq(schema.subscriptions.status, "scheduled"),
+              ),
+            )
+          : and(
+              isNotNull(schema.subscriptions.tenantId),
+              eq(schema.subscriptions.userId, userId),
+              or(
+                eq(schema.subscriptions.status, "active"),
+                eq(schema.subscriptions.status, "paused"),
+                eq(schema.subscriptions.status, "scheduled"),
+              ),
+            ),
+      )
+      // active first, then paused, then scheduled — keeps the "current" sub
+      // at the top of the list for the admin tab, while still surfacing
+      // standalone scheduled subs created with a future startDate.
+      .orderBy(
+        sql`CASE ${schema.subscriptions.status} WHEN 'active' THEN 0 WHEN 'paused' THEN 1 ELSE 2 END`,
+        schema.subscriptions.createdAt,
+      );
+
+    const mapped = rows.map((r) => this.mapSubscriptionRow(r));
+    return this.enrichManyWithScheduleIds(mapped);
+  }
+
+  /**
+   * Fase 161 (PASE-01, GATE-02): elige LA suscripción a usar para una actividad
+   * según si ésta es especial o no. Base en `getMemberSubscriptions` (plural, ya
+   * incluye status active/paused/**scheduled**), filtra por grupo de categoría:
+   * cuando `isSpecialActivity` devuelve la sub de grupo 'especial'; si no, la sub
+   * NO-especial (presencial u online).
+   *
+   * Criterio de selección idéntico al singular `getMemberSubscription`
+   * (:947-951): primero las subs que cubren hoy (startDate <= hoy), dentro de
+   * esas active > paused > scheduled, y luego por startDate ascendente. Devuelve
+   * la primera o null.
+   *
+   * CRÍTICO: NO excluye `scheduled`. El bloque coverage-from de `reserve()`
+   * (booking-service.ts) permite reservar con una sub `scheduled` que arranca
+   * mañana, y el singular la incluye; excluirla acá sería una regresión de
+   * reserva dentro de ventana. NUNCA usar `getMemberSubscription` singular para
+   * decidir de qué sub descontar por actividad (Pitfall 1: ordena por fecha SIN
+   * criterio de actividad).
+   *
+   * Fase 174-06 (D-07, no listado explícitamente en el plan pero necesario para
+   * que `getMemberSubscriptions` cierre en `tsc`): `ctx: TenantContext | null`
+   * PRIMERO, threadeado a sus 7 call sites reales (`attendance/service.ts` x4,
+   * `scheduling/booking-service.ts` x2, `jobs/mark-no-shows.ts` x1 — ninguno
+   * listado en el inventario de 8 call sites del plan porque este método envuelve
+   * a `getMemberSubscriptions`, no lo llama directamente el plan). Nullable
+   * SOLO por `attendance/service.ts::removeCheckIn`, cuyo `ctx?: TenantContext`
+   * es deuda pre-existente (documentada residual 174-05, dueño 174.1/175,
+   * fuera del fence de este plan) — los otros 6 call sites siempre pasan ctx
+   * real.
+   */
+  async pickSubscriptionForActivity(
+    ctx: TenantContext | null,
+    userId: number,
+    isSpecialActivity: boolean,
+  ): Promise<SubscriptionDetail | null> {
+    const subs = await this.getMemberSubscriptions(ctx, userId);
+
+    const candidates = subs.filter((s) => {
+      const isEspecial = categoryGroup(s.planCategory) === "especial";
+      return isSpecialActivity ? isEspecial : !isEspecial;
+    });
+    if (candidates.length === 0) return null;
+
+    const today = new Date().toISOString().slice(0, 10);
+    const coversToday = (s: SubscriptionDetail): number =>
+      s.startDate <= today ? 0 : 1;
+    const statusRank = (s: SubscriptionDetail): number => {
+      if (s.status === "active") return 0;
+      if (s.status === "paused") return 1;
+      return 2; // scheduled
+    };
+
+    const sorted = [...candidates].sort((a, b) => {
+      const byCover = coversToday(a) - coversToday(b);
+      if (byCover !== 0) return byCover;
+      const byStatus = statusRank(a) - statusRank(b);
+      if (byStatus !== 0) return byStatus;
+      return a.startDate.localeCompare(b.startDate);
+    });
+
+    return sorted[0];
+  }
+
+  /**
+   * Get full subscription history for a member, most recent first.
+   *
+   * Fase 174-06 (D-07): `ctx: TenantContext` PRIMERO y `tenantWhere(subscriptions,
+   * ctx)` inline en el `where` — saldada la deuda dirigida por la 173.
+   */
+  async getMemberSubscriptionHistory(
+    ctx: TenantContext,
+    userId: number,
+  ): Promise<SubscriptionDetail[]> {
+    // Auto-expire first
+    await this.autoExpireSubscriptions(ctx, userId);
 
     const rows = await this.db
       .select({
@@ -1148,131 +1317,10 @@ export class SubscriptionService {
       )
       .where(
         and(
+          tenantWhere(schema.subscriptions, ctx),
           eq(schema.subscriptions.userId, userId),
-          or(
-            eq(schema.subscriptions.status, "active"),
-            eq(schema.subscriptions.status, "paused"),
-            eq(schema.subscriptions.status, "scheduled"),
-          ),
         ),
       )
-      // active first, then paused, then scheduled — keeps the "current" sub
-      // at the top of the list for the admin tab, while still surfacing
-      // standalone scheduled subs created with a future startDate.
-      .orderBy(
-        sql`CASE ${schema.subscriptions.status} WHEN 'active' THEN 0 WHEN 'paused' THEN 1 ELSE 2 END`,
-        schema.subscriptions.createdAt,
-      );
-
-    const mapped = rows.map((r) => this.mapSubscriptionRow(r));
-    return this.enrichManyWithScheduleIds(mapped);
-  }
-
-  /**
-   * Fase 161 (PASE-01, GATE-02): elige LA suscripción a usar para una actividad
-   * según si ésta es especial o no. Base en `getMemberSubscriptions` (plural, ya
-   * incluye status active/paused/**scheduled**), filtra por grupo de categoría:
-   * cuando `isSpecialActivity` devuelve la sub de grupo 'especial'; si no, la sub
-   * NO-especial (presencial u online).
-   *
-   * Criterio de selección idéntico al singular `getMemberSubscription`
-   * (:947-951): primero las subs que cubren hoy (startDate <= hoy), dentro de
-   * esas active > paused > scheduled, y luego por startDate ascendente. Devuelve
-   * la primera o null.
-   *
-   * CRÍTICO: NO excluye `scheduled`. El bloque coverage-from de `reserve()`
-   * (booking-service.ts) permite reservar con una sub `scheduled` que arranca
-   * mañana, y el singular la incluye; excluirla acá sería una regresión de
-   * reserva dentro de ventana. NUNCA usar `getMemberSubscription` singular para
-   * decidir de qué sub descontar por actividad (Pitfall 1: ordena por fecha SIN
-   * criterio de actividad).
-   */
-  async pickSubscriptionForActivity(
-    userId: number,
-    isSpecialActivity: boolean,
-  ): Promise<SubscriptionDetail | null> {
-    const subs = await this.getMemberSubscriptions(userId);
-
-    const candidates = subs.filter((s) => {
-      const isEspecial = categoryGroup(s.planCategory) === "especial";
-      return isSpecialActivity ? isEspecial : !isEspecial;
-    });
-    if (candidates.length === 0) return null;
-
-    const today = new Date().toISOString().slice(0, 10);
-    const coversToday = (s: SubscriptionDetail): number =>
-      s.startDate <= today ? 0 : 1;
-    const statusRank = (s: SubscriptionDetail): number => {
-      if (s.status === "active") return 0;
-      if (s.status === "paused") return 1;
-      return 2; // scheduled
-    };
-
-    const sorted = [...candidates].sort((a, b) => {
-      const byCover = coversToday(a) - coversToday(b);
-      if (byCover !== 0) return byCover;
-      const byStatus = statusRank(a) - statusRank(b);
-      if (byStatus !== 0) return byStatus;
-      return a.startDate.localeCompare(b.startDate);
-    });
-
-    return sorted[0];
-  }
-
-  /**
-   * Get full subscription history for a member, most recent first.
-   */
-  async getMemberSubscriptionHistory(
-    userId: number,
-  ): Promise<SubscriptionDetail[]> {
-    // Auto-expire first
-    await this.autoExpireSubscriptions(userId);
-
-    const rows = await this.db
-      .select({
-        id: schema.subscriptions.id,
-        userId: schema.subscriptions.userId,
-        planId: schema.subscriptions.planId,
-        planName: schema.subscriptionPlans.name,
-        planTier: schema.subscriptionPlans.planTier,
-        planCategory: schema.subscriptionPlans.planCategory,
-        branchId: schema.subscriptions.branchId,
-        branchName: schema.branches.name,
-        status: schema.subscriptions.status,
-        startDate: schema.subscriptions.startDate,
-        endDate: schema.subscriptions.endDate,
-        pricePaid: schema.subscriptions.pricePaid,
-        priceTypeApplied: schema.subscriptions.priceTypeApplied,
-        auraDiscount: schema.subscriptions.auraDiscount,
-        auraDiscountPercent: schema.subscriptions.auraDiscountPercent,
-        referralDiscountPercent: schema.subscriptions.referralDiscountPercent,
-        referralDiscountAmount: schema.subscriptions.referralDiscountAmount,
-        boardingPassUsed: schema.subscriptions.boardingPassUsed,
-        priceOverrideAmount: schema.subscriptions.priceOverrideAmount,
-        priceOverrideReason: schema.subscriptions.priceOverrideReason,
-        pausedAt: schema.subscriptions.pausedAt,
-        pauseEndDate: schema.subscriptions.pauseEndDate,
-        resumedAt: schema.subscriptions.resumedAt,
-        cancelledAt: schema.subscriptions.cancelledAt,
-        classesRemaining: schema.subscriptions.classesRemaining,
-        classesBudget: schema.subscriptions.classesBudget,
-        previousSubscriptionId: schema.subscriptions.previousSubscriptionId,
-        replacementCredits: schema.subscriptions.replacementCredits,
-        notes: schema.subscriptions.notes,
-        currency: schema.subscriptions.currency,
-        createdAt: schema.subscriptions.createdAt,
-        updatedAt: schema.subscriptions.updatedAt,
-      })
-      .from(schema.subscriptions)
-      .innerJoin(
-        schema.subscriptionPlans,
-        eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
-      )
-      .innerJoin(
-        schema.branches,
-        eq(schema.branches.id, schema.subscriptions.branchId),
-      )
-      .where(eq(schema.subscriptions.userId, userId))
       .orderBy(desc(schema.subscriptions.createdAt));
 
     const mapped = rows.map((r) => this.mapSubscriptionRow(r));
@@ -1530,7 +1578,7 @@ export class SubscriptionService {
     // cliente — T-161-03). Corre tras el conflicto de grupo para que un doble-pase
     // dispare el 409 primero.
     if (plan.requiresPresencial) {
-      const memberSubs = await this.getMemberSubscriptions(userId);
+      const memberSubs = await this.getMemberSubscriptions(ctx, userId);
       const hasPresencial = memberSubs.some(
         (s) =>
           s.planCategory === "presencial" &&
@@ -1664,7 +1712,12 @@ export class SubscriptionService {
     this.assertScheduleSelectionForPlan(plan, input.scheduleIds ?? []);
 
     if (input.scheduleIds && input.scheduleIds.length > 0) {
-      await this.validateAnchorSet(ctx, input.scheduleIds, input.branchId, plan);
+      await this.validateAnchorSet(
+        ctx,
+        input.scheduleIds,
+        input.branchId,
+        plan,
+      );
     }
 
     // Calculate monthly class budget from plan configuration. Los planes con
@@ -2475,7 +2528,12 @@ export class SubscriptionService {
       .groupBy(schema.subscriptions.userId);
 
     for (const row of due) {
-      await this.autoExpireSubscriptions(row.userId);
+      // Fase 174-06 (D-07): `ctx=null` acá es DELIBERADO — este barrido lee
+      // `subscriptions` sin `tenantWhere` (todos los tenants a la vez, ver el
+      // `where` de arriba) porque es genuinamente cross-tenant. Con `null`,
+      // `autoExpireSubscriptions` usa Pattern D (`isNotNull`) en sus lecturas
+      // propias en vez de forzar un ctx per-tenant inexistente acá.
+      await this.autoExpireSubscriptions(null, row.userId);
     }
 
     return due.length;
@@ -2516,10 +2574,7 @@ export class SubscriptionService {
       .where(
         and(
           tenantWhere(schema.subscriptionScheduleChanges, ctx),
-          eq(
-            schema.subscriptionScheduleChanges.subscriptionId,
-            subscriptionId,
-          ),
+          eq(schema.subscriptionScheduleChanges.subscriptionId, subscriptionId),
         ),
       )
       .orderBy(desc(schema.subscriptionScheduleChanges.createdAt));
@@ -2987,7 +3042,7 @@ export class SubscriptionService {
     // don't yet pass the id.
     let sub: SubscriptionDetail | null;
     if (subscriptionId !== undefined) {
-      const all = await this.getMemberSubscriptions(userId);
+      const all = await this.getMemberSubscriptions(ctx, userId);
       sub = all.find((s) => s.id === subscriptionId) ?? null;
       if (!sub) {
         throw new NotFoundError(
@@ -4465,7 +4520,7 @@ export class SubscriptionService {
     // el Externo y los planes normales no la consultan. Server-side por la columna
     // del plan (T-161-03), misma regla que assignPlan.
     if (plan.requiresPresencial) {
-      const memberSubs = await this.getMemberSubscriptions(userId);
+      const memberSubs = await this.getMemberSubscriptions(ctx, userId);
       const hasPresencial = memberSubs.some(
         (s) =>
           s.planCategory === "presencial" &&
@@ -4824,7 +4879,11 @@ export class SubscriptionService {
       // legacy shouldEnroll guard still protects an in-flight linked-program
       // enrollment (currentWeek progress); list/bundle grants dedupe inside
       // enrollFromPlan so re-enrolling is a safe no-op.
-      const renewPlanProgramIds = await this.getPlanProgramIds(ctx, plan.id, tx);
+      const renewPlanProgramIds = await this.getPlanProgramIds(
+        ctx,
+        plan.id,
+        tx,
+      );
       if (
         plan.linkedProgramId ||
         plan.grantsAllPrograms ||
@@ -5168,8 +5227,22 @@ export class SubscriptionService {
    * "Expire on read" pattern — no cron job needed.
    * If the expiring sub has a scheduled successor (from early renewal),
    * mark old as "completed" and activate the scheduled sub.
+   *
+   * Fase 174-06 (D-07): `ctx: TenantContext | null` — DOS callers:
+   *   1. Camino member-facing (`getMemberSubscription`/`getMemberSubscriptions`/
+   *      `getMemberSubscriptionHistory`): ctx REAL, Pattern A en ambas lecturas
+   *      de abajo, y se propaga real a `activateScheduledSub`/`recomputeUserStatus`
+   *      (restaura `assertBranchDelGimnasio` en la migración de sede, D-05/D-07,
+   *      antes salteada con `null`).
+   *   2. `autoExpireDueSubscriptions` (barrido cron genuinamente cross-tenant,
+   *      ver su propio comentario): `ctx = null`, ÚNICA excepción formalizada —
+   *      Pattern D (`isNotNull`) en las 2 lecturas de abajo, mismo patrón que
+   *      173-08/173-23 para PK-scoped sin ctx externo.
    */
-  private async autoExpireSubscriptions(userId: number): Promise<void> {
+  private async autoExpireSubscriptions(
+    ctx: TenantContext | null,
+    userId: number,
+  ): Promise<void> {
     const today = new Date().toISOString().split("T")[0];
 
     // Find active subs past their end date
@@ -5177,11 +5250,19 @@ export class SubscriptionService {
       .select({ id: schema.subscriptions.id })
       .from(schema.subscriptions)
       .where(
-        and(
-          eq(schema.subscriptions.userId, userId),
-          eq(schema.subscriptions.status, "active"),
-          sql`${schema.subscriptions.endDate} < ${today}`,
-        ),
+        ctx
+          ? and(
+              tenantWhere(schema.subscriptions, ctx),
+              eq(schema.subscriptions.userId, userId),
+              eq(schema.subscriptions.status, "active"),
+              sql`${schema.subscriptions.endDate} < ${today}`,
+            )
+          : and(
+              isNotNull(schema.subscriptions.tenantId),
+              eq(schema.subscriptions.userId, userId),
+              eq(schema.subscriptions.status, "active"),
+              sql`${schema.subscriptions.endDate} < ${today}`,
+            ),
       );
 
     if (expiredSubs.length === 0) return;
@@ -5204,12 +5285,21 @@ export class SubscriptionService {
       })
       .from(schema.subscriptions)
       .where(
-        and(
-          eq(schema.subscriptions.userId, userId),
-          eq(schema.subscriptions.status, "scheduled"),
-          inArray(schema.subscriptions.previousSubscriptionId, expiredIds),
-          sql`${schema.subscriptions.startDate} <= ${today}`,
-        ),
+        ctx
+          ? and(
+              tenantWhere(schema.subscriptions, ctx),
+              eq(schema.subscriptions.userId, userId),
+              eq(schema.subscriptions.status, "scheduled"),
+              inArray(schema.subscriptions.previousSubscriptionId, expiredIds),
+              sql`${schema.subscriptions.startDate} <= ${today}`,
+            )
+          : and(
+              isNotNull(schema.subscriptions.tenantId),
+              eq(schema.subscriptions.userId, userId),
+              eq(schema.subscriptions.status, "scheduled"),
+              inArray(schema.subscriptions.previousSubscriptionId, expiredIds),
+              sql`${schema.subscriptions.startDate} <= ${today}`,
+            ),
       );
 
     const hasScheduledSuccessor = new Set(
@@ -5255,16 +5345,14 @@ export class SubscriptionService {
     // Activate scheduled successors (handles program enrollment + branch migration
     // when the scheduled sub is for a different plan than the expiring one).
     //
-    // Fase 173 (D-05, alcance documentado): `ctx: null` — `autoExpireSubscriptions`
-    // (el llamador de este método, `_expireOneUser` más abajo en la pila) es un
-    // helper compartido por `getMemberSubscriptions`/`getMemberSubscriptionHistory`,
-    // que a su vez alimentan `scheduling/booking-service.ts` y rutas member-facing
-    // de la app (fuera del alcance acotado D-02/D-09 de este plan). Threadear un
-    // `ctx` real hasta acá exigiría migrar esos módulos ahora, ensanchando el
-    // alcance de la 173. Ver el docblock de `activateScheduledSub` para el
-    // detalle de qué guarda se salta con `ctx = null` y quién lo cierra (fase 174).
+    // Fase 174-06 (D-05/D-07, saldada): se propaga el MISMO `ctx` que recibió
+    // este método. Camino member-facing → ctx real, `activateScheduledSub`
+    // resuelve la migración de sede virtual→física con `assertBranchDelGimnasio`
+    // (Pattern C restaurado, antes salteado). Camino cron
+    // (`autoExpireDueSubscriptions`) → `ctx = null`, preserva el comportamiento
+    // previo (única excepción formalizada, Task 2).
     for (const successor of scheduledSuccessors) {
-      await this.activateScheduledSub(null, successor.id);
+      await this.activateScheduledSub(ctx, successor.id);
     }
 
     // Recompute users.status after the expiration. Without this, a user
@@ -5274,11 +5362,10 @@ export class SubscriptionService {
     // historical gap). recomputeUserStatus is idempotent and safe to run
     // even when scheduled successors were activated above.
     //
-    // Fase 173 (D-05, alcance documentado): `ctx: null` — mismo motivo que el
-    // `activateScheduledSub(null, ...)` de arriba (ver su docblock): este
-    // caller es `autoExpireSubscriptions`, fuera del alcance acotado D-02/D-09
-    // de esta fase.
-    await this.recomputeUserStatus(null, userId, this.db);
+    // Fase 174-06 (D-05/D-07, saldada): mismo `ctx` propagado que arriba —
+    // real en el camino member-facing, `null` únicamente en el barrido cron
+    // (excepción formalizada, Task 2).
+    await this.recomputeUserStatus(ctx, userId, this.db);
   }
 
   /**
@@ -5286,27 +5373,24 @@ export class SubscriptionService {
    * incoming plan differs from the outgoing plan (scheduled plan change),
    * handles program enrollment transitions and branch migration from virtual.
    *
-   * Fase 173 (D-05/ADO-07, T-173-14-04): `ctx: TenantContext | null` —
-   * DELIBERADAMENTE nullable, no un `ctx` obligatorio como el resto de la
-   * fase. Este método tiene DOS llamadores con acceso muy distinto a un
-   * `TenantContext`:
+   * Fase 173 (D-05/ADO-07, T-173-14-04) → SALDADA en 174-06 (D-07):
+   * `ctx: TenantContext | null` sigue siendo DELIBERADAMENTE nullable — sigue
+   * habiendo DOS llamadores con acceso distinto a un `TenantContext`, pero
+   * ahora ambos son legítimos (no uno "con deuda"):
    *   1. `activateDueScheduledSubs` (cron `auto-resume-pauses.ts`, ctx real
-   *      vía `forEachActiveTenant`, D-01/CON-04): acá SÍ se aplica la guarda —
-   *      la migración de sede virtual→física de más abajo resuelve con
-   *      `assertBranchDelGimnasio` y escribe el `id` ya validado.
+   *      vía `forEachActiveTenant`, D-01/CON-04): la migración de sede
+   *      virtual→física de más abajo resuelve con `assertBranchDelGimnasio`
+   *      y escribe el `id` ya validado.
    *   2. `autoExpireSubscriptions` (helper compartido por `getMemberSubscriptions`
-   *      / `getMemberSubscriptionHistory`, consumidos por
-   *      `scheduling/booking-service.ts` y rutas member-facing de la app):
-   *      esos callers están fuera del alcance acotado D-02/D-09 de esta fase,
-   *      así que threadear un ctx real hasta acá ensancharía la 173 a migrar
-   *      esos módulos. Con `ctx === null`, este método preserva el
-   *      comportamiento PREVIO (escribe `branchId` crudo, sin validar
-   *      gimnasio) — es la MISMA deuda de ANTES de este plan, no una nueva.
-   * DEUDA CON DUEÑO — FASE 174: cerrar el camino 2 requiere threadear `ctx`
-   * por `getMemberSubscriptions`/`getMemberSubscriptionHistory` hasta sus
-   * ~8 call sites (incluye `booking-service.ts` y `member-routes.ts`), que es
-   * exactamente el trabajo que D-02 reserva para la adopción completa de
-   * `subscriptions`.
+   *      / `getMemberSubscriptionHistory`): fase 174-06 threadeó `ctx` REAL por
+   *      todo el camino member-facing hasta sus ~8+1 call sites (incluye
+   *      `pickSubscriptionForActivity` → `booking-service.ts`,
+   *      `attendance/service.ts`, `jobs/mark-no-shows.ts`, y las rutas
+   *      member-facing de la app) — la guarda `assertBranchDelGimnasio` ya
+   *      corre en ESTE camino también. El único `ctx === null` que le sigue
+   *      llegando a este método es el barrido cron genuinamente cross-tenant
+   *      `autoExpireDueSubscriptions` (excepción `tenant-safe` formalizada,
+   *      no deuda silenciosa — ver su propio comentario).
    */
   private async activateScheduledSub(
     ctx: TenantContext | null,
@@ -5433,12 +5517,11 @@ export class SubscriptionService {
       );
     }
 
-    // Migrate member branch if currently on virtual branch. Fase 173
-    // (ADO-02): con `ctx === null` (mismo camino sin dueño documentado en el
-    // docblock del método) el guard `isNotNull(tenantId)` satisface al
-    // sentinel sobre este acceso por PK propia, sin tocar la guarda ADO-07
-    // de más abajo (esa sigue condicionada a `ctx` real, deuda con dueño
-    // fase 174 intacta).
+    // Migrate member branch if currently on virtual branch. Fase 174-06
+    // (D-07, saldada): con `ctx` real (camino member-facing, ahora la mayoría
+    // de las corridas) usa Pattern A vía `tenantWhere`; `ctx === null`
+    // (ÚNICA excepción formalizada, barrido cron `autoExpireDueSubscriptions`)
+    // sigue con Pattern D (`isNotNull`) por PK propia.
     const [member] = await this.db
       .select({ branchId: schema.users.branchId })
       .from(schema.users)
@@ -5461,12 +5544,14 @@ export class SubscriptionService {
         .where(eq(schema.branches.id, member.branchId));
 
       if (currentBranch?.isVirtual) {
-        // Fase 173 (D-05/ADO-07, T-173-14-04): con `ctx` real (camino del
-        // cron), resolver y validar la sede contra el gimnasio antes de
-        // escribirla — mismo idioma que los 2 sitios gemelos de este archivo.
-        // Con `ctx === null` (camino de `autoExpireSubscriptions`, ver
-        // docblock de este método), se preserva el comportamiento previo SIN
-        // la guarda — deuda documentada, dueño fase 174.
+        // Fase 173 (D-05/ADO-07, T-173-14-04) → 174-06 (D-07, saldada): con
+        // `ctx` real (camino del cron `activateDueScheduledSubs` Y AHORA
+        // TAMBIÉN el camino member-facing vía `autoExpireSubscriptions`),
+        // resolver y validar la sede contra el gimnasio antes de escribirla —
+        // mismo idioma que los 2 sitios gemelos de este archivo. Con
+        // `ctx === null` (ÚNICA excepción formalizada, barrido cron
+        // `autoExpireDueSubscriptions`), se preserva el comportamiento previo
+        // SIN la guarda — exención `tenant-safe` documentada, no deuda.
         const resolvedBranchId = ctx
           ? (await assertBranchDelGimnasio(ctx, scheduled.branchId, this.db)).id
           : scheduled.branchId;
@@ -6319,20 +6404,19 @@ export class SubscriptionService {
    * lead_status flips go through PATCH /admin/leads/:userId (Plan 04) which
    * deliberately does NOT touch lead_notes.
    *
-   * Fase 173 (D-13, alcance objetivo): `ctx: TenantContext | null` — este es
-   * el ÚNICO acceso de `subscriptions/service.ts` a `user_status_history` y
-   * uno de los ~15 a `users`, y tiene 11 llamadores. 9 de ellos ya resuelven
-   * `ctx` real (assignPlan, pauseSubscription, resumeSubscription,
-   * compensateDays, changePlanNow, changePlanAfterCurrent, renewSubscription,
-   * bulkMigratePlan, editSubscriptionStartDate, activateDueScheduledSubs) y
-   * lo pasan. El único `null` es `autoExpireSubscriptions` — helper
-   * compartido por `getMemberSubscriptions`/`getMemberSubscriptionHistory`,
-   * consumidos por `scheduling/booking-service.ts` y rutas member-facing de
-   * la app (fuera del alcance acotado D-02/D-09 de esta fase; mismo
-   * razonamiento que `activateScheduledSub`, ver su docblock). Con
-   * `ctx === null` se preserva el comportamiento PREVIO (sin filtro) — la
-   * MISMA deuda de antes de este plan, no una nueva. DEUDA CON DUEÑO — FASE
-   * 174: cerrar ese único camino.
+   * Fase 173 (D-13, alcance objetivo) → 174-06 (D-07, saldada): `ctx:
+   * TenantContext | null` — este es el ÚNICO acceso de `subscriptions/service.ts`
+   * a `user_status_history` y uno de los ~15 a `users`, y tiene 11 llamadores.
+   * 10 de ellos ya resuelven `ctx` real (assignPlan, pauseSubscription,
+   * resumeSubscription, compensateDays, changePlanNow, changePlanAfterCurrent,
+   * renewSubscription, bulkMigratePlan, editSubscriptionStartDate,
+   * activateDueScheduledSubs) y lo pasan. `autoExpireSubscriptions` AHORA
+   * también pasa `ctx` real por el camino member-facing (helper compartido por
+   * `getMemberSubscriptions`/`getMemberSubscriptionHistory`, threadeado hasta
+   * `scheduling/booking-service.ts` y rutas member-facing de la app). El único
+   * `null` que le sigue llegando es el barrido cron genuinamente cross-tenant
+   * `autoExpireDueSubscriptions` — excepción `tenant-safe` formalizada (Task 2
+   * de 174-06), no deuda silenciosa.
    */
   private async recomputeUserStatus(
     ctx: TenantContext | null,
@@ -6349,13 +6433,12 @@ export class SubscriptionService {
     // effectively changed (forward-only — never insert when from == to). The
     // INSERT runs inside the same tx so it rolls back atomically with the
     // subscription transition (T-117-04).
-    // Fase 173 (ADO-02): con `ctx === null` (camino sin dueño de tenancy,
-    // deuda documentada arriba con dueño fase 174) el acceso sigue siendo
-    // por PK propia (`users.id`, globalmente única) — el guard
-    // `isNotNull(tenantId)` (mismo patrón que 173-08 aplicó a métodos
-    // PK-scoped sin ctx externo) satisface al sentinel sin inventar una
-    // quinta fuente de TenantContext ni ensanchar el alcance a
-    // scheduling/booking-service.ts o a las rutas member-facing.
+    // Fase 173 (ADO-02) → 174-06 (D-07, saldada): con `ctx === null` (ÚNICA
+    // excepción formalizada que le sigue llegando, el barrido cron
+    // `autoExpireDueSubscriptions`) el acceso sigue siendo por PK propia
+    // (`users.id`, globalmente única) — el guard `isNotNull(tenantId)` (mismo
+    // patrón que 173-08 aplicó a métodos PK-scoped sin ctx externo) satisface
+    // al sentinel sin inventar una quinta fuente de TenantContext.
     const beforeRows = await tx
       .select({ status: schema.users.status })
       .from(schema.users)

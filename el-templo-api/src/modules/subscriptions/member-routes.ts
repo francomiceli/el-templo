@@ -182,11 +182,11 @@ export const memberSubscriptionRoutes: FastifyPluginAsync = async (fastify) => {
     "/me/especial-pass",
     { schema: especialPassSchema },
     async (request) => {
-      // Fase 174-02: `getPlanById` ya exige ctx (D-06 golden). `getMemberSubscriptions`
-      // (D-07/FRONTERA 174-06) sigue crudo — deja ese punto de entrada establecido
-      // pero sin threadear todavía.
+      // Fase 174-02: `getPlanById` ya exige ctx (D-06 golden). Fase 174-06
+      // (D-07, saldada): `getMemberSubscriptions` ahora también recibe ctx real.
       const ctx = assertTenant(request.scope, "subscriptions.especialPass");
       const subs = await subscriptionService.getMemberSubscriptions(
+        ctx,
         request.user.userId,
       );
 
@@ -240,10 +240,7 @@ export const memberSubscriptionRoutes: FastifyPluginAsync = async (fastify) => {
       request.user.userId,
     );
     if (sub && !planIds.has(sub.planId)) {
-      const legacyPlan = await subscriptionService.getPlanById(
-        ctx,
-        sub.planId,
-      );
+      const legacyPlan = await subscriptionService.getPlanById(ctx, sub.planId);
       if (legacyPlan) {
         plans.push(legacyPlan);
       }

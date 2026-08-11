@@ -36,7 +36,11 @@ import {
 import { categoryGroup } from "../subscriptions/types";
 import { getEffectiveCapacity as resolveSlotCapacity } from "./capacity";
 import { getScheduleException } from "./schedule-exceptions";
-import { tenantWhere, tenantValues, type TenantContext } from "../shared/tenant";
+import {
+  tenantWhere,
+  tenantValues,
+  type TenantContext,
+} from "../shared/tenant";
 
 /**
  * Member self-booking window: today .. today + N days (branch-local).
@@ -123,6 +127,7 @@ export class BookingService {
     //    (presencial/online); para especiales, la sub del pase.
     const subscription =
       await this.subscriptionService.pickSubscriptionForActivity(
+        ctx,
         memberId,
         isSpecialActivity,
       );
@@ -134,8 +139,10 @@ export class BookingService {
       // GATE-04: member con SOLO pase (especial) reservando una regular → aviso
       //          específico de que el pase no habilita las actividades regulares.
       if (!isSpecialActivity && actorRole === "member") {
-        const allSubs =
-          await this.subscriptionService.getMemberSubscriptions(memberId);
+        const allSubs = await this.subscriptionService.getMemberSubscriptions(
+          ctx,
+          memberId,
+        );
         const hasEspecial = allSubs.some(
           (s) => categoryGroup(s.planCategory) === "especial",
         );
@@ -310,10 +317,7 @@ export class BookingService {
     //    veía su reserva especial rechazada con "Alcanzaste tu limite semanal"
     //    aunque el pase tuviera clases disponibles.
     if (!isBonus && !isSpecialActivity) {
-      const classesPerWeek = await this.getMemberClassesPerWeek(
-        ctx,
-        memberId,
-      );
+      const classesPerWeek = await this.getMemberClassesPerWeek(ctx, memberId);
       if (classesPerWeek !== null) {
         const { monday, saturday } = getWeekRange(
           new Date(date + "T12:00:00Z"),
@@ -485,7 +489,10 @@ export class BookingService {
       })
       .from(schema.bookings)
       .where(
-        and(tenantWhere(schema.bookings, ctx), eq(schema.bookings.id, bookingId)),
+        and(
+          tenantWhere(schema.bookings, ctx),
+          eq(schema.bookings.id, bookingId),
+        ),
       );
 
     if (!bookingRow) throw new NotFoundError("Reserva no encontrada");
@@ -703,7 +710,12 @@ export class BookingService {
 
     // Per-date cancellation blocks admin adds too — the class won't run that
     // day, so seating someone into it would only create a phantom booking.
-    const exception = await getScheduleException(ctx, scheduleId, date, this.db);
+    const exception = await getScheduleException(
+      ctx,
+      scheduleId,
+      date,
+      this.db,
+    );
     if (exception) {
       throw new ConflictError(
         "La clase de este dia esta cancelada. Restaurala primero para agregar reservas.",
@@ -718,6 +730,7 @@ export class BookingService {
     const isSpecialActivity = scheduleRow.isSpecial;
     const subscription =
       await this.subscriptionService.pickSubscriptionForActivity(
+        ctx,
         memberId,
         isSpecialActivity,
       );
@@ -736,10 +749,7 @@ export class BookingService {
       }
 
       // Weekly limit warning
-      const classesPerWeek = await this.getMemberClassesPerWeek(
-        ctx,
-        memberId,
-      );
+      const classesPerWeek = await this.getMemberClassesPerWeek(ctx, memberId);
       if (classesPerWeek !== null) {
         const { monday, saturday } = getWeekRange(
           new Date(date + "T12:00:00Z"),
@@ -871,7 +881,10 @@ export class BookingService {
       })
       .from(schema.bookings)
       .where(
-        and(tenantWhere(schema.bookings, ctx), eq(schema.bookings.id, bookingId)),
+        and(
+          tenantWhere(schema.bookings, ctx),
+          eq(schema.bookings.id, bookingId),
+        ),
       );
 
     if (!bookingRow) throw new NotFoundError("Reserva no encontrada");
@@ -1492,7 +1505,10 @@ export class BookingService {
       .select({ country: schema.branches.country })
       .from(schema.branches)
       .where(
-        and(tenantWhere(schema.branches, ctx), eq(schema.branches.id, branchId)),
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, branchId),
+        ),
       );
 
     const country = branch?.country ?? "AR";

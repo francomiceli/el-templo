@@ -20,11 +20,12 @@ import {
 } from "../shared/date-utils";
 import { validateQrToken } from "../shared/qr-token";
 import { memberCoveredUntilSql } from "../shared/covered-until";
-import { tenantWhere, tenantValues, type TenantContext } from "../shared/tenant";
 import {
-  milestoneInWindow,
-  toUtcDateStr,
-} from "../shared/tenure-milestones";
+  tenantWhere,
+  tenantValues,
+  type TenantContext,
+} from "../shared/tenant";
+import { milestoneInWindow, toUtcDateStr } from "../shared/tenure-milestones";
 import { SubscriptionService } from "../subscriptions/service";
 import { AuraService } from "../aura/service";
 import type {
@@ -73,7 +74,10 @@ export class AttendanceService {
       .select({ timezone: schema.branches.timezone })
       .from(schema.branches)
       .where(
-        and(tenantWhere(schema.branches, ctx), eq(schema.branches.id, branchId)),
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, branchId),
+        ),
       );
 
     if (!branchRow) {
@@ -93,7 +97,9 @@ export class AttendanceService {
     const [scanningUser] = await this.db
       .select({ role: schema.users.role })
       .from(schema.users)
-      .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, memberId)));
+      .where(
+        and(tenantWhere(schema.users, ctx), eq(schema.users.id, memberId)),
+      );
 
     if (scanningUser?.role === "coach") {
       return this.coachSelfScan(ctx, memberId, branchId, tz);
@@ -152,6 +158,7 @@ export class AttendanceService {
     // expired subs, returns null = hard block).
     const subscription =
       await this.subscriptionService.pickSubscriptionForActivity(
+        ctx,
         memberId,
         isSpecialActivity,
       );
@@ -501,6 +508,7 @@ export class AttendanceService {
     // socios sin pase).
     const subscription =
       await this.subscriptionService.pickSubscriptionForActivity(
+        ctx,
         memberId,
         false,
       );
@@ -747,7 +755,9 @@ export class AttendanceService {
           ),
         )
         .groupBy(schema.attendance.memberId);
-      const prevByMember = new Map(prevRows.map((r) => [r.memberId, r.lastDate]));
+      const prevByMember = new Map(
+        prevRows.map((r) => [r.memberId, r.lastDate]),
+      );
 
       for (const [memberId, entry] of memberMap) {
         const createdAt = createdAtByMember.get(memberId);
@@ -847,6 +857,7 @@ export class AttendanceService {
     // Fase 161 (GATE-02): rutea a la sub del pase si la actividad es especial.
     const subscription =
       await this.subscriptionService.pickSubscriptionForActivity(
+        ctx,
         memberId,
         schedule.isSpecial,
       );
@@ -992,6 +1003,7 @@ export class AttendanceService {
     );
     const subscription =
       await this.subscriptionService.pickSubscriptionForActivity(
+        ctx ?? null,
         attRecord.memberId,
         isSpecialActivity,
       );
@@ -1122,7 +1134,10 @@ export class AttendanceService {
         .select({ level: schema.users.level })
         .from(schema.users)
         .where(
-          and(tenantWhere(schema.users, ctx), eq(schema.users.id, input.memberId)),
+          and(
+            tenantWhere(schema.users, ctx),
+            eq(schema.users.id, input.memberId),
+          ),
         );
       if (!user) return;
 

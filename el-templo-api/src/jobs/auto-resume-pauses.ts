@@ -46,10 +46,12 @@ const log = pino({ name: "auto-resume-pauses" });
  * `recomputeUserStatus` filtran `users`/`user_status_history`).
  * `autoExpireDueSubscriptions` SIGUE sin recibirlo: su `autoExpireSubscriptions`
  * interno es un helper compartido por `getMemberSubscriptions`/
- * `getMemberSubscriptionHistory`, consumidos por `scheduling/booking-service.ts`
- * y rutas member-facing de la app — fuera del alcance acotado D-02/D-09 de la
- * 173 (dueño fase 174). Con un solo tenant activo el resultado es IDÉNTICO al
- * de hoy en los tres barridos.
+ * `getMemberSubscriptionHistory`. Fase 174-06 (D-07): ese helper YA recibe
+ * `ctx` real por el camino member-facing (Task 1); acá recibe `null` a
+ * propósito — el barrido lee TODOS los gimnasios en una sola query porque
+ * itera tenants a nivel de LOOP acá, no de query (excepción `tenant-safe`
+ * formalizada por Task 2, ver `subscriptions/service.ts`). Con un solo tenant
+ * activo el resultado es IDÉNTICO al de hoy en los tres barridos.
  *
  * VENCIMIENTO de esta forma intermedia: mientras el cuerpo siga siendo global,
  * más de un tenant activo repetiría el MISMO barrido N veces. Por eso el gate

@@ -95,9 +95,10 @@ async function getDistinctBranchTimezones(
  * `forEachActiveTenant` resuelve la lista de `tenants` en cada corrida y aísla
  * los errores POR ITERACIÓN (D-03): un gimnasio roto no frena a los demás.
  *
- * D-02: el `ctx` NO baja a los services (el `SubscriptionService` que arma el
- * cuerpo mantiene su firma hasta 172-175). Con un solo tenant activo el
- * resultado es IDÉNTICO al de hoy.
+ * Fase 174-06 (D-07, saldada): `ctx` SÍ baja ahora a `pickSubscriptionForActivity`
+ * (el decremento de no-show rutea la sub correcta con el mismo `ctx` per-tenant
+ * que ya resuelve `runAutoResumePausesForTenant` más abajo). Con un solo
+ * tenant activo el resultado sigue siendo IDÉNTICO al de antes.
  *
  * VENCIMIENTO: mientras el cuerpo siga siendo global, más de un tenant activo
  * repetiría el MISMO barrido N veces. Por eso el gate del MILESTONE es que el
@@ -204,6 +205,7 @@ async function runMarkNoShowsForTenantTz(
   let decremented = 0;
   for (const { memberId, isSpecial, count } of memberCounts.values()) {
     const sub = await subscriptionService.pickSubscriptionForActivity(
+      ctx,
       memberId,
       isSpecial,
     );
