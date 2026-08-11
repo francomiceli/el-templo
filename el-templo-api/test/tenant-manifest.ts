@@ -481,6 +481,8 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   "GET /api/admin/subscriptions/members/:userId/subscription": {
     categoria: "tenant-scoped",
   },
+  "GET /api/admin/subscriptions/members/:userId/subscription/assign-proration-preview":
+    { categoria: "tenant-scoped" },
   "GET /api/admin/subscriptions/members/:userId/subscription/change-plan-preview":
     { categoria: "tenant-scoped" },
   "GET /api/admin/subscriptions/members/:userId/subscription/history": {
