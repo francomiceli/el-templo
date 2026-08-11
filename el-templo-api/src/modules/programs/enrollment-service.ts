@@ -32,7 +32,7 @@ import type { TxHandle } from "../finance/balance-service";
 import type { TransactionService } from "../finance/transaction-service";
 import type { PaymentMethod } from "../finance/types";
 import { auditLog } from "../shared/audit-log";
-import type { TenantContext } from "../shared/tenant";
+import { tenantValues, type TenantContext } from "../shared/tenant";
 import {
   BadRequestError,
   ConflictError,
@@ -404,21 +404,27 @@ export class EnrollmentService {
       }
 
       // Step 4 — insert the enrollment row.
+      //
+      // Fase 174-06 (D-02, one-liner): `tenantValues(ctx, {...})` — sin él,
+      // una inscripción legítima del gimnasio 2 nacía con `tenant_id` DEFAULT
+      // 1 (mass-assignment guard, `tenant.ts:163-166`).
       const insertResult = await txHandle
         .insert(schema.programEnrollments)
-        .values({
-          userId,
-          programId: input.programId,
-          status: "active",
-          currentWeek: 1,
-          sessionsCompletedThisWeek: 0,
-          weekUnlockedAt: new Date(),
-          source: "admin_addon",
-          subscriptionId,
-          pricePaid: input.pricePaid ?? null,
-          assignedBy: input.assignedBy,
-          notes: input.notes ?? null,
-        });
+        .values(
+          tenantValues(ctx, {
+            userId,
+            programId: input.programId,
+            status: "active",
+            currentWeek: 1,
+            sessionsCompletedThisWeek: 0,
+            weekUnlockedAt: new Date(),
+            source: "admin_addon",
+            subscriptionId,
+            pricePaid: input.pricePaid ?? null,
+            assignedBy: input.assignedBy,
+            notes: input.notes ?? null,
+          }),
+        );
       const enrollmentId = Number(
         (insertResult as unknown as Array<{ insertId: number }>)[0].insertId,
       );

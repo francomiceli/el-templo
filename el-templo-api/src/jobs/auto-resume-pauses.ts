@@ -49,8 +49,11 @@ const log = pino({ name: "auto-resume-pauses" });
  * `getMemberSubscriptionHistory`. Fase 174-06 (D-07): ese helper YA recibe
  * `ctx` real por el camino member-facing (Task 1); acá recibe `null` a
  * propósito — el barrido lee TODOS los gimnasios en una sola query porque
- * itera tenants a nivel de LOOP acá, no de query (excepción `tenant-safe`
- * formalizada por Task 2, ver `subscriptions/service.ts`). Con un solo tenant
+ * itera tenants a nivel de LOOP acá, no de query. Fase 174-06 (Task 2)
+ * formalizó esto como la ÚNICA excepción `tenant-safe` del camino D-07 (tag
+ * embebido en el SQL del `where` de `autoExpireDueSubscriptions`,
+ * T-174-06-A, `subscriptions/service.ts`) — no es un agujero silencioso, es
+ * la exención registrada para que 174.1 pueda ir strict. Con un solo tenant
  * activo el resultado es IDÉNTICO al de hoy en los tres barridos.
  *
  * VENCIMIENTO de esta forma intermedia: mientras el cuerpo siga siendo global,

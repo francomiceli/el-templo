@@ -2516,12 +2516,22 @@ export class SubscriptionService {
    */
   async autoExpireDueSubscriptions(): Promise<number> {
     const today = todayDateString();
+    // T-174-06-A (D-07): este barrido es DELIBERADAMENTE cross-tenant — recorre
+    // TODOS los gimnasios en una sola query (el job que lo invoca ya itera
+    // tenants a nivel de LOOP, no de query, ver auto-resume-pauses.ts). El
+    // comentario TS de acá exime al LINT (ancla AST); el MISMO tag se repite
+    // EMBEBIDO en el fragmento `sql` de abajo porque el sentinel solo lee el
+    // texto del SQL de runtime, nunca comentarios de fuente (convención 173,
+    // ver auth/routes.ts). Única excepción formalizada del camino D-07 —
+    // `autoExpireSubscriptions` (llamado por fila con `ctx = null`) usa Pattern
+    // D en sus propias lecturas.
+    /* tenant-safe: barrido cron genuinamente cross-tenant — auto-expire recorre todos los gimnasios, el job itera tenants a nivel de loop no de query */
     const due = await this.db
       .select({ userId: schema.subscriptions.userId })
       .from(schema.subscriptions)
       .where(
         and(
-          eq(schema.subscriptions.status, "active"),
+          sql`/* tenant-safe: barrido cron genuinamente cross-tenant — auto-expire recorre todos los gimnasios, el job itera tenants a nivel de loop no de query */ ${eq(schema.subscriptions.status, "active")}`,
           sql`${schema.subscriptions.endDate} < ${today}`,
         ),
       )
