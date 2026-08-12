@@ -328,6 +328,7 @@ export class AttendanceService {
           })
           .where(
             and(
+              tenantWhere(schema.subscriptions, ctx),
               eq(schema.subscriptions.id, subscription.id),
               sql`${schema.subscriptions.classesRemaining} > 0`,
             ),
@@ -338,7 +339,12 @@ export class AttendanceService {
       await tx
         .update(schema.bookings)
         .set({ status: "qr_escaneado" })
-        .where(eq(schema.bookings.id, matchingBooking.id));
+        .where(
+          and(
+            tenantWhere(schema.bookings, ctx),
+            eq(schema.bookings.id, matchingBooking.id),
+          ),
+        );
 
       return id;
     });
@@ -524,6 +530,7 @@ export class AttendanceService {
         })
         .where(
           and(
+            tenantWhere(schema.subscriptions, ctx),
             eq(schema.subscriptions.id, subscription.id),
             sql`${schema.subscriptions.classesRemaining} > 0`,
           ),
@@ -911,6 +918,7 @@ export class AttendanceService {
         })
         .where(
           and(
+            tenantWhere(schema.subscriptions, ctx),
             eq(schema.subscriptions.id, subscription.id),
             sql`${schema.subscriptions.classesRemaining} > 0`,
           ),
@@ -923,9 +931,16 @@ export class AttendanceService {
     // bookings table. The unique index on (member_id, schedule_id,
     // booking_date) means at most one row exists per tuple, so ON
     // DUPLICATE KEY UPDATE handles every prior state atomically.
+    //
+    // Fase 174.1 (174.1-02, hallazgo con-06-lint): `tenant_id` va como columna
+    // EXPLÍCITA desde `ctx.tenantId` — mismo patrón que
+    // `subscriptions/booking-population.ts` (T-174-01-T). Este INSERT crudo
+    // vía `sql` template no pasa por `tenantValues`; sin la columna la fila
+    // nace en el DEFAULT 1 de la tabla. Solo afecta la rama INSERT: si la fila
+    // ya existe, ON DUPLICATE KEY UPDATE no toca `tenant_id`.
     await this.db.execute(sql`
-      INSERT INTO bookings (member_id, schedule_id, booking_date, booking_status)
-      VALUES (${memberId}, ${scheduleId}, ${date}, 'confirmado')
+      INSERT INTO bookings (member_id, schedule_id, booking_date, booking_status, tenant_id)
+      VALUES (${memberId}, ${scheduleId}, ${date}, 'confirmado', ${ctx.tenantId})
       ON DUPLICATE KEY UPDATE
         cancelled_at = NULL,
         waitlist_position = NULL,
