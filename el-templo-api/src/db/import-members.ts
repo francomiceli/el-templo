@@ -557,7 +557,8 @@ async function main(): Promise<void> {
           name: subscriptionPlans.name,
           isArchived: subscriptionPlans.isArchived,
         })
-        .from(subscriptionPlans);
+        .from(subscriptionPlans)
+        .where(tenantWhere(subscriptionPlans, ctx));
 
     const planMappings = new Map<
       string,
@@ -750,17 +751,19 @@ async function main(): Promise<void> {
 
         const [result] = await db
           .insert(subscriptionPlans)
-          .values({
-            name: legacyName,
-            planCategory: "presencial",
-            planTier: "other",
-            bookingMode: "flexible",
-            priceRegular: 0,
-            priceZero: 0,
-            durationDays: 30,
-            isActive: false,
-            isArchived: true,
-          })
+          .values(
+            tenantValues(ctx, {
+              name: legacyName,
+              planCategory: "presencial",
+              planTier: "other",
+              bookingMode: "flexible",
+              priceRegular: 0,
+              priceZero: 0,
+              durationDays: 30,
+              isActive: false,
+              isArchived: true,
+            }),
+          )
           .$returningId();
 
         legacyPlanIdMap.set(legacyName, result.id);
@@ -771,7 +774,8 @@ async function main(): Promise<void> {
       // Rebuild full plan lookup (including newly created legacy plans)
       const allPlans: Array<{ id: number; name: string }> = await db
         .select({ id: subscriptionPlans.id, name: subscriptionPlans.name })
-        .from(subscriptionPlans);
+        .from(subscriptionPlans)
+        .where(tenantWhere(subscriptionPlans, ctx));
 
       // 2. Find owner for note authorId
       const [ownerUser] = await db
@@ -1020,6 +1024,7 @@ async function main(): Promise<void> {
               .set({ status: "cancelled" })
               .where(
                 and(
+                  tenantWhere(subscriptions, ctx),
                   eq(subscriptions.userId, userId),
                   ne(subscriptions.planId, planId),
                   ne(subscriptions.status, "cancelled"),
@@ -1036,6 +1041,7 @@ async function main(): Promise<void> {
               .from(subscriptions)
               .where(
                 and(
+                  tenantWhere(subscriptions, ctx),
                   eq(subscriptions.userId, userId),
                   eq(subscriptions.planId, planId),
                 ),
@@ -1045,17 +1051,19 @@ async function main(): Promise<void> {
             if (existingSub.length === 0) {
               const startDate =
                 m.fechaIngreso ?? new Date().toISOString().split("T")[0];
-              await db.insert(subscriptions).values({
-                userId,
-                planId,
-                branchId,
-                status,
-                startDate,
-                endDate: m.vencimiento,
-                pricePaid: 0,
-                priceTypeApplied: "regular",
-                notes: "Importado desde CSV",
-              });
+              await db.insert(subscriptions).values(
+                tenantValues(ctx, {
+                  userId,
+                  planId,
+                  branchId,
+                  status,
+                  startDate,
+                  endDate: m.vencimiento,
+                  pricePaid: 0,
+                  priceTypeApplied: "regular",
+                  notes: "Importado desde CSV",
+                }),
+              );
               subscriptionsCreated++;
             } else {
               const updateFields: Record<string, unknown> = {
@@ -1070,7 +1078,12 @@ async function main(): Promise<void> {
               await db
                 .update(subscriptions)
                 .set(updateFields)
-                .where(eq(subscriptions.id, existingSub[0].id));
+                .where(
+                  and(
+                    tenantWhere(subscriptions, ctx),
+                    eq(subscriptions.id, existingSub[0].id),
+                  ),
+                );
               subscriptionsUpdated++;
             }
           }
@@ -1081,6 +1094,7 @@ async function main(): Promise<void> {
             .set({ status: "cancelled" })
             .where(
               and(
+                tenantWhere(subscriptions, ctx),
                 eq(subscriptions.userId, userId),
                 ne(subscriptions.status, "cancelled"),
               ),

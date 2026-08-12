@@ -38,7 +38,7 @@ import {
   queryFnFromConnection,
   requireTenant,
 } from "./scripts/require-tenant.js";
-import { tenantWhere } from "../modules/shared/tenant.js";
+import { tenantValues, tenantWhere } from "../modules/shared/tenant.js";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -383,7 +383,7 @@ async function main(): Promise<void> {
         activityId: schedules.activityId,
       })
       .from(schedules)
-      .where(eq(schedules.isActive, true));
+      .where(and(tenantWhere(schedules, ctx), eq(schedules.isActive, true)));
     const scheduleLookup = new Map<string, number>();
     for (const s of allSchedules) {
       scheduleLookup.set(`${s.branchId}|${s.dayOfWeek}|${s.startTime}`, s.id);
@@ -418,6 +418,7 @@ async function main(): Promise<void> {
           .from(subscriptions)
           .where(
             and(
+              tenantWhere(subscriptions, ctx),
               inArray(subscriptions.userId, userIds),
               inArray(subscriptions.status, ["active", "paused"]),
             ),
@@ -449,7 +450,9 @@ async function main(): Promise<void> {
           bookingMode: subscriptionPlans.bookingMode,
         })
         .from(subscriptionPlans)
-        .where(inArray(subscriptionPlans.id, planIds));
+        .where(
+          and(tenantWhere(subscriptionPlans, ctx), inArray(subscriptionPlans.id, planIds)),
+        );
       for (const p of dbPlans) plansById.set(p.id, p);
     }
 
@@ -553,7 +556,10 @@ async function main(): Promise<void> {
         await db
           .delete(subscriptionSchedules)
           .where(
-            inArray(subscriptionSchedules.subscriptionId, processedSubIds),
+            and(
+              tenantWhere(subscriptionSchedules, ctx),
+              inArray(subscriptionSchedules.subscriptionId, processedSubIds),
+            ),
           );
       }
       if (processedMemberIds.length && minDate && maxDate) {
@@ -561,6 +567,7 @@ async function main(): Promise<void> {
           .delete(bookings)
           .where(
             and(
+              tenantWhere(bookings, ctx),
               inArray(bookings.memberId, processedMemberIds),
               gte(bookings.bookingDate, minDate),
               lte(bookings.bookingDate, maxDate),
@@ -595,10 +602,12 @@ async function main(): Promise<void> {
             continue;
           }
           try {
-            await db.insert(subscriptionSchedules).values({
-              subscriptionId: o.subscriptionId,
-              scheduleId,
-            });
+            await db.insert(subscriptionSchedules).values(
+              tenantValues(ctx, {
+                subscriptionId: o.subscriptionId,
+                scheduleId,
+              }),
+            );
             o.schedulesCreated++;
             fixedSlotsCreated++;
           } catch (err: unknown) {
@@ -622,12 +631,14 @@ async function main(): Promise<void> {
             continue;
           }
           try {
-            await db.insert(bookings).values({
-              memberId: o.userId,
-              scheduleId,
-              bookingDate: row.date,
-              status: "reservado",
-            });
+            await db.insert(bookings).values(
+              tenantValues(ctx, {
+                memberId: o.userId,
+                scheduleId,
+                bookingDate: row.date,
+                status: "reservado",
+              }),
+            );
             o.bookingsCreated++;
             bookingsCreated++;
           } catch (err: unknown) {

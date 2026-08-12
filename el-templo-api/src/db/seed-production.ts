@@ -227,7 +227,11 @@ async function seedProduction() {
     let plansCreated = 0;
     let plansUpdated = 0;
 
+    // Fase 174.1-05 (D-02): script global de seed sin `--tenant` — siembra la
+    // base ENTERA (todos los gimnasios), no un tenant explícito. Barrido
+    // cross-tenant genuino, molde `autoExpireDueSubscriptions` (174-06).
     for (const plan of plansData) {
+      /* tenant-safe: seed de producción global — siembra branches/plans/schedules operativos para TODOS los gimnasios por diseño, este script no recibe --tenant */
       const existing = await db
         .select({ id: subscriptionPlans.id })
         .from(subscriptionPlans)
@@ -235,10 +239,12 @@ async function seedProduction() {
         .limit(1);
 
       if (existing.length === 0) {
+        /* tenant-safe: seed de producción global — siembra branches/plans/schedules operativos para TODOS los gimnasios por diseño, este script no recibe --tenant */
         await db.insert(subscriptionPlans).values(plan);
         plansCreated++;
       } else {
         const { name: _name, ...updateData } = plan;
+        /* tenant-safe: seed de producción global — siembra branches/plans/schedules operativos para TODOS los gimnasios por diseño, este script no recibe --tenant */
         await db
           .update(subscriptionPlans)
           .set(updateData)
@@ -311,6 +317,9 @@ async function seedProduction() {
       ];
 
       for (const slot of allSlots) {
+        // Fase 174.1-05 (D-02): mismo motivo que el bloque de `subscriptionPlans`
+        // de más arriba — seed global sin `--tenant`.
+        /* tenant-safe: seed de producción global — siembra branches/plans/schedules operativos para TODOS los gimnasios por diseño, este script no recibe --tenant */
         const existing = await db
           .select({ id: schedules.id })
           .from(schedules)
@@ -325,6 +334,7 @@ async function seedProduction() {
           .limit(1);
 
         if (existing.length === 0) {
+          /* tenant-safe: seed de producción global — siembra branches/plans/schedules operativos para TODOS los gimnasios por diseño, este script no recibe --tenant */
           await db.insert(schedules).values(slot);
           schedulesCreated++;
         } else {

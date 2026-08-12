@@ -376,7 +376,9 @@ async function main(): Promise<void> {
         currency: subscriptions.currency,
       })
       .from(subscriptions)
-      .where(inArray(subscriptions.id, subIds));
+      .where(
+        and(tenantWhere(subscriptions, ctx), inArray(subscriptions.id, subIds)),
+      );
     const foundSubIds = new Set(existingSubs.map((s) => s.id));
     const missingSubs = subIds.filter((id) => !foundSubIds.has(id));
     if (missingSubs.length > 0) {

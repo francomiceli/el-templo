@@ -33,7 +33,7 @@ import {
   queryFnFromConnection,
   requireTenant,
 } from "./scripts/require-tenant.js";
-import { tenantWhere } from "../modules/shared/tenant.js";
+import { tenantValues, tenantWhere } from "../modules/shared/tenant.js";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -292,7 +292,8 @@ async function main(): Promise<void> {
 
     const dbPlans = await db
       .select({ id: subscriptionPlans.id, name: subscriptionPlans.name })
-      .from(subscriptionPlans);
+      .from(subscriptionPlans)
+      .where(tenantWhere(subscriptionPlans, ctx));
 
     const existingUsers: Array<{
       id: number;
@@ -368,7 +369,12 @@ async function main(): Promise<void> {
               notes: subscriptions.notes,
             })
             .from(subscriptions)
-            .where(inArray(subscriptions.userId, vigentesUserIds))
+            .where(
+              and(
+                tenantWhere(subscriptions, ctx),
+                inArray(subscriptions.userId, vigentesUserIds),
+              ),
+            )
         : [];
 
     // Index existing subs by "userId:planId:endDate"
@@ -496,22 +502,29 @@ async function main(): Promise<void> {
                   branchId: rowBranchId,
                   notes: "Importado desde CSV (vigentes)",
                 })
-                .where(eq(subscriptions.id, existing.id));
+                .where(
+                  and(
+                    tenantWhere(subscriptions, ctx),
+                    eq(subscriptions.id, existing.id),
+                  ),
+                );
               subscriptionsUpdated++;
             }
           } else {
             // Create new subscription
-            await db.insert(subscriptions).values({
-              userId: user.id,
-              planId,
-              branchId: rowBranchId,
-              status,
-              startDate: row.startDate,
-              endDate: row.endDate,
-              pricePaid: 0,
-              priceTypeApplied: priceType,
-              notes: "Importado desde CSV (vigentes)",
-            });
+            await db.insert(subscriptions).values(
+              tenantValues(ctx, {
+                userId: user.id,
+                planId,
+                branchId: rowBranchId,
+                status,
+                startDate: row.startDate,
+                endDate: row.endDate,
+                pricePaid: 0,
+                priceTypeApplied: priceType,
+                notes: "Importado desde CSV (vigentes)",
+              }),
+            );
             subscriptionsCreated++;
           }
         }
