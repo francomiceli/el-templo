@@ -306,7 +306,10 @@ export class RatingsService {
    *
    * Exposes NOTHING about the coach (D-A3).
    */
-  async getPendingRating(memberId: number): Promise<PendingRating | null> {
+  async getPendingRating(
+    ctx: TenantContext,
+    memberId: number,
+  ): Promise<PendingRating | null> {
     const now = Date.now();
 
     // Candidate in-person classes: confirmed attendance with a schedule (the
@@ -324,7 +327,10 @@ export class RatingsService {
       .from(schema.attendance)
       .innerJoin(
         schema.schedules,
-        eq(schema.schedules.id, schema.attendance.scheduleId),
+        and(
+          tenantWhere(schema.schedules, ctx),
+          eq(schema.schedules.id, schema.attendance.scheduleId),
+        ),
       )
       .innerJoin(
         schema.activities,
@@ -398,6 +404,7 @@ export class RatingsService {
    * (D-Q1) and enforces every server-side guard before inserting.
    */
   async submitRating(
+    ctx: TenantContext,
     memberId: number,
     input: SubmitRatingInput,
   ): Promise<void> {
@@ -427,7 +434,10 @@ export class RatingsService {
       .from(schema.attendance)
       .innerJoin(
         schema.schedules,
-        eq(schema.schedules.id, schema.attendance.scheduleId),
+        and(
+          tenantWhere(schema.schedules, ctx),
+          eq(schema.schedules.id, schema.attendance.scheduleId),
+        ),
       )
       .where(
         and(

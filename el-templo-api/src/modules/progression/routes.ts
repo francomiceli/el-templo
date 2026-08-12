@@ -243,6 +243,12 @@ export const progressionRoutes: FastifyPluginAsync = async (fastify) => {
     async (request) => {
       const { userId } = request.user;
 
+      // Fase 174.1-04 (D-02): `subscriptions`/`subscription_plans` son tablas
+      // del boundary de scheduling/subs. El ctx sale de la propia fila del
+      // socio autenticado, mismo patron que progression.stats arriba.
+      await attachCountryScope(request, fastify.db);
+      const ctx = assertTenant(request.scope, "progression.weekly-summary");
+
       // Calculate current Mon-Sun week boundaries
       const now = new Date();
       const dayOfWeek = now.getDay(); // 0=Sun, 1=Mon...
@@ -289,6 +295,7 @@ export const progressionRoutes: FastifyPluginAsync = async (fastify) => {
           )
           .where(
             and(
+              tenantWhere(schema.subscriptions, ctx),
               eq(schema.subscriptions.userId, userId),
               eq(schema.subscriptions.status, "active"),
             ),

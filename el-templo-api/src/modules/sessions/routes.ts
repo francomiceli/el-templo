@@ -231,6 +231,7 @@ async function resolveSessionView(
     )
     .where(
       and(
+        tenantWhere(schema.subscriptions, ctx),
         eq(schema.subscriptions.userId, userId),
         or(
           eq(schema.subscriptions.status, "active"),
